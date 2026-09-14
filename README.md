@@ -1,11 +1,28 @@
 # STAR NET Browser
 
-Internal Android application for managing authorized STAR NET Starlink accounts.
+تطبيق Android داخلي لإدارة حسابات Starlink المصرح بها، مع نافذة وجلسة WebView منفصلة لكل حساب.
 
-## Authorized scope
+## النسخة الأولى
 
-- Isolated WebView profile for each authorized account
-- Read-only extraction of visible account information after valid sign-in
-- No payments, plan changes, account modifications, bypasses, or private APIs
-- Extracted data is encrypted and stored locally on the Android device only
-- Internal STAR NET use only
+- تسمية كل نافذة حساب
+- حفظ البريد والكود وWi‑Fi وKIT وSerial ورقم الاشتراك والملاحظات
+- إظهار وإخفاء البيانات الحساسة
+- تشفير AES‑GCM محلي بمفتاح محفوظ في Android Keystore
+- ملف WebView مستقل لكل حساب عبر AndroidX WebKit Multi‑Profile
+- قراءة تلقائية للبيانات الظاهرة في صفحة Starlink بعد تسجيل الدخول الصحيح
+- قراءة الرصيد، تاريخ Standby، حالتي STARLINK وWi‑Fi، سبب التنبيه، KIT، Serial، وآخر تحديث
+- لا ترسل البيانات إلى أي خادم خارجي
+
+## النطاق المصرح
+
+- قراءة فقط للحسابات المملوكة للشركة والمصرح بها
+- لا دفع ولا تغيير خطة أو بيانات حساب
+- لا تجاوز CAPTCHA أو التحقق الأمني
+- لا استخدام API خاص أو غير معلن
+- لا اعتراض لطلبات الشبكة
+- الجلسات والبيانات تبقى محليًا على الهاتف
+
+## البناء
+
+GitHub Actions يبني ملف APK تجريبيًا تلقائيًا. افتح تبويب Actions ثم اختر آخر تشغيل ونزّل
+STAR-NET-Browser-debug.
