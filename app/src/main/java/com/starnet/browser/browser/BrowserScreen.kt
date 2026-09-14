@@ -69,10 +69,17 @@ fun BrowserScreen(
     var progress by remember { mutableIntStateOf(0) }
     val handler = remember { Handler(Looper.getMainLooper()) }
 
-    fun readLater(view: WebView) {
-        listOf(800L, 2500L, 6000L).forEach { delay ->
+    fun inspectLater(view: WebView) {
+        listOf(300L, 900L, 2200L, 5500L).forEach { delay ->
             handler.postDelayed({
-                if (view.isAttachedToWindow) StarlinkPageReader.read(view, onSnapshot)
+                if (view.isAttachedToWindow) {
+                    StarlinkPageReader.autofillLogin(
+                        view,
+                        account.email,
+                        account.emailSecret
+                    )
+                    StarlinkPageReader.read(view, onSnapshot)
+                }
             }, delay)
         }
     }
@@ -94,7 +101,10 @@ fun BrowserScreen(
                 style = MaterialTheme.typography.titleMedium
             )
             OutlinedButton(onClick = {
-                webView?.let { StarlinkPageReader.read(it, onSnapshot) }
+                webView?.let {
+                    StarlinkPageReader.autofillLogin(it, account.email, account.emailSecret)
+                    StarlinkPageReader.read(it, onSnapshot)
+                }
             }) { Text("قراءة الآن") }
             Button(onClick = { webView?.reload() }) { Text("تحديث") }
         }
@@ -147,7 +157,7 @@ fun BrowserScreen(
                         }
 
                         override fun onPageFinished(view: WebView, url: String?) {
-                            readLater(view)
+                            inspectLater(view)
                         }
                     }
                     webView = this

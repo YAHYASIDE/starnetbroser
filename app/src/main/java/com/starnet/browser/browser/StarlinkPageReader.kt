@@ -98,6 +98,37 @@ object StarlinkPageReader {
         })();
     """.trimIndent()
 
+    fun autofillLogin(webView: WebView, email: String, password: String) {
+        if (email.isBlank() && password.isBlank()) return
+        val host = runCatching { android.net.Uri.parse(webView.url).host.orEmpty() }
+            .getOrDefault("")
+        if (!(host == "starlink.com" || host.endsWith(".starlink.com"))) return
+
+        val autofillScript = """
+            (function(email, password) {
+              const setValue = (element, value) => {
+                if (!element || !value) return;
+                const setter = Object.getOwnPropertyDescriptor(
+                  window.HTMLInputElement.prototype, 'value'
+                ).set;
+                setter.call(element, value);
+                element.dispatchEvent(new Event('input', { bubbles: true }));
+                element.dispatchEvent(new Event('change', { bubbles: true }));
+              };
+              const emailInput = document.querySelector(
+                'input[type="email"], input[autocomplete="username"], input[name*="email" i]'
+              );
+              const passwordInput = document.querySelector(
+                'input[type="password"], input[autocomplete="current-password"]'
+              );
+              setValue(emailInput, email);
+              setValue(passwordInput, password);
+              return Boolean(emailInput || passwordInput);
+            })(${JSONObject.quote(email)}, ${JSONObject.quote(password)});
+        """.trimIndent()
+        webView.evaluateJavascript(autofillScript, null)
+    }
+
     fun read(webView: WebView, onResult: (PageSnapshot) -> Unit) {
         val host = runCatching { android.net.Uri.parse(webView.url).host.orEmpty() }
             .getOrDefault("")
