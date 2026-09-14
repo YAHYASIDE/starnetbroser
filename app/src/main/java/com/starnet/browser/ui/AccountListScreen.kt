@@ -45,7 +45,9 @@ fun AccountListScreen(
     val filtered = accounts.filter {
         search.isBlank() ||
             it.name.contains(search, ignoreCase = true) ||
+            it.deviceName.contains(search, ignoreCase = true) ||
             it.kitNumber.contains(search, ignoreCase = true) ||
+            it.serialNumber.contains(search, ignoreCase = true) ||
             it.email.contains(search, ignoreCase = true)
     }
 
@@ -63,7 +65,7 @@ fun AccountListScreen(
         OutlinedTextField(
             value = search,
             onValueChange = { search = it },
-            label = { Text("بحث بالاسم أو KIT أو البريد") },
+            label = { Text("بحث بالاسم أو KIT أو Serial أو البريد") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth().padding(12.dp)
         )
@@ -122,18 +124,23 @@ private fun AccountCard(
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
-            verticalArrangement = Arrangement.spacedBy(9.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.padding(14.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(account.name, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                Column(Modifier.weight(1f)) {
+                    Text(account.name, style = MaterialTheme.typography.titleLarge)
+                    if (account.deviceName.isNotBlank()) {
+                        Text("اسم الجهاز: ${account.deviceName}", color = Color(0xFF275E4A))
+                    }
+                }
                 TextButton(onClick = onReveal) {
-                    Text(if (revealed) "إخفاء" else "إظهار")
+                    Text(if (revealed) "إخفاء" else "إظهار الكل")
                 }
             }
-            if (endDate.isNotBlank()) {
-                Text("ينتهي يوم $endDate", color = Color(0xFF7B4D00))
-            }
+            if (endDate.isNotBlank()) Text("ينتهي يوم $endDate", color = Color(0xFF7B4D00))
+            if (account.planName.isNotBlank()) Text("الخطة: ${account.planName}")
+            if (account.serviceStatus.isNotBlank()) Text("حالة الخدمة: ${account.serviceStatus}")
             Text(
                 when {
                     account.balanceDue.isBlank() -> "الرصيد: لم تتم قراءته"
@@ -155,14 +162,22 @@ private fun AccountCard(
                 SensitiveLine("البريد", account.email)
                 SensitiveLine("كود البريد", account.emailSecret)
                 SensitiveLine("كود Wi‑Fi", account.wifiCode)
+                SensitiveLine("رقم الحساب", account.accountNumber)
+                SensitiveLine("رقم الاشتراك", account.subscriptionId)
                 SensitiveLine("KIT", account.kitNumber)
                 SensitiveLine("Serial", account.serialNumber)
-                if (account.notes.isNotBlank()) SensitiveLine("ملاحظات", account.notes)
+                SensitiveLine("معرف Starlink", account.starlinkId)
+                SensitiveLine("دورة الفوترة", account.billingPeriod)
+                SensitiveLine("استحقاق الدفع", account.paymentDueDate)
+                SensitiveLine("موقع الخدمة", account.serviceLocation)
+                SensitiveLine("إصدار البرنامج", account.softwareVersion)
+                SensitiveLine("مدة التشغيل", account.uptime)
+                SensitiveLine("ملاحظات", account.notes)
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = onOpen, modifier = Modifier.weight(1f)) {
-                    Text("فتح الحساب")
+                    Text("فتح وفحص الحساب")
                 }
                 OutlinedButton(onClick = onEdit) { Text("تعديل") }
             }

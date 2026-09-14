@@ -67,21 +67,23 @@ fun BrowserScreen(
 
     var webView by remember { mutableStateOf<WebView?>(null) }
     var progress by remember { mutableIntStateOf(0) }
+    var scanInitialized by remember { mutableStateOf(false) }
     val handler = remember { Handler(Looper.getMainLooper()) }
 
-    fun inspectLater(view: WebView) {
-        listOf(300L, 900L, 2200L, 5500L).forEach { delay ->
+    fun inspectPage(view: WebView) {
+        listOf(350L, 1100L, 2600L).forEach { delay ->
             handler.postDelayed({
                 if (view.isAttachedToWindow) {
-                    StarlinkPageReader.autofillLogin(
-                        view,
-                        account.email,
-                        account.emailSecret
-                    )
+                    StarlinkPageReader.autofillLogin(view, account.email, account.emailSecret)
                     StarlinkPageReader.read(view, onSnapshot)
                 }
             }, delay)
         }
+        handler.postDelayed({
+            if (view.isAttachedToWindow) {
+                StarlinkPageReader.visitNextReadOnlyPage(view)
+            }
+        }, 3400L)
     }
 
     BackHandler {
@@ -91,23 +93,27 @@ fun BrowserScreen(
 
     Column(Modifier.fillMaxSize()) {
         Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
             modifier = Modifier.fillMaxWidth().padding(8.dp)
         ) {
             OutlinedButton(onClick = onBack) { Text("رجوع") }
             Text(
                 account.name,
                 modifier = Modifier.weight(1f).padding(top = 12.dp),
-                style = MaterialTheme.typography.titleMedium
+                style = MaterialTheme.typography.titleSmall
             )
-            OutlinedButton(onClick = {
+            Button(onClick = {
                 webView?.let {
-                    StarlinkPageReader.autofillLogin(it, account.email, account.emailSecret)
-                    StarlinkPageReader.read(it, onSnapshot)
+                    StarlinkPageReader.resetFullScan(it)
+                    it.loadUrl(STARLINK_ACCOUNT_URL)
                 }
-            }) { Text("قراءة الآن") }
-            Button(onClick = { webView?.reload() }) { Text("تحديث") }
+            }) { Text("فحص شامل") }
         }
+        Text(
+            "بعد تسجيل الدخول انتظر قليلًا؛ سيجمع التطبيق معلومات صفحات العرض تلقائيًا.",
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 3.dp),
+            style = MaterialTheme.typography.bodySmall
+        )
         if (progress in 1..99) {
             LinearProgressIndicator(
                 progress = { progress / 100f },
@@ -157,7 +163,11 @@ fun BrowserScreen(
                         }
 
                         override fun onPageFinished(view: WebView, url: String?) {
-                            inspectLater(view)
+                            if (!scanInitialized) {
+                                StarlinkPageReader.resetFullScan(view)
+                                scanInitialized = true
+                            }
+                            inspectPage(view)
                         }
                     }
                     webView = this

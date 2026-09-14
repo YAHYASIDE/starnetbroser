@@ -39,12 +39,22 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             kitNumber = snapshot.kitNumber.ifBlank { current.kitNumber },
             serialNumber = snapshot.serialNumber.ifBlank { current.serialNumber },
             subscriptionId = snapshot.subscriptionId.ifBlank { current.subscriptionId },
+            accountNumber = snapshot.accountNumber.ifBlank { current.accountNumber },
+            deviceName = snapshot.deviceName.ifBlank { current.deviceName },
+            starlinkId = snapshot.starlinkId.ifBlank { current.starlinkId },
             dishStatus = snapshot.dishStatus.takeUnless { it == DeviceStatus.UNKNOWN }
                 ?: current.dishStatus,
             wifiStatus = snapshot.wifiStatus.takeUnless { it == DeviceStatus.UNKNOWN }
                 ?: current.wifiStatus,
             alertReason = snapshot.alertReason.ifBlank { current.alertReason },
-            lastUpdated = snapshot.lastUpdated.ifBlank { current.lastUpdated }
+            lastUpdated = snapshot.lastUpdated.ifBlank { current.lastUpdated },
+            planName = snapshot.planName.ifBlank { current.planName },
+            serviceStatus = snapshot.serviceStatus.ifBlank { current.serviceStatus },
+            serviceLocation = snapshot.serviceLocation.ifBlank { current.serviceLocation },
+            billingPeriod = snapshot.billingPeriod.ifBlank { current.billingPeriod },
+            paymentDueDate = snapshot.paymentDueDate.ifBlank { current.paymentDueDate },
+            softwareVersion = snapshot.softwareVersion.ifBlank { current.softwareVersion },
+            uptime = snapshot.uptime.ifBlank { current.uptime }
         )
         upsert(updated)
     }
