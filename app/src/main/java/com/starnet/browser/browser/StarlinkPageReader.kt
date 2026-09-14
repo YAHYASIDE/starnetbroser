@@ -333,39 +333,6 @@ object StarlinkPageReader {
                 return 'VISIT:' + next;
               }
 
-              if (!state.menuOpened) {
-                const menu = [...document.querySelectorAll('button,[role="button"]')].find(e => {
-                  const label = (e.getAttribute('aria-label') || e.getAttribute('title') ||
-                    e.innerText || '').trim();
-                  return /^(menu|open menu|navigation|القائمة|فتح القائمة)$/i.test(label);
-                });
-                state.menuOpened = true;
-                sessionStorage.setItem(key, JSON.stringify(state));
-                if (menu) {
-                  menu.click();
-                  return 'MENU';
-                }
-              }
-
-              const safeLabels = [
-                'billing','invoices','subscriptions','service lines','starlink','network',
-                'الفواتير','الاشتراكات','خطوط الخدمة','ستارلينك','الشبكة'
-              ];
-              const controls = [...document.querySelectorAll('a,button,[role="link"],[role="button"]')];
-              for (const wanted of safeLabels) {
-                if (state.clicked.includes(wanted)) continue;
-                const element = controls.find(e => {
-                  const label = (e.innerText || e.getAttribute('aria-label') ||
-                    e.getAttribute('title') || '').replace(/s+/g, ' ').trim().toLowerCase();
-                  return label === wanted;
-                });
-                state.clicked.push(wanted);
-                sessionStorage.setItem(key, JSON.stringify(state));
-                if (element) {
-                  element.click();
-                  return 'CLICK:' + wanted;
-                }
-              }
               return 'DONE';
             })();
         """.trimIndent()

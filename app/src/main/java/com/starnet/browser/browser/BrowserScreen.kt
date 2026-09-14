@@ -2,22 +2,27 @@ package com.starnet.browser.browser
 
 import android.annotation.SuppressLint
 import android.content.Intent
-import android.os.Handler
-import android.os.Looper
+import android.graphics.Color as AndroidColor
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.weight
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -31,6 +36,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -68,43 +74,63 @@ fun BrowserScreen(
 
     var webView by remember { mutableStateOf<WebView?>(null) }
     var progress by remember { mutableIntStateOf(0) }
-    var scanMessage by remember { mutableStateOf("جاري تجهيز الفحص…") }
+    var pageVisible by remember { mutableStateOf(false) }
+    var scanMessage by remember { mutableStateOf("جاري فتح Starlink…") }
     var foundData by remember { mutableStateOf(false) }
+    var scanRequested by remember { mutableStateOf(false) }
     val currentAccount by rememberUpdatedState(account)
     val currentOnSnapshot by rememberUpdatedState(onSnapshot)
-    val handler = remember { Handler(Looper.getMainLooper()) }
 
     BackHandler {
         val view = webView
         if (view?.canGoBack() == true) view.goBack() else onBack()
     }
 
-    Column(Modifier.fillMaxSize()) {
+    Column(
+        modifier = Modifier.fillMaxSize().background(Color(0xFFF3F7F5))
+    ) {
         Row(
+            verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier.fillMaxWidth().padding(8.dp)
+            modifier = Modifier.fillMaxWidth().background(Color(0xFF07130F)).padding(8.dp)
         ) {
-            OutlinedButton(onClick = onBack) { Text("رجوع") }
+            OutlinedButton(onClick = onBack) { Text("رجوع", color = Color.White) }
             Text(
                 account.name,
-                modifier = Modifier.weight(1f).padding(top = 12.dp),
+                color = Color.White,
+                modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.titleSmall
             )
-            Button(onClick = {
-                webView?.let {
-                    foundData = false
-                    scanMessage = "بدأ فحص شامل جديد…"
-                    StarlinkPageReader.resetFullScan(it)
-                    it.loadUrl(STARLINK_ACCOUNT_URL)
-                }
-            }) { Text("فحص شامل") }
+            OutlinedButton(onClick = {
+                pageVisible = false
+                scanMessage = "جاري إعادة تحميل الصفحة…"
+                webView?.reload()
+            }) { Text("تحديث", color = Color.White) }
         }
-        Text(
-            scanMessage,
-            color = if (foundData) Color(0xFF0D7B4A) else Color(0xFF6E5A20),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 3.dp),
-            style = MaterialTheme.typography.bodySmall
-        )
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 5.dp)
+        ) {
+            Text(
+                scanMessage,
+                color = if (foundData) Color(0xFF0D7B4A) else Color(0xFF6E5A20),
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodySmall
+            )
+            Button(onClick = {
+                foundData = false
+                scanRequested = true
+                scanMessage = "بدأ الفحص الشامل؛ اترك النافذة مفتوحة…"
+                webView?.let {
+                    StarlinkPageReader.resetFullScan(it)
+                    if (it.url.isNullOrBlank() || it.url == "about:blank") {
+                        it.loadUrl(STARLINK_ACCOUNT_URL)
+                    }
+                }
+            }) { Text("فحص") }
+        }
+
         if (progress in 1..99) {
             LinearProgressIndicator(
                 progress = { progress / 100f },
@@ -112,55 +138,108 @@ fun BrowserScreen(
             )
         }
 
-        AndroidView(
-            modifier = Modifier.fillMaxSize(),
-            factory = { context ->
-                WebView(context).apply {
-                    val profileName = "starnet_" + account.id.replace("-", "")
-                    WebViewCompat.setProfile(this, profileName)
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    settings.allowFileAccess = false
-                    settings.allowContentAccess = false
-                    settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
-                    settings.javaScriptCanOpenWindowsAutomatically = false
-                    settings.setSupportMultipleWindows(false)
-                    CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.weight(1f).fillMaxWidth().background(Color(0xFF111111))
+        ) {
+            AndroidView(
+                modifier = Modifier.fillMaxSize(),
+                factory = { context ->
+                    WebView(context).apply {
+                        setBackgroundColor(AndroidColor.BLACK)
+                        val profileName = "starnet_" + account.id.replace("-", "")
+                        WebViewCompat.setProfile(this, profileName)
+                        settings.javaScriptEnabled = true
+                        settings.domStorageEnabled = true
+                        settings.allowFileAccess = false
+                        settings.allowContentAccess = false
+                        settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+                        settings.javaScriptCanOpenWindowsAutomatically = false
+                        settings.setSupportMultipleWindows(false)
+                        settings.cacheMode = WebSettings.LOAD_DEFAULT
+                        CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
 
-                    webChromeClient = object : WebChromeClient() {
-                        override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                            progress = newProgress
-                        }
-                    }
-                    webViewClient = object : WebViewClient() {
-                        override fun shouldOverrideUrlLoading(
-                            view: WebView,
-                            request: WebResourceRequest
-                        ): Boolean {
-                            val host = request.url.host.orEmpty()
-                            if (host == "starlink.com" || host.endsWith(".starlink.com")) return false
-                            runCatching {
-                                context.startActivity(Intent(Intent.ACTION_VIEW, request.url))
+                        webChromeClient = object : WebChromeClient() {
+                            override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                                progress = newProgress
                             }
-                            return true
                         }
+                        webViewClient = object : WebViewClient() {
+                            override fun shouldOverrideUrlLoading(
+                                view: WebView,
+                                request: WebResourceRequest
+                            ): Boolean {
+                                val host = request.url.host.orEmpty()
+                                if (host == "starlink.com" || host.endsWith(".starlink.com")) {
+                                    return false
+                                }
+                                runCatching {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, request.url))
+                                }
+                                return true
+                            }
 
-                        override fun onPageFinished(view: WebView, url: String?) {
-                            progress = 100
+                            override fun onPageStarted(view: WebView, url: String?, favicon: android.graphics.Bitmap?) {
+                                pageVisible = false
+                                progress = 1
+                                scanMessage = "جاري تحميل صفحة Starlink…"
+                            }
+
+                            override fun onPageCommitVisible(view: WebView, url: String?) {
+                                pageVisible = true
+                                scanMessage = "تم فتح الصفحة — سجّل الدخول أو اضغط فحص"
+                            }
+
+                            override fun onPageFinished(view: WebView, url: String?) {
+                                pageVisible = true
+                                progress = 100
+                                if (!foundData) scanMessage = "الصفحة جاهزة — تتم محاولة القراءة تلقائيًا"
+                            }
+
+                            override fun onReceivedError(
+                                view: WebView,
+                                request: WebResourceRequest,
+                                error: WebResourceError
+                            ) {
+                                if (request.isForMainFrame) {
+                                    pageVisible = false
+                                    scanMessage = "خطأ تحميل: " + error.description
+                                }
+                            }
+
+                            override fun onReceivedHttpError(
+                                view: WebView,
+                                request: WebResourceRequest,
+                                errorResponse: WebResourceResponse
+                            ) {
+                                if (request.isForMainFrame) {
+                                    scanMessage = "رفضت الصفحة التحميل: HTTP " + errorResponse.statusCode
+                                }
+                            }
                         }
+                        webView = this
+                        loadUrl(STARLINK_ACCOUNT_URL)
                     }
-                    webView = this
-                    loadUrl(STARLINK_ACCOUNT_URL)
+                },
+                update = { webView = it }
+            )
+
+            if (!pageVisible) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(color = Color(0xFF19A463))
+                    Text(
+                        "جاري فتح Starlink…",
+                        color = Color.White,
+                        modifier = Modifier.padding(top = 12.dp)
+                    )
                 }
-            },
-            update = { webView = it }
-        )
+            }
+        }
     }
 
     DisposableEffect(webView) {
         val view = webView
         if (view == null) return@DisposableEffect onDispose {}
-        StarlinkPageReader.resetFullScan(view)
         var ticks = 0
         val poller = object : Runnable {
             override fun run() {
@@ -177,18 +256,20 @@ fun BrowserScreen(
                 StarlinkPageReader.read(view) { snapshot ->
                     if (StarlinkPageReader.hasData(snapshot)) {
                         foundData = true
-                        scanMessage = "تم استخراج معلومات وحفظها — يستمر الفحص لبقية الصفحات"
+                        scanRequested = true
+                        scanMessage = "تم استخراج معلومات وحفظها"
                         currentOnSnapshot(snapshot)
                     }
                 }
-                if (ticks % 4 == 0) StarlinkPageReader.visitNextReadOnlyPage(view)
-                handler.postDelayed(this, 1600L)
+                if (scanRequested && ticks % 5 == 0) {
+                    StarlinkPageReader.visitNextReadOnlyPage(view)
+                }
+                view.postDelayed(this, 3000L)
             }
         }
-        handler.post(poller)
+        view.post(poller)
         onDispose {
-            handler.removeCallbacks(poller)
-            handler.removeCallbacksAndMessages(null)
+            view.removeCallbacks(poller)
             view.stopLoading()
             view.webChromeClient = null
             view.webViewClient = WebViewClient()
