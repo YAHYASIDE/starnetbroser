@@ -1,8 +1,8 @@
 name: Build Android APK
 
 on:
-  push:
-    branches: [main, codex/initial-android-app]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
