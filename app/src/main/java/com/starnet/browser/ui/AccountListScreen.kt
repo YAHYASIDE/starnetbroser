@@ -235,13 +235,64 @@ private fun AccountDetailsDialog(
     }
 }
 
+private val ENGLISH_MONTHS = listOf(
+    "january", "february", "march", "april", "may", "june",
+    "july", "august", "september", "october", "november", "december"
+)
+private val ARABIC_MONTHS = listOf(
+    "يناير", "فبراير", "مارس", "أبريل", "ابريل", "مايو", "يونيو",
+    "يوليو", "أغسطس", "اغسطس", "سبتمبر", "أكتوبر", "اكتوبر", "نوفمبر", "ديسمبر"
+)
+
+/**
+ * Extracts the day-of-month (1..31) an account expires/renews on, from any of:
+ *  - a bare day number: "28"
+ *  - an ISO-ish date: "2026/10/13" (year-month-day)
+ *  - a Starlink-style date: "10/13/2026" (month-day-year)
+ *  - a written date: "October 13, 2026" or "13 أكتوبر 2026"
+ */
 private fun expiryDay(value: String): Int? {
     val text = value.trim()
-    Regex("""^d{4}[-/]d{1,2}[-/](d{1,2})""").find(text)
-        ?.groupValues?.getOrNull(1)?.toIntOrNull()?.takeIf { it in 1..31 }?.let { return it }
-    Regex("""^d{1,2}[-/](d{1,2})[-/]d{4}""").find(text)
-        ?.groupValues?.getOrNull(1)?.toIntOrNull()?.takeIf { it in 1..31 }?.let { return it }
-    Regex("""([12]?d|3[01])""").findAll(text).mapNotNull {
+    if (text.isBlank()) return null
+
+    // 2026/10/13 or 2026-10-13 (year first) -> day is the 3rd group.
+    Regex("""^(\d{4})[-/](\d{1,2})[-/](\d{1,2})\b""").find(text)?.let { m ->
+        val day = m.groupValues[3].toIntOrNull()
+        if (day in 1..31) return day
+    }
+
+    // 10/13/2026 (Starlink's usual month/day/year) or day/month/year ->
+    // whichever of the first two groups can't be a valid month (>12) is the day.
+    Regex("""^(\d{1,2})[-/](\d{1,2})[-/](\d{4})\b""").find(text)?.let { m ->
+        val first = m.groupValues[1].toIntOrNull()
+        val second = m.groupValues[2].toIntOrNull()
+        val day = when {
+            first != null && first > 12 -> first
+            second != null && second > 12 -> second
+            second != null -> second // MM/DD/YYYY, Starlink's usual format
+            else -> first
+        }
+        if (day in 1..31) return day
+    }
+
+    // "October 13, 2026" / "Oct 13 2026"
+    Regex("(?i)\\b(" + ENGLISH_MONTHS.joinToString("|") + ")[a-z]*\\.?\\s+(\\d{1,2})\\b")
+        .find(text)?.let { m ->
+            val day = m.groupValues[2].toIntOrNull()
+            if (day in 1..31) return day
+        }
+
+    // "13 أكتوبر 2026"
+    Regex("(\\d{1,2})\\s+(" + ARABIC_MONTHS.joinToString("|") + ")")
+        .find(text)?.let { m ->
+            val day = m.groupValues[1].toIntOrNull()
+            if (day in 1..31) return day
+        }
+
+    // Bare day number, or last resort: last 1-31 number found anywhere in the text.
+    Regex("""^(\d{1,2})$""").find(text)?.groupValues?.getOrNull(1)?.toIntOrNull()
+        ?.takeIf { it in 1..31 }?.let { return it }
+    Regex("""\b([12]?\d|3[01])\b""").findAll(text).mapNotNull {
         it.groupValues[1].toIntOrNull()
     }.lastOrNull()?.takeIf { it in 1..31 }?.let { return it }
     return null
