@@ -2,7 +2,6 @@ package com.starnet.browser.browser
 
 import android.annotation.SuppressLint
 import android.content.Intent
-import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
 import android.webkit.CookieManager
@@ -30,8 +29,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.webkit.WebViewCompat
@@ -67,24 +68,11 @@ fun BrowserScreen(
 
     var webView by remember { mutableStateOf<WebView?>(null) }
     var progress by remember { mutableIntStateOf(0) }
-    var scanInitialized by remember { mutableStateOf(false) }
+    var scanMessage by remember { mutableStateOf("جاري تجهيز الفحص…") }
+    var foundData by remember { mutableStateOf(false) }
+    val currentAccount by rememberUpdatedState(account)
+    val currentOnSnapshot by rememberUpdatedState(onSnapshot)
     val handler = remember { Handler(Looper.getMainLooper()) }
-
-    fun inspectPage(view: WebView) {
-        listOf(350L, 1100L, 2600L).forEach { delay ->
-            handler.postDelayed({
-                if (view.isAttachedToWindow) {
-                    StarlinkPageReader.autofillLogin(view, account.email, account.emailSecret)
-                    StarlinkPageReader.read(view, onSnapshot)
-                }
-            }, delay)
-        }
-        handler.postDelayed({
-            if (view.isAttachedToWindow) {
-                StarlinkPageReader.visitNextReadOnlyPage(view)
-            }
-        }, 3400L)
-    }
 
     BackHandler {
         val view = webView
@@ -104,13 +92,16 @@ fun BrowserScreen(
             )
             Button(onClick = {
                 webView?.let {
+                    foundData = false
+                    scanMessage = "بدأ فحص شامل جديد…"
                     StarlinkPageReader.resetFullScan(it)
                     it.loadUrl(STARLINK_ACCOUNT_URL)
                 }
             }) { Text("فحص شامل") }
         }
         Text(
-            "بعد تسجيل الدخول انتظر قليلًا؛ سيجمع التطبيق معلومات صفحات العرض تلقائيًا.",
+            scanMessage,
+            color = if (foundData) Color(0xFF0D7B4A) else Color(0xFF6E5A20),
             modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 3.dp),
             style = MaterialTheme.typography.bodySmall
         )
@@ -127,7 +118,6 @@ fun BrowserScreen(
                 WebView(context).apply {
                     val profileName = "starnet_" + account.id.replace("-", "")
                     WebViewCompat.setProfile(this, profileName)
-
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
                     settings.allowFileAccess = false
@@ -147,27 +137,16 @@ fun BrowserScreen(
                             view: WebView,
                             request: WebResourceRequest
                         ): Boolean {
-                            val uri = request.url
-                            val host = uri.host.orEmpty()
-                            if (host == "starlink.com" || host.endsWith(".starlink.com")) {
-                                return false
-                            }
+                            val host = request.url.host.orEmpty()
+                            if (host == "starlink.com" || host.endsWith(".starlink.com")) return false
                             runCatching {
-                                context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+                                context.startActivity(Intent(Intent.ACTION_VIEW, request.url))
                             }
                             return true
                         }
 
-                        override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
-                            progress = 1
-                        }
-
                         override fun onPageFinished(view: WebView, url: String?) {
-                            if (!scanInitialized) {
-                                StarlinkPageReader.resetFullScan(view)
-                                scanInitialized = true
-                            }
-                            inspectPage(view)
+                            progress = 100
                         }
                     }
                     webView = this
@@ -178,15 +157,42 @@ fun BrowserScreen(
         )
     }
 
-    DisposableEffect(Unit) {
-        onDispose {
-            handler.removeCallbacksAndMessages(null)
-            webView?.apply {
-                stopLoading()
-                webChromeClient = null
-                webViewClient = WebViewClient()
-                destroy()
+    DisposableEffect(webView) {
+        val view = webView
+        if (view == null) return@DisposableEffect onDispose {}
+        StarlinkPageReader.resetFullScan(view)
+        var ticks = 0
+        val poller = object : Runnable {
+            override fun run() {
+                if (!view.isAttachedToWindow) return
+                ticks++
+                val saved = currentAccount
+                StarlinkPageReader.autofillLogin(
+                    view,
+                    saved.email,
+                    saved.emailSecret
+                ) { result ->
+                    if (!foundData) scanMessage = result
+                }
+                StarlinkPageReader.read(view) { snapshot ->
+                    if (StarlinkPageReader.hasData(snapshot)) {
+                        foundData = true
+                        scanMessage = "تم استخراج معلومات وحفظها — يستمر الفحص لبقية الصفحات"
+                        currentOnSnapshot(snapshot)
+                    }
+                }
+                if (ticks % 4 == 0) StarlinkPageReader.visitNextReadOnlyPage(view)
+                handler.postDelayed(this, 1600L)
             }
+        }
+        handler.post(poller)
+        onDispose {
+            handler.removeCallbacks(poller)
+            handler.removeCallbacksAndMessages(null)
+            view.stopLoading()
+            view.webChromeClient = null
+            view.webViewClient = WebViewClient()
+            view.destroy()
             webView = null
         }
     }

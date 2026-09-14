@@ -7,10 +7,32 @@ import org.json.JSONObject
 import org.json.JSONTokener
 
 object StarlinkPageReader {
-    private const val SCAN_STATE_KEY = "starNetReadOnlyScanV3"
+    private const val SCAN_STATE_KEY = "starNetReadOnlyScanV4"
 
     private val script = """
         (function () {
+          const documents = [document];
+          const shadowTexts = [];
+          const walk = (root) => {
+            let elements = [];
+            try { elements = [...root.querySelectorAll('*')]; } catch (_) {}
+            for (const element of elements) {
+              try {
+                if (element.shadowRoot) {
+                  shadowTexts.push(element.shadowRoot.textContent || '');
+                  walk(element.shadowRoot);
+                }
+                if (element.tagName === 'IFRAME' && element.contentDocument) {
+                  if (!documents.includes(element.contentDocument)) {
+                    documents.push(element.contentDocument);
+                    walk(element.contentDocument);
+                  }
+                }
+              } catch (_) {}
+            }
+          };
+          walk(document);
+
           const visible = (e) => {
             if (!e) return false;
             const s = getComputedStyle(e), r = e.getBoundingClientRect();
@@ -18,7 +40,9 @@ object StarlinkPageReader {
                    Number(s.opacity || 1) > 0 && r.width > 0 && r.height > 0;
           };
           const clean = (v) => (v || '').replace(/s+/g, ' ').trim();
-          const text = document.body ? document.body.innerText : '';
+          const text = documents.map(d => d.body ? d.body.innerText : '')
+            .concat(shadowTexts).join('
+');
           const lines = text.split('
 ').map(clean).filter(Boolean);
 
@@ -36,7 +60,7 @@ object StarlinkPageReader {
             return '';
           };
           const planAfterLabel = () => {
-            let index = lines.findIndex((line, i) =>
+            const index = lines.findIndex((line, i) =>
               /^Service Plan$/i.test(line) ||
               (/^Plan$/i.test(line) && i > 0 && /^Service$/i.test(lines[i - 1])) ||
               /^خطة الخدمة$/i.test(line)
@@ -61,49 +85,53 @@ object StarlinkPageReader {
           };
 
           const statusNear = (labelRegex) => {
-            const labels = [...document.querySelectorAll('body *')]
-              .filter(e => visible(e) && e.children.length === 0 &&
-                labelRegex.test(clean(e.textContent)));
-            for (const label of labels) {
-              let row = label;
-              for (let depth = 0; depth < 6 && row; depth++, row = row.parentElement) {
-                const labelRect = label.getBoundingClientRect();
-                const dots = [...row.querySelectorAll('*')].map(e => {
-                  if (!visible(e) || e === label) return null;
-                  const r = e.getBoundingClientRect(), s = getComputedStyle(e);
-                  const status = colorName(s.backgroundColor);
-                  const round = parseFloat(s.borderRadius) >= Math.min(r.width, r.height) * .35;
-                  if (r.width < 6 || r.width > 28 || r.height < 6 || r.height > 28 ||
-                      !round || status === 'UNKNOWN') return null;
-                  const distance = Math.abs((r.top + r.bottom) / 2 -
-                    (labelRect.top + labelRect.bottom) / 2);
-                  return { status, distance };
-                }).filter(Boolean).sort((a,b) => a.distance - b.distance);
-                const colored = dots.find(d => d.status !== 'GRAY');
-                if (colored) return colored.status;
-                if (dots.length) return dots[0].status;
+            for (const doc of documents) {
+              const labels = [...doc.querySelectorAll('body *')]
+                .filter(e => visible(e) && e.children.length === 0 &&
+                  labelRegex.test(clean(e.textContent)));
+              for (const label of labels) {
+                let row = label;
+                for (let depth = 0; depth < 6 && row; depth++, row = row.parentElement) {
+                  const labelRect = label.getBoundingClientRect();
+                  const dots = [...row.querySelectorAll('*')].map(e => {
+                    if (!visible(e) || e === label) return null;
+                    const r = e.getBoundingClientRect(), s = getComputedStyle(e);
+                    const status = colorName(s.backgroundColor);
+                    const round = parseFloat(s.borderRadius) >= Math.min(r.width, r.height) * .35;
+                    if (r.width < 6 || r.width > 28 || r.height < 6 || r.height > 28 ||
+                        !round || status === 'UNKNOWN') return null;
+                    return {
+                      status,
+                      distance: Math.abs((r.top + r.bottom - labelRect.top - labelRect.bottom) / 2)
+                    };
+                  }).filter(Boolean).sort((a,b) => a.distance - b.distance);
+                  const colored = dots.find(d => d.status !== 'GRAY');
+                  if (colored) return colored.status;
+                  if (dots.length) return dots[0].status;
+                }
               }
             }
             return 'UNKNOWN';
           };
 
-          const alertSelectors =
-            '[role="alert"], [class*="alert" i], [class*="warning" i], [class*="error" i]';
           let alertReason = '';
-          for (const e of document.querySelectorAll(alertSelectors)) {
-            const t = clean(e.innerText);
-            if (visible(e) && t.length >= 8 && t.length <= 350 &&
-                /(offline|standby|suspend|thermal|temperature|obstruct|disconnect|reboot|fault|outage|حرارة|غير متصل|عطل|حجب|استعداد)/i.test(t)) {
-              alertReason = t;
-              break;
+          for (const doc of documents) {
+            const selector = '[role="alert"], [class*="alert" i], [class*="warning" i], [class*="error" i]';
+            for (const e of doc.querySelectorAll(selector)) {
+              const t = clean(e.innerText || e.textContent);
+              if (visible(e) && t.length >= 8 && t.length <= 350 &&
+                  /(offline|standby|suspend|thermal|temperature|obstruct|disconnect|reboot|fault|outage|حرارة|غير متصل|عطل|حجب|استعداد)/i.test(t)) {
+                alertReason = t;
+                break;
+              }
             }
+            if (alertReason) break;
           }
           if (!alertReason) {
-            const line = lines.find(t =>
+            alertReason = lines.find(t =>
               t.length >= 8 && t.length <= 250 &&
               /(offline|standby|suspend|thermal|high starlink temperature|obstructed|disconnected|rebooting|حرارة|غير متصل|عطل|حجب|استعداد)/i.test(t)
-            );
-            alertReason = line || '';
+            ) || '';
           }
 
           const balanceMatch =
@@ -111,12 +139,13 @@ object StarlinkPageReader {
             text.match(/الرصيدs*المستحق[s:]*([$€£]?)s*([d.,]+)/i);
           const serviceState = first(/(Standby Mode Pending|Standby Mode|Suspended|Offline|Online|Active|Rebooting|Disconnected)/i);
           let dishStatus = statusNear(/^STARLINK$/i);
-          let wifiStatus = statusNear(/^WIFI/i);
+          const wifiStatus = statusNear(/^WIFI/i);
           if (dishStatus === 'UNKNOWN' && /offline|disconnected|غير متصل/i.test(alertReason)) {
             dishStatus = 'RED';
           }
 
           return JSON.stringify({
+            pageUrl: location.href,
             balanceDue: balanceMatch ? balanceMatch[2] : '',
             currency: balanceMatch && balanceMatch[1] ? balanceMatch[1] : '',
             standbyDate: first(/switchs+tos+Standbys+Modes+ons+([A-Za-z0-9,-/ ]+?)(?:.|
@@ -151,29 +180,103 @@ object StarlinkPageReader {
         })();
     """.trimIndent()
 
-    fun autofillLogin(webView: WebView, email: String, password: String) {
-        if (email.isBlank() && password.isBlank()) return
+    fun autofillLogin(
+        webView: WebView,
+        email: String,
+        password: String,
+        onResult: (String) -> Unit = {}
+    ) {
         if (!isStarlinkPage(webView)) return
+        if (email.isBlank() && password.isBlank()) {
+            onResult("لا توجد بيانات دخول محفوظة")
+            return
+        }
         val autofillScript = """
             (function(email, password) {
-              const setValue = (element, value) => {
-                if (!element || !value) return;
-                const setter = Object.getOwnPropertyDescriptor(
-                  window.HTMLInputElement.prototype, 'value'
-                ).set;
-                setter.call(element, value);
-                element.dispatchEvent(new Event('input', { bubbles: true }));
-                element.dispatchEvent(new Event('change', { bubbles: true }));
+              const roots = [document];
+              const walk = (root) => {
+                let elements = [];
+                try { elements = [...root.querySelectorAll('*')]; } catch (_) {}
+                for (const element of elements) {
+                  try {
+                    if (element.shadowRoot && !roots.includes(element.shadowRoot)) {
+                      roots.push(element.shadowRoot);
+                      walk(element.shadowRoot);
+                    }
+                    if (element.tagName === 'IFRAME' && element.contentDocument &&
+                        !roots.includes(element.contentDocument)) {
+                      roots.push(element.contentDocument);
+                      walk(element.contentDocument);
+                    }
+                  } catch (_) {}
+                }
               };
-              setValue(document.querySelector(
-                'input[type="email"], input[autocomplete="username"], input[name*="email" i]'
-              ), email);
-              setValue(document.querySelector(
-                'input[type="password"], input[autocomplete="current-password"]'
-              ), password);
+              walk(document);
+              const find = (selectors) => {
+                for (const root of roots) {
+                  for (const selector of selectors) {
+                    try {
+                      const element = root.querySelector(selector);
+                      if (element) return element;
+                    } catch (_) {}
+                  }
+                }
+                return null;
+              };
+              const setValue = (element, value) => {
+                if (!element || !value) return false;
+                try {
+                  const view = element.ownerDocument.defaultView || window;
+                  const setter = Object.getOwnPropertyDescriptor(
+                    view.HTMLInputElement.prototype, 'value'
+                  ).set;
+                  element.focus();
+                  setter.call(element, value);
+                  element.dispatchEvent(new view.InputEvent('input', {
+                    bubbles: true, inputType: 'insertText', data: value
+                  }));
+                  element.dispatchEvent(new view.Event('change', { bubbles: true }));
+                  element.dispatchEvent(new view.Event('blur', { bubbles: true }));
+                  return element.value === value;
+                } catch (_) {
+                  try {
+                    element.value = value;
+                    element.dispatchEvent(new Event('input', { bubbles: true }));
+                    element.dispatchEvent(new Event('change', { bubbles: true }));
+                    return true;
+                  } catch (_) { return false; }
+                }
+              };
+              const emailInput = find([
+                'input[type="email"]','input[autocomplete="username"]',
+                'input[name*="email" i]','input[id*="email" i]'
+              ]);
+              const passwordInput = find([
+                'input[type="password"]','input[autocomplete="current-password"]',
+                'input[name*="password" i]','input[id*="password" i]'
+              ]);
+              const emailFilled = setValue(emailInput, email);
+              const passwordFilled = setValue(passwordInput, password);
+              return JSON.stringify({
+                emailFound: Boolean(emailInput),
+                passwordFound: Boolean(passwordInput),
+                emailFilled: emailFilled,
+                passwordFilled: passwordFilled
+              });
             })(${JSONObject.quote(email)}, ${JSONObject.quote(password)});
         """.trimIndent()
-        webView.evaluateJavascript(autofillScript, null)
+        webView.evaluateJavascript(autofillScript) { raw ->
+            runCatching {
+                val decoded = JSONTokener(raw).nextValue() as? String ?: raw
+                val json = JSONObject(decoded)
+                when {
+                    json.optBoolean("passwordFilled") -> "تم ملء البريد وكلمة المرور"
+                    json.optBoolean("passwordFound") -> "وُجدت خانة كلمة المرور وتعذّر ملؤها"
+                    json.optBoolean("emailFilled") -> "تم ملء البريد؛ بانتظار خانة كلمة المرور"
+                    else -> "تم تسجيل الدخول أو لم تظهر خانات الدخول بعد"
+                }
+            }.onSuccess(onResult)
+        }
     }
 
     fun resetFullScan(webView: WebView) {
@@ -193,9 +296,9 @@ object StarlinkPageReader {
               let state;
               try {
                 state = JSON.parse(sessionStorage.getItem(key)) ||
-                  { visited: [], queue: [], clicked: [] };
+                  { visited: [], queue: [], clicked: [], menuOpened: false };
               } catch (_) {
-                state = { visited: [], queue: [], clicked: [] };
+                state = { visited: [], queue: [], clicked: [], menuOpened: false };
               }
               const normalize = (value) => {
                 try {
@@ -219,7 +322,7 @@ object StarlinkPageReader {
                 });
               for (const url of found) {
                 if (!state.visited.includes(url) && !state.queue.includes(url) &&
-                    state.queue.length < 16) state.queue.push(url);
+                    state.queue.length < 20) state.queue.push(url);
               }
               state.queue = state.queue.filter(url => !state.visited.includes(url));
               sessionStorage.setItem(key, JSON.stringify(state));
@@ -228,6 +331,20 @@ object StarlinkPageReader {
                 sessionStorage.setItem(key, JSON.stringify(state));
                 location.href = next;
                 return 'VISIT:' + next;
+              }
+
+              if (!state.menuOpened) {
+                const menu = [...document.querySelectorAll('button,[role="button"]')].find(e => {
+                  const label = (e.getAttribute('aria-label') || e.getAttribute('title') ||
+                    e.innerText || '').trim();
+                  return /^(menu|open menu|navigation|القائمة|فتح القائمة)$/i.test(label);
+                });
+                state.menuOpened = true;
+                sessionStorage.setItem(key, JSON.stringify(state));
+                if (menu) {
+                  menu.click();
+                  return 'MENU';
+                }
               }
 
               const safeLabels = [
@@ -286,6 +403,18 @@ object StarlinkPageReader {
             }.onSuccess(onResult)
         }
     }
+
+    fun hasData(snapshot: PageSnapshot): Boolean =
+        snapshot.balanceDue.isNotBlank() ||
+            snapshot.kitNumber.isNotBlank() ||
+            snapshot.serialNumber.isNotBlank() ||
+            snapshot.subscriptionId.isNotBlank() ||
+            snapshot.deviceName.isNotBlank() ||
+            snapshot.starlinkId.isNotBlank() ||
+            snapshot.planName.isNotBlank() ||
+            snapshot.lastUpdated.isNotBlank() ||
+            snapshot.dishStatus != DeviceStatus.UNKNOWN ||
+            snapshot.wifiStatus != DeviceStatus.UNKNOWN
 
     private fun isStarlinkPage(webView: WebView): Boolean {
         val host = runCatching { android.net.Uri.parse(webView.url).host.orEmpty() }
