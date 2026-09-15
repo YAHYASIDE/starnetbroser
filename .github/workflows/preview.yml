@@ -2,7 +2,9 @@ name: Preview
 
 on:
   push:
-    branches: [claude/cloud-remote-browser]
+    # main: merging PR #2 auto-triggers the GitHub Pages deploy below.
+    # claude/cloud-remote-browser: keep pre-merge preview builds on the PR.
+    branches: [main, claude/cloud-remote-browser]
   workflow_dispatch: {}
 
 permissions:
