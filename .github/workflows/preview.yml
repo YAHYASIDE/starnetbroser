@@ -123,16 +123,29 @@ jobs:
           distribution: temurin
           java-version: "21"
 
-      # ubuntu-latest GitHub-hosted runners ship with the Android SDK
-      # (cmdline-tools + ANDROID_HOME) pre-installed, but sdkmanager is
-      # not on PATH by default - android-actions/setup-android@v3 tries
-      # to install the long-removed "tools" package and hard-fails, so
-      # we call the runner's own sdkmanager by its full path instead of
-      # using that action.
-      - name: Ensure required Android SDK packages are installed
+      # android-actions/setup-android@v3 tries to install the
+      # long-removed "tools" SDK package and hard-fails. GitHub's
+      # runners are documented to ship an Android SDK, but its actual
+      # env var/layout isn't reliable enough to hardcode (confirmed:
+      # neither ANDROID_HOME nor a cmdline-tools/*/bin/sdkmanager were
+      # found on this runner) - so this uses whatever's already there
+      # if present, and downloads cmdline-tools fresh otherwise.
+      - name: Ensure Android SDK cmdline-tools + required packages
         run: |
-          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -maxdepth 2 -name sdkmanager -type f | sort -V | tail -1)"
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/android-sdk}}"
+          SDKMANAGER="$(find "$SDK_ROOT" -maxdepth 4 -name sdkmanager -type f 2>/dev/null | sort -V | tail -1)"
+          if [ -z "$SDKMANAGER" ]; then
+            echo "No existing sdkmanager under $SDK_ROOT - downloading cmdline-tools"
+            mkdir -p "$SDK_ROOT/cmdline-tools"
+            curl -sSL -o /tmp/cmdline-tools.zip \
+              https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+            unzip -q /tmp/cmdline-tools.zip -d "$SDK_ROOT/cmdline-tools"
+            mv "$SDK_ROOT/cmdline-tools/cmdline-tools" "$SDK_ROOT/cmdline-tools/latest"
+            SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          fi
           echo "Using sdkmanager: $SDKMANAGER"
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
           yes | "$SDKMANAGER" --licenses > /dev/null || true
           "$SDKMANAGER" "platforms;android-34" "build-tools;34.0.0"
 
