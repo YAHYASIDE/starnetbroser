@@ -57,6 +57,37 @@ jobs:
       - name: Run all tests
         run: npm run test
 
+  test-browser-worker:
+    name: Browser worker (real Chromium session persistence + isolation)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build packages/shared
+        run: npm run build:shared
+
+      - name: Install a real Chromium (pinned to match playwright-core's version)
+        run: |
+          npx --yes playwright@1.49.1 install --with-deps chromium
+          CHROME="$(find "$HOME/.cache/ms-playwright" -type f -name chrome -path '*chromium*' | head -1)"
+          echo "Resolved Chromium at: $CHROME"
+          test -x "$CHROME"
+          echo "CHROMIUM_EXECUTABLE_PATH=$CHROME" >> "$GITHUB_ENV"
+
+      - name: Install Xvfb/x11vnc/websockify (apt has real internet access here, unlike the dev sandbox)
+        run: sudo apt-get update && sudo apt-get install -y xvfb x11vnc websockify
+
+      - name: Run the real session-persistence + isolation test suite
+        working-directory: services/browser-worker
+        run: npm test
+
   deploy-pages-preview:
     name: Deploy safe demo preview to GitHub Pages
     needs: test
