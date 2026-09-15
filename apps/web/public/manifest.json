@@ -1,0 +1,14 @@
+{
+  "name": "STAR NET",
+  "short_name": "STAR NET",
+  "description": "إدارة حسابات وأجهزة Starlink",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f6f8",
+  "theme_color": "#0f6e6e",
+  "dir": "rtl",
+  "lang": "ar",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

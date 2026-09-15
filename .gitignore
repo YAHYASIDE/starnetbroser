@@ -10,6 +10,8 @@ out/
 **/dist/
 **/build/
 **/.next/
+**/next-env.d.ts
+.eslintcache
 
 # Env / secrets - never commit real values
 .env
@@ -38,3 +40,4 @@ apps/android/ios/
 
 # Test coverage
 coverage/
+*.tsbuildinfo
