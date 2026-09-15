@@ -133,9 +133,12 @@ jobs:
 
       - name: Build apps/web as a static export (demo data only)
         working-directory: apps/web
+        # Served at the root of the custom domain (starnet.etssadagha.com via
+        # the CNAME in apps/web/public), so NO basePath - assets must resolve
+        # from "/", not "/starnetbroser". GitHub redirects the old
+        # <user>.github.io/starnetbroser path to the custom domain root.
         env:
           GITHUB_PAGES: "true"
-          NEXT_PUBLIC_BASE_PATH: /starnetbroser
           NEXT_PUBLIC_DATA_SOURCE: demo
           NEXT_PUBLIC_COMMIT_SHA: ${{ github.sha }}
         run: |
