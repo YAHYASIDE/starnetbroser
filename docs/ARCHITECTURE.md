@@ -79,11 +79,33 @@ the previous implementation)
 
 This sandbox's network policy blocks pulling Docker base images and
 downloading Playwright's Chromium binary (confirmed for both the Python
-and Node Playwright packages) - so the browser-worker's actual
-Playwright+Chromium execution, and the Capacitor Android build, are
-verified by GitHub Actions CI (which has normal internet access) and,
+and Node Playwright packages), and blocks `dl.google.com` (Android SDK
+components - confirmed with a direct request) - so the browser-worker's
+actual Playwright+Chromium execution, and the Capacitor Android build,
+are verified by GitHub Actions CI (which has normal internet access) and,
 ultimately, by the acceptance tests on a real VPS/device - never claimed
 as proven by this sandbox alone. Everything that COULD be verified here
 (API logic, Prisma migrations, isolation/locking against real Postgres,
 shared parsing logic) was verified for real, not mocked - see each
 service's own test suite.
+
+## Known dependency findings (tracked, not silently ignored)
+
+`npm audit` at the repo root currently reports findings against
+transitive **dev/build-time only** tooling - none of them reachable at
+runtime by a real user of the API or the web/Android app:
+
+- `@nestjs/cli`, `vitest`/`vite`, `tmp`, `glob`, `picomatch`,
+  `@mapbox/node-pre-gyp` -> `tar` (via `bcrypt`'s native build step),
+  `@capacitor/cli` -> `tar` (its Android template extraction step):
+  all local dev-only tools, never deployed.
+- `@nestjs/platform-express` -> `express`/`body-parser`/`multer`: real
+  runtime dependencies, currently only fixable by an `@nestjs` v11
+  major upgrade. Tracked for Stage 11 (tests, security, docs) rather
+  than done as a drive-by change here, since a Nest major bump needs
+  its own regression pass against the full auth/customers/accounts
+  test suite.
+
+The one *production*, internet-facing finding (Next.js, critical) was
+fixed immediately when found - see the commit pinning `apps/web` to
+`next@15.5.25`.

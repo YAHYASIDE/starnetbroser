@@ -29,6 +29,7 @@ npm-debug.log*
 # Android / Capacitor
 apps/android/android/
 apps/android/ios/
+apps/android/www/
 *.apk
 *.aab
 

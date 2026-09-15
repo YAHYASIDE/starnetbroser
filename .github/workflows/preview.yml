@@ -103,3 +103,82 @@ jobs:
 
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  build-android-apk:
+    name: Build & publish staging Android APK
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK platform + build-tools
+        run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
+
+      - run: npm ci
+
+      - name: Build packages/shared
+        run: npm run build:shared
+
+      - name: Build apps/web as a static export for the WebView (demo data)
+        working-directory: apps/web
+        env:
+          STATIC_EXPORT: "true"
+          NEXT_PUBLIC_DATA_SOURCE: demo
+          NEXT_PUBLIC_COMMIT_SHA: ${{ github.sha }}
+        run: |
+          export NEXT_PUBLIC_BUILD_TIME="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          npx next build
+
+      - name: Copy web export into the Capacitor app
+        run: |
+          rm -rf apps/android/www
+          cp -r apps/web/out apps/android/www
+
+      - name: Scaffold the Android native project (not committed - regenerated each build)
+        working-directory: apps/android
+        run: npx cap add android
+
+      - name: Sync web assets + plugins into the Android project
+        working-directory: apps/android
+        run: npx cap sync android
+
+      - name: Build the debug APK
+        working-directory: apps/android/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Rename APK to the fixed, documented asset name
+        run: |
+          cp apps/android/android/app/build/outputs/apk/debug/app-debug.apk \
+             STAR-NET-Browser-debug.apk
+
+      - name: Publish to the staging-latest pre-release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: staging-latest
+          name: "STAR NET - Staging (latest)"
+          body: |
+            Automated staging build from commit ${{ github.sha }}.
+            Demo data only - not connected to a real backend yet.
+          prerelease: true
+          allowUpdates: true
+          replacesArtifacts: true
+          removeArtifacts: false
+          artifacts: STAR-NET-Browser-debug.apk
+          artifactContentType: application/vnd.android.package-archive
+          token: ${{ secrets.GITHUB_TOKEN }}

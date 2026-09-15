@@ -1,0 +1,19 @@
+{
+  "name": "@starnet/android",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build:web": "cd ../web && STATIC_EXPORT=true npx next build && cd ../android && rm -rf www && cp -r ../web/out www",
+    "sync": "cap sync android",
+    "build": "npm run build:web && npm run sync",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@capacitor/android": "6.2.0",
+    "@capacitor/app": "6.0.2",
+    "@capacitor/core": "6.2.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "6.2.0"
+  }
+}
