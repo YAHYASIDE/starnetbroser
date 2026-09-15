@@ -12,10 +12,11 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "npm run build --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present",
+    "build:shared": "npm run build --workspace=@starnet/shared",
+    "build": "npm run build:shared && npm run build --workspaces --if-present",
+    "test": "npm run build:shared && npm run test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "typecheck": "npm run build:shared && npm run typecheck --workspaces --if-present"
   },
   "devDependencies": {
     "typescript": "5.7.2"

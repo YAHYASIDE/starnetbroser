@@ -9,4 +9,7 @@ module.exports = {
   },
   collectCoverageFrom: ["src/**/*.(t|j)s"],
   testEnvironment: "node",
+  // @starnet/shared resolves through a workspace symlink outside node_modules,
+  // so its compiled dist/*.js needs explicit exclusion from ts-jest transform.
+  transformIgnorePatterns: ["/node_modules/", "packages/shared/dist"],
 };
