@@ -1,0 +1,87 @@
+name: Backend CI
+
+on:
+  pull_request:
+    branches: [main, codex/initial-android-app]
+    paths:
+      - "backend/**"
+      - "worker/**"
+      - "docker-compose.yml"
+      - ".github/workflows/backend-ci.yml"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: starnet_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: backend/requirements-dev.txt
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements-dev.txt
+      - name: Lint (ruff)
+        working-directory: backend
+        run: ruff check app
+      - name: Build the test worker image (used by the Docker-integration tests)
+        run: |
+          mkdir -p /tmp/workertest
+          cat > /tmp/workertest/sleeper.c <<'EOF'
+          #include <unistd.h>
+          int main(void) { for (;;) pause(); return 0; }
+          EOF
+          gcc -static -O2 -o /tmp/workertest/sleeper /tmp/workertest/sleeper.c
+          cat > /tmp/workertest/Dockerfile <<'EOF'
+          FROM scratch
+          COPY sleeper /sleeper
+          ENTRYPOINT ["/sleeper"]
+          EOF
+          docker build -t starnet-worker-test:dev /tmp/workertest
+      - name: Run migrations
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/starnet_test
+          JWT_SECRET: ci-only-secret
+          VAULT_KEY: ci-only-vault-key
+        run: alembic upgrade head
+      - name: Run tests
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/starnet_test
+          JWT_SECRET: ci-only-secret
+          VAULT_KEY: ci-only-vault-key
+          FEATURE_CLOUD_SESSIONS: "true"
+          WORKER_IMAGE: starnet-worker-test:dev
+          WORKER_NETWORK: starnet_ci_net
+          MAX_CONCURRENT_WORKERS: "2"
+          WORKER_IDLE_TIMEOUT_SECONDS: "1"
+          LOGIN_RATE_LIMIT_PER_MINUTE: "1000"
+        run: pytest -v
+
+  docker-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build backend image
+        run: docker build -t starnet-backend:ci ./backend
+      - name: Build worker image
+        run: docker build -t starnet-browser-worker:ci -f worker/Dockerfile .
