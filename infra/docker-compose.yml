@@ -1,0 +1,94 @@
+# Production stack for one VPS. Only Caddy publishes ports - everything
+# else (Postgres, Redis, the API, the browser worker) is reachable only
+# on the internal Docker network. Copy infra/.env.example to infra/.env
+# and fill in real values before running `docker compose up -d`.
+#
+# services/browser-worker needs real filesystem access to the host's
+# Docker volumes (not just the Docker socket) because it reads each
+# account's volume by its host Mountpoint path directly (see
+# docs/ARCHITECTURE.md "Why one worker process manages many profiles") -
+# DOCKER_DATA_ROOT below must match the host's actual Docker data-root
+# (`docker info --format '{{.DockerRootDir}}'`, usually /var/lib/docker).
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-starnet}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-starnet}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ..
+      dockerfile: services/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-starnet}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-starnet}
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET}
+      VAULT_KEY: ${VAULT_KEY}
+      FEATURE_CLOUD_SESSIONS: ${FEATURE_CLOUD_SESSIONS:-false}
+      WORKER_INTERNAL_URL: http://browser-worker:7500
+      WORKER_INTERNAL_TOKEN: ${WORKER_INTERNAL_TOKEN}
+      VNC_TICKET_TTL_SECONDS: "60"
+      CORS_ALLOW_ORIGINS: https://${WEB_DOMAIN}
+      PORT: "8000"
+
+  browser-worker:
+    build:
+      context: ..
+      dockerfile: services/browser-worker/Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: "7500"
+      WORKER_INTERNAL_TOKEN: ${WORKER_INTERNAL_TOKEN}
+      MAX_CONCURRENT_WORKERS: ${MAX_CONCURRENT_WORKERS:-4}
+      WORKER_IDLE_TIMEOUT_SECONDS: ${WORKER_IDLE_TIMEOUT_SECONDS:-300}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${DOCKER_DATA_ROOT:-/var/lib/docker}/volumes:${DOCKER_DATA_ROOT:-/var/lib/docker}/volumes
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NEXT_PUBLIC_DATA_SOURCE: demo # apps/web's own /settings page is
+      # how a real deployment points itself at https://api.${API_DOMAIN}
+      # at runtime - no build-time backend URL is baked in here either.
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - api
+      - web
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      WEB_DOMAIN: ${WEB_DOMAIN}
+      API_DOMAIN: ${API_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
