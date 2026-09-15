@@ -54,8 +54,13 @@ jobs:
         working-directory: services/api
         run: npx prisma migrate deploy
 
-      - name: Run all tests
-        run: npm run test
+      # Deliberately NOT `npm run test` (which runs every workspace's test
+      # script, browser-worker included) - this job has no Chromium/Xvfb/
+      # x11vnc/websockify set up. browser-worker has its own dedicated
+      # job below with that environment; scope this one to what it can
+      # actually run.
+      - name: Run shared + API tests
+        run: npm run test --workspace=@starnet/shared --workspace=@starnet/api
 
   test-browser-worker:
     name: Browser worker (real Chromium session persistence + isolation)
