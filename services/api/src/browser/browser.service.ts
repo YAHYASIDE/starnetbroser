@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { randomBytes, randomUUID, createHash } from "crypto";
+import { Prisma } from "@prisma/client";
 import { BrowserSessionStatus, BrowserStatus } from "@starnet/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { AuditService } from "../audit/audit.service";
@@ -44,12 +45,29 @@ export class BrowserService {
     }
   }
 
+  /**
+   * upsert() alone isn't safe against two truly concurrent first-ever
+   * calls for the same account: both can see "no row yet" and both
+   * attempt the INSERT, and Postgres correctly rejects the loser with a
+   * unique-constraint violation rather than silently serializing them.
+   * Confirmed for real once (not just in theory): CI's timing hit this
+   * race in browser.service.spec.ts's concurrent-open() test even
+   * though local runs of the same test hadn't. Caught here and treated
+   * as "someone else already created it" rather than an error.
+   */
   private async ensureSessionRow(accountId: string) {
-    return this.prisma.browserSession.upsert({
-      where: { accountId },
-      update: {},
-      create: { accountId, profileVolumeName: `starnet_profile_${accountId}`, status: "STOPPED" },
-    });
+    try {
+      return await this.prisma.browserSession.upsert({
+        where: { accountId },
+        update: {},
+        create: { accountId, profileVolumeName: `starnet_profile_${accountId}`, status: "STOPPED" },
+      });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        return this.prisma.browserSession.findUniqueOrThrow({ where: { accountId } });
+      }
+      throw err;
+    }
   }
 
   private async acquireLock(accountId: string, requestId: string): Promise<boolean> {

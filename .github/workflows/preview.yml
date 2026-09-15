@@ -86,7 +86,14 @@ jobs:
 
       - name: Run the real session-persistence + isolation test suite
         working-directory: services/browser-worker
-        run: npm test
+        # Root, matching this session's actual runtime privilege level
+        # (the production Dockerfile's default node:20 image user is
+        # also root) - a plain unprivileged `npm test` fails here with
+        # EACCES writing into /var/lib/docker/volumes/*/_data, which is
+        # root-owned. `-E env "PATH=$PATH"` preserves the env vars set
+        # above (CHROMIUM_EXECUTABLE_PATH) and actions/setup-node's PATH,
+        # which sudo's default secure_path would otherwise drop.
+        run: sudo -E env "PATH=$PATH" npm test
 
   deploy-pages-preview:
     name: Deploy safe demo preview to GitHub Pages
