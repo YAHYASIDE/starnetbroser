@@ -124,14 +124,17 @@ jobs:
           java-version: "21"
 
       # ubuntu-latest GitHub-hosted runners ship with the Android SDK
-      # (cmdline-tools + ANDROID_HOME) pre-installed - android-actions/
-      # setup-android@v3 tries to install the long-removed "tools"
-      # package and hard-fails, so we use the runner's own sdkmanager
-      # directly instead of that action.
+      # (cmdline-tools + ANDROID_HOME) pre-installed, but sdkmanager is
+      # not on PATH by default - android-actions/setup-android@v3 tries
+      # to install the long-removed "tools" package and hard-fails, so
+      # we call the runner's own sdkmanager by its full path instead of
+      # using that action.
       - name: Ensure required Android SDK packages are installed
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager "platforms;android-34" "build-tools;34.0.0"
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -maxdepth 2 -name sdkmanager -type f | sort -V | tail -1)"
+          echo "Using sdkmanager: $SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "platforms;android-34" "build-tools;34.0.0"
 
       - run: npm ci
 
