@@ -37,6 +37,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.starnet.browser.data.AccountProfile
 import com.starnet.browser.data.DeviceStatus
+import java.time.Instant
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun AccountListScreen(
@@ -67,6 +70,15 @@ fun AccountListScreen(
             Column(Modifier.weight(1f)) {
                 Text("STAR NET", color = Color.White, style = MaterialTheme.typography.headlineSmall)
                 Text("الحسابات مرتبة حسب يوم الانتهاء", color = Color(0xFF9CCAB8))
+                // Lets whoever is testing a fresh build confirm they're
+                // actually looking at the commit/build they expect, not a
+                // stale install - see app/build.gradle.kts for where these
+                // BuildConfig fields come from.
+                Text(
+                    "إصدار ${com.starnet.browser.BuildConfig.GIT_COMMIT} · ${formatBuildTimestamp(com.starnet.browser.BuildConfig.BUILD_TIMESTAMP)}",
+                    color = Color(0xFF6E8478),
+                    style = MaterialTheme.typography.labelSmall
+                )
             }
             if (onOpenCloudMode != null) {
                 OutlinedButton(onClick = onOpenCloudMode) { Text("الوضع السحابي", color = Color.White) }
@@ -344,3 +356,9 @@ private fun StatusRow(label: String, status: DeviceStatus) {
 private fun Line(label: String, value: String) {
     if (value.isNotBlank()) Text("$label: $value")
 }
+
+private val BUILD_TIME_DISPLAY_FORMAT: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm 'UTC'").withZone(ZoneOffset.UTC)
+
+private fun formatBuildTimestamp(iso: String): String =
+    runCatching { BUILD_TIME_DISPLAY_FORMAT.format(Instant.parse(iso)) }.getOrDefault(iso)

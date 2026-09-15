@@ -1,8 +1,24 @@
+import java.time.Instant
+import java.time.format.DateTimeFormatter
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
+
+// Shown in-app (see AccountListScreen's footer) so whoever is testing a
+// build can confirm they're actually looking at the version they expect,
+// not a stale install. CI passes the real commit via -PgitCommit=<sha> (see
+// .github/workflows/staging.yml); a local `./gradlew` build falls back to
+// reading it from git directly, or "local" if that also fails (e.g. no git
+// available in a stripped-down build environment).
+val gitCommit: String = (project.findProperty("gitCommit") as String?)
+    ?: runCatching {
+        providers.exec { commandLine("git", "rev-parse", "--short=10", "HEAD") }
+            .standardOutput.asText.get().trim()
+    }.getOrDefault("local")
+val buildTimestamp: String = DateTimeFormatter.ISO_INSTANT.format(Instant.now())
 
 android {
     namespace = "com.starnet.browser"
@@ -14,6 +30,9 @@ android {
         targetSdk = 35
         versionCode = 6
         versionName = "0.5.0"
+
+        buildConfigField("String", "GIT_COMMIT", "\"$gitCommit\"")
+        buildConfigField("String", "BUILD_TIMESTAMP", "\"$buildTimestamp\"")
     }
 
     buildFeatures {
