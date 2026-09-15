@@ -1,0 +1,101 @@
+name: Preview
+
+on:
+  push:
+    branches: [claude/cloud-remote-browser]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "20"
+
+jobs:
+  test:
+    name: Build & test (real Postgres)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: starnet_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/starnet_test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build packages/shared
+        run: npm run build:shared
+
+      - name: Typecheck everything
+        run: npm run typecheck
+
+      - name: Apply Prisma migrations to the test database
+        working-directory: services/api
+        run: npx prisma migrate deploy
+
+      - name: Run all tests
+        run: npm run test
+
+  deploy-pages-preview:
+    name: Deploy safe demo preview to GitHub Pages
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build packages/shared
+        run: npm run build:shared
+
+      - name: Build apps/web as a static export (demo data only)
+        working-directory: apps/web
+        env:
+          GITHUB_PAGES: "true"
+          NEXT_PUBLIC_BASE_PATH: /starnetbroser
+          NEXT_PUBLIC_DATA_SOURCE: demo
+          NEXT_PUBLIC_COMMIT_SHA: ${{ github.sha }}
+        run: |
+          export NEXT_PUBLIC_BUILD_TIME="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          npx next build
+
+      - name: Mark output for GitHub Pages (skip Jekyll processing)
+        run: touch apps/web/out/.nojekyll
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/web/out
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

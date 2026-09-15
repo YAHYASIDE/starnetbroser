@@ -4,7 +4,6 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "STAR NET",
   description: "إدارة حسابات وأجهزة Starlink",
-  manifest: "/manifest.json",
 };
 
 export const viewport: Viewport = {
