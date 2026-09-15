@@ -123,10 +123,15 @@ jobs:
           distribution: temurin
           java-version: "21"
 
-      - uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK platform + build-tools
-        run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
+      # ubuntu-latest GitHub-hosted runners ship with the Android SDK
+      # (cmdline-tools + ANDROID_HOME) pre-installed - android-actions/
+      # setup-android@v3 tries to install the long-removed "tools"
+      # package and hard-fails, so we use the runner's own sdkmanager
+      # directly instead of that action.
+      - name: Ensure required Android SDK packages are installed
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platforms;android-34" "build-tools;34.0.0"
 
       - run: npm ci
 
