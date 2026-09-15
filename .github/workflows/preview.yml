@@ -30,6 +30,10 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/starnet_test
+      # CI-only test fixtures, not real secrets - never used outside this
+      # ephemeral job's Postgres service container.
+      JWT_SECRET: ci-test-jwt-secret-not-for-production
+      VAULT_KEY: x3IBhv4f3yZuIM7O/UlM9Pv3oj2qJVR5f+Ow5WHluUI=
     steps:
       - uses: actions/checkout@v4
 

@@ -5,6 +5,20 @@ import { VaultService } from "./vault.service";
 
 describe("VaultService", () => {
   let service: VaultService;
+  // @nestjs/config always merges process.env into ConfigService lookups -
+  // ignoreEnvFile/ignoreEnvVars only skip the .env file and schema
+  // validation, not process.env itself - so an ambient VAULT_KEY (CI sets
+  // one at the job level for the other specs) would otherwise silently
+  // win over the deliberately-bad value the "rejects" test below needs.
+  const ambientVaultKey = process.env.VAULT_KEY;
+
+  beforeAll(() => {
+    delete process.env.VAULT_KEY;
+  });
+
+  afterAll(() => {
+    if (ambientVaultKey !== undefined) process.env.VAULT_KEY = ambientVaultKey;
+  });
 
   beforeEach(async () => {
     const testKey = randomBytes(32).toString("base64");
@@ -47,7 +61,10 @@ describe("VaultService", () => {
   it("rejects a VAULT_KEY that is not 32 bytes", async () => {
     const moduleRef = await Test.createTestingModule({
       imports: [
-        ConfigModule.forRoot({ ignoreEnvFile: true, load: [() => ({ VAULT_KEY: Buffer.from("too-short").toString("base64") })] }),
+        ConfigModule.forRoot({
+          ignoreEnvFile: true,
+          load: [() => ({ VAULT_KEY: Buffer.from("too-short").toString("base64") })],
+        }),
       ],
       providers: [VaultService],
     }).compile();
