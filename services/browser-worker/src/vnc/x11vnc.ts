@@ -28,12 +28,19 @@ export async function startX11vnc(displayName: string): Promise<X11vncHandle> {
       "-noxdamage",
       "-quiet",
     ],
-    { stdio: "ignore" },
+    { stdio: ["ignore", "ignore", "pipe"] },
   );
+
+  let stderr = "";
+  proc.stderr?.on("data", (chunk: Buffer) => {
+    stderr += chunk.toString();
+  });
 
   const started = new Promise<void>((_resolve, reject) => {
     proc.once("error", reject);
-    proc.once("exit", (code) => reject(new Error(`x11vnc exited early with code ${code}`)));
+    proc.once("exit", (code) =>
+      reject(new Error(`x11vnc exited early with code ${code}${stderr ? `: ${stderr.trim()}` : ""}`)),
+    );
   });
   // A later, normal exit (e.g. stop() killing the process) would
   // otherwise reject this same promise with nothing left listening.

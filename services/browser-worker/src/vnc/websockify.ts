@@ -17,12 +17,23 @@ export interface WebsockifyHandle {
 export async function startWebsockify(vncPort: number): Promise<WebsockifyHandle> {
   const wsPort = await getFreePort();
   const proc = spawn("websockify", ["--web=/usr/share/novnc", `127.0.0.1:${wsPort}`, `127.0.0.1:${vncPort}`], {
-    stdio: "ignore",
+    stdio: ["ignore", "ignore", "pipe"],
+  });
+
+  // Captured so an early exit's error message actually says why (an
+  // opaque "exited early" cost a real debugging round-trip once
+  // already - see the CI fix that added the missing `novnc` apt
+  // package, which this would have surfaced immediately).
+  let stderr = "";
+  proc.stderr?.on("data", (chunk: Buffer) => {
+    stderr += chunk.toString();
   });
 
   const started = new Promise<void>((_resolve, reject) => {
     proc.once("error", reject);
-    proc.once("exit", (code) => reject(new Error(`websockify exited early with code ${code}`)));
+    proc.once("exit", (code) =>
+      reject(new Error(`websockify exited early with code ${code}${stderr ? `: ${stderr.trim()}` : ""}`)),
+    );
   });
   started.catch(() => undefined);
 

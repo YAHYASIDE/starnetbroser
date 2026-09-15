@@ -86,8 +86,15 @@ jobs:
           test -x "$CHROME"
           echo "CHROMIUM_EXECUTABLE_PATH=$CHROME" >> "$GITHUB_ENV"
 
-      - name: Install Xvfb/x11vnc/websockify (apt has real internet access here, unlike the dev sandbox)
-        run: sudo apt-get update && sudo apt-get install -y xvfb x11vnc websockify
+      # novnc is required here even though nothing renders its UI in
+      # these tests: websockify is started with --web=/usr/share/novnc
+      # (src/vnc/websockify.ts) and some versions exit immediately if
+      # that path doesn't exist. The dev sandbox happened to have novnc
+      # pre-installed already, which is what let this slip through
+      # local testing - confirmed as the real cause from this job's own
+      # "websockify exited early with code 1" failure.
+      - name: Install Xvfb/x11vnc/websockify/novnc (apt has real internet access here, unlike the dev sandbox)
+        run: sudo apt-get update && sudo apt-get install -y xvfb x11vnc websockify novnc
 
       - name: Run the real session-persistence + isolation test suite
         working-directory: services/browser-worker
