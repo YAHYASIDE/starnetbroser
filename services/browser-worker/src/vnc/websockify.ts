@@ -1,5 +1,6 @@
 import { ChildProcess, spawn } from "child_process";
 import { getFreePort } from "./freePort";
+import { waitForPortOpen } from "./waitForPort";
 
 export interface WebsockifyHandle {
   port: number;
@@ -19,18 +20,23 @@ export async function startWebsockify(vncPort: number): Promise<WebsockifyHandle
     stdio: "ignore",
   });
 
-  return new Promise((resolve, reject) => {
-    const onError = reject;
-    proc.once("error", onError);
-    setTimeout(() => {
-      proc.removeListener("error", onError);
-      resolve({
-        port: wsPort,
-        proc,
-        stop: async () => {
-          proc.kill("SIGTERM");
-        },
-      });
-    }, 300);
+  const started = new Promise<void>((_resolve, reject) => {
+    proc.once("error", reject);
+    proc.once("exit", (code) => reject(new Error(`websockify exited early with code ${code}`)));
   });
+  started.catch(() => undefined);
+
+  // Real readiness, not a fixed guess: websockify is a Python process
+  // that can take meaningfully longer than a few hundred ms to start
+  // listening under concurrent load (several sessions' Chromium/Xvfb/
+  // x11vnc/websockify competing for CPU at once).
+  await Promise.race([waitForPortOpen(wsPort), started]);
+
+  return {
+    port: wsPort,
+    proc,
+    stop: async () => {
+      proc.kill("SIGTERM");
+    },
+  };
 }

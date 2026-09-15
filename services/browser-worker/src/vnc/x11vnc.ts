@@ -1,5 +1,6 @@
 import { ChildProcess, spawn } from "child_process";
 import { getFreePort } from "./freePort";
+import { waitForPortOpen } from "./waitForPort";
 
 export interface X11vncHandle {
   port: number;
@@ -30,18 +31,24 @@ export async function startX11vnc(displayName: string): Promise<X11vncHandle> {
     { stdio: "ignore" },
   );
 
-  return new Promise((resolve, reject) => {
-    const onError = reject;
-    proc.once("error", onError);
-    setTimeout(() => {
-      proc.removeListener("error", onError);
-      resolve({
-        port,
-        proc,
-        stop: async () => {
-          proc.kill("SIGTERM");
-        },
-      });
-    }, 400);
+  const started = new Promise<void>((_resolve, reject) => {
+    proc.once("error", reject);
+    proc.once("exit", (code) => reject(new Error(`x11vnc exited early with code ${code}`)));
   });
+  // A later, normal exit (e.g. stop() killing the process) would
+  // otherwise reject this same promise with nothing left listening.
+  started.catch(() => undefined);
+
+  // Wait for whichever happens first: x11vnc actually accepting
+  // connections, or it dying before that - never a fixed guess at how
+  // long that takes.
+  await Promise.race([waitForPortOpen(port), started]);
+
+  return {
+    port,
+    proc,
+    stop: async () => {
+      proc.kill("SIGTERM");
+    },
+  };
 }

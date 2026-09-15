@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@novnc/novnc": "^1.5.0",
     "@starnet/shared": "1.0.0",
     "next": "15.5.25",
     "react": "18.3.1",

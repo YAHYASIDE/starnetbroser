@@ -1,18 +1,59 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { expiryDay } from "@starnet/shared";
 import { AccountCard } from "./AccountCard";
 import { DayCircles } from "./DayCircles";
+import { ConnectionStatus } from "./ConnectionStatus";
 import { daysRemainingNumber } from "@/lib/date";
+import { ApiError, listAccounts } from "@/lib/apiClient";
+import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
 
 const NEAR_EXPIRY_THRESHOLD_DAYS = 3;
 
-export function HomeView({ accounts }: { accounts: StarlinkAccountSummary[] }) {
+type DataState = "demo" | "loading" | "loaded" | "error";
+
+export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccountSummary[] }) {
   const [query, setQuery] = useState("");
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [showAll, setShowAll] = useState(false);
+
+  // Starts identical to the server-rendered output (demo data, demo
+  // state) so there's no hydration mismatch; real data replaces it after
+  // mount, never leaving the screen blank in between.
+  const [accounts, setAccounts] = useState(demoAccounts);
+  const [dataState, setDataState] = useState<DataState>("demo");
+  const [errorMessage, setErrorMessage] = useState("");
+
+  async function loadRealAccounts() {
+    setDataState("loading");
+    setErrorMessage("");
+    try {
+      const real = await listAccounts(query || undefined);
+      setAccounts(real);
+      setDataState("loaded");
+    } catch (err) {
+      setDataState("error");
+      setErrorMessage(err instanceof ApiError ? err.message : "تعذّر تحميل الحسابات");
+    }
+  }
+
+  useEffect(() => {
+    if (isDemoMode()) {
+      setDataState("demo");
+      setAccounts(demoAccounts);
+      return;
+    }
+    if (!isLoggedIn()) {
+      setDataState("error");
+      setErrorMessage("تم إعداد عنوان الخادم لكن لم يتم تسجيل الدخول بعد - افتح الإعدادات لتسجيل الدخول");
+      return;
+    }
+    loadRealAccounts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const dayCounts = useMemo(() => {
     const counts = new Map<number, number>();
@@ -66,7 +107,23 @@ export function HomeView({ accounts }: { accounts: StarlinkAccountSummary[] }) {
           onChange={(e) => setQuery(e.target.value)}
           aria-label="بحث"
         />
+        <Link href="/settings" className="btn-link">
+          الإعدادات
+        </Link>
       </header>
+
+      <div className="conn-row">
+        <ConnectionStatus />
+        {dataState === "loading" && <span className="conn-badge conn-checking">جارِ تحميل البيانات…</span>}
+        {dataState === "error" && (
+          <div className="account-card-alert conn-error-row">
+            {errorMessage}
+            <button className="btn-link" onClick={loadRealAccounts}>
+              إعادة المحاولة
+            </button>
+          </div>
+        )}
+      </div>
 
       <section className="section">
         <h2 className="section-title">التجديد حسب اليوم</h2>

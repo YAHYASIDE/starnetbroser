@@ -1,14 +1,23 @@
 "use client";
 
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { presentStatus, isBalanceDueZero } from "@/lib/status";
 import { daysRemainingLabel } from "@/lib/date";
+import { isDemoMode } from "@/lib/settingsStore";
 
 export function AccountCard({ account }: { account: StarlinkAccountSummary }) {
   const dish = presentStatus(account.dishStatus);
   const wifi = presentStatus(account.wifiStatus);
   const remaining = daysRemainingLabel(account.rechargeDate || account.standbyDate);
   const balanceIsZero = isBalanceDueZero(account.balanceDue);
+
+  // Defaults to demo (matches server render) and only reflects the real
+  // localStorage-backed setting after mount, to avoid a hydration
+  // mismatch between server and client render.
+  const [demo, setDemo] = useState(true);
+  useEffect(() => setDemo(isDemoMode()), []);
 
   return (
     <article className="account-card">
@@ -45,9 +54,15 @@ export function AccountCard({ account }: { account: StarlinkAccountSummary }) {
       <div className="account-card-footer">
         <span className="account-card-updated">آخر تحديث: {account.lastUpdated || "—"}</span>
         <div className="account-card-actions">
-          <button className="btn-icon" title="فتح">
-            فتح
-          </button>
+          {demo ? (
+            <button className="btn-icon" title="غير متاح في وضع العرض التجريبي" disabled>
+              فتح
+            </button>
+          ) : (
+            <Link className="btn-icon" href={`/session?accountId=${account.id}`} title="فتح المتصفح السحابي">
+              فتح
+            </Link>
+          )}
           <button className="btn-icon" title="معلومات">
             معلومات
           </button>

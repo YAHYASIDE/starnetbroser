@@ -8,7 +8,7 @@ const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  transpilePackages: ["@starnet/shared"],
+  transpilePackages: ["@starnet/shared", "@novnc/novnc"],
   ...(staticExport
     ? {
         output: "export",
