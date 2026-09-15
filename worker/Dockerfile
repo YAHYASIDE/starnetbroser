@@ -19,7 +19,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY worker/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# --ignore-installed: the base image ships some packages (e.g.
+# typing_extensions) via apt/dpkg, which pip cannot cleanly uninstall to
+# upgrade (no RECORD file) - this installs the pinned versions into the
+# same environment alongside them instead of trying to uninstall first.
+RUN pip install --no-cache-dir --ignore-installed -r requirements.txt
 
 COPY backend/app/reader ./reader_shared
 COPY worker/control_server.py worker/status_probe.js worker/autofill.js worker/entrypoint.sh ./
