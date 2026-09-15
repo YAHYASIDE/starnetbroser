@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build output
+dist/
+build/
+.next/
+out/
+**/dist/
+**/build/
+**/.next/
+**/next-env.d.ts
+.eslintcache
+
+# Env / secrets - never commit real values
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# Prisma
+services/api/prisma/dev.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Android / Capacitor
+apps/android/android/
+apps/android/ios/
+apps/android/www/
+*.apk
+*.aab
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+*.iml
+
+# Test coverage
+coverage/
+*.tsbuildinfo
