@@ -1,0 +1,23 @@
+{
+  "name": "starnetbroser",
+  "private": true,
+  "version": "1.0.0",
+  "description": "STAR NET - cloud-managed Starlink account operations platform",
+  "workspaces": [
+    "apps/*",
+    "services/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "typescript": "5.7.2"
+  }
+}
