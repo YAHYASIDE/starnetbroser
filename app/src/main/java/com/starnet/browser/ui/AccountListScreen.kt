@@ -43,7 +43,8 @@ fun AccountListScreen(
     accounts: List<AccountProfile>,
     onAdd: () -> Unit,
     onEdit: (AccountProfile) -> Unit,
-    onOpen: (AccountProfile) -> Unit
+    onOpen: (AccountProfile) -> Unit,
+    onOpenCloudMode: (() -> Unit)? = null
 ) {
     var search by remember { mutableStateOf("") }
     var selected by remember { mutableStateOf<AccountProfile?>(null) }
@@ -66,6 +67,9 @@ fun AccountListScreen(
             Column(Modifier.weight(1f)) {
                 Text("STAR NET", color = Color.White, style = MaterialTheme.typography.headlineSmall)
                 Text("الحسابات مرتبة حسب يوم الانتهاء", color = Color(0xFF9CCAB8))
+            }
+            if (onOpenCloudMode != null) {
+                OutlinedButton(onClick = onOpenCloudMode) { Text("الوضع السحابي", color = Color.White) }
             }
             Button(onClick = onAdd) { Text("+ إضافة") }
         }
