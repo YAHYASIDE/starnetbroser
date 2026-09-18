@@ -4,14 +4,22 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { presentStatus, isBalanceDueZero } from "@/lib/status";
-import { daysRemainingLabel } from "@/lib/date";
+import { daysRemainingLabel, daysRemainingNumber } from "@/lib/date";
 import { isDemoMode } from "@/lib/settingsStore";
 
 export function AccountCard({ account }: { account: StarlinkAccountSummary }) {
   const dish = presentStatus(account.dishStatus);
   const wifi = presentStatus(account.wifiStatus);
   const remaining = daysRemainingLabel(account.rechargeDate || account.standbyDate);
+  const remainingDays = daysRemainingNumber(account.rechargeDate || account.standbyDate);
   const balanceIsZero = isBalanceDueZero(account.balanceDue);
+  const urgencyClass = remainingDays === null
+    ? "date-neutral"
+    : remainingDays < 0
+      ? "date-expired"
+      : remainingDays <= 3
+        ? "date-warning"
+        : "date-safe";
 
   // Defaults to demo (matches server render) and only reflects the real
   // localStorage-backed setting after mount, to avoid a hydration
@@ -22,31 +30,42 @@ export function AccountCard({ account }: { account: StarlinkAccountSummary }) {
   return (
     <article className="account-card">
       <header className="account-card-header">
-        <h3 className="account-card-name">{account.name}</h3>
-        <div className="account-card-dots" aria-label="حالة الاتصال">
-          <span className={`dot ${dish.className}`} title={`ستارلينك: ${dish.label}`} />
-          <span className={`dot ${wifi.className}`} title={`واي فاي: ${wifi.label}`} />
+        <div className="account-identity">
+          <span className="account-avatar" aria-hidden="true">{account.name.trim().charAt(0) || "★"}</span>
+          <div>
+            <h3 className="account-card-name">{account.name}</h3>
+            <p className="account-card-plan">{account.planName || account.deviceName || "حساب Starlink"}</p>
+          </div>
+        </div>
+        <div className="account-statuses" aria-label="حالة الاتصال">
+          <span className="device-status" title={`ستارلينك: ${dish.label}`}>
+            <span className={`dot ${dish.className}`} />
+            الجهاز
+          </span>
+          <span className="device-status" title={`واي فاي: ${wifi.label}`}>
+            <span className={`dot ${wifi.className}`} />
+            Wi-Fi
+          </span>
         </div>
       </header>
 
-      <div className="account-card-row">
-        <span className="account-card-label">{account.rechargeDate ? "التجديد" : "الانتظار"}</span>
-        <span className="account-card-value">
-          {account.rechargeDate || account.standbyDate || "—"}
-          {remaining ? ` · ${remaining}` : ""}
-        </span>
-      </div>
+      <div className="account-card-details">
+        <div className="account-detail-block">
+          <span className="account-card-label">{account.rechargeDate ? "موعد التجديد" : "نهاية الانتظار"}</span>
+          <span className="account-card-value account-date">{account.rechargeDate || account.standbyDate || "—"}</span>
+          {remaining && <span className={`date-status ${urgencyClass}`}>{remaining}</span>}
+        </div>
 
-      <div className="account-card-row">
-        <span className="account-card-label">الرصيد</span>
-        {balanceIsZero ? (
-          <span className="badge badge-green">لا يوجد رصيد مستحق</span>
-        ) : (
-          <span className="account-card-value">
-            {account.currency}
-            {account.balanceDue || "0"}
-          </span>
-        )}
+        <div className="account-detail-block balance-block">
+          <span className="account-card-label">الرصيد المستحق</span>
+          {balanceIsZero ? (
+            <span className="badge badge-green">لا يوجد مستحق</span>
+          ) : (
+            <span className="account-card-value balance-value">
+              {account.currency}{account.balanceDue || "0"}
+            </span>
+          )}
+        </div>
       </div>
 
       {account.alertReason && <div className="account-card-alert">{account.alertReason}</div>}
@@ -55,19 +74,19 @@ export function AccountCard({ account }: { account: StarlinkAccountSummary }) {
         <span className="account-card-updated">آخر تحديث: {account.lastUpdated || "—"}</span>
         <div className="account-card-actions">
           {demo ? (
-            <button className="btn-icon" title="غير متاح في وضع العرض التجريبي" disabled>
-              فتح
+            <button className="card-action card-action-primary" title="غير متاح في وضع العرض التجريبي" disabled>
+              <span aria-hidden="true">↗</span> فتح
             </button>
           ) : (
-            <Link className="btn-icon" href={`/session?accountId=${account.id}`} title="فتح المتصفح السحابي">
-              فتح
+            <Link className="card-action card-action-primary" href={`/session?accountId=${account.id}`} title="فتح المتصفح السحابي">
+              <span aria-hidden="true">↗</span> فتح
             </Link>
           )}
-          <button className="btn-icon" title="معلومات">
-            معلومات
+          <button className="card-action" title="معلومات">
+            <span aria-hidden="true">ⓘ</span> معلومات
           </button>
-          <button className="btn-icon" title="تعديل">
-            تعديل
+          <button className="card-action" title="تعديل">
+            <span aria-hidden="true">✎</span> تعديل
           </button>
         </div>
       </div>

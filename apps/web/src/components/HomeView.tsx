@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { StarlinkAccountSummary } from "@starnet/shared";
+import { DeviceStatus, StarlinkAccountSummary } from "@starnet/shared";
 import { expiryDay } from "@starnet/shared";
 import { AccountCard } from "./AccountCard";
 import { DayCircles } from "./DayCircles";
@@ -73,6 +73,25 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
     [accounts],
   );
 
+  const overview = useMemo(() => {
+    let online = 0;
+    let expiringSoon = 0;
+    let expired = 0;
+
+    for (const account of accounts) {
+      if (account.dishStatus === DeviceStatus.GREEN || account.wifiStatus === DeviceStatus.GREEN) {
+        online += 1;
+      }
+
+      const days = daysRemainingNumber(account.rechargeDate || account.standbyDate);
+      if (days === null) continue;
+      if (days < 0) expired += 1;
+      else if (days <= NEAR_EXPIRY_THRESHOLD_DAYS) expiringSoon += 1;
+    }
+
+    return { total: accounts.length, online, expiringSoon, expired };
+  }, [accounts]);
+
   const filtered = useMemo(() => {
     let list = accounts;
     if (selectedDay !== null) {
@@ -93,24 +112,37 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
   const visible = showAll || query || selectedDay !== null ? filtered : expiredOrNearExpiry;
 
   return (
-    <main className="home">
-      <header className="home-header">
-        <div className="brand">
-          <span className="brand-mark">STAR NET</span>
+    <main className="home app-shell">
+      <header className="app-header">
+        <div className="brand-lockup">
+          <span className="brand-logo" aria-hidden="true">★</span>
+          <div>
+            <span className="brand-mark">STAR NET</span>
+            <span className="brand-subtitle">إدارة حسابات Starlink</span>
+          </div>
         </div>
+        <Link href="/settings" className="header-settings" aria-label="فتح الإعدادات">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
+            <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.08A1.7 1.7 0 0 0 8.94 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.57 15 1.7 1.7 0 0 0 3 14H3v-4h.08A1.7 1.7 0 0 0 4.6 8.94a1.7 1.7 0 0 0-.34-1.88L4.2 7l2.83-2.83.06.06A1.7 1.7 0 0 0 8.97 4.6 1.7 1.7 0 0 0 10 3.08V3h4v.08a1.7 1.7 0 0 0 1.06 1.52 1.7 1.7 0 0 0 1.88-.34L17 4.2 19.83 7l-.06.06a1.7 1.7 0 0 0-.34 1.88A1.7 1.7 0 0 0 20.92 10H21v4h-.08A1.7 1.7 0 0 0 19.4 15Z" />
+          </svg>
+        </Link>
+      </header>
+
+      <section className="search-panel" aria-label="البحث في الحسابات">
+        <span className="search-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>
+        </span>
         <input
-          className="search-input"
+          className="search-input dashboard-search"
           type="search"
           inputMode="search"
-          placeholder="ابحث بالاسم، الإيميل، KIT أو Serial…"
+          placeholder="ابحث بالاسم، KIT أو Serial"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           aria-label="بحث"
         />
-        <Link href="/settings" className="btn-link">
-          الإعدادات
-        </Link>
-      </header>
+      </section>
 
       <div className="conn-row">
         <ConnectionStatus />
@@ -125,18 +157,52 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
         )}
       </div>
 
-      <section className="section">
-        <h2 className="section-title">التجديد حسب اليوم</h2>
+      <section className="overview-grid" aria-label="ملخص الحسابات">
+        <article className="overview-card overview-total">
+          <span className="overview-icon" aria-hidden="true">◎</span>
+          <span className="overview-value">{overview.total}</span>
+          <span className="overview-label">كل الحسابات</span>
+        </article>
+        <article className="overview-card overview-online">
+          <span className="overview-icon" aria-hidden="true">●</span>
+          <span className="overview-value">{overview.online}</span>
+          <span className="overview-label">متصل الآن</span>
+        </article>
+        <article className="overview-card overview-warning">
+          <span className="overview-icon" aria-hidden="true">◷</span>
+          <span className="overview-value">{overview.expiringSoon}</span>
+          <span className="overview-label">قريب الانتهاء</span>
+        </article>
+        <article className="overview-card overview-expired">
+          <span className="overview-icon" aria-hidden="true">!</span>
+          <span className="overview-value">{overview.expired}</span>
+          <span className="overview-label">منتهي</span>
+        </article>
+      </section>
+
+      <section className="section dashboard-section">
+        <div className="section-heading">
+          <div>
+            <h2 className="section-title">التجديد حسب اليوم</h2>
+            <p className="section-caption">اضغط على اليوم لعرض الحسابات</p>
+          </div>
+          {selectedDay !== null && (
+            <button className="clear-filter" onClick={() => setSelectedDay(null)}>إلغاء التصفية</button>
+          )}
+        </div>
         <DayCircles counts={dayCounts} selectedDay={selectedDay} onSelectDay={setSelectedDay} />
       </section>
 
-      <section className="section">
+      <section className="section dashboard-section accounts-section">
         <div className="section-header-row">
-          <h2 className="section-title">
-            {showAll || query || selectedDay !== null ? "النتائج" : "منتهية أو قريبة من الانتهاء"}
-          </h2>
+          <div>
+            <h2 className="section-title">
+              {showAll || query || selectedDay !== null ? "الحسابات" : "تحتاج إلى متابعة"}
+            </h2>
+            <p className="section-caption">{visible.length} حساب</p>
+          </div>
           {!query && selectedDay === null && (
-            <button className="btn-link" onClick={() => setShowAll((v) => !v)}>
+            <button className="text-action" onClick={() => setShowAll((v) => !v)}>
               {showAll ? "عرض المنتهية فقط" : "عرض كل الحسابات"}
             </button>
           )}
