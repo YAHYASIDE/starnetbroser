@@ -7,7 +7,13 @@ import { presentStatus, isBalanceDueZero } from "@/lib/status";
 import { daysRemainingLabel, daysRemainingNumber } from "@/lib/date";
 import { isDemoMode } from "@/lib/settingsStore";
 
-export function AccountCard({ account }: { account: StarlinkAccountSummary }) {
+interface Props {
+  account: StarlinkAccountSummary;
+  onEdit: (account: StarlinkAccountSummary) => void;
+  onInfo: (account: StarlinkAccountSummary) => void;
+}
+
+export function AccountCard({ account, onEdit, onInfo }: Props) {
   const dish = presentStatus(account.dishStatus);
   const wifi = presentStatus(account.wifiStatus);
   const remaining = daysRemainingLabel(account.rechargeDate || account.standbyDate);
@@ -82,10 +88,10 @@ export function AccountCard({ account }: { account: StarlinkAccountSummary }) {
               <span aria-hidden="true">↗</span> فتح
             </Link>
           )}
-          <button className="card-action" title="معلومات">
+          <button className="card-action" title="معلومات" onClick={() => onInfo(account)}>
             <span aria-hidden="true">ⓘ</span> معلومات
           </button>
-          <button className="card-action" title="تعديل">
+          <button className="card-action" title="تعديل" onClick={() => onEdit(account)}>
             <span aria-hidden="true">✎</span> تعديل
           </button>
         </div>

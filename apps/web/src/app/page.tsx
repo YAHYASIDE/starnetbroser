@@ -9,7 +9,7 @@ export default function HomePage() {
     <>
       {IS_DEMO && (
         <div className="demo-banner">
-          معاينة تجريبية ببيانات وهمية — لا توجد بيانات عملاء حقيقية هنا
+          نسخة تجريبية — أي حساب تضيفه يُحفظ على هذا الجهاز فقط، وليس في السحابة
         </div>
       )}
       <HomeView accounts={demoAccounts} />

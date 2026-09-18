@@ -7,18 +7,22 @@ import { expiryDay } from "@starnet/shared";
 import { AccountCard } from "./AccountCard";
 import { DayCircles } from "./DayCircles";
 import { ConnectionStatus } from "./ConnectionStatus";
+import { AccountDialog, AccountDialogMode } from "./AccountDialog";
 import { daysRemainingNumber } from "@/lib/date";
 import { ApiError, listAccounts } from "@/lib/apiClient";
 import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
+import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
 
 const NEAR_EXPIRY_THRESHOLD_DAYS = 3;
 
 type DataState = "demo" | "loading" | "loaded" | "error";
+type DialogState = { mode: AccountDialogMode; account?: StarlinkAccountSummary } | null;
 
 export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccountSummary[] }) {
   const [query, setQuery] = useState("");
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const [dialog, setDialog] = useState<DialogState>(null);
 
   // Starts identical to the server-rendered output (demo data, demo
   // state) so there's no hydration mismatch; real data replaces it after
@@ -43,7 +47,7 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
   useEffect(() => {
     if (isDemoMode()) {
       setDataState("demo");
-      setAccounts(demoAccounts);
+      setAccounts(loadDemoAccounts(demoAccounts));
       return;
     }
     if (!isLoggedIn()) {
@@ -54,6 +58,22 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
     loadRealAccounts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function saveAccount(account: StarlinkAccountSummary) {
+    setAccounts((current) => {
+      const exists = current.some((item) => item.id === account.id);
+      const next = exists
+        ? current.map((item) => item.id === account.id ? account : item)
+        : [account, ...current];
+
+      if (dataState === "demo") saveDemoAccounts(next);
+      return next;
+    });
+    setShowAll(true);
+    setSelectedDay(null);
+    setQuery("");
+    setDialog(null);
+  }
 
   const dayCounts = useMemo(() => {
     const counts = new Map<number, number>();
@@ -121,12 +141,17 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
             <span className="brand-subtitle">إدارة حسابات Starlink</span>
           </div>
         </div>
-        <Link href="/settings" className="header-settings" aria-label="فتح الإعدادات">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
-            <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.08A1.7 1.7 0 0 0 8.94 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.57 15 1.7 1.7 0 0 0 3 14H3v-4h.08A1.7 1.7 0 0 0 4.6 8.94a1.7 1.7 0 0 0-.34-1.88L4.2 7l2.83-2.83.06.06A1.7 1.7 0 0 0 8.97 4.6 1.7 1.7 0 0 0 10 3.08V3h4v.08a1.7 1.7 0 0 0 1.06 1.52 1.7 1.7 0 0 0 1.88-.34L17 4.2 19.83 7l-.06.06a1.7 1.7 0 0 0-.34 1.88A1.7 1.7 0 0 0 20.92 10H21v4h-.08A1.7 1.7 0 0 0 19.4 15Z" />
-          </svg>
-        </Link>
+        <div className="header-actions">
+          <button className="header-add" type="button" onClick={() => setDialog({ mode: "add" })}>
+            <span aria-hidden="true">＋</span> إضافة حساب
+          </button>
+          <Link href="/settings" className="header-settings" aria-label="فتح الإعدادات">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
+              <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.08A1.7 1.7 0 0 0 8.94 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.57 15 1.7 1.7 0 0 0 3 14H3v-4h.08A1.7 1.7 0 0 0 4.6 8.94a1.7 1.7 0 0 0-.34-1.88L4.2 7l2.83-2.83.06.06A1.7 1.7 0 0 0 8.97 4.6 1.7 1.7 0 0 0 10 3.08V3h4v.08a1.7 1.7 0 0 0 1.06 1.52 1.7 1.7 0 0 0 1.88-.34L17 4.2 19.83 7l-.06.06a1.7 1.7 0 0 0-.34 1.88A1.7 1.7 0 0 0 20.92 10H21v4h-.08A1.7 1.7 0 0 0 19.4 15Z" />
+            </svg>
+          </Link>
+        </div>
       </header>
 
       <section className="search-panel" aria-label="البحث في الحسابات">
@@ -213,11 +238,25 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
         ) : (
           <div className="account-grid">
             {visible.map((account) => (
-              <AccountCard key={account.id} account={account} />
+              <AccountCard
+                key={account.id}
+                account={account}
+                onInfo={(selected) => setDialog({ mode: "view", account: selected })}
+                onEdit={(selected) => setDialog({ mode: "edit", account: selected })}
+              />
             ))}
           </div>
         )}
       </section>
+
+      {dialog && (
+        <AccountDialog
+          mode={dialog.mode}
+          account={dialog.account}
+          onClose={() => setDialog(null)}
+          onSave={saveAccount}
+        />
+      )}
     </main>
   );
 }
