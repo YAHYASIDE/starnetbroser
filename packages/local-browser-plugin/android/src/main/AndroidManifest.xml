@@ -7,7 +7,7 @@
           never reachable from another app or an external deep link.
         -->
         <activity
-            android:name=".AccountBrowserActivity"
+            android:name="com.starnetbroser.localbrowser.AccountBrowserActivity"
             android:exported="false"
             android:theme="@style/Theme.AppCompat.Light.NoActionBar"
             android:configChanges="orientation|screenSize|keyboardHidden|screenLayout"

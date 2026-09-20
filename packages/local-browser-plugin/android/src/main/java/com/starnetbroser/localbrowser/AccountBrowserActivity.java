@@ -3,6 +3,7 @@ package com.starnetbroser.localbrowser;
 import android.annotation.SuppressLint;
 import android.os.Bundle;
 import android.view.View;
+import android.view.ViewGroup;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -55,8 +56,17 @@ public class AccountBrowserActivity extends AppCompatActivity {
         // starting the Activity, but this screen must never silently fall
         // back to a shared session if it is somehow reached without that
         // check (e.g. a stale PendingIntent) having happened.
-        if (profileName == null || homeUrl == null || !WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
+        if (profileName == null || !WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
             Toast.makeText(this, R.string.starnet_unsupported_device, Toast.LENGTH_LONG).show();
+            finish();
+            return;
+        }
+
+        // Defensive re-check of the same allow-list LocalBrowserPlugin already enforced before
+        // starting this Activity: never load anything other than the real Starlink portal over
+        // HTTPS, whatever reached this Activity (a caller bug, a crafted Intent, ...).
+        if (!AllowedUrl.isAllowed(homeUrl)) {
+            Toast.makeText(this, R.string.starnet_invalid_request, Toast.LENGTH_LONG).show();
             finish();
             return;
         }
@@ -109,6 +119,30 @@ public class AccountBrowserActivity extends AppCompatActivity {
         ((Button) findViewById(R.id.starnet_error_retry)).setOnClickListener(v -> reload());
 
         webView.loadUrl(homeUrl);
+    }
+
+    /**
+     * Tears down this screen's WebView instance without touching what it stores. Cookies,
+     * localStorage and login state live in Chromium's own per-profile on-disk directory, owned
+     * by the profile (ProfileStore), not by this WebView object or this Activity - destroying
+     * the WebView only releases the in-memory engine so it can be garbage-collected, and is what
+     * lets the profile be deleted later (ProfileStore#deleteProfile rejects a profile that still
+     * has a live WebView attached) without a stale reference to this screen keeping it "in use".
+     */
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (webView != null) {
+            webView.stopLoading();
+            webView.setWebViewClient(null);
+            webView.setWebChromeClient(null);
+            ViewGroup parent = (ViewGroup) webView.getParent();
+            if (parent != null) {
+                parent.removeView(webView);
+            }
+            webView.destroy();
+            webView = null;
+        }
     }
 
     /** Phone hardware back button: navigate within the account's own page history first. */

@@ -7,4 +7,5 @@
     <string name="starnet_load_error">تعذر تحميل الصفحة. تحقق من الاتصال بالإنترنت ثم حاول مرة أخرى.</string>
     <string name="starnet_retry">إعادة المحاولة</string>
     <string name="starnet_unsupported_device">هذا الجهاز لا يدعم المتصفحات المستقلة</string>
+    <string name="starnet_invalid_request">تعذر فتح هذا الحساب لأن الطلب غير صالح</string>
 </resources>

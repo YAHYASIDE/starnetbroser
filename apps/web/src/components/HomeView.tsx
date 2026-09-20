@@ -93,7 +93,15 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
         "سيؤدي هذا إلى تسجيل الخروج نهائيًا من هذا الحساب على هذا الهاتف. لا يمكن التراجع عن هذا الإجراء.",
     );
     if (alsoDeleteSession) {
-      await deleteIsolatedAccountSession(account.id);
+      const deleted = await deleteIsolatedAccountSession(account.id);
+      // Never claim success without real confirmation from the native side - if deleteProfile
+      // returned false or the call errored, the user needs to know the login may still be there.
+      if (!deleted) {
+        window.alert(
+          `تعذر حذف جلسة المتصفح المحلية لحساب "${account.name}". ` +
+            "قد تظل بيانات تسجيل الدخول محفوظة على هذا الهاتف - حاول مرة أخرى.",
+        );
+      }
     }
   }
 

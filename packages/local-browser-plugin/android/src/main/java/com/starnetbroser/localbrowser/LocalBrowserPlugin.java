@@ -22,6 +22,7 @@ public class LocalBrowserPlugin extends Plugin {
 
     public static final String DEFAULT_URL = "https://starlink.com/account/home";
     public static final String ERROR_CODE_UNSUPPORTED = "MULTI_PROFILE_UNSUPPORTED";
+    public static final String ERROR_CODE_INVALID_URL = "INVALID_URL";
 
     @PluginMethod
     public void isSupported(PluginCall call) {
@@ -53,6 +54,14 @@ public class LocalBrowserPlugin extends Plugin {
 
         String accountName = call.getString("accountName", accountId);
         String url = call.getString("url", DEFAULT_URL);
+
+        // The caller (JS running in the app's WebView) is not trusted to pick where this
+        // isolated, cookie-bearing browser navigates: only the real Starlink portal over HTTPS
+        // is allowed, never http/file/javascript or an arbitrary host.
+        if (!AllowedUrl.isAllowed(url)) {
+            call.reject("Only https://starlink.com (or a subdomain) is allowed as the initial URL", ERROR_CODE_INVALID_URL);
+            return;
+        }
 
         Context context = getContext();
         Intent intent = new Intent(context, AccountBrowserActivity.class);

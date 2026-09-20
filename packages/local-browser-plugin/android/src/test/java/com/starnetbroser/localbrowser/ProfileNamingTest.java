@@ -1,7 +1,6 @@
 package com.starnetbroser.localbrowser;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -40,25 +39,53 @@ public class ProfileNamingTest {
     }
 
     @Test
-    public void sanitizesCharactersUnsafeForAFilesystemDirectoryName() {
+    public void resultOnlyContainsFilesystemSafeCharacters() {
         String name = ProfileNaming.profileNameFor("acc/../../etc passwd*?");
-        assertFalse(name.contains("/"));
-        assertFalse(name.contains(" "));
-        assertFalse(name.contains("*"));
-        assertFalse(name.contains("?"));
-        assertTrue(name.startsWith("starnet_account_"));
+        assertTrue(name.matches("starnet_account_[0-9a-f]{64}"));
+    }
+
+    /**
+     * Regression test for the exact collision found by an independent review: the previous
+     * sanitize-unsafe-characters-to-"_" implementation mapped these pairs to the identical
+     * profile name, which would have silently merged two different accounts' Starlink sessions.
+     * SHA-256 of the full accountId makes this class of collision computationally infeasible.
+     */
+    @Test
+    public void doesNotCollideOnPairsThatUsedToSanitizeIdentically() {
+        String[][] pairs = {
+            {"acc/a", "acc?a"},
+            {"client 1", "client?1"},
+            {"أحمد", "محمد"},
+        };
+        for (String[] pair : pairs) {
+            String a = ProfileNaming.profileNameFor(pair[0]);
+            String b = ProfileNaming.profileNameFor(pair[1]);
+            assertNotEquals("\"" + pair[0] + "\" and \"" + pair[1] + "\" must not collide", a, b);
+        }
+    }
+
+    @Test
+    public void doesNotCollideOnLongDifferingIds() {
+        String base = "customer-";
+        StringBuilder padding = new StringBuilder();
+        for (int i = 0; i < 500; i++) padding.append('x');
+
+        String idA = base + padding + "-A";
+        String idB = base + padding + "-B";
+        assertNotEquals(ProfileNaming.profileNameFor(idA), ProfileNaming.profileNameFor(idB));
     }
 
     /**
      * Regression guard for "prevent use of a shared profile" at scale: many distinct account ids
-     * must never collapse onto the same profile name, which would silently merge two customers'
-     * Starlink sessions into one.
+     * - including ids that would have collided under the old sanitize-to-"_" scheme - must never
+     * collapse onto the same profile name.
      */
     @Test
-    public void isStableAcrossManyDistinctAccountIds() {
+    public void isStableAcrossThousandsOfDistinctAccountIds() {
         Set<String> seen = new HashSet<>();
-        for (int i = 0; i < 500; i++) {
-            String id = "customer-" + i;
+        String[] weirdChars = {"/", "?", "*", " ", ".", "#", "%", "أ", "م", "خ"};
+        for (int i = 0; i < 5000; i++) {
+            String id = "customer" + weirdChars[i % weirdChars.length] + i;
             String profile = ProfileNaming.profileNameFor(id);
             assertTrue("duplicate profile name for distinct account id " + id, seen.add(profile));
         }
