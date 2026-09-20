@@ -64,6 +64,17 @@ public class ProfileNamingTest {
         }
     }
 
+    /**
+     * The hash input must be accountId exactly as given, not a trimmed copy - two ids differing
+     * only in leading/trailing whitespace are different ids and must resolve to different
+     * profiles, never be silently folded together.
+     */
+    @Test
+    public void whitespaceOnlyDifferencesProduceDifferentProfiles() {
+        assertNotEquals(ProfileNaming.profileNameFor("acc-1"), ProfileNaming.profileNameFor(" acc-1"));
+        assertNotEquals(ProfileNaming.profileNameFor("client"), ProfileNaming.profileNameFor("client "));
+    }
+
     @Test
     public void doesNotCollideOnLongDifferingIds() {
         String base = "customer-";

@@ -13,6 +13,7 @@ import { ApiError, listAccounts } from "@/lib/apiClient";
 import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
 import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
 import { deleteIsolatedAccountSession, isRunningInAndroidApp } from "@/lib/localBrowser";
+import { resolveAccountDeletion } from "@starnet/local-browser-plugin";
 
 const NEAR_EXPIRY_THRESHOLD_DAYS = 3;
 
@@ -76,33 +77,46 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
     setDialog(null);
   }
 
-  async function deleteAccount(account: StarlinkAccountSummary) {
+  function removeAccountCard(account: StarlinkAccountSummary) {
     setAccounts((current) => {
       const next = current.filter((item) => item.id !== account.id);
       if (dataState === "demo") saveDemoAccounts(next);
       return next;
     });
     setDialog(null);
+  }
 
-    // Deleting the account from STAR NET never implies deleting its saved
-    // Starlink login on this phone - that is a separate, explicit choice,
-    // and only asked about at all when there could be a session to delete.
-    if (!isRunningInAndroidApp()) return;
-    const alsoDeleteSession = window.confirm(
-      `هل تريد أيضًا حذف جلسة المتصفح المحلية المرتبطة بحساب "${account.name}"؟\n` +
-        "سيؤدي هذا إلى تسجيل الخروج نهائيًا من هذا الحساب على هذا الهاتف. لا يمكن التراجع عن هذا الإجراء.",
-    );
-    if (alsoDeleteSession) {
-      const deleted = await deleteIsolatedAccountSession(account.id);
-      // Never claim success without real confirmation from the native side - if deleteProfile
-      // returned false or the call errored, the user needs to know the login may still be there.
-      if (!deleted) {
-        window.alert(
-          `تعذر حذف جلسة المتصفح المحلية لحساب "${account.name}". ` +
-            "قد تظل بيانات تسجيل الدخول محفوظة على هذا الهاتف - حاول مرة أخرى.",
-        );
-      }
+  async function deleteAccount(account: StarlinkAccountSummary) {
+    // Deleting the account from STAR NET never implies deleting its saved Starlink login on this
+    // phone - that is a separate, explicit choice, and only asked about at all when there could
+    // be a session to delete. The card is never removed before that choice (and, if made, its
+    // outcome) is known: a session delete that fails must leave the account exactly as it was,
+    // so the user can retry instead of losing track of a still-logged-in local browser.
+    if (!isRunningInAndroidApp()) {
+      removeAccountCard(account);
+      return;
     }
+
+    const outcome = await resolveAccountDeletion({
+      confirmSessionDelete: () =>
+        window.confirm(
+          `هل تريد أيضًا حذف جلسة المتصفح المحلية المرتبطة بحساب "${account.name}"؟\n` +
+            "سيؤدي هذا إلى تسجيل الخروج نهائيًا من هذا الحساب على هذا الهاتف. لا يمكن التراجع عن هذا الإجراء.",
+        ),
+      deleteSession: () => deleteIsolatedAccountSession(account.id),
+    });
+
+    if (outcome.action === "keepAccount") {
+      // Never claim success without real confirmation from the native side - the account stays
+      // exactly as it was so the user can retry.
+      window.alert(
+        `تعذر حذف جلسة المتصفح المحلية لحساب "${account.name}". ` +
+          "لم يتم حذف الحساب - حاول مرة أخرى.",
+      );
+      return;
+    }
+
+    removeAccountCard(account);
   }
 
   const dayCounts = useMemo(() => {

@@ -23,6 +23,12 @@ import java.security.NoSuchAlgorithmException;
  * UTF-8-encoded accountId with SHA-256 instead makes two distinct ids
  * resolving to the same profile name computationally infeasible, with no
  * dependency on what characters the id happens to contain.
+ *
+ * The hash input is accountId exactly as given - not a trimmed copy.
+ * trim() is used only to decide whether accountId is blank; two ids that
+ * differ solely in leading/trailing whitespace (e.g. "client" vs.
+ * "client ") are, per spec, different ids and must map to different
+ * profiles, not be silently treated as the same account.
  */
 public final class ProfileNaming {
 
@@ -45,7 +51,7 @@ public final class ProfileNaming {
         if (accountId == null || accountId.trim().isEmpty()) {
             throw new IllegalArgumentException("accountId must not be blank");
         }
-        String profileName = PROFILE_PREFIX + sha256Hex(accountId.trim());
+        String profileName = PROFILE_PREFIX + sha256Hex(accountId);
         if (profileName.equals(DEFAULT_PROFILE_NAME)) {
             throw new IllegalStateException("Computed profile name must never equal the shared default profile");
         }

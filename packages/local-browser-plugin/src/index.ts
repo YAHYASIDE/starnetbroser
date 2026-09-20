@@ -6,4 +6,5 @@ const LocalBrowser = registerPlugin<LocalBrowserPlugin>("LocalBrowser", {
 });
 
 export * from "./definitions";
+export * from "./deletionFlow";
 export { LocalBrowser };
