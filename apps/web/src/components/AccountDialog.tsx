@@ -10,6 +10,7 @@ interface Props {
   account?: StarlinkAccountSummary;
   onClose: () => void;
   onSave: (account: StarlinkAccountSummary) => void;
+  onDelete?: (account: StarlinkAccountSummary) => void;
 }
 
 const statusOptions = [
@@ -58,7 +59,7 @@ function displayValue(value: string | null): string {
   return value?.trim() || "—";
 }
 
-export function AccountDialog({ mode, account, onClose, onSave }: Props) {
+export function AccountDialog({ mode, account, onClose, onSave, onDelete }: Props) {
   const initial = useMemo(() => account ?? createBlankAccount(), [account]);
   const [draft, setDraft] = useState(initial);
   const isView = mode === "view";
@@ -66,6 +67,13 @@ export function AccountDialog({ mode, account, onClose, onSave }: Props) {
 
   function update<K extends keyof StarlinkAccountSummary>(key: K, value: StarlinkAccountSummary[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
+  }
+
+  function confirmDelete() {
+    if (!account || !onDelete) return;
+    if (window.confirm(`هل أنت متأكد من حذف حساب "${account.name}"؟ لا يمكن التراجع عن هذا الإجراء.`)) {
+      onDelete(account);
+    }
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -172,13 +180,21 @@ export function AccountDialog({ mode, account, onClose, onSave }: Props) {
             </label>
 
             <div className="dialog-actions form-wide">
+              {mode === "edit" && onDelete && (
+                <button className="dialog-danger" type="button" onClick={confirmDelete}>حذف الحساب</button>
+              )}
               <button className="dialog-secondary" type="button" onClick={onClose}>إلغاء</button>
               <button className="dialog-primary" type="submit">{mode === "add" ? "إضافة الحساب" : "حفظ التعديل"}</button>
             </div>
           </form>
         )}
 
-        {isView && <button className="dialog-primary dialog-done" type="button" onClick={onClose}>تم</button>}
+        {isView && (
+          <div className="dialog-actions form-wide">
+            {onDelete && <button className="dialog-danger" type="button" onClick={confirmDelete}>حذف الحساب</button>}
+            <button className="dialog-primary dialog-done" type="button" onClick={onClose}>تم</button>
+          </div>
+        )}
       </section>
     </div>
   );

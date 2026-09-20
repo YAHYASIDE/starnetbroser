@@ -2,9 +2,10 @@ name: Preview
 
 on:
   push:
-    # main: merging PR #2 auto-triggers the GitHub Pages deploy below.
-    # claude/cloud-remote-browser: keep pre-merge preview builds on the PR.
-    branches: [main, claude/cloud-remote-browser]
+    # main: merging a PR auto-triggers the GitHub Pages deploy below.
+    # claude/cloud-remote-browser, claude/local-isolated-browser: keep
+    # pre-merge preview builds running on each feature branch's own PR.
+    branches: [main, claude/cloud-remote-browser, claude/local-isolated-browser]
   workflow_dispatch: {}
 
 permissions:
@@ -46,8 +47,8 @@ jobs:
 
       - run: npm ci
 
-      - name: Build packages/shared
-        run: npm run build:shared
+      - name: Build packages/shared + local-browser-plugin
+        run: npm run build:packages
 
       - name: Typecheck everything
         run: npm run typecheck
@@ -130,8 +131,8 @@ jobs:
 
       - run: npm ci
 
-      - name: Build packages/shared
-        run: npm run build:shared
+      - name: Build packages/shared + local-browser-plugin
+        run: npm run build:packages
 
       - name: Build apps/web as a static export (demo data only)
         working-directory: apps/web
@@ -206,8 +207,8 @@ jobs:
 
       - run: npm ci
 
-      - name: Build packages/shared
-        run: npm run build:shared
+      - name: Build packages/shared + local-browser-plugin
+        run: npm run build:packages
 
       - name: Build apps/web as a static export for the WebView (demo data)
         working-directory: apps/web
@@ -230,13 +231,27 @@ jobs:
 
       - name: Sync web assets + plugins into the Android project
         working-directory: apps/android
+        # This is what wires packages/local-browser-plugin into the freshly
+        # scaffolded project: it reads apps/android/package.json's
+        # dependency on @starnet/local-browser-plugin (a real npm workspace
+        # package, resolved via node_modules like any other), and writes
+        # android/capacitor.settings.gradle + capacitor.build.gradle +
+        # capacitor.plugins.json accordingly - no manual patch of the
+        # generated android/ folder needed, so this survives every fresh
+        # `cap add android` in every future CI run.
         run: npx cap sync android
+
+      - name: Make gradlew executable
+        working-directory: apps/android/android
+        run: chmod +x gradlew
+
+      - name: Run native plugin unit tests (account.id -> WebView profile isolation, see ProfileNamingTest)
+        working-directory: apps/android/android
+        run: ./gradlew :starnet-local-browser-plugin:testDebugUnitTest --no-daemon
 
       - name: Build the debug APK
         working-directory: apps/android/android
-        run: |
-          chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+        run: ./gradlew assembleDebug --no-daemon
 
       - name: Rename APK to the fixed, documented asset name
         run: |

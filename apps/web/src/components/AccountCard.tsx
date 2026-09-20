@@ -1,11 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { presentStatus, isBalanceDueZero } from "@/lib/status";
 import { daysRemainingLabel, daysRemainingNumber } from "@/lib/date";
-import { isDemoMode } from "@/lib/settingsStore";
+import { isRunningInAndroidApp, openIsolatedAccountBrowser } from "@/lib/localBrowser";
 
 interface Props {
   account: StarlinkAccountSummary;
@@ -27,11 +26,25 @@ export function AccountCard({ account, onEdit, onInfo }: Props) {
         ? "date-warning"
         : "date-safe";
 
-  // Defaults to demo (matches server render) and only reflects the real
-  // localStorage-backed setting after mount, to avoid a hydration
-  // mismatch between server and client render.
-  const [demo, setDemo] = useState(true);
-  useEffect(() => setDemo(isDemoMode()), []);
+  // Defaults to "not the Android app" (matches server render, which never
+  // has a native bridge) and only reflects reality after mount, to avoid a
+  // hydration mismatch between server and client render.
+  const [isAndroidApp, setIsAndroidApp] = useState(false);
+  useEffect(() => setIsAndroidApp(isRunningInAndroidApp()), []);
+  const [opening, setOpening] = useState(false);
+
+  async function handleOpen() {
+    if (opening) return;
+    setOpening(true);
+    try {
+      const result = await openIsolatedAccountBrowser(account.id, account.name || "حساب Starlink");
+      if (!result.ok) {
+        window.alert(result.message);
+      }
+    } finally {
+      setOpening(false);
+    }
+  }
 
   return (
     <article className="account-card">
@@ -79,15 +92,15 @@ export function AccountCard({ account, onEdit, onInfo }: Props) {
       <div className="account-card-footer">
         <span className="account-card-updated">آخر تحديث: {account.lastUpdated || "—"}</span>
         <div className="account-card-actions">
-          {demo ? (
-            <button className="card-action card-action-primary" title="غير متاح في وضع العرض التجريبي" disabled>
-              <span aria-hidden="true">↗</span> فتح
-            </button>
-          ) : (
-            <Link className="card-action card-action-primary" href={`/session?accountId=${account.id}`} title="فتح المتصفح السحابي">
-              <span aria-hidden="true">↗</span> فتح
-            </Link>
-          )}
+          <button
+            className="card-action card-action-primary"
+            type="button"
+            onClick={handleOpen}
+            disabled={opening}
+            title={isAndroidApp ? "فتح متصفح مستقل لهذا الحساب" : "متاح فقط داخل تطبيق STAR NET لنظام Android"}
+          >
+            <span aria-hidden="true">↗</span> {opening ? "جارِ الفتح…" : "فتح"}
+          </button>
           <button className="card-action" title="معلومات" onClick={() => onInfo(account)}>
             <span aria-hidden="true">ⓘ</span> معلومات
           </button>

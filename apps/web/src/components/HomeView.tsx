@@ -12,6 +12,7 @@ import { daysRemainingNumber } from "@/lib/date";
 import { ApiError, listAccounts } from "@/lib/apiClient";
 import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
 import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
+import { deleteIsolatedAccountSession, isRunningInAndroidApp } from "@/lib/localBrowser";
 
 const NEAR_EXPIRY_THRESHOLD_DAYS = 3;
 
@@ -73,6 +74,27 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
     setSelectedDay(null);
     setQuery("");
     setDialog(null);
+  }
+
+  async function deleteAccount(account: StarlinkAccountSummary) {
+    setAccounts((current) => {
+      const next = current.filter((item) => item.id !== account.id);
+      if (dataState === "demo") saveDemoAccounts(next);
+      return next;
+    });
+    setDialog(null);
+
+    // Deleting the account from STAR NET never implies deleting its saved
+    // Starlink login on this phone - that is a separate, explicit choice,
+    // and only asked about at all when there could be a session to delete.
+    if (!isRunningInAndroidApp()) return;
+    const alsoDeleteSession = window.confirm(
+      `هل تريد أيضًا حذف جلسة المتصفح المحلية المرتبطة بحساب "${account.name}"؟\n` +
+        "سيؤدي هذا إلى تسجيل الخروج نهائيًا من هذا الحساب على هذا الهاتف. لا يمكن التراجع عن هذا الإجراء.",
+    );
+    if (alsoDeleteSession) {
+      await deleteIsolatedAccountSession(account.id);
+    }
   }
 
   const dayCounts = useMemo(() => {
@@ -255,6 +277,7 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
           account={dialog.account}
           onClose={() => setDialog(null)}
           onSave={saveAccount}
+          onDelete={deleteAccount}
         />
       )}
     </main>

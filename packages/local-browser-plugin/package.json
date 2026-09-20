@@ -1,0 +1,32 @@
+{
+  "name": "@starnet/local-browser-plugin",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Capacitor plugin: opens each Starlink account in its own isolated native Android WebView profile (AndroidX WebKit Multi-Profile API). No cloud/API involvement - purely on-device session isolation.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "android/src/main/",
+    "android/build.gradle",
+    "dist/"
+  ],
+  "capacitor": {
+    "android": {
+      "src": "android"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {},
+  "peerDependencies": {
+    "@capacitor/core": "^6.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/core": "6.2.0",
+    "typescript": "5.7.2",
+    "vitest": "2.1.8"
+  }
+}

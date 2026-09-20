@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="starnet_action_back">‹ رجوع</string>
+    <string name="starnet_action_refresh">⟳ تحديث</string>
+    <string name="starnet_action_home">⌂ الرئيسية</string>
+    <string name="starnet_action_close">✕ إغلاق</string>
+    <string name="starnet_load_error">تعذر تحميل الصفحة. تحقق من الاتصال بالإنترنت ثم حاول مرة أخرى.</string>
+    <string name="starnet_retry">إعادة المحاولة</string>
+    <string name="starnet_unsupported_device">هذا الجهاز لا يدعم المتصفحات المستقلة</string>
+</resources>

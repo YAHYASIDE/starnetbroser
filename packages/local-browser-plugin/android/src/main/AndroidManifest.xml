@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!--
+          exported="false": only STAR NET's own MainActivity (via the
+          LocalBrowser plugin, same application/UID) can start this -
+          never reachable from another app or an external deep link.
+        -->
+        <activity
+            android:name=".AccountBrowserActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout"
+            android:label="STAR NET" />
+    </application>
+</manifest>
