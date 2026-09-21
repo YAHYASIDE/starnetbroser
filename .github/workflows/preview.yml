@@ -246,6 +246,19 @@ jobs:
         working-directory: apps/android/android
         run: chmod +x gradlew
 
+      # Every CI runner starts with no ~/.android/debug.keystore, so without this the Android
+      # Gradle Plugin silently generates a brand-new one on first use - a different, random
+      # signing certificate on every single build. Installing a newer APK over an older one then
+      # fails with "package conflicts with an existing package" (signature mismatch), forcing
+      # anyone testing the app to uninstall the old build first. Using this repo's own fixed,
+      # committed debug keystore (apps/android/debug.keystore - the standard, non-secret Android
+      # debug alias/password, never used for a real release signature) makes every build's
+      # signature identical, so updates install cleanly.
+      - name: Use a fixed debug keystore (keeps every build's signature identical)
+        run: |
+          mkdir -p "$HOME/.android"
+          cp apps/android/debug.keystore "$HOME/.android/debug.keystore"
+
       - name: Run native plugin unit tests (account.id -> WebView profile isolation, see ProfileNamingTest)
         working-directory: apps/android/android
         run: ./gradlew :starnet-local-browser-plugin:testDebugUnitTest --no-daemon
