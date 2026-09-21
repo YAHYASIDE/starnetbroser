@@ -230,6 +230,68 @@ export function applyPendingSyncs(
   return { accounts: current, messages, ackSyncIds };
 }
 
+export interface SyncBatchDeps {
+  isDemoMode: boolean;
+  /** May throw - a thrown save is what makes runSyncBatch report "save-failed". */
+  saveDemoAccounts: (accounts: StarlinkAccountSummary[]) => void;
+  /** Same contract - the "storage used" for a non-demo account (see syncedFieldsCache.ts). */
+  saveSyncedFieldsCache: (accountId: string, fields: SyncedStarlinkFields) => void;
+  showAlert: (message: string) => void;
+}
+
+export type SyncBatchOutcome =
+  | { status: "nothing-to-apply" }
+  | { status: "save-failed" }
+  | { status: "applied"; accounts: StarlinkAccountSummary[]; appliedSyncIds: string[] };
+
+/**
+ * Runs one merge + save + message cycle for a batch of pending syncs - deliberately everything
+ * BUT the native ack call itself (that stays a separate, stateful retry concern owned by the
+ * caller, since it can legitimately need retrying minutes later on its own schedule). save/alert
+ * are dependency-injected specifically so the one guarantee that matters most - a success message
+ * is never shown, and nothing is ever marked applied, before the save has actually succeeded - is
+ * directly testable without mocking window.alert, localStorage or a native bridge.
+ */
+export function runSyncBatch(
+  accounts: StarlinkAccountSummary[],
+  syncs: PendingSyncLike[],
+  alreadyProcessed: ReadonlySet<string>,
+  deps: SyncBatchDeps,
+): SyncBatchOutcome {
+  const result = applyPendingSyncs(accounts, syncs, alreadyProcessed);
+  if (result.ackSyncIds.length === 0) {
+    return { status: "nothing-to-apply" };
+  }
+
+  let saved = true;
+  try {
+    if (deps.isDemoMode) {
+      deps.saveDemoAccounts(result.accounts);
+    } else {
+      // No backend write-back exists for this feature yet (services/api has no update-account
+      // endpoint, and adding one is out of this feature's scope) - this local cache of just the
+      // synced fields is "the storage actually used" for that mode.
+      for (const sync of syncs) {
+        if (result.ackSyncIds.includes(sync.syncId)) {
+          deps.saveSyncedFieldsCache(sync.accountId, sync.fields);
+        }
+      }
+    }
+  } catch {
+    saved = false;
+  }
+
+  if (!saved) {
+    // Never show a success message and never report anything as applied over an unsaved merge -
+    // the caller must leave every syncId in this batch unprocessed so it's retried in full.
+    deps.showAlert("تعذر حفظ بيانات المزامنة على هذا الجهاز. سيُعاد تجربة هذا التحديث لاحقًا.");
+    return { status: "save-failed" };
+  }
+
+  for (const { message } of result.messages) deps.showAlert(message);
+  return { status: "applied", accounts: result.accounts, appliedSyncIds: result.ackSyncIds };
+}
+
 /**
  * Re-applies cached Stage-1 synced fields (see syncedFieldsCache.ts) onto freshly-fetched real
  * accounts, via the exact same mergeSyncedFields() every other sync path uses. This is what makes

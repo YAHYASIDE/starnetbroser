@@ -1,6 +1,13 @@
 import { DeviceStatus, StarlinkAccountSummary } from "@starnet/shared";
 import { describe, expect, it } from "vitest";
-import { applyPendingSyncs, formatSyncMessage, mergeSyncedFields, reapplyCachedSyncedFields } from "./starlinkSync";
+import {
+  applyPendingSyncs,
+  formatSyncMessage,
+  mergeSyncedFields,
+  reapplyCachedSyncedFields,
+  runSyncBatch,
+  SyncBatchDeps,
+} from "./starlinkSync";
 
 // Fake/dummy account + field data only - no real Starlink account data anywhere in this file.
 function baseAccount(overrides: Partial<StarlinkAccountSummary> = {}): StarlinkAccountSummary {
@@ -196,6 +203,108 @@ describe("applyPendingSyncs - readiness ordering (round 7 regression: mounay mus
     expect(merged.name).toBe("mounay");
     expect(result.ackSyncIds).toEqual(["sync-1"]);
     expect(result.messages).toHaveLength(1);
+  });
+});
+
+describe("runSyncBatch - save must gate everything (round 8: no message/ack before an actual save)", () => {
+  function fakeDeps(overrides: Partial<SyncBatchDeps> = {}): SyncBatchDeps & { alerts: string[] } {
+    const alerts: string[] = [];
+    return {
+      isDemoMode: true,
+      saveDemoAccounts: () => {},
+      saveSyncedFieldsCache: () => {},
+      showAlert: (message: string) => alerts.push(message),
+      alerts,
+      ...overrides,
+    };
+  }
+
+  it("reports save-failed and shows ONLY the failure message when the save throws - never a success message", () => {
+    const accounts = [baseAccount({ planName: "" })];
+    const deps = fakeDeps({
+      saveDemoAccounts: () => {
+        throw new Error("localStorage full");
+      },
+    });
+
+    const outcome = runSyncBatch(
+      accounts,
+      [{ syncId: "sync-1", accountId: "acc-1", fields: { planName: "التجوال - غير محدود" } }],
+      new Set(),
+      deps,
+    );
+
+    expect(outcome.status).toBe("save-failed");
+    expect(deps.alerts).toHaveLength(1);
+    expect(deps.alerts[0]).toContain("تعذر حفظ");
+    expect(deps.alerts.some((m) => m.includes("تم تحديث"))).toBe(false);
+  });
+
+  it("only shows the success message and reports 'applied' once the save actually succeeds", () => {
+    const accounts = [baseAccount({ planName: "" })];
+    const deps = fakeDeps();
+
+    const outcome = runSyncBatch(
+      accounts,
+      [{ syncId: "sync-1", accountId: "acc-1", fields: { planName: "التجوال - غير محدود" } }],
+      new Set(),
+      deps,
+    );
+
+    expect(outcome.status).toBe("applied");
+    if (outcome.status === "applied") {
+      expect(outcome.appliedSyncIds).toEqual(["sync-1"]);
+      expect(outcome.accounts.find((a) => a.id === "acc-1")!.planName).toBe("التجوال - غير محدود");
+    }
+    expect(deps.alerts).toHaveLength(1);
+    expect(deps.alerts[0]).not.toContain("تعذر حفظ");
+  });
+
+  it("routes the save through saveSyncedFieldsCache (never saveDemoAccounts) when not in demo mode", () => {
+    const accounts = [baseAccount({ planName: "" })];
+    const demoCalls: unknown[] = [];
+    const cacheCalls: Array<{ accountId: string; fields: unknown }> = [];
+    const deps = fakeDeps({
+      isDemoMode: false,
+      saveDemoAccounts: (a) => demoCalls.push(a),
+      saveSyncedFieldsCache: (accountId, fields) => cacheCalls.push({ accountId, fields }),
+    });
+
+    const outcome = runSyncBatch(
+      accounts,
+      [{ syncId: "sync-1", accountId: "acc-1", fields: { planName: "خطة" } }],
+      new Set(),
+      deps,
+    );
+
+    expect(outcome.status).toBe("applied");
+    expect(demoCalls).toHaveLength(0);
+    expect(cacheCalls).toEqual([{ accountId: "acc-1", fields: { planName: "خطة" } }]);
+  });
+
+  it("reports 'nothing-to-apply' and shows no message when there is nothing new to sync", () => {
+    const accounts = [baseAccount({ id: "acc-1" })];
+    const deps = fakeDeps();
+
+    const outcome = runSyncBatch(accounts, [], new Set(), deps);
+
+    expect(outcome.status).toBe("nothing-to-apply");
+    expect(deps.alerts).toEqual([]);
+  });
+
+  it("also reports 'nothing-to-apply' when every sync in the batch is already in alreadyProcessed", () => {
+    const accounts = [baseAccount({ id: "acc-1" })];
+    const deps = fakeDeps();
+
+    const outcome = runSyncBatch(
+      accounts,
+      [{ syncId: "sync-1", accountId: "acc-1", fields: { planName: "خطة" } }],
+      new Set(["sync-1"]),
+      deps,
+    );
+
+    expect(outcome.status).toBe("nothing-to-apply");
+    expect(deps.alerts).toEqual([]);
   });
 });
 

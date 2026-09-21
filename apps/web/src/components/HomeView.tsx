@@ -21,7 +21,7 @@ import {
   onAccountDataSynced,
 } from "@/lib/localBrowser";
 import { createReadyGate } from "@/lib/readyGate";
-import { applyPendingSyncs, PendingSyncLike, reapplyCachedSyncedFields } from "@/lib/starlinkSync";
+import { PendingSyncLike, reapplyCachedSyncedFields, runSyncBatch } from "@/lib/starlinkSync";
 import { getCachedSyncedFields, saveSyncedFieldsCache } from "@/lib/syncedFieldsCache";
 import { resolveAccountDeletion } from "@starnet/local-browser-plugin";
 
@@ -69,27 +69,44 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
       // Re-apply any previously-synced fields this device has cached for these accounts (see
       // syncedFieldsCache.ts) - without this, a successful Stage-1 sync would vanish the moment
       // this fetch runs again, since services/api has nothing written back to it for this feature.
-      setAccounts(reapplyCachedSyncedFields(real, getCachedSyncedFields));
+      const loaded = reapplyCachedSyncedFields(real, getCachedSyncedFields);
+      // Update the refs SYNCHRONOUSLY, before markReady() - setAccounts()/setDataState() only
+      // schedule a re-render, they don't update accountsRef/dataStateRef until React's own
+      // render -> effect cycle catches up later. markReady() resolves its promise immediately
+      // (a microtask), which can run before that cycle completes - so anything awaiting the gate
+      // must see the real, just-loaded accounts and dataState right away, not a render-cycle
+      // behind. Never in a `finally` and never on failure: with no confirmed real account list,
+      // there is nothing safe to drain a pending sync against yet (see the branches below).
+      accountsRef.current = loaded;
+      dataStateRef.current = "loaded";
+      setAccounts(loaded);
       setDataState("loaded");
+      accountsReadyGateRef.current.markReady();
     } catch (err) {
       setDataState("error");
       setErrorMessage(err instanceof ApiError ? err.message : "تعذّر تحميل الحسابات");
-    } finally {
-      accountsReadyGateRef.current.markReady();
+      // Deliberately no markReady() here: any pending sync result stays queued in
+      // PendingSyncStore, never merged or acked, until a real load succeeds - including a later
+      // "إعادة المحاولة" tap of this same function, whose success path above still opens the gate.
     }
   }
 
   useEffect(() => {
     if (isDemoMode()) {
+      const loaded = loadDemoAccounts(demoAccounts);
+      // Same synchronous-before-markReady() ordering as loadRealAccounts() above.
+      accountsRef.current = loaded;
+      dataStateRef.current = "demo";
+      setAccounts(loaded);
       setDataState("demo");
-      setAccounts(loadDemoAccounts(demoAccounts));
       accountsReadyGateRef.current.markReady();
       return;
     }
     if (!isLoggedIn()) {
       setDataState("error");
       setErrorMessage("تم إعداد عنوان الخادم لكن لم يتم تسجيل الدخول بعد - افتح الإعدادات لتسجيل الدخول");
-      accountsReadyGateRef.current.markReady();
+      // No markReady() here either - same reasoning as loadRealAccounts()' catch branch: there is
+      // no real account list yet, so guessing would risk exactly the "mounay looks deleted" bug.
       return;
     }
     loadRealAccounts();
@@ -133,47 +150,29 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
     async function applyBatch(syncs: PendingSyncLike[]) {
       await accountsReadyGateRef.current.whenReady();
 
-      const result = applyPendingSyncs(accountsRef.current, syncs, processedSyncIds);
-      if (result.ackSyncIds.length === 0) return;
+      // runSyncBatch (starlinkSync.ts) is the pure, directly-tested implementation of "merge,
+      // then save, then message - and never claim success or mark anything applied unless the
+      // save genuinely succeeds." Only the native ack call itself (a separately-scheduled retry
+      // concern, see retryAcks) stays out here.
+      const outcome = runSyncBatch(accountsRef.current, syncs, processedSyncIds, {
+        isDemoMode: dataStateRef.current === "demo",
+        saveDemoAccounts,
+        saveSyncedFieldsCache,
+        showAlert: (message) => window.alert(message),
+      });
 
-      let saved = true;
-      try {
-        if (dataStateRef.current === "demo") {
-          saveDemoAccounts(result.accounts);
-        } else {
-          // No backend write-back exists for this feature yet (services/api has no
-          // update-account endpoint, and adding one is out of this feature's scope) - this local
-          // cache of just the synced fields is "the storage actually used" for that mode, and is
-          // what lets loadRealAccounts() re-apply the result on the next fetch instead of the
-          // server's stale value silently winning.
-          for (const sync of syncs) {
-            if (result.ackSyncIds.includes(sync.syncId)) {
-              saveSyncedFieldsCache(sync.accountId, sync.fields);
-            }
-          }
-        }
-      } catch {
-        saved = false;
-      }
+      if (outcome.status !== "applied") return;
 
-      if (!saved) {
-        // Never claim success on an unsaved merge - leave every syncId in this batch
-        // unacknowledged and unmarked-processed, so the next drain retries the whole batch.
-        window.alert("تعذر حفظ بيانات المزامنة على هذا الجهاز. سيُعاد تجربة هذا التحديث لاحقًا.");
-        return;
-      }
-
-      for (const id of result.ackSyncIds) {
+      for (const id of outcome.appliedSyncIds) {
         processedSyncIds.add(id);
         unackedSyncIds.add(id);
       }
-      setAccounts(result.accounts);
+      setAccounts(outcome.accounts);
       // Keep this listener's own view of "current accounts" correct for the very next sync
       // without waiting for React's render -> effect cycle to catch up: a live event and a
       // resume-time drain (or two quick live events) can arrive back-to-back faster than that.
-      accountsRef.current = result.accounts;
+      accountsRef.current = outcome.accounts;
 
-      for (const { message } of result.messages) window.alert(message);
       await retryAcks();
     }
 
