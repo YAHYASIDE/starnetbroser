@@ -10,8 +10,13 @@ import { parseMoney, ParsedMoney } from "./money";
 export const PLAN_LABELS = ["service plan", "plan", "الخطة", "باقة الخدمة", "الباقة", "خطة الخدمة"];
 
 export const RENEWAL_DATE_LABELS = [
-  "renewal date", "next billing", "renews on", "service end", "next due date",
+  "renewal date", "next billing", "renews on", "service end", "next due date", "scheduled to end",
   "تاريخ التجديد", "تجديد الاشتراك", "نهاية الخدمة", "موعد التجديد", "تاريخ الاستحقاق التالي", "النهاية",
+  // The real Starlink app's home-page banner for a standby account ("From the confirmed pause to
+  // resume by") phrases this as a sentence, not a "label: value" pair - e.g. "من المقرر أن تنتهي
+  // خدمتك في ٢٠٢٦/٩/٢٨." - so the label match only needs this fragment; normalizeDateLike below
+  // pulls the date out of whatever surrounds it ("في ..." / a trailing ".").
+  "تنتهي خدمتك",
 ];
 
 export const SERVICE_STATUS_LABELS = [
@@ -137,14 +142,16 @@ export function extractBalance(lines: string[]): ParsedMoney | undefined {
 }
 
 /**
- * Normalizes a date-like value to "YYYY/MM/DD": converts Arabic-Indic digits to Western digits
- * and zero-pads the month/day (a real card can show "٢٠٢٦/٩/٢٨", which must become "2026/09/28",
- * not be left as "2026/9/28" or the raw Arabic digits). Returns the (digit-converted) input
- * unchanged when it doesn't match the expected Y/M/D shape.
+ * Normalizes a date-like value to "YYYY/MM/DD": converts Arabic-Indic digits to Western digits,
+ * zero-pads the month/day (a real card can show "٢٠٢٦/٩/٢٨", which must become "2026/09/28", not
+ * be left as "2026/9/28" or the raw Arabic digits), and pulls the date out of any surrounding
+ * sentence text (the real Starlink app phrases some of these as "في ٢٠٢٦/٩/٢٨.", not a bare date -
+ * the leading "في" and trailing "." must never end up stored as part of the date). Returns the
+ * (digit-converted) input unchanged when no Y/M/D-shaped date is found anywhere in it.
  */
 export function normalizeDateLike(raw: string): string {
   const western = toWesternDigits(raw).trim();
-  const match = /^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/.exec(western);
+  const match = /(\d{4})[/-](\d{1,2})[/-](\d{1,2})/.exec(western);
   if (!match) return western;
   const [, year, month, day] = match;
   return `${year}/${month.padStart(2, "0")}/${day.padStart(2, "0")}`;

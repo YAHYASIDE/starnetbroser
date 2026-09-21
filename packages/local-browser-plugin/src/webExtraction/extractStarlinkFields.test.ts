@@ -141,6 +141,32 @@ describe("extractStarlinkFields - real Starlink card layout (round 6 regression)
   });
 });
 
+describe("extractStarlinkFields - real Starlink home-page banner (round 7 regression)", () => {
+  it("reads the service-end date out of a sentence, not just a bare label:value pair", () => {
+    const fields = extractFrom(`
+      <div class="home-banner">
+        <div>من المقرر أن تنتهي خدمتك في ٢٠٢٦/٩/٢٨.</div>
+        <div>استئناف</div>
+      </div>
+      <div class="account-header">
+        <div>chekzeyni taher • ACC-DF-15667575-14379-62</div>
+      </div>
+      <div class="balance-card">
+        <div>ادفع</div>
+        <div>الرصيد المستحق</div>
+        <div>$US ٠,٠٠</div>
+      </div>
+    `);
+
+    expect(fields.renewalDate).toBe("2026/09/28");
+    expect(fields.accountNumber).toBe("ACC-DF-15667575-14379-62");
+    expect(fields.balanceDue).toBe("0.00");
+    expect(fields.currency).toBe("USD");
+    // Never a person's name - explicitly deferred, even when it sits right next to the account number.
+    expect(fields).not.toHaveProperty("accountHolderName");
+  });
+});
+
 describe("extractStarlinkFields - progressive, section-by-section reading", () => {
   it("returns only device fields when only the Devices section is on the page", () => {
     document.body.innerHTML = `
