@@ -30,6 +30,17 @@ export function buildExpiryReminderMessage(accountName: string): string {
   return `مرحبًا ${accountName}، نود تذكيرك بأن اشتراك Starlink الخاص بك سينتهي الليلة. يرجى التجديد لتفادي انقطاع الخدمة.\n\n- STAR NET`;
 }
 
+/** STAR NET's own payment-collection numbers (not customer data) - shown to the customer inside
+ * the balance-reminder WhatsApp message so they know where to send payment. */
 export function buildBalanceReminderMessage(accountName: string, balanceDue: string, currency: string): string {
-  return `مرحبًا ${accountName}، رصيدك المستحق حاليًا هو ${currency}${balanceDue}. يرجى تسديد المبلغ في أقرب وقت ممكن.\n\n- STAR NET`;
+  return (
+    `مرحبًا ${accountName} 👋\n\n` +
+    `نود إعلامك بأن لديك رصيدًا مستحقًا حاليًا بقيمة ${currency}${balanceDue}.\n` +
+    `نرجو منك التكرم بتسديد المبلغ في أقرب وقت ممكن لتفادي انقطاع الخدمة.\n\n` +
+    `يمكنكم الدفع عبر إحدى الوسائل التالية:\n` +
+    `• بنكيلي / سداد / نيتا: 22227268\n` +
+    `• أورانج موني: 74646158\n\n` +
+    `شكرًا لتعاونكم معنا 🙏\n` +
+    `- STAR NET`
+  );
 }

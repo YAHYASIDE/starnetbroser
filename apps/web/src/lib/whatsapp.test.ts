@@ -48,9 +48,11 @@ describe("reminder message builders", () => {
     expect(message).toContain("الليلة");
   });
 
-  it("mentions the account name and the exact balance/currency in the balance reminder", () => {
+  it("mentions the account name, the exact balance/currency and the payment numbers in the balance reminder", () => {
     const message = buildBalanceReminderMessage("مقهى النخيل", "12.50", "$");
     expect(message).toContain("مقهى النخيل");
     expect(message).toContain("$12.50");
+    expect(message).toContain("22227268");
+    expect(message).toContain("74646158");
   });
 });
