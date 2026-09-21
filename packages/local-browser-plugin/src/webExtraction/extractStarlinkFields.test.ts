@@ -231,6 +231,29 @@ describe("extractStarlinkFields - real Starlink Settings page (round 9 regressio
   });
 });
 
+describe("extractStarlinkFields - real Starlink Billing page (round 10 regression)", () => {
+  // Fixture shape matches the real Billing page the user shared: a "ادفع" (Pay) button sits
+  // between the balance label and its amount - the bug this round fixed. Deliberately excludes
+  // the page's payment-method section (cardholder name, card last 4 digits, expiry) - that is
+  // sensitive payment data this extractor must never read, and nothing in this module does.
+  it("finds the balance despite the Pay button between the label and the amount", () => {
+    const fields = extractFrom(`
+      <div class="billing-section">
+        <div>فوترة</div>
+        <div>إدارة فواتيرك ومدفوعاتك.</div>
+        <div class="balance-card">
+          <div>الرصيد المستحق</div>
+          <div>ادفع</div>
+          <div>$US 25.00</div>
+        </div>
+      </div>
+    `);
+
+    expect(fields.balanceDue).toBe("25.00");
+    expect(fields.currency).toBe("USD");
+  });
+});
+
 describe("extractStarlinkFields - progressive, section-by-section reading", () => {
   it("returns only device fields when only the Devices section is on the page", () => {
     document.body.innerHTML = `

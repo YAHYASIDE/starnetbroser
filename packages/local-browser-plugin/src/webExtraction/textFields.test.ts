@@ -74,6 +74,21 @@ describe("extractBalance - never scans the whole page", () => {
     const lines = [...BALANCE_LABELS.slice(0, 1), "see below for details", "$49.99 / month (plan price)"];
     expect(extractBalance(lines)).toBeUndefined();
   });
+
+  it("skips a 'ادفع'/Pay button sitting between the label and the amount (real Billing-page layout)", () => {
+    const lines = ["الرصيد المستحق", "ادفع", "$US 25.00"];
+    expect(extractBalance(lines)).toEqual({ amount: "25.00", currency: "USD" });
+  });
+
+  it("skips an English 'Pay' button the same way", () => {
+    const lines = ["Outstanding Balance", "Pay", "$25.00"];
+    expect(extractBalance(lines)).toEqual({ amount: "25.00", currency: "USD" });
+  });
+
+  it("still refuses to scan past the first non-money, non-button line after the label", () => {
+    const lines = ["الرصيد المستحق", "ادفع", "see your invoice for details", "$49.99 / month (unrelated plan price)"];
+    expect(extractBalance(lines)).toBeUndefined();
+  });
 });
 
 describe("extractSubscriptionId - unlabeled 'SL-...' shape", () => {

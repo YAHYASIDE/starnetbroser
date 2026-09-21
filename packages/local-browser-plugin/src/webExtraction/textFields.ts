@@ -64,11 +64,12 @@ const ALL_LABELS = [
   ...EMAIL_LABELS,
 ];
 
-/** Action-button words a card commonly places right under a label (e.g. "إدارة"/"Manage") -
- * never a field's actual value, so the forward-lookahead must skip over them. */
+/** Action-button words a card commonly places right under/beside a label (e.g. "إدارة"/"Manage",
+ * "ادفع"/"Pay" next to a balance) - never a field's actual value, so the forward-lookahead must
+ * skip over them. */
 const ACTION_WORDS = [
-  "manage", "edit", "change", "view", "details",
-  "إدارة", "تعديل", "تغيير", "عرض", "التفاصيل",
+  "manage", "edit", "change", "view", "details", "pay",
+  "إدارة", "تعديل", "تغيير", "عرض", "التفاصيل", "ادفع",
 ];
 
 const ACTIVE_WORDS = ["active", "نشط"];
@@ -140,13 +141,20 @@ export function extractLabeledValue(lines: string[], labels: string[]): string |
 
 /** Only ever looks near a balance-labeled line ("Outstanding Balance"/"الرصيد المستحق"/...) -
  * deliberately never scans the whole page, or an unrelated amount (e.g. the plan's price) could
- * be mistaken for the account's balance. */
+ * be mistaken for the account's balance. Skips over a "ادفع"/"Pay" button that a real card can
+ * place between the label and the amount (e.g. the Billing page), the same way
+ * extractLabeledValue skips action words - but stops at the first non-money, non-action-word line
+ * rather than scanning further, so an unrelated later amount is never picked up by mistake. */
 export function extractBalance(lines: string[]): ParsedMoney | undefined {
   for (let i = 0; i < lines.length; i++) {
     if (!containsAny(lines[i], BALANCE_LABELS)) continue;
-    for (let j = i; j < Math.min(i + 2, lines.length); j++) {
-      const match = parseMoney(lines[j]);
-      if (match) return match;
+    const onLabelLine = parseMoney(lines[i]);
+    if (onLabelLine) return onLabelLine;
+    for (let j = i + 1; j < lines.length; j++) {
+      const next = lines[j].trim();
+      if (!next) continue;
+      if (isActionWord(next)) continue;
+      return parseMoney(next) ?? undefined;
     }
   }
   return undefined;
