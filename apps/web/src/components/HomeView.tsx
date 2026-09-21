@@ -242,12 +242,13 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
   // Keeps the native background sync job (AutoSyncWorker, see localBrowser.ts) current with
   // whatever accounts actually exist right now, so a closed/killed app's next scheduled run still
   // reflects the latest add/edit/remove - not just whatever list happened to exist last time this
-  // ran. Demo accounts have no real Starlink login to sync (their profiles are never opened via
-  // "فتح"), so there is nothing useful to schedule for them.
+  // ran. This runs in "demo" (local-only, no backend yet) mode too: with no real API connected,
+  // demo mode IS how accounts are actually stored on-device right now, real Starlink logins and
+  // all (see openIsolatedAccountBrowser/"فتح") - excluding it here would silently leave every
+  // real account this app currently manages unsynced.
   useEffect(() => {
-    if (dataState === "demo") return;
     void syncAutoSyncAccountList(accounts.map((account) => ({ id: account.id, name: account.name })));
-  }, [accounts, dataState]);
+  }, [accounts]);
 
   function saveAccount(account: StarlinkAccountSummary) {
     setAccounts((current) => {
