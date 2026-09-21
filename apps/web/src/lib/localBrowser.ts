@@ -8,6 +8,11 @@ import {
   STARLINK_ACCOUNT_HOME_URL,
 } from "@starnet/local-browser-plugin";
 
+export interface AutoSyncAccountRef {
+  id: string;
+  name: string;
+}
+
 /**
  * Isolated per-account browsing only exists as a real native WebView
  * profile inside the STAR NET Android app (see packages/local-browser-
@@ -95,6 +100,25 @@ export async function ackPendingAccountSyncs(syncIds: string[]): Promise<boolean
   try {
     const { acked } = await LocalBrowser.ackPendingAccountSyncs({ syncIds });
     return acked;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Tells the native side which accounts to sync automatically in the background (roughly hourly -
+ * see AutoSyncWorker/AutoSyncScheduler), replacing whatever list was set before. Call this every
+ * time the account list changes so a closed/killed app's next scheduled run reflects the current
+ * list - it never establishes a login itself, so an account that was never opened via "فتح" simply
+ * yields nothing on every run, exactly like a manual sync tap on a logged-out page. No-op on web.
+ */
+export async function syncAutoSyncAccountList(accounts: AutoSyncAccountRef[]): Promise<boolean> {
+  if (!isRunningInAndroidApp()) return true;
+  try {
+    const { saved } = await LocalBrowser.setAutoSyncAccountIds({
+      accounts: accounts.map((account) => ({ accountId: account.id, accountName: account.name })),
+    });
+    return saved;
   } catch {
     return false;
   }

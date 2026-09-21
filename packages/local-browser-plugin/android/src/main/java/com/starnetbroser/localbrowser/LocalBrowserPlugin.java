@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.json.JSONArray;
 import org.json.JSONException;
+import org.json.JSONObject;
 
 /**
  * Bridges the web UI's "فتح" button to a real, isolated native Android
@@ -187,6 +188,51 @@ public class LocalBrowserPlugin extends Plugin {
         boolean acked = PendingSyncStore.ack(getContext(), syncIds);
         JSObject ret = new JSObject();
         ret.put("acked", acked);
+        call.resolve(ret);
+    }
+
+    /**
+     * Replaces (never merges into) the list of accounts AutoSyncWorker visits on its next
+     * scheduled periodic run, and schedules/cancels that job accordingly - an empty list cancels
+     * it entirely, since a periodic job with nothing to do should never keep running. The web UI
+     * is expected to call this every time its own account list changes (added/edited/removed), so
+     * a closed/killed app's next background run always reflects the current list. This never logs
+     * an account in itself: an account whose isolated profile has no session yet just yields no
+     * fields each run, exactly like a manual "تحديث من Starlink" tap on a logged-out page - so
+     * unlike openAccountBrowser, this never rejects for an unsupported device, it just persists
+     * nothing to actually run (isMultiProfileSupported() is re-checked by AutoSyncWorker itself
+     * before it does anything, same defensive-recheck pattern as AccountBrowserActivity).
+     */
+    @PluginMethod
+    public void setAutoSyncAccountIds(PluginCall call) {
+        JSArray accountsArray = call.getArray("accounts");
+        List<AutoSyncAccountStore.Entry> entries = new ArrayList<>();
+        if (accountsArray != null) {
+            for (int i = 0; i < accountsArray.length(); i++) {
+                JSONObject obj = accountsArray.optJSONObject(i);
+                if (obj == null) {
+                    continue;
+                }
+                String accountId = obj.optString("accountId", null);
+                if (accountId == null || accountId.trim().isEmpty()) {
+                    continue;
+                }
+                String url = obj.optString("url", DEFAULT_URL);
+                entries.add(new AutoSyncAccountStore.Entry(accountId, obj.optString("accountName", null), url));
+            }
+        }
+
+        boolean saved = AutoSyncAccountStore.save(getContext(), entries);
+        if (saved) {
+            if (entries.isEmpty()) {
+                AutoSyncScheduler.cancel(getContext());
+            } else if (isMultiProfileSupported()) {
+                AutoSyncScheduler.schedule(getContext());
+            }
+        }
+
+        JSObject ret = new JSObject();
+        ret.put("saved", saved);
         call.resolve(ret);
     }
 

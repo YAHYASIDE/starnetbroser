@@ -46,12 +46,12 @@ export type SyncedServiceStatus = "active" | "standby" | "canceled" | "suspended
  * sections (Devices, then Subscriptions, then Billing, ...) are meant to be merged cumulatively.
  *
  * The Starlink account holder's own name and registered email ARE read (see `accountHolderName`/
- * `accountEmail`). Per explicit product decision, `accountHolderName` always replaces the
- * operator's locally-entered customer name once found (see mergeSyncedFields in apps/web) - the
- * displayed name is meant to always track Starlink's own record. `phone` is a separate concern:
- * the Settings page's phone number is deliberately never read at all, since it's the Starlink
- * account's own contact number, unrelated to (and never to be confused with) the operator's
- * manually-entered WhatsApp `phone`.
+ * `accountEmail`). Per explicit product decision, `accountHolderName` is written to its own
+ * separate field (`starlinkAccountHolderName`, see mergeSyncedFields in apps/web) - the card shows
+ * it alongside the operator's own `name` as two distinct slots, never merging or overwriting one
+ * with the other. `phone` is a separate concern: the Settings page's phone number is deliberately
+ * never read at all, since it's the Starlink account's own contact number, unrelated to (and never
+ * to be confused with) the operator's manually-entered WhatsApp `phone`.
  */
 export interface SyncedStarlinkFields {
   dishStatus?: SyncedDeviceStatus;
@@ -60,8 +60,8 @@ export interface SyncedStarlinkFields {
   serviceStatus?: SyncedServiceStatus;
   planName?: string;
   renewalDate?: string;
-  /** The Starlink account holder's own name, as Starlink reports it - replaces the account's
-   * `name` once found (see this interface's own doc comment). */
+  /** The Starlink account holder's own name, as Starlink reports it - written to its own separate
+   * field, never onto the account's `name` (see this interface's own doc comment). */
   accountHolderName?: string;
   /** The account's registered login email, read from the Settings page - never the phone number
    * on that same page, which is unrelated and deliberately never read. */
@@ -120,6 +120,27 @@ export interface AckPendingAccountSyncsResult {
   acked: boolean;
 }
 
+export interface AutoSyncAccountEntry {
+  /** Same id as StarlinkAccountSummary.id - the isolation key. */
+  accountId: string;
+  /** Unused by the background worker itself (there is no UI to show it to) - kept only in case
+   * future diagnostics need it. */
+  accountName?: string;
+  /** Defaults to STARLINK_ACCOUNT_HOME_URL when omitted. */
+  url?: string;
+}
+
+export interface SetAutoSyncAccountIdsOptions {
+  /** The FULL current list - this always replaces whatever was set before, never adds to it. */
+  accounts: AutoSyncAccountEntry[];
+}
+
+export interface SetAutoSyncAccountIdsResult {
+  /** false means the native write did not actually reach disk - the previous list (and whatever
+   * job was or wasn't scheduled for it) is still in effect, not this call's. */
+  saved: boolean;
+}
+
 export interface LocalBrowserPlugin {
   /**
    * Feature-detects Multi-Profile support on this device. Never throws.
@@ -175,4 +196,18 @@ export interface LocalBrowserPlugin {
    * `acked: false`, and callers must retry those syncIds later rather than treat them as gone.
    */
   ackPendingAccountSyncs(options: AckPendingAccountSyncsOptions): Promise<AckPendingAccountSyncsResult>;
+
+  /**
+   * Tells the native side which accounts to sync automatically in the background (WorkManager,
+   * roughly hourly), replacing whatever list was set before - never additive. Call this every
+   * time the account list changes (added/edited/removed) so a closed/killed app's next scheduled
+   * run still reflects the current list. An empty list cancels the background job entirely.
+   *
+   * This never logs an account in - it only reuses whatever cookies that account's isolated
+   * profile already has from a previous openAccountBrowser session, so an account that was never
+   * opened simply yields no fields each run, same as a manual sync tap on a logged-out page.
+   * Never rejects (resolves `saved: false` if the native write didn't land); a no-op that resolves
+   * `saved: true` on web, where there is no isolated browser to schedule anything for.
+   */
+  setAutoSyncAccountIds(options: SetAutoSyncAccountIdsOptions): Promise<SetAutoSyncAccountIdsResult>;
 }

@@ -7,6 +7,10 @@ ext {
     // rootProject.ext key (with the same fallback default) guarantees this resolves to a version
     // already proven to build in this toolchain, instead of guessing a newer number.
     androidxWebkitVersion = project.hasProperty('androidxWebkitVersion') ? rootProject.ext.androidxWebkitVersion : '1.9.0'
+    // Powers AutoSyncWorker's periodic background sync (see AutoSyncScheduler) - WorkManager is
+    // the platform-sanctioned way to run deferred/periodic background work post-Android 8's
+    // background execution limits, rather than a raw Service or AlarmManager.
+    androidxWorkVersion = project.hasProperty('androidxWorkVersion') ? rootProject.ext.androidxWorkVersion : '2.9.1'
     androidxJunitVersion = project.hasProperty('androidxJunitVersion') ? rootProject.ext.androidxJunitVersion : '1.1.5'
     androidxEspressoCoreVersion = project.hasProperty('androidxEspressoCoreVersion') ? rootProject.ext.androidxEspressoCoreVersion : '3.5.1'
 }
@@ -61,6 +65,7 @@ dependencies {
     implementation project(':capacitor-android')
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
     implementation "androidx.webkit:webkit:$androidxWebkitVersion"
+    implementation "androidx.work:work-runtime:$androidxWorkVersion"
     testImplementation "junit:junit:$junitVersion"
     // PendingSyncStoreTest exercises org.json.JSONObject/JSONArray directly. Android's compile-time
     // android.jar (also what testDebugUnitTest runs against by default) stubs every org.json.*

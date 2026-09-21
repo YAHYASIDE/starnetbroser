@@ -8,6 +8,8 @@ import type {
   ListPendingAccountSyncsResult,
   LocalBrowserPlugin,
   OpenAccountBrowserOptions,
+  SetAutoSyncAccountIdsOptions,
+  SetAutoSyncAccountIdsResult,
 } from "./definitions";
 
 const WEB_UNSUPPORTED_MESSAGE =
@@ -38,5 +40,12 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
 
   async ackPendingAccountSyncs(_options: AckPendingAccountSyncsOptions): Promise<AckPendingAccountSyncsResult> {
     return { acked: true };
+  }
+
+  // There is no isolated browser (and so no background worker) to schedule anything for on web -
+  // resolving `saved: true` with nothing stored is not a lie, since there was never anything to
+  // save in the first place, just like ackPendingAccountSyncs above.
+  async setAutoSyncAccountIds(_options: SetAutoSyncAccountIdsOptions): Promise<SetAutoSyncAccountIdsResult> {
+    return { saved: true };
   }
 }

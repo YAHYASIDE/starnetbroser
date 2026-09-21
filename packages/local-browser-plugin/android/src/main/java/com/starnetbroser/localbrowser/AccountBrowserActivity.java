@@ -20,13 +20,7 @@ import androidx.webkit.ProfileStore;
 import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
 import com.getcapacitor.JSObject;
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
-import org.json.JSONException;
-import org.json.JSONTokener;
 
 /**
  * A standalone, full-screen browser for exactly one Starlink account. Every
@@ -53,7 +47,6 @@ public class AccountBrowserActivity extends AppCompatActivity {
     private View errorOverlay;
     private String homeUrl;
     private String accountId;
-    private String cachedExtractorScript;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -205,7 +198,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
 
         String script;
         try {
-            script = loadExtractorScript() + "\n__starnetSyncResult;";
+            script = StarlinkExtractorSupport.loadExecutableScript(getApplicationContext());
         } catch (IOException e) {
             Toast.makeText(this, R.string.starnet_sync_nothing_found, Toast.LENGTH_LONG).show();
             return;
@@ -223,7 +216,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
                     return;
                 }
 
-                JSObject fields = parseExtractedFields(value);
+                JSObject fields = StarlinkExtractorSupport.parseExtractedFields(value);
                 if (fields == null || fields.length() == 0) {
                     Toast.makeText(this, R.string.starnet_sync_nothing_found, Toast.LENGTH_LONG).show();
                     return;
@@ -247,44 +240,6 @@ public class AccountBrowserActivity extends AppCompatActivity {
                 Toast.makeText(this, R.string.starnet_sync_success, Toast.LENGTH_SHORT).show();
             }
         );
-    }
-
-    private String loadExtractorScript() throws IOException {
-        if (cachedExtractorScript != null) {
-            return cachedExtractorScript;
-        }
-        StringBuilder builder = new StringBuilder();
-        try (
-            InputStream input = getAssets().open("starlinkExtractor.js");
-            BufferedReader reader = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8))
-        ) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                builder.append(line).append('\n');
-            }
-        }
-        cachedExtractorScript = builder.toString();
-        return cachedExtractorScript;
-    }
-
-    /**
-     * WebView#evaluateJavascript hands back a JSON-encoded string (e.g. a literal newline comes
-     * back as the two characters \ and n) - org.json (built into Android since API 1, no extra
-     * dependency) decodes that encoding first, then parses the resulting JSON text itself.
-     */
-    private static JSObject parseExtractedFields(String evaluateJavascriptResult) {
-        if (evaluateJavascriptResult == null || "null".equals(evaluateJavascriptResult)) {
-            return null;
-        }
-        try {
-            Object unquoted = new JSONTokener(evaluateJavascriptResult).nextValue();
-            if (!(unquoted instanceof String) || ((String) unquoted).isEmpty()) {
-                return null;
-            }
-            return new JSObject((String) unquoted);
-        } catch (JSONException e) {
-            return null;
-        }
     }
 
     /**
