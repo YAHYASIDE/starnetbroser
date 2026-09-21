@@ -247,17 +247,36 @@ jobs:
         run: chmod +x gradlew
 
       # Every CI runner starts with no ~/.android/debug.keystore, so without this the Android
-      # Gradle Plugin silently generates a brand-new one on first use - a different, random
-      # signing certificate on every single build. Installing a newer APK over an older one then
-      # fails with "package conflicts with an existing package" (signature mismatch), forcing
-      # anyone testing the app to uninstall the old build first. Using this repo's own fixed,
-      # committed debug keystore (apps/android/debug.keystore - the standard, non-secret Android
-      # debug alias/password, never used for a real release signature) makes every build's
-      # signature identical, so updates install cleanly.
-      - name: Use a fixed debug keystore (keeps every build's signature identical)
+      # Gradle Plugin generates a brand-new one on first use - a different, random signing
+      # certificate on every single build. Installing a newer APK over an older one then fails
+      # with "package conflicts with an existing package" (signature mismatch). Copying this
+      # repo's fixed keystore to ~/.android/debug.keystore alone turned out NOT to be enough:
+      # verified directly (downloaded a published APK and inspected META-INF/CERT.RSA with
+      # openssl) that AGP was still signing with some other, unpinned debug keystore in this
+      # environment - so the signingConfig is now set explicitly and unambiguously in
+      # build.gradle instead of relying on AGP's implicit default path resolution. The keystore
+      # itself is the standard, non-secret Android debug alias/password - never a real release key.
+      - name: Force the debug build to sign with this repo's fixed debug keystore
+        working-directory: apps/android/android
         run: |
-          mkdir -p "$HOME/.android"
-          cp apps/android/debug.keystore "$HOME/.android/debug.keystore"
+          cat >> app/build.gradle <<EOF
+
+          android {
+              signingConfigs {
+                  debug {
+                      storeFile file("$GITHUB_WORKSPACE/apps/android/debug.keystore")
+                      storePassword 'android'
+                      keyAlias 'androiddebugkey'
+                      keyPassword 'android'
+                  }
+              }
+              buildTypes {
+                  debug {
+                      signingConfig signingConfigs.debug
+                  }
+              }
+          }
+          EOF
 
       - name: Run native plugin unit tests (account.id -> WebView profile isolation, see ProfileNamingTest)
         working-directory: apps/android/android
