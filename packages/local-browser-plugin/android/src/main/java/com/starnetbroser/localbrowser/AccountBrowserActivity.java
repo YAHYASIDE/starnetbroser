@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import android.os.Bundle;
 import android.view.View;
 import android.view.ViewGroup;
+import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -18,6 +19,10 @@ import androidx.appcompat.widget.Toolbar;
 import androidx.webkit.ProfileStore;
 import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
+import com.getcapacitor.JSObject;
+import java.util.Map;
+import org.json.JSONException;
+import org.json.JSONTokener;
 
 /**
  * A standalone, full-screen browser for exactly one Starlink account. Every
@@ -35,6 +40,7 @@ import androidx.webkit.WebViewFeature;
 public class AccountBrowserActivity extends AppCompatActivity {
 
     public static final String EXTRA_PROFILE_NAME = "com.starnetbroser.localbrowser.PROFILE_NAME";
+    public static final String EXTRA_ACCOUNT_ID = "com.starnetbroser.localbrowser.ACCOUNT_ID";
     public static final String EXTRA_ACCOUNT_NAME = "com.starnetbroser.localbrowser.ACCOUNT_NAME";
     public static final String EXTRA_URL = "com.starnetbroser.localbrowser.URL";
 
@@ -42,6 +48,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
     private ProgressBar progressBar;
     private View errorOverlay;
     private String homeUrl;
+    private String accountId;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -49,6 +56,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
 
         String profileName = getIntent().getStringExtra(EXTRA_PROFILE_NAME);
+        accountId = getIntent().getStringExtra(EXTRA_ACCOUNT_ID);
         String accountName = getIntent().getStringExtra(EXTRA_ACCOUNT_NAME);
         homeUrl = getIntent().getStringExtra(EXTRA_URL);
 
@@ -116,6 +124,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
         findViewById(R.id.starnet_btn_refresh).setOnClickListener(v -> reload());
         findViewById(R.id.starnet_btn_home).setOnClickListener(v -> goHome());
         findViewById(R.id.starnet_btn_close).setOnClickListener(v -> finish());
+        findViewById(R.id.starnet_btn_sync).setOnClickListener(v -> syncFromStarlink());
         ((Button) findViewById(R.id.starnet_error_retry)).setOnClickListener(v -> reload());
 
         webView.loadUrl(homeUrl);
@@ -171,6 +180,66 @@ public class AccountBrowserActivity extends AppCompatActivity {
         errorOverlay.setVisibility(View.GONE);
         webView.setVisibility(View.VISIBLE);
         webView.loadUrl(homeUrl);
+    }
+
+    /**
+     * Stage 1 of on-device Starlink sync: reads only what is currently visible in this
+     * account's own isolated WebView, on the page the user is already looking at - never a
+     * separate request, never anything from outside this WebView. The one script this ever
+     * injects just returns document.body.innerText verbatim; every bit of field parsing happens
+     * afterwards in plain Java (StarlinkFieldExtractor), which is what makes that parsing
+     * unit-testable without a browser engine.
+     */
+    private void syncFromStarlink() {
+        webView.evaluateJavascript(
+            "(function(){return document.body ? document.body.innerText : '';})()",
+            (ValueCallback<String>) value -> {
+                if (webView == null) {
+                    // The screen was closed before this callback ran - nothing left to report to.
+                    return;
+                }
+                String visibleText = unquoteJavaScriptString(value);
+                String currentUrl = webView.getUrl();
+                StarlinkFieldExtractor.Result result = StarlinkFieldExtractor.extractFields(currentUrl, visibleText);
+
+                if (!result.accepted) {
+                    Toast.makeText(this, R.string.starnet_sync_wrong_domain, Toast.LENGTH_LONG).show();
+                    return;
+                }
+                if (result.fields.isEmpty()) {
+                    Toast.makeText(this, R.string.starnet_sync_nothing_found, Toast.LENGTH_LONG).show();
+                    return;
+                }
+
+                LocalBrowserPlugin.emitAccountDataSynced(accountId, toJSObject(result.fields));
+                Toast.makeText(this, R.string.starnet_sync_success, Toast.LENGTH_SHORT).show();
+            }
+        );
+    }
+
+    /**
+     * WebView#evaluateJavascript hands back a JSON-encoded string (e.g. a literal newline comes
+     * back as the two characters \ and n) - org.json (built into Android since API 1, no extra
+     * dependency) is used only to decode that encoding, not to interpret the page content itself.
+     */
+    private static String unquoteJavaScriptString(String jsonQuoted) {
+        if (jsonQuoted == null || "null".equals(jsonQuoted)) {
+            return "";
+        }
+        try {
+            Object value = new JSONTokener(jsonQuoted).nextValue();
+            return value == null ? "" : value.toString();
+        } catch (JSONException e) {
+            return "";
+        }
+    }
+
+    private static JSObject toJSObject(Map<String, String> fields) {
+        JSObject object = new JSObject();
+        for (Map.Entry<String, String> entry : fields.entrySet()) {
+            object.put(entry.getKey(), entry.getValue());
+        }
+        return object;
     }
 
     /**

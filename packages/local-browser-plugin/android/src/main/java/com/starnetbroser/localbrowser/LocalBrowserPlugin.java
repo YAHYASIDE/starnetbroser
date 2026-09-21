@@ -9,6 +9,7 @@ import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import java.lang.ref.WeakReference;
 
 /**
  * Bridges the web UI's "فتح" button to a real, isolated native Android
@@ -23,6 +24,30 @@ public class LocalBrowserPlugin extends Plugin {
     public static final String DEFAULT_URL = "https://starlink.com/account/home";
     public static final String ERROR_CODE_UNSUPPORTED = "MULTI_PROFILE_UNSUPPORTED";
     public static final String ERROR_CODE_INVALID_URL = "INVALID_URL";
+    public static final String EVENT_ACCOUNT_DATA_SYNCED = "accountDataSynced";
+
+    // AccountBrowserActivity is a separate Activity, not this Plugin, so it has no direct way to
+    // call notifyListeners() - it reaches back through this single live instance instead. A weak
+    // reference costs nothing and avoids ever being the reason the plugin (and its Bridge/
+    // WebView) can't be garbage-collected.
+    private static WeakReference<LocalBrowserPlugin> activeInstance;
+
+    @Override
+    public void load() {
+        activeInstance = new WeakReference<>(this);
+    }
+
+    /** Called by AccountBrowserActivity after a successful "تحديث من Starlink" tap. */
+    public static void emitAccountDataSynced(String accountId, JSObject fields) {
+        LocalBrowserPlugin instance = activeInstance != null ? activeInstance.get() : null;
+        if (instance == null) {
+            return;
+        }
+        JSObject event = new JSObject();
+        event.put("accountId", accountId);
+        event.put("fields", fields);
+        instance.notifyListeners(EVENT_ACCOUNT_DATA_SYNCED, event);
+    }
 
     @PluginMethod
     public void isSupported(PluginCall call) {
@@ -66,6 +91,7 @@ public class LocalBrowserPlugin extends Plugin {
         Context context = getContext();
         Intent intent = new Intent(context, AccountBrowserActivity.class);
         intent.putExtra(AccountBrowserActivity.EXTRA_PROFILE_NAME, profileName);
+        intent.putExtra(AccountBrowserActivity.EXTRA_ACCOUNT_ID, accountId);
         intent.putExtra(AccountBrowserActivity.EXTRA_ACCOUNT_NAME, accountName);
         intent.putExtra(AccountBrowserActivity.EXTRA_URL, url);
         getActivity().startActivity(intent);

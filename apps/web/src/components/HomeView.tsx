@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { DeviceStatus, StarlinkAccountSummary } from "@starnet/shared";
 import { expiryDay } from "@starnet/shared";
@@ -12,7 +12,8 @@ import { daysRemainingNumber } from "@/lib/date";
 import { ApiError, listAccounts } from "@/lib/apiClient";
 import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
 import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
-import { deleteIsolatedAccountSession, isRunningInAndroidApp } from "@/lib/localBrowser";
+import { deleteIsolatedAccountSession, isRunningInAndroidApp, onAccountDataSynced } from "@/lib/localBrowser";
+import { mergeSyncedFields } from "@/lib/starlinkSync";
 import { resolveAccountDeletion } from "@starnet/local-browser-plugin";
 
 const NEAR_EXPIRY_THRESHOLD_DAYS = 3;
@@ -32,6 +33,17 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
   const [accounts, setAccounts] = useState(demoAccounts);
   const [dataState, setDataState] = useState<DataState>("demo");
   const [errorMessage, setErrorMessage] = useState("");
+
+  // Kept current for the Starlink-sync listener below, which is registered once on mount and
+  // must never act on a stale snapshot of either value from that first render.
+  const accountsRef = useRef(accounts);
+  useEffect(() => {
+    accountsRef.current = accounts;
+  }, [accounts]);
+  const dataStateRef = useRef(dataState);
+  useEffect(() => {
+    dataStateRef.current = dataState;
+  }, [dataState]);
 
   async function loadRealAccounts() {
     setDataState("loading");
@@ -59,6 +71,42 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
     }
     loadRealAccounts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Stage 1 of on-device Starlink sync: "تحديث من Starlink" inside the isolated account
+  // browser emits this once per tap that found something. Registered once - accountsRef/
+  // dataStateRef (not accounts/dataState) keep it reading current values without needing to
+  // re-subscribe the native listener on every state change.
+  useEffect(() => {
+    let handle: { remove: () => void } | undefined;
+    let cancelled = false;
+
+    onAccountDataSynced((event) => {
+      const target = accountsRef.current.find((item) => item.id === event.accountId);
+      if (!target) return;
+
+      const { account: merged, updatedFieldLabels } = mergeSyncedFields(target, event.fields);
+      const next = accountsRef.current.map((item) => (item.id === event.accountId ? merged : item));
+      if (dataStateRef.current === "demo") saveDemoAccounts(next);
+      setAccounts(next);
+
+      if (updatedFieldLabels.length > 0) {
+        window.alert(`تم تحديث حساب "${merged.name}" من Starlink:\n- ${updatedFieldLabels.join("\n- ")}`);
+      } else {
+        window.alert(`لم يتم العثور على بيانات جديدة لتحديث حساب "${merged.name}".`);
+      }
+    }).then((h) => {
+      if (cancelled) {
+        h.remove();
+      } else {
+        handle = h;
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      handle?.remove();
+    };
   }, []);
 
   function saveAccount(account: StarlinkAccountSummary) {

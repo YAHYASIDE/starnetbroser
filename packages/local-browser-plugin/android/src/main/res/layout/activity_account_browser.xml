@@ -62,7 +62,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:weightSum="4"
+        android:weightSum="5"
         android:paddingTop="6dp"
         android:paddingBottom="6dp"
         android:background="#F1F1F1">
@@ -98,5 +98,14 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="@string/starnet_action_close" />
+
+        <Button
+            android:id="@+id/starnet_btn_sync"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textSize="11sp"
+            android:text="@string/starnet_action_sync" />
     </LinearLayout>
 </LinearLayout>

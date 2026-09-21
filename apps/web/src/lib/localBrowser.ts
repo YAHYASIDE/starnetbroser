@@ -1,7 +1,7 @@
 "use client";
 
-import { Capacitor } from "@capacitor/core";
-import { LocalBrowser, STARLINK_ACCOUNT_HOME_URL } from "@starnet/local-browser-plugin";
+import { Capacitor, PluginListenerHandle } from "@capacitor/core";
+import { AccountDataSyncedEvent, LocalBrowser, STARLINK_ACCOUNT_HOME_URL } from "@starnet/local-browser-plugin";
 
 /**
  * Isolated per-account browsing only exists as a real native WebView
@@ -50,4 +50,15 @@ export async function deleteIsolatedAccountSession(accountId: string): Promise<b
   } catch {
     return false;
   }
+}
+
+/**
+ * Fires after a "تحديث من Starlink" tap that found something on an allow-listed Starlink page.
+ * Never fires on web (no isolated browser exists there to sync from). Callers must remove the
+ * returned handle on unmount.
+ */
+export function onAccountDataSynced(
+  handler: (event: AccountDataSyncedEvent) => void,
+): Promise<PluginListenerHandle> {
+  return LocalBrowser.addListener("accountDataSynced", handler);
 }
