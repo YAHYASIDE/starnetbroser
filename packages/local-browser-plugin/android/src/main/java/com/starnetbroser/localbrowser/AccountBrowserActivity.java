@@ -20,7 +20,11 @@ import androidx.webkit.ProfileStore;
 import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
 import com.getcapacitor.JSObject;
-import java.util.Map;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import org.json.JSONException;
 import org.json.JSONTokener;
 
@@ -49,6 +53,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
     private View errorOverlay;
     private String homeUrl;
     private String accountId;
+    private String cachedExtractorScript;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -183,63 +188,89 @@ public class AccountBrowserActivity extends AppCompatActivity {
     }
 
     /**
-     * Stage 1 of on-device Starlink sync: reads only what is currently visible in this
-     * account's own isolated WebView, on the page the user is already looking at - never a
-     * separate request, never anything from outside this WebView. The one script this ever
-     * injects just returns document.body.innerText verbatim; every bit of field parsing happens
-     * afterwards in plain Java (StarlinkFieldExtractor), which is what makes that parsing
-     * unit-testable without a browser engine.
+     * Stage 1 of on-device Starlink sync: reads only whatever section of this account's own
+     * isolated WebView is currently open - never a separate request, never anything from outside
+     * this WebView. All field parsing (including the DOM/computed-style work colored status dots
+     * need) happens in the injected script itself (packages/local-browser-plugin/src/
+     * webExtraction, bundled to android/src/main/assets/starlinkExtractor.js) - Java only ever
+     * receives that script's small, already-structured JSON result, never raw page text or HTML.
+     * AllowedUrl is checked both before injecting the script and again after it returns, since
+     * the page could have navigated during that async gap.
      */
     private void syncFromStarlink() {
+        if (!AllowedUrl.isAllowed(webView.getUrl())) {
+            Toast.makeText(this, R.string.starnet_sync_wrong_domain, Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        String script;
+        try {
+            script = loadExtractorScript() + "\n__starnetSyncResult;";
+        } catch (IOException e) {
+            Toast.makeText(this, R.string.starnet_sync_nothing_found, Toast.LENGTH_LONG).show();
+            return;
+        }
+
         webView.evaluateJavascript(
-            "(function(){return document.body ? document.body.innerText : '';})()",
+            script,
             (ValueCallback<String>) value -> {
                 if (webView == null) {
                     // The screen was closed before this callback ran - nothing left to report to.
                     return;
                 }
-                String visibleText = unquoteJavaScriptString(value);
-                String currentUrl = webView.getUrl();
-                StarlinkFieldExtractor.Result result = StarlinkFieldExtractor.extractFields(currentUrl, visibleText);
-
-                if (!result.accepted) {
+                if (!AllowedUrl.isAllowed(webView.getUrl())) {
                     Toast.makeText(this, R.string.starnet_sync_wrong_domain, Toast.LENGTH_LONG).show();
                     return;
                 }
-                if (result.fields.isEmpty()) {
+
+                JSObject fields = parseExtractedFields(value);
+                if (fields == null || fields.length() == 0) {
                     Toast.makeText(this, R.string.starnet_sync_nothing_found, Toast.LENGTH_LONG).show();
                     return;
                 }
 
-                LocalBrowserPlugin.emitAccountDataSynced(accountId, toJSObject(result.fields));
+                LocalBrowserPlugin.emitAccountDataSynced(accountId, fields);
                 Toast.makeText(this, R.string.starnet_sync_success, Toast.LENGTH_SHORT).show();
             }
         );
     }
 
+    private String loadExtractorScript() throws IOException {
+        if (cachedExtractorScript != null) {
+            return cachedExtractorScript;
+        }
+        StringBuilder builder = new StringBuilder();
+        try (
+            InputStream input = getAssets().open("starlinkExtractor.js");
+            BufferedReader reader = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8))
+        ) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                builder.append(line).append('\n');
+            }
+        }
+        cachedExtractorScript = builder.toString();
+        return cachedExtractorScript;
+    }
+
     /**
      * WebView#evaluateJavascript hands back a JSON-encoded string (e.g. a literal newline comes
      * back as the two characters \ and n) - org.json (built into Android since API 1, no extra
-     * dependency) is used only to decode that encoding, not to interpret the page content itself.
+     * dependency) decodes that encoding first, then parses the resulting JSON text itself.
      */
-    private static String unquoteJavaScriptString(String jsonQuoted) {
-        if (jsonQuoted == null || "null".equals(jsonQuoted)) {
-            return "";
+    private static JSObject parseExtractedFields(String evaluateJavascriptResult) {
+        if (evaluateJavascriptResult == null || "null".equals(evaluateJavascriptResult)) {
+            return null;
         }
         try {
-            Object value = new JSONTokener(jsonQuoted).nextValue();
-            return value == null ? "" : value.toString();
+            Object unquoted = new JSONTokener(evaluateJavascriptResult).nextValue();
+            if (!(unquoted instanceof String) || ((String) unquoted).isEmpty()) {
+                return null;
+            }
+            return new JSObject((String) unquoted);
         } catch (JSONException e) {
-            return "";
+            return null;
         }
-    }
-
-    private static JSObject toJSObject(Map<String, String> fields) {
-        JSObject object = new JSObject();
-        for (Map.Entry<String, String> entry : fields.entrySet()) {
-            object.put(entry.getKey(), entry.getValue());
-        }
-        return object;
     }
 
     /**

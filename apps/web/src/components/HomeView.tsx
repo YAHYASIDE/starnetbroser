@@ -13,7 +13,7 @@ import { ApiError, listAccounts } from "@/lib/apiClient";
 import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
 import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
 import { deleteIsolatedAccountSession, isRunningInAndroidApp, onAccountDataSynced } from "@/lib/localBrowser";
-import { mergeSyncedFields } from "@/lib/starlinkSync";
+import { formatSyncMessage, mergeSyncedFields } from "@/lib/starlinkSync";
 import { resolveAccountDeletion } from "@starnet/local-browser-plugin";
 
 const NEAR_EXPIRY_THRESHOLD_DAYS = 3;
@@ -85,16 +85,12 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
       const target = accountsRef.current.find((item) => item.id === event.accountId);
       if (!target) return;
 
-      const { account: merged, updatedFieldLabels } = mergeSyncedFields(target, event.fields);
+      const { account: merged, updatedFields } = mergeSyncedFields(target, event.fields);
       const next = accountsRef.current.map((item) => (item.id === event.accountId ? merged : item));
       if (dataStateRef.current === "demo") saveDemoAccounts(next);
       setAccounts(next);
 
-      if (updatedFieldLabels.length > 0) {
-        window.alert(`تم تحديث حساب "${merged.name}" من Starlink:\n- ${updatedFieldLabels.join("\n- ")}`);
-      } else {
-        window.alert(`لم يتم العثور على بيانات جديدة لتحديث حساب "${merged.name}".`);
-      }
+      window.alert(formatSyncMessage(merged.name, updatedFields));
     }).then((h) => {
       if (cancelled) {
         h.remove();

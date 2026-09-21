@@ -71,21 +71,19 @@ export interface StarlinkAccountSummary {
   planName: string;
   /**
    * Fields below this line come only from the local, on-device Starlink
-   * sync (packages/local-browser-plugin's AccountBrowserActivity reading
-   * the account's own isolated WebView) - optional because most accounts
-   * won't have synced yet, and because syncing must never invent a value
-   * for a field it didn't actually find on the page.
+   * sync (packages/local-browser-plugin's isolated WebView + "تحديث من
+   * Starlink") - optional because most accounts won't have synced yet,
+   * and because syncing must never invent a value for a field it didn't
+   * actually find on the currently-open page/section.
    */
+  /** Starts with "ACC-" - the account number, deliberately never confused with starlinkId. */
+  accountNumber?: string;
+  /** The dish's own internal identifier - not the account number. */
   starlinkId?: string;
-  /** Raw text as shown on the Starlink page, e.g. "Active"/"نشط" - not yet interpreted into any status enum. */
+  /** Normalized to "active" | "standby" | "canceled" | "suspended" - never left as raw page text. */
   serviceStatus?: string;
-  /**
-   * The Starlink account's own registered holder name, as shown on the
-   * Starlink portal - deliberately separate from `name` (STAR NET's local
-   * customer label for this account, e.g. an operator's own nickname for
-   * it), which local sync must never overwrite.
-   */
-  starlinkAccountHolderName?: string;
+  // Reading the Starlink account holder's name/email/phone is explicitly deferred - not part of
+  // this sync stage, so there is no field for it here yet.
 }
 
 /** Detail-view shape - includes decrypted secrets, only ever returned to

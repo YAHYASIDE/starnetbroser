@@ -33,25 +33,38 @@ export interface DeleteAccountSessionResult {
   deleted: boolean;
 }
 
+export type SyncedDeviceStatus = "online" | "offline" | "warning" | "unknown";
+export type SyncedServiceStatus = "active" | "standby" | "canceled" | "suspended";
+
 /**
  * Stage 1 of on-device Starlink sync - fields as read from the account's own isolated WebView,
- * via "تحديث من Starlink" (see packages/local-browser-plugin/android's StarlinkFieldExtractor).
- * Every field is optional: absent means "not found on this page", never a fabricated value, and
- * callers must never overwrite existing local data with an absent field.
+ * via "تحديث من Starlink" (see packages/local-browser-plugin/src/webExtraction). Every field is
+ * optional: absent means "not found on this page/section", never a fabricated value, and callers
+ * must never overwrite existing local data with an absent field. A single tap only reads
+ * whatever section of the Starlink portal is currently open - accountNumber/starlinkId showing
+ * up alongside dishStatus is not expected, and that's fine; results across taps on different
+ * sections (Devices, then Subscriptions, then Billing, ...) are meant to be merged cumulatively.
+ *
+ * Reading the Starlink account holder's name/email/phone is explicitly deferred - not part of
+ * this field set.
  */
 export interface SyncedStarlinkFields {
-  dishStatus?: "online" | "offline";
-  wifiStatus?: "online" | "offline";
+  dishStatus?: SyncedDeviceStatus;
+  wifiStatus?: SyncedDeviceStatus;
+  /** Normalized to one fixed value - never left as whatever free text the page happened to show. */
+  serviceStatus?: SyncedServiceStatus;
   planName?: string;
   renewalDate?: string;
+  /** Always two decimal places, e.g. "0.00" - a real, confirmed zero balance, not "not found". */
   balanceDue?: string;
+  /** Canonical form, e.g. "USD" - "$", "US$", "$US" and "USD" all normalize to this. */
   currency?: string;
+  /** Starts with "ACC-" - the STAR NET/Starlink account number, never confused with starlinkId. */
+  accountNumber?: string;
+  /** The dish's own internal identifier - not the account number. */
   starlinkId?: string;
   serialNumber?: string;
   kitNumber?: string;
-  /** Raw text as shown on the page (e.g. "Active"/"نشط") - not interpreted in this stage. */
-  serviceStatus?: string;
-  accountHolderName?: string;
 }
 
 export interface AccountDataSyncedEvent {

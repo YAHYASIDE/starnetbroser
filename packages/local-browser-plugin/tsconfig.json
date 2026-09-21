@@ -2,7 +2,11 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": "src",
+    // src/webExtraction runs inside a WebView (real production) and jsdom (tests) - both DOM
+    // environments, unlike the rest of this package (the Capacitor bridge, which is plain
+    // Node/browser-neutral JS). Scoped to this package only, not tsconfig.base.json.
+    "lib": ["ES2022", "DOM"]
   },
   "include": ["src"]
 }
