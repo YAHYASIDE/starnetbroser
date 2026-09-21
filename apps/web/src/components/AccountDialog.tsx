@@ -37,6 +37,7 @@ function createBlankAccount(): StarlinkAccountSummary {
     id,
     customerId: `customer-${id}`,
     name: "",
+    phone: "",
     deviceName: "Standard Kit",
     kitNumber: "",
     serialNumber: "",
@@ -85,6 +86,7 @@ export function AccountDialog({ mode, account, onClose, onSave, onDelete }: Prop
     onSave({
       ...draft,
       name: draft.name.trim(),
+      phone: draft.phone?.trim() || undefined,
       kitNumber: draft.kitNumber.trim(),
       serialNumber: draft.serialNumber.trim(),
       rechargeDate: draft.rechargeDate.replace(/-/g, "/"),
@@ -111,6 +113,7 @@ export function AccountDialog({ mode, account, onClose, onSave, onDelete }: Prop
         {isView ? (
           <div className="account-info-grid">
             <div><span>اسم العميل</span><strong>{displayValue(draft.name)}</strong></div>
+            <div><span>رقم الهاتف</span><strong dir="ltr">{displayValue(draft.phone ?? null)}</strong></div>
             <div><span>الخطة</span><strong>{displayValue(draft.planName)}</strong></div>
             <div><span>KIT</span><strong dir="ltr">{displayValue(draft.kitNumber)}</strong></div>
             <div><span>Serial</span><strong dir="ltr">{displayValue(draft.serialNumber)}</strong></div>
@@ -133,6 +136,17 @@ export function AccountDialog({ mode, account, onClose, onSave, onDelete }: Prop
             <label className="form-field form-wide">
               <span>اسم العميل *</span>
               <input required autoFocus value={draft.name} onChange={(e) => update("name", e.target.value)} placeholder="مثال: محمد أحمد" />
+            </label>
+
+            <label className="form-field form-wide">
+              <span>رقم الهاتف (واتساب)</span>
+              <input
+                dir="ltr"
+                type="tel"
+                value={draft.phone ?? ""}
+                onChange={(e) => update("phone", e.target.value)}
+                placeholder="مع رمز الدولة، مثال: 22212345678"
+              />
             </label>
 
             <label className="form-field">

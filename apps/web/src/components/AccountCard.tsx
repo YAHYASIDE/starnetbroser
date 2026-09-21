@@ -5,6 +5,7 @@ import { StarlinkAccountSummary } from "@starnet/shared";
 import { presentStatus, presentServiceStatus, isBalanceDueZero } from "@/lib/status";
 import { daysRemainingLabel, daysRemainingNumber, formatRelativeTime } from "@/lib/date";
 import { isRunningInAndroidApp, openIsolatedAccountBrowser } from "@/lib/localBrowser";
+import { buildBalanceReminderMessage, buildExpiryReminderMessage, buildWhatsAppLink } from "@/lib/whatsapp";
 
 interface Props {
   account: StarlinkAccountSummary;
@@ -48,6 +49,18 @@ export function AccountCard({ account, onEdit, onInfo }: Props) {
     }
   }
 
+  // Only offered when a usable phone number was actually entered for this account - never a
+  // link to a broken wa.me URL.
+  const whatsappAvailable = buildWhatsAppLink(account.phone) !== null;
+  const [showWhatsAppMenu, setShowWhatsAppMenu] = useState(false);
+
+  function openWhatsApp(message?: string) {
+    const link = buildWhatsAppLink(account.phone, message);
+    if (!link) return;
+    window.open(link, "_blank", "noopener,noreferrer");
+    setShowWhatsAppMenu(false);
+  }
+
   return (
     <article className="account-card">
       <header className="account-card-header">
@@ -70,6 +83,41 @@ export function AccountCard({ account, onEdit, onInfo }: Props) {
             <span className={`dot ${wifi.className}`} />
             Wi-Fi
           </span>
+          {whatsappAvailable && (
+            <div className="whatsapp-menu-wrapper">
+              <button
+                type="button"
+                className="whatsapp-btn"
+                title="تواصل عبر واتساب"
+                aria-label="تواصل عبر واتساب"
+                onClick={() => setShowWhatsAppMenu((v) => !v)}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true" width="14" height="14" fill="currentColor">
+                  <path d="M12 2a10 10 0 0 0-8.6 15L2 22l5.2-1.4A10 10 0 1 0 12 2Zm0 18.2a8.1 8.1 0 0 1-4.1-1.1l-.3-.2-3.1.8.8-3-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1-.2.2-.6.8-.8 1-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-2-1.2 7.4 7.4 0 0 1-1.4-1.7c-.1-.2 0-.4.1-.5l.4-.4.2-.4c.1-.1 0-.3 0-.4l-.7-1.7c-.2-.4-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 2.9 2.9 0 0 0-.9 2.1c0 1.2.9 2.4 1 2.6.1.2 1.8 2.8 4.5 3.8.6.3 1.1.4 1.5.6.6.2 1.2.2 1.6.1.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.2-.2-.4-.3Z" />
+                </svg>
+              </button>
+              {showWhatsAppMenu && (
+                <>
+                  <div className="whatsapp-menu-backdrop" onClick={() => setShowWhatsAppMenu(false)} />
+                  <div className="whatsapp-menu" role="menu">
+                    <button type="button" role="menuitem" onClick={() => openWhatsApp(buildExpiryReminderMessage(account.name))}>
+                      تذكير بانتهاء الشحن الليلة
+                    </button>
+                    <button type="button" role="menuitem" onClick={() => openWhatsApp()}>
+                      تواصل فقط
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => openWhatsApp(buildBalanceReminderMessage(account.name, account.balanceDue || "0", account.currency))}
+                    >
+                      تذكير بالرصيد المستحق
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </header>
 
