@@ -21,6 +21,19 @@ function findLabelElements(doc: Document, labels: string[]): Element[] {
   });
 }
 
+/**
+ * A leaf counts as a status-dot candidate only when it carries no text of its own (a dot is
+ * never a label) AND was deliberately styled (an inline `style` attribute) - never an ordinary
+ * unstyled leaf, and never a text-bearing element even if that text happens to be styled gray
+ * (e.g. an "Manage"/"إدارة" link colored gray is still text, not a status dot).
+ */
+function isStatusDotCandidate(el: Element): boolean {
+  if (el.children.length !== 0) return false;
+  if ((el.textContent ?? "").trim() !== "") return false;
+  const style = el.getAttribute("style");
+  return !!style && style.trim() !== "";
+}
+
 function statusInScope(scope: Element): StatusColorValue | null {
   const labeled = Array.from(scope.querySelectorAll("[aria-label], [title]"));
   for (const el of labeled) {
@@ -29,13 +42,17 @@ function statusInScope(scope: Element): StatusColorValue | null {
     if (status) return status;
   }
 
-  const leaves = Array.from(scope.querySelectorAll("*")).filter((el) => el.children.length === 0);
-  for (const el of leaves) {
+  const dotCandidates = Array.from(scope.querySelectorAll("*")).filter(isStatusDotCandidate);
+  for (const el of dotCandidates) {
     const style = getComputedStyle(el);
     const byBackground = statusFromComputedColor(style.backgroundColor);
     if (byBackground !== "unknown") return byBackground;
     const byColor = statusFromComputedColor(style.color);
     if (byColor !== "unknown") return byColor;
+    // A genuine dot candidate whose color can't be classified (e.g. a gray/neutral dot) is a
+    // real, definitive "unknown" - not "nothing found here, keep searching", or a real gray
+    // status dot would silently vanish into an eventual `undefined` instead of being reported.
+    return "unknown";
   }
 
   return null;

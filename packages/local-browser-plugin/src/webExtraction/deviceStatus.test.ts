@@ -76,4 +76,34 @@ describe("extractDeviceStatus", () => {
     `);
     expect(extractDeviceStatus(document, DISH_LABELS)).toBe("warning");
   });
+
+  it("reports a genuinely gray status dot as 'unknown' - not as nothing-found (round 6 regression)", () => {
+    setBody(`
+      <div class="row">
+        <span>Starlink Dish</span>
+        <span class="dot" style="background-color: rgb(150, 150, 150);"></span>
+      </div>
+    `);
+    expect(extractDeviceStatus(document, DISH_LABELS)).toBe("unknown");
+  });
+
+  it("never treats ordinary gray-colored text as a status dot, even when no real dot is present", () => {
+    setBody(`
+      <div class="row">
+        <span>Starlink Dish</span>
+        <span style="color: rgb(150, 150, 150);">تفاصيل إضافية</span>
+      </div>
+    `);
+    expect(extractDeviceStatus(document, DISH_LABELS)).toBeUndefined();
+  });
+
+  it("never treats an unstyled empty leaf as a status dot", () => {
+    setBody(`
+      <div class="row">
+        <span>Starlink Dish</span>
+        <span></span>
+      </div>
+    `);
+    expect(extractDeviceStatus(document, DISH_LABELS)).toBeUndefined();
+  });
 });

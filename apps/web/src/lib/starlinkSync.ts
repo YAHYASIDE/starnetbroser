@@ -37,8 +37,15 @@ export interface UpdatedField {
 
 export interface MergeSyncResult {
   account: StarlinkAccountSummary;
-  /** Empty means nothing new was found on the currently-open page/section. */
+  /** Empty means nothing changed - but see `scanned` for whether anything was even found. */
   updatedFields: UpdatedField[];
+  /**
+   * True when the read actually found at least one recognized field on the page, whether or not
+   * any of them differed from what was already saved. Distinguishes "found fields, but they
+   * already matched" from "found nothing on this page at all" - the two look identical from
+   * `updatedFields.length === 0` alone, but call for different messages.
+   */
+  scanned: boolean;
 }
 
 function toDeviceStatus(value: SyncedDeviceStatus): DeviceStatus {
@@ -139,17 +146,32 @@ export function mergeSyncedFields(
     next.kitNumber = kitNumber;
   }
 
-  if (updatedFields.length > 0) {
-    next.lastUpdated = "الآن";
+  const scanned = Object.keys(fields).length > 0;
+
+  if (scanned) {
+    // A scan that found fields is a confirmed, successful read of the page - record it even when
+    // every value it found already matched what was saved, since "checked and nothing changed" is
+    // still real information, not a no-op.
     next.lastSuccessfulScanAt = new Date().toISOString();
   }
+  if (updatedFields.length > 0) {
+    next.lastUpdated = "الآن";
+  }
 
-  return { account: next, updatedFields };
+  return { account: next, updatedFields, scanned };
 }
 
-/** Groups updated fields under their Arabic section headers, for the "what changed" message. */
-export function formatSyncMessage(accountName: string, updatedFields: UpdatedField[]): string {
+/**
+ * Groups updated fields under their Arabic section headers, for the "what changed" message.
+ * `scanned` (see MergeSyncResult) is what separates "found nothing on this page at all" from
+ * "found fields, but they already matched" - the two must never share one message, or a
+ * successful confirming scan would look identical to a failed one.
+ */
+export function formatSyncMessage(accountName: string, updatedFields: UpdatedField[], scanned: boolean): string {
   if (updatedFields.length === 0) {
+    if (scanned) {
+      return "تم الفحص بنجاح ولا توجد تغييرات";
+    }
     return `لم يتم العثور على بيانات جديدة لتحديث حساب "${accountName}".`;
   }
 

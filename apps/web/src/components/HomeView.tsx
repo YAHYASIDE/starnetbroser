@@ -85,12 +85,12 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
       const target = accountsRef.current.find((item) => item.id === event.accountId);
       if (!target) return;
 
-      const { account: merged, updatedFields } = mergeSyncedFields(target, event.fields);
+      const { account: merged, updatedFields, scanned } = mergeSyncedFields(target, event.fields);
       const next = accountsRef.current.map((item) => (item.id === event.accountId ? merged : item));
       if (dataStateRef.current === "demo") saveDemoAccounts(next);
       setAccounts(next);
 
-      window.alert(formatSyncMessage(merged.name, updatedFields));
+      window.alert(formatSyncMessage(merged.name, updatedFields, scanned));
     }).then((h) => {
       if (cancelled) {
         h.remove();

@@ -11,6 +11,7 @@ import {
   extractAccountNumber,
   extractBalance,
   extractLabeledValue,
+  normalizeDateLike,
   normalizeServiceStatus,
 } from "./textFields";
 import { toLines, toVisibleText } from "./visibleText";
@@ -43,7 +44,7 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
   if (planName) fields.planName = planName;
 
   const renewalDate = extractLabeledValue(lines, RENEWAL_DATE_LABELS);
-  if (renewalDate) fields.renewalDate = renewalDate;
+  if (renewalDate) fields.renewalDate = normalizeDateLike(renewalDate);
 
   const balance = extractBalance(lines);
   if (balance) {

@@ -123,6 +123,24 @@ describe("extractStarlinkFields - Arabic page", () => {
   });
 });
 
+describe("extractStarlinkFields - real Starlink card layout (round 6 regression)", () => {
+  it("reads the plan name and normalized renewal date, skipping the Manage button and the other field's label line", () => {
+    const fields = extractFrom(`
+      <div class="subscriptions-section">
+        <div>خطة الخدمة</div>
+        <div>إدارة</div>
+        <div>النهاية ٢٠٢٦/٩/٢٨</div>
+        <div>التجوال - غير محدود</div>
+      </div>
+    `);
+
+    expect(fields.planName).toBe("التجوال - غير محدود");
+    expect(fields.renewalDate).toBe("2026/09/28");
+    expect(fields.planName).not.toBe("إدارة");
+    expect(fields.planName).not.toContain("٢٠٢٦");
+  });
+});
+
 describe("extractStarlinkFields - progressive, section-by-section reading", () => {
   it("returns only device fields when only the Devices section is on the page", () => {
     document.body.innerHTML = `

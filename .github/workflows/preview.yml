@@ -61,9 +61,10 @@ jobs:
       # script, browser-worker included) - this job has no Chromium/Xvfb/
       # x11vnc/websockify set up. browser-worker has its own dedicated
       # job below with that environment; scope this one to what it can
-      # actually run.
-      - name: Run shared + API tests
-        run: npm run test --workspace=@starnet/shared --workspace=@starnet/api
+      # actually run. local-browser-plugin's and web's vitest suites are
+      # plain Node/jsdom, no special environment needed, so they run here too.
+      - name: Run shared + API + local-browser-plugin + web tests
+        run: npm run test --workspace=@starnet/shared --workspace=@starnet/api --workspace=@starnet/local-browser-plugin --workspace=@starnet/web
 
   test-browser-worker:
     name: Browser worker (real Chromium session persistence + isolation)
