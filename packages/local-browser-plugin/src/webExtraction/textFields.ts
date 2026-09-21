@@ -63,6 +63,41 @@ export function extractRenewalBadgeDate(lines: string[]): string | undefined {
   return undefined;
 }
 
+/** The real Billing page's cycle section - unlike every other renewal signal, this one has no
+ * year at all (e.g. "تاريخ استحقاق الدفع: ٢٨ أغسطس.") since it describes a RECURRING monthly due
+ * day, not a specific date. Deliberately returns only the bare day-of-month (1-31); combine with
+ * nextOccurrenceOfDay to turn it into an actual date, rather than guessing a year from the text. */
+export const BILLING_DUE_DAY_LABELS = ["تاريخ استحقاق الدفع", "payment due date"];
+
+export function extractBillingDueDay(lines: string[]): number | undefined {
+  const raw = extractLabeledValue(lines, BILLING_DUE_DAY_LABELS);
+  if (!raw) return undefined;
+  const match = /^(\d{1,2})\b/.exec(toWesternDigits(raw).trim());
+  if (!match) return undefined;
+  const day = parseInt(match[1], 10);
+  return day >= 1 && day <= 31 ? day : undefined;
+}
+
+/** Turns a bare recurring day-of-month into a real "YYYY/MM/DD": this month if that day hasn't
+ * passed yet, otherwise next month - so it always reads as the upcoming due date, regardless of
+ * which month it happens to be synced in. `now` is injectable for deterministic tests; defaults
+ * to the real current date. Clamps to the last real day of the target month (e.g. day 31 synced
+ * in a 30-day month) rather than producing an invalid date. */
+export function nextOccurrenceOfDay(day: number, now: Date = new Date()): string {
+  let year = now.getFullYear();
+  let month = now.getMonth();
+  if (day < now.getDate()) {
+    month += 1;
+    if (month > 11) {
+      month = 0;
+      year += 1;
+    }
+  }
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const clampedDay = Math.min(day, daysInMonth);
+  return `${year}/${String(month + 1).padStart(2, "0")}/${String(clampedDay).padStart(2, "0")}`;
+}
+
 export const SERVICE_STATUS_LABELS = [
   "service status", "account status", "subscription status",
   "حالة الخدمة", "حالة الاشتراك", "حالة الحساب",

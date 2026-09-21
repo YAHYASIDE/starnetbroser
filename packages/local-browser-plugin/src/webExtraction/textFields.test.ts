@@ -5,6 +5,7 @@ import {
   RENEWAL_DATE_LABELS,
   extractAccountEmail,
   extractBalance,
+  extractBillingDueDay,
   extractDataUsageGb,
   extractLabeledValue,
   extractRenewalBadgeDate,
@@ -12,6 +13,7 @@ import {
   hasActivePlanBadge,
   hasStandbyBanner,
   isCompleteDate,
+  nextOccurrenceOfDay,
   normalizeDateLike,
 } from "./textFields";
 
@@ -216,5 +218,35 @@ describe("extractAccountEmail - Settings page, never the phone number on the sam
 
   it("returns undefined when there is no email label on the page at all", () => {
     expect(extractAccountEmail(["Welcome to your account"])).toBeUndefined();
+  });
+});
+
+describe("extractBillingDueDay - bare recurring day, deliberately no year", () => {
+  it("reads just the day number from the real Billing-cycle line", () => {
+    const lines = ["دورة الفوترة", "فترة الفوترة هي ٢٨ أغسطس - ٢٧ سبتمبر.", "تاريخ استحقاق الدفع: ٢٨ أغسطس."];
+    expect(extractBillingDueDay(lines)).toBe(28);
+  });
+
+  it("returns undefined when the label isn't on the page at all", () => {
+    expect(extractBillingDueDay(["Welcome to your account"])).toBeUndefined();
+  });
+});
+
+describe("nextOccurrenceOfDay - always the upcoming due date, whatever month it's synced in", () => {
+  it("stays in the current month when the day hasn't passed yet", () => {
+    expect(nextOccurrenceOfDay(28, new Date(2026, 8, 21))).toBe("2026/09/28"); // Sept 21 -> Sept 28
+  });
+
+  it("rolls over to next month when the day already passed", () => {
+    expect(nextOccurrenceOfDay(10, new Date(2026, 8, 21))).toBe("2026/10/10"); // Sept 21 -> Oct 10
+  });
+
+  it("rolls over the year at December", () => {
+    expect(nextOccurrenceOfDay(5, new Date(2026, 11, 21))).toBe("2027/01/05"); // Dec 21 -> Jan 5, 2027
+  });
+
+  it("clamps to the last real day of a target month that doesn't have that many days", () => {
+    // April only has 30 days - day 31 must never produce an invalid "2026/04/31".
+    expect(nextOccurrenceOfDay(31, new Date(2026, 3, 1))).toBe("2026/04/30");
   });
 });

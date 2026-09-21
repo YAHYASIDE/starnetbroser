@@ -12,6 +12,7 @@ import {
   extractAccountHolderName,
   extractAccountNumber,
   extractBalance,
+  extractBillingDueDay,
   extractDataUsageGb,
   extractLabeledValue,
   extractRenewalBadgeDate,
@@ -19,6 +20,7 @@ import {
   hasActivePlanBadge,
   hasStandbyBanner,
   isCompleteDate,
+  nextOccurrenceOfDay,
   normalizeDateLike,
   normalizeServiceStatus,
 } from "./textFields";
@@ -63,6 +65,7 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
   if (planName) fields.planName = planName;
 
   const renewalDate = extractLabeledValue(lines, RENEWAL_DATE_LABELS) ?? extractRenewalBadgeDate(lines);
+  let resolvedRenewalDate: string | undefined;
   if (renewalDate) {
     const normalized = normalizeDateLike(renewalDate);
     // A real page can split a date's year/month from its day across separate text nodes, so the
@@ -70,8 +73,17 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
     // that, so it comes back unchanged instead of a real date. Never store that: a corrupted
     // renewal date is worse than none, since expiryDay's fallback parsing can misread a bare
     // month digit as if it were the day.
-    if (isCompleteDate(normalized)) fields.renewalDate = normalized;
+    if (isCompleteDate(normalized)) resolvedRenewalDate = normalized;
   }
+  // The Billing page's "دورة الفوترة" section has no other date signal on it at all (once the
+  // account is active, the standby banner and "النهاية" badge are both gone) - only a bare
+  // recurring due DAY, with no year in the text to normalize. Tried last, since a real full date
+  // found elsewhere is always more specific/trustworthy than a computed "next occurrence".
+  if (!resolvedRenewalDate) {
+    const billingDueDay = extractBillingDueDay(lines);
+    if (billingDueDay !== undefined) resolvedRenewalDate = nextOccurrenceOfDay(billingDueDay);
+  }
+  if (resolvedRenewalDate) fields.renewalDate = resolvedRenewalDate;
 
   const balance = extractBalance(lines);
   if (balance) {

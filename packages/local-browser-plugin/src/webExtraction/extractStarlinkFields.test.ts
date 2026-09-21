@@ -341,6 +341,34 @@ describe("extractStarlinkFields - real 'نشط' plan badge once the account is a
   });
 });
 
+describe("extractStarlinkFields - real Billing-cycle due day, no year on the page at all (round 14 regression)", () => {
+  it("computes a real renewal date from the bare recurring due day when nothing else on the page has one", () => {
+    const fields = extractFrom(`
+      <div class="billing-section">
+        <div>دورة الفوترة</div>
+        <div>فترة الفوترة هي ٢٨ أغسطس - ٢٧ سبتمبر.</div>
+        <div>تاريخ استحقاق الدفع: ٢٨ أغسطس.</div>
+      </div>
+    `);
+
+    // Not asserting the exact date (it depends on today's date at test-run time) - just that a
+    // real, complete date was computed, and that it lands on day 28 as the real page said.
+    expect(fields.renewalDate).toMatch(/^\d{4}\/\d{2}\/\d{2}$/);
+    expect(fields.renewalDate?.endsWith("/28")).toBe(true);
+  });
+
+  it("prefers a real dated signal over the computed billing-cycle day when both are present", () => {
+    const fields = extractFrom(`
+      <div>من المقرر أن تنتهي خدمتك في ٢٠٢٦/٩/٢٨.</div>
+      <div class="billing-section">
+        <div>تاريخ استحقاق الدفع: ١٠ يناير.</div>
+      </div>
+    `);
+
+    expect(fields.renewalDate).toBe("2026/09/28");
+  });
+});
+
 describe("extractStarlinkFields - progressive, section-by-section reading", () => {
   it("returns only device fields when only the Devices section is on the page", () => {
     document.body.innerHTML = `
