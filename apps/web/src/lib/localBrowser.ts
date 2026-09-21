@@ -86,14 +86,16 @@ export async function listPendingAccountSyncs(): Promise<PendingAccountSync[]> {
 
 /**
  * Only call after the corresponding result has actually been merged into the account and saved -
- * acking first and failing to save after would lose it permanently. A failed ack call here is
- * harmless: the record simply stays pending and is safely re-delivered (and re-acked) next time.
+ * acking first and failing to save after would lose it permanently. Returns whether the ack
+ * actually reached disk; a false/thrown result means the caller must keep these syncIds around
+ * to retry the ack later, without merging or messaging them again (they are already applied).
  */
-export async function ackPendingAccountSyncs(syncIds: string[]): Promise<void> {
-  if (!isRunningInAndroidApp() || syncIds.length === 0) return;
+export async function ackPendingAccountSyncs(syncIds: string[]): Promise<boolean> {
+  if (!isRunningInAndroidApp() || syncIds.length === 0) return true;
   try {
-    await LocalBrowser.ackPendingAccountSyncs({ syncIds });
+    const { acked } = await LocalBrowser.ackPendingAccountSyncs({ syncIds });
+    return acked;
   } catch {
-    // best-effort - see doc comment above.
+    return false;
   }
 }

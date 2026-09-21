@@ -1,6 +1,7 @@
 import { WebPlugin } from "@capacitor/core";
 import type {
   AckPendingAccountSyncsOptions,
+  AckPendingAccountSyncsResult,
   DeleteAccountSessionOptions,
   DeleteAccountSessionResult,
   IsSupportedResult,
@@ -35,5 +36,7 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
     return { syncs: [] };
   }
 
-  async ackPendingAccountSyncs(_options: AckPendingAccountSyncsOptions): Promise<void> {}
+  async ackPendingAccountSyncs(_options: AckPendingAccountSyncsOptions): Promise<AckPendingAccountSyncsResult> {
+    return { acked: true };
+  }
 }

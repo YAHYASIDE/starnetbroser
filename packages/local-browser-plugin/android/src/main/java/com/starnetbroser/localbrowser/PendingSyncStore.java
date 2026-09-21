@@ -74,16 +74,27 @@ final class PendingSyncStore {
 
     // ---- Android-touching wrappers ----
 
-    /** Persists one result and returns its new syncId. */
+    /**
+     * Persists one result and returns its new syncId - or null if the write did not actually
+     * reach disk. Uses the synchronous commit() (not apply(), which queues the write and returns
+     * immediately with no way to know whether it ever lands) specifically because the caller
+     * (AccountBrowserActivity) must never show its success toast or fire the live event before
+     * this result is genuinely safe on disk - apply()'s "probably fine" isn't good enough for
+     * that guarantee.
+     */
     static synchronized String save(Context context, String accountId, JSONObject fields) {
         String syncId = UUID.randomUUID().toString();
         SharedPreferences prefs = prefs(context);
         try {
             String updated = addRecord(prefs.getString(KEY_PENDING, null), syncId, accountId, fields, System.currentTimeMillis());
-            prefs.edit().putString(KEY_PENDING, updated).apply();
+            boolean committed = prefs.edit().putString(KEY_PENDING, updated).commit();
+            if (!committed) {
+                return null;
+            }
         } catch (JSONException e) {
             // fields (already a parsed JSObject) cannot actually fail to serialize here - but a
-            // staging write must never crash the caller regardless.
+            // staging write must never crash the caller regardless; treat it as a failed save.
+            return null;
         }
         return syncId;
     }
@@ -93,11 +104,15 @@ final class PendingSyncStore {
         return parseRecords(prefs(context).getString(KEY_PENDING, null));
     }
 
-    /** Removes exactly the given syncIds; safe to call with ids that are unknown or already gone. */
-    static synchronized void ack(Context context, List<String> syncIds) {
+    /**
+     * Removes exactly the given syncIds and returns whether that write actually reached disk
+     * (commit(), not apply() - same reasoning as save()). A false return means the caller must
+     * treat these syncIds as still pending and retry the ack later, never as delivered.
+     */
+    static synchronized boolean ack(Context context, List<String> syncIds) {
         SharedPreferences prefs = prefs(context);
         String updated = removeRecords(prefs.getString(KEY_PENDING, null), syncIds);
-        prefs.edit().putString(KEY_PENDING, updated).apply();
+        return prefs.edit().putString(KEY_PENDING, updated).commit();
     }
 
     private static SharedPreferences prefs(Context context) {

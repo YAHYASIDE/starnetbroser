@@ -12,4 +12,5 @@
     <string name="starnet_sync_wrong_domain">يمكن تحديث البيانات فقط من صفحات Starlink الرسمية</string>
     <string name="starnet_sync_nothing_found">لم يتم العثور على بيانات على هذه الصفحة - جرّب صفحة حساب أخرى</string>
     <string name="starnet_sync_success">تم إرسال البيانات إلى STAR NET</string>
+    <string name="starnet_sync_save_failed">تعذر حفظ نتيجة القراءة على الجهاز - حاول مرة أخرى</string>
 </resources>

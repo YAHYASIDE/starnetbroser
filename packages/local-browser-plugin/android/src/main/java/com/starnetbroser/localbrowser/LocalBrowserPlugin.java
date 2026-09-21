@@ -167,7 +167,9 @@ public class LocalBrowserPlugin extends Plugin {
     /**
      * Marks the given syncIds as delivered so PendingSyncStore stops returning them. Callers must
      * only call this AFTER the corresponding result has actually been merged and saved on the web
-     * side - acking first and failing to save after would lose the result permanently.
+     * side - acking first and failing to save after would lose the result permanently. Resolves
+     * with `acked: false` (never rejects) when the underlying write didn't reach disk - the
+     * caller must treat that as "still pending" and retry the ack later, not as delivered.
      */
     @PluginMethod
     public void ackPendingAccountSyncs(PluginCall call) {
@@ -182,8 +184,10 @@ public class LocalBrowserPlugin extends Plugin {
                 }
             }
         }
-        PendingSyncStore.ack(getContext(), syncIds);
-        call.resolve();
+        boolean acked = PendingSyncStore.ack(getContext(), syncIds);
+        JSObject ret = new JSObject();
+        ret.put("acked", acked);
+        call.resolve(ret);
     }
 
     private boolean isMultiProfileSupported() {

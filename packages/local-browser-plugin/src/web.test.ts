@@ -34,8 +34,8 @@ describe("LocalBrowserWeb", () => {
     await expect(plugin.listPendingAccountSyncs()).resolves.toEqual({ syncs: [] });
   });
 
-  it("accepts ackPendingAccountSyncs as a harmless no-op", async () => {
+  it("accepts ackPendingAccountSyncs as a harmless no-op, always reporting success", async () => {
     const plugin = new LocalBrowserWeb();
-    await expect(plugin.ackPendingAccountSyncs({ syncIds: ["sync-1"] })).resolves.toBeUndefined();
+    await expect(plugin.ackPendingAccountSyncs({ syncIds: ["sync-1"] })).resolves.toEqual({ acked: true });
   });
 });

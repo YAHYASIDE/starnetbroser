@@ -235,6 +235,12 @@ public class AccountBrowserActivity extends AppCompatActivity {
                 // dropped - PendingSyncStore (drained by the web UI on open/resume) is what
                 // actually guarantees this result is never lost, however long that takes.
                 String syncId = PendingSyncStore.save(getApplicationContext(), accountId, fields);
+                if (syncId == null) {
+                    // The write genuinely did not reach disk (commit() failed) - never claim
+                    // success and never fire the live event over a result that isn't safe anywhere.
+                    Toast.makeText(this, R.string.starnet_sync_save_failed, Toast.LENGTH_LONG).show();
+                    return;
+                }
 
                 // Best-effort live push, for when the app happens to be in the foreground right now.
                 LocalBrowserPlugin.emitAccountDataSynced(syncId, accountId, fields);

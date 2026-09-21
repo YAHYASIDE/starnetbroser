@@ -1,6 +1,6 @@
 import { DeviceStatus, StarlinkAccountSummary } from "@starnet/shared";
 import { describe, expect, it } from "vitest";
-import { applyPendingSyncs, formatSyncMessage, mergeSyncedFields } from "./starlinkSync";
+import { applyPendingSyncs, formatSyncMessage, mergeSyncedFields, reapplyCachedSyncedFields } from "./starlinkSync";
 
 // Fake/dummy account + field data only - no real Starlink account data anywhere in this file.
 function baseAccount(overrides: Partial<StarlinkAccountSummary> = {}): StarlinkAccountSummary {
@@ -167,5 +167,59 @@ describe("applyPendingSyncs", () => {
     expect(result.accounts).toEqual(accounts);
     expect(result.ackSyncIds).toEqual(["sync-1"]);
     expect(result.messages).toEqual([]);
+  });
+});
+
+describe("applyPendingSyncs - readiness ordering (round 7 regression: mounay must not look deleted)", () => {
+  // Models HomeView's two distinct account snapshots: the SSR-safe demo seed it starts render
+  // with, versus the real demo accounts (including a real account like "mounay") once
+  // loadDemoAccounts() actually finishes reading localStorage. Calling applyPendingSyncs against
+  // the FIRST one - i.e. before that load has completed - is exactly the bug a readyGate exists
+  // to prevent.
+  const seedAccounts = [baseAccount({ id: "demo-seed-1", name: "حساب تجريبي" })];
+  const loadedAccounts = [baseAccount({ id: "mounay-acc", name: "mounay", planName: "" })];
+  const sync = { syncId: "sync-1", accountId: "mounay-acc", fields: { planName: "التجوال - غير محدود" } };
+
+  it("would wrongly discard mounay's sync if applied too early, against the pre-load seed accounts", () => {
+    const result = applyPendingSyncs(seedAccounts, [sync], new Set());
+
+    expect(result.accounts).toEqual(seedAccounts); // untouched - "mounay" isn't in this array at all
+    expect(result.ackSyncIds).toEqual(["sync-1"]); // discarded as if the account didn't exist
+    expect(result.messages).toEqual([]); // and silently, with no message either
+  });
+
+  it("correctly merges mounay's sync once applied against the real, already-loaded accounts", () => {
+    const result = applyPendingSyncs(loadedAccounts, [sync], new Set());
+
+    const merged = result.accounts.find((a) => a.id === "mounay-acc")!;
+    expect(merged.planName).toBe("التجوال - غير محدود");
+    expect(merged.name).toBe("mounay");
+    expect(result.ackSyncIds).toEqual(["sync-1"]);
+    expect(result.messages).toHaveLength(1);
+  });
+});
+
+describe("reapplyCachedSyncedFields", () => {
+  it("merges cached fields onto a freshly-fetched account", () => {
+    const fresh = [baseAccount({ id: "acc-1", planName: "" })];
+    const result = reapplyCachedSyncedFields(fresh, (id) =>
+      id === "acc-1" ? { planName: "التجوال - غير محدود" } : undefined,
+    );
+
+    expect(result[0].planName).toBe("التجوال - غير محدود");
+  });
+
+  it("leaves an account with nothing cached completely unchanged", () => {
+    const fresh = [baseAccount({ id: "acc-1" })];
+    const result = reapplyCachedSyncedFields(fresh, () => undefined);
+    expect(result).toEqual(fresh);
+  });
+
+  it("only ever touches the specific account a cache entry belongs to", () => {
+    const fresh = [baseAccount({ id: "acc-1", planName: "" }), baseAccount({ id: "acc-2", planName: "" })];
+    const result = reapplyCachedSyncedFields(fresh, (id) => (id === "acc-1" ? { planName: "خطة" } : undefined));
+
+    expect(result.find((a) => a.id === "acc-1")!.planName).toBe("خطة");
+    expect(result.find((a) => a.id === "acc-2")!.planName).toBe("");
   });
 });

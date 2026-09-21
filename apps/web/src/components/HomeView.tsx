@@ -20,7 +20,9 @@ import {
   listPendingAccountSyncs,
   onAccountDataSynced,
 } from "@/lib/localBrowser";
-import { applyPendingSyncs, PendingSyncLike } from "@/lib/starlinkSync";
+import { createReadyGate } from "@/lib/readyGate";
+import { applyPendingSyncs, PendingSyncLike, reapplyCachedSyncedFields } from "@/lib/starlinkSync";
+import { getCachedSyncedFields, saveSyncedFieldsCache } from "@/lib/syncedFieldsCache";
 import { resolveAccountDeletion } from "@starnet/local-browser-plugin";
 
 const NEAR_EXPIRY_THRESHOLD_DAYS = 3;
@@ -52,16 +54,28 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
     dataStateRef.current = dataState;
   }, [dataState]);
 
+  // Not ready until the initial account load (demo-from-localStorage or real-from-API) has
+  // actually landed in `accounts`/accountsRef - see the Starlink-sync listener effect below for
+  // why a pending-sync drain must never run before this, on pain of a real account like "mounay"
+  // looking nonexistent (and its sync result being silently discarded) just because the load
+  // hadn't finished yet.
+  const accountsReadyGateRef = useRef(createReadyGate());
+
   async function loadRealAccounts() {
     setDataState("loading");
     setErrorMessage("");
     try {
       const real = await listAccounts(query || undefined);
-      setAccounts(real);
+      // Re-apply any previously-synced fields this device has cached for these accounts (see
+      // syncedFieldsCache.ts) - without this, a successful Stage-1 sync would vanish the moment
+      // this fetch runs again, since services/api has nothing written back to it for this feature.
+      setAccounts(reapplyCachedSyncedFields(real, getCachedSyncedFields));
       setDataState("loaded");
     } catch (err) {
       setDataState("error");
       setErrorMessage(err instanceof ApiError ? err.message : "تعذّر تحميل الحسابات");
+    } finally {
+      accountsReadyGateRef.current.markReady();
     }
   }
 
@@ -69,11 +83,13 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
     if (isDemoMode()) {
       setDataState("demo");
       setAccounts(loadDemoAccounts(demoAccounts));
+      accountsReadyGateRef.current.markReady();
       return;
     }
     if (!isLoggedIn()) {
       setDataState("error");
       setErrorMessage("تم إعداد عنوان الخادم لكن لم يتم تسجيل الدخول بعد - افتح الإعدادات لتسجيل الدخول");
+      accountsReadyGateRef.current.markReady();
       return;
     }
     loadRealAccounts();
@@ -88,23 +104,54 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
   // no error and no retry. The live listener below is only a best-effort fast path for when the
   // app happens to be in the foreground; listPendingAccountSyncs - drained once on mount and
   // again on every native "resume" - is what actually guarantees a result is never lost, however
-  // long the app stayed backgrounded. A batch is only ever acknowledged (ackPendingAccountSyncs)
-  // after it has been merged into `accounts` AND saved, never before; processedSyncIds (kept for
-  // this listener's whole lifetime, not just one batch) guarantees the same syncId is never
-  // merged or messaged twice, whether it reached this effect live, via a drain, or both.
+  // long the app stayed backgrounded. Both paths funnel through applyBatch, which first awaits
+  // accountsReadyGateRef so it never runs against a not-yet-loaded `accounts` (see that ref's own
+  // comment). A batch is only ever acknowledged after it has been merged AND saved, never before;
+  // processedSyncIds (kept for this listener's whole lifetime, not just one batch) guarantees the
+  // same syncId is never merged or messaged twice, whether it reached this effect live, via a
+  // drain, or both - while unackedSyncIds tracks results that ARE already merged/messaged but
+  // whose native ack hasn't been confirmed yet, so a failed ack is retried (without ever
+  // re-merging or re-alerting) instead of being silently forgotten.
   useEffect(() => {
     let liveHandle: { remove: () => void } | undefined;
     let resumeHandle: { remove: () => void } | undefined;
     let cancelled = false;
     const processedSyncIds = new Set<string>();
+    const unackedSyncIds = new Set<string>();
 
-    function applyBatch(syncs: PendingSyncLike[]) {
+    async function retryAcks() {
+      if (unackedSyncIds.size === 0) return;
+      const ids = Array.from(unackedSyncIds);
+      const acked = await ackPendingAccountSyncs(ids);
+      if (acked) {
+        for (const id of ids) unackedSyncIds.delete(id);
+      }
+      // A false result leaves every id in `unackedSyncIds` for the next retryAcks() call -
+      // already merged/messaged, never re-applied, just not yet confirmed discarded natively.
+    }
+
+    async function applyBatch(syncs: PendingSyncLike[]) {
+      await accountsReadyGateRef.current.whenReady();
+
       const result = applyPendingSyncs(accountsRef.current, syncs, processedSyncIds);
       if (result.ackSyncIds.length === 0) return;
 
       let saved = true;
       try {
-        if (dataStateRef.current === "demo") saveDemoAccounts(result.accounts);
+        if (dataStateRef.current === "demo") {
+          saveDemoAccounts(result.accounts);
+        } else {
+          // No backend write-back exists for this feature yet (services/api has no
+          // update-account endpoint, and adding one is out of this feature's scope) - this local
+          // cache of just the synced fields is "the storage actually used" for that mode, and is
+          // what lets loadRealAccounts() re-apply the result on the next fetch instead of the
+          // server's stale value silently winning.
+          for (const sync of syncs) {
+            if (result.ackSyncIds.includes(sync.syncId)) {
+              saveSyncedFieldsCache(sync.accountId, sync.fields);
+            }
+          }
+        }
       } catch {
         saved = false;
       }
@@ -116,7 +163,10 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
         return;
       }
 
-      for (const id of result.ackSyncIds) processedSyncIds.add(id);
+      for (const id of result.ackSyncIds) {
+        processedSyncIds.add(id);
+        unackedSyncIds.add(id);
+      }
       setAccounts(result.accounts);
       // Keep this listener's own view of "current accounts" correct for the very next sync
       // without waiting for React's render -> effect cycle to catch up: a live event and a
@@ -124,15 +174,19 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
       accountsRef.current = result.accounts;
 
       for (const { message } of result.messages) window.alert(message);
-      void ackPendingAccountSyncs(result.ackSyncIds);
+      await retryAcks();
     }
 
     async function drainPending() {
+      await accountsReadyGateRef.current.whenReady();
+      await retryAcks(); // retry any ack left over from a previous drain before fetching more
       const pending = await listPendingAccountSyncs();
-      if (pending.length > 0) applyBatch(pending);
+      if (pending.length > 0) await applyBatch(pending);
     }
 
-    onAccountDataSynced((event) => applyBatch([event])).then((h) => {
+    onAccountDataSynced((event) => {
+      void applyBatch([event]);
+    }).then((h) => {
       if (cancelled) {
         h.remove();
       } else {

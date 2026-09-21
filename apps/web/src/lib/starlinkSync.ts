@@ -231,6 +231,24 @@ export function applyPendingSyncs(
 }
 
 /**
+ * Re-applies cached Stage-1 synced fields (see syncedFieldsCache.ts) onto freshly-fetched real
+ * accounts, via the exact same mergeSyncedFields() every other sync path uses. This is what makes
+ * a real (non-demo) account's last synced result survive the next listAccounts() re-fetch instead
+ * of the server's (unsynced) value silently winning - `getCached` is injected so this stays a pure
+ * function of its arguments, directly testable without touching localStorage.
+ */
+export function reapplyCachedSyncedFields(
+  accounts: StarlinkAccountSummary[],
+  getCached: (accountId: string) => SyncedStarlinkFields | undefined,
+): StarlinkAccountSummary[] {
+  return accounts.map((account) => {
+    const cached = getCached(account.id);
+    if (!cached) return account;
+    return mergeSyncedFields(account, cached).account;
+  });
+}
+
+/**
  * Groups updated fields under their Arabic section headers, for the "what changed" message.
  * `scanned` (see MergeSyncResult) is what separates "found nothing on this page at all" from
  * "found fields, but they already matched" - the two must never share one message, or a

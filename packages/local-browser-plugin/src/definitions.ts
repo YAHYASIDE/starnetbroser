@@ -96,6 +96,14 @@ export interface AckPendingAccountSyncsOptions {
   syncIds: string[];
 }
 
+export interface AckPendingAccountSyncsResult {
+  /**
+   * false means the native write to discard these syncIds did not actually reach disk - callers
+   * must treat every id in that call as still pending and retry the ack later, never as delivered.
+   */
+  acked: boolean;
+}
+
 export interface LocalBrowserPlugin {
   /**
    * Feature-detects Multi-Profile support on this device. Never throws.
@@ -147,7 +155,8 @@ export interface LocalBrowserPlugin {
    * Discards the given syncIds so listPendingAccountSyncs stops returning them. Only call this
    * after the corresponding result has actually been merged into the account and saved - acking
    * first and failing to save after would lose it permanently. Safe to call with ids that are
-   * unknown or already acked.
+   * unknown or already acked. Never rejects - a write that didn't reach disk resolves with
+   * `acked: false`, and callers must retry those syncIds later rather than treat them as gone.
    */
-  ackPendingAccountSyncs(options: AckPendingAccountSyncsOptions): Promise<void>;
+  ackPendingAccountSyncs(options: AckPendingAccountSyncsOptions): Promise<AckPendingAccountSyncsResult>;
 }
