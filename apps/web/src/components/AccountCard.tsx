@@ -67,9 +67,11 @@ export function AccountCard({ account, onEdit, onInfo }: Props) {
     <article className="account-card">
       <header className="account-card-header">
         <div className="account-identity">
-          <span className="account-avatar" aria-hidden="true">{account.name.trim().charAt(0) || "★"}</span>
           <div>
             <h3 className="account-card-name">{account.name}</h3>
+            {account.starlinkAccountHolderName && (
+              <p className="account-card-starlink-name">الاسم من Starlink: {account.starlinkAccountHolderName}</p>
+            )}
             <div className="account-card-plan-row">
               <p className="account-card-plan">{account.planName || account.deviceName || "حساب Starlink"}</p>
               {serviceStatus && <span className={`badge ${serviceStatus.className}`}>{serviceStatus.label}</span>}
@@ -160,7 +162,6 @@ export function AccountCard({ account, onEdit, onInfo }: Props) {
       {account.alertReason && <div className="account-card-alert">{account.alertReason}</div>}
 
       <div className="account-card-footer">
-        <span className="account-card-updated">آخر تحديث: {account.lastUpdated || "—"}</span>
         {lastSynced && <span className="account-card-synced">آخر مزامنة من Starlink: {lastSynced}</span>}
         <div className="account-card-actions">
           <button

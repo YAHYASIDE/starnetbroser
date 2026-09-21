@@ -90,6 +90,11 @@ export interface StarlinkAccountSummary {
   /** The account's registered login email, as read from Starlink's own Settings page - never the
    * phone number shown on that same page, which is unrelated to (and never confused with) `phone`. */
   starlinkAccountEmail?: string;
+  /** The account holder's name as Starlink itself reports it - a SEPARATE field from `name`
+   * (the operator's own manually-entered customer name), per explicit product decision: the card
+   * shows both as two distinct name slots, one auto-synced and one hand-entered, never merging
+   * them into one. */
+  starlinkAccountHolderName?: string;
   /** Manually entered by the STAR NET operator - the login email they expect this account to use.
    * Compared against `starlinkAccountEmail` (see lib/emailMatch.ts) to warn when Starlink's synced
    * email doesn't match; never written by Starlink sync itself. */

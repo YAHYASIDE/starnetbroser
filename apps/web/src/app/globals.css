@@ -421,11 +421,6 @@ a {
   padding-top: 8px;
 }
 
-.account-card-updated {
-  color: var(--text-muted);
-  font-size: 0.75rem;
-}
-
 .account-card-actions {
   display: flex;
   gap: 6px;
@@ -850,19 +845,6 @@ a.btn-icon {
   gap: 10px;
 }
 
-.account-avatar {
-  width: 38px;
-  height: 38px;
-  flex: 0 0 38px;
-  border-radius: 12px;
-  display: grid;
-  place-items: center;
-  background: color-mix(in srgb, var(--brand) 12%, var(--surface));
-  color: var(--brand);
-  font-size: 0.95rem;
-  font-weight: 800;
-}
-
 .account-card-name {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -962,14 +944,18 @@ a.btn-icon {
   padding-top: 11px;
 }
 
-.account-card-updated {
-  font-size: 0.68rem;
-}
-
 .account-card-actions {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 7px;
+}
+
+.account-card-starlink-name {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .card-action {

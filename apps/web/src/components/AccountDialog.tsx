@@ -116,6 +116,9 @@ export function AccountDialog({ mode, account, onClose, onSave, onDelete }: Prop
         {isView ? (
           <div className="account-info-grid">
             <div><span>اسم العميل</span><strong>{displayValue(draft.name)}</strong></div>
+            {draft.starlinkAccountHolderName && (
+              <div><span>الاسم من Starlink</span><strong>{draft.starlinkAccountHolderName}</strong></div>
+            )}
             <div><span>رقم الهاتف</span><strong dir="ltr">{displayValue(draft.phone ?? null)}</strong></div>
             <div><span>الخطة</span><strong>{displayValue(draft.planName)}</strong></div>
             <div><span>KIT</span><strong dir="ltr">{displayValue(draft.kitNumber)}</strong></div>

@@ -21,7 +21,7 @@ const FIELD_INFO: Record<keyof SyncedStarlinkFields, { label: string; section: S
   serviceStatus: { label: "حالة الاشتراك", section: "subscriptions" },
   planName: { label: "الخطة", section: "subscriptions" },
   renewalDate: { label: "تاريخ التجديد", section: "subscriptions" },
-  accountHolderName: { label: "اسم العميل (من Starlink)", section: "identifiers" },
+  accountHolderName: { label: "اسم صاحب الحساب (Starlink)", section: "identifiers" },
   accountEmail: { label: "البريد الإلكتروني (Starlink)", section: "identifiers" },
   balanceDue: { label: "الرصيد المستحق", section: "billing" },
   currency: { label: "العملة", section: "billing" },
@@ -67,15 +67,14 @@ function toDeviceStatus(value: SyncedDeviceStatus): DeviceStatus {
 
 /**
  * Applies Stage-1 synced fields onto one account. Deliberately narrow: only ever writes the
- * fields this sync feature is actually responsible for - never `customerId`, `id`, `deviceName`,
- * `alertReason`, `standbyDate` or anything else a person entered by hand. The exception is
- * `name`: per explicit product decision, once Starlink reports the account holder's own name
- * (`accountHolderName`), it always replaces the operator's locally-entered customer `name` - the
- * displayed name is meant to always reflect Starlink's own record, not stay stuck on whatever was
- * typed when the account was first added. `starlinkAccountEmail`/phone stay their own separate
- * concerns (phone is still never read). Skips any field the currently-open page didn't actually
- * have, so reading one section (e.g. just Devices) never blanks out data a previous tap already
- * found on another section (e.g. Billing) - results accumulate across taps.
+ * fields this sync feature is actually responsible for - never `name`, `customerId`, `id`,
+ * `deviceName`, `alertReason`, `standbyDate` or anything else a person entered by hand. Per
+ * explicit product decision, the Starlink-reported account holder name is its own separate field
+ * (`starlinkAccountHolderName`) - the card shows it alongside the operator's own `name` as two
+ * distinct slots, never merging or overwriting one with the other. Skips any field the
+ * currently-open page didn't actually have, so reading one section (e.g. just Devices) never
+ * blanks out data a previous tap already found on another section (e.g. Billing) - results
+ * accumulate across taps.
  */
 export function mergeSyncedFields(
   account: StarlinkAccountSummary,
@@ -119,10 +118,8 @@ export function mergeSyncedFields(
 
   const accountHolderName = fields.accountHolderName?.trim();
   if (accountHolderName) {
-    // Per explicit product decision, the Starlink-reported name always replaces the customer
-    // name shown throughout the app - not just a separate reference field.
-    note("accountHolderName", next.name !== accountHolderName);
-    next.name = accountHolderName;
+    note("accountHolderName", next.starlinkAccountHolderName !== accountHolderName);
+    next.starlinkAccountHolderName = accountHolderName;
   }
 
   const accountEmail = fields.accountEmail?.trim();
