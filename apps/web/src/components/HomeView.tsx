@@ -20,6 +20,7 @@ import {
   listPendingAccountSyncs,
   onAccountDataSynced,
   syncAutoSyncAccountList,
+  triggerImmediateSync,
 } from "@/lib/localBrowser";
 import { createReadyGate } from "@/lib/readyGate";
 import { PendingSyncLike, reapplyCachedSyncedFields, runSyncBatch } from "@/lib/starlinkSync";
@@ -36,6 +37,28 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [dialog, setDialog] = useState<DialogState>(null);
+
+  // Defaults to "not the Android app" (matches server render) and only reflects reality after
+  // mount, to avoid a hydration mismatch - same pattern as AccountCard's own isAndroidApp state.
+  const [isAndroidApp, setIsAndroidApp] = useState(false);
+  useEffect(() => setIsAndroidApp(isRunningInAndroidApp()), []);
+  const [syncingNow, setSyncingNow] = useState(false);
+
+  async function handleSyncNow() {
+    if (syncingNow) return;
+    setSyncingNow(true);
+    try {
+      const result = await triggerImmediateSync();
+      if (!result.ok) {
+        window.alert(result.message);
+      }
+      // On success this only means the background job was scheduled, not that it finished - the
+      // normal accountDataSynced/listPendingAccountSyncs pipeline below picks up its results
+      // whenever they land, same as the hourly automatic run.
+    } finally {
+      setSyncingNow(false);
+    }
+  }
 
   // Starts identical to the server-rendered output (demo data, demo
   // state) so there's no hydration mismatch; real data replaces it after
@@ -351,6 +374,18 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
           </div>
         </div>
         <div className="header-actions">
+          {isAndroidApp && (
+            <button
+              className={`header-sync${syncingNow ? " syncing" : ""}`}
+              type="button"
+              onClick={handleSyncNow}
+              disabled={syncingNow}
+              title="مزامنة الآن"
+              aria-label="مزامنة الآن"
+            >
+              <span aria-hidden="true">⟳</span>
+            </button>
+          )}
           <button className="header-add" type="button" onClick={() => setDialog({ mode: "add" })}>
             <span aria-hidden="true">＋</span> إضافة حساب
           </button>

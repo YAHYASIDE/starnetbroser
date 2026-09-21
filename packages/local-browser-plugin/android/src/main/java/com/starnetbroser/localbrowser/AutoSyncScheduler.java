@@ -3,7 +3,9 @@ package com.starnetbroser.localbrowser;
 import android.content.Context;
 import androidx.work.Constraints;
 import androidx.work.ExistingPeriodicWorkPolicy;
+import androidx.work.ExistingWorkPolicy;
 import androidx.work.NetworkType;
+import androidx.work.OneTimeWorkRequest;
 import androidx.work.PeriodicWorkRequest;
 import androidx.work.WorkManager;
 import java.util.concurrent.TimeUnit;
@@ -22,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 final class AutoSyncScheduler {
 
     static final String WORK_NAME = "starnet_auto_sync";
+    private static final String IMMEDIATE_WORK_NAME = "starnet_auto_sync_now";
     private static final long INTERVAL_HOURS = 1;
 
     private AutoSyncScheduler() {
@@ -43,5 +46,20 @@ final class AutoSyncScheduler {
      * nothing for it to do. */
     static void cancel(Context context) {
         WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME);
+    }
+
+    /** "مزامنة الآن": runs the exact same AutoSyncWorker right away instead of waiting for the
+     * next periodic window. A separate unique work name from the periodic job (WORK_NAME) so
+     * triggering this never disturbs the periodic schedule itself; REPLACE means tapping the
+     * button again while one is still running simply restarts it, rather than queuing duplicates. */
+    static void triggerNow(Context context) {
+        Constraints constraints = new Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build();
+        OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(AutoSyncWorker.class)
+            .setConstraints(constraints)
+            .build();
+        WorkManager.getInstance(context)
+            .enqueueUniqueWork(IMMEDIATE_WORK_NAME, ExistingWorkPolicy.REPLACE, request);
     }
 }

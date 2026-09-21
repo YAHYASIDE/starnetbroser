@@ -658,6 +658,41 @@ a.btn-icon {
   line-height: 1;
 }
 
+.header-sync {
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 5px 16px rgba(21, 31, 44, 0.06);
+}
+
+.header-sync:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.header-sync.syncing span {
+  display: inline-block;
+  animation: starnet-spin 1s linear infinite;
+}
+
+@keyframes starnet-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .search-panel {
   position: relative;
 }

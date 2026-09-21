@@ -48,4 +48,8 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
   async setAutoSyncAccountIds(_options: SetAutoSyncAccountIdsOptions): Promise<SetAutoSyncAccountIdsResult> {
     return { saved: true };
   }
+
+  async syncNow(): Promise<void> {
+    throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
+  }
 }

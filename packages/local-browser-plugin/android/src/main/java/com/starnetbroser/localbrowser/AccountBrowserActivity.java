@@ -1,6 +1,10 @@
 package com.starnetbroser.localbrowser;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
+import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.view.ViewGroup;
@@ -16,6 +20,8 @@ import android.widget.ProgressBar;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import androidx.webkit.ProfileStore;
 import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
@@ -41,6 +47,10 @@ public class AccountBrowserActivity extends AppCompatActivity {
     public static final String EXTRA_ACCOUNT_ID = "com.starnetbroser.localbrowser.ACCOUNT_ID";
     public static final String EXTRA_ACCOUNT_NAME = "com.starnetbroser.localbrowser.ACCOUNT_NAME";
     public static final String EXTRA_URL = "com.starnetbroser.localbrowser.URL";
+
+    private static final String NOTIFICATION_PERMISSION_PREFS = "starnet_notification_permission";
+    private static final String KEY_ASKED_NOTIFICATION_PERMISSION = "asked_post_notifications";
+    private static final int REQUEST_CODE_POST_NOTIFICATIONS = 1001;
 
     private WebView webView;
     private ProgressBar progressBar;
@@ -126,6 +136,29 @@ public class AccountBrowserActivity extends AppCompatActivity {
         ((Button) findViewById(R.id.starnet_error_retry)).setOnClickListener(v -> reload());
 
         webView.loadUrl(homeUrl);
+        requestNotificationPermissionOnceIfNeeded();
+    }
+
+    /**
+     * The background sync notification (SyncNotifier) needs this permission on API 33+, but a
+     * background Worker can never request it itself - only an Activity can. This screen is a
+     * natural, already-engaged moment to ask (the user just opened a Starlink account), asked at
+     * most once ever regardless of the answer: a denial is the user's choice, not something to
+     * keep re-prompting about on every subsequent "فتح" tap.
+     */
+    private void requestNotificationPermissionOnceIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            return;
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        SharedPreferences prefs = getSharedPreferences(NOTIFICATION_PERMISSION_PREFS, MODE_PRIVATE);
+        if (prefs.getBoolean(KEY_ASKED_NOTIFICATION_PERMISSION, false)) {
+            return;
+        }
+        prefs.edit().putBoolean(KEY_ASKED_NOTIFICATION_PERMISSION, true).apply();
+        ActivityCompat.requestPermissions(this, new String[] { Manifest.permission.POST_NOTIFICATIONS }, REQUEST_CODE_POST_NOTIFICATIONS);
     }
 
     /**

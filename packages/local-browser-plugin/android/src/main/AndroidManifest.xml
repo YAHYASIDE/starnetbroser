@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Required starting API 33 to post the "تمت المزامنة" notification (SyncNotifier) - the
+         runtime grant is requested once from AccountBrowserActivity; SyncNotifier itself checks
+         NotificationManagerCompat#areNotificationsEnabled() and silently skips posting if this
+         was never granted, so a sync never fails or crashes over a missing notification. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application>
         <!--
           exported="false": only STAR NET's own MainActivity (via the

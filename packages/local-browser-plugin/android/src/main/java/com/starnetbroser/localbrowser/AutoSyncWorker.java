@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Periodic background counterpart to AccountBrowserActivity's manual "تحديث من Starlink" tap -
@@ -47,6 +48,11 @@ public class AutoSyncWorker extends Worker {
      * before tapping "تحديث من Starlink" themselves. */
     private static final long SETTLE_DELAY_MS = 3000;
     private static final long PER_ACCOUNT_TIMEOUT_MS = 25000;
+
+    // WorkManager instantiates a fresh Worker for every run (periodic tick or one-time "مزامنة
+    // الآن" trigger alike), so this is always this run's own count, never carried over from a
+    // previous one.
+    private final AtomicInteger syncedAccountCount = new AtomicInteger();
 
     public AutoSyncWorker(@NonNull Context context, @NonNull WorkerParameters params) {
         super(context, params);
@@ -80,6 +86,7 @@ public class AutoSyncWorker extends Worker {
             }
             syncOneAccountBlocking(context, entry, script);
         }
+        SyncNotifier.notifySyncCompleted(context, syncedAccountCount.get());
         return Result.success();
     }
 
@@ -173,6 +180,7 @@ public class AutoSyncWorker extends Worker {
                 if (fields != null && fields.length() > 0 && AllowedUrl.isAllowed(webView.getUrl())) {
                     String syncId = PendingSyncStore.save(context, entry.accountId, fields);
                     if (syncId != null) {
+                        syncedAccountCount.incrementAndGet();
                         // Best-effort - dropped if the app's Bridge/WebView isn't attached and
                         // resumed right now, same as the manual flow. listPendingAccountSyncs
                         // (drained on app open/resume) is what actually guarantees delivery.

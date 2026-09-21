@@ -210,4 +210,18 @@ export interface LocalBrowserPlugin {
    * `saved: true` on web, where there is no isolated browser to schedule anything for.
    */
   setAutoSyncAccountIds(options: SetAutoSyncAccountIdsOptions): Promise<SetAutoSyncAccountIdsResult>;
+
+  /**
+   * "مزامنة الآن": triggers an immediate one-time background sync of every account currently in
+   * the auto-sync list (see setAutoSyncAccountIds) - the same headless per-account sync
+   * AutoSyncWorker runs on its normal hourly schedule, just requested right now instead of
+   * waiting for the next window. Resolves once the job has been handed to WorkManager, not once
+   * the sync itself has finished - actual results still flow through the existing
+   * accountDataSynced event / listPendingAccountSyncs pipeline, same as any other sync.
+   *
+   * Rejects if this device doesn't support Multi-Profile, or if there are no accounts to sync yet
+   * (an account only becomes syncable after opening it once via openAccountBrowser) - callers
+   * must surface that to the user rather than treat a resolved call as "sync is done".
+   */
+  syncNow(): Promise<void>;
 }

@@ -30,6 +30,7 @@ public class LocalBrowserPlugin extends Plugin {
     public static final String DEFAULT_URL = "https://starlink.com/account/home";
     public static final String ERROR_CODE_UNSUPPORTED = "MULTI_PROFILE_UNSUPPORTED";
     public static final String ERROR_CODE_INVALID_URL = "INVALID_URL";
+    public static final String ERROR_CODE_NO_ACCOUNTS = "NO_ACCOUNTS_TO_SYNC";
     public static final String EVENT_ACCOUNT_DATA_SYNCED = "accountDataSynced";
 
     // AccountBrowserActivity is a separate Activity, not this Plugin, so it has no direct way to
@@ -234,6 +235,29 @@ public class LocalBrowserPlugin extends Plugin {
         JSObject ret = new JSObject();
         ret.put("saved", saved);
         call.resolve(ret);
+    }
+
+    /**
+     * "مزامنة الآن": runs the same headless sync AutoSyncWorker does on its hourly schedule, right
+     * now instead of waiting. Resolves once the job has been handed to WorkManager - not once the
+     * sync itself has finished; actual results still flow through the existing accountDataSynced
+     * event / listPendingAccountSyncs pipeline. Rejects (never silently no-ops) on an unsupported
+     * device or when there are no accounts registered yet - an account only becomes syncable after
+     * opening it once via openAccountBrowser, and the caller should tell the user that plainly
+     * rather than the button appearing to do nothing.
+     */
+    @PluginMethod
+    public void syncNow(PluginCall call) {
+        if (!isMultiProfileSupported()) {
+            call.reject("هذا الجهاز لا يدعم المتصفحات المستقلة", ERROR_CODE_UNSUPPORTED);
+            return;
+        }
+        if (AutoSyncAccountStore.load(getContext()).isEmpty()) {
+            call.reject("لا توجد حسابات للمزامنة - افتح كل حساب مرة واحدة أولًا", ERROR_CODE_NO_ACCOUNTS);
+            return;
+        }
+        AutoSyncScheduler.triggerNow(getContext());
+        call.resolve();
     }
 
     private boolean isMultiProfileSupported() {

@@ -38,4 +38,16 @@ describe("LocalBrowserWeb", () => {
     const plugin = new LocalBrowserWeb();
     await expect(plugin.ackPendingAccountSyncs({ syncIds: ["sync-1"] })).resolves.toEqual({ acked: true });
   });
+
+  it("accepts setAutoSyncAccountIds as a harmless no-op (there is no background worker to schedule)", async () => {
+    const plugin = new LocalBrowserWeb();
+    await expect(plugin.setAutoSyncAccountIds({ accounts: [{ accountId: "acc-1" }] })).resolves.toEqual({
+      saved: true,
+    });
+  });
+
+  it("rejects syncNow instead of silently pretending to have synced anything", async () => {
+    const plugin = new LocalBrowserWeb();
+    await expect(plugin.syncNow()).rejects.toThrow();
+  });
 });

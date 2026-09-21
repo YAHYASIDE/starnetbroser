@@ -1,6 +1,9 @@
 ext {
     junitVersion = project.hasProperty('junitVersion') ? rootProject.ext.junitVersion : '4.13.2'
     androidxAppCompatVersion = project.hasProperty('androidxAppCompatVersion') ? rootProject.ext.androidxAppCompatVersion : '1.6.1'
+    // NotificationCompat/NotificationManagerCompat (SyncNotifier) - pinned explicitly rather than
+    // relying on whatever version happens to resolve transitively through appcompat.
+    androidxCoreVersion = project.hasProperty('androidxCoreVersion') ? rootProject.ext.androidxCoreVersion : '1.12.0'
     // Capacitor's own core Android module (node_modules/@capacitor/android/capacitor/build.gradle)
     // already depends on this exact androidx.webkit version by default, and that is the version
     // that introduced the Multi-Profile API this plugin is built on - reusing the same
@@ -64,6 +67,7 @@ dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation project(':capacitor-android')
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.core:core:$androidxCoreVersion"
     implementation "androidx.webkit:webkit:$androidxWebkitVersion"
     implementation "androidx.work:work-runtime:$androidxWorkVersion"
     testImplementation "junit:junit:$junitVersion"

@@ -123,3 +123,21 @@ export async function syncAutoSyncAccountList(accounts: AutoSyncAccountRef[]): P
     return false;
   }
 }
+
+/**
+ * "مزامنة الآن": triggers an immediate background sync of every account instead of waiting for
+ * the next scheduled run. Only hands the job to the native side - actual results still arrive
+ * through the normal accountDataSynced/listPendingAccountSyncs pipeline already wired in
+ * HomeView, not through this call's own return value.
+ */
+export async function triggerImmediateSync(): Promise<OpenResult> {
+  if (!isRunningInAndroidApp()) {
+    return { ok: false, message: ANDROID_ONLY_MESSAGE };
+  }
+  try {
+    await LocalBrowser.syncNow();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : "تعذر بدء المزامنة" };
+  }
+}
