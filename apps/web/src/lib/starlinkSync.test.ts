@@ -71,6 +71,12 @@ describe("mergeSyncedFields - scanned vs. changed", () => {
     expect(result.updatedFields.map((f) => f.field)).toEqual(["accountHolderName"]);
   });
 
+  it("writes the Starlink registered email to its own separate field, never touching local phone", () => {
+    const result = mergeSyncedFields(baseAccount({ phone: "22299998888" }), { accountEmail: "test.holder@example.com" });
+    expect(result.account.starlinkAccountEmail).toBe("test.holder@example.com");
+    expect(result.account.phone).toBe("22299998888");
+  });
+
   it("merges subscriptionId and dataUsageGb as their own separate fields", () => {
     const result = mergeSyncedFields(baseAccount(), { subscriptionId: "SL-XX-11112222-33334-44", dataUsageGb: "261" });
     expect(result.account.subscriptionId).toBe("SL-XX-11112222-33334-44");

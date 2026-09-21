@@ -22,6 +22,7 @@ const FIELD_INFO: Record<keyof SyncedStarlinkFields, { label: string; section: S
   planName: { label: "الخطة", section: "subscriptions" },
   renewalDate: { label: "تاريخ التجديد", section: "subscriptions" },
   accountHolderName: { label: "اسم صاحب الحساب (Starlink)", section: "identifiers" },
+  accountEmail: { label: "البريد الإلكتروني (Starlink)", section: "identifiers" },
   balanceDue: { label: "الرصيد المستحق", section: "billing" },
   currency: { label: "العملة", section: "billing" },
   accountNumber: { label: "رقم الحساب", section: "identifiers" },
@@ -117,6 +118,12 @@ export function mergeSyncedFields(
   if (accountHolderName) {
     note("accountHolderName", next.starlinkAccountHolderName !== accountHolderName);
     next.starlinkAccountHolderName = accountHolderName;
+  }
+
+  const accountEmail = fields.accountEmail?.trim();
+  if (accountEmail) {
+    note("accountEmail", next.starlinkAccountEmail !== accountEmail);
+    next.starlinkAccountEmail = accountEmail;
   }
 
   // "0.00" is a real, confirmed zero balance, not an absent value - only check for undefined,

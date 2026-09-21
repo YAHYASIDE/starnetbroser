@@ -3,6 +3,7 @@ import {
   BALANCE_LABELS,
   PLAN_LABELS,
   RENEWAL_DATE_LABELS,
+  extractAccountEmail,
   extractBalance,
   extractDataUsageGb,
   extractLabeledValue,
@@ -100,5 +101,31 @@ describe("extractDataUsageGb", () => {
 
   it("returns undefined when there is no usage label on the page at all", () => {
     expect(extractDataUsageGb(["Welcome to your account"])).toBeUndefined();
+  });
+});
+
+describe("extractAccountEmail - Settings page, never the phone number on the same page", () => {
+  it("reads the email from its own Arabic-labeled line", () => {
+    const lines = ["البريد الإلكتروني", "test.holder@example.com"];
+    expect(extractAccountEmail(lines)).toBe("test.holder@example.com");
+  });
+
+  it("reads the email from its own English-labeled line", () => {
+    const lines = ["Email", "test.holder@example.com"];
+    expect(extractAccountEmail(lines)).toBe("test.holder@example.com");
+  });
+
+  it("never mistakes the phone number on the same Settings page for an email", () => {
+    const lines = ["البريد الإلكتروني", "test.holder@example.com", "رقم الهاتف", "+22212345678"];
+    expect(extractAccountEmail(lines)).toBe("test.holder@example.com");
+  });
+
+  it("discards a value that doesn't actually look like an email, rather than fabricating one", () => {
+    const lines = ["البريد الإلكتروني", "+22212345678"];
+    expect(extractAccountEmail(lines)).toBeUndefined();
+  });
+
+  it("returns undefined when there is no email label on the page at all", () => {
+    expect(extractAccountEmail(["Welcome to your account"])).toBeUndefined();
   });
 });

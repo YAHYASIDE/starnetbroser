@@ -128,6 +128,9 @@ export function AccountDialog({ mode, account, onClose, onSave, onDelete }: Prop
             {draft.starlinkAccountHolderName && (
               <div><span>اسم صاحب الحساب (Starlink)</span><strong>{draft.starlinkAccountHolderName}</strong></div>
             )}
+            {draft.starlinkAccountEmail && (
+              <div><span>البريد الإلكتروني (Starlink)</span><strong dir="ltr">{draft.starlinkAccountEmail}</strong></div>
+            )}
             {presentServiceStatus(draft.serviceStatus) && (
               <div><span>حالة الاشتراك (Starlink)</span><strong>{presentServiceStatus(draft.serviceStatus)!.label}</strong></div>
             )}

@@ -44,6 +44,11 @@ export const DATA_USAGE_LABELS = [
   "total usage", "total data usage", "data usage", "إجمالي استهلاك الباقة", "استهلاك الباقة",
 ];
 
+/** The account's registered login email, from the Settings page - deliberately never the phone
+ * number on that same page (a separate, unrelated contact number - never the operator's WhatsApp
+ * number, and never read at all). */
+export const EMAIL_LABELS = ["email", "e-mail", "البريد الإلكتروني", "الإيميل"];
+
 /** Every recognized label, across every field - used to recognize "this line is a DIFFERENT
  * field's label, not this field's value" during the forward-lookahead in extractLabeledValue. */
 const ALL_LABELS = [
@@ -56,6 +61,7 @@ const ALL_LABELS = [
   ...KIT_NUMBER_LABELS,
   ...BALANCE_LABELS,
   ...DATA_USAGE_LABELS,
+  ...EMAIL_LABELS,
 ];
 
 /** Action-button words a card commonly places right under a label (e.g. "إدارة"/"Manage") -
@@ -204,4 +210,15 @@ export function extractAccountHolderName(lines: string[]): string | undefined {
     }
   }
   return undefined;
+}
+
+const EMAIL_SHAPE_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Only ever returns something that actually looks like an email - a mislabeled or misaligned
+ * value (e.g. the phone number on the same Settings page, if a page layout ever put it right
+ * after an email-looking label) is discarded rather than stored as a fabricated email. */
+export function extractAccountEmail(lines: string[]): string | undefined {
+  const raw = extractLabeledValue(lines, EMAIL_LABELS)?.trim();
+  if (!raw) return undefined;
+  return EMAIL_SHAPE_PATTERN.test(raw) ? raw : undefined;
 }

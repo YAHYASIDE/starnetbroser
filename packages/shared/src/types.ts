@@ -90,6 +90,9 @@ export interface StarlinkAccountSummary {
   /** The account holder's name as Starlink itself reports it - kept deliberately separate from
    * `name` (the operator's own local customer name) and never used to overwrite it. */
   starlinkAccountHolderName?: string;
+  /** The account's registered login email, as read from Starlink's own Settings page - never the
+   * phone number shown on that same page, which is unrelated to (and never confused with) `phone`. */
+  starlinkAccountEmail?: string;
   /** Starts with "SL-" - the subscription's own identifier, a different value from `accountNumber`
    * (which starts with "ACC-"). */
   subscriptionId?: string;

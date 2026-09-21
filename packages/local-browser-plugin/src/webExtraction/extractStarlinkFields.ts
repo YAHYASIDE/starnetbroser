@@ -8,6 +8,7 @@ import {
   SERIAL_NUMBER_LABELS,
   SERVICE_STATUS_LABELS,
   STARLINK_ID_LABELS,
+  extractAccountEmail,
   extractAccountHolderName,
   extractAccountNumber,
   extractBalance,
@@ -65,6 +66,9 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
 
   const accountHolderName = extractAccountHolderName(lines);
   if (accountHolderName) fields.accountHolderName = accountHolderName;
+
+  const accountEmail = extractAccountEmail(lines);
+  if (accountEmail) fields.accountEmail = accountEmail;
 
   const subscriptionId = extractSubscriptionId(text);
   if (subscriptionId) fields.subscriptionId = subscriptionId;

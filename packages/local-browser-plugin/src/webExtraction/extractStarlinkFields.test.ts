@@ -208,6 +208,29 @@ describe("extractStarlinkFields - real Starlink Devices + Subscription pages (ro
   });
 });
 
+describe("extractStarlinkFields - real Starlink Settings page (round 9 regression)", () => {
+  // Fixture shape matches the real Settings page the user shared - every value below is a
+  // made-up placeholder, never the real one.
+  it("reads the registered email but never the phone number shown on the same page", () => {
+    const fields = extractFrom(`
+      <div class="profile-form">
+        <div>الاسم</div>
+        <div>test holder</div>
+        <div>البريد الإلكتروني</div>
+        <div>test.holder@example.com</div>
+        <div>رقم الهاتف</div>
+        <div>+22212345678</div>
+      </div>
+    `);
+
+    expect(fields.accountEmail).toBe("test.holder@example.com");
+    // The Settings page's phone number is a different, unrelated number - deliberately never
+    // read at all, so it must never end up on any field this extractor returns.
+    expect(fields).not.toHaveProperty("phone");
+    expect(Object.values(fields)).not.toContain("+22212345678");
+  });
+});
+
 describe("extractStarlinkFields - progressive, section-by-section reading", () => {
   it("returns only device fields when only the Devices section is on the page", () => {
     document.body.innerHTML = `
