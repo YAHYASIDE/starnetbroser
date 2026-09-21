@@ -4,6 +4,10 @@ import type {
   AckPendingAccountSyncsResult,
   DeleteAccountSessionOptions,
   DeleteAccountSessionResult,
+  ExportSessionCookiesOptions,
+  ExportSessionCookiesResult,
+  ImportSessionCookiesOptions,
+  ImportSessionCookiesResult,
   IsSupportedResult,
   ListPendingAccountSyncsResult,
   LocalBrowserPlugin,
@@ -50,6 +54,16 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
   }
 
   async syncNow(): Promise<void> {
+    throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
+  }
+
+  // No isolated profile exists on web, so there is genuinely nothing to read - an empty result is
+  // accurate, not a lie, same reasoning as listPendingAccountSyncs above.
+  async exportSessionCookies(_options: ExportSessionCookiesOptions): Promise<ExportSessionCookiesResult> {
+    return { sessions: {} };
+  }
+
+  async importSessionCookies(_options: ImportSessionCookiesOptions): Promise<ImportSessionCookiesResult> {
     throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
   }
 }

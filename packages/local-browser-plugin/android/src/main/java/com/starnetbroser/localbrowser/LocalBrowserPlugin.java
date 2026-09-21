@@ -2,6 +2,8 @@ package com.starnetbroser.localbrowser;
 
 import android.content.Context;
 import android.content.Intent;
+import android.webkit.CookieManager;
+import androidx.webkit.Profile;
 import androidx.webkit.ProfileStore;
 import androidx.webkit.WebViewFeature;
 import com.getcapacitor.JSArray;
@@ -12,6 +14,7 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -32,6 +35,13 @@ public class LocalBrowserPlugin extends Plugin {
     public static final String ERROR_CODE_INVALID_URL = "INVALID_URL";
     public static final String ERROR_CODE_NO_ACCOUNTS = "NO_ACCOUNTS_TO_SYNC";
     public static final String EVENT_ACCOUNT_DATA_SYNCED = "accountDataSynced";
+
+    // The only hosts a session cookie is ever read from/restored to - matches AllowedUrl's own
+    // allow-listed domain. android.webkit.CookieManager has no "list every cookie in this
+    // profile" API; querying by URL is the only bulk-read it offers, so this fixed, small list is
+    // what makes exportSessionCookies/importSessionCookies possible at all without guessing at
+    // arbitrary subdomains.
+    private static final String[] SESSION_COOKIE_URLS = { "https://www.starlink.com", "https://starlink.com" };
 
     // AccountBrowserActivity is a separate Activity, not this Plugin, so it has no direct way to
     // call notifyListeners() - it reaches back through this single live instance instead. A weak
@@ -258,6 +268,118 @@ public class LocalBrowserPlugin extends Plugin {
         }
         AutoSyncScheduler.triggerNow(getContext());
         call.resolve();
+    }
+
+    /**
+     * Reads the raw session cookies for each given accountId's isolated profile, for a small
+     * fixed set of known Starlink hosts (SESSION_COOKIE_URLS) - used only as an in-memory
+     * pass-through to the web layer, which is responsible for encrypting it with a user-chosen
+     * password before it ever touches disk (see apps/web/src/lib/backupCrypto.ts). This method
+     * itself never writes anything to a file and never logs the values it reads or returns.
+     *
+     * An id whose profile was never created (never opened via openAccountBrowser) is simply
+     * absent from the result, not an error - there is nothing to export for it. Only cookies are
+     * captured, with no attributes (expiry/secure/domain - android.webkit.CookieManager's public
+     * API exposes none of those) and no localStorage/IndexedDB, so this is a best-effort session
+     * snapshot, not a byte-for-byte profile clone.
+     */
+    @PluginMethod
+    public void exportSessionCookies(PluginCall call) {
+        JSArray accountIdsArray = call.getArray("accountIds");
+        JSObject sessions = new JSObject();
+        if (accountIdsArray != null && isMultiProfileSupported()) {
+            for (int i = 0; i < accountIdsArray.length(); i++) {
+                String accountId;
+                try {
+                    accountId = accountIdsArray.getString(i);
+                } catch (JSONException ignored) {
+                    continue;
+                }
+                if (accountId == null || accountId.trim().isEmpty()) {
+                    continue;
+                }
+                String profileName;
+                try {
+                    profileName = ProfileNaming.profileNameFor(accountId);
+                } catch (RuntimeException ex) {
+                    continue;
+                }
+                Profile profile = ProfileStore.getInstance().getProfile(profileName);
+                if (profile == null) {
+                    continue;
+                }
+                CookieManager cookieManager = profile.getCookieManager();
+                JSObject cookiesByUrl = new JSObject();
+                for (String url : SESSION_COOKIE_URLS) {
+                    String cookie = cookieManager.getCookie(url);
+                    if (cookie != null && !cookie.isEmpty()) {
+                        cookiesByUrl.put(url, cookie);
+                    }
+                }
+                if (cookiesByUrl.length() > 0) {
+                    sessions.put(accountId, cookiesByUrl);
+                }
+            }
+        }
+        JSObject ret = new JSObject();
+        ret.put("sessions", sessions);
+        call.resolve(ret);
+    }
+
+    /**
+     * Restores cookies previously read by exportSessionCookies into each account's isolated
+     * profile (created if it doesn't exist yet). Rejects on an unsupported device rather than
+     * silently importing nothing. Never establishes a login beyond what the cookies themselves
+     * carry: if the session was already expired/invalidated by Starlink when it was exported,
+     * this restores an already-dead session, not a fresh one - the caller must not assume success
+     * here means the account is actually still logged in.
+     */
+    @PluginMethod
+    public void importSessionCookies(PluginCall call) {
+        if (!isMultiProfileSupported()) {
+            call.reject("هذا الجهاز لا يدعم المتصفحات المستقلة", ERROR_CODE_UNSUPPORTED);
+            return;
+        }
+        JSObject sessions = call.getObject("sessions");
+        int importedCount = 0;
+        if (sessions != null) {
+            Iterator<String> accountIds = sessions.keys();
+            while (accountIds.hasNext()) {
+                String accountId = accountIds.next();
+                if (accountId == null || accountId.trim().isEmpty()) {
+                    continue;
+                }
+                JSONObject cookiesByUrl = sessions.optJSONObject(accountId);
+                if (cookiesByUrl == null) {
+                    continue;
+                }
+                String profileName;
+                try {
+                    profileName = ProfileNaming.profileNameFor(accountId);
+                } catch (RuntimeException ex) {
+                    continue;
+                }
+                Profile profile = ProfileStore.getInstance().getOrCreateProfile(profileName);
+                CookieManager cookieManager = profile.getCookieManager();
+                boolean restoredAny = false;
+                Iterator<String> urls = cookiesByUrl.keys();
+                while (urls.hasNext()) {
+                    String url = urls.next();
+                    String combinedCookie = cookiesByUrl.optString(url, null);
+                    for (String cookie : CookieStringUtil.splitCombinedCookieString(combinedCookie)) {
+                        cookieManager.setCookie(url, cookie);
+                        restoredAny = true;
+                    }
+                }
+                if (restoredAny) {
+                    cookieManager.flush();
+                    importedCount++;
+                }
+            }
+        }
+        JSObject ret = new JSObject();
+        ret.put("importedCount", importedCount);
+        call.resolve(ret);
     }
 
     private boolean isMultiProfileSupported() {

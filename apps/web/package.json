@@ -13,6 +13,8 @@
   "dependencies": {
     "@capacitor/app": "6.0.2",
     "@capacitor/core": "6.2.0",
+    "@capacitor/filesystem": "6.0.4",
+    "@capacitor/share": "6.0.4",
     "@novnc/novnc": "^1.5.0",
     "@starnet/local-browser-plugin": "1.0.0",
     "@starnet/shared": "1.0.0",

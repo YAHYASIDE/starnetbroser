@@ -7,6 +7,7 @@ import {
   PendingAccountSync,
   STARLINK_ACCOUNT_HOME_URL,
 } from "@starnet/local-browser-plugin";
+import { SessionsByAccount } from "./accountBackup";
 
 export interface AutoSyncAccountRef {
   id: string;
@@ -139,5 +140,36 @@ export async function triggerImmediateSync(): Promise<OpenResult> {
     return { ok: true };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : "تعذر بدء المزامنة" };
+  }
+}
+
+/**
+ * Reads the raw login-session cookies for the given accounts, for the "protected backup" feature
+ * (see accountBackup.ts) - the caller is responsible for encrypting this before it ever touches
+ * disk. Empty on web/failure, never throws: an empty export is safe, just not useful.
+ */
+export async function exportAccountSessions(accountIds: string[]): Promise<SessionsByAccount> {
+  if (!isRunningInAndroidApp()) return {};
+  try {
+    const { sessions } = await LocalBrowser.exportSessionCookies({ accountIds });
+    return sessions;
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Restores previously-exported session cookies into their accounts' isolated profiles. Only call
+ * this after the sessions have actually been decrypted from a backup file (see
+ * accountBackup.ts#readEncryptedBackupFile) - this function itself has no idea where they came
+ * from and does no validation beyond what the native side already does.
+ */
+export async function importAccountSessions(sessions: SessionsByAccount): Promise<{ ok: boolean; importedCount: number }> {
+  if (!isRunningInAndroidApp()) return { ok: false, importedCount: 0 };
+  try {
+    const { importedCount } = await LocalBrowser.importSessionCookies({ sessions });
+    return { ok: true, importedCount };
+  } catch {
+    return { ok: false, importedCount: 0 };
   }
 }

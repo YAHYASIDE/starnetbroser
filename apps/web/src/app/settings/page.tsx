@@ -1,9 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { checkHealth, login, register } from "@/lib/apiClient";
+import { checkHealth, listAccounts, login, register } from "@/lib/apiClient";
 import { ApiError } from "@/lib/apiClient";
-import { clearTokens, getApiBaseUrl, isLoggedIn, setApiBaseUrl } from "@/lib/settingsStore";
+import { clearTokens, getApiBaseUrl, isDemoMode, isLoggedIn, setApiBaseUrl } from "@/lib/settingsStore";
+import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
+import { createEncryptedBackupFile, mergeImportedAccounts, readEncryptedBackupFile } from "@/lib/accountBackup";
+import { exportAccountSessions, importAccountSessions } from "@/lib/localBrowser";
+import { saveAndShareBackupFile } from "@/lib/backupFile";
 
 export default function SettingsPage() {
   const [url, setUrl] = useState("");
@@ -107,6 +111,161 @@ export default function SettingsPage() {
           )}
         </section>
       )}
+
+      <BackupSection />
     </main>
+  );
+}
+
+const MIN_BACKUP_PASSWORD_LENGTH = 8;
+
+function BackupSection() {
+  const [exportPassword, setExportPassword] = useState("");
+  const [exportPasswordConfirm, setExportPasswordConfirm] = useState("");
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportMessage, setExportMessage] = useState<string | null>(null);
+
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importPassword, setImportPassword] = useState("");
+  const [importBusy, setImportBusy] = useState(false);
+  const [importMessage, setImportMessage] = useState<string | null>(null);
+
+  async function handleExport() {
+    setExportMessage(null);
+    if (exportPassword.length < MIN_BACKUP_PASSWORD_LENGTH) {
+      setExportMessage(`كلمة المرور يجب أن تكون ${MIN_BACKUP_PASSWORD_LENGTH} أحرف على الأقل`);
+      return;
+    }
+    if (exportPassword !== exportPasswordConfirm) {
+      setExportMessage("كلمتا المرور غير متطابقتين");
+      return;
+    }
+
+    setExportBusy(true);
+    try {
+      const accounts = isDemoMode() ? loadDemoAccounts([]) : await listAccounts();
+      if (accounts.length === 0) {
+        setExportMessage("لا توجد حسابات لتصديرها");
+        return;
+      }
+
+      const sessions = await exportAccountSessions(accounts.map((a) => a.id));
+      const created = await createEncryptedBackupFile(accounts, sessions, exportPassword);
+      if (!created.ok) {
+        setExportMessage(created.message);
+        return;
+      }
+
+      const saved = await saveAndShareBackupFile(created.fileContents);
+      setExportMessage(
+        saved.ok
+          ? `تم إنشاء النسخة الاحتياطية (${accounts.length} حساب، ${Object.keys(sessions).length} جلسة دخول) - اختر أين تحفظها`
+          : saved.message,
+      );
+      if (saved.ok) {
+        setExportPassword("");
+        setExportPasswordConfirm("");
+      }
+    } catch {
+      setExportMessage("تعذر إنشاء النسخة الاحتياطية");
+    } finally {
+      setExportBusy(false);
+    }
+  }
+
+  async function handleImport() {
+    setImportMessage(null);
+    if (!importFile) {
+      setImportMessage("اختر ملف النسخة الاحتياطية أولًا");
+      return;
+    }
+    if (!importPassword) {
+      setImportMessage("أدخل كلمة المرور");
+      return;
+    }
+
+    setImportBusy(true);
+    try {
+      const fileContents = await importFile.text();
+      const result = await readEncryptedBackupFile(fileContents, importPassword);
+      if (!result.ok) {
+        setImportMessage(result.message);
+        return;
+      }
+      if (!isDemoMode()) {
+        setImportMessage("الاستيراد متاح حاليًا فقط في الوضع التجريبي (المحلي) - لا يوجد خادم حقيقي متصل بعد");
+        return;
+      }
+
+      const merged = mergeImportedAccounts(loadDemoAccounts([]), result.accounts);
+      saveDemoAccounts(merged);
+      const sessionResult = await importAccountSessions(result.sessions);
+      setImportMessage(
+        `تم استيراد ${result.accounts.length} حساب و ${sessionResult.importedCount} جلسة دخول. افتح الصفحة الرئيسية لرؤيتها.`,
+      );
+      setImportPassword("");
+      setImportFile(null);
+    } catch {
+      setImportMessage("تعذر قراءة الملف - تأكد من كلمة المرور");
+    } finally {
+      setImportBusy(false);
+    }
+  }
+
+  return (
+    <section className="section">
+      <h2 className="section-title">نسخة احتياطية محمية</h2>
+      <p className="settings-hint">
+        تُصدَّر قائمة الحسابات وجلسات الدخول (إن وُجدت) في ملف واحد مشفّر بكلمة المرور التي تختارها
+        - لا يمكن فتحه بدونها. جلسات الدخول تُقرأ فقط من الحسابات التي فتحتها مرة واحدة على الأقل
+        بزر &quot;فتح&quot;؛ حساب لم يُفتح بعد يُصدَّر بدون جلسة دخول. احتفظ بكلمة المرور في مكان
+        آمن - لا توجد طريقة لاسترجاع النسخة الاحتياطية بدونها.
+      </p>
+
+      <div className="auth-form">
+        <input
+          className="search-input"
+          type="password"
+          placeholder={`كلمة مرور التصدير (${MIN_BACKUP_PASSWORD_LENGTH} أحرف على الأقل)`}
+          value={exportPassword}
+          onChange={(e) => setExportPassword(e.target.value)}
+        />
+        <input
+          className="search-input"
+          type="password"
+          placeholder="تأكيد كلمة المرور"
+          value={exportPasswordConfirm}
+          onChange={(e) => setExportPasswordConfirm(e.target.value)}
+        />
+        <div className="settings-actions">
+          <button className="btn-icon" disabled={exportBusy} onClick={handleExport}>
+            {exportBusy ? "جارِ التصدير…" : "تصدير نسخة احتياطية"}
+          </button>
+        </div>
+        {exportMessage && <div className="account-card-alert">{exportMessage}</div>}
+      </div>
+
+      <div className="auth-form" style={{ marginTop: "16px" }}>
+        <input
+          className="search-input"
+          type="file"
+          accept=".starnetbackup,application/json"
+          onChange={(e) => setImportFile(e.target.files?.[0] ?? null)}
+        />
+        <input
+          className="search-input"
+          type="password"
+          placeholder="كلمة مرور النسخة الاحتياطية"
+          value={importPassword}
+          onChange={(e) => setImportPassword(e.target.value)}
+        />
+        <div className="settings-actions">
+          <button className="btn-icon" disabled={importBusy} onClick={handleImport}>
+            {importBusy ? "جارِ الاستيراد…" : "استيراد نسخة احتياطية"}
+          </button>
+        </div>
+        {importMessage && <div className="account-card-alert">{importMessage}</div>}
+      </div>
+    </section>
   );
 }

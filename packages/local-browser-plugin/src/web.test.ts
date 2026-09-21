@@ -50,4 +50,14 @@ describe("LocalBrowserWeb", () => {
     const plugin = new LocalBrowserWeb();
     await expect(plugin.syncNow()).rejects.toThrow();
   });
+
+  it("reports an empty session export (there is no isolated profile on web)", async () => {
+    const plugin = new LocalBrowserWeb();
+    await expect(plugin.exportSessionCookies({ accountIds: ["acc-1"] })).resolves.toEqual({ sessions: {} });
+  });
+
+  it("rejects importSessionCookies instead of silently pretending to have restored anything", async () => {
+    const plugin = new LocalBrowserWeb();
+    await expect(plugin.importSessionCookies({ sessions: {} })).rejects.toThrow();
+  });
 });

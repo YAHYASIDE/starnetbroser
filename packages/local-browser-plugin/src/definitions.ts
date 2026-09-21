@@ -141,6 +141,28 @@ export interface SetAutoSyncAccountIdsResult {
   saved: boolean;
 }
 
+export interface ExportSessionCookiesOptions {
+  accountIds: string[];
+}
+
+export interface ExportSessionCookiesResult {
+  /** accountId -> (url -> raw combined cookie string, e.g. "name1=value1; name2=value2"). An id
+   * whose profile was never created (never opened via openAccountBrowser) is simply absent - not
+   * an error. This is a best-effort session snapshot: cookies only, no attributes (expiry/secure/
+   * domain) and no localStorage/IndexedDB. Callers must treat this as sensitive as a password and
+   * never write it to disk/a file unencrypted (see apps/web/src/lib/backupCrypto.ts). */
+  sessions: Record<string, Record<string, string>>;
+}
+
+export interface ImportSessionCookiesOptions {
+  sessions: Record<string, Record<string, string>>;
+}
+
+export interface ImportSessionCookiesResult {
+  /** How many accountIds actually had at least one cookie restored - not the total cookie count. */
+  importedCount: number;
+}
+
 export interface LocalBrowserPlugin {
   /**
    * Feature-detects Multi-Profile support on this device. Never throws.
@@ -224,4 +246,21 @@ export interface LocalBrowserPlugin {
    * must surface that to the user rather than treat a resolved call as "sync is done".
    */
   syncNow(): Promise<void>;
+
+  /**
+   * Reads the raw login-session cookies for each given account's isolated profile - part of the
+   * "protected backup" feature (see apps/web/src/lib/backupCrypto.ts and accountBackup.ts).
+   * Resolves with an empty `sessions` map rather than rejecting when nothing could be read (e.g.
+   * unsupported device, or none of the given accounts were ever opened) - there is nothing unsafe
+   * about an empty export. Callers must never write the result to disk unencrypted.
+   */
+  exportSessionCookies(options: ExportSessionCookiesOptions): Promise<ExportSessionCookiesResult>;
+
+  /**
+   * Restores previously-exported session cookies into each account's isolated profile (created if
+   * needed). Rejects on an unsupported device. Does not verify the sessions are still valid -
+   * Starlink may have long since invalidated an exported session, in which case this restores a
+   * dead one, and the account will simply appear logged out again once opened.
+   */
+  importSessionCookies(options: ImportSessionCookiesOptions): Promise<ImportSessionCookiesResult>;
 }
