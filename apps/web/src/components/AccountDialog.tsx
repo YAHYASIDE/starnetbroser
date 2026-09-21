@@ -128,9 +128,6 @@ export function AccountDialog({ mode, account, onClose, onSave, onDelete }: Prop
             {draft.subscriptionId && <div><span>رقم الاشتراك</span><strong dir="ltr">{draft.subscriptionId}</strong></div>}
             {draft.starlinkId && <div><span>معرف Starlink</span><strong dir="ltr">{draft.starlinkId}</strong></div>}
             {draft.dataUsageGb && <div><span>إجمالي استهلاك الباقة</span><strong dir="ltr">{draft.dataUsageGb} GB</strong></div>}
-            {draft.starlinkAccountHolderName && (
-              <div><span>اسم صاحب الحساب (Starlink)</span><strong>{draft.starlinkAccountHolderName}</strong></div>
-            )}
             {draft.starlinkAccountEmail && (
               <div><span>البريد الإلكتروني (Starlink)</span><strong dir="ltr">{draft.starlinkAccountEmail}</strong></div>
             )}

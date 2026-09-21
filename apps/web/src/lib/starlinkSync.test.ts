@@ -64,11 +64,18 @@ describe("mergeSyncedFields - scanned vs. changed", () => {
     expect(result.account.name).toBe("mounay");
   });
 
-  it("writes the Starlink account holder's name to its own separate field, never onto the local customer name", () => {
+  it("replaces the local customer name with the Starlink-reported account holder name once found", () => {
+    // Explicit product decision: once Starlink reports the account holder's own name, it always
+    // replaces the operator's locally-entered customer name, not just a separate reference field.
     const result = mergeSyncedFields(baseAccount({ name: "mounay" }), { accountHolderName: "test holder" });
-    expect(result.account.name).toBe("mounay");
-    expect(result.account.starlinkAccountHolderName).toBe("test holder");
+    expect(result.account.name).toBe("test holder");
     expect(result.updatedFields.map((f) => f.field)).toEqual(["accountHolderName"]);
+  });
+
+  it("leaves the customer name untouched when this sync found nothing new", () => {
+    const result = mergeSyncedFields(baseAccount({ name: "test holder" }), { accountHolderName: "test holder" });
+    expect(result.account.name).toBe("test holder");
+    expect(result.updatedFields).toEqual([]);
   });
 
   it("writes the Starlink registered email to its own separate field, never touching local phone", () => {

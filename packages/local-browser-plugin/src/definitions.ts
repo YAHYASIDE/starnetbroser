@@ -46,10 +46,12 @@ export type SyncedServiceStatus = "active" | "standby" | "canceled" | "suspended
  * sections (Devices, then Subscriptions, then Billing, ...) are meant to be merged cumulatively.
  *
  * The Starlink account holder's own name and registered email ARE read (see `accountHolderName`/
- * `accountEmail`), but both stay separate from - and are never used to overwrite - the operator's
- * own locally-entered customer name/phone. The Settings page's phone number is deliberately never
- * read at all: it's the Starlink account's own contact number, unrelated to (and never to be
- * confused with) the operator's manually-entered WhatsApp `phone`.
+ * `accountEmail`). Per explicit product decision, `accountHolderName` always replaces the
+ * operator's locally-entered customer name once found (see mergeSyncedFields in apps/web) - the
+ * displayed name is meant to always track Starlink's own record. `phone` is a separate concern:
+ * the Settings page's phone number is deliberately never read at all, since it's the Starlink
+ * account's own contact number, unrelated to (and never to be confused with) the operator's
+ * manually-entered WhatsApp `phone`.
  */
 export interface SyncedStarlinkFields {
   dishStatus?: SyncedDeviceStatus;
@@ -58,8 +60,8 @@ export interface SyncedStarlinkFields {
   serviceStatus?: SyncedServiceStatus;
   planName?: string;
   renewalDate?: string;
-  /** The Starlink account holder's own name, as Starlink reports it - see the field's own doc on
-   * StarlinkAccountSummary.starlinkAccountHolderName for why this stays separate from `name`. */
+  /** The Starlink account holder's own name, as Starlink reports it - replaces the account's
+   * `name` once found (see this interface's own doc comment). */
   accountHolderName?: string;
   /** The account's registered login email, read from the Settings page - never the phone number
    * on that same page, which is unrelated and deliberately never read. */
