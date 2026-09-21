@@ -90,6 +90,11 @@ export interface StarlinkAccountSummary {
   /** The account holder's name as Starlink itself reports it - kept deliberately separate from
    * `name` (the operator's own local customer name) and never used to overwrite it. */
   starlinkAccountHolderName?: string;
+  /** Starts with "SL-" - the subscription's own identifier, a different value from `accountNumber`
+   * (which starts with "ACC-"). */
+  subscriptionId?: string;
+  /** Just the number, e.g. "261" - always gigabytes, so callers append the unit themselves. */
+  dataUsageGb?: string;
 }
 
 /** Detail-view shape - includes decrypted secrets, only ever returned to

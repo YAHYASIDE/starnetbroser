@@ -25,9 +25,11 @@ const FIELD_INFO: Record<keyof SyncedStarlinkFields, { label: string; section: S
   balanceDue: { label: "الرصيد المستحق", section: "billing" },
   currency: { label: "العملة", section: "billing" },
   accountNumber: { label: "رقم الحساب", section: "identifiers" },
+  subscriptionId: { label: "رقم الاشتراك", section: "identifiers" },
   starlinkId: { label: "معرف Starlink", section: "identifiers" },
   serialNumber: { label: "الرقم التسلسلي", section: "identifiers" },
   kitNumber: { label: "رقم KIT", section: "identifiers" },
+  dataUsageGb: { label: "إجمالي استهلاك الباقة", section: "subscriptions" },
 };
 
 export interface UpdatedField {
@@ -136,6 +138,12 @@ export function mergeSyncedFields(
     next.accountNumber = accountNumber;
   }
 
+  const subscriptionId = fields.subscriptionId?.trim();
+  if (subscriptionId) {
+    note("subscriptionId", next.subscriptionId !== subscriptionId);
+    next.subscriptionId = subscriptionId;
+  }
+
   const starlinkId = fields.starlinkId?.trim();
   if (starlinkId) {
     note("starlinkId", next.starlinkId !== starlinkId);
@@ -152,6 +160,12 @@ export function mergeSyncedFields(
   if (kitNumber) {
     note("kitNumber", next.kitNumber !== kitNumber);
     next.kitNumber = kitNumber;
+  }
+
+  const dataUsageGb = fields.dataUsageGb?.trim();
+  if (dataUsageGb) {
+    note("dataUsageGb", next.dataUsageGb !== dataUsageGb);
+    next.dataUsageGb = dataUsageGb;
   }
 
   const scanned = Object.keys(fields).length > 0;

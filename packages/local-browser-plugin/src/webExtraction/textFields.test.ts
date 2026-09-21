@@ -4,7 +4,9 @@ import {
   PLAN_LABELS,
   RENEWAL_DATE_LABELS,
   extractBalance,
+  extractDataUsageGb,
   extractLabeledValue,
+  extractSubscriptionId,
   normalizeDateLike,
 } from "./textFields";
 
@@ -70,5 +72,33 @@ describe("extractBalance - never scans the whole page", () => {
   it("does not fall back to an unrelated amount elsewhere on the page when the label's own lines have none", () => {
     const lines = [...BALANCE_LABELS.slice(0, 1), "see below for details", "$49.99 / month (plan price)"];
     expect(extractBalance(lines)).toBeUndefined();
+  });
+});
+
+describe("extractSubscriptionId - unlabeled 'SL-...' shape", () => {
+  it("finds an SL- id anywhere on the page, like accountNumber's ACC- fallback", () => {
+    expect(extractSubscriptionId("الاشتراك\nSL-XX-11112222-33334-44")).toBe("SL-XX-11112222-33334-44");
+  });
+
+  it("returns undefined when there is no SL- shaped id on the page at all", () => {
+    expect(extractSubscriptionId("Welcome to your account")).toBeUndefined();
+  });
+
+  it("never confuses an ACC- account number with an SL- subscription id", () => {
+    expect(extractSubscriptionId("ACC-11223344")).toBeUndefined();
+  });
+});
+
+describe("extractDataUsageGb", () => {
+  it("pulls just the number out of a Western-digit 'N GB' value", () => {
+    expect(extractDataUsageGb(["Total Usage", "261 GB"])).toBe("261");
+  });
+
+  it("pulls the number out of an Arabic-Indic-digit 'جيجابايت' value", () => {
+    expect(extractDataUsageGb(["إجمالي استهلاك الباقة", "٢٦١ جيجابايت"])).toBe("261");
+  });
+
+  it("returns undefined when there is no usage label on the page at all", () => {
+    expect(extractDataUsageGb(["Welcome to your account"])).toBeUndefined();
   });
 });

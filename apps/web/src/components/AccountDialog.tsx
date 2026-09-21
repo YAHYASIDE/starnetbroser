@@ -122,7 +122,9 @@ export function AccountDialog({ mode, account, onClose, onSave, onDelete }: Prop
             <div><span>حالة الجهاز</span><strong>{statusOptions.find((item) => item.value === draft.dishStatus)?.label ?? "—"}</strong></div>
             <div><span>حالة Wi-Fi</span><strong>{statusOptions.find((item) => item.value === draft.wifiStatus)?.label ?? "—"}</strong></div>
             {draft.accountNumber && <div><span>رقم الحساب</span><strong dir="ltr">{draft.accountNumber}</strong></div>}
+            {draft.subscriptionId && <div><span>رقم الاشتراك</span><strong dir="ltr">{draft.subscriptionId}</strong></div>}
             {draft.starlinkId && <div><span>معرف Starlink</span><strong dir="ltr">{draft.starlinkId}</strong></div>}
+            {draft.dataUsageGb && <div><span>إجمالي استهلاك الباقة</span><strong dir="ltr">{draft.dataUsageGb} GB</strong></div>}
             {draft.starlinkAccountHolderName && (
               <div><span>اسم صاحب الحساب (Starlink)</span><strong>{draft.starlinkAccountHolderName}</strong></div>
             )}

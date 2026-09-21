@@ -71,6 +71,13 @@ describe("mergeSyncedFields - scanned vs. changed", () => {
     expect(result.updatedFields.map((f) => f.field)).toEqual(["accountHolderName"]);
   });
 
+  it("merges subscriptionId and dataUsageGb as their own separate fields", () => {
+    const result = mergeSyncedFields(baseAccount(), { subscriptionId: "SL-XX-11112222-33334-44", dataUsageGb: "261" });
+    expect(result.account.subscriptionId).toBe("SL-XX-11112222-33334-44");
+    expect(result.account.dataUsageGb).toBe("261");
+    expect(result.updatedFields.map((f) => f.field).sort()).toEqual(["dataUsageGb", "subscriptionId"]);
+  });
+
   it("treats a confirmed 0.00 balance as a real value, not an absent one", () => {
     const result = mergeSyncedFields(baseAccount({ balanceDue: "5.00" }), { balanceDue: "0.00", currency: "USD" });
     expect(result.account.balanceDue).toBe("0.00");

@@ -171,6 +171,43 @@ describe("extractStarlinkFields - real Starlink home-page banner (round 7 regres
   });
 });
 
+describe("extractStarlinkFields - real Starlink Devices + Subscription pages (round 8 regression)", () => {
+  // Fixture shape matches the real Devices and Subscription sections the user shared - every
+  // value below is still a made-up placeholder, never a real one.
+  it("finds the dish's real status dot despite 'starlink' also appearing in the nav logo and the Starlink-ID line (neither has a status dot nearby)", () => {
+    const fields = extractFrom(`
+      <header><div>STARLINK</div></header>
+      <div class="identifiers">
+        <div>معرف Starlink</div>
+        <div>test-unit-id-0001</div>
+      </div>
+      <div class="devices-section">
+        <div class="row"><div>STARLINK</div><div aria-label="Online" class="dot"></div></div>
+        <div class="row"><div>WIFI TEST01</div><div aria-label="Online" class="dot"></div></div>
+        <div>رقم الطقم</div>
+        <div>KIT-TEST-0001</div>
+        <div>الرقم التسلسلي</div>
+        <div>SN-TEST-0001</div>
+      </div>
+      <div class="subscription-section">
+        <div>الاشتراك</div>
+        <div>SL-XX-11112222-33334-44</div>
+      </div>
+      <div class="usage-section">
+        <div>إجمالي استهلاك الباقة</div>
+        <div>261 جيجابايت</div>
+      </div>
+    `);
+
+    expect(fields.dishStatus).toBe("online");
+    expect(fields.wifiStatus).toBe("online");
+    expect(fields.kitNumber).toBe("KIT-TEST-0001");
+    expect(fields.serialNumber).toBe("SN-TEST-0001");
+    expect(fields.subscriptionId).toBe("SL-XX-11112222-33334-44");
+    expect(fields.dataUsageGb).toBe("261");
+  });
+});
+
 describe("extractStarlinkFields - progressive, section-by-section reading", () => {
   it("returns only device fields when only the Devices section is on the page", () => {
     document.body.innerHTML = `

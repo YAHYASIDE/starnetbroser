@@ -389,6 +389,19 @@ a {
   background: var(--surface-alt);
 }
 
+.account-card-identifiers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.account-card-identifiers strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
 .account-card-alert {
   background: var(--red-bg);
   color: var(--red);

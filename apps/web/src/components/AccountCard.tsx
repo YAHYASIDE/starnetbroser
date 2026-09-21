@@ -140,6 +140,15 @@ export function AccountCard({ account, onEdit, onInfo }: Props) {
         </div>
       </div>
 
+      {(account.subscriptionId || account.kitNumber || account.serialNumber || account.dataUsageGb) && (
+        <div className="account-card-identifiers">
+          {account.subscriptionId && <span>الاشتراك: <strong dir="ltr">{account.subscriptionId}</strong></span>}
+          {account.kitNumber && <span>KIT: <strong dir="ltr">{account.kitNumber}</strong></span>}
+          {account.serialNumber && <span>SN: <strong dir="ltr">{account.serialNumber}</strong></span>}
+          {account.dataUsageGb && <span>الاستهلاك: <strong dir="ltr">{account.dataUsageGb} GB</strong></span>}
+        </div>
+      )}
+
       {account.alertReason && <div className="account-card-alert">{account.alertReason}</div>}
 
       <div className="account-card-footer">

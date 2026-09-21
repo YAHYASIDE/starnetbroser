@@ -11,13 +11,20 @@ import {
   extractAccountHolderName,
   extractAccountNumber,
   extractBalance,
+  extractDataUsageGb,
   extractLabeledValue,
+  extractSubscriptionId,
   normalizeDateLike,
   normalizeServiceStatus,
 } from "./textFields";
 import { toLines, toVisibleText } from "./visibleText";
 
-const DISH_LABELS = ["starlink dish", "dish", "الطبق", "طبق ستارلينك", "الهوائي"];
+// "starlink" (the real device-row label, e.g. "STARLINK") is deliberately included even though
+// the same word also appears elsewhere on the page (the nav header logo, "معرف Starlink") -
+// extractDeviceStatus tries every "starlink"-labeled element in DOM order and only returns a
+// result for whichever one actually has a resolvable status (aria-label/title, or a colored dot
+// within 3 ancestor hops); the header/identifier text never has either, so it's skipped over.
+const DISH_LABELS = ["starlink dish", "dish", "starlink", "الطبق", "طبق ستارلينك", "الهوائي"];
 const WIFI_LABELS = ["wi-fi", "wifi", "router", "واي فاي", "الراوتر"];
 
 /**
@@ -58,6 +65,12 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
 
   const accountHolderName = extractAccountHolderName(lines);
   if (accountHolderName) fields.accountHolderName = accountHolderName;
+
+  const subscriptionId = extractSubscriptionId(text);
+  if (subscriptionId) fields.subscriptionId = subscriptionId;
+
+  const dataUsageGb = extractDataUsageGb(lines);
+  if (dataUsageGb) fields.dataUsageGb = dataUsageGb;
 
   const starlinkId = extractLabeledValue(lines, STARLINK_ID_LABELS);
   if (starlinkId) fields.starlinkId = starlinkId;

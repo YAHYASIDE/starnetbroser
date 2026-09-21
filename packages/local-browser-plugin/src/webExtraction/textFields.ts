@@ -40,6 +40,10 @@ export const BALANCE_LABELS = [
   "الرصيد المستحق", "الرصيد الواجب دفعه", "المبلغ المستحق",
 ];
 
+export const DATA_USAGE_LABELS = [
+  "total usage", "total data usage", "data usage", "إجمالي استهلاك الباقة", "استهلاك الباقة",
+];
+
 /** Every recognized label, across every field - used to recognize "this line is a DIFFERENT
  * field's label, not this field's value" during the forward-lookahead in extractLabeledValue. */
 const ALL_LABELS = [
@@ -51,6 +55,7 @@ const ALL_LABELS = [
   ...SERIAL_NUMBER_LABELS,
   ...KIT_NUMBER_LABELS,
   ...BALANCE_LABELS,
+  ...DATA_USAGE_LABELS,
 ];
 
 /** Action-button words a card commonly places right under a label (e.g. "إدارة"/"Manage") -
@@ -163,6 +168,26 @@ export function extractAccountNumber(lines: string[], fullText: string): string 
   if (labeled) return labeled;
   const match = ACCOUNT_NUMBER_PATTERN.exec(fullText);
   return match ? match[0] : undefined;
+}
+
+/** The real Starlink subscription page shows this right under the "الاشتراك" section heading,
+ * with no separate label at all - so, like accountNumber's ACC- fallback, this looks for the
+ * distinctive "SL-..." shape anywhere on the page rather than a label:value pair. */
+const SUBSCRIPTION_ID_PATTERN = /\bSL-[A-Za-z0-9-]{2,}\b/i;
+
+export function extractSubscriptionId(fullText: string): string | undefined {
+  const match = SUBSCRIPTION_ID_PATTERN.exec(fullText);
+  return match ? match[0] : undefined;
+}
+
+/** Pulls just the number back out (e.g. "261" from "261 جيجابايت"/"261 GB") - the unit is always
+ * gigabytes on the real page, so callers append it themselves rather than storing free text. */
+export function extractDataUsageGb(lines: string[]): string | undefined {
+  const raw = extractLabeledValue(lines, DATA_USAGE_LABELS);
+  if (!raw) return undefined;
+  const western = toWesternDigits(raw);
+  const match = /([0-9]+(?:[.,][0-9]+)?)/.exec(western);
+  return match ? match[1].replace(",", ".") : undefined;
 }
 
 /** The real Starlink home page shows "<holder name> • ACC-..." as one unlabeled line - only

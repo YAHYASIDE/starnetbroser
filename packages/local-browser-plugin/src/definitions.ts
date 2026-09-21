@@ -59,6 +59,11 @@ export interface SyncedStarlinkFields {
   /** The Starlink account holder's own name, as Starlink reports it - see the field's own doc on
    * StarlinkAccountSummary.starlinkAccountHolderName for why this stays separate from `name`. */
   accountHolderName?: string;
+  /** Starts with "SL-" - the subscription's own identifier, never confused with accountNumber
+   * ("ACC-...") or starlinkId (the dish's identifier). */
+  subscriptionId?: string;
+  /** Just the number, e.g. "261" - always gigabytes. */
+  dataUsageGb?: string;
   /** Always two decimal places, e.g. "0.00" - a real, confirmed zero balance, not "not found". */
   balanceDue?: string;
   /** Canonical form, e.g. "USD" - "$", "US$", "$US" and "USD" all normalize to this. */
