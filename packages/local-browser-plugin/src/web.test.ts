@@ -28,4 +28,14 @@ describe("LocalBrowserWeb", () => {
       deleted: false,
     });
   });
+
+  it("always reports an empty pending-sync list (there is no native staging store)", async () => {
+    const plugin = new LocalBrowserWeb();
+    await expect(plugin.listPendingAccountSyncs()).resolves.toEqual({ syncs: [] });
+  });
+
+  it("accepts ackPendingAccountSyncs as a harmless no-op", async () => {
+    const plugin = new LocalBrowserWeb();
+    await expect(plugin.ackPendingAccountSyncs({ syncIds: ["sync-1"] })).resolves.toBeUndefined();
+  });
 });

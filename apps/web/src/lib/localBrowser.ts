@@ -1,7 +1,12 @@
 "use client";
 
 import { Capacitor, PluginListenerHandle } from "@capacitor/core";
-import { AccountDataSyncedEvent, LocalBrowser, STARLINK_ACCOUNT_HOME_URL } from "@starnet/local-browser-plugin";
+import {
+  AccountDataSyncedEvent,
+  LocalBrowser,
+  PendingAccountSync,
+  STARLINK_ACCOUNT_HOME_URL,
+} from "@starnet/local-browser-plugin";
 
 /**
  * Isolated per-account browsing only exists as a real native WebView
@@ -61,4 +66,34 @@ export function onAccountDataSynced(
   handler: (event: AccountDataSyncedEvent) => void,
 ): Promise<PluginListenerHandle> {
   return LocalBrowser.addListener("accountDataSynced", handler);
+}
+
+/**
+ * Every "تحديث من Starlink" result not yet acknowledged, oldest first. Always empty on web/when
+ * not running in the Android app. Callers must drain this on app open and on every resume - the
+ * live accountDataSynced event alone is not enough, since it is silently dropped whenever the
+ * app's Bridge/WebView wasn't attached and resumed at the moment AccountBrowserActivity fired it.
+ */
+export async function listPendingAccountSyncs(): Promise<PendingAccountSync[]> {
+  if (!isRunningInAndroidApp()) return [];
+  try {
+    const { syncs } = await LocalBrowser.listPendingAccountSyncs();
+    return syncs;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Only call after the corresponding result has actually been merged into the account and saved -
+ * acking first and failing to save after would lose it permanently. A failed ack call here is
+ * harmless: the record simply stays pending and is safely re-delivered (and re-acked) next time.
+ */
+export async function ackPendingAccountSyncs(syncIds: string[]): Promise<void> {
+  if (!isRunningInAndroidApp() || syncIds.length === 0) return;
+  try {
+    await LocalBrowser.ackPendingAccountSyncs({ syncIds });
+  } catch {
+    // best-effort - see doc comment above.
+  }
 }

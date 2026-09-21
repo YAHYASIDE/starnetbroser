@@ -161,6 +161,75 @@ export function mergeSyncedFields(
   return { account: next, updatedFields, scanned };
 }
 
+/** The subset of AccountDataSyncedEvent/PendingAccountSync this module actually needs - avoids a
+ * hard dependency on which of the two (live event vs. pending-list entry) a caller has. */
+export interface PendingSyncLike {
+  syncId: string;
+  accountId: string;
+  fields: SyncedStarlinkFields;
+}
+
+export interface SyncOutcomeMessage {
+  accountId: string;
+  message: string;
+}
+
+export interface ApplyPendingSyncsResult {
+  accounts: StarlinkAccountSummary[];
+  /** One message per sync actually applied to a known account, in the same order as `syncs`. */
+  messages: SyncOutcomeMessage[];
+  /** Every syncId that was applied (or found to be safely discardable) - ack all of these. */
+  ackSyncIds: string[];
+}
+
+/**
+ * Applies zero or more pending sync results to `accounts` in order, folding each one through
+ * mergeSyncedFields sequentially so results for the same account accumulate across sections
+ * (Devices, then Subscriptions, then Billing, ...) without an earlier result ever being erased by
+ * a later one - this is what makes it safe to apply several consecutive results at once (e.g. a
+ * resume-time drain after the app was backgrounded for a while, or two quick taps that both
+ * landed before the app was reopened), not just one at a time.
+ *
+ * Deliberately a pure function of its arguments (accounts, syncs, alreadyProcessed) - no React
+ * state, no localStorage, no native calls - so both "one live event" and "N pending results
+ * fetched after the live event was lost entirely" go through exactly the same, directly testable
+ * code path. `alreadyProcessed` is what guarantees a syncId is never applied (or messaged) twice,
+ * whether it reached the caller once via the live event and again via a pending-list drain before
+ * its ack round-tripped, or appears twice in the same `syncs` batch for any other reason.
+ */
+export function applyPendingSyncs(
+  accounts: StarlinkAccountSummary[],
+  syncs: PendingSyncLike[],
+  alreadyProcessed: ReadonlySet<string>,
+): ApplyPendingSyncsResult {
+  let current = accounts;
+  const messages: SyncOutcomeMessage[] = [];
+  const ackSyncIds: string[] = [];
+  const seenThisBatch = new Set<string>();
+
+  for (const sync of syncs) {
+    if (alreadyProcessed.has(sync.syncId) || seenThisBatch.has(sync.syncId)) {
+      continue;
+    }
+    seenThisBatch.add(sync.syncId);
+
+    const target = current.find((item) => item.id === sync.accountId);
+    if (!target) {
+      // No matching account (e.g. deleted since this result was recorded) - nothing to apply,
+      // but the record is still safe to discard rather than being retried forever.
+      ackSyncIds.push(sync.syncId);
+      continue;
+    }
+
+    const { account: merged, updatedFields, scanned } = mergeSyncedFields(target, sync.fields);
+    current = current.map((item) => (item.id === sync.accountId ? merged : item));
+    messages.push({ accountId: sync.accountId, message: formatSyncMessage(merged.name, updatedFields, scanned) });
+    ackSyncIds.push(sync.syncId);
+  }
+
+  return { accounts: current, messages, ackSyncIds };
+}
+
 /**
  * Groups updated fields under their Arabic section headers, for the "what changed" message.
  * `scanned` (see MergeSyncResult) is what separates "found nothing on this page at all" from

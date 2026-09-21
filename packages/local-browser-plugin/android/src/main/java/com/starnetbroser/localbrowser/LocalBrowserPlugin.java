@@ -4,12 +4,17 @@ import android.content.Context;
 import android.content.Intent;
 import androidx.webkit.ProfileStore;
 import androidx.webkit.WebViewFeature;
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.List;
+import org.json.JSONArray;
+import org.json.JSONException;
 
 /**
  * Bridges the web UI's "فتح" button to a real, isolated native Android
@@ -37,13 +42,22 @@ public class LocalBrowserPlugin extends Plugin {
         activeInstance = new WeakReference<>(this);
     }
 
-    /** Called by AccountBrowserActivity after a successful "تحديث من Starlink" tap. */
-    public static void emitAccountDataSynced(String accountId, JSObject fields) {
+    /**
+     * Called by AccountBrowserActivity after a successful "تحديث من Starlink" tap, once the
+     * result is already durably staged in PendingSyncStore (see that class). This live event is
+     * only a best-effort fast path for when the app's Bridge/WebView happens to be attached and
+     * resumed right now - notifyListeners() silently drops the event otherwise, so
+     * listPendingAccountSyncs() (drained on app open/resume) is what actually guarantees
+     * delivery. `syncId` lets the web UI acknowledge this exact record (ackPendingAccountSyncs)
+     * however it was received, live or via the pending list, without ever double-applying it.
+     */
+    public static void emitAccountDataSynced(String syncId, String accountId, JSObject fields) {
         LocalBrowserPlugin instance = activeInstance != null ? activeInstance.get() : null;
         if (instance == null) {
             return;
         }
         JSObject event = new JSObject();
+        event.put("syncId", syncId);
         event.put("accountId", accountId);
         event.put("fields", fields);
         instance.notifyListeners(EVENT_ACCOUNT_DATA_SYNCED, event);
@@ -134,6 +148,42 @@ public class LocalBrowserPlugin extends Plugin {
         JSObject ret = new JSObject();
         ret.put("deleted", deleted);
         call.resolve(ret);
+    }
+
+    /**
+     * Every "تحديث من Starlink" result not yet acknowledged by the web UI, oldest first. Callers
+     * are expected to drain this on app open and on every resume - not just rely on the live
+     * accountDataSynced event, which is lost whenever this Activity's Bridge/WebView wasn't
+     * attached and resumed at the moment AccountBrowserActivity fired it.
+     */
+    @PluginMethod
+    public void listPendingAccountSyncs(PluginCall call) {
+        JSONArray pending = PendingSyncStore.listPending(getContext());
+        JSObject ret = new JSObject();
+        ret.put("syncs", pending);
+        call.resolve(ret);
+    }
+
+    /**
+     * Marks the given syncIds as delivered so PendingSyncStore stops returning them. Callers must
+     * only call this AFTER the corresponding result has actually been merged and saved on the web
+     * side - acking first and failing to save after would lose the result permanently.
+     */
+    @PluginMethod
+    public void ackPendingAccountSyncs(PluginCall call) {
+        JSArray syncIdsArray = call.getArray("syncIds");
+        List<String> syncIds = new ArrayList<>();
+        if (syncIdsArray != null) {
+            for (int i = 0; i < syncIdsArray.length(); i++) {
+                try {
+                    syncIds.add(syncIdsArray.getString(i));
+                } catch (JSONException ignored) {
+                    // Not a string entry - skip it rather than failing the whole ack call.
+                }
+            }
+        }
+        PendingSyncStore.ack(getContext(), syncIds);
+        call.resolve();
     }
 
     private boolean isMultiProfileSupported() {

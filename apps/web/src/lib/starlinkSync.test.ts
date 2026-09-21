@@ -1,6 +1,6 @@
 import { DeviceStatus, StarlinkAccountSummary } from "@starnet/shared";
 import { describe, expect, it } from "vitest";
-import { formatSyncMessage, mergeSyncedFields } from "./starlinkSync";
+import { applyPendingSyncs, formatSyncMessage, mergeSyncedFields } from "./starlinkSync";
 
 // Fake/dummy account + field data only - no real Starlink account data anywhere in this file.
 function baseAccount(overrides: Partial<StarlinkAccountSummary> = {}): StarlinkAccountSummary {
@@ -80,5 +80,92 @@ describe("formatSyncMessage - three distinct outcomes", () => {
     const message = formatSyncMessage("mounay", [{ field: "planName", label: "الخطة", section: "subscriptions" }], true);
     expect(message).toContain("mounay");
     expect(message).toContain("الخطة");
+  });
+});
+
+describe("applyPendingSyncs", () => {
+  it("merges several consecutive results (Devices, then Subscriptions, then Billing) without erasing earlier ones", () => {
+    const accounts = [baseAccount({ dishStatus: DeviceStatus.GRAY, planName: "", balanceDue: "" })];
+
+    const result = applyPendingSyncs(
+      accounts,
+      [
+        { syncId: "sync-1", accountId: "acc-1", fields: { dishStatus: "online" } },
+        { syncId: "sync-2", accountId: "acc-1", fields: { planName: "التجوال - غير محدود" } },
+        { syncId: "sync-3", accountId: "acc-1", fields: { balanceDue: "0.00", currency: "USD" } },
+      ],
+      new Set(),
+    );
+
+    const merged = result.accounts.find((a) => a.id === "acc-1")!;
+    expect(merged.dishStatus).toBe(DeviceStatus.GREEN);
+    expect(merged.planName).toBe("التجوال - غير محدود");
+    expect(merged.balanceDue).toBe("0.00");
+    expect(result.ackSyncIds).toEqual(["sync-1", "sync-2", "sync-3"]);
+    expect(result.messages).toHaveLength(3);
+  });
+
+  it("never applies or messages the same syncId twice within one batch", () => {
+    const accounts = [baseAccount({ planName: "" })];
+
+    const result = applyPendingSyncs(
+      accounts,
+      [
+        { syncId: "sync-1", accountId: "acc-1", fields: { planName: "خطة أولى" } },
+        { syncId: "sync-1", accountId: "acc-1", fields: { planName: "خطة ثانية" } },
+      ],
+      new Set(),
+    );
+
+    const merged = result.accounts.find((a) => a.id === "acc-1")!;
+    expect(merged.planName).toBe("خطة أولى");
+    expect(result.ackSyncIds).toEqual(["sync-1"]);
+    expect(result.messages).toHaveLength(1);
+  });
+
+  it("skips a syncId already in alreadyProcessed - e.g. one already applied live before a pending-list drain found it too", () => {
+    const accounts = [baseAccount({ planName: "القديمة" })];
+
+    const result = applyPendingSyncs(
+      accounts,
+      [{ syncId: "sync-1", accountId: "acc-1", fields: { planName: "خطة جديدة" } }],
+      new Set(["sync-1"]),
+    );
+
+    const merged = result.accounts.find((a) => a.id === "acc-1")!;
+    expect(merged.planName).toBe("القديمة");
+    expect(result.ackSyncIds).toEqual([]);
+    expect(result.messages).toEqual([]);
+  });
+
+  it("still correctly merges a result that only ever arrived via a pending-list drain (the live event was lost while backgrounded)", () => {
+    // Models: AccountBrowserActivity fired accountDataSynced while the app's Bridge was stopped,
+    // so the live listener never ran at all - listPendingAccountSyncs (on resume) is the only
+    // reason this ever reaches applyPendingSyncs.
+    const accounts = [baseAccount({ dishStatus: DeviceStatus.GRAY })];
+
+    const result = applyPendingSyncs(
+      accounts,
+      [{ syncId: "sync-lost-then-found", accountId: "acc-1", fields: { dishStatus: "offline" } }],
+      new Set(),
+    );
+
+    const merged = result.accounts.find((a) => a.id === "acc-1")!;
+    expect(merged.dishStatus).toBe(DeviceStatus.RED);
+    expect(result.ackSyncIds).toEqual(["sync-lost-then-found"]);
+  });
+
+  it("acks (discards) a result for an account that no longer exists, without touching other accounts", () => {
+    const accounts = [baseAccount({ id: "acc-1" })];
+
+    const result = applyPendingSyncs(
+      accounts,
+      [{ syncId: "sync-1", accountId: "acc-deleted", fields: { planName: "لا يهم" } }],
+      new Set(),
+    );
+
+    expect(result.accounts).toEqual(accounts);
+    expect(result.ackSyncIds).toEqual(["sync-1"]);
+    expect(result.messages).toEqual([]);
   });
 });

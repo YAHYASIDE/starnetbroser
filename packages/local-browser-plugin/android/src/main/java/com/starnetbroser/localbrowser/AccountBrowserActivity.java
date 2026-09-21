@@ -229,7 +229,15 @@ public class AccountBrowserActivity extends AppCompatActivity {
                     return;
                 }
 
-                LocalBrowserPlugin.emitAccountDataSynced(accountId, fields);
+                // Durable write FIRST: the success toast below must never claim more than what is
+                // actually safe on disk. The main STAR NET Activity/Bridge this screen sits on top
+                // of may be stopped right now, in which case notifyListeners() below is silently
+                // dropped - PendingSyncStore (drained by the web UI on open/resume) is what
+                // actually guarantees this result is never lost, however long that takes.
+                String syncId = PendingSyncStore.save(getApplicationContext(), accountId, fields);
+
+                // Best-effort live push, for when the app happens to be in the foreground right now.
+                LocalBrowserPlugin.emitAccountDataSynced(syncId, accountId, fields);
                 Toast.makeText(this, R.string.starnet_sync_success, Toast.LENGTH_SHORT).show();
             }
         );

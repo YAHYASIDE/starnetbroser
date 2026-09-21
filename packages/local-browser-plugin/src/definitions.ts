@@ -68,8 +68,32 @@ export interface SyncedStarlinkFields {
 }
 
 export interface AccountDataSyncedEvent {
+  /** Unique per sync result - see PendingAccountSync for why this exists. */
+  syncId: string;
   accountId: string;
   fields: SyncedStarlinkFields;
+}
+
+/**
+ * A sync result durably staged on-device (Android SharedPreferences, see PendingSyncStore.java)
+ * because the live "accountDataSynced" event is silently dropped whenever the app's Bridge/WebView
+ * wasn't attached and resumed at the moment it fired - e.g. while AccountBrowserActivity (a
+ * separate Activity) was on top of it. Stays here, intact, until the web UI calls
+ * ackPendingAccountSyncs for its syncId - callers must list and merge these on every app open and
+ * resume, not just rely on the live event.
+ */
+export interface PendingAccountSync extends AccountDataSyncedEvent {
+  /** ms since epoch, when AccountBrowserActivity durably recorded this result. */
+  recordedAt: number;
+}
+
+export interface ListPendingAccountSyncsResult {
+  syncs: PendingAccountSync[];
+}
+
+export interface AckPendingAccountSyncsOptions {
+  /** syncIds that have been merged and saved on the web side, and can now be discarded. */
+  syncIds: string[];
 }
 
 export interface LocalBrowserPlugin {
@@ -100,7 +124,10 @@ export interface LocalBrowserPlugin {
 
   /**
    * Fires once per "تحديث من Starlink" tap that actually found something on an allow-listed
-   * Starlink page. Never fires on web (there is no isolated browser to sync from there).
+   * Starlink page. Never fires on web (there is no isolated browser to sync from there). This is
+   * a best-effort fast path only - it is silently dropped if the app's Bridge/WebView wasn't
+   * attached and resumed at that moment, so callers must also drain listPendingAccountSyncs on
+   * open/resume rather than relying on this alone.
    */
   addListener(
     eventName: "accountDataSynced",
@@ -108,4 +135,19 @@ export interface LocalBrowserPlugin {
   ): Promise<PluginListenerHandle>;
 
   removeAllListeners(): Promise<void>;
+
+  /**
+   * Every sync result not yet acknowledged, oldest first. Always empty on web. Call this on app
+   * open and on every resume - it is the only delivery path guaranteed not to lose a result,
+   * however long the app stayed backgrounded after "تحديث من Starlink" was tapped.
+   */
+  listPendingAccountSyncs(): Promise<ListPendingAccountSyncsResult>;
+
+  /**
+   * Discards the given syncIds so listPendingAccountSyncs stops returning them. Only call this
+   * after the corresponding result has actually been merged into the account and saved - acking
+   * first and failing to save after would lose it permanently. Safe to call with ids that are
+   * unknown or already acked.
+   */
+  ackPendingAccountSyncs(options: AckPendingAccountSyncsOptions): Promise<void>;
 }

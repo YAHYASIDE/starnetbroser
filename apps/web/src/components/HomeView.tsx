@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { App } from "@capacitor/app";
 import { DeviceStatus, StarlinkAccountSummary } from "@starnet/shared";
 import { expiryDay } from "@starnet/shared";
 import { AccountCard } from "./AccountCard";
@@ -12,8 +13,14 @@ import { daysRemainingNumber } from "@/lib/date";
 import { ApiError, listAccounts } from "@/lib/apiClient";
 import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
 import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
-import { deleteIsolatedAccountSession, isRunningInAndroidApp, onAccountDataSynced } from "@/lib/localBrowser";
-import { formatSyncMessage, mergeSyncedFields } from "@/lib/starlinkSync";
+import {
+  ackPendingAccountSyncs,
+  deleteIsolatedAccountSession,
+  isRunningInAndroidApp,
+  listPendingAccountSyncs,
+  onAccountDataSynced,
+} from "@/lib/localBrowser";
+import { applyPendingSyncs, PendingSyncLike } from "@/lib/starlinkSync";
 import { resolveAccountDeletion } from "@starnet/local-browser-plugin";
 
 const NEAR_EXPIRY_THRESHOLD_DAYS = 3;
@@ -73,35 +80,85 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Stage 1 of on-device Starlink sync: "تحديث من Starlink" inside the isolated account
-  // browser emits this once per tap that found something. Registered once - accountsRef/
-  // dataStateRef (not accounts/dataState) keep it reading current values without needing to
-  // re-subscribe the native listener on every state change.
+  // Stage 1 of on-device Starlink sync. "تحديث من Starlink" persists its result in Android
+  // SharedPreferences (packages/local-browser-plugin's PendingSyncStore) BEFORE
+  // AccountBrowserActivity shows its own success toast, precisely because THIS Activity/Bridge
+  // can be stopped at that moment - AccountBrowserActivity is a separate Activity on top of it,
+  // and a live accountDataSynced event fired while stopped is simply dropped by Capacitor, with
+  // no error and no retry. The live listener below is only a best-effort fast path for when the
+  // app happens to be in the foreground; listPendingAccountSyncs - drained once on mount and
+  // again on every native "resume" - is what actually guarantees a result is never lost, however
+  // long the app stayed backgrounded. A batch is only ever acknowledged (ackPendingAccountSyncs)
+  // after it has been merged into `accounts` AND saved, never before; processedSyncIds (kept for
+  // this listener's whole lifetime, not just one batch) guarantees the same syncId is never
+  // merged or messaged twice, whether it reached this effect live, via a drain, or both.
   useEffect(() => {
-    let handle: { remove: () => void } | undefined;
+    let liveHandle: { remove: () => void } | undefined;
+    let resumeHandle: { remove: () => void } | undefined;
     let cancelled = false;
+    const processedSyncIds = new Set<string>();
 
-    onAccountDataSynced((event) => {
-      const target = accountsRef.current.find((item) => item.id === event.accountId);
-      if (!target) return;
+    function applyBatch(syncs: PendingSyncLike[]) {
+      const result = applyPendingSyncs(accountsRef.current, syncs, processedSyncIds);
+      if (result.ackSyncIds.length === 0) return;
 
-      const { account: merged, updatedFields, scanned } = mergeSyncedFields(target, event.fields);
-      const next = accountsRef.current.map((item) => (item.id === event.accountId ? merged : item));
-      if (dataStateRef.current === "demo") saveDemoAccounts(next);
-      setAccounts(next);
+      let saved = true;
+      try {
+        if (dataStateRef.current === "demo") saveDemoAccounts(result.accounts);
+      } catch {
+        saved = false;
+      }
 
-      window.alert(formatSyncMessage(merged.name, updatedFields, scanned));
+      if (!saved) {
+        // Never claim success on an unsaved merge - leave every syncId in this batch
+        // unacknowledged and unmarked-processed, so the next drain retries the whole batch.
+        window.alert("تعذر حفظ بيانات المزامنة على هذا الجهاز. سيُعاد تجربة هذا التحديث لاحقًا.");
+        return;
+      }
+
+      for (const id of result.ackSyncIds) processedSyncIds.add(id);
+      setAccounts(result.accounts);
+      // Keep this listener's own view of "current accounts" correct for the very next sync
+      // without waiting for React's render -> effect cycle to catch up: a live event and a
+      // resume-time drain (or two quick live events) can arrive back-to-back faster than that.
+      accountsRef.current = result.accounts;
+
+      for (const { message } of result.messages) window.alert(message);
+      void ackPendingAccountSyncs(result.ackSyncIds);
+    }
+
+    async function drainPending() {
+      const pending = await listPendingAccountSyncs();
+      if (pending.length > 0) applyBatch(pending);
+    }
+
+    onAccountDataSynced((event) => applyBatch([event])).then((h) => {
+      if (cancelled) {
+        h.remove();
+      } else {
+        liveHandle = h;
+      }
+    });
+
+    // Covers "opening the app": whatever was staged while it was closed/killed entirely.
+    drainPending();
+
+    // Covers "returning to it": AccountBrowserActivity closing (or the app being switched back
+    // to) resumes this Activity, at which point any result staged while it was stopped is drained.
+    App.addListener("resume", () => {
+      drainPending();
     }).then((h) => {
       if (cancelled) {
         h.remove();
       } else {
-        handle = h;
+        resumeHandle = h;
       }
     });
 
     return () => {
       cancelled = true;
-      handle?.remove();
+      liveHandle?.remove();
+      resumeHandle?.remove();
     };
   }, []);
 
