@@ -3,6 +3,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import { DeviceStatus, StarlinkAccountSummary } from "@starnet/shared";
 import { formatRelativeTime } from "@/lib/date";
+import { emailsMismatch } from "@/lib/emailMatch";
 import { presentServiceStatus } from "@/lib/status";
 
 export type AccountDialogMode = "add" | "edit" | "view";
@@ -38,6 +39,7 @@ function createBlankAccount(): StarlinkAccountSummary {
     customerId: `customer-${id}`,
     name: "",
     phone: "",
+    expectedEmail: "",
     deviceName: "Standard Kit",
     kitNumber: "",
     serialNumber: "",
@@ -87,6 +89,7 @@ export function AccountDialog({ mode, account, onClose, onSave, onDelete }: Prop
       ...draft,
       name: draft.name.trim(),
       phone: draft.phone?.trim() || undefined,
+      expectedEmail: draft.expectedEmail?.trim() || undefined,
       kitNumber: draft.kitNumber.trim(),
       serialNumber: draft.serialNumber.trim(),
       rechargeDate: draft.rechargeDate.replace(/-/g, "/"),
@@ -131,6 +134,15 @@ export function AccountDialog({ mode, account, onClose, onSave, onDelete }: Prop
             {draft.starlinkAccountEmail && (
               <div><span>البريد الإلكتروني (Starlink)</span><strong dir="ltr">{draft.starlinkAccountEmail}</strong></div>
             )}
+            {draft.expectedEmail && (
+              <div><span>البريد الإلكتروني المتوقع</span><strong dir="ltr">{draft.expectedEmail}</strong></div>
+            )}
+            {emailsMismatch(draft.expectedEmail, draft.starlinkAccountEmail) && (
+              <div className="info-wide info-warning">
+                <span>تحذير</span>
+                <strong>البريد الإلكتروني من Starlink لا يطابق المتوقع</strong>
+              </div>
+            )}
             {presentServiceStatus(draft.serviceStatus) && (
               <div><span>حالة الاشتراك (Starlink)</span><strong>{presentServiceStatus(draft.serviceStatus)!.label}</strong></div>
             )}
@@ -154,6 +166,17 @@ export function AccountDialog({ mode, account, onClose, onSave, onDelete }: Prop
                 value={draft.phone ?? ""}
                 onChange={(e) => update("phone", e.target.value)}
                 placeholder="مع رمز الدولة، مثال: 22212345678"
+              />
+            </label>
+
+            <label className="form-field form-wide">
+              <span>البريد الإلكتروني المتوقع (لمطابقة حساب Starlink)</span>
+              <input
+                dir="ltr"
+                type="email"
+                value={draft.expectedEmail ?? ""}
+                onChange={(e) => update("expectedEmail", e.target.value)}
+                placeholder="اختياري - يُستخدم لتنبيهك إذا اختلف عن بريد Starlink"
               />
             </label>
 

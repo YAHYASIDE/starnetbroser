@@ -82,9 +82,9 @@ export interface StarlinkAccountSummary {
   starlinkId?: string;
   /** Normalized to "active" | "standby" | "canceled" | "suspended" - never left as raw page text. */
   serviceStatus?: string;
-  // Reading the Starlink account holder's email/phone from Starlink sync is still explicitly
-  // deferred. `phone` below is unrelated: a manually-entered local customer contact number (like
-  // `name`), used only for the "تواصل عبر واتساب" card action, never touched by Starlink sync.
+  // `phone` below is manually-entered local customer contact number (like `name`), used only for
+  // the "تواصل عبر واتساب" card action - never touched by Starlink sync, and unrelated to the
+  // Settings page's own phone number, which sync deliberately never reads at all.
   /** Manually entered by the STAR NET operator - optional since older/existing accounts won't have one. */
   phone?: string;
   /** The account holder's name as Starlink itself reports it - kept deliberately separate from
@@ -93,6 +93,10 @@ export interface StarlinkAccountSummary {
   /** The account's registered login email, as read from Starlink's own Settings page - never the
    * phone number shown on that same page, which is unrelated to (and never confused with) `phone`. */
   starlinkAccountEmail?: string;
+  /** Manually entered by the STAR NET operator - the login email they expect this account to use.
+   * Compared against `starlinkAccountEmail` (see lib/emailMatch.ts) to warn when Starlink's synced
+   * email doesn't match; never written by Starlink sync itself. */
+  expectedEmail?: string;
   /** Starts with "SL-" - the subscription's own identifier, a different value from `accountNumber`
    * (which starts with "ACC-"). */
   subscriptionId?: string;

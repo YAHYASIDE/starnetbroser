@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { presentStatus, presentServiceStatus, isBalanceDueZero } from "@/lib/status";
 import { daysRemainingLabel, daysRemainingNumber, formatRelativeTime } from "@/lib/date";
+import { emailsMismatch } from "@/lib/emailMatch";
 import { isRunningInAndroidApp, openIsolatedAccountBrowser } from "@/lib/localBrowser";
 import { buildBalanceReminderMessage, buildExpiryReminderMessage, buildWhatsAppLink } from "@/lib/whatsapp";
 
@@ -21,6 +22,7 @@ export function AccountCard({ account, onEdit, onInfo }: Props) {
   const remaining = daysRemainingLabel(account.rechargeDate || account.standbyDate);
   const remainingDays = daysRemainingNumber(account.rechargeDate || account.standbyDate);
   const balanceIsZero = isBalanceDueZero(account.balanceDue);
+  const emailMismatch = emailsMismatch(account.expectedEmail, account.starlinkAccountEmail);
   const urgencyClass = remainingDays === null
     ? "date-neutral"
     : remainingDays < 0
@@ -146,6 +148,12 @@ export function AccountCard({ account, onEdit, onInfo }: Props) {
           {account.kitNumber && <span>KIT: <strong dir="ltr">{account.kitNumber}</strong></span>}
           {account.serialNumber && <span>SN: <strong dir="ltr">{account.serialNumber}</strong></span>}
           {account.dataUsageGb && <span>الاستهلاك: <strong dir="ltr">{account.dataUsageGb} GB</strong></span>}
+        </div>
+      )}
+
+      {emailMismatch && (
+        <div className="account-card-alert">
+          ⚠️ البريد الإلكتروني من Starlink لا يطابق المتوقع
         </div>
       )}
 
