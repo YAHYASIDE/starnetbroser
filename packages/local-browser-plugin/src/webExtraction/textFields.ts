@@ -29,6 +29,25 @@ export function hasStandbyBanner(lines: string[]): boolean {
 }
 
 /**
+ * The real "خطة الخدمة" card also shows a "نشط" badge instead of the "النهاية <date>" one once
+ * the account is genuinely active (no standby banner anywhere on the page at that point either).
+ * Deliberately scoped to the few lines right after "خطة الخدمة" - "نشط" ("active") on its own is
+ * far too short/generic a word to safely match anywhere on the page (the same class of risk
+ * "النهاية" had), and must require an EXACT trimmed match on its own line, not a substring, so it
+ * can never be part of some unrelated longer sentence.
+ */
+export function hasActivePlanBadge(lines: string[]): boolean {
+  for (let i = 0; i < lines.length; i++) {
+    if (!lines[i].includes("خطة الخدمة")) continue;
+    for (let j = i; j < Math.min(i + 3, lines.length); j++) {
+      if (lines[j].trim() === "نشط") return true;
+    }
+    return false;
+  }
+  return false;
+}
+
+/**
  * The real "خطة الخدمة" card can show a "النهاية ٢٠٢٦/٩/٢٨" badge - but "النهاية" ("the end") is
  * deliberately NOT in RENEWAL_DATE_LABELS: it is too generic a bare word to safely match as a
  * substring across an entire real page (unrelated prose, promotions, or disclaimers can contain

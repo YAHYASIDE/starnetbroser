@@ -309,6 +309,38 @@ describe("extractStarlinkFields - standby status + immune to an unrelated 'ال�
   });
 });
 
+describe("extractStarlinkFields - real 'نشط' plan badge once the account is actually active (round 13 regression)", () => {
+  it("reads serviceStatus active from the badge, with no separate labeled status line anywhere", () => {
+    const fields = extractFrom(`
+      <div class="subscriptions-section">
+        <div>اللقب</div>
+        <div>تعديل</div>
+        <div>التجوال - غير محدود</div>
+        <div>خطة الخدمة</div>
+        <div>إدارة</div>
+        <div>نشط</div>
+        <div>التجوال - غير محدود</div>
+      </div>
+    `);
+
+    expect(fields.serviceStatus).toBe("active");
+  });
+
+  it("does not report active when the standby banner is present instead (mutually exclusive states)", () => {
+    const fields = extractFrom(`
+      <div>من المقرر أن تنتهي خدمتك في ٢٠٢٦/٩/٢٨.</div>
+      <div class="subscriptions-section">
+        <div>خطة الخدمة</div>
+        <div>إدارة</div>
+        <div>النهاية ٢٠٢٦/٩/٢٨</div>
+        <div>التجوال - غير محدود</div>
+      </div>
+    `);
+
+    expect(fields.serviceStatus).toBe("standby");
+  });
+});
+
 describe("extractStarlinkFields - progressive, section-by-section reading", () => {
   it("returns only device fields when only the Devices section is on the page", () => {
     document.body.innerHTML = `

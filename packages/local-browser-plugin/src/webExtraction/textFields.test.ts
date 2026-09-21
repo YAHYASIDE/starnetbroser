@@ -9,6 +9,7 @@ import {
   extractLabeledValue,
   extractRenewalBadgeDate,
   extractSubscriptionId,
+  hasActivePlanBadge,
   hasStandbyBanner,
   isCompleteDate,
   normalizeDateLike,
@@ -112,6 +113,22 @@ describe("hasStandbyBanner", () => {
 
   it("returns false when the banner isn't present", () => {
     expect(hasStandbyBanner(["الرصيد المستحق", "$US 0.00"])).toBe(false);
+  });
+});
+
+describe("hasActivePlanBadge - scoped near 'خطة الخدمة', never a bare 'نشط' anywhere on the page", () => {
+  it("detects the 'نشط' badge right after the plan section label", () => {
+    const lines = ["خطة الخدمة", "إدارة", "نشط", "التجوال - غير محدود"];
+    expect(hasActivePlanBadge(lines)).toBe(true);
+  });
+
+  it("returns false when 'خطة الخدمة' isn't on the page at all", () => {
+    expect(hasActivePlanBadge(["نشط", "شيء آخر تمامًا"])).toBe(false);
+  });
+
+  it("never matches 'نشط' embedded in an unrelated sentence far from the plan section", () => {
+    const lines = ["خطة الخدمة", "إدارة", "النهاية ٢٠٢٦/٩/٢٨", "التجوال - غير محدود", "الجهاز نشط ومتصل الآن"];
+    expect(hasActivePlanBadge(lines)).toBe(false);
   });
 });
 

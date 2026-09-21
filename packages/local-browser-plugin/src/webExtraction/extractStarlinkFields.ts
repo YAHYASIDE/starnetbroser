@@ -16,6 +16,7 @@ import {
   extractLabeledValue,
   extractRenewalBadgeDate,
   extractSubscriptionId,
+  hasActivePlanBadge,
   hasStandbyBanner,
   isCompleteDate,
   normalizeDateLike,
@@ -55,6 +56,7 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
   // a labeled status wasn't found.
   let serviceStatus = normalizeServiceStatus(extractLabeledValue(lines, SERVICE_STATUS_LABELS));
   if (!serviceStatus && hasStandbyBanner(lines)) serviceStatus = "standby";
+  if (!serviceStatus && hasActivePlanBadge(lines)) serviceStatus = "active";
   if (serviceStatus) fields.serviceStatus = serviceStatus;
 
   const planName = extractLabeledValue(lines, PLAN_LABELS);
