@@ -11,13 +11,38 @@ export const PLAN_LABELS = ["service plan", "plan", "الخطة", "باقة ال
 
 export const RENEWAL_DATE_LABELS = [
   "renewal date", "next billing", "renews on", "service end", "next due date", "scheduled to end",
-  "تاريخ التجديد", "تجديد الاشتراك", "نهاية الخدمة", "موعد التجديد", "تاريخ الاستحقاق التالي", "النهاية",
+  "تاريخ التجديد", "تجديد الاشتراك", "نهاية الخدمة", "موعد التجديد", "تاريخ الاستحقاق التالي",
   // The real Starlink app's home-page banner for a standby account ("From the confirmed pause to
   // resume by") phrases this as a sentence, not a "label: value" pair - e.g. "من المقرر أن تنتهي
   // خدمتك في ٢٠٢٦/٩/٢٨." - so the label match only needs this fragment; normalizeDateLike below
   // pulls the date out of whatever surrounds it ("في ..." / a trailing ".").
   "تنتهي خدمتك",
 ];
+
+/** The one place this banner appears, so its presence alone is a reliable "this account is
+ * currently in standby" signal, even on a page/section with no separate labeled status text
+ * anywhere (confirmed: the real Starlink app never prints a bare "الحالة: بانتظار" line). */
+export const STANDBY_BANNER_LABELS = ["scheduled to end", "تنتهي خدمتك"];
+
+export function hasStandbyBanner(lines: string[]): boolean {
+  return lines.some((line) => containsAny(line, STANDBY_BANNER_LABELS));
+}
+
+/**
+ * The real "خطة الخدمة" card can show a "النهاية ٢٠٢٦/٩/٢٨" badge - but "النهاية" ("the end") is
+ * deliberately NOT in RENEWAL_DATE_LABELS: it is too generic a bare word to safely match as a
+ * substring across an entire real page (unrelated prose, promotions, or disclaimers can contain
+ * it and hand back a completely unrelated date). This only matches the exact "النهاية <date>"
+ * shape on one line/token, never a cross-line lookahead.
+ */
+export function extractRenewalBadgeDate(lines: string[]): string | undefined {
+  for (const line of lines) {
+    const western = toWesternDigits(line);
+    const match = /النهاية\s*(\d{4}[/-]\d{1,2}[/-]\d{1,2})/.exec(western);
+    if (match) return match[1];
+  }
+  return undefined;
+}
 
 export const SERVICE_STATUS_LABELS = [
   "service status", "account status", "subscription status",
@@ -50,10 +75,15 @@ export const DATA_USAGE_LABELS = [
 export const EMAIL_LABELS = ["email", "e-mail", "البريد الإلكتروني", "الإيميل"];
 
 /** Every recognized label, across every field - used to recognize "this line is a DIFFERENT
- * field's label, not this field's value" during the forward-lookahead in extractLabeledValue. */
+ * field's label, not this field's value" during the forward-lookahead in extractLabeledValue.
+ * Includes "النهاية" even though it is deliberately NOT in RENEWAL_DATE_LABELS itself (see
+ * extractRenewalBadgeDate) - another field's lookahead (e.g. planName) still needs to recognize
+ * a "النهاية <date>" badge line as belonging to a different field, not accidentally grab it as
+ * its own value. */
 const ALL_LABELS = [
   ...PLAN_LABELS,
   ...RENEWAL_DATE_LABELS,
+  "النهاية",
   ...SERVICE_STATUS_LABELS,
   ...STARLINK_ID_LABELS,
   ...ACCOUNT_NUMBER_LABELS,

@@ -14,7 +14,9 @@ import {
   extractBalance,
   extractDataUsageGb,
   extractLabeledValue,
+  extractRenewalBadgeDate,
   extractSubscriptionId,
+  hasStandbyBanner,
   isCompleteDate,
   normalizeDateLike,
   normalizeServiceStatus,
@@ -47,13 +49,18 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
   const text = toVisibleText(doc.body);
   const lines = toLines(text);
 
-  const serviceStatus = normalizeServiceStatus(extractLabeledValue(lines, SERVICE_STATUS_LABELS));
+  // The real page never prints a labeled "الحالة: ..." line for a standby account - the only
+  // signal is the "service will end" banner itself (see hasStandbyBanner's own doc), so that
+  // banner's presence is treated as a reliable standby reading in its own right, tried only when
+  // a labeled status wasn't found.
+  let serviceStatus = normalizeServiceStatus(extractLabeledValue(lines, SERVICE_STATUS_LABELS));
+  if (!serviceStatus && hasStandbyBanner(lines)) serviceStatus = "standby";
   if (serviceStatus) fields.serviceStatus = serviceStatus;
 
   const planName = extractLabeledValue(lines, PLAN_LABELS);
   if (planName) fields.planName = planName;
 
-  const renewalDate = extractLabeledValue(lines, RENEWAL_DATE_LABELS);
+  const renewalDate = extractLabeledValue(lines, RENEWAL_DATE_LABELS) ?? extractRenewalBadgeDate(lines);
   if (renewalDate) {
     const normalized = normalizeDateLike(renewalDate);
     // A real page can split a date's year/month from its day across separate text nodes, so the

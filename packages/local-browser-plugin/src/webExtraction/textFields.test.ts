@@ -7,7 +7,9 @@ import {
   extractBalance,
   extractDataUsageGb,
   extractLabeledValue,
+  extractRenewalBadgeDate,
   extractSubscriptionId,
+  hasStandbyBanner,
   isCompleteDate,
   normalizeDateLike,
 } from "./textFields";
@@ -30,7 +32,10 @@ describe("extractLabeledValue - forward-lookahead robustness", () => {
     // NEXT field's own label+value on one line, and only THEN the plan's actual value.
     const lines = ["خطة الخدمة", "إدارة", "النهاية ٢٠٢٦/٩/٢٨", "التجوال - غير محدود"];
     expect(extractLabeledValue(lines, PLAN_LABELS)).toBe("التجوال - غير محدود");
-    expect(extractLabeledValue(lines, RENEWAL_DATE_LABELS)).toBe("٢٠٢٦/٩/٢٨");
+    // "النهاية" is deliberately NOT a usable RENEWAL_DATE_LABELS entry (see
+    // extractRenewalBadgeDate below) - only still recognized as *someone else's* label line, so
+    // planName's own lookahead correctly skips over it.
+    expect(extractLabeledValue(lines, RENEWAL_DATE_LABELS)).toBeUndefined();
   });
 
   it("never returns the Manage button or the other field's line as the plan name", () => {
@@ -82,6 +87,31 @@ describe("isCompleteDate - the last line of defense before a renewal date is eve
 
   it("rejects a non-zero-padded date - normalizeDateLike must have already run", () => {
     expect(isCompleteDate("2026/9/28")).toBe(false);
+  });
+});
+
+describe("extractRenewalBadgeDate - narrow same-line match only, never a generic 'النهاية' label", () => {
+  it("reads the date from the exact 'النهاية <date>' badge shape", () => {
+    expect(extractRenewalBadgeDate(["النهاية ٢٠٢٦/٩/٢٨"])).toBe("2026/9/28");
+  });
+
+  it("never matches an unrelated line elsewhere on the page that merely contains the word 'النهاية'", () => {
+    // Reproduces the real bug this round fixed: a real page can use "النهاية" in unrelated
+    // prose/promotions with its own, completely unrelated date - that must never be picked up as
+    // the account's renewal date.
+    const lines = ["عرض ينتهي في النهاية بتاريخ ٢٠٢٦/٩/١٠", "الخطة", "التجوال - غير محدود"];
+    // No "النهاية <date>" adjacency here (extra words in between), so nothing matches.
+    expect(extractRenewalBadgeDate(lines)).toBeUndefined();
+  });
+});
+
+describe("hasStandbyBanner", () => {
+  it("detects the real 'service will end' banner", () => {
+    expect(hasStandbyBanner(["من المقرر أن تنتهي خدمتك في ٢٠٢٦/٩/٢٨."])).toBe(true);
+  });
+
+  it("returns false when the banner isn't present", () => {
+    expect(hasStandbyBanner(["الرصيد المستحق", "$US 0.00"])).toBe(false);
   });
 });
 

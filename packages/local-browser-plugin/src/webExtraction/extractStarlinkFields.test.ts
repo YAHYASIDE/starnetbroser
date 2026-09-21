@@ -278,6 +278,37 @@ describe("extractStarlinkFields - never stores a truncated renewal date (round 1
   });
 });
 
+describe("extractStarlinkFields - standby status + immune to an unrelated 'النهاية' elsewhere on the page (round 12 regression)", () => {
+  it("infers standby from the banner alone, and never lets an unrelated 'النهاية' line elsewhere override the real renewal date", () => {
+    const fields = extractFrom(`
+      <div class="home-banner">
+        <div>من المقرر أن تنتهي خدمتك في ٢٠٢٦/٩/٢٨.</div>
+        <div>استئناف</div>
+      </div>
+      <div class="unrelated-promo">
+        <div>عرض ينتهي قريبًا - في النهاية بتاريخ ٢٠٢٦/٩/١٠</div>
+      </div>
+    `);
+
+    expect(fields.serviceStatus).toBe("standby");
+    expect(fields.renewalDate).toBe("2026/09/28");
+  });
+
+  it("still reads the 'خطة الخدمة' badge date when the sentence banner isn't on the page at all", () => {
+    const fields = extractFrom(`
+      <div class="subscriptions-section">
+        <div>خطة الخدمة</div>
+        <div>إدارة</div>
+        <div>النهاية ٢٠٢٦/٩/٢٨</div>
+        <div>التجوال - غير محدود</div>
+      </div>
+    `);
+
+    expect(fields.renewalDate).toBe("2026/09/28");
+    expect(fields.serviceStatus).toBeUndefined();
+  });
+});
+
 describe("extractStarlinkFields - progressive, section-by-section reading", () => {
   it("returns only device fields when only the Devices section is on the page", () => {
     document.body.innerHTML = `
