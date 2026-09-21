@@ -254,6 +254,30 @@ describe("extractStarlinkFields - real Starlink Billing page (round 10 regressio
   });
 });
 
+describe("extractStarlinkFields - never stores a truncated renewal date (round 11 regression)", () => {
+  it("finds nothing rather than a corrupted date when the page splits year/month from the day", () => {
+    // Reproduces the user's real bug report: the account ended up bucketed under day "9" in the
+    // calendar - because "٢٠٢٦/٩" (missing the day) got accepted as a renewal date, and
+    // expiryDay()'s fallback then misread the bare month digit "9" as if it were the day.
+    const fields = extractFrom(`
+      <div class="home-banner">
+        <div>من المقرر أن تنتهي خدمتك في ٢٠٢٦/٩</div>
+        <div>٢٨.</div>
+      </div>
+    `);
+
+    expect(fields.renewalDate).toBeUndefined();
+  });
+
+  it("still accepts a complete date when the page keeps year/month/day together", () => {
+    const fields = extractFrom(`
+      <div>من المقرر أن تنتهي خدمتك في ٢٠٢٦/٩/٢٨.</div>
+    `);
+
+    expect(fields.renewalDate).toBe("2026/09/28");
+  });
+});
+
 describe("extractStarlinkFields - progressive, section-by-section reading", () => {
   it("returns only device fields when only the Devices section is on the page", () => {
     document.body.innerHTML = `

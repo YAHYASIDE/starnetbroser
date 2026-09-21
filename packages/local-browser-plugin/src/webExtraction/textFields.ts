@@ -176,6 +176,21 @@ export function normalizeDateLike(raw: string): string {
   return `${year}/${month.padStart(2, "0")}/${day.padStart(2, "0")}`;
 }
 
+const COMPLETE_DATE_PATTERN = /^\d{4}\/\d{2}\/\d{2}$/;
+
+/**
+ * True only for a complete, already-normalized "YYYY/MM/DD" - guards against a real page
+ * splitting a date's year/month from its day across separate text nodes (e.g. the label match
+ * captures "٢٠٢٦/٩" with the day on a following, unreached line): normalizeDateLike can't
+ * complete a truncated value like that, so it comes back unchanged (e.g. "في 2026/9") instead of
+ * a real date - and that must never be accepted as a renewal date. Downstream day-of-month
+ * parsing (expiryDay) falls back to scanning for *any* short number in unrecognized text, which
+ * would otherwise misread the bare "9" (the month) as if it were the day.
+ */
+export function isCompleteDate(value: string): boolean {
+  return COMPLETE_DATE_PATTERN.test(value);
+}
+
 /** Label-based first; falls back to the "ACC-..." pattern anywhere on the page when unlabeled. */
 export function extractAccountNumber(lines: string[], fullText: string): string | undefined {
   const labeled = extractLabeledValue(lines, ACCOUNT_NUMBER_LABELS);

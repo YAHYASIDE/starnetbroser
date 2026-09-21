@@ -15,6 +15,7 @@ import {
   extractDataUsageGb,
   extractLabeledValue,
   extractSubscriptionId,
+  isCompleteDate,
   normalizeDateLike,
   normalizeServiceStatus,
 } from "./textFields";
@@ -53,7 +54,15 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
   if (planName) fields.planName = planName;
 
   const renewalDate = extractLabeledValue(lines, RENEWAL_DATE_LABELS);
-  if (renewalDate) fields.renewalDate = normalizeDateLike(renewalDate);
+  if (renewalDate) {
+    const normalized = normalizeDateLike(renewalDate);
+    // A real page can split a date's year/month from its day across separate text nodes, so the
+    // label match only ever captures a truncated "٢٠٢٦/٩" - normalizeDateLike can't complete
+    // that, so it comes back unchanged instead of a real date. Never store that: a corrupted
+    // renewal date is worse than none, since expiryDay's fallback parsing can misread a bare
+    // month digit as if it were the day.
+    if (isCompleteDate(normalized)) fields.renewalDate = normalized;
+  }
 
   const balance = extractBalance(lines);
   if (balance) {

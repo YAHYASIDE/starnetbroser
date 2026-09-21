@@ -8,6 +8,7 @@ import {
   extractDataUsageGb,
   extractLabeledValue,
   extractSubscriptionId,
+  isCompleteDate,
   normalizeDateLike,
 } from "./textFields";
 
@@ -55,6 +56,32 @@ describe("normalizeDateLike", () => {
 
   it("passes through unrecognized shapes unchanged (after digit conversion)", () => {
     expect(normalizeDateLike("منتهي")).toBe("منتهي");
+  });
+
+  it("leaves a truncated year/month (no day) unchanged - never invents a day", () => {
+    // Reproduces a real bug: if a page splits a date's year/month from its day across separate
+    // text nodes, the label match can only ever capture "٢٠٢٦/٩" - this must never become a
+    // silently-wrong "2026/09" that looks like a real, complete date.
+    expect(normalizeDateLike("في ٢٠٢٦/٩")).toBe("في 2026/9");
+  });
+});
+
+describe("isCompleteDate - the last line of defense before a renewal date is ever stored", () => {
+  it("accepts a clean, fully zero-padded YYYY/MM/DD", () => {
+    expect(isCompleteDate("2026/09/28")).toBe(true);
+  });
+
+  it("rejects a truncated year/month with no day - the exact shape a split date node produces", () => {
+    expect(isCompleteDate("في 2026/9")).toBe(false);
+    expect(isCompleteDate("2026/9")).toBe(false);
+  });
+
+  it("rejects anything that isn't a date at all", () => {
+    expect(isCompleteDate("منتهي")).toBe(false);
+  });
+
+  it("rejects a non-zero-padded date - normalizeDateLike must have already run", () => {
+    expect(isCompleteDate("2026/9/28")).toBe(false);
   });
 });
 
