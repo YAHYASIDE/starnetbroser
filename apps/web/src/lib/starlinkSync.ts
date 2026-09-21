@@ -21,6 +21,7 @@ const FIELD_INFO: Record<keyof SyncedStarlinkFields, { label: string; section: S
   serviceStatus: { label: "حالة الاشتراك", section: "subscriptions" },
   planName: { label: "الخطة", section: "subscriptions" },
   renewalDate: { label: "تاريخ التجديد", section: "subscriptions" },
+  accountHolderName: { label: "اسم صاحب الحساب (Starlink)", section: "identifiers" },
   balanceDue: { label: "الرصيد المستحق", section: "billing" },
   currency: { label: "العملة", section: "billing" },
   accountNumber: { label: "رقم الحساب", section: "identifiers" },
@@ -64,9 +65,10 @@ function toDeviceStatus(value: SyncedDeviceStatus): DeviceStatus {
 /**
  * Applies Stage-1 synced fields onto one account. Deliberately narrow: only ever writes the
  * fields this sync feature is actually responsible for - never `name`, `customerId`, `id`,
- * `deviceName`, `alertReason`, `standbyDate` or anything a person entered by hand, and never a
- * person's name/email/phone (explicitly deferred). Skips any field the currently-open page
- * didn't actually have, so reading one section (e.g. just Devices) never blanks out data a
+ * `deviceName`, `alertReason`, `standbyDate` or anything a person entered by hand. The Starlink
+ * account holder's own name is written to the separate `starlinkAccountHolderName` field only -
+ * never to `name` - and email/phone stay explicitly deferred. Skips any field the currently-open
+ * page didn't actually have, so reading one section (e.g. just Devices) never blanks out data a
  * previous tap already found on another section (e.g. Billing) - results accumulate across taps.
  */
 export function mergeSyncedFields(
@@ -107,6 +109,12 @@ export function mergeSyncedFields(
   if (renewalDate) {
     note("renewalDate", next.rechargeDate !== renewalDate);
     next.rechargeDate = renewalDate;
+  }
+
+  const accountHolderName = fields.accountHolderName?.trim();
+  if (accountHolderName) {
+    note("accountHolderName", next.starlinkAccountHolderName !== accountHolderName);
+    next.starlinkAccountHolderName = accountHolderName;
   }
 
   // "0.00" is a real, confirmed zero balance, not an absent value - only check for undefined,

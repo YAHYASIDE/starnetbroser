@@ -142,6 +142,9 @@ describe("extractStarlinkFields - real Starlink card layout (round 6 regression)
 });
 
 describe("extractStarlinkFields - real Starlink home-page banner (round 7 regression)", () => {
+  // Fixture shape (multi-segment account number, "<name> • ACC-..." line, "$US"-prefixed
+  // balance, and the sentence-style standby countdown) matches a real Starlink home page the
+  // user shared - but every value below is a made-up placeholder, never the real one.
   it("reads the service-end date out of a sentence, not just a bare label:value pair", () => {
     const fields = extractFrom(`
       <div class="home-banner">
@@ -149,7 +152,7 @@ describe("extractStarlinkFields - real Starlink home-page banner (round 7 regres
         <div>استئناف</div>
       </div>
       <div class="account-header">
-        <div>chekzeyni taher • ACC-DF-15667575-14379-62</div>
+        <div>test holder • ACC-XX-11112222-33334-44</div>
       </div>
       <div class="balance-card">
         <div>ادفع</div>
@@ -159,11 +162,12 @@ describe("extractStarlinkFields - real Starlink home-page banner (round 7 regres
     `);
 
     expect(fields.renewalDate).toBe("2026/09/28");
-    expect(fields.accountNumber).toBe("ACC-DF-15667575-14379-62");
+    expect(fields.accountNumber).toBe("ACC-XX-11112222-33334-44");
     expect(fields.balanceDue).toBe("0.00");
     expect(fields.currency).toBe("USD");
-    // Never a person's name - explicitly deferred, even when it sits right next to the account number.
-    expect(fields).not.toHaveProperty("accountHolderName");
+    // The account holder's name IS now read, but kept as its own separate field - never
+    // confused with, or used to overwrite, the operator's own locally-entered customer name.
+    expect(fields.accountHolderName).toBe("test holder");
   });
 });
 

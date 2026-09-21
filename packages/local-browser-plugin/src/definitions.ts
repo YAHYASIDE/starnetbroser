@@ -45,8 +45,9 @@ export type SyncedServiceStatus = "active" | "standby" | "canceled" | "suspended
  * up alongside dishStatus is not expected, and that's fine; results across taps on different
  * sections (Devices, then Subscriptions, then Billing, ...) are meant to be merged cumulatively.
  *
- * Reading the Starlink account holder's name/email/phone is explicitly deferred - not part of
- * this field set.
+ * Reading the Starlink account holder's email/phone is still explicitly deferred. The account
+ * holder's name IS read (see `accountHolderName`), but kept separate from - and never used to
+ * overwrite - the operator's own locally-entered customer name.
  */
 export interface SyncedStarlinkFields {
   dishStatus?: SyncedDeviceStatus;
@@ -55,6 +56,9 @@ export interface SyncedStarlinkFields {
   serviceStatus?: SyncedServiceStatus;
   planName?: string;
   renewalDate?: string;
+  /** The Starlink account holder's own name, as Starlink reports it - see the field's own doc on
+   * StarlinkAccountSummary.starlinkAccountHolderName for why this stays separate from `name`. */
+  accountHolderName?: string;
   /** Always two decimal places, e.g. "0.00" - a real, confirmed zero balance, not "not found". */
   balanceDue?: string;
   /** Canonical form, e.g. "USD" - "$", "US$", "$US" and "USD" all normalize to this. */

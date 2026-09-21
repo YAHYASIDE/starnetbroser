@@ -164,3 +164,19 @@ export function extractAccountNumber(lines: string[], fullText: string): string 
   const match = ACCOUNT_NUMBER_PATTERN.exec(fullText);
   return match ? match[0] : undefined;
 }
+
+/** The real Starlink home page shows "<holder name> • ACC-..." as one unlabeled line - only
+ * matches when the text is immediately followed by a recognized account-number shape, so
+ * arbitrary page text is never mistaken for a person's name. */
+const NAME_BEFORE_ACCOUNT_PATTERN = /^(.+?)\s*[•·]\s*ACC-[A-Za-z0-9-]{2,}\b/;
+
+export function extractAccountHolderName(lines: string[]): string | undefined {
+  for (const line of lines) {
+    const match = NAME_BEFORE_ACCOUNT_PATTERN.exec(line);
+    if (match) {
+      const name = match[1].trim();
+      if (name) return name;
+    }
+  }
+  return undefined;
+}

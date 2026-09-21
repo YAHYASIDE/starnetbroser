@@ -123,6 +123,9 @@ export function AccountDialog({ mode, account, onClose, onSave, onDelete }: Prop
             <div><span>حالة Wi-Fi</span><strong>{statusOptions.find((item) => item.value === draft.wifiStatus)?.label ?? "—"}</strong></div>
             {draft.accountNumber && <div><span>رقم الحساب</span><strong dir="ltr">{draft.accountNumber}</strong></div>}
             {draft.starlinkId && <div><span>معرف Starlink</span><strong dir="ltr">{draft.starlinkId}</strong></div>}
+            {draft.starlinkAccountHolderName && (
+              <div><span>اسم صاحب الحساب (Starlink)</span><strong>{draft.starlinkAccountHolderName}</strong></div>
+            )}
             {presentServiceStatus(draft.serviceStatus) && (
               <div><span>حالة الاشتراك (Starlink)</span><strong>{presentServiceStatus(draft.serviceStatus)!.label}</strong></div>
             )}

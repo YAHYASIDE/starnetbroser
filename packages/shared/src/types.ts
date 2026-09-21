@@ -82,11 +82,14 @@ export interface StarlinkAccountSummary {
   starlinkId?: string;
   /** Normalized to "active" | "standby" | "canceled" | "suspended" - never left as raw page text. */
   serviceStatus?: string;
-  // Reading the Starlink account holder's name/email/phone from Starlink sync is explicitly
-  // deferred - `phone` below is unrelated: a manually-entered local customer contact number (like
+  // Reading the Starlink account holder's email/phone from Starlink sync is still explicitly
+  // deferred. `phone` below is unrelated: a manually-entered local customer contact number (like
   // `name`), used only for the "تواصل عبر واتساب" card action, never touched by Starlink sync.
   /** Manually entered by the STAR NET operator - optional since older/existing accounts won't have one. */
   phone?: string;
+  /** The account holder's name as Starlink itself reports it - kept deliberately separate from
+   * `name` (the operator's own local customer name) and never used to overwrite it. */
+  starlinkAccountHolderName?: string;
 }
 
 /** Detail-view shape - includes decrypted secrets, only ever returned to

@@ -64,6 +64,13 @@ describe("mergeSyncedFields - scanned vs. changed", () => {
     expect(result.account.name).toBe("mounay");
   });
 
+  it("writes the Starlink account holder's name to its own separate field, never onto the local customer name", () => {
+    const result = mergeSyncedFields(baseAccount({ name: "mounay" }), { accountHolderName: "test holder" });
+    expect(result.account.name).toBe("mounay");
+    expect(result.account.starlinkAccountHolderName).toBe("test holder");
+    expect(result.updatedFields.map((f) => f.field)).toEqual(["accountHolderName"]);
+  });
+
   it("treats a confirmed 0.00 balance as a real value, not an absent one", () => {
     const result = mergeSyncedFields(baseAccount({ balanceDue: "5.00" }), { balanceDue: "0.00", currency: "USD" });
     expect(result.account.balanceDue).toBe("0.00");
