@@ -12,9 +12,13 @@ interface Props {
   account: StarlinkAccountSummary;
   onEdit: (account: StarlinkAccountSummary) => void;
   onInfo: (account: StarlinkAccountSummary) => void;
+  /** Sum of this account's local customer-ledger entries - see ledgerStore.ts. Never the same
+   * thing as account.balanceDue (Starlink's own synced subscription balance). */
+  ledgerBalance: number;
+  onLedger: (account: StarlinkAccountSummary) => void;
 }
 
-export function AccountCard({ account, onEdit, onInfo }: Props) {
+export function AccountCard({ account, onEdit, onInfo, ledgerBalance, onLedger }: Props) {
   const dish = presentStatus(account.dishStatus);
   const wifi = presentStatus(account.wifiStatus);
   const serviceStatus = presentServiceStatus(account.serviceStatus);
@@ -152,6 +156,20 @@ export function AccountCard({ account, onEdit, onInfo }: Props) {
           {account.dataUsageGb && <span>الاستهلاك: <strong dir="ltr">{account.dataUsageGb} GB</strong></span>}
         </div>
       )}
+
+      <div className="account-card-ledger-row">
+        <span className="account-card-label">حساب الزبون</span>
+        {ledgerBalance > 0 ? (
+          <span className="badge badge-red">عليه {account.currency}{ledgerBalance.toFixed(2)}</span>
+        ) : ledgerBalance < 0 ? (
+          <span className="badge badge-green">له {account.currency}{(-ledgerBalance).toFixed(2)}</span>
+        ) : (
+          <span className="badge badge-green">لا يوجد مستحق</span>
+        )}
+        <button className="ledger-open-btn" type="button" onClick={() => onLedger(account)}>
+          السجل
+        </button>
+      </div>
 
       {emailMismatch && (
         <div className="account-card-alert">

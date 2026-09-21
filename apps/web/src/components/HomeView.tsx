@@ -9,7 +9,18 @@ import { AccountCard } from "./AccountCard";
 import { DayCircles } from "./DayCircles";
 import { ConnectionStatus } from "./ConnectionStatus";
 import { AccountDialog, AccountDialogMode } from "./AccountDialog";
+import { LedgerDialog } from "./LedgerDialog";
 import { daysRemainingNumber } from "@/lib/date";
+import {
+  computeBalance,
+  getAccountEntries,
+  LedgerByAccount,
+  LedgerEntry,
+  loadLedgerStore,
+  saveLedgerStore,
+  totalOwedAcrossAccounts,
+  withAccountEntries,
+} from "@/lib/ledgerStore";
 import { ApiError, listAccounts } from "@/lib/apiClient";
 import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
 import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
@@ -43,6 +54,21 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
   const [isAndroidApp, setIsAndroidApp] = useState(false);
   useEffect(() => setIsAndroidApp(isRunningInAndroidApp()), []);
   const [syncingNow, setSyncingNow] = useState(false);
+
+  // Purely local customer bookkeeping (see ledgerStore.ts) - starts empty (matches server render,
+  // which never has localStorage) and loads after mount, same hydration-safety reasoning as
+  // isAndroidApp above.
+  const [ledgerStore, setLedgerStore] = useState<LedgerByAccount>({});
+  useEffect(() => setLedgerStore(loadLedgerStore()), []);
+  const [ledgerAccount, setLedgerAccount] = useState<StarlinkAccountSummary | null>(null);
+
+  function updateLedgerEntries(accountId: string, entries: LedgerEntry[]) {
+    setLedgerStore((current) => {
+      const next = withAccountEntries(current, accountId, entries);
+      saveLedgerStore(next);
+      return next;
+    });
+  }
 
   async function handleSyncNow() {
     if (syncingNow) return;
@@ -345,6 +371,8 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
     return { total: accounts.length, online, expiringSoon, expired };
   }, [accounts]);
 
+  const totalOwedByCustomers = useMemo(() => totalOwedAcrossAccounts(ledgerStore), [ledgerStore]);
+
   const filtered = useMemo(() => {
     let list = accounts;
     if (selectedDay !== null) {
@@ -448,6 +476,11 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
           <span className="overview-value">{overview.expired}</span>
           <span className="overview-label">منتهي</span>
         </article>
+        <article className="overview-card overview-owed">
+          <span className="overview-icon" aria-hidden="true">₋</span>
+          <span className="overview-value">{totalOwedByCustomers.toFixed(2)}</span>
+          <span className="overview-label">مستحق من العملاء</span>
+        </article>
       </section>
 
       <section className="section dashboard-section">
@@ -488,6 +521,8 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
                 account={account}
                 onInfo={(selected) => setDialog({ mode: "view", account: selected })}
                 onEdit={(selected) => setDialog({ mode: "edit", account: selected })}
+                ledgerBalance={computeBalance(getAccountEntries(ledgerStore, account.id))}
+                onLedger={(selected) => setLedgerAccount(selected)}
               />
             ))}
           </div>
@@ -501,6 +536,16 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
           onClose={() => setDialog(null)}
           onSave={saveAccount}
           onDelete={deleteAccount}
+        />
+      )}
+
+      {ledgerAccount && (
+        <LedgerDialog
+          accountName={ledgerAccount.name}
+          currency={ledgerAccount.currency}
+          entries={getAccountEntries(ledgerStore, ledgerAccount.id)}
+          onClose={() => setLedgerAccount(null)}
+          onChange={(entries) => updateLedgerEntries(ledgerAccount.id, entries)}
         />
       )}
     </main>
