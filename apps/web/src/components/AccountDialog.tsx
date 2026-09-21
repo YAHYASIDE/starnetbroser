@@ -2,6 +2,8 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { DeviceStatus, StarlinkAccountSummary } from "@starnet/shared";
+import { formatRelativeTime } from "@/lib/date";
+import { presentServiceStatus } from "@/lib/status";
 
 export type AccountDialogMode = "add" | "edit" | "view";
 
@@ -116,6 +118,14 @@ export function AccountDialog({ mode, account, onClose, onSave, onDelete }: Prop
             <div><span>الرصيد المستحق</span><strong dir="ltr">{draft.currency}{displayValue(draft.balanceDue)}</strong></div>
             <div><span>حالة الجهاز</span><strong>{statusOptions.find((item) => item.value === draft.dishStatus)?.label ?? "—"}</strong></div>
             <div><span>حالة Wi-Fi</span><strong>{statusOptions.find((item) => item.value === draft.wifiStatus)?.label ?? "—"}</strong></div>
+            {draft.accountNumber && <div><span>رقم الحساب</span><strong dir="ltr">{draft.accountNumber}</strong></div>}
+            {draft.starlinkId && <div><span>معرف Starlink</span><strong dir="ltr">{draft.starlinkId}</strong></div>}
+            {presentServiceStatus(draft.serviceStatus) && (
+              <div><span>حالة الاشتراك (Starlink)</span><strong>{presentServiceStatus(draft.serviceStatus)!.label}</strong></div>
+            )}
+            {formatRelativeTime(draft.lastSuccessfulScanAt) && (
+              <div><span>آخر مزامنة من Starlink</span><strong>{formatRelativeTime(draft.lastSuccessfulScanAt)}</strong></div>
+            )}
             <div className="info-wide"><span>التنبيه</span><strong>{displayValue(draft.alertReason)}</strong></div>
           </div>
         ) : (

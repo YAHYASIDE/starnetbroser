@@ -21,3 +21,24 @@ export function daysRemainingLabel(dateStr: string): string | null {
   if (diffDays === -1) return "منتهٍ منذ يوم";
   return `منتهٍ منذ ${Math.abs(diffDays)} يومًا`;
 }
+
+/** Best-effort relative-time label for an ISO timestamp (e.g. lastSuccessfulScanAt) - null for a
+ * missing/unparseable value, so callers can tell "never synced" from "synced a while ago". */
+export function formatRelativeTime(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const then = new Date(iso);
+  if (Number.isNaN(then.getTime())) return null;
+
+  const diffMs = Date.now() - then.getTime();
+  const diffMinutes = Math.round(diffMs / 60_000);
+  if (diffMinutes < 1) return "الآن";
+  if (diffMinutes < 60) return `منذ ${diffMinutes} دقيقة`;
+
+  const diffHours = Math.round(diffMinutes / 60);
+  if (diffHours < 24) return `منذ ${diffHours} ساعة`;
+
+  const diffDays = Math.round(diffHours / 24);
+  if (diffDays < 7) return `منذ ${diffDays} يوم`;
+
+  return then.toLocaleDateString("ar", { day: "numeric", month: "short" });
+}

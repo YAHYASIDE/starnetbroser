@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
-import { presentStatus, isBalanceDueZero } from "@/lib/status";
-import { daysRemainingLabel, daysRemainingNumber } from "@/lib/date";
+import { presentStatus, presentServiceStatus, isBalanceDueZero } from "@/lib/status";
+import { daysRemainingLabel, daysRemainingNumber, formatRelativeTime } from "@/lib/date";
 import { isRunningInAndroidApp, openIsolatedAccountBrowser } from "@/lib/localBrowser";
 
 interface Props {
@@ -15,6 +15,8 @@ interface Props {
 export function AccountCard({ account, onEdit, onInfo }: Props) {
   const dish = presentStatus(account.dishStatus);
   const wifi = presentStatus(account.wifiStatus);
+  const serviceStatus = presentServiceStatus(account.serviceStatus);
+  const lastSynced = formatRelativeTime(account.lastSuccessfulScanAt);
   const remaining = daysRemainingLabel(account.rechargeDate || account.standbyDate);
   const remainingDays = daysRemainingNumber(account.rechargeDate || account.standbyDate);
   const balanceIsZero = isBalanceDueZero(account.balanceDue);
@@ -53,7 +55,10 @@ export function AccountCard({ account, onEdit, onInfo }: Props) {
           <span className="account-avatar" aria-hidden="true">{account.name.trim().charAt(0) || "★"}</span>
           <div>
             <h3 className="account-card-name">{account.name}</h3>
-            <p className="account-card-plan">{account.planName || account.deviceName || "حساب Starlink"}</p>
+            <div className="account-card-plan-row">
+              <p className="account-card-plan">{account.planName || account.deviceName || "حساب Starlink"}</p>
+              {serviceStatus && <span className={`badge ${serviceStatus.className}`}>{serviceStatus.label}</span>}
+            </div>
           </div>
         </div>
         <div className="account-statuses" aria-label="حالة الاتصال">
@@ -91,6 +96,7 @@ export function AccountCard({ account, onEdit, onInfo }: Props) {
 
       <div className="account-card-footer">
         <span className="account-card-updated">آخر تحديث: {account.lastUpdated || "—"}</span>
+        {lastSynced && <span className="account-card-synced">آخر مزامنة من Starlink: {lastSynced}</span>}
         <div className="account-card-actions">
           <button
             className="card-action card-action-primary"

@@ -31,3 +31,26 @@ export function isBalanceDueZero(balanceDue: string): boolean {
   const numeric = Number(balanceDue.replace(/[^\d.-]/g, ""));
   return Number.isFinite(numeric) && numeric === 0;
 }
+
+export interface BadgePresentation {
+  className: string;
+  label: string;
+}
+
+/** Stage-1 Starlink-sync service status (see StarlinkAccountSummary.serviceStatus) - undefined
+ * means no account has ever synced this field, which must render as "nothing to show", never a
+ * guessed default. */
+export function presentServiceStatus(status: string | undefined): BadgePresentation | null {
+  switch (status) {
+    case "active":
+      return { className: "badge-green", label: "نشط" };
+    case "standby":
+      return { className: "badge-yellow", label: "بانتظار التفعيل" };
+    case "suspended":
+      return { className: "badge-red", label: "موقوف" };
+    case "canceled":
+      return { className: "badge-gray", label: "ملغى" };
+    default:
+      return null;
+  }
+}
