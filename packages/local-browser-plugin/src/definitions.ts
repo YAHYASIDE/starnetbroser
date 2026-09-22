@@ -49,9 +49,12 @@ export type SyncedServiceStatus = "active" | "standby" | "canceled" | "suspended
  * `accountEmail`). Per explicit product decision, `accountHolderName` is written to its own
  * separate field (`starlinkAccountHolderName`, see mergeSyncedFields in apps/web) - the card shows
  * it alongside the operator's own `name` as two distinct slots, never merging or overwriting one
- * with the other. `phone` is a separate concern: the Settings page's phone number is deliberately
- * never read at all, since it's the Starlink account's own contact number, unrelated to (and never
- * to be confused with) the operator's manually-entered WhatsApp `phone`.
+ * with the other. `phone`, read from the same Settings page, IS merged onto the operator's own
+ * WhatsApp `phone` field - each account browses in its own isolated session (a separate Starlink
+ * login per account/customer, the whole point of this app), so that number genuinely is this
+ * customer's own contact number, not a reseller-wide login's. Per explicit product decision
+ * mergeSyncedFields only ever fills this in when the operator hasn't already entered one by hand -
+ * see that function's own doc for why a sync must never silently overwrite a manual entry.
  */
 export interface SyncedStarlinkFields {
   dishStatus?: SyncedDeviceStatus;
@@ -63,9 +66,12 @@ export interface SyncedStarlinkFields {
   /** The Starlink account holder's own name, as Starlink reports it - written to its own separate
    * field, never onto the account's `name` (see this interface's own doc comment). */
   accountHolderName?: string;
-  /** The account's registered login email, read from the Settings page - never the phone number
-   * on that same page, which is unrelated and deliberately never read. */
+  /** The account's registered login email, read from the Settings page. */
   accountEmail?: string;
+  /** The account's registered contact phone, read from the same Settings page as `accountEmail` -
+   * see this interface's own doc for why this one (unlike every other synced field) is only ever
+   * used to fill in a currently-empty `phone`, never to overwrite one already set. */
+  phone?: string;
   /** Starts with "SL-" - the subscription's own identifier, never confused with accountNumber
    * ("ACC-...") or starlinkId (the dish's identifier). */
   subscriptionId?: string;

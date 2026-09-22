@@ -124,10 +124,15 @@ export const DATA_USAGE_LABELS = [
   "total usage", "total data usage", "data usage", "إجمالي استهلاك الباقة", "استهلاك الباقة",
 ];
 
-/** The account's registered login email, from the Settings page - deliberately never the phone
- * number on that same page (a separate, unrelated contact number - never the operator's WhatsApp
- * number, and never read at all). */
+/** The account's registered login email, from the Settings page. */
 export const EMAIL_LABELS = ["email", "e-mail", "البريد الإلكتروني", "الإيميل"];
+
+/** The account's registered contact phone, from the same Settings page as EMAIL_LABELS - each
+ * account browses Starlink in its own isolated session (a separate login per account/customer),
+ * so unlike a shared reseller login this genuinely is that customer's own number. See
+ * SyncedStarlinkFields.phone's own doc for why mergeSyncedFields still only ever fills this in
+ * when the operator hasn't already entered a WhatsApp number by hand. */
+export const PHONE_LABELS = ["phone", "phone number", "رقم الهاتف", "الهاتف"];
 
 /** Every recognized label, across every field - used to recognize "this line is a DIFFERENT
  * field's label, not this field's value" during the forward-lookahead in extractLabeledValue.
@@ -147,6 +152,7 @@ const ALL_LABELS = [
   ...BALANCE_LABELS,
   ...DATA_USAGE_LABELS,
   ...EMAIL_LABELS,
+  ...PHONE_LABELS,
 ];
 
 /** Action-button words a card commonly places right under/beside a label (e.g. "إدارة"/"Manage",
@@ -357,4 +363,17 @@ export function extractAccountEmail(lines: string[]): string | undefined {
   const raw = extractLabeledValue(lines, EMAIL_LABELS)?.trim();
   if (!raw) return undefined;
   return EMAIL_SHAPE_PATTERN.test(raw) ? raw : undefined;
+}
+
+const PHONE_SHAPE_PATTERN = /^\+?[\d\s-]+$/;
+
+/** Only ever returns something that actually looks like a phone number - a mislabeled or
+ * misaligned value (e.g. the email on the same Settings page) is discarded rather than stored as
+ * a fabricated number. Requires at least 6 digits so a stray short value never passes. */
+export function extractPhoneNumber(lines: string[]): string | undefined {
+  const raw = extractLabeledValue(lines, PHONE_LABELS)?.trim();
+  if (!raw) return undefined;
+  if (!PHONE_SHAPE_PATTERN.test(raw)) return undefined;
+  const digitCount = (raw.match(/\d/g) ?? []).length;
+  return digitCount >= 6 ? raw : undefined;
 }

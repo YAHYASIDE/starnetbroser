@@ -8,6 +8,7 @@ import {
   extractBillingDueDay,
   extractDataUsageGb,
   extractLabeledValue,
+  extractPhoneNumber,
   extractPlanBadgeStatus,
   extractPlanName,
   extractRenewalBadgeDate,
@@ -246,6 +247,32 @@ describe("extractAccountEmail - Settings page, never the phone number on the sam
 
   it("returns undefined when there is no email label on the page at all", () => {
     expect(extractAccountEmail(["Welcome to your account"])).toBeUndefined();
+  });
+});
+
+describe("extractPhoneNumber - Settings page contact number", () => {
+  it("reads the phone from its own Arabic-labeled line", () => {
+    const lines = ["رقم الهاتف", "+22212345678"];
+    expect(extractPhoneNumber(lines)).toBe("+22212345678");
+  });
+
+  it("reads the phone from its own English-labeled line", () => {
+    const lines = ["Phone", "+22212345678"];
+    expect(extractPhoneNumber(lines)).toBe("+22212345678");
+  });
+
+  it("never mistakes the email on the same Settings page for a phone number", () => {
+    const lines = ["البريد الإلكتروني", "test.holder@example.com", "رقم الهاتف", "+22212345678"];
+    expect(extractPhoneNumber(lines)).toBe("+22212345678");
+  });
+
+  it("discards a value that doesn't actually look like a phone number, rather than fabricating one", () => {
+    const lines = ["رقم الهاتف", "test.holder@example.com"];
+    expect(extractPhoneNumber(lines)).toBeUndefined();
+  });
+
+  it("returns undefined when there is no phone label on the page at all", () => {
+    expect(extractPhoneNumber(["Welcome to your account"])).toBeUndefined();
   });
 });
 

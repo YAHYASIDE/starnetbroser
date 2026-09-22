@@ -85,7 +85,7 @@ describe("extractStarlinkFields - English page", () => {
     expect(fields.kitNumber).toBe("KIT-000111");
   });
 
-  it("never reads a person's name, email or phone - deferred", () => {
+  it("never fabricates an account holder name when the page has none", () => {
     expect(fields).not.toHaveProperty("accountHolderName");
   });
 });
@@ -211,7 +211,7 @@ describe("extractStarlinkFields - real Starlink Devices + Subscription pages (ro
 describe("extractStarlinkFields - real Starlink Settings page (round 9 regression)", () => {
   // Fixture shape matches the real Settings page the user shared - every value below is a
   // made-up placeholder, never the real one.
-  it("reads the registered email but never the phone number shown on the same page", () => {
+  it("reads both the registered email and the phone number shown on the same page", () => {
     const fields = extractFrom(`
       <div class="profile-form">
         <div>الاسم</div>
@@ -224,10 +224,7 @@ describe("extractStarlinkFields - real Starlink Settings page (round 9 regressio
     `);
 
     expect(fields.accountEmail).toBe("test.holder@example.com");
-    // The Settings page's phone number is a different, unrelated number - deliberately never
-    // read at all, so it must never end up on any field this extractor returns.
-    expect(fields).not.toHaveProperty("phone");
-    expect(Object.values(fields)).not.toContain("+22212345678");
+    expect(fields.phone).toBe("+22212345678");
   });
 });
 

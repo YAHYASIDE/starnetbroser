@@ -91,6 +91,18 @@ describe("mergeSyncedFields - scanned vs. changed", () => {
     expect(result.account.balanceDue).toBe("0.00");
     expect(result.updatedFields.map((f) => f.field)).toContain("balanceDue");
   });
+
+  it("fills in the phone from Starlink when the operator hasn't entered one yet", () => {
+    const result = mergeSyncedFields(baseAccount({ phone: "" }), { phone: "22212345678" });
+    expect(result.account.phone).toBe("22212345678");
+    expect(result.updatedFields.map((f) => f.field)).toEqual(["phone"]);
+  });
+
+  it("never overwrites a phone number the operator already entered by hand", () => {
+    const result = mergeSyncedFields(baseAccount({ phone: "22299998888" }), { phone: "22212345678" });
+    expect(result.account.phone).toBe("22299998888");
+    expect(result.updatedFields).toEqual([]);
+  });
 });
 
 describe("formatSyncMessage - three distinct outcomes", () => {

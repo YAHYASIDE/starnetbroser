@@ -23,6 +23,7 @@ const FIELD_INFO: Record<keyof SyncedStarlinkFields, { label: string; section: S
   renewalDate: { label: "تاريخ التجديد", section: "subscriptions" },
   accountHolderName: { label: "اسم صاحب الحساب (Starlink)", section: "identifiers" },
   accountEmail: { label: "البريد الإلكتروني (Starlink)", section: "identifiers" },
+  phone: { label: "رقم الهاتف", section: "identifiers" },
   balanceDue: { label: "الرصيد المستحق", section: "billing" },
   currency: { label: "العملة", section: "billing" },
   accountNumber: { label: "رقم الحساب", section: "identifiers" },
@@ -74,7 +75,10 @@ function toDeviceStatus(value: SyncedDeviceStatus): DeviceStatus {
  * distinct slots, never merging or overwriting one with the other. Skips any field the
  * currently-open page didn't actually have, so reading one section (e.g. just Devices) never
  * blanks out data a previous tap already found on another section (e.g. Billing) - results
- * accumulate across taps.
+ * accumulate across taps. `phone` is the one exception to "never a person entered by hand": it IS
+ * synced (each isolated account session has its own Starlink login, so the Settings page's phone
+ * genuinely is this customer's own number), but only ever fills in a currently-empty phone, never
+ * overwriting one the operator already typed in.
  */
 export function mergeSyncedFields(
   account: StarlinkAccountSummary,
@@ -126,6 +130,15 @@ export function mergeSyncedFields(
   if (accountEmail) {
     note("accountEmail", next.starlinkAccountEmail !== accountEmail);
     next.starlinkAccountEmail = accountEmail;
+  }
+
+  // Unlike every other field here, `phone` is also a manually-editable operator field (the
+  // WhatsApp contact number, see AccountDialog) - a sync must never silently overwrite one the
+  // operator already typed in by hand, so this only ever fills in a currently-empty phone.
+  const phone = fields.phone?.trim();
+  if (phone && !next.phone?.trim()) {
+    note("phone", true);
+    next.phone = phone;
   }
 
   // "0.00" is a real, confirmed zero balance, not an absent value - only check for undefined,

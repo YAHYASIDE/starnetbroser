@@ -14,6 +14,7 @@ import {
   extractBillingDueDay,
   extractDataUsageGb,
   extractLabeledValue,
+  extractPhoneNumber,
   extractPlanBadgeStatus,
   extractPlanName,
   extractRenewalBadgeDate,
@@ -99,6 +100,9 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
 
   const accountEmail = extractAccountEmail(lines);
   if (accountEmail) fields.accountEmail = accountEmail;
+
+  const phone = extractPhoneNumber(lines);
+  if (phone) fields.phone = phone;
 
   const subscriptionId = extractSubscriptionId(text);
   if (subscriptionId) fields.subscriptionId = subscriptionId;
