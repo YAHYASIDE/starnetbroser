@@ -1127,6 +1127,25 @@ a.btn-icon {
   background: linear-gradient(90deg, var(--brand), var(--brand-strong));
 }
 
+.account-card-suspended {
+  border-color: var(--red);
+  background: color-mix(in srgb, var(--red) 6%, var(--surface));
+}
+
+.account-card-suspended::before {
+  background: var(--red);
+}
+
+.account-card-suspended-banner {
+  background: var(--red);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: center;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+}
+
 .account-card-identity-row {
   display: flex;
   align-items: center;

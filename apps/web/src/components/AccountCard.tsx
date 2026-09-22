@@ -152,6 +152,10 @@ export function AccountCard({ account, onEdit, onInfo, ledgerEntries, allocation
   const balanceUsdEquivalent =
     balanceRate !== undefined && Number.isFinite(balanceNumeric) ? toUsd(balanceNumeric, balanceRate) : undefined;
   const emailMismatch = emailsMismatch(account.expectedEmail, account.starlinkAccountEmail);
+  // A suspended service is almost always a real, urgent problem (usually an unpaid Starlink
+  // invoice) - the whole card turns red rather than just the small status badge, so it's
+  // impossible to miss while scanning a long list of cards.
+  const isSuspended = account.serviceStatus === "suspended";
   const urgencyClass = remainingDays === null
     ? "date-neutral"
     : remainingDays < 0
@@ -270,7 +274,13 @@ export function AccountCard({ account, onEdit, onInfo, ledgerEntries, allocation
   );
 
   return (
-    <article className="account-card">
+    <article className={`account-card${isSuspended ? " account-card-suspended" : ""}`}>
+      {isSuspended && (
+        <div className="account-card-suspended-banner">
+          ⚠️ الخدمة موقوفة — تحقق من فواتير Starlink غير المسددة
+        </div>
+      )}
+
       <div className="account-card-identity-row">
         <div className="account-card-starlink-chip">
           <IconDish />

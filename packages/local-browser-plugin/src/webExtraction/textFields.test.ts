@@ -139,6 +139,13 @@ describe("extractPlanBadgeStatus - scoped near 'خطة الخدمة', never a ba
     const lines = ["خطة الخدمة", "إدارة", "النهاية ٢٠٢٦/٩/٢٨", "التجوال - غير محدود", "الجهاز نشط ومتصل الآن"];
     expect(extractPlanBadgeStatus(lines)).toBeUndefined();
   });
+
+  it("detects the diacritic-marked 'مُعلَّق' (suspended-for-billing) badge - real, confirmed miss", () => {
+    // The real page renders this badge WITH Arabic tashkeel marks - same base letters as
+    // SUSPENDED_WORDS' plain "معلق" but a bare .includes() never matches through the marks.
+    const lines = ["خطة الخدمة", "إدارة", "مُعلَّق", "التجوال - غير محدود"];
+    expect(extractPlanBadgeStatus(lines)).toBe("suspended");
+  });
 });
 
 describe("extractPlanName - never returns the status badge word as if it were the plan name", () => {
@@ -155,6 +162,11 @@ describe("extractPlanName - never returns the status badge word as if it were th
   it("returns the plan name directly when there is no status badge at all", () => {
     const lines = ["Plan", "Residential"];
     expect(extractPlanName(lines)).toBe("Residential");
+  });
+
+  it("skips the diacritic-marked 'مُعلَّق' badge too, rather than storing it as the plan name (real bug)", () => {
+    const lines = ["خطة الخدمة", "إدارة", "مُعلَّق", "التجوال - غير محدود"];
+    expect(extractPlanName(lines)).toBe("التجوال - غير محدود");
   });
 });
 

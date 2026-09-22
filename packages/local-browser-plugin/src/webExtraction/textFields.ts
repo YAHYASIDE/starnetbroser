@@ -170,10 +170,23 @@ const SUSPENDED_WORDS = ["suspended", "موقوف", "معلق"];
 
 export type NormalizedServiceStatus = "active" | "standby" | "canceled" | "suspended";
 
+// Arabic combining diacritics (tashkeel: fatha/damma/kasra/shadda/sukun/tanwin) plus the
+// superscript alef - the real Starlink page renders a suspended badge as "مُعلَّق" (with these
+// marks), which has the same base letters as SUSPENDED_WORDS' plain "معلق" but never matches it
+// via a raw .includes() - the marks are their own Unicode codepoints sitting between the letters.
+// Stripped before any word-list match so a diacritic-laden badge is recognized the same as a bare
+// one, rather than silently falling through to "not a known status" (and, in extractPlanName's
+// case, being mistaken for the plan's actual name instead of a badge to skip).
+const ARABIC_DIACRITICS_PATTERN = /[ً-ٰٟ]/g;
+
+function stripArabicDiacritics(text: string): string {
+  return text.replace(ARABIC_DIACRITICS_PATTERN, "");
+}
+
 /** Raw page text ("Active"/"نشط"/...) normalized to one fixed value - never left as free text. */
 export function normalizeServiceStatus(raw: string | undefined): NormalizedServiceStatus | undefined {
   if (!raw) return undefined;
-  const lower = raw.toLowerCase();
+  const lower = stripArabicDiacritics(raw).toLowerCase();
   if (CANCELED_WORDS.some((word) => lower.includes(word))) return "canceled";
   if (SUSPENDED_WORDS.some((word) => lower.includes(word))) return "suspended";
   if (STANDBY_WORDS.some((word) => lower.includes(word))) return "standby";
