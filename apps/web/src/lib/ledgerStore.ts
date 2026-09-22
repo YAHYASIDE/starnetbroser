@@ -7,14 +7,36 @@
 
 export type LedgerEntryKind = "debit" | "credit";
 
+/** Exactly the three currencies actually used for these transactions - never a free-text field. */
+export type LedgerCurrency = "USD" | "MRU" | "SIFA";
+export const LEDGER_CURRENCIES: LedgerCurrency[] = ["USD", "MRU", "SIFA"];
+export const LEDGER_CURRENCY_LABELS: Record<LedgerCurrency, string> = {
+  USD: "دولار",
+  MRU: "أوقية",
+  SIFA: "سيفا",
+};
+
+/** STAR NET's own payment-collection channels (same ones quoted to customers in
+ * whatsapp.ts#buildBalanceReminderMessage) - recorded per "له" entry so it's clear which channel
+ * a given payment actually came in on. Meaningless for a "عليه" entry (a charge, not a payment). */
+export type PaymentMethod = "nita" | "bankily" | "sedad" | "orange";
+export const PAYMENT_METHODS: PaymentMethod[] = ["nita", "bankily", "sedad", "orange"];
+
 export interface LedgerEntry {
   id: string;
-  /** "debit": the customer now owes more (a charge). "credit": a payment or credit that reduces
-   * what they owe. */
+  /** "debit" (عليه): the customer now owes more. "credit" (له): a payment that reduces what they
+   * owe. */
   kind: LedgerEntryKind;
   /** Always positive - direction comes from `kind`, never a signed amount. */
   amount: number;
+  currency: LedgerCurrency;
   note: string;
+  /** The email a payment is tied to (e.g. the customer's e-wallet/bank login) - purely for the
+   * operator's own traceability, never validated or used to contact anyone. */
+  email: string;
+  /** Only meaningful for a "credit" (له) entry - which of STAR NET's own payment channels the
+   * money came in on. Left unset for a "debit" entry. */
+  paymentMethod?: PaymentMethod;
   /** yyyy-mm-dd, user-editable (defaults to today, but a backdated entry is legitimate). */
   date: string;
   /** ISO timestamp - only used to order same-day entries relative to each other. */
@@ -22,6 +44,11 @@ export interface LedgerEntry {
 }
 
 export type LedgerByAccount = Record<string, LedgerEntry[]>;
+
+/** A balance is never a single number once entries can be in different currencies - USD/MRU/SIFA
+ * amounts are never summed together, only within their own currency. Absent key = no entries in
+ * that currency. */
+export type BalanceByCurrency = Partial<Record<LedgerCurrency, number>>;
 
 const STORAGE_KEY = "starnet_customer_ledger_v1";
 
@@ -53,10 +80,16 @@ export function withAccountEntries(store: LedgerByAccount, accountId: string, en
   return { ...store, [accountId]: entries };
 }
 
-/** Positive = the customer owes this much (مدين). Negative = the customer has this much credit
- * with the operator (دائن). Zero = settled. */
-export function computeBalance(entries: LedgerEntry[]): number {
-  return entries.reduce((total, entry) => total + (entry.kind === "debit" ? entry.amount : -entry.amount), 0);
+/** Per currency: positive = the customer owes this much (مدين) in that currency. Negative = the
+ * customer has this much credit (دائن) in that currency. A currency with no entries is simply
+ * absent from the result, not zero. */
+export function computeBalanceByCurrency(entries: LedgerEntry[]): BalanceByCurrency {
+  const balances: BalanceByCurrency = {};
+  for (const entry of entries) {
+    const delta = entry.kind === "debit" ? entry.amount : -entry.amount;
+    balances[entry.currency] = (balances[entry.currency] ?? 0) + delta;
+  }
+  return balances;
 }
 
 /** Newest first: by `date`, then by `createdAt` to order same-day entries deterministically. */
@@ -75,19 +108,45 @@ export function removeEntry(entries: LedgerEntry[], entryId: string): LedgerEntr
   return entries.filter((entry) => entry.id !== entryId);
 }
 
-export function createLedgerEntry(kind: LedgerEntryKind, amount: number, note: string, date: string): LedgerEntry {
-  const id =
-    typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `ledger-${Date.now()}-${Math.random()}`;
-  return { id, kind, amount, note: note.trim(), date, createdAt: new Date().toISOString() };
+export interface CreateLedgerEntryInput {
+  kind: LedgerEntryKind;
+  amount: number;
+  currency: LedgerCurrency;
+  note: string;
+  email: string;
+  /** Ignored (never stored) for a "debit" entry - a charge has no payment channel. */
+  paymentMethod?: PaymentMethod;
+  date: string;
 }
 
-/** Sum of every account's positive balance (what customers owe) - accounts in credit don't offset
- * this total, since that would understate how much is actually outstanding across the business. */
-export function totalOwedAcrossAccounts(store: LedgerByAccount): number {
-  let total = 0;
+export function createLedgerEntry(input: CreateLedgerEntryInput): LedgerEntry {
+  const id =
+    typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `ledger-${Date.now()}-${Math.random()}`;
+  return {
+    id,
+    kind: input.kind,
+    amount: input.amount,
+    currency: input.currency,
+    note: input.note.trim(),
+    email: input.email.trim(),
+    paymentMethod: input.kind === "credit" ? input.paymentMethod : undefined,
+    date: input.date,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+/** Per currency, the sum of every account's positive balance (what customers owe) - accounts in
+ * credit don't offset this total, since that would understate how much is actually outstanding. */
+export function totalOwedAcrossAccounts(store: LedgerByAccount): BalanceByCurrency {
+  const totals: BalanceByCurrency = {};
   for (const entries of Object.values(store)) {
-    const balance = computeBalance(entries);
-    if (balance > 0) total += balance;
+    const balances = computeBalanceByCurrency(entries);
+    for (const currency of LEDGER_CURRENCIES) {
+      const balance = balances[currency];
+      if (balance !== undefined && balance > 0) {
+        totals[currency] = (totals[currency] ?? 0) + balance;
+      }
+    }
   }
-  return total;
+  return totals;
 }

@@ -1245,12 +1245,18 @@ a.btn-icon {
   max-width: 420px;
 }
 
+.ledger-balance-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
 .ledger-balance-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 10px 12px;
-  margin-top: 10px;
   border-radius: var(--radius-sm);
   background: var(--surface-alt);
   font-weight: 700;
@@ -1264,6 +1270,8 @@ a.btn-icon {
 }
 
 .ledger-note-input,
+.ledger-email-input,
+.ledger-payment-method-input,
 .ledger-form-error,
 .ledger-entry-form .dialog-primary {
   grid-column: span 2;
@@ -1288,13 +1296,27 @@ a.btn-icon {
 }
 
 .ledger-entry-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   font-size: 0.78rem;
+}
+
+.ledger-entry-row-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ledger-entry-row-bottom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
 }
 
 .ledger-entry-amount {
@@ -1303,15 +1325,19 @@ a.btn-icon {
 
 .ledger-entry-date {
   color: var(--text-muted);
+  margin-inline-start: auto;
 }
 
-.ledger-entry-note {
-  flex: 1;
-  min-width: 0;
-  color: var(--text-muted);
+.ledger-entry-note,
+.ledger-entry-email {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.ledger-entry-method {
+  font-weight: 600;
+  color: var(--text);
 }
 
 .ledger-entry-delete {

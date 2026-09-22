@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addEntry,
-  computeBalance,
+  computeBalanceByCurrency,
   createLedgerEntry,
   getAccountEntries,
   LedgerEntry,
@@ -16,28 +16,44 @@ function entry(overrides: Partial<LedgerEntry> = {}): LedgerEntry {
     id: "e1",
     kind: "debit",
     amount: 10,
+    currency: "USD",
     note: "",
+    email: "",
     date: "2026-09-20",
     createdAt: "2026-09-20T10:00:00.000Z",
     ...overrides,
   };
 }
 
-describe("computeBalance", () => {
-  it("is zero for no entries", () => {
-    expect(computeBalance([])).toBe(0);
+describe("computeBalanceByCurrency", () => {
+  it("is empty for no entries", () => {
+    expect(computeBalanceByCurrency([])).toEqual({});
   });
 
-  it("sums debits as positive (customer owes)", () => {
-    expect(computeBalance([entry({ kind: "debit", amount: 10 }), entry({ kind: "debit", amount: 5 })])).toBe(15);
+  it("sums debits as positive (customer owes) within one currency", () => {
+    expect(
+      computeBalanceByCurrency([entry({ kind: "debit", amount: 10 }), entry({ kind: "debit", amount: 5 })]),
+    ).toEqual({ USD: 15 });
   });
 
   it("subtracts credits (payments reduce what's owed)", () => {
-    expect(computeBalance([entry({ kind: "debit", amount: 20 }), entry({ kind: "credit", amount: 8 })])).toBe(12);
+    expect(
+      computeBalanceByCurrency([entry({ kind: "debit", amount: 20 }), entry({ kind: "credit", amount: 8 })]),
+    ).toEqual({ USD: 12 });
   });
 
   it("goes negative once credits exceed debits (customer is in credit)", () => {
-    expect(computeBalance([entry({ kind: "debit", amount: 5 }), entry({ kind: "credit", amount: 20 })])).toBe(-15);
+    expect(
+      computeBalanceByCurrency([entry({ kind: "debit", amount: 5 }), entry({ kind: "credit", amount: 20 })]),
+    ).toEqual({ USD: -15 });
+  });
+
+  it("keeps different currencies fully separate, never summed together", () => {
+    const balances = computeBalanceByCurrency([
+      entry({ kind: "debit", amount: 45000, currency: "MRU" }),
+      entry({ kind: "credit", amount: 20, currency: "USD" }),
+    ]);
+    expect(balances).toEqual({ MRU: 45000, USD: -20 });
   });
 });
 
@@ -101,38 +117,74 @@ describe("getAccountEntries / withAccountEntries", () => {
 });
 
 describe("createLedgerEntry", () => {
-  it("trims the note and stores a positive amount as given", () => {
-    const created = createLedgerEntry("credit", 25, "  دفعة نقدية  ", "2026-09-21");
+  it("trims the note/email and stores a positive amount as given", () => {
+    const created = createLedgerEntry({
+      kind: "credit",
+      amount: 25,
+      currency: "MRU",
+      note: "  دفعة نقدية  ",
+      email: "  customer@example.com  ",
+      paymentMethod: "bankily",
+      date: "2026-09-21",
+    });
     expect(created.kind).toBe("credit");
     expect(created.amount).toBe(25);
+    expect(created.currency).toBe("MRU");
     expect(created.note).toBe("دفعة نقدية");
+    expect(created.email).toBe("customer@example.com");
+    expect(created.paymentMethod).toBe("bankily");
     expect(created.date).toBe("2026-09-21");
     expect(created.id).toBeTruthy();
   });
 
+  it("drops paymentMethod for a debit entry even if one was passed", () => {
+    const created = createLedgerEntry({
+      kind: "debit",
+      amount: 10,
+      currency: "USD",
+      note: "",
+      email: "",
+      paymentMethod: "nita",
+      date: "2026-09-21",
+    });
+    expect(created.paymentMethod).toBeUndefined();
+  });
+
   it("gives two calls distinct ids", () => {
-    const a = createLedgerEntry("debit", 1, "", "2026-09-21");
-    const b = createLedgerEntry("debit", 1, "", "2026-09-21");
+    const base = { kind: "debit" as const, amount: 1, currency: "USD" as const, note: "", email: "", date: "2026-09-21" };
+    const a = createLedgerEntry(base);
+    const b = createLedgerEntry(base);
     expect(a.id).not.toBe(b.id);
   });
 });
 
 describe("totalOwedAcrossAccounts", () => {
-  it("sums only the positive balances, ignoring accounts in credit", () => {
+  it("sums only the positive balances per currency, ignoring accounts in credit", () => {
     const store = {
-      "acc-1": [entry({ kind: "debit", amount: 30 })],
-      "acc-2": [entry({ kind: "credit", amount: 50 })],
-      "acc-3": [entry({ kind: "debit", amount: 10 }), entry({ kind: "debit", amount: 5 })],
+      "acc-1": [entry({ kind: "debit", amount: 30, currency: "USD" })],
+      "acc-2": [entry({ kind: "credit", amount: 50, currency: "USD" })],
+      "acc-3": [
+        entry({ kind: "debit", amount: 10, currency: "USD" }),
+        entry({ kind: "debit", amount: 5, currency: "USD" }),
+      ],
     };
-    expect(totalOwedAcrossAccounts(store)).toBe(45);
+    expect(totalOwedAcrossAccounts(store)).toEqual({ USD: 45 });
   });
 
-  it("is zero when every account is settled or in credit", () => {
+  it("keeps totals for different currencies separate", () => {
+    const store = {
+      "acc-1": [entry({ kind: "debit", amount: 45000, currency: "MRU" })],
+      "acc-2": [entry({ kind: "debit", amount: 20, currency: "SIFA" })],
+    };
+    expect(totalOwedAcrossAccounts(store)).toEqual({ MRU: 45000, SIFA: 20 });
+  });
+
+  it("is empty when every account is settled or in credit", () => {
     const store = { "acc-1": [entry({ kind: "credit", amount: 5 })] };
-    expect(totalOwedAcrossAccounts(store)).toBe(0);
+    expect(totalOwedAcrossAccounts(store)).toEqual({});
   });
 
-  it("is zero for an empty store", () => {
-    expect(totalOwedAcrossAccounts({})).toBe(0);
+  it("is empty for an empty store", () => {
+    expect(totalOwedAcrossAccounts({})).toEqual({});
   });
 });

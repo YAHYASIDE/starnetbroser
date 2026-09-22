@@ -5,6 +5,7 @@ import { StarlinkAccountSummary } from "@starnet/shared";
 import { presentStatus, presentServiceStatus, isBalanceDueZero } from "@/lib/status";
 import { daysRemainingLabel, daysRemainingNumber, formatRelativeTime } from "@/lib/date";
 import { emailsMismatch } from "@/lib/emailMatch";
+import { BalanceByCurrency, LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS } from "@/lib/ledgerStore";
 import { isRunningInAndroidApp, openIsolatedAccountBrowser } from "@/lib/localBrowser";
 import { buildBalanceReminderMessage, buildExpiryReminderMessage, buildWhatsAppLink } from "@/lib/whatsapp";
 
@@ -12,13 +13,13 @@ interface Props {
   account: StarlinkAccountSummary;
   onEdit: (account: StarlinkAccountSummary) => void;
   onInfo: (account: StarlinkAccountSummary) => void;
-  /** Sum of this account's local customer-ledger entries - see ledgerStore.ts. Never the same
-   * thing as account.balanceDue (Starlink's own synced subscription balance). */
-  ledgerBalance: number;
+  /** This account's local customer-ledger balance, per currency - see ledgerStore.ts. Never the
+   * same thing as account.balanceDue (Starlink's own synced subscription balance). */
+  ledgerBalances: BalanceByCurrency;
   onLedger: (account: StarlinkAccountSummary) => void;
 }
 
-export function AccountCard({ account, onEdit, onInfo, ledgerBalance, onLedger }: Props) {
+export function AccountCard({ account, onEdit, onInfo, ledgerBalances, onLedger }: Props) {
   const dish = presentStatus(account.dishStatus);
   const wifi = presentStatus(account.wifiStatus);
   const serviceStatus = presentServiceStatus(account.serviceStatus);
@@ -159,12 +160,18 @@ export function AccountCard({ account, onEdit, onInfo, ledgerBalance, onLedger }
 
       <div className="account-card-ledger-row">
         <span className="account-card-label">حساب الزبون</span>
-        {ledgerBalance > 0 ? (
-          <span className="badge badge-red">عليه {account.currency}{ledgerBalance.toFixed(2)}</span>
-        ) : ledgerBalance < 0 ? (
-          <span className="badge badge-green">له {account.currency}{(-ledgerBalance).toFixed(2)}</span>
-        ) : (
+        {LEDGER_CURRENCIES.every((c) => !ledgerBalances[c]) ? (
           <span className="badge badge-green">لا يوجد مستحق</span>
+        ) : (
+          LEDGER_CURRENCIES.map((c) => {
+            const balance = ledgerBalances[c];
+            if (!balance) return null;
+            return balance > 0 ? (
+              <span key={c} className="badge badge-red">عليه {balance.toFixed(2)} {LEDGER_CURRENCY_LABELS[c]}</span>
+            ) : (
+              <span key={c} className="badge badge-green">له {(-balance).toFixed(2)} {LEDGER_CURRENCY_LABELS[c]}</span>
+            );
+          })
         )}
         <button className="ledger-open-btn" type="button" onClick={() => onLedger(account)}>
           السجل

@@ -12,8 +12,10 @@ import { AccountDialog, AccountDialogMode } from "./AccountDialog";
 import { LedgerDialog } from "./LedgerDialog";
 import { daysRemainingNumber } from "@/lib/date";
 import {
-  computeBalance,
+  computeBalanceByCurrency,
   getAccountEntries,
+  LEDGER_CURRENCIES,
+  LEDGER_CURRENCY_LABELS,
   LedgerByAccount,
   LedgerEntry,
   loadLedgerStore,
@@ -476,11 +478,17 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
           <span className="overview-value">{overview.expired}</span>
           <span className="overview-label">منتهي</span>
         </article>
-        <article className="overview-card overview-owed">
-          <span className="overview-icon" aria-hidden="true">₋</span>
-          <span className="overview-value">{totalOwedByCustomers.toFixed(2)}</span>
-          <span className="overview-label">مستحق من العملاء</span>
-        </article>
+        {LEDGER_CURRENCIES.map((currency) => {
+          const total = totalOwedByCustomers[currency];
+          if (!total) return null;
+          return (
+            <article className="overview-card overview-owed" key={currency}>
+              <span className="overview-icon" aria-hidden="true">₋</span>
+              <span className="overview-value">{total.toFixed(2)}</span>
+              <span className="overview-label">مستحق من العملاء ({LEDGER_CURRENCY_LABELS[currency]})</span>
+            </article>
+          );
+        })}
       </section>
 
       <section className="section dashboard-section">
@@ -521,7 +529,7 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
                 account={account}
                 onInfo={(selected) => setDialog({ mode: "view", account: selected })}
                 onEdit={(selected) => setDialog({ mode: "edit", account: selected })}
-                ledgerBalance={computeBalance(getAccountEntries(ledgerStore, account.id))}
+                ledgerBalances={computeBalanceByCurrency(getAccountEntries(ledgerStore, account.id))}
                 onLedger={(selected) => setLedgerAccount(selected)}
               />
             ))}
@@ -542,7 +550,6 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
       {ledgerAccount && (
         <LedgerDialog
           accountName={ledgerAccount.name}
-          currency={ledgerAccount.currency}
           entries={getAccountEntries(ledgerStore, ledgerAccount.id)}
           onClose={() => setLedgerAccount(null)}
           onChange={(entries) => updateLedgerEntries(ledgerAccount.id, entries)}
