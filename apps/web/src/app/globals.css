@@ -358,13 +358,18 @@ a {
 .whatsapp-menu {
   position: absolute;
   top: 100%;
-  inset-inline-end: 0;
+  /* Opens toward the button's own inline-start (its natural reading direction), never toward
+     inline-end - the button usually sits mid-row, and anchoring the far edge there pushed this
+     past the screen's edge, clipping every item's own label (see the mobile screenshot bug). */
+  inset-inline-start: 0;
   margin-top: 6px;
   z-index: 21;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  min-width: 200px;
+  width: max-content;
+  min-width: 220px;
+  max-width: min(280px, calc(100vw - 32px));
   padding: 6px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border);

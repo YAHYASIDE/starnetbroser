@@ -42,11 +42,27 @@ export function buildExpiryReminderMessage(accountName: string): string {
 }
 
 /** STAR NET's own payment-collection numbers (not customer data) - shown to the customer inside
- * the balance-reminder WhatsApp message so they know where to send payment. */
-export function buildBalanceReminderMessage(accountName: string, balanceDue: string, currency: string): string {
+ * the balance-reminder WhatsApp message so they know where to send payment. Built entirely from
+ * the local customer ledger (see ledgerStore.ts), same as buildAccountStatementMessage below -
+ * deliberately never account.balanceDue (Starlink's own synced subscription balance), which is an
+ * unrelated, purely internal figure the customer has no reason to see. */
+export function buildBalanceReminderMessage(accountName: string, entries: LedgerEntry[]): string {
+  const balances = computeBalanceByCurrency(entries);
+  const owedAmounts = LEDGER_CURRENCIES.filter((currency) => (balances[currency] ?? 0) > 0.0001).map(
+    (currency) => `${formatAmount(balances[currency]!)} ${LEDGER_CURRENCY_LABELS[currency]}`,
+  );
+
+  if (owedAmounts.length === 0) {
+    return (
+      `مرحبًا ${accountName} 👋\n\n` +
+      `نود إعلامك بأنه لا يوجد لديك أي رصيد مستحق حاليًا. شكرًا لتعاملك معنا 🙏\n\n` +
+      `- STAR NET`
+    );
+  }
+
   return (
     `مرحبًا ${accountName} 👋\n\n` +
-    `نود إعلامك بأن لديك رصيدًا مستحقًا حاليًا بقيمة ${currency}${balanceDue}.\n` +
+    `نود إعلامك بأن لديك رصيدًا مستحقًا حاليًا بقيمة ${owedAmounts.join(" و")}.\n` +
     `نرجو منك التكرم بتسديد المبلغ في أقرب وقت ممكن لتفادي انقطاع الخدمة.\n\n` +
     `يمكنكم الدفع عبر إحدى الوسائل التالية:\n` +
     `• بنكيلي / سداد / نيتا: 22227268\n` +

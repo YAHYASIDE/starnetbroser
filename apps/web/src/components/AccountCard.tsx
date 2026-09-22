@@ -238,7 +238,7 @@ export function AccountCard({ account, onEdit, onInfo, ledgerEntries, allocation
             <button
               type="button"
               role="menuitem"
-              onClick={() => openWhatsApp(buildBalanceReminderMessage(account.name, account.balanceDue || "0", account.currency))}
+              onClick={() => openWhatsApp(buildBalanceReminderMessage(account.name, ledgerEntries))}
             >
               تذكير بالرصيد المستحق
             </button>

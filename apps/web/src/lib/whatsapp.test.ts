@@ -65,12 +65,36 @@ describe("reminder message builders", () => {
     expect(message).toContain("الليلة");
   });
 
-  it("mentions the account name, the exact balance/currency and the payment numbers in the balance reminder", () => {
-    const message = buildBalanceReminderMessage("مقهى النخيل", "12.50", "$");
+  it("mentions the account name, the ledger balance/currency and the payment numbers in the balance reminder", () => {
+    const message = buildBalanceReminderMessage("مقهى النخيل", [
+      ledgerEntry({ kind: "debit", amount: 45000, currency: "MRU" }),
+    ]);
     expect(message).toContain("مقهى النخيل");
-    expect(message).toContain("$12.50");
+    expect(message).toContain("45,000.00 أوقية");
     expect(message).toContain("22227268");
     expect(message).toContain("74646158");
+  });
+
+  it("never mentions Starlink's own subscription balance in the balance reminder - a separate concern", () => {
+    const message = buildBalanceReminderMessage("مقهى النخيل", [
+      ledgerEntry({ kind: "debit", amount: 45000, currency: "MRU" }),
+    ]);
+    expect(message).not.toContain("Starlink");
+  });
+
+  it("says there is no balance due in the reminder when the customer owes nothing", () => {
+    const message = buildBalanceReminderMessage("مقهى النخيل", []);
+    expect(message).toContain("لا يوجد لديك أي رصيد مستحق حاليًا");
+    expect(message).not.toContain("22227268");
+  });
+
+  it("lists every currency owed in the balance reminder, never summing them together", () => {
+    const message = buildBalanceReminderMessage("مقهى النخيل", [
+      ledgerEntry({ kind: "debit", amount: 45000, currency: "MRU" }),
+      ledgerEntry({ kind: "debit", amount: 20, currency: "USD" }),
+    ]);
+    expect(message).toContain("45,000.00 أوقية");
+    expect(message).toContain("20.00 دولار");
   });
 });
 
