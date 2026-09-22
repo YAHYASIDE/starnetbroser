@@ -13,6 +13,8 @@ import {
   extractPlanName,
   extractRenewalBadgeDate,
   extractSubscriptionId,
+  extractSubscriptionInvoiceDueDay,
+  hasBillingSuspensionBanner,
   hasScheduledEndBanner,
   isCompleteDate,
   nextOccurrenceOfDay,
@@ -117,6 +119,43 @@ describe("hasScheduledEndBanner", () => {
 
   it("returns false when the banner isn't present", () => {
     expect(hasScheduledEndBanner(["الرصيد المستحق", "$US 0.00"])).toBe(false);
+  });
+});
+
+describe("hasBillingSuspensionBanner", () => {
+  it("detects the real billing-suspension banner", () => {
+    const lines = ["تم تعطيل خدمتك بسبب مشكلة في الفوترة.", "يرجى التأكد من دفع جميع الفواتير."];
+    expect(hasBillingSuspensionBanner(lines)).toBe(true);
+  });
+
+  it("returns false when the banner isn't present", () => {
+    expect(hasBillingSuspensionBanner(["الرصيد المستحق", "$US 0.00"])).toBe(false);
+  });
+
+  it("never confuses this with the different scheduled-end banner (mutually exclusive real page states)", () => {
+    expect(hasBillingSuspensionBanner(["من المقرر أن تنتهي خدمتك في ٢٠٢٦/٩/٢٨."])).toBe(false);
+  });
+});
+
+describe("extractSubscriptionInvoiceDueDay - real Billing-page invoice list, once the billing cycle itself has gone blank", () => {
+  it("reads the day from the first 'اشتراك'-described invoice row, never a 'طلب' row", () => {
+    const lines = [
+      "الحالة", "الوصف", "تاريخ الاستحقاق",
+      "متأخر", "طلب", "2026/8/29",
+      "متأخر", "اشتراك", "2026/8/28",
+      "مدفوع", "اشتراك", "2026/7/28",
+    ];
+    expect(extractSubscriptionInvoiceDueDay(lines)).toBe(28);
+  });
+
+  it("returns undefined when there is no 'اشتراك' row at all", () => {
+    const lines = ["الحالة", "الوصف", "تاريخ الاستحقاق", "متأخر", "طلب", "2026/8/29"];
+    expect(extractSubscriptionInvoiceDueDay(lines)).toBeUndefined();
+  });
+
+  it("tries the next 'اشتراك' row when the nearest one has no parseable date nearby", () => {
+    const lines = ["اشتراك", "بلا تاريخ", "اشتراك", "2026/7/28"];
+    expect(extractSubscriptionInvoiceDueDay(lines)).toBe(28);
   });
 });
 

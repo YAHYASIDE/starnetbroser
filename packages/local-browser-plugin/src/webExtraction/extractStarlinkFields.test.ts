@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import { extractStarlinkFields } from "./extractStarlinkFields";
+import { nextOccurrenceOfDay } from "./textFields";
 
 // Every fixture below is fake/dummy data made up for this test - none of it is a real Starlink
 // account, matching this project's "no real account data anywhere" rule.
@@ -248,6 +249,63 @@ describe("extractStarlinkFields - real Starlink Billing page (round 10 regressio
 
     expect(fields.balanceDue).toBe("25.00");
     expect(fields.currency).toBe("USD");
+  });
+});
+
+describe("extractStarlinkFields - real suspended Billing page, no 'خطة الخدمة' card at all (round 16 regression)", () => {
+  // Fixture shape matches the real suspended-for-billing Billing page the user shared: the
+  // top-of-page disabled banner, an empty billing-cycle section ("لم تتم إضافة أي اشتراكات إلى هذا
+  // الحساب"), and an invoice list whose "اشتراك" rows are the only date signal left at all.
+  it("reads suspended from the billing-suspension banner alone, with no plan card anywhere on this page", () => {
+    const fields = extractFrom(`
+      <div class="top-banner">
+        <div>تم تعطيل خدمتك بسبب مشكلة في الفوترة.</div>
+        <div>يرجى التأكد من دفع جميع الفواتير.</div>
+      </div>
+      <div class="billing-section">
+        <div>فوترة</div>
+        <div>إدارة فواتيرك ومدفوعاتك.</div>
+        <div class="balance-card">
+          <div>الرصيد المستحق</div>
+          <div>ادفع</div>
+          <div>€ 52.03</div>
+        </div>
+        <div class="cycle-card">
+          <div>دورة الفوترة</div>
+          <div>لم تتم إضافة أي اشتراكات إلى هذا الحساب.</div>
+        </div>
+      </div>
+    `);
+
+    expect(fields.serviceStatus).toBe("suspended");
+    expect(fields.balanceDue).toBe("52.03");
+    expect(fields.currency).toBe("EUR");
+  });
+
+  it("falls back to the invoice list's own 'اشتراك' row for the renewal date once the billing-cycle section is blank", () => {
+    const fields = extractFrom(`
+      <div class="top-banner">
+        <div>تم تعطيل خدمتك بسبب مشكلة في الفوترة.</div>
+      </div>
+      <div class="cycle-card">
+        <div>دورة الفوترة</div>
+        <div>لم تتم إضافة أي اشتراكات إلى هذا الحساب.</div>
+      </div>
+      <div class="invoice-table">
+        <div>الحالة</div>
+        <div>الوصف</div>
+        <div>تاريخ الاستحقاق</div>
+        <div>متأخر</div>
+        <div>طلب</div>
+        <div>2026/8/29</div>
+        <div>متأخر</div>
+        <div>اشتراك</div>
+        <div>2026/8/28</div>
+      </div>
+    `);
+
+    expect(fields.serviceStatus).toBe("suspended");
+    expect(fields.renewalDate).toBe(nextOccurrenceOfDay(28));
   });
 });
 

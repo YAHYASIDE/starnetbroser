@@ -19,6 +19,8 @@ import {
   extractPlanName,
   extractRenewalBadgeDate,
   extractSubscriptionId,
+  extractSubscriptionInvoiceDueDay,
+  hasBillingSuspensionBanner,
   hasScheduledEndBanner,
   isCompleteDate,
   nextOccurrenceOfDay,
@@ -55,12 +57,16 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
 
   // The real page never prints a labeled "الحالة: ..." line for most states - the status badge
   // shown right on the "خطة الخدمة" card itself (see extractPlanBadgeStatus's own doc) is tried
-  // when a labeled status wasn't found. A "scheduled to end" banner alone (see
-  // hasScheduledEndBanner's own doc) never sets "standby" here - the service is still active
-  // right now, only a future renewal is being canceled - so it's handled below, alongside
-  // pendingCancellationDate, once serviceStatus has already been resolved from a real signal.
+  // when a labeled status wasn't found. Two page-wide banners are tried after that, in priority
+  // order: a billing-suspension banner (hasBillingSuspensionBanner's own doc) means the service is
+  // ALREADY stopped right now - checked first, since it can appear on a page (e.g. Billing) that
+  // has no "خطة الخدمة" card at all for the badge check above to have found anything. A
+  // "scheduled to end" banner alone (see hasScheduledEndBanner's own doc) never sets "standby" -
+  // the service is still active right now, only a future renewal is being canceled - handled last,
+  // alongside pendingCancellationDate below, once serviceStatus has already been resolved.
   let serviceStatus = normalizeServiceStatus(extractLabeledValue(lines, SERVICE_STATUS_LABELS));
   if (!serviceStatus) serviceStatus = extractPlanBadgeStatus(lines);
+  if (!serviceStatus && hasBillingSuspensionBanner(lines)) serviceStatus = "suspended";
   if (!serviceStatus && hasScheduledEndBanner(lines)) serviceStatus = "active";
   if (serviceStatus) fields.serviceStatus = serviceStatus;
 
@@ -85,6 +91,14 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
   if (!resolvedRenewalDate) {
     const billingDueDay = extractBillingDueDay(lines);
     if (billingDueDay !== undefined) resolvedRenewalDate = nextOccurrenceOfDay(billingDueDay);
+  }
+  // Once suspended for non-payment, even the "دورة الفوترة" section above goes blank (see
+  // extractSubscriptionInvoiceDueDay's own doc) - the "الفواتير" invoice list is the only date
+  // signal left on the Billing page at all. Tried last of all: both a real dated signal and the
+  // recurring billing-cycle day are always more specific/trustworthy when either is present.
+  if (!resolvedRenewalDate) {
+    const invoiceDueDay = extractSubscriptionInvoiceDueDay(lines);
+    if (invoiceDueDay !== undefined) resolvedRenewalDate = nextOccurrenceOfDay(invoiceDueDay);
   }
   if (resolvedRenewalDate) fields.renewalDate = resolvedRenewalDate;
   // Reuses the very same resolved date (no separate parse) - the "scheduled to end" banner and

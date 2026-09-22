@@ -33,6 +33,20 @@ export function hasScheduledEndBanner(lines: string[]): boolean {
   return lines.some((line) => containsAny(line, SCHEDULED_END_BANNER_LABELS));
 }
 
+/** The real page's top banner once suspended for non-payment ("تم تعطيل خدمتك بسبب مشكلة في
+ * الفوترة. يرجى التأكد من دفع جميع الفواتير.") - unlike SCHEDULED_END_BANNER_LABELS (which still
+ * means the service is running), this one means the service is ALREADY suspended right now. Real,
+ * confirmed gap this closes: on the real Billing page specifically, there is no "خطة الخدمة" card
+ * at all for extractPlanBadgeStatus to scan - this banner is the ONLY suspended signal on that
+ * page, so unlike that function it is checked directly against the whole page, not scoped to one
+ * card (a bare "تعطيل خدمتك" sentence is specific enough on its own to risk that, the same
+ * reasoning as SCHEDULED_END_BANNER_LABELS). */
+export const BILLING_SUSPENSION_BANNER_LABELS = ["service has been disabled", "تعطيل خدمتك", "تعطيل الخدمة"];
+
+export function hasBillingSuspensionBanner(lines: string[]): boolean {
+  return lines.some((line) => containsAny(line, BILLING_SUSPENSION_BANNER_LABELS));
+}
+
 /**
  * The real "خطة الخدمة" card shows a status badge right next to the plan name itself - "نشط" once
  * active, or a standby-wording badge (e.g. "وضع الاستعداد قيد التعليق") while the account is
@@ -82,6 +96,35 @@ export function extractBillingDueDay(lines: string[]): number | undefined {
   if (!match) return undefined;
   const day = parseInt(match[1], 10);
   return day >= 1 && day <= 31 ? day : undefined;
+}
+
+const INVOICE_DATE_PATTERN = /(\d{4})[/-](\d{1,2})[/-](\d{1,2})/;
+
+/** Fallback for a suspended-for-billing account's recurring billing day when the "دورة الفوترة"
+ * section itself has gone blank - a real, confirmed page state ("لم تتم إضافة أي اشتراكات إلى هذا
+ * الحساب") once the account is suspended for non-payment, so BILLING_DUE_DAY_LABELS has nothing to
+ * find. Reads the day from the "الفواتير" invoice list instead, using only a row described as
+ * "اشتراك" (subscription) - never "طلب" (a hardware/equipment order, an unrelated one-off date).
+ * Takes the FIRST such row (the real page lists invoices newest-first) and only a small window
+ * around its own "اشتراك" cell, never a wider scan that could pick up a neighboring row's date;
+ * if that window has no date, tries the next "اشتراك" row rather than giving up immediately.
+ * Returns just the bare day-of-month, same contract as extractBillingDueDay - combine with
+ * nextOccurrenceOfDay for an actual date. Only ever looks FORWARD from the "اشتراك" cell (the
+ * real row order is status, then description, then date) - looking backward too risks grabbing
+ * the PREVIOUS row's own trailing date cell instead of this row's. */
+export function extractSubscriptionInvoiceDueDay(lines: string[]): number | undefined {
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].trim() !== "اشتراك") continue;
+    for (let j = i; j < Math.min(i + 3, lines.length); j++) {
+      const western = toWesternDigits(lines[j]);
+      const match = INVOICE_DATE_PATTERN.exec(western);
+      if (match) {
+        const day = parseInt(match[3], 10);
+        if (day >= 1 && day <= 31) return day;
+      }
+    }
+  }
+  return undefined;
 }
 
 /** Turns a bare recurring day-of-month into a real "YYYY/MM/DD": this month if that day hasn't
