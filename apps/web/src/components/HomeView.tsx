@@ -39,10 +39,13 @@ import {
 } from "@/lib/clientStore";
 import { CurrencyStore, loadCurrencyStore, saveCurrencyStore, upsertCurrency, UpsertCurrencyInput } from "@/lib/currencyStore";
 import {
+  addAllocations,
   AllocationsByAccount,
+  allStoredAllocations,
   getAccountAllocations,
   loadAllocationStore,
   PaymentAllocation,
+  removeAllocationsForEntryFromStore,
   saveAllocationStore,
   withAccountAllocations,
 } from "@/lib/paymentAllocationStore";
@@ -108,6 +111,11 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
     });
   }
 
+  // Every ledger entry across every device, flattened - used only to resolve a cross-device
+  // payment's own info (e.g. its date) for display in DeviceStatementDialog's linked-payments
+  // list, never to compute any one device's own totals.
+  const allLedgerEntries = useMemo(() => Object.values(ledgerStore).flat(), [ledgerStore]);
+
   // Customer registry (see clientStore.ts) - same load-after-mount hydration-safety pattern as
   // the ledger store above. A device/account links here via its own clientId, never the other
   // way around, so this store never references accounts itself.
@@ -149,9 +157,22 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
   const [allocationStore, setAllocationStore] = useState<AllocationsByAccount>({});
   useEffect(() => setAllocationStore(loadAllocationStore()), []);
 
-  function updateAllocations(accountId: string, next: PaymentAllocation[]) {
+  // Every allocation across every device, flattened - the correct input for any read that must
+  // reflect a payment regardless of which device's own ledger it happens to be filed under (see
+  // paymentAllocationStore.ts's allStoredAllocations doc comment).
+  const allAllocations = useMemo(() => allStoredAllocations(allocationStore), [allocationStore]);
+
+  function addAllocationsToAccount(accountId: string, newOnes: PaymentAllocation[]) {
     setAllocationStore((current) => {
-      const updated = withAccountAllocations(current, accountId, next);
+      const updated = withAccountAllocations(current, accountId, addAllocations(getAccountAllocations(current, accountId), newOnes));
+      saveAllocationStore(updated);
+      return updated;
+    });
+  }
+
+  function removeAllocationsEverywhere(entryId: string) {
+    setAllocationStore((current) => {
+      const updated = removeAllocationsForEntryFromStore(current, entryId);
       saveAllocationStore(updated);
       return updated;
     });
@@ -616,7 +637,7 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
                 onInfo={(selected) => setDialog({ mode: "view", account: selected })}
                 onEdit={(selected) => setDialog({ mode: "edit", account: selected })}
                 ledgerEntries={getAccountEntries(ledgerStore, account.id)}
-                allocations={getAccountAllocations(allocationStore, account.id)}
+                allocations={allAllocations}
                 onLedger={(selected) => setLedgerAccount(selected)}
                 onDeviceStatement={(selected) => setStatementAccount(selected)}
                 client={getClient(clientStore, account.clientId)}
@@ -641,12 +662,21 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
 
       {ledgerAccount && (
         <LedgerDialog
+          accountId={ledgerAccount.id}
           accountName={ledgerAccount.name}
           entries={getAccountEntries(ledgerStore, ledgerAccount.id)}
+          siblingDevices={
+            ledgerAccount.clientId
+              ? accounts
+                  .filter((a) => a.clientId === ledgerAccount.clientId && a.id !== ledgerAccount.id)
+                  .map((a) => ({ accountId: a.id, accountName: a.name, entries: getAccountEntries(ledgerStore, a.id) }))
+              : []
+          }
           currencyStore={currencyStore}
           onUpsertCurrency={handleUpsertCurrency}
-          allocations={getAccountAllocations(allocationStore, ledgerAccount.id)}
-          onChangeAllocations={(next) => updateAllocations(ledgerAccount.id, next)}
+          allocations={allAllocations}
+          onAddAllocations={(newOnes) => addAllocationsToAccount(ledgerAccount.id, newOnes)}
+          onRemoveEntryAllocations={removeAllocationsEverywhere}
           onClose={() => setLedgerAccount(null)}
           onChange={(entries) => updateLedgerEntries(ledgerAccount.id, entries)}
         />
@@ -656,7 +686,8 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
         <DeviceStatementDialog
           accountName={statementAccount.name}
           entries={getAccountEntries(ledgerStore, statementAccount.id)}
-          allocations={getAccountAllocations(allocationStore, statementAccount.id)}
+          allocations={allAllocations}
+          allEntries={allLedgerEntries}
           onClose={() => setStatementAccount(null)}
         />
       )}

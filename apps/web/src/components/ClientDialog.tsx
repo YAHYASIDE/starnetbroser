@@ -4,9 +4,9 @@ import { FormEvent, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { Client } from "@/lib/clientStore";
 import { computeClientAccountingSummary } from "@/lib/accountingStore";
-import { getAccountEntries, LEDGER_CURRENCIES, LedgerByAccount, LedgerCurrency, LEDGER_CURRENCY_LABELS } from "@/lib/ledgerStore";
+import { BalanceByCurrency, getAccountEntries, LEDGER_CURRENCIES, LedgerByAccount, LedgerCurrency, LEDGER_CURRENCY_LABELS } from "@/lib/ledgerStore";
 import { formatAmount } from "@/lib/formatAmount";
-import { AllocationsByAccount, getAccountAllocations } from "@/lib/paymentAllocationStore";
+import { allocatedFromPayment, allStoredAllocations, AllocationsByAccount } from "@/lib/paymentAllocationStore";
 import { DeviceStatementDialog } from "./DeviceStatementDialog";
 
 interface Props {
@@ -35,6 +35,24 @@ export function ClientDialog({ client, devices, ledgerStore, allocationStore, on
   const summary = computeClientAccountingSummary(
     devices.map((account) => ({ accountId: account.id, accountName: account.name, entries: getAccountEntries(ledgerStore, account.id) })),
   );
+
+  const allAllocations = allStoredAllocations(allocationStore);
+  const allLedgerEntries = Object.values(ledgerStore).flat();
+
+  // Rule 12's "رصيد غير مخصص للزبون" at the client level - the sum, per currency, of every
+  // linked device's own payments that still have an unallocated remainder (see
+  // paymentAllocationStore.ts's allocatedFromPayment). Never converted/summed across currencies.
+  const unallocatedByCurrency: BalanceByCurrency = {};
+  for (const account of devices) {
+    for (const entry of getAccountEntries(ledgerStore, account.id)) {
+      if (entry.kind !== "credit") continue;
+      const unallocated = entry.amount - allocatedFromPayment(allAllocations, entry.id);
+      if (unallocated > 0.0001) {
+        unallocatedByCurrency[entry.currency] = (unallocatedByCurrency[entry.currency] ?? 0) + unallocated;
+      }
+    }
+  }
+  const unallocatedRows = Object.entries(unallocatedByCurrency) as [LedgerCurrency, number][];
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -145,6 +163,17 @@ export function ClientDialog({ client, devices, ledgerStore, allocationStore, on
               )}
             </div>
 
+            {unallocatedRows.length > 0 && (
+              <div className="statement-summary-grid">
+                {unallocatedRows.map(([c, v]) => (
+                  <div className="statement-summary-item" key={`unallocated-${c}`}>
+                    <span>رصيد غير مخصص للزبون ({LEDGER_CURRENCY_LABELS[c]})</span>
+                    <strong dir="ltr">{formatAmount(v)}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <ul className="statement-shipment-list">
               {summary.devices.length === 0 && <li className="ledger-entry-empty">لا توجد أجهزة مرتبطة بعد</li>}
               {summary.devices.map((device) => {
@@ -200,7 +229,8 @@ export function ClientDialog({ client, devices, ledgerStore, allocationStore, on
         <DeviceStatementDialog
           accountName={statementAccount.name}
           entries={getAccountEntries(ledgerStore, statementAccount.id)}
-          allocations={getAccountAllocations(allocationStore, statementAccount.id)}
+          allocations={allAllocations}
+          allEntries={allLedgerEntries}
           onClose={() => setStatementAccount(null)}
         />
       )}

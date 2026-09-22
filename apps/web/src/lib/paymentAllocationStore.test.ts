@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   addAllocations,
+  allocatedFromPayment,
+  allStoredAllocations,
   computeShipmentPaymentStatus,
   createAllocation,
   getAccountAllocations,
@@ -8,6 +10,7 @@ import {
   PaymentAllocation,
   planFifoAllocation,
   removeAllocationsForEntry,
+  removeAllocationsForEntryFromStore,
   withAccountAllocations,
 } from "./paymentAllocationStore";
 import { LedgerEntry } from "./ledgerStore";
@@ -84,6 +87,56 @@ describe("removeAllocationsForEntry", () => {
     const allocations = [alloc({ id: "a" })];
     removeAllocationsForEntry(allocations, "p1");
     expect(allocations).toHaveLength(1);
+  });
+});
+
+describe("allStoredAllocations", () => {
+  it("flattens every device's own list into one, in insertion order per device", () => {
+    const store = {
+      "acc-1": [alloc({ id: "a" })],
+      "acc-2": [alloc({ id: "b" }), alloc({ id: "c" })],
+    };
+    expect(allStoredAllocations(store).map((a) => a.id)).toEqual(["a", "b", "c"]);
+  });
+
+  it("is empty for an empty store", () => {
+    expect(allStoredAllocations({})).toEqual([]);
+  });
+});
+
+describe("removeAllocationsForEntryFromStore", () => {
+  it("removes a matching allocation regardless of which device's key it's filed under", () => {
+    const store = {
+      "acc-1": [alloc({ id: "a", paymentEntryId: "p1" })],
+      "acc-2": [
+        alloc({ id: "b", paymentEntryId: "p-other", shipmentEntryId: "s-on-acc2" }),
+        alloc({ id: "c", paymentEntryId: "p1" }),
+      ],
+    };
+    const next = removeAllocationsForEntryFromStore(store, "p1");
+    expect(next["acc-1"]).toEqual([]);
+    expect(next["acc-2"].map((a) => a.id)).toEqual(["b"]);
+  });
+
+  it("does not mutate the input store", () => {
+    const store = { "acc-1": [alloc({ id: "a", paymentEntryId: "p1" })] };
+    removeAllocationsForEntryFromStore(store, "p1");
+    expect(store["acc-1"]).toHaveLength(1);
+  });
+});
+
+describe("allocatedFromPayment", () => {
+  it("sums every allocation made FROM that payment, across however many shipments", () => {
+    const allocations = [
+      alloc({ paymentEntryId: "p1", shipmentEntryId: "s1", amount: 30 }),
+      alloc({ paymentEntryId: "p1", shipmentEntryId: "s2", amount: 20 }),
+      alloc({ paymentEntryId: "p2", shipmentEntryId: "s1", amount: 999 }),
+    ];
+    expect(allocatedFromPayment(allocations, "p1")).toBe(50);
+  });
+
+  it("is 0 for a payment with no allocations yet", () => {
+    expect(allocatedFromPayment([], "p1")).toBe(0);
   });
 });
 

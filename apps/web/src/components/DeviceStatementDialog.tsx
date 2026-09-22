@@ -1,14 +1,21 @@
 "use client";
 
 import { computeDeviceAccountingSummary, computeShipmentProfit } from "@/lib/accountingStore";
-import { computeShipmentPaymentStatus, PaymentAllocation, ShipmentPaymentStatus } from "@/lib/paymentAllocationStore";
+import { computeShipmentPaymentStatus, paidTowardShipment, PaymentAllocation, ShipmentPaymentStatus } from "@/lib/paymentAllocationStore";
 import { isLegacyShipmentEntry, LEDGER_CURRENCY_LABELS, LedgerCurrency, LedgerEntry, sortEntriesNewestFirst } from "@/lib/ledgerStore";
 import { formatAmount } from "@/lib/formatAmount";
 
 interface Props {
   accountName: string;
   entries: LedgerEntry[];
+  /** Every allocation in the whole store, not just this device's own - a shipment here may have
+   * been paid via an allocation filed under a different device (see LedgerDialog.tsx's
+   * SiblingDevice), so payment status/paid/remaining must always reflect the full picture. */
   allocations: PaymentAllocation[];
+  /** Every ledger entry across every device - used only to look up a linked payment's own date
+   * for display (rule 7's "الدفعات المرتبطة بها"), since a cross-device payment doesn't live in
+   * `entries` above. Never used to compute this device's own totals. */
+  allEntries: LedgerEntry[];
   onClose: () => void;
 }
 
@@ -29,7 +36,7 @@ const PAYMENT_STATUS_BADGE: Record<ShipmentPaymentStatus, string> = {
  * plus the summary totals up top. Never mixes this device's numbers with any other device, even
  * if they share the same customer (see DeviceCard/ClientDialog for the customer-level rollup).
  */
-export function DeviceStatementDialog({ accountName, entries, allocations, onClose }: Props) {
+export function DeviceStatementDialog({ accountName, entries, allocations, allEntries, onClose }: Props) {
   const summary = computeDeviceAccountingSummary(entries);
   const shipments = sortEntriesNewestFirst(entries.filter((e) => e.kind === "debit"));
 
@@ -114,6 +121,9 @@ export function DeviceStatementDialog({ accountName, entries, allocations, onClo
             const saleValueUsd = entry.currency === "USD" ? entry.amount : entry.saleRate?.usdValue;
             const cost = entry.starlinkCost;
             const costUsd = cost?.status === "settled" ? (cost.currencyCode === "USD" ? cost.amount : cost.rate?.usdValue) : undefined;
+            const paidAmount = paidTowardShipment(allocations, entry.id);
+            const remainingAmount = Math.max(0, entry.amount - paidAmount);
+            const linkedAllocations = allocations.filter((a) => a.shipmentEntryId === entry.id);
 
             return (
               <li key={entry.id} className="statement-shipment-row">
@@ -142,6 +152,22 @@ export function DeviceStatementDialog({ accountName, entries, allocations, onClo
                   <div className={`ledger-shipment-profit ${profit.profitUsd! >= 0 ? "profit-positive" : "profit-negative"}`} dir="ltr">
                     {profit.profitUsd! >= 0 ? `ربح +${formatAmount(profit.profitUsd!)} USD` : `خسارة ${formatAmount(profit.profitUsd!)} USD`}
                   </div>
+                )}
+                <div className="statement-shipment-payments" dir="ltr">
+                  <span>المدفوع: {formatAmount(paidAmount)} {entry.currency}</span>
+                  <span>المتبقي: {formatAmount(remainingAmount)} {entry.currency}</span>
+                </div>
+                {linkedAllocations.length > 0 && (
+                  <ul className="statement-linked-payments">
+                    {linkedAllocations.map((a) => {
+                      const payment = allEntries.find((e) => e.id === a.paymentEntryId);
+                      return (
+                        <li key={a.id} dir="ltr">
+                          دفعة {payment?.date ?? "—"}: {formatAmount(a.amount)} {a.currency}
+                        </li>
+                      );
+                    })}
+                  </ul>
                 )}
                 {entry.note && <div className="ledger-entry-note">{entry.note}</div>}
               </li>

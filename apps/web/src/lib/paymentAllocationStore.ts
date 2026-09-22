@@ -48,6 +48,29 @@ export function getAccountAllocations(store: AllocationsByAccount, accountId: st
   return store[accountId] ?? [];
 }
 
+/** Every allocation in the store, from every device, flattened into one list - the correct input
+ * whenever a shipment's payment status must reflect a payment regardless of which device's own
+ * ledger that "له" entry happens to be filed under (a payment can be allocated to a shipment on a
+ * DIFFERENT device than its own - see planFifoAllocation's device-scoping). Allocation records are
+ * always stored under the paying entry's own device, never the shipment's - this is simply how
+ * every read (payment status, paid/remaining totals, linked-payment lists) sees the whole picture. */
+export function allStoredAllocations(store: AllocationsByAccount): PaymentAllocation[] {
+  return Object.values(store).flat();
+}
+
+/** Removes every allocation touching this entry, wherever in the WHOLE store it's filed - unlike
+ * removeAllocationsForEntry (which only edits one already-extracted array), this walks every
+ * device's own list. Needed because a shipment deleted on device B may have been paid by an
+ * allocation filed under device A's key (A being where the paying "له" entry lives, chosen
+ * manually as a different device) - that record would otherwise dangle. */
+export function removeAllocationsForEntryFromStore(store: AllocationsByAccount, entryId: string): AllocationsByAccount {
+  const next: AllocationsByAccount = {};
+  for (const [accountId, list] of Object.entries(store)) {
+    next[accountId] = removeAllocationsForEntry(list, entryId);
+  }
+  return next;
+}
+
 export function withAccountAllocations(
   store: AllocationsByAccount,
   accountId: string,
@@ -82,6 +105,14 @@ export function removeAllocationsForEntry(allocations: PaymentAllocation[], entr
  * targeting it is already guaranteed same-currency by construction). */
 export function paidTowardShipment(allocations: PaymentAllocation[], shipmentEntryId: string): number {
   return allocations.filter((a) => a.shipmentEntryId === shipmentEntryId).reduce((sum, a) => sum + a.amount, 0);
+}
+
+/** Total already allocated FROM one payment, across however many shipments it's been split
+ * toward - the flip side of paidTowardShipment. `payment.amount - allocatedFromPayment(...)` is
+ * that payment's own unallocated remainder ("رصيد غير مخصص للزبون") - never silently dropped,
+ * always explicitly shown so it can be allocated later via "تخصيص الدفعة". */
+export function allocatedFromPayment(allocations: PaymentAllocation[], paymentEntryId: string): number {
+  return allocations.filter((a) => a.paymentEntryId === paymentEntryId).reduce((sum, a) => sum + a.amount, 0);
 }
 
 export type ShipmentPaymentStatus = "unpaid" | "partial" | "paid";

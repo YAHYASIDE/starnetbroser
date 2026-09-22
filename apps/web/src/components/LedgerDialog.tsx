@@ -22,28 +22,71 @@ import { computeShipmentProfit } from "@/lib/accountingStore";
 import { Currency, CurrencyStore, getCurrency, toUsd, UpsertCurrencyInput } from "@/lib/currencyStore";
 import { formatAmount } from "@/lib/formatAmount";
 import {
-  addAllocations,
+  allocatedFromPayment,
+  AllocationPlanItem,
   computeShipmentPaymentStatus,
   createAllocation,
   paidTowardShipment,
   PaymentAllocation,
   planFifoAllocation,
-  removeAllocationsForEntry,
 } from "@/lib/paymentAllocationStore";
 import { StarlinkSettlementDialog } from "./StarlinkSettlementDialog";
-import { PaymentAllocationDialog } from "./PaymentAllocationDialog";
+import { AllocationDeviceOption, AllocationShipmentRow, PaymentAllocationDialog } from "./PaymentAllocationDialog";
 import { LegacyEntryCompletionDialog } from "./LegacyEntryCompletionDialog";
 import { PaymentRateCompletionDialog } from "./PaymentRateCompletionDialog";
 
-interface Props {
+/** One other device linked to the same customer - siblings, never the account currently open in
+ * this dialog. Lets a payment recorded here be allocated to a shipment on a DIFFERENT device
+ * (rule 8: "إمكانية اختيار جهاز آخر يدويًا"), never automatically. */
+export interface SiblingDevice {
+  accountId: string;
   accountName: string;
   entries: LedgerEntry[];
+}
+
+interface Props {
+  accountId: string;
+  accountName: string;
+  entries: LedgerEntry[];
+  /** Every OTHER device belonging to the same customer, if any - empty when this account has no
+   * client or the client has only this one device. */
+  siblingDevices: SiblingDevice[];
   currencyStore: CurrencyStore;
   onUpsertCurrency: (input: UpsertCurrencyInput) => Currency;
+  /** Every allocation in the whole store (paymentAllocationStore.ts's allStoredAllocations), not
+   * just this device's own - a shipment here may have been paid via an allocation filed under a
+   * different device (see SiblingDevice above), so payment status must always be computed against
+   * the full picture, never a per-device slice. */
   allocations: PaymentAllocation[];
-  onChangeAllocations: (allocations: PaymentAllocation[]) => void;
+  /** Appends new allocation records under THIS device's own account key - always where they're
+   * filed, regardless of which device's shipments they target (see paymentAllocationStore.ts's
+   * allStoredAllocations doc comment). */
+  onAddAllocations: (newAllocations: PaymentAllocation[]) => void;
+  /** Removes every allocation touching one entry, wherever in the WHOLE store it's filed - used on
+   * delete so a cross-device allocation never dangles (see removeAllocationsForEntryFromStore). */
+  onRemoveEntryAllocations: (entryId: string) => void;
   onClose: () => void;
   onChange: (entries: LedgerEntry[]) => void;
+}
+
+/** Builds one device's own allocation-dialog data: its eligible (same-currency, not-yet-fully-
+ * paid) shipments plus a FIFO suggestion for `amount` - used for both a brand-new payment and an
+ * existing one's "تخصيص الدفعة" (whose `amount` is just its own unallocated remainder). */
+function buildDeviceOption(
+  accountId: string,
+  accountName: string,
+  deviceEntries: LedgerEntry[],
+  amount: number,
+  currency: LedgerCurrency,
+  allAllocations: PaymentAllocation[],
+): AllocationDeviceOption {
+  const shipments: AllocationShipmentRow[] = deviceEntries
+    .filter((e) => e.kind === "debit" && e.currency === currency)
+    .map((e) => ({ entry: e, remaining: e.amount - paidTowardShipment(allAllocations, e.id) }))
+    .filter((row) => row.remaining > 0)
+    .sort((a, b) => (a.entry.date !== b.entry.date ? (a.entry.date < b.entry.date ? -1 : 1) : (a.entry.createdAt < b.entry.createdAt ? -1 : 1)));
+  const { plan } = planFifoAllocation(deviceEntries, allAllocations, amount, currency);
+  return { accountId, accountName, shipments, initialPlan: plan };
 }
 
 function todayDateInputValue(): string {
@@ -55,12 +98,15 @@ function formatMoney(amount: number, currency: LedgerCurrency): string {
 }
 
 export function LedgerDialog({
+  accountId,
   accountName,
   entries,
+  siblingDevices,
   currencyStore,
   onUpsertCurrency,
   allocations,
-  onChangeAllocations,
+  onAddAllocations,
+  onRemoveEntryAllocations,
   onClose,
   onChange,
 }: Props) {
@@ -85,6 +131,17 @@ export function LedgerDialog({
   const [pendingPayment, setPendingPayment] = useState<LedgerEntry | null>(null);
   const [completingEntry, setCompletingEntry] = useState<LedgerEntry | null>(null);
   const [completingPayment, setCompletingPayment] = useState<LedgerEntry | null>(null);
+  // An already-saved payment being (re)allocated via "تخصيص الدفعة" - only its own unallocated
+  // remainder is proposed, existing allocation records for it are never touched here.
+  const [allocatingPayment, setAllocatingPayment] = useState<LedgerEntry | null>(null);
+
+  /** Every device this payment could be allocated into - this one first, then any sibling. */
+  function devicesForAllocation(amount: number, currency: LedgerCurrency): AllocationDeviceOption[] {
+    return [
+      buildDeviceOption(accountId, accountName, entries, amount, currency, allocations),
+      ...siblingDevices.map((d) => buildDeviceOption(d.accountId, d.accountName, d.entries, amount, currency, allocations)),
+    ];
+  }
 
   const balances = computeBalanceByCurrency(entries);
   const sorted = sortEntriesNewestFirst(entries);
@@ -171,7 +228,7 @@ export function LedgerDialog({
   function deleteEntry(entryId: string) {
     if (!window.confirm("هل تريد حذف هذه الحركة؟ لا يمكن التراجع عن هذا الإجراء.")) return;
     onChange(removeEntry(entries, entryId));
-    onChangeAllocations(removeAllocationsForEntry(allocations, entryId));
+    onRemoveEntryAllocations(entryId);
   }
 
   return (
@@ -327,14 +384,34 @@ export function LedgerDialog({
                   onCompleteLegacy={() => setCompletingEntry(entry)}
                 />
               )}
-              {entry.kind === "credit" && isIncompletePaymentRateEntry(entry) && (
-                <div className="ledger-entry-row-bottom">
-                  <span className="badge badge-yellow">سعر الصرف غير مكتمل</span>
-                  <button className="text-action" type="button" onClick={() => setCompletingPayment(entry)}>
-                    استكمال سعر الصرف
-                  </button>
-                </div>
-              )}
+              {entry.kind === "credit" && (() => {
+                const unallocated = entry.amount - allocatedFromPayment(allocations, entry.id);
+                const showUnallocated = unallocated > 0.0001;
+                const showRateIncomplete = isIncompletePaymentRateEntry(entry);
+                if (!showUnallocated && !showRateIncomplete) return null;
+                return (
+                  <div className="ledger-entry-row-bottom">
+                    {showRateIncomplete && (
+                      <>
+                        <span className="badge badge-yellow">سعر الصرف غير مكتمل</span>
+                        <button className="text-action" type="button" onClick={() => setCompletingPayment(entry)}>
+                          استكمال سعر الصرف
+                        </button>
+                      </>
+                    )}
+                    {showUnallocated && (
+                      <>
+                        <span className="badge badge-yellow" dir="ltr">
+                          رصيد غير مخصص للزبون: {formatAmount(unallocated)} {LEDGER_CURRENCY_LABELS[entry.currency]}
+                        </span>
+                        <button className="text-action" type="button" onClick={() => setAllocatingPayment(entry)}>
+                          تخصيص الدفعة
+                        </button>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
             </li>
           ))}
         </ul>
@@ -357,28 +434,39 @@ export function LedgerDialog({
         />
       )}
 
-      {pendingPayment && (() => {
-        const { plan } = planFifoAllocation(entries, allocations, pendingPayment.amount, pendingPayment.currency);
-        const shipmentRows = entries
-          .filter((e) => e.kind === "debit" && e.currency === pendingPayment.currency)
-          .map((e) => ({ entry: e, remaining: e.amount - paidTowardShipment(allocations, e.id) }))
-          .filter((row) => row.remaining > 0)
-          .sort((a, b) => (a.entry.date !== b.entry.date ? (a.entry.date < b.entry.date ? -1 : 1) : (a.entry.createdAt < b.entry.createdAt ? -1 : 1)));
+      {pendingPayment && (
+        <PaymentAllocationDialog
+          amount={pendingPayment.amount}
+          currency={pendingPayment.currency}
+          devices={devicesForAllocation(pendingPayment.amount, pendingPayment.currency)}
+          initialDeviceId={accountId}
+          onCancel={() => setPendingPayment(null)}
+          onConfirm={(plan: AllocationPlanItem[]) => {
+            const newAllocations = plan.map((item) =>
+              createAllocation(pendingPayment.id, item.shipmentEntryId, item.amount, pendingPayment.currency),
+            );
+            onChange([...entries, pendingPayment]);
+            onAddAllocations(newAllocations);
+            setPendingPayment(null);
+          }}
+        />
+      )}
 
+      {allocatingPayment && (() => {
+        const unallocated = allocatingPayment.amount - allocatedFromPayment(allocations, allocatingPayment.id);
         return (
           <PaymentAllocationDialog
-            amount={pendingPayment.amount}
-            currency={pendingPayment.currency}
-            shipments={shipmentRows}
-            initialPlan={plan}
-            onCancel={() => setPendingPayment(null)}
-            onConfirm={(finalPlan) => {
-              const newAllocations = finalPlan.map((item) =>
-                createAllocation(pendingPayment.id, item.shipmentEntryId, item.amount, pendingPayment.currency),
+            amount={unallocated}
+            currency={allocatingPayment.currency}
+            devices={devicesForAllocation(unallocated, allocatingPayment.currency)}
+            initialDeviceId={accountId}
+            onCancel={() => setAllocatingPayment(null)}
+            onConfirm={(plan: AllocationPlanItem[]) => {
+              const newAllocations = plan.map((item) =>
+                createAllocation(allocatingPayment.id, item.shipmentEntryId, item.amount, allocatingPayment.currency),
               );
-              onChange([...entries, pendingPayment]);
-              onChangeAllocations(addAllocations(allocations, newAllocations));
-              setPendingPayment(null);
+              onAddAllocations(newAllocations);
+              setAllocatingPayment(null);
             }}
           />
         );

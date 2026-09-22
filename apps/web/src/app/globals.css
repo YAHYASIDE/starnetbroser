@@ -1642,6 +1642,25 @@ a.btn-icon {
   color: var(--text-muted);
 }
 
+.statement-shipment-payments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.statement-linked-payments {
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
 .ledger-entry-list {
   list-style: none;
   margin: 14px 0 0;
