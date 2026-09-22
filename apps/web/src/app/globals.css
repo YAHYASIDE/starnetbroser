@@ -1534,6 +1534,86 @@ a.btn-icon {
   color: var(--yellow);
 }
 
+.statement-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.statement-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  font-size: 0.72rem;
+}
+
+.statement-summary-item span {
+  color: var(--text-muted);
+}
+
+.statement-net-result {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.statement-net-value {
+  font-weight: 700;
+}
+
+.statement-shipment-list {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.statement-shipment-row {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.statement-shipment-top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.statement-shipment-usd {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.statement-shipment-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.statement-shipment-cost {
+  color: var(--text-muted);
+}
+
 .ledger-entry-list {
   list-style: none;
   margin: 14px 0 0;

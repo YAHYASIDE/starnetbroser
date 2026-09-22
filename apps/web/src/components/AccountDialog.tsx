@@ -139,7 +139,7 @@ export function AccountDialog({ mode, account, clients, onCreateClient, onClose,
             <div><span>KIT</span><strong dir="ltr">{displayValue(draft.kitNumber)}</strong></div>
             <div><span>Serial</span><strong dir="ltr">{displayValue(draft.serialNumber)}</strong></div>
             <div><span>موعد التجديد</span><strong dir="ltr">{displayValue(draft.rechargeDate)}</strong></div>
-            <div><span>الرصيد المستحق</span><strong dir="ltr">{draft.currency}{displayValue(draft.balanceDue)}</strong></div>
+            <div><span>الرصيد المستحق لـStarlink</span><strong dir="ltr">{draft.currency}{displayValue(draft.balanceDue)}</strong></div>
             <div><span>حالة الجهاز</span><strong>{statusOptions.find((item) => item.value === draft.dishStatus)?.label ?? "—"}</strong></div>
             <div><span>حالة Wi-Fi</span><strong>{statusOptions.find((item) => item.value === draft.wifiStatus)?.label ?? "—"}</strong></div>
             {draft.accountNumber && <div><span>رقم الحساب</span><strong dir="ltr">{draft.accountNumber}</strong></div>}
@@ -226,7 +226,7 @@ export function AccountDialog({ mode, account, clients, onCreateClient, onClose,
             </label>
 
             <label className="form-field">
-              <span>الرصيد المستحق</span>
+              <span>الرصيد المستحق لـStarlink</span>
               <input type="number" min="0" step="0.01" dir="ltr" value={draft.balanceDue} onChange={(e) => update("balanceDue", e.target.value)} />
             </label>
 

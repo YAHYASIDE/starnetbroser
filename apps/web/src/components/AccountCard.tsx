@@ -23,6 +23,7 @@ interface Props {
    * account.balanceDue (Starlink's own synced subscription balance). */
   ledgerEntries: LedgerEntry[];
   onLedger: (account: StarlinkAccountSummary) => void;
+  onDeviceStatement: (account: StarlinkAccountSummary) => void;
   /** The Client this device is linked to (via account.clientId) - undefined for a card never
    * linked to a customer yet ("الزبون غير محدد"). Resolved by the caller from clientStore, never
    * looked up here, so every card in a render pass sees the exact same store snapshot. */
@@ -30,7 +31,7 @@ interface Props {
   onOpenClient: (client: Client) => void;
 }
 
-export function AccountCard({ account, onEdit, onInfo, ledgerEntries, onLedger, client, onOpenClient }: Props) {
+export function AccountCard({ account, onEdit, onInfo, ledgerEntries, onLedger, onDeviceStatement, client, onOpenClient }: Props) {
   const ledgerBalances = computeBalanceByCurrency(ledgerEntries);
   const dish = presentStatus(account.dishStatus);
   const wifi = presentStatus(account.wifiStatus);
@@ -207,7 +208,7 @@ export function AccountCard({ account, onEdit, onInfo, ledgerEntries, onLedger, 
         </div>
 
         <div className="account-detail-block balance-block">
-          <span className="account-card-label">الرصيد المستحق</span>
+          <span className="account-card-label">الرصيد المستحق لـStarlink</span>
           {balanceIsZero ? (
             <span className="badge badge-green">لا يوجد مستحق</span>
           ) : (
@@ -244,6 +245,9 @@ export function AccountCard({ account, onEdit, onInfo, ledgerEntries, onLedger, 
         )}
         <button className="ledger-open-btn" type="button" onClick={() => onLedger(account)}>
           السجل
+        </button>
+        <button className="ledger-open-btn" type="button" onClick={() => onDeviceStatement(account)}>
+          كشف حساب الجهاز
         </button>
       </div>
 

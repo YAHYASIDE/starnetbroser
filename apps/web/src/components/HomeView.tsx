@@ -11,6 +11,7 @@ import { ConnectionStatus } from "./ConnectionStatus";
 import { AccountDialog, AccountDialogMode } from "./AccountDialog";
 import { LedgerDialog } from "./LedgerDialog";
 import { ClientDialog } from "./ClientDialog";
+import { DeviceStatementDialog } from "./DeviceStatementDialog";
 import { ToastMessage, ToastStack } from "./ToastStack";
 import { daysRemainingNumber } from "@/lib/date";
 import {
@@ -97,6 +98,7 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
   const [ledgerStore, setLedgerStore] = useState<LedgerByAccount>({});
   useEffect(() => setLedgerStore(loadLedgerStore()), []);
   const [ledgerAccount, setLedgerAccount] = useState<StarlinkAccountSummary | null>(null);
+  const [statementAccount, setStatementAccount] = useState<StarlinkAccountSummary | null>(null);
 
   function updateLedgerEntries(accountId: string, entries: LedgerEntry[]) {
     setLedgerStore((current) => {
@@ -615,6 +617,7 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
                 onEdit={(selected) => setDialog({ mode: "edit", account: selected })}
                 ledgerEntries={getAccountEntries(ledgerStore, account.id)}
                 onLedger={(selected) => setLedgerAccount(selected)}
+                onDeviceStatement={(selected) => setStatementAccount(selected)}
                 client={getClient(clientStore, account.clientId)}
                 onOpenClient={(selectedClient) => setOpenClientId(selectedClient.id)}
               />
@@ -645,6 +648,15 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
           onChangeAllocations={(next) => updateAllocations(ledgerAccount.id, next)}
           onClose={() => setLedgerAccount(null)}
           onChange={(entries) => updateLedgerEntries(ledgerAccount.id, entries)}
+        />
+      )}
+
+      {statementAccount && (
+        <DeviceStatementDialog
+          accountName={statementAccount.name}
+          entries={getAccountEntries(ledgerStore, statementAccount.id)}
+          allocations={getAccountAllocations(allocationStore, statementAccount.id)}
+          onClose={() => setStatementAccount(null)}
         />
       )}
 
