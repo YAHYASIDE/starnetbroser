@@ -1015,6 +1015,108 @@ a.btn-icon {
   white-space: nowrap;
 }
 
+.account-card-client-row {
+  display: flex;
+  justify-content: center;
+  text-align: center;
+}
+
+.account-card-client-name {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 1.18rem;
+  font-weight: 800;
+  color: var(--brand);
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-card-client-missing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.client-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.client-picker-selected {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-alt);
+}
+
+.client-picker-selected-name {
+  font-weight: 700;
+  flex: 1;
+}
+
+.client-picker-selected-phone {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.client-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.client-picker-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+  text-align: right;
+}
+
+.client-picker-option-phone {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.client-picker-empty {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  margin: 0;
+}
+
+.client-picker-new-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+}
+
+.client-picker-new-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .card-action {
   min-height: 38px;
   padding: 7px 9px;

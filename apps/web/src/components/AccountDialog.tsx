@@ -5,12 +5,16 @@ import { DeviceStatus, StarlinkAccountSummary } from "@starnet/shared";
 import { formatRelativeTime } from "@/lib/date";
 import { emailsMismatch } from "@/lib/emailMatch";
 import { presentServiceStatus } from "@/lib/status";
+import { Client, CreateClientInput } from "@/lib/clientStore";
+import { ClientPicker } from "./ClientPicker";
 
 export type AccountDialogMode = "add" | "edit" | "view";
 
 interface Props {
   mode: AccountDialogMode;
   account?: StarlinkAccountSummary;
+  clients: Client[];
+  onCreateClient: (input: CreateClientInput) => Client;
   onClose: () => void;
   onSave: (account: StarlinkAccountSummary) => void;
   onDelete?: (account: StarlinkAccountSummary) => void;
@@ -64,11 +68,12 @@ function displayValue(value: string | null): string {
   return value?.trim() || "—";
 }
 
-export function AccountDialog({ mode, account, onClose, onSave, onDelete }: Props) {
+export function AccountDialog({ mode, account, clients, onCreateClient, onClose, onSave, onDelete }: Props) {
   const initial = useMemo(() => account ?? createBlankAccount(), [account]);
   const [draft, setDraft] = useState(initial);
   const isView = mode === "view";
   const title = mode === "add" ? "إضافة حساب جديد" : mode === "edit" ? "تعديل الحساب" : "معلومات الحساب";
+  const clientName = (clientId?: string) => clients.find((c) => c.id === clientId)?.name;
 
   function update<K extends keyof StarlinkAccountSummary>(key: K, value: StarlinkAccountSummary[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -84,6 +89,15 @@ export function AccountDialog({ mode, account, onClose, onSave, onDelete }: Prop
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (isView) return;
+
+    // Transferring an already-linked device to a different client is a meaningful, easy-to-mistake
+    // action (it moves every future statement/accounting entry with it) - a first-time link from
+    // "الزبون غير محدد" needs no confirmation, only an actual change of owner does.
+    if (mode === "edit" && account?.clientId && draft.clientId && account.clientId !== draft.clientId) {
+      const fromName = clientName(account.clientId) ?? "الزبون الحالي";
+      const toName = clientName(draft.clientId) ?? "الزبون الجديد";
+      if (!window.confirm(`هل تريد نقل هذا الجهاز من "${fromName}" إلى "${toName}"؟`)) return;
+    }
 
     onSave({
       ...draft,
@@ -115,7 +129,8 @@ export function AccountDialog({ mode, account, onClose, onSave, onDelete }: Prop
 
         {isView ? (
           <div className="account-info-grid">
-            <div><span>اسم العميل</span><strong>{displayValue(draft.name)}</strong></div>
+            <div><span>اسم الزبون</span><strong>{clientName(draft.clientId) ?? "الزبون غير محدد"}</strong></div>
+            <div><span>اسم الحساب / البطاقة</span><strong>{displayValue(draft.name)}</strong></div>
             {draft.starlinkAccountHolderName && (
               <div><span>الاسم من Starlink</span><strong>{draft.starlinkAccountHolderName}</strong></div>
             )}
@@ -153,9 +168,19 @@ export function AccountDialog({ mode, account, onClose, onSave, onDelete }: Prop
           </div>
         ) : (
           <form className="account-form" onSubmit={submit}>
+            <div className="form-field form-wide">
+              <span>اسم الزبون</span>
+              <ClientPicker
+                clients={clients}
+                selectedClientId={draft.clientId}
+                onSelect={(clientId) => update("clientId", clientId)}
+                onCreateClient={onCreateClient}
+              />
+            </div>
+
             <label className="form-field form-wide">
-              <span>اسم العميل *</span>
-              <input required autoFocus value={draft.name} onChange={(e) => update("name", e.target.value)} placeholder="مثال: محمد أحمد" />
+              <span>اسم الحساب / البطاقة *</span>
+              <input required value={draft.name} onChange={(e) => update("name", e.target.value)} placeholder="مثال: منزل الحي الشرقي" />
             </label>
 
             <label className="form-field form-wide">

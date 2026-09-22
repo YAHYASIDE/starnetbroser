@@ -6,6 +6,7 @@ import { presentStatus, presentServiceStatus, isBalanceDueZero } from "@/lib/sta
 import { daysRemainingLabel, daysRemainingNumber, formatRelativeTime } from "@/lib/date";
 import { emailsMismatch } from "@/lib/emailMatch";
 import { computeBalanceByCurrency, LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerEntry } from "@/lib/ledgerStore";
+import { Client } from "@/lib/clientStore";
 import { isRunningInAndroidApp, openIsolatedAccountBrowser, triggerImmediateSync } from "@/lib/localBrowser";
 import {
   buildAccountStatementMessage,
@@ -22,9 +23,14 @@ interface Props {
    * account.balanceDue (Starlink's own synced subscription balance). */
   ledgerEntries: LedgerEntry[];
   onLedger: (account: StarlinkAccountSummary) => void;
+  /** The Client this device is linked to (via account.clientId) - undefined for a card never
+   * linked to a customer yet ("الزبون غير محدد"). Resolved by the caller from clientStore, never
+   * looked up here, so every card in a render pass sees the exact same store snapshot. */
+  client?: Client;
+  onOpenClient: (client: Client) => void;
 }
 
-export function AccountCard({ account, onEdit, onInfo, ledgerEntries, onLedger }: Props) {
+export function AccountCard({ account, onEdit, onInfo, ledgerEntries, onLedger, client, onOpenClient }: Props) {
   const ledgerBalances = computeBalanceByCurrency(ledgerEntries);
   const dish = presentStatus(account.dishStatus);
   const wifi = presentStatus(account.wifiStatus);
@@ -95,10 +101,29 @@ export function AccountCard({ account, onEdit, onInfo, ledgerEntries, onLedger }
 
   return (
     <article className="account-card">
+      <div className="account-card-client-row">
+        {client ? (
+          <button
+            type="button"
+            className="account-card-client-name"
+            onClick={() => onOpenClient(client)}
+            title="فتح بطاقة الزبون"
+          >
+            {client.name}
+          </button>
+        ) : (
+          <div className="account-card-client-missing">
+            <span className="badge badge-gray">الزبون غير محدد</span>
+            <button type="button" className="text-action" onClick={() => onEdit(account)}>
+              ربط بزبون
+            </button>
+          </div>
+        )}
+      </div>
       <header className="account-card-header">
         <div className="account-identity">
           <div>
-            <h3 className="account-card-name">{account.name}</h3>
+            <h3 className="account-card-name">حساب الجهاز: {account.name}</h3>
             {account.starlinkAccountHolderName && (
               <p className="account-card-starlink-name">الاسم من Starlink: {account.starlinkAccountHolderName}</p>
             )}

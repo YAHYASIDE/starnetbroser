@@ -10,6 +10,7 @@ import { DayCircles } from "./DayCircles";
 import { ConnectionStatus } from "./ConnectionStatus";
 import { AccountDialog, AccountDialogMode } from "./AccountDialog";
 import { LedgerDialog } from "./LedgerDialog";
+import { ClientDialog } from "./ClientDialog";
 import { ToastMessage, ToastStack } from "./ToastStack";
 import { daysRemainingNumber } from "@/lib/date";
 import {
@@ -23,6 +24,18 @@ import {
   totalOwedAcrossAccounts,
   withAccountEntries,
 } from "@/lib/ledgerStore";
+import {
+  Client,
+  ClientStore,
+  countLinkedAccounts,
+  createClient,
+  CreateClientInput,
+  getClient,
+  listClients,
+  loadClientStore,
+  saveClientStore,
+  updateClient,
+} from "@/lib/clientStore";
 import { ApiError, listAccounts } from "@/lib/apiClient";
 import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
 import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
@@ -80,6 +93,29 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
     setLedgerStore((current) => {
       const next = withAccountEntries(current, accountId, entries);
       saveLedgerStore(next);
+      return next;
+    });
+  }
+
+  // Customer registry (see clientStore.ts) - same load-after-mount hydration-safety pattern as
+  // the ledger store above. A device/account links here via its own clientId, never the other
+  // way around, so this store never references accounts itself.
+  const [clientStore, setClientStore] = useState<ClientStore>({});
+  useEffect(() => setClientStore(loadClientStore()), []);
+  const clients = useMemo(() => listClients(clientStore), [clientStore]);
+  const [openClientId, setOpenClientId] = useState<string | null>(null);
+
+  function handleCreateClient(input: CreateClientInput): Client {
+    const result = createClient(clientStore, input);
+    setClientStore(result.store);
+    saveClientStore(result.store);
+    return result.client;
+  }
+
+  function handleUpdateClient(clientId: string, patch: CreateClientInput) {
+    setClientStore((current) => {
+      const next = updateClient(current, clientId, patch);
+      saveClientStore(next);
       return next;
     });
   }
@@ -544,6 +580,8 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
                 onEdit={(selected) => setDialog({ mode: "edit", account: selected })}
                 ledgerEntries={getAccountEntries(ledgerStore, account.id)}
                 onLedger={(selected) => setLedgerAccount(selected)}
+                client={getClient(clientStore, account.clientId)}
+                onOpenClient={(selectedClient) => setOpenClientId(selectedClient.id)}
               />
             ))}
           </div>
@@ -554,6 +592,8 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
         <AccountDialog
           mode={dialog.mode}
           account={dialog.account}
+          clients={clients}
+          onCreateClient={handleCreateClient}
           onClose={() => setDialog(null)}
           onSave={saveAccount}
           onDelete={deleteAccount}
@@ -566,6 +606,15 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
           entries={getAccountEntries(ledgerStore, ledgerAccount.id)}
           onClose={() => setLedgerAccount(null)}
           onChange={(entries) => updateLedgerEntries(ledgerAccount.id, entries)}
+        />
+      )}
+
+      {openClientId && getClient(clientStore, openClientId) && (
+        <ClientDialog
+          client={getClient(clientStore, openClientId)!}
+          linkedAccountCount={countLinkedAccounts(accounts, openClientId)}
+          onClose={() => setOpenClientId(null)}
+          onSave={(patch) => handleUpdateClient(openClientId, patch)}
         />
       )}
     </main>
