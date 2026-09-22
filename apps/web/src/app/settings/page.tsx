@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { checkHealth, listAccounts, login, register } from "@/lib/apiClient";
 import { ApiError } from "@/lib/apiClient";
 import { clearTokens, getApiBaseUrl, isDemoMode, isLoggedIn, setApiBaseUrl } from "@/lib/settingsStore";
@@ -8,6 +8,16 @@ import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
 import { createEncryptedBackupFile, mergeImportedAccounts, readEncryptedBackupFile } from "@/lib/accountBackup";
 import { exportAccountSessions, importAccountSessions } from "@/lib/localBrowser";
 import { saveAndShareBackupFile } from "@/lib/backupFile";
+import {
+  Currency,
+  CurrencyStore,
+  listCurrencies,
+  loadCurrencyStore,
+  saveCurrencyStore,
+  setCurrencyEnabled,
+  setCurrencyRate,
+  upsertCurrency,
+} from "@/lib/currencyStore";
 
 export default function SettingsPage() {
   const [url, setUrl] = useState("");
@@ -112,8 +122,155 @@ export default function SettingsPage() {
         </section>
       )}
 
+      <CurrencySection />
       <BackupSection />
     </main>
+  );
+}
+
+function formatRate(currency: Currency): string {
+  return `1 USD = ${currency.rateFromUsd} ${currency.symbol}`;
+}
+
+function formatUpdatedAt(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString("ar");
+  } catch {
+    return iso;
+  }
+}
+
+function CurrencySection() {
+  const [store, setStore] = useState<CurrencyStore>({});
+  useEffect(() => setStore(loadCurrencyStore()), []);
+
+  const [editingCode, setEditingCode] = useState<string | null>(null);
+  const [editRate, setEditRate] = useState("");
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newCode, setNewCode] = useState("");
+  const [newName, setNewName] = useState("");
+  const [newSymbol, setNewSymbol] = useState("");
+  const [newRate, setNewRate] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
+
+  function persist(next: CurrencyStore) {
+    setStore(next);
+    saveCurrencyStore(next);
+  }
+
+  function startEditRate(currency: Currency) {
+    setEditingCode(currency.code);
+    setEditRate(String(currency.rateFromUsd));
+  }
+
+  function saveEditRate(code: string) {
+    const rate = Number(editRate);
+    if (!Number.isFinite(rate) || rate <= 0) return;
+    persist(setCurrencyRate(store, code, rate));
+    setEditingCode(null);
+  }
+
+  function toggleEnabled(currency: Currency) {
+    persist(setCurrencyEnabled(store, currency.code, !currency.enabled));
+  }
+
+  function submitNewCurrency(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const rate = Number(newRate);
+    if (!newCode.trim() || !newName.trim() || !newSymbol.trim()) {
+      setFormError("املأ جميع الحقول");
+      return;
+    }
+    if (!Number.isFinite(rate) || rate <= 0) {
+      setFormError("أدخل سعر صرف صحيح أكبر من صفر");
+      return;
+    }
+    setFormError(null);
+    persist(upsertCurrency(store, { code: newCode, name: newName, symbol: newSymbol, rateFromUsd: rate }));
+    setNewCode("");
+    setNewName("");
+    setNewSymbol("");
+    setNewRate("");
+    setShowAddForm(false);
+  }
+
+  const currencies = listCurrencies(store, true);
+
+  return (
+    <section className="section">
+      <h2 className="section-title">العملات وأسعار الصرف</h2>
+      <p className="settings-hint">
+        الدولار الأمريكي هو العملة المرجعية الثابتة (لا يمكن تعديل سعره). سعر كل عملة أخرى هو قيمة
+        1 دولار بهذه العملة - تغييره هنا لا يُغيّر أي معاملة سابقة، فسعر الصرف يُحفظ داخل كل معاملة
+        لحظة تسجيلها.
+      </p>
+
+      <ul className="currency-list">
+        {currencies.map((currency) => (
+          <li key={currency.code} className={`currency-row${currency.enabled ? "" : " currency-row-disabled"}`}>
+            <div className="currency-row-main">
+              <strong>{currency.name}</strong>
+              <span className="currency-row-code" dir="ltr">{currency.code}</span>
+            </div>
+            {editingCode === currency.code ? (
+              <div className="currency-row-edit">
+                <input
+                  className="search-input"
+                  type="number"
+                  min="0"
+                  step="0.0001"
+                  dir="ltr"
+                  value={editRate}
+                  onChange={(e) => setEditRate(e.target.value)}
+                />
+                <button className="dialog-primary" type="button" onClick={() => saveEditRate(currency.code)}>حفظ</button>
+                <button className="dialog-secondary" type="button" onClick={() => setEditingCode(null)}>إلغاء</button>
+              </div>
+            ) : (
+              <div className="currency-row-info">
+                <span dir="ltr">{formatRate(currency)}</span>
+                <span className="currency-row-updated">آخر تحديث: {formatUpdatedAt(currency.updatedAt)}</span>
+              </div>
+            )}
+            {currency.code !== "USD" && editingCode !== currency.code && (
+              <div className="currency-row-actions">
+                <button className="text-action" type="button" onClick={() => startEditRate(currency)}>تعديل السعر</button>
+                <button className="text-action" type="button" onClick={() => toggleEnabled(currency)}>
+                  {currency.enabled ? "إخفاء" : "إظهار"}
+                </button>
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      {!showAddForm ? (
+        <div className="settings-actions">
+          <button className="btn-icon" type="button" onClick={() => setShowAddForm(true)}>+ إضافة عملة جديدة</button>
+        </div>
+      ) : (
+        <form className="auth-form" onSubmit={submitNewCurrency}>
+          <input className="search-input" dir="ltr" placeholder="الرمز الدولي، مثال: EUR" value={newCode} onChange={(e) => setNewCode(e.target.value)} />
+          <input className="search-input" placeholder="اسم العملة" value={newName} onChange={(e) => setNewName(e.target.value)} />
+          <input className="search-input" dir="ltr" placeholder="رمز العرض، مثال: €" value={newSymbol} onChange={(e) => setNewSymbol(e.target.value)} />
+          <input
+            className="search-input"
+            type="number"
+            min="0"
+            step="0.0001"
+            dir="ltr"
+            placeholder="قيمة 1 دولار بهذه العملة"
+            value={newRate}
+            onChange={(e) => setNewRate(e.target.value)}
+          />
+          {formError && <div className="account-card-alert">{formError}</div>}
+          <div className="settings-actions">
+            <button className="btn-icon" type="submit">إضافة</button>
+            <button className="btn-icon" type="button" onClick={() => setShowAddForm(false)}>إلغاء</button>
+          </div>
+        </form>
+      )}
+    </section>
   );
 }
 

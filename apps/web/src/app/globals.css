@@ -543,6 +543,70 @@ a.btn-icon {
   max-width: 320px;
 }
 
+.currency-list {
+  list-style: none;
+  margin: 0 0 4px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.currency-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-alt);
+}
+
+.currency-row-disabled {
+  opacity: 0.55;
+}
+
+.currency-row-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 140px;
+}
+
+.currency-row-code {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.currency-row-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.82rem;
+}
+
+.currency-row-updated {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
+.currency-row-edit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.currency-row-edit .search-input {
+  max-width: 110px;
+}
+
+.currency-row-actions {
+  display: flex;
+  gap: 10px;
+  margin-inline-start: auto;
+}
+
 /* Session / VNC viewer */
 .session-header {
   display: flex;
