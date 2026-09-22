@@ -31,6 +31,7 @@ import {
 } from "@/lib/paymentAllocationStore";
 import { StarlinkSettlementDialog } from "./StarlinkSettlementDialog";
 import { PaymentAllocationDialog } from "./PaymentAllocationDialog";
+import { LegacyEntryCompletionDialog } from "./LegacyEntryCompletionDialog";
 
 interface Props {
   accountName: string;
@@ -78,6 +79,7 @@ export function LedgerDialog({
 
   const [settlingEntry, setSettlingEntry] = useState<LedgerEntry | null>(null);
   const [pendingPayment, setPendingPayment] = useState<LedgerEntry | null>(null);
+  const [completingEntry, setCompletingEntry] = useState<LedgerEntry | null>(null);
 
   const balances = computeBalanceByCurrency(entries);
   const sorted = sortEntriesNewestFirst(entries);
@@ -306,7 +308,12 @@ export function LedgerDialog({
                 </div>
               )}
               {entry.kind === "debit" && (
-                <ShipmentStatusRow entry={entry} allocations={allocations} onSettle={() => setSettlingEntry(entry)} />
+                <ShipmentStatusRow
+                  entry={entry}
+                  allocations={allocations}
+                  onSettle={() => setSettlingEntry(entry)}
+                  onCompleteLegacy={() => setCompletingEntry(entry)}
+                />
               )}
             </li>
           ))}
@@ -356,6 +363,19 @@ export function LedgerDialog({
           />
         );
       })()}
+
+      {completingEntry && (
+        <LegacyEntryCompletionDialog
+          entry={completingEntry}
+          currencyStore={currencyStore}
+          onUpsertCurrency={onUpsertCurrency}
+          onClose={() => setCompletingEntry(null)}
+          onComplete={(patch) => {
+            onChange(updateEntry(entries, completingEntry.id, patch));
+            setCompletingEntry(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -366,10 +386,12 @@ function ShipmentStatusRow({
   entry,
   allocations,
   onSettle,
+  onCompleteLegacy,
 }: {
   entry: LedgerEntry;
   allocations: PaymentAllocation[];
   onSettle: () => void;
+  onCompleteLegacy: () => void;
 }) {
   const paymentStatus = computeShipmentPaymentStatus(entry, allocations);
   const paymentBadge = (
@@ -383,6 +405,9 @@ function ShipmentStatusRow({
       <div className="ledger-shipment-row">
         {paymentBadge}
         <span className="badge badge-gray">عملية قديمة - بيانات الربح غير مكتملة</span>
+        <button type="button" className="text-action" onClick={onCompleteLegacy}>
+          استكمال البيانات
+        </button>
       </div>
     );
   }
