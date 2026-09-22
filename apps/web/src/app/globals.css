@@ -115,6 +115,16 @@ a {
   font-size: 0.95rem;
 }
 
+/* A <select> never stretches to fill a grid/flex track on its own the way an <input> does - its
+   box instead sizes to whichever option's text is currently selected, so the whole field visibly
+   resized/shifted every time the value changed (worse still in a 2-column grid row like
+   .ledger-entry-form's currency/kind selects, where the shorter one could overflow past the
+   screen edge entirely instead of sharing the row evenly - reported live on-device). Pins every
+   select.search-input to its container's full width regardless of option text length. */
+select.search-input {
+  width: 100%;
+}
+
 .search-input:focus {
   outline: 2px solid var(--brand);
   outline-offset: 1px;
