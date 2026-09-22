@@ -139,6 +139,7 @@ export function LedgerDialog({
     const known = code ? getCurrency(currencyStore, code)?.rateFromUsd : undefined;
     return known !== undefined ? String(known) : "";
   });
+  const [costQuery, setCostQuery] = useState("");
   const [costShowNewCurrency, setCostShowNewCurrency] = useState(false);
   const [costNewCode, setCostNewCode] = useState("");
   const [costNewName, setCostNewName] = useState("");
@@ -184,15 +185,24 @@ export function LedgerDialog({
   }
 
   function selectCostCurrency(value: string) {
-    if (value === "__new__") {
-      setCostShowNewCurrency(true);
-      return;
-    }
     setCostShowNewCurrency(false);
+    setCostQuery("");
     setCostCurrencyCode(value);
     const known = getCurrency(currencyStore, value)?.rateFromUsd;
     setCostRate(known !== undefined ? String(known) : "");
   }
+
+  function changeCostCurrency() {
+    setCostCurrencyCode("");
+    setCostQuery("");
+    setCostShowNewCurrency(false);
+  }
+
+  const costQueryNormalized = costQuery.trim().toLowerCase();
+  const costCurrencyMatches = listCurrencies(currencyStore).filter(
+    (c) => c.name.includes(costQuery.trim()) || c.code.toLowerCase().includes(costQueryNormalized),
+  );
+  const selectedCostCurrency = getCurrency(currencyStore, costCurrencyCode);
 
   function submitCostNewCurrency() {
     if (!costNewCode.trim() || !costNewName.trim() || !costNewSymbol.trim()) return;
@@ -424,20 +434,18 @@ export function LedgerDialog({
             onChange={(e) => setDate(e.target.value)}
           />
           {currency !== "USD" && (
-            <input
-              className="search-input"
-              type="number"
-              min="0"
-              step="0.0001"
-              dir="ltr"
-              placeholder={
-                kind === "debit"
-                  ? `سعر صرف قيمة البيع (1 USD = ؟ ${currency})`
-                  : `سعر صرف الدفعة (1 USD = ؟ ${currency})`
-              }
-              value={rateInput}
-              onChange={(e) => setRateInput(e.target.value)}
-            />
+            <label className="form-field">
+              <span>سعر عملة {kind === "debit" ? "البيع" : "الدفعة"} (1 USD = ؟ {currency})</span>
+              <input
+                className="search-input"
+                type="number"
+                min="0"
+                step="0.0001"
+                dir="ltr"
+                value={rateInput}
+                onChange={(e) => setRateInput(e.target.value)}
+              />
+            </label>
           )}
           {kind === "debit" && (
             <div className="ledger-cost-section">
@@ -446,25 +454,44 @@ export function LedgerDialog({
                 <span>أدخل تكلفة اشتراك Starlink بعملة الدفع للجهاز</span>
               </div>
 
-              <label className="form-field form-wide">
+              <div className="form-field form-wide">
                 <span>عملة الدفع للجهاز</span>
-                <select className="search-input" value={costShowNewCurrency ? "__new__" : costCurrencyCode} onChange={(e) => selectCostCurrency(e.target.value)}>
-                  <option value="" disabled>- اختر العملة -</option>
-                  {listCurrencies(currencyStore).map((c) => (
-                    <option key={c.code} value={c.code}>{c.name} - {c.code}</option>
-                  ))}
-                  <option value="__new__">+ عملة جديدة…</option>
-                </select>
-              </label>
-
-              {costShowNewCurrency && (
-                <div className="form-field form-wide client-picker-new-form">
-                  <input className="search-input" dir="ltr" placeholder="الرمز الدولي، مثال: ARS" value={costNewCode} onChange={(e) => setCostNewCode(e.target.value)} />
-                  <input className="search-input" placeholder="اسم العملة" value={costNewName} onChange={(e) => setCostNewName(e.target.value)} />
-                  <input className="search-input" dir="ltr" placeholder="رمز العرض" value={costNewSymbol} onChange={(e) => setCostNewSymbol(e.target.value)} />
-                  <button type="button" className="dialog-primary" onClick={submitCostNewCurrency}>إضافة واستخدام</button>
-                </div>
-              )}
+                {costCurrencyCode && !costShowNewCurrency ? (
+                  <div className="client-picker-selected">
+                    <span className="client-picker-selected-name">{selectedCostCurrency?.name ?? costCurrencyCode} ({costCurrencyCode})</span>
+                    <button type="button" className="text-action" onClick={changeCostCurrency}>تغيير</button>
+                  </div>
+                ) : costShowNewCurrency ? (
+                  <div className="client-picker-new-form">
+                    <input className="search-input" dir="ltr" placeholder="الرمز الدولي، مثال: ARS" value={costNewCode} onChange={(e) => setCostNewCode(e.target.value)} />
+                    <input className="search-input" placeholder="اسم العملة" value={costNewName} onChange={(e) => setCostNewName(e.target.value)} />
+                    <input className="search-input" dir="ltr" placeholder="رمز العرض" value={costNewSymbol} onChange={(e) => setCostNewSymbol(e.target.value)} />
+                    <div className="client-picker-new-actions">
+                      <button type="button" className="dialog-secondary" onClick={() => setCostShowNewCurrency(false)}>إلغاء</button>
+                      <button type="button" className="dialog-primary" onClick={submitCostNewCurrency}>إضافة واستخدام</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="client-picker">
+                    <input
+                      className="search-input"
+                      placeholder="ابحث عن عملة"
+                      value={costQuery}
+                      onChange={(e) => setCostQuery(e.target.value)}
+                    />
+                    <div className="client-picker-list">
+                      {costCurrencyMatches.length === 0 && <p className="client-picker-empty">لا توجد عملة مطابقة</p>}
+                      {costCurrencyMatches.map((c) => (
+                        <button key={c.code} type="button" className="client-picker-option" onClick={() => selectCostCurrency(c.code)}>
+                          <span>{c.name}</span>
+                          <span dir="ltr">{c.code}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <button type="button" className="text-action" onClick={() => setCostShowNewCurrency(true)}>+ عملة جديدة…</button>
+                  </div>
+                )}
+              </div>
 
               <div className="ledger-cost-row">
                 <label className="form-field">
