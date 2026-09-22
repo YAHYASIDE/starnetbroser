@@ -21,7 +21,8 @@ import {
   updateEntry,
 } from "@/lib/ledgerStore";
 import { computeShipmentProfit } from "@/lib/accountingStore";
-import { Currency, CurrencyStore, getCurrency, listCurrencies, toUsd, UpsertCurrencyInput } from "@/lib/currencyStore";
+import { Currency, CurrencyStore, getCurrency, toUsd, UpsertCurrencyInput } from "@/lib/currencyStore";
+import { COUNTRY_CURRENCIES, CountryCurrencyOption } from "@/lib/countryCurrencies";
 import { formatAmount } from "@/lib/formatAmount";
 import {
   allocatedFromPayment,
@@ -140,10 +141,11 @@ export function LedgerDialog({
     return known !== undefined ? String(known) : "";
   });
   const [costQuery, setCostQuery] = useState("");
-  const [costShowNewCurrency, setCostShowNewCurrency] = useState(false);
-  const [costNewCode, setCostNewCode] = useState("");
-  const [costNewName, setCostNewName] = useState("");
-  const [costNewSymbol, setCostNewSymbol] = useState("");
+  // The picked-but-not-yet-registered country's own name/symbol (see selectCostCurrency) - only
+  // needed as a fallback for display/for "حفظ السعر في الإعدادات" until that button (or nothing)
+  // actually adds this currency to the shared registry.
+  const [costPendingName, setCostPendingName] = useState<string | undefined>(undefined);
+  const [costPendingSymbol, setCostPendingSymbol] = useState<string | undefined>(undefined);
 
   const [settlingEntry, setSettlingEntry] = useState<LedgerEntry | null>(null);
   const [pendingPayment, setPendingPayment] = useState<LedgerEntry | null>(null);
@@ -184,36 +186,34 @@ export function LedgerDialog({
     setRateInput(known !== undefined ? String(known) : "");
   }
 
-  function selectCostCurrency(value: string) {
-    setCostShowNewCurrency(false);
+  // Picking any country registers nothing by itself (same as the /currencies page's own add
+  // form) - just fills the code/rate fields. It only actually joins the shared registry via
+  // "حفظ السعر في الإعدادات" below, or implicitly once this entry itself is saved.
+  function selectCostCurrency(option: CountryCurrencyOption) {
     setCostQuery("");
-    setCostCurrencyCode(value);
-    const known = getCurrency(currencyStore, value)?.rateFromUsd;
+    setCostCurrencyCode(option.code);
+    setCostPendingName(option.name);
+    setCostPendingSymbol(option.symbol);
+    const known = getCurrency(currencyStore, option.code)?.rateFromUsd;
     setCostRate(known !== undefined ? String(known) : "");
   }
 
   function changeCostCurrency() {
     setCostCurrencyCode("");
     setCostQuery("");
-    setCostShowNewCurrency(false);
+    setCostPendingName(undefined);
+    setCostPendingSymbol(undefined);
   }
 
+  // Same source and search behavior as the /currencies page's own "إضافة عملة جديدة" - every
+  // country (USD included, since Starlink is a perfectly normal currency to pay it in directly),
+  // searchable by country name or currency code.
   const costQueryNormalized = costQuery.trim().toLowerCase();
-  const costCurrencyMatches = listCurrencies(currencyStore).filter(
-    (c) => c.name.includes(costQuery.trim()) || c.code.toLowerCase().includes(costQueryNormalized),
+  const costCountryMatches = COUNTRY_CURRENCIES.filter(
+    (o) => o.country.includes(costQuery.trim()) || o.code.toLowerCase().includes(costQueryNormalized),
   );
   const selectedCostCurrency = getCurrency(currencyStore, costCurrencyCode);
-
-  function submitCostNewCurrency() {
-    if (!costNewCode.trim() || !costNewName.trim() || !costNewSymbol.trim()) return;
-    const created = onUpsertCurrency({ code: costNewCode, name: costNewName, symbol: costNewSymbol, rateFromUsd: 1 });
-    setCostCurrencyCode(created.code);
-    setCostRate("1");
-    setCostShowNewCurrency(false);
-    setCostNewCode("");
-    setCostNewName("");
-    setCostNewSymbol("");
-  }
+  const selectedCostCurrencyName = selectedCostCurrency?.name ?? costPendingName ?? costCurrencyCode;
 
   // Deliberately NOT run automatically on submit (unlike the sale/payment rate above) - the cost
   // rate typed here is scoped to THIS transaction only, per the operator's own explicit request;
@@ -224,8 +224,8 @@ export function LedgerDialog({
     const existing = getCurrency(currencyStore, costCurrencyCode);
     onUpsertCurrency({
       code: costCurrencyCode,
-      name: existing?.name ?? costCurrencyCode,
-      symbol: existing?.symbol ?? costCurrencyCode,
+      name: existing?.name ?? costPendingName ?? costCurrencyCode,
+      symbol: existing?.symbol ?? costPendingSymbol ?? costCurrencyCode,
       rateFromUsd: rate,
     });
   }
@@ -456,39 +456,28 @@ export function LedgerDialog({
 
               <div className="form-field form-wide">
                 <span>عملة الدفع للجهاز</span>
-                {costCurrencyCode && !costShowNewCurrency ? (
+                {costCurrencyCode ? (
                   <div className="client-picker-selected">
-                    <span className="client-picker-selected-name">{selectedCostCurrency?.name ?? costCurrencyCode} ({costCurrencyCode})</span>
+                    <span className="client-picker-selected-name">{selectedCostCurrencyName} ({costCurrencyCode})</span>
                     <button type="button" className="text-action" onClick={changeCostCurrency}>تغيير</button>
-                  </div>
-                ) : costShowNewCurrency ? (
-                  <div className="client-picker-new-form">
-                    <input className="search-input" dir="ltr" placeholder="الرمز الدولي، مثال: ARS" value={costNewCode} onChange={(e) => setCostNewCode(e.target.value)} />
-                    <input className="search-input" placeholder="اسم العملة" value={costNewName} onChange={(e) => setCostNewName(e.target.value)} />
-                    <input className="search-input" dir="ltr" placeholder="رمز العرض" value={costNewSymbol} onChange={(e) => setCostNewSymbol(e.target.value)} />
-                    <div className="client-picker-new-actions">
-                      <button type="button" className="dialog-secondary" onClick={() => setCostShowNewCurrency(false)}>إلغاء</button>
-                      <button type="button" className="dialog-primary" onClick={submitCostNewCurrency}>إضافة واستخدام</button>
-                    </div>
                   </div>
                 ) : (
                   <div className="client-picker">
                     <input
                       className="search-input"
-                      placeholder="ابحث عن عملة"
+                      placeholder="ابحث عن الدولة"
                       value={costQuery}
                       onChange={(e) => setCostQuery(e.target.value)}
                     />
                     <div className="client-picker-list">
-                      {costCurrencyMatches.length === 0 && <p className="client-picker-empty">لا توجد عملة مطابقة</p>}
-                      {costCurrencyMatches.map((c) => (
-                        <button key={c.code} type="button" className="client-picker-option" onClick={() => selectCostCurrency(c.code)}>
-                          <span>{c.name}</span>
-                          <span dir="ltr">{c.code}</span>
+                      {costCountryMatches.length === 0 && <p className="client-picker-empty">لا توجد دولة مطابقة</p>}
+                      {costCountryMatches.map((o) => (
+                        <button key={o.country} type="button" className="client-picker-option" onClick={() => selectCostCurrency(o)}>
+                          <span>{o.country}</span>
+                          <span dir="ltr">{o.code}</span>
                         </button>
                       ))}
                     </div>
-                    <button type="button" className="text-action" onClick={() => setCostShowNewCurrency(true)}>+ عملة جديدة…</button>
                   </div>
                 )}
               </div>
