@@ -5,21 +5,27 @@ import { StarlinkAccountSummary } from "@starnet/shared";
 import { presentStatus, presentServiceStatus, isBalanceDueZero } from "@/lib/status";
 import { daysRemainingLabel, daysRemainingNumber, formatRelativeTime } from "@/lib/date";
 import { emailsMismatch } from "@/lib/emailMatch";
-import { BalanceByCurrency, LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS } from "@/lib/ledgerStore";
+import { computeBalanceByCurrency, LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerEntry } from "@/lib/ledgerStore";
 import { isRunningInAndroidApp, openIsolatedAccountBrowser } from "@/lib/localBrowser";
-import { buildBalanceReminderMessage, buildExpiryReminderMessage, buildWhatsAppLink } from "@/lib/whatsapp";
+import {
+  buildAccountStatementMessage,
+  buildBalanceReminderMessage,
+  buildExpiryReminderMessage,
+  buildWhatsAppLink,
+} from "@/lib/whatsapp";
 
 interface Props {
   account: StarlinkAccountSummary;
   onEdit: (account: StarlinkAccountSummary) => void;
   onInfo: (account: StarlinkAccountSummary) => void;
-  /** This account's local customer-ledger balance, per currency - see ledgerStore.ts. Never the
-   * same thing as account.balanceDue (Starlink's own synced subscription balance). */
-  ledgerBalances: BalanceByCurrency;
+  /** This account's local customer-ledger entries - see ledgerStore.ts. Never the same thing as
+   * account.balanceDue (Starlink's own synced subscription balance). */
+  ledgerEntries: LedgerEntry[];
   onLedger: (account: StarlinkAccountSummary) => void;
 }
 
-export function AccountCard({ account, onEdit, onInfo, ledgerBalances, onLedger }: Props) {
+export function AccountCard({ account, onEdit, onInfo, ledgerEntries, onLedger }: Props) {
+  const ledgerBalances = computeBalanceByCurrency(ledgerEntries);
   const dish = presentStatus(account.dishStatus);
   const wifi = presentStatus(account.wifiStatus);
   const serviceStatus = presentServiceStatus(account.serviceStatus);
@@ -121,6 +127,13 @@ export function AccountCard({ account, onEdit, onInfo, ledgerBalances, onLedger 
                       onClick={() => openWhatsApp(buildBalanceReminderMessage(account.name, account.balanceDue || "0", account.currency))}
                     >
                       تذكير بالرصيد المستحق
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => openWhatsApp(buildAccountStatementMessage(account.name, ledgerEntries))}
+                    >
+                      كشف الحساب بالتفاصيل
                     </button>
                   </div>
                 </>

@@ -9,6 +9,7 @@ import {
   LedgerCurrency,
   LedgerEntry,
   LedgerEntryKind,
+  PAYMENT_METHOD_LABELS,
   PAYMENT_METHODS,
   PaymentMethod,
   removeEntry,
@@ -21,13 +22,6 @@ interface Props {
   onClose: () => void;
   onChange: (entries: LedgerEntry[]) => void;
 }
-
-const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
-  nita: "نيتا",
-  bankily: "بنكيلي",
-  sedad: "سداد",
-  orange: "أورانج موني",
-};
 
 function todayDateInputValue(): string {
   return new Date().toISOString().slice(0, 10);

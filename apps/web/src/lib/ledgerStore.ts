@@ -21,6 +21,12 @@ export const LEDGER_CURRENCY_LABELS: Record<LedgerCurrency, string> = {
  * a given payment actually came in on. Meaningless for a "عليه" entry (a charge, not a payment). */
 export type PaymentMethod = "nita" | "bankily" | "sedad" | "orange";
 export const PAYMENT_METHODS: PaymentMethod[] = ["nita", "bankily", "sedad", "orange"];
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  nita: "نيتا",
+  bankily: "بنكيلي",
+  sedad: "سداد",
+  orange: "أورانج موني",
+};
 
 export interface LedgerEntry {
   id: string;

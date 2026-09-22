@@ -4,6 +4,15 @@
  * directly testable.
  */
 
+import {
+  computeBalanceByCurrency,
+  LEDGER_CURRENCIES,
+  LEDGER_CURRENCY_LABELS,
+  LedgerEntry,
+  PAYMENT_METHOD_LABELS,
+  sortEntriesNewestFirst,
+} from "./ledgerStore";
+
 /** Strips everything but digits and a leading "00" international-dialing prefix - wa.me wants a
  * bare digit string with the country code, no "+", no "00", no spaces/dashes. Returns null for
  * anything too short to plausibly be a real number (an empty/placeholder phone field), so callers
@@ -41,6 +50,40 @@ export function buildBalanceReminderMessage(accountName: string, balanceDue: str
     `• بنكيلي / سداد / نيتا: 22227268\n` +
     `• أورانج موني: 74646158\n\n` +
     `شكرًا لتعاونكم معنا 🙏\n` +
+    `- STAR NET`
+  );
+}
+
+/**
+ * "كشف الحساب" - a detailed statement built entirely from the local customer ledger (see
+ * ledgerStore.ts): the current balance per currency, followed by every recorded transaction
+ * newest-first. Deliberately never mentions account.balanceDue (Starlink's own synced
+ * subscription balance) - this statement is only about what the customer owes/is owed by the
+ * operator, a separate concern.
+ */
+export function buildAccountStatementMessage(accountName: string, entries: LedgerEntry[]): string {
+  const balances = computeBalanceByCurrency(entries);
+  const balanceLines = LEDGER_CURRENCIES.filter((currency) => balances[currency]).map((currency) => {
+    const balance = balances[currency]!;
+    return balance > 0
+      ? `• عليه ${balance.toFixed(2)} ${LEDGER_CURRENCY_LABELS[currency]}`
+      : `• له ${(-balance).toFixed(2)} ${LEDGER_CURRENCY_LABELS[currency]}`;
+  });
+
+  const entryLines = sortEntriesNewestFirst(entries).map((entry) => {
+    const kindLabel = entry.kind === "debit" ? "عليه" : "له";
+    const amount = `${entry.amount.toFixed(2)} ${LEDGER_CURRENCY_LABELS[entry.currency]}`;
+    const method = entry.paymentMethod ? ` (${PAYMENT_METHOD_LABELS[entry.paymentMethod]})` : "";
+    const note = entry.note ? ` - ${entry.note}` : "";
+    return `${entry.date}: ${kindLabel} ${amount}${method}${note}`;
+  });
+
+  return (
+    `كشف حساب - ${accountName} 📋\n\n` +
+    (balanceLines.length > 0
+      ? `الرصيد الحالي:\n${balanceLines.join("\n")}\n\n`
+      : `لا يوجد رصيد مستحق حاليًا.\n\n`) +
+    (entryLines.length > 0 ? `تفاصيل الحركات:\n${entryLines.join("\n")}\n\n` : "") +
     `- STAR NET`
   );
 }

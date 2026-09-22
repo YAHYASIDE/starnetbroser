@@ -12,7 +12,6 @@ import { AccountDialog, AccountDialogMode } from "./AccountDialog";
 import { LedgerDialog } from "./LedgerDialog";
 import { daysRemainingNumber } from "@/lib/date";
 import {
-  computeBalanceByCurrency,
   getAccountEntries,
   LEDGER_CURRENCIES,
   LEDGER_CURRENCY_LABELS,
@@ -529,7 +528,7 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
                 account={account}
                 onInfo={(selected) => setDialog({ mode: "view", account: selected })}
                 onEdit={(selected) => setDialog({ mode: "edit", account: selected })}
-                ledgerBalances={computeBalanceByCurrency(getAccountEntries(ledgerStore, account.id))}
+                ledgerEntries={getAccountEntries(ledgerStore, account.id)}
                 onLedger={(selected) => setLedgerAccount(selected)}
               />
             ))}
