@@ -11,6 +11,7 @@ import { ConnectionStatus } from "./ConnectionStatus";
 import { AccountDialog, AccountDialogMode } from "./AccountDialog";
 import { LedgerDialog } from "./LedgerDialog";
 import { ClientDialog } from "./ClientDialog";
+import { ClientsOverviewDialog } from "./ClientsOverviewDialog";
 import { DeviceStatementDialog } from "./DeviceStatementDialog";
 import { ToastMessage, ToastStack } from "./ToastStack";
 import { daysRemainingNumber } from "@/lib/date";
@@ -123,6 +124,7 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
   useEffect(() => setClientStore(loadClientStore()), []);
   const clients = useMemo(() => listClients(clientStore), [clientStore]);
   const [openClientId, setOpenClientId] = useState<string | null>(null);
+  const [showClientsOverview, setShowClientsOverview] = useState(false);
 
   function handleCreateClient(input: CreateClientInput): Client {
     const result = createClient(clientStore, input);
@@ -527,6 +529,14 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
           <button className="header-add" type="button" onClick={() => setDialog({ mode: "add" })}>
             <span aria-hidden="true">＋</span> إضافة حساب
           </button>
+          <button className="header-clients" type="button" onClick={() => setShowClientsOverview(true)} aria-label="العملاء">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="9" cy="8" r="3.3" />
+              <path d="M3.5 19.5c0-3 2.5-5.3 5.5-5.3s5.5 2.3 5.5 5.3" strokeLinecap="round" />
+              <circle cx="17" cy="9" r="2.6" />
+              <path d="M15.5 14.6c2.4.2 4.3 2.2 4.5 4.9" strokeLinecap="round" />
+            </svg>
+          </button>
           <Link href="/currencies" className="header-currencies" aria-label="العملات وأسعار الصرف">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <circle cx="9" cy="9" r="5.5" />
@@ -707,6 +717,23 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
           allocationStore={allocationStore}
           onClose={() => setOpenClientId(null)}
           onSave={(patch) => handleUpdateClient(openClientId, patch)}
+        />
+      )}
+
+      {showClientsOverview && (
+        <ClientsOverviewDialog
+          clientStore={clientStore}
+          accounts={accounts}
+          ledgerStore={ledgerStore}
+          onClose={() => setShowClientsOverview(false)}
+          onOpenLedger={(account) => {
+            setShowClientsOverview(false);
+            setLedgerAccount(account);
+          }}
+          onOpenClient={(client) => {
+            setShowClientsOverview(false);
+            setOpenClientId(client.id);
+          }}
         />
       )}
     </main>

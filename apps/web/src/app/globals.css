@@ -706,7 +706,8 @@ a.btn-icon {
 }
 
 .header-settings,
-.header-currencies {
+.header-currencies,
+.header-clients {
   width: 42px;
   height: 42px;
   border: 1px solid var(--border);
@@ -716,11 +717,14 @@ a.btn-icon {
   background: var(--surface);
   color: var(--text-muted);
   text-decoration: none;
+  cursor: pointer;
+  font-family: inherit;
   box-shadow: 0 5px 16px rgba(21, 31, 44, 0.06);
 }
 
 .header-settings svg,
-.header-currencies svg {
+.header-currencies svg,
+.header-clients svg {
   width: 21px;
   height: 21px;
   fill: none;
