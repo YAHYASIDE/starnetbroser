@@ -6,6 +6,7 @@ import { presentStatus, presentServiceStatus, isBalanceDueZero } from "@/lib/sta
 import { daysRemainingLabel, daysRemainingNumber, formatRelativeTime } from "@/lib/date";
 import { emailsMismatch } from "@/lib/emailMatch";
 import { computeBalanceByCurrency, LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerEntry } from "@/lib/ledgerStore";
+import { formatAmount } from "@/lib/formatAmount";
 import { PaymentAllocation } from "@/lib/paymentAllocationStore";
 import { Client } from "@/lib/clientStore";
 import { isRunningInAndroidApp, openIsolatedAccountBrowser, triggerImmediateSync } from "@/lib/localBrowser";
@@ -242,9 +243,9 @@ export function AccountCard({ account, onEdit, onInfo, ledgerEntries, allocation
             const balance = ledgerBalances[c];
             if (!balance) return null;
             return balance > 0 ? (
-              <span key={c} className="badge badge-red">عليه {balance.toFixed(2)} {LEDGER_CURRENCY_LABELS[c]}</span>
+              <span key={c} className="badge badge-red">عليه {formatAmount(balance)} {LEDGER_CURRENCY_LABELS[c]}</span>
             ) : (
-              <span key={c} className="badge badge-green">له {(-balance).toFixed(2)} {LEDGER_CURRENCY_LABELS[c]}</span>
+              <span key={c} className="badge badge-green">له {formatAmount(-balance)} {LEDGER_CURRENCY_LABELS[c]}</span>
             );
           })
         )}

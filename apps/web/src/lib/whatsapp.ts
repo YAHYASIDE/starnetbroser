@@ -13,6 +13,7 @@ import {
   sortEntriesNewestFirst,
 } from "./ledgerStore";
 import { computeShipmentPaymentStatus, PaymentAllocation } from "./paymentAllocationStore";
+import { formatAmount } from "./formatAmount";
 
 /** Strips everything but digits and a leading "00" international-dialing prefix - wa.me wants a
  * bare digit string with the country code, no "+", no "00", no spaces/dashes. Returns null for
@@ -82,13 +83,13 @@ export function buildAccountStatementMessage(
   const balanceLines = LEDGER_CURRENCIES.filter((currency) => balances[currency]).map((currency) => {
     const balance = balances[currency]!;
     return balance > 0
-      ? `• عليه ${balance.toFixed(2)} ${LEDGER_CURRENCY_LABELS[currency]}`
-      : `• له ${(-balance).toFixed(2)} ${LEDGER_CURRENCY_LABELS[currency]}`;
+      ? `• عليه ${formatAmount(balance)} ${LEDGER_CURRENCY_LABELS[currency]}`
+      : `• له ${formatAmount(-balance)} ${LEDGER_CURRENCY_LABELS[currency]}`;
   });
 
   const entryLines = sortEntriesNewestFirst(entries).map((entry) => {
     const kindLabel = entry.kind === "debit" ? "عليه" : "له";
-    const amount = `${entry.amount.toFixed(2)} ${LEDGER_CURRENCY_LABELS[entry.currency]}`;
+    const amount = `${formatAmount(entry.amount)} ${LEDGER_CURRENCY_LABELS[entry.currency]}`;
     const method = entry.paymentMethod ? ` (${PAYMENT_METHOD_LABELS[entry.paymentMethod]})` : "";
     const note = entry.note ? ` - ${entry.note}` : "";
     const paymentStatus = entry.kind === "debit" ? PAYMENT_STATUS_SUFFIX[computeShipmentPaymentStatus(entry, allocations)] : "";

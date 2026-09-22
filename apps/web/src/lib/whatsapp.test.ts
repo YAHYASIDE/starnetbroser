@@ -86,7 +86,7 @@ describe("buildAccountStatementMessage", () => {
       ledgerEntry({ kind: "debit", amount: 45000, currency: "MRU" }),
       ledgerEntry({ kind: "credit", amount: 20, currency: "USD" }),
     ]);
-    expect(message).toContain("عليه 45000.00 أوقية");
+    expect(message).toContain("عليه 45,000.00 أوقية");
     expect(message).toContain("له 20.00 دولار");
   });
 

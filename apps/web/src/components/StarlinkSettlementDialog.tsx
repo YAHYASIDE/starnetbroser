@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { Currency, CurrencyStore, getCurrency, listCurrencies, UpsertCurrencyInput } from "@/lib/currencyStore";
+import { formatAmount } from "@/lib/formatAmount";
 import { LedgerEntry, StarlinkCost } from "@/lib/ledgerStore";
 
 interface Props {
@@ -157,7 +158,7 @@ export function StarlinkSettlementDialog({ entry, currencyStore, onUpsertCurrenc
 
           <div className="form-field">
             <span>القيمة بالدولار</span>
-            <strong dir="ltr">{usdValue !== undefined ? `${usdValue.toFixed(2)} USD` : "—"}</strong>
+            <strong dir="ltr">{usdValue !== undefined ? `${formatAmount(usdValue)} USD` : "—"}</strong>
           </div>
 
           <label className="form-field">

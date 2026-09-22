@@ -19,6 +19,7 @@ import {
 } from "@/lib/ledgerStore";
 import { computeShipmentProfit } from "@/lib/accountingStore";
 import { Currency, CurrencyStore, getCurrency, toUsd, UpsertCurrencyInput } from "@/lib/currencyStore";
+import { formatAmount } from "@/lib/formatAmount";
 import {
   addAllocations,
   computeShipmentPaymentStatus,
@@ -47,7 +48,7 @@ function todayDateInputValue(): string {
 }
 
 function formatMoney(amount: number, currency: LedgerCurrency): string {
-  return `${amount.toFixed(2)} ${LEDGER_CURRENCY_LABELS[currency]}`;
+  return `${formatAmount(amount)} ${LEDGER_CURRENCY_LABELS[currency]}`;
 }
 
 export function LedgerDialog({
@@ -197,7 +198,7 @@ export function LedgerDialog({
           {balanceRows.length > 1 && usdTotalKnown && (
             <div className="ledger-balance-row ledger-balance-usd-total">
               <span>الإجمالي بالدولار</span>
-              <span dir="ltr">{usdTotal >= 0 ? `عليه ${usdTotal.toFixed(2)} USD` : `له ${(-usdTotal).toFixed(2)} USD`}</span>
+              <span dir="ltr">{usdTotal >= 0 ? `عليه ${formatAmount(usdTotal)} USD` : `له ${formatAmount(-usdTotal)} USD`}</span>
             </div>
           )}
         </div>
@@ -413,7 +414,7 @@ function ShipmentStatusRow({
       {paymentBadge}
       <span className="badge badge-green">مسدد لـ Starlink</span>
       <span className={`ledger-shipment-profit ${isProfit ? "profit-positive" : "profit-negative"}`} dir="ltr">
-        {isProfit ? `ربح +${profit.profitUsd!.toFixed(2)} USD` : `خسارة ${profit.profitUsd!.toFixed(2)} USD`}
+        {isProfit ? `ربح +${formatAmount(profit.profitUsd!)} USD` : `خسارة ${formatAmount(profit.profitUsd!)} USD`}
       </span>
     </div>
   );

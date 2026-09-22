@@ -14,6 +14,7 @@ import { ClientDialog } from "./ClientDialog";
 import { DeviceStatementDialog } from "./DeviceStatementDialog";
 import { ToastMessage, ToastStack } from "./ToastStack";
 import { daysRemainingNumber } from "@/lib/date";
+import { formatAmount } from "@/lib/formatAmount";
 import {
   getAccountEntries,
   LEDGER_CURRENCIES,
@@ -569,7 +570,7 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
           return (
             <article className="overview-card overview-owed" key={currency}>
               <span className="overview-icon" aria-hidden="true">₋</span>
-              <span className="overview-value">{total.toFixed(2)}</span>
+              <span className="overview-value">{formatAmount(total)}</span>
               <span className="overview-label">مستحق من العملاء ({LEDGER_CURRENCY_LABELS[currency]})</span>
             </article>
           );

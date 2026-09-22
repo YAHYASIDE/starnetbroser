@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { LEDGER_CURRENCY_LABELS, LedgerCurrency, LedgerEntry } from "@/lib/ledgerStore";
+import { formatAmount } from "@/lib/formatAmount";
 import { AllocationPlanItem } from "@/lib/paymentAllocationStore";
 
 export interface AllocationShipmentRow {
@@ -71,8 +72,8 @@ export function PaymentAllocationDialog({ amount, currency, shipments, initialPl
               <li key={row.entry.id} className="allocation-row">
                 <div className="allocation-row-info">
                   <span dir="ltr">{row.entry.date}</span>
-                  <span dir="ltr">عليه {row.entry.amount} {row.entry.currency}</span>
-                  <span dir="ltr" className="allocation-remaining">المتبقي: {row.remaining.toFixed(2)}</span>
+                  <span dir="ltr">عليه {formatAmount(row.entry.amount)} {row.entry.currency}</span>
+                  <span dir="ltr" className="allocation-remaining">المتبقي: {formatAmount(row.remaining)}</span>
                 </div>
                 <input
                   className="search-input"
@@ -90,8 +91,8 @@ export function PaymentAllocationDialog({ amount, currency, shipments, initialPl
         )}
 
         <div className="allocation-summary" dir="ltr">
-          <span>المخصَّص: {totalAllocated.toFixed(2)} / {amount.toFixed(2)}</span>
-          {remaining > 0.0001 && <span className="allocation-unallocated">غير مخصص: {remaining.toFixed(2)}</span>}
+          <span>المخصَّص: {formatAmount(totalAllocated)} / {formatAmount(amount)}</span>
+          {remaining > 0.0001 && <span className="allocation-unallocated">غير مخصص: {formatAmount(remaining)}</span>}
         </div>
         {remaining < -0.0001 && <div className="account-card-alert">المبلغ المخصَّص أكبر من مبلغ الدفعة</div>}
 

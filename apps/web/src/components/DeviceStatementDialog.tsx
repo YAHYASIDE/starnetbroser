@@ -3,6 +3,7 @@
 import { computeDeviceAccountingSummary, computeShipmentProfit } from "@/lib/accountingStore";
 import { computeShipmentPaymentStatus, PaymentAllocation, ShipmentPaymentStatus } from "@/lib/paymentAllocationStore";
 import { isLegacyShipmentEntry, LEDGER_CURRENCY_LABELS, LedgerCurrency, LedgerEntry, sortEntriesNewestFirst } from "@/lib/ledgerStore";
+import { formatAmount } from "@/lib/formatAmount";
 
 interface Props {
   accountName: string;
@@ -51,20 +52,20 @@ export function DeviceStatementDialog({ accountName, entries, allocations, onClo
         <div className="statement-summary-grid">
           <div className="statement-summary-item"><span>عدد الشحنات</span><strong>{summary.shipmentCount}</strong></div>
           <div className="statement-summary-item"><span>عمليات D غير مسددة</span><strong>{summary.pendingShipmentCount}</strong></div>
-          <div className="statement-summary-item"><span>إجمالي قيمة المبيعات</span><strong dir="ltr">{summary.totalSaleValueUsd.toFixed(2)} USD</strong></div>
-          <div className="statement-summary-item"><span>إجمالي تكاليف Starlink المسددة</span><strong dir="ltr">{summary.totalSettledStarlinkCostUsd.toFixed(2)} USD</strong></div>
-          <div className="statement-summary-item"><span>إجمالي الأرباح</span><strong dir="ltr" className="profit-positive">{summary.totalProfitsUsd.toFixed(2)} USD</strong></div>
-          <div className="statement-summary-item"><span>إجمالي الخسائر</span><strong dir="ltr" className="profit-negative">{summary.totalLossesUsd.toFixed(2)} USD</strong></div>
+          <div className="statement-summary-item"><span>إجمالي قيمة المبيعات</span><strong dir="ltr">{formatAmount(summary.totalSaleValueUsd)} USD</strong></div>
+          <div className="statement-summary-item"><span>إجمالي تكاليف Starlink المسددة</span><strong dir="ltr">{formatAmount(summary.totalSettledStarlinkCostUsd)} USD</strong></div>
+          <div className="statement-summary-item"><span>إجمالي الأرباح</span><strong dir="ltr" className="profit-positive">{formatAmount(summary.totalProfitsUsd)} USD</strong></div>
+          <div className="statement-summary-item"><span>إجمالي الخسائر</span><strong dir="ltr" className="profit-negative">{formatAmount(summary.totalLossesUsd)} USD</strong></div>
           {paidRows.map(([c, v]) => (
             <div className="statement-summary-item" key={`paid-${c}`}>
               <span>مدفوع من العميل ({LEDGER_CURRENCY_LABELS[c]})</span>
-              <strong dir="ltr">{v.toFixed(2)}</strong>
+              <strong dir="ltr">{formatAmount(v)}</strong>
             </div>
           ))}
           {debtRows.map(([c, v]) => (
             <div className="statement-summary-item" key={`debt-${c}`}>
               <span>متبقٍ على العميل ({LEDGER_CURRENCY_LABELS[c]})</span>
-              <strong dir="ltr">{v.toFixed(2)}</strong>
+              <strong dir="ltr">{formatAmount(v)}</strong>
             </div>
           ))}
         </div>
@@ -80,7 +81,7 @@ export function DeviceStatementDialog({ accountName, entries, allocations, onClo
               >
                 صافي نتيجة الجهاز:{" "}
                 {summary.netResult.netUsd !== undefined
-                  ? `${summary.netResult.netUsd >= 0 ? "ربح" : "خسارة"} ${Math.abs(summary.netResult.netUsd).toFixed(2)} USD`
+                  ? `${summary.netResult.netUsd >= 0 ? "ربح" : "خسارة"} ${formatAmount(Math.abs(summary.netResult.netUsd))} USD`
                   : "—"}
               </span>
               {summary.netResult.status === "incomplete" && (
@@ -103,9 +104,9 @@ export function DeviceStatementDialog({ accountName, entries, allocations, onClo
               <li key={entry.id} className="statement-shipment-row">
                 <div className="statement-shipment-top">
                   <span dir="ltr">{entry.date}</span>
-                  <span dir="ltr">عليه {entry.amount} {entry.currency}</span>
+                  <span dir="ltr">عليه {formatAmount(entry.amount)} {entry.currency}</span>
                   {saleValueUsd !== undefined && entry.currency !== "USD" && (
-                    <span dir="ltr" className="statement-shipment-usd">({saleValueUsd.toFixed(2)} USD)</span>
+                    <span dir="ltr" className="statement-shipment-usd">({formatAmount(saleValueUsd)} USD)</span>
                   )}
                 </div>
                 <div className="statement-shipment-badges">
@@ -116,15 +117,15 @@ export function DeviceStatementDialog({ accountName, entries, allocations, onClo
                 </div>
                 {cost?.status === "settled" && (
                   <div className="statement-shipment-cost" dir="ltr">
-                    تكلفة Starlink: {cost.amount} {cost.currencyCode}
-                    {cost.rate && ` (1 USD = ${cost.rate.rateFromUsd} ${cost.currencyCode})`}
-                    {costUsd !== undefined && ` = ${costUsd.toFixed(2)} USD`}
+                    تكلفة Starlink: {formatAmount(cost.amount!)} {cost.currencyCode}
+                    {cost.rate && ` (1 USD = ${formatAmount(cost.rate.rateFromUsd)} ${cost.currencyCode})`}
+                    {costUsd !== undefined && ` = ${formatAmount(costUsd)} USD`}
                     {cost.paidAt && ` - ${cost.paidAt}`}
                   </div>
                 )}
                 {profit.status === "computed" && (
                   <div className={`ledger-shipment-profit ${profit.profitUsd! >= 0 ? "profit-positive" : "profit-negative"}`} dir="ltr">
-                    {profit.profitUsd! >= 0 ? `ربح +${profit.profitUsd!.toFixed(2)} USD` : `خسارة ${profit.profitUsd!.toFixed(2)} USD`}
+                    {profit.profitUsd! >= 0 ? `ربح +${formatAmount(profit.profitUsd!)} USD` : `خسارة ${formatAmount(profit.profitUsd!)} USD`}
                   </div>
                 )}
                 {entry.note && <div className="ledger-entry-note">{entry.note}</div>}

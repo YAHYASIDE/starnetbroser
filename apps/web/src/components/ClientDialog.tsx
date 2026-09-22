@@ -5,6 +5,7 @@ import { StarlinkAccountSummary } from "@starnet/shared";
 import { Client } from "@/lib/clientStore";
 import { computeClientAccountingSummary } from "@/lib/accountingStore";
 import { getAccountEntries, LEDGER_CURRENCIES, LedgerByAccount, LedgerCurrency, LEDGER_CURRENCY_LABELS } from "@/lib/ledgerStore";
+import { formatAmount } from "@/lib/formatAmount";
 import { AllocationsByAccount, getAccountAllocations } from "@/lib/paymentAllocationStore";
 import { DeviceStatementDialog } from "./DeviceStatementDialog";
 
@@ -95,13 +96,13 @@ export function ClientDialog({ client, devices, ledgerStore, allocationStore, on
                   {totalDebtRows.map(([c, v]) => (
                     <div className="statement-summary-item" key={`debt-${c}`}>
                       <span>مجموع ديون الزبون ({LEDGER_CURRENCY_LABELS[c]})</span>
-                      <strong dir="ltr">{v.toFixed(2)}</strong>
+                      <strong dir="ltr">{formatAmount(v)}</strong>
                     </div>
                   ))}
                   {totalPaidRows.map(([c, v]) => (
                     <div className="statement-summary-item" key={`paid-${c}`}>
                       <span>مجموع دفعات الزبون ({LEDGER_CURRENCY_LABELS[c]})</span>
-                      <strong dir="ltr">{v.toFixed(2)}</strong>
+                      <strong dir="ltr">{formatAmount(v)}</strong>
                     </div>
                   ))}
                 </>
@@ -119,7 +120,7 @@ export function ClientDialog({ client, devices, ledgerStore, allocationStore, on
                   >
                     إجمالي نتيجة جميع الأجهزة:{" "}
                     {summary.netResult.netUsd !== undefined
-                      ? `${summary.netResult.netUsd >= 0 ? "ربح" : "خسارة"} ${Math.abs(summary.netResult.netUsd).toFixed(2)} USD`
+                      ? `${summary.netResult.netUsd >= 0 ? "ربح" : "خسارة"} ${formatAmount(Math.abs(summary.netResult.netUsd))} USD`
                       : "—"}
                   </span>
                   {summary.netResult.status === "incomplete" && (
@@ -154,16 +155,16 @@ export function ClientDialog({ client, devices, ledgerStore, allocationStore, on
                       ) : (
                         balanceRows.map(({ c, balance }) =>
                           balance! > 0 ? (
-                            <span key={c} className="badge badge-red">عليه {balance!.toFixed(2)} {LEDGER_CURRENCY_LABELS[c]}</span>
+                            <span key={c} className="badge badge-red">عليه {formatAmount(balance!)} {LEDGER_CURRENCY_LABELS[c]}</span>
                           ) : (
-                            <span key={c} className="badge badge-green">له {(-balance!).toFixed(2)} {LEDGER_CURRENCY_LABELS[c]}</span>
+                            <span key={c} className="badge badge-green">له {formatAmount(-balance!)} {LEDGER_CURRENCY_LABELS[c]}</span>
                           ),
                         )
                       )}
                     </div>
                     <div dir="ltr" className={net.netUsd === undefined ? "" : net.netUsd >= 0 ? "profit-positive" : "profit-negative"}>
                       {net.netUsd !== undefined
-                        ? `${net.netUsd >= 0 ? "ربح" : "خسارة"} ${Math.abs(net.netUsd).toFixed(2)} USD`
+                        ? `${net.netUsd >= 0 ? "ربح" : "خسارة"} ${formatAmount(Math.abs(net.netUsd))} USD`
                         : "الربح غير محسوب"}
                       {net.status === "incomplete" && " (غير مكتمل)"}
                     </div>
