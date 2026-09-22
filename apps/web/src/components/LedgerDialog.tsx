@@ -18,7 +18,7 @@ import {
   updateEntry,
 } from "@/lib/ledgerStore";
 import { computeShipmentProfit } from "@/lib/accountingStore";
-import { Currency, CurrencyStore, getCurrency, UpsertCurrencyInput } from "@/lib/currencyStore";
+import { Currency, CurrencyStore, getCurrency, toUsd, UpsertCurrencyInput } from "@/lib/currencyStore";
 import {
   addAllocations,
   computeShipmentPaymentStatus,
@@ -83,6 +83,15 @@ export function LedgerDialog({
   const balanceRows = LEDGER_CURRENCIES.map((c) => ({ currency: c, balance: balances[c] })).filter(
     (row) => row.balance !== undefined,
   );
+
+  // Extra informational total (rule 4's "الإجمالي بالدولار") using currencyStore's CURRENT rates -
+  // never shown when any currency present has no known rate, so it's never silently partial. This
+  // never replaces the per-currency rows above, which stay the authoritative balance display.
+  const usdTotal = balanceRows.reduce((sum, { currency: c, balance }) => {
+    const rate = c === "USD" ? 1 : getCurrency(currencyStore, c)?.rateFromUsd;
+    return rate === undefined ? sum : sum + toUsd(balance!, rate);
+  }, 0);
+  const usdTotalKnown = balanceRows.every(({ currency: c }) => c === "USD" || getCurrency(currencyStore, c)?.rateFromUsd !== undefined);
 
   function selectCurrency(next: LedgerCurrency) {
     setCurrency(next);
@@ -184,6 +193,12 @@ export function LedgerDialog({
                 )}
               </div>
             ))
+          )}
+          {balanceRows.length > 1 && usdTotalKnown && (
+            <div className="ledger-balance-row ledger-balance-usd-total">
+              <span>الإجمالي بالدولار</span>
+              <span dir="ltr">{usdTotal >= 0 ? `عليه ${usdTotal.toFixed(2)} USD` : `له ${(-usdTotal).toFixed(2)} USD`}</span>
+            </div>
           )}
         </div>
 

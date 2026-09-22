@@ -1428,6 +1428,14 @@ a.btn-icon {
   font-weight: 700;
 }
 
+.ledger-balance-usd-total {
+  background: transparent;
+  border: 1px dashed var(--border);
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+
 .ledger-entry-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
