@@ -106,4 +106,43 @@ describe("extractDeviceStatus", () => {
     `);
     expect(extractDeviceStatus(document, DISH_LABELS)).toBeUndefined();
   });
+
+  it("finds a dot colored via a CSS class, not just an inline style (real bug: came back 'no data')", () => {
+    // jsdom doesn't apply real stylesheets, so the class-colored dot's computed color has to be
+    // set via a matching inline style too here purely to make the *test* work - the point being
+    // verified is that the class attribute alone is what makes it a *candidate* at all (see the
+    // next test for a class-only dot with no inline style whatsoever).
+    setBody(`
+      <div class="row">
+        <span>Starlink Dish</span>
+        <span class="status-dot status-dot-green" style="background-color: rgb(34, 197, 94);"></span>
+      </div>
+    `);
+    expect(extractDeviceStatus(document, DISH_LABELS)).toBe("online");
+  });
+
+  it("still finds it when the dot has no inline style at all and no aria-label/title", () => {
+    setBody(`
+      <div class="row">
+        <span>Wi-Fi</span>
+        <span class="status-dot-green"></span>
+      </div>
+    `);
+    // jsdom never applies the CSS a real class would carry, so this dot's computed color is
+    // whatever jsdom defaults to (unclassifiable) - the real assertion here is that it's still
+    // recognized as a genuine dot *candidate* (not silently skipped for lacking inline style),
+    // so the definitive "unknown" comes back rather than "nothing found" (undefined).
+    expect(extractDeviceStatus(document, WIFI_LABELS)).toBe("unknown");
+  });
+
+  it("keeps checking later candidates when an earlier one in the same scope doesn't classify", () => {
+    setBody(`
+      <div class="row">
+        <span>Starlink Dish</span>
+        <span class="icon-spacer"></span>
+        <span class="status-dot" style="background-color: rgb(34, 197, 94);"></span>
+      </div>
+    `);
+    expect(extractDeviceStatus(document, DISH_LABELS)).toBe("online");
+  });
 });
