@@ -102,6 +102,15 @@ export function isLegacyShipmentEntry(entry: LedgerEntry): boolean {
   return entry.kind === "debit" && !entry.starlinkCost;
 }
 
+/** A "credit" (payment) entry whose currency isn't USD but has no paymentRate - either predates
+ * that field, or its rate was skipped for some other reason. Its USD value is simply unknown, not
+ * zero - accountingStore.ts must never silently drop it from a total without flagging that total
+ * as incomplete (see DeviceAccountingSummary.hasIncompletePaymentRates). Resolved only by
+ * capturing the missing rate explicitly (see PaymentRateCompletionDialog), never guessed. */
+export function isIncompletePaymentRateEntry(entry: LedgerEntry): boolean {
+  return entry.kind === "credit" && entry.currency !== "USD" && !entry.paymentRate;
+}
+
 export type LedgerByAccount = Record<string, LedgerEntry[]>;
 
 /** A balance is never a single number once entries can be in different currencies - USD/MRU/SIFA

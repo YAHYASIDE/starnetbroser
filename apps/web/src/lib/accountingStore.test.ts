@@ -193,6 +193,24 @@ describe("computeDeviceAccountingSummary", () => {
     expect(summary.cashFlowUsd).toBeCloseTo(-60); // 40 collected - 100 cost paid
     expect(summary.netResult.netUsd).toBeCloseTo(12.5); // accounting profit unaffected by what was collected
   });
+
+  it("flags hasIncompletePaymentRates when a non-USD payment has no paymentRate", () => {
+    const summary = computeDeviceAccountingSummary([payment({ id: "p1", amount: 20000, currency: "MRU" })]);
+    expect(summary.hasIncompletePaymentRates).toBe(true);
+  });
+
+  it("does not flag hasIncompletePaymentRates when every non-USD payment has a paymentRate", () => {
+    const summary = computeDeviceAccountingSummary([
+      payment({ id: "p1", amount: 20000, currency: "MRU", paymentRate: { rateFromUsd: 400, usdValue: 50 } }),
+      payment({ id: "p2", amount: 30, currency: "USD" }),
+    ]);
+    expect(summary.hasIncompletePaymentRates).toBe(false);
+  });
+
+  it("does not flag hasIncompletePaymentRates when there are no payments at all", () => {
+    const summary = computeDeviceAccountingSummary([shipment({ id: "s1" })]);
+    expect(summary.hasIncompletePaymentRates).toBe(false);
+  });
 });
 
 describe("computeClientAccountingSummary", () => {
@@ -270,5 +288,13 @@ describe("computeClientAccountingSummary", () => {
     expect(summary.totalPaidUsd).toBeCloseTo(90); // 40 + 50
     expect(summary.cashFlowUsd).toBeCloseTo(-10); // 90 collected - 100 settled cost on device 1
     expect(summary.netResult.netUsd).toBeCloseTo(12.5); // accounting profit unaffected
+  });
+
+  it("flags hasIncompletePaymentRates when any linked device has one, even if others are complete", () => {
+    const summary = computeClientAccountingSummary([
+      { accountId: "d1", accountName: "أ", entries: [payment({ id: "p1", amount: 30, currency: "USD" })] },
+      { accountId: "d2", accountName: "ب", entries: [payment({ id: "p2", amount: 20000, currency: "MRU" })] },
+    ]);
+    expect(summary.hasIncompletePaymentRates).toBe(true);
   });
 });

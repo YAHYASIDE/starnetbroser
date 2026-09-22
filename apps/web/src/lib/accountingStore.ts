@@ -13,12 +13,16 @@
  *    the ledger's own long-standing rule) - a customer's outstanding debt is never counted here.
  *  - cash actually collected, in USD (totalPaidByCustomerUsd / cashFlowUsd): the same payments,
  *    converted via each credit entry's own locked paymentRate (never today's rate), minus
- *    Starlink's settled cost in USD - rule XIII's own "التدفق النقدي الفعلي".
+ *    Starlink's settled cost in USD - rule XIII's own "التدفق النقدي الفعلي". When a non-USD
+ *    payment is missing its paymentRate (see isIncompletePaymentRateEntry), it is excluded from
+ *    both totals rather than guessed at - but that silent exclusion is always paired with
+ *    hasIncompletePaymentRates so the UI never presents an undercounted cashFlowUsd as final.
  */
 
 import {
   BalanceByCurrency,
   computeBalanceByCurrency,
+  isIncompletePaymentRateEntry,
   isLegacyShipmentEntry,
   LEDGER_CURRENCIES,
   LedgerEntry,
@@ -107,6 +111,12 @@ export interface DeviceAccountingSummary {
    * Kept strictly separate from netResult (accounting profit) - customer debt is never counted
    * here, only what was actually collected. */
   cashFlowUsd: number;
+  /** True when at least one of this device's credit entries is missing its paymentRate (see
+   * isIncompletePaymentRateEntry) - i.e. a non-USD payment whose USD value is simply unknown.
+   * totalPaidByCustomerUsd/cashFlowUsd are a known undercount in that case (that payment's USD
+   * value is excluded, never guessed at), so the UI must show the incomplete-payments warning
+   * instead of presenting cashFlowUsd as a final, complete result. */
+  hasIncompletePaymentRates: boolean;
   /** What customers still owe, per currency - only the positive (owed) balances, same convention
    * as ledgerStore.ts#totalOwedAcrossAccounts but scoped to one device's own entries. */
   totalRemainingDebt: BalanceByCurrency;
@@ -156,12 +166,14 @@ export function computeDeviceAccountingSummary(entries: LedgerEntry[]): DeviceAc
 
   const totalPaidByCustomer: BalanceByCurrency = {};
   let totalPaidByCustomerUsd = 0;
+  let hasIncompletePaymentRates = false;
   for (const entry of entries) {
     if (entry.kind !== "credit") continue;
     totalPaidByCustomer[entry.currency] = (totalPaidByCustomer[entry.currency] ?? 0) + entry.amount;
 
     const paidUsd = entry.currency === "USD" ? entry.amount : entry.paymentRate?.usdValue;
     if (paidUsd !== undefined) totalPaidByCustomerUsd += paidUsd;
+    if (isIncompletePaymentRateEntry(entry)) hasIncompletePaymentRates = true;
   }
 
   return {
@@ -177,6 +189,7 @@ export function computeDeviceAccountingSummary(entries: LedgerEntry[]): DeviceAc
     totalPaidByCustomer,
     totalPaidByCustomerUsd,
     cashFlowUsd: totalPaidByCustomerUsd - totalSettledStarlinkCostUsd,
+    hasIncompletePaymentRates,
     totalRemainingDebt,
   };
 }
@@ -203,6 +216,9 @@ export interface ClientAccountingSummary {
   /** Sum of every device's cashFlowUsd - rule XIII's cash-actually-collected, kept separate from
    * netResult (accounting profit) at the client level too. */
   cashFlowUsd: number;
+  /** True when any linked device has hasIncompletePaymentRates - see that field. totalPaidUsd/
+   * cashFlowUsd are a known undercount across the whole client in that case. */
+  hasIncompletePaymentRates: boolean;
   /** Sum of netUsd across every device that has one - "incomplete" if any device's own result is
    * incomplete, "no-data" only when no device has any shipments at all. */
   netResult: DeviceNetResult;
@@ -228,6 +244,7 @@ export function computeClientAccountingSummary(
   const totalPaid: BalanceByCurrency = {};
   let totalPaidUsd = 0;
   let cashFlowUsd = 0;
+  let hasIncompletePaymentRates = false;
   let anyIncomplete = false;
   let anyComputed = false;
   let netUsdSum = 0;
@@ -243,6 +260,7 @@ export function computeClientAccountingSummary(
 
     totalPaidUsd += device.accounting.totalPaidByCustomerUsd;
     cashFlowUsd += device.accounting.cashFlowUsd;
+    if (device.accounting.hasIncompletePaymentRates) hasIncompletePaymentRates = true;
 
     if (device.accounting.netResult.status === "incomplete") anyIncomplete = true;
     if (device.accounting.netResult.netUsd !== undefined) {
@@ -255,5 +273,5 @@ export function computeClientAccountingSummary(
     ? { status: anyIncomplete ? "incomplete" : "no-data" }
     : { status: anyIncomplete ? "incomplete" : "complete", netUsd: netUsdSum };
 
-  return { devices: deviceSummaries, totalDebt, totalPaid, totalPaidUsd, cashFlowUsd, netResult };
+  return { devices: deviceSummaries, totalDebt, totalPaid, totalPaidUsd, cashFlowUsd, hasIncompletePaymentRates, netResult };
 }

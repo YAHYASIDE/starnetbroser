@@ -101,6 +101,9 @@ export function DeviceStatementDialog({ accountName, entries, allocations, onClo
             التدفق النقدي الفعلي: {summary.cashFlowUsd >= 0 ? "+" : "-"}
             {formatAmount(Math.abs(summary.cashFlowUsd))} USD
           </span>
+          {summary.hasIncompletePaymentRates && (
+            <span className="badge badge-yellow">النتيجة النقدية غير مكتملة بسبب وجود دفعات قديمة بلا سعر صرف</span>
+          )}
         </div>
 
         <ul className="statement-shipment-list">

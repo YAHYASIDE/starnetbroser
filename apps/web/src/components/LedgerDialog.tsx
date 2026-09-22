@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import {
   computeBalanceByCurrency,
   createLedgerEntry,
+  isIncompletePaymentRateEntry,
   isLegacyShipmentEntry,
   LEDGER_CURRENCIES,
   LEDGER_CURRENCY_LABELS,
@@ -32,6 +33,7 @@ import {
 import { StarlinkSettlementDialog } from "./StarlinkSettlementDialog";
 import { PaymentAllocationDialog } from "./PaymentAllocationDialog";
 import { LegacyEntryCompletionDialog } from "./LegacyEntryCompletionDialog";
+import { PaymentRateCompletionDialog } from "./PaymentRateCompletionDialog";
 
 interface Props {
   accountName: string;
@@ -82,6 +84,7 @@ export function LedgerDialog({
   const [settlingEntry, setSettlingEntry] = useState<LedgerEntry | null>(null);
   const [pendingPayment, setPendingPayment] = useState<LedgerEntry | null>(null);
   const [completingEntry, setCompletingEntry] = useState<LedgerEntry | null>(null);
+  const [completingPayment, setCompletingPayment] = useState<LedgerEntry | null>(null);
 
   const balances = computeBalanceByCurrency(entries);
   const sorted = sortEntriesNewestFirst(entries);
@@ -324,6 +327,14 @@ export function LedgerDialog({
                   onCompleteLegacy={() => setCompletingEntry(entry)}
                 />
               )}
+              {entry.kind === "credit" && isIncompletePaymentRateEntry(entry) && (
+                <div className="ledger-entry-row-bottom">
+                  <span className="badge badge-yellow">سعر الصرف غير مكتمل</span>
+                  <button className="text-action" type="button" onClick={() => setCompletingPayment(entry)}>
+                    استكمال سعر الصرف
+                  </button>
+                </div>
+              )}
             </li>
           ))}
         </ul>
@@ -382,6 +393,19 @@ export function LedgerDialog({
           onComplete={(patch) => {
             onChange(updateEntry(entries, completingEntry.id, patch));
             setCompletingEntry(null);
+          }}
+        />
+      )}
+
+      {completingPayment && (
+        <PaymentRateCompletionDialog
+          entry={completingPayment}
+          currencyStore={currencyStore}
+          onUpsertCurrency={onUpsertCurrency}
+          onClose={() => setCompletingPayment(null)}
+          onComplete={(paymentRate) => {
+            onChange(updateEntry(entries, completingPayment.id, { paymentRate }));
+            setCompletingPayment(null);
           }}
         />
       )}

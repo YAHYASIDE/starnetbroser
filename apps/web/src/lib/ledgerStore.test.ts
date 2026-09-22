@@ -4,6 +4,7 @@ import {
   computeBalanceByCurrency,
   createLedgerEntry,
   getAccountEntries,
+  isIncompletePaymentRateEntry,
   isLegacyShipmentEntry,
   LedgerEntry,
   removeEntry,
@@ -320,6 +321,28 @@ describe("isLegacyShipmentEntry", () => {
 
   it("is false for a credit entry regardless of starlinkCost", () => {
     expect(isLegacyShipmentEntry(entry({ kind: "credit" }))).toBe(false);
+  });
+});
+
+describe("isIncompletePaymentRateEntry", () => {
+  it("is true for a non-USD credit entry with no paymentRate", () => {
+    expect(isIncompletePaymentRateEntry(entry({ kind: "credit", currency: "MRU" }))).toBe(true);
+  });
+
+  it("is false once the entry has a paymentRate", () => {
+    expect(
+      isIncompletePaymentRateEntry(
+        entry({ kind: "credit", currency: "MRU", paymentRate: { rateFromUsd: 400, usdValue: 50 } }),
+      ),
+    ).toBe(false);
+  });
+
+  it("is false for a USD credit entry - it never needs a rate", () => {
+    expect(isIncompletePaymentRateEntry(entry({ kind: "credit", currency: "USD" }))).toBe(false);
+  });
+
+  it("is false for a debit entry regardless of currency/paymentRate", () => {
+    expect(isIncompletePaymentRateEntry(entry({ kind: "debit", currency: "MRU" }))).toBe(false);
   });
 });
 
