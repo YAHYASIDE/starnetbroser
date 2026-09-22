@@ -104,6 +104,15 @@ export interface StarlinkAccountSummary {
   subscriptionId?: string;
   /** Just the number, e.g. "261" - always gigabytes, so callers append the unit themselves. */
   dataUsageGb?: string;
+  /**
+   * Links this device/card to a local Client record (see apps/web/src/lib/clientStore.ts) - a
+   * single customer may own several devices, each with its own card. Optional and absent on every
+   * account created before this field existed ("الزبون غير محدد" in the UI) - never inferred from
+   * name/email similarity, only ever set explicitly by the operator through the client picker.
+   * Deliberately NOT the same field as `customerId` above, which is the unrelated cloud-backend
+   * billing entity from services/api - this is the local-only grouping key used in demo/local mode.
+   */
+  clientId?: string;
 }
 
 /** Detail-view shape - includes decrypted secrets, only ever returned to
