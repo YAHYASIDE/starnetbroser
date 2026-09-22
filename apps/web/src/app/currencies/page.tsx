@@ -38,7 +38,8 @@ export default function CurrenciesPage() {
   const [newCode, setNewCode] = useState("");
   const [newName, setNewName] = useState("");
   const [newSymbol, setNewSymbol] = useState("");
-  const [newRate, setNewRate] = useState("");
+  const [rateAmount, setRateAmount] = useState("");
+  const [rateUsdAmount, setRateUsdAmount] = useState("1");
   const [formError, setFormError] = useState<string | null>(null);
 
   function persist(next: CurrencyStore) {
@@ -77,12 +78,14 @@ export default function CurrenciesPage() {
     setNewCode("");
     setNewName("");
     setNewSymbol("");
-    setNewRate("");
+    setRateAmount("");
+    setRateUsdAmount("1");
     setFormError(null);
   }
 
-  const countryMatches = COUNTRY_CURRENCIES.filter((o) => o.code !== "USD").filter((o) =>
-    o.country.includes(countryQuery.trim()),
+  const countryQueryNormalized = countryQuery.trim().toLowerCase();
+  const countryMatches = COUNTRY_CURRENCIES.filter((o) => o.code !== "USD").filter(
+    (o) => o.country.includes(countryQuery.trim()) || o.code.toLowerCase().includes(countryQueryNormalized),
   );
 
   function submitNewCurrency(event: FormEvent<HTMLFormElement>) {
@@ -91,13 +94,14 @@ export default function CurrenciesPage() {
       setFormError("اختر الدولة أولًا");
       return;
     }
-    const rate = Number(newRate);
-    if (!Number.isFinite(rate) || rate <= 0) {
-      setFormError("أدخل سعر صرف صحيح أكبر من صفر");
+    const amount = Number(rateAmount);
+    const usdAmount = Number(rateUsdAmount);
+    if (!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(usdAmount) || usdAmount <= 0) {
+      setFormError("أدخل مبلغين صحيحين أكبر من صفر");
       return;
     }
     setFormError(null);
-    persist(upsertCurrency(store, { code: newCode, name: newName, symbol: newSymbol, rateFromUsd: rate }));
+    persist(upsertCurrency(store, { code: newCode, name: newName, symbol: newSymbol, rateFromUsd: amount / usdAmount }));
     resetAddForm();
     setShowAddForm(false);
   }
@@ -196,21 +200,29 @@ export default function CurrenciesPage() {
             {selectedCountry && (
               <div className="currency-row-edit">
                 <label className="form-field">
-                  <span>دولار</span>
-                  <input className="search-input" dir="ltr" value="1" disabled readOnly />
-                </label>
-                <span aria-hidden="true">=</span>
-                <label className="form-field">
                   <span>{newSymbol}</span>
                   <input
                     className="search-input"
                     type="number"
                     min="0"
-                    step="0.0001"
+                    step="any"
                     dir="ltr"
-                    placeholder="القيمة"
-                    value={newRate}
-                    onChange={(e) => setNewRate(e.target.value)}
+                    placeholder="المبلغ"
+                    value={rateAmount}
+                    onChange={(e) => setRateAmount(e.target.value)}
+                  />
+                </label>
+                <span aria-hidden="true">=</span>
+                <label className="form-field">
+                  <span>دولار</span>
+                  <input
+                    className="search-input"
+                    type="number"
+                    min="0"
+                    step="any"
+                    dir="ltr"
+                    value={rateUsdAmount}
+                    onChange={(e) => setRateUsdAmount(e.target.value)}
                   />
                 </label>
               </div>
