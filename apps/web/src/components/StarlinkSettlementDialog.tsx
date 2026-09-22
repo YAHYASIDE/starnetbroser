@@ -8,6 +8,9 @@ import { LedgerEntry, StarlinkCost } from "@/lib/ledgerStore";
 interface Props {
   entry: LedgerEntry;
   currencyStore: CurrencyStore;
+  /** The currency code last used to settle a Starlink cost on this same device, if any - just a
+   * convenience default for the picker below, never a guess at this settlement's own rate. */
+  defaultCurrencyCode?: string;
   onUpsertCurrency: (input: UpsertCurrencyInput) => Currency;
   onClose: () => void;
   onSettle: (cost: StarlinkCost) => void;
@@ -23,7 +26,7 @@ function todayDateInputValue(): string {
  * whatever currency it was actually paid in, with a locked rate snapshot so a later change to
  * that currency's rate in Settings never rewrites this settlement's numbers.
  */
-export function StarlinkSettlementDialog({ entry, currencyStore, onUpsertCurrency, onClose, onSettle }: Props) {
+export function StarlinkSettlementDialog({ entry, currencyStore, defaultCurrencyCode, onUpsertCurrency, onClose, onSettle }: Props) {
   const registered = listCurrencies(currencyStore);
 
   const [showNewCurrency, setShowNewCurrency] = useState(false);
@@ -31,7 +34,9 @@ export function StarlinkSettlementDialog({ entry, currencyStore, onUpsertCurrenc
   const [newName, setNewName] = useState("");
   const [newSymbol, setNewSymbol] = useState("");
 
-  const [currencyCode, setCurrencyCode] = useState(registered[0]?.code ?? "USD");
+  const [currencyCode, setCurrencyCode] = useState(
+    (defaultCurrencyCode && getCurrency(currencyStore, defaultCurrencyCode) ? defaultCurrencyCode : registered[0]?.code) ?? "USD",
+  );
   const [amount, setAmount] = useState("");
   const [rate, setRate] = useState(String(getCurrency(currencyStore, currencyCode)?.rateFromUsd ?? 1));
   const [date, setDate] = useState(todayDateInputValue());

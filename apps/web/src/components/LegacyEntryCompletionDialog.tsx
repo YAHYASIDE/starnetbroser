@@ -10,6 +10,9 @@ interface Props {
    * created before starlinkCost/saleRate existed. */
   entry: LedgerEntry;
   currencyStore: CurrencyStore;
+  /** The currency code last used to settle a Starlink cost on this same device, if any - just a
+   * convenience default for the picker below, never a guess at this settlement's own rate. */
+  defaultCostCurrencyCode?: string;
   onUpsertCurrency: (input: UpsertCurrencyInput) => Currency;
   onClose: () => void;
   /** Applies the completed fields via ledgerStore's updateEntry - never touches
@@ -29,7 +32,7 @@ function todayDateInputValue(): string {
  * (pending) or as already paid. Never invents a rate or a cost on its own - both require an
  * explicit, validated entry before this can be saved (rule XV).
  */
-export function LegacyEntryCompletionDialog({ entry, currencyStore, onUpsertCurrency, onClose, onComplete }: Props) {
+export function LegacyEntryCompletionDialog({ entry, currencyStore, defaultCostCurrencyCode, onUpsertCurrency, onClose, onComplete }: Props) {
   const needsSaleRate = entry.currency !== "USD";
   const [saleRateInput, setSaleRateInput] = useState(
     needsSaleRate ? String(getCurrency(currencyStore, entry.currency)?.rateFromUsd ?? "") : "",
@@ -43,7 +46,9 @@ export function LegacyEntryCompletionDialog({ entry, currencyStore, onUpsertCurr
   const [newName, setNewName] = useState("");
   const [newSymbol, setNewSymbol] = useState("");
 
-  const [costCurrencyCode, setCostCurrencyCode] = useState(registered[0]?.code ?? "USD");
+  const [costCurrencyCode, setCostCurrencyCode] = useState(
+    (defaultCostCurrencyCode && getCurrency(currencyStore, defaultCostCurrencyCode) ? defaultCostCurrencyCode : registered[0]?.code) ?? "USD",
+  );
   const [costAmount, setCostAmount] = useState("");
   const [costRate, setCostRate] = useState(String(getCurrency(currencyStore, costCurrencyCode)?.rateFromUsd ?? 1));
   const [costDate, setCostDate] = useState(todayDateInputValue());

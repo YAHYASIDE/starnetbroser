@@ -111,6 +111,25 @@ export function isIncompletePaymentRateEntry(entry: LedgerEntry): boolean {
   return entry.kind === "credit" && entry.currency !== "USD" && !entry.paymentRate;
 }
 
+/** The currency code most recently used to settle a Starlink cost on THIS device (by `paidAt`,
+ * newest wins) - purely a convenience default for the settlement form's currency picker, so an
+ * operator who always pays this device's Starlink bill in the same currency doesn't have to
+ * reselect it every time. Never affects the settlement itself: the rate is still always typed
+ * fresh, never guessed (rule VI). Undefined when this device has no settled cost yet.
+ *
+ * `paidAt` is a plain yyyy-mm-dd date, not a timestamp, so two settlements made the same day tie -
+ * `>=` (not `>`) breaks that tie in favor of whichever comes LATER in `entries`, since entries are
+ * appended in creation order and the later one is the one actually settled most recently. */
+export function lastUsedCostCurrency(entries: LedgerEntry[]): string | undefined {
+  let latest: { currencyCode: string; paidAt: string } | undefined;
+  for (const entry of entries) {
+    const cost = entry.starlinkCost;
+    if (entry.kind !== "debit" || cost?.status !== "settled" || !cost.currencyCode || !cost.paidAt) continue;
+    if (!latest || cost.paidAt >= latest.paidAt) latest = { currencyCode: cost.currencyCode, paidAt: cost.paidAt };
+  }
+  return latest?.currencyCode;
+}
+
 export type LedgerByAccount = Record<string, LedgerEntry[]>;
 
 /** A balance is never a single number once entries can be in different currencies - USD/MRU/SIFA

@@ -6,6 +6,7 @@ import {
   getAccountEntries,
   isIncompletePaymentRateEntry,
   isLegacyShipmentEntry,
+  lastUsedCostCurrency,
   LedgerEntry,
   removeEntry,
   sortEntriesNewestFirst,
@@ -343,6 +344,66 @@ describe("isIncompletePaymentRateEntry", () => {
 
   it("is false for a debit entry regardless of currency/paymentRate", () => {
     expect(isIncompletePaymentRateEntry(entry({ kind: "debit", currency: "MRU" }))).toBe(false);
+  });
+});
+
+describe("lastUsedCostCurrency", () => {
+  it("is undefined with no entries", () => {
+    expect(lastUsedCostCurrency([])).toBeUndefined();
+  });
+
+  it("is undefined when no debit entry has a settled starlinkCost", () => {
+    const entries = [
+      entry({ kind: "debit", starlinkCost: { status: "pending" } }),
+      entry({ id: "e2", kind: "credit" }),
+    ];
+    expect(lastUsedCostCurrency(entries)).toBeUndefined();
+  });
+
+  it("returns the currency of a single settled cost", () => {
+    const entries = [
+      entry({ kind: "debit", starlinkCost: { status: "settled", currencyCode: "USD", amount: 100, paidAt: "2026-09-01" } }),
+    ];
+    expect(lastUsedCostCurrency(entries)).toBe("USD");
+  });
+
+  it("picks the currency of the MOST RECENT settlement by paidAt, not entry order", () => {
+    const entries = [
+      entry({
+        id: "e1",
+        kind: "debit",
+        starlinkCost: { status: "settled", currencyCode: "USD", amount: 100, paidAt: "2026-09-01" },
+      }),
+      entry({
+        id: "e2",
+        kind: "debit",
+        starlinkCost: { status: "settled", currencyCode: "MRU", amount: 40000, paidAt: "2026-09-20" },
+      }),
+    ];
+    expect(lastUsedCostCurrency(entries)).toBe("MRU");
+    // Order reversed - result must still follow paidAt, not array position.
+    expect(lastUsedCostCurrency([...entries].reverse())).toBe("MRU");
+  });
+
+  it("ignores a settled cost with no currencyCode (defensive - shouldn't normally happen)", () => {
+    const entries = [entry({ kind: "debit", starlinkCost: { status: "settled", amount: 100, paidAt: "2026-09-01" } })];
+    expect(lastUsedCostCurrency(entries)).toBeUndefined();
+  });
+
+  it("on a same-day tie (paidAt has no time component), the later entry in the array wins", () => {
+    const entries = [
+      entry({
+        id: "e1",
+        kind: "debit",
+        starlinkCost: { status: "settled", currencyCode: "USD", amount: 100, paidAt: "2026-09-22" },
+      }),
+      entry({
+        id: "e2",
+        kind: "debit",
+        starlinkCost: { status: "settled", currencyCode: "MRU", amount: 8000, paidAt: "2026-09-22" },
+      }),
+    ];
+    expect(lastUsedCostCurrency(entries)).toBe("MRU");
   });
 });
 

@@ -6,6 +6,7 @@ import {
   createLedgerEntry,
   isIncompletePaymentRateEntry,
   isLegacyShipmentEntry,
+  lastUsedCostCurrency,
   LEDGER_CURRENCIES,
   LEDGER_CURRENCY_LABELS,
   LedgerCurrency,
@@ -425,6 +426,7 @@ export function LedgerDialog({
         <StarlinkSettlementDialog
           entry={settlingEntry}
           currencyStore={currencyStore}
+          defaultCurrencyCode={lastUsedCostCurrency(entries)}
           onUpsertCurrency={onUpsertCurrency}
           onClose={() => setSettlingEntry(null)}
           onSettle={(cost) => {
@@ -476,6 +478,7 @@ export function LedgerDialog({
         <LegacyEntryCompletionDialog
           entry={completingEntry}
           currencyStore={currencyStore}
+          defaultCostCurrencyCode={lastUsedCostCurrency(entries)}
           onUpsertCurrency={onUpsertCurrency}
           onClose={() => setCompletingEntry(null)}
           onComplete={(patch) => {
