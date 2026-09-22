@@ -1660,6 +1660,12 @@ a.btn-icon {
   grid-column: 1 / -1;
 }
 
+.account-info-plan-status {
+  display: inline-block;
+  margin-inline-start: 6px;
+  vertical-align: middle;
+}
+
 .account-info-grid .info-warning {
   background: var(--red-bg);
 }

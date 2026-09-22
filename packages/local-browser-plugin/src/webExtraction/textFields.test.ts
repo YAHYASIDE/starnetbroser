@@ -8,9 +8,10 @@ import {
   extractBillingDueDay,
   extractDataUsageGb,
   extractLabeledValue,
+  extractPlanBadgeStatus,
+  extractPlanName,
   extractRenewalBadgeDate,
   extractSubscriptionId,
-  hasActivePlanBadge,
   hasStandbyBanner,
   isCompleteDate,
   nextOccurrenceOfDay,
@@ -118,19 +119,41 @@ describe("hasStandbyBanner", () => {
   });
 });
 
-describe("hasActivePlanBadge - scoped near 'خطة الخدمة', never a bare 'نشط' anywhere on the page", () => {
+describe("extractPlanBadgeStatus - scoped near 'خطة الخدمة', never a bare status word anywhere on the page", () => {
   it("detects the 'نشط' badge right after the plan section label", () => {
     const lines = ["خطة الخدمة", "إدارة", "نشط", "التجوال - غير محدود"];
-    expect(hasActivePlanBadge(lines)).toBe(true);
+    expect(extractPlanBadgeStatus(lines)).toBe("active");
   });
 
-  it("returns false when 'خطة الخدمة' isn't on the page at all", () => {
-    expect(hasActivePlanBadge(["نشط", "شيء آخر تمامًا"])).toBe(false);
+  it("detects the real standby badge wording ('وضع الاستعداد قيد التعليق') - a real, confirmed miss", () => {
+    const lines = ["خطة الخدمة", "إدارة", "وضع الاستعداد قيد التعليق", "التجوال - غير محدود"];
+    expect(extractPlanBadgeStatus(lines)).toBe("standby");
+  });
+
+  it("returns undefined when 'خطة الخدمة' isn't on the page at all", () => {
+    expect(extractPlanBadgeStatus(["نشط", "شيء آخر تمامًا"])).toBeUndefined();
   });
 
   it("never matches 'نشط' embedded in an unrelated sentence far from the plan section", () => {
     const lines = ["خطة الخدمة", "إدارة", "النهاية ٢٠٢٦/٩/٢٨", "التجوال - غير محدود", "الجهاز نشط ومتصل الآن"];
-    expect(hasActivePlanBadge(lines)).toBe(false);
+    expect(extractPlanBadgeStatus(lines)).toBeUndefined();
+  });
+});
+
+describe("extractPlanName - never returns the status badge word as if it were the plan name", () => {
+  it("skips the 'نشط' badge and returns the real plan name after it (real, confirmed bug)", () => {
+    const lines = ["خطة الخدمة", "إدارة", "نشط", "التجوال - غير محدود"];
+    expect(extractPlanName(lines)).toBe("التجوال - غير محدود");
+  });
+
+  it("skips the standby badge wording too and still finds the real plan name", () => {
+    const lines = ["خطة الخدمة", "إدارة", "وضع الاستعداد قيد التعليق", "التجوال - غير محدود"];
+    expect(extractPlanName(lines)).toBe("التجوال - غير محدود");
+  });
+
+  it("returns the plan name directly when there is no status badge at all", () => {
+    const lines = ["Plan", "Residential"];
+    expect(extractPlanName(lines)).toBe("Residential");
   });
 });
 

@@ -3,7 +3,6 @@ import { extractDeviceStatus } from "./deviceStatus";
 import {
   ACCOUNT_NUMBER_LABELS,
   KIT_NUMBER_LABELS,
-  PLAN_LABELS,
   RENEWAL_DATE_LABELS,
   SERIAL_NUMBER_LABELS,
   SERVICE_STATUS_LABELS,
@@ -15,9 +14,10 @@ import {
   extractBillingDueDay,
   extractDataUsageGb,
   extractLabeledValue,
+  extractPlanBadgeStatus,
+  extractPlanName,
   extractRenewalBadgeDate,
   extractSubscriptionId,
-  hasActivePlanBadge,
   hasStandbyBanner,
   isCompleteDate,
   nextOccurrenceOfDay,
@@ -52,16 +52,16 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
   const text = toVisibleText(doc.body);
   const lines = toLines(text);
 
-  // The real page never prints a labeled "الحالة: ..." line for a standby account - the only
-  // signal is the "service will end" banner itself (see hasStandbyBanner's own doc), so that
-  // banner's presence is treated as a reliable standby reading in its own right, tried only when
-  // a labeled status wasn't found.
+  // The real page never prints a labeled "الحالة: ..." line for a standby account - the two
+  // reliable signals are the "service will end" banner (see hasStandbyBanner's own doc) and the
+  // status badge shown right on the "خطة الخدمة" card itself (see extractPlanBadgeStatus's own
+  // doc), tried only when a labeled status wasn't found.
   let serviceStatus = normalizeServiceStatus(extractLabeledValue(lines, SERVICE_STATUS_LABELS));
   if (!serviceStatus && hasStandbyBanner(lines)) serviceStatus = "standby";
-  if (!serviceStatus && hasActivePlanBadge(lines)) serviceStatus = "active";
+  if (!serviceStatus) serviceStatus = extractPlanBadgeStatus(lines);
   if (serviceStatus) fields.serviceStatus = serviceStatus;
 
-  const planName = extractLabeledValue(lines, PLAN_LABELS);
+  const planName = extractPlanName(lines);
   if (planName) fields.planName = planName;
 
   const renewalDate = extractLabeledValue(lines, RENEWAL_DATE_LABELS) ?? extractRenewalBadgeDate(lines);

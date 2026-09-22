@@ -74,6 +74,9 @@ export function AccountDialog({ mode, account, clients, onCreateClient, onClose,
   const isView = mode === "view";
   const title = mode === "add" ? "إضافة حساب جديد" : mode === "edit" ? "تعديل الحساب" : "معلومات الحساب";
   const clientName = (clientId?: string) => clients.find((c) => c.id === clientId)?.name;
+  // Shown as a small colored badge next to the plan NAME itself (rule: never the generic "نشط"
+  // word standing in for the plan's own name - see extractPlanName's own doc for that bug).
+  const planStatus = presentServiceStatus(draft.serviceStatus);
 
   function update<K extends keyof StarlinkAccountSummary>(key: K, value: StarlinkAccountSummary[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -135,7 +138,15 @@ export function AccountDialog({ mode, account, clients, onCreateClient, onClose,
               <div><span>الاسم من Starlink</span><strong>{draft.starlinkAccountHolderName}</strong></div>
             )}
             <div><span>رقم الهاتف</span><strong dir="ltr">{displayValue(draft.phone ?? null)}</strong></div>
-            <div><span>الخطة</span><strong>{displayValue(draft.planName)}</strong></div>
+            <div>
+              <span>الخطة</span>
+              <strong>
+                {displayValue(draft.planName)}
+                {planStatus && (
+                  <span className={`badge ${planStatus.className} account-info-plan-status`}>{planStatus.label}</span>
+                )}
+              </strong>
+            </div>
             <div><span>KIT</span><strong dir="ltr">{displayValue(draft.kitNumber)}</strong></div>
             <div><span>Serial</span><strong dir="ltr">{displayValue(draft.serialNumber)}</strong></div>
             <div><span>موعد التجديد</span><strong dir="ltr">{displayValue(draft.rechargeDate)}</strong></div>
@@ -157,9 +168,6 @@ export function AccountDialog({ mode, account, clients, onCreateClient, onClose,
                 <span>تحذير</span>
                 <strong>البريد الإلكتروني من Starlink لا يطابق المتوقع</strong>
               </div>
-            )}
-            {presentServiceStatus(draft.serviceStatus) && (
-              <div><span>حالة الاشتراك (Starlink)</span><strong>{presentServiceStatus(draft.serviceStatus)!.label}</strong></div>
             )}
             {formatRelativeTime(draft.lastSuccessfulScanAt) && (
               <div><span>آخر مزامنة من Starlink</span><strong>{formatRelativeTime(draft.lastSuccessfulScanAt)}</strong></div>

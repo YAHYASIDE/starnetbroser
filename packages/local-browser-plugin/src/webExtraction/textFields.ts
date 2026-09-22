@@ -29,22 +29,23 @@ export function hasStandbyBanner(lines: string[]): boolean {
 }
 
 /**
- * The real "خطة الخدمة" card also shows a "نشط" badge instead of the "النهاية <date>" one once
- * the account is genuinely active (no standby banner anywhere on the page at that point either).
- * Deliberately scoped to the few lines right after "خطة الخدمة" - "نشط" ("active") on its own is
- * far too short/generic a word to safely match anywhere on the page (the same class of risk
- * "النهاية" had), and must require an EXACT trimmed match on its own line, not a substring, so it
- * can never be part of some unrelated longer sentence.
+ * The real "خطة الخدمة" card shows a status badge right next to the plan name itself - "نشط" once
+ * active, or a standby-wording badge (e.g. "وضع الاستعداد قيد التعليق") while the account is
+ * scheduled to move to standby - instead of a separately-labeled "حالة الخدمة" row anywhere on the
+ * page. Deliberately scoped to the few lines right after "خطة الخدمة" (never a whole-page scan,
+ * the same class of risk a bare "نشط"/"النهاية" match would have anywhere else), reusing
+ * normalizeServiceStatus's own word lists rather than a second, separately-maintained set.
  */
-export function hasActivePlanBadge(lines: string[]): boolean {
+export function extractPlanBadgeStatus(lines: string[]): NormalizedServiceStatus | undefined {
   for (let i = 0; i < lines.length; i++) {
     if (!lines[i].includes("خطة الخدمة")) continue;
     for (let j = i; j < Math.min(i + 3, lines.length); j++) {
-      if (lines[j].trim() === "نشط") return true;
+      const status = normalizeServiceStatus(lines[j]);
+      if (status) return status;
     }
-    return false;
+    return undefined;
   }
-  return false;
+  return undefined;
 }
 
 /**
@@ -157,7 +158,7 @@ const ACTION_WORDS = [
 ];
 
 const ACTIVE_WORDS = ["active", "نشط"];
-const STANDBY_WORDS = ["standby", "في الانتظار", "وضع الانتظار"];
+const STANDBY_WORDS = ["standby", "في الانتظار", "وضع الانتظار", "وضع الاستعداد"];
 const CANCELED_WORDS = ["canceled", "cancelled", "ملغى", "ملغي"];
 const SUSPENDED_WORDS = ["suspended", "موقوف", "معلق"];
 
@@ -216,6 +217,34 @@ export function extractLabeledValue(lines: string[], labels: string[]): string |
         const next = lines[j].trim();
         if (!next) continue;
         if (isActionWord(next) || startsWithAnyLabel(next)) continue;
+        return next;
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Same lookahead as extractLabeledValue, but for PLAN_LABELS specifically: the real "خطة الخدمة"
+ * card places its "نشط"/standby status badge BEFORE the actual plan name text (see
+ * extractPlanBadgeStatus above) - a real, confirmed miss where the plan name came back as the
+ * bare word "نشط" instead of e.g. "التجوال - غير محدود". Skips over that badge line too, the same
+ * way an action-button word is skipped, so it keeps looking for the real name instead of
+ * returning the status word as if it were the plan.
+ */
+export function extractPlanName(lines: string[]): string | undefined {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lower = line.toLowerCase();
+    for (const label of PLAN_LABELS) {
+      const idx = lower.indexOf(label.toLowerCase());
+      if (idx < 0) continue;
+      const afterLabel = stripLeadingSeparator(line.slice(idx + label.length)).trim();
+      if (afterLabel && !normalizeServiceStatus(afterLabel)) return afterLabel;
+      for (let j = i + 1; j < lines.length; j++) {
+        const next = lines[j].trim();
+        if (!next) continue;
+        if (isActionWord(next) || startsWithAnyLabel(next) || normalizeServiceStatus(next)) continue;
         return next;
       }
     }
