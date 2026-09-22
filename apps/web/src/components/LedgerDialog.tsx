@@ -37,6 +37,7 @@ import { StarlinkSettlementDialog } from "./StarlinkSettlementDialog";
 import { AllocationDeviceOption, AllocationShipmentRow, PaymentAllocationDialog } from "./PaymentAllocationDialog";
 import { LegacyEntryCompletionDialog } from "./LegacyEntryCompletionDialog";
 import { PaymentRateCompletionDialog } from "./PaymentRateCompletionDialog";
+import { EditLedgerEntryDialog } from "./EditLedgerEntryDialog";
 
 /** One other device linked to the same customer - siblings, never the account currently open in
  * this dialog. Lets a payment recorded here be allocated to a shipment on a DIFFERENT device
@@ -114,7 +115,9 @@ export function LedgerDialog({
   onChange,
 }: Props) {
   const [kind, setKind] = useState<LedgerEntryKind>("debit");
-  const [currency, setCurrency] = useState<LedgerCurrency>("USD");
+  // أوقية (MRU) is the actual day-to-day currency this business sells in - USD is only the
+  // internal reference currency, never what a new entry should default to.
+  const [currency, setCurrency] = useState<LedgerCurrency>("MRU");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [email, setEmail] = useState("");
@@ -127,8 +130,12 @@ export function LedgerDialog({
   // The locked rate snapshot input, shared by both directions: a "debit" entry locks it as
   // saleRate, a "credit" entry as paymentRate (rule XIII's "cash actually collected" in USD).
   // Starts empty (not e.g. "1") whenever the currency's rate isn't already known, so a forgotten
-  // rate blocks submission instead of silently defaulting to a wrong one.
-  const [rateInput, setRateInput] = useState("");
+  // rate blocks submission instead of silently defaulting to a wrong one - pre-filled here for the
+  // default MRU currency above, same as selectCurrency does when switching currencies later.
+  const [rateInput, setRateInput] = useState(() => {
+    const known = getCurrency(currencyStore, "MRU")?.rateFromUsd;
+    return known !== undefined ? String(known) : "";
+  });
 
   // Starlink's own cost for this shipment, captured right here instead of a later separate step
   // (see StarlinkCost) - defaults to whatever currency this device last used, same convenience as
@@ -151,6 +158,7 @@ export function LedgerDialog({
   const [pendingPayment, setPendingPayment] = useState<LedgerEntry | null>(null);
   const [completingEntry, setCompletingEntry] = useState<LedgerEntry | null>(null);
   const [completingPayment, setCompletingPayment] = useState<LedgerEntry | null>(null);
+  const [editingEntry, setEditingEntry] = useState<LedgerEntry | null>(null);
   // An already-saved payment being (re)allocated via "تخصيص الدفعة" - only its own unallocated
   // remainder is proposed, existing allocation records for it are never touched here.
   const [allocatingPayment, setAllocatingPayment] = useState<LedgerEntry | null>(null);
@@ -598,6 +606,15 @@ export function LedgerDialog({
                 <span className="ledger-entry-amount" dir="ltr">{formatMoney(entry.amount, entry.currency)}</span>
                 <span className="ledger-entry-date" dir="ltr">{entry.date}</span>
                 <button
+                  className="text-action"
+                  type="button"
+                  onClick={() => setEditingEntry(entry)}
+                  aria-label="تعديل الحركة"
+                  title="تعديل الحركة"
+                >
+                  تعديل
+                </button>
+                <button
                   className="ledger-entry-delete"
                   type="button"
                   onClick={() => deleteEntry(entry.id)}
@@ -740,6 +757,24 @@ export function LedgerDialog({
           onComplete={(paymentRate) => {
             onChange(updateEntry(entries, completingPayment.id, { paymentRate }));
             setCompletingPayment(null);
+          }}
+        />
+      )}
+
+      {editingEntry && (
+        <EditLedgerEntryDialog
+          entry={editingEntry}
+          currencyStore={currencyStore}
+          hasAllocations={
+            editingEntry.kind === "debit"
+              ? paidTowardShipment(allocations, editingEntry.id) > 0
+              : allocatedFromPayment(allocations, editingEntry.id) > 0
+          }
+          onUpsertCurrency={onUpsertCurrency}
+          onClose={() => setEditingEntry(null)}
+          onSave={(patch) => {
+            onChange(updateEntry(entries, editingEntry.id, patch));
+            setEditingEntry(null);
           }}
         />
       )}
