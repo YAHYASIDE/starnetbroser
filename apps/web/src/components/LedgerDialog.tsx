@@ -19,13 +19,25 @@ import {
 } from "@/lib/ledgerStore";
 import { computeShipmentProfit } from "@/lib/accountingStore";
 import { Currency, CurrencyStore, getCurrency, UpsertCurrencyInput } from "@/lib/currencyStore";
+import {
+  addAllocations,
+  computeShipmentPaymentStatus,
+  createAllocation,
+  paidTowardShipment,
+  PaymentAllocation,
+  planFifoAllocation,
+  removeAllocationsForEntry,
+} from "@/lib/paymentAllocationStore";
 import { StarlinkSettlementDialog } from "./StarlinkSettlementDialog";
+import { PaymentAllocationDialog } from "./PaymentAllocationDialog";
 
 interface Props {
   accountName: string;
   entries: LedgerEntry[];
   currencyStore: CurrencyStore;
   onUpsertCurrency: (input: UpsertCurrencyInput) => Currency;
+  allocations: PaymentAllocation[];
+  onChangeAllocations: (allocations: PaymentAllocation[]) => void;
   onClose: () => void;
   onChange: (entries: LedgerEntry[]) => void;
 }
@@ -38,7 +50,16 @@ function formatMoney(amount: number, currency: LedgerCurrency): string {
   return `${amount.toFixed(2)} ${LEDGER_CURRENCY_LABELS[currency]}`;
 }
 
-export function LedgerDialog({ accountName, entries, currencyStore, onUpsertCurrency, onClose, onChange }: Props) {
+export function LedgerDialog({
+  accountName,
+  entries,
+  currencyStore,
+  onUpsertCurrency,
+  allocations,
+  onChangeAllocations,
+  onClose,
+  onChange,
+}: Props) {
   const [kind, setKind] = useState<LedgerEntryKind>("debit");
   const [currency, setCurrency] = useState<LedgerCurrency>("USD");
   const [amount, setAmount] = useState("");
@@ -55,6 +76,7 @@ export function LedgerDialog({ accountName, entries, currencyStore, onUpsertCurr
   const [saleRateInput, setSaleRateInput] = useState("");
 
   const [settlingEntry, setSettlingEntry] = useState<LedgerEntry | null>(null);
+  const [pendingPayment, setPendingPayment] = useState<LedgerEntry | null>(null);
 
   const balances = computeBalanceByCurrency(entries);
   const sorted = sortEntriesNewestFirst(entries);
@@ -109,16 +131,27 @@ export function LedgerDialog({ accountName, entries, currencyStore, onUpsertCurr
       saleRate: needsSaleRate ? { rateFromUsd: parsedRate, usdValue: parsedAmount / parsedRate } : undefined,
       markStarlinkCostPending: kind === "debit" && markD,
     });
-    onChange([...entries, entry]);
+
     setAmount("");
     setNote("");
     setEmail("");
     setMarkD(false);
+
+    if (kind === "credit") {
+      // A payment is never added directly - it first goes through the allocation dialog below
+      // (rule 3: "يعرض النظام الشحنة التي ستُخصص لها الدفعة قبل الحفظ"), which is what actually
+      // adds it (along with whatever allocation records the operator confirms).
+      setPendingPayment(entry);
+      return;
+    }
+
+    onChange([...entries, entry]);
   }
 
   function deleteEntry(entryId: string) {
     if (!window.confirm("هل تريد حذف هذه الحركة؟ لا يمكن التراجع عن هذا الإجراء.")) return;
     onChange(removeEntry(entries, entryId));
+    onChangeAllocations(removeAllocationsForEntry(allocations, entryId));
   }
 
   return (
@@ -256,7 +289,9 @@ export function LedgerDialog({ accountName, entries, currencyStore, onUpsertCurr
                   {entry.email && <span className="ledger-entry-email" dir="ltr">{entry.email}</span>}
                 </div>
               )}
-              {entry.kind === "debit" && <ShipmentStatusRow entry={entry} onSettle={() => setSettlingEntry(entry)} />}
+              {entry.kind === "debit" && (
+                <ShipmentStatusRow entry={entry} allocations={allocations} onSettle={() => setSettlingEntry(entry)} />
+              )}
             </li>
           ))}
         </ul>
@@ -278,16 +313,59 @@ export function LedgerDialog({ accountName, entries, currencyStore, onUpsertCurr
           }}
         />
       )}
+
+      {pendingPayment && (() => {
+        const { plan } = planFifoAllocation(entries, allocations, pendingPayment.amount, pendingPayment.currency);
+        const shipmentRows = entries
+          .filter((e) => e.kind === "debit" && e.currency === pendingPayment.currency)
+          .map((e) => ({ entry: e, remaining: e.amount - paidTowardShipment(allocations, e.id) }))
+          .filter((row) => row.remaining > 0)
+          .sort((a, b) => (a.entry.date !== b.entry.date ? (a.entry.date < b.entry.date ? -1 : 1) : (a.entry.createdAt < b.entry.createdAt ? -1 : 1)));
+
+        return (
+          <PaymentAllocationDialog
+            amount={pendingPayment.amount}
+            currency={pendingPayment.currency}
+            shipments={shipmentRows}
+            initialPlan={plan}
+            onCancel={() => setPendingPayment(null)}
+            onConfirm={(finalPlan) => {
+              const newAllocations = finalPlan.map((item) =>
+                createAllocation(pendingPayment.id, item.shipmentEntryId, item.amount, pendingPayment.currency),
+              );
+              onChange([...entries, pendingPayment]);
+              onChangeAllocations(addAllocations(allocations, newAllocations));
+              setPendingPayment(null);
+            }}
+          />
+        );
+      })()}
     </div>
   );
 }
 
-/** The shipment/D/profit line under one debit entry - never rendered for a "credit" entry, which
- * isn't a shipment and has nothing here to show. */
-function ShipmentStatusRow({ entry, onSettle }: { entry: LedgerEntry; onSettle: () => void }) {
+/** The shipment/payment-status/D/profit line under one debit entry - never rendered for a
+ * "credit" entry, which isn't a shipment and has nothing here to show. */
+function ShipmentStatusRow({
+  entry,
+  allocations,
+  onSettle,
+}: {
+  entry: LedgerEntry;
+  allocations: PaymentAllocation[];
+  onSettle: () => void;
+}) {
+  const paymentStatus = computeShipmentPaymentStatus(entry, allocations);
+  const paymentBadge = (
+    <span className={`badge ${paymentStatus === "paid" ? "badge-green" : paymentStatus === "partial" ? "badge-yellow" : "badge-red"}`}>
+      {paymentStatus === "paid" ? "مدفوعة بالكامل" : paymentStatus === "partial" ? "مدفوعة جزئيًا" : "غير مدفوعة"}
+    </span>
+  );
+
   if (isLegacyShipmentEntry(entry)) {
     return (
       <div className="ledger-shipment-row">
+        {paymentBadge}
         <span className="badge badge-gray">عملية قديمة - بيانات الربح غير مكتملة</span>
       </div>
     );
@@ -296,6 +374,7 @@ function ShipmentStatusRow({ entry, onSettle }: { entry: LedgerEntry; onSettle: 
   if (entry.starlinkCost?.status === "pending") {
     return (
       <div className="ledger-shipment-row">
+        {paymentBadge}
         <button type="button" className="badge badge-yellow ledger-d-badge" onClick={onSettle}>
           D - تكلفة Starlink غير مسددة
         </button>
@@ -307,6 +386,7 @@ function ShipmentStatusRow({ entry, onSettle }: { entry: LedgerEntry; onSettle: 
   if (profit.status !== "computed") {
     return (
       <div className="ledger-shipment-row">
+        {paymentBadge}
         <span className="badge badge-gray">تم السداد لـ Starlink - تعذر حساب الربح</span>
       </div>
     );
@@ -315,6 +395,7 @@ function ShipmentStatusRow({ entry, onSettle }: { entry: LedgerEntry; onSettle: 
   const isProfit = profit.profitUsd! >= 0;
   return (
     <div className="ledger-shipment-row">
+      {paymentBadge}
       <span className="badge badge-green">مسدد لـ Starlink</span>
       <span className={`ledger-shipment-profit ${isProfit ? "profit-positive" : "profit-negative"}`} dir="ltr">
         {isProfit ? `ربح +${profit.profitUsd!.toFixed(2)} USD` : `خسارة ${profit.profitUsd!.toFixed(2)} USD`}

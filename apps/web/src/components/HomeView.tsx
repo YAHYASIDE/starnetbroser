@@ -37,6 +37,14 @@ import {
   updateClient,
 } from "@/lib/clientStore";
 import { CurrencyStore, loadCurrencyStore, saveCurrencyStore, upsertCurrency, UpsertCurrencyInput } from "@/lib/currencyStore";
+import {
+  AllocationsByAccount,
+  getAccountAllocations,
+  loadAllocationStore,
+  PaymentAllocation,
+  saveAllocationStore,
+  withAccountAllocations,
+} from "@/lib/paymentAllocationStore";
 import { ApiError, listAccounts } from "@/lib/apiClient";
 import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
 import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
@@ -132,6 +140,19 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
     setCurrencyStore(next);
     saveCurrencyStore(next);
     return next[input.code.trim().toUpperCase()];
+  }
+
+  // Payment-to-shipment allocations (see paymentAllocationStore.ts) - same load-after-mount
+  // pattern, kept per-device exactly like the ledger store itself.
+  const [allocationStore, setAllocationStore] = useState<AllocationsByAccount>({});
+  useEffect(() => setAllocationStore(loadAllocationStore()), []);
+
+  function updateAllocations(accountId: string, next: PaymentAllocation[]) {
+    setAllocationStore((current) => {
+      const updated = withAccountAllocations(current, accountId, next);
+      saveAllocationStore(updated);
+      return updated;
+    });
   }
 
   async function handleSyncNow() {
@@ -620,6 +641,8 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
           entries={getAccountEntries(ledgerStore, ledgerAccount.id)}
           currencyStore={currencyStore}
           onUpsertCurrency={handleUpsertCurrency}
+          allocations={getAccountAllocations(allocationStore, ledgerAccount.id)}
+          onChangeAllocations={(next) => updateAllocations(ledgerAccount.id, next)}
           onClose={() => setLedgerAccount(null)}
           onChange={(entries) => updateLedgerEntries(ledgerAccount.id, entries)}
         />
