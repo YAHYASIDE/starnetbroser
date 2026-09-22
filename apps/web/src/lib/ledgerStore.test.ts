@@ -4,6 +4,7 @@ import {
   computeBalanceByCurrency,
   createLedgerEntry,
   getAccountEntries,
+  isLegacyShipmentEntry,
   LedgerEntry,
   removeEntry,
   sortEntriesNewestFirst,
@@ -186,5 +187,119 @@ describe("totalOwedAcrossAccounts", () => {
 
   it("is empty for an empty store", () => {
     expect(totalOwedAcrossAccounts({})).toEqual({});
+  });
+});
+
+describe("createLedgerEntry - saleRate / starlinkCost (D mark)", () => {
+  it("stores a given saleRate snapshot on a debit entry", () => {
+    const created = createLedgerEntry({
+      kind: "debit",
+      amount: 45000,
+      currency: "MRU",
+      note: "",
+      email: "",
+      date: "2026-09-21",
+      saleRate: { rateFromUsd: 400, usdValue: 112.5 },
+    });
+    expect(created.saleRate).toEqual({ rateFromUsd: 400, usdValue: 112.5 });
+  });
+
+  it("drops saleRate for a credit entry even if one was passed", () => {
+    const created = createLedgerEntry({
+      kind: "credit",
+      amount: 10,
+      currency: "USD",
+      note: "",
+      email: "",
+      date: "2026-09-21",
+      saleRate: { rateFromUsd: 400, usdValue: 0.025 },
+    });
+    expect(created.saleRate).toBeUndefined();
+  });
+
+  it("marks a debit entry D (pending Starlink cost) when asked", () => {
+    const created = createLedgerEntry({
+      kind: "debit",
+      amount: 45000,
+      currency: "MRU",
+      note: "",
+      email: "",
+      date: "2026-09-21",
+      markStarlinkCostPending: true,
+    });
+    expect(created.starlinkCost).toEqual({ status: "pending" });
+  });
+
+  it("leaves starlinkCost unset when not marked D", () => {
+    const created = createLedgerEntry({
+      kind: "debit",
+      amount: 45000,
+      currency: "MRU",
+      note: "",
+      email: "",
+      date: "2026-09-21",
+    });
+    expect(created.starlinkCost).toBeUndefined();
+  });
+
+  it("ignores markStarlinkCostPending for a credit entry", () => {
+    const created = createLedgerEntry({
+      kind: "credit",
+      amount: 10,
+      currency: "USD",
+      note: "",
+      email: "",
+      date: "2026-09-21",
+      markStarlinkCostPending: true,
+    });
+    expect(created.starlinkCost).toBeUndefined();
+  });
+});
+
+describe("isLegacyShipmentEntry", () => {
+  it("is true for a debit entry with no starlinkCost info at all", () => {
+    expect(isLegacyShipmentEntry(entry({ kind: "debit" }))).toBe(true);
+  });
+
+  it("is false for a debit entry marked D (pending)", () => {
+    expect(isLegacyShipmentEntry(entry({ kind: "debit", starlinkCost: { status: "pending" } }))).toBe(false);
+  });
+
+  it("is false for a debit entry with a settled starlinkCost", () => {
+    expect(
+      isLegacyShipmentEntry(
+        entry({
+          kind: "debit",
+          starlinkCost: { status: "settled", currencyCode: "USD", amount: 100, paidAt: "2026-09-21" },
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it("is false for a credit entry regardless of starlinkCost", () => {
+    expect(isLegacyShipmentEntry(entry({ kind: "credit" }))).toBe(false);
+  });
+});
+
+describe("balance/sort logic is unaffected by the new optional saleRate/starlinkCost fields", () => {
+  it("computeBalanceByCurrency ignores saleRate/starlinkCost entirely", () => {
+    const withExtras = entry({
+      kind: "debit",
+      amount: 45000,
+      currency: "MRU",
+      saleRate: { rateFromUsd: 400, usdValue: 112.5 },
+      starlinkCost: { status: "pending" },
+    });
+    expect(computeBalanceByCurrency([withExtras])).toEqual({ MRU: 45000 });
+  });
+
+  it("a legacy entry object with neither field (as if parsed from old localStorage JSON) still works", () => {
+    const legacy = entry({ kind: "debit", amount: 10, currency: "USD" });
+    // Simulate what JSON.parse of a pre-existing record would produce - no saleRate/starlinkCost keys at all.
+    delete (legacy as Partial<LedgerEntry>).saleRate;
+    delete (legacy as Partial<LedgerEntry>).starlinkCost;
+    expect(computeBalanceByCurrency([legacy])).toEqual({ USD: 10 });
+    expect(sortEntriesNewestFirst([legacy])).toEqual([legacy]);
+    expect(isLegacyShipmentEntry(legacy)).toBe(true);
   });
 });

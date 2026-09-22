@@ -28,6 +28,37 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   orange: "أورانج موني",
 };
 
+/** A locked-in snapshot of a currency's rate vs USD, taken at the moment a specific entry/cost was
+ * recorded - never recomputed later, even if currencyStore.ts's own rate for that currency
+ * changes afterward. `usdValue` is snapshotted alongside the rate for the same reason: re-deriving
+ * it from a possibly-since-changed rate would silently rewrite history. */
+export interface RateSnapshot {
+  rateFromUsd: number;
+  usdValue: number;
+}
+
+export type StarlinkCostStatus = "pending" | "settled";
+
+/**
+ * Starlink's own cost for the shipment this (debit) entry represents - entirely separate from what
+ * the customer owes/has paid, which stays tracked purely via `kind`/`amount` above. `status`
+ * starts "pending" ("D": the shipment was registered but Starlink hasn't been paid for yet, or
+ * this field is simply absent on entries created before this feature existed - see
+ * isLegacyShipmentEntry) and only ever moves to "settled" via a deliberate settlement action,
+ * never automatically and never by paying off the customer's own debt.
+ */
+export interface StarlinkCost {
+  status: StarlinkCostStatus;
+  /** Currency code from currencyStore.ts's registry - NOT limited to LEDGER_CURRENCIES, since
+   * Starlink's own cost for a device may be paid in a currency the customer never sees. */
+  currencyCode?: string;
+  amount?: number;
+  rate?: RateSnapshot;
+  /** yyyy-mm-dd - only set once status is "settled". */
+  paidAt?: string;
+  note?: string;
+}
+
 export interface LedgerEntry {
   id: string;
   /** "debit" (عليه): the customer now owes more. "credit" (له): a payment that reduces what they
@@ -47,6 +78,22 @@ export interface LedgerEntry {
   date: string;
   /** ISO timestamp - only used to order same-day entries relative to each other. */
   createdAt: string;
+  /** Only ever set on a "debit" (shipment) entry whose `currency` isn't USD - the locked rate
+   * snapshot used to convert `amount` to USD for profit accounting (see accountingStore.ts).
+   * Absent for USD entries (rate is always 1, nothing to snapshot) and for every entry created
+   * before this field existed. */
+  saleRate?: RateSnapshot;
+  /** Only ever set on a "debit" (shipment) entry - see StarlinkCost. Absent entirely (not merely
+   * "pending") on an entry created before this feature existed - see isLegacyShipmentEntry, which
+   * treats that as a third, distinct state from both "pending" and "settled". */
+  starlinkCost?: StarlinkCost;
+}
+
+/** A "debit" entry with no starlinkCost info at all predates this feature - its profit can never
+ * be computed (not even "pending"), and it must never be silently assigned a cost or a rate. A
+ * "credit" entry is never a shipment, so it is never legacy in this sense either. */
+export function isLegacyShipmentEntry(entry: LedgerEntry): boolean {
+  return entry.kind === "debit" && !entry.starlinkCost;
 }
 
 export type LedgerByAccount = Record<string, LedgerEntry[]>;
@@ -123,11 +170,18 @@ export interface CreateLedgerEntryInput {
   /** Ignored (never stored) for a "debit" entry - a charge has no payment channel. */
   paymentMethod?: PaymentMethod;
   date: string;
+  /** Ignored for a "credit" entry. The caller (which has access to currencyStore.ts) computes this
+   * snapshot before calling in - omit for a USD entry or when the amount isn't a shipment sale. */
+  saleRate?: RateSnapshot;
+  /** Ignored for a "credit" entry. true marks the new debit entry "D" - a shipment whose Starlink
+   * cost hasn't been recorded yet (see StarlinkCost). */
+  markStarlinkCostPending?: boolean;
 }
 
 export function createLedgerEntry(input: CreateLedgerEntryInput): LedgerEntry {
   const id =
     typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `ledger-${Date.now()}-${Math.random()}`;
+  const isDebit = input.kind === "debit";
   return {
     id,
     kind: input.kind,
@@ -138,6 +192,8 @@ export function createLedgerEntry(input: CreateLedgerEntryInput): LedgerEntry {
     paymentMethod: input.kind === "credit" ? input.paymentMethod : undefined,
     date: input.date,
     createdAt: new Date().toISOString(),
+    saleRate: isDebit ? input.saleRate : undefined,
+    starlinkCost: isDebit && input.markStarlinkCostPending ? { status: "pending" } : undefined,
   };
 }
 
