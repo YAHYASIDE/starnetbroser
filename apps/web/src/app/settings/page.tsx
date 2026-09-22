@@ -18,6 +18,7 @@ import {
   setCurrencyRate,
   upsertCurrency,
 } from "@/lib/currencyStore";
+import { COUNTRY_CURRENCIES } from "@/lib/countryCurrencies";
 
 export default function SettingsPage() {
   const [url, setUrl] = useState("");
@@ -147,6 +148,7 @@ function CurrencySection() {
   const [editingCode, setEditingCode] = useState<string | null>(null);
   const [editRate, setEditRate] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
+  const [selectedCountry, setSelectedCountry] = useState("");
   const [newCode, setNewCode] = useState("");
   const [newName, setNewName] = useState("");
   const [newSymbol, setNewSymbol] = useState("");
@@ -174,23 +176,37 @@ function CurrencySection() {
     persist(setCurrencyEnabled(store, currency.code, !currency.enabled));
   }
 
+  function handleCountryChange(country: string) {
+    setSelectedCountry(country);
+    const option = COUNTRY_CURRENCIES.find((o) => o.country === country);
+    setNewCode(option?.code ?? "");
+    setNewName(option?.name ?? "");
+    setNewSymbol(option?.symbol ?? "");
+  }
+
+  function resetAddForm() {
+    setSelectedCountry("");
+    setNewCode("");
+    setNewName("");
+    setNewSymbol("");
+    setNewRate("");
+    setFormError(null);
+  }
+
   function submitNewCurrency(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const rate = Number(newRate);
     if (!newCode.trim() || !newName.trim() || !newSymbol.trim()) {
-      setFormError("املأ جميع الحقول");
+      setFormError("اختر الدولة أولًا");
       return;
     }
+    const rate = Number(newRate);
     if (!Number.isFinite(rate) || rate <= 0) {
       setFormError("أدخل سعر صرف صحيح أكبر من صفر");
       return;
     }
     setFormError(null);
     persist(upsertCurrency(store, { code: newCode, name: newName, symbol: newSymbol, rateFromUsd: rate }));
-    setNewCode("");
-    setNewName("");
-    setNewSymbol("");
-    setNewRate("");
+    resetAddForm();
     setShowAddForm(false);
   }
 
@@ -250,23 +266,38 @@ function CurrencySection() {
         </div>
       ) : (
         <form className="auth-form" onSubmit={submitNewCurrency}>
-          <input className="search-input" dir="ltr" placeholder="الرمز الدولي، مثال: EUR" value={newCode} onChange={(e) => setNewCode(e.target.value)} />
-          <input className="search-input" placeholder="اسم العملة" value={newName} onChange={(e) => setNewName(e.target.value)} />
-          <input className="search-input" dir="ltr" placeholder="رمز العرض، مثال: €" value={newSymbol} onChange={(e) => setNewSymbol(e.target.value)} />
-          <input
-            className="search-input"
-            type="number"
-            min="0"
-            step="0.0001"
-            dir="ltr"
-            placeholder="قيمة 1 دولار بهذه العملة"
-            value={newRate}
-            onChange={(e) => setNewRate(e.target.value)}
-          />
+          <label className="form-field">
+            <span>الدولة *</span>
+            <select className="search-input" value={selectedCountry} onChange={(e) => handleCountryChange(e.target.value)}>
+              <option value="">- اختر الدولة -</option>
+              {COUNTRY_CURRENCIES.filter((o) => o.code !== "USD").map((o) => (
+                <option key={o.country} value={o.country}>{o.country} ({o.code})</option>
+              ))}
+            </select>
+          </label>
+          {selectedCountry && (
+            <label className="form-field">
+              <span>رمز العملة</span>
+              <input className="search-input" dir="ltr" value={newCode} disabled readOnly />
+            </label>
+          )}
+          <label className="form-field">
+            <span dir="ltr">أدخل بالمثال: 1 USD = كم {newCode || "عملة"}</span>
+            <input
+              className="search-input"
+              type="number"
+              min="0"
+              step="0.0001"
+              dir="ltr"
+              placeholder="قيمة 1 دولار بهذه العملة"
+              value={newRate}
+              onChange={(e) => setNewRate(e.target.value)}
+            />
+          </label>
           {formError && <div className="account-card-alert">{formError}</div>}
           <div className="settings-actions">
             <button className="btn-icon" type="submit">إضافة</button>
-            <button className="btn-icon" type="button" onClick={() => setShowAddForm(false)}>إلغاء</button>
+            <button className="btn-icon" type="button" onClick={() => { setShowAddForm(false); resetAddForm(); }}>إلغاء</button>
           </div>
         </form>
       )}
