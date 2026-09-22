@@ -46,6 +46,11 @@ export interface ShipmentProfit {
   starlinkCostUsd?: number;
   /** saleValueUsd - starlinkCostUsd. Only set when status is "computed". */
   profitUsd?: number;
+  /** profitUsd converted via the entry's own locked profitCurrencyRates (never today's registry
+   * rate - see LedgerEntry.profitCurrencyRates). Present only when status is "computed" AND that
+   * specific currency's rate was known at settlement time; absent (not zero) otherwise. */
+  profitMru?: number;
+  profitSifa?: number;
 }
 
 /**
@@ -70,7 +75,16 @@ export function computeShipmentProfit(entry: LedgerEntry): ShipmentProfit {
   const starlinkCostUsd = resolveUsdValue(cost.amount, cost.currencyCode, cost.rate);
   if (saleValueUsd === undefined || starlinkCostUsd === undefined) return { status: "pending" };
 
-  return { status: "computed", saleValueUsd, starlinkCostUsd, profitUsd: saleValueUsd - starlinkCostUsd };
+  const profitUsd = saleValueUsd - starlinkCostUsd;
+  const rates = entry.profitCurrencyRates;
+  return {
+    status: "computed",
+    saleValueUsd,
+    starlinkCostUsd,
+    profitUsd,
+    profitMru: rates?.MRU !== undefined ? profitUsd * rates.MRU : undefined,
+    profitSifa: rates?.SIFA !== undefined ? profitUsd * rates.SIFA : undefined,
+  };
 }
 
 export interface DeviceNetResult {

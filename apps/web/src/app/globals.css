@@ -1731,6 +1731,116 @@ a.btn-icon {
   color: var(--red);
 }
 
+.ledger-profit-pending-hint {
+  font-size: 0.72rem;
+  color: var(--yellow);
+}
+
+.ledger-cost-section {
+  grid-column: span 2;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--brand) 7%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--brand) 22%, var(--border));
+}
+
+.ledger-cost-section-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ledger-cost-section-title strong {
+  color: var(--brand);
+  font-size: 0.9rem;
+}
+
+.ledger-cost-section-title span {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.ledger-cost-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ledger-cost-rate-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.ledger-cost-convert {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
+}
+
+.ledger-cost-convert-usd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.ledger-cost-convert-usd strong {
+  color: var(--brand);
+  font-size: 1rem;
+}
+
+.ledger-cost-convert-rows {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.ledger-profit-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+}
+
+.ledger-profit-section strong {
+  font-size: 0.85rem;
+}
+
+.ledger-profit-hint {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.ledger-profit-pending {
+  background: var(--yellow-bg);
+  color: var(--yellow);
+}
+
+.ledger-profit-positive {
+  background: var(--green-bg);
+  color: var(--green);
+}
+
+.ledger-profit-negative {
+  background: var(--red-bg);
+  color: var(--red);
+}
+
 .allocation-list {
   list-style: none;
   margin: 12px 0 0;

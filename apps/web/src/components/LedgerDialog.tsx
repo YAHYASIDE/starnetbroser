@@ -17,10 +17,11 @@ import {
   PaymentMethod,
   removeEntry,
   sortEntriesNewestFirst,
+  StarlinkCost,
   updateEntry,
 } from "@/lib/ledgerStore";
 import { computeShipmentProfit } from "@/lib/accountingStore";
-import { Currency, CurrencyStore, getCurrency, toUsd, UpsertCurrencyInput } from "@/lib/currencyStore";
+import { Currency, CurrencyStore, getCurrency, listCurrencies, toUsd, UpsertCurrencyInput } from "@/lib/currencyStore";
 import { formatAmount } from "@/lib/formatAmount";
 import {
   allocatedFromPayment,
@@ -128,6 +129,21 @@ export function LedgerDialog({
   // rate blocks submission instead of silently defaulting to a wrong one.
   const [rateInput, setRateInput] = useState("");
 
+  // Starlink's own cost for this shipment, captured right here instead of a later separate step
+  // (see StarlinkCost) - defaults to whatever currency this device last used, same convenience as
+  // the settlement dialogs below.
+  const [costCurrencyCode, setCostCurrencyCode] = useState(() => lastUsedCostCurrency(entries) ?? "");
+  const [costAmount, setCostAmount] = useState("");
+  const [costRate, setCostRate] = useState(() => {
+    const code = lastUsedCostCurrency(entries);
+    const known = code ? getCurrency(currencyStore, code)?.rateFromUsd : undefined;
+    return known !== undefined ? String(known) : "";
+  });
+  const [costShowNewCurrency, setCostShowNewCurrency] = useState(false);
+  const [costNewCode, setCostNewCode] = useState("");
+  const [costNewName, setCostNewName] = useState("");
+  const [costNewSymbol, setCostNewSymbol] = useState("");
+
   const [settlingEntry, setSettlingEntry] = useState<LedgerEntry | null>(null);
   const [pendingPayment, setPendingPayment] = useState<LedgerEntry | null>(null);
   const [completingEntry, setCompletingEntry] = useState<LedgerEntry | null>(null);
@@ -167,6 +183,80 @@ export function LedgerDialog({
     setRateInput(known !== undefined ? String(known) : "");
   }
 
+  function selectCostCurrency(value: string) {
+    if (value === "__new__") {
+      setCostShowNewCurrency(true);
+      return;
+    }
+    setCostShowNewCurrency(false);
+    setCostCurrencyCode(value);
+    const known = getCurrency(currencyStore, value)?.rateFromUsd;
+    setCostRate(known !== undefined ? String(known) : "");
+  }
+
+  function submitCostNewCurrency() {
+    if (!costNewCode.trim() || !costNewName.trim() || !costNewSymbol.trim()) return;
+    const created = onUpsertCurrency({ code: costNewCode, name: costNewName, symbol: costNewSymbol, rateFromUsd: 1 });
+    setCostCurrencyCode(created.code);
+    setCostRate("1");
+    setCostShowNewCurrency(false);
+    setCostNewCode("");
+    setCostNewName("");
+    setCostNewSymbol("");
+  }
+
+  // Deliberately NOT run automatically on submit (unlike the sale/payment rate above) - the cost
+  // rate typed here is scoped to THIS transaction only, per the operator's own explicit request;
+  // only this dedicated action pushes it into the shared registry.
+  function saveCostRateToSettings() {
+    const rate = Number(costRate);
+    if (!Number.isFinite(rate) || rate <= 0 || !costCurrencyCode) return;
+    const existing = getCurrency(currencyStore, costCurrencyCode);
+    onUpsertCurrency({
+      code: costCurrencyCode,
+      name: existing?.name ?? costCurrencyCode,
+      symbol: existing?.symbol ?? costCurrencyCode,
+      rateFromUsd: rate,
+    });
+  }
+
+  // Live preview, recomputed every render from the raw string inputs above - never stored state,
+  // so it can never drift out of sync with what's actually about to be saved. undefined at any
+  // stage (unfilled/invalid input, or MRU/SIFA not yet registered) just means "not shown yet",
+  // never a guessed placeholder number.
+  const isDebitForm = kind === "debit";
+  const costIsUsd = costCurrencyCode === "USD";
+  const parsedCostAmount = Number(costAmount);
+  const parsedCostRate = Number(costRate);
+  const costUsdValue =
+    isDebitForm && Number.isFinite(parsedCostAmount) && parsedCostAmount > 0
+      ? costIsUsd
+        ? parsedCostAmount
+        : Number.isFinite(parsedCostRate) && parsedCostRate > 0
+          ? parsedCostAmount / parsedCostRate
+          : undefined
+      : undefined;
+
+  const parsedSaleAmount = Number(amount);
+  const parsedSaleRate = Number(rateInput);
+  const saleUsdValue =
+    isDebitForm && Number.isFinite(parsedSaleAmount) && parsedSaleAmount > 0
+      ? currency === "USD"
+        ? parsedSaleAmount
+        : Number.isFinite(parsedSaleRate) && parsedSaleRate > 0
+          ? parsedSaleAmount / parsedSaleRate
+          : undefined
+      : undefined;
+
+  const mruRateKnown = getCurrency(currencyStore, "MRU")?.rateFromUsd;
+  const sifaRateKnown = getCurrency(currencyStore, "SIFA")?.rateFromUsd;
+  const costMruPreview = costUsdValue !== undefined && mruRateKnown !== undefined ? costUsdValue * mruRateKnown : undefined;
+  const costSifaPreview = costUsdValue !== undefined && sifaRateKnown !== undefined ? costUsdValue * sifaRateKnown : undefined;
+
+  const previewProfitUsd = costUsdValue !== undefined && saleUsdValue !== undefined ? saleUsdValue - costUsdValue : undefined;
+  const previewProfitMru = previewProfitUsd !== undefined && mruRateKnown !== undefined ? previewProfitUsd * mruRateKnown : undefined;
+  const previewProfitSifa = previewProfitUsd !== undefined && sifaRateKnown !== undefined ? previewProfitUsd * sifaRateKnown : undefined;
+
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const parsedAmount = Number(amount);
@@ -180,6 +270,39 @@ export function LedgerDialog({
     if (needsRate && (!Number.isFinite(parsedRate) || parsedRate <= 0)) {
       setFormError("أدخل سعر صرف صحيح أكبر من صفر لهذه العملة");
       return;
+    }
+
+    let starlinkCostInput: StarlinkCost | undefined;
+    let profitCurrencyRates: { MRU?: number; SIFA?: number } | undefined;
+    if (kind === "debit") {
+      if (!costCurrencyCode) {
+        setFormError("اختر عملة دفع Starlink");
+        return;
+      }
+      if (!Number.isFinite(parsedCostAmount) || parsedCostAmount <= 0) {
+        setFormError("أدخل مبلغ تكلفة Starlink أكبر من صفر");
+        return;
+      }
+      if (!costIsUsd && (!Number.isFinite(parsedCostRate) || parsedCostRate <= 0)) {
+        setFormError("أدخل سعر صرف صحيح لعملة الدفع لـ Starlink");
+        return;
+      }
+      if (!markD) {
+        if (mruRateKnown === undefined) {
+          setFormError("سعر الأوقية مقابل الدولار غير موجود في الإعدادات");
+          return;
+        }
+        if (sifaRateKnown === undefined) {
+          setFormError("سعر السيفا مقابل الدولار غير موجود في الإعدادات");
+          return;
+        }
+      }
+
+      const costRateSnapshot = costIsUsd ? undefined : { rateFromUsd: parsedCostRate, usdValue: costUsdValue! };
+      starlinkCostInput = markD
+        ? { status: "pending", currencyCode: costCurrencyCode, amount: parsedCostAmount, rate: costRateSnapshot }
+        : { status: "settled", currencyCode: costCurrencyCode, amount: parsedCostAmount, rate: costRateSnapshot, paidAt: date };
+      profitCurrencyRates = markD ? undefined : { MRU: mruRateKnown, SIFA: sifaRateKnown };
     }
     setFormError(null);
 
@@ -207,13 +330,15 @@ export function LedgerDialog({
       date,
       saleRate: kind === "debit" ? rateSnapshot : undefined,
       paymentRate: kind === "credit" ? rateSnapshot : undefined,
-      markStarlinkCostPending: kind === "debit" && markD,
+      starlinkCost: starlinkCostInput,
+      profitCurrencyRates,
     });
 
     setAmount("");
     setNote("");
     setEmail("");
     setMarkD(false);
+    setCostAmount("");
 
     if (kind === "credit") {
       // A payment is never added directly - it first goes through the allocation dialog below
@@ -315,10 +440,106 @@ export function LedgerDialog({
             />
           )}
           {kind === "debit" && (
-            <label className="ledger-d-toggle">
-              <input type="checkbox" checked={markD} onChange={(e) => setMarkD(e.target.checked)} />
-              D - تكلفة Starlink غير مسددة بعد
-            </label>
+            <div className="ledger-cost-section">
+              <div className="ledger-cost-section-title">
+                <strong>تكلفة اشتراك Starlink</strong>
+                <span>أدخل تكلفة اشتراك Starlink بعملة الدفع للجهاز</span>
+              </div>
+
+              <label className="form-field form-wide">
+                <span>عملة الدفع للجهاز</span>
+                <select className="search-input" value={costShowNewCurrency ? "__new__" : costCurrencyCode} onChange={(e) => selectCostCurrency(e.target.value)}>
+                  <option value="" disabled>- اختر العملة -</option>
+                  {listCurrencies(currencyStore).map((c) => (
+                    <option key={c.code} value={c.code}>{c.name} - {c.code}</option>
+                  ))}
+                  <option value="__new__">+ عملة جديدة…</option>
+                </select>
+              </label>
+
+              {costShowNewCurrency && (
+                <div className="form-field form-wide client-picker-new-form">
+                  <input className="search-input" dir="ltr" placeholder="الرمز الدولي، مثال: ARS" value={costNewCode} onChange={(e) => setCostNewCode(e.target.value)} />
+                  <input className="search-input" placeholder="اسم العملة" value={costNewName} onChange={(e) => setCostNewName(e.target.value)} />
+                  <input className="search-input" dir="ltr" placeholder="رمز العرض" value={costNewSymbol} onChange={(e) => setCostNewSymbol(e.target.value)} />
+                  <button type="button" className="dialog-primary" onClick={submitCostNewCurrency}>إضافة واستخدام</button>
+                </div>
+              )}
+
+              <div className="ledger-cost-row">
+                <label className="form-field">
+                  <span>المبلغ المدفوع لـ Starlink</span>
+                  <input
+                    className="search-input"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    dir="ltr"
+                    value={costAmount}
+                    onChange={(e) => setCostAmount(e.target.value)}
+                  />
+                </label>
+                {!costIsUsd && (
+                  <label className="form-field">
+                    <span>سعر العملة (1 USD = ؟ {costCurrencyCode || "عملة"})</span>
+                    <input
+                      className="search-input"
+                      type="number"
+                      min="0"
+                      step="0.0001"
+                      dir="ltr"
+                      value={costRate}
+                      onChange={(e) => setCostRate(e.target.value)}
+                    />
+                  </label>
+                )}
+              </div>
+              {!costIsUsd && costCurrencyCode && (
+                <div className="ledger-cost-rate-hint">
+                  <span>مأخوذ من الإعدادات - يمكن تعديله لهذه الحركة فقط</span>
+                  <button type="button" className="text-action" onClick={saveCostRateToSettings}>حفظ السعر في الإعدادات</button>
+                </div>
+              )}
+
+              {costUsdValue !== undefined && (
+                <div className="ledger-cost-convert">
+                  <div className="ledger-cost-convert-usd">
+                    {!costIsUsd && <span dir="ltr">{formatAmount(parsedCostAmount)} {costCurrencyCode} ÷ {formatAmount(parsedCostRate)}</span>}
+                    <strong dir="ltr">{formatAmount(costUsdValue)} USD</strong>
+                  </div>
+                  <div className="ledger-cost-convert-rows">
+                    <span dir="ltr">{costMruPreview !== undefined ? `${formatAmount(costMruPreview)} أوقية` : "أوقية: — (سجّل سعر الأوقية في الإعدادات)"}</span>
+                    <span dir="ltr">{costSifaPreview !== undefined ? `${formatAmount(costSifaPreview)} سيفا` : "سيفا: — (سجّل سعر السيفا في الإعدادات)"}</span>
+                  </div>
+                </div>
+              )}
+
+              <label className="ledger-d-toggle">
+                <input type="checkbox" checked={markD} onChange={(e) => setMarkD(e.target.checked)} />
+                D - تكلفة Starlink غير مسددة بعد
+              </label>
+
+              {markD ? (
+                <div className="ledger-profit-section ledger-profit-pending">
+                  <strong>ربح العملية</strong>
+                  <span>الربح معلّق حتى تسديد تكلفة Starlink</span>
+                </div>
+              ) : previewProfitUsd !== undefined ? (
+                <div className={`ledger-profit-section ${previewProfitUsd >= 0 ? "ledger-profit-positive" : "ledger-profit-negative"}`}>
+                  <strong>{previewProfitUsd >= 0 ? "ربح العملية" : "خسارة العملية"}</strong>
+                  <div className="ledger-cost-convert-rows">
+                    <span dir="ltr">{previewProfitMru !== undefined ? `${formatAmount(previewProfitMru)} أوقية` : "أوقية: —"}</span>
+                    <span dir="ltr">{previewProfitSifa !== undefined ? `${formatAmount(previewProfitSifa)} سيفا` : "سيفا: —"}</span>
+                  </div>
+                  <span className="ledger-profit-hint">المبلغ المستلم − تكلفة Starlink</span>
+                </div>
+              ) : (
+                <div className="ledger-profit-section ledger-profit-pending">
+                  <strong>ربح العملية</strong>
+                  <span>أكمل بيانات المبلغ والتكلفة أعلاه لحساب الربح</span>
+                </div>
+              )}
+            </div>
           )}
           {kind === "credit" && (
             <select
@@ -426,11 +647,17 @@ export function LedgerDialog({
         <StarlinkSettlementDialog
           entry={settlingEntry}
           currencyStore={currencyStore}
-          defaultCurrencyCode={lastUsedCostCurrency(entries)}
+          defaultCurrencyCode={settlingEntry.starlinkCost?.currencyCode ?? lastUsedCostCurrency(entries)}
           onUpsertCurrency={onUpsertCurrency}
           onClose={() => setSettlingEntry(null)}
           onSettle={(cost) => {
-            onChange(updateEntry(entries, settlingEntry.id, { starlinkCost: cost }));
+            // Locked now, at the moment this shipment's profit first becomes computable - never
+            // re-derived later even if MRU/SIFA's registry rate changes afterward (rule VI).
+            const profitCurrencyRates = {
+              MRU: getCurrency(currencyStore, "MRU")?.rateFromUsd,
+              SIFA: getCurrency(currencyStore, "SIFA")?.rateFromUsd,
+            };
+            onChange(updateEntry(entries, settlingEntry.id, { starlinkCost: cost, profitCurrencyRates }));
             setSettlingEntry(null);
           }}
         />
@@ -543,6 +770,7 @@ function ShipmentStatusRow({
         <button type="button" className="badge badge-yellow ledger-d-badge" onClick={onSettle}>
           D - تكلفة Starlink غير مسددة
         </button>
+        <span className="ledger-profit-pending-hint">الربح معلّق حتى تسديد تكلفة Starlink</span>
       </div>
     );
   }
@@ -565,6 +793,13 @@ function ShipmentStatusRow({
       <span className={`ledger-shipment-profit ${isProfit ? "profit-positive" : "profit-negative"}`} dir="ltr">
         {isProfit ? `ربح +${formatAmount(profit.profitUsd!)} USD` : `خسارة ${formatAmount(profit.profitUsd!)} USD`}
       </span>
+      {(profit.profitMru !== undefined || profit.profitSifa !== undefined) && (
+        <span className={`ledger-shipment-profit ${isProfit ? "profit-positive" : "profit-negative"}`} dir="ltr">
+          {profit.profitMru !== undefined && `${formatAmount(profit.profitMru)} أوقية`}
+          {profit.profitMru !== undefined && profit.profitSifa !== undefined && " / "}
+          {profit.profitSifa !== undefined && `${formatAmount(profit.profitSifa)} سيفا`}
+        </span>
+      )}
     </div>
   );
 }

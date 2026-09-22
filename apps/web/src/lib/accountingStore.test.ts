@@ -91,6 +91,42 @@ describe("computeShipmentProfit", () => {
   it("is 'legacy' for a credit entry (never a shipment)", () => {
     expect(computeShipmentProfit(payment())).toEqual({ status: "legacy" });
   });
+
+  it("converts profitUsd to MRU/SIFA using the entry's own locked profitCurrencyRates", () => {
+    const profit = computeShipmentProfit(
+      shipment({
+        amount: 45000,
+        currency: "MRU",
+        saleRate: { rateFromUsd: 430, usdValue: 104.65 },
+        starlinkCost: {
+          status: "settled",
+          currencyCode: "ARS",
+          amount: 92971.87,
+          rate: { rateFromUsd: 1100, usdValue: 84.52 },
+          paidAt: "2026-09-22",
+        },
+        profitCurrencyRates: { MRU: 430, SIFA: 560 },
+      }),
+    );
+    expect(profit.status).toBe("computed");
+    expect(profit.profitUsd).toBeCloseTo(20.13, 1);
+    expect(profit.profitMru).toBeCloseTo(20.13 * 430, 1);
+    expect(profit.profitSifa).toBeCloseTo(20.13 * 560, 1);
+  });
+
+  it("omits profitMru/profitSifa individually when only one rate was known at settlement time", () => {
+    const profit = computeShipmentProfit(shipment({ profitCurrencyRates: { MRU: 430 } }));
+    expect(profit.status).toBe("computed");
+    expect(profit.profitMru).toBeCloseTo(12.5 * 430);
+    expect(profit.profitSifa).toBeUndefined();
+  });
+
+  it("omits both profitMru/profitSifa when profitCurrencyRates is absent (e.g. legacy settlement)", () => {
+    const profit = computeShipmentProfit(shipment({ profitCurrencyRates: undefined }));
+    expect(profit.status).toBe("computed");
+    expect(profit.profitMru).toBeUndefined();
+    expect(profit.profitSifa).toBeUndefined();
+  });
 });
 
 describe("computeDeviceAccountingSummary", () => {

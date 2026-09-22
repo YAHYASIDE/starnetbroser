@@ -34,11 +34,16 @@ export function StarlinkSettlementDialog({ entry, currencyStore, defaultCurrency
   const [newName, setNewName] = useState("");
   const [newSymbol, setNewSymbol] = useState("");
 
+  // The pending shipment's own amount/currency/rate, captured up front when it was marked D
+  // (rather than left blank) - reviewable and editable here, never re-typed from scratch.
   const [currencyCode, setCurrencyCode] = useState(
-    (defaultCurrencyCode && getCurrency(currencyStore, defaultCurrencyCode) ? defaultCurrencyCode : registered[0]?.code) ?? "USD",
+    entry.starlinkCost?.currencyCode ??
+      ((defaultCurrencyCode && getCurrency(currencyStore, defaultCurrencyCode) ? defaultCurrencyCode : registered[0]?.code) ?? "USD"),
   );
-  const [amount, setAmount] = useState("");
-  const [rate, setRate] = useState(String(getCurrency(currencyStore, currencyCode)?.rateFromUsd ?? 1));
+  const [amount, setAmount] = useState(entry.starlinkCost?.amount !== undefined ? String(entry.starlinkCost.amount) : "");
+  const [rate, setRate] = useState(
+    String(entry.starlinkCost?.rate?.rateFromUsd ?? getCurrency(currencyStore, currencyCode)?.rateFromUsd ?? 1),
+  );
   const [date, setDate] = useState(todayDateInputValue());
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);

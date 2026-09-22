@@ -93,6 +93,14 @@ export interface LedgerEntry {
    * entry created before this field existed - a payment with no paymentRate simply doesn't
    * contribute to the USD-converted total, it is never guessed at with today's rate. */
   paymentRate?: RateSnapshot;
+  /** Locked USD->MRU and USD->SIFA rates, snapshotted the moment this shipment's profit first
+   * became computable (entry creation if settled immediately, or settlement time if it was "D"
+   * first) - so showing profit in these two ledger currencies never silently drifts if their
+   * registry rate changes later (same locking rule as saleRate/starlinkCost.rate above). Either
+   * key is absent when that currency has no registered rate at the moment of locking - the
+   * profit is simply not shown in it, never guessed at with a later or assumed rate. Entirely
+   * absent on a legacy/pending shipment, or one settled before this field existed. */
+  profitCurrencyRates?: { MRU?: number; SIFA?: number };
 }
 
 /** A "debit" entry with no starlinkCost info at all predates this feature - its profit can never
@@ -218,9 +226,14 @@ export interface CreateLedgerEntryInput {
   /** Ignored for a "debit" entry. The caller computes this snapshot before calling in - omit for a
    * USD entry or when the payment's USD value isn't being tracked. */
   paymentRate?: RateSnapshot;
-  /** Ignored for a "credit" entry. true marks the new debit entry "D" - a shipment whose Starlink
-   * cost hasn't been recorded yet (see StarlinkCost). */
-  markStarlinkCostPending?: boolean;
+  /** Ignored for a "credit" entry. The caller (which has access to currencyStore.ts) builds the
+   * full cost record up front - status "pending" for a still-"D" shipment (its amount/currency/
+   * rate are captured now regardless, so a later settlement doesn't start from blank), "settled"
+   * when the operator already knows it's paid. Omit entirely for a debit entry with no Starlink
+   * cost info at all (isLegacyShipmentEntry stays true for it, same as before this field existed). */
+  starlinkCost?: StarlinkCost;
+  /** Ignored unless `starlinkCost.status === "settled"` - see LedgerEntry.profitCurrencyRates. */
+  profitCurrencyRates?: { MRU?: number; SIFA?: number };
 }
 
 export function createLedgerEntry(input: CreateLedgerEntryInput): LedgerEntry {
@@ -238,8 +251,9 @@ export function createLedgerEntry(input: CreateLedgerEntryInput): LedgerEntry {
     date: input.date,
     createdAt: new Date().toISOString(),
     saleRate: isDebit ? input.saleRate : undefined,
-    starlinkCost: isDebit && input.markStarlinkCostPending ? { status: "pending" } : undefined,
+    starlinkCost: isDebit ? input.starlinkCost : undefined,
     paymentRate: !isDebit ? input.paymentRate : undefined,
+    profitCurrencyRates: isDebit && input.starlinkCost?.status === "settled" ? input.profitCurrencyRates : undefined,
   };
 }
 

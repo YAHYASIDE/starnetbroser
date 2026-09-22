@@ -235,7 +235,7 @@ describe("createLedgerEntry - saleRate / starlinkCost (D mark)", () => {
     expect(created.saleRate).toBeUndefined();
   });
 
-  it("marks a debit entry D (pending Starlink cost) when asked", () => {
+  it("stores a pending starlinkCost (D marked) with its amount/currency/rate already captured", () => {
     const created = createLedgerEntry({
       kind: "debit",
       amount: 45000,
@@ -243,12 +243,17 @@ describe("createLedgerEntry - saleRate / starlinkCost (D mark)", () => {
       note: "",
       email: "",
       date: "2026-09-21",
-      markStarlinkCostPending: true,
+      starlinkCost: { status: "pending", currencyCode: "ARS", amount: 92971.87, rate: { rateFromUsd: 1100, usdValue: 84.52 } },
     });
-    expect(created.starlinkCost).toEqual({ status: "pending" });
+    expect(created.starlinkCost).toEqual({
+      status: "pending",
+      currencyCode: "ARS",
+      amount: 92971.87,
+      rate: { rateFromUsd: 1100, usdValue: 84.52 },
+    });
   });
 
-  it("leaves starlinkCost unset when not marked D", () => {
+  it("leaves starlinkCost unset when none was passed", () => {
     const created = createLedgerEntry({
       kind: "debit",
       amount: 45000,
@@ -260,7 +265,7 @@ describe("createLedgerEntry - saleRate / starlinkCost (D mark)", () => {
     expect(created.starlinkCost).toBeUndefined();
   });
 
-  it("ignores markStarlinkCostPending for a credit entry", () => {
+  it("ignores starlinkCost for a credit entry", () => {
     const created = createLedgerEntry({
       kind: "credit",
       amount: 10,
@@ -268,9 +273,35 @@ describe("createLedgerEntry - saleRate / starlinkCost (D mark)", () => {
       note: "",
       email: "",
       date: "2026-09-21",
-      markStarlinkCostPending: true,
+      starlinkCost: { status: "pending" },
     });
     expect(created.starlinkCost).toBeUndefined();
+  });
+
+  it("stores profitCurrencyRates only when starlinkCost is already settled", () => {
+    const settled = createLedgerEntry({
+      kind: "debit",
+      amount: 45000,
+      currency: "MRU",
+      note: "",
+      email: "",
+      date: "2026-09-21",
+      starlinkCost: { status: "settled", currencyCode: "USD", amount: 100, paidAt: "2026-09-21" },
+      profitCurrencyRates: { MRU: 400, SIFA: 560 },
+    });
+    expect(settled.profitCurrencyRates).toEqual({ MRU: 400, SIFA: 560 });
+
+    const pending = createLedgerEntry({
+      kind: "debit",
+      amount: 45000,
+      currency: "MRU",
+      note: "",
+      email: "",
+      date: "2026-09-21",
+      starlinkCost: { status: "pending", currencyCode: "USD", amount: 100 },
+      profitCurrencyRates: { MRU: 400, SIFA: 560 },
+    });
+    expect(pending.profitCurrencyRates).toBeUndefined();
   });
 
   it("stores a given paymentRate snapshot on a credit entry", () => {
