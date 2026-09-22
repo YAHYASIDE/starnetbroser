@@ -6,6 +6,7 @@ import { presentStatus, presentServiceStatus, isBalanceDueZero } from "@/lib/sta
 import { daysRemainingLabel, daysRemainingNumber, formatRelativeTime } from "@/lib/date";
 import { emailsMismatch } from "@/lib/emailMatch";
 import { computeBalanceByCurrency, LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerEntry } from "@/lib/ledgerStore";
+import { CurrencyStore, getCurrency, toUsd } from "@/lib/currencyStore";
 import { formatAmount } from "@/lib/formatAmount";
 import { PaymentAllocation } from "@/lib/paymentAllocationStore";
 import { Client } from "@/lib/clientStore";
@@ -35,6 +36,11 @@ interface Props {
    * looked up here, so every card in a render pass sees the exact same store snapshot. */
   client?: Client;
   onOpenClient: (client: Client) => void;
+  /** The general currency registry (see currencyStore.ts) - used only to show a small "≈ X USD"
+   * line under a non-USD Starlink balance, when that currency's rate happens to be registered
+   * (e.g. via the /currencies page). Never guessed, and never shown at all when no rate is known -
+   * account.balanceDue/account.currency themselves stay exactly as synced either way. */
+  currencyStore: CurrencyStore;
 }
 
 const STATUS_TILE_CLASS: Record<string, string> = {
@@ -128,7 +134,7 @@ function IconInfo() {
   );
 }
 
-export function AccountCard({ account, onEdit, onInfo, ledgerEntries, allocations, onLedger, onDeviceStatement, client, onOpenClient }: Props) {
+export function AccountCard({ account, onEdit, onInfo, ledgerEntries, allocations, onLedger, onDeviceStatement, client, onOpenClient, currencyStore }: Props) {
   const ledgerBalances = computeBalanceByCurrency(ledgerEntries);
   const dish = presentStatus(account.dishStatus);
   const wifi = presentStatus(account.wifiStatus);
@@ -137,6 +143,14 @@ export function AccountCard({ account, onEdit, onInfo, ledgerEntries, allocation
   const remaining = daysRemainingLabel(account.rechargeDate || account.standbyDate);
   const remainingDays = daysRemainingNumber(account.rechargeDate || account.standbyDate);
   const balanceIsZero = isBalanceDueZero(account.balanceDue);
+  // "$"/"US$"/"$US"/"USD" are all already USD itself - never worth converting to itself. Every
+  // other currency only gets a "≈ X USD" line when its rate actually happens to be registered
+  // (via the /currencies page) - never a guess, and silently absent otherwise.
+  const isUsdBalance = ["$", "US$", "$US", "USD"].includes(account.currency.toUpperCase());
+  const balanceRate = !isUsdBalance ? getCurrency(currencyStore, account.currency)?.rateFromUsd : undefined;
+  const balanceNumeric = Number(account.balanceDue);
+  const balanceUsdEquivalent =
+    balanceRate !== undefined && Number.isFinite(balanceNumeric) ? toUsd(balanceNumeric, balanceRate) : undefined;
   const emailMismatch = emailsMismatch(account.expectedEmail, account.starlinkAccountEmail);
   const urgencyClass = remainingDays === null
     ? "date-neutral"
@@ -315,7 +329,12 @@ export function AccountCard({ account, onEdit, onInfo, ledgerEntries, allocation
           {balanceIsZero ? (
             <span className="stat-tile-value stat-tile-value-ok">لا يوجد</span>
           ) : (
-            <span className="stat-tile-value" dir="ltr">{account.currency}{account.balanceDue || "0"}</span>
+            <>
+              {balanceUsdEquivalent !== undefined && (
+                <span className="stat-tile-value-usd" dir="ltr">≈ {formatAmount(balanceUsdEquivalent)} USD</span>
+              )}
+              <span className="stat-tile-value" dir="ltr">{account.currency} {account.balanceDue || "0"}</span>
+            </>
           )}
         </div>
         <div className="stat-tile">

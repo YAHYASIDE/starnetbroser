@@ -659,6 +659,7 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
                 onDeviceStatement={(selected) => setStatementAccount(selected)}
                 client={getClient(clientStore, account.clientId)}
                 onOpenClient={(selectedClient) => setOpenClientId(selectedClient.id)}
+                currencyStore={currencyStore}
               />
             ))}
           </div>
