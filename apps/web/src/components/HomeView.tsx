@@ -615,6 +615,7 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
                 onInfo={(selected) => setDialog({ mode: "view", account: selected })}
                 onEdit={(selected) => setDialog({ mode: "edit", account: selected })}
                 ledgerEntries={getAccountEntries(ledgerStore, account.id)}
+                allocations={getAccountAllocations(allocationStore, account.id)}
                 onLedger={(selected) => setLedgerAccount(selected)}
                 onDeviceStatement={(selected) => setStatementAccount(selected)}
                 client={getClient(clientStore, account.clientId)}

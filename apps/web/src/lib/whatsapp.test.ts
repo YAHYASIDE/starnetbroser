@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { LedgerEntry } from "./ledgerStore";
+import { createAllocation, PaymentAllocation } from "./paymentAllocationStore";
 import {
   buildAccountStatementMessage,
   buildBalanceReminderMessage,
@@ -114,5 +115,33 @@ describe("buildAccountStatementMessage", () => {
   it("never mentions Starlink's own subscription balance - this is a separate concern", () => {
     const message = buildAccountStatementMessage("مقهى النخيل", []);
     expect(message).not.toContain("Starlink");
+  });
+
+  it("marks a fully-paid shipment without exposing Starlink cost or profit to the customer", () => {
+    const shipment = ledgerEntry({
+      id: "s1",
+      kind: "debit",
+      amount: 100,
+      currency: "USD",
+      starlinkCost: { status: "settled", currencyCode: "USD", amount: 70, paidAt: "2026-09-21" },
+    });
+    const allocations: PaymentAllocation[] = [createAllocation("p1", "s1", 100, "USD")];
+    const message = buildAccountStatementMessage("مقهى النخيل", [shipment], allocations);
+    expect(message).toContain("مدفوعة بالكامل");
+    expect(message).not.toContain("Starlink");
+    expect(message).not.toContain("70");
+    expect(message).not.toContain("ربح");
+  });
+
+  it("marks a partially-paid shipment and leaves an unpaid one unmarked", () => {
+    const shipment = ledgerEntry({ id: "s1", kind: "debit", amount: 100, currency: "USD" });
+    const allocations: PaymentAllocation[] = [createAllocation("p1", "s1", 40, "USD")];
+    const message = buildAccountStatementMessage("مقهى النخيل", [shipment], allocations);
+    expect(message).toContain("مدفوعة جزئيًا");
+  });
+
+  it("defaults to no payment-status marks when allocations aren't passed", () => {
+    const message = buildAccountStatementMessage("مقهى النخيل", [ledgerEntry({ kind: "debit", amount: 10 })]);
+    expect(message).not.toContain("مدفوعة");
   });
 });

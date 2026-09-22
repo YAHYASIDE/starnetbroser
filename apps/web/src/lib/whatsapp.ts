@@ -12,6 +12,7 @@ import {
   PAYMENT_METHOD_LABELS,
   sortEntriesNewestFirst,
 } from "./ledgerStore";
+import { computeShipmentPaymentStatus, PaymentAllocation } from "./paymentAllocationStore";
 
 /** Strips everything but digits and a leading "00" international-dialing prefix - wa.me wants a
  * bare digit string with the country code, no "+", no "00", no spaces/dashes. Returns null for
@@ -54,14 +55,29 @@ export function buildBalanceReminderMessage(accountName: string, balanceDue: str
   );
 }
 
+const PAYMENT_STATUS_SUFFIX: Record<"unpaid" | "partial" | "paid", string> = {
+  unpaid: "",
+  partial: " (مدفوعة جزئيًا)",
+  paid: " (مدفوعة بالكامل)",
+};
+
 /**
  * "كشف الحساب" - a detailed statement built entirely from the local customer ledger (see
  * ledgerStore.ts): the current balance per currency, followed by every recorded transaction
  * newest-first. Deliberately never mentions account.balanceDue (Starlink's own synced
  * subscription balance) - this statement is only about what the customer owes/is owed by the
  * operator, a separate concern.
+ *
+ * `allocations` (optional, defaults to none) only ever adds each shipment's own PAYMENT status
+ * (unpaid/partial/paid) - this message is sent directly to the customer over WhatsApp, so it must
+ * never include Starlink's own cost, the D mark, or profit/loss, all of which are the operator's
+ * internal business figures, never the customer's business.
  */
-export function buildAccountStatementMessage(accountName: string, entries: LedgerEntry[]): string {
+export function buildAccountStatementMessage(
+  accountName: string,
+  entries: LedgerEntry[],
+  allocations: PaymentAllocation[] = [],
+): string {
   const balances = computeBalanceByCurrency(entries);
   const balanceLines = LEDGER_CURRENCIES.filter((currency) => balances[currency]).map((currency) => {
     const balance = balances[currency]!;
@@ -75,7 +91,8 @@ export function buildAccountStatementMessage(accountName: string, entries: Ledge
     const amount = `${entry.amount.toFixed(2)} ${LEDGER_CURRENCY_LABELS[entry.currency]}`;
     const method = entry.paymentMethod ? ` (${PAYMENT_METHOD_LABELS[entry.paymentMethod]})` : "";
     const note = entry.note ? ` - ${entry.note}` : "";
-    return `${entry.date}: ${kindLabel} ${amount}${method}${note}`;
+    const paymentStatus = entry.kind === "debit" ? PAYMENT_STATUS_SUFFIX[computeShipmentPaymentStatus(entry, allocations)] : "";
+    return `${entry.date}: ${kindLabel} ${amount}${method}${note}${paymentStatus}`;
   });
 
   return (

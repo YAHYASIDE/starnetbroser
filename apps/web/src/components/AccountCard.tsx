@@ -6,6 +6,7 @@ import { presentStatus, presentServiceStatus, isBalanceDueZero } from "@/lib/sta
 import { daysRemainingLabel, daysRemainingNumber, formatRelativeTime } from "@/lib/date";
 import { emailsMismatch } from "@/lib/emailMatch";
 import { computeBalanceByCurrency, LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerEntry } from "@/lib/ledgerStore";
+import { PaymentAllocation } from "@/lib/paymentAllocationStore";
 import { Client } from "@/lib/clientStore";
 import { isRunningInAndroidApp, openIsolatedAccountBrowser, triggerImmediateSync } from "@/lib/localBrowser";
 import {
@@ -22,6 +23,10 @@ interface Props {
   /** This account's local customer-ledger entries - see ledgerStore.ts. Never the same thing as
    * account.balanceDue (Starlink's own synced subscription balance). */
   ledgerEntries: LedgerEntry[];
+  /** This account's payment-allocation records - see paymentAllocationStore.ts. Only used to mark
+   * each shipment's own payment status (unpaid/partial/paid) in the WhatsApp statement message;
+   * never anything Starlink-cost or profit related, which stays strictly internal. */
+  allocations: PaymentAllocation[];
   onLedger: (account: StarlinkAccountSummary) => void;
   onDeviceStatement: (account: StarlinkAccountSummary) => void;
   /** The Client this device is linked to (via account.clientId) - undefined for a card never
@@ -31,7 +36,7 @@ interface Props {
   onOpenClient: (client: Client) => void;
 }
 
-export function AccountCard({ account, onEdit, onInfo, ledgerEntries, onLedger, onDeviceStatement, client, onOpenClient }: Props) {
+export function AccountCard({ account, onEdit, onInfo, ledgerEntries, allocations, onLedger, onDeviceStatement, client, onOpenClient }: Props) {
   const ledgerBalances = computeBalanceByCurrency(ledgerEntries);
   const dish = presentStatus(account.dishStatus);
   const wifi = presentStatus(account.wifiStatus);
@@ -188,7 +193,7 @@ export function AccountCard({ account, onEdit, onInfo, ledgerEntries, onLedger, 
                     <button
                       type="button"
                       role="menuitem"
-                      onClick={() => openWhatsApp(buildAccountStatementMessage(account.name, ledgerEntries))}
+                      onClick={() => openWhatsApp(buildAccountStatementMessage(account.name, ledgerEntries, allocations))}
                     >
                       كشف الحساب بالتفاصيل
                     </button>
