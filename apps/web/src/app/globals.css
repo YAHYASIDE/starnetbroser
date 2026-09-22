@@ -953,8 +953,8 @@ a.btn-icon {
 }
 
 .account-card {
-  padding: 16px;
-  gap: 13px;
+  padding: 12px;
+  gap: 8px;
   border-radius: 20px;
   box-shadow: 0 8px 24px rgba(21, 31, 44, 0.05);
 }
@@ -970,14 +970,14 @@ a.btn-icon {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.96rem;
+  font-size: 0.88rem;
 }
 
 .account-card-plan {
   margin: 0;
   overflow: hidden;
   color: var(--text-muted);
-  font-size: 0.7rem;
+  font-size: 0.66rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1081,7 +1081,6 @@ a.btn-icon {
 
 .account-card {
   position: relative;
-  overflow: hidden;
 }
 
 .account-card::before {
@@ -1089,6 +1088,7 @@ a.btn-icon {
   position: absolute;
   inset: 0 0 auto 0;
   height: 4px;
+  border-radius: 20px 20px 0 0;
   background: linear-gradient(90deg, var(--brand), var(--brand-strong));
 }
 
@@ -1103,12 +1103,12 @@ a.btn-icon {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 5px 10px;
+  gap: 4px;
+  padding: 3px 8px;
   border-radius: 999px;
   background: var(--surface-alt);
   color: var(--brand);
-  font-size: 0.68rem;
+  font-size: 0.64rem;
   font-weight: 700;
 }
 
@@ -1118,28 +1118,28 @@ a.btn-icon {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   text-align: center;
 }
 
 .account-card-avatar {
   flex: 0 0 auto;
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   display: grid;
   place-items: center;
   background: color-mix(in srgb, var(--brand) 16%, var(--surface-alt));
   color: var(--brand);
   font-weight: 800;
-  font-size: 0.82rem;
+  font-size: 0.74rem;
   direction: ltr;
 }
 
 .account-card-divider {
   height: 1px;
   background: var(--border);
-  margin: 2px 0;
+  margin: 0;
 }
 
 .account-card-client-name {
@@ -1147,7 +1147,7 @@ a.btn-icon {
   background: none;
   padding: 0;
   font-family: inherit;
-  font-size: 1.1rem;
+  font-size: 0.98rem;
   font-weight: 800;
   color: var(--brand);
   cursor: pointer;
@@ -1166,7 +1166,7 @@ a.btn-icon {
 .account-card-device-row {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .account-card-device-name-row {
@@ -1177,8 +1177,8 @@ a.btn-icon {
 
 .account-card-copy-btn {
   flex: 0 0 auto;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border: 1px solid var(--border);
   border-radius: 6px;
   display: grid;
@@ -1193,11 +1193,11 @@ a.btn-icon {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 8px 10px;
+  padding: 5px 9px;
   border-radius: var(--radius-sm);
   background: var(--surface-alt);
   color: var(--text-muted);
-  font-size: 0.76rem;
+  font-size: 0.72rem;
 }
 
 .account-card-email-icon {
@@ -1210,27 +1210,29 @@ a.btn-icon {
 .account-card-stat-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
 }
 
 .stat-tile {
   min-width: 0;
-  padding: 10px;
-  border-radius: 14px;
+  padding: 7px 8px;
+  border-radius: 12px;
   background: var(--surface-alt);
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 1px;
 }
 
 .stat-tile-icon {
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
   display: grid;
   place-items: center;
-  margin-bottom: 2px;
+  margin-bottom: 1px;
 }
+
+.stat-tile-icon svg { width: 12px; height: 12px; }
 
 .stat-tile-icon-blue { background: color-mix(in srgb, var(--brand) 18%, transparent); color: var(--brand); }
 .stat-tile-icon-orange { background: var(--yellow-bg); color: var(--yellow); }
@@ -1241,12 +1243,12 @@ a.btn-icon {
 
 .stat-tile-label {
   color: var(--text-muted);
-  font-size: 0.66rem;
+  font-size: 0.62rem;
 }
 
 .stat-tile-value {
   font-weight: 700;
-  font-size: 0.82rem;
+  font-size: 0.76rem;
 }
 
 .stat-tile-value-ok {
@@ -1256,15 +1258,15 @@ a.btn-icon {
 .account-card-last-update {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   color: var(--text-muted);
-  font-size: 0.7rem;
+  font-size: 0.66rem;
 }
 
 .account-card-main-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .account-card-main-actions .card-action-primary {
@@ -1275,14 +1277,14 @@ a.btn-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 5px;
   border: 0;
   background: none;
   color: var(--brand);
   font-family: inherit;
-  font-size: 0.76rem;
+  font-size: 0.72rem;
   font-weight: 700;
-  padding: 4px;
+  padding: 2px;
   cursor: pointer;
 }
 
@@ -1299,7 +1301,7 @@ a.btn-icon {
 .account-card-expanded {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   padding-top: 2px;
   border-top: 1px dashed var(--border);
 }
@@ -1406,18 +1408,18 @@ a.btn-icon {
 }
 
 .card-action {
-  min-height: 38px;
-  padding: 7px 9px;
+  min-height: 32px;
+  padding: 6px 8px;
   border: 1px solid var(--border);
-  border-radius: 11px;
+  border-radius: 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 4px;
   background: var(--surface);
   color: var(--text);
   font-family: inherit;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 700;
   text-decoration: none;
   cursor: pointer;
