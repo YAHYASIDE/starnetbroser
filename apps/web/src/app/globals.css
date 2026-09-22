@@ -543,6 +543,20 @@ a.btn-icon {
   max-width: 320px;
 }
 
+/* .search-input's own flex: 1 1 220px is sized for a horizontal (row) search bar - its
+   flex-basis reads as a HEIGHT once reused inside a vertical (column) flex form, ballooning
+   every field to ~220px tall. Reset it back to a normal single-line input wherever .search-input
+   is placed inside one of these column-flex containers (form-field labels, the auth forms, and
+   the client picker's search box / inline "add new client" form). Row-flex containers like
+   .currency-row-edit are unaffected and keep the default flex sizing. */
+.auth-form .search-input,
+.form-field .search-input,
+.client-picker > .search-input,
+.client-picker-new-form .search-input {
+  flex: none;
+  width: 100%;
+}
+
 .currency-list {
   list-style: none;
   margin: 0 0 4px;
