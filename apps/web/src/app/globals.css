@@ -5,8 +5,8 @@
   --text: #14181f;
   --text-muted: #5b6472;
   --border: #e1e5ea;
-  --brand: #0f6e6e;
-  --brand-strong: #0a4f4f;
+  --brand: #0284c7;
+  --brand-strong: #075985;
   --brand-contrast: #ffffff;
   --green: #1a9e5c;
   --green-bg: #e6f6ee;
@@ -32,9 +32,9 @@
     --text: #eef1f6;
     --text-muted: #97a1b1;
     --border: #2a3140;
-    --brand: #29a3a3;
-    --brand-strong: #56c2c2;
-    --brand-contrast: #06201f;
+    --brand: #38bdf8;
+    --brand-strong: #7dd3fc;
+    --brand-contrast: #052e40;
     --green: #34c481;
     --green-bg: #123425;
     --yellow: #e0b13a;
@@ -1067,7 +1067,7 @@ a.btn-icon {
 
 .account-card-actions {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 7px;
 }
 
@@ -1081,8 +1081,113 @@ a.btn-icon {
 
 .account-card-client-row {
   display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.account-card-client-row > .account-card-client-name,
+.account-card-client-row > .account-card-client-missing {
+  flex: 1;
+  display: flex;
   justify-content: center;
   text-align: center;
+}
+
+.account-card-toggle {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--surface-alt);
+  color: var(--brand);
+  cursor: pointer;
+}
+
+.account-card-toggle-icon {
+  font-size: 1rem;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+
+.account-card-toggle-icon.is-open {
+  transform: rotate(180deg);
+}
+
+.account-card-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.account-card-email {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-card-summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.account-detail-block.compact {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 8px 11px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.account-detail-block.compact .account-card-label {
+  color: var(--text-muted);
+}
+
+.account-detail-block.compact .badge,
+.account-detail-block.compact .balance-value {
+  margin-top: 0;
+}
+
+.balance-value.muted {
+  color: var(--text);
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.badge.muted {
+  background: var(--surface-alt);
+  color: var(--text-muted);
+}
+
+.account-card-summary-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.account-card-summary-actions .card-action {
+  min-height: 34px;
+  padding: 6px 12px;
+}
+
+.account-card-expanded {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 2px;
+  border-top: 1px dashed var(--border);
 }
 
 .account-card-client-name {
