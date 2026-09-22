@@ -21,6 +21,7 @@ const FIELD_INFO: Record<keyof SyncedStarlinkFields, { label: string; section: S
   serviceStatus: { label: "حالة الاشتراك", section: "subscriptions" },
   planName: { label: "الخطة", section: "subscriptions" },
   renewalDate: { label: "تاريخ التجديد", section: "subscriptions" },
+  pendingCancellationDate: { label: "موعد إيقاف الاشتراك", section: "subscriptions" },
   accountHolderName: { label: "اسم صاحب الحساب (Starlink)", section: "identifiers" },
   accountEmail: { label: "البريد الإلكتروني (Starlink)", section: "identifiers" },
   phone: { label: "رقم الهاتف", section: "identifiers" },
@@ -118,6 +119,12 @@ export function mergeSyncedFields(
   if (renewalDate) {
     note("renewalDate", next.rechargeDate !== renewalDate);
     next.rechargeDate = renewalDate;
+  }
+
+  const pendingCancellationDate = fields.pendingCancellationDate?.trim();
+  if (pendingCancellationDate) {
+    note("pendingCancellationDate", next.pendingCancellationDate !== pendingCancellationDate);
+    next.pendingCancellationDate = pendingCancellationDate;
   }
 
   const accountHolderName = fields.accountHolderName?.trim();

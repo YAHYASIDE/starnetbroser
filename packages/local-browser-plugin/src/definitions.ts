@@ -63,6 +63,11 @@ export interface SyncedStarlinkFields {
   serviceStatus?: SyncedServiceStatus;
   planName?: string;
   renewalDate?: string;
+  /** Set only alongside the real "scheduled to end" banner (a resumable pending cancellation,
+   * e.g. "من المقرر أن تنتهي خدمتك في ..." with a "استئناف"/Resume option) - the service is still
+   * `serviceStatus: "active"` right now, this is just the date it will actually stop unless
+   * resumed before then. Never set for an ordinary upcoming renewal with nothing pending. */
+  pendingCancellationDate?: string;
   /** The Starlink account holder's own name, as Starlink reports it - written to its own separate
    * field, never onto the account's `name` (see this interface's own doc comment). */
   accountHolderName?: string;

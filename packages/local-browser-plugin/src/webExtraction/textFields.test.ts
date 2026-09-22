@@ -13,7 +13,7 @@ import {
   extractPlanName,
   extractRenewalBadgeDate,
   extractSubscriptionId,
-  hasStandbyBanner,
+  hasScheduledEndBanner,
   isCompleteDate,
   nextOccurrenceOfDay,
   normalizeDateLike,
@@ -110,13 +110,13 @@ describe("extractRenewalBadgeDate - narrow same-line match only, never a generic
   });
 });
 
-describe("hasStandbyBanner", () => {
+describe("hasScheduledEndBanner", () => {
   it("detects the real 'service will end' banner", () => {
-    expect(hasStandbyBanner(["من المقرر أن تنتهي خدمتك في ٢٠٢٦/٩/٢٨."])).toBe(true);
+    expect(hasScheduledEndBanner(["من المقرر أن تنتهي خدمتك في ٢٠٢٦/٩/٢٨."])).toBe(true);
   });
 
   it("returns false when the banner isn't present", () => {
-    expect(hasStandbyBanner(["الرصيد المستحق", "$US 0.00"])).toBe(false);
+    expect(hasScheduledEndBanner(["الرصيد المستحق", "$US 0.00"])).toBe(false);
   });
 });
 

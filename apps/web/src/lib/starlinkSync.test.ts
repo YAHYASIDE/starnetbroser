@@ -59,6 +59,18 @@ describe("mergeSyncedFields - scanned vs. changed", () => {
     expect(result.account.lastSuccessfulScanAt).not.toBeNull();
   });
 
+  it("merges pendingCancellationDate as its own field alongside an active serviceStatus", () => {
+    // A "scheduled to end" banner never means the account is paused - see extractStarlinkFields'
+    // own doc for the real bug this corrects (the banner used to force serviceStatus "standby").
+    const result = mergeSyncedFields(baseAccount(), {
+      serviceStatus: "active",
+      pendingCancellationDate: "2026/10/15",
+    });
+    expect(result.account.serviceStatus).toBe("active");
+    expect(result.account.pendingCancellationDate).toBe("2026/10/15");
+    expect(result.updatedFields.map((f) => f.field).sort()).toEqual(["pendingCancellationDate", "serviceStatus"]);
+  });
+
   it("never overwrites the local customer name", () => {
     const result = mergeSyncedFields(baseAccount({ name: "mounay" }), { planName: "خطة جديدة" });
     expect(result.account.name).toBe("mounay");

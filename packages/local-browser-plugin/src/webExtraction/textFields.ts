@@ -12,20 +12,25 @@ export const PLAN_LABELS = ["service plan", "plan", "الخطة", "باقة ال
 export const RENEWAL_DATE_LABELS = [
   "renewal date", "next billing", "renews on", "service end", "next due date", "scheduled to end",
   "تاريخ التجديد", "تجديد الاشتراك", "نهاية الخدمة", "موعد التجديد", "تاريخ الاستحقاق التالي",
-  // The real Starlink app's home-page banner for a standby account ("From the confirmed pause to
-  // resume by") phrases this as a sentence, not a "label: value" pair - e.g. "من المقرر أن تنتهي
-  // خدمتك في ٢٠٢٦/٩/٢٨." - so the label match only needs this fragment; normalizeDateLike below
-  // pulls the date out of whatever surrounds it ("في ..." / a trailing ".").
+  // The real Starlink app's home-page "scheduled to end" banner (a resumable pending
+  // cancellation, see SCHEDULED_END_BANNER_LABELS' own doc) phrases this as a sentence, not a
+  // "label: value" pair - e.g. "من المقرر أن تنتهي خدمتك في ٢٠٢٦/٩/٢٨." - so the label match only
+  // needs this fragment; normalizeDateLike below pulls the date out of whatever surrounds it
+  // ("في ..." / a trailing ".").
   "تنتهي خدمتك",
 ];
 
-/** The one place this banner appears, so its presence alone is a reliable "this account is
- * currently in standby" signal, even on a page/section with no separate labeled status text
- * anywhere (confirmed: the real Starlink app never prints a bare "الحالة: بانتظار" line). */
-export const STANDBY_BANNER_LABELS = ["scheduled to end", "تنتهي خدمتك"];
+/** This banner ("من المقرر أن تنتهي خدمتك في ...", with a "استئناف"/Resume option) means the
+ * service is still running RIGHT NOW - only a future renewal is being canceled, reversible up
+ * until that date. Real, confirmed mistake this replaces: earlier code treated this banner as
+ * "standby" (as if the service were already paused), which colored an actively-working account's
+ * plan red/yellow instead of green and hid its real plan name behind a generic status word.
+ * "standby" is reserved for a genuine paused-right-now badge (e.g. "وضع الاستعداد قيد التعليق" on
+ * the "خطة الخدمة" card itself, see extractPlanBadgeStatus) - never this banner alone. */
+export const SCHEDULED_END_BANNER_LABELS = ["scheduled to end", "تنتهي خدمتك"];
 
-export function hasStandbyBanner(lines: string[]): boolean {
-  return lines.some((line) => containsAny(line, STANDBY_BANNER_LABELS));
+export function hasScheduledEndBanner(lines: string[]): boolean {
+  return lines.some((line) => containsAny(line, SCHEDULED_END_BANNER_LABELS));
 }
 
 /**

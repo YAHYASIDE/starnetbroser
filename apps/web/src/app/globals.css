@@ -1694,6 +1694,15 @@ a.btn-icon {
   color: var(--red);
 }
 
+.account-info-grid .info-notice {
+  background: var(--yellow-bg);
+}
+
+.account-info-grid .info-notice span,
+.account-info-grid .info-notice strong {
+  color: var(--yellow);
+}
+
 .dialog-done {
   width: 100%;
   margin-top: 14px;

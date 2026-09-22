@@ -275,8 +275,11 @@ describe("extractStarlinkFields - never stores a truncated renewal date (round 1
   });
 });
 
-describe("extractStarlinkFields - standby status + immune to an unrelated 'النهاية' elsewhere on the page (round 12 regression)", () => {
-  it("infers standby from the banner alone, and never lets an unrelated 'النهاية' line elsewhere override the real renewal date", () => {
+describe("extractStarlinkFields - scheduled-end banner + immune to an unrelated 'النهاية' elsewhere on the page (round 12 regression, corrected round 15)", () => {
+  it("reads active (never standby) from a scheduled-end banner alone, plus the pending-cancellation date, and never lets an unrelated 'النهاية' line elsewhere override the real renewal date", () => {
+    // Real, confirmed mistake this replaces: the banner alone used to set serviceStatus
+    // "standby", as if the service were already paused - but "استئناف"/Resume only makes sense
+    // for a service that's still running right now, just scheduled to stop later.
     const fields = extractFrom(`
       <div class="home-banner">
         <div>من المقرر أن تنتهي خدمتك في ٢٠٢٦/٩/٢٨.</div>
@@ -287,8 +290,9 @@ describe("extractStarlinkFields - standby status + immune to an unrelated 'ال�
       </div>
     `);
 
-    expect(fields.serviceStatus).toBe("standby");
+    expect(fields.serviceStatus).toBe("active");
     expect(fields.renewalDate).toBe("2026/09/28");
+    expect(fields.pendingCancellationDate).toBe("2026/09/28");
   });
 
   it("still reads the 'خطة الخدمة' badge date when the sentence banner isn't on the page at all", () => {
@@ -303,6 +307,7 @@ describe("extractStarlinkFields - standby status + immune to an unrelated 'ال�
 
     expect(fields.renewalDate).toBe("2026/09/28");
     expect(fields.serviceStatus).toBeUndefined();
+    expect(fields.pendingCancellationDate).toBeUndefined();
   });
 });
 
@@ -323,18 +328,35 @@ describe("extractStarlinkFields - real 'نشط' plan badge once the account is a
     expect(fields.serviceStatus).toBe("active");
   });
 
-  it("does not report active when the standby banner is present instead (mutually exclusive states)", () => {
+  it("still reads active (a real scheduled-end banner never demotes an explicit 'نشط' badge)", () => {
     const fields = extractFrom(`
       <div>من المقرر أن تنتهي خدمتك في ٢٠٢٦/٩/٢٨.</div>
       <div class="subscriptions-section">
         <div>خطة الخدمة</div>
         <div>إدارة</div>
-        <div>النهاية ٢٠٢٦/٩/٢٨</div>
+        <div>نشط</div>
+        <div>التجوال - غير محدود</div>
+      </div>
+    `);
+
+    expect(fields.serviceStatus).toBe("active");
+    expect(fields.pendingCancellationDate).toBe("2026/09/28");
+  });
+
+  it("still reports genuine standby from an explicit paused-now badge, with no pending-cancellation date at all", () => {
+    // The two states are genuinely different real Starlink pages, never conflated: this one has
+    // no scheduled-end banner anywhere, just the plan card's own paused badge.
+    const fields = extractFrom(`
+      <div class="subscriptions-section">
+        <div>خطة الخدمة</div>
+        <div>إدارة</div>
+        <div>وضع الاستعداد قيد التعليق</div>
         <div>التجوال - غير محدود</div>
       </div>
     `);
 
     expect(fields.serviceStatus).toBe("standby");
+    expect(fields.pendingCancellationDate).toBeUndefined();
   });
 });
 

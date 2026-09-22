@@ -19,7 +19,7 @@ import {
   extractPlanName,
   extractRenewalBadgeDate,
   extractSubscriptionId,
-  hasStandbyBanner,
+  hasScheduledEndBanner,
   isCompleteDate,
   nextOccurrenceOfDay,
   normalizeDateLike,
@@ -53,13 +53,15 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
   const text = toVisibleText(doc.body);
   const lines = toLines(text);
 
-  // The real page never prints a labeled "الحالة: ..." line for a standby account - the two
-  // reliable signals are the "service will end" banner (see hasStandbyBanner's own doc) and the
-  // status badge shown right on the "خطة الخدمة" card itself (see extractPlanBadgeStatus's own
-  // doc), tried only when a labeled status wasn't found.
+  // The real page never prints a labeled "الحالة: ..." line for most states - the status badge
+  // shown right on the "خطة الخدمة" card itself (see extractPlanBadgeStatus's own doc) is tried
+  // when a labeled status wasn't found. A "scheduled to end" banner alone (see
+  // hasScheduledEndBanner's own doc) never sets "standby" here - the service is still active
+  // right now, only a future renewal is being canceled - so it's handled below, alongside
+  // pendingCancellationDate, once serviceStatus has already been resolved from a real signal.
   let serviceStatus = normalizeServiceStatus(extractLabeledValue(lines, SERVICE_STATUS_LABELS));
-  if (!serviceStatus && hasStandbyBanner(lines)) serviceStatus = "standby";
   if (!serviceStatus) serviceStatus = extractPlanBadgeStatus(lines);
+  if (!serviceStatus && hasScheduledEndBanner(lines)) serviceStatus = "active";
   if (serviceStatus) fields.serviceStatus = serviceStatus;
 
   const planName = extractPlanName(lines);
@@ -85,6 +87,12 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
     if (billingDueDay !== undefined) resolvedRenewalDate = nextOccurrenceOfDay(billingDueDay);
   }
   if (resolvedRenewalDate) fields.renewalDate = resolvedRenewalDate;
+  // Reuses the very same resolved date (no separate parse) - the "scheduled to end" banner and
+  // the "خطة الخدمة" card's "النهاية <date>" badge describe the same one date, just from two
+  // different spots on the page. Only ever set alongside the banner itself, never inferred from
+  // an ordinary renewal date alone (an account can have a real upcoming renewal with no
+  // cancellation pending at all).
+  if (hasScheduledEndBanner(lines) && resolvedRenewalDate) fields.pendingCancellationDate = resolvedRenewalDate;
 
   const balance = extractBalance(lines);
   if (balance) {

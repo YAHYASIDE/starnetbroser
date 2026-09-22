@@ -82,6 +82,11 @@ export interface StarlinkAccountSummary {
   starlinkId?: string;
   /** Normalized to "active" | "standby" | "canceled" | "suspended" - never left as raw page text. */
   serviceStatus?: string;
+  /** Set only when Starlink shows a resumable pending cancellation ("من المقرر أن تنتهي خدمتك
+   * في ..." with a "استئناف"/Resume option) - the service is still `serviceStatus: "active"`
+   * right now, this is just the date it will actually stop unless resumed before then. Shown as
+   * its own separate info note, never folded into the plan/status badge itself. */
+  pendingCancellationDate?: string;
   // `phone` below is manually-entered local customer contact number (like `name`), used only for
   // the "تواصل عبر واتساب" card action - never touched by Starlink sync, and unrelated to the
   // Settings page's own phone number, which sync deliberately never reads at all.

@@ -169,6 +169,15 @@ export function AccountDialog({ mode, account, clients, onCreateClient, onClose,
                 <strong>البريد الإلكتروني من Starlink لا يطابق المتوقع</strong>
               </div>
             )}
+            {draft.pendingCancellationDate && (
+              <div className="info-wide info-notice">
+                <span>ملاحظة</span>
+                <strong>
+                  الجهاز على وضع إيقاف الاشتراك - لن يتوقف الآن، بل سيتوقف تلقائيًا بتاريخ{" "}
+                  <span dir="ltr">{draft.pendingCancellationDate}</span> ما لم يُستأنف الاشتراك من Starlink
+                </strong>
+              </div>
+            )}
             {formatRelativeTime(draft.lastSuccessfulScanAt) && (
               <div><span>آخر مزامنة من Starlink</span><strong>{formatRelativeTime(draft.lastSuccessfulScanAt)}</strong></div>
             )}
