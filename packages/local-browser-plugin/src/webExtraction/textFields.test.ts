@@ -165,6 +165,11 @@ describe("extractBalance - never scans the whole page", () => {
     const lines = ["الرصيد المستحق", "ادفع", "see your invoice for details", "$49.99 / month (unrelated plan price)"];
     expect(extractBalance(lines)).toBeUndefined();
   });
+
+  it("finds a non-USD, comma-grouped balance (real bug: an ARS-billed account came back 'not found')", () => {
+    const lines = ["الرصيد المستحق", "ARS 137,861.11"];
+    expect(extractBalance(lines)).toEqual({ amount: "137861.11", currency: "ARS" });
+  });
 });
 
 describe("extractSubscriptionId - unlabeled 'SL-...' shape", () => {
