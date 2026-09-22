@@ -9,6 +9,7 @@ import {
   removeEntry,
   sortEntriesNewestFirst,
   totalOwedAcrossAccounts,
+  updateEntry,
   withAccountEntries,
 } from "./ledgerStore";
 
@@ -76,6 +77,21 @@ describe("addEntry / removeEntry", () => {
   it("removeEntry on an unknown id is a safe no-op", () => {
     const original = [entry({ id: "a" })];
     expect(removeEntry(original, "does-not-exist")).toEqual(original);
+  });
+});
+
+describe("updateEntry", () => {
+  it("merges the patch into the matching entry only, without mutating the input", () => {
+    const original = [entry({ id: "a" }), entry({ id: "b" })];
+    const result = updateEntry(original, "b", { starlinkCost: { status: "settled", currencyCode: "USD", amount: 5 } });
+    expect(original[1].starlinkCost).toBeUndefined();
+    expect(result[0]).toEqual(original[0]);
+    expect(result[1].starlinkCost).toEqual({ status: "settled", currencyCode: "USD", amount: 5 });
+  });
+
+  it("is a safe no-op for an unknown id", () => {
+    const original = [entry({ id: "a" })];
+    expect(updateEntry(original, "does-not-exist", { note: "x" })).toEqual(original);
   });
 });
 

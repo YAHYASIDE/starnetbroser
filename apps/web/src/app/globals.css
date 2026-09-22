@@ -1443,6 +1443,44 @@ a.btn-icon {
   grid-column: span 2;
 }
 
+.ledger-d-toggle {
+  grid-column: span 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.ledger-shipment-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+
+.ledger-d-badge {
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.ledger-shipment-profit {
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+
+.profit-positive {
+  color: var(--green);
+}
+
+.profit-negative {
+  color: var(--red);
+}
+
 .ledger-entry-list {
   list-style: none;
   margin: 14px 0 0;

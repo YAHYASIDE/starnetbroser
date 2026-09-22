@@ -36,6 +36,7 @@ import {
   saveClientStore,
   updateClient,
 } from "@/lib/clientStore";
+import { CurrencyStore, loadCurrencyStore, saveCurrencyStore, upsertCurrency, UpsertCurrencyInput } from "@/lib/currencyStore";
 import { ApiError, listAccounts } from "@/lib/apiClient";
 import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
 import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
@@ -118,6 +119,19 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
       saveClientStore(next);
       return next;
     });
+  }
+
+  // Currency registry (see currencyStore.ts) - same load-after-mount pattern as the other local
+  // stores above. LedgerDialog reads it to prefill/lock exchange rates for shipments and Starlink
+  // cost settlements; the Settings page owns its own management UI for it, this is just a reader.
+  const [currencyStore, setCurrencyStore] = useState<CurrencyStore>({});
+  useEffect(() => setCurrencyStore(loadCurrencyStore()), []);
+
+  function handleUpsertCurrency(input: UpsertCurrencyInput) {
+    const next = upsertCurrency(currencyStore, input);
+    setCurrencyStore(next);
+    saveCurrencyStore(next);
+    return next[input.code.trim().toUpperCase()];
   }
 
   async function handleSyncNow() {
@@ -604,6 +618,8 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
         <LedgerDialog
           accountName={ledgerAccount.name}
           entries={getAccountEntries(ledgerStore, ledgerAccount.id)}
+          currencyStore={currencyStore}
+          onUpsertCurrency={handleUpsertCurrency}
           onClose={() => setLedgerAccount(null)}
           onChange={(entries) => updateLedgerEntries(ledgerAccount.id, entries)}
         />

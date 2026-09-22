@@ -157,6 +157,14 @@ export function addEntry(entries: LedgerEntry[], entry: LedgerEntry): LedgerEntr
   return [...entries, entry];
 }
 
+/** Replaces one entry by id with `patch` merged in - e.g. settling a "D" shipment's starlinkCost.
+ * Never used to touch amount/kind/currency (the customer-facing side of an entry, which a
+ * Starlink-cost settlement must never affect) - callers settling a cost should only ever pass
+ * `{ starlinkCost: ... }`. A no-op if entryId isn't found. */
+export function updateEntry(entries: LedgerEntry[], entryId: string, patch: Partial<LedgerEntry>): LedgerEntry[] {
+  return entries.map((entry) => (entry.id === entryId ? { ...entry, ...patch } : entry));
+}
+
 export function removeEntry(entries: LedgerEntry[], entryId: string): LedgerEntry[] {
   return entries.filter((entry) => entry.id !== entryId);
 }
