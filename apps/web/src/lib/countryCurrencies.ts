@@ -17,6 +17,10 @@ export interface CountryCurrencyOption {
 
 export const COUNTRY_CURRENCIES: CountryCurrencyOption[] = [
   { country: "الولايات المتحدة الأمريكية", code: "USD", name: "دولار أمريكي", symbol: "$" },
+  // Not a real ISO 4217 code - "السيفا" is one of the app's own three fixed customer-ledger
+  // currencies (ledgerStore.ts's LEDGER_CURRENCIES), with no matching country to search for, so it
+  // needs its own entry here to be registerable/searchable at all from this picker.
+  { country: "السيفا (عملة الحساب الداخلية)", code: "SIFA", name: "سيفا", symbol: "سيفا" },
 
   // إفريقيا
   { country: "الجزائر", code: "DZD", name: "دينار جزائري", symbol: "DZD" },
