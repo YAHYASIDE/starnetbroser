@@ -705,7 +705,8 @@ a.btn-icon {
   font-size: 0.72rem;
 }
 
-.header-settings {
+.header-settings,
+.header-currencies {
   width: 42px;
   height: 42px;
   border: 1px solid var(--border);
@@ -718,7 +719,8 @@ a.btn-icon {
   box-shadow: 0 5px 16px rgba(21, 31, 44, 0.06);
 }
 
-.header-settings svg {
+.header-settings svg,
+.header-currencies svg {
   width: 21px;
   height: 21px;
   fill: none;

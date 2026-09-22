@@ -527,6 +527,13 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
           <button className="header-add" type="button" onClick={() => setDialog({ mode: "add" })}>
             <span aria-hidden="true">＋</span> إضافة حساب
           </button>
+          <Link href="/currencies" className="header-currencies" aria-label="العملات وأسعار الصرف">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="9" cy="9" r="5.5" />
+              <circle cx="15" cy="15" r="5.5" />
+              <path d="M9 6.5v5M6.5 9h5" strokeLinecap="round" />
+            </svg>
+          </Link>
           <Link href="/settings" className="header-settings" aria-label="فتح الإعدادات">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
