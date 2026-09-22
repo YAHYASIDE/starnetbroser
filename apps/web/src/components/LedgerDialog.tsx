@@ -71,11 +71,13 @@ export function LedgerDialog({
   const [date, setDate] = useState(todayDateInputValue());
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Only relevant while kind === "debit" - a shipment charge, never a plain payment. Starts empty
-  // (not e.g. "1") whenever the currency's rate isn't already known, so a forgotten rate blocks
-  // submission instead of silently defaulting to a wrong one.
+  // Only relevant while kind === "debit" - a shipment charge, never a plain payment.
   const [markD, setMarkD] = useState(false);
-  const [saleRateInput, setSaleRateInput] = useState("");
+  // The locked rate snapshot input, shared by both directions: a "debit" entry locks it as
+  // saleRate, a "credit" entry as paymentRate (rule XIII's "cash actually collected" in USD).
+  // Starts empty (not e.g. "1") whenever the currency's rate isn't already known, so a forgotten
+  // rate blocks submission instead of silently defaulting to a wrong one.
+  const [rateInput, setRateInput] = useState("");
 
   const [settlingEntry, setSettlingEntry] = useState<LedgerEntry | null>(null);
   const [pendingPayment, setPendingPayment] = useState<LedgerEntry | null>(null);
@@ -101,7 +103,7 @@ export function LedgerDialog({
     // Empty (not a guessed default like 1) whenever this currency's rate isn't already known -
     // forces an explicit entry instead of silently locking in a wrong rate.
     const known = getCurrency(currencyStore, next)?.rateFromUsd;
-    setSaleRateInput(known !== undefined ? String(known) : "");
+    setRateInput(known !== undefined ? String(known) : "");
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -112,17 +114,18 @@ export function LedgerDialog({
       return;
     }
 
-    const needsSaleRate = kind === "debit" && currency !== "USD";
-    const parsedRate = Number(saleRateInput);
-    if (needsSaleRate && (!Number.isFinite(parsedRate) || parsedRate <= 0)) {
+    const needsRate = currency !== "USD";
+    const parsedRate = Number(rateInput);
+    if (needsRate && (!Number.isFinite(parsedRate) || parsedRate <= 0)) {
       setFormError("أدخل سعر صرف صحيح أكبر من صفر لهذه العملة");
       return;
     }
     setFormError(null);
 
-    if (needsSaleRate) {
+    if (needsRate) {
       // Keeps the registry's "last used" rate for this currency current (rule VI) - the entry's
-      // own saleRate below is a separate, permanently locked snapshot, never re-derived from this.
+      // own saleRate/paymentRate below is a separate, permanently locked snapshot, never
+      // re-derived from this.
       const existing = getCurrency(currencyStore, currency);
       onUpsertCurrency({
         code: currency,
@@ -132,6 +135,7 @@ export function LedgerDialog({
       });
     }
 
+    const rateSnapshot = needsRate ? { rateFromUsd: parsedRate, usdValue: parsedAmount / parsedRate } : undefined;
     const entry = createLedgerEntry({
       kind,
       amount: parsedAmount,
@@ -140,7 +144,8 @@ export function LedgerDialog({
       email,
       paymentMethod: kind === "credit" ? paymentMethod : undefined,
       date,
-      saleRate: needsSaleRate ? { rateFromUsd: parsedRate, usdValue: parsedAmount / parsedRate } : undefined,
+      saleRate: kind === "debit" ? rateSnapshot : undefined,
+      paymentRate: kind === "credit" ? rateSnapshot : undefined,
       markStarlinkCostPending: kind === "debit" && markD,
     });
 
@@ -232,16 +237,20 @@ export function LedgerDialog({
             value={date}
             onChange={(e) => setDate(e.target.value)}
           />
-          {kind === "debit" && currency !== "USD" && (
+          {currency !== "USD" && (
             <input
               className="search-input"
               type="number"
               min="0"
               step="0.0001"
               dir="ltr"
-              placeholder={`سعر الصرف (1 USD = ؟ ${currency})`}
-              value={saleRateInput}
-              onChange={(e) => setSaleRateInput(e.target.value)}
+              placeholder={
+                kind === "debit"
+                  ? `سعر صرف قيمة البيع (1 USD = ؟ ${currency})`
+                  : `سعر صرف الدفعة (1 USD = ؟ ${currency})`
+              }
+              value={rateInput}
+              onChange={(e) => setRateInput(e.target.value)}
             />
           )}
           {kind === "debit" && (

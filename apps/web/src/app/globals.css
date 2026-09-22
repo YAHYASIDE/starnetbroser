@@ -1578,6 +1578,26 @@ a.btn-icon {
   font-weight: 700;
 }
 
+.statement-cash-flow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--border);
+  font-size: 0.78rem;
+}
+
+.statement-cash-flow span:first-child {
+  color: var(--text-muted);
+}
+
+.statement-cash-flow-value {
+  font-weight: 700;
+}
+
 .statement-shipment-list {
   list-style: none;
   margin: 14px 0 0;

@@ -130,6 +130,18 @@ export function ClientDialog({ client, devices, ledgerStore, allocationStore, on
               )}
             </div>
 
+            <div className="statement-cash-flow">
+              <span>المحصَّل فعليًا من الزبون (بالدولار)</span>
+              <strong dir="ltr">{formatAmount(summary.totalPaidUsd)} USD</strong>
+              <span
+                className={`statement-cash-flow-value ${summary.cashFlowUsd >= 0 ? "profit-positive" : "profit-negative"}`}
+                dir="ltr"
+              >
+                التدفق النقدي الفعلي: {summary.cashFlowUsd >= 0 ? "+" : "-"}
+                {formatAmount(Math.abs(summary.cashFlowUsd))} USD
+              </span>
+            </div>
+
             <ul className="statement-shipment-list">
               {summary.devices.length === 0 && <li className="ledger-entry-empty">لا توجد أجهزة مرتبطة بعد</li>}
               {summary.devices.map((device) => {

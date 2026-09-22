@@ -87,6 +87,12 @@ export interface LedgerEntry {
    * "pending") on an entry created before this feature existed - see isLegacyShipmentEntry, which
    * treats that as a third, distinct state from both "pending" and "settled". */
   starlinkCost?: StarlinkCost;
+  /** Only ever set on a "credit" (payment) entry whose `currency` isn't USD - the locked rate
+   * snapshot used to express what the customer actually paid in USD (rule XIII's "cash actually
+   * collected"), entirely separate from accounting profit. Absent for USD entries and for every
+   * entry created before this field existed - a payment with no paymentRate simply doesn't
+   * contribute to the USD-converted total, it is never guessed at with today's rate. */
+  paymentRate?: RateSnapshot;
 }
 
 /** A "debit" entry with no starlinkCost info at all predates this feature - its profit can never
@@ -181,6 +187,9 @@ export interface CreateLedgerEntryInput {
   /** Ignored for a "credit" entry. The caller (which has access to currencyStore.ts) computes this
    * snapshot before calling in - omit for a USD entry or when the amount isn't a shipment sale. */
   saleRate?: RateSnapshot;
+  /** Ignored for a "debit" entry. The caller computes this snapshot before calling in - omit for a
+   * USD entry or when the payment's USD value isn't being tracked. */
+  paymentRate?: RateSnapshot;
   /** Ignored for a "credit" entry. true marks the new debit entry "D" - a shipment whose Starlink
    * cost hasn't been recorded yet (see StarlinkCost). */
   markStarlinkCostPending?: boolean;
@@ -202,6 +211,7 @@ export function createLedgerEntry(input: CreateLedgerEntryInput): LedgerEntry {
     createdAt: new Date().toISOString(),
     saleRate: isDebit ? input.saleRate : undefined,
     starlinkCost: isDebit && input.markStarlinkCostPending ? { status: "pending" } : undefined,
+    paymentRate: !isDebit ? input.paymentRate : undefined,
   };
 }
 

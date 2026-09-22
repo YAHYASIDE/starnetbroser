@@ -170,6 +170,29 @@ describe("computeDeviceAccountingSummary", () => {
     ]);
     expect(summary.totalRemainingDebt).toEqual({ MRU: 25000 });
   });
+
+  it("converts customer payments to USD via each entry's own locked paymentRate", () => {
+    const summary = computeDeviceAccountingSummary([
+      payment({ id: "p1", amount: 20000, currency: "MRU", paymentRate: { rateFromUsd: 400, usdValue: 50 } }),
+      payment({ id: "p2", amount: 30, currency: "USD" }),
+    ]);
+    expect(summary.totalPaidByCustomerUsd).toBeCloseTo(80);
+  });
+
+  it("excludes a non-USD payment with no paymentRate from the USD total, but keeps it in the per-currency total", () => {
+    const summary = computeDeviceAccountingSummary([payment({ id: "p1", amount: 20000, currency: "MRU" })]);
+    expect(summary.totalPaidByCustomerUsd).toBe(0);
+    expect(summary.totalPaidByCustomer).toEqual({ MRU: 20000 });
+  });
+
+  it("computes cashFlowUsd as collected USD minus settled Starlink cost in USD, separate from netResult", () => {
+    const summary = computeDeviceAccountingSummary([
+      shipment({ id: "s1" }), // settled shipment: sale 112.5 USD, cost 100 USD, profit +12.5
+      payment({ id: "p1", amount: 40, currency: "USD" }), // only 40 USD actually collected
+    ]);
+    expect(summary.cashFlowUsd).toBeCloseTo(-60); // 40 collected - 100 cost paid
+    expect(summary.netResult.netUsd).toBeCloseTo(12.5); // accounting profit unaffected by what was collected
+  });
 });
 
 describe("computeClientAccountingSummary", () => {
@@ -229,5 +252,23 @@ describe("computeClientAccountingSummary", () => {
       { accountId: "d2", accountName: "ب", entries: [shipment({ id: "s2", starlinkCost: { status: "pending" } })] }, // D unsettled
     ]);
     expect(summary.netResult).toEqual({ status: "incomplete", netUsd: 12.5 });
+  });
+
+  it("sums totalPaidUsd and cashFlowUsd across devices, kept separate from netResult", () => {
+    const summary = computeClientAccountingSummary([
+      {
+        accountId: "d1",
+        accountName: "أ",
+        entries: [shipment({ id: "s1" }), payment({ id: "p1", amount: 40, currency: "USD" })],
+      },
+      {
+        accountId: "d2",
+        accountName: "ب",
+        entries: [payment({ id: "p2", amount: 20000, currency: "MRU", paymentRate: { rateFromUsd: 400, usdValue: 50 } })],
+      },
+    ]);
+    expect(summary.totalPaidUsd).toBeCloseTo(90); // 40 + 50
+    expect(summary.cashFlowUsd).toBeCloseTo(-10); // 90 collected - 100 settled cost on device 1
+    expect(summary.netResult.netUsd).toBeCloseTo(12.5); // accounting profit unaffected
   });
 });

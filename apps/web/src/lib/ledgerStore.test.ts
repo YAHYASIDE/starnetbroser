@@ -270,6 +270,32 @@ describe("createLedgerEntry - saleRate / starlinkCost (D mark)", () => {
     });
     expect(created.starlinkCost).toBeUndefined();
   });
+
+  it("stores a given paymentRate snapshot on a credit entry", () => {
+    const created = createLedgerEntry({
+      kind: "credit",
+      amount: 20000,
+      currency: "MRU",
+      note: "",
+      email: "",
+      date: "2026-09-21",
+      paymentRate: { rateFromUsd: 400, usdValue: 50 },
+    });
+    expect(created.paymentRate).toEqual({ rateFromUsd: 400, usdValue: 50 });
+  });
+
+  it("drops paymentRate for a debit entry even if one was passed", () => {
+    const created = createLedgerEntry({
+      kind: "debit",
+      amount: 45000,
+      currency: "MRU",
+      note: "",
+      email: "",
+      date: "2026-09-21",
+      paymentRate: { rateFromUsd: 400, usdValue: 112.5 },
+    });
+    expect(created.paymentRate).toBeUndefined();
+  });
 });
 
 describe("isLegacyShipmentEntry", () => {

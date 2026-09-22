@@ -91,6 +91,18 @@ export function DeviceStatementDialog({ accountName, entries, allocations, onClo
           )}
         </div>
 
+        <div className="statement-cash-flow">
+          <span>المحصَّل فعليًا من العميل (بالدولار)</span>
+          <strong dir="ltr">{formatAmount(summary.totalPaidByCustomerUsd)} USD</strong>
+          <span
+            className={`statement-cash-flow-value ${summary.cashFlowUsd >= 0 ? "profit-positive" : "profit-negative"}`}
+            dir="ltr"
+          >
+            التدفق النقدي الفعلي: {summary.cashFlowUsd >= 0 ? "+" : "-"}
+            {formatAmount(Math.abs(summary.cashFlowUsd))} USD
+          </span>
+        </div>
+
         <ul className="statement-shipment-list">
           {shipments.length === 0 && <li className="ledger-entry-empty">لا توجد شحنات بعد</li>}
           {shipments.map((entry) => {

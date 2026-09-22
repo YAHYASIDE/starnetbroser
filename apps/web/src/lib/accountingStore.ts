@@ -4,13 +4,16 @@
  * function here is deterministic and side-effect free, so it is exhaustively unit-tested rather
  * than exercised through the UI.
  *
- * Two results are kept deliberately separate and never merged into one number:
+ * Three results are kept deliberately separate and never merged into one number (rule XIII):
  *  - accounting profit (computeShipmentProfit / totalProfitsUsd / totalLossesUsd / netResult):
  *    sale value in USD minus Starlink's settled cost in USD, regardless of whether the customer
  *    has actually paid yet.
- *  - cash actually collected (totalPaidByCustomer): what customers have actually paid, kept PER
- *    CURRENCY exactly as recorded (never converted/summed across currencies, per the ledger's own
- *    long-standing rule) - a customer's outstanding debt is never counted here.
+ *  - cash actually collected, per currency (totalPaidByCustomer): what customers have actually
+ *    paid, kept PER CURRENCY exactly as recorded (never converted/summed across currencies, per
+ *    the ledger's own long-standing rule) - a customer's outstanding debt is never counted here.
+ *  - cash actually collected, in USD (totalPaidByCustomerUsd / cashFlowUsd): the same payments,
+ *    converted via each credit entry's own locked paymentRate (never today's rate), minus
+ *    Starlink's settled cost in USD - rule XIII's own "التدفق النقدي الفعلي".
  */
 
 import {
@@ -95,6 +98,15 @@ export interface DeviceAccountingSummary {
   /** What customers have actually paid (credit entries), summed per currency exactly as recorded -
    * never converted to USD or mixed across currencies. */
   totalPaidByCustomer: BalanceByCurrency;
+  /** USD-equivalent of totalPaidByCustomer - sums only credit entries with a resolvable USD value
+   * (USD itself, or a locked paymentRate). A non-USD payment with no paymentRate (e.g. recorded
+   * before this field existed) is simply excluded here, never guessed at with today's rate - its
+   * full amount still shows in totalPaidByCustomer's own per-currency breakdown above. */
+  totalPaidByCustomerUsd: number;
+  /** Rule XIII's "التدفق النقدي الفعلي": totalPaidByCustomerUsd minus totalSettledStarlinkCostUsd.
+   * Kept strictly separate from netResult (accounting profit) - customer debt is never counted
+   * here, only what was actually collected. */
+  cashFlowUsd: number;
   /** What customers still owe, per currency - only the positive (owed) balances, same convention
    * as ledgerStore.ts#totalOwedAcrossAccounts but scoped to one device's own entries. */
   totalRemainingDebt: BalanceByCurrency;
@@ -143,9 +155,13 @@ export function computeDeviceAccountingSummary(entries: LedgerEntry[]): DeviceAc
   }
 
   const totalPaidByCustomer: BalanceByCurrency = {};
+  let totalPaidByCustomerUsd = 0;
   for (const entry of entries) {
     if (entry.kind !== "credit") continue;
     totalPaidByCustomer[entry.currency] = (totalPaidByCustomer[entry.currency] ?? 0) + entry.amount;
+
+    const paidUsd = entry.currency === "USD" ? entry.amount : entry.paymentRate?.usdValue;
+    if (paidUsd !== undefined) totalPaidByCustomerUsd += paidUsd;
   }
 
   return {
@@ -159,6 +175,8 @@ export function computeDeviceAccountingSummary(entries: LedgerEntry[]): DeviceAc
     totalLossesUsd,
     netResult: computeNetResult(profits, pendingShipmentCount),
     totalPaidByCustomer,
+    totalPaidByCustomerUsd,
+    cashFlowUsd: totalPaidByCustomerUsd - totalSettledStarlinkCostUsd,
     totalRemainingDebt,
   };
 }
@@ -180,6 +198,11 @@ export interface ClientAccountingSummary {
   totalDebt: BalanceByCurrency;
   /** Sum of every device's totalPaidByCustomer, per currency - never converted/mixed. */
   totalPaid: BalanceByCurrency;
+  /** Sum of every device's totalPaidByCustomerUsd. */
+  totalPaidUsd: number;
+  /** Sum of every device's cashFlowUsd - rule XIII's cash-actually-collected, kept separate from
+   * netResult (accounting profit) at the client level too. */
+  cashFlowUsd: number;
   /** Sum of netUsd across every device that has one - "incomplete" if any device's own result is
    * incomplete, "no-data" only when no device has any shipments at all. */
   netResult: DeviceNetResult;
@@ -203,6 +226,8 @@ export function computeClientAccountingSummary(
 
   const totalDebt: BalanceByCurrency = {};
   const totalPaid: BalanceByCurrency = {};
+  let totalPaidUsd = 0;
+  let cashFlowUsd = 0;
   let anyIncomplete = false;
   let anyComputed = false;
   let netUsdSum = 0;
@@ -216,6 +241,9 @@ export function computeClientAccountingSummary(
       if (paid !== undefined) totalPaid[currency] = (totalPaid[currency] ?? 0) + paid;
     }
 
+    totalPaidUsd += device.accounting.totalPaidByCustomerUsd;
+    cashFlowUsd += device.accounting.cashFlowUsd;
+
     if (device.accounting.netResult.status === "incomplete") anyIncomplete = true;
     if (device.accounting.netResult.netUsd !== undefined) {
       anyComputed = true;
@@ -227,5 +255,5 @@ export function computeClientAccountingSummary(
     ? { status: anyIncomplete ? "incomplete" : "no-data" }
     : { status: anyIncomplete ? "incomplete" : "complete", netUsd: netUsdSum };
 
-  return { devices: deviceSummaries, totalDebt, totalPaid, netResult };
+  return { devices: deviceSummaries, totalDebt, totalPaid, totalPaidUsd, cashFlowUsd, netResult };
 }
