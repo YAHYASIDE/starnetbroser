@@ -28,7 +28,6 @@ import {
 import {
   Client,
   ClientStore,
-  countLinkedAccounts,
   createClient,
   CreateClientInput,
   getClient,
@@ -663,7 +662,9 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
       {openClientId && getClient(clientStore, openClientId) && (
         <ClientDialog
           client={getClient(clientStore, openClientId)!}
-          linkedAccountCount={countLinkedAccounts(accounts, openClientId)}
+          devices={accounts.filter((account) => account.clientId === openClientId)}
+          ledgerStore={ledgerStore}
+          allocationStore={allocationStore}
           onClose={() => setOpenClientId(null)}
           onSave={(patch) => handleUpdateClient(openClientId, patch)}
         />

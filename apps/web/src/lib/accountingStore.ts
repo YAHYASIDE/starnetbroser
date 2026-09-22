@@ -162,3 +162,70 @@ export function computeDeviceAccountingSummary(entries: LedgerEntry[]): DeviceAc
     totalRemainingDebt,
   };
 }
+
+export interface ClientDeviceSummary {
+  accountId: string;
+  accountName: string;
+  /** This device's own debit-minus-credit balance, per currency - identical convention to
+   * computeBalanceByCurrency (positive = owed, negative = in credit). */
+  balances: BalanceByCurrency;
+  accounting: DeviceAccountingSummary;
+}
+
+export interface ClientAccountingSummary {
+  /** One entry per device linked to this client - never merged with each other (rule XII: "لا
+   * تخلط بين أجهزة العميل المختلفة"). */
+  devices: ClientDeviceSummary[];
+  /** Sum of every device's positive (owed) balance, per currency. */
+  totalDebt: BalanceByCurrency;
+  /** Sum of every device's totalPaidByCustomer, per currency - never converted/mixed. */
+  totalPaid: BalanceByCurrency;
+  /** Sum of netUsd across every device that has one - "incomplete" if any device's own result is
+   * incomplete, "no-data" only when no device has any shipments at all. */
+  netResult: DeviceNetResult;
+}
+
+/**
+ * The client-level rollup (rule XII) - "لكن اعرض مجموعها في ملخص العميل": every number here is a
+ * straightforward per-currency/per-device sum of numbers already computed independently by
+ * computeDeviceAccountingSummary, never a recomputation that could let one device's data leak
+ * into another's.
+ */
+export function computeClientAccountingSummary(
+  devices: { accountId: string; accountName: string; entries: LedgerEntry[] }[],
+): ClientAccountingSummary {
+  const deviceSummaries: ClientDeviceSummary[] = devices.map((device) => ({
+    accountId: device.accountId,
+    accountName: device.accountName,
+    balances: computeBalanceByCurrency(device.entries),
+    accounting: computeDeviceAccountingSummary(device.entries),
+  }));
+
+  const totalDebt: BalanceByCurrency = {};
+  const totalPaid: BalanceByCurrency = {};
+  let anyIncomplete = false;
+  let anyComputed = false;
+  let netUsdSum = 0;
+
+  for (const device of deviceSummaries) {
+    for (const currency of LEDGER_CURRENCIES) {
+      const balance = device.balances[currency];
+      if (balance !== undefined && balance > 0) totalDebt[currency] = (totalDebt[currency] ?? 0) + balance;
+
+      const paid = device.accounting.totalPaidByCustomer[currency];
+      if (paid !== undefined) totalPaid[currency] = (totalPaid[currency] ?? 0) + paid;
+    }
+
+    if (device.accounting.netResult.status === "incomplete") anyIncomplete = true;
+    if (device.accounting.netResult.netUsd !== undefined) {
+      anyComputed = true;
+      netUsdSum += device.accounting.netResult.netUsd;
+    }
+  }
+
+  const netResult: DeviceNetResult = !anyComputed
+    ? { status: anyIncomplete ? "incomplete" : "no-data" }
+    : { status: anyIncomplete ? "incomplete" : "complete", netUsd: netUsdSum };
+
+  return { devices: deviceSummaries, totalDebt, totalPaid, netResult };
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeDeviceAccountingSummary, computeShipmentProfit } from "./accountingStore";
+import { computeClientAccountingSummary, computeDeviceAccountingSummary, computeShipmentProfit } from "./accountingStore";
 import { LedgerEntry } from "./ledgerStore";
 
 function shipment(overrides: Partial<LedgerEntry> = {}): LedgerEntry {
@@ -169,5 +169,65 @@ describe("computeDeviceAccountingSummary", () => {
       payment({ id: "p2", amount: 50, currency: "USD" }), // credit -50 USD -> account in credit for USD
     ]);
     expect(summary.totalRemainingDebt).toEqual({ MRU: 25000 });
+  });
+});
+
+describe("computeClientAccountingSummary", () => {
+  it("is all-empty/no-data for a client with no devices", () => {
+    const summary = computeClientAccountingSummary([]);
+    expect(summary.devices).toEqual([]);
+    expect(summary.totalDebt).toEqual({});
+    expect(summary.totalPaid).toEqual({});
+    expect(summary.netResult).toEqual({ status: "no-data" });
+  });
+
+  it("never mixes two devices' own balances or results together, but sums them into totals", () => {
+    const summary = computeClientAccountingSummary([
+      {
+        accountId: "d1",
+        accountName: "الجهاز الأول",
+        entries: [shipment({ id: "s1" })], // settled, profit +12.5, USD debt is 0 (paid in MRU)
+      },
+      {
+        accountId: "d2",
+        accountName: "الجهاز الثاني",
+        entries: [
+          shipment({
+            id: "s2",
+            amount: 60,
+            currency: "USD",
+            saleRate: undefined,
+            starlinkCost: { status: "settled", currencyCode: "USD", amount: 50, paidAt: "2026-09-21" },
+          }),
+        ],
+      },
+    ]);
+
+    expect(summary.devices).toHaveLength(2);
+    expect(summary.devices[0].accountName).toBe("الجهاز الأول");
+    expect(summary.devices[0].balances).toEqual({ MRU: 45000 });
+    expect(summary.devices[1].balances).toEqual({ USD: 60 });
+
+    // Debts are kept per currency across devices - MRU from device 1, USD from device 2.
+    expect(summary.totalDebt).toEqual({ MRU: 45000, USD: 60 });
+
+    // Both devices are fully settled -> combined net result is "complete": 12.5 + 10 = 22.5.
+    expect(summary.netResult).toEqual({ status: "complete", netUsd: 22.5 });
+  });
+
+  it("sums totalPaid per currency across devices", () => {
+    const summary = computeClientAccountingSummary([
+      { accountId: "d1", accountName: "أ", entries: [shipment({ id: "s1" }), payment({ id: "p1", amount: 20000, currency: "MRU" })] },
+      { accountId: "d2", accountName: "ب", entries: [payment({ id: "p2", amount: 5000, currency: "MRU" })] },
+    ]);
+    expect(summary.totalPaid).toEqual({ MRU: 25000 });
+  });
+
+  it("is 'incomplete' if any device has an unsettled D shipment, even if others are complete", () => {
+    const summary = computeClientAccountingSummary([
+      { accountId: "d1", accountName: "أ", entries: [shipment({ id: "s1" })] }, // complete, +12.5
+      { accountId: "d2", accountName: "ب", entries: [shipment({ id: "s2", starlinkCost: { status: "pending" } })] }, // D unsettled
+    ]);
+    expect(summary.netResult).toEqual({ status: "incomplete", netUsd: 12.5 });
   });
 });
