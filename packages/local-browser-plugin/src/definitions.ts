@@ -163,6 +163,12 @@ export interface ImportSessionCookiesResult {
   importedCount: number;
 }
 
+export interface SyncNowOptions {
+  /** Omit to sync every registered account; set to scope this run to just one - a single card's
+   * own "تحديث" button rather than the header's "مزامنة الآن". */
+  accountId?: string;
+}
+
 export interface LocalBrowserPlugin {
   /**
    * Feature-detects Multi-Profile support on this device. Never throws.
@@ -241,11 +247,15 @@ export interface LocalBrowserPlugin {
    * the sync itself has finished - actual results still flow through the existing
    * accountDataSynced event / listPendingAccountSyncs pipeline, same as any other sync.
    *
+   * Pass `accountId` to scope this run to just that one account (a single card's own "تحديث"
+   * button) instead of every registered account - rejects if that specific id was never opened
+   * via openAccountBrowser, same reasoning as the no-accounts-at-all case below.
+   *
    * Rejects if this device doesn't support Multi-Profile, or if there are no accounts to sync yet
    * (an account only becomes syncable after opening it once via openAccountBrowser) - callers
    * must surface that to the user rather than treat a resolved call as "sync is done".
    */
-  syncNow(): Promise<void>;
+  syncNow(options?: SyncNowOptions): Promise<void>;
 
   /**
    * Reads the raw login-session cookies for each given account's isolated profile - part of the

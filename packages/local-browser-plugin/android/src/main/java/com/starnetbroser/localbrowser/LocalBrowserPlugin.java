@@ -262,11 +262,29 @@ public class LocalBrowserPlugin extends Plugin {
             call.reject("هذا الجهاز لا يدعم المتصفحات المستقلة", ERROR_CODE_UNSUPPORTED);
             return;
         }
-        if (AutoSyncAccountStore.load(getContext()).isEmpty()) {
+        List<AutoSyncAccountStore.Entry> stored = AutoSyncAccountStore.load(getContext());
+        if (stored.isEmpty()) {
             call.reject("لا توجد حسابات للمزامنة - افتح كل حساب مرة واحدة أولًا", ERROR_CODE_NO_ACCOUNTS);
             return;
         }
-        AutoSyncScheduler.triggerNow(getContext());
+
+        // Optional: scope this run to one card's own "تحديث" tap instead of the whole list.
+        String accountId = call.getString("accountId");
+        if (accountId != null && !accountId.trim().isEmpty()) {
+            boolean known = false;
+            for (AutoSyncAccountStore.Entry entry : stored) {
+                if (entry.accountId.equals(accountId)) {
+                    known = true;
+                    break;
+                }
+            }
+            if (!known) {
+                call.reject("لم يتم فتح هذا الحساب من قبل - افتحه أولًا بزر \"فتح\"", ERROR_CODE_NO_ACCOUNTS);
+                return;
+            }
+        }
+
+        AutoSyncScheduler.triggerNow(getContext(), accountId);
         call.resolve();
     }
 

@@ -10,6 +10,7 @@ import { DayCircles } from "./DayCircles";
 import { ConnectionStatus } from "./ConnectionStatus";
 import { AccountDialog, AccountDialogMode } from "./AccountDialog";
 import { LedgerDialog } from "./LedgerDialog";
+import { ToastMessage, ToastStack } from "./ToastStack";
 import { daysRemainingNumber } from "@/lib/date";
 import {
   getAccountEntries,
@@ -55,6 +56,18 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
   const [isAndroidApp, setIsAndroidApp] = useState(false);
   useEffect(() => setIsAndroidApp(isRunningInAndroidApp()), []);
   const [syncingNow, setSyncingNow] = useState(false);
+
+  // Small, non-blocking top-of-screen bubbles for background sync results - never window.alert,
+  // which would interrupt the user with a modal for something that happened on its own.
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  function pushToast(text: string) {
+    const id =
+      typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `toast-${Date.now()}-${Math.random()}`;
+    setToasts((current) => [...current, { id, text }]);
+  }
+  function dismissToast(id: string) {
+    setToasts((current) => current.filter((toast) => toast.id !== id));
+  }
 
   // Purely local customer bookkeeping (see ledgerStore.ts) - starts empty (matches server render,
   // which never has localStorage) and loads after mount, same hydration-safety reasoning as
@@ -209,7 +222,7 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
         isDemoMode: dataStateRef.current === "demo",
         saveDemoAccounts,
         saveSyncedFieldsCache,
-        showAlert: (message) => window.alert(message),
+        showAlert: pushToast,
       });
 
       if (outcome.status !== "applied") return;
@@ -395,6 +408,7 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
 
   return (
     <main className="home app-shell">
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
       <header className="app-header">
         <div className="brand-lockup">
           <span className="brand-logo" aria-hidden="true">★</span>

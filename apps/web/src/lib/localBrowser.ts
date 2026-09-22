@@ -131,12 +131,14 @@ export async function syncAutoSyncAccountList(accounts: AutoSyncAccountRef[]): P
  * through the normal accountDataSynced/listPendingAccountSyncs pipeline already wired in
  * HomeView, not through this call's own return value.
  */
-export async function triggerImmediateSync(): Promise<OpenResult> {
+/** Omit `accountId` to sync every registered account (the header's "مزامنة الآن"); pass it to
+ * scope this run to just that one (a single card's own "تحديث" button). */
+export async function triggerImmediateSync(accountId?: string): Promise<OpenResult> {
   if (!isRunningInAndroidApp()) {
     return { ok: false, message: ANDROID_ONLY_MESSAGE };
   }
   try {
-    await LocalBrowser.syncNow();
+    await LocalBrowser.syncNow(accountId ? { accountId } : undefined);
     return { ok: true };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : "تعذر بدء المزامنة" };

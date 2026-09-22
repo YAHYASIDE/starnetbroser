@@ -6,7 +6,7 @@ import { presentStatus, presentServiceStatus, isBalanceDueZero } from "@/lib/sta
 import { daysRemainingLabel, daysRemainingNumber, formatRelativeTime } from "@/lib/date";
 import { emailsMismatch } from "@/lib/emailMatch";
 import { computeBalanceByCurrency, LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerEntry } from "@/lib/ledgerStore";
-import { isRunningInAndroidApp, openIsolatedAccountBrowser } from "@/lib/localBrowser";
+import { isRunningInAndroidApp, openIsolatedAccountBrowser, triggerImmediateSync } from "@/lib/localBrowser";
 import {
   buildAccountStatementMessage,
   buildBalanceReminderMessage,
@@ -62,6 +62,25 @@ export function AccountCard({ account, onEdit, onInfo, ledgerEntries, onLedger }
     }
   }
 
+  // Scoped to just this one account (see localBrowser.ts#triggerImmediateSync) - a quick way to
+  // refresh a single card without waiting for the hourly schedule or syncing every other account
+  // via the header's own "مزامنة الآن". The actual sync result still surfaces through the normal
+  // accountDataSynced/listPendingAccountSyncs pipeline (see HomeView) - this only starts the job.
+  const [syncingCard, setSyncingCard] = useState(false);
+
+  async function handleCardSync() {
+    if (syncingCard) return;
+    setSyncingCard(true);
+    try {
+      const result = await triggerImmediateSync(account.id);
+      if (!result.ok) {
+        window.alert(result.message);
+      }
+    } finally {
+      setSyncingCard(false);
+    }
+  }
+
   // Only offered when a usable phone number was actually entered for this account - never a
   // link to a broken wa.me URL.
   const whatsappAvailable = buildWhatsAppLink(account.phone) !== null;
@@ -98,6 +117,18 @@ export function AccountCard({ account, onEdit, onInfo, ledgerEntries, onLedger }
             <span className={`dot ${wifi.className}`} />
             Wi-Fi
           </span>
+          {isAndroidApp && (
+            <button
+              type="button"
+              className={`card-sync-btn${syncingCard ? " syncing" : ""}`}
+              title="تحديث هذا الحساب"
+              aria-label="تحديث هذا الحساب"
+              onClick={handleCardSync}
+              disabled={syncingCard}
+            >
+              <span aria-hidden="true">⟳</span>
+            </button>
+          )}
           {whatsappAvailable && (
             <div className="whatsapp-menu-wrapper">
               <button

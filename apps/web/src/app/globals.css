@@ -1350,6 +1350,72 @@ a.btn-icon {
   padding: 2px 6px;
 }
 
+.toast-stack {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.toast-bubble {
+  pointer-events: auto;
+  max-width: 88vw;
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 16px;
+  background: var(--text);
+  color: var(--surface);
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: center;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+  animation: toast-in 0.2s ease-out;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.card-sync-btn {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--surface-alt);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.card-sync-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.card-sync-btn.syncing span {
+  display: inline-block;
+  animation: starnet-spin 1s linear infinite;
+}
+
 @media (max-width: 680px) {
   .app-shell {
     padding: 14px 14px 32px;

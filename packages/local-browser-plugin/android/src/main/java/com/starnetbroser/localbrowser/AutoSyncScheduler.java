@@ -2,6 +2,7 @@ package com.starnetbroser.localbrowser;
 
 import android.content.Context;
 import androidx.work.Constraints;
+import androidx.work.Data;
 import androidx.work.ExistingPeriodicWorkPolicy;
 import androidx.work.ExistingWorkPolicy;
 import androidx.work.NetworkType;
@@ -48,18 +49,27 @@ final class AutoSyncScheduler {
         WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME);
     }
 
-    /** "مزامنة الآن": runs the exact same AutoSyncWorker right away instead of waiting for the
-     * next periodic window. A separate unique work name from the periodic job (WORK_NAME) so
-     * triggering this never disturbs the periodic schedule itself; REPLACE means tapping the
-     * button again while one is still running simply restarts it, rather than queuing duplicates. */
-    static void triggerNow(Context context) {
+    /**
+     * "مزامنة الآن" (global) or a single card's own "تحديث" button: runs the exact same
+     * AutoSyncWorker right away instead of waiting for the next periodic window. A separate
+     * unique work name from the periodic job (WORK_NAME) so triggering this never disturbs the
+     * periodic schedule itself; REPLACE means triggering this again (whether for the same account,
+     * a different one, or the whole list) while one is still running simply restarts it rather
+     * than queuing duplicates - only one manual sync is ever in flight at a time.
+     *
+     * @param accountId when non-null, only that one account is synced this run (see
+     *     AutoSyncWorker#INPUT_ACCOUNT_ID) - null syncs every account, same as before.
+     */
+    static void triggerNow(Context context, String accountId) {
         Constraints constraints = new Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build();
-        OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(AutoSyncWorker.class)
-            .setConstraints(constraints)
-            .build();
+        OneTimeWorkRequest.Builder builder = new OneTimeWorkRequest.Builder(AutoSyncWorker.class)
+            .setConstraints(constraints);
+        if (accountId != null && !accountId.trim().isEmpty()) {
+            builder.setInputData(new Data.Builder().putString(AutoSyncWorker.INPUT_ACCOUNT_ID, accountId).build());
+        }
         WorkManager.getInstance(context)
-            .enqueueUniqueWork(IMMEDIATE_WORK_NAME, ExistingWorkPolicy.REPLACE, request);
+            .enqueueUniqueWork(IMMEDIATE_WORK_NAME, ExistingWorkPolicy.REPLACE, builder.build());
     }
 }

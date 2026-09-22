@@ -14,6 +14,7 @@ import type {
   OpenAccountBrowserOptions,
   SetAutoSyncAccountIdsOptions,
   SetAutoSyncAccountIdsResult,
+  SyncNowOptions,
 } from "./definitions";
 
 const WEB_UNSUPPORTED_MESSAGE =
@@ -53,7 +54,7 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
     return { saved: true };
   }
 
-  async syncNow(): Promise<void> {
+  async syncNow(_options?: SyncNowOptions): Promise<void> {
     throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
   }
 

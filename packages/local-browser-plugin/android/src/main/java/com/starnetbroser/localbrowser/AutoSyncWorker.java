@@ -17,6 +17,7 @@ import androidx.work.Worker;
 import androidx.work.WorkerParameters;
 import com.getcapacitor.JSObject;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -41,6 +42,12 @@ import java.util.concurrent.atomic.AtomicInteger;
  * the whole batch indefinitely or run past WorkManager's own execution time limit.
  */
 public class AutoSyncWorker extends Worker {
+
+    /** Worker input Data key (see AutoSyncScheduler#triggerNow) - when present, this run only
+     * syncs that one account instead of every account in AutoSyncAccountStore. Used by the
+     * per-card "تحديث" button, which has no reason to touch every other account just because the
+     * user asked about one. */
+    static final String INPUT_ACCOUNT_ID = "accountId";
 
     /** Extra wait after onPageFinished before reading the page: the Starlink portal is a
      * client-rendered SPA whose account data is often still filling in when the network load
@@ -69,6 +76,19 @@ public class AutoSyncWorker extends Worker {
 
         Context context = getApplicationContext();
         List<AutoSyncAccountStore.Entry> entries = AutoSyncAccountStore.load(context);
+
+        String filterAccountId = getInputData().getString(INPUT_ACCOUNT_ID);
+        if (filterAccountId != null && !filterAccountId.trim().isEmpty()) {
+            List<AutoSyncAccountStore.Entry> filtered = new ArrayList<>();
+            for (AutoSyncAccountStore.Entry entry : entries) {
+                if (entry.accountId.equals(filterAccountId)) {
+                    filtered.add(entry);
+                    break;
+                }
+            }
+            entries = filtered;
+        }
+
         if (entries.isEmpty()) {
             return Result.success();
         }
