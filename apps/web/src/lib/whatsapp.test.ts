@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { LedgerEntry } from "./ledgerStore";
 import { createAllocation, PaymentAllocation } from "./paymentAllocationStore";
+import { Invoice } from "./invoiceStore";
+import { StoreItemRegistry } from "./storeStore";
 import {
   buildAccountStatementMessage,
   buildBalanceReminderMessage,
   buildExpiryReminderMessage,
+  buildInvoiceMessage,
   buildWhatsAppLink,
   normalizePhoneForWhatsApp,
 } from "./whatsapp";
@@ -22,6 +25,30 @@ function ledgerEntry(overrides: Partial<LedgerEntry> = {}): LedgerEntry {
     ...overrides,
   };
 }
+
+function invoice(overrides: Partial<Invoice> = {}): Invoice {
+  return {
+    id: "inv1",
+    kind: "sale",
+    date: "2026-09-20",
+    currencyCode: "MRU",
+    lines: [{ itemId: "item-1", quantity: 2, unitPrice: 5000, transactionId: "t1" }],
+    discount: 0,
+    paidAmount: 0,
+    createdAt: "2026-09-20T10:00:00.000Z",
+    ...overrides,
+  };
+}
+
+const items: StoreItemRegistry = {
+  "item-1": {
+    id: "item-1",
+    name: "راوتر Starlink Mini",
+    unit: "قطعة",
+    createdAt: "2026-09-01T00:00:00.000Z",
+    updatedAt: "2026-09-01T00:00:00.000Z",
+  },
+};
 
 describe("normalizePhoneForWhatsApp", () => {
   it("strips spaces, dashes and a leading + from a full international number", () => {
@@ -167,5 +194,62 @@ describe("buildAccountStatementMessage", () => {
   it("defaults to no payment-status marks when allocations aren't passed", () => {
     const message = buildAccountStatementMessage("مقهى النخيل", [ledgerEntry({ kind: "debit", amount: 10 })]);
     expect(message).not.toContain("مدفوعة");
+  });
+});
+
+describe("buildInvoiceMessage", () => {
+  it("lists each line with item name, quantity, unit price and line total", () => {
+    const message = buildInvoiceMessage(invoice(), items, "زبون تجريبي");
+    expect(message).toContain("راوتر Starlink Mini");
+    expect(message).toContain("2");
+    expect(message).toContain("5,000");
+    expect(message).toContain("10,000"); // line total: 2 * 5000
+  });
+
+  it("falls back to a generic name for an item that no longer exists", () => {
+    const message = buildInvoiceMessage(invoice({ lines: [{ itemId: "gone", quantity: 1, unitPrice: 100, transactionId: "t1" }] }), {}, "زبون");
+    expect(message).toContain("مادة");
+  });
+
+  it("shows subtotal + discount lines only when there is a discount", () => {
+    const withDiscount = buildInvoiceMessage(invoice({ discount: 1000 }), items, "زبون");
+    expect(withDiscount).toContain("المجموع الفرعي");
+    expect(withDiscount).toContain("الخصم");
+    expect(withDiscount).toContain("9,000"); // 10000 - 1000
+
+    const withoutDiscount = buildInvoiceMessage(invoice(), items, "زبون");
+    expect(withoutDiscount).not.toContain("المجموع الفرعي");
+  });
+
+  it("marks a fully unpaid invoice as credit/debt", () => {
+    const message = buildInvoiceMessage(invoice({ paidAmount: 0 }), items, "زبون");
+    expect(message).toContain("غير مدفوعة");
+  });
+
+  it("marks a partially-paid invoice with the remaining balance", () => {
+    const message = buildInvoiceMessage(invoice({ paidAmount: 4000 }), items, "زبون");
+    expect(message).toContain("مدفوعة جزئيًا");
+    expect(message).toContain("6,000"); // 10000 - 4000
+  });
+
+  it("marks a fully-paid invoice", () => {
+    const message = buildInvoiceMessage(invoice({ paidAmount: 10000 }), items, "زبون");
+    expect(message).toContain("مدفوعة بالكامل");
+  });
+
+  it("labels a purchase invoice and a return invoice distinctly", () => {
+    const purchase = buildInvoiceMessage(invoice({ kind: "purchase" }), items, "مورّد");
+    expect(purchase).toContain("فاتورة شراء");
+
+    const ret = buildInvoiceMessage(invoice({ returnOfInvoiceId: "orig" }), items, "زبون");
+    expect(ret).toContain("مرتجع");
+  });
+
+  it("includes the note only when present", () => {
+    const withNote = buildInvoiceMessage(invoice({ note: "توصيل مجاني" }), items, "زبون");
+    expect(withNote).toContain("توصيل مجاني");
+
+    const withoutNote = buildInvoiceMessage(invoice(), items, "زبون");
+    expect(withoutNote).not.toContain("ملاحظة");
   });
 });

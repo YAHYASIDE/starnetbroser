@@ -3001,3 +3001,30 @@ button.overview-card:active {
   font-size: 0.85rem;
   color: var(--text-muted);
 }
+
+/* Invoice line editor (InvoiceSection.tsx) - one row per item: pick/name, quantity, price. */
+.invoice-line-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.invoice-line-row > select.search-input {
+  flex: 2;
+  min-width: 0;
+}
+
+.invoice-line-row > input.search-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.invoice-line-row > .store-item-name {
+  flex: 2;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.invoice-line-row > .store-item-price {
+  flex-shrink: 0;
+}

@@ -14,6 +14,8 @@ import {
 } from "./ledgerStore";
 import { computeShipmentPaymentStatus, PaymentAllocation } from "./paymentAllocationStore";
 import { formatAmount } from "./formatAmount";
+import { Invoice, invoiceBalanceDue, invoicePaymentStatus, invoiceSubtotal, invoiceTotal } from "./invoiceStore";
+import { getStoreItem, StoreItemRegistry } from "./storeStore";
 
 /** Strips everything but digits and a leading "00" international-dialing prefix - wa.me wants a
  * bare digit string with the country code, no "+", no "00", no spaces/dashes. Returns null for
@@ -118,6 +120,48 @@ export function buildAccountStatementMessage(
       ? `الرصيد الحالي:\n${balanceLines.join("\n")}\n\n`
       : `لا يوجد رصيد مستحق حاليًا.\n\n`) +
     (entryLines.length > 0 ? `تفاصيل الحركات:\n${entryLines.join("\n")}\n\n` : "") +
+    `- STAR NET`
+  );
+}
+
+/**
+ * "فاتورة بيع/شراء" sent directly to the customer/supplier over WhatsApp - built entirely from one
+ * store invoice (invoiceStore.ts). Only ever sent for a sale (the customer is who reads it); a
+ * purchase invoice has no WhatsApp action in the UI since the supplier didn't ask STAR NET for one.
+ */
+export function buildInvoiceMessage(invoice: Invoice, items: StoreItemRegistry, counterpartyName: string): string {
+  const currencyLabel = LEDGER_CURRENCY_LABELS[invoice.currencyCode as keyof typeof LEDGER_CURRENCY_LABELS] ?? invoice.currencyCode;
+  const title = invoice.kind === "sale" ? "فاتورة بيع" : "فاتورة شراء";
+
+  const lineTexts = invoice.lines.map((line) => {
+    const item = getStoreItem(items, line.itemId);
+    const name = item?.name ?? "مادة";
+    const unit = item?.unit ?? "";
+    const lineTotal = line.quantity * line.unitPrice;
+    return `• ${name}: ${formatAmount(line.quantity)} ${unit} × ${formatAmount(line.unitPrice)} ${currencyLabel} = ${formatAmount(lineTotal)} ${currencyLabel}`;
+  });
+
+  const subtotal = invoiceSubtotal(invoice);
+  const total = invoiceTotal(invoice);
+  const due = invoiceBalanceDue(invoice);
+  const status = invoicePaymentStatus(invoice);
+  const statusLine =
+    status === "paid"
+      ? "✅ مدفوعة بالكامل"
+      : status === "partial"
+        ? `⚠️ مدفوعة جزئيًا - المتبقي ${formatAmount(due)} ${currencyLabel}`
+        : `❌ غير مدفوعة (دين) - ${formatAmount(due)} ${currencyLabel}`;
+
+  return (
+    `${invoice.returnOfInvoiceId ? "مرتجع - " : ""}${title} - ${counterpartyName} 🧾\n` +
+    `${invoice.date}\n\n` +
+    `${lineTexts.join("\n")}\n\n` +
+    (invoice.discount > 0
+      ? `المجموع الفرعي: ${formatAmount(subtotal)} ${currencyLabel}\nالخصم: ${formatAmount(invoice.discount)} ${currencyLabel}\n`
+      : "") +
+    `الإجمالي: ${formatAmount(total)} ${currencyLabel}\n` +
+    `${statusLine}\n\n` +
+    (invoice.note ? `ملاحظة: ${invoice.note}\n\n` : "") +
     `- STAR NET`
   );
 }

@@ -37,6 +37,17 @@ import {
 import { resizeImageToDataUrl } from "@/lib/imageUtils";
 import { formatAmount } from "@/lib/formatAmount";
 import { ClientPicker } from "@/components/ClientPicker";
+import { InvoiceSection } from "@/components/InvoiceSection";
+import { InvoiceList, loadInvoices, saveInvoices } from "@/lib/invoiceStore";
+import {
+  createSupplier,
+  CreateSupplierInput,
+  listSuppliers,
+  loadSupplierStore,
+  saveSupplierStore,
+  Supplier,
+  SupplierStore,
+} from "@/lib/supplierStore";
 
 function todayDateInputValue(): string {
   return new Date().toISOString().slice(0, 10);
@@ -50,6 +61,8 @@ export default function StorePage() {
   const [items, setItems] = useState<StoreItemRegistry>({});
   const [transactions, setTransactions] = useState<StoreTransactionList>([]);
   const [clientStore, setClientStore] = useState<ClientStore>({});
+  const [invoices, setInvoices] = useState<InvoiceList>([]);
+  const [supplierStore, setSupplierStore] = useState<SupplierStore>({});
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [pendingKind, setPendingKind] = useState<StoreTransactionKind>("buy");
   const [showAddItem, setShowAddItem] = useState(false);
@@ -59,6 +72,8 @@ export default function StorePage() {
     setItems(loadStoreItems());
     setTransactions(loadStoreTransactions());
     setClientStore(loadClientStore());
+    setInvoices(loadInvoices());
+    setSupplierStore(loadSupplierStore());
   }, []);
 
   const itemList = useMemo(() => listStoreItems(items), [items]);
@@ -71,11 +86,20 @@ export default function StorePage() {
     [itemList, stockByItem],
   );
 
+  const suppliers = useMemo(() => listSuppliers(supplierStore), [supplierStore]);
+
   function handleCreateClient(input: CreateClientInput): Client {
     const result = createClient(clientStore, input);
     setClientStore(result.store);
     saveClientStore(result.store);
     return result.client;
+  }
+
+  function handleCreateSupplier(input: CreateSupplierInput): Supplier {
+    const result = createSupplier(supplierStore, input);
+    setSupplierStore(result.store);
+    saveSupplierStore(result.store);
+    return result.supplier;
   }
 
   function submitNewItem(input: CreateStoreItemInput) {
@@ -284,6 +308,24 @@ export default function StorePage() {
           })}
         </ul>
       </section>
+
+      <InvoiceSection
+        items={items}
+        transactions={transactions}
+        invoices={invoices}
+        clients={clients}
+        clientStore={clientStore}
+        suppliers={suppliers}
+        supplierStore={supplierStore}
+        onCreateClient={handleCreateClient}
+        onCreateSupplier={handleCreateSupplier}
+        onChange={(result) => {
+          setInvoices(result.invoices);
+          saveInvoices(result.invoices);
+          setTransactions(result.transactions);
+          saveStoreTransactions(result.transactions);
+        }}
+      />
     </main>
   );
 }

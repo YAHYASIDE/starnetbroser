@@ -52,6 +52,10 @@ export interface StoreTransaction {
   note?: string;
   /** yyyy-mm-dd, the operator-chosen transaction date (defaults to today in the UI). */
   date: string;
+  /** Set when this transaction was created as one line of an invoice (invoiceStore.ts) - lets a
+   * transaction in an item's own history be traced back to the invoice it belongs to. Undefined
+   * for a plain buy/sell recorded directly against the item, outside any invoice. */
+  invoiceId?: string;
   createdAt: string;
 }
 
@@ -205,6 +209,7 @@ export interface CreateStoreTransactionInput {
   clientId?: string;
   note?: string;
   date: string;
+  invoiceId?: string;
 }
 
 export type RecordStoreTransactionResult =
@@ -241,6 +246,7 @@ export function recordStoreTransaction(
     clientId: input.kind === "sell" ? input.clientId : undefined,
     note: input.note?.trim() || undefined,
     date: input.date,
+    invoiceId: input.invoiceId,
     createdAt: nowIso(),
   };
   return { ok: true, transactions: [...transactions, transaction], transaction };
