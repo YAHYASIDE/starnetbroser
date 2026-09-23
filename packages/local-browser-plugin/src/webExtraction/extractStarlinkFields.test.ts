@@ -337,7 +337,38 @@ describe("extractStarlinkFields - real suspended Billing page, no 'خطة الخ
       </div>
     `);
 
-    expect(fields.serviceStatus).toBeUndefined();
+    // isOnAccountHomePage (round 18) now actively resolves this to "active" rather than leaving
+    // it undefined - see that function's own doc for why "not wrong" alone isn't enough here.
+    expect(fields.serviceStatus).toBe("active");
+  });
+
+  it("actively corrects a STALE 'suspended' status left over from before this fix, on the very same never-suspended home page (round 18 regression: real false positive, still visible after re-syncing)", () => {
+    // Reproduces the user's follow-up real bug report: even after round 17's fix landed and the
+    // operator pressed "تحديث من Starlink" again on this exact page, the app kept showing
+    // "موقوف". Root cause: this page has neither a "خطة الخدمة" card (extractPlanBadgeStatus finds
+    // nothing) nor a labeled status line, so every sync of it left fields.serviceStatus undefined
+    // - and mergeSyncedFields' additive-only merge never overwrites a stored value with "not
+    // found", however wrong. isOnAccountHomePage gives this exact page a real, actively-set
+    // "active" result instead, which does overwrite the stale value on the next sync.
+    const fields = extractFrom(`
+      <div>الصفحة الرئيسية</div>
+      <div>bella ag d • ACC-DF-15875975-23289-67</div>
+      <div class="balance-card">
+        <div>ادفع</div>
+        <div>الرصيد المستحق</div>
+        <div>$US 0.00</div>
+      </div>
+      <div class="menu">
+        <div>اشتراك</div>
+        <div>الطلبات</div>
+        <div>فوترة</div>
+        <div>الإحالات</div>
+        <div>الرسائل</div>
+        <div>الإعدادات</div>
+      </div>
+    `);
+
+    expect(fields.serviceStatus).toBe("active");
   });
 });
 

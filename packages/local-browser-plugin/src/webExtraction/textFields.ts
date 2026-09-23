@@ -55,6 +55,28 @@ export function hasBillingSuspensionBanner(lines: string[]): boolean {
 }
 
 /**
+ * True only when the real, unlabeled "<holder name> • ACC-..." line (see
+ * extractAccountHolderName/NAME_BEFORE_ACCOUNT_PATTERN below) is present - a marker unique to the
+ * account's own Home page, already trusted for that exact purpose elsewhere in this file.
+ *
+ * Real, confirmed bug this fixes: a genuinely never-suspended, fully-paid account (screenshots of
+ * both the real Starlink Home page and our own app, from the user) kept showing "موقوف" (suspended)
+ * in the app - not a fresh false-positive match, but a STALE serviceStatus value from some earlier
+ * sync that a later sync of the Home page could never correct. The Home page has no "خطة الخدمة"
+ * card (extractPlanBadgeStatus finds nothing there) and no labeled status line, so
+ * hasBillingSuspensionBanner being false only ever left serviceStatus undefined - and per
+ * mergeSyncedFields' additive-only merge, "undefined" never overwrites an existing stored value,
+ * however wrong. Two independently confirmed real accounts (one genuinely suspended, one not) both
+ * showed the exact same thing: a genuinely suspended account's Home page prints the suspension
+ * banner directly on it, right there, every time - so once we're confirmed to be looking at the
+ * Home page and that banner is absent, the account is confirmed active right now, which is strong
+ * enough evidence to actively correct a stale "suspended" tag rather than leave it as-is forever.
+ */
+export function isOnAccountHomePage(lines: string[]): boolean {
+  return lines.some((line) => NAME_BEFORE_ACCOUNT_PATTERN.test(line));
+}
+
+/**
  * The real "خطة الخدمة" card shows a status badge right next to the plan name itself - "نشط" once
  * active, or a standby-wording badge (e.g. "وضع الاستعداد قيد التعليق") while the account is
  * scheduled to move to standby - instead of a separately-labeled "حالة الخدمة" row anywhere on the

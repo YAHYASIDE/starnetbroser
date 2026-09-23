@@ -23,6 +23,7 @@ import {
   hasBillingSuspensionBanner,
   hasScheduledEndBanner,
   isCompleteDate,
+  isOnAccountHomePage,
   nextOccurrenceOfDay,
   normalizeDateLike,
   normalizeServiceStatus,
@@ -63,11 +64,15 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
   // has no "خطة الخدمة" card at all for the badge check above to have found anything. A
   // "scheduled to end" banner alone (see hasScheduledEndBanner's own doc) never sets "standby" -
   // the service is still active right now, only a future renewal is being canceled - handled last,
-  // alongside pendingCancellationDate below, once serviceStatus has already been resolved.
+  // alongside pendingCancellationDate below, once serviceStatus has already been resolved. Last of
+  // all, isOnAccountHomePage's own doc: a confirmed Home page with no suspension banner actively
+  // corrects a stale "suspended" left over from an earlier sync, which additive merging alone could
+  // never fix on its own (the Home page has neither a "خطة الخدمة" card nor a labeled status line).
   let serviceStatus = normalizeServiceStatus(extractLabeledValue(lines, SERVICE_STATUS_LABELS));
   if (!serviceStatus) serviceStatus = extractPlanBadgeStatus(lines);
   if (!serviceStatus && hasBillingSuspensionBanner(lines)) serviceStatus = "suspended";
   if (!serviceStatus && hasScheduledEndBanner(lines)) serviceStatus = "active";
+  if (!serviceStatus && isOnAccountHomePage(lines)) serviceStatus = "active";
   if (serviceStatus) fields.serviceStatus = serviceStatus;
 
   const planName = extractPlanName(lines);

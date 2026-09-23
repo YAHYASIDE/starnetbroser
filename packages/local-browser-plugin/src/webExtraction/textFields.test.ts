@@ -17,6 +17,7 @@ import {
   hasBillingSuspensionBanner,
   hasScheduledEndBanner,
   isCompleteDate,
+  isOnAccountHomePage,
   nextOccurrenceOfDay,
   normalizeDateLike,
 } from "./textFields";
@@ -141,6 +142,20 @@ describe("hasBillingSuspensionBanner", () => {
     // likely a self-service "disable the service" menu action or reassuring copy elsewhere on the
     // page, not a report that the service is already off. Requiring "بسبب" right after fixes it.
     expect(hasBillingSuspensionBanner(["تعطيل خدمتك", "تعطيل الخدمة", "يمكنك تعطيل خدمتك مؤقتًا من هنا"])).toBe(false);
+  });
+});
+
+describe("isOnAccountHomePage", () => {
+  it("recognizes the real, unlabeled '<name> • ACC-...' line", () => {
+    expect(isOnAccountHomePage(["bella ag d • ACC-DF-15875975-23289-67", "الرصيد المستحق"])).toBe(true);
+  });
+
+  it("returns false for a page with no such line (e.g. the Billing page)", () => {
+    expect(isOnAccountHomePage(["فوترة", "الرصيد المستحق", "$US 25.00"])).toBe(false);
+  });
+
+  it("returns false for a labeled account-number line, which has a different shape", () => {
+    expect(isOnAccountHomePage(["رقم الحساب", "ACC-11223344"])).toBe(false);
   });
 });
 
