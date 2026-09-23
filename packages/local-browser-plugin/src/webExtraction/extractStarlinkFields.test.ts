@@ -307,6 +307,38 @@ describe("extractStarlinkFields - real suspended Billing page, no 'خطة الخ
     expect(fields.serviceStatus).toBe("suspended");
     expect(fields.renewalDate).toBe(nextOccurrenceOfDay(28));
   });
+
+  it("never reports suspended for a real, never-suspended home page (round 17 regression: real false positive)", () => {
+    // Reproduces the user's real bug report: a fully-paid, never-suspended account (a green
+    // checkmark next to a $0.00 balance) came back "suspended" - the actual page text was never
+    // seen, but a bare "تعطيل خدمتك"/"تعطيل الخدمة" fragment somewhere unrelated (e.g. a
+    // self-service "disable the service" menu action) is the most likely real cause; this fixture
+    // includes exactly that alongside an otherwise completely normal, paid-up home page.
+    const fields = extractFrom(`
+      <div class="referral-banner">
+        <div>شهر لصديقك، وشهر لك</div>
+        <div>شارك رابطك للبدء</div>
+      </div>
+      <div>الصفحة الرئيسية</div>
+      <div>bella ag d • ACC-DF-15875975-23289-67</div>
+      <div class="balance-card">
+        <div>ادفع</div>
+        <div>الرصيد المستحق</div>
+        <div>$US 0.00</div>
+      </div>
+      <div class="subscription-card">
+        <div>اشتراك</div>
+        <div>إدارة خدمة Starlink</div>
+        <div>تعطيل الخدمة</div>
+      </div>
+      <div class="orders-card">
+        <div>الطلبات</div>
+        <div>عرض سجل الطلبات</div>
+      </div>
+    `);
+
+    expect(fields.serviceStatus).toBeUndefined();
+  });
 });
 
 describe("extractStarlinkFields - never stores a truncated renewal date (round 11 regression)", () => {

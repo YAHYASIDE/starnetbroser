@@ -135,6 +135,13 @@ describe("hasBillingSuspensionBanner", () => {
   it("never confuses this with the different scheduled-end banner (mutually exclusive real page states)", () => {
     expect(hasBillingSuspensionBanner(["من المقرر أن تنتهي خدمتك في ٢٠٢٦/٩/٢٨."])).toBe(false);
   });
+
+  it("never matches a bare 'تعطيل خدمتك' with no reason clause (real, confirmed false positive)", () => {
+    // A never-suspended account came back "suspended" from this shorter fragment alone - most
+    // likely a self-service "disable the service" menu action or reassuring copy elsewhere on the
+    // page, not a report that the service is already off. Requiring "بسبب" right after fixes it.
+    expect(hasBillingSuspensionBanner(["تعطيل خدمتك", "تعطيل الخدمة", "يمكنك تعطيل خدمتك مؤقتًا من هنا"])).toBe(false);
+  });
 });
 
 describe("extractSubscriptionInvoiceDueDay - real Billing-page invoice list, once the billing cycle itself has gone blank", () => {

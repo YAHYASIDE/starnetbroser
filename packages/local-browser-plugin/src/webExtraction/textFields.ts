@@ -35,13 +35,20 @@ export function hasScheduledEndBanner(lines: string[]): boolean {
 
 /** The real page's top banner once suspended for non-payment ("تم تعطيل خدمتك بسبب مشكلة في
  * الفوترة. يرجى التأكد من دفع جميع الفواتير.") - unlike SCHEDULED_END_BANNER_LABELS (which still
- * means the service is running), this one means the service is ALREADY suspended right now. Real,
- * confirmed gap this closes: on the real Billing page specifically, there is no "خطة الخدمة" card
- * at all for extractPlanBadgeStatus to scan - this banner is the ONLY suspended signal on that
- * page, so unlike that function it is checked directly against the whole page, not scoped to one
- * card (a bare "تعطيل خدمتك" sentence is specific enough on its own to risk that, the same
- * reasoning as SCHEDULED_END_BANNER_LABELS). */
-export const BILLING_SUSPENSION_BANNER_LABELS = ["service has been disabled", "تعطيل خدمتك", "تعطيل الخدمة"];
+ * means the service is running), this one means the service is ALREADY suspended right now.
+ * Checked directly against the whole page, not scoped to one card, since on the real Billing page
+ * specifically there is no "خطة الخدمة" card at all for extractPlanBadgeStatus to scan - this
+ * banner is the only suspended signal on that page.
+ *
+ * Deliberately requires "بسبب" (due to) right after "تعطيل خدمتك" - a real, confirmed false
+ * positive this fixes: an earlier, shorter "تعطيل خدمتك"/"تعطيل الخدمة" match (2-3 words, no
+ * reason clause) fired on an account that was never actually suspended, most likely some
+ * unrelated self-service "disable the service" menu action or reassuring copy elsewhere on the
+ * page - a bare "disable service" fragment reads as an action or a possibility, not a report that
+ * it already happened. The full "disabled ... DUE TO a billing problem" phrasing is specific
+ * enough to risk matching without being scoped to one card, the same reasoning as
+ * SCHEDULED_END_BANNER_LABELS' own sentence-banner match. */
+export const BILLING_SUSPENSION_BANNER_LABELS = ["service has been disabled due to", "تعطيل خدمتك بسبب"];
 
 export function hasBillingSuspensionBanner(lines: string[]): boolean {
   return lines.some((line) => containsAny(line, BILLING_SUSPENSION_BANNER_LABELS));
