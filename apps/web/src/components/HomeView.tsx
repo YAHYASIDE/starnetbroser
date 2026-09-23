@@ -104,7 +104,18 @@ function matchesStatFilter(account: StarlinkAccountSummary, kind: StatFilterKind
   }
 }
 
-export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccountSummary[] }) {
+export function HomeView({
+  accounts: demoAccounts,
+  viewMode = "active",
+}: {
+  accounts: StarlinkAccountSummary[];
+  /** Which of the three device lists this page shows - set once per route ("/" -> "active",
+   * "/archive" -> "archived", "/trash" -> "trash", each its own bottom-nav destination) rather
+   * than an in-page toggle, since switching between them is now a full navigation. Never mixed
+   * into the normal dashboard list/filters/stat tiles below (those always operate on "active"
+   * devices only). */
+  viewMode?: AccountCardContext;
+}) {
   const [query, setQuery] = useState("");
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [statFilter, setStatFilter] = useState<StatFilterKind | null>(null);
@@ -115,10 +126,6 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
   }
   const [showAll, setShowAll] = useState(false);
   const [dialog, setDialog] = useState<DialogState>(null);
-  // Which of the three device lists is currently shown - "archived"/"trash" are opt-in views
-  // reached via their own header links, never mixed into the normal dashboard list/filters/stat
-  // tiles above (those always operate on "active" devices only).
-  const [viewMode, setViewMode] = useState<AccountCardContext>("active");
 
   // Defaults to "not the Android app" (matches server render) and only reflects reality after
   // mount, to avoid a hydration mismatch - same pattern as AccountCard's own isAndroidApp state.
@@ -649,30 +656,6 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
           </Link>
         </div>
       </header>
-
-      <div className="view-mode-row">
-        <button
-          type="button"
-          className={`view-mode-tab${viewMode === "active" ? " view-mode-tab-active" : ""}`}
-          onClick={() => setViewMode("active")}
-        >
-          الحسابات النشطة
-        </button>
-        <button
-          type="button"
-          className={`view-mode-tab${viewMode === "archived" ? " view-mode-tab-active" : ""}`}
-          onClick={() => setViewMode((v) => (v === "archived" ? "active" : "archived"))}
-        >
-          الأرشيف ({archivedAccounts.length})
-        </button>
-        <button
-          type="button"
-          className={`view-mode-tab${viewMode === "trash" ? " view-mode-tab-active" : ""}`}
-          onClick={() => setViewMode((v) => (v === "trash" ? "active" : "trash"))}
-        >
-          سلة المحذوفات ({trashAccounts.length})
-        </button>
-      </div>
 
       <section className="search-panel" aria-label="البحث في الحسابات">
         <span className="search-icon" aria-hidden="true">
