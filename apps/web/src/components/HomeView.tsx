@@ -853,6 +853,7 @@ export function HomeView({
         <LedgerDialog
           accountId={ledgerAccount.id}
           accountName={ledgerAccount.name}
+          accountEmail={ledgerAccount.expectedEmail || ledgerAccount.starlinkAccountEmail}
           entries={getAccountEntries(ledgerStore, ledgerAccount.id)}
           siblingDevices={
             ledgerAccount.clientId

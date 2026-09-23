@@ -52,6 +52,10 @@ export interface SiblingDevice {
 interface Props {
   accountId: string;
   accountName: string;
+  /** The device's own already-known email (AccountCard.tsx's identityEmail: expectedEmail ||
+   * starlinkAccountEmail), if any - prefills a new entry's own email field so the operator isn't
+   * forced to retype it every time; still a plain, freely-editable field, never locked to it. */
+  accountEmail?: string;
   entries: LedgerEntry[];
   /** Every OTHER device belonging to the same customer, if any - empty when this account has no
    * client or the client has only this one device. */
@@ -105,6 +109,7 @@ function formatMoney(amount: number, currency: LedgerCurrency): string {
 export function LedgerDialog({
   accountId,
   accountName,
+  accountEmail,
   entries,
   siblingDevices,
   currencyStore,
@@ -121,7 +126,9 @@ export function LedgerDialog({
   const [currency, setCurrency] = useState<LedgerCurrency>("MRU");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
-  const [email, setEmail] = useState("");
+  // Prefilled from the device's own already-known email when available - still a plain field the
+  // operator can freely clear or change per entry, never locked to it.
+  const [email, setEmail] = useState(accountEmail ?? "");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("nita");
   const [date, setDate] = useState(todayDateInputValue());
   const [formError, setFormError] = useState<string | null>(null);
@@ -355,7 +362,7 @@ export function LedgerDialog({
 
     setAmount("");
     setNote("");
-    setEmail("");
+    setEmail(accountEmail ?? "");
     setMarkD(false);
     setCostAmount("");
 
