@@ -72,9 +72,47 @@ const NEAR_EXPIRY_THRESHOLD_DAYS = 3;
 type DataState = "demo" | "loading" | "loaded" | "error";
 type DialogState = { mode: AccountDialogMode; account?: StarlinkAccountSummary } | null;
 
+/** Which dashboard summary card (see the "ملخص الحسابات" section) the account list is currently
+ * narrowed to - tapping a card sets this, tapping it again (or "مسح التصفية") clears it. Mutually
+ * exclusive with `selectedDay` (picking one clears the other, see toggleStatFilter) - both are
+ * ways of narrowing the SAME list, and combining them silently would be confusing rather than
+ * useful. `total` never appears as a value: tapping "كل الحسابات" is just `showAll`, not a real
+ * per-account filter. */
+type StatFilterKind = "online" | "expiringSoon" | "expired" | "suspended";
+
+const STAT_FILTER_TITLES: Record<StatFilterKind, string> = {
+  online: "الحسابات المتصلة الآن",
+  expiringSoon: "الحسابات القريبة من الانتهاء",
+  expired: "الحسابات المنتهية",
+  suspended: "الحسابات المتوقفة (فوترة)",
+};
+
+function matchesStatFilter(account: StarlinkAccountSummary, kind: StatFilterKind): boolean {
+  switch (kind) {
+    case "online":
+      return account.dishStatus === DeviceStatus.GREEN || account.wifiStatus === DeviceStatus.GREEN;
+    case "suspended":
+      return account.serviceStatus === "suspended";
+    case "expiringSoon": {
+      const days = daysRemainingNumber(account.rechargeDate || account.standbyDate);
+      return days !== null && days >= 0 && days <= NEAR_EXPIRY_THRESHOLD_DAYS;
+    }
+    case "expired": {
+      const days = daysRemainingNumber(account.rechargeDate || account.standbyDate);
+      return days !== null && days < 0;
+    }
+  }
+}
+
 export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccountSummary[] }) {
   const [query, setQuery] = useState("");
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [statFilter, setStatFilter] = useState<StatFilterKind | null>(null);
+
+  function toggleStatFilter(kind: StatFilterKind) {
+    setStatFilter((current) => (current === kind ? null : kind));
+    setSelectedDay(null);
+  }
   const [showAll, setShowAll] = useState(false);
   const [dialog, setDialog] = useState<DialogState>(null);
 
@@ -466,11 +504,13 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
     let online = 0;
     let expiringSoon = 0;
     let expired = 0;
+    let suspended = 0;
 
     for (const account of accounts) {
       if (account.dishStatus === DeviceStatus.GREEN || account.wifiStatus === DeviceStatus.GREEN) {
         online += 1;
       }
+      if (account.serviceStatus === "suspended") suspended += 1;
 
       const days = daysRemainingNumber(account.rechargeDate || account.standbyDate);
       if (days === null) continue;
@@ -478,7 +518,7 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
       else if (days <= NEAR_EXPIRY_THRESHOLD_DAYS) expiringSoon += 1;
     }
 
-    return { total: accounts.length, online, expiringSoon, expired };
+    return { total: accounts.length, online, expiringSoon, expired, suspended };
   }, [accounts]);
 
   const totalOwedByCustomers = useMemo(() => totalOwedAcrossAccounts(ledgerStore), [ledgerStore]);
@@ -487,6 +527,9 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
     let list = accounts;
     if (selectedDay !== null) {
       list = list.filter((a) => expiryDay(a.rechargeDate || a.standbyDate) === selectedDay);
+    }
+    if (statFilter) {
+      list = list.filter((a) => matchesStatFilter(a, statFilter));
     }
     const q = query.trim().toLowerCase();
     if (q) {
@@ -498,9 +541,9 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
       );
     }
     return list;
-  }, [accounts, selectedDay, query]);
+  }, [accounts, selectedDay, statFilter, query]);
 
-  const visible = showAll || query || selectedDay !== null ? filtered : expiredOrNearExpiry;
+  const visible = showAll || query || selectedDay !== null || statFilter !== null ? filtered : expiredOrNearExpiry;
 
   return (
     <main className="home app-shell">
@@ -582,26 +625,55 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
       </div>
 
       <section className="overview-grid" aria-label="ملخص الحسابات">
-        <article className="overview-card overview-total">
+        <button
+          type="button"
+          className="overview-card overview-total"
+          onClick={() => { setShowAll(true); setSelectedDay(null); setStatFilter(null); }}
+        >
           <span className="overview-icon" aria-hidden="true">◎</span>
           <span className="overview-value">{overview.total}</span>
           <span className="overview-label">كل الحسابات</span>
-        </article>
-        <article className="overview-card overview-online">
+        </button>
+        <button
+          type="button"
+          className={`overview-card overview-online${statFilter === "online" ? " overview-card-active" : ""}`}
+          aria-pressed={statFilter === "online"}
+          onClick={() => toggleStatFilter("online")}
+        >
           <span className="overview-icon" aria-hidden="true">●</span>
           <span className="overview-value">{overview.online}</span>
           <span className="overview-label">متصل الآن</span>
-        </article>
-        <article className="overview-card overview-warning">
+        </button>
+        <button
+          type="button"
+          className={`overview-card overview-warning${statFilter === "expiringSoon" ? " overview-card-active" : ""}`}
+          aria-pressed={statFilter === "expiringSoon"}
+          onClick={() => toggleStatFilter("expiringSoon")}
+        >
           <span className="overview-icon" aria-hidden="true">◷</span>
           <span className="overview-value">{overview.expiringSoon}</span>
           <span className="overview-label">قريب الانتهاء</span>
-        </article>
-        <article className="overview-card overview-expired">
+        </button>
+        <button
+          type="button"
+          className={`overview-card overview-expired${statFilter === "expired" ? " overview-card-active" : ""}`}
+          aria-pressed={statFilter === "expired"}
+          onClick={() => toggleStatFilter("expired")}
+        >
           <span className="overview-icon" aria-hidden="true">!</span>
           <span className="overview-value">{overview.expired}</span>
           <span className="overview-label">منتهي</span>
-        </article>
+        </button>
+        <button
+          type="button"
+          className={`overview-card overview-suspended${statFilter === "suspended" ? " overview-card-active" : ""}`}
+          aria-pressed={statFilter === "suspended"}
+          onClick={() => toggleStatFilter("suspended")}
+        >
+          <span className="overview-icon" aria-hidden="true">⛔</span>
+          <span className="overview-value">{overview.suspended}</span>
+          <span className="overview-label">متوقفين (فوترة)</span>
+        </button>
         {LEDGER_CURRENCIES.map((currency) => {
           const total = totalOwedByCustomers[currency];
           if (!total) return null;
@@ -625,21 +697,31 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
             <button className="clear-filter" onClick={() => setSelectedDay(null)}>إلغاء التصفية</button>
           )}
         </div>
-        <DayCircles counts={dayCounts} selectedDay={selectedDay} onSelectDay={setSelectedDay} />
+        <DayCircles
+          counts={dayCounts}
+          selectedDay={selectedDay}
+          onSelectDay={(day) => { setSelectedDay(day); setStatFilter(null); }}
+        />
       </section>
 
       <section className="section dashboard-section accounts-section">
         <div className="section-header-row">
           <div>
             <h2 className="section-title">
-              {showAll || query || selectedDay !== null ? "الحسابات" : "تحتاج إلى متابعة"}
+              {statFilter
+                ? STAT_FILTER_TITLES[statFilter]
+                : showAll || query || selectedDay !== null ? "الحسابات" : "تحتاج إلى متابعة"}
             </h2>
             <p className="section-caption">{visible.length} حساب</p>
           </div>
-          {!query && selectedDay === null && (
-            <button className="text-action" onClick={() => setShowAll((v) => !v)}>
-              {showAll ? "عرض المنتهية فقط" : "عرض كل الحسابات"}
-            </button>
+          {statFilter ? (
+            <button className="text-action" onClick={() => setStatFilter(null)}>مسح التصفية</button>
+          ) : (
+            !query && selectedDay === null && (
+              <button className="text-action" onClick={() => setShowAll((v) => !v)}>
+                {showAll ? "عرض المنتهية فقط" : "عرض كل الحسابات"}
+              </button>
+            )
           )}
         </div>
 

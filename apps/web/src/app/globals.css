@@ -871,6 +871,22 @@ a.btn-icon {
   box-shadow: 0 7px 22px rgba(21, 31, 44, 0.045);
 }
 
+button.overview-card {
+  font-family: inherit;
+  text-align: inherit;
+  cursor: pointer;
+  width: 100%;
+}
+
+button.overview-card:active {
+  transform: scale(0.98);
+}
+
+.overview-card-active {
+  border-color: currentColor;
+  box-shadow: 0 0 0 2px currentColor, 0 7px 22px rgba(21, 31, 44, 0.045);
+}
+
 .overview-card::after {
   content: "";
   position: absolute;
@@ -908,14 +924,17 @@ a.btn-icon {
 .overview-label {
   margin-top: 6px;
   color: var(--text-muted);
-  font-size: 0.7rem;
+  font-size: 0.6rem;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .overview-total { color: var(--brand); }
 .overview-online { color: var(--green); }
 .overview-warning { color: var(--yellow); }
 .overview-expired { color: var(--red); }
+.overview-suspended { color: var(--red); }
 .overview-owed { color: var(--red); }
 
 .dashboard-section {
