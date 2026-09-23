@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  computeClientStoreBalance,
   computeStock,
+  computeSupplierStoreBalance,
   createInvoice,
   Invoice,
   invoiceBalanceDue,
@@ -290,5 +292,60 @@ describe("listReturnsForInvoice / returnedQuantityForLine", () => {
     expect(listReturnsForInvoice(invoices, "orig").map((i) => i.id).sort()).toEqual(["ret1", "ret2"]);
     expect(returnedQuantityForLine(invoices, "orig", "a")).toBe(3);
     expect(returnedQuantityForLine(invoices, "orig", "other-item")).toBe(0);
+  });
+});
+
+describe("computeClientStoreBalance", () => {
+  it("is empty for a client with no invoices", () => {
+    expect(computeClientStoreBalance([], "c1")).toEqual({});
+  });
+
+  it("sums the unpaid balance of the client's own sale invoices, grouped by currency", () => {
+    const invoices: InvoiceList = [
+      invoice({ id: "1", clientId: "c1", currencyCode: "MRU", paidAmount: 0 }), // total 200, due 200
+      invoice({
+        id: "2",
+        clientId: "c1",
+        currencyCode: "USD",
+        lines: [{ itemId: "a", quantity: 1, unitPrice: 50, transactionId: "t9" }],
+        paidAmount: 20,
+      }), // total 50, due 30
+      invoice({ id: "3", clientId: "c2" }), // a different client - must not count
+    ];
+    expect(computeClientStoreBalance(invoices, "c1")).toEqual({ MRU: 200, USD: 30 });
+  });
+
+  it("subtracts a return's full value from what the client owes", () => {
+    const invoices: InvoiceList = [
+      invoice({ id: "orig", clientId: "c1", currencyCode: "MRU", paidAmount: 0 }), // total 200, due 200
+      invoice({
+        id: "ret",
+        clientId: undefined,
+        currencyCode: "MRU",
+        returnOfInvoiceId: "orig",
+        lines: [{ itemId: "a", quantity: 1, unitPrice: 100, transactionId: "t9" }],
+      }), // return total 100
+    ];
+    expect(computeClientStoreBalance(invoices, "c1")).toEqual({ MRU: 100 });
+  });
+
+  it("ignores a return invoice itself when summing (only counts via its original)", () => {
+    const invoices: InvoiceList = [
+      invoice({ id: "orig", clientId: "c1", currencyCode: "MRU" }),
+      invoice({ id: "ret", clientId: "c1", currencyCode: "MRU", returnOfInvoiceId: "orig" }),
+    ];
+    // The return's own balance must not be added again as if it were a normal sale.
+    const result = computeClientStoreBalance(invoices, "c1");
+    expect(result.MRU).toBe(0); // 200 (orig) - 200 (return subtracted) = 0
+  });
+});
+
+describe("computeSupplierStoreBalance", () => {
+  it("sums the unpaid balance of the supplier's own purchase invoices, grouped by currency", () => {
+    const invoices: InvoiceList = [
+      invoice({ id: "1", kind: "purchase", clientId: undefined, supplierId: "s1", currencyCode: "MRU", paidAmount: 50 }), // total 200, due 150
+      invoice({ id: "2", kind: "purchase", clientId: undefined, supplierId: "s2", currencyCode: "MRU" }), // different supplier
+    ];
+    expect(computeSupplierStoreBalance(invoices, "s1")).toEqual({ MRU: 150 });
   });
 });

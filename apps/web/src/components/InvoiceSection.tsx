@@ -46,7 +46,7 @@ interface Props {
   supplierStore: SupplierStore;
   onCreateClient: (input: CreateClientInput) => Client;
   onCreateSupplier: (input: CreateSupplierInput) => Supplier;
-  onChange: (result: { invoices: InvoiceList; transactions: StoreTransactionList }) => void;
+  onChange: (result: { invoices: InvoiceList; transactions: StoreTransactionList; invoice: Invoice }) => void;
 }
 
 /** بطاقة المنتج والفواتير's own "الفواتير" half - sale/purchase invoices built on top of
@@ -87,7 +87,7 @@ export function InvoiceSection({
     setReturningInvoice(null);
   }
 
-  function submit(result: { invoices: InvoiceList; transactions: StoreTransactionList }) {
+  function submit(result: { invoices: InvoiceList; transactions: StoreTransactionList; invoice: Invoice }) {
     onChange(result);
     closeForms();
   }
@@ -122,7 +122,7 @@ export function InvoiceSection({
               onCancel={closeForms}
               onSubmit={(input) => {
                 const result = createInvoice(invoices, transactions, input);
-                if (result.ok) submit({ invoices: result.invoices, transactions: result.transactions });
+                if (result.ok) submit({ invoices: result.invoices, transactions: result.transactions, invoice: result.invoice });
                 return result;
               }}
             />
@@ -136,7 +136,7 @@ export function InvoiceSection({
               onCancel={closeForms}
               onSubmit={(input) => {
                 const result = createInvoice(invoices, transactions, input);
-                if (result.ok) submit({ invoices: result.invoices, transactions: result.transactions });
+                if (result.ok) submit({ invoices: result.invoices, transactions: result.transactions, invoice: result.invoice });
                 return result;
               }}
             />

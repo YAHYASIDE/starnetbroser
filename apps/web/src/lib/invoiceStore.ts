@@ -222,6 +222,40 @@ export function listReturnsForInvoice(invoices: InvoiceList, invoiceId: string):
   return listInvoices(invoices.filter((inv) => inv.returnOfInvoiceId === invoiceId));
 }
 
+/** How much a client currently owes from store sales, grouped by currency (positive = they owe
+ * us) - every one of their own (non-return) sale invoices' still-unpaid balance, minus the full
+ * value of any return filed against one of those invoices (a return forgives that much debt
+ * outright; this app doesn't model a separate cash refund for it, so the return's own paidAmount
+ * is deliberately never read here). Never mixes currencies - a MRU invoice and a USD invoice for
+ * the same client are two separate figures, exactly like ledgerStore.ts's own per-currency
+ * balances. Entirely separate from ledgerStore.ts's own per-device Starlink balance too - a
+ * different business (retail goods, not the subscription service). */
+export function computeClientStoreBalance(invoices: InvoiceList, clientId: string): Record<string, number> {
+  const own = invoices.filter((inv) => inv.kind === "sale" && !inv.returnOfInvoiceId && inv.clientId === clientId);
+  const balance: Record<string, number> = {};
+  for (const inv of own) {
+    balance[inv.currencyCode] = (balance[inv.currencyCode] ?? 0) + invoiceBalanceDue(inv);
+    for (const ret of listReturnsForInvoice(invoices, inv.id)) {
+      balance[ret.currencyCode] = (balance[ret.currencyCode] ?? 0) - invoiceTotal(ret);
+    }
+  }
+  return balance;
+}
+
+/** The mirror of computeClientStoreBalance for a supplier - how much WE still owe them (positive
+ * = we owe them), grouped by currency, from purchase invoices minus anything returned to them. */
+export function computeSupplierStoreBalance(invoices: InvoiceList, supplierId: string): Record<string, number> {
+  const own = invoices.filter((inv) => inv.kind === "purchase" && !inv.returnOfInvoiceId && inv.supplierId === supplierId);
+  const balance: Record<string, number> = {};
+  for (const inv of own) {
+    balance[inv.currencyCode] = (balance[inv.currencyCode] ?? 0) + invoiceBalanceDue(inv);
+    for (const ret of listReturnsForInvoice(invoices, inv.id)) {
+      balance[ret.currencyCode] = (balance[ret.currencyCode] ?? 0) - invoiceTotal(ret);
+    }
+  }
+  return balance;
+}
+
 /** Total quantity of one item already returned against an invoice - used to cap how much more of
  * that line can still be returned. */
 export function returnedQuantityForLine(invoices: InvoiceList, invoiceId: string, itemId: string): number {

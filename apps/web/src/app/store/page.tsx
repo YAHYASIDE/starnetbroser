@@ -38,7 +38,11 @@ import { resizeImageToDataUrl } from "@/lib/imageUtils";
 import { formatAmount } from "@/lib/formatAmount";
 import { ClientPicker } from "@/components/ClientPicker";
 import { InvoiceSection } from "@/components/InvoiceSection";
-import { InvoiceList, loadInvoices, saveInvoices } from "@/lib/invoiceStore";
+import { AccountsSection } from "@/components/AccountsSection";
+import { CashRegisterSection } from "@/components/CashRegisterSection";
+import { StoreReportsSection } from "@/components/StoreReportsSection";
+import { Invoice, InvoiceList, loadInvoices, saveInvoices } from "@/lib/invoiceStore";
+import { CashEntryList, loadCashEntries, recordCashEntry, saveCashEntries } from "@/lib/cashStore";
 import {
   createSupplier,
   CreateSupplierInput,
@@ -63,6 +67,7 @@ export default function StorePage() {
   const [clientStore, setClientStore] = useState<ClientStore>({});
   const [invoices, setInvoices] = useState<InvoiceList>([]);
   const [supplierStore, setSupplierStore] = useState<SupplierStore>({});
+  const [cashEntries, setCashEntries] = useState<CashEntryList>([]);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [pendingKind, setPendingKind] = useState<StoreTransactionKind>("buy");
   const [showAddItem, setShowAddItem] = useState(false);
@@ -74,6 +79,7 @@ export default function StorePage() {
     setClientStore(loadClientStore());
     setInvoices(loadInvoices());
     setSupplierStore(loadSupplierStore());
+    setCashEntries(loadCashEntries());
   }, []);
 
   const itemList = useMemo(() => listStoreItems(items), [items]);
@@ -324,10 +330,42 @@ export default function StorePage() {
           saveInvoices(result.invoices);
           setTransactions(result.transactions);
           saveStoreTransactions(result.transactions);
+          postInvoiceCashEntry(result.invoice);
         }}
       />
+
+      <AccountsSection clients={clients} suppliers={suppliers} invoices={invoices} />
+
+      <CashRegisterSection
+        entries={cashEntries}
+        onChange={(next) => {
+          setCashEntries(next);
+          saveCashEntries(next);
+        }}
+      />
+
+      <StoreReportsSection transactions={transactions} invoices={invoices} cashEntries={cashEntries} />
     </main>
   );
+
+  /** Every invoice with a positive paidAmount also moves real cash, so it's mirrored into
+   * الصندوق automatically (invoiceId set, so it's never double-counted as a standalone expense -
+   * see cashStore.ts's listStandaloneCashEntries) rather than making the operator re-enter the
+   * same amount by hand in two places. */
+  function postInvoiceCashEntry(invoice: Invoice) {
+    if (invoice.paidAmount <= 0) return;
+    const result = recordCashEntry(cashEntries, {
+      kind: invoice.kind === "sale" ? "in" : "out",
+      amount: invoice.paidAmount,
+      currencyCode: invoice.currencyCode,
+      date: invoice.date,
+      category: invoice.kind === "sale" ? "فاتورة بيع" : "فاتورة شراء",
+      invoiceId: invoice.id,
+    });
+    if (!result.ok) return;
+    setCashEntries(result.entries);
+    saveCashEntries(result.entries);
+  }
 }
 
 interface ItemFormProps {
