@@ -387,7 +387,7 @@ export function AccountCard({
             const balance = ledgerBalances[c];
             if (!balance) return null;
             return balance > 0 ? (
-              <span key={c} className="badge badge-red">الزبون: {formatAmount(balance)} {LEDGER_CURRENCY_LABELS[c]}</span>
+              <span key={c} className="badge badge-red">{formatAmount(balance)} {LEDGER_CURRENCY_LABELS[c]}</span>
             ) : (
               <span key={c} className="badge badge-green">للزبون: {formatAmount(-balance)} {LEDGER_CURRENCY_LABELS[c]}</span>
             );
@@ -396,6 +396,11 @@ export function AccountCard({
         <span className="account-card-recharge-pill" dir="ltr">
           <span aria-hidden="true">📅</span> {account.rechargeDate || account.standbyDate || "—"}
         </span>
+        {identityEmail && (
+          <span className="account-card-recharge-pill" dir="ltr">
+            <IconEnvelope /> {identityEmail}
+          </span>
+        )}
       </div>
 
       <div className="account-card-mini-row">
