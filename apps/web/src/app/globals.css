@@ -2831,6 +2831,85 @@ button.overview-card:active {
   color: var(--text-muted);
 }
 
+.store-item-code {
+  margin-inline-start: 6px;
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.store-item-low-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--red);
+}
+
+.store-item-image {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  object-fit: cover;
+}
+
+.store-summary-tile-warning {
+  background: color-mix(in srgb, var(--red) 14%, var(--surface));
+}
+
+.store-summary-tile-warning .store-summary-value {
+  color: var(--red);
+}
+
+.store-item-form {
+  gap: 10px;
+}
+
+.store-item-form-row {
+  display: flex;
+  gap: 8px;
+}
+
+/* .auth-form .search-input (flex: none; width: 100%;) is written for its usual single-column,
+   full-width stacked fields - it has the same specificity as this rule and comes first in the
+   file, so without a matching, later-declared override here, a two-column row like this one
+   would try to lay out each input at 100% of the ROW's own width side by side, overflowing the
+   row (and the page) rather than sharing it. */
+.store-item-form-row > .search-input {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+}
+
+.store-item-form-image-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.store-item-form-image-preview {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.store-item-form-image-placeholder {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  flex-shrink: 0;
+}
+
+.store-item-form-image-btn {
+  cursor: pointer;
+}
+
 .store-item-quick-actions {
   display: flex;
   gap: 8px;
@@ -2863,6 +2942,12 @@ button.overview-card:active {
 .store-quick-sell {
   color: var(--green);
   border-color: color-mix(in srgb, var(--green) 50%, var(--border));
+}
+
+.store-quick-edit {
+  color: var(--text-muted);
+  flex: 0 0 auto;
+  padding: 7px 14px;
 }
 
 .store-item-panel {

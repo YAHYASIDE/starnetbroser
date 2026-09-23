@@ -16,8 +16,10 @@ import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerCurrency } from "@/lib
 import {
   computeInventoryValueByCurrency,
   computeStockByItem,
+  CreateStoreItemInput,
   createStoreItem,
   deleteStoreTransaction,
+  isLowStock,
   lastTransactionForItem,
   listStoreItems,
   listTransactionsForItem,
@@ -30,7 +32,9 @@ import {
   StoreItemRegistry,
   StoreTransactionKind,
   StoreTransactionList,
+  updateStoreItem,
 } from "@/lib/storeStore";
+import { resizeImageToDataUrl } from "@/lib/imageUtils";
 import { formatAmount } from "@/lib/formatAmount";
 import { ClientPicker } from "@/components/ClientPicker";
 
@@ -49,8 +53,7 @@ export default function StorePage() {
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [pendingKind, setPendingKind] = useState<StoreTransactionKind>("buy");
   const [showAddItem, setShowAddItem] = useState(false);
-  const [newItemName, setNewItemName] = useState("");
-  const [newItemUnit, setNewItemUnit] = useState("");
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
 
   useEffect(() => {
     setItems(loadStoreItems());
@@ -63,6 +66,10 @@ export default function StorePage() {
   const clients = useMemo(() => listClients(clientStore), [clientStore]);
   const inventoryValue = useMemo(() => computeInventoryValueByCurrency(items, transactions), [items, transactions]);
   const inventoryValueCurrencies = Object.keys(inventoryValue);
+  const lowStockCount = useMemo(
+    () => itemList.filter((item) => isLowStock(item, stockByItem[item.id] ?? 0)).length,
+    [itemList, stockByItem],
+  );
 
   function handleCreateClient(input: CreateClientInput): Client {
     const result = createClient(clientStore, input);
@@ -71,21 +78,25 @@ export default function StorePage() {
     return result.client;
   }
 
-  function submitNewItem(event: FormEvent) {
-    event.preventDefault();
-    if (!newItemName.trim()) return;
-    const result = createStoreItem(items, { name: newItemName, unit: newItemUnit || undefined });
+  function submitNewItem(input: CreateStoreItemInput) {
+    const result = createStoreItem(items, input);
     setItems(result.items);
     saveStoreItems(result.items);
-    setNewItemName("");
-    setNewItemUnit("");
     setShowAddItem(false);
     openItem(result.item.id, "buy");
+  }
+
+  function submitEditItem(itemId: string, input: CreateStoreItemInput) {
+    const next = updateStoreItem(items, itemId, input);
+    setItems(next);
+    saveStoreItems(next);
+    setEditingItemId(null);
   }
 
   /** Opens (or re-opens with a different preset kind) one item's buy/sell panel - used both by
    * tapping the row itself (defaults to "buy") and by the row's own quick شراء/بيع buttons. */
   function openItem(itemId: string, kind: StoreTransactionKind) {
+    setEditingItemId(null);
     setSelectedItemId(itemId);
     setPendingKind(kind);
   }
@@ -128,37 +139,31 @@ export default function StorePage() {
                 </div>
               )}
             </div>
+            {lowStockCount > 0 && (
+              <div className="store-summary-tile store-summary-tile-warning">
+                <span className="store-summary-label">تنبيه نفاد</span>
+                <strong className="store-summary-value">{lowStockCount}</strong>
+              </div>
+            )}
           </div>
         )}
 
         <div className="store-items-header">
           <h2 className="section-title">المواد</h2>
-          <button type="button" className="btn-icon" onClick={() => setShowAddItem((v) => !v)}>
+          <button
+            type="button"
+            className="btn-icon"
+            onClick={() => {
+              setEditingItemId(null);
+              setShowAddItem((v) => !v);
+            }}
+          >
             {showAddItem ? "إلغاء" : "+ إضافة مادة"}
           </button>
         </div>
 
         {showAddItem && (
-          <form className="auth-form" onSubmit={submitNewItem}>
-            <input
-              className="search-input"
-              placeholder="اسم المادة *"
-              value={newItemName}
-              onChange={(e) => setNewItemName(e.target.value)}
-              autoFocus
-            />
-            <input
-              className="search-input"
-              placeholder="الوحدة (اختياري - افتراضيًا قطعة)"
-              value={newItemUnit}
-              onChange={(e) => setNewItemUnit(e.target.value)}
-            />
-            <div className="settings-actions">
-              <button className="btn-icon" type="submit" disabled={!newItemName.trim()}>
-                حفظ المادة
-              </button>
-            </div>
-          </form>
+          <ItemForm onSubmit={submitNewItem} onCancel={() => setShowAddItem(false)} />
         )}
 
         {itemList.length === 0 && !showAddItem && (
@@ -169,23 +174,41 @@ export default function StorePage() {
           {itemList.map((item) => {
             const stock = stockByItem[item.id] ?? 0;
             const isOpen = selectedItemId === item.id;
+            const isEditing = editingItemId === item.id;
             const lastTxn = lastTransactionForItem(transactions, item.id);
             const value = lastTxn ? stock * lastTxn.unitPrice : undefined;
+            const lowStock = isLowStock(item, stock);
             return (
               <li key={item.id}>
-                <div className={`store-item-card${isOpen ? " store-item-card-active" : ""}`}>
+                <div className={`store-item-card${isOpen || isEditing ? " store-item-card-active" : ""}`}>
                   <button
                     type="button"
                     className="store-item-row"
                     onClick={() => toggleItem(item.id)}
                     aria-expanded={isOpen}
                   >
-                    <span className="store-item-icon" aria-hidden="true">📦</span>
+                    {item.imageDataUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={item.imageDataUrl} alt="" className="store-item-image" />
+                    ) : (
+                      <span className="store-item-icon" aria-hidden="true">📦</span>
+                    )}
                     <span className="store-item-main">
-                      <span className="store-item-name">{item.name}</span>
+                      <span className="store-item-name">
+                        {item.name}
+                        {item.code && (
+                          <span className="store-item-code" dir="ltr">
+                            {item.code}
+                          </span>
+                        )}
+                      </span>
                       {lastTxn ? (
                         <span className="store-item-price" dir="ltr">
                           آخر سعر: {formatAmount(lastTxn.unitPrice)} {currencyLabel(lastTxn.currencyCode)}
+                        </span>
+                      ) : item.defaultSalePrice !== undefined ? (
+                        <span className="store-item-price" dir="ltr">
+                          سعر مقترح: {formatAmount(item.defaultSalePrice)} {currencyLabel(item.defaultSaleCurrencyCode ?? "MRU")}
                         </span>
                       ) : (
                         <span className="store-item-price">لا توجد حركات بعد</span>
@@ -195,6 +218,7 @@ export default function StorePage() {
                       <span className={`store-item-stock${stock <= 0 ? " store-item-stock-empty" : ""}`} dir="ltr">
                         {formatAmount(stock)} {item.unit}
                       </span>
+                      {lowStock && <span className="store-item-low-badge">⚠️ قارب على النفاد</span>}
                       {value !== undefined && value > 0 && (
                         <span className="store-item-value" dir="ltr">
                           {formatAmount(value)} {currencyLabel(lastTxn!.currencyCode)}
@@ -218,7 +242,26 @@ export default function StorePage() {
                     >
                       + بيع
                     </button>
+                    <button
+                      type="button"
+                      className="store-quick-btn store-quick-edit"
+                      onClick={() => {
+                        setSelectedItemId(null);
+                        setEditingItemId(isEditing ? null : item.id);
+                      }}
+                    >
+                      {isEditing ? "إلغاء" : "تعديل"}
+                    </button>
                   </div>
+                  {isEditing && (
+                    <div className="store-item-panel">
+                      <ItemForm
+                        initial={item}
+                        onSubmit={(input) => submitEditItem(item.id, input)}
+                        onCancel={() => setEditingItemId(null)}
+                      />
+                    </div>
+                  )}
                   {isOpen && (
                     <StoreItemPanel
                       key={`${item.id}-${pendingKind}`}
@@ -245,6 +288,178 @@ export default function StorePage() {
   );
 }
 
+interface ItemFormProps {
+  initial?: StoreItem;
+  onSubmit: (input: CreateStoreItemInput) => void;
+  onCancel: () => void;
+}
+
+/** The add/edit form for one item's own record - name, code, photo, default buy/sell prices, and
+ * a low-stock threshold. Shared between "+ إضافة مادة" and an item's own "تعديل" action, since both
+ * edit the exact same fields. */
+function ItemForm({ initial, onSubmit, onCancel }: ItemFormProps) {
+  const [name, setName] = useState(initial?.name ?? "");
+  const [unit, setUnit] = useState(initial?.unit ?? "");
+  const [code, setCode] = useState(initial?.code ?? "");
+  const [imageDataUrl, setImageDataUrl] = useState<string | undefined>(initial?.imageDataUrl);
+  const [imageBusy, setImageBusy] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [purchasePrice, setPurchasePrice] = useState(
+    initial?.defaultPurchasePrice !== undefined ? String(initial.defaultPurchasePrice) : "",
+  );
+  const [purchaseCurrency, setPurchaseCurrency] = useState<LedgerCurrency>(
+    (initial?.defaultPurchaseCurrencyCode as LedgerCurrency | undefined) ?? "MRU",
+  );
+  const [salePrice, setSalePrice] = useState(
+    initial?.defaultSalePrice !== undefined ? String(initial.defaultSalePrice) : "",
+  );
+  const [saleCurrency, setSaleCurrency] = useState<LedgerCurrency>(
+    (initial?.defaultSaleCurrencyCode as LedgerCurrency | undefined) ?? "MRU",
+  );
+  const [threshold, setThreshold] = useState(
+    initial?.lowStockThreshold !== undefined ? String(initial.lowStockThreshold) : "",
+  );
+
+  async function handleImagePick(file: File | undefined) {
+    if (!file) return;
+    setImageError(null);
+    setImageBusy(true);
+    try {
+      setImageDataUrl(await resizeImageToDataUrl(file));
+    } catch {
+      setImageError("تعذر معالجة الصورة - جرّب صورة أخرى");
+    } finally {
+      setImageBusy(false);
+    }
+  }
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!name.trim()) return;
+    onSubmit({
+      name,
+      unit: unit || undefined,
+      code: code || undefined,
+      imageDataUrl,
+      defaultPurchasePrice: purchasePrice ? Number(purchasePrice) : undefined,
+      defaultPurchaseCurrencyCode: purchasePrice ? purchaseCurrency : undefined,
+      defaultSalePrice: salePrice ? Number(salePrice) : undefined,
+      defaultSaleCurrencyCode: salePrice ? saleCurrency : undefined,
+      lowStockThreshold: threshold ? Number(threshold) : undefined,
+    });
+  }
+
+  return (
+    <form className="auth-form store-item-form" onSubmit={submit}>
+      <div className="store-item-form-image-row">
+        {imageDataUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={imageDataUrl} alt="" className="store-item-form-image-preview" />
+        ) : (
+          <span className="store-item-form-image-placeholder" aria-hidden="true">📦</span>
+        )}
+        <label className="btn-icon store-item-form-image-btn">
+          {imageBusy ? "جارِ المعالجة…" : imageDataUrl ? "تغيير الصورة" : "إضافة صورة"}
+          <input
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={(e) => handleImagePick(e.target.files?.[0])}
+          />
+        </label>
+        {imageDataUrl && (
+          <button type="button" className="text-action" onClick={() => setImageDataUrl(undefined)}>
+            إزالة
+          </button>
+        )}
+      </div>
+      {imageError && <div className="account-card-alert">{imageError}</div>}
+
+      <input
+        className="search-input"
+        placeholder="اسم المادة *"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        autoFocus
+      />
+      <div className="store-item-form-row">
+        <input
+          className="search-input"
+          placeholder="الوحدة (افتراضيًا قطعة)"
+          value={unit}
+          onChange={(e) => setUnit(e.target.value)}
+        />
+        <input
+          className="search-input"
+          placeholder="الكود (اختياري)"
+          dir="ltr"
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+        />
+      </div>
+
+      <div className="store-item-form-row">
+        <input
+          className="search-input"
+          type="number"
+          min="0"
+          step="0.01"
+          dir="ltr"
+          placeholder="سعر الشراء الافتراضي"
+          value={purchasePrice}
+          onChange={(e) => setPurchasePrice(e.target.value)}
+        />
+        <select className="search-input" value={purchaseCurrency} onChange={(e) => setPurchaseCurrency(e.target.value as LedgerCurrency)}>
+          {LEDGER_CURRENCIES.map((c) => (
+            <option key={c} value={c}>
+              {LEDGER_CURRENCY_LABELS[c]}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="store-item-form-row">
+        <input
+          className="search-input"
+          type="number"
+          min="0"
+          step="0.01"
+          dir="ltr"
+          placeholder="سعر البيع الافتراضي"
+          value={salePrice}
+          onChange={(e) => setSalePrice(e.target.value)}
+        />
+        <select className="search-input" value={saleCurrency} onChange={(e) => setSaleCurrency(e.target.value as LedgerCurrency)}>
+          {LEDGER_CURRENCIES.map((c) => (
+            <option key={c} value={c}>
+              {LEDGER_CURRENCY_LABELS[c]}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <input
+        className="search-input"
+        type="number"
+        min="0"
+        step="1"
+        dir="ltr"
+        placeholder="تنبيه عند اقتراب النفاد (الكمية)"
+        value={threshold}
+        onChange={(e) => setThreshold(e.target.value)}
+      />
+
+      <div className="settings-actions">
+        <button className="btn-icon" type="submit" disabled={!name.trim() || imageBusy}>
+          حفظ المادة
+        </button>
+        <button type="button" className="text-action" onClick={onCancel}>
+          إلغاء
+        </button>
+      </div>
+    </form>
+  );
+}
+
 interface PanelProps {
   item: StoreItem;
   stock: number;
@@ -261,9 +476,18 @@ interface PanelProps {
  * item, its current stock, and what to do next all in one place). */
 function StoreItemPanel({ item, stock, initialKind, transactions, clients, clientStore, onCreateClient, onChange }: PanelProps) {
   const [kind, setKind] = useState<StoreTransactionKind>(initialKind);
+  // Pre-filled from the item's own default buy/sell price when it has one - still a plain form
+  // field the operator can freely change before saving; the transaction never reads the item's
+  // default again once submitted.
   const [quantity, setQuantity] = useState("");
-  const [unitPrice, setUnitPrice] = useState("");
-  const [currencyCode, setCurrencyCode] = useState<LedgerCurrency>("MRU");
+  const [unitPrice, setUnitPrice] = useState(() => {
+    const def = initialKind === "buy" ? item.defaultPurchasePrice : item.defaultSalePrice;
+    return def !== undefined ? String(def) : "";
+  });
+  const [currencyCode, setCurrencyCode] = useState<LedgerCurrency>(() => {
+    const def = initialKind === "buy" ? item.defaultPurchaseCurrencyCode : item.defaultSaleCurrencyCode;
+    return (def as LedgerCurrency | undefined) ?? "MRU";
+  });
   const [date, setDate] = useState(todayDateInputValue());
   const [note, setNote] = useState("");
   const [linkClient, setLinkClient] = useState(false);

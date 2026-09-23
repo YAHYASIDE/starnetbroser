@@ -12,6 +12,22 @@ export interface StoreItem {
   name: string;
   /** Free-text unit label, e.g. "قطعة" or "علبة" - defaults to "قطعة" when not given. */
   unit: string;
+  /** Optional SKU/product code, entered manually for now (camera/barcode lookup is a later
+   * addition) - shown on the item card and searchable, but never required. */
+  code?: string;
+  /** A small pre-resized JPEG data URL (see imageUtils.ts) - stored directly on the item record
+   * since this app has no image-upload backend of its own. */
+  imageDataUrl?: string;
+  /** Suggested starting price/currency for a NEW buy or sell transaction on this item - purely a
+   * form-prefill convenience, copied in but always editable. Never itself read for accounting:
+   * every recorded transaction keeps its own locked price regardless of this default. */
+  defaultPurchasePrice?: number;
+  defaultPurchaseCurrencyCode?: string;
+  defaultSalePrice?: number;
+  defaultSaleCurrencyCode?: string;
+  /** Remaining quantity at or below this number triggers the "low stock" badge - undefined means
+   * no alert is configured for this item (never a guessed default). */
+  lowStockThreshold?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -104,6 +120,27 @@ export function listStoreItems(items: StoreItemRegistry): StoreItem[] {
 export interface CreateStoreItemInput {
   name: string;
   unit?: string;
+  code?: string;
+  imageDataUrl?: string;
+  defaultPurchasePrice?: number;
+  defaultPurchaseCurrencyCode?: string;
+  defaultSalePrice?: number;
+  defaultSaleCurrencyCode?: string;
+  lowStockThreshold?: number;
+}
+
+function buildItemFields(input: CreateStoreItemInput): Omit<StoreItem, "id" | "createdAt" | "updatedAt"> {
+  return {
+    name: input.name.trim(),
+    unit: input.unit?.trim() || DEFAULT_UNIT,
+    code: input.code?.trim() || undefined,
+    imageDataUrl: input.imageDataUrl || undefined,
+    defaultPurchasePrice: input.defaultPurchasePrice,
+    defaultPurchaseCurrencyCode: input.defaultPurchaseCurrencyCode,
+    defaultSalePrice: input.defaultSalePrice,
+    defaultSaleCurrencyCode: input.defaultSaleCurrencyCode,
+    lowStockThreshold: input.lowStockThreshold,
+  };
 }
 
 export function createStoreItem(
@@ -112,19 +149,32 @@ export function createStoreItem(
 ): { items: StoreItemRegistry; item: StoreItem } {
   const id = newId("store-item");
   const now = nowIso();
-  const item: StoreItem = {
-    id,
-    name: input.name.trim(),
-    unit: input.unit?.trim() || DEFAULT_UNIT,
-    createdAt: now,
-    updatedAt: now,
-  };
+  const item: StoreItem = { id, createdAt: now, updatedAt: now, ...buildItemFields(input) };
   return { items: { ...items, [id]: item }, item };
+}
+
+/** Edits an existing item's own fields (name, code, image, default prices, low-stock threshold) -
+ * never touches its transaction history, so stock/value stay computed exactly as before. */
+export function updateStoreItem(
+  items: StoreItemRegistry,
+  itemId: string,
+  patch: CreateStoreItemInput,
+): StoreItemRegistry {
+  const existing = items[itemId];
+  if (!existing) return items;
+  const updated: StoreItem = { ...existing, ...buildItemFields(patch), updatedAt: nowIso() };
+  return { ...items, [itemId]: updated };
 }
 
 export function deleteStoreItem(items: StoreItemRegistry, itemId: string): StoreItemRegistry {
   const { [itemId]: _removed, ...rest } = items;
   return rest;
+}
+
+/** True once remaining stock has dropped to or below the item's own configured threshold - always
+ * false when no threshold was set (never a guessed default like "warn under 5"). */
+export function isLowStock(item: StoreItem, stock: number): boolean {
+  return item.lowStockThreshold !== undefined && stock <= item.lowStockThreshold;
 }
 
 /** Current remaining quantity for one item - sum of every "buy" minus sum of every "sell"

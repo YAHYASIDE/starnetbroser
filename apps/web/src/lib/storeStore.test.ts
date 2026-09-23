@@ -7,6 +7,7 @@ import {
   deleteStoreItem,
   deleteStoreTransaction,
   getStoreItem,
+  isLowStock,
   lastTransactionForItem,
   listStoreItems,
   listTransactionsForClient,
@@ -14,6 +15,7 @@ import {
   recordStoreTransaction,
   StoreItemRegistry,
   StoreTransactionList,
+  updateStoreItem,
 } from "./storeStore";
 
 function makeItems(...names: string[]): { items: StoreItemRegistry; ids: string[] } {
@@ -39,6 +41,76 @@ describe("createStoreItem", () => {
   it("keeps a custom unit when given", () => {
     const { item } = createStoreItem({}, { name: "كابل", unit: "متر" });
     expect(item.unit).toBe("متر");
+  });
+
+  it("stores code, image, default prices and low-stock threshold when given", () => {
+    const { item } = createStoreItem(
+      {},
+      {
+        name: "راوتر",
+        code: "RT-001",
+        imageDataUrl: "data:image/jpeg;base64,abc",
+        defaultPurchasePrice: 8000,
+        defaultPurchaseCurrencyCode: "MRU",
+        defaultSalePrice: 9500,
+        defaultSaleCurrencyCode: "MRU",
+        lowStockThreshold: 3,
+      },
+    );
+    expect(item.code).toBe("RT-001");
+    expect(item.imageDataUrl).toBe("data:image/jpeg;base64,abc");
+    expect(item.defaultPurchasePrice).toBe(8000);
+    expect(item.defaultPurchaseCurrencyCode).toBe("MRU");
+    expect(item.defaultSalePrice).toBe(9500);
+    expect(item.defaultSaleCurrencyCode).toBe("MRU");
+    expect(item.lowStockThreshold).toBe(3);
+  });
+
+  it("leaves optional fields undefined when not given", () => {
+    const { item } = createStoreItem({}, { name: "بسيط" });
+    expect(item.code).toBeUndefined();
+    expect(item.imageDataUrl).toBeUndefined();
+    expect(item.lowStockThreshold).toBeUndefined();
+  });
+});
+
+describe("updateStoreItem", () => {
+  it("updates an existing item's fields", () => {
+    const { item } = createStoreItem({}, { name: "أ" });
+    const next = updateStoreItem({ [item.id]: item }, item.id, { name: "أ", code: "A-1", lowStockThreshold: 5 });
+    expect(next[item.id].code).toBe("A-1");
+    expect(next[item.id].lowStockThreshold).toBe(5);
+  });
+
+  it("is a no-op for an unknown item id", () => {
+    const items: StoreItemRegistry = {};
+    expect(updateStoreItem(items, "missing", { name: "x" })).toBe(items);
+  });
+
+  it("never touches transaction history (nothing to touch here - just confirms the item id/createdAt survive)", () => {
+    const { item } = createStoreItem({}, { name: "أ" });
+    const next = updateStoreItem({ [item.id]: item }, item.id, { name: "أ2" });
+    expect(next[item.id].id).toBe(item.id);
+    expect(next[item.id].createdAt).toBe(item.createdAt);
+    expect(next[item.id].name).toBe("أ2");
+  });
+});
+
+describe("isLowStock", () => {
+  it("is false when no threshold is configured", () => {
+    const { item } = createStoreItem({}, { name: "أ" });
+    expect(isLowStock(item, 0)).toBe(false);
+  });
+
+  it("is true when stock is at or below the threshold", () => {
+    const { item } = createStoreItem({}, { name: "أ", lowStockThreshold: 3 });
+    expect(isLowStock(item, 3)).toBe(true);
+    expect(isLowStock(item, 1)).toBe(true);
+  });
+
+  it("is false when stock is above the threshold", () => {
+    const { item } = createStoreItem({}, { name: "أ", lowStockThreshold: 3 });
+    expect(isLowStock(item, 4)).toBe(false);
   });
 });
 
