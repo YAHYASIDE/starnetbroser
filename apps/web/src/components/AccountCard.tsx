@@ -379,6 +379,20 @@ export function AccountCard({
         {serviceStatus && <span className={`badge ${serviceStatus.className} account-card-status-badge`}>{serviceStatus.label}</span>}
       </div>
 
+      <div className="account-card-starlink-balance-row">
+        <span className="account-card-label">مستحق Starlink:</span>
+        {balanceIsZero ? (
+          <strong className="stat-tile-value-ok">لا يوجد</strong>
+        ) : (
+          <span dir="ltr">
+            {balanceUsdEquivalent !== undefined && (
+              <span className="stat-tile-value-usd">≈ {formatAmount(balanceUsdEquivalent)} USD · </span>
+            )}
+            <strong>{account.currency} {account.balanceDue || "0"}</strong>
+          </span>
+        )}
+      </div>
+
       <div className="account-card-pill-row">
         {LEDGER_CURRENCIES.every((c) => !ledgerBalances[c]) ? (
           <span className="badge badge-green">لا يوجد مستحق</span>
@@ -519,20 +533,6 @@ export function AccountCard({
               {account.dataUsageGb && <span>الاستهلاك: <strong dir="ltr">{account.dataUsageGb} GB</strong></span>}
             </div>
           )}
-
-          <div className="account-card-starlink-balance-row">
-            <span className="account-card-label">مستحق Starlink:</span>
-            {balanceIsZero ? (
-              <strong className="stat-tile-value-ok">لا يوجد</strong>
-            ) : (
-              <span dir="ltr">
-                {balanceUsdEquivalent !== undefined && (
-                  <span className="stat-tile-value-usd">≈ {formatAmount(balanceUsdEquivalent)} USD · </span>
-                )}
-                <strong>{account.currency} {account.balanceDue || "0"}</strong>
-              </span>
-            )}
-          </div>
 
           {(hasUnsettledCost || profitMruTotal !== undefined || profitSifaTotal !== undefined) && (
             <div className="account-card-profit-row">
