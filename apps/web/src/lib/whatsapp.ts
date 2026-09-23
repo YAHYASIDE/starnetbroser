@@ -4,6 +4,7 @@
  * directly testable.
  */
 
+import { StarlinkAccountSummary } from "@starnet/shared";
 import {
   computeBalanceByCurrency,
   LEDGER_CURRENCIES,
@@ -164,4 +165,45 @@ export function buildInvoiceMessage(invoice: Invoice, items: StoreItemRegistry, 
     (invoice.note ? `ملاحظة: ${invoice.note}\n\n` : "") +
     `- STAR NET`
   );
+}
+
+/**
+ * "معلومات الجهاز الكاملة" - everything the customer needs to actually use/manage the device
+ * they were handed: its KIT/serial/subscription identifiers, the Wi-Fi password, and every email
+ * registered on it (the primary one plus up to two extra) with each one's own password when
+ * known. Built entirely from the operator's own manually-entered StarlinkAccountSummary fields -
+ * never Starlink's own synced account fields (starlinkAccountEmail etc.), which are a separate,
+ * read-only concern unrelated to what was handed to this customer.
+ */
+export function buildDeviceInfoMessage(account: StarlinkAccountSummary): string {
+  const lines: string[] = [`معلومات الجهاز - ${account.name} 📋`, ""];
+
+  const identifiers: string[] = [];
+  if (account.kitNumber) identifiers.push(`KIT: ${account.kitNumber}`);
+  if (account.serialNumber) identifiers.push(`Serial: ${account.serialNumber}`);
+  if (account.subscriptionId) identifiers.push(`رقم الاشتراك: ${account.subscriptionId}`);
+  if (identifiers.length > 0) lines.push(...identifiers, "");
+
+  if (account.wifiPassword) lines.push(`كلمة سر Wi-Fi: ${account.wifiPassword}`, "");
+
+  const emailLines: string[] = [];
+  if (account.expectedEmail) {
+    emailLines.push(
+      `• البريد الرئيسي: ${account.expectedEmail}${
+        account.expectedEmailPassword ? ` - كلمة السر: ${account.expectedEmailPassword}` : ""
+      }`,
+    );
+  }
+  (account.extraEmails ?? []).forEach((entry, index) => {
+    if (!entry.address) return;
+    emailLines.push(`• بريد إضافي ${index + 1}: ${entry.address}${entry.password ? ` - كلمة السر: ${entry.password}` : ""}`);
+  });
+  if (emailLines.length > 0) lines.push("البريد الإلكتروني:", ...emailLines, "");
+
+  if (identifiers.length === 0 && !account.wifiPassword && emailLines.length === 0) {
+    lines.push("لا توجد معلومات إضافية مسجلة لهذا الجهاز.", "");
+  }
+
+  lines.push("- STAR NET");
+  return lines.join("\n");
 }

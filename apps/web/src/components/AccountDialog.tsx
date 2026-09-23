@@ -82,6 +82,21 @@ export function AccountDialog({ mode, account, clients, onCreateClient, onClose,
     setDraft((current) => ({ ...current, [key]: value }));
   }
 
+  const extraEmails = draft.extraEmails ?? [];
+
+  function updateExtraEmail(index: number, field: "address" | "password", value: string) {
+    update("extraEmails", extraEmails.map((entry, i) => (i === index ? { ...entry, [field]: value } : entry)));
+  }
+
+  function addExtraEmail() {
+    if (extraEmails.length >= 2) return;
+    update("extraEmails", [...extraEmails, { address: "", password: "" }]);
+  }
+
+  function removeExtraEmail(index: number) {
+    update("extraEmails", extraEmails.filter((_, i) => i !== index));
+  }
+
   function confirmDelete() {
     if (!account || !onDelete) return;
     if (window.confirm(`هل أنت متأكد من حذف حساب "${account.name}"؟ لا يمكن التراجع عن هذا الإجراء.`)) {
@@ -102,11 +117,18 @@ export function AccountDialog({ mode, account, clients, onCreateClient, onClose,
       if (!window.confirm(`هل تريد نقل هذا الجهاز من "${fromName}" إلى "${toName}"؟`)) return;
     }
 
+    const trimmedExtraEmails = extraEmails
+      .map((entry) => ({ address: entry.address.trim(), password: entry.password?.trim() || undefined }))
+      .filter((entry) => entry.address.length > 0);
+
     onSave({
       ...draft,
       name: draft.name.trim(),
       phone: draft.phone?.trim() || undefined,
       expectedEmail: draft.expectedEmail?.trim() || undefined,
+      expectedEmailPassword: draft.expectedEmailPassword?.trim() || undefined,
+      extraEmails: trimmedExtraEmails.length > 0 ? trimmedExtraEmails : undefined,
+      wifiPassword: draft.wifiPassword?.trim() || undefined,
       kitNumber: draft.kitNumber.trim(),
       serialNumber: draft.serialNumber.trim(),
       rechargeDate: draft.rechargeDate.replace(/-/g, "/"),
@@ -161,7 +183,19 @@ export function AccountDialog({ mode, account, clients, onCreateClient, onClose,
               <div><span>البريد الإلكتروني (Starlink)</span><strong dir="ltr">{draft.starlinkAccountEmail}</strong></div>
             )}
             {draft.expectedEmail && (
-              <div><span>البريد الإلكتروني المتوقع</span><strong dir="ltr">{draft.expectedEmail}</strong></div>
+              <div><span>البريد الإلكتروني الرئيسي</span><strong dir="ltr">{draft.expectedEmail}</strong></div>
+            )}
+            {draft.expectedEmailPassword && (
+              <div><span>كلمة سر البريد الرئيسي</span><strong dir="ltr">{draft.expectedEmailPassword}</strong></div>
+            )}
+            {(draft.extraEmails ?? []).map((entry, index) => (
+              <div key={index}>
+                <span>بريد إضافي {index + 1}</span>
+                <strong dir="ltr">{entry.address}{entry.password ? ` - ${entry.password}` : ""}</strong>
+              </div>
+            ))}
+            {draft.wifiPassword && (
+              <div><span>كلمة سر Wi-Fi</span><strong dir="ltr">{draft.wifiPassword}</strong></div>
             )}
             {emailsMismatch(draft.expectedEmail, draft.starlinkAccountEmail) && (
               <div className="info-wide info-warning">
@@ -211,8 +245,8 @@ export function AccountDialog({ mode, account, clients, onCreateClient, onClose,
               />
             </label>
 
-            <label className="form-field form-wide">
-              <span>البريد الإلكتروني المتوقع (لمطابقة حساب Starlink)</span>
+            <label className="form-field">
+              <span>البريد الإلكتروني الرئيسي (لمطابقة حساب Starlink)</span>
               <input
                 dir="ltr"
                 type="email"
@@ -221,6 +255,43 @@ export function AccountDialog({ mode, account, clients, onCreateClient, onClose,
                 placeholder="اختياري - يُستخدم لتنبيهك إذا اختلف عن بريد Starlink"
               />
             </label>
+
+            <label className="form-field">
+              <span>كلمة سر البريد الرئيسي</span>
+              <input
+                dir="ltr"
+                value={draft.expectedEmailPassword ?? ""}
+                onChange={(e) => update("expectedEmailPassword", e.target.value)}
+                placeholder="اختياري"
+              />
+            </label>
+
+            <div className="form-field form-wide">
+              <span>بريد إلكتروني إضافي (حتى بريدين إضافيين، أي 3 بريدات كحد أقصى للجهاز)</span>
+              <div className="extra-emails-list">
+                {extraEmails.map((entry, index) => (
+                  <div className="extra-email-row" key={index}>
+                    <input
+                      dir="ltr"
+                      type="email"
+                      value={entry.address}
+                      onChange={(e) => updateExtraEmail(index, "address", e.target.value)}
+                      placeholder="بريد إضافي"
+                    />
+                    <input
+                      dir="ltr"
+                      value={entry.password ?? ""}
+                      onChange={(e) => updateExtraEmail(index, "password", e.target.value)}
+                      placeholder="كلمة السر"
+                    />
+                    <button type="button" className="ledger-entry-delete" onClick={() => removeExtraEmail(index)} aria-label="حذف البريد الإضافي">×</button>
+                  </div>
+                ))}
+              </div>
+              {extraEmails.length < 2 && (
+                <button type="button" className="text-action" onClick={addExtraEmail}>+ إضافة بريد آخر</button>
+              )}
+            </div>
 
             <label className="form-field">
               <span>الخطة</span>
@@ -269,6 +340,11 @@ export function AccountDialog({ mode, account, clients, onCreateClient, onClose,
               <select value={draft.wifiStatus} onChange={(e) => update("wifiStatus", e.target.value as DeviceStatus)}>
                 {statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
+            </label>
+
+            <label className="form-field">
+              <span>كلمة سر Wi-Fi</span>
+              <input dir="ltr" value={draft.wifiPassword ?? ""} onChange={(e) => update("wifiPassword", e.target.value)} placeholder="اختياري" />
             </label>
 
             <label className="form-field form-wide">

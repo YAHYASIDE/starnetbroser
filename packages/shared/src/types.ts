@@ -104,6 +104,17 @@ export interface StarlinkAccountSummary {
    * Compared against `starlinkAccountEmail` (see lib/emailMatch.ts) to warn when Starlink's synced
    * email doesn't match; never written by Starlink sync itself. */
   expectedEmail?: string;
+  /** Manually entered by the STAR NET operator - the login password for `expectedEmail` (the
+   * device's primary/main email address). Never touched by Starlink sync, never invented - absent
+   * unless the operator actually typed one in. */
+  expectedEmailPassword?: string;
+  /** Up to two more emails also usable on/registered to this device besides the primary
+   * `expectedEmail` above (so at most 3 emails total per device), each with its own optional
+   * password. Manually entered by the operator, never touched by Starlink sync. */
+  extraEmails?: { address: string; password?: string }[];
+  /** Manually entered by the STAR NET operator - this device's own Wi-Fi network password (not
+   * the Starlink account login password). Never touched by Starlink sync. */
+  wifiPassword?: string;
   /** Starts with "SL-" - the subscription's own identifier, a different value from `accountNumber`
    * (which starts with "ACC-"). */
   subscriptionId?: string;

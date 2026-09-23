@@ -1680,6 +1680,25 @@ button.overview-card:active {
   grid-column: 1 / -1;
 }
 
+/* Extra-email repeater rows (AccountDialog.tsx) - each row is an address + its own password,
+ * capped at two rows (3 emails total per device including the primary one above). */
+.extra-emails-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.extra-email-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.extra-email-row > input {
+  flex: 1;
+  min-width: 0;
+}
+
 .dialog-actions {
   display: grid;
   grid-template-columns: 0.8fr 1.2fr;

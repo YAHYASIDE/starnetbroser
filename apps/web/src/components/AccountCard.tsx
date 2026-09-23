@@ -15,6 +15,7 @@ import { isRunningInAndroidApp, openIsolatedAccountBrowser, triggerImmediateSync
 import {
   buildAccountStatementMessage,
   buildBalanceReminderMessage,
+  buildDeviceInfoMessage,
   buildExpiryReminderMessage,
   buildWhatsAppLink,
 } from "@/lib/whatsapp";
@@ -340,6 +341,9 @@ export function AccountCard({
             >
               كشف الحساب بالتفاصيل
             </button>
+            <button type="button" role="menuitem" onClick={() => openWhatsApp(buildDeviceInfoMessage(account))}>
+              معلومات الجهاز الكاملة
+            </button>
           </div>
         </>
       )}
@@ -510,24 +514,12 @@ export function AccountCard({
             </div>
           )}
 
-          {(account.subscriptionId || account.kitNumber || account.serialNumber || account.dataUsageGb) && (
+          {(account.subscriptionId || account.dataUsageGb) && (
             <div className="account-card-identifiers">
               {account.subscriptionId && (
                 <span>
                   الاشتراك: <strong dir="ltr">{account.subscriptionId}</strong>
                   <button type="button" className="account-card-copy-btn" onClick={() => copyToClipboard(account.subscriptionId!)} title="نسخ" aria-label="نسخ رقم الاشتراك"><IconCopy /></button>
-                </span>
-              )}
-              {account.kitNumber && (
-                <span>
-                  KIT: <strong dir="ltr">{account.kitNumber}</strong>
-                  <button type="button" className="account-card-copy-btn" onClick={() => copyToClipboard(account.kitNumber)} title="نسخ" aria-label="نسخ KIT"><IconCopy /></button>
-                </span>
-              )}
-              {account.serialNumber && (
-                <span>
-                  SN: <strong dir="ltr">{account.serialNumber}</strong>
-                  <button type="button" className="account-card-copy-btn" onClick={() => copyToClipboard(account.serialNumber)} title="نسخ" aria-label="نسخ SN"><IconCopy /></button>
                 </span>
               )}
               {account.dataUsageGb && <span>الاستهلاك: <strong dir="ltr">{account.dataUsageGb} GB</strong></span>}

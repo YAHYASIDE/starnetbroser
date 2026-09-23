@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DeviceStatus, StarlinkAccountSummary } from "@starnet/shared";
 import { LedgerEntry } from "./ledgerStore";
 import { createAllocation, PaymentAllocation } from "./paymentAllocationStore";
 import { Invoice } from "./invoiceStore";
@@ -6,6 +7,7 @@ import { StoreItemRegistry } from "./storeStore";
 import {
   buildAccountStatementMessage,
   buildBalanceReminderMessage,
+  buildDeviceInfoMessage,
   buildExpiryReminderMessage,
   buildInvoiceMessage,
   buildWhatsAppLink,
@@ -36,6 +38,28 @@ function invoice(overrides: Partial<Invoice> = {}): Invoice {
     discount: 0,
     paidAmount: 0,
     createdAt: "2026-09-20T10:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function account(overrides: Partial<StarlinkAccountSummary> = {}): StarlinkAccountSummary {
+  return {
+    id: "acc-1",
+    customerId: "customer-1",
+    name: "مقهى النخيل",
+    deviceName: "Standard Kit",
+    kitNumber: "",
+    serialNumber: "",
+    standbyDate: "",
+    rechargeDate: "2026/10/15",
+    balanceDue: "0",
+    currency: "$",
+    dishStatus: DeviceStatus.GREEN,
+    wifiStatus: DeviceStatus.GREEN,
+    alertReason: "",
+    lastUpdated: "الآن",
+    lastSuccessfulScanAt: null,
+    planName: "Residential",
     ...overrides,
   };
 }
@@ -251,5 +275,63 @@ describe("buildInvoiceMessage", () => {
 
     const withoutNote = buildInvoiceMessage(invoice(), items, "زبون");
     expect(withoutNote).not.toContain("ملاحظة");
+  });
+});
+
+describe("buildDeviceInfoMessage", () => {
+  it("includes KIT, serial, subscription id, Wi-Fi password and the primary email with its password", () => {
+    const message = buildDeviceInfoMessage(
+      account({
+        kitNumber: "KIT400744662",
+        serialNumber: "4PBA00672626",
+        subscriptionId: "SL-DF-12799315-82042-9",
+        wifiPassword: "wifi-secret",
+        expectedEmail: "etssadaga6@outlook.com",
+        expectedEmailPassword: "email-secret",
+      }),
+    );
+    expect(message).toContain("مقهى النخيل");
+    expect(message).toContain("KIT: KIT400744662");
+    expect(message).toContain("Serial: 4PBA00672626");
+    expect(message).toContain("رقم الاشتراك: SL-DF-12799315-82042-9");
+    expect(message).toContain("كلمة سر Wi-Fi: wifi-secret");
+    expect(message).toContain("البريد الرئيسي: etssadaga6@outlook.com - كلمة السر: email-secret");
+  });
+
+  it("lists extra emails, each with its own optional password, alongside the primary one", () => {
+    const message = buildDeviceInfoMessage(
+      account({
+        expectedEmail: "main@example.com",
+        extraEmails: [
+          { address: "backup1@example.com", password: "pw1" },
+          { address: "backup2@example.com" },
+        ],
+      }),
+    );
+    expect(message).toContain("البريد الرئيسي: main@example.com");
+    expect(message).toContain("بريد إضافي 1: backup1@example.com - كلمة السر: pw1");
+    expect(message).toContain("بريد إضافي 2: backup2@example.com");
+    expect(message).not.toContain("backup2@example.com - كلمة السر");
+  });
+
+  it("omits any section whose fields were never entered", () => {
+    const message = buildDeviceInfoMessage(account({ kitNumber: "", serialNumber: "", subscriptionId: undefined }));
+    expect(message).not.toContain("KIT:");
+    expect(message).not.toContain("Serial:");
+    expect(message).not.toContain("كلمة سر Wi-Fi");
+    expect(message).not.toContain("البريد الإلكتروني:");
+  });
+
+  it("says there is no extra info recorded when nothing was ever entered", () => {
+    const message = buildDeviceInfoMessage(account());
+    expect(message).toContain("لا توجد معلومات إضافية مسجلة لهذا الجهاز");
+  });
+
+  it("never mentions Starlink's own synced account fields - this message is only about what the operator entered", () => {
+    const message = buildDeviceInfoMessage(
+      account({ starlinkAccountEmail: "synced@starlink.example", starlinkAccountHolderName: "Someone Else" }),
+    );
+    expect(message).not.toContain("synced@starlink.example");
+    expect(message).not.toContain("Someone Else");
   });
 });
