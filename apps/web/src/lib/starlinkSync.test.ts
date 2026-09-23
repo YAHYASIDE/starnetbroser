@@ -115,6 +115,29 @@ describe("mergeSyncedFields - scanned vs. changed", () => {
     expect(result.account.phone).toBe("22299998888");
     expect(result.updatedFields).toEqual([]);
   });
+
+  it("never lets an unresolvable dot ('unknown') erase an already-known good dish/wifi status", () => {
+    // Real bug this fixes: a later scan on a slightly different page layout found a dot it
+    // couldn't classify and silently downgraded a real "online" reading to "لا توجد بيانات
+    // حديثة", discarding the last known-good status instead of keeping it.
+    const result = mergeSyncedFields(
+      baseAccount({ dishStatus: DeviceStatus.GREEN, wifiStatus: DeviceStatus.RED }),
+      { dishStatus: "unknown", wifiStatus: "unknown" },
+    );
+    expect(result.account.dishStatus).toBe(DeviceStatus.GREEN);
+    expect(result.account.wifiStatus).toBe(DeviceStatus.RED);
+    expect(result.updatedFields).toEqual([]);
+  });
+
+  it("still records a genuinely resolved dish/wifi status normally", () => {
+    const result = mergeSyncedFields(
+      baseAccount({ dishStatus: DeviceStatus.GRAY, wifiStatus: DeviceStatus.GRAY }),
+      { dishStatus: "online", wifiStatus: "offline" },
+    );
+    expect(result.account.dishStatus).toBe(DeviceStatus.GREEN);
+    expect(result.account.wifiStatus).toBe(DeviceStatus.RED);
+    expect(result.updatedFields.map((f) => f.field).sort()).toEqual(["dishStatus", "wifiStatus"]);
+  });
 });
 
 describe("formatSyncMessage - three distinct outcomes", () => {

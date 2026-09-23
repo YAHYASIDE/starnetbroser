@@ -118,6 +118,20 @@ export interface StarlinkAccountSummary {
    * billing entity from services/api - this is the local-only grouping key used in demo/local mode.
    */
   clientId?: string;
+  /** Set only by an explicit operator action ("متعطل" on the card) - a hardware problem, entirely
+   * independent of the Starlink subscription's own serviceStatus (a device can be active AND
+   * broken, or suspended AND fine). Cleared (back to undefined/null) once the operator marks it
+   * fixed. */
+  deviceFault?: { reason: "burned" | "other"; note: string; reportedAt: string } | null;
+  /** ISO timestamp set only by an explicit "أرشفة" action - an archived device is hidden from the
+   * main list (see HomeView's "الأرشيف" view) but keeps every ledger entry, allocation and
+   * exchange-rate link exactly as-is; null/undefined again once restored. Never implies deleted. */
+  archivedAt?: string | null;
+  /** ISO timestamp set only by an explicit "حذف" action - moves the device to a recoverable trash
+   * (see HomeView's "سلة المحذوفات" view) instead of removing it outright; the underlying ledger
+   * entries/allocations are never touched by this alone. Permanent removal is a separate, later
+   * action taken from within the trash view itself. */
+  deletedAt?: string | null;
 }
 
 /** Detail-view shape - includes decrypted secrets, only ever returned to

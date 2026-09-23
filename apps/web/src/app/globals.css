@@ -851,6 +851,31 @@ a.btn-icon {
   padding: 8px 2px 10px;
 }
 
+.view-mode-row {
+  display: flex;
+  gap: 6px;
+  padding: 2px 2px 10px;
+}
+
+.view-mode-tab {
+  flex: 1;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.view-mode-tab-active {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: var(--brand-contrast);
+}
+
 .overview-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1008,8 +1033,8 @@ button.overview-card:active {
 
 .account-card {
   padding: 12px;
-  gap: 8px;
-  border-radius: 20px;
+  gap: 7px;
+  border-radius: 16px;
   box-shadow: 0 8px 24px rgba(21, 31, 44, 0.05);
 }
 
@@ -1024,7 +1049,8 @@ button.overview-card:active {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.88rem;
+  font-size: 1rem;
+  font-weight: 700;
 }
 
 .account-card-plan {
@@ -1141,8 +1167,8 @@ button.overview-card:active {
   content: "";
   position: absolute;
   inset: 0 0 auto 0;
-  height: 4px;
-  border-radius: 20px 20px 0 0;
+  height: 3px;
+  border-radius: 16px 16px 0 0;
   background: linear-gradient(90deg, var(--brand), var(--brand-strong));
 }
 
@@ -1165,54 +1191,42 @@ button.overview-card:active {
   border-radius: var(--radius-sm);
 }
 
-.account-card-identity-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.account-card-starlink-chip {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: var(--surface-alt);
-  color: var(--brand);
-  font-size: 0.64rem;
+.account-card-fault-banner {
+  background: var(--yellow);
+  color: #1a1208;
+  font-size: 0.72rem;
   font-weight: 700;
+  text-align: center;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
 }
 
-.account-card-identity-name {
-  flex: 1;
-  min-width: 0;
+.account-card-top-row {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  text-align: center;
+  align-items: flex-start;
+  gap: 8px;
 }
 
 .account-card-avatar {
   flex: 0 0 auto;
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   display: grid;
   place-items: center;
   background: color-mix(in srgb, var(--brand) 16%, var(--surface-alt));
   color: var(--brand);
   font-weight: 800;
-  font-size: 0.74rem;
+  font-size: 0.68rem;
   direction: ltr;
 }
 
-.account-card-divider {
-  height: 1px;
-  background: var(--border);
-  margin: 0;
+.account-card-title-block {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
 .account-card-client-name {
@@ -1220,38 +1234,75 @@ button.overview-card:active {
   background: none;
   padding: 0;
   font-family: inherit;
-  font-size: 0.98rem;
-  font-weight: 800;
-  color: var(--brand);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-muted);
   cursor: pointer;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: start;
 }
 
 .account-card-client-missing {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
-.account-card-device-row {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
+.account-card-status-badge {
+  flex: 0 0 auto;
+  align-self: flex-start;
 }
 
-.account-card-device-name-row {
+.account-card-pill-row,
+.account-card-mini-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
 }
 
+.account-card-recharge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--surface-alt);
+  color: var(--text);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.mini-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 600;
+}
+
+.mini-status svg { width: 12px; height: 12px; }
+
+.mini-status-green { background: var(--green-bg); color: var(--green); }
+.mini-status-yellow { background: var(--yellow-bg); color: var(--yellow); }
+.mini-status-red { background: var(--red-bg); color: var(--red); }
+.mini-status-gray { background: var(--gray-bg); color: var(--gray); }
+
+.account-card-d-mark {
+  font-size: 0.66rem;
+  padding: 1px 8px;
+}
+
 .account-card-copy-btn {
   flex: 0 0 auto;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   border: 1px solid var(--border);
   border-radius: 6px;
   display: grid;
@@ -1261,11 +1312,22 @@ button.overview-card:active {
   cursor: pointer;
 }
 
+.account-card-device-name-row,
+.account-card-plan-row,
+.account-card-starlink-balance-row,
+.account-card-profit-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.76rem;
+  flex-wrap: wrap;
+}
+
 .account-card-email-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
   padding: 5px 9px;
   border-radius: var(--radius-sm);
   background: var(--surface-alt);
@@ -1278,50 +1340,6 @@ button.overview-card:active {
   display: grid;
   place-items: center;
   color: var(--brand);
-}
-
-.account-card-stat-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.stat-tile {
-  min-width: 0;
-  padding: 7px 8px;
-  border-radius: 12px;
-  background: var(--surface-alt);
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.stat-tile-icon {
-  width: 20px;
-  height: 20px;
-  border-radius: 6px;
-  display: grid;
-  place-items: center;
-  margin-bottom: 1px;
-}
-
-.stat-tile-icon svg { width: 12px; height: 12px; }
-
-.stat-tile-icon-blue { background: color-mix(in srgb, var(--brand) 18%, transparent); color: var(--brand); }
-.stat-tile-icon-orange { background: var(--yellow-bg); color: var(--yellow); }
-.stat-tile-icon-green { background: var(--green-bg); color: var(--green); }
-.stat-tile-icon-yellow { background: var(--yellow-bg); color: var(--yellow); }
-.stat-tile-icon-red { background: var(--red-bg); color: var(--red); }
-.stat-tile-icon-gray { background: var(--gray-bg); color: var(--gray); }
-
-.stat-tile-label {
-  color: var(--text-muted);
-  font-size: 0.62rem;
-}
-
-.stat-tile-value {
-  font-weight: 700;
-  font-size: 0.76rem;
 }
 
 .stat-tile-value-ok {
@@ -1356,14 +1374,16 @@ button.overview-card:active {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  border: 0;
-  background: none;
+  gap: 4px;
+  min-height: 44px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
   color: var(--brand);
   font-family: inherit;
   font-size: 0.72rem;
   font-weight: 700;
-  padding: 2px;
   cursor: pointer;
 }
 
@@ -1377,12 +1397,61 @@ button.overview-card:active {
   transform: rotate(180deg);
 }
 
+.account-card-quick-actions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-around;
+  gap: 4px;
+}
+
+.quick-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  color: var(--text-muted);
+  font-size: 0.62rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px;
+}
+
+.quick-action-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+
+.quick-action-fault { background: var(--yellow-bg); color: var(--yellow); }
+.quick-action-archive { background: var(--gray-bg); color: var(--gray); }
+.quick-action-renew { background: var(--green-bg); color: var(--green); }
+.quick-action-delete { background: var(--red-bg); color: var(--red); }
+
 .account-card-expanded {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
   padding-top: 2px;
   border-top: 1px dashed var(--border);
+}
+
+.account-card-expanded-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.account-card-expanded-grid .card-action {
+  width: 100%;
+  justify-content: center;
+  min-height: 44px;
 }
 
 .card-sync-btn-labeled {

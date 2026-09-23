@@ -5,7 +5,7 @@ import Link from "next/link";
 import { App } from "@capacitor/app";
 import { DeviceStatus, StarlinkAccountSummary } from "@starnet/shared";
 import { expiryDay } from "@starnet/shared";
-import { AccountCard } from "./AccountCard";
+import { AccountCard, AccountCardContext } from "./AccountCard";
 import { DayCircles } from "./DayCircles";
 import { ConnectionStatus } from "./ConnectionStatus";
 import { AccountDialog, AccountDialogMode } from "./AccountDialog";
@@ -115,6 +115,10 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
   }
   const [showAll, setShowAll] = useState(false);
   const [dialog, setDialog] = useState<DialogState>(null);
+  // Which of the three device lists is currently shown - "archived"/"trash" are opt-in views
+  // reached via their own header links, never mixed into the normal dashboard list/filters/stat
+  // tiles above (those always operate on "active" devices only).
+  const [viewMode, setViewMode] = useState<AccountCardContext>("active");
 
   // Defaults to "not the Android app" (matches server render) and only reflects reality after
   // mount, to avoid a hydration mismatch - same pattern as AccountCard's own isAndroidApp state.
@@ -419,9 +423,13 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
   // ran. This runs in "demo" (local-only, no backend yet) mode too: with no real API connected,
   // demo mode IS how accounts are actually stored on-device right now, real Starlink logins and
   // all (see openIsolatedAccountBrowser/"فتح") - excluding it here would silently leave every
-  // real account this app currently manages unsynced.
+  // real account this app currently manages unsynced. Archived/soft-deleted devices are excluded
+  // (filtered inline, not via the activeAccounts memo below, to keep this effect independent of
+  // that memo's own position in the hook order) - there is nothing useful to keep background-
+  // syncing once a device has been set aside.
   useEffect(() => {
-    void syncAutoSyncAccountList(accounts.map((account) => ({ id: account.id, name: account.name })));
+    const activeOnly = accounts.filter((account) => !account.archivedAt && !account.deletedAt);
+    void syncAutoSyncAccountList(activeOnly.map((account) => ({ id: account.id, name: account.name })));
   }, [accounts]);
 
   function saveAccount(account: StarlinkAccountSummary) {
@@ -447,6 +455,42 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
       return next;
     });
     setDialog(null);
+  }
+
+  /** Every quick-action on a card (متعطل/أرشفة/تجديد/استعادة) goes through this one path - never
+   * touches ledger entries, allocations, exchange rates or any other store, and never resets
+   * dialog/filter state the way saveAccount does (these are quick, in-place edits, not a form
+   * submission that should also close whatever dialog was open). */
+  function patchAccount(accountId: string, patch: Partial<StarlinkAccountSummary>) {
+    setAccounts((current) => {
+      const next = current.map((item) => (item.id === accountId ? { ...item, ...patch } : item));
+      if (dataState === "demo") saveDemoAccounts(next);
+      return next;
+    });
+  }
+
+  function handleSetDeviceFault(account: StarlinkAccountSummary, fault: StarlinkAccountSummary["deviceFault"]) {
+    patchAccount(account.id, { deviceFault: fault });
+  }
+
+  function handleArchive(account: StarlinkAccountSummary) {
+    patchAccount(account.id, { archivedAt: new Date().toISOString() });
+  }
+
+  function handleSoftDelete(account: StarlinkAccountSummary) {
+    patchAccount(account.id, { deletedAt: new Date().toISOString() });
+  }
+
+  function handleRestore(account: StarlinkAccountSummary) {
+    patchAccount(account.id, { archivedAt: null, deletedAt: null });
+  }
+
+  // "تجديد": only ever updates rechargeDate - never talks to Starlink, never touches the ledger
+  // itself. Opening the ledger dialog right after is what lets the operator record the actual
+  // shipment/payment, reusing the existing "إضافة حركة" flow rather than a second, parallel one.
+  function handleConfirmRenewal(account: StarlinkAccountSummary, newRechargeDate: string) {
+    patchAccount(account.id, { rechargeDate: newRechargeDate, lastUpdated: "الآن" });
+    setLedgerAccount({ ...account, rechargeDate: newRechargeDate });
   }
 
   async function deleteAccount(account: StarlinkAccountSummary) {
@@ -482,22 +526,29 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
     removeAccountCard(account);
   }
 
+  // The normal dashboard (overview cards, calendar, filters, "تحتاج إلى متابعة") only ever
+  // operates on active devices - an archived or soft-deleted one is reached only through its own
+  // dedicated view (see viewMode), never mixed into these counts/lists.
+  const activeAccounts = useMemo(() => accounts.filter((a) => !a.archivedAt && !a.deletedAt), [accounts]);
+  const archivedAccounts = useMemo(() => accounts.filter((a) => a.archivedAt), [accounts]);
+  const trashAccounts = useMemo(() => accounts.filter((a) => a.deletedAt), [accounts]);
+
   const dayCounts = useMemo(() => {
     const counts = new Map<number, number>();
-    for (const account of accounts) {
+    for (const account of activeAccounts) {
       const day = expiryDay(account.rechargeDate || account.standbyDate);
       if (day) counts.set(day, (counts.get(day) ?? 0) + 1);
     }
     return counts;
-  }, [accounts]);
+  }, [activeAccounts]);
 
   const expiredOrNearExpiry = useMemo(
     () =>
-      accounts.filter((account) => {
+      activeAccounts.filter((account) => {
         const days = daysRemainingNumber(account.rechargeDate || account.standbyDate);
         return days !== null && days <= NEAR_EXPIRY_THRESHOLD_DAYS;
       }),
-    [accounts],
+    [activeAccounts],
   );
 
   const overview = useMemo(() => {
@@ -506,7 +557,7 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
     let expired = 0;
     let suspended = 0;
 
-    for (const account of accounts) {
+    for (const account of activeAccounts) {
       if (account.dishStatus === DeviceStatus.GREEN || account.wifiStatus === DeviceStatus.GREEN) {
         online += 1;
       }
@@ -518,13 +569,13 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
       else if (days <= NEAR_EXPIRY_THRESHOLD_DAYS) expiringSoon += 1;
     }
 
-    return { total: accounts.length, online, expiringSoon, expired, suspended };
-  }, [accounts]);
+    return { total: activeAccounts.length, online, expiringSoon, expired, suspended };
+  }, [activeAccounts]);
 
   const totalOwedByCustomers = useMemo(() => totalOwedAcrossAccounts(ledgerStore), [ledgerStore]);
 
   const filtered = useMemo(() => {
-    let list = accounts;
+    let list = activeAccounts;
     if (selectedDay !== null) {
       list = list.filter((a) => expiryDay(a.rechargeDate || a.standbyDate) === selectedDay);
     }
@@ -541,9 +592,12 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
       );
     }
     return list;
-  }, [accounts, selectedDay, statFilter, query]);
+  }, [activeAccounts, selectedDay, statFilter, query]);
 
-  const visible = showAll || query || selectedDay !== null || statFilter !== null ? filtered : expiredOrNearExpiry;
+  const visible =
+    viewMode === "archived" ? archivedAccounts
+    : viewMode === "trash" ? trashAccounts
+    : showAll || query || selectedDay !== null || statFilter !== null ? filtered : expiredOrNearExpiry;
 
   return (
     <main className="home app-shell">
@@ -596,6 +650,30 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
         </div>
       </header>
 
+      <div className="view-mode-row">
+        <button
+          type="button"
+          className={`view-mode-tab${viewMode === "active" ? " view-mode-tab-active" : ""}`}
+          onClick={() => setViewMode("active")}
+        >
+          الحسابات النشطة
+        </button>
+        <button
+          type="button"
+          className={`view-mode-tab${viewMode === "archived" ? " view-mode-tab-active" : ""}`}
+          onClick={() => setViewMode((v) => (v === "archived" ? "active" : "archived"))}
+        >
+          الأرشيف ({archivedAccounts.length})
+        </button>
+        <button
+          type="button"
+          className={`view-mode-tab${viewMode === "trash" ? " view-mode-tab-active" : ""}`}
+          onClick={() => setViewMode((v) => (v === "trash" ? "active" : "trash"))}
+        >
+          سلة المحذوفات ({trashAccounts.length})
+        </button>
+      </div>
+
       <section className="search-panel" aria-label="البحث في الحسابات">
         <span className="search-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>
@@ -624,116 +702,128 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
         )}
       </div>
 
-      <section className="overview-grid" aria-label="ملخص الحسابات">
-        <button
-          type="button"
-          className="overview-card overview-total"
-          onClick={() => { setShowAll(true); setSelectedDay(null); setStatFilter(null); }}
-        >
-          <span className="overview-icon" aria-hidden="true">◎</span>
-          <span className="overview-value">{overview.total}</span>
-          <span className="overview-label">كل الحسابات</span>
-        </button>
-        <button
-          type="button"
-          className={`overview-card overview-online${statFilter === "online" ? " overview-card-active" : ""}`}
-          aria-pressed={statFilter === "online"}
-          onClick={() => toggleStatFilter("online")}
-        >
-          <span className="overview-icon" aria-hidden="true">●</span>
-          <span className="overview-value">{overview.online}</span>
-          <span className="overview-label">متصل الآن</span>
-        </button>
-        <button
-          type="button"
-          className={`overview-card overview-warning${statFilter === "expiringSoon" ? " overview-card-active" : ""}`}
-          aria-pressed={statFilter === "expiringSoon"}
-          onClick={() => toggleStatFilter("expiringSoon")}
-        >
-          <span className="overview-icon" aria-hidden="true">◷</span>
-          <span className="overview-value">{overview.expiringSoon}</span>
-          <span className="overview-label">قريب الانتهاء</span>
-        </button>
-        <button
-          type="button"
-          className={`overview-card overview-expired${statFilter === "expired" ? " overview-card-active" : ""}`}
-          aria-pressed={statFilter === "expired"}
-          onClick={() => toggleStatFilter("expired")}
-        >
-          <span className="overview-icon" aria-hidden="true">!</span>
-          <span className="overview-value">{overview.expired}</span>
-          <span className="overview-label">منتهي</span>
-        </button>
-        <button
-          type="button"
-          className={`overview-card overview-suspended${statFilter === "suspended" ? " overview-card-active" : ""}`}
-          aria-pressed={statFilter === "suspended"}
-          onClick={() => toggleStatFilter("suspended")}
-        >
-          <span className="overview-icon" aria-hidden="true">⛔</span>
-          <span className="overview-value">{overview.suspended}</span>
-          <span className="overview-label">متوقفين (فوترة)</span>
-        </button>
-        {LEDGER_CURRENCIES.map((currency) => {
-          const total = totalOwedByCustomers[currency];
-          if (!total) return null;
-          return (
-            <article className="overview-card overview-owed" key={currency}>
-              <span className="overview-icon" aria-hidden="true">₋</span>
-              <span className="overview-value">{formatAmount(total)}</span>
-              <span className="overview-label">مستحق من العملاء ({LEDGER_CURRENCY_LABELS[currency]})</span>
-            </article>
-          );
-        })}
-      </section>
+      {viewMode === "active" && (
+        <>
+          <section className="overview-grid" aria-label="ملخص الحسابات">
+            <button
+              type="button"
+              className="overview-card overview-total"
+              onClick={() => { setShowAll(true); setSelectedDay(null); setStatFilter(null); }}
+            >
+              <span className="overview-icon" aria-hidden="true">◎</span>
+              <span className="overview-value">{overview.total}</span>
+              <span className="overview-label">كل الحسابات</span>
+            </button>
+            <button
+              type="button"
+              className={`overview-card overview-online${statFilter === "online" ? " overview-card-active" : ""}`}
+              aria-pressed={statFilter === "online"}
+              onClick={() => toggleStatFilter("online")}
+            >
+              <span className="overview-icon" aria-hidden="true">●</span>
+              <span className="overview-value">{overview.online}</span>
+              <span className="overview-label">متصل الآن</span>
+            </button>
+            <button
+              type="button"
+              className={`overview-card overview-warning${statFilter === "expiringSoon" ? " overview-card-active" : ""}`}
+              aria-pressed={statFilter === "expiringSoon"}
+              onClick={() => toggleStatFilter("expiringSoon")}
+            >
+              <span className="overview-icon" aria-hidden="true">◷</span>
+              <span className="overview-value">{overview.expiringSoon}</span>
+              <span className="overview-label">قريب الانتهاء</span>
+            </button>
+            <button
+              type="button"
+              className={`overview-card overview-expired${statFilter === "expired" ? " overview-card-active" : ""}`}
+              aria-pressed={statFilter === "expired"}
+              onClick={() => toggleStatFilter("expired")}
+            >
+              <span className="overview-icon" aria-hidden="true">!</span>
+              <span className="overview-value">{overview.expired}</span>
+              <span className="overview-label">منتهي</span>
+            </button>
+            <button
+              type="button"
+              className={`overview-card overview-suspended${statFilter === "suspended" ? " overview-card-active" : ""}`}
+              aria-pressed={statFilter === "suspended"}
+              onClick={() => toggleStatFilter("suspended")}
+            >
+              <span className="overview-icon" aria-hidden="true">⛔</span>
+              <span className="overview-value">{overview.suspended}</span>
+              <span className="overview-label">متوقفين (فوترة)</span>
+            </button>
+            {LEDGER_CURRENCIES.map((currency) => {
+              const total = totalOwedByCustomers[currency];
+              if (!total) return null;
+              return (
+                <article className="overview-card overview-owed" key={currency}>
+                  <span className="overview-icon" aria-hidden="true">₋</span>
+                  <span className="overview-value">{formatAmount(total)}</span>
+                  <span className="overview-label">مستحق من العملاء ({LEDGER_CURRENCY_LABELS[currency]})</span>
+                </article>
+              );
+            })}
+          </section>
 
-      <section className="section dashboard-section">
-        <div className="section-heading">
-          <div>
-            <h2 className="section-title">التجديد حسب اليوم</h2>
-            <p className="section-caption">اضغط على اليوم لعرض الحسابات</p>
-          </div>
-          {selectedDay !== null && (
-            <button className="clear-filter" onClick={() => setSelectedDay(null)}>إلغاء التصفية</button>
-          )}
-        </div>
-        <DayCircles
-          counts={dayCounts}
-          selectedDay={selectedDay}
-          onSelectDay={(day) => { setSelectedDay(day); setStatFilter(null); }}
-        />
-      </section>
+          <section className="section dashboard-section">
+            <div className="section-heading">
+              <div>
+                <h2 className="section-title">التجديد حسب اليوم</h2>
+                <p className="section-caption">اضغط على اليوم لعرض الحسابات</p>
+              </div>
+              {selectedDay !== null && (
+                <button className="clear-filter" onClick={() => setSelectedDay(null)}>إلغاء التصفية</button>
+              )}
+            </div>
+            <DayCircles
+              counts={dayCounts}
+              selectedDay={selectedDay}
+              onSelectDay={(day) => { setSelectedDay(day); setStatFilter(null); }}
+            />
+          </section>
+        </>
+      )}
 
       <section className="section dashboard-section accounts-section">
         <div className="section-header-row">
           <div>
             <h2 className="section-title">
-              {statFilter
-                ? STAT_FILTER_TITLES[statFilter]
-                : showAll || query || selectedDay !== null ? "الحسابات" : "تحتاج إلى متابعة"}
+              {viewMode === "archived" ? "الأرشيف"
+                : viewMode === "trash" ? "سلة المحذوفات"
+                : statFilter
+                  ? STAT_FILTER_TITLES[statFilter]
+                  : showAll || query || selectedDay !== null ? "الحسابات" : "تحتاج إلى متابعة"}
             </h2>
             <p className="section-caption">{visible.length} حساب</p>
           </div>
-          {statFilter ? (
-            <button className="text-action" onClick={() => setStatFilter(null)}>مسح التصفية</button>
-          ) : (
-            !query && selectedDay === null && (
-              <button className="text-action" onClick={() => setShowAll((v) => !v)}>
-                {showAll ? "عرض المنتهية فقط" : "عرض كل الحسابات"}
-              </button>
+          {viewMode === "active" && (
+            statFilter ? (
+              <button className="text-action" onClick={() => setStatFilter(null)}>مسح التصفية</button>
+            ) : (
+              !query && selectedDay === null && (
+                <button className="text-action" onClick={() => setShowAll((v) => !v)}>
+                  {showAll ? "عرض المنتهية فقط" : "عرض كل الحسابات"}
+                </button>
+              )
             )
           )}
         </div>
 
         {visible.length === 0 ? (
-          <p className="empty-state">لا توجد حسابات مطابقة.</p>
+          <p className="empty-state">
+            {viewMode === "archived" ? "لا توجد أجهزة مؤرشفة."
+              : viewMode === "trash" ? "سلة المحذوفات فارغة."
+              : "لا توجد حسابات مطابقة."}
+          </p>
         ) : (
           <div className="account-grid">
             {visible.map((account) => (
               <AccountCard
                 key={account.id}
                 account={account}
-                onInfo={(selected) => setDialog({ mode: "view", account: selected })}
+                context={viewMode}
                 onEdit={(selected) => setDialog({ mode: "edit", account: selected })}
                 ledgerEntries={getAccountEntries(ledgerStore, account.id)}
                 allocations={allAllocations}
@@ -742,6 +832,12 @@ export function HomeView({ accounts: demoAccounts }: { accounts: StarlinkAccount
                 client={getClient(clientStore, account.clientId)}
                 onOpenClient={(selectedClient) => setOpenClientId(selectedClient.id)}
                 currencyStore={currencyStore}
+                onSetDeviceFault={handleSetDeviceFault}
+                onArchive={handleArchive}
+                onSoftDelete={handleSoftDelete}
+                onRestore={handleRestore}
+                onPermanentDelete={viewMode === "trash" ? deleteAccount : undefined}
+                onConfirmRenewal={handleConfirmRenewal}
               />
             ))}
           </div>

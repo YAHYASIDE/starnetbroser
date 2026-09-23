@@ -92,16 +92,27 @@ export function mergeSyncedFields(
     if (changed) updatedFields.push({ field, ...FIELD_INFO[field] });
   }
 
+  // A "found a dot, but couldn't classify its color" read ("unknown", mapped to GRAY) is never
+  // allowed to overwrite an already-known real reading (GREEN/YELLOW/RED) - real, confirmed bug
+  // this fixes: a later scan on a slightly different page layout could silently erase a perfectly
+  // good "online" status back down to "لا توجد بيانات حديثة", discarding the last known-good
+  // reading instead of keeping it. A missing status (no dot found at all) already skips this
+  // block entirely via the outer `if`, so gray only ever shows for an account that has never had a
+  // resolvable reading yet.
   if (fields.dishStatus) {
     const value = toDeviceStatus(fields.dishStatus);
-    note("dishStatus", next.dishStatus !== value);
-    next.dishStatus = value;
+    if (value !== DeviceStatus.GRAY) {
+      note("dishStatus", next.dishStatus !== value);
+      next.dishStatus = value;
+    }
   }
 
   if (fields.wifiStatus) {
     const value = toDeviceStatus(fields.wifiStatus);
-    note("wifiStatus", next.wifiStatus !== value);
-    next.wifiStatus = value;
+    if (value !== DeviceStatus.GRAY) {
+      note("wifiStatus", next.wifiStatus !== value);
+      next.wifiStatus = value;
+    }
   }
 
   if (fields.serviceStatus) {
