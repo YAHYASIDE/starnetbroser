@@ -114,6 +114,22 @@ export default function ReportsPage() {
           </strong>
         </div>
 
+        {/* Deliberately a SEPARATE tile, never merged with صافي الربح above (accountingStore.ts's
+            own rule) - a debit entry marked D still counts here once the customer actually pays
+            (a credit entry), even though its own profit stays pending until Starlink is settled. */}
+        <div className="report-net-tile report-net-tile-info">
+          <span className="report-net-tile-label">
+            النقد المحصّل فعليًا (بعد خصم المدفوع لـ Starlink) · {REPORT_PERIOD_LABELS[period]}
+          </span>
+          <strong className="report-net-tile-value" dir="ltr">
+            {formatAmount(periodSummary.cashFlowUsd)} USD
+          </strong>
+        </div>
+        <p className="settings-hint">
+          «صافي الربح» يُحسب فقط بعد تسديد تكلفة Starlink (D). «النقد المحصّل» يظهر فور استلام الدفعة من
+          الزبون، حتى لو كانت الشحنة لا تزال بحالة D - رقمان منفصلان دائمًا.
+        </p>
+
         <div className="report-grid report-grid-3">
           <div className="report-tile">
             <span className="report-tile-label">الشحنات</span>

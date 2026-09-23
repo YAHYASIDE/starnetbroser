@@ -1813,6 +1813,13 @@ button.overview-card:active {
   font-size: 0.82rem;
 }
 
+.ledger-balance-cash-collected {
+  background: color-mix(in srgb, var(--brand) 10%, var(--surface));
+  color: var(--brand-strong);
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+
 .ledger-entry-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2500,6 +2507,14 @@ button.overview-card:active {
 
 .report-net-tile-negative {
   background: var(--red-bg);
+}
+
+.report-net-tile-info {
+  background: color-mix(in srgb, var(--brand) 12%, var(--surface));
+}
+
+.report-net-tile-info .report-net-tile-value {
+  color: var(--brand-strong);
 }
 
 .report-net-tile-label {

@@ -20,7 +20,7 @@ import {
   StarlinkCost,
   updateEntry,
 } from "@/lib/ledgerStore";
-import { computeShipmentProfit } from "@/lib/accountingStore";
+import { computeDeviceAccountingSummary, computeShipmentProfit } from "@/lib/accountingStore";
 import { Currency, CurrencyStore, getCurrency, toUsd, UpsertCurrencyInput } from "@/lib/currencyStore";
 import { COUNTRY_CURRENCIES, CountryCurrencyOption } from "@/lib/countryCurrencies";
 import { formatAmount } from "@/lib/formatAmount";
@@ -193,6 +193,11 @@ export function LedgerDialog({
     return rate === undefined ? sum : sum + toUsd(balance!, rate);
   }, 0);
   const usdTotalKnown = balanceRows.every(({ currency: c }) => c === "USD" || getCurrency(currencyStore, c)?.rateFromUsd !== undefined);
+
+  // Separate from balances/usdTotal above and from any shipment's own profit (which stays pending
+  // under D until Starlink is settled) - accountingStore.ts's own rule XIII: cash actually
+  // collected from this device's customer, minus only what's actually been paid to Starlink.
+  const accountingSummary = computeDeviceAccountingSummary(entries);
 
   function selectCurrency(next: LedgerCurrency) {
     setCurrency(next);
@@ -429,7 +434,19 @@ export function LedgerDialog({
               <span dir="ltr">{usdTotal >= 0 ? `عليه ${formatAmount(usdTotal)} USD` : `له ${formatAmount(-usdTotal)} USD`}</span>
             </div>
           )}
+          {accountingSummary.shipmentCount > 0 && (
+            <div className="ledger-balance-row ledger-balance-cash-collected">
+              <span>النقد المحصّل فعليًا (بعد خصم المدفوع لـ Starlink)</span>
+              <span dir="ltr">{formatAmount(accountingSummary.cashFlowUsd)} USD</span>
+            </div>
+          )}
         </div>
+        {accountingSummary.shipmentCount > 0 && (
+          <p className="settings-hint">
+            هذا رقم منفصل تمامًا عن الربح - يظهر فور استلام دفعة من الزبون، حتى لو كانت شحنته لا تزال
+            بحالة D (تكلفة Starlink غير مسددة بعد).
+          </p>
+        )}
 
         <form className="ledger-entry-form" onSubmit={submit}>
           <select className="search-input" value={kind} onChange={(e) => setKind(e.target.value as LedgerEntryKind)}>
