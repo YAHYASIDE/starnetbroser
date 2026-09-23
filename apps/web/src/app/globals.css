@@ -2697,6 +2697,43 @@ button.overview-card:active {
 }
 
 /* Store / inventory page */
+.store-summary-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.store-summary-tile {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--brand) 12%, var(--surface));
+  border: 1px solid var(--border);
+}
+
+.store-summary-label {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.store-summary-value {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.store-summary-value-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
 .store-items-header {
   display: flex;
   align-items: center;
@@ -2714,24 +2751,50 @@ button.overview-card:active {
   gap: 8px;
 }
 
+.store-item-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  overflow: hidden;
+  min-width: 0;
+}
+
+.store-item-card-active {
+  border-color: var(--brand);
+}
+
 .store-item-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
   width: 100%;
   min-width: 0;
   padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
+  background: transparent;
+  border: none;
   font-family: inherit;
   cursor: pointer;
   text-align: right;
 }
 
-.store-item-row-active {
-  border-color: var(--brand);
+.store-item-icon {
+  flex-shrink: 0;
+  font-size: 1.4rem;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+}
+
+.store-item-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .store-item-name {
@@ -2741,8 +2804,20 @@ button.overview-card:active {
   overflow-wrap: anywhere;
 }
 
-.store-item-stock {
+.store-item-price {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.store-item-end {
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.store-item-stock {
   font-weight: 700;
   color: var(--green);
 }
@@ -2751,8 +2826,47 @@ button.overview-card:active {
   color: var(--red);
 }
 
+.store-item-value {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.store-item-quick-actions {
+  display: flex;
+  gap: 8px;
+  padding: 0 14px 12px;
+}
+
+.store-quick-btn {
+  flex: 1;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-alt);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.store-quick-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.store-quick-buy {
+  color: var(--yellow);
+  border-color: color-mix(in srgb, var(--yellow) 50%, var(--border));
+}
+
+.store-quick-sell {
+  color: var(--green);
+  border-color: color-mix(in srgb, var(--green) 50%, var(--border));
+}
+
 .store-item-panel {
-  margin-top: 8px;
+  margin: 0 12px 12px;
   padding: 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);

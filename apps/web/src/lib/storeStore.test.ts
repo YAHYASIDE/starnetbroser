@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  computeInventoryValueByCurrency,
   computeStock,
   computeStockByItem,
   createStoreItem,
   deleteStoreItem,
   deleteStoreTransaction,
   getStoreItem,
+  lastTransactionForItem,
   listStoreItems,
   listTransactionsForClient,
   listTransactionsForItem,
@@ -236,5 +238,45 @@ describe("listTransactionsForItem / listTransactionsForClient", () => {
 
   it("returns nothing for a client with no purchases", () => {
     expect(listTransactionsForClient(transactions, "nobody")).toEqual([]);
+  });
+});
+
+describe("lastTransactionForItem", () => {
+  it("returns undefined for an item with no transactions", () => {
+    expect(lastTransactionForItem([], "a")).toBeUndefined();
+  });
+
+  it("returns the most recent transaction for that item", () => {
+    const transactions: StoreTransactionList = [
+      { id: "1", itemId: "a", kind: "buy", quantity: 10, unitPrice: 100, currencyCode: "MRU", date: "2026-01-01", createdAt: "t1" },
+      { id: "2", itemId: "a", kind: "sell", quantity: 2, unitPrice: 150, currencyCode: "MRU", date: "2026-01-05", createdAt: "t2" },
+    ];
+    expect(lastTransactionForItem(transactions, "a")?.id).toBe("2");
+  });
+});
+
+describe("computeInventoryValueByCurrency", () => {
+  it("is empty with no items", () => {
+    expect(computeInventoryValueByCurrency({}, [])).toEqual({});
+  });
+
+  it("skips an item with zero or negative stock", () => {
+    const { items, ids } = makeItems("a");
+    const transactions: StoreTransactionList = [
+      { id: "1", itemId: ids[0], kind: "buy", quantity: 5, unitPrice: 100, currencyCode: "MRU", date: "2026-01-01", createdAt: "t1" },
+      { id: "2", itemId: ids[0], kind: "sell", quantity: 5, unitPrice: 150, currencyCode: "MRU", date: "2026-01-02", createdAt: "t2" },
+    ];
+    expect(computeInventoryValueByCurrency(items, transactions)).toEqual({});
+  });
+
+  it("values remaining stock at the last recorded unit price, grouped by currency", () => {
+    const { items, ids } = makeItems("a", "b");
+    const transactions: StoreTransactionList = [
+      { id: "1", itemId: ids[0], kind: "buy", quantity: 10, unitPrice: 100, currencyCode: "MRU", date: "2026-01-01", createdAt: "t1" },
+      { id: "2", itemId: ids[0], kind: "sell", quantity: 4, unitPrice: 150, currencyCode: "MRU", date: "2026-01-02", createdAt: "t2" },
+      { id: "3", itemId: ids[1], kind: "buy", quantity: 3, unitPrice: 20, currencyCode: "USD", date: "2026-01-01", createdAt: "t3" },
+    ];
+    // item a: stock 6, last price 150 MRU -> 900 MRU. item b: stock 3, last price 20 USD -> 60 USD.
+    expect(computeInventoryValueByCurrency(items, transactions)).toEqual({ MRU: 900, USD: 60 });
   });
 });

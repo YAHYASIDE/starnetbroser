@@ -205,6 +205,32 @@ export function listTransactionsForItem(transactions: StoreTransactionList, item
   return transactions.filter((t) => t.itemId === itemId).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.createdAt < b.createdAt ? 1 : -1));
 }
 
+/** The most recent transaction recorded for one item (buy or sell), or undefined if it has none
+ * yet - used to show a "last price" on the item row without opening its panel. */
+export function lastTransactionForItem(transactions: StoreTransactionList, itemId: string): StoreTransaction | undefined {
+  return listTransactionsForItem(transactions, itemId)[0];
+}
+
+/** Rough current worth of the stock on hand, grouped by currency: for each item still in stock,
+ * its last recorded unit price (buy or sell, whichever is most recent) times its current
+ * quantity. Deliberately approximate (no cross-currency conversion, no cost-basis accounting) -
+ * just enough for a store owner to see "what's sitting on the shelf is worth about X" at a
+ * glance, never used for profit/loss (that stays accountingStore.ts's job). */
+export function computeInventoryValueByCurrency(
+  items: StoreItemRegistry,
+  transactions: StoreTransactionList,
+): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const item of Object.values(items)) {
+    const stock = computeStock(transactions, item.id);
+    if (stock <= 0) continue;
+    const last = lastTransactionForItem(transactions, item.id);
+    if (!last) continue;
+    result[last.currencyCode] = (result[last.currencyCode] ?? 0) + stock * last.unitPrice;
+  }
+  return result;
+}
+
 /** Every SELL transaction linked to one client, newest first - "أرباحنا من كل زبون"'s store
  * counterpart: what this customer specifically bought from the store, clearly separate from any
  * other client's purchases. */
