@@ -2477,11 +2477,74 @@ button.overview-card:active {
 }
 
 /* Reports page */
+.report-period-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.report-period-btn {
+  flex: 1;
+  min-width: 52px;
+  min-height: 38px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.report-period-btn-active {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: var(--brand-contrast);
+}
+
+.report-net-tile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  padding: 16px;
+  margin-bottom: 14px;
+  border-radius: var(--radius-lg);
+  background: var(--green-bg);
+}
+
+.report-net-tile-negative {
+  background: var(--red-bg);
+}
+
+.report-net-tile-label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.report-net-tile-value {
+  font-size: 1.4rem;
+  color: var(--green);
+  overflow-wrap: anywhere;
+}
+
+.report-net-tile-negative .report-net-tile-value {
+  color: var(--red);
+}
+
 .report-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
-  margin-bottom: 20px;
+  margin-bottom: 14px;
+}
+
+.report-grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .report-tile {
@@ -2503,6 +2566,38 @@ button.overview-card:active {
 .report-tile-value {
   font-size: 1.2rem;
   overflow-wrap: anywhere;
+}
+
+.report-tile-value-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 1.05rem;
+  overflow-wrap: anywhere;
+}
+
+.report-collapse-toggle {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-align: start;
+  cursor: pointer;
+}
+
+.report-line-positive {
+  color: var(--green);
+}
+
+.report-line-negative {
+  color: var(--red);
 }
 
 .report-section-title {

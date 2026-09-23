@@ -208,6 +208,24 @@ export function computeDeviceAccountingSummary(entries: LedgerEntry[]): DeviceAc
   };
 }
 
+/**
+ * Sum of Starlink's own cost in USD for "D" (pending, unsettled) shipments that already have a
+ * recorded amount/currency - money the operator knows is owed to Starlink but hasn't paid yet. A
+ * true "D" with nothing recorded at all (no amount/currency chosen yet) contributes nothing here,
+ * same reasoning as computeShipmentProfit's own "pending" status - never guessed at.
+ */
+export function computePendingStarlinkCostUsd(entries: LedgerEntry[]): number {
+  let total = 0;
+  for (const entry of entries) {
+    if (entry.kind !== "debit" || isLegacyShipmentEntry(entry)) continue;
+    const cost = entry.starlinkCost!;
+    if (cost.status !== "pending" || cost.currencyCode === undefined || cost.amount === undefined) continue;
+    const usd = resolveUsdValue(cost.amount, cost.currencyCode, cost.rate);
+    if (usd !== undefined) total += usd;
+  }
+  return total;
+}
+
 export interface ClientDeviceSummary {
   accountId: string;
   accountName: string;

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { computeClientAccountingSummary, computeDeviceAccountingSummary, computeShipmentProfit } from "./accountingStore";
+import {
+  computeClientAccountingSummary,
+  computeDeviceAccountingSummary,
+  computePendingStarlinkCostUsd,
+  computeShipmentProfit,
+} from "./accountingStore";
 import { LedgerEntry } from "./ledgerStore";
 
 function shipment(overrides: Partial<LedgerEntry> = {}): LedgerEntry {
@@ -126,6 +131,50 @@ describe("computeShipmentProfit", () => {
     expect(profit.status).toBe("computed");
     expect(profit.profitMru).toBeUndefined();
     expect(profit.profitSifa).toBeUndefined();
+  });
+});
+
+describe("computePendingStarlinkCostUsd", () => {
+  it("sums a pending shipment's known cost in USD", () => {
+    const total = computePendingStarlinkCostUsd([
+      shipment({ starlinkCost: { status: "pending", currencyCode: "USD", amount: 100 } }),
+    ]);
+    expect(total).toBe(100);
+  });
+
+  it("converts a non-USD pending cost via its own locked rate snapshot", () => {
+    const total = computePendingStarlinkCostUsd([
+      shipment({ starlinkCost: { status: "pending", currencyCode: "MRU", amount: 40000, rate: { rateFromUsd: 400, usdValue: 100 } } }),
+    ]);
+    expect(total).toBe(100);
+  });
+
+  it("contributes nothing for a pending shipment with no cost recorded yet (a real 'D' with nothing chosen)", () => {
+    const total = computePendingStarlinkCostUsd([shipment({ starlinkCost: { status: "pending" } })]);
+    expect(total).toBe(0);
+  });
+
+  it("ignores settled shipments (only pending ones count here)", () => {
+    const total = computePendingStarlinkCostUsd([shipment()]); // default fixture is "settled"
+    expect(total).toBe(0);
+  });
+
+  it("ignores legacy shipments (no starlinkCost at all)", () => {
+    const total = computePendingStarlinkCostUsd([shipment({ starlinkCost: undefined })]);
+    expect(total).toBe(0);
+  });
+
+  it("ignores credit (payment) entries", () => {
+    const total = computePendingStarlinkCostUsd([payment()]);
+    expect(total).toBe(0);
+  });
+
+  it("sums across several pending shipments", () => {
+    const total = computePendingStarlinkCostUsd([
+      shipment({ id: "a", starlinkCost: { status: "pending", currencyCode: "USD", amount: 60 } }),
+      shipment({ id: "b", starlinkCost: { status: "pending", currencyCode: "USD", amount: 40 } }),
+    ]);
+    expect(total).toBe(100);
   });
 });
 
