@@ -70,7 +70,7 @@ describe("reminder message builders", () => {
       ledgerEntry({ kind: "debit", amount: 45000, currency: "MRU" }),
     ]);
     expect(message).toContain("مقهى النخيل");
-    expect(message).toContain("45,000.00 أوقية");
+    expect(message).toContain("45,000 أوقية");
     expect(message).toContain("22227268");
     expect(message).toContain("74646158");
   });
@@ -93,8 +93,8 @@ describe("reminder message builders", () => {
       ledgerEntry({ kind: "debit", amount: 45000, currency: "MRU" }),
       ledgerEntry({ kind: "debit", amount: 20, currency: "USD" }),
     ]);
-    expect(message).toContain("45,000.00 أوقية");
-    expect(message).toContain("20.00 دولار");
+    expect(message).toContain("45,000 أوقية");
+    expect(message).toContain("20 دولار");
   });
 });
 
@@ -110,8 +110,8 @@ describe("buildAccountStatementMessage", () => {
       ledgerEntry({ kind: "debit", amount: 45000, currency: "MRU" }),
       ledgerEntry({ kind: "credit", amount: 20, currency: "USD" }),
     ]);
-    expect(message).toContain("عليه 45,000.00 أوقية");
-    expect(message).toContain("له 20.00 دولار");
+    expect(message).toContain("عليه 45,000 أوقية");
+    expect(message).toContain("له 20 دولار");
   });
 
   it("lists every transaction with its date, direction, amount, payment method and note", () => {
@@ -125,7 +125,7 @@ describe("buildAccountStatementMessage", () => {
         note: "دفعة نقدية",
       }),
     ]);
-    expect(message).toContain("2026-09-21: له 20.00 دولار (بنكيلي) - دفعة نقدية");
+    expect(message).toContain("2026-09-21: له 20 دولار (بنكيلي) - دفعة نقدية");
   });
 
   it("orders transactions newest first", () => {

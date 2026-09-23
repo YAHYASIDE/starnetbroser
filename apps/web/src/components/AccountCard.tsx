@@ -387,7 +387,7 @@ export function AccountCard({
             const balance = ledgerBalances[c];
             if (!balance) return null;
             return balance > 0 ? (
-              <span key={c} className="badge badge-red">على الزبون: {formatAmount(balance)} {LEDGER_CURRENCY_LABELS[c]}</span>
+              <span key={c} className="badge badge-red">الزبون: {formatAmount(balance)} {LEDGER_CURRENCY_LABELS[c]}</span>
             ) : (
               <span key={c} className="badge badge-green">للزبون: {formatAmount(-balance)} {LEDGER_CURRENCY_LABELS[c]}</span>
             );
