@@ -3,11 +3,28 @@
 import { useEffect, useState } from "react";
 import { checkHealth, listAccounts, login, register } from "@/lib/apiClient";
 import { ApiError } from "@/lib/apiClient";
-import { clearTokens, getApiBaseUrl, isDemoMode, isLoggedIn, setApiBaseUrl } from "@/lib/settingsStore";
+import {
+  clearTokens,
+  getApiBaseUrl,
+  getThemePreference,
+  isDemoMode,
+  isHelpModeEnabled,
+  isLoggedIn,
+  setApiBaseUrl,
+  setHelpModeEnabled,
+  setThemePreference,
+  ThemePreference,
+} from "@/lib/settingsStore";
 import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
 import { createEncryptedBackupFile, mergeImportedAccounts, readEncryptedBackupFile } from "@/lib/accountBackup";
 import { exportAccountSessions, importAccountSessions } from "@/lib/localBrowser";
 import { saveAndShareBackupFile } from "@/lib/backupFile";
+
+const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
+  { value: "system", label: "حسب الجهاز" },
+  { value: "light", label: "فاتح" },
+  { value: "dark", label: "داكن" },
+];
 
 export default function SettingsPage() {
   const [url, setUrl] = useState("");
@@ -17,11 +34,25 @@ export default function SettingsPage() {
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [loggedIn, setLoggedIn] = useState(false);
+  const [theme, setTheme] = useState<ThemePreference>("system");
+  const [helpMode, setHelpMode] = useState(false);
 
   useEffect(() => {
     setUrl(getApiBaseUrl());
     setLoggedIn(isLoggedIn());
+    setTheme(getThemePreference());
+    setHelpMode(isHelpModeEnabled());
   }, []);
+
+  function handleThemeChange(next: ThemePreference) {
+    setTheme(next);
+    setThemePreference(next);
+  }
+
+  function handleHelpModeChange(next: boolean) {
+    setHelpMode(next);
+    setHelpModeEnabled(next);
+  }
 
   async function handleSave() {
     setApiBaseUrl(url);
@@ -52,6 +83,42 @@ export default function SettingsPage() {
   return (
     <main className="home">
       <h1 className="section-title">الإعدادات</h1>
+
+      <section className="section">
+        <h2 className="section-title">المظهر</h2>
+        <p className="settings-hint">اختر مظهر التطبيق - يمكنك اختيار الوضع الداكن يدويًا بدل الاعتماد على إعداد الجهاز.</p>
+        <div className="theme-option-row">
+          {THEME_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              className={`theme-option-btn${theme === opt.value ? " theme-option-btn-active" : ""}`}
+              onClick={() => handleThemeChange(opt.value)}
+              aria-pressed={theme === opt.value}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="section">
+        <h2 className="section-title">المساعدة الذكية</h2>
+        <p className="settings-hint">
+          عند التفعيل، تظهر تلميحات قصيرة تشرح لك كيفية استخدام أهم الشاشات خطوة بخطوة.
+        </p>
+        <label className="toggle-switch-row">
+          <span>تفعيل المساعدة والشرح</span>
+          <span className={`toggle-switch${helpMode ? " toggle-switch-on" : ""}`}>
+            <input
+              type="checkbox"
+              checked={helpMode}
+              onChange={(e) => handleHelpModeChange(e.target.checked)}
+            />
+            <span className="toggle-switch-thumb" />
+          </span>
+        </label>
+      </section>
 
       <section className="section">
         <h2 className="section-title">عنوان الخادم</h2>

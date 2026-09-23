@@ -25,8 +25,12 @@
   color-scheme: light;
 }
 
+/* Dark mode: follows the OS by default, but a manual choice made in الإعدادات (see
+   settingsStore.ts's theme setting, applied as data-theme on <html>) always wins - :not([data-
+   theme="light"]) lets the OS preference through unless the operator explicitly forced light,
+   and the plain [data-theme="dark"] rule forces dark even when the OS itself prefers light. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #10131a;
     --surface: #171c26;
     --surface-alt: #1e2430;
@@ -46,6 +50,27 @@
     --gray-bg: #232936;
     color-scheme: dark;
   }
+}
+
+:root[data-theme="dark"] {
+  --bg: #10131a;
+  --surface: #171c26;
+  --surface-alt: #1e2430;
+  --text: #eef1f6;
+  --text-muted: #97a1b1;
+  --border: #2a3140;
+  --brand: #38bdf8;
+  --brand-strong: #7dd3fc;
+  --brand-contrast: #052e40;
+  --green: #34c481;
+  --green-bg: #123425;
+  --yellow: #e0b13a;
+  --yellow-bg: #3a2f10;
+  --red: #ef5b57;
+  --red-bg: #3a1817;
+  --gray: #7a8494;
+  --gray-bg: #232936;
+  color-scheme: dark;
 }
 
 * {
@@ -134,15 +159,6 @@ select.search-input {
 .search-input:focus {
   outline: 2px solid var(--brand);
   outline-offset: 1px;
-}
-
-.demo-banner {
-  background: var(--yellow-bg);
-  color: var(--yellow);
-  text-align: center;
-  padding: 8px 12px;
-  font-size: 0.85rem;
-  font-weight: 600;
 }
 
 .section {
@@ -519,10 +535,6 @@ a.btn-icon {
   white-space: nowrap;
 }
 
-.conn-demo {
-  background: var(--gray-bg);
-  color: var(--gray);
-}
 .conn-checking {
   background: var(--surface-alt);
   color: var(--text-muted);
@@ -860,90 +872,67 @@ a.btn-icon {
 
 
 .overview-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 5px;
 }
 
 .overview-card {
-  position: relative;
-  min-height: 104px;
-  padding: 13px;
-  border: 1px solid var(--border);
-  border-radius: 18px;
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
-  overflow: hidden;
-  background: var(--surface);
-  box-shadow: 0 7px 22px rgba(21, 31, 44, 0.045);
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-height: 60px;
+  padding: 6px 3px;
+  border: none;
+  border-radius: 14px;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(21, 31, 44, 0.1);
 }
 
 button.overview-card {
   font-family: inherit;
-  text-align: inherit;
+  text-align: center;
   cursor: pointer;
-  width: 100%;
 }
 
 button.overview-card:active {
-  transform: scale(0.98);
+  transform: scale(0.96);
 }
 
 .overview-card-active {
-  border-color: currentColor;
-  box-shadow: 0 0 0 2px currentColor, 0 7px 22px rgba(21, 31, 44, 0.045);
-}
-
-.overview-card::after {
-  content: "";
-  position: absolute;
-  width: 58px;
-  height: 58px;
-  top: -23px;
-  left: -17px;
-  border-radius: 50%;
-  background: currentColor;
-  opacity: 0.08;
+  box-shadow: 0 0 0 2px var(--text), 0 4px 12px rgba(21, 31, 44, 0.1);
 }
 
 .overview-icon {
-  position: absolute;
-  top: 13px;
-  right: 13px;
-  width: 25px;
-  height: 25px;
-  border-radius: 8px;
-  display: grid;
-  place-items: center;
-  color: currentColor;
-  background: color-mix(in srgb, currentColor 11%, transparent);
-  font-size: 0.78rem;
-  font-weight: 900;
+  font-size: 0.8rem;
+  line-height: 1;
 }
 
 .overview-value {
-  font-size: 1.55rem;
+  font-size: 1.05rem;
   font-weight: 800;
   line-height: 1;
-  color: var(--text);
 }
 
 .overview-label {
-  margin-top: 6px;
-  color: var(--text-muted);
-  font-size: 0.6rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.52rem;
+  font-weight: 600;
+  line-height: 1.15;
+  text-align: center;
+  overflow-wrap: anywhere;
 }
 
-.overview-total { color: var(--brand); }
-.overview-online { color: var(--green); }
-.overview-warning { color: var(--yellow); }
-.overview-expired { color: var(--red); }
-.overview-suspended { color: var(--red); }
-.overview-owed { color: var(--red); }
+.overview-total { background: var(--brand); }
+.overview-online { background: var(--green); }
+.overview-warning { background: #d97706; }
+.overview-expired { background: var(--red); }
+.overview-suspended { background: #9d174d; }
+.overview-owed { background: #7c3aed; }
 
 .dashboard-section {
   margin-top: 16px;
@@ -2304,14 +2293,6 @@ button.overview-card:active {
     padding: 14px 14px 32px;
   }
 
-  .overview-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .overview-card {
-    min-height: 94px;
-  }
-
   .dashboard-section {
     padding: 15px;
     border-radius: 19px;
@@ -2631,4 +2612,193 @@ button.overview-card:active {
 
 .report-line strong {
   overflow-wrap: anywhere;
+}
+
+/* Settings page: theme selector + help-mode toggle */
+.theme-option-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.theme-option-btn {
+  flex: 1;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.theme-option-btn-active {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: var(--brand-contrast);
+}
+
+.toggle-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 46px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  transition: background 0.15s ease;
+}
+
+.toggle-switch-on {
+  background: var(--brand);
+  border-color: var(--brand);
+}
+
+.toggle-switch input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.toggle-switch-thumb {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s ease;
+  pointer-events: none;
+}
+
+.toggle-switch-on .toggle-switch-thumb {
+  transform: translateX(-20px);
+}
+
+/* Store / inventory page */
+.store-items-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.store-item-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.store-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  font-family: inherit;
+  cursor: pointer;
+  text-align: right;
+}
+
+.store-item-row-active {
+  border-color: var(--brand);
+}
+
+.store-item-name {
+  font-weight: 700;
+  color: var(--text);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.store-item-stock {
+  flex-shrink: 0;
+  font-weight: 700;
+  color: var(--green);
+}
+
+.store-item-stock-empty {
+  color: var(--red);
+}
+
+.store-item-panel {
+  margin-top: 8px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+  min-width: 0;
+}
+
+/* المساعدة الذكية hint box - shown only when settingsStore's helpMode is on. */
+.help-hint {
+  margin: 10px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--brand);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--brand) 10%, var(--surface));
+  min-width: 0;
+}
+
+.help-hint-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.help-hint-title {
+  font-size: 0.92rem;
+  color: var(--text);
+}
+
+.help-hint-close {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.help-hint-steps {
+  margin: 8px 0 0;
+  padding-inline-start: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
 }

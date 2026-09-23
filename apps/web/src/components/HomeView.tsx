@@ -14,6 +14,7 @@ import { ClientDialog } from "./ClientDialog";
 import { ClientsOverviewDialog } from "./ClientsOverviewDialog";
 import { DeviceStatementDialog } from "./DeviceStatementDialog";
 import { ToastMessage, ToastStack } from "./ToastStack";
+import { HelpHint } from "./HelpHint";
 import { daysRemainingNumber } from "@/lib/date";
 import { formatAmount } from "@/lib/formatAmount";
 import {
@@ -684,6 +685,15 @@ export function HomeView({
           </div>
         )}
       </div>
+
+      <HelpHint
+        title="الصفحة الرئيسية"
+        steps={[
+          "اضغط على أي يوم في التقويم لعرض الحسابات المستحقة للتجديد في ذلك اليوم.",
+          "اضغط 'التفاصيل' على أي حساب ثم 'إضافة دفعة' لتسجيل أول مبلغ - اختر 'عليه' لشحنة جديدة أو 'له' لدفعة استلمتها.",
+          "استخدم زر + في الأسفل للوصول إلى العملات وسلة المحذوفات والأرشيف.",
+        ]}
+      />
 
       {viewMode === "active" && (
         <>

@@ -38,6 +38,7 @@ import { AllocationDeviceOption, AllocationShipmentRow, PaymentAllocationDialog 
 import { LegacyEntryCompletionDialog } from "./LegacyEntryCompletionDialog";
 import { PaymentRateCompletionDialog } from "./PaymentRateCompletionDialog";
 import { EditLedgerEntryDialog } from "./EditLedgerEntryDialog";
+import { HelpHint } from "./HelpHint";
 
 /** One other device linked to the same customer - siblings, never the account currently open in
  * this dialog. Lets a payment recorded here be allocated to a shipment on a DIFFERENT device
@@ -387,6 +388,15 @@ export function LedgerDialog({
           </div>
           <button className="dialog-close" type="button" onClick={onClose} aria-label="إغلاق">×</button>
         </header>
+
+        <HelpHint
+          title="كشف الحساب"
+          steps={[
+            "اختر 'عليه' لتسجيل شحنة/مبلغ جديد على الزبون، أو 'له' لتسجيل دفعة استلمتها منه.",
+            "عند تسجيل شحنة، أدخل تكلفة Starlink الحقيقية ليُحسب الربح تلقائيًا - أو فعّل 'D' إن لم تُسدَّد بعد.",
+            "الدفعة (له) تُخصَّص تلقائيًا لأقدم شحنة غير مدفوعة، ويمكنك تغيير الجهاز أو الشحنة يدويًا قبل الحفظ.",
+          ]}
+        />
 
         <div className="ledger-balance-rows">
           {balanceRows.length === 0 ? (
