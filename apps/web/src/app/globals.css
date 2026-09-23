@@ -56,6 +56,11 @@ html,
 body {
   padding: 0;
   margin: 0;
+  /* Last-resort backstop only, never the actual fix - real fixes are min-width:0 on shrinkable
+     containers (see .account-card, .report-tile, minmax(0,1fr) grids) plus overflow-wrap on the
+     specific unbreakable strings (emails) that were actually forcing the page wider. This just
+     guards against a future, still-unnoticed case doing the same thing. */
+  overflow-x: hidden;
 }
 
 body {
@@ -416,6 +421,7 @@ select.search-input {
 .account-card-identifiers strong {
   color: var(--text);
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .account-card-ledger-row {
@@ -1009,6 +1015,11 @@ button.overview-card:active {
 }
 
 .account-card {
+  /* Without this, a grid item's intrinsic minimum width defaults to its content's min-content
+     size - an unbreakable long string inside (chiefly the account's real email address, which has
+     no spaces to wrap at) would otherwise force this card, its grid track in .account-grid, and
+     the whole page wider than the viewport instead of actually shrinking/wrapping. */
+  min-width: 0;
   padding: 12px;
   gap: 7px;
   border-radius: 16px;
@@ -1246,12 +1257,16 @@ button.overview-card:active {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  max-width: 100%;
   padding: 3px 8px;
   border-radius: 999px;
   background: var(--surface-alt);
   color: var(--text);
   font-size: 0.7rem;
   font-weight: 600;
+  /* Holds the email pill too, whose value has no spaces to wrap at - without this, a long real
+     address forces the pill (and everything containing it) wider than the screen. */
+  overflow-wrap: anywhere;
 }
 
 .mini-status {
@@ -1310,6 +1325,13 @@ button.overview-card:active {
   background: var(--surface-alt);
   color: var(--text-muted);
   font-size: 0.72rem;
+}
+
+.account-card-email-row span {
+  min-width: 0;
+  /* The email itself has no spaces to wrap at - without this, a long real address forces this
+     row (and the card containing it) wider than the screen instead of wrapping to a new line. */
+  overflow-wrap: anywhere;
 }
 
 .account-card-email-icon {
@@ -2404,7 +2426,7 @@ button.overview-card:active {
   margin-bottom: calc(var(--bottom-nav-height) + var(--safe-bottom));
   padding: 14px;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   border-radius: 18px 18px 0 0;
   background: var(--surface);
@@ -2457,7 +2479,7 @@ button.overview-card:active {
 /* Reports page */
 .report-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   margin-bottom: 20px;
 }
@@ -2466,6 +2488,7 @@ button.overview-card:active {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
   padding: 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -2479,6 +2502,7 @@ button.overview-card:active {
 
 .report-tile-value {
   font-size: 1.2rem;
+  overflow-wrap: anywhere;
 }
 
 .report-section-title {
@@ -2499,8 +2523,17 @@ button.overview-card:active {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface);
+}
+
+.report-line span {
+  min-width: 0;
+}
+
+.report-line strong {
+  overflow-wrap: anywhere;
 }
