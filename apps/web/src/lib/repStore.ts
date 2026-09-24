@@ -100,7 +100,12 @@ export function updateRepresentative(
   return { ...store, [id]: updated };
 }
 
-export type RepSettlementKind = "cashHandover" | "commissionPayout";
+/** "cashHandover"/"commissionPayout" settle the two invoice-derived balances below.
+ * "manualCredit"/"manualDebit" are free-standing adjustments with no invoice behind them at all
+ * (a bonus, an advance/سلفة, a correction) - "credit" adds to what the operator owes the rep,
+ * "debit" adds to what the rep owes the operator, exactly like the other two settlement kinds'
+ * own direction. */
+export type RepSettlementKind = "cashHandover" | "commissionPayout" | "manualCredit" | "manualDebit";
 
 export interface RepSettlement {
   id: string;
@@ -211,4 +216,56 @@ export function computeRepCommissionOwedByCurrency(
     result[s.currencyCode] = (result[s.currencyCode] ?? 0) - s.amount;
   }
   return result;
+}
+
+/** Free-standing manual adjustments only (see RepSettlementKind) - never touches the two
+ * invoice-derived balances above. Per currency, positive = the operator still owes the rep this
+ * extra amount (a bonus), negative = the rep still owes the operator (an unpaid advance/سلفة). */
+export function computeRepManualBalanceByCurrency(
+  representativeId: string,
+  settlements: RepSettlementList,
+): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const s of settlements) {
+    if (s.representativeId !== representativeId) continue;
+    if (s.kind === "manualCredit") result[s.currencyCode] = (result[s.currencyCode] ?? 0) + s.amount;
+    else if (s.kind === "manualDebit") result[s.currencyCode] = (result[s.currencyCode] ?? 0) - s.amount;
+  }
+  return result;
+}
+
+/** Total commission ever accrued for this rep, per currency - deliberately gross (never nets out
+ * a "commissionPayout" settlement), for a "ملخص ربحه" summary distinct from what's CURRENTLY
+ * owed (computeRepCommissionOwedByCurrency). */
+export function computeRepCommissionEarnedByCurrency(representativeId: string, invoices: Invoice[]): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const inv of invoices) {
+    if (inv.kind !== "sale" || inv.returnOfInvoiceId || inv.representativeId !== representativeId) continue;
+    if (inv.representativeCommissionPercent === undefined) continue;
+    const commission = (inv.representativeCommissionPercent / 100) * invoiceTotal(inv);
+    if (commission <= 0) continue;
+    result[inv.currencyCode] = (result[inv.currencyCode] ?? 0) + commission;
+  }
+  return result;
+}
+
+export interface RepInvoiceCommissionRow {
+  invoice: Invoice;
+  commissionAmount: number;
+}
+
+/** "ربحه من كل جهاز" - every sale invoice attributed to this rep with its own commission amount,
+ * newest first, so the operator can see exactly which device/sale earned him how much (the UI
+ * resolves each invoice's own item names from storeStore.ts - this module never depends on it). */
+export function listRepInvoiceCommissions(representativeId: string, invoices: Invoice[]): RepInvoiceCommissionRow[] {
+  return invoices
+    .filter(
+      (inv) =>
+        inv.kind === "sale" &&
+        !inv.returnOfInvoiceId &&
+        inv.representativeId === representativeId &&
+        inv.representativeCommissionPercent !== undefined,
+    )
+    .map((inv) => ({ invoice: inv, commissionAmount: (inv.representativeCommissionPercent! / 100) * invoiceTotal(inv) }))
+    .sort((a, b) => (a.invoice.date < b.invoice.date ? 1 : a.invoice.date > b.invoice.date ? -1 : 0));
 }

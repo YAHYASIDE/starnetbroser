@@ -4,14 +4,18 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   computeRepCashHeldByCurrency,
+  computeRepCommissionEarnedByCurrency,
   computeRepCommissionOwedByCurrency,
+  computeRepManualBalanceByCurrency,
   createRepresentative,
   CreateRepresentativeInput,
+  listRepInvoiceCommissions,
   listRepresentatives,
   loadRepresentativeStore,
   loadRepSettlements,
   recordRepSettlement,
   Representative,
+  RepInvoiceCommissionRow,
   RepresentativeStore,
   RepSettlementKind,
   RepSettlementList,
@@ -23,6 +27,7 @@ import { InvoiceList, loadInvoices } from "@/lib/invoiceStore";
 import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerCurrency } from "@/lib/ledgerStore";
 import { combinePhoneNumber, PHONE_COUNTRY_CODES, splitPhoneNumber } from "@/lib/phoneCountryCodes";
 import { formatAmount } from "@/lib/formatAmount";
+import { getStoreItem, loadStoreItems, StoreItemRegistry } from "@/lib/storeStore";
 
 function currencyLabel(code: string): string {
   return LEDGER_CURRENCY_LABELS[code as LedgerCurrency] ?? code;
@@ -36,6 +41,7 @@ export default function RepresentativesPage() {
   const [representativeStore, setRepresentativeStore] = useState<RepresentativeStore>({});
   const [invoices, setInvoices] = useState<InvoiceList>([]);
   const [settlements, setSettlements] = useState<RepSettlementList>([]);
+  const [storeItems, setStoreItems] = useState<StoreItemRegistry>({});
   const [showAddForm, setShowAddForm] = useState(false);
   const [openRepId, setOpenRepId] = useState<string | null>(null);
 
@@ -43,6 +49,7 @@ export default function RepresentativesPage() {
     setRepresentativeStore(loadRepresentativeStore());
     setInvoices(loadInvoices());
     setSettlements(loadRepSettlements());
+    setStoreItems(loadStoreItems());
   }, []);
 
   const representatives = useMemo(() => listRepresentatives(representativeStore), [representativeStore]);
@@ -102,6 +109,7 @@ export default function RepresentativesPage() {
             {representatives.map((rep) => {
               const cashHeld = computeRepCashHeldByCurrency(rep.id, invoices, settlements);
               const commissionOwed = computeRepCommissionOwedByCurrency(rep.id, invoices, settlements);
+              const manualBalance = computeRepManualBalanceByCurrency(rep.id, settlements);
               const isOpen = openRepId === rep.id;
               return (
                 <li key={rep.id} className="ledger-entry-row">
@@ -127,10 +135,20 @@ export default function RepresentativesPage() {
                           عمولة مستحقة: {formatAmount(amount)} {currencyLabel(c)}
                         </span>
                       ))}
+                    {Object.entries(manualBalance)
+                      .filter(([, amount]) => Math.abs(amount) > 0.0001)
+                      .map(([c, amount]) => (
+                        <span key={`manual-${c}`} className={`badge ${amount > 0 ? "badge-yellow" : "badge-red"}`} dir="ltr">
+                          {amount > 0 ? "له إضافي" : "عليه"}: {formatAmount(Math.abs(amount))} {currencyLabel(c)}
+                        </span>
+                      ))}
                   </div>
                   {isOpen && (
                     <RepresentativeDetail
                       representative={rep}
+                      commissionEarned={computeRepCommissionEarnedByCurrency(rep.id, invoices)}
+                      invoiceCommissions={listRepInvoiceCommissions(rep.id, invoices)}
+                      storeItems={storeItems}
                       onUpdate={(input) => handleUpdate(rep.id, input)}
                       onSettle={(kind, amount, currencyCode, note) => handleSettlement(rep.id, kind, amount, currencyCode, note)}
                     />
@@ -212,11 +230,26 @@ function RepresentativeForm({ initial, onSubmit, onCancel }: RepresentativeFormP
 
 interface RepresentativeDetailProps {
   representative: Representative;
+  commissionEarned: Record<string, number>;
+  invoiceCommissions: RepInvoiceCommissionRow[];
+  storeItems: StoreItemRegistry;
   onUpdate: (input: CreateRepresentativeInput) => void;
   onSettle: (kind: RepSettlementKind, amount: number, currencyCode: string, note: string) => { ok: boolean; message?: string };
 }
 
-function RepresentativeDetail({ representative, onUpdate, onSettle }: RepresentativeDetailProps) {
+function invoiceItemNames(row: RepInvoiceCommissionRow, storeItems: StoreItemRegistry): string {
+  const names = row.invoice.lines.map((line) => getStoreItem(storeItems, line.itemId)?.name).filter((n): n is string => Boolean(n));
+  return names.length ? names.join("، ") : "—";
+}
+
+function RepresentativeDetail({
+  representative,
+  commissionEarned,
+  invoiceCommissions,
+  storeItems,
+  onUpdate,
+  onSettle,
+}: RepresentativeDetailProps) {
   const [editing, setEditing] = useState(false);
   const [settleKind, setSettleKind] = useState<RepSettlementKind>("cashHandover");
   const [settleAmount, setSettleAmount] = useState("");
@@ -265,6 +298,8 @@ function RepresentativeDetail({ representative, onUpdate, onSettle }: Representa
         <select className="search-input" value={settleKind} onChange={(e) => setSettleKind(e.target.value as RepSettlementKind)}>
           <option value="cashHandover">تسليم نقد (استلمته منه)</option>
           <option value="commissionPayout">دفع عمولة (سلّمته له)</option>
+          <option value="manualCredit">مبلغ له (مكافأة/إضافي)</option>
+          <option value="manualDebit">مبلغ عليه (سلفة)</option>
         </select>
         <input
           className="search-input"
@@ -296,6 +331,40 @@ function RepresentativeDetail({ representative, onUpdate, onSettle }: Representa
           حفظ العملية
         </button>
       </form>
+
+      <div className="account-card-device-name-row">
+        <span className="account-card-label">ملخص ربحه:</span>
+        <strong dir="ltr">
+          {Object.entries(commissionEarned).filter(([, amount]) => Math.abs(amount) > 0.0001).length
+            ? Object.entries(commissionEarned)
+                .filter(([, amount]) => Math.abs(amount) > 0.0001)
+                .map(([c, amount]) => `${formatAmount(amount)} ${currencyLabel(c)}`)
+                .join(" + ")
+            : "0"}
+        </strong>
+        <span className="settings-hint">({invoiceCommissions.length} فاتورة)</span>
+      </div>
+
+      {invoiceCommissions.length > 0 && (
+        <div>
+          <p className="account-card-label">ربحه من كل جهاز:</p>
+          <ul className="ledger-entry-list">
+            {invoiceCommissions.map((row) => (
+              <li key={row.invoice.id} className="ledger-entry-row">
+                <div className="ledger-entry-row-top">
+                  <span className="store-item-name">{invoiceItemNames(row, storeItems)}</span>
+                  <span className="settings-hint" dir="ltr">{row.invoice.date}</span>
+                </div>
+                <div className="ledger-entry-row-bottom">
+                  <span className="badge badge-red" dir="ltr">
+                    عمولة: {formatAmount(row.commissionAmount)} {currencyLabel(row.invoice.currencyCode)}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

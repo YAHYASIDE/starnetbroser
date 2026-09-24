@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   computeRepCashHeldByCurrency,
+  computeRepCommissionEarnedByCurrency,
   computeRepCommissionOwedByCurrency,
+  computeRepManualBalanceByCurrency,
   createRepresentative,
+  listRepInvoiceCommissions,
   listRepresentatives,
   recordRepSettlement,
   RepresentativeStore,
@@ -149,5 +152,74 @@ describe("recordRepSettlement", () => {
     });
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.settlements).toHaveLength(1);
+  });
+});
+
+describe("computeRepManualBalanceByCurrency", () => {
+  it("adds manualCredit and subtracts manualDebit, per currency", () => {
+    const settlements: RepSettlementList = [
+      { id: "s1", representativeId: "r1", kind: "manualCredit", amount: 1000, currencyCode: "MRU", date: "2026-09-21", createdAt: "t" },
+      { id: "s2", representativeId: "r1", kind: "manualDebit", amount: 400, currencyCode: "MRU", date: "2026-09-22", createdAt: "t" },
+      { id: "s3", representativeId: "r2", kind: "manualCredit", amount: 500, currencyCode: "MRU", date: "2026-09-22", createdAt: "t" }, // different rep
+    ];
+    expect(computeRepManualBalanceByCurrency("r1", settlements)).toEqual({ MRU: 600 });
+  });
+
+  it("ignores cashHandover/commissionPayout settlements", () => {
+    const settlements: RepSettlementList = [
+      { id: "s1", representativeId: "r1", kind: "cashHandover", amount: 1000, currencyCode: "MRU", date: "2026-09-21", createdAt: "t" },
+      { id: "s2", representativeId: "r1", kind: "commissionPayout", amount: 400, currencyCode: "MRU", date: "2026-09-22", createdAt: "t" },
+    ];
+    expect(computeRepManualBalanceByCurrency("r1", settlements)).toEqual({});
+  });
+
+  it("returns an empty object when there are no manual settlements", () => {
+    expect(computeRepManualBalanceByCurrency("r1", [])).toEqual({});
+  });
+});
+
+describe("computeRepCommissionEarnedByCurrency", () => {
+  it("sums gross commission and never nets out a commissionPayout settlement", () => {
+    const invoices = [invoice({ id: "1", representativeId: "r1", currencyCode: "MRU", representativeCommissionPercent: 5 })]; // 200 -> 10
+    expect(computeRepCommissionEarnedByCurrency("r1", invoices)).toEqual({ MRU: 10 });
+  });
+
+  it("skips an invoice with no locked commission snapshot", () => {
+    const invoices = [invoice({ id: "1", representativeId: "r1", currencyCode: "MRU" })];
+    expect(computeRepCommissionEarnedByCurrency("r1", invoices)).toEqual({});
+  });
+
+  it("ignores a return invoice", () => {
+    const invoices = [
+      invoice({ id: "1", representativeId: "r1", currencyCode: "MRU", representativeCommissionPercent: 5, returnOfInvoiceId: "orig" }),
+    ];
+    expect(computeRepCommissionEarnedByCurrency("r1", invoices)).toEqual({});
+  });
+});
+
+describe("listRepInvoiceCommissions", () => {
+  it("lists each invoice attributed to the rep with its own commission amount, newest first", () => {
+    const invoices = [
+      invoice({ id: "1", date: "2026-09-20", representativeId: "r1", currencyCode: "MRU", representativeCommissionPercent: 5 }), // 200 -> 10
+      invoice({
+        id: "2",
+        date: "2026-09-22",
+        representativeId: "r1",
+        currencyCode: "MRU",
+        representativeCommissionPercent: 5,
+        lines: [{ itemId: "a", quantity: 1, unitPrice: 1000, transactionId: "t2" }],
+      }), // 1000 -> 50
+    ];
+    const rows = listRepInvoiceCommissions("r1", invoices);
+    expect(rows.map((r) => r.invoice.id)).toEqual(["2", "1"]);
+    expect(rows.map((r) => r.commissionAmount)).toEqual([50, 10]);
+  });
+
+  it("excludes invoices attributed to another rep or with no locked commission", () => {
+    const invoices = [
+      invoice({ id: "1", representativeId: "r2", currencyCode: "MRU", representativeCommissionPercent: 5 }),
+      invoice({ id: "2", representativeId: "r1", currencyCode: "MRU" }),
+    ];
+    expect(listRepInvoiceCommissions("r1", invoices)).toEqual([]);
   });
 });
