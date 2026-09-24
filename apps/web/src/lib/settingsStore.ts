@@ -61,6 +61,19 @@ export function isLoggedIn(): boolean {
   return getAccessToken() !== null;
 }
 
+const LAST_BACKUP_AT_KEY = "starnet.lastBackupAt";
+
+/** ISO timestamp of the last time an export backup file was actually created (see
+ * backupFile.ts's saveAndShareBackupFile) - null means never, which the reminders center
+ * (reminders.ts) treats the same as "long overdue", never a guessed date. */
+export function getLastBackupAt(): string | null {
+  return safeGet(LAST_BACKUP_AT_KEY);
+}
+
+export function recordBackupExported(now: Date = new Date()) {
+  safeSet(LAST_BACKUP_AT_KEY, now.toISOString());
+}
+
 /** "system" (default) follows the device's own light/dark setting - "light"/"dark" is an explicit
  * operator choice that always overrides it (see globals.css's [data-theme] rules). */
 export type ThemePreference = "system" | "light" | "dark";

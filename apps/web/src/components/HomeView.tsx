@@ -16,7 +16,7 @@ import { DeviceStatementDialog } from "./DeviceStatementDialog";
 import { ToastMessage, ToastStack } from "./ToastStack";
 import { HelpHint } from "./HelpHint";
 import { daysRemainingNumber } from "@/lib/date";
-import { computeDeviceDebtReminders, computeRenewalReminders } from "@/lib/reminders";
+import { computeDeviceDebtReminders, computeRenewalReminders, isBackupOverdue } from "@/lib/reminders";
 import { formatAmount } from "@/lib/formatAmount";
 import {
   getAccountEntries,
@@ -54,7 +54,7 @@ import {
   withAccountAllocations,
 } from "@/lib/paymentAllocationStore";
 import { ApiError, listAccounts } from "@/lib/apiClient";
-import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
+import { getLastBackupAt, isDemoMode, isLoggedIn } from "@/lib/settingsStore";
 import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
 import {
   ackPendingAccountSyncs,
@@ -153,6 +153,8 @@ export function HomeView({
   // isAndroidApp above.
   const [ledgerStore, setLedgerStore] = useState<LedgerByAccount>({});
   useEffect(() => setLedgerStore(loadLedgerStore()), []);
+  const [lastBackupAt, setLastBackupAt] = useState<string | null>(null);
+  useEffect(() => setLastBackupAt(getLastBackupAt()), []);
   const [ledgerAccount, setLedgerAccount] = useState<StarlinkAccountSummary | null>(null);
   const [statementAccount, setStatementAccount] = useState<StarlinkAccountSummary | null>(null);
 
@@ -559,12 +561,16 @@ export function HomeView({
   const archivedAccounts = useMemo(() => accounts.filter((a) => a.archivedAt), [accounts]);
   const trashAccounts = useMemo(() => accounts.filter((a) => a.deletedAt), [accounts]);
 
-  // Cheap header-badge count for /reminders - only the two categories this page already has data
-  // for loaded (renewals + device debts); the page itself also covers store debts/low stock, which
-  // don't need a second data load just to size a badge.
+  // Cheap header-badge count for /reminders - only the categories this page already has data for
+  // loaded (renewals, device debts, backup) or that cost nothing extra to check (backup); the
+  // page itself also covers store debts/low stock, which don't need a second data load just to
+  // size a badge.
   const reminderCount = useMemo(
-    () => computeRenewalReminders(activeAccounts).length + computeDeviceDebtReminders(activeAccounts, ledgerStore).length,
-    [activeAccounts, ledgerStore],
+    () =>
+      computeRenewalReminders(activeAccounts).length +
+      computeDeviceDebtReminders(activeAccounts, ledgerStore).length +
+      (isBackupOverdue(lastBackupAt) ? 1 : 0),
+    [activeAccounts, ledgerStore, lastBackupAt],
   );
 
   const dayCounts = useMemo(() => {

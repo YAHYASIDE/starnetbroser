@@ -3,6 +3,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import { Client, ClientStore, CreateClientInput, getClient } from "@/lib/clientStore";
 import { CreateSupplierInput, getSupplier, Supplier, SupplierStore } from "@/lib/supplierStore";
+import { CreateRepresentativeInput, getRepresentative, Representative, RepresentativeStore } from "@/lib/repStore";
 import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerCurrency } from "@/lib/ledgerStore";
 import { listStoreItems, StoreItemRegistry, StoreTransactionList } from "@/lib/storeStore";
 import {
@@ -19,6 +20,7 @@ import { buildInvoiceMessage, buildWhatsAppLink } from "@/lib/whatsapp";
 import { formatAmount } from "@/lib/formatAmount";
 import { ClientPicker } from "./ClientPicker";
 import { SupplierPicker } from "./SupplierPicker";
+import { RepresentativePicker } from "./RepresentativePicker";
 
 function todayDateInputValue(): string {
   return new Date().toISOString().slice(0, 10);
@@ -49,8 +51,11 @@ interface Props {
   clientStore: ClientStore;
   suppliers: Supplier[];
   supplierStore: SupplierStore;
+  representatives: Representative[];
+  representativeStore: RepresentativeStore;
   onCreateClient: (input: CreateClientInput) => Client;
   onCreateSupplier: (input: CreateSupplierInput) => Supplier;
+  onCreateRepresentative: (input: CreateRepresentativeInput) => Representative;
   onChange: (result: { invoices: InvoiceList; transactions: StoreTransactionList; invoice: Invoice }) => void;
 }
 
@@ -65,8 +70,11 @@ export function InvoiceSection({
   clientStore,
   suppliers,
   supplierStore,
+  representatives,
+  representativeStore,
   onCreateClient,
   onCreateSupplier,
+  onCreateRepresentative,
   onChange,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
@@ -122,8 +130,10 @@ export function InvoiceSection({
               items={itemList}
               clients={clients}
               suppliers={suppliers}
+              representatives={representatives}
               onCreateClient={onCreateClient}
               onCreateSupplier={onCreateSupplier}
+              onCreateRepresentative={onCreateRepresentative}
               onCancel={closeForms}
               onSubmit={(input) => {
                 const result = createInvoice(invoices, transactions, input);
@@ -158,6 +168,7 @@ export function InvoiceSection({
               const status = invoicePaymentStatus(invoice);
               const client = getClient(clientStore, invoice.clientId);
               const supplier = getSupplier(supplierStore, invoice.supplierId);
+              const representative = getRepresentative(representativeStore, invoice.representativeId);
               const counterpartyName = client?.name ?? supplier?.name;
               const kindLabel = invoice.kind === "sale" ? "بيع" : "شراء";
               const waLink = client?.phone
@@ -182,6 +193,7 @@ export function InvoiceSection({
                   </div>
                   <div className="ledger-entry-row-bottom">
                     {counterpartyName && <span className="ledger-entry-method">{counterpartyName}</span>}
+                    {representative && <span className="ledger-entry-method">🤝 {representative.name}</span>}
                     <span
                       className={`badge ${status === "paid" ? "badge-green" : status === "partial" ? "badge-yellow" : "badge-red"}`}
                     >
@@ -255,14 +267,27 @@ interface InvoiceFormProps {
   items: ReturnType<typeof listStoreItems>;
   clients: Client[];
   suppliers: Supplier[];
+  representatives: Representative[];
   onCreateClient: (input: CreateClientInput) => Client;
   onCreateSupplier: (input: CreateSupplierInput) => Supplier;
+  onCreateRepresentative: (input: CreateRepresentativeInput) => Representative;
   onCancel: () => void;
   onSubmit: (input: Parameters<typeof createInvoice>[2]) => ReturnType<typeof createInvoice>;
 }
 
-function InvoiceForm({ items, clients, suppliers, onCreateClient, onCreateSupplier, onCancel, onSubmit }: InvoiceFormProps) {
+function InvoiceForm({
+  items,
+  clients,
+  suppliers,
+  representatives,
+  onCreateClient,
+  onCreateSupplier,
+  onCreateRepresentative,
+  onCancel,
+  onSubmit,
+}: InvoiceFormProps) {
   const [kind, setKind] = useState<InvoiceKind>("sale");
+  const [priceTier, setPriceTier] = useState<"retail" | "wholesale">("retail");
   const [date, setDate] = useState(todayDateInputValue());
   const [currencyCode, setCurrencyCode] = useState<LedgerCurrency>("MRU");
   const [lines, setLines] = useState<DraftLine[]>([{ itemId: "", quantity: "", unitPrice: "" }]);
@@ -273,6 +298,8 @@ function InvoiceForm({ items, clients, suppliers, onCreateClient, onCreateSuppli
   const [clientId, setClientId] = useState<string | undefined>(undefined);
   const [linkSupplier, setLinkSupplier] = useState(false);
   const [supplierId, setSupplierId] = useState<string | undefined>(undefined);
+  const [linkRepresentative, setLinkRepresentative] = useState(false);
+  const [representativeId, setRepresentativeId] = useState<string | undefined>(undefined);
   const [formError, setFormError] = useState<string | null>(null);
 
   function updateLine(index: number, patch: Partial<DraftLine>) {
@@ -281,7 +308,10 @@ function InvoiceForm({ items, clients, suppliers, onCreateClient, onCreateSuppli
 
   function selectItemForLine(index: number, itemId: string) {
     const item = items.find((i) => i.id === itemId);
-    const defaultPrice = kind === "sale" ? item?.defaultSalePrice : item?.defaultPurchasePrice;
+    const defaultPrice =
+      kind === "sale"
+        ? (priceTier === "wholesale" ? item?.defaultWholesalePrice : undefined) ?? item?.defaultSalePrice
+        : item?.defaultPurchasePrice;
     updateLine(index, { itemId, unitPrice: defaultPrice !== undefined ? String(defaultPrice) : "" });
   }
 
@@ -323,6 +353,11 @@ function InvoiceForm({ items, clients, suppliers, onCreateClient, onCreateSuppli
       paidAmount: Number(paidAmount) || 0,
       clientId: kind === "sale" && linkClient ? clientId : undefined,
       supplierId: kind === "purchase" && linkSupplier ? supplierId : undefined,
+      representativeId: kind === "sale" && linkRepresentative ? representativeId : undefined,
+      representativeCommissionPercent:
+        kind === "sale" && linkRepresentative && representativeId
+          ? representatives.find((r) => r.id === representativeId)?.commissionPercent
+          : undefined,
       note,
     });
     if (!result.ok) {
@@ -357,6 +392,17 @@ function InvoiceForm({ items, clients, suppliers, onCreateClient, onCreateSuppli
           </option>
         ))}
       </select>
+
+      {kind === "sale" && (
+        <select
+          className="search-input"
+          value={priceTier}
+          onChange={(e) => setPriceTier(e.target.value as "retail" | "wholesale")}
+        >
+          <option value="retail">سعر التجزئة</option>
+          <option value="wholesale">سعر الجملة</option>
+        </select>
+      )}
 
       {lines.map((line, index) => (
         <div key={index} className="invoice-line-group">
@@ -468,6 +514,26 @@ function InvoiceForm({ items, clients, suppliers, onCreateClient, onCreateSuppli
           </label>
           {linkClient && (
             <ClientPicker clients={clients} selectedClientId={clientId} onSelect={setClientId} onCreateClient={onCreateClient} />
+          )}
+        </div>
+      )}
+      {kind === "sale" && (
+        <div className="form-field form-wide">
+          <label className="ledger-d-toggle">
+            <input
+              type="checkbox"
+              checked={linkRepresentative}
+              onChange={(e) => setLinkRepresentative(e.target.checked)}
+            />
+            ربط الفاتورة بمندوب
+          </label>
+          {linkRepresentative && (
+            <RepresentativePicker
+              representatives={representatives}
+              selectedRepresentativeId={representativeId}
+              onSelect={setRepresentativeId}
+              onCreateRepresentative={onCreateRepresentative}
+            />
           )}
         </div>
       )}

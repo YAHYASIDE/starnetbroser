@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { demoAccounts } from "@/lib/demoData";
-import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
+import { getLastBackupAt, isDemoMode, isLoggedIn } from "@/lib/settingsStore";
 import { loadDemoAccounts } from "@/lib/demoAccountStore";
 import { listAccounts } from "@/lib/apiClient";
 import { LEDGER_CURRENCY_LABELS, LedgerByAccount, LedgerCurrency, loadLedgerStore } from "@/lib/ledgerStore";
@@ -16,8 +16,9 @@ import {
   computeLowStockReminders,
   computeRenewalReminders,
   computeStoreDebtReminders,
+  isBackupOverdue,
 } from "@/lib/reminders";
-import { daysRemainingLabel } from "@/lib/date";
+import { daysRemainingLabel, formatRelativeTime } from "@/lib/date";
 import { formatAmount } from "@/lib/formatAmount";
 import { buildBalanceReminderMessage, buildExpiryReminderMessage, buildStoreDebtReminderMessage, buildWhatsAppLink } from "@/lib/whatsapp";
 
@@ -36,8 +37,10 @@ export default function RemindersPage() {
   const [invoices, setInvoices] = useState<InvoiceList>([]);
   const [storeItems, setStoreItems] = useState<StoreItemRegistry>({});
   const [storeTransactions, setStoreTransactions] = useState<StoreTransactionList>([]);
+  const [lastBackupAt, setLastBackupAt] = useState<string | null>(null);
 
   useEffect(() => {
+    setLastBackupAt(getLastBackupAt());
     setLedgerStore(loadLedgerStore());
     setClientStore(loadClientStore());
     setInvoices(loadInvoices());
@@ -58,6 +61,7 @@ export default function RemindersPage() {
     () => computeLowStockReminders(storeItems, storeTransactions),
     [storeItems, storeTransactions],
   );
+  const backupOverdue = isBackupOverdue(lastBackupAt);
 
   return (
     <main className="home">
@@ -195,6 +199,22 @@ export default function RemindersPage() {
           </Link>
         </p>
       </section>
+
+      {backupOverdue && (
+        <section className="section">
+          <h2 className="report-section-title">النسخة الاحتياطية</h2>
+          <div className="account-card-alert">
+            {lastBackupAt
+              ? `آخر نسخة احتياطية كانت ${formatRelativeTime(lastBackupAt)} - حان وقت نسخة جديدة.`
+              : "لم يتم تصدير أي نسخة احتياطية بعد - كل بياناتك محفوظة فقط على هذا الهاتف."}
+          </div>
+          <p className="settings-hint">
+            <Link href="/settings" className="btn-link">
+              تصدير نسخة احتياطية الآن ←
+            </Link>
+          </p>
+        </section>
+      )}
     </main>
   );
 }

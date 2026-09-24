@@ -52,6 +52,15 @@ import {
   Supplier,
   SupplierStore,
 } from "@/lib/supplierStore";
+import {
+  createRepresentative,
+  CreateRepresentativeInput,
+  listRepresentatives,
+  loadRepresentativeStore,
+  Representative,
+  RepresentativeStore,
+  saveRepresentativeStore,
+} from "@/lib/repStore";
 
 function todayDateInputValue(): string {
   return new Date().toISOString().slice(0, 10);
@@ -67,6 +76,7 @@ export default function StorePage() {
   const [clientStore, setClientStore] = useState<ClientStore>({});
   const [invoices, setInvoices] = useState<InvoiceList>([]);
   const [supplierStore, setSupplierStore] = useState<SupplierStore>({});
+  const [representativeStore, setRepresentativeStore] = useState<RepresentativeStore>({});
   const [cashEntries, setCashEntries] = useState<CashEntryList>([]);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [pendingKind, setPendingKind] = useState<StoreTransactionKind>("buy");
@@ -79,6 +89,7 @@ export default function StorePage() {
     setClientStore(loadClientStore());
     setInvoices(loadInvoices());
     setSupplierStore(loadSupplierStore());
+    setRepresentativeStore(loadRepresentativeStore());
     setCashEntries(loadCashEntries());
   }, []);
 
@@ -93,6 +104,7 @@ export default function StorePage() {
   );
 
   const suppliers = useMemo(() => listSuppliers(supplierStore), [supplierStore]);
+  const representatives = useMemo(() => listRepresentatives(representativeStore), [representativeStore]);
 
   function handleCreateClient(input: CreateClientInput): Client {
     const result = createClient(clientStore, input);
@@ -106,6 +118,13 @@ export default function StorePage() {
     setSupplierStore(result.store);
     saveSupplierStore(result.store);
     return result.supplier;
+  }
+
+  function handleCreateRepresentative(input: CreateRepresentativeInput): Representative {
+    const result = createRepresentative(representativeStore, input);
+    setRepresentativeStore(result.store);
+    saveRepresentativeStore(result.store);
+    return result.representative;
   }
 
   function submitNewItem(input: CreateStoreItemInput) {
@@ -323,7 +342,10 @@ export default function StorePage() {
         clientStore={clientStore}
         suppliers={suppliers}
         supplierStore={supplierStore}
+        representatives={representatives}
+        representativeStore={representativeStore}
         onCreateClient={handleCreateClient}
+        onCreateRepresentative={handleCreateRepresentative}
         onCreateSupplier={handleCreateSupplier}
         onChange={(result) => {
           setInvoices(result.invoices);
@@ -396,6 +418,9 @@ function ItemForm({ initial, onSubmit, onCancel }: ItemFormProps) {
   const [saleCurrency, setSaleCurrency] = useState<LedgerCurrency>(
     (initial?.defaultSaleCurrencyCode as LedgerCurrency | undefined) ?? "MRU",
   );
+  const [wholesalePrice, setWholesalePrice] = useState(
+    initial?.defaultWholesalePrice !== undefined ? String(initial.defaultWholesalePrice) : "",
+  );
   const [threshold, setThreshold] = useState(
     initial?.lowStockThreshold !== undefined ? String(initial.lowStockThreshold) : "",
   );
@@ -425,6 +450,7 @@ function ItemForm({ initial, onSubmit, onCancel }: ItemFormProps) {
       defaultPurchaseCurrencyCode: purchasePrice ? purchaseCurrency : undefined,
       defaultSalePrice: salePrice ? Number(salePrice) : undefined,
       defaultSaleCurrencyCode: salePrice ? saleCurrency : undefined,
+      defaultWholesalePrice: wholesalePrice ? Number(wholesalePrice) : undefined,
       lowStockThreshold: threshold ? Number(threshold) : undefined,
     });
   }
@@ -504,7 +530,7 @@ function ItemForm({ initial, onSubmit, onCancel }: ItemFormProps) {
           min="0"
           step="0.01"
           dir="ltr"
-          placeholder="سعر البيع الافتراضي"
+          placeholder="سعر البيع الافتراضي (تجزئة)"
           value={salePrice}
           onChange={(e) => setSalePrice(e.target.value)}
         />
@@ -516,6 +542,17 @@ function ItemForm({ initial, onSubmit, onCancel }: ItemFormProps) {
           ))}
         </select>
       </div>
+
+      <input
+        className="search-input"
+        type="number"
+        min="0"
+        step="0.01"
+        dir="ltr"
+        placeholder="سعر الجملة (اختياري، بنفس عملة البيع أعلاه)"
+        value={wholesalePrice}
+        onChange={(e) => setWholesalePrice(e.target.value)}
+      />
 
       <input
         className="search-input"

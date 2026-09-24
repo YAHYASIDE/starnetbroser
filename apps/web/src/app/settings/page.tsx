@@ -10,6 +10,7 @@ import {
   isDemoMode,
   isHelpModeEnabled,
   isLoggedIn,
+  recordBackupExported,
   setApiBaseUrl,
   setHelpModeEnabled,
   setThemePreference,
@@ -230,6 +231,7 @@ function BackupSection() {
           : saved.message,
       );
       if (saved.ok) {
+        recordBackupExported();
         setExportPassword("");
         setExportPasswordConfirm("");
       }

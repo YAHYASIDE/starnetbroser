@@ -98,3 +98,14 @@ export function computeLowStockReminders(
   }
   return reminders;
 }
+
+/** True once `thresholdDays` (default 7) have passed since the last export backup - or
+ * immediately true when one was never taken at all (lastBackupAt === null), since all of this
+ * app's data lives only on this one device (settingsStore.ts's getLastBackupAt). */
+export function isBackupOverdue(lastBackupAt: string | null, thresholdDays = 7, now: Date = new Date()): boolean {
+  if (lastBackupAt === null) return true;
+  const last = new Date(lastBackupAt);
+  if (Number.isNaN(last.getTime())) return true;
+  const diffDays = (now.getTime() - last.getTime()) / 86_400_000;
+  return diffDays >= thresholdDays;
+}

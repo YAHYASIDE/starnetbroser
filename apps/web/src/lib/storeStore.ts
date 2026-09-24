@@ -25,6 +25,11 @@ export interface StoreItem {
   defaultPurchaseCurrencyCode?: string;
   defaultSalePrice?: number;
   defaultSaleCurrencyCode?: string;
+  /** Suggested wholesale (جملة) unit price, same currency as defaultSaleCurrencyCode above -
+   * undefined means no wholesale price is configured, so the invoice form falls back to the
+   * regular retail default. Just a form-prefill convenience like the other defaults, never itself
+   * read for accounting. */
+  defaultWholesalePrice?: number;
   /** Remaining quantity at or below this number triggers the "low stock" badge - undefined means
    * no alert is configured for this item (never a guessed default). */
   lowStockThreshold?: number;
@@ -130,6 +135,7 @@ export interface CreateStoreItemInput {
   defaultPurchaseCurrencyCode?: string;
   defaultSalePrice?: number;
   defaultSaleCurrencyCode?: string;
+  defaultWholesalePrice?: number;
   lowStockThreshold?: number;
 }
 
@@ -143,6 +149,7 @@ function buildItemFields(input: CreateStoreItemInput): Omit<StoreItem, "id" | "c
     defaultPurchaseCurrencyCode: input.defaultPurchaseCurrencyCode,
     defaultSalePrice: input.defaultSalePrice,
     defaultSaleCurrencyCode: input.defaultSaleCurrencyCode,
+    defaultWholesalePrice: input.defaultWholesalePrice,
     lowStockThreshold: input.lowStockThreshold,
   };
 }

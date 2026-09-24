@@ -54,6 +54,7 @@ describe("createStoreItem", () => {
         defaultPurchaseCurrencyCode: "MRU",
         defaultSalePrice: 9500,
         defaultSaleCurrencyCode: "MRU",
+        defaultWholesalePrice: 8800,
         lowStockThreshold: 3,
       },
     );
@@ -63,6 +64,7 @@ describe("createStoreItem", () => {
     expect(item.defaultPurchaseCurrencyCode).toBe("MRU");
     expect(item.defaultSalePrice).toBe(9500);
     expect(item.defaultSaleCurrencyCode).toBe("MRU");
+    expect(item.defaultWholesalePrice).toBe(8800);
     expect(item.lowStockThreshold).toBe(3);
   });
 

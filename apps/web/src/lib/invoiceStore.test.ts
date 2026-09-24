@@ -236,6 +236,39 @@ describe("createInvoice - sale", () => {
     });
     expect(result.ok).toBe(false);
   });
+
+  it("carries representativeId + its locked commission snapshot through onto a sale invoice", () => {
+    const stock: StoreTransactionList = [
+      { id: "buy1", itemId: "a", kind: "buy", quantity: 5, unitPrice: 50, currencyCode: "MRU", date: "2026-09-01", createdAt: "t0" },
+    ];
+    const result = createInvoice([], stock, {
+      kind: "sale",
+      date: "2026-09-20",
+      currencyCode: "MRU",
+      lines: [{ itemId: "a", quantity: 1, unitPrice: 100 }],
+      representativeId: "rep-1",
+      representativeCommissionPercent: 5,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.invoice.representativeId).toBe("rep-1");
+    expect(result.invoice.representativeCommissionPercent).toBe(5);
+  });
+
+  it("strips representativeId/commission on a purchase invoice - only ever applies to a sale", () => {
+    const result = createInvoice([], [], {
+      kind: "purchase",
+      date: "2026-09-20",
+      currencyCode: "MRU",
+      lines: [{ itemId: "a", quantity: 1, unitPrice: 100 }],
+      representativeId: "rep-1",
+      representativeCommissionPercent: 5,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.invoice.representativeId).toBeUndefined();
+    expect(result.invoice.representativeCommissionPercent).toBeUndefined();
+  });
 });
 
 describe("createInvoice - purchase", () => {

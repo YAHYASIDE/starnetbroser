@@ -5,6 +5,7 @@ import {
   computeLowStockReminders,
   computeRenewalReminders,
   computeStoreDebtReminders,
+  isBackupOverdue,
 } from "./reminders";
 import { LedgerByAccount, LedgerEntry } from "./ledgerStore";
 import { ClientStore, createClient } from "./clientStore";
@@ -181,5 +182,25 @@ describe("computeLowStockReminders", () => {
       a: { id: "a", name: "مادة", unit: "قطعة", createdAt: "t", updatedAt: "t" },
     };
     expect(computeLowStockReminders(items, [])).toHaveLength(0);
+  });
+});
+
+describe("isBackupOverdue", () => {
+  const now = new Date("2026-09-24T12:00:00.000Z");
+
+  it("is overdue when a backup was never taken at all", () => {
+    expect(isBackupOverdue(null, 7, now)).toBe(true);
+  });
+
+  it("is not overdue right after a backup within the threshold", () => {
+    expect(isBackupOverdue(new Date("2026-09-20T12:00:00.000Z").toISOString(), 7, now)).toBe(false);
+  });
+
+  it("is overdue once the threshold has passed", () => {
+    expect(isBackupOverdue(new Date("2026-09-16T12:00:00.000Z").toISOString(), 7, now)).toBe(true);
+  });
+
+  it("respects a custom threshold", () => {
+    expect(isBackupOverdue(new Date("2026-09-23T12:00:00.000Z").toISOString(), 1, now)).toBe(true);
   });
 });

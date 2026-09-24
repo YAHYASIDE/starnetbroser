@@ -61,6 +61,13 @@ export interface Invoice {
   clientId?: string;
   /** Purchase only. */
   supplierId?: string;
+  /** Sale only - the sales representative (repStore.ts) credited with this sale, if any. */
+  representativeId?: string;
+  /** Sale only, set only alongside representativeId - a LOCKED snapshot of that representative's
+   * own commissionPercent at the moment this invoice was created, so changing their rate later
+   * never rewrites already-accrued commission (same reasoning as ledgerStore.ts's own locked
+   * currency rates). */
+  representativeCommissionPercent?: number;
   note?: string;
   /** Set only on a return invoice - the id of the original invoice it reverses. */
   returnOfInvoiceId?: string;
@@ -127,6 +134,11 @@ export interface CreateInvoiceInput {
   paidAmount?: number;
   clientId?: string;
   supplierId?: string;
+  /** Sale only - see Invoice.representativeId. */
+  representativeId?: string;
+  /** Sale only, required alongside representativeId - the representative's commission percent to
+   * lock onto this invoice (the caller reads it from the current Representative record). */
+  representativeCommissionPercent?: number;
   note?: string;
   /** Only for a return invoice - the original invoice this one reverses. */
   returnOfInvoiceId?: string;
@@ -215,6 +227,9 @@ export function createInvoice(
     paidAmount,
     clientId: input.kind === "sale" && !isReturn ? input.clientId : undefined,
     supplierId: input.kind === "purchase" && !isReturn ? input.supplierId : undefined,
+    representativeId: input.kind === "sale" && !isReturn ? input.representativeId : undefined,
+    representativeCommissionPercent:
+      input.kind === "sale" && !isReturn && input.representativeId ? input.representativeCommissionPercent : undefined,
     note: input.note?.trim() || undefined,
     returnOfInvoiceId: input.returnOfInvoiceId,
     createdAt: nowIso(),

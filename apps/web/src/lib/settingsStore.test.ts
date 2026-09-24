@@ -2,8 +2,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   applyThemePreference,
+  getLastBackupAt,
   getThemePreference,
   isHelpModeEnabled,
+  recordBackupExported,
   setHelpModeEnabled,
   setThemePreference,
 } from "./settingsStore";
@@ -62,5 +64,17 @@ describe("help mode", () => {
     setHelpModeEnabled(true);
     setHelpModeEnabled(false);
     expect(isHelpModeEnabled()).toBe(false);
+  });
+});
+
+describe("last backup timestamp", () => {
+  it("is null when a backup has never been exported", () => {
+    expect(getLastBackupAt()).toBeNull();
+  });
+
+  it("records and reads back the export time", () => {
+    const now = new Date("2026-09-20T10:00:00.000Z");
+    recordBackupExported(now);
+    expect(getLastBackupAt()).toBe(now.toISOString());
   });
 });
