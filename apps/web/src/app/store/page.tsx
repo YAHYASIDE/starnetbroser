@@ -11,6 +11,7 @@ import {
   listClients,
   loadClientStore,
   saveClientStore,
+  updateClient,
 } from "@/lib/clientStore";
 import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerCurrency } from "@/lib/ledgerStore";
 import {
@@ -51,6 +52,7 @@ import {
   saveSupplierStore,
   Supplier,
   SupplierStore,
+  updateSupplier,
 } from "@/lib/supplierStore";
 import {
   createRepresentative,
@@ -118,6 +120,18 @@ export default function StorePage() {
     setSupplierStore(result.store);
     saveSupplierStore(result.store);
     return result.supplier;
+  }
+
+  function handleUpdateClient(clientId: string, input: CreateClientInput) {
+    const next = updateClient(clientStore, clientId, input);
+    setClientStore(next);
+    saveClientStore(next);
+  }
+
+  function handleUpdateSupplier(supplierId: string, input: CreateSupplierInput) {
+    const next = updateSupplier(supplierStore, supplierId, input);
+    setSupplierStore(next);
+    saveSupplierStore(next);
   }
 
   function handleCreateRepresentative(input: CreateRepresentativeInput): Representative {
@@ -356,7 +370,15 @@ export default function StorePage() {
         }}
       />
 
-      <AccountsSection clients={clients} suppliers={suppliers} invoices={invoices} />
+      <AccountsSection
+        clients={clients}
+        suppliers={suppliers}
+        invoices={invoices}
+        onCreateClient={handleCreateClient}
+        onUpdateClient={handleUpdateClient}
+        onCreateSupplier={handleCreateSupplier}
+        onUpdateSupplier={handleUpdateSupplier}
+      />
 
       <CashRegisterSection
         entries={cashEntries}

@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Client } from "@/lib/clientStore";
-import { Supplier } from "@/lib/supplierStore";
+import { FormEvent, useMemo, useState } from "react";
+import { Client, CreateClientInput } from "@/lib/clientStore";
+import { CreateSupplierInput, Supplier } from "@/lib/supplierStore";
 import { LEDGER_CURRENCY_LABELS, LedgerCurrency } from "@/lib/ledgerStore";
 import {
   computeClientStoreBalance,
@@ -13,6 +13,7 @@ import {
   listInvoicesForClient,
   listInvoicesForSupplier,
 } from "@/lib/invoiceStore";
+import { combinePhoneNumber, PHONE_COUNTRY_CODES, splitPhoneNumber } from "@/lib/phoneCountryCodes";
 import { formatAmount } from "@/lib/formatAmount";
 
 function currencyLabel(code: string): string {
@@ -23,32 +24,49 @@ interface Props {
   clients: Client[];
   suppliers: Supplier[];
   invoices: InvoiceList;
+  onCreateClient: (input: CreateClientInput) => void;
+  onUpdateClient: (clientId: string, input: CreateClientInput) => void;
+  onCreateSupplier: (input: CreateSupplierInput) => void;
+  onUpdateSupplier: (supplierId: string, input: CreateSupplierInput) => void;
 }
 
-/** حسابات الزبائن والموردين: for every client/supplier who has at least one store invoice, their
- * current balance (what they owe, or what we owe a supplier) computed from invoiceStore.ts, plus
- * a chronological statement of their invoices on demand. Entirely about STORE money - never reads
- * or shows ledgerStore.ts's own per-device Starlink balance, a separate business. */
-export function AccountsSection({ clients, suppliers, invoices }: Props) {
+/** حسابات الزبائن والموردين: the one place in المتجر to see AND manage every client/supplier -
+ * every registered one (never only those with a store balance, so a brand-new or fully-settled
+ * party is still visible to edit), each with its own current store balance computed from
+ * invoiceStore.ts, a statement of their invoices on demand, and inline add/edit for name+phone
+ * (the registry itself already supported this via clientStore.ts/supplierStore.ts - this section is
+ * what actually exposes it to the operator, since the only other edit path (clients) required
+ * digging through a linked device's own card, and suppliers had no edit path anywhere at all).
+ * Entirely about STORE money - never reads or shows ledgerStore.ts's own per-device Starlink
+ * balance, a separate business. */
+export function AccountsSection({
+  clients,
+  suppliers,
+  invoices,
+  onCreateClient,
+  onUpdateClient,
+  onCreateSupplier,
+  onUpdateSupplier,
+}: Props) {
   const [expanded, setExpanded] = useState(false);
   const [openPartyId, setOpenPartyId] = useState<string | null>(null);
+  const [editingPartyId, setEditingPartyId] = useState<string | null>(null);
+  const [showAddClient, setShowAddClient] = useState(false);
+  const [showAddSupplier, setShowAddSupplier] = useState(false);
 
   const clientRows = useMemo(
-    () =>
-      clients
-        .map((client) => ({ party: client, balance: computeClientStoreBalance(invoices, client.id) }))
-        .filter((row) => Object.keys(row.balance).length > 0),
+    () => clients.map((client) => ({ party: client, balance: computeClientStoreBalance(invoices, client.id) })),
     [clients, invoices],
   );
   const supplierRows = useMemo(
-    () =>
-      suppliers
-        .map((supplier) => ({ party: supplier, balance: computeSupplierStoreBalance(invoices, supplier.id) }))
-        .filter((row) => Object.keys(row.balance).length > 0),
+    () => suppliers.map((supplier) => ({ party: supplier, balance: computeSupplierStoreBalance(invoices, supplier.id) })),
     [suppliers, invoices],
   );
 
-  if (clientRows.length === 0 && supplierRows.length === 0) return null;
+  function startEditing(partyId: string) {
+    setOpenPartyId(null);
+    setEditingPartyId(partyId);
+  }
 
   return (
     <section className="section">
@@ -58,44 +76,108 @@ export function AccountsSection({ clients, suppliers, invoices }: Props) {
 
       {expanded && (
         <>
-          {clientRows.length > 0 && (
-            <>
-              <h2 className="report-section-title">الزبائن</h2>
-              <ul className="ledger-entry-list">
-                {clientRows.map(({ party, balance }) => (
+          <div className="store-items-header">
+            <h2 className="report-section-title">الزبائن</h2>
+            <button type="button" className="btn-icon" onClick={() => setShowAddClient((v) => !v)}>
+              {showAddClient ? "إلغاء" : "+ إضافة زبون"}
+            </button>
+          </div>
+          {showAddClient && (
+            <PartyForm
+              submitLabel="إضافة الزبون"
+              namePlaceholder="اسم الزبون *"
+              onSubmit={(input) => {
+                onCreateClient(input);
+                setShowAddClient(false);
+              }}
+              onCancel={() => setShowAddClient(false)}
+            />
+          )}
+          {clientRows.length === 0 ? (
+            <p className="empty-state">لا يوجد زبائن بعد.</p>
+          ) : (
+            <ul className="ledger-entry-list">
+              {clientRows.map(({ party, balance }) =>
+                editingPartyId === party.id ? (
+                  <li key={party.id} className="ledger-entry-row">
+                    <PartyForm
+                      initial={party}
+                      submitLabel="حفظ"
+                      namePlaceholder="اسم الزبون *"
+                      onSubmit={(input) => {
+                        onUpdateClient(party.id, input);
+                        setEditingPartyId(null);
+                      }}
+                      onCancel={() => setEditingPartyId(null)}
+                    />
+                  </li>
+                ) : (
                   <PartyRow
                     key={party.id}
-                    name={party.name}
+                    party={party}
                     balance={balance}
                     positiveLabel="عليه"
                     negativeLabel="له"
                     isOpen={openPartyId === party.id}
                     onToggle={() => setOpenPartyId(openPartyId === party.id ? null : party.id)}
+                    onEdit={() => startEditing(party.id)}
                     invoices={listInvoicesForClient(invoices, party.id)}
                   />
-                ))}
-              </ul>
-            </>
+                ),
+              )}
+            </ul>
           )}
 
-          {supplierRows.length > 0 && (
-            <>
-              <h2 className="report-section-title">الموردون</h2>
-              <ul className="ledger-entry-list">
-                {supplierRows.map(({ party, balance }) => (
+          <div className="store-items-header">
+            <h2 className="report-section-title">الموردون</h2>
+            <button type="button" className="btn-icon" onClick={() => setShowAddSupplier((v) => !v)}>
+              {showAddSupplier ? "إلغاء" : "+ إضافة مورد"}
+            </button>
+          </div>
+          {showAddSupplier && (
+            <PartyForm
+              submitLabel="إضافة المورد"
+              namePlaceholder="اسم المورد *"
+              onSubmit={(input) => {
+                onCreateSupplier(input);
+                setShowAddSupplier(false);
+              }}
+              onCancel={() => setShowAddSupplier(false)}
+            />
+          )}
+          {supplierRows.length === 0 ? (
+            <p className="empty-state">لا يوجد موردون بعد.</p>
+          ) : (
+            <ul className="ledger-entry-list">
+              {supplierRows.map(({ party, balance }) =>
+                editingPartyId === party.id ? (
+                  <li key={party.id} className="ledger-entry-row">
+                    <PartyForm
+                      initial={party}
+                      submitLabel="حفظ"
+                      namePlaceholder="اسم المورد *"
+                      onSubmit={(input) => {
+                        onUpdateSupplier(party.id, input);
+                        setEditingPartyId(null);
+                      }}
+                      onCancel={() => setEditingPartyId(null)}
+                    />
+                  </li>
+                ) : (
                   <PartyRow
                     key={party.id}
-                    name={party.name}
+                    party={party}
                     balance={balance}
                     positiveLabel="نحن مدينون"
                     negativeLabel="له فائض"
                     isOpen={openPartyId === party.id}
                     onToggle={() => setOpenPartyId(openPartyId === party.id ? null : party.id)}
+                    onEdit={() => startEditing(party.id)}
                     invoices={listInvoicesForSupplier(invoices, party.id)}
                   />
-                ))}
-              </ul>
-            </>
+                ),
+              )}
+            </ul>
           )}
         </>
       )}
@@ -103,36 +185,105 @@ export function AccountsSection({ clients, suppliers, invoices }: Props) {
   );
 }
 
+interface PartyFormProps {
+  initial?: { name: string; phone?: string };
+  submitLabel: string;
+  namePlaceholder: string;
+  onSubmit: (input: CreateClientInput) => void;
+  onCancel: () => void;
+}
+
+/** Shared add/edit form for both a client and a supplier - identical shape (name + optional
+ * phone), reusing the exact same country-code phone picker as every other party form in this
+ * app (RepresentativeForm, ClientDialog, ClientPicker, SupplierPicker). */
+function PartyForm({ initial, submitLabel, namePlaceholder, onSubmit, onCancel }: PartyFormProps) {
+  const [name, setName] = useState(initial?.name ?? "");
+  const [phoneDialCode, setPhoneDialCode] = useState(() => splitPhoneNumber(initial?.phone).dialCode);
+  const [phoneLocalNumber, setPhoneLocalNumber] = useState(() => splitPhoneNumber(initial?.phone).localNumber);
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!name.trim()) return;
+    onSubmit({ name, phone: combinePhoneNumber(phoneDialCode, phoneLocalNumber) || undefined });
+  }
+
+  return (
+    <form className="auth-form store-item-form" onSubmit={submit}>
+      <input className="search-input" placeholder={namePlaceholder} value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+      <div className="phone-input-row">
+        <select
+          className="phone-country-select"
+          dir="ltr"
+          value={phoneDialCode}
+          onChange={(e) => setPhoneDialCode(e.target.value)}
+          aria-label="رمز الدولة"
+        >
+          {PHONE_COUNTRY_CODES.map((c) => (
+            <option key={c.dialCode} value={c.dialCode}>{c.country} {c.dialCode}</option>
+          ))}
+        </select>
+        <input
+          className="phone-local-input"
+          dir="ltr"
+          type="tel"
+          placeholder="رقم الهاتف (اختياري)"
+          value={phoneLocalNumber}
+          onChange={(e) => setPhoneLocalNumber(e.target.value)}
+        />
+      </div>
+      <div className="settings-actions">
+        <button className="dialog-primary" type="submit" disabled={!name.trim()}>
+          {submitLabel}
+        </button>
+        <button type="button" className="text-action" onClick={onCancel}>
+          إلغاء
+        </button>
+      </div>
+    </form>
+  );
+}
+
 interface PartyRowProps {
-  name: string;
+  party: { id: string; name: string; phone?: string };
   balance: Record<string, number>;
   positiveLabel: string;
   negativeLabel: string;
   isOpen: boolean;
   onToggle: () => void;
+  onEdit: () => void;
   invoices: InvoiceList;
 }
 
-function PartyRow({ name, balance, positiveLabel, negativeLabel, isOpen, onToggle, invoices }: PartyRowProps) {
+function PartyRow({ party, balance, positiveLabel, negativeLabel, isOpen, onToggle, onEdit, invoices }: PartyRowProps) {
   const currencies = Object.keys(balance);
   return (
     <li className="ledger-entry-row">
       <div className="ledger-entry-row-top">
-        <span className="store-item-name">{name}</span>
+        <span className="store-item-name">{party.name}</span>
         <div className="store-summary-value-stack">
-          {currencies.map((c) => {
-            const amount = balance[c]!;
-            const isPositive = amount > 0;
-            return (
-              <span key={c} className={`badge ${isPositive ? "badge-red" : "badge-green"}`} dir="ltr">
-                {isPositive ? positiveLabel : negativeLabel} {formatAmount(Math.abs(amount))} {currencyLabel(c)}
-              </span>
-            );
-          })}
+          {currencies.length === 0 ? (
+            <span className="badge badge-green">لا يوجد مستحق</span>
+          ) : (
+            currencies.map((c) => {
+              const amount = balance[c]!;
+              const isPositive = amount > 0;
+              return (
+                <span key={c} className={`badge ${isPositive ? "badge-red" : "badge-green"}`} dir="ltr">
+                  {isPositive ? positiveLabel : negativeLabel} {formatAmount(Math.abs(amount))} {currencyLabel(c)}
+                </span>
+              );
+            })
+          )}
         </div>
-        <button type="button" className="text-action" onClick={onToggle}>
-          {isOpen ? "إخفاء" : "كشف الحساب"}
-        </button>
+      </div>
+      <div className="ledger-entry-row-bottom">
+        {party.phone && <span className="settings-hint" dir="ltr">{party.phone}</span>}
+        <button type="button" className="text-action" onClick={onEdit}>تعديل</button>
+        {invoices.length > 0 && (
+          <button type="button" className="text-action" onClick={onToggle}>
+            {isOpen ? "إخفاء" : "كشف الحساب"}
+          </button>
+        )}
       </div>
       {isOpen && (
         <ul className="report-line-list">
