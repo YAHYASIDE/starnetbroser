@@ -18,6 +18,8 @@
   --gray-bg: #eceff2;
   --mint: #0f9b8e;
   --mint-bg: #e1f7f3;
+  --violet: #7c3aed;
+  --violet-bg: #f1e9fe;
   --radius-lg: 16px;
   --radius-md: 12px;
   --radius-sm: 8px;
@@ -52,6 +54,8 @@
     --gray-bg: #232936;
     --mint: #2dd4bf;
     --mint-bg: #113b36;
+    --violet: #a78bfa;
+    --violet-bg: #2c2350;
     color-scheme: dark;
   }
 }
@@ -76,6 +80,8 @@
   --gray-bg: #232936;
   --mint: #2dd4bf;
   --mint-bg: #113b36;
+  --violet: #a78bfa;
+  --violet-bg: #2c2350;
   color-scheme: dark;
 }
 
@@ -2704,6 +2710,14 @@ button.overview-card:active {
 
 .report-net-tile-info .report-net-tile-value {
   color: var(--brand-strong);
+}
+
+.report-net-tile-violet {
+  background: var(--violet-bg);
+}
+
+.report-net-tile-violet .report-net-tile-value {
+  color: var(--violet);
 }
 
 .report-net-tile-label {

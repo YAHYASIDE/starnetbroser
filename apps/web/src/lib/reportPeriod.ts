@@ -1,5 +1,3 @@
-import { LedgerEntry } from "./ledgerStore";
-
 /** The six preset windows the reports page lets the operator pick, each ending today and running
  * back N days/months - "week" through "year" are rolling windows (today minus N), never calendar-
  * aligned (e.g. "month" is NOT "since the 1st"), so the figure always reflects the same span of
@@ -47,12 +45,14 @@ function parseEntryDate(dateStr: string): Date | null {
 }
 
 /** Keeps only entries whose `date` falls within `period`'s rolling window (inclusive of today) -
- * an entry with an unparseable date is dropped rather than guessed into the window. */
-export function filterEntriesByPeriod(
-  entries: LedgerEntry[],
+ * an entry with an unparseable date is dropped rather than guessed into the window. Generic over
+ * anything with a `date` field (a LedgerEntry, but equally an invoiceStore.ts Invoice) so both the
+ * Starlink-ledger and the store's own reports can share one period picker/filter. */
+export function filterEntriesByPeriod<T extends { date: string }>(
+  entries: T[],
   period: ReportPeriod,
   now: Date = new Date(),
-): LedgerEntry[] {
+): T[] {
   const start = periodStartDate(period, now);
   const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
   return entries.filter((entry) => {

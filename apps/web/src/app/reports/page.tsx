@@ -12,6 +12,16 @@ import { computeDeviceAccountingSummary, computePendingStarlinkCostUsd } from "@
 import { filterEntriesByPeriod, isThisCalendarMonth, REPORT_PERIOD_LABELS, REPORT_PERIODS, ReportPeriod } from "@/lib/reportPeriod";
 import { ClientStore, getClient, loadClientStore } from "@/lib/clientStore";
 import { formatAmount } from "@/lib/formatAmount";
+import { InvoiceList, loadInvoices } from "@/lib/invoiceStore";
+import { loadStoreTransactions, StoreTransactionList } from "@/lib/storeStore";
+import { computeStoreSalesSummary } from "@/lib/storeReports";
+import { CashEntryList, loadCashEntries, listStandaloneCashEntries } from "@/lib/cashStore";
+
+function mergeCurrencyKeys(...records: Record<string, number>[]): string[] {
+  const keys = new Set<string>();
+  for (const record of records) for (const key of Object.keys(record)) keys.add(key);
+  return Array.from(keys);
+}
 
 interface ClientProfitRow {
   key: string;
@@ -23,6 +33,9 @@ export default function ReportsPage() {
   const [accounts, setAccounts] = useState<StarlinkAccountSummary[]>(demoAccounts);
   const [ledgerStore, setLedgerStore] = useState<LedgerByAccount>({});
   const [clientStore, setClientStore] = useState<ClientStore>({});
+  const [invoices, setInvoices] = useState<InvoiceList>([]);
+  const [storeTransactions, setStoreTransactions] = useState<StoreTransactionList>([]);
+  const [cashEntries, setCashEntries] = useState<CashEntryList>([]);
   const [period, setPeriod] = useState<ReportPeriod>("month");
   const [showDollarBreakdown, setShowDollarBreakdown] = useState(true);
   const [showClientProfits, setShowClientProfits] = useState(false);
@@ -30,6 +43,9 @@ export default function ReportsPage() {
   useEffect(() => {
     setLedgerStore(loadLedgerStore());
     setClientStore(loadClientStore());
+    setInvoices(loadInvoices());
+    setStoreTransactions(loadStoreTransactions());
+    setCashEntries(loadCashEntries());
     if (isDemoMode()) {
       setAccounts(loadDemoAccounts(demoAccounts));
       return;
@@ -48,6 +64,41 @@ export default function ReportsPage() {
   const periodEntries = useMemo(() => filterEntriesByPeriod(allEntries, period), [allEntries, period]);
   const periodSummary = useMemo(() => computeDeviceAccountingSummary(periodEntries), [periodEntries]);
   const periodNetProfitUsd = periodSummary.totalProfitsUsd - periodSummary.totalLossesUsd;
+
+  // ربح المتجر (retail: devices/materials sold as store inventory, via invoiceStore.ts) - a
+  // separate business from the Starlink-subscription ledger above, in its own currencies (MRU/
+  // SIFA/USD, never mixed or converted into one another), so it gets its own tile rather than
+  // being folded into periodNetProfitUsd. Shares this page's own period picker so "اليوم" shows
+  // today's profit from BOTH businesses at once.
+  const periodInvoices = useMemo(() => filterEntriesByPeriod(invoices, period), [invoices, period]);
+  const storeSummary = useMemo(
+    () => computeStoreSalesSummary(storeTransactions, invoices, periodInvoices),
+    [storeTransactions, invoices, periodInvoices],
+  );
+  const periodStandaloneExpenses = useMemo(() => {
+    const standaloneOut = filterEntriesByPeriod(listStandaloneCashEntries(cashEntries), period).filter((e) => e.kind === "out");
+    const result: Record<string, number> = {};
+    for (const entry of standaloneOut) result[entry.currencyCode] = (result[entry.currencyCode] ?? 0) + entry.amount;
+    return result;
+  }, [cashEntries, period]);
+  const storeNetProfitByCurrency = useMemo(() => {
+    const currencies = mergeCurrencyKeys(
+      storeSummary.salesByCurrency,
+      storeSummary.cogsByCurrency,
+      storeSummary.shippingCostByCurrency,
+      periodStandaloneExpenses,
+    );
+    const result: Record<string, number> = {};
+    for (const c of currencies) {
+      result[c] =
+        (storeSummary.salesByCurrency[c] ?? 0) -
+        (storeSummary.cogsByCurrency[c] ?? 0) -
+        (storeSummary.shippingCostByCurrency[c] ?? 0) -
+        (periodStandaloneExpenses[c] ?? 0);
+    }
+    return result;
+  }, [storeSummary, periodStandaloneExpenses]);
+  const storeProfitCurrencies = Object.keys(storeNetProfitByCurrency);
 
   const totalOwed = useMemo(() => totalOwedAcrossAccounts(ledgerStore), [ledgerStore]);
   const owedCurrencies = LEDGER_CURRENCIES.filter((c) => totalOwed[c] !== undefined && totalOwed[c]! > 0);
@@ -128,6 +179,31 @@ export default function ReportsPage() {
         <p className="settings-hint">
           «صافي الربح» يُحسب فقط بعد تسديد تكلفة Starlink (D). «النقد المحصّل» يظهر فور استلام الدفعة من
           الزبون، حتى لو كانت الشحنة لا تزال بحالة D - رقمان منفصلان دائمًا.
+        </p>
+
+        <h2 className="report-section-title">ربح المتجر (بيع الأجهزة والمواد) · {REPORT_PERIOD_LABELS[period]}</h2>
+        <div className="report-net-tile report-net-tile-violet">
+          <span className="report-net-tile-label">صافي ربح المتجر · {REPORT_PERIOD_LABELS[period]}</span>
+          {storeProfitCurrencies.length === 0 ? (
+            <strong className="report-net-tile-value" dir="ltr">
+              0
+            </strong>
+          ) : (
+            <div className="report-tile-value-stack">
+              {storeProfitCurrencies.map((c) => (
+                <strong key={c} className="report-net-tile-value" dir="ltr">
+                  {formatAmount(storeNetProfitByCurrency[c]!)} {LEDGER_CURRENCY_LABELS[c as keyof typeof LEDGER_CURRENCY_LABELS] ?? c}
+                </strong>
+              ))}
+            </div>
+          )}
+        </div>
+        <p className="settings-hint">
+          ربح المتجر منفصل عن ربح اشتراكات Starlink أعلاه (عملات مختلفة، لا تُجمع مع بعضها) - كل عملية بيع
+          من المتجر (جهاز أو أي مادة، بما فيها ربح الشحن) تُحتسب هنا فور حفظ الفاتورة.{" "}
+          <Link href="/store" className="btn-link">
+            التفاصيل الكاملة في المتجر ←
+          </Link>
         </p>
 
         <div className="report-grid report-grid-3">
