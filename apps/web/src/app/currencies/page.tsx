@@ -5,6 +5,8 @@ import Link from "next/link";
 import {
   Currency,
   CurrencyStore,
+  convertAmount,
+  getCurrency,
   listCurrencies,
   loadCurrencyStore,
   saveCurrencyStore,
@@ -13,6 +15,7 @@ import {
   upsertCurrency,
 } from "@/lib/currencyStore";
 import { COUNTRY_CURRENCIES } from "@/lib/countryCurrencies";
+import { formatAmount } from "@/lib/formatAmount";
 
 function formatRate(currency: Currency): string {
   return `1 USD = ${currency.rateFromUsd} ${currency.symbol}`;
@@ -41,6 +44,16 @@ export default function CurrenciesPage() {
   const [rateAmount, setRateAmount] = useState("");
   const [rateUsdAmount, setRateUsdAmount] = useState("1");
   const [formError, setFormError] = useState<string | null>(null);
+  const [listQuery, setListQuery] = useState("");
+
+  // Currency converter (amount in `convFrom` -> `convTo`, pivoting through USD via
+  // convertAmount) - convTo is only ever set explicitly by the operator picking one; otherwise it
+  // resolves to the first available currency that isn't already convFrom, so the tool is useful
+  // immediately without forcing a hardcoded default that might not even be in this operator's
+  // registry (e.g. "MRU" isn't seeded by anything - it's added like any other currency).
+  const [convAmount, setConvAmount] = useState("1");
+  const [convFrom, setConvFrom] = useState("USD");
+  const [convTo, setConvTo] = useState("");
 
   function persist(next: CurrencyStore) {
     setStore(next);
@@ -107,6 +120,37 @@ export default function CurrenciesPage() {
   }
 
   const currencies = listCurrencies(store, true);
+  const activeCurrencies = listCurrencies(store);
+
+  const listQueryNormalized = listQuery.trim().toLowerCase();
+  const filteredCurrencies = listQueryNormalized
+    ? currencies.filter(
+        (c) =>
+          c.name.toLowerCase().includes(listQueryNormalized) ||
+          c.code.toLowerCase().includes(listQueryNormalized) ||
+          c.symbol.toLowerCase().includes(listQueryNormalized),
+      )
+    : currencies;
+
+  const effectiveConvTo =
+    convTo && getCurrency(store, convTo)
+      ? convTo
+      : (activeCurrencies.find((c) => c.code !== convFrom)?.code ?? convFrom);
+  const toCurrency = getCurrency(store, effectiveConvTo);
+  const convAmountNum = Number(convAmount);
+  const convResult = convertAmount(store, convAmountNum, convFrom, effectiveConvTo);
+  // "أسفلها" - shown right below the main converted result, the SAME source amount expressed in
+  // USD and in the business's own internal SIFA currency too - skipped whenever that would just
+  // repeat the input or the main result itself (already USD/SIFA), or when SIFA was never added.
+  const usdEquivalent =
+    convFrom !== "USD" && effectiveConvTo !== "USD" ? convertAmount(store, convAmountNum, convFrom, "USD") : undefined;
+  const sifaEquivalent =
+    convFrom !== "SIFA" && effectiveConvTo !== "SIFA" ? convertAmount(store, convAmountNum, convFrom, "SIFA") : undefined;
+
+  function swapConverterCurrencies() {
+    setConvFrom(effectiveConvTo);
+    setConvTo(convFrom);
+  }
 
   return (
     <main className="home">
@@ -117,6 +161,73 @@ export default function CurrenciesPage() {
         <h1 className="section-title">العملات وأسعار الصرف</h1>
       </div>
 
+      <section className="section currency-converter">
+        <h2 className="section-title">محول العملات</h2>
+        <div className="currency-converter-row">
+          <label className="form-field">
+            <span>المبلغ</span>
+            <input
+              className="search-input"
+              type="number"
+              min="0"
+              step="any"
+              dir="ltr"
+              value={convAmount}
+              onChange={(e) => setConvAmount(e.target.value)}
+            />
+          </label>
+          <label className="form-field">
+            <span>من</span>
+            <select value={convFrom} onChange={(e) => setConvFrom(e.target.value)}>
+              {activeCurrencies.map((c) => (
+                <option key={c.code} value={c.code}>{c.code} - {c.name}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="currency-converter-swap-row">
+          <button
+            type="button"
+            className="currency-converter-swap-btn"
+            onClick={swapConverterCurrencies}
+            title="عكس اتجاه التحويل"
+            aria-label="عكس اتجاه التحويل"
+          >
+            ⇄
+          </button>
+        </div>
+
+        <div className="currency-converter-row">
+          <label className="form-field form-wide">
+            <span>إلى</span>
+            <select value={effectiveConvTo} onChange={(e) => setConvTo(e.target.value)}>
+              {activeCurrencies.map((c) => (
+                <option key={c.code} value={c.code}>{c.code} - {c.name}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="currency-converter-result">
+          {convResult !== undefined && toCurrency ? (
+            <>
+              <strong dir="ltr">{formatAmount(convResult)} {toCurrency.symbol}</strong>
+              <span className="currency-converter-result-name">{toCurrency.name}</span>
+            </>
+          ) : (
+            <span className="settings-hint">أدخل مبلغًا صحيحًا لعرض التحويل</span>
+          )}
+        </div>
+
+        {(usdEquivalent !== undefined || sifaEquivalent !== undefined) && (
+          <div className="currency-converter-equivalents">
+            {usdEquivalent !== undefined && <span dir="ltr">≈ {formatAmount(usdEquivalent)} USD</span>}
+            {sifaEquivalent !== undefined && <span dir="ltr">≈ {formatAmount(sifaEquivalent)} سيفا</span>}
+          </div>
+        )}
+      </section>
+
       <section className="section">
         <p className="settings-hint">
           الدولار الأمريكي هو العملة المرجعية الثابتة (لا يمكن تعديل سعره). سعر كل عملة أخرى هو قيمة
@@ -124,8 +235,18 @@ export default function CurrenciesPage() {
           لحظة تسجيلها.
         </p>
 
+        <div className="form-field currency-list-search-field">
+          <input
+            className="search-input"
+            placeholder="ابحث عن عملة بالاسم أو الرمز"
+            value={listQuery}
+            onChange={(e) => setListQuery(e.target.value)}
+          />
+        </div>
+
         <ul className="currency-list">
-          {currencies.map((currency) => (
+          {filteredCurrencies.length === 0 && <p className="client-picker-empty">لا توجد عملة مطابقة</p>}
+          {filteredCurrencies.map((currency) => (
             <li key={currency.code} className={`currency-row${currency.enabled ? "" : " currency-row-disabled"}`}>
               <div className="currency-row-main">
                 <strong>{currency.name}</strong>

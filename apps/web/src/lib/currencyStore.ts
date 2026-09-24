@@ -41,21 +41,52 @@ export function defaultCurrencyStore(): CurrencyStore {
   };
 }
 
+/**
+ * A small set of extra currencies the operator explicitly asked to have pre-added, with real
+ * rates they provided (not guessed) - unlike defaultCurrencyStore's USD-only rule, this is a
+ * one-time convenience seed, not a permanent architectural default. withStarterCurrencies below
+ * only ever fills in a code that's genuinely MISSING from the store, the same self-heal pattern
+ * already used for USD - so an operator who later hides (or edits the rate of) any of these never
+ * has it silently reset or re-added; it's simply never touched again once present.
+ *
+ * These rates fluctuate daily like any other currency here - "تعديل السعر" (already built for
+ * every currency) is how the operator keeps them current going forward.
+ */
+const STARTER_CURRENCIES: UpsertCurrencyInput[] = [
+  { code: "ALL", name: "ليك ألباني", symbol: "ALL", rateFromUsd: 78.68 },
+  { code: "EUR", name: "يورو", symbol: "€", rateFromUsd: 0.8613 },
+  { code: "HNL", name: "ليمبيرا هندوراسية", symbol: "HNL", rateFromUsd: 26.57 },
+  { code: "ARS", name: "بيزو أرجنتيني", symbol: "ARS", rateFromUsd: 1424.5 },
+  { code: "WST", name: "تالا ساموي", symbol: "WST", rateFromUsd: 2.633 },
+  { code: "PHP", name: "بيزو فلبيني", symbol: "PHP", rateFromUsd: 61.65 },
+];
+
+export function withStarterCurrencies(store: CurrencyStore): CurrencyStore {
+  let next = store;
+  for (const starter of STARTER_CURRENCIES) {
+    if (next[starter.code]) continue;
+    next = upsertCurrency(next, starter);
+  }
+  return next;
+}
+
 export function loadCurrencyStore(): CurrencyStore {
   if (typeof window === "undefined") return defaultCurrencyStore();
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaultCurrencyStore();
+    if (!raw) return withStarterCurrencies(defaultCurrencyStore());
     const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return defaultCurrencyStore();
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      return withStarterCurrencies(defaultCurrencyStore());
+    }
     const store = parsed as CurrencyStore;
     // USD must always be present and correct, even if a corrupted/old copy of the store lacks it.
     if (!store[USD] || store[USD].rateFromUsd !== 1) {
-      return { ...store, [USD]: defaultCurrencyStore()[USD] };
+      return withStarterCurrencies({ ...store, [USD]: defaultCurrencyStore()[USD] });
     }
-    return store;
+    return withStarterCurrencies(store);
   } catch {
-    return defaultCurrencyStore();
+    return withStarterCurrencies(defaultCurrencyStore());
   }
 }
 
@@ -129,4 +160,23 @@ export function toUsd(amount: number, rateFromUsd: number): number {
 /** amount in USD -> the equivalent amount in `currency`, given that currency's rateFromUsd. */
 export function fromUsd(amountUsd: number, rateFromUsd: number): number {
   return amountUsd * rateFromUsd;
+}
+
+/**
+ * Converts `amount` of `fromCode` into `toCode`, pivoting through USD (toUsd then fromUsd) - the
+ * exact same math every other cross-currency figure in the app already uses, never a separate
+ * direct cross-rate table. Powers the currency-converter tool on the /currencies page. Returns
+ * undefined when either code isn't a known currency, or `amount` isn't a finite number - never a
+ * fabricated 0/NaN result a caller could mistake for a real conversion.
+ */
+export function convertAmount(
+  store: CurrencyStore,
+  amount: number,
+  fromCode: string,
+  toCode: string,
+): number | undefined {
+  const from = getCurrency(store, fromCode);
+  const to = getCurrency(store, toCode);
+  if (!from || !to || !Number.isFinite(amount)) return undefined;
+  return fromUsd(toUsd(amount, from.rateFromUsd), to.rateFromUsd);
 }

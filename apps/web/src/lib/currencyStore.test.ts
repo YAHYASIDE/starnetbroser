@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   Currency,
+  convertAmount,
   defaultCurrencyStore,
   fromUsd,
   getCurrency,
@@ -9,6 +10,7 @@ import {
   setCurrencyRate,
   toUsd,
   upsertCurrency,
+  withStarterCurrencies,
 } from "./currencyStore";
 
 function currency(overrides: Partial<Currency> = {}): Currency {
@@ -142,5 +144,59 @@ describe("toUsd / fromUsd", () => {
   it("fromUsd is the inverse of toUsd", () => {
     expect(fromUsd(70, 1400)).toBe(98000);
     expect(fromUsd(112.5, 400)).toBe(45000);
+  });
+});
+
+describe("convertAmount", () => {
+  it("converts between two non-USD currencies by pivoting through USD", () => {
+    const store = {
+      ...defaultCurrencyStore(),
+      ARS: currency({ code: "ARS", rateFromUsd: 1400 }),
+      MRU: currency({ code: "MRU", rateFromUsd: 400 }),
+    };
+    // 98,000 ARS = 70 USD = 28,000 MRU
+    expect(convertAmount(store, 98000, "ARS", "MRU")).toBe(28000);
+  });
+
+  it("is case-insensitive on both currency codes", () => {
+    const store = { ...defaultCurrencyStore(), ARS: currency({ code: "ARS", rateFromUsd: 1400 }) };
+    expect(convertAmount(store, 1400, "ars", "usd")).toBe(1);
+  });
+
+  it("returns undefined when either currency is unknown", () => {
+    const store = defaultCurrencyStore();
+    expect(convertAmount(store, 10, "USD", "EUR")).toBeUndefined();
+    expect(convertAmount(store, 10, "EUR", "USD")).toBeUndefined();
+  });
+
+  it("returns undefined for a non-finite amount rather than a fabricated result", () => {
+    const store = defaultCurrencyStore();
+    expect(convertAmount(store, NaN, "USD", "USD")).toBeUndefined();
+  });
+});
+
+describe("withStarterCurrencies", () => {
+  it("adds every starter currency to an empty/default store", () => {
+    const next = withStarterCurrencies(defaultCurrencyStore());
+    for (const code of ["ALL", "EUR", "HNL", "ARS", "WST", "PHP"]) {
+      expect(next[code]).toBeDefined();
+      expect(next[code].rateFromUsd).toBeGreaterThan(0);
+    }
+  });
+
+  it("never overwrites a starter currency the operator already has, even if they changed its rate", () => {
+    const store = { ...defaultCurrencyStore(), EUR: currency({ code: "EUR", rateFromUsd: 0.9 }) };
+    expect(withStarterCurrencies(store).EUR.rateFromUsd).toBe(0.9);
+  });
+
+  it("never re-adds a starter currency the operator has hidden", () => {
+    const store = { ...defaultCurrencyStore(), EUR: currency({ code: "EUR", enabled: false }) };
+    expect(withStarterCurrencies(store).EUR.enabled).toBe(false);
+  });
+
+  it("leaves an already-fully-populated store untouched", () => {
+    let store = defaultCurrencyStore();
+    store = withStarterCurrencies(store);
+    expect(withStarterCurrencies(store)).toEqual(store);
   });
 });
