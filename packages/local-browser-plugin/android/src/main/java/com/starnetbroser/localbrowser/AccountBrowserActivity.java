@@ -2,13 +2,15 @@ package com.starnetbroser.localbrowser;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.view.ViewGroup;
-import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -27,6 +29,8 @@ import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
 import com.getcapacitor.JSObject;
 import java.io.IOException;
+import java.util.ArrayDeque;
+import java.util.Deque;
 
 /**
  * A standalone, full-screen browser for exactly one Starlink account. Every
@@ -52,11 +56,38 @@ public class AccountBrowserActivity extends AppCompatActivity {
     private static final String KEY_ASKED_NOTIFICATION_PERMISSION = "asked_post_notifications";
     private static final int REQUEST_CODE_POST_NOTIFICATIONS = 1001;
 
+    /** Icon-rail positions (see navigation.ts's own doc for the confirmed, real, screenshot-
+     * verified top-to-bottom order: home, edit, briefcase, receipt, gift, envelope, gear). */
+    private static final int ICON_RAIL_INDEX_SUBSCRIPTIONS = 1;
+    private static final int ICON_RAIL_INDEX_BILLING = 3;
+
+    /** Extra wait after a navigation-causing tap before the next step reads/clicks anything -
+     * the same client-rendered-SPA-settle assumption AutoSyncWorker's own SETTLE_DELAY_MS already
+     * makes, just shorter since this flow is on-screen and the user is actively waiting on it. */
+    private static final long SYNC_STEP_DELAY_MS = 1500;
+
     private WebView webView;
     private ProgressBar progressBar;
     private View errorOverlay;
     private String homeUrl;
     private String accountId;
+
+    /** Non-null only while a multi-page "تحديث من Starlink" sync is in progress - each step polls
+     * and runs the next one, so a null queue is also this class's "not currently syncing" flag. */
+    private Deque<Runnable> syncSteps;
+    /** True once anything was actually found and durably saved across ANY of this run's pages -
+     * tracked separately from a single page's own result, since a page with nothing on it (e.g.
+     * an unexpectedly-shaped "الاشتراكات" list) must never flip an already-true result back. */
+    private boolean syncFoundAnything;
+    /** True the moment PendingSyncStore.save fails even once - takes priority over
+     * syncFoundAnything when this run finishes, since a save failure is real data loss the
+     * operator must be told about, never silently outweighed by an earlier page's success. */
+    private boolean syncSaveFailed;
+    /** Schedules the settle delay between sync steps - its own field (not WebView#postDelayed) so
+     * onDestroy can cancel every pending step in one well-defined call
+     * (Handler#removeCallbacksAndMessages), rather than relying on View#removeCallbacks, which
+     * has no documented "remove everything" form. */
+    private final Handler syncHandler = new Handler(Looper.getMainLooper());
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -173,6 +204,12 @@ public class AccountBrowserActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         if (webView != null) {
+            // Cancels any still-pending sync step's settle-delay callback - without this, a
+            // queued step could still fire after this screen is gone (syncGuardOk's own
+            // webView == null check makes that safe either way, but this avoids a stray toast
+            // appearing once the operator has already left).
+            syncHandler.removeCallbacksAndMessages(null);
+            syncSteps = null;
             webView.stopLoading();
             webView.setWebViewClient(null);
             webView.setWebChromeClient(null);
@@ -214,65 +251,151 @@ public class AccountBrowserActivity extends AppCompatActivity {
     }
 
     /**
-     * Stage 1 of on-device Starlink sync: reads only whatever section of this account's own
-     * isolated WebView is currently open - never a separate request, never anything from outside
-     * this WebView. All field parsing (including the DOM/computed-style work colored status dots
-     * need) happens in the injected script itself (packages/local-browser-plugin/src/
-     * webExtraction, bundled to android/src/main/assets/starlinkExtractor.js) - Java only ever
-     * receives that script's small, already-structured JSON result, never raw page text or HTML.
-     * AllowedUrl is checked both before injecting the script and again after it returns, since
-     * the page could have navigated during that async gap.
+     * On-device Starlink sync: reads not just whichever page happens to be open right now, but
+     * drives the SAME sequence of taps a human operator already has to do to see the "الاشتراك"
+     * and "الفوترة" sections at all (real, confirmed user report: a single tap used to only ever
+     * read the currently-open page, so anything on those two sections required leaving this
+     * button alone and navigating there by hand first, then tapping it again on each one).
+     *
+     * The sequence (see navigation.ts for the confirmed, screenshot-verified details of each
+     * step): read the current page -> open "الاشتراكات" (icon rail index 1) -> open the account's
+     * one subscription -> expand "الأجهزة" (confirmed ALWAYS collapsed by default, which is what
+     * hid the dish/Wi-Fi status dots from every previous read of this page) -> read that page ->
+     * open "الفوترة" (icon rail index 3) -> read that page -> return to the Home page.
+     *
+     * Every step here is independently tolerant of "found nothing"/"click missed its target" -
+     * never fatal, since a page whose structure doesn't match what was confirmed just means that
+     * one step contributes nothing, exactly like the old single-page read already could. Only a
+     * URL leaving the allow-listed domain aborts the run outright (checked before each step, via
+     * syncGuardOk) - the same defensive check the original single-page flow already made before
+     * and after its one evaluateJavascript call.
      */
     private void syncFromStarlink() {
-        if (!AllowedUrl.isAllowed(webView.getUrl())) {
+        if (!syncGuardOk()) {
             Toast.makeText(this, R.string.starnet_sync_wrong_domain, Toast.LENGTH_LONG).show();
             return;
         }
 
-        String script;
-        try {
-            script = StarlinkExtractorSupport.loadExecutableScript(getApplicationContext());
-        } catch (IOException e) {
-            Toast.makeText(this, R.string.starnet_sync_nothing_found, Toast.LENGTH_LONG).show();
+        syncFoundAnything = false;
+        syncSaveFailed = false;
+        Toast.makeText(this, R.string.starnet_sync_in_progress, Toast.LENGTH_SHORT).show();
+
+        syncSteps = new ArrayDeque<>();
+        syncSteps.add(this::syncStepExtractCurrentPage); // whatever page the operator is already on
+        syncSteps.add(() -> syncStepClick(ctx -> StarlinkExtractorSupport.loadClickIconRailItemScript(ctx, ICON_RAIL_INDEX_SUBSCRIPTIONS)));
+        syncSteps.add(() -> syncStepClick(StarlinkExtractorSupport::loadClickFirstSubscriptionRowScript));
+        syncSteps.add(() -> syncStepClick(StarlinkExtractorSupport::loadExpandDevicesSectionScript));
+        syncSteps.add(this::syncStepExtractCurrentPage); // plan + devices (now expanded) + identifiers
+        syncSteps.add(() -> syncStepClick(ctx -> StarlinkExtractorSupport.loadClickIconRailItemScript(ctx, ICON_RAIL_INDEX_BILLING)));
+        syncSteps.add(this::syncStepExtractCurrentPage); // billing
+        syncSteps.add(this::finishSync);
+
+        advanceSyncSteps();
+    }
+
+    /** Pops and runs the next queued step - every step above is responsible for calling this
+     * itself once its own async work settles, never called automatically. */
+    private void advanceSyncSteps() {
+        if (syncSteps == null || syncSteps.isEmpty()) {
             return;
         }
+        syncSteps.poll().run();
+    }
 
+    private boolean syncGuardOk() {
+        return webView != null && AllowedUrl.isAllowed(webView.getUrl());
+    }
+
+    /** A functional interface (not java.util.function.Function) purely so each script-loader
+     * method reference can declare `throws IOException` directly, matching
+     * StarlinkExtractorSupport's own signatures without a try/catch at every call site. */
+    private interface ScriptLoader {
+        String load(Context context) throws IOException;
+    }
+
+    /** Reads whatever section of the page is currently open and durably saves anything found -
+     * identical field-parsing/save/emit logic to the original single-page flow, just reused here
+     * as one step among several instead of the whole flow. */
+    private void syncStepExtractCurrentPage() {
+        if (!syncGuardOk()) {
+            finishSync();
+            return;
+        }
+        String script;
+        try {
+            script = StarlinkExtractorSupport.loadExtractScript(getApplicationContext());
+        } catch (IOException e) {
+            advanceSyncSteps();
+            return;
+        }
         webView.evaluateJavascript(
             script,
-            (ValueCallback<String>) value -> {
-                if (webView == null) {
-                    // The screen was closed before this callback ran - nothing left to report to.
+            value -> {
+                if (!syncGuardOk()) {
+                    finishSync();
                     return;
                 }
-                if (!AllowedUrl.isAllowed(webView.getUrl())) {
-                    Toast.makeText(this, R.string.starnet_sync_wrong_domain, Toast.LENGTH_LONG).show();
-                    return;
-                }
-
                 JSObject fields = StarlinkExtractorSupport.parseExtractedFields(value);
-                if (fields == null || fields.length() == 0) {
-                    Toast.makeText(this, R.string.starnet_sync_nothing_found, Toast.LENGTH_LONG).show();
-                    return;
+                if (fields != null && fields.length() > 0) {
+                    // Durable write FIRST: the final toast must never claim more than what is
+                    // actually safe on disk. The main STAR NET Activity/Bridge this screen sits on
+                    // top of may be stopped right now, in which case notifyListeners() below is
+                    // silently dropped - PendingSyncStore (drained by the web UI on open/resume)
+                    // is what actually guarantees this result is never lost, however long that
+                    // takes.
+                    String syncId = PendingSyncStore.save(getApplicationContext(), accountId, fields);
+                    if (syncId != null) {
+                        syncFoundAnything = true;
+                        // Best-effort live push, for when the app happens to be in the foreground
+                        // right now.
+                        LocalBrowserPlugin.emitAccountDataSynced(syncId, accountId, fields);
+                    } else {
+                        // The write genuinely did not reach disk (commit() failed) - never claim
+                        // success over a result that isn't safe anywhere, however many OTHER pages
+                        // in this same run did save correctly.
+                        syncSaveFailed = true;
+                    }
                 }
-
-                // Durable write FIRST: the success toast below must never claim more than what is
-                // actually safe on disk. The main STAR NET Activity/Bridge this screen sits on top
-                // of may be stopped right now, in which case notifyListeners() below is silently
-                // dropped - PendingSyncStore (drained by the web UI on open/resume) is what
-                // actually guarantees this result is never lost, however long that takes.
-                String syncId = PendingSyncStore.save(getApplicationContext(), accountId, fields);
-                if (syncId == null) {
-                    // The write genuinely did not reach disk (commit() failed) - never claim
-                    // success and never fire the live event over a result that isn't safe anywhere.
-                    Toast.makeText(this, R.string.starnet_sync_save_failed, Toast.LENGTH_LONG).show();
-                    return;
-                }
-
-                // Best-effort live push, for when the app happens to be in the foreground right now.
-                LocalBrowserPlugin.emitAccountDataSynced(syncId, accountId, fields);
-                Toast.makeText(this, R.string.starnet_sync_success, Toast.LENGTH_SHORT).show();
+                syncHandler.postDelayed(this::advanceSyncSteps, SYNC_STEP_DELAY_MS);
             }
         );
+    }
+
+    /** Runs one Stage-2 navigation tap (see navigation.ts) and moves on regardless of whether it
+     * actually found its target - a click that missed just means the following extract step(s)
+     * find nothing new on whatever page it left the operator on, exactly as tolerated everywhere
+     * else in this flow. */
+    private void syncStepClick(ScriptLoader loader) {
+        if (!syncGuardOk()) {
+            finishSync();
+            return;
+        }
+        String script;
+        try {
+            script = loader.load(getApplicationContext());
+        } catch (IOException e) {
+            advanceSyncSteps();
+            return;
+        }
+        webView.evaluateJavascript(script, value -> syncHandler.postDelayed(this::advanceSyncSteps, SYNC_STEP_DELAY_MS));
+    }
+
+    /** Always the last step: returns to the Home page (regardless of which page the run ends on)
+     * so the operator lands back somewhere familiar, then reports one combined result for the
+     * whole run - never a separate toast per page, which would otherwise fire up to four times in
+     * a row for one button tap. */
+    private void finishSync() {
+        syncSteps = null;
+        if (webView != null) {
+            webView.loadUrl(homeUrl);
+        }
+        if (syncSaveFailed) {
+            Toast.makeText(this, R.string.starnet_sync_save_failed, Toast.LENGTH_LONG).show();
+        } else if (syncFoundAnything) {
+            Toast.makeText(this, R.string.starnet_sync_success, Toast.LENGTH_SHORT).show();
+        } else {
+            Toast.makeText(this, R.string.starnet_sync_nothing_found, Toast.LENGTH_LONG).show();
+        }
     }
 
     /**

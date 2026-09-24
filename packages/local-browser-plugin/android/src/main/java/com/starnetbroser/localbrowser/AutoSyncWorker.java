@@ -29,8 +29,13 @@ import java.util.concurrent.atomic.AtomicInteger;
  * scheduled/cancelled by AutoSyncScheduler, run unattended (no visible screen) once per period for
  * every account in AutoSyncAccountStore. Reuses the exact same isolation (ProfileNaming/
  * WebViewCompat#setProfile), allow-list (AllowedUrl) and extraction pipeline (StarlinkExtractorSupport
- * + PendingSyncStore) as the manual flow - the only difference is the WebView here is never
- * attached to a window and nothing is ever shown to the user.
+ * + PendingSyncStore) as the manual flow's own Stage-1 read - unlike the manual tap (which now also
+ * drives the Stage-2 navigation sequence in navigation.ts to reach "الاشتراك"/"الفوترة"), this
+ * worker still only ever reads the single `entry.url` (the account's Home page) it's given - a
+ * deliberate, scoped-down first cut, since a background run has no screen to visibly hop through
+ * several pages on the way, and doing so unattended would need its own review before being wired
+ * up the same way. The WebView here is never attached to a window and nothing is ever shown to the
+ * user, either way.
  *
  * This never logs an account in by itself: an account whose isolated profile has no cookies yet
  * (never opened via "فتح") simply yields no fields on every run, exactly like a manual sync tap on
@@ -95,7 +100,7 @@ public class AutoSyncWorker extends Worker {
 
         String script;
         try {
-            script = StarlinkExtractorSupport.loadExecutableScript(context);
+            script = StarlinkExtractorSupport.loadExtractScript(context);
         } catch (IOException e) {
             return Result.retry();
         }

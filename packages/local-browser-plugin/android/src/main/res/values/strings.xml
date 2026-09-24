@@ -9,6 +9,7 @@
     <string name="starnet_unsupported_device">هذا الجهاز لا يدعم المتصفحات المستقلة</string>
     <string name="starnet_invalid_request">تعذر فتح هذا الحساب لأن الطلب غير صالح</string>
     <string name="starnet_action_sync">⇩ تحديث من Starlink</string>
+    <string name="starnet_sync_in_progress">جارٍ قراءة جميع الأقسام (الرئيسية، الاشتراك، الفوترة)…</string>
     <string name="starnet_sync_wrong_domain">يمكن تحديث البيانات فقط من صفحات Starlink الرسمية</string>
     <string name="starnet_sync_nothing_found">لم يتم العثور على بيانات على هذه الصفحة - جرّب صفحة حساب أخرى</string>
     <string name="starnet_sync_success">تم إرسال البيانات إلى STAR NET</string>
