@@ -1680,6 +1680,25 @@ button.overview-card:active {
   grid-column: 1 / -1;
 }
 
+/* Phone number field (AccountDialog.tsx) - a country dial-code select beside the plain local-
+ * number input, so the operator only ever picks a country and types digits, never the "+" code. */
+.phone-input-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.phone-country-select {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: 40%;
+}
+
+.phone-input-row > input {
+  flex: 1;
+  min-width: 0;
+}
+
 /* Extra-email repeater rows (AccountDialog.tsx) - each row is an address + its own password,
  * capped at two rows (3 emails total per device including the primary one above). */
 .extra-emails-list {

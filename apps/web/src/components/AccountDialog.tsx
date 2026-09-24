@@ -6,6 +6,7 @@ import { formatRelativeTime } from "@/lib/date";
 import { emailsMismatch } from "@/lib/emailMatch";
 import { presentServiceStatus } from "@/lib/status";
 import { Client, CreateClientInput } from "@/lib/clientStore";
+import { combinePhoneNumber, PHONE_COUNTRY_CODES, splitPhoneNumber } from "@/lib/phoneCountryCodes";
 import { ClientPicker } from "./ClientPicker";
 
 export type AccountDialogMode = "add" | "edit" | "view";
@@ -80,6 +81,16 @@ export function AccountDialog({ mode, account, clients, onCreateClient, onClose,
 
   function update<K extends keyof StarlinkAccountSummary>(key: K, value: StarlinkAccountSummary[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
+  }
+
+  const { dialCode: phoneDialCode, localNumber: phoneLocalNumber } = splitPhoneNumber(draft.phone);
+
+  function updatePhoneDialCode(dialCode: string) {
+    update("phone", combinePhoneNumber(dialCode, phoneLocalNumber));
+  }
+
+  function updatePhoneLocalNumber(localNumber: string) {
+    update("phone", combinePhoneNumber(phoneDialCode, localNumber));
   }
 
   const extraEmails = draft.extraEmails ?? [];
@@ -159,7 +170,7 @@ export function AccountDialog({ mode, account, clients, onCreateClient, onClose,
             {draft.starlinkAccountHolderName && (
               <div><span>الاسم من Starlink</span><strong>{draft.starlinkAccountHolderName}</strong></div>
             )}
-            <div><span>رقم الهاتف</span><strong dir="ltr">{displayValue(draft.phone ?? null)}</strong></div>
+            <div><span>رقم الهاتف</span><strong dir="ltr">{draft.phone ? `+${draft.phone}` : "—"}</strong></div>
             <div>
               <span>الخطة</span>
               <strong>
@@ -234,16 +245,29 @@ export function AccountDialog({ mode, account, clients, onCreateClient, onClose,
               <input required value={draft.name} onChange={(e) => update("name", e.target.value)} placeholder="مثال: منزل الحي الشرقي" />
             </label>
 
-            <label className="form-field form-wide">
+            <div className="form-field form-wide">
               <span>رقم الهاتف (واتساب)</span>
-              <input
-                dir="ltr"
-                type="tel"
-                value={draft.phone ?? ""}
-                onChange={(e) => update("phone", e.target.value)}
-                placeholder="مع رمز الدولة، مثال: 22212345678"
-              />
-            </label>
+              <div className="phone-input-row">
+                <select
+                  className="phone-country-select"
+                  dir="ltr"
+                  value={phoneDialCode}
+                  onChange={(e) => updatePhoneDialCode(e.target.value)}
+                  aria-label="رمز الدولة"
+                >
+                  {PHONE_COUNTRY_CODES.map((c) => (
+                    <option key={c.dialCode} value={c.dialCode}>{c.country} {c.dialCode}</option>
+                  ))}
+                </select>
+                <input
+                  dir="ltr"
+                  type="tel"
+                  value={phoneLocalNumber}
+                  onChange={(e) => updatePhoneLocalNumber(e.target.value)}
+                  placeholder="رقم الهاتف بدون رمز الدولة"
+                />
+              </div>
+            </div>
 
             <label className="form-field">
               <span>البريد الإلكتروني الرئيسي (لمطابقة حساب Starlink)</span>
