@@ -13,9 +13,13 @@ import { filterEntriesByPeriod, isThisCalendarMonth, REPORT_PERIOD_LABELS, REPOR
 import { ClientStore, getClient, loadClientStore } from "@/lib/clientStore";
 import { formatAmount } from "@/lib/formatAmount";
 import { InvoiceList, loadInvoices } from "@/lib/invoiceStore";
-import { loadStoreTransactions, StoreTransactionList } from "@/lib/storeStore";
-import { computeStoreSalesSummary } from "@/lib/storeReports";
+import { getStoreItem, loadStoreItems, loadStoreTransactions, StoreItemRegistry, StoreTransactionList } from "@/lib/storeStore";
+import { computeClientSalesTotals, computeItemSalesTotals, computeStoreSalesSummary, largestCurrencyValue } from "@/lib/storeReports";
 import { CashEntryList, loadCashEntries, listStandaloneCashEntries } from "@/lib/cashStore";
+
+function currencyLabelFor(code: string): string {
+  return LEDGER_CURRENCY_LABELS[code as keyof typeof LEDGER_CURRENCY_LABELS] ?? code;
+}
 
 function mergeCurrencyKeys(...records: Record<string, number>[]): string[] {
   const keys = new Set<string>();
@@ -34,16 +38,20 @@ export default function ReportsPage() {
   const [ledgerStore, setLedgerStore] = useState<LedgerByAccount>({});
   const [clientStore, setClientStore] = useState<ClientStore>({});
   const [invoices, setInvoices] = useState<InvoiceList>([]);
+  const [storeItems, setStoreItems] = useState<StoreItemRegistry>({});
   const [storeTransactions, setStoreTransactions] = useState<StoreTransactionList>([]);
   const [cashEntries, setCashEntries] = useState<CashEntryList>([]);
   const [period, setPeriod] = useState<ReportPeriod>("month");
   const [showDollarBreakdown, setShowDollarBreakdown] = useState(true);
   const [showClientProfits, setShowClientProfits] = useState(false);
+  const [showTopStoreClients, setShowTopStoreClients] = useState(false);
+  const [showTopItems, setShowTopItems] = useState(false);
 
   useEffect(() => {
     setLedgerStore(loadLedgerStore());
     setClientStore(loadClientStore());
     setInvoices(loadInvoices());
+    setStoreItems(loadStoreItems());
     setStoreTransactions(loadStoreTransactions());
     setCashEntries(loadCashEntries());
     if (isDemoMode()) {
@@ -99,6 +107,22 @@ export default function ReportsPage() {
     return result;
   }, [storeSummary, periodStandaloneExpenses]);
   const storeProfitCurrencies = Object.keys(storeNetProfitByCurrency);
+
+  // أفضل الزبائن وأكثر المواد مبيعًا - ranked from the same period's sale invoices, sorted by
+  // each row's own largest currency value (see storeReports.ts's largestCurrencyValue - never a
+  // fabricated cross-currency sum), top 10 only so the list stays a quick "where to focus" read.
+  const topStoreClients = useMemo(() => {
+    return computeClientSalesTotals(periodInvoices)
+      .filter((row) => largestCurrencyValue(row.totalByCurrency) > 0.0001)
+      .sort((a, b) => largestCurrencyValue(b.totalByCurrency) - largestCurrencyValue(a.totalByCurrency))
+      .slice(0, 10);
+  }, [periodInvoices]);
+  const topItems = useMemo(() => {
+    return computeItemSalesTotals(periodInvoices)
+      .filter((row) => largestCurrencyValue(row.totalByCurrency) > 0.0001)
+      .sort((a, b) => largestCurrencyValue(b.totalByCurrency) - largestCurrencyValue(a.totalByCurrency))
+      .slice(0, 10);
+  }, [periodInvoices]);
 
   const totalOwed = useMemo(() => totalOwedAcrossAccounts(ledgerStore), [ledgerStore]);
   const owedCurrencies = LEDGER_CURRENCIES.filter((c) => totalOwed[c] !== undefined && totalOwed[c]! > 0);
@@ -205,6 +229,64 @@ export default function ReportsPage() {
             التفاصيل الكاملة في المتجر ←
           </Link>
         </p>
+
+        <button
+          type="button"
+          className="report-collapse-toggle"
+          onClick={() => setShowTopStoreClients((v) => !v)}
+          aria-expanded={showTopStoreClients}
+        >
+          أفضل الزبائن (المتجر) {showTopStoreClients ? "▲" : "▼"}
+        </button>
+        {showTopStoreClients &&
+          (topStoreClients.length === 0 ? (
+            <p className="empty-state">لا توجد مبيعات لهذه الفترة.</p>
+          ) : (
+            <ul className="report-line-list">
+              {topStoreClients.map((row) => {
+                const client = getClient(clientStore, row.clientId);
+                const currencies = Object.keys(row.totalByCurrency);
+                return (
+                  <li key={row.clientId ?? "__none__"} className="report-line">
+                    <span>{client?.name ?? "بدون زبون"}</span>
+                    <strong dir="ltr">
+                      {currencies.map((c) => `${formatAmount(row.totalByCurrency[c]!)} ${currencyLabelFor(c)}`).join(" · ")}
+                    </strong>
+                  </li>
+                );
+              })}
+            </ul>
+          ))}
+
+        <button
+          type="button"
+          className="report-collapse-toggle"
+          onClick={() => setShowTopItems((v) => !v)}
+          aria-expanded={showTopItems}
+        >
+          أكثر المواد مبيعًا {showTopItems ? "▲" : "▼"}
+        </button>
+        {showTopItems &&
+          (topItems.length === 0 ? (
+            <p className="empty-state">لا توجد مبيعات لهذه الفترة.</p>
+          ) : (
+            <ul className="report-line-list">
+              {topItems.map((row) => {
+                const item = getStoreItem(storeItems, row.itemId);
+                const currencies = Object.keys(row.totalByCurrency);
+                return (
+                  <li key={row.itemId} className="report-line">
+                    <span>
+                      {item?.name ?? "مادة محذوفة"} <span className="settings-hint">({formatAmount(row.quantity)} {item?.unit ?? ""})</span>
+                    </span>
+                    <strong dir="ltr">
+                      {currencies.map((c) => `${formatAmount(row.totalByCurrency[c]!)} ${currencyLabelFor(c)}`).join(" · ")}
+                    </strong>
+                  </li>
+                );
+              })}
+            </ul>
+          ))}
 
         <div className="report-grid report-grid-3">
           <div className="report-tile">

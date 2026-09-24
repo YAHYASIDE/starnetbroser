@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   computeAveragePurchaseCost,
+  computeClientSalesTotals,
+  computeItemSalesTotals,
   computeStoreSalesSummary,
   computeTotalPayablesByCurrency,
   computeTotalReceivablesByCurrency,
+  largestCurrencyValue,
 } from "./storeReports";
 import { Invoice, InvoiceList } from "./invoiceStore";
 import { StoreTransactionList } from "./storeStore";
@@ -151,5 +154,83 @@ describe("computeTotalReceivablesByCurrency / computeTotalPayablesByCurrency", (
   it("excludes a return invoice from either total", () => {
     const invoices: InvoiceList = [invoice({ id: "1", returnOfInvoiceId: "orig", paidAmount: 0 })];
     expect(computeTotalReceivablesByCurrency(invoices)).toEqual({});
+  });
+});
+
+describe("computeClientSalesTotals", () => {
+  it("sums each client's own sale total, grouped by currency", () => {
+    const invoices = [
+      invoice({ id: "1", clientId: "c1", currencyCode: "MRU" }), // total 200
+      invoice({ id: "2", clientId: "c1", currencyCode: "MRU", lines: [{ itemId: "a", quantity: 1, unitPrice: 50, transactionId: "t9" }] }), // total 50
+      invoice({ id: "3", clientId: "c2", currencyCode: "MRU" }), // total 200, different client
+    ];
+    const totals = computeClientSalesTotals(invoices);
+    const c1 = totals.find((t) => t.clientId === "c1");
+    const c2 = totals.find((t) => t.clientId === "c2");
+    expect(c1?.totalByCurrency).toEqual({ MRU: 250 });
+    expect(c2?.totalByCurrency).toEqual({ MRU: 200 });
+  });
+
+  it("buckets an invoice with no linked client under clientId undefined, never dropping it", () => {
+    const totals = computeClientSalesTotals([invoice({ id: "1", clientId: undefined })]);
+    expect(totals).toHaveLength(1);
+    expect(totals[0]!.clientId).toBeUndefined();
+    expect(totals[0]!.totalByCurrency).toEqual({ MRU: 200 });
+  });
+
+  it("subtracts a return's value from its client's total", () => {
+    const invoices = [
+      invoice({ id: "orig", clientId: "c1", currencyCode: "MRU" }), // total 200
+      invoice({ id: "ret", clientId: "c1", currencyCode: "MRU", returnOfInvoiceId: "orig", lines: [{ itemId: "a", quantity: 1, unitPrice: 100, transactionId: "t9" }] }), // return total 100
+    ];
+    const totals = computeClientSalesTotals(invoices);
+    expect(totals.find((t) => t.clientId === "c1")?.totalByCurrency).toEqual({ MRU: 100 });
+  });
+
+  it("ignores a purchase invoice", () => {
+    const totals = computeClientSalesTotals([invoice({ id: "1", kind: "purchase", clientId: undefined, supplierId: "s1" })]);
+    expect(totals).toHaveLength(0);
+  });
+});
+
+describe("computeItemSalesTotals", () => {
+  it("sums each item's quantity and sale value across invoices", () => {
+    const invoices = [
+      invoice({ id: "1", lines: [{ itemId: "a", quantity: 2, unitPrice: 100, transactionId: "t1" }] }),
+      invoice({ id: "2", lines: [{ itemId: "a", quantity: 3, unitPrice: 100, transactionId: "t2" }] }),
+      invoice({ id: "3", lines: [{ itemId: "b", quantity: 1, unitPrice: 500, transactionId: "t3" }] }),
+    ];
+    const totals = computeItemSalesTotals(invoices);
+    const a = totals.find((t) => t.itemId === "a");
+    const b = totals.find((t) => t.itemId === "b");
+    expect(a).toEqual({ itemId: "a", quantity: 5, totalByCurrency: { MRU: 500 } });
+    expect(b).toEqual({ itemId: "b", quantity: 1, totalByCurrency: { MRU: 500 } });
+  });
+
+  it("subtracts a return's quantity/value from the item's totals", () => {
+    const invoices = [
+      invoice({ id: "orig", lines: [{ itemId: "a", quantity: 5, unitPrice: 100, transactionId: "t1" }] }),
+      invoice({
+        id: "ret",
+        returnOfInvoiceId: "orig",
+        lines: [{ itemId: "a", quantity: 2, unitPrice: 100, transactionId: "t2" }],
+      }),
+    ];
+    const totals = computeItemSalesTotals(invoices);
+    expect(totals.find((t) => t.itemId === "a")).toEqual({ itemId: "a", quantity: 3, totalByCurrency: { MRU: 300 } });
+  });
+
+  it("ignores a purchase invoice", () => {
+    expect(computeItemSalesTotals([invoice({ id: "1", kind: "purchase", clientId: undefined, supplierId: "s1" })])).toHaveLength(0);
+  });
+});
+
+describe("largestCurrencyValue", () => {
+  it("returns the single largest value across currencies", () => {
+    expect(largestCurrencyValue({ MRU: 500, USD: 20 })).toBe(500);
+  });
+
+  it("returns 0 for an empty record", () => {
+    expect(largestCurrencyValue({})).toBe(0);
   });
 });

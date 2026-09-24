@@ -111,3 +111,57 @@ export function computeTotalPayablesByCurrency(invoices: InvoiceList): Record<st
   }
   return result;
 }
+
+export interface ClientSalesTotal {
+  /** undefined groups every sale with no client linked - shown as "بدون زبون" at the UI layer,
+   * never silently dropped from the ranking. */
+  clientId: string | undefined;
+  totalByCurrency: Record<string, number>;
+}
+
+/** Total sale value per client, per currency (never mixed), across the caller-supplied period's
+ * sale invoices - a return subtracts its own value back out of its original client's total. Feeds
+ * "أفضل الزبائن" on the reports page; the caller sorts (see sortBySalesValueDesc below). */
+export function computeClientSalesTotals(periodSaleInvoices: Invoice[]): ClientSalesTotal[] {
+  const byClient = new Map<string | undefined, Record<string, number>>();
+  for (const inv of periodSaleInvoices) {
+    if (inv.kind !== "sale") continue;
+    const sign = inv.returnOfInvoiceId ? -1 : 1;
+    const totals = byClient.get(inv.clientId) ?? {};
+    totals[inv.currencyCode] = (totals[inv.currencyCode] ?? 0) + sign * invoiceTotal(inv);
+    byClient.set(inv.clientId, totals);
+  }
+  return Array.from(byClient.entries()).map(([clientId, totalByCurrency]) => ({ clientId, totalByCurrency }));
+}
+
+export interface ItemSalesTotal {
+  itemId: string;
+  quantity: number;
+  totalByCurrency: Record<string, number>;
+}
+
+/** Total quantity and sale value per item, per currency (never mixed), across the caller-supplied
+ * period's sale invoices - a return subtracts its own quantity/value back out. Feeds "أكثر المواد
+ * مبيعًا" on the reports page. */
+export function computeItemSalesTotals(periodSaleInvoices: Invoice[]): ItemSalesTotal[] {
+  const byItem = new Map<string, { quantity: number; totalByCurrency: Record<string, number> }>();
+  for (const inv of periodSaleInvoices) {
+    if (inv.kind !== "sale") continue;
+    const sign = inv.returnOfInvoiceId ? -1 : 1;
+    for (const line of inv.lines) {
+      const entry = byItem.get(line.itemId) ?? { quantity: 0, totalByCurrency: {} };
+      entry.quantity += sign * line.quantity;
+      entry.totalByCurrency[inv.currencyCode] = (entry.totalByCurrency[inv.currencyCode] ?? 0) + sign * line.quantity * line.unitPrice;
+      byItem.set(line.itemId, entry);
+    }
+  }
+  return Array.from(byItem.entries()).map(([itemId, v]) => ({ itemId, quantity: v.quantity, totalByCurrency: v.totalByCurrency }));
+}
+
+/** Ranking helper shared by both totals above - since currencies are never mixed into one number,
+ * a row is ranked by its own single largest currency value (display still lists every currency
+ * faithfully; this only decides sort order, never a displayed figure). */
+export function largestCurrencyValue(totalByCurrency: Record<string, number>): number {
+  const values = Object.values(totalByCurrency);
+  return values.length === 0 ? 0 : Math.max(...values);
+}
