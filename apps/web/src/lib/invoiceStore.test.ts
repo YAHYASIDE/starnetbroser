@@ -43,6 +43,16 @@ describe("invoice totals", () => {
     expect(invoiceSubtotal(inv)).toBe(250);
   });
 
+  it("subtotal folds each line's own shippingCharge on top of quantity*unitPrice", () => {
+    const inv = invoice({
+      lines: [
+        { itemId: "a", quantity: 1, unitPrice: 100, shippingCharge: 30, transactionId: "t1" },
+        { itemId: "b", quantity: 1, unitPrice: 50, transactionId: "t2" }, // no shipping on this one
+      ],
+    });
+    expect(invoiceSubtotal(inv)).toBe(180);
+  });
+
   it("total subtracts the discount, floored at 0", () => {
     expect(invoiceTotal(invoice({ discount: 50 }))).toBe(150);
     expect(invoiceTotal(invoice({ discount: 500 }))).toBe(0);
@@ -166,6 +176,63 @@ describe("createInvoice - sale", () => {
     });
     expect(result.ok).toBe(true);
     if (result.ok) expect(invoicePaymentStatus(result.invoice)).toBe("partial");
+  });
+
+  it("carries a sale line's shippingCost/shippingCharge through onto the stored line", () => {
+    const stock: StoreTransactionList = [
+      { id: "buy1", itemId: "a", kind: "buy", quantity: 5, unitPrice: 50, currencyCode: "MRU", date: "2026-09-01", createdAt: "t0" },
+    ];
+    const result = createInvoice([], stock, {
+      kind: "sale",
+      date: "2026-09-20",
+      currencyCode: "MRU",
+      lines: [{ itemId: "a", quantity: 1, unitPrice: 100, shippingCost: 30, shippingCharge: 50 }],
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.invoice.lines[0].shippingCost).toBe(30);
+    expect(result.invoice.lines[0].shippingCharge).toBe(50);
+    expect(invoiceTotal(result.invoice)).toBe(150); // 100 (item) + 50 (shipping charge)
+  });
+
+  it("strips shippingCost/shippingCharge on a purchase invoice - shipping only ever applies to a sale", () => {
+    const result = createInvoice([], [], {
+      kind: "purchase",
+      date: "2026-09-20",
+      currencyCode: "MRU",
+      lines: [{ itemId: "a", quantity: 1, unitPrice: 100, shippingCost: 30, shippingCharge: 50 }],
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.invoice.lines[0].shippingCost).toBeUndefined();
+    expect(result.invoice.lines[0].shippingCharge).toBeUndefined();
+    expect(invoiceTotal(result.invoice)).toBe(100);
+  });
+
+  it("rejects a negative shippingCost", () => {
+    const stock: StoreTransactionList = [
+      { id: "buy1", itemId: "a", kind: "buy", quantity: 5, unitPrice: 50, currencyCode: "MRU", date: "2026-09-01", createdAt: "t0" },
+    ];
+    const result = createInvoice([], stock, {
+      kind: "sale",
+      date: "2026-09-20",
+      currencyCode: "MRU",
+      lines: [{ itemId: "a", quantity: 1, unitPrice: 100, shippingCost: -10 }],
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects a negative shippingCharge", () => {
+    const stock: StoreTransactionList = [
+      { id: "buy1", itemId: "a", kind: "buy", quantity: 5, unitPrice: 50, currencyCode: "MRU", date: "2026-09-01", createdAt: "t0" },
+    ];
+    const result = createInvoice([], stock, {
+      kind: "sale",
+      date: "2026-09-20",
+      currencyCode: "MRU",
+      lines: [{ itemId: "a", quantity: 1, unitPrice: 100, shippingCharge: -10 }],
+    });
+    expect(result.ok).toBe(false);
   });
 });
 

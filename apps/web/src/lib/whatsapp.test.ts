@@ -261,6 +261,19 @@ describe("buildInvoiceMessage", () => {
     expect(message).toContain("مدفوعة بالكامل");
   });
 
+  it("shows a shipping line under a line that has one, and folds its charge into the subtotal", () => {
+    const withShipping = buildInvoiceMessage(
+      invoice({
+        lines: [{ itemId: "item-1", quantity: 1, unitPrice: 5000, shippingCost: 300, shippingCharge: 500, transactionId: "t1" }],
+        discount: 1, // forces the subtotal line to render so we can assert its value
+      }),
+      items,
+      "زبون",
+    );
+    expect(withShipping).toContain("🚚 شحن: 500");
+    expect(withShipping).toContain("5,500"); // subtotal: 5000 (item) + 500 (shipping)
+  });
+
   it("labels a purchase invoice and a return invoice distinctly", () => {
     const purchase = buildInvoiceMessage(invoice({ kind: "purchase" }), items, "مورّد");
     expect(purchase).toContain("فاتورة شراء");

@@ -95,6 +95,38 @@ describe("computeStoreSalesSummary", () => {
     const summary = computeStoreSalesSummary(transactions, [purchase], [purchase]);
     expect(summary.salesByCurrency).toEqual({});
   });
+
+  it("sums each line's shippingCharge/shippingCost separately - already folded into sales, but broken out for a shipping-only profit figure", () => {
+    const sale = invoice({
+      lines: [{ itemId: "a", quantity: 5, unitPrice: 100, shippingCost: 40, shippingCharge: 60, transactionId: "t9" }],
+    });
+    const summary = computeStoreSalesSummary(transactions, [sale], [sale]);
+    expect(summary.salesByCurrency).toEqual({ MRU: 560 }); // 500 (item) + 60 (shipping charge)
+    expect(summary.shippingChargeByCurrency).toEqual({ MRU: 60 });
+    expect(summary.shippingCostByCurrency).toEqual({ MRU: 40 });
+  });
+
+  it("subtracts a return's shipping figures too", () => {
+    const sale = invoice({
+      id: "s1",
+      lines: [{ itemId: "a", quantity: 5, unitPrice: 100, shippingCost: 40, shippingCharge: 60, transactionId: "t9" }],
+    });
+    const ret = invoice({
+      id: "r1",
+      returnOfInvoiceId: "s1",
+      lines: [{ itemId: "a", quantity: 2, unitPrice: 100, shippingCost: 40, shippingCharge: 60, transactionId: "t10" }],
+    });
+    const summary = computeStoreSalesSummary(transactions, [sale, ret], [sale, ret]);
+    expect(summary.shippingChargeByCurrency).toEqual({ MRU: 0 });
+    expect(summary.shippingCostByCurrency).toEqual({ MRU: 0 });
+  });
+
+  it("leaves shipping totals empty when no line ever had shipping", () => {
+    const sale = invoice({ lines: [{ itemId: "a", quantity: 5, unitPrice: 100, transactionId: "t9" }] });
+    const summary = computeStoreSalesSummary(transactions, [sale], [sale]);
+    expect(summary.shippingChargeByCurrency).toEqual({});
+    expect(summary.shippingCostByCurrency).toEqual({});
+  });
 });
 
 describe("computeTotalReceivablesByCurrency / computeTotalPayablesByCurrency", () => {

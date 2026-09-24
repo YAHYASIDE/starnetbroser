@@ -134,12 +134,16 @@ export function buildInvoiceMessage(invoice: Invoice, items: StoreItemRegistry, 
   const currencyLabel = LEDGER_CURRENCY_LABELS[invoice.currencyCode as keyof typeof LEDGER_CURRENCY_LABELS] ?? invoice.currencyCode;
   const title = invoice.kind === "sale" ? "فاتورة بيع" : "فاتورة شراء";
 
-  const lineTexts = invoice.lines.map((line) => {
+  const lineTexts = invoice.lines.flatMap((line) => {
     const item = getStoreItem(items, line.itemId);
     const name = item?.name ?? "مادة";
     const unit = item?.unit ?? "";
     const lineTotal = line.quantity * line.unitPrice;
-    return `• ${name}: ${formatAmount(line.quantity)} ${unit} × ${formatAmount(line.unitPrice)} ${currencyLabel} = ${formatAmount(lineTotal)} ${currencyLabel}`;
+    const texts = [`• ${name}: ${formatAmount(line.quantity)} ${unit} × ${formatAmount(line.unitPrice)} ${currencyLabel} = ${formatAmount(lineTotal)} ${currencyLabel}`];
+    if (line.shippingCharge !== undefined) {
+      texts.push(`  🚚 شحن: ${formatAmount(line.shippingCharge)} ${currencyLabel}`);
+    }
+    return texts;
   });
 
   const subtotal = invoiceSubtotal(invoice);

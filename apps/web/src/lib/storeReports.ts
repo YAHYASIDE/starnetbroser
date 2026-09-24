@@ -32,12 +32,22 @@ export function computeAveragePurchaseCost(
 }
 
 export interface StoreSalesSummary {
-  /** Net sales value per currency - a return in the same set subtracts its own total. */
+  /** Net sales value per currency - a return in the same set subtracts its own total. Already
+   * includes each line's own shippingCharge (see invoiceStore.ts's invoiceSubtotal), i.e. this is
+   * everything actually owed by/collected from the customer, device price and shipping fee alike. */
   salesByCurrency: Record<string, number>;
   /** Estimated cost of the goods behind those sales, per currency - only ever added when the
    * item's average cost is known AND in the same currency as the sale, per the module's own
    * "never mix currencies" rule. */
   cogsByCurrency: Record<string, number>;
+  /** Sum of each line's own shippingCharge - already folded into salesByCurrency above, broken
+   * out separately here only so a shipping-specific profit figure (this minus
+   * shippingCostByCurrency) can be shown on its own, next to the item-only profit. */
+  shippingChargeByCurrency: Record<string, number>;
+  /** Sum of each line's own shippingCost - what shipping actually cost us, entered directly per
+   * line/invoice (never averaged like an item's own purchase cost, since the price genuinely
+   * varies shipment to shipment). */
+  shippingCostByCurrency: Record<string, number>;
 }
 
 /** Builds a sales+COGS summary from a caller-supplied set of sale-kind invoices (both normal
@@ -50,6 +60,8 @@ export function computeStoreSalesSummary(
 ): StoreSalesSummary {
   const salesByCurrency: Record<string, number> = {};
   const cogsByCurrency: Record<string, number> = {};
+  const shippingChargeByCurrency: Record<string, number> = {};
+  const shippingCostByCurrency: Record<string, number> = {};
 
   for (const inv of periodSaleInvoices) {
     if (inv.kind !== "sale") continue;
@@ -58,12 +70,19 @@ export function computeStoreSalesSummary(
 
     for (const line of inv.lines) {
       const avgCost = computeAveragePurchaseCost(transactions, invoices, line.itemId);
-      if (avgCost === undefined) continue;
-      cogsByCurrency[inv.currencyCode] = (cogsByCurrency[inv.currencyCode] ?? 0) + sign * line.quantity * avgCost;
+      if (avgCost !== undefined) {
+        cogsByCurrency[inv.currencyCode] = (cogsByCurrency[inv.currencyCode] ?? 0) + sign * line.quantity * avgCost;
+      }
+      if (line.shippingCharge) {
+        shippingChargeByCurrency[inv.currencyCode] = (shippingChargeByCurrency[inv.currencyCode] ?? 0) + sign * line.shippingCharge;
+      }
+      if (line.shippingCost) {
+        shippingCostByCurrency[inv.currencyCode] = (shippingCostByCurrency[inv.currencyCode] ?? 0) + sign * line.shippingCost;
+      }
     }
   }
 
-  return { salesByCurrency, cogsByCurrency };
+  return { salesByCurrency, cogsByCurrency, shippingChargeByCurrency, shippingCostByCurrency };
 }
 
 /** Total value of every sale invoice still (fully or partially) unpaid, grouped by currency - the

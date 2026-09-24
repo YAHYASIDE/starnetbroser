@@ -79,13 +79,31 @@ export function StoreReportsSection({ transactions, invoices, cashEntries }: Pro
   }, [cashEntries]);
 
   const monthNetProfit = useMemo(() => {
-    const currencies = mergeCurrencyKeys(monthSummary.salesByCurrency, monthSummary.cogsByCurrency, monthExpenses);
+    const currencies = mergeCurrencyKeys(
+      monthSummary.salesByCurrency,
+      monthSummary.cogsByCurrency,
+      monthSummary.shippingCostByCurrency,
+      monthExpenses,
+    );
     const result: Record<string, number> = {};
     for (const c of currencies) {
-      result[c] = (monthSummary.salesByCurrency[c] ?? 0) - (monthSummary.cogsByCurrency[c] ?? 0) - (monthExpenses[c] ?? 0);
+      result[c] =
+        (monthSummary.salesByCurrency[c] ?? 0) -
+        (monthSummary.cogsByCurrency[c] ?? 0) -
+        (monthSummary.shippingCostByCurrency[c] ?? 0) -
+        (monthExpenses[c] ?? 0);
     }
     return result;
   }, [monthSummary, monthExpenses]);
+
+  const monthShippingProfit = useMemo(() => {
+    const currencies = mergeCurrencyKeys(monthSummary.shippingChargeByCurrency, monthSummary.shippingCostByCurrency);
+    const result: Record<string, number> = {};
+    for (const c of currencies) {
+      result[c] = (monthSummary.shippingChargeByCurrency[c] ?? 0) - (monthSummary.shippingCostByCurrency[c] ?? 0);
+    }
+    return result;
+  }, [monthSummary]);
 
   const receivables = useMemo(() => computeTotalReceivablesByCurrency(invoices), [invoices]);
   const payables = useMemo(() => computeTotalPayablesByCurrency(invoices), [invoices]);
@@ -110,11 +128,16 @@ export function StoreReportsSection({ transactions, invoices, cashEntries }: Pro
             <CurrencyTile label="تكلفة البضاعة المباعة (تقديري)" values={monthSummary.cogsByCurrency} />
           </div>
           <div className="report-grid">
+            <CurrencyTile label="تكلفة الشحن الفعلية" values={monthSummary.shippingCostByCurrency} />
+            <CurrencyTile label="ربح الشحن" values={monthShippingProfit} />
+          </div>
+          <div className="report-grid">
             <CurrencyTile label="المصاريف (غير مرتبطة بفاتورة)" values={monthExpenses} />
             <CurrencyTile label="صافي الربح التقديري" values={monthNetProfit} />
           </div>
           <p className="settings-hint">
             تكلفة البضاعة تقديرية بناءً على متوسط سعر شراء كل مادة - وليست تتبعًا دقيقًا لكل دفعة.
+            تكلفة وربح الشحن مبنيان على ما أدخلته لكل فاتورة تحديدًا. صافي الربح يشملهما معًا.
             الديون والتحصيل (أدناه) منفصلة تمامًا عن الربح.
           </p>
 

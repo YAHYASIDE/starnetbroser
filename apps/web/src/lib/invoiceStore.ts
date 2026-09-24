@@ -27,6 +27,14 @@ export interface InvoiceLineInput {
   itemId: string;
   quantity: number;
   unitPrice: number;
+  /** Sale only. What shipping this line actually cost us - entered directly per line/invoice
+   * (never averaged like an item's own purchase cost), since the shipping price varies shipment
+   * to shipment. Stripped to undefined on a purchase invoice, see createInvoice. */
+  shippingCost?: number;
+  /** Sale only. What we charged the customer to ship this line - added on top of quantity*
+   * unitPrice into the invoice's own subtotal/total (see invoiceSubtotal), so payment status and
+   * the WhatsApp message always reflect one single "amount owed" figure. */
+  shippingCharge?: number;
 }
 
 export interface InvoiceLine extends InvoiceLineInput {
@@ -92,7 +100,7 @@ export function saveInvoices(invoices: InvoiceList): void {
 // ---- Pure logic below - independent of localStorage, so this is what is actually unit-tested. ----
 
 export function invoiceSubtotal(invoice: Invoice): number {
-  return invoice.lines.reduce((sum, l) => sum + l.quantity * l.unitPrice, 0);
+  return invoice.lines.reduce((sum, l) => sum + l.quantity * l.unitPrice + (l.shippingCharge ?? 0), 0);
 }
 
 export function invoiceTotal(invoice: Invoice): number {
@@ -150,6 +158,15 @@ export function createInvoice(
   const lines: InvoiceLine[] = [];
 
   for (const line of input.lines) {
+    const shippingCost = input.kind === "sale" ? line.shippingCost : undefined;
+    const shippingCharge = input.kind === "sale" ? line.shippingCharge : undefined;
+    if (shippingCost !== undefined && (!Number.isFinite(shippingCost) || shippingCost < 0)) {
+      return { ok: false, message: "تكلفة الشحن يجب أن تكون صفرًا أو أكبر" };
+    }
+    if (shippingCharge !== undefined && (!Number.isFinite(shippingCharge) || shippingCharge < 0)) {
+      return { ok: false, message: "سعر الشحن يجب أن يكون صفرًا أو أكبر" };
+    }
+
     const txnInput: CreateStoreTransactionInput = {
       itemId: line.itemId,
       kind: txnKind,
@@ -163,7 +180,14 @@ export function createInvoice(
     const result = recordStoreTransaction(workingTransactions, txnInput);
     if (!result.ok) return { ok: false, message: result.message };
     workingTransactions = result.transactions;
-    lines.push({ itemId: line.itemId, quantity: line.quantity, unitPrice: line.unitPrice, transactionId: result.transaction.id });
+    lines.push({
+      itemId: line.itemId,
+      quantity: line.quantity,
+      unitPrice: line.unitPrice,
+      shippingCost,
+      shippingCharge,
+      transactionId: result.transaction.id,
+    });
   }
 
   const subtotal = lines.reduce((sum, l) => sum + l.quantity * l.unitPrice, 0);

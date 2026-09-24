@@ -32,6 +32,11 @@ interface DraftLine {
   itemId: string;
   quantity: string;
   unitPrice: string;
+  /** Sale only - whether this line's shipping cost/charge inputs are shown at all (most lines
+   * have no shipping, so they stay collapsed until toggled on). */
+  shipping?: boolean;
+  shippingCost?: string;
+  shippingCharge?: string;
   /** Set only in return mode - caps how much of this line can still be returned. */
   maxReturnable?: number;
 }
@@ -207,6 +212,19 @@ export function InvoiceSection({
                           </li>
                         );
                       })}
+                      {invoice.lines.map(
+                        (line, i) =>
+                          line.shippingCharge !== undefined && (
+                            <li key={`ship-${i}`} className="report-line">
+                              <span>🚚 شحن {items[line.itemId]?.name ?? ""}</span>
+                              <strong dir="ltr">
+                                {formatAmount(line.shippingCharge)} {currencyLabel(invoice.currencyCode)}
+                                {line.shippingCost !== undefined &&
+                                  ` (التكلفة: ${formatAmount(line.shippingCost)} ${currencyLabel(invoice.currencyCode)})`}
+                              </strong>
+                            </li>
+                          ),
+                      )}
                       {invoice.discount > 0 && (
                         <li className="report-line">
                           <span>الخصم</span>
@@ -275,7 +293,11 @@ function InvoiceForm({ items, clients, suppliers, onCreateClient, onCreateSuppli
     setLines((current) => current.filter((_, i) => i !== index));
   }
 
-  const subtotal = lines.reduce((sum, l) => sum + (Number(l.quantity) || 0) * (Number(l.unitPrice) || 0), 0);
+  const subtotal = lines.reduce(
+    (sum, l) =>
+      sum + (Number(l.quantity) || 0) * (Number(l.unitPrice) || 0) + (kind === "sale" && l.shipping ? Number(l.shippingCharge) || 0 : 0),
+    0,
+  );
   const parsedDiscount = Number(discount) || 0;
   const total = Math.max(0, subtotal - parsedDiscount);
 
@@ -290,7 +312,13 @@ function InvoiceForm({ items, clients, suppliers, onCreateClient, onCreateSuppli
       kind,
       date,
       currencyCode,
-      lines: validLines.map((l) => ({ itemId: l.itemId, quantity: Number(l.quantity), unitPrice: Number(l.unitPrice) })),
+      lines: validLines.map((l) => ({
+        itemId: l.itemId,
+        quantity: Number(l.quantity),
+        unitPrice: Number(l.unitPrice),
+        shippingCost: kind === "sale" && l.shipping && l.shippingCost ? Number(l.shippingCost) : undefined,
+        shippingCharge: kind === "sale" && l.shipping && l.shippingCharge ? Number(l.shippingCharge) : undefined,
+      })),
       discount: parsedDiscount,
       paidAmount: Number(paidAmount) || 0,
       clientId: kind === "sale" && linkClient ? clientId : undefined,
@@ -331,39 +359,77 @@ function InvoiceForm({ items, clients, suppliers, onCreateClient, onCreateSuppli
       </select>
 
       {lines.map((line, index) => (
-        <div key={index} className="invoice-line-row">
-          <select className="search-input" value={line.itemId} onChange={(e) => selectItemForLine(index, e.target.value)}>
-            <option value="">اختر مادة</option>
-            {items.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-          <input
-            className="search-input"
-            type="number"
-            min="0"
-            step="0.01"
-            dir="ltr"
-            placeholder="الكمية"
-            value={line.quantity}
-            onChange={(e) => updateLine(index, { quantity: e.target.value })}
-          />
-          <input
-            className="search-input"
-            type="number"
-            min="0"
-            step="0.01"
-            dir="ltr"
-            placeholder="السعر"
-            value={line.unitPrice}
-            onChange={(e) => updateLine(index, { unitPrice: e.target.value })}
-          />
-          {lines.length > 1 && (
-            <button type="button" className="ledger-entry-delete" onClick={() => removeLine(index)} aria-label="حذف السطر">
-              ×
-            </button>
+        <div key={index} className="invoice-line-group">
+          <div className="invoice-line-row">
+            <select className="search-input" value={line.itemId} onChange={(e) => selectItemForLine(index, e.target.value)}>
+              <option value="">اختر مادة</option>
+              {items.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+            <input
+              className="search-input"
+              type="number"
+              min="0"
+              step="0.01"
+              dir="ltr"
+              placeholder="الكمية"
+              value={line.quantity}
+              onChange={(e) => updateLine(index, { quantity: e.target.value })}
+            />
+            <input
+              className="search-input"
+              type="number"
+              min="0"
+              step="0.01"
+              dir="ltr"
+              placeholder="السعر"
+              value={line.unitPrice}
+              onChange={(e) => updateLine(index, { unitPrice: e.target.value })}
+            />
+            {lines.length > 1 && (
+              <button type="button" className="ledger-entry-delete" onClick={() => removeLine(index)} aria-label="حذف السطر">
+                ×
+              </button>
+            )}
+          </div>
+          {kind === "sale" && (
+            <label className="ledger-d-toggle invoice-line-shipping-toggle">
+              <input
+                type="checkbox"
+                checked={line.shipping ?? false}
+                onChange={(e) =>
+                  updateLine(index, e.target.checked ? { shipping: true } : { shipping: false, shippingCost: "", shippingCharge: "" })
+                }
+              />
+              🚚 شحن هذه المادة
+            </label>
+          )}
+          {kind === "sale" && line.shipping && (
+            <div className="invoice-line-row">
+              <input
+                className="search-input"
+                type="number"
+                min="0"
+                step="0.01"
+                dir="ltr"
+                placeholder="تكلفة الشحن الفعلية"
+                value={line.shippingCost ?? ""}
+                onChange={(e) => updateLine(index, { shippingCost: e.target.value })}
+              />
+              <input
+                className="search-input"
+                type="number"
+                min="0"
+                step="0.01"
+                dir="ltr"
+                placeholder="سعر الشحن للزبون"
+                value={line.shippingCharge ?? ""}
+                onChange={(e) => updateLine(index, { shippingCharge: e.target.value })}
+              />
+            </div>
           )}
         </div>
       ))}

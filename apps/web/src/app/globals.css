@@ -3211,6 +3211,18 @@ button.overview-card:active {
   gap: 6px;
 }
 
+/* Wraps one line's main row plus its optional shipping toggle/inputs, so they stay visually
+   grouped and tightly spaced even though the form's own gap between direct children is larger. */
+.invoice-line-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.invoice-line-shipping-toggle {
+  grid-column: unset;
+}
+
 .invoice-line-row > select.search-input {
   flex: 2;
   min-width: 0;
