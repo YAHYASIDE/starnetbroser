@@ -75,6 +75,34 @@ export function buildBalanceReminderMessage(accountName: string, entries: Ledger
   );
 }
 
+/** Store-debt payment reminder for a client with an outstanding retail balance (invoiceStore.ts) -
+ * the same "here's what you owe and how to pay" tone as buildBalanceReminderMessage above, but for
+ * the store's own business rather than a device's Starlink ledger, a separate concern. */
+export function buildStoreDebtReminderMessage(clientName: string, balanceByCurrency: Record<string, number>): string {
+  const owedAmounts = Object.entries(balanceByCurrency)
+    .filter(([, amount]) => amount > 0.0001)
+    .map(([currency, amount]) => `${formatAmount(amount)} ${LEDGER_CURRENCY_LABELS[currency as keyof typeof LEDGER_CURRENCY_LABELS] ?? currency}`);
+
+  if (owedAmounts.length === 0) {
+    return (
+      `مرحبًا ${clientName} 👋\n\n` +
+      `نود إعلامك بأنه لا يوجد لديك أي رصيد مستحق حاليًا في المتجر. شكرًا لتعاملك معنا 🙏\n\n` +
+      `- STAR NET`
+    );
+  }
+
+  return (
+    `مرحبًا ${clientName} 👋\n\n` +
+    `نود إعلامك بأن لديك رصيدًا مستحقًا في المتجر بقيمة ${owedAmounts.join(" و")}.\n` +
+    `نرجو منك التكرم بتسديد المبلغ في أقرب وقت ممكن.\n\n` +
+    `يمكنكم الدفع عبر إحدى الوسائل التالية:\n` +
+    `• بنكيلي / سداد / نيتا: 22227268\n` +
+    `• أورانج موني: 74646158\n\n` +
+    `شكرًا لتعاونكم معنا 🙏\n` +
+    `- STAR NET`
+  );
+}
+
 const PAYMENT_STATUS_SUFFIX: Record<"unpaid" | "partial" | "paid", string> = {
   unpaid: "",
   partial: " (مدفوعة جزئيًا)",

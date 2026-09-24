@@ -12,7 +12,7 @@ import { usePathname } from "next/navigation";
 export function BottomNav() {
   const pathname = usePathname();
   const [sheetOpen, setSheetOpen] = useState(false);
-  const SHEET_DESTINATIONS = ["/currencies", "/trash", "/archive"];
+  const SHEET_DESTINATIONS = ["/currencies", "/trash", "/archive", "/reminders"];
   const onSheetDestination = SHEET_DESTINATIONS.includes(pathname ?? "");
 
   // The embedded remote-browser view (cloud session) is meant to be full-screen and immersive,
@@ -32,6 +32,10 @@ export function BottomNav() {
       {sheetOpen && (
         <div className="bottom-nav-sheet-backdrop" role="presentation" onClick={() => setSheetOpen(false)}>
           <div className="bottom-nav-sheet" role="menu" onClick={(e) => e.stopPropagation()}>
+            <Link href="/reminders" className="bottom-nav-sheet-item" onClick={() => setSheetOpen(false)}>
+              <span aria-hidden="true">🔔</span>
+              التذكيرات
+            </Link>
             <Link href="/currencies" className="bottom-nav-sheet-item" onClick={() => setSheetOpen(false)}>
               <span aria-hidden="true">💱</span>
               العملات

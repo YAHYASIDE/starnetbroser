@@ -868,7 +868,8 @@ a.btn-icon {
 
 .header-settings,
 .header-currencies,
-.header-clients {
+.header-clients,
+.header-reminders {
   width: 42px;
   height: 42px;
   border: 1px solid var(--border);
@@ -879,13 +880,15 @@ a.btn-icon {
   color: var(--text-muted);
   text-decoration: none;
   cursor: pointer;
+  position: relative;
   font-family: inherit;
   box-shadow: 0 5px 16px rgba(21, 31, 44, 0.06);
 }
 
 .header-settings svg,
 .header-currencies svg,
-.header-clients svg {
+.header-clients svg,
+.header-reminders svg {
   width: 21px;
   height: 21px;
   fill: none;
@@ -893,6 +896,23 @@ a.btn-icon {
   stroke-width: 1.7;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.header-reminders-badge {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--red);
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--bg);
 }
 
 .header-actions {

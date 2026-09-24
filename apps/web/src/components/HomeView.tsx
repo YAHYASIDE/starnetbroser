@@ -16,6 +16,7 @@ import { DeviceStatementDialog } from "./DeviceStatementDialog";
 import { ToastMessage, ToastStack } from "./ToastStack";
 import { HelpHint } from "./HelpHint";
 import { daysRemainingNumber } from "@/lib/date";
+import { computeDeviceDebtReminders, computeRenewalReminders } from "@/lib/reminders";
 import { formatAmount } from "@/lib/formatAmount";
 import {
   getAccountEntries,
@@ -558,6 +559,14 @@ export function HomeView({
   const archivedAccounts = useMemo(() => accounts.filter((a) => a.archivedAt), [accounts]);
   const trashAccounts = useMemo(() => accounts.filter((a) => a.deletedAt), [accounts]);
 
+  // Cheap header-badge count for /reminders - only the two categories this page already has data
+  // for loaded (renewals + device debts); the page itself also covers store debts/low stock, which
+  // don't need a second data load just to size a badge.
+  const reminderCount = useMemo(
+    () => computeRenewalReminders(activeAccounts).length + computeDeviceDebtReminders(activeAccounts, ledgerStore).length,
+    [activeAccounts, ledgerStore],
+  );
+
   const dayCounts = useMemo(() => {
     const counts = new Map<number, number>();
     for (const account of activeAccounts) {
@@ -659,6 +668,13 @@ export function HomeView({
               <path d="M15.5 14.6c2.4.2 4.3 2.2 4.5 4.9" strokeLinecap="round" />
             </svg>
           </button>
+          <Link href="/reminders" className="header-reminders" aria-label="التذكيرات">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3.5c-3 0-5 2.2-5 5.2v3.4c0 1-.4 2-1.1 2.7L5 15.7c-.5.5-.2 1.3.5 1.3h13c.7 0 1-.8.5-1.3l-.9-.9c-.7-.7-1.1-1.7-1.1-2.7V8.7c0-3-2-5.2-5-5.2Z" strokeLinejoin="round" />
+              <path d="M10 19.5a2 2 0 0 0 4 0" strokeLinecap="round" />
+            </svg>
+            {reminderCount > 0 && <span className="header-reminders-badge">{reminderCount > 9 ? "9+" : reminderCount}</span>}
+          </Link>
           <Link href="/currencies" className="header-currencies" aria-label="العملات وأسعار الصرف">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <circle cx="9" cy="9" r="5.5" />

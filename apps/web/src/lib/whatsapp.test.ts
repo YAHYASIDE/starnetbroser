@@ -10,6 +10,7 @@ import {
   buildDeviceInfoMessage,
   buildExpiryReminderMessage,
   buildInvoiceMessage,
+  buildStoreDebtReminderMessage,
   buildWhatsAppLink,
   normalizePhoneForWhatsApp,
 } from "./whatsapp";
@@ -145,6 +146,33 @@ describe("reminder message builders", () => {
       ledgerEntry({ kind: "debit", amount: 20, currency: "USD" }),
     ]);
     expect(message).toContain("45,000 أوقية");
+    expect(message).toContain("20 دولار");
+  });
+});
+
+describe("buildStoreDebtReminderMessage", () => {
+  it("mentions the client name, the balance/currency and the payment numbers", () => {
+    const message = buildStoreDebtReminderMessage("زبون تجريبي", { MRU: 15000 });
+    expect(message).toContain("زبون تجريبي");
+    expect(message).toContain("15,000 أوقية");
+    expect(message).toContain("22227268");
+    expect(message).toContain("74646158");
+  });
+
+  it("says there is no balance due when the client owes nothing", () => {
+    const message = buildStoreDebtReminderMessage("زبون تجريبي", {});
+    expect(message).toContain("لا يوجد لديك أي رصيد مستحق حاليًا");
+    expect(message).not.toContain("22227268");
+  });
+
+  it("ignores a zero/negative (credit) entry rather than treating it as owed", () => {
+    const message = buildStoreDebtReminderMessage("زبون تجريبي", { MRU: -500 });
+    expect(message).toContain("لا يوجد لديك أي رصيد مستحق حاليًا");
+  });
+
+  it("lists every currency owed, never summing them together", () => {
+    const message = buildStoreDebtReminderMessage("زبون تجريبي", { MRU: 15000, USD: 20 });
+    expect(message).toContain("15,000 أوقية");
     expect(message).toContain("20 دولار");
   });
 });
