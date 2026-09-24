@@ -610,6 +610,27 @@ a.btn-icon {
   margin: 6px 0;
 }
 
+/* The converter's "من"/"إلى" trigger button (CurrencyPickerField in currencies/page.tsx) - styled
+ * to match a plain .form-field select exactly, but opens the searchable .client-picker below it
+ * instead of the phone's own unsearchable native picker. */
+.currency-picker-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-alt);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.82rem;
+  text-align: start;
+  cursor: pointer;
+}
+
 .currency-converter-swap-btn {
   width: 38px;
   height: 38px;

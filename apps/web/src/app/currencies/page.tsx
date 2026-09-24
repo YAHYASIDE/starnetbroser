@@ -29,6 +29,71 @@ function formatUpdatedAt(iso: string): string {
   }
 }
 
+/**
+ * A searchable currency picker for the converter's "من"/"إلى" fields - a plain `<select>` renders
+ * as the phone's own full-screen native picker (no search, awkward once the registry grows past a
+ * handful of currencies), so this reuses the same search+list pattern already built for the
+ * "إضافة عملة جديدة" country picker (.client-picker) instead.
+ */
+function CurrencyPickerField({
+  label,
+  currencies,
+  value,
+  onChange,
+}: {
+  label: string;
+  currencies: Currency[];
+  value: string;
+  onChange: (code: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const selected = currencies.find((c) => c.code === value);
+  const queryNormalized = query.trim().toLowerCase();
+  const matches = queryNormalized
+    ? currencies.filter(
+        (c) => c.name.toLowerCase().includes(queryNormalized) || c.code.toLowerCase().includes(queryNormalized),
+      )
+    : currencies;
+
+  function select(code: string) {
+    onChange(code);
+    setOpen(false);
+    setQuery("");
+  }
+
+  return (
+    <div className="form-field">
+      <span>{label}</span>
+      {open ? (
+        <div className="client-picker">
+          <input
+            className="search-input"
+            autoFocus
+            placeholder="ابحث عن عملة"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <div className="client-picker-list">
+            {matches.length === 0 && <p className="client-picker-empty">لا توجد عملة مطابقة</p>}
+            {matches.map((c) => (
+              <button key={c.code} type="button" className="client-picker-option" onClick={() => select(c.code)}>
+                <span>{c.name}</span>
+                <span dir="ltr">{c.code}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <button type="button" className="currency-picker-trigger" onClick={() => setOpen(true)}>
+          <span>{selected ? `${selected.code} - ${selected.name}` : "اختر عملة"}</span>
+          <span aria-hidden="true">⌄</span>
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function CurrenciesPage() {
   const [store, setStore] = useState<CurrencyStore>({});
   useEffect(() => setStore(loadCurrencyStore()), []);
@@ -139,13 +204,13 @@ export default function CurrenciesPage() {
   const toCurrency = getCurrency(store, effectiveConvTo);
   const convAmountNum = Number(convAmount);
   const convResult = convertAmount(store, convAmountNum, convFrom, effectiveConvTo);
-  // "أسفلها" - shown right below the main converted result, the SAME source amount expressed in
-  // USD and in the business's own internal SIFA currency too - skipped whenever that would just
-  // repeat the input or the main result itself (already USD/SIFA), or when SIFA was never added.
-  const usdEquivalent =
-    convFrom !== "USD" && effectiveConvTo !== "USD" ? convertAmount(store, convAmountNum, convFrom, "USD") : undefined;
-  const sifaEquivalent =
-    convFrom !== "SIFA" && effectiveConvTo !== "SIFA" ? convertAmount(store, convAmountNum, convFrom, "SIFA") : undefined;
+  // "أسفلها" - shown right below the main converted result, the SAME source amount always
+  // expressed in USD and in the business's own internal SIFA currency too - two constant
+  // reference lines the operator asked to always see, whatever the "من"/"إلى" pair happens to be
+  // (even when one of them duplicates the main result). Silently absent only when that currency
+  // was never added to the registry at all.
+  const usdEquivalent = convertAmount(store, convAmountNum, convFrom, "USD");
+  const sifaEquivalent = convertAmount(store, convAmountNum, convFrom, "SIFA");
 
   function swapConverterCurrencies() {
     setConvFrom(effectiveConvTo);
@@ -176,14 +241,7 @@ export default function CurrenciesPage() {
               onChange={(e) => setConvAmount(e.target.value)}
             />
           </label>
-          <label className="form-field">
-            <span>من</span>
-            <select value={convFrom} onChange={(e) => setConvFrom(e.target.value)}>
-              {activeCurrencies.map((c) => (
-                <option key={c.code} value={c.code}>{c.code} - {c.name}</option>
-              ))}
-            </select>
-          </label>
+          <CurrencyPickerField label="من" currencies={activeCurrencies} value={convFrom} onChange={setConvFrom} />
         </div>
 
         <div className="currency-converter-swap-row">
@@ -199,14 +257,7 @@ export default function CurrenciesPage() {
         </div>
 
         <div className="currency-converter-row">
-          <label className="form-field form-wide">
-            <span>إلى</span>
-            <select value={effectiveConvTo} onChange={(e) => setConvTo(e.target.value)}>
-              {activeCurrencies.map((c) => (
-                <option key={c.code} value={c.code}>{c.code} - {c.name}</option>
-              ))}
-            </select>
-          </label>
+          <CurrencyPickerField label="إلى" currencies={activeCurrencies} value={effectiveConvTo} onChange={setConvTo} />
         </div>
 
         <div className="currency-converter-result">
