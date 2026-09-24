@@ -195,15 +195,15 @@ export function createInvoice(
   if (!Number.isFinite(discount) || discount < 0) {
     return { ok: false, message: "الخصم يجب أن يكون صفرًا أو أكبر" };
   }
-  const total = Math.max(0, subtotal - discount);
   if (discount > subtotal) {
     return { ok: false, message: "الخصم أكبر من إجمالي الفاتورة" };
   }
 
+  // A paidAmount above the total is a real, legitimate case (the customer prepaid more than this
+  // invoice's own value) - never rejected. It just makes invoiceBalanceDue negative, which
+  // computeClientStoreBalance already reports as a "له" credit owed back to them (see
+  // AccountsSection.tsx), exactly like an ordinary underpayment reports as a debt owed by them.
   const paidAmount = Math.max(0, input.paidAmount ?? 0);
-  if (paidAmount > total + 0.0001) {
-    return { ok: false, message: "المبلغ المدفوع أكبر من إجمالي الفاتورة" };
-  }
 
   const invoice: Invoice = {
     id: invoiceId,

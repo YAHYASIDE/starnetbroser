@@ -152,7 +152,7 @@ describe("createInvoice - sale", () => {
     expect(result.ok).toBe(false);
   });
 
-  it("rejects paidAmount larger than the total", () => {
+  it("accepts a paidAmount larger than the total as a legitimate overpayment/prepayment", () => {
     const result = createInvoice([], [], {
       kind: "purchase",
       date: "2026-09-20",
@@ -160,7 +160,9 @@ describe("createInvoice - sale", () => {
       lines: [{ itemId: "a", quantity: 1, unitPrice: 100 }],
       paidAmount: 150,
     });
-    expect(result.ok).toBe(false);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(invoiceBalanceDue(result.invoice)).toBe(-50); // negative: the store owes them the excess
   });
 
   it("accepts a partial payment within the total", () => {
@@ -404,6 +406,13 @@ describe("computeClientStoreBalance", () => {
     // The return's own balance must not be added again as if it were a normal sale.
     const result = computeClientStoreBalance(invoices, "c1");
     expect(result.MRU).toBe(0); // 200 (orig) - 200 (return subtracted) = 0
+  });
+
+  it("goes negative when the client overpaid - a credit the store owes back, not a debt", () => {
+    const invoices: InvoiceList = [
+      invoice({ id: "1", clientId: "c1", currencyCode: "MRU", paidAmount: 250 }), // total 200, overpaid by 50
+    ];
+    expect(computeClientStoreBalance(invoices, "c1")).toEqual({ MRU: -50 });
   });
 });
 

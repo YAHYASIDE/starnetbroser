@@ -498,7 +498,13 @@ function InvoiceForm({ items, clients, suppliers, onCreateClient, onCreateSuppli
 
       <div className="settings-hint" dir="ltr">
         الإجمالي: {formatAmount(total)} {currencyLabel(currencyCode)}
-        {paidAmount && ` - المتبقي: ${formatAmount(Math.max(0, total - (Number(paidAmount) || 0)))} ${currencyLabel(currencyCode)}`}
+        {paidAmount &&
+          (() => {
+            const remaining = total - (Number(paidAmount) || 0);
+            return remaining >= 0
+              ? ` - المتبقي عليه: ${formatAmount(remaining)} ${currencyLabel(currencyCode)}`
+              : ` - الباقي له: ${formatAmount(-remaining)} ${currencyLabel(currencyCode)}`;
+          })()}
       </div>
 
       {formError && <div className="account-card-alert ledger-form-error">{formError}</div>}
