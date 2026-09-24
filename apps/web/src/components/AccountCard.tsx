@@ -366,6 +366,12 @@ export function AccountCard({
         </div>
       )}
 
+      {account.isRestricted && (
+        <div className="account-card-restricted-banner">
+          🚫 الجهاز مقيّد — أعده إلى البلد المسجل ووصّله بالكهرباء لمدة 24 ساعة على الأقل لاستئناف الخدمة
+        </div>
+      )}
+
       <div className="account-card-top-row">
         <div className="account-card-avatar" aria-hidden="true">{initials(account.name)}</div>
         <div className="account-card-title-block">

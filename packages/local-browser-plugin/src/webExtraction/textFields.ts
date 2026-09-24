@@ -69,6 +69,21 @@ export function hasBillingSuspensionBanner(lines: string[]): boolean {
   return lines.some((line) => containsAny(line, BILLING_SUSPENSION_BANNER_LABELS));
 }
 
+/** The real page's banner once a Kit has been used outside its registered country/region for too
+ * long ("خدمة Starlink مقيدة لأن الجهاز كان خارج البلد المسجل فيه لفترة طويلة جدًا جدًا. لاستئناف
+ * الخدمة، أعد جهاز Starlink إلى البلد المسجل فيه...", real, confirmed page text/screenshot) - an
+ * entirely different condition from BILLING_SUSPENSION_BANNER_LABELS (a billing problem) or
+ * SCHEDULED_END_BANNER_LABELS (a future, still-reversible transition): this one means the dish is
+ * geographically restricted RIGHT NOW, regardless of payment status, and won't clear on its own
+ * without the kit physically returning to its home country. Deliberately its own boolean field
+ * (see SyncedStarlinkFields.isRestricted) rather than folded into serviceStatus, since a device can
+ * be simultaneously "active" (billing-wise) and region-restricted (usage-wise). */
+export const REGION_RESTRICTED_BANNER_LABELS = ["مقيدة لأن الجهاز", "service is restricted"];
+
+export function hasRegionRestrictedBanner(lines: string[]): boolean {
+  return lines.some((line) => containsAny(line, REGION_RESTRICTED_BANNER_LABELS));
+}
+
 /**
  * True only when the real, unlabeled "<holder name> • ACC-..." line (see
  * extractAccountHolderName/NAME_BEFORE_ACCOUNT_PATTERN below) is present - a marker unique to the

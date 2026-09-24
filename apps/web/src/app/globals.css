@@ -1325,6 +1325,16 @@ button.overview-card:active {
   border-radius: var(--radius-sm);
 }
 
+.account-card-restricted-banner {
+  background: var(--yellow);
+  color: #1a1208;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: center;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+}
+
 .account-card-top-row {
   display: flex;
   align-items: flex-start;

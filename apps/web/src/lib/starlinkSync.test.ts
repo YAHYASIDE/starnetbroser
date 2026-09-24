@@ -71,6 +71,24 @@ describe("mergeSyncedFields - scanned vs. changed", () => {
     expect(result.updatedFields.map((f) => f.field).sort()).toEqual(["pendingCancellationDate", "serviceStatus"]);
   });
 
+  it("sets isRestricted true and reports it as an updated field", () => {
+    const result = mergeSyncedFields(baseAccount(), { isRestricted: true });
+    expect(result.account.isRestricted).toBe(true);
+    expect(result.updatedFields.map((f) => f.field)).toEqual(["isRestricted"]);
+  });
+
+  it("actively corrects a stale isRestricted=true back to false (explicit false is a real result, never skipped like an absent field)", () => {
+    const result = mergeSyncedFields(baseAccount({ isRestricted: true }), { isRestricted: false });
+    expect(result.account.isRestricted).toBe(false);
+    expect(result.updatedFields.map((f) => f.field)).toEqual(["isRestricted"]);
+  });
+
+  it("leaves isRestricted untouched when the field wasn't found on this page at all", () => {
+    const result = mergeSyncedFields(baseAccount({ isRestricted: true }), { planName: "خطة جديدة" });
+    expect(result.account.isRestricted).toBe(true);
+    expect(result.updatedFields.map((f) => f.field)).toEqual(["planName"]);
+  });
+
   it("never overwrites the local customer name", () => {
     const result = mergeSyncedFields(baseAccount({ name: "mounay" }), { planName: "خطة جديدة" });
     expect(result.account.name).toBe("mounay");

@@ -33,6 +33,7 @@ const FIELD_INFO: Record<keyof SyncedStarlinkFields, { label: string; section: S
   serialNumber: { label: "الرقم التسلسلي", section: "identifiers" },
   kitNumber: { label: "رقم KIT", section: "identifiers" },
   dataUsageGb: { label: "إجمالي استهلاك الباقة", section: "subscriptions" },
+  isRestricted: { label: "تقييد الجهاز (خارج البلد المسجل)", section: "devices" },
 };
 
 export interface UpdatedField {
@@ -206,6 +207,15 @@ export function mergeSyncedFields(
   if (dataUsageGb) {
     note("dataUsageGb", next.dataUsageGb !== dataUsageGb);
     next.dataUsageGb = dataUsageGb;
+  }
+
+  // Only ever set explicitly true or false by the extractor (never a bare truthy check) - an
+  // explicit `false` is a real, confirmed "not restricted right now" correction (see
+  // extractStarlinkFields.ts's home-page correction), not an "absent" that must be skipped the way
+  // every other optional field here is.
+  if (fields.isRestricted !== undefined) {
+    note("isRestricted", next.isRestricted !== fields.isRestricted);
+    next.isRestricted = fields.isRestricted;
   }
 
   const scanned = Object.keys(fields).length > 0;

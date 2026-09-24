@@ -560,3 +560,50 @@ describe("extractStarlinkFields - progressive, section-by-section reading", () =
     expect(extractStarlinkFields(document).accountNumber).toBe("ACC-77665544");
   });
 });
+
+describe("extractStarlinkFields - real region-restriction banner (round 19 regression)", () => {
+  it("reads isRestricted true from the real Arabic 'الجهاز كان خارج البلد' banner, independent of serviceStatus", () => {
+    // Real, confirmed page text/screenshot: the account is otherwise a normal, active home page -
+    // this banner is a completely separate, additional warning, not a replacement for serviceStatus.
+    const fields = extractFrom(`
+      <div>الصفحة الرئيسية</div>
+      <div>lmin najim • ACC-DF-16284876-97597-75</div>
+      <div class="warning-banner">
+        خدمة Starlink مقيدة لأن الجهاز كان خارج البلد المسجل فيه لفترة طويلة جدًا جدًا. لاستئناف
+        الخدمة، أعد جهاز Starlink إلى البلد المسجل فيه، وتأكد من توصيله بالكهرباء وبقائه نشطًا لمدة
+        24 ساعة على الأقل.
+      </div>
+    `);
+
+    expect(fields.isRestricted).toBe(true);
+    expect(fields.serviceStatus).toBe("active");
+  });
+
+  it("reads isRestricted true from the English wording too", () => {
+    const fields = extractFrom(`<div>Your Starlink service is restricted because the Kit has been outside its registered region.</div>`);
+    expect(fields.isRestricted).toBe(true);
+  });
+
+  it("actively resolves isRestricted to false on a confirmed Home page with no such banner (kit returned to its home country)", () => {
+    // Same reasoning as isOnAccountHomePage's own serviceStatus correction (round 17/18 above) -
+    // once we're confirmed to be on the account's own Home page and the banner is gone, the
+    // restriction has actually been lifted, and a stale `true` from an earlier sync must be
+    // actively corrected rather than left untouched (mergeSyncedFields never overwrites a stored
+    // value with "not found").
+    const fields = extractFrom(`
+      <div>الصفحة الرئيسية</div>
+      <div>lmin najim • ACC-DF-16284876-97597-75</div>
+      <div class="balance-card">
+        <div>الرصيد المستحق</div>
+        <div>$US 0.00</div>
+      </div>
+    `);
+
+    expect(fields.isRestricted).toBe(false);
+  });
+
+  it("leaves isRestricted unset on a page that is neither the confirmed Home page nor shows the banner", () => {
+    document.body.innerHTML = `<div>فوترة</div><div>الرصيد المستحق</div><div>$US 25.00</div>`;
+    expect(extractStarlinkFields(document)).not.toHaveProperty("isRestricted");
+  });
+});

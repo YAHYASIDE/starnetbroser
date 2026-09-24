@@ -15,6 +15,7 @@ import {
   extractSubscriptionId,
   extractSubscriptionInvoiceDueDay,
   hasBillingSuspensionBanner,
+  hasRegionRestrictedBanner,
   hasScheduledEndBanner,
   isCompleteDate,
   isOnAccountHomePage,
@@ -146,6 +147,27 @@ describe("hasBillingSuspensionBanner", () => {
     // likely a self-service "disable the service" menu action or reassuring copy elsewhere on the
     // page, not a report that the service is already off. Requiring "بسبب" right after fixes it.
     expect(hasBillingSuspensionBanner(["تعطيل خدمتك", "تعطيل الخدمة", "يمكنك تعطيل خدمتك مؤقتًا من هنا"])).toBe(false);
+  });
+});
+
+describe("hasRegionRestrictedBanner", () => {
+  it("detects the real region-restriction banner (Arabic, real, confirmed page text/screenshot)", () => {
+    const lines = [
+      "خدمة Starlink مقيدة لأن الجهاز كان خارج البلد المسجل فيه لفترة طويلة جدًا جدًا. لاستئناف الخدمة، أعد جهاز Starlink إلى البلد المسجل فيه.",
+    ];
+    expect(hasRegionRestrictedBanner(lines)).toBe(true);
+  });
+
+  it("detects the English wording too", () => {
+    expect(hasRegionRestrictedBanner(["Your Starlink service is restricted because the Kit was outside its region."])).toBe(true);
+  });
+
+  it("returns false when the banner isn't present", () => {
+    expect(hasRegionRestrictedBanner(["الرصيد المستحق", "$US 0.00"])).toBe(false);
+  });
+
+  it("never confuses this with the unrelated billing-suspension banner", () => {
+    expect(hasRegionRestrictedBanner(["تم تعطيل خدمتك بسبب مشكلة في الفوترة."])).toBe(false);
   });
 });
 

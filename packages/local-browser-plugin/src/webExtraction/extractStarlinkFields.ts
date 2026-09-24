@@ -21,6 +21,7 @@ import {
   extractSubscriptionId,
   extractSubscriptionInvoiceDueDay,
   hasBillingSuspensionBanner,
+  hasRegionRestrictedBanner,
   hasScheduledEndBanner,
   isCompleteDate,
   isOnAccountHomePage,
@@ -80,6 +81,14 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
   if (!serviceStatus && hasScheduledEndBanner(lines)) serviceStatus = "active";
   if (!serviceStatus && isOnAccountHomePage(lines)) serviceStatus = "active";
   if (serviceStatus) fields.serviceStatus = serviceStatus;
+
+  // Independent of serviceStatus entirely (see REGION_RESTRICTED_BANNER_LABELS' own doc) - a
+  // device can be "active" and region-restricted at the same time. Once confirmed to be looking at
+  // the account Home page with no such banner, actively correct a stale "restricted" left over from
+  // an earlier sync (the kit may have already been returned to its home country) - the exact same
+  // reasoning isOnAccountHomePage already applies to a stale "suspended" serviceStatus above.
+  if (hasRegionRestrictedBanner(lines)) fields.isRestricted = true;
+  else if (isOnAccountHomePage(lines)) fields.isRestricted = false;
 
   const planName = extractPlanName(lines);
   if (planName) fields.planName = planName;

@@ -120,6 +120,10 @@ export interface StarlinkAccountSummary {
   subscriptionId?: string;
   /** Just the number, e.g. "261" - always gigabytes, so callers append the unit themselves. */
   dataUsageGb?: string;
+  /** The Kit has been used outside its registered country/region for too long, per Starlink's own
+   * banner - independent of `serviceStatus` (a device can be "active" billing-wise and still
+   * region-restricted). Undefined until the first sync that actually resolves it either way. */
+  isRestricted?: boolean;
   /**
    * Links this device/card to a local Client record (see apps/web/src/lib/clientStore.ts) - a
    * single customer may own several devices, each with its own card. Optional and absent on every

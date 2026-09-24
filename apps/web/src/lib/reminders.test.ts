@@ -4,6 +4,7 @@ import {
   computeDeviceDebtReminders,
   computeLowStockReminders,
   computeRenewalReminders,
+  computeRestrictedDeviceReminders,
   computeStoreDebtReminders,
   isBackupOverdue,
 } from "./reminders";
@@ -67,6 +68,29 @@ function invoice(overrides: Partial<Invoice> = {}): Invoice {
     ...overrides,
   };
 }
+
+describe("computeRestrictedDeviceReminders", () => {
+  it("includes an account Starlink has flagged as region-restricted", () => {
+    const reminders = computeRestrictedDeviceReminders([account({ isRestricted: true })]);
+    expect(reminders).toHaveLength(1);
+  });
+
+  it("excludes an account with isRestricted false or unset", () => {
+    const reminders = computeRestrictedDeviceReminders([
+      account({ id: "a1", isRestricted: false }),
+      account({ id: "a2" }),
+    ]);
+    expect(reminders).toHaveLength(0);
+  });
+
+  it("excludes an archived or deleted account even when flagged restricted", () => {
+    const reminders = computeRestrictedDeviceReminders([
+      account({ id: "a1", isRestricted: true, archivedAt: "2026-09-01T00:00:00.000Z" }),
+      account({ id: "a2", isRestricted: true, deletedAt: "2026-09-01T00:00:00.000Z" }),
+    ]);
+    expect(reminders).toHaveLength(0);
+  });
+});
 
 describe("computeRenewalReminders", () => {
   it("includes an account due tomorrow at the default 1-day threshold", () => {

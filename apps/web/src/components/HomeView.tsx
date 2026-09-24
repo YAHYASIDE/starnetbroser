@@ -16,7 +16,7 @@ import { DeviceStatementDialog } from "./DeviceStatementDialog";
 import { ToastMessage, ToastStack } from "./ToastStack";
 import { HelpHint } from "./HelpHint";
 import { daysRemainingNumber } from "@/lib/date";
-import { computeDeviceDebtReminders, computeRenewalReminders, isBackupOverdue } from "@/lib/reminders";
+import { computeDeviceDebtReminders, computeRenewalReminders, computeRestrictedDeviceReminders, isBackupOverdue } from "@/lib/reminders";
 import { formatAmount } from "@/lib/formatAmount";
 import {
   getAccountEntries,
@@ -569,6 +569,7 @@ export function HomeView({
     () =>
       computeRenewalReminders(activeAccounts).length +
       computeDeviceDebtReminders(activeAccounts, ledgerStore).length +
+      computeRestrictedDeviceReminders(activeAccounts).length +
       (isBackupOverdue(lastBackupAt) ? 1 : 0),
     [activeAccounts, ledgerStore, lastBackupAt],
   );

@@ -36,6 +36,23 @@ export function computeRenewalReminders(
   return reminders.sort((a, b) => a.daysRemaining - b.daysRemaining);
 }
 
+export interface RestrictedDeviceReminder {
+  account: StarlinkAccountSummary;
+}
+
+/** Active accounts Starlink itself has flagged as region-restricted (see
+ * StarlinkAccountSummary.isRestricted's own doc) - a real, urgent action item ("return the kit to
+ * its registered country"), independent of renewal/debt/stock and never inferred, only ever set by
+ * an actual synced reading of the account page. */
+export function computeRestrictedDeviceReminders(accounts: StarlinkAccountSummary[]): RestrictedDeviceReminder[] {
+  const reminders: RestrictedDeviceReminder[] = [];
+  for (const account of accounts) {
+    if (account.archivedAt || account.deletedAt) continue;
+    if (account.isRestricted) reminders.push({ account });
+  }
+  return reminders;
+}
+
 export interface DeviceDebtReminder {
   account: StarlinkAccountSummary;
   balances: BalanceByCurrency;

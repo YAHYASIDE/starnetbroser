@@ -15,6 +15,7 @@ import {
   computeDeviceDebtReminders,
   computeLowStockReminders,
   computeRenewalReminders,
+  computeRestrictedDeviceReminders,
   computeStoreDebtReminders,
   isBackupOverdue,
 } from "@/lib/reminders";
@@ -54,6 +55,7 @@ export default function RemindersPage() {
     listAccounts().then(setAccounts).catch(() => {});
   }, []);
 
+  const restrictedReminders = useMemo(() => computeRestrictedDeviceReminders(accounts), [accounts]);
   const renewalReminders = useMemo(() => computeRenewalReminders(accounts), [accounts]);
   const deviceDebtReminders = useMemo(() => computeDeviceDebtReminders(accounts, ledgerStore), [accounts, ledgerStore]);
   const storeDebtReminders = useMemo(() => computeStoreDebtReminders(clientStore, invoices), [clientStore, invoices]);
@@ -71,6 +73,25 @@ export default function RemindersPage() {
         </Link>
         <h1 className="section-title">التذكيرات</h1>
       </div>
+
+      {restrictedReminders.length > 0 && (
+        <section className="section">
+          <h2 className="report-section-title">أجهزة مقيّدة ({restrictedReminders.length})</h2>
+          <ul className="ledger-entry-list">
+            {restrictedReminders.map(({ account }) => (
+              <li key={account.id} className="ledger-entry-row">
+                <div className="ledger-entry-row-top">
+                  <span className="store-item-name">{account.name}</span>
+                  <span className="badge badge-yellow">🚫 مقيّد</span>
+                </div>
+                <div className="ledger-entry-row-bottom">
+                  <span className="settings-hint">أعد الجهاز إلى البلد المسجل ووصّله بالكهرباء 24 ساعة على الأقل</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="section">
         <h2 className="report-section-title">تجديدات مستحقة ({renewalReminders.length})</h2>

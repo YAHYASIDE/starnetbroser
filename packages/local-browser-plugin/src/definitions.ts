@@ -92,6 +92,10 @@ export interface SyncedStarlinkFields {
   starlinkId?: string;
   serialNumber?: string;
   kitNumber?: string;
+  /** True/false only ever set explicitly (never absent-means-false) - see
+   * extractStarlinkFields.ts's own doc for why this is a separate flag from `serviceStatus`: the
+   * kit has been outside its registered country/region for too long, independent of billing. */
+  isRestricted?: boolean;
 }
 
 export interface AccountDataSyncedEvent {
