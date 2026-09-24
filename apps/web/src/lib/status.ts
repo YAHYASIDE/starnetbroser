@@ -37,6 +37,18 @@ export interface BadgePresentation {
   label: string;
 }
 
+/** Short pill label for a roaming data plan, shown at the top of the account card instead of the
+ * full plan name - "100G" for a numbered data allowance ("التجوال - 100 غيغابايت"/"Roaming
+ * 100GB"), "ROM" for unlimited roaming ("تجوال غير محدود"). Undefined for anything that isn't a
+ * recognized roaming plan (Residential, Business, ...) or has no plan name at all - the caller
+ * falls back to showing the full plan name as-is rather than hiding it. */
+export function planBadgeLabel(planName: string | undefined): string | undefined {
+  if (!planName) return undefined;
+  if (/تجوال|roaming/i.test(planName) && /غير محدود|unlimited/i.test(planName)) return "ROM";
+  const dataAmount = planName.match(/(\d+)\s*(غيغابايت|جيجابايت|جيجا|gb)/i);
+  return dataAmount ? `${dataAmount[1]}G` : undefined;
+}
+
 /** Stage-1 Starlink-sync service status (see StarlinkAccountSummary.serviceStatus) - undefined
  * means no account has ever synced this field, which must render as "nothing to show", never a
  * guessed default. */

@@ -16,6 +16,8 @@
   --red-bg: #fbe6e5;
   --gray: #8a94a3;
   --gray-bg: #eceff2;
+  --mint: #0f9b8e;
+  --mint-bg: #e1f7f3;
   --radius-lg: 16px;
   --radius-md: 12px;
   --radius-sm: 8px;
@@ -48,6 +50,8 @@
     --red-bg: #3a1817;
     --gray: #7a8494;
     --gray-bg: #232936;
+    --mint: #2dd4bf;
+    --mint-bg: #113b36;
     color-scheme: dark;
   }
 }
@@ -70,6 +74,8 @@
   --red-bg: #3a1817;
   --gray: #7a8494;
   --gray-bg: #232936;
+  --mint: #2dd4bf;
+  --mint-bg: #113b36;
   color-scheme: dark;
 }
 
@@ -347,17 +353,9 @@ select.search-input {
   color: var(--gray);
 }
 
-.account-card-plan-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 3px;
-  flex-wrap: wrap;
-}
-
-.account-card-plan-row .badge {
-  padding: 1px 8px;
-  font-size: 0.62rem;
+.badge-mint {
+  background: var(--mint-bg);
+  color: var(--mint);
 }
 
 .account-card-synced {
@@ -1403,6 +1401,11 @@ button.overview-card:active {
   padding: 1px 8px;
 }
 
+.account-card-plan-badge {
+  font-size: 0.66rem;
+  padding: 1px 8px;
+}
+
 .account-card-copy-btn {
   flex: 0 0 auto;
   width: 22px;
@@ -1417,7 +1420,6 @@ button.overview-card:active {
 }
 
 .account-card-device-name-row,
-.account-card-plan-row,
 .account-card-starlink-balance-row,
 .account-card-profit-row {
   display: flex;

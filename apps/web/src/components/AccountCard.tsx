@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
-import { presentStatus, presentServiceStatus, isBalanceDueZero } from "@/lib/status";
+import { presentStatus, presentServiceStatus, isBalanceDueZero, planBadgeLabel } from "@/lib/status";
 import { daysRemainingLabel, daysRemainingNumber, formatRelativeTime } from "@/lib/date";
 import { emailsMismatch } from "@/lib/emailMatch";
 import { computeBalanceByCurrency, LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerEntry } from "@/lib/ledgerStore";
@@ -182,6 +182,7 @@ export function AccountCard({
   const dish = presentStatus(account.dishStatus);
   const wifi = presentStatus(account.wifiStatus);
   const serviceStatus = presentServiceStatus(account.serviceStatus);
+  const planBadge = account.planName ? (planBadgeLabel(account.planName) ?? account.planName) : undefined;
   const lastSynced = formatRelativeTime(account.lastSuccessfulScanAt);
   // Single shared source for both the badge label and its urgency color - never computed twice
   // from two different date fields, which is exactly what produced a real, confirmed bug: two
@@ -422,6 +423,11 @@ export function AccountCard({
       </div>
 
       <div className="account-card-mini-row">
+        {planBadge && (
+          <span className="badge badge-mint account-card-plan-badge" title={account.planName}>
+            {planBadge}
+          </span>
+        )}
         {remaining && <span className={`date-status ${urgencyClass}`}>{remaining}</span>}
         <span className={`mini-status ${STATUS_TILE_CLASS[dish.className]}`} title={`حالة الطبق: ${dish.label}`}>
           <IconDish /> {dish.className === "dot-gray" ? "غير معروف" : dish.label}
@@ -497,12 +503,6 @@ export function AccountCard({
             <span className="account-card-label">اسم الحساب:</span>
             <strong dir="ltr">{account.name}</strong>
           </div>
-
-          {account.planName && (
-            <div className="account-card-plan-row">
-              <span className="account-card-label">الخطة:</span> <strong>{account.planName}</strong>
-            </div>
-          )}
 
           {identityEmail && (
             <div className="account-card-email-row" dir="ltr">
