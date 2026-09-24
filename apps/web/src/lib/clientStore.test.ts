@@ -3,6 +3,7 @@ import {
   Client,
   countLinkedAccounts,
   createClient,
+  deleteClient,
   getClient,
   listClients,
   searchClients,
@@ -113,5 +114,29 @@ describe("countLinkedAccounts", () => {
     expect(countLinkedAccounts(accounts, "c1")).toBe(2);
     expect(countLinkedAccounts(accounts, "c2")).toBe(1);
     expect(countLinkedAccounts(accounts, "c3")).toBe(0);
+  });
+});
+
+describe("deleteClient", () => {
+  it("removes the client record", () => {
+    const store = { c1: client() };
+    expect(deleteClient(store, "c1")).toEqual({});
+  });
+
+  it("is a no-op for an unknown clientId", () => {
+    const store = { c1: client() };
+    expect(deleteClient(store, "does-not-exist")).toEqual(store);
+  });
+
+  it("does not mutate the input store", () => {
+    const store = { c1: client() };
+    deleteClient(store, "c1");
+    expect(store).toEqual({ c1: client() });
+  });
+
+  it("leaves every other client untouched", () => {
+    const store = { a: client({ id: "a" }), b: client({ id: "b", name: "آخر" }) };
+    const next = deleteClient(store, "a");
+    expect(next).toEqual({ b: client({ id: "b", name: "آخر" }) });
   });
 });

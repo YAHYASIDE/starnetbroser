@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Client, CreateClientInput } from "@/lib/clientStore";
+import { combinePhoneNumber, DEFAULT_PHONE_COUNTRY_CODE, PHONE_COUNTRY_CODES } from "@/lib/phoneCountryCodes";
 
 interface Props {
   clients: Client[];
@@ -19,7 +20,11 @@ export function ClientPicker({ clients, selectedClientId, onSelect, onCreateClie
   const [query, setQuery] = useState("");
   const [showNewForm, setShowNewForm] = useState(false);
   const [newName, setNewName] = useState("");
-  const [newPhone, setNewPhone] = useState("");
+  // Kept as two independent pieces of state (never derived from one combined phone string) so
+  // picking a country before typing any digits isn't silently lost - see phoneCountryCodes.ts's
+  // combinePhoneNumber doc for why a derived approach breaks on that exact, natural order.
+  const [newPhoneDialCode, setNewPhoneDialCode] = useState(DEFAULT_PHONE_COUNTRY_CODE.dialCode);
+  const [newPhoneLocalNumber, setNewPhoneLocalNumber] = useState("");
 
   const selected = clients.find((c) => c.id === selectedClientId);
 
@@ -33,11 +38,13 @@ export function ClientPicker({ clients, selectedClientId, onSelect, onCreateClie
 
   function submitNewClient() {
     if (!newName.trim()) return;
-    const created = onCreateClient({ name: newName, phone: newPhone || undefined });
+    const phone = combinePhoneNumber(newPhoneDialCode, newPhoneLocalNumber);
+    const created = onCreateClient({ name: newName, phone: phone || undefined });
     onSelect(created.id);
     setShowNewForm(false);
     setNewName("");
-    setNewPhone("");
+    setNewPhoneDialCode(DEFAULT_PHONE_COUNTRY_CODE.dialCode);
+    setNewPhoneLocalNumber("");
     setQuery("");
   }
 
@@ -91,13 +98,27 @@ export function ClientPicker({ clients, selectedClientId, onSelect, onCreateClie
             onChange={(e) => setNewName(e.target.value)}
             autoFocus
           />
-          <input
-            className="search-input"
-            dir="ltr"
-            placeholder="رقم الهاتف (اختياري)"
-            value={newPhone}
-            onChange={(e) => setNewPhone(e.target.value)}
-          />
+          <div className="phone-input-row">
+            <select
+              className="phone-country-select"
+              dir="ltr"
+              value={newPhoneDialCode}
+              onChange={(e) => setNewPhoneDialCode(e.target.value)}
+              aria-label="رمز الدولة"
+            >
+              {PHONE_COUNTRY_CODES.map((c) => (
+                <option key={c.dialCode} value={c.dialCode}>{c.country} {c.dialCode}</option>
+              ))}
+            </select>
+            <input
+              className="phone-local-input"
+              dir="ltr"
+              type="tel"
+              placeholder="رقم الهاتف بدون رمز الدولة (اختياري)"
+              value={newPhoneLocalNumber}
+              onChange={(e) => setNewPhoneLocalNumber(e.target.value)}
+            />
+          </div>
           <div className="client-picker-new-actions">
             <button type="button" className="dialog-secondary" onClick={() => setShowNewForm(false)}>إلغاء</button>
             <button type="button" className="dialog-primary" onClick={submitNewClient} disabled={!newName.trim()}>

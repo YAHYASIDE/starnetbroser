@@ -1771,23 +1771,49 @@ button.overview-card:active {
   grid-column: 1 / -1;
 }
 
-/* Phone number field (AccountDialog.tsx) - a country dial-code select beside the plain local-
- * number input, so the operator only ever picks a country and types digits, never the "+" code. */
+/* Phone number field (AccountDialog.tsx, ClientPicker.tsx, SupplierPicker.tsx, ClientDialog.tsx) -
+ * a country dial-code select beside a plain local-number input, so the operator only ever picks a
+ * country and types digits, never the "+" code. Both children carry their own full styling here
+ * rather than leaning on an ancestor's .form-field/.search-input reset, whose specificity varies
+ * depending on which container this row happens to be nested inside (.form-field, .client-picker-
+ * new-form, ...) - a real, confirmed trap earlier in this project where two same-specificity rules
+ * were silently decided by file order instead of by design. Being the only rules that ever target
+ * these two class names sidesteps that entirely. */
 .phone-input-row {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.phone-country-select {
+.phone-input-row > .phone-country-select,
+.phone-input-row > .phone-local-input {
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  outline: none;
+  background: var(--surface-alt);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.phone-input-row > .phone-country-select {
   flex: 0 0 auto;
   width: auto;
   max-width: 40%;
 }
 
-.phone-input-row > input {
+.phone-input-row > .phone-local-input {
   flex: 1;
   min-width: 0;
+  width: auto;
+}
+
+.phone-input-row > .phone-country-select:focus,
+.phone-input-row > .phone-local-input:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 12%, transparent);
 }
 
 /* Extra-email repeater rows (AccountDialog.tsx) - each row is an address + its own password,

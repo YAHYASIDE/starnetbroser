@@ -97,3 +97,16 @@ export function updateClient(store: ClientStore, clientId: string, patch: Create
 export function countLinkedAccounts(accounts: { clientId?: string }[], clientId: string): number {
   return accounts.filter((account) => account.clientId === clientId).length;
 }
+
+/** Removes the client record itself. Never touches any device/account - the caller is
+ * responsible for unlinking any account whose clientId pointed at this client (see
+ * countLinkedAccounts) before or after calling this, so a device never keeps a clientId with no
+ * matching record. Every ledger entry, allocation and exchange-rate snapshot on those devices
+ * stays exactly as-is either way; this only ever removes the customer record itself, never any
+ * financial history. A no-op (returns the same store) if the id isn't present. */
+export function deleteClient(store: ClientStore, clientId: string): ClientStore {
+  if (!store[clientId]) return store;
+  const next = { ...store };
+  delete next[clientId];
+  return next;
+}

@@ -33,6 +33,7 @@ import {
   ClientStore,
   createClient,
   CreateClientInput,
+  deleteClient,
   getClient,
   listClients,
   loadClientStore,
@@ -189,6 +190,22 @@ export function HomeView({
       saveClientStore(next);
       return next;
     });
+  }
+
+  /** Removes the client record and unlinks every device that pointed at it (back to "الزبون غير
+   * محدد") - never touches ledger entries, allocations or exchange-rate snapshots on those
+   * devices, which is exactly what patchAccount already guarantees for any other in-place field
+   * edit. */
+  function handleDeleteClient(clientId: string) {
+    for (const account of accounts) {
+      if (account.clientId === clientId) patchAccount(account.id, { clientId: undefined });
+    }
+    setClientStore((current) => {
+      const next = deleteClient(current, clientId);
+      saveClientStore(next);
+      return next;
+    });
+    setOpenClientId(null);
   }
 
   // Currency registry (see currencyStore.ts) - same load-after-mount pattern as the other local
@@ -890,6 +907,7 @@ export function HomeView({
           allocationStore={allocationStore}
           onClose={() => setOpenClientId(null)}
           onSave={(patch) => handleUpdateClient(openClientId, patch)}
+          onDelete={() => handleDeleteClient(openClientId)}
         />
       )}
 

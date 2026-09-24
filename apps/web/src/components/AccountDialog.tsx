@@ -83,13 +83,21 @@ export function AccountDialog({ mode, account, clients, onCreateClient, onClose,
     setDraft((current) => ({ ...current, [key]: value }));
   }
 
-  const { dialCode: phoneDialCode, localNumber: phoneLocalNumber } = splitPhoneNumber(draft.phone);
+  // Tracked as its OWN state, never re-derived from draft.phone on every render - real, confirmed
+  // bug this fixes: combinePhoneNumber intentionally returns "" once the local number is still
+  // empty (never persists a bare country code with no digits), which - if the dial code were
+  // instead derived fresh from draft.phone each time - silently forgot the operator's just-picked
+  // country the moment they picked it BEFORE typing any digits (a completely natural order).
+  const [phoneDialCode, setPhoneDialCode] = useState(() => splitPhoneNumber(initial.phone).dialCode);
+  const [phoneLocalNumber, setPhoneLocalNumber] = useState(() => splitPhoneNumber(initial.phone).localNumber);
 
   function updatePhoneDialCode(dialCode: string) {
+    setPhoneDialCode(dialCode);
     update("phone", combinePhoneNumber(dialCode, phoneLocalNumber));
   }
 
   function updatePhoneLocalNumber(localNumber: string) {
+    setPhoneLocalNumber(localNumber);
     update("phone", combinePhoneNumber(phoneDialCode, localNumber));
   }
 
@@ -260,6 +268,7 @@ export function AccountDialog({ mode, account, clients, onCreateClient, onClose,
                   ))}
                 </select>
                 <input
+                  className="phone-local-input"
                   dir="ltr"
                   type="tel"
                   value={phoneLocalNumber}

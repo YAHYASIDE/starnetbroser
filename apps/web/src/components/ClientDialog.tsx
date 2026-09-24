@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { Client } from "@/lib/clientStore";
+import { combinePhoneNumber, PHONE_COUNTRY_CODES, splitPhoneNumber } from "@/lib/phoneCountryCodes";
 import { computeClientAccountingSummary } from "@/lib/accountingStore";
 import { BalanceByCurrency, getAccountEntries, LEDGER_CURRENCIES, LedgerByAccount, LedgerCurrency, LEDGER_CURRENCY_LABELS } from "@/lib/ledgerStore";
 import { formatAmount } from "@/lib/formatAmount";
@@ -18,6 +19,9 @@ interface Props {
   allocationStore: AllocationsByAccount;
   onClose: () => void;
   onSave: (patch: { name: string; phone?: string }) => void;
+  /** Absent (never rendered) when the caller doesn't offer deletion here - never assume every
+   * caller wants it. */
+  onDelete?: () => void;
 }
 
 /**
@@ -26,11 +30,19 @@ interface Props {
  * together), and the aggregate totals across all of them. Each device's own full statement is one
  * tap away via the same DeviceStatementDialog used from the card itself.
  */
-export function ClientDialog({ client, devices, ledgerStore, allocationStore, onClose, onSave }: Props) {
+export function ClientDialog({ client, devices, ledgerStore, allocationStore, onClose, onSave, onDelete }: Props) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(client.name);
-  const [phone, setPhone] = useState(client.phone ?? "");
   const [statementAccount, setStatementAccount] = useState<StarlinkAccountSummary | null>(null);
+
+  // Tracked as its OWN state, never re-derived from a combined phone string on every render - real,
+  // confirmed bug this fixes: combinePhoneNumber intentionally returns "" while the local number is
+  // still empty (never persists a bare country code with no digits), which - if the dial code were
+  // instead derived fresh from a single phone string each time - silently forgot the operator's
+  // just-picked country the moment they picked it BEFORE typing any digits (a completely natural
+  // order).
+  const [phoneDialCode, setPhoneDialCode] = useState(() => splitPhoneNumber(client.phone).dialCode);
+  const [phoneLocalNumber, setPhoneLocalNumber] = useState(() => splitPhoneNumber(client.phone).localNumber);
 
   const summary = computeClientAccountingSummary(
     devices.map((account) => ({ accountId: account.id, accountName: account.name, entries: getAccountEntries(ledgerStore, account.id) })),
@@ -57,14 +69,25 @@ export function ClientDialog({ client, devices, ledgerStore, allocationStore, on
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!name.trim()) return;
-    onSave({ name: name.trim(), phone: phone.trim() || undefined });
+    onSave({ name: name.trim(), phone: combinePhoneNumber(phoneDialCode, phoneLocalNumber) || undefined });
     setEditing(false);
   }
 
   function cancelEdit() {
     setEditing(false);
     setName(client.name);
-    setPhone(client.phone ?? "");
+    setPhoneDialCode(splitPhoneNumber(client.phone).dialCode);
+    setPhoneLocalNumber(splitPhoneNumber(client.phone).localNumber);
+  }
+
+  function confirmDelete() {
+    if (!onDelete) return;
+    const suffix = devices.length > 0
+      ? ` سيتم فك ارتباط ${devices.length} جهاز عن هذا الزبون، دون حذف أي بيانات عن هذه الأجهزة.`
+      : "";
+    if (window.confirm(`هل أنت متأكد من حذف الزبون "${client.name}"؟${suffix}`)) {
+      onDelete();
+    }
   }
 
   const totalDebtRows = Object.entries(summary.totalDebt) as [LedgerCurrency, number][];
@@ -89,10 +112,30 @@ export function ClientDialog({ client, devices, ledgerStore, allocationStore, on
               <span>اسم الزبون *</span>
               <input required autoFocus value={name} onChange={(e) => setName(e.target.value)} />
             </label>
-            <label className="form-field form-wide">
+            <div className="form-field form-wide">
               <span>رقم الهاتف</span>
-              <input dir="ltr" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
-            </label>
+              <div className="phone-input-row">
+                <select
+                  className="phone-country-select"
+                  dir="ltr"
+                  value={phoneDialCode}
+                  onChange={(e) => setPhoneDialCode(e.target.value)}
+                  aria-label="رمز الدولة"
+                >
+                  {PHONE_COUNTRY_CODES.map((c) => (
+                    <option key={c.dialCode} value={c.dialCode}>{c.country} {c.dialCode}</option>
+                  ))}
+                </select>
+                <input
+                  className="phone-local-input"
+                  dir="ltr"
+                  type="tel"
+                  value={phoneLocalNumber}
+                  onChange={(e) => setPhoneLocalNumber(e.target.value)}
+                  placeholder="رقم الهاتف بدون رمز الدولة"
+                />
+              </div>
+            </div>
             <div className="dialog-actions form-wide">
               <button className="dialog-secondary" type="button" onClick={cancelEdit}>إلغاء</button>
               <button className="dialog-primary" type="submit">حفظ</button>
@@ -218,7 +261,8 @@ export function ClientDialog({ client, devices, ledgerStore, allocationStore, on
             </ul>
 
             <div className="dialog-actions form-wide">
-              <button className="dialog-secondary" type="button" onClick={() => setEditing(true)}>تعديل اسم الزبون</button>
+              {onDelete && <button className="dialog-danger" type="button" onClick={confirmDelete}>حذف الزبون</button>}
+              <button className="dialog-secondary" type="button" onClick={() => setEditing(true)}>تعديل بيانات الزبون</button>
               <button className="dialog-primary dialog-done" type="button" onClick={onClose}>تم</button>
             </div>
           </>
