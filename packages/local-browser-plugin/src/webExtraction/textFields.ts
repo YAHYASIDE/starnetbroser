@@ -172,14 +172,23 @@ export function extractSubscriptionInvoiceDueDay(lines: string[]): number | unde
 }
 
 /** Turns a bare recurring day-of-month into a real "YYYY/MM/DD": this month if that day hasn't
- * passed yet, otherwise next month - so it always reads as the upcoming due date, regardless of
+ * come up yet, otherwise next month - so it always reads as the UPCOMING due date, regardless of
  * which month it happens to be synced in. `now` is injectable for deterministic tests; defaults
  * to the real current date. Clamps to the last real day of the target month (e.g. day 31 synced
- * in a 30-day month) rather than producing an invalid date. */
+ * in a 30-day month) rather than producing an invalid date.
+ *
+ * Rolls to next month when `day` equals today too (`<=`, not `<`) - real, confirmed mistake this
+ * fixes: a card on file auto-charges Starlink's recurring due day, so a sync landing on that exact
+ * day almost always finds it already paid (a real account's Billing page showed "تاريخ استحقاق
+ * الدفع: ٢٤ سبتمبر" - today - with the balance already at $0.00 and a payment completed that same
+ * day). Reporting "due today" again showed the account as urgently about-to-expire the moment it
+ * was actually current for another month. An unpaid due-today charge still surfaces separately and
+ * correctly through account.balanceDue (extractBalance) - this date is only ever the recurring
+ * CYCLE marker, never the one place a genuinely-still-owed amount is tracked. */
 export function nextOccurrenceOfDay(day: number, now: Date = new Date()): string {
   let year = now.getFullYear();
   let month = now.getMonth();
-  if (day < now.getDate()) {
+  if (day <= now.getDate()) {
     month += 1;
     if (month > 11) {
       month = 0;

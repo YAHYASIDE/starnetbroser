@@ -381,4 +381,11 @@ describe("nextOccurrenceOfDay - always the upcoming due date, whatever month it'
     // April only has 30 days - day 31 must never produce an invalid "2026/04/31".
     expect(nextOccurrenceOfDay(31, new Date(2026, 3, 1))).toBe("2026/04/30");
   });
+
+  it("rolls to next month when the day IS today, rather than reporting 'due today' again", () => {
+    // Real, confirmed mistake: a card-on-file account synced exactly on its recurring due day
+    // (already auto-charged, balance already $0.00) showed up as "about to expire today" instead
+    // of correctly current for another month.
+    expect(nextOccurrenceOfDay(24, new Date(2026, 8, 24))).toBe("2026/10/24"); // Sept 24 -> Oct 24
+  });
 });
