@@ -12,6 +12,11 @@ export interface Client {
   /** Optional - used for search and for the WhatsApp features elsewhere in the app, but never
    * required to create a client record. */
   phone?: string;
+  /** Optional store-debt ceiling, in the currency of whichever invoice is being checked against it
+   * (never converted/summed across currencies, same rule as every balance in this app) - when set,
+   * InvoiceSection warns (never blocks) before a credit sale would push this client's own
+   * same-currency store balance past it. Undefined means no ceiling was ever set. */
+  creditLimit?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -65,6 +70,14 @@ export function searchClients(store: ClientStore, query: string): Client[] {
 export interface CreateClientInput {
   name: string;
   phone?: string;
+  /** See Client.creditLimit's own doc. Floored at 0 like every other limit/rate in this app;
+   * undefined or 0 both mean "no ceiling". */
+  creditLimit?: number;
+}
+
+function normalizeCreditLimit(value: number | undefined): number | undefined {
+  if (value === undefined || !Number.isFinite(value) || value <= 0) return undefined;
+  return value;
 }
 
 export function createClient(store: ClientStore, input: CreateClientInput): { store: ClientStore; client: Client } {
@@ -74,6 +87,7 @@ export function createClient(store: ClientStore, input: CreateClientInput): { st
     id,
     name: input.name.trim(),
     phone: input.phone?.trim() || undefined,
+    creditLimit: normalizeCreditLimit(input.creditLimit),
     createdAt: now,
     updatedAt: now,
   };
@@ -87,6 +101,7 @@ export function updateClient(store: ClientStore, clientId: string, patch: Create
     ...existing,
     name: patch.name.trim(),
     phone: patch.phone?.trim() || undefined,
+    creditLimit: normalizeCreditLimit(patch.creditLimit),
     updatedAt: new Date().toISOString(),
   };
   return { ...store, [clientId]: updated };

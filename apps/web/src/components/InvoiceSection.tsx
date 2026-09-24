@@ -7,6 +7,7 @@ import { CreateRepresentativeInput, getRepresentative, Representative, Represent
 import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerCurrency } from "@/lib/ledgerStore";
 import { listStoreItems, StoreItemRegistry, StoreTransactionList } from "@/lib/storeStore";
 import {
+  computeClientStoreBalance,
   createInvoice,
   Invoice,
   invoicePaymentStatus,
@@ -128,6 +129,7 @@ export function InvoiceSection({
           {showForm && (
             <InvoiceForm
               items={itemList}
+              invoices={invoices}
               clients={clients}
               suppliers={suppliers}
               representatives={representatives}
@@ -265,6 +267,7 @@ export function InvoiceSection({
 
 interface InvoiceFormProps {
   items: ReturnType<typeof listStoreItems>;
+  invoices: InvoiceList;
   clients: Client[];
   suppliers: Supplier[];
   representatives: Representative[];
@@ -277,6 +280,7 @@ interface InvoiceFormProps {
 
 function InvoiceForm({
   items,
+  invoices,
   clients,
   suppliers,
   representatives,
@@ -330,6 +334,19 @@ function InvoiceForm({
   );
   const parsedDiscount = Number(discount) || 0;
   const total = Math.max(0, subtotal - parsedDiscount);
+
+  // Warns (never blocks) when a credit sale would push this client's own store balance, in THIS
+  // invoice's own currency only (never summed/converted across currencies, same rule as every
+  // other balance in this app), past their optional Client.creditLimit.
+  const selectedClient = kind === "sale" && linkClient ? clients.find((c) => c.id === clientId) : undefined;
+  const creditLimitWarning = useMemo(() => {
+    if (!selectedClient?.creditLimit) return null;
+    const existingBalance = computeClientStoreBalance(invoices, selectedClient.id)[currencyCode] ?? 0;
+    const thisInvoiceUnpaid = Math.max(0, total - (Number(paidAmount) || 0));
+    const projected = existingBalance + thisInvoiceUnpaid;
+    if (projected <= selectedClient.creditLimit) return null;
+    return { projected, limit: selectedClient.creditLimit };
+  }, [selectedClient, invoices, currencyCode, total, paidAmount]);
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -514,6 +531,12 @@ function InvoiceForm({
           </label>
           {linkClient && (
             <ClientPicker clients={clients} selectedClientId={clientId} onSelect={setClientId} onCreateClient={onCreateClient} />
+          )}
+          {creditLimitWarning && (
+            <div className="account-card-alert ledger-form-error">
+              ⚠️ سيتجاوز دين هذا الزبون سقفه المحدد ({formatAmount(creditLimitWarning.limit)} {currencyLabel(currencyCode)}) - الدين
+              المتوقع بعد هذه الفاتورة: {formatAmount(creditLimitWarning.projected)} {currencyLabel(currencyCode)}
+            </div>
           )}
         </div>
       )}

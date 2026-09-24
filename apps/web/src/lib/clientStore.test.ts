@@ -41,6 +41,20 @@ describe("createClient", () => {
     expect(a.client.id).not.toBe(b.client.id);
     expect(store).toEqual({});
   });
+
+  it("stores a positive creditLimit", () => {
+    const { client: created } = createClient({}, { name: "زبون", creditLimit: 5000 });
+    expect(created.creditLimit).toBe(5000);
+  });
+
+  it("treats a zero or negative creditLimit as unset", () => {
+    expect(createClient({}, { name: "زبون", creditLimit: 0 }).client.creditLimit).toBeUndefined();
+    expect(createClient({}, { name: "زبون", creditLimit: -100 }).client.creditLimit).toBeUndefined();
+  });
+
+  it("omits creditLimit entirely when not given", () => {
+    expect(createClient({}, { name: "زبون" }).client.creditLimit).toBeUndefined();
+  });
 });
 
 describe("updateClient", () => {
@@ -56,6 +70,14 @@ describe("updateClient", () => {
   it("is a no-op for an unknown clientId", () => {
     const store = { c1: client() };
     expect(updateClient(store, "does-not-exist", { name: "x" })).toEqual(store);
+  });
+
+  it("sets and clears creditLimit", () => {
+    const store = { c1: client({ creditLimit: 1000 }) };
+    const raised = updateClient(store, "c1", { name: "محمد", creditLimit: 2000 });
+    expect(raised.c1!.creditLimit).toBe(2000);
+    const cleared = updateClient(raised, "c1", { name: "محمد" });
+    expect(cleared.c1!.creditLimit).toBeUndefined();
   });
 
   it("does not mutate the input store", () => {

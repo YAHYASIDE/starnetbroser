@@ -86,6 +86,7 @@ export function AccountsSection({
             <PartyForm
               submitLabel="إضافة الزبون"
               namePlaceholder="اسم الزبون *"
+              showCreditLimit
               onSubmit={(input) => {
                 onCreateClient(input);
                 setShowAddClient(false);
@@ -104,6 +105,7 @@ export function AccountsSection({
                       initial={party}
                       submitLabel="حفظ"
                       namePlaceholder="اسم الزبون *"
+                      showCreditLimit
                       onSubmit={(input) => {
                         onUpdateClient(party.id, input);
                         setEditingPartyId(null);
@@ -122,6 +124,7 @@ export function AccountsSection({
                     onToggle={() => setOpenPartyId(openPartyId === party.id ? null : party.id)}
                     onEdit={() => startEditing(party.id)}
                     invoices={listInvoicesForClient(invoices, party.id)}
+                    creditLimit={party.creditLimit}
                   />
                 ),
               )}
@@ -186,9 +189,12 @@ export function AccountsSection({
 }
 
 interface PartyFormProps {
-  initial?: { name: string; phone?: string };
+  initial?: { name: string; phone?: string; creditLimit?: number };
   submitLabel: string;
   namePlaceholder: string;
+  /** Client-only (see Client.creditLimit's own doc) - never rendered for a supplier form, since a
+   * credit ceiling only ever applies to money a client can owe US. */
+  showCreditLimit?: boolean;
   onSubmit: (input: CreateClientInput) => void;
   onCancel: () => void;
 }
@@ -196,15 +202,20 @@ interface PartyFormProps {
 /** Shared add/edit form for both a client and a supplier - identical shape (name + optional
  * phone), reusing the exact same country-code phone picker as every other party form in this
  * app (RepresentativeForm, ClientDialog, ClientPicker, SupplierPicker). */
-function PartyForm({ initial, submitLabel, namePlaceholder, onSubmit, onCancel }: PartyFormProps) {
+function PartyForm({ initial, submitLabel, namePlaceholder, showCreditLimit, onSubmit, onCancel }: PartyFormProps) {
   const [name, setName] = useState(initial?.name ?? "");
   const [phoneDialCode, setPhoneDialCode] = useState(() => splitPhoneNumber(initial?.phone).dialCode);
   const [phoneLocalNumber, setPhoneLocalNumber] = useState(() => splitPhoneNumber(initial?.phone).localNumber);
+  const [creditLimit, setCreditLimit] = useState(initial?.creditLimit ? String(initial.creditLimit) : "");
 
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!name.trim()) return;
-    onSubmit({ name, phone: combinePhoneNumber(phoneDialCode, phoneLocalNumber) || undefined });
+    onSubmit({
+      name,
+      phone: combinePhoneNumber(phoneDialCode, phoneLocalNumber) || undefined,
+      creditLimit: showCreditLimit && creditLimit ? Number(creditLimit) : undefined,
+    });
   }
 
   return (
@@ -231,6 +242,18 @@ function PartyForm({ initial, submitLabel, namePlaceholder, onSubmit, onCancel }
           onChange={(e) => setPhoneLocalNumber(e.target.value)}
         />
       </div>
+      {showCreditLimit && (
+        <input
+          className="search-input"
+          type="number"
+          min="0"
+          step="0.01"
+          dir="ltr"
+          placeholder="سقف الدين (اختياري)"
+          value={creditLimit}
+          onChange={(e) => setCreditLimit(e.target.value)}
+        />
+      )}
       <div className="settings-actions">
         <button className="dialog-primary" type="submit" disabled={!name.trim()}>
           {submitLabel}
@@ -252,9 +275,11 @@ interface PartyRowProps {
   onToggle: () => void;
   onEdit: () => void;
   invoices: InvoiceList;
+  /** Client-only - see Client.creditLimit's own doc. Absent for a supplier row. */
+  creditLimit?: number;
 }
 
-function PartyRow({ party, balance, positiveLabel, negativeLabel, isOpen, onToggle, onEdit, invoices }: PartyRowProps) {
+function PartyRow({ party, balance, positiveLabel, negativeLabel, isOpen, onToggle, onEdit, invoices, creditLimit }: PartyRowProps) {
   const currencies = Object.keys(balance);
   return (
     <li className="ledger-entry-row">
@@ -278,6 +303,7 @@ function PartyRow({ party, balance, positiveLabel, negativeLabel, isOpen, onTogg
       </div>
       <div className="ledger-entry-row-bottom">
         {party.phone && <span className="settings-hint" dir="ltr">{party.phone}</span>}
+        {creditLimit !== undefined && <span className="settings-hint" dir="ltr">سقف الدين: {formatAmount(creditLimit)}</span>}
         <button type="button" className="text-action" onClick={onEdit}>تعديل</button>
         {invoices.length > 0 && (
           <button type="button" className="text-action" onClick={onToggle}>
