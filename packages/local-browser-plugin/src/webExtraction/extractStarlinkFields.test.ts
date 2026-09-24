@@ -479,6 +479,33 @@ describe("extractStarlinkFields - real 'نشط' plan badge once the account is a
     expect(fields.serviceStatus).toBe("standby");
     expect(fields.pendingCancellationDate).toBeUndefined();
   });
+
+  it("reads active (never standby), plus the pending-cancellation date, from the second real banner wording ('ستتحول خدمتك...') - even when the 'خطة الخدمة' badge itself reads standby", () => {
+    // Real, confirmed mistake this replaces: a prepaid 100GB roaming account, activated the SAME
+    // day it was synced and not due to move to standby for another month, showed up in the app as
+    // "close to expiring today" - because the "خطة الخدمة" card's own "وضع الاستعداد قيد التعليق"
+    // badge was trusted alone as "already standby", exactly like the OTHER, genuinely-already-
+    // paused account the previous test above is about. The disambiguator is this banner: it is a
+    // dated, resumable, still-running-right-now signal ("الإبقاء على الخدمة الحالية" / "أحل الآن"
+    // on the real page) that must win over a bare "standby" badge reading.
+    const fields = extractFrom(`
+      <div class="home-banner">
+        <div>ستتحول خدمتك الحالية إلى وضع الاستعداد في ٢٠٢٦/١٠/٢٤.</div>
+        <div>الإبقاء على الخدمة الحالية</div>
+      </div>
+      <div class="subscriptions-section">
+        <div>خطة الخدمة</div>
+        <div>إدارة</div>
+        <div>وضع الاستعداد قيد التعليق</div>
+        <div>التجوال - 100 غيغابايت</div>
+      </div>
+    `);
+
+    expect(fields.serviceStatus).toBe("active");
+    expect(fields.planName).toBe("التجوال - 100 غيغابايت");
+    expect(fields.renewalDate).toBe("2026/10/24");
+    expect(fields.pendingCancellationDate).toBe("2026/10/24");
+  });
 });
 
 describe("extractStarlinkFields - real Billing-cycle due day, no year on the page at all (round 14 regression)", () => {

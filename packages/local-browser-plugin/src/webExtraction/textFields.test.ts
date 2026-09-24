@@ -118,6 +118,10 @@ describe("hasScheduledEndBanner", () => {
     expect(hasScheduledEndBanner(["من المقرر أن تنتهي خدمتك في ٢٠٢٦/٩/٢٨."])).toBe(true);
   });
 
+  it("detects the real 'transition to standby' banner wording too (a prepaid roaming plan, real, confirmed second wording of the same banner)", () => {
+    expect(hasScheduledEndBanner(["ستتحول خدمتك الحالية إلى وضع الاستعداد في ٢٠٢٦/١٠/٢٤."])).toBe(true);
+  });
+
   it("returns false when the banner isn't present", () => {
     expect(hasScheduledEndBanner(["الرصيد المستحق", "$US 0.00"])).toBe(false);
   });

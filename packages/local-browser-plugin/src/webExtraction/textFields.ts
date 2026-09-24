@@ -18,16 +18,31 @@ export const RENEWAL_DATE_LABELS = [
   // needs this fragment; normalizeDateLike below pulls the date out of whatever surrounds it
   // ("في ..." / a trailing ".").
   "تنتهي خدمتك",
+  // A second, real, confirmed real-page wording of the exact same "still active, pending future
+  // transition" banner, seen on a prepaid roaming plan: "ستتحول خدمتك الحالية إلى وضع الاستعداد في
+  // ٢٠٢٦/١٠/٢٤." ("your current service will transition to standby mode on ..."). A different
+  // sentence from "تنتهي خدمتك" above, but the same real-world meaning - see
+  // SCHEDULED_END_BANNER_LABELS' own doc for why it must be treated identically.
+  "ستتحول خدمتك",
 ];
 
-/** This banner ("من المقرر أن تنتهي خدمتك في ...", with a "استئناف"/Resume option) means the
- * service is still running RIGHT NOW - only a future renewal is being canceled, reversible up
- * until that date. Real, confirmed mistake this replaces: earlier code treated this banner as
- * "standby" (as if the service were already paused), which colored an actively-working account's
- * plan red/yellow instead of green and hid its real plan name behind a generic status word.
+/** These banners ("من المقرر أن تنتهي خدمتك في ..." / "ستتحول خدمتك الحالية إلى وضع الاستعداد في
+ * ...", each with a resumable "استئناف"/"الإبقاء على الخدمة الحالية" option) mean the service is
+ * still running RIGHT NOW - only a future transition to standby is pending, reversible up until
+ * that date. Real, confirmed mistake this replaces: earlier code treated this banner as "standby"
+ * (as if the service were already paused), which colored an actively-working account's plan
+ * red/yellow instead of green and hid its real plan name behind a generic status word.
+ *
  * "standby" is reserved for a genuine paused-right-now badge (e.g. "وضع الاستعداد قيد التعليق" on
- * the "خطة الخدمة" card itself, see extractPlanBadgeStatus) - never this banner alone. */
-export const SCHEDULED_END_BANNER_LABELS = ["scheduled to end", "تنتهي خدمتك"];
+ * the "خطة الخدمة" card itself, see extractPlanBadgeStatus) - BUT ONLY when neither of these
+ * banners is also present. Second real, confirmed mistake (a different, later account than the
+ * first): the exact same "وضع الاستعداد قيد التعليق" badge text showed up on a still-fully-active
+ * prepaid roaming account, a full month before its real standby date, right alongside the
+ * "ستتحول خدمتك..." banner above and its own resumable "الإبقاء على الخدمة الحالية" button -
+ * proving the two states are NOT always mutually exclusive on a real page the way earlier code
+ * assumed. Whenever a banner like this is present, it wins over a "standby" badge reading, since
+ * it is the more specific, dated, and never-yet-applied signal (see extractStarlinkFields.ts). */
+export const SCHEDULED_END_BANNER_LABELS = ["scheduled to end", "تنتهي خدمتك", "ستتحول خدمتك"];
 
 export function hasScheduledEndBanner(lines: string[]): boolean {
   return lines.some((line) => containsAny(line, SCHEDULED_END_BANNER_LABELS));

@@ -70,6 +70,12 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
   // never fix on its own (the Home page has neither a "خطة الخدمة" card nor a labeled status line).
   let serviceStatus = normalizeServiceStatus(extractLabeledValue(lines, SERVICE_STATUS_LABELS));
   if (!serviceStatus) serviceStatus = extractPlanBadgeStatus(lines);
+  // A "standby" read off the badge alone can still be wrong: see SCHEDULED_END_BANNER_LABELS' own
+  // doc for the real, confirmed case where the exact same badge text appeared on a still-active
+  // account, right alongside this banner. The banner is the more specific, dated signal and always
+  // wins over a bare "standby" badge reading - never over "suspended"/"canceled" though, which are
+  // unrelated states this banner says nothing about.
+  if (serviceStatus === "standby" && hasScheduledEndBanner(lines)) serviceStatus = "active";
   if (!serviceStatus && hasBillingSuspensionBanner(lines)) serviceStatus = "suspended";
   if (!serviceStatus && hasScheduledEndBanner(lines)) serviceStatus = "active";
   if (!serviceStatus && isOnAccountHomePage(lines)) serviceStatus = "active";
