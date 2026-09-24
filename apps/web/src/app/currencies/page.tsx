@@ -260,21 +260,33 @@ export default function CurrenciesPage() {
           <CurrencyPickerField label="إلى" currencies={activeCurrencies} value={effectiveConvTo} onChange={setConvTo} />
         </div>
 
-        <div className="currency-converter-result">
-          {convResult !== undefined && toCurrency ? (
-            <>
-              <strong dir="ltr">{formatAmount(convResult)} {toCurrency.symbol}</strong>
-              <span className="currency-converter-result-name">{toCurrency.name}</span>
-            </>
-          ) : (
-            <span className="settings-hint">أدخل مبلغًا صحيحًا لعرض التحويل</span>
-          )}
-        </div>
+        {convResult !== undefined && toCurrency ? (
+          <>
+            {/* Two equally-prominent boxes side by side - the converted amount facing its USD
+             * equivalent - rather than one big result with a small muted line underneath, so the
+             * USD comparison is exactly as clear/readable as the main result itself. */}
+            <div className="currency-converter-results">
+              <div className="currency-converter-result-box">
+                <span className="currency-converter-result-label">{toCurrency.name}</span>
+                <strong dir="ltr">{formatAmount(convResult)} {toCurrency.symbol}</strong>
+              </div>
+              {usdEquivalent !== undefined && (
+                <div className="currency-converter-result-box currency-converter-result-box-usd">
+                  <span className="currency-converter-result-label">بالدولار الأمريكي</span>
+                  <strong dir="ltr">{formatAmount(usdEquivalent)} USD</strong>
+                </div>
+              )}
+            </div>
 
-        {(usdEquivalent !== undefined || sifaEquivalent !== undefined) && (
-          <div className="currency-converter-equivalents">
-            {usdEquivalent !== undefined && <span dir="ltr">≈ {formatAmount(usdEquivalent)} USD</span>}
-            {sifaEquivalent !== undefined && <span dir="ltr">≈ {formatAmount(sifaEquivalent)} سيفا</span>}
+            {sifaEquivalent !== undefined && (
+              <div className="currency-converter-equivalents">
+                <span dir="ltr">≈ {formatAmount(sifaEquivalent)} سيفا</span>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="currency-converter-result">
+            <span className="settings-hint">أدخل مبلغًا صحيحًا لعرض التحويل</span>
           </div>
         )}
       </section>

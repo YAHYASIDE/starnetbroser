@@ -657,14 +657,46 @@ a.btn-icon {
   text-align: center;
 }
 
-.currency-converter-result strong {
-  font-size: 1.6rem;
+/* Two equally-prominent boxes side by side - the converted amount facing its USD equivalent, so
+ * the comparison is exactly as clear/readable as the main result itself, never a small muted line
+ * underneath it. Wraps to a stacked column only if a viewport is ever too narrow for both. */
+.currency-converter-results {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.currency-converter-result-box {
+  flex: 1 1 140px;
+  min-width: 140px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 10px;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--brand) 12%, var(--surface));
+  text-align: center;
+}
+
+.currency-converter-result-box strong {
+  font-size: 1.25rem;
   color: var(--brand-strong);
   overflow-wrap: anywhere;
 }
 
-.currency-converter-result-name {
-  font-size: 0.78rem;
+.currency-converter-result-box-usd {
+  background: var(--green-bg);
+}
+
+.currency-converter-result-box-usd strong {
+  color: var(--green);
+}
+
+.currency-converter-result-label {
+  font-size: 0.72rem;
+  font-weight: 700;
   color: var(--text-muted);
 }
 
