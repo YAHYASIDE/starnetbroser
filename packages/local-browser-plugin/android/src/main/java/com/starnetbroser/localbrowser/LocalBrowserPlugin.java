@@ -3,6 +3,7 @@ package com.starnetbroser.localbrowser;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
+import android.provider.Settings;
 import android.webkit.CookieManager;
 import androidx.webkit.Profile;
 import androidx.webkit.ProfileStore;
@@ -409,6 +410,24 @@ public class LocalBrowserPlugin extends Plugin {
         JSObject ret = new JSObject();
         ret.put("importedCount", importedCount);
         call.resolve(ret);
+    }
+
+    /**
+     * Opens this app's own OS-level notification settings screen, rather than building a second,
+     * redundant in-app toggle for sync/reminder notifications: SyncNotifier.java already checks
+     * NotificationManagerCompat#areNotificationsEnabled() before posting anything, so the one
+     * switch that actually controls both notification kinds is the one Android itself already
+     * provides. Never rejects - on the rare device where this screen doesn't exist, the intent
+     * simply won't resolve to anything and the call still completes.
+     */
+    @PluginMethod
+    public void openNotificationSettings(PluginCall call) {
+        Context context = getContext();
+        Intent intent = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+        intent.putExtra(Settings.EXTRA_APP_PACKAGE, context.getPackageName());
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        context.startActivity(intent);
+        call.resolve();
     }
 
     private boolean isMultiProfileSupported() {

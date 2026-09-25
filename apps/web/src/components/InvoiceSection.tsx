@@ -19,6 +19,7 @@ import {
 } from "@/lib/invoiceStore";
 import { buildInvoiceMessage, buildWhatsAppLink } from "@/lib/whatsapp";
 import { formatAmount } from "@/lib/formatAmount";
+import { getDefaultInvoiceCurrency } from "@/lib/settingsStore";
 import { ClientPicker } from "./ClientPicker";
 import { SupplierPicker } from "./SupplierPicker";
 import { RepresentativePicker } from "./RepresentativePicker";
@@ -29,6 +30,14 @@ function todayDateInputValue(): string {
 
 function currencyLabel(code: string): string {
   return LEDGER_CURRENCY_LABELS[code as LedgerCurrency] ?? code;
+}
+
+/** getDefaultInvoiceCurrency() is never validated against LEDGER_CURRENCIES on write (see its own
+ * doc comment) - an unrecognized/stale saved value falls back to "MRU" here, same as never having
+ * set one, rather than putting an invalid value into this form's own typed state. */
+function defaultInvoiceCurrency(): LedgerCurrency {
+  const saved = getDefaultInvoiceCurrency();
+  return (LEDGER_CURRENCIES as string[]).includes(saved) ? (saved as LedgerCurrency) : "MRU";
 }
 
 interface DraftLine {
@@ -293,7 +302,7 @@ function InvoiceForm({
   const [kind, setKind] = useState<InvoiceKind>("sale");
   const [priceTier, setPriceTier] = useState<"retail" | "wholesale">("retail");
   const [date, setDate] = useState(todayDateInputValue());
-  const [currencyCode, setCurrencyCode] = useState<LedgerCurrency>("MRU");
+  const [currencyCode, setCurrencyCode] = useState<LedgerCurrency>(defaultInvoiceCurrency);
   const [lines, setLines] = useState<DraftLine[]>([{ itemId: "", quantity: "", unitPrice: "" }]);
   const [discount, setDiscount] = useState("");
   const [paidAmount, setPaidAmount] = useState("");

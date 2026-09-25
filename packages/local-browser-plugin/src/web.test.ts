@@ -60,4 +60,9 @@ describe("LocalBrowserWeb", () => {
     const plugin = new LocalBrowserWeb();
     await expect(plugin.importSessionCookies({ sessions: {} })).rejects.toThrow();
   });
+
+  it("accepts openNotificationSettings as a harmless no-op (there is no OS settings screen on web)", async () => {
+    const plugin = new LocalBrowserWeb();
+    await expect(plugin.openNotificationSettings()).resolves.toBeUndefined();
+  });
 });

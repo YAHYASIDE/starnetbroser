@@ -67,4 +67,10 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
   async importSessionCookies(_options: ImportSessionCookiesOptions): Promise<ImportSessionCookiesResult> {
     throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
   }
+
+  // There is no OS notification-settings screen to open outside the native app - a silent no-op,
+  // not an error, same reasoning as setAutoSyncAccountIds above.
+  async openNotificationSettings(): Promise<void> {
+    return;
+  }
 }

@@ -54,7 +54,7 @@ import {
   withAccountAllocations,
 } from "@/lib/paymentAllocationStore";
 import { ApiError, listAccounts } from "@/lib/apiClient";
-import { getLastBackupAt, isDemoMode, isLoggedIn } from "@/lib/settingsStore";
+import { getLastBackupAt, isDemoMode, isLoggedIn, isRemindersBadgeEnabled } from "@/lib/settingsStore";
 import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
 import {
   ackPendingAccountSyncs,
@@ -155,6 +155,8 @@ export function HomeView({
   useEffect(() => setLedgerStore(loadLedgerStore()), []);
   const [lastBackupAt, setLastBackupAt] = useState<string | null>(null);
   useEffect(() => setLastBackupAt(getLastBackupAt()), []);
+  const [remindersBadgeEnabled, setRemindersBadgeEnabled] = useState(true);
+  useEffect(() => setRemindersBadgeEnabled(isRemindersBadgeEnabled()), []);
   const [ledgerAccount, setLedgerAccount] = useState<StarlinkAccountSummary | null>(null);
   const [statementAccount, setStatementAccount] = useState<StarlinkAccountSummary | null>(null);
 
@@ -680,7 +682,9 @@ export function HomeView({
               <path d="M12 3.5c-3 0-5 2.2-5 5.2v3.4c0 1-.4 2-1.1 2.7L5 15.7c-.5.5-.2 1.3.5 1.3h13c.7 0 1-.8.5-1.3l-.9-.9c-.7-.7-1.1-1.7-1.1-2.7V8.7c0-3-2-5.2-5-5.2Z" strokeLinejoin="round" />
               <path d="M10 19.5a2 2 0 0 0 4 0" strokeLinecap="round" />
             </svg>
-            {reminderCount > 0 && <span className="header-reminders-badge">{reminderCount > 9 ? "9+" : reminderCount}</span>}
+            {remindersBadgeEnabled && reminderCount > 0 && (
+              <span className="header-reminders-badge">{reminderCount > 9 ? "9+" : reminderCount}</span>
+            )}
           </Link>
           <Link href="/currencies" className="header-currencies" aria-label="العملات وأسعار الصرف">
             <svg viewBox="0 0 24 24" aria-hidden="true">

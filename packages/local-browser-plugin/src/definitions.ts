@@ -288,4 +288,13 @@ export interface LocalBrowserPlugin {
    * dead one, and the account will simply appear logged out again once opened.
    */
   importSessionCookies(options: ImportSessionCookiesOptions): Promise<ImportSessionCookiesResult>;
+
+  /**
+   * Opens this app's own OS-level notification settings screen (Android's
+   * Settings.ACTION_APP_NOTIFICATION_SETTINGS) rather than a redundant in-app toggle - the one
+   * switch Android itself provides already controls both sync-result and reminder notifications
+   * (see SyncNotifier.java, which checks areNotificationsEnabled() before posting either kind).
+   * Never rejects; a no-op on web, where there is no such OS screen to open.
+   */
+  openNotificationSettings(): Promise<void>;
 }

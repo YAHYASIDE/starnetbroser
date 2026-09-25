@@ -2,11 +2,15 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   applyThemePreference,
+  getDefaultInvoiceCurrency,
   getLastBackupAt,
   getThemePreference,
   isHelpModeEnabled,
+  isRemindersBadgeEnabled,
   recordBackupExported,
+  setDefaultInvoiceCurrency,
   setHelpModeEnabled,
+  setRemindersBadgeEnabled,
   setThemePreference,
 } from "./settingsStore";
 
@@ -76,5 +80,33 @@ describe("last backup timestamp", () => {
     const now = new Date("2026-09-20T10:00:00.000Z");
     recordBackupExported(now);
     expect(getLastBackupAt()).toBe(now.toISOString());
+  });
+});
+
+describe("default invoice currency", () => {
+  it("defaults to MRU", () => {
+    expect(getDefaultInvoiceCurrency()).toBe("MRU");
+  });
+
+  it("persists an explicit choice and reads it back", () => {
+    setDefaultInvoiceCurrency("USD");
+    expect(getDefaultInvoiceCurrency()).toBe("USD");
+  });
+});
+
+describe("reminders badge visibility", () => {
+  it("is on by default", () => {
+    expect(isRemindersBadgeEnabled()).toBe(true);
+  });
+
+  it("turns off and persists", () => {
+    setRemindersBadgeEnabled(false);
+    expect(isRemindersBadgeEnabled()).toBe(false);
+  });
+
+  it("turns back on", () => {
+    setRemindersBadgeEnabled(false);
+    setRemindersBadgeEnabled(true);
+    expect(isRemindersBadgeEnabled()).toBe(true);
   });
 });

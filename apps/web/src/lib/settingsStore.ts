@@ -109,3 +109,32 @@ export function isHelpModeEnabled(): boolean {
 export function setHelpModeEnabled(enabled: boolean) {
   safeSet(HELP_MODE_KEY, enabled ? "1" : null);
 }
+
+/** The currency a new store invoice's form starts on (InvoiceSection.tsx) - "MRU" (the app's own
+ * long-standing hardcoded default) unless the operator picks a different one from الإعدادات. Never
+ * validated against LEDGER_CURRENCIES here (that would couple this module to ledgerStore.ts for a
+ * single string) - an unrecognized/stale value just falls back to "MRU" wherever it's read, same
+ * as never having been set. */
+const DEFAULT_INVOICE_CURRENCY_KEY = "starnet.defaultInvoiceCurrency";
+
+export function getDefaultInvoiceCurrency(): string {
+  return safeGet(DEFAULT_INVOICE_CURRENCY_KEY) ?? "MRU";
+}
+
+export function setDefaultInvoiceCurrency(currencyCode: string) {
+  safeSet(DEFAULT_INVOICE_CURRENCY_KEY, currencyCode);
+}
+
+/** On by default (existing behavior, never a silent regression for someone who never opens
+ * الإعدادات) - an explicit opt-out that hides just the numeric badge on the header's reminders
+ * bell (HomeView.tsx), never the bell icon or the /reminders page itself, both of which stay
+ * reachable either way. */
+const REMINDERS_BADGE_KEY = "starnet.remindersBadgeHidden";
+
+export function isRemindersBadgeEnabled(): boolean {
+  return safeGet(REMINDERS_BADGE_KEY) !== "1";
+}
+
+export function setRemindersBadgeEnabled(enabled: boolean) {
+  safeSet(REMINDERS_BADGE_KEY, enabled ? null : "1");
+}

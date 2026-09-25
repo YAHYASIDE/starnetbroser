@@ -175,3 +175,18 @@ export async function importAccountSessions(sessions: SessionsByAccount): Promis
     return { ok: false, importedCount: 0 };
   }
 }
+
+/**
+ * Opens Android's own per-app notification settings screen - the one switch that already
+ * controls both sync-result and reminder notifications (see SyncNotifier.java). A no-op outside
+ * the Android app; never throws, since there's nothing the caller can usefully do about a failed
+ * "open a settings screen" beyond letting the button appear to do nothing.
+ */
+export async function openNotificationSettings(): Promise<void> {
+  if (!isRunningInAndroidApp()) return;
+  try {
+    await LocalBrowser.openNotificationSettings();
+  } catch {
+    // Nothing to recover - see doc comment above.
+  }
+}

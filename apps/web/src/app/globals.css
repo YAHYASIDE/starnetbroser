@@ -595,6 +595,41 @@ a.btn-icon {
   width: 100%;
 }
 
+.app-lock-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--bg);
+}
+
+.app-lock-card {
+  align-items: center;
+  text-align: center;
+  max-width: 280px;
+  width: 100%;
+}
+
+.app-lock-logo {
+  font-size: 1.6rem;
+  margin-bottom: 4px;
+}
+
+.app-lock-title {
+  font-size: 1.15rem;
+  margin: 0;
+}
+
+.app-lock-input {
+  text-align: center;
+  font-size: 1.4rem;
+  letter-spacing: 0.4em;
+}
+
+.app-lock-submit {
+  width: 100%;
+}
+
 /* Currency converter card (currencies/page.tsx) - amount+"from" row, a centered swap button, the
  * "to" row, then the highlighted result with its USD/SIFA equivalent line underneath. */
 .currency-converter-row {

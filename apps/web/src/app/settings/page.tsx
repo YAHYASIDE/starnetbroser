@@ -6,20 +6,26 @@ import { ApiError } from "@/lib/apiClient";
 import {
   clearTokens,
   getApiBaseUrl,
+  getDefaultInvoiceCurrency,
   getThemePreference,
   isDemoMode,
   isHelpModeEnabled,
   isLoggedIn,
+  isRemindersBadgeEnabled,
   recordBackupExported,
   setApiBaseUrl,
+  setDefaultInvoiceCurrency,
   setHelpModeEnabled,
+  setRemindersBadgeEnabled,
   setThemePreference,
   ThemePreference,
 } from "@/lib/settingsStore";
+import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerCurrency } from "@/lib/ledgerStore";
 import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
 import { createEncryptedBackupFile, mergeImportedAccounts, readEncryptedBackupFile } from "@/lib/accountBackup";
-import { exportAccountSessions, importAccountSessions } from "@/lib/localBrowser";
+import { exportAccountSessions, importAccountSessions, isRunningInAndroidApp, openNotificationSettings } from "@/lib/localBrowser";
 import { saveAndShareBackupFile } from "@/lib/backupFile";
+import { clearAppPin, hasAppPin, setAppPin, verifyAppPin } from "@/lib/appLock";
 
 const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
   { value: "system", label: "حسب الجهاز" },
@@ -37,12 +43,18 @@ export default function SettingsPage() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [theme, setTheme] = useState<ThemePreference>("system");
   const [helpMode, setHelpMode] = useState(false);
+  const [defaultCurrency, setDefaultCurrency] = useState<string>("MRU");
+  const [remindersBadgeEnabled, setRemindersBadgeEnabledState] = useState(true);
+  const [isAndroidApp, setIsAndroidApp] = useState(false);
 
   useEffect(() => {
     setUrl(getApiBaseUrl());
     setLoggedIn(isLoggedIn());
     setTheme(getThemePreference());
     setHelpMode(isHelpModeEnabled());
+    setDefaultCurrency(getDefaultInvoiceCurrency());
+    setRemindersBadgeEnabledState(isRemindersBadgeEnabled());
+    setIsAndroidApp(isRunningInAndroidApp());
   }, []);
 
   function handleThemeChange(next: ThemePreference) {
@@ -53,6 +65,16 @@ export default function SettingsPage() {
   function handleHelpModeChange(next: boolean) {
     setHelpMode(next);
     setHelpModeEnabled(next);
+  }
+
+  function handleDefaultCurrencyChange(next: string) {
+    setDefaultCurrency(next);
+    setDefaultInvoiceCurrency(next);
+  }
+
+  function handleRemindersBadgeChange(next: boolean) {
+    setRemindersBadgeEnabledState(next);
+    setRemindersBadgeEnabled(next);
   }
 
   async function handleSave() {
@@ -122,6 +144,58 @@ export default function SettingsPage() {
       </section>
 
       <section className="section">
+        <h2 className="section-title">العملة الافتراضية للفواتير</h2>
+        <p className="settings-hint">
+          العملة التي تبدأ بها كل فاتورة جديدة في المتجر - يمكنك دائمًا تغييرها لفاتورة معيّنة عند إنشائها.
+        </p>
+        <div className="theme-option-row">
+          {LEDGER_CURRENCIES.map((code) => (
+            <button
+              key={code}
+              type="button"
+              className={`theme-option-btn${defaultCurrency === code ? " theme-option-btn-active" : ""}`}
+              onClick={() => handleDefaultCurrencyChange(code)}
+              aria-pressed={defaultCurrency === code}
+            >
+              {LEDGER_CURRENCY_LABELS[code as LedgerCurrency]}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="section">
+        <h2 className="section-title">التذكيرات والإشعارات</h2>
+        <p className="settings-hint">
+          يمكنك إخفاء الرقم الظاهر فوق أيقونة التذكيرات في الأعلى دون التأثير على التذكيرات نفسها -
+          تبقى صفحة التذكيرات وكل تنبيهاتها كما هي.
+        </p>
+        <label className="toggle-switch-row">
+          <span>إظهار عدد التذكيرات فوق الأيقونة</span>
+          <span className={`toggle-switch${remindersBadgeEnabled ? " toggle-switch-on" : ""}`}>
+            <input
+              type="checkbox"
+              checked={remindersBadgeEnabled}
+              onChange={(e) => handleRemindersBadgeChange(e.target.checked)}
+            />
+            <span className="toggle-switch-thumb" />
+          </span>
+        </label>
+        {isAndroidApp && (
+          <div className="settings-actions" style={{ marginTop: "12px" }}>
+            <button className="btn-icon" onClick={() => openNotificationSettings()}>
+              إعدادات إشعارات التطبيق (النظام)
+            </button>
+          </div>
+        )}
+        <p className="settings-hint">
+          إشعارات المزامنة (نجاح/فشل التحديث) وإشعارات التذكيرات (تجديد/دين/نسخة احتياطية) تُتحكَّم
+          بها من إعدادات إشعارات النظام لتطبيق STAR NET - الزر أعلاه يفتحها مباشرة.
+        </p>
+      </section>
+
+      <AppLockSection />
+
+      <section className="section">
         <h2 className="section-title">عنوان الخادم</h2>
         <p className="settings-hint">
           اتركه فارغًا للبقاء في وضع العرض التجريبي (بيانات وهمية). أدخل عنوان الـ API الحقيقي للانتقال إلى بياناتك الفعلية.
@@ -182,6 +256,225 @@ export default function SettingsPage() {
 
       <BackupSection />
     </main>
+  );
+}
+
+const MIN_PIN_LENGTH = 4;
+
+type AppLockMode = "idle" | "setNew" | "change" | "remove";
+
+/** "قفل التطبيق": a PIN requested once whenever the app is opened (AppLockGate.tsx) - lives
+ * entirely in appLock.ts (PBKDF2 hash, never plaintext). Changing or removing an existing PIN
+ * always requires re-entering the current one first, same as any password-change flow. */
+function AppLockSection() {
+  const [pinSet, setPinSet] = useState(false);
+  const [mode, setMode] = useState<AppLockMode>("idle");
+  const [currentPin, setCurrentPin] = useState("");
+  const [newPin, setNewPin] = useState("");
+  const [newPinConfirm, setNewPinConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => setPinSet(hasAppPin()), []);
+
+  function resetForm() {
+    setMode("idle");
+    setCurrentPin("");
+    setNewPin("");
+    setNewPinConfirm("");
+    setMessage(null);
+  }
+
+  async function handleSetNew() {
+    setMessage(null);
+    if (newPin.length < MIN_PIN_LENGTH) {
+      setMessage(`الرمز يجب أن يكون ${MIN_PIN_LENGTH} أرقام على الأقل`);
+      return;
+    }
+    if (newPin !== newPinConfirm) {
+      setMessage("الرمزان غير متطابقين");
+      return;
+    }
+    setBusy(true);
+    try {
+      await setAppPin(newPin);
+      setPinSet(true);
+      resetForm();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleChange() {
+    setMessage(null);
+    if (newPin.length < MIN_PIN_LENGTH) {
+      setMessage(`الرمز الجديد يجب أن يكون ${MIN_PIN_LENGTH} أرقام على الأقل`);
+      return;
+    }
+    if (newPin !== newPinConfirm) {
+      setMessage("الرمزان غير متطابقين");
+      return;
+    }
+    setBusy(true);
+    try {
+      const ok = await verifyAppPin(currentPin);
+      if (!ok) {
+        setMessage("الرمز الحالي غير صحيح");
+        return;
+      }
+      await setAppPin(newPin);
+      resetForm();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRemove() {
+    setMessage(null);
+    setBusy(true);
+    try {
+      const ok = await verifyAppPin(currentPin);
+      if (!ok) {
+        setMessage("الرمز غير صحيح");
+        return;
+      }
+      clearAppPin();
+      setPinSet(false);
+      resetForm();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="section">
+      <h2 className="section-title">قفل التطبيق</h2>
+      <p className="settings-hint">
+        عند التفعيل، يُطلب إدخال رمز عند كل فتح للتطبيق قبل الوصول إلى أي بيانات.
+      </p>
+
+      {mode === "idle" && (
+        <div className="settings-actions">
+          {!pinSet && (
+            <button className="btn-icon" onClick={() => setMode("setNew")}>
+              تفعيل قفل برمز
+            </button>
+          )}
+          {pinSet && (
+            <>
+              <button className="btn-icon" onClick={() => setMode("change")}>
+                تغيير الرمز
+              </button>
+              <button className="btn-icon" onClick={() => setMode("remove")}>
+                إلغاء القفل
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {mode === "setNew" && (
+        <div className="auth-form">
+          <input
+            className="search-input"
+            type="password"
+            inputMode="numeric"
+            maxLength={6}
+            dir="ltr"
+            placeholder="رمز جديد"
+            value={newPin}
+            onChange={(e) => setNewPin(e.target.value.replace(/[^\d]/g, ""))}
+          />
+          <input
+            className="search-input"
+            type="password"
+            inputMode="numeric"
+            maxLength={6}
+            dir="ltr"
+            placeholder="تأكيد الرمز"
+            value={newPinConfirm}
+            onChange={(e) => setNewPinConfirm(e.target.value.replace(/[^\d]/g, ""))}
+          />
+          {message && <div className="account-card-alert">{message}</div>}
+          <div className="settings-actions">
+            <button className="btn-icon" disabled={busy} onClick={handleSetNew}>
+              حفظ
+            </button>
+            <button className="btn-icon" disabled={busy} onClick={resetForm}>
+              إلغاء
+            </button>
+          </div>
+        </div>
+      )}
+
+      {mode === "change" && (
+        <div className="auth-form">
+          <input
+            className="search-input"
+            type="password"
+            inputMode="numeric"
+            maxLength={6}
+            dir="ltr"
+            placeholder="الرمز الحالي"
+            value={currentPin}
+            onChange={(e) => setCurrentPin(e.target.value.replace(/[^\d]/g, ""))}
+          />
+          <input
+            className="search-input"
+            type="password"
+            inputMode="numeric"
+            maxLength={6}
+            dir="ltr"
+            placeholder="الرمز الجديد"
+            value={newPin}
+            onChange={(e) => setNewPin(e.target.value.replace(/[^\d]/g, ""))}
+          />
+          <input
+            className="search-input"
+            type="password"
+            inputMode="numeric"
+            maxLength={6}
+            dir="ltr"
+            placeholder="تأكيد الرمز الجديد"
+            value={newPinConfirm}
+            onChange={(e) => setNewPinConfirm(e.target.value.replace(/[^\d]/g, ""))}
+          />
+          {message && <div className="account-card-alert">{message}</div>}
+          <div className="settings-actions">
+            <button className="btn-icon" disabled={busy} onClick={handleChange}>
+              حفظ
+            </button>
+            <button className="btn-icon" disabled={busy} onClick={resetForm}>
+              إلغاء
+            </button>
+          </div>
+        </div>
+      )}
+
+      {mode === "remove" && (
+        <div className="auth-form">
+          <input
+            className="search-input"
+            type="password"
+            inputMode="numeric"
+            maxLength={6}
+            dir="ltr"
+            placeholder="الرمز الحالي"
+            value={currentPin}
+            onChange={(e) => setCurrentPin(e.target.value.replace(/[^\d]/g, ""))}
+          />
+          {message && <div className="account-card-alert">{message}</div>}
+          <div className="settings-actions">
+            <button className="btn-icon" disabled={busy} onClick={handleRemove}>
+              إلغاء القفل
+            </button>
+            <button className="btn-icon" disabled={busy} onClick={resetForm}>
+              تراجع
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 

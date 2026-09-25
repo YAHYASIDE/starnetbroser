@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { BottomNav } from "@/components/BottomNav";
+import { AppLockGate } from "@/components/AppLockGate";
 
 export const metadata: Metadata = {
   title: "STAR NET",
@@ -25,8 +26,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ar" dir="rtl">
       <body>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
-        {children}
-        <BottomNav />
+        <AppLockGate>
+          {children}
+          <BottomNav />
+        </AppLockGate>
       </body>
     </html>
   );
