@@ -2,6 +2,7 @@ package com.starnetbroser.localbrowser;
 
 import android.content.Context;
 import android.content.Intent;
+import android.net.Uri;
 import android.webkit.CookieManager;
 import androidx.webkit.Profile;
 import androidx.webkit.ProfileStore;
@@ -120,6 +121,16 @@ public class LocalBrowserPlugin extends Plugin {
         intent.putExtra(AccountBrowserActivity.EXTRA_ACCOUNT_ID, accountId);
         intent.putExtra(AccountBrowserActivity.EXTRA_ACCOUNT_NAME, accountName);
         intent.putExtra(AccountBrowserActivity.EXTRA_URL, url);
+        // A distinct Uri per account (never loaded/navigated to - AccountBrowserActivity only
+        // ever reads EXTRA_URL for that) is what makes each account its own separate "document"
+        // task in Recents (see documentLaunchMode="intoExisting" on this Activity in the
+        // manifest) - two different accounts get two independently split-screenable windows,
+        // while reopening the SAME account brings its own already-open one back to front instead
+        // of spawning a duplicate. FLAG_ACTIVITY_MULTIPLE_TASK is the documented companion flag
+        // for NEW_DOCUMENT, so this account's task is never merged into whichever task the "فتح"
+        // tap itself came from.
+        intent.setData(Uri.parse("starnet-account://" + Uri.encode(accountId)));
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_DOCUMENT | Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
         getActivity().startActivity(intent);
         call.resolve();
     }
