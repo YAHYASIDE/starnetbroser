@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildPartyStatement,
   computeClientStoreBalance,
+  computePartyStoreTotals,
   computeStock,
   computeSupplierStoreBalance,
   createInvoice,
@@ -456,5 +458,84 @@ describe("computeSupplierStoreBalance", () => {
       invoice({ id: "2", kind: "purchase", clientId: undefined, supplierId: "s2", currencyCode: "MRU" }), // different supplier
     ];
     expect(computeSupplierStoreBalance(invoices, "s1")).toEqual({ MRU: 150 });
+  });
+});
+
+describe("computePartyStoreTotals", () => {
+  it("is empty for a party with no invoices", () => {
+    expect(computePartyStoreTotals([], "sale", "c1")).toEqual({});
+  });
+
+  it("breaks a client's invoices into total/paid/returned/remaining per currency", () => {
+    const invoices: InvoiceList = [
+      invoice({ id: "a", clientId: "c1", currencyCode: "MRU", paidAmount: 50 }), // 200
+      invoice({ id: "b", clientId: "c1", currencyCode: "MRU", paidAmount: 200 }), // 200
+      invoice({
+        id: "r",
+        clientId: undefined,
+        currencyCode: "MRU",
+        returnOfInvoiceId: "a",
+        lines: [{ itemId: "a", quantity: 1, unitPrice: 100, transactionId: "t9" }],
+      }), // return 100
+      invoice({ id: "u", clientId: "c1", currencyCode: "USD", paidAmount: 0 }), // 200
+      invoice({ id: "x", clientId: "c2", currencyCode: "MRU" }),
+    ];
+    expect(computePartyStoreTotals(invoices, "sale", "c1")).toEqual({
+      MRU: { total: 400, paid: 250, returned: 100, remaining: 50 },
+      USD: { total: 200, paid: 0, returned: 0, remaining: 200 },
+    });
+  });
+
+  it("remaining always matches computeClientStoreBalance", () => {
+    const invoices: InvoiceList = [
+      invoice({ id: "1", clientId: "c1", paidAmount: 250 }),
+      invoice({ id: "2", clientId: "c1", paidAmount: 20 }),
+    ];
+    const totals = computePartyStoreTotals(invoices, "sale", "c1");
+    expect(totals.MRU.remaining).toBe(computeClientStoreBalance(invoices, "c1").MRU);
+  });
+
+  it("uses purchase invoices for a supplier", () => {
+    const invoices: InvoiceList = [
+      invoice({ id: "1", kind: "purchase", clientId: undefined, supplierId: "s1", paidAmount: 50 }),
+      invoice({ id: "2", clientId: "s1" }), // a sale - must not count for a supplier
+    ];
+    expect(computePartyStoreTotals(invoices, "purchase", "s1")).toEqual({
+      MRU: { total: 200, paid: 50, returned: 0, remaining: 150 },
+    });
+  });
+});
+
+describe("buildPartyStatement", () => {
+  it("includes returns and computes a running balance oldest-first, returned newest-first", () => {
+    const invoices: InvoiceList = [
+      invoice({ id: "b", clientId: "c1", date: "2026-09-22", paidAmount: 0 }), // +200
+      invoice({ id: "a", clientId: "c1", date: "2026-09-20", paidAmount: 50 }), // +150
+      invoice({
+        id: "r",
+        clientId: undefined,
+        date: "2026-09-23",
+        returnOfInvoiceId: "a",
+        lines: [{ itemId: "a", quantity: 1, unitPrice: 100, transactionId: "t9" }],
+      }), // -100
+      invoice({ id: "x", clientId: "c2", date: "2026-09-21" }),
+    ];
+    const rows = buildPartyStatement(invoices, "sale", "c1");
+    expect(rows.map((r) => r.invoice.id)).toEqual(["r", "b", "a"]);
+    expect(rows.map((r) => r.balanceAfter)).toEqual([250, 350, 150]);
+    expect(rows[0].isReturn).toBe(true);
+    expect(rows[0].paid).toBe(0);
+  });
+
+  it("keeps a separate running balance per currency", () => {
+    const invoices: InvoiceList = [
+      invoice({ id: "1", clientId: "c1", date: "2026-09-20", currencyCode: "MRU" }),
+      invoice({ id: "2", clientId: "c1", date: "2026-09-21", currencyCode: "USD", paidAmount: 50 }),
+    ];
+    const rows = buildPartyStatement(invoices, "sale", "c1");
+    expect(rows.map((r) => [r.invoice.currencyCode, r.balanceAfter])).toEqual([
+      ["USD", 150],
+      ["MRU", 200],
+    ]);
   });
 });

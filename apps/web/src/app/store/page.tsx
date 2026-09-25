@@ -13,7 +13,7 @@ import {
   saveClientStore,
   updateClient,
 } from "@/lib/clientStore";
-import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerCurrency } from "@/lib/ledgerStore";
+import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerByAccount, LedgerCurrency, loadLedgerStore } from "@/lib/ledgerStore";
 import {
   computeInventoryValueByCurrency,
   computeStockByItem,
@@ -86,6 +86,7 @@ export default function StorePage() {
   const [representativeStore, setRepresentativeStore] = useState<RepresentativeStore>({});
   const [cashEntries, setCashEntries] = useState<CashEntryList>([]);
   const [accounts, setAccounts] = useState<StarlinkAccountSummary[]>(demoAccounts);
+  const [ledgerStore, setLedgerStore] = useState<LedgerByAccount>({});
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [pendingKind, setPendingKind] = useState<StoreTransactionKind>("buy");
   const [showAddItem, setShowAddItem] = useState(false);
@@ -99,6 +100,7 @@ export default function StorePage() {
     setSupplierStore(loadSupplierStore());
     setRepresentativeStore(loadRepresentativeStore());
     setCashEntries(loadCashEntries());
+    setLedgerStore(loadLedgerStore());
     if (isDemoMode()) {
       setAccounts(loadDemoAccounts(demoAccounts));
       return;
@@ -387,6 +389,8 @@ export default function StorePage() {
         clients={clients}
         suppliers={suppliers}
         invoices={invoices}
+        accounts={accounts}
+        ledgerStore={ledgerStore}
         onCreateClient={handleCreateClient}
         onUpdateClient={handleUpdateClient}
         onCreateSupplier={handleCreateSupplier}

@@ -295,6 +295,79 @@ export function computeSupplierStoreBalance(invoices: InvoiceList, supplierId: s
   return balance;
 }
 
+export interface PartyStoreTotals {
+  /** Sum of every own (non-return) invoice's total. */
+  total: number;
+  /** Sum of what was actually paid on those invoices. */
+  paid: number;
+  /** Full value of every return filed against those invoices. */
+  returned: number;
+  /** total - paid - returned: same figure computeClientStoreBalance/computeSupplierStoreBalance
+   * report (positive = still unpaid, negative = overpaid). */
+  remaining: number;
+}
+
+function ownPartyInvoices(invoices: InvoiceList, kind: InvoiceKind, partyId: string): InvoiceList {
+  return invoices.filter(
+    (inv) =>
+      inv.kind === kind &&
+      !inv.returnOfInvoiceId &&
+      (kind === "sale" ? inv.clientId === partyId : inv.supplierId === partyId),
+  );
+}
+
+/** Per-currency invoiced/paid/returned/remaining breakdown for one client ("sale") or supplier
+ * ("purchase") - never mixes currencies, same rule as every balance in this app. */
+export function computePartyStoreTotals(
+  invoices: InvoiceList,
+  kind: InvoiceKind,
+  partyId: string,
+): Record<string, PartyStoreTotals> {
+  const result: Record<string, PartyStoreTotals> = {};
+  const bucket = (currency: string) => (result[currency] ??= { total: 0, paid: 0, returned: 0, remaining: 0 });
+  for (const inv of ownPartyInvoices(invoices, kind, partyId)) {
+    const own = bucket(inv.currencyCode);
+    own.total += invoiceTotal(inv);
+    own.paid += inv.paidAmount;
+    for (const ret of listReturnsForInvoice(invoices, inv.id)) {
+      bucket(ret.currencyCode).returned += invoiceTotal(ret);
+    }
+  }
+  for (const totals of Object.values(result)) {
+    totals.remaining = totals.total - totals.paid - totals.returned;
+  }
+  return result;
+}
+
+export interface PartyStatementRow {
+  invoice: Invoice;
+  isReturn: boolean;
+  amount: number;
+  paid: number;
+  /** Running balance in this row's own currency after this row, oldest-first order. */
+  balanceAfter: number;
+}
+
+/** كشف الحساب: every own invoice plus every return filed against one of them, with a running
+ * per-currency balance computed oldest-first. Returned newest-first for display. */
+export function buildPartyStatement(invoices: InvoiceList, kind: InvoiceKind, partyId: string): PartyStatementRow[] {
+  const own = ownPartyInvoices(invoices, kind, partyId);
+  const ownIds = new Set(own.map((inv) => inv.id));
+  const returns = invoices.filter((inv) => inv.returnOfInvoiceId !== undefined && ownIds.has(inv.returnOfInvoiceId));
+  const chronological = [...own, ...returns].sort((a, b) =>
+    a.date !== b.date ? (a.date < b.date ? -1 : 1) : a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0,
+  );
+  const running: Record<string, number> = {};
+  const rows = chronological.map((invoice) => {
+    const isReturn = invoice.returnOfInvoiceId !== undefined;
+    const amount = invoiceTotal(invoice);
+    const paid = isReturn ? 0 : invoice.paidAmount;
+    running[invoice.currencyCode] = (running[invoice.currencyCode] ?? 0) + (isReturn ? -amount : amount - paid);
+    return { invoice, isReturn, amount, paid, balanceAfter: running[invoice.currencyCode] };
+  });
+  return rows.reverse();
+}
+
 /** Total quantity of one item already returned against an invoice - used to cap how much more of
  * that line can still be returned. */
 export function returnedQuantityForLine(invoices: InvoiceList, invoiceId: string, itemId: string): number {
