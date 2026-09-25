@@ -58,6 +58,12 @@ export interface PrintableDocument {
   footerNote?: string;
 }
 
+/** Wraps a left-to-right fragment (a date, a code, a number with a sign) in Unicode isolates so it
+ * keeps its own order inside Arabic text - e.g. "2026-09-22" never renders as "22-09-2026". */
+export function ltr(value: string): string {
+  return `\u2066${value}\u2069`;
+}
+
 export function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -120,6 +126,12 @@ export function buildPrintableHtml(doc: PrintableDocument, business: BusinessPro
 /** An ASCII-only PDF file name (some share targets and browsers drop or mangle non-ASCII names):
  * the document kind plus date and time, e.g. "starnet-invoice-2026-09-25-1338.pdf". */
 export function pdfFileName(title: string, stamp: string): string {
-  const kind = title.includes("فاتورة") || title.includes("مرتجع") ? "invoice" : title.includes("مندوب") ? "rep-statement" : "statement";
+  const kind = title.includes("سند")
+    ? "receipt"
+    : title.includes("فاتورة") || title.includes("مرتجع")
+      ? "invoice"
+      : title.includes("مندوب")
+        ? "rep-statement"
+        : "statement";
   return `starnet-${kind}-${stamp.replace(/[^0-9-]/g, "")}.pdf`;
 }

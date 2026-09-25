@@ -158,6 +158,19 @@ export interface StarlinkAccountSummary {
    * entries/allocations are never touched by this alone. Permanent removal is a separate, later
    * action taken from within the trash view itself. */
   deletedAt?: string | null;
+  /** The device's fixed monthly price ("السعر الشهري الثابت"), set by the operator - lets "تجديد"
+   * record the month's shipment in one tap. Only a default: every shipment still locks its own
+   * amounts and rates when created, so editing this never changes past entries. */
+  renewalPlan?: RenewalPlan;
+}
+
+export interface RenewalPlan {
+  /** What the customer pays per renewal, in a ledger currency (USD/MRU/SIFA). */
+  saleAmount: number;
+  saleCurrency: string;
+  /** What Starlink charges per renewal, in any registered currency. */
+  costAmount: number;
+  costCurrency: string;
 }
 
 /** Detail-view shape - includes decrypted secrets, only ever returned to

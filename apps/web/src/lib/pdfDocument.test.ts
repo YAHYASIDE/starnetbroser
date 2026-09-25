@@ -39,5 +39,6 @@ describe("pdfDocument", () => {
     expect(pdfFileName("كشف حساب زبون", "2026-09-25-1338")).toBe("starnet-statement-2026-09-25-1338.pdf");
     expect(pdfFileName("فاتورة بيع", "2026-09-25-1338")).toBe("starnet-invoice-2026-09-25-1338.pdf");
     expect(pdfFileName("كشف حساب مندوب", "2026-09-25")).toBe("starnet-rep-statement-2026-09-25.pdf");
+    expect(pdfFileName("سند قبض", "2026-09-25")).toBe("starnet-receipt-2026-09-25.pdf");
   });
 });

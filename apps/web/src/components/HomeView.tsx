@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { App } from "@capacitor/app";
 import { DeviceStatus, StarlinkAccountSummary } from "@starnet/shared";
 import { expiryDay } from "@starnet/shared";
@@ -20,6 +21,9 @@ import { computeDeviceDebtReminders, computeRenewalReminders, computeRestrictedD
 import { formatAmount } from "@/lib/formatAmount";
 import { applyLedgerPaymentsToCash, CashEntryList, loadCashEntries, saveCashEntries } from "@/lib/cashStore";
 import { parseNewDevicePrefill } from "@/lib/deviceFromSale";
+import { buildRenewalShipment } from "@/lib/renewalPlan";
+import { runAutoBackup } from "@/lib/autoBackupRunner";
+import { onDigestTapped, rescheduleMorningDigests } from "@/lib/morningNotifications";
 import { APK_DOWNLOAD_URL, checkForAppUpdate, shouldAutoCheck } from "@/lib/appUpdate";
 import { computeTodaySummary, deviceMatchesQuery, searchEverything, SearchResult } from "@/lib/homeInsights";
 import { listSuppliers, loadSupplierStore, SupplierStore } from "@/lib/supplierStore";
@@ -166,6 +170,9 @@ export function HomeView({
   // A newer staging APK than this build (see appUpdate.ts) - checked in the Android app only, at
   // most every few hours, silently ignored when offline.
   const [updateAvailable, setUpdateAvailable] = useState(false);
+  // النسخ الاحتياطي التلقائي (autoBackup.ts): once accounts are loaded, at most once a day.
+  const autoBackupStartedRef = useRef(false);
+  const router = useRouter();
   useEffect(() => {
     if (!isRunningInAndroidApp() || !shouldAutoCheck()) return;
     void checkForAppUpdate().then((result) => setUpdateAvailable(result.status === "update"));
@@ -523,6 +530,32 @@ export function HomeView({
   // (filtered inline, not via the activeAccounts memo below, to keep this effect independent of
   // that memo's own position in the hook order) - there is nothing useful to keep background-
   // syncing once a device has been set aside.
+  // التنبيه الصباحي (morningDigest.ts): rescheduled whenever devices or balances change, once the
+  // real account list is loaded; tapping one opens the reminders page.
+  useEffect(() => onDigestTapped((route) => router.push(route)), [router]);
+  useEffect(() => {
+    let cancelled = false;
+    void accountsReadyGateRef.current.whenReady().then(() => {
+      if (!cancelled) void rescheduleMorningDigests(accounts, totalOwedAcrossAccounts(ledgerStore));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [accounts, ledgerStore]);
+
+  useEffect(() => {
+    if (autoBackupStartedRef.current) return;
+    autoBackupStartedRef.current = true;
+    // Only after the real account list is loaded (same gate the sync drain waits on), so a backup
+    // never captures the placeholder list shown before loading finishes.
+    void accountsReadyGateRef.current.whenReady().then(async () => {
+      const outcome = await runAutoBackup(accountsRef.current);
+      if (outcome.status === "saved") setLastBackupAt(new Date().toISOString());
+      if (outcome.status === "failed") pushToast(`تعذر النسخ الاحتياطي التلقائي: ${outcome.message}`);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     const activeOnly = accounts.filter((account) => !account.archivedAt && !account.deletedAt);
     void syncAutoSyncAccountList(activeOnly.map((account) => ({ id: account.id, name: account.name })));
@@ -584,8 +617,24 @@ export function HomeView({
   // "تجديد": only ever updates rechargeDate - never talks to Starlink, never touches the ledger
   // itself. Opening the ledger dialog right after is what lets the operator record the actual
   // shipment/payment, reusing the existing "إضافة حركة" flow rather than a second, parallel one.
-  function handleConfirmRenewal(account: StarlinkAccountSummary, newRechargeDate: string) {
+  // With a fixed monthly price (renewalPlan) and auto-shipment ticked, the month's shipment is
+  // recorded right here (renewalPlan.ts) instead - falling back to the manual dialog, with the
+  // reason, whenever a needed exchange rate isn't registered.
+  function handleConfirmRenewal(account: StarlinkAccountSummary, newRechargeDate: string, autoShipment = false) {
     patchAccount(account.id, { rechargeDate: newRechargeDate, lastUpdated: "الآن" });
+    if (autoShipment && account.renewalPlan) {
+      const rep = getRepresentative(representativeStore, account.representativeId);
+      const result = buildRenewalShipment(account.renewalPlan, currencyStore, new Date().toISOString().slice(0, 10), {
+        email: account.expectedEmail || account.starlinkAccountEmail || "",
+        representative: rep ? { id: rep.id, commissionPercent: rep.commissionPercent, sharesLosses: rep.sharesLosses } : undefined,
+      });
+      if (result.ok) {
+        updateLedgerEntries(account.id, [...getAccountEntries(ledgerStore, account.id), result.entry]);
+        pushToast(`✓ تم التجديد وتسجيل شحنة ${formatAmount(result.entry.amount)} ${LEDGER_CURRENCY_LABELS[result.entry.currency]} على "${account.name}"`);
+        return;
+      }
+      pushToast(`تعذر التسجيل التلقائي: ${result.message} - سجّل الشحنة يدويًا`);
+    }
     setLedgerAccount({ ...account, rechargeDate: newRechargeDate });
   }
 
@@ -1056,6 +1105,9 @@ export function HomeView({
           onRemoveEntryAllocations={removeAllocationsEverywhere}
           onClose={() => setLedgerAccount(null)}
           onChange={(entries) => updateLedgerEntries(ledgerAccount.id, entries)}
+          renewalPlan={ledgerAccount.renewalPlan}
+          clientName={getClient(clientStore, ledgerAccount.clientId)?.name}
+          clientPhone={getClient(clientStore, ledgerAccount.clientId)?.phone ?? ledgerAccount.phone}
           representative={(() => {
             const rep = getRepresentative(representativeStore, ledgerAccount.representativeId);
             return rep ? { id: rep.id, commissionPercent: rep.commissionPercent, sharesLosses: rep.sharesLosses } : undefined;

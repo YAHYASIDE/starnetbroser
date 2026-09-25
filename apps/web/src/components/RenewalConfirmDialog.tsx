@@ -2,13 +2,14 @@
 
 import { FormEvent, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
+import { formatAmount } from "@/lib/formatAmount";
 
 interface Props {
   account: StarlinkAccountSummary;
-  /** Applies the new renewal date and opens the ledger dialog for this account so the operator can
-   * record the actual shipment/payment - this dialog itself never creates a ledger entry, never
-   * touches Starlink, and never runs twice for the same confirm (a single explicit submit). */
-  onConfirm: (newRechargeDate: string) => void;
+  /** Applies the new renewal date; `autoShipment` asks the caller to record the month's shipment
+   * from the device's renewalPlan, otherwise it opens the ledger dialog for a manual entry. This
+   * dialog itself never creates a ledger entry and never touches Starlink. */
+  onConfirm: (newRechargeDate: string, autoShipment: boolean) => void;
   onClose: () => void;
 }
 
@@ -28,17 +29,20 @@ function toStoredDate(date: string): string {
 
 /**
  * "تجديد" - records that the operator has actually shipped/renewed this device. Only ever updates
- * `rechargeDate` on confirm; it never talks to Starlink itself (no automatic payment/renewal) and
- * never creates a ledger entry on its own - the caller opens the existing "إضافة حركة" flow
- * (LedgerDialog) right after, so recording the financial side stays one deliberate, reusable step
- * rather than something this dialog invents its own version of.
+ * `rechargeDate` on confirm; it never talks to Starlink itself. The financial side is either the
+ * one-tap shipment from the device's fixed monthly price (renewalPlan.ts, done by the caller) or
+ * the existing "إضافة حركة" flow (LedgerDialog) opened right after.
  */
 export function RenewalConfirmDialog({ account, onConfirm, onClose }: Props) {
   const [date, setDate] = useState(toInputDate(account.rechargeDate || dateAfterDays(28)));
+  const plan = account.renewalPlan;
+  // With a fixed monthly price (renewalPlan) the shipment can be recorded in the same tap; the
+  // operator can still untick this to type it by hand.
+  const [autoShipment, setAutoShipment] = useState(plan !== undefined);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    onConfirm(toStoredDate(date));
+    onConfirm(toStoredDate(date), autoShipment && plan !== undefined);
   }
 
   return (
@@ -60,8 +64,26 @@ export function RenewalConfirmDialog({ account, onConfirm, onClose }: Props) {
             <input required type="date" dir="ltr" value={date} onChange={(e) => setDate(e.target.value)} />
           </label>
 
+          {plan && (
+            <label className="ledger-d-toggle renewal-auto-toggle form-wide">
+              <input type="checkbox" checked={autoShipment} onChange={(e) => setAutoShipment(e.target.checked)} />
+              <span>
+                ⚡ سجّل الشحنة تلقائيًا:{" "}
+                <bdi dir="ltr">
+                  {formatAmount(plan.saleAmount)} {plan.saleCurrency}
+                </bdi>{" "}
+                للزبون، وتكلفة Starlink{" "}
+                <bdi dir="ltr">
+                  {formatAmount(plan.costAmount)} {plan.costCurrency}
+                </bdi>
+              </span>
+            </label>
+          )}
+
           <p className="renewal-dialog-note">
-            بعد التأكيد سيُفتح سجل حركة الحساب لتسجيل الشحنة/الدفعة المرتبطة بهذا التجديد.
+            {autoShipment && plan
+              ? "ستُسجَّل الشحنة بأسعار الصرف الحالية وتظهر في كشف الجهاز والزبون مباشرة."
+              : "بعد التأكيد سيُفتح سجل حركة الحساب لتسجيل الشحنة/الدفعة المرتبطة بهذا التجديد."}
           </p>
 
           <div className="dialog-actions form-wide">

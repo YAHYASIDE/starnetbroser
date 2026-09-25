@@ -26,6 +26,9 @@ import { collectAppData, createEncryptedBackupFile, mergeImportedAccounts, readE
 import { exportAccountSessions, importAccountSessions, isRunningInAndroidApp, openNotificationSettings } from "@/lib/localBrowser";
 import { saveAndShareBackupFile } from "@/lib/backupFile";
 import { APK_DOWNLOAD_URL, checkForAppUpdate, CURRENT_COMMIT, UpdateCheckResult } from "@/lib/appUpdate";
+import { getMorningDigestHour, isMorningDigestEnabled, setMorningDigestEnabled, setMorningDigestHour } from "@/lib/morningNotifications";
+import { getAutoBackupLastRun, getAutoBackupPassword, setAutoBackupPassword } from "@/lib/autoBackup";
+import { runAutoBackup, shareLatestAutoBackup } from "@/lib/autoBackupRunner";
 import { BusinessProfile, loadBusinessProfile, saveBusinessProfile } from "@/lib/pdfDocument";
 import { clearAppPin, hasAppPin, setAppPin, verifyAppPin } from "@/lib/appLock";
 
@@ -131,6 +134,8 @@ export default function SettingsPage() {
 
       <AppUpdateSection />
 
+      <AutoBackupSection />
+
       <section className="section">
         <h2 className="section-title">المساعدة الذكية</h2>
         <p className="settings-hint">
@@ -186,6 +191,7 @@ export default function SettingsPage() {
             <span className="toggle-switch-thumb" />
           </span>
         </label>
+        <MorningDigestSettings />
         {isAndroidApp && (
           <div className="settings-actions" style={{ marginTop: "12px" }}>
             <button className="btn-icon" onClick={() => openNotificationSettings()}>
@@ -719,5 +725,154 @@ function AppUpdateSection() {
         </a>
       )}
     </section>
+  );
+}
+
+/** النسخ الاحتياطي التلقائي اليومي - see autoBackup.ts. */
+function AutoBackupSection() {
+  const [enabled, setEnabled] = useState(false);
+  const [lastRun, setLastRun] = useState<{ date: string | null; file: string | null }>({ date: null, file: null });
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [android, setAndroid] = useState(true);
+
+  useEffect(() => {
+    setAndroid(isRunningInAndroidApp());
+    setEnabled(getAutoBackupPassword() !== null);
+    setLastRun(getAutoBackupLastRun());
+  }, []);
+
+  async function backupNow() {
+    setBusy(true);
+    const accounts = isDemoMode() ? loadDemoAccounts([]) : await listAccounts().catch(() => []);
+    const outcome = await runAutoBackup(accounts, true);
+    setBusy(false);
+    setLastRun(getAutoBackupLastRun());
+    setMessage(outcome.status === "saved" ? `✓ تم حفظ نسخة اليوم${outcome.inAppStorage ? " داخل مساحة التطبيق (استخدم «مشاركة آخر نسخة» لنقلها)" : " في ملفات الهاتف (Documents/STARNET)"}` : outcome.status === "failed" ? outcome.message : "النسخ التلقائي يعمل داخل تطبيق Android فقط");
+  }
+
+  function enable() {
+    if (password.length < MIN_BACKUP_PASSWORD_LENGTH) {
+      setMessage(`كلمة المرور يجب أن تكون ${MIN_BACKUP_PASSWORD_LENGTH} أحرف على الأقل`);
+      return;
+    }
+    if (password !== confirm) {
+      setMessage("كلمتا المرور غير متطابقتين");
+      return;
+    }
+    setAutoBackupPassword(password);
+    setEnabled(true);
+    setPassword("");
+    setConfirm("");
+    void backupNow();
+  }
+
+  function disable() {
+    if (!window.confirm("إيقاف النسخ الاحتياطي التلقائي؟ تبقى النسخ القديمة في ملفات الهاتف.")) return;
+    setAutoBackupPassword(null);
+    setEnabled(false);
+    setMessage(null);
+  }
+
+  return (
+    <section className="section">
+      <h2 className="section-title">نسخ احتياطي تلقائي يومي</h2>
+      <p className="settings-hint">
+        كل يوم عند فتح التطبيق تُحفظ نسخة كاملة مشفّرة في ملفات الهاتف (مجلد Documents/STARNET)، ويُحتفظ بآخر 7 نسخ.
+        هذه الملفات تبقى حتى لو حذفت التطبيق. احفظ كلمة المرور جيدًا - بدونها لا يمكن استرجاع النسخة.
+      </p>
+      {!android && <p className="settings-hint">⚠️ يعمل داخل تطبيق Android فقط.</p>}
+      {enabled ? (
+        <>
+          <p className="settings-hint">
+            ✓ مفعّل{lastRun.date ? <> - آخر نسخة: <bdi dir="ltr">{lastRun.date}</bdi></> : " - لم تُحفظ نسخة بعد"}
+          </p>
+          <div className="settings-actions">
+            <button type="button" className="dialog-primary" onClick={backupNow} disabled={busy}>
+              {busy ? "جارِ الحفظ…" : "نسخ الآن"}
+            </button>
+            {lastRun.file && (
+              <button
+                type="button"
+                className="dialog-secondary"
+                onClick={async () => {
+                  const r = await shareLatestAutoBackup();
+                  if (!r.ok) setMessage(r.message);
+                }}
+              >
+                مشاركة آخر نسخة
+              </button>
+            )}
+            <button type="button" className="text-action" onClick={disable}>
+              إيقاف
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="auth-form">
+          <input className="search-input" type="password" autoComplete="new-password" placeholder="كلمة مرور النسخ التلقائي" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <input className="search-input" type="password" autoComplete="new-password" placeholder="تأكيد كلمة المرور" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+          <button type="button" className="dialog-primary" onClick={enable} disabled={!password}>
+            تفعيل النسخ التلقائي
+          </button>
+        </div>
+      )}
+      {message && <p className="settings-hint">{message}</p>}
+    </section>
+  );
+}
+
+/** ☀️ التنبيه الصباحي - on/off and time; the schedule itself is refreshed each time the home page
+ * opens (HomeView.tsx). */
+function MorningDigestSettings() {
+  const [enabled, setEnabled] = useState(true);
+  const [hour, setHour] = useState(8);
+  useEffect(() => {
+    setEnabled(isMorningDigestEnabled());
+    setHour(getMorningDigestHour());
+  }, []);
+
+  return (
+    <div className="morning-digest-settings">
+      <label className="toggle-switch-row">
+        <span>☀️ تنبيه صباحي يومي (يصل حتى والتطبيق مغلق)</span>
+        <span className={`toggle-switch${enabled ? " toggle-switch-on" : ""}`}>
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={(e) => {
+              setEnabled(e.target.checked);
+              setMorningDigestEnabled(e.target.checked);
+            }}
+          />
+          <span className="toggle-switch-thumb" />
+        </span>
+      </label>
+      {enabled && (
+        <label className="form-field">
+          <span>وقت التنبيه</span>
+          <select
+            className="search-input"
+            value={hour}
+            onChange={(e) => {
+              const next = Number(e.target.value);
+              setHour(next);
+              setMorningDigestHour(next);
+            }}
+          >
+            {[5, 6, 7, 8, 9, 10, 11, 12].map((h) => (
+              <option key={h} value={h}>
+                {h}:00 صباحًا
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <p className="settings-hint">
+        يلخّص الأجهزة التي تنتهي اليوم وغدًا والمنتهية والديون المستحقة. الضغط عليه يفتح صفحة التذكيرات. يُحدَّث الجدول كل مرة تفتح فيها الصفحة الرئيسية.
+      </p>
+    </div>
   );
 }

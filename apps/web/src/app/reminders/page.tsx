@@ -23,6 +23,8 @@ import {
 import { daysRemainingLabel, formatRelativeTime } from "@/lib/date";
 import { formatAmount } from "@/lib/formatAmount";
 import { BulkWhatsAppSender } from "@/components/BulkWhatsAppSender";
+import { DebtAgingSection } from "@/components/DebtAgingSection";
+import { computeDebtAging } from "@/lib/debtAging";
 import { buildBalanceReminderMessage, buildExpiryReminderMessage, buildStoreDebtReminderMessage, buildWhatsAppLink } from "@/lib/whatsapp";
 
 function currencyLabel(code: string): string {
@@ -68,6 +70,18 @@ export default function RemindersPage() {
     [storeItems, storeTransactions],
   );
   const backupOverdue = isBackupOverdue(lastBackupAt);
+  const debtors = useMemo(
+    () =>
+      computeDebtAging({
+        clients: Object.values(clientStore),
+        accounts,
+        invoices,
+        adjustments: partyAdjustments,
+        ledgerStore,
+        today: new Date().toISOString().slice(0, 10),
+      }),
+    [clientStore, accounts, invoices, partyAdjustments, ledgerStore],
+  );
   /** A device's own phone, or else the phone of the client it's linked to. */
   const phoneFor = (account: StarlinkAccountSummary) => account.phone || (account.clientId ? clientStore[account.clientId]?.phone : undefined);
 
@@ -111,6 +125,8 @@ export default function RemindersPage() {
           </ul>
         </section>
       )}
+
+      <DebtAgingSection debtors={debtors} />
 
       <section className="section">
         <h2 className="report-section-title">تجديدات مستحقة ({renewalReminders.length})</h2>

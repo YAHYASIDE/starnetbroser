@@ -4526,3 +4526,137 @@ button.today-tile {
   border-color: var(--green);
   background: var(--green-bg);
 }
+
+/* ---- Device dialog: fixed monthly price ---- */
+.renewal-plan-fields {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px dashed var(--brand);
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+}
+
+.renewal-plan-fields legend {
+  padding: 0 6px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--brand-strong);
+}
+
+.renewal-plan-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px;
+  gap: 8px;
+}
+
+.renewal-auto-toggle {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--mint-bg);
+  color: var(--text);
+}
+
+/* ---- Reminders: debt aging ---- */
+.aging-buckets {
+  display: grid;
+  grid-template-columns: auto repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.aging-currency {
+  align-self: center;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+.aging-bucket {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 2px 0 rgb(0 0 0 / 0.08);
+  min-width: 0;
+}
+
+.aging-bucket small {
+  font-size: 0.68rem;
+}
+
+.aging-bucket strong {
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.aging-fresh {
+  background: var(--green-bg);
+  color: var(--green);
+}
+
+.aging-late {
+  background: var(--yellow-bg);
+  color: var(--yellow);
+}
+
+.aging-overdue {
+  background: var(--red-bg);
+  color: var(--red);
+}
+
+.aging-list {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.aging-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  border-inline-start: 4px solid currentColor;
+}
+
+.aging-row-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  color: var(--text);
+}
+
+.aging-row-main span {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.aging-wa {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #25d366;
+  text-decoration: none;
+  font-size: 1.1rem;
+}
+
+.aging-no-phone {
+  flex: none;
+  width: 36px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.morning-digest-settings {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}

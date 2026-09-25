@@ -1,5 +1,8 @@
 "use client";
 
+import type { RenewalPlan } from "@starnet/shared";
+import { PdfButton } from "./PdfButton";
+import { buildPaymentReceipt } from "@/lib/receipt";
 import { FormEvent, useState } from "react";
 import {
   computeBalanceByCurrency,
@@ -79,6 +82,11 @@ interface Props {
   /** The device's current representative (account.representativeId) - locked onto every new
    * shipment so their share of its profit is tracked (see LedgerEntry.representativeId). */
   representative?: { id: string; commissionPercent: number; sharesLosses?: boolean };
+  /** The device's fixed monthly price, if set - only prefills a new shipment's amounts. */
+  renewalPlan?: RenewalPlan;
+  /** The linked client, shown on payment receipts (سند قبض). */
+  clientName?: string;
+  clientPhone?: string;
 }
 
 /** Builds one device's own allocation-dialog data: its eligible (same-currency, not-yet-fully-
@@ -123,12 +131,19 @@ export function LedgerDialog({
   onClose,
   onChange,
   representative,
+  renewalPlan,
+  clientName,
+  clientPhone,
 }: Props) {
   const [kind, setKind] = useState<LedgerEntryKind>("debit");
   // أوقية (MRU) is the actual day-to-day currency this business sells in - USD is only the
   // internal reference currency, never what a new entry should default to.
-  const [currency, setCurrency] = useState<LedgerCurrency>("MRU");
-  const [amount, setAmount] = useState("");
+  const planSaleCurrency =
+    renewalPlan && LEDGER_CURRENCIES.includes(renewalPlan.saleCurrency as LedgerCurrency)
+      ? (renewalPlan.saleCurrency as LedgerCurrency)
+      : undefined;
+  const [currency, setCurrency] = useState<LedgerCurrency>(planSaleCurrency ?? "MRU");
+  const [amount, setAmount] = useState(renewalPlan && planSaleCurrency ? String(renewalPlan.saleAmount) : "");
   const [note, setNote] = useState("");
   // Prefilled from the device's own already-known email when available - still a plain field the
   // operator can freely clear or change per entry, never locked to it.
@@ -145,17 +160,17 @@ export function LedgerDialog({
   // rate blocks submission instead of silently defaulting to a wrong one - pre-filled here for the
   // default MRU currency above, same as selectCurrency does when switching currencies later.
   const [rateInput, setRateInput] = useState(() => {
-    const known = getCurrency(currencyStore, "MRU")?.rateFromUsd;
+    const known = getCurrency(currencyStore, planSaleCurrency ?? "MRU")?.rateFromUsd;
     return known !== undefined ? String(known) : "";
   });
 
   // Starlink's own cost for this shipment, captured right here instead of a later separate step
   // (see StarlinkCost) - defaults to whatever currency this device last used, same convenience as
   // the settlement dialogs below.
-  const [costCurrencyCode, setCostCurrencyCode] = useState(() => lastUsedCostCurrency(entries) ?? "");
-  const [costAmount, setCostAmount] = useState("");
+  const [costCurrencyCode, setCostCurrencyCode] = useState(() => renewalPlan?.costCurrency ?? lastUsedCostCurrency(entries) ?? "");
+  const [costAmount, setCostAmount] = useState(renewalPlan ? String(renewalPlan.costAmount) : "");
   const [costRate, setCostRate] = useState(() => {
-    const code = lastUsedCostCurrency(entries);
+    const code = renewalPlan?.costCurrency ?? lastUsedCostCurrency(entries);
     const known = code ? getCurrency(currencyStore, code)?.rateFromUsd : undefined;
     return known !== undefined ? String(known) : "";
   });
@@ -644,6 +659,13 @@ export function LedgerDialog({
                 </span>
                 <span className="ledger-entry-amount" dir="ltr">{formatMoney(entry.amount, entry.currency)}</span>
                 <span className="ledger-entry-date" dir="ltr">{entry.date}</span>
+                {entry.kind === "credit" && (
+                  <PdfButton
+                    className="text-action"
+                    label="🧾 سند"
+                    build={() => buildPaymentReceipt({ payment: entry, entries, deviceName: accountName, clientName, clientPhone })}
+                  />
+                )}
                 <button
                   className="text-action"
                   type="button"

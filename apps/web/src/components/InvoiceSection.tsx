@@ -21,7 +21,7 @@ import {
 } from "@/lib/invoiceStore";
 import { buildInvoiceMessage, buildWhatsAppLink } from "@/lib/whatsapp";
 import { PdfButton } from "./PdfButton";
-import { PrintableDocument } from "@/lib/pdfDocument";
+import { ltr, PrintableDocument } from "@/lib/pdfDocument";
 import { formatAmount } from "@/lib/formatAmount";
 import { getDefaultInvoiceCurrency } from "@/lib/settingsStore";
 import { ClientPicker } from "./ClientPicker";
@@ -792,7 +792,7 @@ function buildInvoicePdf(
     title: invoice.returnOfInvoiceId ? `مرتجع ${kind}` : `فاتورة ${kind}`,
     partyName: counterpartyName ?? "بدون اسم",
     partyPhone: phone,
-    subtitle: [`التاريخ: ${invoice.date}`, `رقم: ${invoice.id.slice(0, 8)}`, representativeName ? `المندوب: ${representativeName}` : ""]
+    subtitle: [`التاريخ: ${ltr(invoice.date)}`, `رقم: ${ltr(invoice.id.slice(0, 8))}`, representativeName ? `المندوب: ${representativeName}` : ""]
       .filter(Boolean)
       .join(" · "),
     summary: [
