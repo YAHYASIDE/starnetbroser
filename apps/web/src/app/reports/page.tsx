@@ -20,6 +20,8 @@ import { computeExpectedRepSharesUsd, computeRepSharesMru, computeRepSharesUsd }
 import { sumProfitMru } from "@/lib/profitMru";
 import { CurrencyStore, getCurrency, loadCurrencyStore } from "@/lib/currencyStore";
 import { summarizeDeviceProfit } from "@/lib/accountingStore";
+import { daysRemainingNumber } from "@/lib/date";
+import { TodayPanel } from "@/components/TodayPanel";
 
 function currencyLabelFor(code: string): string {
   return LEDGER_CURRENCY_LABELS[code as keyof typeof LEDGER_CURRENCY_LABELS] ?? code;
@@ -211,6 +213,12 @@ export default function ReportsPage() {
         </Link>
         <h1 className="section-title">الأرباح والتقارير</h1>
       </div>
+
+      <TodayPanel
+        ledgerStore={ledgerStore}
+        cashEntries={cashEntries}
+        renewalsToday={activeAccounts.filter((a) => daysRemainingNumber(a.rechargeDate || a.standbyDate) === 0).length}
+      />
 
       <section className="section">
         <div className="report-period-row">

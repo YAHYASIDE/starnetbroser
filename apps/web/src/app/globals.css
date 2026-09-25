@@ -5610,3 +5610,104 @@ button.today-tile {
   margin: 0;
   font-size: 0.85rem;
 }
+
+/* ---- Home status rings: circular counters, ring filled by each status's share ---- */
+.status-rings {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
+  padding: 14px 8px 12px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.status-ring {
+  --tone: var(--brand);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.status-ring-total { --tone: var(--brand); }
+.status-ring-online { --tone: var(--green); }
+.status-ring-warning { --tone: var(--yellow); }
+.status-ring-expired { --tone: var(--red); }
+.status-ring-suspended { --tone: var(--orange); }
+
+.status-ring-dial {
+  --share: 0;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: conic-gradient(var(--tone) calc(var(--share) * 1turn), color-mix(in srgb, var(--tone) 16%, transparent) 0);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.status-ring-core {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--tone) 12%, var(--surface));
+}
+
+.status-ring-icon {
+  display: inline-flex;
+  color: var(--tone);
+  line-height: 0;
+}
+
+.status-ring-value {
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.status-ring-label {
+  max-width: 100%;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--text-muted);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-ring:active .status-ring-dial {
+  transform: scale(0.94);
+}
+
+.status-ring-active .status-ring-dial {
+  box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--tone), 0 0 18px color-mix(in srgb, var(--tone) 45%, transparent);
+}
+
+.status-ring-active .status-ring-label {
+  color: var(--tone);
+}
+
+@media (max-width: 370px) {
+  .status-ring-dial { width: 52px; height: 52px; }
+  .status-ring-core { width: 43px; height: 43px; }
+  .status-ring-label { font-size: 0.68rem; }
+}

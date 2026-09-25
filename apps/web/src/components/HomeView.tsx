@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { CSSProperties, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { App } from "@capacitor/app";
@@ -19,20 +19,18 @@ import { HelpHint } from "./HelpHint";
 import { daysRemainingNumber } from "@/lib/date";
 import { computeDeviceDebtReminders, computeRenewalReminders, computeRestrictedDeviceReminders, isBackupOverdue } from "@/lib/reminders";
 import { formatAmount } from "@/lib/formatAmount";
-import { applyLedgerPaymentsToCash, CashEntryList, loadCashEntries, saveCashEntries } from "@/lib/cashStore";
+import { applyLedgerPaymentsToCash, loadCashEntries, saveCashEntries } from "@/lib/cashStore";
 import { parseNewDevicePrefill } from "@/lib/deviceFromSale";
 import { buildRenewalShipment } from "@/lib/renewalPlan";
 import { runAutoBackup } from "@/lib/autoBackupRunner";
 import { onDigestTapped, rescheduleMorningDigests } from "@/lib/morningNotifications";
 import { APK_DOWNLOAD_URL, checkForAppUpdate, shouldAutoCheck } from "@/lib/appUpdate";
-import { computeTodaySummary, deviceMatchesQuery, searchEverything, SearchResult } from "@/lib/homeInsights";
+import { deviceMatchesQuery, searchEverything, SearchResult } from "@/lib/homeInsights";
 import { listSuppliers, loadSupplierStore, SupplierStore } from "@/lib/supplierStore";
 import { listStoreItems, loadStoreItems, StoreItemRegistry } from "@/lib/storeStore";
 import {
   getAccountEntries,
-  LEDGER_CURRENCIES,
   LEDGER_CURRENCY_LABELS,
-  LedgerCurrency,
   LedgerByAccount,
   LedgerEntry,
   loadLedgerStore,
@@ -198,11 +196,9 @@ export function HomeView({
   const [ledgerStore, setLedgerStore] = useState<LedgerByAccount>({});
   useEffect(() => setLedgerStore(loadLedgerStore()), []);
   // Read-only here: the till (for the "اليوم" panel), suppliers and store items (for global search).
-  const [cashEntries, setCashEntries] = useState<CashEntryList>([]);
   const [supplierStore, setSupplierStore] = useState<SupplierStore>({});
   const [storeItems, setStoreItems] = useState<StoreItemRegistry>({});
   useEffect(() => {
-    setCashEntries(loadCashEntries());
     setSupplierStore(loadSupplierStore());
     setStoreItems(loadStoreItems());
   }, []);
@@ -219,7 +215,6 @@ export function HomeView({
     const deviceName = accounts.find((a) => a.id === accountId)?.name ?? "";
     const nextCash = applyLedgerPaymentsToCash(loadCashEntries(), getAccountEntries(ledgerStore, accountId), entries, deviceName);
     saveCashEntries(nextCash);
-    setCashEntries(nextCash);
     setLedgerStore((current) => {
       const next = withAccountEntries(current, accountId, entries);
       saveLedgerStore(next);
@@ -732,7 +727,6 @@ export function HomeView({
     return { total: activeAccounts.length, online, expiringSoon, expired, suspended };
   }, [activeAccounts]);
 
-  const totalOwedByCustomers = useMemo(() => totalOwedAcrossAccounts(ledgerStore), [ledgerStore]);
 
   const filtered = useMemo(() => {
     let list = activeAccounts;
@@ -759,12 +753,6 @@ export function HomeView({
     [query, clients, supplierStore, representatives, storeItems],
   );
 
-  const todayIso = new Date().toISOString().slice(0, 10);
-  const today = useMemo(() => computeTodaySummary(ledgerStore, cashEntries, todayIso), [ledgerStore, cashEntries, todayIso]);
-  const renewalsToday = useMemo(
-    () => activeAccounts.filter((a) => daysRemainingNumber(a.rechargeDate || a.standbyDate) === 0).length,
-    [activeAccounts],
-  );
 
   const visible =
     viewMode === "archived" ? archivedAccounts
@@ -898,101 +886,51 @@ export function HomeView({
 
       {viewMode === "active" && (
         <>
-          <section className="today-panel" aria-label="اليوم">
-            <div className="today-head">
-              <strong>📅 اليوم</strong>
-              <span dir="ltr">{todayIso}</span>
-            </div>
-            <div className="today-tiles">
-              <div className="today-tile today-collected">
-                <span>تحصيل الأجهزة</span>
-                <AmountStack values={today.collected} />
-              </div>
-              <div className="today-tile today-charged">
-                <span>شحنات جديدة</span>
-                <AmountStack values={today.charged} />
-              </div>
-              <Link href="/store" className="today-tile today-cash">
-                <span>الصندوق (دخل / خرج)</span>
-                <AmountStack values={today.cashIn} prefix="+" />
-                <AmountStack values={today.cashOut} prefix="-" hideEmpty />
-              </Link>
-              <button
-                type="button"
-                className="today-tile today-renewals"
-                onClick={() => {
-                  const day = new Date().getDate();
-                  setSelectedDay(day);
-                  setStatFilter(null);
-                }}
-              >
-                <span>تجديد اليوم</span>
-                <strong>{renewalsToday}</strong>
-              </button>
-            </div>
-          </section>
-
-          <section className="overview-grid" aria-label="ملخص الحسابات">
-            <button
-              type="button"
-              className="overview-card overview-total"
+          <section className="status-rings" aria-label="ملخص الحسابات">
+            <StatusRing
+              tone="total"
+              value={overview.total}
+              total={overview.total}
+              label="كل الأجهزة"
+              icon={<IconGrid />}
               onClick={() => { setShowAll(true); setSelectedDay(null); setStatFilter(null); }}
-            >
-              <span className="overview-icon" aria-hidden="true">◎</span>
-              <span className="overview-value">{overview.total}</span>
-              <span className="overview-label">كل الحسابات</span>
-            </button>
-            <button
-              type="button"
-              className={`overview-card overview-online${statFilter === "online" ? " overview-card-active" : ""}`}
-              aria-pressed={statFilter === "online"}
+            />
+            <StatusRing
+              tone="online"
+              value={overview.online}
+              total={overview.total}
+              label="متصلة الآن"
+              icon={<IconSignal />}
+              active={statFilter === "online"}
               onClick={() => toggleStatFilter("online")}
-            >
-              <span className="overview-icon" aria-hidden="true">●</span>
-              <span className="overview-value">{overview.online}</span>
-              <span className="overview-label">متصل الآن</span>
-            </button>
-            <button
-              type="button"
-              className={`overview-card overview-warning${statFilter === "expiringSoon" ? " overview-card-active" : ""}`}
-              aria-pressed={statFilter === "expiringSoon"}
+            />
+            <StatusRing
+              tone="warning"
+              value={overview.expiringSoon}
+              total={overview.total}
+              label="تنتهي قريبًا"
+              icon={<IconClock />}
+              active={statFilter === "expiringSoon"}
               onClick={() => toggleStatFilter("expiringSoon")}
-            >
-              <span className="overview-icon" aria-hidden="true">◷</span>
-              <span className="overview-value">{overview.expiringSoon}</span>
-              <span className="overview-label">قريب الانتهاء</span>
-            </button>
-            <button
-              type="button"
-              className={`overview-card overview-expired${statFilter === "expired" ? " overview-card-active" : ""}`}
-              aria-pressed={statFilter === "expired"}
+            />
+            <StatusRing
+              tone="expired"
+              value={overview.expired}
+              total={overview.total}
+              label="منتهية"
+              icon={<IconAlert />}
+              active={statFilter === "expired"}
               onClick={() => toggleStatFilter("expired")}
-            >
-              <span className="overview-icon" aria-hidden="true">!</span>
-              <span className="overview-value">{overview.expired}</span>
-              <span className="overview-label">منتهي</span>
-            </button>
-            <button
-              type="button"
-              className={`overview-card overview-suspended${statFilter === "suspended" ? " overview-card-active" : ""}`}
-              aria-pressed={statFilter === "suspended"}
+            />
+            <StatusRing
+              tone="suspended"
+              value={overview.suspended}
+              total={overview.total}
+              label="موقوفة"
+              icon={<IconPause />}
+              active={statFilter === "suspended"}
               onClick={() => toggleStatFilter("suspended")}
-            >
-              <span className="overview-icon" aria-hidden="true">⛔</span>
-              <span className="overview-value">{overview.suspended}</span>
-              <span className="overview-label">متوقفين (فوترة)</span>
-            </button>
-            {LEDGER_CURRENCIES.map((currency) => {
-              const total = totalOwedByCustomers[currency];
-              if (!total) return null;
-              return (
-                <article className="overview-card overview-owed" key={currency}>
-                  <span className="overview-icon" aria-hidden="true">₋</span>
-                  <span className="overview-value">{formatAmount(total)}</span>
-                  <span className="overview-label">مستحق من العملاء ({LEDGER_CURRENCY_LABELS[currency]})</span>
-                </article>
-              );
-            })}
+            />
           </section>
 
           <section className="section dashboard-section">
@@ -1159,24 +1097,6 @@ export function HomeView({
   );
 }
 
-function AmountStack({ values, prefix = "", hideEmpty = false }: { values: Record<string, number>; prefix?: string; hideEmpty?: boolean }) {
-  const codes = Object.keys(values).filter((c) => Math.abs(values[c]!) > 0.0001);
-  if (codes.length === 0) return hideEmpty ? null : <strong>0</strong>;
-  return (
-    <>
-      {codes.map((code) => (
-        <strong key={code}>
-          <bdi dir="ltr">
-            {prefix}
-            {formatAmount(values[code]!)}
-          </bdi>{" "}
-          {LEDGER_CURRENCY_LABELS[code as LedgerCurrency] ?? code}
-        </strong>
-      ))}
-    </>
-  );
-}
-
 const SEARCH_KIND_LABELS: Record<SearchResult["kind"], { icon: string; label: string; href?: string }> = {
   client: { icon: "👤", label: "زبون" },
   supplier: { icon: "🏭", label: "مورد", href: "/clients" },
@@ -1207,5 +1127,97 @@ function SearchResultRow({ result, onOpenClient }: { result: SearchResult; onOpe
     <Link href={meta.href!} className="global-search-row">
       {body}
     </Link>
+  );
+}
+
+type StatusTone = "total" | "online" | "warning" | "expired" | "suspended";
+
+/** One circular status counter: a ring filled by this status's share of all devices, its icon and
+ * count inside, the label underneath. Tapping filters the list (or shows all, for the total). */
+function StatusRing({
+  tone,
+  value,
+  total,
+  label,
+  icon,
+  active = false,
+  onClick,
+}: {
+  tone: StatusTone;
+  value: number;
+  total: number;
+  label: string;
+  icon: ReactNode;
+  active?: boolean;
+  onClick: () => void;
+}) {
+  const share = total > 0 ? Math.min(1, value / total) : 0;
+  return (
+    <button
+      type="button"
+      className={`status-ring status-ring-${tone}${active ? " status-ring-active" : ""}`}
+      aria-pressed={tone === "total" ? undefined : active}
+      aria-label={`${label}: ${value}`}
+      onClick={onClick}
+    >
+      <span className="status-ring-dial" style={{ "--share": share } as CSSProperties}>
+        <span className="status-ring-core">
+          <span className="status-ring-icon" aria-hidden="true">{icon}</span>
+          <span className="status-ring-value">{value}</span>
+        </span>
+      </span>
+      <span className="status-ring-label">{label}</span>
+    </button>
+  );
+}
+
+const ringIconProps = { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.2, strokeLinecap: "round", strokeLinejoin: "round" } as const;
+
+function IconGrid() {
+  return (
+    <svg {...ringIconProps}>
+      <rect x="4" y="4" width="6.5" height="6.5" rx="1.5" />
+      <rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5" />
+      <rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5" />
+      <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5" />
+    </svg>
+  );
+}
+
+function IconSignal() {
+  return (
+    <svg {...ringIconProps}>
+      <path d="M5 12.5a10 10 0 0 1 14 0" />
+      <path d="M8.2 15.6a5.5 5.5 0 0 1 7.6 0" />
+      <circle cx="12" cy="19" r="1" fill="currentColor" />
+    </svg>
+  );
+}
+
+function IconClock() {
+  return (
+    <svg {...ringIconProps}>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M12 8v4.5l3 1.8" />
+    </svg>
+  );
+}
+
+function IconAlert() {
+  return (
+    <svg {...ringIconProps}>
+      <path d="M12 4 21 19.5H3z" />
+      <path d="M12 10v4" />
+      <circle cx="12" cy="17" r="0.6" fill="currentColor" />
+    </svg>
+  );
+}
+
+function IconPause() {
+  return (
+    <svg {...ringIconProps}>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M10 9v6M14 9v6" />
+    </svg>
   );
 }
