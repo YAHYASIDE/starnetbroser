@@ -959,7 +959,7 @@ export function HomeView({
           ledgerStore={ledgerStore}
           allocationStore={allocationStore}
           onClose={() => setOpenClientId(null)}
-          onSave={(patch) => handleUpdateClient(openClientId, patch)}
+          onSave={(patch) => handleUpdateClient(openClientId, { ...patch, creditLimit: getClient(clientStore, openClientId)?.creditLimit })}
           onDelete={() => handleDeleteClient(openClientId)}
         />
       )}

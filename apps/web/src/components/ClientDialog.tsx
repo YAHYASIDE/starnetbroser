@@ -1,12 +1,13 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { CSSProperties, FormEvent, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { Client } from "@/lib/clientStore";
 import { combinePhoneNumber, PHONE_COUNTRY_CODES, splitPhoneNumber } from "@/lib/phoneCountryCodes";
 import { computeClientAccountingSummary } from "@/lib/accountingStore";
-import { BalanceByCurrency, getAccountEntries, LEDGER_CURRENCIES, LedgerByAccount, LedgerCurrency, LEDGER_CURRENCY_LABELS } from "@/lib/ledgerStore";
+import { BalanceByCurrency, getAccountEntries, LEDGER_CURRENCIES, LedgerByAccount, LEDGER_CURRENCY_LABELS } from "@/lib/ledgerStore";
 import { formatAmount } from "@/lib/formatAmount";
+import { partyHue, partyInitials } from "@/lib/partyColor";
 import { allocatedFromPayment, allStoredAllocations, AllocationsByAccount } from "@/lib/paymentAllocationStore";
 import { DeviceStatementDialog } from "./DeviceStatementDialog";
 
@@ -64,7 +65,6 @@ export function ClientDialog({ client, devices, ledgerStore, allocationStore, on
       }
     }
   }
-  const unallocatedRows = Object.entries(unallocatedByCurrency) as [LedgerCurrency, number][];
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -90,8 +90,29 @@ export function ClientDialog({ client, devices, ledgerStore, allocationStore, on
     }
   }
 
-  const totalDebtRows = Object.entries(summary.totalDebt) as [LedgerCurrency, number][];
-  const totalPaidRows = Object.entries(summary.totalPaid) as [LedgerCurrency, number][];
+  // Devices in credit (negative balance) are shown as their own "له رصيد" figure, never netted
+  // against another device's debt - same no-mixing rule as totalDebt itself.
+  const creditByCurrency: BalanceByCurrency = {};
+  for (const device of summary.devices) {
+    for (const c of LEDGER_CURRENCIES) {
+      const b = device.balances[c];
+      if (b !== undefined && b < -0.0001) creditByCurrency[c] = (creditByCurrency[c] ?? 0) - b;
+    }
+  }
+  const currencies = LEDGER_CURRENCIES.filter(
+    (c) =>
+      summary.totalDebt[c] !== undefined ||
+      summary.totalPaid[c] !== undefined ||
+      creditByCurrency[c] !== undefined ||
+      unallocatedByCurrency[c] !== undefined,
+  );
+  const hasDue = LEDGER_CURRENCIES.some((c) => (summary.totalDebt[c] ?? 0) > 0.0001);
+  const hasCredit = !hasDue && LEDGER_CURRENCIES.some((c) => (creditByCurrency[c] ?? 0) > 0.0001);
+  const status = hasDue
+    ? { className: "party-status-due", label: "عليه دين" }
+    : hasCredit
+      ? { className: "party-status-credit", label: "له رصيد" }
+      : { className: "party-status-clear", label: "مسدَّد ✓" };
 
   return (
     <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => {
@@ -143,122 +164,135 @@ export function ClientDialog({ client, devices, ledgerStore, allocationStore, on
           </form>
         ) : (
           <>
-            <div className="account-info-grid">
-              <div><span>اسم الزبون</span><strong>{client.name}</strong></div>
-              <div><span>رقم الهاتف</span><strong dir="ltr">{client.phone || "—"}</strong></div>
-              <div><span>عدد الأجهزة</span><strong>{devices.length}</strong></div>
-            </div>
-
-            <div className="statement-summary-grid">
-              {totalDebtRows.length === 0 && totalPaidRows.length === 0 ? (
-                <div className="statement-summary-item"><span>مجموع الديون</span><strong>لا يوجد مستحق</strong></div>
-              ) : (
-                <>
-                  {totalDebtRows.map(([c, v]) => (
-                    <div className="statement-summary-item" key={`debt-${c}`}>
-                      <span>مجموع ديون الزبون ({LEDGER_CURRENCY_LABELS[c]})</span>
-                      <strong dir="ltr">{formatAmount(v)}</strong>
-                    </div>
-                  ))}
-                  {totalPaidRows.map(([c, v]) => (
-                    <div className="statement-summary-item" key={`paid-${c}`}>
-                      <span>مجموع دفعات الزبون ({LEDGER_CURRENCY_LABELS[c]})</span>
-                      <strong dir="ltr">{formatAmount(v)}</strong>
-                    </div>
-                  ))}
-                </>
-              )}
-            </div>
-
-            <div className="statement-net-result">
-              {summary.netResult.status === "no-data" ? (
-                <span className="badge badge-gray">لا توجد بيانات كافية</span>
-              ) : (
-                <>
-                  <span
-                    className={`statement-net-value ${summary.netResult.netUsd === undefined ? "" : summary.netResult.netUsd >= 0 ? "profit-positive" : "profit-negative"}`}
-                    dir="ltr"
-                  >
-                    إجمالي نتيجة جميع الأجهزة:{" "}
-                    {summary.netResult.netUsd !== undefined
-                      ? `${summary.netResult.netUsd >= 0 ? "ربح" : "خسارة"} ${formatAmount(Math.abs(summary.netResult.netUsd))} USD`
-                      : "—"}
-                  </span>
-                  {summary.netResult.status === "incomplete" && (
-                    <span className="badge badge-yellow">غير مكتمل - أحد الأجهزة لديه عمليات D غير مسددة</span>
-                  )}
-                </>
-              )}
-            </div>
-
-            <div className="statement-cash-flow">
-              <span>المحصَّل فعليًا من الزبون (بالدولار)</span>
-              <strong dir="ltr">{formatAmount(summary.totalPaidUsd)} USD</strong>
-              <span
-                className={`statement-cash-flow-value ${summary.cashFlowUsd >= 0 ? "profit-positive" : "profit-negative"}`}
-                dir="ltr"
-              >
-                التدفق النقدي الفعلي: {summary.cashFlowUsd >= 0 ? "+" : "-"}
-                {formatAmount(Math.abs(summary.cashFlowUsd))} USD
-              </span>
-              {summary.hasIncompletePaymentRates && (
-                <span className="badge badge-yellow">النتيجة النقدية غير مكتملة بسبب وجود دفعات قديمة بلا سعر صرف</span>
-              )}
-            </div>
-
-            {unallocatedRows.length > 0 && (
-              <div className="statement-summary-grid">
-                {unallocatedRows.map(([c, v]) => (
-                  <div className="statement-summary-item" key={`unallocated-${c}`}>
-                    <span>رصيد غير مخصص للزبون ({LEDGER_CURRENCY_LABELS[c]})</span>
-                    <strong dir="ltr">{formatAmount(v)}</strong>
-                  </div>
-                ))}
+            <div
+              className="party-card party-card-client party-hero"
+              style={{ "--party-hue": partyHue(client.id) } as CSSProperties}
+            >
+              <div className="party-card-head">
+                <span className="party-avatar" aria-hidden="true">{partyInitials(client.name)}</span>
+                <div className="party-card-title">
+                  <strong>{client.name}</strong>
+                  <span dir="ltr">{client.phone || "بدون هاتف"}</span>
+                </div>
+                <span className={`party-status ${status.className}`}>{status.label}</span>
               </div>
-            )}
 
-            <ul className="statement-shipment-list">
-              {summary.devices.length === 0 && <li className="ledger-entry-empty">لا توجد أجهزة مرتبطة بعد</li>}
-              {summary.devices.map((device) => {
-                const balanceRows = LEDGER_CURRENCIES.map((c) => ({ c, balance: device.balances[c] })).filter(
-                  (row) => row.balance !== undefined,
-                );
-                const account = devices.find((a) => a.id === device.accountId);
-                const net = device.accounting.netResult;
-
-                return (
-                  <li key={device.accountId} className="statement-shipment-row">
-                    <div className="statement-shipment-top">
-                      <span>{device.accountName}</span>
-                      {account && (
-                        <button className="text-action" type="button" onClick={() => setStatementAccount(account)}>
-                          كشف الحساب
-                        </button>
-                      )}
+              {currencies.length === 0 ? (
+                <p className="party-empty">لا توجد حركات بعد</p>
+              ) : (
+                currencies.map((c) => (
+                  <div key={c} className="party-stats">
+                    <span className="party-stats-currency">{LEDGER_CURRENCY_LABELS[c]}</span>
+                    <div className="party-stat party-stat-paid">
+                      <span>المدفوع</span>
+                      <strong dir="ltr">{formatAmount(summary.totalPaid[c] ?? 0)}</strong>
                     </div>
-                    <div className="statement-shipment-badges">
-                      {balanceRows.length === 0 ? (
-                        <span className="badge badge-green">لا يوجد مستحق</span>
-                      ) : (
-                        balanceRows.map(({ c, balance }) =>
-                          balance! > 0 ? (
-                            <span key={c} className="badge badge-red">عليه {formatAmount(balance!)} {LEDGER_CURRENCY_LABELS[c]}</span>
+                    <div className={`party-stat ${(summary.totalDebt[c] ?? 0) > 0.0001 ? "party-stat-due" : "party-stat-clear"}`}>
+                      <span>المتبقي عليه</span>
+                      <strong dir="ltr">{formatAmount(summary.totalDebt[c] ?? 0)}</strong>
+                    </div>
+                    {(creditByCurrency[c] ?? 0) > 0.0001 && (
+                      <div className="party-stat party-stat-returned">
+                        <span>له رصيد</span>
+                        <strong dir="ltr">{formatAmount(creditByCurrency[c] ?? 0)}</strong>
+                      </div>
+                    )}
+                    {(unallocatedByCurrency[c] ?? 0) > 0.0001 && (
+                      <div className="party-stat">
+                        <span>غير مخصص</span>
+                        <strong dir="ltr">{formatAmount(unallocatedByCurrency[c] ?? 0)}</strong>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+
+              <div className="party-chips">
+                <span className="party-chip">📡 {devices.length} جهاز</span>
+              </div>
+            </div>
+
+            <div className="party-insights">
+              <div className="party-insight">
+                <span>نتيجة جميع الأجهزة</span>
+                {summary.netResult.status === "no-data" || summary.netResult.netUsd === undefined ? (
+                  <strong>لا توجد بيانات كافية</strong>
+                ) : (
+                  <strong className={summary.netResult.netUsd >= 0 ? "profit-positive" : "profit-negative"} dir="ltr">
+                    {summary.netResult.netUsd >= 0 ? "ربح" : "خسارة"} {formatAmount(Math.abs(summary.netResult.netUsd))} USD
+                  </strong>
+                )}
+                {summary.netResult.status === "incomplete" && (
+                  <span className="badge badge-yellow">غير مكتمل - أحد الأجهزة لديه عمليات D غير مسددة</span>
+                )}
+              </div>
+              <div className="party-insight">
+                <span>المحصَّل فعليًا (بالدولار)</span>
+                <strong dir="ltr">{formatAmount(summary.totalPaidUsd)} USD</strong>
+                <span className={summary.cashFlowUsd >= 0 ? "profit-positive" : "profit-negative"} dir="ltr">
+                  التدفق النقدي: {summary.cashFlowUsd >= 0 ? "+" : "-"}
+                  {formatAmount(Math.abs(summary.cashFlowUsd))} USD
+                </span>
+                {summary.hasIncompletePaymentRates && (
+                  <span className="badge badge-yellow">غير مكتمل - دفعات قديمة بلا سعر صرف</span>
+                )}
+              </div>
+            </div>
+
+            <div className="party-panel">
+              <p className="party-panel-note">📡 الأجهزة المرتبطة بهذا الزبون</p>
+              {summary.devices.length === 0 ? (
+                <p className="party-empty">لا توجد أجهزة مرتبطة بعد</p>
+              ) : (
+                <ul className="party-devices">
+                  {summary.devices.map((device) => {
+                    const balanceRows = LEDGER_CURRENCIES.map((c) => ({ c, balance: device.balances[c] })).filter(
+                      (row) => row.balance !== undefined && Math.abs(row.balance) > 0.0001,
+                    );
+                    const account = devices.find((a) => a.id === device.accountId);
+                    const net = device.accounting.netResult;
+
+                    return (
+                      <li key={device.accountId} className="party-device">
+                        <div className="party-device-top">
+                          <strong>{device.accountName}</strong>
+                          {account && (
+                            <button className="text-action" type="button" onClick={() => setStatementAccount(account)}>
+                              📄 كشف الحساب
+                            </button>
+                          )}
+                        </div>
+                        {account?.rechargeDate && (
+                          <span className="party-device-date" dir="ltr">📅 {account.rechargeDate}</span>
+                        )}
+                        <div className="party-device-balances">
+                          {balanceRows.length === 0 ? (
+                            <span className="badge badge-green">لا يوجد مستحق</span>
                           ) : (
-                            <span key={c} className="badge badge-green">له {formatAmount(-balance!)} {LEDGER_CURRENCY_LABELS[c]}</span>
-                          ),
-                        )
-                      )}
-                    </div>
-                    <div dir="ltr" className={net.netUsd === undefined ? "" : net.netUsd >= 0 ? "profit-positive" : "profit-negative"}>
-                      {net.netUsd !== undefined
-                        ? `${net.netUsd >= 0 ? "ربح" : "خسارة"} ${formatAmount(Math.abs(net.netUsd))} USD`
-                        : "الربح غير محسوب"}
-                      {net.status === "incomplete" && " (غير مكتمل)"}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+                            balanceRows.map(({ c, balance }) =>
+                              balance! > 0 ? (
+                                <span key={c} className="badge badge-red" dir="ltr">عليه {formatAmount(balance!)} {LEDGER_CURRENCY_LABELS[c]}</span>
+                              ) : (
+                                <span key={c} className="badge badge-green" dir="ltr">له {formatAmount(-balance!)} {LEDGER_CURRENCY_LABELS[c]}</span>
+                              ),
+                            )
+                          )}
+                          <span
+                            className={`badge ${net.netUsd === undefined ? "badge-gray" : net.netUsd >= 0 ? "badge-green" : "badge-red"}`}
+                            dir="ltr"
+                          >
+                            {net.netUsd !== undefined
+                              ? `${net.netUsd >= 0 ? "ربح" : "خسارة"} ${formatAmount(Math.abs(net.netUsd))} USD`
+                              : "الربح غير محسوب"}
+                            {net.status === "incomplete" && " (غير مكتمل)"}
+                          </span>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
 
             <div className="dialog-actions form-wide">
               {onDelete && <button className="dialog-danger" type="button" onClick={confirmDelete}>حذف الزبون</button>}

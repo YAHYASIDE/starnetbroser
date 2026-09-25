@@ -46,10 +46,30 @@ interface Props {
   onUpdateSupplier: (supplierId: string, input: CreateSupplierInput) => void;
 }
 
-/** حسابات الزبائن والموردين: clients and suppliers on two separate tabs (never one mixed list), each
- * party a colour-coded card with its own invoiced/paid/remaining totals, statement, and - for a
- * client - every linked device. */
-export function AccountsSection({
+/** حسابات الزبائن والموردين as a collapsible section of المتجر - the same PartyDirectory the
+ * dedicated /clients page shows. */
+export function AccountsSection(props: Props) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <section className="section">
+      <button type="button" className="report-collapse-toggle" onClick={() => setExpanded((v) => !v)} aria-expanded={expanded}>
+        حسابات الزبائن والموردين {expanded ? "▲" : "▼"}
+      </button>
+      {expanded && <PartyDirectory {...props} />}
+    </section>
+  );
+}
+
+interface PartyDirectoryProps extends Props {
+  /** When given, every client card also offers "بطاقة الزبون" (the full per-device accounting
+   * card, ClientDialog). */
+  onOpenClientCard?: (client: Client) => void;
+}
+
+/** Clients and suppliers on two separate tabs (never one mixed list), each party a colour-coded
+ * card with its own invoiced/paid/remaining totals, statement, and - for a client - every linked
+ * device. */
+export function PartyDirectory({
   clients,
   suppliers,
   invoices,
@@ -59,8 +79,8 @@ export function AccountsSection({
   onUpdateClient,
   onCreateSupplier,
   onUpdateSupplier,
-}: Props) {
-  const [expanded, setExpanded] = useState(false);
+  onOpenClientCard,
+}: PartyDirectoryProps) {
   const [tab, setTab] = useState<PartyTab>("clients");
   const [query, setQuery] = useState("");
   const [showAdd, setShowAdd] = useState(false);
@@ -109,114 +129,107 @@ export function AccountsSection({
   const partyWord = isClients ? "زبون" : "مورد";
 
   return (
-    <section className="section">
-      <button type="button" className="report-collapse-toggle" onClick={() => setExpanded((v) => !v)} aria-expanded={expanded}>
-        حسابات الزبائن والموردين {expanded ? "▲" : "▼"}
-      </button>
+    <div className={`party-section party-section-${tab}`}>
+      <div className="party-tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={isClients}
+          className={`party-tab party-tab-clients${isClients ? " party-tab-active" : ""}`}
+          onClick={() => switchTab("clients")}
+        >
+          👥 الزبائن <span className="party-tab-count">{clients.length}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={!isClients}
+          className={`party-tab party-tab-suppliers${!isClients ? " party-tab-active" : ""}`}
+          onClick={() => switchTab("suppliers")}
+        >
+          🏭 الموردون <span className="party-tab-count">{suppliers.length}</span>
+        </button>
+      </div>
 
-      {expanded && (
-        <div className={`party-section party-section-${tab}`}>
-          <div className="party-tabs" role="tablist">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={isClients}
-              className={`party-tab party-tab-clients${isClients ? " party-tab-active" : ""}`}
-              onClick={() => switchTab("clients")}
-            >
-              👥 الزبائن <span className="party-tab-count">{clients.length}</span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={!isClients}
-              className={`party-tab party-tab-suppliers${!isClients ? " party-tab-active" : ""}`}
-              onClick={() => switchTab("suppliers")}
-            >
-              🏭 الموردون <span className="party-tab-count">{suppliers.length}</span>
-            </button>
-          </div>
-
-          <div className="party-overview">
-            <span className="party-overview-label">{isClients ? "مجموع ما لنا عند الزبائن" : "مجموع ما علينا للموردين"}</span>
-            <div className="party-overview-values">
-              {Object.keys(outstandingByCurrency).length === 0 ? (
-                <strong>لا يوجد مستحق ✓</strong>
-              ) : (
-                Object.entries(outstandingByCurrency).map(([c, v]) => (
-                  <strong key={c} dir="ltr">
-                    {formatAmount(v)} {currencyLabel(c)}
-                  </strong>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div className="party-toolbar">
-            <input
-              className="search-input"
-              placeholder={`ابحث عن ${partyWord} بالاسم أو الهاتف`}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            <button type="button" className="btn-icon" onClick={() => setShowAdd((v) => !v)}>
-              {showAdd ? "إلغاء" : `+ ${partyWord}`}
-            </button>
-          </div>
-
-          {showAdd && (
-            <PartyForm
-              submitLabel={isClients ? "إضافة الزبون" : "إضافة المورد"}
-              namePlaceholder={isClients ? "اسم الزبون *" : "اسم المورد *"}
-              showCreditLimit={isClients}
-              onSubmit={(input) => {
-                if (isClients) onCreateClient(input);
-                else onCreateSupplier(input);
-                setShowAdd(false);
-              }}
-              onCancel={() => setShowAdd(false)}
-            />
-          )}
-
-          {filtered.length === 0 ? (
-            <p className="empty-state">{query ? "لا توجد نتائج مطابقة." : isClients ? "لا يوجد زبائن بعد." : "لا يوجد موردون بعد."}</p>
+      <div className="party-overview">
+        <span className="party-overview-label">{isClients ? "مجموع ما لنا عند الزبائن" : "مجموع ما علينا للموردين"}</span>
+        <div className="party-overview-values">
+          {Object.keys(outstandingByCurrency).length === 0 ? (
+            <strong>لا يوجد مستحق ✓</strong>
           ) : (
-            <ul className="party-card-list">
-              {filtered.map(({ party, totals }) =>
-                editingPartyId === party.id ? (
-                  <li key={party.id} className="party-card">
-                    <PartyForm
-                      initial={party}
-                      submitLabel="حفظ"
-                      namePlaceholder={isClients ? "اسم الزبون *" : "اسم المورد *"}
-                      showCreditLimit={isClients}
-                      onSubmit={(input) => {
-                        if (isClients) onUpdateClient(party.id, input);
-                        else onUpdateSupplier(party.id, input);
-                        setEditingPartyId(null);
-                      }}
-                      onCancel={() => setEditingPartyId(null)}
-                    />
-                  </li>
-                ) : (
-                  <PartyCard
-                    key={party.id}
-                    kind={kind}
-                    party={party}
-                    totals={totals}
-                    invoices={invoices}
-                    devices={isClients ? accounts.filter((a) => a.clientId === party.id) : []}
-                    ledgerStore={ledgerStore}
-                    creditLimit={isClients ? (party as Client).creditLimit : undefined}
-                    onEdit={() => setEditingPartyId(party.id)}
-                  />
-                ),
-              )}
-            </ul>
+            Object.entries(outstandingByCurrency).map(([c, v]) => (
+              <strong key={c} dir="ltr">
+                {formatAmount(v)} {currencyLabel(c)}
+              </strong>
+            ))
           )}
         </div>
+      </div>
+
+      <div className="party-toolbar">
+        <input
+          className="search-input"
+          placeholder={`ابحث عن ${partyWord} بالاسم أو الهاتف`}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <button type="button" className="btn-icon" onClick={() => setShowAdd((v) => !v)}>
+          {showAdd ? "إلغاء" : `+ ${partyWord}`}
+        </button>
+      </div>
+
+      {showAdd && (
+        <PartyForm
+          submitLabel={isClients ? "إضافة الزبون" : "إضافة المورد"}
+          namePlaceholder={isClients ? "اسم الزبون *" : "اسم المورد *"}
+          showCreditLimit={isClients}
+          onSubmit={(input) => {
+            if (isClients) onCreateClient(input);
+            else onCreateSupplier(input);
+            setShowAdd(false);
+          }}
+          onCancel={() => setShowAdd(false)}
+        />
       )}
-    </section>
+
+      {filtered.length === 0 ? (
+        <p className="empty-state">{query ? "لا توجد نتائج مطابقة." : isClients ? "لا يوجد زبائن بعد." : "لا يوجد موردون بعد."}</p>
+      ) : (
+        <ul className="party-card-list">
+          {filtered.map(({ party, totals }) =>
+            editingPartyId === party.id ? (
+              <li key={party.id} className="party-card">
+                <PartyForm
+                  initial={party}
+                  submitLabel="حفظ"
+                  namePlaceholder={isClients ? "اسم الزبون *" : "اسم المورد *"}
+                  showCreditLimit={isClients}
+                  onSubmit={(input) => {
+                    if (isClients) onUpdateClient(party.id, input);
+                    else onUpdateSupplier(party.id, input);
+                    setEditingPartyId(null);
+                  }}
+                  onCancel={() => setEditingPartyId(null)}
+                />
+              </li>
+            ) : (
+              <PartyCard
+                key={party.id}
+                kind={kind}
+                party={party}
+                totals={totals}
+                invoices={invoices}
+                devices={isClients ? accounts.filter((a) => a.clientId === party.id) : []}
+                ledgerStore={ledgerStore}
+                creditLimit={isClients ? (party as Client).creditLimit : undefined}
+                onEdit={() => setEditingPartyId(party.id)}
+                onOpenCard={isClients && onOpenClientCard ? () => onOpenClientCard(party as Client) : undefined}
+              />
+            ),
+          )}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -229,11 +242,12 @@ interface PartyCardProps {
   ledgerStore: LedgerByAccount;
   creditLimit?: number;
   onEdit: () => void;
+  onOpenCard?: () => void;
 }
 
 type PartyPanel = "statement" | "devices" | null;
 
-function PartyCard({ kind, party, totals, invoices, devices, ledgerStore, creditLimit, onEdit }: PartyCardProps) {
+function PartyCard({ kind, party, totals, invoices, devices, ledgerStore, creditLimit, onEdit, onOpenCard }: PartyCardProps) {
   const [panel, setPanel] = useState<PartyPanel>(null);
   const isClient = kind === "sale";
   const currencies = Object.keys(totals);
@@ -336,6 +350,11 @@ function PartyCard({ kind, party, totals, invoices, devices, ledgerStore, credit
           <a className="party-action party-action-whatsapp" href={whatsappLink} target="_blank" rel="noreferrer">
             💬 واتساب
           </a>
+        )}
+        {onOpenCard && (
+          <button type="button" className="party-action" onClick={onOpenCard}>
+            💳 بطاقة الزبون
+          </button>
         )}
         <button type="button" className="party-action" onClick={onEdit}>
           ✎ تعديل

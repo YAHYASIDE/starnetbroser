@@ -22,6 +22,7 @@ export function BottomNav() {
 
   const tabs: { href: string; label: string; icon: string }[] = [
     { href: "/", label: "الرئيسية", icon: "🏠" },
+    { href: "/clients", label: "الزبائن", icon: "👥" },
     { href: "/reports", label: "الأرباح وتقارير", icon: "📊" },
     { href: "/representatives", label: "المندوبون", icon: "🤝" },
     { href: "/store", label: "المتجر", icon: "🛍️" },

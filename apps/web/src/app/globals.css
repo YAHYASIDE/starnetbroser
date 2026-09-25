@@ -3772,3 +3772,35 @@ button.overview-card:active {
 :root[data-theme="dark"] .party-card {
   --party-accent: hsl(var(--party-hue) 70% 62%);
 }
+
+/* بطاقة الزبون (ClientDialog.tsx) reuses the party-card look as its hero block. */
+.party-hero {
+  margin-bottom: 12px;
+}
+
+.party-insights {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.party-insight {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+  font-size: 0.85rem;
+}
+
+.party-insight > span:first-child {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.party-insight strong {
+  font-size: 1rem;
+}
