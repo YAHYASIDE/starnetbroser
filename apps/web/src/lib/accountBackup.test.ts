@@ -2,6 +2,8 @@ import { DeviceStatus, StarlinkAccountSummary } from "@starnet/shared";
 import { describe, expect, it } from "vitest";
 import {
   buildBackupEnvelope,
+  collectAppData,
+  restoreAppData,
   createEncryptedBackupFile,
   isBackupEnvelope,
   mergeImportedAccounts,
@@ -45,7 +47,12 @@ describe("isBackupEnvelope", () => {
 
   it("rejects a future/incompatible version number", () => {
     const envelope = buildBackupEnvelope([baseAccount()], {});
-    expect(isBackupEnvelope({ ...envelope, version: 2 })).toBe(false);
+    expect(isBackupEnvelope({ ...envelope, version: 3 })).toBe(false);
+  });
+
+  it("still accepts an older version-1 (accounts-only) backup", () => {
+    const { data: _data, ...rest } = buildBackupEnvelope([baseAccount()], {});
+    expect(isBackupEnvelope({ ...rest, version: 1 })).toBe(true);
   });
 });
 
@@ -116,5 +123,52 @@ describe("createEncryptedBackupFile / readEncryptedBackupFile", () => {
     expect(read.ok).toBe(false);
     if (read.ok) return;
     expect(read.message).toContain("ليس ملف نسخة احتياطية");
+  });
+});
+
+function memoryStorage(initial: Record<string, string> = {}) {
+  const map = new Map(Object.entries(initial));
+  return {
+    get length() {
+      return map.size;
+    },
+    key: (i: number) => Array.from(map.keys())[i] ?? null,
+    getItem: (k: string) => map.get(k) ?? null,
+    setItem: (k: string, v: string) => void map.set(k, v),
+    removeItem: (k: string) => void map.delete(k),
+    dump: () => Object.fromEntries(map),
+  };
+}
+
+describe("full app-data backup", () => {
+  it("collects every starnet_ data key and nothing else", () => {
+    const storage = memoryStorage({
+      starnet_clients_v1: "{\"c1\":1}",
+      starnet_store_invoices_v1: "[]",
+      "starnet.accessToken": "secret-token",
+      "starnet.appPinHash": "hash",
+      other: "x",
+    });
+    expect(collectAppData(storage)).toEqual({ starnet_clients_v1: "{\"c1\":1}", starnet_store_invoices_v1: "[]" });
+  });
+
+  it("restore replaces data keys exactly and leaves settings/tokens alone", () => {
+    const storage = memoryStorage({
+      starnet_clients_v1: "old",
+      starnet_cash_entries_v1: "stale",
+      "starnet.accessToken": "keep-me",
+    });
+    const written = restoreAppData(storage, { starnet_clients_v1: "new", starnet_suppliers_v1: "[]", "starnet.theme": "dark" });
+    expect(written).toBe(2);
+    expect(storage.dump()).toEqual({ "starnet.accessToken": "keep-me", starnet_clients_v1: "new", starnet_suppliers_v1: "[]" });
+  });
+
+  it("round-trips the data snapshot through an encrypted file", async () => {
+    const data = { starnet_clients_v1: "{}", starnet_customer_ledger_v1: "{\"d1\":[]}" };
+    const created = await createEncryptedBackupFile([baseAccount()], {}, "my-strong-password", data);
+    if (!created.ok) throw new Error("create failed");
+    const read = await readEncryptedBackupFile(created.fileContents, "my-strong-password");
+    if (!read.ok) throw new Error("read failed");
+    expect(read.data).toEqual(data);
   });
 });

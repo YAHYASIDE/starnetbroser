@@ -20,6 +20,10 @@ export interface PartyAdjustment {
   currencyCode: string;
   date: string;
   note?: string;
+  /** True when this entry was real money moving through الصندوق (a payment received from a
+   * client, a payment made to a supplier) - it then has a linked cash entry (cashStore.ts
+   * sourceId = this id), removed together with it. */
+  cashMoved?: boolean;
   createdAt: string;
 }
 
@@ -54,6 +58,7 @@ export interface RecordPartyAdjustmentInput {
   currencyCode: string;
   date: string;
   note?: string;
+  cashMoved?: boolean;
 }
 
 export type RecordPartyAdjustmentResult =
@@ -79,6 +84,7 @@ export function recordPartyAdjustment(
     currencyCode: input.currencyCode,
     date: input.date,
     note: input.note?.trim() || undefined,
+    cashMoved: input.cashMoved || undefined,
     createdAt: new Date().toISOString(),
   };
   return { ok: true, list: [...list, adjustment], adjustment };
@@ -98,4 +104,12 @@ export function listPartyAdjustments(list: PartyAdjustmentList, partyKind: Party
 export function adjustmentDelta(adjustment: PartyAdjustment): number {
   const owesUsSign = adjustment.partyKind === "client" ? 1 : -1;
   return adjustment.direction === "owesUs" ? owesUsSign * adjustment.amount : -owesUsSign * adjustment.amount;
+}
+
+/** Which way cash moves for a balance entry that went through الصندوق: a client's "له" (a payment
+ * from them) or a supplier's "عليه" (a payment we made them) are the usual cases; the reverse
+ * directions are cash going the other way (a refund to a client, money back from a supplier). */
+export function partyAdjustmentCashKind(partyKind: PartyKind, direction: PartyAdjustmentDirection): "in" | "out" {
+  if (partyKind === "client") return direction === "weOwe" ? "in" : "out";
+  return direction === "owesUs" ? "out" : "in";
 }

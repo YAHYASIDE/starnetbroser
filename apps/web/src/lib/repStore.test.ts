@@ -323,6 +323,19 @@ describe("device profit shares", () => {
     expect(rows[0].ourShareUsd).toBe(-30);
   });
 
+  it("a rep locked as sharing losses carries his percent of the loss, reducing what he's owed", () => {
+    const loss = shipment({
+      id: "loss",
+      representativeSharesLosses: true,
+      starlinkCost: { status: "settled", currencyCode: "USD", amount: 130, paidAt: "2026-09-20" },
+    });
+    const rows = listRepDeviceCommissions("r1", { d1: [shipment(), loss] });
+    const lossRow = rows.find((r) => r.entry.id === "loss")!;
+    expect(lossRow.repShareUsd).toBe(-15);
+    expect(lossRow.ourShareUsd).toBe(-15);
+    expect(computeRepCommissionOwedByCurrency("r1", [], [], rows)).toEqual({ USD: 5 });
+  });
+
   it("adds device shares into commission earned/owed in USD, minus USD payouts", () => {
     const rows = listRepDeviceCommissions("r1", { d1: [shipment()] });
     expect(computeRepCommissionEarnedByCurrency("r1", [], rows)).toEqual({ USD: 20 });

@@ -22,7 +22,7 @@ import {
 } from "@/lib/settingsStore";
 import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerCurrency } from "@/lib/ledgerStore";
 import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
-import { createEncryptedBackupFile, mergeImportedAccounts, readEncryptedBackupFile } from "@/lib/accountBackup";
+import { collectAppData, createEncryptedBackupFile, mergeImportedAccounts, readEncryptedBackupFile, restoreAppData } from "@/lib/accountBackup";
 import { exportAccountSessions, importAccountSessions, isRunningInAndroidApp, openNotificationSettings } from "@/lib/localBrowser";
 import { saveAndShareBackupFile } from "@/lib/backupFile";
 import { clearAppPin, hasAppPin, setAppPin, verifyAppPin } from "@/lib/appLock";
@@ -505,13 +505,14 @@ function BackupSection() {
     setExportBusy(true);
     try {
       const accounts = isDemoMode() ? loadDemoAccounts([]) : await listAccounts();
-      if (accounts.length === 0) {
-        setExportMessage("لا توجد حسابات لتصديرها");
+      const data = collectAppData(window.localStorage);
+      if (accounts.length === 0 && Object.keys(data).length === 0) {
+        setExportMessage("لا توجد بيانات لتصديرها");
         return;
       }
 
       const sessions = await exportAccountSessions(accounts.map((a) => a.id));
-      const created = await createEncryptedBackupFile(accounts, sessions, exportPassword);
+      const created = await createEncryptedBackupFile(accounts, sessions, exportPassword, data);
       if (!created.ok) {
         setExportMessage(created.message);
         return;
@@ -520,7 +521,7 @@ function BackupSection() {
       const saved = await saveAndShareBackupFile(created.fileContents);
       setExportMessage(
         saved.ok
-          ? `تم إنشاء النسخة الاحتياطية (${accounts.length} حساب، ${Object.keys(sessions).length} جلسة دخول) - اختر أين تحفظها`
+          ? `تم إنشاء نسخة كاملة (${accounts.length} جهاز، ${Object.keys(sessions).length} جلسة دخول، ${Object.keys(data).length} سجل بيانات: الزبائن والحسابات والمتجر والمندوبين والصندوق) - اختر أين تحفظها`
           : saved.message,
       );
       if (saved.ok) {
@@ -554,16 +555,27 @@ function BackupSection() {
         setImportMessage(result.message);
         return;
       }
-      if (!isDemoMode()) {
-        setImportMessage("الاستيراد متاح حاليًا فقط في الوضع التجريبي (المحلي) - لا يوجد خادم حقيقي متصل بعد");
-        return;
+      const dataKeys = Object.keys(result.data).length;
+      if (dataKeys > 0) {
+        // A full (version 2) backup restores every app-data store exactly as it was - so it must
+        // be confirmed, since it replaces whatever is on this phone now.
+        const when = new Date(result.exportedAt).toLocaleString("ar");
+        if (!window.confirm(`استعادة نسخة ${when}؟ سيتم استبدال كل البيانات الحالية على هذا الهاتف ببيانات النسخة.`)) {
+          return;
+        }
+        restoreAppData(window.localStorage, result.data);
+      } else {
+        if (!isDemoMode()) {
+          setImportMessage("هذه نسخة قديمة (أجهزة فقط) - استيرادها متاح فقط في الوضع المحلي");
+          return;
+        }
+        saveDemoAccounts(mergeImportedAccounts(loadDemoAccounts([]), result.accounts));
       }
-
-      const merged = mergeImportedAccounts(loadDemoAccounts([]), result.accounts);
-      saveDemoAccounts(merged);
       const sessionResult = await importAccountSessions(result.sessions);
       setImportMessage(
-        `تم استيراد ${result.accounts.length} حساب و ${sessionResult.importedCount} جلسة دخول. افتح الصفحة الرئيسية لرؤيتها.`,
+        dataKeys > 0
+          ? `تمت استعادة كل البيانات (${result.accounts.length} جهاز، ${sessionResult.importedCount} جلسة دخول). افتح الصفحة الرئيسية.`
+          : `تم استيراد ${result.accounts.length} حساب و ${sessionResult.importedCount} جلسة دخول. افتح الصفحة الرئيسية لرؤيتها.`,
       );
       setImportPassword("");
       setImportFile(null);
@@ -575,11 +587,12 @@ function BackupSection() {
   }
 
   return (
-    <section className="section">
-      <h2 className="section-title">نسخة احتياطية محمية</h2>
+    <section className="section" id="backup">
+      <h2 className="section-title">نسخة احتياطية كاملة محمية</h2>
       <p className="settings-hint">
-        تُصدَّر قائمة الحسابات وجلسات الدخول (إن وُجدت) في ملف واحد مشفّر بكلمة المرور التي تختارها
-        - لا يمكن فتحه بدونها. جلسات الدخول تُقرأ فقط من الحسابات التي فتحتها مرة واحدة على الأقل
+        نسخة كاملة لكل بيانات التطبيق: الأجهزة، الزبائن والموردون، الديون والدفعات، فواتير المتجر
+        والبضاعة، المندوبون، الصندوق والعملات - مع جلسات الدخول (إن وُجدت) - في ملف واحد مشفّر بكلمة
+        المرور التي تختارها، لا يمكن فتحه بدونها. أرسل الملف إلى نفسك على واتساب أو احفظه في Google Drive. جلسات الدخول تُقرأ فقط من الحسابات التي فتحتها مرة واحدة على الأقل
         بزر &quot;فتح&quot;؛ حساب لم يُفتح بعد يُصدَّر بدون جلسة دخول. احتفظ بكلمة المرور في مكان
         آمن - لا توجد طريقة لاسترجاع النسخة الاحتياطية بدونها.
       </p>

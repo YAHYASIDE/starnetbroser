@@ -2,6 +2,7 @@
 
 import { CSSProperties, FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { loadCashEntries, postRepSettlementToCash, saveCashEntries } from "@/lib/cashStore";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import {
   buildRepDailyStatement,
@@ -130,6 +131,7 @@ export default function RepresentativesPage() {
     if (!result.ok) return result.message;
     setSettlements(result.settlements);
     saveRepSettlements(result.settlements);
+    saveCashEntries(postRepSettlementToCash(loadCashEntries(), result.settlement, representativeStore[representativeId]?.name ?? ""));
     return null;
   }
 
@@ -272,7 +274,9 @@ function RepCard({
           <strong>🤝 {rep.name}</strong>
           <span dir="ltr">{rep.phone || "بدون هاتف"}</span>
         </div>
-        <span className="rep-percent">{rep.commissionPercent}%</span>
+        <span className="rep-percent" title={rep.sharesLosses ? "يتحمّل نسبته من الخسارة" : undefined}>
+          {rep.commissionPercent}%{rep.sharesLosses ? " ⚖️" : ""}
+        </span>
       </div>
 
       <div className="party-stats">
@@ -615,12 +619,13 @@ function RepresentativeForm({
   const [commissionPercent, setCommissionPercent] = useState(initial ? String(initial.commissionPercent) : "");
   const [phoneDialCode, setPhoneDialCode] = useState(() => splitPhoneNumber(initial?.phone).dialCode);
   const [phoneLocalNumber, setPhoneLocalNumber] = useState(() => splitPhoneNumber(initial?.phone).localNumber);
+  const [sharesLosses, setSharesLosses] = useState(initial?.sharesLosses ?? false);
 
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!name.trim() || !commissionPercent) return;
     const phone = combinePhoneNumber(phoneDialCode, phoneLocalNumber);
-    onSubmit({ name, phone: phone || undefined, commissionPercent: Number(commissionPercent) });
+    onSubmit({ name, phone: phone || undefined, commissionPercent: Number(commissionPercent), sharesLosses });
   }
 
   return (
@@ -659,6 +664,10 @@ function RepresentativeForm({
           onChange={(e) => setPhoneLocalNumber(e.target.value)}
         />
       </div>
+      <label className="ledger-d-toggle party-cash-toggle">
+        <input type="checkbox" checked={sharesLosses} onChange={(e) => setSharesLosses(e.target.checked)} />
+        <span>يتحمّل نسبته من الخسارة أيضًا (إذا خسر جهاز تُخصم حصته من مستحقاته)</span>
+      </label>
       <p className="settings-hint">
         نفس النسبة تُطبَّق على ربح أجهزته (بعد خصم تكلفة Starlink) وعلى فواتير المتجر المنسوبة له. تغيير النسبة لا يغيّر العمليات السابقة.
       </p>

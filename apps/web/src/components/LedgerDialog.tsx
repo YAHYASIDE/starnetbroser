@@ -78,7 +78,7 @@ interface Props {
   onChange: (entries: LedgerEntry[]) => void;
   /** The device's current representative (account.representativeId) - locked onto every new
    * shipment so their share of its profit is tracked (see LedgerEntry.representativeId). */
-  representative?: { id: string; commissionPercent: number };
+  representative?: { id: string; commissionPercent: number; sharesLosses?: boolean };
 }
 
 /** Builds one device's own allocation-dialog data: its eligible (same-currency, not-yet-fully-

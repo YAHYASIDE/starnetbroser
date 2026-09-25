@@ -3956,6 +3956,11 @@ button.overview-card:active {
   margin: 0;
 }
 
+.party-balance-form > .search-input,
+.party-balance-form > label {
+  flex: none;
+}
+
 .party-direction {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -4179,4 +4184,126 @@ button.overview-card:active {
   flex-direction: column;
   align-items: flex-end;
   gap: 2px;
+}
+
+.backup-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--yellow);
+  border-radius: var(--radius-md);
+  background: var(--yellow-bg);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.backup-banner > span:first-child {
+  font-size: 1.4rem;
+}
+
+.backup-banner strong {
+  display: block;
+  color: var(--yellow);
+  font-size: 0.9rem;
+}
+
+.backup-banner small {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}
+
+/* ---- Party balance "went through the till" toggle ---- */
+.party-cash-toggle {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  color: var(--text);
+}
+
+/* ---- Daily cash closing (إغلاق اليوم) ---- */
+.cash-close-btn {
+  background: var(--violet-bg);
+  color: var(--violet);
+}
+
+.cash-closing-form {
+  display: grid;
+  gap: 10px;
+}
+
+.cash-closing-card {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 2px 0 var(--border);
+}
+
+.cash-closing-card-title {
+  font-weight: 700;
+  color: var(--violet);
+}
+
+.cash-closing-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 12px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.cash-closing-grid strong {
+  color: var(--text);
+}
+
+.cash-closing-list {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.cash-closing-row {
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+  display: grid;
+  gap: 4px;
+}
+
+.cash-closing-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.cash-closing-line {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 0.8rem;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+}
+
+.cash-closing-ok {
+  background: var(--green-bg);
+  color: var(--green);
+}
+
+.cash-closing-plus {
+  background: var(--mint-bg);
+  color: var(--mint);
+}
+
+.cash-closing-minus {
+  background: var(--red-bg);
+  color: var(--red);
 }

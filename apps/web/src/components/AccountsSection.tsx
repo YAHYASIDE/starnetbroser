@@ -24,7 +24,7 @@ import { formatAmount } from "@/lib/formatAmount";
 import { partyHue, partyInitials } from "@/lib/partyColor";
 import { buildClientCombinedStatement, computeClientCombinedTotals } from "@/lib/clientAccount";
 import { buildStoreDebtReminderMessage, buildStoreStatementMessage, buildWhatsAppLink } from "@/lib/whatsapp";
-import { PartyAdjustment, PartyAdjustmentDirection, RecordPartyAdjustmentInput } from "@/lib/partyBalanceStore";
+import { PartyAdjustment, partyAdjustmentCashKind, PartyAdjustmentDirection, PartyKind, RecordPartyAdjustmentInput } from "@/lib/partyBalanceStore";
 
 const EPSILON = 0.0001;
 
@@ -285,7 +285,7 @@ function PartyCard({
   const [panel, setPanel] = useState<PartyPanel>(null);
   const [sheet, setSheet] = useState<PartySheet>(null);
   const isClient = kind === "sale";
-  const partyKind = isClient ? "client" : "supplier";
+  const partyKind: PartyKind = isClient ? "client" : "supplier";
   const currencies = Object.keys(totals);
   const remainingByCurrency = Object.fromEntries(Object.entries(totals).map(([c, t]) => [c, t.remaining]));
   const hasDue = Object.values(totals).some((t) => t.remaining > EPSILON);
@@ -534,6 +534,7 @@ function PartyCard({
         <PartySheet title={`إضافة رصيد - ${party.name}`} onClose={() => setSheet(null)}>
           <BalanceForm
             partyName={party.name}
+            partyKind={partyKind}
             onCancel={() => setSheet(null)}
             onSubmit={(input) => {
               const error = onAddAdjustment({ ...input, partyKind, partyId: party.id });
@@ -609,6 +610,7 @@ function todayDateInputValue(): string {
 
 interface BalanceFormProps {
   partyName: string;
+  partyKind: PartyKind;
   onCancel: () => void;
   /** Returns an error message, or null on success. */
   onSubmit: (input: {
@@ -617,11 +619,28 @@ interface BalanceFormProps {
     currencyCode: string;
     date: string;
     note?: string;
+    cashMoved?: boolean;
   }) => string | null;
 }
 
-function BalanceForm({ partyName, onCancel, onSubmit }: BalanceFormProps) {
-  const [direction, setDirection] = useState<PartyAdjustmentDirection>("owesUs");
+/** The usual case is real cash: a client paying us ("له") or us paying a supplier ("عليه"). */
+function defaultCashMoved(partyKind: PartyKind, direction: PartyAdjustmentDirection): boolean {
+  return partyKind === "client" ? direction === "weOwe" : direction === "owesUs";
+}
+
+function cashMovedLabel(partyKind: PartyKind, direction: PartyAdjustmentDirection): string {
+  const kind = partyAdjustmentCashKind(partyKind, direction);
+  const who = partyKind === "client" ? "الزبون" : "المورد";
+  return kind === "in" ? `💵 استلمناها نقدًا من ${who} - تدخل الصندوق` : `💵 دفعناها نقدًا إلى ${who} - تخرج من الصندوق`;
+}
+
+function BalanceForm({ partyName, partyKind, onCancel, onSubmit }: BalanceFormProps) {
+  const [direction, setDirectionState] = useState<PartyAdjustmentDirection>("owesUs");
+  const [cashMoved, setCashMoved] = useState(defaultCashMoved(partyKind, "owesUs"));
+  function setDirection(next: PartyAdjustmentDirection) {
+    setDirectionState(next);
+    setCashMoved(defaultCashMoved(partyKind, next));
+  }
   const [amount, setAmount] = useState("");
   const [currencyCode, setCurrencyCode] = useState<LedgerCurrency>("MRU");
   const [date, setDate] = useState(todayDateInputValue());
@@ -630,7 +649,7 @@ function BalanceForm({ partyName, onCancel, onSubmit }: BalanceFormProps) {
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    setError(onSubmit({ direction, amount: Number(amount), currencyCode, date, note }));
+    setError(onSubmit({ direction, amount: Number(amount), currencyCode, date, note, cashMoved }));
   }
 
   return (
@@ -678,6 +697,10 @@ function BalanceForm({ partyName, onCancel, onSubmit }: BalanceFormProps) {
       </div>
       <input className="search-input" type="date" dir="ltr" value={date} onChange={(e) => setDate(e.target.value)} />
       <input className="search-input" placeholder="ملاحظة (اختياري) - مثال: رصيد افتتاحي" value={note} onChange={(e) => setNote(e.target.value)} />
+      <label className="ledger-d-toggle party-cash-toggle">
+        <input type="checkbox" checked={cashMoved} onChange={(e) => setCashMoved(e.target.checked)} />
+        <span>{cashMovedLabel(partyKind, direction)}</span>
+      </label>
       {error && <div className="account-card-alert ledger-form-error">{error}</div>}
       <div className="settings-actions">
         <button className="dialog-primary" type="submit" disabled={!amount}>

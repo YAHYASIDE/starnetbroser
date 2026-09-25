@@ -22,6 +22,10 @@ export interface Representative {
    * Invoice.representativeCommissionPercent) so changing this later never rewrites past
    * commission. */
   commissionPercent: number;
+  /** When true the rep also carries their percent of a device shipment's LOSS (a negative share
+   * that reduces what we owe them). Off by default: the operator carries every loss alone. Locked
+   * onto each shipment at creation (LedgerEntry.representativeSharesLosses), like the percent. */
+  sharesLosses?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -65,6 +69,7 @@ export interface CreateRepresentativeInput {
   name: string;
   phone?: string;
   commissionPercent: number;
+  sharesLosses?: boolean;
 }
 
 export function createRepresentative(
@@ -79,6 +84,7 @@ export function createRepresentative(
     name: input.name.trim(),
     phone: input.phone?.trim() || undefined,
     commissionPercent: Math.max(0, input.commissionPercent),
+    sharesLosses: input.sharesLosses || undefined,
     createdAt: now,
     updatedAt: now,
   };
@@ -97,6 +103,7 @@ export function updateRepresentative(
     name: patch.name.trim(),
     phone: patch.phone?.trim() || undefined,
     commissionPercent: Math.max(0, patch.commissionPercent),
+    sharesLosses: patch.sharesLosses || undefined,
     updatedAt: new Date().toISOString(),
   };
   return { ...store, [id]: updated };
@@ -315,14 +322,16 @@ export interface RepDeviceCommissionRow {
   /** The entry's own locked percent - never the representative's current rate. */
   percent: number;
   /** Only set once the shipment's profit is computable (Starlink cost settled). A loss earns the
-   * rep nothing (0) - the operator carries it. */
+   * rep nothing (0) - the operator carries it - unless the shipment was locked with
+   * representativeSharesLosses, in which case the rep's share is their percent of the loss
+   * (negative). */
   repShareUsd?: number;
   ourShareUsd?: number;
 }
 
-function deviceShare(profit: ShipmentProfit, percent: number): { repShareUsd?: number; ourShareUsd?: number } {
+function deviceShare(profit: ShipmentProfit, percent: number, sharesLosses = false): { repShareUsd?: number; ourShareUsd?: number } {
   if (profit.status !== "computed" || profit.profitUsd === undefined) return {};
-  const repShareUsd = profit.profitUsd > 0 ? (profit.profitUsd * percent) / 100 : 0;
+  const repShareUsd = profit.profitUsd > 0 || sharesLosses ? (profit.profitUsd * percent) / 100 : 0;
   return { repShareUsd, ourShareUsd: profit.profitUsd - repShareUsd };
 }
 
@@ -336,7 +345,7 @@ export function listRepDeviceCommissions(representativeId: string, ledgerStore: 
       if (entry.representativeCommissionPercent === undefined) continue;
       const profit = computeShipmentProfit(entry);
       const percent = entry.representativeCommissionPercent;
-      rows.push({ accountId, entry, profit, percent, ...deviceShare(profit, percent) });
+      rows.push({ accountId, entry, profit, percent, ...deviceShare(profit, percent, entry.representativeSharesLosses) });
     }
   }
   return rows.sort((a, b) =>
@@ -344,10 +353,11 @@ export function listRepDeviceCommissions(representativeId: string, ledgerStore: 
   );
 }
 
-/** Device profit shares are always in USD (profit itself is computed in USD). */
+/** Device profit shares are always in USD (profit itself is computed in USD). A shared loss is a
+ * negative share and reduces the figure. */
 function addDeviceShares(result: Record<string, number>, rows: RepDeviceCommissionRow[]) {
   for (const row of rows) {
-    if (row.repShareUsd === undefined || row.repShareUsd <= 0) continue;
+    if (row.repShareUsd === undefined || row.repShareUsd === 0) continue;
     result.USD = (result.USD ?? 0) + row.repShareUsd;
   }
 }
@@ -381,7 +391,11 @@ export function computeRepSharesUsd(entries: LedgerEntry[]): number {
   let total = 0;
   for (const entry of entries) {
     if (entry.kind !== "debit" || !entry.representativeId || entry.representativeCommissionPercent === undefined) continue;
-    const share = deviceShare(computeShipmentProfit(entry), entry.representativeCommissionPercent).repShareUsd;
+    const share = deviceShare(
+      computeShipmentProfit(entry),
+      entry.representativeCommissionPercent,
+      entry.representativeSharesLosses,
+    ).repShareUsd;
     if (share) total += share;
   }
   return total;

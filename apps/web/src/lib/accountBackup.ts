@@ -5,11 +5,61 @@ import { decryptBackup, encryptBackup, WrongPasswordError } from "./backupCrypto
  * importSessionCookies use on the native side. */
 export type SessionsByAccount = Record<string, Record<string, string>>;
 
+/** Every app-data localStorage key (clients, suppliers, ledger, invoices, store, cash,
+ * representatives, currencies, balances, ...) - all share this prefix, so a backup automatically
+ * covers stores added later too. Settings/tokens/PIN use "starnet." and are never included. */
+export const APP_DATA_KEY_PREFIX = "starnet_";
+
+/** key -> raw stored JSON string, exactly as found in localStorage. */
+export type AppDataSnapshot = Record<string, string>;
+
 export interface BackupEnvelope {
-  version: 1;
+  /** 1: accounts + sessions only. 2: also `data`, the full app-data snapshot. */
+  version: 1 | 2;
   exportedAt: string;
   accounts: StarlinkAccountSummary[];
   sessions: SessionsByAccount;
+  data?: AppDataSnapshot;
+}
+
+interface KeyValueStorage {
+  readonly length: number;
+  key(index: number): string | null;
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem(key: string): void;
+}
+
+/** Reads every app-data key (APP_DATA_KEY_PREFIX) out of `storage`. */
+export function collectAppData(storage: KeyValueStorage): AppDataSnapshot {
+  const data: AppDataSnapshot = {};
+  for (let i = 0; i < storage.length; i++) {
+    const key = storage.key(i);
+    if (!key || !key.startsWith(APP_DATA_KEY_PREFIX)) continue;
+    const value = storage.getItem(key);
+    if (value !== null) data[key] = value;
+  }
+  return data;
+}
+
+/** Replaces every app-data key in `storage` with the snapshot's - keys not in the snapshot are
+ * removed, so the restored state is exactly the backup's, never a mix of old and new. Keys outside
+ * APP_DATA_KEY_PREFIX (settings, login tokens, app PIN) are never touched. Returns how many keys
+ * were written. */
+export function restoreAppData(storage: KeyValueStorage, data: AppDataSnapshot): number {
+  const existing: string[] = [];
+  for (let i = 0; i < storage.length; i++) {
+    const key = storage.key(i);
+    if (key && key.startsWith(APP_DATA_KEY_PREFIX)) existing.push(key);
+  }
+  for (const key of existing) storage.removeItem(key);
+  let written = 0;
+  for (const [key, value] of Object.entries(data)) {
+    if (!key.startsWith(APP_DATA_KEY_PREFIX) || typeof value !== "string") continue;
+    storage.setItem(key, value);
+    written++;
+  }
+  return written;
 }
 
 /** True only for the exact shape buildBackupEnvelope produces - never throws, so callers can use
@@ -18,16 +68,21 @@ export function isBackupEnvelope(value: unknown): value is BackupEnvelope {
   if (typeof value !== "object" || value === null) return false;
   const candidate = value as Partial<BackupEnvelope>;
   return (
-    candidate.version === 1 &&
+    (candidate.version === 1 || candidate.version === 2) &&
     typeof candidate.exportedAt === "string" &&
     Array.isArray(candidate.accounts) &&
     typeof candidate.sessions === "object" &&
-    candidate.sessions !== null
+    candidate.sessions !== null &&
+    (candidate.data === undefined || (typeof candidate.data === "object" && candidate.data !== null))
   );
 }
 
-export function buildBackupEnvelope(accounts: StarlinkAccountSummary[], sessions: SessionsByAccount): BackupEnvelope {
-  return { version: 1, exportedAt: new Date().toISOString(), accounts, sessions };
+export function buildBackupEnvelope(
+  accounts: StarlinkAccountSummary[],
+  sessions: SessionsByAccount,
+  data: AppDataSnapshot = {},
+): BackupEnvelope {
+  return { version: 2, exportedAt: new Date().toISOString(), accounts, sessions, data };
 }
 
 /**
@@ -55,9 +110,10 @@ export async function createEncryptedBackupFile(
   accounts: StarlinkAccountSummary[],
   sessions: SessionsByAccount,
   password: string,
+  data: AppDataSnapshot = {},
 ): Promise<CreateBackupResult> {
   try {
-    const envelope = buildBackupEnvelope(accounts, sessions);
+    const envelope = buildBackupEnvelope(accounts, sessions, data);
     const encrypted = await encryptBackup(envelope, password);
     return { ok: true, fileContents: JSON.stringify(encrypted) };
   } catch {
@@ -66,7 +122,14 @@ export async function createEncryptedBackupFile(
 }
 
 export type ReadBackupResult =
-  | { ok: true; accounts: StarlinkAccountSummary[]; sessions: SessionsByAccount }
+  | {
+      ok: true;
+      accounts: StarlinkAccountSummary[];
+      sessions: SessionsByAccount;
+      /** Empty for a version-1 (accounts-only) backup. */
+      data: AppDataSnapshot;
+      exportedAt: string;
+    }
   | { ok: false; message: string };
 
 /** Parses `fileContents` as an EncryptedBackup envelope, decrypts it with `password`, and
@@ -101,5 +164,11 @@ export async function readEncryptedBackupFile(fileContents: string, password: st
   if (!isBackupEnvelope(decrypted)) {
     return { ok: false, message: "محتوى الملف غير متوافق مع هذا الإصدار من التطبيق" };
   }
-  return { ok: true, accounts: decrypted.accounts, sessions: decrypted.sessions };
+  return {
+    ok: true,
+    accounts: decrypted.accounts,
+    sessions: decrypted.sessions,
+    data: decrypted.data ?? {},
+    exportedAt: decrypted.exportedAt,
+  };
 }

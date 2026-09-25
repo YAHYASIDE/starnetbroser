@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
+import { loadCashEntries, postPartyAdjustmentToCash, removeLinkedCashEntries, saveCashEntries } from "@/lib/cashStore";
 import {
   Client,
   ClientStore,
@@ -100,6 +101,12 @@ export default function ClientsPage() {
     if (!result.ok) return result.message;
     setPartyAdjustments(result.list);
     savePartyAdjustments(result.list);
+    if (result.adjustment.cashMoved) {
+      const partyName =
+        (input.partyKind === "client" ? clientStore[input.partyId]?.name : supplierStore[input.partyId]?.name) ?? "";
+      const cash = postPartyAdjustmentToCash(loadCashEntries(), result.adjustment, partyName);
+      saveCashEntries(cash);
+    }
     return null;
   }
 
@@ -107,6 +114,8 @@ export default function ClientsPage() {
     const next = deletePartyAdjustment(partyAdjustments, adjustmentId);
     setPartyAdjustments(next);
     savePartyAdjustments(next);
+    const cash = removeLinkedCashEntries(loadCashEntries(), adjustmentId);
+    saveCashEntries(cash);
   }
 
   return (

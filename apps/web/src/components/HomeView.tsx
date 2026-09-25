@@ -18,6 +18,7 @@ import { HelpHint } from "./HelpHint";
 import { daysRemainingNumber } from "@/lib/date";
 import { computeDeviceDebtReminders, computeRenewalReminders, computeRestrictedDeviceReminders, isBackupOverdue } from "@/lib/reminders";
 import { formatAmount } from "@/lib/formatAmount";
+import { applyLedgerPaymentsToCash, loadCashEntries, saveCashEntries } from "@/lib/cashStore";
 import {
   getAccountEntries,
   LEDGER_CURRENCIES,
@@ -171,6 +172,10 @@ export function HomeView({
   const [statementAccount, setStatementAccount] = useState<StarlinkAccountSummary | null>(null);
 
   function updateLedgerEntries(accountId: string, entries: LedgerEntry[]) {
+    // Every device payment also moves money into الصندوق - computed from the current (pre-edit)
+    // entries, outside the state updater so it runs exactly once.
+    const deviceName = accounts.find((a) => a.id === accountId)?.name ?? "";
+    saveCashEntries(applyLedgerPaymentsToCash(loadCashEntries(), getAccountEntries(ledgerStore, accountId), entries, deviceName));
     setLedgerStore((current) => {
       const next = withAccountEntries(current, accountId, entries);
       saveLedgerStore(next);
@@ -727,6 +732,16 @@ export function HomeView({
         </div>
       </header>
 
+      {isBackupOverdue(lastBackupAt, 2) && (
+        <Link href="/settings#backup" className="backup-banner">
+          <span aria-hidden="true">🛡️</span>
+          <span>
+            <strong>{lastBackupAt ? "لم تحفظ نسخة احتياطية منذ أيام" : "لم تحفظ أي نسخة احتياطية بعد"}</strong>
+            <small>كل بياناتك موجودة على هذا الهاتف فقط - اضغط لحفظ نسخة كاملة الآن</small>
+          </span>
+        </Link>
+      )}
+
       <section className="search-panel" aria-label="البحث في الحسابات">
         <span className="search-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>
@@ -942,7 +957,7 @@ export function HomeView({
           onChange={(entries) => updateLedgerEntries(ledgerAccount.id, entries)}
           representative={(() => {
             const rep = getRepresentative(representativeStore, ledgerAccount.representativeId);
-            return rep ? { id: rep.id, commissionPercent: rep.commissionPercent } : undefined;
+            return rep ? { id: rep.id, commissionPercent: rep.commissionPercent, sharesLosses: rep.sharesLosses } : undefined;
           })()}
         />
       )}

@@ -43,7 +43,17 @@ import { AccountsSection } from "@/components/AccountsSection";
 import { CashRegisterSection } from "@/components/CashRegisterSection";
 import { StoreReportsSection } from "@/components/StoreReportsSection";
 import { Invoice, InvoiceList, loadInvoices, saveInvoices } from "@/lib/invoiceStore";
-import { CashEntryList, loadCashEntries, recordCashEntry, saveCashEntries } from "@/lib/cashStore";
+import {
+  CashClosingList,
+  CashEntryList,
+  loadCashClosings,
+  loadCashEntries,
+  postPartyAdjustmentToCash,
+  recordCashEntry,
+  removeLinkedCashEntries,
+  saveCashClosings,
+  saveCashEntries,
+} from "@/lib/cashStore";
 import {
   createSupplier,
   CreateSupplierInput,
@@ -93,6 +103,7 @@ export default function StorePage() {
   const [supplierStore, setSupplierStore] = useState<SupplierStore>({});
   const [representativeStore, setRepresentativeStore] = useState<RepresentativeStore>({});
   const [cashEntries, setCashEntries] = useState<CashEntryList>([]);
+  const [cashClosings, setCashClosings] = useState<CashClosingList>([]);
   const [accounts, setAccounts] = useState<StarlinkAccountSummary[]>(demoAccounts);
   const [ledgerStore, setLedgerStore] = useState<LedgerByAccount>({});
   const [partyAdjustments, setPartyAdjustments] = useState<PartyAdjustmentList>([]);
@@ -109,6 +120,7 @@ export default function StorePage() {
     setSupplierStore(loadSupplierStore());
     setRepresentativeStore(loadRepresentativeStore());
     setCashEntries(loadCashEntries());
+    setCashClosings(loadCashClosings());
     setLedgerStore(loadLedgerStore());
     setPartyAdjustments(loadPartyAdjustments());
     if (isDemoMode()) {
@@ -163,6 +175,13 @@ export default function StorePage() {
     if (!result.ok) return result.message;
     setPartyAdjustments(result.list);
     savePartyAdjustments(result.list);
+    if (result.adjustment.cashMoved) {
+      const partyName =
+        (input.partyKind === "client" ? clientStore[input.partyId]?.name : supplierStore[input.partyId]?.name) ?? "";
+      const cash = postPartyAdjustmentToCash(loadCashEntries(), result.adjustment, partyName);
+      setCashEntries(cash);
+    saveCashEntries(cash);
+    }
     return null;
   }
 
@@ -170,6 +189,9 @@ export default function StorePage() {
     const next = deletePartyAdjustment(partyAdjustments, adjustmentId);
     setPartyAdjustments(next);
     savePartyAdjustments(next);
+    const cash = removeLinkedCashEntries(loadCashEntries(), adjustmentId);
+    setCashEntries(cash);
+    saveCashEntries(cash);
   }
 
   function handleCreateRepresentative(input: CreateRepresentativeInput): Representative {
@@ -430,6 +452,13 @@ export default function StorePage() {
         onChange={(next) => {
           setCashEntries(next);
           saveCashEntries(next);
+        }}
+        closings={cashClosings}
+        onChangeClosings={(nextCash, nextClosings) => {
+          setCashEntries(nextCash);
+          saveCashEntries(nextCash);
+          setCashClosings(nextClosings);
+          saveCashClosings(nextClosings);
         }}
       />
 

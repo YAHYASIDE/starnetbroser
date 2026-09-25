@@ -3,11 +3,17 @@
 import { FormEvent, useMemo, useState } from "react";
 import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerCurrency } from "@/lib/ledgerStore";
 import {
+  CashClosingList,
+  CashEntry,
   CashEntryKind,
   CashEntryList,
+  CashSourceKind,
   computeCashBalanceByCurrency,
+  computeCashDaySummary,
+  deleteCashClosing,
   deleteCashEntry,
   listCashEntries,
+  recordCashClosing,
   recordCashEntry,
 } from "@/lib/cashStore";
 import { formatAmount } from "@/lib/formatAmount";
@@ -20,9 +26,24 @@ function currencyLabel(code: string): string {
   return LEDGER_CURRENCY_LABELS[code as LedgerCurrency] ?? code;
 }
 
+const SOURCE_LABELS: Record<CashSourceKind, string> = {
+  "device-payment": "دفعة جهاز",
+  "party-balance": "رصيد زبون/مورد",
+  "rep-settlement": "تسوية مندوب",
+  closing: "إغلاق يومي",
+};
+
+function sourceBadge(entry: CashEntry): string | null {
+  if (entry.invoiceId) return "من فاتورة";
+  return entry.sourceKind ? SOURCE_LABELS[entry.sourceKind] : null;
+}
+
 interface Props {
   entries: CashEntryList;
   onChange: (entries: CashEntryList) => void;
+  closings: CashClosingList;
+  /** A closing both records itself and (for any difference) posts to the log - saved together. */
+  onChangeClosings: (entries: CashEntryList, closings: CashClosingList) => void;
 }
 
 /** الصندوق والمصاريف: every manually-recorded amount in or out, plus every amount auto-posted
@@ -31,7 +52,7 @@ interface Props {
  * here (it really did move cash), but is excluded from "مصاريف" when computing net profit
  * elsewhere (cashStore.ts's listStandaloneCashEntries), since it's already reflected in cost of
  * goods / receivables. */
-export function CashRegisterSection({ entries, onChange }: Props) {
+export function CashRegisterSection({ entries, onChange, closings, onChangeClosings }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [kind, setKind] = useState<CashEntryKind>("in");
@@ -41,6 +62,7 @@ export function CashRegisterSection({ entries, onChange }: Props) {
   const [category, setCategory] = useState("");
   const [note, setNote] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+  const [showClosing, setShowClosing] = useState(false);
 
   const balance = useMemo(() => computeCashBalanceByCurrency(entries), [entries]);
   const balanceCurrencies = Object.keys(balance);
@@ -60,6 +82,25 @@ export function CashRegisterSection({ entries, onChange }: Props) {
     setNote("");
     setShowForm(false);
   }
+
+  function closeDay(date: string, counted: Record<string, number>, closingNote: string): string | null {
+    const result = recordCashClosing(entries, closings, date, counted, closingNote);
+    if (!result.ok) return result.message;
+    onChangeClosings(result.cash, result.closings);
+    setShowClosing(false);
+    return null;
+  }
+
+  function undoClosing(closingId: string) {
+    if (!window.confirm("هل تريد إلغاء هذا الإغلاق؟ ستُحذف معه حركة العجز/الزيادة التي سجّلها.")) return;
+    const result = deleteCashClosing(entries, closings, closingId);
+    onChangeClosings(result.cash, result.closings);
+  }
+
+  const recentClosings = useMemo(
+    () => [...closings].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.createdAt < b.createdAt ? 1 : -1)).slice(0, 7),
+    [closings],
+  );
 
   function remove(entryId: string) {
     if (!window.confirm("هل تريد حذف هذه الحركة من الصندوق؟ لا يمكن التراجع عن هذا الإجراء.")) return;
@@ -90,11 +131,46 @@ export function CashRegisterSection({ entries, onChange }: Props) {
           )}
 
           <div className="store-items-header">
-            <span />
+            <button type="button" className="btn-icon cash-close-btn" onClick={() => setShowClosing((v) => !v)}>
+              {showClosing ? "إلغاء" : "🔒 إغلاق اليوم"}
+            </button>
             <button type="button" className="btn-icon" onClick={() => setShowForm((v) => !v)}>
               {showForm ? "إلغاء" : "+ حركة جديدة"}
             </button>
           </div>
+
+          {showClosing && <ClosingForm entries={entries} onSubmit={closeDay} />}
+
+          {recentClosings.length > 0 && (
+            <ul className="cash-closing-list">
+              {recentClosings.map((closing) => (
+                <li key={closing.id} className="cash-closing-row">
+                  <div className="cash-closing-head">
+                    <strong>🔒 إغلاق {closing.date}</strong>
+                    <button type="button" className="ledger-entry-delete" onClick={() => undoClosing(closing.id)} aria-label="إلغاء الإغلاق" title="إلغاء الإغلاق">
+                      ×
+                    </button>
+                  </div>
+                  {closing.lines.map((line) => {
+                    const matched = Math.abs(line.difference) < 0.005;
+                    return (
+                      <div key={line.currencyCode} className={`cash-closing-line ${matched ? "cash-closing-ok" : line.difference > 0 ? "cash-closing-plus" : "cash-closing-minus"}`}>
+                        <span>{currencyLabel(line.currencyCode)}</span>
+                        <span dir="ltr">
+                          {formatAmount(line.counted)} / {formatAmount(line.expected)}
+                        </span>
+                        <strong>
+                          {matched ? "✅ مطابق" : line.difference > 0 ? "زيادة " : "عجز "}
+                          {!matched && <bdi dir="ltr">{formatAmount(Math.abs(line.difference))}</bdi>}
+                        </strong>
+                      </div>
+                    );
+                  })}
+                  {closing.note && <div className="ledger-entry-note">{closing.note}</div>}
+                </li>
+              ))}
+            </ul>
+          )}
 
           {showForm && (
             <form className="auth-form store-item-form" onSubmit={submit}>
@@ -158,7 +234,7 @@ export function CashRegisterSection({ entries, onChange }: Props) {
                   <span className="ledger-entry-date" dir="ltr">
                     {entry.date}
                   </span>
-                  {!entry.invoiceId && (
+                  {!entry.invoiceId && !entry.sourceId && (
                     <button
                       className="ledger-entry-delete"
                       type="button"
@@ -170,11 +246,11 @@ export function CashRegisterSection({ entries, onChange }: Props) {
                     </button>
                   )}
                 </div>
-                {(entry.category || entry.note || entry.invoiceId) && (
+                {(entry.category || entry.note || sourceBadge(entry)) && (
                   <div className="ledger-entry-row-bottom">
                     {entry.category && <span className="ledger-entry-method">{entry.category}</span>}
                     {entry.note && <span className="ledger-entry-note">{entry.note}</span>}
-                    {entry.invoiceId && <span className="badge badge-gray">من فاتورة</span>}
+                    {sourceBadge(entry) && <span className="badge badge-gray">{sourceBadge(entry)}</span>}
                   </div>
                 )}
               </li>
@@ -183,5 +259,86 @@ export function CashRegisterSection({ entries, onChange }: Props) {
         </>
       )}
     </section>
+  );
+}
+
+interface ClosingFormProps {
+  entries: CashEntryList;
+  onSubmit: (date: string, counted: Record<string, number>, note: string) => string | null;
+}
+
+/** إغلاق اليوم: per currency, the day's opening/in/out and the balance the log expects, next to
+ * an input for what was actually counted in the till. */
+function ClosingForm({ entries, onSubmit }: ClosingFormProps) {
+  const [date, setDate] = useState(todayDateInputValue());
+  const [counted, setCounted] = useState<Record<string, string>>({});
+  const [note, setNote] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const summary = useMemo(() => computeCashDaySummary(entries, date), [entries, date]);
+  const codes = Object.keys(summary).length > 0 ? Object.keys(summary) : ["MRU"];
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    const values: Record<string, number> = {};
+    for (const code of codes) {
+      const raw = counted[code];
+      if (raw === undefined || raw === "") continue;
+      values[code] = Number(raw);
+    }
+    setError(onSubmit(date, values, note));
+  }
+
+  return (
+    <form className="auth-form cash-closing-form" onSubmit={submit}>
+      <label className="form-field">
+        <span>اليوم</span>
+        <input className="search-input" type="date" dir="ltr" value={date} onChange={(e) => setDate(e.target.value)} />
+      </label>
+      {codes.map((code) => {
+        const s = summary[code] ?? { opening: 0, in: 0, out: 0, expected: 0 };
+        const raw = counted[code] ?? "";
+        const diff = raw === "" ? null : Number(raw) - s.expected;
+        return (
+          <div key={code} className="cash-closing-card">
+            <div className="cash-closing-card-title">{currencyLabel(code)}</div>
+            <div className="cash-closing-grid">
+              <span>رصيد أول اليوم</span>
+              <bdi dir="ltr">{formatAmount(s.opening)}</bdi>
+              <span>دخل اليوم</span>
+              <bdi dir="ltr">+{formatAmount(s.in)}</bdi>
+              <span>خرج اليوم</span>
+              <bdi dir="ltr">-{formatAmount(s.out)}</bdi>
+              <strong>المفروض في الصندوق</strong>
+              <strong dir="ltr">{formatAmount(s.expected)}</strong>
+            </div>
+            <input
+              className="search-input"
+              type="number"
+              min="0"
+              step="0.01"
+              dir="ltr"
+              inputMode="decimal"
+              placeholder="المبلغ الفعلي بعد العدّ"
+              aria-label={`المبلغ الفعلي ${currencyLabel(code)}`}
+              value={raw}
+              onChange={(e) => setCounted((c) => ({ ...c, [code]: e.target.value }))}
+            />
+            {diff !== null && Number.isFinite(diff) && (
+              <div className={`cash-closing-line ${Math.abs(diff) < 0.005 ? "cash-closing-ok" : diff > 0 ? "cash-closing-plus" : "cash-closing-minus"}`}>
+                <strong>
+                  {Math.abs(diff) < 0.005 ? "✅ مطابق" : diff > 0 ? "زيادة " : "عجز "}
+                  {Math.abs(diff) >= 0.005 && <bdi dir="ltr">{formatAmount(Math.abs(diff))}</bdi>}
+                </strong>
+              </div>
+            )}
+          </div>
+        );
+      })}
+      <input className="search-input" placeholder="ملاحظة (اختياري)" value={note} onChange={(e) => setNote(e.target.value)} />
+      {error && <div className="account-card-alert ledger-form-error">{error}</div>}
+      <button className="dialog-primary" type="submit">
+        حفظ الإغلاق
+      </button>
+    </form>
   );
 }

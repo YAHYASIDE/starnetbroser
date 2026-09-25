@@ -109,6 +109,8 @@ export interface LedgerEntry {
    * this field existed - those never earn a device commission. */
   representativeId?: string;
   representativeCommissionPercent?: number;
+  /** Locked with the percent: whether this rep also carries their percent of a loss. */
+  representativeSharesLosses?: boolean;
 }
 
 /** A "debit" entry with no starlinkCost info at all predates this feature - its profit can never
@@ -244,7 +246,7 @@ export interface CreateLedgerEntryInput {
   profitCurrencyRates?: { MRU?: number; SIFA?: number };
   /** Ignored for a "credit" entry - the device's current representative and their current rate,
    * locked onto the new shipment (see LedgerEntry.representativeId). */
-  representative?: { id: string; commissionPercent: number };
+  representative?: { id: string; commissionPercent: number; sharesLosses?: boolean };
 }
 
 export function createLedgerEntry(input: CreateLedgerEntryInput): LedgerEntry {
@@ -267,6 +269,7 @@ export function createLedgerEntry(input: CreateLedgerEntryInput): LedgerEntry {
     profitCurrencyRates: isDebit && input.starlinkCost?.status === "settled" ? input.profitCurrencyRates : undefined,
     representativeId: isDebit ? input.representative?.id : undefined,
     representativeCommissionPercent: isDebit ? input.representative?.commissionPercent : undefined,
+    representativeSharesLosses: isDebit && input.representative?.sharesLosses ? true : undefined,
   };
 }
 
