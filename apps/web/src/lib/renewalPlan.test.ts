@@ -22,6 +22,18 @@ describe("buildRenewalShipment", () => {
     expect(computeShipmentProfit(e).profitUsd).toBe(20);
   });
 
+  it("records the Starlink cost as D (pending, no profit rates yet) when asked or by the plan's default", () => {
+    const eur: CurrencyStore = { ...store, EUR: { code: "EUR", name: "يورو", symbol: "€", rateFromUsd: 0.8, updatedAt: now, enabled: true } };
+    const asked = buildRenewalShipment({ ...plan, costCurrency: "EUR", costAmount: 24 }, eur, "2026-09-25", { costPending: true });
+    if (!asked.ok) throw new Error(asked.message);
+    expect(asked.entry.starlinkCost).toEqual({ status: "pending", currencyCode: "EUR", amount: 24, rate: { rateFromUsd: 0.8, usdValue: 30 } });
+    expect(asked.entry.profitCurrencyRates).toBeUndefined();
+    const byPlan = buildRenewalShipment({ ...plan, costPending: true }, store, "2026-09-25");
+    expect(byPlan.ok && byPlan.entry.starlinkCost?.status).toBe("pending");
+    const overridden = buildRenewalShipment({ ...plan, costPending: true }, store, "2026-09-25", { costPending: false });
+    expect(overridden.ok && overridden.entry.starlinkCost?.status).toBe("settled");
+  });
+
   it("refuses instead of guessing when a rate is missing", () => {
     const noSifa = { USD: store.USD!, MRU: store.MRU! };
     expect(buildRenewalShipment(plan, noSifa, "2026-09-25")).toEqual({ ok: false, message: "سعر السيفا مقابل الدولار غير موجود في الإعدادات" });

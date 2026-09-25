@@ -482,7 +482,7 @@ export function LedgerDialog({
           </select>
           <input
             className="search-input"
-            type="number"
+            type="number" lang="en"
             min="0"
             step="0.01"
             dir="ltr"
@@ -492,7 +492,7 @@ export function LedgerDialog({
           />
           <input
             className="search-input"
-            type="date"
+            type="date" lang="en-GB"
             dir="ltr"
             value={date}
             onChange={(e) => setDate(e.target.value)}
@@ -502,7 +502,7 @@ export function LedgerDialog({
               <span>سعر عملة {kind === "debit" ? "البيع" : "الدفعة"} (1 USD = ؟ {currency})</span>
               <input
                 className="search-input"
-                type="number"
+                type="number" lang="en"
                 min="0"
                 step="0.0001"
                 dir="ltr"
@@ -551,7 +551,7 @@ export function LedgerDialog({
                   <span>المبلغ المدفوع لـ Starlink</span>
                   <input
                     className="search-input"
-                    type="number"
+                    type="number" lang="en"
                     min="0"
                     step="0.01"
                     dir="ltr"
@@ -564,7 +564,7 @@ export function LedgerDialog({
                     <span>سعر العملة (1 USD = ؟ {costCurrencyCode || "عملة"})</span>
                     <input
                       className="search-input"
-                      type="number"
+                      type="number" lang="en"
                       min="0"
                       step="0.0001"
                       dir="ltr"

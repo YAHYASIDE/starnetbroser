@@ -12,6 +12,8 @@ import { ClientPicker } from "./ClientPicker";
 import { RepresentativePicker } from "./RepresentativePicker";
 import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS } from "@/lib/ledgerStore";
 import { validateRenewalPlan } from "@/lib/renewalPlan";
+import { formatAmount } from "@/lib/formatAmount";
+import { getCurrency, listCurrencies, loadCurrencyStore } from "@/lib/currencyStore";
 
 export type AccountDialogMode = "add" | "edit" | "view";
 
@@ -97,7 +99,17 @@ export function AccountDialog({
   const [planSaleCurrency, setPlanSaleCurrency] = useState(initial.renewalPlan?.saleCurrency ?? "MRU");
   const [planCost, setPlanCost] = useState(initial.renewalPlan ? String(initial.renewalPlan.costAmount) : "");
   const [planCostCurrency, setPlanCostCurrency] = useState(initial.renewalPlan?.costCurrency ?? "USD");
+  const [planCostPending, setPlanCostPending] = useState(initial.renewalPlan?.costPending ?? false);
   const [planError, setPlanError] = useState<string | null>(null);
+  // Every registered currency can be Starlink's cost currency; a hidden one stays listed only
+  // when this device's plan already uses it.
+  const [currencyStore] = useState(loadCurrencyStore);
+  const costCurrencies = useMemo(() => {
+    const list = listCurrencies(currencyStore);
+    const current = getCurrency(currencyStore, planCostCurrency);
+    return current && !list.some((c) => c.code === current.code) ? [...list, current] : list;
+  }, [currencyStore, planCostCurrency]);
+  const costCurrency = getCurrency(currencyStore, planCostCurrency);
   const isView = mode === "view";
   const title = mode === "add" ? "إضافة حساب جديد" : mode === "edit" ? "تعديل الحساب" : "معلومات الحساب";
   const clientName = (clientId?: string) => clients.find((c) => c.id === clientId)?.name;
@@ -183,6 +195,7 @@ export function AccountDialog({
         saleCurrency: planSaleCurrency,
         costAmount: Number(planCost),
         costCurrency: planCostCurrency.trim().toUpperCase(),
+        costPending: planCostPending || undefined,
       };
       const planProblem = validateRenewalPlan(renewalPlan);
       if (planProblem) {
@@ -401,7 +414,7 @@ export function AccountDialog({
 
             <label className="form-field">
               <span>موعد التجديد *</span>
-              <input required type="date" dir="ltr" value={inputDate(draft.rechargeDate)} onChange={(e) => update("rechargeDate", e.target.value)} />
+              <input required type="date" lang="en-GB" dir="ltr" value={inputDate(draft.rechargeDate)} onChange={(e) => update("rechargeDate", e.target.value)} />
             </label>
 
             <label className="form-field">
@@ -416,7 +429,7 @@ export function AccountDialog({
 
             <label className="form-field">
               <span>الرصيد المستحق لـStarlink</span>
-              <input type="number" min="0" step="0.01" dir="ltr" value={draft.balanceDue} onChange={(e) => update("balanceDue", e.target.value)} />
+              <input type="number" lang="en" min="0" step="0.01" dir="ltr" value={draft.balanceDue} onChange={(e) => update("balanceDue", e.target.value)} />
             </label>
 
             <label className="form-field">
@@ -449,48 +462,92 @@ export function AccountDialog({
             </label>
 
             <fieldset className="form-field form-wide renewal-plan-fields">
-              <legend>💰 السعر الشهري الثابت (للتجديد بضغطة واحدة)</legend>
+              <legend>💰 السعر الشهري الثابت</legend>
               <div className="renewal-plan-row">
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  dir="ltr"
-                  inputMode="decimal"
-                  placeholder="سعر البيع للزبون"
-                  aria-label="سعر البيع الشهري"
-                  value={planSale}
-                  onChange={(e) => setPlanSale(e.target.value)}
-                />
-                <select value={planSaleCurrency} onChange={(e) => setPlanSaleCurrency(e.target.value)} aria-label="عملة البيع">
-                  {LEDGER_CURRENCIES.map((c) => (
-                    <option key={c} value={c}>{LEDGER_CURRENCY_LABELS[c]}</option>
-                  ))}
-                </select>
+                <label className="renewal-plan-field">
+                  <span>سعر البيع للزبون</span>
+                  <input
+                    type="number" lang="en"
+                    min="0"
+                    step="0.01"
+                    dir="ltr"
+                    inputMode="decimal"
+                    placeholder="0"
+                    value={planSale}
+                    onChange={(e) => setPlanSale(e.target.value)}
+                  />
+                </label>
+                <label className="renewal-plan-field">
+                  <span>عملة البيع</span>
+                  <select value={planSaleCurrency} onChange={(e) => setPlanSaleCurrency(e.target.value)}>
+                    {LEDGER_CURRENCIES.map((c) => (
+                      <option key={c} value={c}>{LEDGER_CURRENCY_LABELS[c]} ({c})</option>
+                    ))}
+                  </select>
+                </label>
               </div>
               <div className="renewal-plan-row">
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  dir="ltr"
-                  inputMode="decimal"
-                  placeholder="تكلفة Starlink"
-                  aria-label="تكلفة Starlink الشهرية"
-                  value={planCost}
-                  onChange={(e) => setPlanCost(e.target.value)}
-                />
-                <input
-                  dir="ltr"
-                  maxLength={5}
-                  placeholder="USD"
-                  aria-label="عملة تكلفة Starlink"
-                  value={planCostCurrency}
-                  onChange={(e) => setPlanCostCurrency(e.target.value.toUpperCase())}
-                />
+                <label className="renewal-plan-field">
+                  <span>تكلفة Starlink</span>
+                  <input
+                    type="number" lang="en"
+                    min="0"
+                    step="0.01"
+                    dir="ltr"
+                    inputMode="decimal"
+                    placeholder="0"
+                    value={planCost}
+                    onChange={(e) => setPlanCost(e.target.value)}
+                  />
+                </label>
+                <label className="renewal-plan-field">
+                  <span>عملة التكلفة</span>
+                  <select value={planCostCurrency} onChange={(e) => setPlanCostCurrency(e.target.value)}>
+                    {!costCurrency && <option value={planCostCurrency}>{planCostCurrency || "اختر"}</option>}
+                    {costCurrencies.map((c) => (
+                      <option key={c.code} value={c.code}>{c.name} ({c.code})</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              {costCurrency && costCurrency.code !== "USD" && (
+                <small className="renewal-plan-rate">
+                  سعر الصرف: <bdi dir="ltr">1 USD = {formatAmount(costCurrency.rateFromUsd)} {costCurrency.code}</bdi>
+                  {Number(planCost) > 0 && (
+                    <>
+                      {" "}· التكلفة ≈ <bdi dir="ltr">{formatAmount(Number(planCost) / costCurrency.rateFromUsd)} USD</bdi>
+                    </>
+                  )}
+                </small>
+              )}
+              {!costCurrency && planCostCurrency && (
+                <small className="account-card-alert">عملة {planCostCurrency} غير مسجّلة - أضفها من صفحة العملات</small>
+              )}
+              <div className="renewal-plan-field">
+                <span>تكلفة Starlink عند التجديد</span>
+                <div className="renewal-cost-status" role="radiogroup" aria-label="تكلفة Starlink عند التجديد">
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={!planCostPending}
+                    className={`renewal-cost-option${!planCostPending ? " renewal-cost-option-active" : ""}`}
+                    onClick={() => setPlanCostPending(false)}
+                  >
+                    ✓ مدفوعة
+                  </button>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={planCostPending}
+                    className={`renewal-cost-option renewal-cost-option-d${planCostPending ? " renewal-cost-option-active" : ""}`}
+                    onClick={() => setPlanCostPending(true)}
+                  >
+                    D لم تُدفع بعد
+                  </button>
+                </div>
               </div>
               <small className="settings-hint">
-                عند الضغط على "تجديد" تُسجَّل الشحنة تلقائيًا بهذا السعر وبأسعار الصرف الحالية. اتركه فارغًا للتسجيل اليدوي.
+                عند الضغط على "تجديد" تُسجَّل الشحنة تلقائيًا بهذا السعر وبأسعار الصرف الحالية (ويمكنك تغيير ✓/D وقتها). اتركه فارغًا للتسجيل اليدوي.
               </small>
               {planError && <span className="account-card-alert ledger-form-error">{planError}</span>}
             </fieldset>

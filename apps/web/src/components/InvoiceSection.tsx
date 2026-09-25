@@ -455,7 +455,7 @@ function InvoiceForm({
           <option value="sale">فاتورة بيع</option>
           <option value="purchase">فاتورة شراء</option>
         </select>
-        <input className="search-input" type="date" dir="ltr" value={date} onChange={(e) => setDate(e.target.value)} />
+        <input className="search-input" type="date" lang="en-GB" dir="ltr" value={date} onChange={(e) => setDate(e.target.value)} />
       </div>
 
       <select className="search-input" value={currencyCode} onChange={(e) => setCurrencyCode(e.target.value as LedgerCurrency)}>
@@ -490,7 +490,7 @@ function InvoiceForm({
             </select>
             <input
               className="search-input"
-              type="number"
+              type="number" lang="en"
               min="0"
               step="0.01"
               dir="ltr"
@@ -500,7 +500,7 @@ function InvoiceForm({
             />
             <input
               className="search-input"
-              type="number"
+              type="number" lang="en"
               min="0"
               step="0.01"
               dir="ltr"
@@ -530,7 +530,7 @@ function InvoiceForm({
             <div className="invoice-line-row">
               <input
                 className="search-input"
-                type="number"
+                type="number" lang="en"
                 min="0"
                 step="0.01"
                 dir="ltr"
@@ -540,7 +540,7 @@ function InvoiceForm({
               />
               <input
                 className="search-input"
-                type="number"
+                type="number" lang="en"
                 min="0"
                 step="0.01"
                 dir="ltr"
@@ -559,7 +559,7 @@ function InvoiceForm({
       <div className="store-item-form-row">
         <input
           className="search-input"
-          type="number"
+          type="number" lang="en"
           min="0"
           step="0.01"
           dir="ltr"
@@ -569,7 +569,7 @@ function InvoiceForm({
         />
         <input
           className="search-input"
-          type="number"
+          type="number" lang="en"
           min="0"
           step="0.01"
           dir="ltr"
@@ -727,7 +727,7 @@ function ReturnForm({ original, items, invoices, onCancel, onSubmit }: ReturnFor
             <span className="store-item-name">{item?.name ?? "مادة"}</span>
             <input
               className="search-input"
-              type="number"
+              type="number" lang="en"
               min="0"
               step="0.01"
               dir="ltr"
@@ -741,7 +741,7 @@ function ReturnForm({ original, items, invoices, onCancel, onSubmit }: ReturnFor
           </div>
         );
       })}
-      <input className="search-input" type="date" dir="ltr" value={date} onChange={(e) => setDate(e.target.value)} />
+      <input className="search-input" type="date" lang="en-GB" dir="ltr" value={date} onChange={(e) => setDate(e.target.value)} />
       <input
         className="search-input ledger-note-input"
         type="text"

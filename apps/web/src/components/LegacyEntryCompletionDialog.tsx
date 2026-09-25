@@ -167,7 +167,7 @@ export function LegacyEntryCompletionDialog({ entry, currencyStore, defaultCostC
               <span>سعر صرف قيمة البيع (1 USD = ؟ {entry.currency})</span>
               <input
                 className="search-input"
-                type="number"
+                type="number" lang="en"
                 min="0"
                 step="0.0001"
                 dir="ltr"
@@ -212,13 +212,13 @@ export function LegacyEntryCompletionDialog({ entry, currencyStore, defaultCostC
 
               <label className="form-field">
                 <span>مبلغ التكلفة</span>
-                <input className="search-input" type="number" min="0" step="0.01" dir="ltr" value={costAmount} onChange={(e) => setCostAmount(e.target.value)} />
+                <input className="search-input" type="number" lang="en" min="0" step="0.01" dir="ltr" value={costAmount} onChange={(e) => setCostAmount(e.target.value)} />
               </label>
 
               {!costIsUsd && (
                 <label className="form-field">
                   <span>سعر الصرف (1 USD = ؟ {costCurrencyCode})</span>
-                  <input className="search-input" type="number" min="0" step="0.0001" dir="ltr" value={costRate} onChange={(e) => setCostRate(e.target.value)} />
+                  <input className="search-input" type="number" lang="en" min="0" step="0.0001" dir="ltr" value={costRate} onChange={(e) => setCostRate(e.target.value)} />
                 </label>
               )}
 
@@ -229,7 +229,7 @@ export function LegacyEntryCompletionDialog({ entry, currencyStore, defaultCostC
 
               <label className="form-field">
                 <span>تاريخ الدفع</span>
-                <input className="search-input" type="date" dir="ltr" value={costDate} onChange={(e) => setCostDate(e.target.value)} />
+                <input className="search-input" type="date" lang="en-GB" dir="ltr" value={costDate} onChange={(e) => setCostDate(e.target.value)} />
               </label>
 
               <label className="form-field form-wide">

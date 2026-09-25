@@ -68,7 +68,7 @@ export function PaymentRateCompletionDialog({ entry, currencyStore, onUpsertCurr
             <span>سعر صرف الدفعة (1 USD = ؟ {entry.currency})</span>
             <input
               className="search-input"
-              type="number"
+              type="number" lang="en"
               min="0"
               step="0.0001"
               dir="ltr"

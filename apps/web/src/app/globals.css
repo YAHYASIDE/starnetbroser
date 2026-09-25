@@ -4579,8 +4579,59 @@ button.today-tile {
 
 .renewal-plan-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 96px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px;
+}
+
+.renewal-plan-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.renewal-plan-field > span {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.renewal-plan-field select,
+.renewal-plan-field input {
+  width: 100%;
+  min-width: 0;
+}
+
+.renewal-plan-rate {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.renewal-cost-status {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.renewal-cost-option {
+  min-height: 40px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.renewal-cost-option-active {
+  border-color: var(--green);
+  background: var(--green-bg);
+}
+
+.renewal-cost-option-d.renewal-cost-option-active {
+  border-color: var(--red);
+  background: var(--red-bg);
+  color: var(--red);
 }
 
 .renewal-auto-toggle {
@@ -5311,4 +5362,251 @@ button.today-tile {
   font-weight: 500;
   color: var(--text-muted);
   text-align: end;
+}
+
+/* ---- Representative statement: periods, summary, running balance, edit sheets ---- */
+.rep-period-chips {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.rep-period-chip {
+  min-height: 36px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.rep-period-chip-active {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: var(--brand-contrast);
+}
+
+.rep-period-range {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.rep-period-range label,
+.rep-form-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.rep-period-range span,
+.rep-form-field > span {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.rep-period-range input {
+  width: 100%;
+  min-width: 0;
+}
+
+.rep-statement {
+  display: grid;
+  gap: 10px;
+}
+
+.rep-archive-toggle {
+  font-size: 0.82rem;
+}
+
+.rep-summary {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+}
+
+.rep-summary-archive {
+  border-style: dashed;
+  opacity: 0.92;
+}
+
+.rep-summary-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.rep-summary-head span {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.rep-summary-lines {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.rep-summary-lines > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.82rem;
+}
+
+.rep-summary-lines dt {
+  color: var(--text-muted);
+}
+
+.rep-summary-lines dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: end;
+  overflow-wrap: anywhere;
+}
+
+.rep-summary-balance {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: 0.82rem;
+}
+
+.rep-summary-closing {
+  border: 1px solid var(--brand);
+}
+
+.rep-balance-value {
+  display: grid;
+  gap: 2px;
+  text-align: end;
+  font-size: 0.85rem;
+}
+
+.rep-balance-due {
+  color: var(--orange);
+}
+
+.rep-balance-clear {
+  color: var(--green);
+}
+
+.rep-balance-zero {
+  color: var(--text-muted);
+}
+
+.rep-line-open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.rep-line-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin-top: 4px;
+  font-size: 0.74rem;
+}
+
+.rep-line-delta {
+  display: inline-flex;
+  gap: 6px;
+  font-weight: 700;
+}
+
+.rep-line-balance {
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.rep-line-edit {
+  margin-inline-start: auto;
+  color: var(--brand);
+  font-size: 0.9rem;
+}
+
+.rep-chip-reset {
+  border-color: var(--violet);
+  color: var(--violet);
+}
+
+.party-sheet-option-danger {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.rep-delete {
+  display: grid;
+  gap: 10px;
+}
+
+.rep-delete-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+  font-size: 0.85rem;
+}
+
+.rep-delete-list li {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+}
+
+.rep-shipment-info {
+  display: grid;
+  gap: 2px;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  font-size: 0.82rem;
+}
+
+.rep-shipment-preview {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--green-bg);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.rep-reset-current {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--violet-bg);
+  font-size: 0.85rem;
+}
+
+.rep-reset-balance {
+  margin: 0;
+  font-size: 0.85rem;
 }

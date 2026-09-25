@@ -40,5 +40,5 @@ export function formatRelativeTime(iso: string | null | undefined): string | nul
   const diffDays = Math.round(diffHours / 24);
   if (diffDays < 7) return `منذ ${diffDays} يوم`;
 
-  return then.toLocaleDateString("ar", { day: "numeric", month: "short" });
+  return then.toLocaleDateString("ar-u-nu-latn", { day: "numeric", month: "short" });
 }

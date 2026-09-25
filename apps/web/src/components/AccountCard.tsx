@@ -65,7 +65,7 @@ interface Props {
   onPermanentDelete?: (account: StarlinkAccountSummary) => void;
   /** Applies the confirmed new renewal date, then opens the ledger dialog for this account so the
    * operator can record the actual shipment/payment. */
-  onConfirmRenewal: (account: StarlinkAccountSummary, newRechargeDate: string, autoShipment: boolean) => void;
+  onConfirmRenewal: (account: StarlinkAccountSummary, newRechargeDate: string, autoShipment: boolean, costPending: boolean) => void;
 }
 
 const STATUS_TILE_CLASS: Record<string, string> = {
@@ -614,7 +614,7 @@ export function AccountCard({
       {showRenewalDialog && (
         <RenewalConfirmDialog
           account={account}
-          onConfirm={(newDate, autoShipment) => { onConfirmRenewal(account, newDate, autoShipment); setShowRenewalDialog(false); }}
+          onConfirm={(newDate, autoShipment, costPending) => { onConfirmRenewal(account, newDate, autoShipment, costPending); setShowRenewalDialog(false); }}
           onClose={() => setShowRenewalDialog(false)}
         />
       )}

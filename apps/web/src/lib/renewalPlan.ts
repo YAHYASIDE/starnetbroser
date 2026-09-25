@@ -30,7 +30,13 @@ export function buildRenewalShipment(
   plan: RenewalPlan,
   currencyStore: CurrencyStore,
   date: string,
-  options: { note?: string; email?: string; representative?: { id: string; commissionPercent: number; sharesLosses?: boolean } } = {},
+  options: {
+    note?: string;
+    email?: string;
+    representative?: { id: string; commissionPercent: number; sharesLosses?: boolean };
+    /** Record the Starlink cost as still unpaid (D) - defaults to the plan's own costPending. */
+    costPending?: boolean;
+  } = {},
 ): RenewalShipmentResult {
   const invalid = validateRenewalPlan(plan);
   if (invalid) return { ok: false, message: invalid };
@@ -38,13 +44,16 @@ export function buildRenewalShipment(
   if (saleRate === undefined) return { ok: false, message: `سعر صرف ${plan.saleCurrency} غير مسجّل في العملات` };
   const costRate = rateOf(currencyStore, plan.costCurrency);
   if (costRate === undefined) return { ok: false, message: `سعر صرف ${plan.costCurrency} غير مسجّل في العملات` };
+  // A D shipment locks its profit rates only once the cost is settled (like "إضافة حركة").
+  const costPending = options.costPending ?? plan.costPending ?? false;
   const mru = rateOf(currencyStore, "MRU");
   const sifa = rateOf(currencyStore, "SIFA");
-  if (mru === undefined) return { ok: false, message: "سعر الأوقية مقابل الدولار غير موجود في الإعدادات" };
-  if (sifa === undefined) return { ok: false, message: "سعر السيفا مقابل الدولار غير موجود في الإعدادات" };
+  if (!costPending && mru === undefined) return { ok: false, message: "سعر الأوقية مقابل الدولار غير موجود في الإعدادات" };
+  if (!costPending && sifa === undefined) return { ok: false, message: "سعر السيفا مقابل الدولار غير موجود في الإعدادات" };
 
   const saleIsUsd = plan.saleCurrency === "USD";
   const costIsUsd = plan.costCurrency.toUpperCase() === "USD";
+  const costRateSnapshot = costIsUsd ? undefined : { rateFromUsd: costRate, usdValue: plan.costAmount / costRate };
   const entry = createLedgerEntry({
     kind: "debit",
     amount: plan.saleAmount,
@@ -53,14 +62,10 @@ export function buildRenewalShipment(
     email: options.email ?? "",
     date,
     saleRate: saleIsUsd ? undefined : { rateFromUsd: saleRate, usdValue: plan.saleAmount / saleRate },
-    starlinkCost: {
-      status: "settled",
-      currencyCode: plan.costCurrency.toUpperCase(),
-      amount: plan.costAmount,
-      rate: costIsUsd ? undefined : { rateFromUsd: costRate, usdValue: plan.costAmount / costRate },
-      paidAt: date,
-    },
-    profitCurrencyRates: { MRU: mru, SIFA: sifa },
+    starlinkCost: costPending
+      ? { status: "pending", currencyCode: plan.costCurrency.toUpperCase(), amount: plan.costAmount, rate: costRateSnapshot }
+      : { status: "settled", currencyCode: plan.costCurrency.toUpperCase(), amount: plan.costAmount, rate: costRateSnapshot, paidAt: date },
+    profitCurrencyRates: costPending ? undefined : { MRU: mru!, SIFA: sifa! },
     representative: options.representative,
   });
   return { ok: true, entry };

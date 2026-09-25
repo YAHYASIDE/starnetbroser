@@ -571,7 +571,7 @@ function BackupSection() {
       if (dataKeys > 0) {
         // A full (version 2) backup restores every app-data store exactly as it was - so it must
         // be confirmed, since it replaces whatever is on this phone now.
-        const when = new Date(result.exportedAt).toLocaleString("ar");
+        const when = new Date(result.exportedAt).toLocaleString("ar-u-nu-latn");
         if (!window.confirm(`استعادة نسخة ${when}؟ سيتم استبدال كل البيانات الحالية على هذا الهاتف ببيانات النسخة.`)) {
           return;
         }

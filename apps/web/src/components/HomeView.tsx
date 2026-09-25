@@ -621,17 +621,18 @@ export function HomeView({
   // With a fixed monthly price (renewalPlan) and auto-shipment ticked, the month's shipment is
   // recorded right here (renewalPlan.ts) instead - falling back to the manual dialog, with the
   // reason, whenever a needed exchange rate isn't registered.
-  function handleConfirmRenewal(account: StarlinkAccountSummary, newRechargeDate: string, autoShipment = false) {
+  function handleConfirmRenewal(account: StarlinkAccountSummary, newRechargeDate: string, autoShipment = false, costPending = false) {
     patchAccount(account.id, { rechargeDate: newRechargeDate, lastUpdated: "الآن" });
     if (autoShipment && account.renewalPlan) {
       const rep = getRepresentative(representativeStore, account.representativeId);
       const result = buildRenewalShipment(account.renewalPlan, currencyStore, new Date().toISOString().slice(0, 10), {
         email: account.expectedEmail || account.starlinkAccountEmail || "",
         representative: rep ? { id: rep.id, commissionPercent: rep.commissionPercent, sharesLosses: rep.sharesLosses } : undefined,
+        costPending,
       });
       if (result.ok) {
         updateLedgerEntries(account.id, [...getAccountEntries(ledgerStore, account.id), result.entry]);
-        pushToast(`✓ تم التجديد وتسجيل شحنة ${formatAmount(result.entry.amount)} ${LEDGER_CURRENCY_LABELS[result.entry.currency]} على "${account.name}"`);
+        pushToast(`✓ تم التجديد وتسجيل شحنة ${formatAmount(result.entry.amount)} ${LEDGER_CURRENCY_LABELS[result.entry.currency]} على "${account.name}"${costPending ? " (D)" : ""}`);
         return;
       }
       pushToast(`تعذر التسجيل التلقائي: ${result.message} - سجّل الشحنة يدويًا`);

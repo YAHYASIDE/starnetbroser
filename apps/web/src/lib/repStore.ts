@@ -26,8 +26,17 @@ export interface Representative {
    * that reduces what we owe them). Off by default: the operator carries every loss alone. Locked
    * onto each shipment at creation (LedgerEntry.representativeSharesLosses), like the percent. */
   sharesLosses?: boolean;
+  /** "تصفير الحساب" - a fresh start: only records after this point count toward his balances and
+   * statement; older ones stay untouched, shown in the archive (see repAccount.ts). */
+  resetFrom?: RepResetPoint;
   createdAt: string;
   updatedAt: string;
+}
+
+/** Records dated after `date`, or on `date` and created after `at` ("" = the whole day counts). */
+export interface RepResetPoint {
+  date: string;
+  at: string;
 }
 
 /** representativeId -> Representative. */
@@ -109,6 +118,22 @@ export function updateRepresentative(
   return { ...store, [id]: updated };
 }
 
+export function setRepresentativeReset(
+  store: RepresentativeStore,
+  id: string,
+  resetFrom: RepResetPoint | undefined,
+): RepresentativeStore {
+  const existing = store[id];
+  if (!existing) return store;
+  return { ...store, [id]: { ...existing, resetFrom, updatedAt: new Date().toISOString() } };
+}
+
+export function deleteRepresentative(store: RepresentativeStore, id: string): RepresentativeStore {
+  const next = { ...store };
+  delete next[id];
+  return next;
+}
+
 /** "cashHandover"/"commissionPayout" settle the two invoice-derived balances below.
  * "manualCredit"/"manualDebit" are free-standing adjustments with no invoice behind them at all
  * (a bonus, an advance/سلفة, a correction) - "credit" adds to what the operator owes the rep,
@@ -179,6 +204,35 @@ export function recordRepSettlement(
     createdAt: new Date().toISOString(),
   };
   return { ok: true, settlements: [...settlements, settlement], settlement };
+}
+
+export type UpdateRepSettlementInput = Omit<RecordRepSettlementInput, "representativeId">;
+
+/** Edits a settlement in place (same id/creation time, same validation) - the caller re-posts its
+ * linked cash entry. */
+export function updateRepSettlement(
+  settlements: RepSettlementList,
+  id: string,
+  input: UpdateRepSettlementInput,
+): RecordRepSettlementResult {
+  const existing = settlements.find((s) => s.id === id);
+  if (!existing) return { ok: false, message: "العملية غير موجودة" };
+  if (!Number.isFinite(input.amount) || input.amount <= 0) {
+    return { ok: false, message: "المبلغ يجب أن يكون أكبر من صفر" };
+  }
+  const settlement: RepSettlement = {
+    ...existing,
+    kind: input.kind,
+    amount: input.amount,
+    currencyCode: input.currencyCode,
+    date: input.date,
+    note: input.note?.trim() || undefined,
+  };
+  return { ok: true, settlements: settlements.map((s) => (s.id === id ? settlement : s)), settlement };
+}
+
+export function deleteRepSettlement(settlements: RepSettlementList, id: string): RepSettlementList {
+  return settlements.filter((s) => s.id !== id);
 }
 
 /** Cash the representative has personally collected from customers on sale invoices attributed to

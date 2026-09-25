@@ -874,7 +874,7 @@ function BalanceForm({ partyName, partyKind, devices, initial, submitLabel = "ح
       <div className="party-balance-row">
         <input
           className="search-input"
-          type="number"
+          type="number" lang="en"
           min="0"
           step="0.01"
           dir="ltr"
@@ -892,7 +892,7 @@ function BalanceForm({ partyName, partyKind, devices, initial, submitLabel = "ح
           ))}
         </select>
       </div>
-      <input className="search-input" type="date" dir="ltr" value={date} onChange={(e) => setDate(e.target.value)} />
+      <input className="search-input" type="date" lang="en-GB" dir="ltr" value={date} onChange={(e) => setDate(e.target.value)} />
       <input className="search-input" placeholder="ملاحظة (اختياري) - مثال: رصيد افتتاحي" value={note} onChange={(e) => setNote(e.target.value)} />
       <label className="ledger-d-toggle party-cash-toggle">
         <input type="checkbox" checked={cashMoved} onChange={(e) => setCashMoved(e.target.checked)} />
@@ -965,7 +965,7 @@ function PartyForm({ initial, submitLabel, namePlaceholder, showCreditLimit, onS
       {showCreditLimit && (
         <input
           className="search-input"
-          type="number"
+          type="number" lang="en"
           min="0"
           step="0.01"
           dir="ltr"

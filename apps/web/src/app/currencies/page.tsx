@@ -23,7 +23,7 @@ function formatRate(currency: Currency): string {
 
 function formatUpdatedAt(iso: string): string {
   try {
-    return new Date(iso).toLocaleDateString("ar");
+    return new Date(iso).toLocaleDateString("ar-u-nu-latn");
   } catch {
     return iso;
   }
@@ -233,7 +233,7 @@ export default function CurrenciesPage() {
             <span>المبلغ</span>
             <input
               className="search-input"
-              type="number"
+              type="number" lang="en"
               min="0"
               step="any"
               dir="ltr"
@@ -319,7 +319,7 @@ export default function CurrenciesPage() {
                 <div className="currency-row-edit">
                   <input
                     className="search-input"
-                    type="number"
+                    type="number" lang="en"
                     min="0"
                     step="0.0001"
                     dir="ltr"
@@ -387,7 +387,7 @@ export default function CurrenciesPage() {
                   <span>{newSymbol}</span>
                   <input
                     className="search-input"
-                    type="number"
+                    type="number" lang="en"
                     min="0"
                     step="any"
                     dir="ltr"
@@ -401,7 +401,7 @@ export default function CurrenciesPage() {
                   <span>دولار</span>
                   <input
                     className="search-input"
-                    type="number"
+                    type="number" lang="en"
                     min="0"
                     step="any"
                     dir="ltr"

@@ -171,6 +171,9 @@ export interface RenewalPlan {
   /** What Starlink charges per renewal, in any registered currency. */
   costAmount: number;
   costCurrency: string;
+  /** True when the Starlink cost is normally still unpaid at renewal time - the renewal shipment
+   * is then recorded with the cost pending (D) by default instead of settled. */
+  costPending?: boolean;
 }
 
 /** Detail-view shape - includes decrypted secrets, only ever returned to

@@ -9,7 +9,7 @@ interface Props {
   /** Applies the new renewal date; `autoShipment` asks the caller to record the month's shipment
    * from the device's renewalPlan, otherwise it opens the ledger dialog for a manual entry. This
    * dialog itself never creates a ledger entry and never touches Starlink. */
-  onConfirm: (newRechargeDate: string, autoShipment: boolean) => void;
+  onConfirm: (newRechargeDate: string, autoShipment: boolean, costPending: boolean) => void;
   onClose: () => void;
 }
 
@@ -39,10 +39,12 @@ export function RenewalConfirmDialog({ account, onConfirm, onClose }: Props) {
   // With a fixed monthly price (renewalPlan) the shipment can be recorded in the same tap; the
   // operator can still untick this to type it by hand.
   const [autoShipment, setAutoShipment] = useState(plan !== undefined);
+  // Starlink cost paid now (✓) or still owed (D) - starts from the plan's own default.
+  const [costPending, setCostPending] = useState(plan?.costPending ?? false);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    onConfirm(toStoredDate(date), autoShipment && plan !== undefined);
+    onConfirm(toStoredDate(date), autoShipment && plan !== undefined, costPending);
   }
 
   return (
@@ -61,7 +63,7 @@ export function RenewalConfirmDialog({ account, onConfirm, onClose }: Props) {
         <form className="account-form" onSubmit={submit}>
           <label className="form-field form-wide">
             <span>موعد الانتهاء الجديد *</span>
-            <input required type="date" dir="ltr" value={date} onChange={(e) => setDate(e.target.value)} />
+            <input required type="date" lang="en-GB" dir="ltr" value={date} onChange={(e) => setDate(e.target.value)} />
           </label>
 
           {plan && (
@@ -80,9 +82,34 @@ export function RenewalConfirmDialog({ account, onConfirm, onClose }: Props) {
             </label>
           )}
 
+          {plan && autoShipment && (
+            <div className="renewal-cost-status form-wide" role="radiogroup" aria-label="تكلفة Starlink">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={!costPending}
+                className={`renewal-cost-option${!costPending ? " renewal-cost-option-active" : ""}`}
+                onClick={() => setCostPending(false)}
+              >
+                ✓ دفعت التكلفة
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={costPending}
+                className={`renewal-cost-option renewal-cost-option-d${costPending ? " renewal-cost-option-active" : ""}`}
+                onClick={() => setCostPending(true)}
+              >
+                D لم أدفع بعد
+              </button>
+            </div>
+          )}
+
           <p className="renewal-dialog-note">
             {autoShipment && plan
-              ? "ستُسجَّل الشحنة بأسعار الصرف الحالية وتظهر في كشف الجهاز والزبون مباشرة."
+              ? costPending
+                ? "ستُسجَّل الشحنة بعلامة D (تكلفة Starlink غير مدفوعة) ويظهر ربحها متوقعًا حتى تسدّدها."
+                : "ستُسجَّل الشحنة بأسعار الصرف الحالية وتظهر في كشف الجهاز والزبون مباشرة."
               : "بعد التأكيد سيُفتح سجل حركة الحساب لتسجيل الشحنة/الدفعة المرتبطة بهذا التجديد."}
           </p>
 

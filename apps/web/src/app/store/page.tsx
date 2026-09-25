@@ -690,7 +690,7 @@ function ItemForm({ initial, onSubmit, onCancel }: ItemFormProps) {
       <div className="store-item-form-row">
         <input
           className="search-input"
-          type="number"
+          type="number" lang="en"
           min="0"
           step="0.01"
           dir="ltr"
@@ -709,7 +709,7 @@ function ItemForm({ initial, onSubmit, onCancel }: ItemFormProps) {
       <div className="store-item-form-row">
         <input
           className="search-input"
-          type="number"
+          type="number" lang="en"
           min="0"
           step="0.01"
           dir="ltr"
@@ -728,7 +728,7 @@ function ItemForm({ initial, onSubmit, onCancel }: ItemFormProps) {
 
       <input
         className="search-input"
-        type="number"
+        type="number" lang="en"
         min="0"
         step="0.01"
         dir="ltr"
@@ -739,7 +739,7 @@ function ItemForm({ initial, onSubmit, onCancel }: ItemFormProps) {
 
       <input
         className="search-input"
-        type="number"
+        type="number" lang="en"
         min="0"
         step="1"
         dir="ltr"
@@ -843,7 +843,7 @@ function StoreItemPanel({ item, stock, initialKind, transactions, clients, clien
         </select>
         <input
           className="search-input"
-          type="number"
+          type="number" lang="en"
           min="0"
           step="0.01"
           dir="ltr"
@@ -853,7 +853,7 @@ function StoreItemPanel({ item, stock, initialKind, transactions, clients, clien
         />
         <input
           className="search-input"
-          type="number"
+          type="number" lang="en"
           min="0"
           step="0.01"
           dir="ltr"
@@ -868,7 +868,7 @@ function StoreItemPanel({ item, stock, initialKind, transactions, clients, clien
             </option>
           ))}
         </select>
-        <input className="search-input" type="date" dir="ltr" value={date} onChange={(e) => setDate(e.target.value)} />
+        <input className="search-input" type="date" lang="en-GB" dir="ltr" value={date} onChange={(e) => setDate(e.target.value)} />
 
         {kind === "sell" && (
           <div className="form-field form-wide">

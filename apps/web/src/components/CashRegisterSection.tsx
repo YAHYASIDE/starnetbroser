@@ -179,12 +179,12 @@ export function CashRegisterSection({ entries, onChange, closings, onChangeClosi
                   <option value="in">دخول (إيراد)</option>
                   <option value="out">خروج (مصروف)</option>
                 </select>
-                <input className="search-input" type="date" dir="ltr" value={date} onChange={(e) => setDate(e.target.value)} />
+                <input className="search-input" type="date" lang="en-GB" dir="ltr" value={date} onChange={(e) => setDate(e.target.value)} />
               </div>
               <div className="store-item-form-row">
                 <input
                   className="search-input"
-                  type="number"
+                  type="number" lang="en"
                   min="0"
                   step="0.01"
                   dir="ltr"
@@ -292,7 +292,7 @@ function ClosingForm({ entries, onSubmit }: ClosingFormProps) {
     <form className="auth-form cash-closing-form" onSubmit={submit}>
       <label className="form-field">
         <span>اليوم</span>
-        <input className="search-input" type="date" dir="ltr" value={date} onChange={(e) => setDate(e.target.value)} />
+        <input className="search-input" type="date" lang="en-GB" dir="ltr" value={date} onChange={(e) => setDate(e.target.value)} />
       </label>
       {codes.map((code) => {
         const s = summary[code] ?? { opening: 0, in: 0, out: 0, expected: 0 };
@@ -313,7 +313,7 @@ function ClosingForm({ entries, onSubmit }: ClosingFormProps) {
             </div>
             <input
               className="search-input"
-              type="number"
+              type="number" lang="en"
               min="0"
               step="0.01"
               dir="ltr"

@@ -101,7 +101,7 @@ export function RepresentativePicker({ representatives, selectedRepresentativeId
           />
           <input
             className="search-input"
-            type="number"
+            type="number" lang="en"
             min="0"
             step="0.1"
             dir="ltr"
