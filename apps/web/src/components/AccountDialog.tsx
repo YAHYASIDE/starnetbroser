@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "./DateInput";
 import { FormEvent, useMemo, useState } from "react";
 import { DeviceStatus, StarlinkAccountSummary } from "@starnet/shared";
 import { formatRelativeTime } from "@/lib/date";
@@ -414,7 +415,7 @@ export function AccountDialog({
 
             <label className="form-field">
               <span>موعد التجديد *</span>
-              <input required type="date" lang="en-GB" dir="ltr" value={inputDate(draft.rechargeDate)} onChange={(e) => update("rechargeDate", e.target.value)} />
+              <DateInput required  value={inputDate(draft.rechargeDate)} onChange={(e) => update("rechargeDate", e.target.value)} />
             </label>
 
             <label className="form-field">

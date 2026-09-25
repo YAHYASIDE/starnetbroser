@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "./DateInput";
 import { FormEvent, useState } from "react";
 import { Currency, CurrencyStore, getCurrency, listCurrencies, UpsertCurrencyInput } from "@/lib/currencyStore";
 import { formatAmount } from "@/lib/formatAmount";
@@ -173,7 +174,7 @@ export function StarlinkSettlementDialog({ entry, currencyStore, defaultCurrency
 
           <label className="form-field">
             <span>تاريخ الدفع</span>
-            <input className="search-input" type="date" lang="en-GB" dir="ltr" value={date} onChange={(e) => setDate(e.target.value)} />
+            <DateInput className="search-input"  value={date} onChange={(e) => setDate(e.target.value)} />
           </label>
 
           <label className="form-field form-wide">

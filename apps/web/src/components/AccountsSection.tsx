@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "./DateInput";
 import { CSSProperties, FormEvent, useMemo, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { Client, CreateClientInput } from "@/lib/clientStore";
@@ -892,7 +893,7 @@ function BalanceForm({ partyName, partyKind, devices, initial, submitLabel = "ح
           ))}
         </select>
       </div>
-      <input className="search-input" type="date" lang="en-GB" dir="ltr" value={date} onChange={(e) => setDate(e.target.value)} />
+      <DateInput className="search-input"  value={date} onChange={(e) => setDate(e.target.value)} />
       <input className="search-input" placeholder="ملاحظة (اختياري) - مثال: رصيد افتتاحي" value={note} onChange={(e) => setNote(e.target.value)} />
       <label className="ledger-d-toggle party-cash-toggle">
         <input type="checkbox" checked={cashMoved} onChange={(e) => setCashMoved(e.target.checked)} />

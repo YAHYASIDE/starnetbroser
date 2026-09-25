@@ -5415,8 +5415,18 @@ button.today-tile {
 }
 
 .rep-statement {
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   gap: 10px;
+}
+
+.rep-statement > * {
+  min-width: 0;
+}
+
+.rep-statement > .party-panel-tools {
+  margin-bottom: 0;
 }
 
 .rep-archive-toggle {
@@ -5798,4 +5808,53 @@ button.today-tile {
 
 .statement-payment-row .statement-shipment-top {
   font-weight: 600;
+}
+
+/* ---- DateInput: native picker, value drawn in Latin digits on top ---- */
+.date-input {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.date-input-native {
+  width: 100%;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent;
+}
+
+.date-input-native::-webkit-datetime-edit,
+.date-input-native::-webkit-date-and-time-value {
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+.date-input-native::-webkit-calendar-picker-indicator {
+  opacity: 0;
+}
+
+.date-input-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 14px;
+  pointer-events: none;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.date-input-text::after {
+  content: "📅";
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.date-input-empty {
+  color: var(--text-muted);
 }

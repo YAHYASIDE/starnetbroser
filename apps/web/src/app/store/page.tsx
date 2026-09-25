@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "@/components/DateInput";
 import type { BalanceFormInput } from "@/components/AccountsSection";
 import { saveClientDevicePayment } from "@/lib/clientDevicePaymentSave";
 import { FormEvent, useEffect, useMemo, useState } from "react";
@@ -868,7 +869,7 @@ function StoreItemPanel({ item, stock, initialKind, transactions, clients, clien
             </option>
           ))}
         </select>
-        <input className="search-input" type="date" lang="en-GB" dir="ltr" value={date} onChange={(e) => setDate(e.target.value)} />
+        <DateInput className="search-input"  value={date} onChange={(e) => setDate(e.target.value)} />
 
         {kind === "sell" && (
           <div className="form-field form-wide">

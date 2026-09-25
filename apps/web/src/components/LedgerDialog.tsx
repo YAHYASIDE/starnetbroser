@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "./DateInput";
 import type { RenewalPlan } from "@starnet/shared";
 import { PdfButton } from "./PdfButton";
 import { formatProfitMru } from "@/lib/profitMru";
@@ -490,10 +491,8 @@ export function LedgerDialog({
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
           />
-          <input
+          <DateInput
             className="search-input"
-            type="date" lang="en-GB"
-            dir="ltr"
             value={date}
             onChange={(e) => setDate(e.target.value)}
           />

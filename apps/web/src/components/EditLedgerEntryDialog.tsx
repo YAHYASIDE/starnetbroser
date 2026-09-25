@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "./DateInput";
 import { FormEvent, useState } from "react";
 import {
   LedgerCurrency,
@@ -263,10 +264,8 @@ export function EditLedgerEntryDialog({ entry, currencyStore, hasAllocations, on
               />
             </>
           )}
-          <input
+          <DateInput
             className="search-input"
-            type="date" lang="en-GB"
-            dir="ltr"
             value={date}
             onChange={(e) => setDate(e.target.value)}
           />

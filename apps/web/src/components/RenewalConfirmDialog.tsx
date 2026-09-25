@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "./DateInput";
 import { FormEvent, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { formatAmount } from "@/lib/formatAmount";
@@ -63,7 +64,7 @@ export function RenewalConfirmDialog({ account, onConfirm, onClose }: Props) {
         <form className="account-form" onSubmit={submit}>
           <label className="form-field form-wide">
             <span>موعد الانتهاء الجديد *</span>
-            <input required type="date" lang="en-GB" dir="ltr" value={date} onChange={(e) => setDate(e.target.value)} />
+            <DateInput required  value={date} onChange={(e) => setDate(e.target.value)} />
           </label>
 
           {plan && (

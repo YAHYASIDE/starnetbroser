@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "./DateInput";
 import { FormEvent, useMemo, useState } from "react";
 import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerCurrency } from "@/lib/ledgerStore";
 import {
@@ -179,7 +180,7 @@ export function CashRegisterSection({ entries, onChange, closings, onChangeClosi
                   <option value="in">دخول (إيراد)</option>
                   <option value="out">خروج (مصروف)</option>
                 </select>
-                <input className="search-input" type="date" lang="en-GB" dir="ltr" value={date} onChange={(e) => setDate(e.target.value)} />
+                <DateInput className="search-input"  value={date} onChange={(e) => setDate(e.target.value)} />
               </div>
               <div className="store-item-form-row">
                 <input
@@ -292,7 +293,7 @@ function ClosingForm({ entries, onSubmit }: ClosingFormProps) {
     <form className="auth-form cash-closing-form" onSubmit={submit}>
       <label className="form-field">
         <span>اليوم</span>
-        <input className="search-input" type="date" lang="en-GB" dir="ltr" value={date} onChange={(e) => setDate(e.target.value)} />
+        <DateInput className="search-input"  value={date} onChange={(e) => setDate(e.target.value)} />
       </label>
       {codes.map((code) => {
         const s = summary[code] ?? { opening: 0, in: 0, out: 0, expected: 0 };

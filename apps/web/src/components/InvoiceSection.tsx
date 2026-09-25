@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "./DateInput";
 import { FormEvent, useMemo, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { PartyAdjustment } from "@/lib/partyBalanceStore";
@@ -455,7 +456,7 @@ function InvoiceForm({
           <option value="sale">فاتورة بيع</option>
           <option value="purchase">فاتورة شراء</option>
         </select>
-        <input className="search-input" type="date" lang="en-GB" dir="ltr" value={date} onChange={(e) => setDate(e.target.value)} />
+        <DateInput className="search-input"  value={date} onChange={(e) => setDate(e.target.value)} />
       </div>
 
       <select className="search-input" value={currencyCode} onChange={(e) => setCurrencyCode(e.target.value as LedgerCurrency)}>
@@ -741,7 +742,7 @@ function ReturnForm({ original, items, invoices, onCancel, onSubmit }: ReturnFor
           </div>
         );
       })}
-      <input className="search-input" type="date" lang="en-GB" dir="ltr" value={date} onChange={(e) => setDate(e.target.value)} />
+      <DateInput className="search-input"  value={date} onChange={(e) => setDate(e.target.value)} />
       <input
         className="search-input ledger-note-input"
         type="text"

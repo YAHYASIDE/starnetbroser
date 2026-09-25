@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "@/components/DateInput";
 import { createContext, CSSProperties, FormEvent, ReactNode, useContext, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { LedgerEntryEditor } from "@/components/LedgerEntryEditor";
@@ -10,7 +11,6 @@ import { loadCashEntries, postRepSettlementToCash, removeLinkedCashEntries, save
 import { StarlinkAccountSummary } from "@starnet/shared";
 import {
   buildRepDailyStatement,
-  computeRepCashHeldByCurrency,
   createRepresentative,
   CreateRepresentativeInput,
   deleteRepresentative,
@@ -87,6 +87,11 @@ function todayDateInputValue(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+/** Keeps a date's own order inside Arabic text (Unicode isolate). */
+function ltrText(value: string): string {
+  return `\u2066${value}\u2069`;
+}
+
 function nonZero(values: Record<string, number>): [string, number][] {
   return Object.entries(values).filter(([, v]) => Math.abs(v) > EPSILON);
 }
@@ -142,12 +147,19 @@ function useFx(): Fx {
   return useContext(FxContext);
 }
 
+/** The operator only ever picks "له" or "عليه" (plus whether cash went through الصندوق); the
+ * stored kind keeps both facts so the till entry and older records stay exact. */
 const SETTLEMENT_LABELS: Record<RepSettlementKind, string> = {
-  cashHandover: "💰 تسليم نقد (استلمته منه)",
-  commissionPayout: "💵 دفع عمولة (سلّمته له)",
-  manualCredit: "➕ مبلغ له (مكافأة/إضافي)",
-  manualDebit: "➖ مبلغ عليه (سلفة)",
+  cashHandover: "➕ له · استلمت منه نقدًا",
+  commissionPayout: "➖ عليه · دفعت له نقدًا",
+  manualCredit: "➕ له",
+  manualDebit: "➖ عليه",
 };
+
+function settlementKind(direction: "credit" | "debit", cash: boolean): RepSettlementKind {
+  if (direction === "credit") return cash ? "cashHandover" : "manualCredit";
+  return cash ? "commissionPayout" : "manualDebit";
+}
 
 const PERIOD_LABELS: Record<RepPeriodKind, string> = {
   day: "اليوم",
@@ -462,7 +474,6 @@ function RepCard({
   );
   const deviceRows = active.deviceRows;
   const deviceTotals = useMemo(() => totalRepDeviceCommissions(deviceRows), [deviceRows]);
-  const cashHeld = computeRepCashHeldByCurrency(rep.id, active.invoices, active.settlements);
   const devices = accounts.filter((a) => a.representativeId === rep.id);
 
   const allDays = useMemo(() => {
@@ -509,10 +520,10 @@ function RepCard({
     periodKind === "all"
       ? "كل العمليات"
       : periodKind === "day"
-        ? `يوم ${period.from}`
+        ? `يوم ${ltrText(period.from ?? "")}`
         : periodKind === "month"
-          ? `شهر ${period.from?.slice(0, 7)}`
-          : `من ${period.from || "البداية"} إلى ${period.to || "اليوم"}`;
+          ? `شهر ${ltrText(period.from?.slice(0, 7) ?? "")}`
+          : `من ${period.from ? ltrText(period.from) : "البداية"} إلى ${period.to ? ltrText(period.to) : "اليوم"}`;
 
   return (
     <li className="party-card rep-card" style={{ "--party-hue": partyHue(rep.id) } as CSSProperties}>
@@ -553,14 +564,6 @@ function RepCard({
           <span className="party-chip">
             ⏳ {deviceTotals.pendingCount} بانتظار D
             {deviceTotals.expectedRepShareUsd > 0.0001 && <> · حصته المتوقعة {fx.usd(deviceTotals.expectedRepShareUsd)}</>}
-          </span>
-        )}
-        {nonZero(cashHeld).length > 0 && (
-          <span className="party-chip rep-chip-cash">
-            💰 نقد معه {fx.list(Object.entries(cashHeld).reduce<Record<string, number>>((acc, [c, v]) => {
-              for (const [k, x] of Object.entries(fx.convert(v, c))) acc[k] = (acc[k] ?? 0) + x;
-              return acc;
-            }, {}))}
           </span>
         )}
       </div>
@@ -613,11 +616,11 @@ function RepCard({
             <div className="rep-period-range">
               <label>
                 <span>من</span>
-                <input type="date" lang="en-GB" dir="ltr" value={customPeriod.from ?? ""} onChange={(e) => setCustomPeriod((p) => ({ ...p, from: e.target.value }))} />
+                <DateInput  value={customPeriod.from ?? ""} onChange={(e) => setCustomPeriod((p) => ({ ...p, from: e.target.value }))} />
               </label>
               <label>
                 <span>إلى</span>
-                <input type="date" lang="en-GB" dir="ltr" value={customPeriod.to ?? ""} onChange={(e) => setCustomPeriod((p) => ({ ...p, to: e.target.value }))} />
+                <DateInput  value={customPeriod.to ?? ""} onChange={(e) => setCustomPeriod((p) => ({ ...p, to: e.target.value }))} />
               </label>
             </div>
           )}
@@ -703,6 +706,7 @@ function RepCard({
       {sheet?.kind === "settle" && (
         <PartySheet title={`تسوية - ${rep.name}`} onClose={() => setSheet(null)}>
           <SettlementForm
+            defaultCurrency={Object.keys(fx.convert(1, "USD"))[0] ?? "MRU"}
             onCancel={() => setSheet(null)}
             onSubmit={(input) => {
               const error = onSettle(input);
@@ -933,10 +937,15 @@ function RepStatementSummary({
   const list = (values: Record<string, number>) => fx.list(Object.fromEntries(nonZero(values)));
   if (nonZero(t.commissions).length) lines.push(["عمولات المتجر", list(t.commissions)]);
   if (nonZero(t.cashCollected).length) lines.push(["نقد قبضه من الزبائن", list(t.cashCollected)]);
-  if (nonZero(t.settled.commissionPayout).length) lines.push(["دفعتُ له", list(t.settled.commissionPayout)]);
-  if (nonZero(t.settled.cashHandover).length) lines.push(["سلّمني نقدًا", list(t.settled.cashHandover)]);
-  if (nonZero(t.settled.manualCredit).length) lines.push(["مبالغ له (إضافي)", list(t.settled.manualCredit)]);
-  if (nonZero(t.settled.manualDebit).length) lines.push(["سلف عليه", list(t.settled.manualDebit)]);
+  const sum = (a: Record<string, number>, b: Record<string, number>) => {
+    const r: Record<string, number> = { ...a };
+    for (const [c, v] of Object.entries(b)) r[c] = (r[c] ?? 0) + v;
+    return r;
+  };
+  const credits = sum(t.settled.cashHandover, t.settled.manualCredit);
+  const debits = sum(t.settled.commissionPayout, t.settled.manualDebit);
+  if (nonZero(credits).length) lines.push(["له (أُضيف لرصيده)", list(credits)]);
+  if (nonZero(debits).length) lines.push(["عليه (خُصم من رصيده)", list(debits)]);
 
   return (
     <div className={`rep-summary${archive ? " rep-summary-archive" : ""}`}>
@@ -1116,37 +1125,56 @@ function RepStatementLine({
 function SettlementForm({
   initial,
   submitLabel = "حفظ العملية",
+  defaultCurrency = "MRU",
   onSubmit,
   onCancel,
   onDelete,
 }: {
   initial?: RepSettlement;
+  /** New entries start in the currency the page is shown in. */
+  defaultCurrency?: string;
   submitLabel?: string;
   onSubmit: (input: UpdateRepSettlementInput) => string | null;
   onCancel: () => void;
   onDelete?: () => void;
 }) {
-  const [kind, setKind] = useState<RepSettlementKind>(initial?.kind ?? "commissionPayout");
+  const [direction, setDirection] = useState<"credit" | "debit">(
+    initial && (initial.kind === "cashHandover" || initial.kind === "manualCredit") ? "credit" : "debit",
+  );
+  const [viaCash, setViaCash] = useState(initial ? initial.kind === "cashHandover" || initial.kind === "commissionPayout" : true);
   const [amount, setAmount] = useState(initial ? String(initial.amount) : "");
-  const [currency, setCurrency] = useState<string>(initial?.currencyCode ?? "USD");
+  const [currency, setCurrency] = useState<string>(initial?.currencyCode ?? defaultCurrency);
   const [date, setDate] = useState(initial?.date ?? todayDateInputValue());
   const [note, setNote] = useState(initial?.note ?? "");
   const [error, setError] = useState<string | null>(null);
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    setError(onSubmit({ kind, amount: Number(amount), currencyCode: currency, date, note }));
+    setError(onSubmit({ kind: settlementKind(direction, viaCash), amount: Number(amount), currencyCode: currency, date, note }));
   }
 
   return (
     <form className="party-balance-form" onSubmit={submit}>
-      <select className="search-input" value={kind} onChange={(e) => setKind(e.target.value as RepSettlementKind)}>
-        {(Object.keys(SETTLEMENT_LABELS) as RepSettlementKind[]).map((k) => (
-          <option key={k} value={k}>
-            {SETTLEMENT_LABELS[k]}
-          </option>
-        ))}
-      </select>
+      <div className="party-direction">
+        <button
+          type="button"
+          className={`party-direction-btn party-direction-we${direction === "credit" ? " party-direction-active" : ""}`}
+          onClick={() => setDirection("credit")}
+          aria-pressed={direction === "credit"}
+        >
+          <strong>له</strong>
+          <small>يُضاف إلى رصيده</small>
+        </button>
+        <button
+          type="button"
+          className={`party-direction-btn party-direction-owes${direction === "debit" ? " party-direction-active" : ""}`}
+          onClick={() => setDirection("debit")}
+          aria-pressed={direction === "debit"}
+        >
+          <strong>عليه</strong>
+          <small>يُخصم من رصيده</small>
+        </button>
+      </div>
       <div className="party-balance-row">
         <input
           className="search-input"
@@ -1171,7 +1199,11 @@ function SettlementForm({
       </div>
       <label className="rep-form-field">
         <span>التاريخ</span>
-        <input className="search-input" type="date" lang="en-GB" dir="ltr" value={date} onChange={(e) => setDate(e.target.value)} required />
+        <DateInput className="search-input"  value={date} onChange={(e) => setDate(e.target.value)} required />
+      </label>
+      <label className="ledger-d-toggle party-cash-toggle">
+        <input type="checkbox" checked={viaCash} onChange={(e) => setViaCash(e.target.checked)} />
+        <span>{direction === "debit" ? "دفعتها له نقدًا (تخرج من الصندوق)" : "استلمتها منه نقدًا (تدخل الصندوق)"}</span>
       </label>
       <input className="search-input" placeholder="ملاحظة (اختياري)" value={note} onChange={(e) => setNote(e.target.value)} />
       {error && <div className="account-card-alert ledger-form-error">{error}</div>}
@@ -1342,7 +1374,7 @@ function RepResetForm({
       </p>
       <label className="rep-form-field">
         <span>يبدأ الحساب الجديد من</span>
-        <input className="search-input" type="date" lang="en-GB" dir="ltr" max={today} value={date} onChange={(e) => setDate(e.target.value)} />
+        <DateInput className="search-input"  max={today} value={date} onChange={(e) => setDate(e.target.value)} />
       </label>
       <p className="settings-hint">
         {date === today
