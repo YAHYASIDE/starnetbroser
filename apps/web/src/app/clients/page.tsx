@@ -29,6 +29,14 @@ import { demoAccounts } from "@/lib/demoData";
 import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
 import { loadDemoAccounts } from "@/lib/demoAccountStore";
 import { listAccounts } from "@/lib/apiClient";
+import {
+  deletePartyAdjustment,
+  loadPartyAdjustments,
+  PartyAdjustmentList,
+  RecordPartyAdjustmentInput,
+  recordPartyAdjustment,
+  savePartyAdjustments,
+} from "@/lib/partyBalanceStore";
 import { PartyDirectory } from "@/components/AccountsSection";
 import { ClientDialog } from "@/components/ClientDialog";
 
@@ -41,6 +49,7 @@ export default function ClientsPage() {
   const [ledgerStore, setLedgerStore] = useState<LedgerByAccount>({});
   const [allocationStore, setAllocationStore] = useState<AllocationsByAccount>({});
   const [accounts, setAccounts] = useState<StarlinkAccountSummary[]>(demoAccounts);
+  const [partyAdjustments, setPartyAdjustments] = useState<PartyAdjustmentList>([]);
   const [openClientId, setOpenClientId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -49,6 +58,7 @@ export default function ClientsPage() {
     setInvoices(loadInvoices());
     setLedgerStore(loadLedgerStore());
     setAllocationStore(loadAllocationStore());
+    setPartyAdjustments(loadPartyAdjustments());
     if (isDemoMode()) {
       setAccounts(loadDemoAccounts(demoAccounts));
       return;
@@ -85,6 +95,20 @@ export default function ClientsPage() {
     saveSupplierStore(next);
   }
 
+  function handleAddAdjustment(input: RecordPartyAdjustmentInput): string | null {
+    const result = recordPartyAdjustment(partyAdjustments, input);
+    if (!result.ok) return result.message;
+    setPartyAdjustments(result.list);
+    savePartyAdjustments(result.list);
+    return null;
+  }
+
+  function handleDeleteAdjustment(adjustmentId: string) {
+    const next = deletePartyAdjustment(partyAdjustments, adjustmentId);
+    setPartyAdjustments(next);
+    savePartyAdjustments(next);
+  }
+
   return (
     <main className="home">
       <h1 className="section-title">الزبائن والموردون</h1>
@@ -95,6 +119,9 @@ export default function ClientsPage() {
           invoices={invoices}
           accounts={accounts}
           ledgerStore={ledgerStore}
+          adjustments={partyAdjustments}
+          onAddAdjustment={handleAddAdjustment}
+          onDeleteAdjustment={handleDeleteAdjustment}
           onCreateClient={handleCreateClient}
           onUpdateClient={handleUpdateClient}
           onCreateSupplier={handleCreateSupplier}

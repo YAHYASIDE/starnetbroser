@@ -7,6 +7,7 @@ import { CreateSupplierInput, Supplier } from "@/lib/supplierStore";
 import {
   computeBalanceByCurrency,
   getAccountEntries,
+  LEDGER_CURRENCIES,
   LEDGER_CURRENCY_LABELS,
   LedgerByAccount,
   LedgerCurrency,
@@ -21,7 +22,8 @@ import {
 import { combinePhoneNumber, PHONE_COUNTRY_CODES, splitPhoneNumber } from "@/lib/phoneCountryCodes";
 import { formatAmount } from "@/lib/formatAmount";
 import { partyHue, partyInitials } from "@/lib/partyColor";
-import { buildStoreDebtReminderMessage, buildWhatsAppLink } from "@/lib/whatsapp";
+import { buildStoreDebtReminderMessage, buildStoreStatementMessage, buildWhatsAppLink } from "@/lib/whatsapp";
+import { PartyAdjustment, PartyAdjustmentDirection, RecordPartyAdjustmentInput } from "@/lib/partyBalanceStore";
 
 const EPSILON = 0.0001;
 
@@ -44,6 +46,11 @@ interface Props {
   onUpdateClient: (clientId: string, input: CreateClientInput) => void;
   onCreateSupplier: (input: CreateSupplierInput) => void;
   onUpdateSupplier: (supplierId: string, input: CreateSupplierInput) => void;
+  /** Manual balance entries ("إضافة رصيد", partyBalanceStore.ts) for every client/supplier. */
+  adjustments: PartyAdjustment[];
+  /** Returns an error message to show, or null on success. */
+  onAddAdjustment: (input: RecordPartyAdjustmentInput) => string | null;
+  onDeleteAdjustment: (adjustmentId: string) => void;
 }
 
 /** حسابات الزبائن والموردين as a collapsible section of المتجر - the same PartyDirectory the
@@ -79,6 +86,9 @@ export function PartyDirectory({
   onUpdateClient,
   onCreateSupplier,
   onUpdateSupplier,
+  adjustments,
+  onAddAdjustment,
+  onDeleteAdjustment,
   onOpenClientCard,
 }: PartyDirectoryProps) {
   const [tab, setTab] = useState<PartyTab>("clients");
@@ -93,11 +103,11 @@ export function PartyDirectory({
   const rows = useMemo(
     () =>
       parties.map((party) => {
-        const totals = computePartyStoreTotals(invoices, kind, party.id);
+        const totals = computePartyStoreTotals(invoices, kind, party.id, adjustments);
         const due = Object.values(totals).some((t) => t.remaining > EPSILON);
         return { party, totals, due };
       }),
-    [parties, invoices, kind],
+    [parties, invoices, kind, adjustments],
   );
 
   const filtered = useMemo(() => {
@@ -219,6 +229,9 @@ export function PartyDirectory({
                 party={party}
                 totals={totals}
                 invoices={invoices}
+                adjustments={adjustments}
+                onAddAdjustment={onAddAdjustment}
+                onDeleteAdjustment={onDeleteAdjustment}
                 devices={isClients ? accounts.filter((a) => a.clientId === party.id) : []}
                 ledgerStore={ledgerStore}
                 creditLimit={isClients ? (party as Client).creditLimit : undefined}
@@ -238,6 +251,9 @@ interface PartyCardProps {
   party: { id: string; name: string; phone?: string };
   totals: Record<string, PartyStoreTotals>;
   invoices: InvoiceList;
+  adjustments: PartyAdjustment[];
+  onAddAdjustment: (input: RecordPartyAdjustmentInput) => string | null;
+  onDeleteAdjustment: (adjustmentId: string) => void;
   devices: StarlinkAccountSummary[];
   ledgerStore: LedgerByAccount;
   creditLimit?: number;
@@ -246,10 +262,26 @@ interface PartyCardProps {
 }
 
 type PartyPanel = "statement" | "devices" | null;
+type PartySheet = "balance" | "whatsapp" | null;
 
-function PartyCard({ kind, party, totals, invoices, devices, ledgerStore, creditLimit, onEdit, onOpenCard }: PartyCardProps) {
+function PartyCard({
+  kind,
+  party,
+  totals,
+  invoices,
+  adjustments,
+  onAddAdjustment,
+  onDeleteAdjustment,
+  devices,
+  ledgerStore,
+  creditLimit,
+  onEdit,
+  onOpenCard,
+}: PartyCardProps) {
   const [panel, setPanel] = useState<PartyPanel>(null);
+  const [sheet, setSheet] = useState<PartySheet>(null);
   const isClient = kind === "sale";
+  const partyKind = isClient ? "client" : "supplier";
   const currencies = Object.keys(totals);
   const remainingByCurrency = Object.fromEntries(Object.entries(totals).map(([c, t]) => [c, t.remaining]));
   const hasDue = Object.values(totals).some((t) => t.remaining > EPSILON);
@@ -263,14 +295,23 @@ function PartyCard({ kind, party, totals, invoices, devices, ledgerStore, credit
       ? { className: "party-status-credit", label: isClient ? "له رصيد" : "لنا رصيد عنده" }
       : { className: "party-status-clear", label: "مسدَّد ✓" };
 
-  const statement = panel === "statement" ? buildPartyStatement(invoices, kind, party.id) : [];
-  const whatsappLink = buildWhatsAppLink(
-    party.phone,
-    isClient ? buildStoreDebtReminderMessage(party.name, remainingByCurrency) : undefined,
-  );
+  const statement = panel === "statement" ? buildPartyStatement(invoices, kind, party.id, adjustments) : [];
+  const canWhatsApp = buildWhatsAppLink(party.phone) !== null;
 
   function togglePanel(next: Exclude<PartyPanel, null>) {
     setPanel((current) => (current === next ? null : next));
+  }
+
+  function openWhatsApp(message?: string) {
+    const link = buildWhatsAppLink(party.phone, message);
+    if (link) window.open(link, "_blank", "noopener,noreferrer");
+    setSheet(null);
+  }
+
+  function confirmDeleteAdjustment(adjustment: PartyAdjustment) {
+    if (window.confirm(`حذف الرصيد ${formatAmount(adjustment.amount)} ${currencyLabel(adjustment.currencyCode)}؟`)) {
+      onDeleteAdjustment(adjustment.id);
+    }
   }
 
   return (
@@ -288,7 +329,7 @@ function PartyCard({ kind, party, totals, invoices, devices, ledgerStore, credit
       </div>
 
       {currencies.length === 0 ? (
-        <p className="party-empty">لا توجد فواتير بعد</p>
+        <p className="party-empty">لا توجد فواتير أو أرصدة بعد</p>
       ) : (
         currencies.map((c) => {
           const t = totals[c];
@@ -309,8 +350,17 @@ function PartyCard({ kind, party, totals, invoices, devices, ledgerStore, credit
                   <strong dir="ltr">{formatAmount(t.returned)}</strong>
                 </div>
               )}
+              {Math.abs(t.adjusted) > EPSILON && (
+                <div className="party-stat party-stat-adjusted">
+                  <span>رصيد يدوي</span>
+                  <strong dir="ltr">
+                    {t.adjusted > 0 ? "+" : "-"}
+                    {formatAmount(Math.abs(t.adjusted))}
+                  </strong>
+                </div>
+              )}
               <div className={`party-stat ${t.remaining > EPSILON ? "party-stat-due" : "party-stat-clear"}`}>
-                <span>{t.remaining < -EPSILON ? (isClient ? "له" : "لنا") : isClient ? "المتبقي عليه" : "المتبقي له"}</span>
+                <span>{t.remaining < -EPSILON ? (isClient ? "له" : "لنا") : isClient ? "عليه" : "له"}</span>
                 <strong dir="ltr">{formatAmount(Math.abs(t.remaining))}</strong>
               </div>
             </div>
@@ -335,8 +385,16 @@ function PartyCard({ kind, party, totals, invoices, devices, ledgerStore, credit
           className={`party-action${panel === "statement" ? " party-action-active" : ""}`}
           onClick={() => togglePanel("statement")}
         >
-          📄 كشف الحساب
+          📄 الكشف
         </button>
+        <button type="button" className="party-action party-action-balance" onClick={() => setSheet("balance")}>
+          ➕ رصيد
+        </button>
+        {canWhatsApp && (
+          <button type="button" className="party-action party-action-whatsapp" onClick={() => setSheet("whatsapp")}>
+            💬 واتساب
+          </button>
+        )}
         {isClient && (
           <button
             type="button"
@@ -346,14 +404,9 @@ function PartyCard({ kind, party, totals, invoices, devices, ledgerStore, credit
             📡 الأجهزة ({devices.length})
           </button>
         )}
-        {whatsappLink && (
-          <a className="party-action party-action-whatsapp" href={whatsappLink} target="_blank" rel="noreferrer">
-            💬 واتساب
-          </a>
-        )}
         {onOpenCard && (
           <button type="button" className="party-action" onClick={onOpenCard}>
-            💳 بطاقة الزبون
+            💳 البطاقة
           </button>
         )}
         <button type="button" className="party-action" onClick={onEdit}>
@@ -364,29 +417,54 @@ function PartyCard({ kind, party, totals, invoices, devices, ledgerStore, credit
       {panel === "statement" && (
         <div className="party-panel">
           {statement.length === 0 ? (
-            <p className="party-empty">لا توجد فواتير في كشف الحساب</p>
+            <p className="party-empty">لا توجد حركات في كشف الحساب</p>
           ) : (
             <ul className="party-statement">
-              {statement.map((row) => (
-                <li key={row.invoice.id} className={`party-statement-row${row.isReturn ? " party-statement-return" : ""}`}>
-                  <div className="party-statement-top">
-                    <span className="party-statement-kind">
-                      {row.isReturn ? "↩ مرتجع" : isClient ? "🧾 فاتورة بيع" : "🧾 فاتورة شراء"}
-                    </span>
-                    <span className="party-statement-date" dir="ltr">{row.invoice.date}</span>
-                  </div>
-                  <div className="party-statement-figures" dir="ltr">
-                    <span>
-                      {row.isReturn ? "-" : ""}
-                      {formatAmount(row.amount)} {currencyLabel(row.invoice.currencyCode)}
-                    </span>
-                    {!row.isReturn && <span className="party-statement-paid">مدفوع {formatAmount(row.paid)}</span>}
-                    <span className={row.balanceAfter > EPSILON ? "party-statement-due" : "party-statement-clear"}>
-                      الرصيد {formatAmount(row.balanceAfter)}
-                    </span>
-                  </div>
-                </li>
-              ))}
+              {statement.map((row) => {
+                const adjustment = row.adjustment;
+                const kindLabel =
+                  row.type === "return"
+                    ? "↩ مرتجع"
+                    : row.type === "adjustment" && adjustment
+                      ? adjustment.direction === "owesUs"
+                        ? "➕ رصيد عليه"
+                        : "➖ رصيد له"
+                      : isClient
+                        ? "🧾 فاتورة بيع"
+                        : "🧾 فاتورة شراء";
+                return (
+                  <li
+                    key={row.id}
+                    className={`party-statement-row${row.type === "return" ? " party-statement-return" : ""}${row.type === "adjustment" ? " party-statement-adjustment" : ""}`}
+                  >
+                    <div className="party-statement-top">
+                      <span className="party-statement-kind">{kindLabel}</span>
+                      <span className="party-statement-date" dir="ltr">{row.date}</span>
+                    </div>
+                    {adjustment?.note && <span className="party-statement-note">{adjustment.note}</span>}
+                    <div className="party-statement-figures" dir="ltr">
+                      <span>
+                        {row.type === "return" ? "-" : ""}
+                        {formatAmount(row.amount)} {currencyLabel(row.currencyCode)}
+                      </span>
+                      {row.type === "invoice" && <span className="party-statement-paid">مدفوع {formatAmount(row.paid)}</span>}
+                      <span className={row.balanceAfter > EPSILON ? "party-statement-due" : "party-statement-clear"}>
+                        الرصيد {formatAmount(row.balanceAfter)}
+                      </span>
+                      {adjustment && (
+                        <button
+                          type="button"
+                          className="party-statement-delete"
+                          onClick={() => confirmDeleteAdjustment(adjustment)}
+                          aria-label="حذف الرصيد"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
@@ -435,7 +513,165 @@ function PartyCard({ kind, party, totals, invoices, devices, ledgerStore, credit
           )}
         </div>
       )}
+
+      {sheet === "balance" && (
+        <PartySheet title={`إضافة رصيد - ${party.name}`} onClose={() => setSheet(null)}>
+          <BalanceForm
+            partyName={party.name}
+            onCancel={() => setSheet(null)}
+            onSubmit={(input) => {
+              const error = onAddAdjustment({ ...input, partyKind, partyId: party.id });
+              if (!error) setSheet(null);
+              return error;
+            }}
+          />
+        </PartySheet>
+      )}
+
+      {sheet === "whatsapp" && (
+        <PartySheet title={`واتساب - ${party.name}`} onClose={() => setSheet(null)}>
+          <div className="party-sheet-options">
+            <button type="button" className="party-sheet-option" onClick={() => openWhatsApp()}>
+              <span aria-hidden="true">💬</span>
+              <span>
+                <strong>مراسلة فقط</strong>
+                <small>فتح المحادثة بدون رسالة جاهزة</small>
+              </span>
+            </button>
+            {isClient && (
+              <button
+                type="button"
+                className="party-sheet-option"
+                onClick={() => openWhatsApp(buildStoreDebtReminderMessage(party.name, remainingByCurrency))}
+              >
+                <span aria-hidden="true">🔔</span>
+                <span>
+                  <strong>تذكير بالدين</strong>
+                  <small>{hasDue ? "رسالة بالمبلغ المتبقي وطرق الدفع" : "لا يوجد دين حاليًا - سيُرسل إشعار بعدم وجود مستحق"}</small>
+                </span>
+              </button>
+            )}
+            <button
+              type="button"
+              className="party-sheet-option"
+              onClick={() => openWhatsApp(buildStoreStatementMessage(party.name, totals, partyKind))}
+            >
+              <span aria-hidden="true">📄</span>
+              <span>
+                <strong>إرسال كشف الحساب</strong>
+                <small>الفواتير والمدفوع والمتبقي لكل عملة</small>
+              </span>
+            </button>
+          </div>
+        </PartySheet>
+      )}
     </li>
+  );
+}
+
+/** A bottom sheet (fixed to the viewport, never inside the card) - so opening it never makes the
+ * card itself any taller. */
+function PartySheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div className="party-sheet-backdrop" role="presentation" onClick={onClose}>
+      <div className="party-sheet" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
+        <div className="party-sheet-head">
+          <strong>{title}</strong>
+          <button type="button" className="dialog-close" onClick={onClose} aria-label="إغلاق">
+            ×
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function todayDateInputValue(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+interface BalanceFormProps {
+  partyName: string;
+  onCancel: () => void;
+  /** Returns an error message, or null on success. */
+  onSubmit: (input: {
+    direction: PartyAdjustmentDirection;
+    amount: number;
+    currencyCode: string;
+    date: string;
+    note?: string;
+  }) => string | null;
+}
+
+function BalanceForm({ partyName, onCancel, onSubmit }: BalanceFormProps) {
+  const [direction, setDirection] = useState<PartyAdjustmentDirection>("owesUs");
+  const [amount, setAmount] = useState("");
+  const [currencyCode, setCurrencyCode] = useState<LedgerCurrency>("MRU");
+  const [date, setDate] = useState(todayDateInputValue());
+  const [note, setNote] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    setError(onSubmit({ direction, amount: Number(amount), currencyCode, date, note }));
+  }
+
+  return (
+    <form className="party-balance-form" onSubmit={submit}>
+      <div className="party-direction">
+        <button
+          type="button"
+          className={`party-direction-btn party-direction-owes${direction === "owesUs" ? " party-direction-active" : ""}`}
+          onClick={() => setDirection("owesUs")}
+          aria-pressed={direction === "owesUs"}
+        >
+          <strong>عليه</strong>
+          <small>{partyName} مدين لنا</small>
+        </button>
+        <button
+          type="button"
+          className={`party-direction-btn party-direction-we${direction === "weOwe" ? " party-direction-active" : ""}`}
+          onClick={() => setDirection("weOwe")}
+          aria-pressed={direction === "weOwe"}
+        >
+          <strong>له</strong>
+          <small>دفعة منه أو مبلغ لصالحه</small>
+        </button>
+      </div>
+      <div className="party-balance-row">
+        <input
+          className="search-input"
+          type="number"
+          min="0"
+          step="0.01"
+          dir="ltr"
+          inputMode="decimal"
+          placeholder="المبلغ"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          autoFocus
+        />
+        <select className="search-input" value={currencyCode} onChange={(e) => setCurrencyCode(e.target.value as LedgerCurrency)}>
+          {LEDGER_CURRENCIES.map((c) => (
+            <option key={c} value={c}>
+              {LEDGER_CURRENCY_LABELS[c]}
+            </option>
+          ))}
+        </select>
+      </div>
+      <input className="search-input" type="date" dir="ltr" value={date} onChange={(e) => setDate(e.target.value)} />
+      <input className="search-input" placeholder="ملاحظة (اختياري) - مثال: رصيد افتتاحي" value={note} onChange={(e) => setNote(e.target.value)} />
+      {error && <div className="account-card-alert ledger-form-error">{error}</div>}
+      <div className="settings-actions">
+        <button className="dialog-primary" type="submit" disabled={!amount}>
+          حفظ الرصيد
+        </button>
+        <button type="button" className="text-action" onClick={onCancel}>
+          إلغاء
+        </button>
+      </div>
+    </form>
   );
 }
 

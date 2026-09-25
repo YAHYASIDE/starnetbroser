@@ -13,6 +13,7 @@ import {
   buildStoreDebtReminderMessage,
   buildWhatsAppLink,
   normalizePhoneForWhatsApp,
+  buildStoreStatementMessage,
 } from "./whatsapp";
 
 function ledgerEntry(overrides: Partial<LedgerEntry> = {}): LedgerEntry {
@@ -374,5 +375,38 @@ describe("buildDeviceInfoMessage", () => {
     );
     expect(message).not.toContain("synced@starlink.example");
     expect(message).not.toContain("Someone Else");
+  });
+});
+
+describe("buildStoreStatementMessage", () => {
+  it("lists each currency separately with the client's remaining debt", () => {
+    const message = buildStoreStatementMessage(
+      "محمد",
+      {
+        MRU: { total: 12000, paid: 5000, returned: 1000, adjusted: 0, remaining: 6000 },
+        USD: { total: 600, paid: 600, returned: 0, adjusted: 0, remaining: 0 },
+      },
+      "client",
+    );
+    expect(message).toContain("مرحبًا محمد");
+    expect(message).toContain("أوقية");
+    expect(message).toContain("المرتجع: 1,000");
+    expect(message).toContain("المتبقي عليكم: 6,000");
+    expect(message).toContain("دولار");
+  });
+
+  it("words a supplier's balance from their side and shows manual entries", () => {
+    const message = buildStoreStatementMessage(
+      "شركة النور",
+      { USD: { total: 5000, paid: 2000, returned: 0, adjusted: 500, remaining: 3500 } },
+      "supplier",
+    );
+    expect(message).toContain("مجموع المشتريات: 5,000");
+    expect(message).toContain("رصيد إضافي: +500");
+    expect(message).toContain("المتبقي لكم: 3,500");
+  });
+
+  it("says so when there is nothing recorded", () => {
+    expect(buildStoreStatementMessage("علي", {}, "client")).toContain("لا توجد حركات مسجلة بعد");
   });
 });

@@ -11,6 +11,7 @@ import { daysRemainingNumber } from "./date";
 import { BalanceByCurrency, computeBalanceByCurrency, LEDGER_CURRENCIES, LedgerByAccount } from "./ledgerStore";
 import { Client, ClientStore, listClients } from "./clientStore";
 import { computeClientStoreBalance, InvoiceList } from "./invoiceStore";
+import { PartyAdjustment } from "./partyBalanceStore";
 import { computeStock, isLowStock, listStoreItems, StoreItem, StoreItemRegistry, StoreTransactionList } from "./storeStore";
 
 export interface RenewalReminder {
@@ -86,10 +87,14 @@ export interface StoreDebtReminder {
 /** Clients with a positive store-invoice balance (money owed BY them for retail purchases) - the
  * store's own separate business from the device ledger above, per computeClientStoreBalance's own
  * "never mixed" currency rule. */
-export function computeStoreDebtReminders(clientStore: ClientStore, invoices: InvoiceList): StoreDebtReminder[] {
+export function computeStoreDebtReminders(
+  clientStore: ClientStore,
+  invoices: InvoiceList,
+  adjustments: PartyAdjustment[] = [],
+): StoreDebtReminder[] {
   const reminders: StoreDebtReminder[] = [];
   for (const client of listClients(clientStore)) {
-    const balance = computeClientStoreBalance(invoices, client.id);
+    const balance = computeClientStoreBalance(invoices, client.id, adjustments);
     const owed = Object.fromEntries(Object.entries(balance).filter(([, amount]) => amount > 0.0001));
     if (Object.keys(owed).length === 0) continue;
     reminders.push({ client, balances: owed });

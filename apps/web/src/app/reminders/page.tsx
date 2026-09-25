@@ -10,6 +10,7 @@ import { listAccounts } from "@/lib/apiClient";
 import { LEDGER_CURRENCY_LABELS, LedgerByAccount, LedgerCurrency, loadLedgerStore } from "@/lib/ledgerStore";
 import { ClientStore, loadClientStore } from "@/lib/clientStore";
 import { InvoiceList, loadInvoices } from "@/lib/invoiceStore";
+import { loadPartyAdjustments, PartyAdjustmentList } from "@/lib/partyBalanceStore";
 import { loadStoreItems, loadStoreTransactions, StoreItemRegistry, StoreTransactionList } from "@/lib/storeStore";
 import {
   computeDeviceDebtReminders,
@@ -36,6 +37,7 @@ export default function RemindersPage() {
   const [ledgerStore, setLedgerStore] = useState<LedgerByAccount>({});
   const [clientStore, setClientStore] = useState<ClientStore>({});
   const [invoices, setInvoices] = useState<InvoiceList>([]);
+  const [partyAdjustments, setPartyAdjustments] = useState<PartyAdjustmentList>([]);
   const [storeItems, setStoreItems] = useState<StoreItemRegistry>({});
   const [storeTransactions, setStoreTransactions] = useState<StoreTransactionList>([]);
   const [lastBackupAt, setLastBackupAt] = useState<string | null>(null);
@@ -45,6 +47,7 @@ export default function RemindersPage() {
     setLedgerStore(loadLedgerStore());
     setClientStore(loadClientStore());
     setInvoices(loadInvoices());
+    setPartyAdjustments(loadPartyAdjustments());
     setStoreItems(loadStoreItems());
     setStoreTransactions(loadStoreTransactions());
     if (isDemoMode()) {
@@ -58,7 +61,7 @@ export default function RemindersPage() {
   const restrictedReminders = useMemo(() => computeRestrictedDeviceReminders(accounts), [accounts]);
   const renewalReminders = useMemo(() => computeRenewalReminders(accounts), [accounts]);
   const deviceDebtReminders = useMemo(() => computeDeviceDebtReminders(accounts, ledgerStore), [accounts, ledgerStore]);
-  const storeDebtReminders = useMemo(() => computeStoreDebtReminders(clientStore, invoices), [clientStore, invoices]);
+  const storeDebtReminders = useMemo(() => computeStoreDebtReminders(clientStore, invoices, partyAdjustments), [clientStore, invoices, partyAdjustments]);
   const lowStockReminders = useMemo(
     () => computeLowStockReminders(storeItems, storeTransactions),
     [storeItems, storeTransactions],

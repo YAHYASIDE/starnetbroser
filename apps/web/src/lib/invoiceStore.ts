@@ -19,6 +19,7 @@ import {
   StoreTransactionKind,
   StoreTransactionList,
 } from "./storeStore";
+import { adjustmentDelta, PartyAdjustment, PartyKind } from "./partyBalanceStore";
 
 export type InvoiceKind = "sale" | "purchase";
 export type InvoicePaymentStatus = "paid" | "credit" | "partial";
@@ -269,7 +270,11 @@ export function listReturnsForInvoice(invoices: InvoiceList, invoiceId: string):
  * the same client are two separate figures, exactly like ledgerStore.ts's own per-currency
  * balances. Entirely separate from ledgerStore.ts's own per-device Starlink balance too - a
  * different business (retail goods, not the subscription service). */
-export function computeClientStoreBalance(invoices: InvoiceList, clientId: string): Record<string, number> {
+export function computeClientStoreBalance(
+  invoices: InvoiceList,
+  clientId: string,
+  adjustments: PartyAdjustment[] = [],
+): Record<string, number> {
   const own = invoices.filter((inv) => inv.kind === "sale" && !inv.returnOfInvoiceId && inv.clientId === clientId);
   const balance: Record<string, number> = {};
   for (const inv of own) {
@@ -278,12 +283,25 @@ export function computeClientStoreBalance(invoices: InvoiceList, clientId: strin
       balance[ret.currencyCode] = (balance[ret.currencyCode] ?? 0) - invoiceTotal(ret);
     }
   }
+  addAdjustments(balance, adjustments, "client", clientId);
   return balance;
+}
+
+/** Manual balance entries (partyBalanceStore.ts) on top of an invoice-derived balance. */
+function addAdjustments(balance: Record<string, number>, adjustments: PartyAdjustment[], partyKind: PartyKind, partyId: string) {
+  for (const a of adjustments) {
+    if (a.partyKind !== partyKind || a.partyId !== partyId) continue;
+    balance[a.currencyCode] = (balance[a.currencyCode] ?? 0) + adjustmentDelta(a);
+  }
 }
 
 /** The mirror of computeClientStoreBalance for a supplier - how much WE still owe them (positive
  * = we owe them), grouped by currency, from purchase invoices minus anything returned to them. */
-export function computeSupplierStoreBalance(invoices: InvoiceList, supplierId: string): Record<string, number> {
+export function computeSupplierStoreBalance(
+  invoices: InvoiceList,
+  supplierId: string,
+  adjustments: PartyAdjustment[] = [],
+): Record<string, number> {
   const own = invoices.filter((inv) => inv.kind === "purchase" && !inv.returnOfInvoiceId && inv.supplierId === supplierId);
   const balance: Record<string, number> = {};
   for (const inv of own) {
@@ -292,6 +310,7 @@ export function computeSupplierStoreBalance(invoices: InvoiceList, supplierId: s
       balance[ret.currencyCode] = (balance[ret.currencyCode] ?? 0) - invoiceTotal(ret);
     }
   }
+  addAdjustments(balance, adjustments, "supplier", supplierId);
   return balance;
 }
 
@@ -302,9 +321,16 @@ export interface PartyStoreTotals {
   paid: number;
   /** Full value of every return filed against those invoices. */
   returned: number;
-  /** total - paid - returned: same figure computeClientStoreBalance/computeSupplierStoreBalance
-   * report (positive = still unpaid, negative = overpaid). */
+  /** Net signed effect of manual balance entries (partyBalanceStore.ts), same sign convention as
+   * remaining. */
+  adjusted: number;
+  /** total - paid - returned + adjusted: same figure computeClientStoreBalance /
+   * computeSupplierStoreBalance report (positive = still unpaid, negative = overpaid). */
   remaining: number;
+}
+
+function partyKindFor(kind: InvoiceKind): PartyKind {
+  return kind === "sale" ? "client" : "supplier";
 }
 
 function ownPartyInvoices(invoices: InvoiceList, kind: InvoiceKind, partyId: string): InvoiceList {
@@ -316,15 +342,17 @@ function ownPartyInvoices(invoices: InvoiceList, kind: InvoiceKind, partyId: str
   );
 }
 
-/** Per-currency invoiced/paid/returned/remaining breakdown for one client ("sale") or supplier
- * ("purchase") - never mixes currencies, same rule as every balance in this app. */
+/** Per-currency invoiced/paid/returned/adjusted/remaining breakdown for one client ("sale") or
+ * supplier ("purchase") - never mixes currencies, same rule as every balance in this app. */
 export function computePartyStoreTotals(
   invoices: InvoiceList,
   kind: InvoiceKind,
   partyId: string,
+  adjustments: PartyAdjustment[] = [],
 ): Record<string, PartyStoreTotals> {
   const result: Record<string, PartyStoreTotals> = {};
-  const bucket = (currency: string) => (result[currency] ??= { total: 0, paid: 0, returned: 0, remaining: 0 });
+  const bucket = (currency: string) =>
+    (result[currency] ??= { total: 0, paid: 0, returned: 0, adjusted: 0, remaining: 0 });
   for (const inv of ownPartyInvoices(invoices, kind, partyId)) {
     const own = bucket(inv.currencyCode);
     own.total += invoiceTotal(inv);
@@ -333,37 +361,101 @@ export function computePartyStoreTotals(
       bucket(ret.currencyCode).returned += invoiceTotal(ret);
     }
   }
+  const partyKind = partyKindFor(kind);
+  for (const a of adjustments) {
+    if (a.partyKind !== partyKind || a.partyId !== partyId) continue;
+    bucket(a.currencyCode).adjusted += adjustmentDelta(a);
+  }
   for (const totals of Object.values(result)) {
-    totals.remaining = totals.total - totals.paid - totals.returned;
+    totals.remaining = totals.total - totals.paid - totals.returned + totals.adjusted;
   }
   return result;
 }
 
+export type PartyStatementRowType = "invoice" | "return" | "adjustment";
+
 export interface PartyStatementRow {
-  invoice: Invoice;
-  isReturn: boolean;
+  id: string;
+  type: PartyStatementRowType;
+  date: string;
+  currencyCode: string;
+  /** Set for "invoice"/"return" rows. */
+  invoice?: Invoice;
+  /** Set for "adjustment" rows. */
+  adjustment?: PartyAdjustment;
   amount: number;
   paid: number;
   /** Running balance in this row's own currency after this row, oldest-first order. */
   balanceAfter: number;
 }
 
-/** كشف الحساب: every own invoice plus every return filed against one of them, with a running
- * per-currency balance computed oldest-first. Returned newest-first for display. */
-export function buildPartyStatement(invoices: InvoiceList, kind: InvoiceKind, partyId: string): PartyStatementRow[] {
+/** كشف الحساب: every own invoice, every return filed against one of them, and every manual
+ * balance entry, with a running per-currency balance computed oldest-first. Returned newest-first
+ * for display. */
+export function buildPartyStatement(
+  invoices: InvoiceList,
+  kind: InvoiceKind,
+  partyId: string,
+  adjustments: PartyAdjustment[] = [],
+): PartyStatementRow[] {
   const own = ownPartyInvoices(invoices, kind, partyId);
   const ownIds = new Set(own.map((inv) => inv.id));
   const returns = invoices.filter((inv) => inv.returnOfInvoiceId !== undefined && ownIds.has(inv.returnOfInvoiceId));
-  const chronological = [...own, ...returns].sort((a, b) =>
-    a.date !== b.date ? (a.date < b.date ? -1 : 1) : a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0,
+  const partyKind = partyKindFor(kind);
+
+  type Pending = { sortDate: string; sortCreated: string; row: Omit<PartyStatementRow, "balanceAfter">; delta: number };
+  const pending: Pending[] = [
+    ...[...own, ...returns].map((invoice) => {
+      const isReturn = invoice.returnOfInvoiceId !== undefined;
+      const amount = invoiceTotal(invoice);
+      const paid = isReturn ? 0 : invoice.paidAmount;
+      return {
+        sortDate: invoice.date,
+        sortCreated: invoice.createdAt,
+        row: {
+          id: invoice.id,
+          type: (isReturn ? "return" : "invoice") as PartyStatementRowType,
+          date: invoice.date,
+          currencyCode: invoice.currencyCode,
+          invoice,
+          amount,
+          paid,
+        },
+        delta: isReturn ? -amount : amount - paid,
+      };
+    }),
+    ...adjustments
+      .filter((a) => a.partyKind === partyKind && a.partyId === partyId)
+      .map((adjustment) => ({
+        sortDate: adjustment.date,
+        sortCreated: adjustment.createdAt,
+        row: {
+          id: adjustment.id,
+          type: "adjustment" as PartyStatementRowType,
+          date: adjustment.date,
+          currencyCode: adjustment.currencyCode,
+          adjustment,
+          amount: adjustment.amount,
+          paid: 0,
+        },
+        delta: adjustmentDelta(adjustment),
+      })),
+  ];
+  pending.sort((a, b) =>
+    a.sortDate !== b.sortDate
+      ? a.sortDate < b.sortDate
+        ? -1
+        : 1
+      : a.sortCreated < b.sortCreated
+        ? -1
+        : a.sortCreated > b.sortCreated
+          ? 1
+          : 0,
   );
   const running: Record<string, number> = {};
-  const rows = chronological.map((invoice) => {
-    const isReturn = invoice.returnOfInvoiceId !== undefined;
-    const amount = invoiceTotal(invoice);
-    const paid = isReturn ? 0 : invoice.paidAmount;
-    running[invoice.currencyCode] = (running[invoice.currencyCode] ?? 0) + (isReturn ? -amount : amount - paid);
-    return { invoice, isReturn, amount, paid, balanceAfter: running[invoice.currencyCode] };
+  const rows = pending.map(({ row, delta }) => {
+    running[row.currencyCode] = (running[row.currencyCode] ?? 0) + delta;
+    return { ...row, balanceAfter: running[row.currencyCode] };
   });
   return rows.reverse();
 }

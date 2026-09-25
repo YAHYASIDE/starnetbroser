@@ -2,6 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
+import { PartyAdjustment } from "@/lib/partyBalanceStore";
 import { Client, ClientStore, CreateClientInput, getClient } from "@/lib/clientStore";
 import { CreateSupplierInput, getSupplier, Supplier, SupplierStore } from "@/lib/supplierStore";
 import { CreateRepresentativeInput, getRepresentative, Representative, RepresentativeStore, repFromClientDevice } from "@/lib/repStore";
@@ -65,6 +66,8 @@ interface Props {
   representatives: Representative[];
   representativeStore: RepresentativeStore;
   accounts: StarlinkAccountSummary[];
+  /** Manual balance entries - counted in the credit-limit warning's existing-balance figure. */
+  partyAdjustments?: PartyAdjustment[];
   onCreateClient: (input: CreateClientInput) => Client;
   onCreateSupplier: (input: CreateSupplierInput) => Supplier;
   onCreateRepresentative: (input: CreateRepresentativeInput) => Representative;
@@ -85,6 +88,7 @@ export function InvoiceSection({
   representatives,
   representativeStore,
   accounts,
+  partyAdjustments = [],
   onCreateClient,
   onCreateSupplier,
   onCreateRepresentative,
@@ -146,6 +150,7 @@ export function InvoiceSection({
               suppliers={suppliers}
               representatives={representatives}
               accounts={accounts}
+              partyAdjustments={partyAdjustments}
               onCreateClient={onCreateClient}
               onCreateSupplier={onCreateSupplier}
               onCreateRepresentative={onCreateRepresentative}
@@ -285,6 +290,7 @@ interface InvoiceFormProps {
   suppliers: Supplier[];
   representatives: Representative[];
   accounts: StarlinkAccountSummary[];
+  partyAdjustments: PartyAdjustment[];
   onCreateClient: (input: CreateClientInput) => Client;
   onCreateSupplier: (input: CreateSupplierInput) => Supplier;
   onCreateRepresentative: (input: CreateRepresentativeInput) => Representative;
@@ -299,6 +305,7 @@ function InvoiceForm({
   suppliers,
   representatives,
   accounts,
+  partyAdjustments,
   onCreateClient,
   onCreateSupplier,
   onCreateRepresentative,
@@ -383,12 +390,12 @@ function InvoiceForm({
   const selectedClient = kind === "sale" && linkClient ? clients.find((c) => c.id === clientId) : undefined;
   const creditLimitWarning = useMemo(() => {
     if (!selectedClient?.creditLimit) return null;
-    const existingBalance = computeClientStoreBalance(invoices, selectedClient.id)[currencyCode] ?? 0;
+    const existingBalance = computeClientStoreBalance(invoices, selectedClient.id, partyAdjustments)[currencyCode] ?? 0;
     const thisInvoiceUnpaid = Math.max(0, total - (Number(paidAmount) || 0));
     const projected = existingBalance + thisInvoiceUnpaid;
     if (projected <= selectedClient.creditLimit) return null;
     return { projected, limit: selectedClient.creditLimit };
-  }, [selectedClient, invoices, currencyCode, total, paidAmount]);
+  }, [selectedClient, invoices, partyAdjustments, currencyCode, total, paidAmount]);
 
   function submit(event: FormEvent) {
     event.preventDefault();

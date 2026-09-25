@@ -103,6 +103,44 @@ export function buildStoreDebtReminderMessage(clientName: string, balanceByCurre
   );
 }
 
+/** Store account summary for a client or supplier (AccountsSection's WhatsApp options) - one block
+ * per currency with invoiced/paid/remaining, never converted or summed across currencies. */
+export function buildStoreStatementMessage(
+  partyName: string,
+  totalsByCurrency: Record<string, { total: number; paid: number; returned: number; adjusted: number; remaining: number }>,
+  partyKind: "client" | "supplier",
+): string {
+  const label = (currency: string) => LEDGER_CURRENCY_LABELS[currency as keyof typeof LEDGER_CURRENCY_LABELS] ?? currency;
+  const blocks = Object.entries(totalsByCurrency).map(([currency, t]) => {
+    const lines = [
+      `💰 ${label(currency)}:`,
+      `• ${partyKind === "client" ? "مجموع الفواتير" : "مجموع المشتريات"}: ${formatAmount(t.total)}`,
+      `• المدفوع: ${formatAmount(t.paid)}`,
+    ];
+    if (Math.abs(t.returned) > 0.0001) lines.push(`• المرتجع: ${formatAmount(t.returned)}`);
+    if (Math.abs(t.adjusted) > 0.0001) lines.push(`• رصيد إضافي: ${t.adjusted > 0 ? "+" : "-"}${formatAmount(Math.abs(t.adjusted))}`);
+    const remainingLabel =
+      t.remaining > 0.0001
+        ? partyKind === "client"
+          ? "المتبقي عليكم"
+          : "المتبقي لكم"
+        : t.remaining < -0.0001
+          ? partyKind === "client"
+            ? "رصيدكم لدينا"
+            : "رصيدنا لديكم"
+          : "المتبقي";
+    lines.push(`• ${remainingLabel}: ${formatAmount(Math.abs(t.remaining))}`);
+    return lines.join("\n");
+  });
+
+  return (
+    `مرحبًا ${partyName} 👋\n\n` +
+    `كشف حسابكم لدى متجر STAR NET:\n\n` +
+    (blocks.length > 0 ? blocks.join("\n\n") : "لا توجد حركات مسجلة بعد.") +
+    `\n\nشكرًا لتعاملكم معنا 🙏\n- STAR NET`
+  );
+}
+
 const PAYMENT_STATUS_SUFFIX: Record<"unpaid" | "partial" | "paid", string> = {
   unpaid: "",
   partial: " (مدفوعة جزئيًا)",

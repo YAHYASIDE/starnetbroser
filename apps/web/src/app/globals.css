@@ -3565,12 +3565,15 @@ button.overview-card:active {
   color: var(--green);
 }
 
+/* Always one row of tiles (at most five), however narrow the screen - so extra tiles never make
+   the card taller. */
 .party-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
-  gap: 6px;
-  padding-top: 18px;
   position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 4px;
+  padding-top: 16px;
 }
 
 .party-stats-currency {
@@ -3578,56 +3581,72 @@ button.overview-card:active {
   top: 0;
   inset-inline-start: 0;
   color: var(--party-accent);
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 800;
 }
 
+/* 3D tiles: a light top bevel, a darker bottom edge and a soft drop shadow over each tile's own
+   tint - numbers stay small and tabular so every tile lines up whatever the amount. */
 .party-stat {
+  --tile-bg: var(--surface-alt);
+  --tile-ink: var(--text);
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
   min-width: 0;
-  padding: 8px;
-  border-radius: var(--radius-sm);
-  background: var(--surface-alt);
+  min-height: 42px;
+  padding: 5px 3px;
+  border-radius: 10px;
+  border: 1px solid rgb(0 0 0 / 0.06);
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.55), rgb(255 255 255 / 0) 55%),
+    var(--tile-bg);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.7),
+    inset 0 -2px 0 rgb(0 0 0 / 0.07),
+    0 2px 4px rgb(0 0 0 / 0.08);
+  text-align: center;
 }
 
 .party-stat span {
   color: var(--text-muted);
-  font-size: 0.72rem;
+  font-size: 0.62rem;
+  line-height: 1.2;
 }
 
 .party-stat strong {
-  font-size: 0.95rem;
+  max-width: 100%;
+  color: var(--tile-ink);
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
   overflow-wrap: anywhere;
 }
 
 .party-stat-paid {
-  background: var(--green-bg);
-}
-
-.party-stat-paid strong {
-  color: var(--green);
+  --tile-bg: var(--green-bg);
+  --tile-ink: var(--green);
 }
 
 .party-stat-returned {
-  background: var(--violet-bg);
+  --tile-bg: var(--violet-bg);
+  --tile-ink: var(--violet);
 }
 
-.party-stat-returned strong {
-  color: var(--violet);
+.party-stat-adjusted {
+  --tile-bg: var(--yellow-bg);
+  --tile-ink: var(--yellow);
 }
 
 .party-stat-due {
-  background: var(--red-bg);
+  --tile-bg: var(--red-bg);
+  --tile-ink: var(--red);
 }
 
-.party-stat-due strong {
-  color: var(--red);
-}
-
-.party-stat-clear strong {
-  color: var(--green);
+.party-stat-clear {
+  --tile-ink: var(--green);
 }
 
 .party-chips {
@@ -3651,25 +3670,37 @@ button.overview-card:active {
 }
 
 .party-actions {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
 }
 
 .party-action {
-  flex: 1 1 auto;
-  min-height: 36px;
-  padding: 6px 10px;
+  min-width: 0;
+  min-height: 34px;
+  padding: 4px 6px;
+  overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.5), rgb(255 255 255 / 0) 60%),
+    var(--surface);
+  box-shadow:
+    inset 0 -2px 0 rgb(0 0 0 / 0.06),
+    0 1px 3px rgb(0 0 0 / 0.08);
   color: var(--text);
   font: inherit;
-  font-size: 0.82rem;
-  font-weight: 600;
+  font-size: 0.74rem;
+  font-weight: 700;
   text-align: center;
-  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   cursor: pointer;
+}
+
+.party-action:active {
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.12);
+  transform: translateY(1px);
 }
 
 .party-action-active {
@@ -3681,6 +3712,11 @@ button.overview-card:active {
 .party-action-whatsapp {
   border-color: var(--green);
   color: var(--green);
+}
+
+.party-action-balance {
+  border-color: var(--party-accent);
+  color: var(--party-accent);
 }
 
 .party-panel {
@@ -3803,4 +3839,165 @@ button.overview-card:active {
 
 .party-insight strong {
   font-size: 1rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .party-stat,
+  :root:not([data-theme="light"]) .party-action {
+    background-image: linear-gradient(180deg, rgb(255 255 255 / 0.07), rgb(255 255 255 / 0) 60%);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06), inset 0 -2px 0 rgb(0 0 0 / 0.35), 0 2px 4px rgb(0 0 0 / 0.35);
+  }
+}
+
+:root[data-theme="dark"] .party-stat,
+:root[data-theme="dark"] .party-action {
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 0.07), rgb(255 255 255 / 0) 60%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06), inset 0 -2px 0 rgb(0 0 0 / 0.35), 0 2px 4px rgb(0 0 0 / 0.35);
+}
+
+.party-statement-adjustment {
+  background: var(--yellow-bg);
+}
+
+.party-statement-note {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.party-statement-delete {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--red-bg);
+  color: var(--red);
+  font: inherit;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* Bottom sheet for "إضافة رصيد" and the WhatsApp options - fixed to the viewport so the card
+   itself never grows. */
+.party-sheet-backdrop {
+  position: fixed;
+  z-index: 120;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgb(8 18 25 / 0.5);
+}
+
+.party-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 460px;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 16px 16px calc(16px + var(--safe-bottom));
+  border-radius: 18px 18px 0 0;
+  background: var(--surface);
+  box-shadow: 0 -12px 40px rgb(0 0 0 / 0.2);
+}
+
+.party-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.party-sheet-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.party-sheet-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+  color: var(--text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.party-sheet-option > span:first-child {
+  font-size: 1.4rem;
+}
+
+.party-sheet-option strong {
+  display: block;
+  font-size: 0.92rem;
+}
+
+.party-sheet-option small {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}
+
+.party-balance-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.party-balance-form .search-input {
+  margin: 0;
+}
+
+.party-direction {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.party-direction-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 8px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.party-direction-btn strong {
+  font-size: 1rem;
+}
+
+.party-direction-btn small {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.party-direction-owes.party-direction-active {
+  border-color: var(--red);
+  background: var(--red-bg);
+  color: var(--red);
+}
+
+.party-direction-we.party-direction-active {
+  border-color: var(--green);
+  background: var(--green-bg);
+  color: var(--green);
+}
+
+.party-balance-row {
+  display: grid;
+  grid-template-columns: 1fr 110px;
+  gap: 8px;
 }

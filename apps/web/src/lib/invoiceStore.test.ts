@@ -19,6 +19,7 @@ import {
   returnedQuantityForLine,
 } from "./invoiceStore";
 import { StoreTransactionList } from "./storeStore";
+import { PartyAdjustment } from "./partyBalanceStore";
 
 function invoice(overrides: Partial<Invoice> = {}): Invoice {
   return {
@@ -481,8 +482,8 @@ describe("computePartyStoreTotals", () => {
       invoice({ id: "x", clientId: "c2", currencyCode: "MRU" }),
     ];
     expect(computePartyStoreTotals(invoices, "sale", "c1")).toEqual({
-      MRU: { total: 400, paid: 250, returned: 100, remaining: 50 },
-      USD: { total: 200, paid: 0, returned: 0, remaining: 200 },
+      MRU: { total: 400, paid: 250, returned: 100, adjusted: 0, remaining: 50 },
+      USD: { total: 200, paid: 0, returned: 0, adjusted: 0, remaining: 200 },
     });
   });
 
@@ -501,7 +502,7 @@ describe("computePartyStoreTotals", () => {
       invoice({ id: "2", clientId: "s1" }), // a sale - must not count for a supplier
     ];
     expect(computePartyStoreTotals(invoices, "purchase", "s1")).toEqual({
-      MRU: { total: 200, paid: 50, returned: 0, remaining: 150 },
+      MRU: { total: 200, paid: 50, returned: 0, adjusted: 0, remaining: 150 },
     });
   });
 });
@@ -521,9 +522,9 @@ describe("buildPartyStatement", () => {
       invoice({ id: "x", clientId: "c2", date: "2026-09-21" }),
     ];
     const rows = buildPartyStatement(invoices, "sale", "c1");
-    expect(rows.map((r) => r.invoice.id)).toEqual(["r", "b", "a"]);
+    expect(rows.map((r) => r.id)).toEqual(["r", "b", "a"]);
     expect(rows.map((r) => r.balanceAfter)).toEqual([250, 350, 150]);
-    expect(rows[0].isReturn).toBe(true);
+    expect(rows[0].type).toBe("return");
     expect(rows[0].paid).toBe(0);
   });
 
@@ -533,9 +534,54 @@ describe("buildPartyStatement", () => {
       invoice({ id: "2", clientId: "c1", date: "2026-09-21", currencyCode: "USD", paidAmount: 50 }),
     ];
     const rows = buildPartyStatement(invoices, "sale", "c1");
-    expect(rows.map((r) => [r.invoice.currencyCode, r.balanceAfter])).toEqual([
+    expect(rows.map((r) => [r.currencyCode, r.balanceAfter])).toEqual([
       ["USD", 150],
       ["MRU", 200],
+    ]);
+  });
+});
+
+describe("manual balance entries (partyBalanceStore)", () => {
+  function adj(overrides: Partial<PartyAdjustment>): PartyAdjustment {
+    return {
+      id: "adj",
+      partyKind: "client",
+      partyId: "c1",
+      direction: "owesUs",
+      amount: 100,
+      currencyCode: "MRU",
+      date: "2026-09-21",
+      createdAt: "2026-09-21T10:00:00.000Z",
+      ...overrides,
+    };
+  }
+
+  it("computeClientStoreBalance adds عليه and subtracts له", () => {
+    const invoices: InvoiceList = [invoice({ id: "1", clientId: "c1", paidAmount: 0 })]; // 200
+    const adjustments = [adj({ id: "x", amount: 50 }), adj({ id: "y", direction: "weOwe", amount: 120 }), adj({ id: "z", partyId: "c2" })];
+    expect(computeClientStoreBalance(invoices, "c1", adjustments)).toEqual({ MRU: 130 });
+  });
+
+  it("computeSupplierStoreBalance: له increases what we owe the supplier", () => {
+    const adjustments = [adj({ partyKind: "supplier", partyId: "s1", direction: "weOwe", amount: 70, currencyCode: "USD" })];
+    expect(computeSupplierStoreBalance([], "s1", adjustments)).toEqual({ USD: 70 });
+  });
+
+  it("computePartyStoreTotals includes a currency that only has manual entries", () => {
+    const totals = computePartyStoreTotals([], "sale", "c1", [adj({ currencyCode: "SIFA", amount: 40 })]);
+    expect(totals).toEqual({ SIFA: { total: 0, paid: 0, returned: 0, adjusted: 40, remaining: 40 } });
+  });
+
+  it("buildPartyStatement interleaves manual entries by date with a running balance", () => {
+    const invoices: InvoiceList = [invoice({ id: "i", clientId: "c1", date: "2026-09-20", paidAmount: 0 })]; // +200
+    const rows = buildPartyStatement(invoices, "sale", "c1", [
+      adj({ id: "pay", direction: "weOwe", amount: 150, date: "2026-09-22" }),
+      adj({ id: "open", amount: 30, date: "2026-09-01" }),
+    ]);
+    expect(rows.map((r) => [r.id, r.type, r.balanceAfter])).toEqual([
+      ["pay", "adjustment", 80],
+      ["i", "invoice", 230],
+      ["open", "adjustment", 30],
     ]);
   });
 });

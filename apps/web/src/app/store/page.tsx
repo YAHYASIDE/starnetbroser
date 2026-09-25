@@ -68,6 +68,14 @@ import { demoAccounts } from "@/lib/demoData";
 import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
 import { loadDemoAccounts } from "@/lib/demoAccountStore";
 import { listAccounts } from "@/lib/apiClient";
+import {
+  deletePartyAdjustment,
+  loadPartyAdjustments,
+  PartyAdjustmentList,
+  RecordPartyAdjustmentInput,
+  recordPartyAdjustment,
+  savePartyAdjustments,
+} from "@/lib/partyBalanceStore";
 
 function todayDateInputValue(): string {
   return new Date().toISOString().slice(0, 10);
@@ -87,6 +95,7 @@ export default function StorePage() {
   const [cashEntries, setCashEntries] = useState<CashEntryList>([]);
   const [accounts, setAccounts] = useState<StarlinkAccountSummary[]>(demoAccounts);
   const [ledgerStore, setLedgerStore] = useState<LedgerByAccount>({});
+  const [partyAdjustments, setPartyAdjustments] = useState<PartyAdjustmentList>([]);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [pendingKind, setPendingKind] = useState<StoreTransactionKind>("buy");
   const [showAddItem, setShowAddItem] = useState(false);
@@ -101,6 +110,7 @@ export default function StorePage() {
     setRepresentativeStore(loadRepresentativeStore());
     setCashEntries(loadCashEntries());
     setLedgerStore(loadLedgerStore());
+    setPartyAdjustments(loadPartyAdjustments());
     if (isDemoMode()) {
       setAccounts(loadDemoAccounts(demoAccounts));
       return;
@@ -146,6 +156,20 @@ export default function StorePage() {
     const next = updateSupplier(supplierStore, supplierId, input);
     setSupplierStore(next);
     saveSupplierStore(next);
+  }
+
+  function handleAddAdjustment(input: RecordPartyAdjustmentInput): string | null {
+    const result = recordPartyAdjustment(partyAdjustments, input);
+    if (!result.ok) return result.message;
+    setPartyAdjustments(result.list);
+    savePartyAdjustments(result.list);
+    return null;
+  }
+
+  function handleDeleteAdjustment(adjustmentId: string) {
+    const next = deletePartyAdjustment(partyAdjustments, adjustmentId);
+    setPartyAdjustments(next);
+    savePartyAdjustments(next);
   }
 
   function handleCreateRepresentative(input: CreateRepresentativeInput): Representative {
@@ -373,6 +397,7 @@ export default function StorePage() {
         representatives={representatives}
         representativeStore={representativeStore}
         accounts={accounts}
+        partyAdjustments={partyAdjustments}
         onCreateClient={handleCreateClient}
         onCreateRepresentative={handleCreateRepresentative}
         onCreateSupplier={handleCreateSupplier}
@@ -391,6 +416,9 @@ export default function StorePage() {
         invoices={invoices}
         accounts={accounts}
         ledgerStore={ledgerStore}
+        adjustments={partyAdjustments}
+        onAddAdjustment={handleAddAdjustment}
+        onDeleteAdjustment={handleDeleteAdjustment}
         onCreateClient={handleCreateClient}
         onUpdateClient={handleUpdateClient}
         onCreateSupplier={handleCreateSupplier}
