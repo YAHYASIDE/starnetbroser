@@ -3754,7 +3754,8 @@ button.overview-card:active {
   background: var(--surface-alt);
 }
 
-.party-statement-return {
+.party-statement-return,
+.party-statement-device-payment {
   background: var(--violet-bg);
 }
 
@@ -4000,4 +4001,182 @@ button.overview-card:active {
   display: grid;
   grid-template-columns: 1fr 110px;
   gap: 8px;
+}
+
+.party-statement-device-charge {
+  background: hsl(var(--party-hue) 70% 50% / 0.1);
+}
+
+/* المندوبون (representatives/page.tsx) - reuses the party-card look, plus an overview strip and a
+   day-grouped statement showing his share vs mine for every device operation. */
+.rep-overview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.rep-overview-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-inline-start: 4px solid var(--yellow);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.rep-overview-item span {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.rep-overview-item strong {
+  color: var(--yellow);
+  font-size: 1rem;
+}
+
+.rep-overview-ours {
+  border-inline-start-color: var(--green);
+}
+
+.rep-overview-ours strong {
+  color: var(--green);
+}
+
+.rep-overview-owed {
+  border-inline-start-color: var(--red);
+}
+
+.rep-overview-owed strong {
+  color: var(--red);
+}
+
+.rep-percent {
+  flex-shrink: 0;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, hsl(var(--party-hue) 70% 52%), hsl(calc(var(--party-hue) + 30) 70% 40%));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35), 0 2px 4px rgb(0 0 0 / 0.15);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.rep-chip-cash {
+  background: var(--yellow-bg);
+  color: var(--yellow);
+}
+
+.rep-days {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rep-day {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.rep-day-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed var(--border);
+  font-size: 0.85rem;
+}
+
+.rep-day-split {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.rep-split-rep,
+.rep-split-ours {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.rep-split-rep {
+  background: var(--yellow-bg);
+  color: var(--yellow);
+}
+
+.rep-split-ours {
+  background: var(--green-bg);
+  color: var(--green);
+}
+
+.rep-line-calc {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.rep-line-device {
+  background: hsl(var(--party-hue) 70% 50% / 0.08);
+}
+
+.rep-line-settlement {
+  background: var(--violet-bg);
+}
+
+.report-rep-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.report-rep-split > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--yellow-bg);
+}
+
+.report-rep-split > div:last-child {
+  background: var(--green-bg);
+}
+
+.report-rep-split span {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.report-rep-split strong {
+  font-size: 1rem;
+}
+
+.report-rep-split > div:first-child strong {
+  color: var(--yellow);
+}
+
+.report-rep-split > div:last-child strong {
+  color: var(--green);
+}
+
+.report-client-profit-values {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
 }

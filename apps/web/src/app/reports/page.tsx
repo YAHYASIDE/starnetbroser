@@ -16,6 +16,7 @@ import { InvoiceList, loadInvoices } from "@/lib/invoiceStore";
 import { getStoreItem, loadStoreItems, loadStoreTransactions, StoreItemRegistry, StoreTransactionList } from "@/lib/storeStore";
 import { computeClientSalesTotals, computeItemSalesTotals, computeStoreSalesSummary, largestCurrencyValue } from "@/lib/storeReports";
 import { CashEntryList, loadCashEntries, listStandaloneCashEntries } from "@/lib/cashStore";
+import { computeRepSharesUsd } from "@/lib/repStore";
 
 function currencyLabelFor(code: string): string {
   return LEDGER_CURRENCY_LABELS[code as keyof typeof LEDGER_CURRENCY_LABELS] ?? code;
@@ -30,7 +31,10 @@ function mergeCurrencyKeys(...records: Record<string, number>[]): string[] {
 interface ClientProfitRow {
   key: string;
   name: string;
+  /** Starlink devices (ledger) - after Starlink cost, before any rep share. */
   profitUsd: number;
+  /** Store invoices: sales - cost of goods - shipping cost, per currency. */
+  storeProfitByCurrency: Record<string, number>;
 }
 
 export default function ReportsPage() {
@@ -72,6 +76,8 @@ export default function ReportsPage() {
   const periodEntries = useMemo(() => filterEntriesByPeriod(allEntries, period), [allEntries, period]);
   const periodSummary = useMemo(() => computeDeviceAccountingSummary(periodEntries), [periodEntries]);
   const periodNetProfitUsd = periodSummary.totalProfitsUsd - periodSummary.totalLossesUsd;
+  // Representatives' share of the same period's device profit (LedgerEntry.representativeId).
+  const periodRepSharesUsd = useMemo(() => computeRepSharesUsd(periodEntries), [periodEntries]);
 
   // ربح المتجر (retail: devices/materials sold as store inventory, via invoiceStore.ts) - a
   // separate business from the Starlink-subscription ledger above, in its own currencies (MRU/
@@ -145,19 +151,39 @@ export default function ReportsPage() {
   // under "بدون زبون" rather than silently dropped, so no real profit ever goes unaccounted for.
   const clientProfits = useMemo<ClientProfitRow[]>(() => {
     const byKey = new Map<string, ClientProfitRow>();
+    const rowFor = (clientId: string | undefined) => {
+      const client = getClient(clientStore, clientId);
+      const key = client?.id ?? "__none__";
+      const row = byKey.get(key) ?? { key, name: client?.name ?? "بدون زبون", profitUsd: 0, storeProfitByCurrency: {} };
+      byKey.set(key, row);
+      return row;
+    };
     for (const account of accounts) {
       const entries = filterEntriesByPeriod(ledgerStore[account.id] ?? [], period);
       if (entries.length === 0) continue;
       const summary = computeDeviceAccountingSummary(entries);
-      const netUsd = summary.totalProfitsUsd - summary.totalLossesUsd;
-      const client = getClient(clientStore, account.clientId);
-      const key = client?.id ?? "__none__";
-      const row = byKey.get(key) ?? { key, name: client?.name ?? "بدون زبون", profitUsd: 0 };
-      row.profitUsd += netUsd;
-      byKey.set(key, row);
+      rowFor(account.clientId).profitUsd += summary.totalProfitsUsd - summary.totalLossesUsd;
+    }
+    // Store profit per client: each client's own sale invoices (and returns against them) this
+    // period, costed the same way as the store's own profit tile.
+    const clientIds = new Set(periodInvoices.filter((inv) => inv.kind === "sale" && inv.clientId).map((inv) => inv.clientId!));
+    for (const clientId of clientIds) {
+      const ownIds = new Set(periodInvoices.filter((inv) => inv.clientId === clientId).map((inv) => inv.id));
+      const clientInvoices = periodInvoices.filter(
+        (inv) => inv.clientId === clientId || (inv.returnOfInvoiceId !== undefined && ownIds.has(inv.returnOfInvoiceId)),
+      );
+      const summary = computeStoreSalesSummary(storeTransactions, invoices, clientInvoices);
+      const row = rowFor(clientId);
+      for (const c of mergeCurrencyKeys(summary.salesByCurrency, summary.cogsByCurrency, summary.shippingCostByCurrency)) {
+        row.storeProfitByCurrency[c] =
+          (row.storeProfitByCurrency[c] ?? 0) +
+          (summary.salesByCurrency[c] ?? 0) -
+          (summary.cogsByCurrency[c] ?? 0) -
+          (summary.shippingCostByCurrency[c] ?? 0);
+      }
     }
     return Array.from(byKey.values()).sort((a, b) => b.profitUsd - a.profitUsd);
-  }, [accounts, ledgerStore, clientStore, period]);
+  }, [accounts, ledgerStore, clientStore, period, periodInvoices, storeTransactions, invoices]);
 
   return (
     <main className="home">
@@ -188,6 +214,19 @@ export default function ReportsPage() {
             {formatAmount(periodNetProfitUsd)} USD
           </strong>
         </div>
+
+        {periodRepSharesUsd > 0.0001 && (
+          <div className="report-rep-split">
+            <div>
+              <span>حصة المندوبين</span>
+              <strong dir="ltr">{formatAmount(periodRepSharesUsd)} USD</strong>
+            </div>
+            <div>
+              <span>صافي ربحي بعد المندوبين</span>
+              <strong dir="ltr">{formatAmount(periodNetProfitUsd - periodRepSharesUsd)} USD</strong>
+            </div>
+          </div>
+        )}
 
         {/* Deliberately a SEPARATE tile, never merged with صافي الربح above (accountingStore.ts's
             own rule) - a debit entry marked D still counts here once the customer actually pays
@@ -393,11 +432,20 @@ export default function ReportsPage() {
           ) : (
             <ul className="report-line-list">
               {clientProfits.map((row) => (
-                <li key={row.key} className="report-line">
+                <li key={row.key} className="report-line report-client-profit">
                   <span>{row.name}</span>
-                  <strong dir="ltr" className={row.profitUsd < 0 ? "report-line-negative" : "report-line-positive"}>
-                    {formatAmount(row.profitUsd)} USD
-                  </strong>
+                  <div className="report-client-profit-values">
+                    <strong dir="ltr" className={row.profitUsd < 0 ? "report-line-negative" : "report-line-positive"}>
+                      📡 {formatAmount(row.profitUsd)} USD
+                    </strong>
+                    {Object.entries(row.storeProfitByCurrency)
+                      .filter(([, v]) => Math.abs(v) > 0.0001)
+                      .map(([c, v]) => (
+                        <strong key={c} dir="ltr" className={v < 0 ? "report-line-negative" : "report-line-positive"}>
+                          🛍️ {formatAmount(v)} {LEDGER_CURRENCY_LABELS[c as keyof typeof LEDGER_CURRENCY_LABELS] ?? c}
+                        </strong>
+                      ))}
+                  </div>
                 </li>
               ))}
             </ul>

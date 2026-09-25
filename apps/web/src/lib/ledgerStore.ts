@@ -101,6 +101,14 @@ export interface LedgerEntry {
    * profit is simply not shown in it, never guessed at with a later or assumed rate. Entirely
    * absent on a legacy/pending shipment, or one settled before this field existed. */
   profitCurrencyRates?: { MRU?: number; SIFA?: number };
+  /** Only ever set on a "debit" (shipment) entry created on a device linked to a representative
+   * (account.representativeId) - a LOCKED snapshot of who that rep was and their commission
+   * percent at the moment of the operation, so reassigning the device or changing the rate later
+   * never rewrites past shares. The rep earns this percent of the shipment's own profit once it is
+   * computable (see repStore.ts's listRepDeviceCommissions). Absent on every entry created before
+   * this field existed - those never earn a device commission. */
+  representativeId?: string;
+  representativeCommissionPercent?: number;
 }
 
 /** A "debit" entry with no starlinkCost info at all predates this feature - its profit can never
@@ -234,6 +242,9 @@ export interface CreateLedgerEntryInput {
   starlinkCost?: StarlinkCost;
   /** Ignored unless `starlinkCost.status === "settled"` - see LedgerEntry.profitCurrencyRates. */
   profitCurrencyRates?: { MRU?: number; SIFA?: number };
+  /** Ignored for a "credit" entry - the device's current representative and their current rate,
+   * locked onto the new shipment (see LedgerEntry.representativeId). */
+  representative?: { id: string; commissionPercent: number };
 }
 
 export function createLedgerEntry(input: CreateLedgerEntryInput): LedgerEntry {
@@ -254,6 +265,8 @@ export function createLedgerEntry(input: CreateLedgerEntryInput): LedgerEntry {
     starlinkCost: isDebit ? input.starlinkCost : undefined,
     paymentRate: !isDebit ? input.paymentRate : undefined,
     profitCurrencyRates: isDebit && input.starlinkCost?.status === "settled" ? input.profitCurrencyRates : undefined,
+    representativeId: isDebit ? input.representative?.id : undefined,
+    representativeCommissionPercent: isDebit ? input.representative?.commissionPercent : undefined,
   };
 }
 

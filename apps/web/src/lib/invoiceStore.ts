@@ -372,21 +372,94 @@ export function computePartyStoreTotals(
   return result;
 }
 
-export type PartyStatementRowType = "invoice" | "return" | "adjustment";
+export type PartyStatementRowType = "invoice" | "return" | "adjustment" | "device-charge" | "device-payment";
 
 export interface PartyStatementRow {
   id: string;
   type: PartyStatementRowType;
   date: string;
+  /** Orders same-day rows. */
+  createdAt: string;
   currencyCode: string;
   /** Set for "invoice"/"return" rows. */
   invoice?: Invoice;
   /** Set for "adjustment" rows. */
   adjustment?: PartyAdjustment;
+  /** Set for "device-*" rows (see clientAccount.ts). */
+  deviceName?: string;
+  note?: string;
   amount: number;
   paid: number;
+  /** This row's own signed effect on the running balance. */
+  delta: number;
   /** Running balance in this row's own currency after this row, oldest-first order. */
   balanceAfter: number;
+}
+
+export type PartyStatementRowInput = Omit<PartyStatementRow, "balanceAfter">;
+
+/** Sorts rows oldest-first, fills in each one's running per-currency balance, and returns them
+ * newest-first for display. */
+export function withRunningBalance(rows: PartyStatementRowInput[]): PartyStatementRow[] {
+  const sorted = [...rows].sort((a, b) =>
+    a.date !== b.date ? (a.date < b.date ? -1 : 1) : a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0,
+  );
+  const running: Record<string, number> = {};
+  return sorted
+    .map((row) => {
+      running[row.currencyCode] = (running[row.currencyCode] ?? 0) + row.delta;
+      return { ...row, balanceAfter: running[row.currencyCode] };
+    })
+    .reverse();
+}
+
+/** The store's own rows for one party (invoices, returns, manual balance entries), before the
+ * running balance is computed - see buildPartyStatement. */
+export function buildPartyStatementRows(
+  invoices: InvoiceList,
+  kind: InvoiceKind,
+  partyId: string,
+  adjustments: PartyAdjustment[] = [],
+): PartyStatementRowInput[] {
+  const own = ownPartyInvoices(invoices, kind, partyId);
+  const ownIds = new Set(own.map((inv) => inv.id));
+  const returns = invoices.filter((inv) => inv.returnOfInvoiceId !== undefined && ownIds.has(inv.returnOfInvoiceId));
+  const partyKind = partyKindFor(kind);
+  return [
+    ...[...own, ...returns].map((invoice): PartyStatementRowInput => {
+      const isReturn = invoice.returnOfInvoiceId !== undefined;
+      const amount = invoiceTotal(invoice);
+      const paid = isReturn ? 0 : invoice.paidAmount;
+      return {
+        id: invoice.id,
+        type: isReturn ? "return" : "invoice",
+        date: invoice.date,
+        createdAt: invoice.createdAt,
+        currencyCode: invoice.currencyCode,
+        invoice,
+        note: invoice.note,
+        amount,
+        paid,
+        delta: isReturn ? -amount : amount - paid,
+      };
+    }),
+    ...adjustments
+      .filter((a) => a.partyKind === partyKind && a.partyId === partyId)
+      .map(
+        (adjustment): PartyStatementRowInput => ({
+          id: adjustment.id,
+          type: "adjustment",
+          date: adjustment.date,
+          createdAt: adjustment.createdAt,
+          currencyCode: adjustment.currencyCode,
+          adjustment,
+          note: adjustment.note,
+          amount: adjustment.amount,
+          paid: 0,
+          delta: adjustmentDelta(adjustment),
+        }),
+      ),
+  ];
 }
 
 /** كشف الحساب: every own invoice, every return filed against one of them, and every manual
@@ -398,66 +471,7 @@ export function buildPartyStatement(
   partyId: string,
   adjustments: PartyAdjustment[] = [],
 ): PartyStatementRow[] {
-  const own = ownPartyInvoices(invoices, kind, partyId);
-  const ownIds = new Set(own.map((inv) => inv.id));
-  const returns = invoices.filter((inv) => inv.returnOfInvoiceId !== undefined && ownIds.has(inv.returnOfInvoiceId));
-  const partyKind = partyKindFor(kind);
-
-  type Pending = { sortDate: string; sortCreated: string; row: Omit<PartyStatementRow, "balanceAfter">; delta: number };
-  const pending: Pending[] = [
-    ...[...own, ...returns].map((invoice) => {
-      const isReturn = invoice.returnOfInvoiceId !== undefined;
-      const amount = invoiceTotal(invoice);
-      const paid = isReturn ? 0 : invoice.paidAmount;
-      return {
-        sortDate: invoice.date,
-        sortCreated: invoice.createdAt,
-        row: {
-          id: invoice.id,
-          type: (isReturn ? "return" : "invoice") as PartyStatementRowType,
-          date: invoice.date,
-          currencyCode: invoice.currencyCode,
-          invoice,
-          amount,
-          paid,
-        },
-        delta: isReturn ? -amount : amount - paid,
-      };
-    }),
-    ...adjustments
-      .filter((a) => a.partyKind === partyKind && a.partyId === partyId)
-      .map((adjustment) => ({
-        sortDate: adjustment.date,
-        sortCreated: adjustment.createdAt,
-        row: {
-          id: adjustment.id,
-          type: "adjustment" as PartyStatementRowType,
-          date: adjustment.date,
-          currencyCode: adjustment.currencyCode,
-          adjustment,
-          amount: adjustment.amount,
-          paid: 0,
-        },
-        delta: adjustmentDelta(adjustment),
-      })),
-  ];
-  pending.sort((a, b) =>
-    a.sortDate !== b.sortDate
-      ? a.sortDate < b.sortDate
-        ? -1
-        : 1
-      : a.sortCreated < b.sortCreated
-        ? -1
-        : a.sortCreated > b.sortCreated
-          ? 1
-          : 0,
-  );
-  const running: Record<string, number> = {};
-  const rows = pending.map(({ row, delta }) => {
-    running[row.currencyCode] = (running[row.currencyCode] ?? 0) + delta;
-    return { ...row, balanceAfter: running[row.currencyCode] };
-  });
-  return rows.reverse();
+  return withRunningBalance(buildPartyStatementRows(invoices, kind, partyId, adjustments));
 }
 
 /** Total quantity of one item already returned against an invoice - used to cap how much more of

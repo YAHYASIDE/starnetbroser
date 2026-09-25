@@ -114,7 +114,7 @@ export function buildStoreStatementMessage(
   const blocks = Object.entries(totalsByCurrency).map(([currency, t]) => {
     const lines = [
       `💰 ${label(currency)}:`,
-      `• ${partyKind === "client" ? "مجموع الفواتير" : "مجموع المشتريات"}: ${formatAmount(t.total)}`,
+      `• ${partyKind === "client" ? "مجموع المبيعات" : "مجموع المشتريات"}: ${formatAmount(t.total)}`,
       `• المدفوع: ${formatAmount(t.paid)}`,
     ];
     if (Math.abs(t.returned) > 0.0001) lines.push(`• المرتجع: ${formatAmount(t.returned)}`);
@@ -139,6 +139,38 @@ export function buildStoreStatementMessage(
     (blocks.length > 0 ? blocks.join("\n\n") : "لا توجد حركات مسجلة بعد.") +
     `\n\nشكرًا لتعاملكم معنا 🙏\n- STAR NET`
   );
+}
+
+/** Representative's account summary (representatives page WhatsApp options): his share of his
+ * devices' profit, what is still owed to him per currency, and cash he is holding. */
+export function buildRepStatementMessage(
+  repName: string,
+  summary: { profitUsd: number; repShareUsd: number; pendingCount: number },
+  owedByCurrency: Record<string, number>,
+  cashHeldByCurrency: Record<string, number>,
+): string {
+  const label = (currency: string) => LEDGER_CURRENCY_LABELS[currency as keyof typeof LEDGER_CURRENCY_LABELS] ?? currency;
+  const list = (values: Record<string, number>) =>
+    Object.entries(values)
+      .filter(([, v]) => Math.abs(v) > 0.0001)
+      .map(([c, v]) => `${formatAmount(v)} ${label(c)}`)
+      .join(" و") || "0";
+  const lines = [
+    `مرحبًا ${repName} 👋`,
+    "",
+    "ملخص حسابك لدى STAR NET:",
+    `• ربح الأجهزة المرتبطة بك: ${formatAmount(summary.profitUsd)} USD`,
+    `• حصتك من الربح: ${formatAmount(summary.repShareUsd)} USD`,
+    `• المستحق لك حاليًا: ${list(owedByCurrency)}`,
+  ];
+  if (Object.values(cashHeldByCurrency).some((v) => Math.abs(v) > 0.0001)) {
+    lines.push(`• نقد لديك لم يُسلَّم بعد: ${list(cashHeldByCurrency)}`);
+  }
+  if (summary.pendingCount > 0) {
+    lines.push(`• ${summary.pendingCount} عملية بانتظار تسديد تكلفة Starlink - تُحتسب حصتك منها بعد التسديد`);
+  }
+  lines.push("", "- STAR NET");
+  return lines.join("\n");
 }
 
 const PAYMENT_STATUS_SUFFIX: Record<"unpaid" | "partial" | "paid", string> = {

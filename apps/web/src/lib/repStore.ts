@@ -10,6 +10,8 @@
  */
 
 import { Invoice, invoiceTotal } from "./invoiceStore";
+import { LedgerByAccount, LedgerEntry } from "./ledgerStore";
+import { computeShipmentProfit, ShipmentProfit } from "./accountingStore";
 
 export interface Representative {
   id: string;
@@ -202,8 +204,10 @@ export function computeRepCommissionOwedByCurrency(
   representativeId: string,
   invoices: Invoice[],
   settlements: RepSettlementList,
+  deviceCommissions: RepDeviceCommissionRow[] = [],
 ): Record<string, number> {
   const result: Record<string, number> = {};
+  addDeviceShares(result, deviceCommissions);
   for (const inv of invoices) {
     if (inv.kind !== "sale" || inv.returnOfInvoiceId || inv.representativeId !== representativeId) continue;
     if (inv.representativeCommissionPercent === undefined) continue;
@@ -237,8 +241,13 @@ export function computeRepManualBalanceByCurrency(
 /** Total commission ever accrued for this rep, per currency - deliberately gross (never nets out
  * a "commissionPayout" settlement), for a "ملخص ربحه" summary distinct from what's CURRENTLY
  * owed (computeRepCommissionOwedByCurrency). */
-export function computeRepCommissionEarnedByCurrency(representativeId: string, invoices: Invoice[]): Record<string, number> {
+export function computeRepCommissionEarnedByCurrency(
+  representativeId: string,
+  invoices: Invoice[],
+  deviceCommissions: RepDeviceCommissionRow[] = [],
+): Record<string, number> {
   const result: Record<string, number> = {};
+  addDeviceShares(result, deviceCommissions);
   for (const inv of invoices) {
     if (inv.kind !== "sale" || inv.returnOfInvoiceId || inv.representativeId !== representativeId) continue;
     if (inv.representativeCommissionPercent === undefined) continue;
@@ -294,4 +303,150 @@ export function listRepInvoiceCommissions(representativeId: string, invoices: In
     )
     .map((inv) => ({ invoice: inv, commissionAmount: (inv.representativeCommissionPercent! / 100) * invoiceTotal(inv) }))
     .sort((a, b) => (a.invoice.date < b.invoice.date ? 1 : a.invoice.date > b.invoice.date ? -1 : 0));
+}
+
+// ---- Device profit share (a representative linked to Starlink devices, see
+// StarlinkAccountSummary.representativeId and LedgerEntry.representativeId) ----
+
+export interface RepDeviceCommissionRow {
+  accountId: string;
+  entry: LedgerEntry;
+  profit: ShipmentProfit;
+  /** The entry's own locked percent - never the representative's current rate. */
+  percent: number;
+  /** Only set once the shipment's profit is computable (Starlink cost settled). A loss earns the
+   * rep nothing (0) - the operator carries it. */
+  repShareUsd?: number;
+  ourShareUsd?: number;
+}
+
+function deviceShare(profit: ShipmentProfit, percent: number): { repShareUsd?: number; ourShareUsd?: number } {
+  if (profit.status !== "computed" || profit.profitUsd === undefined) return {};
+  const repShareUsd = profit.profitUsd > 0 ? (profit.profitUsd * percent) / 100 : 0;
+  return { repShareUsd, ourShareUsd: profit.profitUsd - repShareUsd };
+}
+
+/** Every shipment (debit entry) on any device that was linked to this representative when it was
+ * recorded, with the rep's locked share of its profit - newest first. */
+export function listRepDeviceCommissions(representativeId: string, ledgerStore: LedgerByAccount): RepDeviceCommissionRow[] {
+  const rows: RepDeviceCommissionRow[] = [];
+  for (const [accountId, entries] of Object.entries(ledgerStore)) {
+    for (const entry of entries) {
+      if (entry.kind !== "debit" || entry.representativeId !== representativeId) continue;
+      if (entry.representativeCommissionPercent === undefined) continue;
+      const profit = computeShipmentProfit(entry);
+      const percent = entry.representativeCommissionPercent;
+      rows.push({ accountId, entry, profit, percent, ...deviceShare(profit, percent) });
+    }
+  }
+  return rows.sort((a, b) =>
+    a.entry.date !== b.entry.date ? (a.entry.date < b.entry.date ? 1 : -1) : a.entry.createdAt < b.entry.createdAt ? 1 : -1,
+  );
+}
+
+/** Device profit shares are always in USD (profit itself is computed in USD). */
+function addDeviceShares(result: Record<string, number>, rows: RepDeviceCommissionRow[]) {
+  for (const row of rows) {
+    if (row.repShareUsd === undefined || row.repShareUsd <= 0) continue;
+    result.USD = (result.USD ?? 0) + row.repShareUsd;
+  }
+}
+
+export interface RepDeviceTotals {
+  /** Profit across every computed shipment on the rep's devices. */
+  profitUsd: number;
+  repShareUsd: number;
+  ourShareUsd: number;
+  /** Shipments still waiting for Starlink's cost ("D") - no share yet. */
+  pendingCount: number;
+}
+
+export function totalRepDeviceCommissions(rows: RepDeviceCommissionRow[]): RepDeviceTotals {
+  const totals: RepDeviceTotals = { profitUsd: 0, repShareUsd: 0, ourShareUsd: 0, pendingCount: 0 };
+  for (const row of rows) {
+    if (row.repShareUsd === undefined || row.ourShareUsd === undefined) {
+      if (row.profit.status === "pending") totals.pendingCount += 1;
+      continue;
+    }
+    totals.profitUsd += row.profit.profitUsd ?? 0;
+    totals.repShareUsd += row.repShareUsd;
+    totals.ourShareUsd += row.ourShareUsd;
+  }
+  return totals;
+}
+
+/** Sum of every representative's share across the given ledger entries (e.g. one report period),
+ * for the reports page's "حصة المندوبين" - entries without a rep snapshot contribute nothing. */
+export function computeRepSharesUsd(entries: LedgerEntry[]): number {
+  let total = 0;
+  for (const entry of entries) {
+    if (entry.kind !== "debit" || !entry.representativeId || entry.representativeCommissionPercent === undefined) continue;
+    const share = deviceShare(computeShipmentProfit(entry), entry.representativeCommissionPercent).repShareUsd;
+    if (share) total += share;
+  }
+  return total;
+}
+
+export type RepStatementRow =
+  | { type: "device"; id: string; date: string; createdAt: string; row: RepDeviceCommissionRow }
+  | { type: "invoice"; id: string; date: string; createdAt: string; row: RepInvoiceCommissionRow }
+  | { type: "settlement"; id: string; date: string; createdAt: string; settlement: RepSettlement };
+
+export interface RepStatementDay {
+  date: string;
+  rows: RepStatementRow[];
+  /** Device profit shares settled on this day, in USD. */
+  deviceProfitUsd: number;
+  repShareUsd: number;
+  ourShareUsd: number;
+}
+
+/** كشف حساب المندوب اليومي: every device shipment on his devices, every store invoice commission,
+ * and every settlement, grouped by day (newest day first, newest row first within a day) with
+ * that day's own device-profit split. */
+export function buildRepDailyStatement(
+  representativeId: string,
+  deviceCommissions: RepDeviceCommissionRow[],
+  invoices: Invoice[],
+  settlements: RepSettlementList,
+): RepStatementDay[] {
+  const rows: RepStatementRow[] = [
+    ...deviceCommissions.map((row) => ({
+      type: "device" as const,
+      id: row.entry.id,
+      date: row.entry.date,
+      createdAt: row.entry.createdAt,
+      row,
+    })),
+    ...listRepInvoiceCommissions(representativeId, invoices).map((row) => ({
+      type: "invoice" as const,
+      id: row.invoice.id,
+      date: row.invoice.date,
+      createdAt: row.invoice.createdAt,
+      row,
+    })),
+    ...settlements
+      .filter((s) => s.representativeId === representativeId)
+      .map((settlement) => ({
+        type: "settlement" as const,
+        id: settlement.id,
+        date: settlement.date,
+        createdAt: settlement.createdAt,
+        settlement,
+      })),
+  ];
+  const byDate = new Map<string, RepStatementDay>();
+  for (const row of rows) {
+    const day = byDate.get(row.date) ?? { date: row.date, rows: [], deviceProfitUsd: 0, repShareUsd: 0, ourShareUsd: 0 };
+    day.rows.push(row);
+    if (row.type === "device" && row.row.repShareUsd !== undefined && row.row.ourShareUsd !== undefined) {
+      day.deviceProfitUsd += row.row.profit.profitUsd ?? 0;
+      day.repShareUsd += row.row.repShareUsd;
+      day.ourShareUsd += row.row.ourShareUsd;
+    }
+    byDate.set(row.date, day);
+  }
+  const days = Array.from(byDate.values()).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+  for (const day of days) day.rows.sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
+  return days;
 }

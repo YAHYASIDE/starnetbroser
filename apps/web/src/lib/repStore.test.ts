@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildRepDailyStatement,
+  computeRepSharesUsd,
+  listRepDeviceCommissions,
+  totalRepDeviceCommissions,
   computeRepCashHeldByCurrency,
   computeRepCommissionEarnedByCurrency,
   computeRepCommissionOwedByCurrency,
@@ -15,6 +19,7 @@ import {
   updateRepresentative,
 } from "./repStore";
 import { Invoice } from "./invoiceStore";
+import { LedgerEntry } from "./ledgerStore";
 
 function invoice(overrides: Partial<Invoice> = {}): Invoice {
   return {
@@ -263,5 +268,85 @@ describe("repFromClientDevice", () => {
       { clientId: "c1", representativeId: "r2" },
     ];
     expect(repFromClientDevice(accounts, "c1")).toBeUndefined();
+  });
+});
+
+function shipment(overrides: Partial<LedgerEntry> = {}): LedgerEntry {
+  return {
+    id: "e1",
+    kind: "debit",
+    amount: 100,
+    currency: "USD",
+    note: "",
+    email: "",
+    date: "2026-09-20",
+    createdAt: "2026-09-20T10:00:00.000Z",
+    starlinkCost: { status: "settled", currencyCode: "USD", amount: 60, paidAt: "2026-09-20" },
+    representativeId: "r1",
+    representativeCommissionPercent: 50,
+    ...overrides,
+  };
+}
+
+describe("device profit shares", () => {
+  it("gives the rep his locked percent of a settled shipment's profit", () => {
+    const rows = listRepDeviceCommissions("r1", { d1: [shipment()] });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].repShareUsd).toBe(20); // profit 40 * 50%
+    expect(rows[0].ourShareUsd).toBe(20);
+  });
+
+  it("ignores entries without a rep snapshot (created before the feature), other reps and payments", () => {
+    const store = {
+      d1: [
+        shipment({ id: "old", representativeId: undefined, representativeCommissionPercent: undefined }),
+        shipment({ id: "other", representativeId: "r2" }),
+        shipment({ id: "pay", kind: "credit", starlinkCost: undefined }),
+      ],
+    };
+    expect(listRepDeviceCommissions("r1", store)).toEqual([]);
+  });
+
+  it("gives no share yet while Starlink's cost is still D (pending)", () => {
+    const rows = listRepDeviceCommissions("r1", {
+      d1: [shipment({ starlinkCost: { status: "pending", currencyCode: "USD", amount: 60 } })],
+    });
+    expect(rows[0].repShareUsd).toBeUndefined();
+    expect(totalRepDeviceCommissions(rows)).toEqual({ profitUsd: 0, repShareUsd: 0, ourShareUsd: 0, pendingCount: 1 });
+  });
+
+  it("a loss earns the rep nothing - we carry it", () => {
+    const rows = listRepDeviceCommissions("r1", {
+      d1: [shipment({ starlinkCost: { status: "settled", currencyCode: "USD", amount: 130, paidAt: "2026-09-20" } })],
+    });
+    expect(rows[0].repShareUsd).toBe(0);
+    expect(rows[0].ourShareUsd).toBe(-30);
+  });
+
+  it("adds device shares into commission earned/owed in USD, minus USD payouts", () => {
+    const rows = listRepDeviceCommissions("r1", { d1: [shipment()] });
+    expect(computeRepCommissionEarnedByCurrency("r1", [], rows)).toEqual({ USD: 20 });
+    const settlements: RepSettlementList = [
+      { id: "s", representativeId: "r1", kind: "commissionPayout", amount: 5, currencyCode: "USD", date: "2026-09-21", createdAt: "x" },
+    ];
+    expect(computeRepCommissionOwedByCurrency("r1", [], settlements, rows)).toEqual({ USD: 15 });
+  });
+
+  it("computeRepSharesUsd sums every rep's share across entries", () => {
+    expect(computeRepSharesUsd([shipment(), shipment({ id: "e2", representativeId: "r2", representativeCommissionPercent: 25 })])).toBe(30);
+  });
+
+  it("buildRepDailyStatement groups by day newest-first with each day's split", () => {
+    const rows = listRepDeviceCommissions("r1", {
+      d1: [shipment({ id: "a", date: "2026-09-20" }), shipment({ id: "b", date: "2026-09-22", createdAt: "2026-09-22T09:00:00.000Z" })],
+    });
+    const settlements: RepSettlementList = [
+      { id: "s", representativeId: "r1", kind: "commissionPayout", amount: 5, currencyCode: "USD", date: "2026-09-22", createdAt: "2026-09-22T12:00:00.000Z" },
+    ];
+    const days = buildRepDailyStatement("r1", rows, [], settlements);
+    expect(days.map((d) => d.date)).toEqual(["2026-09-22", "2026-09-20"]);
+    expect(days[0].rows.map((r) => r.id)).toEqual(["s", "b"]);
+    expect(days[0].repShareUsd).toBe(20);
+    expect(days[0].ourShareUsd).toBe(20);
   });
 });

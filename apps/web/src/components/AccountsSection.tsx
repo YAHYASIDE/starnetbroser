@@ -22,6 +22,7 @@ import {
 import { combinePhoneNumber, PHONE_COUNTRY_CODES, splitPhoneNumber } from "@/lib/phoneCountryCodes";
 import { formatAmount } from "@/lib/formatAmount";
 import { partyHue, partyInitials } from "@/lib/partyColor";
+import { buildClientCombinedStatement, computeClientCombinedTotals } from "@/lib/clientAccount";
 import { buildStoreDebtReminderMessage, buildStoreStatementMessage, buildWhatsAppLink } from "@/lib/whatsapp";
 import { PartyAdjustment, PartyAdjustmentDirection, RecordPartyAdjustmentInput } from "@/lib/partyBalanceStore";
 
@@ -103,11 +104,14 @@ export function PartyDirectory({
   const rows = useMemo(
     () =>
       parties.map((party) => {
-        const totals = computePartyStoreTotals(invoices, kind, party.id, adjustments);
+        // A client's totals include every operation on their linked devices, not just the store.
+        const totals = isClients
+          ? computeClientCombinedTotals(invoices, adjustments, party.id, accounts.filter((a) => a.clientId === party.id), ledgerStore)
+          : computePartyStoreTotals(invoices, kind, party.id, adjustments);
         const due = Object.values(totals).some((t) => t.remaining > EPSILON);
         return { party, totals, due };
       }),
-    [parties, invoices, kind, adjustments],
+    [parties, invoices, kind, adjustments, isClients, accounts, ledgerStore],
   );
 
   const filtered = useMemo(() => {
@@ -295,7 +299,12 @@ function PartyCard({
       ? { className: "party-status-credit", label: isClient ? "له رصيد" : "لنا رصيد عنده" }
       : { className: "party-status-clear", label: "مسدَّد ✓" };
 
-  const statement = panel === "statement" ? buildPartyStatement(invoices, kind, party.id, adjustments) : [];
+  const statement =
+    panel !== "statement"
+      ? []
+      : isClient
+        ? buildClientCombinedStatement(invoices, adjustments, party.id, devices, ledgerStore)
+        : buildPartyStatement(invoices, kind, party.id, adjustments);
   const canWhatsApp = buildWhatsAppLink(party.phone) !== null;
 
   function togglePanel(next: Exclude<PartyPanel, null>) {
@@ -337,7 +346,7 @@ function PartyCard({
             <div key={c} className="party-stats">
               <span className="party-stats-currency">{currencyLabel(c)}</span>
               <div className="party-stat">
-                <span>{isClient ? "الفواتير" : "المشتريات"}</span>
+                <span>{isClient ? "المبيعات" : "المشتريات"}</span>
                 <strong dir="ltr">{formatAmount(t.total)}</strong>
               </div>
               <div className="party-stat party-stat-paid">
@@ -429,23 +438,30 @@ function PartyCard({
                       ? adjustment.direction === "owesUs"
                         ? "➕ رصيد عليه"
                         : "➖ رصيد له"
-                      : isClient
-                        ? "🧾 فاتورة بيع"
-                        : "🧾 فاتورة شراء";
+                      : row.type === "device-charge"
+                        ? `📡 شحن - ${row.deviceName ?? ""}`
+                        : row.type === "device-payment"
+                          ? `💵 دفعة - ${row.deviceName ?? ""}`
+                          : isClient
+                            ? "🧾 فاتورة بيع (المتجر)"
+                            : "🧾 فاتورة شراء";
                 return (
                   <li
                     key={row.id}
-                    className={`party-statement-row${row.type === "return" ? " party-statement-return" : ""}${row.type === "adjustment" ? " party-statement-adjustment" : ""}`}
+                    className={`party-statement-row party-statement-${row.type}`}
                   >
                     <div className="party-statement-top">
                       <span className="party-statement-kind">{kindLabel}</span>
                       <span className="party-statement-date" dir="ltr">{row.date}</span>
                     </div>
-                    {adjustment?.note && <span className="party-statement-note">{adjustment.note}</span>}
+                    {row.note && <span className="party-statement-note">{row.note}</span>}
                     <div className="party-statement-figures" dir="ltr">
-                      <span>
-                        {row.type === "return" ? "-" : ""}
-                        {formatAmount(row.amount)} {currencyLabel(row.currencyCode)}
+                      <span className={row.delta < 0 ? "party-statement-clear" : undefined}>
+                        <bdi dir="ltr">
+                          {row.delta < 0 ? "-" : "+"}
+                          {formatAmount(row.amount)}
+                        </bdi>{" "}
+                        {currencyLabel(row.currencyCode)}
                       </span>
                       {row.type === "invoice" && <span className="party-statement-paid">مدفوع {formatAmount(row.paid)}</span>}
                       <span className={row.balanceAfter > EPSILON ? "party-statement-due" : "party-statement-clear"}>
@@ -571,7 +587,7 @@ function PartyCard({
 
 /** A bottom sheet (fixed to the viewport, never inside the card) - so opening it never makes the
  * card itself any taller. */
-function PartySheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+export function PartySheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
     <div className="party-sheet-backdrop" role="presentation" onClick={onClose}>
       <div className="party-sheet" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>

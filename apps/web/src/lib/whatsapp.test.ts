@@ -14,6 +14,7 @@ import {
   buildWhatsAppLink,
   normalizePhoneForWhatsApp,
   buildStoreStatementMessage,
+  buildRepStatementMessage,
 } from "./whatsapp";
 
 function ledgerEntry(overrides: Partial<LedgerEntry> = {}): LedgerEntry {
@@ -408,5 +409,20 @@ describe("buildStoreStatementMessage", () => {
 
   it("says so when there is nothing recorded", () => {
     expect(buildStoreStatementMessage("علي", {}, "client")).toContain("لا توجد حركات مسجلة بعد");
+  });
+});
+
+describe("buildRepStatementMessage", () => {
+  it("shows his share, what is owed, cash held and pending operations", () => {
+    const message = buildRepStatementMessage(
+      "أحمد",
+      { profitUsd: 400, repShareUsd: 200, pendingCount: 2 },
+      { USD: 150, MRU: 0 },
+      { MRU: 3000 },
+    );
+    expect(message).toContain("حصتك من الربح: 200 USD");
+    expect(message).toContain("المستحق لك حاليًا: 150 دولار");
+    expect(message).toContain("نقد لديك لم يُسلَّم بعد: 3,000 أوقية");
+    expect(message).toContain("2 عملية بانتظار");
   });
 });

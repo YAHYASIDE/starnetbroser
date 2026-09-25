@@ -76,6 +76,9 @@ interface Props {
   onRemoveEntryAllocations: (entryId: string) => void;
   onClose: () => void;
   onChange: (entries: LedgerEntry[]) => void;
+  /** The device's current representative (account.representativeId) - locked onto every new
+   * shipment so their share of its profit is tracked (see LedgerEntry.representativeId). */
+  representative?: { id: string; commissionPercent: number };
 }
 
 /** Builds one device's own allocation-dialog data: its eligible (same-currency, not-yet-fully-
@@ -119,6 +122,7 @@ export function LedgerDialog({
   onRemoveEntryAllocations,
   onClose,
   onChange,
+  representative,
 }: Props) {
   const [kind, setKind] = useState<LedgerEntryKind>("debit");
   // أوقية (MRU) is the actual day-to-day currency this business sells in - USD is only the
@@ -363,6 +367,7 @@ export function LedgerDialog({
       paymentRate: kind === "credit" ? rateSnapshot : undefined,
       starlinkCost: starlinkCostInput,
       profitCurrencyRates,
+      representative,
     });
 
     setAmount("");

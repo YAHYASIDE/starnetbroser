@@ -44,6 +44,7 @@ import {
 import {
   createRepresentative,
   CreateRepresentativeInput,
+  getRepresentative,
   listRepresentatives,
   loadRepresentativeStore,
   Representative,
@@ -939,6 +940,10 @@ export function HomeView({
           onRemoveEntryAllocations={removeAllocationsEverywhere}
           onClose={() => setLedgerAccount(null)}
           onChange={(entries) => updateLedgerEntries(ledgerAccount.id, entries)}
+          representative={(() => {
+            const rep = getRepresentative(representativeStore, ledgerAccount.representativeId);
+            return rep ? { id: rep.id, commissionPercent: rep.commissionPercent } : undefined;
+          })()}
         />
       )}
 

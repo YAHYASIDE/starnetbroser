@@ -169,6 +169,16 @@ describe("createLedgerEntry", () => {
     expect(created.paymentMethod).toBeUndefined();
   });
 
+  it("locks the representative snapshot onto a debit entry only", () => {
+    const base = { amount: 10, currency: "USD" as const, note: "", email: "", date: "2026-09-21", representative: { id: "r1", commissionPercent: 50 } };
+    const debit = createLedgerEntry({ ...base, kind: "debit" });
+    expect(debit.representativeId).toBe("r1");
+    expect(debit.representativeCommissionPercent).toBe(50);
+    const credit = createLedgerEntry({ ...base, kind: "credit" });
+    expect(credit.representativeId).toBeUndefined();
+    expect(credit.representativeCommissionPercent).toBeUndefined();
+  });
+
   it("gives two calls distinct ids", () => {
     const base = { kind: "debit" as const, amount: 1, currency: "USD" as const, note: "", email: "", date: "2026-09-21" };
     const a = createLedgerEntry(base);
