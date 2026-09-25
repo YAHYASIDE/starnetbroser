@@ -6,7 +6,8 @@ import { presentStatus, presentServiceStatus, isBalanceDueZero, planBadgeLabel }
 import { daysRemainingLabel, daysRemainingNumber, formatRelativeTime } from "@/lib/date";
 import { emailsMismatch } from "@/lib/emailMatch";
 import { computeBalanceByCurrency, LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerEntry } from "@/lib/ledgerStore";
-import { computeDeviceAccountingSummary, computeShipmentProfit } from "@/lib/accountingStore";
+import { summarizeDeviceProfit } from "@/lib/accountingStore";
+import { computeDeviceMarks } from "@/lib/deviceMarks";
 import { CurrencyStore, getCurrency, toUsd } from "@/lib/currencyStore";
 import { formatAmount } from "@/lib/formatAmount";
 import { PaymentAllocation } from "@/lib/paymentAllocationStore";
@@ -211,16 +212,11 @@ export function AccountCard({
         ? "date-warning"
         : "date-safe";
 
-  const accounting = computeDeviceAccountingSummary(ledgerEntries);
-  const shipmentProfits = ledgerEntries.filter((e) => e.kind === "debit").map(computeShipmentProfit);
-  const hasUnsettledCost = accounting.pendingShipmentCount > 0;
-  let profitMruTotal: number | undefined;
-  let profitSifaTotal: number | undefined;
-  for (const profit of shipmentProfits) {
-    if (profit.status !== "computed") continue;
-    if (profit.profitMru !== undefined) profitMruTotal = (profitMruTotal ?? 0) + profit.profitMru;
-    if (profit.profitSifa !== undefined) profitSifaTotal = (profitSifaTotal ?? 0) + profit.profitSifa;
-  }
+  const marks = computeDeviceMarks(ledgerEntries, allocations);
+  const profit = summarizeDeviceProfit(ledgerEntries);
+  // An expected (still-D) profit has no locked MRU rate yet - today's registered rate, marked ≈.
+  const currentMruRate = getCurrency(currencyStore, "MRU")?.rateFromUsd;
+  const expectedMru = currentMruRate !== undefined ? profit.expectedUsd * currentMruRate : undefined;
 
   // Defaults to "not the Android app" (matches server render, which never
   // has a native bridge) and only reflects reality after mount, to avoid a
@@ -387,6 +383,20 @@ export function AccountCard({
             </div>
           )}
         </div>
+        {(marks.d || marks.p) && (
+          <span className="device-marks" aria-label="حالة الدفع">
+            {marks.d === "pending" && <span className="device-mark device-mark-d" title="تكلفة Starlink لم تُدفع بعد">D</span>}
+            {marks.d === "settled" && <span className="device-mark device-mark-ok" title="تكلفة Starlink مدفوعة">✓</span>}
+            {marks.p && (
+              <span
+                className={`device-mark ${marks.p === "paid" ? "device-mark-p" : "device-mark-p-partial"}`}
+                title={marks.p === "paid" ? "الزبون دفع آخر شحنة" : "الزبون دفع جزءًا من آخر شحنة"}
+              >
+                P
+              </span>
+            )}
+          </span>
+        )}
         {serviceStatus && <span className={`badge ${serviceStatus.className} account-card-status-badge`}>{serviceStatus.label}</span>}
       </div>
 
@@ -441,7 +451,6 @@ export function AccountCard({
         <span className={`mini-status ${STATUS_TILE_CLASS[wifi.className]}`} title={`حالة Wi-Fi: ${wifi.label}`}>
           <IconWifi /> {wifi.className === "dot-gray" ? "غير معروف" : wifi.label}
         </span>
-        {hasUnsettledCost && <span className="badge badge-yellow account-card-d-mark" title="تكلفة شحن غير مسددة">D</span>}
       </div>
 
       <div className="account-card-main-actions">
@@ -532,16 +541,19 @@ export function AccountCard({
             </div>
           )}
 
-          {(hasUnsettledCost || profitMruTotal !== undefined || profitSifaTotal !== undefined) && (
+          {(profit.confirmedCount > 0 || profit.expectedCount > 0) && (
             <div className="account-card-profit-row">
               <span className="account-card-label">الربح:</span>
-              {hasUnsettledCost ? (
-                <span className="badge badge-yellow">معلّق حتى تسديد تكلفة الشحن (D)</span>
-              ) : (
-                <span dir="ltr">
-                  {profitMruTotal !== undefined && <strong>{formatAmount(profitMruTotal)} أوقية</strong>}
-                  {profitMruTotal !== undefined && profitSifaTotal !== undefined && " · "}
-                  {profitSifaTotal !== undefined && <strong>{formatAmount(profitSifaTotal)} سيفا</strong>}
+              {profit.confirmedCount > 0 && (
+                <strong className={profit.confirmedUsd >= 0 ? "profit-positive" : "profit-negative"}>
+                  <bdi dir="ltr">{formatAmount(profit.confirmedMru ?? profit.confirmedUsd)}</bdi>{" "}
+                  {profit.confirmedMru !== undefined ? "أوقية" : "USD"}
+                </strong>
+              )}
+              {profit.expectedCount > 0 && (
+                <span className="badge badge-yellow" title="محسوب من تكلفة Starlink المسجلة - يتأكد عند التسديد">
+                  متوقع (D): ≈ <bdi dir="ltr">{formatAmount(expectedMru ?? profit.expectedUsd)}</bdi>{" "}
+                  {expectedMru !== undefined ? "أوقية" : "USD"}
                 </span>
               )}
             </div>

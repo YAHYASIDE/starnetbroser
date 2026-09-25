@@ -11,7 +11,7 @@
 
 import { Invoice, invoiceTotal } from "./invoiceStore";
 import { LedgerByAccount, LedgerEntry } from "./ledgerStore";
-import { computeShipmentProfit, ShipmentProfit } from "./accountingStore";
+import { computeExpectedShipmentProfit, computeShipmentProfit, ShipmentProfit } from "./accountingStore";
 
 export interface Representative {
   id: string;
@@ -327,6 +327,16 @@ export interface RepDeviceCommissionRow {
    * (negative). */
   repShareUsd?: number;
   ourShareUsd?: number;
+  /** Only while the shipment is still D: the rep's share of its EXPECTED profit (see
+   * accountingStore.ts's computeExpectedShipmentProfit) - shown, never counted as owed. */
+  expectedRepShareUsd?: number;
+}
+
+/** The rep's share of a still-D shipment's expected profit, same percent/loss rules. */
+function expectedDeviceShare(entry: LedgerEntry, percent: number, sharesLosses = false): number | undefined {
+  const expected = computeExpectedShipmentProfit(entry);
+  if (expected.status !== "expected" || expected.profitUsd === undefined) return undefined;
+  return expected.profitUsd > 0 || sharesLosses ? (expected.profitUsd * percent) / 100 : 0;
 }
 
 function deviceShare(profit: ShipmentProfit, percent: number, sharesLosses = false): { repShareUsd?: number; ourShareUsd?: number } {
@@ -345,7 +355,14 @@ export function listRepDeviceCommissions(representativeId: string, ledgerStore: 
       if (entry.representativeCommissionPercent === undefined) continue;
       const profit = computeShipmentProfit(entry);
       const percent = entry.representativeCommissionPercent;
-      rows.push({ accountId, entry, profit, percent, ...deviceShare(profit, percent, entry.representativeSharesLosses) });
+      rows.push({
+        accountId,
+        entry,
+        profit,
+        percent,
+        ...deviceShare(profit, percent, entry.representativeSharesLosses),
+        expectedRepShareUsd: expectedDeviceShare(entry, percent, entry.representativeSharesLosses),
+      });
     }
   }
   return rows.sort((a, b) =>
@@ -369,13 +386,16 @@ export interface RepDeviceTotals {
   ourShareUsd: number;
   /** Shipments still waiting for Starlink's cost ("D") - no share yet. */
   pendingCount: number;
+  /** The rep's expected share across those D shipments (informational, not owed yet). */
+  expectedRepShareUsd: number;
 }
 
 export function totalRepDeviceCommissions(rows: RepDeviceCommissionRow[]): RepDeviceTotals {
-  const totals: RepDeviceTotals = { profitUsd: 0, repShareUsd: 0, ourShareUsd: 0, pendingCount: 0 };
+  const totals: RepDeviceTotals = { profitUsd: 0, repShareUsd: 0, ourShareUsd: 0, pendingCount: 0, expectedRepShareUsd: 0 };
   for (const row of rows) {
     if (row.repShareUsd === undefined || row.ourShareUsd === undefined) {
       if (row.profit.status === "pending") totals.pendingCount += 1;
+      totals.expectedRepShareUsd += row.expectedRepShareUsd ?? 0;
       continue;
     }
     totals.profitUsd += row.profit.profitUsd ?? 0;
@@ -463,4 +483,14 @@ export function buildRepDailyStatement(
   const days = Array.from(byDate.values()).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
   for (const day of days) day.rows.sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
   return days;
+}
+
+/** Every rep's share of the EXPECTED profit of still-D shipments among `entries` (reports). */
+export function computeExpectedRepSharesUsd(entries: LedgerEntry[]): number {
+  let total = 0;
+  for (const entry of entries) {
+    if (entry.kind !== "debit" || !entry.representativeId || entry.representativeCommissionPercent === undefined) continue;
+    total += expectedDeviceShare(entry, entry.representativeCommissionPercent, entry.representativeSharesLosses) ?? 0;
+  }
+  return total;
 }

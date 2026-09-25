@@ -307,3 +307,57 @@ export function computeClientAccountingSummary(
 
   return { devices: deviceSummaries, totalDebt, totalPaid, totalPaidUsd, cashFlowUsd, hasIncompletePaymentRates, netResult };
 }
+
+// ---- Expected profit ("ربح متوقع") for shipments still marked D ----
+
+/**
+ * A shipment's profit even while it's still "D": the Starlink cost the operator typed in (with
+ * its own locked rate) is already known, only unpaid - so the profit can be shown straight away
+ * as EXPECTED, and becomes CONFIRMED once the cost is settled (settling may lock a different
+ * amount/rate, which then wins). "unknown" = not enough information (legacy entry, or a side with
+ * no resolvable USD value).
+ */
+export interface ExpectedShipmentProfit {
+  status: "confirmed" | "expected" | "unknown";
+  profitUsd?: number;
+  /** Only for "confirmed": converted with the shipment's own locked rates. */
+  profitMru?: number;
+}
+
+export function computeExpectedShipmentProfit(entry: LedgerEntry): ExpectedShipmentProfit {
+  const actual = computeShipmentProfit(entry);
+  if (actual.status === "computed") return { status: "confirmed", profitUsd: actual.profitUsd, profitMru: actual.profitMru };
+  if (actual.status === "legacy") return { status: "unknown" };
+  const cost = entry.starlinkCost;
+  if (!cost || cost.currencyCode === undefined || cost.amount === undefined) return { status: "unknown" };
+  const saleValueUsd = entry.currency === "USD" ? entry.amount : entry.saleRate?.usdValue;
+  const starlinkCostUsd = resolveUsdValue(cost.amount, cost.currencyCode, cost.rate);
+  if (saleValueUsd === undefined || starlinkCostUsd === undefined) return { status: "unknown" };
+  return { status: "expected", profitUsd: saleValueUsd - starlinkCostUsd };
+}
+
+export interface DeviceProfitSummary {
+  confirmedUsd: number;
+  /** Sum of the locked MRU profit of confirmed shipments; undefined when none had a locked MRU rate. */
+  confirmedMru?: number;
+  confirmedCount: number;
+  expectedUsd: number;
+  expectedCount: number;
+}
+
+export function summarizeDeviceProfit(entries: LedgerEntry[]): DeviceProfitSummary {
+  const summary: DeviceProfitSummary = { confirmedUsd: 0, confirmedCount: 0, expectedUsd: 0, expectedCount: 0 };
+  for (const entry of entries) {
+    if (entry.kind !== "debit") continue;
+    const p = computeExpectedShipmentProfit(entry);
+    if (p.status === "confirmed") {
+      summary.confirmedUsd += p.profitUsd ?? 0;
+      summary.confirmedCount += 1;
+      if (p.profitMru !== undefined) summary.confirmedMru = (summary.confirmedMru ?? 0) + p.profitMru;
+    } else if (p.status === "expected") {
+      summary.expectedUsd += p.profitUsd ?? 0;
+      summary.expectedCount += 1;
+    }
+  }
+  return summary;
+}

@@ -304,7 +304,12 @@ function RepCard({
 
       <div className="party-chips">
         <span className="party-chip">📡 {devices.length} جهاز</span>
-        {deviceTotals.pendingCount > 0 && <span className="party-chip">⏳ {deviceTotals.pendingCount} بانتظار D</span>}
+        {deviceTotals.pendingCount > 0 && (
+          <span className="party-chip">
+            ⏳ {deviceTotals.pendingCount} بانتظار D
+            {deviceTotals.expectedRepShareUsd > 0.0001 && <> · حصته المتوقعة ≈ <bdi dir="ltr">{formatAmount(deviceTotals.expectedRepShareUsd)}$</bdi></>}
+          </span>
+        )}
         {nonZero(owed)
           .filter(([c]) => c !== "USD")
           .map(([c, v]) => (
@@ -519,7 +524,16 @@ function RepStatementLine({
             </div>
           </>
         ) : (
-          <span className="party-statement-note">⏳ بانتظار تسديد تكلفة Starlink (D) - تُحتسب حصته ({percent}%) بعد التسديد</span>
+          <span className="party-statement-note">
+            ⏳ بانتظار تسديد تكلفة Starlink (D)
+            {row.row.expectedRepShareUsd !== undefined ? (
+              <>
+                {" "}- حصته المتوقعة ({percent}%) ≈ <bdi dir="ltr">{formatAmount(row.row.expectedRepShareUsd)}$</bdi>، تتأكد بعد التسديد
+              </>
+            ) : (
+              ` - تُحتسب حصته (${percent}%) بعد التسديد`
+            )}
+          </span>
         )}
       </li>
     );
@@ -703,7 +717,10 @@ function repRowCells(
     const { entry, profit, percent, repShareUsd, ourShareUsd, accountId } = row.row;
     const client = clientNameFor(accountId);
     const title = `📡 ${accountName(accountId)}${client ? ` · ${client}` : ""} (${formatAmount(entry.amount)} ${currencyLabel(entry.currency)})`;
-    if (profit.status !== "computed") return [row.date, title, `⏳ بانتظار تكلفة Starlink (${percent}%)`, "", ""];
+    if (profit.status !== "computed") {
+      const expected = row.row.expectedRepShareUsd;
+      return [row.date, title, "⏳ متوقع (D) - بانتظار تكلفة Starlink", expected !== undefined ? `≈ ${formatAmount(expected)}$ (${percent}%)` : "", ""];
+    }
     return [
       row.date,
       title,

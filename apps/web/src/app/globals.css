@@ -5129,3 +5129,65 @@ button.today-tile {
 .party-balance-form > fieldset {
   flex: none;
 }
+
+/* ---- Device card: D / ✓ / P marks (equal size, top of the card) ---- */
+.device-marks {
+  display: inline-flex;
+  gap: 5px;
+  flex: none;
+}
+
+.device-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  line-height: 1;
+  border: 1px solid transparent;
+}
+
+.device-mark-d {
+  background: color-mix(in srgb, var(--red) 22%, var(--surface));
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.device-mark-ok,
+.device-mark-p {
+  background: color-mix(in srgb, var(--green) 20%, var(--surface));
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.device-mark-p-partial {
+  background: color-mix(in srgb, var(--orange) 20%, var(--surface));
+  border-color: var(--orange);
+  color: var(--orange);
+}
+
+.profit-positive {
+  color: var(--green);
+}
+
+.profit-negative {
+  color: var(--red);
+}
+
+.report-net-tile-expected {
+  flex-wrap: wrap;
+  background: color-mix(in srgb, var(--yellow) 14%, var(--surface));
+  border: 1px dashed var(--yellow);
+}
+
+.report-net-tile-expected .report-net-tile-value {
+  color: var(--yellow);
+}
+
+.report-net-tile-note {
+  flex-basis: 100%;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}

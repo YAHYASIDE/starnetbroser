@@ -16,7 +16,8 @@ import { InvoiceList, loadInvoices } from "@/lib/invoiceStore";
 import { getStoreItem, loadStoreItems, loadStoreTransactions, StoreItemRegistry, StoreTransactionList } from "@/lib/storeStore";
 import { computeClientSalesTotals, computeItemSalesTotals, computeStoreSalesSummary, largestCurrencyValue } from "@/lib/storeReports";
 import { CashEntryList, loadCashEntries, listStandaloneCashEntries } from "@/lib/cashStore";
-import { computeRepSharesUsd } from "@/lib/repStore";
+import { computeExpectedRepSharesUsd, computeRepSharesUsd } from "@/lib/repStore";
+import { summarizeDeviceProfit } from "@/lib/accountingStore";
 
 function currencyLabelFor(code: string): string {
   return LEDGER_CURRENCY_LABELS[code as keyof typeof LEDGER_CURRENCY_LABELS] ?? code;
@@ -78,6 +79,10 @@ export default function ReportsPage() {
   const periodNetProfitUsd = periodSummary.totalProfitsUsd - periodSummary.totalLossesUsd;
   // Representatives' share of the same period's device profit (LedgerEntry.representativeId).
   const periodRepSharesUsd = useMemo(() => computeRepSharesUsd(periodEntries), [periodEntries]);
+  // Still-D shipments: their profit is already known from the recorded Starlink cost, shown apart
+  // as "متوقع" until the cost is settled (accountingStore.ts's computeExpectedShipmentProfit).
+  const periodExpected = useMemo(() => summarizeDeviceProfit(periodEntries), [periodEntries]);
+  const periodExpectedRepSharesUsd = useMemo(() => computeExpectedRepSharesUsd(periodEntries), [periodEntries]);
 
   // ربح المتجر (retail: devices/materials sold as store inventory, via invoiceStore.ts) - a
   // separate business from the Starlink-subscription ledger above, in its own currencies (MRU/
@@ -214,6 +219,21 @@ export default function ReportsPage() {
             {formatAmount(periodNetProfitUsd)} USD
           </strong>
         </div>
+
+        {periodExpected.expectedCount > 0 && (
+          <div className="report-net-tile report-net-tile-expected">
+            <span className="report-net-tile-label">
+              ربح متوقع (D) · {periodExpected.expectedCount} شحنة لم تُسدَّد تكلفتها لـ Starlink بعد
+            </span>
+            <strong className="report-net-tile-value" dir="ltr">
+              ≈ {formatAmount(periodExpected.expectedUsd)} USD
+            </strong>
+            <span className="report-net-tile-note">
+              يتأكد ويدخل صافي الربح عند التسديد
+              {periodExpectedRepSharesUsd > 0.0001 && ` · منه حصة متوقعة للمندوبين ≈ ${formatAmount(periodExpectedRepSharesUsd)} USD`}
+            </span>
+          </div>
+        )}
 
         {periodRepSharesUsd > 0.0001 && (
           <div className="report-rep-split">

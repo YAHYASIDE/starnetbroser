@@ -307,12 +307,13 @@ describe("device profit shares", () => {
     expect(listRepDeviceCommissions("r1", store)).toEqual([]);
   });
 
-  it("gives no share yet while Starlink's cost is still D (pending)", () => {
+  it("gives no owed share while Starlink's cost is still D, only an expected one", () => {
     const rows = listRepDeviceCommissions("r1", {
       d1: [shipment({ starlinkCost: { status: "pending", currencyCode: "USD", amount: 60 } })],
     });
     expect(rows[0].repShareUsd).toBeUndefined();
-    expect(totalRepDeviceCommissions(rows)).toEqual({ profitUsd: 0, repShareUsd: 0, ourShareUsd: 0, pendingCount: 1 });
+    expect(rows[0].expectedRepShareUsd).toBe(20); // expected profit (100 sale - 60 D cost) x 50% - shown, not owed
+    expect(totalRepDeviceCommissions(rows)).toEqual({ profitUsd: 0, repShareUsd: 0, ourShareUsd: 0, pendingCount: 1, expectedRepShareUsd: 20 });
   });
 
   it("a loss earns the rep nothing - we carry it", () => {
