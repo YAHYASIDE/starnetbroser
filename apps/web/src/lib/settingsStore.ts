@@ -74,28 +74,28 @@ export function recordBackupExported(now: Date = new Date()) {
   safeSet(LAST_BACKUP_AT_KEY, now.toISOString());
 }
 
-/** "system" (default) follows the device's own light/dark setting - "light"/"dark" is an explicit
- * operator choice that always overrides it (see globals.css's [data-theme] rules). */
+/** "dark" (default - the app's satellite/Starlink look) unless the operator picks "light" or
+ * "system" (follow the device) in الإعدادات. Always written to data-theme on <html>, which
+ * globals.css keys off of. */
 export type ThemePreference = "system" | "light" | "dark";
 const THEME_KEY = "starnet.theme";
 
 export function getThemePreference(): ThemePreference {
   const raw = safeGet(THEME_KEY);
-  return raw === "light" || raw === "dark" ? raw : "system";
+  return raw === "light" || raw === "system" ? raw : "dark";
 }
 
 export function setThemePreference(theme: ThemePreference) {
-  safeSet(THEME_KEY, theme === "system" ? null : theme);
+  safeSet(THEME_KEY, theme === "dark" ? null : theme);
   applyThemePreference(theme);
 }
 
-/** Sets (or clears) the data-theme attribute globals.css keys off of - called once on every page
- * load (see the inline script in layout.tsx, which runs this before first paint to avoid a
- * flash of the wrong theme) and again whenever the operator changes the setting. */
+/** Sets the data-theme attribute globals.css keys off of - called once on every page load (see
+ * the inline script in layout.tsx, which does the same before first paint to avoid a flash of
+ * the wrong theme) and again whenever the operator changes the setting. */
 export function applyThemePreference(theme: ThemePreference = getThemePreference()) {
   if (typeof document === "undefined") return;
-  if (theme === "system") delete document.documentElement.dataset.theme;
-  else document.documentElement.dataset.theme = theme;
+  document.documentElement.dataset.theme = theme;
 }
 
 /** Off by default - an explicit opt-in from الإعدادات that shows short inline hints on the

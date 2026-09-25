@@ -20,19 +20,20 @@ beforeEach(() => {
 });
 
 describe("theme preference", () => {
-  it("defaults to 'system'", () => {
-    expect(getThemePreference()).toBe("system");
-  });
-
-  it("persists an explicit choice and reads it back", () => {
-    setThemePreference("dark");
+  it("defaults to 'dark'", () => {
     expect(getThemePreference()).toBe("dark");
   });
 
-  it("clears the stored value when set back to 'system'", () => {
+  it("persists an explicit choice and reads it back", () => {
     setThemePreference("light");
+    expect(getThemePreference()).toBe("light");
+  });
+
+  it("remembers 'system' and goes back to the dark default when set to 'dark'", () => {
     setThemePreference("system");
     expect(getThemePreference()).toBe("system");
+    setThemePreference("dark");
+    expect(getThemePreference()).toBe("dark");
   });
 
   it("setThemePreference applies data-theme immediately", () => {
@@ -40,10 +41,10 @@ describe("theme preference", () => {
     expect(document.documentElement.dataset.theme).toBe("dark");
   });
 
-  it("applyThemePreference('system') removes the data-theme attribute", () => {
+  it("applyThemePreference('system') marks the page to follow the device", () => {
     document.documentElement.dataset.theme = "dark";
     applyThemePreference("system");
-    expect(document.documentElement.dataset.theme).toBeUndefined();
+    expect(document.documentElement.dataset.theme).toBe("system");
   });
 
   it("applyThemePreference with no argument re-applies the currently stored preference", () => {

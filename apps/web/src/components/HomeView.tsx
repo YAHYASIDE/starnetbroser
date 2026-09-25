@@ -185,7 +185,8 @@ export function HomeView({
   function pushToast(text: string) {
     const id =
       typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `toast-${Date.now()}-${Math.random()}`;
-    setToasts((current) => [...current, { id, text }]);
+    // The same message twice in a row (e.g. a repeated sync) is shown once.
+    setToasts((current) => (current.some((toast) => toast.text === text) ? current : [...current, { id, text }]));
   }
   function dismissToast(id: string) {
     setToasts((current) => current.filter((toast) => toast.id !== id));

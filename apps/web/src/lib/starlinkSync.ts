@@ -244,6 +244,10 @@ export interface PendingSyncLike {
 export interface SyncOutcomeMessage {
   accountId: string;
   message: string;
+  /** For the one-line summary shown to the operator (summarizeSyncMessages). */
+  accountName: string;
+  updatedCount: number;
+  scanned: boolean;
 }
 
 export interface ApplyPendingSyncsResult {
@@ -295,7 +299,13 @@ export function applyPendingSyncs(
 
     const { account: merged, updatedFields, scanned } = mergeSyncedFields(target, sync.fields);
     current = current.map((item) => (item.id === sync.accountId ? merged : item));
-    messages.push({ accountId: sync.accountId, message: formatSyncMessage(merged.name, updatedFields, scanned) });
+    messages.push({
+      accountId: sync.accountId,
+      message: formatSyncMessage(merged.name, updatedFields, scanned),
+      accountName: merged.name,
+      updatedCount: updatedFields.length,
+      scanned,
+    });
     ackSyncIds.push(sync.syncId);
   }
 
@@ -360,7 +370,8 @@ export function runSyncBatch(
     return { status: "save-failed" };
   }
 
-  for (const { message } of result.messages) deps.showAlert(message);
+  const summary = summarizeSyncMessages(result.messages);
+  if (summary) deps.showAlert(summary);
   return { status: "applied", accounts: result.accounts, appliedSyncIds: result.ackSyncIds };
 }
 
@@ -408,4 +419,21 @@ export function formatSyncMessage(accountName: string, updatedFields: UpdatedFie
     .join("\n\n");
 
   return `تم تحديث حساب "${accountName}" من Starlink\n\n${sections}`;
+}
+
+/**
+ * One short line for a whole batch - never one bubble per device (a background sync of several
+ * devices used to stack a pile of long multi-line bubbles). The full per-field detail stays
+ * available in each device's own card.
+ */
+export function summarizeSyncMessages(messages: SyncOutcomeMessage[]): string | null {
+  if (messages.length === 0) return null;
+  const updated = messages.filter((m) => m.updatedCount > 0);
+  if (messages.length === 1) {
+    const m = messages[0]!;
+    if (m.updatedCount > 0) return `✓ تم تحديث "${m.accountName}" من Starlink (${m.updatedCount} ${m.updatedCount === 1 ? "حقل" : "حقول"})`;
+    return m.scanned ? `✓ "${m.accountName}" محدَّث - لا تغييرات` : `لم يتم العثور على بيانات جديدة لـ "${m.accountName}"`;
+  }
+  if (updated.length === 0) return `✓ تم فحص ${messages.length} أجهزة - لا تغييرات`;
+  return `✓ تم تحديث ${updated.length} من ${messages.length} أجهزة من Starlink`;
 }

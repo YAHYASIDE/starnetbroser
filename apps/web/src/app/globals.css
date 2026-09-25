@@ -1,88 +1,119 @@
 :root {
-  --bg: #f4f6f8;
+  --bg: #f2f5fb;
   --surface: #ffffff;
-  --surface-alt: #eef1f4;
-  --text: #14181f;
-  --text-muted: #5b6472;
-  --border: #e1e5ea;
-  --brand: #0284c7;
-  --brand-strong: #075985;
+  --surface-alt: #e9eef8;
+  --text: #0b1224;
+  --text-muted: #56627a;
+  --border: #d6deec;
+  --brand: #1668e3;
+  --brand-strong: #0b4db3;
   --brand-contrast: #ffffff;
-  --green: #1a9e5c;
-  --green-bg: #e6f6ee;
-  --yellow: #b8860b;
-  --yellow-bg: #fdf3d9;
-  --red: #d0332f;
-  --red-bg: #fbe6e5;
-  --gray: #8a94a3;
-  --gray-bg: #eceff2;
-  --mint: #0f9b8e;
-  --mint-bg: #e1f7f3;
+  --green: #0e9f6e;
+  --green-bg: #dcf5ea;
+  --yellow: #b7791f;
+  --yellow-bg: #fdf1d6;
+  --red: #e0294a;
+  --red-bg: #fde3e8;
+  --gray: #7a869c;
+  --gray-bg: #e9eef6;
+  --mint: #0891b2;
+  --mint-bg: #dbf3f9;
   --violet: #7c3aed;
-  --violet-bg: #f1e9fe;
-  --radius-lg: 16px;
-  --radius-md: 12px;
-  --radius-sm: 8px;
+  --violet-bg: #efe7ff;
+  --orange: #ea6a0c;
+  --orange-bg: #ffead8;
+  --glow: 0 6px 20px rgb(22 104 227 / 0.14);
+  --card-shadow: 0 6px 18px rgb(11 18 36 / 0.06);
+  --bg-art: none;
+  color-scheme: light;
+  --radius-lg: 20px;
+  --radius-md: 14px;
+  --radius-sm: 10px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
-  --bottom-nav-height: 62px;
-  color-scheme: light;
+  --bottom-nav-height: 78px;
 }
 
-/* Dark mode: follows the OS by default, but a manual choice made in الإعدادات (see
-   settingsStore.ts's theme setting, applied as data-theme on <html>) always wins - :not([data-
-   theme="light"]) lets the OS preference through unless the operator explicitly forced light,
-   and the plain [data-theme="dark"] rule forces dark even when the OS itself prefers light. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #10131a;
-    --surface: #171c26;
-    --surface-alt: #1e2430;
-    --text: #eef1f6;
-    --text-muted: #97a1b1;
-    --border: #2a3140;
-    --brand: #38bdf8;
-    --brand-strong: #7dd3fc;
-    --brand-contrast: #052e40;
-    --green: #34c481;
-    --green-bg: #123425;
-    --yellow: #e0b13a;
-    --yellow-bg: #3a2f10;
-    --red: #ef5b57;
-    --red-bg: #3a1817;
-    --gray: #7a8494;
-    --gray-bg: #232936;
-    --mint: #2dd4bf;
-    --mint-bg: #113b36;
-    --violet: #a78bfa;
-    --violet-bg: #2c2350;
-    color-scheme: dark;
-  }
-}
-
-:root[data-theme="dark"] {
-  --bg: #10131a;
-  --surface: #171c26;
-  --surface-alt: #1e2430;
-  --text: #eef1f6;
-  --text-muted: #97a1b1;
-  --border: #2a3140;
-  --brand: #38bdf8;
-  --brand-strong: #7dd3fc;
-  --brand-contrast: #052e40;
-  --green: #34c481;
-  --green-bg: #123425;
-  --yellow: #e0b13a;
-  --yellow-bg: #3a2f10;
-  --red: #ef5b57;
-  --red-bg: #3a1817;
-  --gray: #7a8494;
-  --gray-bg: #232936;
-  --mint: #2dd4bf;
-  --mint-bg: #113b36;
-  --violet: #a78bfa;
-  --violet-bg: #2c2350;
+/* Orbit - the app's dark "satellite" look is the DEFAULT: data-theme is always set on <html>
+   (settingsStore.ts, and the inline script in layout.tsx before first paint) to "dark" unless the
+   operator chose "light", or "system" to follow the device. Per-component dark tweaks further down
+   still key off [data-theme="dark"] / the OS media query, which both keep matching. */
+:root:not([data-theme="light"]):not([data-theme="system"]) {
+  --bg: #060a14;
+  --surface: #0e1526;
+  --surface-alt: #151f36;
+  --text: #eef3ff;
+  --text-muted: #9aa8c7;
+  --border: #22304f;
+  --brand: #3d9bff;
+  --brand-strong: #8ec5ff;
+  --brand-contrast: #021022;
+  --green: #2ee59d;
+  --green-bg: #0c2e24;
+  --yellow: #ffc53d;
+  --yellow-bg: #332808;
+  --red: #ff5a74;
+  --red-bg: #3a1220;
+  --gray: #7d8aa8;
+  --gray-bg: #182238;
+  --mint: #22d3ee;
+  --mint-bg: #0a2b36;
+  --violet: #a98bff;
+  --violet-bg: #231c48;
+  --orange: #ff9a3d;
+  --orange-bg: #3a220c;
+  --glow: 0 0 0 1px rgb(61 155 255 / 0.22), 0 10px 30px rgb(61 155 255 / 0.16);
+  --card-shadow: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 10px 30px rgb(0 0 0 / 0.35);
+  --bg-art:
+    radial-gradient(1px 1px at 12% 18%, rgb(255 255 255 / 0.55) 50%, transparent 51%),
+    radial-gradient(1px 1px at 72% 9%, rgb(255 255 255 / 0.4) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 38% 42%, rgb(142 197 255 / 0.5) 50%, transparent 51%),
+    radial-gradient(1px 1px at 88% 36%, rgb(255 255 255 / 0.35) 50%, transparent 51%),
+    radial-gradient(1px 1px at 22% 71%, rgb(255 255 255 / 0.3) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 63% 83%, rgb(255 255 255 / 0.35) 50%, transparent 51%),
+    radial-gradient(1px 1px at 91% 64%, rgb(142 197 255 / 0.45) 50%, transparent 51%),
+    radial-gradient(120% 60% at 50% -10%, rgb(61 155 255 / 0.16), transparent 60%);
   color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] {
+  --bg: #060a14;
+  --surface: #0e1526;
+  --surface-alt: #151f36;
+  --text: #eef3ff;
+  --text-muted: #9aa8c7;
+  --border: #22304f;
+  --brand: #3d9bff;
+  --brand-strong: #8ec5ff;
+  --brand-contrast: #021022;
+  --green: #2ee59d;
+  --green-bg: #0c2e24;
+  --yellow: #ffc53d;
+  --yellow-bg: #332808;
+  --red: #ff5a74;
+  --red-bg: #3a1220;
+  --gray: #7d8aa8;
+  --gray-bg: #182238;
+  --mint: #22d3ee;
+  --mint-bg: #0a2b36;
+  --violet: #a98bff;
+  --violet-bg: #231c48;
+  --orange: #ff9a3d;
+  --orange-bg: #3a220c;
+  --glow: 0 0 0 1px rgb(61 155 255 / 0.22), 0 10px 30px rgb(61 155 255 / 0.16);
+  --card-shadow: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 10px 30px rgb(0 0 0 / 0.35);
+  --bg-art:
+    radial-gradient(1px 1px at 12% 18%, rgb(255 255 255 / 0.55) 50%, transparent 51%),
+    radial-gradient(1px 1px at 72% 9%, rgb(255 255 255 / 0.4) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 38% 42%, rgb(142 197 255 / 0.5) 50%, transparent 51%),
+    radial-gradient(1px 1px at 88% 36%, rgb(255 255 255 / 0.35) 50%, transparent 51%),
+    radial-gradient(1px 1px at 22% 71%, rgb(255 255 255 / 0.3) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 63% 83%, rgb(255 255 255 / 0.35) 50%, transparent 51%),
+    radial-gradient(1px 1px at 91% 64%, rgb(142 197 255 / 0.45) 50%, transparent 51%),
+    radial-gradient(120% 60% at 50% -10%, rgb(61 155 255 / 0.16), transparent 60%);
+  color-scheme: dark;
+  }
 }
 
 * {
@@ -102,8 +133,10 @@ body {
 
 body {
   background: var(--bg);
+  background-image: var(--bg-art);
+  background-attachment: fixed;
   color: var(--text);
-  font-family: "Segoe UI", Tahoma, "Geeza Pro", Arial, sans-serif;
+  font-family: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, "Geeza Pro", Arial, sans-serif;
   padding-top: var(--safe-top);
   padding-bottom: calc(var(--bottom-nav-height) + var(--safe-bottom));
   -webkit-tap-highlight-color: transparent;
@@ -4659,4 +4692,345 @@ button.today-tile {
   display: grid;
   gap: 8px;
   margin-top: 12px;
+}
+
+
+/* =====================================================================================
+   Orbit - the unified look (dark satellite by default, see the tokens at the top). This layer
+   comes last on purpose: it restyles the shared building blocks every page uses, so all screens
+   read as one app. Colors only ever come from the tokens, so light mode follows automatically.
+   ===================================================================================== */
+
+/* Header */
+.app-header {
+  padding: 8px 0 16px;
+}
+
+.brand-logo {
+  border-radius: 14px;
+  color: var(--brand-contrast);
+  background: var(--brand);
+  box-shadow: var(--glow);
+}
+
+.brand-lockup .brand-mark {
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.header-settings,
+.header-currencies,
+.header-clients,
+.header-reminders,
+.header-sync {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text);
+  box-shadow: none;
+}
+
+.header-add {
+  min-height: 44px;
+  border-radius: 14px;
+  box-shadow: var(--glow);
+  font-weight: 700;
+}
+
+/* Search */
+.dashboard-search,
+.search-input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.dashboard-search {
+  min-height: 52px;
+  border-radius: 16px;
+  box-shadow: none;
+}
+
+.search-input:focus,
+.dashboard-search:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 25%, transparent);
+}
+
+/* Summary tiles - vivid accent on a tinted tile instead of solid color blocks */
+.overview-grid {
+  gap: 6px;
+}
+
+.overview-card {
+  --tile: var(--brand);
+  min-height: 70px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--tile) 14%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--tile) 40%, transparent);
+  color: var(--tile);
+  box-shadow: none;
+}
+
+.overview-card .overview-value {
+  color: var(--tile);
+  font-size: 1.2rem;
+}
+
+.overview-card .overview-label {
+  color: var(--text-muted);
+  font-size: 0.56rem;
+}
+
+.overview-card-active {
+  background: color-mix(in srgb, var(--tile) 28%, var(--surface));
+  box-shadow: 0 0 0 2px var(--tile);
+}
+
+.overview-total { --tile: var(--brand); background: color-mix(in srgb, var(--brand) 14%, var(--surface)); }
+.overview-online { --tile: var(--green); background: color-mix(in srgb, var(--green) 14%, var(--surface)); }
+.overview-warning { --tile: var(--yellow); background: color-mix(in srgb, var(--yellow) 14%, var(--surface)); }
+.overview-expired { --tile: var(--red); background: color-mix(in srgb, var(--red) 14%, var(--surface)); }
+.overview-suspended { --tile: var(--orange); background: color-mix(in srgb, var(--orange) 14%, var(--surface)); }
+.overview-owed { --tile: var(--violet); background: color-mix(in srgb, var(--violet) 14%, var(--surface)); }
+
+/* Today panel */
+.today-panel {
+  background: linear-gradient(160deg, color-mix(in srgb, var(--brand) 30%, var(--surface)), var(--surface) 70%);
+  border: 1px solid color-mix(in srgb, var(--brand) 35%, var(--border));
+  color: var(--text);
+  box-shadow: var(--glow);
+}
+
+.today-head span {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+.today-tile {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  box-shadow: none;
+}
+
+.today-tile span {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+.today-collected strong { color: var(--green); }
+.today-charged strong { color: var(--yellow); }
+.today-cash strong { color: var(--mint); }
+.today-renewals strong { color: var(--brand); }
+
+/* Cards and sections */
+.section,
+.account-card,
+.party-card,
+.ledger-entry-row,
+.store-summary-tile,
+.report-tile {
+  border-color: var(--border);
+}
+
+.account-card {
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+}
+
+.party-card {
+  box-shadow: var(--card-shadow);
+}
+
+.section-title {
+  font-weight: 700;
+}
+
+/* Buttons */
+.dialog-primary {
+  border-radius: 14px;
+  background: var(--brand);
+  color: var(--brand-contrast);
+  font-weight: 700;
+  box-shadow: var(--glow);
+}
+
+.btn-icon {
+  border-radius: 12px;
+}
+
+/* Dialogs and sheets */
+.dialog-backdrop,
+.bottom-nav-sheet-backdrop {
+  background: rgb(2 6 14 / 0.62);
+  backdrop-filter: blur(4px);
+}
+
+.account-dialog,
+.party-sheet,
+.bottom-nav-sheet {
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+/* Bottom navigation - a floating bar with line icons */
+.bottom-nav {
+  left: 10px;
+  right: 10px;
+  bottom: calc(8px + var(--safe-bottom));
+  height: 64px;
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 12px 34px rgb(0 0 0 / 0.35);
+}
+
+.bottom-nav-item {
+  gap: 3px;
+  border-radius: 16px;
+}
+
+.bottom-nav-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 28px;
+  border-radius: 14px;
+}
+
+.bottom-nav-icon svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.bottom-nav-label {
+  font-size: 0.62rem;
+}
+
+.bottom-nav-item-active {
+  color: var(--brand);
+}
+
+.bottom-nav-item-active .bottom-nav-icon {
+  background: color-mix(in srgb, var(--brand) 18%, transparent);
+}
+
+.bottom-nav-sheet {
+  margin-bottom: calc(var(--bottom-nav-height) + var(--safe-bottom));
+  border-radius: 22px;
+  width: calc(100% - 20px);
+}
+
+.bottom-nav-sheet-item {
+  border-radius: 16px;
+}
+
+.bottom-nav-sheet-item svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: var(--brand);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Notifications - one compact message at a time, just above the bottom bar */
+.snackbar-host {
+  position: fixed;
+  z-index: 300;
+  left: 12px;
+  right: 12px;
+  bottom: calc(var(--bottom-nav-height) + var(--safe-bottom) + 8px);
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.snackbar {
+  pointer-events: auto;
+  width: 100%;
+  max-width: 440px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface-alt);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-align: start;
+  box-shadow: 0 14px 36px rgb(0 0 0 / 0.4);
+  cursor: pointer;
+  animation: snackbar-in 0.22s ease-out;
+}
+
+.snackbar-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--brand) 20%, transparent);
+  color: var(--brand);
+}
+
+.snackbar-success .snackbar-icon {
+  background: color-mix(in srgb, var(--green) 20%, transparent);
+  color: var(--green);
+}
+
+.snackbar-error {
+  border-color: color-mix(in srgb, var(--red) 50%, var(--border));
+}
+
+.snackbar-error .snackbar-icon {
+  background: color-mix(in srgb, var(--red) 20%, transparent);
+  color: var(--red);
+}
+
+.snackbar-text {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.snackbar-more {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+@keyframes snackbar-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

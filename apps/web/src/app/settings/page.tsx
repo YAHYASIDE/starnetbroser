@@ -33,9 +33,9 @@ import { BusinessProfile, loadBusinessProfile, saveBusinessProfile } from "@/lib
 import { clearAppPin, hasAppPin, setAppPin, verifyAppPin } from "@/lib/appLock";
 
 const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
-  { value: "system", label: "حسب الجهاز" },
+  { value: "dark", label: "داكن (الافتراضي)" },
   { value: "light", label: "فاتح" },
-  { value: "dark", label: "داكن" },
+  { value: "system", label: "حسب الجهاز" },
 ];
 
 export default function SettingsPage() {

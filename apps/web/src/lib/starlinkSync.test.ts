@@ -1,6 +1,7 @@
 import { DeviceStatus, StarlinkAccountSummary } from "@starnet/shared";
 import { describe, expect, it } from "vitest";
 import {
+  summarizeSyncMessages,
   applyPendingSyncs,
   formatSyncMessage,
   mergeSyncedFields,
@@ -417,5 +418,18 @@ describe("reapplyCachedSyncedFields", () => {
 
     expect(result.find((a) => a.id === "acc-1")!.planName).toBe("خطة");
     expect(result.find((a) => a.id === "acc-2")!.planName).toBe("");
+  });
+});
+
+describe("summarizeSyncMessages", () => {
+  const msg = (name: string, updatedCount: number, scanned = true) => ({ accountId: name, message: "", accountName: name, updatedCount, scanned });
+
+  it("shows one short line per batch, never one per device", () => {
+    expect(summarizeSyncMessages([])).toBeNull();
+    expect(summarizeSyncMessages([msg("منزل", 3)])).toBe('✓ تم تحديث "منزل" من Starlink (3 حقول)');
+    expect(summarizeSyncMessages([msg("منزل", 1)])).toBe('✓ تم تحديث "منزل" من Starlink (1 حقل)');
+    expect(summarizeSyncMessages([msg("منزل", 0)])).toBe('✓ "منزل" محدَّث - لا تغييرات');
+    expect(summarizeSyncMessages([msg("أ", 2), msg("ب", 0), msg("ج", 1)])).toBe("✓ تم تحديث 2 من 3 أجهزة من Starlink");
+    expect(summarizeSyncMessages([msg("أ", 0), msg("ب", 0)])).toBe("✓ تم فحص 2 أجهزة - لا تغييرات");
   });
 });
