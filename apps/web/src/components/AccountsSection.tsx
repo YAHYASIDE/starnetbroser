@@ -17,8 +17,11 @@ import {
   computePartyStoreTotals,
   InvoiceKind,
   InvoiceList,
+  PartyStatementRow,
   PartyStoreTotals,
 } from "@/lib/invoiceStore";
+import { PdfButton } from "./PdfButton";
+import { PrintableDocument } from "@/lib/pdfDocument";
 import { combinePhoneNumber, PHONE_COUNTRY_CODES, splitPhoneNumber } from "@/lib/phoneCountryCodes";
 import { formatAmount } from "@/lib/formatAmount";
 import { partyHue, partyInitials } from "@/lib/partyColor";
@@ -27,6 +30,56 @@ import { buildStoreDebtReminderMessage, buildStoreStatementMessage, buildWhatsAp
 import { PartyAdjustment, partyAdjustmentCashKind, PartyAdjustmentDirection, PartyKind, RecordPartyAdjustmentInput } from "@/lib/partyBalanceStore";
 
 const EPSILON = 0.0001;
+
+function statementKindLabel(row: PartyStatementRow, isClient: boolean): string {
+  const adjustment = row.adjustment;
+  return row.type === "return"
+    ? "↩ مرتجع"
+    : row.type === "adjustment" && adjustment
+      ? adjustment.direction === "owesUs"
+        ? "➕ رصيد عليه"
+        : "➖ رصيد له"
+      : row.type === "device-charge"
+        ? `📡 شحن - ${row.deviceName ?? ""}`
+        : row.type === "device-payment"
+          ? `💵 دفعة - ${row.deviceName ?? ""}`
+          : isClient
+            ? "🧾 فاتورة بيع (المتجر)"
+            : "🧾 فاتورة شراء";
+}
+
+function buildPartyStatementPdf(
+  party: { name: string; phone?: string },
+  isClient: boolean,
+  totals: Record<string, PartyStoreTotals>,
+  statement: PartyStatementRow[],
+): PrintableDocument {
+  const summary = Object.entries(totals).flatMap(([code, t]) => [
+    { label: `الإجمالي (${currencyLabel(code)})`, value: formatAmount(t.total) },
+    { label: `المدفوع (${currencyLabel(code)})`, value: formatAmount(t.paid), tone: "clear" as const },
+    {
+      label: `${isClient ? "المتبقي عليه" : "المتبقي له"} (${currencyLabel(code)})`,
+      value: formatAmount(t.remaining),
+      tone: t.remaining > EPSILON ? ("due" as const) : ("clear" as const),
+    },
+  ]);
+  return {
+    title: isClient ? "كشف حساب زبون" : "كشف حساب مورد",
+    partyName: party.name,
+    partyPhone: party.phone,
+    summary,
+    columns: ["التاريخ", "البيان", "ملاحظة", "المبلغ", "الرصيد بعدها"],
+    rows: statement.map((row) => [
+      row.date,
+      statementKindLabel(row, isClient),
+      row.note ?? "",
+      `${row.delta < 0 ? "-" : "+"}${formatAmount(row.amount)} ${currencyLabel(row.currencyCode)}`,
+      `${formatAmount(row.balanceAfter)} ${currencyLabel(row.currencyCode)}`,
+    ]),
+    rowTones: statement.map((row) => (row.balanceAfter > EPSILON ? "due" : "clear")),
+    footerNote: isClient ? "يشمل فواتير المتجر وعمليات أجهزة Starlink المرتبطة بالزبون." : undefined,
+  };
+}
 
 function currencyLabel(code: string): string {
   return LEDGER_CURRENCY_LABELS[code as LedgerCurrency] ?? code;
@@ -425,26 +478,20 @@ function PartyCard({
 
       {panel === "statement" && (
         <div className="party-panel">
+          <div className="party-panel-tools">
+            <PdfButton
+              className="party-action party-action-pdf"
+              label="🖨️ تصدير الكشف PDF"
+              build={() => buildPartyStatementPdf(party, isClient, totals, statement)}
+            />
+          </div>
           {statement.length === 0 ? (
             <p className="party-empty">لا توجد حركات في كشف الحساب</p>
           ) : (
             <ul className="party-statement">
               {statement.map((row) => {
                 const adjustment = row.adjustment;
-                const kindLabel =
-                  row.type === "return"
-                    ? "↩ مرتجع"
-                    : row.type === "adjustment" && adjustment
-                      ? adjustment.direction === "owesUs"
-                        ? "➕ رصيد عليه"
-                        : "➖ رصيد له"
-                      : row.type === "device-charge"
-                        ? `📡 شحن - ${row.deviceName ?? ""}`
-                        : row.type === "device-payment"
-                          ? `💵 دفعة - ${row.deviceName ?? ""}`
-                          : isClient
-                            ? "🧾 فاتورة بيع (المتجر)"
-                            : "🧾 فاتورة شراء";
+                const kindLabel = statementKindLabel(row, isClient);
                 return (
                   <li
                     key={row.id}

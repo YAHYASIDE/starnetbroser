@@ -16,6 +16,8 @@ export type AccountDialogMode = "add" | "edit" | "view";
 interface Props {
   mode: AccountDialogMode;
   account?: StarlinkAccountSummary;
+  /** Add mode only: fields to start the blank account with (e.g. the client a store sale was to). */
+  prefill?: Partial<StarlinkAccountSummary>;
   clients: Client[];
   onCreateClient: (input: CreateClientInput) => Client;
   representatives: Representative[];
@@ -76,6 +78,7 @@ function displayValue(value: string | null): string {
 export function AccountDialog({
   mode,
   account,
+  prefill,
   clients,
   onCreateClient,
   representatives,
@@ -84,7 +87,8 @@ export function AccountDialog({
   onSave,
   onDelete,
 }: Props) {
-  const initial = useMemo(() => account ?? createBlankAccount(), [account]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const initial = useMemo(() => account ?? { ...createBlankAccount(), ...prefill }, [account]);
   const [draft, setDraft] = useState(initial);
   const isView = mode === "view";
   const title = mode === "add" ? "إضافة حساب جديد" : mode === "edit" ? "تعديل الحساب" : "معلومات الحساب";

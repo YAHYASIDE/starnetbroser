@@ -43,6 +43,7 @@ import { AccountsSection } from "@/components/AccountsSection";
 import { CashRegisterSection } from "@/components/CashRegisterSection";
 import { StoreReportsSection } from "@/components/StoreReportsSection";
 import { Invoice, InvoiceList, loadInvoices, saveInvoices } from "@/lib/invoiceStore";
+import { buildNewDeviceHref, NewDevicePrefill, saleLooksLikeDevice } from "@/lib/deviceFromSale";
 import {
   CashClosingList,
   CashEntryList,
@@ -104,6 +105,7 @@ export default function StorePage() {
   const [representativeStore, setRepresentativeStore] = useState<RepresentativeStore>({});
   const [cashEntries, setCashEntries] = useState<CashEntryList>([]);
   const [cashClosings, setCashClosings] = useState<CashClosingList>([]);
+  const [deviceOffer, setDeviceOffer] = useState<NewDevicePrefill | null>(null);
   const [accounts, setAccounts] = useState<StarlinkAccountSummary[]>(demoAccounts);
   const [ledgerStore, setLedgerStore] = useState<LedgerByAccount>({});
   const [partyAdjustments, setPartyAdjustments] = useState<PartyAdjustmentList>([]);
@@ -429,8 +431,34 @@ export default function StorePage() {
           setTransactions(result.transactions);
           saveStoreTransactions(result.transactions);
           postInvoiceCashEntry(result.invoice);
+          const sold = result.invoice.lines.map((line) => items[line.itemId]?.name ?? "");
+          if (result.invoice.kind === "sale" && result.invoice.clientId && saleLooksLikeDevice(sold)) {
+            setDeviceOffer({
+              clientId: result.invoice.clientId,
+              representativeId: result.invoice.representativeId,
+              name: clientStore[result.invoice.clientId]?.name,
+            });
+          }
         }}
       />
+
+      {deviceOffer && (
+        <div className="device-offer" role="status">
+          <span aria-hidden="true">📡</span>
+          <div>
+            <strong>بعت جهاز Starlink لـ {deviceOffer.name ?? "الزبون"}؟</strong>
+            <small>أنشئ حساب الجهاز الآن مربوطًا بالزبون{deviceOffer.representativeId ? " والمندوب" : ""} لمتابعة التجديد والديون.</small>
+            <div className="device-offer-actions">
+              <Link href={buildNewDeviceHref(deviceOffer)} className="dialog-primary">
+                إنشاء حساب الجهاز
+              </Link>
+              <button type="button" className="text-action" onClick={() => setDeviceOffer(null)}>
+                لاحقًا
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <AccountsSection
         clients={clients}

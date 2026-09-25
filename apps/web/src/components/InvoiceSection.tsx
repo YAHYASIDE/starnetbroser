@@ -20,6 +20,8 @@ import {
   returnedQuantityForLine,
 } from "@/lib/invoiceStore";
 import { buildInvoiceMessage, buildWhatsAppLink } from "@/lib/whatsapp";
+import { PdfButton } from "./PdfButton";
+import { PrintableDocument } from "@/lib/pdfDocument";
 import { formatAmount } from "@/lib/formatAmount";
 import { getDefaultInvoiceCurrency } from "@/lib/settingsStore";
 import { ClientPicker } from "./ClientPicker";
@@ -229,6 +231,11 @@ export function InvoiceSection({
                         إرسال عبر واتساب
                       </a>
                     )}
+                    <PdfButton
+                      className="text-action"
+                      label="🖨️ PDF"
+                      build={() => buildInvoicePdf(invoice, items, counterpartyName, client?.phone ?? supplier?.phone, representative?.name)}
+                    />
                   </div>
                   {isOpen && (
                     <ul className="report-line-list">
@@ -753,4 +760,48 @@ function ReturnForm({ original, items, invoices, onCancel, onSubmit }: ReturnFor
       </div>
     </form>
   );
+}
+
+function buildInvoicePdf(
+  invoice: Invoice,
+  items: StoreItemRegistry,
+  counterpartyName: string | undefined,
+  phone: string | undefined,
+  representativeName: string | undefined,
+): PrintableDocument {
+  const currency = currencyLabel(invoice.currencyCode);
+  const total = invoiceTotal(invoice);
+  const remaining = total - invoice.paidAmount;
+  const rows = invoice.lines.map((line) => {
+    const item = items[line.itemId];
+    return [
+      item?.name ?? "مادة محذوفة",
+      `${formatAmount(line.quantity)} ${item?.unit ?? ""}`,
+      `${formatAmount(line.unitPrice)} ${currency}`,
+      `${formatAmount(line.quantity * line.unitPrice)} ${currency}`,
+    ];
+  });
+  for (const line of invoice.lines) {
+    if (line.shippingCharge !== undefined) {
+      rows.push([`🚚 شحن ${items[line.itemId]?.name ?? ""}`, "", "", `${formatAmount(line.shippingCharge)} ${currency}`]);
+    }
+  }
+  if (invoice.discount > 0) rows.push(["الخصم", "", "", `-${formatAmount(invoice.discount)} ${currency}`]);
+  const kind = invoice.kind === "sale" ? "بيع" : "شراء";
+  return {
+    title: invoice.returnOfInvoiceId ? `مرتجع ${kind}` : `فاتورة ${kind}`,
+    partyName: counterpartyName ?? "بدون اسم",
+    partyPhone: phone,
+    subtitle: [`التاريخ: ${invoice.date}`, `رقم: ${invoice.id.slice(0, 8)}`, representativeName ? `المندوب: ${representativeName}` : ""]
+      .filter(Boolean)
+      .join(" · "),
+    summary: [
+      { label: "الإجمالي", value: `${formatAmount(total)} ${currency}` },
+      { label: "المدفوع", value: `${formatAmount(invoice.paidAmount)} ${currency}`, tone: "clear" },
+      { label: "المتبقي", value: `${formatAmount(remaining)} ${currency}`, tone: remaining > 0.0001 ? "due" : "clear" },
+    ],
+    columns: ["المادة", "الكمية", "السعر", "المجموع"],
+    rows,
+    footerNote: invoice.note,
+  };
 }

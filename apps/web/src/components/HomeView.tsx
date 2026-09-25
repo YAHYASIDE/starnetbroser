@@ -18,11 +18,17 @@ import { HelpHint } from "./HelpHint";
 import { daysRemainingNumber } from "@/lib/date";
 import { computeDeviceDebtReminders, computeRenewalReminders, computeRestrictedDeviceReminders, isBackupOverdue } from "@/lib/reminders";
 import { formatAmount } from "@/lib/formatAmount";
-import { applyLedgerPaymentsToCash, loadCashEntries, saveCashEntries } from "@/lib/cashStore";
+import { applyLedgerPaymentsToCash, CashEntryList, loadCashEntries, saveCashEntries } from "@/lib/cashStore";
+import { parseNewDevicePrefill } from "@/lib/deviceFromSale";
+import { APK_DOWNLOAD_URL, checkForAppUpdate, shouldAutoCheck } from "@/lib/appUpdate";
+import { computeTodaySummary, deviceMatchesQuery, searchEverything, SearchResult } from "@/lib/homeInsights";
+import { listSuppliers, loadSupplierStore, SupplierStore } from "@/lib/supplierStore";
+import { listStoreItems, loadStoreItems, StoreItemRegistry } from "@/lib/storeStore";
 import {
   getAccountEntries,
   LEDGER_CURRENCIES,
   LEDGER_CURRENCY_LABELS,
+  LedgerCurrency,
   LedgerByAccount,
   LedgerEntry,
   loadLedgerStore,
@@ -84,7 +90,7 @@ import { resolveAccountDeletion } from "@starnet/local-browser-plugin";
 const NEAR_EXPIRY_THRESHOLD_DAYS = 3;
 
 type DataState = "demo" | "loading" | "loaded" | "error";
-type DialogState = { mode: AccountDialogMode; account?: StarlinkAccountSummary } | null;
+type DialogState = { mode: AccountDialogMode; account?: StarlinkAccountSummary; prefill?: Partial<StarlinkAccountSummary> } | null;
 
 /** Which dashboard summary card (see the "ملخص الحسابات" section) the account list is currently
  * narrowed to - tapping a card sets this, tapping it again (or "مسح التصفية") clears it. Mutually
@@ -140,11 +146,30 @@ export function HomeView({
   }
   const [showAll, setShowAll] = useState(false);
   const [dialog, setDialog] = useState<DialogState>(null);
+  // Arriving from a store sale of a Starlink kit (see deviceFromSale.ts): open the add-device
+  // dialog already linked to that client/representative, then drop the query so a refresh or
+  // back-navigation never reopens it.
+  useEffect(() => {
+    const prefill = parseNewDevicePrefill(window.location.search);
+    if (!prefill) return;
+    setDialog({
+      mode: "add",
+      prefill: { clientId: prefill.clientId, representativeId: prefill.representativeId, name: prefill.name ?? "" },
+    });
+    window.history.replaceState(null, "", window.location.pathname);
+  }, []);
 
   // Defaults to "not the Android app" (matches server render) and only reflects reality after
   // mount, to avoid a hydration mismatch - same pattern as AccountCard's own isAndroidApp state.
   const [isAndroidApp, setIsAndroidApp] = useState(false);
   useEffect(() => setIsAndroidApp(isRunningInAndroidApp()), []);
+  // A newer staging APK than this build (see appUpdate.ts) - checked in the Android app only, at
+  // most every few hours, silently ignored when offline.
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  useEffect(() => {
+    if (!isRunningInAndroidApp() || !shouldAutoCheck()) return;
+    void checkForAppUpdate().then((result) => setUpdateAvailable(result.status === "update"));
+  }, []);
   const [syncingNow, setSyncingNow] = useState(false);
 
   // Small, non-blocking top-of-screen bubbles for background sync results - never window.alert,
@@ -164,6 +189,15 @@ export function HomeView({
   // isAndroidApp above.
   const [ledgerStore, setLedgerStore] = useState<LedgerByAccount>({});
   useEffect(() => setLedgerStore(loadLedgerStore()), []);
+  // Read-only here: the till (for the "اليوم" panel), suppliers and store items (for global search).
+  const [cashEntries, setCashEntries] = useState<CashEntryList>([]);
+  const [supplierStore, setSupplierStore] = useState<SupplierStore>({});
+  const [storeItems, setStoreItems] = useState<StoreItemRegistry>({});
+  useEffect(() => {
+    setCashEntries(loadCashEntries());
+    setSupplierStore(loadSupplierStore());
+    setStoreItems(loadStoreItems());
+  }, []);
   const [lastBackupAt, setLastBackupAt] = useState<string | null>(null);
   useEffect(() => setLastBackupAt(getLastBackupAt()), []);
   const [remindersBadgeEnabled, setRemindersBadgeEnabled] = useState(true);
@@ -175,7 +209,9 @@ export function HomeView({
     // Every device payment also moves money into الصندوق - computed from the current (pre-edit)
     // entries, outside the state updater so it runs exactly once.
     const deviceName = accounts.find((a) => a.id === accountId)?.name ?? "";
-    saveCashEntries(applyLedgerPaymentsToCash(loadCashEntries(), getAccountEntries(ledgerStore, accountId), entries, deviceName));
+    const nextCash = applyLedgerPaymentsToCash(loadCashEntries(), getAccountEntries(ledgerStore, accountId), entries, deviceName);
+    saveCashEntries(nextCash);
+    setCashEntries(nextCash);
     setLedgerStore((current) => {
       const next = withAccountEntries(current, accountId, entries);
       saveLedgerStore(next);
@@ -655,17 +691,29 @@ export function HomeView({
     if (statFilter) {
       list = list.filter((a) => matchesStatFilter(a, statFilter));
     }
-    const q = query.trim().toLowerCase();
-    if (q) {
-      list = list.filter(
-        (a) =>
-          a.name.toLowerCase().includes(q) ||
-          a.kitNumber.toLowerCase().includes(q) ||
-          a.serialNumber.toLowerCase().includes(q),
-      );
+    if (query.trim()) {
+      list = list.filter((a) => deviceMatchesQuery(query, a, a.clientId ? clientStore[a.clientId] : undefined));
     }
     return list;
-  }, [activeAccounts, selectedDay, statFilter, query]);
+  }, [activeAccounts, selectedDay, statFilter, query, clientStore]);
+
+  const searchResults = useMemo(
+    () =>
+      searchEverything(query, {
+        clients,
+        suppliers: listSuppliers(supplierStore),
+        representatives,
+        items: listStoreItems(storeItems),
+      }),
+    [query, clients, supplierStore, representatives, storeItems],
+  );
+
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const today = useMemo(() => computeTodaySummary(ledgerStore, cashEntries, todayIso), [ledgerStore, cashEntries, todayIso]);
+  const renewalsToday = useMemo(
+    () => activeAccounts.filter((a) => daysRemainingNumber(a.rechargeDate || a.standbyDate) === 0).length,
+    [activeAccounts],
+  );
 
   const visible =
     viewMode === "archived" ? archivedAccounts
@@ -732,6 +780,16 @@ export function HomeView({
         </div>
       </header>
 
+      {updateAvailable && (
+        <a href={APK_DOWNLOAD_URL} target="_blank" rel="noreferrer" className="backup-banner update-banner">
+          <span aria-hidden="true">🆕</span>
+          <span>
+            <strong>تحديث جديد للتطبيق متوفر</strong>
+            <small>اضغط لتنزيل النسخة الأحدث ثم ثبّتها - بياناتك تبقى كما هي</small>
+          </span>
+        </a>
+      )}
+
       {isBackupOverdue(lastBackupAt, 2) && (
         <Link href="/settings#backup" className="backup-banner">
           <span aria-hidden="true">🛡️</span>
@@ -750,12 +808,20 @@ export function HomeView({
           className="search-input dashboard-search"
           type="search"
           inputMode="search"
-          placeholder="ابحث بالاسم، KIT أو Serial"
+          placeholder="ابحث: جهاز، زبون، هاتف، مورد، مندوب، منتج…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           aria-label="بحث"
         />
       </section>
+
+      {searchResults.length > 0 && (
+        <section className="global-search-results" aria-label="نتائج أخرى">
+          {searchResults.map((result) => (
+            <SearchResultRow key={`${result.kind}-${result.id}`} result={result} onOpenClient={(id) => setOpenClientId(id)} />
+          ))}
+        </section>
+      )}
 
       <div className="conn-row">
         <ConnectionStatus />
@@ -781,6 +847,40 @@ export function HomeView({
 
       {viewMode === "active" && (
         <>
+          <section className="today-panel" aria-label="اليوم">
+            <div className="today-head">
+              <strong>📅 اليوم</strong>
+              <span dir="ltr">{todayIso}</span>
+            </div>
+            <div className="today-tiles">
+              <div className="today-tile today-collected">
+                <span>تحصيل الأجهزة</span>
+                <AmountStack values={today.collected} />
+              </div>
+              <div className="today-tile today-charged">
+                <span>شحنات جديدة</span>
+                <AmountStack values={today.charged} />
+              </div>
+              <Link href="/store" className="today-tile today-cash">
+                <span>الصندوق (دخل / خرج)</span>
+                <AmountStack values={today.cashIn} prefix="+" />
+                <AmountStack values={today.cashOut} prefix="-" hideEmpty />
+              </Link>
+              <button
+                type="button"
+                className="today-tile today-renewals"
+                onClick={() => {
+                  const day = new Date().getDate();
+                  setSelectedDay(day);
+                  setStatFilter(null);
+                }}
+              >
+                <span>تجديد اليوم</span>
+                <strong>{renewalsToday}</strong>
+              </button>
+            </div>
+          </section>
+
           <section className="overview-grid" aria-label="ملخص الحسابات">
             <button
               type="button"
@@ -925,6 +1025,7 @@ export function HomeView({
         <AccountDialog
           mode={dialog.mode}
           account={dialog.account}
+          prefill={dialog.prefill}
           clients={clients}
           onCreateClient={handleCreateClient}
           representatives={representatives}
@@ -1001,5 +1102,56 @@ export function HomeView({
         />
       )}
     </main>
+  );
+}
+
+function AmountStack({ values, prefix = "", hideEmpty = false }: { values: Record<string, number>; prefix?: string; hideEmpty?: boolean }) {
+  const codes = Object.keys(values).filter((c) => Math.abs(values[c]!) > 0.0001);
+  if (codes.length === 0) return hideEmpty ? null : <strong>0</strong>;
+  return (
+    <>
+      {codes.map((code) => (
+        <strong key={code}>
+          <bdi dir="ltr">
+            {prefix}
+            {formatAmount(values[code]!)}
+          </bdi>{" "}
+          {LEDGER_CURRENCY_LABELS[code as LedgerCurrency] ?? code}
+        </strong>
+      ))}
+    </>
+  );
+}
+
+const SEARCH_KIND_LABELS: Record<SearchResult["kind"], { icon: string; label: string; href?: string }> = {
+  client: { icon: "👤", label: "زبون" },
+  supplier: { icon: "🏭", label: "مورد", href: "/clients" },
+  representative: { icon: "🤝", label: "مندوب", href: "/representatives" },
+  item: { icon: "📦", label: "منتج", href: "/store" },
+};
+
+function SearchResultRow({ result, onOpenClient }: { result: SearchResult; onOpenClient: (id: string) => void }) {
+  const meta = SEARCH_KIND_LABELS[result.kind];
+  const body = (
+    <>
+      <span className="global-search-icon" aria-hidden="true">{meta.icon}</span>
+      <span className="global-search-text">
+        <strong>{result.title}</strong>
+        {result.subtitle && <small dir="ltr">{result.subtitle}</small>}
+      </span>
+      <span className="global-search-kind">{meta.label}</span>
+    </>
+  );
+  if (result.kind === "client") {
+    return (
+      <button type="button" className="global-search-row" onClick={() => onOpenClient(result.id)}>
+        {body}
+      </button>
+    );
+  }
+  return (
+    <Link href={meta.href!} className="global-search-row">
+      {body}
+    </Link>
   );
 }

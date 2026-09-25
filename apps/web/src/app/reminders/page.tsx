@@ -22,6 +22,7 @@ import {
 } from "@/lib/reminders";
 import { daysRemainingLabel, formatRelativeTime } from "@/lib/date";
 import { formatAmount } from "@/lib/formatAmount";
+import { BulkWhatsAppSender } from "@/components/BulkWhatsAppSender";
 import { buildBalanceReminderMessage, buildExpiryReminderMessage, buildStoreDebtReminderMessage, buildWhatsAppLink } from "@/lib/whatsapp";
 
 function currencyLabel(code: string): string {
@@ -67,6 +68,21 @@ export default function RemindersPage() {
     [storeItems, storeTransactions],
   );
   const backupOverdue = isBackupOverdue(lastBackupAt);
+  /** A device's own phone, or else the phone of the client it's linked to. */
+  const phoneFor = (account: StarlinkAccountSummary) => account.phone || (account.clientId ? clientStore[account.clientId]?.phone : undefined);
+
+  const renewalTargets = renewalReminders.flatMap(({ account }) => {
+    const link = buildWhatsAppLink(phoneFor(account), buildExpiryReminderMessage(account.name));
+    return link ? [{ id: account.id, name: account.name, link }] : [];
+  });
+  const deviceDebtTargets = deviceDebtReminders.flatMap(({ account }) => {
+    const link = buildWhatsAppLink(phoneFor(account), buildBalanceReminderMessage(account.name, ledgerStore[account.id] ?? []));
+    return link ? [{ id: account.id, name: account.name, link }] : [];
+  });
+  const storeDebtTargets = storeDebtReminders.flatMap(({ client, balances }) => {
+    const link = buildWhatsAppLink(client.phone, buildStoreDebtReminderMessage(client.name, balances));
+    return link ? [{ id: client.id, name: client.name, link }] : [];
+  });
 
   return (
     <main className="home">
@@ -101,9 +117,11 @@ export default function RemindersPage() {
         {renewalReminders.length === 0 ? (
           <p className="empty-state">لا توجد تجديدات مستحقة قريبًا 👍</p>
         ) : (
+          <>
+          <BulkWhatsAppSender targets={renewalTargets} label="إرسال تذكير التجديد للكل" />
           <ul className="ledger-entry-list">
             {renewalReminders.map(({ account, daysRemaining }) => {
-              const waLink = buildWhatsAppLink(account.phone, buildExpiryReminderMessage(account.name));
+              const waLink = buildWhatsAppLink(phoneFor(account), buildExpiryReminderMessage(account.name));
               const label = daysRemainingLabel(account.rechargeDate || account.standbyDate || "");
               return (
                 <li key={account.id} className="ledger-entry-row">
@@ -124,6 +142,7 @@ export default function RemindersPage() {
               );
             })}
           </ul>
+          </>
         )}
       </section>
 
@@ -132,9 +151,11 @@ export default function RemindersPage() {
         {deviceDebtReminders.length === 0 ? (
           <p className="empty-state">لا توجد ديون مستحقة على الأجهزة 👍</p>
         ) : (
+          <>
+          <BulkWhatsAppSender targets={deviceDebtTargets} label="إرسال مطالبة للكل" />
           <ul className="ledger-entry-list">
             {deviceDebtReminders.map(({ account, balances }) => {
-              const waLink = buildWhatsAppLink(account.phone, buildBalanceReminderMessage(account.name, ledgerStore[account.id] ?? []));
+              const waLink = buildWhatsAppLink(phoneFor(account), buildBalanceReminderMessage(account.name, ledgerStore[account.id] ?? []));
               const currencies = Object.keys(balances);
               return (
                 <li key={account.id} className="ledger-entry-row">
@@ -161,6 +182,7 @@ export default function RemindersPage() {
               );
             })}
           </ul>
+          </>
         )}
       </section>
 
@@ -169,6 +191,8 @@ export default function RemindersPage() {
         {storeDebtReminders.length === 0 ? (
           <p className="empty-state">لا توجد ديون مستحقة في المتجر 👍</p>
         ) : (
+          <>
+          <BulkWhatsAppSender targets={storeDebtTargets} label="إرسال مطالبة للكل" />
           <ul className="ledger-entry-list">
             {storeDebtReminders.map(({ client, balances }) => {
               const waLink = buildWhatsAppLink(client.phone, buildStoreDebtReminderMessage(client.name, balances));
@@ -198,6 +222,7 @@ export default function RemindersPage() {
               );
             })}
           </ul>
+          </>
         )}
       </section>
 

@@ -2,6 +2,8 @@
 
 import { CSSProperties, FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { PdfButton } from "@/components/PdfButton";
+import { PrintableDocument } from "@/lib/pdfDocument";
 import { loadCashEntries, postRepSettlementToCash, saveCashEntries } from "@/lib/cashStore";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import {
@@ -20,6 +22,7 @@ import {
   RepresentativeStore,
   RepSettlementKind,
   RepSettlementList,
+  RepDeviceTotals,
   RepStatementDay,
   RepStatementRow,
   saveRepresentativeStore,
@@ -351,6 +354,13 @@ function RepCard({
 
       {panel === "statement" && (
         <div className="party-panel">
+          <div className="party-panel-tools">
+            <PdfButton
+              className="party-action party-action-pdf"
+              label="🖨️ تصدير الكشف PDF"
+              build={() => buildRepStatementPdf(rep, days, deviceTotals, owed, cashHeld, accountName, clientNameFor, storeItems)}
+            />
+          </div>
           {days.length === 0 ? (
             <p className="party-empty">لا توجد عمليات بعد. تُحتسب حصته من كل عملية جديدة على أجهزته بعد تسديد تكلفة Starlink.</p>
           ) : (
@@ -681,4 +691,60 @@ function RepresentativeForm({
       </div>
     </form>
   );
+}
+
+function repRowCells(
+  row: RepStatementRow,
+  accountName: (accountId: string) => string,
+  clientNameFor: (accountId: string) => string | undefined,
+  storeItems: StoreItemRegistry,
+): string[] {
+  if (row.type === "device") {
+    const { entry, profit, percent, repShareUsd, ourShareUsd, accountId } = row.row;
+    const client = clientNameFor(accountId);
+    const title = `📡 ${accountName(accountId)}${client ? ` · ${client}` : ""} (${formatAmount(entry.amount)} ${currencyLabel(entry.currency)})`;
+    if (profit.status !== "computed") return [row.date, title, `⏳ بانتظار تكلفة Starlink (${percent}%)`, "", ""];
+    return [
+      row.date,
+      title,
+      `ربح ${formatAmount(profit.profitUsd ?? 0)}$`,
+      `${formatAmount(repShareUsd ?? 0)}$ (${percent}%)`,
+      `${formatAmount(ourShareUsd ?? 0)}$`,
+    ];
+  }
+  if (row.type === "invoice") {
+    const { invoice, commissionAmount } = row.row;
+    const names = invoice.lines.map((l) => getStoreItem(storeItems, l.itemId)?.name).filter(Boolean).join("، ");
+    return [row.date, `🧾 فاتورة متجر${names ? ` · ${names}` : ""}`, "", `${formatAmount(commissionAmount)} ${currencyLabel(invoice.currencyCode)}`, ""];
+  }
+  const s = row.settlement;
+  return [row.date, SETTLEMENT_LABELS[s.kind], s.note ?? "", `${formatAmount(s.amount)} ${currencyLabel(s.currencyCode)}`, ""];
+}
+
+function buildRepStatementPdf(
+  rep: Representative,
+  days: RepStatementDay[],
+  deviceTotals: RepDeviceTotals,
+  owed: Record<string, number>,
+  cashHeld: Record<string, number>,
+  accountName: (accountId: string) => string,
+  clientNameFor: (accountId: string) => string | undefined,
+  storeItems: StoreItemRegistry,
+): PrintableDocument {
+  const rows = days.flatMap((day) => day.rows.map((row) => repRowCells(row, accountName, clientNameFor, storeItems)));
+  return {
+    title: "كشف حساب مندوب",
+    partyName: rep.name,
+    partyPhone: rep.phone,
+    subtitle: `نسبته ${rep.commissionPercent}%${rep.sharesLosses ? " - يتحمّل نسبته من الخسارة" : ""}`,
+    summary: [
+      { label: "ربح أجهزته", value: `${formatAmount(deviceTotals.profitUsd)} USD` },
+      { label: "حصته", value: `${formatAmount(deviceTotals.repShareUsd)} USD`, tone: "due" },
+      { label: "حصتي", value: `${formatAmount(deviceTotals.ourShareUsd)} USD`, tone: "clear" },
+      ...nonZero(owed).map(([code, value]) => ({ label: `مستحق له (${currencyLabel(code)})`, value: formatAmount(value), tone: "due" as const })),
+      ...nonZero(cashHeld).map(([code, value]) => ({ label: `نقد عنده (${currencyLabel(code)})`, value: formatAmount(value) })),
+    ],
+    columns: ["التاريخ", "العملية", "التفاصيل", "حصته", "حصتي"],
+    rows,
+  };
 }

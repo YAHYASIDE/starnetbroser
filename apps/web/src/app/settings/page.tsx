@@ -25,6 +25,8 @@ import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
 import { collectAppData, createEncryptedBackupFile, mergeImportedAccounts, readEncryptedBackupFile, restoreAppData } from "@/lib/accountBackup";
 import { exportAccountSessions, importAccountSessions, isRunningInAndroidApp, openNotificationSettings } from "@/lib/localBrowser";
 import { saveAndShareBackupFile } from "@/lib/backupFile";
+import { APK_DOWNLOAD_URL, checkForAppUpdate, CURRENT_COMMIT, UpdateCheckResult } from "@/lib/appUpdate";
+import { BusinessProfile, loadBusinessProfile, saveBusinessProfile } from "@/lib/pdfDocument";
 import { clearAppPin, hasAppPin, setAppPin, verifyAppPin } from "@/lib/appLock";
 
 const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
@@ -124,6 +126,10 @@ export default function SettingsPage() {
           ))}
         </div>
       </section>
+
+      <BusinessProfileSection />
+
+      <AppUpdateSection />
 
       <section className="section">
         <h2 className="section-title">المساعدة الذكية</h2>
@@ -641,6 +647,77 @@ function BackupSection() {
         </div>
         {importMessage && <div className="account-card-alert">{importMessage}</div>}
       </div>
+    </section>
+  );
+}
+
+/** اسم النشاط وهاتفه وعنوانه - تظهر في رأس كل كشف أو فاتورة PDF. */
+function BusinessProfileSection() {
+  const [profile, setProfile] = useState<BusinessProfile>({ name: "" });
+  const [saved, setSaved] = useState(false);
+  useEffect(() => setProfile(loadBusinessProfile()), []);
+
+  function update(patch: Partial<BusinessProfile>) {
+    setProfile((current) => ({ ...current, ...patch }));
+    setSaved(false);
+  }
+
+  return (
+    <section className="section">
+      <h2 className="section-title">بيانات النشاط (للكشوفات و PDF)</h2>
+      <p className="settings-hint">تظهر في رأس كل كشف حساب أو فاتورة تصدّرها بصيغة PDF.</p>
+      <form
+        className="auth-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          saveBusinessProfile(profile);
+          setProfile(loadBusinessProfile());
+          setSaved(true);
+        }}
+      >
+        <input className="search-input" placeholder="اسم النشاط (مثال: STAR NET)" value={profile.name} onChange={(e) => update({ name: e.target.value })} />
+        <input className="search-input" dir="ltr" type="tel" placeholder="هاتف النشاط (اختياري)" value={profile.phone ?? ""} onChange={(e) => update({ phone: e.target.value })} />
+        <input className="search-input" placeholder="العنوان (اختياري)" value={profile.address ?? ""} onChange={(e) => update({ address: e.target.value })} />
+        <button className="dialog-primary" type="submit">
+          {saved ? "✓ تم الحفظ" : "حفظ بيانات النشاط"}
+        </button>
+      </form>
+    </section>
+  );
+}
+
+function AppUpdateSection() {
+  const [checking, setChecking] = useState(false);
+  const [result, setResult] = useState<UpdateCheckResult | null>(null);
+
+  async function check() {
+    setChecking(true);
+    setResult(await checkForAppUpdate());
+    setChecking(false);
+  }
+
+  return (
+    <section className="section">
+      <h2 className="section-title">تحديث التطبيق</h2>
+      <p className="settings-hint">
+        الإصدار الحالي: <bdi dir="ltr">{CURRENT_COMMIT.slice(0, 7)}</bdi> - يتحقق التطبيق تلقائيًا من وجود نسخة أحدث.
+      </p>
+      <div className="settings-actions">
+        <button type="button" className="dialog-primary" onClick={check} disabled={checking}>
+          {checking ? "جارِ التحقق…" : "التحقق من التحديثات الآن"}
+        </button>
+      </div>
+      {result?.status === "current" && <p className="settings-hint">✓ لديك أحدث نسخة</p>}
+      {result?.status === "unknown" && <p className="settings-hint">{result.message}</p>}
+      {result?.status === "update" && (
+        <a href={APK_DOWNLOAD_URL} target="_blank" rel="noreferrer" className="backup-banner update-banner">
+          <span aria-hidden="true">🆕</span>
+          <span>
+            <strong>نسخة أحدث متوفرة (<bdi dir="ltr">{result.releaseCommit.slice(0, 7)}</bdi>)</strong>
+            <small>اضغط للتنزيل ثم ثبّت فوق النسخة الحالية - بياناتك تبقى كما هي</small>
+          </span>
+        </a>
+      )}
     </section>
   );
 }

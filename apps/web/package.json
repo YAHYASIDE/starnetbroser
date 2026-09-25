@@ -18,6 +18,8 @@
     "@novnc/novnc": "^1.5.0",
     "@starnet/local-browser-plugin": "1.0.0",
     "@starnet/shared": "1.0.0",
+    "html-to-image": "^1.11.13",
+    "jspdf": "^4.2.1",
     "next": "15.5.25",
     "react": "18.3.1",
     "react-dom": "18.3.1"
