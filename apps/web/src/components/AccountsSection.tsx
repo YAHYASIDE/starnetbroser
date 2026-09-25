@@ -111,6 +111,10 @@ interface Props {
   /** A client's payment for one of their devices ("الدفعة عن" in إضافة رصيد) - recorded in that
    * device's own ledger. Returns an error message, or null on success. */
   onAddDevicePayment?: (deviceId: string, input: Omit<BalanceFormInput, "deviceId">) => string | null;
+  /** Edits a balance entry. Returns an error message, or null on success. */
+  onUpdateAdjustment?: (adjustmentId: string, input: Omit<BalanceFormInput, "deviceId">) => string | null;
+  /** Turns a general "له" balance entry into a payment on one of the client's devices. */
+  onMoveAdjustmentToDevice?: (adjustmentId: string, deviceId: string, input: Omit<BalanceFormInput, "deviceId">) => string | null;
 }
 
 /** حسابات الزبائن والموردين as a collapsible section of المتجر - the same PartyDirectory the
@@ -150,6 +154,8 @@ export function PartyDirectory({
   onAddAdjustment,
   onDeleteAdjustment,
   onAddDevicePayment,
+  onUpdateAdjustment,
+  onMoveAdjustmentToDevice,
   onOpenClientCard,
 }: PartyDirectoryProps) {
   const [tab, setTab] = useState<PartyTab>("clients");
@@ -297,6 +303,8 @@ export function PartyDirectory({
                 onAddAdjustment={onAddAdjustment}
                 onDeleteAdjustment={onDeleteAdjustment}
                 onAddDevicePayment={onAddDevicePayment}
+                onUpdateAdjustment={onUpdateAdjustment}
+                onMoveAdjustmentToDevice={onMoveAdjustmentToDevice}
                 devices={isClients ? accounts.filter((a) => a.clientId === party.id && !a.deletedAt) : []}
                 ledgerStore={ledgerStore}
                 creditLimit={isClients ? (party as Client).creditLimit : undefined}
@@ -320,6 +328,8 @@ interface PartyCardProps {
   onAddAdjustment: (input: RecordPartyAdjustmentInput) => string | null;
   onDeleteAdjustment: (adjustmentId: string) => void;
   onAddDevicePayment?: Props["onAddDevicePayment"];
+  onUpdateAdjustment?: Props["onUpdateAdjustment"];
+  onMoveAdjustmentToDevice?: Props["onMoveAdjustmentToDevice"];
   devices: StarlinkAccountSummary[];
   ledgerStore: LedgerByAccount;
   creditLimit?: number;
@@ -328,7 +338,7 @@ interface PartyCardProps {
 }
 
 type PartyPanel = "statement" | "devices" | null;
-type PartySheet = "balance" | "whatsapp" | null;
+type PartySheet = "balance" | "whatsapp" | "detail" | "edit" | null;
 
 function PartyCard({
   kind,
@@ -339,6 +349,8 @@ function PartyCard({
   onAddAdjustment,
   onDeleteAdjustment,
   onAddDevicePayment,
+  onUpdateAdjustment,
+  onMoveAdjustmentToDevice,
   devices,
   ledgerStore,
   creditLimit,
@@ -347,6 +359,7 @@ function PartyCard({
 }: PartyCardProps) {
   const [panel, setPanel] = useState<PartyPanel>(null);
   const [sheet, setSheet] = useState<PartySheet>(null);
+  const [detailRowId, setDetailRowId] = useState<string | null>(null);
   const isClient = kind === "sale";
   const partyKind: PartyKind = isClient ? "client" : "supplier";
   const currencies = Object.keys(totals);
@@ -370,6 +383,18 @@ function PartyCard({
         : buildPartyStatement(invoices, kind, party.id, adjustments);
   const canWhatsApp = buildWhatsAppLink(party.phone) !== null;
 
+  const detailRow = detailRowId ? statement.find((r) => r.id === detailRowId) : undefined;
+  function confirmDeleteAdjustment(adjustment: PartyAdjustment) {
+    if (window.confirm(`حذف الرصيد ${formatAmount(adjustment.amount)} ${currencyLabel(adjustment.currencyCode)}؟`)) {
+      onDeleteAdjustment(adjustment.id);
+      setSheet(null);
+    }
+  }
+  function openDetail(rowId: string) {
+    setDetailRowId(rowId);
+    setSheet("detail");
+  }
+
   function togglePanel(next: Exclude<PartyPanel, null>) {
     setPanel((current) => (current === next ? null : next));
   }
@@ -378,12 +403,6 @@ function PartyCard({
     const link = buildWhatsAppLink(party.phone, message);
     if (link) window.open(link, "_blank", "noopener,noreferrer");
     setSheet(null);
-  }
-
-  function confirmDeleteAdjustment(adjustment: PartyAdjustment) {
-    if (window.confirm(`حذف الرصيد ${formatAmount(adjustment.amount)} ${currencyLabel(adjustment.currencyCode)}؟`)) {
-      onDeleteAdjustment(adjustment.id);
-    }
   }
 
   return (
@@ -503,10 +522,8 @@ function PartyCard({
                 const adjustment = row.adjustment;
                 const kindLabel = statementKindLabel(row, isClient);
                 return (
-                  <li
-                    key={row.id}
-                    className={`party-statement-row party-statement-${row.type}`}
-                  >
+                  <li key={row.id} className={`party-statement-row party-statement-${row.type}`}>
+                    <button type="button" className="party-statement-open" onClick={() => openDetail(row.id)} aria-label={`تفاصيل: ${kindLabel}`}>
                     <div className="party-statement-top">
                       <span className="party-statement-kind">{kindLabel}</span>
                       <span className="party-statement-date" dir="ltr">{row.date}</span>
@@ -524,17 +541,10 @@ function PartyCard({
                       <span className={row.balanceAfter > EPSILON ? "party-statement-due" : "party-statement-clear"}>
                         الرصيد {formatAmount(row.balanceAfter)}
                       </span>
-                      {adjustment && (
-                        <button
-                          type="button"
-                          className="party-statement-delete"
-                          onClick={() => confirmDeleteAdjustment(adjustment)}
-                          aria-label="حذف الرصيد"
-                        >
-                          ×
-                        </button>
-                      )}
+                      <span className="party-statement-before">قبلها {formatAmount(row.balanceAfter - row.delta)}</span>
+                      {adjustment && <span className="party-statement-editable">✎</span>}
                     </div>
+                    </button>
                   </li>
                 );
               })}
@@ -611,6 +621,52 @@ function PartyCard({
         </PartySheet>
       )}
 
+      {(sheet === "detail" || sheet === "edit") && detailRow && (
+        <PartySheet
+          title={sheet === "edit" ? `تعديل الرصيد - ${party.name}` : `تفاصيل العملية - ${party.name}`}
+          onClose={() => setSheet(null)}
+        >
+          {sheet === "detail" ? (
+            <StatementRowDetail
+              row={detailRow}
+              kindLabel={statementKindLabel(detailRow, isClient)}
+              isClient={isClient}
+              onEdit={detailRow.adjustment ? () => setSheet("edit") : undefined}
+              onDelete={detailRow.adjustment ? () => confirmDeleteAdjustment(detailRow.adjustment!) : undefined}
+            />
+          ) : (
+            <BalanceForm
+              partyName={party.name}
+              partyKind={partyKind}
+              devices={
+                isClient && onMoveAdjustmentToDevice
+                  ? devices.map((d) => ({ id: d.id, name: d.name, email: d.expectedEmail || d.starlinkAccountEmail || undefined }))
+                  : []
+              }
+              initial={{
+                direction: detailRow.adjustment!.direction,
+                amount: detailRow.adjustment!.amount,
+                currencyCode: detailRow.adjustment!.currencyCode,
+                date: detailRow.adjustment!.date,
+                note: detailRow.adjustment!.note,
+                cashMoved: detailRow.adjustment!.cashMoved,
+                paymentMethod: detailRow.adjustment!.paymentMethod,
+              }}
+              submitLabel="حفظ التعديل"
+              onCancel={() => setSheet("detail")}
+              onSubmit={(input) => {
+                const { deviceId, ...rest } = input;
+                const id = detailRow.adjustment!.id;
+                const error =
+                  deviceId && onMoveAdjustmentToDevice ? onMoveAdjustmentToDevice(id, deviceId, rest) : onUpdateAdjustment?.(id, rest) ?? null;
+                if (!error) setSheet(null);
+                return error;
+              }}
+            />
+          )}
+        </PartySheet>
+      )}
+
       {sheet === "whatsapp" && (
         <PartySheet title={`واتساب - ${party.name}`} onClose={() => setSheet(null)}>
           <div className="party-sheet-options">
@@ -679,6 +735,9 @@ interface BalanceFormProps {
   partyKind: PartyKind;
   /** A client's devices - a payment ("له") can then be recorded against one of them. */
   devices: { id: string; name: string; email?: string }[];
+  /** Editing an existing entry: its current values. */
+  initial?: Omit<BalanceFormInput, "deviceId">;
+  submitLabel?: string;
   onCancel: () => void;
   /** Returns an error message, or null on success. */
   onSubmit: (input: BalanceFormInput) => string | null;
@@ -707,12 +766,14 @@ function cashMovedLabel(partyKind: PartyKind, direction: PartyAdjustmentDirectio
   return kind === "in" ? `💵 استلمناها نقدًا من ${who} - تدخل الصندوق` : `💵 دفعناها نقدًا إلى ${who} - تخرج من الصندوق`;
 }
 
-function BalanceForm({ partyName, partyKind, devices, onCancel, onSubmit }: BalanceFormProps) {
-  const [direction, setDirectionState] = useState<PartyAdjustmentDirection>(partyKind === "client" && devices.length > 0 ? "weOwe" : "owesUs");
+function BalanceForm({ partyName, partyKind, devices, initial, submitLabel = "حفظ الرصيد", onCancel, onSubmit }: BalanceFormProps) {
+  const [direction, setDirectionState] = useState<PartyAdjustmentDirection>(
+    initial?.direction ?? (partyKind === "client" && devices.length > 0 ? "weOwe" : "owesUs"),
+  );
   // "" = a general balance entry (store); otherwise the device this payment is for.
   const [deviceId, setDeviceId] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("bankily");
-  const [cashMoved, setCashMoved] = useState(defaultCashMoved(partyKind, direction));
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(initial?.paymentMethod ?? "bankily");
+  const [cashMoved, setCashMoved] = useState(initial ? Boolean(initial.cashMoved) : defaultCashMoved(partyKind, direction));
   function setDirection(next: PartyAdjustmentDirection) {
     setDirectionState(next);
     setCashMoved(defaultCashMoved(partyKind, next));
@@ -720,10 +781,10 @@ function BalanceForm({ partyName, partyKind, devices, onCancel, onSubmit }: Bala
   // A payment: money from the client ("له") or to the supplier ("عليه") - it has a channel.
   const isPayment = partyKind === "client" ? direction === "weOwe" : direction === "owesUs";
   const canPickDevice = partyKind === "client" && direction === "weOwe" && devices.length > 0;
-  const [amount, setAmount] = useState("");
-  const [currencyCode, setCurrencyCode] = useState<LedgerCurrency>("MRU");
-  const [date, setDate] = useState(todayDateInputValue());
-  const [note, setNote] = useState("");
+  const [amount, setAmount] = useState(initial ? String(initial.amount) : "");
+  const [currencyCode, setCurrencyCode] = useState<LedgerCurrency>((initial?.currencyCode as LedgerCurrency) ?? "MRU");
+  const [date, setDate] = useState(initial?.date ?? todayDateInputValue());
+  const [note, setNote] = useState(initial?.note ?? "");
   const [error, setError] = useState<string | null>(null);
 
   function submit(event: FormEvent) {
@@ -840,7 +901,7 @@ function BalanceForm({ partyName, partyKind, devices, onCancel, onSubmit }: Bala
       {error && <div className="account-card-alert ledger-form-error">{error}</div>}
       <div className="settings-actions">
         <button className="dialog-primary" type="submit" disabled={!amount}>
-          حفظ الرصيد
+          {deviceId ? "حفظ كدفعة على الجهاز" : submitLabel}
         </button>
         <button type="button" className="text-action" onClick={onCancel}>
           إلغاء
@@ -922,5 +983,94 @@ function PartyForm({ initial, submitLabel, namePlaceholder, showCreditLimit, onS
         </button>
       </div>
     </form>
+  );
+}
+
+/** Full details of one statement line, with the balance before and after it. Only manual balance
+ * entries are edited here - invoices belong to the store, device operations to the device ledger. */
+function StatementRowDetail({
+  row,
+  kindLabel,
+  isClient,
+  onEdit,
+  onDelete,
+}: {
+  row: PartyStatementRow;
+  kindLabel: string;
+  isClient: boolean;
+  onEdit?: () => void;
+  onDelete?: () => void;
+}) {
+  const adj = row.adjustment;
+  const before = row.balanceAfter - row.delta;
+  const cur = currencyLabel(row.currencyCode);
+  const balanceWord = (v: number) => (v > EPSILON ? (isClient ? "عليه" : "له") : v < -EPSILON ? (isClient ? "له" : "لنا عنده") : "صفر");
+  const details: [string, string][] = [
+    ["النوع", kindLabel],
+    ["التاريخ", row.date],
+    ["المبلغ", `${formatAmount(row.amount)} ${cur}`],
+  ];
+  if (row.deviceName) details.push(["الجهاز", row.deviceName]);
+  if (adj?.paymentMethod) details.push(["طريقة الدفع", PAYMENT_METHOD_LABELS[adj.paymentMethod]]);
+  if (adj) details.push(["الصندوق", adj.cashMoved ? "دخلت/خرجت من الصندوق" : "لم تمر بالصندوق"]);
+  if (row.type === "invoice") details.push(["المدفوع من الفاتورة", `${formatAmount(row.paid)} ${cur}`]);
+  if (row.note) details.push(["ملاحظة", row.note]);
+  if (adj) details.push(["سُجّلت في", adj.createdAt.slice(0, 16).replace("T", " ")]);
+
+  return (
+    <div className="statement-detail">
+      <div className="statement-balance-flow">
+        <div className="statement-balance-box">
+          <small>الرصيد قبل</small>
+          <strong>
+            <bdi dir="ltr">{formatAmount(Math.abs(before))}</bdi> {cur}
+          </strong>
+          <small>{balanceWord(before)}</small>
+        </div>
+        <div className={`statement-balance-delta ${row.delta < 0 ? "statement-delta-down" : "statement-delta-up"}`}>
+          <bdi dir="ltr">
+            {row.delta < 0 ? "-" : "+"}
+            {formatAmount(Math.abs(row.delta))}
+          </bdi>
+          <span aria-hidden="true">←</span>
+        </div>
+        <div className="statement-balance-box statement-balance-after">
+          <small>الرصيد بعد</small>
+          <strong>
+            <bdi dir="ltr">{formatAmount(Math.abs(row.balanceAfter))}</bdi> {cur}
+          </strong>
+          <small>{balanceWord(row.balanceAfter)}</small>
+        </div>
+      </div>
+      <dl className="statement-detail-list">
+        {details.map(([label, value]) => (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+      {!adj && (
+        <p className="settings-hint">
+          {row.type === "device-charge" || row.type === "device-payment"
+            ? "هذه عملية على الجهاز - تُعدَّل من سجل الجهاز في الصفحة الرئيسية."
+            : "هذه فاتورة من المتجر - تُعدَّل أو تُرجَع من قسم الفواتير في المتجر."}
+        </p>
+      )}
+      {(onEdit || onDelete) && (
+        <div className="statement-detail-actions">
+          {onEdit && (
+            <button type="button" className="dialog-primary" onClick={onEdit}>
+              ✎ تعديل
+            </button>
+          )}
+          {onDelete && (
+            <button type="button" className="dialog-danger" onClick={onDelete}>
+              حذف
+            </button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

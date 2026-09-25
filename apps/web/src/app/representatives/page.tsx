@@ -2,6 +2,8 @@
 
 import { CSSProperties, FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { formatProfitMru } from "@/lib/profitMru";
+import { useMruRate } from "@/lib/useMruRate";
 import { PdfButton } from "@/components/PdfButton";
 import { PrintableDocument } from "@/lib/pdfDocument";
 import { loadCashEntries, postRepSettlementToCash, saveCashEntries } from "@/lib/cashStore";
@@ -31,7 +33,7 @@ import {
   updateRepresentative,
 } from "@/lib/repStore";
 import { InvoiceList, loadInvoices } from "@/lib/invoiceStore";
-import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerByAccount, LedgerCurrency, loadLedgerStore } from "@/lib/ledgerStore";
+import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerByAccount, LedgerCurrency, LedgerEntry, loadLedgerStore } from "@/lib/ledgerStore";
 import { ClientStore, getClient, loadClientStore } from "@/lib/clientStore";
 import { combinePhoneNumber, PHONE_COUNTRY_CODES, splitPhoneNumber } from "@/lib/phoneCountryCodes";
 import { formatAmount } from "@/lib/formatAmount";
@@ -52,6 +54,14 @@ function currencyLabel(code: string): string {
 
 function todayDateInputValue(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+/** Profit figures on this page are shown in أوقية (profitMru.ts): a shipment's own locked MRU
+ * rate when given, otherwise today's rate (≈), USD only when no MRU rate is registered. */
+function money(usd: number, rate: number | undefined, entry?: LedgerEntry): string {
+  const locked = entry?.profitCurrencyRates?.MRU;
+  const sign = usd < -EPSILON ? "-" : "";
+  return sign + formatProfitMru(usd, rate, locked !== undefined ? Math.abs(usd) * locked : undefined);
 }
 
 function nonZero(values: Record<string, number>): [string, number][] {
@@ -92,6 +102,7 @@ export default function RepresentativesPage() {
   }, []);
 
   const representatives = useMemo(() => listRepresentatives(representativeStore), [representativeStore]);
+  const mruRate = useMruRate();
 
   const overview = useMemo(() => {
     const owed: Record<string, number> = {};
@@ -152,11 +163,11 @@ export default function RepresentativesPage() {
           <div className="rep-overview">
             <div className="rep-overview-item">
               <span>حصة المندوبين من أرباح الأجهزة</span>
-              <strong dir="ltr">{formatAmount(overview.repShareUsd)} USD</strong>
+              <strong>{money(overview.repShareUsd, mruRate)}</strong>
             </div>
             <div className="rep-overview-item rep-overview-ours">
               <span>حصتي من أرباح أجهزتهم</span>
-              <strong dir="ltr">{formatAmount(overview.ourShareUsd)} USD</strong>
+              <strong>{money(overview.ourShareUsd, mruRate)}</strong>
             </div>
             <div className="rep-overview-item rep-overview-owed">
               <span>مستحق للمندوبين الآن</span>
@@ -244,6 +255,7 @@ function RepCard({
   const [panel, setPanel] = useState<RepPanel>(null);
   const [sheet, setSheet] = useState<RepSheet>(null);
 
+  const mruRate = useMruRate();
   const deviceRows = useMemo(() => listRepDeviceCommissions(rep.id, ledgerStore), [rep.id, ledgerStore]);
   const deviceTotals = useMemo(() => totalRepDeviceCommissions(deviceRows), [deviceRows]);
   const owed = computeRepCommissionOwedByCurrency(rep.id, invoices, settlements, deviceRows);
@@ -283,18 +295,18 @@ function RepCard({
       </div>
 
       <div className="party-stats">
-        <span className="party-stats-currency">أرباح أجهزته (USD)</span>
+        <span className="party-stats-currency">أرباح أجهزته ({mruRate ? "أوقية ≈" : "USD"})</span>
         <div className="party-stat">
           <span>الربح</span>
-          <strong dir="ltr">{formatAmount(deviceTotals.profitUsd)}</strong>
+          <strong dir="ltr">{formatAmount(deviceTotals.profitUsd * (mruRate ?? 1))}</strong>
         </div>
         <div className="party-stat party-stat-adjusted">
           <span>حصته</span>
-          <strong dir="ltr">{formatAmount(deviceTotals.repShareUsd)}</strong>
+          <strong dir="ltr">{formatAmount(deviceTotals.repShareUsd * (mruRate ?? 1))}</strong>
         </div>
         <div className="party-stat party-stat-paid">
           <span>حصتي</span>
-          <strong dir="ltr">{formatAmount(deviceTotals.ourShareUsd)}</strong>
+          <strong dir="ltr">{formatAmount(deviceTotals.ourShareUsd * (mruRate ?? 1))}</strong>
         </div>
         <div className={`party-stat ${hasOwed ? "party-stat-due" : "party-stat-clear"}`}>
           <span>مستحق له</span>
@@ -307,7 +319,7 @@ function RepCard({
         {deviceTotals.pendingCount > 0 && (
           <span className="party-chip">
             ⏳ {deviceTotals.pendingCount} بانتظار D
-            {deviceTotals.expectedRepShareUsd > 0.0001 && <> · حصته المتوقعة ≈ <bdi dir="ltr">{formatAmount(deviceTotals.expectedRepShareUsd)}$</bdi></>}
+            {deviceTotals.expectedRepShareUsd > 0.0001 && <> · حصته المتوقعة {money(deviceTotals.expectedRepShareUsd, mruRate)}</>}
           </span>
         )}
         {nonZero(owed)
@@ -363,7 +375,7 @@ function RepCard({
             <PdfButton
               className="party-action party-action-pdf"
               label="🖨️ تصدير الكشف PDF"
-              build={() => buildRepStatementPdf(rep, days, deviceTotals, owed, cashHeld, accountName, clientNameFor, storeItems)}
+              build={() => buildRepStatementPdf(rep, days, deviceTotals, owed, cashHeld, accountName, clientNameFor, storeItems, mruRate)}
             />
           </div>
           {days.length === 0 ? (
@@ -456,14 +468,15 @@ function RepDay({
   clientNameFor: (accountId: string) => string | undefined;
   storeItems: StoreItemRegistry;
 }) {
+  const mruRate = useMruRate();
   return (
     <div className="rep-day">
       <div className="rep-day-head">
         <strong dir="ltr">📅 {day.date}</strong>
         {(Math.abs(day.repShareUsd) > EPSILON || Math.abs(day.ourShareUsd) > EPSILON) && (
-          <div className="rep-day-split" dir="ltr">
-            <span className="rep-split-rep">حصته {formatAmount(day.repShareUsd)}$</span>
-            <span className="rep-split-ours">حصتي {formatAmount(day.ourShareUsd)}$</span>
+          <div className="rep-day-split">
+            <span className="rep-split-rep">حصته {money(day.repShareUsd, mruRate)}</span>
+            <span className="rep-split-ours">حصتي {money(day.ourShareUsd, mruRate)}</span>
           </div>
         )}
       </div>
@@ -493,6 +506,7 @@ function RepStatementLine({
   clientNameFor: (accountId: string) => string | undefined;
   storeItems: StoreItemRegistry;
 }) {
+  const mruRate = useMruRate();
   if (row.type === "device") {
     const { entry, profit, percent, repShareUsd, ourShareUsd, accountId } = row.row;
     const client = clientNameFor(accountId);
@@ -509,18 +523,18 @@ function RepStatementLine({
         </div>
         {profit.status === "computed" ? (
           <>
-            <div className="rep-line-calc" dir="ltr">
-              <span>بيع {formatAmount(profit.saleValueUsd ?? 0)}$</span>
-              <span>− تكلفة {formatAmount(profit.starlinkCostUsd ?? 0)}$</span>
+            <div className="rep-line-calc">
+              <span>بيع {money(profit.saleValueUsd ?? 0, mruRate, entry)}</span>
+              <span>− تكلفة {money(profit.starlinkCostUsd ?? 0, mruRate, entry)}</span>
               <span className={(profit.profitUsd ?? 0) >= 0 ? "party-statement-clear" : "party-statement-due"}>
-                = ربح {formatAmount(profit.profitUsd ?? 0)}$
+                = ربح {money(profit.profitUsd ?? 0, mruRate, entry)}
               </span>
             </div>
-            <div className="rep-day-split" dir="ltr">
+            <div className="rep-day-split">
               <span className="rep-split-rep">
-                حصته ({percent}%) {formatAmount(repShareUsd ?? 0)}$
+                حصته ({percent}%) {money(repShareUsd ?? 0, mruRate, entry)}
               </span>
-              <span className="rep-split-ours">حصتي {formatAmount(ourShareUsd ?? 0)}$</span>
+              <span className="rep-split-ours">حصتي {money(ourShareUsd ?? 0, mruRate, entry)}</span>
             </div>
           </>
         ) : (
@@ -528,7 +542,7 @@ function RepStatementLine({
             ⏳ بانتظار تسديد تكلفة Starlink (D)
             {row.row.expectedRepShareUsd !== undefined ? (
               <>
-                {" "}- حصته المتوقعة ({percent}%) ≈ <bdi dir="ltr">{formatAmount(row.row.expectedRepShareUsd)}$</bdi>، تتأكد بعد التسديد
+                {" "}- حصته المتوقعة ({percent}%) {money(row.row.expectedRepShareUsd, mruRate)}، تتأكد بعد التسديد
               </>
             ) : (
               ` - تُحتسب حصته (${percent}%) بعد التسديد`
@@ -712,6 +726,7 @@ function repRowCells(
   accountName: (accountId: string) => string,
   clientNameFor: (accountId: string) => string | undefined,
   storeItems: StoreItemRegistry,
+  mruRate: number | undefined,
 ): string[] {
   if (row.type === "device") {
     const { entry, profit, percent, repShareUsd, ourShareUsd, accountId } = row.row;
@@ -719,14 +734,14 @@ function repRowCells(
     const title = `📡 ${accountName(accountId)}${client ? ` · ${client}` : ""} (${formatAmount(entry.amount)} ${currencyLabel(entry.currency)})`;
     if (profit.status !== "computed") {
       const expected = row.row.expectedRepShareUsd;
-      return [row.date, title, "⏳ متوقع (D) - بانتظار تكلفة Starlink", expected !== undefined ? `≈ ${formatAmount(expected)}$ (${percent}%)` : "", ""];
+      return [row.date, title, "⏳ متوقع (D) - بانتظار تكلفة Starlink", expected !== undefined ? `${money(expected, mruRate)} (${percent}%)` : "", ""];
     }
     return [
       row.date,
       title,
-      `ربح ${formatAmount(profit.profitUsd ?? 0)}$`,
-      `${formatAmount(repShareUsd ?? 0)}$ (${percent}%)`,
-      `${formatAmount(ourShareUsd ?? 0)}$`,
+      `ربح ${money(profit.profitUsd ?? 0, mruRate, entry)}`,
+      `${money(repShareUsd ?? 0, mruRate, entry)} (${percent}%)`,
+      money(ourShareUsd ?? 0, mruRate, entry),
     ];
   }
   if (row.type === "invoice") {
@@ -747,17 +762,18 @@ function buildRepStatementPdf(
   accountName: (accountId: string) => string,
   clientNameFor: (accountId: string) => string | undefined,
   storeItems: StoreItemRegistry,
+  mruRate: number | undefined,
 ): PrintableDocument {
-  const rows = days.flatMap((day) => day.rows.map((row) => repRowCells(row, accountName, clientNameFor, storeItems)));
+  const rows = days.flatMap((day) => day.rows.map((row) => repRowCells(row, accountName, clientNameFor, storeItems, mruRate)));
   return {
     title: "كشف حساب مندوب",
     partyName: rep.name,
     partyPhone: rep.phone,
     subtitle: `نسبته ${rep.commissionPercent}%${rep.sharesLosses ? " - يتحمّل نسبته من الخسارة" : ""}`,
     summary: [
-      { label: "ربح أجهزته", value: `${formatAmount(deviceTotals.profitUsd)} USD` },
-      { label: "حصته", value: `${formatAmount(deviceTotals.repShareUsd)} USD`, tone: "due" },
-      { label: "حصتي", value: `${formatAmount(deviceTotals.ourShareUsd)} USD`, tone: "clear" },
+      { label: "ربح أجهزته", value: money(deviceTotals.profitUsd, mruRate) },
+      { label: "حصته", value: money(deviceTotals.repShareUsd, mruRate), tone: "due" },
+      { label: "حصتي", value: money(deviceTotals.ourShareUsd, mruRate), tone: "clear" },
       ...nonZero(owed).map(([code, value]) => ({ label: `مستحق له (${currencyLabel(code)})`, value: formatAmount(value), tone: "due" as const })),
       ...nonZero(cashHeld).map(([code, value]) => ({ label: `نقد عنده (${currencyLabel(code)})`, value: formatAmount(value) })),
     ],

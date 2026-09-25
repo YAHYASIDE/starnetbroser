@@ -16,7 +16,9 @@ import { InvoiceList, loadInvoices } from "@/lib/invoiceStore";
 import { getStoreItem, loadStoreItems, loadStoreTransactions, StoreItemRegistry, StoreTransactionList } from "@/lib/storeStore";
 import { computeClientSalesTotals, computeItemSalesTotals, computeStoreSalesSummary, largestCurrencyValue } from "@/lib/storeReports";
 import { CashEntryList, loadCashEntries, listStandaloneCashEntries } from "@/lib/cashStore";
-import { computeExpectedRepSharesUsd, computeRepSharesUsd } from "@/lib/repStore";
+import { computeExpectedRepSharesUsd, computeRepSharesMru, computeRepSharesUsd } from "@/lib/repStore";
+import { sumProfitMru } from "@/lib/profitMru";
+import { CurrencyStore, getCurrency, loadCurrencyStore } from "@/lib/currencyStore";
 import { summarizeDeviceProfit } from "@/lib/accountingStore";
 
 function currencyLabelFor(code: string): string {
@@ -34,6 +36,8 @@ interface ClientProfitRow {
   name: string;
   /** Starlink devices (ledger) - after Starlink cost, before any rep share. */
   profitUsd: number;
+  /** Same profit in أوقية (profitMru.ts) - set when an MRU rate is registered. */
+  profitMru?: number;
   /** Store invoices: sales - cost of goods - shipping cost, per currency. */
   storeProfitByCurrency: Record<string, number>;
 }
@@ -46,6 +50,7 @@ export default function ReportsPage() {
   const [storeItems, setStoreItems] = useState<StoreItemRegistry>({});
   const [storeTransactions, setStoreTransactions] = useState<StoreTransactionList>([]);
   const [cashEntries, setCashEntries] = useState<CashEntryList>([]);
+  const [currencyStore, setCurrencyStore] = useState<CurrencyStore>({});
   const [period, setPeriod] = useState<ReportPeriod>("month");
   const [showDollarBreakdown, setShowDollarBreakdown] = useState(true);
   const [showClientProfits, setShowClientProfits] = useState(false);
@@ -59,6 +64,7 @@ export default function ReportsPage() {
     setStoreItems(loadStoreItems());
     setStoreTransactions(loadStoreTransactions());
     setCashEntries(loadCashEntries());
+    setCurrencyStore(loadCurrencyStore());
     if (isDemoMode()) {
       setAccounts(loadDemoAccounts(demoAccounts));
       return;
@@ -83,6 +89,11 @@ export default function ReportsPage() {
   // as "متوقع" until the cost is settled (accountingStore.ts's computeExpectedShipmentProfit).
   const periodExpected = useMemo(() => summarizeDeviceProfit(periodEntries), [periodEntries]);
   const periodExpectedRepSharesUsd = useMemo(() => computeExpectedRepSharesUsd(periodEntries), [periodEntries]);
+  // Profit is shown in أوقية (profitMru.ts); USD stays as a small secondary figure. Without a
+  // registered MRU rate everything falls back to USD.
+  const mruRate = getCurrency(currencyStore, "MRU")?.rateFromUsd;
+  const periodProfitMru = useMemo(() => (mruRate ? sumProfitMru(periodEntries, mruRate) : undefined), [periodEntries, mruRate]);
+  const periodRepSharesMru = useMemo(() => (mruRate ? computeRepSharesMru(periodEntries, mruRate) : undefined), [periodEntries, mruRate]);
 
   // ربح المتجر (retail: devices/materials sold as store inventory, via invoiceStore.ts) - a
   // separate business from the Starlink-subscription ledger above, in its own currencies (MRU/
@@ -167,7 +178,9 @@ export default function ReportsPage() {
       const entries = filterEntriesByPeriod(ledgerStore[account.id] ?? [], period);
       if (entries.length === 0) continue;
       const summary = computeDeviceAccountingSummary(entries);
-      rowFor(account.clientId).profitUsd += summary.totalProfitsUsd - summary.totalLossesUsd;
+      const row = rowFor(account.clientId);
+      row.profitUsd += summary.totalProfitsUsd - summary.totalLossesUsd;
+      if (mruRate) row.profitMru = (row.profitMru ?? 0) + sumProfitMru(entries, mruRate).confirmedMru;
     }
     // Store profit per client: each client's own sale invoices (and returns against them) this
     // period, costed the same way as the store's own profit tile.
@@ -188,7 +201,7 @@ export default function ReportsPage() {
       }
     }
     return Array.from(byKey.values()).sort((a, b) => b.profitUsd - a.profitUsd);
-  }, [accounts, ledgerStore, clientStore, period, periodInvoices, storeTransactions, invoices]);
+  }, [accounts, ledgerStore, clientStore, period, periodInvoices, storeTransactions, invoices, mruRate]);
 
   return (
     <main className="home">
@@ -215,8 +228,16 @@ export default function ReportsPage() {
 
         <div className={`report-net-tile${periodNetProfitUsd < 0 ? " report-net-tile-negative" : ""}`}>
           <span className="report-net-tile-label">صافي الربح · {REPORT_PERIOD_LABELS[period]}</span>
-          <strong className="report-net-tile-value" dir="ltr">
-            {formatAmount(periodNetProfitUsd)} USD
+          <strong className="report-net-tile-value">
+            {periodProfitMru ? (
+              <>
+                {periodProfitMru.confirmedExact ? "" : "≈ "}
+                <bdi dir="ltr">{formatAmount(periodProfitMru.confirmedMru)}</bdi> أوقية
+                <small className="report-usd-sub" dir="ltr">{formatAmount(periodNetProfitUsd)} USD</small>
+              </>
+            ) : (
+              <bdi dir="ltr">{formatAmount(periodNetProfitUsd)} USD</bdi>
+            )}
           </strong>
         </div>
 
@@ -225,12 +246,16 @@ export default function ReportsPage() {
             <span className="report-net-tile-label">
               ربح متوقع (D) · {periodExpected.expectedCount} شحنة لم تُسدَّد تكلفتها لـ Starlink بعد
             </span>
-            <strong className="report-net-tile-value" dir="ltr">
-              ≈ {formatAmount(periodExpected.expectedUsd)} USD
+            <strong className="report-net-tile-value">
+              ≈ <bdi dir="ltr">{formatAmount(periodProfitMru ? periodProfitMru.expectedMru : periodExpected.expectedUsd)}</bdi>{" "}
+              {periodProfitMru ? "أوقية" : "USD"}
             </strong>
             <span className="report-net-tile-note">
               يتأكد ويدخل صافي الربح عند التسديد
-              {periodExpectedRepSharesUsd > 0.0001 && ` · منه حصة متوقعة للمندوبين ≈ ${formatAmount(periodExpectedRepSharesUsd)} USD`}
+              {periodExpectedRepSharesUsd > 0.0001 &&
+                ` · منه حصة متوقعة للمندوبين ≈ ${
+                  periodRepSharesMru ? `${formatAmount(periodRepSharesMru.expected)} أوقية` : `${formatAmount(periodExpectedRepSharesUsd)} USD`
+                }`}
             </span>
           </div>
         )}
@@ -239,11 +264,23 @@ export default function ReportsPage() {
           <div className="report-rep-split">
             <div>
               <span>حصة المندوبين</span>
-              <strong dir="ltr">{formatAmount(periodRepSharesUsd)} USD</strong>
+              <strong>
+                {periodRepSharesMru ? (
+                  <><bdi dir="ltr">{formatAmount(periodRepSharesMru.confirmed)}</bdi> أوقية</>
+                ) : (
+                  <bdi dir="ltr">{formatAmount(periodRepSharesUsd)} USD</bdi>
+                )}
+              </strong>
             </div>
             <div>
               <span>صافي ربحي بعد المندوبين</span>
-              <strong dir="ltr">{formatAmount(periodNetProfitUsd - periodRepSharesUsd)} USD</strong>
+              <strong>
+                {periodProfitMru && periodRepSharesMru ? (
+                  <><bdi dir="ltr">{formatAmount(periodProfitMru.confirmedMru - periodRepSharesMru.confirmed)}</bdi> أوقية</>
+                ) : (
+                  <bdi dir="ltr">{formatAmount(periodNetProfitUsd - periodRepSharesUsd)} USD</bdi>
+                )}
+              </strong>
             </div>
           </div>
         )}
@@ -255,8 +292,15 @@ export default function ReportsPage() {
           <span className="report-net-tile-label">
             النقد المحصّل فعليًا (بعد خصم المدفوع لـ Starlink) · {REPORT_PERIOD_LABELS[period]}
           </span>
-          <strong className="report-net-tile-value" dir="ltr">
-            {formatAmount(periodSummary.cashFlowUsd)} USD
+          <strong className="report-net-tile-value">
+            {mruRate ? (
+              <>
+                ≈ <bdi dir="ltr">{formatAmount(periodSummary.cashFlowUsd * mruRate)}</bdi> أوقية
+                <small className="report-usd-sub" dir="ltr">{formatAmount(periodSummary.cashFlowUsd)} USD</small>
+              </>
+            ) : (
+              <bdi dir="ltr">{formatAmount(periodSummary.cashFlowUsd)} USD</bdi>
+            )}
           </strong>
         </div>
         <p className="settings-hint">
@@ -455,8 +499,8 @@ export default function ReportsPage() {
                 <li key={row.key} className="report-line report-client-profit">
                   <span>{row.name}</span>
                   <div className="report-client-profit-values">
-                    <strong dir="ltr" className={row.profitUsd < 0 ? "report-line-negative" : "report-line-positive"}>
-                      📡 {formatAmount(row.profitUsd)} USD
+                    <strong className={row.profitUsd < 0 ? "report-line-negative" : "report-line-positive"}>
+                      📡 <bdi dir="ltr">{formatAmount(row.profitMru ?? row.profitUsd)}</bdi> {row.profitMru !== undefined ? "أوقية" : "USD"}
                     </strong>
                     {Object.entries(row.storeProfitByCurrency)
                       .filter(([, v]) => Math.abs(v) > 0.0001)

@@ -5,6 +5,7 @@ import {
   listPartyAdjustments,
   PartyAdjustment,
   recordPartyAdjustment,
+  updatePartyAdjustment,
 } from "./partyBalanceStore";
 
 function adjustment(overrides: Partial<PartyAdjustment> = {}): PartyAdjustment {
@@ -70,5 +71,21 @@ describe("listPartyAdjustments / deletePartyAdjustment", () => {
   it("removes only the given id", () => {
     const list = [adjustment({ id: "1" }), adjustment({ id: "2" })];
     expect(deletePartyAdjustment(list, "1").map((a) => a.id)).toEqual(["2"]);
+  });
+});
+
+describe("updatePartyAdjustment", () => {
+  it("edits the entry in place, keeping its id, party and creation time", () => {
+    const list = [adjustment(), adjustment({ id: "a2" })];
+    const r = updatePartyAdjustment(list, "a1", { direction: "weOwe", amount: 40000, currencyCode: "MRU", date: "2026-09-16", note: " bankili ", paymentMethod: "bankily", cashMoved: true });
+    if (!r.ok) throw new Error(r.message);
+    expect(r.adjustment).toMatchObject({ id: "a1", partyId: "c1", createdAt: "2026-09-20T10:00:00.000Z", direction: "weOwe", amount: 40000, note: "bankili", paymentMethod: "bankily", cashMoved: true });
+    expect(r.list.map((a) => a.id)).toEqual(["a1", "a2"]);
+  });
+
+  it("rejects a bad amount or an unknown entry", () => {
+    const input = { direction: "owesUs" as const, amount: 0, currencyCode: "MRU", date: "2026-09-20" };
+    expect(updatePartyAdjustment([adjustment()], "a1", input).ok).toBe(false);
+    expect(updatePartyAdjustment([adjustment()], "zz", { ...input, amount: 5 }).ok).toBe(false);
   });
 });

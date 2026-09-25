@@ -87,6 +87,7 @@ import {
   PartyAdjustmentList,
   RecordPartyAdjustmentInput,
   recordPartyAdjustment,
+  updatePartyAdjustment,
   savePartyAdjustments,
 } from "@/lib/partyBalanceStore";
 
@@ -186,6 +187,45 @@ export default function StorePage() {
       setCashEntries(cash);
     saveCashEntries(cash);
     }
+    return null;
+  }
+
+  /** Edits a balance entry; its linked cash entry (if any) is replaced to match. */
+  function handleUpdateAdjustment(adjustmentId: string, input: Omit<BalanceFormInput, "deviceId">): string | null {
+    const result = updatePartyAdjustment(partyAdjustments, adjustmentId, input);
+    if (!result.ok) return result.message;
+    setPartyAdjustments(result.list);
+    savePartyAdjustments(result.list);
+    const party = result.adjustment.partyKind === "client" ? clientStore[result.adjustment.partyId] : supplierStore[result.adjustment.partyId];
+    const cash = postPartyAdjustmentToCash(removeLinkedCashEntries(loadCashEntries(), adjustmentId), result.adjustment, party?.name ?? "");
+    saveCashEntries(cash);
+    setCashEntries(cash);
+    return null;
+  }
+
+  /** Turns a general "له" entry into a payment on one of the client's devices. */
+  function handleMoveAdjustmentToDevice(adjustmentId: string, deviceId: string, input: Omit<BalanceFormInput, "deviceId">): string | null {
+    const device = accounts.find((a) => a.id === deviceId);
+    if (!device) return "الجهاز غير موجود";
+    if (input.direction !== "weOwe") return "يمكن نقل الدفعات (له) فقط إلى جهاز";
+    const original = partyAdjustments.find((a) => a.id === adjustmentId);
+    // The general entry's own cash posting goes first - the device payment re-posts it if cash.
+    saveCashEntries(removeLinkedCashEntries(loadCashEntries(), adjustmentId));
+    const result = saveClientDevicePayment(
+      ledgerStore,
+      { id: device.id, name: device.name, email: device.expectedEmail || device.starlinkAccountEmail || undefined },
+      input,
+    );
+    if (!result.ok) {
+      // Put the removed cash entry back so nothing changed.
+      if (original) saveCashEntries(postPartyAdjustmentToCash(loadCashEntries(), original, clientStore[original.partyId]?.name ?? ""));
+      return result.message;
+    }
+    setLedgerStore(result.ledgerStore);
+    const next = deletePartyAdjustment(partyAdjustments, adjustmentId);
+    setPartyAdjustments(next);
+    savePartyAdjustments(next);
+    setCashEntries(loadCashEntries());
     return null;
   }
 
@@ -486,6 +526,8 @@ export default function StorePage() {
         onAddAdjustment={handleAddAdjustment}
         onDeleteAdjustment={handleDeleteAdjustment}
         onAddDevicePayment={handleAddDevicePayment}
+        onUpdateAdjustment={handleUpdateAdjustment}
+        onMoveAdjustmentToDevice={handleMoveAdjustmentToDevice}
         onCreateClient={handleCreateClient}
         onUpdateClient={handleUpdateClient}
         onCreateSupplier={handleCreateSupplier}

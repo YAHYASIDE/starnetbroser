@@ -96,6 +96,33 @@ export function recordPartyAdjustment(
   return { ok: true, list: [...list, adjustment], adjustment };
 }
 
+export type UpdatePartyAdjustmentInput = Omit<RecordPartyAdjustmentInput, "partyKind" | "partyId">;
+
+/** Edits a balance entry in place (same id and creation time), with the same validation as a new
+ * one - the caller re-syncs its linked cash entry. */
+export function updatePartyAdjustment(
+  list: PartyAdjustmentList,
+  id: string,
+  input: UpdatePartyAdjustmentInput,
+): RecordPartyAdjustmentResult {
+  const existing = list.find((a) => a.id === id);
+  if (!existing) return { ok: false, message: "الرصيد غير موجود" };
+  if (!Number.isFinite(input.amount) || input.amount <= 0) {
+    return { ok: false, message: "المبلغ يجب أن يكون أكبر من صفر" };
+  }
+  const adjustment: PartyAdjustment = {
+    ...existing,
+    direction: input.direction,
+    amount: input.amount,
+    currencyCode: input.currencyCode,
+    date: input.date,
+    note: input.note?.trim() || undefined,
+    cashMoved: input.cashMoved || undefined,
+    paymentMethod: input.paymentMethod,
+  };
+  return { ok: true, list: list.map((a) => (a.id === id ? adjustment : a)), adjustment };
+}
+
 export function deletePartyAdjustment(list: PartyAdjustmentList, id: string): PartyAdjustmentList {
   return list.filter((a) => a.id !== id);
 }

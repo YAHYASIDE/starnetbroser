@@ -2,6 +2,8 @@
 
 import type { RenewalPlan } from "@starnet/shared";
 import { PdfButton } from "./PdfButton";
+import { formatProfitMru } from "@/lib/profitMru";
+import { useMruRate } from "@/lib/useMruRate";
 import { buildPaymentReceipt } from "@/lib/receipt";
 import { FormEvent, useState } from "react";
 import {
@@ -23,7 +25,7 @@ import {
   StarlinkCost,
   updateEntry,
 } from "@/lib/ledgerStore";
-import { computeDeviceAccountingSummary, computeShipmentProfit } from "@/lib/accountingStore";
+import { computeDeviceAccountingSummary, computeExpectedShipmentProfit, computeShipmentProfit } from "@/lib/accountingStore";
 import { Currency, CurrencyStore, getCurrency, toUsd, UpsertCurrencyInput } from "@/lib/currencyStore";
 import { COUNTRY_CURRENCIES, CountryCurrencyOption } from "@/lib/countryCurrencies";
 import { formatAmount } from "@/lib/formatAmount";
@@ -856,6 +858,7 @@ function ShipmentStatusRow({
   onSettle: () => void;
   onCompleteLegacy: () => void;
 }) {
+  const mruRate = useMruRate();
   const paymentStatus = computeShipmentPaymentStatus(entry, allocations);
   const paymentBadge = (
     <span className={`badge ${paymentStatus === "paid" ? "badge-green" : paymentStatus === "partial" ? "badge-yellow" : "badge-red"}`}>
@@ -882,7 +885,17 @@ function ShipmentStatusRow({
         <button type="button" className="badge badge-yellow ledger-d-badge" onClick={onSettle}>
           D - تكلفة Starlink غير مسددة
         </button>
-        <span className="ledger-profit-pending-hint">الربح معلّق حتى تسديد تكلفة Starlink</span>
+        {(() => {
+          const expected = computeExpectedShipmentProfit(entry);
+          return expected.status === "expected" ? (
+            <span className="ledger-profit-pending-hint">
+              ربح متوقع {expected.profitUsd! >= 0 ? "+" : "-"}
+              {formatProfitMru(expected.profitUsd!, mruRate)} - يتأكد عند التسديد
+            </span>
+          ) : (
+            <span className="ledger-profit-pending-hint">الربح معلّق حتى تسديد تكلفة Starlink</span>
+          );
+        })()}
       </div>
     );
   }
@@ -902,16 +915,14 @@ function ShipmentStatusRow({
     <div className="ledger-shipment-row">
       {paymentBadge}
       <span className="badge badge-green">مسدد لـ Starlink</span>
-      <span className={`ledger-shipment-profit ${isProfit ? "profit-positive" : "profit-negative"}`} dir="ltr">
-        {isProfit ? `ربح +${formatAmount(profit.profitUsd!)} USD` : `خسارة ${formatAmount(profit.profitUsd!)} USD`}
+      <span className={`ledger-shipment-profit ${isProfit ? "profit-positive" : "profit-negative"}`}>
+        {isProfit ? "ربح +" : "خسارة -"}
+        {formatProfitMru(profit.profitUsd!, mruRate, profit.profitMru)}
       </span>
-      {(profit.profitMru !== undefined || profit.profitSifa !== undefined) && (
-        <span className={`ledger-shipment-profit ${isProfit ? "profit-positive" : "profit-negative"}`} dir="ltr">
-          {profit.profitMru !== undefined && `${formatAmount(profit.profitMru)} أوقية`}
-          {profit.profitMru !== undefined && profit.profitSifa !== undefined && " / "}
-          {profit.profitSifa !== undefined && `${formatAmount(profit.profitSifa)} سيفا`}
-        </span>
-      )}
+      <span className="ledger-profit-pending-hint" dir="ltr">
+        {formatAmount(profit.profitUsd!)} USD
+        {profit.profitSifa !== undefined && ` / ${formatAmount(profit.profitSifa)} سيفا`}
+      </span>
     </div>
   );
 }

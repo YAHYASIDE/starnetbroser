@@ -1,5 +1,7 @@
 "use client";
 
+import { formatProfitMru, sumProfitMru } from "@/lib/profitMru";
+import { useMruRate } from "@/lib/useMruRate";
 import { computeDeviceAccountingSummary, computeShipmentProfit } from "@/lib/accountingStore";
 import { computeShipmentPaymentStatus, paidTowardShipment, PaymentAllocation, ShipmentPaymentStatus } from "@/lib/paymentAllocationStore";
 import { isLegacyShipmentEntry, LEDGER_CURRENCY_LABELS, LedgerCurrency, LedgerEntry, sortEntriesNewestFirst } from "@/lib/ledgerStore";
@@ -37,6 +39,7 @@ const PAYMENT_STATUS_BADGE: Record<ShipmentPaymentStatus, string> = {
  * if they share the same customer (see DeviceCard/ClientDialog for the customer-level rollup).
  */
 export function DeviceStatementDialog({ accountName, entries, allocations, allEntries, onClose }: Props) {
+  const mruRate = useMruRate();
   const summary = computeDeviceAccountingSummary(entries);
   const shipments = sortEntriesNewestFirst(entries.filter((e) => e.kind === "debit"));
 
@@ -61,8 +64,8 @@ export function DeviceStatementDialog({ accountName, entries, allocations, allEn
           <div className="statement-summary-item"><span>عمليات D غير مسددة</span><strong>{summary.pendingShipmentCount}</strong></div>
           <div className="statement-summary-item"><span>إجمالي قيمة المبيعات</span><strong dir="ltr">{formatAmount(summary.totalSaleValueUsd)} USD</strong></div>
           <div className="statement-summary-item"><span>إجمالي تكاليف Starlink المسددة</span><strong dir="ltr">{formatAmount(summary.totalSettledStarlinkCostUsd)} USD</strong></div>
-          <div className="statement-summary-item"><span>إجمالي الأرباح</span><strong dir="ltr" className="profit-positive">{formatAmount(summary.totalProfitsUsd)} USD</strong></div>
-          <div className="statement-summary-item"><span>إجمالي الخسائر</span><strong dir="ltr" className="profit-negative">{formatAmount(summary.totalLossesUsd)} USD</strong></div>
+          <div className="statement-summary-item"><span>إجمالي الأرباح</span><strong className="profit-positive">{formatProfitMru(summary.totalProfitsUsd, mruRate)}</strong></div>
+          <div className="statement-summary-item"><span>إجمالي الخسائر</span><strong className="profit-negative">{formatProfitMru(summary.totalLossesUsd, mruRate)}</strong></div>
           {paidRows.map(([c, v]) => (
             <div className="statement-summary-item" key={`paid-${c}`}>
               <span>مدفوع من العميل ({LEDGER_CURRENCY_LABELS[c]})</span>
@@ -88,7 +91,11 @@ export function DeviceStatementDialog({ accountName, entries, allocations, allEn
               >
                 صافي نتيجة الجهاز:{" "}
                 {summary.netResult.netUsd !== undefined
-                  ? `${summary.netResult.netUsd >= 0 ? "ربح" : "خسارة"} ${formatAmount(Math.abs(summary.netResult.netUsd))} USD`
+                  ? `${summary.netResult.netUsd >= 0 ? "ربح" : "خسارة"} ${formatProfitMru(
+                      summary.netResult.netUsd,
+                      mruRate,
+                      mruRate ? sumProfitMru(entries, mruRate).confirmedMru : undefined,
+                    )}`
                   : "—"}
               </span>
               {summary.netResult.status === "incomplete" && (
@@ -150,7 +157,8 @@ export function DeviceStatementDialog({ accountName, entries, allocations, allEn
                 )}
                 {profit.status === "computed" && (
                   <div className={`ledger-shipment-profit ${profit.profitUsd! >= 0 ? "profit-positive" : "profit-negative"}`} dir="ltr">
-                    {profit.profitUsd! >= 0 ? `ربح +${formatAmount(profit.profitUsd!)} USD` : `خسارة ${formatAmount(profit.profitUsd!)} USD`}
+                    {profit.profitUsd! >= 0 ? "ربح +" : "خسارة -"}
+                    {formatProfitMru(profit.profitUsd!, mruRate, profit.profitMru)}
                   </div>
                 )}
                 <div className="statement-shipment-payments" dir="ltr">

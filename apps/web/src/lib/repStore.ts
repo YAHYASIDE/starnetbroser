@@ -494,3 +494,17 @@ export function computeExpectedRepSharesUsd(entries: LedgerEntry[]): number {
   }
   return total;
 }
+
+/** Same as computeRepSharesUsd / computeExpectedRepSharesUsd, but in MRU: each confirmed share at
+ * its shipment's locked MRU rate (else today's), expected shares at today's rate. */
+export function computeRepSharesMru(entries: LedgerEntry[], currentMruRate: number): { confirmed: number; expected: number } {
+  let confirmed = 0;
+  let expected = 0;
+  for (const entry of entries) {
+    if (entry.kind !== "debit" || !entry.representativeId || entry.representativeCommissionPercent === undefined) continue;
+    const share = deviceShare(computeShipmentProfit(entry), entry.representativeCommissionPercent, entry.representativeSharesLosses).repShareUsd;
+    if (share) confirmed += share * (entry.profitCurrencyRates?.MRU ?? currentMruRate);
+    expected += (expectedDeviceShare(entry, entry.representativeCommissionPercent, entry.representativeSharesLosses) ?? 0) * currentMruRate;
+  }
+  return { confirmed, expected };
+}

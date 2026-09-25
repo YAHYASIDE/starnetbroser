@@ -1,5 +1,7 @@
 "use client";
 
+import { formatProfitMru, sumProfitMru } from "@/lib/profitMru";
+import { useMruRate } from "@/lib/useMruRate";
 import { CSSProperties, FormEvent, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { Client } from "@/lib/clientStore";
@@ -45,6 +47,11 @@ export function ClientDialog({ client, devices, ledgerStore, allocationStore, on
   const [phoneDialCode, setPhoneDialCode] = useState(() => splitPhoneNumber(client.phone).dialCode);
   const [phoneLocalNumber, setPhoneLocalNumber] = useState(() => splitPhoneNumber(client.phone).localNumber);
 
+  const mruRate = useMruRate();
+  // Profit is shown in أوقية at each shipment's locked rate (profitMru.ts).
+  const clientProfitMru = mruRate
+    ? devices.reduce((sum, a) => sum + sumProfitMru(getAccountEntries(ledgerStore, a.id), mruRate).confirmedMru, 0)
+    : undefined;
   const summary = computeClientAccountingSummary(
     devices.map((account) => ({ accountId: account.id, accountName: account.name, entries: getAccountEntries(ledgerStore, account.id) })),
   );
@@ -218,8 +225,8 @@ export function ClientDialog({ client, devices, ledgerStore, allocationStore, on
                 {summary.netResult.status === "no-data" || summary.netResult.netUsd === undefined ? (
                   <strong>لا توجد بيانات كافية</strong>
                 ) : (
-                  <strong className={summary.netResult.netUsd >= 0 ? "profit-positive" : "profit-negative"} dir="ltr">
-                    {summary.netResult.netUsd >= 0 ? "ربح" : "خسارة"} {formatAmount(Math.abs(summary.netResult.netUsd))} USD
+                  <strong className={summary.netResult.netUsd >= 0 ? "profit-positive" : "profit-negative"}>
+                    {summary.netResult.netUsd >= 0 ? "ربح" : "خسارة"} {formatProfitMru(summary.netResult.netUsd, mruRate, clientProfitMru)}
                   </strong>
                 )}
                 {summary.netResult.status === "incomplete" && (
@@ -282,7 +289,11 @@ export function ClientDialog({ client, devices, ledgerStore, allocationStore, on
                             dir="ltr"
                           >
                             {net.netUsd !== undefined
-                              ? `${net.netUsd >= 0 ? "ربح" : "خسارة"} ${formatAmount(Math.abs(net.netUsd))} USD`
+                              ? `${net.netUsd >= 0 ? "ربح" : "خسارة"} ${formatProfitMru(
+                                  net.netUsd,
+                                  mruRate,
+                                  mruRate ? sumProfitMru(getAccountEntries(ledgerStore, device.accountId), mruRate).confirmedMru : undefined,
+                                )}`
                               : "الربح غير محسوب"}
                             {net.status === "incomplete" && " (غير مكتمل)"}
                           </span>
