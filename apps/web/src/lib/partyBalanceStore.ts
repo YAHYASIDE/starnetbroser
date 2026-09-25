@@ -5,6 +5,8 @@
  * top of the invoice-derived figure, per currency, never mixed.
  */
 
+import type { PaymentMethod } from "./ledgerStore";
+
 export type PartyKind = "client" | "supplier";
 
 /** "owesUs" = عليه (the party owes us more), "weOwe" = له (we owe the party more). Stored in
@@ -24,6 +26,8 @@ export interface PartyAdjustment {
    * client, a payment made to a supplier) - it then has a linked cash entry (cashStore.ts
    * sourceId = this id), removed together with it. */
   cashMoved?: boolean;
+  /** How the money moved, for a payment entry (e.g. بنكيلي). */
+  paymentMethod?: PaymentMethod;
   createdAt: string;
 }
 
@@ -59,6 +63,7 @@ export interface RecordPartyAdjustmentInput {
   date: string;
   note?: string;
   cashMoved?: boolean;
+  paymentMethod?: PaymentMethod;
 }
 
 export type RecordPartyAdjustmentResult =
@@ -85,6 +90,7 @@ export function recordPartyAdjustment(
     date: input.date,
     note: input.note?.trim() || undefined,
     cashMoved: input.cashMoved || undefined,
+    paymentMethod: input.paymentMethod,
     createdAt: new Date().toISOString(),
   };
   return { ok: true, list: [...list, adjustment], adjustment };

@@ -1,5 +1,7 @@
 "use client";
 
+import type { BalanceFormInput } from "@/components/AccountsSection";
+import { saveClientDevicePayment } from "@/lib/clientDevicePaymentSave";
 import { useEffect, useMemo, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { loadCashEntries, postPartyAdjustmentToCash, removeLinkedCashEntries, saveCashEntries } from "@/lib/cashStore";
@@ -110,6 +112,20 @@ export default function ClientsPage() {
     return null;
   }
 
+  /** "الدفعة عن جهاز" from a client card - recorded in that device's own ledger. */
+  function handleAddDevicePayment(deviceId: string, input: Omit<BalanceFormInput, "deviceId">): string | null {
+    const device = accounts.find((a) => a.id === deviceId);
+    if (!device) return "الجهاز غير موجود";
+    const result = saveClientDevicePayment(
+      ledgerStore,
+      { id: device.id, name: device.name, email: device.expectedEmail || device.starlinkAccountEmail || undefined },
+      input,
+    );
+    if (!result.ok) return result.message;
+    setLedgerStore(result.ledgerStore);
+    return null;
+  }
+
   function handleDeleteAdjustment(adjustmentId: string) {
     const next = deletePartyAdjustment(partyAdjustments, adjustmentId);
     setPartyAdjustments(next);
@@ -131,6 +147,7 @@ export default function ClientsPage() {
           adjustments={partyAdjustments}
           onAddAdjustment={handleAddAdjustment}
           onDeleteAdjustment={handleDeleteAdjustment}
+          onAddDevicePayment={handleAddDevicePayment}
           onCreateClient={handleCreateClient}
           onUpdateClient={handleUpdateClient}
           onCreateSupplier={handleCreateSupplier}

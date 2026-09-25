@@ -9,6 +9,9 @@ import {
   getAccountEntries,
   LEDGER_CURRENCIES,
   LEDGER_CURRENCY_LABELS,
+  PAYMENT_METHOD_LABELS,
+  PAYMENT_METHODS,
+  PaymentMethod,
   LedgerByAccount,
   LedgerCurrency,
 } from "@/lib/ledgerStore";
@@ -105,6 +108,9 @@ interface Props {
   /** Returns an error message to show, or null on success. */
   onAddAdjustment: (input: RecordPartyAdjustmentInput) => string | null;
   onDeleteAdjustment: (adjustmentId: string) => void;
+  /** A client's payment for one of their devices ("الدفعة عن" in إضافة رصيد) - recorded in that
+   * device's own ledger. Returns an error message, or null on success. */
+  onAddDevicePayment?: (deviceId: string, input: Omit<BalanceFormInput, "deviceId">) => string | null;
 }
 
 /** حسابات الزبائن والموردين as a collapsible section of المتجر - the same PartyDirectory the
@@ -143,6 +149,7 @@ export function PartyDirectory({
   adjustments,
   onAddAdjustment,
   onDeleteAdjustment,
+  onAddDevicePayment,
   onOpenClientCard,
 }: PartyDirectoryProps) {
   const [tab, setTab] = useState<PartyTab>("clients");
@@ -289,7 +296,8 @@ export function PartyDirectory({
                 adjustments={adjustments}
                 onAddAdjustment={onAddAdjustment}
                 onDeleteAdjustment={onDeleteAdjustment}
-                devices={isClients ? accounts.filter((a) => a.clientId === party.id) : []}
+                onAddDevicePayment={onAddDevicePayment}
+                devices={isClients ? accounts.filter((a) => a.clientId === party.id && !a.deletedAt) : []}
                 ledgerStore={ledgerStore}
                 creditLimit={isClients ? (party as Client).creditLimit : undefined}
                 onEdit={() => setEditingPartyId(party.id)}
@@ -311,6 +319,7 @@ interface PartyCardProps {
   adjustments: PartyAdjustment[];
   onAddAdjustment: (input: RecordPartyAdjustmentInput) => string | null;
   onDeleteAdjustment: (adjustmentId: string) => void;
+  onAddDevicePayment?: Props["onAddDevicePayment"];
   devices: StarlinkAccountSummary[];
   ledgerStore: LedgerByAccount;
   creditLimit?: number;
@@ -329,6 +338,7 @@ function PartyCard({
   adjustments,
   onAddAdjustment,
   onDeleteAdjustment,
+  onAddDevicePayment,
   devices,
   ledgerStore,
   creditLimit,
@@ -582,9 +592,18 @@ function PartyCard({
           <BalanceForm
             partyName={party.name}
             partyKind={partyKind}
+            devices={
+              isClient && onAddDevicePayment
+                ? devices.map((d) => ({ id: d.id, name: d.name, email: d.expectedEmail || d.starlinkAccountEmail || undefined }))
+                : []
+            }
             onCancel={() => setSheet(null)}
             onSubmit={(input) => {
-              const error = onAddAdjustment({ ...input, partyKind, partyId: party.id });
+              const { deviceId, ...rest } = input;
+              const error =
+                deviceId && onAddDevicePayment
+                  ? onAddDevicePayment(deviceId, rest)
+                  : onAddAdjustment({ ...rest, partyKind, partyId: party.id });
               if (!error) setSheet(null);
               return error;
             }}
@@ -658,16 +677,23 @@ function todayDateInputValue(): string {
 interface BalanceFormProps {
   partyName: string;
   partyKind: PartyKind;
+  /** A client's devices - a payment ("له") can then be recorded against one of them. */
+  devices: { id: string; name: string; email?: string }[];
   onCancel: () => void;
   /** Returns an error message, or null on success. */
-  onSubmit: (input: {
-    direction: PartyAdjustmentDirection;
-    amount: number;
-    currencyCode: string;
-    date: string;
-    note?: string;
-    cashMoved?: boolean;
-  }) => string | null;
+  onSubmit: (input: BalanceFormInput) => string | null;
+}
+
+export interface BalanceFormInput {
+  direction: PartyAdjustmentDirection;
+  amount: number;
+  currencyCode: string;
+  date: string;
+  note?: string;
+  cashMoved?: boolean;
+  /** Set when the payment is for one specific device - recorded in that device's ledger. */
+  deviceId?: string;
+  paymentMethod?: PaymentMethod;
 }
 
 /** The usual case is real cash: a client paying us ("له") or us paying a supplier ("عليه"). */
@@ -681,13 +707,19 @@ function cashMovedLabel(partyKind: PartyKind, direction: PartyAdjustmentDirectio
   return kind === "in" ? `💵 استلمناها نقدًا من ${who} - تدخل الصندوق` : `💵 دفعناها نقدًا إلى ${who} - تخرج من الصندوق`;
 }
 
-function BalanceForm({ partyName, partyKind, onCancel, onSubmit }: BalanceFormProps) {
-  const [direction, setDirectionState] = useState<PartyAdjustmentDirection>("owesUs");
-  const [cashMoved, setCashMoved] = useState(defaultCashMoved(partyKind, "owesUs"));
+function BalanceForm({ partyName, partyKind, devices, onCancel, onSubmit }: BalanceFormProps) {
+  const [direction, setDirectionState] = useState<PartyAdjustmentDirection>(partyKind === "client" && devices.length > 0 ? "weOwe" : "owesUs");
+  // "" = a general balance entry (store); otherwise the device this payment is for.
+  const [deviceId, setDeviceId] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("bankily");
+  const [cashMoved, setCashMoved] = useState(defaultCashMoved(partyKind, direction));
   function setDirection(next: PartyAdjustmentDirection) {
     setDirectionState(next);
     setCashMoved(defaultCashMoved(partyKind, next));
   }
+  // A payment: money from the client ("له") or to the supplier ("عليه") - it has a channel.
+  const isPayment = partyKind === "client" ? direction === "weOwe" : direction === "owesUs";
+  const canPickDevice = partyKind === "client" && direction === "weOwe" && devices.length > 0;
   const [amount, setAmount] = useState("");
   const [currencyCode, setCurrencyCode] = useState<LedgerCurrency>("MRU");
   const [date, setDate] = useState(todayDateInputValue());
@@ -696,7 +728,18 @@ function BalanceForm({ partyName, partyKind, onCancel, onSubmit }: BalanceFormPr
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    setError(onSubmit({ direction, amount: Number(amount), currencyCode, date, note, cashMoved }));
+    setError(
+      onSubmit({
+        direction,
+        amount: Number(amount),
+        currencyCode,
+        date,
+        note,
+        cashMoved,
+        deviceId: canPickDevice && deviceId ? deviceId : undefined,
+        paymentMethod: isPayment ? paymentMethod : undefined,
+      }),
+    );
   }
 
   return (
@@ -721,6 +764,52 @@ function BalanceForm({ partyName, partyKind, onCancel, onSubmit }: BalanceFormPr
           <small>دفعة منه أو مبلغ لصالحه</small>
         </button>
       </div>
+      {canPickDevice && (
+        <fieldset className="pay-target">
+          <legend>الدفعة عن</legend>
+          <div className="pay-target-options">
+            <button
+              type="button"
+              className={`pay-target-option${deviceId === "" ? " pay-target-active" : ""}`}
+              aria-pressed={deviceId === ""}
+              onClick={() => setDeviceId("")}
+            >
+              <strong>رصيد عام</strong>
+              <small>حساب المتجر</small>
+            </button>
+            {devices.map((device) => (
+              <button
+                key={device.id}
+                type="button"
+                className={`pay-target-option${deviceId === device.id ? " pay-target-active" : ""}`}
+                aria-pressed={deviceId === device.id}
+                onClick={() => setDeviceId(device.id)}
+              >
+                <strong>📡 {device.name}</strong>
+                {device.email && <small dir="ltr">{device.email}</small>}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+      )}
+      {isPayment && (
+        <fieldset className="pay-methods">
+          <legend>طريقة الدفع</legend>
+          <div className="pay-method-options">
+            {PAYMENT_METHODS.map((m) => (
+              <button
+                key={m}
+                type="button"
+                className={`pay-method pay-method-${m}${paymentMethod === m ? " pay-method-active" : ""}`}
+                aria-pressed={paymentMethod === m}
+                onClick={() => setPaymentMethod(m)}
+              >
+                {PAYMENT_METHOD_LABELS[m]}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+      )}
       <div className="party-balance-row">
         <input
           className="search-input"

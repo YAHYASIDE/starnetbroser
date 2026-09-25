@@ -5034,3 +5034,98 @@ button.today-tile {
     transform: translateY(0);
   }
 }
+
+/* ---- إضافة رصيد: which device a payment is for, and how it was paid ---- */
+.pay-target,
+.pay-methods {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.pay-target legend,
+.pay-methods legend {
+  padding: 0;
+  margin-bottom: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.pay-target-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.pay-target-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 52px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+  color: var(--text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.pay-target-option strong {
+  font-size: 0.85rem;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pay-target-option small {
+  max-width: 100%;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pay-target-active {
+  border-color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 16%, var(--surface));
+  box-shadow: 0 0 0 1px var(--brand);
+}
+
+.pay-method-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pay-method {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-alt);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pay-method-active {
+  border-color: var(--green);
+  background: color-mix(in srgb, var(--green) 18%, var(--surface));
+  color: var(--green);
+}
+
+.party-balance-form > fieldset {
+  flex: none;
+}

@@ -19,13 +19,15 @@ export const LEDGER_CURRENCY_LABELS: Record<LedgerCurrency, string> = {
 /** STAR NET's own payment-collection channels (same ones quoted to customers in
  * whatsapp.ts#buildBalanceReminderMessage) - recorded per "له" entry so it's clear which channel
  * a given payment actually came in on. Meaningless for a "عليه" entry (a charge, not a payment). */
-export type PaymentMethod = "nita" | "bankily" | "sedad" | "orange";
-export const PAYMENT_METHODS: PaymentMethod[] = ["nita", "bankily", "sedad", "orange"];
+export type PaymentMethod = "bankily" | "masrvi" | "sedad" | "orange" | "nita" | "cash";
+export const PAYMENT_METHODS: PaymentMethod[] = ["bankily", "masrvi", "sedad", "orange", "nita", "cash"];
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
-  nita: "نيتا",
   bankily: "بنكيلي",
+  masrvi: "مصرفي",
   sedad: "سداد",
   orange: "أورانج موني",
+  nita: "نيتا",
+  cash: "نقدًا",
 };
 
 /** A locked-in snapshot of a currency's rate vs USD, taken at the moment a specific entry/cost was
