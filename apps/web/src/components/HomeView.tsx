@@ -41,6 +41,15 @@ import {
   saveClientStore,
   updateClient,
 } from "@/lib/clientStore";
+import {
+  createRepresentative,
+  CreateRepresentativeInput,
+  listRepresentatives,
+  loadRepresentativeStore,
+  Representative,
+  RepresentativeStore,
+  saveRepresentativeStore,
+} from "@/lib/repStore";
 import { CurrencyStore, loadCurrencyStore, saveCurrencyStore, upsertCurrency, UpsertCurrencyInput } from "@/lib/currencyStore";
 import {
   addAllocations,
@@ -211,6 +220,21 @@ export function HomeView({
       return next;
     });
     setOpenClientId(null);
+  }
+
+  // Sales-representative registry (see repStore.ts) - same load-after-mount hydration-safety
+  // pattern as the client registry above. A device/account links here via its own
+  // representativeId, never the other way around; unlike clients, there is currently no delete-
+  // representative flow anywhere in the app, so there's no orphan-on-delete case to handle here.
+  const [representativeStore, setRepresentativeStore] = useState<RepresentativeStore>({});
+  useEffect(() => setRepresentativeStore(loadRepresentativeStore()), []);
+  const representatives = useMemo(() => listRepresentatives(representativeStore), [representativeStore]);
+
+  function handleCreateRepresentative(input: CreateRepresentativeInput): Representative {
+    const result = createRepresentative(representativeStore, input);
+    setRepresentativeStore(result.store);
+    saveRepresentativeStore(result.store);
+    return result.representative;
   }
 
   // Currency registry (see currencyStore.ts) - same load-after-mount pattern as the other local
@@ -887,6 +911,8 @@ export function HomeView({
           account={dialog.account}
           clients={clients}
           onCreateClient={handleCreateClient}
+          representatives={representatives}
+          onCreateRepresentative={handleCreateRepresentative}
           onClose={() => setDialog(null)}
           onSave={saveAccount}
           onDelete={deleteAccount}

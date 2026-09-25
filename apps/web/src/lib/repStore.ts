@@ -249,6 +249,32 @@ export function computeRepCommissionEarnedByCurrency(representativeId: string, i
   return result;
 }
 
+/** How many devices/accounts currently point at this representative (via account.representativeId)
+ * - mirrors clientStore.ts's countLinkedAccounts exactly, same reasoning (used only to warn/inform,
+ * never to infer a link). */
+export function countLinkedAccounts(accounts: { representativeId?: string }[], representativeId: string): number {
+  return accounts.filter((account) => account.representativeId === representativeId).length;
+}
+
+/** When a client owns exactly one DISTINCT representative across all their linked devices (see
+ * account.representativeId), returns that representativeId - used only to seed a new sale
+ * invoice's own representative picker with a sensible, changeable default (InvoiceSection.tsx),
+ * never written automatically to any record. A client with no linked devices, no device carrying a
+ * representative, or devices split across more than one representative resolves to undefined so
+ * nothing is guessed. */
+export function repFromClientDevice(
+  accounts: { clientId?: string; representativeId?: string }[],
+  clientId: string | undefined,
+): string | undefined {
+  if (!clientId) return undefined;
+  const repIds = new Set(
+    accounts
+      .filter((account) => account.clientId === clientId && account.representativeId)
+      .map((account) => account.representativeId as string),
+  );
+  return repIds.size === 1 ? [...repIds][0] : undefined;
+}
+
 export interface RepInvoiceCommissionRow {
   invoice: Invoice;
   commissionAmount: number;

@@ -133,6 +133,17 @@ export interface StarlinkAccountSummary {
    * billing entity from services/api - this is the local-only grouping key used in demo/local mode.
    */
   clientId?: string;
+  /**
+   * Links this device/card to a local Representative record (see apps/web/src/lib/repStore.ts) -
+   * the sales rep who manages/represents this account, entirely independent of `clientId` above (a
+   * device may have a client, a representative, both, or neither). Optional and absent on every
+   * account created before this field existed. Never inferred - only ever set explicitly by the
+   * operator through the representative picker, same rule as `clientId`. Used only to SEED a new
+   * sale invoice's own representative choice with a sensible default (see InvoiceSection.tsx's
+   * repFromClientDevice) - an invoice always keeps its own separate, changeable representativeId,
+   * never a live reference to this field.
+   */
+  representativeId?: string;
   /** Set only by an explicit operator action ("متعطل" on the card) - a hardware problem, entirely
    * independent of the Starlink subscription's own serviceStatus (a device can be active AND
    * broken, or suspended AND fine). Cleared (back to undefined/null) once the operator marks it

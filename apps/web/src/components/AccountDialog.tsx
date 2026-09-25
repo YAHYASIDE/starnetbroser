@@ -6,8 +6,10 @@ import { formatRelativeTime } from "@/lib/date";
 import { emailsMismatch } from "@/lib/emailMatch";
 import { presentServiceStatus } from "@/lib/status";
 import { Client, CreateClientInput } from "@/lib/clientStore";
+import { CreateRepresentativeInput, Representative } from "@/lib/repStore";
 import { combinePhoneNumber, PHONE_COUNTRY_CODES, splitPhoneNumber } from "@/lib/phoneCountryCodes";
 import { ClientPicker } from "./ClientPicker";
+import { RepresentativePicker } from "./RepresentativePicker";
 
 export type AccountDialogMode = "add" | "edit" | "view";
 
@@ -16,6 +18,8 @@ interface Props {
   account?: StarlinkAccountSummary;
   clients: Client[];
   onCreateClient: (input: CreateClientInput) => Client;
+  representatives: Representative[];
+  onCreateRepresentative: (input: CreateRepresentativeInput) => Representative;
   onClose: () => void;
   onSave: (account: StarlinkAccountSummary) => void;
   onDelete?: (account: StarlinkAccountSummary) => void;
@@ -69,12 +73,23 @@ function displayValue(value: string | null): string {
   return value?.trim() || "—";
 }
 
-export function AccountDialog({ mode, account, clients, onCreateClient, onClose, onSave, onDelete }: Props) {
+export function AccountDialog({
+  mode,
+  account,
+  clients,
+  onCreateClient,
+  representatives,
+  onCreateRepresentative,
+  onClose,
+  onSave,
+  onDelete,
+}: Props) {
   const initial = useMemo(() => account ?? createBlankAccount(), [account]);
   const [draft, setDraft] = useState(initial);
   const isView = mode === "view";
   const title = mode === "add" ? "إضافة حساب جديد" : mode === "edit" ? "تعديل الحساب" : "معلومات الحساب";
   const clientName = (clientId?: string) => clients.find((c) => c.id === clientId)?.name;
+  const representativeName = (representativeId?: string) => representatives.find((r) => r.id === representativeId)?.name;
   // Shown as a small colored badge next to the plan NAME itself (rule: never the generic "نشط"
   // word standing in for the plan's own name - see extractPlanName's own doc for that bug).
   const planStatus = presentServiceStatus(draft.serviceStatus);
@@ -136,6 +151,19 @@ export function AccountDialog({ mode, account, clients, onCreateClient, onClose,
       if (!window.confirm(`هل تريد نقل هذا الجهاز من "${fromName}" إلى "${toName}"؟`)) return;
     }
 
+    // Same reasoning as the client transfer above - reassigning an already-linked device to a
+    // different rep affects future commission attribution, so it gets its own confirmation.
+    if (
+      mode === "edit" &&
+      account?.representativeId &&
+      draft.representativeId &&
+      account.representativeId !== draft.representativeId
+    ) {
+      const fromName = representativeName(account.representativeId) ?? "المندوب الحالي";
+      const toName = representativeName(draft.representativeId) ?? "المندوب الجديد";
+      if (!window.confirm(`هل تريد نقل هذا الجهاز من المندوب "${fromName}" إلى "${toName}"؟`)) return;
+    }
+
     const trimmedExtraEmails = extraEmails
       .map((entry) => ({ address: entry.address.trim(), password: entry.password?.trim() || undefined }))
       .filter((entry) => entry.address.length > 0);
@@ -174,6 +202,7 @@ export function AccountDialog({ mode, account, clients, onCreateClient, onClose,
         {isView ? (
           <div className="account-info-grid">
             <div><span>اسم الزبون</span><strong>{clientName(draft.clientId) ?? "الزبون غير محدد"}</strong></div>
+            <div><span>المندوب</span><strong>{representativeName(draft.representativeId) ?? "غير محدد"}</strong></div>
             <div><span>اسم الحساب / البطاقة</span><strong>{displayValue(draft.name)}</strong></div>
             {draft.starlinkAccountHolderName && (
               <div><span>الاسم من Starlink</span><strong>{draft.starlinkAccountHolderName}</strong></div>
@@ -245,6 +274,16 @@ export function AccountDialog({ mode, account, clients, onCreateClient, onClose,
                 selectedClientId={draft.clientId}
                 onSelect={(clientId) => update("clientId", clientId)}
                 onCreateClient={onCreateClient}
+              />
+            </div>
+
+            <div className="form-field form-wide">
+              <span>المندوب</span>
+              <RepresentativePicker
+                representatives={representatives}
+                selectedRepresentativeId={draft.representativeId}
+                onSelect={(representativeId) => update("representativeId", representativeId)}
+                onCreateRepresentative={onCreateRepresentative}
               />
             </div>
 

@@ -4,10 +4,12 @@ import {
   computeRepCommissionEarnedByCurrency,
   computeRepCommissionOwedByCurrency,
   computeRepManualBalanceByCurrency,
+  countLinkedAccounts,
   createRepresentative,
   listRepInvoiceCommissions,
   listRepresentatives,
   recordRepSettlement,
+  repFromClientDevice,
   RepresentativeStore,
   RepSettlementList,
   updateRepresentative,
@@ -221,5 +223,45 @@ describe("listRepInvoiceCommissions", () => {
       invoice({ id: "2", representativeId: "r1", currencyCode: "MRU" }),
     ];
     expect(listRepInvoiceCommissions("r1", invoices)).toEqual([]);
+  });
+});
+
+describe("countLinkedAccounts", () => {
+  it("counts only accounts whose representativeId matches", () => {
+    const accounts = [{ representativeId: "r1" }, { representativeId: "r2" }, { representativeId: "r1" }, {}];
+    expect(countLinkedAccounts(accounts, "r1")).toBe(2);
+    expect(countLinkedAccounts(accounts, "r2")).toBe(1);
+    expect(countLinkedAccounts(accounts, "r3")).toBe(0);
+  });
+});
+
+describe("repFromClientDevice", () => {
+  it("returns undefined when clientId is undefined", () => {
+    expect(repFromClientDevice([{ clientId: "c1", representativeId: "r1" }], undefined)).toBeUndefined();
+  });
+
+  it("returns undefined when the client has no linked devices", () => {
+    expect(repFromClientDevice([{ clientId: "c2", representativeId: "r1" }], "c1")).toBeUndefined();
+  });
+
+  it("returns undefined when the client's device(s) have no representative", () => {
+    expect(repFromClientDevice([{ clientId: "c1" }], "c1")).toBeUndefined();
+  });
+
+  it("returns the representativeId when exactly one distinct rep is linked", () => {
+    const accounts = [
+      { clientId: "c1", representativeId: "r1" },
+      { clientId: "c1", representativeId: "r1" },
+      { clientId: "c2", representativeId: "r2" },
+    ];
+    expect(repFromClientDevice(accounts, "c1")).toBe("r1");
+  });
+
+  it("returns undefined when the client's devices are split across more than one rep", () => {
+    const accounts = [
+      { clientId: "c1", representativeId: "r1" },
+      { clientId: "c1", representativeId: "r2" },
+    ];
+    expect(repFromClientDevice(accounts, "c1")).toBeUndefined();
   });
 });

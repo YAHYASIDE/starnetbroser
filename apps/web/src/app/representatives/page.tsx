@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { StarlinkAccountSummary } from "@starnet/shared";
 import {
   computeRepCashHeldByCurrency,
   computeRepCommissionEarnedByCurrency,
@@ -28,6 +29,10 @@ import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerCurrency } from "@/lib
 import { combinePhoneNumber, PHONE_COUNTRY_CODES, splitPhoneNumber } from "@/lib/phoneCountryCodes";
 import { formatAmount } from "@/lib/formatAmount";
 import { getStoreItem, loadStoreItems, StoreItemRegistry } from "@/lib/storeStore";
+import { demoAccounts } from "@/lib/demoData";
+import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
+import { loadDemoAccounts } from "@/lib/demoAccountStore";
+import { listAccounts } from "@/lib/apiClient";
 
 function currencyLabel(code: string): string {
   return LEDGER_CURRENCY_LABELS[code as LedgerCurrency] ?? code;
@@ -42,6 +47,7 @@ export default function RepresentativesPage() {
   const [invoices, setInvoices] = useState<InvoiceList>([]);
   const [settlements, setSettlements] = useState<RepSettlementList>([]);
   const [storeItems, setStoreItems] = useState<StoreItemRegistry>({});
+  const [accounts, setAccounts] = useState<StarlinkAccountSummary[]>(demoAccounts);
   const [showAddForm, setShowAddForm] = useState(false);
   const [openRepId, setOpenRepId] = useState<string | null>(null);
 
@@ -50,6 +56,12 @@ export default function RepresentativesPage() {
     setInvoices(loadInvoices());
     setSettlements(loadRepSettlements());
     setStoreItems(loadStoreItems());
+    if (isDemoMode()) {
+      setAccounts(loadDemoAccounts(demoAccounts));
+      return;
+    }
+    if (!isLoggedIn()) return;
+    listAccounts().then(setAccounts).catch(() => {});
   }, []);
 
   const representatives = useMemo(() => listRepresentatives(representativeStore), [representativeStore]);
@@ -110,6 +122,7 @@ export default function RepresentativesPage() {
               const cashHeld = computeRepCashHeldByCurrency(rep.id, invoices, settlements);
               const commissionOwed = computeRepCommissionOwedByCurrency(rep.id, invoices, settlements);
               const manualBalance = computeRepManualBalanceByCurrency(rep.id, settlements);
+              const linkedDevices = accounts.filter((a) => a.representativeId === rep.id);
               const isOpen = openRepId === rep.id;
               return (
                 <li key={rep.id} className="ledger-entry-row">
@@ -142,6 +155,9 @@ export default function RepresentativesPage() {
                           {amount > 0 ? "له إضافي" : "عليه"}: {formatAmount(Math.abs(amount))} {currencyLabel(c)}
                         </span>
                       ))}
+                    <span className="badge badge-gray">
+                      {linkedDevices.length > 0 ? `${linkedDevices.length} جهاز مرتبط` : "لا يوجد جهاز مرتبط"}
+                    </span>
                   </div>
                   {isOpen && (
                     <RepresentativeDetail
@@ -149,6 +165,7 @@ export default function RepresentativesPage() {
                       commissionEarned={computeRepCommissionEarnedByCurrency(rep.id, invoices)}
                       invoiceCommissions={listRepInvoiceCommissions(rep.id, invoices)}
                       storeItems={storeItems}
+                      linkedDevices={linkedDevices}
                       onUpdate={(input) => handleUpdate(rep.id, input)}
                       onSettle={(kind, amount, currencyCode, note) => handleSettlement(rep.id, kind, amount, currencyCode, note)}
                     />
@@ -233,6 +250,7 @@ interface RepresentativeDetailProps {
   commissionEarned: Record<string, number>;
   invoiceCommissions: RepInvoiceCommissionRow[];
   storeItems: StoreItemRegistry;
+  linkedDevices: StarlinkAccountSummary[];
   onUpdate: (input: CreateRepresentativeInput) => void;
   onSettle: (kind: RepSettlementKind, amount: number, currencyCode: string, note: string) => { ok: boolean; message?: string };
 }
@@ -247,6 +265,7 @@ function RepresentativeDetail({
   commissionEarned,
   invoiceCommissions,
   storeItems,
+  linkedDevices,
   onUpdate,
   onSettle,
 }: RepresentativeDetailProps) {
@@ -331,6 +350,23 @@ function RepresentativeDetail({
           حفظ العملية
         </button>
       </form>
+
+      <div>
+        <p className="account-card-label">الأجهزة المرتبطة به ({linkedDevices.length}):</p>
+        {linkedDevices.length === 0 ? (
+          <p className="settings-hint">لا يوجد جهاز مرتبط بهذا المندوب - يُربط الجهاز به من بطاقة الجهاز نفسه.</p>
+        ) : (
+          <ul className="ledger-entry-list">
+            {linkedDevices.map((device) => (
+              <li key={device.id} className="ledger-entry-row">
+                <div className="ledger-entry-row-top">
+                  <span className="store-item-name">{device.name}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       <div className="account-card-device-name-row">
         <span className="account-card-label">ملخص ربحه:</span>

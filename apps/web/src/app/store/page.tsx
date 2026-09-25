@@ -63,6 +63,11 @@ import {
   RepresentativeStore,
   saveRepresentativeStore,
 } from "@/lib/repStore";
+import { StarlinkAccountSummary } from "@starnet/shared";
+import { demoAccounts } from "@/lib/demoData";
+import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
+import { loadDemoAccounts } from "@/lib/demoAccountStore";
+import { listAccounts } from "@/lib/apiClient";
 
 function todayDateInputValue(): string {
   return new Date().toISOString().slice(0, 10);
@@ -80,6 +85,7 @@ export default function StorePage() {
   const [supplierStore, setSupplierStore] = useState<SupplierStore>({});
   const [representativeStore, setRepresentativeStore] = useState<RepresentativeStore>({});
   const [cashEntries, setCashEntries] = useState<CashEntryList>([]);
+  const [accounts, setAccounts] = useState<StarlinkAccountSummary[]>(demoAccounts);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [pendingKind, setPendingKind] = useState<StoreTransactionKind>("buy");
   const [showAddItem, setShowAddItem] = useState(false);
@@ -93,6 +99,12 @@ export default function StorePage() {
     setSupplierStore(loadSupplierStore());
     setRepresentativeStore(loadRepresentativeStore());
     setCashEntries(loadCashEntries());
+    if (isDemoMode()) {
+      setAccounts(loadDemoAccounts(demoAccounts));
+      return;
+    }
+    if (!isLoggedIn()) return;
+    listAccounts().then(setAccounts).catch(() => {});
   }, []);
 
   const itemList = useMemo(() => listStoreItems(items), [items]);
@@ -358,6 +370,7 @@ export default function StorePage() {
         supplierStore={supplierStore}
         representatives={representatives}
         representativeStore={representativeStore}
+        accounts={accounts}
         onCreateClient={handleCreateClient}
         onCreateRepresentative={handleCreateRepresentative}
         onCreateSupplier={handleCreateSupplier}

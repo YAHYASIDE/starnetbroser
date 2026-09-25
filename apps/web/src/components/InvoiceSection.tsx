@@ -1,9 +1,10 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
+import { StarlinkAccountSummary } from "@starnet/shared";
 import { Client, ClientStore, CreateClientInput, getClient } from "@/lib/clientStore";
 import { CreateSupplierInput, getSupplier, Supplier, SupplierStore } from "@/lib/supplierStore";
-import { CreateRepresentativeInput, getRepresentative, Representative, RepresentativeStore } from "@/lib/repStore";
+import { CreateRepresentativeInput, getRepresentative, Representative, RepresentativeStore, repFromClientDevice } from "@/lib/repStore";
 import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerCurrency } from "@/lib/ledgerStore";
 import { listStoreItems, StoreItemRegistry, StoreTransactionList } from "@/lib/storeStore";
 import {
@@ -63,6 +64,7 @@ interface Props {
   supplierStore: SupplierStore;
   representatives: Representative[];
   representativeStore: RepresentativeStore;
+  accounts: StarlinkAccountSummary[];
   onCreateClient: (input: CreateClientInput) => Client;
   onCreateSupplier: (input: CreateSupplierInput) => Supplier;
   onCreateRepresentative: (input: CreateRepresentativeInput) => Representative;
@@ -82,6 +84,7 @@ export function InvoiceSection({
   supplierStore,
   representatives,
   representativeStore,
+  accounts,
   onCreateClient,
   onCreateSupplier,
   onCreateRepresentative,
@@ -142,6 +145,7 @@ export function InvoiceSection({
               clients={clients}
               suppliers={suppliers}
               representatives={representatives}
+              accounts={accounts}
               onCreateClient={onCreateClient}
               onCreateSupplier={onCreateSupplier}
               onCreateRepresentative={onCreateRepresentative}
@@ -280,6 +284,7 @@ interface InvoiceFormProps {
   clients: Client[];
   suppliers: Supplier[];
   representatives: Representative[];
+  accounts: StarlinkAccountSummary[];
   onCreateClient: (input: CreateClientInput) => Client;
   onCreateSupplier: (input: CreateSupplierInput) => Supplier;
   onCreateRepresentative: (input: CreateRepresentativeInput) => Representative;
@@ -293,6 +298,7 @@ function InvoiceForm({
   clients,
   suppliers,
   representatives,
+  accounts,
   onCreateClient,
   onCreateSupplier,
   onCreateRepresentative,
@@ -313,6 +319,33 @@ function InvoiceForm({
   const [supplierId, setSupplierId] = useState<string | undefined>(undefined);
   const [linkRepresentative, setLinkRepresentative] = useState(false);
   const [representativeId, setRepresentativeId] = useState<string | undefined>(undefined);
+  // Tracks whether the CURRENT representativeId came from repFromClientDevice (the selected
+  // client's own linked device) rather than a direct operator pick in RepresentativePicker -
+  // undefined means "no auto-fill in effect", so a manual pick is never silently overwritten by a
+  // later client change, and an auto-filled value IS refreshed/cleared when the client changes
+  // again (see handleClientSelect below).
+  const [repAutoFilledForClientId, setRepAutoFilledForClientId] = useState<string | undefined>(undefined);
+
+  function handleClientSelect(nextClientId: string | undefined) {
+    setClientId(nextClientId);
+    if (kind !== "sale") return;
+    if (representativeId !== undefined && repAutoFilledForClientId === undefined) return; // manual pick - never override
+    const autoRepId = repFromClientDevice(accounts, nextClientId);
+    if (autoRepId) {
+      setLinkRepresentative(true);
+      setRepresentativeId(autoRepId);
+      setRepAutoFilledForClientId(nextClientId);
+    } else if (repAutoFilledForClientId !== undefined) {
+      setRepresentativeId(undefined);
+      setRepAutoFilledForClientId(undefined);
+    }
+  }
+
+  function handleRepresentativeSelect(nextRepresentativeId: string | undefined) {
+    setRepresentativeId(nextRepresentativeId);
+    setRepAutoFilledForClientId(undefined); // any direct picker interaction counts as a manual pick
+  }
+
   const [formError, setFormError] = useState<string | null>(null);
 
   function updateLine(index: number, patch: Partial<DraftLine>) {
@@ -539,7 +572,7 @@ function InvoiceForm({
             ربط الفاتورة بزبون
           </label>
           {linkClient && (
-            <ClientPicker clients={clients} selectedClientId={clientId} onSelect={setClientId} onCreateClient={onCreateClient} />
+            <ClientPicker clients={clients} selectedClientId={clientId} onSelect={handleClientSelect} onCreateClient={onCreateClient} />
           )}
           {creditLimitWarning && (
             <div className="account-card-alert ledger-form-error">
@@ -563,7 +596,7 @@ function InvoiceForm({
             <RepresentativePicker
               representatives={representatives}
               selectedRepresentativeId={representativeId}
-              onSelect={setRepresentativeId}
+              onSelect={handleRepresentativeSelect}
               onCreateRepresentative={onCreateRepresentative}
             />
           )}
