@@ -13,6 +13,7 @@ import { AccountDialog, AccountDialogMode } from "./AccountDialog";
 import { LedgerDialog } from "./LedgerDialog";
 import { ClientDialog } from "./ClientDialog";
 import { ClientsOverviewDialog } from "./ClientsOverviewDialog";
+import { LedgerEntryEditor } from "./LedgerEntryEditor";
 import { DeviceStatementDialog } from "./DeviceStatementDialog";
 import { ToastMessage, ToastStack } from "./ToastStack";
 import { HelpHint } from "./HelpHint";
@@ -208,6 +209,7 @@ export function HomeView({
   useEffect(() => setRemindersBadgeEnabled(isRemindersBadgeEnabled()), []);
   const [ledgerAccount, setLedgerAccount] = useState<StarlinkAccountSummary | null>(null);
   const [statementAccount, setStatementAccount] = useState<StarlinkAccountSummary | null>(null);
+  const [editingStatementEntry, setEditingStatementEntry] = useState<LedgerEntry | null>(null);
 
   function updateLedgerEntries(accountId: string, entries: LedgerEntry[]) {
     // Every device payment also moves money into الصندوق - computed from the current (pre-edit)
@@ -1061,7 +1063,19 @@ export function HomeView({
           entries={getAccountEntries(ledgerStore, statementAccount.id)}
           allocations={allAllocations}
           allEntries={allLedgerEntries}
+          onEditEntry={setEditingStatementEntry}
           onClose={() => setStatementAccount(null)}
+        />
+      )}
+
+      {statementAccount && editingStatementEntry && (
+        <LedgerEntryEditor
+          accountId={statementAccount.id}
+          entry={editingStatementEntry}
+          deviceName={statementAccount.name}
+          ledgerStore={ledgerStore}
+          onSaved={setLedgerStore}
+          onClose={() => setEditingStatementEntry(null)}
         />
       )}
 
@@ -1074,6 +1088,7 @@ export function HomeView({
           onClose={() => setOpenClientId(null)}
           onSave={(patch) => handleUpdateClient(openClientId, { ...patch, creditLimit: getClient(clientStore, openClientId)?.creditLimit })}
           onDelete={() => handleDeleteClient(openClientId)}
+          onLedgerChange={setLedgerStore}
         />
       )}
 

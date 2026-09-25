@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildRepPeriodStatement,
   isAfterRepReset,
+  makeRepConverter,
   makeRepResetPoint,
   planRepDeletion,
   repPeriod,
@@ -118,7 +119,7 @@ describe("reset point", () => {
 describe("period statement", () => {
   it("row deltas: + we owe him, − he owes us", () => {
     const [latest] = days();
-    expect(latest.rows.map(repRowDelta)).toEqual([{ USD: -5 }]);
+    expect(latest.rows.map((r) => repRowDelta(r))).toEqual([{ USD: -5 }]);
     const all = days().flatMap((d) => d.rows);
     const byId = Object.fromEntries(all.map((r) => [r.id, repRowDelta(r)]));
     expect(byId).toEqual({
@@ -195,5 +196,37 @@ describe("planRepDeletion", () => {
     expect(plan.ledgerStore.d1.every((e) => e.representativeId === undefined && e.representativeCommissionPercent === undefined)).toBe(true);
     expect(plan.invoices[0].representativeId).toBeUndefined();
     expect(plan.accounts.map((a) => a.representativeId)).toEqual([undefined, "r2"]);
+  });
+});
+
+describe("display currency", () => {
+  const convert = makeRepConverter(["MRU"], { MRU: 40, SIFA: 600 });
+  const both = makeRepConverter(["MRU", "SIFA"], { MRU: 40, SIFA: 600 });
+
+  it("converts at a record's locked rates first, today's otherwise", () => {
+    expect(convert(10, "USD")).toEqual({ MRU: 400 });
+    expect(convert(10, "USD", { MRU: 39 })).toEqual({ MRU: 390 });
+    expect(convert(2000, "MRU")).toEqual({ MRU: 2000 });
+    expect(convert(600, "SIFA")).toEqual({ MRU: 40 });
+    expect(both(10, "USD")).toEqual({ MRU: 400, SIFA: 6000 });
+    // No rate known for the target: left in its own currency, never guessed.
+    expect(makeRepConverter(["MRU"], {})(10, "USD")).toEqual({ USD: 10 });
+  });
+
+  it("a 2,000 أوقية payout against a 1,000 أوقية share leaves him owing 1,000", () => {
+    const small = shipment({
+      id: "x",
+      profitCurrencyRates: { MRU: 40, SIFA: 600 },
+      starlinkCost: { status: "settled", currencyCode: "USD", amount: 50, paidAt: "2026-09-10" },
+    });
+    const payout = settlement({ id: "p", amount: 2000, currencyCode: "MRU", date: "2026-09-25", createdAt: "2026-09-25T10:00:00.000Z", rates: { MRU: 40 } });
+    const ds = buildRepDailyStatement("r1", listRepDeviceCommissions("r1", { d1: [small] }), [], [payout]);
+    // share = 50 × 50% = 25 USD = 1,000 أوقية
+    const st = buildRepPeriodStatement(ds, {}, convert);
+    expect(st.totals.repShare).toEqual({ MRU: 1000 });
+    expect(st.closing).toEqual({ MRU: -1000 });
+    expect(st.totals.settled.commissionPayout).toEqual({ MRU: 2000 });
+    const inBoth = buildRepPeriodStatement(ds, {}, both);
+    expect(inBoth.closing).toEqual({ MRU: -1000, SIFA: -15000 });
   });
 });

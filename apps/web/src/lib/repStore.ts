@@ -149,6 +149,9 @@ export interface RepSettlement {
   currencyCode: string;
   date: string;
   note?: string;
+  /** Exchange rates (units per 1 USD) locked when it was recorded - used only to show it in
+   * another currency (repAccount.ts's converter), never to change its own amount. */
+  rates?: Record<string, number>;
   createdAt: string;
 }
 
@@ -180,6 +183,7 @@ export interface RecordRepSettlementInput {
   currencyCode: string;
   date: string;
   note?: string;
+  rates?: Record<string, number>;
 }
 
 export type RecordRepSettlementResult =
@@ -201,6 +205,7 @@ export function recordRepSettlement(
     currencyCode: input.currencyCode,
     date: input.date,
     note: input.note?.trim() || undefined,
+    rates: input.rates,
     createdAt: new Date().toISOString(),
   };
   return { ok: true, settlements: [...settlements, settlement], settlement };
@@ -227,6 +232,8 @@ export function updateRepSettlement(
     currencyCode: input.currencyCode,
     date: input.date,
     note: input.note?.trim() || undefined,
+    // Rates stay locked from creation; only a newly needed currency's rate is added.
+    rates: input.rates || existing.rates ? { ...input.rates, ...existing.rates } : undefined,
   };
   return { ok: true, settlements: settlements.map((s) => (s.id === id ? settlement : s)), settlement };
 }

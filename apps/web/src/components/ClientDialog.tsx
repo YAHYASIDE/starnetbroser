@@ -7,7 +7,8 @@ import { StarlinkAccountSummary } from "@starnet/shared";
 import { Client } from "@/lib/clientStore";
 import { combinePhoneNumber, PHONE_COUNTRY_CODES, splitPhoneNumber } from "@/lib/phoneCountryCodes";
 import { computeClientAccountingSummary } from "@/lib/accountingStore";
-import { BalanceByCurrency, getAccountEntries, LEDGER_CURRENCIES, LedgerByAccount, LEDGER_CURRENCY_LABELS } from "@/lib/ledgerStore";
+import { BalanceByCurrency, getAccountEntries, LEDGER_CURRENCIES, LedgerByAccount, LEDGER_CURRENCY_LABELS, LedgerEntry } from "@/lib/ledgerStore";
+import { LedgerEntryEditor } from "./LedgerEntryEditor";
 import { formatAmount } from "@/lib/formatAmount";
 import { partyHue, partyInitials } from "@/lib/partyColor";
 import { allocatedFromPayment, allStoredAllocations, AllocationsByAccount } from "@/lib/paymentAllocationStore";
@@ -25,6 +26,8 @@ interface Props {
   /** Absent (never rendered) when the caller doesn't offer deletion here - never assume every
    * caller wants it. */
   onDelete?: () => void;
+  /** Given, each device statement offers ✎ on its past operations; called with the saved store. */
+  onLedgerChange?: (next: LedgerByAccount) => void;
 }
 
 /**
@@ -33,7 +36,8 @@ interface Props {
  * together), and the aggregate totals across all of them. Each device's own full statement is one
  * tap away via the same DeviceStatementDialog used from the card itself.
  */
-export function ClientDialog({ client, devices, ledgerStore, allocationStore, onClose, onSave, onDelete }: Props) {
+export function ClientDialog({ client, devices, ledgerStore, allocationStore, onClose, onSave, onDelete, onLedgerChange }: Props) {
+  const [editingEntry, setEditingEntry] = useState<LedgerEntry | null>(null);
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(client.name);
   const [statementAccount, setStatementAccount] = useState<StarlinkAccountSummary | null>(null);
@@ -320,7 +324,19 @@ export function ClientDialog({ client, devices, ledgerStore, allocationStore, on
           entries={getAccountEntries(ledgerStore, statementAccount.id)}
           allocations={allAllocations}
           allEntries={allLedgerEntries}
+          onEditEntry={onLedgerChange ? setEditingEntry : undefined}
           onClose={() => setStatementAccount(null)}
+        />
+      )}
+
+      {statementAccount && editingEntry && onLedgerChange && (
+        <LedgerEntryEditor
+          accountId={statementAccount.id}
+          entry={editingEntry}
+          deviceName={statementAccount.name}
+          ledgerStore={ledgerStore}
+          onSaved={onLedgerChange}
+          onClose={() => setEditingEntry(null)}
         />
       )}
     </div>

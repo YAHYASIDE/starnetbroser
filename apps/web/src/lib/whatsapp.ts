@@ -173,6 +173,27 @@ export function buildRepStatementMessage(
   return lines.join("\n");
 }
 
+/** Same summary with figures already formatted in the currency the operator chose to view the
+ * representative in (أوقية / سيفا / both) - `balance` is his whole running balance in words. */
+export function buildRepSummaryMessage(
+  repName: string,
+  summary: { profit: string; share: string; balance: string; pendingCount: number },
+): string {
+  const lines = [
+    `مرحبًا ${repName} 👋`,
+    "",
+    "ملخص حسابك لدى STAR NET:",
+    `• ربح الأجهزة المرتبطة بك: ${summary.profit}`,
+    `• حصتك من الربح: ${summary.share}`,
+    `• رصيدك: ${summary.balance}`,
+  ];
+  if (summary.pendingCount > 0) {
+    lines.push(`• ${summary.pendingCount} عملية بانتظار تسديد تكلفة Starlink - تُحتسب حصتك منها بعد التسديد`);
+  }
+  lines.push("", "- STAR NET");
+  return lines.join("\n");
+}
+
 const PAYMENT_STATUS_SUFFIX: Record<"unpaid" | "partial" | "paid", string> = {
   unpaid: "",
   partial: " (مدفوعة جزئيًا)",

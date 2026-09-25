@@ -1,9 +1,9 @@
 "use client";
 
-import { CSSProperties, FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import { createContext, CSSProperties, FormEvent, ReactNode, useContext, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { formatProfitMru } from "@/lib/profitMru";
-import { useMruRate } from "@/lib/useMruRate";
+import { LedgerEntryEditor } from "@/components/LedgerEntryEditor";
+import { getCurrency, loadCurrencyStore } from "@/lib/currencyStore";
 import { PdfButton } from "@/components/PdfButton";
 import { PrintableDocument } from "@/lib/pdfDocument";
 import { loadCashEntries, postRepSettlementToCash, removeLinkedCashEntries, saveCashEntries } from "@/lib/cashStore";
@@ -11,8 +11,6 @@ import { StarlinkAccountSummary } from "@starnet/shared";
 import {
   buildRepDailyStatement,
   computeRepCashHeldByCurrency,
-  computeRepCommissionOwedByCurrency,
-  computeRepManualBalanceByCurrency,
   createRepresentative,
   CreateRepresentativeInput,
   deleteRepresentative,
@@ -29,7 +27,7 @@ import {
   RepSettlement,
   RepSettlementKind,
   RepSettlementList,
-  RepDeviceTotals,
+  RepStatementDay,
   RepStatementRow,
   saveRepresentativeStore,
   saveRepSettlements,
@@ -41,7 +39,10 @@ import {
 } from "@/lib/repStore";
 import {
   buildRepPeriodStatement,
+  keepCurrency,
+  makeRepConverter,
   makeRepResetPoint,
+  RepConvert,
   planRepDeletion,
   repPeriod,
   RepPeriod,
@@ -72,7 +73,7 @@ import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
 import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
 import { listAccounts } from "@/lib/apiClient";
 import { partyHue, partyInitials } from "@/lib/partyColor";
-import { buildRepStatementMessage, buildWhatsAppLink } from "@/lib/whatsapp";
+import { buildRepSummaryMessage, buildWhatsAppLink } from "@/lib/whatsapp";
 import { PartySheet } from "@/components/AccountsSection";
 
 const EPSILON = 0.0001;
@@ -86,33 +87,59 @@ function todayDateInputValue(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-/** Profit figures on this page are shown in أوقية (profitMru.ts): a shipment's own locked MRU
- * rate when given, otherwise today's rate (≈), USD only when no MRU rate is registered. */
-function money(usd: number, rate: number | undefined, entry?: LedgerEntry): string {
-  const locked = entry?.profitCurrencyRates?.MRU;
-  const sign = usd < -EPSILON ? "-" : "";
-  return sign + formatProfitMru(usd, rate, locked !== undefined ? Math.abs(usd) * locked : undefined);
-}
-
 function nonZero(values: Record<string, number>): [string, number][] {
   return Object.entries(values).filter(([, v]) => Math.abs(v) > EPSILON);
 }
 
-/** His running balance in words, per currency: "له" = we owe him, "عليه" = he owes us. */
-function balanceParts(values: Record<string, number>, mruRate: number | undefined): { text: string; tone: "due" | "clear" | "zero" }[] {
+/** His running balance in words: "له" = we owe him, "عليه" = he owes us. */
+function balanceParts(values: Record<string, number>): { text: string; tone: "due" | "clear" | "zero" }[] {
   const parts = nonZero(values).map(([code, v]) => ({
-    text: `${v > 0 ? "له" : "عليه"} ${formatAmount(Math.abs(v))} ${currencyLabel(code)}${
-      code === "USD" && mruRate ? ` (≈ ${formatAmount(Math.round(Math.abs(v) * mruRate))} أوقية)` : ""
-    }`,
+    text: `${v > 0 ? "له" : "عليه"} ${formatAmount(Math.abs(v))} ${currencyLabel(code)}`,
     tone: (v > 0 ? "due" : "clear") as "due" | "clear",
   }));
   return parts.length > 0 ? parts : [{ text: "صفر - الحساب متوازن", tone: "zero" }];
 }
 
-function balanceText(values: Record<string, number>, mruRate: number | undefined): string {
-  return balanceParts(values, mruRate)
+function balanceText(values: Record<string, number>): string {
+  return balanceParts(values)
     .map((p) => p.text)
     .join(" · ");
+}
+
+/** Everything on this page is shown in the currency the operator picked (أوقية, سيفا or both),
+ * converted at each record's own locked rates (repAccount.ts's makeRepConverter). */
+type RepDisplay = "MRU" | "SIFA" | "both";
+
+const DISPLAY_KEY = "starnet.repDisplayCurrency";
+const DISPLAY_LABELS: Record<RepDisplay, string> = { MRU: "أوقية", SIFA: "سيفا", both: "الاثنين" };
+
+interface Fx {
+  convert: RepConvert;
+  /** A USD figure (profit/share) in the display currencies, at the shipment's locked rates. */
+  usd: (usd: number, entry?: LedgerEntry) => string;
+  /** Converted values joined, e.g. "1,000 أوقية · 15,000 سيفا". */
+  list: (values: Record<string, number>) => string;
+  /** One amount in its own currency, converted. */
+  amount: (amount: number, code: string, locked?: Record<string, number>) => string;
+}
+
+function makeFx(convert: RepConvert): Fx {
+  const list = (values: Record<string, number>) => {
+    const parts = Object.entries(values).map(([c, v]) => `${v < -EPSILON ? "-" : ""}${formatAmount(Math.abs(v))} ${currencyLabel(c)}`);
+    return parts.length > 0 ? parts.join(" · ") : "0";
+  };
+  return {
+    convert,
+    usd: (usd, entry) => list(convert(usd, "USD", entry?.profitCurrencyRates)),
+    list,
+    amount: (amount, code, locked) => list(convert(amount, code, locked)),
+  };
+}
+
+const FxContext = createContext<Fx>(makeFx(keepCurrency));
+
+function useFx(): Fx {
+  return useContext(FxContext);
 }
 
 const SETTLEMENT_LABELS: Record<RepSettlementKind, string> = {
@@ -156,23 +183,57 @@ export default function RepresentativesPage() {
   }, []);
 
   const representatives = useMemo(() => listRepresentatives(representativeStore), [representativeStore]);
-  const mruRate = useMruRate();
+
+  // Display currency (أوقية / سيفا / both) - a per-phone view setting, not business data.
+  const [display, setDisplay] = useState<RepDisplay>("MRU");
+  const [rates, setRates] = useState<Record<string, number | undefined>>({});
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(DISPLAY_KEY);
+      if (saved === "MRU" || saved === "SIFA" || saved === "both") setDisplay(saved);
+    } catch {
+      // storage unavailable - keep أوقية
+    }
+    const store = loadCurrencyStore();
+    const next: Record<string, number | undefined> = {};
+    for (const c of Object.values(store)) next[c.code] = c.rateFromUsd;
+    next.MRU = getCurrency(store, "MRU")?.rateFromUsd;
+    next.SIFA = getCurrency(store, "SIFA")?.rateFromUsd;
+    setRates(next);
+  }, []);
+  function chooseDisplay(next: RepDisplay) {
+    setDisplay(next);
+    try {
+      window.localStorage.setItem(DISPLAY_KEY, next);
+    } catch {
+      // ignore
+    }
+  }
+  const fx = useMemo(() => makeFx(makeRepConverter(display === "both" ? ["MRU", "SIFA"] : [display], rates)), [display, rates]);
+
+  /** Today's rates, locked onto a new settlement so it always converts the same way. */
+  function lockedRates(currencyCode: string): Record<string, number> {
+    const result: Record<string, number> = {};
+    for (const code of ["MRU", "SIFA", currencyCode]) {
+      const rate = code === "USD" ? 1 : rates[code];
+      if (rate) result[code] = rate;
+    }
+    return result;
+  }
 
   const overview = useMemo(() => {
     const owed: Record<string, number> = {};
-    let repShareUsd = 0;
-    let ourShareUsd = 0;
+    const repShare: Record<string, number> = {};
+    const ourShare: Record<string, number> = {};
     for (const rep of representatives) {
-      const totals = totalRepDeviceCommissions(listRepDeviceCommissions(rep.id, ledgerStore));
-      repShareUsd += totals.repShareUsd;
-      ourShareUsd += totals.ourShareUsd;
       const active = splitRepRecords(rep, { deviceRows: listRepDeviceCommissions(rep.id, ledgerStore), invoices, settlements }, "active");
-      for (const [c, v] of Object.entries(computeRepCommissionOwedByCurrency(rep.id, active.invoices, active.settlements, active.deviceRows))) {
-        if (v > EPSILON) owed[c] = (owed[c] ?? 0) + v;
-      }
+      const st = buildRepPeriodStatement(buildRepDailyStatement(rep.id, active.deviceRows, active.invoices, active.settlements), {}, fx.convert);
+      for (const [c, v] of Object.entries(st.totals.repShare)) repShare[c] = (repShare[c] ?? 0) + v;
+      for (const [c, v] of Object.entries(st.totals.ourShare)) ourShare[c] = (ourShare[c] ?? 0) + v;
+      for (const [c, v] of Object.entries(st.closing)) if (v > EPSILON) owed[c] = (owed[c] ?? 0) + v;
     }
-    return { owed, repShareUsd, ourShareUsd };
-  }, [representatives, ledgerStore, invoices, settlements]);
+    return { owed, repShare, ourShare };
+  }, [representatives, ledgerStore, invoices, settlements, fx]);
 
   function saveReps(next: RepresentativeStore) {
     setRepresentativeStore(next);
@@ -195,7 +256,7 @@ export default function RepresentativesPage() {
   }
 
   function handleSettlement(representativeId: string, input: UpdateRepSettlementInput): string | null {
-    const result = recordRepSettlement(settlements, { representativeId, ...input });
+    const result = recordRepSettlement(settlements, { representativeId, ...input, rates: lockedRates(input.currencyCode) });
     if (!result.ok) return result.message;
     saveSettlementList(result.settlements);
     saveCashEntries(postRepSettlementToCash(loadCashEntries(), result.settlement, representativeStore[representativeId]?.name ?? ""));
@@ -204,7 +265,7 @@ export default function RepresentativesPage() {
 
   // An edited settlement re-posts its own cash entry (removed + posted again from the new values).
   function handleUpdateSettlement(settlementId: string, input: UpdateRepSettlementInput): string | null {
-    const result = updateRepSettlement(settlements, settlementId, input);
+    const result = updateRepSettlement(settlements, settlementId, { ...input, rates: lockedRates(input.currencyCode) });
     if (!result.ok) return result.message;
     saveSettlementList(result.settlements);
     const repName = representativeStore[result.settlement.representativeId]?.name ?? "";
@@ -247,6 +308,7 @@ export default function RepresentativesPage() {
   }
 
   return (
+    <FxContext.Provider value={fx}>
     <main className="home">
       <div className="session-header">
         <Link href="/" className="btn-link">
@@ -257,24 +319,33 @@ export default function RepresentativesPage() {
 
       <section className="section">
         <div className="party-section party-section-reps">
+          <div className="rep-display" role="radiogroup" aria-label="عرض المبالغ بـ">
+            <span>عرض المبالغ بـ</span>
+            {(["MRU", "SIFA", "both"] as RepDisplay[]).map((d) => (
+              <button
+                key={d}
+                type="button"
+                role="radio"
+                aria-checked={display === d}
+                className={`rep-display-option${display === d ? " rep-display-option-active" : ""}`}
+                onClick={() => chooseDisplay(d)}
+              >
+                {DISPLAY_LABELS[d]}
+              </button>
+            ))}
+          </div>
           <div className="rep-overview">
             <div className="rep-overview-item">
               <span>حصة المندوبين من أرباح الأجهزة</span>
-              <strong>{money(overview.repShareUsd, mruRate)}</strong>
+              <strong>{fx.list(overview.repShare)}</strong>
             </div>
             <div className="rep-overview-item rep-overview-ours">
               <span>حصتي من أرباح أجهزتهم</span>
-              <strong>{money(overview.ourShareUsd, mruRate)}</strong>
+              <strong>{fx.list(overview.ourShare)}</strong>
             </div>
             <div className="rep-overview-item rep-overview-owed">
               <span>مستحق للمندوبين الآن</span>
-              <strong dir="ltr">
-                {nonZero(overview.owed).length === 0
-                  ? "0"
-                  : nonZero(overview.owed)
-                      .map(([c, v]) => `${formatAmount(v)} ${currencyLabel(c)}`)
-                      .join(" + ")}
-              </strong>
+              <strong>{fx.list(nonZero(overview.owed).length ? overview.owed : {})}</strong>
             </div>
           </div>
 
@@ -318,6 +389,7 @@ export default function RepresentativesPage() {
                     onShipmentShare={handleShipmentShare}
                     onReset={(resetFrom) => handleReset(rep.id, resetFrom)}
                     onDelete={() => handleDeleteRep(rep.id)}
+                    onLedgerChange={setLedgerStore}
                   />
                 ),
               )}
@@ -326,6 +398,7 @@ export default function RepresentativesPage() {
         </div>
       </section>
     </main>
+    </FxContext.Provider>
   );
 }
 
@@ -345,6 +418,7 @@ interface RepCardProps {
   onShipmentShare: (accountId: string, entryId: string, patch: ShipmentRepPatch) => string | null;
   onReset: (resetFrom: RepResetPoint | undefined) => void;
   onDelete: () => void;
+  onLedgerChange: (next: LedgerByAccount) => void;
 }
 
 type RepPanel = "statement" | "devices" | null;
@@ -370,6 +444,7 @@ function RepCard({
   onShipmentShare,
   onReset,
   onDelete,
+  onLedgerChange,
 }: RepCardProps) {
   const [panel, setPanel] = useState<RepPanel>(null);
   const [sheet, setSheet] = useState<RepSheet>(null);
@@ -377,7 +452,8 @@ function RepCard({
   const [customPeriod, setCustomPeriod] = useState<RepPeriod>({ from: "", to: "" });
   const [showArchive, setShowArchive] = useState(false);
 
-  const mruRate = useMruRate();
+  const fx = useFx();
+  const [editingShipment, setEditingShipment] = useState<RepDeviceCommissionRow | null>(null);
   const allDeviceRows = useMemo(() => listRepDeviceCommissions(rep.id, ledgerStore), [rep.id, ledgerStore]);
   // Only records after his reset (تصفير) count; older ones are the archive.
   const active = useMemo(
@@ -386,11 +462,8 @@ function RepCard({
   );
   const deviceRows = active.deviceRows;
   const deviceTotals = useMemo(() => totalRepDeviceCommissions(deviceRows), [deviceRows]);
-  const owed = computeRepCommissionOwedByCurrency(rep.id, active.invoices, active.settlements, deviceRows);
   const cashHeld = computeRepCashHeldByCurrency(rep.id, active.invoices, active.settlements);
-  const manual = computeRepManualBalanceByCurrency(rep.id, active.settlements);
   const devices = accounts.filter((a) => a.representativeId === rep.id);
-  const hasOwed = nonZero(owed).some(([, v]) => v > 0);
 
   const allDays = useMemo(() => {
     if (panel !== "statement" && sheet?.kind !== "reset") return [];
@@ -398,11 +471,15 @@ function RepCard({
     return buildRepDailyStatement(rep.id, source.deviceRows, source.invoices, source.settlements);
   }, [panel, sheet, showArchive, rep, allDeviceRows, invoices, settlements, active]);
   const period = repPeriod(periodKind, todayDateInputValue(), customPeriod);
-  const statement = useMemo(() => buildRepPeriodStatement(allDays, period), [allDays, period.from, period.to]); // eslint-disable-line react-hooks/exhaustive-deps
-  const netBalance = useMemo(
-    () => buildRepPeriodStatement(buildRepDailyStatement(rep.id, deviceRows, active.invoices, active.settlements), {}).closing,
-    [rep.id, deviceRows, active],
+  const statement = useMemo(() => buildRepPeriodStatement(allDays, period, fx.convert), [allDays, period.from, period.to, fx]); // eslint-disable-line react-hooks/exhaustive-deps
+  // His whole current account (since the reset), in the display currency: profit, his share, and
+  // the running balance - every له/عليه entry and payout counted against his share.
+  const account = useMemo(
+    () => buildRepPeriodStatement(buildRepDailyStatement(rep.id, deviceRows, active.invoices, active.settlements), {}, fx.convert),
+    [rep.id, deviceRows, active, fx],
   );
+  const netBalance = account.closing;
+  const balanceSign = Object.values(netBalance).find((v) => Math.abs(v) > EPSILON) ?? 0;
   const canWhatsApp = buildWhatsAppLink(rep.phone) !== null;
   const deletion = useMemo(
     () => (sheet?.kind === "delete" ? planRepDeletion(rep.id, { settlements, ledgerStore, invoices, accounts }).counts : null),
@@ -450,23 +527,18 @@ function RepCard({
         </span>
       </div>
 
-      <div className="party-stats">
-        <span className="party-stats-currency">أرباح أجهزته ({mruRate ? "أوقية ≈" : "USD"})</span>
+      <div className="party-stats rep-stats">
         <div className="party-stat">
           <span>الربح</span>
-          <strong dir="ltr">{formatAmount(deviceTotals.profitUsd * (mruRate ?? 1))}</strong>
+          <StatValues values={account.totals.deviceProfit} />
         </div>
         <div className="party-stat party-stat-adjusted">
           <span>حصته</span>
-          <strong dir="ltr">{formatAmount(deviceTotals.repShareUsd * (mruRate ?? 1))}</strong>
+          <StatValues values={account.totals.repShare} />
         </div>
-        <div className="party-stat party-stat-paid">
-          <span>حصتي</span>
-          <strong dir="ltr">{formatAmount(deviceTotals.ourShareUsd * (mruRate ?? 1))}</strong>
-        </div>
-        <div className={`party-stat ${hasOwed ? "party-stat-due" : "party-stat-clear"}`}>
-          <span>مستحق له</span>
-          <strong dir="ltr">{formatAmount(owed.USD ?? 0)}</strong>
+        <div className={`party-stat ${balanceSign > EPSILON ? "party-stat-due" : balanceSign < -EPSILON ? "party-stat-clear" : ""}`}>
+          <span>{balanceSign < -EPSILON ? "عليه" : "مستحق له"}</span>
+          <StatValues values={netBalance} absolute />
         </div>
       </div>
 
@@ -480,26 +552,17 @@ function RepCard({
         {deviceTotals.pendingCount > 0 && (
           <span className="party-chip">
             ⏳ {deviceTotals.pendingCount} بانتظار D
-            {deviceTotals.expectedRepShareUsd > 0.0001 && <> · حصته المتوقعة {money(deviceTotals.expectedRepShareUsd, mruRate)}</>}
+            {deviceTotals.expectedRepShareUsd > 0.0001 && <> · حصته المتوقعة {fx.usd(deviceTotals.expectedRepShareUsd)}</>}
           </span>
         )}
-        {nonZero(owed)
-          .filter(([c]) => c !== "USD")
-          .map(([c, v]) => (
-            <span key={`owed-${c}`} className="party-chip party-chip-alert" dir="ltr">
-              مستحق له {formatAmount(v)} {currencyLabel(c)}
-            </span>
-          ))}
-        {nonZero(cashHeld).map(([c, v]) => (
-          <span key={`cash-${c}`} className="party-chip rep-chip-cash" dir="ltr">
-            💰 نقد معه {formatAmount(v)} {currencyLabel(c)}
+        {nonZero(cashHeld).length > 0 && (
+          <span className="party-chip rep-chip-cash">
+            💰 نقد معه {fx.list(Object.entries(cashHeld).reduce<Record<string, number>>((acc, [c, v]) => {
+              for (const [k, x] of Object.entries(fx.convert(v, c))) acc[k] = (acc[k] ?? 0) + x;
+              return acc;
+            }, {}))}
           </span>
-        ))}
-        {nonZero(manual).map(([c, v]) => (
-          <span key={`manual-${c}`} className={`party-chip${v < 0 ? " party-chip-alert" : ""}`} dir="ltr">
-            {v > 0 ? "له إضافي" : "سلفة عليه"} {formatAmount(Math.abs(v))} {currencyLabel(c)}
-          </span>
-        ))}
+        )}
       </div>
 
       <div className="party-actions">
@@ -567,14 +630,14 @@ function RepCard({
             </label>
           )}
 
-          <RepStatementSummary statement={statement} period={period} periodLabel={periodLabel} archive={showArchive && !!rep.resetFrom} mruRate={mruRate} />
+          <RepStatementSummary statement={statement} period={period} periodLabel={periodLabel} archive={showArchive && !!rep.resetFrom} />
 
           <div className="party-panel-tools">
             <PdfButton
               className="party-action party-action-pdf"
               label="🖨️ تصدير الكشف PDF"
               build={() =>
-                buildRepStatementPdf(rep, statement, periodLabel + (showArchive && rep.resetFrom ? " (أرشيف)" : ""), accountName, clientNameFor, storeItems, mruRate)
+                buildRepStatementPdf(rep, statement, periodLabel + (showArchive && rep.resetFrom ? " (أرشيف)" : ""), accountName, clientNameFor, storeItems, fx)
               }
             />
           </div>
@@ -592,8 +655,8 @@ function RepCard({
                     <strong dir="ltr">📅 {day.date}</strong>
                     {(Math.abs(day.repShareUsd) > EPSILON || Math.abs(day.ourShareUsd) > EPSILON) && (
                       <div className="rep-day-split">
-                        <span className="rep-split-rep">حصته {money(day.repShareUsd, mruRate)}</span>
-                        <span className="rep-split-ours">حصتي {money(day.ourShareUsd, mruRate)}</span>
+                        <span className="rep-split-rep">حصته {fx.list(dayShares(day, "rep", fx.convert))}</span>
+                        <span className="rep-split-ours">حصتي {fx.list(dayShares(day, "ours", fx.convert))}</span>
                       </div>
                     )}
                   </div>
@@ -677,7 +740,10 @@ function RepCard({
             deviceLabel={`${accountName(sheet.row.accountId)}${clientNameFor(sheet.row.accountId) ? ` · ${clientNameFor(sheet.row.accountId)}` : ""}`}
             currentRepId={rep.id}
             representatives={representatives}
-            mruRate={mruRate}
+            onEditShipment={() => {
+              setEditingShipment(sheet.row);
+              setSheet(null);
+            }}
             onCancel={() => setSheet(null)}
             onSubmit={(patch) => {
               const error = onShipmentShare(sheet.row.accountId, sheet.row.entry.id, patch);
@@ -720,7 +786,7 @@ function RepCard({
         <PartySheet title={`تصفير الحساب - ${rep.name}`} onClose={() => setSheet(null)}>
           <RepResetForm
             rep={rep}
-            balance={balanceText(netBalance, mruRate)}
+            balance={balanceText(netBalance)}
             onCancel={() => setSheet(null)}
             onReset={(point) => {
               onReset(point);
@@ -743,7 +809,7 @@ function RepCard({
               <li>🗑 تُحذف {deletion.settlements} تسوية (ويُحذف قيدها في الصندوق)</li>
               <li>📡 تُلغى حصته من {deletion.shipments} شحنة - يصبح ربحها كله لك</li>
               {deletion.invoices > 0 && <li>🧾 تُلغى عمولته من {deletion.invoices} فاتورة متجر</li>}
-              <li>💰 رصيده الحالي: {balanceText(netBalance, mruRate)}</li>
+              <li>💰 رصيده الحالي: {balanceText(netBalance)}</li>
             </ul>
             <p className="settings-hint">لا يمكن التراجع إلا من النسخة الاحتياطية.</p>
             <div className="settings-actions">
@@ -779,7 +845,16 @@ function RepCard({
             <button
               type="button"
               className="party-sheet-option"
-              onClick={() => openWhatsApp(buildRepStatementMessage(rep.name, deviceTotals, owed, cashHeld))}
+              onClick={() =>
+                openWhatsApp(
+                  buildRepSummaryMessage(rep.name, {
+                    profit: fx.list(account.totals.deviceProfit),
+                    share: fx.list(account.totals.repShare),
+                    balance: balanceText(netBalance),
+                    pendingCount: deviceTotals.pendingCount,
+                  }),
+                )
+              }
             >
               <span aria-hidden="true">📄</span>
               <span>
@@ -790,7 +865,45 @@ function RepCard({
           </div>
         </PartySheet>
       )}
+
+      {editingShipment && (
+        <LedgerEntryEditor
+          accountId={editingShipment.accountId}
+          entry={editingShipment.entry}
+          deviceName={accountName(editingShipment.accountId)}
+          ledgerStore={ledgerStore}
+          onSaved={onLedgerChange}
+          onClose={() => setEditingShipment(null)}
+        />
+      )}
     </li>
+  );
+}
+
+/** A day's device-profit split in the display currency, each shipment at its own locked rates. */
+function dayShares(day: RepStatementDay, side: "rep" | "ours", convert: RepConvert): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const row of day.rows) {
+    if (row.type !== "device") continue;
+    const usd = side === "rep" ? row.row.repShareUsd : row.row.ourShareUsd;
+    if (usd === undefined) continue;
+    for (const [c, v] of Object.entries(convert(usd, "USD", row.row.entry.profitCurrencyRates))) result[c] = (result[c] ?? 0) + v;
+  }
+  return result;
+}
+
+/** Stacked figures for a stat tile - one line per display currency. */
+function StatValues({ values, absolute = false }: { values: Record<string, number>; absolute?: boolean }) {
+  const entries = Object.entries(values);
+  if (entries.length === 0) return <strong dir="ltr">0</strong>;
+  return (
+    <>
+      {entries.map(([code, v]) => (
+        <strong key={code} className="rep-stat-value">
+          <bdi dir="ltr">{formatAmount(absolute ? Math.abs(v) : v)}</bdi> <small>{currencyLabel(code)}</small>
+        </strong>
+      ))}
+    </>
   );
 }
 
@@ -801,26 +914,23 @@ function RepStatementSummary({
   period,
   periodLabel,
   archive,
-  mruRate,
 }: {
   statement: RepPeriodStatement;
   period: RepPeriod;
   periodLabel: string;
   archive: boolean;
-  mruRate: number | undefined;
 }) {
+  const fx = useFx();
   const t = statement.totals;
   const lines: [string, string][] = [];
   if (t.deviceCount > 0) {
-    lines.push(["ربح أجهزته", money(t.deviceProfitUsd, mruRate)]);
-    lines.push(["حصته", money(t.repShareUsd, mruRate)]);
-    lines.push(["حصتي", money(t.ourShareUsd, mruRate)]);
+    lines.push(["ربح أجهزته", fx.list(t.deviceProfit)]);
+    lines.push(["حصته", fx.list(t.repShare)]);
+    lines.push(["حصتي", fx.list(t.ourShare)]);
     if (t.pendingCount > 0) lines.push(["شحنات بانتظار D", String(t.pendingCount)]);
   }
-  const list = (values: Record<string, number>) =>
-    nonZero(values)
-      .map(([c, v]) => `${formatAmount(v)} ${currencyLabel(c)}`)
-      .join(" + ");
+  // Already converted to the display currency by buildRepPeriodStatement.
+  const list = (values: Record<string, number>) => fx.list(Object.fromEntries(nonZero(values)));
   if (nonZero(t.commissions).length) lines.push(["عمولات المتجر", list(t.commissions)]);
   if (nonZero(t.cashCollected).length) lines.push(["نقد قبضه من الزبائن", list(t.cashCollected)]);
   if (nonZero(t.settled.commissionPayout).length) lines.push(["دفعتُ له", list(t.settled.commissionPayout)]);
@@ -837,7 +947,7 @@ function RepStatementSummary({
       {period.from && (
         <div className="rep-summary-balance">
           <span>رصيد أول الفترة</span>
-          <BalanceValue values={statement.opening} mruRate={mruRate} />
+          <BalanceValue values={statement.opening} />
         </div>
       )}
       {lines.length > 0 && (
@@ -852,16 +962,16 @@ function RepStatementSummary({
       )}
       <div className="rep-summary-balance rep-summary-closing">
         <span>{period.to || period.from ? "رصيد آخر الفترة" : "الرصيد الحالي"}</span>
-        <BalanceValue values={statement.closing} mruRate={mruRate} />
+        <BalanceValue values={statement.closing} />
       </div>
     </div>
   );
 }
 
-function BalanceValue({ values, mruRate }: { values: Record<string, number>; mruRate: number | undefined }) {
+function BalanceValue({ values }: { values: Record<string, number> }) {
   return (
     <strong className="rep-balance-value">
-      {balanceParts(values, mruRate).map((part) => (
+      {balanceParts(values).map((part) => (
         <span key={part.text} className={`rep-balance-${part.tone}`}>
           {part.text}
         </span>
@@ -885,8 +995,8 @@ function RepStatementLine({
   storeItems: StoreItemRegistry;
   onOpen?: () => void;
 }) {
-  const mruRate = useMruRate();
-  const delta = nonZero(repRowDelta(row));
+  const fx = useFx();
+  const delta = nonZero(repRowDelta(row, fx.convert));
   let body: ReactNode;
   let className = "";
   if (row.type === "device") {
@@ -907,17 +1017,17 @@ function RepStatementLine({
         {profit.status === "computed" ? (
           <>
             <div className="rep-line-calc">
-              <span>بيع {money(profit.saleValueUsd ?? 0, mruRate, entry)}</span>
-              <span>− تكلفة {money(profit.starlinkCostUsd ?? 0, mruRate, entry)}</span>
+              <span>بيع {fx.usd(profit.saleValueUsd ?? 0, entry)}</span>
+              <span>− تكلفة {fx.usd(profit.starlinkCostUsd ?? 0, entry)}</span>
               <span className={(profit.profitUsd ?? 0) >= 0 ? "party-statement-clear" : "party-statement-due"}>
-                = ربح {money(profit.profitUsd ?? 0, mruRate, entry)}
+                = ربح {fx.usd(profit.profitUsd ?? 0, entry)}
               </span>
             </div>
             <div className="rep-day-split">
               <span className="rep-split-rep">
-                حصته ({percent}%) {money(repShareUsd ?? 0, mruRate, entry)}
+                حصته ({percent}%) {fx.usd(repShareUsd ?? 0, entry)}
               </span>
-              <span className="rep-split-ours">حصتي {money(ourShareUsd ?? 0, mruRate, entry)}</span>
+              <span className="rep-split-ours">حصتي {fx.usd(ourShareUsd ?? 0, entry)}</span>
             </div>
           </>
         ) : (
@@ -925,7 +1035,7 @@ function RepStatementLine({
             ⏳ بانتظار تسديد تكلفة Starlink (D)
             {row.row.expectedRepShareUsd !== undefined ? (
               <>
-                {" "}- حصته المتوقعة ({percent}%) {money(row.row.expectedRepShareUsd, mruRate)}، تتأكد بعد التسديد
+                {" "}- حصته المتوقعة ({percent}%) {fx.usd(row.row.expectedRepShareUsd)}، تتأكد بعد التسديد
               </>
             ) : (
               ` - تُحتسب حصته (${percent}%) بعد التسديد`
@@ -982,7 +1092,7 @@ function RepStatementLine({
           ))}
         </span>
       )}
-      {balanceAfter && <span className="rep-line-balance">الرصيد: {balanceText(balanceAfter, undefined)}</span>}
+      {balanceAfter && <span className="rep-line-balance">الرصيد: {balanceText(balanceAfter)}</span>}
       {onOpen && <span className="rep-line-edit" aria-hidden="true">✎</span>}
     </div>
   );
@@ -1089,7 +1199,7 @@ function ShipmentShareForm({
   deviceLabel,
   currentRepId,
   representatives,
-  mruRate,
+  onEditShipment,
   onSubmit,
   onCancel,
 }: {
@@ -1097,10 +1207,12 @@ function ShipmentShareForm({
   deviceLabel: string;
   currentRepId: string;
   representatives: Representative[];
-  mruRate: number | undefined;
+  /** Opens the shipment itself (amount, cost, date...) in the device-operation editor. */
+  onEditShipment: () => void;
   onSubmit: (patch: ShipmentRepPatch) => string | null;
   onCancel: () => void;
 }) {
+  const fx = useFx();
   const { entry, profit, percent } = row;
   const [repId, setRepId] = useState<string>(currentRepId);
   const [pct, setPct] = useState(String(percent));
@@ -1134,8 +1246,11 @@ function ShipmentShareForm({
           <bdi dir="ltr">{entry.date}</bdi> · <bdi dir="ltr">{formatAmount(entry.amount)}</bdi> {currencyLabel(entry.currency)}
         </span>
         <span>
-          {profitUsd !== undefined ? `ربح الشحنة ${money(profitUsd, mruRate, entry)}` : "⏳ بانتظار تسديد تكلفة Starlink (D)"}
+          {profitUsd !== undefined ? `ربح الشحنة ${fx.usd(profitUsd, entry)}` : "⏳ بانتظار تسديد تكلفة Starlink (D)"}
         </span>
+        <button type="button" className="rep-edit-shipment" onClick={onEditShipment}>
+          ✎ تعديل الشحنة نفسها (المبلغ، التكلفة، التاريخ، D)
+        </button>
       </div>
       <label className="rep-form-field">
         <span>المندوب</span>
@@ -1172,7 +1287,7 @@ function ShipmentShareForm({
       )}
       {previewShare !== undefined && profitUsd !== undefined && (
         <p className="rep-shipment-preview">
-          حصته {money(previewShare, mruRate, entry)} · حصتي {money(profitUsd - previewShare, mruRate, entry)}
+          حصته {fx.usd(previewShare, entry)} · حصتي {fx.usd(profitUsd - previewShare, entry)}
         </p>
       )}
       <p className="settings-hint">يتغيّر هذا على هذه الشحنة فقط - باقي الشحنات تحتفظ بنسبها.</p>
@@ -1337,21 +1452,21 @@ function repRowCells(
   accountName: (accountId: string) => string,
   clientNameFor: (accountId: string) => string | undefined,
   storeItems: StoreItemRegistry,
-  mruRate: number | undefined,
+  fx: Fx,
 ): string[] {
-  const delta = nonZero(repRowDelta(row))
+  const delta = nonZero(repRowDelta(row, fx.convert))
     .map(([code, v]) => `${v > 0 ? "+" : "-"}${formatAmount(Math.abs(v))} ${currencyLabel(code)}`)
     .join(" / ");
-  const balance = balanceAfter ? balanceText(balanceAfter, undefined) : "";
+  const balance = balanceAfter ? balanceText(balanceAfter) : "";
   if (row.type === "device") {
     const { entry, profit, percent, repShareUsd, accountId } = row.row;
     const client = clientNameFor(accountId);
     const title = `📡 ${accountName(accountId)}${client ? ` · ${client}` : ""} (${formatAmount(entry.amount)} ${currencyLabel(entry.currency)})`;
     if (profit.status !== "computed") {
       const expected = row.row.expectedRepShareUsd;
-      return [row.date, title, `⏳ D - حصته المتوقعة ${expected !== undefined ? money(expected, mruRate) : ""} (${percent}%)`, delta, balance];
+      return [row.date, title, `⏳ D - حصته المتوقعة ${expected !== undefined ? fx.usd(expected) : ""} (${percent}%)`, delta, balance];
     }
-    return [row.date, title, `ربح ${money(profit.profitUsd ?? 0, mruRate, entry)} · حصته ${money(repShareUsd ?? 0, mruRate, entry)} (${percent}%)`, delta, balance];
+    return [row.date, title, `ربح ${fx.usd(profit.profitUsd ?? 0, entry)} · حصته ${fx.usd(repShareUsd ?? 0, entry)} (${percent}%)`, delta, balance];
   }
   if (row.type === "invoice") {
     const { invoice, commissionAmount } = row.row;
@@ -1370,33 +1485,26 @@ function buildRepStatementPdf(
   accountName: (accountId: string) => string,
   clientNameFor: (accountId: string) => string | undefined,
   storeItems: StoreItemRegistry,
-  mruRate: number | undefined,
+  fx: Fx,
 ): PrintableDocument {
   // Oldest first on paper, so the running balance reads top-down.
   const rows = [...statement.days]
     .reverse()
     .flatMap((day) =>
-      [...day.rows].reverse().map((row) => repRowCells(row, statement.balanceAfter[repRowKey(row)], accountName, clientNameFor, storeItems, mruRate)),
+      [...day.rows].reverse().map((row) => repRowCells(row, statement.balanceAfter[repRowKey(row)], accountName, clientNameFor, storeItems, fx)),
     );
   const t = statement.totals;
-  const totals: RepDeviceTotals = {
-    profitUsd: t.deviceProfitUsd,
-    repShareUsd: t.repShareUsd,
-    ourShareUsd: t.ourShareUsd,
-    pendingCount: t.pendingCount,
-    expectedRepShareUsd: 0,
-  };
   return {
     title: "كشف حساب مندوب",
     partyName: rep.name,
     partyPhone: rep.phone,
     subtitle: `${periodLabel} - نسبته ${rep.commissionPercent}%${rep.sharesLosses ? " - يتحمّل نسبته من الخسارة" : ""}`,
     summary: [
-      ...(Object.keys(statement.opening).length > 0 ? [{ label: "رصيد أول الفترة", value: balanceText(statement.opening, undefined) }] : []),
-      { label: "ربح أجهزته", value: money(totals.profitUsd, mruRate) },
-      { label: "حصته", value: money(totals.repShareUsd, mruRate), tone: "due" as const },
-      { label: "حصتي", value: money(totals.ourShareUsd, mruRate), tone: "clear" as const },
-      { label: "الرصيد", value: balanceText(statement.closing, undefined), tone: "due" as const },
+      ...(Object.keys(statement.opening).length > 0 ? [{ label: "رصيد أول الفترة", value: balanceText(statement.opening) }] : []),
+      { label: "ربح أجهزته", value: fx.list(t.deviceProfit) },
+      { label: "حصته", value: fx.list(t.repShare), tone: "due" as const },
+      { label: "حصتي", value: fx.list(t.ourShare), tone: "clear" as const },
+      { label: "الرصيد", value: balanceText(statement.closing), tone: "due" as const },
     ],
     columns: ["التاريخ", "العملية", "التفاصيل", "الحركة", "الرصيد بعدها"],
     rows,

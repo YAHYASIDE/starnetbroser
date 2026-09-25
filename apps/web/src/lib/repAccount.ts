@@ -59,6 +59,37 @@ export function splitRepRecords(rep: Representative, records: RepRecords, side: 
   };
 }
 
+// ---- Display currency ----
+
+/** Turns an amount in `fromCode` into the currencies the operator chose to see (أوقية, سيفا or
+ * both), per currency code. `locked` = rates locked on the record itself (a shipment's profit
+ * rates, a settlement's rates), preferred over today's. */
+export type RepConvert = (amount: number, fromCode: string, locked?: Record<string, number>) => Record<string, number>;
+
+/** No conversion: every amount stays in its own currency. */
+export const keepCurrency: RepConvert = (amount, fromCode) => ({ [fromCode]: amount });
+
+/** Rates are "units per 1 USD" (currencyStore.ts). A currency without any known rate is left in
+ * its own currency rather than guessed. */
+export function makeRepConverter(codes: string[], currentRates: Record<string, number | undefined>): RepConvert {
+  const rateOf = (code: string, locked?: Record<string, number>) =>
+    code === "USD" ? 1 : (locked?.[code] ?? currentRates[code]);
+  return (amount, fromCode, locked) => {
+    const result: Record<string, number> = {};
+    for (const code of codes) {
+      if (code === fromCode) {
+        result[code] = amount;
+        continue;
+      }
+      const from = rateOf(fromCode, locked);
+      const to = rateOf(code, locked);
+      if (!from || !to) return { [fromCode]: amount };
+      result[code] = (amount / from) * to;
+    }
+    return result;
+  };
+}
+
 // ---- Running balance and period statement ----
 
 const SETTLEMENT_SIGN: Record<RepSettlementKind, 1 | -1> = {
@@ -68,18 +99,19 @@ const SETTLEMENT_SIGN: Record<RepSettlementKind, 1 | -1> = {
   manualDebit: -1,
 };
 
-/** What one statement row does to his balance, per currency (positive = we owe him more). */
-export function repRowDelta(row: RepStatementRow): Record<string, number> {
+/** What one statement row does to his balance, per currency (positive = we owe him more) - in
+ * each record's own currency, or in the chosen display currencies through `convert`. */
+export function repRowDelta(row: RepStatementRow, convert: RepConvert = keepCurrency): Record<string, number> {
   if (row.type === "device") {
     const share = row.row.repShareUsd;
-    return share !== undefined && Math.abs(share) > EPSILON ? { USD: share } : {};
+    return share !== undefined && Math.abs(share) > EPSILON ? convert(share, "USD", row.row.entry.profitCurrencyRates) : {};
   }
   if (row.type === "invoice") {
     const net = row.row.commissionAmount - Math.max(0, row.row.invoice.paidAmount);
-    return Math.abs(net) > EPSILON ? { [row.row.invoice.currencyCode]: net } : {};
+    return Math.abs(net) > EPSILON ? convert(net, row.row.invoice.currencyCode) : {};
   }
   const s = row.settlement;
-  return { [s.currencyCode]: SETTLEMENT_SIGN[s.kind] * s.amount };
+  return convert(SETTLEMENT_SIGN[s.kind] * s.amount, s.currencyCode, s.rates);
 }
 
 export type RepPeriodKind = "all" | "day" | "month" | "custom";
@@ -103,6 +135,10 @@ export interface RepPeriodTotals {
   deviceProfitUsd: number;
   repShareUsd: number;
   ourShareUsd: number;
+  /** The same three, in the display currencies (each shipment at its own locked rates). */
+  deviceProfit: Record<string, number>;
+  repShare: Record<string, number>;
+  ourShare: Record<string, number>;
   deviceCount: number;
   pendingCount: number;
   /** Store commissions and the cash he collected on those sales. */
@@ -134,7 +170,11 @@ export function repRowKey(row: RepStatementRow): string {
 /** Cuts the daily statement (repStore.ts's buildRepDailyStatement, newest first) to one period,
  * with the balance carried in from before it, the balance at its end, the balance after every
  * row, and the period's totals. */
-export function buildRepPeriodStatement(allDays: RepStatementDay[], period: RepPeriod): RepPeriodStatement {
+export function buildRepPeriodStatement(
+  allDays: RepStatementDay[],
+  period: RepPeriod,
+  convert: RepConvert = keepCurrency,
+): RepPeriodStatement {
   const opening: Record<string, number> = {};
   const running: Record<string, number> = {};
   const balanceAfter: Record<string, Record<string, number>> = {};
@@ -142,6 +182,9 @@ export function buildRepPeriodStatement(allDays: RepStatementDay[], period: RepP
     deviceProfitUsd: 0,
     repShareUsd: 0,
     ourShareUsd: 0,
+    deviceProfit: {},
+    repShare: {},
+    ourShare: {},
     deviceCount: 0,
     pendingCount: 0,
     commissions: {},
@@ -155,28 +198,33 @@ export function buildRepPeriodStatement(allDays: RepStatementDay[], period: RepP
     if (period.to && day.date > period.to) continue;
     const rows = [...day.rows].reverse();
     if (period.from && day.date < period.from) {
-      for (const row of rows) add(opening, repRowDelta(row));
+      for (const row of rows) add(opening, repRowDelta(row, convert));
       continue;
     }
     if (days.length === 0) Object.assign(running, opening);
     for (const row of rows) {
-      add(running, repRowDelta(row));
+      add(running, repRowDelta(row, convert));
       balanceAfter[repRowKey(row)] = { ...running };
       if (row.type === "device") {
         totals.deviceCount += 1;
         if (row.row.repShareUsd !== undefined && row.row.ourShareUsd !== undefined) {
+          const locked = row.row.entry.profitCurrencyRates;
           totals.deviceProfitUsd += row.row.profit.profitUsd ?? 0;
           totals.repShareUsd += row.row.repShareUsd;
           totals.ourShareUsd += row.row.ourShareUsd;
+          add(totals.deviceProfit, convert(row.row.profit.profitUsd ?? 0, "USD", locked));
+          add(totals.repShare, convert(row.row.repShareUsd, "USD", locked));
+          add(totals.ourShare, convert(row.row.ourShareUsd, "USD", locked));
         } else if (row.row.profit.status === "pending") {
           totals.pendingCount += 1;
         }
       } else if (row.type === "invoice") {
         const code = row.row.invoice.currencyCode;
-        add(totals.commissions, { [code]: row.row.commissionAmount });
-        if (row.row.invoice.paidAmount > 0) add(totals.cashCollected, { [code]: row.row.invoice.paidAmount });
+        add(totals.commissions, convert(row.row.commissionAmount, code));
+        if (row.row.invoice.paidAmount > 0) add(totals.cashCollected, convert(row.row.invoice.paidAmount, code));
       } else {
-        add(totals.settled[row.settlement.kind], { [row.settlement.currencyCode]: row.settlement.amount });
+        const st = row.settlement;
+        add(totals.settled[st.kind], convert(st.amount, st.currencyCode, st.rates));
       }
     }
     days.push(day);

@@ -205,6 +205,7 @@ export default function ClientsPage() {
           allocationStore={allocationStore}
           onClose={() => setOpenClientId(null)}
           onSave={(patch) => handleUpdateClient(openClient.id, { ...patch, creditLimit: openClient.creditLimit })}
+          onLedgerChange={setLedgerStore}
         />
       )}
     </main>

@@ -15,6 +15,7 @@ import {
   normalizePhoneForWhatsApp,
   buildStoreStatementMessage,
   buildRepStatementMessage,
+  buildRepSummaryMessage,
 } from "./whatsapp";
 
 function ledgerEntry(overrides: Partial<LedgerEntry> = {}): LedgerEntry {
@@ -424,5 +425,15 @@ describe("buildRepStatementMessage", () => {
     expect(message).toContain("المستحق لك حاليًا: 150 دولار");
     expect(message).toContain("نقد لديك لم يُسلَّم بعد: 3,000 أوقية");
     expect(message).toContain("2 عملية بانتظار");
+  });
+});
+
+describe("buildRepSummaryMessage", () => {
+  it("uses the figures as given, in the chosen currency", () => {
+    const message = buildRepSummaryMessage("سالم", { profit: "2,000 أوقية", share: "1,000 أوقية", balance: "عليه 1,000 أوقية", pendingCount: 1 });
+    expect(message).toContain("حصتك من الربح: 1,000 أوقية");
+    expect(message).toContain("رصيدك: عليه 1,000 أوقية");
+    expect(message).toContain("1 عملية بانتظار");
+    expect(message).not.toContain("USD");
   });
 });

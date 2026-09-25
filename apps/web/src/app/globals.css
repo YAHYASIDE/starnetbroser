@@ -5711,3 +5711,91 @@ button.today-tile {
   .status-ring-core { width: 43px; height: 43px; }
   .status-ring-label { font-size: 0.68rem; }
 }
+
+/* ---- Representatives: display currency picker, 3 stat tiles ---- */
+.rep-display {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.rep-display > span {
+  margin-inline-end: 2px;
+  font-weight: 600;
+}
+
+.rep-display-option {
+  min-height: 32px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.rep-display-option-active {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: var(--brand-contrast);
+}
+
+.rep-stats {
+  padding-top: 0;
+}
+
+.rep-stat-value {
+  display: block;
+  white-space: nowrap;
+}
+
+.rep-stat-value small {
+  font-size: 0.68rem;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+.rep-edit-shipment {
+  margin-top: 6px;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--brand);
+  background: transparent;
+  color: var(--brand);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ---- Device statement: ✎ on each past operation, payments list ---- */
+.statement-edit-btn {
+  order: 99;
+  margin-inline-start: auto;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--brand);
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+  color: var(--brand);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.statement-section-title {
+  margin: 14px 0 6px;
+  font-size: 0.95rem;
+}
+
+.statement-payment-row .statement-shipment-top {
+  font-weight: 600;
+}

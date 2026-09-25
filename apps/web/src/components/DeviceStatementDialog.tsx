@@ -4,7 +4,7 @@ import { formatProfitMru, sumProfitMru } from "@/lib/profitMru";
 import { useMruRate } from "@/lib/useMruRate";
 import { computeDeviceAccountingSummary, computeShipmentProfit } from "@/lib/accountingStore";
 import { computeShipmentPaymentStatus, paidTowardShipment, PaymentAllocation, ShipmentPaymentStatus } from "@/lib/paymentAllocationStore";
-import { isLegacyShipmentEntry, LEDGER_CURRENCY_LABELS, LedgerCurrency, LedgerEntry, sortEntriesNewestFirst } from "@/lib/ledgerStore";
+import { isLegacyShipmentEntry, LEDGER_CURRENCY_LABELS, LedgerCurrency, LedgerEntry, PAYMENT_METHOD_LABELS, sortEntriesNewestFirst } from "@/lib/ledgerStore";
 import { formatAmount } from "@/lib/formatAmount";
 
 interface Props {
@@ -18,6 +18,8 @@ interface Props {
    * for display (rule 7's "الدفعات المرتبطة بها"), since a cross-device payment doesn't live in
    * `entries` above. Never used to compute this device's own totals. */
   allEntries: LedgerEntry[];
+  /** Opens a past shipment or payment for editing (✎ on each row) - hidden when not given. */
+  onEditEntry?: (entry: LedgerEntry) => void;
   onClose: () => void;
 }
 
@@ -38,10 +40,11 @@ const PAYMENT_STATUS_BADGE: Record<ShipmentPaymentStatus, string> = {
  * plus the summary totals up top. Never mixes this device's numbers with any other device, even
  * if they share the same customer (see DeviceCard/ClientDialog for the customer-level rollup).
  */
-export function DeviceStatementDialog({ accountName, entries, allocations, allEntries, onClose }: Props) {
+export function DeviceStatementDialog({ accountName, entries, allocations, allEntries, onEditEntry, onClose }: Props) {
   const mruRate = useMruRate();
   const summary = computeDeviceAccountingSummary(entries);
   const shipments = sortEntriesNewestFirst(entries.filter((e) => e.kind === "debit"));
+  const payments = sortEntriesNewestFirst(entries.filter((e) => e.kind === "credit"));
 
   const paidRows = Object.entries(summary.totalPaidByCustomer) as [LedgerCurrency, number][];
   const debtRows = Object.entries(summary.totalRemainingDebt) as [LedgerCurrency, number][];
@@ -135,6 +138,11 @@ export function DeviceStatementDialog({ accountName, entries, allocations, allEn
             return (
               <li key={entry.id} className="statement-shipment-row">
                 <div className="statement-shipment-top">
+                  {onEditEntry && (
+                    <button type="button" className="statement-edit-btn" onClick={() => onEditEntry(entry)} aria-label="تعديل الشحنة">
+                      ✎ تعديل
+                    </button>
+                  )}
                   <span dir="ltr">{entry.date}</span>
                   <span dir="ltr">عليه {formatAmount(entry.amount)} {entry.currency}</span>
                   {saleValueUsd !== undefined && entry.currency !== "USD" && (
@@ -182,6 +190,31 @@ export function DeviceStatementDialog({ accountName, entries, allocations, allEn
             );
           })}
         </ul>
+
+        {payments.length > 0 && (
+          <>
+            <h3 className="statement-section-title">💵 الدفعات</h3>
+            <ul className="statement-shipment-list">
+              {payments.map((entry) => (
+                <li key={entry.id} className="statement-shipment-row statement-payment-row">
+                  <div className="statement-shipment-top">
+                    {onEditEntry && (
+                      <button type="button" className="statement-edit-btn" onClick={() => onEditEntry(entry)} aria-label="تعديل الدفعة">
+                        ✎ تعديل
+                      </button>
+                    )}
+                    <span dir="ltr">{entry.date}</span>
+                    <span>
+                      له <bdi dir="ltr">{formatAmount(entry.amount)}</bdi> {LEDGER_CURRENCY_LABELS[entry.currency]}
+                    </span>
+                    {entry.paymentMethod && <span className="badge badge-gray">{PAYMENT_METHOD_LABELS[entry.paymentMethod]}</span>}
+                  </div>
+                  {entry.note && <div className="ledger-entry-note">{entry.note}</div>}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
 
         <div className="dialog-actions form-wide">
           <button className="dialog-primary dialog-done" type="button" onClick={onClose}>تم</button>
