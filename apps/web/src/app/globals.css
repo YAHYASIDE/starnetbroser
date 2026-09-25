@@ -836,6 +836,9 @@ a.btn-icon {
   display: flex;
   align-items: center;
   gap: 11px;
+  /* Never let this shrink below its own content - the icon cluster below is what gives way
+     (via .header-actions's own overflow-x) on a narrow screen, never the brand itself. */
+  flex-shrink: 0;
 }
 
 .brand-lockup > div {
@@ -915,10 +918,34 @@ a.btn-icon {
   border: 2px solid var(--bg);
 }
 
+/**
+ * Real, confirmed bug this fixes: on a narrow phone this row can hold up to 6 buttons (sync/add
+ * account/clients/reminders/currencies/settings) - a flex row never shrinks below its own content
+ * width by default, so the whole <header> (and with it the page itself) grew wider than the
+ * viewport, and body's own overflow-x: hidden then silently CLIPPED the overflow with no scroll
+ * affordance at all. Since settings/currencies render last (= leftmost under RTL), they were the
+ * ones pushed clean off-screen and made completely unreachable - not merely visually cramped.
+ * min-width: 0 lets this flex item actually shrink; overflow-x: auto then makes IT (never the
+ * whole page) the one that scrolls if the icons still don't all fit, so every button stays
+ * reachable by a short swipe within the header itself.
+ */
 .header-actions {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.header-actions::-webkit-scrollbar {
+  display: none;
+}
+
+.header-actions > * {
+  /* Buttons/icons scroll into view rather than visually squish when the row doesn't fit. */
+  flex-shrink: 0;
 }
 
 .header-add {
@@ -2566,6 +2593,19 @@ button.overview-card:active {
 
   .header-add span {
     font-size: 1.2rem;
+  }
+
+  .header-actions {
+    gap: 6px;
+  }
+
+  .header-settings,
+  .header-currencies,
+  .header-clients,
+  .header-reminders,
+  .header-sync {
+    width: 38px;
+    height: 38px;
   }
 
   .account-form,
