@@ -49,7 +49,6 @@ export function BottomNav() {
     { label: "إضافة حساب", icon: "plus", color: "#2f80ff", tint: "#d6e6ff", action: "add-account" },
     ...(inApp ? [{ label: "مزامنة الآن", icon: "sync" as const, color: "#10b8cc", tint: "#d2f4f8", action: "sync" as const }] : []),
     { label: "التذكيرات", icon: "bell", color: "#f0455f", tint: "#ffd9df", href: "/reminders" },
-    { label: "العملاء", icon: "people", color: "#8b5cf6", tint: "#e6dcff", action: "clients" },
     { label: "ستارلينك والبطاقة", icon: "card", color: "#1668e3", tint: "#d6e3fb", href: "/starlink" },
     { label: "العملات", icon: "coins", color: "#22c55e", tint: "#d4f7e1", href: "/currencies" },
     { label: "الأرشيف", icon: "archive", color: "#64748b", tint: "#e2e8f0", href: "/archive" },
