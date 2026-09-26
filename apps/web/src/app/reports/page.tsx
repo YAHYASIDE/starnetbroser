@@ -22,6 +22,7 @@ import { CurrencyStore, getCurrency, loadCurrencyStore } from "@/lib/currencySto
 import { summarizeDeviceProfit } from "@/lib/accountingStore";
 import { daysRemainingNumber } from "@/lib/date";
 import { TodayPanel } from "@/components/TodayPanel";
+import { entriesAfterProfitReset, loadProfitReset, ProfitReset } from "@/lib/profitReset";
 
 function currencyLabelFor(code: string): string {
   return LEDGER_CURRENCY_LABELS[code as keyof typeof LEDGER_CURRENCY_LABELS] ?? code;
@@ -87,7 +88,13 @@ export default function ReportsPage() {
   // Profit becomes real the day Starlink is paid (D settled), so profit, its split and Starlink
   // costs are counted by that day - a shipment sold in September and paid on 4 October is
   // October's profit.
-  const profitEntries = useMemo(() => filterEntriesByProfitDate(allEntries, period), [allEntries, period]);
+  // "بداية جديدة للأرباح" (الإعدادات): profit that became real before it is left out.
+  const [profitReset, setProfitReset] = useState<ProfitReset | null>(null);
+  useEffect(() => setProfitReset(loadProfitReset()), []);
+  const profitEntries = useMemo(
+    () => entriesAfterProfitReset(filterEntriesByProfitDate(allEntries, period), profitReset),
+    [allEntries, period, profitReset],
+  );
   const profitSummary = useMemo(() => computeDeviceAccountingSummary(profitEntries), [profitEntries]);
   const periodNetProfitUsd = profitSummary.totalProfitsUsd - profitSummary.totalLossesUsd;
   // Representatives' share of the same period's device profit (LedgerEntry.representativeId).
@@ -190,7 +197,7 @@ export default function ReportsPage() {
       return row;
     };
     for (const account of accounts) {
-      const entries = filterEntriesByProfitDate(ledgerStore[account.id] ?? [], period);
+      const entries = entriesAfterProfitReset(filterEntriesByProfitDate(ledgerStore[account.id] ?? [], period), profitReset);
       if (entries.length === 0) continue;
       const summary = computeDeviceAccountingSummary(entries);
       const row = rowFor(account.clientId);
@@ -216,7 +223,7 @@ export default function ReportsPage() {
       }
     }
     return Array.from(byKey.values()).sort((a, b) => b.profitUsd - a.profitUsd);
-  }, [accounts, ledgerStore, clientStore, period, periodInvoices, storeTransactions, invoices, mruRate]);
+  }, [accounts, ledgerStore, clientStore, period, periodInvoices, storeTransactions, invoices, mruRate, profitReset]);
 
   return (
     <main className="home">
@@ -246,6 +253,12 @@ export default function ReportsPage() {
             </button>
           ))}
         </div>
+
+        {profitReset && (
+          <p className="settings-hint report-fresh-note">
+            🔄 الأرباح محسوبة من بداية جديدة يوم <bdi dir="ltr">{profitReset.date}</bdi> (من الإعدادات)
+          </p>
+        )}
 
         <div className={`report-net-tile${periodNetProfitUsd < 0 ? " report-net-tile-negative" : ""}`}>
           <span className="report-net-tile-label">صافي الربح · {REPORT_PERIOD_LABELS[period]}</span>

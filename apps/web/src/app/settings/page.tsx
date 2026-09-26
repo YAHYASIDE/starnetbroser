@@ -31,6 +31,8 @@ import { getAutoBackupLastRun, getAutoBackupPassword, setAutoBackupPassword } fr
 import { runAutoBackup, shareLatestAutoBackup } from "@/lib/autoBackupRunner";
 import { BusinessProfile, loadBusinessProfile, saveBusinessProfile } from "@/lib/pdfDocument";
 import { clearAppPin, hasAppPin, setAppPin, verifyAppPin } from "@/lib/appLock";
+import { loadProfitReset, ProfitReset, saveProfitReset, startProfitFresh, undoProfitFresh } from "@/lib/profitReset";
+import { loadRepresentativeStore, saveRepresentativeStore } from "@/lib/repStore";
 
 const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
   { value: "dark", label: "داكن (الافتراضي)" },
@@ -129,6 +131,8 @@ export default function SettingsPage() {
           ))}
         </div>
       </section>
+
+      <ProfitResetSection />
 
       <BusinessProfileSection />
 
@@ -874,5 +878,59 @@ function MorningDigestSettings() {
         يلخّص الأجهزة التي تنتهي اليوم وغدًا والمنتهية والديون المستحقة. الضغط عليه يفتح صفحة التذكيرات. يُحدَّث الجدول كل مرة تفتح فيها الصفحة الرئيسية.
       </p>
     </div>
+  );
+}
+
+/** "بداية جديدة للأرباح": profit counts from zero from now on, every representative restarts
+ * from the same point. Nothing is deleted - shipments, client balances and payments stay - and it
+ * can be undone. */
+function ProfitResetSection() {
+  const [reset, setReset] = useState<ProfitReset | null>(null);
+  useEffect(() => setReset(loadProfitReset()), []);
+
+  function start() {
+    const message = reset
+      ? "بدء الأرباح من الصفر مرة أخرى من الآن؟"
+      : "بدء الأرباح من الصفر من الآن؟\n\n• التقارير تحسب الأرباح من اليوم فقط.\n• كل المندوبين يبدأون حسابًا جديدًا (القديم في الأرشيف).\n• لا يُحذف أي شيء من حسابات الزبائن، ويمكن التراجع.";
+    if (!window.confirm(message)) return;
+    const { reset: next, repStore } = startProfitFresh(loadRepresentativeStore());
+    // Starting again keeps the representatives' resets from before the FIRST fresh start.
+    const merged = reset ? { ...next, previousRepResets: { ...next.previousRepResets, ...reset.previousRepResets } } : next;
+    saveRepresentativeStore(repStore);
+    saveProfitReset(merged);
+    setReset(merged);
+  }
+
+  function undo() {
+    if (!reset) return;
+    if (!window.confirm("إلغاء البداية الجديدة وإرجاع كل الأرباح القديمة وحسابات المندوبين كما كانت؟")) return;
+    saveRepresentativeStore(undoProfitFresh(reset, loadRepresentativeStore()));
+    saveProfitReset(null);
+    setReset(null);
+  }
+
+  return (
+    <section className="section">
+      <h2 className="section-title">بداية جديدة للأرباح</h2>
+      <p className="settings-hint">
+        يبدأ حساب الأرباح من الصفر: التقارير لا تحسب إلا الأرباح التي تتأكد من الآن (بعد الدفع لستارلينك)، وكل المندوبين يبدأون حسابًا
+        جديدًا ويبقى القديم في أرشيفهم. لا يُحذف أي شيء: الشحنات وديون الزبائن والدفعات تبقى كما هي، ويمكنك التراجع.
+      </p>
+      {reset && (
+        <p className="profit-reset-active">
+          🔄 الأرباح محسوبة من <bdi dir="ltr">{reset.date}</bdi>
+        </p>
+      )}
+      <div className="settings-actions">
+        <button type="button" className="dialog-danger" onClick={start}>
+          🔄 ابدأ الأرباح من الصفر الآن
+        </button>
+        {reset && (
+          <button type="button" className="text-action" onClick={undo}>
+            إلغاء (إرجاع الأرباح القديمة)
+          </button>
+        )}
+      </div>
+    </section>
   );
 }

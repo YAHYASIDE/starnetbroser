@@ -752,7 +752,9 @@ export function LedgerDialog({
               MRU: getCurrency(currencyStore, "MRU")?.rateFromUsd,
               SIFA: getCurrency(currencyStore, "SIFA")?.rateFromUsd,
             };
-            onChange(updateEntry(entries, settlingEntry.id, { starlinkCost: cost, profitCurrencyRates }));
+            onChange(
+              updateEntry(entries, settlingEntry.id, { starlinkCost: { ...cost, settledAt: new Date().toISOString() }, profitCurrencyRates }),
+            );
             setSettlingEntry(null);
           }}
         />

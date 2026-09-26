@@ -53,6 +53,12 @@ export function shipmentProfitDate(entry: LedgerEntry): string {
   return entry.date;
 }
 
+/** When a shipment's profit became real, for ordering against a same-day reset: its payment day
+ * and the moment it was settled (else when it was recorded). */
+export function shipmentProfitMoment(entry: LedgerEntry): { date: string; createdAt: string } {
+  return { date: shipmentProfitDate(entry), createdAt: entry.starlinkCost?.settledAt ?? entry.createdAt };
+}
+
 export type ShipmentProfitStatus = "legacy" | "pending" | "computed";
 
 export interface ShipmentProfit {

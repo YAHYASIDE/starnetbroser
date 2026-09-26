@@ -60,6 +60,8 @@ export interface StarlinkCost {
   paidAt?: string;
   /** Settled from the operator's "كاش" card (starlinkDebt.ts) - its balance is debited by it. */
   paidVia?: "card";
+  /** ISO time the D was settled - orders a payment against a "fresh start" made the same day. */
+  settledAt?: string;
   note?: string;
 }
 

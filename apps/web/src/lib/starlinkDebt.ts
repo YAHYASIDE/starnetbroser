@@ -66,6 +66,7 @@ export function settleShipmentCost(entry: LedgerEntry, options: SettleOptions): 
       status: "settled",
       paidAt: options.date,
       paidVia: options.fromCard ? "card" : undefined,
+      settledAt: new Date().toISOString(),
     },
     profitCurrencyRates: options.profitRates,
   };
