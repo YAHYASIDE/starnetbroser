@@ -191,6 +191,21 @@ export interface CheckSessionResult {
   status: SessionStatus;
 }
 
+export interface AuthorizeDriveOptions {
+  /** false: never show a Google screen - reject with code "DRIVE_CONSENT_REQUIRED" instead (the
+   * automatic daily upload). Defaults to true (the "ربط Google Drive" button). */
+  interactive?: boolean;
+}
+
+export interface AuthorizeDriveResult {
+  /** Short-lived OAuth token for the drive.file scope only - never stored; ask again each time. */
+  accessToken: string;
+}
+
+export interface ClearDriveTokenOptions {
+  accessToken: string;
+}
+
 export interface SyncNowOptions {
   /** Omit to sync every registered account; set to scope this run to just one - a single card's
    * own "تحديث" button rather than the header's "مزامنة الآن". */
@@ -319,4 +334,15 @@ export interface LocalBrowserPlugin {
    * Never rejects; a no-op on web, where there is no such OS screen to open.
    */
   openNotificationSettings(): Promise<void>;
+
+  /**
+   * Google Drive access (drive.file scope: only files this app created) for the off-phone backup.
+   * The first interactive call shows Google's account/consent screen; later calls return a token
+   * silently. Rejects with code "DRIVE_CONSENT_REQUIRED" (non-interactive, not yet approved),
+   * "DRIVE_CANCELLED" or "DRIVE_AUTH_FAILED"; always rejects on web.
+   */
+  authorizeDrive(options?: AuthorizeDriveOptions): Promise<AuthorizeDriveResult>;
+
+  /** Drops a token Drive rejected (HTTP 401) so the next authorizeDrive returns a fresh one. */
+  clearDriveToken(options: ClearDriveTokenOptions): Promise<void>;
 }

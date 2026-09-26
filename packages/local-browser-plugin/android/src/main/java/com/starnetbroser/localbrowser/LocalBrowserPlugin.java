@@ -79,9 +79,30 @@ public class LocalBrowserPlugin extends Plugin {
     // WebView) can't be garbage-collected.
     private static WeakReference<LocalBrowserPlugin> activeInstance;
 
+    private final DriveAuthorizer driveAuthorizer = new DriveAuthorizer();
+
     @Override
     public void load() {
         activeInstance = new WeakReference<>(this);
+        driveAuthorizer.register(getActivity());
+    }
+
+    /** Google Drive (drive.file) access token for the off-phone backup - see DriveAuthorizer.
+     * `interactive: false` never shows any Google screen: it fails with DRIVE_CONSENT_REQUIRED
+     * instead (used by the automatic daily upload). */
+    @PluginMethod
+    public void authorizeDrive(PluginCall call) {
+        driveAuthorizer.authorize(getActivity(), call, call.getBoolean("interactive", true));
+    }
+
+    @PluginMethod
+    public void clearDriveToken(PluginCall call) {
+        String token = call.getString("accessToken");
+        if (token == null || token.isEmpty()) {
+            call.resolve();
+            return;
+        }
+        driveAuthorizer.clearToken(getContext(), call, token);
     }
 
     /**

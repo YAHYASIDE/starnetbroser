@@ -66,6 +66,12 @@ describe("LocalBrowserWeb", () => {
     await expect(plugin.checkSession({ accountId: "acc-1" })).rejects.toThrow();
   });
 
+  it("rejects authorizeDrive on web and treats clearDriveToken as a no-op", async () => {
+    const plugin = new LocalBrowserWeb();
+    await expect(plugin.authorizeDrive({ interactive: true })).rejects.toThrow();
+    await expect(plugin.clearDriveToken({ accessToken: "x" })).resolves.toBeUndefined();
+  });
+
   it("accepts openNotificationSettings as a harmless no-op (there is no OS settings screen on web)", async () => {
     const plugin = new LocalBrowserWeb();
     await expect(plugin.openNotificationSettings()).resolves.toBeUndefined();

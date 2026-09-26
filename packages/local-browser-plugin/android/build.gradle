@@ -14,6 +14,8 @@ ext {
     // the platform-sanctioned way to run deferred/periodic background work post-Android 8's
     // background execution limits, rather than a raw Service or AlarmManager.
     androidxWorkVersion = project.hasProperty('androidxWorkVersion') ? rootProject.ext.androidxWorkVersion : '2.9.1'
+    // Google Identity Services' AuthorizationClient (DriveAuthorizer) - the Drive backup's sign-in.
+    playServicesAuthVersion = project.hasProperty('playServicesAuthVersion') ? rootProject.ext.playServicesAuthVersion : '21.2.0'
     androidxJunitVersion = project.hasProperty('androidxJunitVersion') ? rootProject.ext.androidxJunitVersion : '1.1.5'
     androidxEspressoCoreVersion = project.hasProperty('androidxEspressoCoreVersion') ? rootProject.ext.androidxEspressoCoreVersion : '3.5.1'
 }
@@ -70,6 +72,7 @@ dependencies {
     implementation "androidx.core:core:$androidxCoreVersion"
     implementation "androidx.webkit:webkit:$androidxWebkitVersion"
     implementation "androidx.work:work-runtime:$androidxWorkVersion"
+    implementation "com.google.android.gms:play-services-auth:$playServicesAuthVersion"
     testImplementation "junit:junit:$junitVersion"
     // PendingSyncStoreTest exercises org.json.JSONObject/JSONArray directly. Android's compile-time
     // android.jar (also what testDebugUnitTest runs against by default) stubs every org.json.*

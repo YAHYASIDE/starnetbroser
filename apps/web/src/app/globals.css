@@ -7033,3 +7033,29 @@ button.today-tile {
   gap: 8px;
   color: var(--text-muted);
 }
+
+/* Settings → «اختيار نسخة من Google Drive» list. */
+.drive-file-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.drive-file {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}

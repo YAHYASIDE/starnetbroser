@@ -49,6 +49,9 @@ import { APK_DOWNLOAD_URL, checkForAppUpdate, CURRENT_COMMIT, UpdateCheckResult 
 import { getMorningDigestHour, isMorningDigestEnabled, setMorningDigestEnabled, setMorningDigestHour } from "@/lib/morningNotifications";
 import { getAutoBackupLastRun, getAutoBackupPassword, setAutoBackupPassword } from "@/lib/autoBackup";
 import { runAutoBackup, shareLatestAutoBackup } from "@/lib/autoBackupRunner";
+import { DriveFile, DriveUploadStatus, driveBackupLabel, getDriveEmail, getDriveLastUpload, isDriveLinked } from "@/lib/driveBackup";
+import { downloadGoogleDriveBackup, linkGoogleDrive, listGoogleDriveBackups, runDriveBackup, unlinkGoogleDrive } from "@/lib/driveBackupRunner";
+import { PartySheet } from "@/components/AccountsSection";
 import { BusinessProfile, loadBusinessProfile, saveBusinessProfile } from "@/lib/pdfDocument";
 import { clearAppPin, hasAppPin, setAppPin, verifyAppPin } from "@/lib/appLock";
 import { loadProfitReset, ProfitReset, saveProfitReset, startProfitFresh, undoProfitFresh } from "@/lib/profitReset";
@@ -159,6 +162,8 @@ export default function SettingsPage() {
       <AppUpdateSection />
 
       <AutoBackupSection />
+
+      <DriveSection />
 
       <section className="section">
         <h2 className="section-title">المساعدة الذكية</h2>
@@ -532,6 +537,42 @@ function BackupSection() {
   const [importBusy, setImportBusy] = useState(false);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [importDone, setImportDone] = useState(false);
+  const [inApp, setInApp] = useState(false);
+  const [driveFiles, setDriveFiles] = useState<DriveFile[] | null>(null);
+  const [driveBusy, setDriveBusy] = useState(false);
+  useEffect(() => setInApp(isRunningInAndroidApp()), []);
+
+  // "استعادة من Google Drive": the chosen backup becomes the file to import, exactly as if it had
+  // been picked from the phone - the same password + confirmation + safe restore follow.
+  async function openDrivePicker() {
+    setImportMessage(null);
+    setDriveBusy(true);
+    const result = await listGoogleDriveBackups();
+    setDriveBusy(false);
+    if (!result.ok) {
+      setImportMessage(result.message);
+      return;
+    }
+    if (result.value.length === 0) {
+      setImportMessage("لا توجد نسخ في مجلد STARNET على Google Drive بعد");
+      return;
+    }
+    setDriveFiles(result.value);
+  }
+
+  async function pickDriveFile(file: DriveFile) {
+    setDriveBusy(true);
+    const result = await downloadGoogleDriveBackup(file.id);
+    setDriveBusy(false);
+    if (!result.ok) {
+      setImportMessage(result.message);
+      return;
+    }
+    setDriveFiles(null);
+    setImportFile(new File([result.value], file.name, { type: "application/octet-stream" }));
+    setImportDone(false);
+    setImportMessage(`تم تنزيل نسخة ${driveBackupLabel(file.name)} من Google Drive - أدخل كلمة المرور ثم اضغط «استيراد نسخة احتياطية».`);
+  }
 
   async function handleExport() {
     setExportMessage(null);
@@ -693,6 +734,11 @@ function BackupSection() {
           <span className="backup-file-button">📂 اختر ملف النسخة</span>
           <span className="backup-file-name">{importFile ? importFile.name : "لم تختر ملفًا بعد"}</span>
         </label>
+        {inApp && (
+          <button type="button" className="btn-icon" disabled={driveBusy} onClick={openDrivePicker}>
+            {driveBusy ? "جارِ الاتصال بـ Google Drive…" : "☁️ اختيار نسخة من Google Drive"}
+          </button>
+        )}
         <input
           className="search-input"
           type="password"
@@ -712,6 +758,126 @@ function BackupSection() {
           </button>
         )}
       </div>
+
+      {driveFiles && (
+        <PartySheet title="نسخ Google Drive" onClose={() => setDriveFiles(null)}>
+          <ul className="drive-file-list">
+            {driveFiles.map((file) => (
+              <li key={file.id}>
+                <button type="button" className="drive-file" disabled={driveBusy} onClick={() => pickDriveFile(file)}>
+                  <bdi dir="ltr">{driveBackupLabel(file.name)}</bdi>
+                  {file.size ? <span className="settings-hint">{Math.max(1, Math.round(file.size / 1024))} KB</span> : null}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </PartySheet>
+      )}
+    </section>
+  );
+}
+
+/** "2026-09-26 17:55" - reads the same inside RTL text as outside it. */
+function formatLocalDateTime(date: Date): string {
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/** "Google Drive": the daily encrypted backup also goes to the operator's own Drive (see
+ * driveBackup.ts / driveBackupRunner.ts), so losing the phone never loses the data. */
+function DriveSection() {
+  const [android, setAndroid] = useState(true);
+  const [linked, setLinked] = useState(false);
+  const [email, setEmail] = useState<string | null>(null);
+  const [last, setLast] = useState<DriveUploadStatus | null>(null);
+  const [hasPassword, setHasPassword] = useState(false);
+  const [busy, setBusy] = useState<"link" | "upload" | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  function refresh() {
+    setLinked(isDriveLinked());
+    setEmail(getDriveEmail());
+    setLast(getDriveLastUpload());
+    setHasPassword(getAutoBackupPassword() !== null);
+  }
+
+  useEffect(() => {
+    setAndroid(isRunningInAndroidApp());
+    refresh();
+  }, []);
+
+  async function uploadNow() {
+    setBusy("upload");
+    setMessage(null);
+    const accounts = isDemoMode() ? loadDemoAccounts([]) : await listAccounts().catch(() => []);
+    const outcome = await runDriveBackup(accounts, true);
+    setBusy(null);
+    refresh();
+    setMessage(outcome.status === "uploaded" ? `✓ رُفعت النسخة إلى Google Drive (مجلد STARNET)` : outcome.status === "failed" ? outcome.message : null);
+  }
+
+  async function link() {
+    setBusy("link");
+    setMessage(null);
+    const result = await linkGoogleDrive();
+    setBusy(null);
+    refresh();
+    if (!result.ok) {
+      setMessage(result.message);
+      return;
+    }
+    if (getAutoBackupPassword() !== null) await uploadNow();
+    else setMessage("✓ تم الربط. فعّل «النسخ الاحتياطي التلقائي» أعلاه (كلمة المرور) لتبدأ النسخ بالرفع.");
+  }
+
+  async function unlink() {
+    if (!window.confirm("فصل Google Drive؟ تتوقف النسخ عن الرفع، وتبقى النسخ القديمة في Drive.")) return;
+    await unlinkGoogleDrive();
+    refresh();
+    setMessage("تم فصل Google Drive");
+  }
+
+  const lastAt = last ? formatLocalDateTime(new Date(last.at)) : null;
+
+  return (
+    <section className="section">
+      <h2 className="section-title">☁️ نسخة في Google Drive</h2>
+      <p className="settings-hint">
+        كل يوم تُرفع نسخة كاملة مشفّرة إلى مجلد STARNET في حسابك على Google Drive، ويُحتفظ بآخر 30 نسخة - حتى لو ضاع
+        الهاتف أو تعطّل تستعيد كل شيء على هاتف جديد. التطبيق يرى ملفاته فقط، لا شيء آخر في Drive.
+      </p>
+      {!android && <p className="settings-hint">⚠️ يعمل داخل تطبيق Android فقط.</p>}
+      {linked ? (
+        <>
+          <p className="settings-hint">
+            ✓ مربوط{email ? <> بـ <bdi dir="ltr">{email}</bdi></> : ""}
+          </p>
+          {!hasPassword && <p className="account-card-alert">فعّل «النسخ الاحتياطي التلقائي» أعلاه (كلمة المرور) - به تُشفَّر نسخة Drive.</p>}
+          {last && (
+            <p className={last.ok ? "settings-hint" : "account-card-alert"}>
+              {last.ok ? "✓ آخر رفع: " : "⚠️ فشل آخر رفع: "}
+              <bdi dir="ltr">{lastAt}</bdi>
+              {!last.ok && last.message ? ` - ${last.message}` : ""}
+            </p>
+          )}
+          <div className="settings-actions">
+            <button type="button" className="dialog-primary" disabled={busy !== null} onClick={uploadNow}>
+              {busy === "upload" ? "جارِ الرفع…" : "رفع الآن"}
+            </button>
+            <button type="button" className="text-action" disabled={busy !== null} onClick={unlink}>
+              فصل
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="settings-actions">
+          <button type="button" className="dialog-primary" disabled={busy !== null || !android} onClick={link}>
+            {busy === "link" ? "جارِ الربط…" : "ربط Google Drive"}
+          </button>
+        </div>
+      )}
+      {message && <div className="account-card-alert">{message}</div>}
     </section>
   );
 }

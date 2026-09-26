@@ -2,7 +2,10 @@ import { WebPlugin } from "@capacitor/core";
 import type {
   AckPendingAccountSyncsOptions,
   AckPendingAccountSyncsResult,
+  AuthorizeDriveOptions,
+  AuthorizeDriveResult,
   CheckSessionOptions,
+  ClearDriveTokenOptions,
   CheckSessionResult,
   DeleteAccountSessionOptions,
   DeleteAccountSessionResult,
@@ -77,6 +80,15 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
   // There is no OS notification-settings screen to open outside the native app - a silent no-op,
   // not an error, same reasoning as setAutoSyncAccountIds above.
   async openNotificationSettings(): Promise<void> {
+    return;
+  }
+
+  // Google Drive sign-in goes through Google Play services on the phone - nothing to do on web.
+  async authorizeDrive(_options?: AuthorizeDriveOptions): Promise<AuthorizeDriveResult> {
+    throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
+  }
+
+  async clearDriveToken(_options: ClearDriveTokenOptions): Promise<void> {
     return;
   }
 }

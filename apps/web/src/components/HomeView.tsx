@@ -25,6 +25,7 @@ import { parseNewDevicePrefill } from "@/lib/deviceFromSale";
 import { HOME_ACTION_EVENT, HomeAction, parseHomeAction, REMINDER_COUNT_EVENT } from "@/lib/homeActions";
 import { buildRenewalShipment } from "@/lib/renewalPlan";
 import { runAutoBackup } from "@/lib/autoBackupRunner";
+import { runDriveBackup } from "@/lib/driveBackupRunner";
 import { notifySuspendedWithDebt, onDigestTapped, rescheduleMorningDigests } from "@/lib/morningNotifications";
 import { cardShortfallForSuspended, currentCardBalanceUsd, listOpenShipmentDebts, listSuspendedWithDebt, settleShipmentCost } from "@/lib/starlinkDebt";
 import { APK_DOWNLOAD_URL, checkForAppUpdate, shouldAutoCheck } from "@/lib/appUpdate";
@@ -619,6 +620,9 @@ export function HomeView({
       const outcome = await runAutoBackup(accountsRef.current);
       if (outcome.status === "saved") setLastBackupAt(new Date().toISOString());
       if (outcome.status === "failed") pushToast(`تعذر النسخ الاحتياطي التلقائي: ${outcome.message}`);
+      // The off-phone copy (Settings → Google Drive). Silent: a failure (offline) is retried on the
+      // next app open and shown in Settings, never a toast every time.
+      await runDriveBackup(accountsRef.current);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
