@@ -6425,3 +6425,170 @@ button.today-tile {
 .renewal-settle strong {
   color: var(--red);
 }
+
+/* ---- "المزيد": a column of pills rising from the button, the screen behind stays visible ---- */
+.more-menu-layer {
+  position: fixed;
+  z-index: 95;
+  inset: 0;
+  background: transparent;
+}
+
+.more-menu {
+  position: fixed;
+  /* Centred over the "المزيد" button: the bar's left edge + half of its first (leftmost) slot. */
+  /* The padding keeps the icons' glow inside the scroll box; `left` subtracts it back. */
+  left: calc(14px + (100vw - 28px) / 12 - 23px - 16px);
+  bottom: calc(84px + var(--safe-bottom));
+  max-height: calc(100vh - 110px - var(--safe-bottom));
+  margin: 0;
+  padding: 14px 16px 6px 16px;
+  scrollbar-width: none;
+  list-style: none;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-start;
+  gap: 12px;
+  overflow-y: auto;
+  direction: ltr;
+}
+
+.more-menu::-webkit-scrollbar {
+  display: none;
+}
+
+.more-menu-row {
+  position: relative;
+  animation: more-rise 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
+  animation-delay: var(--more-delay);
+}
+
+/* The small dot joining each pill to the one above it. */
+.more-menu-row:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 20px;
+  top: -10px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--more-color);
+  box-shadow: 0 0 8px var(--more-color);
+  opacity: 0.85;
+}
+
+@keyframes more-rise {
+  from {
+    opacity: 0;
+    transform: translateY(26px) scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .more-menu-row {
+    animation: none;
+  }
+}
+
+.more-menu-item {
+  display: flex;
+  align-items: center;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.more-menu-icon {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  color: #fff;
+  background:
+    radial-gradient(circle at 35% 30%, rgb(255 255 255 / 0.35), rgb(255 255 255 / 0) 60%),
+    var(--more-color);
+  box-shadow:
+    0 0 0 3px rgb(255 255 255 / 0.55),
+    0 0 16px var(--more-color),
+    0 6px 14px rgb(0 0 0 / 0.35);
+}
+
+.more-menu-icon svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.more-menu-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 4px;
+  border-radius: 10px;
+  border: 2px solid #fff;
+  background: #ff3b5c;
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+}
+
+.more-menu-label {
+  margin-left: -20px;
+  padding: 0 16px 0 28px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  border-radius: 0 19px 19px 0;
+  background: linear-gradient(90deg, var(--more-tint), rgb(255 255 255 / 0.94));
+  color: #1a2233;
+  font-size: 0.86rem;
+  font-weight: 800;
+  white-space: nowrap;
+  direction: rtl;
+  box-shadow: 0 6px 16px rgb(0 0 0 / 0.28);
+}
+
+/* The "المزيد" button itself: a glowing ✕ while the menu is open, a red dot for reminders. */
+.bottom-nav-icon {
+  position: relative;
+}
+
+.bottom-nav-more-open .bottom-nav-icon {
+  width: 40px;
+  height: 40px;
+  margin-top: -14px;
+  border-radius: 50%;
+  background: var(--brand);
+  color: #fff;
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--brand) 25%, transparent), 0 0 20px color-mix(in srgb, var(--brand) 70%, transparent);
+}
+
+.bottom-nav-dot {
+  position: absolute;
+  top: 1px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--red);
+  box-shadow: 0 0 0 2px var(--surface);
+}

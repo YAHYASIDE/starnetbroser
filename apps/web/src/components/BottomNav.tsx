@@ -1,8 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { CSSProperties, useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { HOME_ACTION_EVENT, HomeAction, homeActionHref, REMINDER_COUNT_EVENT } from "@/lib/homeActions";
+import { isRunningInAndroidApp } from "@/lib/localBrowser";
+
+type MoreItem = { label: string; icon: IconName; color: string; tint: string } & ({ href: string } | { action: HomeAction });
 
 /**
  * Global bottom navigation, rendered once in the root layout so it persists across every route.
@@ -11,9 +15,21 @@ import { usePathname } from "next/navigation";
  */
 export function BottomNav() {
   const pathname = usePathname();
+  const router = useRouter();
   const [sheetOpen, setSheetOpen] = useState(false);
-  const SHEET_DESTINATIONS = ["/starlink", "/currencies", "/trash", "/archive", "/reminders"];
+  const [reminderCount, setReminderCount] = useState(0);
+  const [inApp, setInApp] = useState(false);
+  const SHEET_DESTINATIONS = ["/starlink", "/currencies", "/trash", "/archive", "/reminders", "/settings"];
   const onSheetDestination = SHEET_DESTINATIONS.includes(pathname ?? "");
+
+  useEffect(() => {
+    setInApp(isRunningInAndroidApp());
+    const onCount = (event: Event) => setReminderCount((event as CustomEvent<number>).detail ?? 0);
+    window.addEventListener(REMINDER_COUNT_EVENT, onCount);
+    return () => window.removeEventListener(REMINDER_COUNT_EVENT, onCount);
+  }, []);
+
+  useEffect(() => setSheetOpen(false), [pathname]);
 
   // The embedded remote-browser view (cloud session) is meant to be full-screen and immersive,
   // the same reasoning the local Android WebView browsing screen already follows - a persistent
@@ -28,32 +44,56 @@ export function BottomNav() {
     { href: "/store", label: "المتجر", icon: "bag" },
   ];
 
+  // "المزيد": listed bottom (nearest the thumb) to top.
+  const moreItems: MoreItem[] = [
+    { label: "إضافة حساب", icon: "plus", color: "#2f80ff", tint: "#d6e6ff", action: "add-account" },
+    ...(inApp ? [{ label: "مزامنة الآن", icon: "sync" as const, color: "#10b8cc", tint: "#d2f4f8", action: "sync" as const }] : []),
+    { label: "التذكيرات", icon: "bell", color: "#f0455f", tint: "#ffd9df", href: "/reminders" },
+    { label: "العملاء", icon: "people", color: "#8b5cf6", tint: "#e6dcff", action: "clients" },
+    { label: "ستارلينك والبطاقة", icon: "card", color: "#1668e3", tint: "#d6e3fb", href: "/starlink" },
+    { label: "العملات", icon: "coins", color: "#22c55e", tint: "#d4f7e1", href: "/currencies" },
+    { label: "الأرشيف", icon: "archive", color: "#64748b", tint: "#e2e8f0", href: "/archive" },
+    { label: "سلة المحذوفات", icon: "trash", color: "#e0294a", tint: "#ffd6de", href: "/trash" },
+    { label: "الإعدادات", icon: "settings", color: "#f5a524", tint: "#ffecc7", href: "/settings" },
+  ];
+
+  function runAction(action: HomeAction) {
+    setSheetOpen(false);
+    if (pathname === "/") window.dispatchEvent(new CustomEvent(HOME_ACTION_EVENT, { detail: action }));
+    else router.push(homeActionHref(action));
+  }
+
   return (
     <>
       {sheetOpen && (
-        <div className="bottom-nav-sheet-backdrop" role="presentation" onClick={() => setSheetOpen(false)}>
-          <div className="bottom-nav-sheet" role="menu" onClick={(e) => e.stopPropagation()}>
-            <Link href="/starlink" className="bottom-nav-sheet-item" onClick={() => setSheetOpen(false)}>
-              <NavIcon name="card" />
-              ستارلينك والبطاقة
-            </Link>
-            <Link href="/reminders" className="bottom-nav-sheet-item" onClick={() => setSheetOpen(false)}>
-              <NavIcon name="bell" />
-              التذكيرات
-            </Link>
-            <Link href="/currencies" className="bottom-nav-sheet-item" onClick={() => setSheetOpen(false)}>
-              <NavIcon name="coins" />
-              العملات
-            </Link>
-            <Link href="/trash" className="bottom-nav-sheet-item" onClick={() => setSheetOpen(false)}>
-              <NavIcon name="trash" />
-              سلة المحذوفات
-            </Link>
-            <Link href="/archive" className="bottom-nav-sheet-item" onClick={() => setSheetOpen(false)}>
-              <NavIcon name="archive" />
-              الأرشيف
-            </Link>
-          </div>
+        <div className="more-menu-layer" role="presentation" onClick={() => setSheetOpen(false)}>
+          <ul className="more-menu" role="menu" aria-label="المزيد">
+            {moreItems.map((item, index) => {
+              const style = { "--more-color": item.color, "--more-tint": item.tint, "--more-delay": `${index * 35}ms` } as CSSProperties;
+              const content = (
+                <>
+                  <span className="more-menu-icon" aria-hidden="true">
+                    <NavIcon name={item.icon} />
+                    {item.icon === "bell" && reminderCount > 0 && <span className="more-menu-badge">{reminderCount > 9 ? "9+" : reminderCount}</span>}
+                  </span>
+                  <span className="more-menu-label">{item.label}</span>
+                </>
+              );
+              return (
+                <li key={item.label} className="more-menu-row" style={style} onClick={(e) => e.stopPropagation()}>
+                  {"href" in item ? (
+                    <Link href={item.href} className="more-menu-item" role="menuitem" onClick={() => setSheetOpen(false)}>
+                      {content}
+                    </Link>
+                  ) : (
+                    <button type="button" className="more-menu-item" role="menuitem" onClick={() => runAction(item.action)}>
+                      {content}
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
 
@@ -70,12 +110,15 @@ export function BottomNav() {
         ))}
         <button
           type="button"
-          className={`bottom-nav-item bottom-nav-plus${sheetOpen || onSheetDestination ? " bottom-nav-item-active" : ""}`}
+          className={`bottom-nav-item bottom-nav-plus${sheetOpen ? " bottom-nav-more-open" : ""}${sheetOpen || onSheetDestination ? " bottom-nav-item-active" : ""}`}
           onClick={() => setSheetOpen((v) => !v)}
           aria-expanded={sheetOpen}
-          aria-label="المزيد"
+          aria-label={sheetOpen ? "إغلاق" : "المزيد"}
         >
-          <span className="bottom-nav-icon" aria-hidden="true"><NavIcon name="more" /></span>
+          <span className="bottom-nav-icon" aria-hidden="true">
+            <NavIcon name={sheetOpen ? "close" : "more"} />
+            {!sheetOpen && reminderCount > 0 && <span className="bottom-nav-dot" />}
+          </span>
           <span className="bottom-nav-label">المزيد</span>
         </button>
       </nav>
@@ -83,7 +126,9 @@ export function BottomNav() {
   );
 }
 
-type IconName = "home" | "people" | "chart" | "handshake" | "bag" | "more" | "bell" | "coins" | "trash" | "archive" | "card";
+type IconName =
+  | "home" | "people" | "chart" | "handshake" | "bag" | "more" | "bell" | "coins" | "trash" | "archive" | "card"
+  | "plus" | "sync" | "settings" | "close";
 
 /** Line icons shared by the bottom bar and its "المزيد" sheet (stroke = currentColor). */
 function NavIcon({ name }: { name: IconName }) {
@@ -127,6 +172,15 @@ function NavIcon({ name }: { name: IconName }) {
       <>
         <rect x="3" y="6" width="18" height="13" rx="2" />
         <path d="M3 10h18M7 15h4" />
+      </>
+    ),
+    plus: <path d="M12 5v14M5 12h14" />,
+    close: <path d="M6 6l12 12M18 6 6 18" />,
+    sync: <path d="M20 11a8 8 0 0 0-14.3-4.9L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.9L20 16M20 20v-4h-4" />,
+    settings: (
+      <>
+        <circle cx="12" cy="12" r="3.2" />
+        <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21h-4v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.9.3l-.1.1-2.8-2.8.1-.1A1.7 1.7 0 0 0 4.6 15 1.7 1.7 0 0 0 3 14v-4a1.7 1.7 0 0 0 1.6-1.1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6 1.7 1.7 0 0 0 10 3h4a1.7 1.7 0 0 0 1.1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9A1.7 1.7 0 0 0 21 10v4a1.7 1.7 0 0 0-1.6 1Z" />
       </>
     ),
     archive: (

@@ -22,6 +22,7 @@ import { computeDeviceDebtReminders, computeRenewalReminders, computeRestrictedD
 import { formatAmount } from "@/lib/formatAmount";
 import { applyLedgerPaymentsToCash, loadCashEntries, saveCashEntries } from "@/lib/cashStore";
 import { parseNewDevicePrefill } from "@/lib/deviceFromSale";
+import { HOME_ACTION_EVENT, HomeAction, parseHomeAction, REMINDER_COUNT_EVENT } from "@/lib/homeActions";
 import { buildRenewalShipment } from "@/lib/renewalPlan";
 import { runAutoBackup } from "@/lib/autoBackupRunner";
 import { notifySuspendedWithDebt, onDigestTapped, rescheduleMorningDigests } from "@/lib/morningNotifications";
@@ -180,10 +181,6 @@ export function HomeView({
     window.history.replaceState(null, "", window.location.pathname);
   }, []);
 
-  // Defaults to "not the Android app" (matches server render) and only reflects reality after
-  // mount, to avoid a hydration mismatch - same pattern as AccountCard's own isAndroidApp state.
-  const [isAndroidApp, setIsAndroidApp] = useState(false);
-  useEffect(() => setIsAndroidApp(isRunningInAndroidApp()), []);
   // A newer staging APK than this build (see appUpdate.ts) - checked in the Android app only, at
   // most every few hours, silently ignored when offline.
   const [updateAvailable, setUpdateAvailable] = useState(false);
@@ -210,8 +207,7 @@ export function HomeView({
   }
 
   // Purely local customer bookkeeping (see ledgerStore.ts) - starts empty (matches server render,
-  // which never has localStorage) and loads after mount, same hydration-safety reasoning as
-  // isAndroidApp above.
+  // which never has localStorage) and loads after mount, to avoid a hydration mismatch.
   const [ledgerStore, setLedgerStore] = useState<LedgerByAccount>({});
   useEffect(() => setLedgerStore(loadLedgerStore()), []);
   // Read-only here: the till (for the "اليوم" panel), suppliers and store items (for global search).
@@ -815,6 +811,28 @@ export function HomeView({
     );
   }, [suspendedWithDebt]);
 
+  // "المزيد" (BottomNav) shows this count on التذكيرات and runs the home actions below.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent(REMINDER_COUNT_EVENT, { detail: remindersBadgeEnabled ? reminderCount : 0 }));
+  });
+  const homeActionRef = useRef<(action: HomeAction) => void>(() => {});
+  homeActionRef.current = (action) => {
+    if (action === "add-account") setDialog({ mode: "add" });
+    else if (action === "sync") void handleSyncNow();
+    else setShowClientsOverview(true);
+  };
+  useEffect(() => {
+    if (viewMode !== "active") return;
+    const onAction = (event: Event) => homeActionRef.current((event as CustomEvent<HomeAction>).detail);
+    window.addEventListener(HOME_ACTION_EVENT, onAction);
+    const fromUrl = parseHomeAction(window.location.search);
+    if (fromUrl) {
+      window.history.replaceState(null, "", window.location.pathname);
+      homeActionRef.current(fromUrl);
+    }
+    return () => window.removeEventListener(HOME_ACTION_EVENT, onAction);
+  }, [viewMode]);
+
   const reminderCount = useMemo(
     () =>
       suspendedWithDebt.length +
@@ -912,53 +930,6 @@ export function HomeView({
             <span className="brand-mark">STAR NET</span>
             <span className="brand-subtitle">إدارة حسابات Starlink</span>
           </div>
-        </div>
-        <div className="header-actions">
-          {isAndroidApp && (
-            <button
-              className={`header-sync${syncingNow ? " syncing" : ""}`}
-              type="button"
-              onClick={handleSyncNow}
-              disabled={syncingNow}
-              title="مزامنة الآن"
-              aria-label="مزامنة الآن"
-            >
-              <span aria-hidden="true">⟳</span>
-            </button>
-          )}
-          <button className="header-add" type="button" onClick={() => setDialog({ mode: "add" })}>
-            <span aria-hidden="true">＋</span> إضافة حساب
-          </button>
-          <button className="header-clients" type="button" onClick={() => setShowClientsOverview(true)} aria-label="العملاء">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="9" cy="8" r="3.3" />
-              <path d="M3.5 19.5c0-3 2.5-5.3 5.5-5.3s5.5 2.3 5.5 5.3" strokeLinecap="round" />
-              <circle cx="17" cy="9" r="2.6" />
-              <path d="M15.5 14.6c2.4.2 4.3 2.2 4.5 4.9" strokeLinecap="round" />
-            </svg>
-          </button>
-          <Link href="/reminders" className="header-reminders" aria-label="التذكيرات">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 3.5c-3 0-5 2.2-5 5.2v3.4c0 1-.4 2-1.1 2.7L5 15.7c-.5.5-.2 1.3.5 1.3h13c.7 0 1-.8.5-1.3l-.9-.9c-.7-.7-1.1-1.7-1.1-2.7V8.7c0-3-2-5.2-5-5.2Z" strokeLinejoin="round" />
-              <path d="M10 19.5a2 2 0 0 0 4 0" strokeLinecap="round" />
-            </svg>
-            {remindersBadgeEnabled && reminderCount > 0 && (
-              <span className="header-reminders-badge">{reminderCount > 9 ? "9+" : reminderCount}</span>
-            )}
-          </Link>
-          <Link href="/currencies" className="header-currencies" aria-label="العملات وأسعار الصرف">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="9" cy="9" r="5.5" />
-              <circle cx="15" cy="15" r="5.5" />
-              <path d="M9 6.5v5M6.5 9h5" strokeLinecap="round" />
-            </svg>
-          </Link>
-          <Link href="/settings" className="header-settings" aria-label="فتح الإعدادات">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
-              <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.08A1.7 1.7 0 0 0 8.94 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.57 15 1.7 1.7 0 0 0 3 14H3v-4h.08A1.7 1.7 0 0 0 4.6 8.94a1.7 1.7 0 0 0-.34-1.88L4.2 7l2.83-2.83.06.06A1.7 1.7 0 0 0 8.97 4.6 1.7 1.7 0 0 0 10 3.08V3h4v.08a1.7 1.7 0 0 0 1.06 1.52 1.7 1.7 0 0 0 1.88-.34L17 4.2 19.83 7l-.06.06a1.7 1.7 0 0 0-.34 1.88A1.7 1.7 0 0 0 20.92 10H21v4h-.08A1.7 1.7 0 0 0 19.4 15Z" />
-            </svg>
-          </Link>
         </div>
       </header>
 
