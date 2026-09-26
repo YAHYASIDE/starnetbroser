@@ -13,6 +13,7 @@ import type { StarlinkAccountSummary } from "@starnet/shared";
 import { computeExpectedShipmentProfit, starlinkCostUsd } from "./accountingStore";
 import { CashEntryList, recordCashEntry, removeLinkedCashEntries } from "./cashStore";
 import type { LedgerByAccount, LedgerEntry } from "./ledgerStore";
+import { totalPreviousDebtUsd, type PreviousDebt } from "./previousDebt";
 
 const EPSILON = 0.000001;
 
@@ -92,18 +93,26 @@ export function settleShipments(
 export interface SuspendedDebtDevice {
   account: StarlinkAccountSummary;
   debts: OpenShipmentDebt[];
+  /** Earlier owners' unpaid debts on it (previousDebt.ts). */
+  previousDebts: PreviousDebt[];
+  /** Everything owed to Starlink on it, USD: its D's plus its previous debts. */
   costUsd: number;
 }
 
 /** Starlink stops a device a few days before month end when its bill isn't paid - with an open D
- * on it, that's the signal to pay now. */
-export function listSuspendedWithDebt(accounts: StarlinkAccountSummary[], debts: OpenShipmentDebt[]): SuspendedDebtDevice[] {
+ * (or a previous owner's unpaid debt) on it, that's the signal to pay now. */
+export function listSuspendedWithDebt(
+  accounts: StarlinkAccountSummary[],
+  debts: OpenShipmentDebt[],
+  previousDebts: PreviousDebt[] = [],
+): SuspendedDebtDevice[] {
   const result: SuspendedDebtDevice[] = [];
   for (const account of accounts) {
     if (account.serviceStatus !== "suspended" || account.archivedAt || account.deletedAt) continue;
     const own = debts.filter((d) => d.accountId === account.id);
-    if (own.length === 0) continue;
-    result.push({ account, debts: own, costUsd: totalOpenDebtUsd(own) });
+    const previous = previousDebts.filter((d) => d.accountId === account.id);
+    if (own.length === 0 && previous.length === 0) continue;
+    result.push({ account, debts: own, previousDebts: previous, costUsd: totalOpenDebtUsd(own) + totalPreviousDebtUsd(previous) });
   }
   return result;
 }

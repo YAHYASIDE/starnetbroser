@@ -105,7 +105,7 @@ describe("the كاش card", () => {
 });
 
 describe("cardShortfallForSuspended", () => {
-  const suspended = (costUsd: number) => ({ account: { id: "a" } as never, debts: [], costUsd });
+  const suspended = (costUsd: number) => ({ account: { id: "a" } as never, debts: [], previousDebts: [], costUsd });
   it("is what the card lacks to pay every suspended device's D", () => {
     expect(cardShortfallForSuspended([suspended(60), suspended(40)], 70)).toBe(30);
   });
@@ -113,5 +113,15 @@ describe("cardShortfallForSuspended", () => {
     expect(cardShortfallForSuspended([suspended(60)], 100)).toBe(0);
     expect(cardShortfallForSuspended([suspended(60)], -20)).toBe(60);
     expect(cardShortfallForSuspended([], 0)).toBe(0);
+  });
+});
+
+describe("suspended devices with an earlier owner's debt", () => {
+  it("flags a suspended device whose only debt is a previous one, counting it in", () => {
+    const accounts = [{ id: "a", name: "x", serviceStatus: "suspended" } as never];
+    const prev = [{ id: "p1", accountId: "a", date: "2026-09-01", amountUsd: 97, createdAt: "2026-09-01T00:00:00.000Z" }];
+    const flagged = listSuspendedWithDebt(accounts, [], prev);
+    expect(flagged).toHaveLength(1);
+    expect(flagged[0]).toMatchObject({ costUsd: 97, debts: [], previousDebts: prev });
   });
 });

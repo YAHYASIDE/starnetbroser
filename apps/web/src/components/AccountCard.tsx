@@ -8,6 +8,7 @@ import { emailsMismatch } from "@/lib/emailMatch";
 import { computeBalanceByCurrency, LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerEntry } from "@/lib/ledgerStore";
 import { starlinkCostUsd, summarizeDeviceProfit } from "@/lib/accountingStore";
 import { isWaivedCost, openDebtEntries } from "@/lib/deviceFault";
+import { paidSinceLastSyncUsd, totalPreviousDebtUsd, unrecordedStarlinkBalanceUsd, type PreviousDebt } from "@/lib/previousDebt";
 import { computeDeviceMarks } from "@/lib/deviceMarks";
 import { CurrencyStore, getCurrency, toUsd } from "@/lib/currencyStore";
 import { formatAmount } from "@/lib/formatAmount";
@@ -23,6 +24,7 @@ import {
 } from "@/lib/whatsapp";
 import { DeviceFaultDialog } from "./DeviceFaultDialog";
 import { RenewalConfirmDialog } from "./RenewalConfirmDialog";
+import { PreviousDebtDialog } from "./PreviousDebtDialog";
 
 /** Which list this card is currently shown in - changes which of the four circular actions apply.
  * "active" (the default, normal dashboard list) offers متعطل/أرشفة/تجديد/حذف; "archived" and
@@ -33,6 +35,10 @@ export type AccountCardContext = "active" | "archived" | "trash";
 
 interface Props {
   account: StarlinkAccountSummary;
+  /** Earlier owners' unpaid Starlink debts on this device (previousDebt.ts). */
+  previousDebts?: PreviousDebt[];
+  /** Records a previous debt - returns an error message, or null once saved. */
+  onAddPreviousDebt?: (account: StarlinkAccountSummary, input: { date: string; amountUsd: number; note: string }) => string | null;
   /** The last "فحص جلسات الدخول" found this device signed out - shows a small "sign in" bubble
    * over the card's top edge that opens its browser. */
   sessionNeedsLogin?: boolean;
@@ -191,6 +197,8 @@ export function AccountCard({
   account, onEdit, ledgerEntries, allocations, onLedger, onDeviceStatement, client, onOpenClient, currencyStore,
   context = "active", onSetDeviceFault, onArchive, onSoftDelete, onRestore, onPermanentDelete, onConfirmRenewal,
   sessionNeedsLogin = false,
+  previousDebts = [],
+  onAddPreviousDebt,
 }: Props) {
   const ledgerBalances = computeBalanceByCurrency(ledgerEntries);
   const dish = presentStatus(account.dishStatus);
@@ -230,6 +238,16 @@ export function AccountCard({
   // An expected (still-D) profit has no locked MRU rate yet - today's registered rate, marked ≈.
   const currentMruRate = getCurrency(currencyStore, "MRU")?.rateFromUsd;
   const openDebtUsd = openDebtEntries(ledgerEntries).reduce((sum, e) => sum + (starlinkCostUsd(e) ?? 0), 0);
+  const previousDebtUsd = totalPreviousDebtUsd(previousDebts);
+  const unpaidStarlinkUsd = openDebtUsd + previousDebtUsd;
+  // What Starlink shows as due beyond everything recorded - offered as a previous debt.
+  const unrecordedUsd = balanceIsZero
+    ? 0
+    : unrecordedStarlinkBalanceUsd(
+        isUsdBalance ? balanceNumeric : balanceUsdEquivalent,
+        unpaidStarlinkUsd + paidSinceLastSyncUsd(ledgerEntries, account.lastSuccessfulScanAt),
+      );
+  const [previousDebtDialog, setPreviousDebtDialog] = useState<{ suggestedUsd?: number } | null>(null);
   const expectedMru = currentMruRate !== undefined ? profit.expectedUsd * currentMruRate : undefined;
 
   // Defaults to "not the Android app" (matches server render, which never
@@ -402,9 +420,10 @@ export function AccountCard({
             </div>
           )}
         </div>
-        {(marks.d || marks.p) && (
+        {(marks.d || marks.p || previousDebts.length > 0) && (
           <span className="device-marks" aria-label="حالة الدفع">
             {marks.d === "pending" && <span className="device-mark device-mark-d" title="تكلفة Starlink لم تُدفع بعد">D</span>}
+            {previousDebts.length > 0 && <span className="device-mark device-mark-d-previous" title="دين سابق على Starlink لم يُدفع">D</span>}
             {marks.d === "settled" && <span className="device-mark device-mark-ok" title="تكلفة Starlink مدفوعة">✓</span>}
             {marks.p && (
               <span
@@ -432,6 +451,28 @@ export function AccountCard({
           </span>
         )}
       </div>
+
+      {unpaidStarlinkUsd > 0 && (
+        <div className="account-card-unpaid-starlink">
+          <span>غير مدفوع لستارلينك:</span>
+          <strong dir="ltr">{formatAmount(unpaidStarlinkUsd)} $</strong>
+          {openDebtUsd > 0 && previousDebtUsd > 0 && (
+            <small>
+              (D منك <bdi dir="ltr">{formatAmount(openDebtUsd)} $</bdi> · سابق <bdi dir="ltr">{formatAmount(previousDebtUsd)} $</bdi>)
+            </small>
+          )}
+        </div>
+      )}
+      {unrecordedUsd > 0 && onAddPreviousDebt && (
+        <div className="account-card-unrecorded">
+          <span>
+            فرق <bdi dir="ltr">{formatAmount(unrecordedUsd)} $</bdi> غير مسجّل
+          </span>
+          <button type="button" className="text-action" onClick={() => setPreviousDebtDialog({ suggestedUsd: unrecordedUsd })}>
+            سجّله كدين سابق
+          </button>
+        </div>
+      )}
 
       <div className="account-card-pill-row">
         {LEDGER_CURRENCIES.every((c) => !ledgerBalances[c]) ? (
@@ -611,6 +652,9 @@ export function AccountCard({
             <button className="card-action" type="button" disabled={!client} onClick={() => client && onOpenClient(client)}>كشف حساب الزبون</button>
             <button className="card-action" type="button" onClick={() => onDeviceStatement(account)}>كشف حساب الجهاز</button>
             <button className="card-action" type="button" onClick={() => onDeviceStatement(account)}>سجل التجديدات</button>
+            {onAddPreviousDebt && (
+              <button className="card-action" type="button" onClick={() => setPreviousDebtDialog({})}>إضافة دين سابق</button>
+            )}
           </div>
 
           <div className="account-card-footer">
@@ -619,6 +663,19 @@ export function AccountCard({
             </button>
           </div>
         </div>
+      )}
+
+      {previousDebtDialog && onAddPreviousDebt && (
+        <PreviousDebtDialog
+          account={account}
+          suggestedUsd={previousDebtDialog.suggestedUsd}
+          onSave={(input) => {
+            const message = onAddPreviousDebt(account, input);
+            if (!message) setPreviousDebtDialog(null);
+            return message;
+          }}
+          onClose={() => setPreviousDebtDialog(null)}
+        />
       )}
 
       {showFaultDialog && (

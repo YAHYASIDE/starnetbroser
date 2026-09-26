@@ -71,6 +71,9 @@ export interface StarlinkCost {
 
 export interface LedgerEntry {
   id: string;
+  /** Set on the shipment that paid an earlier owner's Starlink debt (previousDebt.ts): the debt is
+   * paid exactly as long as this entry exists. */
+  previousDebtId?: string;
   /** "debit" (عليه): the customer now owes more. "credit" (له): a payment that reduces what they
    * owe. */
   kind: LedgerEntryKind;

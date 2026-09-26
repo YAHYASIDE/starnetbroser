@@ -1,5 +1,6 @@
 "use client";
 
+import { listOpenPreviousDebts, loadPreviousDebts } from "@/lib/previousDebt";
 import { cardShortfallForSuspended, currentCardBalanceUsd, listOpenShipmentDebts, listSuspendedWithDebt } from "@/lib/starlinkDebt";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -63,7 +64,10 @@ export default function RemindersPage() {
   }, []);
 
   const restrictedReminders = useMemo(() => computeRestrictedDeviceReminders(accounts), [accounts]);
-  const suspendedWithDebt = useMemo(() => listSuspendedWithDebt(accounts, listOpenShipmentDebts(ledgerStore)), [accounts, ledgerStore]);
+  const suspendedWithDebt = useMemo(
+    () => listSuspendedWithDebt(accounts, listOpenShipmentDebts(ledgerStore), listOpenPreviousDebts(loadPreviousDebts(), ledgerStore)),
+    [accounts, ledgerStore],
+  );
   const suspendedCardShortfall = useMemo(
     () => (suspendedWithDebt.length > 0 ? cardShortfallForSuspended(suspendedWithDebt, currentCardBalanceUsd(ledgerStore)) : 0),
     [suspendedWithDebt, ledgerStore],

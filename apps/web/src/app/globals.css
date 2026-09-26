@@ -6592,3 +6592,67 @@ button.today-tile {
   background: var(--red);
   box-shadow: 0 0 0 2px var(--surface);
 }
+
+/* ---- دين سابق (previous owner's Starlink debt): orange D, unpaid total, unrecorded hint ---- */
+.device-mark-d-previous {
+  background: color-mix(in srgb, var(--orange) 22%, var(--surface));
+  border-color: var(--orange);
+  color: var(--orange);
+}
+
+.account-card-unpaid-starlink {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.account-card-unpaid-starlink strong {
+  color: var(--red);
+}
+
+.account-card-unrecorded {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--orange);
+  background: var(--orange-bg);
+  color: var(--orange);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.sl-row-previous {
+  border-color: var(--orange);
+}
+
+.sl-previous-tag {
+  display: inline-block;
+  margin-inline-start: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--orange);
+  color: var(--orange);
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.sl-d-previous {
+  background: var(--orange);
+}
+
+.sl-list-previous {
+  margin-top: 8px;
+}
+
+.sl-form-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}

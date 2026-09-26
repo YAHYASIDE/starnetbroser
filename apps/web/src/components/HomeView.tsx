@@ -65,6 +65,8 @@ import {
 } from "@/lib/repStore";
 import { CurrencyStore, getCurrency, loadCurrencyStore, saveCurrencyStore, upsertCurrency, UpsertCurrencyInput } from "@/lib/currencyStore";
 import { openDebtEntries, restoreWaivedDebts, waiveOpenDebts } from "@/lib/deviceFault";
+import { listOpenPreviousDebts, loadPreviousDebts, recordPreviousDebt, savePreviousDebts, type PreviousDebtList } from "@/lib/previousDebt";
+import { confirmClosedMonthChange } from "@/lib/monthClosing";
 import { starlinkCostUsd } from "@/lib/accountingStore";
 import {
   addAllocations,
@@ -662,6 +664,17 @@ export function HomeView({
     });
   }
 
+  // "إضافة دين سابق": an earlier owner's unpaid Starlink debt, its own record until paid.
+  function handleAddPreviousDebt(account: StarlinkAccountSummary, input: { date: string; amountUsd: number; note: string }): string | null {
+    if (!confirmClosedMonthChange([input.date])) return "لم يُحفظ (الشهر مُقفل)";
+    const result = recordPreviousDebt(loadPreviousDebts(), { accountId: account.id, ...input });
+    if (!result.ok) return result.message;
+    savePreviousDebts(result.list);
+    setPreviousDebts(result.list);
+    pushToast(`تم تسجيل دين سابق ${formatAmount(input.amountUsd)} $ على "${account.name}" - يظهر في قائمة D`);
+    return null;
+  }
+
   function currentProfitRates() {
     return { MRU: getCurrency(currencyStore, "MRU")?.rateFromUsd, SIFA: getCurrency(currencyStore, "SIFA")?.rateFromUsd };
   }
@@ -797,9 +810,12 @@ export function HomeView({
   // page itself also covers store debts/low stock, which don't need a second data load just to
   // size a badge.
   // Devices Starlink stopped while we still owe their D - the signal to pay Starlink now.
+  const [previousDebts, setPreviousDebts] = useState<PreviousDebtList>([]);
+  useEffect(() => setPreviousDebts(loadPreviousDebts()), []);
+  const openPreviousDebts = useMemo(() => listOpenPreviousDebts(previousDebts, ledgerStore), [previousDebts, ledgerStore]);
   const suspendedWithDebt = useMemo(
-    () => listSuspendedWithDebt(activeAccounts, listOpenShipmentDebts(ledgerStore)),
-    [activeAccounts, ledgerStore],
+    () => listSuspendedWithDebt(activeAccounts, listOpenShipmentDebts(ledgerStore), openPreviousDebts),
+    [activeAccounts, ledgerStore, openPreviousDebts],
   );
   const suspendedCardShortfall = useMemo(
     () => (suspendedWithDebt.length > 0 ? cardShortfallForSuspended(suspendedWithDebt, currentCardBalanceUsd(ledgerStore)) : 0),
@@ -807,7 +823,11 @@ export function HomeView({
   );
   useEffect(() => {
     void notifySuspendedWithDebt(
-      suspendedWithDebt.map((s) => ({ accountName: s.account.name, entryIds: s.debts.map((d) => d.entry.id), costUsd: s.costUsd })),
+      suspendedWithDebt.map((s) => ({
+        accountName: s.account.name,
+        entryIds: [...s.debts.map((d) => d.entry.id), ...s.previousDebts.map((d) => d.id)],
+        costUsd: s.costUsd,
+      })),
     );
   }, [suspendedWithDebt]);
 
@@ -1150,6 +1170,8 @@ export function HomeView({
                 onPermanentDelete={viewMode === "trash" ? deleteAccount : undefined}
                 onConfirmRenewal={handleConfirmRenewal}
                 sessionNeedsLogin={viewMode === "active" && needsLoginIds.has(account.id)}
+                previousDebts={openPreviousDebts.filter((d) => d.accountId === account.id)}
+                onAddPreviousDebt={viewMode === "active" ? handleAddPreviousDebt : undefined}
               />
             ))}
           </div>
