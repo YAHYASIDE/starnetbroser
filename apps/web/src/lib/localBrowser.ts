@@ -9,6 +9,7 @@ import {
   SessionStatus,
 } from "@starnet/local-browser-plugin";
 import { SessionsByAccount } from "./accountBackup";
+import { markInternalLeave } from "./appLock";
 
 export interface AutoSyncAccountRef {
   id: string;
@@ -46,6 +47,9 @@ export async function openIsolatedAccountBrowser(accountId: string, accountName:
     if (!supported) {
       return { ok: false, message: UNSUPPORTED_DEVICE_MESSAGE };
     }
+    // The device browser is its own Activity - STAR NET going to the background for it must not
+    // count as "left the app" for the PIN re-lock.
+    markInternalLeave();
     await LocalBrowser.openAccountBrowser({ accountId, accountName, url: STARLINK_ACCOUNT_HOME_URL });
     return { ok: true };
   } catch (err) {

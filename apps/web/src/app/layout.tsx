@@ -6,6 +6,7 @@ import "@fontsource/ibm-plex-sans-arabic/700.css";
 import "./globals.css";
 import { BottomNav } from "@/components/BottomNav";
 import { AppLockGate } from "@/components/AppLockGate";
+import { StorageFullBanner } from "@/components/StorageFullBanner";
 
 export const metadata: Metadata = {
   title: "STAR NET",
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
           <BottomNav />
         </AppLockGate>
+        <StorageFullBanner />
       </body>
     </html>
   );

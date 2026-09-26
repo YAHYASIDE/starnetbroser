@@ -46,18 +46,32 @@ export function collectAppData(storage: KeyValueStorage): AppDataSnapshot {
  * removed, so the restored state is exactly the backup's, never a mix of old and new. Keys outside
  * APP_DATA_KEY_PREFIX (settings, login tokens, app PIN) are never touched. Returns how many keys
  * were written. */
+/** Replaces every app-data key with the backup's. All or nothing: if any write fails (typically
+ * the phone's storage is full), whatever was already written is removed and the data that was
+ * there before is put back exactly, then the error is rethrown - a failed restore never leaves
+ * the phone half-restored or empty. */
 export function restoreAppData(storage: KeyValueStorage, data: AppDataSnapshot): number {
-  const existing: string[] = [];
-  for (let i = 0; i < storage.length; i++) {
-    const key = storage.key(i);
-    if (key && key.startsWith(APP_DATA_KEY_PREFIX)) existing.push(key);
-  }
-  for (const key of existing) storage.removeItem(key);
+  const before = collectAppData(storage);
+  const clearAppKeys = () => {
+    const keys: string[] = [];
+    for (let i = 0; i < storage.length; i++) {
+      const key = storage.key(i);
+      if (key && key.startsWith(APP_DATA_KEY_PREFIX)) keys.push(key);
+    }
+    for (const key of keys) storage.removeItem(key);
+  };
+  clearAppKeys();
   let written = 0;
-  for (const [key, value] of Object.entries(data)) {
-    if (!key.startsWith(APP_DATA_KEY_PREFIX) || typeof value !== "string") continue;
-    storage.setItem(key, value);
-    written++;
+  try {
+    for (const [key, value] of Object.entries(data)) {
+      if (!key.startsWith(APP_DATA_KEY_PREFIX) || typeof value !== "string") continue;
+      storage.setItem(key, value);
+      written++;
+    }
+  } catch (err) {
+    clearAppKeys();
+    for (const [key, value] of Object.entries(before)) storage.setItem(key, value);
+    throw err;
   }
   return written;
 }

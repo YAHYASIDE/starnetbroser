@@ -22,6 +22,7 @@ import {
 } from "@/lib/settingsStore";
 import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerCurrency } from "@/lib/ledgerStore";
 import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
+import { STORAGE_BUDGET_CHARS, StorageUsage, formatChars, isQuotaError, measureStorage, storageKeyLabel } from "@/lib/storageGuard";
 import { collectAppData, createEncryptedBackupFile, mergeImportedAccounts, readEncryptedBackupFile, restoreAppData } from "@/lib/accountBackup";
 import {
   checkAccountSession,
@@ -292,6 +293,8 @@ export default function SettingsPage() {
       <BackupSection />
 
       <SessionCheckSection />
+
+      <StorageUsageSection />
     </main>
   );
 }
@@ -605,7 +608,17 @@ function BackupSection() {
         if (!window.confirm(`استعادة نسخة ${when}؟ سيتم استبدال كل البيانات الحالية على هذا الهاتف ببيانات النسخة.`)) {
           return;
         }
-        restoreAppData(window.localStorage, result.data);
+        try {
+          restoreAppData(window.localStorage, result.data);
+        } catch (err) {
+          // restoreAppData already put every original record back - nothing on this phone changed.
+          setImportMessage(
+            isQuotaError(err)
+              ? "لا توجد مساحة كافية لاستعادة هذه النسخة - لم يتغير شيء من بياناتك الحالية. احذف صور المنتجات الكبيرة أو السجلات القديمة ثم حاول مجدداً."
+              : "تعذرت الاستعادة - لم يتغير شيء من بياناتك الحالية.",
+          );
+          return;
+        }
       } else {
         if (!isDemoMode()) {
           setImportMessage("هذه نسخة قديمة (أجهزة فقط) - استيرادها متاح فقط في الوضع المحلي");
@@ -1117,6 +1130,48 @@ function ProfitResetSection() {
           </button>
         )}
       </div>
+    </section>
+  );
+}
+
+/** "مساحة التخزين": how much of the phone's app storage the data uses, and which stores are the
+ * biggest - so a nearly-full phone can be dealt with before a save fails (StorageFullBanner). */
+function StorageUsageSection() {
+  const [usage, setUsage] = useState<StorageUsage | null>(null);
+  useEffect(() => {
+    try {
+      setUsage(measureStorage(window.localStorage));
+    } catch {
+      setUsage(null);
+    }
+  }, []);
+  if (!usage) return null;
+  const percent = Math.min(100, Math.round(usage.ratio * 100));
+  return (
+    <section className="section">
+      <h2 className="section-title">مساحة التخزين</h2>
+      <p className="settings-hint">
+        كل بياناتك محفوظة داخل الهاتف في مساحة محدودة (حوالي {formatChars(STORAGE_BUDGET_CHARS)}). عند امتلائها لا يُحفظ أي
+        تغيير جديد.
+      </p>
+      <div className="storage-meter" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}>
+        <div
+          className={`storage-meter-fill${usage.level === "full" ? " is-full" : usage.level === "warn" ? " is-warn" : ""}`}
+          style={{ width: `${Math.max(percent, 1)}%` }}
+        />
+      </div>
+      <p className="settings-hint">
+        مستخدم <bdi dir="ltr">{percent}%</bdi> ({formatChars(usage.usedChars)})
+        {usage.level !== "ok" && " - خذ نسخة احتياطية الآن، ثم احذف صور المنتجات غير الضرورية أو السجلات القديمة من سلة المحذوفات."}
+      </p>
+      <ul className="storage-keys">
+        {usage.keys.slice(0, 5).map((entry) => (
+          <li key={entry.key}>
+            <span>{storageKeyLabel(entry.key)}</span>
+            <span>{formatChars(entry.chars)}</span>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

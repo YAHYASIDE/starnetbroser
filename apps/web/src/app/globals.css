@@ -636,6 +636,19 @@ a.btn-icon {
   background: var(--bg);
 }
 
+/* Wraps every page without adding a layout box (AppLockGate keeps it stable across re-locks). */
+.app-lock-content {
+  display: contents;
+}
+
+/* A re-lock after the app was in the background: covers the still-mounted pages completely. */
+.app-lock-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  overflow-y: auto;
+}
+
 .app-lock-card {
   align-items: center;
   text-align: center;
@@ -6941,4 +6954,78 @@ button.today-tile {
 .report-export-btn {
   border-color: var(--green);
   color: var(--green);
+}
+
+/* StorageFullBanner.tsx - a save failed (or is about to) because app storage is full. */
+.storage-banner {
+  position: fixed;
+  top: calc(var(--safe-top) + 8px);
+  inset-inline: 8px;
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--orange);
+  background: var(--orange-bg);
+  color: var(--text);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  box-shadow: var(--card-shadow);
+}
+
+.storage-banner.is-failed {
+  border-color: var(--red);
+  background: var(--red-bg);
+}
+
+.storage-banner-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.storage-banner-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Settings → مساحة التخزين */
+.storage-meter {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--surface-alt);
+  overflow: hidden;
+}
+
+.storage-meter-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--green);
+}
+
+.storage-meter-fill.is-warn {
+  background: var(--yellow);
+}
+
+.storage-meter-fill.is-full {
+  background: var(--red);
+}
+
+.storage-keys {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 0.85rem;
+}
+
+.storage-keys li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-muted);
 }

@@ -163,6 +163,27 @@ describe("full app-data backup", () => {
     expect(storage.dump()).toEqual({ "starnet.accessToken": "keep-me", starnet_clients_v1: "new", starnet_suppliers_v1: "[]" });
   });
 
+  it("rolls back to the original data when the phone runs out of space mid-restore", () => {
+    const storage = memoryStorage({
+      starnet_clients_v1: "old-clients",
+      starnet_cash_entries_v1: "old-cash",
+      "starnet.accessToken": "keep-me",
+    });
+    const realSet = storage.setItem;
+    let calls = 0;
+    storage.setItem = (k: string, v: string) => {
+      calls++;
+      if (calls === 2) throw new DOMException("full", "QuotaExceededError");
+      realSet(k, v);
+    };
+    expect(() => restoreAppData(storage, { starnet_clients_v1: "new", starnet_suppliers_v1: "huge" })).toThrow();
+    expect(storage.dump()).toEqual({
+      "starnet.accessToken": "keep-me",
+      starnet_clients_v1: "old-clients",
+      starnet_cash_entries_v1: "old-cash",
+    });
+  });
+
   it("round-trips the data snapshot through an encrypted file", async () => {
     const data = { starnet_clients_v1: "{}", starnet_customer_ledger_v1: "{\"d1\":[]}" };
     const created = await createEncryptedBackupFile([baseAccount()], {}, "my-strong-password", data);

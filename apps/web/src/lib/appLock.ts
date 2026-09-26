@@ -93,3 +93,82 @@ export async function verifyAppPin(pin: string): Promise<boolean> {
   const candidate = await derivePinHash(pin, fromBase64(stored.salt));
   return candidate === stored.hash;
 }
+
+/** Leaving the app for longer than this (home button, another app) locks it again on return. */
+export const RELOCK_AFTER_MS = 60_000;
+/** Opening a device's Starlink browser also sends STAR NET to the background (it's a separate
+ * Android Activity) - that's the app's own flow, so a hide starting this soon after it never
+ * re-locks. */
+const INTERNAL_LEAVE_GRACE_MS = 5_000;
+
+let lastInternalLeaveAt = 0;
+
+/** Called right before the app itself opens something that hides it (the device browser). */
+export function markInternalLeave(now: number = Date.now()): void {
+  lastInternalLeaveAt = now;
+}
+
+export function isInternalLeave(hiddenAt: number): boolean {
+  return lastInternalLeaveAt > 0 && hiddenAt - lastInternalLeaveAt >= 0 && hiddenAt - lastInternalLeaveAt <= INTERNAL_LEAVE_GRACE_MS;
+}
+
+/** Whether coming back to the app after it was hidden at `hiddenAt` requires the PIN again. */
+export function shouldRelock(hiddenAt: number | null, now: number, internal: boolean): boolean {
+  if (hiddenAt === null || internal) return false;
+  return now - hiddenAt >= RELOCK_AFTER_MS;
+}
+
+const FAILURES_KEY = "starnet.pinFailures";
+/** Wrong PINs allowed before the lock screen starts making the operator wait. */
+export const FREE_PIN_ATTEMPTS = 5;
+const FIRST_LOCKOUT_MS = 30_000;
+const MAX_LOCKOUT_MS = 15 * 60_000;
+
+export interface PinFailures {
+  count: number;
+  lockedUntil: number;
+}
+
+const NO_FAILURES: PinFailures = { count: 0, lockedUntil: 0 };
+
+/** Pure: the state after one more wrong PIN - 5 free tries, then 30s, 60s, 2m, ... up to 15m
+ * after each further miss. */
+export function registerPinFailure(state: PinFailures, now: number): PinFailures {
+  const count = state.count + 1;
+  if (count < FREE_PIN_ATTEMPTS) return { count, lockedUntil: 0 };
+  const wait = Math.min(FIRST_LOCKOUT_MS * 2 ** (count - FREE_PIN_ATTEMPTS), MAX_LOCKOUT_MS);
+  return { count, lockedUntil: now + wait };
+}
+
+export function lockoutRemainingMs(state: PinFailures, now: number): number {
+  return Math.max(0, state.lockedUntil - now);
+}
+
+/** Survives closing/reopening the app, so killing it doesn't reset the wait. */
+export function loadPinFailures(): PinFailures {
+  const raw = safeGet(FAILURES_KEY);
+  if (!raw) return NO_FAILURES;
+  try {
+    const parsed = JSON.parse(raw) as Partial<PinFailures>;
+    const count = Number(parsed.count);
+    const lockedUntil = Number(parsed.lockedUntil);
+    return {
+      count: Number.isFinite(count) && count > 0 ? Math.floor(count) : 0,
+      lockedUntil: Number.isFinite(lockedUntil) && lockedUntil > 0 ? lockedUntil : 0,
+    };
+  } catch {
+    return NO_FAILURES;
+  }
+}
+
+export function savePinFailures(state: PinFailures): void {
+  safeSet(FAILURES_KEY, state.count > 0 ? JSON.stringify(state) : null);
+}
+
+/** "دقيقتان"-style wait text for the lock screen. */
+export function formatLockoutWait(ms: number): string {
+  const seconds = Math.ceil(ms / 1000);
+  if (seconds < 60) return `${seconds} ثانية`;
+  const minutes = Math.ceil(seconds / 60);
+  return `${minutes} دقيقة`;
+}

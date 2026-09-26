@@ -66,7 +66,8 @@ import {
 import { CurrencyStore, getCurrency, loadCurrencyStore, saveCurrencyStore, upsertCurrency, UpsertCurrencyInput } from "@/lib/currencyStore";
 import { openDebtEntries, restoreWaivedDebts, waiveOpenDebts } from "@/lib/deviceFault";
 import { listOpenPreviousDebts, loadPreviousDebts, recordPreviousDebt, savePreviousDebts, type PreviousDebtList } from "@/lib/previousDebt";
-import { confirmClosedMonthChange } from "@/lib/monthClosing";
+import { confirmClosedMonthChange, ledgerEntryMonthDates } from "@/lib/monthClosing";
+import { deviceRecordsQuestion, deviceRecordsSummary, removeDeviceRecords } from "@/lib/deviceRemoval";
 import { starlinkCostUsd } from "@/lib/accountingStore";
 import {
   addAllocations,
@@ -761,7 +762,32 @@ export function HomeView({
     setLedgerAccount({ ...account, rechargeDate: newRechargeDate });
   }
 
+  /** Removes a permanently-deleted device's operations and everything posted from them. */
+  function removeAccountRecords(account: StarlinkAccountSummary) {
+    const next = removeDeviceRecords(
+      { ledger: ledgerStore, allocations: allocationStore, cash: loadCashEntries(), previousDebts: loadPreviousDebts() },
+      account.id,
+      account.name,
+    );
+    saveCashEntries(next.cash);
+    saveLedgerStore(next.ledger);
+    setLedgerStore(next.ledger);
+    saveAllocationStore(next.allocations);
+    setAllocationStore(next.allocations);
+    savePreviousDebts(next.previousDebts);
+    setPreviousDebts(next.previousDebts);
+  }
+
+  /** Asked before a permanent delete: the device's own operations go too, or stay in the
+   * reports as "جهاز محذوف". */
+  function askDeleteAccountRecords(account: StarlinkAccountSummary): boolean {
+    const question = deviceRecordsQuestion(account.name, deviceRecordsSummary(account.id, ledgerStore, loadPreviousDebts()));
+    if (question === null || !window.confirm(question)) return false;
+    return confirmClosedMonthChange(getAccountEntries(ledgerStore, account.id).flatMap(ledgerEntryMonthDates));
+  }
+
   async function deleteAccount(account: StarlinkAccountSummary) {
+    const deleteRecords = askDeleteAccountRecords(account);
     // Deleting the account from STAR NET never implies deleting its saved Starlink login on this
     // phone - that is a separate, explicit choice, and only asked about at all when there could
     // be a session to delete. The card is never removed before that choice (and, if made, its
@@ -769,6 +795,7 @@ export function HomeView({
     // so the user can retry instead of losing track of a still-logged-in local browser.
     if (!isRunningInAndroidApp()) {
       removeAccountCard(account);
+      if (deleteRecords) removeAccountRecords(account);
       return;
     }
 
@@ -792,6 +819,7 @@ export function HomeView({
     }
 
     removeAccountCard(account);
+    if (deleteRecords) removeAccountRecords(account);
   }
 
   // The normal dashboard (overview cards, calendar, filters, "تحتاج إلى متابعة") only ever
