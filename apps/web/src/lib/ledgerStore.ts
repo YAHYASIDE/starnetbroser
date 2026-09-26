@@ -58,6 +58,8 @@ export interface StarlinkCost {
   rate?: RateSnapshot;
   /** yyyy-mm-dd - only set once status is "settled". */
   paidAt?: string;
+  /** Settled from the operator's "كاش" card (starlinkDebt.ts) - its balance is debited by it. */
+  paidVia?: "card";
   note?: string;
 }
 

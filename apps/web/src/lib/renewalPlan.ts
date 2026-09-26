@@ -45,7 +45,7 @@ export function buildRenewalShipment(
   const costRate = rateOf(currencyStore, plan.costCurrency);
   if (costRate === undefined) return { ok: false, message: `سعر صرف ${plan.costCurrency} غير مسجّل في العملات` };
   // A D shipment locks its profit rates only once the cost is settled (like "إضافة حركة").
-  const costPending = options.costPending ?? plan.costPending ?? false;
+  const costPending = options.costPending ?? plan.costPending ?? true;
   const mru = rateOf(currencyStore, "MRU");
   const sifa = rateOf(currencyStore, "SIFA");
   if (!costPending && mru === undefined) return { ok: false, message: "سعر الأوقية مقابل الدولار غير موجود في الإعدادات" };

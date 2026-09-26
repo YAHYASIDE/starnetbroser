@@ -24,7 +24,8 @@ import { applyLedgerPaymentsToCash, loadCashEntries, saveCashEntries } from "@/l
 import { parseNewDevicePrefill } from "@/lib/deviceFromSale";
 import { buildRenewalShipment } from "@/lib/renewalPlan";
 import { runAutoBackup } from "@/lib/autoBackupRunner";
-import { onDigestTapped, rescheduleMorningDigests } from "@/lib/morningNotifications";
+import { notifySuspendedWithDebt, onDigestTapped, rescheduleMorningDigests } from "@/lib/morningNotifications";
+import { listOpenShipmentDebts, listSuspendedWithDebt } from "@/lib/starlinkDebt";
 import { APK_DOWNLOAD_URL, checkForAppUpdate, shouldAutoCheck } from "@/lib/appUpdate";
 import { deviceMatchesQuery, searchEverything, SearchResult } from "@/lib/homeInsights";
 import { listSuppliers, loadSupplierStore, SupplierStore } from "@/lib/supplierStore";
@@ -681,13 +682,25 @@ export function HomeView({
   // loaded (renewals, device debts, backup) or that cost nothing extra to check (backup); the
   // page itself also covers store debts/low stock, which don't need a second data load just to
   // size a badge.
+  // Devices Starlink stopped while we still owe their D - the signal to pay Starlink now.
+  const suspendedWithDebt = useMemo(
+    () => listSuspendedWithDebt(activeAccounts, listOpenShipmentDebts(ledgerStore)),
+    [activeAccounts, ledgerStore],
+  );
+  useEffect(() => {
+    void notifySuspendedWithDebt(
+      suspendedWithDebt.map((s) => ({ accountName: s.account.name, entryIds: s.debts.map((d) => d.entry.id), costUsd: s.costUsd })),
+    );
+  }, [suspendedWithDebt]);
+
   const reminderCount = useMemo(
     () =>
+      suspendedWithDebt.length +
       computeRenewalReminders(activeAccounts).length +
       computeDeviceDebtReminders(activeAccounts, ledgerStore).length +
       computeRestrictedDeviceReminders(activeAccounts).length +
       (isBackupOverdue(lastBackupAt) ? 1 : 0),
-    [activeAccounts, ledgerStore, lastBackupAt],
+    [activeAccounts, ledgerStore, lastBackupAt, suspendedWithDebt],
   );
 
   const dayCounts = useMemo(() => {
@@ -829,6 +842,22 @@ export function HomeView({
             <small>اضغط لتنزيل النسخة الأحدث ثم ثبّتها - بياناتك تبقى كما هي</small>
           </span>
         </a>
+      )}
+
+      {suspendedWithDebt.length > 0 && (
+        <Link href="/starlink" className="backup-banner d-alert-banner">
+          <span aria-hidden="true">⚠️</span>
+          <span>
+            <strong>
+              {suspendedWithDebt.length === 1
+                ? `${suspendedWithDebt[0]!.account.name} توقف وعليه D`
+                : `${suspendedWithDebt.length} أجهزة توقفت وعليها D`}
+            </strong>
+            <small>
+              ادفع لستارلينك <bdi dir="ltr">{formatAmount(suspendedWithDebt.reduce((sum, s) => sum + s.costUsd, 0))} $</bdi> ثم اضغط «سدّدت»
+            </small>
+          </span>
+        </Link>
       )}
 
       {isBackupOverdue(lastBackupAt, 2) && (

@@ -100,7 +100,7 @@ export function AccountDialog({
   const [planSaleCurrency, setPlanSaleCurrency] = useState(initial.renewalPlan?.saleCurrency ?? "MRU");
   const [planCost, setPlanCost] = useState(initial.renewalPlan ? String(initial.renewalPlan.costAmount) : "");
   const [planCostCurrency, setPlanCostCurrency] = useState(initial.renewalPlan?.costCurrency ?? "USD");
-  const [planCostPending, setPlanCostPending] = useState(initial.renewalPlan?.costPending ?? false);
+  const [planCostPending, setPlanCostPending] = useState(initial.renewalPlan?.costPending ?? true);
   const [planError, setPlanError] = useState<string | null>(null);
   // Every registered currency can be Starlink's cost currency; a hidden one stays listed only
   // when this device's plan already uses it.
@@ -196,7 +196,7 @@ export function AccountDialog({
         saleCurrency: planSaleCurrency,
         costAmount: Number(planCost),
         costCurrency: planCostCurrency.trim().toUpperCase(),
-        costPending: planCostPending || undefined,
+        costPending: planCostPending,
       };
       const planProblem = validateRenewalPlan(renewalPlan);
       if (planProblem) {

@@ -1,5 +1,6 @@
 "use client";
 
+import { listOpenShipmentDebts, listSuspendedWithDebt } from "@/lib/starlinkDebt";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { StarlinkAccountSummary } from "@starnet/shared";
@@ -62,6 +63,7 @@ export default function RemindersPage() {
   }, []);
 
   const restrictedReminders = useMemo(() => computeRestrictedDeviceReminders(accounts), [accounts]);
+  const suspendedWithDebt = useMemo(() => listSuspendedWithDebt(accounts, listOpenShipmentDebts(ledgerStore)), [accounts, ledgerStore]);
   const renewalReminders = useMemo(() => computeRenewalReminders(accounts), [accounts]);
   const deviceDebtReminders = useMemo(() => computeDeviceDebtReminders(accounts, ledgerStore), [accounts, ledgerStore]);
   const storeDebtReminders = useMemo(() => computeStoreDebtReminders(clientStore, invoices, partyAdjustments), [clientStore, invoices, partyAdjustments]);
@@ -106,6 +108,25 @@ export default function RemindersPage() {
         </Link>
         <h1 className="section-title">التذكيرات</h1>
       </div>
+
+      {suspendedWithDebt.length > 0 && (
+        <section className="section sl-alert">
+          <h2 className="report-section-title">⚠️ توقفت وعليها D - ادفع لستارلينك ({suspendedWithDebt.length})</h2>
+          <ul className="ledger-entry-list">
+            {suspendedWithDebt.map(({ account, costUsd }) => (
+              <li key={account.id} className="ledger-entry-row">
+                <div className="ledger-entry-row-top">
+                  <span className="store-item-name">{account.name}</span>
+                  <strong dir="ltr">{formatAmount(costUsd)} $</strong>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <Link href="/starlink" className="dialog-primary sl-reminder-link">
+            فتح ستارلينك والبطاقة للتسديد
+          </Link>
+        </section>
+      )}
 
       {restrictedReminders.length > 0 && (
         <section className="section">

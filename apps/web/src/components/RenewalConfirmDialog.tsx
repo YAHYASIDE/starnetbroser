@@ -41,7 +41,7 @@ export function RenewalConfirmDialog({ account, onConfirm, onClose }: Props) {
   // operator can still untick this to type it by hand.
   const [autoShipment, setAutoShipment] = useState(plan !== undefined);
   // Starlink cost paid now (✓) or still owed (D) - starts from the plan's own default.
-  const [costPending, setCostPending] = useState(plan?.costPending ?? false);
+  const [costPending, setCostPending] = useState(plan?.costPending ?? true);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

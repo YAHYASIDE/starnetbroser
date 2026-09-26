@@ -47,6 +47,8 @@ export function StarlinkSettlementDialog({ entry, currencyStore, defaultCurrency
   );
   const [date, setDate] = useState(todayDateInputValue());
   const [note, setNote] = useState("");
+  // Starlink is normally paid from the "كاش" card (its balance is debited by it, starlinkDebt.ts).
+  const [fromCard, setFromCard] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const isUsd = currencyCode === "USD";
@@ -113,6 +115,7 @@ export function StarlinkSettlementDialog({ entry, currencyStore, defaultCurrency
       amount: parsedAmount,
       rate: isUsd ? undefined : { rateFromUsd: parsedRate, usdValue: usdValue! },
       paidAt: date,
+      paidVia: fromCard ? "card" : undefined,
       note: note.trim() || undefined,
     });
   }
@@ -176,6 +179,12 @@ export function StarlinkSettlementDialog({ entry, currencyStore, defaultCurrency
             <span>تاريخ الدفع</span>
             <DateInput className="search-input"  value={date} onChange={(e) => setDate(e.target.value)} />
           </label>
+
+          <label className="ledger-d-toggle form-wide">
+            <input type="checkbox" checked={fromCard} onChange={(e) => setFromCard(e.target.checked)} />
+            <span>💳 دُفعت من بطاقة كاش (تُخصم من رصيدها)</span>
+          </label>
+          <p className="settings-hint form-wide">الربح وحصة المندوب يُحسبان بتاريخ هذا الدفع.</p>
 
           <label className="form-field form-wide">
             <span>ملاحظة (اختياري)</span>

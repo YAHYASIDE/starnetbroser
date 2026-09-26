@@ -32,6 +32,7 @@ const SOURCE_LABELS: Record<CashSourceKind, string> = {
   "party-balance": "رصيد زبون/مورد",
   "rep-settlement": "تسوية مندوب",
   closing: "إغلاق يومي",
+  "card-topup": "شحن بطاقة كاش",
 };
 
 function sourceBadge(entry: CashEntry): string | null {

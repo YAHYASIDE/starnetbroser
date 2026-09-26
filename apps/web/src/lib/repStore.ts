@@ -11,7 +11,7 @@
 
 import { Invoice, invoiceTotal } from "./invoiceStore";
 import { LedgerByAccount, LedgerEntry } from "./ledgerStore";
-import { computeExpectedShipmentProfit, computeShipmentProfit, ShipmentProfit } from "./accountingStore";
+import { computeExpectedShipmentProfit, computeShipmentProfit, shipmentProfitDate, ShipmentProfit } from "./accountingStore";
 
 export interface Representative {
   id: string;
@@ -506,10 +506,12 @@ export function buildRepDailyStatement(
   settlements: RepSettlementList,
 ): RepStatementDay[] {
   const rows: RepStatementRow[] = [
+    // A shipment's share lands on the day Starlink was paid (its profit became real), not the
+    // day it was sold; a still-D shipment sits on its own date as "expected".
     ...deviceCommissions.map((row) => ({
       type: "device" as const,
       id: row.entry.id,
-      date: row.entry.date,
+      date: shipmentProfitDate(row.entry),
       createdAt: row.entry.createdAt,
       row,
     })),

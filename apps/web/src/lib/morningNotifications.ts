@@ -90,3 +90,39 @@ export function onDigestTapped(open: (route: string) => void): () => void {
     void handle.then((h) => h.remove());
   };
 }
+
+const D_ALERTED_KEY = "starnet.dAlertedEntries";
+const D_ALERT_ID_BASE = 7300;
+
+/** Devices Starlink suspended while their D is still open: one phone notification per open D
+ * (never repeated for the same one), tapping it opens "ستارلينك والبطاقة" to pay. */
+export async function notifySuspendedWithDebt(items: { accountName: string; entryIds: string[]; costUsd: number }[]): Promise<void> {
+  if (!isRunningInAndroidApp() || items.length === 0) return;
+  let alerted: string[] = [];
+  try {
+    alerted = JSON.parse(safeGet(D_ALERTED_KEY) ?? "[]") as string[];
+  } catch {
+    alerted = [];
+  }
+  const fresh = items.filter((item) => item.entryIds.some((id) => !alerted.includes(id)));
+  if (fresh.length === 0) return;
+  try {
+    let permission = await LocalNotifications.checkPermissions();
+    if (permission.display === "prompt" || permission.display === "prompt-with-rationale") {
+      permission = await LocalNotifications.requestPermissions();
+    }
+    if (permission.display !== "granted") return;
+    await LocalNotifications.schedule({
+      notifications: fresh.map((item, i) => ({
+        id: D_ALERT_ID_BASE + ((Date.now() / 1000 + i) % 500 | 0),
+        title: `⚠️ ${item.accountName} توقف وعليه D`,
+        body: `ادفع لستارلينك ${item.costUsd.toFixed(2)} $ ثم اضغط «سدّدت» - الربح وحصة المندوب تنزل يوم الدفع`,
+        extra: { route: "/starlink" },
+      })),
+    });
+    const next = Array.from(new Set([...alerted, ...fresh.flatMap((f) => f.entryIds)])).slice(-500);
+    safeSet(D_ALERTED_KEY, JSON.stringify(next));
+  } catch {
+    // A notification problem must never break the app itself.
+  }
+}

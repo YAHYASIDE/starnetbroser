@@ -12,7 +12,7 @@ import { usePathname } from "next/navigation";
 export function BottomNav() {
   const pathname = usePathname();
   const [sheetOpen, setSheetOpen] = useState(false);
-  const SHEET_DESTINATIONS = ["/currencies", "/trash", "/archive", "/reminders"];
+  const SHEET_DESTINATIONS = ["/starlink", "/currencies", "/trash", "/archive", "/reminders"];
   const onSheetDestination = SHEET_DESTINATIONS.includes(pathname ?? "");
 
   // The embedded remote-browser view (cloud session) is meant to be full-screen and immersive,
@@ -33,6 +33,10 @@ export function BottomNav() {
       {sheetOpen && (
         <div className="bottom-nav-sheet-backdrop" role="presentation" onClick={() => setSheetOpen(false)}>
           <div className="bottom-nav-sheet" role="menu" onClick={(e) => e.stopPropagation()}>
+            <Link href="/starlink" className="bottom-nav-sheet-item" onClick={() => setSheetOpen(false)}>
+              <NavIcon name="card" />
+              ستارلينك والبطاقة
+            </Link>
             <Link href="/reminders" className="bottom-nav-sheet-item" onClick={() => setSheetOpen(false)}>
               <NavIcon name="bell" />
               التذكيرات
@@ -79,7 +83,7 @@ export function BottomNav() {
   );
 }
 
-type IconName = "home" | "people" | "chart" | "handshake" | "bag" | "more" | "bell" | "coins" | "trash" | "archive";
+type IconName = "home" | "people" | "chart" | "handshake" | "bag" | "more" | "bell" | "coins" | "trash" | "archive" | "card";
 
 /** Line icons shared by the bottom bar and its "المزيد" sheet (stroke = currentColor). */
 function NavIcon({ name }: { name: IconName }) {
@@ -119,6 +123,12 @@ function NavIcon({ name }: { name: IconName }) {
       </>
     ),
     trash: <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" />,
+    card: (
+      <>
+        <rect x="3" y="6" width="18" height="13" rx="2" />
+        <path d="M3 10h18M7 15h4" />
+      </>
+    ),
     archive: (
       <>
         <path d="M3 5h18v4H3zM5 9v10h14V9" />

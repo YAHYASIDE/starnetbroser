@@ -14,6 +14,7 @@
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import type { Invoice } from "./invoiceStore";
 import type { LedgerByAccount } from "./ledgerStore";
+import { shipmentProfitDate } from "./accountingStore";
 import type {
   RepDeviceCommissionRow,
   Representative,
@@ -53,7 +54,7 @@ export interface RepRecords {
 export function splitRepRecords(rep: Representative, records: RepRecords, side: "active" | "archive"): RepRecords {
   const keep = (r: { date: string; createdAt: string }) => isAfterRepReset(rep.resetFrom, r) === (side === "active");
   return {
-    deviceRows: records.deviceRows.filter((row) => keep(row.entry)),
+    deviceRows: records.deviceRows.filter((row) => keep({ date: shipmentProfitDate(row.entry), createdAt: row.entry.createdAt })),
     invoices: records.invoices.filter((inv) => inv.representativeId !== rep.id || keep(inv)),
     settlements: records.settlements.filter((s) => s.representativeId !== rep.id || keep(s)),
   };

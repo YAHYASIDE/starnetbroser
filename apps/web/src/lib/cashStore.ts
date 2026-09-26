@@ -38,7 +38,7 @@ export interface CashEntry {
   createdAt: string;
 }
 
-export type CashSourceKind = "device-payment" | "party-balance" | "rep-settlement" | "closing";
+export type CashSourceKind = "device-payment" | "party-balance" | "rep-settlement" | "closing" | "card-topup";
 
 export type CashEntryList = CashEntry[];
 

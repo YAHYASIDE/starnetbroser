@@ -1,3 +1,6 @@
+import { shipmentProfitDate } from "./accountingStore";
+import type { LedgerEntry } from "./ledgerStore";
+
 /** The six preset windows the reports page lets the operator pick, each ending today and running
  * back N days/months - "week" through "year" are rolling windows (today minus N), never calendar-
  * aligned (e.g. "month" is NOT "since the 1st"), so the figure always reflects the same span of
@@ -68,4 +71,11 @@ export function isThisCalendarMonth(dateStr: string, now: Date = new Date()): bo
   const date = parseEntryDate(dateStr);
   if (!date) return false;
   return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+}
+
+/** Like filterEntriesByPeriod, but a shipment is placed on the day its profit became real - the
+ * day Starlink was paid (accountingStore.ts's shipmentProfitDate) - not the day it was sold. */
+export function filterEntriesByProfitDate(entries: LedgerEntry[], period: ReportPeriod, now: Date = new Date()): LedgerEntry[] {
+  const keep = new Set(filterEntriesByPeriod(entries.map((e) => ({ id: e.id, date: shipmentProfitDate(e) })), period, now).map((e) => e.id));
+  return entries.filter((e) => keep.has(e.id));
 }

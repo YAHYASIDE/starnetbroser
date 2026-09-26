@@ -352,7 +352,15 @@ describe("device profit shares", () => {
 
   it("buildRepDailyStatement groups by day newest-first with each day's split", () => {
     const rows = listRepDeviceCommissions("r1", {
-      d1: [shipment({ id: "a", date: "2026-09-20" }), shipment({ id: "b", date: "2026-09-22", createdAt: "2026-09-22T09:00:00.000Z" })],
+      d1: [
+        shipment({ id: "a", date: "2026-09-20" }),
+        shipment({
+          id: "b",
+          date: "2026-09-22",
+          createdAt: "2026-09-22T09:00:00.000Z",
+          starlinkCost: { status: "settled", currencyCode: "USD", amount: 60, paidAt: "2026-09-22" },
+        }),
+      ],
     });
     const settlements: RepSettlementList = [
       { id: "s", representativeId: "r1", kind: "commissionPayout", amount: 5, currencyCode: "USD", date: "2026-09-22", createdAt: "2026-09-22T12:00:00.000Z" },
@@ -362,5 +370,16 @@ describe("device profit shares", () => {
     expect(days[0].rows.map((r) => r.id)).toEqual(["s", "b"]);
     expect(days[0].repShareUsd).toBe(20);
     expect(days[0].ourShareUsd).toBe(20);
+  });
+});
+
+describe("share lands on the Starlink payment day", () => {
+  it("a shipment sold on the 20th and paid to Starlink on the 4th shows on the 4th", () => {
+    const rows = listRepDeviceCommissions("r1", {
+      d1: [shipment({ id: "x", date: "2026-09-20", starlinkCost: { status: "settled", currencyCode: "USD", amount: 60, paidAt: "2026-10-04" } })],
+    });
+    const days = buildRepDailyStatement("r1", rows, [], []);
+    expect(days.map((d) => d.date)).toEqual(["2026-10-04"]);
+    expect(days[0].repShareUsd).toBe(20);
   });
 });

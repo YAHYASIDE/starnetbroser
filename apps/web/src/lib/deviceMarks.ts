@@ -24,7 +24,8 @@ export function computeDeviceMarks(entries: LedgerEntry[], allocations: PaymentA
   const latest = shipments[0];
   if (!latest) return { d: null, p: null };
 
-  const anyPending = shipments.some((s) => s.starlinkCost?.status === "pending");
+  // D only where money is actually owed to Starlink: a pending cost with a real amount.
+  const anyPending = shipments.some((s) => s.starlinkCost?.status === "pending" && (s.starlinkCost.amount ?? 0) > 0);
   const d = anyPending ? "pending" : latest.starlinkCost?.status === "settled" ? "settled" : null;
 
   // Nothing left owed in the latest shipment's currency means it's paid, even when older

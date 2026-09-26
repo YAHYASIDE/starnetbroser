@@ -9,7 +9,7 @@ import { loadDemoAccounts } from "@/lib/demoAccountStore";
 import { listAccounts } from "@/lib/apiClient";
 import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerByAccount, loadLedgerStore, totalOwedAcrossAccounts } from "@/lib/ledgerStore";
 import { computeDeviceAccountingSummary, computePendingStarlinkCostUsd } from "@/lib/accountingStore";
-import { filterEntriesByPeriod, isThisCalendarMonth, REPORT_PERIOD_LABELS, REPORT_PERIODS, ReportPeriod } from "@/lib/reportPeriod";
+import { filterEntriesByPeriod, filterEntriesByProfitDate, isThisCalendarMonth, REPORT_PERIOD_LABELS, REPORT_PERIODS, ReportPeriod } from "@/lib/reportPeriod";
 import { ClientStore, getClient, loadClientStore } from "@/lib/clientStore";
 import { formatAmount } from "@/lib/formatAmount";
 import { InvoiceList, loadInvoices } from "@/lib/invoiceStore";
@@ -84,18 +84,31 @@ export default function ReportsPage() {
   const allEntries = useMemo(() => Object.values(ledgerStore).flat(), [ledgerStore]);
   const periodEntries = useMemo(() => filterEntriesByPeriod(allEntries, period), [allEntries, period]);
   const periodSummary = useMemo(() => computeDeviceAccountingSummary(periodEntries), [periodEntries]);
-  const periodNetProfitUsd = periodSummary.totalProfitsUsd - periodSummary.totalLossesUsd;
+  // Profit becomes real the day Starlink is paid (D settled), so profit, its split and Starlink
+  // costs are counted by that day - a shipment sold in September and paid on 4 October is
+  // October's profit.
+  const profitEntries = useMemo(() => filterEntriesByProfitDate(allEntries, period), [allEntries, period]);
+  const profitSummary = useMemo(() => computeDeviceAccountingSummary(profitEntries), [profitEntries]);
+  const periodNetProfitUsd = profitSummary.totalProfitsUsd - profitSummary.totalLossesUsd;
   // Representatives' share of the same period's device profit (LedgerEntry.representativeId).
-  const periodRepSharesUsd = useMemo(() => computeRepSharesUsd(periodEntries), [periodEntries]);
-  // Still-D shipments: their profit is already known from the recorded Starlink cost, shown apart
-  // as "متوقع" until the cost is settled (accountingStore.ts's computeExpectedShipmentProfit).
-  const periodExpected = useMemo(() => summarizeDeviceProfit(periodEntries), [periodEntries]);
-  const periodExpectedRepSharesUsd = useMemo(() => computeExpectedRepSharesUsd(periodEntries), [periodEntries]);
+  const periodRepSharesUsd = useMemo(() => computeRepSharesUsd(profitEntries), [profitEntries]);
+  // Every still-open D (whatever the period): its profit is already known from the recorded
+  // Starlink cost, shown apart as "متوقع" until Starlink is paid.
+  const openEntries = useMemo(() => allEntries.filter((e) => e.kind === "debit" && e.starlinkCost?.status === "pending"), [allEntries]);
+  const periodExpected = useMemo(() => summarizeDeviceProfit(openEntries), [openEntries]);
+  const periodExpectedRepSharesUsd = useMemo(() => computeExpectedRepSharesUsd(openEntries), [openEntries]);
   // Profit is shown in أوقية (profitMru.ts); USD stays as a small secondary figure. Without a
   // registered MRU rate everything falls back to USD.
   const mruRate = getCurrency(currencyStore, "MRU")?.rateFromUsd;
-  const periodProfitMru = useMemo(() => (mruRate ? sumProfitMru(periodEntries, mruRate) : undefined), [periodEntries, mruRate]);
-  const periodRepSharesMru = useMemo(() => (mruRate ? computeRepSharesMru(periodEntries, mruRate) : undefined), [periodEntries, mruRate]);
+  const periodProfitMru = useMemo(() => {
+    if (!mruRate) return undefined;
+    const confirmed = sumProfitMru(profitEntries, mruRate);
+    return { ...confirmed, expectedMru: sumProfitMru(openEntries, mruRate).expectedMru };
+  }, [profitEntries, openEntries, mruRate]);
+  const periodRepSharesMru = useMemo(() => {
+    if (!mruRate) return undefined;
+    return { confirmed: computeRepSharesMru(profitEntries, mruRate).confirmed, expected: computeRepSharesMru(openEntries, mruRate).expected };
+  }, [profitEntries, openEntries, mruRate]);
 
   // ربح المتجر (retail: devices/materials sold as store inventory, via invoiceStore.ts) - a
   // separate business from the Starlink-subscription ledger above, in its own currencies (MRU/
@@ -177,7 +190,7 @@ export default function ReportsPage() {
       return row;
     };
     for (const account of accounts) {
-      const entries = filterEntriesByPeriod(ledgerStore[account.id] ?? [], period);
+      const entries = filterEntriesByProfitDate(ledgerStore[account.id] ?? [], period);
       if (entries.length === 0) continue;
       const summary = computeDeviceAccountingSummary(entries);
       const row = rowFor(account.clientId);
@@ -259,7 +272,7 @@ export default function ReportsPage() {
               {periodProfitMru ? "أوقية" : "USD"}
             </strong>
             <span className="report-net-tile-note">
-              يتأكد ويدخل صافي الربح عند التسديد
+              يتأكد ويدخل صافي الربح يوم تسديده لـ Starlink
               {periodExpectedRepSharesUsd > 0.0001 &&
                 ` · منه حصة متوقعة للمندوبين ≈ ${
                   periodRepSharesMru ? `${formatAmount(periodRepSharesMru.expected)} أوقية` : `${formatAmount(periodExpectedRepSharesUsd)} USD`
@@ -312,7 +325,7 @@ export default function ReportsPage() {
           </strong>
         </div>
         <p className="settings-hint">
-          «صافي الربح» يُحسب فقط بعد تسديد تكلفة Starlink (D). «النقد المحصّل» يظهر فور استلام الدفعة من
+          «صافي الربح» يُحسب يوم دفع تكلفة Starlink (تسديد D)، لا يوم التجديد للزبون. «النقد المحصّل» يظهر فور استلام الدفعة من
           الزبون، حتى لو كانت الشحنة لا تزال بحالة D - رقمان منفصلان دائمًا.
         </p>
 
@@ -407,7 +420,7 @@ export default function ReportsPage() {
           <div className="report-tile">
             <span className="report-tile-label">المصروفات</span>
             <strong className="report-tile-value" dir="ltr">
-              {formatAmount(periodSummary.totalSettledStarlinkCostUsd)} USD
+              {formatAmount(profitSummary.totalSettledStarlinkCostUsd)} USD
             </strong>
           </div>
           <div className="report-tile">

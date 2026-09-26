@@ -9,7 +9,7 @@ const store: CurrencyStore = {
   MRU: { code: "MRU", name: "أوقية", symbol: "MRU", rateFromUsd: 40, updatedAt: now, enabled: true },
   SIFA: { code: "SIFA", name: "سيفا", symbol: "SIFA", rateFromUsd: 600, updatedAt: now, enabled: true },
 };
-const plan = { saleAmount: 2000, saleCurrency: "MRU", costAmount: 30, costCurrency: "USD" };
+const plan = { saleAmount: 2000, saleCurrency: "MRU", costAmount: 30, costCurrency: "USD", costPending: false };
 
 describe("buildRenewalShipment", () => {
   it("builds a settled shipment with locked rates, so its profit is computable at once", () => {
@@ -32,6 +32,12 @@ describe("buildRenewalShipment", () => {
     expect(byPlan.ok && byPlan.entry.starlinkCost?.status).toBe("pending");
     const overridden = buildRenewalShipment({ ...plan, costPending: true }, store, "2026-09-25", { costPending: false });
     expect(overridden.ok && overridden.entry.starlinkCost?.status).toBe("settled");
+  });
+
+  it("a renewal is D by default - we borrow the month from Starlink", () => {
+    const { costPending: _ignored, ...legacyPlan } = plan;
+    const result = buildRenewalShipment(legacyPlan, store, "2026-09-25");
+    expect(result.ok && result.entry.starlinkCost?.status).toBe("pending");
   });
 
   it("refuses instead of guessing when a rate is missing", () => {

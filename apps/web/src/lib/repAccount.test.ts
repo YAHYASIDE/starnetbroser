@@ -74,7 +74,13 @@ function invoice(overrides: Partial<Invoice> = {}): Invoice {
 const ledger = {
   d1: [
     shipment(),
-    shipment({ id: "e2", date: "2026-09-20", createdAt: "2026-09-20T09:00:00.000Z", amount: 120 }),
+    shipment({
+      id: "e2",
+      date: "2026-09-20",
+      createdAt: "2026-09-20T09:00:00.000Z",
+      amount: 120,
+      starlinkCost: { status: "settled", currencyCode: "USD", amount: 60, paidAt: "2026-09-20" },
+    }),
   ],
 };
 const settlements = [settlement(), settlement({ id: "s2", kind: "manualDebit", amount: 5, date: "2026-09-21", createdAt: "2026-09-21T08:00:00.000Z" })];

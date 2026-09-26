@@ -5858,3 +5858,238 @@ button.today-tile {
 .date-input-empty {
   color: var(--text-muted);
 }
+
+/* ---- Starlink & card page ---- */
+.sl-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.sl-summary-item {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  min-width: 0;
+}
+
+.sl-summary-item span,
+.sl-summary-item small {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+.sl-summary-item strong {
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+
+.sl-summary-debt { border-color: color-mix(in srgb, var(--red) 45%, var(--border)); }
+.sl-summary-debt strong { color: var(--red); }
+.sl-summary-card strong { color: var(--green); }
+.sl-summary-short small { color: var(--orange); }
+
+.sl-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.sl-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.sl-alert {
+  border-color: var(--red);
+  background: color-mix(in srgb, var(--red) 8%, var(--surface));
+}
+
+.sl-alert {
+  padding: 12px;
+  border: 1px solid var(--red);
+  border-radius: var(--radius-lg);
+}
+
+.sl-alert .sl-title {
+  margin-bottom: 10px;
+  color: var(--red);
+  font-size: 0.92rem;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.sl-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.sl-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+}
+
+.sl-row-selected {
+  border-color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 10%, var(--surface-alt));
+}
+
+.sl-row-alert {
+  border-color: color-mix(in srgb, var(--red) 50%, var(--border));
+}
+
+.sl-check input {
+  width: 20px;
+  height: 20px;
+}
+
+.sl-row-main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.sl-row-main strong {
+  font-size: 0.92rem;
+  overflow-wrap: anywhere;
+}
+
+.sl-row-main span {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.sl-meta {
+  font-size: 0.72rem !important;
+}
+
+.sl-row-side {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+  flex: none;
+}
+
+.sl-row-side strong {
+  font-size: 0.95rem;
+}
+
+.sl-d {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: var(--red);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.sl-stopped {
+  margin-inline-start: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--red-bg);
+  color: var(--red) !important;
+  font-size: 0.68rem !important;
+  font-weight: 700;
+}
+
+.sl-pay-one {
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: 0.82rem;
+}
+
+.sl-batch-bar {
+  position: sticky;
+  bottom: calc(var(--bottom-nav-height) + var(--safe-bottom) + 8px);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  border: 1px solid var(--brand);
+  box-shadow: var(--glow);
+}
+
+.sl-in { color: var(--green); }
+.sl-out { color: var(--red); }
+
+.sl-delete {
+  font-size: 0.75rem;
+  color: var(--red);
+}
+
+.sl-pay-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+
+.sl-pay-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  font-size: 0.85rem;
+}
+
+.sl-pay-total {
+  border: 1px solid var(--brand);
+}
+
+.sl-toast {
+  display: block;
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--green);
+  background: var(--green-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: start;
+}
+
+.d-alert-banner {
+  border-color: var(--red);
+  background: color-mix(in srgb, var(--red) 12%, var(--surface));
+}
+
+.d-alert-banner strong {
+  color: var(--red);
+}
+
+.sl-reminder-link {
+  display: block;
+  margin-top: 10px;
+  text-align: center;
+  text-decoration: none;
+}

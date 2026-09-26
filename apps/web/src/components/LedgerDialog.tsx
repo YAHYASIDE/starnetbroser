@@ -156,7 +156,7 @@ export function LedgerDialog({
   const [formError, setFormError] = useState<string | null>(null);
 
   // Only relevant while kind === "debit" - a shipment charge, never a plain payment.
-  const [markD, setMarkD] = useState(false);
+  const [markD, setMarkD] = useState(true);
   // The locked rate snapshot input, shared by both directions: a "debit" entry locks it as
   // saleRate, a "credit" entry as paymentRate (rule XIII's "cash actually collected" in USD).
   // Starts empty (not e.g. "1") whenever the currency's rate isn't already known, so a forgotten

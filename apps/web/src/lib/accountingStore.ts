@@ -37,6 +37,22 @@ function resolveUsdValue(amount: number, currencyCode: string, rate?: RateSnapsh
   return rate?.usdValue;
 }
 
+/** Starlink's cost of a shipment in USD, when known (any status). */
+export function starlinkCostUsd(entry: LedgerEntry): number | undefined {
+  const cost = entry.starlinkCost;
+  if (!cost || cost.currencyCode === undefined || cost.amount === undefined) return undefined;
+  return resolveUsdValue(cost.amount, cost.currencyCode, cost.rate);
+}
+
+/** The day a shipment's profit becomes real: the day Starlink was paid (D settled). Until then -
+ * and for older records without a payment day - its own date. */
+export function shipmentProfitDate(entry: LedgerEntry): string {
+  if (entry.kind === "debit" && entry.starlinkCost?.status === "settled" && entry.starlinkCost.paidAt) {
+    return entry.starlinkCost.paidAt;
+  }
+  return entry.date;
+}
+
 export type ShipmentProfitStatus = "legacy" | "pending" | "computed";
 
 export interface ShipmentProfit {
