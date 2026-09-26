@@ -88,6 +88,46 @@ export function settleShipments(
   return next;
 }
 
+// ---- Editing a past payment to Starlink ----
+
+export interface SettlementEdit {
+  /** yyyy-mm-dd - the new payment day (moves the profit with it). */
+  date: string;
+  fromCard: boolean;
+  /** New paid amount - only for a cost recorded in USD (others keep their locked rate). */
+  amountUsd?: number;
+}
+
+export type SettlementEditResult = { ok: true; entry: LedgerEntry } | { ok: false; message: string };
+
+/** Changes a settled Starlink payment's day, source (card or not) and - for a USD cost - amount.
+ * The profit rates locked at settlement stay as they were. */
+export function editSettlement(entry: LedgerEntry, edit: SettlementEdit): SettlementEditResult {
+  const cost = entry.starlinkCost;
+  if (entry.kind !== "debit" || cost?.status !== "settled") return { ok: false, message: "هذه العملية ليست تسديدًا لستارلينك" };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(edit.date)) return { ok: false, message: "اختر تاريخ التسديد" };
+  let amount = cost.amount;
+  if (edit.amountUsd !== undefined) {
+    if (cost.currencyCode !== "USD") return { ok: false, message: "مبلغ هذه التكلفة ليس بالدولار - عدّله من كشف الجهاز" };
+    if (!Number.isFinite(edit.amountUsd) || edit.amountUsd <= 0) return { ok: false, message: "أدخل المبلغ المدفوع بالدولار" };
+    amount = edit.amountUsd;
+  }
+  return {
+    ok: true,
+    entry: { ...entry, starlinkCost: { ...cost, amount, paidAt: edit.date, paidVia: edit.fromCard ? "card" : undefined } },
+  };
+}
+
+/** Undoes a payment made by mistake: the shipment goes back to an unpaid D (its profit leaves
+ * the report until it's paid again). Not for a previous-debt payment - that one is deleted. */
+export function unsettleShipmentCost(entry: LedgerEntry): LedgerEntry {
+  const cost = entry.starlinkCost;
+  if (entry.kind !== "debit" || cost?.status !== "settled" || cost.waived) return entry;
+  const { paidAt: _paidAt, paidVia: _paidVia, settledAt: _settledAt, ...rest } = cost;
+  const { profitCurrencyRates: _rates, ...entryRest } = entry;
+  return { ...entryRest, starlinkCost: { ...rest, status: "pending" } };
+}
+
 // ---- Devices Starlink suspended while we still owe their D ----
 
 export interface SuspendedDebtDevice {
@@ -189,6 +229,21 @@ export function deleteCardTopUp(list: CardTopUpList, id: string): CardTopUpList 
   return list.filter((t) => t.id !== id);
 }
 
+/** Replaces a past top-up's figures (same id, so its الصندوق entry is re-posted to match). */
+export function editCardTopUp(list: CardTopUpList, id: string, input: CardTopUpInput): CardTopUpResult {
+  const existing = list.find((t) => t.id === id);
+  if (!existing) return { ok: false, message: "عملية الشحن غير موجودة" };
+  const checked = recordCardTopUp([], input);
+  if (!checked.ok) return checked;
+  const topUp: CardTopUp = { ...checked.topUp, id, createdAt: existing.createdAt };
+  return { ok: true, list: list.map((t) => (t.id === id ? topUp : t)), topUp };
+}
+
+/** The الصندوق entry of an edited top-up, rebuilt from its new figures. */
+export function replaceCardTopUpCash(cash: CashEntryList, topUp: CardTopUp): CashEntryList {
+  return postCardTopUpToCash(removeCardTopUpCash(cash, topUp.id), topUp);
+}
+
 /** A top-up takes its money out of الصندوق (linked, removed together with it). */
 export function postCardTopUpToCash(cash: CashEntryList, topUp: CardTopUp): CashEntryList {
   const posted = recordCashEntry(cash, {
@@ -247,7 +302,9 @@ export function buildCardStatement(topUps: CardTopUpList, payments: CardPayment[
       type: "payment" as const,
       id: p.entry.id,
       date: p.date,
-      createdAt: p.entry.createdAt,
+      // When it was paid, not when the shipment was recorded - a payment and a top-up on the same
+      // day must appear in the order they really happened.
+      createdAt: p.entry.starlinkCost?.settledAt ?? p.entry.createdAt,
       amountUsd: -p.amountUsd,
       payment: p,
     })),

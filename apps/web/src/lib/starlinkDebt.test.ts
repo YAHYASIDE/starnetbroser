@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCardStatement,
+  editCardTopUp,
+  editSettlement,
+  replaceCardTopUpCash,
+  unsettleShipmentCost,
   cardShortfallForSuspended,
   listCardPayments,
   listOpenShipmentDebts,
@@ -123,5 +127,59 @@ describe("suspended devices with an earlier owner's debt", () => {
     const flagged = listSuspendedWithDebt(accounts, [], prev);
     expect(flagged).toHaveLength(1);
     expect(flagged[0]).toMatchObject({ costUsd: 97, debts: [], previousDebts: prev });
+  });
+});
+
+describe("editing past card operations", () => {
+  const paid = shipment({
+    id: "p",
+    starlinkCost: { status: "settled", currencyCode: "USD", amount: 96.8, paidAt: "2026-09-26", paidVia: "card", settledAt: "2026-09-26T12:00:00.000Z" },
+    profitCurrencyRates: { MRU: 40 },
+  });
+
+  it("changes a settlement's day, source and USD amount, keeping its locked rates", () => {
+    const result = editSettlement(paid, { date: "2026-09-25", fromCard: false, amountUsd: 90 });
+    if (!result.ok) throw new Error(result.message);
+    expect(result.entry.starlinkCost).toMatchObject({ status: "settled", amount: 90, paidAt: "2026-09-25", paidVia: undefined });
+    expect(result.entry.profitCurrencyRates).toEqual({ MRU: 40 });
+    expect(shipmentProfitDate(result.entry)).toBe("2026-09-25");
+  });
+
+  it("refuses a bad amount, a non-USD amount change, or an unpaid shipment", () => {
+    expect(editSettlement(paid, { date: "2026-09-25", fromCard: true, amountUsd: 0 }).ok).toBe(false);
+    const mru = shipment({ starlinkCost: { status: "settled", currencyCode: "MRU", amount: 4000, paidAt: "2026-09-26" } });
+    expect(editSettlement(mru, { date: "2026-09-25", fromCard: true, amountUsd: 90 }).ok).toBe(false);
+    expect(editSettlement(mru, { date: "2026-09-25", fromCard: true }).ok).toBe(true);
+    expect(editSettlement(shipment({}), { date: "2026-09-25", fromCard: true }).ok).toBe(false);
+  });
+
+  it("undoing a settlement brings the D back and takes it off the card", () => {
+    const back = unsettleShipmentCost(paid);
+    expect(back.starlinkCost).toEqual({ status: "pending", currencyCode: "USD", amount: 96.8 });
+    expect(back.profitCurrencyRates).toBeUndefined();
+    expect(listOpenShipmentDebts({ d: [back] })).toHaveLength(1);
+    expect(listCardPayments({ d: [back] })).toHaveLength(0);
+  });
+
+  it("edits a top-up in place and re-posts its cash entry", () => {
+    const first = recordCardTopUp([], { amountUsd: 500, paidAmount: 215000, paidCurrency: "MRU", date: "2026-09-26" });
+    if (!first.ok) throw new Error("record failed");
+    const cash = postCardTopUpToCash([], first.topUp);
+    const edited = editCardTopUp(first.list, first.topUp.id, { amountUsd: 400, paidAmount: 172000, paidCurrency: "MRU", date: "2026-09-25", note: "تصحيح" });
+    if (!edited.ok) throw new Error(edited.message);
+    expect(edited.list).toHaveLength(1);
+    expect(edited.topUp).toMatchObject({ id: first.topUp.id, amountUsd: 400, date: "2026-09-25", createdAt: first.topUp.createdAt });
+    const nextCash = replaceCardTopUpCash(cash, edited.topUp);
+    expect(nextCash).toHaveLength(1);
+    expect(nextCash[0]).toMatchObject({ amount: 172000, date: "2026-09-25", sourceId: first.topUp.id });
+    expect(editCardTopUp(first.list, "missing", { amountUsd: 1, paidAmount: 1, paidCurrency: "USD", date: "2026-09-25" }).ok).toBe(false);
+    expect(editCardTopUp(first.list, first.topUp.id, { amountUsd: 0, paidAmount: 1, paidCurrency: "USD", date: "2026-09-25" }).ok).toBe(false);
+  });
+
+  it("orders a same-day payment after a top-up made before it", () => {
+    const topUp = { id: "t", amountUsd: 500, paidAmount: 500, paidCurrency: "USD", date: "2026-09-26", createdAt: "2026-09-26T10:00:00.000Z" };
+    const statement = buildCardStatement([topUp], listCardPayments({ d: [paid] }));
+    // Newest first: the 12:00 payment, then the 10:00 top-up - the balance never dips below zero.
+    expect(statement.rows.map((r) => r.balanceAfter)).toEqual([403.2, 500]);
   });
 });

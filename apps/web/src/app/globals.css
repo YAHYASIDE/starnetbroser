@@ -6055,6 +6055,10 @@ button.today-tile {
   color: var(--red);
 }
 
+.sl-edit {
+  font-size: 0.75rem;
+}
+
 .sl-pay-list {
   margin: 0;
   padding: 0;

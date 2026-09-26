@@ -2,7 +2,8 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { confirmClosedMonthChange } from "@/lib/monthClosing";
+import { confirmClosedMonthChange, ledgerEntryMonthDates } from "@/lib/monthClosing";
+import { loadAllocationStore, removeAllocationsForEntryFromStore, saveAllocationStore } from "@/lib/paymentAllocationStore";
 import {
   buildPreviousDebtPayment,
   deletePreviousDebt,
@@ -22,15 +23,28 @@ import { CurrencyStore, getCurrency, loadCurrencyStore } from "@/lib/currencySto
 import { demoAccounts } from "@/lib/demoData";
 import { loadDemoAccounts } from "@/lib/demoAccountStore";
 import { formatAmount } from "@/lib/formatAmount";
-import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerByAccount, LedgerCurrency, loadLedgerStore, saveLedgerStore } from "@/lib/ledgerStore";
+import {
+  LEDGER_CURRENCIES,
+  LEDGER_CURRENCY_LABELS,
+  LedgerByAccount,
+  LedgerCurrency,
+  LedgerEntry,
+  loadLedgerStore,
+  saveLedgerStore,
+} from "@/lib/ledgerStore";
 import { listAccounts } from "@/lib/apiClient";
 import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
 import { getRepresentative, loadRepresentativeStore, RepresentativeStore } from "@/lib/repStore";
 import {
   buildCardStatement,
+  CardPayment,
   cardShortfallForSuspended,
+  CardTopUp,
+  CardTopUpInput,
   CardTopUpList,
   deleteCardTopUp,
+  editCardTopUp,
+  editSettlement,
   listCardPayments,
   listOpenShipmentDebts,
   listSuspendedWithDebt,
@@ -39,9 +53,12 @@ import {
   postCardTopUpToCash,
   recordCardTopUp,
   removeCardTopUpCash,
+  replaceCardTopUpCash,
   saveCardTopUps,
+  SettlementEdit,
   settleShipments,
   totalOpenDebtUsd,
+  unsettleShipmentCost,
 } from "@/lib/starlinkDebt";
 
 function todayInput(): string {
@@ -73,7 +90,9 @@ export default function StarlinkPage() {
   const [currencyStore, setCurrencyStore] = useState<CurrencyStore>({});
   const [topUps, setTopUps] = useState<CardTopUpList>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [sheet, setSheet] = useState<"pay" | "topup" | "prevpay" | null>(null);
+  const [sheet, setSheet] = useState<"pay" | "topup" | "prevpay" | "edittopup" | "editpay" | null>(null);
+  const [editTopUp, setEditTopUp] = useState<CardTopUp | null>(null);
+  const [editPayment, setEditPayment] = useState<CardPayment | null>(null);
   const [previousDebts, setPreviousDebts] = useState<PreviousDebtList>([]);
   const [prevPay, setPrevPay] = useState<PreviousDebt | null>(null);
   const [payItems, setPayItems] = useState<OpenShipmentDebt[]>([]);
@@ -183,12 +202,77 @@ export default function StarlinkPage() {
     return null;
   }
 
-  function removeTopUp(id: string) {
+  function removeTopUp(topUp: CardTopUp) {
     if (!window.confirm("حذف عملية الشحن هذه؟ يُحذف قيدها من الصندوق أيضًا.")) return;
-    const next = deleteCardTopUp(topUps, id);
+    if (!confirmClosedMonthChange([topUp.date])) return;
+    const next = deleteCardTopUp(topUps, topUp.id);
     setTopUps(next);
     saveCardTopUps(next);
-    saveCashEntries(removeCardTopUpCash(loadCashEntries(), id));
+    saveCashEntries(removeCardTopUpCash(loadCashEntries(), topUp.id));
+    setSheet(null);
+  }
+
+  function openEditTopUp(topUp: CardTopUp) {
+    setEditTopUp(topUp);
+    setSheet("edittopup");
+  }
+
+  function saveTopUpEdit(topUp: CardTopUp, input: CardTopUpInput): string | null {
+    if (!confirmClosedMonthChange([topUp.date, input.date])) return "لم يُحفظ (الشهر مُقفل)";
+    const result = editCardTopUp(topUps, topUp.id, input);
+    if (!result.ok) return result.message;
+    setTopUps(result.list);
+    saveCardTopUps(result.list);
+    saveCashEntries(replaceCardTopUpCash(loadCashEntries(), result.topUp));
+    setSheet(null);
+    setToast("✓ تم تعديل عملية الشحن وقيدها في الصندوق");
+    return null;
+  }
+
+  function openEditPayment(payment: CardPayment) {
+    setEditPayment(payment);
+    setSheet("editpay");
+  }
+
+  function replaceEntry(accountId: string, entryId: string, next: LedgerEntry | null) {
+    const entries = ledgerStore[accountId] ?? [];
+    const updated = next ? entries.map((e) => (e.id === entryId ? next : e)) : entries.filter((e) => e.id !== entryId);
+    const store = { ...ledgerStore, [accountId]: updated };
+    setLedgerStore(store);
+    saveLedgerStore(store);
+  }
+
+  function savePaymentEdit(payment: CardPayment, edit: SettlementEdit): string | null {
+    const result = editSettlement(payment.entry, edit);
+    if (!result.ok) return result.message;
+    if (!confirmClosedMonthChange([...ledgerEntryMonthDates(payment.entry), ...ledgerEntryMonthDates(result.entry)])) {
+      return "لم يُحفظ (الشهر مُقفل)";
+    }
+    replaceEntry(payment.accountId, payment.entry.id, result.entry);
+    setSheet(null);
+    setToast(`✓ تم تعديل تسديد ${account(payment.accountId)?.name ?? "الجهاز"} - الربح بتاريخ ${edit.date}`);
+    return null;
+  }
+
+  /** A payment recorded by mistake: a normal shipment goes back to D; the payment of an earlier
+   * owner's debt is removed entirely (it was its own operation), so that debt is open again. */
+  function undoPayment(payment: CardPayment) {
+    const name = account(payment.accountId)?.name ?? "الجهاز";
+    const isPrevious = Boolean(payment.entry.previousDebtId);
+    const question = isPrevious
+      ? `حذف تسديد الدين السابق على ${name}؟ يُحذف من حساب الزبون ويرجع الدين السابق غير مدفوع.`
+      : `إلغاء تسديد ${name}؟ يرجع الجهاز إلى D (غير مدفوع لستارلينك) ويخرج ربحه من التقارير حتى تسدده من جديد.`;
+    if (!window.confirm(question)) return;
+    if (!confirmClosedMonthChange(ledgerEntryMonthDates(payment.entry))) return;
+    if (isPrevious) {
+      replaceEntry(payment.accountId, payment.entry.id, null);
+      const allocations = removeAllocationsForEntryFromStore(loadAllocationStore(), payment.entry.id);
+      saveAllocationStore(allocations);
+    } else {
+      replaceEntry(payment.accountId, payment.entry.id, unsettleShipmentCost(payment.entry));
+    }
+    setSheet(null);
+    setToast(isPrevious ? `✓ حُذف تسديد الدين السابق على ${name}` : `✓ رجع ${name} إلى D`);
   }
 
   return (
@@ -395,11 +479,13 @@ export default function StarlinkPage() {
                     {row.amountUsd >= 0 ? "+" : "-"}
                     {formatAmount(Math.abs(row.amountUsd))} $
                   </strong>
-                  {row.type === "topup" && (
-                    <button type="button" className="text-action sl-delete" onClick={() => removeTopUp(row.id)}>
-                      حذف
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    className="text-action sl-edit"
+                    onClick={() => (row.type === "topup" ? openEditTopUp(row.topUp) : openEditPayment(row.payment))}
+                  >
+                    تعديل
+                  </button>
                 </div>
               </li>
             ))}
@@ -430,6 +516,30 @@ export default function StarlinkPage() {
       {sheet === "topup" && (
         <PartySheet title="شحن بطاقة كاش" onClose={() => setSheet(null)}>
           <TopUpForm mruRate={mruRate} currencyStore={currencyStore} onSubmit={addTopUp} onCancel={() => setSheet(null)} />
+        </PartySheet>
+      )}
+
+      {sheet === "edittopup" && editTopUp && (
+        <PartySheet title="تعديل شحن البطاقة" onClose={() => setSheet(null)}>
+          <TopUpForm
+            initial={editTopUp}
+            mruRate={mruRate}
+            currencyStore={currencyStore}
+            onSubmit={(input) => saveTopUpEdit(editTopUp, input)}
+            onDelete={() => removeTopUp(editTopUp)}
+            onCancel={() => setSheet(null)}
+          />
+        </PartySheet>
+      )}
+
+      {sheet === "editpay" && editPayment && (
+        <PartySheet title={`تعديل تسديد ${account(editPayment.accountId)?.name ?? "جهاز"}`} onClose={() => setSheet(null)}>
+          <SettlementEditForm
+            payment={editPayment}
+            onSave={(edit) => savePaymentEdit(editPayment, edit)}
+            onUndo={() => undoPayment(editPayment)}
+            onCancel={() => setSheet(null)}
+          />
         </PartySheet>
       )}
     </main>
@@ -600,22 +710,28 @@ function PreviousPayForm({
 }
 
 function TopUpForm({
+  initial,
   mruRate,
   currencyStore,
   onSubmit,
+  onDelete,
   onCancel,
 }: {
+  /** Set when editing a past top-up. */
+  initial?: CardTopUp;
   mruRate: number | undefined;
   currencyStore: CurrencyStore;
   onSubmit: (input: { amountUsd: number; paidAmount: number; paidCurrency: string; date: string; note: string }) => string | null;
+  onDelete?: () => void;
   onCancel: () => void;
 }) {
-  const [amountUsd, setAmountUsd] = useState("");
-  const [paidCurrency, setPaidCurrency] = useState<string>("MRU");
-  const [paidAmount, setPaidAmount] = useState("");
-  const [paidTouched, setPaidTouched] = useState(false);
-  const [date, setDate] = useState(todayInput());
-  const [note, setNote] = useState("");
+  const [amountUsd, setAmountUsd] = useState(initial ? String(initial.amountUsd) : "");
+  const [paidCurrency, setPaidCurrency] = useState<string>(initial?.paidCurrency ?? "MRU");
+  const [paidAmount, setPaidAmount] = useState(initial ? String(initial.paidAmount) : "");
+  // An edit starts from what really left الصندوق, never a re-suggestion from today's rate.
+  const [paidTouched, setPaidTouched] = useState(Boolean(initial));
+  const [date, setDate] = useState(initial?.date ?? todayInput());
+  const [note, setNote] = useState(initial?.note ?? "");
   const [error, setError] = useState<string | null>(null);
 
   // Suggests what left الصندوق from today's rate until the operator types the real figure.
@@ -643,7 +759,7 @@ function TopUpForm({
           placeholder="0"
           value={amountUsd}
           onChange={(e) => setAmountUsd(e.target.value)}
-          autoFocus
+          autoFocus={!initial}
         />
       </label>
       <label className="rep-form-field">
@@ -681,12 +797,85 @@ function TopUpForm({
       {error && <div className="account-card-alert ledger-form-error">{error}</div>}
       <div className="settings-actions">
         <button className="dialog-primary" type="submit" disabled={!amountUsd}>
-          حفظ الشحن
+          {initial ? "حفظ التعديل" : "حفظ الشحن"}
         </button>
         <button type="button" className="text-action" onClick={onCancel}>
           إلغاء
         </button>
       </div>
+      {onDelete && (
+        <button type="button" className="dialog-danger" onClick={onDelete}>
+          حذف عملية الشحن
+        </button>
+      )}
+    </form>
+  );
+}
+
+/** Edits a past payment to Starlink from the card list: its day, whether it came from the card,
+ * and (for a USD cost) the amount - or undoes it. */
+function SettlementEditForm({
+  payment,
+  onSave,
+  onUndo,
+  onCancel,
+}: {
+  payment: CardPayment;
+  onSave: (edit: SettlementEdit) => string | null;
+  onUndo: () => void;
+  onCancel: () => void;
+}) {
+  const cost = payment.entry.starlinkCost;
+  const amountEditable = cost?.currencyCode === "USD";
+  const [date, setDate] = useState(payment.date);
+  const [amount, setAmount] = useState(String(amountEditable ? cost?.amount ?? "" : payment.amountUsd));
+  const [fromCard, setFromCard] = useState(cost?.paidVia === "card");
+  const [error, setError] = useState<string | null>(null);
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    setError(onSave({ date, fromCard, amountUsd: amountEditable ? Number(amount) : undefined }));
+  }
+
+  return (
+    <form className="party-balance-form" onSubmit={submit}>
+      <label className="rep-form-field">
+        <span>المبلغ المدفوع لستارلينك (دولار)</span>
+        <input
+          className="search-input"
+          type="number"
+          lang="en"
+          min="0"
+          step="0.01"
+          dir="ltr"
+          inputMode="decimal"
+          value={amount}
+          disabled={!amountEditable}
+          onChange={(e) => setAmount(e.target.value)}
+        />
+      </label>
+      {!amountEditable && <p className="settings-hint">تكلفة هذا الجهاز مسجّلة بعملة أخرى - عدّل مبلغها من كشف الجهاز.</p>}
+      <label className="rep-form-field">
+        <span>تاريخ الدفع (يوم نزول الربح)</span>
+        <DateInput className="search-input" value={date} onChange={(e) => setDate(e.target.value)} />
+      </label>
+      <label className="ledger-d-toggle party-cash-toggle">
+        <input type="checkbox" checked={fromCard} onChange={(e) => setFromCard(e.target.checked)} />
+        <span>💳 دُفع من بطاقة كاش</span>
+      </label>
+      {!fromCard && <p className="settings-hint">بدون البطاقة يرجع المبلغ إلى رصيدها ويختفي التسديد من هذه القائمة.</p>}
+      {error && <div className="account-card-alert ledger-form-error">{error}</div>}
+      <div className="settings-actions">
+        <button className="dialog-primary" type="submit" disabled={!date}>
+          حفظ التعديل
+        </button>
+        <button type="button" className="text-action" onClick={onCancel}>
+          إلغاء
+        </button>
+      </div>
+      <button type="button" className="dialog-danger" onClick={onUndo}>
+        {payment.entry.previousDebtId ? "حذف هذا التسديد (يرجع الدين السابق)" : "إلغاء التسديد (يرجع إلى D)"}
+      </button>
     </form>
   );
 }
