@@ -6656,3 +6656,276 @@ button.today-tile {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px;
 }
+
+/* ---- التقارير: tabs, KPI tiles, bar chart, ranked lists ---- */
+.report-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin: 12px 0;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.report-tab {
+  flex: 1;
+  padding: 9px 0;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.report-tab-active {
+  background: var(--brand);
+  color: var(--brand-contrast);
+}
+
+.report-tab-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.report-tab-panel .report-period-row {
+  margin-bottom: 0;
+}
+
+.report-kpis {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.report-kpi {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.report-kpi-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.report-kpi-value {
+  display: block;
+  margin-top: 4px;
+  font-size: 1.2rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.report-kpi-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.report-kpi-info {
+  margin: 6px 0 0;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.report-info {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--text-muted);
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.62rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.report-good {
+  color: var(--green);
+}
+
+.report-bad {
+  color: var(--red);
+}
+
+.report-warn {
+  color: var(--yellow);
+}
+
+.report-orange {
+  color: var(--orange);
+}
+
+.report-card {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.report-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.report-card-head h3 {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.report-card-note {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.report-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 120px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--border);
+}
+
+.report-chart-col {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+
+.report-chart-bar {
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+  background: linear-gradient(180deg, var(--brand), color-mix(in srgb, var(--brand) 55%, #000));
+}
+
+.report-chart-bar-neg {
+  background: linear-gradient(180deg, var(--red), color-mix(in srgb, var(--red) 55%, #000));
+}
+
+.report-chart-axis {
+  display: flex;
+  gap: 3px;
+  margin-top: 4px;
+  font-size: 0.62rem;
+  color: var(--text-muted);
+}
+
+.report-chart-axis span {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  overflow: visible;
+  white-space: nowrap;
+}
+
+.report-rank {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.report-rank-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  font-size: 0.86rem;
+}
+
+.report-rank-row:last-child {
+  border-bottom: none;
+}
+
+.report-rank-badge {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--surface-alt);
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.report-rank-badge-red {
+  background: var(--red);
+  color: #fff;
+}
+
+.report-rank-badge-orange {
+  background: var(--orange);
+  color: #fff;
+}
+
+.report-rank-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.report-rank-main strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-rank-main small {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.report-rank-bar {
+  height: 5px;
+  margin-top: 4px;
+  border-radius: 3px;
+  background: var(--brand);
+}
+
+.report-rank-bar-good {
+  background: var(--green);
+}
+
+.report-rank-bar-bad {
+  background: var(--red);
+}
+
+.report-more-link {
+  align-self: flex-start;
+}
+
+/* Six period buttons as a tidy 3 x 2 grid on a phone instead of a ragged wrap. */
+.report-tab-panel .report-period-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.report-tab-panel .report-period-btn {
+  width: 100%;
+}
