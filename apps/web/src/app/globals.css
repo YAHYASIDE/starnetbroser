@@ -7270,3 +7270,27 @@ button.today-tile {
   line-height: 1;
   cursor: pointer;
 }
+
+/* LedgerDialog «قراءة من صورة إيصال» (Claude) */
+.ledger-receipt-row {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 6px;
+}
+
+.ledger-receipt-btn {
+  justify-content: center;
+  cursor: pointer;
+}
+
+.ledger-receipt-btn input {
+  display: none;
+}
+
+.ledger-receipt-btn.is-busy {
+  opacity: 0.7;
+}
+
+.ledger-receipt-warn {
+  color: var(--orange);
+}

@@ -2,6 +2,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { AI_MODEL, AiUsage, describeAiError } from "./aiSettings";
+import { RECEIPT_PROMPT, RECEIPT_SCHEMA, ReceiptFields, normalizeReceipt } from "./aiReceipt";
 
 /**
  * Talks to Claude straight from the app (the operator's own key; no STAR NET server in between).
@@ -87,6 +88,36 @@ export async function askClaude(options: {
     }
     const text = final.content.flatMap((block) => (block.type === "text" ? [block.text] : [])).join("");
     return { text, usage: final.usage, stopReason: final.stop_reason };
+  } catch (err) {
+    throw new Error(aiErrorMessage(err));
+  }
+}
+
+/** «قراءة من صورة»: reads one receipt into form fields (structured output - always valid JSON). */
+export async function readReceipt(apiKey: string, image: ChatImage): Promise<ReceiptFields> {
+  const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true, maxRetries: 1 });
+  try {
+    const response = await client.messages.create({
+      model: AI_MODEL,
+      max_tokens: 16000,
+      output_config: { format: { type: "json_schema", schema: RECEIPT_SCHEMA } },
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "image", source: { type: "base64", media_type: image.mediaType, data: image.data } },
+            { type: "text", text: RECEIPT_PROMPT },
+          ],
+        },
+      ],
+    });
+    if (response.stop_reason === "refusal") throw new Error("تعذرت قراءة هذه الصورة");
+    const text = response.content.flatMap((block) => (block.type === "text" ? [block.text] : [])).join("");
+    try {
+      return normalizeReceipt(JSON.parse(text));
+    } catch {
+      throw new Error("لم يستطع Claude قراءة الإيصال - أدخل القيم يدويًا");
+    }
   } catch (err) {
     throw new Error(aiErrorMessage(err));
   }
