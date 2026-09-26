@@ -506,6 +506,7 @@ function BackupSection() {
   const [importPassword, setImportPassword] = useState("");
   const [importBusy, setImportBusy] = useState(false);
   const [importMessage, setImportMessage] = useState<string | null>(null);
+  const [importDone, setImportDone] = useState(false);
 
   async function handleExport() {
     setExportMessage(null);
@@ -554,6 +555,7 @@ function BackupSection() {
 
   async function handleImport() {
     setImportMessage(null);
+    setImportDone(false);
     if (!importFile) {
       setImportMessage("اختر ملف النسخة الاحتياطية أولًا");
       return;
@@ -595,6 +597,7 @@ function BackupSection() {
       );
       setImportPassword("");
       setImportFile(null);
+      setImportDone(true);
     } catch {
       setImportMessage("تعذر قراءة الملف - تأكد من كلمة المرور");
     } finally {
@@ -637,12 +640,13 @@ function BackupSection() {
       </div>
 
       <div className="auth-form" style={{ marginTop: "16px" }}>
-        <input
-          className="search-input"
-          type="file"
-          accept=".starnetbackup,application/json"
-          onChange={(e) => setImportFile(e.target.files?.[0] ?? null)}
-        />
+        {/* No "accept" filter: Android's picker only understands real file types, so a filter on
+            the backup's own extension greyed the file out and it could never be chosen. */}
+        <label className="backup-file-pick">
+          <input type="file" onChange={(e) => setImportFile(e.target.files?.[0] ?? null)} />
+          <span className="backup-file-button">📂 اختر ملف النسخة</span>
+          <span className="backup-file-name">{importFile ? importFile.name : "لم تختر ملفًا بعد"}</span>
+        </label>
         <input
           className="search-input"
           type="password"
@@ -655,7 +659,12 @@ function BackupSection() {
             {importBusy ? "جارِ الاستيراد…" : "استيراد نسخة احتياطية"}
           </button>
         </div>
-        {importMessage && <div className="account-card-alert">{importMessage}</div>}
+        {importMessage && <div className={`account-card-alert${importDone ? " backup-restored" : ""}`}>{importMessage}</div>}
+        {importDone && (
+          <button type="button" className="dialog-primary" onClick={() => (window.location.href = "/")}>
+            فتح الصفحة الرئيسية بالبيانات المستعادة
+          </button>
+        )}
       </div>
     </section>
   );

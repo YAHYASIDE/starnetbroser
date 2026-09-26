@@ -6,8 +6,12 @@ import { isRunningInAndroidApp } from "./localBrowser";
 
 export type SaveResult = { ok: true } | { ok: false; message: string };
 
+/** `.json` so every phone app (WhatsApp, Drive, Files) knows the file's type and lets it be picked
+ * again for a restore - the content is encrypted either way. */
 function backupFileName(): string {
-  return `starnet-backup-${Date.now()}.starnetbackup`;
+  const d = new Date();
+  const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}-${String(d.getHours()).padStart(2, "0")}${String(d.getMinutes()).padStart(2, "0")}`;
+  return `starnet-backup-${stamp}.json`;
 }
 
 /**
