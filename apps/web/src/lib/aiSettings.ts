@@ -4,42 +4,109 @@
  * repository, never logged) and is sent only to api.anthropic.com.
  */
 
-export const AI_MODEL = "claude-sonnet-5";
+/**
+ * Two ways to reach the same Claude Sonnet 5:
+ * - "anthropic": Anthropic's own API (paid by bank card at console.anthropic.com).
+ * - "openrouter": OpenRouter's Anthropic-compatible endpoint (credits payable in crypto, e.g. USDC)
+ *   - for when local bank cards are refused.
+ */
+export type AiProvider = "anthropic" | "openrouter";
+
+export const AI_PROVIDERS: Record<AiProvider, { label: string; model: string; baseURL?: string; keyPrefix: string; keysUrl: string }> = {
+  anthropic: { label: "Anthropic (بطاقة بنكية)", model: "claude-sonnet-5", keyPrefix: "sk-ant-", keysUrl: "console.anthropic.com" },
+  openrouter: {
+    label: "OpenRouter (عملات رقمية)",
+    model: "anthropic/claude-sonnet-5",
+    baseURL: "https://openrouter.ai/api",
+    keyPrefix: "sk-or-",
+    keysUrl: "openrouter.ai/settings/keys",
+  },
+};
+
+export const AI_MODEL = AI_PROVIDERS.anthropic.model;
 export const AI_MODEL_LABEL = "Claude Sonnet 5";
 
 /** USD per million tokens (Claude Sonnet 5): input, output, 5-minute cache write (1.25x input) and
  * cache read (0.1x input). Used only to show the operator what each answer roughly cost. */
 export const AI_PRICE_PER_MTOK = { input: 2, output: 10, cacheWrite: 2.5, cacheRead: 0.2 };
 
-const KEY = "starnet.claudeApiKey";
+const PROVIDER_KEY = "starnet.aiProvider";
+const KEY_STORAGE: Record<AiProvider, string> = { anthropic: "starnet.claudeApiKey", openrouter: "starnet.openrouterApiKey" };
 
-export function getClaudeApiKey(): string | null {
+function read(key: string): string | null {
   try {
-    return typeof window === "undefined" ? null : window.localStorage.getItem(KEY);
+    return typeof window === "undefined" ? null : window.localStorage.getItem(key);
   } catch {
     return null;
   }
 }
 
-export function setClaudeApiKey(key: string | null): void {
+function write(key: string, value: string | null): void {
   try {
-    if (key === null) window.localStorage.removeItem(KEY);
-    else window.localStorage.setItem(KEY, key.trim());
+    if (value === null) window.localStorage.removeItem(key);
+    else window.localStorage.setItem(key, value);
   } catch {
     // Storage blocked - the assistant simply stays unconfigured.
   }
 }
 
-/** Anthropic API keys start with "sk-ant-" - catches a pasted wrong value before any request. */
+export function getAiProvider(): AiProvider {
+  return read(PROVIDER_KEY) === "openrouter" ? "openrouter" : "anthropic";
+}
+
+export function setAiProvider(provider: AiProvider): void {
+  write(PROVIDER_KEY, provider);
+}
+
+export function getAiKey(provider: AiProvider): string | null {
+  return read(KEY_STORAGE[provider]);
+}
+
+export function setAiKey(provider: AiProvider, key: string | null): void {
+  write(KEY_STORAGE[provider], key === null ? null : key.trim());
+}
+
+export interface AiConfig {
+  provider: AiProvider;
+  key: string;
+  model: string;
+}
+
+/** The provider chosen in Settings, with its key - null until a key is saved for it. */
+export function getAiConfig(): AiConfig | null {
+  const provider = getAiProvider();
+  const key = getAiKey(provider);
+  return key ? { provider, key, model: AI_PROVIDERS[provider].model } : null;
+}
+
+/** Kept for the Anthropic-only callers and tests. */
+export function getClaudeApiKey(): string | null {
+  return getAiKey("anthropic");
+}
+
+export function setClaudeApiKey(key: string | null): void {
+  setAiKey("anthropic", key);
+}
+
+/** Catches a pasted wrong value before any request: Anthropic keys start "sk-ant-", OpenRouter "sk-or-". */
+export function looksLikeAiKey(provider: AiProvider, key: string): boolean {
+  const trimmed = key.trim();
+  const prefix = AI_PROVIDERS[provider].keyPrefix;
+  return trimmed.startsWith(prefix) && /^[A-Za-z0-9_-]{20,}$/.test(trimmed.slice(prefix.length));
+}
+
 export function looksLikeClaudeKey(key: string): boolean {
-  return /^sk-ant-[A-Za-z0-9_-]{20,}$/.test(key.trim());
+  return looksLikeAiKey("anthropic", key);
 }
 
 /** "sk-ant-…a1b2" - enough to recognise the key without showing it. */
-export function maskClaudeKey(key: string): string {
+export function maskAiKey(key: string): string {
   const trimmed = key.trim();
-  return trimmed.length <= 12 ? "sk-ant-…" : `sk-ant-…${trimmed.slice(-4)}`;
+  const prefix = trimmed.startsWith("sk-or-") ? "sk-or-" : "sk-ant-";
+  return trimmed.length <= 12 ? `${prefix}…` : `${prefix}…${trimmed.slice(-4)}`;
 }
+
+export const maskClaudeKey = maskAiKey;
 
 export interface AiUsage {
   input_tokens: number;
@@ -63,6 +130,7 @@ export function describeAiError(status: number | undefined, message = ""): strin
   if (status === 401) return "مفتاح Claude غير صحيح - تحقق منه في الإعدادات";
   if (status === 403) return "هذا المفتاح لا يملك صلاحية استعمال Claude";
   if (status === 400 && /credit balance/i.test(message)) return "رصيد حسابك في Anthropic غير كافٍ - اشحن من console.anthropic.com ← Billing";
+  if (status === 402) return "رصيد OpenRouter غير كافٍ - اشحن من openrouter.ai ← Credits";
   if (status === 404) return "النموذج غير متاح لهذا المفتاح";
   if (status === 413) return "البيانات أو الصور كبيرة جدًا لسؤال واحد";
   if (status === 429) return "طلبات كثيرة في وقت قصير - انتظر دقيقة ثم أعد المحاولة";

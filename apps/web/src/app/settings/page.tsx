@@ -53,8 +53,8 @@ import { runAutoBackup, shareLatestAutoBackup } from "@/lib/autoBackupRunner";
 import { DriveFile, DriveUploadStatus, driveBackupLabel, getDriveEmail, getDriveLastUpload, isDriveLinked } from "@/lib/driveBackup";
 import { downloadGoogleDriveBackup, linkGoogleDrive, listGoogleDriveBackups, runDriveBackup, unlinkGoogleDrive } from "@/lib/driveBackupRunner";
 import { PartySheet } from "@/components/AccountsSection";
-import { AI_MODEL_LABEL, getClaudeApiKey, looksLikeClaudeKey, maskClaudeKey, setClaudeApiKey } from "@/lib/aiSettings";
-import { testClaudeKey } from "@/lib/aiClient";
+import { AI_MODEL_LABEL, AI_PROVIDERS, AiProvider, getAiKey, getAiProvider, looksLikeAiKey, maskAiKey, setAiKey, setAiProvider } from "@/lib/aiSettings";
+import { testAiKey } from "@/lib/aiClient";
 import { BusinessProfile, loadBusinessProfile, saveBusinessProfile } from "@/lib/pdfDocument";
 import { clearAppPin, hasAppPin, setAppPin, verifyAppPin } from "@/lib/appLock";
 import { loadProfitReset, ProfitReset, saveProfitReset, startProfitFresh, undoProfitFresh } from "@/lib/profitReset";
@@ -1347,39 +1347,53 @@ function StorageUsageSection() {
   );
 }
 
-/** "المساعد الذكي (Claude)": the operator's own Anthropic API key - kept on this phone only (see
- * aiSettings.ts), checked against Anthropic before it's saved. */
+/** "المساعد الذكي (Claude)": which way to reach Claude (Anthropic by card, or OpenRouter paid in
+ * crypto) and that provider's key - kept on this phone only (see aiSettings.ts), checked before
+ * it's saved. */
 function ClaudeSection() {
+  const [provider, setProvider] = useState<AiProvider>("anthropic");
   const [savedKey, setSavedKey] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  useEffect(() => setSavedKey(getClaudeApiKey()), []);
+  useEffect(() => {
+    const current = getAiProvider();
+    setProvider(current);
+    setSavedKey(getAiKey(current));
+  }, []);
+
+  function choose(next: AiProvider) {
+    setAiProvider(next);
+    setProvider(next);
+    setSavedKey(getAiKey(next));
+    setDraft("");
+    setMessage(null);
+  }
 
   async function save() {
     const key = draft.trim();
-    if (!looksLikeClaudeKey(key)) {
-      setMessage("هذا لا يبدو مفتاح Claude - المفتاح يبدأ بـ sk-ant-");
+    if (!looksLikeAiKey(provider, key)) {
+      setMessage(`هذا لا يبدو مفتاح ${provider === "openrouter" ? "OpenRouter" : "Anthropic"} - المفتاح يبدأ بـ ${AI_PROVIDERS[provider].keyPrefix}`);
       return;
     }
     setBusy(true);
     setMessage(null);
-    const result = await testClaudeKey(key);
+    const result = await testAiKey({ provider, key, model: AI_PROVIDERS[provider].model });
     setBusy(false);
     if (!result.ok) {
       setMessage(result.message);
       return;
     }
-    setClaudeApiKey(key);
+    setAiKey(provider, key);
     setSavedKey(key);
     setDraft("");
     setMessage("✓ تم حفظ المفتاح - افتح «المساعد الذكي» من المزيد");
   }
 
   function remove() {
-    if (!window.confirm("حذف مفتاح Claude من هذا الهاتف؟")) return;
-    setClaudeApiKey(null);
+    if (!window.confirm("حذف هذا المفتاح من الهاتف؟")) return;
+    setAiKey(provider, null);
     setSavedKey(null);
     setMessage("تم حذف المفتاح");
   }
@@ -1388,14 +1402,20 @@ function ClaudeSection() {
     <section className="section" id="claude">
       <h2 className="section-title">✨ المساعد الذكي (Claude)</h2>
       <p className="settings-hint">
-        يجيب عن أسئلتك من بياناتك، يكتب رسائل المطالبة، ويقرأ صور الإيصالات. يعمل بمفتاحك الخاص من Anthropic ({AI_MODEL_LABEL})،
-        وتُدفع التكلفة من رصيد حسابك هناك (السؤال عادة بضعة سنتات). المفتاح يبقى على هذا الهاتف فقط، ولا يدخل النسخ الاحتياطية.
-        كلمات المرور وجلسات الدخول لا تُرسل أبدًا.
+        يجيب عن أسئلتك من بياناتك، يكتب رسائل المطالبة، ويقرأ صور الإيصالات ({AI_MODEL_LABEL}). تُدفع التكلفة من رصيدك عند المزوّد
+        (السؤال عادة بضعة سنتات). المفتاح يبقى على هذا الهاتف فقط ولا يدخل النسخ الاحتياطية، وكلمات المرور وجلسات الدخول لا تُرسل أبدًا.
       </p>
+      <div className="ai-provider-pick" role="radiogroup" aria-label="طريقة الاتصال بـ Claude">
+        {(Object.keys(AI_PROVIDERS) as AiProvider[]).map((p) => (
+          <button key={p} type="button" role="radio" aria-checked={provider === p} className={`ai-provider${provider === p ? " is-active" : ""}`} onClick={() => choose(p)}>
+            {AI_PROVIDERS[p].label}
+          </button>
+        ))}
+      </div>
       {savedKey ? (
         <>
           <p className="settings-hint">
-            ✓ المفتاح محفوظ: <bdi dir="ltr">{maskClaudeKey(savedKey)}</bdi>
+            ✓ المفتاح محفوظ: <bdi dir="ltr">{maskAiKey(savedKey)}</bdi>
           </p>
           <div className="settings-actions">
             <Link className="dialog-primary ai-setup-link" href="/assistant">
@@ -1408,16 +1428,22 @@ function ClaudeSection() {
         </>
       ) : (
         <div className="auth-form">
-          <p className="settings-hint">
-            للحصول على مفتاح: افتح <bdi dir="ltr">console.anthropic.com</bdi> ← سجّل الدخول ← Billing (اشحن رصيدًا، أقل مبلغ 5 $) ←
-            API Keys ← Create Key، ثم انسخه والصقه هنا.
-          </p>
+          {provider === "openrouter" ? (
+            <p className="settings-hint">
+              افتح <bdi dir="ltr">openrouter.ai</bdi> وسجّل الدخول ← Credits ← Add Credits واختر الدفع بالعملات الرقمية (USDC) ← ثم
+              Keys ← Create Key، وانسخ المفتاح (يبدأ بـ <bdi dir="ltr">sk-or-</bdi>) والصقه هنا.
+            </p>
+          ) : (
+            <p className="settings-hint">
+              افتح <bdi dir="ltr">console.anthropic.com</bdi> ← Billing (اشحن رصيدًا، أقل مبلغ 5 $) ← API Keys ← Create Key، ثم انسخه والصقه هنا.
+            </p>
+          )}
           <input
             className="search-input"
             type="password"
             dir="ltr"
             autoComplete="off"
-            placeholder="sk-ant-..."
+            placeholder={`${AI_PROVIDERS[provider].keyPrefix}...`}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
           />

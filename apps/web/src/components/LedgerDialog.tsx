@@ -8,7 +8,7 @@ import { useMruRate } from "@/lib/useMruRate";
 import { buildPaymentReceipt } from "@/lib/receipt";
 import { FormEvent, useEffect, useState } from "react";
 import { readReceipt } from "@/lib/aiClient";
-import { getClaudeApiKey } from "@/lib/aiSettings";
+import { AiConfig, getAiConfig } from "@/lib/aiSettings";
 import { resizeImageToDataUrl } from "@/lib/imageUtils";
 import {
   computeBalanceByCurrency,
@@ -159,8 +159,8 @@ export function LedgerDialog({
   const [date, setDate] = useState(todayDateInputValue());
   const [formError, setFormError] = useState<string | null>(null);
   // «قراءة من صورة» (Claude): only offered once the operator has added their key in Settings.
-  const [claudeKey, setClaudeKey] = useState<string | null>(null);
-  useEffect(() => setClaudeKey(getClaudeApiKey()), []);
+  const [aiConfig, setAiConfig] = useState<AiConfig | null>(null);
+  useEffect(() => setAiConfig(getAiConfig()), []);
   const [receiptBusy, setReceiptBusy] = useState(false);
   const [receiptNote, setReceiptNote] = useState<string | null>(null);
 
@@ -232,12 +232,12 @@ export function LedgerDialog({
 
   // Fills the form from a photographed receipt - only pre-fills, the operator reviews and saves.
   async function fillFromReceipt(file: File | undefined) {
-    if (!file || !claudeKey) return;
+    if (!file || !aiConfig) return;
     setReceiptBusy(true);
     setReceiptNote(null);
     try {
       const dataUrl = await resizeImageToDataUrl(file, 1568, 0.85);
-      const fields = await readReceipt(claudeKey, { mediaType: "image/jpeg", data: dataUrl.slice(dataUrl.indexOf(",") + 1) });
+      const fields = await readReceipt(aiConfig, { mediaType: "image/jpeg", data: dataUrl.slice(dataUrl.indexOf(",") + 1) });
       if (fields.kind) setKind(fields.kind);
       if (fields.currency) selectCurrency(fields.currency);
       if (fields.amount !== undefined) setAmount(String(fields.amount));
@@ -511,7 +511,7 @@ export function LedgerDialog({
         )}
 
         <form className="ledger-entry-form" onSubmit={submit}>
-          {claudeKey && (
+          {aiConfig && (
             <div className="ledger-receipt-row">
               <label className={`btn-icon ledger-receipt-btn${receiptBusy ? " is-busy" : ""}`}>
                 <input type="file" accept="image/*" disabled={receiptBusy} onChange={(e) => void fillFromReceipt(e.target.files?.[0]).then(() => (e.target.value = ""))} />

@@ -6,7 +6,7 @@ import type { StarlinkAccountSummary } from "@starnet/shared";
 import { ChatImage, ChatTurn, askClaude } from "@/lib/aiClient";
 import { BusinessData, snapshotText } from "@/lib/aiContext";
 import { AiSegment, parseAssistantReply } from "@/lib/aiDrafts";
-import { AI_MODEL_LABEL, AiUsage, estimateCostUsd, getClaudeApiKey } from "@/lib/aiSettings";
+import { AI_MODEL_LABEL, AI_PROVIDERS, AiConfig, AiUsage, estimateCostUsd, getAiConfig } from "@/lib/aiSettings";
 import { listAccounts } from "@/lib/apiClient";
 import { loadCashEntries } from "@/lib/cashStore";
 import { loadClientStore } from "@/lib/clientStore";
@@ -37,6 +37,10 @@ interface ShownTurn extends ChatTurn {
   error?: boolean;
 }
 
+function formatCost(usd: number): string {
+  return usd < 0.001 ? "< 0.001 $" : `${usd.toFixed(3)} $`;
+}
+
 function todayLocal(): string {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -65,7 +69,7 @@ async function loadBusinessData(): Promise<BusinessData> {
 }
 
 export default function AssistantPage() {
-  const [apiKey, setApiKey] = useState<string | null>(null);
+  const [config, setConfig] = useState<AiConfig | null>(null);
   const [ready, setReady] = useState(false);
   const [turns, setTurns] = useState<ShownTurn[]>([]);
   const [input, setInput] = useState("");
@@ -81,7 +85,7 @@ export default function AssistantPage() {
   }
 
   useEffect(() => {
-    setApiKey(getClaudeApiKey());
+    setConfig(getAiConfig());
     void refreshSnapshot().then(() => setReady(true));
   }, []);
 
@@ -91,7 +95,7 @@ export default function AssistantPage() {
 
   async function send(text: string) {
     const question = text.trim();
-    if (!apiKey || busy || (!question && images.length === 0)) return;
+    if (!config || busy || (!question && images.length === 0)) return;
     const userTurn: ShownTurn = { role: "user", text: question, images: images.length ? images : undefined };
     // Earlier errors are shown but never sent back to Claude as if they were its own answers.
     const history = [...turns.filter((t) => !t.error), userTurn];
@@ -104,7 +108,7 @@ export default function AssistantPage() {
     abortRef.current = controller;
     try {
       const reply = await askClaude({
-        apiKey,
+        config,
         snapshot: snapshotRef.current,
         history: history.map(({ role, text: t, images: imgs }) => ({ role, text: t, images: imgs })),
         onText: (delta) => setStreaming((current) => (current ?? "") + delta),
@@ -162,18 +166,19 @@ export default function AssistantPage() {
         )}
       </div>
       <p className="settings-hint ai-model-note">
-        <bdi dir="ltr">{AI_MODEL_LABEL}</bdi> - يقرأ بياناتك الحالية (بدون كلمات المرور وجلسات الدخول) ولا يعدّل شيئًا بنفسه.
+        <bdi dir="ltr">{AI_MODEL_LABEL}</bdi>
+        {config?.provider === "openrouter" ? ` عبر ${AI_PROVIDERS.openrouter.label.split(" ")[0]}` : ""} - يقرأ بياناتك الحالية (بدون كلمات المرور وجلسات الدخول) ولا يعدّل شيئًا بنفسه.
         {totalCost > 0 && (
           <>
             {" "}
-            تكلفة هذه المحادثة ≈ <bdi dir="ltr">{totalCost.toFixed(3)} $</bdi>
+            تكلفة هذه المحادثة ≈ <bdi dir="ltr">{formatCost(totalCost)}</bdi>
           </>
         )}
       </p>
 
-      {!apiKey ? (
+      {!config ? (
         <section className="section ai-setup">
-          <p>لاستعمال المساعد أضف مفتاح Claude (من حسابك في Anthropic) في الإعدادات.</p>
+          <p>لاستعمال المساعد أضف مفتاحك (Anthropic أو OpenRouter) في الإعدادات.</p>
           <Link href="/settings#claude" className="dialog-primary ai-setup-link">
             إضافة المفتاح
           </Link>
@@ -265,7 +270,7 @@ function ChatBubble({ turn }: { turn: ShownTurn }) {
       <AssistantText text={turn.text} />
       {turn.costUsd !== undefined && (
         <span className="ai-cost">
-          ≈ <bdi dir="ltr">{turn.costUsd.toFixed(3)} $</bdi>
+          ≈ <bdi dir="ltr">{formatCost(turn.costUsd)}</bdi>
         </span>
       )}
     </div>

@@ -1,6 +1,17 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { describeAiError, estimateCostUsd, getClaudeApiKey, looksLikeClaudeKey, maskClaudeKey, setClaudeApiKey } from "./aiSettings";
+import {
+  describeAiError,
+  estimateCostUsd,
+  getAiConfig,
+  getClaudeApiKey,
+  looksLikeAiKey,
+  looksLikeClaudeKey,
+  maskClaudeKey,
+  setAiKey,
+  setAiProvider,
+  setClaudeApiKey,
+} from "./aiSettings";
 import { parseAssistantReply } from "./aiDrafts";
 
 describe("aiSettings", () => {
@@ -25,7 +36,28 @@ describe("aiSettings", () => {
     expect(estimateCostUsd({ input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 40000 })).toBeCloseTo(0.008, 6);
   });
 
+  it("keeps one key per provider and uses the chosen one", () => {
+    setAiKey("anthropic", "sk-ant-api03-aaaaaaaaaaaaaaaaaaaaaaaa");
+    setAiKey("openrouter", "sk-or-v1-bbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+    setAiProvider("anthropic");
+    expect(getAiConfig()).toEqual({ provider: "anthropic", key: "sk-ant-api03-aaaaaaaaaaaaaaaaaaaaaaaa", model: "claude-sonnet-5" });
+    setAiProvider("openrouter");
+    expect(getAiConfig()).toEqual({ provider: "openrouter", key: "sk-or-v1-bbbbbbbbbbbbbbbbbbbbbbbbbbbb", model: "anthropic/claude-sonnet-5" });
+    setAiKey("openrouter", null);
+    expect(getAiConfig()).toBeNull();
+    setAiProvider("anthropic");
+    setAiKey("anthropic", null);
+    expect(maskClaudeKey("sk-or-v1-bbbbbbbbbbbbbbbbbbbb1234")).toBe("sk-or-…1234");
+  });
+
+  it("checks each provider's key shape", () => {
+    expect(looksLikeAiKey("openrouter", "sk-or-v1-0123456789abcdef0123456789")).toBe(true);
+    expect(looksLikeAiKey("openrouter", "sk-ant-api03-0123456789abcdef0123")).toBe(false);
+    expect(looksLikeAiKey("anthropic", "sk-or-v1-0123456789abcdef0123456789")).toBe(false);
+  });
+
   it("explains failures in Arabic", () => {
+    expect(describeAiError(402)).toContain("OpenRouter");
     expect(describeAiError(401)).toContain("غير صحيح");
     expect(describeAiError(400, "Your credit balance is too low")).toContain("رصيد");
     expect(describeAiError(529)).toContain("مشغولة");
