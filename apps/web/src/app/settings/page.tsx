@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { checkHealth, listAccounts, login, register } from "@/lib/apiClient";
 import { ApiError } from "@/lib/apiClient";
 import {
@@ -23,7 +23,26 @@ import {
 import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerCurrency } from "@/lib/ledgerStore";
 import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
 import { collectAppData, createEncryptedBackupFile, mergeImportedAccounts, readEncryptedBackupFile, restoreAppData } from "@/lib/accountBackup";
-import { exportAccountSessions, importAccountSessions, isRunningInAndroidApp, openNotificationSettings } from "@/lib/localBrowser";
+import {
+  checkAccountSession,
+  exportAccountSessions,
+  importAccountSessions,
+  isRunningInAndroidApp,
+  openIsolatedAccountBrowser,
+  openNotificationSettings,
+} from "@/lib/localBrowser";
+import {
+  clearSessionCheckResults,
+  loadSessionCheckResults,
+  needsLogin,
+  saveSessionCheckResults,
+  SESSION_STATUS_LABELS,
+  SessionCheckResults,
+  sessionExportWarning,
+  sortForSessionCheck,
+  summarizeSessionChecks,
+} from "@/lib/sessionCheck";
+import type { StarlinkAccountSummary } from "@starnet/shared";
 import { saveAndShareBackupFile } from "@/lib/backupFile";
 import { APK_DOWNLOAD_URL, checkForAppUpdate, CURRENT_COMMIT, UpdateCheckResult } from "@/lib/appUpdate";
 import { getMorningDigestHour, isMorningDigestEnabled, setMorningDigestEnabled, setMorningDigestHour } from "@/lib/morningNotifications";
@@ -271,6 +290,8 @@ export default function SettingsPage() {
       )}
 
       <BackupSection />
+
+      <SessionCheckSection />
     </main>
   );
 }
@@ -501,6 +522,7 @@ function BackupSection() {
   const [exportPasswordConfirm, setExportPasswordConfirm] = useState("");
   const [exportBusy, setExportBusy] = useState(false);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
+  const [exportWarning, setExportWarning] = useState<string | null>(null);
 
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importPassword, setImportPassword] = useState("");
@@ -510,6 +532,7 @@ function BackupSection() {
 
   async function handleExport() {
     setExportMessage(null);
+    setExportWarning(null);
     if (exportPassword.length < MIN_BACKUP_PASSWORD_LENGTH) {
       setExportMessage(`كلمة المرور يجب أن تكون ${MIN_BACKUP_PASSWORD_LENGTH} أحرف على الأقل`);
       return;
@@ -542,6 +565,7 @@ function BackupSection() {
           : saved.message,
       );
       if (saved.ok) {
+        setExportWarning(sessionExportWarning(accounts.length, Object.keys(sessions).length, isRunningInAndroidApp()));
         recordBackupExported();
         setExportPassword("");
         setExportPasswordConfirm("");
@@ -590,10 +614,18 @@ function BackupSection() {
         saveDemoAccounts(mergeImportedAccounts(loadDemoAccounts([]), result.accounts));
       }
       const sessionResult = await importAccountSessions(result.sessions);
+      // Every earlier check was about the sessions this phone had before the restore.
+      clearSessionCheckResults();
+      const sessionNote =
+        Object.keys(result.sessions).length > 0
+          ? sessionResult.ok
+            ? " افحص جلسات الدخول من القسم التالي لتعرف أي جهاز يحتاج تسجيل دخول من جديد."
+            : " تعذرت استعادة جلسات الدخول على هذا الهاتف - ستحتاج تسجيل الدخول في كل جهاز."
+          : "";
       setImportMessage(
-        dataKeys > 0
-          ? `تمت استعادة كل البيانات (${result.accounts.length} جهاز، ${sessionResult.importedCount} جلسة دخول). افتح الصفحة الرئيسية.`
-          : `تم استيراد ${result.accounts.length} حساب و ${sessionResult.importedCount} جلسة دخول. افتح الصفحة الرئيسية لرؤيتها.`,
+        (dataKeys > 0
+          ? `تمت استعادة كل البيانات (${result.accounts.length} جهاز، ${sessionResult.importedCount} جلسة دخول).`
+          : `تم استيراد ${result.accounts.length} حساب و ${sessionResult.importedCount} جلسة دخول.`) + sessionNote,
       );
       setImportPassword("");
       setImportFile(null);
@@ -637,6 +669,7 @@ function BackupSection() {
           </button>
         </div>
         {exportMessage && <div className="account-card-alert">{exportMessage}</div>}
+        {exportWarning && <div className="account-card-alert session-warning">{exportWarning}</div>}
       </div>
 
       <div className="auth-form" style={{ marginTop: "16px" }}>
@@ -666,6 +699,150 @@ function BackupSection() {
           </button>
         )}
       </div>
+    </section>
+  );
+}
+
+/**
+ * "فحص جلسات الدخول": opens each device's isolated Starlink browser hidden, one by one, and shows
+ * which are still signed in - the check to run right after restoring a backup.
+ */
+function SessionCheckSection() {
+  const [accounts, setAccounts] = useState<StarlinkAccountSummary[]>([]);
+  const [results, setResults] = useState<SessionCheckResults>({});
+  const [checkingId, setCheckingId] = useState<string | null>(null);
+  const [runningAll, setRunningAll] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [inApp, setInApp] = useState(false);
+  const stopRef = useRef(false);
+
+  useEffect(() => {
+    setInApp(isRunningInAndroidApp());
+    setResults(loadSessionCheckResults());
+    (async () => {
+      try {
+        const list = isDemoMode() ? loadDemoAccounts([]) : await listAccounts();
+        setAccounts(list.filter((a) => !a.deletedAt));
+      } catch {
+        setAccounts([]);
+      }
+    })();
+  }, []);
+
+  async function checkOne(accountId: string, current: SessionCheckResults): Promise<SessionCheckResults> {
+    setCheckingId(accountId);
+    const status = await checkAccountSession(accountId);
+    const next = { ...current, [accountId]: { status, checkedAt: new Date().toISOString() } };
+    setResults(next);
+    saveSessionCheckResults(next);
+    return next;
+  }
+
+  async function checkAll() {
+    if (!inApp) {
+      setMessage("الفحص متاح فقط داخل تطبيق Android.");
+      return;
+    }
+    setMessage(null);
+    setRunningAll(true);
+    stopRef.current = false;
+    let current = results;
+    for (const account of accounts) {
+      if (stopRef.current) break;
+      current = await checkOne(account.id, current);
+    }
+    setCheckingId(null);
+    setRunningAll(false);
+    const summary = summarizeSessionChecks(
+      accounts.map((a) => a.id),
+      current,
+    );
+    setMessage(
+      summary.needLogin > 0
+        ? `${summary.needLogin} جهاز يحتاج تسجيل دخول - اضغط "فتح" بجانبه وسجّل الدخول ثم افحصه من جديد.`
+        : summary.unknown > 0
+          ? "بعض الأجهزة تعذر التأكد منها (تحقق من الإنترنت ثم أعد الفحص)."
+          : "كل الأجهزة متصلة.",
+    );
+  }
+
+  async function checkSingle(accountId: string) {
+    if (!inApp) {
+      setMessage("الفحص متاح فقط داخل تطبيق Android.");
+      return;
+    }
+    await checkOne(accountId, results);
+    setCheckingId(null);
+  }
+
+  async function openForLogin(account: StarlinkAccountSummary) {
+    const opened = await openIsolatedAccountBrowser(account.id, account.name);
+    if (!opened.ok) setMessage(opened.message);
+  }
+
+  const ids = accounts.map((a) => a.id);
+  const summary = summarizeSessionChecks(ids, results);
+  const ordered = sortForSessionCheck(accounts, results);
+  const busy = runningAll || checkingId !== null;
+
+  return (
+    <section className="section" id="sessions">
+      <h2 className="section-title">فحص جلسات الدخول</h2>
+      <p className="settings-hint">
+        يفتح متصفح كل جهاز في الخلفية ويتأكد هل ما زال مسجّل الدخول في Starlink. افحص بعد استعادة نسخة
+        احتياطية على هاتف جديد: الجهاز الذي يظهر &quot;يحتاج تسجيل دخول&quot; افتحه وسجّل الدخول مرة واحدة.
+      </p>
+
+      {summary.checked > 0 && (
+        <div className="session-summary">
+          <span className="session-chip session-ok">متصل {summary.loggedIn}</span>
+          <span className="session-chip session-login">يحتاج دخول {summary.needLogin}</span>
+          {summary.unknown > 0 && <span className="session-chip session-unknown">غير مؤكد {summary.unknown}</span>}
+        </div>
+      )}
+
+      <div className="settings-actions">
+        {runningAll ? (
+          <button className="btn-icon" onClick={() => (stopRef.current = true)}>
+            إيقاف الفحص
+          </button>
+        ) : (
+          <button className="btn-icon" disabled={busy || accounts.length === 0} onClick={checkAll}>
+            فحص كل الأجهزة ({accounts.length})
+          </button>
+        )}
+      </div>
+      {message && <div className="account-card-alert">{message}</div>}
+
+      {accounts.length > 0 && (
+        <ul className="session-list">
+          {ordered.map((account) => {
+            const result = results[account.id];
+            const status = result?.status;
+            const checking = checkingId === account.id;
+            return (
+              <li key={account.id} className="session-row">
+                <div className="session-row-main">
+                  <span className="session-name">{account.name}</span>
+                  <span className={`session-chip ${status ? `session-${status === "loggedIn" ? "ok" : needsLogin(status) ? "login" : "unknown"}` : ""}`}>
+                    {checking ? "جارِ الفحص…" : status ? SESSION_STATUS_LABELS[status] : "لم يُفحص"}
+                  </span>
+                </div>
+                <div className="session-row-actions">
+                  <button type="button" className="session-action" disabled={busy} onClick={() => checkSingle(account.id)}>
+                    فحص
+                  </button>
+                  {needsLogin(status) && (
+                    <button type="button" className="session-action session-action-primary" onClick={() => openForLogin(account)}>
+                      فتح وتسجيل الدخول
+                    </button>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </section>
   );
 }

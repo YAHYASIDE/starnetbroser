@@ -2,6 +2,8 @@ import { WebPlugin } from "@capacitor/core";
 import type {
   AckPendingAccountSyncsOptions,
   AckPendingAccountSyncsResult,
+  CheckSessionOptions,
+  CheckSessionResult,
   DeleteAccountSessionOptions,
   DeleteAccountSessionResult,
   ExportSessionCookiesOptions,
@@ -65,6 +67,10 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
   }
 
   async importSessionCookies(_options: ImportSessionCookiesOptions): Promise<ImportSessionCookiesResult> {
+    throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
+  }
+
+  async checkSession(_options: CheckSessionOptions): Promise<CheckSessionResult> {
     throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
   }
 

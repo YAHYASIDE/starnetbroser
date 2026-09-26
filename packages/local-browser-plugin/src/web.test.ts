@@ -61,6 +61,11 @@ describe("LocalBrowserWeb", () => {
     await expect(plugin.importSessionCookies({ sessions: {} })).rejects.toThrow();
   });
 
+  it("rejects checkSession - there is no isolated profile to check on web", async () => {
+    const plugin = new LocalBrowserWeb();
+    await expect(plugin.checkSession({ accountId: "acc-1" })).rejects.toThrow();
+  });
+
   it("accepts openNotificationSettings as a harmless no-op (there is no OS settings screen on web)", async () => {
     const plugin = new LocalBrowserWeb();
     await expect(plugin.openNotificationSettings()).resolves.toBeUndefined();

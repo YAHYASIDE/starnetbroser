@@ -178,6 +178,19 @@ export interface ImportSessionCookiesResult {
   importedCount: number;
 }
 
+export interface CheckSessionOptions {
+  accountId: string;
+}
+
+/** "loggedIn": the isolated browser lands on the Starlink account portal. "loginRequired": it lands
+ * on a sign-in page. "none": this account has no saved session at all (never opened, or no cookies).
+ * "unknown": offline, a load error, or no clear answer in time - check again later. */
+export type SessionStatus = "loggedIn" | "loginRequired" | "none" | "unknown";
+
+export interface CheckSessionResult {
+  status: SessionStatus;
+}
+
 export interface SyncNowOptions {
   /** Omit to sync every registered account; set to scope this run to just one - a single card's
    * own "تحديث" button rather than the header's "مزامنة الآن". */
@@ -283,11 +296,20 @@ export interface LocalBrowserPlugin {
 
   /**
    * Restores previously-exported session cookies into each account's isolated profile (created if
-   * needed). Rejects on an unsupported device. Does not verify the sessions are still valid -
-   * Starlink may have long since invalidated an exported session, in which case this restores a
-   * dead one, and the account will simply appear logged out again once opened.
+   * needed) as persistent cookies that survive the app being closed. Rejects on an unsupported
+   * device. Does not verify the sessions are still valid - Starlink may have long since
+   * invalidated an exported session, in which case this restores a dead one; use checkSession
+   * afterwards to find the accounts that need signing in again.
    */
   importSessionCookies(options: ImportSessionCookiesOptions): Promise<ImportSessionCookiesResult>;
+
+  /**
+   * Loads the account's Starlink home page in a hidden WebView on its own isolated profile and
+   * reports whether it is still signed in (see SessionStatus). Reads nothing from the page beyond
+   * "login page or account portal". Takes up to ~25s; call it one account at a time. Rejects on an
+   * unsupported device or on web.
+   */
+  checkSession(options: CheckSessionOptions): Promise<CheckSessionResult>;
 
   /**
    * Opens this app's own OS-level notification settings screen (Android's

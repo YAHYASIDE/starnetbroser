@@ -6150,3 +6150,106 @@ button.today-tile {
   background: var(--green-bg);
   color: var(--text);
 }
+
+/* ---- فحص جلسات الدخول ---- */
+.session-warning {
+  border-color: var(--orange);
+  color: var(--text);
+}
+
+.session-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.session-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: var(--surface-alt);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.session-chip.session-ok {
+  background: var(--green-bg);
+  color: var(--green);
+}
+
+.session-chip.session-login {
+  background: var(--red-bg);
+  color: var(--red);
+}
+
+.session-chip.session-unknown {
+  background: var(--orange-bg);
+  color: var(--orange);
+}
+
+.session-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.session-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  min-width: 0;
+}
+
+.session-row-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.session-name {
+  min-width: 0;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.session-action {
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.session-action:disabled {
+  opacity: 0.5;
+}
+
+.session-action-primary {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: var(--brand-contrast);
+}

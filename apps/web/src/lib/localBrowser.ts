@@ -6,6 +6,7 @@ import {
   LocalBrowser,
   PendingAccountSync,
   STARLINK_ACCOUNT_HOME_URL,
+  SessionStatus,
 } from "@starnet/local-browser-plugin";
 import { SessionsByAccount } from "./accountBackup";
 
@@ -173,6 +174,20 @@ export async function importAccountSessions(sessions: SessionsByAccount): Promis
     return { ok: true, importedCount };
   } catch {
     return { ok: false, importedCount: 0 };
+  }
+}
+
+/**
+ * Whether one account's isolated browser is still signed in to Starlink (see
+ * LocalBrowserPlugin#checkSession). "unknown" on web/failure, never throws.
+ */
+export async function checkAccountSession(accountId: string): Promise<SessionStatus> {
+  if (!isRunningInAndroidApp()) return "unknown";
+  try {
+    const { status } = await LocalBrowser.checkSession({ accountId });
+    return status;
+  } catch {
+    return "unknown";
   }
 }
 

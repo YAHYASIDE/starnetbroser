@@ -1,12 +1,22 @@
 package com.starnetbroser.localbrowser;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
 import android.provider.Settings;
 import android.webkit.CookieManager;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import androidx.webkit.Profile;
 import androidx.webkit.ProfileStore;
+import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -17,7 +27,10 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -38,12 +51,27 @@ public class LocalBrowserPlugin extends Plugin {
     public static final String ERROR_CODE_NO_ACCOUNTS = "NO_ACCOUNTS_TO_SYNC";
     public static final String EVENT_ACCOUNT_DATA_SYNCED = "accountDataSynced";
 
-    // The only hosts a session cookie is ever read from/restored to - matches AllowedUrl's own
-    // allow-listed domain. android.webkit.CookieManager has no "list every cookie in this
-    // profile" API; querying by URL is the only bulk-read it offers, so this fixed, small list is
-    // what makes exportSessionCookies/importSessionCookies possible at all without guessing at
-    // arbitrary subdomains.
-    private static final String[] SESSION_COOKIE_URLS = { "https://www.starlink.com", "https://starlink.com" };
+    // The only hosts a session cookie is ever read from - matches AllowedUrl's own allow-listed
+    // domain. android.webkit.CookieManager has no "list every cookie in this profile" API;
+    // querying by URL is the only bulk-read it offers, so this fixed, small list is what makes
+    // exportSessionCookies possible at all without guessing at arbitrary subdomains. The apex
+    // comes first: what it sees is restored domain-wide (see CookieStringUtil#buildRestoreCookies).
+    private static final String SESSION_COOKIE_APEX_HOST = "starlink.com";
+    private static final String[] SESSION_COOKIE_URLS = {
+        "https://starlink.com",
+        "https://www.starlink.com",
+        "https://api.starlink.com",
+        "https://auth.starlink.com",
+    };
+
+    /** checkSession: extra wait between reports once the page has loaded, and the hard limit for
+     * one account - same reasoning as AutoSyncWorker's SETTLE_DELAY_MS/PER_ACCOUNT_TIMEOUT_MS. */
+    private static final long SESSION_CHECK_SETTLE_MS = 3000;
+    private static final long SESSION_CHECK_TIMEOUT_MS = 25000;
+
+    // androidx.webkit's Profile/ProfileStore and every WebView are @UiThread, while plugin methods
+    // run on Capacitor's own background thread - anything touching them is posted here.
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     // AccountBrowserActivity is a separate Activity, not this Plugin, so it has no direct way to
     // call notifyListeners() - it reaches back through this single live instance instead. A weak
@@ -159,19 +187,20 @@ public class LocalBrowserPlugin extends Plugin {
             return;
         }
 
-        boolean deleted;
-        try {
-            deleted = ProfileStore.getInstance().deleteProfile(profileName);
-        } catch (IllegalArgumentException | IllegalStateException ex) {
-            // Profile never existed, is the (unreachable, per ProfileNaming) default profile, or
-            // still has a live WebView attached. Report "nothing deleted" instead of crashing -
-            // the account is already gone from STAR NET either way by the time this is called.
-            deleted = false;
-        }
-
-        JSObject ret = new JSObject();
-        ret.put("deleted", deleted);
-        call.resolve(ret);
+        mainHandler.post(() -> {
+            boolean deleted;
+            try {
+                deleted = ProfileStore.getInstance().deleteProfile(profileName);
+            } catch (RuntimeException ex) {
+                // Profile never existed, is the (unreachable, per ProfileNaming) default profile,
+                // or still has a live WebView attached. Report "nothing deleted" instead of
+                // crashing - the account is already gone from STAR NET either way by then.
+                deleted = false;
+            }
+            JSObject ret = new JSObject();
+            ret.put("deleted", deleted);
+            call.resolve(ret);
+        });
     }
 
     /**
@@ -310,59 +339,67 @@ public class LocalBrowserPlugin extends Plugin {
      * An id whose profile was never created (never opened via openAccountBrowser) is simply
      * absent from the result, not an error - there is nothing to export for it. Only cookies are
      * captured, with no attributes (expiry/secure/domain - android.webkit.CookieManager's public
-     * API exposes none of those) and no localStorage/IndexedDB, so this is a best-effort session
-     * snapshot, not a byte-for-byte profile clone.
+     * API exposes none of those; importSessionCookies re-derives them) and no localStorage/
+     * IndexedDB, so this is a best-effort session snapshot, not a byte-for-byte profile clone.
      */
     @PluginMethod
     public void exportSessionCookies(PluginCall call) {
         JSArray accountIdsArray = call.getArray("accountIds");
-        JSObject sessions = new JSObject();
-        if (accountIdsArray != null && isMultiProfileSupported()) {
+        List<String> accountIds = new ArrayList<>();
+        if (accountIdsArray != null) {
             for (int i = 0; i < accountIdsArray.length(); i++) {
-                String accountId;
                 try {
-                    accountId = accountIdsArray.getString(i);
-                } catch (JSONException ignored) {
-                    continue;
-                }
-                if (accountId == null || accountId.trim().isEmpty()) {
-                    continue;
-                }
-                String profileName;
-                try {
-                    profileName = ProfileNaming.profileNameFor(accountId);
-                } catch (RuntimeException ex) {
-                    continue;
-                }
-                Profile profile = ProfileStore.getInstance().getProfile(profileName);
-                if (profile == null) {
-                    continue;
-                }
-                CookieManager cookieManager = profile.getCookieManager();
-                JSObject cookiesByUrl = new JSObject();
-                for (String url : SESSION_COOKIE_URLS) {
-                    String cookie = cookieManager.getCookie(url);
-                    if (cookie != null && !cookie.isEmpty()) {
-                        cookiesByUrl.put(url, cookie);
+                    String accountId = accountIdsArray.getString(i);
+                    if (accountId != null && !accountId.trim().isEmpty()) {
+                        accountIds.add(accountId);
                     }
-                }
-                if (cookiesByUrl.length() > 0) {
-                    sessions.put(accountId, cookiesByUrl);
+                } catch (JSONException ignored) {
+                    // Not a string entry - skip it.
                 }
             }
         }
-        JSObject ret = new JSObject();
-        ret.put("sessions", sessions);
-        call.resolve(ret);
+        if (accountIds.isEmpty() || !isMultiProfileSupported()) {
+            JSObject ret = new JSObject();
+            ret.put("sessions", new JSObject());
+            call.resolve(ret);
+            return;
+        }
+        mainHandler.post(() -> {
+            try {
+                JSObject sessions = new JSObject();
+                for (String accountId : accountIds) {
+                    CookieManager cookieManager = existingCookieManager(accountId);
+                    if (cookieManager == null) {
+                        continue;
+                    }
+                    JSObject cookiesByUrl = new JSObject();
+                    for (String url : SESSION_COOKIE_URLS) {
+                        String cookie = cookieManager.getCookie(url);
+                        if (cookie != null && !cookie.isEmpty()) {
+                            cookiesByUrl.put(url, cookie);
+                        }
+                    }
+                    if (cookiesByUrl.length() > 0) {
+                        sessions.put(accountId, cookiesByUrl);
+                    }
+                }
+                JSObject ret = new JSObject();
+                ret.put("sessions", sessions);
+                call.resolve(ret);
+            } catch (RuntimeException ex) {
+                call.reject("تعذر قراءة جلسات الدخول");
+            }
+        });
     }
 
     /**
      * Restores cookies previously read by exportSessionCookies into each account's isolated
      * profile (created if it doesn't exist yet). Rejects on an unsupported device rather than
-     * silently importing nothing. Never establishes a login beyond what the cookies themselves
-     * carry: if the session was already expired/invalidated by Starlink when it was exported,
-     * this restores an already-dead session, not a fresh one - the caller must not assume success
-     * here means the account is actually still logged in.
+     * silently importing nothing. Restored cookies are persistent (they survive the app being
+     * closed) and domain-wide where the apex saw them - see CookieStringUtil#buildRestoreCookies.
+     * Only allow-listed Starlink URLs from the backup are ever written. Never establishes a login
+     * beyond what the cookies themselves carry: if Starlink already invalidated the session, this
+     * restores a dead one - checkSession is how the caller finds out.
      */
     @PluginMethod
     public void importSessionCookies(PluginCall call) {
@@ -371,45 +408,213 @@ public class LocalBrowserPlugin extends Plugin {
             return;
         }
         JSObject sessions = call.getObject("sessions");
-        int importedCount = 0;
-        if (sessions != null) {
-            Iterator<String> accountIds = sessions.keys();
-            while (accountIds.hasNext()) {
-                String accountId = accountIds.next();
-                if (accountId == null || accountId.trim().isEmpty()) {
-                    continue;
-                }
-                JSONObject cookiesByUrl = sessions.optJSONObject(accountId);
-                if (cookiesByUrl == null) {
-                    continue;
-                }
-                String profileName;
-                try {
-                    profileName = ProfileNaming.profileNameFor(accountId);
-                } catch (RuntimeException ex) {
-                    continue;
-                }
-                Profile profile = ProfileStore.getInstance().getOrCreateProfile(profileName);
-                CookieManager cookieManager = profile.getCookieManager();
-                boolean restoredAny = false;
-                Iterator<String> urls = cookiesByUrl.keys();
-                while (urls.hasNext()) {
-                    String url = urls.next();
-                    String combinedCookie = cookiesByUrl.optString(url, null);
-                    for (String cookie : CookieStringUtil.splitCombinedCookieString(combinedCookie)) {
-                        cookieManager.setCookie(url, cookie);
+        if (sessions == null) {
+            JSObject ret = new JSObject();
+            ret.put("importedCount", 0);
+            call.resolve(ret);
+            return;
+        }
+        mainHandler.post(() -> {
+            try {
+                int importedCount = 0;
+                Iterator<String> accountIds = sessions.keys();
+                while (accountIds.hasNext()) {
+                    String accountId = accountIds.next();
+                    if (accountId == null || accountId.trim().isEmpty()) {
+                        continue;
+                    }
+                    JSONObject cookiesByUrlJson = sessions.optJSONObject(accountId);
+                    if (cookiesByUrlJson == null) {
+                        continue;
+                    }
+                    Map<String, String> cookiesByUrl = new LinkedHashMap<>();
+                    Iterator<String> urls = cookiesByUrlJson.keys();
+                    while (urls.hasNext()) {
+                        String url = urls.next();
+                        if (AllowedUrl.isAllowed(url)) {
+                            cookiesByUrl.put(url, cookiesByUrlJson.optString(url, null));
+                        }
+                    }
+                    List<CookieStringUtil.RestoreCookie> cookies = CookieStringUtil.buildRestoreCookies(cookiesByUrl, SESSION_COOKIE_APEX_HOST);
+                    if (cookies.isEmpty()) {
+                        continue;
+                    }
+                    String profileName;
+                    try {
+                        profileName = ProfileNaming.profileNameFor(accountId);
+                    } catch (RuntimeException ex) {
+                        continue;
+                    }
+                    CookieManager cookieManager = ProfileStore.getInstance().getOrCreateProfile(profileName).getCookieManager();
+                    boolean restoredAny = false;
+                    for (CookieStringUtil.RestoreCookie cookie : cookies) {
+                        cookieManager.setCookie(cookie.url, cookie.cookie);
                         restoredAny = true;
                     }
+                    if (restoredAny) {
+                        cookieManager.flush();
+                        importedCount++;
+                    }
                 }
-                if (restoredAny) {
-                    cookieManager.flush();
-                    importedCount++;
+                JSObject ret = new JSObject();
+                ret.put("importedCount", importedCount);
+                call.resolve(ret);
+            } catch (RuntimeException ex) {
+                call.reject("تعذر استعادة جلسات الدخول");
+            }
+        });
+    }
+
+    /**
+     * "فحص الجلسة": opens the account's Starlink home page in a hidden WebView on its own isolated
+     * profile - exactly what "فتح" would show - and reports whether it lands on the logged-in
+     * portal or on a sign-in page (see SessionProbe; nothing from the page is read or returned
+     * beyond that). Resolves `status`:
+     *   "loggedIn" | "loginRequired" | "none" (no profile / no cookies at all) | "unknown"
+     * (offline, a load error, or no clear answer before the timeout). Rejects only on an
+     * unsupported device. Never logs anything in or out; one account per call.
+     */
+    @PluginMethod
+    public void checkSession(PluginCall call) {
+        String accountId = call.getString("accountId");
+        if (accountId == null || accountId.trim().isEmpty()) {
+            call.reject("accountId is required");
+            return;
+        }
+        if (!isMultiProfileSupported()) {
+            call.reject("هذا الجهاز لا يدعم المتصفحات المستقلة", ERROR_CODE_UNSUPPORTED);
+            return;
+        }
+        String profileName;
+        try {
+            profileName = ProfileNaming.profileNameFor(accountId);
+        } catch (RuntimeException ex) {
+            call.reject("Invalid accountId: " + ex.getMessage());
+            return;
+        }
+        Context context = getContext().getApplicationContext();
+        mainHandler.post(() -> {
+            try {
+                runSessionCheckOnMainThread(context, accountId, profileName, call);
+            } catch (RuntimeException ex) {
+                resolveSessionStatus(call, SessionProbe.STATUS_UNKNOWN);
+            }
+        });
+    }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    private void runSessionCheckOnMainThread(Context context, String accountId, String profileName, PluginCall call) {
+        CookieManager cookieManager = existingCookieManager(accountId);
+        if (cookieManager == null || !hasAnySessionCookie(cookieManager)) {
+            resolveSessionStatus(call, SessionProbe.STATUS_NONE);
+            return;
+        }
+
+        WebView webView = new WebView(context);
+        WebViewCompat.setProfile(webView, profileName);
+        WebSettings settings = webView.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+
+        AtomicBoolean finished = new AtomicBoolean(false);
+        AtomicBoolean probing = new AtomicBoolean(false);
+        int[] consecutiveAccount = { 0 };
+        String[] lastProbe = { null };
+
+        // Resolves exactly once and always tears the hidden WebView down.
+        StatusSink finish = status -> {
+            if (!finished.compareAndSet(false, true)) {
+                return;
+            }
+            mainHandler.removeCallbacksAndMessages(webView);
+            webView.stopLoading();
+            webView.setWebViewClient(new WebViewClient());
+            webView.destroy();
+            resolveSessionStatus(call, status);
+        };
+
+        Runnable[] probe = new Runnable[1];
+        probe[0] = () -> {
+            if (finished.get()) {
+                return;
+            }
+            if (!AllowedUrl.isAllowed(webView.getUrl())) {
+                // Left the allow-listed portal - never run script there; keep waiting (it may
+                // come back) and let the timeout answer.
+                lastProbe[0] = SessionProbe.PROBE_OTHER;
+                consecutiveAccount[0] = 0;
+                mainHandler.postAtTime(probe[0], webView, SystemClock.uptimeMillis() + SESSION_CHECK_SETTLE_MS);
+                return;
+            }
+            webView.evaluateJavascript(SessionProbe.SCRIPT, value -> {
+                if (finished.get()) {
+                    return;
+                }
+                String report = SessionProbe.parse(value);
+                lastProbe[0] = report;
+                String status = SessionProbe.decide(report, consecutiveAccount);
+                if (status != null) {
+                    finish.done(status);
+                } else {
+                    mainHandler.postAtTime(probe[0], webView, SystemClock.uptimeMillis() + SESSION_CHECK_SETTLE_MS);
+                }
+            });
+        };
+
+        webView.setWebViewClient(
+            new WebViewClient() {
+                @Override
+                public void onPageFinished(WebView view, String url) {
+                    if (probing.compareAndSet(false, true)) {
+                        mainHandler.postAtTime(probe[0], webView, SystemClock.uptimeMillis() + SESSION_CHECK_SETTLE_MS);
+                    }
+                }
+
+                @Override
+                public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                    if (request.isForMainFrame()) {
+                        finish.done(SessionProbe.STATUS_UNKNOWN);
+                    }
                 }
             }
-        }
+        );
+
+        mainHandler.postAtTime(() -> finish.done(SessionProbe.onTimeout(lastProbe[0])), webView, SystemClock.uptimeMillis() + SESSION_CHECK_TIMEOUT_MS);
+        webView.loadUrl(DEFAULT_URL);
+    }
+
+    /** java.util.function.Consumer needs API 24; minSdk is lower. */
+    private interface StatusSink {
+        void done(String status);
+    }
+
+    private static void resolveSessionStatus(PluginCall call, String status) {
         JSObject ret = new JSObject();
-        ret.put("importedCount", importedCount);
+        ret.put("status", status);
         call.resolve(ret);
+    }
+
+    /** The account's isolated profile's CookieManager, or null when the profile was never created
+     * (never opened) - never creates one. Main thread only. */
+    private static CookieManager existingCookieManager(String accountId) {
+        String profileName;
+        try {
+            profileName = ProfileNaming.profileNameFor(accountId);
+        } catch (RuntimeException ex) {
+            return null;
+        }
+        Profile profile = ProfileStore.getInstance().getProfile(profileName);
+        return profile == null ? null : profile.getCookieManager();
+    }
+
+    private static boolean hasAnySessionCookie(CookieManager cookieManager) {
+        for (String url : SESSION_COOKIE_URLS) {
+            String cookie = cookieManager.getCookie(url);
+            if (cookie != null && !cookie.isEmpty()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
