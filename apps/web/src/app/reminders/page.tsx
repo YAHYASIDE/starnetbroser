@@ -1,0 +1,319 @@
+"use client";
+
+import { listOpenPreviousDebts, loadPreviousDebts } from "@/lib/previousDebt";
+import { cardShortfallForSuspended, currentCardBalanceUsd, listOpenShipmentDebts, listSuspendedWithDebt } from "@/lib/starlinkDebt";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { StarlinkAccountSummary } from "@starnet/shared";
+import { demoAccounts } from "@/lib/demoData";
+import { getLastBackupAt, isDemoMode, isLoggedIn } from "@/lib/settingsStore";
+import { loadDemoAccounts } from "@/lib/demoAccountStore";
+import { listAccounts } from "@/lib/apiClient";
+import { LEDGER_CURRENCY_LABELS, LedgerByAccount, LedgerCurrency, loadLedgerStore } from "@/lib/ledgerStore";
+import { ClientStore, loadClientStore } from "@/lib/clientStore";
+import { InvoiceList, loadInvoices } from "@/lib/invoiceStore";
+import { loadPartyAdjustments, PartyAdjustmentList } from "@/lib/partyBalanceStore";
+import { loadStoreItems, loadStoreTransactions, StoreItemRegistry, StoreTransactionList } from "@/lib/storeStore";
+import {
+  computeDeviceDebtReminders,
+  computeLowStockReminders,
+  computeRenewalReminders,
+  computeRestrictedDeviceReminders,
+  computeStoreDebtReminders,
+  isBackupOverdue,
+} from "@/lib/reminders";
+import { daysRemainingLabel, formatRelativeTime } from "@/lib/date";
+import { formatAmount } from "@/lib/formatAmount";
+import { BulkWhatsAppSender } from "@/components/BulkWhatsAppSender";
+import { DebtAgingSection } from "@/components/DebtAgingSection";
+import { computeDebtAging } from "@/lib/debtAging";
+import { buildBalanceReminderMessage, buildExpiryReminderMessage, buildStoreDebtReminderMessage, buildWhatsAppLink } from "@/lib/whatsapp";
+
+function currencyLabel(code: string): string {
+  return LEDGER_CURRENCY_LABELS[code as LedgerCurrency] ?? code;
+}
+
+function urgencyClass(daysRemaining: number): string {
+  return daysRemaining < 0 ? "date-expired" : daysRemaining <= 3 ? "date-warning" : "date-safe";
+}
+
+export default function RemindersPage() {
+  const [accounts, setAccounts] = useState<StarlinkAccountSummary[]>(demoAccounts);
+  const [ledgerStore, setLedgerStore] = useState<LedgerByAccount>({});
+  const [clientStore, setClientStore] = useState<ClientStore>({});
+  const [invoices, setInvoices] = useState<InvoiceList>([]);
+  const [partyAdjustments, setPartyAdjustments] = useState<PartyAdjustmentList>([]);
+  const [storeItems, setStoreItems] = useState<StoreItemRegistry>({});
+  const [storeTransactions, setStoreTransactions] = useState<StoreTransactionList>([]);
+  const [lastBackupAt, setLastBackupAt] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLastBackupAt(getLastBackupAt());
+    setLedgerStore(loadLedgerStore());
+    setClientStore(loadClientStore());
+    setInvoices(loadInvoices());
+    setPartyAdjustments(loadPartyAdjustments());
+    setStoreItems(loadStoreItems());
+    setStoreTransactions(loadStoreTransactions());
+    if (isDemoMode()) {
+      setAccounts(loadDemoAccounts(demoAccounts));
+      return;
+    }
+    if (!isLoggedIn()) return;
+    listAccounts().then(setAccounts).catch(() => {});
+  }, []);
+
+  const restrictedReminders = useMemo(() => computeRestrictedDeviceReminders(accounts), [accounts]);
+  const suspendedWithDebt = useMemo(
+    () => listSuspendedWithDebt(accounts, listOpenShipmentDebts(ledgerStore), listOpenPreviousDebts(loadPreviousDebts(), ledgerStore)),
+    [accounts, ledgerStore],
+  );
+  const suspendedCardShortfall = useMemo(
+    () => (suspendedWithDebt.length > 0 ? cardShortfallForSuspended(suspendedWithDebt, currentCardBalanceUsd(ledgerStore)) : 0),
+    [suspendedWithDebt, ledgerStore],
+  );
+  const renewalReminders = useMemo(() => computeRenewalReminders(accounts), [accounts]);
+  const deviceDebtReminders = useMemo(() => computeDeviceDebtReminders(accounts, ledgerStore), [accounts, ledgerStore]);
+  const storeDebtReminders = useMemo(() => computeStoreDebtReminders(clientStore, invoices, partyAdjustments), [clientStore, invoices, partyAdjustments]);
+  const lowStockReminders = useMemo(
+    () => computeLowStockReminders(storeItems, storeTransactions),
+    [storeItems, storeTransactions],
+  );
+  const backupOverdue = isBackupOverdue(lastBackupAt);
+  const debtors = useMemo(
+    () =>
+      computeDebtAging({
+        clients: Object.values(clientStore),
+        accounts,
+        invoices,
+        adjustments: partyAdjustments,
+        ledgerStore,
+        today: new Date().toISOString().slice(0, 10),
+      }),
+    [clientStore, accounts, invoices, partyAdjustments, ledgerStore],
+  );
+  /** A device's own phone, or else the phone of the client it's linked to. */
+  const phoneFor = (account: StarlinkAccountSummary) => account.phone || (account.clientId ? clientStore[account.clientId]?.phone : undefined);
+
+  const renewalTargets = renewalReminders.flatMap(({ account }) => {
+    const link = buildWhatsAppLink(phoneFor(account), buildExpiryReminderMessage(account.name));
+    return link ? [{ id: account.id, name: account.name, link }] : [];
+  });
+  const deviceDebtTargets = deviceDebtReminders.flatMap(({ account }) => {
+    const link = buildWhatsAppLink(phoneFor(account), buildBalanceReminderMessage(account.name, ledgerStore[account.id] ?? []));
+    return link ? [{ id: account.id, name: account.name, link }] : [];
+  });
+  const storeDebtTargets = storeDebtReminders.flatMap(({ client, balances }) => {
+    const link = buildWhatsAppLink(client.phone, buildStoreDebtReminderMessage(client.name, balances));
+    return link ? [{ id: client.id, name: client.name, link }] : [];
+  });
+
+  return (
+    <main className="home">
+      <div className="session-header">
+        <Link href="/" className="btn-link">
+          ← رجوع
+        </Link>
+        <h1 className="section-title">التذكيرات</h1>
+      </div>
+
+      {suspendedWithDebt.length > 0 && (
+        <section className="section sl-alert">
+          <h2 className="report-section-title">⚠️ توقفت وعليها D - ادفع لستارلينك ({suspendedWithDebt.length})</h2>
+          <ul className="ledger-entry-list">
+            {suspendedWithDebt.map(({ account, costUsd }) => (
+              <li key={account.id} className="ledger-entry-row">
+                <div className="ledger-entry-row-top">
+                  <span className="store-item-name">{account.name}</span>
+                  <strong dir="ltr">{formatAmount(costUsd)} $</strong>
+                </div>
+              </li>
+            ))}
+          </ul>
+          {suspendedCardShortfall > 0 && (
+            <p className="sl-card-short">
+              💳 رصيد البطاقة لا يكفي - ينقصها <bdi dir="ltr">{formatAmount(suspendedCardShortfall)} $</bdi>
+            </p>
+          )}
+          <Link href="/starlink" className="dialog-primary sl-reminder-link">
+            فتح ستارلينك والبطاقة للتسديد
+          </Link>
+        </section>
+      )}
+
+      {restrictedReminders.length > 0 && (
+        <section className="section">
+          <h2 className="report-section-title">أجهزة مقيّدة ({restrictedReminders.length})</h2>
+          <ul className="ledger-entry-list">
+            {restrictedReminders.map(({ account }) => (
+              <li key={account.id} className="ledger-entry-row">
+                <div className="ledger-entry-row-top">
+                  <span className="store-item-name">{account.name}</span>
+                  <span className="badge badge-yellow">🚫 مقيّد</span>
+                </div>
+                <div className="ledger-entry-row-bottom">
+                  <span className="settings-hint">أعد الجهاز إلى البلد المسجل ووصّله بالكهرباء 24 ساعة على الأقل</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <DebtAgingSection debtors={debtors} />
+
+      <section className="section">
+        <h2 className="report-section-title">تجديدات مستحقة ({renewalReminders.length})</h2>
+        {renewalReminders.length === 0 ? (
+          <p className="empty-state">لا توجد تجديدات مستحقة قريبًا 👍</p>
+        ) : (
+          <>
+          <BulkWhatsAppSender targets={renewalTargets} label="إرسال تذكير التجديد للكل" />
+          <ul className="ledger-entry-list">
+            {renewalReminders.map(({ account, daysRemaining }) => {
+              const waLink = buildWhatsAppLink(phoneFor(account), buildExpiryReminderMessage(account.name));
+              const label = daysRemainingLabel(account.rechargeDate || account.standbyDate || "");
+              return (
+                <li key={account.id} className="ledger-entry-row">
+                  <div className="ledger-entry-row-top">
+                    <span className="store-item-name">{account.name}</span>
+                    {label && <span className={`date-status ${urgencyClass(daysRemaining)}`}>{label}</span>}
+                  </div>
+                  <div className="ledger-entry-row-bottom">
+                    {waLink ? (
+                      <a className="text-action" href={waLink} target="_blank" rel="noreferrer">
+                        إرسال تذكير عبر واتساب
+                      </a>
+                    ) : (
+                      <span className="settings-hint">لا يوجد رقم واتساب مسجّل لهذا الحساب</span>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          </>
+        )}
+      </section>
+
+      <section className="section">
+        <h2 className="report-section-title">ديون الأجهزة (اشتراكات Starlink) ({deviceDebtReminders.length})</h2>
+        {deviceDebtReminders.length === 0 ? (
+          <p className="empty-state">لا توجد ديون مستحقة على الأجهزة 👍</p>
+        ) : (
+          <>
+          <BulkWhatsAppSender targets={deviceDebtTargets} label="إرسال مطالبة للكل" />
+          <ul className="ledger-entry-list">
+            {deviceDebtReminders.map(({ account, balances }) => {
+              const waLink = buildWhatsAppLink(phoneFor(account), buildBalanceReminderMessage(account.name, ledgerStore[account.id] ?? []));
+              const currencies = Object.keys(balances);
+              return (
+                <li key={account.id} className="ledger-entry-row">
+                  <div className="ledger-entry-row-top">
+                    <span className="store-item-name">{account.name}</span>
+                    <div className="store-summary-value-stack">
+                      {currencies.map((c) => (
+                        <span key={c} className="badge badge-red" dir="ltr">
+                          {formatAmount(balances[c as LedgerCurrency]!)} {currencyLabel(c)}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="ledger-entry-row-bottom">
+                    {waLink ? (
+                      <a className="text-action" href={waLink} target="_blank" rel="noreferrer">
+                        إرسال مطالبة عبر واتساب
+                      </a>
+                    ) : (
+                      <span className="settings-hint">لا يوجد رقم واتساب مسجّل لهذا الحساب</span>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          </>
+        )}
+      </section>
+
+      <section className="section">
+        <h2 className="report-section-title">ديون المتجر ({storeDebtReminders.length})</h2>
+        {storeDebtReminders.length === 0 ? (
+          <p className="empty-state">لا توجد ديون مستحقة في المتجر 👍</p>
+        ) : (
+          <>
+          <BulkWhatsAppSender targets={storeDebtTargets} label="إرسال مطالبة للكل" />
+          <ul className="ledger-entry-list">
+            {storeDebtReminders.map(({ client, balances }) => {
+              const waLink = buildWhatsAppLink(client.phone, buildStoreDebtReminderMessage(client.name, balances));
+              const currencies = Object.keys(balances);
+              return (
+                <li key={client.id} className="ledger-entry-row">
+                  <div className="ledger-entry-row-top">
+                    <span className="store-item-name">{client.name}</span>
+                    <div className="store-summary-value-stack">
+                      {currencies.map((c) => (
+                        <span key={c} className="badge badge-red" dir="ltr">
+                          {formatAmount(balances[c]!)} {currencyLabel(c)}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="ledger-entry-row-bottom">
+                    {waLink ? (
+                      <a className="text-action" href={waLink} target="_blank" rel="noreferrer">
+                        إرسال مطالبة عبر واتساب
+                      </a>
+                    ) : (
+                      <span className="settings-hint">لا يوجد رقم واتساب مسجّل لهذا الزبون</span>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          </>
+        )}
+      </section>
+
+      <section className="section">
+        <h2 className="report-section-title">مواد قاربت على النفاد ({lowStockReminders.length})</h2>
+        {lowStockReminders.length === 0 ? (
+          <p className="empty-state">لا توجد مواد قاربت على النفاد 👍</p>
+        ) : (
+          <ul className="report-line-list">
+            {lowStockReminders.map(({ item, stock }) => (
+              <li key={item.id} className="report-line">
+                <span>{item.name}</span>
+                <strong dir="ltr" className="report-line-negative">
+                  {formatAmount(stock)} {item.unit}
+                </strong>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="settings-hint">
+          <Link href="/store" className="btn-link">
+            إدارة المخزون في المتجر ←
+          </Link>
+        </p>
+      </section>
+
+      {backupOverdue && (
+        <section className="section">
+          <h2 className="report-section-title">النسخة الاحتياطية</h2>
+          <div className="account-card-alert">
+            {lastBackupAt
+              ? `آخر نسخة احتياطية كانت ${formatRelativeTime(lastBackupAt)} - حان وقت نسخة جديدة.`
+              : "لم يتم تصدير أي نسخة احتياطية بعد - كل بياناتك محفوظة فقط على هذا الهاتف."}
+          </div>
+          <p className="settings-hint">
+            <Link href="/settings" className="btn-link">
+              تصدير نسخة احتياطية الآن ←
+            </Link>
+          </p>
+        </section>
+      )}
+    </main>
+  );
+}

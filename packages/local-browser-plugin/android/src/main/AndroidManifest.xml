@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Required starting API 33 to post the "تمت المزامنة" notification (SyncNotifier) - the
+         runtime grant is requested once from AccountBrowserActivity; SyncNotifier itself checks
+         NotificationManagerCompat#areNotificationsEnabled() and silently skips posting if this
+         was never granted, so a sync never fails or crashes over a missing notification. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <application>
+        <!--
+          exported="false": only STAR NET's own MainActivity (via the
+          LocalBrowser plugin, same application/UID) can start this -
+          never reachable from another app or an external deep link.
+
+          documentLaunchMode="intoExisting" + resizeableActivity="true": lets the operator have
+          two or three different accounts' isolated browsers open side by side (Android's own
+          split-screen/multi-window, entered from Recents) instead of only ever one at a time.
+          LocalBrowserPlugin gives each account's launch Intent a distinct Uri (its accountId) so
+          Android treats different accounts as separate "documents"/tasks (each its own card in
+          Recents, each independently split-screenable) while reopening the SAME account brings
+          its own already-open task back to front rather than spawning a duplicate.
+        -->
+        <activity
+            android:name="com.starnetbroser.localbrowser.AccountBrowserActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout"
+            android:documentLaunchMode="intoExisting"
+            android:resizeableActivity="true"
+            android:label="STAR NET" />
+    </application>
+</manifest>

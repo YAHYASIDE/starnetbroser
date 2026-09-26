@@ -1,0 +1,94 @@
+import { WebPlugin } from "@capacitor/core";
+import type {
+  AckPendingAccountSyncsOptions,
+  AckPendingAccountSyncsResult,
+  AuthorizeDriveOptions,
+  AuthorizeDriveResult,
+  CheckSessionOptions,
+  ClearDriveTokenOptions,
+  CheckSessionResult,
+  DeleteAccountSessionOptions,
+  DeleteAccountSessionResult,
+  ExportSessionCookiesOptions,
+  ExportSessionCookiesResult,
+  ImportSessionCookiesOptions,
+  ImportSessionCookiesResult,
+  IsSupportedResult,
+  ListPendingAccountSyncsResult,
+  LocalBrowserPlugin,
+  OpenAccountBrowserOptions,
+  SetAutoSyncAccountIdsOptions,
+  SetAutoSyncAccountIdsResult,
+  SyncNowOptions,
+} from "./definitions";
+
+const WEB_UNSUPPORTED_MESSAGE =
+  "هذه الميزة متاحة فقط داخل تطبيق STAR NET لنظام Android - المتصفحات المعزولة لكل حساب تحتاج WebView أصلي ولا يمكن توفيرها من متصفح الويب.";
+
+/**
+ * The web/GitHub Pages fallback. There is no native WebView here, so there
+ * is no way to give two accounts isolated cookie jars - per the product
+ * requirement, this must say so plainly rather than silently opening a
+ * shared session.
+ */
+export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
+  async isSupported(): Promise<IsSupportedResult> {
+    return { supported: false };
+  }
+
+  async openAccountBrowser(_options: OpenAccountBrowserOptions): Promise<void> {
+    throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
+  }
+
+  async deleteAccountSession(_options: DeleteAccountSessionOptions): Promise<DeleteAccountSessionResult> {
+    return { deleted: false };
+  }
+
+  async listPendingAccountSyncs(): Promise<ListPendingAccountSyncsResult> {
+    return { syncs: [] };
+  }
+
+  async ackPendingAccountSyncs(_options: AckPendingAccountSyncsOptions): Promise<AckPendingAccountSyncsResult> {
+    return { acked: true };
+  }
+
+  // There is no isolated browser (and so no background worker) to schedule anything for on web -
+  // resolving `saved: true` with nothing stored is not a lie, since there was never anything to
+  // save in the first place, just like ackPendingAccountSyncs above.
+  async setAutoSyncAccountIds(_options: SetAutoSyncAccountIdsOptions): Promise<SetAutoSyncAccountIdsResult> {
+    return { saved: true };
+  }
+
+  async syncNow(_options?: SyncNowOptions): Promise<void> {
+    throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
+  }
+
+  // No isolated profile exists on web, so there is genuinely nothing to read - an empty result is
+  // accurate, not a lie, same reasoning as listPendingAccountSyncs above.
+  async exportSessionCookies(_options: ExportSessionCookiesOptions): Promise<ExportSessionCookiesResult> {
+    return { sessions: {} };
+  }
+
+  async importSessionCookies(_options: ImportSessionCookiesOptions): Promise<ImportSessionCookiesResult> {
+    throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
+  }
+
+  async checkSession(_options: CheckSessionOptions): Promise<CheckSessionResult> {
+    throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
+  }
+
+  // There is no OS notification-settings screen to open outside the native app - a silent no-op,
+  // not an error, same reasoning as setAutoSyncAccountIds above.
+  async openNotificationSettings(): Promise<void> {
+    return;
+  }
+
+  // Google Drive sign-in goes through Google Play services on the phone - nothing to do on web.
+  async authorizeDrive(_options?: AuthorizeDriveOptions): Promise<AuthorizeDriveResult> {
+    throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
+  }
+
+  async clearDriveToken(_options: ClearDriveTokenOptions): Promise<void> {
+    return;
+  }
+}

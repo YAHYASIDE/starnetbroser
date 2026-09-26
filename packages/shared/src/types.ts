@@ -69,6 +69,111 @@ export interface StarlinkAccountSummary {
   lastUpdated: string;
   lastSuccessfulScanAt: string | null;
   planName: string;
+  /**
+   * Fields below this line come only from the local, on-device Starlink
+   * sync (packages/local-browser-plugin's isolated WebView + "تحديث من
+   * Starlink") - optional because most accounts won't have synced yet,
+   * and because syncing must never invent a value for a field it didn't
+   * actually find on the currently-open page/section.
+   */
+  /** Starts with "ACC-" - the account number, deliberately never confused with starlinkId. */
+  accountNumber?: string;
+  /** The dish's own internal identifier - not the account number. */
+  starlinkId?: string;
+  /** Normalized to "active" | "standby" | "canceled" | "suspended" - never left as raw page text. */
+  serviceStatus?: string;
+  /** Set only when Starlink shows a resumable pending cancellation ("من المقرر أن تنتهي خدمتك
+   * في ..." with a "استئناف"/Resume option) - the service is still `serviceStatus: "active"`
+   * right now, this is just the date it will actually stop unless resumed before then. Shown as
+   * its own separate info note, never folded into the plan/status badge itself. */
+  pendingCancellationDate?: string;
+  // `phone` below is manually-entered local customer contact number (like `name`), used only for
+  // the "تواصل عبر واتساب" card action - never touched by Starlink sync, and unrelated to the
+  // Settings page's own phone number, which sync deliberately never reads at all.
+  /** Manually entered by the STAR NET operator - optional since older/existing accounts won't have one. */
+  phone?: string;
+  /** The account's registered login email, as read from Starlink's own Settings page - never the
+   * phone number shown on that same page, which is unrelated to (and never confused with) `phone`. */
+  starlinkAccountEmail?: string;
+  /** The account holder's name as Starlink itself reports it - a SEPARATE field from `name`
+   * (the operator's own manually-entered customer name), per explicit product decision: the card
+   * shows both as two distinct name slots, one auto-synced and one hand-entered, never merging
+   * them into one. */
+  starlinkAccountHolderName?: string;
+  /** Manually entered by the STAR NET operator - the login email they expect this account to use.
+   * Compared against `starlinkAccountEmail` (see lib/emailMatch.ts) to warn when Starlink's synced
+   * email doesn't match; never written by Starlink sync itself. */
+  expectedEmail?: string;
+  /** Manually entered by the STAR NET operator - the login password for `expectedEmail` (the
+   * device's primary/main email address). Never touched by Starlink sync, never invented - absent
+   * unless the operator actually typed one in. */
+  expectedEmailPassword?: string;
+  /** Up to two more emails also usable on/registered to this device besides the primary
+   * `expectedEmail` above (so at most 3 emails total per device), each with its own optional
+   * password. Manually entered by the operator, never touched by Starlink sync. */
+  extraEmails?: { address: string; password?: string }[];
+  /** Manually entered by the STAR NET operator - this device's own Wi-Fi network password (not
+   * the Starlink account login password). Never touched by Starlink sync. */
+  wifiPassword?: string;
+  /** Starts with "SL-" - the subscription's own identifier, a different value from `accountNumber`
+   * (which starts with "ACC-"). */
+  subscriptionId?: string;
+  /** Just the number, e.g. "261" - always gigabytes, so callers append the unit themselves. */
+  dataUsageGb?: string;
+  /** The Kit has been used outside its registered country/region for too long, per Starlink's own
+   * banner - independent of `serviceStatus` (a device can be "active" billing-wise and still
+   * region-restricted). Undefined until the first sync that actually resolves it either way. */
+  isRestricted?: boolean;
+  /**
+   * Links this device/card to a local Client record (see apps/web/src/lib/clientStore.ts) - a
+   * single customer may own several devices, each with its own card. Optional and absent on every
+   * account created before this field existed ("الزبون غير محدد" in the UI) - never inferred from
+   * name/email similarity, only ever set explicitly by the operator through the client picker.
+   * Deliberately NOT the same field as `customerId` above, which is the unrelated cloud-backend
+   * billing entity from services/api - this is the local-only grouping key used in demo/local mode.
+   */
+  clientId?: string;
+  /**
+   * Links this device/card to a local Representative record (see apps/web/src/lib/repStore.ts) -
+   * the sales rep who manages/represents this account, entirely independent of `clientId` above (a
+   * device may have a client, a representative, both, or neither). Optional and absent on every
+   * account created before this field existed. Never inferred - only ever set explicitly by the
+   * operator through the representative picker, same rule as `clientId`. Used only to SEED a new
+   * sale invoice's own representative choice with a sensible default (see InvoiceSection.tsx's
+   * repFromClientDevice) - an invoice always keeps its own separate, changeable representativeId,
+   * never a live reference to this field.
+   */
+  representativeId?: string;
+  /** Set only by an explicit operator action ("متعطل" on the card) - a hardware problem, entirely
+   * independent of the Starlink subscription's own serviceStatus (a device can be active AND
+   * broken, or suspended AND fine). Cleared (back to undefined/null) once the operator marks it
+   * fixed. */
+  deviceFault?: { reason: "burned" | "other"; note: string; reportedAt: string } | null;
+  /** ISO timestamp set only by an explicit "أرشفة" action - an archived device is hidden from the
+   * main list (see HomeView's "الأرشيف" view) but keeps every ledger entry, allocation and
+   * exchange-rate link exactly as-is; null/undefined again once restored. Never implies deleted. */
+  archivedAt?: string | null;
+  /** ISO timestamp set only by an explicit "حذف" action - moves the device to a recoverable trash
+   * (see HomeView's "سلة المحذوفات" view) instead of removing it outright; the underlying ledger
+   * entries/allocations are never touched by this alone. Permanent removal is a separate, later
+   * action taken from within the trash view itself. */
+  deletedAt?: string | null;
+  /** The device's fixed monthly price ("السعر الشهري الثابت"), set by the operator - lets "تجديد"
+   * record the month's shipment in one tap. Only a default: every shipment still locks its own
+   * amounts and rates when created, so editing this never changes past entries. */
+  renewalPlan?: RenewalPlan;
+}
+
+export interface RenewalPlan {
+  /** What the customer pays per renewal, in a ledger currency (USD/MRU/SIFA). */
+  saleAmount: number;
+  saleCurrency: string;
+  /** What Starlink charges per renewal, in any registered currency. */
+  costAmount: number;
+  costCurrency: string;
+  /** Whether a renewal starts with the Starlink cost unpaid (D - the usual case: the month is
+   * borrowed from Starlink and paid when the device stops). Unset means D. */
+  costPending?: boolean;
 }
 
 /** Detail-view shape - includes decrypted secrets, only ever returned to
