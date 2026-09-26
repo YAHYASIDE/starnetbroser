@@ -62,6 +62,10 @@ export interface StarlinkCost {
   paidVia?: "card";
   /** ISO time the D was settled - orders a payment against a "fresh start" made the same day. */
   settledAt?: string;
+  /** Set when a D was dropped because the device burned (deviceFault.ts): Starlink will never be
+   * paid, so the cost is recorded as settled at 0 on that day and the whole sale is profit. Keeps
+   * the original cost so repairing the device can bring the D back. */
+  waived?: { currencyCode?: string; amount?: number; rate?: RateSnapshot; at: string };
   note?: string;
 }
 

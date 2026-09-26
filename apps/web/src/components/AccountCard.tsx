@@ -6,7 +6,8 @@ import { presentStatus, presentServiceStatus, isBalanceDueZero, planBadgeLabel }
 import { daysRemainingLabel, daysRemainingNumber, formatRelativeTime } from "@/lib/date";
 import { emailsMismatch } from "@/lib/emailMatch";
 import { computeBalanceByCurrency, LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerEntry } from "@/lib/ledgerStore";
-import { summarizeDeviceProfit } from "@/lib/accountingStore";
+import { starlinkCostUsd, summarizeDeviceProfit } from "@/lib/accountingStore";
+import { isWaivedCost, openDebtEntries } from "@/lib/deviceFault";
 import { computeDeviceMarks } from "@/lib/deviceMarks";
 import { CurrencyStore, getCurrency, toUsd } from "@/lib/currencyStore";
 import { formatAmount } from "@/lib/formatAmount";
@@ -57,7 +58,8 @@ interface Props {
   currencyStore: CurrencyStore;
   context?: AccountCardContext;
   /** Applies a new/updated fault record (or clears it, via a separate call with `null`). */
-  onSetDeviceFault: (account: StarlinkAccountSummary, fault: StarlinkAccountSummary["deviceFault"]) => void;
+  /** `waiveDebts`: drop the device's open D (deviceFault.ts) - only ever true when marking a fault. */
+  onSetDeviceFault: (account: StarlinkAccountSummary, fault: StarlinkAccountSummary["deviceFault"], waiveDebts: boolean) => void;
   /** Moves the device to the archive ("active" context only). */
   onArchive: (account: StarlinkAccountSummary) => void;
   /** Moves the device to the recoverable trash ("active" context only). */
@@ -68,7 +70,14 @@ interface Props {
   onPermanentDelete?: (account: StarlinkAccountSummary) => void;
   /** Applies the confirmed new renewal date, then opens the ledger dialog for this account so the
    * operator can record the actual shipment/payment. */
-  onConfirmRenewal: (account: StarlinkAccountSummary, newRechargeDate: string, autoShipment: boolean, costPending: boolean) => void;
+  /** `settleFromCard` is set only when the device had open D's: the renewal pays them (from the card or not). */
+  onConfirmRenewal: (
+    account: StarlinkAccountSummary,
+    newRechargeDate: string,
+    autoShipment: boolean,
+    costPending: boolean,
+    settleFromCard: boolean | null,
+  ) => void;
 }
 
 const STATUS_TILE_CLASS: Record<string, string> = {
@@ -220,6 +229,7 @@ export function AccountCard({
   const profit = summarizeDeviceProfit(ledgerEntries);
   // An expected (still-D) profit has no locked MRU rate yet - today's registered rate, marked ≈.
   const currentMruRate = getCurrency(currencyStore, "MRU")?.rateFromUsd;
+  const openDebtUsd = openDebtEntries(ledgerEntries).reduce((sum, e) => sum + (starlinkCostUsd(e) ?? 0), 0);
   const expectedMru = currentMruRate !== undefined ? profit.expectedUsd * currentMruRate : undefined;
 
   // Defaults to "not the Android app" (matches server render, which never
@@ -614,8 +624,10 @@ export function AccountCard({
       {showFaultDialog && (
         <DeviceFaultDialog
           account={account}
-          onSave={(fault) => { onSetDeviceFault(account, fault); setShowFaultDialog(false); }}
-          onClear={() => { onSetDeviceFault(account, null); setShowFaultDialog(false); }}
+          openDebtUsd={openDebtUsd}
+          waivedCount={ledgerEntries.filter(isWaivedCost).length}
+          onSave={(fault, waiveDebts) => { onSetDeviceFault(account, fault, waiveDebts); setShowFaultDialog(false); }}
+          onClear={() => { onSetDeviceFault(account, null, false); setShowFaultDialog(false); }}
           onClose={() => setShowFaultDialog(false)}
         />
       )}
@@ -623,7 +635,9 @@ export function AccountCard({
       {showRenewalDialog && (
         <RenewalConfirmDialog
           account={account}
-          onConfirm={(newDate, autoShipment, costPending) => { onConfirmRenewal(account, newDate, autoShipment, costPending); setShowRenewalDialog(false); }}
+          openDebtUsd={openDebtUsd}
+          openDebtCount={openDebtEntries(ledgerEntries).length}
+          onConfirm={(newDate, autoShipment, costPending, settleFromCard) => { onConfirmRenewal(account, newDate, autoShipment, costPending, settleFromCard); setShowRenewalDialog(false); }}
           onClose={() => setShowRenewalDialog(false)}
         />
       )}

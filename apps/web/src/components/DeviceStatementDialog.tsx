@@ -153,9 +153,10 @@ export function DeviceStatementDialog({ accountName, entries, allocations, allEn
                   <span className={`badge ${PAYMENT_STATUS_BADGE[paymentStatus]}`}>{PAYMENT_STATUS_LABELS[paymentStatus]}</span>
                   {isLegacyShipmentEntry(entry) && <span className="badge badge-gray">عملية قديمة</span>}
                   {cost?.status === "pending" && <span className="badge badge-yellow">D - غير مسدد</span>}
-                  {cost?.status === "settled" && <span className="badge badge-green">مسدد لـ Starlink</span>}
+                  {cost?.status === "settled" && !cost.waived && <span className="badge badge-green">مسدد لـ Starlink</span>}
+                  {cost?.waived && <span className="badge badge-yellow">🔥 معطل - لن يُدفع لـ Starlink</span>}
                 </div>
-                {cost?.status === "settled" && (
+                {cost?.status === "settled" && !cost.waived && (
                   <div className="statement-shipment-cost" dir="ltr">
                     تكلفة Starlink: {formatAmount(cost.amount!)} {cost.currencyCode}
                     {cost.rate && ` (1 USD = ${formatAmount(cost.rate.rateFromUsd)} ${cost.currencyCode})`}

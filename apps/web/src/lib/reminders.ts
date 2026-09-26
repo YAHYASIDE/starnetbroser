@@ -29,7 +29,8 @@ export function computeRenewalReminders(
 ): RenewalReminder[] {
   const reminders: RenewalReminder[] = [];
   for (const account of accounts) {
-    if (account.archivedAt || account.deletedAt) continue;
+    // A broken device (متعطل) isn't renewed until it's repaired.
+    if (account.archivedAt || account.deletedAt || account.deviceFault) continue;
     const daysRemaining = daysRemainingNumber(account.rechargeDate || account.standbyDate || "");
     if (daysRemaining === null || daysRemaining > thresholdDays) continue;
     reminders.push({ account, daysRemaining });

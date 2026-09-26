@@ -7,10 +7,15 @@ import { formatAmount } from "@/lib/formatAmount";
 
 interface Props {
   account: StarlinkAccountSummary;
-  /** Applies the new renewal date; `autoShipment` asks the caller to record the month's shipment
-   * from the device's renewalPlan, otherwise it opens the ledger dialog for a manual entry. This
-   * dialog itself never creates a ledger entry and never touches Starlink. */
-  onConfirm: (newRechargeDate: string, autoShipment: boolean, costPending: boolean) => void;
+  /** The device's open D's (Starlink cost still owed), USD and count. */
+  openDebtUsd: number;
+  openDebtCount: number;
+  /** Applies the new renewal date. With open D's the renewal IS paying Starlink for them
+   * (`settleFromCard` set, no new shipment). Otherwise `autoShipment` asks the caller to record
+   * the month's shipment from the device's renewalPlan - paid to Starlink now unless `costPending`
+   * - or it opens the ledger dialog for a manual entry. This dialog itself never touches the
+   * ledger or Starlink. */
+  onConfirm: (newRechargeDate: string, autoShipment: boolean, costPending: boolean, settleFromCard: boolean | null) => void;
   onClose: () => void;
 }
 
@@ -34,18 +39,25 @@ function toStoredDate(date: string): string {
  * one-tap shipment from the device's fixed monthly price (renewalPlan.ts, done by the caller) or
  * the existing "إضافة حركة" flow (LedgerDialog) opened right after.
  */
-export function RenewalConfirmDialog({ account, onConfirm, onClose }: Props) {
+export function RenewalConfirmDialog({ account, openDebtUsd, openDebtCount, onConfirm, onClose }: Props) {
+  const settlesDebt = openDebtCount > 0;
+  // Starlink is paid from the "كاش" card by default (starlinkDebt.ts).
+  const [fromCard, setFromCard] = useState(true);
   const [date, setDate] = useState(toInputDate(account.rechargeDate || dateAfterDays(28)));
   const plan = account.renewalPlan;
   // With a fixed monthly price (renewalPlan) the shipment can be recorded in the same tap; the
   // operator can still untick this to type it by hand.
   const [autoShipment, setAutoShipment] = useState(plan !== undefined);
-  // Starlink cost paid now (✓) or still owed (D) - starts from the plan's own default.
-  const [costPending, setCostPending] = useState(plan?.costPending ?? true);
+  // Renewing is paying Starlink, so a new month is recorded as paid (✓) unless switched to D.
+  const [costPending, setCostPending] = useState(false);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    onConfirm(toStoredDate(date), autoShipment && plan !== undefined, costPending);
+    if (settlesDebt) {
+      onConfirm(toStoredDate(date), false, false, fromCard);
+      return;
+    }
+    onConfirm(toStoredDate(date), autoShipment && plan !== undefined, costPending, autoShipment && plan !== undefined && !costPending ? fromCard : null);
   }
 
   return (
@@ -67,7 +79,17 @@ export function RenewalConfirmDialog({ account, onConfirm, onClose }: Props) {
             <DateInput required  value={date} onChange={(e) => setDate(e.target.value)} />
           </label>
 
-          {plan && (
+          {settlesDebt && (
+            <div className="renewal-settle form-wide">
+              <strong>
+                لم يُدفع لستارلينك (D): <bdi dir="ltr">{formatAmount(openDebtUsd)} $</bdi>
+                {openDebtCount > 1 ? ` (${openDebtCount} شحنات)` : ""}
+              </strong>
+              <span>التجديد الآن = دفعها لستارلينك اليوم. ينزل ربحها وحصة المندوب اليوم، ولا تُسجَّل شحنة جديدة على الزبون.</span>
+            </div>
+          )}
+
+          {!settlesDebt && plan && (
             <label className="ledger-d-toggle renewal-auto-toggle form-wide">
               <input type="checkbox" checked={autoShipment} onChange={(e) => setAutoShipment(e.target.checked)} />
               <span>
@@ -83,7 +105,7 @@ export function RenewalConfirmDialog({ account, onConfirm, onClose }: Props) {
             </label>
           )}
 
-          {plan && autoShipment && (
+          {!settlesDebt && plan && autoShipment && (
             <div className="renewal-cost-status form-wide" role="radiogroup" aria-label="تكلفة Starlink">
               <button
                 type="button"
@@ -106,8 +128,17 @@ export function RenewalConfirmDialog({ account, onConfirm, onClose }: Props) {
             </div>
           )}
 
+          {(settlesDebt || (plan && autoShipment && !costPending)) && (
+            <label className="ledger-d-toggle form-wide">
+              <input type="checkbox" checked={fromCard} onChange={(e) => setFromCard(e.target.checked)} />
+              <span>💳 دُفعت من بطاقة كاش</span>
+            </label>
+          )}
+
           <p className="renewal-dialog-note">
-            {autoShipment && plan
+            {settlesDebt
+              ? "بعد التأكيد يُسجَّل أن ستارلينك مدفوع لهذا الجهاز ويُحدَّث موعد الانتهاء."
+              : autoShipment && plan
               ? costPending
                 ? "ستُسجَّل الشحنة بعلامة D (تكلفة Starlink غير مدفوعة) ويظهر ربحها متوقعًا حتى تسدّدها."
                 : "ستُسجَّل الشحنة بأسعار الصرف الحالية وتظهر في كشف الجهاز والزبون مباشرة."

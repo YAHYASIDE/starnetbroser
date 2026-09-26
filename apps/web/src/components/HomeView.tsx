@@ -25,7 +25,7 @@ import { parseNewDevicePrefill } from "@/lib/deviceFromSale";
 import { buildRenewalShipment } from "@/lib/renewalPlan";
 import { runAutoBackup } from "@/lib/autoBackupRunner";
 import { notifySuspendedWithDebt, onDigestTapped, rescheduleMorningDigests } from "@/lib/morningNotifications";
-import { cardShortfallForSuspended, currentCardBalanceUsd, listOpenShipmentDebts, listSuspendedWithDebt } from "@/lib/starlinkDebt";
+import { cardShortfallForSuspended, currentCardBalanceUsd, listOpenShipmentDebts, listSuspendedWithDebt, settleShipmentCost } from "@/lib/starlinkDebt";
 import { APK_DOWNLOAD_URL, checkForAppUpdate, shouldAutoCheck } from "@/lib/appUpdate";
 import { deviceMatchesQuery, searchEverything, SearchResult } from "@/lib/homeInsights";
 import { listSuppliers, loadSupplierStore, SupplierStore } from "@/lib/supplierStore";
@@ -62,7 +62,9 @@ import {
   RepresentativeStore,
   saveRepresentativeStore,
 } from "@/lib/repStore";
-import { CurrencyStore, loadCurrencyStore, saveCurrencyStore, upsertCurrency, UpsertCurrencyInput } from "@/lib/currencyStore";
+import { CurrencyStore, getCurrency, loadCurrencyStore, saveCurrencyStore, upsertCurrency, UpsertCurrencyInput } from "@/lib/currencyStore";
+import { openDebtEntries, restoreWaivedDebts, waiveOpenDebts } from "@/lib/deviceFault";
+import { starlinkCostUsd } from "@/lib/accountingStore";
 import {
   addAllocations,
   AllocationsByAccount,
@@ -111,13 +113,14 @@ type DialogState = { mode: AccountDialogMode; account?: StarlinkAccountSummary; 
  * ways of narrowing the SAME list, and combining them silently would be confusing rather than
  * useful. `total` never appears as a value: tapping "كل الحسابات" is just `showAll`, not a real
  * per-account filter. */
-type StatFilterKind = "online" | "expiringSoon" | "expired" | "suspended";
+type StatFilterKind = "online" | "expiringSoon" | "expired" | "suspended" | "faulty";
 
 const STAT_FILTER_TITLES: Record<StatFilterKind, string> = {
   online: "الحسابات المتصلة الآن",
   expiringSoon: "الحسابات القريبة من الانتهاء",
   expired: "الحسابات المنتهية",
   suspended: "الحسابات المتوقفة (فوترة)",
+  faulty: "الأجهزة المعطلة",
 };
 
 function matchesStatFilter(account: StarlinkAccountSummary, kind: StatFilterKind): boolean {
@@ -126,11 +129,16 @@ function matchesStatFilter(account: StarlinkAccountSummary, kind: StatFilterKind
       return account.dishStatus === DeviceStatus.GREEN || account.wifiStatus === DeviceStatus.GREEN;
     case "suspended":
       return account.serviceStatus === "suspended";
+    case "faulty":
+      return Boolean(account.deviceFault);
     case "expiringSoon": {
+      // A broken device isn't renewed until it's repaired (see "المعطلة").
+      if (account.deviceFault) return false;
       const days = daysRemainingNumber(account.rechargeDate || account.standbyDate);
       return days !== null && days >= 0 && days <= NEAR_EXPIRY_THRESHOLD_DAYS;
     }
     case "expired": {
+      if (account.deviceFault) return false;
       const days = daysRemainingNumber(account.rechargeDate || account.standbyDate);
       return days !== null && days < 0;
     }
@@ -658,8 +666,31 @@ export function HomeView({
     });
   }
 
-  function handleSetDeviceFault(account: StarlinkAccountSummary, fault: StarlinkAccountSummary["deviceFault"]) {
+  function currentProfitRates() {
+    return { MRU: getCurrency(currencyStore, "MRU")?.rateFromUsd, SIFA: getCurrency(currencyStore, "SIFA")?.rateFromUsd };
+  }
+
+  // "متعطل": marking a fault can drop the device's open D (never paid to Starlink - the whole sale
+  // becomes profit today); "تم الإصلاح" brings any dropped D back to be paid normally.
+  function handleSetDeviceFault(account: StarlinkAccountSummary, fault: StarlinkAccountSummary["deviceFault"], waiveDebts: boolean) {
     patchAccount(account.id, { deviceFault: fault });
+    const entries = getAccountEntries(ledgerStore, account.id);
+    if (fault && waiveDebts) {
+      const today = new Date().toISOString().slice(0, 10);
+      const result = waiveOpenDebts(entries, today, currentProfitRates());
+      if (result.count > 0) {
+        updateLedgerEntries(account.id, result.entries);
+        pushToast(`🔥 "${account.name}" معطل - لن يُدفع D (${result.count}) لستارلينك وحُسب مبلغه ربحًا اليوم`);
+      }
+      return;
+    }
+    if (!fault) {
+      const result = restoreWaivedDebts(entries);
+      if (result.count > 0) {
+        updateLedgerEntries(account.id, result.entries);
+        pushToast(`🔧 تم إصلاح "${account.name}" - عاد عليه D (${result.count}) لتدفعه لستارلينك`);
+      }
+    }
   }
 
   function handleArchive(account: StarlinkAccountSummary) {
@@ -680,8 +711,26 @@ export function HomeView({
   // With a fixed monthly price (renewalPlan) and auto-shipment ticked, the month's shipment is
   // recorded right here (renewalPlan.ts) instead - falling back to the manual dialog, with the
   // reason, whenever a needed exchange rate isn't registered.
-  function handleConfirmRenewal(account: StarlinkAccountSummary, newRechargeDate: string, autoShipment = false, costPending = false) {
+  function handleConfirmRenewal(
+    account: StarlinkAccountSummary,
+    newRechargeDate: string,
+    autoShipment = false,
+    costPending = false,
+    settleFromCard: boolean | null = null,
+  ) {
     patchAccount(account.id, { rechargeDate: newRechargeDate, lastUpdated: "الآن" });
+    const today = new Date().toISOString().slice(0, 10);
+    const entries = getAccountEntries(ledgerStore, account.id);
+    const open = openDebtEntries(entries);
+    // The device still owes Starlink: renewing it is paying that D today - no new shipment.
+    if (open.length > 0 && settleFromCard !== null) {
+      const ids = new Set(open.map((e) => e.id));
+      const options = { date: today, profitRates: currentProfitRates(), fromCard: settleFromCard };
+      updateLedgerEntries(account.id, entries.map((e) => (ids.has(e.id) ? settleShipmentCost(e, options) : e)));
+      const usd = open.reduce((sum, e) => sum + (starlinkCostUsd(e) ?? 0), 0);
+      pushToast(`✓ تم تجديد "${account.name}" ودفع D (${formatAmount(usd)} $) لستارلينك - نزل الربح اليوم`);
+      return;
+    }
     if (autoShipment && account.renewalPlan) {
       const rep = getRepresentative(representativeStore, account.representativeId);
       const result = buildRenewalShipment(account.renewalPlan, currencyStore, new Date().toISOString().slice(0, 10), {
@@ -690,7 +739,11 @@ export function HomeView({
         costPending,
       });
       if (result.ok) {
-        updateLedgerEntries(account.id, [...getAccountEntries(ledgerStore, account.id), result.entry]);
+        const entry =
+          !costPending && settleFromCard && result.entry.starlinkCost?.status === "settled"
+            ? { ...result.entry, starlinkCost: { ...result.entry.starlinkCost, paidVia: "card" as const, settledAt: new Date().toISOString() } }
+            : result.entry;
+        updateLedgerEntries(account.id, [...entries, entry]);
         pushToast(`✓ تم التجديد وتسجيل شحنة ${formatAmount(result.entry.amount)} ${LEDGER_CURRENCY_LABELS[result.entry.currency]} على "${account.name}"${costPending ? " (D)" : ""}`);
         return;
       }
@@ -784,6 +837,7 @@ export function HomeView({
   const expiredOrNearExpiry = useMemo(
     () =>
       activeAccounts.filter((account) => {
+        if (account.deviceFault) return false;
         const days = daysRemainingNumber(account.rechargeDate || account.standbyDate);
         return days !== null && days <= NEAR_EXPIRY_THRESHOLD_DAYS;
       }),
@@ -795,8 +849,13 @@ export function HomeView({
     let expiringSoon = 0;
     let expired = 0;
     let suspended = 0;
+    let faulty = 0;
 
     for (const account of activeAccounts) {
+      if (account.deviceFault) {
+        faulty += 1;
+        continue;
+      }
       if (account.dishStatus === DeviceStatus.GREEN || account.wifiStatus === DeviceStatus.GREEN) {
         online += 1;
       }
@@ -808,7 +867,7 @@ export function HomeView({
       else if (days <= NEAR_EXPIRY_THRESHOLD_DAYS) expiringSoon += 1;
     }
 
-    return { total: activeAccounts.length, online, expiringSoon, expired, suspended };
+    return { total: activeAccounts.length, online, expiringSoon, expired, suspended, faulty };
   }, [activeAccounts]);
 
 
@@ -1037,6 +1096,16 @@ export function HomeView({
               onClick={() => toggleStatFilter("suspended")}
             />
           </section>
+
+          {overview.faulty > 0 && (
+            <button
+              type="button"
+              className={`faulty-chip${statFilter === "faulty" ? " faulty-chip-active" : ""}`}
+              onClick={() => { toggleStatFilter("faulty"); setSelectedDay(null); }}
+            >
+              🔧 الأجهزة المعطلة ({overview.faulty})
+            </button>
+          )}
 
           <section className="section dashboard-section">
             <div className="section-heading">

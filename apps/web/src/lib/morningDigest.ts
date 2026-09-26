@@ -57,6 +57,7 @@ export function buildMorningDigests({ accounts, owedByCurrency, now, hour }: Dig
     let tomorrow = 0;
     let expired = 0;
     for (const account of active) {
+      if (account.deviceFault) continue; // not renewed while broken
       const d = dayDiff(account.rechargeDate || account.standbyDate || "", at);
       if (d === null) continue;
       if (d === 0) today += 1;
