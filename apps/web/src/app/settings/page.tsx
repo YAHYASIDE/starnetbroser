@@ -877,7 +877,7 @@ function DriveSection() {
           </button>
         </div>
       )}
-      {message && <div className="account-card-alert">{message}</div>}
+      {message && <div className={`account-card-alert${message.startsWith("✓") ? " backup-restored" : ""}`}>{message}</div>}
     </section>
   );
 }
