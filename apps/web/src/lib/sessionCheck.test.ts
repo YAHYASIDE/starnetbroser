@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { needsLogin, sessionExportWarning, sortForSessionCheck, summarizeSessionChecks, SessionCheckResults } from "./sessionCheck";
+import { accountIdsNeedingLogin, markSignedInFromSync, needsLogin, withSessionStatus, sessionExportWarning, sortForSessionCheck, summarizeSessionChecks, SessionCheckResults } from "./sessionCheck";
 
 const at = "2026-09-26T10:00:00.000Z";
 
@@ -44,5 +44,28 @@ describe("sessionCheck", () => {
     expect(sessionExportWarning(3, 0, true)).toContain("لم تُحفظ أي جلسة");
     expect(sessionExportWarning(3, 1, true)).toContain("2 جهاز بدون جلسة");
     expect(sessionExportWarning(3, 0, false)).toContain("Android");
+  });
+
+  it("finds the devices that need the sign-in bubble", () => {
+    let results: SessionCheckResults = {};
+    results = withSessionStatus(results, "a", "loginRequired", new Date(at));
+    results = withSessionStatus(results, "b", "loggedIn", new Date(at));
+    results = withSessionStatus(results, "c", "none", new Date(at));
+    results = withSessionStatus(results, "gone", "none", new Date(at));
+    expect(results.a).toEqual({ status: "loginRequired", checkedAt: at });
+    expect(accountIdsNeedingLogin(results, ["a", "b", "c", "d"])).toEqual(["a", "c"]);
+  });
+
+  it("clears a device's bubble when a Starlink sync proves it is signed in", () => {
+    const results: SessionCheckResults = {
+      a: { status: "loginRequired", checkedAt: at },
+      b: { status: "loggedIn", checkedAt: at },
+    };
+    const later = new Date("2026-09-27T08:00:00.000Z");
+    const next = markSignedInFromSync(results, ["a", "b", "never-checked"], later);
+    expect(next.a).toEqual({ status: "loggedIn", checkedAt: later.toISOString() });
+    expect(next.b).toBe(results.b);
+    expect(next["never-checked"]).toBeUndefined();
+    expect(markSignedInFromSync(results, ["b"])).toBe(results);
   });
 });

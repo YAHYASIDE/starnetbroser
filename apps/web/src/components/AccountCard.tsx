@@ -32,6 +32,9 @@ export type AccountCardContext = "active" | "archived" | "trash";
 
 interface Props {
   account: StarlinkAccountSummary;
+  /** The last "فحص جلسات الدخول" found this device signed out - shows a small "sign in" bubble
+   * over the card's top edge that opens its browser. */
+  sessionNeedsLogin?: boolean;
   onEdit: (account: StarlinkAccountSummary) => void;
   /** This account's local customer-ledger entries - see ledgerStore.ts. Never the same thing as
    * account.balanceDue (Starlink's own synced subscription balance). */
@@ -178,6 +181,7 @@ function IconUndo() {
 export function AccountCard({
   account, onEdit, ledgerEntries, allocations, onLedger, onDeviceStatement, client, onOpenClient, currencyStore,
   context = "active", onSetDeviceFault, onArchive, onSoftDelete, onRestore, onPermanentDelete, onConfirmRenewal,
+  sessionNeedsLogin = false,
 }: Props) {
   const ledgerBalances = computeBalanceByCurrency(ledgerEntries);
   const dish = presentStatus(account.dishStatus);
@@ -348,7 +352,12 @@ export function AccountCard({
   );
 
   return (
-    <article className={`account-card${isSuspended ? " account-card-suspended" : ""}`}>
+    <article className={`account-card${isSuspended ? " account-card-suspended" : ""}${sessionNeedsLogin ? " account-card-has-bubble" : ""}`}>
+      {sessionNeedsLogin && (
+        <button type="button" className="session-bubble" onClick={handleOpen} disabled={opening} title="الجلسة خرجت - افتح وسجّل الدخول">
+          <span aria-hidden="true">🔒</span> سجّل الدخول
+        </button>
+      )}
       {isSuspended && (
         <div className="account-card-suspended-banner">
           ⚠️ الخدمة موقوفة — تحقق من فواتير Starlink غير المسددة

@@ -79,6 +79,7 @@ import { getLastBackupAt, isDemoMode, isLoggedIn, isRemindersBadgeEnabled } from
 import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
 import {
   ackPendingAccountSyncs,
+  checkAccountSession,
   deleteIsolatedAccountSession,
   isRunningInAndroidApp,
   listPendingAccountSyncs,
@@ -86,6 +87,14 @@ import {
   syncAutoSyncAccountList,
   triggerImmediateSync,
 } from "@/lib/localBrowser";
+import {
+  accountIdsNeedingLogin,
+  loadSessionCheckResults,
+  markSignedInFromSync,
+  saveSessionCheckResults,
+  SessionCheckResults,
+  withSessionStatus,
+} from "@/lib/sessionCheck";
 import { createReadyGate } from "@/lib/readyGate";
 import { PendingSyncLike, reapplyCachedSyncedFields, runSyncBatch } from "@/lib/starlinkSync";
 import { getCachedSyncedFields, saveSyncedFieldsCache } from "@/lib/syncedFieldsCache";
@@ -358,6 +367,55 @@ export function HomeView({
     dataStateRef.current = dataState;
   }, [dataState]);
 
+  // "فحص جلسات الدخول" results (see settings) - a device found signed out gets a small "sign in"
+  // bubble on its card. Whenever the app comes back to the front (typically right after signing
+  // in through that bubble), only those flagged devices are checked again, so the bubble clears
+  // by itself once the login worked.
+  const [sessionResults, setSessionResults] = useState<SessionCheckResults>({});
+  const sessionResultsRef = useRef(sessionResults);
+  const recheckingSessionsRef = useRef(false);
+  function updateSessionResults(next: SessionCheckResults) {
+    sessionResultsRef.current = next;
+    setSessionResults(next);
+    saveSessionCheckResults(next);
+  }
+  useEffect(() => {
+    const initial = loadSessionCheckResults();
+    sessionResultsRef.current = initial;
+    setSessionResults(initial);
+
+    async function recheckFlagged() {
+      if (recheckingSessionsRef.current || !isRunningInAndroidApp()) return;
+      recheckingSessionsRef.current = true;
+      try {
+        const latest = loadSessionCheckResults();
+        sessionResultsRef.current = latest;
+        setSessionResults(latest);
+        const flagged = accountIdsNeedingLogin(latest, accountsRef.current.map((a) => a.id));
+        for (const id of flagged) {
+          const status = await checkAccountSession(id);
+          if (status === "unknown") continue; // offline or unclear - keep the bubble until sure
+          updateSessionResults(withSessionStatus(sessionResultsRef.current, id, status));
+        }
+      } finally {
+        recheckingSessionsRef.current = false;
+      }
+    }
+
+    let resumeHandle: { remove: () => void } | undefined;
+    let cancelled = false;
+    App.addListener("resume", () => {
+      void recheckFlagged();
+    }).then((h) => {
+      if (cancelled) h.remove();
+      else resumeHandle = h;
+    });
+    return () => {
+      cancelled = true;
+      resumeHandle?.remove();
+    };
+  }, []);
+
   // Not ready until the initial account load (demo-from-localStorage or real-from-API) has
   // actually landed in `accounts`/accountsRef - see the Starlink-sync listener effect below for
   // why a pending-sync drain must never run before this, on pain of a real account like "mounay"
@@ -453,6 +511,9 @@ export function HomeView({
 
     async function applyBatch(syncs: PendingSyncLike[]) {
       await accountsReadyGateRef.current.whenReady();
+
+      const signedIn = markSignedInFromSync(sessionResultsRef.current, syncs.map((sync) => sync.accountId));
+      if (signedIn !== sessionResultsRef.current) updateSessionResults(signedIn);
 
       // runSyncBatch (starlinkSync.ts) is the pure, directly-tested implementation of "merge,
       // then save, then message - and never claim success or mark anything applied unless the
@@ -677,6 +738,10 @@ export function HomeView({
   const activeAccounts = useMemo(() => accounts.filter((a) => !a.archivedAt && !a.deletedAt), [accounts]);
   const archivedAccounts = useMemo(() => accounts.filter((a) => a.archivedAt), [accounts]);
   const trashAccounts = useMemo(() => accounts.filter((a) => a.deletedAt), [accounts]);
+  const needsLoginIds = useMemo(
+    () => new Set(accountIdsNeedingLogin(sessionResults, activeAccounts.map((a) => a.id))),
+    [sessionResults, activeAccounts],
+  );
 
   // Cheap header-badge count for /reminders - only the categories this page already has data for
   // loaded (renewals, device debts, backup) or that cost nothing extra to check (backup); the
@@ -1035,6 +1100,7 @@ export function HomeView({
                 onRestore={handleRestore}
                 onPermanentDelete={viewMode === "trash" ? deleteAccount : undefined}
                 onConfirmRenewal={handleConfirmRenewal}
+                sessionNeedsLogin={viewMode === "active" && needsLoginIds.has(account.id)}
               />
             ))}
           </div>

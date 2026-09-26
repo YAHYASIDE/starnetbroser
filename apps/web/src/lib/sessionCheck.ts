@@ -27,6 +27,28 @@ export function needsLogin(status: SessionStatus | undefined): boolean {
   return status === "loginRequired" || status === "none";
 }
 
+export function withSessionStatus(results: SessionCheckResults, accountId: string, status: SessionStatus, now: Date = new Date()): SessionCheckResults {
+  return { ...results, [accountId]: { status, checkedAt: now.toISOString() } };
+}
+
+/** The devices whose card shows the "sign in" bubble, among the given (existing) ones. */
+export function accountIdsNeedingLogin(results: SessionCheckResults, accountIds: string[]): string[] {
+  return accountIds.filter((id) => needsLogin(results[id]?.status));
+}
+
+/** A "تحديث من Starlink" result carries data read off the account's own portal - proof that it is
+ * signed in, so its bubble can go without another check. Returns the same object when nothing
+ * changed. */
+export function markSignedInFromSync(results: SessionCheckResults, accountIds: string[], now: Date = new Date()): SessionCheckResults {
+  let next = results;
+  for (const id of accountIds) {
+    if (results[id]?.status === "loggedIn") continue;
+    if (!results[id]) continue; // never checked - nothing to correct
+    next = withSessionStatus(next, id, "loggedIn", now);
+  }
+  return next;
+}
+
 export interface SessionCheckSummary {
   checked: number;
   loggedIn: number;
