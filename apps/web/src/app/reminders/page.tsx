@@ -1,6 +1,6 @@
 "use client";
 
-import { listOpenShipmentDebts, listSuspendedWithDebt } from "@/lib/starlinkDebt";
+import { cardShortfallForSuspended, currentCardBalanceUsd, listOpenShipmentDebts, listSuspendedWithDebt } from "@/lib/starlinkDebt";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { StarlinkAccountSummary } from "@starnet/shared";
@@ -64,6 +64,10 @@ export default function RemindersPage() {
 
   const restrictedReminders = useMemo(() => computeRestrictedDeviceReminders(accounts), [accounts]);
   const suspendedWithDebt = useMemo(() => listSuspendedWithDebt(accounts, listOpenShipmentDebts(ledgerStore)), [accounts, ledgerStore]);
+  const suspendedCardShortfall = useMemo(
+    () => (suspendedWithDebt.length > 0 ? cardShortfallForSuspended(suspendedWithDebt, currentCardBalanceUsd(ledgerStore)) : 0),
+    [suspendedWithDebt, ledgerStore],
+  );
   const renewalReminders = useMemo(() => computeRenewalReminders(accounts), [accounts]);
   const deviceDebtReminders = useMemo(() => computeDeviceDebtReminders(accounts, ledgerStore), [accounts, ledgerStore]);
   const storeDebtReminders = useMemo(() => computeStoreDebtReminders(clientStore, invoices, partyAdjustments), [clientStore, invoices, partyAdjustments]);
@@ -122,6 +126,11 @@ export default function RemindersPage() {
               </li>
             ))}
           </ul>
+          {suspendedCardShortfall > 0 && (
+            <p className="sl-card-short">
+              💳 رصيد البطاقة لا يكفي - ينقصها <bdi dir="ltr">{formatAmount(suspendedCardShortfall)} $</bdi>
+            </p>
+          )}
           <Link href="/starlink" className="dialog-primary sl-reminder-link">
             فتح ستارلينك والبطاقة للتسديد
           </Link>

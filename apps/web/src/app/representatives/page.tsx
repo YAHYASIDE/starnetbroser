@@ -1,7 +1,7 @@
 "use client";
 
 import { DateInput } from "@/components/DateInput";
-import { createContext, CSSProperties, FormEvent, ReactNode, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, CSSProperties, FormEvent, ReactNode, useContext, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { LedgerEntryEditor } from "@/components/LedgerEntryEditor";
 import { getCurrency, loadCurrencyStore } from "@/lib/currencyStore";
@@ -75,6 +75,7 @@ import { listAccounts } from "@/lib/apiClient";
 import { partyHue, partyInitials } from "@/lib/partyColor";
 import { buildRepSummaryMessage, buildWhatsAppLink } from "@/lib/whatsapp";
 import { PartySheet } from "@/components/AccountsSection";
+import { confirmClosedMonthChange, ledgerEntryMonthDates, monthLabel, monthRange, recentMonths } from "@/lib/monthClosing";
 
 const EPSILON = 0.0001;
 
@@ -178,6 +179,15 @@ export default function RepresentativesPage() {
   const [accounts, setAccounts] = useState<StarlinkAccountSummary[]>(demoAccounts);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingRepId, setEditingRepId] = useState<string | null>(null);
+  // Opened from "إقفال الشهر" (reports): ?rep=<id>&month=yyyy-mm opens that rep's statement for
+  // that month, ready for its PDF.
+  const [focus, setFocus] = useState<{ repId: string; month: string } | null>(null);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const repId = params.get("rep");
+    const month = params.get("month");
+    if (repId && month && /^\d{4}-\d{2}$/.test(month)) setFocus({ repId, month });
+  }, []);
 
   useEffect(() => {
     setRepresentativeStore(loadRepresentativeStore());
@@ -268,6 +278,7 @@ export default function RepresentativesPage() {
   }
 
   function handleSettlement(representativeId: string, input: UpdateRepSettlementInput): string | null {
+    if (!confirmClosedMonthChange([input.date])) return "لم تُحفظ العملية (الشهر مُقفل)";
     const result = recordRepSettlement(settlements, { representativeId, ...input, rates: lockedRates(input.currencyCode) });
     if (!result.ok) return result.message;
     saveSettlementList(result.settlements);
@@ -277,6 +288,8 @@ export default function RepresentativesPage() {
 
   // An edited settlement re-posts its own cash entry (removed + posted again from the new values).
   function handleUpdateSettlement(settlementId: string, input: UpdateRepSettlementInput): string | null {
+    const current = settlements.find((s) => s.id === settlementId);
+    if (!confirmClosedMonthChange([current?.date, input.date])) return "لم يُحفظ التعديل (الشهر مُقفل)";
     const result = updateRepSettlement(settlements, settlementId, { ...input, rates: lockedRates(input.currencyCode) });
     if (!result.ok) return result.message;
     saveSettlementList(result.settlements);
@@ -286,11 +299,14 @@ export default function RepresentativesPage() {
   }
 
   function handleDeleteSettlement(settlementId: string) {
+    if (!confirmClosedMonthChange([settlements.find((s) => s.id === settlementId)?.date])) return;
     saveSettlementList(deleteRepSettlement(settlements, settlementId));
     saveCashEntries(removeLinkedCashEntries(loadCashEntries(), settlementId));
   }
 
   function handleShipmentShare(accountId: string, entryId: string, patch: ShipmentRepPatch): string | null {
+    const entry = ledgerStore[accountId]?.find((e) => e.id === entryId);
+    if (entry && !confirmClosedMonthChange(ledgerEntryMonthDates(entry))) return "لم يُحفظ التعديل (الشهر مُقفل)";
     const result = setShipmentRepShare(ledgerStore, accountId, entryId, patch);
     if (!result.ok) return result.message;
     setLedgerStore(result.ledgerStore);
@@ -402,6 +418,7 @@ export default function RepresentativesPage() {
                     onReset={(resetFrom) => handleReset(rep.id, resetFrom)}
                     onDelete={() => handleDeleteRep(rep.id)}
                     onLedgerChange={setLedgerStore}
+                    focusMonth={focus?.repId === rep.id ? focus.month : undefined}
                   />
                 ),
               )}
@@ -431,6 +448,8 @@ interface RepCardProps {
   onReset: (resetFrom: RepResetPoint | undefined) => void;
   onDelete: () => void;
   onLedgerChange: (next: LedgerByAccount) => void;
+  /** Open the statement on this month (yyyy-mm) and scroll to this card. */
+  focusMonth?: string;
 }
 
 type RepPanel = "statement" | "devices" | null;
@@ -457,11 +476,26 @@ function RepCard({
   onReset,
   onDelete,
   onLedgerChange,
+  focusMonth,
 }: RepCardProps) {
   const [panel, setPanel] = useState<RepPanel>(null);
   const [sheet, setSheet] = useState<RepSheet>(null);
   const [periodKind, setPeriodKind] = useState<RepPeriodKind>("all");
   const [customPeriod, setCustomPeriod] = useState<RepPeriod>({ from: "", to: "" });
+  const thisMonth = todayDateInputValue().slice(0, 7);
+  const [periodMonth, setPeriodMonth] = useState(thisMonth);
+  const monthChoices = useMemo(() => {
+    const recent = recentMonths(todayDateInputValue(), 12);
+    return recent.includes(periodMonth) ? recent : [periodMonth, ...recent];
+  }, [periodMonth]);
+  const cardRef = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (!focusMonth) return;
+    setPanel("statement");
+    setPeriodKind("month");
+    setPeriodMonth(focusMonth);
+    setTimeout(() => cardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 150);
+  }, [focusMonth]);
   const [showArchive, setShowArchive] = useState(false);
 
   const fx = useFx();
@@ -481,7 +515,7 @@ function RepCard({
     const source = showArchive && rep.resetFrom ? splitRepRecords(rep, { deviceRows: allDeviceRows, invoices, settlements }, "archive") : active;
     return buildRepDailyStatement(rep.id, source.deviceRows, source.invoices, source.settlements);
   }, [panel, sheet, showArchive, rep, allDeviceRows, invoices, settlements, active]);
-  const period = repPeriod(periodKind, todayDateInputValue(), customPeriod);
+  const period = periodKind === "month" ? monthRange(periodMonth) : repPeriod(periodKind, todayDateInputValue(), customPeriod);
   const statement = useMemo(() => buildRepPeriodStatement(allDays, period, fx.convert), [allDays, period.from, period.to, fx]); // eslint-disable-line react-hooks/exhaustive-deps
   // His whole current account (since the reset), in the display currency: profit, his share, and
   // the running balance - every له/عليه entry and payout counted against his share.
@@ -522,11 +556,11 @@ function RepCard({
       : periodKind === "day"
         ? `يوم ${ltrText(period.from ?? "")}`
         : periodKind === "month"
-          ? `شهر ${ltrText(period.from?.slice(0, 7) ?? "")}`
+          ? `شهر ${monthLabel(periodMonth)}`
           : `من ${period.from ? ltrText(period.from) : "البداية"} إلى ${period.to ? ltrText(period.to) : "اليوم"}`;
 
   return (
-    <li className="party-card rep-card" style={{ "--party-hue": partyHue(rep.id) } as CSSProperties}>
+    <li ref={cardRef} className="party-card rep-card" style={{ "--party-hue": partyHue(rep.id) } as CSSProperties}>
       <div className="party-card-head">
         <span className="party-avatar" aria-hidden="true">{partyInitials(rep.name)}</span>
         <div className="party-card-title">
@@ -612,6 +646,15 @@ function RepCard({
               </button>
             ))}
           </div>
+          {periodKind === "month" && (
+            <select className="month-closing-select rep-period-month" value={periodMonth} onChange={(e) => setPeriodMonth(e.target.value)} aria-label="الشهر">
+              {monthChoices.map((m) => (
+                <option key={m} value={m}>
+                  {monthLabel(m)}
+                </option>
+              ))}
+            </select>
+          )}
           {periodKind === "custom" && (
             <div className="rep-period-range">
               <label>

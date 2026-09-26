@@ -22,6 +22,7 @@ import { CurrencyStore, getCurrency, loadCurrencyStore } from "@/lib/currencySto
 import { summarizeDeviceProfit } from "@/lib/accountingStore";
 import { daysRemainingNumber } from "@/lib/date";
 import { TodayPanel } from "@/components/TodayPanel";
+import { MonthClosingSection } from "@/components/MonthClosingSection";
 import { entriesAfterProfitReset, loadProfitReset, ProfitReset } from "@/lib/profitReset";
 
 function currencyLabelFor(code: string): string {
@@ -239,6 +240,8 @@ export default function ReportsPage() {
         cashEntries={cashEntries}
         renewalsToday={activeAccounts.filter((a) => daysRemainingNumber(a.rechargeDate || a.standbyDate) === 0).length}
       />
+
+      <MonthClosingSection ledgerStore={ledgerStore} accounts={accounts} clientStore={clientStore} mruRate={mruRate} />
 
       <section className="section">
         <div className="report-period-row">

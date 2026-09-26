@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCardStatement,
+  cardShortfallForSuspended,
   listCardPayments,
   listOpenShipmentDebts,
   listSuspendedWithDebt,
@@ -100,5 +101,17 @@ describe("the كاش card", () => {
     const cash = postCardTopUpToCash([], top.topUp);
     expect(cash).toHaveLength(1);
     expect(cash[0]).toMatchObject({ kind: "out", amount: 8000, currencyCode: "MRU", sourceId: top.topUp.id, sourceKind: "card-topup" });
+  });
+});
+
+describe("cardShortfallForSuspended", () => {
+  const suspended = (costUsd: number) => ({ account: { id: "a" } as never, debts: [], costUsd });
+  it("is what the card lacks to pay every suspended device's D", () => {
+    expect(cardShortfallForSuspended([suspended(60), suspended(40)], 70)).toBe(30);
+  });
+  it("is zero when the card covers them, and a negative balance counts as empty", () => {
+    expect(cardShortfallForSuspended([suspended(60)], 100)).toBe(0);
+    expect(cardShortfallForSuspended([suspended(60)], -20)).toBe(60);
+    expect(cardShortfallForSuspended([], 0)).toBe(0);
   });
 });

@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { confirmClosedMonthChange } from "@/lib/monthClosing";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { DateInput } from "@/components/DateInput";
 import { PartySheet } from "@/components/AccountsSection";
@@ -17,6 +18,7 @@ import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
 import { getRepresentative, loadRepresentativeStore, RepresentativeStore } from "@/lib/repStore";
 import {
   buildCardStatement,
+  cardShortfallForSuspended,
   CardTopUpList,
   deleteCardTopUp,
   listCardPayments,
@@ -85,6 +87,7 @@ export default function StarlinkPage() {
   const totalDebt = totalOpenDebtUsd(debts);
   const suspended = useMemo(() => listSuspendedWithDebt(accounts, debts), [accounts, debts]);
   const card = useMemo(() => buildCardStatement(topUps, listCardPayments(ledgerStore)), [topUps, ledgerStore]);
+  const suspendedShortfall = cardShortfallForSuspended(suspended, card.balanceUsd);
   const selectedDebts = debts.filter((d) => selected.has(d.entry.id));
 
   const account = (id: string) => accounts.find((a) => a.id === id);
@@ -106,6 +109,7 @@ export default function StarlinkPage() {
   }
 
   function pay(date: string, fromCard: boolean) {
+    if (!confirmClosedMonthChange([date])) return;
     const next = settleShipments(
       ledgerStore,
       payItems.map((d) => ({ accountId: d.accountId, entryId: d.entry.id })),
@@ -167,6 +171,11 @@ export default function StarlinkPage() {
       {suspended.length > 0 && (
         <section className="section sl-alert">
           <h2 className="sl-title">⚠️ أجهزة توقفت وعليها D - ادفع لستارلينك الآن</h2>
+          {suspendedShortfall > 0 && (
+            <p className="sl-card-short">
+              💳 رصيد البطاقة لا يكفي لها - ينقصها <bdi dir="ltr">{usd(suspendedShortfall)}</bdi>. اشحن البطاقة من الأسفل.
+            </p>
+          )}
           <ul className="sl-list">
             {suspended.map((s) => (
               <li key={s.account.id} className="sl-row sl-row-alert">

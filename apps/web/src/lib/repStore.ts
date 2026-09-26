@@ -468,6 +468,13 @@ export function totalRepDeviceCommissions(rows: RepDeviceCommissionRow[]): RepDe
 
 /** Sum of every representative's share across the given ledger entries (e.g. one report period),
  * for the reports page's "حصة المندوبين" - entries without a rep snapshot contribute nothing. */
+/** One settled shipment's rep share, USD (its own locked percent and loss rule), or undefined when
+ * it has no rep or its profit isn't computed yet. */
+export function shipmentRepShareUsd(entry: LedgerEntry): number | undefined {
+  if (entry.kind !== "debit" || !entry.representativeId || entry.representativeCommissionPercent === undefined) return undefined;
+  return deviceShare(computeShipmentProfit(entry), entry.representativeCommissionPercent, entry.representativeSharesLosses).repShareUsd;
+}
+
 export function computeRepSharesUsd(entries: LedgerEntry[]): number {
   let total = 0;
   for (const entry of entries) {

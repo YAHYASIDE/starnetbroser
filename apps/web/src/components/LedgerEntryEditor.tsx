@@ -5,6 +5,7 @@ import { EditLedgerEntryDialog } from "./EditLedgerEntryDialog";
 import { loadCashEntries, saveCashEntries } from "@/lib/cashStore";
 import { loadCurrencyStore, saveCurrencyStore, upsertCurrency, UpsertCurrencyInput } from "@/lib/currencyStore";
 import { applyLedgerEntryEdit } from "@/lib/ledgerEntryEdit";
+import { confirmClosedMonthChange, ledgerEditMonthDates } from "@/lib/monthClosing";
 import { LedgerByAccount, LedgerEntry, saveLedgerStore } from "@/lib/ledgerStore";
 import { allocatedFromPayment, allStoredAllocations, loadAllocationStore, paidTowardShipment } from "@/lib/paymentAllocationStore";
 
@@ -45,6 +46,7 @@ export function LedgerEntryEditor({
       onUpsertCurrency={handleUpsertCurrency}
       onClose={onClose}
       onSave={(patch) => {
+        if (!confirmClosedMonthChange(ledgerEditMonthDates(entry, patch))) return;
         const result = applyLedgerEntryEdit(ledgerStore, loadCashEntries(), accountId, entry.id, patch, deviceName);
         saveLedgerStore(result.ledgerStore);
         saveCashEntries(result.cash);

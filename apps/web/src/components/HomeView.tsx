@@ -25,7 +25,7 @@ import { parseNewDevicePrefill } from "@/lib/deviceFromSale";
 import { buildRenewalShipment } from "@/lib/renewalPlan";
 import { runAutoBackup } from "@/lib/autoBackupRunner";
 import { notifySuspendedWithDebt, onDigestTapped, rescheduleMorningDigests } from "@/lib/morningNotifications";
-import { listOpenShipmentDebts, listSuspendedWithDebt } from "@/lib/starlinkDebt";
+import { cardShortfallForSuspended, currentCardBalanceUsd, listOpenShipmentDebts, listSuspendedWithDebt } from "@/lib/starlinkDebt";
 import { APK_DOWNLOAD_URL, checkForAppUpdate, shouldAutoCheck } from "@/lib/appUpdate";
 import { deviceMatchesQuery, searchEverything, SearchResult } from "@/lib/homeInsights";
 import { listSuppliers, loadSupplierStore, SupplierStore } from "@/lib/supplierStore";
@@ -752,6 +752,10 @@ export function HomeView({
     () => listSuspendedWithDebt(activeAccounts, listOpenShipmentDebts(ledgerStore)),
     [activeAccounts, ledgerStore],
   );
+  const suspendedCardShortfall = useMemo(
+    () => (suspendedWithDebt.length > 0 ? cardShortfallForSuspended(suspendedWithDebt, currentCardBalanceUsd(ledgerStore)) : 0),
+    [suspendedWithDebt, ledgerStore],
+  );
   useEffect(() => {
     void notifySuspendedWithDebt(
       suspendedWithDebt.map((s) => ({ accountName: s.account.name, entryIds: s.debts.map((d) => d.entry.id), costUsd: s.costUsd })),
@@ -921,6 +925,11 @@ export function HomeView({
             <small>
               ادفع لستارلينك <bdi dir="ltr">{formatAmount(suspendedWithDebt.reduce((sum, s) => sum + s.costUsd, 0))} $</bdi> ثم اضغط «سدّدت»
             </small>
+            {suspendedCardShortfall > 0 && (
+              <small className="d-alert-card-short">
+                💳 رصيد البطاقة لا يكفي - ينقصها <bdi dir="ltr">{formatAmount(suspendedCardShortfall)} $</bdi>
+              </small>
+            )}
           </span>
         </Link>
       )}

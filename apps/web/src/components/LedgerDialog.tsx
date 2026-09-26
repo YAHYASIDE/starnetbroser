@@ -44,6 +44,7 @@ import { AllocationDeviceOption, AllocationShipmentRow, PaymentAllocationDialog 
 import { LegacyEntryCompletionDialog } from "./LegacyEntryCompletionDialog";
 import { PaymentRateCompletionDialog } from "./PaymentRateCompletionDialog";
 import { EditLedgerEntryDialog } from "./EditLedgerEntryDialog";
+import { confirmClosedMonthChange, ledgerEditMonthDates, ledgerEntryMonthDates } from "@/lib/monthClosing";
 import { HelpHint } from "./HelpHint";
 
 /** One other device linked to the same customer - siblings, never the account currently open in
@@ -357,6 +358,7 @@ export function LedgerDialog({
         : { status: "settled", currencyCode: costCurrencyCode, amount: parsedCostAmount, rate: costRateSnapshot, paidAt: date };
       profitCurrencyRates = markD ? undefined : { MRU: mruRateKnown, SIFA: sifaRateKnown };
     }
+    if (!confirmClosedMonthChange([date])) return;
     setFormError(null);
 
     if (needsRate) {
@@ -406,6 +408,8 @@ export function LedgerDialog({
   }
 
   function deleteEntry(entryId: string) {
+    const target = entries.find((e) => e.id === entryId);
+    if (target && !confirmClosedMonthChange(ledgerEntryMonthDates(target))) return;
     if (!window.confirm("هل تريد حذف هذه الحركة؟ لا يمكن التراجع عن هذا الإجراء.")) return;
     onChange(removeEntry(entries, entryId));
     onRemoveEntryAllocations(entryId);
@@ -837,6 +841,7 @@ export function LedgerDialog({
           onUpsertCurrency={onUpsertCurrency}
           onClose={() => setEditingEntry(null)}
           onSave={(patch) => {
+            if (!confirmClosedMonthChange(ledgerEditMonthDates(editingEntry, patch))) return;
             onChange(updateEntry(entries, editingEntry.id, patch));
             setEditingEntry(null);
           }}

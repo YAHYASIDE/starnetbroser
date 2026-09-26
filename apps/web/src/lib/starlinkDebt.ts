@@ -108,6 +108,14 @@ export function listSuspendedWithDebt(accounts: StarlinkAccountSummary[], debts:
   return result;
 }
 
+/** How much the card is short of paying every suspended device's D right now (0 when it covers
+ * them all). Shown only with the suspension alert - the card only matters once a device stops. */
+export function cardShortfallForSuspended(suspended: SuspendedDebtDevice[], cardBalanceUsd: number): number {
+  const needed = suspended.reduce((sum, s) => sum + s.costUsd, 0);
+  const shortfall = needed - Math.max(0, cardBalanceUsd);
+  return shortfall > EPSILON ? shortfall : 0;
+}
+
 // ---- The "كاش" card ----
 
 export interface CardTopUp {
@@ -211,6 +219,11 @@ export function listCardPayments(ledgerStore: LedgerByAccount): CardPayment[] {
     }
   }
   return result;
+}
+
+/** The card's current balance from what's stored (top-ups) and the ledger (card payments). */
+export function currentCardBalanceUsd(ledgerStore: LedgerByAccount): number {
+  return buildCardStatement(loadCardTopUps(), listCardPayments(ledgerStore)).balanceUsd;
 }
 
 export type CardStatementRow =
