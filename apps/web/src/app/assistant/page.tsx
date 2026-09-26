@@ -227,7 +227,7 @@ export default function AssistantPage() {
               <textarea
                 className="search-input ai-input"
                 rows={1}
-                placeholder="اسأل عن أرباحك، ديونك، أجهزتك…"
+                placeholder="اكتب سؤالك…"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
               />
