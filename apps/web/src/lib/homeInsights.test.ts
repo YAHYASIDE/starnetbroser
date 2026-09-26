@@ -56,4 +56,20 @@ describe("search", () => {
     expect(deviceMatchesQuery("kit1", device)).toBe(true);
     expect(deviceMatchesQuery("سالم", device, { name: "محمد" })).toBe(false);
   });
+
+  it("finds a device by any Starlink identifier, ignoring spaces, dashes and case", () => {
+    const d = {
+      name: "x",
+      kitNumber: "KIT304012345",
+      serialNumber: "2DWC-2401-0012",
+      subscriptionId: "SL-DF-12201133-43672-91",
+      accountNumber: "ACC-2877-1123-44",
+    };
+    expect(deviceMatchesQuery("kit 3040 12345", d)).toBe(true);
+    expect(deviceMatchesQuery("2dwc24010012", d)).toBe(true);
+    expect(deviceMatchesQuery("12201133", d)).toBe(true);
+    expect(deviceMatchesQuery("sl df 1220", d)).toBe(true);
+    expect(deviceMatchesQuery("ACC28771123", d)).toBe(true);
+    expect(deviceMatchesQuery("KIT9999", d)).toBe(false);
+  });
 });

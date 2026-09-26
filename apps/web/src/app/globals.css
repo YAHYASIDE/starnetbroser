@@ -6929,3 +6929,16 @@ button.today-tile {
 .report-tab-panel .report-period-btn {
   width: 100%;
 }
+
+.report-export-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.report-export-btn {
+  border-color: var(--green);
+  color: var(--green);
+}

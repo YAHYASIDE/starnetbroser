@@ -1002,7 +1002,7 @@ export function HomeView({
           className="search-input dashboard-search"
           type="search"
           inputMode="search"
-          placeholder="ابحث: جهاز، زبون، هاتف، مورد، مندوب، منتج…"
+          placeholder="ابحث: جهاز، Kit، اشتراك، زبون، هاتف، مندوب…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           aria-label="بحث"

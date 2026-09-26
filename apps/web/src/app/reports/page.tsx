@@ -26,6 +26,8 @@ import { computeDebtAging } from "@/lib/debtAging";
 import { loadPartyAdjustments, PartyAdjustmentList } from "@/lib/partyBalanceStore";
 import { buildCardStatement, listCardPayments, listOpenShipmentDebts, loadCardTopUps, totalOpenDebtUsd, CardTopUpList } from "@/lib/starlinkDebt";
 import { listOpenPreviousDebts, loadPreviousDebts, PreviousDebtList, totalPreviousDebtUsd } from "@/lib/previousDebt";
+import { buildBusinessWorkbook, xlsxFileName } from "@/lib/excelExport";
+import { exportXlsx } from "@/lib/xlsxExport";
 import {
   profitSeries,
   RatesFromUsd,
@@ -223,6 +225,45 @@ export default function ReportsPage() {
     [repStore, ledgerStore, invoices, settlements, rates],
   );
   const repsNet = repBalances.reduce((sum, r) => sum + r.balanceMru, 0);
+
+  // "تصدير Excel": everything above for the chosen period, in one workbook.
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  async function handleExportExcel() {
+    setExporting(true);
+    setExportError(null);
+    const openD: Record<string, number> = {};
+    for (const d of listOpenShipmentDebts(ledgerStore)) openD[d.accountId] = (openD[d.accountId] ?? 0) + d.costUsd;
+    const previous: Record<string, number> = {};
+    for (const d of openPrevious) previous[d.accountId] = (previous[d.accountId] ?? 0) + d.amountUsd;
+    const now = new Date();
+    const sheets = buildBusinessWorkbook({
+      periodLabel: REPORT_PERIOD_LABELS[period],
+      exportedAt: now,
+      accounts,
+      clientName: (id) => getClient(clientStore, id)?.name,
+      clientPhone: (id) => getClient(clientStore, id)?.phone,
+      repName: (id) => (id ? repStore[id]?.name : undefined),
+      ledgerStore,
+      profitByAccount,
+      mruRate,
+      openDUsdByAccount: openD,
+      previousDebtUsdByAccount: previous,
+      debtors,
+      repBalances,
+      totals: {
+        profitMru: profit?.confirmedMru,
+        repSharesMru: repShares,
+        expectedMru: expected?.expectedMru,
+        debtorsMru: debtorsTotal,
+        starlinkUsd: ownDUsd + previousUsd,
+        cardUsd,
+      },
+    });
+    const result = await exportXlsx(sheets, xlsxFileName(now), "تقرير STAR NET");
+    setExporting(false);
+    if (!result.ok) setExportError(result.message);
+  }
   const usdToMru = (usd: number) => (mruRate ? usd * mruRate : undefined);
 
   const periodChips = (
@@ -256,6 +297,13 @@ export default function ReportsPage() {
             {TAB_LABELS[t]}
           </button>
         ))}
+      </div>
+
+      <div className="report-export-row">
+        <button type="button" className="party-action report-export-btn" onClick={handleExportExcel} disabled={exporting}>
+          {exporting ? "⏳ جارِ التجهيز…" : `📊 تصدير Excel (${REPORT_PERIOD_LABELS[period]})`}
+        </button>
+        {exportError && <span className="account-card-alert ledger-form-error">{exportError}</span>}
       </div>
 
       {!mruRate && (

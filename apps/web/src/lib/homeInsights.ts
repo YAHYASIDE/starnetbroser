@@ -103,21 +103,30 @@ export function searchEverything(query: string, sources: SearchSources, limit = 
   return results;
 }
 
-/** Whether a device matches the home search - by its own name/KIT/serial/email, or by the name or
- * phone of the client it's linked to. */
+/** Letters and digits only, lower-case - "KIT-3040 12" and "kit304012" compare equal. */
+function compactId(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+/** Whether a device matches the home search - by its own name, email, or any of its Starlink
+ * identifiers (KIT, serial, subscription SL-..., account ACC-...; spaces and dashes ignored), or
+ * by the name or phone of the client it's linked to. */
 export function deviceMatchesQuery(
   query: string,
-  device: { name: string; kitNumber: string; serialNumber: string; expectedEmail?: string; starlinkAccountEmail?: string },
+  device: {
+    name: string;
+    kitNumber: string;
+    serialNumber: string;
+    expectedEmail?: string;
+    starlinkAccountEmail?: string;
+    starlinkId?: string;
+    accountNumber?: string;
+    subscriptionId?: string;
+  },
   client?: { name: string; phone?: string },
 ): boolean {
-  return matches(
-    query,
-    device.name,
-    device.kitNumber,
-    device.serialNumber,
-    device.expectedEmail,
-    device.starlinkAccountEmail,
-    client?.name,
-    client?.phone,
-  );
+  const ids = [device.kitNumber, device.serialNumber, device.starlinkId, device.accountNumber, device.subscriptionId];
+  if (matches(query, device.name, ...ids, device.expectedEmail, device.starlinkAccountEmail, client?.name, client?.phone)) return true;
+  const q = compactId(query);
+  return q.length >= 4 && ids.some((id) => id !== undefined && compactId(id).includes(q));
 }
