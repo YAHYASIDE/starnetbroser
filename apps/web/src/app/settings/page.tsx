@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { checkHealth, listAccounts, login, register } from "@/lib/apiClient";
 import { ApiError } from "@/lib/apiClient";
 import {
@@ -52,6 +53,8 @@ import { runAutoBackup, shareLatestAutoBackup } from "@/lib/autoBackupRunner";
 import { DriveFile, DriveUploadStatus, driveBackupLabel, getDriveEmail, getDriveLastUpload, isDriveLinked } from "@/lib/driveBackup";
 import { downloadGoogleDriveBackup, linkGoogleDrive, listGoogleDriveBackups, runDriveBackup, unlinkGoogleDrive } from "@/lib/driveBackupRunner";
 import { PartySheet } from "@/components/AccountsSection";
+import { AI_MODEL_LABEL, getClaudeApiKey, looksLikeClaudeKey, maskClaudeKey, setClaudeApiKey } from "@/lib/aiSettings";
+import { testClaudeKey } from "@/lib/aiClient";
 import { BusinessProfile, loadBusinessProfile, saveBusinessProfile } from "@/lib/pdfDocument";
 import { clearAppPin, hasAppPin, setAppPin, verifyAppPin } from "@/lib/appLock";
 import { loadProfitReset, ProfitReset, saveProfitReset, startProfitFresh, undoProfitFresh } from "@/lib/profitReset";
@@ -164,6 +167,8 @@ export default function SettingsPage() {
       <AutoBackupSection />
 
       <DriveSection />
+
+      <ClaudeSection />
 
       <section className="section">
         <h2 className="section-title">المساعدة الذكية</h2>
@@ -1338,6 +1343,92 @@ function StorageUsageSection() {
           </li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+/** "المساعد الذكي (Claude)": the operator's own Anthropic API key - kept on this phone only (see
+ * aiSettings.ts), checked against Anthropic before it's saved. */
+function ClaudeSection() {
+  const [savedKey, setSavedKey] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => setSavedKey(getClaudeApiKey()), []);
+
+  async function save() {
+    const key = draft.trim();
+    if (!looksLikeClaudeKey(key)) {
+      setMessage("هذا لا يبدو مفتاح Claude - المفتاح يبدأ بـ sk-ant-");
+      return;
+    }
+    setBusy(true);
+    setMessage(null);
+    const result = await testClaudeKey(key);
+    setBusy(false);
+    if (!result.ok) {
+      setMessage(result.message);
+      return;
+    }
+    setClaudeApiKey(key);
+    setSavedKey(key);
+    setDraft("");
+    setMessage("✓ تم حفظ المفتاح - افتح «المساعد الذكي» من المزيد");
+  }
+
+  function remove() {
+    if (!window.confirm("حذف مفتاح Claude من هذا الهاتف؟")) return;
+    setClaudeApiKey(null);
+    setSavedKey(null);
+    setMessage("تم حذف المفتاح");
+  }
+
+  return (
+    <section className="section" id="claude">
+      <h2 className="section-title">✨ المساعد الذكي (Claude)</h2>
+      <p className="settings-hint">
+        يجيب عن أسئلتك من بياناتك، يكتب رسائل المطالبة، ويقرأ صور الإيصالات. يعمل بمفتاحك الخاص من Anthropic ({AI_MODEL_LABEL})،
+        وتُدفع التكلفة من رصيد حسابك هناك (السؤال عادة بضعة سنتات). المفتاح يبقى على هذا الهاتف فقط، ولا يدخل النسخ الاحتياطية.
+        كلمات المرور وجلسات الدخول لا تُرسل أبدًا.
+      </p>
+      {savedKey ? (
+        <>
+          <p className="settings-hint">
+            ✓ المفتاح محفوظ: <bdi dir="ltr">{maskClaudeKey(savedKey)}</bdi>
+          </p>
+          <div className="settings-actions">
+            <Link className="dialog-primary ai-setup-link" href="/assistant">
+              فتح المساعد
+            </Link>
+            <button type="button" className="text-action" onClick={remove}>
+              حذف المفتاح
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="auth-form">
+          <p className="settings-hint">
+            للحصول على مفتاح: افتح <bdi dir="ltr">console.anthropic.com</bdi> ← سجّل الدخول ← Billing (اشحن رصيدًا، أقل مبلغ 5 $) ←
+            API Keys ← Create Key، ثم انسخه والصقه هنا.
+          </p>
+          <input
+            className="search-input"
+            type="password"
+            dir="ltr"
+            autoComplete="off"
+            placeholder="sk-ant-..."
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+          />
+          <div className="settings-actions">
+            <button type="button" className="dialog-primary" disabled={busy || !draft.trim()} onClick={save}>
+              {busy ? "جارِ التحقق…" : "حفظ المفتاح"}
+            </button>
+          </div>
+        </div>
+      )}
+      {message && <div className={`account-card-alert${message.startsWith("✓") ? " backup-restored" : ""}`}>{message}</div>}
     </section>
   );
 }

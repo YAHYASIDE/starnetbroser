@@ -48,6 +48,7 @@ export function BottomNav() {
   const moreItems: MoreItem[] = [
     { label: "إضافة حساب", icon: "plus", color: "#2f80ff", tint: "#d6e6ff", action: "add-account" },
     ...(inApp ? [{ label: "مزامنة الآن", icon: "sync" as const, color: "#10b8cc", tint: "#d2f4f8", action: "sync" as const }] : []),
+    { label: "المساعد الذكي", icon: "sparkle", color: "#8b5cf6", tint: "#e6dcff", href: "/assistant" },
     { label: "التذكيرات", icon: "bell", color: "#f0455f", tint: "#ffd9df", href: "/reminders" },
     { label: "ستارلينك والبطاقة", icon: "card", color: "#1668e3", tint: "#d6e3fb", href: "/starlink" },
     { label: "العملات", icon: "coins", color: "#22c55e", tint: "#d4f7e1", href: "/currencies" },
@@ -127,7 +128,7 @@ export function BottomNav() {
 
 type IconName =
   | "home" | "people" | "chart" | "handshake" | "bag" | "more" | "bell" | "coins" | "trash" | "archive" | "card"
-  | "plus" | "sync" | "settings" | "close";
+  | "plus" | "sync" | "settings" | "close" | "sparkle";
 
 /** Line icons shared by the bottom bar and its "المزيد" sheet (stroke = currentColor). */
 function NavIcon({ name }: { name: IconName }) {
@@ -174,6 +175,7 @@ function NavIcon({ name }: { name: IconName }) {
       </>
     ),
     plus: <path d="M12 5v14M5 12h14" />,
+    sparkle: <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z" />,
     close: <path d="M6 6l12 12M18 6 6 18" />,
     sync: <path d="M20 11a8 8 0 0 0-14.3-4.9L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.9L20 16M20 20v-4h-4" />,
     settings: (
