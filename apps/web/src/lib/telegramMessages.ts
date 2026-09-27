@@ -39,6 +39,19 @@ export const DEFAULT_TELEGRAM_PREFS: TelegramPrefs = {
   repMonthly: true,
 };
 
+/**
+ * The bot token out of whatever was pasted: the bare token, the whole @BotFather message, or a
+ * copy carrying invisible direction marks / spaces / Arabic digits. Null when there's no token.
+ */
+export function cleanBotToken(raw: string): string | null {
+  const text = raw
+    .replace(/[\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff\u00a0]/g, "")
+    .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[\u06f0-\u06f9]/g, (d) => String(d.charCodeAt(0) - 0x06f0));
+  const match = /(\d{5,})\s*:\s*([A-Za-z0-9_-]{30,})/.exec(text);
+  return match ? `${match[1]}:${match[2]}` : null;
+}
+
 function currencyLabel(code: string): string {
   return LEDGER_CURRENCY_LABELS[code as LedgerCurrency] ?? code;
 }

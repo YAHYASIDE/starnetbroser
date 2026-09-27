@@ -7,6 +7,7 @@ import {
   buildEveningTelegram,
   buildMorningTelegram,
   buildPaymentTelegram,
+  cleanBotToken,
   daysUntilRenewal,
   matchParties,
   parseTelegramCommand,
@@ -109,5 +110,20 @@ describe("commands", () => {
     expect(matchParties("النور", c, s)).toEqual([{ kind: "supplier", id: "s1", name: "مؤسسة النور" }]);
     expect(matchParties("مؤسسه النور", c, s).map((m) => m.id)).toEqual(["s1"]);
     expect(matchParties("  ", c, s)).toEqual([]);
+  });
+});
+
+describe("cleanBotToken", () => {
+  const token = "123456789:AAFakeTokenForTestsOnly_abcdefghijk";
+  it("takes the token out of whatever was pasted", () => {
+    expect(cleanBotToken(token)).toBe(token);
+    expect(cleanBotToken(`  \u200f${token}\u200e\n`)).toBe(token);
+    expect(cleanBotToken(`Done! ...\nUse this token to access the HTTP API:\n${token}\nKeep your token secure`)).toBe(token);
+    expect(cleanBotToken("١٢٣٤٥٦٧٨٩:AAFakeTokenForTestsOnly_abcdefghijk")).toBe(token);
+  });
+  it("rejects text without a token", () => {
+    expect(cleanBotToken("")).toBeNull();
+    expect(cleanBotToken("starnet_reps_bot")).toBeNull();
+    expect(cleanBotToken("123:abc")).toBeNull();
   });
 });

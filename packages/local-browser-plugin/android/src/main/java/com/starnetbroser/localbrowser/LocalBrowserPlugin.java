@@ -431,7 +431,8 @@ public class LocalBrowserPlugin extends Plugin {
             } catch (TelegramClient.TelegramError e) {
                 call.reject(e.code == 401 || e.code == 404 ? "المفتاح غير صحيح - انسخه من جديد من @BotFather" : "رفض تيليغرام الطلب: " + e.getMessage());
             } catch (Exception e) {
-                call.reject("تعذر الاتصال بتيليغرام - تأكد من الإنترنت ثم حاول مجدداً");
+                // Only the failure's kind - its message could carry the request URL, which holds the token.
+                call.reject("تعذر الاتصال بتيليغرام - تأكد من الإنترنت ثم حاول مجدداً (" + e.getClass().getSimpleName() + ")");
             }
         });
     }

@@ -24,11 +24,13 @@ import {
   buildEveningTelegram,
   buildMorningTelegram,
   buildPaymentTelegram,
+  cleanBotToken,
   DEFAULT_TELEGRAM_PREFS,
   TelegramPrefs,
 } from "./telegramMessages";
 
 const PREFS_KEY = "starnet.telegramPrefs";
+const TOKEN_FORMAT_HELP = "هذا ليس مفتاح بوت - انسخ السطر الطويل الذي يبدأ بأرقام ثم «:» من آخر رسالة أرسلها لك @BotFather";
 /** A quick "is it connected" answer for buttons (the native store is the truth). */
 const CONNECTED_KEY = "starnet.telegramConnected";
 
@@ -103,8 +105,10 @@ export async function telegramConnection(): Promise<TelegramConnection> {
 
 export async function connectTelegram(token: string): Promise<{ ok: true; botName: string; chatName: string } | { ok: false; message: string }> {
   if (!isRunningInAndroidApp()) return { ok: false, message: "الربط يعمل داخل تطبيق أندرويد فقط" };
+  const clean = cleanBotToken(token);
+  if (!clean) return { ok: false, message: TOKEN_FORMAT_HELP };
   try {
-    const result = await LocalBrowser.telegramConnect({ token });
+    const result = await LocalBrowser.telegramConnect({ token: clean });
     safeSet(CONNECTED_KEY, "1");
     await saveTelegramPrefs(loadTelegramPrefs());
     return { ok: true, ...result };
@@ -242,8 +246,10 @@ function saveRepRequests(requests: RepLinkRequest[]) {
 
 export async function connectRepsBot(token: string): Promise<{ ok: true; botName: string } | { ok: false; message: string }> {
   if (!isRunningInAndroidApp()) return { ok: false, message: "الربط يعمل داخل تطبيق أندرويد فقط" };
+  const clean = cleanBotToken(token);
+  if (!clean) return { ok: false, message: TOKEN_FORMAT_HELP };
   try {
-    const result = await LocalBrowser.telegramConnect({ token, bot: "reps" });
+    const result = await LocalBrowser.telegramConnect({ token: clean, bot: "reps" });
     safeSet(REPS_CONNECTED_KEY, "1");
     await saveRepChats(loadRepChats());
     await saveTelegramPrefs(loadTelegramPrefs());
