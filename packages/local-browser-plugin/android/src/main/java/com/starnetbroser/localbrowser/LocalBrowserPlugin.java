@@ -584,8 +584,9 @@ public class LocalBrowserPlugin extends Plugin {
             call.resolve(ret);
             return;
         }
+        String markup = call.getString("replyMarkup");
         if (TelegramStore.isLinkedRepChat(getContext(), chatId)) {
-            TelegramSendWorker.enqueueToRep(getContext(), chatId, text);
+            TelegramSendWorker.enqueueToRep(getContext(), chatId, text, markup);
             ret.put("queued", true);
             call.resolve(ret);
             return;
@@ -597,7 +598,7 @@ public class LocalBrowserPlugin extends Plugin {
         }
         telegramExecutor.execute(() -> {
             try {
-                TelegramClient.sendMessage(TelegramStore.repsToken(getContext()), chatId, text);
+                TelegramClient.sendMessage(TelegramStore.repsToken(getContext()), chatId, text, markup);
                 ret.put("queued", true);
             } catch (Exception e) {
                 ret.put("queued", false);
@@ -624,7 +625,7 @@ public class LocalBrowserPlugin extends Plugin {
         if (!ready || text == null || text.trim().isEmpty()) {
             TelegramSendWorker.cancel(getContext(), key);
         } else {
-            TelegramSendWorker.schedule(getContext(), key, at, text, reps ? TelegramStore.REPS : TelegramStore.OWNER, reps ? chatId : null);
+            TelegramSendWorker.schedule(getContext(), key, at, text, reps ? TelegramStore.REPS : TelegramStore.OWNER, reps ? chatId : null, reps ? call.getString("replyMarkup") : null);
         }
         call.resolve();
     }

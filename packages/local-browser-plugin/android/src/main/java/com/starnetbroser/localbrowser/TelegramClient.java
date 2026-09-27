@@ -47,10 +47,16 @@ final class TelegramClient {
     }
 
     static JSONObject sendMessage(String token, String chatId, String text) throws IOException, TelegramError {
+        return sendMessage(token, chatId, text, null);
+    }
+
+    /** `replyMarkup`: Telegram reply_markup JSON (buttons), or null. */
+    static JSONObject sendMessage(String token, String chatId, String text, String replyMarkup) throws IOException, TelegramError {
         Map<String, String> params = new LinkedHashMap<>();
         params.put("chat_id", chatId);
         params.put("text", TelegramText.truncate(text, TelegramText.MAX_MESSAGE_CHARS));
         params.put("disable_web_page_preview", "true");
+        if (replyMarkup != null && !replyMarkup.isEmpty()) params.put("reply_markup", replyMarkup);
         return call(token, "sendMessage", params);
     }
 

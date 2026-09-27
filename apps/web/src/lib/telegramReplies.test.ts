@@ -34,6 +34,11 @@ describe("buildReplySnapshot", () => {
     expect(mine).toContain("جهاز-سالم");
     expect(mine).not.toContain("جهاز-علي");
     expect(snapshot.reps.r1!.statement).toContain("سالم");
+    expect(snapshot.reps.r1!.stopped).toContain("لا أجهزة موقوفة");
+    expect(snapshot.repSearch.r1!.map((e) => e.t.split("\n")[0])).toEqual(["📡 جهاز-سالم"]);
+    expect(snapshot.repSearch.r2).toBeUndefined();
+    expect(JSON.parse(snapshot.repKeyboard).keyboard).toHaveLength(3);
+    expect(snapshot.repWords["بحث"]).toBe("search");
   });
 
   it("owner answers, command words and templates", () => {

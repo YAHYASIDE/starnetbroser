@@ -32,17 +32,23 @@ import {
 import { buildReplySnapshot } from "./telegramReplies";
 import type { TelegramPollMessage } from "@starnet/local-browser-plugin";
 import { getCurrency, loadCurrencyStore } from "./currencyStore";
-import { loadRepresentativeStore, loadRepSettlements } from "./repStore";
+import { loadRepresentativeStore, loadRepSettlements, type Representative } from "./repStore";
 import {
   parseRepCommand,
   REP_HELP,
+  REP_KEYBOARD,
   repAccounts,
-  repDebtsText,
+  repDebtsReply,
   repDevicesText,
-  repExpiringText,
+  repExpiringReply,
   repLinkRequestReply,
   repMoney,
+  type RepCommand,
+  type RepReply,
+  repSearchIndex,
+  repSearchReply,
   repStatementText,
+  repStoppedReply,
 } from "./telegramRepMessages";
 import {
   answerCash,
@@ -148,31 +154,38 @@ export async function answerRepMessage(message: TelegramPollMessage, alreadyRepl
   }
   const rep = loadRepresentativeStore()[repId];
   if (!rep) return;
-  const command = parseRepCommand(message.text);
+  const reply = await repReplyFor(repId, rep, parseRepCommand(message.text));
+  await sendRepText(repId, reply.text, reply.markup ?? REP_KEYBOARD);
+}
+
+/** One rep command answered from the data right now (his own devices only). */
+async function repReplyFor(repId: string, rep: Representative, command: RepCommand): Promise<RepReply> {
   const today = localDay(new Date());
   const clients = loadClientStore();
+  const all = await loadAccounts();
+  const mine = repAccounts(all, repId);
   switch (command.kind) {
     case "help":
-      await sendRepText(repId, REP_HELP);
-      return;
-    case "unknown":
-      await sendRepText(repId, `لم أفهم «${message.text.slice(0, 40)}».\n\n${REP_HELP}`);
-      return;
+      return { text: REP_HELP };
     case "devices":
-      await sendRepText(repId, repDevicesText(repAccounts(await loadAccounts(), repId), clients, today));
-      return;
+      return { text: repDevicesText(mine, clients, today) };
     case "expiring":
-      await sendRepText(repId, repExpiringText(repAccounts(await loadAccounts(), repId), clients, today));
-      return;
+      return repExpiringReply(mine, clients, today);
+    case "stopped":
+      return repStoppedReply(mine, clients);
     case "debts":
-      await sendRepText(repId, repDebtsText(repId, await loadAccounts(), loadLedgerStore(), clients));
-      return;
+      return repDebtsReply(repId, all, loadLedgerStore(), clients);
+    case "search":
+      return repSearchReply(command.query, repSearchIndex(mine, clients, loadLedgerStore(), today));
+    case "unknown": {
+      const found = repSearchReply(command.text, repSearchIndex(mine, clients, loadLedgerStore(), today));
+      return found.text.startsWith("🔎 نتائج") ? found : { text: `${found.text}\n\n${REP_HELP}` };
+    }
     case "statement": {
       const currencies = loadCurrencyStore();
       const rates = { MRU: getCurrency(currencies, "MRU")?.rateFromUsd, SIFA: getCurrency(currencies, "SIFA")?.rateFromUsd };
       const figures = repMoney({ rep, month: today.slice(0, 7), ledgerStore: loadLedgerStore(), invoices: loadInvoices(), settlements: loadRepSettlements(), rates });
-      await sendRepText(repId, repStatementText(rep.name, today.slice(0, 7), figures));
-      return;
+      return { text: repStatementText(rep.name, today.slice(0, 7), figures) };
     }
   }
 }

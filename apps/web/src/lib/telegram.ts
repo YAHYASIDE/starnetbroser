@@ -17,7 +17,7 @@ import { getCurrency, loadCurrencyStore } from "./currencyStore";
 import { loadInvoices } from "./invoiceStore";
 import type { LedgerByAccount } from "./ledgerStore";
 import { loadRepresentativeStore, loadRepSettlements } from "./repStore";
-import { repAccounts, repMoney, repMorningText, repStatementText, repWelcomeText } from "./telegramRepMessages";
+import { REP_KEYBOARD, repAccounts, repMoney, repMorningMarkup, repMorningText, repStatementText, repWelcomeText } from "./telegramRepMessages";
 import type { PrintableDocument } from "./pdfDocument";
 import type { TelegramReplySnapshot } from "./telegramReplies";
 import { renderPrintablePdf } from "./pdfExport";
@@ -318,11 +318,11 @@ export function repIdForChat(chatId: string): string | undefined {
 }
 
 /** Queued to a linked rep; false when he isn't linked. */
-export async function sendRepText(repId: string, text: string): Promise<boolean> {
+export async function sendRepText(repId: string, text: string, replyMarkup: string = REP_KEYBOARD): Promise<boolean> {
   const chat = loadRepChats()[repId];
   if (!chat || !isRepsBotConnected()) return false;
   try {
-    return (await LocalBrowser.telegramSend({ text, bot: "reps", chatId: chat.chatId })).queued;
+    return (await LocalBrowser.telegramSend({ text, bot: "reps", chatId: chat.chatId, replyMarkup })).queued;
   } catch {
     return false;
   }
@@ -363,9 +363,11 @@ async function rescheduleRepMornings(accounts: StarlinkAccountSummary[], morning
   if (at.getTime() <= Date.now()) at.setDate(at.getDate() + 1);
   for (const [repId, chat] of Object.entries(loadRepChats())) {
     const rep = reps[repId];
-    const text = rep ? repMorningText(rep.name, repAccounts(accounts, repId), clients, localDay(at)) : null;
+    const mine = repAccounts(accounts, repId);
+    const text = rep ? repMorningText(rep.name, mine, clients, localDay(at)) : null;
+    const replyMarkup = repMorningMarkup(mine, clients, localDay(at));
     try {
-      await LocalBrowser.telegramSchedule({ key: repMorningKey(repId), at: at.getTime(), text: text ?? "", bot: "reps", chatId: chat.chatId });
+      await LocalBrowser.telegramSchedule({ key: repMorningKey(repId), at: at.getTime(), text: text ?? "", bot: "reps", chatId: chat.chatId, replyMarkup });
     } catch {
       // Tried again on the next data change.
     }

@@ -14,14 +14,20 @@ import type { LedgerByAccount } from "./ledgerStore";
 import type { RepresentativeStore, RepSettlementList } from "./repStore";
 import {
   REP_HELP,
+  REP_KEYBOARD,
+  REP_SEARCH_HINT,
   REP_WORDS,
   repAccounts,
-  repDebtsText,
+  repDebtsReply,
   repDevicesText,
-  repExpiringText,
+  repExpiringReply,
   repLinkRequestReply,
   repMoney,
+  type RepReply,
+  type RepSearchEntry,
+  repSearchIndex,
   repStatementText,
+  repStoppedReply,
 } from "./telegramRepMessages";
 import { answerCash, answerExpiring, answerStopped, buildEveningTelegram, TELEGRAM_HELP, WORDS } from "./telegramMessages";
 
@@ -37,7 +43,12 @@ export interface TelegramReplySnapshot {
   owner: Record<string, string>;
   ownerWords: Record<string, string>;
   repWords: Record<string, string>;
+  /** Per rep: kind -> text, and kind + "#kb" -> its buttons (reply_markup JSON). */
   reps: Record<string, Record<string, string>>;
+  /** Per rep: his devices, for search with the app closed. */
+  repSearch: Record<string, RepSearchEntry[]>;
+  repKeyboard: string;
+  searchHint: string;
 }
 
 function pad(n: number): string {
@@ -65,18 +76,26 @@ export function buildReplySnapshot(input: {
 }): TelegramReplySnapshot {
   const summary = buildEveningSummary({ day: input.today, accounts: input.accounts, ledgerStore: input.ledgerStore, cash: input.cash });
   const reps: Record<string, Record<string, string>> = {};
+  const repSearch: Record<string, RepSearchEntry[]> = {};
   const month = input.today.slice(0, 7);
   for (const repId of input.linkedRepIds) {
     const rep = input.representatives[repId];
     if (!rep) continue;
     const mine = repAccounts(input.accounts, repId);
     const figures = repMoney({ rep, month, ledgerStore: input.ledgerStore, invoices: input.invoices, settlements: input.settlements, rates: input.rates });
-    reps[repId] = {
-      devices: repDevicesText(mine, input.clients, input.today),
-      expiring: repExpiringText(mine, input.clients, input.today),
-      debts: repDebtsText(repId, input.accounts, input.ledgerStore, input.clients),
-      statement: repStatementText(rep.name, month, figures),
+    const replies: Record<string, RepReply> = {
+      devices: { text: repDevicesText(mine, input.clients, input.today) },
+      expiring: repExpiringReply(mine, input.clients, input.today),
+      stopped: repStoppedReply(mine, input.clients),
+      debts: repDebtsReply(repId, input.accounts, input.ledgerStore, input.clients),
+      statement: { text: repStatementText(rep.name, month, figures) },
     };
+    reps[repId] = {};
+    for (const [kind, reply] of Object.entries(replies)) {
+      reps[repId]![kind] = reply.text;
+      if (reply.markup) reps[repId]![`${kind}#kb`] = reply.markup;
+    }
+    repSearch[repId] = repSearchIndex(mine, input.clients, input.ledgerStore, input.today);
   }
   return {
     at: snapshotTime(input.now),
@@ -95,5 +114,8 @@ export function buildReplySnapshot(input: {
     ownerWords: { ...WORDS, "كشف": "statement", statement: "statement" },
     repWords: { ...REP_WORDS },
     reps,
+    repSearch,
+    repKeyboard: REP_KEYBOARD,
+    searchHint: REP_SEARCH_HINT,
   };
 }

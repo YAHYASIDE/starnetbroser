@@ -372,10 +372,11 @@ export interface LocalBrowserPlugin {
   /** The reps linked to the reps bot: repId -> chatId (replaces the previous map). */
   telegramSetRepChats(options: { chats: Record<string, string> }): Promise<void>;
   /** Queued natively: sent once there's a network, even if the app closes. Reps bot: to a linked
-   * rep's `chatId`, or with `reply` a one-off answer to someone who just wrote to the bot. */
-  telegramSend(options: { text: string; bot?: TelegramBot; chatId?: string; reply?: boolean }): Promise<{ queued: boolean }>;
+   * rep's `chatId`, or with `reply` a one-off answer to someone who just wrote to the bot.
+   * `replyMarkup`: Telegram reply_markup JSON (buttons). */
+  telegramSend(options: { text: string; bot?: TelegramBot; chatId?: string; reply?: boolean; replyMarkup?: string }): Promise<{ queued: boolean }>;
   /** Sends `text` at `at` (epoch ms), replacing what was scheduled under `key` ("morning"...). */
-  telegramSchedule(options: { key: string; at: number; text: string; bot?: TelegramBot; chatId?: string }): Promise<void>;
+  telegramSchedule(options: { key: string; at: number; text: string; bot?: TelegramBot; chatId?: string; replyMarkup?: string }): Promise<void>;
   telegramCancel(options: { key: string }): Promise<void>;
   telegramSendDocument(options: { fileName: string; base64: string; caption?: string; bot?: TelegramBot; chatId?: string }): Promise<void>;
   /** New messages to a bot (the app answers commands itself). */

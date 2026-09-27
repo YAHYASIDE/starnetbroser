@@ -3,6 +3,13 @@ import { describe, expect, it } from "vitest";
 import type { LedgerEntry } from "./ledgerStore";
 import type { Representative } from "./repStore";
 import {
+  normalizeSearch,
+  REP_KEYBOARD,
+  repExpiringReply,
+  repSearchIndex,
+  repSearchReply,
+  repStoppedReply,
+  tappablePhone,
   parseRepCommand,
   repAccounts,
   repDebtsText,
@@ -92,6 +99,61 @@ describe("rep commands", () => {
     expect(parseRepCommand("تنتهي")).toEqual({ kind: "expiring" });
     expect(parseRepCommand("كشفي")).toEqual({ kind: "statement" });
     expect(parseRepCommand("ديون زبائني")).toEqual({ kind: "debts" });
-    expect(parseRepCommand("الصندوق")).toEqual({ kind: "unknown" });
+    expect(parseRepCommand("الصندوق")).toEqual({ kind: "unknown", text: "الصندوق" });
+    // Keyboard buttons send the emoji too.
+    expect(parseRepCommand("📡 أجهزتي")).toEqual({ kind: "devices" });
+    expect(parseRepCommand("⛔️ الموقوفة")).toEqual({ kind: "stopped" });
+    expect(parseRepCommand("💰 ديون زبائني")).toEqual({ kind: "debts" });
+    expect(parseRepCommand("🔎 بحث محمد")).toEqual({ kind: "search", query: "محمد" });
+    expect(parseRepCommand("🔎 بحث")).toEqual({ kind: "search", query: "" });
+  });
+});
+
+describe("rep shortcuts", () => {
+  const mine = [
+    account("مقهى", "2026/09/28", { clientId: "c1" }),
+    account("منزل", "2026/10/20", { serviceStatus: "suspended", clientId: "c1" }),
+    account("بلا زبون", "2026/09/29"),
+  ];
+
+  it("keyboard has the six buttons", () => {
+    const keyboard = JSON.parse(REP_KEYBOARD);
+    expect(keyboard.keyboard.flat().map((b: { text: string }) => b.text)).toEqual([
+      "📡 أجهزتي", "📅 تنتهي", "⛔ الموقوفة", "💰 ديون زبائني", "📊 كشفي", "🔎 بحث",
+    ]);
+    expect(keyboard.is_persistent).toBe(true);
+    // Every button parses back to its command.
+    for (const b of keyboard.keyboard.flat()) expect(parseRepCommand(b.text).kind).not.toBe("unknown");
+  });
+
+  it("expiring and stopped come with WhatsApp buttons carrying a ready message", () => {
+    const expiring = repExpiringReply(mine, clients, TODAY);
+    const buttons = JSON.parse(expiring.markup!).inline_keyboard.flat();
+    expect(buttons).toHaveLength(1); // "بلا زبون" has no phone
+    expect(buttons[0].text).toBe("💬 محمد - مقهى");
+    expect(buttons[0].url).toMatch(/^https:\/\/wa\.me\/22212345\?text=/);
+    expect(decodeURIComponent(buttons[0].url)).toContain("ينتهي يوم 2026/09/28");
+    const stopped = repStoppedReply(mine, clients);
+    expect(stopped.text).toContain("• منزل - محمد");
+    expect(decodeURIComponent(JSON.parse(stopped.markup!).inline_keyboard[0][0].url)).toContain("متوقف");
+    expect(repStoppedReply([mine[0]!], clients)).toEqual({ text: "✓ لا أجهزة موقوفة لك حسب آخر مزامنة" });
+  });
+
+  it("search finds by client, device or phone, only among the given devices", () => {
+    const index = repSearchIndex(mine, clients, {}, TODAY);
+    const byClient = repSearchReply("مُحمّد", index);
+    expect(byClient.text).toContain("نتائج «مُحمّد» (2)");
+    expect(byClient.text).toContain("📅 التجديد: 2026/09/28 (بعد 1 يوم)");
+    expect(byClient.text).toContain("الحالة: ⛔ موقوف");
+    expect(repSearchReply("٢٢٢١٢", index).text).toContain("(2)");
+    expect(repSearchReply("بلا زبون", index).markup).toBeUndefined();
+    expect(repSearchReply("علي", index).text).toBe("🔎 لم أجد «علي» بين أجهزتك");
+    expect(repSearchReply("  ", index).text).toContain("اكتب اسم الزبون");
+  });
+
+  it("folding matches the Java service", () => {
+    expect(normalizeSearch("  أحمَد   مكة ١٢٣ ")).toBe("احمد مكه 123");
+    expect(tappablePhone("222 12 34 56 78")).toBe("+22212345678");
+    expect(tappablePhone("22212345")).toBe("22212345");
   });
 });

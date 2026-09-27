@@ -25,6 +25,9 @@ public class TelegramSendWorker extends Worker {
     static final String INPUT_TEXT = "text";
     static final String INPUT_BOT = "bot";
     static final String INPUT_CHAT_ID = "chatId";
+    static final String INPUT_MARKUP = "markup";
+    /** WorkManager refuses input Data over 10 KB - stay well under it. */
+    private static final int MAX_INPUT_BYTES = 9_000;
     private static final String SCHEDULED_PREFIX = "starnet_telegram_";
 
     public TelegramSendWorker(@NonNull Context context, @NonNull WorkerParameters params) {
@@ -42,6 +45,7 @@ public class TelegramSendWorker extends Worker {
         // so unlinking a rep also stops anything still queued for him).
         String chatId = reps ? getInputData().getString(INPUT_CHAT_ID) : TelegramStore.chatId(context);
         String token = TelegramStore.tokenFor(context, bot);
+        String markup = getInputData().getString(INPUT_MARKUP);
         if (text == null || text.trim().isEmpty() || token == null || chatId == null) {
             return Result.success();
         }
@@ -49,7 +53,7 @@ public class TelegramSendWorker extends Worker {
             return Result.success();
         }
         try {
-            TelegramClient.sendMessage(token, chatId, text);
+            TelegramClient.sendMessage(token, chatId, text, markup);
             return Result.success();
         } catch (IOException offline) {
             return getRunAttemptCount() < 8 ? Result.retry() : Result.failure();
@@ -59,12 +63,17 @@ public class TelegramSendWorker extends Worker {
         }
     }
 
-    private static OneTimeWorkRequest.Builder request(String text, String bot, String chatId) {
+    private static OneTimeWorkRequest.Builder request(String text, String bot, String chatId, String markup) {
         Constraints constraints = new Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build();
+        String body = TelegramText.truncate(text, TelegramText.MAX_MESSAGE_CHARS);
+        while (utf8(body) > MAX_INPUT_BYTES && body.length() > 100) body = TelegramText.truncate(body, body.length() * 4 / 5);
+        // Buttons are a nicety - dropped rather than let the message fail to queue at all.
+        if (markup != null && utf8(body) + utf8(markup) > MAX_INPUT_BYTES) markup = null;
         Data.Builder data = new Data.Builder()
-            .putString(INPUT_TEXT, TelegramText.truncate(text, TelegramText.MAX_MESSAGE_CHARS))
+            .putString(INPUT_TEXT, body)
             .putString(INPUT_BOT, bot == null ? TelegramStore.OWNER : bot);
         if (chatId != null) data.putString(INPUT_CHAT_ID, chatId);
+        if (markup != null && !markup.isEmpty()) data.putString(INPUT_MARKUP, markup);
         return new OneTimeWorkRequest.Builder(TelegramSendWorker.class)
             .setConstraints(constraints)
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
@@ -74,23 +83,31 @@ public class TelegramSendWorker extends Worker {
     /** To the operator, as soon as there's a network. */
     static void enqueue(Context context, String text) {
         if (!TelegramStore.isConfigured(context)) return;
-        WorkManager.getInstance(context).enqueue(request(text, TelegramStore.OWNER, null).build());
+        WorkManager.getInstance(context).enqueue(request(text, TelegramStore.OWNER, null, null).build());
     }
 
     /** To one linked rep through the reps bot. */
     static void enqueueToRep(Context context, String chatId, String text) {
+        enqueueToRep(context, chatId, text, null);
+    }
+
+    static void enqueueToRep(Context context, String chatId, String text, String markup) {
         if (!TelegramStore.isRepsConfigured(context) || !TelegramStore.isLinkedRepChat(context, chatId)) return;
-        WorkManager.getInstance(context).enqueue(request(text, TelegramStore.REPS, chatId).build());
+        WorkManager.getInstance(context).enqueue(request(text, TelegramStore.REPS, chatId, markup).build());
+    }
+
+    private static int utf8(String s) {
+        return s == null ? 0 : s.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
     }
 
     /** Sends at `atMillis` (or right away if that's past), replacing whatever was scheduled under
      * the same key ("morning", "evening", "rep_<id>"). */
-    static void schedule(Context context, String key, long atMillis, String text, String bot, String chatId) {
+    static void schedule(Context context, String key, long atMillis, String text, String bot, String chatId, String markup) {
         long delay = Math.max(0, atMillis - System.currentTimeMillis());
         WorkManager.getInstance(context).enqueueUniqueWork(
             SCHEDULED_PREFIX + key,
             ExistingWorkPolicy.REPLACE,
-            request(text, bot, chatId).setInitialDelay(delay, TimeUnit.MILLISECONDS).build()
+            request(text, bot, chatId, markup).setInitialDelay(delay, TimeUnit.MILLISECONDS).build()
         );
     }
 

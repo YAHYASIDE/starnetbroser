@@ -37,6 +37,19 @@ public class TelegramRepliesTest {
         Map<String, String> r2 = new HashMap<>();
         r2.put("devices", "R2 DEVICES");
         s.reps.put("r2", r2);
+        r1.put("stopped", "R1 STOPPED");
+        r1.put("stopped#kb", "{\"inline_keyboard\":[]}");
+        s.repWords.put("الموقوفة", "stopped");
+        s.repWords.put("بحث", "search");
+        s.repKeyboard = "KEYBOARD";
+        s.searchHint = "HINT";
+        java.util.List<TelegramReplies.SearchEntry> r1Devices = new java.util.ArrayList<>();
+        r1Devices.add(new TelegramReplies.SearchEntry("مقهي النخيل محمد احمد 22212345678", "CARD1", "💬 محمد", "https://wa.me/22212345678"));
+        r1Devices.add(new TelegramReplies.SearchEntry("منزل سالم", "CARD2", null, null));
+        s.repSearch.put("r1", r1Devices);
+        java.util.List<TelegramReplies.SearchEntry> r2Devices = new java.util.ArrayList<>();
+        r2Devices.add(new TelegramReplies.SearchEntry("جهاز علي محمد", "OTHER", null, null));
+        s.repSearch.put("r2", r2Devices);
         return s;
     }
 
@@ -47,6 +60,10 @@ public class TelegramRepliesTest {
         assertEquals("كشف", TelegramReplies.commandWord("كشف محمد"));
         assertEquals("", TelegramReplies.commandWord("   "));
         assertEquals("", TelegramReplies.commandWord(null));
+        // Keyboard buttons send the emoji too.
+        assertEquals("أجهزتي", TelegramReplies.commandWord("📡 أجهزتي"));
+        assertEquals("الموقوفة", TelegramReplies.commandWord("⛔️ الموقوفة"));
+        assertEquals("محمد", TelegramReplies.afterCommand("🔎 بحث محمد"));
     }
 
     @Test
@@ -76,9 +93,15 @@ public class TelegramRepliesTest {
         // r2 has no debts text prepared - never falls back to someone else's.
         assertEquals(TelegramReplies.NOT_READY, TelegramReplies.forRep("r2", "ديون", snapshot()).text);
         assertEquals(TelegramReplies.NOT_READY, TelegramReplies.forRep("r9", "أجهزتي", snapshot()).text);
-        // Owner-only words mean nothing to a rep.
-        assertEquals("لم أفهم «الصندوق».\n\nREP HELP", TelegramReplies.forRep("r1", "الصندوق", snapshot()).text);
+        // Owner-only words mean nothing to a rep - searched among his devices, then help.
+        assertEquals("🔎 لم أجد «الصندوق» بين أجهزتك\n\nREP HELP", TelegramReplies.forRep("r1", "الصندوق", snapshot()).text);
         assertEquals("REP HELP", TelegramReplies.forRep("r1", "/start", snapshot()).text);
+        assertEquals("KEYBOARD", TelegramReplies.forRep("r1", "/start", snapshot()).markup);
+        TelegramReplies.Reply stopped = TelegramReplies.forRep("r1", "⛔ الموقوفة", snapshot());
+        assertTrue(stopped.text.startsWith("R1 STOPPED"));
+        assertEquals("{\"inline_keyboard\":[]}", stopped.markup);
+        // No prepared buttons -> the keyboard.
+        assertEquals("KEYBOARD", TelegramReplies.forRep("r1", "أجهزتي", snapshot()).markup);
     }
 
     @Test
@@ -92,5 +115,26 @@ public class TelegramRepliesTest {
         assertNull(again.ownerNotice);
         assertFalse(again.toInbox);
         assertEquals("طلب من مستخدم", TelegramReplies.forUnlinked(" ", false, snapshot()).ownerNotice);
+    }
+
+    @Test
+    public void searchOnlyHisDevicesWithWhatsAppButtons() {
+        TelegramReplies.Reply byName = TelegramReplies.forRep("r1", "مُحمّد", snapshot());
+        assertTrue(byName.text.startsWith("🔎 نتائج «مُحمّد» (1):\n\nCARD1"));
+        assertFalse(byName.text.contains("OTHER"));
+        assertEquals("{\"inline_keyboard\":[[{\"text\":\"💬 محمد\",\"url\":\"https://wa.me/22212345678\"}]]}", byName.markup);
+        TelegramReplies.Reply byPhone = TelegramReplies.forRep("r1", "🔎 بحث ٢٢٢١٢", snapshot());
+        assertTrue(byPhone.text.contains("CARD1"));
+        TelegramReplies.Reply noButton = TelegramReplies.forRep("r1", "بحث سالم", snapshot());
+        assertTrue(noButton.text.contains("CARD2"));
+        assertEquals("KEYBOARD", noButton.markup);
+        assertEquals("HINT", TelegramReplies.forRep("r1", "🔎 بحث", snapshot()).text);
+        assertEquals("🔎 لم أجد «علي» بين أجهزتك", TelegramReplies.forRep("r1", "بحث علي", snapshot()).text);
+    }
+
+    @Test
+    public void normalizeMatchesTheApp() {
+        assertEquals("احمد مكه 123", TelegramReplies.normalize("  أحمَد   مكة ١٢٣ "));
+        assertEquals("\"a\\\"b\\nc\"", TelegramReplies.jsonString("a\"b\nc"));
     }
 }

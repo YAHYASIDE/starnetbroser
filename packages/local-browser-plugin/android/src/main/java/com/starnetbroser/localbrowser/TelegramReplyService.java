@@ -208,18 +208,18 @@ public class TelegramReplyService extends Service {
             }
         }
         if (reply.toInbox) addToInbox(context, bot, chatId, name, username, text, reply.text != null);
-        if (reply.text != null) send(context, bot, token, chatId, reply.text);
+        if (reply.text != null) send(context, bot, token, chatId, reply.text, reply.markup);
         if (reply.ownerNotice != null && TelegramStore.isConfigured(context)) {
-            send(context, TelegramStore.OWNER, TelegramStore.token(context), TelegramStore.chatId(context), reply.ownerNotice);
+            send(context, TelegramStore.OWNER, TelegramStore.token(context), TelegramStore.chatId(context), reply.ownerNotice, null);
         }
     }
 
     /** Right away; if the network drops, queued through TelegramSendWorker (linked chats only). */
-    private static void send(Context context, String bot, String token, String chatId, String text) {
+    private static void send(Context context, String bot, String token, String chatId, String text, String markup) {
         try {
-            TelegramClient.sendMessage(token, chatId, text);
+            TelegramClient.sendMessage(token, chatId, text, markup);
         } catch (IOException offline) {
-            if (TelegramStore.REPS.equals(bot)) TelegramSendWorker.enqueueToRep(context, chatId, text);
+            if (TelegramStore.REPS.equals(bot)) TelegramSendWorker.enqueueToRep(context, chatId, text, markup);
             else TelegramSendWorker.enqueue(context, text);
         } catch (TelegramClient.TelegramError rejected) {
             // Blocked the bot / chat gone - nothing to retry.
@@ -252,6 +252,23 @@ public class TelegramReplyService extends Service {
             s.owner = strings(json.optJSONObject("owner"));
             s.ownerWords = strings(json.optJSONObject("ownerWords"));
             s.repWords = strings(json.optJSONObject("repWords"));
+            s.repKeyboard = json.optString("repKeyboard", "");
+            s.searchHint = json.optString("searchHint", "");
+            JSONObject search = json.optJSONObject("repSearch");
+            if (search != null) {
+                Iterator<String> ids = search.keys();
+                while (ids.hasNext()) {
+                    String id = ids.next();
+                    JSONArray list = search.optJSONArray(id);
+                    java.util.List<TelegramReplies.SearchEntry> entries = new java.util.ArrayList<>();
+                    for (int i = 0; list != null && i < list.length(); i++) {
+                        JSONObject e = list.optJSONObject(i);
+                        if (e == null) continue;
+                        entries.add(new TelegramReplies.SearchEntry(e.optString("k", ""), e.optString("t", ""), e.optString("l", null), e.optString("w", null)));
+                    }
+                    s.repSearch.put(id, entries);
+                }
+            }
             JSONObject reps = json.optJSONObject("reps");
             if (reps != null) {
                 Iterator<String> ids = reps.keys();
