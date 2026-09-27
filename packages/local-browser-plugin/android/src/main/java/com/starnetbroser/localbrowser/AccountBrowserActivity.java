@@ -14,6 +14,7 @@ import android.view.ViewGroup;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -422,6 +423,17 @@ public class AccountBrowserActivity extends AppCompatActivity {
             if (request.isForMainFrame()) {
                 webView.setVisibility(View.GONE);
                 errorOverlay.setVisibility(View.VISIBLE);
+            }
+        }
+
+        /** Starlink's "429 Too many requests": pause the background sync (SyncPacing) so it
+         * stops adding to the load, and tell the operator it clears by itself in a minute. */
+        @Override
+        public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse response) {
+            super.onReceivedHttpError(view, request, response);
+            if (request.isForMainFrame() && response != null && response.getStatusCode() == 429) {
+                SyncPacing.recordRateLimited(AccountBrowserActivity.this, System.currentTimeMillis());
+                Toast.makeText(AccountBrowserActivity.this, R.string.starnet_rate_limited, Toast.LENGTH_LONG).show();
             }
         }
     }

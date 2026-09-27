@@ -6,6 +6,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -19,6 +20,7 @@ import com.getcapacitor.JSObject;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -66,6 +68,15 @@ public class AutoSyncWorker extends Worker {
     // previous one.
     private final AtomicInteger syncedAccountCount = new AtomicInteger();
 
+    /** Set when Starlink answered "429 Too many requests" during this run - the rest of the run
+     * is abandoned and SyncPacing's cooldown pauses the next ones. */
+    private final AtomicBoolean rateLimited = new AtomicBoolean(false);
+
+    /** One full (every-account) run at a time in this process: the hourly run and a "مزامنة
+     * الآن" run are separate WorkManager jobs and could otherwise load pages side by side. */
+    private static final AtomicBoolean FULL_RUN_ACTIVE = new AtomicBoolean(false);
+    private static final long WAIT_FOR_OTHER_RUN_MS = 35_000;
+
     public AutoSyncWorker(@NonNull Context context, @NonNull WorkerParameters params) {
         super(context, params);
     }
@@ -98,6 +109,31 @@ public class AutoSyncWorker extends Worker {
             return Result.success();
         }
 
+        // Starlink asked us to slow down recently - try again on a later run.
+        if (SyncPacing.inCooldown(SyncPacing.rateLimitedAt(context), System.currentTimeMillis())) {
+            return Result.success();
+        }
+
+        boolean fullRun = filterAccountId == null || filterAccountId.trim().isEmpty();
+        if (fullRun) {
+            // A replaced "مزامنة الآن" run may still be winding down - give it a moment.
+            long waitUntil = System.currentTimeMillis() + WAIT_FOR_OTHER_RUN_MS;
+            while (!FULL_RUN_ACTIVE.compareAndSet(false, true)) {
+                if (System.currentTimeMillis() > waitUntil || !sleepUnlessStopped(500)) {
+                    return Result.success();
+                }
+            }
+        }
+        try {
+            return runAccounts(context, entries, fullRun);
+        } finally {
+            if (fullRun) {
+                FULL_RUN_ACTIVE.set(false);
+            }
+        }
+    }
+
+    private Result runAccounts(Context context, List<AutoSyncAccountStore.Entry> entries, boolean fullRun) {
         String script;
         try {
             script = StarlinkExtractorSupport.loadExtractScript(context);
@@ -105,14 +141,57 @@ public class AutoSyncWorker extends Worker {
             return Result.retry();
         }
 
-        for (AutoSyncAccountStore.Entry entry : entries) {
-            if (isStopped()) {
+        if (fullRun) {
+            // Continue after the account the previous run reached, so a run cut short by its time
+            // budget or a 429 never keeps re-syncing only the first accounts in the list.
+            List<String> ids = new ArrayList<>();
+            for (AutoSyncAccountStore.Entry entry : entries) {
+                ids.add(entry.accountId);
+            }
+            entries = SyncPacing.rotate(entries, ids, SyncPacing.loadCursor(context));
+        }
+
+        long startedAt = System.currentTimeMillis();
+        Random random = new Random();
+        for (int i = 0; i < entries.size(); i++) {
+            if (isStopped() || rateLimited.get()) {
                 break;
             }
+            if (i > 0) {
+                if (!SyncPacing.hasTimeForAnother(startedAt, System.currentTimeMillis())) {
+                    break;
+                }
+                // One account at a time, with a pause - a burst of page loads from one phone is
+                // exactly what Starlink answers with "429 Too many requests".
+                if (!sleepUnlessStopped(SyncPacing.gapMs(random))) {
+                    break;
+                }
+            }
+            AutoSyncAccountStore.Entry entry = entries.get(i);
             syncOneAccountBlocking(context, entry, script);
+            if (fullRun && !rateLimited.get()) {
+                SyncPacing.saveCursor(context, entry.accountId);
+            }
         }
         SyncNotifier.notifySyncCompleted(context, syncedAccountCount.get());
         return Result.success();
+    }
+
+    /** Sleeps in short steps so a cancelled run stops promptly; false when it was stopped. */
+    private boolean sleepUnlessStopped(long ms) {
+        long until = System.currentTimeMillis() + ms;
+        while (System.currentTimeMillis() < until) {
+            if (isStopped()) {
+                return false;
+            }
+            try {
+                Thread.sleep(Math.min(500, Math.max(1, until - System.currentTimeMillis())));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        }
+        return !isStopped();
     }
 
     private void syncOneAccountBlocking(Context context, AutoSyncAccountStore.Entry entry, String script) {
@@ -176,12 +255,27 @@ public class AutoSyncWorker extends Worker {
             new WebViewClient() {
                 @Override
                 public void onPageFinished(WebView view, String url) {
-                    mainHandler.postDelayed(() -> readAndSave(context, webView, entry, script, teardown), SETTLE_DELAY_MS);
+                    mainHandler.postDelayed(() -> {
+                        // Already torn down (an error or a 429 page that still "finished") - the
+                        // WebView is destroyed, nothing to read.
+                        if (!handled.get()) {
+                            readAndSave(context, webView, entry, script, teardown);
+                        }
+                    }, SETTLE_DELAY_MS);
                 }
 
                 @Override
                 public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
                     if (request.isForMainFrame()) {
+                        teardown.run();
+                    }
+                }
+
+                @Override
+                public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse response) {
+                    if (request.isForMainFrame() && response != null && response.getStatusCode() == 429) {
+                        rateLimited.set(true);
+                        SyncPacing.recordRateLimited(context, System.currentTimeMillis());
                         teardown.run();
                     }
                 }
