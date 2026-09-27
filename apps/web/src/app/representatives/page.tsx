@@ -75,6 +75,7 @@ import { listAccounts } from "@/lib/apiClient";
 import { partyHue, partyInitials } from "@/lib/partyColor";
 import { buildRepSummaryMessage, buildWhatsAppLink } from "@/lib/whatsapp";
 import { PartySheet } from "@/components/AccountsSection";
+import { repDevicesDebt } from "@/lib/repDebts";
 import { confirmClosedMonthChange, ledgerEntryMonthDates, monthLabel, monthRange, recentMonths } from "@/lib/monthClosing";
 
 const EPSILON = 0.0001;
@@ -509,6 +510,9 @@ function RepCard({
   const deviceRows = active.deviceRows;
   const deviceTotals = useMemo(() => totalRepDeviceCommissions(deviceRows), [deviceRows]);
   const devices = accounts.filter((a) => a.representativeId === rep.id);
+  // What the customers of his devices still owe us - per currency, never converted.
+  const devicesDebt = useMemo(() => repDevicesDebt(rep.id, accounts, ledgerStore), [rep.id, accounts, ledgerStore]);
+  const owedByDevice = new Map(devicesDebt.rows.map((row) => [row.accountId, row.owed]));
 
   const allDays = useMemo(() => {
     if (panel !== "statement" && sheet?.kind !== "reset") return [];
@@ -585,6 +589,11 @@ function RepCard({
           <span>{balanceSign < -EPSILON ? "عليه" : "مستحق له"}</span>
           <StatValues values={netBalance} absolute />
         </div>
+      </div>
+
+      <div className={`rep-devices-debt${devicesDebt.rows.length > 0 ? " rep-devices-debt-due" : ""}`}>
+        <span>💳 ديون أجهزته على الزبائن{devicesDebt.rows.length > 0 ? ` (${devicesDebt.rows.length} جهاز)` : ""}</span>
+        {devicesDebt.rows.length === 0 ? <strong>لا ديون ✓</strong> : <StatValues values={devicesDebt.totalByCurrency} />}
       </div>
 
       <div className="party-chips">
@@ -739,6 +748,17 @@ function RepCard({
                     <span className="party-device-date" dir="ltr">📅 {device.rechargeDate || "—"}</span>
                   </div>
                   <span className="party-statement-note">{getClient(clientStore, device.clientId)?.name ?? "بدون زبون"}</span>
+                  {owedByDevice.has(device.id) && (
+                    <span className="rep-device-owed">
+                      عليه{" "}
+                      {Object.entries(owedByDevice.get(device.id)!).map(([code, v], i) => (
+                        <span key={code}>
+                          {i > 0 && " · "}
+                          <bdi dir="ltr">{formatAmount(v)}</bdi> {currencyLabel(code)}
+                        </span>
+                      ))}
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>

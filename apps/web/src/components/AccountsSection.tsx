@@ -3,7 +3,9 @@
 import { DateInput } from "./DateInput";
 import { CSSProperties, FormEvent, useMemo, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
-import { Client, CreateClientInput } from "@/lib/clientStore";
+import { Client, clientDeleteQuestion, CreateClientInput } from "@/lib/clientStore";
+import { clientRepNames } from "@/lib/repDebts";
+import type { RepresentativeStore } from "@/lib/repStore";
 import { CreateSupplierInput, Supplier } from "@/lib/supplierStore";
 import {
   computeBalanceByCurrency,
@@ -136,6 +138,10 @@ interface PartyDirectoryProps extends Props {
   /** When given, every client card also offers "بطاقة الزبون" (the full per-device accounting
    * card, ClientDialog). */
   onOpenClientCard?: (client: Client) => void;
+  /** When given, a client's edit form offers "حذف الزبون" (the page unlinks their devices). */
+  onDeleteClient?: (clientId: string) => void;
+  /** Representatives - a client whose devices belong to a rep shows that rep's name on the card. */
+  representatives?: RepresentativeStore;
 }
 
 /** Clients and suppliers on two separate tabs (never one mixed list), each party a colour-coded
@@ -158,6 +164,8 @@ export function PartyDirectory({
   onUpdateAdjustment,
   onMoveAdjustmentToDevice,
   onOpenClientCard,
+  onDeleteClient,
+  representatives,
 }: PartyDirectoryProps) {
   const [tab, setTab] = useState<PartyTab>("clients");
   const [query, setQuery] = useState("");
@@ -291,6 +299,17 @@ export function PartyDirectory({
                     setEditingPartyId(null);
                   }}
                   onCancel={() => setEditingPartyId(null)}
+                  onDelete={
+                    isClients && onDeleteClient
+                      ? () => {
+                          const remaining = Object.fromEntries(Object.entries(totals).map(([c, t]) => [c, t.remaining]));
+                          const linked = accounts.filter((a) => a.clientId === party.id).length;
+                          if (!window.confirm(clientDeleteQuestion(party.name, linked, remaining, currencyLabel))) return;
+                          onDeleteClient(party.id);
+                          setEditingPartyId(null);
+                        }
+                      : undefined
+                  }
                 />
               </li>
             ) : (
@@ -309,6 +328,7 @@ export function PartyDirectory({
                 devices={isClients ? accounts.filter((a) => a.clientId === party.id && !a.deletedAt) : []}
                 ledgerStore={ledgerStore}
                 creditLimit={isClients ? (party as Client).creditLimit : undefined}
+                repNames={isClients && representatives ? clientRepNames(party.id, accounts, representatives) : []}
                 onEdit={() => setEditingPartyId(party.id)}
                 onOpenCard={isClients && onOpenClientCard ? () => onOpenClientCard(party as Client) : undefined}
               />
@@ -334,6 +354,8 @@ interface PartyCardProps {
   devices: StarlinkAccountSummary[];
   ledgerStore: LedgerByAccount;
   creditLimit?: number;
+  /** The reps of this client's devices - shown as a tag at the top of the card. */
+  repNames?: string[];
   onEdit: () => void;
   onOpenCard?: () => void;
 }
@@ -355,6 +377,7 @@ function PartyCard({
   devices,
   ledgerStore,
   creditLimit,
+  repNames = [],
   onEdit,
   onOpenCard,
 }: PartyCardProps) {
@@ -411,6 +434,11 @@ function PartyCard({
       className={`party-card party-card-${isClient ? "client" : "supplier"}`}
       style={{ "--party-hue": partyHue(party.id) } as CSSProperties}
     >
+      {repNames.length > 0 && (
+        <span className="party-rep-tag" title="مندوب أجهزة هذا الزبون">
+          🤝 المندوب: {repNames.join("، ")}
+        </span>
+      )}
       <div className="party-card-head">
         <span className="party-avatar" aria-hidden="true">{partyInitials(party.name)}</span>
         <div className="party-card-title">
@@ -921,9 +949,10 @@ interface PartyFormProps {
   showCreditLimit?: boolean;
   onSubmit: (input: CreateClientInput) => void;
   onCancel: () => void;
+  onDelete?: () => void;
 }
 
-function PartyForm({ initial, submitLabel, namePlaceholder, showCreditLimit, onSubmit, onCancel }: PartyFormProps) {
+function PartyForm({ initial, submitLabel, namePlaceholder, showCreditLimit, onSubmit, onCancel, onDelete }: PartyFormProps) {
   const [name, setName] = useState(initial?.name ?? "");
   const [phoneDialCode, setPhoneDialCode] = useState(() => splitPhoneNumber(initial?.phone).dialCode);
   const [phoneLocalNumber, setPhoneLocalNumber] = useState(() => splitPhoneNumber(initial?.phone).localNumber);
@@ -983,6 +1012,11 @@ function PartyForm({ initial, submitLabel, namePlaceholder, showCreditLimit, onS
           إلغاء
         </button>
       </div>
+      {onDelete && (
+        <button type="button" className="dialog-danger party-delete" onClick={onDelete}>
+          🗑 حذف الزبون
+        </button>
+      )}
     </form>
   );
 }

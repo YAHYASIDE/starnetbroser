@@ -7142,3 +7142,56 @@ button.today-tile {
   border-bottom: 0;
   font-size: 1.05rem;
 }
+
+/* Clients: the rep of this client's devices, top of the card (start = right in RTL). */
+.party-rep-tag {
+  align-self: flex-start;
+  max-width: 100%;
+  margin-block-end: -4px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--violet-bg);
+  color: var(--violet);
+  font-size: 0.75rem;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.party-delete {
+  width: 100%;
+  margin-top: 4px;
+}
+
+/* Representatives: what the customers of his devices still owe. */
+.rep-devices-debt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  font-size: 0.85rem;
+}
+
+.rep-devices-debt > span {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.rep-devices-debt strong {
+  color: var(--green);
+}
+
+.rep-devices-debt-due strong {
+  color: var(--red);
+}
+
+.rep-device-owed {
+  color: var(--red);
+  font-size: 0.8rem;
+  font-weight: 700;
+}

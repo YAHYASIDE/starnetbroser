@@ -10,6 +10,7 @@ import {
   ClientStore,
   createClient,
   CreateClientInput,
+  deleteClient,
   getClient,
   listClients,
   loadClientStore,
@@ -30,7 +31,8 @@ import { LedgerByAccount, loadLedgerStore } from "@/lib/ledgerStore";
 import { AllocationsByAccount, loadAllocationStore } from "@/lib/paymentAllocationStore";
 import { demoAccounts } from "@/lib/demoData";
 import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
-import { loadDemoAccounts } from "@/lib/demoAccountStore";
+import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
+import { loadRepresentativeStore, RepresentativeStore } from "@/lib/repStore";
 import { listAccounts } from "@/lib/apiClient";
 import {
   deletePartyAdjustment,
@@ -55,6 +57,7 @@ export default function ClientsPage() {
   const [accounts, setAccounts] = useState<StarlinkAccountSummary[]>(demoAccounts);
   const [partyAdjustments, setPartyAdjustments] = useState<PartyAdjustmentList>([]);
   const [openClientId, setOpenClientId] = useState<string | null>(null);
+  const [representatives, setRepresentatives] = useState<RepresentativeStore>({});
 
   useEffect(() => {
     setClientStore(loadClientStore());
@@ -63,6 +66,7 @@ export default function ClientsPage() {
     setLedgerStore(loadLedgerStore());
     setAllocationStore(loadAllocationStore());
     setPartyAdjustments(loadPartyAdjustments());
+    setRepresentatives(loadRepresentativeStore());
     if (isDemoMode()) {
       setAccounts(loadDemoAccounts(demoAccounts));
       return;
@@ -85,6 +89,20 @@ export default function ClientsPage() {
     const next = updateClient(clientStore, clientId, input);
     setClientStore(next);
     saveClientStore(next);
+  }
+
+  /** Removes the client record only: their devices are unlinked (kept, with every operation), and
+   * invoices / balance entries stay as history. */
+  function handleDeleteClient(clientId: string) {
+    if (accounts.some((a) => a.clientId === clientId)) {
+      const nextAccounts = accounts.map((a) => (a.clientId === clientId ? { ...a, clientId: undefined } : a));
+      setAccounts(nextAccounts);
+      if (isDemoMode()) saveDemoAccounts(nextAccounts);
+    }
+    const next = deleteClient(clientStore, clientId);
+    setClientStore(next);
+    saveClientStore(next);
+    setOpenClientId(null);
   }
 
   function handleCreateSupplier(input: CreateSupplierInput) {
@@ -193,6 +211,8 @@ export default function ClientsPage() {
           onCreateSupplier={handleCreateSupplier}
           onUpdateSupplier={handleUpdateSupplier}
           onOpenClientCard={(client: Client) => setOpenClientId(client.id)}
+          onDeleteClient={handleDeleteClient}
+          representatives={representatives}
         />
       </section>
 
@@ -205,6 +225,7 @@ export default function ClientsPage() {
           allocationStore={allocationStore}
           onClose={() => setOpenClientId(null)}
           onSave={(patch) => handleUpdateClient(openClient.id, { ...patch, creditLimit: openClient.creditLimit })}
+          onDelete={() => handleDeleteClient(openClient.id)}
           onLedgerChange={setLedgerStore}
         />
       )}

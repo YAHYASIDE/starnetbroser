@@ -6,6 +6,8 @@
  * client picker (never inferred from name/email similarity).
  */
 
+import { formatAmount } from "./formatAmount";
+
 export interface Client {
   id: string;
   name: string;
@@ -124,4 +126,22 @@ export function deleteClient(store: ClientStore, clientId: string): ClientStore 
   const next = { ...store };
   delete next[clientId];
   return next;
+}
+
+/** The question asked before deleting a client: what they still owe (per currency, never
+ * converted), how many devices get unlinked, and that every invoice and record stays. */
+export function clientDeleteQuestion(
+  name: string,
+  linkedDevices: number,
+  remainingByCurrency: Record<string, number>,
+  currencyName: (code: string) => string = (code) => code,
+): string {
+  const owed = Object.entries(remainingByCurrency)
+    .filter(([, v]) => Math.abs(v) > 0.005)
+    .map(([c, v]) => `${v > 0 ? "عليه" : "له"} ${formatAmount(Math.abs(v))} ${currencyName(c)}`);
+  const lines = [`حذف الزبون "${name}"؟`];
+  if (owed.length > 0) lines.push(`⚠️ حسابه غير مسدَّد: ${owed.join("، ")}.`);
+  if (linkedDevices > 0) lines.push(`سيُفك ارتباط ${linkedDevices} جهاز عنه (الأجهزة وعملياتها تبقى).`);
+  lines.push("فواتيره وسجلاته السابقة تبقى محفوظة، ويُحذف اسمه من قائمة الزبائن فقط.");
+  return lines.join("\n");
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   Client,
+  clientDeleteQuestion,
   countLinkedAccounts,
   createClient,
   deleteClient,
@@ -160,5 +161,23 @@ describe("deleteClient", () => {
     const store = { a: client({ id: "a" }), b: client({ id: "b", name: "آخر" }) };
     const next = deleteClient(store, "a");
     expect(next).toEqual({ b: client({ id: "b", name: "آخر" }) });
+  });
+});
+
+describe("clientDeleteQuestion", () => {
+  it("warns about an unpaid balance per currency and the devices that get unlinked", () => {
+    const q = clientDeleteQuestion("سالم", 2, { MRU: 1500, USD: -20, SIFA: 0 });
+    expect(q).toContain('حذف الزبون "سالم"؟');
+    expect(q).toContain("عليه 1,500 MRU");
+    expect(q).toContain("له 20 USD");
+    expect(q).not.toContain("SIFA");
+    expect(q).toContain("فك ارتباط 2 جهاز");
+    expect(q).toContain("تبقى محفوظة");
+  });
+
+  it("stays short for a settled client with no devices", () => {
+    const q = clientDeleteQuestion("علي", 0, { MRU: 0 });
+    expect(q).not.toContain("غير مسدَّد");
+    expect(q).not.toContain("جهاز");
   });
 });
