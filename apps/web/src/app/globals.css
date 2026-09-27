@@ -7195,3 +7195,181 @@ button.today-tile {
   font-size: 0.8rem;
   font-weight: 700;
 }
+
+/* Home: floating "+" above the nav bar (bottom-left), opening جهاز جديد / دفعة من زبون. */
+.home-fab-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 91;
+  background: rgb(0 0 0 / 0.35);
+  animation: home-fab-fade 0.15s ease-out;
+}
+
+.home-fab {
+  position: fixed;
+  z-index: 92;
+  left: 16px;
+  bottom: calc(var(--bottom-nav-height) + var(--safe-bottom) + 12px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  direction: ltr;
+}
+
+.home-fab-button {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border: none;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2f80ff, #1558d6);
+  color: #fff;
+  font-size: 2rem;
+  line-height: 1;
+  box-shadow: 0 10px 26px rgb(21 88 214 / 0.45);
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.home-fab-button span {
+  display: block;
+  transform: translateY(-2px);
+  transition: transform 0.2s ease;
+}
+
+.home-fab-open .home-fab-button span {
+  transform: translateY(-2px) rotate(45deg);
+}
+
+.home-fab-menu {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-fab-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  animation: home-fab-pop 0.18s ease-out both;
+}
+
+.home-fab-item-icon {
+  order: -1;
+  flex-shrink: 0;
+  margin-inline-start: 5px;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  font-size: 1.35rem;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.3);
+}
+
+.home-fab-item-device .home-fab-item-icon {
+  background: #2f80ff;
+}
+
+.home-fab-item-payment .home-fab-item-icon {
+  background: #0e9f6e;
+}
+
+.home-fab-item-label {
+  padding: 6px 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.25);
+  direction: rtl;
+}
+
+@keyframes home-fab-pop {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.9);
+  }
+}
+
+@keyframes home-fab-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* "دفعة من زبون": pick the device. */
+.payment-search {
+  flex: none;
+}
+
+.payment-targets {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 55vh;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.payment-target {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  color: var(--text);
+  text-align: start;
+  cursor: pointer;
+}
+
+.payment-target-names {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.payment-target-names strong,
+.payment-target-names span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.payment-target-names span {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.payment-target-due,
+.payment-target-clear {
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.payment-target-due {
+  color: var(--red);
+}
+
+.payment-target-clear {
+  color: var(--green);
+}

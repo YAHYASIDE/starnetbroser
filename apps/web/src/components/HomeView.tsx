@@ -10,6 +10,7 @@ import { AccountCard, AccountCardContext } from "./AccountCard";
 import { DayCircles } from "./DayCircles";
 import { ConnectionStatus } from "./ConnectionStatus";
 import { AccountDialog, AccountDialogMode } from "./AccountDialog";
+import { HomeFab } from "./HomeFab";
 import { LedgerDialog } from "./LedgerDialog";
 import { ClientDialog } from "./ClientDialog";
 import { ClientsOverviewDialog } from "./ClientsOverviewDialog";
@@ -226,6 +227,8 @@ export function HomeView({
   const [remindersBadgeEnabled, setRemindersBadgeEnabled] = useState(true);
   useEffect(() => setRemindersBadgeEnabled(isRemindersBadgeEnabled()), []);
   const [ledgerAccount, setLedgerAccount] = useState<StarlinkAccountSummary | null>(null);
+  // True when the ledger was opened from the floating "+" → دفعة من زبون (starts on "له").
+  const [ledgerForPayment, setLedgerForPayment] = useState(false);
   const [statementAccount, setStatementAccount] = useState<StarlinkAccountSummary | null>(null);
   const [editingStatementEntry, setEditingStatementEntry] = useState<LedgerEntry | null>(null);
 
@@ -1210,6 +1213,19 @@ export function HomeView({
         )}
       </section>
 
+      {viewMode === "active" && !dialog && !ledgerAccount && (
+        <HomeFab
+          accounts={accounts}
+          clientStore={clientStore}
+          ledgerStore={ledgerStore}
+          onAddDevice={() => setDialog({ mode: "add" })}
+          onPayment={(account) => {
+            setLedgerForPayment(true);
+            setLedgerAccount(account);
+          }}
+        />
+      )}
+
       {dialog && (
         <AccountDialog
           mode={dialog.mode}
@@ -1243,7 +1259,11 @@ export function HomeView({
           allocations={allAllocations}
           onAddAllocations={(newOnes) => addAllocationsToAccount(ledgerAccount.id, newOnes)}
           onRemoveEntryAllocations={removeAllocationsEverywhere}
-          onClose={() => setLedgerAccount(null)}
+          onClose={() => {
+            setLedgerAccount(null);
+            setLedgerForPayment(false);
+          }}
+          initialKind={ledgerForPayment ? "credit" : "debit"}
           onChange={(entries) => updateLedgerEntries(ledgerAccount.id, entries)}
           renewalPlan={ledgerAccount.renewalPlan}
           clientName={getClient(clientStore, ledgerAccount.clientId)?.name}

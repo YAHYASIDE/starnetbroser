@@ -91,6 +91,8 @@ interface Props {
   /** The linked client, shown on payment receipts (سند قبض). */
   clientName?: string;
   clientPhone?: string;
+  /** "credit" opens the form ready for a payment (له) - the home page's "دفعة من زبون". */
+  initialKind?: LedgerEntryKind;
 }
 
 /** Builds one device's own allocation-dialog data: its eligible (same-currency, not-yet-fully-
@@ -138,8 +140,9 @@ export function LedgerDialog({
   renewalPlan,
   clientName,
   clientPhone,
+  initialKind = "debit",
 }: Props) {
-  const [kind, setKind] = useState<LedgerEntryKind>("debit");
+  const [kind, setKind] = useState<LedgerEntryKind>(initialKind);
   // أوقية (MRU) is the actual day-to-day currency this business sells in - USD is only the
   // internal reference currency, never what a new entry should default to.
   const planSaleCurrency =
@@ -147,7 +150,7 @@ export function LedgerDialog({
       ? (renewalPlan.saleCurrency as LedgerCurrency)
       : undefined;
   const [currency, setCurrency] = useState<LedgerCurrency>(planSaleCurrency ?? "MRU");
-  const [amount, setAmount] = useState(renewalPlan && planSaleCurrency ? String(renewalPlan.saleAmount) : "");
+  const [amount, setAmount] = useState(renewalPlan && planSaleCurrency && initialKind === "debit" ? String(renewalPlan.saleAmount) : "");
   const [note, setNote] = useState("");
   // Prefilled from the device's own already-known email when available - still a plain field the
   // operator can freely clear or change per entry, never locked to it.
