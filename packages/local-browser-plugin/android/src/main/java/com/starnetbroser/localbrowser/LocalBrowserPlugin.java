@@ -544,6 +544,47 @@ public class LocalBrowserPlugin extends Plugin {
         call.resolve();
     }
 
+    /** The phone maker's own "app launch / autostart" screen (HONOR, Huawei, Xiaomi, Oppo, Vivo,
+     * Tecno/Infinix), where background running must be allowed by hand; the app's details page
+     * when the maker has none. Resolves with which one opened. */
+    @PluginMethod
+    public void openAutostartSettings(PluginCall call) {
+        String[][] screens = {
+            {"com.hihonor.systemmanager", "com.hihonor.systemmanager.startupmgr.ui.StartupNormalAppListActivity"},
+            {"com.huawei.systemmanager", "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity"},
+            {"com.huawei.systemmanager", "com.huawei.systemmanager.optimize.process.ProtectActivity"},
+            {"com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity"},
+            {"com.coloros.safecenter", "com.coloros.safecenter.permission.startup.StartupAppListActivity"},
+            {"com.oplus.safecenter", "com.oplus.safecenter.permission.startup.StartupAppListActivity"},
+            {"com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.BgStartUpManagerActivity"},
+            {"com.transsion.phonemaster", "com.cyin.himgr.autostart.AutoStartActivity"},
+        };
+        for (String[] screen : screens) {
+            try {
+                Intent intent = new Intent();
+                intent.setComponent(new android.content.ComponentName(screen[0], screen[1]));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(intent);
+                JSObject ret = new JSObject();
+                ret.put("opened", "maker");
+                call.resolve(ret);
+                return;
+            } catch (RuntimeException notOnThisPhone) {
+                // try the next maker
+            }
+        }
+        try {
+            Intent details = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getContext().getPackageName()));
+            details.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(details);
+            JSObject ret = new JSObject();
+            ret.put("opened", "app");
+            call.resolve(ret);
+        } catch (RuntimeException ignored) {
+            call.reject("افتح إعدادات الهاتف ← التطبيقات ← STAR NET يدوياً");
+        }
+    }
+
     /** A link request the operator dismissed: if that person writes again he's answered again. */
     @PluginMethod
     public void telegramForgetRequest(PluginCall call) {

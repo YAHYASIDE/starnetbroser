@@ -45,6 +45,7 @@ import {
   isRepsBotConnected,
   isTelegramConnected,
   isTelegramInstant,
+  openAutostartSettings,
   requestBatteryUnrestricted,
   setTelegramInstant,
   telegramServiceState,
@@ -1401,6 +1402,18 @@ function TelegramInstantSection() {
             >
               🔄 إعادة تشغيل الرد
             </button>
+          </div>
+          <div className="telegram-autostart">
+            <p className="settings-hint">
+              📲 <strong>مهم في هواتف HONOR و Huawei</strong> (وشاومي، أوبو، فيفو، تكنو): الهاتف يجمّد التطبيق عند الخروج منه فلا يرد
+              البوت حتى تفتحه. اضغط الزر، ابحث عن STAR NET، أطفئ «الإدارة التلقائية» ثم فعّل الثلاثة: التشغيل التلقائي، التشغيل
+              الثانوي، التشغيل في الخلفية.
+            </p>
+            <div className="settings-actions">
+              <button type="button" className="dialog-primary" onClick={() => void openAutostartSettings()}>
+                فتح «تشغيل التطبيقات» في الهاتف
+              </button>
+            </div>
           </div>
           <details className="telegram-diag">
             <summary>🩺 تشخيص (أرسل صورته إن لم يعمل الرد)</summary>

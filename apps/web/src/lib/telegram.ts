@@ -446,6 +446,15 @@ export async function telegramServiceState(): Promise<TelegramServiceState | nul
   }
 }
 
+/** The phone maker's "app launch / autostart" screen, where background running is allowed. */
+export async function openAutostartSettings(): Promise<void> {
+  try {
+    await LocalBrowser.openAutostartSettings();
+  } catch {
+    // The hint explains the manual path.
+  }
+}
+
 export async function requestBatteryUnrestricted(): Promise<void> {
   try {
     await LocalBrowser.requestBatteryUnrestricted();

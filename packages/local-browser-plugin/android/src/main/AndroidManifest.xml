@@ -13,6 +13,9 @@
     <!-- Lets the operator exempt STAR NET from battery optimization (one system dialog, from
          الإعدادات) so the bot keeps answering on phones that otherwise stop background apps. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- TelegramReplyService keeps the CPU awake while it waits for Telegram, so phones that freeze
+         background work (HONOR/Huawei and others) still answer reps within seconds. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application>
         <!--

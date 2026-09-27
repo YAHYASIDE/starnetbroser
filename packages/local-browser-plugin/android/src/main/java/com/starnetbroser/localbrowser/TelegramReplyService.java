@@ -32,7 +32,8 @@ import org.json.JSONObject;
  */
 public class TelegramReplyService extends Service {
 
-    private static final String CHANNEL_ID = "starnet_telegram_bot";
+    /** Low (not "min") importance: some phones freeze services whose notification is minimized. */
+    private static final String CHANNEL_ID = "starnet_telegram_bot_v2";
     private static final int NOTIFICATION_ID = 1003;
     private static final int LONG_POLL_SECONDS = 25;
     /** The app counts as "in front" only while it keeps draining the inbox (every ~3 s). */
@@ -114,6 +115,7 @@ public class TelegramReplyService extends Service {
             // Once per service life: each round reads the current tokens, so connecting another
             // bot never needs new threads.
             polling = true;
+            acquireWakeLock();
             int mine = ++generation;
             startPolling(TelegramStore.OWNER, mine);
             startPolling(TelegramStore.REPS, mine);
@@ -125,7 +127,33 @@ public class TelegramReplyService extends Service {
     public void onDestroy() {
         generation++;
         polling = false;
+        releaseWakeLock();
         super.onDestroy();
+    }
+
+    private android.os.PowerManager.WakeLock wakeLock;
+
+    /** Without it phones that freeze background apps (HONOR, Huawei...) only let the waiting
+     * request finish when the app is opened again - exactly the "answers only when open" symptom. */
+    private void acquireWakeLock() {
+        try {
+            android.os.PowerManager power = (android.os.PowerManager) getSystemService(Context.POWER_SERVICE);
+            if (power == null) return;
+            wakeLock = power.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "starnet:telegram");
+            wakeLock.setReferenceCounted(false);
+            wakeLock.acquire();
+        } catch (RuntimeException ignored) {
+            wakeLock = null;
+        }
+    }
+
+    private void releaseWakeLock() {
+        try {
+            if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
+        } catch (RuntimeException ignored) {
+            // already gone
+        }
+        wakeLock = null;
     }
 
     @Override
@@ -136,7 +164,7 @@ public class TelegramReplyService extends Service {
     private Notification buildNotification() {
         NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && manager != null && manager.getNotificationChannel(CHANNEL_ID) == null) {
-            NotificationChannel channel = new NotificationChannel(CHANNEL_ID, "بوت تيليغرام", NotificationManager.IMPORTANCE_MIN);
+            NotificationChannel channel = new NotificationChannel(CHANNEL_ID, "بوت تيليغرام", NotificationManager.IMPORTANCE_LOW);
             channel.setShowBadge(false);
             manager.createNotificationChannel(channel);
         }
@@ -146,7 +174,7 @@ public class TelegramReplyService extends Service {
             .setContentText("🤖 بوت تيليغرام يرد على الرسائل")
             .setOngoing(true)
             .setShowWhen(false)
-            .setPriority(NotificationCompat.PRIORITY_MIN);
+            .setPriority(NotificationCompat.PRIORITY_LOW);
         Intent open = getPackageManager().getLaunchIntentForPackage(getPackageName());
         if (open != null) {
             builder.setContentIntent(PendingIntent.getActivity(this, 0, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));

@@ -124,6 +124,10 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
     return { messages: [], running: false };
   }
 
+  async openAutostartSettings(): Promise<{ opened: "maker" | "app" }> {
+    throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
+  }
+
   async requestBatteryUnrestricted(): Promise<void> {
     return;
   }
