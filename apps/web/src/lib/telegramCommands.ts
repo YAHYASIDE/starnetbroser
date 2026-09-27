@@ -19,7 +19,21 @@ import { loadPartyAdjustments } from "./partyBalanceStore";
 import { buildPartyStatementPdf } from "./partyStatementPdf";
 import { isDemoMode, isLoggedIn } from "./settingsStore";
 import { listSuppliers, loadSupplierStore } from "./supplierStore";
-import { sendTelegramPdf, sendTelegramText } from "./telegram";
+import { recordRepRequest, repIdForChat, replyToChat, sendRepText, sendTelegramPdf, sendTelegramText } from "./telegram";
+import type { TelegramPollMessage } from "@starnet/local-browser-plugin";
+import { getCurrency, loadCurrencyStore } from "./currencyStore";
+import { loadRepresentativeStore, loadRepSettlements } from "./repStore";
+import {
+  parseRepCommand,
+  REP_HELP,
+  repAccounts,
+  repDebtsText,
+  repDevicesText,
+  repExpiringText,
+  repLinkRequestReply,
+  repMoney,
+  repStatementText,
+} from "./telegramRepMessages";
 import {
   answerCash,
   answerExpiring,
@@ -106,4 +120,48 @@ async function answerStatement(query: string): Promise<void> {
   const caption = `${doc.title} - ${match.name}\n${owed ? `${match.kind === "client" ? "المتبقي عليه" : "المتبقي له"}: ${owed}` : "✓ الحساب مسدَّد"}`;
   const sent = await sendTelegramPdf(doc, caption);
   if (!sent.ok) await sendTelegramText(`تعذر إرسال كشف ${match.name}: ${sent.message}`);
+}
+
+/**
+ * A message to the reps bot. From a linked rep: answered with HIS data only. From anyone else:
+ * recorded as a link request for الإعدادات and told to wait - never answered with any data.
+ */
+export async function answerRepMessage(message: TelegramPollMessage): Promise<void> {
+  const repId = repIdForChat(message.chatId);
+  if (!repId) {
+    if (recordRepRequest(message)) {
+      await replyToChat(message.chatId, repLinkRequestReply(message.name));
+      await sendTelegramText(`🤝 طلب ربط جديد ببوت المندوبين من ${message.name || message.username || "مستخدم"} - اربطه بمندوبه من الإعدادات ← تيليغرام`);
+    }
+    return;
+  }
+  const rep = loadRepresentativeStore()[repId];
+  if (!rep) return;
+  const command = parseRepCommand(message.text);
+  const today = localDay(new Date());
+  const clients = loadClientStore();
+  switch (command.kind) {
+    case "help":
+      await sendRepText(repId, REP_HELP);
+      return;
+    case "unknown":
+      await sendRepText(repId, `لم أفهم «${message.text.slice(0, 40)}».\n\n${REP_HELP}`);
+      return;
+    case "devices":
+      await sendRepText(repId, repDevicesText(repAccounts(await loadAccounts(), repId), clients, today));
+      return;
+    case "expiring":
+      await sendRepText(repId, repExpiringText(repAccounts(await loadAccounts(), repId), clients, today));
+      return;
+    case "debts":
+      await sendRepText(repId, repDebtsText(repId, await loadAccounts(), loadLedgerStore(), clients));
+      return;
+    case "statement": {
+      const currencies = loadCurrencyStore();
+      const rates = { MRU: getCurrency(currencies, "MRU")?.rateFromUsd, SIFA: getCurrency(currencies, "SIFA")?.rateFromUsd };
+      const figures = repMoney({ rep, month: today.slice(0, 7), ledgerStore: loadLedgerStore(), invoices: loadInvoices(), settlements: loadRepSettlements(), rates });
+      await sendRepText(repId, repStatementText(rep.name, today.slice(0, 7), figures));
+      return;
+    }
+  }
 }

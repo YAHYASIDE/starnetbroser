@@ -38,9 +38,11 @@ final class AutoSyncAccountStore {
         @Nullable final String renewalDate;
         /** "active" / "suspended" / ... as last known by the app. */
         @Nullable final String serviceStatus;
+        /** The device's representative - his linked Telegram chat hears when it stops. */
+        @Nullable final String representativeId;
 
         Entry(@NonNull String accountId, @Nullable String accountName, @NonNull String url) {
-            this(accountId, accountName, url, null, null);
+            this(accountId, accountName, url, null, null, null);
         }
 
         Entry(
@@ -48,13 +50,15 @@ final class AutoSyncAccountStore {
             @Nullable String accountName,
             @NonNull String url,
             @Nullable String renewalDate,
-            @Nullable String serviceStatus
+            @Nullable String serviceStatus,
+            @Nullable String representativeId
         ) {
             this.accountId = accountId;
             this.accountName = accountName != null ? accountName : accountId;
             this.url = url;
             this.renewalDate = renewalDate;
             this.serviceStatus = serviceStatus;
+            this.representativeId = representativeId;
         }
     }
 
@@ -70,6 +74,7 @@ final class AutoSyncAccountStore {
             obj.put("url", entry.url);
             if (entry.renewalDate != null) obj.put("renewalDate", entry.renewalDate);
             if (entry.serviceStatus != null) obj.put("serviceStatus", entry.serviceStatus);
+            if (entry.representativeId != null) obj.put("representativeId", entry.representativeId);
             array.put(obj);
         }
         return array.toString();
@@ -102,7 +107,8 @@ final class AutoSyncAccountStore {
                 obj.optString("accountName", null),
                 url != null ? url : LocalBrowserPlugin.DEFAULT_URL,
                 obj.optString("renewalDate", null),
-                obj.optString("serviceStatus", null)
+                obj.optString("serviceStatus", null),
+                obj.optString("representativeId", null)
             ));
         }
         return entries;

@@ -4,6 +4,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -71,6 +73,50 @@ final class TelegramText {
         out.append(" - أوقفت Starlink الاشتراك:");
         for (String name : names) out.append("\n• ").append(name);
         return truncate(out.toString(), MAX_MESSAGE_CHARS);
+    }
+
+    /** The rep's twin of stoppedMessage - only his own devices. */
+    static String repStoppedMessage(List<String> names) {
+        StringBuilder out = new StringBuilder();
+        out.append(names.size() == 1 ? "⛔ توقف جهاز من أجهزتك" : "⛔ توقف " + names.size() + " من أجهزتك");
+        out.append(" - أوقفت Starlink الاشتراك، تواصل مع الزبون:");
+        for (String name : names) out.append("\n• ").append(name);
+        return truncate(out.toString(), MAX_MESSAGE_CHARS);
+    }
+
+    /** Stopped devices grouped by their rep (devices without a rep are left out), in order. */
+    static Map<String, List<String>> groupByRep(List<String> repIds, List<String> names) {
+        Map<String, List<String>> groups = new LinkedHashMap<>();
+        for (int i = 0; i < repIds.size() && i < names.size(); i++) {
+            String repId = repIds.get(i);
+            if (repId == null || repId.isEmpty()) continue;
+            groups.computeIfAbsent(repId, k -> new ArrayList<>()).add(names.get(i));
+        }
+        return groups;
+    }
+
+    /** "key=value" per line - ids never contain "=" or line breaks. */
+    static String encodePairs(Map<String, String> pairs) {
+        StringBuilder out = new StringBuilder();
+        for (Map.Entry<String, String> e : pairs.entrySet()) {
+            if (e.getKey() == null || e.getValue() == null) continue;
+            String key = e.getKey().replace("=", "").replace("\n", "");
+            String value = e.getValue().replace("=", "").replace("\n", "");
+            if (key.isEmpty() || value.isEmpty()) continue;
+            out.append(key).append('=').append(value).append('\n');
+        }
+        return out.toString();
+    }
+
+    static Map<String, String> decodePairs(String raw) {
+        Map<String, String> pairs = new LinkedHashMap<>();
+        if (raw == null) return pairs;
+        for (String line : raw.split("\n")) {
+            int eq = line.indexOf('=');
+            if (eq <= 0 || eq == line.length() - 1) continue;
+            pairs.put(line.substring(0, eq), line.substring(eq + 1));
+        }
+        return pairs;
     }
 
     private static void write(ByteArrayOutputStream out, String s) {

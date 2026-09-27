@@ -21,9 +21,23 @@ export interface TelegramPrefs {
   payments: boolean;
   morning: boolean;
   evening: boolean;
+  /** Reps bot: each rep hears about his own devices. */
+  repStopped: boolean;
+  repMorning: boolean;
+  repPayments: boolean;
+  repMonthly: boolean;
 }
 
-export const DEFAULT_TELEGRAM_PREFS: TelegramPrefs = { stopped: true, payments: true, morning: true, evening: true };
+export const DEFAULT_TELEGRAM_PREFS: TelegramPrefs = {
+  stopped: true,
+  payments: true,
+  morning: true,
+  evening: true,
+  repStopped: true,
+  repMorning: true,
+  repPayments: true,
+  repMonthly: true,
+};
 
 function currencyLabel(code: string): string {
   return LEDGER_CURRENCY_LABELS[code as LedgerCurrency] ?? code;

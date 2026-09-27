@@ -301,7 +301,8 @@ public class LocalBrowserPlugin extends Plugin {
                     obj.optString("accountName", null),
                     url,
                     obj.optString("renewalDate", null),
-                    obj.optString("serviceStatus", null)
+                    obj.optString("serviceStatus", null),
+                    obj.optString("representativeId", null)
                 ));
             }
         }
@@ -346,11 +347,18 @@ public class LocalBrowserPlugin extends Plugin {
         call.resolve(ret);
     }
 
-    // ---- Telegram bot (TelegramStore / TelegramClient / TelegramSendWorker) ----
+    // ---- Telegram bots (TelegramStore / TelegramClient / TelegramSendWorker) ----
+    // Every method takes `bot`: "owner" (default - the operator's own bot and chat) or "reps" (the
+    // representatives' bot; messages only ever go to a rep chat the operator linked).
+
+    private static boolean isRepsBot(PluginCall call) {
+        return TelegramStore.REPS.equals(call.getString("bot"));
+    }
 
     /**
-     * Connects the operator's bot: checks the token (getMe), finds the private chat that sent the
-     * bot a message (the operator's own "/start"), stores both natively and says hello there.
+     * Connects a bot. Owner: checks the token (getMe), finds the private chat that sent the bot a
+     * message (the operator's own "/start"), stores both and says hello there. Reps: checks the
+     * token only - each rep then presses Start and the operator links him in الإعدادات.
      * Rejects with a plain Arabic reason the settings screen shows as-is.
      */
     @PluginMethod
@@ -361,10 +369,30 @@ public class LocalBrowserPlugin extends Plugin {
             return;
         }
         String token = raw.trim();
+        boolean reps = isRepsBot(call);
         telegramExecutor.execute(() -> {
             try {
                 JSONObject me = TelegramClient.call(token, "getMe", new LinkedHashMap<>());
                 String botName = me.getJSONObject("result").optString("username", "");
+                if (reps) {
+                    if (token.equals(TelegramStore.token(getContext()))) {
+                        call.reject("هذا مفتاح بوتك الشخصي - أنشئ بوتاً ثانياً للمندوبين من @BotFather");
+                        return;
+                    }
+                    if (!TelegramStore.saveReps(getContext(), token, botName)) {
+                        call.reject("تعذر حفظ الربط على الهاتف");
+                        return;
+                    }
+                    JSObject ret = new JSObject();
+                    ret.put("botName", botName);
+                    ret.put("chatName", "");
+                    call.resolve(ret);
+                    return;
+                }
+                if (token.equals(TelegramStore.repsToken(getContext()))) {
+                    call.reject("هذا مفتاح بوت المندوبين - استعمل بوتاً آخر لنفسك");
+                    return;
+                }
                 Map<String, String> params = new LinkedHashMap<>();
                 params.put("timeout", "0");
                 JSONArray updates = TelegramClient.call(token, "getUpdates", params).getJSONArray("result");
@@ -415,34 +443,95 @@ public class LocalBrowserPlugin extends Plugin {
         ret.put("botName", TelegramStore.botName(getContext()));
         ret.put("chatName", TelegramStore.chatName(getContext()));
         ret.put("stoppedEnabled", TelegramStore.isStoppedEnabled(getContext()));
+        ret.put("repsConfigured", TelegramStore.isRepsConfigured(getContext()));
+        ret.put("repsBotName", TelegramStore.repsBotName(getContext()));
         call.resolve(ret);
     }
 
     @PluginMethod
     public void telegramDisconnect(PluginCall call) {
-        TelegramSendWorker.cancel(getContext(), "morning");
-        TelegramSendWorker.cancel(getContext(), "evening");
-        TelegramStore.clear(getContext());
+        if (isRepsBot(call)) {
+            TelegramStore.clearReps(getContext());
+        } else {
+            TelegramSendWorker.cancel(getContext(), "morning");
+            TelegramSendWorker.cancel(getContext(), "evening");
+            TelegramStore.clear(getContext());
+        }
         call.resolve();
     }
 
-    /** Whether the background sync also sends "⛔ توقف" to Telegram. */
+    /** Whether the background sync also sends "⛔ توقف" (to the operator / to each rep). */
     @PluginMethod
     public void telegramSetOptions(PluginCall call) {
         Boolean stopped = call.getBoolean("stopped");
         if (stopped != null) TelegramStore.setStoppedEnabled(getContext(), stopped);
+        Boolean repsStopped = call.getBoolean("repsStopped");
+        if (repsStopped != null) TelegramStore.setRepsStoppedEnabled(getContext(), repsStopped);
         call.resolve();
     }
 
-    /** Queues a text message (sent once there's a network, even if the app closes). */
+    /** The reps the operator linked: {chats: {repId: chatId}} - replaces the previous map. */
+    @PluginMethod
+    public void telegramSetRepChats(PluginCall call) {
+        JSObject chats = call.getObject("chats", new JSObject());
+        Map<String, String> map = new LinkedHashMap<>();
+        Iterator<String> keys = chats.keys();
+        while (keys.hasNext()) {
+            String repId = keys.next();
+            String chatId = chats.optString(repId, "");
+            if (!chatId.isEmpty()) map.put(repId, chatId);
+        }
+        TelegramStore.setRepChats(getContext(), map);
+        call.resolve();
+    }
+
+    /**
+     * Queues a text message (sent once there's a network, even if the app closes). Reps bot: to
+     * `chatId`, which must be a linked rep - or, with `reply: true`, a one-off answer right now to
+     * someone who just wrote to the bot (the "waiting to be linked" reply).
+     */
     @PluginMethod
     public void telegramSend(PluginCall call) {
         String text = call.getString("text");
         JSObject ret = new JSObject();
-        boolean configured = TelegramStore.isConfigured(getContext());
-        if (configured && text != null && !text.trim().isEmpty()) TelegramSendWorker.enqueue(getContext(), text);
-        ret.put("queued", configured);
-        call.resolve(ret);
+        if (text == null || text.trim().isEmpty()) {
+            ret.put("queued", false);
+            call.resolve(ret);
+            return;
+        }
+        if (!isRepsBot(call)) {
+            boolean configured = TelegramStore.isConfigured(getContext());
+            if (configured) TelegramSendWorker.enqueue(getContext(), text);
+            ret.put("queued", configured);
+            call.resolve(ret);
+            return;
+        }
+        String chatId = call.getString("chatId");
+        if (!TelegramStore.isRepsConfigured(getContext()) || chatId == null) {
+            ret.put("queued", false);
+            call.resolve(ret);
+            return;
+        }
+        if (TelegramStore.isLinkedRepChat(getContext(), chatId)) {
+            TelegramSendWorker.enqueueToRep(getContext(), chatId, text);
+            ret.put("queued", true);
+            call.resolve(ret);
+            return;
+        }
+        if (!Boolean.TRUE.equals(call.getBoolean("reply", false))) {
+            ret.put("queued", false);
+            call.resolve(ret);
+            return;
+        }
+        telegramExecutor.execute(() -> {
+            try {
+                TelegramClient.sendMessage(TelegramStore.repsToken(getContext()), chatId, text);
+                ret.put("queued", true);
+            } catch (Exception e) {
+                ret.put("queued", false);
+            }
+            call.resolve(ret);
+        });
     }
 
     /** Schedules the text for `at` (epoch ms), replacing the previous one under `key`. */
@@ -451,14 +540,19 @@ public class LocalBrowserPlugin extends Plugin {
         String key = call.getString("key");
         String text = call.getString("text");
         Long at = call.getLong("at");
-        if (key == null || !key.matches("[a-z]{1,20}") || at == null) {
+        boolean reps = isRepsBot(call);
+        String chatId = call.getString("chatId");
+        if (key == null || !key.matches("[a-z0-9_-]{1,60}") || at == null) {
             call.reject("invalid schedule");
             return;
         }
-        if (!TelegramStore.isConfigured(getContext()) || text == null || text.trim().isEmpty()) {
+        boolean ready = reps
+            ? TelegramStore.isRepsConfigured(getContext()) && TelegramStore.isLinkedRepChat(getContext(), chatId)
+            : TelegramStore.isConfigured(getContext());
+        if (!ready || text == null || text.trim().isEmpty()) {
             TelegramSendWorker.cancel(getContext(), key);
         } else {
-            TelegramSendWorker.schedule(getContext(), key, at, text);
+            TelegramSendWorker.schedule(getContext(), key, at, text, reps ? TelegramStore.REPS : TelegramStore.OWNER, reps ? chatId : null);
         }
         call.resolve();
     }
@@ -466,18 +560,21 @@ public class LocalBrowserPlugin extends Plugin {
     @PluginMethod
     public void telegramCancel(PluginCall call) {
         String key = call.getString("key");
-        if (key != null && key.matches("[a-z]{1,20}")) TelegramSendWorker.cancel(getContext(), key);
+        if (key != null && key.matches("[a-z0-9_-]{1,60}")) TelegramSendWorker.cancel(getContext(), key);
         call.resolve();
     }
 
-    /** Sends a PDF (base64) to the chat right away - used while the app is open. */
+    /** Sends a PDF (base64) right away - to the operator, or to a linked rep (reps bot). */
     @PluginMethod
     public void telegramSendDocument(PluginCall call) {
         String base64 = call.getString("base64");
         String fileName = call.getString("fileName", "document.pdf");
         String caption = call.getString("caption");
-        if (!TelegramStore.isConfigured(getContext())) {
-            call.reject("اربط تيليغرام أولاً من الإعدادات");
+        boolean reps = isRepsBot(call);
+        String chatId = reps ? call.getString("chatId") : TelegramStore.chatId(getContext());
+        String token = reps ? TelegramStore.repsToken(getContext()) : TelegramStore.token(getContext());
+        if (token == null || chatId == null || (reps && !TelegramStore.isLinkedRepChat(getContext(), chatId))) {
+            call.reject(reps ? "المندوب غير مربوط ببوت المندوبين" : "اربط تيليغرام أولاً من الإعدادات");
             return;
         }
         if (base64 == null || base64.isEmpty()) {
@@ -487,7 +584,7 @@ public class LocalBrowserPlugin extends Plugin {
         telegramExecutor.execute(() -> {
             try {
                 byte[] file = android.util.Base64.decode(base64, android.util.Base64.DEFAULT);
-                TelegramClient.sendDocument(TelegramStore.token(getContext()), TelegramStore.chatId(getContext()), fileName, file, caption);
+                TelegramClient.sendDocument(token, chatId, fileName, file, caption);
                 call.resolve();
             } catch (TelegramClient.TelegramError e) {
                 call.reject("رفض تيليغرام الملف: " + e.getMessage());
@@ -498,13 +595,16 @@ public class LocalBrowserPlugin extends Plugin {
     }
 
     /**
-     * Reads new messages sent to the bot (while the app is open - the app answers commands itself,
-     * since the data lives only on this phone). Only messages from the connected chat are
-     * returned; anything else is skipped. Pass back `nextOffset` next time to mark these as read.
+     * Reads new messages sent to a bot (while the app is open - the app answers commands itself,
+     * since the data lives only on this phone). Owner: only the connected chat. Reps: every private
+     * chat, with its id and name, so the app can answer linked reps and list the others as link
+     * requests. Pass back `nextOffset` next time to mark these as read.
      */
     @PluginMethod
     public void telegramPoll(PluginCall call) {
-        if (!TelegramStore.isConfigured(getContext())) {
+        boolean reps = isRepsBot(call);
+        String token = reps ? TelegramStore.repsToken(getContext()) : TelegramStore.token(getContext());
+        if (token == null || (!reps && !TelegramStore.isConfigured(getContext()))) {
             call.reject("not configured");
             return;
         }
@@ -515,8 +615,8 @@ public class LocalBrowserPlugin extends Plugin {
                 params.put("timeout", "0");
                 params.put("allowed_updates", "[\"message\"]");
                 if (offset != null && offset > 0) params.put("offset", String.valueOf(offset));
-                JSONArray updates = TelegramClient.call(TelegramStore.token(getContext()), "getUpdates", params).getJSONArray("result");
-                String chatId = TelegramStore.chatId(getContext());
+                JSONArray updates = TelegramClient.call(token, "getUpdates", params).getJSONArray("result");
+                String ownerChat = TelegramStore.chatId(getContext());
                 long next = offset != null ? offset : 0;
                 JSArray messages = new JSArray();
                 for (int i = 0; i < updates.length(); i++) {
@@ -524,11 +624,18 @@ public class LocalBrowserPlugin extends Plugin {
                     next = Math.max(next, update.optLong("update_id") + 1);
                     JSONObject message = update.optJSONObject("message");
                     JSONObject chat = message != null ? message.optJSONObject("chat") : null;
-                    if (chat == null || !String.valueOf(chat.optLong("id")).equals(chatId)) continue;
+                    if (chat == null || !"private".equals(chat.optString("type"))) continue;
+                    String chatId = String.valueOf(chat.optLong("id"));
+                    if (!reps && !chatId.equals(ownerChat)) continue;
                     String text = message.optString("text", "");
                     if (text.isEmpty()) continue;
                     JSObject item = new JSObject();
                     item.put("text", text);
+                    item.put("chatId", chatId);
+                    String first = chat.optString("first_name", "");
+                    String last = chat.optString("last_name", "");
+                    item.put("name", (first + " " + last).trim());
+                    item.put("username", chat.optString("username", ""));
                     messages.put(item);
                 }
                 JSObject ret = new JSObject();

@@ -41,6 +41,32 @@ public class TelegramTextTest {
     }
 
     @Test
+    public void groupsStoppedDevicesByRepAndSkipsThoseWithoutOne() {
+        Map<String, java.util.List<String>> groups = TelegramText.groupByRep(
+            Arrays.asList("r1", null, "r2", "r1", ""),
+            Arrays.asList("أ", "ب", "ج", "د", "هـ")
+        );
+        assertEquals(2, groups.size());
+        assertEquals(Arrays.asList("أ", "د"), groups.get("r1"));
+        assertEquals(Arrays.asList("ج"), groups.get("r2"));
+        assertEquals("⛔ توقف 2 من أجهزتك - أوقفت Starlink الاشتراك، تواصل مع الزبون:\n• أ\n• د", TelegramText.repStoppedMessage(groups.get("r1")));
+    }
+
+    @Test
+    public void repChatMapRoundTrips() {
+        Map<String, String> chats = new LinkedHashMap<>();
+        chats.put("rep-1", "111");
+        chats.put("rep-2", "-222");
+        chats.put("bad", "");
+        Map<String, String> back = TelegramText.decodePairs(TelegramText.encodePairs(chats));
+        assertEquals(2, back.size());
+        assertEquals("111", back.get("rep-1"));
+        assertEquals("-222", back.get("rep-2"));
+        assertTrue(TelegramText.decodePairs(null).isEmpty());
+        assertTrue(TelegramText.decodePairs("junk\n=x\ny=").isEmpty());
+    }
+
+    @Test
     public void listsEveryStoppedDevice() {
         assertEquals("⛔ توقف جهاز - أوقفت Starlink الاشتراك:\n• مقهى", TelegramText.stoppedMessage(Arrays.asList("مقهى")));
         assertEquals(

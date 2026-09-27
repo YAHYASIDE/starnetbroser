@@ -21,6 +21,7 @@ import type {
   SetAutoSyncAccountIdsResult,
   SetAutoSyncEnabledOptions,
   SetAutoSyncEnabledResult,
+  TelegramBot,
   TelegramPollResult,
   TelegramStatus,
   SyncNowOptions,
@@ -70,7 +71,7 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
 
   // The Telegram bot lives in the Android app (its token in native storage) - on web it's simply
   // not connected, and anything that would send is refused rather than silently dropped.
-  async telegramConnect(_options: { token: string }): Promise<{ botName: string; chatName: string }> {
+  async telegramConnect(_options: { token: string; bot?: TelegramBot }): Promise<{ botName: string; chatName: string }> {
     throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
   }
 
@@ -78,19 +79,23 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
     return { configured: false, stoppedEnabled: false };
   }
 
-  async telegramDisconnect(): Promise<void> {
+  async telegramDisconnect(_options?: { bot?: TelegramBot }): Promise<void> {
     return;
   }
 
-  async telegramSetOptions(_options: { stopped?: boolean }): Promise<void> {
+  async telegramSetOptions(_options: { stopped?: boolean; repsStopped?: boolean }): Promise<void> {
     return;
   }
 
-  async telegramSend(_options: { text: string }): Promise<{ queued: boolean }> {
+  async telegramSetRepChats(_options: { chats: Record<string, string> }): Promise<void> {
+    return;
+  }
+
+  async telegramSend(_options: { text: string; bot?: TelegramBot; chatId?: string; reply?: boolean }): Promise<{ queued: boolean }> {
     return { queued: false };
   }
 
-  async telegramSchedule(_options: { key: string; at: number; text: string }): Promise<void> {
+  async telegramSchedule(_options: { key: string; at: number; text: string; bot?: TelegramBot; chatId?: string }): Promise<void> {
     return;
   }
 
@@ -98,11 +103,11 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
     return;
   }
 
-  async telegramSendDocument(_options: { fileName: string; base64: string; caption?: string }): Promise<void> {
+  async telegramSendDocument(_options: { fileName: string; base64: string; caption?: string; bot?: TelegramBot; chatId?: string }): Promise<void> {
     throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
   }
 
-  async telegramPoll(_options: { offset?: number }): Promise<TelegramPollResult> {
+  async telegramPoll(_options: { offset?: number; bot?: TelegramBot }): Promise<TelegramPollResult> {
     return { messages: [], nextOffset: 0 };
   }
 

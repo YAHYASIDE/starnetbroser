@@ -26,6 +26,15 @@ import { STORAGE_BUDGET_CHARS, StorageUsage, formatChars, isQuotaError, measureS
 import { collectAppData, createEncryptedBackupFile, mergeImportedAccounts, readEncryptedBackupFile, restoreAppData } from "@/lib/accountBackup";
 import { restoreProofsFromBackup, withProofs } from "@/lib/paymentProofStore";
 import {
+  connectRepsBot,
+  disconnectRepsBot,
+  dismissRepRequest,
+  linkRepChat,
+  loadRepChats,
+  loadRepRequests,
+  RepChat,
+  RepLinkRequest,
+  unlinkRep,
   connectTelegram,
   disconnectTelegram,
   loadTelegramPrefs,
@@ -78,7 +87,7 @@ import { PartySheet } from "@/components/AccountsSection";
 import { BusinessProfile, loadBusinessProfile, saveBusinessProfile } from "@/lib/pdfDocument";
 import { clearAppPin, hasAppPin, setAppPin, verifyAppPin } from "@/lib/appLock";
 import { loadProfitReset, ProfitReset, saveProfitReset, startProfitFresh, undoProfitFresh } from "@/lib/profitReset";
-import { loadRepresentativeStore, saveRepresentativeStore } from "@/lib/repStore";
+import { listRepresentatives, loadRepresentativeStore, Representative, saveRepresentativeStore } from "@/lib/repStore";
 
 const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
   { value: "dark", label: "داكن (الافتراضي)" },
@@ -260,6 +269,7 @@ export default function SettingsPage() {
       </section>
 
       <TelegramSection />
+      <TelegramRepsSection />
 
       <AppLockSection />
 
@@ -1327,6 +1337,209 @@ function TelegramSection() {
             </button>
           </div>
           <p className="settings-hint">المفتاح يُحفظ في هاتفك فقط ولا يدخل النسخ الاحتياطية.</p>
+        </>
+      )}
+      {message && <p className="settings-hint telegram-message">{message}</p>}
+    </section>
+  );
+}
+
+/** 🤝 بوت المندوبين - one bot for all reps; each rep presses Start and is linked here to his record. */
+function TelegramRepsSection() {
+  const [connection, setConnection] = useState<TelegramConnection>({ configured: false });
+  const [prefs, setPrefs] = useState<TelegramPrefs>(DEFAULT_TELEGRAM_PREFS);
+  const [token, setToken] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [chats, setChats] = useState<Record<string, RepChat>>({});
+  const [requests, setRequests] = useState<RepLinkRequest[]>([]);
+  const [choice, setChoice] = useState<Record<string, string>>({});
+  const [reps, setReps] = useState<Representative[]>([]);
+
+  useEffect(() => {
+    setPrefs(loadTelegramPrefs());
+    setReps(listRepresentatives(loadRepresentativeStore()));
+    void telegramConnection().then(setConnection);
+    const refresh = () => {
+      setChats(loadRepChats());
+      setRequests(loadRepRequests());
+    };
+    refresh();
+    // New link requests arrive through the bot while this screen is open.
+    const timer = window.setInterval(refresh, 5000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  async function connect() {
+    setBusy(true);
+    setMessage(null);
+    const result = await connectRepsBot(token);
+    setBusy(false);
+    if (!result.ok) {
+      setMessage(result.message);
+      return;
+    }
+    setToken("");
+    setConnection((c) => ({ ...c, repsConfigured: true, repsBotName: result.botName }));
+    setMessage(`✓ تم ربط بوت المندوبين - أرسل رابط @${result.botName} لكل مندوب ليضغط «ابدأ»`);
+  }
+
+  async function update(next: TelegramPrefs) {
+    setPrefs(next);
+    await saveTelegramPrefs(next);
+  }
+
+  const options: { key: keyof TelegramPrefs; label: string }[] = [
+    { key: "repStopped", label: "⛔ أجهزته المتوقفة" },
+    { key: "repMorning", label: "☀️ تجديداته القريبة صباحاً (مع هواتف الزبائن)" },
+    { key: "repPayments", label: "💵 دفعات زبائنه" },
+    { key: "repMonthly", label: "📊 حصته ورصيده عند إقفال الشهر" },
+  ];
+  const repName = (id: string) => reps.find((r) => r.id === id)?.name ?? "مندوب محذوف";
+
+  return (
+    <section className="section telegram-section">
+      <h2 className="section-title">🤝 بوت المندوبين (تيليغرام)</h2>
+      {!connection.repsConfigured ? (
+        <>
+          <p className="settings-hint">
+            بوت ثانٍ لكل المندوبين: كل مندوب يرى أجهزته وزبائنه فقط - حصته وديون زبائنه، دون تكلفة Starlink أو ربحك أو الصندوق.
+          </p>
+          <ol className="telegram-steps">
+            <li>أنشئ بوتاً ثانياً (غير بوتك الشخصي): أرسل <bdi dir="ltr">/newbot</bdi> إلى <bdi dir="ltr">@BotFather</bdi>.</li>
+            <li>الصق مفتاحه هنا واضغط «ربط».</li>
+            <li>أرسل رابط البوت لكل مندوب ليضغط «ابدأ»، ثم اربطه هنا بمندوبه.</li>
+          </ol>
+          <input
+            className="search-input"
+            type="password"
+            dir="ltr"
+            autoComplete="off"
+            placeholder="123456789:AA..."
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+          />
+          <div className="settings-actions">
+            <button type="button" className="dialog-primary" disabled={busy || !token.trim()} onClick={() => void connect()}>
+              {busy ? "⏳ جارِ الربط…" : "ربط بوت المندوبين"}
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="telegram-status">
+            ✓ البوت <bdi dir="ltr">@{connection.repsBotName}</bdi> - أرسل رابطه للمندوبين
+          </p>
+
+          {requests.length > 0 && (
+            <div className="telegram-requests">
+              <strong>طلبات ربط جديدة ({requests.length})</strong>
+              {requests.map((request) => (
+                <div key={request.chatId} className="telegram-request">
+                  <span>
+                    👤 {request.name || "بدون اسم"}
+                    {request.username && <bdi dir="ltr"> @{request.username}</bdi>}
+                  </span>
+                  <select
+                    className="search-input"
+                    value={choice[request.chatId] ?? ""}
+                    onChange={(e) => setChoice({ ...choice, [request.chatId]: e.target.value })}
+                    aria-label="المندوب"
+                  >
+                    <option value="">اختر المندوب…</option>
+                    {reps.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                        {chats[r.id] ? " (مربوط)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="settings-actions">
+                    <button
+                      type="button"
+                      className="dialog-primary"
+                      disabled={!choice[request.chatId]}
+                      onClick={async () => {
+                        const repId = choice[request.chatId]!;
+                        await linkRepChat(repId, request, repName(repId));
+                        setChats(loadRepChats());
+                        setRequests(loadRepRequests());
+                        setMessage(`✓ رُبط ${repName(repId)} - وصلته رسالة ترحيب`);
+                      }}
+                    >
+                      ربط
+                    </button>
+                    <button
+                      type="button"
+                      className="text-action"
+                      onClick={() => {
+                        dismissRepRequest(request.chatId);
+                        setRequests(loadRepRequests());
+                      }}
+                    >
+                      تجاهل
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <ul className="telegram-rep-list">
+            {reps.length === 0 && <li className="settings-hint">لا يوجد مندوبون بعد</li>}
+            {reps.map((r) => (
+              <li key={r.id}>
+                <span>
+                  {chats[r.id] ? "✓" : "○"} {r.name}
+                  {chats[r.id] && <small> - {chats[r.id]!.name}</small>}
+                </span>
+                {chats[r.id] ? (
+                  <button
+                    type="button"
+                    className="text-action"
+                    onClick={async () => {
+                      if (!window.confirm(`فك ربط ${r.name}؟ لن تصله رسائل البوت.`)) return;
+                      await unlinkRep(r.id);
+                      setChats(loadRepChats());
+                    }}
+                  >
+                    فك الربط
+                  </button>
+                ) : (
+                  <small className="settings-hint">غير مربوط</small>
+                )}
+              </li>
+            ))}
+          </ul>
+
+          {options.map((option) => (
+            <label key={option.key} className="toggle-switch-row">
+              <span>{option.label}</span>
+              <span className={`toggle-switch${prefs[option.key] ? " toggle-switch-on" : ""}`}>
+                <input type="checkbox" checked={prefs[option.key]} onChange={(e) => void update({ ...prefs, [option.key]: e.target.checked })} />
+                <span className="toggle-switch-thumb" />
+              </span>
+            </label>
+          ))}
+          <p className="settings-hint">
+            المندوب يكتب للبوت: أجهزتي، تنتهي، كشفي، ديون زبائني - يُجاب والتطبيق مفتوح على هاتفك. من ليس مربوطاً لا يرى أي بيانات.
+          </p>
+          <div className="settings-actions">
+            <button
+              type="button"
+              className="text-action"
+              onClick={async () => {
+                if (!window.confirm("فصل بوت المندوبين؟ يُحذف مفتاحه وروابط كل المندوبين من الهاتف.")) return;
+                await disconnectRepsBot();
+                setConnection((c) => ({ ...c, repsConfigured: false }));
+                setChats({});
+                setRequests([]);
+                setMessage("تم الفصل");
+              }}
+            >
+              فصل بوت المندوبين
+            </button>
+          </div>
         </>
       )}
       {message && <p className="settings-hint telegram-message">{message}</p>}

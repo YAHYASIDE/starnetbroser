@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import type { LedgerByAccount } from "@/lib/ledgerStore";
+import { sendRepMonthlyStatements } from "@/lib/telegram";
 import { ClientStore, getClient } from "@/lib/clientStore";
 import { loadRepresentativeStore, RepresentativeStore } from "@/lib/repStore";
 import {
@@ -63,6 +64,8 @@ export function MonthClosingSection({
     const next = closeMonth(closings, month);
     saveMonthClosings(next);
     setClosings(next);
+    // Each rep linked to the reps bot gets his share and balance for the month.
+    void sendRepMonthlyStatements(month, ledgerStore);
   }
 
   return (

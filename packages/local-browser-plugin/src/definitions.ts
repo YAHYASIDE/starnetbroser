@@ -156,17 +156,30 @@ export interface SetAutoSyncAccountIdsOptions {
   accounts: AutoSyncAccountEntry[];
 }
 
+/** "owner" = the operator's own bot (default); "reps" = the representatives' bot. */
+export type TelegramBot = "owner" | "reps";
+
 export interface TelegramStatus {
   configured: boolean;
   botName?: string | null;
   chatName?: string | null;
   /** Whether the background sync also sends "⛔ توقف" to Telegram. */
   stoppedEnabled: boolean;
+  repsConfigured?: boolean;
+  repsBotName?: string | null;
+}
+
+export interface TelegramPollMessage {
+  text: string;
+  /** The private chat it came from (owner bot: always the connected chat). */
+  chatId: string;
+  name: string;
+  username: string;
 }
 
 export interface TelegramPollResult {
-  /** Text messages from the connected chat only, oldest first. */
-  messages: { text: string }[];
+  /** Text messages, oldest first. */
+  messages: TelegramPollMessage[];
   /** Pass back as `offset` next time - marks these as read. */
   nextOffset: number;
 }
@@ -338,18 +351,21 @@ export interface LocalBrowserPlugin {
 
   /** Checks the token, finds the chat that sent the bot "/start", stores both and says hello.
    * Rejects with an Arabic reason to show as-is. */
-  telegramConnect(options: { token: string }): Promise<{ botName: string; chatName: string }>;
+  telegramConnect(options: { token: string; bot?: TelegramBot }): Promise<{ botName: string; chatName: string }>;
   telegramStatus(): Promise<TelegramStatus>;
-  telegramDisconnect(): Promise<void>;
-  telegramSetOptions(options: { stopped?: boolean }): Promise<void>;
-  /** Queued natively: sent once there's a network, even if the app closes. */
-  telegramSend(options: { text: string }): Promise<{ queued: boolean }>;
+  telegramDisconnect(options?: { bot?: TelegramBot }): Promise<void>;
+  telegramSetOptions(options: { stopped?: boolean; repsStopped?: boolean }): Promise<void>;
+  /** The reps linked to the reps bot: repId -> chatId (replaces the previous map). */
+  telegramSetRepChats(options: { chats: Record<string, string> }): Promise<void>;
+  /** Queued natively: sent once there's a network, even if the app closes. Reps bot: to a linked
+   * rep's `chatId`, or with `reply` a one-off answer to someone who just wrote to the bot. */
+  telegramSend(options: { text: string; bot?: TelegramBot; chatId?: string; reply?: boolean }): Promise<{ queued: boolean }>;
   /** Sends `text` at `at` (epoch ms), replacing what was scheduled under `key` ("morning"...). */
-  telegramSchedule(options: { key: string; at: number; text: string }): Promise<void>;
+  telegramSchedule(options: { key: string; at: number; text: string; bot?: TelegramBot; chatId?: string }): Promise<void>;
   telegramCancel(options: { key: string }): Promise<void>;
-  telegramSendDocument(options: { fileName: string; base64: string; caption?: string }): Promise<void>;
-  /** New messages to the bot from the connected chat (the app answers commands itself). */
-  telegramPoll(options: { offset?: number }): Promise<TelegramPollResult>;
+  telegramSendDocument(options: { fileName: string; base64: string; caption?: string; bot?: TelegramBot; chatId?: string }): Promise<void>;
+  /** New messages to a bot (the app answers commands itself). */
+  telegramPoll(options: { offset?: number; bot?: TelegramBot }): Promise<TelegramPollResult>;
 
   /**
    * Reads the raw login-session cookies for each given account's isolated profile - part of the

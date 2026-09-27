@@ -7550,3 +7550,45 @@ button.today-tile {
   font-size: 0.8rem;
   font-weight: 700;
 }
+
+.telegram-requests {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--brand) 45%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--brand) 10%, var(--surface));
+}
+
+.telegram-request {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.telegram-rep-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.telegram-rep-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+}
+
+.telegram-rep-list small {
+  color: var(--text-muted);
+}

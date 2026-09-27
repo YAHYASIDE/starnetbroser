@@ -198,6 +198,7 @@ export default function ClientsPage() {
       method: input.paymentMethod ? PAYMENT_METHOD_LABELS[input.paymentMethod] : undefined,
       balanceAfter: computeBalanceByCurrency(result.ledgerStore[device.id] ?? [])[input.currencyCode as LedgerCurrency] ?? 0,
       date: input.date,
+      representativeId: device.representativeId,
     });
     return null;
   }

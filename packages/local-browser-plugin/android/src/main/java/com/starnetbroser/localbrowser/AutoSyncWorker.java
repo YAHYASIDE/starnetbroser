@@ -199,6 +199,7 @@ public class AutoSyncWorker extends Worker {
             entries = ordered;
         }
         List<String> newlyStopped = new ArrayList<>();
+        List<String> newlyStoppedReps = new ArrayList<>();
 
         long startedAt = System.currentTimeMillis();
         Random random = new Random();
@@ -234,11 +235,19 @@ public class AutoSyncWorker extends Worker {
             SyncStateStore.put(context, entry.accountId, visited);
             if (page != null && SyncPriority.isStopped(page[0]) && !SyncPriority.isStopped(statusBefore.get(entry.accountId))) {
                 newlyStopped.add(entry.accountName);
+                newlyStoppedReps.add(entry.representativeId);
             }
         }
         SyncNotifier.notifyStopped(context, newlyStopped);
         if (!newlyStopped.isEmpty() && TelegramStore.isStoppedEnabled(context)) {
             TelegramSendWorker.enqueue(context, TelegramText.stoppedMessage(newlyStopped));
+        }
+        if (!newlyStopped.isEmpty() && TelegramStore.isRepsConfigured(context) && TelegramStore.isRepsStoppedEnabled(context)) {
+            Map<String, String> repChats = TelegramStore.repChats(context);
+            for (Map.Entry<String, List<String>> group : TelegramText.groupByRep(newlyStoppedReps, newlyStopped).entrySet()) {
+                String chatId = repChats.get(group.getKey());
+                if (chatId != null) TelegramSendWorker.enqueueToRep(context, chatId, TelegramText.repStoppedMessage(group.getValue()));
+            }
         }
         if (manual) {
             SyncNotifier.notifySyncCompleted(context, syncedAccountCount.get());

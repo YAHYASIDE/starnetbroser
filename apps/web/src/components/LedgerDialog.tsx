@@ -950,6 +950,7 @@ export function LedgerDialog({
               method: pendingPayment.paymentMethod ? PAYMENT_METHOD_LABELS[pendingPayment.paymentMethod] : undefined,
               balanceAfter: balanceAfterPayment([...entries, pendingPayment], pendingPayment),
               date: pendingPayment.date,
+              representativeId: representative?.id,
             });
             setPendingPayment(null);
           }}

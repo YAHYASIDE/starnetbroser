@@ -8,12 +8,16 @@
  */
 
 import type { StarlinkAccountSummary } from "@starnet/shared";
-import { LocalBrowser } from "@starnet/local-browser-plugin";
+import { LocalBrowser, type TelegramPollMessage } from "@starnet/local-browser-plugin";
 import { isRunningInAndroidApp } from "./localBrowser";
 import { buildEveningSummary, localDay, nextEveningTime } from "./eveningSummary";
 import { loadCashEntries } from "./cashStore";
 import { loadClientStore } from "./clientStore";
+import { getCurrency, loadCurrencyStore } from "./currencyStore";
+import { loadInvoices } from "./invoiceStore";
 import type { LedgerByAccount } from "./ledgerStore";
+import { loadRepresentativeStore, loadRepSettlements } from "./repStore";
+import { repAccounts, repMoney, repMorningText, repStatementText, repWelcomeText } from "./telegramRepMessages";
 import type { PrintableDocument } from "./pdfDocument";
 import { renderPrintablePdf } from "./pdfExport";
 import {
@@ -58,9 +62,10 @@ export async function saveTelegramPrefs(prefs: TelegramPrefs): Promise<void> {
   safeSet(PREFS_KEY, JSON.stringify(prefs));
   if (!isRunningInAndroidApp()) return;
   try {
-    await LocalBrowser.telegramSetOptions({ stopped: prefs.stopped });
+    await LocalBrowser.telegramSetOptions({ stopped: prefs.stopped, repsStopped: prefs.repStopped });
     if (!prefs.morning) await LocalBrowser.telegramCancel({ key: "morning" });
     if (!prefs.evening) await LocalBrowser.telegramCancel({ key: "evening" });
+    if (!prefs.repMorning) for (const repId of Object.keys(loadRepChats())) await LocalBrowser.telegramCancel({ key: repMorningKey(repId) });
   } catch {
     // Applied on the next schedule.
   }
@@ -74,6 +79,8 @@ export interface TelegramConnection {
   configured: boolean;
   botName?: string;
   chatName?: string;
+  repsConfigured?: boolean;
+  repsBotName?: string;
 }
 
 export async function telegramConnection(): Promise<TelegramConnection> {
@@ -81,7 +88,14 @@ export async function telegramConnection(): Promise<TelegramConnection> {
   try {
     const status = await LocalBrowser.telegramStatus();
     safeSet(CONNECTED_KEY, status.configured ? "1" : null);
-    return { configured: status.configured, botName: status.botName ?? undefined, chatName: status.chatName ?? undefined };
+    safeSet(REPS_CONNECTED_KEY, status.repsConfigured ? "1" : null);
+    return {
+      configured: status.configured,
+      botName: status.botName ?? undefined,
+      chatName: status.chatName ?? undefined,
+      repsConfigured: Boolean(status.repsConfigured),
+      repsBotName: status.repsBotName ?? undefined,
+    };
   } catch {
     return { configured: false };
   }
@@ -131,10 +145,12 @@ export async function sendTelegramPdf(doc: PrintableDocument, caption?: string):
   }
 }
 
-/** "💵 دفعة جديدة" - when that option is on. */
-export function notifyPaymentTelegram(input: Parameters<typeof buildPaymentTelegram>[0]): void {
-  if (!isTelegramConnected() || !loadTelegramPrefs().payments) return;
-  void sendTelegramText(buildPaymentTelegram(input));
+/** "💵 دفعة جديدة" - to the operator and to the device's rep, as each option allows. */
+export function notifyPaymentTelegram(input: Parameters<typeof buildPaymentTelegram>[0] & { representativeId?: string }): void {
+  const prefs = loadTelegramPrefs();
+  const text = buildPaymentTelegram(input);
+  if (isTelegramConnected() && prefs.payments) void sendTelegramText(text);
+  if (input.representativeId && prefs.repPayments) void sendRepText(input.representativeId, text);
 }
 
 /**
@@ -167,6 +183,203 @@ export async function rescheduleTelegramSummaries(input: {
   } catch {
     // Tried again on the next data change.
   }
+  await rescheduleRepMornings(input.accounts, input.morningHour);
+}
+
+// ---- Reps bot: one bot for all representatives, each linked to his own chat ----
+
+const REPS_CONNECTED_KEY = "starnet.telegramRepsConnected";
+const REP_CHATS_KEY = "starnet.telegramRepChats";
+const REP_REQUESTS_KEY = "starnet.telegramRepRequests";
+const REPS_OFFSET_KEY = "starnet.telegramRepsOffset";
+
+export interface RepChat {
+  chatId: string;
+  /** The Telegram name, to recognise him in الإعدادات. */
+  name: string;
+}
+
+export interface RepLinkRequest {
+  chatId: string;
+  name: string;
+  username: string;
+  at: string;
+}
+
+export function isRepsBotConnected(): boolean {
+  return isRunningInAndroidApp() && safeGet(REPS_CONNECTED_KEY) === "1";
+}
+
+export function loadRepChats(): Record<string, RepChat> {
+  try {
+    return JSON.parse(safeGet(REP_CHATS_KEY) ?? "{}") as Record<string, RepChat>;
+  } catch {
+    return {};
+  }
+}
+
+async function saveRepChats(chats: Record<string, RepChat>): Promise<void> {
+  safeSet(REP_CHATS_KEY, JSON.stringify(chats));
+  if (!isRunningInAndroidApp()) return;
+  try {
+    await LocalBrowser.telegramSetRepChats({ chats: Object.fromEntries(Object.entries(chats).map(([repId, c]) => [repId, c.chatId])) });
+  } catch {
+    // Pushed again on the next change.
+  }
+}
+
+export function loadRepRequests(): RepLinkRequest[] {
+  try {
+    return JSON.parse(safeGet(REP_REQUESTS_KEY) ?? "[]") as RepLinkRequest[];
+  } catch {
+    return [];
+  }
+}
+
+function saveRepRequests(requests: RepLinkRequest[]) {
+  safeSet(REP_REQUESTS_KEY, JSON.stringify(requests.slice(-20)));
+}
+
+export async function connectRepsBot(token: string): Promise<{ ok: true; botName: string } | { ok: false; message: string }> {
+  if (!isRunningInAndroidApp()) return { ok: false, message: "الربط يعمل داخل تطبيق أندرويد فقط" };
+  try {
+    const result = await LocalBrowser.telegramConnect({ token, bot: "reps" });
+    safeSet(REPS_CONNECTED_KEY, "1");
+    await saveRepChats(loadRepChats());
+    await saveTelegramPrefs(loadTelegramPrefs());
+    return { ok: true, botName: result.botName };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : "تعذر الربط" };
+  }
+}
+
+export async function disconnectRepsBot(): Promise<void> {
+  for (const repId of Object.keys(loadRepChats())) {
+    try {
+      await LocalBrowser.telegramCancel({ key: repMorningKey(repId) });
+    } catch {
+      // nothing scheduled
+    }
+  }
+  safeSet(REPS_CONNECTED_KEY, null);
+  safeSet(REP_CHATS_KEY, null);
+  safeSet(REP_REQUESTS_KEY, null);
+  safeSet(REPS_OFFSET_KEY, null);
+  if (!isRunningInAndroidApp()) return;
+  try {
+    await LocalBrowser.telegramDisconnect({ bot: "reps" });
+  } catch {
+    // Nothing stored natively then.
+  }
+}
+
+/** Links a Telegram chat (from a request) to a rep and welcomes him. A chat belongs to one rep. */
+export async function linkRepChat(repId: string, request: RepLinkRequest, repName: string): Promise<void> {
+  const chats = Object.fromEntries(Object.entries(loadRepChats()).filter(([, c]) => c.chatId !== request.chatId));
+  chats[repId] = { chatId: request.chatId, name: request.name || request.username };
+  await saveRepChats(chats);
+  saveRepRequests(loadRepRequests().filter((r) => r.chatId !== request.chatId));
+  await sendRepText(repId, repWelcomeText(repName));
+}
+
+export async function unlinkRep(repId: string): Promise<void> {
+  const chats = loadRepChats();
+  delete chats[repId];
+  await saveRepChats(chats);
+  try {
+    await LocalBrowser.telegramCancel({ key: repMorningKey(repId) });
+  } catch {
+    // nothing scheduled
+  }
+}
+
+export function dismissRepRequest(chatId: string) {
+  saveRepRequests(loadRepRequests().filter((r) => r.chatId !== chatId));
+}
+
+/** Someone not linked yet wrote to the reps bot: remember him for الإعدادات (once). */
+export function recordRepRequest(message: TelegramPollMessage): boolean {
+  const requests = loadRepRequests();
+  if (requests.some((r) => r.chatId === message.chatId)) return false;
+  saveRepRequests([...requests, { chatId: message.chatId, name: message.name, username: message.username, at: new Date().toISOString() }]);
+  return true;
+}
+
+export function repIdForChat(chatId: string): string | undefined {
+  return Object.entries(loadRepChats()).find(([, c]) => c.chatId === chatId)?.[0];
+}
+
+/** Queued to a linked rep; false when he isn't linked. */
+export async function sendRepText(repId: string, text: string): Promise<boolean> {
+  const chat = loadRepChats()[repId];
+  if (!chat || !isRepsBotConnected()) return false;
+  try {
+    return (await LocalBrowser.telegramSend({ text, bot: "reps", chatId: chat.chatId })).queued;
+  } catch {
+    return false;
+  }
+}
+
+/** A direct answer to someone who isn't linked (the "request received" reply). */
+export async function replyToChat(chatId: string, text: string): Promise<void> {
+  try {
+    await LocalBrowser.telegramSend({ text, bot: "reps", chatId, reply: true });
+  } catch {
+    // best effort
+  }
+}
+
+export async function pollRepsBot(): Promise<TelegramPollMessage[]> {
+  if (!isRepsBotConnected()) return [];
+  const offset = Number(safeGet(REPS_OFFSET_KEY)) || 0;
+  try {
+    const result = await LocalBrowser.telegramPoll({ offset, bot: "reps" });
+    safeSet(REPS_OFFSET_KEY, String(result.nextOffset));
+    return result.messages;
+  } catch {
+    return [];
+  }
+}
+
+function repMorningKey(repId: string): string {
+  return `rep_${repId.toLowerCase().replace(/[^a-z0-9_-]/g, "_").slice(0, 50)}`;
+}
+
+/** Each linked rep's "☀️ تجديدات أجهزتك", scheduled for the next morning (cancelled when he has none). */
+async function rescheduleRepMornings(accounts: StarlinkAccountSummary[], morningHour: number): Promise<void> {
+  if (!isRepsBotConnected() || !loadTelegramPrefs().repMorning) return;
+  const reps = loadRepresentativeStore();
+  const clients = loadClientStore();
+  const at = new Date();
+  at.setHours(morningHour, 0, 0, 0);
+  if (at.getTime() <= Date.now()) at.setDate(at.getDate() + 1);
+  for (const [repId, chat] of Object.entries(loadRepChats())) {
+    const rep = reps[repId];
+    const text = rep ? repMorningText(rep.name, repAccounts(accounts, repId), clients, localDay(at)) : null;
+    try {
+      await LocalBrowser.telegramSchedule({ key: repMorningKey(repId), at: at.getTime(), text: text ?? "", bot: "reps", chatId: chat.chatId });
+    } catch {
+      // Tried again on the next data change.
+    }
+  }
+}
+
+/** "📊 كشف حسابك" to every linked rep - sent when a month is closed. */
+export async function sendRepMonthlyStatements(month: string, ledgerStore: LedgerByAccount): Promise<number> {
+  if (!isRepsBotConnected() || !loadTelegramPrefs().repMonthly) return 0;
+  const reps = loadRepresentativeStore();
+  const currencies = loadCurrencyStore();
+  const rates = { MRU: getCurrency(currencies, "MRU")?.rateFromUsd, SIFA: getCurrency(currencies, "SIFA")?.rateFromUsd };
+  const invoices = loadInvoices();
+  const settlements = loadRepSettlements();
+  let sent = 0;
+  for (const repId of Object.keys(loadRepChats())) {
+    const rep = reps[repId];
+    if (!rep) continue;
+    const text = repStatementText(rep.name, month, repMoney({ rep, month, ledgerStore, invoices, settlements, rates }));
+    if (await sendRepText(repId, `🗓 تم إقفال شهر\n${text}`)) sent += 1;
+  }
+  return sent;
 }
 
 // ---- Commands (TelegramBridge) ----
