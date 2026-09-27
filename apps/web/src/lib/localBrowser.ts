@@ -17,6 +17,7 @@ export interface AutoSyncAccountRef {
   /** See autoSyncList.ts - omitted for a device that must not be synced automatically. */
   renewalDate?: string;
   serviceStatus?: string;
+  representativeId?: string;
 }
 
 /**
@@ -130,6 +131,7 @@ export async function syncAutoSyncAccountList(accounts: AutoSyncAccountRef[]): P
         accountName: account.name,
         renewalDate: account.renewalDate,
         serviceStatus: account.serviceStatus,
+        representativeId: account.representativeId,
       })),
     });
     return saved;

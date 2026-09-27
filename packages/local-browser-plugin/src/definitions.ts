@@ -149,6 +149,8 @@ export interface AutoSyncAccountEntry {
   /** Last known "active" | "suspended" | ... - a device that newly reads as stopped triggers the
    * grouped "⛔ توقف" notification. */
   serviceStatus?: string;
+  /** The device's representative - his linked Telegram chat (reps bot) hears when it stops. */
+  representativeId?: string;
 }
 
 export interface SetAutoSyncAccountIdsOptions {

@@ -12,8 +12,8 @@ function account(id: string, extra: Partial<StarlinkAccountSummary> = {}): Starl
 
 describe("buildAutoSyncList", () => {
   it("sends each live device with its renewal date and status", () => {
-    expect(buildAutoSyncList([account("a", { serviceStatus: "suspended" })])).toEqual([
-      { id: "a", name: "جهاز a", renewalDate: "2026/09/30", serviceStatus: "suspended" },
+    expect(buildAutoSyncList([account("a", { serviceStatus: "suspended", representativeId: "r1" })])).toEqual([
+      { id: "a", name: "جهاز a", renewalDate: "2026/09/30", serviceStatus: "suspended", representativeId: "r1" },
     ]);
   });
 

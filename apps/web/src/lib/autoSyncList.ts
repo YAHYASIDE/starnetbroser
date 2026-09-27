@@ -16,5 +16,6 @@ export function buildAutoSyncList(accounts: StarlinkAccountSummary[]): AutoSyncA
       name: account.name,
       renewalDate: account.deviceFault ? undefined : account.rechargeDate?.trim() || undefined,
       serviceStatus: account.serviceStatus || undefined,
+      representativeId: account.representativeId || undefined,
     }));
 }
