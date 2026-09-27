@@ -181,7 +181,7 @@ export type TelegramCommand =
   | { kind: "statement"; query: string }
   | { kind: "unknown" };
 
-const WORDS: Record<string, Exclude<TelegramCommand["kind"], "statement" | "unknown">> = {
+export const WORDS: Record<string, Exclude<TelegramCommand["kind"], "statement" | "unknown">> = {
   start: "help",
   help: "help",
   "مساعدة": "help",
@@ -214,7 +214,7 @@ export function parseTelegramCommand(text: string): TelegramCommand {
 }
 
 export const TELEGRAM_HELP = [
-  "🤖 أوامر STAR NET (تُجاب والتطبيق مفتوح على الهاتف):",
+  "🤖 أوامر STAR NET:",
   "• المتوقفة - الأجهزة الموقوفة عند Starlink",
   "• تنتهي - الأجهزة التي تنتهي خلال 7 أيام",
   "• الصندوق - رصيد الصندوق",

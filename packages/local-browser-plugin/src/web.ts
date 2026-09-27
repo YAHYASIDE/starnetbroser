@@ -22,6 +22,7 @@ import type {
   SetAutoSyncEnabledOptions,
   SetAutoSyncEnabledResult,
   TelegramBot,
+  TelegramInboxMessage,
   TelegramPollResult,
   TelegramStatus,
   SyncNowOptions,
@@ -109,6 +110,22 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
 
   async telegramPoll(_options: { offset?: number; bot?: TelegramBot }): Promise<TelegramPollResult> {
     return { messages: [], nextOffset: 0 };
+  }
+
+  async telegramSetInstant(_options: { enabled: boolean }): Promise<void> {
+    return;
+  }
+
+  async telegramSetReplies(_options: { snapshot: string }): Promise<void> {
+    return;
+  }
+
+  async telegramTakeInbox(): Promise<{ messages: TelegramInboxMessage[]; running: boolean }> {
+    return { messages: [], running: false };
+  }
+
+  async telegramForgetRequest(_options: { chatId: string }): Promise<void> {
+    return;
   }
 
   async syncNow(_options?: SyncNowOptions): Promise<void> {

@@ -19,7 +19,17 @@ import { loadPartyAdjustments } from "./partyBalanceStore";
 import { buildPartyStatementPdf } from "./partyStatementPdf";
 import { isDemoMode, isLoggedIn } from "./settingsStore";
 import { listSuppliers, loadSupplierStore } from "./supplierStore";
-import { recordRepRequest, repIdForChat, replyToChat, sendRepText, sendTelegramPdf, sendTelegramText } from "./telegram";
+import {
+  loadRepChats,
+  pushTelegramReplies,
+  recordRepRequest,
+  repIdForChat,
+  replyToChat,
+  sendRepText,
+  sendTelegramPdf,
+  sendTelegramText,
+} from "./telegram";
+import { buildReplySnapshot } from "./telegramReplies";
 import type { TelegramPollMessage } from "@starnet/local-browser-plugin";
 import { getCurrency, loadCurrencyStore } from "./currencyStore";
 import { loadRepresentativeStore, loadRepSettlements } from "./repStore";
@@ -126,10 +136,11 @@ async function answerStatement(query: string): Promise<void> {
  * A message to the reps bot. From a linked rep: answered with HIS data only. From anyone else:
  * recorded as a link request for الإعدادات and told to wait - never answered with any data.
  */
-export async function answerRepMessage(message: TelegramPollMessage): Promise<void> {
+export async function answerRepMessage(message: TelegramPollMessage, alreadyReplied = false): Promise<void> {
   const repId = repIdForChat(message.chatId);
   if (!repId) {
-    if (recordRepRequest(message)) {
+    // alreadyReplied: the background service told him and the operator already - just record it.
+    if (recordRepRequest(message) && !alreadyReplied) {
       await replyToChat(message.chatId, repLinkRequestReply(message.name));
       await sendTelegramText(`🤝 طلب ربط جديد ببوت المندوبين من ${message.name || message.username || "مستخدم"} - اربطه بمندوبه من الإعدادات ← تيليغرام`);
     }
@@ -164,4 +175,24 @@ export async function answerRepMessage(message: TelegramPollMessage): Promise<vo
       return;
     }
   }
+}
+
+/** Prepares every answer from the data right now for when the app is closed (TelegramReplyService). */
+export async function refreshTelegramReplies(): Promise<void> {
+  const now = new Date();
+  const currencies = loadCurrencyStore();
+  const snapshot = buildReplySnapshot({
+    now,
+    today: localDay(now),
+    accounts: await loadAccounts(),
+    clients: loadClientStore(),
+    cash: loadCashEntries(),
+    ledgerStore: loadLedgerStore(),
+    representatives: loadRepresentativeStore(),
+    linkedRepIds: Object.keys(loadRepChats()),
+    invoices: loadInvoices(),
+    settlements: loadRepSettlements(),
+    rates: { MRU: getCurrency(currencies, "MRU")?.rateFromUsd, SIFA: getCurrency(currencies, "SIFA")?.rateFromUsd },
+  });
+  await pushTelegramReplies(snapshot);
 }

@@ -42,6 +42,10 @@ import {
   sendTelegramText,
   telegramConnection,
   TelegramConnection,
+  isRepsBotConnected,
+  isTelegramConnected,
+  isTelegramInstant,
+  setTelegramInstant,
 } from "@/lib/telegram";
 import { DEFAULT_TELEGRAM_PREFS, TelegramPrefs } from "@/lib/telegramMessages";
 import {
@@ -270,6 +274,7 @@ export default function SettingsPage() {
 
       <TelegramSection />
       <TelegramRepsSection />
+      <TelegramInstantSection />
 
       <AppLockSection />
 
@@ -1289,7 +1294,7 @@ function TelegramSection() {
           ))}
           <p className="settings-hint">
             📄 في أي كشف PDF (زبون، مورد، مندوب، إقفال شهر، سند قبض) اختر «✈️ إرسال إلى تيليغرام». وتستطيع أن تكتب للبوت: المتوقفة، تنتهي،
-            الصندوق، ملخص، كشف + اسم الزبون أو المورد - يجيب والتطبيق مفتوح على هاتفك.
+            الصندوق، ملخص، كشف + اسم الزبون أو المورد.
           </p>
           <div className="settings-actions">
             <button
@@ -1340,6 +1345,51 @@ function TelegramSection() {
         </>
       )}
       {message && <p className="settings-hint telegram-message">{message}</p>}
+    </section>
+  );
+}
+
+/** ⚡ Both bots keep answering with the app closed (native service + permanent notification). */
+function TelegramInstantSection() {
+  const [shown, setShown] = useState(false);
+  const [instant, setInstant] = useState(true);
+  useEffect(() => {
+    const refresh = () => {
+      setShown(isTelegramConnected() || isRepsBotConnected());
+      setInstant(isTelegramInstant());
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 5000);
+    return () => window.clearInterval(timer);
+  }, []);
+  if (!shown) return null;
+  return (
+    <section className="section telegram-section">
+      <h2 className="section-title">⚡ رد البوت والتطبيق مغلق</h2>
+      <label className="toggle-switch-row">
+        <span>يرد البوتان فوراً حتى والتطبيق مغلق</span>
+        <span className={`toggle-switch${instant ? " toggle-switch-on" : ""}`}>
+          <input
+            type="checkbox"
+            checked={instant}
+            onChange={(e) => {
+              setInstant(e.target.checked);
+              void setTelegramInstant(e.target.checked);
+            }}
+          />
+          <span className="toggle-switch-thumb" />
+        </span>
+      </label>
+      <p className="settings-hint">
+        {instant
+          ? "يبقى إشعار صغير «🤖 بوت تيليغرام يرد» في شريط الإشعارات - هو ما يسمح لأندرويد بإبقاء الرد يعمل. الردود والتطبيق مغلق تكون حسب بيانات آخر مرة فُتح فيها التطبيق (يُكتب الوقت تحت كل رد)، وكشف PDF يُرسل عند فتح التطبيق."
+          : "مطفأ: يرد البوتان فقط والتطبيق مفتوح على هاتفك."}
+      </p>
+      {instant && (
+        <p className="settings-hint">
+          إن توقف الرد بعد مدة على هاتفك: من إعدادات أندرويد ← التطبيقات ← STAR NET ← البطارية، اختر «غير مقيَّد».
+        </p>
+      )}
     </section>
   );
 }
@@ -1522,7 +1572,7 @@ function TelegramRepsSection() {
             </label>
           ))}
           <p className="settings-hint">
-            المندوب يكتب للبوت: أجهزتي، تنتهي، كشفي، ديون زبائني - يُجاب والتطبيق مفتوح على هاتفك. من ليس مربوطاً لا يرى أي بيانات.
+            المندوب يكتب للبوت: أجهزتي، تنتهي، كشفي، ديون زبائني. من ليس مربوطاً لا يرى أي بيانات.
           </p>
           <div className="settings-actions">
             <button

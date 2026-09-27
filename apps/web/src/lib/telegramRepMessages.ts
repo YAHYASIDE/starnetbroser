@@ -125,7 +125,7 @@ export function repStatementText(repName: string, month: string, figures: RepMon
 
 export type RepCommand = { kind: "help" } | { kind: "devices" } | { kind: "expiring" } | { kind: "statement" } | { kind: "debts" } | { kind: "unknown" };
 
-const REP_WORDS: Record<string, Exclude<RepCommand["kind"], "unknown">> = {
+export const REP_WORDS: Record<string, Exclude<RepCommand["kind"], "unknown">> = {
   start: "help",
   help: "help",
   "مساعدة": "help",
@@ -158,7 +158,6 @@ export const REP_HELP = [
   "• تنتهي - أجهزتك التي تنتهي خلال 7 أيام",
   "• كشفي - حصتك هذا الشهر ورصيدك",
   "• ديون زبائني - ما على زبائن أجهزتك",
-  "(الرد يصل عندما يكون تطبيق المسؤول مفتوحاً)",
 ].join("\n");
 
 export function repLinkRequestReply(name: string): string {

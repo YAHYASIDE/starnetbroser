@@ -55,6 +55,8 @@ describe("LocalBrowserWeb", () => {
     const plugin = new LocalBrowserWeb();
     await expect(plugin.telegramStatus()).resolves.toEqual({ configured: false, stoppedEnabled: false });
     await expect(plugin.telegramSend({ text: "x" })).resolves.toEqual({ queued: false });
+    await expect(plugin.telegramTakeInbox()).resolves.toEqual({ messages: [], running: false });
+    await expect(plugin.telegramSetReplies({ snapshot: "{}" })).resolves.toBeUndefined();
     await expect(plugin.telegramSendDocument({ fileName: "a.pdf", base64: "AA==" })).rejects.toThrow();
   });
 

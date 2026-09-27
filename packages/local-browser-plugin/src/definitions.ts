@@ -169,6 +169,8 @@ export interface TelegramStatus {
   stoppedEnabled: boolean;
   repsConfigured?: boolean;
   repsBotName?: string | null;
+  /** Bots keep answering with the app closed (TelegramReplyService). */
+  instant?: boolean;
 }
 
 export interface TelegramPollMessage {
@@ -177,6 +179,13 @@ export interface TelegramPollMessage {
   chatId: string;
   name: string;
   username: string;
+}
+
+/** A message TelegramReplyService left for the app (the app is in front, or it needs a PDF /
+ * to record a link request). `replied`: the service already answered it. */
+export interface TelegramInboxMessage extends TelegramPollMessage {
+  bot: TelegramBot;
+  replied: boolean;
 }
 
 export interface TelegramPollResult {
@@ -368,6 +377,15 @@ export interface LocalBrowserPlugin {
   telegramSendDocument(options: { fileName: string; base64: string; caption?: string; bot?: TelegramBot; chatId?: string }): Promise<void>;
   /** New messages to a bot (the app answers commands itself). */
   telegramPoll(options: { offset?: number; bot?: TelegramBot }): Promise<TelegramPollResult>;
+  /** Replies with the app closed: a foreground service (permanent notification) answers both
+   * bots from the texts set with telegramSetReplies. Don't telegramPoll while it's on. */
+  telegramSetInstant(options: { enabled: boolean }): Promise<void>;
+  /** The prepared answers (JSON of TelegramReplies.Snapshot, see apps/web telegramReplies.ts). */
+  telegramSetReplies(options: { snapshot: string }): Promise<void>;
+  /** Messages the service left for the app, removed as they're returned. */
+  telegramTakeInbox(): Promise<{ messages: TelegramInboxMessage[]; running: boolean }>;
+  /** A dismissed link request: that person is answered again if he writes. */
+  telegramForgetRequest(options: { chatId: string }): Promise<void>;
 
   /**
    * Reads the raw login-session cookies for each given account's isolated profile - part of the

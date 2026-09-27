@@ -8,7 +8,7 @@
  */
 
 import type { StarlinkAccountSummary } from "@starnet/shared";
-import { LocalBrowser, type TelegramPollMessage } from "@starnet/local-browser-plugin";
+import { LocalBrowser, type TelegramInboxMessage, type TelegramPollMessage } from "@starnet/local-browser-plugin";
 import { isRunningInAndroidApp } from "./localBrowser";
 import { buildEveningSummary, localDay, nextEveningTime } from "./eveningSummary";
 import { loadCashEntries } from "./cashStore";
@@ -19,6 +19,7 @@ import type { LedgerByAccount } from "./ledgerStore";
 import { loadRepresentativeStore, loadRepSettlements } from "./repStore";
 import { repAccounts, repMoney, repMorningText, repStatementText, repWelcomeText } from "./telegramRepMessages";
 import type { PrintableDocument } from "./pdfDocument";
+import type { TelegramReplySnapshot } from "./telegramReplies";
 import { renderPrintablePdf } from "./pdfExport";
 import {
   buildEveningTelegram,
@@ -301,6 +302,7 @@ export async function unlinkRep(repId: string): Promise<void> {
 
 export function dismissRepRequest(chatId: string) {
   saveRepRequests(loadRepRequests().filter((r) => r.chatId !== chatId));
+  if (isRunningInAndroidApp()) void LocalBrowser.telegramForgetRequest({ chatId }).catch(() => undefined);
 }
 
 /** Someone not linked yet wrote to the reps bot: remember him for الإعدادات (once). */
@@ -400,6 +402,42 @@ export async function pollTelegram(): Promise<string[]> {
     const result = await LocalBrowser.telegramPoll({ offset });
     safeSet(OFFSET_KEY, String(result.nextOffset));
     return result.messages.map((m) => m.text);
+  } catch {
+    return [];
+  }
+}
+
+// ---- Replies with the app closed (TelegramReplyService) ----
+
+const INSTANT_KEY = "starnet.telegramInstant";
+
+/** On by default: the bots answer even with the app closed (permanent notification). */
+export function isTelegramInstant(): boolean {
+  return isRunningInAndroidApp() && safeGet(INSTANT_KEY) !== "0";
+}
+
+export async function setTelegramInstant(enabled: boolean): Promise<void> {
+  safeSet(INSTANT_KEY, enabled ? null : "0");
+  if (!isRunningInAndroidApp()) return;
+  try {
+    await LocalBrowser.telegramSetInstant({ enabled });
+  } catch {
+    // Applied again the next time the app opens.
+  }
+}
+
+/** Hands the native service the answers prepared from the data right now. */
+export async function pushTelegramReplies(snapshot: TelegramReplySnapshot): Promise<void> {
+  try {
+    await LocalBrowser.telegramSetReplies({ snapshot: JSON.stringify(snapshot) });
+  } catch {
+    // Pushed again in a minute.
+  }
+}
+
+export async function takeTelegramInbox(): Promise<TelegramInboxMessage[]> {
+  try {
+    return (await LocalBrowser.telegramTakeInbox()).messages;
   } catch {
     return [];
   }

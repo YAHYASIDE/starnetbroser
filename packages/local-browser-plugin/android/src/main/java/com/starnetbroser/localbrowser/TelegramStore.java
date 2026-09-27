@@ -27,6 +27,11 @@ final class TelegramStore {
     private static final String KEY_REPS_BOT_NAME = "repsBotName";
     private static final String KEY_REP_CHATS = "repChats";
     private static final String KEY_REPS_STOPPED_OFF = "repsStoppedOff";
+    private static final String KEY_INSTANT_OFF = "instantOff";
+    private static final String KEY_OFFSET = "offset_";
+    private static final String KEY_REPLIES = "replies";
+    private static final String KEY_INBOX = "inbox";
+    private static final String KEY_REQUESTED = "requested";
 
     private TelegramStore() {
     }
@@ -43,6 +48,7 @@ final class TelegramStore {
             .putString(KEY_CHAT_ID, chatId)
             .putString(KEY_CHAT_NAME, chatName)
             .putString(KEY_BOT_NAME, botName)
+            .remove(KEY_OFFSET + OWNER)
             .commit();
     }
 
@@ -53,6 +59,7 @@ final class TelegramStore {
             .remove(KEY_CHAT_NAME)
             .remove(KEY_BOT_NAME)
             .remove(KEY_STOPPED_OFF)
+            .remove(KEY_OFFSET + OWNER)
             .commit();
     }
 
@@ -87,11 +94,23 @@ final class TelegramStore {
     // ---- reps bot ----
 
     static boolean saveReps(Context context, String token, String botName) {
-        return prefs(context).edit().putString(KEY_REPS_TOKEN, token).putString(KEY_REPS_BOT_NAME, botName).commit();
+        return prefs(context).edit()
+            .putString(KEY_REPS_TOKEN, token)
+            .putString(KEY_REPS_BOT_NAME, botName)
+            .remove(KEY_OFFSET + REPS)
+            .remove(KEY_REQUESTED)
+            .commit();
     }
 
     static void clearReps(Context context) {
-        prefs(context).edit().remove(KEY_REPS_TOKEN).remove(KEY_REPS_BOT_NAME).remove(KEY_REP_CHATS).remove(KEY_REPS_STOPPED_OFF).commit();
+        prefs(context).edit()
+            .remove(KEY_REPS_TOKEN)
+            .remove(KEY_REPS_BOT_NAME)
+            .remove(KEY_REP_CHATS)
+            .remove(KEY_REPS_STOPPED_OFF)
+            .remove(KEY_OFFSET + REPS)
+            .remove(KEY_REQUESTED)
+            .commit();
     }
 
     static String repsToken(Context context) {
@@ -119,6 +138,15 @@ final class TelegramStore {
         return chatId != null && repChats(context).containsValue(chatId);
     }
 
+    /** The rep a chat is linked to, or null. */
+    static String repIdForChat(Context context, String chatId) {
+        if (chatId == null) return null;
+        for (Map.Entry<String, String> e : repChats(context).entrySet()) {
+            if (chatId.equals(e.getValue())) return e.getKey();
+        }
+        return null;
+    }
+
     static void setRepsStoppedEnabled(Context context, boolean enabled) {
         prefs(context).edit().putBoolean(KEY_REPS_STOPPED_OFF, !enabled).apply();
     }
@@ -130,5 +158,60 @@ final class TelegramStore {
     /** The token to send with ("owner" or "reps"). */
     static String tokenFor(Context context, String bot) {
         return REPS.equals(bot) ? repsToken(context) : token(context);
+    }
+
+    // ---- replies while the app is closed (TelegramReplyService) ----
+
+    /** On by default: the service answers both bots even with the app closed. */
+    static boolean isInstantEnabled(Context context) {
+        return !prefs(context).getBoolean(KEY_INSTANT_OFF, false);
+    }
+
+    static void setInstantEnabled(Context context, boolean enabled) {
+        prefs(context).edit().putBoolean(KEY_INSTANT_OFF, !enabled).commit();
+    }
+
+    /** Next getUpdates offset per bot - reset whenever that bot's token changes. */
+    static long offset(Context context, String bot) {
+        return prefs(context).getLong(KEY_OFFSET + bot, 0);
+    }
+
+    static void setOffset(Context context, String bot, long offset) {
+        prefs(context).edit().putLong(KEY_OFFSET + bot, offset).commit();
+    }
+
+    /** The answers the app prepared (JSON, see TelegramReplies.Snapshot). */
+    static void setReplies(Context context, String json) {
+        prefs(context).edit().putString(KEY_REPLIES, json).commit();
+    }
+
+    static String replies(Context context) {
+        return prefs(context).getString(KEY_REPLIES, null);
+    }
+
+    /** Messages left for the app (JSON array) - synchronized with takeInbox. */
+    static synchronized void setInbox(Context context, String json) {
+        prefs(context).edit().putString(KEY_INBOX, json).commit();
+    }
+
+    static synchronized String inbox(Context context) {
+        return prefs(context).getString(KEY_INBOX, null);
+    }
+
+    /** Unlinked chats already told "وصل طلبك" (so they're told once). */
+    static boolean wasRequested(Context context, String chatId) {
+        return TelegramText.decodePairs(prefs(context).getString(KEY_REQUESTED, null)).containsKey(chatId);
+    }
+
+    static void markRequested(Context context, String chatId) {
+        Map<String, String> requested = TelegramText.decodePairs(prefs(context).getString(KEY_REQUESTED, null));
+        requested.put(chatId, "1");
+        prefs(context).edit().putString(KEY_REQUESTED, TelegramText.encodePairs(requested)).commit();
+    }
+
+    /** Forget a request (dismissed or linked in الإعدادات), so he's answered again if he writes. */
+    static void forgetRequested(Context context, String chatId) {
+        Map<String, String> requested = TelegramText.decodePairs(prefs(context).getString(KEY_REQUESTED, null));
+        if (requested.remove(chatId) != null) prefs(context).edit().putString(KEY_REQUESTED, TelegramText.encodePairs(requested)).commit();
     }
 }

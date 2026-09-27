@@ -37,8 +37,13 @@ final class TelegramClient {
     }
 
     static JSONObject call(String token, String method, Map<String, String> params) throws IOException, TelegramError {
+        return call(token, method, params, TIMEOUT_MS);
+    }
+
+    /** With a longer read timeout - a long-polling getUpdates holds the request open. */
+    static JSONObject call(String token, String method, Map<String, String> params, int readTimeoutMs) throws IOException, TelegramError {
         byte[] body = TelegramText.formEncode(params).getBytes(StandardCharsets.UTF_8);
-        return send(token, method, "application/x-www-form-urlencoded; charset=utf-8", body);
+        return send(token, method, "application/x-www-form-urlencoded; charset=utf-8", body, readTimeoutMs);
     }
 
     static JSONObject sendMessage(String token, String chatId, String text) throws IOException, TelegramError {
@@ -55,15 +60,15 @@ final class TelegramClient {
         fields.put("chat_id", chatId);
         if (caption != null && !caption.isEmpty()) fields.put("caption", TelegramText.truncate(caption, TelegramText.MAX_CAPTION_CHARS));
         byte[] body = TelegramText.multipart(boundary, fields, "document", fileName, "application/pdf", file);
-        return send(token, "sendDocument", "multipart/form-data; boundary=" + boundary, body);
+        return send(token, "sendDocument", "multipart/form-data; boundary=" + boundary, body, TIMEOUT_MS);
     }
 
-    private static JSONObject send(String token, String method, String contentType, byte[] body) throws IOException, TelegramError {
+    private static JSONObject send(String token, String method, String contentType, byte[] body, int readTimeoutMs) throws IOException, TelegramError {
         HttpURLConnection connection = (HttpURLConnection) new URL(API + token + "/" + method).openConnection();
         try {
             connection.setRequestMethod("POST");
             connection.setConnectTimeout(TIMEOUT_MS);
-            connection.setReadTimeout(TIMEOUT_MS);
+            connection.setReadTimeout(readTimeoutMs);
             connection.setDoOutput(true);
             connection.setRequestProperty("Content-Type", contentType);
             try (OutputStream out = connection.getOutputStream()) {

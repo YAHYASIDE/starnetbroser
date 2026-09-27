@@ -90,6 +90,21 @@ public class LocalBrowserPlugin extends Plugin {
     public void load() {
         activeInstance = new WeakReference<>(this);
         driveAuthorizer.register(getActivity());
+        TelegramReplyService.appVisible = true;
+        TelegramReplyService.refresh(getContext());
+    }
+
+    /** In front, the app answers Telegram itself with live data; behind, TelegramReplyService does. */
+    @Override
+    protected void handleOnResume() {
+        super.handleOnResume();
+        TelegramReplyService.appVisible = true;
+    }
+
+    @Override
+    protected void handleOnPause() {
+        super.handleOnPause();
+        TelegramReplyService.appVisible = false;
     }
 
     /** Google Drive (drive.file) access token for the off-phone backup - see DriveAuthorizer.
@@ -383,6 +398,7 @@ public class LocalBrowserPlugin extends Plugin {
                         call.reject("تعذر حفظ الربط على الهاتف");
                         return;
                     }
+                    TelegramReplyService.refresh(getContext());
                     JSObject ret = new JSObject();
                     ret.put("botName", botName);
                     ret.put("chatName", "");
@@ -424,6 +440,7 @@ public class LocalBrowserPlugin extends Plugin {
                     return;
                 }
                 TelegramClient.sendMessage(token, chatId, "✅ تم ربط STAR NET بهذه المحادثة.\nستصلك هنا إشعارات الأجهزة المتوقفة والدفعات والملخصات.\nاكتب «مساعدة» لترى الأوامر (تُجاب والتطبيق مفتوح).");
+                TelegramReplyService.refresh(getContext());
                 JSObject ret = new JSObject();
                 ret.put("botName", botName);
                 ret.put("chatName", chatName);
@@ -446,6 +463,7 @@ public class LocalBrowserPlugin extends Plugin {
         ret.put("stoppedEnabled", TelegramStore.isStoppedEnabled(getContext()));
         ret.put("repsConfigured", TelegramStore.isRepsConfigured(getContext()));
         ret.put("repsBotName", TelegramStore.repsBotName(getContext()));
+        ret.put("instant", TelegramStore.isInstantEnabled(getContext()));
         call.resolve(ret);
     }
 
@@ -458,6 +476,7 @@ public class LocalBrowserPlugin extends Plugin {
             TelegramSendWorker.cancel(getContext(), "evening");
             TelegramStore.clear(getContext());
         }
+        TelegramReplyService.refresh(getContext());
         call.resolve();
     }
 
@@ -483,7 +502,59 @@ public class LocalBrowserPlugin extends Plugin {
             if (!chatId.isEmpty()) map.put(repId, chatId);
         }
         TelegramStore.setRepChats(getContext(), map);
+        for (String chatId : map.values()) TelegramStore.forgetRequested(getContext(), chatId);
         call.resolve();
+    }
+
+    /** A link request the operator dismissed: if that person writes again he's answered again. */
+    @PluginMethod
+    public void telegramForgetRequest(PluginCall call) {
+        String chatId = call.getString("chatId");
+        if (chatId != null) TelegramStore.forgetRequested(getContext(), chatId);
+        call.resolve();
+    }
+
+    /** Answers with the app closed (TelegramReplyService, with its permanent notification). */
+    @PluginMethod
+    public void telegramSetInstant(PluginCall call) {
+        TelegramStore.setInstantEnabled(getContext(), Boolean.TRUE.equals(call.getBoolean("enabled", true)));
+        TelegramReplyService.refresh(getContext());
+        call.resolve();
+    }
+
+    /** The answers prepared by the app for when it's closed (JSON, see TelegramReplies.Snapshot). */
+    @PluginMethod
+    public void telegramSetReplies(PluginCall call) {
+        String snapshot = call.getString("snapshot");
+        if (snapshot == null || snapshot.length() > 2_000_000) {
+            call.reject("invalid replies");
+            return;
+        }
+        TelegramStore.setReplies(getContext(), snapshot);
+        call.resolve();
+    }
+
+    /** Messages TelegramReplyService left for the app (then removed). */
+    @PluginMethod
+    public void telegramTakeInbox(PluginCall call) {
+        JSONArray inbox = TelegramReplyService.takeInbox(getContext());
+        JSArray messages = new JSArray();
+        for (int i = 0; i < inbox.length(); i++) {
+            JSONObject item = inbox.optJSONObject(i);
+            if (item == null) continue;
+            JSObject out = new JSObject();
+            out.put("bot", item.optString("bot", TelegramStore.OWNER));
+            out.put("chatId", item.optString("chatId", ""));
+            out.put("name", item.optString("name", ""));
+            out.put("username", item.optString("username", ""));
+            out.put("text", item.optString("text", ""));
+            out.put("replied", item.optBoolean("replied", false));
+            messages.put(out);
+        }
+        JSObject ret = new JSObject();
+        ret.put("messages", messages);
+        ret.put("running", TelegramReplyService.shouldRun(getContext()));
+        call.resolve(ret);
     }
 
     /**

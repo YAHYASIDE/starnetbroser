@@ -2,29 +2,73 @@
 
 import { useEffect } from "react";
 import { isRunningInAndroidApp } from "@/lib/localBrowser";
-import { isRepsBotConnected, isTelegramConnected, pollRepsBot, pollTelegram, telegramConnection } from "@/lib/telegram";
-import { answerRepMessage, answerTelegramCommand } from "@/lib/telegramCommands";
+import {
+  isRepsBotConnected,
+  isTelegramConnected,
+  isTelegramInstant,
+  pollRepsBot,
+  pollTelegram,
+  setTelegramInstant,
+  takeTelegramInbox,
+  telegramConnection,
+} from "@/lib/telegram";
+import { answerRepMessage, answerTelegramCommand, refreshTelegramReplies } from "@/lib/telegramCommands";
 
-/** While the app is open (and in front), checks for commands sent to the Telegram bots (yours and
- * the reps') every few seconds and answers them - the data lives only on this phone. */
+const INBOX_EVERY_MS = 3000;
+const POLL_EVERY_MS = 15000;
+const REPLIES_EVERY_MS = 60000;
+
+/**
+ * The app's side of the Telegram bots (the data lives only on this phone).
+ * - Replies with the app closed on (default): the native service reads the bots; while the app is
+ *   in front it hands every message here to answer with live data, and when closed it answers
+ *   from the texts prepared here (refreshed every minute and when the app goes to the background).
+ * - Off: the app reads the bots itself, only while it's open.
+ */
 export function TelegramBridge() {
   useEffect(() => {
     if (!isRunningInAndroidApp()) return;
     let busy = false;
-    void telegramConnection();
+    let lastPoll = 0;
+    let lastReplies = 0;
+    const anyBot = () => isTelegramConnected() || isRepsBotConnected();
+
+    void telegramConnection().then(() => {
+      if (anyBot()) void setTelegramInstant(isTelegramInstant());
+    });
+
     const tick = async () => {
-      if (busy || document.visibilityState !== "visible") return;
+      if (busy || document.visibilityState !== "visible" || !anyBot()) return;
       busy = true;
       try {
-        if (isTelegramConnected()) for (const text of await pollTelegram()) await answerTelegramCommand(text);
-        if (isRepsBotConnected()) for (const message of await pollRepsBot()) await answerRepMessage(message);
+        if (isTelegramInstant()) {
+          for (const message of await takeTelegramInbox()) {
+            if (message.bot === "reps") await answerRepMessage(message, message.replied);
+            else await answerTelegramCommand(message.text);
+          }
+          if (Date.now() - lastReplies >= REPLIES_EVERY_MS) {
+            lastReplies = Date.now();
+            await refreshTelegramReplies();
+          }
+        } else if (Date.now() - lastPoll >= POLL_EVERY_MS) {
+          lastPoll = Date.now();
+          if (isTelegramConnected()) for (const text of await pollTelegram()) await answerTelegramCommand(text);
+          if (isRepsBotConnected()) for (const message of await pollRepsBot()) await answerRepMessage(message);
+        }
       } finally {
         busy = false;
       }
     };
-    const first = window.setTimeout(() => void tick(), 3000);
-    const every = window.setInterval(() => void tick(), 15000);
+
+    // Leaving the app: hand over the freshest answers for while it's closed.
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden" && anyBot() && isTelegramInstant()) void refreshTelegramReplies();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    const first = window.setTimeout(() => void tick(), 2000);
+    const every = window.setInterval(() => void tick(), INBOX_EVERY_MS);
     return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
       window.clearTimeout(first);
       window.clearInterval(every);
     };

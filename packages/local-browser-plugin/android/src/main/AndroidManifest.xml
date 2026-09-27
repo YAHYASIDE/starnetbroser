@@ -5,6 +5,11 @@
          NotificationManagerCompat#areNotificationsEnabled() and silently skips posting if this
          was never granted, so a sync never fails or crashes over a missing notification. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- TelegramReplyService: the bots keep answering with the app closed (its small permanent
+         notification is what lets Android keep it running), and come back after a restart. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application>
         <!--
@@ -28,5 +33,23 @@
             android:documentLaunchMode="intoExisting"
             android:resizeableActivity="true"
             android:label="STAR NET" />
+
+        <service
+            android:name="com.starnetbroser.localbrowser.TelegramReplyService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Answers the operator's own Telegram bots from business data kept only on this phone" />
+        </service>
+
+        <receiver
+            android:name="com.starnetbroser.localbrowser.TelegramBootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
