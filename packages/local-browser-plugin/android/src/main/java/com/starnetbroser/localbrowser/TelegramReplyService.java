@@ -48,6 +48,11 @@ public class TelegramReplyService extends Service {
 
     // ---- start / stop ----
 
+    /** True while the polling threads are actually running (not just switched on). */
+    static boolean isPolling() {
+        return polling;
+    }
+
     static boolean shouldRun(Context context) {
         return TelegramStore.isInstantEnabled(context) && (TelegramStore.isConfigured(context) || TelegramStore.isRepsConfigured(context));
     }

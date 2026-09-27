@@ -7597,3 +7597,13 @@ button.today-tile {
 .telegram-rep-list small {
   color: var(--text-muted);
 }
+
+.telegram-running {
+  color: var(--green);
+  font-weight: 600;
+}
+
+.telegram-stopped {
+  color: var(--yellow);
+  font-weight: 600;
+}

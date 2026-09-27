@@ -106,6 +106,11 @@ describe("rep commands", () => {
     expect(parseRepCommand("💰 ديون زبائني")).toEqual({ kind: "debts" });
     expect(parseRepCommand("🔎 بحث محمد")).toEqual({ kind: "search", query: "محمد" });
     expect(parseRepCommand("🔎 بحث")).toEqual({ kind: "search", query: "" });
+    // Spelling variants and everyday words.
+    expect(parseRepCommand("الاجهزة")).toEqual({ kind: "devices" });
+    expect(parseRepCommand("اجهزتي")).toEqual({ kind: "devices" });
+    expect(parseRepCommand("توقف")).toEqual({ kind: "stopped" });
+    expect(parseRepCommand("رصيدي")).toEqual({ kind: "statement" });
   });
 });
 

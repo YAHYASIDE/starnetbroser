@@ -140,8 +140,26 @@ export type RepCommand =
   | { kind: "search"; query: string }
   | { kind: "unknown"; text: string };
 
-export const REP_WORDS: Record<string, Exclude<RepCommand["kind"], "unknown" | "search"> | "search"> = {
+type RepWordKind = Exclude<RepCommand["kind"], "unknown" | "search"> | "search";
+
+/** Command words as a rep may type them (spelling variants fold together, see repWordKind). */
+const REP_WORD_LIST: Record<string, RepWordKind> = {
   start: "help",
+  "الأوامر": "help",
+  "اوامر": "help",
+  "أجهزة": "devices",
+  "الأجهزة": "devices",
+  "جهازي": "devices",
+  "توقف": "stopped",
+  "متوقف": "stopped",
+  "موقوف": "stopped",
+  "تنتهى": "expiring",
+  "ينتهي": "expiring",
+  "تجديد": "expiring",
+  "حسابي": "statement",
+  "رصيدي": "statement",
+  "الديون": "debts",
+  "زبائني": "debts",
   help: "help",
   "مساعدة": "help",
   "ابدأ": "help",
@@ -167,6 +185,11 @@ export const REP_WORDS: Record<string, Exclude<RepCommand["kind"], "unknown" | "
   search: "search",
 };
 
+/** Keyed by the folded word, so "اجهزتي" = "أجهزتي", "الاجهزة" = "الأجهزة"... */
+export const REP_WORDS: Record<string, RepWordKind> = Object.fromEntries(
+  Object.entries(REP_WORD_LIST).map(([word, kind]) => [normalizeSearch(word), kind]),
+);
+
 /** The text without "/", a leading emoji (keyboard buttons send "📡 أجهزتي") or the bot's @name.
  * Mirrors TelegramReplies.commandWord (Java). */
 export function cleanRepText(text: string): string {
@@ -176,7 +199,7 @@ export function cleanRepText(text: string): string {
 export function parseRepCommand(text: string): RepCommand {
   const cleaned = cleanRepText(text);
   const [firstWord = "", ...rest] = cleaned.split(/\s+/);
-  const kind = REP_WORDS[firstWord.toLowerCase()];
+  const kind = REP_WORDS[normalizeSearch(firstWord)];
   if (kind === "search") return { kind: "search", query: rest.join(" ").trim() };
   if (kind) return { kind } as RepCommand;
   // Anything else is a search among his devices ("محمد", "22212345").

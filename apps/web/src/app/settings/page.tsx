@@ -45,6 +45,7 @@ import {
   isRepsBotConnected,
   isTelegramConnected,
   isTelegramInstant,
+  isTelegramServiceRunning,
   setTelegramInstant,
 } from "@/lib/telegram";
 import { DEFAULT_TELEGRAM_PREFS, TelegramPrefs } from "@/lib/telegramMessages";
@@ -1353,10 +1354,12 @@ function TelegramSection() {
 function TelegramInstantSection() {
   const [shown, setShown] = useState(false);
   const [instant, setInstant] = useState(true);
+  const [running, setRunning] = useState<boolean | null>(null);
   useEffect(() => {
     const refresh = () => {
       setShown(isTelegramConnected() || isRepsBotConnected());
       setInstant(isTelegramInstant());
+      void isTelegramServiceRunning().then(setRunning);
     };
     refresh();
     const timer = window.setInterval(refresh, 5000);
@@ -1380,6 +1383,11 @@ function TelegramInstantSection() {
           <span className="toggle-switch-thumb" />
         </span>
       </label>
+      {instant && running !== null && (
+        <p className={`settings-hint ${running ? "telegram-running" : "telegram-stopped"}`}>
+          {running ? "✅ يعمل الآن - البوتان يردان خلال ثوانٍ" : "⚠️ متوقف الآن - يرد البوتان فقط والتطبيق مفتوح. أعد فتح التطبيق، وإن بقي متوقفاً اجعل بطارية STAR NET «غير مقيَّدة»."}
+        </p>
+      )}
       <p className="settings-hint">
         {instant
           ? "يبقى إشعار صغير «🤖 بوت تيليغرام يرد» في شريط الإشعارات - هو ما يسمح لأندرويد بإبقاء الرد يعمل. الردود والتطبيق مغلق تكون حسب بيانات آخر مرة فُتح فيها التطبيق (يُكتب الوقت تحت كل رد)، وكشف PDF يُرسل عند فتح التطبيق."

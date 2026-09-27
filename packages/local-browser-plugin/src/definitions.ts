@@ -174,6 +174,8 @@ export interface TelegramStatus {
   repsBotName?: string | null;
   /** Bots keep answering with the app closed (TelegramReplyService). */
   instant?: boolean;
+  /** ...and its service is actually running right now. */
+  instantRunning?: boolean;
 }
 
 export interface TelegramPollMessage {

@@ -27,7 +27,7 @@ public class TelegramRepliesTest {
         s.ownerWords.put("المتوقفة", "stopped");
         s.ownerWords.put("الصندوق", "cash");
         s.ownerWords.put("كشف", "statement");
-        s.repWords.put("أجهزتي", "devices");
+        s.repWords.put("اجهزتي", "devices"); // folded, as the app sends them
         s.repWords.put("ديون", "debts");
         s.repWords.put("start", "help");
         Map<String, String> r1 = new HashMap<>();
@@ -39,7 +39,7 @@ public class TelegramRepliesTest {
         s.reps.put("r2", r2);
         r1.put("stopped", "R1 STOPPED");
         r1.put("stopped#kb", "{\"inline_keyboard\":[]}");
-        s.repWords.put("الموقوفة", "stopped");
+        s.repWords.put("الموقوفه", "stopped");
         s.repWords.put("بحث", "search");
         s.repKeyboard = "KEYBOARD";
         s.searchHint = "HINT";
@@ -129,6 +129,8 @@ public class TelegramRepliesTest {
         assertTrue(noButton.text.contains("CARD2"));
         assertEquals("KEYBOARD", noButton.markup);
         assertEquals("HINT", TelegramReplies.forRep("r1", "🔎 بحث", snapshot()).text);
+        // Typed spelling variants fold to the same word.
+        assertTrue(TelegramReplies.forRep("r1", "أجهزتي", snapshot()).text.startsWith("R1 DEVICES"));
         assertEquals("🔎 لم أجد «علي» بين أجهزتك", TelegramReplies.forRep("r1", "بحث علي", snapshot()).text);
     }
 

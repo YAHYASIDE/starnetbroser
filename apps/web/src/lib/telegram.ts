@@ -17,7 +17,7 @@ import { getCurrency, loadCurrencyStore } from "./currencyStore";
 import { loadInvoices } from "./invoiceStore";
 import type { LedgerByAccount } from "./ledgerStore";
 import { loadRepresentativeStore, loadRepSettlements } from "./repStore";
-import { REP_KEYBOARD, repAccounts, repMoney, repMorningMarkup, repMorningText, repStatementText, repWelcomeText } from "./telegramRepMessages";
+import { REP_HELP, REP_KEYBOARD, repAccounts, repMoney, repMorningMarkup, repMorningText, repStatementText, repWelcomeText } from "./telegramRepMessages";
 import type { PrintableDocument } from "./pdfDocument";
 import type { TelegramReplySnapshot } from "./telegramReplies";
 import { renderPrintablePdf } from "./pdfExport";
@@ -428,6 +428,16 @@ export async function setTelegramInstant(enabled: boolean): Promise<void> {
   }
 }
 
+/** Whether the closed-app reply service is actually running right now. */
+export async function isTelegramServiceRunning(): Promise<boolean> {
+  if (!isRunningInAndroidApp()) return false;
+  try {
+    return Boolean((await LocalBrowser.telegramStatus()).instantRunning);
+  } catch {
+    return false;
+  }
+}
+
 /** Hands the native service the answers prepared from the data right now. */
 export async function pushTelegramReplies(snapshot: TelegramReplySnapshot): Promise<void> {
   try {
@@ -437,10 +447,36 @@ export async function pushTelegramReplies(snapshot: TelegramReplySnapshot): Prom
   }
 }
 
-export async function takeTelegramInbox(): Promise<TelegramInboxMessage[]> {
+/** Messages the service left for the app, and whether that service is actually running now
+ * (when it isn't, the app must read the bots itself or nobody would answer). */
+export async function takeTelegramInbox(): Promise<{ messages: TelegramInboxMessage[]; running: boolean }> {
   try {
-    return (await LocalBrowser.telegramTakeInbox()).messages;
+    return await LocalBrowser.telegramTakeInbox();
   } catch {
-    return [];
+    return { messages: [], running: false };
   }
+}
+
+const KEYBOARD_SENT_KEY = "starnet.telegramRepKeyboard";
+/** Bump when the rep keyboard changes, so every linked rep gets the new buttons once. */
+const KEYBOARD_VERSION = "2";
+
+/** Gives every linked rep the button keyboard once (a rep linked before it existed never had it). */
+export async function sendRepKeyboardOnce(): Promise<void> {
+  if (!isRepsBotConnected()) return;
+  let sent: Record<string, string> = {};
+  try {
+    sent = JSON.parse(safeGet(KEYBOARD_SENT_KEY) ?? "{}") as Record<string, string>;
+  } catch {
+    sent = {};
+  }
+  let changed = false;
+  for (const repId of Object.keys(loadRepChats())) {
+    if (sent[repId] === KEYBOARD_VERSION) continue;
+    if (await sendRepText(repId, `✨ أزرار سريعة جديدة أسفل المحادثة 👇\n\n${REP_HELP}`, REP_KEYBOARD)) {
+      sent[repId] = KEYBOARD_VERSION;
+      changed = true;
+    }
+  }
+  if (changed) safeSet(KEYBOARD_SENT_KEY, JSON.stringify(sent));
 }

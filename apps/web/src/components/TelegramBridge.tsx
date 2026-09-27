@@ -8,6 +8,7 @@ import {
   isTelegramInstant,
   pollRepsBot,
   pollTelegram,
+  sendRepKeyboardOnce,
   setTelegramInstant,
   takeTelegramInbox,
   telegramConnection,
@@ -15,7 +16,7 @@ import {
 import { answerRepMessage, answerTelegramCommand, refreshTelegramReplies } from "@/lib/telegramCommands";
 
 const INBOX_EVERY_MS = 3000;
-const POLL_EVERY_MS = 15000;
+const POLL_EVERY_MS = 4000;
 const REPLIES_EVERY_MS = 60000;
 
 /**
@@ -35,17 +36,21 @@ export function TelegramBridge() {
 
     void telegramConnection().then(() => {
       if (anyBot()) void setTelegramInstant(isTelegramInstant());
+      void sendRepKeyboardOnce();
     });
 
     const tick = async () => {
       if (busy || document.visibilityState !== "visible" || !anyBot()) return;
       busy = true;
       try {
-        if (isTelegramInstant()) {
-          for (const message of await takeTelegramInbox()) {
-            if (message.bot === "reps") await answerRepMessage(message, message.replied);
-            else await answerTelegramCommand(message.text);
-          }
+        // The service may be off (switched off, or Android refused to start it): then the app
+        // reads the bots itself while open - never nobody answering.
+        const inbox = isTelegramInstant() ? await takeTelegramInbox() : { messages: [], running: false };
+        for (const message of inbox.messages) {
+          if (message.bot === "reps") await answerRepMessage(message, message.replied);
+          else await answerTelegramCommand(message.text);
+        }
+        if (inbox.running) {
           if (Date.now() - lastReplies >= REPLIES_EVERY_MS) {
             lastReplies = Date.now();
             await refreshTelegramReplies();

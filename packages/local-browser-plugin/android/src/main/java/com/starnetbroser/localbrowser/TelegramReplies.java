@@ -215,7 +215,7 @@ final class TelegramReplies {
     /** A linked rep (repId) - only his own prepared texts and his own devices for search. */
     static Reply forRep(String repId, String text, Snapshot s) {
         if (s == null) return new Reply(NOT_READY, false, null);
-        String kind = s.repWords.get(commandWord(text));
+        String kind = s.repWords.get(normalize(commandWord(text)));
         if (kind == null) return search(repId, cleanText(text), true, s); // "محمد", "22212345"
         if ("search".equals(kind)) return search(repId, afterCommand(text), false, s);
         if ("help".equals(kind)) return new Reply(s.repHelp, false, null, s.repKeyboard);

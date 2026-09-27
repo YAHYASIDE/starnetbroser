@@ -464,6 +464,7 @@ public class LocalBrowserPlugin extends Plugin {
         ret.put("repsConfigured", TelegramStore.isRepsConfigured(getContext()));
         ret.put("repsBotName", TelegramStore.repsBotName(getContext()));
         ret.put("instant", TelegramStore.isInstantEnabled(getContext()));
+        ret.put("instantRunning", TelegramReplyService.isPolling());
         call.resolve(ret);
     }
 
@@ -553,7 +554,7 @@ public class LocalBrowserPlugin extends Plugin {
         }
         JSObject ret = new JSObject();
         ret.put("messages", messages);
-        ret.put("running", TelegramReplyService.shouldRun(getContext()));
+        ret.put("running", TelegramReplyService.isPolling());
         call.resolve(ret);
     }
 
