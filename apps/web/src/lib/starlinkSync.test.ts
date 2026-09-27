@@ -72,6 +72,14 @@ describe("mergeSyncedFields - scanned vs. changed", () => {
     expect(result.updatedFields.map((f) => f.field).sort()).toEqual(["pendingCancellationDate", "serviceStatus"]);
   });
 
+  it("records a limited-access email and clears it once the full menu is seen", () => {
+    const flagged = mergeSyncedFields(baseAccount(), { limitedAccess: true });
+    expect(flagged.account.limitedAccess).toBe(true);
+    expect(flagged.updatedFields.map((f) => f.field)).toEqual(["limitedAccess"]);
+    expect(mergeSyncedFields(flagged.account, { limitedAccess: false }).account.limitedAccess).toBe(false);
+    expect(mergeSyncedFields(flagged.account, { planName: "x" }).account.limitedAccess).toBe(true);
+  });
+
   it("sets isRestricted true and reports it as an updated field", () => {
     const result = mergeSyncedFields(baseAccount(), { isRestricted: true });
     expect(result.account.isRestricted).toBe(true);

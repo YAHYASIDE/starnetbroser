@@ -124,6 +124,10 @@ export interface StarlinkAccountSummary {
    * banner - independent of `serviceStatus` (a device can be "active" billing-wise and still
    * region-restricted). Undefined until the first sync that actually resolves it either way. */
   isRestricted?: boolean;
+  /** The saved email is a limited user on someone else's Starlink account (its menu has no
+   * billing): billing, balance and billing suspension can't be read from it - check them from the
+   * owner's account. Set by sync from the Home page; undefined until known. */
+  limitedAccess?: boolean;
   /**
    * Links this device/card to a local Client record (see apps/web/src/lib/clientStore.ts) - a
    * single customer may own several devices, each with its own card. Optional and absent on every

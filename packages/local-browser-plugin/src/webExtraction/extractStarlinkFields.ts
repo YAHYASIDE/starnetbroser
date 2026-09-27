@@ -29,6 +29,7 @@ import {
   normalizeDateLike,
   normalizeServiceStatus,
 } from "./textFields";
+import { countIconRailItems, railShowsFullAccess } from "./navigation";
 import { toLines, toVisibleText } from "./visibleText";
 
 // "starlink" (the real device-row label, e.g. "STARLINK") is deliberately included even though
@@ -77,7 +78,10 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
   // wins over a bare "standby" badge reading - never over "suspended"/"canceled" though, which are
   // unrelated states this banner says nothing about.
   if (serviceStatus === "standby" && hasScheduledEndBanner(lines)) serviceStatus = "active";
-  if (!serviceStatus && hasBillingSuspensionBanner(lines)) serviceStatus = "suspended";
+  // The billing-suspension banner says the service is stopped RIGHT NOW - it wins over any
+  // "نشط" badge on the same page (real, confirmed case: a limited-access email's pages kept the
+  // plan's "نشط" badge while this banner said the service was disabled). Only "canceled" stays.
+  if (serviceStatus !== "canceled" && hasBillingSuspensionBanner(lines)) serviceStatus = "suspended";
   if (!serviceStatus && hasScheduledEndBanner(lines)) serviceStatus = "active";
   if (!serviceStatus && isOnAccountHomePage(lines)) serviceStatus = "active";
   if (serviceStatus) fields.serviceStatus = serviceStatus;
@@ -89,6 +93,13 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
   // reasoning isOnAccountHomePage already applies to a stale "suspended" serviceStatus above.
   if (hasRegionRestrictedBanner(lines)) fields.isRestricted = true;
   else if (isOnAccountHomePage(lines)) fields.isRestricted = false;
+
+  // An email with limited permissions on someone else's account: its rail has no billing icon, so
+  // billing/balance can never be read from it. Judged on the Home page only (a known layout).
+  if (isOnAccountHomePage(lines)) {
+    const fullAccess = railShowsFullAccess(countIconRailItems());
+    if (fullAccess !== undefined) fields.limitedAccess = !fullAccess;
+  }
 
   const planName = extractPlanName(lines);
   if (planName) fields.planName = planName;

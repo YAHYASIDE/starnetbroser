@@ -1573,6 +1573,11 @@ button.overview-card:active {
   flex-wrap: wrap;
 }
 
+.account-card-limited-note {
+  color: var(--yellow);
+  font-weight: 600;
+}
+
 .account-card-email-row {
   display: flex;
   align-items: center;

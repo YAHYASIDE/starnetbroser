@@ -86,6 +86,36 @@ function findIconRailItems(): HTMLElement[] {
     .map(({ el }) => el);
 }
 
+/** A full-access (owner) account's rail has 7 icons (home, subscriptions, briefcase, billing,
+ * gift, envelope, settings). An email added to someone else's account with limited permissions
+ * (real, confirmed screenshot) gets only 4 - home, subscriptions, gift, settings: no billing at
+ * all, so its 4th icon is "الإعدادات", not "الفوترة". */
+const FULL_ACCESS_MIN_RAIL_ITEMS = 6;
+
+/** How many icons the right-edge rail has right now (0 when none were found at all). */
+export function countIconRailItems(): number {
+  try {
+    return findIconRailItems().length;
+  } catch {
+    return 0;
+  }
+}
+
+/** true = a full-access account, false = limited (no billing icon), undefined = no rail found. */
+export function railShowsFullAccess(count: number): boolean | undefined {
+  if (count <= 0) return undefined;
+  return count >= FULL_ACCESS_MIN_RAIL_ITEMS;
+}
+
+/** Opens "الفوترة" (rail index 3) - only on a full-access rail. On a limited account that index is
+ * "الإعدادات", which must never be read as billing. */
+export function clickBillingRailItem(): boolean {
+  const items = findIconRailItems();
+  if (railShowsFullAccess(items.length) !== true) return false;
+  items[3]!.click();
+  return true;
+}
+
 /** Clicks the `index`th icon (0-based, top to bottom) in the confirmed right-edge icon rail -
  * e.g. index 1 is the pencil/edit icon ("الاشتراكات"), index 3 is the receipt icon ("فوترة").
  * Returns false (never throws) when fewer than `index + 1` rail-shaped elements are found at all,

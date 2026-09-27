@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { clickFirstSubscriptionRow, clickIconRailItem, expandDevicesSection } from "./navigation";
+import { clickBillingRailItem, clickFirstSubscriptionRow, clickIconRailItem, countIconRailItems, expandDevicesSection, railShowsFullAccess } from "./navigation";
 
 // Fake/dummy fixtures only - none of this is real Starlink account data. jsdom never computes
 // real layout, so every test that relies on clickIconRailItem's geometry check stubs
@@ -106,5 +106,36 @@ describe("expandDevicesSection", () => {
   it("returns false when the page has no 'الأجهزة' heading at all", () => {
     document.body.innerHTML = `<div>صفحة أخرى</div>`;
     expect(expandDevicesSection()).toBe(false);
+  });
+});
+
+function rail(ids: string[]) {
+  Object.defineProperty(window, "innerWidth", { value: 360, configurable: true });
+  document.body.innerHTML = ids.map((id) => `<button id="${id}">•</button>`).join("");
+  ids.forEach((id, i) => setRect(document.getElementById(id)!, { top: 100 + i * 50, right: 350, width: 30, height: 30 }));
+  const clicked: string[] = [];
+  ids.forEach((id) => document.getElementById(id)!.addEventListener("click", () => clicked.push(id)));
+  return clicked;
+}
+
+describe("limited-access rail (an email that isn't the account's owner)", () => {
+  it("opens billing only on a full 7-icon rail", () => {
+    const clicked = rail(["home", "edit", "briefcase", "receipt", "gift", "envelope", "gear"]);
+    expect(countIconRailItems()).toBe(7);
+    expect(clickBillingRailItem()).toBe(true);
+    expect(clicked).toEqual(["receipt"]);
+  });
+
+  it("never taps settings as if it were billing on a 4-icon rail", () => {
+    const clicked = rail(["home", "edit", "gift", "gear"]);
+    expect(countIconRailItems()).toBe(4);
+    expect(clickBillingRailItem()).toBe(false);
+    expect(clicked).toEqual([]);
+  });
+
+  it("full / limited / unknown", () => {
+    expect(railShowsFullAccess(7)).toBe(true);
+    expect(railShowsFullAccess(4)).toBe(false);
+    expect(railShowsFullAccess(0)).toBeUndefined();
   });
 });

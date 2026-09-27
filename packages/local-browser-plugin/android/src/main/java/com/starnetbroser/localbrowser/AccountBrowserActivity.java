@@ -60,7 +60,6 @@ public class AccountBrowserActivity extends AppCompatActivity {
     /** Icon-rail positions (see navigation.ts's own doc for the confirmed, real, screenshot-
      * verified top-to-bottom order: home, edit, briefcase, receipt, gift, envelope, gear). */
     private static final int ICON_RAIL_INDEX_SUBSCRIPTIONS = 1;
-    private static final int ICON_RAIL_INDEX_BILLING = 3;
 
     /** Extra wait after a navigation-causing tap before the next step reads/clicks anything -
      * the same client-rendered-SPA-settle assumption AutoSyncWorker's own SETTLE_DELAY_MS already
@@ -84,6 +83,8 @@ public class AccountBrowserActivity extends AppCompatActivity {
      * syncFoundAnything when this run finishes, since a save failure is real data loss the
      * operator must be told about, never silently outweighed by an earlier page's success. */
     private boolean syncSaveFailed;
+    /** A page in this run read the service as stopped (see keepStoppedWithinRun). */
+    private boolean syncSawStopped;
     /** Schedules the settle delay between sync steps - its own field (not WebView#postDelayed) so
      * onDestroy can cancel every pending step in one well-defined call
      * (Handler#removeCallbacksAndMessages), rather than relying on View#removeCallbacks, which
@@ -279,6 +280,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
 
         syncFoundAnything = false;
         syncSaveFailed = false;
+        syncSawStopped = false;
         Toast.makeText(this, R.string.starnet_sync_in_progress, Toast.LENGTH_SHORT).show();
 
         syncSteps = new ArrayDeque<>();
@@ -287,7 +289,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
         syncSteps.add(() -> syncStepClick(StarlinkExtractorSupport::loadClickFirstSubscriptionRowScript));
         syncSteps.add(() -> syncStepClick(StarlinkExtractorSupport::loadExpandDevicesSectionScript));
         syncSteps.add(this::syncStepExtractCurrentPage); // plan + devices (now expanded) + identifiers
-        syncSteps.add(() -> syncStepClick(ctx -> StarlinkExtractorSupport.loadClickIconRailItemScript(ctx, ICON_RAIL_INDEX_BILLING)));
+        syncSteps.add(() -> syncStepClick(StarlinkExtractorSupport::loadClickBillingRailItemScript)); // skipped on a limited email
         syncSteps.add(this::syncStepExtractCurrentPage); // billing
         syncSteps.add(this::finishSync);
 
@@ -337,6 +339,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
                     return;
                 }
                 JSObject fields = StarlinkExtractorSupport.parseExtractedFields(value);
+                if (fields != null) syncSawStopped = StarlinkExtractorSupport.keepStoppedWithinRun(fields, syncSawStopped);
                 if (fields != null && fields.length() > 0) {
                     // Durable write FIRST: the final toast must never claim more than what is
                     // actually safe on disk. The main STAR NET Activity/Bridge this screen sits on

@@ -34,6 +34,7 @@ const FIELD_INFO: Record<keyof SyncedStarlinkFields, { label: string; section: S
   kitNumber: { label: "رقم KIT", section: "identifiers" },
   dataUsageGb: { label: "إجمالي استهلاك الباقة", section: "subscriptions" },
   isRestricted: { label: "تقييد الجهاز (خارج البلد المسجل)", section: "devices" },
+  limitedAccess: { label: "إيميل غير رئيسي (بدون فوترة)", section: "identifiers" },
 };
 
 export interface UpdatedField {
@@ -216,6 +217,12 @@ export function mergeSyncedFields(
   if (fields.isRestricted !== undefined) {
     note("isRestricted", next.isRestricted !== fields.isRestricted);
     next.isRestricted = fields.isRestricted;
+  }
+
+  // Same explicit true/false as isRestricted: a Home page with the full menu clears it.
+  if (fields.limitedAccess !== undefined) {
+    note("limitedAccess", next.limitedAccess !== fields.limitedAccess);
+    next.limitedAccess = fields.limitedAccess;
   }
 
   const scanned = Object.keys(fields).length > 0;

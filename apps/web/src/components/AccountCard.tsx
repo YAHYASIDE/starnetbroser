@@ -440,7 +440,11 @@ export function AccountCard({
 
       <div className="account-card-starlink-balance-row">
         <span className="account-card-label">مستحق Starlink:</span>
-        {balanceIsZero ? (
+        {account.limitedAccess ? (
+          <span className="account-card-limited-note" title="الإيميل ليس صاحب الحساب - لا تظهر له الفوترة؛ تحقق من الحساب الرئيسي">
+            👤 إيميل غير رئيسي - الفوترة لا تظهر
+          </span>
+        ) : balanceIsZero ? (
           <strong className="stat-tile-value-ok">لا يوجد</strong>
         ) : (
           <span dir="ltr">

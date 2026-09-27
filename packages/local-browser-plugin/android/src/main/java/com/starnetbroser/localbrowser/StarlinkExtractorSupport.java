@@ -43,6 +43,22 @@ final class StarlinkExtractorSupport {
         return loadBundle(context) + "\n__starnetClickIconRailItem(" + index + ");";
     }
 
+    /** Opens "الفوترة" - only when the rail is a full-access one (a limited email's 4th icon is
+     * "الإعدادات", never billing). Boolean result. */
+    static String loadClickBillingRailItemScript(Context context) throws IOException {
+        return loadBundle(context) + "\n__starnetClickBillingRailItem();";
+    }
+
+    /** Within one multi-page sync run, a page that read the service as stopped (e.g. the Home
+     * page's "تم تعطيل خدمتك بسبب..." banner) is never overwritten by a later page of the same run
+     * that only shows the plan's "نشط" badge. Returns whether the run has seen "stopped" so far. */
+    static boolean keepStoppedWithinRun(JSObject fields, boolean runSawStopped) {
+        String status = fields.optString("serviceStatus", "");
+        if ("suspended".equals(status) || "canceled".equals(status)) return true;
+        if (runSawStopped && ("active".equals(status) || "standby".equals(status))) fields.remove("serviceStatus");
+        return runSawStopped;
+    }
+
     /** Clicks the account's first subscription row on the "الاشتراكات" list page. Boolean result. */
     static String loadClickFirstSubscriptionRowScript(Context context) throws IOException {
         return loadBundle(context) + "\n__starnetClickFirstSubscriptionRow();";
