@@ -465,6 +465,7 @@ public class LocalBrowserPlugin extends Plugin {
         ret.put("repsBotName", TelegramStore.repsBotName(getContext()));
         ret.put("instant", TelegramStore.isInstantEnabled(getContext()));
         ret.put("instantRunning", TelegramReplyService.isPolling());
+        ret.put("batteryUnrestricted", isIgnoringBatteryOptimizations());
         call.resolve(ret);
     }
 
@@ -507,6 +508,34 @@ public class LocalBrowserPlugin extends Plugin {
         call.resolve();
     }
 
+    private boolean isIgnoringBatteryOptimizations() {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.M) return true;
+        android.os.PowerManager power = (android.os.PowerManager) getContext().getSystemService(Context.POWER_SERVICE);
+        return power != null && power.isIgnoringBatteryOptimizations(getContext().getPackageName());
+    }
+
+    /** Asks Android (one system dialog) to let STAR NET run in the background without limits - what
+     * keeps the bot answering with the app closed on phones that stop background apps. */
+    @SuppressLint("BatteryLife")
+    @PluginMethod
+    public void requestBatteryUnrestricted(PluginCall call) {
+        try {
+            Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getContext().getPackageName()));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+        } catch (RuntimeException noDialog) {
+            try {
+                Intent list = new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+                list.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(list);
+            } catch (RuntimeException ignored) {
+                call.reject("افتح إعدادات البطارية يدوياً");
+                return;
+            }
+        }
+        call.resolve();
+    }
+
     /** A link request the operator dismissed: if that person writes again he's answered again. */
     @PluginMethod
     public void telegramForgetRequest(PluginCall call) {
@@ -538,6 +567,7 @@ public class LocalBrowserPlugin extends Plugin {
     /** Messages TelegramReplyService left for the app (then removed). */
     @PluginMethod
     public void telegramTakeInbox(PluginCall call) {
+        TelegramReplyService.lastDrainAt = System.currentTimeMillis();
         JSONArray inbox = TelegramReplyService.takeInbox(getContext());
         JSArray messages = new JSArray();
         for (int i = 0; i < inbox.length(); i++) {

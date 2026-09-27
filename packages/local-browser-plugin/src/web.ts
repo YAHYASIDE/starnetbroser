@@ -124,6 +124,10 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
     return { messages: [], running: false };
   }
 
+  async requestBatteryUnrestricted(): Promise<void> {
+    return;
+  }
+
   async telegramForgetRequest(_options: { chatId: string }): Promise<void> {
     return;
   }

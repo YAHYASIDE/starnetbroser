@@ -176,6 +176,8 @@ export interface TelegramStatus {
   instant?: boolean;
   /** ...and its service is actually running right now. */
   instantRunning?: boolean;
+  /** STAR NET is exempt from battery optimization (keeps the service alive on strict phones). */
+  batteryUnrestricted?: boolean;
 }
 
 export interface TelegramPollMessage {
@@ -390,6 +392,8 @@ export interface LocalBrowserPlugin {
   telegramSetReplies(options: { snapshot: string }): Promise<void>;
   /** Messages the service left for the app, removed as they're returned. */
   telegramTakeInbox(): Promise<{ messages: TelegramInboxMessage[]; running: boolean }>;
+  /** Opens Android's "run in background without limits" dialog for STAR NET. */
+  requestBatteryUnrestricted(): Promise<void>;
   /** A dismissed link request: that person is answered again if he writes. */
   telegramForgetRequest(options: { chatId: string }): Promise<void>;
 

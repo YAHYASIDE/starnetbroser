@@ -34,11 +34,21 @@ public class TelegramReplyService extends Service {
 
     private static final String CHANNEL_ID = "starnet_telegram_bot";
     private static final int NOTIFICATION_ID = 1003;
-    private static final int LONG_POLL_SECONDS = 50;
+    private static final int LONG_POLL_SECONDS = 25;
+    /** The app counts as "in front" only while it keeps draining the inbox (every ~3 s). */
+    private static final long APP_HEARTBEAT_MS = 10_000;
     private static final int MAX_INBOX = 50;
 
     /** Set by LocalBrowserPlugin from the activity's resume/pause. */
     static volatile boolean appVisible = false;
+    /** When the app last drained the inbox (LocalBrowserPlugin#telegramTakeInbox). */
+    static volatile long lastDrainAt = 0;
+
+    /** In front AND actually answering - a missed onPause (or a frozen WebView) can never leave
+     * messages waiting for an app that isn't there. */
+    static boolean appAnswering() {
+        return appVisible && System.currentTimeMillis() - lastDrainAt < APP_HEARTBEAT_MS;
+    }
 
     /** Bumped on every (re)start so an older polling thread ends instead of competing. */
     private static volatile int generation = 0;
@@ -57,20 +67,25 @@ public class TelegramReplyService extends Service {
         return TelegramStore.isInstantEnabled(context) && (TelegramStore.isConfigured(context) || TelegramStore.isRepsConfigured(context));
     }
 
-    /** Starts or stops the service to match the settings - safe to call any time. */
-    static void refresh(Context context) {
+    /** Starts or stops the service to match the settings - safe to call any time. False when it
+     * should run but Android refused to start it right now (TelegramWatchdogWorker then answers). */
+    static boolean refresh(Context context) {
         Context app = context.getApplicationContext();
         Intent intent = new Intent(app, TelegramReplyService.class);
+        boolean run = shouldRun(app);
+        TelegramWatchdogWorker.schedule(app, run);
         try {
-            if (shouldRun(app)) {
-                ContextCompat.startForegroundService(app, intent);
+            if (run) {
+                if (!polling) ContextCompat.startForegroundService(app, intent);
             } else {
                 generation++;
                 app.stopService(intent);
             }
+            return true;
         } catch (RuntimeException notAllowedNow) {
             // Android refuses to start a foreground service from the background in some states;
-            // the next app open (or reboot) starts it.
+            // the watchdog answers meanwhile, and the next app open (or reboot) starts it.
+            return false;
         }
     }
 
@@ -162,16 +177,9 @@ public class TelegramReplyService extends Service {
                 if (offset > 0) params.put("offset", String.valueOf(offset));
                 JSONArray updates = TelegramClient.call(token, "getUpdates", params, (LONG_POLL_SECONDS + 15) * 1000).getJSONArray("result");
                 if (generation != mine || !token.equals(TelegramStore.tokenFor(context, bot))) continue;
-                for (int i = 0; i < updates.length(); i++) {
-                    JSONObject update = updates.getJSONObject(i);
-                    offset = Math.max(offset, update.optLong("update_id") + 1);
-                    try {
-                        handle(context, bot, token, update.optJSONObject("message"));
-                    } catch (RuntimeException | JSONException oneBadMessage) {
-                        // Skip it rather than stall every later message behind it.
-                    }
-                    TelegramStore.setOffset(context, bot, offset);
-                }
+                handleUpdates(context, bot, token, updates, true);
+                // Left for the app, but the app went away before answering: answer them here.
+                if (!appAnswering()) flushUnanswered(context, bot, token);
                 backoffMs = 5_000;
             } catch (TelegramClient.TelegramError rejected) {
                 // 409: another getUpdates (the app connecting the bot) - just go again shortly.
@@ -180,11 +188,62 @@ public class TelegramReplyService extends Service {
             } catch (IOException | JSONException offline) {
                 sleep(backoffMs);
                 backoffMs = Math.min(backoffMs * 2, 120_000);
+            } catch (RuntimeException unexpected) {
+                // Never let one surprise end the thread (the service would look alive but be deaf).
+                sleep(10_000);
             }
         }
     }
 
-    private static void handle(Context context, String bot, String token, JSONObject message) throws JSONException {
+    /** Handles a getUpdates batch and moves the offset past it. `appMayAnswer`: hand messages to
+     * the app when it's in front (false = always answer here, e.g. from the watchdog). */
+    static void handleUpdates(Context context, String bot, String token, JSONArray updates, boolean appMayAnswer) throws JSONException {
+        long offset = TelegramStore.offset(context, bot);
+        for (int i = 0; i < updates.length(); i++) {
+            JSONObject update = updates.getJSONObject(i);
+            offset = Math.max(offset, update.optLong("update_id") + 1);
+            try {
+                handle(context, bot, token, update.optJSONObject("message"), appMayAnswer);
+            } catch (RuntimeException | JSONException oneBadMessage) {
+                // Skip it rather than stall every later message behind it.
+            }
+            TelegramStore.setOffset(context, bot, offset);
+        }
+    }
+
+    /** One quick getUpdates round, answering everything here (TelegramWatchdogWorker). */
+    static void pollOnce(Context context, String bot) {
+        String token = TelegramStore.tokenFor(context, bot);
+        boolean ready = TelegramStore.REPS.equals(bot) ? token != null : TelegramStore.isConfigured(context);
+        if (!ready) return;
+        try {
+            Map<String, String> params = new LinkedHashMap<>();
+            params.put("timeout", "0");
+            params.put("allowed_updates", "[\"message\"]");
+            long offset = TelegramStore.offset(context, bot);
+            if (offset > 0) params.put("offset", String.valueOf(offset));
+            handleUpdates(context, bot, token, TelegramClient.call(token, "getUpdates", params).getJSONArray("result"), false);
+            flushUnanswered(context, bot, token);
+        } catch (IOException | JSONException | TelegramClient.TelegramError | RuntimeException ignored) {
+            // Next round.
+        }
+    }
+
+    /** Messages that went to the inbox for the app, which never answered them. */
+    private static void flushUnanswered(Context context, String bot, String token) {
+        JSONArray waiting = takeUnanswered(context, bot);
+        for (int i = 0; i < waiting.length(); i++) {
+            JSONObject item = waiting.optJSONObject(i);
+            if (item == null) continue;
+            try {
+                answer(context, bot, token, item.optString("chatId", ""), item.optString("name", ""), item.optString("username", ""), item.optString("text", ""));
+            } catch (RuntimeException | JSONException oneBadMessage) {
+                // skip
+            }
+        }
+    }
+
+    private static void handle(Context context, String bot, String token, JSONObject message, boolean appMayAnswer) throws JSONException {
         JSONObject chat = message != null ? message.optJSONObject("chat") : null;
         if (chat == null || !"private".equals(chat.optString("type"))) return;
         String text = message.optString("text", "");
@@ -195,10 +254,16 @@ public class TelegramReplyService extends Service {
         boolean reps = TelegramStore.REPS.equals(bot);
         if (!reps && !chatId.equals(TelegramStore.chatId(context))) return; // the owner bot talks to the owner only
 
-        if (appVisible) {
+        if (appMayAnswer && appAnswering()) {
             addToInbox(context, bot, chatId, name, username, text, false);
             return;
         }
+        answer(context, bot, token, chatId, name, username, text);
+    }
+
+    /** Answers here from the app's prepared texts (the app is closed or not answering). */
+    private static void answer(Context context, String bot, String token, String chatId, String name, String username, String text) throws JSONException {
+        boolean reps = TelegramStore.REPS.equals(bot);
         TelegramReplies.Snapshot snapshot = loadSnapshot(context);
         TelegramReplies.Reply reply;
         if (!reps) {
@@ -315,6 +380,23 @@ public class TelegramReplyService extends Service {
             inbox.put(item);
             while (inbox.length() > MAX_INBOX) inbox.remove(0);
             TelegramStore.setInbox(context, inbox.toString());
+        }
+    }
+
+    /** The inbox items of `bot` nobody answered yet, removed (the rest stay for the app). */
+    private static JSONArray takeUnanswered(Context context, String bot) {
+        synchronized (INBOX_LOCK) {
+            JSONArray inbox = readInbox(context);
+            JSONArray keep = new JSONArray();
+            JSONArray taken = new JSONArray();
+            for (int i = 0; i < inbox.length(); i++) {
+                JSONObject item = inbox.optJSONObject(i);
+                if (item == null) continue;
+                if (bot.equals(item.optString("bot")) && !item.optBoolean("replied", false)) taken.put(item);
+                else keep.put(item);
+            }
+            if (taken.length() > 0) TelegramStore.setInbox(context, keep.toString());
+            return taken;
         }
     }
 

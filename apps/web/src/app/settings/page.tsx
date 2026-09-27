@@ -45,8 +45,9 @@ import {
   isRepsBotConnected,
   isTelegramConnected,
   isTelegramInstant,
-  isTelegramServiceRunning,
+  requestBatteryUnrestricted,
   setTelegramInstant,
+  telegramServiceState,
 } from "@/lib/telegram";
 import { DEFAULT_TELEGRAM_PREFS, TelegramPrefs } from "@/lib/telegramMessages";
 import {
@@ -1354,12 +1355,12 @@ function TelegramSection() {
 function TelegramInstantSection() {
   const [shown, setShown] = useState(false);
   const [instant, setInstant] = useState(true);
-  const [running, setRunning] = useState<boolean | null>(null);
+  const [state, setState] = useState<{ running: boolean; batteryUnrestricted: boolean } | null>(null);
   useEffect(() => {
     const refresh = () => {
       setShown(isTelegramConnected() || isRepsBotConnected());
       setInstant(isTelegramInstant());
-      void isTelegramServiceRunning().then(setRunning);
+      void telegramServiceState().then(setState);
     };
     refresh();
     const timer = window.setInterval(refresh, 5000);
@@ -1383,10 +1384,26 @@ function TelegramInstantSection() {
           <span className="toggle-switch-thumb" />
         </span>
       </label>
-      {instant && running !== null && (
-        <p className={`settings-hint ${running ? "telegram-running" : "telegram-stopped"}`}>
-          {running ? "✅ يعمل الآن - البوتان يردان خلال ثوانٍ" : "⚠️ متوقف الآن - يرد البوتان فقط والتطبيق مفتوح. أعد فتح التطبيق، وإن بقي متوقفاً اجعل بطارية STAR NET «غير مقيَّدة»."}
-        </p>
+      {instant && state && (
+        <>
+          <p className={`settings-hint ${state.running ? "telegram-running" : "telegram-stopped"}`}>
+            {state.running ? "✅ يعمل الآن - البوتان يردان خلال ثوانٍ" : "⚠️ متوقف الآن - أعد فتح التطبيق، واسمح له بالعمل في الخلفية أدناه."}
+          </p>
+          {state.batteryUnrestricted ? (
+            <p className="settings-hint telegram-running">🔋 مسموح له بالعمل في الخلفية بلا قيود</p>
+          ) : (
+            <>
+              <p className="settings-hint telegram-stopped">
+                🔋 أندرويد قد يوقف الرد بعد إغلاق التطبيق. اضغط الزر ثم اختر «سماح» ليبقى البوت يرد دائماً.
+              </p>
+              <div className="settings-actions">
+                <button type="button" className="dialog-primary" onClick={() => void requestBatteryUnrestricted()}>
+                  السماح بالعمل في الخلفية
+                </button>
+              </div>
+            </>
+          )}
+        </>
       )}
       <p className="settings-hint">
         {instant
@@ -1395,7 +1412,7 @@ function TelegramInstantSection() {
       </p>
       {instant && (
         <p className="settings-hint">
-          إن توقف الرد بعد مدة على هاتفك: من إعدادات أندرويد ← التطبيقات ← STAR NET ← البطارية، اختر «غير مقيَّد».
+          في بعض الهواتف (شاومي، تكنو، إنفينكس، أوبو...) فعّل أيضاً «التشغيل التلقائي / Autostart» لـ STAR NET من إعدادات التطبيقات، ولا تغلقه بالسحب من قائمة التطبيقات الأخيرة. وإن أُوقف رغم ذلك، يعيد التطبيق تشغيل الرد وحده كل 15 دقيقة.
         </p>
       )}
     </section>

@@ -428,13 +428,23 @@ export async function setTelegramInstant(enabled: boolean): Promise<void> {
   }
 }
 
-/** Whether the closed-app reply service is actually running right now. */
-export async function isTelegramServiceRunning(): Promise<boolean> {
-  if (!isRunningInAndroidApp()) return false;
+/** Whether the closed-app reply service is running right now, and whether Android lets STAR NET
+ * run in the background without limits (what keeps it alive on strict phones). */
+export async function telegramServiceState(): Promise<{ running: boolean; batteryUnrestricted: boolean } | null> {
+  if (!isRunningInAndroidApp()) return null;
   try {
-    return Boolean((await LocalBrowser.telegramStatus()).instantRunning);
+    const status = await LocalBrowser.telegramStatus();
+    return { running: Boolean(status.instantRunning), batteryUnrestricted: Boolean(status.batteryUnrestricted) };
   } catch {
-    return false;
+    return null;
+  }
+}
+
+export async function requestBatteryUnrestricted(): Promise<void> {
+  try {
+    await LocalBrowser.requestBatteryUnrestricted();
+  } catch {
+    // Shown as still restricted; the hint explains the manual path.
   }
 }
 
