@@ -27,6 +27,8 @@ import { loadPartyAdjustments, PartyAdjustmentList } from "@/lib/partyBalanceSto
 import { buildCardStatement, listCardPayments, listOpenShipmentDebts, loadCardTopUps, totalOpenDebtUsd, CardTopUpList } from "@/lib/starlinkDebt";
 import { listOpenPreviousDebts, loadPreviousDebts, PreviousDebtList, totalPreviousDebtUsd } from "@/lib/previousDebt";
 import { buildBusinessWorkbook, xlsxFileName } from "@/lib/excelExport";
+import { buildMonthNet, monthChange } from "@/lib/netProfit";
+import { monthLabel, recentMonths } from "@/lib/monthClosing";
 import { exportXlsx } from "@/lib/xlsxExport";
 import {
   profitSeries,
@@ -40,9 +42,9 @@ import {
   valueSeries,
 } from "@/lib/reportsView";
 
-type ReportTab = "starlink" | "store" | "debts";
+type ReportTab = "net" | "starlink" | "store" | "debts";
 
-const TAB_LABELS: Record<ReportTab, string> = { starlink: "ستارلينك", store: "المتجر", debts: "الديون" };
+const TAB_LABELS: Record<ReportTab, string> = { net: "الصافي", starlink: "ستارلينك", store: "المتجر", debts: "الديون" };
 const TAB_KEY = "starnet.reportsTab";
 
 function shipments(n: number): string {
@@ -70,7 +72,8 @@ export default function ReportsPage() {
   const [previousDebts, setPreviousDebts] = useState<PreviousDebtList>([]);
   const [profitReset, setProfitReset] = useState<ProfitReset | null>(null);
   const [period, setPeriod] = useState<ReportPeriod>("month");
-  const [tab, setTab] = useState<ReportTab>("starlink");
+  const [tab, setTab] = useState<ReportTab>("net");
+  const [netMonth, setNetMonth] = useState(() => new Date().toISOString().slice(0, 7));
 
   useEffect(() => {
     setLedgerStore(loadLedgerStore());
@@ -88,7 +91,7 @@ export default function ReportsPage() {
     setProfitReset(loadProfitReset());
     try {
       const saved = window.localStorage.getItem(TAB_KEY);
-      if (saved === "starlink" || saved === "store" || saved === "debts") setTab(saved);
+      if (saved === "net" || saved === "starlink" || saved === "store" || saved === "debts") setTab(saved);
     } catch {
       // A per-phone convenience only.
     }
@@ -140,6 +143,27 @@ export default function ReportsPage() {
   const clientRanks = useMemo(
     () => rankClientProfits(deviceRanks, (id) => accounts.find((a) => a.id === id)?.clientId),
     [deviceRanks, accounts],
+  );
+
+  // ---- الصافي: the whole business, one calendar month at a time ----
+  const netMonths = useMemo(() => recentMonths(new Date().toISOString().slice(0, 10), 12), []);
+  const netByMonth = useMemo(
+    () =>
+      netMonths.map((month) =>
+        buildMonthNet({ month, ledgerStore, invoices, transactions: storeTransactions, cash: cashEntries, rates, profitReset }),
+      ),
+    [netMonths, ledgerStore, invoices, storeTransactions, cashEntries, rates, profitReset],
+  );
+  const netIndex = Math.max(0, netMonths.indexOf(netMonth));
+  const net = netByMonth[netIndex];
+  const previousNet = netByMonth[netIndex + 1];
+  const netTrend = useMemo(
+    () =>
+      netByMonth
+        .slice(0, 6)
+        .reverse()
+        .map((m) => ({ key: m.month, label: monthLabel(m.month).split(" ")[0], value: m.netMru })),
+    [netByMonth],
   );
 
   // ---- المتجر ----
@@ -417,6 +441,61 @@ export default function ReportsPage() {
         </section>
       )}
 
+      {tab === "net" && net && (
+        <section className="section report-tab-panel">
+          <div className="report-period-row">
+            {netMonths.slice(0, 6).map((m) => (
+              <button key={m} type="button" className={`report-period-btn${m === net.month ? " report-period-btn-active" : ""}`} onClick={() => setNetMonth(m)}>
+                {monthLabel(m)}
+              </button>
+            ))}
+          </div>
+
+          <div className={`net-hero${net.netMru < 0 ? " is-loss" : ""}`}>
+            <span className="net-hero-label">صافي ربح {monthLabel(net.month)}</span>
+            <strong className="net-hero-value">
+              <bdi dir="ltr">{`${net.exact ? "" : "≈ "}${mru(net.netMru)}`}</bdi> <small>أوقية</small>
+            </strong>
+            {previousNet && <NetChange current={net.netMru} previous={previousNet.netMru} previousLabel={monthLabel(previousNet.month)} />}
+          </div>
+
+          <div className="report-card">
+            <div className="report-card-head">
+              <h3>من أين جاء الصافي</h3>
+              <span className="report-card-note">أوقية</span>
+            </div>
+            <ul className="net-lines">
+              <NetLine label="ربح ستارلينك" hint="يوم الدفع لستارلينك" value={net.starlinkProfitMru} />
+              <NetLine label="حصص المندوبين (ستارلينك)" value={-net.starlinkRepSharesMru} />
+              <NetLine
+                label="ربح المتجر"
+                hint={net.storeSalesMru === 0 && net.storeCogsMru === 0 ? "لا مبيعات هذا الشهر" : `مبيعات ${mru(net.storeSalesMru)} − بضاعة ${mru(net.storeCogsMru)} − شحن ${mru(net.storeShippingMru)}${net.storeRepCommissionMru ? ` − عمولات ${mru(net.storeRepCommissionMru)}` : ""}`}
+                value={net.storeNetMru}
+              />
+              <NetLine label="المصاريف" hint="قيود «خارج» في الصندوق" value={-net.expensesMru} />
+              <NetLine label="الصافي" value={net.netMru} total />
+            </ul>
+          </div>
+
+          <RankCard
+            title="المصاريف حسب النوع"
+            tone="bad"
+            barTone="bad"
+            empty="لا توجد مصاريف مسجّلة هذا الشهر. سجّلها في الصندوق كـ«خارج» مع تصنيف (إيجار، نقل، إنترنت…) لتظهر هنا."
+            rows={net.expenses.map((e) => ({ key: e.category, title: e.category, subtitle: `${e.count} ${e.count === 1 ? "قيد" : "قيود"}`, value: -e.mru }))}
+          />
+
+          <ChartCard title="الصافي شهرًا بشهر" note="آخر 6 أشهر" points={netTrend} />
+
+          {net.missingCurrencies.length > 0 && (
+            <p className="settings-hint">لم تُحتسب مبالغ بعملات بلا سعر مسجّل: {net.missingCurrencies.join("، ")} - سجّل أسعارها في صفحة العملات.</p>
+          )}
+          <p className="settings-hint">
+            المتجر والمصاريف بغير الأوقية محوّلة بسعر اليوم (للعرض فقط). الإيداعات وشحن البطاقة ودفعات المندوبين ليست مصاريف ولا تدخل هنا.
+          </p>
+        </section>
+      )}
+
       {tab === "debts" && (
         <section className="section report-tab-panel">
           <div className="report-kpis">
@@ -532,6 +611,34 @@ function Kpi({ label, value, sub, tone, info }: { label: string; value: string; 
       {sub && <small className="report-kpi-sub">{sub}</small>}
       {open && info && <p className="report-kpi-info">{info}</p>}
     </div>
+  );
+}
+
+function NetLine({ label, hint, value, total }: { label: string; hint?: string; value: number; total?: boolean }) {
+  const sign = value < 0 ? "−" : total ? "=" : "+";
+  return (
+    <li className={`net-line${total ? " net-line-total" : ""}`}>
+      <div className="net-line-main">
+        <span>{label}</span>
+        {hint && <small>{hint}</small>}
+      </div>
+      <strong className={value < 0 ? "report-bad" : total ? "report-good" : undefined}>
+        <bdi dir="ltr">
+          {sign} {mru(Math.abs(value))}
+        </bdi>
+      </strong>
+    </li>
+  );
+}
+
+function NetChange({ current, previous, previousLabel }: { current: number; previous: number; previousLabel: string }) {
+  const { diffMru, percent } = monthChange(current, previous);
+  if (Math.abs(diffMru) < 0.5) return <span className="net-change">مثل {previousLabel}</span>;
+  const up = diffMru > 0;
+  return (
+    <span className={`net-change ${up ? "is-up" : "is-down"}`}>
+      {up ? "▲" : "▼"} <bdi dir="ltr">{percent !== null ? `${Math.abs(percent)}%` : mru(Math.abs(diffMru))}</bdi> {up ? "أكثر" : "أقل"} من {previousLabel}
+    </span>
   );
 }
 

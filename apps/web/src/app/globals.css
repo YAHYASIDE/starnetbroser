@@ -7059,3 +7059,86 @@ button.today-tile {
   font: inherit;
   cursor: pointer;
 }
+
+/* Reports → «الصافي» tab */
+.net-hero {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0;
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--green);
+  background: var(--green-bg);
+  color: var(--text);
+  text-align: center;
+}
+
+.net-hero.is-loss {
+  border-color: var(--red);
+  background: var(--red-bg);
+}
+
+.net-hero-label {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.net-hero-value {
+  font-size: 1.8rem;
+  font-weight: 800;
+}
+
+.net-hero-value small {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.net-change {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.net-change.is-up {
+  color: var(--green);
+}
+
+.net-change.is-down {
+  color: var(--red);
+}
+
+.net-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+
+.net-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.net-line-main {
+  display: grid;
+  min-width: 0;
+}
+
+.net-line-main small {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.net-line strong {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.net-line-total {
+  border-bottom: 0;
+  font-size: 1.05rem;
+}
