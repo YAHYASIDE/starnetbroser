@@ -26,17 +26,22 @@ final class AutoSyncScheduler {
 
     static final String WORK_NAME = "starnet_auto_sync";
     private static final String IMMEDIATE_WORK_NAME = "starnet_auto_sync_now";
-    private static final long INTERVAL_HOURS = 1;
 
     private AutoSyncScheduler() {
     }
 
     /** Idempotent: safe to call every time the account list changes, even if already scheduled. */
     static void schedule(Context context) {
+        int intervalHours = SyncPacing.intervalHours(context);
+        if (intervalHours <= 0) {
+            // Turned off in الإعدادات - "مزامنة الآن" and each card's "تحديث" still work.
+            cancel(context);
+            return;
+        }
         Constraints constraints = new Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build();
-        PeriodicWorkRequest request = new PeriodicWorkRequest.Builder(AutoSyncWorker.class, INTERVAL_HOURS, TimeUnit.HOURS)
+        PeriodicWorkRequest request = new PeriodicWorkRequest.Builder(AutoSyncWorker.class, intervalHours, TimeUnit.HOURS)
             .setConstraints(constraints)
             .build();
         WorkManager.getInstance(context)

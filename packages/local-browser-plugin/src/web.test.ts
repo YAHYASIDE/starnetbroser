@@ -46,6 +46,11 @@ describe("LocalBrowserWeb", () => {
     });
   });
 
+  it("echoes setAutoSyncInterval on web (nothing to schedule)", async () => {
+    const plugin = new LocalBrowserWeb();
+    await expect(plugin.setAutoSyncInterval({ hours: 3 })).resolves.toEqual({ hours: 3 });
+  });
+
   it("rejects syncNow instead of silently pretending to have synced anything", async () => {
     const plugin = new LocalBrowserWeb();
     await expect(plugin.syncNow()).rejects.toThrow();

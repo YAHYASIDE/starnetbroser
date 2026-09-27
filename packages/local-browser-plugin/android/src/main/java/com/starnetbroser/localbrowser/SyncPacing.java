@@ -28,6 +28,11 @@ final class SyncPacing {
     private static final String PREFS = "starnet_sync_pacing";
     private static final String KEY_RATE_LIMITED_AT = "rateLimitedAt";
     private static final String KEY_CURSOR = "lastAccountId";
+    private static final String KEY_INTERVAL_HOURS = "intervalHours";
+
+    /** How often the background sync runs - chosen in الإعدادات. 0 = off. */
+    static final int DEFAULT_INTERVAL_HOURS = 2;
+    static final int[] ALLOWED_INTERVAL_HOURS = {0, 1, 2, 3, 6, 12};
 
     private SyncPacing() {
     }
@@ -55,6 +60,14 @@ final class SyncPacing {
         return result;
     }
 
+    /** Any value that isn't one of the offered choices falls back to the default. */
+    static int normalizeIntervalHours(int hours) {
+        for (int allowed : ALLOWED_INTERVAL_HOURS) {
+            if (allowed == hours) return hours;
+        }
+        return DEFAULT_INTERVAL_HOURS;
+    }
+
     // ---- persisted state ----
 
     private static SharedPreferences prefs(Context context) {
@@ -75,5 +88,13 @@ final class SyncPacing {
 
     static String loadCursor(Context context) {
         return prefs(context).getString(KEY_CURSOR, null);
+    }
+
+    static void saveIntervalHours(Context context, int hours) {
+        prefs(context).edit().putLong(KEY_INTERVAL_HOURS, normalizeIntervalHours(hours)).apply();
+    }
+
+    static int intervalHours(Context context) {
+        return normalizeIntervalHours((int) prefs(context).getLong(KEY_INTERVAL_HOURS, DEFAULT_INTERVAL_HOURS));
     }
 }

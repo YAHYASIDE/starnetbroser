@@ -150,6 +150,16 @@ export interface SetAutoSyncAccountIdsOptions {
   accounts: AutoSyncAccountEntry[];
 }
 
+export interface SetAutoSyncIntervalOptions {
+  /** 1, 2, 3, 6 or 12 hours; 0 turns the automatic sync off. Anything else becomes 2. */
+  hours: number;
+}
+
+export interface SetAutoSyncIntervalResult {
+  /** The interval actually stored. */
+  hours: number;
+}
+
 export interface SetAutoSyncAccountIdsResult {
   /** false means the native write did not actually reach disk - the previous list (and whatever
    * job was or wasn't scheduled for it) is still in effect, not this call's. */
@@ -285,7 +295,7 @@ export interface LocalBrowserPlugin {
   /**
    * "مزامنة الآن": triggers an immediate one-time background sync of every account currently in
    * the auto-sync list (see setAutoSyncAccountIds) - the same headless per-account sync
-   * AutoSyncWorker runs on its normal hourly schedule, just requested right now instead of
+   * AutoSyncWorker runs on its normal schedule (every 2 hours by default, see setAutoSyncInterval), just requested right now instead of
    * waiting for the next window. Resolves once the job has been handed to WorkManager, not once
    * the sync itself has finished - actual results still flow through the existing
    * accountDataSynced event / listPendingAccountSyncs pipeline, same as any other sync.
@@ -299,6 +309,9 @@ export interface LocalBrowserPlugin {
    * must surface that to the user rather than treat a resolved call as "sync is done".
    */
   syncNow(options?: SyncNowOptions): Promise<void>;
+
+  /** How often the automatic background sync runs (every `hours` hours, 0 = off). */
+  setAutoSyncInterval(options: SetAutoSyncIntervalOptions): Promise<SetAutoSyncIntervalResult>;
 
   /**
    * Reads the raw login-session cookies for each given account's isolated profile - part of the

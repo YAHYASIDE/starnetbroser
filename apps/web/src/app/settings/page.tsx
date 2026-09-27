@@ -32,6 +32,9 @@ import {
   isRunningInAndroidApp,
   openIsolatedAccountBrowser,
   openNotificationSettings,
+  AUTO_SYNC_HOUR_CHOICES,
+  getAutoSyncHours,
+  setAutoSyncHours,
 } from "@/lib/localBrowser";
 import {
   clearSessionCheckResults,
@@ -233,6 +236,7 @@ export default function SettingsPage() {
         </label>
         <MorningDigestSettings />
         <EveningSummarySettings />
+        {isAndroidApp && <AutoSyncIntervalSettings />}
         {isAndroidApp && (
           <div className="settings-actions" style={{ marginTop: "12px" }}>
             <button className="btn-icon" onClick={() => openNotificationSettings()}>
@@ -1203,6 +1207,42 @@ function AutoBackupSection() {
       )}
       {message && <p className="settings-hint">{message}</p>}
     </section>
+  );
+}
+
+/** 🔄 المزامنة التلقائية - how often the background sync opens the devices' Starlink pages. */
+function AutoSyncIntervalSettings() {
+  const [hours, setHours] = useState(2);
+  const [saved, setSaved] = useState<string | null>(null);
+  useEffect(() => setHours(getAutoSyncHours()), []);
+
+  return (
+    <div className="morning-digest-settings">
+      <label className="form-field">
+        <span>🔄 المزامنة التلقائية من Starlink</span>
+        <select
+          className="search-input"
+          value={hours}
+          onChange={async (e) => {
+            const next = Number(e.target.value);
+            setHours(next);
+            const ok = await setAutoSyncHours(next);
+            setSaved(ok ? "✓ حُفظ" : "تعذر الحفظ - حاول مجدداً");
+          }}
+        >
+          {AUTO_SYNC_HOUR_CHOICES.map((h) => (
+            <option key={h} value={h}>
+              {h === 0 ? "متوقفة (يدوي فقط)" : h === 1 ? "كل ساعة" : h === 2 ? "كل ساعتين (مستحسن)" : `كل ${h} ساعات`}
+            </option>
+          ))}
+        </select>
+      </label>
+      {saved && <span className="settings-hint">{saved}</span>}
+      <p className="settings-hint">
+        كل مرة تُحدَّث الأجهزة واحداً بعد واحد مع استراحة بينها، حتى لا يوقفك Starlink بخطأ 429. كلما
+        تباعد الوقت قلّ الضغط، وزر «مزامنة الآن» و«تحديث» في كل بطاقة يبقيان متاحين دائماً.
+      </p>
+    </div>
   );
 }
 

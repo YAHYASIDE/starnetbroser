@@ -112,7 +112,7 @@ export async function ackPendingAccountSyncs(syncIds: string[]): Promise<boolean
 }
 
 /**
- * Tells the native side which accounts to sync automatically in the background (roughly hourly -
+ * Tells the native side which accounts to sync automatically in the background (every 2 hours by default, الإعدادات -
  * see AutoSyncWorker/AutoSyncScheduler), replacing whatever list was set before. Call this every
  * time the account list changes so a closed/killed app's next scheduled run reflects the current
  * list - it never establishes a login itself, so an account that was never opened via "فتح" simply
@@ -136,6 +136,40 @@ export async function syncAutoSyncAccountList(accounts: AutoSyncAccountRef[]): P
  * through the normal accountDataSynced/listPendingAccountSyncs pipeline already wired in
  * HomeView, not through this call's own return value.
  */
+// ---- المزامنة التلقائية: how often (الإعدادات) ----
+
+const AUTO_SYNC_HOURS_KEY = "starnet.autoSyncHours";
+export const AUTO_SYNC_HOUR_CHOICES = [1, 2, 3, 6, 12, 0] as const;
+export const DEFAULT_AUTO_SYNC_HOURS = 2;
+
+/** The chosen interval in hours (0 = off). Every 2 hours unless changed - loading every device
+ * from one phone too often is what makes Starlink answer "429 Too many requests". */
+export function getAutoSyncHours(): number {
+  try {
+    const raw = window.localStorage.getItem(AUTO_SYNC_HOURS_KEY);
+    const hours = raw === null ? NaN : Number(raw);
+    return (AUTO_SYNC_HOUR_CHOICES as readonly number[]).includes(hours) ? hours : DEFAULT_AUTO_SYNC_HOURS;
+  } catch {
+    return DEFAULT_AUTO_SYNC_HOURS;
+  }
+}
+
+/** Saves the choice and reschedules the background sync right away (Android app). */
+export async function setAutoSyncHours(hours: number): Promise<boolean> {
+  try {
+    window.localStorage.setItem(AUTO_SYNC_HOURS_KEY, String(hours));
+  } catch {
+    // Storage blocked - the native side still gets the choice below.
+  }
+  if (!isRunningInAndroidApp()) return true;
+  try {
+    await LocalBrowser.setAutoSyncInterval({ hours });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Omit `accountId` to sync every registered account (the header's "مزامنة الآن"); pass it to
  * scope this run to just that one (a single card's own "تحديث" button). */
 export async function triggerImmediateSync(accountId?: string): Promise<OpenResult> {

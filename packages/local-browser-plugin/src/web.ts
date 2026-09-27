@@ -19,6 +19,8 @@ import type {
   OpenAccountBrowserOptions,
   SetAutoSyncAccountIdsOptions,
   SetAutoSyncAccountIdsResult,
+  SetAutoSyncIntervalOptions,
+  SetAutoSyncIntervalResult,
   SyncNowOptions,
 } from "./definitions";
 
@@ -57,6 +59,11 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
   // save in the first place, just like ackPendingAccountSyncs above.
   async setAutoSyncAccountIds(_options: SetAutoSyncAccountIdsOptions): Promise<SetAutoSyncAccountIdsResult> {
     return { saved: true };
+  }
+
+  // No background worker on web - the choice is simply echoed back.
+  async setAutoSyncInterval(options: SetAutoSyncIntervalOptions): Promise<SetAutoSyncIntervalResult> {
+    return { hours: options.hours };
   }
 
   async syncNow(_options?: SyncNowOptions): Promise<void> {

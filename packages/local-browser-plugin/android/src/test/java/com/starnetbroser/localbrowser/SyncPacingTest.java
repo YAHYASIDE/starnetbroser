@@ -38,6 +38,14 @@ public class SyncPacingTest {
     }
 
     @Test
+    public void intervalIsOneOfTheOfferedChoicesOrTheTwoHourDefault() {
+        assertEquals(0, SyncPacing.normalizeIntervalHours(0));
+        assertEquals(6, SyncPacing.normalizeIntervalHours(6));
+        assertEquals(2, SyncPacing.normalizeIntervalHours(5));
+        assertEquals(2, SyncPacing.normalizeIntervalHours(-1));
+    }
+
+    @Test
     public void rotatesToContinueAfterTheLastSyncedAccount() {
         List<String> ids = Arrays.asList("a", "b", "c", "d");
         assertEquals(Arrays.asList("c", "d", "a", "b"), SyncPacing.rotate(ids, ids, "b"));

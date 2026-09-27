@@ -318,6 +318,23 @@ public class LocalBrowserPlugin extends Plugin {
      * opening it once via openAccountBrowser, and the caller should tell the user that plainly
      * rather than the button appearing to do nothing.
      */
+    /**
+     * How often the background sync runs (الإعدادات): 1, 2, 3, 6 or 12 hours, or 0 = off. Stored
+     * natively so the schedule survives the app being closed; re-schedules right away when there
+     * are accounts to sync.
+     */
+    @PluginMethod
+    public void setAutoSyncInterval(PluginCall call) {
+        Integer hours = call.getInt("hours");
+        SyncPacing.saveIntervalHours(getContext(), hours == null ? SyncPacing.DEFAULT_INTERVAL_HOURS : hours);
+        if (!AutoSyncAccountStore.load(getContext()).isEmpty() && isMultiProfileSupported()) {
+            AutoSyncScheduler.schedule(getContext());
+        }
+        JSObject ret = new JSObject();
+        ret.put("hours", SyncPacing.intervalHours(getContext()));
+        call.resolve(ret);
+    }
+
     @PluginMethod
     public void syncNow(PluginCall call) {
         if (!isMultiProfileSupported()) {
