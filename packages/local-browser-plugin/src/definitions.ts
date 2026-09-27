@@ -156,6 +156,21 @@ export interface SetAutoSyncAccountIdsOptions {
   accounts: AutoSyncAccountEntry[];
 }
 
+export interface TelegramStatus {
+  configured: boolean;
+  botName?: string | null;
+  chatName?: string | null;
+  /** Whether the background sync also sends "⛔ توقف" to Telegram. */
+  stoppedEnabled: boolean;
+}
+
+export interface TelegramPollResult {
+  /** Text messages from the connected chat only, oldest first. */
+  messages: { text: string }[];
+  /** Pass back as `offset` next time - marks these as read. */
+  nextOffset: number;
+}
+
 export interface SetAutoSyncEnabledOptions {
   enabled: boolean;
 }
@@ -318,6 +333,23 @@ export interface LocalBrowserPlugin {
   /** المزامنة التلقائية on/off - when on, the important devices (near or just past their renewal
    * date, or stopped) are synced automatically, most urgent first; the rest only by hand. */
   setAutoSyncEnabled(options: SetAutoSyncEnabledOptions): Promise<SetAutoSyncEnabledResult>;
+
+  // ---- Telegram bot - the token lives only in the phone's private native storage ----
+
+  /** Checks the token, finds the chat that sent the bot "/start", stores both and says hello.
+   * Rejects with an Arabic reason to show as-is. */
+  telegramConnect(options: { token: string }): Promise<{ botName: string; chatName: string }>;
+  telegramStatus(): Promise<TelegramStatus>;
+  telegramDisconnect(): Promise<void>;
+  telegramSetOptions(options: { stopped?: boolean }): Promise<void>;
+  /** Queued natively: sent once there's a network, even if the app closes. */
+  telegramSend(options: { text: string }): Promise<{ queued: boolean }>;
+  /** Sends `text` at `at` (epoch ms), replacing what was scheduled under `key` ("morning"...). */
+  telegramSchedule(options: { key: string; at: number; text: string }): Promise<void>;
+  telegramCancel(options: { key: string }): Promise<void>;
+  telegramSendDocument(options: { fileName: string; base64: string; caption?: string }): Promise<void>;
+  /** New messages to the bot from the connected chat (the app answers commands itself). */
+  telegramPoll(options: { offset?: number }): Promise<TelegramPollResult>;
 
   /**
    * Reads the raw login-session cookies for each given account's isolated profile - part of the

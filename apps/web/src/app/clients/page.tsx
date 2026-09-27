@@ -27,7 +27,7 @@ import {
   updateSupplier,
 } from "@/lib/supplierStore";
 import { InvoiceList, loadInvoices } from "@/lib/invoiceStore";
-import { LedgerByAccount, loadLedgerStore } from "@/lib/ledgerStore";
+import { computeBalanceByCurrency, LedgerByAccount, LedgerCurrency, loadLedgerStore, PAYMENT_METHOD_LABELS } from "@/lib/ledgerStore";
 import { AllocationsByAccount, loadAllocationStore } from "@/lib/paymentAllocationStore";
 import { demoAccounts } from "@/lib/demoData";
 import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
@@ -44,6 +44,7 @@ import {
   savePartyAdjustments,
 } from "@/lib/partyBalanceStore";
 import { PartyDirectory } from "@/components/AccountsSection";
+import { notifyPaymentTelegram } from "@/lib/telegram";
 import { ClientDialog } from "@/components/ClientDialog";
 
 /** "الزبائن" bottom-nav tab: every client and supplier as colour-coded cards (PartyDirectory), with
@@ -122,6 +123,16 @@ export default function ClientsPage() {
     if (!result.ok) return result.message;
     setPartyAdjustments(result.list);
     savePartyAdjustments(result.list);
+    if (input.partyKind === "client" && input.direction === "weOwe") {
+      // A client paying into their general (store) account.
+      notifyPaymentTelegram({
+        deviceName: "حساب المتجر",
+        clientName: clientStore[input.partyId]?.name,
+        amount: input.amount,
+        currency: input.currencyCode,
+        date: input.date,
+      });
+    }
     if (result.adjustment.cashMoved) {
       const partyName =
         (input.partyKind === "client" ? clientStore[input.partyId]?.name : supplierStore[input.partyId]?.name) ?? "";
@@ -179,6 +190,15 @@ export default function ClientsPage() {
     );
     if (!result.ok) return result.message;
     setLedgerStore(result.ledgerStore);
+    notifyPaymentTelegram({
+      deviceName: device.name,
+      clientName: device.clientId ? clientStore[device.clientId]?.name : undefined,
+      amount: input.amount,
+      currency: input.currencyCode,
+      method: input.paymentMethod ? PAYMENT_METHOD_LABELS[input.paymentMethod] : undefined,
+      balanceAfter: computeBalanceByCurrency(result.ledgerStore[device.id] ?? [])[input.currencyCode as LedgerCurrency] ?? 0,
+      date: input.date,
+    });
     return null;
   }
 

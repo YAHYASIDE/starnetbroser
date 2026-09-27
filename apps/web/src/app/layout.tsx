@@ -7,6 +7,7 @@ import "./globals.css";
 import { BottomNav } from "@/components/BottomNav";
 import { AppLockGate } from "@/components/AppLockGate";
 import { StorageFullBanner } from "@/components/StorageFullBanner";
+import { TelegramBridge } from "@/components/TelegramBridge";
 
 export const metadata: Metadata = {
   title: "STAR NET",
@@ -37,6 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
           <BottomNav />
         </AppLockGate>
+        <TelegramBridge />
         <StorageFullBanner />
       </body>
     </html>

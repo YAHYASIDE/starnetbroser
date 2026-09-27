@@ -21,6 +21,8 @@ import type {
   SetAutoSyncAccountIdsResult,
   SetAutoSyncEnabledOptions,
   SetAutoSyncEnabledResult,
+  TelegramPollResult,
+  TelegramStatus,
   SyncNowOptions,
 } from "./definitions";
 
@@ -64,6 +66,44 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
   // No background worker on web - the choice is simply echoed back.
   async setAutoSyncEnabled(options: SetAutoSyncEnabledOptions): Promise<SetAutoSyncEnabledResult> {
     return { enabled: options.enabled };
+  }
+
+  // The Telegram bot lives in the Android app (its token in native storage) - on web it's simply
+  // not connected, and anything that would send is refused rather than silently dropped.
+  async telegramConnect(_options: { token: string }): Promise<{ botName: string; chatName: string }> {
+    throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
+  }
+
+  async telegramStatus(): Promise<TelegramStatus> {
+    return { configured: false, stoppedEnabled: false };
+  }
+
+  async telegramDisconnect(): Promise<void> {
+    return;
+  }
+
+  async telegramSetOptions(_options: { stopped?: boolean }): Promise<void> {
+    return;
+  }
+
+  async telegramSend(_options: { text: string }): Promise<{ queued: boolean }> {
+    return { queued: false };
+  }
+
+  async telegramSchedule(_options: { key: string; at: number; text: string }): Promise<void> {
+    return;
+  }
+
+  async telegramCancel(_options: { key: string }): Promise<void> {
+    return;
+  }
+
+  async telegramSendDocument(_options: { fileName: string; base64: string; caption?: string }): Promise<void> {
+    throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
+  }
+
+  async telegramPoll(_options: { offset?: number }): Promise<TelegramPollResult> {
+    return { messages: [], nextOffset: 0 };
   }
 
   async syncNow(_options?: SyncNowOptions): Promise<void> {

@@ -26,6 +26,16 @@ import { STORAGE_BUDGET_CHARS, StorageUsage, formatChars, isQuotaError, measureS
 import { collectAppData, createEncryptedBackupFile, mergeImportedAccounts, readEncryptedBackupFile, restoreAppData } from "@/lib/accountBackup";
 import { restoreProofsFromBackup, withProofs } from "@/lib/paymentProofStore";
 import {
+  connectTelegram,
+  disconnectTelegram,
+  loadTelegramPrefs,
+  saveTelegramPrefs,
+  sendTelegramText,
+  telegramConnection,
+  TelegramConnection,
+} from "@/lib/telegram";
+import { DEFAULT_TELEGRAM_PREFS, TelegramPrefs } from "@/lib/telegramMessages";
+import {
   checkAccountSession,
   exportAccountSessions,
   importAccountSessions,
@@ -248,6 +258,8 @@ export default function SettingsPage() {
           بها من إعدادات إشعارات النظام لتطبيق STAR NET - الزر أعلاه يفتحها مباشرة.
         </p>
       </section>
+
+      <TelegramSection />
 
       <AppLockSection />
 
@@ -1205,6 +1217,119 @@ function AutoBackupSection() {
         </div>
       )}
       {message && <p className="settings-hint">{message}</p>}
+    </section>
+  );
+}
+
+/** ✈️ تيليغرام - the operator's own bot: connect with its token, choose what is sent. */
+function TelegramSection() {
+  const [connection, setConnection] = useState<TelegramConnection>({ configured: false });
+  const [prefs, setPrefs] = useState<TelegramPrefs>(DEFAULT_TELEGRAM_PREFS);
+  const [token, setToken] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  useEffect(() => {
+    setPrefs(loadTelegramPrefs());
+    void telegramConnection().then(setConnection);
+  }, []);
+
+  async function connect() {
+    setBusy(true);
+    setMessage(null);
+    const result = await connectTelegram(token);
+    setBusy(false);
+    if (!result.ok) {
+      setMessage(result.message);
+      return;
+    }
+    setToken("");
+    setConnection({ configured: true, botName: result.botName, chatName: result.chatName });
+    setMessage("✓ تم الربط - وصلتك رسالة ترحيب في تيليغرام");
+  }
+
+  async function update(next: TelegramPrefs) {
+    setPrefs(next);
+    await saveTelegramPrefs(next);
+  }
+
+  const options: { key: keyof TelegramPrefs; label: string }[] = [
+    { key: "stopped", label: "⛔ الأجهزة المتوقفة (فور اكتشافها)" },
+    { key: "payments", label: "💵 كل دفعة تُسجَّل" },
+    { key: "morning", label: "☀️ ملخص الصباح (التجديدات القريبة بالأسماء)" },
+    { key: "evening", label: "🌙 ملخص آخر اليوم" },
+  ];
+
+  return (
+    <section className="section telegram-section">
+      <h2 className="section-title">✈️ تيليغرام</h2>
+      {connection.configured ? (
+        <>
+          <p className="telegram-status">
+            ✓ مربوط بالبوت <bdi dir="ltr">@{connection.botName}</bdi>
+            {connection.chatName ? <> - يرسل إلى {connection.chatName}</> : null}
+          </p>
+          {options.map((option) => (
+            <label key={option.key} className="toggle-switch-row">
+              <span>{option.label}</span>
+              <span className={`toggle-switch${prefs[option.key] ? " toggle-switch-on" : ""}`}>
+                <input type="checkbox" checked={prefs[option.key]} onChange={(e) => void update({ ...prefs, [option.key]: e.target.checked })} />
+                <span className="toggle-switch-thumb" />
+              </span>
+            </label>
+          ))}
+          <p className="settings-hint">
+            📄 في أي كشف PDF (زبون، مورد، مندوب، إقفال شهر، سند قبض) اختر «✈️ إرسال إلى تيليغرام». وتستطيع أن تكتب للبوت: المتوقفة، تنتهي،
+            الصندوق، ملخص، كشف + اسم الزبون أو المورد - يجيب والتطبيق مفتوح على هاتفك.
+          </p>
+          <div className="settings-actions">
+            <button
+              type="button"
+              className="btn-icon"
+              onClick={async () => setMessage((await sendTelegramText("👋 رسالة تجربة من STAR NET")) ? "✓ أُرسلت رسالة تجربة" : "تعذر الإرسال")}
+            >
+              إرسال رسالة تجربة
+            </button>
+            <button
+              type="button"
+              className="text-action"
+              onClick={async () => {
+                if (!window.confirm("فصل تيليغرام؟ يُحذف مفتاح البوت من الهاتف ولن تصل الرسائل.")) return;
+                await disconnectTelegram();
+                setConnection({ configured: false });
+                setMessage("تم الفصل");
+              }}
+            >
+              فصل
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="settings-hint">اربط بوتك الخاص لتصلك الإشعارات والكشوف على تيليغرام (مجاني):</p>
+          <ol className="telegram-steps">
+            <li>في تيليغرام ابحث عن <bdi dir="ltr">@BotFather</bdi> وأرسل له <bdi dir="ltr">/newbot</bdi>، ثم اختر اسماً للبوت.</li>
+            <li>انسخ «المفتاح» (token) الذي يعطيك إياه.</li>
+            <li>افتح بوتك الجديد واضغط «ابدأ» (Start).</li>
+            <li>الصق المفتاح هنا واضغط «ربط».</li>
+          </ol>
+          <input
+            className="search-input"
+            type="password"
+            dir="ltr"
+            autoComplete="off"
+            placeholder="123456789:AA..."
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+          />
+          <div className="settings-actions">
+            <button type="button" className="dialog-primary" disabled={busy || !token.trim()} onClick={() => void connect()}>
+              {busy ? "⏳ جارِ الربط…" : "ربط"}
+            </button>
+          </div>
+          <p className="settings-hint">المفتاح يُحفظ في هاتفك فقط ولا يدخل النسخ الاحتياطية.</p>
+        </>
+      )}
+      {message && <p className="settings-hint telegram-message">{message}</p>}
     </section>
   );
 }

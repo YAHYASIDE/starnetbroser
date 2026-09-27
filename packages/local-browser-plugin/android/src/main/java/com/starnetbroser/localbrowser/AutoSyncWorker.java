@@ -237,6 +237,9 @@ public class AutoSyncWorker extends Worker {
             }
         }
         SyncNotifier.notifyStopped(context, newlyStopped);
+        if (!newlyStopped.isEmpty() && TelegramStore.isStoppedEnabled(context)) {
+            TelegramSendWorker.enqueue(context, TelegramText.stoppedMessage(newlyStopped));
+        }
         if (manual) {
             SyncNotifier.notifySyncCompleted(context, syncedAccountCount.get());
         }

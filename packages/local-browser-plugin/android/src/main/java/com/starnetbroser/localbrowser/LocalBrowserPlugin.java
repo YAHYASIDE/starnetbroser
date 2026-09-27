@@ -30,6 +30,8 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -44,6 +46,9 @@ import org.json.JSONObject;
  */
 @CapacitorPlugin(name = "LocalBrowser")
 public class LocalBrowserPlugin extends Plugin {
+
+    /** Telegram calls block on the network - one at a time, never on the main thread. */
+    private final ExecutorService telegramExecutor = Executors.newSingleThreadExecutor();
 
     public static final String DEFAULT_URL = "https://starlink.com/account/home";
     public static final String ERROR_CODE_UNSUPPORTED = "MULTI_PROFILE_UNSUPPORTED";
@@ -339,6 +344,201 @@ public class LocalBrowserPlugin extends Plugin {
         JSObject ret = new JSObject();
         ret.put("enabled", SyncPacing.isEnabled(getContext()));
         call.resolve(ret);
+    }
+
+    // ---- Telegram bot (TelegramStore / TelegramClient / TelegramSendWorker) ----
+
+    /**
+     * Connects the operator's bot: checks the token (getMe), finds the private chat that sent the
+     * bot a message (the operator's own "/start"), stores both natively and says hello there.
+     * Rejects with a plain Arabic reason the settings screen shows as-is.
+     */
+    @PluginMethod
+    public void telegramConnect(PluginCall call) {
+        String raw = call.getString("token");
+        if (raw == null || raw.trim().isEmpty()) {
+            call.reject("الصق مفتاح البوت أولاً");
+            return;
+        }
+        String token = raw.trim();
+        telegramExecutor.execute(() -> {
+            try {
+                JSONObject me = TelegramClient.call(token, "getMe", new LinkedHashMap<>());
+                String botName = me.getJSONObject("result").optString("username", "");
+                Map<String, String> params = new LinkedHashMap<>();
+                params.put("timeout", "0");
+                JSONArray updates = TelegramClient.call(token, "getUpdates", params).getJSONArray("result");
+                String chatId = null;
+                String chatName = null;
+                long lastUpdate = 0;
+                for (int i = 0; i < updates.length(); i++) {
+                    JSONObject update = updates.getJSONObject(i);
+                    lastUpdate = Math.max(lastUpdate, update.optLong("update_id"));
+                    JSONObject message = update.optJSONObject("message");
+                    JSONObject chat = message != null ? message.optJSONObject("chat") : null;
+                    if (chat == null || !"private".equals(chat.optString("type"))) continue;
+                    chatId = String.valueOf(chat.optLong("id"));
+                    chatName = chat.optString("first_name", "");
+                }
+                if (chatId == null) {
+                    call.reject("افتح البوت @" + botName + " في تيليغرام واضغط «ابدأ» (أو أرسل له /start)، ثم اضغط «ربط» مرة أخرى");
+                    return;
+                }
+                if (lastUpdate > 0) {
+                    // The "/start" is not a command for the app - mark everything so far as read.
+                    Map<String, String> ack = new LinkedHashMap<>();
+                    ack.put("offset", String.valueOf(lastUpdate + 1));
+                    ack.put("timeout", "0");
+                    TelegramClient.call(token, "getUpdates", ack);
+                }
+                if (!TelegramStore.save(getContext(), token, chatId, chatName, botName)) {
+                    call.reject("تعذر حفظ الربط على الهاتف");
+                    return;
+                }
+                TelegramClient.sendMessage(token, chatId, "✅ تم ربط STAR NET بهذه المحادثة.\nستصلك هنا إشعارات الأجهزة المتوقفة والدفعات والملخصات.\nاكتب «مساعدة» لترى الأوامر (تُجاب والتطبيق مفتوح).");
+                JSObject ret = new JSObject();
+                ret.put("botName", botName);
+                ret.put("chatName", chatName);
+                call.resolve(ret);
+            } catch (TelegramClient.TelegramError e) {
+                call.reject(e.code == 401 || e.code == 404 ? "المفتاح غير صحيح - انسخه من جديد من @BotFather" : "رفض تيليغرام الطلب: " + e.getMessage());
+            } catch (Exception e) {
+                call.reject("تعذر الاتصال بتيليغرام - تأكد من الإنترنت ثم حاول مجدداً");
+            }
+        });
+    }
+
+    @PluginMethod
+    public void telegramStatus(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("configured", TelegramStore.isConfigured(getContext()));
+        ret.put("botName", TelegramStore.botName(getContext()));
+        ret.put("chatName", TelegramStore.chatName(getContext()));
+        ret.put("stoppedEnabled", TelegramStore.isStoppedEnabled(getContext()));
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void telegramDisconnect(PluginCall call) {
+        TelegramSendWorker.cancel(getContext(), "morning");
+        TelegramSendWorker.cancel(getContext(), "evening");
+        TelegramStore.clear(getContext());
+        call.resolve();
+    }
+
+    /** Whether the background sync also sends "⛔ توقف" to Telegram. */
+    @PluginMethod
+    public void telegramSetOptions(PluginCall call) {
+        Boolean stopped = call.getBoolean("stopped");
+        if (stopped != null) TelegramStore.setStoppedEnabled(getContext(), stopped);
+        call.resolve();
+    }
+
+    /** Queues a text message (sent once there's a network, even if the app closes). */
+    @PluginMethod
+    public void telegramSend(PluginCall call) {
+        String text = call.getString("text");
+        JSObject ret = new JSObject();
+        boolean configured = TelegramStore.isConfigured(getContext());
+        if (configured && text != null && !text.trim().isEmpty()) TelegramSendWorker.enqueue(getContext(), text);
+        ret.put("queued", configured);
+        call.resolve(ret);
+    }
+
+    /** Schedules the text for `at` (epoch ms), replacing the previous one under `key`. */
+    @PluginMethod
+    public void telegramSchedule(PluginCall call) {
+        String key = call.getString("key");
+        String text = call.getString("text");
+        Long at = call.getLong("at");
+        if (key == null || !key.matches("[a-z]{1,20}") || at == null) {
+            call.reject("invalid schedule");
+            return;
+        }
+        if (!TelegramStore.isConfigured(getContext()) || text == null || text.trim().isEmpty()) {
+            TelegramSendWorker.cancel(getContext(), key);
+        } else {
+            TelegramSendWorker.schedule(getContext(), key, at, text);
+        }
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void telegramCancel(PluginCall call) {
+        String key = call.getString("key");
+        if (key != null && key.matches("[a-z]{1,20}")) TelegramSendWorker.cancel(getContext(), key);
+        call.resolve();
+    }
+
+    /** Sends a PDF (base64) to the chat right away - used while the app is open. */
+    @PluginMethod
+    public void telegramSendDocument(PluginCall call) {
+        String base64 = call.getString("base64");
+        String fileName = call.getString("fileName", "document.pdf");
+        String caption = call.getString("caption");
+        if (!TelegramStore.isConfigured(getContext())) {
+            call.reject("اربط تيليغرام أولاً من الإعدادات");
+            return;
+        }
+        if (base64 == null || base64.isEmpty()) {
+            call.reject("الملف فارغ");
+            return;
+        }
+        telegramExecutor.execute(() -> {
+            try {
+                byte[] file = android.util.Base64.decode(base64, android.util.Base64.DEFAULT);
+                TelegramClient.sendDocument(TelegramStore.token(getContext()), TelegramStore.chatId(getContext()), fileName, file, caption);
+                call.resolve();
+            } catch (TelegramClient.TelegramError e) {
+                call.reject("رفض تيليغرام الملف: " + e.getMessage());
+            } catch (Exception e) {
+                call.reject("تعذر الإرسال - تأكد من الإنترنت");
+            }
+        });
+    }
+
+    /**
+     * Reads new messages sent to the bot (while the app is open - the app answers commands itself,
+     * since the data lives only on this phone). Only messages from the connected chat are
+     * returned; anything else is skipped. Pass back `nextOffset` next time to mark these as read.
+     */
+    @PluginMethod
+    public void telegramPoll(PluginCall call) {
+        if (!TelegramStore.isConfigured(getContext())) {
+            call.reject("not configured");
+            return;
+        }
+        Long offset = call.getLong("offset");
+        telegramExecutor.execute(() -> {
+            try {
+                Map<String, String> params = new LinkedHashMap<>();
+                params.put("timeout", "0");
+                params.put("allowed_updates", "[\"message\"]");
+                if (offset != null && offset > 0) params.put("offset", String.valueOf(offset));
+                JSONArray updates = TelegramClient.call(TelegramStore.token(getContext()), "getUpdates", params).getJSONArray("result");
+                String chatId = TelegramStore.chatId(getContext());
+                long next = offset != null ? offset : 0;
+                JSArray messages = new JSArray();
+                for (int i = 0; i < updates.length(); i++) {
+                    JSONObject update = updates.getJSONObject(i);
+                    next = Math.max(next, update.optLong("update_id") + 1);
+                    JSONObject message = update.optJSONObject("message");
+                    JSONObject chat = message != null ? message.optJSONObject("chat") : null;
+                    if (chat == null || !String.valueOf(chat.optLong("id")).equals(chatId)) continue;
+                    String text = message.optString("text", "");
+                    if (text.isEmpty()) continue;
+                    JSObject item = new JSObject();
+                    item.put("text", text);
+                    messages.put(item);
+                }
+                JSObject ret = new JSObject();
+                ret.put("messages", messages);
+                ret.put("nextOffset", next);
+                call.resolve(ret);
+            } catch (Exception e) {
+                call.reject("poll failed");
+            }
+        });
     }
 
     @PluginMethod

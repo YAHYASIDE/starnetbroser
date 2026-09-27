@@ -5,7 +5,8 @@ import type { RenewalPlan } from "@starnet/shared";
 import { PdfButton } from "./PdfButton";
 import { formatProfitMru } from "@/lib/profitMru";
 import { useMruRate } from "@/lib/useMruRate";
-import { buildPaymentReceipt, buildReceiptWhatsAppMessage } from "@/lib/receipt";
+import { balanceAfterPayment, buildPaymentReceipt, buildReceiptWhatsAppMessage } from "@/lib/receipt";
+import { notifyPaymentTelegram } from "@/lib/telegram";
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { resizeImageToDataUrl } from "@/lib/imageUtils";
 import { deleteProof, getProof, listProofIds, putProof } from "@/lib/paymentProofStore";
@@ -941,6 +942,15 @@ export function LedgerDialog({
             if (proofDraft) void saveProof(pendingPayment.id, proofDraft);
             setProofDraft(null);
             setJustPaid(pendingPayment);
+            notifyPaymentTelegram({
+              deviceName: accountName,
+              clientName,
+              amount: pendingPayment.amount,
+              currency: pendingPayment.currency,
+              method: pendingPayment.paymentMethod ? PAYMENT_METHOD_LABELS[pendingPayment.paymentMethod] : undefined,
+              balanceAfter: balanceAfterPayment([...entries, pendingPayment], pendingPayment),
+              date: pendingPayment.date,
+            });
             setPendingPayment(null);
           }}
         />

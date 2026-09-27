@@ -7518,3 +7518,35 @@ button.today-tile {
   flex-direction: column;
   gap: 2px;
 }
+
+/* ✈️ تيليغرام (الإعدادات) and the PDF send choice. */
+.telegram-steps {
+  margin: 4px 0 10px;
+  padding-inline-start: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.telegram-status {
+  margin: 0 0 8px;
+  color: var(--green);
+  font-weight: 700;
+}
+
+.telegram-message {
+  margin-top: 8px;
+}
+
+.pdf-choice-sheet > .dialog-primary,
+.pdf-choice-sheet > .dialog-secondary {
+  width: 100%;
+}
+
+.pdf-sent-note {
+  color: var(--green);
+  font-size: 0.8rem;
+  font-weight: 700;
+}

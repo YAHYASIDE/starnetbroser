@@ -51,6 +51,13 @@ describe("LocalBrowserWeb", () => {
     await expect(plugin.setAutoSyncEnabled({ enabled: false })).resolves.toEqual({ enabled: false });
   });
 
+  it("reports Telegram as not connected on web and refuses to send documents", async () => {
+    const plugin = new LocalBrowserWeb();
+    await expect(plugin.telegramStatus()).resolves.toEqual({ configured: false, stoppedEnabled: false });
+    await expect(plugin.telegramSend({ text: "x" })).resolves.toEqual({ queued: false });
+    await expect(plugin.telegramSendDocument({ fileName: "a.pdf", base64: "AA==" })).rejects.toThrow();
+  });
+
   it("rejects syncNow instead of silently pretending to have synced anything", async () => {
     const plugin = new LocalBrowserWeb();
     await expect(plugin.syncNow()).rejects.toThrow();

@@ -29,7 +29,15 @@ import { HOME_ACTION_EVENT, HomeAction, parseHomeAction, REMINDER_COUNT_EVENT } 
 import { buildRenewalShipment } from "@/lib/renewalPlan";
 import { runAutoBackup } from "@/lib/autoBackupRunner";
 import { runDriveBackup } from "@/lib/driveBackupRunner";
-import { notifySuspendedWithDebt, onDigestTapped, rescheduleEveningSummary, rescheduleMorningDigests } from "@/lib/morningNotifications";
+import {
+  getEveningSummaryHour,
+  getMorningDigestHour,
+  notifySuspendedWithDebt,
+  onDigestTapped,
+  rescheduleEveningSummary,
+  rescheduleMorningDigests,
+} from "@/lib/morningNotifications";
+import { rescheduleTelegramSummaries } from "@/lib/telegram";
 import { cardShortfallForSuspended, currentCardBalanceUsd, listOpenShipmentDebts, listSuspendedWithDebt, settleShipmentCost } from "@/lib/starlinkDebt";
 import { APK_DOWNLOAD_URL, checkForAppUpdate, shouldAutoCheck } from "@/lib/appUpdate";
 import { deviceMatchesQuery, searchEverything, SearchResult } from "@/lib/homeInsights";
@@ -616,7 +624,17 @@ export function HomeView({
     let cancelled = false;
     void accountsReadyGateRef.current.whenReady().then(() => {
       if (cancelled) return;
-      void rescheduleMorningDigests(accounts, totalOwedAcrossAccounts(ledgerStore)).then(() => rescheduleEveningSummary(accounts, ledgerStore));
+      void rescheduleMorningDigests(accounts, totalOwedAcrossAccounts(ledgerStore))
+        .then(() => rescheduleEveningSummary(accounts, ledgerStore))
+        .then(() =>
+          rescheduleTelegramSummaries({
+            accounts,
+            ledgerStore,
+            owedByCurrency: totalOwedAcrossAccounts(ledgerStore),
+            morningHour: getMorningDigestHour(),
+            eveningHour: getEveningSummaryHour(),
+          }),
+        );
     });
     return () => {
       cancelled = true;
