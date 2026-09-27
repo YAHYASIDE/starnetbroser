@@ -14,6 +14,9 @@ import { markInternalLeave } from "./appLock";
 export interface AutoSyncAccountRef {
   id: string;
   name: string;
+  /** See autoSyncList.ts - omitted for a device that must not be synced automatically. */
+  renewalDate?: string;
+  serviceStatus?: string;
 }
 
 /**
@@ -112,8 +115,8 @@ export async function ackPendingAccountSyncs(syncIds: string[]): Promise<boolean
 }
 
 /**
- * Tells the native side which accounts to sync automatically in the background (every 2 hours by default, الإعدادات -
- * see AutoSyncWorker/AutoSyncScheduler), replacing whatever list was set before. Call this every
+ * Tells the native side which accounts to sync automatically in the background - the important
+ * ones by their renewal date and status, see SyncPriority.java/autoSyncList.ts, replacing whatever list was set before. Call this every
  * time the account list changes so a closed/killed app's next scheduled run reflects the current
  * list - it never establishes a login itself, so an account that was never opened via "فتح" simply
  * yields nothing on every run, exactly like a manual sync tap on a logged-out page. No-op on web.
@@ -122,7 +125,12 @@ export async function syncAutoSyncAccountList(accounts: AutoSyncAccountRef[]): P
   if (!isRunningInAndroidApp()) return true;
   try {
     const { saved } = await LocalBrowser.setAutoSyncAccountIds({
-      accounts: accounts.map((account) => ({ accountId: account.id, accountName: account.name })),
+      accounts: accounts.map((account) => ({
+        accountId: account.id,
+        accountName: account.name,
+        renewalDate: account.renewalDate,
+        serviceStatus: account.serviceStatus,
+      })),
     });
     return saved;
   } catch {
@@ -136,34 +144,30 @@ export async function syncAutoSyncAccountList(accounts: AutoSyncAccountRef[]): P
  * through the normal accountDataSynced/listPendingAccountSyncs pipeline already wired in
  * HomeView, not through this call's own return value.
  */
-// ---- المزامنة التلقائية: how often (الإعدادات) ----
+// ---- المزامنة التلقائية on/off (الإعدادات) ----
 
-const AUTO_SYNC_HOURS_KEY = "starnet.autoSyncHours";
-export const AUTO_SYNC_HOUR_CHOICES = [1, 2, 3, 6, 12, 0] as const;
-export const DEFAULT_AUTO_SYNC_HOURS = 2;
+const AUTO_SYNC_OFF_KEY = "starnet.autoSyncOff";
 
-/** The chosen interval in hours (0 = off). Every 2 hours unless changed - loading every device
- * from one phone too often is what makes Starlink answer "429 Too many requests". */
-export function getAutoSyncHours(): number {
+/** On unless turned off. */
+export function isAutoSyncEnabled(): boolean {
   try {
-    const raw = window.localStorage.getItem(AUTO_SYNC_HOURS_KEY);
-    const hours = raw === null ? NaN : Number(raw);
-    return (AUTO_SYNC_HOUR_CHOICES as readonly number[]).includes(hours) ? hours : DEFAULT_AUTO_SYNC_HOURS;
+    return window.localStorage.getItem(AUTO_SYNC_OFF_KEY) !== "1";
   } catch {
-    return DEFAULT_AUTO_SYNC_HOURS;
+    return true;
   }
 }
 
-/** Saves the choice and reschedules the background sync right away (Android app). */
-export async function setAutoSyncHours(hours: number): Promise<boolean> {
+/** Saves the choice and applies it natively right away (Android app). */
+export async function setAutoSyncEnabled(enabled: boolean): Promise<boolean> {
   try {
-    window.localStorage.setItem(AUTO_SYNC_HOURS_KEY, String(hours));
+    if (enabled) window.localStorage.removeItem(AUTO_SYNC_OFF_KEY);
+    else window.localStorage.setItem(AUTO_SYNC_OFF_KEY, "1");
   } catch {
     // Storage blocked - the native side still gets the choice below.
   }
   if (!isRunningInAndroidApp()) return true;
   try {
-    await LocalBrowser.setAutoSyncInterval({ hours });
+    await LocalBrowser.setAutoSyncEnabled({ enabled });
     return true;
   } catch {
     return false;

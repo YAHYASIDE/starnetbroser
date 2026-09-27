@@ -33,11 +33,28 @@ final class AutoSyncAccountStore {
         final String accountId;
         final String accountName;
         final String url;
+        /** As the app knows it (rechargeDate) - drives SyncPriority; null = no known date, so the
+         * device is only ever synced by hand. */
+        @Nullable final String renewalDate;
+        /** "active" / "suspended" / ... as last known by the app. */
+        @Nullable final String serviceStatus;
 
         Entry(@NonNull String accountId, @Nullable String accountName, @NonNull String url) {
+            this(accountId, accountName, url, null, null);
+        }
+
+        Entry(
+            @NonNull String accountId,
+            @Nullable String accountName,
+            @NonNull String url,
+            @Nullable String renewalDate,
+            @Nullable String serviceStatus
+        ) {
             this.accountId = accountId;
             this.accountName = accountName != null ? accountName : accountId;
             this.url = url;
+            this.renewalDate = renewalDate;
+            this.serviceStatus = serviceStatus;
         }
     }
 
@@ -51,6 +68,8 @@ final class AutoSyncAccountStore {
             obj.put("accountId", entry.accountId);
             obj.put("accountName", entry.accountName);
             obj.put("url", entry.url);
+            if (entry.renewalDate != null) obj.put("renewalDate", entry.renewalDate);
+            if (entry.serviceStatus != null) obj.put("serviceStatus", entry.serviceStatus);
             array.put(obj);
         }
         return array.toString();
@@ -78,7 +97,13 @@ final class AutoSyncAccountStore {
                 continue;
             }
             String url = obj.optString("url", null);
-            entries.add(new Entry(accountId, obj.optString("accountName", null), url != null ? url : LocalBrowserPlugin.DEFAULT_URL));
+            entries.add(new Entry(
+                accountId,
+                obj.optString("accountName", null),
+                url != null ? url : LocalBrowserPlugin.DEFAULT_URL,
+                obj.optString("renewalDate", null),
+                obj.optString("serviceStatus", null)
+            ));
         }
         return entries;
     }

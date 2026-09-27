@@ -19,8 +19,8 @@ import type {
   OpenAccountBrowserOptions,
   SetAutoSyncAccountIdsOptions,
   SetAutoSyncAccountIdsResult,
-  SetAutoSyncIntervalOptions,
-  SetAutoSyncIntervalResult,
+  SetAutoSyncEnabledOptions,
+  SetAutoSyncEnabledResult,
   SyncNowOptions,
 } from "./definitions";
 
@@ -62,8 +62,8 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
   }
 
   // No background worker on web - the choice is simply echoed back.
-  async setAutoSyncInterval(options: SetAutoSyncIntervalOptions): Promise<SetAutoSyncIntervalResult> {
-    return { hours: options.hours };
+  async setAutoSyncEnabled(options: SetAutoSyncEnabledOptions): Promise<SetAutoSyncEnabledResult> {
+    return { enabled: options.enabled };
   }
 
   async syncNow(_options?: SyncNowOptions): Promise<void> {

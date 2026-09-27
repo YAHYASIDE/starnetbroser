@@ -1,11 +1,8 @@
 package com.starnetbroser.localbrowser;
 
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import java.util.Arrays;
-import java.util.List;
 import java.util.Random;
 import org.junit.Test;
 
@@ -37,20 +34,4 @@ public class SyncPacingTest {
         assertFalse(SyncPacing.hasTimeForAnother(0, 8 * 60_000));
     }
 
-    @Test
-    public void intervalIsOneOfTheOfferedChoicesOrTheTwoHourDefault() {
-        assertEquals(0, SyncPacing.normalizeIntervalHours(0));
-        assertEquals(6, SyncPacing.normalizeIntervalHours(6));
-        assertEquals(2, SyncPacing.normalizeIntervalHours(5));
-        assertEquals(2, SyncPacing.normalizeIntervalHours(-1));
-    }
-
-    @Test
-    public void rotatesToContinueAfterTheLastSyncedAccount() {
-        List<String> ids = Arrays.asList("a", "b", "c", "d");
-        assertEquals(Arrays.asList("c", "d", "a", "b"), SyncPacing.rotate(ids, ids, "b"));
-        assertEquals(Arrays.asList("a", "b", "c", "d"), SyncPacing.rotate(ids, ids, "d"));
-        assertEquals(Arrays.asList("a", "b", "c", "d"), SyncPacing.rotate(ids, ids, null));
-        assertEquals(Arrays.asList("a", "b", "c", "d"), SyncPacing.rotate(ids, ids, "gone"));
-    }
 }

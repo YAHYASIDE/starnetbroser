@@ -19,8 +19,12 @@ import androidx.work.WorkerParameters;
 import com.getcapacitor.JSObject;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -56,6 +60,12 @@ public class AutoSyncWorker extends Worker {
      * user asked about one. */
     static final String INPUT_ACCOUNT_ID = "accountId";
 
+    /** Set on "مزامنة الآن" / a card's "تحديث" (AutoSyncScheduler#triggerNow): runs even when the
+     * automatic sync is off, visits every important device (not just the due ones) and reports
+     * "تم تحديث ..." when done. The scheduled checks leave it unset and stay silent unless a device
+     * newly stopped. */
+    static final String INPUT_MANUAL = "manual";
+
     /** Extra wait after onPageFinished before reading the page: the Starlink portal is a
      * client-rendered SPA whose account data is often still filling in when the network load
      * itself completes - the exact same assumption a human tester would make by waiting a moment
@@ -75,6 +85,9 @@ public class AutoSyncWorker extends Worker {
     /** One full (every-account) run at a time in this process: the hourly run and a "مزامنة
      * الآن" run are separate WorkManager jobs and could otherwise load pages side by side. */
     private static final AtomicBoolean FULL_RUN_ACTIVE = new AtomicBoolean(false);
+
+    /** What each visited page showed this run: accountId -> {serviceStatus, renewalDate}. */
+    private final Map<String, String[]> pageValues = new ConcurrentHashMap<>();
     private static final long WAIT_FOR_OTHER_RUN_MS = 35_000;
 
     public AutoSyncWorker(@NonNull Context context, @NonNull WorkerParameters params) {
@@ -91,6 +104,10 @@ public class AutoSyncWorker extends Worker {
         }
 
         Context context = getApplicationContext();
+        boolean manual = getInputData().getBoolean(INPUT_MANUAL, false);
+        if (!manual && !SyncPacing.isEnabled(context)) {
+            return Result.success();
+        }
         List<AutoSyncAccountStore.Entry> entries = AutoSyncAccountStore.load(context);
 
         String filterAccountId = getInputData().getString(INPUT_ACCOUNT_ID);
@@ -125,7 +142,7 @@ public class AutoSyncWorker extends Worker {
             }
         }
         try {
-            return runAccounts(context, entries, fullRun);
+            return runAccounts(context, entries, fullRun, manual);
         } finally {
             if (fullRun) {
                 FULL_RUN_ACTIVE.set(false);
@@ -133,7 +150,7 @@ public class AutoSyncWorker extends Worker {
         }
     }
 
-    private Result runAccounts(Context context, List<AutoSyncAccountStore.Entry> entries, boolean fullRun) {
+    private Result runAccounts(Context context, List<AutoSyncAccountStore.Entry> entries, boolean fullRun, boolean manual) {
         String script;
         try {
             script = StarlinkExtractorSupport.loadExtractScript(context);
@@ -141,15 +158,47 @@ public class AutoSyncWorker extends Worker {
             return Result.retry();
         }
 
-        if (fullRun) {
-            // Continue after the account the previous run reached, so a run cut short by its time
-            // budget or a 429 never keeps re-syncing only the first accounts in the list.
-            List<String> ids = new ArrayList<>();
-            for (AutoSyncAccountStore.Entry entry : entries) {
-                ids.add(entry.accountId);
-            }
-            entries = SyncPacing.rotate(entries, ids, SyncPacing.loadCursor(context));
+        // What's known about each device right now: the app's own date/status, updated by what
+        // earlier visits read (SyncStateStore) - so priorities stay right while the app is closed.
+        long now = System.currentTimeMillis();
+        Calendar calendar = Calendar.getInstance();
+        long today = SyncPriority.epochDay(
+            calendar.get(Calendar.YEAR),
+            calendar.get(Calendar.MONTH) + 1,
+            calendar.get(Calendar.DAY_OF_MONTH)
+        );
+        Map<String, SyncStateStore.State> states = SyncStateStore.load(context);
+        long listPushedAt = SyncPacing.listPushedAt(context);
+        Map<String, String> statusBefore = new HashMap<>();
+        Map<String, AutoSyncAccountStore.Entry> byId = new HashMap<>();
+        List<SyncPriority.Candidate> candidates = new ArrayList<>();
+        for (AutoSyncAccountStore.Entry entry : entries) {
+            SyncStateStore.State state = states.get(entry.accountId);
+            String status = SyncPriority.currentStatus(
+                entry.serviceStatus,
+                state != null ? state.serviceStatus : null,
+                state != null ? state.visitedAt : 0,
+                listPushedAt
+            );
+            String renewal = SyncPriority.laterDate(entry.renewalDate, state != null ? state.renewalDate : null);
+            statusBefore.put(entry.accountId, status);
+            byId.put(entry.accountId, entry);
+            candidates.add(new SyncPriority.Candidate(
+                entry.accountId,
+                SyncPriority.refreshHours(renewal, status, today),
+                state != null ? state.visitedAt : 0
+            ));
         }
+        if (fullRun) {
+            // Only the important devices (7/3/1 days, just expired, stopped), most urgent first -
+            // a scheduled check takes the due ones, "مزامنة الآن" all of them.
+            List<AutoSyncAccountStore.Entry> ordered = new ArrayList<>();
+            for (String id : SyncPriority.order(candidates, now, !manual)) {
+                ordered.add(byId.get(id));
+            }
+            entries = ordered;
+        }
+        List<String> newlyStopped = new ArrayList<>();
 
         long startedAt = System.currentTimeMillis();
         Random random = new Random();
@@ -169,11 +218,28 @@ public class AutoSyncWorker extends Worker {
             }
             AutoSyncAccountStore.Entry entry = entries.get(i);
             syncOneAccountBlocking(context, entry, script);
-            if (fullRun && !rateLimited.get()) {
-                SyncPacing.saveCursor(context, entry.accountId);
+            if (rateLimited.get()) {
+                // Not a real visit - leave it due so it's tried again after the cooldown.
+                break;
+            }
+            // Recorded even when the page showed nothing (logged out, slow), so a device that
+            // can't be read isn't retried on every single check.
+            String[] page = pageValues.get(entry.accountId);
+            SyncStateStore.State visited = SyncStateStore.afterVisit(
+                states.get(entry.accountId),
+                System.currentTimeMillis(),
+                page != null ? page[0] : null,
+                page != null ? page[1] : null
+            );
+            SyncStateStore.put(context, entry.accountId, visited);
+            if (page != null && SyncPriority.isStopped(page[0]) && !SyncPriority.isStopped(statusBefore.get(entry.accountId))) {
+                newlyStopped.add(entry.accountName);
             }
         }
-        SyncNotifier.notifySyncCompleted(context, syncedAccountCount.get());
+        SyncNotifier.notifyStopped(context, newlyStopped);
+        if (manual) {
+            SyncNotifier.notifySyncCompleted(context, syncedAccountCount.get());
+        }
         return Result.success();
     }
 
@@ -297,6 +363,7 @@ public class AutoSyncWorker extends Worker {
             value -> {
                 JSObject fields = StarlinkExtractorSupport.parseExtractedFields(value);
                 if (fields != null && fields.length() > 0 && AllowedUrl.isAllowed(webView.getUrl())) {
+                    pageValues.put(entry.accountId, new String[] {fields.getString("serviceStatus"), fields.getString("renewalDate")});
                     String syncId = PendingSyncStore.save(context, entry.accountId, fields);
                     if (syncId != null) {
                         syncedAccountCount.incrementAndGet();

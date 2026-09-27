@@ -12,6 +12,7 @@ import { ConnectionStatus } from "./ConnectionStatus";
 import { AccountDialog, AccountDialogMode } from "./AccountDialog";
 import { HomeFab } from "./HomeFab";
 import { pruneOrphanProofs } from "@/lib/paymentProofStore";
+import { buildAutoSyncList } from "@/lib/autoSyncList";
 import { LedgerDialog } from "./LedgerDialog";
 import { ClientDialog } from "./ClientDialog";
 import { ClientsOverviewDialog } from "./ClientsOverviewDialog";
@@ -358,10 +359,10 @@ export function HomeView({
       const result = await triggerImmediateSync();
       if (!result.ok) {
         window.alert(result.message);
+      } else {
+        // Only scheduled, not finished - results arrive through the usual sync pipeline below.
+        pushToast("بدأت مزامنة الأجهزة المهمة (7 / 3 / 1 أيام، المنتهية والموقوفة) - جهاز بعد جهاز. لغيرها استعمل «تحديث» في البطاقة");
       }
-      // On success this only means the background job was scheduled, not that it finished - the
-      // normal accountDataSynced/listPendingAccountSyncs pipeline below picks up its results
-      // whenever they land, same as the hourly automatic run.
     } finally {
       setSyncingNow(false);
     }
@@ -639,8 +640,9 @@ export function HomeView({
   }, []);
 
   useEffect(() => {
-    const activeOnly = accounts.filter((account) => !account.archivedAt && !account.deletedAt);
-    void syncAutoSyncAccountList(activeOnly.map((account) => ({ id: account.id, name: account.name })));
+    // Each device's renewal date/status goes along - the phone uses them to check the important
+    // ones (7/3/1 days, just expired, stopped) automatically; see autoSyncList.ts.
+    void syncAutoSyncAccountList(buildAutoSyncList(accounts));
   }, [accounts]);
 
   function saveAccount(account: StarlinkAccountSummary) {

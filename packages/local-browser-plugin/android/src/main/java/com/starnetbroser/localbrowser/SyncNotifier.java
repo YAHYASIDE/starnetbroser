@@ -2,8 +2,11 @@ package com.starnetbroser.localbrowser;
 
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Context;
+import android.content.Intent;
 import android.os.Build;
+import java.util.List;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 
@@ -18,6 +21,55 @@ final class SyncNotifier {
 
     private static final String CHANNEL_ID = "starnet_sync";
     private static final int NOTIFICATION_ID = 1001;
+    private static final int STOPPED_NOTIFICATION_ID = 1002;
+
+    /** Pure: the text of the "stopped" notification - up to 5 names, then "و N آخر". */
+    static String stoppedText(List<String> names) {
+        StringBuilder out = new StringBuilder();
+        int shown = Math.min(5, names.size());
+        for (int i = 0; i < shown; i++) {
+            if (i > 0) out.append("، ");
+            out.append(names.get(i));
+        }
+        if (names.size() > shown) out.append(" و").append(names.size() - shown).append(" آخر");
+        return out.toString();
+    }
+
+    /**
+     * One grouped notification for every device the sync just found stopped (Starlink suspended
+     * or canceled the subscription) - the one thing the operator asked to be told about right
+     * away. Tapping it opens the app, where the device shows as stopped.
+     */
+    static void notifyStopped(Context context, List<String> names) {
+        if (names == null || names.isEmpty()) {
+            return;
+        }
+        ensureChannel(context);
+        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+            return;
+        }
+        String title = names.size() == 1 ? "⛔ توقف جهاز: " + names.get(0) : "⛔ توقف " + names.size() + " أجهزة";
+        String body = "أوقفت Starlink الاشتراك: " + stoppedText(names);
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.stat_notify_error)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true);
+        Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+        if (launch != null) {
+            launch.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            builder.setContentIntent(
+                PendingIntent.getActivity(context, STOPPED_NOTIFICATION_ID, launch, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT)
+            );
+        }
+        try {
+            NotificationManagerCompat.from(context).notify(STOPPED_NOTIFICATION_ID, builder.build());
+        } catch (SecurityException e) {
+            // Permission revoked meanwhile - the stopped status still shows in the app.
+        }
+    }
 
     private SyncNotifier() {
     }

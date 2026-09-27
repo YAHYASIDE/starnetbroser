@@ -32,9 +32,8 @@ import {
   isRunningInAndroidApp,
   openIsolatedAccountBrowser,
   openNotificationSettings,
-  AUTO_SYNC_HOUR_CHOICES,
-  getAutoSyncHours,
-  setAutoSyncHours,
+  isAutoSyncEnabled,
+  setAutoSyncEnabled,
 } from "@/lib/localBrowser";
 import {
   clearSessionCheckResults,
@@ -236,7 +235,7 @@ export default function SettingsPage() {
         </label>
         <MorningDigestSettings />
         <EveningSummarySettings />
-        {isAndroidApp && <AutoSyncIntervalSettings />}
+        {isAndroidApp && <AutoSyncSettings />}
         {isAndroidApp && (
           <div className="settings-actions" style={{ marginTop: "12px" }}>
             <button className="btn-icon" onClick={() => openNotificationSettings()}>
@@ -1210,37 +1209,41 @@ function AutoBackupSection() {
   );
 }
 
-/** 🔄 المزامنة التلقائية - how often the background sync opens the devices' Starlink pages. */
-function AutoSyncIntervalSettings() {
-  const [hours, setHours] = useState(2);
+/** 🔄 المزامنة التلقائية - the phone checks the important devices on its own (SyncPriority.java). */
+function AutoSyncSettings() {
+  const [enabled, setEnabled] = useState(true);
   const [saved, setSaved] = useState<string | null>(null);
-  useEffect(() => setHours(getAutoSyncHours()), []);
+  useEffect(() => setEnabled(isAutoSyncEnabled()), []);
 
   return (
     <div className="morning-digest-settings">
-      <label className="form-field">
-        <span>🔄 المزامنة التلقائية من Starlink</span>
-        <select
-          className="search-input"
-          value={hours}
-          onChange={async (e) => {
-            const next = Number(e.target.value);
-            setHours(next);
-            const ok = await setAutoSyncHours(next);
-            setSaved(ok ? "✓ حُفظ" : "تعذر الحفظ - حاول مجدداً");
-          }}
-        >
-          {AUTO_SYNC_HOUR_CHOICES.map((h) => (
-            <option key={h} value={h}>
-              {h === 0 ? "متوقفة (يدوي فقط)" : h === 1 ? "كل ساعة" : h === 2 ? "كل ساعتين (مستحسن)" : `كل ${h} ساعات`}
-            </option>
-          ))}
-        </select>
+      <label className="toggle-switch-row">
+        <span>🔄 مزامنة تلقائية للأجهزة المهمة</span>
+        <span className={`toggle-switch${enabled ? " toggle-switch-on" : ""}`}>
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={async (e) => {
+              const next = e.target.checked;
+              setEnabled(next);
+              setSaved((await setAutoSyncEnabled(next)) ? "✓ حُفظ" : "تعذر الحفظ - حاول مجدداً");
+            }}
+          />
+          <span className="toggle-switch-thumb" />
+        </span>
       </label>
       {saved && <span className="settings-hint">{saved}</span>}
+      <ul className="settings-hint auto-sync-rules">
+        <li>⛔ انتهى تاريخه (حتى 3 أيام) ولم يُرَ موقوفاً بعد: كل ساعتين</li>
+        <li>⏰ بقي يوم واحد: كل 6 ساعات</li>
+        <li>📅 بقي 2 - 3 أيام: كل 12 ساعة</li>
+        <li>🗓 بقي 4 - 7 أيام: مرة في اليوم</li>
+        <li>🔴 موقوف عند Starlink: مرة في اليوم لمدة أسبوع</li>
+        <li>بقية الأجهزة: يدوياً فقط بزر «تحديث» في البطاقة</li>
+      </ul>
       <p className="settings-hint">
-        كل مرة تُحدَّث الأجهزة واحداً بعد واحد مع استراحة بينها، حتى لا يوقفك Starlink بخطأ 429. كلما
-        تباعد الوقت قلّ الضغط، وزر «مزامنة الآن» و«تحديث» في كل بطاقة يبقيان متاحين دائماً.
+        عندما يكتشف التطبيق أن Starlink أوقف جهازاً يصلك إشعار واحد بكل الأجهزة التي توقفت. الأجهزة
+        تُحدَّث واحداً بعد واحد مع استراحة حتى لا يوقفك Starlink بخطأ 429.
       </p>
     </div>
   );

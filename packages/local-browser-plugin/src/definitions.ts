@@ -143,6 +143,12 @@ export interface AutoSyncAccountEntry {
   accountName?: string;
   /** Defaults to STARLINK_ACCOUNT_HOME_URL when omitted. */
   url?: string;
+  /** The renewal date the app knows ("2026/09/28") - decides how often the device is synced
+   * automatically (7/3/1 days, just expired). Omitted = never automatically, card "تحديث" only. */
+  renewalDate?: string;
+  /** Last known "active" | "suspended" | ... - a device that newly reads as stopped triggers the
+   * grouped "⛔ توقف" notification. */
+  serviceStatus?: string;
 }
 
 export interface SetAutoSyncAccountIdsOptions {
@@ -150,14 +156,13 @@ export interface SetAutoSyncAccountIdsOptions {
   accounts: AutoSyncAccountEntry[];
 }
 
-export interface SetAutoSyncIntervalOptions {
-  /** 1, 2, 3, 6 or 12 hours; 0 turns the automatic sync off. Anything else becomes 2. */
-  hours: number;
+export interface SetAutoSyncEnabledOptions {
+  enabled: boolean;
 }
 
-export interface SetAutoSyncIntervalResult {
-  /** The interval actually stored. */
-  hours: number;
+export interface SetAutoSyncEnabledResult {
+  /** The setting actually stored. */
+  enabled: boolean;
 }
 
 export interface SetAutoSyncAccountIdsResult {
@@ -295,7 +300,7 @@ export interface LocalBrowserPlugin {
   /**
    * "مزامنة الآن": triggers an immediate one-time background sync of every account currently in
    * the auto-sync list (see setAutoSyncAccountIds) - the same headless per-account sync
-   * AutoSyncWorker runs on its normal schedule (every 2 hours by default, see setAutoSyncInterval), just requested right now instead of
+   * AutoSyncWorker runs automatically (see setAutoSyncEnabled), just requested right now instead of
    * waiting for the next window. Resolves once the job has been handed to WorkManager, not once
    * the sync itself has finished - actual results still flow through the existing
    * accountDataSynced event / listPendingAccountSyncs pipeline, same as any other sync.
@@ -310,8 +315,9 @@ export interface LocalBrowserPlugin {
    */
   syncNow(options?: SyncNowOptions): Promise<void>;
 
-  /** How often the automatic background sync runs (every `hours` hours, 0 = off). */
-  setAutoSyncInterval(options: SetAutoSyncIntervalOptions): Promise<SetAutoSyncIntervalResult>;
+  /** المزامنة التلقائية on/off - when on, the important devices (near or just past their renewal
+   * date, or stopped) are synced automatically, most urgent first; the rest only by hand. */
+  setAutoSyncEnabled(options: SetAutoSyncEnabledOptions): Promise<SetAutoSyncEnabledResult>;
 
   /**
    * Reads the raw login-session cookies for each given account's isolated profile - part of the

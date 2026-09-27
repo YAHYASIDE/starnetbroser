@@ -2,16 +2,14 @@ package com.starnetbroser.localbrowser;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Random;
 
 /**
  * Keeps the background sync polite to Starlink. Every account is opened from the same phone (one
  * IP), and Starlink's CDN answers a burst of page loads with "Error 429 Too many requests" - so:
  *  - accounts are opened one at a time with a pause between them (gapMs);
- *  - a run stops starting new accounts once it has used its time budget, and the next run
- *    continues where it stopped (rotate) instead of starting over from the first account;
+ *  - a run stops starting new accounts once it has used its time budget (SyncPriority decides
+ *    which devices go first, so the most urgent ones are never the ones left out);
  *  - a 429 anywhere (background run or the visible browser) pauses all background syncing for
  *    COOLDOWN_MS (inCooldown).
  * The decisions are pure static methods (unit-tested); the two small persisted values live in
@@ -27,12 +25,8 @@ final class SyncPacing {
 
     private static final String PREFS = "starnet_sync_pacing";
     private static final String KEY_RATE_LIMITED_AT = "rateLimitedAt";
-    private static final String KEY_CURSOR = "lastAccountId";
-    private static final String KEY_INTERVAL_HOURS = "intervalHours";
-
-    /** How often the background sync runs - chosen in الإعدادات. 0 = off. */
-    static final int DEFAULT_INTERVAL_HOURS = 2;
-    static final int[] ALLOWED_INTERVAL_HOURS = {0, 1, 2, 3, 6, 12};
+    private static final String KEY_ENABLED = "autoSyncOff";
+    private static final String KEY_LIST_PUSHED_AT = "listPushedAt";
 
     private SyncPacing() {
     }
@@ -50,24 +44,6 @@ final class SyncPacing {
         return now - startedAt < RUN_BUDGET_MS;
     }
 
-    /** The accounts in round-robin order: starting right after the last one synced, wrapping
-     * around. Unknown or missing cursor = the stored order. */
-    static <T> List<T> rotate(List<T> items, List<String> ids, String lastId) {
-        int start = lastId == null ? 0 : ids.indexOf(lastId) + 1;
-        if (start <= 0 || start >= items.size()) return new ArrayList<>(items);
-        List<T> result = new ArrayList<>(items.subList(start, items.size()));
-        result.addAll(items.subList(0, start));
-        return result;
-    }
-
-    /** Any value that isn't one of the offered choices falls back to the default. */
-    static int normalizeIntervalHours(int hours) {
-        for (int allowed : ALLOWED_INTERVAL_HOURS) {
-            if (allowed == hours) return hours;
-        }
-        return DEFAULT_INTERVAL_HOURS;
-    }
-
     // ---- persisted state ----
 
     private static SharedPreferences prefs(Context context) {
@@ -82,19 +58,22 @@ final class SyncPacing {
         return prefs(context).getLong(KEY_RATE_LIMITED_AT, 0);
     }
 
-    static void saveCursor(Context context, String accountId) {
-        prefs(context).edit().putString(KEY_CURSOR, accountId).apply();
+    /** المزامنة التلقائية (الإعدادات) - on unless turned off. */
+    static void setEnabled(Context context, boolean enabled) {
+        prefs(context).edit().putLong(KEY_ENABLED, enabled ? 0 : 1).apply();
     }
 
-    static String loadCursor(Context context) {
-        return prefs(context).getString(KEY_CURSOR, null);
+    static boolean isEnabled(Context context) {
+        return prefs(context).getLong(KEY_ENABLED, 0) == 0;
     }
 
-    static void saveIntervalHours(Context context, int hours) {
-        prefs(context).edit().putLong(KEY_INTERVAL_HOURS, normalizeIntervalHours(hours)).apply();
+    /** When the app last sent the device list (with its own dates/statuses) - a status the sync
+     * read after this is newer than the app's. */
+    static void recordListPushed(Context context, long now) {
+        prefs(context).edit().putLong(KEY_LIST_PUSHED_AT, now).apply();
     }
 
-    static int intervalHours(Context context) {
-        return normalizeIntervalHours((int) prefs(context).getLong(KEY_INTERVAL_HOURS, DEFAULT_INTERVAL_HOURS));
+    static long listPushedAt(Context context) {
+        return prefs(context).getLong(KEY_LIST_PUSHED_AT, 0);
     }
 }

@@ -7510,3 +7510,11 @@ button.today-tile {
   text-align: center;
   cursor: pointer;
 }
+
+.auto-sync-rules {
+  margin: 4px 0 0;
+  padding-inline-start: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}

@@ -291,12 +291,19 @@ public class LocalBrowserPlugin extends Plugin {
                     continue;
                 }
                 String url = obj.optString("url", DEFAULT_URL);
-                entries.add(new AutoSyncAccountStore.Entry(accountId, obj.optString("accountName", null), url));
+                entries.add(new AutoSyncAccountStore.Entry(
+                    accountId,
+                    obj.optString("accountName", null),
+                    url,
+                    obj.optString("renewalDate", null),
+                    obj.optString("serviceStatus", null)
+                ));
             }
         }
 
         boolean saved = AutoSyncAccountStore.save(getContext(), entries);
         if (saved) {
+            SyncPacing.recordListPushed(getContext(), System.currentTimeMillis());
             if (entries.isEmpty()) {
                 AutoSyncScheduler.cancel(getContext());
             } else if (isMultiProfileSupported()) {
@@ -319,19 +326,18 @@ public class LocalBrowserPlugin extends Plugin {
      * rather than the button appearing to do nothing.
      */
     /**
-     * How often the background sync runs (الإعدادات): 1, 2, 3, 6 or 12 hours, or 0 = off. Stored
-     * natively so the schedule survives the app being closed; re-schedules right away when there
-     * are accounts to sync.
+     * المزامنة التلقائية on/off (الإعدادات). Stored natively so it survives the app being closed;
+     * applied right away. Off leaves "مزامنة الآن" and each card's "تحديث" working.
      */
     @PluginMethod
-    public void setAutoSyncInterval(PluginCall call) {
-        Integer hours = call.getInt("hours");
-        SyncPacing.saveIntervalHours(getContext(), hours == null ? SyncPacing.DEFAULT_INTERVAL_HOURS : hours);
+    public void setAutoSyncEnabled(PluginCall call) {
+        Boolean enabled = call.getBoolean("enabled", true);
+        SyncPacing.setEnabled(getContext(), enabled == null || enabled);
         if (!AutoSyncAccountStore.load(getContext()).isEmpty() && isMultiProfileSupported()) {
             AutoSyncScheduler.schedule(getContext());
         }
         JSObject ret = new JSObject();
-        ret.put("hours", SyncPacing.intervalHours(getContext()));
+        ret.put("enabled", SyncPacing.isEnabled(getContext()));
         call.resolve(ret);
     }
 
