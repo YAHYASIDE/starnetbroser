@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { checkHealth, listAccounts, login, register } from "@/lib/apiClient";
 import { ApiError } from "@/lib/apiClient";
 import {
@@ -53,8 +52,6 @@ import { runAutoBackup, shareLatestAutoBackup } from "@/lib/autoBackupRunner";
 import { DriveFile, DriveUploadStatus, driveBackupLabel, getDriveEmail, getDriveLastUpload, isDriveLinked } from "@/lib/driveBackup";
 import { downloadGoogleDriveBackup, linkGoogleDrive, listGoogleDriveBackups, runDriveBackup, unlinkGoogleDrive } from "@/lib/driveBackupRunner";
 import { PartySheet } from "@/components/AccountsSection";
-import { AI_MODEL_LABEL, AI_PROVIDERS, AiProvider, getAiKey, getAiProvider, looksLikeAiKey, maskAiKey, setAiKey, setAiProvider } from "@/lib/aiSettings";
-import { testAiKey } from "@/lib/aiClient";
 import { BusinessProfile, loadBusinessProfile, saveBusinessProfile } from "@/lib/pdfDocument";
 import { clearAppPin, hasAppPin, setAppPin, verifyAppPin } from "@/lib/appLock";
 import { loadProfitReset, ProfitReset, saveProfitReset, startProfitFresh, undoProfitFresh } from "@/lib/profitReset";
@@ -167,8 +164,6 @@ export default function SettingsPage() {
       <AutoBackupSection />
 
       <DriveSection />
-
-      <ClaudeSection />
 
       <section className="section">
         <h2 className="section-title">المساعدة الذكية</h2>
@@ -1343,118 +1338,6 @@ function StorageUsageSection() {
           </li>
         ))}
       </ul>
-    </section>
-  );
-}
-
-/** "المساعد الذكي (Claude)": which way to reach Claude (Anthropic by card, or OpenRouter paid in
- * crypto) and that provider's key - kept on this phone only (see aiSettings.ts), checked before
- * it's saved. */
-function ClaudeSection() {
-  const [provider, setProvider] = useState<AiProvider>("anthropic");
-  const [savedKey, setSavedKey] = useState<string | null>(null);
-  const [draft, setDraft] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    const current = getAiProvider();
-    setProvider(current);
-    setSavedKey(getAiKey(current));
-  }, []);
-
-  function choose(next: AiProvider) {
-    setAiProvider(next);
-    setProvider(next);
-    setSavedKey(getAiKey(next));
-    setDraft("");
-    setMessage(null);
-  }
-
-  async function save() {
-    const key = draft.trim();
-    if (!looksLikeAiKey(provider, key)) {
-      setMessage(`هذا لا يبدو مفتاح ${provider === "openrouter" ? "OpenRouter" : "Anthropic"} - المفتاح يبدأ بـ ${AI_PROVIDERS[provider].keyPrefix}`);
-      return;
-    }
-    setBusy(true);
-    setMessage(null);
-    const result = await testAiKey({ provider, key, model: AI_PROVIDERS[provider].model });
-    setBusy(false);
-    if (!result.ok) {
-      setMessage(result.message);
-      return;
-    }
-    setAiKey(provider, key);
-    setSavedKey(key);
-    setDraft("");
-    setMessage("✓ تم حفظ المفتاح - افتح «المساعد الذكي» من المزيد");
-  }
-
-  function remove() {
-    if (!window.confirm("حذف هذا المفتاح من الهاتف؟")) return;
-    setAiKey(provider, null);
-    setSavedKey(null);
-    setMessage("تم حذف المفتاح");
-  }
-
-  return (
-    <section className="section" id="claude">
-      <h2 className="section-title">✨ المساعد الذكي (Claude)</h2>
-      <p className="settings-hint">
-        يجيب عن أسئلتك من بياناتك، يكتب رسائل المطالبة، ويقرأ صور الإيصالات ({AI_MODEL_LABEL}). تُدفع التكلفة من رصيدك عند المزوّد
-        (السؤال عادة بضعة سنتات). المفتاح يبقى على هذا الهاتف فقط ولا يدخل النسخ الاحتياطية، وكلمات المرور وجلسات الدخول لا تُرسل أبدًا.
-      </p>
-      <div className="ai-provider-pick" role="radiogroup" aria-label="طريقة الاتصال بـ Claude">
-        {(Object.keys(AI_PROVIDERS) as AiProvider[]).map((p) => (
-          <button key={p} type="button" role="radio" aria-checked={provider === p} className={`ai-provider${provider === p ? " is-active" : ""}`} onClick={() => choose(p)}>
-            {AI_PROVIDERS[p].label}
-          </button>
-        ))}
-      </div>
-      {savedKey ? (
-        <>
-          <p className="settings-hint">
-            ✓ المفتاح محفوظ: <bdi dir="ltr">{maskAiKey(savedKey)}</bdi>
-          </p>
-          <div className="settings-actions">
-            <Link className="dialog-primary ai-setup-link" href="/assistant">
-              فتح المساعد
-            </Link>
-            <button type="button" className="text-action" onClick={remove}>
-              حذف المفتاح
-            </button>
-          </div>
-        </>
-      ) : (
-        <div className="auth-form">
-          {provider === "openrouter" ? (
-            <p className="settings-hint">
-              افتح <bdi dir="ltr">openrouter.ai</bdi> وسجّل الدخول ← Credits ← Add Credits واختر الدفع بالعملات الرقمية (USDC) ← ثم
-              Keys ← Create Key، وانسخ المفتاح (يبدأ بـ <bdi dir="ltr">sk-or-</bdi>) والصقه هنا.
-            </p>
-          ) : (
-            <p className="settings-hint">
-              افتح <bdi dir="ltr">console.anthropic.com</bdi> ← Billing (اشحن رصيدًا، أقل مبلغ 5 $) ← API Keys ← Create Key، ثم انسخه والصقه هنا.
-            </p>
-          )}
-          <input
-            className="search-input"
-            type="password"
-            dir="ltr"
-            autoComplete="off"
-            placeholder={`${AI_PROVIDERS[provider].keyPrefix}...`}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-          />
-          <div className="settings-actions">
-            <button type="button" className="dialog-primary" disabled={busy || !draft.trim()} onClick={save}>
-              {busy ? "جارِ التحقق…" : "حفظ المفتاح"}
-            </button>
-          </div>
-        </div>
-      )}
-      {message && <div className={`account-card-alert${message.startsWith("✓") ? " backup-restored" : ""}`}>{message}</div>}
     </section>
   );
 }

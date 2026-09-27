@@ -6,10 +6,7 @@ import { PdfButton } from "./PdfButton";
 import { formatProfitMru } from "@/lib/profitMru";
 import { useMruRate } from "@/lib/useMruRate";
 import { buildPaymentReceipt } from "@/lib/receipt";
-import { FormEvent, useEffect, useState } from "react";
-import { readReceipt } from "@/lib/aiClient";
-import { AiConfig, getAiConfig } from "@/lib/aiSettings";
-import { resizeImageToDataUrl } from "@/lib/imageUtils";
+import { FormEvent, useState } from "react";
 import {
   computeBalanceByCurrency,
   createLedgerEntry,
@@ -158,11 +155,6 @@ export function LedgerDialog({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("nita");
   const [date, setDate] = useState(todayDateInputValue());
   const [formError, setFormError] = useState<string | null>(null);
-  // «قراءة من صورة» (Claude): only offered once the operator has added their key in Settings.
-  const [aiConfig, setAiConfig] = useState<AiConfig | null>(null);
-  useEffect(() => setAiConfig(getAiConfig()), []);
-  const [receiptBusy, setReceiptBusy] = useState(false);
-  const [receiptNote, setReceiptNote] = useState<string | null>(null);
 
   // Only relevant while kind === "debit" - a shipment charge, never a plain payment.
   const [markD, setMarkD] = useState(true);
@@ -229,33 +221,6 @@ export function LedgerDialog({
   // under D until Starlink is settled) - accountingStore.ts's own rule XIII: cash actually
   // collected from this device's customer, minus only what's actually been paid to Starlink.
   const accountingSummary = computeDeviceAccountingSummary(entries);
-
-  // Fills the form from a photographed receipt - only pre-fills, the operator reviews and saves.
-  async function fillFromReceipt(file: File | undefined) {
-    if (!file || !aiConfig) return;
-    setReceiptBusy(true);
-    setReceiptNote(null);
-    try {
-      const dataUrl = await resizeImageToDataUrl(file, 1568, 0.85);
-      const fields = await readReceipt(aiConfig, { mediaType: "image/jpeg", data: dataUrl.slice(dataUrl.indexOf(",") + 1) });
-      if (fields.kind) setKind(fields.kind);
-      if (fields.currency) selectCurrency(fields.currency);
-      if (fields.amount !== undefined) setAmount(String(fields.amount));
-      if (fields.date) setDate(fields.date);
-      if (fields.paymentMethod) setPaymentMethod(fields.paymentMethod);
-      if (fields.note) setNote((current) => current || fields.note!);
-      const found = [fields.amount !== undefined, fields.currency, fields.date].filter(Boolean).length;
-      setReceiptNote(
-        found === 0
-          ? "لم يُعثر على مبلغ واضح في الصورة - أدخل القيم يدويًا"
-          : `✓ قُرئ من الصورة - راجع القيم قبل الحفظ${fields.warning ? ` (${fields.warning})` : ""}`,
-      );
-    } catch (err) {
-      setReceiptNote(err instanceof Error ? err.message : "تعذرت قراءة الصورة");
-    } finally {
-      setReceiptBusy(false);
-    }
-  }
 
   function selectCurrency(next: LedgerCurrency) {
     setCurrency(next);
@@ -511,15 +476,6 @@ export function LedgerDialog({
         )}
 
         <form className="ledger-entry-form" onSubmit={submit}>
-          {aiConfig && (
-            <div className="ledger-receipt-row">
-              <label className={`btn-icon ledger-receipt-btn${receiptBusy ? " is-busy" : ""}`}>
-                <input type="file" accept="image/*" disabled={receiptBusy} onChange={(e) => void fillFromReceipt(e.target.files?.[0]).then(() => (e.target.value = ""))} />
-                {receiptBusy ? "جارِ قراءة الصورة…" : "📷 قراءة من صورة إيصال"}
-              </label>
-              {receiptNote && <span className={`settings-hint${receiptNote.startsWith("✓") ? "" : " ledger-receipt-warn"}`}>{receiptNote}</span>}
-            </div>
-          )}
           <select className="search-input" value={kind} onChange={(e) => setKind(e.target.value as LedgerEntryKind)}>
             <option value="debit">عليه</option>
             <option value="credit">له</option>
