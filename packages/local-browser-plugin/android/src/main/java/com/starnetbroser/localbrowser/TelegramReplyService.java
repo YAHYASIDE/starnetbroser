@@ -85,6 +85,7 @@ public class TelegramReplyService extends Service {
         } catch (RuntimeException notAllowedNow) {
             // Android refuses to start a foreground service from the background in some states;
             // the watchdog answers meanwhile, and the next app open (or reboot) starts it.
+            TelegramStore.diag(app, "startError", now() + " " + notAllowedNow.getClass().getSimpleName());
             return false;
         }
     }
@@ -99,9 +100,11 @@ public class TelegramReplyService extends Service {
                 startForeground(NOTIFICATION_ID, notification);
             }
         } catch (RuntimeException refused) {
+            TelegramStore.diag(this, "startError", now() + " " + refused.getClass().getSimpleName());
             stopSelf();
             return START_NOT_STICKY;
         }
+        TelegramStore.diag(this, "startedAt", now());
         if (!shouldRun(this)) {
             generation++;
             stopSelf();
@@ -177,6 +180,7 @@ public class TelegramReplyService extends Service {
                 if (offset > 0) params.put("offset", String.valueOf(offset));
                 JSONArray updates = TelegramClient.call(token, "getUpdates", params, (LONG_POLL_SECONDS + 15) * 1000).getJSONArray("result");
                 if (generation != mine || !token.equals(TelegramStore.tokenFor(context, bot))) continue;
+                TelegramStore.diag(context, "pollAt", now());
                 handleUpdates(context, bot, token, updates, true);
                 // Left for the app, but the app went away before answering: answer them here.
                 if (!appAnswering()) flushUnanswered(context, bot, token);
@@ -184,12 +188,15 @@ public class TelegramReplyService extends Service {
             } catch (TelegramClient.TelegramError rejected) {
                 // 409: another getUpdates (the app connecting the bot) - just go again shortly.
                 // 401/404: the token was revoked - wait for the operator to reconnect.
+                TelegramStore.diag(context, "pollError", now() + " " + bot + " " + rejected.code + " " + rejected.getMessage());
                 sleep(rejected.code == 409 ? 5_000 : 300_000);
             } catch (IOException | JSONException offline) {
+                TelegramStore.diag(context, "pollError", now() + " " + bot + " " + offline.getClass().getSimpleName());
                 sleep(backoffMs);
                 backoffMs = Math.min(backoffMs * 2, 120_000);
             } catch (RuntimeException unexpected) {
                 // Never let one surprise end the thread (the service would look alive but be deaf).
+                TelegramStore.diag(context, "pollError", now() + " " + bot + " " + unexpected.getClass().getSimpleName());
                 sleep(10_000);
             }
         }
@@ -288,12 +295,28 @@ public class TelegramReplyService extends Service {
     private static void send(Context context, String bot, String token, String chatId, String text, String markup) {
         try {
             TelegramClient.sendMessage(token, chatId, text, markup);
+            TelegramStore.diag(context, "replyAt", now());
         } catch (IOException offline) {
+            TelegramStore.diag(context, "sendError", now() + " " + offline.getClass().getSimpleName());
             if (TelegramStore.REPS.equals(bot)) TelegramSendWorker.enqueueToRep(context, chatId, text, markup);
             else TelegramSendWorker.enqueue(context, text);
         } catch (TelegramClient.TelegramError rejected) {
-            // Blocked the bot / chat gone - nothing to retry.
+            TelegramStore.diag(context, "sendError", now() + " " + rejected.code + " " + rejected.getMessage());
+            // Buttons Telegram didn't accept must never cost the answer itself.
+            if (markup != null && rejected.code == 400) {
+                try {
+                    TelegramClient.sendMessage(token, chatId, text, null);
+                    TelegramStore.diag(context, "replyAt", now());
+                } catch (IOException | TelegramClient.TelegramError again) {
+                    // Blocked the bot / chat gone - nothing to retry.
+                }
+            }
         }
+    }
+
+    /** "27/09 18:40:12" for the diagnostics in الإعدادات. */
+    private static String now() {
+        return new java.text.SimpleDateFormat("dd/MM HH:mm:ss", java.util.Locale.ROOT).format(new java.util.Date());
     }
 
     private static void sleep(long ms) {

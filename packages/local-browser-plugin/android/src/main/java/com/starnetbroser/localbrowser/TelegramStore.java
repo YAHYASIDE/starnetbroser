@@ -160,6 +160,18 @@ final class TelegramStore {
         return REPS.equals(bot) ? repsToken(context) : token(context);
     }
 
+    // ---- diagnostics shown in الإعدادات (never a token or message text) ----
+
+    private static final String KEY_DIAG = "diag_";
+
+    static void diag(Context context, String key, String value) {
+        prefs(context).edit().putString(KEY_DIAG + key, value).apply();
+    }
+
+    static String diagValue(Context context, String key) {
+        return prefs(context).getString(KEY_DIAG + key, null);
+    }
+
     // ---- replies while the app is closed (TelegramReplyService) ----
 
     /** On by default: the service answers both bots even with the app closed. */

@@ -7607,3 +7607,15 @@ button.today-tile {
   color: var(--yellow);
   font-weight: 600;
 }
+
+.telegram-diag {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  margin: 4px 0 8px;
+}
+
+.telegram-diag ul {
+  margin: 6px 0 0;
+  padding-inline-start: 18px;
+  overflow-wrap: anywhere;
+}

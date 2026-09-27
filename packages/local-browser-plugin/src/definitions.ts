@@ -178,6 +178,8 @@ export interface TelegramStatus {
   instantRunning?: boolean;
   /** STAR NET is exempt from battery optimization (keeps the service alive on strict phones). */
   batteryUnrestricted?: boolean;
+  /** What the reply service last did (times "dd/MM HH:mm:ss", error kinds - never a token). */
+  diagnostics?: Record<string, string | boolean>;
 }
 
 export interface TelegramPollMessage {

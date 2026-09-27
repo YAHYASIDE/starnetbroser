@@ -48,6 +48,7 @@ import {
   requestBatteryUnrestricted,
   setTelegramInstant,
   telegramServiceState,
+  type TelegramServiceState,
 } from "@/lib/telegram";
 import { DEFAULT_TELEGRAM_PREFS, TelegramPrefs } from "@/lib/telegramMessages";
 import {
@@ -1355,7 +1356,7 @@ function TelegramSection() {
 function TelegramInstantSection() {
   const [shown, setShown] = useState(false);
   const [instant, setInstant] = useState(true);
-  const [state, setState] = useState<{ running: boolean; batteryUnrestricted: boolean } | null>(null);
+  const [state, setState] = useState<TelegramServiceState | null>(null);
   useEffect(() => {
     const refresh = () => {
       setShown(isTelegramConnected() || isRepsBotConnected());
@@ -1389,6 +1390,36 @@ function TelegramInstantSection() {
           <p className={`settings-hint ${state.running ? "telegram-running" : "telegram-stopped"}`}>
             {state.running ? "✅ يعمل الآن - البوتان يردان خلال ثوانٍ" : "⚠️ متوقف الآن - أعد فتح التطبيق، واسمح له بالعمل في الخلفية أدناه."}
           </p>
+          <div className="settings-actions">
+            <button
+              type="button"
+              className="btn-icon"
+              onClick={async () => {
+                await setTelegramInstant(true);
+                window.setTimeout(() => void telegramServiceState().then(setState), 1500);
+              }}
+            >
+              🔄 إعادة تشغيل الرد
+            </button>
+          </div>
+          <details className="telegram-diag">
+            <summary>🩺 تشخيص (أرسل صورته إن لم يعمل الرد)</summary>
+            <ul>
+              {[
+                ["device", "الهاتف"],
+                ["startedAt", "آخر تشغيل للخدمة"],
+                ["startError", "رفض التشغيل"],
+                ["pollAt", "آخر اتصال بتيليغرام"],
+                ["pollError", "آخر خطأ اتصال"],
+                ["replyAt", "آخر رد من الخدمة"],
+                ["sendError", "آخر خطأ إرسال"],
+              ].map(([key, label]) => (
+                <li key={key}>
+                  {label}: <bdi dir="ltr">{String(state.diagnostics[key!] ?? "—")}</bdi>
+                </li>
+              ))}
+            </ul>
+          </details>
           {state.batteryUnrestricted ? (
             <p className="settings-hint telegram-running">🔋 مسموح له بالعمل في الخلفية بلا قيود</p>
           ) : (

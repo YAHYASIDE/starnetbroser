@@ -58,6 +58,17 @@ public class TelegramSendWorker extends Worker {
         } catch (IOException offline) {
             return getRunAttemptCount() < 8 ? Result.retry() : Result.failure();
         } catch (TelegramClient.TelegramError rejected) {
+            // Buttons Telegram didn't accept must never cost the message itself.
+            if (markup != null && rejected.code == 400) {
+                try {
+                    TelegramClient.sendMessage(token, chatId, text, null);
+                    return Result.success();
+                } catch (IOException offline) {
+                    return Result.retry();
+                } catch (TelegramClient.TelegramError again) {
+                    return Result.failure();
+                }
+            }
             // Bad token / chat gone - retrying can't fix it; Settings shows the connection state.
             return Result.failure();
         }

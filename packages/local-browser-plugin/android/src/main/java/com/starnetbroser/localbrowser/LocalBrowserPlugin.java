@@ -466,6 +466,14 @@ public class LocalBrowserPlugin extends Plugin {
         ret.put("instant", TelegramStore.isInstantEnabled(getContext()));
         ret.put("instantRunning", TelegramReplyService.isPolling());
         ret.put("batteryUnrestricted", isIgnoringBatteryOptimizations());
+        JSObject diag = new JSObject();
+        for (String key : new String[] {"startedAt", "startError", "pollAt", "pollError", "replyAt", "sendError"}) {
+            String value = TelegramStore.diagValue(getContext(), key);
+            if (value != null) diag.put(key, value);
+        }
+        diag.put("device", android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL + " · Android " + android.os.Build.VERSION.RELEASE);
+        diag.put("appVisible", TelegramReplyService.appVisible);
+        ret.put("diagnostics", diag);
         call.resolve(ret);
     }
 
