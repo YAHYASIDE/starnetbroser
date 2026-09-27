@@ -65,3 +65,34 @@ export function buildPaymentReceipt(input: {
     footerNote: "استلمنا المبلغ أعلاه، وشكرًا لتعاملكم معنا.",
   };
 }
+
+/** The same receipt as a WhatsApp text (a wa.me link can't carry a PDF): amount, method, device,
+ * and what's left after this payment in its own currency. */
+export function buildReceiptWhatsAppMessage(input: {
+  payment: LedgerEntry;
+  entries: LedgerEntry[];
+  deviceName: string;
+  clientName?: string;
+}): string {
+  const { payment } = input;
+  const currency = LEDGER_CURRENCY_LABELS[payment.currency] ?? payment.currency;
+  const balance = balanceAfterPayment(input.entries, payment);
+  const method = payment.paymentMethod ? ` (${PAYMENT_METHOD_LABELS[payment.paymentMethod]})` : "";
+  const after =
+    balance > 0.0001
+      ? `المتبقي عليك: ${formatAmount(balance)} ${currency}`
+      : balance < -0.0001
+        ? `رصيد لك: ${formatAmount(-balance)} ${currency}`
+        : "لا يوجد عليك أي مبلغ متبقٍّ ✓";
+  return [
+    "🧾 سند قبض - STAR NET",
+    `رقم السند: ${receiptNumber(payment)}`,
+    `التاريخ: ${payment.date}`,
+    `استلمنا من: ${input.clientName || input.deviceName}`,
+    `المبلغ: ${formatAmount(payment.amount)} ${currency}${method}`,
+    `الجهاز: ${input.deviceName}`,
+    after,
+    "",
+    "شكرًا لتعاملكم معنا.",
+  ].join("\n");
+}

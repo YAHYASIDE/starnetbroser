@@ -1,4 +1,5 @@
 import { StarlinkAccountSummary } from "@starnet/shared";
+import { PROOFS_BACKUP_KEY } from "./paymentProofs";
 import { decryptBackup, encryptBackup, WrongPasswordError } from "./backupCrypto";
 
 /** accountId -> (url -> raw combined cookie string) - same shape LocalBrowser.exportSessionCookies/
@@ -65,6 +66,8 @@ export function restoreAppData(storage: KeyValueStorage, data: AppDataSnapshot):
   try {
     for (const [key, value] of Object.entries(data)) {
       if (!key.startsWith(APP_DATA_KEY_PREFIX) || typeof value !== "string") continue;
+      // Payment photos live in IndexedDB, not here - the caller restores them (paymentProofs.ts).
+      if (key === PROOFS_BACKUP_KEY) continue;
       storage.setItem(key, value);
       written++;
     }

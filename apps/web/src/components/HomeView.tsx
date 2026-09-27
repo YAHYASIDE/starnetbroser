@@ -11,6 +11,7 @@ import { DayCircles } from "./DayCircles";
 import { ConnectionStatus } from "./ConnectionStatus";
 import { AccountDialog, AccountDialogMode } from "./AccountDialog";
 import { HomeFab } from "./HomeFab";
+import { pruneOrphanProofs } from "@/lib/paymentProofStore";
 import { LedgerDialog } from "./LedgerDialog";
 import { ClientDialog } from "./ClientDialog";
 import { ClientsOverviewDialog } from "./ClientsOverviewDialog";
@@ -27,7 +28,7 @@ import { HOME_ACTION_EVENT, HomeAction, parseHomeAction, REMINDER_COUNT_EVENT } 
 import { buildRenewalShipment } from "@/lib/renewalPlan";
 import { runAutoBackup } from "@/lib/autoBackupRunner";
 import { runDriveBackup } from "@/lib/driveBackupRunner";
-import { notifySuspendedWithDebt, onDigestTapped, rescheduleMorningDigests } from "@/lib/morningNotifications";
+import { notifySuspendedWithDebt, onDigestTapped, rescheduleEveningSummary, rescheduleMorningDigests } from "@/lib/morningNotifications";
 import { cardShortfallForSuspended, currentCardBalanceUsd, listOpenShipmentDebts, listSuspendedWithDebt, settleShipmentCost } from "@/lib/starlinkDebt";
 import { APK_DOWNLOAD_URL, checkForAppUpdate, shouldAutoCheck } from "@/lib/appUpdate";
 import { deviceMatchesQuery, searchEverything, SearchResult } from "@/lib/homeInsights";
@@ -215,6 +216,12 @@ export function HomeView({
   // which never has localStorage) and loads after mount, to avoid a hydration mismatch.
   const [ledgerStore, setLedgerStore] = useState<LedgerByAccount>({});
   useEffect(() => setLedgerStore(loadLedgerStore()), []);
+  // Payment photos whose payment was deleted anywhere (statements, device removal) - read from
+  // storage itself, never from the not-yet-loaded state.
+  useEffect(() => {
+    const timer = window.setTimeout(() => void pruneOrphanProofs(loadLedgerStore()), 4000);
+    return () => window.clearTimeout(timer);
+  }, []);
   // Read-only here: the till (for the "اليوم" panel), suppliers and store items (for global search).
   const [supplierStore, setSupplierStore] = useState<SupplierStore>({});
   const [storeItems, setStoreItems] = useState<StoreItemRegistry>({});
@@ -607,7 +614,8 @@ export function HomeView({
   useEffect(() => {
     let cancelled = false;
     void accountsReadyGateRef.current.whenReady().then(() => {
-      if (!cancelled) void rescheduleMorningDigests(accounts, totalOwedAcrossAccounts(ledgerStore));
+      if (cancelled) return;
+      void rescheduleMorningDigests(accounts, totalOwedAcrossAccounts(ledgerStore)).then(() => rescheduleEveningSummary(accounts, ledgerStore));
     });
     return () => {
       cancelled = true;

@@ -7373,3 +7373,140 @@ button.today-tile {
 .payment-target-clear {
   color: var(--green);
 }
+
+/* Payments: proof photo, receipt actions, and the "just paid" strip. */
+.ledger-proof-field {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.ledger-proof-pick {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  color: var(--text);
+  font-size: 0.88rem;
+  text-align: center;
+  cursor: pointer;
+}
+
+.ledger-proof-thumb {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.ledger-receipt-link {
+  text-decoration: none;
+}
+
+.ledger-proof-field > span {
+  flex: 1;
+  min-width: 0;
+}
+
+.ledger-entry-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 6px;
+}
+
+.ledger-paid-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--green) 45%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--green) 12%, var(--surface));
+}
+
+.ledger-paid-strip-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--green);
+}
+
+.ledger-paid-strip-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
+.ledger-paid-whatsapp {
+  text-decoration: none;
+  text-align: center;
+}
+
+.ledger-paid-strip-note {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.proof-viewer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgb(0 0 0 / 0.7);
+}
+
+.proof-viewer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 460px;
+  max-height: 92vh;
+  padding: 14px;
+  overflow-y: auto;
+  border-radius: 18px;
+  background: var(--surface);
+}
+
+.proof-viewer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.proof-viewer-image {
+  display: block;
+  width: 100%;
+  max-height: 65vh;
+  object-fit: contain;
+  border-radius: 10px;
+  background: #000;
+}
+
+.proof-viewer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.proof-viewer-actions > * {
+  flex: 1 1 140px;
+  text-align: center;
+  cursor: pointer;
+}

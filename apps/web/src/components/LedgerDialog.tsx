@@ -5,8 +5,11 @@ import type { RenewalPlan } from "@starnet/shared";
 import { PdfButton } from "./PdfButton";
 import { formatProfitMru } from "@/lib/profitMru";
 import { useMruRate } from "@/lib/useMruRate";
-import { buildPaymentReceipt } from "@/lib/receipt";
-import { FormEvent, useState } from "react";
+import { buildPaymentReceipt, buildReceiptWhatsAppMessage } from "@/lib/receipt";
+import { ChangeEvent, FormEvent, useEffect, useState } from "react";
+import { resizeImageToDataUrl } from "@/lib/imageUtils";
+import { deleteProof, getProof, listProofIds, putProof } from "@/lib/paymentProofStore";
+import { buildWhatsAppLink } from "@/lib/whatsapp";
 import {
   computeBalanceByCurrency,
   createLedgerEntry,
@@ -190,6 +193,22 @@ export function LedgerDialog({
 
   const [settlingEntry, setSettlingEntry] = useState<LedgerEntry | null>(null);
   const [pendingPayment, setPendingPayment] = useState<LedgerEntry | null>(null);
+  // صورة إثبات الدفع: picked with the new payment, saved (IndexedDB) once the payment is.
+  const [proofDraft, setProofDraft] = useState<string | null>(null);
+  const [proofIds, setProofIds] = useState<Set<string>>(new Set());
+  const [viewingProof, setViewingProof] = useState<{ entry: LedgerEntry; dataUrl?: string } | null>(null);
+  const [proofError, setProofError] = useState<string | null>(null);
+  // The payment just saved - offers its receipt (WhatsApp / PDF) right away.
+  const [justPaid, setJustPaid] = useState<LedgerEntry | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void listProofIds().then((ids) => {
+      if (!cancelled) setProofIds(new Set(ids));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [completingEntry, setCompletingEntry] = useState<LedgerEntry | null>(null);
   const [completingPayment, setCompletingPayment] = useState<LedgerEntry | null>(null);
   const [editingEntry, setEditingEntry] = useState<LedgerEntry | null>(null);
@@ -416,6 +435,42 @@ export function LedgerDialog({
     if (!window.confirm("هل تريد حذف هذه الحركة؟ لا يمكن التراجع عن هذا الإجراء.")) return;
     onChange(removeEntry(entries, entryId));
     onRemoveEntryAllocations(entryId);
+    if (proofIds.has(entryId)) {
+      void deleteProof(entryId);
+      setProofIds((ids) => new Set([...ids].filter((id) => id !== entryId)));
+    }
+    if (justPaid?.id === entryId) setJustPaid(null);
+  }
+
+  /** Photos are shrunk to a readable size (long side 1280px) before saving. */
+  async function readProofFile(event: ChangeEvent<HTMLInputElement>): Promise<string | null> {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return null;
+    try {
+      setProofError(null);
+      return await resizeImageToDataUrl(file, 1280, 0.72);
+    } catch {
+      setProofError("تعذرت قراءة الصورة - جرّب صورة أخرى");
+      return null;
+    }
+  }
+
+  async function saveProof(entryId: string, dataUrl: string): Promise<boolean> {
+    const ok = await putProof(entryId, dataUrl);
+    if (ok) setProofIds((ids) => new Set([...ids, entryId]));
+    else setProofError("تعذر حفظ الصورة على الهاتف");
+    return ok;
+  }
+
+  async function openProof(entry: LedgerEntry) {
+    setProofError(null);
+    setViewingProof({ entry, dataUrl: proofIds.has(entry.id) ? await getProof(entry.id) : undefined });
+  }
+
+  function receiptWhatsAppLink(payment: LedgerEntry): string {
+    const message = buildReceiptWhatsAppMessage({ payment, entries: [...entries.filter((e) => e.id !== payment.id), payment], deviceName: accountName, clientName });
+    return buildWhatsAppLink(clientPhone, message) ?? `https://wa.me/?text=${encodeURIComponent(message)}`;
   }
 
   return (
@@ -638,6 +693,24 @@ export function LedgerDialog({
               ))}
             </select>
           )}
+          {kind === "credit" && (
+            <div className="ledger-proof-field">
+              {proofDraft ? (
+                <>
+                  <img src={proofDraft} alt="صورة إثبات الدفع" className="ledger-proof-thumb" />
+                  <span>📷 صورة الإثبات جاهزة - تُحفظ مع الدفعة</span>
+                  <button type="button" className="text-action" onClick={() => setProofDraft(null)}>
+                    إزالة
+                  </button>
+                </>
+              ) : (
+                <label className="ledger-proof-pick">
+                  📷 إرفاق صورة إثبات الدفع (اختياري)
+                  <input type="file" accept="image/*" hidden onChange={async (e) => setProofDraft(await readProofFile(e))} />
+                </label>
+              )}
+            </div>
+          )}
           <input
             className="search-input ledger-note-input"
             type="text"
@@ -657,6 +730,31 @@ export function LedgerDialog({
           <button className="dialog-primary" type="submit">إضافة حركة</button>
         </form>
 
+        {justPaid && (
+          <div className="ledger-paid-strip" role="status">
+            <div className="ledger-paid-strip-head">
+              <strong>
+                ✓ سُجّلت دفعة {formatMoney(justPaid.amount, justPaid.currency)}
+              </strong>
+              <button type="button" className="dialog-close" onClick={() => setJustPaid(null)} aria-label="إغلاق">
+                ×
+              </button>
+            </div>
+            <div className="ledger-paid-strip-actions">
+              <a className="dialog-primary ledger-paid-whatsapp" href={receiptWhatsAppLink(justPaid)} target="_blank" rel="noopener noreferrer">
+                💬 أرسل السند للزبون
+              </a>
+              <PdfButton
+                className="text-action"
+                label="🧾 PDF"
+                build={() => buildPaymentReceipt({ payment: justPaid, entries, deviceName: accountName, clientName, clientPhone })}
+              />
+            </div>
+            {!clientPhone && <span className="ledger-paid-strip-note">لا يوجد رقم للزبون - سيطلب منك واتساب اختيار المحادثة</span>}
+          </div>
+        )}
+        {proofError && <div className="account-card-alert">{proofError}</div>}
+
         <ul className="ledger-entry-list">
           {sorted.length === 0 && <li className="ledger-entry-empty">لا توجد حركات بعد</li>}
           {sorted.map((entry) => (
@@ -667,13 +765,6 @@ export function LedgerDialog({
                 </span>
                 <span className="ledger-entry-amount" dir="ltr">{formatMoney(entry.amount, entry.currency)}</span>
                 <span className="ledger-entry-date" dir="ltr">{entry.date}</span>
-                {entry.kind === "credit" && (
-                  <PdfButton
-                    className="text-action"
-                    label="🧾 سند"
-                    build={() => buildPaymentReceipt({ payment: entry, entries, deviceName: accountName, clientName, clientPhone })}
-                  />
-                )}
                 <button
                   className="text-action"
                   type="button"
@@ -698,6 +789,21 @@ export function LedgerDialog({
                   {entry.paymentMethod && <span className="ledger-entry-method">{PAYMENT_METHOD_LABELS[entry.paymentMethod]}</span>}
                   {entry.note && <span className="ledger-entry-note">{entry.note}</span>}
                   {entry.email && <span className="ledger-entry-email" dir="ltr">{entry.email}</span>}
+                </div>
+              )}
+              {entry.kind === "credit" && (
+                <div className="ledger-entry-row-actions">
+                  <PdfButton
+                    className="text-action"
+                    label="🧾 سند"
+                    build={() => buildPaymentReceipt({ payment: entry, entries, deviceName: accountName, clientName, clientPhone })}
+                  />
+                  <a className="text-action ledger-receipt-link" href={receiptWhatsAppLink(entry)} target="_blank" rel="noopener noreferrer">
+                    💬 السند واتساب
+                  </a>
+                  <button type="button" className="text-action" onClick={() => void openProof(entry)}>
+                    {proofIds.has(entry.id) ? "📷 الإثبات ✓" : "📷 إرفاق إثبات"}
+                  </button>
                 </div>
               )}
               {entry.kind === "debit" && (
@@ -767,6 +873,58 @@ export function LedgerDialog({
         />
       )}
 
+      {viewingProof && (
+        <div className="proof-viewer-backdrop" role="presentation" onClick={() => setViewingProof(null)}>
+          <div className="proof-viewer" role="dialog" aria-modal="true" aria-label="صورة إثبات الدفع" onClick={(e) => e.stopPropagation()}>
+            <div className="proof-viewer-head">
+              <strong>
+                📷 إثبات دفعة {formatMoney(viewingProof.entry.amount, viewingProof.entry.currency)} ·{" "}
+                <bdi dir="ltr">{viewingProof.entry.date}</bdi>
+              </strong>
+              <button type="button" className="dialog-close" onClick={() => setViewingProof(null)} aria-label="إغلاق">
+                ×
+              </button>
+            </div>
+            {viewingProof.dataUrl ? (
+              <img src={viewingProof.dataUrl} alt="صورة إثبات الدفع" className="proof-viewer-image" />
+            ) : (
+              <p className="party-empty">لا توجد صورة لهذه الدفعة بعد</p>
+            )}
+            {proofError && <div className="account-card-alert">{proofError}</div>}
+            <div className="proof-viewer-actions">
+              <label className="dialog-primary proof-viewer-pick">
+                {viewingProof.dataUrl ? "🔄 تغيير الصورة" : "📷 اختر صورة"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={async (e) => {
+                    const target = viewingProof.entry;
+                    const dataUrl = await readProofFile(e);
+                    if (dataUrl && (await saveProof(target.id, dataUrl))) setViewingProof({ entry: target, dataUrl });
+                  }}
+                />
+              </label>
+              {viewingProof.dataUrl && (
+                <button
+                  type="button"
+                  className="dialog-danger"
+                  onClick={() => {
+                    if (!window.confirm("حذف صورة الإثبات؟ الدفعة نفسها تبقى.")) return;
+                    const id = viewingProof.entry.id;
+                    void deleteProof(id);
+                    setProofIds((ids) => new Set([...ids].filter((x) => x !== id)));
+                    setViewingProof({ entry: viewingProof.entry });
+                  }}
+                >
+                  🗑 حذف الصورة
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {pendingPayment && (
         <PaymentAllocationDialog
           amount={pendingPayment.amount}
@@ -780,6 +938,9 @@ export function LedgerDialog({
             );
             onChange([...entries, pendingPayment]);
             onAddAllocations(newAllocations);
+            if (proofDraft) void saveProof(pendingPayment.id, proofDraft);
+            setProofDraft(null);
+            setJustPaid(pendingPayment);
             setPendingPayment(null);
           }}
         />

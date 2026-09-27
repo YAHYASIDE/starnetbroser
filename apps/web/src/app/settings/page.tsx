@@ -24,6 +24,7 @@ import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerCurrency } from "@/lib
 import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
 import { STORAGE_BUDGET_CHARS, StorageUsage, formatChars, isQuotaError, measureStorage, storageKeyLabel } from "@/lib/storageGuard";
 import { collectAppData, createEncryptedBackupFile, mergeImportedAccounts, readEncryptedBackupFile, restoreAppData } from "@/lib/accountBackup";
+import { restoreProofsFromBackup, withProofs } from "@/lib/paymentProofStore";
 import {
   checkAccountSession,
   exportAccountSessions,
@@ -46,7 +47,17 @@ import {
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { saveAndShareBackupFile } from "@/lib/backupFile";
 import { APK_DOWNLOAD_URL, checkForAppUpdate, CURRENT_COMMIT, UpdateCheckResult } from "@/lib/appUpdate";
-import { getMorningDigestHour, isMorningDigestEnabled, setMorningDigestEnabled, setMorningDigestHour } from "@/lib/morningNotifications";
+import {
+  EVENING_HOURS,
+  getEveningSummaryHour,
+  getMorningDigestHour,
+  isEveningSummaryEnabled,
+  isMorningDigestEnabled,
+  setEveningSummaryEnabled,
+  setEveningSummaryHour,
+  setMorningDigestEnabled,
+  setMorningDigestHour,
+} from "@/lib/morningNotifications";
 import { getAutoBackupLastRun, getAutoBackupPassword, setAutoBackupPassword } from "@/lib/autoBackup";
 import { runAutoBackup, shareLatestAutoBackup } from "@/lib/autoBackupRunner";
 import { DriveFile, DriveUploadStatus, driveBackupLabel, getDriveEmail, getDriveLastUpload, isDriveLinked } from "@/lib/driveBackup";
@@ -221,6 +232,7 @@ export default function SettingsPage() {
           </span>
         </label>
         <MorningDigestSettings />
+        <EveningSummarySettings />
         {isAndroidApp && (
           <div className="settings-actions" style={{ marginTop: "12px" }}>
             <button className="btn-icon" onClick={() => openNotificationSettings()}>
@@ -589,7 +601,7 @@ function BackupSection() {
     setExportBusy(true);
     try {
       const accounts = isDemoMode() ? loadDemoAccounts([]) : await listAccounts();
-      const data = collectAppData(window.localStorage);
+      const data = await withProofs(collectAppData(window.localStorage));
       if (accounts.length === 0 && Object.keys(data).length === 0) {
         setExportMessage("لا توجد بيانات لتصديرها");
         return;
@@ -651,6 +663,7 @@ function BackupSection() {
         }
         try {
           restoreAppData(window.localStorage, result.data);
+          await restoreProofsFromBackup(result.data);
         } catch (err) {
           // restoreAppData already put every original record back - nothing on this phone changed.
           setImportMessage(
@@ -1190,6 +1203,58 @@ function AutoBackupSection() {
       )}
       {message && <p className="settings-hint">{message}</p>}
     </section>
+  );
+}
+
+/** 🌙 ملخص آخر اليوم - on/off and time; rescheduled from the home page like the morning one. */
+function EveningSummarySettings() {
+  const [enabled, setEnabled] = useState(true);
+  const [hour, setHour] = useState(21);
+  useEffect(() => {
+    setEnabled(isEveningSummaryEnabled());
+    setHour(getEveningSummaryHour());
+  }, []);
+
+  return (
+    <div className="morning-digest-settings">
+      <label className="toggle-switch-row">
+        <span>🌙 ملخص آخر اليوم (يصل حتى والتطبيق مغلق)</span>
+        <span className={`toggle-switch${enabled ? " toggle-switch-on" : ""}`}>
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={(e) => {
+              setEnabled(e.target.checked);
+              setEveningSummaryEnabled(e.target.checked);
+            }}
+          />
+          <span className="toggle-switch-thumb" />
+        </span>
+      </label>
+      {enabled && (
+        <label className="form-field">
+          <span>وقت الملخص</span>
+          <select
+            className="search-input"
+            value={hour}
+            onChange={(e) => {
+              const next = Number(e.target.value);
+              setHour(next);
+              setEveningSummaryHour(next);
+            }}
+          >
+            {EVENING_HOURS.map((h) => (
+              <option key={h} value={h}>
+                {h - 12}:00 مساءً
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <p className="settings-hint">
+        ما تحصّل اليوم، والشحنات، والمصاريف، وما في الصندوق، ومن لم يدفع بعد - كل عملة وحدها. تُحدَّث أرقامه كلما فتحت الصفحة الرئيسية، والضغط عليه يفتح التقارير.
+      </p>
+    </div>
   );
 }
 

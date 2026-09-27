@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { balanceAfterPayment, buildPaymentReceipt, receiptNumber } from "./receipt";
+import { balanceAfterPayment, buildPaymentReceipt, buildReceiptWhatsAppMessage, receiptNumber } from "./receipt";
 import type { LedgerEntry } from "./ledgerStore";
 
 function e(o: Partial<LedgerEntry>): LedgerEntry {
@@ -29,5 +29,22 @@ describe("receipt", () => {
     expect(doc.summary[0]!.value).toBe("1,000 أوقية");
     expect(doc.summary[1]).toMatchObject({ label: "المتبقي عليه بعد الدفعة", value: "2,000 أوقية", tone: "due" });
     expect(doc.rows[0]![1]).toBe("منزل");
+  });
+});
+
+describe("buildReceiptWhatsAppMessage", () => {
+  it("carries the receipt number, amount with method, and what is left in that currency", () => {
+    const msg = buildReceiptWhatsAppMessage({ payment: entries[1]!, entries, deviceName: "منزل", clientName: "محمد" });
+    expect(msg).toContain("رقم السند: R-20260921-P1AB");
+    expect(msg).toContain("استلمنا من: محمد");
+    expect(msg).toMatch(/المبلغ: 1,000 .+ \(.+\)/);
+    expect(msg).toMatch(/المتبقي عليك: 2,000 /);
+  });
+
+  it("says nothing is left when the payment clears the balance", () => {
+    const paid = [e({ id: "c1", amount: 1000 }), e({ id: "p", kind: "credit", amount: 1000, date: "2026-09-21" })];
+    const msg = buildReceiptWhatsAppMessage({ payment: paid[1]!, entries: paid, deviceName: "منزل" });
+    expect(msg).toContain("استلمنا من: منزل");
+    expect(msg).toContain("لا يوجد عليك أي مبلغ متبقٍّ ✓");
   });
 });

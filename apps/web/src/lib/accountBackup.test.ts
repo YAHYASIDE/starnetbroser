@@ -163,6 +163,13 @@ describe("full app-data backup", () => {
     expect(storage.dump()).toEqual({ "starnet.accessToken": "keep-me", starnet_clients_v1: "new", starnet_suppliers_v1: "[]" });
   });
 
+  it("never writes the payment photos into localStorage (they go back to IndexedDB)", () => {
+    const storage = memoryStorage({ starnet_clients_v1: "old" });
+    const written = restoreAppData(storage, { starnet_clients_v1: "new", starnet_payment_proofs_v1: "{\"p\":\"data:image/jpeg;base64,A\"}" });
+    expect(written).toBe(1);
+    expect(storage.dump()).toEqual({ starnet_clients_v1: "new" });
+  });
+
   it("rolls back to the original data when the phone runs out of space mid-restore", () => {
     const storage = memoryStorage({
       starnet_clients_v1: "old-clients",

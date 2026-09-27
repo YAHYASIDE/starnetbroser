@@ -4,6 +4,9 @@ import { LocalNotifications } from "@capacitor/local-notifications";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { isRunningInAndroidApp } from "./localBrowser";
 import { buildMorningDigests, DIGEST_DAYS, DIGEST_ID_BASE } from "./morningDigest";
+import { buildEveningSummary, EVENING_SUMMARY_ID, localDay, nextEveningTime } from "./eveningSummary";
+import { loadCashEntries } from "./cashStore";
+import type { LedgerByAccount } from "./ledgerStore";
 
 const ENABLED_KEY = "starnet.morningDigestOff";
 const HOUR_KEY = "starnet.morningDigestHour";
@@ -122,6 +125,63 @@ export async function notifySuspendedWithDebt(items: { accountName: string; entr
     });
     const next = Array.from(new Set([...alerted, ...fresh.flatMap((f) => f.entryIds)])).slice(-500);
     safeSet(D_ALERTED_KEY, JSON.stringify(next));
+  } catch {
+    // A notification problem must never break the app itself.
+  }
+}
+
+// ---- ملخص آخر اليوم (eveningSummary.ts) ----
+
+const EVENING_OFF_KEY = "starnet.eveningSummaryOff";
+const EVENING_HOUR_KEY = "starnet.eveningSummaryHour";
+export const DEFAULT_EVENING_HOUR = 21;
+export const EVENING_HOURS = [17, 18, 19, 20, 21, 22, 23];
+
+/** On by default - an explicit opt-out from الإعدادات. */
+export function isEveningSummaryEnabled(): boolean {
+  return safeGet(EVENING_OFF_KEY) !== "1";
+}
+
+export function setEveningSummaryEnabled(enabled: boolean) {
+  safeSet(EVENING_OFF_KEY, enabled ? null : "1");
+}
+
+export function getEveningSummaryHour(): number {
+  const hour = Number(safeGet(EVENING_HOUR_KEY));
+  return EVENING_HOURS.includes(hour) ? hour : DEFAULT_EVENING_HOUR;
+}
+
+export function setEveningSummaryHour(hour: number) {
+  safeSet(EVENING_HOUR_KEY, String(hour));
+}
+
+/** Replaces the scheduled evening summary with one built from the data as it is now (Android app
+ * only; the cash register is read from storage so changes made on other pages count too). */
+export async function rescheduleEveningSummary(accounts: StarlinkAccountSummary[], ledgerStore: LedgerByAccount): Promise<void> {
+  if (!isRunningInAndroidApp()) return;
+  try {
+    await LocalNotifications.cancel({ notifications: [{ id: EVENING_SUMMARY_ID }] });
+    if (!isEveningSummaryEnabled()) return;
+    let permission = await LocalNotifications.checkPermissions();
+    if (permission.display === "prompt" || permission.display === "prompt-with-rationale") {
+      permission = await LocalNotifications.requestPermissions();
+    }
+    if (permission.display !== "granted") return;
+    const at = nextEveningTime(new Date(), getEveningSummaryHour());
+    const summary = buildEveningSummary({ day: localDay(at), accounts, ledgerStore, cash: loadCashEntries() });
+    if (!summary) return;
+    await LocalNotifications.schedule({
+      notifications: [
+        {
+          id: EVENING_SUMMARY_ID,
+          title: summary.title,
+          body: summary.lines.join(" · "),
+          largeBody: summary.lines.join("\n"),
+          schedule: { at, allowWhileIdle: true },
+          extra: { route: "/reports" },
+        },
+      ],
+    });
   } catch {
     // A notification problem must never break the app itself.
   }

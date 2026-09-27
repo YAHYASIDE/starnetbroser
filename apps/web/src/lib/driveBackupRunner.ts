@@ -4,6 +4,7 @@ import { CapacitorHttp } from "@capacitor/core";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { LocalBrowser } from "@starnet/local-browser-plugin";
 import { collectAppData, createEncryptedBackupFile } from "./accountBackup";
+import { withProofs } from "./paymentProofStore";
 import { getAutoBackupPassword } from "./autoBackup";
 import {
   DriveError,
@@ -124,7 +125,7 @@ export async function runDriveBackup(
   }
   try {
     const sessions = await exportAccountSessions(accounts.map((a) => a.id));
-    const created = await createEncryptedBackupFile(accounts, sessions, password, collectAppData(window.localStorage));
+    const created = await createEncryptedBackupFile(accounts, sessions, password, await withProofs(collectAppData(window.localStorage)));
     if (!created.ok) throw new Error(created.message);
     const file = await withDrive(force, (token) => uploadAndPrune(nativeHttp, token, created.fileContents));
     recordDriveUpload({ at: new Date().toISOString(), ok: true, fileName: file.name });
