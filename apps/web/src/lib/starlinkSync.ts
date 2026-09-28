@@ -34,6 +34,7 @@ const FIELD_INFO: Record<keyof SyncedStarlinkFields, { label: string; section: S
   serialNumber: { label: "الرقم التسلسلي", section: "identifiers" },
   kitNumber: { label: "رقم KIT", section: "identifiers" },
   serviceCountry: { label: "دولة الجهاز", section: "subscriptions" },
+  oceanMode: { label: "وضع المحيط", section: "subscriptions" },
   dataUsageGb: { label: "إجمالي استهلاك الباقة", section: "subscriptions" },
   isRestricted: { label: "تقييد الجهاز (خارج البلد المسجل)", section: "devices" },
   limitedAccess: { label: "إيميل غير رئيسي (بدون فوترة)", section: "identifiers" },
@@ -225,6 +226,12 @@ export function mergeSyncedFields(
   if (fields.isRestricted !== undefined) {
     note("isRestricted", next.isRestricted !== fields.isRestricted);
     next.isRestricted = fields.isRestricted;
+  }
+
+  // Explicit true/false like isRestricted: the switch read OFF clears the alarm.
+  if (fields.oceanMode !== undefined) {
+    note("oceanMode", next.oceanMode !== fields.oceanMode);
+    next.oceanMode = fields.oceanMode;
   }
 
   // Same explicit true/false as isRestricted: a Home page with the full menu clears it.

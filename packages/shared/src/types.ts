@@ -127,6 +127,9 @@ export interface StarlinkAccountSummary {
   /** ISO two-letter code of the country in Starlink's "موقع الخدمة" address (e.g. "GR") - the
    * country the device is registered to, so also the currency Starlink bills it in. Synced only. */
   serviceCountry?: string;
+  /** Starlink's "وضع المحيط" (Ocean Mode) switch is ON for this device: maritime per-GB billing
+   * that can reach thousands of dollars - the app raises a full-screen alarm. Synced only. */
+  oceanMode?: boolean;
   /** The saved email is a limited user on someone else's Starlink account (its menu has no
    * billing): billing, balance and billing suspension can't be read from it - check them from the
    * owner's account. Set by sync from the Home page; undefined until known. */

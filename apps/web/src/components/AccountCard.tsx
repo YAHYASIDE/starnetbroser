@@ -402,6 +402,9 @@ export function AccountCard({
         </div>
       )}
 
+      {account.oceanMode && (
+        <div className="account-card-ocean-banner">🚨 وضع المحيط مفعّل - فاتورة بحرية قد تصل لآلاف الدولارات. أوقفه فوراً!</div>
+      )}
       {showsRestriction(account) && (
         <div className="account-card-restricted-banner">
           🚫 الجهاز مقيّد — أعده إلى البلد المسجل ووصّله بالكهرباء لمدة 24 ساعة على الأقل لاستئناف الخدمة

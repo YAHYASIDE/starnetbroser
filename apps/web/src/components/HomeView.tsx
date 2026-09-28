@@ -39,7 +39,9 @@ import {
   rescheduleEveningSummary,
   rescheduleMorningDigests,
 } from "@/lib/morningNotifications";
-import { rescheduleTelegramSummaries } from "@/lib/telegram";
+import { isTelegramConnected, rescheduleTelegramSummaries, sendTelegramText } from "@/lib/telegram";
+import { loadOceanAlerted, oceanAlertsToSend, oceanModeAccounts, oceanTelegramText, saveOceanAlerted } from "@/lib/oceanMode";
+import { OceanModeAlarm } from "./OceanModeAlarm";
 import { cardShortfallForSuspended, currentCardBalanceUsd, listOpenShipmentDebts, listSuspendedWithDebt, settleShipmentCost } from "@/lib/starlinkDebt";
 import { APK_DOWNLOAD_URL, checkForAppUpdate, shouldAutoCheck } from "@/lib/appUpdate";
 import { deviceMatchesQuery, searchEverything, SearchResult } from "@/lib/homeInsights";
@@ -402,6 +404,22 @@ export function HomeView({
   // state) so there's no hydration mismatch; real data replaces it after
   // mount, never leaving the screen blank in between.
   const [accounts, setAccounts] = useState(demoAccounts);
+  // 🚨 وضع المحيط: devices with the maritime switch ON. The full-screen alarm comes back on every
+  // app open, and for any device that newly turns ON, until Starlink reads it OFF.
+  const oceanDevices = useMemo(() => oceanModeAccounts(accounts), [accounts]);
+  const [oceanDismissed, setOceanDismissed] = useState<string[]>([]);
+  const oceanShown = oceanDevices.some((a) => !oceanDismissed.includes(a.id));
+  useEffect(() => {
+    const { send, keep } = oceanAlertsToSend(accounts, loadOceanAlerted());
+    if (send.length === 0) {
+      saveOceanAlerted(keep);
+      return;
+    }
+    if (!isTelegramConnected()) return;
+    void sendTelegramText(oceanTelegramText(send)).then((sent) => {
+      if (sent) saveOceanAlerted(keep);
+    });
+  }, [accounts]);
   const [dataState, setDataState] = useState<DataState>("demo");
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -1059,6 +1077,17 @@ export function HomeView({
   return (
     <main className="home app-shell">
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
+      {oceanShown && (
+        <OceanModeAlarm
+          devices={oceanDevices}
+          onOpen={(account) => {
+            void openIsolatedAccountBrowser(account.id, account.name || "حساب Starlink", starlinkLoginFor(account)).then((result) => {
+              if (!result.ok) pushToast(result.message);
+            });
+          }}
+          onDismiss={() => setOceanDismissed(oceanDevices.map((a) => a.id))}
+        />
+      )}
       <header className="app-header">
         <div className="brand-lockup">
           <span className="brand-logo" aria-hidden="true">★</span>

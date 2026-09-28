@@ -8615,3 +8615,82 @@ button.today-tile {
 
 .device-dots .device-dot { flex: 1 1 0; min-width: 0; justify-content: center; white-space: nowrap; font-size: 0.68rem; padding: 4px 6px; }
 .device-dots .device-dot > i { width: 10px; height: 10px; }
+
+/* 🚨 "وضع المحيط" alarm - fills the whole screen on purpose. */
+.ocean-alarm {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: color-mix(in srgb, var(--red) 88%, #000);
+  animation: ocean-alarm-pulse 1.2s ease-in-out infinite alternate;
+  overflow-y: auto;
+}
+
+@keyframes ocean-alarm-pulse {
+  from { background: color-mix(in srgb, var(--red) 92%, #000); }
+  to { background: color-mix(in srgb, var(--red) 70%, #000); }
+}
+
+.ocean-alarm-box {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: #fff;
+  text-align: center;
+}
+
+.ocean-alarm-icon { font-size: 3.4rem; line-height: 1; }
+.ocean-alarm-box h2 { margin: 0; font-size: 1.35rem; font-weight: 900; }
+.ocean-alarm-text, .ocean-alarm-steps { margin: 0; font-size: 0.9rem; line-height: 1.6; }
+
+.ocean-alarm-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ocean-alarm-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.28);
+  font-weight: 800;
+  min-width: 0;
+}
+
+.ocean-alarm-list li span { overflow-wrap: anywhere; text-align: start; }
+
+.ocean-alarm-list button,
+.ocean-alarm-dismiss {
+  border: 0;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ocean-alarm-list button { flex: none; padding: 8px 10px; background: #fff; color: #b91c1c; font-size: 0.78rem; }
+.ocean-alarm-dismiss { padding: 12px; background: rgba(0, 0, 0, 0.35); color: #fff; }
+
+.account-card-ocean-banner {
+  background: var(--red);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-align: center;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  animation: ocean-alarm-pulse 1.2s ease-in-out infinite alternate;
+}

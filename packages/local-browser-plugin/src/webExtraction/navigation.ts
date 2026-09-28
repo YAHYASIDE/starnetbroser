@@ -1,3 +1,4 @@
+import { isDangerousControl } from "./oceanMode";
 /**
  * Stage 2 of on-device Starlink sync: the real account page only shows the Devices' own colored
  * status dots and the Subscription/Billing sections' fields once the operator has actually
@@ -112,6 +113,7 @@ export function railShowsFullAccess(count: number): boolean | undefined {
 export function clickBillingRailItem(): boolean {
   const items = findIconRailItems();
   if (railShowsFullAccess(items.length) !== true) return false;
+  if (isDangerousControl(items[3]!)) return false;
   items[3]!.click();
   return true;
 }
@@ -122,7 +124,7 @@ export function clickBillingRailItem(): boolean {
  * so a page whose chrome doesn't match what was confirmed is simply skipped by the caller. */
 export function clickIconRailItem(index: number): boolean {
   const target = findIconRailItems()[index];
-  if (!target) return false;
+  if (!target || isDangerousControl(target)) return false;
   target.click();
   return true;
 }
@@ -142,7 +144,7 @@ export function clickFirstSubscriptionRow(): boolean {
     if (!node) break;
     const text = directText(node);
     if (!text || text === "إضافة اشتراك") continue;
-    if (isClickable(node)) {
+    if (isClickable(node) && !isDangerousControl(node)) {
       (node as HTMLElement).click();
       return true;
     }
@@ -169,7 +171,7 @@ export function expandDevicesSection(): boolean {
   for (let hop = 0; hop < 40 && node; hop++) {
     node = nextElementInDocumentOrder(node);
     if (!node) break;
-    if (isClickable(node)) {
+    if (isClickable(node) && !isDangerousControl(node)) {
       (node as HTMLElement).click();
       return true;
     }

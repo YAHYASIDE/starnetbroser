@@ -32,6 +32,7 @@ import {
   normalizeServiceStatus,
 } from "./textFields";
 import { countIconRailItems, railShowsFullAccess } from "./navigation";
+import { readOceanMode } from "./oceanMode";
 import { toLines, toVisibleText } from "./visibleText";
 
 // "starlink" (the real device-row label, e.g. "STARLINK") is deliberately included even though
@@ -180,6 +181,10 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
 
   const kitNumber = extractLabeledValue(lines, KIT_NUMBER_LABELS);
   if (kitNumber) fields.kitNumber = kitNumber;
+
+  // Explicit true/false whenever the switch is on the page - false clears an earlier alarm.
+  const oceanMode = readOceanMode(doc);
+  if (oceanMode !== undefined) fields.oceanMode = oceanMode;
 
   const serviceCountry = extractServiceCountry(lines);
   if (serviceCountry) fields.serviceCountry = serviceCountry;

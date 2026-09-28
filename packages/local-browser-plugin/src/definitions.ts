@@ -106,6 +106,9 @@ export interface SyncedStarlinkFields {
   /** The email is a limited user on someone else's account (no billing icon): billing, balance
    * and the billing-suspension state can't be read from it. Judged on the Home page only. */
   limitedAccess?: boolean;
+  /** "وضع المحيط" (Ocean Mode) switch on the subscription page: true = ON - maritime per-GB
+   * billing that can reach thousands of dollars. Read only, never toggled by the app. */
+  oceanMode?: boolean;
 }
 
 export interface AccountDataSyncedEvent {
