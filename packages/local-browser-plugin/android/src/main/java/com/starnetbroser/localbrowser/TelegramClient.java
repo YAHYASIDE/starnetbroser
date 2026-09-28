@@ -60,6 +60,23 @@ final class TelegramClient {
         return call(token, "sendMessage", params);
     }
 
+    /** Stops the button's spinner (optionally with a short toast). */
+    static void answerCallbackQuery(String token, String callbackId, String text) throws IOException, TelegramError {
+        Map<String, String> params = new LinkedHashMap<>();
+        params.put("callback_query_id", callbackId);
+        if (text != null && !text.isEmpty()) params.put("text", text);
+        call(token, "answerCallbackQuery", params);
+    }
+
+    /** Replaces a message's text (and drops its buttons). */
+    static void editMessageText(String token, String chatId, long messageId, String text) throws IOException, TelegramError {
+        Map<String, String> params = new LinkedHashMap<>();
+        params.put("chat_id", chatId);
+        params.put("message_id", String.valueOf(messageId));
+        params.put("text", TelegramText.truncate(text, TelegramText.MAX_MESSAGE_CHARS));
+        call(token, "editMessageText", params);
+    }
+
     static JSONObject sendDocument(String token, String chatId, String fileName, byte[] file, String caption) throws IOException, TelegramError {
         String boundary = "starnet" + UUID.randomUUID().toString().replace("-", "");
         Map<String, String> fields = new LinkedHashMap<>();

@@ -141,6 +141,7 @@ export type RepCommand =
   | { kind: "search"; query: string }
   | { kind: "payment"; text: string }
   | { kind: "client"; text: string }
+  | { kind: "activate"; text: string }
   | { kind: "unknown"; text: string };
 
 type RepWordKind = Exclude<RepCommand["kind"], "unknown">;
@@ -196,6 +197,9 @@ const REP_WORD_LIST: Record<string, RepWordKind> = {
   "جديد": "client",
   "إضافة": "client",
   "اضافة": "client",
+  "تفعيل": "activate",
+  "فعل": "activate",
+  "activate": "activate",
   "بحث": "search",
   "ابحث": "search",
   search: "search",
@@ -222,6 +226,7 @@ export function parseRepCommand(text: string): RepCommand {
   if (kind === "search") return { kind: "search", query: rest.join(" ").trim() };
   // "زبون جديد ..." / "دفعة 5000 ..." - the rest is the request itself.
   if (kind === "payment") return { kind: "payment", text: rest.join(" ").trim() };
+  if (kind === "activate") return { kind: "activate", text: rest.join(" ").trim() };
   if (kind === "client") return { kind: "client", text: rest.filter((w, i) => !(i === 0 && normalizeSearch(w) === "جديد")).join(" ").trim() };
   if (kind) return { kind } as RepCommand;
   // Anything else is a search among his devices ("محمد", "22212345").
@@ -240,6 +245,7 @@ export const REP_HELP = [
   "📆 أو اكتب يوماً: اليوم، غداً، بعد غد، يوم 30، 30/09",
   "💵 دفعة - سجّل دفعة استلمتها: دفعة 5000 محمد",
   "➕ زبون جديد - اطلب إضافة زبون: زبون جديد الاسم الهاتف الإيميل",
+  "⚡ تفعيل - اطلب تفعيل جهاز (ROM / Sis / 100G) بالسعر الذي يدفعه الزبون: تفعيل محمد",
   "💬 تحت القوائم أزرار واتساب ترسل للزبون رسالة جاهزة",
 ].join("\n");
 
@@ -250,7 +256,7 @@ export const REP_KEYBOARD = JSON.stringify({
     [{ text: "⛔ الموقوفة" }, { text: "💰 ديون زبائني" }],
     [{ text: "📊 كشفي" }, { text: "📆 الأيام" }],
     [{ text: "💵 دفعة" }, { text: "➕ زبون جديد" }],
-    [{ text: "🔎 بحث" }],
+    [{ text: "⚡ تفعيل" }, { text: "🔎 بحث" }],
   ],
   resize_keyboard: true,
   is_persistent: true,
@@ -288,6 +294,35 @@ function whatsappTarget(account: StarlinkAccountSummary, clients: ClientStore, m
 }
 
 /** Inline buttons opening WhatsApp with a ready message, one per customer (max 10). */
+/** Plans a rep can ask to activate - the price is what the customer pays him. */
+export const REP_ACTIVATION_PLANS = ["ROM", "Sis", "100G"];
+
+/** Telegram refuses callback_data over 64 bytes - such a device just gets no ⚡ button. */
+function activateCallback(accountId: string): string | undefined {
+  const data = `a:${accountId}`;
+  return new TextEncoder().encode(data).length <= 64 ? data : undefined;
+}
+
+type ButtonRow = ({ text: string; url: string } | { text: string; callback_data: string })[];
+
+/** One row per device: 💬 WhatsApp (when the customer has a phone) and ⚡ تفعيل. */
+export function deviceActionsMarkup(items: { whatsapp?: WhatsAppTarget | null; accountId?: string; name: string }[]): string | undefined {
+  const rows: ButtonRow[] = [];
+  const seen = new Set<string>();
+  for (const item of items) {
+    if (rows.length >= MAX_BUTTONS) break;
+    const key = item.accountId ?? item.whatsapp?.url ?? item.name;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const row: ButtonRow = [];
+    if (item.whatsapp) row.push({ text: item.whatsapp.label, url: item.whatsapp.url });
+    const callback = item.accountId ? activateCallback(item.accountId) : undefined;
+    if (callback) row.push({ text: row.length > 0 ? "⚡ تفعيل" : `⚡ تفعيل ${item.name}`.slice(0, 40), callback_data: callback });
+    if (row.length > 0) rows.push(row);
+  }
+  return rows.length > 0 ? JSON.stringify({ inline_keyboard: rows }) : undefined;
+}
+
 export function whatsappMarkup(targets: (WhatsAppTarget | null)[]): string | undefined {
   const seen = new Set<string>();
   const rows: { text: string; url: string }[][] = [];
@@ -334,7 +369,9 @@ export function repStoppedReply(accounts: StarlinkAccountSummary[], clients: Cli
   if (stopped.length === 0) return { text: "✓ لا أجهزة موقوفة لك حسب آخر مزامنة" };
   return {
     text: ["⛔ أجهزتك الموقوفة حسب آخر مزامنة", ...section("الموقوفة", stopped, clients).slice(1), "", "تواصل مع الزبائن لإعادة الخدمة 🙏"].join("\n"),
-    markup: whatsappMarkup(stopped.map((a) => whatsappTarget(a, clients, (name) => stoppedReminderText(name, a.name)))),
+    markup: deviceActionsMarkup(
+      stopped.map((a) => ({ whatsapp: whatsappTarget(a, clients, (name) => stoppedReminderText(name, a.name)), accountId: a.id, name: a.name })),
+    ),
   };
 }
 
@@ -381,6 +418,8 @@ export interface RepSearchEntry {
   s?: string;
   /** WhatsApp renewal reminder url for a day's list. */
   r?: string;
+  /** The device's id - for its ⚡ تفعيل button. */
+  i?: string;
 }
 
 function statusLabel(account: StarlinkAccountSummary): string {
@@ -422,6 +461,7 @@ export function repSearchIndex(accounts: StarlinkAccountSummary[], clients: Clie
     return {
       ...(renewal ? { d: renewal } : {}),
       s: `• ${repLabel(account, clients)}${isStoppedAccount(account) ? " ⛔" : ""}`,
+      i: account.id,
       ...(reminder ? { r: reminder.url } : {}),
       // Readable text for names/emails, plus every number compacted (no dashes or spaces) so
       // "KIT-000 111", "kit000111" and "000111" all find the same kit.
@@ -467,7 +507,12 @@ export function repSearchReply(query: string, index: RepSearchEntry[], today?: s
     ...shown.map((entry) => `\n${entry.t}`),
     ...(found.length > MAX_RESULTS ? [`\n… و${found.length - MAX_RESULTS} أخرى - اكتب اسمًا أدق`] : []),
   ].join("\n");
-  return { text, markup: whatsappMarkup(shown.map((entry) => (entry.w && entry.l ? { label: entry.l, url: entry.w } : null))) };
+  return {
+    text,
+    markup: deviceActionsMarkup(
+      shown.map((entry) => ({ whatsapp: entry.w && entry.l ? { label: entry.l, url: entry.w } : null, accountId: entry.i, name: entry.t.split("\n")[0]!.replace("📡 ", "") })),
+    ),
+  };
 }
 
 // ---- By day ----
@@ -604,3 +649,5 @@ export function matchRepDevices(query: string, accounts: StarlinkAccountSummary[
     return words.every((w) => keys.includes(w) || (compactSearch(w) !== "" && compact.includes(compactSearch(w))));
   });
 }
+
+export const REP_ACTIVATION_HINT = "⚡ اكتب: تفعيل + اسم الزبون أو الجهاز (مثلاً: تفعيل محمد)، أو اضغط «⚡ تفعيل» تحت أي جهاز في نتائج البحث أو الأجهزة الموقوفة.";

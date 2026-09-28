@@ -46,6 +46,9 @@ final class TelegramReplies {
         String requestReceived = "";
         /** "{rep}", "{text}". */
         String requestNotice = "";
+        /** ⚡ تفعيل choices ("ROM", "Sis", "100G"). */
+        List<String> plans = new ArrayList<>();
+        String activationHint = "";
         /** Every rep's own devices, for search: repId -> entries. */
         Map<String, List<SearchEntry>> repSearch = new HashMap<>();
     }
@@ -60,12 +63,18 @@ final class TelegramReplies {
         final String date;
         final String line;
         final String reminderUrl;
+        /** The device's id (its ⚡ تفعيل button), or "". */
+        final String id;
 
         SearchEntry(String keys, String text, String buttonLabel, String buttonUrl) {
-            this(keys, text, buttonLabel, buttonUrl, null, null, null);
+            this(keys, text, buttonLabel, buttonUrl, null, null, null, null);
         }
 
         SearchEntry(String keys, String text, String buttonLabel, String buttonUrl, String date, String line, String reminderUrl) {
+            this(keys, text, buttonLabel, buttonUrl, date, line, reminderUrl, null);
+        }
+
+        SearchEntry(String keys, String text, String buttonLabel, String buttonUrl, String date, String line, String reminderUrl, String id) {
             this.keys = keys == null ? "" : keys;
             this.text = text == null ? "" : text;
             this.buttonLabel = buttonLabel;
@@ -73,6 +82,13 @@ final class TelegramReplies {
             this.date = date == null ? "" : date;
             this.line = line == null ? "" : line;
             this.reminderUrl = reminderUrl;
+            this.id = id == null ? "" : id;
+        }
+
+        /** "📡 name" -> "name". */
+        String deviceName() {
+            String first = text.split("\n", 2)[0];
+            return first.startsWith("📡 ") ? first.substring(3) : first;
         }
     }
 
@@ -273,23 +289,7 @@ final class TelegramReplies {
         String keyboard = s.repKeyboard;
         String folded = normalize(query);
         if (folded.isEmpty()) return new Reply(s.searchHint, false, null, keyboard);
-        String[] words = folded.split(" ");
-        List<SearchEntry> entries = s.repSearch.get(repId);
-        List<SearchEntry> found = new ArrayList<>();
-        if (entries != null) {
-            for (SearchEntry e : entries) {
-                boolean all = true;
-                for (String w : words) {
-                    // As typed, or compacted ("000-111" finds "000111") - mirrors repSearchReply.
-                    String compact = w.replaceAll("[^\\p{L}\\p{N}]", "");
-                    if (!e.keys.contains(w) && (compact.isEmpty() || !e.keys.contains(compact))) {
-                        all = false;
-                        break;
-                    }
-                }
-                if (all) found.add(e);
-            }
-        }
+        List<SearchEntry> found = matchEntries(repId, query, s);
         if (found.isEmpty()) {
             String text = "🔎 لم أجد «" + quote(query) + "» بين أجهزتك";
             return new Reply(helpWhenNothing ? text + "\n\n" + s.repHelp : text, false, null, keyboard);
@@ -298,8 +298,142 @@ final class TelegramReplies {
         StringBuilder text = new StringBuilder("🔎 نتائج «" + quote(query) + "» (" + found.size() + "):");
         for (SearchEntry e : shown) text.append("\n\n").append(e.text);
         if (found.size() > 5) text.append("\n\n… و").append(found.size() - 5).append(" أخرى - اكتب اسمًا أدق");
-        String markup = whatsappMarkup(shown);
+        String markup = actionsMarkup(shown);
         return new Reply(withTime(text.toString(), s), false, null, markup != null ? markup : keyboard);
+    }
+
+    /** His devices whose keys hold every word (as typed, or compacted: "000-111" finds "000111"). */
+    static List<SearchEntry> matchEntries(String repId, String query, Snapshot s) {
+        List<SearchEntry> found = new ArrayList<>();
+        String folded = normalize(query);
+        List<SearchEntry> entries = s.repSearch.get(repId);
+        if (folded.isEmpty() || entries == null) return found;
+        String[] words = folded.split(" ");
+        for (SearchEntry e : entries) {
+            boolean all = true;
+            for (String w : words) {
+                String compact = w.replaceAll("[^\\p{L}\\p{N}]", "");
+                if (!e.keys.contains(w) && (compact.isEmpty() || !e.keys.contains(compact))) {
+                    all = false;
+                    break;
+                }
+            }
+            if (all) found.add(e);
+        }
+        return found;
+    }
+
+    /** One row per device: 💬 WhatsApp and ⚡ تفعيل - mirrors deviceActionsMarkup (TS). */
+    static String actionsMarkup(List<SearchEntry> entries) {
+        StringBuilder rows = new StringBuilder();
+        int count = 0;
+        for (SearchEntry e : entries) {
+            if (count >= 10) break;
+            StringBuilder row = new StringBuilder();
+            if (e.buttonUrl != null && e.buttonLabel != null) {
+                row.append("{\"text\":").append(jsonString(e.buttonLabel)).append(",\"url\":").append(jsonString(e.buttonUrl)).append("}");
+            }
+            String callback = activateCallback(e.id);
+            if (callback != null) {
+                String label = row.length() > 0 ? "⚡ تفعيل" : "⚡ تفعيل " + e.deviceName();
+                if (label.length() > 40) label = label.substring(0, 40);
+                if (row.length() > 0) row.append(',');
+                row.append("{\"text\":").append(jsonString(label)).append(",\"callback_data\":").append(jsonString(callback)).append("}");
+            }
+            if (row.length() == 0) continue;
+            if (count++ > 0) rows.append(',');
+            rows.append('[').append(row).append(']');
+        }
+        return count == 0 ? null : "{\"inline_keyboard\":[" + rows + "]}";
+    }
+
+    // ---- ⚡ تفعيل: device -> plan -> the price the customer pays the rep -> the operator ----
+
+    private static boolean fitsCallback(String data) {
+        return data.getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 64;
+    }
+
+    static String activateCallback(String accountId) {
+        if (accountId == null || accountId.isEmpty()) return null;
+        String data = "a:" + accountId;
+        return fitsCallback(data) ? data : null;
+    }
+
+    static SearchEntry findEntry(String repId, String accountId, Snapshot s) {
+        List<SearchEntry> entries = s == null ? null : s.repSearch.get(repId);
+        if (entries == null || accountId == null) return null;
+        for (SearchEntry e : entries) if (accountId.equals(e.id)) return e;
+        return null;
+    }
+
+    /** "⚡ تفعيل X" with one button per plan (callback "p:<id>:<plan>"). */
+    static Reply pickPlan(SearchEntry entry, Snapshot s) {
+        StringBuilder row = new StringBuilder();
+        for (String plan : s.plans) {
+            String data = "p:" + entry.id + ":" + plan;
+            if (!fitsCallback(data)) continue;
+            if (row.length() > 0) row.append(',');
+            row.append("{\"text\":").append(jsonString(plan)).append(",\"callback_data\":").append(jsonString(data)).append("}");
+        }
+        return new Reply("⚡ تفعيل " + entry.deviceName() + "\n" + entry.line.replaceFirst("^• ", "") + "\n\nاختر الباقة:", false, null,
+            row.length() == 0 ? s.repKeyboard : "{\"inline_keyboard\":[[" + row + "]]}");
+    }
+
+    /** "تفعيل محمد": one device -> its plans; several -> the results with their ⚡ buttons. */
+    static Reply activate(String repId, String text, Snapshot s) {
+        String query = afterCommand(text);
+        if (query.isEmpty()) return new Reply(s.activationHint, false, null, s.repKeyboard);
+        List<SearchEntry> found = matchEntries(repId, query, s);
+        if (found.size() == 1 && !found.get(0).id.isEmpty()) return pickPlan(found.get(0), s);
+        return search(repId, query, false, s);
+    }
+
+    static String priceQuestion(String plan, SearchEntry entry) {
+        return "💰 كم سيدفع الزبون لتفعيل " + plan + " - " + entry.deviceName() + "؟\nاكتب المبلغ فقط، مثلاً 15000 أو 50 دولار";
+    }
+
+    static final String FORCE_REPLY = "{\"force_reply\":true,\"input_field_placeholder\":\"المبلغ\"}";
+
+    /** An amount and its currency (أوقية unless دولار / سيفا is written). */
+    static final class Price {
+        final double amount;
+        final String currency;
+
+        Price(double amount, String currency) {
+            this.amount = amount;
+            this.currency = currency;
+        }
+
+        String label() {
+            java.text.DecimalFormat format = new java.text.DecimalFormat("#,##0.##", java.text.DecimalFormatSymbols.getInstance(Locale.ROOT));
+            String name = "USD".equals(currency) ? "دولار" : "SIFA".equals(currency) ? "سيفا" : "أوقية";
+            return format.format(amount) + " " + name;
+        }
+    }
+
+    static Price parsePrice(String text) {
+        String folded = normalize(text).replace(",", "").replace("٬", "");
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(\\d+(?:\\.\\d+)?)").matcher(folded);
+        if (!m.find()) return null;
+        double amount = Double.parseDouble(m.group(1));
+        if (!(amount > 0)) return null;
+        String currency = folded.contains("دولار") || folded.contains("$") || folded.contains("usd") ? "USD"
+            : folded.contains("سيفا") || folded.contains("sifa") || folded.contains("فرنك") ? "SIFA" : "MRU";
+        return new Price(amount, currency);
+    }
+
+    static String activationSent(String plan, SearchEntry entry, Price price) {
+        return "✅ أُرسل طلب تفعيل " + plan + " لـ " + entry.deviceName() + " بسعر " + price.label() + " إلى المسؤول - ينتظر موافقته.";
+    }
+
+    static String activationToOwner(String repName, String plan, SearchEntry entry, Price price) {
+        return "⚡ طلب تفعيل من المندوب " + repName + "\n" + entry.line.replaceFirst("^• ", "📡 ") + "\nالباقة: " + plan
+            + "\nيدفع الزبون للمندوب: " + price.label() + "\n\nهل توافق على السعر؟";
+    }
+
+    static String approvalButtons(String activationId) {
+        return "{\"inline_keyboard\":[[{\"text\":\"✅ موافق\",\"callback_data\":\"y:" + activationId
+            + "\"},{\"text\":\"❌ رفض\",\"callback_data\":\"n:" + activationId + "\"}]]}";
     }
 
     private static String withTime(String text, Snapshot s) {
@@ -331,6 +465,7 @@ final class TelegramReplies {
         if (kind == null) return search(repId, cleanText(text), true, s); // "محمد", "22212345"
         if ("search".equals(kind)) return search(repId, afterCommand(text), false, s);
         if ("payment".equals(kind) || "client".equals(kind)) return request(repId, kind, text, s);
+        if ("activate".equals(kind)) return activate(repId, text, s);
         if ("help".equals(kind)) return new Reply(s.repHelp, false, null, s.repKeyboard);
         Map<String, String> mine = s.reps.get(repId);
         String answer = mine == null ? null : mine.get(kind);

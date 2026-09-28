@@ -160,6 +160,48 @@ final class TelegramStore {
         return REPS.equals(bot) ? repsToken(context) : token(context);
     }
 
+    // ---- ⚡ تفعيل requests (TelegramReplyService) ----
+
+    private static final String KEY_ACT_PENDING = "actpend_";
+    private static final String KEY_ACT = "act_";
+    private static final long PENDING_MS = 30 * 60 * 1000L;
+
+    /** A rep chose device + plan and the bot now waits for his price: "accountId\nplan". */
+    static void setPendingActivation(Context context, String chatId, String accountId, String plan) {
+        prefs(context).edit().putString(KEY_ACT_PENDING + chatId, accountId + "\n" + plan + "\n" + System.currentTimeMillis()).commit();
+    }
+
+    /** {accountId, plan}, or null when none (or older than 30 minutes). */
+    static String[] pendingActivation(Context context, String chatId) {
+        String raw = prefs(context).getString(KEY_ACT_PENDING + chatId, null);
+        if (raw == null) return null;
+        String[] parts = raw.split("\n");
+        if (parts.length < 3) return null;
+        try {
+            if (System.currentTimeMillis() - Long.parseLong(parts[2]) > PENDING_MS) return null;
+        } catch (NumberFormatException broken) {
+            return null;
+        }
+        return new String[] {parts[0], parts[1]};
+    }
+
+    static void clearPendingActivation(Context context, String chatId) {
+        prefs(context).edit().remove(KEY_ACT_PENDING + chatId).commit();
+    }
+
+    /** A request waiting for the operator's ✅/❌ (JSON), by its short id. */
+    static void putActivation(Context context, String id, String json) {
+        prefs(context).edit().putString(KEY_ACT + id, json).commit();
+    }
+
+    static String activation(Context context, String id) {
+        return prefs(context).getString(KEY_ACT + id, null);
+    }
+
+    static void removeActivation(Context context, String id) {
+        prefs(context).edit().remove(KEY_ACT + id).commit();
+    }
+
     // ---- diagnostics shown in الإعدادات (never a token or message text) ----
 
     private static final String KEY_DIAG = "diag_";

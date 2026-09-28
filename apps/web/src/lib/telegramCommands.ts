@@ -52,6 +52,7 @@ import {
   repStoppedReply,
   formatMoneyShort,
   matchRepDevices,
+  REP_ACTIVATION_HINT,
   REP_CLIENT_HINT,
   REP_PAYMENT_HINT,
   REP_REQUEST_RECEIVED,
@@ -233,6 +234,9 @@ async function repReplyFor(repId: string, rep: Representative, command: RepComma
       return repStoppedReply(mine, clients);
     case "debts":
       return repDebtsReply(repId, all, loadLedgerStore(), clients);
+    case "activate":
+      // Normally answered by the background service (its buttons need it); this is the fallback.
+      return command.text ? repSearchReply(command.text, repSearchIndex(mine, clients, loadLedgerStore(), today), today) : { text: REP_ACTIVATION_HINT };
     case "payment":
       return { text: REP_PAYMENT_HINT };
     case "client":

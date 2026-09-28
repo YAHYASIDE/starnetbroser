@@ -48,11 +48,16 @@ public class TelegramRepliesTest {
         s.clientHint = "CLIENT HINT";
         s.requestReceived = "RECEIVED";
         s.requestNotice = "طلب من {rep}: «{text}»";
+        s.plans.add("ROM");
+        s.plans.add("Sis");
+        s.plans.add("100G");
+        s.activationHint = "ACT HINT";
+        s.repWords.put("تفعيل", "activate");
         s.repKeyboard = "KEYBOARD";
         s.searchHint = "HINT";
         java.util.List<TelegramReplies.SearchEntry> r1Devices = new java.util.ArrayList<>();
         r1Devices.add(new TelegramReplies.SearchEntry("مقهي النخيل محمد احمد 22212345678", "CARD1", "💬 محمد", "https://wa.me/22212345678",
-            "2026-09-28", "• مقهى - محمد", "https://wa.me/22212345678?text=renew"));
+            "2026-09-28", "• مقهى - محمد", "https://wa.me/22212345678?text=renew", "acc1"));
         r1Devices.add(new TelegramReplies.SearchEntry("منزل سالم", "CARD2", null, null, "2026-10-20", "• منزل", null));
         s.repSearch.put("r1", r1Devices);
         java.util.List<TelegramReplies.SearchEntry> r2Devices = new java.util.ArrayList<>();
@@ -133,7 +138,8 @@ public class TelegramRepliesTest {
         TelegramReplies.Reply byName = TelegramReplies.forRep("r1", "مُحمّد", snapshot());
         assertTrue(byName.text.startsWith("🔎 نتائج «مُحمّد» (1):\n\nCARD1"));
         assertFalse(byName.text.contains("OTHER"));
-        assertEquals("{\"inline_keyboard\":[[{\"text\":\"💬 محمد\",\"url\":\"https://wa.me/22212345678\"}]]}", byName.markup);
+        assertEquals("{\"inline_keyboard\":[[{\"text\":\"💬 محمد\",\"url\":\"https://wa.me/22212345678\"},"
+            + "{\"text\":\"⚡ تفعيل\",\"callback_data\":\"a:acc1\"}]]}", byName.markup);
         TelegramReplies.Reply byPhone = TelegramReplies.forRep("r1", "🔎 بحث ٢٢٢١٢", snapshot());
         assertTrue(byPhone.text.contains("CARD1"));
         TelegramReplies.Reply noButton = TelegramReplies.forRep("r1", "بحث سالم", snapshot());
@@ -178,6 +184,35 @@ public class TelegramRepliesTest {
         TelegramReplies.Reply client = TelegramReplies.forRep("r1", "زبون جديد محمد 22212345", snapshot());
         assertTrue(client.toInbox);
         assertEquals("RECEIVED", client.text);
+    }
+
+    @Test
+    public void activationFlow() {
+        TelegramReplies.Snapshot s = snapshot();
+        // "تفعيل محمد": exactly one device -> its plans.
+        TelegramReplies.Reply pick = TelegramReplies.forRep("r1", "⚡ تفعيل محمد", s);
+        assertTrue(pick.text.startsWith("⚡ تفعيل CARD1"));
+        assertEquals("{\"inline_keyboard\":[[{\"text\":\"ROM\",\"callback_data\":\"p:acc1:ROM\"},"
+            + "{\"text\":\"Sis\",\"callback_data\":\"p:acc1:Sis\"},{\"text\":\"100G\",\"callback_data\":\"p:acc1:100G\"}]]}", pick.markup);
+        assertEquals("ACT HINT", TelegramReplies.forRep("r1", "⚡ تفعيل", s).text);
+        // Search results carry ⚡ next to WhatsApp.
+        String markup = TelegramReplies.forRep("r1", "محمد", s).markup;
+        assertTrue(markup.contains("{\"text\":\"⚡ تفعيل\",\"callback_data\":\"a:acc1\"}"));
+        // Only his own devices.
+        assertNull(TelegramReplies.findEntry("r2", "acc1", s));
+        assertEquals("CARD1", TelegramReplies.findEntry("r1", "acc1", s).deviceName());
+    }
+
+    @Test
+    public void prices() {
+        assertEquals("15,000 أوقية", TelegramReplies.parsePrice("15000").label());
+        assertEquals("15,000 أوقية", TelegramReplies.parsePrice("١٥٬٠٠٠ أوقية").label());
+        assertEquals("50 دولار", TelegramReplies.parsePrice("50 دولار").label());
+        assertEquals("3,000 سيفا", TelegramReplies.parsePrice("3000 سيفا").label());
+        assertNull(TelegramReplies.parsePrice("بدون"));
+        assertNull(TelegramReplies.parsePrice("0"));
+        assertEquals("{\"inline_keyboard\":[[{\"text\":\"✅ موافق\",\"callback_data\":\"y:ab1\"},{\"text\":\"❌ رفض\",\"callback_data\":\"n:ab1\"}]]}",
+            TelegramReplies.approvalButtons("ab1"));
     }
 
     @Test

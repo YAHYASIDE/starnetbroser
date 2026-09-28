@@ -14,6 +14,8 @@ import type { LedgerByAccount } from "./ledgerStore";
 import type { RepresentativeStore, RepSettlementList } from "./repStore";
 import {
   REP_HELP,
+  REP_ACTIVATION_HINT,
+  REP_ACTIVATION_PLANS,
   REP_CLIENT_HINT,
   REP_KEYBOARD,
   REP_PAYMENT_HINT,
@@ -58,6 +60,9 @@ export interface TelegramReplySnapshot {
   requestReceived: string;
   /** To the operator when a rep sends a request with the app closed: "{rep}", "{text}". */
   requestNotice: string;
+  /** ⚡ تفعيل choices. */
+  plans: string[];
+  activationHint: string;
 }
 
 function pad(n: number): string {
@@ -131,5 +136,7 @@ export function buildReplySnapshot(input: {
     clientHint: REP_CLIENT_HINT,
     requestReceived: REP_REQUEST_RECEIVED,
     requestNotice: "📥 طلب من المندوب {rep}: «{text}»\nوافق عليه من صفحة المندوبين في التطبيق.",
+    plans: REP_ACTIVATION_PLANS,
+    activationHint: REP_ACTIVATION_HINT,
   };
 }

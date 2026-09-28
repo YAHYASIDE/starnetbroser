@@ -38,6 +38,8 @@ describe("buildReplySnapshot", () => {
     expect(snapshot.repSearch.r1!.map((e) => e.t.split("\n")[0])).toEqual(["📡 جهاز-سالم"]);
     expect(snapshot.repSearch.r2).toBeUndefined();
     expect(JSON.parse(snapshot.repKeyboard).keyboard).toHaveLength(5);
+    expect(snapshot.plans).toEqual(["ROM", "Sis", "100G"]);
+    expect(snapshot.repSearch.r1![0]!.i).toBe("جهاز-سالم");
     expect(snapshot.reps.r1!.name).toBe("سالم");
     expect(snapshot.repWords["دفعه"]).toBe("payment");
     expect(snapshot.requestNotice).toContain("{rep}");

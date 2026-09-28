@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { LedgerEntry } from "./ledgerStore";
 import type { Representative } from "./repStore";
 import {
+  deviceActionsMarkup,
   matchRepDevices,
   normalizeSearch,
   parseDayQuery,
@@ -120,6 +121,8 @@ describe("rep commands", () => {
     expect(parseRepCommand("استلمت 50 دولار من مقهى")).toEqual({ kind: "payment", text: "50 دولار من مقهى" });
     expect(parseRepCommand("➕ زبون جديد")).toEqual({ kind: "client", text: "" });
     expect(parseRepCommand("زبون جديد محمد 22212345")).toEqual({ kind: "client", text: "محمد 22212345" });
+    expect(parseRepCommand("⚡ تفعيل")).toEqual({ kind: "activate", text: "" });
+    expect(parseRepCommand("تفعيل محمد")).toEqual({ kind: "activate", text: "محمد" });
     // An email is searched whole - only a "/command@bot" loses its @name.
     expect(parseRepCommand("abdlkrim9113@gmail.com")).toEqual({ kind: "unknown", text: "abdlkrim9113@gmail.com" });
     expect(parseRepCommand("/start@starnet_reps_bot")).toEqual({ kind: "help" });
@@ -133,10 +136,10 @@ describe("rep shortcuts", () => {
     account("بلا زبون", "2026/09/29"),
   ];
 
-  it("keyboard has the nine buttons", () => {
+  it("keyboard has the ten buttons", () => {
     const keyboard = JSON.parse(REP_KEYBOARD);
     expect(keyboard.keyboard.flat().map((b: { text: string }) => b.text)).toEqual([
-      "📡 أجهزتي", "📅 تنتهي", "⛔ الموقوفة", "💰 ديون زبائني", "📊 كشفي", "📆 الأيام", "💵 دفعة", "➕ زبون جديد", "🔎 بحث",
+      "📡 أجهزتي", "📅 تنتهي", "⛔ الموقوفة", "💰 ديون زبائني", "📊 كشفي", "📆 الأيام", "💵 دفعة", "➕ زبون جديد", "⚡ تفعيل", "🔎 بحث",
     ]);
     expect(keyboard.is_persistent).toBe(true);
     // Every button parses back to its command.
@@ -163,7 +166,8 @@ describe("rep shortcuts", () => {
     expect(byClient.text).toContain("📅 التجديد: 2026/09/28 (بعد 1 يوم)");
     expect(byClient.text).toContain("الحالة: ⛔ موقوف");
     expect(repSearchReply("٢٢٢١٢", index).text).toContain("(2)");
-    expect(repSearchReply("بلا زبون", index).markup).toBeUndefined();
+    // No phone -> no WhatsApp button, only ⚡ تفعيل.
+    expect(repSearchReply("بلا زبون", index).markup).not.toContain("wa.me");
     expect(repSearchReply("علي", index).text).toBe("🔎 لم أجد «علي» بين أجهزتك");
     const byEmail = repSearchIndex([account("abdlkrim9113@gmail.com", "2026/10/24")], clients, {}, TODAY);
     expect(repSearchReply("abdlkrim9113@gmail.com", byEmail).text).toContain("(1)");
@@ -205,6 +209,18 @@ describe("rep shortcuts", () => {
     expect(days.text).not.toContain("منزل"); // 23 days away
     expect(JSON.parse(days.markup!).inline_keyboard).toHaveLength(1);
     expect(parseRepCommand("📆 الأيام")).toEqual({ kind: "days" });
+  });
+
+  it("⚡ تفعيل buttons next to WhatsApp, on the stopped list and search results", () => {
+    const stopped = JSON.parse(repStoppedReply(mine, clients).markup!).inline_keyboard;
+    expect(stopped[0]).toEqual([
+      expect.objectContaining({ text: "💬 محمد - منزل" }),
+      { text: "⚡ تفعيل", callback_data: "a:منزل" },
+    ]);
+    const found = JSON.parse(repSearchReply("بلا زبون", repSearchIndex(mine, clients, {}, TODAY)).markup!).inline_keyboard;
+    expect(found).toEqual([[{ text: "⚡ تفعيل بلا زبون", callback_data: "a:بلا زبون" }]]);
+    // An id too long for Telegram's 64-byte callback just gets no ⚡.
+    expect(deviceActionsMarkup([{ accountId: "x".repeat(70), name: "x" }])).toBeUndefined();
   });
 
   it("matchRepDevices finds the device a payment is about", () => {
