@@ -94,6 +94,7 @@ export function buildReplySnapshot(input: {
   promises?: PaymentPromise[];
   goals?: MonthlyGoals;
   adjustments?: PartyAdjustmentList;
+  cardBalanceUsd?: number;
 }): TelegramReplySnapshot {
   const summary = buildEveningSummary({ day: input.today, accounts: input.accounts, ledgerStore: input.ledgerStore, cash: input.cash });
   const reps: Record<string, Record<string, string>> = {};
@@ -132,7 +133,7 @@ export function buildReplySnapshot(input: {
       expiring: answerExpiring(input.accounts, input.clients, input.today),
       cash: answerCash(input.cash),
       summary: summary ? buildEveningTelegram(summary) : "لا توجد بيانات بعد",
-      forecast: forecastText(input.accounts, input.now),
+      forecast: forecastText(input.accounts, input.now, input.cardBalanceUsd),
       promises: promisesText(input.promises ?? [], input.today),
       lapsed: lapsedText(input.accounts, input.clients, input.now),
       health: healthText(input.accounts, input.clients, input.now),

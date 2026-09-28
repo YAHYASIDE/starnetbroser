@@ -1,3 +1,5 @@
+import type { PrintableDocument } from "./pdfDocument";
+
 /**
  * 🧾 عرض سعر - a price offer for a prospective customer (kit, months of service, shipping,
  * installation...), totalled per currency (never converted) and sent as a WhatsApp message.
@@ -67,4 +69,28 @@ export function buildQuoteMessage(quote: Quote, currencyLabel: (code: string) =>
   if (quote.note?.trim()) out.push("", quote.note.trim());
   out.push("", "- STAR NET");
   return out.join("\n");
+}
+
+/** The same offer as a printable PDF (عرض سعر). */
+export function buildQuotePdf(quote: Quote, currencyLabel: (code: string) => string, today: Date, phone?: string): PrintableDocument {
+  const lines = quote.lines.filter((l) => l.qty > 0 && l.label.trim());
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const until = new Date(today);
+  until.setDate(until.getDate() + (quote.validDays ?? 0));
+  const totals = quoteTotals(quote);
+  return {
+    title: "عرض سعر",
+    partyName: quote.customerName?.trim() || "زبون",
+    partyPhone: phone?.trim() || undefined,
+    subtitle: quote.validDays ? `صالح حتى ${pad(until.getDate())}/${pad(until.getMonth() + 1)}/${until.getFullYear()}` : undefined,
+    summary: Object.entries(totals).map(([code, amount]) => ({ label: `المجموع (${currencyLabel(code)})`, value: money(amount, currencyLabel(code)) })),
+    columns: ["البند", "الكمية", "سعر الوحدة", "المبلغ"],
+    rows: [
+      ...lines.map((l) => [l.label.trim(), String(l.qty), money(l.unitPrice, currencyLabel(l.currency)), money(l.qty * l.unitPrice, currencyLabel(l.currency))]),
+      ...Object.entries(quote.discount ?? {})
+        .filter(([, v]) => v > 0)
+        .map(([code, v]) => ["خصم", "", "", `-${money(v, currencyLabel(code))}`]),
+    ],
+    footerNote: quote.note?.trim() || undefined,
+  };
 }

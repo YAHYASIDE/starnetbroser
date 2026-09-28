@@ -14,7 +14,7 @@ import type { PartyAdjustmentList } from "./partyBalanceStore";
 import { computeGoalProgress, type MonthlyGoals } from "./goals";
 import type { LedgerByAccount } from "./ledgerStore";
 import { bucketPromises, type PaymentPromise } from "./paymentPromises";
-import { computeRenewalForecast } from "./renewalForecast";
+import { cardNeed, computeRenewalForecast } from "./renewalForecast";
 import { currencyLabel, money } from "./telegramMessages";
 import { listLapsedDevices } from "./winBack";
 
@@ -24,11 +24,21 @@ function dm(iso: string): string {
   return `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 }
 
-export function forecastText(accounts: StarlinkAccountSummary[], today: Date): string {
+export function forecastText(accounts: StarlinkAccountSummary[], today: Date, cardBalanceUsd?: number): string {
   const f = computeRenewalForecast(accounts, today, 30);
   if (f.devices.length === 0) return "📈 لا تجديدات خلال 30 يوماً";
   const lines = [`📈 توقعات 30 يوماً: ${f.devices.length} جهاز`, `💰 الدخل المتوقع: ${money(f.sale) || "0"}`];
   if (Object.keys(f.cost).length) lines.push(`💳 تكلفة Starlink: ${money(f.cost)}`);
+  if (cardBalanceUsd !== undefined) {
+    const card = cardNeed(f, cardBalanceUsd);
+    if (card.devices > 0) {
+      lines.push(
+        card.shortUsd > 0
+          ? `⚠️ البطاقة: تحتاج ${Math.round(card.needUsd)}$ خلال 7 أيام ورصيدها ${Math.round(card.balanceUsd)}$ - اشحنها بـ${Math.ceil(card.shortUsd)}$`
+          : `✓ البطاقة تكفي تجديدات 7 أيام (${Math.round(card.needUsd)}$ من ${Math.round(card.balanceUsd)}$)`,
+      );
+    }
+  }
   if (f.missingPrice) lines.push(`⚠️ ${f.missingPrice} جهاز بدون سعر شهري`);
   lines.push("");
   for (const week of f.weeks) {

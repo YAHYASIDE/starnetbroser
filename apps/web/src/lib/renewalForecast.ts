@@ -97,3 +97,16 @@ export function computeRenewalForecast(accounts: StarlinkAccountSummary[], today
   forecast.devices.sort((a, b) => a.days - b.days || a.name.localeCompare(b.name));
   return forecast;
 }
+
+/** 💳 What the Starlink card must cover for renewals in the next `days` (USD costs only - the card
+ * is in dollars) against its balance: positive `shortUsd` means top it up by that much. */
+export function cardNeed(forecast: RenewalForecast, balanceUsd: number, days = 7): { needUsd: number; balanceUsd: number; shortUsd: number; devices: number } {
+  let needUsd = 0;
+  let devices = 0;
+  for (const d of forecast.devices) {
+    if (d.days >= days || d.cost?.currency !== "USD") continue;
+    needUsd += d.cost.amount;
+    devices += 1;
+  }
+  return { needUsd, balanceUsd, shortUsd: Math.max(0, needUsd - balanceUsd), devices };
+}

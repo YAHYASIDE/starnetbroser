@@ -5,6 +5,7 @@
  * the data as it is on this phone right now. Texts and parsing are in telegramMessages.ts.
  */
 
+import { currentCardBalanceUsd } from "./starlinkDebt";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { listAccounts } from "./apiClient";
 import { loadCashEntries } from "./cashStore";
@@ -110,7 +111,7 @@ export async function answerTelegramCommand(text: string): Promise<void> {
       return;
     }
     case "forecast":
-      await sendTelegramText(forecastText(await loadAccounts(), new Date()));
+      await sendTelegramText(forecastText(await loadAccounts(), new Date(), currentCardBalanceUsd(loadLedgerStore())));
       return;
     case "promises":
       await sendTelegramText(promisesText(loadPromises(), today));
@@ -344,6 +345,7 @@ export async function refreshTelegramReplies(): Promise<void> {
     promises: loadPromises(),
     goals: loadGoals(),
     adjustments: loadPartyAdjustments(),
+    cardBalanceUsd: currentCardBalanceUsd(loadLedgerStore()),
   });
   await pushTelegramReplies(snapshot);
 }

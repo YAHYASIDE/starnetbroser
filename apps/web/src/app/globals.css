@@ -8327,3 +8327,20 @@ button.today-tile {
   text-align: center;
   font-weight: 700;
 }
+
+.tool-card-need {
+  margin: 0;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+}
+
+.tool-card-short {
+  background: var(--red-bg);
+  color: var(--red);
+}
+
+.tool-card-ok {
+  background: var(--green-bg);
+  color: var(--green);
+}

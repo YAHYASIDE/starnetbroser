@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { buildQuoteMessage, QUOTE_PRESETS, type QuoteLine, quoteTotals } from "@/lib/quote";
+import { PdfButton } from "@/components/PdfButton";
+import { buildQuoteMessage, buildQuotePdf, QUOTE_PRESETS, type QuoteLine, quoteTotals } from "@/lib/quote";
 import { buildWhatsAppLink } from "@/lib/whatsapp";
 import { currencyLabelFor, currencyOptions, moneyText, type ToolsData } from "./useToolsData";
 
@@ -102,6 +103,7 @@ export function QuoteTool({ data }: { data: ToolsData }) {
         ) : (
           <span className="settings-hint">اكتب رقم الواتساب لإرساله</span>
         )}
+        <PdfButton className="text-action" label="🖨️ PDF" build={() => buildQuotePdf(quote, label, new Date(), phone)} />
         <button type="button" className="text-action" onClick={() => void copy()}>
           {copied ? "✓ نُسخ" : "📋 نسخ"}
         </button>

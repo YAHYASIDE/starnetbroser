@@ -48,6 +48,8 @@ describe("owner bot insight commands", () => {
     expect(f).toContain("4,000 أوقية");
     expect(f).toContain("• 28/09-04/10: 1 جهاز");
     expect(forecastText([], today)).toContain("لا تجديدات");
+    expect(forecastText(accounts, today, 20)).toContain("⚠️ البطاقة: تحتاج 50$ خلال 7 أيام ورصيدها 20$ - اشحنها بـ30$");
+    expect(forecastText(accounts, today, 100)).toContain("✓ البطاقة تكفي");
     expect(lapsedText(accounts, clients, today)).toContain("• مقهى - محمد · منذ 8 يوماً · 22212345678");
   });
 

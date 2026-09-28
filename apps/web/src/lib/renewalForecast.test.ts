@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { DeviceStatus } from "@starnet/shared";
-import { computeRenewalForecast, parseRenewalDate } from "./renewalForecast";
+import { cardNeed, computeRenewalForecast, parseRenewalDate } from "./renewalForecast";
 
 const base: StarlinkAccountSummary = {
   id: "",
@@ -46,6 +46,9 @@ describe("renewal forecast", () => {
     expect(f.weeks.map((w) => w.count)).toEqual([1, 2, 0, 0, 0]);
     expect(f.weeks[0]).toMatchObject({ from: "2026-09-28", to: "2026-10-04", sale: { MRU: 4000 } });
     expect(f.weeks[4]!.to).toBe("2026-10-27");
+    expect(cardNeed(f, 30)).toEqual({ needUsd: 50, balanceUsd: 30, shortUsd: 20, devices: 1 });
+    expect(cardNeed(f, 30, 14).needUsd).toBe(100);
+    expect(cardNeed(f, 500).shortUsd).toBe(0);
   });
 
   it("parses both date spellings", () => {

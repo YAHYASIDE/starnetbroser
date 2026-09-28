@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { homeSearchHref } from "@/lib/homeActions";
-import { computeRenewalForecast } from "@/lib/renewalForecast";
+import { cardNeed, computeRenewalForecast } from "@/lib/renewalForecast";
+import { currentCardBalanceUsd } from "@/lib/starlinkDebt";
 import { currencyLabelFor, moneyText, type ToolsData } from "./useToolsData";
 
 const HORIZONS = [7, 30, 60, 90];
@@ -14,6 +15,7 @@ export function ForecastTool({ data }: { data: ToolsData }) {
   const forecast = useMemo(() => computeRenewalForecast(data.accounts, new Date(), horizon), [data.accounts, horizon]);
   const label = currencyLabelFor(data.currencies);
   const maxWeek = Math.max(1, ...forecast.weeks.map((w) => w.count));
+  const card = useMemo(() => cardNeed(computeRenewalForecast(data.accounts, new Date(), 7), currentCardBalanceUsd(data.ledger)), [data.accounts, data.ledger]);
   return (
     <div className="tool-body">
       <div className="tool-chips" role="tablist">
@@ -37,6 +39,19 @@ export function ForecastTool({ data }: { data: ToolsData }) {
           <strong>{moneyText(forecast.cost, label)}</strong>
         </div>
       </div>
+      {card.devices > 0 && (
+        <p className={`tool-card-need ${card.shortUsd > 0 ? "tool-card-short" : "tool-card-ok"}`}>
+          💳 بطاقة Starlink: تحتاج <bdi dir="ltr">{Math.round(card.needUsd)}$</bdi> لـ{card.devices} جهاز خلال 7 أيام، رصيدها <bdi dir="ltr">{Math.round(card.balanceUsd)}$</bdi>
+          {card.shortUsd > 0 ? (
+            <>
+              {" "}
+              - اشحنها بـ <bdi dir="ltr">{Math.ceil(card.shortUsd)}$</bdi>
+            </>
+          ) : (
+            " ✓ تكفي"
+          )}
+        </p>
+      )}
       {forecast.missingPrice > 0 && (
         <p className="settings-hint telegram-stopped">⚠️ {forecast.missingPrice} جهاز بدون سعر شهري - غير محسوب في الدخل. أضف السعر من «التفاصيل» في البطاقة.</p>
       )}
