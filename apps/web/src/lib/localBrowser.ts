@@ -8,6 +8,7 @@ import {
   STARLINK_ACCOUNT_HOME_URL,
   SessionStatus,
 } from "@starnet/local-browser-plugin";
+import type { StarlinkAccountSummary } from "@starnet/shared";
 import { SessionsByAccount } from "./accountBackup";
 import { markInternalLeave } from "./appLock";
 
@@ -41,7 +42,20 @@ export function isRunningInAndroidApp(): boolean {
   }
 }
 
-export async function openIsolatedAccountBrowser(accountId: string, accountName: string): Promise<OpenResult> {
+/** What the Starlink login form is filled with: the device's main email, and as the password its
+ * "كود الواي فاي" (the operator uses it as the Starlink password), else the email's own code. */
+export function starlinkLoginFor(account: Pick<StarlinkAccountSummary, "expectedEmail" | "wifiPassword" | "expectedEmailPassword">): StarlinkLogin {
+  const loginEmail = account.expectedEmail?.trim() || undefined;
+  const loginPassword = account.wifiPassword?.trim() || account.expectedEmailPassword?.trim() || undefined;
+  return { ...(loginEmail ? { loginEmail } : {}), ...(loginPassword ? { loginPassword } : {}) };
+}
+
+export interface StarlinkLogin {
+  loginEmail?: string;
+  loginPassword?: string;
+}
+
+export async function openIsolatedAccountBrowser(accountId: string, accountName: string, login: StarlinkLogin = {}): Promise<OpenResult> {
   if (!isRunningInAndroidApp()) {
     return { ok: false, message: ANDROID_ONLY_MESSAGE };
   }
@@ -54,7 +68,7 @@ export async function openIsolatedAccountBrowser(accountId: string, accountName:
     // The device browser is its own Activity - STAR NET going to the background for it must not
     // count as "left the app" for the PIN re-lock.
     markInternalLeave();
-    await LocalBrowser.openAccountBrowser({ accountId, accountName, url: STARLINK_ACCOUNT_HOME_URL });
+    await LocalBrowser.openAccountBrowser({ accountId, accountName, url: STARLINK_ACCOUNT_HOME_URL, ...login });
     return { ok: true };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : "تعذر فتح المتصفح المحلي" };

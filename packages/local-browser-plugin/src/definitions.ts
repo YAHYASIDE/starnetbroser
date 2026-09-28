@@ -13,6 +13,10 @@ export interface OpenAccountBrowserOptions {
   accountName: string;
   /** Defaults to STARLINK_ACCOUNT_HOME_URL when omitted. */
   url?: string;
+  /** Typed into the Starlink login form's empty email field (never submitted by itself). */
+  loginEmail?: string;
+  /** Typed into the Starlink login form's empty password field (never submitted by itself). */
+  loginPassword?: string;
 }
 
 export interface IsSupportedResult {

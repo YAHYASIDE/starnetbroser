@@ -191,6 +191,11 @@ public class LocalBrowserPlugin extends Plugin {
         intent.putExtra(AccountBrowserActivity.EXTRA_ACCOUNT_ID, accountId);
         intent.putExtra(AccountBrowserActivity.EXTRA_ACCOUNT_NAME, accountName);
         intent.putExtra(AccountBrowserActivity.EXTRA_URL, url);
+        // Optional login autofill (only ever typed into empty Starlink login fields, never logged).
+        String loginEmail = call.getString("loginEmail");
+        String loginPassword = call.getString("loginPassword");
+        if (loginEmail != null && !loginEmail.trim().isEmpty()) intent.putExtra(AccountBrowserActivity.EXTRA_LOGIN_EMAIL, loginEmail);
+        if (loginPassword != null && !loginPassword.isEmpty()) intent.putExtra(AccountBrowserActivity.EXTRA_LOGIN_PASSWORD, loginPassword);
         // A distinct Uri per account (never loaded/navigated to - AccountBrowserActivity only
         // ever reads EXTRA_URL for that) is what makes each account its own separate "document"
         // task in Recents (see documentLaunchMode="intoExisting" on this Activity in the

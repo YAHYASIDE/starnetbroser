@@ -52,6 +52,8 @@ public class AccountBrowserActivity extends AppCompatActivity {
     public static final String EXTRA_ACCOUNT_ID = "com.starnetbroser.localbrowser.ACCOUNT_ID";
     public static final String EXTRA_ACCOUNT_NAME = "com.starnetbroser.localbrowser.ACCOUNT_NAME";
     public static final String EXTRA_URL = "com.starnetbroser.localbrowser.URL";
+    public static final String EXTRA_LOGIN_EMAIL = "com.starnetbroser.localbrowser.LOGIN_EMAIL";
+    public static final String EXTRA_LOGIN_PASSWORD = "com.starnetbroser.localbrowser.LOGIN_PASSWORD";
 
     private static final String NOTIFICATION_PERMISSION_PREFS = "starnet_notification_permission";
     private static final String KEY_ASKED_NOTIFICATION_PERMISSION = "asked_post_notifications";
@@ -71,6 +73,8 @@ public class AccountBrowserActivity extends AppCompatActivity {
     private View errorOverlay;
     private String homeUrl;
     private String accountId;
+    /** The login form autofill script for this device (see LoginAutofill), or null. */
+    private String autofillScript;
 
     /** Non-null only while a multi-page "تحديث من Starlink" sync is in progress - each step polls
      * and runs the next one, so a null queue is also this class's "not currently syncing" flag. */
@@ -100,6 +104,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
         accountId = getIntent().getStringExtra(EXTRA_ACCOUNT_ID);
         String accountName = getIntent().getStringExtra(EXTRA_ACCOUNT_NAME);
         homeUrl = getIntent().getStringExtra(EXTRA_URL);
+        autofillScript = LoginAutofill.script(getIntent().getStringExtra(EXTRA_LOGIN_EMAIL), getIntent().getStringExtra(EXTRA_LOGIN_PASSWORD));
 
         // Defensive re-check: the plugin already verified this before
         // starting the Activity, but this screen must never silently fall
@@ -418,6 +423,13 @@ public class AccountBrowserActivity extends AppCompatActivity {
                 return true;
             }
             return false;
+        }
+
+        /** Fills the Starlink login form (only on the real Starlink site, only empty fields). */
+        @Override
+        public void onPageFinished(WebView view, String url) {
+            super.onPageFinished(view, url);
+            if (autofillScript != null && AllowedUrl.isAllowed(url)) view.evaluateJavascript(autofillScript, null);
         }
 
         @Override

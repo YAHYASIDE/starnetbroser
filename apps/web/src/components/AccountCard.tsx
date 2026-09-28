@@ -17,7 +17,7 @@ import { CurrencyStore, getCurrency, toUsd } from "@/lib/currencyStore";
 import { formatAmount } from "@/lib/formatAmount";
 import { PaymentAllocation } from "@/lib/paymentAllocationStore";
 import { Client } from "@/lib/clientStore";
-import { isRunningInAndroidApp, openIsolatedAccountBrowser, triggerImmediateSync } from "@/lib/localBrowser";
+import { isRunningInAndroidApp, openIsolatedAccountBrowser, starlinkLoginFor, triggerImmediateSync } from "@/lib/localBrowser";
 import {
   buildAccountStatementMessage,
   buildBalanceReminderMessage,
@@ -265,7 +265,7 @@ export function AccountCard({
     if (opening) return;
     setOpening(true);
     try {
-      const result = await openIsolatedAccountBrowser(account.id, account.name || "حساب Starlink");
+      const result = await openIsolatedAccountBrowser(account.id, account.name || "حساب Starlink", starlinkLoginFor(account));
       if (!result.ok) {
         window.alert(result.message);
       }
