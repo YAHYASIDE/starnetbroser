@@ -7775,7 +7775,7 @@ button.today-tile {
 
 .tools-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   margin: 12px 0;
 }
@@ -8210,4 +8210,99 @@ button.today-tile {
 .client-note-meta small {
   color: var(--text-muted);
   margin-inline-end: auto;
+}
+
+/* ✅ خطة اليوم / 💸 المصاريف */
+.plan-task {
+  grid-template-columns: auto minmax(0, 1fr) auto !important;
+  align-items: center;
+  gap: 10px !important;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+}
+
+.plan-task-body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.plan-task-done .plan-task-body {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+
+.plan-check {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 2px solid var(--border);
+  background: var(--surface);
+  color: var(--green);
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+}
+
+.plan-task-done .plan-check {
+  border-color: var(--green);
+  background: var(--green-bg);
+}
+
+.plan-kind {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  background: var(--gray-bg);
+  color: var(--gray);
+}
+
+.plan-kind-renewal {
+  background: var(--mint-bg);
+  color: var(--mint);
+}
+
+.plan-kind-promise {
+  background: var(--violet-bg);
+  color: var(--violet);
+}
+
+.plan-kind-debt {
+  background: var(--red-bg);
+  color: var(--red);
+}
+
+.plan-kind-winback {
+  background: var(--orange-bg);
+  color: var(--orange);
+}
+
+.tool-month {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.expense-row {
+  grid-template-columns: 90px minmax(0, 1fr) 64px !important;
+}
+
+.expense-value {
+  text-align: start;
+  font-weight: 600;
+}
+
+.today-plan-link {
+  margin-inline-start: auto;
+  margin-inline-end: 10px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--green-bg);
+  color: var(--green);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: none;
 }

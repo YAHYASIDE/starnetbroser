@@ -36,11 +36,13 @@ export interface DigestInput {
   owedByCurrency: Record<string, number>;
   now: Date;
   hour: number;
+  /** Open payment promises' due dates (yyyy-mm-dd) - that morning's due + overdue are counted. */
+  promiseDueDates?: string[];
 }
 
 /** The next DIGEST_DAYS mornings at `hour`:00 (starting today if that time hasn't passed yet),
  * each only when there's something to say. */
-export function buildMorningDigests({ accounts, owedByCurrency, now, hour }: DigestInput): DigestNotification[] {
+export function buildMorningDigests({ accounts, owedByCurrency, now, hour, promiseDueDates = [] }: DigestInput): DigestNotification[] {
   const active = accounts.filter((a) => !a.archivedAt && !a.deletedAt);
   const owedParts = Object.entries(owedByCurrency)
     .filter(([, v]) => v > 0.0001)
@@ -68,6 +70,9 @@ export function buildMorningDigests({ accounts, owedByCurrency, now, hour }: Dig
     if (today > 0) lines.push(`${today} جهاز ينتهي اليوم`);
     if (tomorrow > 0) lines.push(`${tomorrow} جهاز ينتهي غدًا`);
     if (expired > 0) lines.push(`${expired} جهاز منتهي`);
+    const day = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}-${String(at.getDate()).padStart(2, "0")}`;
+    const promisesDue = promiseDueDates.filter((d) => d <= day).length;
+    if (promisesDue > 0) lines.push(`${promisesDue} وعد دفع مستحق`);
     if (owedParts.length > 0) lines.push(`ديون مستحقة: ${owedParts.join(" + ")}`);
     if (lines.length === 0) continue;
     result.push({

@@ -1,5 +1,6 @@
 "use client";
 
+import { loadPromises } from "./paymentPromises";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { isRunningInAndroidApp } from "./localBrowser";
@@ -65,7 +66,8 @@ export async function rescheduleMorningDigests(
       permission = await LocalNotifications.requestPermissions();
     }
     if (permission.display !== "granted") return;
-    const digests = buildMorningDigests({ accounts, owedByCurrency, now: new Date(), hour: getMorningDigestHour() });
+    const promiseDueDates = loadPromises().filter((p) => p.status === "open").map((p) => p.dueDate);
+    const digests = buildMorningDigests({ accounts, owedByCurrency, now: new Date(), hour: getMorningDigestHour(), promiseDueDates });
     if (digests.length === 0) return;
     await LocalNotifications.schedule({
       notifications: digests.map((d) => ({

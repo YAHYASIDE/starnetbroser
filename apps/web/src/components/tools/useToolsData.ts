@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { listAccounts } from "@/lib/apiClient";
+import { CashEntryList, loadCashEntries } from "@/lib/cashStore";
+import { InvoiceList, loadInvoices } from "@/lib/invoiceStore";
+import { loadPartyAdjustments, PartyAdjustmentList } from "@/lib/partyBalanceStore";
 import { ClientStore, loadClientStore } from "@/lib/clientStore";
 import { CurrencyStore, listCurrencies, loadCurrencyStore } from "@/lib/currencyStore";
 import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
@@ -17,6 +20,9 @@ export interface ToolsData {
   ledger: LedgerByAccount;
   currencies: CurrencyStore;
   reps: RepresentativeStore;
+  invoices: InvoiceList;
+  adjustments: PartyAdjustmentList;
+  cash: CashEntryList;
   loaded: boolean;
   /** Saves edited devices (phone-only data mode); false when they live on a server. */
   saveAccounts: (accounts: StarlinkAccountSummary[]) => boolean;
@@ -24,9 +30,17 @@ export interface ToolsData {
 
 /** Everything the tools read - loaded once from the phone's stores (never written here). */
 export function useToolsData(): ToolsData {
-  const [data, setData] = useState<Omit<ToolsData, "saveAccounts">>({ accounts: [], clients: {}, ledger: {}, currencies: {}, reps: {}, loaded: false });
+  const [data, setData] = useState<Omit<ToolsData, "saveAccounts">>({ accounts: [], clients: {}, ledger: {}, currencies: {}, reps: {}, invoices: [], adjustments: [], cash: [], loaded: false });
   useEffect(() => {
-    const rest = { clients: loadClientStore(), ledger: loadLedgerStore(), currencies: loadCurrencyStore(), reps: loadRepresentativeStore() };
+    const rest = {
+      clients: loadClientStore(),
+      ledger: loadLedgerStore(),
+      currencies: loadCurrencyStore(),
+      reps: loadRepresentativeStore(),
+      invoices: loadInvoices(),
+      adjustments: loadPartyAdjustments(),
+      cash: loadCashEntries(),
+    };
     if (isDemoMode()) {
       setData({ ...rest, accounts: loadDemoAccounts(demoAccounts), loaded: true });
       return;

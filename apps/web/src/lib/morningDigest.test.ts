@@ -34,4 +34,10 @@ describe("buildMorningDigests", () => {
     const list = buildMorningDigests({ accounts: [acc("a", "2026/12/30")], owedByCurrency: {}, now, hour: 8 });
     expect(list).toEqual([]);
   });
+
+  it("counts payment promises due that morning (and still open ones from before)", () => {
+    const list = buildMorningDigests({ accounts: [], owedByCurrency: {}, now, hour: 8, promiseDueDates: ["2026-09-24", "2026-09-27"] });
+    expect(list[0]!.body).toBe("1 وعد دفع مستحق");
+    expect(list[1]!.body).toBe("2 وعد دفع مستحق");
+  });
 });

@@ -47,6 +47,9 @@ export function TodayPanel({
     <section className="today-panel" aria-label="اليوم">
       <div className="today-head">
         <strong>📅 اليوم</strong>
+        <Link href="/tools#today" className="today-plan-link">
+          ✅ خطة اليوم
+        </Link>
         <span dir="ltr">{todayIso}</span>
       </div>
       <div className="today-tiles">

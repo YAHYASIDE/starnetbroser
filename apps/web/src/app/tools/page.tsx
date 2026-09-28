@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { CalculatorTool } from "@/components/tools/CalculatorTool";
 import { DataHealthTool } from "@/components/tools/DataHealthTool";
+import { ExpensesTool } from "@/components/tools/ExpensesTool";
+import { TodayPlanTool } from "@/components/tools/TodayPlanTool";
 import { ForecastTool } from "@/components/tools/ForecastTool";
 import { GoalsTool } from "@/components/tools/GoalsTool";
 import { PromisesTool } from "@/components/tools/PromisesTool";
@@ -11,6 +13,7 @@ import { useToolsData } from "@/components/tools/useToolsData";
 import { WinBackTool } from "@/components/tools/WinBackTool";
 
 const TOOLS = [
+  { id: "today", icon: "✅", label: "خطة اليوم", hint: "كل ما يستحق المتابعة اليوم في قائمة واحدة" },
   { id: "forecast", icon: "📈", label: "التوقعات", hint: "دخل التجديدات القادمة" },
   { id: "promises", icon: "🤝", label: "وعود الدفع", hint: "من وعد بالدفع ومتى" },
   { id: "winback", icon: "🔁", label: "الاسترجاع", hint: "زبائن توقفوا عن التجديد" },
@@ -18,18 +21,19 @@ const TOOLS = [
   { id: "health", icon: "🩺", label: "فحص البيانات", hint: "نواقص وتكرارات" },
   { id: "calculator", icon: "🧮", label: "حاسبة الربح", hint: "كم أربح بهذا السعر؟" },
   { id: "quote", icon: "🧾", label: "عرض سعر", hint: "لزبون جديد عبر واتساب" },
+  { id: "expenses", icon: "💸", label: "المصاريف", hint: "مصاريفك حسب الفئة مقارنة بالشهر السابق" },
 ] as const;
 
 type ToolId = (typeof TOOLS)[number]["id"];
 
 function toolFromHash(): ToolId {
   const hash = typeof window === "undefined" ? "" : window.location.hash.slice(1);
-  return (TOOLS.find((t) => t.id === hash)?.id ?? "forecast") as ToolId;
+  return (TOOLS.find((t) => t.id === hash)?.id ?? "today") as ToolId;
 }
 
 export default function ToolsPage() {
   const data = useToolsData();
-  const [tool, setTool] = useState<ToolId>("forecast");
+  const [tool, setTool] = useState<ToolId>("today");
   useEffect(() => {
     setTool(toolFromHash());
     const onHash = () => setTool(toolFromHash());
@@ -64,6 +68,10 @@ export default function ToolsPage() {
         <p className="settings-hint">{current.hint}</p>
         {!data.loaded ? (
           <p className="settings-hint">جارِ التحميل…</p>
+        ) : tool === "today" ? (
+          <TodayPlanTool data={data} />
+        ) : tool === "expenses" ? (
+          <ExpensesTool data={data} />
         ) : tool === "forecast" ? (
           <ForecastTool data={data} />
         ) : tool === "promises" ? (
