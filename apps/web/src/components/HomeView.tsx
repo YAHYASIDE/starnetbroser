@@ -1059,6 +1059,26 @@ export function HomeView({
         </div>
       </header>
 
+      <nav className="home-shortcuts" aria-label="اختصارات">
+        <Link href="/tools#today" className="home-shortcut">
+          <span aria-hidden="true">✅</span>
+          خطة اليوم
+        </Link>
+        <Link href="/tools#pay" className="home-shortcut">
+          <span aria-hidden="true">💵</span>
+          دفعة سريعة
+        </Link>
+        <Link href="/tools#promises" className="home-shortcut">
+          <span aria-hidden="true">🤝</span>
+          الوعود
+          {duePromiseCount > 0 && <b className="home-shortcut-badge">{duePromiseCount}</b>}
+        </Link>
+        <Link href="/tools" className="home-shortcut">
+          <span aria-hidden="true">🧰</span>
+          الأدوات
+        </Link>
+      </nav>
+
       {updateAvailable && (
         <a href={APK_DOWNLOAD_URL} target="_blank" rel="noreferrer" className="backup-banner update-banner">
           <span aria-hidden="true">🆕</span>

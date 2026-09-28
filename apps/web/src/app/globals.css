@@ -8378,3 +8378,44 @@ button.today-tile {
 .guide-list li:last-child {
   border-bottom: 0;
 }
+
+/* ⚡ Home shortcuts */
+.home-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin: 4px 0 10px;
+}
+
+.home-shortcut {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 8px 2px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.home-shortcut span {
+  font-size: 1.1rem;
+}
+
+.home-shortcut-badge {
+  position: absolute;
+  top: 4px;
+  inset-inline-start: 6px;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--red);
+  color: #fff;
+  font-size: 0.65rem;
+  line-height: 18px;
+  text-align: center;
+}
