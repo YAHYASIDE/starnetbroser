@@ -170,7 +170,9 @@ final class TelegramReplies {
             for (SearchEntry e : entries) {
                 boolean all = true;
                 for (String w : words) {
-                    if (!e.keys.contains(w)) {
+                    // As typed, or compacted ("000-111" finds "000111") - mirrors repSearchReply.
+                    String compact = w.replaceAll("[^\\p{L}\\p{N}]", "");
+                    if (!e.keys.contains(w) && (compact.isEmpty() || !e.keys.contains(compact))) {
                         all = false;
                         break;
                     }

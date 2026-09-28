@@ -132,6 +132,8 @@ public class TelegramRepliesTest {
         assertTrue(noButton.text.contains("CARD2"));
         assertEquals("KEYBOARD", noButton.markup);
         assertEquals("HINT", TelegramReplies.forRep("r1", "🔎 بحث", snapshot()).text);
+        // Numbers typed with dashes/spaces match the compacted keys.
+        assertTrue(TelegramReplies.forRep("r1", "222-12-345", snapshot()).text.contains("CARD1"));
         // Typed spelling variants fold to the same word.
         assertTrue(TelegramReplies.forRep("r1", "أجهزتي", snapshot()).text.startsWith("R1 DEVICES"));
         assertEquals("🔎 لم أجد «علي» بين أجهزتك", TelegramReplies.forRep("r1", "بحث علي", snapshot()).text);

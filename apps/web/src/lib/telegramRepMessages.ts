@@ -370,11 +370,34 @@ export function repSearchIndex(accounts: StarlinkAccountSummary[], clients: Clie
       `📅 التجديد: ${account.rechargeDate || "—"}${days === null ? "" : days < 0 ? ` (انتهى منذ ${-days} يوم)` : ` (بعد ${days} يوم)`}`,
       `الحالة: ${statusLabel(account)}`,
       owed ? `💰 عليه: ${owed}` : "💰 لا دين عليه",
+      ...(account.kitNumber || account.serialNumber
+        ? [`🔢 ${[account.kitNumber && `KIT: ${account.kitNumber}`, account.serialNumber && `SN: ${account.serialNumber}`].filter(Boolean).join(" · ")}`]
+        : []),
+      ...(account.accountNumber || account.subscriptionId
+        ? [`🧾 ${[account.accountNumber, account.subscriptionId].filter(Boolean).join(" · ")}`]
+        : []),
+    ];
+    const identifiers = [
+      phoneDigits,
+      account.kitNumber,
+      account.serialNumber,
+      account.accountNumber ?? "",
+      account.subscriptionId ?? "",
+      account.starlinkId ?? "",
     ];
     const target = whatsappTarget(account, clients, (name) => `مرحبًا ${name}،\n\n- STAR NET`);
     return {
+      // Readable text for names/emails, plus every number compacted (no dashes or spaces) so
+      // "KIT-000 111", "kit000111" and "000111" all find the same kit.
       k: normalizeSearch(
-        [account.name, client?.name ?? "", phoneDigits, account.kitNumber, account.serialNumber, account.expectedEmail ?? "", account.starlinkAccountEmail ?? ""].join(" "),
+        [
+          account.name,
+          client?.name ?? "",
+          account.expectedEmail ?? "",
+          account.starlinkAccountEmail ?? "",
+          ...identifiers,
+          ...identifiers.map(compactSearch),
+        ].join(" "),
       ),
       t: lines.join("\n"),
       ...(target ? { l: target.label, w: target.url } : {}),
@@ -382,14 +405,22 @@ export function repSearchIndex(accounts: StarlinkAccountSummary[], clients: Clie
   });
 }
 
-export const REP_SEARCH_HINT = "🔎 اكتب اسم الزبون أو الجهاز أو رقم الهاتف، مثلاً: محمد";
+export const REP_SEARCH_HINT = "🔎 اكتب جزءاً من اسم الزبون أو الجهاز أو الإيميل، أو رقم الهاتف أو KIT أو رقم الحساب - مثلاً: محمد أو 4521";
+
+/** Folded, with everything but letters and digits removed ("KIT-000 111" -> "kit000111"). */
+export function compactSearch(text: string): string {
+  return normalizeSearch(text).replace(/[^\p{L}\p{N}]/gu, "");
+}
 const MAX_RESULTS = 5;
 
 /** Every word of the query must appear in the device's keys. Mirrors TelegramReplies.search. */
 export function repSearchReply(query: string, index: RepSearchEntry[]): RepReply {
   const words = normalizeSearch(query).split(" ").filter(Boolean);
   if (words.length === 0) return { text: REP_SEARCH_HINT };
-  const found = index.filter((entry) => words.every((word) => entry.k.includes(word)));
+  // A word matches as typed, or compacted ("000-111" finds "000111").
+  const found = index.filter((entry) =>
+    words.every((word) => entry.k.includes(word) || (compactSearch(word) !== "" && entry.k.includes(compactSearch(word)))),
+  );
   if (found.length === 0) return { text: `🔎 لم أجد «${query.slice(0, 40)}» بين أجهزتك` };
   const shown = found.slice(0, MAX_RESULTS);
   const text = [

@@ -159,7 +159,18 @@ describe("rep shortcuts", () => {
     const byEmail = repSearchIndex([account("abdlkrim9113@gmail.com", "2026/10/24")], clients, {}, TODAY);
     expect(repSearchReply("abdlkrim9113@gmail.com", byEmail).text).toContain("(1)");
     expect(repSearchReply("abdlkrim", byEmail).text).toContain("(1)");
-    expect(repSearchReply("  ", index).text).toContain("اكتب اسم الزبون");
+    // Kit / serial / account numbers, with or without dashes and spaces; part of a name.
+    const kit = repSearchIndex(
+      [account("منزل الشيخ", "2026/10/24", { kitNumber: "KIT-4521 88", serialNumber: "SN77", accountNumber: "ACC-DF-1562", clientId: "c1" })],
+      clients, {}, TODAY,
+    );
+    for (const q of ["4521", "kit452188", "KIT-4521 88", "4521-88", "sn77", "acc-df", "1562", "الشي", "محم"]) {
+      expect(repSearchReply(q, kit).text, q).toContain("(1)");
+    }
+    expect(repSearchReply("4521", kit).text).toContain("🔢 KIT: KIT-4521 88 · SN: SN77");
+    expect(repSearchReply("4521", kit).text).toContain("🧾 ACC-DF-1562");
+    expect(repSearchReply("9999", kit).text).toContain("لم أجد");
+    expect(repSearchReply("  ", index).text).toContain("اكتب جزءاً من اسم الزبون");
   });
 
   it("folding matches the Java service", () => {
