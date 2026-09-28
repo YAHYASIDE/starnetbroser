@@ -140,7 +140,7 @@ export function buildReplySnapshot(input: {
       forecast: forecastText(input.accounts, input.now, input.cardBalanceUsd),
       promises: promisesText(input.promises ?? [], input.today),
       lapsed: lapsedText(input.accounts, input.clients, input.now),
-      health: healthText(input.accounts, input.clients, input.now),
+      health: healthText(input.accounts, input.clients, input.now, input.ledgerStore),
       goals: goalsText(input.goals ?? {}, input.today, input.ledgerStore, input.clients),
       plan: planText({
         accounts: input.accounts,

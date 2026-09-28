@@ -8,7 +8,9 @@
 
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import type { ClientStore } from "./clientStore";
+import { computeShipmentProfit } from "./accountingStore";
 import { emailsMismatch } from "./emailMatch";
+import type { LedgerByAccount } from "./ledgerStore";
 
 export type HealthSeverity = "high" | "medium" | "low";
 
@@ -23,7 +25,9 @@ export type HealthIssueKind =
   | "never-synced"
   | "stale-sync"
   | "limited-access"
-  | "client-no-phone";
+  | "client-no-phone"
+  | "loss-shipment"
+  | "duplicate-client-phone";
 
 export interface HealthItem {
   /** The device, when the issue is about one. */
@@ -53,6 +57,8 @@ const META: Record<HealthIssueKind, { severity: HealthSeverity; title: string; h
   "stale-sync": { severity: "low", title: "آخر مزامنة قديمة", hint: "بياناته قد لا تكون حديثة" },
   "limited-access": { severity: "low", title: "إيميل بصلاحيات محدودة", hint: "لا يعرض الفوترة - اطلب من الزبون صلاحيات كاملة" },
   "client-no-phone": { severity: "medium", title: "زبون بدون هاتف", hint: "أضف رقمه لتصله التذكيرات والكشوف" },
+  "loss-shipment": { severity: "high", title: "شحنة بخسارة (آخر 90 يوماً)", hint: "بيعت بأقل من تكلفة Starlink - غالباً خطأ في المبلغ أو سعر الصرف" },
+  "duplicate-client-phone": { severity: "medium", title: "زبونان بنفس الهاتف", hint: "غالباً نفس الزبون مسجل مرتين - ادمج أجهزته في زبون واحد" },
 };
 
 const SEVERITY_ORDER: Record<HealthSeverity, number> = { high: 0, medium: 1, low: 2 };
@@ -74,6 +80,8 @@ export interface HealthOptions {
   now?: Date;
   /** A sync older than this many days counts as stale. */
   staleDays?: number;
+  /** With the ledger, settled shipments sold below cost in the last 90 days are flagged. */
+  ledger?: LedgerByAccount;
 }
 
 export function checkDataHealth(accounts: StarlinkAccountSummary[], clients: ClientStore, options: HealthOptions = {}): HealthIssue[] {
@@ -120,6 +128,26 @@ export function checkDataHealth(accounts: StarlinkAccountSummary[], clients: Cli
   }
   for (const [kit, list] of byKit) {
     if (list.length > 1) for (const account of list) push("duplicate-kit", item(account, kit));
+  }
+  if (options.ledger) {
+    const since = new Date(now.getTime() - 90 * 86_400_000).toISOString().slice(0, 10);
+    for (const account of active) {
+      for (const entry of options.ledger[account.id] ?? []) {
+        if (entry.kind !== "debit" || entry.date < since) continue;
+        const profit = computeShipmentProfit(entry);
+        if (profit.status === "computed" && profit.profitUsd !== undefined && profit.profitUsd < -0.5) {
+          push("loss-shipment", item(account, `${entry.date} · خسارة ${Math.round(-profit.profitUsd)}$`));
+        }
+      }
+    }
+  }
+  const byPhone = new Map<string, string[]>();
+  for (const client of Object.values(clients)) {
+    const phone = digits(client.phone).slice(-8);
+    if (phone.length === 8) byPhone.set(phone, [...(byPhone.get(phone) ?? []), client.id]);
+  }
+  for (const ids of byPhone.values()) {
+    if (ids.length > 1) for (const id of ids) push("duplicate-client-phone", { clientId: id, label: clients[id]!.name, detail: clients[id]!.phone });
   }
   const clientsWithDevices = new Set(active.map((a) => a.clientId).filter(Boolean));
   for (const client of Object.values(clients)) {

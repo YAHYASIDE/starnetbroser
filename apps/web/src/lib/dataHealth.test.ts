@@ -61,4 +61,19 @@ describe("data health", () => {
     expect(healthScore(accounts, issues)).toBe(25); // only D is clean of high/medium
     expect(healthScore([], [])).toBe(100);
   });
+
+  it("flags recent loss-making shipments and two clients sharing a phone", () => {
+    const now2 = new Date("2026-09-28T12:00:00Z");
+    const ledger = {
+      a: [
+        { id: "l1", kind: "debit", amount: 40, currency: "USD", note: "", email: "", date: "2026-09-10", createdAt: "x", starlinkCost: { status: "settled", currencyCode: "USD", amount: 50 } },
+        { id: "l2", kind: "debit", amount: 40, currency: "USD", note: "", email: "", date: "2026-01-10", createdAt: "x", starlinkCost: { status: "settled", currencyCode: "USD", amount: 50 } },
+        { id: "l3", kind: "debit", amount: 60, currency: "USD", note: "", email: "", date: "2026-09-12", createdAt: "x", starlinkCost: { status: "settled", currencyCode: "USD", amount: 50 } },
+      ],
+    } as never;
+    const twins = { ...clients, c3: { id: "c3", name: "محمد 2", phone: "+222 1234 5678", createdAt: now, updatedAt: now } };
+    const found = checkDataHealth([acc({ id: "a", name: "A", clientId: "c1", rechargeDate: "2026/10/01" })], twins, { now: now2, ledger });
+    expect(found.find((i) => i.kind === "loss-shipment")!.items).toEqual([{ accountId: "a", clientId: "c1", label: "A", detail: "2026-09-10 · خسارة 10$" }]);
+    expect(found.find((i) => i.kind === "duplicate-client-phone")!.items.map((i) => i.clientId)).toEqual(["c1", "c3"]);
+  });
 });

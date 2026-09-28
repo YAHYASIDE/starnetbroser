@@ -49,7 +49,7 @@ export function TodayPlanTool({ data }: { data: ToolsData }) {
       clients: data.clients,
       promises: loadPromises(),
       debtors,
-      issues: checkDataHealth(data.accounts, data.clients),
+      issues: checkDataHealth(data.accounts, data.clients, { ledger: data.ledger }),
       today,
       currencyLabel: currencyLabelFor(data.currencies),
     });

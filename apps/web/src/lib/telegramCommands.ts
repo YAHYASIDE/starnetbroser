@@ -121,7 +121,7 @@ export async function answerTelegramCommand(text: string): Promise<void> {
       await sendTelegramText(lapsedText(await loadAccounts(), loadClientStore(), new Date()));
       return;
     case "health":
-      await sendTelegramText(healthText(await loadAccounts(), loadClientStore(), new Date()));
+      await sendTelegramText(healthText(await loadAccounts(), loadClientStore(), new Date(), loadLedgerStore()));
       return;
     case "goals":
       await sendTelegramText(goalsText(loadGoals(), today, loadLedgerStore(), loadClientStore()));

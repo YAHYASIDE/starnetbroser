@@ -68,8 +68,8 @@ export function lapsedText(accounts: StarlinkAccountSummary[], clients: ClientSt
   return out.join("\n");
 }
 
-export function healthText(accounts: StarlinkAccountSummary[], clients: ClientStore, now: Date): string {
-  const issues = checkDataHealth(accounts, clients, { now });
+export function healthText(accounts: StarlinkAccountSummary[], clients: ClientStore, now: Date, ledger?: LedgerByAccount): string {
+  const issues = checkDataHealth(accounts, clients, { now, ledger });
   const score = healthScore(accounts, issues);
   if (issues.length === 0) return "🩺 بياناتك سليمة 100% ✓";
   const icon = { high: "🔴", medium: "🟠", low: "⚪" } as const;
@@ -112,7 +112,7 @@ export function planText(input: {
     clients: input.clients,
     promises: input.promises,
     debtors,
-    issues: checkDataHealth(input.accounts, input.clients, { now: input.now }),
+    issues: checkDataHealth(input.accounts, input.clients, { now: input.now, ledger: input.ledger }),
     today: input.today,
     currencyLabel,
   });
