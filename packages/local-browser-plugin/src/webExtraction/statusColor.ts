@@ -43,6 +43,12 @@ export function statusFromComputedColor(colorValue: string | null | undefined): 
 
 function parseRgb(value: string | null | undefined): { r: number; g: number; b: number } | null {
   if (!value) return null;
+  // An SVG `fill="#e5484d"` attribute (never computed into rgb() by the page itself).
+  const hex = value.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (hex) {
+    const h = hex[1]!.length === 3 ? hex[1]!.split("").map((c) => c + c).join("") : hex[1]!;
+    return { r: parseInt(h.slice(0, 2), 16), g: parseInt(h.slice(2, 4), 16), b: parseInt(h.slice(4, 6), 16) };
+  }
   const match = value.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
   if (!match) return null;
   return { r: Number(match[1]), g: Number(match[2]), b: Number(match[3]) };

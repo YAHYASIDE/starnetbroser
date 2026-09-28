@@ -4,8 +4,9 @@ import { showsRestriction } from "@/lib/reminders";
 import { PromiseQuickSheet } from "./PromiseQuickSheet";
 import { useEffect, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
-import { presentStatus, presentServiceStatus, effectiveServiceStatus, isBalanceDueZero, planBadgeLabel, cleanPlanName } from "@/lib/status";
+import { presentServiceStatus, effectiveServiceStatus, isBalanceDueZero, planBadgeLabel, cleanPlanName } from "@/lib/status";
 import { countryFlag, countryFromIso2 } from "@/lib/countryCurrencies";
+import { connectionDot, connectionMessage } from "@/lib/deviceConnection";
 import { daysRemainingLabel, daysRemainingNumber, formatRelativeTime } from "@/lib/date";
 import { emailsMismatch } from "@/lib/emailMatch";
 import { computeBalanceByCurrency, LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerEntry } from "@/lib/ledgerStore";
@@ -88,13 +89,6 @@ interface Props {
     settleFromCard: boolean | null,
   ) => void;
 }
-
-const STATUS_TILE_CLASS: Record<string, string> = {
-  "dot-green": "mini-status-green",
-  "dot-yellow": "mini-status-yellow",
-  "dot-red": "mini-status-red",
-  "dot-gray": "mini-status-gray",
-};
 
 /** First letter of the first two words (e.g. "محمد لمين" -> "م ل") - never more than that, so a
  * long name never overflows the small avatar circle. */
@@ -204,10 +198,10 @@ export function AccountCard({
   onAddPreviousDebt,
 }: Props) {
   const ledgerBalances = computeBalanceByCurrency(ledgerEntries);
-  const dish = presentStatus(account.dishStatus);
-  const wifi = presentStatus(account.wifiStatus);
   const serviceStatus = presentServiceStatus(effectiveServiceStatus(account));
   const deviceCountry = countryFromIso2(account.serviceCountry);
+  const dishDot = connectionDot(account.dishStatus);
+  const wifiDot = connectionDot(account.wifiStatus);
   const planName = cleanPlanName(account.planName);
   const planBadge = planName ? (planBadgeLabel(planName) ?? planName) : undefined;
   const lastSynced = formatRelativeTime(account.lastSuccessfulScanAt);
@@ -376,6 +370,9 @@ export function AccountCard({
             >
               كشف الحساب بالتفاصيل
             </button>
+            <button type="button" role="menuitem" onClick={() => openWhatsApp(connectionMessage(client?.name, account))}>
+              📡 حالة الجهاز الآن (متصل؟)
+            </button>
             <button type="button" role="menuitem" onClick={() => openWhatsApp(buildDeviceInfoMessage(account))}>
               معلومات الجهاز الكاملة
             </button>
@@ -520,11 +517,11 @@ export function AccountCard({
             {countryFlag(account.serviceCountry)} {deviceCountry.country}
           </span>
         )}
-        <span className={`mini-status ${STATUS_TILE_CLASS[dish.className]}`} title={`حالة الطبق: ${dish.label}`}>
-          <IconDish /> {dish.className === "dot-gray" ? "غير معروف" : dish.label}
+        <span className={`device-dot device-dot-${dishDot.tone}`} title={`الطبق (STARLINK): ${dishDot.word}`}>
+          <i aria-hidden="true" /> <IconDish /> {dishDot.word}
         </span>
-        <span className={`mini-status ${STATUS_TILE_CLASS[wifi.className]}`} title={`حالة Wi-Fi: ${wifi.label}`}>
-          <IconWifi /> {wifi.className === "dot-gray" ? "غير معروف" : wifi.label}
+        <span className={`device-dot device-dot-${wifiDot.tone}`} title={`الواي فاي: ${wifiDot.word}`}>
+          <i aria-hidden="true" /> <IconWifi /> {wifiDot.word}
         </span>
       </div>
 

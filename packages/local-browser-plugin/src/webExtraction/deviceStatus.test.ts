@@ -146,3 +146,37 @@ describe("extractDeviceStatus", () => {
     expect(extractDeviceStatus(document, DISH_LABELS)).toBe("online");
   });
 });
+
+describe("extractDeviceStatus - real Devices page layout (section header before the rows)", () => {
+  const PAGE = (dish: string, wifi: string) => `
+    <div class="devices">
+      <div class="section-header"><span>STARLINK</span><svg class="chevron"><path class="p" d="M0 0"></path></svg></div>
+      <div class="list">
+        <div class="row"><svg class="icon"><path class="p" d="M0 0"></path></svg><span>STARLINK</span>${dish}</div>
+        <div class="row"><span>WIFI 13B981C</span><svg class="icon"><path class="p" d="M0 0"></path></svg>${wifi}</div>
+      </div>
+    </div>`;
+  const LABELS = ["starlink"];
+
+  it("skips the header's uncolored chevron and reads the red dish dot", () => {
+    setBody(PAGE(`<span class="dot" style="background-color: rgb(235, 87, 72);"></span>`, `<span class="dot" style="background-color: rgb(34, 197, 94);"></span>`));
+    expect(extractDeviceStatus(document, LABELS)).toBe("offline");
+    expect(extractDeviceStatus(document, WIFI_LABELS)).toBe("online");
+  });
+
+  it("reads a dot drawn as an SVG circle with a fill attribute", () => {
+    setBody(PAGE(`<svg><circle cx="4" cy="4" r="4" fill="#22c55e"></circle></svg>`, `<svg><circle cx="4" cy="4" r="4" fill="#eb5748"></circle></svg>`));
+    expect(extractDeviceStatus(document, LABELS)).toBe("online");
+    expect(extractDeviceStatus(document, WIFI_LABELS)).toBe("offline");
+  });
+
+  it("never borrows the Wi-Fi dot for a dish whose own dot is gray", () => {
+    setBody(PAGE(`<span class="dot" style="background-color: rgb(120, 120, 120);"></span>`, `<span class="dot" style="background-color: rgb(34, 197, 94);"></span>`));
+    expect(extractDeviceStatus(document, LABELS)).toBe("unknown");
+  });
+
+  it("still reports unknown when no dot anywhere has a real color", () => {
+    setBody(PAGE(`<span class="dot" style="background-color: rgb(120, 120, 120);"></span>`, ``));
+    expect(extractDeviceStatus(document, LABELS)).toBe("unknown");
+  });
+});

@@ -30,9 +30,13 @@ function findLabelElements(doc: Document, labels: string[]): Element[] {
  * text-bearing element even if that text happens to be styled gray (e.g. a "Manage"/"إدارة" link
  * colored gray is still text, not a status dot).
  */
+const SVG_SHAPES = new Set(["circle", "ellipse", "rect"]);
+
 function isStatusDotCandidate(el: Element): boolean {
   if (el.children.length !== 0) return false;
   if ((el.textContent ?? "").trim() !== "") return false;
+  // A dot drawn as an SVG shape colored by its own `fill` attribute (no class, no style).
+  if (SVG_SHAPES.has(el.tagName.toLowerCase()) && el.getAttribute("fill")) return true;
   const style = el.getAttribute("style");
   if (style && style.trim() !== "") return true;
   const className = el.getAttribute("class");
@@ -60,6 +64,8 @@ function statusInScope(scope: Element): StatusColorValue | null {
     if (byBackground !== "unknown") return byBackground;
     const byColor = statusFromComputedColor(style.color);
     if (byColor !== "unknown") return byColor;
+    const byFill = statusFromComputedColor(el.getAttribute("fill") || style.getPropertyValue("fill"));
+    if (byFill !== "unknown") return byFill;
     sawCandidate = true;
   }
   if (sawCandidate) return "unknown";
@@ -75,6 +81,11 @@ function statusInScope(scope: Element): StatusColorValue | null {
  */
 export function extractDeviceStatus(doc: Document, labels: string[]): StatusColorValue | undefined {
   const labelElements = findLabelElements(doc, labels);
+  // Real, confirmed miss: the Devices page's first "STARLINK" is the collapsible section header
+  // (label + chevron icon, no dot) - its uncolored chevron read as a definitive "unknown" and
+  // stopped the search before the real device row's red/green dot was ever reached. A gray
+  // "unknown" is now only the answer when nothing anywhere had a real color.
+  let sawUnknown = false;
 
   for (const labelEl of labelElements) {
     const ownStatus = statusFromLabelText(labelEl.getAttribute("aria-label") || labelEl.getAttribute("title"));
@@ -83,10 +94,16 @@ export function extractDeviceStatus(doc: Document, labels: string[]): StatusColo
     let scope: Element | null = labelEl.parentElement;
     for (let hop = 0; hop < 3 && scope; hop++) {
       const status = statusInScope(scope);
+      // A gray dot next to THIS label ends this label's search (climbing further could reach the
+      // other device's dot); the next label element still gets its own look.
+      if (status === "unknown") {
+        sawUnknown = true;
+        break;
+      }
       if (status) return status;
       scope = scope.parentElement;
     }
   }
 
-  return undefined;
+  return sawUnknown ? "unknown" : undefined;
 }

@@ -15,6 +15,7 @@ import { repDevicesDebt } from "./repDebts";
 import { buildRepDailyStatement, listRepDeviceCommissions, type Representative, type RepSettlementList } from "./repStore";
 import { daysUntilRenewal, isStoppedAccount, money, renewalGroups } from "./telegramMessages";
 import { buildWhatsAppLink, normalizePhoneForWhatsApp } from "./whatsapp";
+import { connectionLine } from "./deviceConnection";
 
 const MAX_LINES = 60;
 
@@ -451,6 +452,7 @@ export function repSearchIndex(accounts: StarlinkAccountSummary[], clients: Clie
       client ? `👤 ${client.name}${client.phone ? ` (${tappablePhone(client.phone)})` : ""}` : "👤 —",
       `📅 التجديد: ${account.rechargeDate || "—"}${days === null ? "" : days < 0 ? ` (انتهى منذ ${-days} يوم)` : ` (بعد ${days} يوم)`}`,
       `الحالة: ${statusLabel(account)}`,
+      connectionLine(account),
       owed ? `💰 عليه: ${owed}` : "💰 لا دين عليه",
       ...(account.kitNumber || account.serialNumber
         ? [`🔢 ${[account.kitNumber && `KIT: ${account.kitNumber}`, account.serialNumber && `SN: ${account.serialNumber}`].filter(Boolean).join(" · ")}`]
