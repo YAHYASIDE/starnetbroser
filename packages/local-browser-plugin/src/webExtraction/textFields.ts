@@ -372,6 +372,11 @@ export function extractLabeledValue(lines: string[], labels: string[]): string |
  * way an action-button word is skipped, so it keeps looking for the real name instead of
  * returning the status word as if it were the plan.
  */
+/** "AV GARE, SAMI, 41" / "Greece 28080, GR" - never a plan name ("التجوال - غير محدود"). */
+export function looksLikeAddress(text: string): boolean {
+  return /[,،]/.test(text);
+}
+
 export function extractPlanName(lines: string[]): string | undefined {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -380,11 +385,14 @@ export function extractPlanName(lines: string[]): string | undefined {
       const idx = lower.indexOf(label.toLowerCase());
       if (idx < 0) continue;
       const afterLabel = stripLeadingSeparator(line.slice(idx + label.length)).trim();
-      if (afterLabel && !normalizeServiceStatus(afterLabel)) return afterLabel;
+      if (afterLabel && !normalizeServiceStatus(afterLabel) && !looksLikeAddress(afterLabel)) return afterLabel;
       for (let j = i + 1; j < lines.length; j++) {
         const next = lines[j].trim();
         if (!next) continue;
         if (isActionWord(next) || startsWithAnyLabel(next) || normalizeServiceStatus(next)) continue;
+        // Real, confirmed miss: the service address ("... Kyiv Oblast 08720, UA") was saved as
+        // the plan. A plan name never has commas; an address always does.
+        if (looksLikeAddress(next)) break;
         return next;
       }
     }

@@ -4,7 +4,7 @@ import { showsRestriction } from "@/lib/reminders";
 import { PromiseQuickSheet } from "./PromiseQuickSheet";
 import { useEffect, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
-import { presentStatus, presentServiceStatus, isBalanceDueZero, planBadgeLabel } from "@/lib/status";
+import { presentStatus, presentServiceStatus, isBalanceDueZero, planBadgeLabel, cleanPlanName } from "@/lib/status";
 import { countryFlag, countryFromIso2 } from "@/lib/countryCurrencies";
 import { daysRemainingLabel, daysRemainingNumber, formatRelativeTime } from "@/lib/date";
 import { emailsMismatch } from "@/lib/emailMatch";
@@ -208,7 +208,8 @@ export function AccountCard({
   const wifi = presentStatus(account.wifiStatus);
   const serviceStatus = presentServiceStatus(account.serviceStatus);
   const deviceCountry = countryFromIso2(account.serviceCountry);
-  const planBadge = account.planName ? (planBadgeLabel(account.planName) ?? account.planName) : undefined;
+  const planName = cleanPlanName(account.planName);
+  const planBadge = planName ? (planBadgeLabel(planName) ?? planName) : undefined;
   const lastSynced = formatRelativeTime(account.lastSuccessfulScanAt);
   // Single shared source for both the badge label and its urgency color - never computed twice
   // from two different date fields, which is exactly what produced a real, confirmed bug: two
@@ -509,7 +510,7 @@ export function AccountCard({
 
       <div className="account-card-mini-row">
         {planBadge && (
-          <span className="badge badge-mint account-card-plan-badge" title={account.planName}>
+          <span className="badge badge-mint account-card-plan-badge" title={planName}>
             {planBadge}
           </span>
         )}

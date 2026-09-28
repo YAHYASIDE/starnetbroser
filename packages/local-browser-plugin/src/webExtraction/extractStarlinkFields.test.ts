@@ -671,3 +671,15 @@ describe("extractStarlinkFields - service location country", () => {
     expect(fields.serviceCountry).toBeUndefined();
   });
 });
+
+describe("extractStarlinkFields - plan name is never the service address", () => {
+  it("skips an address that follows a plan label", () => {
+    const fields = extractFrom(`
+      <div>
+        <div>الخطة</div>
+        <div>7 Kirova Street, Ukrainka, Kyiv Oblast 08720, UA</div>
+      </div>
+    `);
+    expect(fields.planName).toBeUndefined();
+  });
+});

@@ -8464,9 +8464,56 @@ button.today-tile {
 
 /* إضافة حساب جديد: seven short, colored fields in one column. */
 .add-device-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 10px;
+}
+
+/* Everything spans both columns; a pair of short fields (.add-field-half) share one row at the
+ * same height. */
+.add-device-form > * { grid-column: 1 / -1; }
+.add-device-form > .add-field-half { grid-column: auto; }
+
+.add-section-title {
+  margin: 6px 2px 0;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--text-muted);
+}
+
+.add-field-value {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: var(--surface-alt);
+  color: var(--text);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+.add-more {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  background: var(--surface-alt);
+}
+
+.add-more > summary {
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--brand);
+}
+
+.add-more-body {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  margin-top: 12px;
 }
 
 .add-field {
@@ -8507,3 +8554,24 @@ button.today-tile {
 .add-field-rep { --accent: var(--orange); --accent-bg: var(--orange-bg); }
 .add-field-name { --accent: var(--yellow); --accent-bg: var(--yellow-bg); }
 .add-field-note { --accent: var(--gray); --accent-bg: var(--gray-bg); }
+.add-field-slname { --accent: var(--violet); --accent-bg: var(--violet-bg); }
+.add-field-country { --accent: var(--mint); --accent-bg: var(--mint-bg); }
+.add-field-date { --accent: var(--orange); --accent-bg: var(--orange-bg); }
+.add-field-plan { --accent: var(--brand); --accent-bg: color-mix(in srgb, var(--brand) 12%, transparent); }
+.add-field-kit { --accent: var(--yellow); --accent-bg: var(--yellow-bg); }
+.add-field-sn { --accent: var(--yellow); --accent-bg: var(--yellow-bg); }
+.add-field-sub { --accent: var(--green); --accent-bg: var(--green-bg); }
+
+/* Half-width pair: a little tighter so short values (codes, a date) fit on one line at 360px. */
+.add-device-form > .add-field-half { padding: 8px; }
+.add-device-form > .add-field-half input,
+.add-device-form > .add-field-half .add-field-value {
+  padding: 8px 10px;
+  font-size: 0.78rem;
+}
+.add-device-form > .add-field-half .date-input-text {
+  padding: 0 10px;
+  gap: 4px;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}

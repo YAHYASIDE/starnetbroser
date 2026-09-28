@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isBalanceDueZero, planBadgeLabel, presentServiceStatus } from "./status";
+import { cleanPlanName, isBalanceDueZero, planBadgeLabel, presentServiceStatus } from "./status";
 
 describe("presentServiceStatus", () => {
   it("maps each normalized status to its Arabic label and badge color", () => {
@@ -49,5 +49,14 @@ describe("isBalanceDueZero", () => {
 
   it("treats a real balance as not zero", () => {
     expect(isBalanceDueZero("5.00")).toBe(false);
+  });
+});
+
+describe("cleanPlanName", () => {
+  it("drops an address mis-read as the plan", () => {
+    expect(cleanPlanName(" التجوال - غير محدود ")).toBe("التجوال - غير محدود");
+    expect(cleanPlanName("7 Kirova Street, Ukrainka, Kyiv Oblast 08720, UA")).toBeUndefined();
+    expect(cleanPlanName("")).toBeUndefined();
+    expect(cleanPlanName(undefined)).toBeUndefined();
   });
 });

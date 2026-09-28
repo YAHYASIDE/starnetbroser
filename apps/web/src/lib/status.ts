@@ -37,6 +37,13 @@ export interface BadgePresentation {
   label: string;
 }
 
+/** The plan name, or undefined when it is empty or was mis-read as the service address
+ * ("... Kyiv Oblast 08720, UA" - a plan name never has commas). */
+export function cleanPlanName(planName: string | undefined): string | undefined {
+  const trimmed = planName?.trim();
+  return trimmed && !/[,،]/.test(trimmed) ? trimmed : undefined;
+}
+
 /** Short pill label for a roaming data plan, shown at the top of the account card instead of the
  * full plan name - "100G" for a numbered data allowance ("التجوال - 100 غيغابايت"/"Roaming
  * 100GB"), "ROM" for unlimited roaming ("تجوال غير محدود"). Undefined for anything that isn't a

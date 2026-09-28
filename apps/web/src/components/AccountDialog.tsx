@@ -5,7 +5,8 @@ import { FormEvent, useMemo, useState } from "react";
 import { DeviceStatus, StarlinkAccountSummary } from "@starnet/shared";
 import { formatRelativeTime } from "@/lib/date";
 import { emailsMismatch } from "@/lib/emailMatch";
-import { presentServiceStatus } from "@/lib/status";
+import { cleanPlanName, presentServiceStatus } from "@/lib/status";
+import { countryFlag, countryFromIso2 } from "@/lib/countryCurrencies";
 import { Client, CreateClientInput } from "@/lib/clientStore";
 import { CreateRepresentativeInput, Representative } from "@/lib/repStore";
 import { combinePhoneNumber, PHONE_COUNTRY_CODES, splitPhoneNumber } from "@/lib/phoneCountryCodes";
@@ -123,6 +124,7 @@ export function AccountDialog({
   // Shown as a small colored badge next to the plan NAME itself (rule: never the generic "نشط"
   // word standing in for the plan's own name - see extractPlanName's own doc for that bug).
   const planStatus = presentServiceStatus(draft.serviceStatus);
+  const deviceCountry = countryFromIso2(draft.serviceCountry);
 
   function update<K extends keyof StarlinkAccountSummary>(key: K, value: StarlinkAccountSummary[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -233,7 +235,7 @@ export function AccountDialog({
       serialNumber: draft.serialNumber.trim(),
       rechargeDate: draft.rechargeDate.replace(/-/g, "/"),
       balanceDue: draft.balanceDue.trim() || "0",
-      planName: draft.planName.trim(),
+      planName: cleanPlanName(draft.planName) ?? "",
       alertReason: draft.alertReason.trim(),
       lastUpdated: "الآن",
       renewalPlan,
@@ -376,9 +378,26 @@ export function AccountDialog({
             </div>
           </form>
         ) : (
-          <form className="account-form" onSubmit={submit}>
-            <div className="form-field form-wide">
-              <span>اسم الزبون</span>
+          // تعديل الحساب: the same colored fields as "إضافة", plus what Starlink reported about
+          // the device; rarely-edited extras stay folded under "المزيد".
+          <form className="account-form add-device-form" onSubmit={submit}>
+            <label className="form-field add-field add-field-email">
+              <span className="add-field-label"><b aria-hidden="true">📧</b> البريد الإلكتروني الرئيسي للجهاز</span>
+              <input dir="ltr" type="email" value={draft.expectedEmail ?? ""} onChange={(e) => update("expectedEmail", e.target.value)} placeholder="name@example.com" />
+            </label>
+
+            <label className="form-field add-field add-field-half add-field-code">
+              <span className="add-field-label"><b aria-hidden="true">🔑</b> كود البريد</span>
+              <input dir="ltr" value={draft.expectedEmailPassword ?? ""} onChange={(e) => update("expectedEmailPassword", e.target.value)} placeholder="اختياري" />
+            </label>
+
+            <label className="form-field add-field add-field-half add-field-wifi">
+              <span className="add-field-label"><b aria-hidden="true">📶</b> كود الواي فاي</span>
+              <input dir="ltr" value={draft.wifiPassword ?? ""} onChange={(e) => update("wifiPassword", e.target.value)} placeholder="اختياري" />
+            </label>
+
+            <div className="form-field add-field add-field-client">
+              <span className="add-field-label"><b aria-hidden="true">👤</b> الزبون</span>
               <ClientPicker
                 clients={clients}
                 selectedClientId={draft.clientId}
@@ -387,8 +406,8 @@ export function AccountDialog({
               />
             </div>
 
-            <div className="form-field form-wide">
-              <span>المندوب</span>
+            <div className="form-field add-field add-field-rep">
+              <span className="add-field-label"><b aria-hidden="true">🤝</b> المندوب</span>
               <RepresentativePicker
                 representatives={representatives}
                 selectedRepresentativeId={draft.representativeId}
@@ -397,11 +416,60 @@ export function AccountDialog({
               />
             </div>
 
-            <label className="form-field form-wide">
-              <span>اسم الحساب / البطاقة *</span>
+            <label className="form-field add-field add-field-name">
+              <span className="add-field-label"><b aria-hidden="true">🏷️</b> اسم الحساب / البطاقة *</span>
               <input required value={draft.name} onChange={(e) => update("name", e.target.value)} placeholder="مثال: منزل الحي الشرقي" />
             </label>
 
+            <p className="add-section-title">🛰️ من Starlink</p>
+
+            <div className="form-field add-field add-field-slname">
+              <span className="add-field-label"><b aria-hidden="true">🪪</b> الاسم من الجهاز</span>
+              <div className="add-field-value">{draft.starlinkAccountHolderName || "— يُقرأ من Starlink"}</div>
+            </div>
+
+            <div className="form-field add-field add-field-half add-field-country">
+              <span className="add-field-label"><b aria-hidden="true">🌍</b> الدولة</span>
+              <div className="add-field-value">
+                {deviceCountry ? `${countryFlag(draft.serviceCountry)} ${deviceCountry.country}` : draft.serviceCountry || "—"}
+              </div>
+            </div>
+
+            <label className="form-field add-field add-field-half add-field-date">
+              <span className="add-field-label"><b aria-hidden="true">📅</b> موعد التجديد</span>
+              <DateInput value={inputDate(draft.rechargeDate)} onChange={(e) => update("rechargeDate", e.target.value)} />
+            </label>
+
+            <label className="form-field add-field add-field-plan">
+              <span className="add-field-label"><b aria-hidden="true">📡</b> الخطة المفعّلة</span>
+              <input value={cleanPlanName(draft.planName) ?? ""} onChange={(e) => update("planName", e.target.value)} placeholder="مثال: التجوال - غير محدود" />
+            </label>
+
+            <label className="form-field add-field add-field-kit">
+              <span className="add-field-label"><b aria-hidden="true">🔢</b> KIT</span>
+              <input dir="ltr" value={draft.kitNumber} onChange={(e) => update("kitNumber", e.target.value)} placeholder="KIT…" />
+            </label>
+
+            <label className="form-field add-field add-field-sn">
+              <span className="add-field-label"><b aria-hidden="true">🔖</b> SN</span>
+              <input dir="ltr" value={draft.serialNumber} onChange={(e) => update("serialNumber", e.target.value)} placeholder="Serial…" />
+            </label>
+
+            <label className="form-field add-field add-field-sub">
+              <span className="add-field-label"><b aria-hidden="true">🧾</b> رقم الاشتراك</span>
+              <input dir="ltr" value={draft.subscriptionId ?? ""} onChange={(e) => update("subscriptionId", e.target.value)} placeholder="SL-…" />
+            </label>
+
+            <label className="form-field add-field add-field-note">
+              <span className="add-field-label"><b aria-hidden="true">📝</b> ملاحظة</span>
+              <textarea rows={2} value={draft.alertReason} onChange={(e) => update("alertReason", e.target.value)} placeholder="اختياري" />
+            </label>
+
+            <DuplicateWarning hits={duplicates} />
+
+            <details className="add-more">
+              <summary>⚙️ المزيد: رقم الهاتف، بريد إضافي، السعر الشهري</summary>
+              <div className="add-more-body">
             <div className="form-field form-wide">
               <span>رقم الهاتف (واتساب)</span>
               <div className="phone-input-row">
@@ -426,28 +494,6 @@ export function AccountDialog({
                 />
               </div>
             </div>
-
-            <label className="form-field">
-              <span>البريد الإلكتروني الرئيسي (لمطابقة حساب Starlink)</span>
-              <input
-                dir="ltr"
-                type="email"
-                value={draft.expectedEmail ?? ""}
-                onChange={(e) => update("expectedEmail", e.target.value)}
-                placeholder="اختياري - يُستخدم لتنبيهك إذا اختلف عن بريد Starlink"
-              />
-            </label>
-
-            <label className="form-field">
-              <span>كلمة سر البريد الرئيسي</span>
-              <input
-                dir="ltr"
-                value={draft.expectedEmailPassword ?? ""}
-                onChange={(e) => update("expectedEmailPassword", e.target.value)}
-                placeholder="اختياري"
-              />
-            </label>
-
             <div className="form-field form-wide">
               <span>بريد إلكتروني إضافي (حتى بريدين إضافيين، أي 3 بريدات كحد أقصى للجهاز)</span>
               <div className="extra-emails-list">
@@ -474,65 +520,6 @@ export function AccountDialog({
                 <button type="button" className="text-action" onClick={addExtraEmail}>+ إضافة بريد آخر</button>
               )}
             </div>
-
-            <div className="form-field form-wide">
-              <DuplicateWarning hits={duplicates} />
-            </div>
-
-            <label className="form-field">
-              <span>الخطة</span>
-              <input value={draft.planName} onChange={(e) => update("planName", e.target.value)} placeholder="Residential" />
-            </label>
-
-            <label className="form-field">
-              <span>موعد التجديد *</span>
-              <DateInput required  value={inputDate(draft.rechargeDate)} onChange={(e) => update("rechargeDate", e.target.value)} />
-            </label>
-
-            <label className="form-field">
-              <span>رقم KIT</span>
-              <input dir="ltr" value={draft.kitNumber} onChange={(e) => update("kitNumber", e.target.value)} placeholder="KIT…" />
-            </label>
-
-            <label className="form-field">
-              <span>Serial Number</span>
-              <input dir="ltr" value={draft.serialNumber} onChange={(e) => update("serialNumber", e.target.value)} placeholder="Serial…" />
-            </label>
-
-            <label className="form-field">
-              <span>الرصيد المستحق لـStarlink</span>
-              <input type="number" lang="en" min="0" step="0.01" dir="ltr" value={draft.balanceDue} onChange={(e) => update("balanceDue", e.target.value)} />
-            </label>
-
-            <label className="form-field">
-              <span>العملة</span>
-              <select value={draft.currency} onChange={(e) => update("currency", e.target.value)}>
-                <option value="$">USD ($)</option>
-                <option value="USDT ">USDT</option>
-                <option value="MRU ">MRU</option>
-                <option value="SIFA ">SIFA</option>
-              </select>
-            </label>
-
-            <label className="form-field">
-              <span>حالة الجهاز</span>
-              <select value={draft.dishStatus} onChange={(e) => update("dishStatus", e.target.value as DeviceStatus)}>
-                {statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
-            </label>
-
-            <label className="form-field">
-              <span>حالة Wi-Fi</span>
-              <select value={draft.wifiStatus} onChange={(e) => update("wifiStatus", e.target.value as DeviceStatus)}>
-                {statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
-            </label>
-
-            <label className="form-field">
-              <span>كلمة سر Wi-Fi</span>
-              <input dir="ltr" value={draft.wifiPassword ?? ""} onChange={(e) => update("wifiPassword", e.target.value)} placeholder="اختياري" />
-            </label>
-
             <fieldset className="form-field form-wide renewal-plan-fields">
               <legend>💰 السعر الشهري الثابت</legend>
               <div className="renewal-plan-row">
@@ -623,14 +610,11 @@ export function AccountDialog({
               </small>
               {planError && <span className="account-card-alert ledger-form-error">{planError}</span>}
             </fieldset>
+              </div>
+            </details>
 
-            <label className="form-field form-wide">
-              <span>تنبيه أو ملاحظة</span>
-              <textarea rows={2} value={draft.alertReason} onChange={(e) => update("alertReason", e.target.value)} placeholder="اختياري" />
-            </label>
-
-            <div className="dialog-actions form-wide">
-              {mode === "edit" && onDelete && (
+            <div className="dialog-actions">
+              {onDelete && (
                 <button className="dialog-danger" type="button" onClick={confirmDelete}>حذف الحساب</button>
               )}
               <button className="dialog-secondary" type="button" onClick={onClose}>إلغاء</button>

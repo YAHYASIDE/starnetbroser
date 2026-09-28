@@ -1,5 +1,6 @@
 import { DeviceStatus, StarlinkAccountSummary } from "@starnet/shared";
 import type { SyncedDeviceStatus, SyncedStarlinkFields } from "@starnet/local-browser-plugin";
+import { cleanPlanName } from "./status";
 
 type Section = "devices" | "subscriptions" | "billing" | "identifiers";
 
@@ -123,7 +124,7 @@ export function mergeSyncedFields(
     next.serviceStatus = fields.serviceStatus;
   }
 
-  const planName = fields.planName?.trim();
+  const planName = cleanPlanName(fields.planName);
   if (planName) {
     note("planName", next.planName !== planName);
     next.planName = planName;
