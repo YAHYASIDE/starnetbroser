@@ -136,11 +136,13 @@ describe("rep shortcuts", () => {
     account("بلا زبون", "2026/09/29"),
   ];
 
-  it("keyboard has the ten buttons", () => {
+  it("keyboard has the eleven buttons", () => {
     const keyboard = JSON.parse(REP_KEYBOARD);
     expect(keyboard.keyboard.flat().map((b: { text: string }) => b.text)).toEqual([
-      "📡 أجهزتي", "📅 تنتهي", "⛔ الموقوفة", "💰 ديون زبائني", "📊 كشفي", "📆 الأيام", "💵 دفعة", "➕ زبون جديد", "⚡ تفعيل", "🔎 بحث",
+      "📡 أجهزتي", "📅 تنتهي", "⛔ الموقوفة", "💰 ديون زبائني", "📊 كشفي", "📆 الأيام", "💵 دفعة", "➕ زبون جديد", "⚡ تفعيل", "🔎 بحث", "🤝 وعد دفع",
     ]);
+    expect(parseRepCommand("🤝 وعد دفع")).toEqual({ kind: "promise", text: "" });
+    expect(parseRepCommand("وعد 5000 محمد الخميس")).toEqual({ kind: "promise", text: "5000 محمد الخميس" });
     expect(keyboard.is_persistent).toBe(true);
     // Every button parses back to its command.
     for (const b of keyboard.keyboard.flat()) expect(parseRepCommand(b.text).kind).not.toBe("unknown");

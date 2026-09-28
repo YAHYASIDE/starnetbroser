@@ -5,6 +5,7 @@
  * prepared under HIS id. Pure; the loading/pushing is in telegram.ts.
  */
 
+import { REP_PROMISE_HINT, REP_PROMISE_RECEIVED } from "./repPromises";
 import { forecastText, goalsText, healthText, lapsedText, planText, promisesText } from "./ownerInsightsText";
 import type { PartyAdjustmentList } from "./partyBalanceStore";
 import type { PaymentPromise } from "./paymentPromises";
@@ -62,6 +63,9 @@ export interface TelegramReplySnapshot {
   paymentHint: string;
   clientHint: string;
   requestReceived: string;
+  promiseHint: string;
+  promiseReceived: string;
+  promiseNotice: string;
   /** To the operator when a rep sends a request with the app closed: "{rep}", "{text}". */
   requestNotice: string;
   /** ⚡ تفعيل choices. */
@@ -158,6 +162,9 @@ export function buildReplySnapshot(input: {
     paymentHint: REP_PAYMENT_HINT,
     clientHint: REP_CLIENT_HINT,
     requestReceived: REP_REQUEST_RECEIVED,
+    promiseHint: REP_PROMISE_HINT,
+    promiseReceived: REP_PROMISE_RECEIVED,
+    promiseNotice: "🤝 وعد دفع عبر المندوب {rep}: «{text}»\nيُسجَّل في «وعود الدفع» عند فتح التطبيق.",
     requestNotice: "📥 طلب من المندوب {rep}: «{text}»\nوافق عليه من صفحة المندوبين في التطبيق.",
     plans: REP_ACTIVATION_PLANS,
     activationHint: REP_ACTIVATION_HINT,

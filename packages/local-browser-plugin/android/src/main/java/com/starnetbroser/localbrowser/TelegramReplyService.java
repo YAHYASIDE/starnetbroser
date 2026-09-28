@@ -523,6 +523,9 @@ public class TelegramReplyService extends Service {
             s.paymentHint = json.optString("paymentHint", "");
             s.clientHint = json.optString("clientHint", "");
             s.requestReceived = json.optString("requestReceived", "");
+            s.promiseHint = json.optString("promiseHint", "");
+            s.promiseReceived = json.optString("promiseReceived", "");
+            s.promiseNotice = json.optString("promiseNotice", "");
             s.requestNotice = json.optString("requestNotice", "");
             s.activationHint = json.optString("activationHint", "");
             JSONArray plans = json.optJSONArray("plans");

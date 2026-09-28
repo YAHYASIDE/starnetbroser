@@ -34,7 +34,8 @@ import {
 import { buildReplySnapshot } from "./telegramReplies";
 import { deviceDisplayName, readRepDeviceFile, repDeviceCode } from "./repDeviceTransfer";
 import { forecastText, goalsText, healthText, lapsedText, planText, promisesText } from "./ownerInsightsText";
-import { loadPromises } from "./paymentPromises";
+import { addPromise, loadPromises, savePromises } from "./paymentPromises";
+import { parseRepPromise, REP_PROMISE_HINT } from "./repPromises";
 import { loadGoals } from "./goals";
 import type { TelegramPollMessage } from "@starnet/local-browser-plugin";
 import { getCurrency, loadCurrencyStore } from "./currencyStore";
@@ -207,6 +208,10 @@ export async function answerRepMessage(message: TelegramPollMessage, alreadyRepl
     await handleRepRequest(repId, rep, command, alreadyReplied);
     return;
   }
+  if (command.kind === "promise") {
+    await handleRepPromise(repId, rep, command.text, alreadyReplied);
+    return;
+  }
   const reply = await repReplyFor(repId, rep, command);
   await sendRepText(repId, reply.text, reply.markup ?? REP_KEYBOARD);
 }
@@ -237,6 +242,37 @@ async function handleRepDeviceFile(repId: string, rep: Representative, fileId: s
   if (!alreadyReplied) {
     await sendRepText(repId, REP_DEVICE_RECEIVED);
     await sendTelegramText(`📥 المندوب ${rep.name} أرسل جهازاً جديداً مع دخوله إلى Starlink${details.name ? ` (${details.name})` : ""} - وافق عليه من صفحة المندوبين في التطبيق.`);
+  }
+}
+
+/** 🤝 A customer's payment promise reported by the rep: a follow-up record (never money), so it's
+ * saved straight away - tied to the customer when the words match one of his devices. */
+async function handleRepPromise(repId: string, rep: Representative, text: string, alreadyReplied: boolean): Promise<void> {
+  const parsed = parseRepPromise(text, new Date());
+  if (!parsed) {
+    if (!alreadyReplied) await sendRepText(repId, REP_PROMISE_HINT);
+    return;
+  }
+  const clients = loadClientStore();
+  const matches = parsed.query ? matchRepDevices(parsed.query, repAccounts(await loadAccounts(), repId), clients) : [];
+  const device = matches.length === 1 ? matches[0] : undefined;
+  const client = device?.clientId ? clients[device.clientId] : undefined;
+  const name = client?.name ?? (parsed.query || device?.name || "زبون");
+  savePromises(
+    addPromise(loadPromises(), {
+      clientId: client?.id,
+      name,
+      phone: client?.phone ?? device?.phone,
+      amount: parsed.amount,
+      currency: parsed.currency,
+      dueDate: parsed.dueDate,
+      note: `عبر المندوب ${rep.name}${device ? ` · ${device.name}` : ""}`,
+    }),
+  );
+  if (!alreadyReplied) {
+    const day = `${parsed.dueDate.slice(8, 10)}/${parsed.dueDate.slice(5, 7)}`;
+    await sendRepText(repId, `✅ سُجّل وعد ${name} بدفع ${formatMoneyShort(parsed.amount, parsed.currency)} يوم ${day}${parsed.defaulted ? " (بعد أسبوع - لم تذكر يوماً)" : ""}.`);
+    await sendTelegramText(`🤝 وعد دفع عبر المندوب ${rep.name}: ${name} - ${formatMoneyShort(parsed.amount, parsed.currency)} يوم ${day}`);
   }
 }
 
@@ -309,6 +345,8 @@ async function repReplyFor(repId: string, rep: Representative, command: RepComma
       return { text: REP_PAYMENT_HINT };
     case "client":
       return { text: REP_CLIENT_HINT };
+    case "promise":
+      return { text: REP_PROMISE_HINT };
     case "days":
       return repDaysReply(mine, clients, today);
     case "search":

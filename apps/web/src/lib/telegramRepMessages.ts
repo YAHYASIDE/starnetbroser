@@ -142,6 +142,7 @@ export type RepCommand =
   | { kind: "payment"; text: string }
   | { kind: "client"; text: string }
   | { kind: "activate"; text: string }
+  | { kind: "promise"; text: string }
   | { kind: "unknown"; text: string };
 
 type RepWordKind = Exclude<RepCommand["kind"], "unknown">;
@@ -203,6 +204,9 @@ const REP_WORD_LIST: Record<string, RepWordKind> = {
   "بحث": "search",
   "ابحث": "search",
   search: "search",
+  "وعد": "promise",
+  "وعود": "promise",
+  promise: "promise",
 };
 
 /** Keyed by the folded word, so "اجهزتي" = "أجهزتي", "الاجهزة" = "الأجهزة"... */
@@ -227,6 +231,8 @@ export function parseRepCommand(text: string): RepCommand {
   // "زبون جديد ..." / "دفعة 5000 ..." - the rest is the request itself.
   if (kind === "payment") return { kind: "payment", text: rest.join(" ").trim() };
   if (kind === "activate") return { kind: "activate", text: rest.join(" ").trim() };
+  // "🤝 وعد دفع 5000 محمد الخميس" (the button) or "وعد 5000 ..." typed.
+  if (kind === "promise") return { kind: "promise", text: rest.filter((w, i) => !(i === 0 && normalizeSearch(w) === "دفع")).join(" ").trim() };
   if (kind === "client") return { kind: "client", text: rest.filter((w, i) => !(i === 0 && normalizeSearch(w) === "جديد")).join(" ").trim() };
   if (kind) return { kind } as RepCommand;
   // Anything else is a search among his devices ("محمد", "22212345").
@@ -246,6 +252,7 @@ export const REP_HELP = [
   "💵 دفعة - سجّل دفعة استلمتها: دفعة 5000 محمد",
   "➕ زبون جديد - اطلب إضافة زبون: زبون جديد الاسم الهاتف الإيميل",
   "⚡ تفعيل - اطلب تفعيل جهاز (ROM / Sis / 100G) بالسعر الذي يدفعه الزبون: تفعيل محمد",
+  "🤝 وعد دفع - سجّل موعداً وعدك فيه الزبون بالدفع: وعد 5000 محمد الخميس",
   "💬 تحت القوائم أزرار واتساب ترسل للزبون رسالة جاهزة",
 ].join("\n");
 
@@ -257,6 +264,7 @@ export const REP_KEYBOARD = JSON.stringify({
     [{ text: "📊 كشفي" }, { text: "📆 الأيام" }],
     [{ text: "💵 دفعة" }, { text: "➕ زبون جديد" }],
     [{ text: "⚡ تفعيل" }, { text: "🔎 بحث" }],
+    [{ text: "🤝 وعد دفع" }],
   ],
   resize_keyboard: true,
   is_persistent: true,

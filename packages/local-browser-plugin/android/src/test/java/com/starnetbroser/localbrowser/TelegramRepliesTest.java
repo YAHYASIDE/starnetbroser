@@ -49,6 +49,10 @@ public class TelegramRepliesTest {
         s.clientHint = "CLIENT HINT";
         s.requestReceived = "RECEIVED";
         s.requestNotice = "طلب من {rep}: «{text}»";
+        s.repWords.put("وعد", "promise");
+        s.promiseHint = "PROMISE HINT";
+        s.promiseReceived = "PROMISE OK";
+        s.promiseNotice = "وعد عبر {rep}: «{text}»";
         s.plans.add("ROM");
         s.plans.add("Sis");
         s.plans.add("100G");
@@ -185,6 +189,15 @@ public class TelegramRepliesTest {
         TelegramReplies.Reply client = TelegramReplies.forRep("r1", "زبون جديد محمد 22212345", snapshot());
         assertTrue(client.toInbox);
         assertEquals("RECEIVED", client.text);
+    }
+
+    @Test
+    public void promisesAreRecordedByTheApp() {
+        assertEquals("PROMISE HINT", TelegramReplies.forRep("r1", "🤝 وعد دفع", snapshot()).text);
+        TelegramReplies.Reply promise = TelegramReplies.forRep("r1", "وعد 5000 محمد الخميس", snapshot());
+        assertEquals("PROMISE OK", promise.text);
+        assertTrue(promise.toInbox);
+        assertEquals("وعد عبر سالم: «وعد 5000 محمد الخميس»", promise.ownerNotice);
     }
 
     @Test

@@ -44,6 +44,9 @@ final class TelegramReplies {
         String paymentHint = "";
         String clientHint = "";
         String requestReceived = "";
+        String promiseHint = "";
+        String promiseReceived = "";
+        String promiseNotice = "";
         /** "{rep}", "{text}". */
         String requestNotice = "";
         /** ⚡ تفعيل choices ("ROM", "Sis", "100G"). */
@@ -464,7 +467,7 @@ final class TelegramReplies {
         String kind = s.repWords.get(normalize(commandWord(text)));
         if (kind == null) return search(repId, cleanText(text), true, s); // "محمد", "22212345"
         if ("search".equals(kind)) return search(repId, afterCommand(text), false, s);
-        if ("payment".equals(kind) || "client".equals(kind)) return request(repId, kind, text, s);
+        if ("payment".equals(kind) || "client".equals(kind) || "promise".equals(kind)) return request(repId, kind, text, s);
         if ("activate".equals(kind)) return activate(repId, text, s);
         if ("help".equals(kind)) return new Reply(s.repHelp, false, null, s.repKeyboard);
         Map<String, String> mine = s.reps.get(repId);
@@ -479,14 +482,20 @@ final class TelegramReplies {
     static Reply request(String repId, String kind, String text, Snapshot s) {
         String rest = afterCommand(text);
         if ("client".equals(kind) && normalize(rest).startsWith("جديد")) rest = rest.substring(Math.min(rest.length(), 4)).trim();
-        boolean complete = "payment".equals(kind) ? normalize(rest).matches(".*\\d.*") : !rest.isEmpty();
-        if (!complete) return new Reply("payment".equals(kind) ? s.paymentHint : s.clientHint, false, null, s.repKeyboard);
+        boolean money = "payment".equals(kind) || "promise".equals(kind);
+        boolean complete = money ? normalize(rest).matches(".*\\d.*") : !rest.isEmpty();
+        if (!complete) {
+            String hint = "payment".equals(kind) ? s.paymentHint : "promise".equals(kind) ? s.promiseHint : s.clientHint;
+            return new Reply(hint, false, null, s.repKeyboard);
+        }
         Map<String, String> mine = s.reps.get(repId);
         String repName = mine != null && mine.get("name") != null ? mine.get("name") : "";
         String quoted = cleanText(text);
         if (quoted.length() > 120) quoted = quoted.substring(0, 120);
-        String notice = s.requestNotice.replace("{rep}", repName).replace("{text}", quoted);
-        return new Reply(s.requestReceived, true, notice, s.repKeyboard);
+        String template = "promise".equals(kind) && !s.promiseNotice.isEmpty() ? s.promiseNotice : s.requestNotice;
+        String notice = template.replace("{rep}", repName).replace("{text}", quoted);
+        String received = "promise".equals(kind) && !s.promiseReceived.isEmpty() ? s.promiseReceived : s.requestReceived;
+        return new Reply(received, true, notice, s.repKeyboard);
     }
 
     /** The file a rep's app shares ("📤 إرسال للمسؤول" in rep mode): starnet-device-....json. */

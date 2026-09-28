@@ -37,7 +37,7 @@ describe("buildReplySnapshot", () => {
     expect(snapshot.reps.r1!.stopped).toContain("لا أجهزة موقوفة");
     expect(snapshot.repSearch.r1!.map((e) => e.t.split("\n")[0])).toEqual(["📡 جهاز-سالم"]);
     expect(snapshot.repSearch.r2).toBeUndefined();
-    expect(JSON.parse(snapshot.repKeyboard).keyboard).toHaveLength(5);
+    expect(JSON.parse(snapshot.repKeyboard).keyboard).toHaveLength(6);
     expect(snapshot.plans).toEqual(["ROM", "Sis", "100G"]);
     expect(snapshot.repSearch.r1![0]!.i).toBe("جهاز-سالم");
     expect(snapshot.reps.r1!.name).toBe("سالم");
