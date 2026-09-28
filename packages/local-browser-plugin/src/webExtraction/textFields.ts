@@ -231,6 +231,10 @@ const ACCOUNT_NUMBER_PATTERN = /\bACC-[A-Za-z0-9-]{2,}\b/i;
 export const SERIAL_NUMBER_LABELS = ["serial number", "serial no", "الرقم التسلسلي"];
 export const KIT_NUMBER_LABELS = ["kit number", "kit no", "رقم الطقم", "رقم kit"];
 
+/** The Home page's "موقع الخدمة" card - its address ends with the ISO country code, e.g.
+ * "Greece 28080, GR" (see extractServiceCountry). */
+export const SERVICE_LOCATION_LABELS = ["موقع الخدمة", "عنوان الخدمة", "service location", "service address"];
+
 export const BALANCE_LABELS = [
   "outstanding balance", "payable balance", "balance due", "amount due",
   "الرصيد المستحق", "الرصيد الواجب دفعه", "المبلغ المستحق",
@@ -265,6 +269,7 @@ const ALL_LABELS = [
   ...ACCOUNT_NUMBER_LABELS,
   ...SERIAL_NUMBER_LABELS,
   ...KIT_NUMBER_LABELS,
+  ...SERVICE_LOCATION_LABELS,
   ...BALANCE_LABELS,
   ...DATA_USAGE_LABELS,
   ...EMAIL_LABELS,
@@ -505,4 +510,24 @@ export function extractPhoneNumber(lines: string[]): string | undefined {
   if (!PHONE_SHAPE_PATTERN.test(raw)) return undefined;
   const digitCount = (raw.match(/\d/g) ?? []).length;
   return digitCount >= 6 ? raw : undefined;
+}
+
+/**
+ * The two-letter country of the service address (the "موقع الخدمة" card: "AV GARE, SAMI, 41" /
+ * "Greece 28080, GR") - the country the device is registered to, which is also the country whose
+ * currency Starlink bills it in. Only the few lines right after the label are read, and only a
+ * trailing ", XX" in capitals counts - never guessed from a country name written in free text.
+ */
+export function extractServiceCountry(lines: string[]): string | undefined {
+  for (let i = 0; i < lines.length; i++) {
+    const lower = lines[i].toLowerCase();
+    const label = SERVICE_LOCATION_LABELS.find((l) => lower.includes(l));
+    if (!label) continue;
+    const sameLine = lines[i].slice(lower.indexOf(label) + label.length);
+    for (const candidate of [sameLine, ...lines.slice(i + 1, i + 5)]) {
+      const match = candidate.trim().match(/,\s*([A-Z]{2})$/);
+      if (match) return match[1];
+    }
+  }
+  return undefined;
 }

@@ -135,7 +135,7 @@ export const COUNTRY_CURRENCIES: CountryCurrencyOption[] = [
   { country: "بيلاروسيا", code: "BYN", name: "روبل بيلاروسي", symbol: "BYN" },
   { country: "بلجيكا", code: "EUR", name: "يورو", symbol: "€" },
   { country: "البوسنة والهرسك", code: "BAM", name: "مارك بوسني", symbol: "BAM" },
-  { country: "بلغاريا", code: "BGN", name: "ليف بلغاري", symbol: "BGN" },
+  { country: "بلغاريا", code: "EUR", name: "يورو", symbol: "€" },
   { country: "كرواتيا", code: "EUR", name: "يورو", symbol: "€" },
   { country: "قبرص", code: "EUR", name: "يورو", symbol: "€" },
   { country: "جمهورية التشيك", code: "CZK", name: "كورونا تشيكية", symbol: "CZK" },
@@ -228,3 +228,68 @@ export const COUNTRY_CURRENCIES: CountryCurrencyOption[] = [
   { country: "توفالو", code: "AUD", name: "دولار أسترالي", symbol: "AUD" },
   { country: "فانواتو", code: "VUV", name: "فاتو فانواتو", symbol: "VUV" },
 ];
+
+/** ISO 3166 two-letter code -> the `country` of its COUNTRY_CURRENCIES entry - how a device's
+ * synced service address ("..., GR") becomes a country and a currency. */
+export const COUNTRY_BY_ISO2: Record<string, string> = {
+  US: "الولايات المتحدة الأمريكية",
+  // إفريقيا
+  DZ: "الجزائر", AO: "أنغولا", BJ: "بنين", BW: "بوتسوانا", BF: "بوركينا فاسو", BI: "بوروندي",
+  CV: "الرأس الأخضر", CM: "الكاميرون", CF: "جمهورية إفريقيا الوسطى", TD: "تشاد", KM: "جزر القمر",
+  CG: "جمهورية الكونغو", CD: "جمهورية الكونغو الديمقراطية", CI: "ساحل العاج", DJ: "جيبوتي", EG: "مصر",
+  GQ: "غينيا الاستوائية", ER: "إريتريا", SZ: "إسواتيني", ET: "إثيوبيا", GA: "الغابون", GM: "غامبيا",
+  GH: "غانا", GN: "غينيا", GW: "غينيا بيساو", KE: "كينيا", LS: "ليسوتو", LR: "ليبيريا", LY: "ليبيا",
+  MG: "مدغشقر", MW: "مالاوي", ML: "مالي", MR: "موريتانيا", MU: "موريشيوس", MA: "المغرب", MZ: "موزمبيق",
+  NA: "ناميبيا", NE: "النيجر", NG: "نيجيريا", RW: "رواندا", ST: "ساو تومي وبرينسيب", SN: "السنغال",
+  SC: "سيشيل", SL: "سيراليون", SO: "الصومال", ZA: "جنوب أفريقيا", SS: "جنوب السودان", SD: "السودان",
+  TZ: "تنزانيا", TG: "توغو", TN: "تونس", UG: "أوغندا", ZM: "زامبيا", ZW: "زيمبابوي",
+  // آسيا
+  AF: "أفغانستان", AM: "أرمينيا", AZ: "أذربيجان", BH: "البحرين", BD: "بنغلاديش", BT: "بوتان",
+  BN: "بروناي", KH: "كمبوديا", CN: "الصين", GE: "جورجيا", IN: "الهند", ID: "إندونيسيا", IR: "إيران",
+  IQ: "العراق", IL: "إسرائيل", JP: "اليابان", JO: "الأردن", KZ: "كازاخستان", KW: "الكويت",
+  KG: "قيرغيزستان", LA: "لاوس", LB: "لبنان", MY: "ماليزيا", MV: "جزر المالديف", MN: "منغوليا",
+  MM: "ميانمار", NP: "نيبال", KP: "كوريا الشمالية", OM: "عُمان", PK: "باكستان", PS: "فلسطين",
+  PH: "الفلبين", QA: "قطر", SA: "المملكة العربية السعودية", SG: "سنغافورة", KR: "كوريا الجنوبية",
+  LK: "سريلانكا", SY: "سوريا", TW: "تايوان", TJ: "طاجيكستان", TH: "تايلاند", TL: "تيمور الشرقية",
+  TR: "تركيا", TM: "تركمانستان", AE: "الإمارات العربية المتحدة", UZ: "أوزبكستان", VN: "فيتنام", YE: "اليمن",
+  // أوروبا
+  AL: "ألبانيا", AD: "أندورا", AT: "النمسا", BY: "بيلاروسيا", BE: "بلجيكا", BA: "البوسنة والهرسك",
+  BG: "بلغاريا", HR: "كرواتيا", CY: "قبرص", CZ: "جمهورية التشيك", DK: "الدنمارك", EE: "إستونيا",
+  FI: "فنلندا", FR: "فرنسا", DE: "ألمانيا", GR: "اليونان", HU: "المجر", IS: "آيسلندا", IE: "أيرلندا",
+  IT: "إيطاليا", XK: "كوسوفو", LV: "لاتفيا", LI: "ليختنشتاين", LT: "ليتوانيا", LU: "لوكسمبورغ",
+  MT: "مالطا", MD: "مولدوفا", MC: "موناكو", ME: "الجبل الأسود", NL: "هولندا", MK: "مقدونيا الشمالية",
+  NO: "النرويج", PL: "بولندا", PT: "البرتغال", RO: "رومانيا", RU: "روسيا", SM: "سان مارينو",
+  RS: "صربيا", SK: "سلوفاكيا", SI: "سلوفينيا", ES: "إسبانيا", SE: "السويد", CH: "سويسرا",
+  UA: "أوكرانيا", GB: "المملكة المتحدة", VA: "الفاتيكان",
+  // الأمريكتان
+  AG: "أنتيغوا وباربودا", AR: "الأرجنتين", BS: "جزر البهاما", BB: "بربادوس", BZ: "بليز", BO: "بوليفيا",
+  BR: "البرازيل", CA: "كندا", CL: "شيلي", CO: "كولومبيا", CR: "كوستاريكا", CU: "كوبا", DM: "دومينيكا",
+  DO: "جمهورية الدومينيكان", EC: "الإكوادور", SV: "السلفادور", GD: "غرينادا", GT: "غواتيمالا",
+  GY: "غيانا", HT: "هايتي", HN: "هندوراس", JM: "جامايكا", MX: "المكسيك", NI: "نيكاراغوا", PA: "بنما",
+  PY: "باراغواي", PE: "بيرو", KN: "سانت كيتس ونيفيس", LC: "سانت لوسيا", VC: "سانت فينسنت والغرينادين",
+  SR: "سورينام", TT: "ترينيداد وتوباغو", UY: "أوروغواي", VE: "فنزويلا",
+  // أوقيانوسيا
+  AU: "أستراليا", FJ: "فيجي", KI: "كيريباتي", MH: "جزر مارشال", FM: "ميكرونيزيا", NR: "ناورو",
+  NZ: "نيوزيلندا", PW: "بالاو", PG: "بابوا غينيا الجديدة", WS: "ساموا", SB: "جزر سليمان", TO: "تونغا",
+  TV: "توفالو", VU: "فانواتو",
+};
+
+/** The country (and so its currency) for a synced two-letter code; undefined when unknown. */
+export function countryFromIso2(iso2: string | undefined): CountryCurrencyOption | undefined {
+  if (!iso2) return undefined;
+  const name = COUNTRY_BY_ISO2[iso2.trim().toUpperCase()];
+  return name ? COUNTRY_CURRENCIES.find((o) => o.country === name) : undefined;
+}
+
+/** The country's flag emoji, built from its two-letter code ("GR" -> 🇬🇷). */
+export function countryFlag(iso2: string | undefined): string {
+  const code = iso2?.trim().toUpperCase() ?? "";
+  if (!/^[A-Z]{2}$/.test(code)) return "";
+  return String.fromCodePoint(...[...code].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65));
+}
+
+/** Every country sharing a currency code - all euro countries share one EUR rate, all USD ones one
+ * USD rate: the rate registry (currencyStore.ts) is keyed by currency, never by country. */
+export function countriesUsingCurrency(code: string): string[] {
+  return COUNTRY_CURRENCIES.filter((o) => o.code === code.toUpperCase()).map((o) => o.country);
+}

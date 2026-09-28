@@ -32,6 +32,7 @@ const FIELD_INFO: Record<keyof SyncedStarlinkFields, { label: string; section: S
   starlinkId: { label: "معرف Starlink", section: "identifiers" },
   serialNumber: { label: "الرقم التسلسلي", section: "identifiers" },
   kitNumber: { label: "رقم KIT", section: "identifiers" },
+  serviceCountry: { label: "دولة الجهاز", section: "subscriptions" },
   dataUsageGb: { label: "إجمالي استهلاك الباقة", section: "subscriptions" },
   isRestricted: { label: "تقييد الجهاز (خارج البلد المسجل)", section: "devices" },
   limitedAccess: { label: "إيميل غير رئيسي (بدون فوترة)", section: "identifiers" },
@@ -202,6 +203,12 @@ export function mergeSyncedFields(
   if (kitNumber) {
     note("kitNumber", next.kitNumber !== kitNumber);
     next.kitNumber = kitNumber;
+  }
+
+  const serviceCountry = fields.serviceCountry?.trim().toUpperCase();
+  if (serviceCountry && /^[A-Z]{2}$/.test(serviceCountry)) {
+    note("serviceCountry", next.serviceCountry !== serviceCountry);
+    next.serviceCountry = serviceCountry;
   }
 
   const dataUsageGb = fields.dataUsageGb?.trim();

@@ -1371,6 +1371,11 @@ export function HomeView({
           initialKind={ledgerForPayment ? "credit" : "debit"}
           onChange={(entries) => updateLedgerEntries(ledgerAccount.id, entries)}
           renewalPlan={ledgerAccount.renewalPlan}
+          starlinkInfo={{
+            serviceCountry: ledgerAccount.serviceCountry,
+            currency: ledgerAccount.currency,
+            balanceDue: ledgerAccount.balanceDue,
+          }}
           clientName={getClient(clientStore, ledgerAccount.clientId)?.name}
           clientPhone={getClient(clientStore, ledgerAccount.clientId)?.phone ?? ledgerAccount.phone}
           representative={(() => {

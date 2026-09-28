@@ -32,7 +32,8 @@ import {
 } from "@/lib/ledgerStore";
 import { computeDeviceAccountingSummary, computeExpectedShipmentProfit, computeShipmentProfit } from "@/lib/accountingStore";
 import { Currency, CurrencyStore, getCurrency, toUsd, UpsertCurrencyInput } from "@/lib/currencyStore";
-import { COUNTRY_CURRENCIES, CountryCurrencyOption } from "@/lib/countryCurrencies";
+import { COUNTRY_CURRENCIES, CountryCurrencyOption, countryFlag, COUNTRY_BY_ISO2 } from "@/lib/countryCurrencies";
+import { starlinkCostDefaults } from "@/lib/starlinkCostDefaults";
 import { formatAmount } from "@/lib/formatAmount";
 import {
   allocatedFromPayment,
@@ -97,6 +98,8 @@ interface Props {
   clientPhone?: string;
   /** "credit" opens the form ready for a payment (له) - the home page's "دفعة من زبون". */
   initialKind?: LedgerEntryKind;
+  /** What Starlink sync read about this device - picks the Starlink cost's country/currency/amount. */
+  starlinkInfo?: { serviceCountry?: string; currency?: string; balanceDue?: string };
 }
 
 /** Builds one device's own allocation-dialog data: its eligible (same-currency, not-yet-fully-
@@ -145,6 +148,7 @@ export function LedgerDialog({
   clientName,
   clientPhone,
   initialKind = "debit",
+  starlinkInfo,
 }: Props) {
   const [kind, setKind] = useState<LedgerEntryKind>(initialKind);
   // أوقية (MRU) is the actual day-to-day currency this business sells in - USD is only the
@@ -178,19 +182,32 @@ export function LedgerDialog({
   // Starlink's own cost for this shipment, captured right here instead of a later separate step
   // (see StarlinkCost) - defaults to whatever currency this device last used, same convenience as
   // the settlement dialogs below.
-  const [costCurrencyCode, setCostCurrencyCode] = useState(() => renewalPlan?.costCurrency ?? lastUsedCostCurrency(entries) ?? "");
-  const [costAmount, setCostAmount] = useState(renewalPlan ? String(renewalPlan.costAmount) : "");
+  // The device's own country/currency/amount as Starlink reports them come first (see
+  // starlinkCostDefaults), then the monthly price, then whatever this device last used.
+  const [costDefaults] = useState(() =>
+    starlinkCostDefaults({
+      serviceCountry: starlinkInfo?.serviceCountry,
+      billingCurrency: starlinkInfo?.currency,
+      balanceDue: starlinkInfo?.balanceDue,
+      renewalPlan,
+      lastUsedCurrency: lastUsedCostCurrency(entries),
+    }),
+  );
+  const [costCurrencyCode, setCostCurrencyCode] = useState(costDefaults.currencyCode);
+  const [costAmount, setCostAmount] = useState(costDefaults.amount !== undefined ? String(costDefaults.amount) : "");
   const [costRate, setCostRate] = useState(() => {
-    const code = renewalPlan?.costCurrency ?? lastUsedCostCurrency(entries);
-    const known = code ? getCurrency(currencyStore, code)?.rateFromUsd : undefined;
+    const known = costDefaults.currencyCode ? getCurrency(currencyStore, costDefaults.currencyCode)?.rateFromUsd : undefined;
     return known !== undefined ? String(known) : "";
   });
+  // The country shown next to the cost currency - the device's own one, or the one picked below.
+  const [costCountry, setCostCountry] = useState<CountryCurrencyOption | undefined>(costDefaults.country);
+  const [costAutoDetected, setCostAutoDetected] = useState(costDefaults.detected);
   const [costQuery, setCostQuery] = useState("");
   // The picked-but-not-yet-registered country's own name/symbol (see selectCostCurrency) - only
   // needed as a fallback for display/for "حفظ السعر في الإعدادات" until that button (or nothing)
   // actually adds this currency to the shared registry.
-  const [costPendingName, setCostPendingName] = useState<string | undefined>(undefined);
-  const [costPendingSymbol, setCostPendingSymbol] = useState<string | undefined>(undefined);
+  const [costPendingName, setCostPendingName] = useState<string | undefined>(costDefaults.country?.name);
+  const [costPendingSymbol, setCostPendingSymbol] = useState<string | undefined>(costDefaults.country?.symbol);
 
   const [settlingEntry, setSettlingEntry] = useState<LedgerEntry | null>(null);
   const [pendingPayment, setPendingPayment] = useState<LedgerEntry | null>(null);
@@ -259,6 +276,8 @@ export function LedgerDialog({
   function selectCostCurrency(option: CountryCurrencyOption) {
     setCostQuery("");
     setCostCurrencyCode(option.code);
+    setCostCountry(option);
+    setCostAutoDetected(false);
     setCostPendingName(option.name);
     setCostPendingSymbol(option.symbol);
     const known = getCurrency(currencyStore, option.code)?.rateFromUsd;
@@ -267,6 +286,7 @@ export function LedgerDialog({
 
   function changeCostCurrency() {
     setCostCurrencyCode("");
+    setCostCountry(undefined);
     setCostQuery("");
     setCostPendingName(undefined);
     setCostPendingSymbol(undefined);
@@ -281,6 +301,10 @@ export function LedgerDialog({
   );
   const selectedCostCurrency = getCurrency(currencyStore, costCurrencyCode);
   const selectedCostCurrencyName = selectedCostCurrency?.name ?? costPendingName ?? costCurrencyCode;
+  const costRateKnown = costCurrencyCode === "USD" || selectedCostCurrency?.rateFromUsd !== undefined;
+  const costCountryIso2 = costCountry
+    ? Object.keys(COUNTRY_BY_ISO2).find((k) => COUNTRY_BY_ISO2[k] === costCountry.country)
+    : undefined;
 
   // Deliberately NOT run automatically on submit (unlike the sale/payment rate above) - the cost
   // rate typed here is scoped to THIS transaction only, per the operator's own explicit request;
@@ -583,10 +607,20 @@ export function LedgerDialog({
               <div className="form-field form-wide">
                 <span>عملة الدفع للجهاز</span>
                 {costCurrencyCode ? (
-                  <div className="client-picker-selected">
-                    <span className="client-picker-selected-name">{selectedCostCurrencyName} ({costCurrencyCode})</span>
-                    <button type="button" className="text-action" onClick={changeCostCurrency}>تغيير</button>
-                  </div>
+                  <>
+                    <div className="client-picker-selected">
+                      <span className="client-picker-selected-name">
+                        {costCountry && (
+                          <>
+                            {countryFlag(costCountryIso2)} {costCountry.country} ·{" "}
+                          </>
+                        )}
+                        {selectedCostCurrencyName} ({costCurrencyCode})
+                      </span>
+                      <button type="button" className="text-action" onClick={changeCostCurrency}>تغيير</button>
+                    </div>
+                    {costAutoDetected && <span className="ledger-cost-auto">✓ تم التعرف عليها تلقائياً من Starlink</span>}
+                  </>
                 ) : (
                   <div className="client-picker">
                     <input
@@ -600,7 +634,10 @@ export function LedgerDialog({
                       {costCountryMatches.map((o) => (
                         <button key={o.country} type="button" className="client-picker-option" onClick={() => selectCostCurrency(o)}>
                           <span>{o.country}</span>
-                          <span dir="ltr">{o.code}</span>
+                          <span dir="ltr">
+                            {o.code}
+                            {getCurrency(currencyStore, o.code) && o.code !== "USD" ? ` · ${formatAmount(getCurrency(currencyStore, o.code)!.rateFromUsd)}` : ""}
+                          </span>
                         </button>
                       ))}
                     </div>
@@ -637,9 +674,15 @@ export function LedgerDialog({
                 )}
               </div>
               {!costIsUsd && costCurrencyCode && (
-                <div className="ledger-cost-rate-hint">
-                  <span>مأخوذ من الإعدادات - يمكن تعديله لهذه الحركة فقط</span>
-                  <button type="button" className="text-action" onClick={saveCostRateToSettings}>حفظ السعر في الإعدادات</button>
+                <div className={`ledger-cost-rate-hint${costRateKnown ? "" : " is-missing"}`}>
+                  <span>
+                    {costRateKnown
+                      ? `سعر ${costCurrencyCode} واحد لكل الدول التي عملتها ${costCurrencyCode} - مأخوذ من الإعدادات، ويمكن تعديله لهذه الحركة فقط`
+                      : `⚠️ لم يُحدَّد سعر ${selectedCostCurrencyName} بعد - أدخل السعر ثم احفظه`}
+                  </span>
+                  <button type="button" className="text-action" onClick={saveCostRateToSettings}>
+                    {costRateKnown ? "حفظ السعر في الإعدادات" : "تعديل السعر وحفظه"}
+                  </button>
                 </div>
               )}
 

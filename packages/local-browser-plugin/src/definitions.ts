@@ -92,6 +92,9 @@ export interface SyncedStarlinkFields {
   starlinkId?: string;
   serialNumber?: string;
   kitNumber?: string;
+  /** ISO 3166 two-letter code of the service address's country, e.g. "GR" - from the Home page's
+   * "موقع الخدمة" card. */
+  serviceCountry?: string;
   /** True/false only ever set explicitly (never absent-means-false) - see
    * extractStarlinkFields.ts's own doc for why this is a separate flag from `serviceStatus`: the
    * kit has been outside its registered country/region for too long, independent of billing. */

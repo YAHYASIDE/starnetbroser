@@ -18,6 +18,7 @@ import {
   extractPlanBadgeStatus,
   extractPlanName,
   extractRenewalBadgeDate,
+  extractServiceCountry,
   extractSubscriptionId,
   extractSubscriptionInvoiceDueDay,
   hasBillingSuspensionBanner,
@@ -174,6 +175,9 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
 
   const kitNumber = extractLabeledValue(lines, KIT_NUMBER_LABELS);
   if (kitNumber) fields.kitNumber = kitNumber;
+
+  const serviceCountry = extractServiceCountry(lines);
+  if (serviceCountry) fields.serviceCountry = serviceCountry;
 
   return fields;
 }

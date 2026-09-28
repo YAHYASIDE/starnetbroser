@@ -5,6 +5,7 @@ import { PromiseQuickSheet } from "./PromiseQuickSheet";
 import { useEffect, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { presentStatus, presentServiceStatus, isBalanceDueZero, planBadgeLabel } from "@/lib/status";
+import { countryFlag, countryFromIso2 } from "@/lib/countryCurrencies";
 import { daysRemainingLabel, daysRemainingNumber, formatRelativeTime } from "@/lib/date";
 import { emailsMismatch } from "@/lib/emailMatch";
 import { computeBalanceByCurrency, LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerEntry } from "@/lib/ledgerStore";
@@ -206,6 +207,7 @@ export function AccountCard({
   const dish = presentStatus(account.dishStatus);
   const wifi = presentStatus(account.wifiStatus);
   const serviceStatus = presentServiceStatus(account.serviceStatus);
+  const deviceCountry = countryFromIso2(account.serviceCountry);
   const planBadge = account.planName ? (planBadgeLabel(account.planName) ?? account.planName) : undefined;
   const lastSynced = formatRelativeTime(account.lastSuccessfulScanAt);
   // Single shared source for both the badge label and its urgency color - never computed twice
@@ -512,6 +514,11 @@ export function AccountCard({
           </span>
         )}
         {remaining && <span className={`date-status ${urgencyClass}`}>{remaining}</span>}
+        {deviceCountry && (
+          <span className="mini-status account-card-country" title={`دولة الجهاز: ${deviceCountry.country} (${deviceCountry.code})`}>
+            {countryFlag(account.serviceCountry)} {deviceCountry.country}
+          </span>
+        )}
         <span className={`mini-status ${STATUS_TILE_CLASS[dish.className]}`} title={`حالة الطبق: ${dish.label}`}>
           <IconDish /> {dish.className === "dot-gray" ? "غير معروف" : dish.label}
         </span>

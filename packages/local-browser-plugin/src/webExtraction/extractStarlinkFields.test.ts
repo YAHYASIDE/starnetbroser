@@ -651,3 +651,23 @@ describe("extractStarlinkFields - limited-access email (real, confirmed: 4-icon 
     expect(fields.serviceStatus).toBe("suspended");
   });
 });
+
+describe("extractStarlinkFields - service location country", () => {
+  it("reads the ISO country code at the end of the 'موقع الخدمة' address", () => {
+    const fields = extractFrom(`
+      <div>
+        <div>خطة الخدمة</div><div>نشط</div><div>التجوال - غير محدود</div>
+        <div>موقع الخدمة</div><div>تعديل</div>
+        <div>AV GARE, SAMI, 41</div>
+        <div>Greece 28080, GR</div>
+      </div>
+    `);
+    expect(fields.serviceCountry).toBe("GR");
+    expect(fields.planName).toBe("التجوال - غير محدود");
+  });
+
+  it("finds nothing without the label, even if a line ends in a code", () => {
+    const fields = extractFrom(`<div><div>Some text, GR</div></div>`);
+    expect(fields.serviceCountry).toBeUndefined();
+  });
+});
