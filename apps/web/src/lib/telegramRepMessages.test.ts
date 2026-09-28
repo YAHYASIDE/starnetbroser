@@ -111,6 +111,9 @@ describe("rep commands", () => {
     expect(parseRepCommand("اجهزتي")).toEqual({ kind: "devices" });
     expect(parseRepCommand("توقف")).toEqual({ kind: "stopped" });
     expect(parseRepCommand("رصيدي")).toEqual({ kind: "statement" });
+    // An email is searched whole - only a "/command@bot" loses its @name.
+    expect(parseRepCommand("abdlkrim9113@gmail.com")).toEqual({ kind: "unknown", text: "abdlkrim9113@gmail.com" });
+    expect(parseRepCommand("/start@starnet_reps_bot")).toEqual({ kind: "help" });
   });
 });
 
@@ -153,6 +156,9 @@ describe("rep shortcuts", () => {
     expect(repSearchReply("٢٢٢١٢", index).text).toContain("(2)");
     expect(repSearchReply("بلا زبون", index).markup).toBeUndefined();
     expect(repSearchReply("علي", index).text).toBe("🔎 لم أجد «علي» بين أجهزتك");
+    const byEmail = repSearchIndex([account("abdlkrim9113@gmail.com", "2026/10/24")], clients, {}, TODAY);
+    expect(repSearchReply("abdlkrim9113@gmail.com", byEmail).text).toContain("(1)");
+    expect(repSearchReply("abdlkrim", byEmail).text).toContain("(1)");
     expect(repSearchReply("  ", index).text).toContain("اكتب اسم الزبون");
   });
 

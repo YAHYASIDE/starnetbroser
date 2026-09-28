@@ -87,13 +87,13 @@ final class TelegramReplies {
     }
 
     /** The text without "/", a leading emoji (keyboard buttons send "📡 أجهزتي") or the bot's
-     * @name. Mirrors cleanRepText (telegramRepMessages.ts). */
+     * @name - only ever the one glued to a "/command" ("/start@my_bot"), never the "@gmail" of an
+     * email being searched. Mirrors cleanRepText (telegramRepMessages.ts). */
     static String cleanText(String text) {
         if (text == null) return "";
         String cleaned = text.trim();
-        if (cleaned.startsWith("/")) cleaned = cleaned.substring(1);
-        cleaned = cleaned.replaceFirst("^[^\\p{L}\\p{N}]+", "");
-        return cleaned.replaceFirst("@\\w+", "").trim();
+        if (cleaned.startsWith("/")) cleaned = cleaned.substring(1).replaceFirst("^(\\S+?)@\\w+", "$1");
+        return cleaned.replaceFirst("^[^\\p{L}\\p{N}]+", "").trim();
     }
 
     /** "/Stopped@my_bot extra" -> "stopped": the first word of cleanText, lower case. */

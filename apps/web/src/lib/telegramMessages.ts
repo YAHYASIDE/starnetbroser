@@ -203,7 +203,9 @@ export const WORDS: Record<string, Exclude<TelegramCommand["kind"], "statement" 
 };
 
 export function parseTelegramCommand(text: string): TelegramCommand {
-  const cleaned = text.trim().replace(/^\//, "").replace(/@\w+/, "").trim();
+  let cleaned = text.trim();
+  // Only the bot's @name glued to a "/command" - never an email's "@gmail".
+  if (cleaned.startsWith("/")) cleaned = cleaned.slice(1).replace(/^(\S+?)@\w+/, "$1").trim();
   const [first = "", ...rest] = cleaned.split(/\s+/);
   const word = first.toLowerCase();
   if (word === "كشف" || word === "statement") {

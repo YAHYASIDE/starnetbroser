@@ -64,6 +64,9 @@ public class TelegramRepliesTest {
         assertEquals("أجهزتي", TelegramReplies.commandWord("📡 أجهزتي"));
         assertEquals("الموقوفة", TelegramReplies.commandWord("⛔️ الموقوفة"));
         assertEquals("محمد", TelegramReplies.afterCommand("🔎 بحث محمد"));
+        // An email keeps its "@gmail" - only a "/command@bot" loses the @name.
+        assertEquals("abdlkrim9113@gmail.com", TelegramReplies.cleanText("abdlkrim9113@gmail.com"));
+        assertEquals("start", TelegramReplies.cleanText("/start@starnet_reps_bot"));
     }
 
     @Test

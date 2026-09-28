@@ -193,7 +193,10 @@ export const REP_WORDS: Record<string, RepWordKind> = Object.fromEntries(
 /** The text without "/", a leading emoji (keyboard buttons send "📡 أجهزتي") or the bot's @name.
  * Mirrors TelegramReplies.commandWord (Java). */
 export function cleanRepText(text: string): string {
-  return text.trim().replace(/^\//, "").replace(/^[^\p{L}\p{N}]+/u, "").replace(/@\w+/, "").trim();
+  let cleaned = text.trim();
+  // Only the bot's @name glued to a "/command" - never the "@gmail" of an email being searched.
+  if (cleaned.startsWith("/")) cleaned = cleaned.slice(1).replace(/^(\S+?)@\w+/, "$1");
+  return cleaned.replace(/^[^\p{L}\p{N}]+/u, "").trim();
 }
 
 export function parseRepCommand(text: string): RepCommand {
@@ -370,7 +373,9 @@ export function repSearchIndex(accounts: StarlinkAccountSummary[], clients: Clie
     ];
     const target = whatsappTarget(account, clients, (name) => `مرحبًا ${name}،\n\n- STAR NET`);
     return {
-      k: normalizeSearch([account.name, client?.name ?? "", phoneDigits, account.kitNumber, account.serialNumber].join(" ")),
+      k: normalizeSearch(
+        [account.name, client?.name ?? "", phoneDigits, account.kitNumber, account.serialNumber, account.expectedEmail ?? "", account.starlinkAccountEmail ?? ""].join(" "),
+      ),
       t: lines.join("\n"),
       ...(target ? { l: target.label, w: target.url } : {}),
     };
