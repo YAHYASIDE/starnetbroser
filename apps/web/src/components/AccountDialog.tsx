@@ -319,6 +319,62 @@ export function AccountDialog({
             )}
             <div className="info-wide"><span>التنبيه</span><strong>{displayValue(draft.alertReason)}</strong></div>
           </div>
+        ) : mode === "add" ? (
+          // A new device needs only what Starlink can't tell us - the rest (KIT, plan, renewal,
+          // phone...) comes from the first Starlink sync, or from "تعديل" later.
+          <form className="account-form add-device-form" onSubmit={submit}>
+            <label className="form-field add-field add-field-email">
+              <span className="add-field-label"><b aria-hidden="true">📧</b> البريد الإلكتروني الرئيسي للجهاز</span>
+              <input dir="ltr" type="email" value={draft.expectedEmail ?? ""} onChange={(e) => update("expectedEmail", e.target.value)} placeholder="name@example.com" />
+            </label>
+
+            <label className="form-field add-field add-field-code">
+              <span className="add-field-label"><b aria-hidden="true">🔑</b> كود البريد</span>
+              <input dir="ltr" value={draft.expectedEmailPassword ?? ""} onChange={(e) => update("expectedEmailPassword", e.target.value)} placeholder="اختياري" />
+            </label>
+
+            <label className="form-field add-field add-field-wifi">
+              <span className="add-field-label"><b aria-hidden="true">📶</b> كود الواي فاي</span>
+              <input dir="ltr" value={draft.wifiPassword ?? ""} onChange={(e) => update("wifiPassword", e.target.value)} placeholder="اختياري" />
+            </label>
+
+            <div className="form-field add-field add-field-client">
+              <span className="add-field-label"><b aria-hidden="true">👤</b> الزبون</span>
+              <ClientPicker
+                clients={clients}
+                selectedClientId={draft.clientId}
+                onSelect={(clientId) => update("clientId", clientId)}
+                onCreateClient={onCreateClient}
+              />
+            </div>
+
+            <div className="form-field add-field add-field-rep">
+              <span className="add-field-label"><b aria-hidden="true">🤝</b> المندوب</span>
+              <RepresentativePicker
+                representatives={representatives}
+                selectedRepresentativeId={draft.representativeId}
+                onSelect={(representativeId) => update("representativeId", representativeId)}
+                onCreateRepresentative={onCreateRepresentative}
+              />
+            </div>
+
+            <label className="form-field add-field add-field-name">
+              <span className="add-field-label"><b aria-hidden="true">🏷️</b> اسم الحساب / البطاقة *</span>
+              <input required value={draft.name} onChange={(e) => update("name", e.target.value)} placeholder="مثال: منزل الحي الشرقي" />
+            </label>
+
+            <label className="form-field add-field add-field-note">
+              <span className="add-field-label"><b aria-hidden="true">📝</b> ملاحظة</span>
+              <textarea rows={2} value={draft.alertReason} onChange={(e) => update("alertReason", e.target.value)} placeholder="اختياري" />
+            </label>
+
+            <DuplicateWarning hits={duplicates} />
+
+            <div className="dialog-actions">
+              <button className="dialog-secondary" type="button" onClick={onClose}>إلغاء</button>
+              <button className="dialog-primary" type="submit">إضافة الحساب</button>
+            </div>
+          </form>
         ) : (
           <form className="account-form" onSubmit={submit}>
             <div className="form-field form-wide">
@@ -578,7 +634,7 @@ export function AccountDialog({
                 <button className="dialog-danger" type="button" onClick={confirmDelete}>حذف الحساب</button>
               )}
               <button className="dialog-secondary" type="button" onClick={onClose}>إلغاء</button>
-              <button className="dialog-primary" type="submit">{mode === "add" ? "إضافة الحساب" : "حفظ التعديل"}</button>
+              <button className="dialog-primary" type="submit">حفظ التعديل</button>
             </div>
           </form>
         )}
