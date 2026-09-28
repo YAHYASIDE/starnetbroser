@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { homeSearchHref } from "@/lib/homeActions";
+import { exportXlsx } from "@/lib/xlsxExport";
 import { cardNeed, computeRenewalForecast } from "@/lib/renewalForecast";
 import { currentCardBalanceUsd } from "@/lib/starlinkDebt";
 import { currencyLabelFor, moneyText, type ToolsData } from "./useToolsData";
@@ -15,6 +16,15 @@ export function ForecastTool({ data }: { data: ToolsData }) {
   const forecast = useMemo(() => computeRenewalForecast(data.accounts, new Date(), horizon), [data.accounts, horizon]);
   const label = currencyLabelFor(data.currencies);
   const maxWeek = Math.max(1, ...forecast.weeks.map((w) => w.count));
+  const [exportError, setExportError] = useState<string | null>(null);
+  async function exportList() {
+    const rows = [
+      ["الجهاز", "الزبون", "التاريخ", "بعد (أيام)", "سعر البيع", "العملة", "تكلفة Starlink", "عملة التكلفة"],
+      ...forecast.devices.map((d) => [d.name, d.clientId ? data.clients[d.clientId]?.name ?? "" : "", d.date, d.days, d.sale?.amount ?? "", d.sale ? label(d.sale.currency) : "", d.cost?.amount ?? "", d.cost ? label(d.cost.currency) : ""]),
+    ];
+    const result = await exportXlsx([{ name: "التوقعات", rows }], `starnet-forecast-${horizon}d.xlsx`, "توقعات التجديد");
+    setExportError(result.ok ? null : result.message);
+  }
   const card = useMemo(() => cardNeed(computeRenewalForecast(data.accounts, new Date(), 7), currentCardBalanceUsd(data.ledger)), [data.accounts, data.ledger]);
   return (
     <div className="tool-body">
@@ -70,6 +80,12 @@ export function ForecastTool({ data }: { data: ToolsData }) {
           </li>
         ))}
       </ul>
+      {forecast.devices.length > 0 && (
+        <button type="button" className="text-action" onClick={() => void exportList()}>
+          📥 تصدير القائمة Excel
+        </button>
+      )}
+      {exportError && <p className="settings-hint telegram-stopped">{exportError}</p>}
       <details className="tool-issue">
         <summary>
           <span className="tool-issue-title">قائمة الأجهزة</span>

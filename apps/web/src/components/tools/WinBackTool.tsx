@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { BulkWhatsAppSender } from "@/components/BulkWhatsAppSender";
 import { homeSearchHref } from "@/lib/homeActions";
+import { exportXlsx } from "@/lib/xlsxExport";
 import { buildWhatsAppLink } from "@/lib/whatsapp";
 import { buildWinBackMessage, listLapsedDevices } from "@/lib/winBack";
 import type { ToolsData } from "./useToolsData";
@@ -23,6 +24,11 @@ export function WinBackTool({ data }: { data: ToolsData }) {
   const [maxDays, setMaxDays] = useState(60);
   const [sent, setSent] = useState<Record<string, string>>(() => (typeof window === "undefined" ? {} : loadSent()));
   const lapsed = useMemo(() => listLapsedDevices(data.accounts, data.clients, new Date(), { maxDays }), [data.accounts, data.clients, maxDays]);
+
+  async function exportList() {
+    const rows = [["الجهاز", "الزبون", "الهاتف", "متوقف منذ (أيام)"], ...lapsed.map((d) => [d.name, d.clientName ?? "", d.phone ?? "", d.daysLapsed])];
+    await exportXlsx([{ name: "للاسترجاع", rows }], "starnet-winback.xlsx", "زبائن للاسترجاع");
+  }
 
   function markSent(id: string) {
     const next = { ...sent, [id]: new Date().toISOString().slice(0, 10) };
@@ -52,6 +58,11 @@ export function WinBackTool({ data }: { data: ToolsData }) {
         })}
         label="رسالة استرجاع للكل"
       />
+      {lapsed.length > 0 && (
+        <button type="button" className="text-action" onClick={() => void exportList()}>
+          📥 Excel
+        </button>
+      )}
       <ul className="tool-list">
         {lapsed.map((d) => {
           const link = buildWhatsAppLink(d.phone, buildWinBackMessage(d));
