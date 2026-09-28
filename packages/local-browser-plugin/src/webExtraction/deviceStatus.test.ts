@@ -180,3 +180,16 @@ describe("extractDeviceStatus - real Devices page layout (section header before 
     expect(extractDeviceStatus(document, LABELS)).toBe("unknown");
   });
 });
+
+describe("extractDeviceStatus - dot colored only by the page's stylesheet", () => {
+  it("reads a bare span colored through a parent selector (coral red)", () => {
+    setBody(`
+      <style>.row > span:last-child { background-color: rgb(235, 100, 85); }</style>
+      <div class="list">
+        <div class="row"><span>STARLINK</span><span></span></div>
+        <div class="row"><span>WIFI 1AB310E</span><span></span></div>
+      </div>`);
+    expect(extractDeviceStatus(document, ["starlink"])).toBe("offline");
+    expect(extractDeviceStatus(document, WIFI_LABELS)).toBe("offline");
+  });
+});

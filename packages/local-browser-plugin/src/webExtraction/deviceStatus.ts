@@ -32,15 +32,40 @@ function findLabelElements(doc: Document, labels: string[]): Element[] {
  */
 const SVG_SHAPES = new Set(["circle", "ellipse", "rect"]);
 
-function isStatusDotCandidate(el: Element): boolean {
-  if (el.children.length !== 0) return false;
-  if ((el.textContent ?? "").trim() !== "") return false;
+/** "styled": a class/style/fill of its own - a real dot candidate (its gray means "unknown").
+ * "bare": an empty leaf with none of those - only counts if it actually shows a red/green/amber
+ * color (a real page can color it through a parent's CSS selector); an uncolored one is ignored. */
+function dotCandidateKind(el: Element): "styled" | "bare" | null {
+  if (el.children.length !== 0) return null;
+  if ((el.textContent ?? "").trim() !== "") return null;
   // A dot drawn as an SVG shape colored by its own `fill` attribute (no class, no style).
-  if (SVG_SHAPES.has(el.tagName.toLowerCase()) && el.getAttribute("fill")) return true;
+  if (SVG_SHAPES.has(el.tagName.toLowerCase()) && el.getAttribute("fill")) return "styled";
   const style = el.getAttribute("style");
-  if (style && style.trim() !== "") return true;
+  if (style && style.trim() !== "") return "styled";
   const className = el.getAttribute("class");
-  return !!className && className.trim() !== "";
+  return className && className.trim() !== "" ? "styled" : "bare";
+}
+
+/** A dot drawn by CSS on an element's ::before/::after (content set, colored background/glyph). */
+function pseudoStatus(el: Element): StatusColorValue | null {
+  if (typeof getComputedStyle !== "function") return null;
+  for (const pseudo of ["::before", "::after"]) {
+    let style: CSSStyleDeclaration;
+    try {
+      style = getComputedStyle(el, pseudo);
+    } catch {
+      continue;
+    }
+    const content = style.getPropertyValue("content");
+    if (!content || content === "none" || content === "normal") continue;
+    const byBackground = statusFromComputedColor(style.backgroundColor);
+    if (byBackground !== "unknown") return byBackground;
+    if (/[●•⬤]/.test(content)) {
+      const byColor = statusFromComputedColor(style.color);
+      if (byColor !== "unknown") return byColor;
+    }
+  }
+  return null;
 }
 
 function statusInScope(scope: Element): StatusColorValue | null {
@@ -56,9 +81,10 @@ function statusInScope(scope: Element): StatusColorValue | null {
   // classifiable color before giving up, rather than committing to whichever happens to be
   // first. Only once every candidate has been checked and NONE classified does this report the
   // definitive "unknown" (a real gray/neutral dot) rather than "nothing found here" (undefined).
-  const dotCandidates = Array.from(scope.querySelectorAll("*")).filter(isStatusDotCandidate);
   let sawCandidate = false;
-  for (const el of dotCandidates) {
+  for (const el of Array.from(scope.querySelectorAll("*"))) {
+    const kind = dotCandidateKind(el);
+    if (!kind) continue;
     const style = getComputedStyle(el);
     const byBackground = statusFromComputedColor(style.backgroundColor);
     if (byBackground !== "unknown") return byBackground;
@@ -66,7 +92,11 @@ function statusInScope(scope: Element): StatusColorValue | null {
     if (byColor !== "unknown") return byColor;
     const byFill = statusFromComputedColor(el.getAttribute("fill") || style.getPropertyValue("fill"));
     if (byFill !== "unknown") return byFill;
-    sawCandidate = true;
+    if (kind === "styled") sawCandidate = true;
+  }
+  for (const el of [scope, ...Array.from(scope.querySelectorAll("*"))]) {
+    const byPseudo = pseudoStatus(el);
+    if (byPseudo) return byPseudo;
   }
   if (sawCandidate) return "unknown";
 

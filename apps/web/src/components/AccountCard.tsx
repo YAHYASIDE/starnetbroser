@@ -506,6 +506,14 @@ export function AccountCard({
       </div>
 
       <div className="account-card-mini-row">
+        <span className="device-dots" title={`الطبق (STARLINK): ${dishDot.word} · الواي فاي: ${wifiDot.word}`}>
+          <span className={`device-dot device-dot-${dishDot.tone}`}>
+            <i aria-hidden="true" /> <IconDish /> الطبق: {dishDot.word}
+          </span>
+          <span className={`device-dot device-dot-${wifiDot.tone}`}>
+            <i aria-hidden="true" /> <IconWifi /> واي فاي: {wifiDot.word}
+          </span>
+        </span>
         {planBadge && (
           <span className="badge badge-mint account-card-plan-badge" title={planName}>
             {planBadge}
@@ -517,12 +525,6 @@ export function AccountCard({
             {countryFlag(account.serviceCountry)} {deviceCountry.country}
           </span>
         )}
-        <span className={`device-dot device-dot-${dishDot.tone}`} title={`الطبق (STARLINK): ${dishDot.word}`}>
-          <i aria-hidden="true" /> <IconDish /> {dishDot.word}
-        </span>
-        <span className={`device-dot device-dot-${wifiDot.tone}`} title={`الواي فاي: ${wifiDot.word}`}>
-          <i aria-hidden="true" /> <IconWifi /> {wifiDot.word}
-        </span>
       </div>
 
       <div className="account-card-main-actions">

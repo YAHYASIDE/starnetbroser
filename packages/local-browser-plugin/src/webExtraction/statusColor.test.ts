@@ -57,3 +57,14 @@ describe("statusFromComputedColor", () => {
     expect(statusFromComputedColor("not-a-color")).toBe("unknown");
   });
 });
+
+describe("statusFromComputedColor - by hue", () => {
+  it("reads Starlink's soft coral red as offline, not amber", () => {
+    expect(statusFromComputedColor("rgb(235, 100, 85)")).toBe("offline");
+    expect(statusFromComputedColor("rgb(242, 101, 85)")).toBe("offline");
+    expect(statusFromComputedColor("rgb(76, 175, 80)")).toBe("online");
+    expect(statusFromComputedColor("rgb(255, 193, 7)")).toBe("warning");
+    expect(statusFromComputedColor("rgba(235, 100, 85, 0)")).toBe("unknown");
+    expect(statusFromComputedColor("rgb(40, 40, 48)")).toBe("unknown");
+  });
+});

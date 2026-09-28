@@ -8604,3 +8604,14 @@ button.today-tile {
 .device-dot-red { background: var(--red-bg); color: var(--red); }
 .device-dot-yellow { background: var(--yellow-bg); color: var(--yellow); }
 .device-dot-gray { background: var(--gray-bg); color: var(--gray); }
+
+/* Both dots always side by side, on their own line, like Starlink's device list. */
+.device-dots {
+  display: inline-flex;
+  flex: 1 0 100%;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.device-dots .device-dot { flex: 1 1 0; min-width: 0; justify-content: center; white-space: nowrap; font-size: 0.68rem; padding: 4px 6px; }
+.device-dots .device-dot > i { width: 10px; height: 10px; }
