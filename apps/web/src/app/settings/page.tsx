@@ -93,7 +93,7 @@ import { runAutoBackup, shareLatestAutoBackup } from "@/lib/autoBackupRunner";
 import { DriveFile, DriveUploadStatus, driveBackupLabel, getDriveEmail, getDriveLastUpload, isDriveLinked } from "@/lib/driveBackup";
 import { downloadGoogleDriveBackup, linkGoogleDrive, listGoogleDriveBackups, runDriveBackup, unlinkGoogleDrive } from "@/lib/driveBackupRunner";
 import { PartySheet } from "@/components/AccountsSection";
-import { BusinessProfile, loadBusinessProfile, saveBusinessProfile } from "@/lib/pdfDocument";
+import { BusinessProfile, DEFAULT_PAYMENT_INSTRUCTIONS, loadBusinessProfile, saveBusinessProfile } from "@/lib/pdfDocument";
 import { clearAppPin, hasAppPin, setAppPin, verifyAppPin } from "@/lib/appLock";
 import { loadProfitReset, ProfitReset, saveProfitReset, startProfitFresh, undoProfitFresh } from "@/lib/profitReset";
 import { listRepresentatives, loadRepresentativeStore, Representative, saveRepresentativeStore } from "@/lib/repStore";
@@ -1103,6 +1103,16 @@ function BusinessProfileSection() {
         <input className="search-input" placeholder="اسم النشاط (مثال: STAR NET)" value={profile.name} onChange={(e) => update({ name: e.target.value })} />
         <input className="search-input" dir="ltr" type="tel" placeholder="هاتف النشاط (اختياري)" value={profile.phone ?? ""} onChange={(e) => update({ phone: e.target.value })} />
         <input className="search-input" placeholder="العنوان (اختياري)" value={profile.address ?? ""} onChange={(e) => update({ address: e.target.value })} />
+        <label className="tool-field">
+          <span>طرق الدفع في رسائل تذكير الديون (سطر لكل طريقة)</span>
+          <textarea
+            className="search-input"
+            rows={3}
+            placeholder={DEFAULT_PAYMENT_INSTRUCTIONS}
+            value={profile.paymentInstructions ?? ""}
+            onChange={(e) => update({ paymentInstructions: e.target.value })}
+          />
+        </label>
         <button className="dialog-primary" type="submit">
           {saved ? "✓ تم الحفظ" : "حفظ بيانات النشاط"}
         </button>

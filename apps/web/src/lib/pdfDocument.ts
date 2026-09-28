@@ -8,6 +8,15 @@ export interface BusinessProfile {
   name: string;
   phone?: string;
   address?: string;
+  /** "How to pay" lines in the WhatsApp debt reminders (one per line). */
+  paymentInstructions?: string;
+}
+
+export const DEFAULT_PAYMENT_INSTRUCTIONS = "• بنكيلي / سداد / نيتا: 22227268\n• أورانج موني: 74646158";
+
+/** The "how to pay" lines for reminder messages: the operator's own, or the original ones. */
+export function paymentInstructions(): string {
+  return loadBusinessProfile().paymentInstructions?.trim() || DEFAULT_PAYMENT_INSTRUCTIONS;
 }
 
 const PROFILE_KEY = "starnet_business_profile_v1";
@@ -31,7 +40,12 @@ export function saveBusinessProfile(profile: BusinessProfile): void {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(
     PROFILE_KEY,
-    JSON.stringify({ name: profile.name.trim(), phone: profile.phone?.trim() || undefined, address: profile.address?.trim() || undefined }),
+    JSON.stringify({
+      name: profile.name.trim(),
+      phone: profile.phone?.trim() || undefined,
+      address: profile.address?.trim() || undefined,
+      paymentInstructions: profile.paymentInstructions?.trim() || undefined,
+    }),
   );
 }
 

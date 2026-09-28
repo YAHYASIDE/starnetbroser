@@ -4,6 +4,7 @@
  * directly testable.
  */
 
+import { paymentInstructions } from "./pdfDocument";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import {
   computeBalanceByCurrency,
@@ -68,8 +69,7 @@ export function buildBalanceReminderMessage(accountName: string, entries: Ledger
     `نود إعلامك بأن لديك رصيدًا مستحقًا حاليًا بقيمة ${owedAmounts.join(" و")}.\n` +
     `نرجو منك التكرم بتسديد المبلغ في أقرب وقت ممكن لتفادي انقطاع الخدمة.\n\n` +
     `يمكنكم الدفع عبر إحدى الوسائل التالية:\n` +
-    `• بنكيلي / سداد / نيتا: 22227268\n` +
-    `• أورانج موني: 74646158\n\n` +
+    `${paymentInstructions()}\n\n` +
     `شكرًا لتعاونكم معنا 🙏\n` +
     `- STAR NET`
   );
@@ -96,8 +96,7 @@ export function buildStoreDebtReminderMessage(clientName: string, balanceByCurre
     `نود إعلامك بأن لديك رصيدًا مستحقًا في المتجر بقيمة ${owedAmounts.join(" و")}.\n` +
     `نرجو منك التكرم بتسديد المبلغ في أقرب وقت ممكن.\n\n` +
     `يمكنكم الدفع عبر إحدى الوسائل التالية:\n` +
-    `• بنكيلي / سداد / نيتا: 22227268\n` +
-    `• أورانج موني: 74646158\n\n` +
+    `${paymentInstructions()}\n\n` +
     `شكرًا لتعاونكم معنا 🙏\n` +
     `- STAR NET`
   );
