@@ -43,4 +43,12 @@ describe("request list", () => {
     expect(pendingRepRequests(done)).toHaveLength(0);
     expect(done[0]!.status).toBe("approved");
   });
+
+  it("drops a device's encrypted file once resolved", () => {
+    const list = addRepRequest([], { repId: "r1", kind: "device", text: "جهاز", name: "محمد", file: "{...}" });
+    expect(list[0]!.file).toBe("{...}");
+    const done = resolveRepRequest(list, list[0]!.id, "rejected");
+    expect(done[0]!.file).toBeUndefined();
+    expect(done[0]).toMatchObject({ name: "محمد", status: "rejected" });
+  });
 });

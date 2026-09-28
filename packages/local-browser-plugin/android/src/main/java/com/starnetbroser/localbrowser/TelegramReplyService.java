@@ -284,11 +284,12 @@ public class TelegramReplyService extends Service {
         JSONObject chat = message != null ? message.optJSONObject("chat") : null;
         if (chat == null || !"private".equals(chat.optString("type"))) return;
         String text = message.optString("text", "");
-        if (text.trim().isEmpty()) return;
         String chatId = String.valueOf(chat.optLong("id"));
         String name = (chat.optString("first_name", "") + " " + chat.optString("last_name", "")).trim();
         String username = chat.optString("username", "");
         boolean reps = TelegramStore.REPS.equals(bot);
+        if (reps && handleDeviceFile(context, token, chatId, name, username, message.optJSONObject("document"))) return;
+        if (text.trim().isEmpty()) return;
         if (!reps && !chatId.equals(TelegramStore.chatId(context))) return; // the owner bot talks to the owner only
 
         // ⚡ تفعيل lives here only (its buttons come back to this service), app open or not.
@@ -299,6 +300,23 @@ public class TelegramReplyService extends Service {
             return;
         }
         answer(context, bot, token, chatId, name, username, text);
+    }
+
+    // ---- 📥 a device from a rep's app ----
+
+    /** A linked rep's device file (session encrypted with his code): always left for the app,
+     * which downloads, decrypts and shows it for approval. True when handled. */
+    private static boolean handleDeviceFile(Context context, String token, String chatId, String name, String username, JSONObject document) throws JSONException {
+        if (document == null || !TelegramReplies.isDeviceFile(document.optString("file_name", ""))) return false;
+        String repId = TelegramStore.repIdForChat(context, chatId);
+        if (repId == null) return true; // only linked reps may send devices
+        TelegramReplies.Reply reply = TelegramReplies.deviceFile(repId, document.optString("file_name", ""), loadSnapshot(context));
+        addToInbox(context, TelegramStore.REPS, chatId, name, username, "", true, document.optString("file_id", ""), document.optString("file_name", ""));
+        send(context, TelegramStore.REPS, token, chatId, reply.text, reply.markup);
+        if (TelegramStore.isConfigured(context)) {
+            send(context, TelegramStore.OWNER, TelegramStore.token(context), TelegramStore.chatId(context), reply.ownerNotice, null);
+        }
+        return true;
     }
 
     // ---- ⚡ تفعيل ----
@@ -555,6 +573,10 @@ public class TelegramReplyService extends Service {
     // ---- inbox (drained by the app) ----
 
     private static void addToInbox(Context context, String bot, String chatId, String name, String username, String text, boolean replied) throws JSONException {
+        addToInbox(context, bot, chatId, name, username, text, replied, null, null);
+    }
+
+    private static void addToInbox(Context context, String bot, String chatId, String name, String username, String text, boolean replied, String fileId, String fileName) throws JSONException {
         synchronized (INBOX_LOCK) {
             JSONArray inbox = readInbox(context);
             JSONObject item = new JSONObject();
@@ -564,6 +586,10 @@ public class TelegramReplyService extends Service {
             item.put("username", username);
             item.put("text", text);
             item.put("replied", replied);
+            if (fileId != null && !fileId.isEmpty()) {
+                item.put("fileId", fileId);
+                item.put("fileName", fileName != null ? fileName : "");
+            }
             inbox.put(item);
             while (inbox.length() > MAX_INBOX) inbox.remove(0);
             TelegramStore.setInbox(context, inbox.toString());

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { saveClientDevicePayment } from "@/lib/clientDevicePaymentSave";
-import { ClientStore, createClient, loadClientStore, saveClientStore } from "@/lib/clientStore";
+import { ClientStore, createClient, listClients, loadClientStore, saveClientStore } from "@/lib/clientStore";
 import { buildNewDeviceHref } from "@/lib/deviceFromSale";
 import { localDay } from "@/lib/eveningSummary";
 import {
@@ -70,6 +70,17 @@ export function RepRequestsSection({ representatives, accounts, clientStore, onC
               clientStore={clientStore}
               onDone={(status) => {
                 resolve(request, status);
+                onChanged();
+              }}
+            />
+          ) : request.kind === "device" ? (
+            <DeviceRequestCard
+              key={request.id}
+              request={request}
+              rep={repById.get(request.repId)}
+              clientStore={clientStore}
+              onRejected={() => {
+                resolve(request, "rejected");
                 onChanged();
               }}
             />
@@ -247,6 +258,109 @@ function ClientRequestCard({ request, rep, onDone }: { request: RepRequest; rep?
         <button type="button" className="dialog-primary" onClick={() => void approve()}>
           ✅ إضافة الزبون ثم الجهاز
         </button>
+        <button type="button" className="text-action" onClick={() => void reject()}>
+          ❌ رفض
+        </button>
+      </div>
+    </li>
+  );
+}
+
+function digits(value?: string): string {
+  return (value ?? "").replace(/\D/g, "");
+}
+
+/** 📱 A device the rep added in his app, already signed in to Starlink. Approving creates (or
+ * reuses, by phone) the client and opens the add-device dialog; the session is restored when that
+ * dialog saves (HomeView -> repDeviceAdopt.ts) - cancelling it leaves the request here. */
+function DeviceRequestCard({
+  request,
+  rep,
+  clientStore,
+  onRejected,
+}: {
+  request: RepRequest;
+  rep?: Representative;
+  clientStore: ClientStore;
+  onRejected: () => void;
+}) {
+  const router = useRouter();
+  const [name, setName] = useState(request.name ?? "");
+  const [phone, setPhone] = useState(request.phone ?? "");
+  const [deviceName, setDeviceName] = useState(request.deviceName ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const existing = useMemo(
+    () => (digits(phone).length >= 8 ? listClients(clientStore).find((c) => digits(c.phone).endsWith(digits(phone).slice(-8))) : undefined),
+    [clientStore, phone],
+  );
+
+  function approve() {
+    if (request.codeMismatch) return setError("الملف لا يُفتح برمز هذا المندوب - أرسل له رمزه من «إدارة» واطلب إعادة الإرسال");
+    if (!name.trim() && !existing) return setError("اكتب اسم الزبون");
+    let clientId = existing?.id;
+    if (!clientId) {
+      const { store, client } = createClient(loadClientStore(), { name, phone: phone || undefined });
+      saveClientStore(store);
+      clientId = client.id;
+    }
+    router.push(
+      buildNewDeviceHref({
+        clientId,
+        representativeId: request.repId,
+        name: deviceName || request.email || request.kit || name,
+        email: request.email,
+        kit: request.kit,
+        repRequestId: request.id,
+      }),
+    );
+  }
+
+  async function reject() {
+    if (!window.confirm("رفض هذا الجهاز؟ يُبلَّغ المندوب بذلك.")) return;
+    await sendRepText(request.repId, `❌ لم يوافق المسؤول على الجهاز${request.deviceName ? ` ${request.deviceName}` : ""} - يمكنك حذفه من تطبيقك.`);
+    onRejected();
+  }
+
+  return (
+    <li className="rep-request">
+      <div className="rep-request-head">
+        <strong>📱 {rep?.name ?? "مندوب"}</strong>
+        <span>{timeLabel(request.createdAt)}</span>
+      </div>
+      {request.codeMismatch ? (
+        <p className="settings-hint telegram-stopped">🔒 لا يُفتح الملف برمز هذا المندوب - أرسل له رمزه من جديد («إدارة» ← رمز تطبيق المندوب) ثم يعيد الإرسال.</p>
+      ) : (
+        <p className="rep-request-text">
+          جهاز مسجَّل الدخول إلى Starlink
+          {request.email ? (
+            <>
+              {" "}
+              · <bdi dir="ltr">{request.email}</bdi>
+            </>
+          ) : null}
+          {request.kit ? (
+            <>
+              {" "}
+              · <bdi dir="ltr">{request.kit}</bdi>
+            </>
+          ) : null}
+        </p>
+      )}
+      {!request.codeMismatch && (
+        <>
+          <input className="search-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="اسم الزبون" />
+          <input className="search-input" dir="ltr" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="الهاتف" />
+          {existing && <p className="settings-hint">👤 زبون موجود: {existing.name} - سيُضاف الجهاز إليه</p>}
+          <input className="search-input" value={deviceName} onChange={(e) => setDeviceName(e.target.value)} placeholder="اسم الجهاز" />
+        </>
+      )}
+      {error && <p className="settings-hint telegram-stopped">{error}</p>}
+      <div className="settings-actions">
+        {!request.codeMismatch && (
+          <button type="button" className="dialog-primary" onClick={approve}>
+            ✅ إضافة الجهاز مع الدخول
+          </button>
+        )}
         <button type="button" className="text-action" onClick={() => void reject()}>
           ❌ رفض
         </button>

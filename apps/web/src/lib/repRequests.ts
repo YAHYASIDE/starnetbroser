@@ -3,12 +3,14 @@
  * or a new customer / device ("زبون جديد محمد 22212345 x@gmail.com"). Nothing is recorded until
  * the operator approves the request in the app (representatives page): approving a payment records
  * it on the device exactly like a payment typed by hand; approving a customer creates the client
- * and opens the add-device dialog already filled in. Pure parsing + a small `starnet_` store.
+ * and opens the add-device dialog already filled in. A 📱 device from the rep's app (see
+ * repDeviceTransfer.ts) also brings its Starlink session, restored when the device is saved.
+ * Pure parsing + a small `starnet_` store.
  */
 
 import type { LedgerCurrency } from "./ledgerStore";
 
-export type RepRequestKind = "payment" | "client";
+export type RepRequestKind = "payment" | "client" | "device";
 export type RepRequestStatus = "pending" | "approved" | "rejected";
 
 export interface RepRequest {
@@ -31,6 +33,12 @@ export interface RepRequest {
   phone?: string;
   email?: string;
   kit?: string;
+  // device (📱 from the rep's app: the details above + the encrypted file with its session)
+  deviceName?: string;
+  /** The file as the rep sent it - still encrypted; dropped once the request is resolved. */
+  file?: string;
+  /** His file doesn't open with the code this phone has for him (new code / wrong rep). */
+  codeMismatch?: boolean;
 }
 
 export type RepRequestList = RepRequest[];
@@ -107,6 +115,12 @@ export interface ParsedClient {
   phone?: string;
   email?: string;
   kit?: string;
+  // device (📱 from the rep's app: the details above + the encrypted file with its session)
+  deviceName?: string;
+  /** The file as the rep sent it - still encrypted; dropped once the request is resolved. */
+  file?: string;
+  /** His file doesn't open with the code this phone has for him (new code / wrong rep). */
+  codeMismatch?: boolean;
 }
 
 /** "محمد أحمد 22212345 x@gmail.com KIT304" -> name, phone, email, kit (any order). Null when it
@@ -158,7 +172,11 @@ export function addRepRequest(list: RepRequestList, request: Omit<RepRequest, "i
 }
 
 export function resolveRepRequest(list: RepRequestList, id: string, status: Exclude<RepRequestStatus, "pending">, now = new Date()): RepRequestList {
-  return list.map((r) => (r.id === id ? { ...r, status, resolvedAt: now.toISOString() } : r));
+  return list.map((r) => {
+    if (r.id !== id) return r;
+    const { file: _file, ...rest } = r;
+    return { ...rest, status, resolvedAt: now.toISOString() };
+  });
 }
 
 export function pendingRepRequests(list: RepRequestList): RepRequestList {

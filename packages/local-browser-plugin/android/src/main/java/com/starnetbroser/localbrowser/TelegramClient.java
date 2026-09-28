@@ -21,6 +21,7 @@ import org.json.JSONObject;
 final class TelegramClient {
 
     private static final String API = "https://api.telegram.org/bot";
+    private static final String FILE_API = "https://api.telegram.org/file/bot";
     private static final int TIMEOUT_MS = 20_000;
 
     /** A reply Telegram itself rejected (bad token, chat not found...) - retrying won't help. */
@@ -84,6 +85,36 @@ final class TelegramClient {
         if (caption != null && !caption.isEmpty()) fields.put("caption", TelegramText.truncate(caption, TelegramText.MAX_CAPTION_CHARS));
         byte[] body = TelegramText.multipart(boundary, fields, "document", fileName, "application/pdf", file);
         return send(token, "sendDocument", "multipart/form-data; boundary=" + boundary, body, TIMEOUT_MS);
+    }
+
+    /** A file someone sent the bot (getFile, then the file itself), as UTF-8 text. Refuses files
+     * over `maxBytes` - the rep's device file is a few KB. */
+    static String downloadText(String token, String fileId, int maxBytes) throws IOException, TelegramError {
+        Map<String, String> params = new LinkedHashMap<>();
+        params.put("file_id", fileId);
+        JSONObject file = call(token, "getFile", params).optJSONObject("result");
+        String path = file != null ? file.optString("file_path", "") : "";
+        if (path.isEmpty()) throw new TelegramError(400, "no file");
+        if (file.optLong("file_size", 0) > maxBytes) throw new TelegramError(400, "file too big");
+        HttpURLConnection connection = (HttpURLConnection) new URL(FILE_API + token + "/" + path).openConnection();
+        try {
+            connection.setConnectTimeout(TIMEOUT_MS);
+            connection.setReadTimeout(TIMEOUT_MS);
+            int status = connection.getResponseCode();
+            if (status >= 400) throw new IOException("Telegram HTTP " + status);
+            try (InputStream in = connection.getInputStream()) {
+                ByteArrayOutputStream out = new ByteArrayOutputStream();
+                byte[] buffer = new byte[4096];
+                int read;
+                while ((read = in.read(buffer)) != -1) {
+                    out.write(buffer, 0, read);
+                    if (out.size() > maxBytes) throw new TelegramError(400, "file too big");
+                }
+                return new String(out.toByteArray(), StandardCharsets.UTF_8);
+            }
+        } finally {
+            connection.disconnect();
+        }
     }
 
     private static JSONObject send(String token, String method, String contentType, byte[] body, int readTimeoutMs) throws IOException, TelegramError {

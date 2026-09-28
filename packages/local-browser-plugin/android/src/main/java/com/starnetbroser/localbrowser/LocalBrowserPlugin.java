@@ -629,12 +629,36 @@ public class LocalBrowserPlugin extends Plugin {
             out.put("username", item.optString("username", ""));
             out.put("text", item.optString("text", ""));
             out.put("replied", item.optBoolean("replied", false));
+            if (item.has("fileId")) {
+                out.put("fileId", item.optString("fileId", ""));
+                out.put("fileName", item.optString("fileName", ""));
+            }
             messages.put(out);
         }
         JSObject ret = new JSObject();
         ret.put("messages", messages);
         ret.put("running", TelegramReplyService.isPolling());
         call.resolve(ret);
+    }
+
+    /** Downloads a device file a rep sent the reps bot (a few KB of encrypted JSON) as text. */
+    @PluginMethod
+    public void telegramDownloadFile(PluginCall call) {
+        String fileId = call.getString("fileId");
+        String token = TelegramStore.repsToken(getContext());
+        if (token == null || fileId == null || fileId.isEmpty()) {
+            call.reject("not configured");
+            return;
+        }
+        telegramExecutor.execute(() -> {
+            try {
+                JSObject ret = new JSObject();
+                ret.put("text", TelegramClient.downloadText(token, fileId, 2_000_000));
+                call.resolve(ret);
+            } catch (Exception e) {
+                call.reject("download failed: " + e.getClass().getSimpleName());
+            }
+        });
     }
 
     /**
@@ -781,9 +805,15 @@ public class LocalBrowserPlugin extends Plugin {
                     String chatId = String.valueOf(chat.optLong("id"));
                     if (!reps && !chatId.equals(ownerChat)) continue;
                     String text = message.optString("text", "");
-                    if (text.isEmpty()) continue;
+                    JSONObject document = reps ? message.optJSONObject("document") : null;
+                    boolean deviceFile = document != null && TelegramReplies.isDeviceFile(document.optString("file_name", ""));
+                    if (text.isEmpty() && !deviceFile) continue;
                     JSObject item = new JSObject();
                     item.put("text", text);
+                    if (deviceFile) {
+                        item.put("fileId", document.optString("file_id", ""));
+                        item.put("fileName", document.optString("file_name", ""));
+                    }
                     item.put("chatId", chatId);
                     String first = chat.optString("first_name", "");
                     String last = chat.optString("last_name", "");

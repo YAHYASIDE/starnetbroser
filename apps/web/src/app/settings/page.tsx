@@ -1,5 +1,6 @@
 "use client";
 
+import { RepModeEntrySection } from "@/components/RepModeEntrySection";
 import { useEffect, useRef, useState } from "react";
 import { checkHealth, listAccounts, login, register } from "@/lib/apiClient";
 import { ApiError } from "@/lib/apiClient";
@@ -281,6 +282,8 @@ export default function SettingsPage() {
       <TelegramInstantSection />
 
       <AppLockSection />
+
+      <RepModeEntrySection />
 
       <section className="section">
         <h2 className="section-title">عنوان الخادم</h2>

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { LedgerEntryEditor } from "@/components/LedgerEntryEditor";
 import { getCurrency, loadCurrencyStore } from "@/lib/currencyStore";
 import { PdfButton } from "@/components/PdfButton";
+import { RepAppCodePanel } from "@/components/RepAppCodePanel";
 import { RepRequestsSection } from "@/components/RepRequestsSection";
 import { PrintableDocument } from "@/lib/pdfDocument";
 import { loadCashEntries, postRepSettlementToCash, removeLinkedCashEntries, saveCashEntries } from "@/lib/cashStore";
@@ -466,7 +467,7 @@ interface RepCardProps {
 
 type RepPanel = "statement" | "devices" | null;
 type RepSheet =
-  | { kind: "settle" | "whatsapp" | "manage" | "reset" | "delete" }
+  | { kind: "settle" | "whatsapp" | "manage" | "reset" | "delete" | "appCode" }
   | { kind: "settlement"; settlement: RepSettlement }
   | { kind: "shipment"; row: RepDeviceCommissionRow }
   | null;
@@ -832,6 +833,12 @@ function RepCard({
         </PartySheet>
       )}
 
+      {sheet?.kind === "appCode" && (
+        <PartySheet title={`تطبيق المندوب - ${rep.name}`} onClose={() => setSheet(null)}>
+          <RepAppCodePanel rep={rep} />
+        </PartySheet>
+      )}
+
       {sheet?.kind === "manage" && (
         <PartySheet title={`إدارة - ${rep.name}`} onClose={() => setSheet(null)}>
           <div className="party-sheet-options">
@@ -840,6 +847,13 @@ function RepCard({
               <span>
                 <strong>تعديل البيانات</strong>
                 <small>الاسم والهاتف والنسبة وتحمّل الخسارة</small>
+              </span>
+            </button>
+            <button type="button" className="party-sheet-option" onClick={() => setSheet({ kind: "appCode" })}>
+              <span aria-hidden="true">📱</span>
+              <span>
+                <strong>رمز تطبيق المندوب</strong>
+                <small>يضيف أجهزته ويسجّل دخولها من هاتفه، وتصلك جاهزة</small>
               </span>
             </button>
             <button type="button" className="party-sheet-option" onClick={() => setSheet({ kind: "reset" })}>

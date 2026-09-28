@@ -25,6 +25,7 @@ import { computeDeviceDebtReminders, computeRenewalReminders, computeRestrictedD
 import { formatAmount } from "@/lib/formatAmount";
 import { applyLedgerPaymentsToCash, loadCashEntries, saveCashEntries } from "@/lib/cashStore";
 import { parseNewDevicePrefill } from "@/lib/deviceFromSale";
+import { adoptRepDevice } from "@/lib/repDeviceAdopt";
 import { HOME_ACTION_EVENT, HomeAction, parseHomeAction, REMINDER_COUNT_EVENT } from "@/lib/homeActions";
 import { buildRenewalShipment } from "@/lib/renewalPlan";
 import { runAutoBackup } from "@/lib/autoBackupRunner";
@@ -184,12 +185,15 @@ export function HomeView({
   }
   const [showAll, setShowAll] = useState(false);
   const [dialog, setDialog] = useState<DialogState>(null);
+  // 📱 The add-device dialog was opened for a device a rep sent from his app (repDeviceAdopt.ts).
+  const repDeviceRequestRef = useRef<string | null>(null);
   // Arriving from a store sale of a Starlink kit (see deviceFromSale.ts): open the add-device
   // dialog already linked to that client/representative, then drop the query so a refresh or
   // back-navigation never reopens it.
   useEffect(() => {
     const prefill = parseNewDevicePrefill(window.location.search);
     if (!prefill) return;
+    repDeviceRequestRef.current = prefill.repRequestId ?? null;
     setDialog({
       mode: "add",
       prefill: {
@@ -679,6 +683,14 @@ export function HomeView({
   }, [accounts]);
 
   function saveAccount(account: StarlinkAccountSummary) {
+    const repRequestId = repDeviceRequestRef.current;
+    repDeviceRequestRef.current = null;
+    if (repRequestId && !accounts.some((item) => item.id === account.id)) {
+      void adoptRepDevice(repRequestId, account.id).then((result) => {
+        pushToast(result.ok ? `✅ نُقل دخول Starlink إلى ${result.name} - افتحه مباشرة` : result.message);
+        if (result.ok) void triggerImmediateSync(account.id);
+      });
+    }
     setAccounts((current) => {
       const exists = current.some((item) => item.id === account.id);
       const next = exists
@@ -1288,7 +1300,10 @@ export function HomeView({
           onCreateClient={handleCreateClient}
           representatives={representatives}
           onCreateRepresentative={handleCreateRepresentative}
-          onClose={() => setDialog(null)}
+          onClose={() => {
+            repDeviceRequestRef.current = null;
+            setDialog(null);
+          }}
           onSave={saveAccount}
           onDelete={deleteAccount}
         />

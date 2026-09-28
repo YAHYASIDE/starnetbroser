@@ -337,6 +337,16 @@ export async function replyToChat(chatId: string, text: string): Promise<void> {
   }
 }
 
+/** A device file a rep sent the reps bot, as text; null when it can't be fetched. */
+export async function downloadRepFile(fileId: string): Promise<string | null> {
+  if (!isRunningInAndroidApp() || !isRepsBotConnected()) return null;
+  try {
+    return (await LocalBrowser.telegramDownloadFile({ fileId })).text;
+  } catch {
+    return null;
+  }
+}
+
 export async function pollRepsBot(): Promise<TelegramPollMessage[]> {
   if (!isRepsBotConnected()) return [];
   const offset = Number(safeGet(REPS_OFFSET_KEY)) || 0;

@@ -58,6 +58,7 @@ describe("LocalBrowserWeb", () => {
     await expect(plugin.telegramTakeInbox()).resolves.toEqual({ messages: [], running: false });
     await expect(plugin.telegramSetReplies({ snapshot: "{}" })).resolves.toBeUndefined();
     await expect(plugin.telegramSendDocument({ fileName: "a.pdf", base64: "AA==" })).rejects.toThrow();
+    await expect(plugin.telegramDownloadFile({ fileId: "f1" })).rejects.toThrow();
   });
 
   it("rejects syncNow instead of silently pretending to have synced anything", async () => {

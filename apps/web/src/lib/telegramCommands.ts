@@ -20,6 +20,7 @@ import { buildPartyStatementPdf } from "./partyStatementPdf";
 import { isDemoMode, isLoggedIn } from "./settingsStore";
 import { listSuppliers, loadSupplierStore } from "./supplierStore";
 import {
+  downloadRepFile,
   loadRepChats,
   pushTelegramReplies,
   recordRepRequest,
@@ -30,6 +31,7 @@ import {
   sendTelegramText,
 } from "./telegram";
 import { buildReplySnapshot } from "./telegramReplies";
+import { deviceDisplayName, readRepDeviceFile, repDeviceCode } from "./repDeviceTransfer";
 import type { TelegramPollMessage } from "@starnet/local-browser-plugin";
 import { getCurrency, loadCurrencyStore } from "./currencyStore";
 import { loadRepresentativeStore, loadRepSettlements, type Representative } from "./repStore";
@@ -163,6 +165,10 @@ export async function answerRepMessage(message: TelegramPollMessage, alreadyRepl
   }
   const rep = loadRepresentativeStore()[repId];
   if (!rep) return;
+  if (message.fileId) {
+    await handleRepDeviceFile(repId, rep, message.fileId, alreadyReplied);
+    return;
+  }
   const command = parseRepCommand(message.text);
   if (command.kind === "payment" || command.kind === "client") {
     await handleRepRequest(repId, rep, command, alreadyReplied);
@@ -170,6 +176,35 @@ export async function answerRepMessage(message: TelegramPollMessage, alreadyRepl
   }
   const reply = await repReplyFor(repId, rep, command);
   await sendRepText(repId, reply.text, reply.markup ?? REP_KEYBOARD);
+}
+
+export const REP_DEVICE_RECEIVED = "📥 وصل ملف الجهاز - بانتظار موافقة المسؤول.\nاضغط «✅ وصل» في تطبيقك لحذف الجلسة من هاتفك.";
+
+/** 📱 A device (with its Starlink session) from the rep's app: downloaded and kept, still
+ * encrypted, for the operator to approve on the representatives page. */
+async function handleRepDeviceFile(repId: string, rep: Representative, fileId: string, alreadyReplied: boolean): Promise<void> {
+  const text = await downloadRepFile(fileId);
+  if (!text) {
+    await sendTelegramText(`⚠️ لم أتمكن من تنزيل ملف الجهاز الذي أرسله المندوب ${rep.name} - اطلب منه إعادة الإرسال.`);
+    return;
+  }
+  const code = repDeviceCode(repId);
+  let details: { name?: string; phone?: string; email?: string; kit?: string; deviceName?: string } = {};
+  let codeMismatch = false;
+  try {
+    if (!code) throw new Error("no code");
+    const payload = await readRepDeviceFile(text, code);
+    details = { name: payload.device.clientName, phone: payload.device.phone, email: payload.device.email, kit: payload.device.kit, deviceName: deviceDisplayName(payload.device) };
+  } catch {
+    codeMismatch = true;
+  }
+  saveRepRequests(
+    addRepRequest(loadRepRequests(), { repId, kind: "device", text: details.deviceName ? `جهاز ${details.deviceName}` : "جهاز من تطبيق المندوب", file: text, codeMismatch, ...details }),
+  );
+  if (!alreadyReplied) {
+    await sendRepText(repId, REP_DEVICE_RECEIVED);
+    await sendTelegramText(`📥 المندوب ${rep.name} أرسل جهازاً جديداً مع دخوله إلى Starlink${details.name ? ` (${details.name})` : ""} - وافق عليه من صفحة المندوبين في التطبيق.`);
+  }
 }
 
 /** 💵 / ➕ from a rep: kept for the operator to approve (never recorded directly). With the app

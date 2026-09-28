@@ -6,6 +6,7 @@ import "@fontsource/ibm-plex-sans-arabic/700.css";
 import "./globals.css";
 import { BottomNav } from "@/components/BottomNav";
 import { AppLockGate } from "@/components/AppLockGate";
+import { RepModeGate } from "@/components/RepModeGate";
 import { StorageFullBanner } from "@/components/StorageFullBanner";
 import { TelegramBridge } from "@/components/TelegramBridge";
 
@@ -35,8 +36,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <AppLockGate>
-          {children}
-          <BottomNav />
+          <RepModeGate>
+            {children}
+            <BottomNav />
+          </RepModeGate>
         </AppLockGate>
         <TelegramBridge />
         <StorageFullBanner />

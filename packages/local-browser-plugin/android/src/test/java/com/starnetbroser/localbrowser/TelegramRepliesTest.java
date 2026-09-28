@@ -2,6 +2,7 @@ package com.starnetbroser.localbrowser;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -213,6 +214,19 @@ public class TelegramRepliesTest {
         assertNull(TelegramReplies.parsePrice("0"));
         assertEquals("{\"inline_keyboard\":[[{\"text\":\"✅ موافق\",\"callback_data\":\"y:ab1\"},{\"text\":\"❌ رفض\",\"callback_data\":\"n:ab1\"}]]}",
             TelegramReplies.approvalButtons("ab1"));
+    }
+
+    @Test
+    public void deviceFileFromARep() {
+        assertTrue(TelegramReplies.isDeviceFile("starnet-device-ab12.json"));
+        assertTrue(TelegramReplies.isDeviceFile("STARNET-DEVICE-x.json"));
+        assertFalse(TelegramReplies.isDeviceFile("photo.jpg"));
+        assertFalse(TelegramReplies.isDeviceFile(null));
+        TelegramReplies.Reply reply = TelegramReplies.deviceFile("r1", "starnet-device-ab12.json", snapshot());
+        assertEquals(TelegramReplies.DEVICE_RECEIVED, reply.text);
+        assertTrue(reply.toInbox);
+        assertTrue(reply.ownerNotice.startsWith("📥 المندوب "));
+        assertNotNull(TelegramReplies.deviceFile("r1", "x", null).text);
     }
 
     @Test

@@ -19,6 +19,8 @@ export interface NewDevicePrefill {
   /** From a rep's "➕ زبون جديد" request. */
   email?: string;
   kit?: string;
+  /** A 📱 device from the rep's app: its session is restored once the dialog saves. */
+  repRequestId?: string;
 }
 
 const PARAM = "newDevice";
@@ -29,6 +31,7 @@ export function buildNewDeviceHref(prefill: NewDevicePrefill): string {
   if (prefill.name) params.set("name", prefill.name);
   if (prefill.email) params.set("email", prefill.email);
   if (prefill.kit) params.set("kit", prefill.kit);
+  if (prefill.repRequestId) params.set("repRequest", prefill.repRequestId);
   return `/?${params.toString()}`;
 }
 
@@ -43,5 +46,6 @@ export function parseNewDevicePrefill(search: string): NewDevicePrefill | null {
     name: params.get("name") || undefined,
     email: params.get("email") || undefined,
     kit: params.get("kit") || undefined,
+    repRequestId: params.get("repRequest") || undefined,
   };
 }

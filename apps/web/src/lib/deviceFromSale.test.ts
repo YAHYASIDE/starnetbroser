@@ -11,6 +11,7 @@ describe("deviceFromSale", () => {
   it("round-trips the prefill through the home URL", () => {
     const href = buildNewDeviceHref({ clientId: "c 1", representativeId: "r1", name: "محمد" });
     expect(parseNewDevicePrefill(href.slice(1))).toEqual({ clientId: "c 1", representativeId: "r1", name: "محمد" });
+    expect(parseNewDevicePrefill(buildNewDeviceHref({ clientId: "c1", repRequestId: "rq1" }).slice(1))).toEqual({ clientId: "c1", repRequestId: "rq1" });
     expect(parseNewDevicePrefill("?clientId=x")).toBeNull();
     expect(parseNewDevicePrefill("")).toBeNull();
   });

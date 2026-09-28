@@ -489,6 +489,21 @@ final class TelegramReplies {
         return new Reply(s.requestReceived, true, notice, s.repKeyboard);
     }
 
+    /** The file a rep's app shares ("📤 إرسال للمسؤول" in rep mode): starnet-device-....json. */
+    static boolean isDeviceFile(String fileName) {
+        return fileName != null && fileName.toLowerCase(java.util.Locale.ROOT).startsWith("starnet-device-");
+    }
+
+    static final String DEVICE_RECEIVED = "📥 وصل ملف الجهاز - بانتظار موافقة المسؤول.\nاضغط «✅ وصل» في تطبيقك لحذف الجلسة من هاتفك.";
+
+    /** A rep's device file: he's told it arrived, the operator is told, the app records it. */
+    static Reply deviceFile(String repId, String fileName, Snapshot s) {
+        Map<String, String> mine = s != null ? s.reps.get(repId) : null;
+        String repName = mine != null && mine.get("name") != null ? mine.get("name") : "";
+        String notice = "📥 المندوب " + repName + " أرسل جهازاً جديداً مع دخوله إلى Starlink - وافق عليه من صفحة المندوبين في التطبيق.";
+        return new Reply(DEVICE_RECEIVED, true, notice, s != null ? s.repKeyboard : null);
+    }
+
     /**
      * Someone the operator hasn't linked yet: told his request arrived (once), the operator is
      * told too, and the app records the request when it opens. Never any data.

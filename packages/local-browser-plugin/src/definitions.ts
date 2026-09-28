@@ -188,6 +188,10 @@ export interface TelegramPollMessage {
   chatId: string;
   name: string;
   username: string;
+  /** A device file a linked rep's app shared to the reps bot (text is then empty) - download it
+   * with telegramDownloadFile. */
+  fileId?: string;
+  fileName?: string;
 }
 
 /** A message TelegramReplyService left for the app (the app is in front, or it needs a PDF /
@@ -400,6 +404,8 @@ export interface LocalBrowserPlugin {
   requestBatteryUnrestricted(): Promise<void>;
   /** A dismissed link request: that person is answered again if he writes. */
   telegramForgetRequest(options: { chatId: string }): Promise<void>;
+  /** Downloads a file a rep sent the reps bot (his device file - encrypted JSON) as text. */
+  telegramDownloadFile(options: { fileId: string }): Promise<{ text: string }>;
 
   /**
    * Reads the raw login-session cookies for each given account's isolated profile - part of the
