@@ -503,7 +503,9 @@ const MAX_RESULTS = 5;
 
 /** Every word of the query must appear in the device's keys; a day ("غداً", "يوم 30", "30/09")
  * lists that day's renewals instead. Mirrors TelegramReplies.search. */
-export function repSearchReply(query: string, index: RepSearchEntry[], today?: string): RepReply {
+/** `owner`: the owner bot - WhatsApp buttons only (⚡ تفعيل is a reps-bot flow) and "not found"
+ * talks about all devices. */
+export function repSearchReply(query: string, index: RepSearchEntry[], today?: string, owner = false): RepReply {
   const day = today ? parseDayQuery(query, today) : null;
   if (day) return repDayReply(day, index);
   const words = normalizeSearch(query).split(" ").filter(Boolean);
@@ -512,13 +514,14 @@ export function repSearchReply(query: string, index: RepSearchEntry[], today?: s
   const found = index.filter((entry) =>
     words.every((word) => entry.k.includes(word) || (compactSearch(word) !== "" && entry.k.includes(compactSearch(word)))),
   );
-  if (found.length === 0) return { text: `🔎 لم أجد «${query.slice(0, 40)}» بين أجهزتك` };
+  if (found.length === 0) return { text: `🔎 لم أجد «${query.slice(0, 40)}» بين ${owner ? "الأجهزة" : "أجهزتك"}` };
   const shown = found.slice(0, MAX_RESULTS);
   const text = [
     `🔎 نتائج «${query.slice(0, 40)}» (${found.length}):`,
     ...shown.map((entry) => `\n${entry.t}`),
     ...(found.length > MAX_RESULTS ? [`\n… و${found.length - MAX_RESULTS} أخرى - اكتب اسمًا أدق`] : []),
   ].join("\n");
+  if (owner) return { text, markup: whatsappMarkup(shown.flatMap((entry) => (entry.w && entry.l ? [{ label: entry.l, url: entry.w }] : []))) };
   return {
     text,
     markup: deviceActionsMarkup(
@@ -526,6 +529,9 @@ export function repSearchReply(query: string, index: RepSearchEntry[], today?: s
     ),
   };
 }
+
+/** The owner's search index lives in the snapshot's repSearch under this key. */
+export const OWNER_SEARCH_KEY = "__owner";
 
 // ---- By day ----
 

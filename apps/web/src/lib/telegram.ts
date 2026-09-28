@@ -136,10 +136,10 @@ export async function disconnectTelegram(): Promise<void> {
 }
 
 /** Queued natively - never throws. */
-export async function sendTelegramText(text: string): Promise<boolean> {
+export async function sendTelegramText(text: string, replyMarkup?: string): Promise<boolean> {
   if (!isTelegramConnected()) return false;
   try {
-    return (await LocalBrowser.telegramSend({ text })).queued;
+    return (await LocalBrowser.telegramSend({ text, ...(replyMarkup ? { replyMarkup } : {}) })).queued;
   } catch {
     return false;
   }

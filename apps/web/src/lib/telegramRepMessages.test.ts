@@ -171,6 +171,12 @@ describe("rep shortcuts", () => {
     // No phone -> no WhatsApp button, only ⚡ تفعيل.
     expect(repSearchReply("بلا زبون", index).markup).not.toContain("wa.me");
     expect(repSearchReply("علي", index).text).toBe("🔎 لم أجد «علي» بين أجهزتك");
+    // The owner bot: same cards, WhatsApp buttons only (no ⚡ callbacks there).
+    const owner = repSearchReply("مُحمّد", index, undefined, true);
+    expect(owner.text).toBe(byClient.text);
+    expect(owner.markup).toContain("wa.me");
+    expect(owner.markup).not.toContain("callback_data");
+    expect(repSearchReply("علي", index, undefined, true).text).toBe("🔎 لم أجد «علي» بين الأجهزة");
     const byEmail = repSearchIndex([account("abdlkrim9113@gmail.com", "2026/10/24")], clients, {}, TODAY);
     expect(repSearchReply("abdlkrim9113@gmail.com", byEmail).text).toContain("(1)");
     expect(repSearchReply("abdlkrim", byEmail).text).toContain("(1)");

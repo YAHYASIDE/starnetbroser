@@ -39,6 +39,7 @@ import {
   repSearchIndex,
   repStatementText,
   repStoppedReply,
+  OWNER_SEARCH_KEY,
 } from "./telegramRepMessages";
 import { answerCash, answerExpiring, answerStopped, buildEveningTelegram, TELEGRAM_HELP, WORDS } from "./telegramMessages";
 
@@ -157,7 +158,15 @@ export function buildReplySnapshot(input: {
     ownerWords: { ...WORDS, "كشف": "statement", statement: "statement" },
     repWords: { ...REP_WORDS },
     reps,
-    repSearch,
+    repSearch: {
+      ...repSearch,
+      [OWNER_SEARCH_KEY]: repSearchIndex(
+        input.accounts.filter((a) => !a.deletedAt && !a.archivedAt),
+        input.clients,
+        input.ledgerStore,
+        input.today,
+      ),
+    },
     repKeyboard: REP_KEYBOARD,
     searchHint: REP_SEARCH_HINT,
     paymentHint: REP_PAYMENT_HINT,

@@ -68,6 +68,7 @@ public class TelegramRepliesTest {
         java.util.List<TelegramReplies.SearchEntry> r2Devices = new java.util.ArrayList<>();
         r2Devices.add(new TelegramReplies.SearchEntry("جهاز علي محمد", "OTHER", null, null));
         s.repSearch.put("r2", r2Devices);
+        s.repSearch.put(TelegramReplies.OWNER_INDEX, r1Devices);
         return s;
     }
 
@@ -189,6 +190,14 @@ public class TelegramRepliesTest {
         TelegramReplies.Reply client = TelegramReplies.forRep("r1", "زبون جديد محمد 22212345", snapshot());
         assertTrue(client.toInbox);
         assertEquals("RECEIVED", client.text);
+    }
+
+    @Test
+    public void ownerSearchesAllDevicesWithWhatsAppButtonsOnly() {
+        TelegramReplies.Reply reply = TelegramReplies.forOwner("محمد", snapshot());
+        assertTrue(reply.text.startsWith("🔎 نتائج «محمد» (1):\n\nCARD1"));
+        assertEquals("{\"inline_keyboard\":[[{\"text\":\"💬 محمد\",\"url\":\"https://wa.me/22212345678\"}]]}", reply.markup);
+        assertTrue(TelegramReplies.forOwner("مرحبا", snapshot()).text.startsWith("لم أفهم"));
     }
 
     @Test

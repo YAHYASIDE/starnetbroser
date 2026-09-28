@@ -94,9 +94,17 @@ export async function answerTelegramCommand(text: string): Promise<void> {
     case "help":
       await sendTelegramText(TELEGRAM_HELP);
       return;
-    case "unknown":
+    case "unknown": {
+      // A name, phone, email or KIT: the matching devices, like the reps' search.
+      const accounts = (await loadAccounts()).filter((a) => !a.deletedAt && !a.archivedAt);
+      const found = repSearchReply(text, repSearchIndex(accounts, loadClientStore(), loadLedgerStore(), today), today, true);
+      if (!found.text.startsWith("🔎 لم أجد")) {
+        await sendTelegramText(found.text, found.markup);
+        return;
+      }
       await sendTelegramText(`لم أفهم «${text.slice(0, 40)}».\n\n${TELEGRAM_HELP}`);
       return;
+    }
     case "stopped":
       await sendTelegramText(answerStopped(await loadAccounts(), loadClientStore()));
       return;

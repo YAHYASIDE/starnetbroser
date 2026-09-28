@@ -306,6 +306,22 @@ final class TelegramReplies {
     }
 
     /** His devices whose keys hold every word (as typed, or compacted: "000-111" finds "000111"). */
+    /** The owner's index in the snapshot (all devices) - kept beside the reps' ones. */
+    static final String OWNER_INDEX = "__owner";
+
+    /** The owner typed a name / phone / KIT: the matching devices with WhatsApp buttons (no ⚡ -
+     * that flow belongs to the reps bot). Null when nothing matches. */
+    static Reply ownerSearch(String query, Snapshot s) {
+        if (normalize(query).isEmpty()) return null;
+        List<SearchEntry> found = matchEntries(OWNER_INDEX, query, s);
+        if (found.isEmpty()) return null;
+        List<SearchEntry> shown = found.subList(0, Math.min(5, found.size()));
+        StringBuilder text = new StringBuilder("🔎 نتائج «" + quote(query) + "» (" + found.size() + "):");
+        for (SearchEntry e : shown) text.append("\n\n").append(e.text);
+        if (found.size() > 5) text.append("\n\n… و").append(found.size() - 5).append(" أخرى - اكتب اسمًا أدق");
+        return new Reply(withTime(text.toString(), s), false, null, whatsappMarkup(shown));
+    }
+
     static List<SearchEntry> matchEntries(String repId, String query, Snapshot s) {
         List<SearchEntry> found = new ArrayList<>();
         String folded = normalize(query);
@@ -455,7 +471,10 @@ final class TelegramReplies {
             return new Reply(s == null ? NOT_READY : s.statementLater, true, null);
         }
         if (s == null) return new Reply(NOT_READY, false, null);
-        if (kind == null) return new Reply(unknown(text.trim(), s.ownerHelp, s), false, null);
+        if (kind == null) {
+            Reply found = ownerSearch(cleanText(text), s);
+            return found != null ? found : new Reply(unknown(text.trim(), s.ownerHelp, s), false, null);
+        }
         if ("help".equals(kind)) return new Reply(s.ownerHelp, false, null);
         String answer = s.owner.get(kind);
         return new Reply(answer == null ? NOT_READY : withTime(answer, s), false, null);
