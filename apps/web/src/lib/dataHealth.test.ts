@@ -76,4 +76,22 @@ describe("data health", () => {
     expect(found.find((i) => i.kind === "loss-shipment")!.items).toEqual([{ accountId: "a", clientId: "c1", label: "A", detail: "2026-09-10 · خسارة 10$" }]);
     expect(found.find((i) => i.kind === "duplicate-client-phone")!.items.map((i) => i.clientId)).toEqual(["c1", "c3"]);
   });
+
+  it("flags a renewal done at Starlink but never recorded", () => {
+    const e = (date: string) => ({ id: date, kind: "debit", amount: 1, currency: "MRU", note: "", email: "", date, createdAt: "x" });
+    const ledger = { a: [e("2026-07-20")], b: [e("2026-09-20")], c: [] } as never;
+    const found = checkDataHealth(
+      [
+        acc({ id: "a", name: "A", clientId: "c1", rechargeDate: "2026/10/25" }),
+        acc({ id: "b", name: "B", clientId: "c1", rechargeDate: "2026/10/20" }),
+        acc({ id: "c", name: "C", clientId: "c1", rechargeDate: "2026/10/25" }),
+        acc({ id: "d", name: "D", clientId: "c1", rechargeDate: "2026/10/01" }),
+      ],
+      clients,
+      { now: new Date(2026, 8, 28, 12), ledger },
+    );
+    expect(found.find((i) => i.kind === "renewed-unrecorded")!.items).toEqual([
+      { accountId: "a", clientId: "c1", label: "A", detail: "آخر شحنة 2026-07-20 · القادم 2026/10/25" },
+    ]);
+  });
 });

@@ -27,7 +27,8 @@ export type HealthIssueKind =
   | "limited-access"
   | "client-no-phone"
   | "loss-shipment"
-  | "duplicate-client-phone";
+  | "duplicate-client-phone"
+  | "renewed-unrecorded";
 
 export interface HealthItem {
   /** The device, when the issue is about one. */
@@ -58,6 +59,11 @@ const META: Record<HealthIssueKind, { severity: HealthSeverity; title: string; h
   "limited-access": { severity: "low", title: "إيميل بصلاحيات محدودة", hint: "لا يعرض الفوترة - اطلب من الزبون صلاحيات كاملة" },
   "client-no-phone": { severity: "medium", title: "زبون بدون هاتف", hint: "أضف رقمه لتصله التذكيرات والكشوف" },
   "loss-shipment": { severity: "high", title: "شحنة بخسارة (آخر 90 يوماً)", hint: "بيعت بأقل من تكلفة Starlink - غالباً خطأ في المبلغ أو سعر الصرف" },
+  "renewed-unrecorded": {
+    severity: "high",
+    title: "تجدد في Starlink بدون تجديد مسجل",
+    hint: "موعده القادم بعيد لكن آخر شحنة مسجلة قديمة - ربما جددته ولم تسجل المبلغ على الزبون",
+  },
   "duplicate-client-phone": { severity: "medium", title: "زبونان بنفس الهاتف", hint: "غالباً نفس الزبون مسجل مرتين - ادمج أجهزته في زبون واحد" },
 };
 
@@ -66,6 +72,11 @@ const SEVERITY_ORDER: Record<HealthSeverity, number> = { high: 0, medium: 1, low
 function validDate(value: string | undefined): boolean {
   if (!value?.trim()) return false;
   return !Number.isNaN(new Date(value.replace(/\//g, "-")).getTime());
+}
+
+function parseRenewalDay(value: string | undefined): Date | null {
+  const match = /^(\d{4})[/-](\d{1,2})[/-](\d{1,2})/.exec(value?.trim() ?? "");
+  return match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : null;
 }
 
 function digits(value: string | undefined): string {
@@ -130,6 +141,19 @@ export function checkDataHealth(accounts: StarlinkAccountSummary[], clients: Cli
     if (list.length > 1) for (const account of list) push("duplicate-kit", item(account, kit));
   }
   if (options.ledger) {
+    // Renewed at Starlink (next date well ahead) while the last recorded shipment is old: the
+    // renewal was probably never charged to the customer.
+    const today0 = new Date(now);
+    today0.setHours(0, 0, 0, 0);
+    const oldShipment = new Date(today0.getTime() - 35 * 86_400_000).toISOString().slice(0, 10);
+    for (const account of active) {
+      const next = parseRenewalDay(account.rechargeDate);
+      if (!next || (next.getTime() - today0.getTime()) / 86_400_000 < 15) continue;
+      const shipments = (options.ledger[account.id] ?? []).filter((e) => e.kind === "debit" && !e.previousDebtId);
+      if (shipments.length === 0) continue;
+      const last = shipments.reduce((a, b) => (b.date > a ? b.date : a), "");
+      if (last < oldShipment) push("renewed-unrecorded", item(account, `آخر شحنة ${last} · القادم ${account.rechargeDate}`));
+    }
     const since = new Date(now.getTime() - 90 * 86_400_000).toISOString().slice(0, 10);
     for (const account of active) {
       for (const entry of options.ledger[account.id] ?? []) {
