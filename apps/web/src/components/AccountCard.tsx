@@ -1,5 +1,6 @@
 "use client";
 
+import { PromiseQuickSheet } from "./PromiseQuickSheet";
 import { useEffect, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { presentStatus, presentServiceStatus, isBalanceDueZero, planBadgeLabel } from "@/lib/status";
@@ -306,6 +307,7 @@ export function AccountCard({
   const [expanded, setExpanded] = useState(false);
   const [showFaultDialog, setShowFaultDialog] = useState(false);
   const [showRenewalDialog, setShowRenewalDialog] = useState(false);
+  const [showPromise, setShowPromise] = useState(false);
   const identityEmail = account.expectedEmail || account.starlinkAccountEmail;
 
   async function copyToClipboard(value: string) {
@@ -659,6 +661,7 @@ export function AccountCard({
             {onAddPreviousDebt && (
               <button className="card-action" type="button" onClick={() => setPreviousDebtDialog({})}>إضافة دين سابق</button>
             )}
+            <button className="card-action" type="button" onClick={() => setShowPromise(true)}>🤝 وعد دفع</button>
           </div>
 
           <div className="account-card-footer">
@@ -668,6 +671,8 @@ export function AccountCard({
           </div>
         </div>
       )}
+
+      {showPromise && <PromiseQuickSheet account={account} client={client} onClose={() => setShowPromise(false)} />}
 
       {previousDebtDialog && onAddPreviousDebt && (
         <PreviousDebtDialog

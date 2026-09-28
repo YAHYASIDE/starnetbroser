@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "@/components/DateInput";
 import { useMemo, useState } from "react";
 import { BulkWhatsAppSender } from "@/components/BulkWhatsAppSender";
 import { listClients } from "@/lib/clientStore";
@@ -116,7 +117,7 @@ export function PromisesTool({ data }: { data: ToolsData }) {
               ))}
             </select>
           </div>
-          <input className="search-input" type="date" dir="ltr" value={dueDate} onChange={(e) => setDueDate(e.target.value)} aria-label="تاريخ الدفع" />
+          <DateInput className="search-input" value={dueDate} onChange={(e) => setDueDate(e.target.value)} aria-label="تاريخ الدفع" />
           <input className="search-input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="ملاحظة (اختياري)" />
           {error && <p className="settings-hint telegram-stopped">{error}</p>}
           <div className="settings-actions">
