@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { Client, CreateClientInput } from "@/lib/clientStore";
 import { combinePhoneNumber, DEFAULT_PHONE_COUNTRY_CODE, PHONE_COUNTRY_CODES } from "@/lib/phoneCountryCodes";
+import { duplicateQuestion, findClientDuplicates } from "@/lib/duplicates";
+import { DuplicateWarning } from "./DuplicateWarning";
 
 interface Props {
   clients: Client[];
@@ -27,6 +29,10 @@ export function ClientPicker({ clients, selectedClientId, onSelect, onCreateClie
   const [newPhoneLocalNumber, setNewPhoneLocalNumber] = useState("");
 
   const selected = clients.find((c) => c.id === selectedClientId);
+  const newDuplicates = useMemo(
+    () => (showNewForm ? findClientDuplicates({ name: newName, phone: combinePhoneNumber(newPhoneDialCode, newPhoneLocalNumber) }, clients) : []),
+    [showNewForm, newName, newPhoneDialCode, newPhoneLocalNumber, clients],
+  );
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -38,6 +44,7 @@ export function ClientPicker({ clients, selectedClientId, onSelect, onCreateClie
 
   function submitNewClient() {
     if (!newName.trim()) return;
+    if (newDuplicates.length > 0 && !window.confirm(duplicateQuestion(newDuplicates))) return;
     const phone = combinePhoneNumber(newPhoneDialCode, newPhoneLocalNumber);
     const created = onCreateClient({ name: newName, phone: phone || undefined });
     onSelect(created.id);
@@ -119,6 +126,17 @@ export function ClientPicker({ clients, selectedClientId, onSelect, onCreateClie
               onChange={(e) => setNewPhoneLocalNumber(e.target.value)}
             />
           </div>
+          <DuplicateWarning
+            hits={newDuplicates}
+            onUse={(hit) => {
+              if (!hit.id) return;
+              onSelect(hit.id);
+              setShowNewForm(false);
+              setNewName("");
+              setNewPhoneLocalNumber("");
+              setQuery("");
+            }}
+          />
           <div className="client-picker-new-actions">
             <button type="button" className="dialog-secondary" onClick={() => setShowNewForm(false)}>إلغاء</button>
             <button type="button" className="dialog-primary" onClick={submitNewClient} disabled={!newName.trim()}>

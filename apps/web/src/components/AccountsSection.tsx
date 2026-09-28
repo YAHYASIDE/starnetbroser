@@ -1,5 +1,7 @@
 "use client";
 
+import { DuplicateWarning } from "./DuplicateWarning";
+import { duplicateQuestion, findClientDuplicates } from "@/lib/duplicates";
 import { ClientNotesPanel, clientNoteCount } from "./ClientNotesSheet";
 import { DateInput } from "./DateInput";
 import { CSSProperties, FormEvent, useEffect, useMemo, useState } from "react";
@@ -221,6 +223,7 @@ export function PartyDirectory({
       {showAdd && (
         <PartyForm
           submitLabel={isClients ? "إضافة الزبون" : "إضافة المورد"}
+          existing={parties}
           namePlaceholder={isClients ? "اسم الزبون *" : "اسم المورد *"}
           showCreditLimit={isClients}
           onSubmit={(input) => {
@@ -242,6 +245,8 @@ export function PartyDirectory({
                 <PartyForm
                   initial={party}
                   submitLabel="حفظ"
+                  existing={parties}
+                  selfId={party.id}
                   namePlaceholder={isClients ? "اسم الزبون *" : "اسم المورد *"}
                   showCreditLimit={isClients}
                   onSubmit={(input) => {
@@ -916,17 +921,26 @@ interface PartyFormProps {
   onSubmit: (input: CreateClientInput) => void;
   onCancel: () => void;
   onDelete?: () => void;
+  /** The same list (clients or suppliers) to warn about a repeated name or phone. */
+  existing?: { id: string; name: string; phone?: string }[];
+  selfId?: string;
 }
 
-function PartyForm({ initial, submitLabel, namePlaceholder, showCreditLimit, onSubmit, onCancel, onDelete }: PartyFormProps) {
+function PartyForm({ initial, submitLabel, namePlaceholder, showCreditLimit, onSubmit, onCancel, onDelete, existing = [], selfId }: PartyFormProps) {
   const [name, setName] = useState(initial?.name ?? "");
   const [phoneDialCode, setPhoneDialCode] = useState(() => splitPhoneNumber(initial?.phone).dialCode);
   const [phoneLocalNumber, setPhoneLocalNumber] = useState(() => splitPhoneNumber(initial?.phone).localNumber);
   const [creditLimit, setCreditLimit] = useState(initial?.creditLimit ? String(initial.creditLimit) : "");
 
+  const duplicates = useMemo(
+    () => findClientDuplicates({ id: selfId, name, phone: combinePhoneNumber(phoneDialCode, phoneLocalNumber) }, existing),
+    [selfId, name, phoneDialCode, phoneLocalNumber, existing],
+  );
+
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!name.trim()) return;
+    if (duplicates.length > 0 && !window.confirm(duplicateQuestion(duplicates))) return;
     onSubmit({
       name,
       phone: combinePhoneNumber(phoneDialCode, phoneLocalNumber) || undefined,
@@ -958,6 +972,7 @@ function PartyForm({ initial, submitLabel, namePlaceholder, showCreditLimit, onS
           onChange={(e) => setPhoneLocalNumber(e.target.value)}
         />
       </div>
+      <DuplicateWarning hits={duplicates} />
       {showCreditLimit && (
         <input
           className="search-input"

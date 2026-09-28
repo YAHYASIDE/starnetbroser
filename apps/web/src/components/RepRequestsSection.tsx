@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { saveClientDevicePayment } from "@/lib/clientDevicePaymentSave";
+import { duplicateQuestion, findClientDuplicates } from "@/lib/duplicates";
+import { DuplicateWarning } from "./DuplicateWarning";
 import { ClientStore, createClient, listClients, loadClientStore, saveClientStore } from "@/lib/clientStore";
 import { buildNewDeviceHref } from "@/lib/deviceFromSale";
 import { localDay } from "@/lib/eveningSummary";
@@ -225,9 +227,11 @@ function ClientRequestCard({ request, rep, onDone }: { request: RepRequest; rep?
   const [email, setEmail] = useState(request.email ?? "");
   const [kit, setKit] = useState(request.kit ?? "");
   const [error, setError] = useState<string | null>(null);
+  const duplicates = useMemo(() => findClientDuplicates({ name, phone }, listClients(loadClientStore())), [name, phone]);
 
   async function approve() {
     if (!name.trim()) return setError("اكتب اسم الزبون");
+    if (duplicates.length > 0 && !window.confirm(duplicateQuestion(duplicates))) return;
     const { store, client } = createClient(loadClientStore(), { name, phone: phone || undefined });
     saveClientStore(store);
     await sendRepText(request.repId, `✅ أُضيف زبونك ${client.name}${email || kit ? " وجهازه" : ""} - ستظهر أجهزته في «📡 أجهزتي» بعد إضافتها.`);
@@ -253,6 +257,7 @@ function ClientRequestCard({ request, rep, onDone }: { request: RepRequest; rep?
       <input className="search-input" dir="ltr" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="الهاتف" />
       <input className="search-input" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="إيميل الجهاز" />
       <input className="search-input" dir="ltr" value={kit} onChange={(e) => setKit(e.target.value)} placeholder="KIT" />
+      <DuplicateWarning hits={duplicates} />
       {error && <p className="settings-hint telegram-stopped">{error}</p>}
       <div className="settings-actions">
         <button type="button" className="dialog-primary" onClick={() => void approve()}>

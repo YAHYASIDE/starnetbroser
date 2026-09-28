@@ -10,6 +10,8 @@ import { Client, CreateClientInput } from "@/lib/clientStore";
 import { CreateRepresentativeInput, Representative } from "@/lib/repStore";
 import { combinePhoneNumber, PHONE_COUNTRY_CODES, splitPhoneNumber } from "@/lib/phoneCountryCodes";
 import { ClientPicker } from "./ClientPicker";
+import { DuplicateWarning } from "./DuplicateWarning";
+import { duplicateQuestion, findDeviceDuplicates } from "@/lib/duplicates";
 import { RepresentativePicker } from "./RepresentativePicker";
 import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS } from "@/lib/ledgerStore";
 import { validateRenewalPlan } from "@/lib/renewalPlan";
@@ -30,6 +32,8 @@ interface Props {
   onClose: () => void;
   onSave: (account: StarlinkAccountSummary) => void;
   onDelete?: (account: StarlinkAccountSummary) => void;
+  /** Every device, to warn when the email / KIT / phone / name is already registered. */
+  existingAccounts?: StarlinkAccountSummary[];
 }
 
 const statusOptions = [
@@ -91,6 +95,7 @@ export function AccountDialog({
   onClose,
   onSave,
   onDelete,
+  existingAccounts = [],
 }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const initial = useMemo(() => account ?? { ...createBlankAccount(), ...prefill }, [account]);
@@ -142,6 +147,10 @@ export function AccountDialog({
   }
 
   const extraEmails = draft.extraEmails ?? [];
+  const duplicates = useMemo(
+    () => (isView ? [] : findDeviceDuplicates({ id: draft.id, name: draft.name, phone: draft.phone, expectedEmail: draft.expectedEmail, extraEmails, kitNumber: draft.kitNumber }, existingAccounts)),
+    [isView, draft.id, draft.name, draft.phone, draft.expectedEmail, extraEmails, draft.kitNumber, existingAccounts],
+  );
 
   function updateExtraEmail(index: number, field: "address" | "password", value: string) {
     update("extraEmails", extraEmails.map((entry, i) => (i === index ? { ...entry, [field]: value } : entry)));
@@ -188,6 +197,8 @@ export function AccountDialog({
       const toName = representativeName(draft.representativeId) ?? "المندوب الجديد";
       if (!window.confirm(`هل تريد نقل هذا الجهاز من المندوب "${fromName}" إلى "${toName}"؟`)) return;
     }
+
+    if (duplicates.length > 0 && !window.confirm(duplicateQuestion(duplicates))) return;
 
     let renewalPlan: StarlinkAccountSummary["renewalPlan"];
     if (planSale.trim() || planCost.trim()) {
@@ -406,6 +417,10 @@ export function AccountDialog({
               {extraEmails.length < 2 && (
                 <button type="button" className="text-action" onClick={addExtraEmail}>+ إضافة بريد آخر</button>
               )}
+            </div>
+
+            <div className="form-field form-wide">
+              <DuplicateWarning hits={duplicates} />
             </div>
 
             <label className="form-field">

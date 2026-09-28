@@ -1342,6 +1342,7 @@ export function HomeView({
           }}
           onSave={saveAccount}
           onDelete={deleteAccount}
+          existingAccounts={accounts}
         />
       )}
 
