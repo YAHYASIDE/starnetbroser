@@ -196,6 +196,7 @@ export type TelegramCommand =
   | { kind: "health" }
   | { kind: "goals" }
   | { kind: "plan" }
+  | { kind: "card" }
   | { kind: "statement"; query: string }
   | { kind: "unknown" };
 
@@ -238,6 +239,10 @@ export const WORDS: Record<string, Exclude<TelegramCommand["kind"], "statement" 
   "خطة": "plan",
   "خطه": "plan",
   "مهام": "plan",
+  card: "card",
+  "البطاقة": "card",
+  "بطاقة": "card",
+  "الكارت": "card",
 };
 
 export function parseTelegramCommand(text: string): TelegramCommand {
@@ -266,6 +271,7 @@ export const TELEGRAM_HELP = [
   "• فحص - نواقص البيانات",
   "• أهداف - تقدم أهداف الشهر",
   "• خطة - مهام اليوم",
+  "• البطاقة - رصيد بطاقة Starlink وما تحتاجه هذا الأسبوع",
   "🔎 أو اكتب اسم زبون أو جهاز أو هاتف أو KIT لتظهر بطاقته",
 ].join("\n");
 

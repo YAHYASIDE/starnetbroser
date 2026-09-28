@@ -182,3 +182,16 @@ export function weeklyText(input: {
   if (topRep) lines.push(`🏆 أنشط مندوب: ${input.repNames[topRep[0]] ?? "—"} (${topRep[1]} شحنة)`);
   return lines.join("\n");
 }
+
+/** 💳 "البطاقة": the Starlink card's balance, what the next 7 days of renewals need, and the D
+ * still owed to Starlink. */
+export function cardText(accounts: StarlinkAccountSummary[], balanceUsd: number, openDebtsUsd: number[], today: Date): string {
+  const need = cardNeed(computeRenewalForecast(accounts, today, 7), balanceUsd);
+  const debt = openDebtsUsd.reduce((a, b) => a + b, 0);
+  const lines = [`💳 رصيد بطاقة Starlink: ${Math.round(balanceUsd).toLocaleString("en-US")}$`];
+  if (need.devices > 0) lines.push(`📅 تجديدات 7 أيام: ${need.devices} جهاز تحتاج ${Math.round(need.needUsd).toLocaleString("en-US")}$`);
+  if (openDebtsUsd.length > 0) lines.push(`🔴 D غير مدفوعة لستارلينك: ${openDebtsUsd.length} بمبلغ ${Math.round(debt).toLocaleString("en-US")}$`);
+  const short = need.shortUsd + Math.max(0, debt - Math.max(0, balanceUsd - need.needUsd));
+  lines.push("", short > 0.5 ? `⚠️ اشحن البطاقة بـ ${Math.ceil(short).toLocaleString("en-US")}$ لتغطي الكل` : "✓ الرصيد يكفي");
+  return lines.join("\n");
+}

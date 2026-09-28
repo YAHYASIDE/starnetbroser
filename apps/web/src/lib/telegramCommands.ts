@@ -5,7 +5,7 @@
  * the data as it is on this phone right now. Texts and parsing are in telegramMessages.ts.
  */
 
-import { currentCardBalanceUsd } from "./starlinkDebt";
+import { currentCardBalanceUsd, listOpenShipmentDebts } from "./starlinkDebt";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { listAccounts } from "./apiClient";
 import { loadCashEntries } from "./cashStore";
@@ -33,7 +33,7 @@ import {
 } from "./telegram";
 import { buildReplySnapshot } from "./telegramReplies";
 import { deviceDisplayName, readRepDeviceFile, repDeviceCode } from "./repDeviceTransfer";
-import { forecastText, goalsText, healthText, lapsedText, planText, promisesText } from "./ownerInsightsText";
+import { cardText, forecastText, goalsText, healthText, lapsedText, planText, promisesText } from "./ownerInsightsText";
 import { addPromise, loadPromises, savePromises } from "./paymentPromises";
 import { parseRepPromise, REP_PROMISE_HINT, repOpenPromises, repPromisesText } from "./repPromises";
 import { loadGoals } from "./goals";
@@ -134,6 +134,11 @@ export async function answerTelegramCommand(text: string): Promise<void> {
     case "goals":
       await sendTelegramText(goalsText(loadGoals(), today, loadLedgerStore(), loadClientStore()));
       return;
+    case "card": {
+      const ledger = loadLedgerStore();
+      await sendTelegramText(cardText(await loadAccounts(), currentCardBalanceUsd(ledger), listOpenShipmentDebts(ledger).map((d) => d.costUsd), new Date()));
+      return;
+    }
     case "plan":
       await sendTelegramText(
         planText({
@@ -395,6 +400,7 @@ export async function refreshTelegramReplies(): Promise<void> {
     goals: loadGoals(),
     adjustments: loadPartyAdjustments(),
     cardBalanceUsd: currentCardBalanceUsd(loadLedgerStore()),
+    openDebtsUsd: listOpenShipmentDebts(loadLedgerStore()).map((d) => d.costUsd),
   });
   await pushTelegramReplies(snapshot);
 }

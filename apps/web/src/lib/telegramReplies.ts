@@ -6,7 +6,7 @@
  */
 
 import { REP_PROMISE_HINT, REP_PROMISE_RECEIVED, repOpenPromises, repPromisesText } from "./repPromises";
-import { forecastText, goalsText, healthText, lapsedText, planText, promisesText } from "./ownerInsightsText";
+import { cardText, forecastText, goalsText, healthText, lapsedText, planText, promisesText } from "./ownerInsightsText";
 import type { PartyAdjustmentList } from "./partyBalanceStore";
 import type { PaymentPromise } from "./paymentPromises";
 import type { MonthlyGoals } from "./goals";
@@ -100,6 +100,7 @@ export function buildReplySnapshot(input: {
   goals?: MonthlyGoals;
   adjustments?: PartyAdjustmentList;
   cardBalanceUsd?: number;
+  openDebtsUsd?: number[];
 }): TelegramReplySnapshot {
   const summary = buildEveningSummary({ day: input.today, accounts: input.accounts, ledgerStore: input.ledgerStore, cash: input.cash });
   const reps: Record<string, Record<string, string>> = {};
@@ -140,6 +141,7 @@ export function buildReplySnapshot(input: {
       cash: answerCash(input.cash),
       summary: summary ? buildEveningTelegram(summary) : "لا توجد بيانات بعد",
       forecast: forecastText(input.accounts, input.now, input.cardBalanceUsd),
+      ...(input.cardBalanceUsd !== undefined ? { card: cardText(input.accounts, input.cardBalanceUsd, input.openDebtsUsd ?? [], input.now) } : {}),
       promises: promisesText(input.promises ?? [], input.today),
       lapsed: lapsedText(input.accounts, input.clients, input.now),
       health: healthText(input.accounts, input.clients, input.now, input.ledgerStore),

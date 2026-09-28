@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { DeviceStatus } from "@starnet/shared";
 import type { ClientStore } from "./clientStore";
-import { forecastText, goalsText, healthText, lapsedText, nextWeeklyTime, planText, promisesText, weeklyText } from "./ownerInsightsText";
+import { cardText, forecastText, goalsText, healthText, lapsedText, nextWeeklyTime, planText, promisesText, weeklyText } from "./ownerInsightsText";
 import { parseTelegramCommand } from "./telegramMessages";
 
 const acc = (o: Partial<StarlinkAccountSummary>): StarlinkAccountSummary => ({
@@ -110,5 +110,16 @@ describe("owner bot insight commands", () => {
     expect(text).toContain("🤝 وعود: 1 وُفي بها · 1 لم يُوفَ بها");
     expect(text).toContain("🔁 أجهزة متوقفة عن التجديد: 1");
     expect(text).toContain("🏆 أنشط مندوب: سالم (1 شحنة)");
+  });
+
+  it("card", () => {
+    const accounts = [acc({ id: "a", name: "A", rechargeDate: "2026/09/30", renewalPlan: { saleAmount: 4000, saleCurrency: "MRU", costAmount: 50, costCurrency: "USD" } })];
+    const text = cardText(accounts, 60, [30], today);
+    expect(text).toContain("💳 رصيد بطاقة Starlink: 60$");
+    expect(text).toContain("📅 تجديدات 7 أيام: 1 جهاز تحتاج 50$");
+    expect(text).toContain("🔴 D غير مدفوعة لستارلينك: 1 بمبلغ 30$");
+    expect(text).toContain("⚠️ اشحن البطاقة بـ 20$ لتغطي الكل");
+    expect(cardText([], 100, [], today)).toContain("✓ الرصيد يكفي");
+    expect(parseTelegramCommand("البطاقة")).toEqual({ kind: "card" });
   });
 });
