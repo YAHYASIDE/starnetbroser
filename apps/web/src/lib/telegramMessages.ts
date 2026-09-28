@@ -266,6 +266,7 @@ export const TELEGRAM_HELP = [
   "• فحص - نواقص البيانات",
   "• أهداف - تقدم أهداف الشهر",
   "• خطة - مهام اليوم",
+  "🔎 أو اكتب اسم زبون أو جهاز أو هاتف أو KIT لتظهر بطاقته",
 ].join("\n");
 
 export function answerStopped(accounts: StarlinkAccountSummary[], clients: ClientStore): string {
