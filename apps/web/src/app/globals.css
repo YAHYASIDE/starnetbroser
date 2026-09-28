@@ -8306,3 +8306,24 @@ button.today-tile {
   font-weight: 600;
   text-decoration: none;
 }
+
+.leader-row {
+  grid-template-columns: 34px minmax(0, 1fr) auto !important;
+  align-items: center;
+  gap: 8px !important;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+}
+
+.leader-row > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.leader-rank {
+  font-size: 1.2rem;
+  text-align: center;
+  font-weight: 700;
+}

@@ -6,7 +6,11 @@
 
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import type { ClientStore } from "./clientStore";
+import { buildDailyPlan } from "./dailyPlan";
 import { checkDataHealth, healthScore } from "./dataHealth";
+import { computeDebtAging } from "./debtAging";
+import type { InvoiceList } from "./invoiceStore";
+import type { PartyAdjustmentList } from "./partyBalanceStore";
 import { computeGoalProgress, type MonthlyGoals } from "./goals";
 import type { LedgerByAccount } from "./ledgerStore";
 import { bucketPromises, type PaymentPromise } from "./paymentPromises";
@@ -73,4 +77,37 @@ export function goalsText(goals: MonthlyGoals, today: string, ledger: LedgerByAc
         `\n${g.label}: ${Math.round(g.done).toLocaleString("en-US")} / ${g.target.toLocaleString("en-US")}${g.currency ? ` ${currencyLabel(g.currency)}` : ""}\n${bar(g.ratio)} ${Math.round(g.ratio * 100)}% ${g.ratio >= 1 ? "🎉" : g.onPace ? "✓" : "⚠️ متأخر"}`,
     ),
   ].join("\n");
+}
+
+export function planText(input: {
+  accounts: StarlinkAccountSummary[];
+  clients: ClientStore;
+  promises: PaymentPromise[];
+  ledger: LedgerByAccount;
+  invoices: InvoiceList;
+  adjustments: PartyAdjustmentList;
+  today: string;
+  now: Date;
+}): string {
+  const debtors = computeDebtAging({
+    clients: Object.values(input.clients),
+    accounts: input.accounts,
+    invoices: input.invoices,
+    adjustments: input.adjustments,
+    ledgerStore: input.ledger,
+    today: input.today,
+  });
+  const plan = buildDailyPlan({
+    accounts: input.accounts,
+    clients: input.clients,
+    promises: input.promises,
+    debtors,
+    issues: checkDataHealth(input.accounts, input.clients, { now: input.now }),
+    today: input.today,
+    currencyLabel,
+  });
+  if (plan.length === 0) return "✅ لا مهام اليوم - يوم هادئ 🌤";
+  const lines = plan.slice(0, 20).map((t) => `• ${t.title} - ${t.detail}${t.phone ? ` · ${t.phone}` : ""}`);
+  if (plan.length > 20) lines.push(`… و${plan.length - 20} غيرها`);
+  return [`✅ خطة اليوم (${plan.length} مهمة)`, "", ...lines, "", "للتأشير على المنجز: التطبيق ← الأدوات ← خطة اليوم"].join("\n");
 }

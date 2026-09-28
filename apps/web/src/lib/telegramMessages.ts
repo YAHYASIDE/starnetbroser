@@ -183,6 +183,7 @@ export type TelegramCommand =
   | { kind: "lapsed" }
   | { kind: "health" }
   | { kind: "goals" }
+  | { kind: "plan" }
   | { kind: "statement"; query: string }
   | { kind: "unknown" };
 
@@ -221,6 +222,10 @@ export const WORDS: Record<string, Exclude<TelegramCommand["kind"], "statement" 
   "أهداف": "goals",
   "الاهداف": "goals",
   "الأهداف": "goals",
+  plan: "plan",
+  "خطة": "plan",
+  "خطه": "plan",
+  "مهام": "plan",
 };
 
 export function parseTelegramCommand(text: string): TelegramCommand {
@@ -248,6 +253,7 @@ export const TELEGRAM_HELP = [
   "• استرجاع - زبائن توقفوا عن التجديد",
   "• فحص - نواقص البيانات",
   "• أهداف - تقدم أهداف الشهر",
+  "• خطة - مهام اليوم",
 ].join("\n");
 
 export function answerStopped(accounts: StarlinkAccountSummary[], clients: ClientStore): string {

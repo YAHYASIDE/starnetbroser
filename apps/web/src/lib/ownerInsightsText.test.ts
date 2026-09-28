@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { DeviceStatus } from "@starnet/shared";
 import type { ClientStore } from "./clientStore";
-import { forecastText, goalsText, healthText, lapsedText, promisesText } from "./ownerInsightsText";
+import { forecastText, goalsText, healthText, lapsedText, planText, promisesText } from "./ownerInsightsText";
 import { parseTelegramCommand } from "./telegramMessages";
 
 const acc = (o: Partial<StarlinkAccountSummary>): StarlinkAccountSummary => ({
@@ -35,6 +35,7 @@ describe("owner bot insight commands", () => {
     expect(parseTelegramCommand("/lapsed")).toEqual({ kind: "lapsed" });
     expect(parseTelegramCommand("فحص")).toEqual({ kind: "health" });
     expect(parseTelegramCommand("أهداف")).toEqual({ kind: "goals" });
+    expect(parseTelegramCommand("خطة")).toEqual({ kind: "plan" });
   });
 
   it("forecast and lapsed lists", () => {
@@ -64,5 +65,21 @@ describe("owner bot insight commands", () => {
     expect(g).toContain("زبائن جدد: 0 / 2");
     expect(g).toContain("التحصيل: 0 / 1,000 أوقية");
     expect(g).toContain("░░░░░░░░░░ 0% ⚠️ متأخر");
+  });
+
+  it("today's plan", () => {
+    const text = planText({
+      accounts: [acc({ id: "a", name: "منزل", clientId: "c1", rechargeDate: "2026/09/28", lastSuccessfulScanAt: "2026-09-27T00:00:00Z" })],
+      clients,
+      promises: [],
+      ledger: {},
+      invoices: [],
+      adjustments: [],
+      today: "2026-09-28",
+      now: new Date("2026-09-28T08:00:00Z"),
+    });
+    expect(text).toContain("✅ خطة اليوم (1 مهمة)");
+    expect(text).toContain("• 📅 منزل - محمد · ينتهي اليوم · 22212345678");
+    expect(planText({ accounts: [], clients, promises: [], ledger: {}, invoices: [], adjustments: [], today: "2026-09-28", now: new Date() })).toContain("لا مهام");
   });
 });

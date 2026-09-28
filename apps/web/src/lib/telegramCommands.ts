@@ -32,7 +32,7 @@ import {
 } from "./telegram";
 import { buildReplySnapshot } from "./telegramReplies";
 import { deviceDisplayName, readRepDeviceFile, repDeviceCode } from "./repDeviceTransfer";
-import { forecastText, goalsText, healthText, lapsedText, promisesText } from "./ownerInsightsText";
+import { forecastText, goalsText, healthText, lapsedText, planText, promisesText } from "./ownerInsightsText";
 import { loadPromises } from "./paymentPromises";
 import { loadGoals } from "./goals";
 import type { TelegramPollMessage } from "@starnet/local-browser-plugin";
@@ -123,6 +123,20 @@ export async function answerTelegramCommand(text: string): Promise<void> {
       return;
     case "goals":
       await sendTelegramText(goalsText(loadGoals(), today, loadLedgerStore(), loadClientStore()));
+      return;
+    case "plan":
+      await sendTelegramText(
+        planText({
+          accounts: await loadAccounts(),
+          clients: loadClientStore(),
+          promises: loadPromises(),
+          ledger: loadLedgerStore(),
+          invoices: loadInvoices(),
+          adjustments: loadPartyAdjustments(),
+          today,
+          now: new Date(),
+        }),
+      );
       return;
     case "statement":
       await answerStatement(command.query);
@@ -329,6 +343,7 @@ export async function refreshTelegramReplies(): Promise<void> {
     rates: { MRU: getCurrency(currencies, "MRU")?.rateFromUsd, SIFA: getCurrency(currencies, "SIFA")?.rateFromUsd },
     promises: loadPromises(),
     goals: loadGoals(),
+    adjustments: loadPartyAdjustments(),
   });
   await pushTelegramReplies(snapshot);
 }
