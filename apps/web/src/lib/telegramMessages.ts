@@ -21,6 +21,8 @@ export interface TelegramPrefs {
   payments: boolean;
   morning: boolean;
   evening: boolean;
+  /** 📊 Saturday evening: the week in numbers. */
+  weekly: boolean;
   /** Reps bot: each rep hears about his own devices. */
   repStopped: boolean;
   repMorning: boolean;
@@ -33,6 +35,7 @@ export const DEFAULT_TELEGRAM_PREFS: TelegramPrefs = {
   payments: true,
   morning: true,
   evening: true,
+  weekly: true,
   repStopped: true,
   repMorning: true,
   repPayments: true,

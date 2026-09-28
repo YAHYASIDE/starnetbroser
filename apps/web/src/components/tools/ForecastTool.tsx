@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { homeSearchHref } from "@/lib/homeActions";
 import { exportXlsx } from "@/lib/xlsxExport";
-import { cardNeed, computeRenewalForecast } from "@/lib/renewalForecast";
+import { activeShare, cardNeed, computeRenewalForecast } from "@/lib/renewalForecast";
 import { currentCardBalanceUsd } from "@/lib/starlinkDebt";
 import { currencyLabelFor, moneyText, type ToolsData } from "./useToolsData";
 
@@ -17,6 +17,7 @@ export function ForecastTool({ data }: { data: ToolsData }) {
   const label = currencyLabelFor(data.currencies);
   const maxWeek = Math.max(1, ...forecast.weeks.map((w) => w.count));
   const [exportError, setExportError] = useState<string | null>(null);
+  const share = useMemo(() => activeShare(data.accounts, new Date()), [data.accounts]);
   async function exportList() {
     const rows = [
       ["الجهاز", "الزبون", "التاريخ", "بعد (أيام)", "سعر البيع", "العملة", "تكلفة Starlink", "عملة التكلفة"],
@@ -43,6 +44,15 @@ export function ForecastTool({ data }: { data: ToolsData }) {
         <div className="tool-kpi">
           <span>الدخل المتوقع</span>
           <strong>{moneyText(forecast.sale, label)}</strong>
+        </div>
+        <div className={`tool-kpi ${share.percent >= 80 ? "tool-kpi-good" : "tool-kpi-bad"}`}>
+          <span>أجهزة نشطة</span>
+          <strong>
+            <bdi dir="ltr">{share.percent}%</bdi>
+          </strong>
+          <small>
+            {share.active} نشط · {share.lapsed} منتهٍ
+          </small>
         </div>
         <div className="tool-kpi">
           <span>تكلفة Starlink</span>

@@ -9,6 +9,7 @@
 
 import { loadPromises } from "./paymentPromises";
 import { repOpenPromises, repPromisesDueLines } from "./repPromises";
+import { nextWeeklyTime, weeklyText } from "./ownerInsightsText";
 import { cardNeed, computeRenewalForecast } from "./renewalForecast";
 import { currentCardBalanceUsd } from "./starlinkDebt";
 import type { StarlinkAccountSummary } from "@starnet/shared";
@@ -72,6 +73,7 @@ export async function saveTelegramPrefs(prefs: TelegramPrefs): Promise<void> {
     await LocalBrowser.telegramSetOptions({ stopped: prefs.stopped, repsStopped: prefs.repStopped });
     if (!prefs.morning) await LocalBrowser.telegramCancel({ key: "morning" });
     if (!prefs.evening) await LocalBrowser.telegramCancel({ key: "evening" });
+    if (!prefs.weekly) await LocalBrowser.telegramCancel({ key: "weekly" });
     if (!prefs.repMorning) for (const repId of Object.keys(loadRepChats())) await LocalBrowser.telegramCancel({ key: repMorningKey(repId) });
   } catch {
     // Applied on the next schedule.
@@ -191,6 +193,19 @@ export async function rescheduleTelegramSummaries(input: {
       const at = nextEveningTime(now, input.eveningHour);
       const summary = buildEveningSummary({ day: localDay(at), accounts: input.accounts, ledgerStore: input.ledgerStore, cash: loadCashEntries() });
       if (summary) await LocalBrowser.telegramSchedule({ key: "evening", at: at.getTime(), text: buildEveningTelegram(summary) });
+    }
+    if (prefs.weekly) {
+      const at = nextWeeklyTime(now, input.eveningHour);
+      const text = weeklyText({
+        accounts: input.accounts,
+        clients: loadClientStore(),
+        ledger: input.ledgerStore,
+        promises: loadPromises(),
+        repNames: Object.fromEntries(Object.values(loadRepresentativeStore()).map((r) => [r.id, r.name])),
+        weekEnd: localDay(at),
+        now,
+      });
+      await LocalBrowser.telegramSchedule({ key: "weekly", at: at.getTime(), text });
     }
   } catch {
     // Tried again on the next data change.

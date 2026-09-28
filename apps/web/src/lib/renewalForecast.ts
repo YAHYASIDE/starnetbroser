@@ -110,3 +110,18 @@ export function cardNeed(forecast: RenewalForecast, balanceUsd: number, days = 7
   }
   return { needUsd, balanceUsd, shortUsd: Math.max(0, needUsd - balanceUsd), devices };
 }
+
+/** Share of active devices (renewal date today or later) among those with a date, 0-100. */
+export function activeShare(accounts: StarlinkAccountSummary[], today: Date): { active: number; lapsed: number; percent: number } {
+  const start = dayStart(today);
+  let active = 0;
+  let lapsed = 0;
+  for (const account of accounts) {
+    if (account.deletedAt || account.archivedAt || account.deviceFault) continue;
+    const date = parseRenewalDate(account.rechargeDate || account.standbyDate);
+    if (!date) continue;
+    if (date.getTime() >= start.getTime()) active += 1;
+    else lapsed += 1;
+  }
+  return { active, lapsed, percent: active + lapsed ? Math.round((active / (active + lapsed)) * 100) : 100 };
+}

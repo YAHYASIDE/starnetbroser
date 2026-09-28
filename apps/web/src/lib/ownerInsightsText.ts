@@ -121,3 +121,64 @@ export function planText(input: {
   if (plan.length > 20) lines.push(`… و${plan.length - 20} غيرها`);
   return [`✅ خطة اليوم (${plan.length} مهمة)`, "", ...lines, "", "للتأشير على المنجز: التطبيق ← الأدوات ← خطة اليوم"].join("\n");
 }
+
+/** Saturday = 6: the next one at `hour` (today if still ahead). */
+export function nextWeeklyTime(now: Date, hour: number): Date {
+  const at = new Date(now);
+  at.setHours(hour, 0, 0, 0);
+  const ahead = (6 - at.getDay() + 7) % 7;
+  at.setDate(at.getDate() + ahead);
+  if (at.getTime() <= now.getTime()) at.setDate(at.getDate() + 7);
+  return at;
+}
+
+/** 📊 The 7 days ending on `weekEnd` (yyyy-mm-dd): shipments, money in, new customers, promises
+ * kept / broken, lapsed devices now and the busiest rep. */
+export function weeklyText(input: {
+  accounts: StarlinkAccountSummary[];
+  clients: ClientStore;
+  ledger: LedgerByAccount;
+  promises: PaymentPromise[];
+  repNames: Record<string, string>;
+  weekEnd: string;
+  now: Date;
+}): string {
+  const end = new Date(`${input.weekEnd}T00:00:00`);
+  const start = new Date(end);
+  start.setDate(start.getDate() - 6);
+  const from = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
+  const inWeek = (d: string) => d >= from && d <= input.weekEnd;
+  let shipments = 0;
+  const collected: Record<string, number> = {};
+  const byRep: Record<string, number> = {};
+  const repOf = new Map(input.accounts.map((a) => [a.id, a.representativeId]));
+  for (const [accountId, entries] of Object.entries(input.ledger)) {
+    for (const e of entries) {
+      if (!inWeek(e.date)) continue;
+      if (e.kind === "debit" && !e.previousDebtId) {
+        shipments += 1;
+        const rep = repOf.get(accountId);
+        if (rep) byRep[rep] = (byRep[rep] ?? 0) + 1;
+      } else if (e.kind === "credit") {
+        collected[e.currency] = (collected[e.currency] ?? 0) + e.amount;
+      }
+    }
+  }
+  const newClients = Object.values(input.clients).filter((c) => inWeek(c.createdAt.slice(0, 10))).length;
+  const resolved = input.promises.filter((p) => p.resolvedAt && inWeek(p.resolvedAt.slice(0, 10)));
+  const kept = resolved.filter((p) => p.status === "kept").length;
+  const broken = resolved.filter((p) => p.status === "broken").length;
+  const lapsed = listLapsedDevices(input.accounts, input.clients, input.now, { minDays: 1, maxDays: 60 }).length;
+  const topRep = Object.entries(byRep).sort((a, b) => b[1] - a[1])[0];
+  const lines = [
+    `📊 ملخص الأسبوع ${dm(from)} - ${dm(input.weekEnd)}`,
+    "",
+    `📦 شحنات وتجديدات: ${shipments}`,
+    `💵 التحصيل: ${money(collected) || "0"}`,
+    `👤 زبائن جدد: ${newClients}`,
+  ];
+  if (kept + broken > 0) lines.push(`🤝 وعود: ${kept} وُفي بها · ${broken} لم يُوفَ بها`);
+  if (lapsed > 0) lines.push(`🔁 أجهزة متوقفة عن التجديد: ${lapsed} - اكتب «استرجاع»`);
+  if (topRep) lines.push(`🏆 أنشط مندوب: ${input.repNames[topRep[0]] ?? "—"} (${topRep[1]} شحنة)`);
+  return lines.join("\n");
+}

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { DeviceStatus } from "@starnet/shared";
 import type { ClientStore } from "./clientStore";
-import { forecastText, goalsText, healthText, lapsedText, planText, promisesText } from "./ownerInsightsText";
+import { forecastText, goalsText, healthText, lapsedText, nextWeeklyTime, planText, promisesText, weeklyText } from "./ownerInsightsText";
 import { parseTelegramCommand } from "./telegramMessages";
 
 const acc = (o: Partial<StarlinkAccountSummary>): StarlinkAccountSummary => ({
@@ -83,5 +83,32 @@ describe("owner bot insight commands", () => {
     expect(text).toContain("✅ خطة اليوم (1 مهمة)");
     expect(text).toContain("• 📅 منزل - محمد · ينتهي اليوم · 22212345678");
     expect(planText({ accounts: [], clients, promises: [], ledger: {}, invoices: [], adjustments: [], today: "2026-09-28", now: new Date() })).toContain("لا مهام");
+  });
+
+  it("weekly summary", () => {
+    // Saturday 26 Sep 2026 -> the week 20/09 - 26/09
+    expect(nextWeeklyTime(new Date(2026, 8, 28, 10), 21)).toEqual(new Date(2026, 9, 3, 21));
+    expect(nextWeeklyTime(new Date(2026, 9, 3, 20), 21)).toEqual(new Date(2026, 9, 3, 21));
+    expect(nextWeeklyTime(new Date(2026, 9, 3, 22), 21)).toEqual(new Date(2026, 9, 10, 21));
+    const e = (o: object) => ({ id: "x", kind: "debit", amount: 1, currency: "MRU", note: "", email: "", date: "2026-09-22", createdAt: "x", ...o });
+    const text = weeklyText({
+      accounts: [acc({ id: "a", name: "A", representativeId: "r1", rechargeDate: "2026/09/20" })],
+      clients: { c1: { id: "c1", name: "م", createdAt: "2026-09-21T10:00:00Z", updatedAt: now } },
+      ledger: { a: [e({}), e({ date: "2026-09-10" }), e({ kind: "credit", amount: 3000 })] } as never,
+      promises: [
+        { id: "1", name: "x", amount: 1, currency: "MRU", dueDate: "2026-09-22", status: "kept", createdAt: now, resolvedAt: "2026-09-23T10:00:00Z" },
+        { id: "2", name: "y", amount: 1, currency: "MRU", dueDate: "2026-09-22", status: "broken", createdAt: now, resolvedAt: "2026-09-24T10:00:00Z" },
+      ],
+      repNames: { r1: "سالم" },
+      weekEnd: "2026-09-26",
+      now: new Date(2026, 8, 26),
+    });
+    expect(text).toContain("📊 ملخص الأسبوع 20/09 - 26/09");
+    expect(text).toContain("📦 شحنات وتجديدات: 1");
+    expect(text).toContain("💵 التحصيل: 3,000 أوقية");
+    expect(text).toContain("👤 زبائن جدد: 1");
+    expect(text).toContain("🤝 وعود: 1 وُفي بها · 1 لم يُوفَ بها");
+    expect(text).toContain("🔁 أجهزة متوقفة عن التجديد: 1");
+    expect(text).toContain("🏆 أنشط مندوب: سالم (1 شحنة)");
   });
 });

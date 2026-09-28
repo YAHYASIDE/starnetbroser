@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { DeviceStatus } from "@starnet/shared";
-import { cardNeed, computeRenewalForecast, parseRenewalDate } from "./renewalForecast";
+import { activeShare, cardNeed, computeRenewalForecast, parseRenewalDate } from "./renewalForecast";
 
 const base: StarlinkAccountSummary = {
   id: "",
@@ -54,5 +54,9 @@ describe("renewal forecast", () => {
   it("parses both date spellings", () => {
     expect(parseRenewalDate("2026/9/5")?.getDate()).toBe(5);
     expect(parseRenewalDate("bad")).toBeNull();
+  });
+
+  it("active share", () => {
+    expect(activeShare([acc({ rechargeDate: "2026/09/28" }), acc({ rechargeDate: "2026/09/01" }), acc({ rechargeDate: "2026/10/01" }), acc({})], new Date(2026, 8, 28))).toEqual({ active: 2, lapsed: 1, percent: 67 });
   });
 });

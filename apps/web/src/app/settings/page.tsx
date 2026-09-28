@@ -1289,6 +1289,7 @@ function TelegramSection() {
     { key: "payments", label: "💵 كل دفعة تُسجَّل" },
     { key: "morning", label: "☀️ ملخص الصباح (التجديدات القريبة بالأسماء)" },
     { key: "evening", label: "🌙 ملخص آخر اليوم" },
+    { key: "weekly", label: "📊 ملخص الأسبوع (كل سبت مساءً)" },
   ];
 
   return (
