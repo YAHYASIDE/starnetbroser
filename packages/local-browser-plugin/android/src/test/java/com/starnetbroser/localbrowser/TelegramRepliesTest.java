@@ -33,6 +33,7 @@ public class TelegramRepliesTest {
         Map<String, String> r1 = new HashMap<>();
         r1.put("devices", "R1 DEVICES");
         r1.put("debts", "R1 DEBTS");
+        r1.put("name", "سالم");
         s.reps.put("r1", r1);
         Map<String, String> r2 = new HashMap<>();
         r2.put("devices", "R2 DEVICES");
@@ -41,6 +42,12 @@ public class TelegramRepliesTest {
         r1.put("stopped#kb", "{\"inline_keyboard\":[]}");
         s.repWords.put("الموقوفه", "stopped");
         s.repWords.put("بحث", "search");
+        s.repWords.put("دفعه", "payment");
+        s.repWords.put("زبون", "client");
+        s.paymentHint = "PAY HINT";
+        s.clientHint = "CLIENT HINT";
+        s.requestReceived = "RECEIVED";
+        s.requestNotice = "طلب من {rep}: «{text}»";
         s.repKeyboard = "KEYBOARD";
         s.searchHint = "HINT";
         java.util.List<TelegramReplies.SearchEntry> r1Devices = new java.util.ArrayList<>();
@@ -155,6 +162,22 @@ public class TelegramRepliesTest {
         assertNull(TelegramReplies.parseDay("4521", today));
         // r2 never sees r1's renewals.
         assertEquals("📆 لا تجديدات لأجهزتك غداً 28/09", TelegramReplies.search("r2", "غدا", false, s, today).text);
+    }
+
+    @Test
+    public void requestsGoToTheAppAndTheOwner() {
+        TelegramReplies.Reply pay = TelegramReplies.forRep("r1", "دفعة 5000 محمد", snapshot());
+        assertEquals("RECEIVED", pay.text);
+        assertTrue(pay.toInbox);
+        assertEquals("طلب من سالم: «دفعة 5000 محمد»", pay.ownerNotice);
+        // No amount yet / just the button: the how-to, nothing recorded.
+        TelegramReplies.Reply button = TelegramReplies.forRep("r1", "💵 دفعة", snapshot());
+        assertEquals("PAY HINT", button.text);
+        assertFalse(button.toInbox);
+        assertEquals("CLIENT HINT", TelegramReplies.forRep("r1", "➕ زبون جديد", snapshot()).text);
+        TelegramReplies.Reply client = TelegramReplies.forRep("r1", "زبون جديد محمد 22212345", snapshot());
+        assertTrue(client.toInbox);
+        assertEquals("RECEIVED", client.text);
     }
 
     @Test

@@ -16,6 +16,9 @@ export interface NewDevicePrefill {
   clientId: string;
   representativeId?: string;
   name?: string;
+  /** From a rep's "➕ زبون جديد" request. */
+  email?: string;
+  kit?: string;
 }
 
 const PARAM = "newDevice";
@@ -24,6 +27,8 @@ export function buildNewDeviceHref(prefill: NewDevicePrefill): string {
   const params = new URLSearchParams({ [PARAM]: "1", clientId: prefill.clientId });
   if (prefill.representativeId) params.set("representativeId", prefill.representativeId);
   if (prefill.name) params.set("name", prefill.name);
+  if (prefill.email) params.set("email", prefill.email);
+  if (prefill.kit) params.set("kit", prefill.kit);
   return `/?${params.toString()}`;
 }
 
@@ -36,5 +41,7 @@ export function parseNewDevicePrefill(search: string): NewDevicePrefill | null {
     clientId,
     representativeId: params.get("representativeId") || undefined,
     name: params.get("name") || undefined,
+    email: params.get("email") || undefined,
+    kit: params.get("kit") || undefined,
   };
 }

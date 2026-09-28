@@ -14,7 +14,10 @@ import type { LedgerByAccount } from "./ledgerStore";
 import type { RepresentativeStore, RepSettlementList } from "./repStore";
 import {
   REP_HELP,
+  REP_CLIENT_HINT,
   REP_KEYBOARD,
+  REP_PAYMENT_HINT,
+  REP_REQUEST_RECEIVED,
   REP_SEARCH_HINT,
   REP_WORDS,
   repAccounts,
@@ -50,6 +53,11 @@ export interface TelegramReplySnapshot {
   repSearch: Record<string, RepSearchEntry[]>;
   repKeyboard: string;
   searchHint: string;
+  paymentHint: string;
+  clientHint: string;
+  requestReceived: string;
+  /** To the operator when a rep sends a request with the app closed: "{rep}", "{text}". */
+  requestNotice: string;
 }
 
 function pad(n: number): string {
@@ -92,7 +100,7 @@ export function buildReplySnapshot(input: {
       debts: repDebtsReply(repId, input.accounts, input.ledgerStore, input.clients),
       statement: { text: repStatementText(rep.name, month, figures) },
     };
-    reps[repId] = {};
+    reps[repId] = { name: rep.name };
     for (const [kind, reply] of Object.entries(replies)) {
       reps[repId]![kind] = reply.text;
       if (reply.markup) reps[repId]![`${kind}#kb`] = reply.markup;
@@ -119,5 +127,9 @@ export function buildReplySnapshot(input: {
     repSearch,
     repKeyboard: REP_KEYBOARD,
     searchHint: REP_SEARCH_HINT,
+    paymentHint: REP_PAYMENT_HINT,
+    clientHint: REP_CLIENT_HINT,
+    requestReceived: REP_REQUEST_RECEIVED,
+    requestNotice: "📥 طلب من المندوب {rep}: «{text}»\nوافق عليه من صفحة المندوبين في التطبيق.",
   };
 }

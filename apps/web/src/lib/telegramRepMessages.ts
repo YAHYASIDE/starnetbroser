@@ -139,9 +139,11 @@ export type RepCommand =
   | { kind: "statement" }
   | { kind: "debts" }
   | { kind: "search"; query: string }
+  | { kind: "payment"; text: string }
+  | { kind: "client"; text: string }
   | { kind: "unknown"; text: string };
 
-type RepWordKind = Exclude<RepCommand["kind"], "unknown" | "search"> | "search";
+type RepWordKind = Exclude<RepCommand["kind"], "unknown">;
 
 /** Command words as a rep may type them (spelling variants fold together, see repWordKind). */
 const REP_WORD_LIST: Record<string, RepWordKind> = {
@@ -185,6 +187,15 @@ const REP_WORD_LIST: Record<string, RepWordKind> = {
   "أيام": "days",
   "الايام": "days",
   days: "days",
+  "دفعة": "payment",
+  "دفعه": "payment",
+  "استلمت": "payment",
+  "دفع": "payment",
+  "payment": "payment",
+  "زبون": "client",
+  "جديد": "client",
+  "إضافة": "client",
+  "اضافة": "client",
   "بحث": "search",
   "ابحث": "search",
   search: "search",
@@ -209,6 +220,9 @@ export function parseRepCommand(text: string): RepCommand {
   const [firstWord = "", ...rest] = cleaned.split(/\s+/);
   const kind = REP_WORDS[normalizeSearch(firstWord)];
   if (kind === "search") return { kind: "search", query: rest.join(" ").trim() };
+  // "زبون جديد ..." / "دفعة 5000 ..." - the rest is the request itself.
+  if (kind === "payment") return { kind: "payment", text: rest.join(" ").trim() };
+  if (kind === "client") return { kind: "client", text: rest.filter((w, i) => !(i === 0 && normalizeSearch(w) === "جديد")).join(" ").trim() };
   if (kind) return { kind } as RepCommand;
   // Anything else is a search among his devices ("محمد", "22212345").
   return { kind: "unknown", text: cleaned };
@@ -224,6 +238,8 @@ export const REP_HELP = [
   "📆 الأيام - تجديدات الأيام القادمة يوماً بيوم",
   "🔎 بحث - أو اكتب مباشرة جزءاً من اسم زبون أو جهاز أو إيميل، أو رقم هاتف أو KIT",
   "📆 أو اكتب يوماً: اليوم، غداً، بعد غد، يوم 30، 30/09",
+  "💵 دفعة - سجّل دفعة استلمتها: دفعة 5000 محمد",
+  "➕ زبون جديد - اطلب إضافة زبون: زبون جديد الاسم الهاتف الإيميل",
   "💬 تحت القوائم أزرار واتساب ترسل للزبون رسالة جاهزة",
 ].join("\n");
 
@@ -233,6 +249,7 @@ export const REP_KEYBOARD = JSON.stringify({
     [{ text: "📡 أجهزتي" }, { text: "📅 تنتهي" }],
     [{ text: "⛔ الموقوفة" }, { text: "💰 ديون زبائني" }],
     [{ text: "📊 كشفي" }, { text: "📆 الأيام" }],
+    [{ text: "💵 دفعة" }, { text: "➕ زبون جديد" }],
     [{ text: "🔎 بحث" }],
   ],
   resize_keyboard: true,
@@ -546,4 +563,44 @@ export function repDaysReply(accounts: StarlinkAccountSummary[], clients: Client
     text: ["📆 تجديدات أجهزتك يوماً بيوم", ...lines, "", "اكتب يوماً لتفاصيله: غداً، يوم 30، 30/09"].join("\n"),
     markup: whatsappMarkup(reminders),
   };
+}
+
+// ---- Requests to the operator (recorded only once he approves them in the app) ----
+
+export const REP_PAYMENT_HINT = [
+  "💵 لتسجيل دفعة استلمتها اكتب:",
+  "دفعة المبلغ ثم اسم الزبون أو الجهاز",
+  "مثال: دفعة 5000 محمد",
+  "بالدولار: دفعة 50 دولار محمد",
+].join("\n");
+
+export const REP_CLIENT_HINT = [
+  "➕ لطلب إضافة زبون جديد اكتب في رسالة واحدة:",
+  "زبون جديد الاسم الهاتف الإيميل أو KIT",
+  "مثال: زبون جديد محمد أحمد 22212345 mohamed@gmail.com",
+].join("\n");
+
+export const REP_REQUEST_RECEIVED = "✅ وصل طلبك إلى المسؤول - يُسجَّل بعد موافقته وتصلك رسالة بذلك.";
+
+export function repPaymentReceivedText(amount: number, currency: string, deviceName?: string): string {
+  const where = deviceName ? ` عن ${deviceName}` : " (سيحدد المسؤول الجهاز)";
+  return `✅ وصلت الدفعة ${formatMoneyShort(amount, currency)}${where} - تُسجَّل بعد موافقة المسؤول وتصلك رسالة بذلك.`;
+}
+
+export function formatMoneyShort(amount: number, currency: string): string {
+  return money({ [currency]: amount });
+}
+
+/** His devices whose device name, customer, phone, email or kit contain every word of `query`. */
+export function matchRepDevices(query: string, accounts: StarlinkAccountSummary[], clients: ClientStore): StarlinkAccountSummary[] {
+  const words = normalizeSearch(query).split(" ").filter(Boolean);
+  if (words.length === 0) return [];
+  return accounts.filter((account) => {
+    const client = account.clientId ? clients[account.clientId] : undefined;
+    const keys = normalizeSearch(
+      [account.name, client?.name ?? "", client?.phone ?? "", account.expectedEmail ?? "", account.starlinkAccountEmail ?? "", account.kitNumber].join(" "),
+    );
+    const compact = compactSearch(keys);
+    return words.every((w) => keys.includes(w) || (compactSearch(w) !== "" && compact.includes(compactSearch(w))));
+  });
 }

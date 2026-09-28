@@ -375,6 +375,10 @@ public class TelegramReplyService extends Service {
             s.repWords = strings(json.optJSONObject("repWords"));
             s.repKeyboard = json.optString("repKeyboard", "");
             s.searchHint = json.optString("searchHint", "");
+            s.paymentHint = json.optString("paymentHint", "");
+            s.clientHint = json.optString("clientHint", "");
+            s.requestReceived = json.optString("requestReceived", "");
+            s.requestNotice = json.optString("requestNotice", "");
             JSONObject search = json.optJSONObject("repSearch");
             if (search != null) {
                 Iterator<String> ids = search.keys();

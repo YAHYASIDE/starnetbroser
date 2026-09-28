@@ -7619,3 +7619,57 @@ button.today-tile {
   padding-inline-start: 18px;
   overflow-wrap: anywhere;
 }
+
+.rep-request-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.rep-request {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+}
+
+.rep-request-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+.rep-request-head span {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.rep-request-text {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.rep-request-field {
+  display: grid;
+  gap: 4px;
+  font-size: 0.78rem;
+}
+
+.rep-request-field select,
+.rep-request-row select {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.rep-request-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 6px;
+}

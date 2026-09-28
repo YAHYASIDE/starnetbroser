@@ -50,7 +50,14 @@ import {
   repSearchReply,
   repStatementText,
   repStoppedReply,
+  formatMoneyShort,
+  matchRepDevices,
+  REP_CLIENT_HINT,
+  REP_PAYMENT_HINT,
+  REP_REQUEST_RECEIVED,
+  repPaymentReceivedText,
 } from "./telegramRepMessages";
+import { addRepRequest, loadRepRequests, parseRepClient, parseRepPayment, saveRepRequests } from "./repRequests";
 import {
   answerCash,
   answerExpiring,
@@ -155,8 +162,58 @@ export async function answerRepMessage(message: TelegramPollMessage, alreadyRepl
   }
   const rep = loadRepresentativeStore()[repId];
   if (!rep) return;
-  const reply = await repReplyFor(repId, rep, parseRepCommand(message.text));
+  const command = parseRepCommand(message.text);
+  if (command.kind === "payment" || command.kind === "client") {
+    await handleRepRequest(repId, rep, command, alreadyReplied);
+    return;
+  }
+  const reply = await repReplyFor(repId, rep, command);
   await sendRepText(repId, reply.text, reply.markup ?? REP_KEYBOARD);
+}
+
+/** 💵 / ➕ from a rep: kept for the operator to approve (never recorded directly). With the app
+ * closed the service already answered him and told the operator - then it's only recorded. */
+async function handleRepRequest(
+  repId: string,
+  rep: Representative,
+  command: { kind: "payment" | "client"; text: string },
+  alreadyReplied: boolean,
+): Promise<void> {
+  if (command.kind === "payment") {
+    const parsed = parseRepPayment(command.text);
+    if (!parsed) {
+      if (!alreadyReplied) await sendRepText(repId, REP_PAYMENT_HINT);
+      return;
+    }
+    const matches = parsed.query ? matchRepDevices(parsed.query, repAccounts(await loadAccounts(), repId), loadClientStore()) : [];
+    const device = matches.length === 1 ? matches[0] : undefined;
+    saveRepRequests(
+      addRepRequest(loadRepRequests(), {
+        repId,
+        kind: "payment",
+        text: `دفعة ${command.text}`,
+        amount: parsed.amount,
+        currency: parsed.currency,
+        query: parsed.query || undefined,
+        accountId: device?.id,
+      }),
+    );
+    if (!alreadyReplied) {
+      await sendRepText(repId, repPaymentReceivedText(parsed.amount, parsed.currency, device?.name));
+      await sendTelegramText(`💵 طلب دفعة من المندوب ${rep.name}: ${formatMoneyShort(parsed.amount, parsed.currency)}${device ? ` عن ${device.name}` : parsed.query ? ` («${parsed.query}»)` : ""}\nوافق عليه من صفحة المندوبين في التطبيق.`);
+    }
+    return;
+  }
+  const parsed = parseRepClient(command.text);
+  if (!parsed) {
+    if (!alreadyReplied) await sendRepText(repId, REP_CLIENT_HINT);
+    return;
+  }
+  saveRepRequests(addRepRequest(loadRepRequests(), { repId, kind: "client", text: `زبون جديد ${command.text}`, ...parsed }));
+  if (!alreadyReplied) {
+    await sendRepText(repId, REP_REQUEST_RECEIVED);
+    await sendTelegramText(`➕ طلب زبون جديد من المندوب ${rep.name}: ${[parsed.name, parsed.phone, parsed.email, parsed.kit].filter(Boolean).join(" · ")}\nوافق عليه من صفحة المندوبين في التطبيق.`);
+  }
 }
 
 /** One rep command answered from the data right now (his own devices only). */
@@ -176,6 +233,10 @@ async function repReplyFor(repId: string, rep: Representative, command: RepComma
       return repStoppedReply(mine, clients);
     case "debts":
       return repDebtsReply(repId, all, loadLedgerStore(), clients);
+    case "payment":
+      return { text: REP_PAYMENT_HINT };
+    case "client":
+      return { text: REP_CLIENT_HINT };
     case "days":
       return repDaysReply(mine, clients, today);
     case "search":

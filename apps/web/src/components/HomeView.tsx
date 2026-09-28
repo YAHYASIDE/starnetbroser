@@ -95,6 +95,7 @@ import {
 import { ApiError, listAccounts } from "@/lib/apiClient";
 import { getLastBackupAt, isDemoMode, isLoggedIn, isRemindersBadgeEnabled } from "@/lib/settingsStore";
 import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
+import { loadRepRequests, pendingRepRequests } from "@/lib/repRequests";
 import {
   ackPendingAccountSyncs,
   checkAccountSession,
@@ -191,7 +192,13 @@ export function HomeView({
     if (!prefill) return;
     setDialog({
       mode: "add",
-      prefill: { clientId: prefill.clientId, representativeId: prefill.representativeId, name: prefill.name ?? "" },
+      prefill: {
+        clientId: prefill.clientId,
+        representativeId: prefill.representativeId,
+        name: prefill.name ?? "",
+        ...(prefill.email ? { expectedEmail: prefill.email } : {}),
+        ...(prefill.kit ? { kitNumber: prefill.kit } : {}),
+      },
     });
     window.history.replaceState(null, "", window.location.pathname);
   }, []);
@@ -207,6 +214,14 @@ export function HomeView({
     void checkForAppUpdate().then((result) => setUpdateAvailable(result.status === "update"));
   }, []);
   const [syncingNow, setSyncingNow] = useState(false);
+  // 📥 requests reps sent through the bot (repRequests.ts) - they arrive while the app is open.
+  const [pendingRepRequestCount, setPendingRepRequestCount] = useState(0);
+  useEffect(() => {
+    const refresh = () => setPendingRepRequestCount(pendingRepRequests(loadRepRequests()).length);
+    refresh();
+    const timer = window.setInterval(refresh, 10000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   // Small, non-blocking top-of-screen bubbles for background sync results - never window.alert,
   // which would interrupt the user with a modal for something that happened on its own.
@@ -1043,6 +1058,16 @@ export function HomeView({
                 💳 رصيد البطاقة لا يكفي - ينقصها <bdi dir="ltr">{formatAmount(suspendedCardShortfall)} $</bdi>
               </small>
             )}
+          </span>
+        </Link>
+      )}
+
+      {pendingRepRequestCount > 0 && (
+        <Link href="/representatives" className="backup-banner">
+          <span aria-hidden="true">📥</span>
+          <span>
+            <strong>{pendingRepRequestCount === 1 ? "طلب من مندوب بانتظار موافقتك" : `${pendingRepRequestCount} طلبات من المندوبين بانتظار موافقتك`}</strong>
+            <small>دفعات أو زبائن جدد أرسلوها من تيليغرام - اضغط للمراجعة</small>
           </span>
         </Link>
       )}

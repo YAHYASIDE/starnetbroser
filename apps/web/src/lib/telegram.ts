@@ -484,7 +484,7 @@ export async function takeTelegramInbox(): Promise<{ messages: TelegramInboxMess
 
 const KEYBOARD_SENT_KEY = "starnet.telegramRepKeyboard";
 /** Bump when the rep keyboard changes, so every linked rep gets the new buttons once. */
-const KEYBOARD_VERSION = "3";
+const KEYBOARD_VERSION = "4";
 
 /** Gives every linked rep the button keyboard once (a rep linked before it existed never had it). */
 export async function sendRepKeyboardOnce(): Promise<void> {

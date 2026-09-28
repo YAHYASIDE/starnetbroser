@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { LedgerEntry } from "./ledgerStore";
 import type { Representative } from "./repStore";
 import {
+  matchRepDevices,
   normalizeSearch,
   parseDayQuery,
   REP_KEYBOARD,
@@ -113,6 +114,12 @@ describe("rep commands", () => {
     expect(parseRepCommand("اجهزتي")).toEqual({ kind: "devices" });
     expect(parseRepCommand("توقف")).toEqual({ kind: "stopped" });
     expect(parseRepCommand("رصيدي")).toEqual({ kind: "statement" });
+    // Requests: the rest of the text is the request.
+    expect(parseRepCommand("💵 دفعة")).toEqual({ kind: "payment", text: "" });
+    expect(parseRepCommand("دفعة 5000 محمد")).toEqual({ kind: "payment", text: "5000 محمد" });
+    expect(parseRepCommand("استلمت 50 دولار من مقهى")).toEqual({ kind: "payment", text: "50 دولار من مقهى" });
+    expect(parseRepCommand("➕ زبون جديد")).toEqual({ kind: "client", text: "" });
+    expect(parseRepCommand("زبون جديد محمد 22212345")).toEqual({ kind: "client", text: "محمد 22212345" });
     // An email is searched whole - only a "/command@bot" loses its @name.
     expect(parseRepCommand("abdlkrim9113@gmail.com")).toEqual({ kind: "unknown", text: "abdlkrim9113@gmail.com" });
     expect(parseRepCommand("/start@starnet_reps_bot")).toEqual({ kind: "help" });
@@ -126,10 +133,10 @@ describe("rep shortcuts", () => {
     account("بلا زبون", "2026/09/29"),
   ];
 
-  it("keyboard has the seven buttons", () => {
+  it("keyboard has the nine buttons", () => {
     const keyboard = JSON.parse(REP_KEYBOARD);
     expect(keyboard.keyboard.flat().map((b: { text: string }) => b.text)).toEqual([
-      "📡 أجهزتي", "📅 تنتهي", "⛔ الموقوفة", "💰 ديون زبائني", "📊 كشفي", "📆 الأيام", "🔎 بحث",
+      "📡 أجهزتي", "📅 تنتهي", "⛔ الموقوفة", "💰 ديون زبائني", "📊 كشفي", "📆 الأيام", "💵 دفعة", "➕ زبون جديد", "🔎 بحث",
     ]);
     expect(keyboard.is_persistent).toBe(true);
     // Every button parses back to its command.
@@ -198,6 +205,12 @@ describe("rep shortcuts", () => {
     expect(days.text).not.toContain("منزل"); // 23 days away
     expect(JSON.parse(days.markup!).inline_keyboard).toHaveLength(1);
     expect(parseRepCommand("📆 الأيام")).toEqual({ kind: "days" });
+  });
+
+  it("matchRepDevices finds the device a payment is about", () => {
+    expect(matchRepDevices("محمد", mine, clients).map((a) => a.id)).toEqual(["مقهى", "منزل"]);
+    expect(matchRepDevices("مقهى", mine, clients).map((a) => a.id)).toEqual(["مقهى"]);
+    expect(matchRepDevices("", mine, clients)).toEqual([]);
   });
 
   it("folding matches the Java service", () => {

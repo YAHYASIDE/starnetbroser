@@ -37,7 +37,10 @@ describe("buildReplySnapshot", () => {
     expect(snapshot.reps.r1!.stopped).toContain("لا أجهزة موقوفة");
     expect(snapshot.repSearch.r1!.map((e) => e.t.split("\n")[0])).toEqual(["📡 جهاز-سالم"]);
     expect(snapshot.repSearch.r2).toBeUndefined();
-    expect(JSON.parse(snapshot.repKeyboard).keyboard).toHaveLength(4);
+    expect(JSON.parse(snapshot.repKeyboard).keyboard).toHaveLength(5);
+    expect(snapshot.reps.r1!.name).toBe("سالم");
+    expect(snapshot.repWords["دفعه"]).toBe("payment");
+    expect(snapshot.requestNotice).toContain("{rep}");
     expect(snapshot.reps.r1!.days).toContain("غداً");
     expect(snapshot.repSearch.r1![0]!.d).toBe("2026-09-28");
     expect(snapshot.repWords["بحث"]).toBe("search");

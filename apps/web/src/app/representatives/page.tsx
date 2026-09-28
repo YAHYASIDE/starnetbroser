@@ -6,6 +6,7 @@ import Link from "next/link";
 import { LedgerEntryEditor } from "@/components/LedgerEntryEditor";
 import { getCurrency, loadCurrencyStore } from "@/lib/currencyStore";
 import { PdfButton } from "@/components/PdfButton";
+import { RepRequestsSection } from "@/components/RepRequestsSection";
 import { PrintableDocument } from "@/lib/pdfDocument";
 import { loadCashEntries, postRepSettlementToCash, removeLinkedCashEntries, saveCashEntries } from "@/lib/cashStore";
 import { StarlinkAccountSummary } from "@starnet/shared";
@@ -345,6 +346,16 @@ export default function RepresentativesPage() {
         </Link>
         <h1 className="section-title">المندوبون</h1>
       </div>
+
+      <RepRequestsSection
+        representatives={representatives}
+        accounts={accounts}
+        clientStore={clientStore}
+        onChanged={() => {
+          setLedgerStore(loadLedgerStore());
+          setClientStore(loadClientStore());
+        }}
+      />
 
       <section className="section">
         <div className="party-section party-section-reps">

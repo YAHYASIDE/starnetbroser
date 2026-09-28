@@ -41,6 +41,11 @@ final class TelegramReplies {
         /** The buttons kept at the bottom of a rep's chat (reply_markup JSON). */
         String repKeyboard = "";
         String searchHint = "";
+        String paymentHint = "";
+        String clientHint = "";
+        String requestReceived = "";
+        /** "{rep}", "{text}". */
+        String requestNotice = "";
         /** Every rep's own devices, for search: repId -> entries. */
         Map<String, List<SearchEntry>> repSearch = new HashMap<>();
     }
@@ -325,12 +330,28 @@ final class TelegramReplies {
         String kind = s.repWords.get(normalize(commandWord(text)));
         if (kind == null) return search(repId, cleanText(text), true, s); // "محمد", "22212345"
         if ("search".equals(kind)) return search(repId, afterCommand(text), false, s);
+        if ("payment".equals(kind) || "client".equals(kind)) return request(repId, kind, text, s);
         if ("help".equals(kind)) return new Reply(s.repHelp, false, null, s.repKeyboard);
         Map<String, String> mine = s.reps.get(repId);
         String answer = mine == null ? null : mine.get(kind);
         if (answer == null) return new Reply(NOT_READY, false, null, s.repKeyboard);
         String markup = mine.get(kind + "#kb");
         return new Reply(withTime(answer, s), false, null, markup != null ? markup : s.repKeyboard);
+    }
+
+    /** 💵 / ➕ with the app closed: he's told it arrived, the operator is told, and the app records
+     * it (for approval) when it opens. Without the details he gets the how-to instead. */
+    static Reply request(String repId, String kind, String text, Snapshot s) {
+        String rest = afterCommand(text);
+        if ("client".equals(kind) && normalize(rest).startsWith("جديد")) rest = rest.substring(Math.min(rest.length(), 4)).trim();
+        boolean complete = "payment".equals(kind) ? normalize(rest).matches(".*\\d.*") : !rest.isEmpty();
+        if (!complete) return new Reply("payment".equals(kind) ? s.paymentHint : s.clientHint, false, null, s.repKeyboard);
+        Map<String, String> mine = s.reps.get(repId);
+        String repName = mine != null && mine.get("name") != null ? mine.get("name") : "";
+        String quoted = cleanText(text);
+        if (quoted.length() > 120) quoted = quoted.substring(0, 120);
+        String notice = s.requestNotice.replace("{rep}", repName).replace("{text}", quoted);
+        return new Reply(s.requestReceived, true, notice, s.repKeyboard);
     }
 
     /**
