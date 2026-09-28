@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { BulkWhatsAppSender } from "@/components/BulkWhatsAppSender";
 import { listClients } from "@/lib/clientStore";
 import {
   addPromise,
@@ -133,6 +134,13 @@ export function PromisesTool({ data }: { data: ToolsData }) {
         </button>
       )}
       {buckets.overdue.length + buckets.today.length + buckets.upcoming.length === 0 && <p className="settings-hint">لا توجد وعود مفتوحة.</p>}
+      <BulkWhatsAppSender
+        targets={[...buckets.overdue, ...buckets.today].flatMap((p) => {
+          const link = buildWhatsAppLink(p.phone, buildPromiseReminder(p, label(p.currency), today));
+          return link ? [{ id: p.id, name: p.name, link }] : [];
+        })}
+        label="تذكير كل المستحقين"
+      />
       {buckets.overdue.length > 0 && <h3 className="tool-subtitle">⏰ متأخرة ({buckets.overdue.length})</h3>}
       <ul className="tool-list">{buckets.overdue.map((p) => row(p, "overdue"))}</ul>
       {buckets.today.length > 0 && <h3 className="tool-subtitle">📅 اليوم ({buckets.today.length})</h3>}

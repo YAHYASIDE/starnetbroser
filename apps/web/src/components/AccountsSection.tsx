@@ -1,7 +1,8 @@
 "use client";
 
+import { ClientNotesPanel, clientNoteCount } from "./ClientNotesSheet";
 import { DateInput } from "./DateInput";
-import { CSSProperties, FormEvent, useMemo, useState } from "react";
+import { CSSProperties, FormEvent, useEffect, useMemo, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { Client, clientDeleteQuestion, CreateClientInput } from "@/lib/clientStore";
 import { clientRepNames } from "@/lib/repDebts";
@@ -311,7 +312,7 @@ interface PartyCardProps {
 }
 
 type PartyPanel = "statement" | "devices" | null;
-type PartySheet = "balance" | "whatsapp" | "detail" | "edit" | null;
+type PartySheet = "balance" | "whatsapp" | "detail" | "edit" | "notes" | null;
 
 function PartyCard({
   kind,
@@ -335,6 +336,10 @@ function PartyCard({
   const [sheet, setSheet] = useState<PartySheet>(null);
   const [detailRowId, setDetailRowId] = useState<string | null>(null);
   const isClient = kind === "sale";
+  const [noteCount, setNoteCount] = useState(0);
+  useEffect(() => {
+    if (isClient) setNoteCount(clientNoteCount(party.id));
+  }, [isClient, party.id]);
   const partyKind: PartyKind = isClient ? "client" : "supplier";
   const currencies = Object.keys(totals);
   const remainingByCurrency = Object.fromEntries(Object.entries(totals).map(([c, t]) => [c, t.remaining]));
@@ -477,6 +482,11 @@ function PartyCard({
         {onOpenCard && (
           <button type="button" className="party-action" onClick={onOpenCard}>
             💳 البطاقة
+          </button>
+        )}
+        {isClient && (
+          <button type="button" className="party-action" onClick={() => setSheet("notes")}>
+            📝 ملاحظات{noteCount ? ` (${noteCount})` : ""}
           </button>
         )}
         <button type="button" className="party-action" onClick={onEdit}>
@@ -643,6 +653,12 @@ function PartyCard({
               }}
             />
           )}
+        </PartySheet>
+      )}
+
+      {sheet === "notes" && (
+        <PartySheet title={`ملاحظات - ${party.name}`} onClose={() => setSheet(null)}>
+          <ClientNotesPanel clientId={party.id} onCountChange={setNoteCount} />
         </PartySheet>
       )}
 

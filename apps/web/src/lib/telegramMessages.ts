@@ -52,7 +52,7 @@ export function cleanBotToken(raw: string): string | null {
   return match ? `${match[1]}:${match[2]}` : null;
 }
 
-function currencyLabel(code: string): string {
+export function currencyLabel(code: string): string {
   return LEDGER_CURRENCY_LABELS[code as LedgerCurrency] ?? code;
 }
 
@@ -178,6 +178,11 @@ export type TelegramCommand =
   | { kind: "expiring" }
   | { kind: "cash" }
   | { kind: "summary" }
+  | { kind: "forecast" }
+  | { kind: "promises" }
+  | { kind: "lapsed" }
+  | { kind: "health" }
+  | { kind: "goals" }
   | { kind: "statement"; query: string }
   | { kind: "unknown" };
 
@@ -200,6 +205,22 @@ export const WORDS: Record<string, Exclude<TelegramCommand["kind"], "statement" 
   summary: "summary",
   "ملخص": "summary",
   "اليوم": "summary",
+  forecast: "forecast",
+  "توقعات": "forecast",
+  "التوقعات": "forecast",
+  promises: "promises",
+  "وعود": "promises",
+  "الوعود": "promises",
+  lapsed: "lapsed",
+  "استرجاع": "lapsed",
+  "المتوقفون": "lapsed",
+  health: "health",
+  "فحص": "health",
+  goals: "goals",
+  "اهداف": "goals",
+  "أهداف": "goals",
+  "الاهداف": "goals",
+  "الأهداف": "goals",
 };
 
 export function parseTelegramCommand(text: string): TelegramCommand {
@@ -222,6 +243,11 @@ export const TELEGRAM_HELP = [
   "• الصندوق - رصيد الصندوق",
   "• ملخص - ملخص اليوم",
   "• كشف <اسم> - كشف حساب زبون أو مورد (PDF)",
+  "• توقعات - دخل التجديدات خلال 30 يوماً",
+  "• وعود - وعود الدفع المستحقة",
+  "• استرجاع - زبائن توقفوا عن التجديد",
+  "• فحص - نواقص البيانات",
+  "• أهداف - تقدم أهداف الشهر",
 ].join("\n");
 
 export function answerStopped(accounts: StarlinkAccountSummary[], clients: ClientStore): string {

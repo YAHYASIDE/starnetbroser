@@ -32,6 +32,9 @@ import {
 } from "./telegram";
 import { buildReplySnapshot } from "./telegramReplies";
 import { deviceDisplayName, readRepDeviceFile, repDeviceCode } from "./repDeviceTransfer";
+import { forecastText, goalsText, healthText, lapsedText, promisesText } from "./ownerInsightsText";
+import { loadPromises } from "./paymentPromises";
+import { loadGoals } from "./goals";
 import type { TelegramPollMessage } from "@starnet/local-browser-plugin";
 import { getCurrency, loadCurrencyStore } from "./currencyStore";
 import { loadRepresentativeStore, loadRepSettlements, type Representative } from "./repStore";
@@ -106,6 +109,21 @@ export async function answerTelegramCommand(text: string): Promise<void> {
       await sendTelegramText(summary ? buildEveningTelegram(summary) : "لا توجد بيانات بعد");
       return;
     }
+    case "forecast":
+      await sendTelegramText(forecastText(await loadAccounts(), new Date()));
+      return;
+    case "promises":
+      await sendTelegramText(promisesText(loadPromises(), today));
+      return;
+    case "lapsed":
+      await sendTelegramText(lapsedText(await loadAccounts(), loadClientStore(), new Date()));
+      return;
+    case "health":
+      await sendTelegramText(healthText(await loadAccounts(), loadClientStore(), new Date()));
+      return;
+    case "goals":
+      await sendTelegramText(goalsText(loadGoals(), today, loadLedgerStore(), loadClientStore()));
+      return;
     case "statement":
       await answerStatement(command.query);
       return;
@@ -309,6 +327,8 @@ export async function refreshTelegramReplies(): Promise<void> {
     invoices: loadInvoices(),
     settlements: loadRepSettlements(),
     rates: { MRU: getCurrency(currencies, "MRU")?.rateFromUsd, SIFA: getCurrency(currencies, "SIFA")?.rateFromUsd },
+    promises: loadPromises(),
+    goals: loadGoals(),
   });
   await pushTelegramReplies(snapshot);
 }

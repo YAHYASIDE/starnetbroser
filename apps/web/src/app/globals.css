@@ -8150,3 +8150,64 @@ button.today-tile {
   text-decoration: none;
   text-align: center;
 }
+
+/* 📝 ملاحظات الزبون */
+.client-notes {
+  display: grid;
+  gap: 10px;
+  padding: 4px 2px 8px;
+}
+
+.client-notes-reliability {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.client-notes-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.client-notes-add textarea {
+  resize: vertical;
+  font: inherit;
+}
+
+.client-notes-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.client-notes-list li {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+}
+
+.client-notes-list li.client-note-pinned {
+  border-inline-start: 4px solid var(--violet);
+}
+
+.client-notes-list p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.88rem;
+}
+
+.client-note-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.client-note-meta small {
+  color: var(--text-muted);
+  margin-inline-end: auto;
+}

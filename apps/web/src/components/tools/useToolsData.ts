@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { listAccounts } from "@/lib/apiClient";
 import { ClientStore, loadClientStore } from "@/lib/clientStore";
 import { CurrencyStore, listCurrencies, loadCurrencyStore } from "@/lib/currencyStore";
-import { loadDemoAccounts } from "@/lib/demoAccountStore";
+import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
 import { demoAccounts } from "@/lib/demoData";
 import { LedgerByAccount, loadLedgerStore } from "@/lib/ledgerStore";
 import { loadRepresentativeStore, RepresentativeStore } from "@/lib/repStore";
@@ -18,11 +18,13 @@ export interface ToolsData {
   currencies: CurrencyStore;
   reps: RepresentativeStore;
   loaded: boolean;
+  /** Saves edited devices (phone-only data mode); false when they live on a server. */
+  saveAccounts: (accounts: StarlinkAccountSummary[]) => boolean;
 }
 
 /** Everything the tools read - loaded once from the phone's stores (never written here). */
 export function useToolsData(): ToolsData {
-  const [data, setData] = useState<ToolsData>({ accounts: [], clients: {}, ledger: {}, currencies: {}, reps: {}, loaded: false });
+  const [data, setData] = useState<Omit<ToolsData, "saveAccounts">>({ accounts: [], clients: {}, ledger: {}, currencies: {}, reps: {}, loaded: false });
   useEffect(() => {
     const rest = { clients: loadClientStore(), ledger: loadLedgerStore(), currencies: loadCurrencyStore(), reps: loadRepresentativeStore() };
     if (isDemoMode()) {
@@ -36,7 +38,13 @@ export function useToolsData(): ToolsData {
         .catch(() => setData({ ...rest, accounts: [], loaded: true }));
     }
   }, []);
-  return data;
+  const saveAccounts = useCallback((accounts: StarlinkAccountSummary[]) => {
+    if (!isDemoMode()) return false;
+    saveDemoAccounts(accounts);
+    setData((current) => ({ ...current, accounts }));
+    return true;
+  }, []);
+  return { ...data, saveAccounts };
 }
 
 export function currencyOptions(store: CurrencyStore): { code: string; label: string }[] {

@@ -5,6 +5,9 @@
  * prepared under HIS id. Pure; the loading/pushing is in telegram.ts.
  */
 
+import { forecastText, goalsText, healthText, lapsedText, promisesText } from "./ownerInsightsText";
+import type { PaymentPromise } from "./paymentPromises";
+import type { MonthlyGoals } from "./goals";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import type { CashEntryList } from "./cashStore";
 import type { ClientStore } from "./clientStore";
@@ -87,6 +90,8 @@ export function buildReplySnapshot(input: {
   invoices: Invoice[];
   settlements: RepSettlementList;
   rates: Record<string, number | undefined>;
+  promises?: PaymentPromise[];
+  goals?: MonthlyGoals;
 }): TelegramReplySnapshot {
   const summary = buildEveningSummary({ day: input.today, accounts: input.accounts, ledgerStore: input.ledgerStore, cash: input.cash });
   const reps: Record<string, Record<string, string>> = {};
@@ -125,6 +130,11 @@ export function buildReplySnapshot(input: {
       expiring: answerExpiring(input.accounts, input.clients, input.today),
       cash: answerCash(input.cash),
       summary: summary ? buildEveningTelegram(summary) : "لا توجد بيانات بعد",
+      forecast: forecastText(input.accounts, input.now),
+      promises: promisesText(input.promises ?? [], input.today),
+      lapsed: lapsedText(input.accounts, input.clients, input.now),
+      health: healthText(input.accounts, input.clients, input.now),
+      goals: goalsText(input.goals ?? {}, input.today, input.ledgerStore, input.clients),
     },
     ownerWords: { ...WORDS, "كشف": "statement", statement: "statement" },
     repWords: { ...REP_WORDS },

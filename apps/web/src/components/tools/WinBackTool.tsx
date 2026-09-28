@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { BulkWhatsAppSender } from "@/components/BulkWhatsAppSender";
 import { homeSearchHref } from "@/lib/homeActions";
 import { buildWhatsAppLink } from "@/lib/whatsapp";
 import { buildWinBackMessage, listLapsedDevices } from "@/lib/winBack";
@@ -44,6 +45,13 @@ export function WinBackTool({ data }: { data: ToolsData }) {
         ))}
       </div>
       {lapsed.length === 0 && <p className="settings-hint">✓ لا يوجد زبائن متوقفون في هذه الفترة.</p>}
+      <BulkWhatsAppSender
+        targets={lapsed.flatMap((d) => {
+          const link = buildWhatsAppLink(d.phone, buildWinBackMessage(d));
+          return link ? [{ id: d.id, name: d.clientName ? `${d.name} - ${d.clientName}` : d.name, link }] : [];
+        })}
+        label="رسالة استرجاع للكل"
+      />
       <ul className="tool-list">
         {lapsed.map((d) => {
           const link = buildWhatsAppLink(d.phone, buildWinBackMessage(d));
