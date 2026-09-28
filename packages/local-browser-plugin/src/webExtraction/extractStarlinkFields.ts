@@ -19,6 +19,7 @@ import {
   extractPlanName,
   extractRenewalBadgeDate,
   extractServiceCountry,
+  isStandbyModePlan,
   extractSubscriptionId,
   extractSubscriptionInvoiceDueDay,
   hasBillingSuspensionBanner,
@@ -85,6 +86,11 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
   if (serviceStatus !== "canceled" && hasBillingSuspensionBanner(lines)) serviceStatus = "suspended";
   if (!serviceStatus && hasScheduledEndBanner(lines)) serviceStatus = "active";
   if (!serviceStatus && isOnAccountHomePage(lines)) serviceStatus = "active";
+  // A device on Starlink's paid Standby Mode plan (sold as SIS) is kept active on purpose - its
+  // "وضع الاستعداد" badge is the plan, not a paused service waiting for activation.
+  const planName = extractPlanName(lines);
+  const onStandbyPlan = isStandbyModePlan(planName);
+  if (serviceStatus === "standby" && onStandbyPlan) serviceStatus = "active";
   if (serviceStatus) fields.serviceStatus = serviceStatus;
 
   // Independent of serviceStatus entirely (see REGION_RESTRICTED_BANNER_LABELS' own doc) - a
@@ -96,7 +102,7 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
   // no longer applies - real, confirmed case: a standby device's page (plan badge "وضع الاستعداد",
   // no restriction banner) kept a stale "restricted" that only a Home-page read could ever clear.
   if (hasRegionRestrictedBanner(lines)) fields.isRestricted = true;
-  else if (isOnAccountHomePage(lines) || serviceStatus === "standby" || serviceStatus === "canceled") fields.isRestricted = false;
+  else if (isOnAccountHomePage(lines) || serviceStatus === "standby" || serviceStatus === "canceled" || onStandbyPlan) fields.isRestricted = false;
 
   // An email with limited permissions on someone else's account: its rail has no billing icon, so
   // billing/balance can never be read from it. Judged on the Home page only (a known layout).
@@ -105,7 +111,6 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
     if (fullAccess !== undefined) fields.limitedAccess = !fullAccess;
   }
 
-  const planName = extractPlanName(lines);
   if (planName) fields.planName = planName;
 
   const renewalDate = extractLabeledValue(lines, RENEWAL_DATE_LABELS) ?? extractRenewalBadgeDate(lines);

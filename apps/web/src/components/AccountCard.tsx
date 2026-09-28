@@ -4,7 +4,7 @@ import { showsRestriction } from "@/lib/reminders";
 import { PromiseQuickSheet } from "./PromiseQuickSheet";
 import { useEffect, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
-import { presentStatus, presentServiceStatus, isBalanceDueZero, planBadgeLabel, cleanPlanName } from "@/lib/status";
+import { presentStatus, presentServiceStatus, effectiveServiceStatus, isBalanceDueZero, planBadgeLabel, cleanPlanName } from "@/lib/status";
 import { countryFlag, countryFromIso2 } from "@/lib/countryCurrencies";
 import { daysRemainingLabel, daysRemainingNumber, formatRelativeTime } from "@/lib/date";
 import { emailsMismatch } from "@/lib/emailMatch";
@@ -206,7 +206,7 @@ export function AccountCard({
   const ledgerBalances = computeBalanceByCurrency(ledgerEntries);
   const dish = presentStatus(account.dishStatus);
   const wifi = presentStatus(account.wifiStatus);
-  const serviceStatus = presentServiceStatus(account.serviceStatus);
+  const serviceStatus = presentServiceStatus(effectiveServiceStatus(account));
   const deviceCountry = countryFromIso2(account.serviceCountry);
   const planName = cleanPlanName(account.planName);
   const planBadge = planName ? (planBadgeLabel(planName) ?? planName) : undefined;

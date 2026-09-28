@@ -5,7 +5,7 @@ import { FormEvent, useMemo, useState } from "react";
 import { DeviceStatus, StarlinkAccountSummary } from "@starnet/shared";
 import { formatRelativeTime } from "@/lib/date";
 import { emailsMismatch } from "@/lib/emailMatch";
-import { cleanPlanName, presentServiceStatus } from "@/lib/status";
+import { cleanPlanName, effectiveServiceStatus, presentServiceStatus } from "@/lib/status";
 import { countryFlag, countryFromIso2 } from "@/lib/countryCurrencies";
 import { Client, CreateClientInput } from "@/lib/clientStore";
 import { CreateRepresentativeInput, Representative } from "@/lib/repStore";
@@ -123,7 +123,7 @@ export function AccountDialog({
   const representativeName = (representativeId?: string) => representatives.find((r) => r.id === representativeId)?.name;
   // Shown as a small colored badge next to the plan NAME itself (rule: never the generic "نشط"
   // word standing in for the plan's own name - see extractPlanName's own doc for that bug).
-  const planStatus = presentServiceStatus(draft.serviceStatus);
+  const planStatus = presentServiceStatus(effectiveServiceStatus(draft));
   const deviceCountry = countryFromIso2(draft.serviceCountry);
 
   function update<K extends keyof StarlinkAccountSummary>(key: K, value: StarlinkAccountSummary[K]) {

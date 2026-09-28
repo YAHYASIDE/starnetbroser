@@ -44,6 +44,19 @@ export function cleanPlanName(planName: string | undefined): string | undefined 
   return trimmed && !/[,،]/.test(trimmed) ? trimmed : undefined;
 }
 
+/** Starlink's paid "وضع الاستعداد" / Standby Mode plan, sold as SIS - an active plan, not a
+ * paused service (mirrors isStandbyModePlan in the Starlink extraction). */
+export function isSisPlan(planName: string | undefined): boolean {
+  const text = (planName ?? "").replace(/[\u064B-\u0652]/g, "");
+  return /وضع الاستعداد|standby mode/i.test(text) && !/قيد التعليق|pending/i.test(text);
+}
+
+/** The status to show: a device on the SIS plan is active even when Starlink's badge says
+ * "وضع الاستعداد" (devices synced before SIS was recognized still carry "standby"). */
+export function effectiveServiceStatus(account: { serviceStatus?: string; planName?: string }): string | undefined {
+  return account.serviceStatus === "standby" && isSisPlan(account.planName) ? "active" : account.serviceStatus;
+}
+
 /** Short pill label for a roaming data plan, shown at the top of the account card instead of the
  * full plan name - "100G" for a numbered data allowance ("التجوال - 100 غيغابايت"/"Roaming
  * 100GB"), "ROM" for unlimited roaming ("تجوال غير محدود"). Undefined for anything that isn't a
@@ -51,6 +64,7 @@ export function cleanPlanName(planName: string | undefined): string | undefined 
  * falls back to showing the full plan name as-is rather than hiding it. */
 export function planBadgeLabel(planName: string | undefined): string | undefined {
   if (!planName) return undefined;
+  if (isSisPlan(planName)) return "SIS";
   if (/تجوال|roaming/i.test(planName) && /غير محدود|unlimited/i.test(planName)) return "ROM";
   const dataAmount = planName.match(/(\d+)\s*(غيغابايت|جيجابايت|جيجا|gb)/i);
   return dataAmount ? `${dataAmount[1]}G` : undefined;

@@ -609,7 +609,9 @@ describe("extractStarlinkFields - real region-restriction banner (round 19 regre
       <div>اللقب</div><div>rom</div>
       <div>خطة الخدمة</div><div>وضع الاستعداد</div><div>وضع الاستعداد</div>
     `);
-    expect(fields.serviceStatus).toBe("standby");
+    // Starlink's Standby Mode plan (SIS): active on purpose, never "waiting for activation".
+    expect(fields.planName).toBe("وضع الاستعداد");
+    expect(fields.serviceStatus).toBe("active");
     expect(fields.isRestricted).toBe(false);
   });
 
@@ -681,5 +683,23 @@ describe("extractStarlinkFields - plan name is never the service address", () =>
       </div>
     `);
     expect(fields.planName).toBeUndefined();
+  });
+});
+
+describe("extractStarlinkFields - SIS (Standby Mode plan) vs. a paused plan", () => {
+  it("keeps a normal plan in standby as standby", () => {
+    const fields = extractFrom(`
+      <div>خطة الخدمة</div><div>وضع الاستعداد</div><div>إدارة</div><div>التجوال - غير محدود</div>
+    `);
+    expect(fields.planName).toBe("التجوال - غير محدود");
+    expect(fields.serviceStatus).toBe("standby");
+  });
+
+  it("reads the SIS plan with the Manage button in between", () => {
+    const fields = extractFrom(`
+      <div>خطة الخدمة</div><div>وضع الاستعداد</div><div>إدارة</div><div>وضع الاستعداد</div>
+    `);
+    expect(fields.planName).toBe("وضع الاستعداد");
+    expect(fields.serviceStatus).toBe("active");
   });
 });

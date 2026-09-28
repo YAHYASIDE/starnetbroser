@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanPlanName, isBalanceDueZero, planBadgeLabel, presentServiceStatus } from "./status";
+import { cleanPlanName, effectiveServiceStatus, isBalanceDueZero, isSisPlan, planBadgeLabel, presentServiceStatus } from "./status";
 
 describe("presentServiceStatus", () => {
   it("maps each normalized status to its Arabic label and badge color", () => {
@@ -58,5 +58,17 @@ describe("cleanPlanName", () => {
     expect(cleanPlanName("7 Kirova Street, Ukrainka, Kyiv Oblast 08720, UA")).toBeUndefined();
     expect(cleanPlanName("")).toBeUndefined();
     expect(cleanPlanName(undefined)).toBeUndefined();
+  });
+});
+
+describe("SIS (Starlink Standby Mode plan)", () => {
+  it("is an active plan with the SIS badge", () => {
+    expect(isSisPlan("وضع الاستعداد")).toBe(true);
+    expect(isSisPlan("Standby Mode")).toBe(true);
+    expect(isSisPlan("وضع الاستعداد قيد التعليق")).toBe(false);
+    expect(isSisPlan("التجوال - غير محدود")).toBe(false);
+    expect(planBadgeLabel("وضع الاستعداد")).toBe("SIS");
+    expect(effectiveServiceStatus({ serviceStatus: "standby", planName: "وضع الاستعداد" })).toBe("active");
+    expect(effectiveServiceStatus({ serviceStatus: "standby", planName: "التجوال - غير محدود" })).toBe("standby");
   });
 });
