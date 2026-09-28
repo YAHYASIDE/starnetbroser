@@ -72,6 +72,15 @@ public class AutoSyncWorker extends Worker {
      * before tapping "تحديث من Starlink" themselves. */
     private static final long SETTLE_DELAY_MS = 3000;
     private static final long PER_ACCOUNT_TIMEOUT_MS = 25000;
+    /** A one-device update also opens the subscription's "الأجهزة" list (see readDevices) - a few
+     * more page settles on top of the Home page's. */
+    private static final long DEEP_ACCOUNT_TIMEOUT_MS = 50000;
+    /** Wait after each tap of that walk, for the SPA to render the next page. */
+    private static final long STEP_DELAY_MS = 3000;
+    private static final int ICON_RAIL_INDEX_SUBSCRIPTIONS = 1;
+
+    /** This run refreshes one device ("تحديث" on its card): also read its dish/Wi-Fi dots. */
+    private volatile boolean deepRead;
 
     // WorkManager instantiates a fresh Worker for every run (periodic tick or one-time "مزامنة
     // الآن" trigger alike), so this is always this run's own count, never carried over from a
@@ -151,6 +160,9 @@ public class AutoSyncWorker extends Worker {
     }
 
     private Result runAccounts(Context context, List<AutoSyncAccountStore.Entry> entries, boolean fullRun, boolean manual) {
+        // One device's own "تحديث" also reads its dish/Wi-Fi dots; a run over many devices stays
+        // on the Home page, so it keeps its pace (and Starlink's rate limit).
+        deepRead = !fullRun;
         String script;
         try {
             script = StarlinkExtractorSupport.loadExtractScript(context);
@@ -288,7 +300,7 @@ public class AutoSyncWorker extends Worker {
             () -> runOneAccountOnMainThread(context, entry, profileName, script, latch)
         );
         try {
-            latch.await(PER_ACCOUNT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+            latch.await(deepRead ? DEEP_ACCOUNT_TIMEOUT_MS : PER_ACCOUNT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
@@ -312,6 +324,18 @@ public class AutoSyncWorker extends Worker {
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
+        // Never attached to a window, so give it a phone-sized viewport: the page's icon rail and
+        // rows only get real positions (which the navigation taps rely on) inside one.
+        android.util.DisplayMetrics metrics = context.getResources().getDisplayMetrics();
+        int width = Math.max(metrics.widthPixels, 720);
+        int height = Math.max(metrics.heightPixels, 1280);
+        webView.measure(
+            android.view.View.MeasureSpec.makeMeasureSpec(width, android.view.View.MeasureSpec.EXACTLY),
+            android.view.View.MeasureSpec.makeMeasureSpec(height, android.view.View.MeasureSpec.EXACTLY)
+        );
+        webView.layout(0, 0, width, height);
+        // An SPA tap can fire onPageFinished again - only the first load starts the read.
+        AtomicBoolean readStarted = new AtomicBoolean(false);
 
         // Guards against onPageFinished/onReceivedError both firing for the same load (e.g. a
         // sub-resource error alongside a successful main-frame finish) and tearing this WebView
@@ -336,7 +360,7 @@ public class AutoSyncWorker extends Worker {
                     mainHandler.postDelayed(() -> {
                         // Already torn down (an error or a 429 page that still "finished") - the
                         // WebView is destroyed, nothing to read.
-                        if (!handled.get()) {
+                        if (!handled.get() && readStarted.compareAndSet(false, true)) {
                             readAndSave(context, webView, entry, script, teardown);
                         }
                     }, SETTLE_DELAY_MS);
@@ -385,8 +409,57 @@ public class AutoSyncWorker extends Worker {
                         LocalBrowserPlugin.emitAccountDataSynced(syncId, entry.accountId, fields);
                     }
                 }
-                teardown.run();
+                if (deepRead) readDevices(context, webView, entry, script, teardown);
+                else teardown.run();
             }
         );
+    }
+
+    /**
+     * The dish/Wi-Fi dots only exist on the subscription's own page, inside "الأجهزة" - the same
+     * walk "تحديث من Starlink" in the account's browser does: the "الاشتراكات" rail icon, the
+     * subscription row, open "الأجهزة" (only if closed), then read. Every step tolerates a miss;
+     * leaving starlink.com, or the visit being torn down, ends it.
+     */
+    private void readDevices(Context context, WebView webView, AutoSyncAccountStore.Entry entry, String script, Runnable teardown) {
+        Handler handler = new Handler(Looper.getMainLooper());
+        String[] taps;
+        try {
+            taps = new String[] {
+                StarlinkExtractorSupport.loadClickIconRailItemScript(context, ICON_RAIL_INDEX_SUBSCRIPTIONS),
+                StarlinkExtractorSupport.loadClickFirstSubscriptionRowScript(context),
+                StarlinkExtractorSupport.loadExpandDevicesSectionScript(context),
+            };
+        } catch (IOException e) {
+            teardown.run();
+            return;
+        }
+        runTap(context, webView, entry, script, teardown, handler, taps, 0);
+    }
+
+    private void runTap(Context context, WebView webView, AutoSyncAccountStore.Entry entry, String script, Runnable teardown, Handler handler, String[] taps, int index) {
+        if (!AllowedUrl.isAllowed(webView.getUrl())) {
+            teardown.run();
+            return;
+        }
+        if (index >= taps.length) {
+            webView.evaluateJavascript(script, value -> {
+                JSObject fields = StarlinkExtractorSupport.parseExtractedFields(value);
+                if (fields != null && fields.length() > 0 && AllowedUrl.isAllowed(webView.getUrl())) {
+                    String syncId = PendingSyncStore.save(context, entry.accountId, fields);
+                    if (syncId != null) LocalBrowserPlugin.emitAccountDataSynced(syncId, entry.accountId, fields);
+                }
+                teardown.run();
+            });
+            return;
+        }
+        webView.evaluateJavascript(taps[index], value -> handler.postDelayed(() -> {
+            try {
+                runTap(context, webView, entry, script, teardown, handler, taps, index + 1);
+            } catch (RuntimeException e) {
+                // The visit was torn down meanwhile (a destroyed WebView) - nothing left to do.
+                teardown.run();
+            }
+        }, STEP_DELAY_MS));
     }
 }

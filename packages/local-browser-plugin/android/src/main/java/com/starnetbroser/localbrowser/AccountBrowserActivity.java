@@ -67,6 +67,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
      * the same client-rendered-SPA-settle assumption AutoSyncWorker's own SETTLE_DELAY_MS already
      * makes, just shorter since this flow is on-screen and the user is actively waiting on it. */
     private static final long SYNC_STEP_DELAY_MS = 1500;
+    private static final long DEVICES_SETTLE_DELAY_MS = 3500;
 
     private WebView webView;
     private ProgressBar progressBar;
@@ -292,7 +293,8 @@ public class AccountBrowserActivity extends AppCompatActivity {
         syncSteps.add(this::syncStepExtractCurrentPage); // whatever page the operator is already on
         syncSteps.add(() -> syncStepClick(ctx -> StarlinkExtractorSupport.loadClickIconRailItemScript(ctx, ICON_RAIL_INDEX_SUBSCRIPTIONS)));
         syncSteps.add(() -> syncStepClick(StarlinkExtractorSupport::loadClickFirstSubscriptionRowScript));
-        syncSteps.add(() -> syncStepClick(StarlinkExtractorSupport::loadExpandDevicesSectionScript));
+        // Longer wait here: the dish/Wi-Fi dots fill in only after the section's telemetry loads.
+        syncSteps.add(() -> syncStepClick(StarlinkExtractorSupport::loadExpandDevicesSectionScript, DEVICES_SETTLE_DELAY_MS));
         syncSteps.add(this::syncStepExtractCurrentPage); // plan + devices (now expanded) + identifiers
         syncSteps.add(() -> syncStepClick(StarlinkExtractorSupport::loadClickBillingRailItemScript)); // skipped on a limited email
         syncSteps.add(this::syncStepExtractCurrentPage); // billing
@@ -375,6 +377,10 @@ public class AccountBrowserActivity extends AppCompatActivity {
      * find nothing new on whatever page it left the operator on, exactly as tolerated everywhere
      * else in this flow. */
     private void syncStepClick(ScriptLoader loader) {
+        syncStepClick(loader, SYNC_STEP_DELAY_MS);
+    }
+
+    private void syncStepClick(ScriptLoader loader, long settleDelayMs) {
         if (!syncGuardOk()) {
             finishSync();
             return;
@@ -386,7 +392,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
             advanceSyncSteps();
             return;
         }
-        webView.evaluateJavascript(script, value -> syncHandler.postDelayed(this::advanceSyncSteps, SYNC_STEP_DELAY_MS));
+        webView.evaluateJavascript(script, value -> syncHandler.postDelayed(this::advanceSyncSteps, settleDelayMs));
     }
 
     /** Always the last step: returns to the Home page (regardless of which page the run ends on)

@@ -103,6 +103,25 @@ describe("expandDevicesSection", () => {
     expect(clicked).toBe(true);
   });
 
+  it("never taps (closes) the section when it is already open", () => {
+    document.body.innerHTML = `
+      <div>الأجهزة</div>
+      <button aria-expanded="true">STARLINK</button>
+      <div><span>STARLINK</span><span class="dot"></span></div>
+      <div><span>WIFI 1AB310E</span><span class="dot"></span></div>
+    `;
+    let clicked = false;
+    document.querySelector("button")!.addEventListener("click", () => {
+      clicked = true;
+    });
+    expect(expandDevicesSection()).toBe(true);
+    expect(clicked).toBe(false);
+    // Same without aria-expanded: the Wi-Fi row being there is enough.
+    document.querySelector("button")!.removeAttribute("aria-expanded");
+    expect(expandDevicesSection()).toBe(true);
+    expect(clicked).toBe(false);
+  });
+
   it("returns false when the page has no 'الأجهزة' heading at all", () => {
     document.body.innerHTML = `<div>صفحة أخرى</div>`;
     expect(expandDevicesSection()).toBe(false);

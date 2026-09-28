@@ -160,6 +160,10 @@ export function clickFirstSubscriptionRow(): boolean {
 export function expandDevicesSection(): boolean {
   const header = findExactTextElement(document.body, "الأجهزة");
   if (!header) return false;
+  // Real, confirmed miss: Starlink remembers the section open, and tapping its toggle then CLOSED
+  // it - the dots vanished right before the read. Already open (its Wi-Fi row is there, or the
+  // toggle says aria-expanded="true") means leave it alone.
+  if (devicesSectionIsOpen(header)) return true;
 
   let node: Element | null = header;
   for (let hop = 0; hop < 40 && node; hop++) {
@@ -169,6 +173,17 @@ export function expandDevicesSection(): boolean {
       (node as HTMLElement).click();
       return true;
     }
+  }
+  return false;
+}
+
+function devicesSectionIsOpen(header: Element): boolean {
+  let node: Element | null = header;
+  for (let hop = 0; hop < 80 && node; hop++) {
+    node = nextElementInDocumentOrder(node);
+    if (!node) break;
+    if (node.getAttribute("aria-expanded") === "true") return true;
+    if (/^wi-?fi\b/i.test(directText(node))) return true;
   }
   return false;
 }
