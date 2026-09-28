@@ -7,6 +7,7 @@ import { ExpensesTool } from "@/components/tools/ExpensesTool";
 import { TodayPlanTool } from "@/components/tools/TodayPlanTool";
 import { ForecastTool } from "@/components/tools/ForecastTool";
 import { GoalsTool } from "@/components/tools/GoalsTool";
+import { GuideTool } from "@/components/tools/GuideTool";
 import { LeadersTool } from "@/components/tools/LeadersTool";
 import { MessagesTool } from "@/components/tools/MessagesTool";
 import { PricesTool } from "@/components/tools/PricesTool";
@@ -30,6 +31,7 @@ const TOOLS = [
   { id: "leaders", icon: "🏆", label: "الأفضل", hint: "ترتيب المندوبين هذا الشهر وأوفى الزبائن" },
   { id: "prices", icon: "💲", label: "الأسعار", hint: "كل الأسعار الشهرية وتغييرها جماعياً" },
   { id: "messages", icon: "📨", label: "رسائل جماعية", hint: "رسائلك الجاهزة لمجموعة من الزبائن عبر واتساب" },
+  { id: "guide", icon: "📖", label: "الدليل", hint: "أين تجد كل ميزة، وأوامر البوتين" },
 ] as const;
 
 type ToolId = (typeof TOOLS)[number]["id"];
@@ -80,6 +82,8 @@ export default function ToolsPage() {
           <QuickPaymentTool data={data} />
         ) : tool === "today" ? (
           <TodayPlanTool data={data} />
+        ) : tool === "guide" ? (
+          <GuideTool />
         ) : tool === "messages" ? (
           <MessagesTool data={data} />
         ) : tool === "prices" ? (
