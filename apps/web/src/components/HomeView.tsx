@@ -26,7 +26,8 @@ import { formatAmount } from "@/lib/formatAmount";
 import { applyLedgerPaymentsToCash, loadCashEntries, saveCashEntries } from "@/lib/cashStore";
 import { parseNewDevicePrefill } from "@/lib/deviceFromSale";
 import { adoptRepDevice } from "@/lib/repDeviceAdopt";
-import { HOME_ACTION_EVENT, HomeAction, parseHomeAction, REMINDER_COUNT_EVENT } from "@/lib/homeActions";
+import { bucketPromises, loadPromises } from "@/lib/paymentPromises";
+import { HOME_ACTION_EVENT, HomeAction, parseHomeAction, REMINDER_COUNT_EVENT, parseHomeSearch } from "@/lib/homeActions";
 import { buildRenewalShipment } from "@/lib/renewalPlan";
 import { runAutoBackup } from "@/lib/autoBackupRunner";
 import { runDriveBackup } from "@/lib/driveBackupRunner";
@@ -935,6 +936,12 @@ export function HomeView({
     if (viewMode !== "active") return;
     const onAction = (event: Event) => homeActionRef.current((event as CustomEvent<HomeAction>).detail);
     window.addEventListener(HOME_ACTION_EVENT, onAction);
+    const searchFromUrl = parseHomeSearch(window.location.search);
+    if (searchFromUrl) {
+      window.history.replaceState(null, "", window.location.pathname);
+      setQuery(searchFromUrl);
+      setShowAll(true);
+    }
     const fromUrl = parseHomeAction(window.location.search);
     if (fromUrl) {
       window.history.replaceState(null, "", window.location.pathname);
@@ -943,14 +950,23 @@ export function HomeView({
     return () => window.removeEventListener(HOME_ACTION_EVENT, onAction);
   }, [viewMode]);
 
+  // 🤝 Payment promises due today or overdue (paymentPromises.ts) also count as reminders.
+  const [duePromiseCount, setDuePromiseCount] = useState(0);
+  useEffect(() => {
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const buckets = bucketPromises(loadPromises(), today);
+    setDuePromiseCount(buckets.overdue.length + buckets.today.length);
+  }, []);
   const reminderCount = useMemo(
     () =>
       suspendedWithDebt.length +
       computeRenewalReminders(activeAccounts).length +
       computeDeviceDebtReminders(activeAccounts, ledgerStore).length +
       computeRestrictedDeviceReminders(activeAccounts).length +
-      (isBackupOverdue(lastBackupAt) ? 1 : 0),
-    [activeAccounts, ledgerStore, lastBackupAt, suspendedWithDebt],
+      (isBackupOverdue(lastBackupAt) ? 1 : 0) +
+      duePromiseCount,
+    [activeAccounts, ledgerStore, lastBackupAt, suspendedWithDebt, duePromiseCount],
   );
 
   const dayCounts = useMemo(() => {

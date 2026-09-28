@@ -1,0 +1,64 @@
+import { describe, expect, it } from "vitest";
+import type { StarlinkAccountSummary } from "@starnet/shared";
+import { DeviceStatus } from "@starnet/shared";
+import type { ClientStore } from "./clientStore";
+import { checkDataHealth, healthScore } from "./dataHealth";
+
+const base: StarlinkAccountSummary = {
+  id: "",
+  customerId: "x",
+  name: "",
+  deviceName: "",
+  kitNumber: "",
+  serialNumber: "",
+  standbyDate: "",
+  rechargeDate: "",
+  balanceDue: "0",
+  currency: "$",
+  dishStatus: DeviceStatus.GREEN,
+  wifiStatus: DeviceStatus.GREEN,
+  alertReason: "",
+  lastUpdated: "",
+  lastSuccessfulScanAt: "2026-09-27T10:00:00Z",
+  planName: "",
+};
+const acc = (o: Partial<StarlinkAccountSummary>): StarlinkAccountSummary => ({ ...base, ...o });
+const now = "2026-01-01T00:00:00Z";
+const clients: ClientStore = {
+  c1: { id: "c1", name: "محمد", phone: "22212345678", createdAt: "2026-09-02T10:00:00Z", updatedAt: now },
+  c2: { id: "c2", name: "سالم", createdAt: now, updatedAt: now },
+};
+const plan = { saleAmount: 4000, saleCurrency: "MRU", costAmount: 50, costCurrency: "USD" };
+
+describe("data health", () => {
+  const accounts = [
+    acc({ id: "a", name: "A", clientId: "c1", rechargeDate: "2026/10/01", expectedEmail: "x@gmail.com", kitNumber: "KIT1", renewalPlan: plan }),
+    acc({ id: "b", name: "B", clientId: "c2", rechargeDate: "2026/10/02", starlinkAccountEmail: "X@gmail.com", kitNumber: "kit1", renewalPlan: plan }),
+    acc({ id: "c", name: "C", rechargeDate: "", lastSuccessfulScanAt: null, expectedEmail: "e@x.com", starlinkAccountEmail: "other@x.com" }),
+    acc({ id: "d", name: "D", clientId: "c1", rechargeDate: "2026/10/03", lastSuccessfulScanAt: "2026-08-01T00:00:00Z", renewalPlan: plan, limitedAccess: true }),
+    acc({ id: "z", name: "archived", archivedAt: now }),
+  ];
+  const issues = checkDataHealth(accounts, clients, { now: new Date("2026-09-28T12:00:00Z") });
+  const kinds = (k: string) => issues.find((i) => i.kind === k)?.items.map((i) => i.accountId ?? i.clientId);
+
+  it("finds duplicates (case-insensitive), missing fields and stale syncs; ignores archived", () => {
+    expect(kinds("duplicate-email")).toEqual(["a", "b"]);
+    expect(kinds("duplicate-kit")).toEqual(["a", "b"]);
+    expect(kinds("email-mismatch")).toEqual(["c"]);
+    expect(kinds("no-renewal-date")).toEqual(["c"]);
+    expect(kinds("no-client")).toEqual(["c"]);
+    expect(kinds("no-phone")).toEqual(["b", "c"]);
+    expect(kinds("no-monthly-price")).toEqual(["c"]);
+    expect(kinds("never-synced")).toEqual(["c"]);
+    expect(kinds("stale-sync")).toEqual(["d"]);
+    expect(kinds("limited-access")).toEqual(["d"]);
+    expect(kinds("client-no-phone")).toEqual(["c2"]);
+    expect(issues[0]!.severity).toBe("high");
+    expect(issues.at(-1)!.severity).toBe("low");
+  });
+
+  it("scores the share of devices without a serious issue", () => {
+    expect(healthScore(accounts, issues)).toBe(25); // only D is clean of high/medium
+    expect(healthScore([], [])).toBe(100);
+  });
+});

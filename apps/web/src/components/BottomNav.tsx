@@ -19,7 +19,7 @@ export function BottomNav() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [reminderCount, setReminderCount] = useState(0);
   const [inApp, setInApp] = useState(false);
-  const SHEET_DESTINATIONS = ["/starlink", "/currencies", "/trash", "/archive", "/reminders", "/settings"];
+  const SHEET_DESTINATIONS = ["/tools", "/starlink", "/currencies", "/trash", "/archive", "/reminders", "/settings"];
   const onSheetDestination = SHEET_DESTINATIONS.includes(pathname ?? "");
 
   useEffect(() => {
@@ -55,6 +55,7 @@ export function BottomNav() {
     { label: "إضافة حساب", icon: "plus", color: "#2f80ff", tint: "#d6e6ff", action: "add-account" },
     ...(inApp ? [{ label: "مزامنة الآن", icon: "sync" as const, color: "#10b8cc", tint: "#d2f4f8", action: "sync" as const }] : []),
     { label: "التذكيرات", icon: "bell", color: "#f0455f", tint: "#ffd9df", href: "/reminders" },
+    { label: "الأدوات والتوقعات", icon: "tools", color: "#8b5cf6", tint: "#ece4ff", href: "/tools" },
     { label: "ستارلينك والبطاقة", icon: "card", color: "#1668e3", tint: "#d6e3fb", href: "/starlink" },
     { label: "العملات", icon: "coins", color: "#22c55e", tint: "#d4f7e1", href: "/currencies" },
     { label: "الأرشيف", icon: "archive", color: "#64748b", tint: "#e2e8f0", href: "/archive" },
@@ -133,7 +134,7 @@ export function BottomNav() {
 
 type IconName =
   | "home" | "people" | "chart" | "handshake" | "bag" | "more" | "bell" | "coins" | "trash" | "archive" | "card"
-  | "plus" | "sync" | "settings" | "close";
+  | "plus" | "sync" | "settings" | "close" | "tools";
 
 /** Line icons shared by the bottom bar and its "المزيد" sheet (stroke = currentColor). */
 function NavIcon({ name }: { name: IconName }) {
@@ -180,6 +181,7 @@ function NavIcon({ name }: { name: IconName }) {
       </>
     ),
     plus: <path d="M12 5v14M5 12h14" />,
+    tools: <path d="M14.5 6.5a4 4 0 0 0 5 5l-8.5 8.5a2.1 2.1 0 0 1-3-3zM6 3l3 3-1 2-2 1-3-3" />,
     close: <path d="M6 6l12 12M18 6 6 18" />,
     sync: <path d="M20 11a8 8 0 0 0-14.3-4.9L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.9L20 16M20 20v-4h-4" />,
     settings: (

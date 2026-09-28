@@ -21,3 +21,13 @@ export function parseHomeAction(search: string): HomeAction | null {
   const value = new URLSearchParams(search).get("action");
   return HOME_ACTIONS.includes(value as HomeAction) ? (value as HomeAction) : null;
 }
+
+/** The home screen with its device search already filled in (links from الأدوات). */
+export function homeSearchHref(query: string): string {
+  return `/?q=${encodeURIComponent(query)}`;
+}
+
+export function parseHomeSearch(search: string): string | null {
+  const value = new URLSearchParams(search).get("q");
+  return value?.trim() ? value.trim() : null;
+}

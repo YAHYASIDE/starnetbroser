@@ -25,6 +25,7 @@ import {
 import { daysRemainingLabel, formatRelativeTime } from "@/lib/date";
 import { formatAmount } from "@/lib/formatAmount";
 import { BulkWhatsAppSender } from "@/components/BulkWhatsAppSender";
+import { bucketPromises, loadPromises, type PaymentPromise } from "@/lib/paymentPromises";
 import { DebtAgingSection } from "@/components/DebtAgingSection";
 import { computeDebtAging } from "@/lib/debtAging";
 import { buildBalanceReminderMessage, buildExpiryReminderMessage, buildStoreDebtReminderMessage, buildWhatsAppLink } from "@/lib/whatsapp";
@@ -63,6 +64,15 @@ export default function RemindersPage() {
     listAccounts().then(setAccounts).catch(() => {});
   }, []);
 
+  const todayKey = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }, []);
+  const [duePromises, setDuePromises] = useState<PaymentPromise[]>([]);
+  useEffect(() => {
+    const buckets = bucketPromises(loadPromises(), todayKey);
+    setDuePromises([...buckets.overdue, ...buckets.today]);
+  }, [todayKey]);
   const restrictedReminders = useMemo(() => computeRestrictedDeviceReminders(accounts), [accounts]);
   const suspendedWithDebt = useMemo(
     () => listSuspendedWithDebt(accounts, listOpenShipmentDebts(ledgerStore), listOpenPreviousDebts(loadPreviousDebts(), ledgerStore)),
@@ -116,6 +126,30 @@ export default function RemindersPage() {
         </Link>
         <h1 className="section-title">التذكيرات</h1>
       </div>
+
+      {duePromises.length > 0 && (
+        <section className="section">
+          <h2 className="report-section-title">🤝 وعود دفع مستحقة ({duePromises.length})</h2>
+          <ul className="ledger-entry-list">
+            {duePromises.map((p) => (
+              <li key={p.id} className="ledger-entry-row">
+                <div className="ledger-entry-row-top">
+                  <span className="store-item-name">{p.name}</span>
+                  <strong dir="ltr">
+                    {formatAmount(p.amount)} {currencyLabel(p.currency)}
+                  </strong>
+                </div>
+                <div className="ledger-entry-row-bottom">
+                  <span className="settings-hint">{p.dueDate === todayKey ? "اليوم" : `متأخر منذ ${p.dueDate.slice(8)}/${p.dueDate.slice(5, 7)}`}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <Link href="/tools#promises" className="dialog-primary sl-reminder-link">
+            فتح وعود الدفع
+          </Link>
+        </section>
+      )}
 
       {suspendedWithDebt.length > 0 && (
         <section className="section sl-alert">
