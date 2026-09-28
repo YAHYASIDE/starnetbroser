@@ -75,6 +75,12 @@ describe("computeRestrictedDeviceReminders", () => {
     expect(reminders).toHaveLength(1);
   });
 
+  it("excludes a restricted device that is in standby or canceled", () => {
+    expect(computeRestrictedDeviceReminders([account({ isRestricted: true, serviceStatus: "standby" })])).toHaveLength(0);
+    expect(computeRestrictedDeviceReminders([account({ isRestricted: true, serviceStatus: "canceled" })])).toHaveLength(0);
+    expect(computeRestrictedDeviceReminders([account({ isRestricted: true, serviceStatus: "active" })])).toHaveLength(1);
+  });
+
   it("excludes an account with isRestricted false or unset", () => {
     const reminders = computeRestrictedDeviceReminders([
       account({ id: "a1", isRestricted: false }),

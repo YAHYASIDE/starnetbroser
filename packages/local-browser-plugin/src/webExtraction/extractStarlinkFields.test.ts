@@ -602,6 +602,17 @@ describe("extractStarlinkFields - real region-restriction banner (round 19 regre
     expect(fields.isRestricted).toBe(false);
   });
 
+  it("clears a stale isRestricted on a standby device's page (plan badge وضع الاستعداد, no banner)", () => {
+    const fields = extractFrom(`
+      <div>خدمتك في وضع الاستعداد حاليًا.</div>
+      <div>استئناف الخدمة</div>
+      <div>اللقب</div><div>rom</div>
+      <div>خطة الخدمة</div><div>وضع الاستعداد</div><div>وضع الاستعداد</div>
+    `);
+    expect(fields.serviceStatus).toBe("standby");
+    expect(fields.isRestricted).toBe(false);
+  });
+
   it("leaves isRestricted unset on a page that is neither the confirmed Home page nor shows the banner", () => {
     document.body.innerHTML = `<div>فوترة</div><div>الرصيد المستحق</div><div>$US 25.00</div>`;
     expect(extractStarlinkFields(document)).not.toHaveProperty("isRestricted");

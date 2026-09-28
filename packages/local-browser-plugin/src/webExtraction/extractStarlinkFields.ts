@@ -91,8 +91,11 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
   // the account Home page with no such banner, actively correct a stale "restricted" left over from
   // an earlier sync (the kit may have already been returned to its home country) - the exact same
   // reasoning isOnAccountHomePage already applies to a stale "suspended" serviceStatus above.
+  // A device in standby (or canceled) isn't using the service at all, so a restriction from before
+  // no longer applies - real, confirmed case: a standby device's page (plan badge "وضع الاستعداد",
+  // no restriction banner) kept a stale "restricted" that only a Home-page read could ever clear.
   if (hasRegionRestrictedBanner(lines)) fields.isRestricted = true;
-  else if (isOnAccountHomePage(lines)) fields.isRestricted = false;
+  else if (isOnAccountHomePage(lines) || serviceStatus === "standby" || serviceStatus === "canceled") fields.isRestricted = false;
 
   // An email with limited permissions on someone else's account: its rail has no billing icon, so
   // billing/balance can never be read from it. Judged on the Home page only (a known layout).

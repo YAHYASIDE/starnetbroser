@@ -1,5 +1,6 @@
 "use client";
 
+import { showsRestriction } from "@/lib/reminders";
 import { PromiseQuickSheet } from "./PromiseQuickSheet";
 import { useEffect, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
@@ -401,7 +402,7 @@ export function AccountCard({
         </div>
       )}
 
-      {account.isRestricted && (
+      {showsRestriction(account) && (
         <div className="account-card-restricted-banner">
           🚫 الجهاز مقيّد — أعده إلى البلد المسجل ووصّله بالكهرباء لمدة 24 ساعة على الأقل لاستئناف الخدمة
         </div>

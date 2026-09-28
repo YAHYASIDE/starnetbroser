@@ -50,9 +50,15 @@ export function computeRestrictedDeviceReminders(accounts: StarlinkAccountSummar
   const reminders: RestrictedDeviceReminder[] = [];
   for (const account of accounts) {
     if (account.archivedAt || account.deletedAt) continue;
-    if (account.isRestricted) reminders.push({ account });
+    if (showsRestriction(account)) reminders.push({ account });
   }
   return reminders;
+}
+
+/** Restricted and actually in service: a device in standby (or canceled) isn't being used, so
+ * "return it to its country" isn't an action item - and the flag may be left over from before. */
+export function showsRestriction(account: Pick<StarlinkAccountSummary, "isRestricted" | "serviceStatus">): boolean {
+  return Boolean(account.isRestricted) && account.serviceStatus !== "standby" && account.serviceStatus !== "canceled";
 }
 
 export interface DeviceDebtReminder {
