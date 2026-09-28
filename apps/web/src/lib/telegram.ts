@@ -7,6 +7,9 @@
  * with the app closed. What gets sent automatically is chosen in الإعدادات (TelegramPrefs).
  */
 
+import { loadPromises } from "./paymentPromises";
+import { cardNeed, computeRenewalForecast } from "./renewalForecast";
+import { currentCardBalanceUsd } from "./starlinkDebt";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { LocalBrowser, type TelegramInboxMessage, type TelegramPollMessage } from "@starnet/local-browser-plugin";
 import { isRunningInAndroidApp } from "./localBrowser";
@@ -177,7 +180,10 @@ export async function rescheduleTelegramSummaries(input: {
       const at = new Date(now);
       at.setHours(input.morningHour, 0, 0, 0);
       if (at.getTime() <= now.getTime()) at.setDate(at.getDate() + 1);
-      const text = buildMorningTelegram({ accounts: input.accounts, clients: loadClientStore(), owedByCurrency: input.owedByCurrency, today: localDay(at) });
+      const day = localDay(at);
+      const promisesDue = loadPromises().filter((p) => p.status === "open" && p.dueDate <= day);
+      const cardShortUsd = cardNeed(computeRenewalForecast(input.accounts, at, 7), currentCardBalanceUsd(input.ledgerStore)).shortUsd;
+      const text = buildMorningTelegram({ accounts: input.accounts, clients: loadClientStore(), owedByCurrency: input.owedByCurrency, today: day, promisesDue, cardShortUsd });
       await LocalBrowser.telegramSchedule({ key: "morning", at: at.getTime(), text });
     }
     if (prefs.evening) {

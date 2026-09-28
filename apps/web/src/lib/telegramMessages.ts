@@ -129,11 +129,20 @@ export function buildMorningTelegram(input: {
   clients: ClientStore;
   owedByCurrency: Record<string, number>;
   today: string;
+  /** Open payment promises due that day or earlier (paymentPromises.ts). */
+  promisesDue?: { name: string; amount: number; currency: string }[];
+  /** What the Starlink card is short for the next 7 days' renewals, in USD. */
+  cardShortUsd?: number;
 }): string {
   const lines = [`☀️ صباح الخير - ملخص STAR NET ليوم ${input.today}`, ...renewalLines(input.accounts, input.clients, input.today)];
   if (lines.length === 1) lines.push("", "✓ لا أجهزة تنتهي خلال 7 أيام");
   const owed = money(input.owedByCurrency);
   if (owed) lines.push("", `💰 ديون على الزبائن: ${owed}`);
+  if (input.promisesDue?.length) {
+    lines.push("", `🤝 وعود دفع مستحقة (${input.promisesDue.length}):`, ...input.promisesDue.slice(0, 10).map((p) => `• ${p.name}: ${money({ [p.currency]: p.amount })}`));
+  }
+  if (input.cardShortUsd && input.cardShortUsd > 0) lines.push("", `⚠️ اشحن بطاقة Starlink بـ${Math.ceil(input.cardShortUsd)}$ لتكفي تجديدات الأسبوع`);
+  lines.push("", "✅ لقائمة مهام اليوم اكتب: خطة");
   return lines.join("\n");
 }
 

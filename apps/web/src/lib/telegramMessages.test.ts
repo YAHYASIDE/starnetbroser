@@ -68,6 +68,20 @@ describe("messages", () => {
     expect(text).toContain("💰 ديون على الزبائن: 3,000 أوقية");
   });
 
+  it("morning adds due payment promises, the card top-up and the plan hint", () => {
+    const text = buildMorningTelegram({
+      accounts: [],
+      clients: {},
+      owedByCurrency: {},
+      today: TODAY,
+      promisesDue: [{ name: "سالم", amount: 5000, currency: "MRU" }],
+      cardShortUsd: 29.5,
+    });
+    expect(text).toContain("🤝 وعود دفع مستحقة (1):\n• سالم: 5,000 أوقية");
+    expect(text).toContain("⚠️ اشحن بطاقة Starlink بـ30$");
+    expect(text).toContain("✅ لقائمة مهام اليوم اكتب: خطة");
+  });
+
   it("morning says so when nothing is due", () => {
     expect(buildMorningTelegram({ accounts: [], clients: {}, owedByCurrency: {}, today: TODAY })).toContain("✓ لا أجهزة تنتهي خلال 7 أيام");
   });
