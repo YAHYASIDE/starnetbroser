@@ -44,8 +44,9 @@ public class TelegramRepliesTest {
         s.repKeyboard = "KEYBOARD";
         s.searchHint = "HINT";
         java.util.List<TelegramReplies.SearchEntry> r1Devices = new java.util.ArrayList<>();
-        r1Devices.add(new TelegramReplies.SearchEntry("مقهي النخيل محمد احمد 22212345678", "CARD1", "💬 محمد", "https://wa.me/22212345678"));
-        r1Devices.add(new TelegramReplies.SearchEntry("منزل سالم", "CARD2", null, null));
+        r1Devices.add(new TelegramReplies.SearchEntry("مقهي النخيل محمد احمد 22212345678", "CARD1", "💬 محمد", "https://wa.me/22212345678",
+            "2026-09-28", "• مقهى - محمد", "https://wa.me/22212345678?text=renew"));
+        r1Devices.add(new TelegramReplies.SearchEntry("منزل سالم", "CARD2", null, null, "2026-10-20", "• منزل", null));
         s.repSearch.put("r1", r1Devices);
         java.util.List<TelegramReplies.SearchEntry> r2Devices = new java.util.ArrayList<>();
         r2Devices.add(new TelegramReplies.SearchEntry("جهاز علي محمد", "OTHER", null, null));
@@ -137,6 +138,23 @@ public class TelegramRepliesTest {
         // Typed spelling variants fold to the same word.
         assertTrue(TelegramReplies.forRep("r1", "أجهزتي", snapshot()).text.startsWith("R1 DEVICES"));
         assertEquals("🔎 لم أجد «علي» بين أجهزتك", TelegramReplies.forRep("r1", "بحث علي", snapshot()).text);
+    }
+
+    @Test
+    public void searchByDay() {
+        java.util.Calendar today = java.util.Calendar.getInstance();
+        today.set(2026, java.util.Calendar.SEPTEMBER, 27);
+        TelegramReplies.Snapshot s = snapshot();
+        s.at = "";
+        TelegramReplies.Reply tomorrow = TelegramReplies.search("r1", "غداً", false, s, today);
+        assertEquals("📆 تجديدات غداً 28/09 (1):\n• مقهى - محمد", tomorrow.text);
+        assertEquals("{\"inline_keyboard\":[[{\"text\":\"💬 محمد\",\"url\":\"https://wa.me/22212345678?text=renew\"}]]}", tomorrow.markup);
+        assertEquals("📆 تجديدات يوم 20 (1):\n• منزل - 2026-10-20", TelegramReplies.search("r1", "يوم ٢٠", false, s, today).text);
+        assertEquals("📆 تجديدات 20/10 (1):\n• منزل - 2026-10-20", TelegramReplies.search("r1", "20/10", false, s, today).text);
+        assertEquals("📆 لا تجديدات لأجهزتك 5/05", TelegramReplies.search("r1", "5/05", false, s, today).text);
+        assertNull(TelegramReplies.parseDay("4521", today));
+        // r2 never sees r1's renewals.
+        assertEquals("📆 لا تجديدات لأجهزتك غداً 28/09", TelegramReplies.search("r2", "غدا", false, s, today).text);
     }
 
     @Test

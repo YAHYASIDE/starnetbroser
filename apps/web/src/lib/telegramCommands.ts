@@ -38,6 +38,7 @@ import {
   REP_HELP,
   REP_KEYBOARD,
   repAccounts,
+  repDaysReply,
   repDebtsReply,
   repDevicesText,
   repExpiringReply,
@@ -175,11 +176,13 @@ async function repReplyFor(repId: string, rep: Representative, command: RepComma
       return repStoppedReply(mine, clients);
     case "debts":
       return repDebtsReply(repId, all, loadLedgerStore(), clients);
+    case "days":
+      return repDaysReply(mine, clients, today);
     case "search":
-      return repSearchReply(command.query, repSearchIndex(mine, clients, loadLedgerStore(), today));
+      return repSearchReply(command.query, repSearchIndex(mine, clients, loadLedgerStore(), today), today);
     case "unknown": {
-      const found = repSearchReply(command.text, repSearchIndex(mine, clients, loadLedgerStore(), today));
-      return found.text.startsWith("🔎 نتائج") ? found : { text: `${found.text}\n\n${REP_HELP}` };
+      const found = repSearchReply(command.text, repSearchIndex(mine, clients, loadLedgerStore(), today), today);
+      return found.text.startsWith("🔎 لم أجد") ? { text: `${found.text}\n\n${REP_HELP}` } : found;
     }
     case "statement": {
       const currencies = loadCurrencyStore();

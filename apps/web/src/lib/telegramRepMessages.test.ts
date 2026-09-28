@@ -4,7 +4,9 @@ import type { LedgerEntry } from "./ledgerStore";
 import type { Representative } from "./repStore";
 import {
   normalizeSearch,
+  parseDayQuery,
   REP_KEYBOARD,
+  repDaysReply,
   repExpiringReply,
   repSearchIndex,
   repSearchReply,
@@ -124,10 +126,10 @@ describe("rep shortcuts", () => {
     account("بلا زبون", "2026/09/29"),
   ];
 
-  it("keyboard has the six buttons", () => {
+  it("keyboard has the seven buttons", () => {
     const keyboard = JSON.parse(REP_KEYBOARD);
     expect(keyboard.keyboard.flat().map((b: { text: string }) => b.text)).toEqual([
-      "📡 أجهزتي", "📅 تنتهي", "⛔ الموقوفة", "💰 ديون زبائني", "📊 كشفي", "🔎 بحث",
+      "📡 أجهزتي", "📅 تنتهي", "⛔ الموقوفة", "💰 ديون زبائني", "📊 كشفي", "📆 الأيام", "🔎 بحث",
     ]);
     expect(keyboard.is_persistent).toBe(true);
     // Every button parses back to its command.
@@ -171,6 +173,31 @@ describe("rep shortcuts", () => {
     expect(repSearchReply("4521", kit).text).toContain("🧾 ACC-DF-1562");
     expect(repSearchReply("9999", kit).text).toContain("لم أجد");
     expect(repSearchReply("  ", index).text).toContain("اكتب جزءاً من اسم الزبون");
+  });
+
+  it("search by day: today/tomorrow, day of month, d/m, full date", () => {
+    const index = repSearchIndex(mine, clients, {}, TODAY); // مقهى 09/28, منزل 10/20, بلا زبون 09/29
+    expect(parseDayQuery("غداً", TODAY)).toEqual({ kind: "date", date: "2026-09-28", label: "غداً 28/09" });
+    expect(parseDayQuery("بعد غد", TODAY)).toMatchObject({ date: "2026-09-29" });
+    expect(parseDayQuery("يوم ٢٠", TODAY)).toEqual({ kind: "dayOfMonth", day: 20, label: "يوم 20" });
+    expect(parseDayQuery("20/10", TODAY)).toMatchObject({ kind: "monthDay", day: 20, month: 10 });
+    expect(parseDayQuery("4521", TODAY)).toBeNull();
+    expect(parseDayQuery("محمد", TODAY)).toBeNull();
+    const tomorrow = repSearchReply("غدا", index, TODAY);
+    expect(tomorrow.text).toBe("📆 تجديدات غداً 28/09 (1):\n• مقهى - محمد (22212345)");
+    expect(decodeURIComponent(JSON.parse(tomorrow.markup!).inline_keyboard[0][0].url)).toContain("ينتهي يوم 2026/09/28");
+    expect(repSearchReply("يوم 20", index, TODAY).text).toContain("• منزل - محمد (22212345) ⛔ - 2026-10-20");
+    expect(repSearchReply("2026/09/29", index, TODAY).text).toContain("بلا زبون");
+    expect(repSearchReply("5/05", index, TODAY).text).toBe("📆 لا تجديدات لأجهزتك 5/05");
+  });
+
+  it("📆 الأيام groups the coming days", () => {
+    const days = repDaysReply(mine, clients, TODAY);
+    expect(days.text).toContain("📆 الاثنين 28/09 - غداً (1):\n• مقهى - محمد (22212345)");
+    expect(days.text).toContain("📆 الثلاثاء 29/09 - بعد 2 يوم (1):\n• بلا زبون");
+    expect(days.text).not.toContain("منزل"); // 23 days away
+    expect(JSON.parse(days.markup!).inline_keyboard).toHaveLength(1);
+    expect(parseRepCommand("📆 الأيام")).toEqual({ kind: "days" });
   });
 
   it("folding matches the Java service", () => {

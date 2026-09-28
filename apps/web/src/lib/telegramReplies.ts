@@ -18,6 +18,7 @@ import {
   REP_SEARCH_HINT,
   REP_WORDS,
   repAccounts,
+  repDaysReply,
   repDebtsReply,
   repDevicesText,
   repExpiringReply,
@@ -87,6 +88,7 @@ export function buildReplySnapshot(input: {
       devices: { text: repDevicesText(mine, input.clients, input.today) },
       expiring: repExpiringReply(mine, input.clients, input.today),
       stopped: repStoppedReply(mine, input.clients),
+      days: repDaysReply(mine, input.clients, input.today),
       debts: repDebtsReply(repId, input.accounts, input.ledgerStore, input.clients),
       statement: { text: repStatementText(rep.name, month, figures) },
     };

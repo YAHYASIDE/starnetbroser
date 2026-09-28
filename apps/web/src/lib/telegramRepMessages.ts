@@ -135,6 +135,7 @@ export type RepCommand =
   | { kind: "devices" }
   | { kind: "expiring" }
   | { kind: "stopped" }
+  | { kind: "days" }
   | { kind: "statement" }
   | { kind: "debts" }
   | { kind: "search"; query: string }
@@ -180,6 +181,10 @@ const REP_WORD_LIST: Record<string, RepWordKind> = {
   "المتوقفة": "stopped",
   "متوقفة": "stopped",
   stopped: "stopped",
+  "الأيام": "days",
+  "أيام": "days",
+  "الايام": "days",
+  days: "days",
   "بحث": "search",
   "ابحث": "search",
   search: "search",
@@ -216,7 +221,9 @@ export const REP_HELP = [
   "⛔ الموقوفة - أجهزتك المتوقفة الآن",
   "💰 ديون زبائني - ما على زبائن أجهزتك",
   "📊 كشفي - حصتك هذا الشهر ورصيدك",
-  "🔎 بحث - أو اكتب مباشرة اسم زبون أو جهاز أو رقم هاتف",
+  "📆 الأيام - تجديدات الأيام القادمة يوماً بيوم",
+  "🔎 بحث - أو اكتب مباشرة جزءاً من اسم زبون أو جهاز أو إيميل، أو رقم هاتف أو KIT",
+  "📆 أو اكتب يوماً: اليوم، غداً، بعد غد، يوم 30، 30/09",
   "💬 تحت القوائم أزرار واتساب ترسل للزبون رسالة جاهزة",
 ].join("\n");
 
@@ -225,7 +232,8 @@ export const REP_KEYBOARD = JSON.stringify({
   keyboard: [
     [{ text: "📡 أجهزتي" }, { text: "📅 تنتهي" }],
     [{ text: "⛔ الموقوفة" }, { text: "💰 ديون زبائني" }],
-    [{ text: "📊 كشفي" }, { text: "🔎 بحث" }],
+    [{ text: "📊 كشفي" }, { text: "📆 الأيام" }],
+    [{ text: "🔎 بحث" }],
   ],
   resize_keyboard: true,
   is_persistent: true,
@@ -350,6 +358,12 @@ export interface RepSearchEntry {
   /** WhatsApp button (label, url), when the client has a phone. */
   l?: string;
   w?: string;
+  /** Renewal date "yyyy-mm-dd", for search by day. */
+  d?: string;
+  /** One line "• device - client (phone)" for a day's list. */
+  s?: string;
+  /** WhatsApp renewal reminder url for a day's list. */
+  r?: string;
 }
 
 function statusLabel(account: StarlinkAccountSummary): string {
@@ -386,7 +400,12 @@ export function repSearchIndex(accounts: StarlinkAccountSummary[], clients: Clie
       account.starlinkId ?? "",
     ];
     const target = whatsappTarget(account, clients, (name) => `مرحبًا ${name}،\n\n- STAR NET`);
+    const renewal = isoDate(account.rechargeDate);
+    const reminder = renewal ? whatsappTarget(account, clients, (name) => renewalReminderText(name, account.name, account.rechargeDate)) : null;
     return {
+      ...(renewal ? { d: renewal } : {}),
+      s: `• ${repLabel(account, clients)}${isStoppedAccount(account) ? " ⛔" : ""}`,
+      ...(reminder ? { r: reminder.url } : {}),
       // Readable text for names/emails, plus every number compacted (no dashes or spaces) so
       // "KIT-000 111", "kit000111" and "000111" all find the same kit.
       k: normalizeSearch(
@@ -413,8 +432,11 @@ export function compactSearch(text: string): string {
 }
 const MAX_RESULTS = 5;
 
-/** Every word of the query must appear in the device's keys. Mirrors TelegramReplies.search. */
-export function repSearchReply(query: string, index: RepSearchEntry[]): RepReply {
+/** Every word of the query must appear in the device's keys; a day ("غداً", "يوم 30", "30/09")
+ * lists that day's renewals instead. Mirrors TelegramReplies.search. */
+export function repSearchReply(query: string, index: RepSearchEntry[], today?: string): RepReply {
+  const day = today ? parseDayQuery(query, today) : null;
+  if (day) return repDayReply(day, index);
   const words = normalizeSearch(query).split(" ").filter(Boolean);
   if (words.length === 0) return { text: REP_SEARCH_HINT };
   // A word matches as typed, or compacted ("000-111" finds "000111").
@@ -429,4 +451,99 @@ export function repSearchReply(query: string, index: RepSearchEntry[]): RepReply
     ...(found.length > MAX_RESULTS ? [`\n… و${found.length - MAX_RESULTS} أخرى - اكتب اسمًا أدق`] : []),
   ].join("\n");
   return { text, markup: whatsappMarkup(shown.map((entry) => (entry.w && entry.l ? { label: entry.l, url: entry.w } : null))) };
+}
+
+// ---- By day ----
+
+const WEEKDAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+/** "2026/9/28" or "2026-09-28" -> "2026-09-28"; undefined when it isn't a full date. */
+export function isoDate(date: string | undefined): string | undefined {
+  const match = /^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/.exec((date ?? "").trim());
+  return match ? `${match[1]}-${pad2(Number(match[2]))}-${pad2(Number(match[3]))}` : undefined;
+}
+
+function addDays(iso: string, days: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const date = new Date(Date.UTC(y!, m! - 1, d! + days));
+  return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(date.getUTCDate())}`;
+}
+
+/** What a typed day asks for - mirrors TelegramReplies.parseDay. */
+export type DayQuery = { kind: "date"; date: string; label: string } | { kind: "monthDay"; month: number; day: number; label: string } | { kind: "dayOfMonth"; day: number; label: string };
+
+export function parseDayQuery(query: string, today: string): DayQuery | null {
+  const text = normalizeSearch(query).replace(/[ًٌٍ]/g, "");
+  const base = isoDate(today);
+  if (!base) return null;
+  const relative: Record<string, [number, string]> = {
+    "اليوم": [0, "اليوم"],
+    "غدا": [1, "غداً"],
+    "بكره": [1, "غداً"],
+    "بعد غد": [2, "بعد غد"],
+    "بعد غدا": [2, "بعد غد"],
+    "امس": [-1, "أمس"],
+  };
+  if (relative[text]) {
+    const [offset, name] = relative[text]!;
+    const date = addDays(base, offset);
+    return { kind: "date", date, label: `${name} ${Number(date.slice(8))}/${pad2(Number(date.slice(5, 7)))}` };
+  }
+  let match = /^يوم (\d{1,2})$/.exec(text);
+  if (match && Number(match[1]) >= 1 && Number(match[1]) <= 31) return { kind: "dayOfMonth", day: Number(match[1]), label: `يوم ${Number(match[1])}` };
+  match = /^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/.exec(text);
+  if (match) {
+    const date = isoDate(text)!;
+    return { kind: "date", date, label: `${Number(match[3])}/${pad2(Number(match[2]))}/${match[1]}` };
+  }
+  match = /^(\d{1,2})[/-](\d{1,2})$/.exec(text);
+  if (match && Number(match[1]) >= 1 && Number(match[1]) <= 31 && Number(match[2]) >= 1 && Number(match[2]) <= 12) {
+    return { kind: "monthDay", day: Number(match[1]), month: Number(match[2]), label: `${Number(match[1])}/${pad2(Number(match[2]))}` };
+  }
+  return null;
+}
+
+function matchesDay(date: string | undefined, query: DayQuery): boolean {
+  if (!date) return false;
+  if (query.kind === "date") return date === query.date;
+  const day = Number(date.slice(8));
+  if (query.kind === "dayOfMonth") return day === query.day;
+  return day === query.day && Number(date.slice(5, 7)) === query.month;
+}
+
+/** That day's renewals among his devices, soonest first, with WhatsApp reminder buttons. */
+export function repDayReply(query: DayQuery, index: RepSearchEntry[]): RepReply {
+  const found = index.filter((entry) => matchesDay(entry.d, query)).sort((a, b) => (a.d ?? "").localeCompare(b.d ?? ""));
+  if (found.length === 0) return { text: `📆 لا تجديدات لأجهزتك ${query.label}` };
+  return {
+    text: [`📆 تجديدات ${query.label} (${found.length}):`, ...found.slice(0, 60).map((entry) => (query.kind === "date" ? entry.s : `${entry.s} - ${entry.d}`))].join("\n"),
+    markup: whatsappMarkup(found.map((entry) => (entry.r && entry.l ? { label: entry.l, url: entry.r } : null))),
+  };
+}
+
+/** 📆 الأيام: the next days (and the last 3 missed) one by one, with their renewals. */
+export function repDaysReply(accounts: StarlinkAccountSummary[], clients: ClientStore, today: string): RepReply {
+  const base = isoDate(today);
+  if (!base) return { text: "📆 لا توجد تواريخ" };
+  const lines: string[] = [];
+  const reminders: (WhatsAppTarget | null)[] = [];
+  for (let offset = -3; offset <= 10; offset++) {
+    const date = addDays(base, offset);
+    const due = accounts.filter((a) => !a.deviceFault && isoDate(a.rechargeDate) === date);
+    if (due.length === 0) continue;
+    const [y, m, d] = date.split("-").map(Number);
+    const weekday = WEEKDAYS[new Date(Date.UTC(y!, m! - 1, d!)).getUTCDay()];
+    const when = offset === 0 ? "اليوم" : offset === 1 ? "غداً" : offset < 0 ? `انتهى منذ ${-offset} يوم` : `بعد ${offset} يوم`;
+    lines.push("", `📆 ${weekday} ${d}/${pad2(m!)} - ${when} (${due.length}):`, ...due.map((a) => `• ${repLabel(a, clients)}${isStoppedAccount(a) ? " ⛔" : ""}`));
+    reminders.push(...due.map((a) => whatsappTarget(a, clients, (name) => renewalReminderText(name, a.name, a.rechargeDate))));
+  }
+  if (lines.length === 0) return { text: "✓ لا تجديدات لأجهزتك في الأيام العشرة القادمة" };
+  return {
+    text: ["📆 تجديدات أجهزتك يوماً بيوم", ...lines, "", "اكتب يوماً لتفاصيله: غداً، يوم 30، 30/09"].join("\n"),
+    markup: whatsappMarkup(reminders),
+  };
 }

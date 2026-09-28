@@ -385,7 +385,9 @@ public class TelegramReplyService extends Service {
                     for (int i = 0; list != null && i < list.length(); i++) {
                         JSONObject e = list.optJSONObject(i);
                         if (e == null) continue;
-                        entries.add(new TelegramReplies.SearchEntry(e.optString("k", ""), e.optString("t", ""), e.optString("l", null), e.optString("w", null)));
+                        entries.add(new TelegramReplies.SearchEntry(
+                            e.optString("k", ""), e.optString("t", ""), e.optString("l", null), e.optString("w", null),
+                            e.optString("d", ""), e.optString("s", ""), e.optString("r", null)));
                     }
                     s.repSearch.put(id, entries);
                 }

@@ -1,6 +1,8 @@
 package com.starnetbroser.localbrowser;
 
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -49,12 +51,46 @@ final class TelegramReplies {
         final String text;
         final String buttonLabel;
         final String buttonUrl;
+        /** Renewal date "yyyy-mm-dd" ("" when unknown), one-line form, renewal-reminder url. */
+        final String date;
+        final String line;
+        final String reminderUrl;
 
         SearchEntry(String keys, String text, String buttonLabel, String buttonUrl) {
+            this(keys, text, buttonLabel, buttonUrl, null, null, null);
+        }
+
+        SearchEntry(String keys, String text, String buttonLabel, String buttonUrl, String date, String line, String reminderUrl) {
             this.keys = keys == null ? "" : keys;
             this.text = text == null ? "" : text;
             this.buttonLabel = buttonLabel;
             this.buttonUrl = buttonUrl;
+            this.date = date == null ? "" : date;
+            this.line = line == null ? "" : line;
+            this.reminderUrl = reminderUrl;
+        }
+    }
+
+    /** A typed day - mirrors DayQuery (telegramRepMessages.ts). */
+    static final class DayQuery {
+        final String date; // exact "yyyy-mm-dd", or null
+        final int month; // 0 = any
+        final int day;
+        final String label;
+
+        DayQuery(String date, int month, int day, String label) {
+            this.date = date;
+            this.month = month;
+            this.day = day;
+            this.label = label;
+        }
+
+        boolean matches(String entryDate) {
+            if (entryDate == null || entryDate.length() != 10) return false;
+            if (date != null) return date.equals(entryDate);
+            int d = Integer.parseInt(entryDate.substring(8));
+            int m = Integer.parseInt(entryDate.substring(5, 7));
+            return d == day && (month == 0 || m == month);
         }
     }
 
@@ -160,6 +196,75 @@ final class TelegramReplies {
 
     /** Every word of the query must be in the device's keys - mirrors repSearchReply (TS). */
     static Reply search(String repId, String query, boolean helpWhenNothing, Snapshot s) {
+        return search(repId, query, helpWhenNothing, s, Calendar.getInstance());
+    }
+
+    private static String pad2(int n) {
+        return n < 10 ? "0" + n : String.valueOf(n);
+    }
+
+    private static String iso(Calendar c) {
+        return c.get(Calendar.YEAR) + "-" + pad2(c.get(Calendar.MONTH) + 1) + "-" + pad2(c.get(Calendar.DAY_OF_MONTH));
+    }
+
+    /** "غداً", "يوم 30", "30/09", "2026/09/30"... or null - mirrors parseDayQuery (TS). */
+    static DayQuery parseDay(String query, Calendar today) {
+        String text = normalize(query);
+        int offset;
+        String name;
+        switch (text) {
+            case "اليوم": offset = 0; name = "اليوم"; break;
+            case "غدا": case "بكره": offset = 1; name = "غداً"; break;
+            case "بعد غد": case "بعد غدا": offset = 2; name = "بعد غد"; break;
+            case "امس": offset = -1; name = "أمس"; break;
+            default: offset = Integer.MIN_VALUE; name = null;
+        }
+        if (name != null) {
+            Calendar c = (Calendar) today.clone();
+            c.add(Calendar.DAY_OF_MONTH, offset);
+            return new DayQuery(iso(c), 0, 0, name + " " + c.get(Calendar.DAY_OF_MONTH) + "/" + pad2(c.get(Calendar.MONTH) + 1));
+        }
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("^يوم (\\d{1,2})$").matcher(text);
+        if (m.matches()) {
+            int day = Integer.parseInt(m.group(1));
+            if (day >= 1 && day <= 31) return new DayQuery(null, 0, day, "يوم " + day);
+        }
+        m = java.util.regex.Pattern.compile("^(\\d{4})[/-](\\d{1,2})[/-](\\d{1,2})$").matcher(text);
+        if (m.matches()) {
+            int month = Integer.parseInt(m.group(2));
+            int day = Integer.parseInt(m.group(3));
+            return new DayQuery(m.group(1) + "-" + pad2(month) + "-" + pad2(day), 0, 0, day + "/" + pad2(month) + "/" + m.group(1));
+        }
+        m = java.util.regex.Pattern.compile("^(\\d{1,2})[/-](\\d{1,2})$").matcher(text);
+        if (m.matches()) {
+            int day = Integer.parseInt(m.group(1));
+            int month = Integer.parseInt(m.group(2));
+            if (day >= 1 && day <= 31 && month >= 1 && month <= 12) return new DayQuery(null, month, day, day + "/" + pad2(month));
+        }
+        return null;
+    }
+
+    /** That day's renewals among his devices - mirrors repDayReply (TS). */
+    static Reply dayReply(String repId, DayQuery q, Snapshot s) {
+        List<SearchEntry> entries = s.repSearch.get(repId);
+        List<SearchEntry> found = new ArrayList<>();
+        if (entries != null) for (SearchEntry e : entries) if (q.matches(e.date)) found.add(e);
+        if (found.isEmpty()) return new Reply("📆 لا تجديدات لأجهزتك " + q.label, false, null, s.repKeyboard);
+        Collections.sort(found, (a, b) -> a.date.compareTo(b.date));
+        StringBuilder text = new StringBuilder("📆 تجديدات " + q.label + " (" + found.size() + "):");
+        List<SearchEntry> buttons = new ArrayList<>();
+        for (int i = 0; i < found.size() && i < 60; i++) {
+            SearchEntry e = found.get(i);
+            text.append("\n").append(q.date != null ? e.line : e.line + " - " + e.date);
+            buttons.add(new SearchEntry("", "", e.buttonLabel, e.reminderUrl));
+        }
+        String markup = whatsappMarkup(buttons);
+        return new Reply(withTime(text.toString(), s), false, null, markup != null ? markup : s.repKeyboard);
+    }
+
+    static Reply search(String repId, String query, boolean helpWhenNothing, Snapshot s, Calendar today) {
+        DayQuery day = parseDay(query, today);
+        if (day != null) return dayReply(repId, day, s);
         String keyboard = s.repKeyboard;
         String folded = normalize(query);
         if (folded.isEmpty()) return new Reply(s.searchHint, false, null, keyboard);
