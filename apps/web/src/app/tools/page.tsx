@@ -11,12 +11,14 @@ import { LeadersTool } from "@/components/tools/LeadersTool";
 import { MessagesTool } from "@/components/tools/MessagesTool";
 import { PricesTool } from "@/components/tools/PricesTool";
 import { PromisesTool } from "@/components/tools/PromisesTool";
+import { QuickPaymentTool } from "@/components/tools/QuickPaymentTool";
 import { QuoteTool } from "@/components/tools/QuoteTool";
 import { useToolsData } from "@/components/tools/useToolsData";
 import { WinBackTool } from "@/components/tools/WinBackTool";
 
 const TOOLS = [
   { id: "today", icon: "✅", label: "خطة اليوم", hint: "كل ما يستحق المتابعة اليوم في قائمة واحدة" },
+  { id: "pay", icon: "💵", label: "دفعة سريعة", hint: "ابحث عن الجهاز، اكتب المبلغ، سجّل" },
   { id: "forecast", icon: "📈", label: "التوقعات", hint: "دخل التجديدات القادمة" },
   { id: "promises", icon: "🤝", label: "وعود الدفع", hint: "من وعد بالدفع ومتى" },
   { id: "winback", icon: "🔁", label: "الاسترجاع", hint: "زبائن توقفوا عن التجديد" },
@@ -74,6 +76,8 @@ export default function ToolsPage() {
         <p className="settings-hint">{current.hint}</p>
         {!data.loaded ? (
           <p className="settings-hint">جارِ التحميل…</p>
+        ) : tool === "pay" ? (
+          <QuickPaymentTool data={data} />
         ) : tool === "today" ? (
           <TodayPlanTool data={data} />
         ) : tool === "messages" ? (

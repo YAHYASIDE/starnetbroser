@@ -8348,3 +8348,21 @@ button.today-tile {
 .promise-quick {
   padding: 4px 2px 10px;
 }
+
+.tool-pick {
+  width: 100%;
+  display: grid;
+  gap: 2px;
+  text-align: start;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.tool-pick small {
+  color: var(--text-muted);
+}

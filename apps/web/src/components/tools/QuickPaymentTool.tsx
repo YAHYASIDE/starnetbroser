@@ -1,0 +1,149 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import type { StarlinkAccountSummary } from "@starnet/shared";
+import { saveClientDevicePayment } from "@/lib/clientDevicePaymentSave";
+import { localDay } from "@/lib/eveningSummary";
+import { deviceMatchesQuery } from "@/lib/homeInsights";
+import { computeBalanceByCurrency, LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, type LedgerCurrency, PAYMENT_METHOD_LABELS, PAYMENT_METHODS, type PaymentMethod } from "@/lib/ledgerStore";
+import { buildReceiptWhatsAppMessage } from "@/lib/receipt";
+import { notifyPaymentTelegram } from "@/lib/telegram";
+import { buildWhatsAppLink } from "@/lib/whatsapp";
+import type { ToolsData } from "./useToolsData";
+
+/** 💵 A customer's payment in three taps: find the device, amount, save - same records as the
+ * card's «إضافة دفعة» (ledger, FIFO allocations, the till when it's cash). */
+export function QuickPaymentTool({ data }: { data: ToolsData }) {
+  const [query, setQuery] = useState("");
+  const [device, setDevice] = useState<StarlinkAccountSummary | null>(null);
+  const [amount, setAmount] = useState("");
+  const [currency, setCurrency] = useState<LedgerCurrency>("MRU");
+  const [method, setMethod] = useState<PaymentMethod>("cash");
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<{ text: string; receipt?: string } | null>(null);
+  const [ledger, setLedger] = useState(data.ledger);
+
+  const matches = useMemo(() => {
+    if (query.trim().length < 2) return [];
+    return data.accounts
+      .filter((a) => !a.deletedAt && !a.archivedAt && deviceMatchesQuery(query, a, a.clientId ? data.clients[a.clientId] : undefined))
+      .slice(0, 8);
+  }, [query, data.accounts, data.clients]);
+
+  function pick(a: StarlinkAccountSummary) {
+    setDevice(a);
+    setDone(null);
+    setError(null);
+    const owed = computeBalanceByCurrency(ledger[a.id] ?? []);
+    const firstOwed = (Object.entries(owed).find(([, v]) => (v ?? 0) > 0.005)?.[0] ?? a.renewalPlan?.saleCurrency ?? "MRU") as LedgerCurrency;
+    if (LEDGER_CURRENCIES.includes(firstOwed)) setCurrency(firstOwed);
+  }
+
+  function save() {
+    if (!device) return;
+    const value = Number(amount);
+    if (!(value > 0)) return setError("المبلغ غير صحيح");
+    const date = localDay(new Date());
+    const result = saveClientDevicePayment(
+      ledger,
+      { id: device.id, name: device.name, email: device.expectedEmail || device.starlinkAccountEmail || undefined },
+      { amount: value, currencyCode: currency, date, paymentMethod: method, cashMoved: method === "cash" },
+    );
+    if (!result.ok) return setError(result.message);
+    setLedger(result.ledgerStore);
+    const entries = result.ledgerStore[device.id] ?? [];
+    const payment = entries[entries.length - 1]!;
+    const client = device.clientId ? data.clients[device.clientId] : undefined;
+    const balanceAfter = computeBalanceByCurrency(entries)[currency] ?? 0;
+    notifyPaymentTelegram({
+      deviceName: device.name,
+      clientName: client?.name,
+      amount: value,
+      currency,
+      method: PAYMENT_METHOD_LABELS[method],
+      balanceAfter,
+      date,
+      representativeId: device.representativeId,
+    });
+    const receipt = buildWhatsAppLink(device.phone || client?.phone, buildReceiptWhatsAppMessage({ payment, entries, deviceName: device.name, clientName: client?.name }));
+    setDone({
+      text: `✓ سُجّلت ${value.toLocaleString("en-US")} ${LEDGER_CURRENCY_LABELS[currency]} على ${device.name}${balanceAfter > 0.005 ? ` - المتبقي ${Math.round(balanceAfter).toLocaleString("en-US")}` : " - لا شيء متبقٍّ ✓"}`,
+      receipt: receipt ?? undefined,
+    });
+    setAmount("");
+  }
+
+  const owed = device ? computeBalanceByCurrency(ledger[device.id] ?? []) : {};
+  const owedText = Object.entries(owed)
+    .filter(([, v]) => (v ?? 0) > 0.005)
+    .map(([code, v]) => `${Math.round(v!).toLocaleString("en-US")} ${LEDGER_CURRENCY_LABELS[code as LedgerCurrency] ?? code}`)
+    .join(" + ");
+
+  return (
+    <div className="tool-body">
+      {!device ? (
+        <>
+          <input className="search-input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="اسم الزبون أو الجهاز أو الهاتف أو KIT" autoFocus />
+          <ul className="tool-list">
+            {matches.map((a) => {
+              const client = a.clientId ? data.clients[a.clientId] : undefined;
+              return (
+                <li key={a.id}>
+                  <button type="button" className="tool-pick" onClick={() => pick(a)}>
+                    <strong>📡 {a.name}</strong>
+                    {client && <small>{client.name}</small>}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          {query.trim().length >= 2 && matches.length === 0 && <p className="settings-hint">لا نتائج.</p>}
+        </>
+      ) : (
+        <div className="tool-form">
+          <div className="tool-row">
+            <div>
+              <strong>📡 {device.name}</strong>
+              <small>{owedText ? `عليه ${owedText}` : "لا شيء عليه ✓"}</small>
+            </div>
+            <button type="button" className="text-action" onClick={() => setDevice(null)}>
+              تغيير
+            </button>
+          </div>
+          <div className="tool-form-row">
+            <input className="search-input" inputMode="decimal" dir="ltr" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="المبلغ" autoFocus />
+            <select value={currency} onChange={(e) => setCurrency(e.target.value as LedgerCurrency)} aria-label="العملة">
+              {LEDGER_CURRENCIES.map((c) => (
+                <option key={c} value={c}>
+                  {LEDGER_CURRENCY_LABELS[c]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="tool-chips">
+            {PAYMENT_METHODS.map((m) => (
+              <button key={m} type="button" className={`tool-chip${method === m ? " tool-chip-on" : ""}`} onClick={() => setMethod(m)}>
+                {PAYMENT_METHOD_LABELS[m]}
+              </button>
+            ))}
+          </div>
+          {error && <p className="settings-hint telegram-stopped">{error}</p>}
+          <button type="button" className="dialog-primary" onClick={save}>
+            💵 تسجيل الدفعة
+          </button>
+          {method === "cash" && <p className="settings-hint">النقد يُضاف إلى الصندوق تلقائياً.</p>}
+        </div>
+      )}
+      {done && (
+        <div className="tool-goal">
+          <strong className="telegram-running">{done.text}</strong>
+          {done.receipt && (
+            <a className="tool-wa" href={done.receipt} target="_blank" rel="noreferrer">
+              🧾 إرسال سند القبض واتساب
+            </a>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
