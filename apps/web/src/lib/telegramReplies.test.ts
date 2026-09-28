@@ -43,7 +43,8 @@ describe("buildReplySnapshot", () => {
     expect(snapshot.reps.r1!.name).toBe("سالم");
     expect(snapshot.repWords["دفعه"]).toBe("payment");
     expect(snapshot.requestNotice).toContain("{rep}");
-    expect(snapshot.reps.r1!.days).toContain("غداً");
+    expect(snapshot.reps.r1!.days).toContain("أيام التجديد في الشهر");
+    expect(snapshot.reps.r1!["days#kb"]).toContain("dd:28");
     expect(snapshot.repSearch.r1![0]!.d).toBe("2026-09-28");
     expect(snapshot.repWords["بحث"]).toBe("search");
   });

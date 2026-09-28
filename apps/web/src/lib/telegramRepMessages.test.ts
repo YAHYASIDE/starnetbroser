@@ -9,6 +9,8 @@ import {
   parseDayQuery,
   REP_KEYBOARD,
   repDaysReply,
+  dayCallbackQuery,
+  repDayReply,
   repExpiringReply,
   repSearchIndex,
   repSearchReply,
@@ -210,12 +212,22 @@ describe("rep shortcuts", () => {
     expect(repSearchReply("5/05", index, TODAY).text).toBe("📆 لا تجديدات لأجهزتك 5/05");
   });
 
-  it("📆 الأيام groups the coming days", () => {
-    const days = repDaysReply(mine, clients, TODAY);
-    expect(days.text).toContain("📆 الاثنين 28/09 - غداً (1):\n• مقهى - محمد (22212345)");
-    expect(days.text).toContain("📆 الثلاثاء 29/09 - بعد 2 يوم (1):\n• بلا زبون");
-    expect(days.text).not.toContain("منزل"); // 23 days away
-    expect(JSON.parse(days.markup!).inline_keyboard).toHaveLength(1);
+  it("📆 الأيام shows the days 1-28 as buttons with counts; a tap lists that day", () => {
+    const days = repDaysReply(mine, clients, TODAY); // مقهى 28, منزل 20, بلا زبون 29
+    const rows = JSON.parse(days.markup!).inline_keyboard as { text: string; callback_data: string }[][];
+    const buttons = rows.flat();
+    expect(buttons).toHaveLength(29); // 1-28 + 29 (a device renews then)
+    expect(rows[0]).toHaveLength(4);
+    expect(buttons[0]).toEqual({ text: "1", callback_data: "dd:1" });
+    expect(buttons.find((b) => b.callback_data === "dd:28")!.text).toBe("28 (1)");
+    expect(buttons.find((b) => b.callback_data === "dd:20")!.text).toBe("20 (1)");
+    expect(buttons.some((b) => b.callback_data === "dd:30")).toBe(false);
+    expect(days.text).toContain("المجموع 3");
+    expect(dayCallbackQuery("dd:20")).toEqual({ kind: "dayOfMonth", day: 20, label: "يوم 20" });
+    expect(dayCallbackQuery("dd:40")).toBeNull();
+    expect(dayCallbackQuery("a:x")).toBeNull();
+    const index = repSearchIndex(mine, clients, {}, TODAY);
+    expect(repDayReply(dayCallbackQuery("dd:20")!, index).text).toContain("• منزل - محمد (22212345) ⛔ - 2026-10-20");
     expect(parseRepCommand("📆 الأيام")).toEqual({ kind: "days" });
   });
 

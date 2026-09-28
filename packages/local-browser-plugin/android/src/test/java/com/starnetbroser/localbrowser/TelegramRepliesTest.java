@@ -172,6 +172,11 @@ public class TelegramRepliesTest {
         assertEquals("📆 تجديدات 20/10 (1):\n• منزل - 2026-10-20", TelegramReplies.search("r1", "20/10", false, s, today).text);
         assertEquals("📆 لا تجديدات لأجهزتك 5/05", TelegramReplies.search("r1", "5/05", false, s, today).text);
         assertNull(TelegramReplies.parseDay("4521", today));
+        // A tapped day button of 📆 الأيام answers like "يوم 20".
+        assertEquals("📆 تجديدات يوم 20 (1):\n• منزل - 2026-10-20", TelegramReplies.dayReply("r1", TelegramReplies.dayCallback("dd:20"), s).text);
+        assertNull(TelegramReplies.dayCallback("dd:40"));
+        assertNull(TelegramReplies.dayCallback("dd:x"));
+        assertNull(TelegramReplies.dayCallback("a:dd:1"));
         // r2 never sees r1's renewals.
         assertEquals("📆 لا تجديدات لأجهزتك غداً 28/09", TelegramReplies.search("r2", "غدا", false, s, today).text);
     }

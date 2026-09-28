@@ -268,6 +268,17 @@ final class TelegramReplies {
         return null;
     }
 
+    /** A tapped day button of 📆 الأيام ("dd:12") -> "يوم 12", or null - mirrors dayCallbackQuery (TS). */
+    static DayQuery dayCallback(String data) {
+        if (data == null || !data.startsWith("dd:")) return null;
+        try {
+            int day = Integer.parseInt(data.substring(3));
+            return day >= 1 && day <= 31 ? new DayQuery(null, 0, day, "يوم " + day) : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
     /** That day's renewals among his devices - mirrors repDayReply (TS). */
     static Reply dayReply(String repId, DayQuery q, Snapshot s) {
         List<SearchEntry> entries = s.repSearch.get(repId);

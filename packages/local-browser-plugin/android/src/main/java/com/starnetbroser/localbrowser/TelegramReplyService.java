@@ -400,6 +400,12 @@ public class TelegramReplyService extends Service {
         String repId = TelegramStore.repIdForChat(context, chatId);
         TelegramReplies.Snapshot snapshot = loadSnapshot(context);
         if (repId == null || snapshot == null) return "افتح تطبيق المسؤول مرة ثم أعد المحاولة";
+        TelegramReplies.DayQuery day = TelegramReplies.dayCallback(data);
+        if (day != null) {
+            TelegramReplies.Reply reply = TelegramReplies.dayReply(repId, day, snapshot);
+            send(context, TelegramStore.REPS, token, chatId, reply.text, reply.markup);
+            return day.label;
+        }
         if (data.startsWith("a:")) {
             TelegramReplies.SearchEntry entry = TelegramReplies.findEntry(repId, data.substring(2), snapshot);
             if (entry == null) return "هذا الجهاز ليس من أجهزتك";

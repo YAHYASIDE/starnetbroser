@@ -249,7 +249,7 @@ export const REP_HELP = [
   "⛔ الموقوفة - أجهزتك المتوقفة الآن",
   "💰 ديون زبائني - ما على زبائن أجهزتك",
   "📊 كشفي - حصتك هذا الشهر ورصيدك",
-  "📆 الأيام - تجديدات الأيام القادمة يوماً بيوم",
+  "📆 الأيام - أيام الشهر 1 إلى 28، اضغط على يوم لترى أجهزته",
   "🔎 بحث - أو اكتب مباشرة جزءاً من اسم زبون أو جهاز أو إيميل، أو رقم هاتف أو KIT",
   "📆 أو اكتب يوماً: اليوم، غداً، بعد غد، يوم 30، 30/09",
   "💵 دفعة - سجّل دفعة استلمتها: دفعة 5000 محمد",
@@ -535,7 +535,6 @@ export const OWNER_SEARCH_KEY = "__owner";
 
 // ---- By day ----
 
-const WEEKDAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
 
 function pad2(n: number): string {
   return String(n).padStart(2, "0");
@@ -605,27 +604,44 @@ export function repDayReply(query: DayQuery, index: RepSearchEntry[]): RepReply 
   };
 }
 
-/** 📆 الأيام: the next days (and the last 3 missed) one by one, with their renewals. */
-export function repDaysReply(accounts: StarlinkAccountSummary[], clients: ClientStore, today: string): RepReply {
-  const base = isoDate(today);
-  if (!base) return { text: "📆 لا توجد تواريخ" };
-  const lines: string[] = [];
-  const reminders: (WhatsAppTarget | null)[] = [];
-  for (let offset = -3; offset <= 10; offset++) {
-    const date = addDays(base, offset);
-    const due = accounts.filter((a) => !a.deviceFault && isoDate(a.rechargeDate) === date);
-    if (due.length === 0) continue;
-    const [y, m, d] = date.split("-").map(Number);
-    const weekday = WEEKDAYS[new Date(Date.UTC(y!, m! - 1, d!)).getUTCDay()];
-    const when = offset === 0 ? "اليوم" : offset === 1 ? "غداً" : offset < 0 ? `انتهى منذ ${-offset} يوم` : `بعد ${offset} يوم`;
-    lines.push("", `📆 ${weekday} ${d}/${pad2(m!)} - ${when} (${due.length}):`, ...due.map((a) => `• ${repLabel(a, clients)}${isStoppedAccount(a) ? " ⛔" : ""}`));
-    reminders.push(...due.map((a) => whatsappTarget(a, clients, (name) => renewalReminderText(name, a.name, a.rechargeDate))));
+/** Callback data of a day button in 📆 الأيام ("dd:12") - TelegramReplyService answers it with
+ * that day's devices (the same list as typing "يوم 12"). */
+export const DAY_CALLBACK_PREFIX = "dd:";
+
+/** 📆 الأيام: a grid of the month's days 1-28 (29-31 only when a device renews then), each with
+ * how many of his devices renew that day; tapping one lists those devices. */
+export function repDaysReply(accounts: StarlinkAccountSummary[], _clients: ClientStore, _today: string): RepReply {
+  const counts = new Map<number, number>();
+  for (const account of accounts) {
+    if (account.deviceFault) continue;
+    const date = isoDate(account.rechargeDate);
+    if (!date) continue;
+    const day = Number(date.slice(8));
+    counts.set(day, (counts.get(day) ?? 0) + 1);
   }
-  if (lines.length === 0) return { text: "✓ لا تجديدات لأجهزتك في الأيام العشرة القادمة" };
+  const days = Array.from({ length: 28 }, (_, i) => i + 1);
+  for (const extra of [29, 30, 31]) if (counts.has(extra)) days.push(extra);
+  const buttons = days.map((day) => {
+    const n = counts.get(day);
+    return { text: n ? `${day} (${n})` : String(day), callback_data: `${DAY_CALLBACK_PREFIX}${day}` };
+  });
+  const rows: { text: string; callback_data: string }[][] = [];
+  for (let i = 0; i < buttons.length; i += 4) rows.push(buttons.slice(i, i + 4));
+  const total = [...counts.values()].reduce((sum, n) => sum + n, 0);
   return {
-    text: ["📆 تجديدات أجهزتك يوماً بيوم", ...lines, "", "اكتب يوماً لتفاصيله: غداً، يوم 30، 30/09"].join("\n"),
-    markup: whatsappMarkup(reminders),
+    text: [
+      "📆 أيام التجديد في الشهر",
+      total > 0 ? `اضغط على يوم لترى أجهزته - الرقم بين القوسين هو عدد أجهزتك في ذلك اليوم (المجموع ${total}).` : "لا توجد تواريخ تجديد لأجهزتك بعد.",
+    ].join("\n"),
+    markup: JSON.stringify({ inline_keyboard: rows }),
   };
+}
+
+/** A tapped day button -> the query "يوم N" answers. */
+export function dayCallbackQuery(data: string): DayQuery | null {
+  if (!data.startsWith(DAY_CALLBACK_PREFIX)) return null;
+  const day = Number(data.slice(DAY_CALLBACK_PREFIX.length));
+  return Number.isInteger(day) && day >= 1 && day <= 31 ? { kind: "dayOfMonth", day, label: `يوم ${day}` } : null;
 }
 
 // ---- Requests to the operator (recorded only once he approves them in the app) ----
