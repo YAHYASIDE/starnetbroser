@@ -20,6 +20,8 @@ export interface PaymentPromise {
   status: PromiseStatus;
   createdAt: string;
   resolvedAt?: string;
+  /** Reported by this representative through the reps bot. */
+  repId?: string;
 }
 
 const KEY = "starnet_payment_promises_v1";

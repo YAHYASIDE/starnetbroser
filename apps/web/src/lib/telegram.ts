@@ -8,6 +8,7 @@
  */
 
 import { loadPromises } from "./paymentPromises";
+import { repOpenPromises, repPromisesDueLines } from "./repPromises";
 import { cardNeed, computeRenewalForecast } from "./renewalForecast";
 import { currentCardBalanceUsd } from "./starlinkDebt";
 import type { StarlinkAccountSummary } from "@starnet/shared";
@@ -380,7 +381,10 @@ async function rescheduleRepMornings(accounts: StarlinkAccountSummary[], morning
   for (const [repId, chat] of Object.entries(loadRepChats())) {
     const rep = reps[repId];
     const mine = repAccounts(accounts, repId);
-    const text = rep ? repMorningText(rep.name, mine, clients, localDay(at)) : null;
+    const open = repOpenPromises(repId, loadPromises(), new Set(mine.map((a) => a.clientId).filter((c): c is string => Boolean(c))));
+    const promiseLines = repPromisesDueLines(open, localDay(at));
+    const renewals = rep ? repMorningText(rep.name, mine, clients, localDay(at)) : null;
+    const text = rep && (renewals || promiseLines.length) ? [renewals ?? `☀️ صباح الخير ${rep.name}`, ...promiseLines].join("\n") : null;
     const replyMarkup = repMorningMarkup(mine, clients, localDay(at));
     try {
       await LocalBrowser.telegramSchedule({ key: repMorningKey(repId), at: at.getTime(), text: text ?? "", bot: "reps", chatId: chat.chatId, replyMarkup });

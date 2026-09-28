@@ -143,6 +143,7 @@ export type RepCommand =
   | { kind: "client"; text: string }
   | { kind: "activate"; text: string }
   | { kind: "promise"; text: string }
+  | { kind: "mypromises" }
   | { kind: "unknown"; text: string };
 
 type RepWordKind = Exclude<RepCommand["kind"], "unknown">;
@@ -205,8 +206,10 @@ const REP_WORD_LIST: Record<string, RepWordKind> = {
   "ابحث": "search",
   search: "search",
   "وعد": "promise",
-  "وعود": "promise",
   promise: "promise",
+  "وعودي": "mypromises",
+  "وعود": "mypromises",
+  "الوعود": "mypromises",
 };
 
 /** Keyed by the folded word, so "اجهزتي" = "أجهزتي", "الاجهزة" = "الأجهزة"... */
@@ -253,6 +256,7 @@ export const REP_HELP = [
   "➕ زبون جديد - اطلب إضافة زبون: زبون جديد الاسم الهاتف الإيميل",
   "⚡ تفعيل - اطلب تفعيل جهاز (ROM / Sis / 100G) بالسعر الذي يدفعه الزبون: تفعيل محمد",
   "🤝 وعد دفع - سجّل موعداً وعدك فيه الزبون بالدفع: وعد 5000 محمد الخميس",
+  "📋 وعودي - وعود الدفع المفتوحة لزبائنك",
   "💬 تحت القوائم أزرار واتساب ترسل للزبون رسالة جاهزة",
 ].join("\n");
 

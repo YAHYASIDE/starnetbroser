@@ -5,7 +5,9 @@
  * "بعد 3 أيام", or a weekday (the next one); without one, a week from today. Pure.
  */
 
+import type { PaymentPromise } from "./paymentPromises";
 import { parseRepPayment } from "./repRequests";
+import { money } from "./telegramMessages";
 
 const WEEKDAYS: Record<string, number> = {
   "الاحد": 0,
@@ -155,3 +157,32 @@ export const REP_PROMISE_HINT = [
 ].join("\n");
 
 export const REP_PROMISE_RECEIVED = "✅ وصل الوعد - يُسجَّل عند المسؤول ويُذكَّر به يوم موعده.";
+
+/** A rep's open promises: the ones he reported and those of his devices' customers. */
+export function repOpenPromises(repId: string, promises: PaymentPromise[], clientIds: Set<string>): PaymentPromise[] {
+  return promises
+    .filter((p) => p.status === "open" && (p.repId === repId || (p.clientId !== undefined && clientIds.has(p.clientId))))
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+}
+
+function dm(isoDay: string): string {
+  return `${isoDay.slice(8, 10)}/${isoDay.slice(5, 7)}`;
+}
+
+/** "📋 وعودي". */
+export function repPromisesText(open: PaymentPromise[], today: string): string {
+  if (open.length === 0) return "🤝 لا وعود دفع مفتوحة لزبائنك.\nلتسجيل وعد: وعد 5000 محمد الخميس";
+  const lines = [`🤝 وعود زبائنك (${open.length})`];
+  for (const p of open.slice(0, 25)) {
+    const when = p.dueDate === today ? "اليوم" : dm(p.dueDate);
+    lines.push(`• ${p.name}: ${money({ [p.currency]: p.amount })} - ${when}${p.dueDate < today ? " ⏰ متأخر" : ""}`);
+  }
+  return lines.join("\n");
+}
+
+/** For the rep's morning message: what's due today or overdue. */
+export function repPromisesDueLines(open: PaymentPromise[], today: string): string[] {
+  const due = open.filter((p) => p.dueDate <= today);
+  if (due.length === 0) return [];
+  return ["", `🤝 وعود دفع مستحقة (${due.length}):`, ...due.slice(0, 10).map((p) => `• ${p.name}: ${money({ [p.currency]: p.amount })}${p.dueDate < today ? " ⏰" : ""}`)];
+}

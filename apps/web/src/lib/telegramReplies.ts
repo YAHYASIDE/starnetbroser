@@ -5,7 +5,7 @@
  * prepared under HIS id. Pure; the loading/pushing is in telegram.ts.
  */
 
-import { REP_PROMISE_HINT, REP_PROMISE_RECEIVED } from "./repPromises";
+import { REP_PROMISE_HINT, REP_PROMISE_RECEIVED, repOpenPromises, repPromisesText } from "./repPromises";
 import { forecastText, goalsText, healthText, lapsedText, planText, promisesText } from "./ownerInsightsText";
 import type { PartyAdjustmentList } from "./partyBalanceStore";
 import type { PaymentPromise } from "./paymentPromises";
@@ -116,6 +116,7 @@ export function buildReplySnapshot(input: {
       days: repDaysReply(mine, input.clients, input.today),
       debts: repDebtsReply(repId, input.accounts, input.ledgerStore, input.clients),
       statement: { text: repStatementText(rep.name, month, figures) },
+      mypromises: { text: repPromisesText(repOpenPromises(repId, input.promises ?? [], new Set(mine.map((a) => a.clientId).filter((c): c is string => Boolean(c)))), input.today) },
     };
     reps[repId] = { name: rep.name };
     for (const [kind, reply] of Object.entries(replies)) {

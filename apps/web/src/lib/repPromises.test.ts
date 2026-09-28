@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { parseRepPromise } from "./repPromises";
+import { parseRepPromise, repOpenPromises, repPromisesDueLines, repPromisesText } from "./repPromises";
+import type { PaymentPromise } from "./paymentPromises";
+import { parseRepCommand } from "./telegramRepMessages";
 
 // Monday 28 Sep 2026
 const today = new Date(2026, 8, 28);
@@ -23,5 +25,28 @@ describe("rep promise parsing", () => {
   it("defaults to a week without a day; null without an amount", () => {
     expect(parseRepPromise("5000 محمد أحمد", today)).toEqual({ amount: 5000, currency: "MRU", query: "محمد أحمد", dueDate: "2026-10-05", defaulted: true });
     expect(parseRepPromise("محمد الخميس", today)).toBeNull();
+  });
+});
+
+describe("a rep's promises", () => {
+  const p = (o: Partial<PaymentPromise>): PaymentPromise => ({ id: "x", name: "محمد", amount: 5000, currency: "MRU", dueDate: "2026-09-28", status: "open", createdAt: "x", ...o });
+  const list = [
+    p({ id: "1", repId: "r1", dueDate: "2026-09-30" }),
+    p({ id: "2", clientId: "c1", name: "سالم", dueDate: "2026-09-25" }),
+    p({ id: "3", clientId: "c9" }),
+    p({ id: "4", repId: "r1", status: "kept" }),
+    p({ id: "5", repId: "r2" }),
+  ];
+
+  it("are the ones he reported and his customers', oldest first", () => {
+    const open = repOpenPromises("r1", list, new Set(["c1"]));
+    expect(open.map((x) => x.id)).toEqual(["2", "1"]);
+    const text = repPromisesText(open, "2026-09-28");
+    expect(text).toContain("🤝 وعود زبائنك (2)");
+    expect(text).toContain("• سالم: 5,000 أوقية - 25/09 ⏰ متأخر");
+    expect(text).toContain("• محمد: 5,000 أوقية - 30/09");
+    expect(repPromisesText([], "2026-09-28")).toContain("لا وعود");
+    expect(repPromisesDueLines(open, "2026-09-28")).toEqual(["", "🤝 وعود دفع مستحقة (1):", "• سالم: 5,000 أوقية ⏰"]);
+    expect(parseRepCommand("وعودي")).toEqual({ kind: "mypromises" });
   });
 });

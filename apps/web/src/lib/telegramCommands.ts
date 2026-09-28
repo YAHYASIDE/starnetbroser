@@ -35,7 +35,7 @@ import { buildReplySnapshot } from "./telegramReplies";
 import { deviceDisplayName, readRepDeviceFile, repDeviceCode } from "./repDeviceTransfer";
 import { forecastText, goalsText, healthText, lapsedText, planText, promisesText } from "./ownerInsightsText";
 import { addPromise, loadPromises, savePromises } from "./paymentPromises";
-import { parseRepPromise, REP_PROMISE_HINT } from "./repPromises";
+import { parseRepPromise, REP_PROMISE_HINT, repOpenPromises, repPromisesText } from "./repPromises";
 import { loadGoals } from "./goals";
 import type { TelegramPollMessage } from "@starnet/local-browser-plugin";
 import { getCurrency, loadCurrencyStore } from "./currencyStore";
@@ -267,6 +267,7 @@ async function handleRepPromise(repId: string, rep: Representative, text: string
       currency: parsed.currency,
       dueDate: parsed.dueDate,
       note: `عبر المندوب ${rep.name}${device ? ` · ${device.name}` : ""}`,
+      repId,
     }),
   );
   if (!alreadyReplied) {
@@ -347,6 +348,8 @@ async function repReplyFor(repId: string, rep: Representative, command: RepComma
       return { text: REP_CLIENT_HINT };
     case "promise":
       return { text: REP_PROMISE_HINT };
+    case "mypromises":
+      return { text: repPromisesText(repOpenPromises(repId, loadPromises(), new Set(mine.map((a) => a.clientId).filter((c): c is string => Boolean(c)))), today) };
     case "days":
       return repDaysReply(mine, clients, today);
     case "search":
