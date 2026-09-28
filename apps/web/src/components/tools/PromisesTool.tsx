@@ -17,6 +17,7 @@ import {
   validatePromise,
 } from "@/lib/paymentPromises";
 import { buildWhatsAppLink } from "@/lib/whatsapp";
+import { QUICK_PAY_QUERY_KEY } from "./QuickPaymentTool";
 import { currencyLabelFor, currencyOptions, todayIso, type ToolsData } from "./useToolsData";
 
 /** 🤝 Payment promises: recorded, surfaced when due, marked kept or broken. */
@@ -74,7 +75,21 @@ export function PromisesTool({ data }: { data: ToolsData }) {
           {p.note ? ` · ${p.note}` : ""}
         </small>
         <div className="tool-promise-actions">
-          <button type="button" className="text-action" onClick={() => update(resolvePromise(list, p.id, "kept"))}>
+          <button
+            type="button"
+            className="text-action"
+            onClick={() => {
+              update(resolvePromise(list, p.id, "kept"));
+              if (window.confirm("تسجيل المبلغ الآن على جهاز الزبون؟")) {
+                try {
+                  window.sessionStorage.setItem(QUICK_PAY_QUERY_KEY, p.name);
+                } catch {
+                  // the search just starts empty
+                }
+                window.location.hash = "pay";
+              }
+            }}
+          >
             ✅ دفع
           </button>
           <button type="button" className="text-action" onClick={() => update(resolvePromise(list, p.id, "broken"))}>

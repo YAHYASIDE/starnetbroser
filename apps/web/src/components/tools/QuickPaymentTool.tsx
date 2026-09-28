@@ -11,10 +11,23 @@ import { notifyPaymentTelegram } from "@/lib/telegram";
 import { buildWhatsAppLink } from "@/lib/whatsapp";
 import type { ToolsData } from "./useToolsData";
 
+/** A name handed over (e.g. from a kept payment promise) to start the search with. */
+export const QUICK_PAY_QUERY_KEY = "starnet.quickPayQuery";
+
+function takeHandedQuery(): string {
+  try {
+    const value = window.sessionStorage.getItem(QUICK_PAY_QUERY_KEY) ?? "";
+    window.sessionStorage.removeItem(QUICK_PAY_QUERY_KEY);
+    return value;
+  } catch {
+    return "";
+  }
+}
+
 /** 💵 A customer's payment in three taps: find the device, amount, save - same records as the
  * card's «إضافة دفعة» (ledger, FIFO allocations, the till when it's cash). */
 export function QuickPaymentTool({ data }: { data: ToolsData }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(() => (typeof window === "undefined" ? "" : takeHandedQuery()));
   const [device, setDevice] = useState<StarlinkAccountSummary | null>(null);
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState<LedgerCurrency>("MRU");
