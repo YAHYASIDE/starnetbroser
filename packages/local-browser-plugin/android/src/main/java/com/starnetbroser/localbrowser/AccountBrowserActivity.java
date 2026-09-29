@@ -186,11 +186,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
             }
         );
 
-        findViewById(R.id.starnet_btn_back).setOnClickListener(v -> goBackInWebView());
-        findViewById(R.id.starnet_btn_refresh).setOnClickListener(v -> reload());
-        findViewById(R.id.starnet_btn_home).setOnClickListener(v -> goHome());
-        findViewById(R.id.starnet_btn_close).setOnClickListener(v -> finish());
-        findViewById(R.id.starnet_btn_sync).setOnClickListener(v -> syncFromStarlink());
+        BrowserBar.setUp(this, this::goBackInWebView, this::reload, "⇣", getString(R.string.starnet_action_sync), this::syncFromStarlink);
         ((Button) findViewById(R.id.starnet_error_retry)).setOnClickListener(v -> reload());
 
         webView.loadUrl(homeUrl);
@@ -351,12 +347,6 @@ public class AccountBrowserActivity extends AppCompatActivity {
         errorOverlay.setVisibility(View.GONE);
         webView.setVisibility(View.VISIBLE);
         webView.reload();
-    }
-
-    private void goHome() {
-        errorOverlay.setVisibility(View.GONE);
-        webView.setVisibility(View.VISIBLE);
-        webView.loadUrl(homeUrl);
     }
 
     /**

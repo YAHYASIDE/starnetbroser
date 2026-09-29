@@ -111,13 +111,7 @@ public class MailBrowserActivity extends AppCompatActivity {
             }
         });
 
-        findViewById(R.id.starnet_btn_back).setOnClickListener(v -> { if (webView.canGoBack()) webView.goBack(); });
-        findViewById(R.id.starnet_btn_refresh).setOnClickListener(v -> reload());
-        findViewById(R.id.starnet_btn_home).setOnClickListener(v -> { showPage(); webView.loadUrl(homeUrl); });
-        findViewById(R.id.starnet_btn_close).setOnClickListener(v -> finish());
-        Button codeButton = findViewById(R.id.starnet_btn_sync);
-        codeButton.setText("📋 الرمز");
-        codeButton.setOnClickListener(v -> copyCode());
+        BrowserBar.setUp(this, () -> { if (webView.canGoBack()) webView.goBack(); }, this::reload, "📋", "نسخ الرمز", this::copyCode);
         ((Button) findViewById(R.id.starnet_error_retry)).setOnClickListener(v -> reload());
 
         webView.loadUrl(homeUrl);
