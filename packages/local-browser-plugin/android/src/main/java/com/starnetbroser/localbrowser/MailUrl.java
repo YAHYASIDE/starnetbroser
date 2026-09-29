@@ -102,6 +102,16 @@ public final class MailUrl {
         return SessionState.UNKNOWN;
     }
 
+    /**
+     * Gmail in the phone's real browser (Google refuses its sign-in inside an app's embedded
+     * browser): the inbox of exactly this account among the browser's signed-in Google accounts.
+     */
+    public static String gmailBrowserUrlFor(String email) {
+        String base = "https://mail.google.com/mail/u/";
+        if (email == null || email.trim().isEmpty()) return base + "0/";
+        return base + "?authuser=" + urlEncode(email.trim());
+    }
+
     /** The inbox, with the email as a sign-in hint when there is one. */
     public static String inboxUrlFor(String email) {
         if (providerFor(email) == Provider.GMAIL) return GMAIL_INBOX_URL; // the sign-in form is autofilled

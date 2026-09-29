@@ -125,6 +125,7 @@ export default function MailboxesPage() {
                     {row.email || "—"}
                   </bdi>
                   <span className="mailbox-sub">
+                    {row.gmail ? "Gmail · يفتح في Chrome · " : ""}
                     {row.deviceName}
                     {row.clientName ? ` · ${row.clientName}` : ""}
                     {row.signedIn && row.signedInAt ? (
@@ -141,7 +142,7 @@ export default function MailboxesPage() {
                   onClick={() => open(row.accountId)}
                   disabled={opening !== null}
                 >
-                  {opening === row.accountId ? "…" : row.signedIn ? "📧 فتح" : "📧 تسجيل"}
+                  {opening === row.accountId ? "…" : row.signedIn || row.gmail ? "📧 فتح" : "📧 تسجيل"}
                 </button>
               </li>
             ))}

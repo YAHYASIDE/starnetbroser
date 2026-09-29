@@ -257,6 +257,12 @@ public class AccountBrowserActivity extends AppCompatActivity {
     }
 
     private void startCodeFetch() {
+        if (MailUrl.providerFor(getIntent().getStringExtra(EXTRA_LOGIN_EMAIL)) == MailUrl.Provider.GMAIL) {
+            // Gmail opens in Chrome, which the app cannot read - the code is copied from there.
+            autoCodeOff = true;
+            Toast.makeText(this, "📧 إيميل Gmail: اضغط «📧 البريد» فيفتح في Chrome، انسخ الرمز والصقه هنا", Toast.LENGTH_LONG).show();
+            return;
+        }
         if (autoFills >= MAX_AUTO_FILLS) {
             autoCodeOff = true;
             Toast.makeText(this, "جُرّب الرمز " + MAX_AUTO_FILLS + " مرات - أدخله بنفسك من «📧 البريد»", Toast.LENGTH_LONG).show();
@@ -522,8 +528,8 @@ public class AccountBrowserActivity extends AppCompatActivity {
         }
         if (item.getItemId() == MENU_MAIL) {
             // This device's mailbox, e.g. to copy the Starlink verification code and come back.
-            startActivity(MailBrowserActivity.intentFor(this, accountId, getTitle() != null ? getTitle().toString() : null,
-                getIntent().getStringExtra(EXTRA_LOGIN_EMAIL), getIntent().getStringExtra(EXTRA_MAIL_PASSWORD)));
+            MailBrowserActivity.open(this, accountId, getTitle() != null ? getTitle().toString() : null,
+                getIntent().getStringExtra(EXTRA_LOGIN_EMAIL), getIntent().getStringExtra(EXTRA_MAIL_PASSWORD));
             return true;
         }
         return super.onOptionsItemSelected(item);

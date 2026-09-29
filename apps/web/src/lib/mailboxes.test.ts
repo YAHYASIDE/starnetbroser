@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DeviceStatus, type StarlinkAccountSummary } from "@starnet/shared";
-import { buildMailboxRows, deviceEmail, signedInCount } from "./mailboxes";
+import { buildMailboxRows, deviceEmail, isGmail, signedInCount } from "./mailboxes";
 
 // Fake data only.
 function device(id: string, extra: Partial<StarlinkAccountSummary> = {}): StarlinkAccountSummary {
@@ -49,5 +49,8 @@ describe("registered mailboxes", () => {
   it("counts signed-in mailboxes of devices still in the app", () => {
     expect(signedInCount(accounts, sessions)).toBe(1);
     expect(deviceEmail({ expectedEmail: " x@y.com " })).toBe("x@y.com");
+    expect(isGmail(" Talaa@GMAIL.com ")).toBe(true);
+    expect(isGmail("a@outlook.com")).toBe(false);
+    expect(isGmail("a@gmail.com.evil.io")).toBe(false);
   });
 });

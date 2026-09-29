@@ -224,15 +224,13 @@ public class LocalBrowserPlugin extends Plugin {
             call.reject("هذا الجهاز لا يدعم المتصفحات المستقلة", ERROR_CODE_UNSUPPORTED);
             return;
         }
-        Intent intent;
         try {
-            intent = MailBrowserActivity.intentFor(getContext(), accountId, call.getString("accountName", accountId),
+            MailBrowserActivity.open(getActivity(), accountId, call.getString("accountName", accountId),
                 call.getString("email"), call.getString("password"));
         } catch (RuntimeException ex) {
-            call.reject("Invalid accountId: " + ex.getMessage());
+            call.reject("تعذر فتح البريد: " + ex.getMessage());
             return;
         }
-        getActivity().startActivity(intent);
         call.resolve();
     }
 

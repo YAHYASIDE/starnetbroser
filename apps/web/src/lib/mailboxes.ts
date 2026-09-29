@@ -15,6 +15,8 @@ export interface MailboxSession {
 export interface MailboxRow {
   accountId: string;
   email: string;
+  /** Gmail opens in Chrome (Google refuses sign-in inside the app) - its sign-in isn't tracked. */
+  gmail: boolean;
   deviceName: string;
   clientName?: string;
   signedIn: boolean;
@@ -22,6 +24,11 @@ export interface MailboxRow {
 }
 
 export type MailboxFilter = "signed" | "all";
+
+/** Gmail addresses open in Chrome instead of the in-app mailbox. */
+export function isGmail(email: string | undefined): boolean {
+  return /@(gmail|googlemail)\.com$/i.test((email ?? "").trim());
+}
 
 /** The email a device's mailbox opens with. */
 export function deviceEmail(account: Pick<StarlinkAccountSummary, "expectedEmail" | "starlinkAccountEmail">): string {
@@ -50,6 +57,7 @@ export function buildMailboxRows(
     const row: MailboxRow = {
       accountId: account.id,
       email,
+      gmail: isGmail(email),
       deviceName: account.name,
       clientName: account.clientId ? clientStore[account.clientId]?.name : undefined,
       signedIn: Boolean(session),

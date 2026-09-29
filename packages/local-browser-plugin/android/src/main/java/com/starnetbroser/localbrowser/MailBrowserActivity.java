@@ -51,7 +51,28 @@ public class MailBrowserActivity extends AppCompatActivity {
     private String accountId;
     private String email;
 
-    /** Starts one device's mailbox (from the plugin or from that device's Starlink browser). */
+    /**
+     * Opens one device's mailbox: Outlook inside the app (isolated, autofilled, code reading), or -
+     * for a Gmail address - Gmail in Chrome, since Google refuses sign-in inside an app's embedded
+     * browser ("قد يكون هذا المتصفح غير آمن"). Chrome keeps each Gmail signed in once.
+     */
+    static void open(android.app.Activity activity, String accountId, String title, String email, String password) {
+        if (MailUrl.providerFor(email) == MailUrl.Provider.GMAIL) {
+            Intent view = new Intent(Intent.ACTION_VIEW, Uri.parse(MailUrl.gmailBrowserUrlFor(email)));
+            view.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            view.setPackage("com.android.chrome");
+            try {
+                activity.startActivity(view);
+            } catch (android.content.ActivityNotFoundException noChrome) {
+                view.setPackage(null); // the phone's default browser
+                activity.startActivity(view);
+            }
+            return;
+        }
+        activity.startActivity(intentFor(activity, accountId, title, email, password));
+    }
+
+    /** Starts one device's Outlook mailbox inside the app. */
     static Intent intentFor(Context context, String accountId, String title, String email, String password) {
         Intent intent = new Intent(context, MailBrowserActivity.class);
         intent.putExtra(EXTRA_PROFILE_NAME, ProfileNaming.mailProfileNameFor(accountId));
