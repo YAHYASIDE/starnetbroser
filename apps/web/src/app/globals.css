@@ -8930,3 +8930,104 @@ button.today-tile {
   margin-inline-end: 4px;
   vertical-align: middle;
 }
+
+/* Compact device card (operator's request: smaller, no big text anywhere on it). Kept last so it
+   wins over the older card rules above; tap targets stay usable (≥ 28px). */
+.account-card {
+  padding: 9px 10px;
+  gap: 5px;
+}
+
+.account-card .account-card-avatar {
+  width: 26px;
+  height: 26px;
+  font-size: 0.58rem;
+}
+
+.account-card .account-card-name {
+  font-size: 0.74rem;
+}
+
+.account-card .account-card-client-name,
+.account-card .account-card-client-missing {
+  font-size: 0.7rem;
+}
+
+.account-card .account-card-label,
+.account-card .account-card-starlink-balance-row,
+.account-card .account-card-pill-row,
+.account-card .account-card-identifiers,
+.account-card .account-card-profit-row {
+  font-size: 0.64rem;
+}
+
+.account-card .badge,
+.account-card .account-card-recharge-pill,
+.account-card .date-status,
+.account-card .mini-status {
+  font-size: 0.6rem;
+  padding: 1px 7px;
+}
+
+.account-card .device-dot {
+  font-size: 0.6rem;
+  padding: 1px 7px;
+}
+
+.account-card .device-dot svg {
+  width: 11px;
+  height: 11px;
+}
+
+.account-card .account-card-mini-row,
+.account-card .account-card-pill-row {
+  gap: 4px;
+}
+
+.account-card .card-action {
+  min-height: 28px;
+  padding: 4px 7px;
+  font-size: 0.64rem;
+  border-radius: 8px;
+}
+
+.account-card .account-card-quick-actions {
+  gap: 2px;
+}
+
+.account-card .quick-action {
+  min-width: 38px;
+  min-height: 38px;
+  gap: 2px;
+  font-size: 0.56rem;
+}
+
+.account-card .quick-action-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.account-card .quick-action-icon svg {
+  width: 13px;
+  height: 13px;
+}
+
+.account-card .whatsapp-btn {
+  width: 28px;
+  height: 28px;
+}
+
+.account-card .account-card-expanded-grid {
+  gap: 4px;
+}
+
+.account-card [class*="-banner"] {
+  font-size: 0.62rem;
+  padding: 4px 8px;
+}
+
+.account-card .account-card-unpaid-starlink,
+.account-card .account-card-unrecorded {
+  font-size: 0.66rem;
+  gap: 4px;
+}
