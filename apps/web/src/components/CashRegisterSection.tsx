@@ -112,7 +112,7 @@ export function CashRegisterSection({ entries, onChange, closings, onChangeClosi
   return (
     <section className="section">
       <button type="button" className="report-collapse-toggle" onClick={() => setExpanded((v) => !v)} aria-expanded={expanded}>
-        الصندوق والمصاريف {expanded ? "▲" : "▼"}
+        💵 الصندوق والمصاريف {expanded ? "▲" : "▼"}
       </button>
 
       {expanded && (

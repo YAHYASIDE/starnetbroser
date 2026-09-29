@@ -319,6 +319,19 @@ interface PartyCardProps {
 type PartyPanel = "statement" | "devices" | null;
 type PartySheet = "balance" | "whatsapp" | "detail" | "edit" | "notes" | null;
 
+/** A card action: the icon over a tiny label (and a count badge) - one short row of buttons. */
+function ActionFace({ icon, label, count }: { icon: string; label: string; count?: number }) {
+  return (
+    <>
+      <span className="party-action-icon" aria-hidden="true">
+        {icon}
+        {count ? <span className="party-action-count">{count}</span> : null}
+      </span>
+      <span className="party-action-label">{label}</span>
+    </>
+  );
+}
+
 function PartyCard({
   kind,
   party,
@@ -394,16 +407,19 @@ function PartyCard({
       className={`party-card party-card-${isClient ? "client" : "supplier"}`}
       style={{ "--party-hue": partyHue(party.id) } as CSSProperties}
     >
-      {repNames.length > 0 && (
-        <span className="party-rep-tag" title="مندوب أجهزة هذا الزبون">
-          🤝 المندوب: {repNames.join("، ")}
-        </span>
-      )}
       <div className="party-card-head">
         <span className="party-avatar" aria-hidden="true">{partyInitials(party.name)}</span>
         <div className="party-card-title">
           <strong>{party.name}</strong>
-          <span dir="ltr">{party.phone || "بدون هاتف"}</span>
+          <span className="party-card-sub">
+            <bdi dir="ltr">{party.phone || "بدون هاتف"}</bdi>
+            {isClient && devices.length > 0 && <span className="party-mini-chip">📡 {devices.length}</span>}
+            {repNames.length > 0 && (
+              <span className="party-rep-tag" title="مندوب أجهزة هذا الزبون">
+                🤝 {repNames.join("، ")}
+              </span>
+            )}
+          </span>
         </div>
         <span className={`party-status ${status.className}`}>{status.label}</span>
       </div>
@@ -448,14 +464,11 @@ function PartyCard({
         })
       )}
 
-      {(creditLimit !== undefined || (isClient && devices.length > 0)) && (
+      {creditLimit !== undefined && (
         <div className="party-chips">
-          {isClient && devices.length > 0 && <span className="party-chip">📡 {devices.length} جهاز</span>}
-          {creditLimit !== undefined && (
-            <span className={`party-chip${overLimit ? " party-chip-alert" : ""}`} dir="ltr">
-              {overLimit ? "⚠️ " : ""}سقف الدين: {formatAmount(creditLimit)}
-            </span>
-          )}
+          <span className={`party-chip${overLimit ? " party-chip-alert" : ""}`}>
+            {overLimit ? "⚠️ " : ""}سقف الدين: <bdi dir="ltr">{formatAmount(creditLimit)}</bdi>
+          </span>
         </div>
       )}
 
@@ -465,14 +478,14 @@ function PartyCard({
           className={`party-action${panel === "statement" ? " party-action-active" : ""}`}
           onClick={() => togglePanel("statement")}
         >
-          📄 الكشف
+          <ActionFace icon="📄" label="الكشف" />
         </button>
         <button type="button" className="party-action party-action-balance" onClick={() => setSheet("balance")}>
-          ➕ رصيد
+          <ActionFace icon="➕" label="رصيد" />
         </button>
         {canWhatsApp && (
           <button type="button" className="party-action party-action-whatsapp" onClick={() => setSheet("whatsapp")}>
-            💬 واتساب
+            <ActionFace icon="💬" label="واتساب" />
           </button>
         )}
         {isClient && (
@@ -481,21 +494,21 @@ function PartyCard({
             className={`party-action${panel === "devices" ? " party-action-active" : ""}`}
             onClick={() => togglePanel("devices")}
           >
-            📡 الأجهزة ({devices.length})
+            <ActionFace icon="📡" label="الأجهزة" count={devices.length} />
           </button>
         )}
         {onOpenCard && (
           <button type="button" className="party-action" onClick={onOpenCard}>
-            💳 البطاقة
+            <ActionFace icon="💳" label="البطاقة" />
           </button>
         )}
         {isClient && (
           <button type="button" className="party-action" onClick={() => setSheet("notes")}>
-            📝 ملاحظات{noteCount ? ` (${noteCount})` : ""}
+            <ActionFace icon="📝" label="ملاحظات" count={noteCount} />
           </button>
         )}
         <button type="button" className="party-action" onClick={onEdit}>
-          ✎ تعديل
+          <ActionFace icon="✎" label="تعديل" />
         </button>
       </div>
 

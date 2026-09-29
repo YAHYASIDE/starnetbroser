@@ -111,7 +111,7 @@ export function StoreReportsSection({ transactions, invoices, cashEntries }: Pro
   return (
     <section className="section">
       <button type="button" className="report-collapse-toggle" onClick={() => setExpanded((v) => !v)} aria-expanded={expanded}>
-        أرباح المتجر والتقارير {expanded ? "▲" : "▼"}
+        📈 أرباح المتجر والتقارير {expanded ? "▲" : "▼"}
       </button>
 
       {expanded && (

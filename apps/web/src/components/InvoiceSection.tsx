@@ -1,7 +1,7 @@
 "use client";
 
 import { DateInput } from "./DateInput";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { PartyAdjustment } from "@/lib/partyBalanceStore";
 import { Client, ClientStore, CreateClientInput, getClient } from "@/lib/clientStore";
@@ -75,6 +75,8 @@ interface Props {
   onCreateSupplier: (input: CreateSupplierInput) => Supplier;
   onCreateRepresentative: (input: CreateRepresentativeInput) => Representative;
   onChange: (result: { invoices: InvoiceList; transactions: StoreTransactionList; invoice: Invoice }) => void;
+  /** «بيع» on an item: opens a new sale invoice with that item already on its first line. */
+  saleRequest?: { itemId: string; nonce: number } | null;
 }
 
 /** بطاقة المنتج والفواتير's own "الفواتير" half - sale/purchase invoices built on top of
@@ -96,9 +98,21 @@ export function InvoiceSection({
   onCreateSupplier,
   onCreateRepresentative,
   onChange,
+  saleRequest,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [formItemId, setFormItemId] = useState<string | undefined>(undefined);
+  const sectionRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (!saleRequest) return;
+    setExpanded(true);
+    setReturningInvoice(null);
+    setFormItemId(saleRequest.itemId);
+    setShowForm(true);
+    window.setTimeout(() => sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+  }, [saleRequest]);
   const [returningInvoice, setReturningInvoice] = useState<Invoice | null>(null);
   const [expandedInvoiceId, setExpandedInvoiceId] = useState<string | null>(null);
 
@@ -107,6 +121,7 @@ export function InvoiceSection({
 
   function openNewForm() {
     setReturningInvoice(null);
+    setFormItemId(undefined);
     setShowForm(true);
   }
 
@@ -126,14 +141,14 @@ export function InvoiceSection({
   }
 
   return (
-    <section className="section">
+    <section className="section" ref={sectionRef}>
       <button
         type="button"
         className="report-collapse-toggle"
         onClick={() => setExpanded((v) => !v)}
         aria-expanded={expanded}
       >
-        الفواتير {expanded ? "▲" : "▼"}
+        🧾 الفواتير (البيع والشراء) {expanded ? "▲" : "▼"}
       </button>
 
       {expanded && (
@@ -147,6 +162,8 @@ export function InvoiceSection({
 
           {showForm && (
             <InvoiceForm
+              key={`${formItemId ?? "new"}-${saleRequest?.nonce ?? 0}`}
+              initialItemId={formItemId}
               items={itemList}
               invoices={invoices}
               clients={clients}
@@ -304,6 +321,8 @@ interface InvoiceFormProps {
   onCreateRepresentative: (input: CreateRepresentativeInput) => Representative;
   onCancel: () => void;
   onSubmit: (input: Parameters<typeof createInvoice>[2]) => ReturnType<typeof createInvoice>;
+  /** A sale invoice started from an item's «بيع» button: that item, quantity 1, its sale price. */
+  initialItemId?: string;
 }
 
 function InvoiceForm({
@@ -319,12 +338,22 @@ function InvoiceForm({
   onCreateRepresentative,
   onCancel,
   onSubmit,
+  initialItemId,
 }: InvoiceFormProps) {
   const [kind, setKind] = useState<InvoiceKind>("sale");
   const [priceTier, setPriceTier] = useState<"retail" | "wholesale">("retail");
   const [date, setDate] = useState(todayDateInputValue());
-  const [currencyCode, setCurrencyCode] = useState<LedgerCurrency>(defaultInvoiceCurrency);
-  const [lines, setLines] = useState<DraftLine[]>([{ itemId: "", quantity: "", unitPrice: "" }]);
+  const [currencyCode, setCurrencyCode] = useState<LedgerCurrency>(() => {
+    const saleCurrency = initialItemId ? items.find((i) => i.id === initialItemId)?.defaultSaleCurrencyCode : undefined;
+    return saleCurrency && (LEDGER_CURRENCIES as readonly string[]).includes(saleCurrency)
+      ? (saleCurrency as LedgerCurrency)
+      : defaultInvoiceCurrency();
+  });
+  const [lines, setLines] = useState<DraftLine[]>(() => {
+    const item = initialItemId ? items.find((i) => i.id === initialItemId) : undefined;
+    if (!item) return [{ itemId: "", quantity: "", unitPrice: "" }];
+    return [{ itemId: item.id, quantity: "1", unitPrice: item.defaultSalePrice !== undefined ? String(item.defaultSalePrice) : "" }];
+  });
   const [discount, setDiscount] = useState("");
   const [paidAmount, setPaidAmount] = useState("");
   const [note, setNote] = useState("");

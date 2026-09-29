@@ -9206,3 +9206,361 @@ button.today-tile {
   padding: 4px 8px;
   border-radius: var(--radius-sm);
 }
+
+/* Clients page, compact (operator's request): small head with phone / devices / rep on one line,
+   one short row of tiles per currency (the balance stays visible), one row of tiny actions. */
+.party-section .party-tabs {
+  margin-bottom: 6px;
+}
+
+.party-section .party-tab {
+  padding-block: 6px;
+  font-size: 0.8rem;
+}
+
+.party-section .party-overview {
+  padding: 7px 10px;
+  gap: 4px 8px;
+}
+
+.party-section .party-overview-label {
+  font-size: 0.72rem;
+}
+
+.party-section .party-overview-values {
+  gap: 8px;
+  font-size: 0.86rem;
+}
+
+.party-section .party-toolbar .search-input {
+  padding-block: 8px;
+  font-size: 0.82rem;
+}
+
+.party-section .party-toolbar .btn-icon {
+  padding: 6px 10px;
+  font-size: 0.76rem;
+}
+
+.party-card-list {
+  gap: 8px;
+}
+
+.party-card-list .party-card {
+  gap: 6px;
+  padding: 8px 10px 8px 8px;
+  border-radius: 14px;
+}
+
+.party-card-list .party-card::before {
+  width: 3px;
+}
+
+.party-card-list .party-card-head {
+  gap: 7px;
+}
+
+.party-card-list .party-avatar {
+  width: 30px;
+  height: 30px;
+  font-size: 0.72rem;
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px hsl(var(--party-hue) 70% 50% / 0.35);
+}
+
+.party-card-list .party-card-title strong {
+  font-size: 0.86rem;
+  line-height: 1.25;
+}
+
+.party-card-sub {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 0.66rem;
+  white-space: nowrap;
+}
+
+.party-card-list .party-card-title .party-card-sub span {
+  font-size: inherit;
+}
+
+.party-mini-chip {
+  flex-shrink: 0;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--party-soft);
+  color: var(--party-accent);
+  font-weight: 700;
+}
+
+.party-card-list .party-rep-tag {
+  flex-shrink: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0 6px;
+  font-size: 0.62rem;
+}
+
+.party-card-list .party-status {
+  padding: 2px 7px;
+  font-size: 0.62rem;
+}
+
+.party-card-list .party-stats {
+  grid-template-columns: 30px;
+  gap: 3px;
+  padding-top: 0;
+}
+
+.party-card-list .party-stats-currency {
+  position: static;
+  align-self: center;
+  overflow: hidden;
+  font-size: 0.58rem;
+  line-height: 1.1;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.party-card-list .party-stat {
+  min-height: 30px;
+  padding: 2px;
+  border-radius: 8px;
+}
+
+.party-card-list .party-stat span {
+  font-size: 0.55rem;
+  line-height: 1.1;
+}
+
+.party-card-list .party-stat strong {
+  font-size: 0.7rem;
+  line-height: 1.15;
+}
+
+.party-card-list .party-chips {
+  gap: 4px;
+}
+
+.party-card-list .party-chip {
+  padding: 1px 7px;
+  font-size: 0.62rem;
+}
+
+.party-card-list .party-actions {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-template-columns: none;
+  gap: 3px;
+}
+
+.party-card-list .party-actions .party-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  min-height: 0;
+  padding: 3px 1px;
+  border-radius: 8px;
+  font-size: 0.56rem;
+  line-height: 1.15;
+}
+
+.party-action-icon {
+  position: relative;
+  font-size: 0.8rem;
+  line-height: 1.1;
+}
+
+.party-action-count {
+  position: absolute;
+  top: -4px;
+  inset-inline-end: -9px;
+  min-width: 12px;
+  padding: 0 2px;
+  border-radius: 999px;
+  background: var(--party-accent, var(--brand));
+  color: #fff;
+  font-size: 0.5rem;
+  font-weight: 800;
+  line-height: 12px;
+  text-align: center;
+}
+
+.party-action-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.party-card-list .party-panel {
+  padding-top: 6px;
+}
+
+.party-card-list .party-card-title .party-rep-tag {
+  color: var(--violet);
+}
+
+.party-card-list .party-card-title .party-mini-chip {
+  color: var(--party-accent);
+}
+
+/* Store page (operator's request): compact tiles with icons, crisp borders and colored buttons -
+   selling happens only through a sale invoice («🧾 بيع بفاتورة»). */
+.store-page .store-summary-row {
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.store-page .store-summary-tile {
+  padding: 7px 9px;
+  border: 1.5px solid color-mix(in srgb, var(--brand) 35%, var(--border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--brand) 8%, var(--surface));
+}
+
+.store-page .store-summary-tile-warning {
+  border-color: color-mix(in srgb, var(--red) 45%, var(--border));
+  background: color-mix(in srgb, var(--red) 9%, var(--surface));
+}
+
+.store-page .store-summary-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 2px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.store-summary-icon {
+  font-size: 0.85rem;
+}
+
+.store-page .store-summary-value,
+.store-page .store-summary-value-stack {
+  font-size: 0.86rem;
+}
+
+.store-page .store-items-header .section-title {
+  font-size: 1rem;
+}
+
+.store-page .store-item-card {
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.06);
+}
+
+.store-page .store-item-card-active {
+  border-color: var(--brand);
+}
+
+.store-page .store-item-row {
+  gap: 8px;
+  padding: 8px 10px;
+}
+
+.store-page .store-item-icon,
+.store-page .store-item-image {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  font-size: 1.1rem;
+}
+
+.store-page .store-item-icon {
+  border: 1.5px solid color-mix(in srgb, var(--brand) 35%, var(--border));
+  background: color-mix(in srgb, var(--brand) 10%, var(--surface));
+}
+
+.store-page .store-item-name {
+  font-size: 0.86rem;
+}
+
+.store-page .store-item-price,
+.store-page .store-item-value {
+  font-size: 0.68rem;
+}
+
+.store-page .store-item-stock {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--green-bg);
+  font-size: 0.76rem;
+}
+
+.store-page .store-item-stock-empty {
+  background: var(--red-bg);
+}
+
+.store-page .store-item-low-badge {
+  font-size: 0.62rem;
+}
+
+.store-page .store-item-quick-actions {
+  gap: 6px;
+  padding: 0 10px 8px;
+}
+
+.store-page .store-quick-btn {
+  padding: 5px 8px;
+  border-width: 1.5px;
+  border-radius: 10px;
+  font-size: 0.72rem;
+}
+
+.store-page .store-quick-buy {
+  border-color: var(--yellow);
+  background: var(--yellow-bg);
+  color: var(--yellow);
+}
+
+.store-page .store-quick-sell {
+  border-color: var(--green);
+  background: var(--green-bg);
+  color: var(--green);
+}
+
+.store-page .store-quick-edit {
+  padding: 5px 10px;
+  border-color: color-mix(in srgb, var(--brand) 45%, var(--border));
+  background: color-mix(in srgb, var(--brand) 8%, var(--surface));
+  color: var(--brand);
+}
+
+.store-panel-kind {
+  width: 100%;
+  margin: 0;
+  padding: 6px 10px;
+  border: 1.5px solid var(--yellow);
+  border-radius: 10px;
+  background: var(--yellow-bg);
+  color: var(--yellow);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.store-page .report-collapse-toggle {
+  min-height: 38px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  border: 1.5px solid var(--border);
+  border-inline-start: 4px solid var(--brand);
+  border-radius: 12px;
+  font-size: 0.82rem;
+}
+
+.store-page > .section:nth-of-type(3) .report-collapse-toggle {
+  border-inline-start-color: var(--mint);
+}
+
+.store-page > .section:nth-of-type(4) .report-collapse-toggle {
+  border-inline-start-color: var(--violet);
+}

@@ -1,8 +1,6 @@
 "use client";
 
 import { DateInput } from "@/components/DateInput";
-import type { BalanceFormInput } from "@/components/AccountsSection";
-import { saveClientDevicePayment } from "@/lib/clientDevicePaymentSave";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
@@ -14,9 +12,8 @@ import {
   listClients,
   loadClientStore,
   saveClientStore,
-  updateClient,
 } from "@/lib/clientStore";
-import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerByAccount, LedgerCurrency, loadLedgerStore } from "@/lib/ledgerStore";
+import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerCurrency } from "@/lib/ledgerStore";
 import {
   computeInventoryValueByCurrency,
   computeStockByItem,
@@ -34,15 +31,12 @@ import {
   saveStoreTransactions,
   StoreItem,
   StoreItemRegistry,
-  StoreTransactionKind,
   StoreTransactionList,
   updateStoreItem,
 } from "@/lib/storeStore";
 import { resizeImageToDataUrl } from "@/lib/imageUtils";
 import { formatAmount } from "@/lib/formatAmount";
-import { ClientPicker } from "@/components/ClientPicker";
 import { InvoiceSection } from "@/components/InvoiceSection";
-import { AccountsSection } from "@/components/AccountsSection";
 import { CashRegisterSection } from "@/components/CashRegisterSection";
 import { StoreReportsSection } from "@/components/StoreReportsSection";
 import { Invoice, InvoiceList, loadInvoices, saveInvoices } from "@/lib/invoiceStore";
@@ -52,9 +46,7 @@ import {
   CashEntryList,
   loadCashClosings,
   loadCashEntries,
-  postPartyAdjustmentToCash,
   recordCashEntry,
-  removeLinkedCashEntries,
   saveCashClosings,
   saveCashEntries,
 } from "@/lib/cashStore";
@@ -66,7 +58,6 @@ import {
   saveSupplierStore,
   Supplier,
   SupplierStore,
-  updateSupplier,
 } from "@/lib/supplierStore";
 import {
   createRepresentative,
@@ -83,13 +74,8 @@ import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
 import { loadDemoAccounts } from "@/lib/demoAccountStore";
 import { listAccounts } from "@/lib/apiClient";
 import {
-  deletePartyAdjustment,
   loadPartyAdjustments,
   PartyAdjustmentList,
-  RecordPartyAdjustmentInput,
-  recordPartyAdjustment,
-  updatePartyAdjustment,
-  savePartyAdjustments,
 } from "@/lib/partyBalanceStore";
 
 function todayDateInputValue(): string {
@@ -111,12 +97,12 @@ export default function StorePage() {
   const [cashClosings, setCashClosings] = useState<CashClosingList>([]);
   const [deviceOffer, setDeviceOffer] = useState<NewDevicePrefill | null>(null);
   const [accounts, setAccounts] = useState<StarlinkAccountSummary[]>(demoAccounts);
-  const [ledgerStore, setLedgerStore] = useState<LedgerByAccount>({});
   const [partyAdjustments, setPartyAdjustments] = useState<PartyAdjustmentList>([]);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
-  const [pendingKind, setPendingKind] = useState<StoreTransactionKind>("buy");
   const [showAddItem, setShowAddItem] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  /** «بيع» on an item opens a new sale invoice with that item - selling goes through invoices only. */
+  const [saleRequest, setSaleRequest] = useState<{ itemId: string; nonce: number } | null>(null);
 
   useEffect(() => {
     setItems(loadStoreItems());
@@ -127,7 +113,6 @@ export default function StorePage() {
     setRepresentativeStore(loadRepresentativeStore());
     setCashEntries(loadCashEntries());
     setCashClosings(loadCashClosings());
-    setLedgerStore(loadLedgerStore());
     setPartyAdjustments(loadPartyAdjustments());
     if (isDemoMode()) {
       setAccounts(loadDemoAccounts(demoAccounts));
@@ -164,95 +149,6 @@ export default function StorePage() {
     return result.supplier;
   }
 
-  function handleUpdateClient(clientId: string, input: CreateClientInput) {
-    const next = updateClient(clientStore, clientId, input);
-    setClientStore(next);
-    saveClientStore(next);
-  }
-
-  function handleUpdateSupplier(supplierId: string, input: CreateSupplierInput) {
-    const next = updateSupplier(supplierStore, supplierId, input);
-    setSupplierStore(next);
-    saveSupplierStore(next);
-  }
-
-  function handleAddAdjustment(input: RecordPartyAdjustmentInput): string | null {
-    const result = recordPartyAdjustment(partyAdjustments, input);
-    if (!result.ok) return result.message;
-    setPartyAdjustments(result.list);
-    savePartyAdjustments(result.list);
-    if (result.adjustment.cashMoved) {
-      const partyName =
-        (input.partyKind === "client" ? clientStore[input.partyId]?.name : supplierStore[input.partyId]?.name) ?? "";
-      const cash = postPartyAdjustmentToCash(loadCashEntries(), result.adjustment, partyName);
-      setCashEntries(cash);
-    saveCashEntries(cash);
-    }
-    return null;
-  }
-
-  /** Edits a balance entry; its linked cash entry (if any) is replaced to match. */
-  function handleUpdateAdjustment(adjustmentId: string, input: Omit<BalanceFormInput, "deviceId">): string | null {
-    const result = updatePartyAdjustment(partyAdjustments, adjustmentId, input);
-    if (!result.ok) return result.message;
-    setPartyAdjustments(result.list);
-    savePartyAdjustments(result.list);
-    const party = result.adjustment.partyKind === "client" ? clientStore[result.adjustment.partyId] : supplierStore[result.adjustment.partyId];
-    const cash = postPartyAdjustmentToCash(removeLinkedCashEntries(loadCashEntries(), adjustmentId), result.adjustment, party?.name ?? "");
-    saveCashEntries(cash);
-    setCashEntries(cash);
-    return null;
-  }
-
-  /** Turns a general "له" entry into a payment on one of the client's devices. */
-  function handleMoveAdjustmentToDevice(adjustmentId: string, deviceId: string, input: Omit<BalanceFormInput, "deviceId">): string | null {
-    const device = accounts.find((a) => a.id === deviceId);
-    if (!device) return "الجهاز غير موجود";
-    if (input.direction !== "weOwe") return "يمكن نقل الدفعات (له) فقط إلى جهاز";
-    const original = partyAdjustments.find((a) => a.id === adjustmentId);
-    // The general entry's own cash posting goes first - the device payment re-posts it if cash.
-    saveCashEntries(removeLinkedCashEntries(loadCashEntries(), adjustmentId));
-    const result = saveClientDevicePayment(
-      ledgerStore,
-      { id: device.id, name: device.name, email: device.expectedEmail || device.starlinkAccountEmail || undefined },
-      input,
-    );
-    if (!result.ok) {
-      // Put the removed cash entry back so nothing changed.
-      if (original) saveCashEntries(postPartyAdjustmentToCash(loadCashEntries(), original, clientStore[original.partyId]?.name ?? ""));
-      return result.message;
-    }
-    setLedgerStore(result.ledgerStore);
-    const next = deletePartyAdjustment(partyAdjustments, adjustmentId);
-    setPartyAdjustments(next);
-    savePartyAdjustments(next);
-    setCashEntries(loadCashEntries());
-    return null;
-  }
-
-  /** "الدفعة عن جهاز" from a client card - recorded in that device's own ledger. */
-  function handleAddDevicePayment(deviceId: string, input: Omit<BalanceFormInput, "deviceId">): string | null {
-    const device = accounts.find((a) => a.id === deviceId);
-    if (!device) return "الجهاز غير موجود";
-    const result = saveClientDevicePayment(
-      ledgerStore,
-      { id: device.id, name: device.name, email: device.expectedEmail || device.starlinkAccountEmail || undefined },
-      input,
-    );
-    if (!result.ok) return result.message;
-    setLedgerStore(result.ledgerStore);
-    return null;
-  }
-
-  function handleDeleteAdjustment(adjustmentId: string) {
-    const next = deletePartyAdjustment(partyAdjustments, adjustmentId);
-    setPartyAdjustments(next);
-    savePartyAdjustments(next);
-    const cash = removeLinkedCashEntries(loadCashEntries(), adjustmentId);
-    setCashEntries(cash);
-    saveCashEntries(cash);
-  }
-
   function handleCreateRepresentative(input: CreateRepresentativeInput): Representative {
     const result = createRepresentative(representativeStore, input);
     setRepresentativeStore(result.store);
@@ -265,7 +161,7 @@ export default function StorePage() {
     setItems(result.items);
     saveStoreItems(result.items);
     setShowAddItem(false);
-    openItem(result.item.id, "buy");
+    openItem(result.item.id);
   }
 
   function submitEditItem(itemId: string, input: CreateStoreItemInput) {
@@ -275,12 +171,10 @@ export default function StorePage() {
     setEditingItemId(null);
   }
 
-  /** Opens (or re-opens with a different preset kind) one item's buy/sell panel - used both by
-   * tapping the row itself (defaults to "buy") and by the row's own quick شراء/بيع buttons. */
-  function openItem(itemId: string, kind: StoreTransactionKind) {
+  /** Opens one item's purchase panel (stock in) - selling goes through a sale invoice. */
+  function openItem(itemId: string) {
     setEditingItemId(null);
     setSelectedItemId(itemId);
-    setPendingKind(kind);
   }
 
   function toggleItem(itemId: string) {
@@ -288,11 +182,11 @@ export default function StorePage() {
       setSelectedItemId(null);
       return;
     }
-    openItem(itemId, "buy");
+    openItem(itemId);
   }
 
   return (
-    <main className="home">
+    <main className="home store-page">
       <div className="session-header">
         <Link href="/" className="btn-link">
           ← رجوع
@@ -304,11 +198,11 @@ export default function StorePage() {
         {itemList.length > 0 && (
           <div className="store-summary-row">
             <div className="store-summary-tile">
-              <span className="store-summary-label">عدد المواد</span>
+              <span className="store-summary-label"><span className="store-summary-icon" aria-hidden="true">📦</span>عدد المواد</span>
               <strong className="store-summary-value">{itemList.length}</strong>
             </div>
             <div className="store-summary-tile">
-              <span className="store-summary-label">قيمة المخزون التقريبية</span>
+              <span className="store-summary-label"><span className="store-summary-icon" aria-hidden="true">💰</span>قيمة المخزون</span>
               {inventoryValueCurrencies.length === 0 ? (
                 <strong className="store-summary-value">—</strong>
               ) : (
@@ -323,7 +217,7 @@ export default function StorePage() {
             </div>
             {lowStockCount > 0 && (
               <div className="store-summary-tile store-summary-tile-warning">
-                <span className="store-summary-label">تنبيه نفاد</span>
+                <span className="store-summary-label"><span className="store-summary-icon" aria-hidden="true">⚠️</span>قارب النفاد</span>
                 <strong className="store-summary-value">{lowStockCount}</strong>
               </div>
             )}
@@ -331,7 +225,7 @@ export default function StorePage() {
         )}
 
         <div className="store-items-header">
-          <h2 className="section-title">المواد</h2>
+          <h2 className="section-title">🗃️ المواد</h2>
           <button
             type="button"
             className="btn-icon"
@@ -412,17 +306,20 @@ export default function StorePage() {
                     <button
                       type="button"
                       className="store-quick-btn store-quick-buy"
-                      onClick={() => openItem(item.id, "buy")}
+                      onClick={() => openItem(item.id)}
                     >
-                      + شراء
+                      📥 شراء
                     </button>
                     <button
                       type="button"
                       className="store-quick-btn store-quick-sell"
-                      onClick={() => openItem(item.id, "sell")}
+                      onClick={() => {
+                        setSelectedItemId(null);
+                        setSaleRequest({ itemId: item.id, nonce: Date.now() });
+                      }}
                       disabled={stock <= 0}
                     >
-                      + بيع
+                      🧾 بيع بفاتورة
                     </button>
                     <button
                       type="button"
@@ -432,7 +329,7 @@ export default function StorePage() {
                         setEditingItemId(isEditing ? null : item.id);
                       }}
                     >
-                      {isEditing ? "إلغاء" : "تعديل"}
+                      {isEditing ? "✕ إلغاء" : "✏️ تعديل"}
                     </button>
                   </div>
                   {isEditing && (
@@ -446,14 +343,11 @@ export default function StorePage() {
                   )}
                   {isOpen && (
                     <StoreItemPanel
-                      key={`${item.id}-${pendingKind}`}
+                      key={item.id}
                       item={item}
                       stock={stock}
-                      initialKind={pendingKind}
                       transactions={transactions}
-                      clients={clients}
                       clientStore={clientStore}
-                      onCreateClient={handleCreateClient}
                       onChange={(next) => {
                         setTransactions(next);
                         saveStoreTransactions(next);
@@ -468,6 +362,7 @@ export default function StorePage() {
       </section>
 
       <InvoiceSection
+        saleRequest={saleRequest}
         items={items}
         transactions={transactions}
         invoices={invoices}
@@ -516,24 +411,6 @@ export default function StorePage() {
           </div>
         </div>
       )}
-
-      <AccountsSection
-        clients={clients}
-        suppliers={suppliers}
-        invoices={invoices}
-        accounts={accounts}
-        ledgerStore={ledgerStore}
-        adjustments={partyAdjustments}
-        onAddAdjustment={handleAddAdjustment}
-        onDeleteAdjustment={handleDeleteAdjustment}
-        onAddDevicePayment={handleAddDevicePayment}
-        onUpdateAdjustment={handleUpdateAdjustment}
-        onMoveAdjustmentToDevice={handleMoveAdjustmentToDevice}
-        onCreateClient={handleCreateClient}
-        onUpdateClient={handleUpdateClient}
-        onCreateSupplier={handleCreateSupplier}
-        onUpdateSupplier={handleUpdateSupplier}
-      />
 
       <CashRegisterSection
         entries={cashEntries}
@@ -764,35 +641,29 @@ function ItemForm({ initial, onSubmit, onCancel }: ItemFormProps) {
 interface PanelProps {
   item: StoreItem;
   stock: number;
-  initialKind: StoreTransactionKind;
   transactions: StoreTransactionList;
-  clients: Client[];
   clientStore: ClientStore;
-  onCreateClient: (input: CreateClientInput) => Client;
   onChange: (transactions: StoreTransactionList) => void;
 }
 
 /** One item's own buy/sell form plus its transaction history - shown inline under the item row
  * once expanded, never as a separate navigation (a real inventory's whole point is seeing the
  * item, its current stock, and what to do next all in one place). */
-function StoreItemPanel({ item, stock, initialKind, transactions, clients, clientStore, onCreateClient, onChange }: PanelProps) {
-  const [kind, setKind] = useState<StoreTransactionKind>(initialKind);
+function StoreItemPanel({ item, stock, transactions, clientStore, onChange }: PanelProps) {
   // Pre-filled from the item's own default buy/sell price when it has one - still a plain form
   // field the operator can freely change before saving; the transaction never reads the item's
   // default again once submitted.
   const [quantity, setQuantity] = useState("");
   const [unitPrice, setUnitPrice] = useState(() => {
-    const def = initialKind === "buy" ? item.defaultPurchasePrice : item.defaultSalePrice;
+    const def = item.defaultPurchasePrice;
     return def !== undefined ? String(def) : "";
   });
   const [currencyCode, setCurrencyCode] = useState<LedgerCurrency>(() => {
-    const def = initialKind === "buy" ? item.defaultPurchaseCurrencyCode : item.defaultSaleCurrencyCode;
+    const def = item.defaultPurchaseCurrencyCode;
     return (def as LedgerCurrency | undefined) ?? "MRU";
   });
   const [date, setDate] = useState(todayDateInputValue());
   const [note, setNote] = useState("");
-  const [linkClient, setLinkClient] = useState(false);
-  const [clientId, setClientId] = useState<string | undefined>(undefined);
   const [formError, setFormError] = useState<string | null>(null);
 
   const itemTransactions = listTransactionsForItem(transactions, item.id);
@@ -801,11 +672,10 @@ function StoreItemPanel({ item, stock, initialKind, transactions, clients, clien
     event.preventDefault();
     const result = recordStoreTransaction(transactions, {
       itemId: item.id,
-      kind,
+      kind: "buy",
       quantity: Number(quantity),
       unitPrice: Number(unitPrice),
       currencyCode,
-      clientId: kind === "sell" && linkClient ? clientId : undefined,
       note,
       date,
     });
@@ -818,8 +688,6 @@ function StoreItemPanel({ item, stock, initialKind, transactions, clients, clien
     setQuantity("");
     setUnitPrice("");
     setNote("");
-    setLinkClient(false);
-    setClientId(undefined);
   }
 
   function deleteTransaction(transactionId: string) {
@@ -830,18 +698,7 @@ function StoreItemPanel({ item, stock, initialKind, transactions, clients, clien
   return (
     <div className="store-item-panel">
       <form className="ledger-entry-form" onSubmit={submit}>
-        <select
-          className="search-input"
-          value={kind}
-          onChange={(e) => {
-            setKind(e.target.value as StoreTransactionKind);
-            setLinkClient(false);
-            setClientId(undefined);
-          }}
-        >
-          <option value="buy">شراء (وارد للمخزون)</option>
-          <option value="sell">بيع (من المخزون)</option>
-        </select>
+        <p className="store-panel-kind">📥 شراء - وارد للمخزون · البيع يكون بفاتورة بيع 🧾</p>
         <input
           className="search-input"
           type="number" lang="en"
@@ -871,18 +728,6 @@ function StoreItemPanel({ item, stock, initialKind, transactions, clients, clien
         </select>
         <DateInput className="search-input"  value={date} onChange={(e) => setDate(e.target.value)} />
 
-        {kind === "sell" && (
-          <div className="form-field form-wide">
-            <label className="ledger-d-toggle">
-              <input type="checkbox" checked={linkClient} onChange={(e) => setLinkClient(e.target.checked)} />
-              ربط هذه العملية بزبون
-            </label>
-            {linkClient && (
-              <ClientPicker clients={clients} selectedClientId={clientId} onSelect={setClientId} onCreateClient={onCreateClient} />
-            )}
-          </div>
-        )}
-
         <input
           className="search-input ledger-note-input"
           type="text"
@@ -893,7 +738,7 @@ function StoreItemPanel({ item, stock, initialKind, transactions, clients, clien
 
         {formError && <div className="account-card-alert ledger-form-error">{formError}</div>}
         <button className="dialog-primary" type="submit">
-          حفظ الحركة
+          حفظ الشراء
         </button>
       </form>
 
