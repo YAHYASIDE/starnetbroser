@@ -78,6 +78,8 @@ interface Props {
   onSetDeviceFault: (account: StarlinkAccountSummary, fault: StarlinkAccountSummary["deviceFault"], waiveDebts: boolean) => void;
   /** 🛠️ قيد الإصلاح on / off. */
   onSetRepair: (account: StarlinkAccountSummary, repair: StarlinkAccountSummary["underRepair"]) => void;
+  /** This device's mailbox (📧 البريد) is signed in on this phone - the button turns mint green. */
+  mailSignedIn?: boolean;
   /** Moves the device to the archive ("active" context only). */
   onArchive: (account: StarlinkAccountSummary) => void;
   /** Moves the device to the recoverable trash ("active" context only). */
@@ -200,7 +202,7 @@ function IconUndo() {
 
 export function AccountCard({
   account, onEdit, ledgerEntries, allocations, onLedger, onDeviceStatement, client, onOpenClient, currencyStore,
-  context = "active", onSetDeviceFault, onSetRepair, onArchive, onSoftDelete, onRestore, onPermanentDelete, onConfirmRenewal,
+  context = "active", onSetDeviceFault, onSetRepair, mailSignedIn = false, onArchive, onSoftDelete, onRestore, onPermanentDelete, onConfirmRenewal,
   sessionNeedsLogin = false,
   previousDebts = [],
   onAddPreviousDebt,
@@ -600,11 +602,11 @@ export function AccountCard({
           <span aria-hidden="true">↗</span> {opening ? "جارِ الفتح…" : "فتح الحساب"}
         </button>
         <button
-          className="card-action card-action-mail"
+          className={`card-action card-action-mail${mailSignedIn ? " card-action-mail-on" : ""}`}
           type="button"
           onClick={handleOpenMail}
           disabled={opening}
-          title={isAndroidApp ? "بريد هذا الجهاز داخل التطبيق" : "متاح فقط داخل تطبيق STAR NET لنظام Android"}
+          title={!isAndroidApp ? "متاح فقط داخل تطبيق STAR NET لنظام Android" : mailSignedIn ? "البريد مسجّل - يفتح مباشرة" : "البريد غير مسجّل بعد - سجّل الدخول مرة واحدة"}
           aria-label="بريد الجهاز"
         >
           <span aria-hidden="true">📧</span> البريد

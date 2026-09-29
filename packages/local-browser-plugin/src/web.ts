@@ -18,6 +18,7 @@ import type {
   LocalBrowserPlugin,
   OpenAccountBrowserOptions,
   OpenMailBrowserOptions,
+  ListMailSessionsResult,
   SetAutoSyncAccountIdsOptions,
   SetAutoSyncAccountIdsResult,
   SetAutoSyncEnabledOptions,
@@ -49,6 +50,10 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
 
   async openMailBrowser(_options: OpenMailBrowserOptions): Promise<void> {
     throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
+  }
+
+  async listMailSessions(): Promise<ListMailSessionsResult> {
+    return { sessions: [] };
   }
 
   async deleteAccountSession(_options: DeleteAccountSessionOptions): Promise<DeleteAccountSessionResult> {

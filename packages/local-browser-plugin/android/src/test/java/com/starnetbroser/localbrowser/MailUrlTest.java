@@ -43,6 +43,26 @@ public class MailUrlTest {
     }
 
     @Test
+    public void theLoadedPageSaysWhetherTheMailboxIsSignedIn() {
+        assertEquals(MailUrl.SessionState.SIGNED_IN, MailUrl.sessionState("https://outlook.live.com/mail/0/"));
+        assertEquals(MailUrl.SessionState.SIGNED_IN, MailUrl.sessionState("https://outlook.live.com/mail/0/inbox/id/AQ"));
+        assertEquals(MailUrl.SessionState.SIGNED_OUT, MailUrl.sessionState("https://login.live.com/login.srf?username=a"));
+        assertEquals(MailUrl.SessionState.SIGNED_OUT, MailUrl.sessionState("https://login.microsoftonline.com/common/oauth2"));
+        assertEquals(MailUrl.SessionState.UNKNOWN, MailUrl.sessionState("https://outlook.live.com/owa/"));
+        assertEquals(MailUrl.SessionState.UNKNOWN, MailUrl.sessionState("https://play.google.com/store"));
+        assertEquals(MailUrl.SessionState.UNKNOWN, MailUrl.sessionState(null));
+    }
+
+    @Test
+    public void storedSessionsReadBack() {
+        String[] parts = MailSessionStore.parse("1727600000000|a@outlook.com");
+        assertEquals("1727600000000", parts[0]);
+        assertEquals("a@outlook.com", parts[1]);
+        assertEquals("", MailSessionStore.parse("5|")[1]);
+        assertEquals(null, MailSessionStore.parse("broken"));
+    }
+
+    @Test
     public void theMailboxProfileIsSeparateFromTheStarlinkOne() {
         assertNotEquals(ProfileNaming.profileNameFor("acc-1"), ProfileNaming.mailProfileNameFor("acc-1"));
         assertNotEquals(ProfileNaming.mailProfileNameFor("acc-1"), ProfileNaming.mailProfileNameFor("acc-2"));

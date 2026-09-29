@@ -69,6 +69,17 @@ export function mailLoginFor(account: Pick<StarlinkAccountSummary, "expectedEmai
   return { ...(email ? { email } : {}), ...(password ? { password } : {}) };
 }
 
+/** The devices whose mailbox is signed in on this phone (the green «📧 البريد»). Empty off-app. */
+export async function listMailSessions(): Promise<{ accountId: string; email: string; signedInAt: number }[]> {
+  if (!isRunningInAndroidApp()) return [];
+  try {
+    const { sessions } = await LocalBrowser.listMailSessions();
+    return sessions;
+  } catch {
+    return [];
+  }
+}
+
 /** Opens the device's Outlook mailbox inside the app, in its own isolated profile. */
 export async function openIsolatedMailbox(accountId: string, accountName: string, login: MailLogin = {}): Promise<OpenResult> {
   if (!isRunningInAndroidApp()) {

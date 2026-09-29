@@ -109,6 +109,7 @@ import {
   checkAccountSession,
   deleteIsolatedAccountSession,
   isRunningInAndroidApp,
+  listMailSessions,
   listPendingAccountSyncs,
   onAccountDataSynced,
   openIsolatedAccountBrowser,
@@ -187,6 +188,25 @@ export function HomeView({
    * devices only). */
   viewMode?: AccountCardContext;
 }) {
+  // 📧 Devices whose mailbox is signed in on this phone - their «البريد» button turns mint green.
+  const [mailSignedIds, setMailSignedIds] = useState<Set<string>>(() => new Set());
+  useEffect(() => {
+    let alive = true;
+    const refresh = () => {
+      listMailSessions().then((sessions) => {
+        if (alive) setMailSignedIds(new Set(sessions.map((s) => s.accountId)));
+      });
+    };
+    refresh();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      alive = false;
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
   const [query, setQuery] = useState("");
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [statFilter, setStatFilter] = useState<StatFilterKind | null>(null);
@@ -1417,6 +1437,7 @@ export function HomeView({
                 onDeviceStatement={(selected) => setStatementAccount(selected)}
                 client={getClient(clientStore, account.clientId)}
                 repColor={getRepresentative(representativeStore, account.representativeId)?.color}
+                mailSignedIn={mailSignedIds.has(account.id)}
                 onOpenClient={(selectedClient) => setOpenClientId(selectedClient.id)}
                 currencyStore={currencyStore}
                 onSetDeviceFault={handleSetDeviceFault}

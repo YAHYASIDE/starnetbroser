@@ -40,18 +40,22 @@ public class MailBrowserActivity extends AppCompatActivity {
     public static final String EXTRA_TITLE = "com.starnetbroser.localbrowser.MAIL_TITLE";
     public static final String EXTRA_EMAIL = "com.starnetbroser.localbrowser.MAIL_EMAIL";
     public static final String EXTRA_PASSWORD = "com.starnetbroser.localbrowser.MAIL_PASSWORD";
+    public static final String EXTRA_ACCOUNT_ID = "com.starnetbroser.localbrowser.MAIL_ACCOUNT_ID";
 
     private WebView webView;
     private ProgressBar progressBar;
     private View errorOverlay;
     private String homeUrl;
     private String autofillScript;
+    private String accountId;
+    private String email;
 
     /** Starts one device's mailbox (from the plugin or from that device's Starlink browser). */
     static Intent intentFor(Context context, String accountId, String title, String email, String password) {
         Intent intent = new Intent(context, MailBrowserActivity.class);
         intent.putExtra(EXTRA_PROFILE_NAME, ProfileNaming.mailProfileNameFor(accountId));
         intent.putExtra(EXTRA_TITLE, title);
+        intent.putExtra(EXTRA_ACCOUNT_ID, accountId);
         if (email != null && !email.trim().isEmpty()) intent.putExtra(EXTRA_EMAIL, email.trim());
         if (password != null && !password.isEmpty()) intent.putExtra(EXTRA_PASSWORD, password);
         // Its own "document" per device, like the Starlink browser: reopening brings it back.
@@ -66,7 +70,8 @@ public class MailBrowserActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         String profileName = getIntent().getStringExtra(EXTRA_PROFILE_NAME);
         String title = getIntent().getStringExtra(EXTRA_TITLE);
-        String email = getIntent().getStringExtra(EXTRA_EMAIL);
+        accountId = getIntent().getStringExtra(EXTRA_ACCOUNT_ID);
+        email = getIntent().getStringExtra(EXTRA_EMAIL);
         homeUrl = MailUrl.inboxUrlFor(email);
         autofillScript = LoginAutofill.script(email, getIntent().getStringExtra(EXTRA_PASSWORD));
 
@@ -198,6 +203,10 @@ public class MailBrowserActivity extends AppCompatActivity {
         @Override
         public void onPageFinished(WebView view, String url) {
             super.onPageFinished(view, url);
+            // Remembers whether this device's mailbox is signed in (the green «📧 البريد» button).
+            MailUrl.SessionState state = MailUrl.sessionState(url);
+            if (state == MailUrl.SessionState.SIGNED_IN) MailSessionStore.markSignedIn(MailBrowserActivity.this, accountId, email);
+            else if (state == MailUrl.SessionState.SIGNED_OUT) MailSessionStore.markSignedOut(MailBrowserActivity.this, accountId);
             if (autofillScript != null && MailUrl.isAllowed(url)) view.evaluateJavascript(autofillScript, null);
         }
 

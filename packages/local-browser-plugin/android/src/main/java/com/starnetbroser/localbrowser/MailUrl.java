@@ -70,6 +70,24 @@ public final class MailUrl {
         return false;
     }
 
+    /** What a loaded mailbox page says about its sign-in: the inbox, the sign-in page, or neither. */
+    public enum SessionState { SIGNED_IN, SIGNED_OUT, UNKNOWN }
+
+    public static SessionState sessionState(String url) {
+        if (!isAllowed(url)) return SessionState.UNKNOWN;
+        URI uri;
+        try {
+            uri = new URI(url);
+        } catch (URISyntaxException e) {
+            return SessionState.UNKNOWN;
+        }
+        String host = uri.getHost().toLowerCase(Locale.ROOT);
+        String path = uri.getPath() == null ? "" : uri.getPath().toLowerCase(Locale.ROOT);
+        if (host.equals("outlook.live.com") && path.startsWith("/mail/")) return SessionState.SIGNED_IN;
+        if (host.startsWith("login.")) return SessionState.SIGNED_OUT;
+        return SessionState.UNKNOWN;
+    }
+
     /** The inbox, with the email as a sign-in hint when there is one. */
     public static String inboxUrlFor(String email) {
         if (email == null || email.trim().isEmpty()) return INBOX_URL;

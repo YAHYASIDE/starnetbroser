@@ -21,6 +21,18 @@ export interface OpenAccountBrowserOptions {
   mailPassword?: string;
 }
 
+export interface MailSession {
+  accountId: string;
+  /** The email the mailbox was opened with ("" when it had none). */
+  email: string;
+  /** When the inbox was last reached (ms since epoch). */
+  signedInAt: number;
+}
+
+export interface ListMailSessionsResult {
+  sessions: MailSession[];
+}
+
 export interface OpenMailBrowserOptions {
   /** The device (StarlinkAccountSummary.id) whose mailbox this is - its own isolated profile. */
   accountId: string;
@@ -345,6 +357,9 @@ export interface LocalBrowserPlugin {
    * page. Rejects on web and on devices without Multi-Profile.
    */
   openMailBrowser(options: OpenMailBrowserOptions): Promise<void>;
+
+  /** The devices whose mailbox (📧 البريد) is signed in on this phone. Empty on web. */
+  listMailSessions(): Promise<ListMailSessionsResult>;
 
   /**
    * Permanently deletes the on-device profile (cookies, localStorage,

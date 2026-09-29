@@ -236,6 +236,28 @@ public class LocalBrowserPlugin extends Plugin {
         call.resolve();
     }
 
+    /** The devices whose mailbox (📧 البريد) is signed in on this phone - id, email, since when. */
+    @PluginMethod
+    public void listMailSessions(PluginCall call) {
+        com.getcapacitor.JSArray sessions = new com.getcapacitor.JSArray();
+        for (java.util.Map.Entry<String, String[]> entry : MailSessionStore.all(getContext()).entrySet()) {
+            JSObject item = new JSObject();
+            item.put("accountId", entry.getKey());
+            item.put("email", entry.getValue()[1]);
+            long at = 0;
+            try {
+                at = Long.parseLong(entry.getValue()[0]);
+            } catch (NumberFormatException ignored) {
+                // an unreadable time stays 0
+            }
+            item.put("signedInAt", at);
+            sessions.put(item);
+        }
+        JSObject ret = new JSObject();
+        ret.put("sessions", sessions);
+        call.resolve(ret);
+    }
+
     @PluginMethod
     public void deleteAccountSession(PluginCall call) {
         String accountId = call.getString("accountId");
@@ -262,6 +284,7 @@ public class LocalBrowserPlugin extends Plugin {
         mainHandler.post(() -> {
             // The device's mailbox profile (📧 البريد) goes with it - best effort, it may never
             // have been opened.
+            MailSessionStore.markSignedOut(getContext(), accountId);
             try {
                 ProfileStore.getInstance().deleteProfile(ProfileNaming.mailProfileNameFor(accountId));
             } catch (RuntimeException ignored) {

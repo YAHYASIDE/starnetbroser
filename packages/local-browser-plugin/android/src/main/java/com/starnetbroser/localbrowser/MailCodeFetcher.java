@@ -35,6 +35,8 @@ final class MailCodeFetcher {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Listener listener;
     private final String tried;
+    private final Context appContext;
+    private final String accountId;
     private WebView webView;
     private long startedAt;
     private long lastReloadAt;
@@ -43,6 +45,8 @@ final class MailCodeFetcher {
     MailCodeFetcher(Context context, String accountId, String tried, Listener listener) {
         this.listener = listener;
         this.tried = tried;
+        this.appContext = context.getApplicationContext();
+        this.accountId = accountId;
         String profileName = ProfileNaming.mailProfileNameFor(accountId);
         ProfileStore.getInstance().getOrCreateProfile(profileName);
         webView = new WebView(context);
@@ -92,6 +96,7 @@ final class MailCodeFetcher {
         }
         String url = webView.getUrl();
         if (url != null && url.contains("login.") && now - startedAt > SIGNED_OUT_AFTER_MS) {
+            MailSessionStore.markSignedOut(appContext, accountId);
             finish(() -> listener.onSignedOut());
             return;
         }

@@ -109,6 +109,7 @@ const TOP_MORE_ITEMS: MoreItem[] = [
   { label: "الأدوات والتوقعات", icon: "tools", color: "#8b5cf6", tint: "#ece4ff", href: "/tools" },
   { label: "ستارلينك والبطاقة", icon: "card", color: "#1668e3", tint: "#d6e3fb", href: "/starlink" },
   { label: "العملات", icon: "coins", color: "#22c55e", tint: "#d4f7e1", href: "/currencies" },
+  { label: "البريد المسجّل", icon: "mail", color: "#0891b2", tint: "#dbf3f9", href: "/mailboxes" },
   { label: "الأرشيف", icon: "archive", color: "#64748b", tint: "#e2e8f0", href: "/archive" },
   { label: "سلة المحذوفات", icon: "trash", color: "#e0294a", tint: "#ffd6de", href: "/trash" },
   { label: "الإعدادات", icon: "settings", color: "#f5a524", tint: "#ffecc7", href: "/settings" },
@@ -177,7 +178,7 @@ export function HeaderMore() {
 
 type IconName =
   | "home" | "people" | "chart" | "handshake" | "bag" | "more" | "bell" | "coins" | "trash" | "archive" | "card"
-  | "plus" | "sync" | "settings" | "close" | "tools";
+  | "plus" | "sync" | "settings" | "close" | "tools" | "mail";
 
 /** Line icons shared by the bottom bar and its "المزيد" sheet (stroke = currentColor). */
 function NavIcon({ name }: { name: IconName }) {
@@ -190,6 +191,12 @@ function NavIcon({ name }: { name: IconName }) {
       </>
     ),
     chart: <path d="M5 20V10M12 20V4M19 20v-7" />,
+    mail: (
+      <>
+        <rect x="3.5" y="5.5" width="17" height="13" rx="2.5" />
+        <path d="m4.5 7 7.5 6 7.5-6" />
+      </>
+    ),
     handshake: <path d="m3 12 4-4 4 2 3-2 7 5-4 4-3-2-2 2-3-2-2 1zM11 10l3 3" />,
     bag: (
       <>
