@@ -93,6 +93,12 @@ public class MailBrowserActivity extends AppCompatActivity {
         settings.setSupportMultipleWindows(false);
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
+        // Full web inbox instead of Outlook's "get the app" page (see MailUrl.DESKTOP_USER_AGENT);
+        // pinch-zoom since that page is laid out for a computer screen.
+        settings.setUserAgentString(MailUrl.DESKTOP_USER_AGENT);
+        settings.setSupportZoom(true);
+        settings.setBuiltInZoomControls(true);
+        settings.setDisplayZoomControls(false);
         webView.setWebViewClient(new MailWebViewClient());
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
@@ -168,9 +174,21 @@ public class MailBrowserActivity extends AppCompatActivity {
         });
     }
 
+    /** Set once an app-store hop was stopped and the inbox reloaded - never loops on it. */
+    private boolean storeRedirectRetried;
+
     private class MailWebViewClient extends WebViewClient {
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+            if (MailUrl.isAppStoreRedirect(request.getUrl().toString())) {
+                if (!storeRedirectRetried) {
+                    storeRedirectRetried = true;
+                    view.loadUrl(homeUrl);
+                } else {
+                    Toast.makeText(MailBrowserActivity.this, "Outlook يطلب تطبيقه - سجّل الدخول من هذه الصفحة", Toast.LENGTH_LONG).show();
+                }
+                return true;
+            }
             String scheme = request.getUrl().getScheme();
             // Never hand off to another app (intent:, market:, ms-outlook: ...) - stays contained.
             return scheme == null || (!scheme.equals("http") && !scheme.equals("https"));

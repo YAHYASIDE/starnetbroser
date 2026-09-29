@@ -30,6 +30,19 @@ public class MailUrlTest {
     }
 
     @Test
+    public void stopsTheGetTheAppHopButNotTheMailbox() {
+        assertTrue(MailUrl.isAppStoreRedirect("https://play.google.com/store/apps/details?id=com.microsoft.office.outlook"));
+        assertTrue(MailUrl.isAppStoreRedirect("market://details?id=com.microsoft.office.outlook"));
+        assertTrue(MailUrl.isAppStoreRedirect("intent://outlook#Intent;end"));
+        assertTrue(MailUrl.isAppStoreRedirect("https://apps.apple.com/app/outlook/id951937596"));
+        assertFalse(MailUrl.isAppStoreRedirect("https://outlook.live.com/mail/0/"));
+        assertFalse(MailUrl.isAppStoreRedirect("https://login.live.com/login.srf"));
+        assertFalse(MailUrl.isAppStoreRedirect(null));
+        assertFalse(MailUrl.DESKTOP_USER_AGENT.contains("Android"));
+        assertFalse(MailUrl.DESKTOP_USER_AGENT.contains("Mobile"));
+    }
+
+    @Test
     public void theMailboxProfileIsSeparateFromTheStarlinkOne() {
         assertNotEquals(ProfileNaming.profileNameFor("acc-1"), ProfileNaming.mailProfileNameFor("acc-1"));
         assertNotEquals(ProfileNaming.mailProfileNameFor("acc-1"), ProfileNaming.mailProfileNameFor("acc-2"));

@@ -21,7 +21,36 @@ public final class MailUrl {
         "microsoft.com", "microsoftonline.com", "office.com",
     };
 
+    /**
+     * Outlook on a phone browser pushes "get the app" (a Google Play page) instead of the inbox, so
+     * the mailbox presents itself as a desktop browser and gets the full web inbox.
+     */
+    public static final String DESKTOP_USER_AGENT =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+
+    private static final String[] APP_STORE_HOSTS = { "play.google.com", "apps.apple.com", "apps.microsoft.com" };
+
     private MailUrl() {}
+
+    /** An "install the Outlook app" hop (app store page or store/intent link) - never followed. */
+    public static boolean isAppStoreRedirect(String url) {
+        if (url == null) return false;
+        String lower = url.trim().toLowerCase(Locale.ROOT);
+        if (lower.startsWith("market:") || lower.startsWith("intent:") || lower.startsWith("ms-outlook:")) return true;
+        URI uri;
+        try {
+            uri = new URI(url.trim());
+        } catch (URISyntaxException e) {
+            return false;
+        }
+        String host = uri.getHost();
+        if (host == null) return false;
+        host = host.toLowerCase(Locale.ROOT);
+        for (String store : APP_STORE_HOSTS) {
+            if (host.equals(store) || host.endsWith("." + store)) return true;
+        }
+        return false;
+    }
 
     public static boolean isAllowed(String url) {
         if (url == null) return false;
