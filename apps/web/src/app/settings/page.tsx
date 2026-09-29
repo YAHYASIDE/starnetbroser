@@ -1,5 +1,6 @@
 "use client";
 
+import { groupForHash, loadRememberedGroup, rememberGroup, SETTINGS_GROUPS, type SettingsGroupId } from "@/lib/settingsGroups";
 import { RepExtraBotsSettings } from "@/components/RepExtraBotsSettings";
 import { RepModeEntrySection } from "@/components/RepModeEntrySection";
 import { useEffect, useRef, useState } from "react";
@@ -118,6 +119,23 @@ export default function SettingsPage() {
   const [defaultCurrency, setDefaultCurrency] = useState<string>("MRU");
   const [remindersBadgeEnabled, setRemindersBadgeEnabledState] = useState(true);
   const [isAndroidApp, setIsAndroidApp] = useState(false);
+  const [group, setGroup] = useState<SettingsGroupId>("general");
+  const current = SETTINGS_GROUPS.find((g) => g.id === group) ?? SETTINGS_GROUPS[0]!;
+
+  // A link like "/settings#backup" opens its group (and scrolls to it); otherwise the last one.
+  useEffect(() => {
+    const hash = window.location.hash;
+    const fromHash = groupForHash(hash);
+    setGroup(fromHash ?? loadRememberedGroup() ?? "general");
+    if (fromHash) {
+      window.setTimeout(() => document.getElementById(hash.slice(1))?.scrollIntoView({ block: "start" }), 300);
+    }
+  }, []);
+
+  function chooseGroup(id: SettingsGroupId) {
+    setGroup(id);
+    rememberGroup(id);
+  }
 
   useEffect(() => {
     setUrl(getApiBaseUrl());
@@ -179,6 +197,29 @@ export default function SettingsPage() {
     <main className="home">
       <h1 className="section-title">الإعدادات</h1>
 
+      <nav className="settings-hub" aria-label="أقسام الإعدادات">
+        {SETTINGS_GROUPS.map((g) => (
+          <button
+            key={g.id}
+            type="button"
+            className={`settings-hub-tile settings-tone-${g.tone}${group === g.id ? " settings-hub-tile-active" : ""}`}
+            onClick={() => chooseGroup(g.id)}
+            aria-pressed={group === g.id}
+          >
+            <span className="settings-hub-icon" aria-hidden="true">{g.icon}</span>
+            <span className="settings-hub-title">{g.title}</span>
+            <span className="settings-hub-subtitle">{g.subtitle}</span>
+          </button>
+        ))}
+      </nav>
+
+      <div className={`settings-group settings-tone-${current.tone}`} id={current.id}>
+        <h2 className="settings-group-title">
+          <span aria-hidden="true">{current.icon}</span> {current.title}
+        </h2>
+
+        {group === "general" && (
+          <>
       <section className="section">
         <h2 className="section-title">المظهر</h2>
         <p className="settings-hint">اختر مظهر التطبيق - يمكنك اختيار الوضع الداكن يدويًا بدل الاعتماد على إعداد الجهاز.</p>
@@ -196,17 +237,6 @@ export default function SettingsPage() {
           ))}
         </div>
       </section>
-
-      <ProfitResetSection />
-
-      <BusinessProfileSection />
-
-      <AppUpdateSection />
-
-      <AutoBackupSection />
-
-      <DriveSection />
-
       <section className="section">
         <h2 className="section-title">المساعدة الذكية</h2>
         <p className="settings-hint">
@@ -224,7 +254,6 @@ export default function SettingsPage() {
           </span>
         </label>
       </section>
-
       <section className="section">
         <h2 className="section-title">العملة الافتراضية للفواتير</h2>
         <p className="settings-hint">
@@ -244,7 +273,13 @@ export default function SettingsPage() {
           ))}
         </div>
       </section>
+            <BusinessProfileSection />
+            <ProfitResetSection />
+          </>
+        )}
 
+        {group === "alerts" && (
+          <>
       <section className="section">
         <h2 className="section-title">التذكيرات والإشعارات</h2>
         <p className="settings-hint">
@@ -264,7 +299,6 @@ export default function SettingsPage() {
         </label>
         <MorningDigestSettings />
         <EveningSummarySettings />
-        {isAndroidApp && <AutoSyncSettings />}
         {isAndroidApp && (
           <div className="settings-actions" style={{ marginTop: "12px" }}>
             <button className="btn-icon" onClick={() => openNotificationSettings()}>
@@ -277,15 +311,45 @@ export default function SettingsPage() {
           بها من إعدادات إشعارات النظام لتطبيق STAR NET - الزر أعلاه يفتحها مباشرة.
         </p>
       </section>
+          </>
+        )}
 
-      <TelegramSection />
-      <TelegramRepsSection />
-      <TelegramInstantSection />
+        {group === "devices" && (
+          <>
+            {isAndroidApp ? (
+              <section className="section">
+                <h2 className="section-title">🔄 تحديث الأجهزة من Starlink</h2>
+                <AutoSyncSettings />
+              </section>
+            ) : (
+              <p className="settings-hint">المزامنة التلقائية تعمل داخل تطبيق أندرويد فقط.</p>
+            )}
+            <SessionCheckSection />
+          </>
+        )}
 
-      <AppLockSection />
+        {group === "bots" && (
+          <>
+            <TelegramSection />
+            <TelegramRepsSection />
+            <TelegramInstantSection />
+          </>
+        )}
 
-      <RepModeEntrySection />
+        {group === "backup" && (
+          <>
+            <BackupSection />
+            <AutoBackupSection />
+            <DriveSection />
+          </>
+        )}
 
+        {group === "security" && (
+          <>
+            <AppLockSection />
+            <AppUpdateSection />
+            <RepModeEntrySection />
+            <StorageUsageSection />
       <section className="section">
         <h2 className="section-title">عنوان الخادم</h2>
         <p className="settings-hint">
@@ -307,7 +371,6 @@ export default function SettingsPage() {
           {testResult === "fail" && <span className="conn-badge conn-error">تعذّر الاتصال بهذا العنوان</span>}
         </div>
       </section>
-
       {url && (
         <section className="section">
           <h2 className="section-title">حساب STAR NET</h2>
@@ -344,12 +407,9 @@ export default function SettingsPage() {
           )}
         </section>
       )}
-
-      <BackupSection />
-
-      <SessionCheckSection />
-
-      <StorageUsageSection />
+          </>
+        )}
+      </div>
     </main>
   );
 }
@@ -892,7 +952,7 @@ function DriveSection() {
   const lastAt = last ? formatLocalDateTime(new Date(last.at)) : null;
 
   return (
-    <section className="section">
+    <section className="section" id="drive">
       <h2 className="section-title">☁️ نسخة في Google Drive</h2>
       <p className="settings-hint">
         كل يوم تُرفع نسخة كاملة مشفّرة إلى مجلد STARNET في حسابك على Google Drive، ويُحتفظ بآخر 30 نسخة - حتى لو ضاع
