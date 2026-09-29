@@ -1,5 +1,8 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+import { PaymentPickerSheet } from "@/components/HomeFab";
+import { homePaymentHref } from "@/lib/homeActions";
 import type { BalanceFormInput } from "@/components/AccountsSection";
 import { saveClientDevicePayment } from "@/lib/clientDevicePaymentSave";
 import { useEffect, useMemo, useState } from "react";
@@ -59,6 +62,8 @@ export default function ClientsPage() {
   const [partyAdjustments, setPartyAdjustments] = useState<PartyAdjustmentList>([]);
   const [openClientId, setOpenClientId] = useState<string | null>(null);
   const [representatives, setRepresentatives] = useState<RepresentativeStore>({});
+  const [picking, setPicking] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     setClientStore(loadClientStore());
@@ -213,7 +218,24 @@ export default function ClientsPage() {
 
   return (
     <main className="home">
-      <h1 className="section-title">الزبائن والموردون</h1>
+      <div className="clients-title-row">
+        <h1 className="section-title">الزبائن والموردون</h1>
+        <button type="button" className="clients-pay-button" onClick={() => setPicking(true)}>
+          💵 دفعة من زبون
+        </button>
+      </div>
+      {picking && (
+        <PaymentPickerSheet
+          accounts={accounts.filter((a) => !a.deletedAt)}
+          clientStore={clientStore}
+          ledgerStore={ledgerStore}
+          onPick={(account) => {
+            setPicking(false);
+            router.push(homePaymentHref(account.id));
+          }}
+          onClose={() => setPicking(false)}
+        />
+      )}
       <section className="section">
         <PartyDirectory
           clients={clients}

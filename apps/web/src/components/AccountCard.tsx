@@ -76,6 +76,8 @@ interface Props {
   /** Applies a new/updated fault record (or clears it, via a separate call with `null`). */
   /** `waiveDebts`: drop the device's open D (deviceFault.ts) - only ever true when marking a fault. */
   onSetDeviceFault: (account: StarlinkAccountSummary, fault: StarlinkAccountSummary["deviceFault"], waiveDebts: boolean) => void;
+  /** 🛠️ قيد الإصلاح on / off. */
+  onSetRepair: (account: StarlinkAccountSummary, repair: StarlinkAccountSummary["underRepair"]) => void;
   /** Moves the device to the archive ("active" context only). */
   onArchive: (account: StarlinkAccountSummary) => void;
   /** Moves the device to the recoverable trash ("active" context only). */
@@ -198,7 +200,7 @@ function IconUndo() {
 
 export function AccountCard({
   account, onEdit, ledgerEntries, allocations, onLedger, onDeviceStatement, client, onOpenClient, currencyStore,
-  context = "active", onSetDeviceFault, onArchive, onSoftDelete, onRestore, onPermanentDelete, onConfirmRenewal,
+  context = "active", onSetDeviceFault, onSetRepair, onArchive, onSoftDelete, onRestore, onPermanentDelete, onConfirmRenewal,
   sessionNeedsLogin = false,
   previousDebts = [],
   onAddPreviousDebt,
@@ -414,6 +416,11 @@ export function AccountCard({
         </div>
       )}
 
+      {account.underRepair && (
+        <div className="account-card-repair-banner">
+          🛠️ قيد الإصلاح مع الدعم الفني{account.underRepair.note && ` — ${account.underRepair.note}`}
+        </div>
+      )}
       {fault && (
         <div className="account-card-fault-banner">
           {faultLabel(fault)}
@@ -736,6 +743,8 @@ export function AccountCard({
           waivedCount={ledgerEntries.filter(isWaivedCost).length}
           onSave={(fault, waiveDebts) => { onSetDeviceFault(account, fault, waiveDebts); setShowFaultDialog(false); }}
           onClear={() => { onSetDeviceFault(account, null, false); setShowFaultDialog(false); }}
+          onSaveRepair={(note) => { onSetRepair(account, { note, since: account.underRepair?.since ?? new Date().toISOString() }); setShowFaultDialog(false); }}
+          onClearRepair={() => { onSetRepair(account, null); setShowFaultDialog(false); }}
           onClose={() => setShowFaultDialog(false)}
         />
       )}

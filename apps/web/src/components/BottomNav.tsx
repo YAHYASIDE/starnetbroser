@@ -50,21 +50,9 @@ export function BottomNav() {
     { href: "/store", label: "المتجر", icon: "bag" },
   ];
 
-  // "المزيد": listed bottom (nearest the thumb) to top.
-  const moreItems: MoreItem[] = [
-    { label: "إضافة حساب", icon: "plus", color: "#2f80ff", tint: "#d6e6ff", action: "add-account" },
-    ...(inApp ? [{ label: "مزامنة الآن", icon: "sync" as const, color: "#10b8cc", tint: "#d2f4f8", action: "sync" as const }] : []),
-    { label: "التذكيرات", icon: "bell", color: "#f0455f", tint: "#ffd9df", href: "/reminders" },
-    { label: "دفعة سريعة", icon: "coins", color: "#0e9f6e", tint: "#dcf5ea", href: "/tools#pay" },
-    { label: "خطة اليوم", icon: "tools", color: "#0e9f6e", tint: "#dcf5ea", href: "/tools#today" },
-    { label: "وعود الدفع", icon: "coins", color: "#7c3aed", tint: "#efe7ff", href: "/tools#promises" },
-    { label: "الأدوات والتوقعات", icon: "tools", color: "#8b5cf6", tint: "#ece4ff", href: "/tools" },
-    { label: "ستارلينك والبطاقة", icon: "card", color: "#1668e3", tint: "#d6e3fb", href: "/starlink" },
-    { label: "العملات", icon: "coins", color: "#22c55e", tint: "#d4f7e1", href: "/currencies" },
-    { label: "الأرشيف", icon: "archive", color: "#64748b", tint: "#e2e8f0", href: "/archive" },
-    { label: "سلة المحذوفات", icon: "trash", color: "#e0294a", tint: "#ffd6de", href: "/trash" },
-    { label: "الإعدادات", icon: "settings", color: "#f5a524", tint: "#ffecc7", href: "/settings" },
-  ];
+  // "المزيد" (bottom): the everyday half, listed bottom (nearest the thumb) to top. The other half
+  // is the home page's top "المزيد" (HeaderMore below).
+  const moreItems = bottomMoreItems(inApp);
 
   function runAction(action: HomeAction) {
     setSheetOpen(false);
@@ -74,37 +62,7 @@ export function BottomNav() {
 
   return (
     <>
-      {sheetOpen && (
-        <div className="more-menu-layer" role="presentation" onClick={() => setSheetOpen(false)}>
-          <ul className="more-menu" role="menu" aria-label="المزيد">
-            {moreItems.map((item, index) => {
-              const style = { "--more-color": item.color, "--more-tint": item.tint, "--more-delay": `${index * 35}ms` } as CSSProperties;
-              const content = (
-                <>
-                  <span className="more-menu-icon" aria-hidden="true">
-                    <NavIcon name={item.icon} />
-                    {item.icon === "bell" && reminderCount > 0 && <span className="more-menu-badge">{reminderCount > 9 ? "9+" : reminderCount}</span>}
-                  </span>
-                  <span className="more-menu-label">{item.label}</span>
-                </>
-              );
-              return (
-                <li key={item.label} className="more-menu-row" style={style} onClick={(e) => e.stopPropagation()}>
-                  {"href" in item ? (
-                    <Link href={item.href} className="more-menu-item" role="menuitem" onClick={() => setSheetOpen(false)}>
-                      {content}
-                    </Link>
-                  ) : (
-                    <button type="button" className="more-menu-item" role="menuitem" onClick={() => runAction(item.action)}>
-                      {content}
-                    </button>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
+      {sheetOpen && <MoreMenu items={moreItems} reminderCount={reminderCount} onClose={() => setSheetOpen(false)} onAction={runAction} />}
 
       <nav className="bottom-nav" aria-label="التنقل الرئيسي">
         {tabs.map((tab) => (
@@ -131,6 +89,88 @@ export function BottomNav() {
           <span className="bottom-nav-label">المزيد</span>
         </button>
       </nav>
+    </>
+  );
+}
+
+function bottomMoreItems(inApp: boolean): MoreItem[] {
+  return [
+    { label: "إضافة حساب", icon: "plus", color: "#2f80ff", tint: "#d6e6ff", action: "add-account" },
+    ...(inApp ? [{ label: "مزامنة الآن", icon: "sync" as const, color: "#10b8cc", tint: "#d2f4f8", action: "sync" as const }] : []),
+    { label: "التذكيرات", icon: "bell", color: "#f0455f", tint: "#ffd9df", href: "/reminders" },
+    { label: "دفعة سريعة", icon: "coins", color: "#0e9f6e", tint: "#dcf5ea", href: "/tools#pay" },
+    { label: "خطة اليوم", icon: "tools", color: "#0e9f6e", tint: "#dcf5ea", href: "/tools#today" },
+    { label: "وعود الدفع", icon: "coins", color: "#7c3aed", tint: "#efe7ff", href: "/tools#promises" },
+  ];
+}
+
+/** The top "المزيد" (home page header): the other half, same look. */
+const TOP_MORE_ITEMS: MoreItem[] = [
+  { label: "الأدوات والتوقعات", icon: "tools", color: "#8b5cf6", tint: "#ece4ff", href: "/tools" },
+  { label: "ستارلينك والبطاقة", icon: "card", color: "#1668e3", tint: "#d6e3fb", href: "/starlink" },
+  { label: "العملات", icon: "coins", color: "#22c55e", tint: "#d4f7e1", href: "/currencies" },
+  { label: "الأرشيف", icon: "archive", color: "#64748b", tint: "#e2e8f0", href: "/archive" },
+  { label: "سلة المحذوفات", icon: "trash", color: "#e0294a", tint: "#ffd6de", href: "/trash" },
+  { label: "الإعدادات", icon: "settings", color: "#f5a524", tint: "#ffecc7", href: "/settings" },
+];
+
+/** The "المزيد" list (colored round icons + labels), opening from the bottom bar or the top. */
+function MoreMenu({
+  items,
+  reminderCount = 0,
+  onClose,
+  onAction,
+  top = false,
+}: {
+  items: MoreItem[];
+  reminderCount?: number;
+  onClose: () => void;
+  onAction?: (action: HomeAction) => void;
+  top?: boolean;
+}) {
+  return (
+    <div className="more-menu-layer" role="presentation" onClick={onClose}>
+      <ul className={`more-menu${top ? " more-menu-top" : ""}`} role="menu" aria-label="المزيد">
+        {items.map((item, index) => {
+          const style = { "--more-color": item.color, "--more-tint": item.tint, "--more-delay": `${index * 35}ms` } as CSSProperties;
+          const content = (
+            <>
+              <span className="more-menu-icon" aria-hidden="true">
+                <NavIcon name={item.icon} />
+                {item.icon === "bell" && reminderCount > 0 && <span className="more-menu-badge">{reminderCount > 9 ? "9+" : reminderCount}</span>}
+              </span>
+              <span className="more-menu-label">{item.label}</span>
+            </>
+          );
+          return (
+            <li key={item.label} className="more-menu-row" style={style} onClick={(e) => e.stopPropagation()}>
+              {"href" in item ? (
+                <Link href={item.href} className="more-menu-item" role="menuitem" onClick={onClose}>
+                  {content}
+                </Link>
+              ) : (
+                <button type="button" className="more-menu-item" role="menuitem" onClick={() => onAction?.(item.action)}>
+                  {content}
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+/** The home page's top-right "المزيد" (beside STAR NET). */
+export function HeaderMore() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" className="header-more" aria-label="المزيد" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+        <NavIcon name={open ? "close" : "more"} />
+        <span>المزيد</span>
+      </button>
+      {open && <MoreMenu items={TOP_MORE_ITEMS} onClose={() => setOpen(false)} top />}
     </>
   );
 }

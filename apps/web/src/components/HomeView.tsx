@@ -11,6 +11,7 @@ import { DayCircles } from "./DayCircles";
 import { ConnectionStatus } from "./ConnectionStatus";
 import { AccountDialog, AccountDialogMode } from "./AccountDialog";
 import { HomeFab } from "./HomeFab";
+import { HeaderMore } from "./BottomNav";
 import { pruneOrphanProofs } from "@/lib/paymentProofStore";
 import { buildAutoSyncList } from "@/lib/autoSyncList";
 import { LedgerDialog } from "./LedgerDialog";
@@ -27,7 +28,7 @@ import { applyLedgerPaymentsToCash, loadCashEntries, saveCashEntries } from "@/l
 import { parseNewDevicePrefill } from "@/lib/deviceFromSale";
 import { adoptRepDevice } from "@/lib/repDeviceAdopt";
 import { bucketPromises, loadPromises } from "@/lib/paymentPromises";
-import { HOME_ACTION_EVENT, HomeAction, parseHomeAction, REMINDER_COUNT_EVENT, parseHomeSearch } from "@/lib/homeActions";
+import { HOME_ACTION_EVENT, HomeAction, parseHomeAction, parseHomePayment, REMINDER_COUNT_EVENT, parseHomeSearch } from "@/lib/homeActions";
 import { buildRenewalShipment } from "@/lib/renewalPlan";
 import { runAutoBackup } from "@/lib/autoBackupRunner";
 import { runDriveBackup } from "@/lib/driveBackupRunner";
@@ -81,7 +82,7 @@ import {
   saveRepresentativeStore,
 } from "@/lib/repStore";
 import { CurrencyStore, getCurrency, loadCurrencyStore, saveCurrencyStore, upsertCurrency, UpsertCurrencyInput } from "@/lib/currencyStore";
-import { countFaultCategories, FAULT_CATEGORIES, faultCategory, isFaulty, openDebtEntries, restoreWaivedDebts, waiveOpenDebts } from "@/lib/deviceFault";
+import { countFaultCategories, FAULT_CATEGORIES, faultCategory, isFaulty, isUnderRepair, openDebtEntries, restoreWaivedDebts, waiveOpenDebts } from "@/lib/deviceFault";
 import type { DeviceFaultReason } from "@starnet/shared";
 import { listOpenPreviousDebts, loadPreviousDebts, recordPreviousDebt, savePreviousDebts, type PreviousDebtList } from "@/lib/previousDebt";
 import { confirmClosedMonthChange, ledgerEntryMonthDates } from "@/lib/monthClosing";
@@ -139,7 +140,7 @@ type DialogState = { mode: AccountDialogMode; account?: StarlinkAccountSummary; 
  * ways of narrowing the SAME list, and combining them silently would be confusing rather than
  * useful. `total` never appears as a value: tapping "كل الحسابات" is just `showAll`, not a real
  * per-account filter. */
-type StatFilterKind = "online" | "expiringSoon" | "expired" | "suspended" | "faulty";
+type StatFilterKind = "online" | "expiringSoon" | "expired" | "suspended" | "faulty" | "repair";
 
 const STAT_FILTER_TITLES: Record<StatFilterKind, string> = {
   online: "الحسابات المتصلة الآن",
@@ -147,6 +148,7 @@ const STAT_FILTER_TITLES: Record<StatFilterKind, string> = {
   expired: "الحسابات المنتهية",
   suspended: "الحسابات المتوقفة (فوترة)",
   faulty: "الأجهزة المعطلة",
+  repair: "قيد الإصلاح (مع الدعم الفني)",
 };
 
 function matchesStatFilter(account: StarlinkAccountSummary, kind: StatFilterKind): boolean {
@@ -157,6 +159,8 @@ function matchesStatFilter(account: StarlinkAccountSummary, kind: StatFilterKind
       return account.serviceStatus === "suspended";
     case "faulty":
       return isFaulty(account);
+    case "repair":
+      return isUnderRepair(account);
     case "expiringSoon": {
       // A broken device isn't renewed until it's repaired (see "المعطلة").
       if (isFaulty(account)) return false;
@@ -980,6 +984,17 @@ export function HomeView({
   useEffect(() => {
     window.dispatchEvent(new CustomEvent(REMINDER_COUNT_EVENT, { detail: remindersBadgeEnabled ? reminderCount : 0 }));
   });
+  // A "?pay=" device that wasn't loaded yet when the page opened - opened once it is.
+  const pendingPaymentRef = useRef<string | null>(null);
+  useEffect(() => {
+    const id = pendingPaymentRef.current;
+    if (!id) return;
+    const target = accounts.find((a) => a.id === id);
+    if (!target) return;
+    pendingPaymentRef.current = null;
+    setLedgerForPayment(true);
+    setLedgerAccount(target);
+  }, [accounts]);
   const homeActionRef = useRef<(action: HomeAction) => void>(() => {});
   homeActionRef.current = (action) => {
     if (action === "add-account") setDialog({ mode: "add" });
@@ -995,6 +1010,18 @@ export function HomeView({
       window.history.replaceState(null, "", window.location.pathname);
       setQuery(searchFromUrl);
       setShowAll(true);
+    }
+    // "💵 دفعة من زبون" chosen on the clients page: that device's ledger, ready for a payment.
+    const payFromUrl = parseHomePayment(window.location.search);
+    if (payFromUrl) {
+      window.history.replaceState(null, "", window.location.pathname);
+      const target = accountsRef.current.find((a) => a.id === payFromUrl);
+      if (target) {
+        setLedgerForPayment(true);
+        setLedgerAccount(target);
+      } else {
+        pendingPaymentRef.current = payFromUrl;
+      }
     }
     const fromUrl = parseHomeAction(window.location.search);
     if (fromUrl) {
@@ -1085,6 +1112,7 @@ export function HomeView({
   }, [activeAccounts, selectedDay, statFilter, faultFilter, query, clientStore]);
 
   const faultCounts = useMemo(() => countFaultCategories(activeAccounts), [activeAccounts]);
+  const repairCount = useMemo(() => activeAccounts.filter(isUnderRepair).length, [activeAccounts]);
 
   const searchResults = useMemo(
     () =>
@@ -1117,13 +1145,11 @@ export function HomeView({
           onDismiss={() => setOceanDismissed(oceanDevices.map((a) => a.id))}
         />
       )}
-      <header className="app-header">
+      <header className="app-header app-header-compact">
+        <HeaderMore />
         <div className="brand-lockup">
           <span className="brand-logo" aria-hidden="true">★</span>
-          <div>
-            <span className="brand-mark">STAR NET</span>
-            <span className="brand-subtitle">إدارة حسابات Starlink</span>
-          </div>
+          <span className="brand-mark">STAR NET</span>
         </div>
       </header>
 
@@ -1292,15 +1318,22 @@ export function HomeView({
             />
           </section>
 
-          {overview.faulty > 0 && (
+          <div className="status-chips">
             <button
               type="button"
               className={`faulty-chip${statFilter === "faulty" ? " faulty-chip-active" : ""}`}
               onClick={() => { toggleStatFilter("faulty"); setFaultFilter(null); setSelectedDay(null); }}
             >
-              🔧 الأجهزة المعطلة ({overview.faulty})
+              🔧 المعطلة ({overview.faulty})
             </button>
-          )}
+            <button
+              type="button"
+              className={`faulty-chip repair-chip${statFilter === "repair" ? " faulty-chip-active" : ""}`}
+              onClick={() => { toggleStatFilter("repair"); setSelectedDay(null); }}
+            >
+              🛠️ قيد الإصلاح ({repairCount})
+            </button>
+          </div>
 
           <section className="section dashboard-section">
             <div className="section-heading">
@@ -1387,6 +1420,7 @@ export function HomeView({
                 onOpenClient={(selectedClient) => setOpenClientId(selectedClient.id)}
                 currencyStore={currencyStore}
                 onSetDeviceFault={handleSetDeviceFault}
+                onSetRepair={(target, repair) => patchAccount(target.id, { underRepair: repair })}
                 onArchive={handleArchive}
                 onSoftDelete={handleSoftDelete}
                 onRestore={handleRestore}
@@ -1402,16 +1436,7 @@ export function HomeView({
       </section>
 
       {viewMode === "active" && !dialog && !ledgerAccount && (
-        <HomeFab
-          accounts={accounts}
-          clientStore={clientStore}
-          ledgerStore={ledgerStore}
-          onAddDevice={() => setDialog({ mode: "add" })}
-          onPayment={(account) => {
-            setLedgerForPayment(true);
-            setLedgerAccount(account);
-          }}
-        />
+        <HomeFab onAddDevice={() => setDialog({ mode: "add" })} />
       )}
 
       {dialog && (

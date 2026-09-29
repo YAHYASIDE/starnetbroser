@@ -9,6 +9,16 @@ export type HomeAction = "add-account" | "sync" | "clients";
 
 const HOME_ACTIONS: HomeAction[] = ["add-account", "sync", "clients"];
 
+/** "💵 دفعة من زبون" (the clients page): the home screen opens that device's ledger for a payment. */
+export function homePaymentHref(accountId: string): string {
+  return `/?pay=${encodeURIComponent(accountId)}`;
+}
+
+export function parseHomePayment(search: string): string | null {
+  const value = new URLSearchParams(search).get("pay");
+  return value?.trim() ? value.trim() : null;
+}
+
 export const HOME_ACTION_EVENT = "starnet:home-action";
 export const REMINDER_COUNT_EVENT = "starnet:reminder-count";
 

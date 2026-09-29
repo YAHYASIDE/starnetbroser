@@ -44,6 +44,11 @@ export function isFaulty(account: FaultInput): boolean {
   return faultCategory(account) !== null;
 }
 
+/** 🛠️ Being fixed with Starlink support (its own list beside «المعطلة»). */
+export function isUnderRepair(account: Pick<StarlinkAccountSummary, "underRepair">): boolean {
+  return Boolean(account.underRepair);
+}
+
 /** How many devices in each group (every group present, 0 when empty). */
 export function countFaultCategories(accounts: FaultInput[]): Record<DeviceFaultReason, number> {
   const counts: Record<DeviceFaultReason, number> = { canceled: 0, burned: 0, moved: 0, secondary: 0, other: 0 };

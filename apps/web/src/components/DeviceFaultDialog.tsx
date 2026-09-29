@@ -4,7 +4,8 @@ import { FormEvent, useState } from "react";
 import type { DeviceFaultReason, StarlinkAccountSummary } from "@starnet/shared";
 import { FAULT_CATEGORIES, faultCategory } from "@/lib/deviceFault";
 
-type FaultReason = DeviceFaultReason;
+/** "repair" = 🛠️ قيد الإصلاح: saved as account.underRepair, never as a fault. */
+type FaultReason = DeviceFaultReason | "repair";
 
 interface Props {
   account: StarlinkAccountSummary;
@@ -15,6 +16,9 @@ interface Props {
   /** `waiveDebts`: don't pay Starlink for its open D - the whole amount becomes profit today. */
   onSave: (fault: NonNullable<StarlinkAccountSummary["deviceFault"]>, waiveDebts: boolean) => void;
   onClear: () => void;
+  /** 🛠️ قيد الإصلاح (with Starlink support) - its own record, not a fault. */
+  onSaveRepair: (note: string) => void;
+  onClearRepair: () => void;
   onClose: () => void;
 }
 
@@ -23,16 +27,21 @@ interface Props {
  * serviceStatus (see StarlinkAccountSummary.deviceFault's own doc). Marking one just records a
  * reason/note on the device; it never touches serviceStatus, the ledger, or any Starlink data.
  */
-export function DeviceFaultDialog({ account, openDebtUsd, waivedCount, onSave, onClear, onClose }: Props) {
+export function DeviceFaultDialog({ account, openDebtUsd, waivedCount, onSave, onClear, onSaveRepair, onClearRepair, onClose }: Props) {
   const existing = account.deviceFault;
+  const repair = account.underRepair;
   // A device the app already put in a group (no subscription / secondary email) opens on it.
-  const [reason, setReason] = useState<FaultReason>(existing?.reason ?? faultCategory(account) ?? "burned");
-  const [note, setNote] = useState(existing?.note ?? "");
+  const [reason, setReason] = useState<FaultReason>(existing?.reason ?? (repair ? "repair" : faultCategory(account) ?? "burned"));
+  const [note, setNote] = useState(existing?.note ?? repair?.note ?? "");
   // A burned device's D is normally never paid - ticked by default for "محترق" only.
   const [waive, setWaive] = useState((existing?.reason ?? faultCategory(account) ?? "burned") === "burned");
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (reason === "repair") {
+      onSaveRepair(note.trim());
+      return;
+    }
     onSave({ reason, note: note.trim(), reportedAt: existing?.reportedAt ?? new Date().toISOString() }, openDebtUsd > 0 && waive);
   }
 
@@ -71,6 +80,7 @@ export function DeviceFaultDialog({ account, openDebtUsd, waivedCount, onSave, o
               {FAULT_CATEGORIES.filter((c) => c.reason !== "other" || existing?.reason === "other").map((c) => (
                 <option key={c.reason} value={c.reason}>{c.icon} {c.label}</option>
               ))}
+              <option value="repair">🛠️ قيد الإصلاح (مع الدعم الفني)</option>
             </select>
           </label>
 
@@ -79,7 +89,7 @@ export function DeviceFaultDialog({ account, openDebtUsd, waivedCount, onSave, o
             <textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="اختياري" />
           </label>
 
-          {openDebtUsd > 0 && (
+          {openDebtUsd > 0 && reason !== "repair" && (
             <label className="ledger-d-toggle form-wide">
               <input type="checkbox" checked={waive} onChange={(e) => setWaive(e.target.checked)} />
               <span>
@@ -93,14 +103,23 @@ export function DeviceFaultDialog({ account, openDebtUsd, waivedCount, onSave, o
               🔥 {waivedCount} شحنة لن تُدفع لستارلينك وحُسب مبلغها ربحًا. إن أُصلح الجهاز اضغط «تم الإصلاح» فيعود الـD.
             </p>
           )}
-          <p className="renewal-dialog-note form-wide">الجهاز المعطل يخرج من تذكيرات التجديد ويظهر في قائمة «المعطلة».</p>
+          <p className="renewal-dialog-note form-wide">
+            {reason === "repair"
+              ? "قيد الإصلاح: مشكلة فنية نتابعها مع الدعم الفني - يبقى الجهاز في التذكيرات ويظهر في قائمة «قيد الإصلاح». اكتب في الملاحظة رقم التذكرة أو ما قاله الدعم."
+              : "الجهاز المعطل يخرج من تذكيرات التجديد ويظهر في قائمة «المعطلة»."}
+          </p>
 
           <div className="dialog-actions form-wide">
-            {existing && (
+            {existing && reason !== "repair" && (
               <button className="dialog-danger" type="button" onClick={clear}>إزالة شارة العطل (تم الإصلاح)</button>
             )}
+            {repair && reason === "repair" && (
+              <button className="dialog-danger" type="button" onClick={() => window.confirm("انتهى الإصلاح؟ يخرج الجهاز من «قيد الإصلاح».") && onClearRepair()}>
+                ✓ تم الإصلاح
+              </button>
+            )}
             <button className="dialog-secondary" type="button" onClick={onClose}>إلغاء</button>
-            <button className="dialog-primary" type="submit">{existing ? "حفظ التعديل" : "تسجيل العطل"}</button>
+            <button className="dialog-primary" type="submit">{reason === "repair" ? (repair ? "حفظ" : "🛠️ إلى قيد الإصلاح") : existing ? "حفظ التعديل" : "تسجيل العطل"}</button>
           </div>
         </form>
       </section>

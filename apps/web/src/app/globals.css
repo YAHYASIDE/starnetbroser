@@ -9031,3 +9031,178 @@ button.today-tile {
   font-size: 0.66rem;
   gap: 4px;
 }
+
+/* الزبائن: "💵 دفعة من زبون" (moved here from the home page's floating +) */
+.clients-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.clients-pay-button {
+  flex: 0 0 auto;
+  border: 1px solid var(--green);
+  background: var(--green-bg);
+  color: var(--green);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* Home top, compact: small STAR NET with the top "المزيد" at its right, smaller shortcuts,
+   rings and chips (operator's request). */
+.app-header.app-header-compact {
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 4px 0 8px;
+}
+
+.app-header-compact .brand-lockup {
+  gap: 6px;
+}
+
+.app-header-compact .brand-logo {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+}
+
+.app-header-compact .brand-mark {
+  font-size: 0.9rem;
+}
+
+.header-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.header-more svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.more-menu.more-menu-top {
+  top: calc(52px + var(--safe-top));
+  bottom: auto;
+  right: 8px;
+  left: auto;
+  max-height: calc(100vh - 140px - var(--safe-top));
+  flex-direction: column;
+  align-items: flex-end;
+  direction: rtl;
+}
+
+.home-shortcuts {
+  gap: 5px;
+  margin: 0 0 8px;
+}
+
+.home-shortcut {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 5px 2px;
+  font-size: 0.64rem;
+}
+
+.home-shortcut span {
+  font-size: 0.85rem;
+}
+
+.home-shortcut-badge {
+  top: -5px;
+  min-width: 15px;
+  line-height: 15px;
+  font-size: 0.56rem;
+}
+
+.status-rings {
+  padding: 8px 6px;
+  gap: 2px;
+}
+
+.status-ring {
+  gap: 3px;
+}
+
+.status-ring-dial,
+.status-ring .status-ring-dial {
+  width: 42px;
+  height: 42px;
+}
+
+.status-ring-core,
+.status-ring .status-ring-core {
+  width: 35px;
+  height: 35px;
+}
+
+.status-ring-icon svg {
+  width: 11px;
+  height: 11px;
+}
+
+.status-ring-value {
+  font-size: 0.8rem;
+}
+
+.status-ring-label,
+.status-ring .status-ring-label {
+  font-size: 0.6rem;
+}
+
+.status-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 10px;
+}
+
+.status-chips .faulty-chip {
+  margin: 0;
+  padding: 4px 10px;
+  font-size: 0.7rem;
+}
+
+.repair-chip {
+  border-color: var(--violet);
+  background: var(--violet-bg);
+  color: var(--violet);
+}
+
+.repair-chip.faulty-chip-active {
+  background: var(--violet);
+  color: #fff;
+}
+
+.account-card-repair-banner {
+  background: var(--violet-bg);
+  color: var(--violet);
+  border: 1px solid var(--violet);
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-align: center;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+}

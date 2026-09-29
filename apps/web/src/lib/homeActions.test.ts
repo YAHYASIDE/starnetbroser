@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { homeActionHref, parseHomeAction } from "./homeActions";
+import { homeActionHref, homePaymentHref, parseHomeAction, parseHomePayment } from "./homeActions";
 
 describe("homeActions", () => {
   it("round-trips an action through the home URL", () => {
@@ -12,5 +12,11 @@ describe("homeActions", () => {
     expect(parseHomeAction("")).toBeNull();
     expect(parseHomeAction("?action=delete-everything")).toBeNull();
     expect(parseHomeAction("?rep=1")).toBeNull();
+  });
+
+  it("carries a payment for one device (the clients page's دفعة من زبون)", () => {
+    expect(homePaymentHref("acc 1")).toBe("/?pay=acc%201");
+    expect(parseHomePayment("?pay=acc%201")).toBe("acc 1");
+    expect(parseHomePayment("?action=sync")).toBeNull();
   });
 });

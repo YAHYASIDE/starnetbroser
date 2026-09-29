@@ -170,6 +170,9 @@ export interface StarlinkAccountSummary {
    * broken, or suspended AND fine). Cleared (back to undefined/null) once the operator marks it
    * fixed. */
   deviceFault?: { reason: DeviceFaultReason; note: string; reportedAt: string } | null;
+  /** 🛠️ "قيد الإصلاح": a technical problem we're following with Starlink support - separate from
+   * deviceFault (the device stays in renewals and lists), shown in its own home list. */
+  underRepair?: { note: string; since: string } | null;
   /** ISO timestamp set only by an explicit "أرشفة" action - an archived device is hidden from the
    * main list (see HomeView's "الأرشيف" view) but keeps every ledger entry, allocation and
    * exchange-rate link exactly as-is; null/undefined again once restored. Never implies deleted. */
