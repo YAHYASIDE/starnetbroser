@@ -100,6 +100,21 @@ public class AccountBrowserActivity extends AppCompatActivity {
      * has no documented "remove everything" form. */
     private final Handler syncHandler = new Handler(Looper.getMainLooper());
 
+    // ---- «التحقق بخطوتين»: the code is read from the device's own mailbox and typed in ----
+    /** Codes already typed per device (StarlinkTwoStep.remember) - an old code is never retried. */
+    private static final String TRIED_CODES_PREFS = "starnet_mail_codes";
+    private static final long TWO_STEP_POLL_MS = 2500;
+    /** After typing a code, wait this long before deciding it was refused and fetching again. */
+    private static final long REFILL_AFTER_MS = 12000;
+    private static final int MAX_AUTO_FILLS = 3;
+    private final Handler twoStepHandler = new Handler(Looper.getMainLooper());
+    private final Runnable twoStepPoll = this::checkTwoStep;
+    private MailCodeFetcher codeFetcher;
+    /** Off for this screen after the mailbox needed a sign-in, no code came, or 3 tries. */
+    private boolean autoCodeOff;
+    private long lastFillAt;
+    private int autoFills;
+
     @SuppressLint("SetJavaScriptEnabled")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -213,8 +228,90 @@ public class AccountBrowserActivity extends AppCompatActivity {
      * has a live WebView attached) without a stale reference to this screen keeping it "in use".
      */
     @Override
+    protected void onResume() {
+        super.onResume();
+        scheduleTwoStepCheck();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        twoStepHandler.removeCallbacks(twoStepPoll);
+    }
+
+    private void scheduleTwoStepCheck() {
+        twoStepHandler.removeCallbacks(twoStepPoll);
+        twoStepHandler.postDelayed(twoStepPoll, TWO_STEP_POLL_MS);
+    }
+
+    /** Watches for Starlink's «التحقق بخطوتين» page; when it shows, fetches the code by itself. */
+    private void checkTwoStep() {
+        if (webView == null || autoCodeOff || syncSteps != null || codeFetcher != null || accountId == null
+            || !AllowedUrl.isAllowed(webView.getUrl())) {
+            if (webView != null && !autoCodeOff) scheduleTwoStepCheck();
+            return;
+        }
+        webView.evaluateJavascript(StarlinkTwoStep.DETECT_SCRIPT, value -> {
+            if (webView == null) return;
+            String state = value == null ? "" : value.replace("\"", "");
+            boolean onTwoStep = "1".equals(state) || "2".equals(state);
+            if (onTwoStep && codeFetcher == null && System.currentTimeMillis() - lastFillAt > REFILL_AFTER_MS) startCodeFetch();
+            if (!autoCodeOff) scheduleTwoStepCheck();
+        });
+    }
+
+    private void startCodeFetch() {
+        if (autoFills >= MAX_AUTO_FILLS) {
+            autoCodeOff = true;
+            Toast.makeText(this, "جُرّب الرمز " + MAX_AUTO_FILLS + " مرات - أدخله بنفسك من «📧 البريد»", Toast.LENGTH_LONG).show();
+            return;
+        }
+        final SharedPreferences prefs = getSharedPreferences(TRIED_CODES_PREFS, MODE_PRIVATE);
+        try {
+            codeFetcher = new MailCodeFetcher(this, accountId, prefs.getString(accountId, ""), new MailCodeFetcher.Listener() {
+                @Override
+                public void onCode(String code) {
+                    codeFetcher = null;
+                    prefs.edit().putString(accountId, StarlinkTwoStep.remember(prefs.getString(accountId, ""), code)).apply();
+                    lastFillAt = System.currentTimeMillis();
+                    autoFills++;
+                    if (webView != null && AllowedUrl.isAllowed(webView.getUrl())) {
+                        webView.evaluateJavascript(StarlinkTwoStep.fillScript(code), null);
+                        Toast.makeText(AccountBrowserActivity.this, "✅ أُدخل رمز التحقق من البريد", Toast.LENGTH_SHORT).show();
+                    }
+                }
+
+                @Override
+                public void onSignedOut() {
+                    codeFetcher = null;
+                    autoCodeOff = true;
+                    Toast.makeText(AccountBrowserActivity.this, "📧 سجّل الدخول في «البريد» مرة واحدة ليُدخل التطبيق الرمز تلقائياً", Toast.LENGTH_LONG).show();
+                }
+
+                @Override
+                public void onGiveUp() {
+                    codeFetcher = null;
+                    autoCodeOff = true;
+                    Toast.makeText(AccountBrowserActivity.this, "لم يصل رمز جديد إلى البريد - افتح «📧 البريد»", Toast.LENGTH_LONG).show();
+                }
+            });
+        } catch (RuntimeException e) {
+            codeFetcher = null;
+            autoCodeOff = true;
+            return;
+        }
+        Toast.makeText(this, "📧 أجلب رمز التحقق من البريد…", Toast.LENGTH_SHORT).show();
+        codeFetcher.start();
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
+        twoStepHandler.removeCallbacksAndMessages(null);
+        if (codeFetcher != null) {
+            codeFetcher.stop();
+            codeFetcher = null;
+        }
         if (webView != null) {
             // Cancels any still-pending sync step's settle-delay callback - without this, a
             // queued step could still fire after this screen is gone (syncGuardOk's own
