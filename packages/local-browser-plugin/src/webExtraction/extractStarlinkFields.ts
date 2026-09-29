@@ -24,6 +24,7 @@ import {
   extractSubscriptionInvoiceDueDay,
   hasBillingSuspensionBanner,
   hasRegionRestrictedBanner,
+  hasPriorityDataExhaustedBanner,
   hasScheduledEndBanner,
   isCompleteDate,
   isOnAccountHomePage,
@@ -191,6 +192,11 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
 
   const dataUsageGb = extractDataUsageGb(lines);
   if (dataUsageGb) fields.dataUsageGb = dataUsageGb;
+
+  // Explicit true/false: the banner sits on the same page as the usage figure, so a page showing
+  // the usage without it means the priority data is back (a new cycle) and clears the alert.
+  if (hasPriorityDataExhaustedBanner(lines)) fields.priorityDataExhausted = true;
+  else if (dataUsageGb) fields.priorityDataExhausted = false;
 
   const starlinkId = extractLabeledValue(lines, STARLINK_ID_LABELS);
   if (starlinkId) fields.starlinkId = starlinkId;

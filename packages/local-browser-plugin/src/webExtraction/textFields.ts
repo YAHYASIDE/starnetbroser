@@ -84,6 +84,24 @@ export function hasRegionRestrictedBanner(lines: string[]): boolean {
   return lines.some((line) => containsAny(line, REGION_RESTRICTED_BANNER_LABELS));
 }
 
+/** The real subscription page's banner once the plan's priority data (e.g. the 100 GB roaming
+ * plan) is used up: "تم تقييد سرعة اتصال Starlink لأن باقة الأولوية نفدت" (real, confirmed
+ * screenshot). The service keeps working at limited speed until the next cycle, so this is its own
+ * flag, never a serviceStatus. Needs both the "limited" and the "priority" parts, so a plan
+ * description merely mentioning priority data never matches. */
+export function hasPriorityDataExhaustedBanner(lines: string[]): boolean {
+  return lines.some((line) => {
+    const lower = line.toLowerCase();
+    if (line.includes("باقة الأولوية") || line.includes("باقة الاولوية")) {
+      return line.includes("نفدت") || line.includes("نفذت") || line.includes("تقييد");
+    }
+    if (lower.includes("priority data")) {
+      return /(run out|ran out|used up|exhausted|limited|depleted)/.test(lower);
+    }
+    return false;
+  });
+}
+
 /**
  * True only when the real, unlabeled "<holder name> • ACC-..." line (see
  * extractAccountHolderName/NAME_BEFORE_ACCOUNT_PATTERN below) is present - a marker unique to the

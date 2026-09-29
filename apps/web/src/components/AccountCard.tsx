@@ -4,6 +4,7 @@ import { showsRestriction } from "@/lib/reminders";
 import { PromiseQuickSheet } from "./PromiseQuickSheet";
 import { useEffect, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
+import { priorityDataLine, priorityDataState } from "@/lib/priorityData";
 import { presentServiceStatus, effectiveServiceStatus, isBalanceDueZero, planBadgeLabel, cleanPlanName } from "@/lib/status";
 import { countryFlag, countryFromIso2 } from "@/lib/countryCurrencies";
 import { connectionDot, connectionMessage } from "@/lib/deviceConnection";
@@ -204,6 +205,7 @@ export function AccountCard({
   const wifiDot = connectionDot(account.wifiStatus);
   const planName = cleanPlanName(account.planName);
   const planBadge = planName ? (planBadgeLabel(planName) ?? planName) : undefined;
+  const priorityState = priorityDataState(account);
   const lastSynced = formatRelativeTime(account.lastSuccessfulScanAt);
   // Single shared source for both the badge label and its urgency color - never computed twice
   // from two different date fields, which is exactly what produced a real, confirmed bug: two
@@ -405,6 +407,12 @@ export function AccountCard({
       {account.oceanMode && (
         <div className="account-card-ocean-banner">🚨 وضع المحيط مفعّل - فاتورة بحرية قد تصل لآلاف الدولارات. أوقفه فوراً!</div>
       )}
+      {priorityState?.kind === "exhausted" && account.serviceStatus !== "canceled" && (
+        <div className="account-card-priority-banner">
+          ⚠️ نفدت باقة الأولوية{priorityState.limitGb !== undefined && <> <bdi dir="ltr">{priorityState.limitGb}G</bdi></>}
+          {priorityState.usedGb !== undefined && <> (الاستهلاك <bdi dir="ltr">{priorityState.usedGb} GB</bdi>)</>} - يعمل بسرعة محدودة حتى الدورة القادمة
+        </div>
+      )}
       {showsRestriction(account) && (
         <div className="account-card-restricted-banner">
           🚫 الجهاز مقيّد — أعده إلى البلد المسجل ووصّله بالكهرباء لمدة 24 ساعة على الأقل لاستئناف الخدمة
@@ -518,8 +526,12 @@ export function AccountCard({
           </span>
         </span>
         {planBadge && (
-          <span className="badge badge-mint account-card-plan-badge" title={planName}>
+          <span
+            className={`badge ${priorityState?.kind === "exhausted" ? "badge-red" : priorityState?.kind === "near" ? "badge-yellow" : "badge-mint"} account-card-plan-badge`}
+            title={priorityState ? `${planName ?? ""} - ${priorityDataLine(priorityState)}` : planName}
+          >
             {planBadge}
+            {priorityState?.usedGb !== undefined && <> ⚠️ <bdi dir="ltr">{priorityState.usedGb}GB</bdi></>}
           </span>
         )}
         {remaining && <span className={`date-status ${urgencyClass}`}>{remaining}</span>}
@@ -614,7 +626,12 @@ export function AccountCard({
                   <button type="button" className="account-card-copy-btn" onClick={() => copyToClipboard(account.subscriptionId!)} title="نسخ" aria-label="نسخ رقم الاشتراك"><IconCopy /></button>
                 </span>
               )}
-              {account.dataUsageGb && <span>الاستهلاك: <strong dir="ltr">{account.dataUsageGb} GB</strong></span>}
+              {account.dataUsageGb && (
+                <span className={priorityState ? `account-card-usage-${priorityState.kind}` : undefined}>
+                  الاستهلاك: <strong dir="ltr">{account.dataUsageGb}{priorityState?.limitGb !== undefined ? ` / ${priorityState.limitGb}` : ""} GB</strong>
+                  {priorityState?.kind === "near" && " ⚠️ قاربت على النفاد"}
+                </span>
+              )}
             </div>
           )}
 

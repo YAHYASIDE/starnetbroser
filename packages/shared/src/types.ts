@@ -130,6 +130,9 @@ export interface StarlinkAccountSummary {
   /** Starlink's "وضع المحيط" (Ocean Mode) switch is ON for this device: maritime per-GB billing
    * that can reach thousands of dollars - the app raises a full-screen alarm. Synced only. */
   oceanMode?: boolean;
+  /** "باقة الأولوية نفدت" banner: the plan's priority data (e.g. 100 GB) is used up - the service
+   * still works, at limited speed, until the next cycle. Explicit true/false like isRestricted. */
+  priorityDataExhausted?: boolean;
   /** Diagnostic from the last read of the "الأجهزة" section: what the dish/Wi-Fi dot reader saw. */
   dotTrace?: string;
   /** The saved email is a limited user on someone else's Starlink account (its menu has no

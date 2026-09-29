@@ -726,3 +726,24 @@ describe("extractStarlinkFields - dots only from the الأجهزة section", ()
     expect(fields.dotTrace).toContain("STARLINK#0=offline");
   });
 });
+
+describe("extractStarlinkFields - priority data (100 GB) used up", () => {
+  it("flags the real banner as exhausted, next to the usage figure", () => {
+    const fields = extractFrom(`
+      <div>تم تقييد سرعة اتصال Starlink لأن باقة الأولوية نفدت</div>
+      <div><div>إجمالي استهلاك الباقة</div><div>121 جيجابايت</div></div>
+    `);
+    expect(fields.priorityDataExhausted).toBe(true);
+    expect(fields.dataUsageGb).toBe("121");
+  });
+
+  it("clears it when the usage is shown with no banner (a new cycle)", () => {
+    const fields = extractFrom(`<div><div>إجمالي استهلاك الباقة</div><div>12 جيجابايت</div></div>`);
+    expect(fields.priorityDataExhausted).toBe(false);
+  });
+
+  it("stays unknown on a page without the usage figure", () => {
+    const fields = extractFrom(`<div><div>الرصيد المستحق</div><div>0.00 USD</div></div>`);
+    expect(fields.priorityDataExhausted).toBeUndefined();
+  });
+});

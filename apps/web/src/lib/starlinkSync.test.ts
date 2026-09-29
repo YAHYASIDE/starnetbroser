@@ -80,6 +80,13 @@ describe("mergeSyncedFields - scanned vs. changed", () => {
     expect(mergeSyncedFields(flagged.account, { planName: "x" }).account.limitedAccess).toBe(true);
   });
 
+  it("sets and clears priorityDataExhausted explicitly", () => {
+    const out = mergeSyncedFields(baseAccount(), { priorityDataExhausted: true });
+    expect(out.account.priorityDataExhausted).toBe(true);
+    expect(out.updatedFields.map((f) => f.field)).toEqual(["priorityDataExhausted"]);
+    expect(mergeSyncedFields(out.account, { priorityDataExhausted: false }).account.priorityDataExhausted).toBe(false);
+  });
+
   it("sets isRestricted true and reports it as an updated field", () => {
     const result = mergeSyncedFields(baseAccount(), { isRestricted: true });
     expect(result.account.isRestricted).toBe(true);

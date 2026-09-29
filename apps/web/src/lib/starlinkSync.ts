@@ -35,6 +35,7 @@ const FIELD_INFO: Record<keyof SyncedStarlinkFields, { label: string; section: S
   kitNumber: { label: "رقم KIT", section: "identifiers" },
   serviceCountry: { label: "دولة الجهاز", section: "subscriptions" },
   oceanMode: { label: "وضع المحيط", section: "subscriptions" },
+  priorityDataExhausted: { label: "نفاد باقة الأولوية", section: "subscriptions" },
   dotTrace: { label: "تشخيص النقاط", section: "devices" },
   dataUsageGb: { label: "إجمالي استهلاك الباقة", section: "subscriptions" },
   isRestricted: { label: "تقييد الجهاز (خارج البلد المسجل)", section: "devices" },
@@ -236,6 +237,12 @@ export function mergeSyncedFields(
   if (fields.oceanMode !== undefined) {
     note("oceanMode", next.oceanMode !== fields.oceanMode);
     next.oceanMode = fields.oceanMode;
+  }
+
+  // Explicit true/false: the usage figure shown without the banner clears it (a new cycle).
+  if (fields.priorityDataExhausted !== undefined) {
+    note("priorityDataExhausted", next.priorityDataExhausted !== fields.priorityDataExhausted);
+    next.priorityDataExhausted = fields.priorityDataExhausted;
   }
 
   // Same explicit true/false as isRestricted: a Home page with the full menu clears it.

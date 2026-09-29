@@ -40,6 +40,7 @@ import {
   rescheduleMorningDigests,
 } from "@/lib/morningNotifications";
 import { isTelegramConnected, rescheduleTelegramSummaries, sendTelegramText } from "@/lib/telegram";
+import { loadPriorityAlerted, priorityAlertsToSend, priorityTelegramText, savePriorityAlerted } from "@/lib/priorityData";
 import { loadOceanAlerted, oceanAlertsToSend, oceanModeAccounts, oceanTelegramText, saveOceanAlerted } from "@/lib/oceanMode";
 import { OceanModeAlarm } from "./OceanModeAlarm";
 import { cardShortfallForSuspended, currentCardBalanceUsd, listOpenShipmentDebts, listSuspendedWithDebt, settleShipmentCost } from "@/lib/starlinkDebt";
@@ -418,6 +419,18 @@ export function HomeView({
     if (!isTelegramConnected()) return;
     void sendTelegramText(oceanTelegramText(send)).then((sent) => {
       if (sent) saveOceanAlerted(keep);
+    });
+  }, [accounts]);
+  // ⚠️ باقة الأولوية: one Telegram alert per device when its priority data (e.g. 100 GB) runs out.
+  useEffect(() => {
+    const { send, keep } = priorityAlertsToSend(accounts, loadPriorityAlerted());
+    if (send.length === 0) {
+      savePriorityAlerted(keep);
+      return;
+    }
+    if (!isTelegramConnected()) return;
+    void sendTelegramText(priorityTelegramText(send)).then((sent) => {
+      if (sent) savePriorityAlerted(keep);
     });
   }, [accounts]);
   const [dataState, setDataState] = useState<DataState>("demo");

@@ -15,6 +15,7 @@ import {
   extractSubscriptionId,
   extractSubscriptionInvoiceDueDay,
   hasBillingSuspensionBanner,
+  hasPriorityDataExhaustedBanner,
   hasRegionRestrictedBanner,
   hasScheduledEndBanner,
   isCompleteDate,
@@ -168,6 +169,24 @@ describe("hasRegionRestrictedBanner", () => {
 
   it("never confuses this with the unrelated billing-suspension banner", () => {
     expect(hasRegionRestrictedBanner(["تم تعطيل خدمتك بسبب مشكلة في الفوترة."])).toBe(false);
+  });
+});
+
+describe("hasPriorityDataExhaustedBanner", () => {
+  it("detects the real Arabic banner (real, confirmed screenshot text)", () => {
+    expect(hasPriorityDataExhaustedBanner(["تم تقييد سرعة اتصال Starlink لأن باقة الأولوية نفدت"])).toBe(true);
+  });
+
+  it("detects the English wording too", () => {
+    expect(hasPriorityDataExhaustedBanner(["Your speed is limited because you have run out of Priority Data."])).toBe(true);
+  });
+
+  it("never fires on a plan merely describing its priority data", () => {
+    expect(hasPriorityDataExhaustedBanner(["باقة الأولوية 100 غيغابايت", "Includes 100 GB of Priority data"])).toBe(false);
+  });
+
+  it("never confuses it with the region-restriction banner", () => {
+    expect(hasPriorityDataExhaustedBanner(["خدمة Starlink مقيدة لأن الجهاز كان خارج البلد المسجل فيه"])).toBe(false);
   });
 });
 
