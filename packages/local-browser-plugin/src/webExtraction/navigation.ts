@@ -180,12 +180,23 @@ export function expandDevicesSection(): boolean {
 }
 
 function devicesSectionIsOpen(header: Element): boolean {
+  // Starlink keeps the device rows in the page even while the section is CLOSED (only hidden) -
+  // real, confirmed regression: "the Wi-Fi row is there" read a closed section as open, so it was
+  // never tapped and the hidden dots had no colors yet. The section's own state decides instead.
+  const hasLayout = document.body.getBoundingClientRect().height > 0;
   let node: Element | null = header;
   for (let hop = 0; hop < 80 && node; hop++) {
     node = nextElementInDocumentOrder(node);
     if (!node) break;
-    if (node.getAttribute("aria-expanded") === "true") return true;
-    if (/^wi-?fi\b/i.test(directText(node))) return true;
+    const expanded = node.getAttribute("aria-expanded");
+    if (expanded !== null) return expanded === "true";
+    const cls = node.getAttribute("class") ?? "";
+    // MUI's collapsible (confirmed on the real page): "MuiCollapse-entered" only while open.
+    if (/\bMuiCollapse-root\b/.test(cls)) return /\bMuiCollapse-entered\b/.test(cls);
+    if (/^wi-?fi\b/i.test(directText(node))) {
+      // A real screen: open only if the row actually shows. No layout (tests): take it as open.
+      return !hasLayout || node.getBoundingClientRect().height > 0;
+    }
   }
   return false;
 }

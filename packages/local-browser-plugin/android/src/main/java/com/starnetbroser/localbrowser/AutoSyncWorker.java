@@ -77,6 +77,7 @@ public class AutoSyncWorker extends Worker {
     private static final long DEEP_ACCOUNT_TIMEOUT_MS = 50000;
     /** Wait after each tap of that walk, for the SPA to render the next page. */
     private static final long STEP_DELAY_MS = 3000;
+    private static final long DEVICES_SETTLE_MS = 4500;
     private static final int ICON_RAIL_INDEX_SUBSCRIPTIONS = 1;
 
     /** This run refreshes one device ("تحديث" on its card): also read its dish/Wi-Fi dots. */
@@ -443,16 +444,11 @@ public class AutoSyncWorker extends Worker {
             return;
         }
         if (index >= taps.length) {
-            webView.evaluateJavascript(script, value -> {
-                JSObject fields = StarlinkExtractorSupport.parseExtractedFields(value);
-                if (fields != null && fields.length() > 0 && AllowedUrl.isAllowed(webView.getUrl())) {
-                    String syncId = PendingSyncStore.save(context, entry.accountId, fields);
-                    if (syncId != null) LocalBrowserPlugin.emitAccountDataSynced(syncId, entry.accountId, fields);
-                }
-                teardown.run();
-            });
+            readDevicePage(context, webView, entry, script, teardown, handler, false);
             return;
         }
+        // The last tap opens "الأجهزة": its dots fill in only after their telemetry loads.
+        long delay = index == taps.length - 1 ? DEVICES_SETTLE_MS : STEP_DELAY_MS;
         webView.evaluateJavascript(taps[index], value -> handler.postDelayed(() -> {
             try {
                 runTap(context, webView, entry, script, teardown, handler, taps, index + 1);
@@ -460,6 +456,37 @@ public class AutoSyncWorker extends Worker {
                 // The visit was torn down meanwhile (a destroyed WebView) - nothing left to do.
                 teardown.run();
             }
-        }, STEP_DELAY_MS));
+        }, delay));
+    }
+
+    /** Reads the devices page; if neither dot has a color yet, waits once more and reads again. */
+    private void readDevicePage(Context context, WebView webView, AutoSyncAccountStore.Entry entry, String script, Runnable teardown, Handler handler, boolean retried) {
+        if (!AllowedUrl.isAllowed(webView.getUrl())) {
+            teardown.run();
+            return;
+        }
+        webView.evaluateJavascript(script, value -> {
+            JSObject fields = StarlinkExtractorSupport.parseExtractedFields(value);
+            boolean hasDots = fields != null && (colored(fields.optString("dishStatus", "")) || colored(fields.optString("wifiStatus", "")));
+            if (!hasDots && !retried) {
+                handler.postDelayed(() -> {
+                    try {
+                        readDevicePage(context, webView, entry, script, teardown, handler, true);
+                    } catch (RuntimeException e) {
+                        teardown.run();
+                    }
+                }, DEVICES_SETTLE_MS);
+                return;
+            }
+            if (fields != null && fields.length() > 0 && AllowedUrl.isAllowed(webView.getUrl())) {
+                String syncId = PendingSyncStore.save(context, entry.accountId, fields);
+                if (syncId != null) LocalBrowserPlugin.emitAccountDataSynced(syncId, entry.accountId, fields);
+            }
+            teardown.run();
+        });
+    }
+
+    private static boolean colored(String status) {
+        return "online".equals(status) || "offline".equals(status) || "warning".equals(status);
     }
 }

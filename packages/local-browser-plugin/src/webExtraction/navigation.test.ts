@@ -122,6 +122,20 @@ describe("expandDevicesSection", () => {
     expect(clicked).toBe(false);
   });
 
+  it("taps a CLOSED section even though its rows are still in the page (MUI keeps them hidden)", () => {
+    document.body.innerHTML = `
+      <div>الأجهزة</div>
+      <div role="button">STARLINK</div>
+      <div class="MuiCollapse-root MuiCollapse-vertical MuiCollapse-hidden">
+        <div><span>STARLINK</span><span class="dot"></span></div>
+        <div><span>WIFI 1AB310E</span><span class="dot"></span></div>
+      </div>`;
+    let clicked = false;
+    document.querySelector("[role=button]")!.addEventListener("click", () => (clicked = true));
+    expect(expandDevicesSection()).toBe(true);
+    expect(clicked).toBe(true);
+  });
+
   it("returns false when the page has no 'الأجهزة' heading at all", () => {
     document.body.innerHTML = `<div>صفحة أخرى</div>`;
     expect(expandDevicesSection()).toBe(false);
