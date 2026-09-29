@@ -14,12 +14,18 @@ export type ShareDeviceResult = { ok: true } | { ok: false; message: string };
  */
 export async function shareRepDevice(device: RepModeDevice, code: string): Promise<ShareDeviceResult> {
   if (!isRunningInAndroidApp()) return { ok: false, message: "الإرسال يعمل داخل تطبيق Android فقط" };
-  const sessions = await exportAccountSessions([device.id]);
+  // Also read the device's Outlook mailbox session, so a mailbox the rep signed into travels with
+  // the device and works on the operator's phone too.
+  const sessions = await exportAccountSessions([device.id], true);
   const cookies = sessions[device.id];
+  const mailCookies = sessions[`mail:${device.id}`];
   if (!cookies || Object.keys(cookies).length === 0) return { ok: false, message: "سجّل الدخول إلى Starlink أولاً ثم أرسل" };
   const { id: _id, createdAt: _created, sentAt: _sent, ...details } = device;
   try {
-    const text = await buildRepDeviceFile({ device: details, cookies, createdAt: new Date().toISOString() }, code);
+    const text = await buildRepDeviceFile(
+      { device: details, cookies, ...(mailCookies && Object.keys(mailCookies).length > 0 ? { mailCookies } : {}), createdAt: new Date().toISOString() },
+      code,
+    );
     const written = await Filesystem.writeFile({ path: repDeviceFileName(device.id), data: text, directory: Directory.Cache, encoding: Encoding.UTF8 });
     await Share.share({ title: "جهاز لـ STAR NET", files: [written.uri], dialogTitle: "أرسله إلى بوت المندوبين في تيليغرام" });
     return { ok: true };

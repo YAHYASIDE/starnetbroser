@@ -279,6 +279,8 @@ export interface SetAutoSyncAccountIdsResult {
 
 export interface ExportSessionCookiesOptions {
   accountIds: string[];
+  /** Also read each device's Outlook mailbox session (a "mail:<id>" entry). Off by default. */
+  mailbox?: boolean;
 }
 
 export interface ExportSessionCookiesResult {

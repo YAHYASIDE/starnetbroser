@@ -56,6 +56,8 @@ export interface RepDevicePayload {
   device: RepDeviceDetails;
   /** url -> cookie string, as exportSessionCookies gives it for this device. */
   cookies: Record<string, string>;
+  /** The device's Outlook mailbox session, when the rep signed into it too (url -> cookie). */
+  mailCookies?: Record<string, string>;
   createdAt: string;
 }
 

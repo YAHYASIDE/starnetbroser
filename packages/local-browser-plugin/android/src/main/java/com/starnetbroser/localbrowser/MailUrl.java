@@ -18,6 +18,21 @@ public final class MailUrl {
     /** Gmail's inbox - it sends a signed-out visitor to the Google sign-in page by itself. */
     public static final String GMAIL_INBOX_URL = "https://mail.google.com/mail/u/0/";
 
+    /**
+     * The Outlook hosts whose cookies keep the mailbox signed in - read to move a rep's already
+     * signed-in Outlook mailbox to the operator alongside the device (same encrypted file), and
+     * restored on the operator's phone so «📧 البريد» opens straight into the inbox. The apex
+     * (live.com) comes first, mirroring SESSION_COOKIE_URLS for Starlink. Only Outlook: Gmail's
+     * sign-in can't be carried this way (no in-app mailbox for it anyway).
+     */
+    public static final String MAIL_COOKIE_APEX_HOST = "live.com";
+    public static final String[] MAIL_COOKIE_URLS = {
+        "https://live.com",
+        "https://login.live.com",
+        "https://outlook.live.com",
+        "https://account.microsoft.com",
+    };
+
     /** Which web mailbox an email opens in. */
     public enum Provider { OUTLOOK, GMAIL }
 

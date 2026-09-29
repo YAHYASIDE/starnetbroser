@@ -39,7 +39,11 @@ export async function adoptRepDevice(requestId: string, accountId: string): Prom
   } catch {
     return { ok: false, message: "رمز المندوب لا يفتح الملف - أُضيف الجهاز بدون الجلسة" };
   }
-  const imported = await importAccountSessions({ [accountId]: payload.cookies });
+  const imported = await importAccountSessions({
+    [accountId]: payload.cookies,
+    // Restore the device's Outlook mailbox too when the rep sent it (its own profile on the app).
+    ...(payload.mailCookies && Object.keys(payload.mailCookies).length > 0 ? { [`mail:${accountId}`]: payload.mailCookies } : {}),
+  });
   saveRepRequests(resolveRepRequest(loadRepRequests(), requestId, "approved"));
   const name = deviceDisplayName(payload.device);
   await sendRepText(request.repId, `✅ أضاف المسؤول جهاز ${name} (${payload.device.clientName}).\nاضغط «✅ وصل» في تطبيقك إن لم تفعل - لتُحذف الجلسة من هاتفك.`);

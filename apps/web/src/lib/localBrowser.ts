@@ -252,10 +252,10 @@ export async function triggerImmediateSync(accountId?: string): Promise<OpenResu
  * (see accountBackup.ts) - the caller is responsible for encrypting this before it ever touches
  * disk. Empty on web/failure, never throws: an empty export is safe, just not useful.
  */
-export async function exportAccountSessions(accountIds: string[]): Promise<SessionsByAccount> {
+export async function exportAccountSessions(accountIds: string[], includeMailbox = false): Promise<SessionsByAccount> {
   if (!isRunningInAndroidApp()) return {};
   try {
-    const { sessions } = await LocalBrowser.exportSessionCookies({ accountIds });
+    const { sessions } = await LocalBrowser.exportSessionCookies({ accountIds, ...(includeMailbox ? { mailbox: true } : {}) });
     return sessions;
   } catch {
     return {};

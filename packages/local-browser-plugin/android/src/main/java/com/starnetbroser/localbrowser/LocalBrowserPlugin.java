@@ -976,8 +976,12 @@ public class LocalBrowserPlugin extends Plugin {
      * API exposes none of those; importSessionCookies re-derives them) and no localStorage/
      * IndexedDB, so this is a best-effort session snapshot, not a byte-for-byte profile clone.
      */
+    /** Prefix of the second key a device carries when its Outlook mailbox travels with it. */
+    private static final String MAIL_SESSION_PREFIX = "mail:";
+
     @PluginMethod
     public void exportSessionCookies(PluginCall call) {
+        boolean withMailbox = Boolean.TRUE.equals(call.getBoolean("mailbox", false));
         JSArray accountIdsArray = call.getArray("accountIds");
         List<String> accountIds = new ArrayList<>();
         if (accountIdsArray != null) {
@@ -1015,6 +1019,23 @@ public class LocalBrowserPlugin extends Plugin {
                     }
                     if (cookiesByUrl.length() > 0) {
                         sessions.put(accountId, cookiesByUrl);
+                    }
+                    // The device's Outlook mailbox, when asked for (a rep sending a device that
+                    // he also signed the mailbox into) - under its own "mail:" key.
+                    if (withMailbox) {
+                        CookieManager mailCookies = mailCookieManager(accountId);
+                        if (mailCookies != null) {
+                            JSObject mailByUrl = new JSObject();
+                            for (String url : MailUrl.MAIL_COOKIE_URLS) {
+                                String cookie = mailCookies.getCookie(url);
+                                if (cookie != null && !cookie.isEmpty()) {
+                                    mailByUrl.put(url, cookie);
+                                }
+                            }
+                            if (mailByUrl.length() > 0) {
+                                sessions.put(MAIL_SESSION_PREFIX + accountId, mailByUrl);
+                            }
+                        }
                     }
                 }
                 JSObject ret = new JSObject();
@@ -1061,21 +1082,29 @@ public class LocalBrowserPlugin extends Plugin {
                     if (cookiesByUrlJson == null) {
                         continue;
                     }
+                    // A "mail:<id>" entry restores the device's Outlook mailbox (its own profile
+                    // and allow-list); anything else is the Starlink session.
+                    boolean isMail = accountId.startsWith(MAIL_SESSION_PREFIX);
+                    String deviceId = isMail ? accountId.substring(MAIL_SESSION_PREFIX.length()) : accountId;
+                    if (deviceId.trim().isEmpty()) {
+                        continue;
+                    }
                     Map<String, String> cookiesByUrl = new LinkedHashMap<>();
                     Iterator<String> urls = cookiesByUrlJson.keys();
                     while (urls.hasNext()) {
                         String url = urls.next();
-                        if (AllowedUrl.isAllowed(url)) {
+                        if (isMail ? MailUrl.isAllowed(url) : AllowedUrl.isAllowed(url)) {
                             cookiesByUrl.put(url, cookiesByUrlJson.optString(url, null));
                         }
                     }
-                    List<CookieStringUtil.RestoreCookie> cookies = CookieStringUtil.buildRestoreCookies(cookiesByUrl, SESSION_COOKIE_APEX_HOST);
+                    List<CookieStringUtil.RestoreCookie> cookies =
+                        CookieStringUtil.buildRestoreCookies(cookiesByUrl, isMail ? MailUrl.MAIL_COOKIE_APEX_HOST : SESSION_COOKIE_APEX_HOST);
                     if (cookies.isEmpty()) {
                         continue;
                     }
                     String profileName;
                     try {
-                        profileName = ProfileNaming.profileNameFor(accountId);
+                        profileName = isMail ? ProfileNaming.mailProfileNameFor(deviceId) : ProfileNaming.profileNameFor(deviceId);
                     } catch (RuntimeException ex) {
                         continue;
                     }
@@ -1088,6 +1117,11 @@ public class LocalBrowserPlugin extends Plugin {
                     if (restoredAny) {
                         cookieManager.flush();
                         importedCount++;
+                        // The restored mailbox is signed in - the green «📧 البريد» and the
+                        // «البريد المسجّل» page reflect it (the email comes from the account).
+                        if (isMail) {
+                            MailSessionStore.markSignedIn(getContext(), deviceId, "");
+                        }
                     }
                 }
                 JSObject ret = new JSObject();
@@ -1234,6 +1268,18 @@ public class LocalBrowserPlugin extends Plugin {
         String profileName;
         try {
             profileName = ProfileNaming.profileNameFor(accountId);
+        } catch (RuntimeException ex) {
+            return null;
+        }
+        Profile profile = ProfileStore.getInstance().getProfile(profileName);
+        return profile == null ? null : profile.getCookieManager();
+    }
+
+    /** The cookie manager of a device's Outlook mailbox profile, or null if it was never opened. */
+    private static CookieManager mailCookieManager(String accountId) {
+        String profileName;
+        try {
+            profileName = ProfileNaming.mailProfileNameFor(accountId);
         } catch (RuntimeException ex) {
             return null;
         }
