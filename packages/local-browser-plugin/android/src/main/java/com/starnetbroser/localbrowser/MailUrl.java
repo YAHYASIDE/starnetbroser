@@ -102,20 +102,6 @@ public final class MailUrl {
         return SessionState.UNKNOWN;
     }
 
-    /**
-     * Gmail in the phone's real browser (Google refuses its sign-in inside an app's embedded
-     * browser), through Google's account chooser: it opens exactly this account when the browser
-     * is already signed in to it, and otherwise asks to sign in to it (email filled in). A bare
-     * /mail/u/<email>/ link answered "404" for an account not signed in yet, and ?authuser= fell
-     * back to the browser's default account.
-     */
-    public static String gmailBrowserUrlFor(String email) {
-        if (email == null || email.trim().isEmpty()) return "https://mail.google.com/mail/u/0/";
-        String address = email.trim();
-        String inbox = "https://mail.google.com/mail/u/?authuser=" + urlEncode(address);
-        return "https://accounts.google.com/AccountChooser?Email=" + urlEncode(address) + "&continue=" + urlEncode(inbox);
-    }
-
     /** The inbox, with the email as a sign-in hint when there is one. */
     public static String inboxUrlFor(String email) {
         if (providerFor(email) == Provider.GMAIL) return GMAIL_INBOX_URL; // the sign-in form is autofilled

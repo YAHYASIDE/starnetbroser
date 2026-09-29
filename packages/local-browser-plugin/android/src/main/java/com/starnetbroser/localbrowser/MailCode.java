@@ -17,6 +17,10 @@ public final class MailCode {
     private static final Pattern HINT = Pattern.compile(
         "starlink|verification|verify|one[- ]time|passcode|security code|\\bcode\\b|\\bOTP\\b|رمز|كود|تحقق|التحقق",
         Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+    /** Words that say "this number is a code" - needed on the same line for a non 6-digit number. */
+    private static final Pattern CODE_WORDS = Pattern.compile(
+        "verification|verify|one[- ]time|passcode|security code|\\bcode\\b|\\bOTP\\b|رمز|كود|تحقق",
+        Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
     /** How many lines after a hint line may still hold its code (subject -> preview). */
     private static final int LOOKAHEAD = 4;
 
@@ -38,8 +42,12 @@ public final class MailCode {
 
     private static String codeIn(String line) {
         Matcher m = CODE.matcher(toLatinDigits(line));
+        boolean saysCode = CODE_WORDS.matcher(line).find();
         while (m.find()) {
             String digits = m.group(1);
+            // Starlink codes are 6 digits; any other length (a card's last 4, an amount) only
+            // counts when the same line says it is a code.
+            if (digits.length() != 6 && !saysCode) continue;
             if (digits.length() == 4) {
                 int n = Integer.parseInt(digits);
                 if (n >= 1900 && n <= 2100) continue; // a year

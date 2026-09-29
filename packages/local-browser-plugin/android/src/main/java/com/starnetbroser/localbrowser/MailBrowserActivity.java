@@ -52,21 +52,13 @@ public class MailBrowserActivity extends AppCompatActivity {
     private String email;
 
     /**
-     * Opens one device's mailbox: Outlook inside the app (isolated, autofilled, code reading), or -
-     * for a Gmail address - Gmail in Chrome, since Google refuses sign-in inside an app's embedded
-     * browser ("قد يكون هذا المتصفح غير آمن"). Chrome keeps each Gmail signed in once.
+     * Opens one device's mailbox inside the app: Outlook in its isolated web view (autofilled, code
+     * reading), or - for a Gmail address, whose sign-in page refuses in-app browsers - the Gmail
+     * inbox read over IMAP with its «كلمة مرور التطبيق» (GmailInboxActivity), same window and bar.
      */
     static void open(android.app.Activity activity, String accountId, String title, String email, String password) {
         if (MailUrl.providerFor(email) == MailUrl.Provider.GMAIL) {
-            Intent view = new Intent(Intent.ACTION_VIEW, Uri.parse(MailUrl.gmailBrowserUrlFor(email)));
-            view.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            view.setPackage("com.android.chrome");
-            try {
-                activity.startActivity(view);
-            } catch (android.content.ActivityNotFoundException noChrome) {
-                view.setPackage(null); // the phone's default browser
-                activity.startActivity(view);
-            }
+            activity.startActivity(GmailInboxActivity.intentFor(activity, accountId, email));
             return;
         }
         activity.startActivity(intentFor(activity, accountId, title, email, password));

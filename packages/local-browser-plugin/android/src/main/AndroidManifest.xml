@@ -50,6 +50,16 @@
             android:resizeableActivity="true"
             android:label="STAR NET" />
 
+        <!-- 📧 البريد for a Gmail address: its inbox read with the app password, same launch model. -->
+        <activity
+            android:name="com.starnetbroser.localbrowser.GmailInboxActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout"
+            android:documentLaunchMode="intoExisting"
+            android:resizeableActivity="true"
+            android:label="STAR NET" />
+
         <service
             android:name="com.starnetbroser.localbrowser.TelegramReplyService"
             android:exported="false"

@@ -109,7 +109,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
     private static final int MAX_AUTO_FILLS = 3;
     private final Handler twoStepHandler = new Handler(Looper.getMainLooper());
     private final Runnable twoStepPoll = this::checkTwoStep;
-    private MailCodeFetcher codeFetcher;
+    private CodeSource codeFetcher;
     /** Off for this screen after the mailbox needed a sign-in, no code came, or 3 tries. */
     private boolean autoCodeOff;
     private long lastFillAt;
@@ -257,10 +257,13 @@ public class AccountBrowserActivity extends AppCompatActivity {
     }
 
     private void startCodeFetch() {
-        if (MailUrl.providerFor(getIntent().getStringExtra(EXTRA_LOGIN_EMAIL)) == MailUrl.Provider.GMAIL) {
-            // Gmail opens in Chrome, which the app cannot read - the code is copied from there.
+        String mailEmail = getIntent().getStringExtra(EXTRA_LOGIN_EMAIL);
+        boolean gmail = MailUrl.providerFor(mailEmail) == MailUrl.Provider.GMAIL;
+        String gmailPassword = gmail ? GmailPasswordStore.get(this, mailEmail) : null;
+        if (gmail && gmailPassword == null) {
+            // Gmail is read with its app password, added once from «📧 البريد».
             autoCodeOff = true;
-            Toast.makeText(this, "📧 إيميل Gmail: اضغط «📧 البريد» فيفتح في Chrome، انسخ الرمز والصقه هنا", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "📧 افتح «البريد» وأضف كلمة مرور التطبيق لهذا الـ Gmail مرة واحدة ليُدخل التطبيق الرمز تلقائياً", Toast.LENGTH_LONG).show();
             return;
         }
         if (autoFills >= MAX_AUTO_FILLS) {
@@ -270,7 +273,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
         }
         final SharedPreferences prefs = getSharedPreferences(TRIED_CODES_PREFS, MODE_PRIVATE);
         try {
-            codeFetcher = new MailCodeFetcher(this, accountId, getIntent().getStringExtra(EXTRA_LOGIN_EMAIL), prefs.getString(accountId, ""), new MailCodeFetcher.Listener() {
+            CodeSource.Listener listener = new CodeSource.Listener() {
                 @Override
                 public void onCode(String code) {
                     codeFetcher = null;
@@ -296,7 +299,10 @@ public class AccountBrowserActivity extends AppCompatActivity {
                     autoCodeOff = true;
                     Toast.makeText(AccountBrowserActivity.this, "لم يصل رمز جديد إلى البريد - افتح «📧 البريد»", Toast.LENGTH_LONG).show();
                 }
-            });
+            };
+            codeFetcher = gmail
+                ? new GmailCodePoller(this, accountId, mailEmail, gmailPassword, prefs.getString(accountId, ""), listener)
+                : new MailCodeFetcher(this, accountId, mailEmail, prefs.getString(accountId, ""), listener);
         } catch (RuntimeException e) {
             codeFetcher = null;
             autoCodeOff = true;

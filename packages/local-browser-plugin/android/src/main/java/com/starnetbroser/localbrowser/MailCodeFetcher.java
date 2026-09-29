@@ -19,13 +19,7 @@ import org.json.JSONException;
  * text with MailCode. Reports a code not tried yet, "signed out" when the mailbox needs a sign-in,
  * or "gave up" after a while. Nothing read here is logged or leaves the phone.
  */
-final class MailCodeFetcher {
-
-    interface Listener {
-        void onCode(String code);
-        void onSignedOut();
-        void onGiveUp();
-    }
+final class MailCodeFetcher implements CodeSource {
 
     private static final long POLL_MS = 3000;
     private static final long RELOAD_MS = 30000;
@@ -70,14 +64,16 @@ final class MailCodeFetcher {
         });
     }
 
-    void start() {
+    @Override
+    public void start() {
         startedAt = System.currentTimeMillis();
         lastReloadAt = startedAt;
         webView.loadUrl(inboxUrl);
         handler.postDelayed(this::poll, POLL_MS);
     }
 
-    void stop() {
+    @Override
+    public void stop() {
         done = true;
         handler.removeCallbacksAndMessages(null);
         if (webView != null) {

@@ -15,7 +15,7 @@ export interface MailboxSession {
 export interface MailboxRow {
   accountId: string;
   email: string;
-  /** Gmail opens in Chrome (Google refuses sign-in inside the app) - its sign-in isn't tracked. */
+  /** A Gmail address: read in the app with its app password (the others: Outlook web). */
   gmail: boolean;
   deviceName: string;
   clientName?: string;
@@ -25,7 +25,7 @@ export interface MailboxRow {
 
 export type MailboxFilter = "signed" | "all";
 
-/** Gmail addresses open in Chrome instead of the in-app mailbox. */
+/** Gmail addresses (read in the app over IMAP with an app password). */
 export function isGmail(email: string | undefined): boolean {
   return /@(gmail|googlemail)\.com$/i.test((email ?? "").trim());
 }

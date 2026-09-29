@@ -66,10 +66,6 @@ public class MailUrlTest {
         assertEquals(MailUrl.SessionState.SIGNED_IN, MailUrl.sessionState("https://mail.google.com/mail/u/0/#inbox"));
         assertEquals(MailUrl.SessionState.SIGNED_OUT, MailUrl.sessionState("https://accounts.google.com/v3/signin/identifier?continue=x"));
         assertTrue(MailUrl.isAppStoreRedirect("https://play.google.com/store/apps/details?id=com.google.android.gm"));
-        assertEquals(
-            "https://accounts.google.com/AccountChooser?Email=talaa%40gmail.com&continue=https%3A%2F%2Fmail.google.com%2Fmail%2Fu%2F%3Fauthuser%3Dtalaa%2540gmail.com",
-            MailUrl.gmailBrowserUrlFor(" talaa@gmail.com "));
-        assertEquals("https://mail.google.com/mail/u/0/", MailUrl.gmailBrowserUrlFor(null));
     }
 
     @Test

@@ -31,6 +31,12 @@ public class MailCodeTest {
     }
 
     @Test
+    public void aCardsLastDigitsAreNotACode() {
+        assertNull(MailCode.find("Starlink Argentina\nتم رفض عملية بطاقتك\nتم رفض دفعتك بالبطاقة المنتهية بـ 1234"));
+        assertEquals("4821", MailCode.find("Starlink\nYour code is 4821"));
+    }
+
+    @Test
     public void numbersFarFromAnyCodeLineAreIgnored() {
         assertNull(MailCode.find("Order 123456 shipped"));
         assertNull(MailCode.find(null));
