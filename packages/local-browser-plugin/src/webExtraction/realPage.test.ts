@@ -34,3 +34,21 @@ describe("real Starlink page (snapshot) - الأجهزة with both dots red", ()
     expect(taps).toBe(0);
   });
 });
+
+describe("real Starlink page (snapshot) - الأجهزة CLOSED", () => {
+  it("opens it by tapping the STARLINK row, never the text-less button after the heading", () => {
+    loadRealPage("real-devices-closed.html");
+    const tapped: string[] = [];
+    document.querySelectorAll("[role=button], button").forEach((el) =>
+      el.addEventListener("click", () => tapped.push((el.textContent ?? "").trim().slice(0, 12))),
+    );
+    expect(expandDevicesSection()).toBe(true);
+    expect(tapped).toEqual(["STARLINK"]);
+  });
+
+  it("finds no dots while closed (the rows are not in the page yet)", () => {
+    loadRealPage("real-devices-closed.html");
+    const fields = extractStarlinkFields(document);
+    expect(fields).not.toHaveProperty("wifiStatus");
+  });
+});

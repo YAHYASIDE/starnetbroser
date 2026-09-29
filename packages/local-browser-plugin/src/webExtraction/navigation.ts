@@ -167,16 +167,25 @@ export function expandDevicesSection(): boolean {
   // toggle says aria-expanded="true") means leave it alone.
   if (devicesSectionIsOpen(header)) return true;
 
+  // The section's own toggle is the row that names the dish ("STARLINK") - real, confirmed miss:
+  // a small text-less icon button sits right after the heading, and tapping "the first clickable"
+  // hit it instead, so the section never opened. Only if no such row exists, the first clickable.
+  const following: Element[] = [];
   let node: Element | null = header;
-  for (let hop = 0; hop < 40 && node; hop++) {
+  for (let hop = 0; hop < 60 && node; hop++) {
     node = nextElementInDocumentOrder(node);
     if (!node) break;
-    if (isClickable(node) && !isDangerousControl(node)) {
-      (node as HTMLElement).click();
-      return true;
-    }
+    if (isClickable(node) && !isDangerousControl(node)) following.push(node);
   }
-  return false;
+  const namesDish = (el: Element) => /starlink/i.test(el.textContent ?? "");
+  const isRealButton = (el: Element) => el.tagName === "BUTTON" || el.getAttribute("role") === "button";
+  const target =
+    following.find((el) => isRealButton(el) && namesDish(el)) ??
+    following.find(namesDish) ??
+    following.find((el) => (el.textContent ?? "").trim().length > 1);
+  if (!target) return false;
+  (target as HTMLElement).click();
+  return true;
 }
 
 function devicesSectionIsOpen(header: Element): boolean {
