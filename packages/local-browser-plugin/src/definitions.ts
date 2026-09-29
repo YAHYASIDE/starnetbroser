@@ -112,6 +112,9 @@ export interface SyncedStarlinkFields {
   /** "باقة الأولوية نفدت" banner: the plan's priority data (e.g. 100 GB) is used up - the service
    * still works, at limited speed, until the next cycle. Explicit true/false like isRestricted. */
   priorityDataExhausted?: boolean;
+  /** "لا توجد اشتراكات" on the subscriptions page: this email has no subscription (canceled or
+   * moved away) - the device shows under «المعطلة» as ملغي اشتراك. Explicit true/false. */
+  noSubscription?: boolean;
   /** Diagnostic: what the dot reader saw under "الأجهزة" (labels, results, candidate colors) -
    * shown in the device's edit dialog, to fix a dot that reads wrong. No account data. */
   dotTrace?: string;

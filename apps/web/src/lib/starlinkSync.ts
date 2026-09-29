@@ -36,6 +36,7 @@ const FIELD_INFO: Record<keyof SyncedStarlinkFields, { label: string; section: S
   serviceCountry: { label: "دولة الجهاز", section: "subscriptions" },
   oceanMode: { label: "وضع المحيط", section: "subscriptions" },
   priorityDataExhausted: { label: "نفاد باقة الأولوية", section: "subscriptions" },
+  noSubscription: { label: "لا توجد اشتراكات", section: "subscriptions" },
   dotTrace: { label: "تشخيص النقاط", section: "devices" },
   dataUsageGb: { label: "إجمالي استهلاك الباقة", section: "subscriptions" },
   isRestricted: { label: "تقييد الجهاز (خارج البلد المسجل)", section: "devices" },
@@ -237,6 +238,12 @@ export function mergeSyncedFields(
   if (fields.oceanMode !== undefined) {
     note("oceanMode", next.oceanMode !== fields.oceanMode);
     next.oceanMode = fields.oceanMode;
+  }
+
+  // Explicit true/false: "لا توجد اشتراكات", cleared by a page listing a subscription.
+  if (fields.noSubscription !== undefined) {
+    note("noSubscription", next.noSubscription !== fields.noSubscription);
+    next.noSubscription = fields.noSubscription;
   }
 
   // Explicit true/false: the usage figure shown without the banner clears it (a new cycle).

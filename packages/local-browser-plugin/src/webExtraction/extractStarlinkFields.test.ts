@@ -747,3 +747,23 @@ describe("extractStarlinkFields - priority data (100 GB) used up", () => {
     expect(fields.priorityDataExhausted).toBeUndefined();
   });
 });
+
+describe("extractStarlinkFields - an email with no subscription", () => {
+  it("reads «لا توجد اشتراكات» as canceled with no subscription (real, confirmed screenshot)", () => {
+    const fields = extractFrom(`
+      <div><h1>الاشتراكات</h1><button>إضافة اشتراك</button></div>
+      <div><div>الاشتراك</div><div>لا توجد اشتراكات</div><div>0 - 0</div></div>
+    `);
+    expect(fields.noSubscription).toBe(true);
+    expect(fields.serviceStatus).toBe("canceled");
+  });
+
+  it("a page with a subscription number clears it", () => {
+    const fields = extractFrom(`<div><div>الاشتراك</div><div>SL-XX-11112222-33334-44</div></div>`);
+    expect(fields.noSubscription).toBe(false);
+  });
+
+  it("a page saying nothing about it leaves it unknown", () => {
+    expect(extractFrom(`<div><div>الرصيد المستحق</div><div>0.00 USD</div></div>`).noSubscription).toBeUndefined();
+  });
+});

@@ -25,6 +25,7 @@ import {
   hasBillingSuspensionBanner,
   hasRegionRestrictedBanner,
   hasPriorityDataExhaustedBanner,
+  hasNoSubscriptionsText,
   hasScheduledEndBanner,
   isCompleteDate,
   isOnAccountHomePage,
@@ -106,6 +107,9 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
   // plan's "نشط" badge while this banner said the service was disabled). Only "canceled" stays.
   if (serviceStatus !== "canceled" && hasBillingSuspensionBanner(lines)) serviceStatus = "suspended";
   if (!serviceStatus && hasScheduledEndBanner(lines)) serviceStatus = "active";
+  // "لا توجد اشتراكات": nothing to renew on this email - the device counts as canceled.
+  const noSubscription = hasNoSubscriptionsText(lines);
+  if (noSubscription) serviceStatus = "canceled";
   if (!serviceStatus && isOnAccountHomePage(lines)) serviceStatus = "active";
   // A device on Starlink's paid Standby Mode plan (sold as SIS) is kept active on purpose - its
   // "وضع الاستعداد" badge is the plan, not a paused service waiting for activation.
@@ -189,6 +193,10 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
 
   const subscriptionId = extractSubscriptionId(text);
   if (subscriptionId) fields.subscriptionId = subscriptionId;
+
+  // Explicit true/false: a page listing a subscription (its SL- number or plan) clears it.
+  if (noSubscription) fields.noSubscription = true;
+  else if (subscriptionId || planName) fields.noSubscription = false;
 
   const dataUsageGb = extractDataUsageGb(lines);
   if (dataUsageGb) fields.dataUsageGb = dataUsageGb;

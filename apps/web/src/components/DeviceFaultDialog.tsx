@@ -1,9 +1,10 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { StarlinkAccountSummary } from "@starnet/shared";
+import type { DeviceFaultReason, StarlinkAccountSummary } from "@starnet/shared";
+import { FAULT_CATEGORIES, faultCategory } from "@/lib/deviceFault";
 
-type FaultReason = "burned" | "other";
+type FaultReason = DeviceFaultReason;
 
 interface Props {
   account: StarlinkAccountSummary;
@@ -24,10 +25,11 @@ interface Props {
  */
 export function DeviceFaultDialog({ account, openDebtUsd, waivedCount, onSave, onClear, onClose }: Props) {
   const existing = account.deviceFault;
-  const [reason, setReason] = useState<FaultReason>(existing?.reason ?? "burned");
+  // A device the app already put in a group (no subscription / secondary email) opens on it.
+  const [reason, setReason] = useState<FaultReason>(existing?.reason ?? faultCategory(account) ?? "burned");
   const [note, setNote] = useState(existing?.note ?? "");
   // A burned device's D is normally never paid - ticked by default for "محترق" only.
-  const [waive, setWaive] = useState((existing?.reason ?? "burned") === "burned");
+  const [waive, setWaive] = useState((existing?.reason ?? faultCategory(account) ?? "burned") === "burned");
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -49,7 +51,7 @@ export function DeviceFaultDialog({ account, openDebtUsd, waivedCount, onSave, o
       <section className="account-dialog fault-dialog" role="dialog" aria-modal="true" aria-labelledby="fault-dialog-title">
         <header className="dialog-header">
           <div>
-            <h2 id="fault-dialog-title">حالة الجهاز</h2>
+            <h2 id="fault-dialog-title">الأجهزة المعطلة</h2>
             <p>حساب "{account.name}" - هذا لا يغيّر حالة الاشتراك في Starlink</p>
           </div>
           <button className="dialog-close" type="button" onClick={onClose} aria-label="إغلاق">×</button>
@@ -57,7 +59,7 @@ export function DeviceFaultDialog({ account, openDebtUsd, waivedCount, onSave, o
 
         <form className="account-form" onSubmit={submit}>
           <label className="form-field form-wide">
-            <span>سبب العطل</span>
+            <span>النوع</span>
             <select
               value={reason}
               onChange={(e) => {
@@ -66,8 +68,9 @@ export function DeviceFaultDialog({ account, openDebtUsd, waivedCount, onSave, o
                 setWaive(next === "burned");
               }}
             >
-              <option value="burned">محترق</option>
-              <option value="other">عطل آخر</option>
+              {FAULT_CATEGORIES.filter((c) => c.reason !== "other" || existing?.reason === "other").map((c) => (
+                <option key={c.reason} value={c.reason}>{c.icon} {c.label}</option>
+              ))}
             </select>
           </label>
 

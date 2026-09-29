@@ -81,7 +81,8 @@ import {
   saveRepresentativeStore,
 } from "@/lib/repStore";
 import { CurrencyStore, getCurrency, loadCurrencyStore, saveCurrencyStore, upsertCurrency, UpsertCurrencyInput } from "@/lib/currencyStore";
-import { openDebtEntries, restoreWaivedDebts, waiveOpenDebts } from "@/lib/deviceFault";
+import { countFaultCategories, FAULT_CATEGORIES, faultCategory, isFaulty, openDebtEntries, restoreWaivedDebts, waiveOpenDebts } from "@/lib/deviceFault";
+import type { DeviceFaultReason } from "@starnet/shared";
 import { listOpenPreviousDebts, loadPreviousDebts, recordPreviousDebt, savePreviousDebts, type PreviousDebtList } from "@/lib/previousDebt";
 import { confirmClosedMonthChange, ledgerEntryMonthDates } from "@/lib/monthClosing";
 import { deviceRecordsQuestion, deviceRecordsSummary, removeDeviceRecords } from "@/lib/deviceRemoval";
@@ -155,15 +156,15 @@ function matchesStatFilter(account: StarlinkAccountSummary, kind: StatFilterKind
     case "suspended":
       return account.serviceStatus === "suspended";
     case "faulty":
-      return Boolean(account.deviceFault);
+      return isFaulty(account);
     case "expiringSoon": {
       // A broken device isn't renewed until it's repaired (see "المعطلة").
-      if (account.deviceFault) return false;
+      if (isFaulty(account)) return false;
       const days = daysRemainingNumber(account.rechargeDate || account.standbyDate);
       return days !== null && days >= 0 && days <= NEAR_EXPIRY_THRESHOLD_DAYS;
     }
     case "expired": {
-      if (account.deviceFault) return false;
+      if (isFaulty(account)) return false;
       const days = daysRemainingNumber(account.rechargeDate || account.standbyDate);
       return days !== null && days < 0;
     }
@@ -185,6 +186,8 @@ export function HomeView({
   const [query, setQuery] = useState("");
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [statFilter, setStatFilter] = useState<StatFilterKind | null>(null);
+  /** One group of «المعطلة» (ملغي / محروق / منقول / إيميل غير رئيسي), or all of them. */
+  const [faultFilter, setFaultFilter] = useState<DeviceFaultReason | null>(null);
 
   function toggleStatFilter(kind: StatFilterKind) {
     setStatFilter((current) => (current === kind ? null : kind));
@@ -1032,7 +1035,7 @@ export function HomeView({
   const expiredOrNearExpiry = useMemo(
     () =>
       activeAccounts.filter((account) => {
-        if (account.deviceFault) return false;
+        if (isFaulty(account)) return false;
         const days = daysRemainingNumber(account.rechargeDate || account.standbyDate);
         return days !== null && days <= NEAR_EXPIRY_THRESHOLD_DAYS;
       }),
@@ -1047,7 +1050,7 @@ export function HomeView({
     let faulty = 0;
 
     for (const account of activeAccounts) {
-      if (account.deviceFault) {
+      if (isFaulty(account)) {
         faulty += 1;
         continue;
       }
@@ -1073,12 +1076,15 @@ export function HomeView({
     }
     if (statFilter) {
       list = list.filter((a) => matchesStatFilter(a, statFilter));
+      if (statFilter === "faulty" && faultFilter) list = list.filter((a) => faultCategory(a) === faultFilter);
     }
     if (query.trim()) {
       list = list.filter((a) => deviceMatchesQuery(query, a, a.clientId ? clientStore[a.clientId] : undefined));
     }
     return list;
-  }, [activeAccounts, selectedDay, statFilter, query, clientStore]);
+  }, [activeAccounts, selectedDay, statFilter, faultFilter, query, clientStore]);
+
+  const faultCounts = useMemo(() => countFaultCategories(activeAccounts), [activeAccounts]);
 
   const searchResults = useMemo(
     () =>
@@ -1290,7 +1296,7 @@ export function HomeView({
             <button
               type="button"
               className={`faulty-chip${statFilter === "faulty" ? " faulty-chip-active" : ""}`}
-              onClick={() => { toggleStatFilter("faulty"); setSelectedDay(null); }}
+              onClick={() => { toggleStatFilter("faulty"); setFaultFilter(null); setSelectedDay(null); }}
             >
               🔧 الأجهزة المعطلة ({overview.faulty})
             </button>
@@ -1339,6 +1345,24 @@ export function HomeView({
             )
           )}
         </div>
+
+        {viewMode === "active" && statFilter === "faulty" && (
+          <div className="fault-groups" role="radiogroup" aria-label="نوع العطل">
+            <button type="button" className={`fault-group${faultFilter === null ? " fault-group-active" : ""}`} onClick={() => setFaultFilter(null)}>
+              الكل ({overview.faulty})
+            </button>
+            {FAULT_CATEGORIES.filter((c) => c.reason !== "other" || faultCounts.other > 0).map((c) => (
+              <button
+                key={c.reason}
+                type="button"
+                className={`fault-group${faultFilter === c.reason ? " fault-group-active" : ""}`}
+                onClick={() => setFaultFilter(c.reason)}
+              >
+                {c.icon} {c.label} ({faultCounts[c.reason]})
+              </button>
+            ))}
+          </div>
+        )}
 
         {visible.length === 0 ? (
           <p className="empty-state">

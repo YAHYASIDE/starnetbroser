@@ -53,7 +53,9 @@ export function isSisPlan(planName: string | undefined): boolean {
 
 /** The status to show: a device on the SIS plan is active even when Starlink's badge says
  * "وضع الاستعداد" (devices synced before SIS was recognized still carry "standby"). */
-export function effectiveServiceStatus(account: { serviceStatus?: string; planName?: string }): string | undefined {
+export function effectiveServiceStatus(account: { serviceStatus?: string; planName?: string; noSubscription?: boolean }): string | undefined {
+  // "لا توجد اشتراكات" wins over a Home page that still reads "active".
+  if (account.noSubscription) return "canceled";
   return account.serviceStatus === "standby" && isSisPlan(account.planName) ? "active" : account.serviceStatus;
 }
 

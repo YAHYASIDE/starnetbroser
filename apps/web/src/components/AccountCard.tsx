@@ -12,7 +12,7 @@ import { daysRemainingLabel, daysRemainingNumber, formatRelativeTime } from "@/l
 import { emailsMismatch } from "@/lib/emailMatch";
 import { computeBalanceByCurrency, LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerEntry } from "@/lib/ledgerStore";
 import { starlinkCostUsd, summarizeDeviceProfit } from "@/lib/accountingStore";
-import { isWaivedCost, openDebtEntries } from "@/lib/deviceFault";
+import { faultCategory, faultLabel, isAutoFault, isWaivedCost, openDebtEntries } from "@/lib/deviceFault";
 import { paidSinceLastSyncUsd, totalPreviousDebtUsd, unrecordedStarlinkBalanceUsd, type PreviousDebt } from "@/lib/previousDebt";
 import { computeDeviceMarks } from "@/lib/deviceMarks";
 import { CurrencyStore, getCurrency, toUsd } from "@/lib/currencyStore";
@@ -204,8 +204,9 @@ export function AccountCard({
   const dishDot = connectionDot(account.dishStatus);
   const wifiDot = connectionDot(account.wifiStatus);
   const planName = cleanPlanName(account.planName);
-  const planBadge = planName ? (planBadgeLabel(planName) ?? planName) : undefined;
+  const planBadge = planName && !account.noSubscription ? (planBadgeLabel(planName) ?? planName) : undefined;
   const priorityState = priorityDataState(account);
+  const fault = faultCategory(account);
   const lastSynced = formatRelativeTime(account.lastSuccessfulScanAt);
   // Single shared source for both the badge label and its urgency color - never computed twice
   // from two different date fields, which is exactly what produced a real, confirmed bug: two
@@ -397,10 +398,16 @@ export function AccountCard({
         </div>
       )}
 
-      {account.deviceFault && (
+      {fault && (
         <div className="account-card-fault-banner">
-          🔧 الجهاز معطل ({account.deviceFault.reason === "burned" ? "محترق" : "عطل آخر"})
-          {account.deviceFault.note && ` — ${account.deviceFault.note}`}
+          {faultLabel(fault)}
+          {isAutoFault(account)
+            ? fault === "secondary"
+              ? " — الإيميل لا يعرض الاشتراكات والإعدادات والفوترة (اكتُشف تلقائياً)"
+              : account.noSubscription
+                ? " — لا يوجد اشتراك على هذا الإيميل (اكتُشف تلقائياً)"
+                : " — الاشتراك ملغى في Starlink (اكتُشف تلقائياً)"
+            : account.deviceFault?.note && ` — ${account.deviceFault.note}`}
         </div>
       )}
 

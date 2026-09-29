@@ -4,6 +4,7 @@
  * their own currency column; the أوقية column next to them is today's-rate display, like the page.
  */
 
+import { faultLabel } from "./deviceFault";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { computeShipmentProfit, shipmentProfitDate, starlinkCostUsd } from "./accountingStore";
 import { computeBalanceByCurrency, LEDGER_CURRENCY_LABELS, type LedgerByAccount, type LedgerEntry } from "./ledgerStore";
@@ -118,7 +119,7 @@ export function buildBusinessWorkbook(input: BusinessExportInput): XlsxSheet[] {
       account.accountNumber,
       account.rechargeDate || account.standbyDate,
       presentServiceStatus(account.serviceStatus)?.label ?? account.serviceStatus,
-      account.deviceFault ? (account.deviceFault.reason === "burned" ? "محترق" : "عطل") : undefined,
+      account.deviceFault ? faultLabel(account.deviceFault.reason).replace(/^\S+\s/, "") : undefined,
       Number.isFinite(Number(account.balanceDue)) && Number(account.balanceDue) !== 0 ? Number(account.balanceDue) : undefined,
       account.currency,
       round(input.openDUsdByAccount[account.id]),

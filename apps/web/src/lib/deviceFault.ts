@@ -6,11 +6,52 @@
  * untouched. Repairing the device restores those D's exactly as they were, to be paid normally.
  */
 
-import type { StarlinkAccountSummary } from "@starnet/shared";
+import type { DeviceFaultReason, StarlinkAccountSummary } from "@starnet/shared";
 import type { LedgerEntry } from "./ledgerStore";
 
-export function isFaulty(account: StarlinkAccountSummary): boolean {
-  return Boolean(account.deviceFault);
+/** The «المعطلة» groups, in the order they're shown. */
+export const FAULT_CATEGORIES: { reason: DeviceFaultReason; label: string; icon: string }[] = [
+  { reason: "canceled", label: "ملغي اشتراك", icon: "🚫" },
+  { reason: "burned", label: "محروق", icon: "🔥" },
+  { reason: "moved", label: "منقول", icon: "🔀" },
+  { reason: "secondary", label: "إيميل غير رئيسي", icon: "👤" },
+  { reason: "other", label: "عطل آخر", icon: "🔧" },
+];
+
+export function faultLabel(reason: DeviceFaultReason): string {
+  const category = FAULT_CATEGORIES.find((c) => c.reason === reason);
+  return category ? `${category.icon} ${category.label}` : "🔧 عطل";
+}
+
+type FaultInput = Pick<StarlinkAccountSummary, "deviceFault" | "noSubscription" | "serviceStatus" | "limitedAccess">;
+
+/** Where the device belongs in «المعطلة», or null. A reason the operator chose always wins;
+ * otherwise Starlink tells: no subscription on the email / a canceled service -> ملغي اشتراك,
+ * an email without the full menu (no subscriptions / settings / billing) -> إيميل غير رئيسي. */
+export function faultCategory(account: FaultInput): DeviceFaultReason | null {
+  if (account.deviceFault) return account.deviceFault.reason;
+  if (account.noSubscription === true || account.serviceStatus === "canceled") return "canceled";
+  if (account.limitedAccess === true) return "secondary";
+  return null;
+}
+
+/** Found by the app itself (not marked by hand). */
+export function isAutoFault(account: FaultInput): boolean {
+  return !account.deviceFault && faultCategory(account) !== null;
+}
+
+export function isFaulty(account: FaultInput): boolean {
+  return faultCategory(account) !== null;
+}
+
+/** How many devices in each group (every group present, 0 when empty). */
+export function countFaultCategories(accounts: FaultInput[]): Record<DeviceFaultReason, number> {
+  const counts: Record<DeviceFaultReason, number> = { canceled: 0, burned: 0, moved: 0, secondary: 0, other: 0 };
+  for (const account of accounts) {
+    const category = faultCategory(account);
+    if (category) counts[category] += 1;
+  }
+  return counts;
 }
 
 /** Shipments still owing Starlink a real amount. */

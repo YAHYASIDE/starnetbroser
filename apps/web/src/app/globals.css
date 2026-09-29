@@ -8733,3 +8733,29 @@ button.today-tile {
   color: var(--text-muted);
   overflow-wrap: anywhere;
 }
+
+/* «المعطلة» groups: ملغي اشتراك / محروق / منقول / إيميل غير رئيسي */
+.fault-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+
+.fault-group {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 5px 10px;
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.fault-group-active {
+  background: var(--orange-bg);
+  border-color: var(--orange);
+  color: var(--orange);
+  font-weight: 700;
+}

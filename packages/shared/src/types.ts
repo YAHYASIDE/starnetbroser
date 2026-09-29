@@ -51,6 +51,9 @@ export interface Customer {
   updatedAt: string;
 }
 
+/** «المعطلة»: ملغي اشتراك / محروق / منقول / إيميل غير رئيسي ("other" = an older "عطل آخر"). */
+export type DeviceFaultReason = "canceled" | "burned" | "moved" | "secondary" | "other";
+
 /** List-view shape - never includes decrypted secrets. */
 export interface StarlinkAccountSummary {
   id: string;
@@ -133,6 +136,9 @@ export interface StarlinkAccountSummary {
   /** "باقة الأولوية نفدت" banner: the plan's priority data (e.g. 100 GB) is used up - the service
    * still works, at limited speed, until the next cycle. Explicit true/false like isRestricted. */
   priorityDataExhausted?: boolean;
+  /** "لا توجد اشتراكات" on the subscriptions page: this email has no subscription (canceled or
+   * moved away) - the device shows under «المعطلة» as ملغي اشتراك. Explicit true/false. */
+  noSubscription?: boolean;
   /** Diagnostic from the last read of the "الأجهزة" section: what the dish/Wi-Fi dot reader saw. */
   dotTrace?: string;
   /** The saved email is a limited user on someone else's Starlink account (its menu has no
@@ -163,7 +169,7 @@ export interface StarlinkAccountSummary {
    * independent of the Starlink subscription's own serviceStatus (a device can be active AND
    * broken, or suspended AND fine). Cleared (back to undefined/null) once the operator marks it
    * fixed. */
-  deviceFault?: { reason: "burned" | "other"; note: string; reportedAt: string } | null;
+  deviceFault?: { reason: DeviceFaultReason; note: string; reportedAt: string } | null;
   /** ISO timestamp set only by an explicit "أرشفة" action - an archived device is hidden from the
    * main list (see HomeView's "الأرشيف" view) but keeps every ledger entry, allocation and
    * exchange-rate link exactly as-is; null/undefined again once restored. Never implies deleted. */

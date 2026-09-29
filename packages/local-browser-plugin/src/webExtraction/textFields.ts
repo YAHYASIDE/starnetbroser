@@ -84,6 +84,15 @@ export function hasRegionRestrictedBanner(lines: string[]): boolean {
   return lines.some((line) => containsAny(line, REGION_RESTRICTED_BANNER_LABELS));
 }
 
+/** The subscriptions page of an email with no subscription at all ("لا توجد اشتراكات" under
+ * "الاشتراكات", real, confirmed screenshot) - the device's subscription was canceled / moved away. */
+export function hasNoSubscriptionsText(lines: string[]): boolean {
+  return lines.some((line) => {
+    const t = line.trim();
+    return t === "لا توجد اشتراكات" || t === "لا توجد اشتراكات." || /^no subscriptions\.?$/i.test(t);
+  });
+}
+
 /** The real subscription page's banner once the plan's priority data (e.g. the 100 GB roaming
  * plan) is used up: "تم تقييد سرعة اتصال Starlink لأن باقة الأولوية نفدت" (real, confirmed
  * screenshot). The service keeps working at limited speed until the next cycle, so this is its own
