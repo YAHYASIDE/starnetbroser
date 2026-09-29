@@ -104,12 +104,13 @@ public final class MailUrl {
 
     /**
      * Gmail in the phone's real browser (Google refuses its sign-in inside an app's embedded
-     * browser): the inbox of exactly this account among the browser's signed-in Google accounts.
+     * browser): the inbox of exactly this account (/mail/u/<email>/). When that account is not
+     * signed in to the browser yet, Gmail asks to sign in to it - never shows another account.
      */
     public static String gmailBrowserUrlFor(String email) {
         String base = "https://mail.google.com/mail/u/";
         if (email == null || email.trim().isEmpty()) return base + "0/";
-        return base + "?authuser=" + urlEncode(email.trim());
+        return base + urlEncode(email.trim()).replace("%40", "@") + "/";
     }
 
     /** The inbox, with the email as a sign-in hint when there is one. */
