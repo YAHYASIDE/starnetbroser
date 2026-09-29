@@ -21,6 +21,7 @@ import { CurrencyStore, getCurrency, toUsd } from "@/lib/currencyStore";
 import { formatAmount } from "@/lib/formatAmount";
 import { PaymentAllocation } from "@/lib/paymentAllocationStore";
 import { Client } from "@/lib/clientStore";
+import { isGmail } from "@/lib/mailboxes";
 import { isRunningInAndroidApp, mailLoginFor, openIsolatedAccountBrowser, openIsolatedMailbox, starlinkLoginFor, triggerImmediateSync } from "@/lib/localBrowser";
 import {
   buildAccountStatementMessage,
@@ -601,16 +602,18 @@ export function AccountCard({
         >
           <span aria-hidden="true">↗</span> {opening ? "جارِ الفتح…" : "فتح الحساب"}
         </button>
-        <button
-          className={`card-action card-action-mail${mailSignedIn ? " card-action-mail-on" : ""}`}
-          type="button"
-          onClick={handleOpenMail}
-          disabled={opening}
-          title={!isAndroidApp ? "متاح فقط داخل تطبيق STAR NET لنظام Android" : mailSignedIn ? "البريد مسجّل - يفتح مباشرة" : "البريد غير مسجّل بعد - سجّل الدخول مرة واحدة"}
-          aria-label="بريد الجهاز"
-        >
-          <span aria-hidden="true">📧</span> البريد
-        </button>
+        {!isGmail(mailLoginFor(account).email) && (
+          <button
+            className={`card-action card-action-mail${mailSignedIn ? " card-action-mail-on" : ""}`}
+            type="button"
+            onClick={handleOpenMail}
+            disabled={opening}
+            title={!isAndroidApp ? "متاح فقط داخل تطبيق STAR NET لنظام Android" : mailSignedIn ? "البريد مسجّل - يفتح مباشرة" : "البريد غير مسجّل بعد - سجّل الدخول مرة واحدة"}
+            aria-label="بريد الجهاز"
+          >
+            <span aria-hidden="true">📧</span> البريد
+          </button>
+        )}
       </div>
 
       {context === "active" ? (

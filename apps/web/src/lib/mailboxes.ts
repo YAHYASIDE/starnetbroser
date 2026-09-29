@@ -15,8 +15,6 @@ export interface MailboxSession {
 export interface MailboxRow {
   accountId: string;
   email: string;
-  /** A Gmail address: read in the app with its app password (the others: Outlook web). */
-  gmail: boolean;
   deviceName: string;
   clientName?: string;
   signedIn: boolean;
@@ -25,7 +23,7 @@ export interface MailboxRow {
 
 export type MailboxFilter = "signed" | "all";
 
-/** Gmail addresses (read in the app over IMAP with an app password). */
+/** Gmail addresses: Google refuses its sign-in inside the app, so they have no in-app mailbox. */
 export function isGmail(email: string | undefined): boolean {
   return /@(gmail|googlemail)\.com$/i.test((email ?? "").trim());
 }
@@ -53,11 +51,10 @@ export function buildMailboxRows(
     if (account.deletedAt) continue;
     const session = byId.get(account.id);
     const email = deviceEmail(account) || session?.email || "";
-    if (!email && !session) continue;
+    if ((!email && !session) || isGmail(email)) continue;
     const row: MailboxRow = {
       accountId: account.id,
       email,
-      gmail: isGmail(email),
       deviceName: account.name,
       clientName: account.clientId ? clientStore[account.clientId]?.name : undefined,
       signedIn: Boolean(session),
@@ -71,6 +68,11 @@ export function buildMailboxRows(
     rows.push(row);
   }
   return rows.sort((a, b) => Number(b.signedIn) - Number(a.signedIn) || a.email.localeCompare(b.email));
+}
+
+/** How many devices use a Gmail address (not shown - no in-app mailbox for Gmail). */
+export function gmailCount(accounts: StarlinkAccountSummary[]): number {
+  return accounts.filter((a) => !a.deletedAt && isGmail(deviceEmail(a))).length;
 }
 
 /** How many devices have a signed-in mailbox (only devices still in the app). */

@@ -52,13 +52,12 @@ public class MailBrowserActivity extends AppCompatActivity {
     private String email;
 
     /**
-     * Opens one device's mailbox inside the app: Outlook in its isolated web view (autofilled, code
-     * reading), or - for a Gmail address, whose sign-in page refuses in-app browsers - the Gmail
-     * inbox read over IMAP with its «كلمة مرور التطبيق» (GmailInboxActivity), same window and bar.
+     * Opens one device's Outlook mailbox inside the app (isolated web view, autofilled, code
+     * reading). Gmail is not offered: Google refuses its sign-in inside an app's web view.
      */
     static void open(android.app.Activity activity, String accountId, String title, String email, String password) {
         if (MailUrl.providerFor(email) == MailUrl.Provider.GMAIL) {
-            activity.startActivity(GmailInboxActivity.intentFor(activity, accountId, email));
+            android.widget.Toast.makeText(activity, "بريد Gmail لا يُفتح داخل التطبيق - Google تمنع ذلك", android.widget.Toast.LENGTH_LONG).show();
             return;
         }
         activity.startActivity(intentFor(activity, accountId, title, email, password));

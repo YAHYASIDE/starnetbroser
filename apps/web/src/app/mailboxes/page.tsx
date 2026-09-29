@@ -9,7 +9,7 @@ import { listAccounts } from "@/lib/apiClient";
 import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
 import { ClientStore, loadClientStore } from "@/lib/clientStore";
 import { isRunningInAndroidApp, listMailSessions, mailLoginFor, openIsolatedMailbox } from "@/lib/localBrowser";
-import { buildMailboxRows, MailboxFilter, MailboxSession, signedInCount } from "@/lib/mailboxes";
+import { buildMailboxRows, gmailCount, MailboxFilter, MailboxSession, signedInCount } from "@/lib/mailboxes";
 
 function formatSince(ms?: number): string {
   if (!ms) return "";
@@ -84,6 +84,11 @@ export default function MailboxesPage() {
           </span>
         </p>
         {!inApp && <p className="settings-hint">حالة التسجيل وفتح البريد متاحان داخل تطبيق Android فقط.</p>}
+        {gmailCount(accounts) > 0 && (
+          <p className="settings-hint">
+            إيميلات Gmail (<bdi dir="ltr">{gmailCount(accounts)}</bdi>) غير معروضة: Google تمنع فتحها داخل التطبيق.
+          </p>
+        )}
 
         <div className="mailbox-tabs" role="tablist">
           {(["signed", "all"] as MailboxFilter[]).map((f) => (
@@ -125,7 +130,6 @@ export default function MailboxesPage() {
                     {row.email || "—"}
                   </bdi>
                   <span className="mailbox-sub">
-                    {row.gmail ? "Gmail · " : ""}
                     {row.deviceName}
                     {row.clientName ? ` · ${row.clientName}` : ""}
                     {row.signedIn && row.signedInAt ? (

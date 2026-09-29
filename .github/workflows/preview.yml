@@ -275,12 +275,6 @@ jobs:
                       signingConfig signingConfigs.debug
                   }
               }
-              // JavaMail's two Android jars (Gmail over IMAP) both carry these notice files.
-              packaging {
-                  resources {
-                      pickFirsts += ['META-INF/NOTICE.md', 'META-INF/LICENSE.md', 'META-INF/NOTICE.txt', 'META-INF/LICENSE.txt']
-                  }
-              }
           }
           EOF
 

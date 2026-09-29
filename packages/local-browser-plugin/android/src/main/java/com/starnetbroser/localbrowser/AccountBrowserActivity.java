@@ -258,12 +258,9 @@ public class AccountBrowserActivity extends AppCompatActivity {
 
     private void startCodeFetch() {
         String mailEmail = getIntent().getStringExtra(EXTRA_LOGIN_EMAIL);
-        boolean gmail = MailUrl.providerFor(mailEmail) == MailUrl.Provider.GMAIL;
-        String gmailPassword = gmail ? GmailPasswordStore.get(this, mailEmail) : null;
-        if (gmail && gmailPassword == null) {
-            // Gmail is read with its app password, added once from «📧 البريد».
+        if (MailUrl.providerFor(mailEmail) == MailUrl.Provider.GMAIL) {
+            // Gmail can't be read inside the app - its code is typed by hand.
             autoCodeOff = true;
-            Toast.makeText(this, "📧 افتح «البريد» وأضف كلمة مرور التطبيق لهذا الـ Gmail مرة واحدة ليُدخل التطبيق الرمز تلقائياً", Toast.LENGTH_LONG).show();
             return;
         }
         if (autoFills >= MAX_AUTO_FILLS) {
@@ -300,9 +297,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
                     Toast.makeText(AccountBrowserActivity.this, "لم يصل رمز جديد إلى البريد - افتح «📧 البريد»", Toast.LENGTH_LONG).show();
                 }
             };
-            codeFetcher = gmail
-                ? new GmailCodePoller(this, accountId, mailEmail, gmailPassword, prefs.getString(accountId, ""), listener)
-                : new MailCodeFetcher(this, accountId, mailEmail, prefs.getString(accountId, ""), listener);
+            codeFetcher = new MailCodeFetcher(this, accountId, mailEmail, prefs.getString(accountId, ""), listener);
         } catch (RuntimeException e) {
             codeFetcher = null;
             autoCodeOff = true;

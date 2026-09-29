@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DeviceStatus, type StarlinkAccountSummary } from "@starnet/shared";
-import { buildMailboxRows, deviceEmail, isGmail, signedInCount } from "./mailboxes";
+import { buildMailboxRows, deviceEmail, gmailCount, isGmail, signedInCount } from "./mailboxes";
 
 // Fake data only.
 function device(id: string, extra: Partial<StarlinkAccountSummary> = {}): StarlinkAccountSummary {
@@ -16,6 +16,7 @@ const accounts = [
   device("b", { expectedEmail: "amin@outlook.com", kitNumber: "KIT123" }),
   device("c", { starlinkAccountEmail: "sync@hotmail.com" }),
   device("d"),
+  device("g", { expectedEmail: "someone@gmail.com" }),
   device("e", { expectedEmail: "gone@outlook.com", deletedAt: "2026-09-01" }),
 ];
 const clients = { c1: { id: "c1", name: "محمد", createdAt: "", updatedAt: "" } };
@@ -52,5 +53,6 @@ describe("registered mailboxes", () => {
     expect(isGmail(" Talaa@GMAIL.com ")).toBe(true);
     expect(isGmail("a@outlook.com")).toBe(false);
     expect(isGmail("a@gmail.com.evil.io")).toBe(false);
+    expect(gmailCount(accounts)).toBe(1);
   });
 });
