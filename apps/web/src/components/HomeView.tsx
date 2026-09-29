@@ -26,7 +26,7 @@ import { computeDeviceDebtReminders, computeRenewalReminders, computeRestrictedD
 import { formatAmount } from "@/lib/formatAmount";
 import { applyLedgerPaymentsToCash, loadCashEntries, saveCashEntries } from "@/lib/cashStore";
 import { parseNewDevicePrefill } from "@/lib/deviceFromSale";
-import { adoptRepDevice } from "@/lib/repDeviceAdopt";
+import { adoptRepDevice, repDeviceSecrets } from "@/lib/repDeviceAdopt";
 import { bucketPromises, loadPromises } from "@/lib/paymentPromises";
 import { HOME_ACTION_EVENT, HomeAction, parseHomeAction, parseHomePayment, REMINDER_COUNT_EVENT, parseHomeSearch } from "@/lib/homeActions";
 import { buildRenewalShipment } from "@/lib/renewalPlan";
@@ -228,16 +228,22 @@ export function HomeView({
     const prefill = parseNewDevicePrefill(window.location.search);
     if (!prefill) return;
     repDeviceRequestRef.current = prefill.repRequestId ?? null;
-    setDialog({
-      mode: "add",
-      prefill: {
-        clientId: prefill.clientId,
-        representativeId: prefill.representativeId,
-        name: prefill.name ?? "",
-        ...(prefill.email ? { expectedEmail: prefill.email } : {}),
-        ...(prefill.kit ? { kitNumber: prefill.kit } : {}),
-      },
-    });
+    const open = (secrets: { emailPassword?: string; wifiPassword?: string } = {}) =>
+      setDialog({
+        mode: "add",
+        prefill: {
+          clientId: prefill.clientId,
+          representativeId: prefill.representativeId,
+          name: prefill.name ?? "",
+          ...(prefill.email ? { expectedEmail: prefill.email } : {}),
+          ...(prefill.kit ? { kitNumber: prefill.kit } : {}),
+          // 📱 A rep's device: the codes he typed come out of its encrypted file.
+          ...(secrets.emailPassword ? { expectedEmailPassword: secrets.emailPassword } : {}),
+          ...(secrets.wifiPassword ? { wifiPassword: secrets.wifiPassword } : {}),
+        },
+      });
+    if (prefill.repRequestId) void repDeviceSecrets(prefill.repRequestId).then(open);
+    else open();
     window.history.replaceState(null, "", window.location.pathname);
   }, []);
 

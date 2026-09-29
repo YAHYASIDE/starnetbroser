@@ -46,6 +46,10 @@ export interface RepDeviceDetails {
   kit?: string;
   /** What the card is called; defaults to the email / KIT / customer name. */
   deviceName?: string;
+  /** «كود البريد» - the email's own password (travels only inside the encrypted file). */
+  emailPassword?: string;
+  /** «كود الواي فاي» - also the Starlink password (travels only inside the encrypted file). */
+  wifiPassword?: string;
 }
 
 export interface RepDevicePayload {
@@ -197,7 +201,17 @@ export function cleanRepDeviceDetails(input: RepDeviceDetails): RepDeviceDetails
   const email = input.email?.trim().toLowerCase() || undefined;
   const kit = input.kit?.trim().toUpperCase() || undefined;
   const deviceName = input.deviceName?.trim() || undefined;
-  return { clientName, ...(phone ? { phone } : {}), ...(email ? { email } : {}), ...(kit ? { kit } : {}), ...(deviceName ? { deviceName } : {}) };
+  const emailPassword = input.emailPassword?.trim() || undefined;
+  const wifiPassword = input.wifiPassword?.trim() || undefined;
+  return {
+    clientName,
+    ...(phone ? { phone } : {}),
+    ...(email ? { email } : {}),
+    ...(kit ? { kit } : {}),
+    ...(deviceName ? { deviceName } : {}),
+    ...(emailPassword ? { emailPassword } : {}),
+    ...(wifiPassword ? { wifiPassword } : {}),
+  };
 }
 
 export function addRepModeDevice(list: RepModeDevice[], details: RepDeviceDetails, now = new Date()): RepModeDevice[] {

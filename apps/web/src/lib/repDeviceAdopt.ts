@@ -8,6 +8,22 @@ import { sendRepText } from "./telegram";
 export type AdoptResult = { ok: true; name: string } | { ok: false; message: string };
 
 /**
+ * The codes a rep typed for his device («كود البريد», «كود الواي فاي») - read from the encrypted
+ * file only when the operator opens the add dialog for it, never kept anywhere in plain text.
+ */
+export async function repDeviceSecrets(requestId: string): Promise<{ emailPassword?: string; wifiPassword?: string }> {
+  const request = loadRepRequests().find((r) => r.id === requestId && r.status === "pending");
+  const code = request ? repDeviceCode(request.repId) : undefined;
+  if (!request?.file || !code) return {};
+  try {
+    const { device } = await readRepDeviceFile(request.file, code);
+    return { ...(device.emailPassword ? { emailPassword: device.emailPassword } : {}), ...(device.wifiPassword ? { wifiPassword: device.wifiPassword } : {}) };
+  } catch {
+    return {};
+  }
+}
+
+/**
  * The operator saved the device a rep sent from his app (📱): its Starlink session goes into the
  * new account's isolated browser, the request is closed (its encrypted file dropped) and the rep
  * is told he can delete his copy. Called right after the add-device dialog saves `accountId`.

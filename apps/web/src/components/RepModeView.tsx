@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { SessionStatus } from "@starnet/local-browser-plugin";
-import { checkAccountSession, deleteIsolatedAccountSession, openIsolatedAccountBrowser } from "@/lib/localBrowser";
+import { checkAccountSession, deleteIsolatedAccountSession, openIsolatedAccountBrowser, openIsolatedMailbox } from "@/lib/localBrowser";
+import { isGmail } from "@/lib/mailboxes";
 import { forgetRepDeviceFile, shareRepDevice } from "@/lib/repDeviceShare";
 import {
   addRepModeDevice,
@@ -14,7 +15,7 @@ import {
   saveRepModeDevices,
 } from "@/lib/repDeviceTransfer";
 
-const EMPTY_FORM = { clientName: "", phone: "", email: "", kit: "", deviceName: "" };
+const EMPTY_FORM = { clientName: "", phone: "", email: "", emailPassword: "", wifiPassword: "", kit: "", deviceName: "" };
 
 /**
  * 📱 وضع المندوب - the whole app on a rep's phone: add a customer's device, sign in to Starlink
@@ -62,7 +63,22 @@ export function RepModeView({ settings, onExit }: { settings: RepModeSettings; o
   }
 
   async function login(device: RepModeDevice) {
-    const result = await openIsolatedAccountBrowser(device.id, deviceDisplayName(device));
+    // Same as the operator's app: the Starlink form is filled with the email and the Wi-Fi code
+    // (else the email's code), and «📧 البريد» inside it opens the device's own mailbox.
+    const loginPassword = device.wifiPassword || device.emailPassword;
+    const result = await openIsolatedAccountBrowser(device.id, deviceDisplayName(device), {
+      ...(device.email ? { loginEmail: device.email } : {}),
+      ...(loginPassword ? { loginPassword } : {}),
+      ...(device.emailPassword ? { mailPassword: device.emailPassword } : {}),
+    });
+    if (!result.ok) setMessage(result.message);
+  }
+
+  async function openMail(device: RepModeDevice) {
+    const result = await openIsolatedMailbox(device.id, deviceDisplayName(device), {
+      ...(device.email ? { email: device.email } : {}),
+      ...(device.emailPassword ? { password: device.emailPassword } : {}),
+    });
     if (!result.ok) setMessage(result.message);
   }
 
@@ -108,21 +124,53 @@ export function RepModeView({ settings, onExit }: { settings: RepModeSettings; o
       {message && <p className="settings-hint rep-mode-message">{message}</p>}
 
       {adding ? (
-        <section className="rep-mode-form">
-          <input className="search-input" value={form.clientName} onChange={(e) => setForm({ ...form, clientName: e.target.value })} placeholder="اسم الزبون *" />
-          <input className="search-input" dir="ltr" inputMode="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="هاتف الزبون" />
-          <input className="search-input" dir="ltr" inputMode="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="إيميل Starlink" />
-          <input className="search-input" dir="ltr" value={form.kit} onChange={(e) => setForm({ ...form, kit: e.target.value })} placeholder="KIT" />
-          <input className="search-input" value={form.deviceName} onChange={(e) => setForm({ ...form, deviceName: e.target.value })} placeholder="اسم الجهاز (اختياري)" />
+        <form
+          className="account-form add-device-form rep-mode-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            add();
+          }}
+        >
+          <label className="form-field add-field add-field-email">
+            <span className="add-field-label"><b aria-hidden="true">📧</b> البريد الإلكتروني الرئيسي للجهاز</span>
+            <input dir="ltr" type="email" inputMode="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="name@example.com" />
+          </label>
+
+          <label className="form-field add-field add-field-code">
+            <span className="add-field-label"><b aria-hidden="true">🔑</b> كود البريد</span>
+            <input dir="ltr" value={form.emailPassword} onChange={(e) => setForm({ ...form, emailPassword: e.target.value })} placeholder="اختياري" />
+          </label>
+
+          <label className="form-field add-field add-field-wifi">
+            <span className="add-field-label"><b aria-hidden="true">📶</b> كود الواي فاي</span>
+            <input dir="ltr" value={form.wifiPassword} onChange={(e) => setForm({ ...form, wifiPassword: e.target.value })} placeholder="اختياري" />
+          </label>
+
+          <div className="form-field add-field add-field-client">
+            <span className="add-field-label"><b aria-hidden="true">👤</b> الزبون</span>
+            <input value={form.clientName} onChange={(e) => setForm({ ...form, clientName: e.target.value })} placeholder="اسم الزبون *" />
+            <input dir="ltr" inputMode="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="هاتف الزبون (اختياري)" />
+          </div>
+
+          <label className="form-field add-field add-field-plan">
+            <span className="add-field-label"><b aria-hidden="true">🛰️</b> رقم KIT</span>
+            <input dir="ltr" value={form.kit} onChange={(e) => setForm({ ...form, kit: e.target.value })} placeholder="اختياري" />
+          </label>
+
+          <label className="form-field add-field add-field-name">
+            <span className="add-field-label"><b aria-hidden="true">🏷️</b> اسم الجهاز</span>
+            <input value={form.deviceName} onChange={(e) => setForm({ ...form, deviceName: e.target.value })} placeholder="اختياري - يظهر الإيميل إن تركته" />
+          </label>
+
           <div className="settings-actions">
-            <button type="button" className="dialog-primary" onClick={add}>
-              حفظ
+            <button type="submit" className="dialog-primary">
+              حفظ الجهاز
             </button>
             <button type="button" className="text-action" onClick={() => setAdding(false)}>
               إلغاء
             </button>
           </div>
-        </section>
+        </form>
       ) : (
         <button type="button" className="dialog-primary rep-mode-add" onClick={() => setAdding(true)}>
           ➕ جهاز جديد
@@ -155,6 +203,11 @@ export function RepModeView({ settings, onExit }: { settings: RepModeSettings; o
                 <button type="button" className="text-action" onClick={() => void login(device)}>
                   🔐 {signedIn ? "فتح Starlink" : "تسجيل الدخول إلى Starlink"}
                 </button>
+                {device.email && !isGmail(device.email) && (
+                  <button type="button" className="text-action" onClick={() => void openMail(device)}>
+                    📧 البريد
+                  </button>
+                )}
                 <button type="button" className="dialog-primary" disabled={busy === device.id} onClick={() => void send(device)}>
                   {busy === device.id ? "…" : device.sentAt ? "📤 إعادة الإرسال" : "📤 إرسال للمسؤول"}
                 </button>

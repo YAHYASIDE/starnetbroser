@@ -67,6 +67,16 @@ describe("rep's devices", () => {
     });
   });
 
+  it("keeps the email and Wi-Fi codes exactly as typed (case matters), trimmed", () => {
+    // Fake codes only.
+    expect(cleanRepDeviceDetails({ clientName: "محمد", emailPassword: " Ab12Cd ", wifiPassword: " WiFi-99 " })).toEqual({
+      clientName: "محمد",
+      emailPassword: "Ab12Cd",
+      wifiPassword: "WiFi-99",
+    });
+    expect(cleanRepDeviceDetails({ clientName: "محمد", emailPassword: "  ", wifiPassword: "" })).toEqual({ clientName: "محمد" });
+  });
+
   it("the card name falls back to email, KIT, then customer", () => {
     expect(deviceDisplayName({ clientName: "محمد", email: "x@gmail.com", kit: "K" })).toBe("x@gmail.com");
     expect(deviceDisplayName({ clientName: "محمد", kit: "K" })).toBe("K");
