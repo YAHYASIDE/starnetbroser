@@ -36,6 +36,8 @@ public final class ProfileNaming {
     public static final String DEFAULT_PROFILE_NAME = "Default";
 
     private static final String PROFILE_PREFIX = "starnet_account_";
+    /** The device's mailbox (📧 البريد) lives in its own profile, never in the Starlink one. */
+    private static final String MAIL_PROFILE_PREFIX = "starnet_mail_";
 
     private ProfileNaming() {
     }
@@ -56,6 +58,15 @@ public final class ProfileNaming {
             throw new IllegalStateException("Computed profile name must never equal the shared default profile");
         }
         return profileName;
+    }
+
+    /** The mailbox profile of one device: separate from its Starlink profile and every other one. */
+    @NonNull
+    public static String mailProfileNameFor(@NonNull String accountId) {
+        if (accountId == null || accountId.trim().isEmpty()) {
+            throw new IllegalArgumentException("accountId must not be blank");
+        }
+        return MAIL_PROFILE_PREFIX + sha256Hex(accountId);
     }
 
     private static String sha256Hex(String value) {

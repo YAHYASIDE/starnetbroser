@@ -53,6 +53,38 @@ export function starlinkLoginFor(account: Pick<StarlinkAccountSummary, "expected
 export interface StarlinkLogin {
   loginEmail?: string;
   loginPassword?: string;
+  /** The email's own password - for «📧 البريد» inside the Starlink browser. */
+  mailPassword?: string;
+}
+
+export interface MailLogin {
+  email?: string;
+  password?: string;
+}
+
+/** 📧 البريد: the device's main email and that email's own password ("كود الإيميل"). */
+export function mailLoginFor(account: Pick<StarlinkAccountSummary, "expectedEmail" | "expectedEmailPassword">): MailLogin {
+  const email = account.expectedEmail?.trim() || undefined;
+  const password = account.expectedEmailPassword?.trim() || undefined;
+  return { ...(email ? { email } : {}), ...(password ? { password } : {}) };
+}
+
+/** Opens the device's Outlook mailbox inside the app, in its own isolated profile. */
+export async function openIsolatedMailbox(accountId: string, accountName: string, login: MailLogin = {}): Promise<OpenResult> {
+  if (!isRunningInAndroidApp()) {
+    return { ok: false, message: ANDROID_ONLY_MESSAGE };
+  }
+  try {
+    const { supported } = await LocalBrowser.isSupported();
+    if (!supported) {
+      return { ok: false, message: UNSUPPORTED_DEVICE_MESSAGE };
+    }
+    markInternalLeave();
+    await LocalBrowser.openMailBrowser({ accountId, accountName, ...login });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : "تعذر فتح البريد" };
+  }
 }
 
 export async function openIsolatedAccountBrowser(accountId: string, accountName: string, login: StarlinkLogin = {}): Promise<OpenResult> {

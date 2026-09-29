@@ -56,6 +56,8 @@ public class AccountBrowserActivity extends AppCompatActivity {
     public static final String EXTRA_URL = "com.starnetbroser.localbrowser.URL";
     public static final String EXTRA_LOGIN_EMAIL = "com.starnetbroser.localbrowser.LOGIN_EMAIL";
     public static final String EXTRA_LOGIN_PASSWORD = "com.starnetbroser.localbrowser.LOGIN_PASSWORD";
+    /** The device email's own password, for its mailbox (📧 البريد) - never the Starlink one. */
+    public static final String EXTRA_MAIL_PASSWORD = "com.starnetbroser.localbrowser.MAIL_PASSWORD";
 
     private static final String NOTIFICATION_PERMISSION_PREFS = "starnet_notification_permission";
     private static final String KEY_ASKED_NOTIFICATION_PERMISSION = "asked_post_notifications";
@@ -416,9 +418,11 @@ public class AccountBrowserActivity extends AppCompatActivity {
     }
 
     private static final int MENU_SNAPSHOT = 7001;
+    private static final int MENU_MAIL = 7002;
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
+        menu.add(Menu.NONE, MENU_MAIL, Menu.NONE, "📧 البريد").setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
         menu.add(Menu.NONE, MENU_SNAPSHOT, Menu.NONE, "🧪 لقطة تشخيص").setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
         return true;
     }
@@ -427,6 +431,12 @@ public class AccountBrowserActivity extends AppCompatActivity {
     public boolean onOptionsItemSelected(MenuItem item) {
         if (item.getItemId() == MENU_SNAPSHOT) {
             sendSnapshot();
+            return true;
+        }
+        if (item.getItemId() == MENU_MAIL) {
+            // This device's mailbox, e.g. to copy the Starlink verification code and come back.
+            startActivity(MailBrowserActivity.intentFor(this, accountId, getTitle() != null ? getTitle().toString() : null,
+                getIntent().getStringExtra(EXTRA_LOGIN_EMAIL), getIntent().getStringExtra(EXTRA_MAIL_PASSWORD)));
             return true;
         }
         return super.onOptionsItemSelected(item);

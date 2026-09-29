@@ -21,7 +21,7 @@ import { CurrencyStore, getCurrency, toUsd } from "@/lib/currencyStore";
 import { formatAmount } from "@/lib/formatAmount";
 import { PaymentAllocation } from "@/lib/paymentAllocationStore";
 import { Client } from "@/lib/clientStore";
-import { isRunningInAndroidApp, openIsolatedAccountBrowser, starlinkLoginFor, triggerImmediateSync } from "@/lib/localBrowser";
+import { isRunningInAndroidApp, mailLoginFor, openIsolatedAccountBrowser, openIsolatedMailbox, starlinkLoginFor, triggerImmediateSync } from "@/lib/localBrowser";
 import {
   buildAccountStatementMessage,
   buildBalanceReminderMessage,
@@ -271,10 +271,26 @@ export function AccountCard({
     if (opening) return;
     setOpening(true);
     try {
-      const result = await openIsolatedAccountBrowser(account.id, account.name || "حساب Starlink", starlinkLoginFor(account));
+      const mailPassword = mailLoginFor(account).password;
+      const result = await openIsolatedAccountBrowser(account.id, account.name || "حساب Starlink", {
+        ...starlinkLoginFor(account),
+        ...(mailPassword ? { mailPassword } : {}),
+      });
       if (!result.ok) {
         window.alert(result.message);
       }
+    } finally {
+      setOpening(false);
+    }
+  }
+
+  /** 📧 البريد: this device's Outlook mailbox, inside the app (its own isolated window). */
+  async function handleOpenMail() {
+    if (opening) return;
+    setOpening(true);
+    try {
+      const result = await openIsolatedMailbox(account.id, account.name || "البريد", mailLoginFor(account));
+      if (!result.ok) window.alert(result.message);
     } finally {
       setOpening(false);
     }
@@ -582,6 +598,16 @@ export function AccountCard({
           title={isAndroidApp ? "فتح متصفح مستقل لهذا الحساب" : "متاح فقط داخل تطبيق STAR NET لنظام Android"}
         >
           <span aria-hidden="true">↗</span> {opening ? "جارِ الفتح…" : "فتح الحساب"}
+        </button>
+        <button
+          className="card-action card-action-mail"
+          type="button"
+          onClick={handleOpenMail}
+          disabled={opening}
+          title={isAndroidApp ? "بريد هذا الجهاز داخل التطبيق" : "متاح فقط داخل تطبيق STAR NET لنظام Android"}
+          aria-label="بريد الجهاز"
+        >
+          <span aria-hidden="true">📧</span> البريد
         </button>
       </div>
 

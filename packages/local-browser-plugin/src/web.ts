@@ -17,6 +17,7 @@ import type {
   ListPendingAccountSyncsResult,
   LocalBrowserPlugin,
   OpenAccountBrowserOptions,
+  OpenMailBrowserOptions,
   SetAutoSyncAccountIdsOptions,
   SetAutoSyncAccountIdsResult,
   SetAutoSyncEnabledOptions,
@@ -43,6 +44,10 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
   }
 
   async openAccountBrowser(_options: OpenAccountBrowserOptions): Promise<void> {
+    throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
+  }
+
+  async openMailBrowser(_options: OpenMailBrowserOptions): Promise<void> {
     throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
   }
 

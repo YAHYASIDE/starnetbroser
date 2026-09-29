@@ -196,6 +196,8 @@ public class LocalBrowserPlugin extends Plugin {
         String loginPassword = call.getString("loginPassword");
         if (loginEmail != null && !loginEmail.trim().isEmpty()) intent.putExtra(AccountBrowserActivity.EXTRA_LOGIN_EMAIL, loginEmail);
         if (loginPassword != null && !loginPassword.isEmpty()) intent.putExtra(AccountBrowserActivity.EXTRA_LOGIN_PASSWORD, loginPassword);
+        String mailPassword = call.getString("mailPassword");
+        if (mailPassword != null && !mailPassword.isEmpty()) intent.putExtra(AccountBrowserActivity.EXTRA_MAIL_PASSWORD, mailPassword);
         // A distinct Uri per account (never loaded/navigated to - AccountBrowserActivity only
         // ever reads EXTRA_URL for that) is what makes each account its own separate "document"
         // task in Recents (see documentLaunchMode="intoExisting" on this Activity in the
@@ -206,6 +208,30 @@ public class LocalBrowserPlugin extends Plugin {
         // tap itself came from.
         intent.setData(Uri.parse("starnet-account://" + Uri.encode(accountId)));
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_DOCUMENT | Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
+        getActivity().startActivity(intent);
+        call.resolve();
+    }
+
+    /** 📧 البريد: the device's own mailbox in its own isolated profile (MailBrowserActivity). */
+    @PluginMethod
+    public void openMailBrowser(PluginCall call) {
+        String accountId = call.getString("accountId");
+        if (accountId == null || accountId.trim().isEmpty()) {
+            call.reject("accountId is required");
+            return;
+        }
+        if (!isMultiProfileSupported()) {
+            call.reject("هذا الجهاز لا يدعم المتصفحات المستقلة", ERROR_CODE_UNSUPPORTED);
+            return;
+        }
+        Intent intent;
+        try {
+            intent = MailBrowserActivity.intentFor(getContext(), accountId, call.getString("accountName", accountId),
+                call.getString("email"), call.getString("password"));
+        } catch (RuntimeException ex) {
+            call.reject("Invalid accountId: " + ex.getMessage());
+            return;
+        }
         getActivity().startActivity(intent);
         call.resolve();
     }
@@ -234,6 +260,13 @@ public class LocalBrowserPlugin extends Plugin {
         }
 
         mainHandler.post(() -> {
+            // The device's mailbox profile (📧 البريد) goes with it - best effort, it may never
+            // have been opened.
+            try {
+                ProfileStore.getInstance().deleteProfile(ProfileNaming.mailProfileNameFor(accountId));
+            } catch (RuntimeException ignored) {
+                // never opened / still open
+            }
             boolean deleted;
             try {
                 deleted = ProfileStore.getInstance().deleteProfile(profileName);

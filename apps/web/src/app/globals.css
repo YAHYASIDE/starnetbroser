@@ -9685,3 +9685,11 @@ button.today-tile {
   display: inline;
   margin-inline-start: 6px;
 }
+
+/* 📧 البريد: the device's mailbox inside the app, next to «فتح الحساب». */
+.card-action-mail {
+  flex-shrink: 0;
+  border-color: color-mix(in srgb, var(--mint) 55%, var(--border));
+  background: var(--mint-bg);
+  color: var(--mint);
+}

@@ -17,6 +17,19 @@ export interface OpenAccountBrowserOptions {
   loginEmail?: string;
   /** Typed into the Starlink login form's empty password field (never submitted by itself). */
   loginPassword?: string;
+  /** The device email's own password - only for its mailbox («📧 البريد» in the browser's bar). */
+  mailPassword?: string;
+}
+
+export interface OpenMailBrowserOptions {
+  /** The device (StarlinkAccountSummary.id) whose mailbox this is - its own isolated profile. */
+  accountId: string;
+  /** Shown in the mailbox's top bar when there is no email. */
+  accountName: string;
+  /** Typed into the Microsoft sign-in form's empty email field (never submitted by itself). */
+  email?: string;
+  /** Typed into the Microsoft sign-in form's empty password field (never submitted by itself). */
+  password?: string;
 }
 
 export interface IsSupportedResult {
@@ -325,6 +338,13 @@ export interface LocalBrowserPlugin {
    * session on rejection.
    */
   openAccountBrowser(options: OpenAccountBrowserOptions): Promise<void>;
+
+  /**
+   * 📧 البريد: the device's Outlook mailbox in its own isolated profile (separate from its Starlink
+   * one) - signed in once, it stays signed in; «📋 الرمز» copies the newest Starlink code on the
+   * page. Rejects on web and on devices without Multi-Profile.
+   */
+  openMailBrowser(options: OpenMailBrowserOptions): Promise<void>;
 
   /**
    * Permanently deletes the on-device profile (cookies, localStorage,
