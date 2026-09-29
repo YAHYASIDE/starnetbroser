@@ -9,6 +9,8 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.WebChromeClient;
@@ -411,6 +413,74 @@ public class AccountBrowserActivity extends AppCompatActivity {
         } else {
             Toast.makeText(this, R.string.starnet_sync_nothing_found, Toast.LENGTH_LONG).show();
         }
+    }
+
+    private static final int MENU_SNAPSHOT = 7001;
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        menu.add(Menu.NONE, MENU_SNAPSHOT, Menu.NONE, "🧪 لقطة تشخيص").setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == MENU_SNAPSHOT) {
+            sendSnapshot();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+    /**
+     * 🧪 "لقطة تشخيص": the open Starlink page's structure and colors, every personal word masked
+     * (snapshot.ts), sent as a file to the owner's own Telegram bot - to be forwarded for a real
+     * test of a misread page. Only from the real Starlink site.
+     */
+    private void sendSnapshot() {
+        if (webView == null || !AllowedUrl.isAllowed(webView.getUrl())) {
+            Toast.makeText(this, R.string.starnet_sync_wrong_domain, Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (!TelegramStore.isConfigured(getApplicationContext())) {
+            Toast.makeText(this, "اربط بوت تيليغرام الشخصي أولاً من الإعدادات", Toast.LENGTH_LONG).show();
+            return;
+        }
+        String script;
+        try {
+            script = StarlinkExtractorSupport.loadSnapshotScript(getApplicationContext());
+        } catch (IOException e) {
+            Toast.makeText(this, "تعذر أخذ اللقطة", Toast.LENGTH_LONG).show();
+            return;
+        }
+        Toast.makeText(this, "🧪 جارِ أخذ اللقطة…", Toast.LENGTH_SHORT).show();
+        webView.evaluateJavascript(script, value -> {
+            String html;
+            try {
+                html = new org.json.JSONArray("[" + value + "]").getString(0);
+            } catch (org.json.JSONException e) {
+                html = null;
+            }
+            if (html == null || html.isEmpty()) {
+                Toast.makeText(this, "تعذر أخذ اللقطة", Toast.LENGTH_LONG).show();
+                return;
+            }
+            final byte[] file = html.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            final android.content.Context app = getApplicationContext();
+            final String name = "starnet-snapshot-" + new java.text.SimpleDateFormat("MMdd-HHmmss", java.util.Locale.US).format(new java.util.Date()) + ".html";
+            new Thread(() -> {
+                boolean sent;
+                try {
+                    TelegramClient.sendDocument(TelegramStore.token(app), TelegramStore.chatId(app), name, "text/html", file,
+                        "🧪 لقطة تشخيص (بدون بيانات شخصية) - أرسلها لمطوّر التطبيق");
+                    sent = true;
+                } catch (IOException | TelegramClient.TelegramError e) {
+                    sent = false;
+                }
+                final boolean ok = sent;
+                runOnUiThread(() -> Toast.makeText(app, ok ? "✅ أُرسلت اللقطة إلى بوتك في تيليغرام" : "تعذر الإرسال - تحقق من الإنترنت", Toast.LENGTH_LONG).show());
+            }).start();
+        });
     }
 
     /**

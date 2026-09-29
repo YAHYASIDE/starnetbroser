@@ -79,11 +79,15 @@ final class TelegramClient {
     }
 
     static JSONObject sendDocument(String token, String chatId, String fileName, byte[] file, String caption) throws IOException, TelegramError {
+        return sendDocument(token, chatId, fileName, "application/pdf", file, caption);
+    }
+
+    static JSONObject sendDocument(String token, String chatId, String fileName, String contentType, byte[] file, String caption) throws IOException, TelegramError {
         String boundary = "starnet" + UUID.randomUUID().toString().replace("-", "");
         Map<String, String> fields = new LinkedHashMap<>();
         fields.put("chat_id", chatId);
         if (caption != null && !caption.isEmpty()) fields.put("caption", TelegramText.truncate(caption, TelegramText.MAX_CAPTION_CHARS));
-        byte[] body = TelegramText.multipart(boundary, fields, "document", fileName, "application/pdf", file);
+        byte[] body = TelegramText.multipart(boundary, fields, "document", fileName, contentType, file);
         return send(token, "sendDocument", "multipart/form-data; boundary=" + boundary, body, TIMEOUT_MS);
     }
 

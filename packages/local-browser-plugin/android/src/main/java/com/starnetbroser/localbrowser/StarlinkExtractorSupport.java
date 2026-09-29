@@ -71,6 +71,11 @@ final class StarlinkExtractorSupport {
         return loadBundle(context) + "\n__starnetExpandDevicesSection();";
     }
 
+    /** 🧪 The open page's masked structure + colors (snapshot.ts) - a JSON string result. */
+    static String loadSnapshotScript(Context context) throws IOException {
+        return loadBundle(context) + "\n__starnetSnapshot();";
+    }
+
     private static String loadBundle(Context context) throws IOException {
         String cached = cachedExtractorScript;
         if (cached != null) {

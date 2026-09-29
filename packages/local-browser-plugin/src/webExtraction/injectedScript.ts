@@ -1,4 +1,5 @@
 import { extractStarlinkFields } from "./extractStarlinkFields";
+import { captureSnapshot } from "./snapshot";
 import { clickBillingRailItem, clickFirstSubscriptionRow, clickIconRailItem, expandDevicesSection } from "./navigation";
 
 /**
@@ -24,6 +25,7 @@ type StarnetGlobal = typeof globalThis & {
   __starnetClickBillingRailItem?: () => boolean;
   __starnetClickFirstSubscriptionRow?: () => boolean;
   __starnetExpandDevicesSection?: () => boolean;
+  __starnetSnapshot?: () => string;
 };
 
 const starnetGlobal = globalThis as StarnetGlobal;
@@ -37,3 +39,6 @@ starnetGlobal.__starnetClickIconRailItem = clickIconRailItem;
 starnetGlobal.__starnetClickBillingRailItem = clickBillingRailItem;
 starnetGlobal.__starnetClickFirstSubscriptionRow = clickFirstSubscriptionRow;
 starnetGlobal.__starnetExpandDevicesSection = expandDevicesSection;
+
+/** 🧪 "لقطة تشخيص": the open page's masked structure + colors (see snapshot.ts). */
+starnetGlobal.__starnetSnapshot = () => captureSnapshot(document);
