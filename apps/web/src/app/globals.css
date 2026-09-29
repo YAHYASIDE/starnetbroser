@@ -8694,3 +8694,12 @@ button.today-tile {
   border-radius: var(--radius-sm);
   animation: ocean-alarm-pulse 1.2s ease-in-out infinite alternate;
 }
+
+.dot-trace {
+  margin: 0;
+  font-size: 0.6rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+  text-align: left;
+}

@@ -130,6 +130,8 @@ export interface StarlinkAccountSummary {
   /** Starlink's "وضع المحيط" (Ocean Mode) switch is ON for this device: maritime per-GB billing
    * that can reach thousands of dollars - the app raises a full-screen alarm. Synced only. */
   oceanMode?: boolean;
+  /** Diagnostic from the last read of the "الأجهزة" section: what the dish/Wi-Fi dot reader saw. */
+  dotTrace?: string;
   /** The saved email is a limited user on someone else's Starlink account (its menu has no
    * billing): billing, balance and billing suspension can't be read from it - check them from the
    * owner's account. Set by sync from the Home page; undefined until known. */

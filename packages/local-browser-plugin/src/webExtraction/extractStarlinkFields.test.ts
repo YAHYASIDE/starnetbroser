@@ -703,3 +703,26 @@ describe("extractStarlinkFields - SIS (Standby Mode plan) vs. a paused plan", ()
     expect(fields.serviceStatus).toBe("active");
   });
 });
+
+describe("extractStarlinkFields - dots only from the الأجهزة section", () => {
+  it("never reads dots on the Home page (it has none - a green Wi-Fi-ish element there flipped a red one)", () => {
+    const fields = extractFrom(`
+      <div>Test Holder • ACC-TEST-0001</div>
+      <div class="row"><span>Wi-Fi</span><span class="dot" style="background-color: rgb(34, 197, 94);"></span></div>
+    `);
+    expect(fields).not.toHaveProperty("wifiStatus");
+    expect(fields).not.toHaveProperty("dishStatus");
+  });
+
+  it("ignores everything above the الأجهزة heading and leaves a trace", () => {
+    const fields = extractFrom(`
+      <header><span>STARLINK</span><span class="logo" style="background-color: rgb(34, 197, 94);"></span></header>
+      <div>الأجهزة</div>
+      <div class="row"><span>STARLINK</span><span class="dot" style="background-color: rgb(235, 87, 72);"></span></div>
+      <div class="row"><span>WIFI 1AB310E</span><span class="dot" style="background-color: rgb(235, 87, 72);"></span></div>
+    `);
+    expect(fields.dishStatus).toBe("offline");
+    expect(fields.wifiStatus).toBe("offline");
+    expect(fields.dotTrace).toContain("STARLINK#0=offline");
+  });
+});

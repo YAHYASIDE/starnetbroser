@@ -109,6 +109,9 @@ export interface SyncedStarlinkFields {
   /** "وضع المحيط" (Ocean Mode) switch on the subscription page: true = ON - maritime per-GB
    * billing that can reach thousands of dollars. Read only, never toggled by the app. */
   oceanMode?: boolean;
+  /** Diagnostic: what the dot reader saw under "الأجهزة" (labels, results, candidate colors) -
+   * shown in the device's edit dialog, to fix a dot that reads wrong. No account data. */
+  dotTrace?: string;
 }
 
 export interface AccountDataSyncedEvent {

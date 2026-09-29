@@ -35,6 +35,7 @@ const FIELD_INFO: Record<keyof SyncedStarlinkFields, { label: string; section: S
   kitNumber: { label: "رقم KIT", section: "identifiers" },
   serviceCountry: { label: "دولة الجهاز", section: "subscriptions" },
   oceanMode: { label: "وضع المحيط", section: "subscriptions" },
+  dotTrace: { label: "تشخيص النقاط", section: "devices" },
   dataUsageGb: { label: "إجمالي استهلاك الباقة", section: "subscriptions" },
   isRestricted: { label: "تقييد الجهاز (خارج البلد المسجل)", section: "devices" },
   limitedAccess: { label: "إيميل غير رئيسي (بدون فوترة)", section: "identifiers" },
@@ -227,6 +228,9 @@ export function mergeSyncedFields(
     note("isRestricted", next.isRestricted !== fields.isRestricted);
     next.isRestricted = fields.isRestricted;
   }
+
+  // Diagnostic only - kept up to date, never counted as an "updated field".
+  if (fields.dotTrace) next.dotTrace = fields.dotTrace;
 
   // Explicit true/false like isRestricted: the switch read OFF clears the alarm.
   if (fields.oceanMode !== undefined) {

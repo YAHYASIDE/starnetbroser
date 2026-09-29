@@ -49,17 +49,35 @@ const WIFI_LABELS = ["wi-fi", "wifi", "router", "واي فاي", "الراوتر
  * page text. Caller (AccountBrowserActivity) is responsible for the AllowedUrl gate before and
  * after calling this; this function only ever sees a Document it's already safe to read.
  */
+/** The "الأجهزة" / "Devices" section heading, if this page has one. */
+function findDevicesHeading(doc: Document): Element | undefined {
+  for (const el of Array.from(doc.body.querySelectorAll("*"))) {
+    let own = "";
+    for (const node of Array.from(el.childNodes)) if (node.nodeType === 3) own += node.textContent ?? "";
+    const text = own.trim();
+    if (text === "الأجهزة" || text.toLowerCase() === "devices") return el;
+  }
+  return undefined;
+}
+
 export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
   const fields: SyncedStarlinkFields = {};
 
-  const dishStatus = extractDeviceStatus(doc, DISH_LABELS);
-  if (dishStatus) fields.dishStatus = dishStatus;
-
-  const wifiStatus = extractDeviceStatus(doc, WIFI_LABELS);
-  if (wifiStatus) fields.wifiStatus = wifiStatus;
-
   const text = toVisibleText(doc.body);
   const lines = toLines(text);
+
+  // The dish/Wi-Fi dots live only under the subscription page's "الأجهزة" heading. Real,
+  // confirmed flip: the Home page (no dots at all) read Wi-Fi green right after the devices page
+  // had read it red - so with the heading, only what follows it counts; on the Home page, nothing.
+  const devicesHeading = findDevicesHeading(doc);
+  if (devicesHeading || !isOnAccountHomePage(lines)) {
+    const trace: string[] = [];
+    const dishStatus = extractDeviceStatus(doc, DISH_LABELS, { after: devicesHeading, trace });
+    if (dishStatus) fields.dishStatus = dishStatus;
+    const wifiStatus = extractDeviceStatus(doc, WIFI_LABELS, { after: devicesHeading, trace });
+    if (wifiStatus) fields.wifiStatus = wifiStatus;
+    if (devicesHeading && trace.length > 0) fields.dotTrace = trace.join(" · ").slice(0, 700);
+  }
 
   // The real page never prints a labeled "الحالة: ..." line for most states - the status badge
   // shown right on the "خطة الخدمة" card itself (see extractPlanBadgeStatus's own doc) is tried

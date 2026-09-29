@@ -465,6 +465,10 @@ export function AccountDialog({
               <textarea rows={2} value={draft.alertReason} onChange={(e) => update("alertReason", e.target.value)} placeholder="اختياري" />
             </label>
 
+            {draft.dotTrace && (
+              <p className="dot-trace" dir="ltr">🔍 {draft.dotTrace}</p>
+            )}
+
             <DuplicateWarning hits={duplicates} />
 
             <details className="add-more">

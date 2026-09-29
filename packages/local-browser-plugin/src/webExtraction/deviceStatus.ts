@@ -68,7 +68,16 @@ function pseudoStatus(el: Element): StatusColorValue | null {
   return null;
 }
 
-function statusInScope(scope: Element): StatusColorValue | null {
+/** One short "what did the reader see" note per candidate (tag.class:colors) for the trace. */
+function describe(el: Element, style: CSSStyleDeclaration): string {
+  const cls = (el.getAttribute("class") ?? "").split(/\s+/)[0]?.slice(0, 14) ?? "";
+  const colors = [style.backgroundColor, style.color, el.getAttribute("fill") || style.getPropertyValue("fill")]
+    .filter((c) => c && !/^rgba\(0, 0, 0, 0\)$/.test(c))
+    .map((c) => c.replace(/\s+/g, ""));
+  return `${el.tagName.toLowerCase()}${cls ? "." + cls : ""}:${colors.join("/") || "-"}`;
+}
+
+function statusInScope(scope: Element, seen?: string[]): StatusColorValue | null {
   const labeled = Array.from(scope.querySelectorAll("[aria-label], [title]"));
   for (const el of labeled) {
     const text = el.getAttribute("aria-label") || el.getAttribute("title");
@@ -86,6 +95,7 @@ function statusInScope(scope: Element): StatusColorValue | null {
     const kind = dotCandidateKind(el);
     if (!kind) continue;
     const style = getComputedStyle(el);
+    if (seen && seen.length < 4 && kind === "styled") seen.push(describe(el, style));
     const byBackground = statusFromComputedColor(style.backgroundColor);
     if (byBackground !== "unknown") return byBackground;
     const byColor = statusFromComputedColor(style.color);
@@ -109,8 +119,18 @@ function statusInScope(scope: Element): StatusColorValue | null {
  * color), then a computed-color fallback for a plain colored dot with no accessible text -
  * never the reverse, since a color guess is inherently less reliable than a stated label.
  */
-export function extractDeviceStatus(doc: Document, labels: string[]): StatusColorValue | undefined {
-  const labelElements = findLabelElements(doc, labels);
+export interface DeviceStatusOptions {
+  /** Only labels after this element count (the "الأجهزة" heading - the dots live under it). */
+  after?: Element;
+  /** Receives one short note per label tried: its text, the result and what it looked at. */
+  trace?: string[];
+}
+
+export function extractDeviceStatus(doc: Document, labels: string[], options: DeviceStatusOptions = {}): StatusColorValue | undefined {
+  const after = options.after;
+  const labelElements = findLabelElements(doc, labels).filter(
+    (el) => !after || (after.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+  );
   // Real, confirmed miss: the Devices page's first "STARLINK" is the collapsible section header
   // (label + chevron icon, no dot) - its uncolored chevron read as a definitive "unknown" and
   // stopped the search before the real device row's red/green dot was ever reached. A gray
@@ -123,7 +143,11 @@ export function extractDeviceStatus(doc: Document, labels: string[]): StatusColo
 
     let scope: Element | null = labelEl.parentElement;
     for (let hop = 0; hop < 3 && scope; hop++) {
-      const status = statusInScope(scope);
+      const seen: string[] = [];
+      const status = statusInScope(scope, options.trace ? seen : undefined);
+      if (options.trace && options.trace.length < 8) {
+        options.trace.push(`${directText(labelEl).slice(0, 16)}#${hop}=${status ?? "-"}${seen.length ? `[${seen.join(",")}]` : ""}`);
+      }
       // A gray dot next to THIS label ends this label's search (climbing further could reach the
       // other device's dot); the next label element still gets its own look.
       if (status === "unknown") {
