@@ -10,7 +10,7 @@
 
 import type { LedgerCurrency } from "./ledgerStore";
 
-export type RepRequestKind = "payment" | "client" | "device" | "edit";
+export type RepRequestKind = "payment" | "client" | "device" | "edit" | "handover";
 export type RepRequestStatus = "pending" | "approved" | "rejected";
 
 export interface RepRequest {

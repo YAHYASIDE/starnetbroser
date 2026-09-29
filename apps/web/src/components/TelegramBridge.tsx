@@ -50,6 +50,9 @@ export function TelegramBridge() {
         for (const message of inbox.messages) {
           if (await handleRepMenuRecord(message)) continue;
           if (message.bot === "reps") await answerRepMessage(message, message.replied);
+          // 💰 The money bot is always answered by the service - here it's only recorded.
+          else if (message.bot === "money") await answerRepMessage(message, true, "money");
+          else if (message.bot === "alerts") continue;
           else await answerTelegramCommand(message.text);
         }
         if (inbox.running) {

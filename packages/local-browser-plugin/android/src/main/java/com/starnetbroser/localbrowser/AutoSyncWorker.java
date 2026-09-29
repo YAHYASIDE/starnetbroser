@@ -222,6 +222,8 @@ public class AutoSyncWorker extends Worker {
         }
         List<String> newlyStopped = new ArrayList<>();
         List<String> newlyStoppedReps = new ArrayList<>();
+        List<String> newlyStoppedIds = new ArrayList<>();
+        List<String> newlyStoppedStatus = new ArrayList<>();
 
         long startedAt = System.currentTimeMillis();
         Random random = new Random();
@@ -262,6 +264,8 @@ public class AutoSyncWorker extends Worker {
             if (page != null && SyncPriority.isStopped(page[0]) && !SyncPriority.isStopped(statusBefore.get(entry.accountId))) {
                 newlyStopped.add(entry.accountName);
                 newlyStoppedReps.add(entry.representativeId);
+                newlyStoppedIds.add(entry.accountId);
+                newlyStoppedStatus.add(page[0]);
             }
         }
         SyncNotifier.notifyStopped(context, newlyStopped);
@@ -270,9 +274,19 @@ public class AutoSyncWorker extends Worker {
         }
         if (!newlyStopped.isEmpty() && TelegramStore.isRepsConfigured(context) && TelegramStore.isRepsStoppedEnabled(context)) {
             Map<String, String> repChats = TelegramStore.repChats(context);
-            for (Map.Entry<String, List<String>> group : TelegramText.groupByRep(newlyStoppedReps, newlyStopped).entrySet()) {
+            // One alert per device (🔔 bot, with its 🅳 mark and "📨 اطلب من المسؤول الدفع");
+            // devices the app hasn't prepared yet go in the plain list below.
+            List<String> leftNames = new ArrayList<>();
+            List<String> leftReps = new ArrayList<>();
+            for (int i = 0; i < newlyStopped.size(); i++) {
+                if (!TelegramReplyService.queueStoppedAlert(context, newlyStoppedReps.get(i), newlyStoppedIds.get(i), newlyStoppedStatus.get(i))) {
+                    leftNames.add(newlyStopped.get(i));
+                    leftReps.add(newlyStoppedReps.get(i));
+                }
+            }
+            for (Map.Entry<String, List<String>> group : TelegramText.groupByRep(leftReps, leftNames).entrySet()) {
                 String chatId = repChats.get(group.getKey());
-                if (chatId != null) TelegramSendWorker.enqueueToRep(context, chatId, TelegramText.repStoppedMessage(group.getValue()));
+                if (chatId != null) TelegramSendWorker.enqueueToRepBot(context, TelegramStore.ALERTS, chatId, TelegramText.repStoppedMessage(group.getValue()), null);
             }
         }
         if (manual && !getInputData().getBoolean(INPUT_QUIET, false)) {

@@ -54,6 +54,17 @@ final class TelegramReplies {
         String activationHint = "";
         /** Every rep's own devices, for search: repId -> entries. */
         Map<String, List<SearchEntry>> repSearch = new HashMap<>();
+        /** The reps' bots' @names ("" = not connected) - see repBots.ts. */
+        String devicesBot = "";
+        String moneyBot = "";
+        String alertsBot = "";
+        String moneyKeyboard = "";
+        String moneyHelp = "";
+        /** A money command typed in the devices bot once the money bot exists. */
+        String moneyRedirect = "";
+        String handoverHint = "";
+        String handoverReceived = "";
+        String alertsInfo = "";
     }
 
     /** One of a rep's devices: folded keys, its result card, and an optional WhatsApp button. */
@@ -73,6 +84,11 @@ final class TelegramReplies {
         final String header;
         final Map<String, String> sections;
         final Map<String, String> editValues;
+        /** The device still owes Starlink (an open D): the 🅳 mark on alerts. */
+        boolean hasD;
+        /** WhatsApp: the customer's "stopped" message, and his debt reminder (or null). */
+        String stoppedUrl;
+        String debtUrl;
 
         SearchEntry(String keys, String text, String buttonLabel, String buttonUrl) {
             this(keys, text, buttonLabel, buttonUrl, null, null, null, null);
@@ -366,10 +382,31 @@ final class TelegramReplies {
     }
 
     static String menuMarkup(String id, String whatsappUrl) {
+        return menuMarkup(id, whatsappUrl, "");
+    }
+
+    /** "💰 المال" button: opens the money bot on this device (mirrors moneyDeepLink, repBots.ts). */
+    static String moneyDeepLink(String moneyBot, String accountId) {
+        if (moneyBot == null || moneyBot.isEmpty() || accountId == null || !accountId.matches("[A-Za-z0-9_-]{1,62}")) return null;
+        return "https://t.me/" + moneyBot + "?start=d_" + accountId;
+    }
+
+    /** Mirrors menuMarkup (repDeviceMenu.ts): with the money bot connected, 💰 الدين / 📊 كشف
+     * become one "💰 المال" link to it. */
+    static String menuMarkup(String id, String whatsappUrl, String moneyBot) {
         StringBuilder rows = new StringBuilder("[");
-        rows.append('[').append(cb("📶 الشبكة", "v:n:" + id)).append(',').append(cb("📅 التجديد", "v:r:" + id)).append(',').append(cb("🛰️ الاشتراك", "v:p:" + id)).append("],");
-        rows.append('[').append(cb("💰 الدين", "v:d:" + id)).append(',').append(cb("🔢 KIT/SN", "v:i:" + id)).append(',').append(cb("👤 المعلومات", "v:f:" + id)).append("],");
-        rows.append('[').append(cb("✏️ تعديل", "e:" + id)).append(',').append(cb("📊 كشف", "v:s:" + id)).append(',').append(cb("📝 ملاحظة", "nt:" + id)).append(']');
+        if (moneyBot != null && !moneyBot.isEmpty()) {
+            String link = moneyDeepLink(moneyBot, id);
+            rows.append('[').append(cb("📶 الشبكة", "v:n:" + id)).append(',').append(cb("📅 التجديد", "v:r:" + id)).append(',').append(cb("🛰️ الاشتراك", "v:p:" + id)).append("],");
+            rows.append('[').append(cb("🔢 KIT/SN", "v:i:" + id)).append(',').append(cb("👤 المعلومات", "v:f:" + id)).append(',').append(cb("📝 ملاحظة", "nt:" + id)).append("],");
+            rows.append('[').append(cb("✏️ تعديل", "e:" + id));
+            if (link != null) rows.append(",{\"text\":\"💰 المال\",\"url\":").append(jsonString(link)).append('}');
+            rows.append(']');
+        } else {
+            rows.append('[').append(cb("📶 الشبكة", "v:n:" + id)).append(',').append(cb("📅 التجديد", "v:r:" + id)).append(',').append(cb("🛰️ الاشتراك", "v:p:" + id)).append("],");
+            rows.append('[').append(cb("💰 الدين", "v:d:" + id)).append(',').append(cb("🔢 KIT/SN", "v:i:" + id)).append(',').append(cb("👤 المعلومات", "v:f:" + id)).append("],");
+            rows.append('[').append(cb("✏️ تعديل", "e:" + id)).append(',').append(cb("📊 كشف", "v:s:" + id)).append(',').append(cb("📝 ملاحظة", "nt:" + id)).append(']');
+        }
         StringBuilder last = new StringBuilder();
         if (whatsappUrl != null) last.append("{\"text\":\"💬 واتساب\",\"url\":").append(jsonString(whatsappUrl)).append('}');
         if (fitsCallback("a:" + id)) {
@@ -391,8 +428,8 @@ final class TelegramReplies {
         return "{\"inline_keyboard\":" + rows + "}";
     }
 
-    static String menuMarkup(SearchEntry e) {
-        return menuMarkup(e.id, e.buttonUrl);
+    static String menuMarkup(SearchEntry e, Snapshot s) {
+        return menuMarkup(e.id, e.buttonUrl, s == null ? "" : s.moneyBot);
     }
 
     /** One device -> its header and menu; several -> their headers and a button each. */
@@ -401,7 +438,7 @@ final class TelegramReplies {
         String more = total > shown.size() ? "\n\n… و" + (total - shown.size()) + " أخرى - اكتب اسمًا أدق" : "";
         if (shown.size() == 1) {
             SearchEntry e = shown.get(0);
-            return new Reply(title + "\n\n" + e.header + "\n\n" + MENU_HINT + more, false, null, menuMarkup(e));
+            return new Reply(title + "\n\n" + e.header + "\n\n" + MENU_HINT + more, false, null, menuMarkup(e, s));
         }
         StringBuilder text = new StringBuilder(title);
         StringBuilder rows = new StringBuilder();
@@ -707,9 +744,10 @@ final class TelegramReplies {
     static Reply forRep(String repId, String text, Snapshot s) {
         if (s == null) return new Reply(NOT_READY, false, null);
         String kind = s.repWords.get(normalize(commandWord(text)));
+        if (kind != null && !s.moneyBot.isEmpty() && isMoneyKind(kind)) return new Reply(s.moneyRedirect, false, null, s.repKeyboard);
         if (kind == null) return search(repId, cleanText(text), true, s); // "محمد", "22212345"
         if ("search".equals(kind)) return search(repId, afterCommand(text), false, s);
-        if ("payment".equals(kind) || "client".equals(kind) || "promise".equals(kind)) return request(repId, kind, text, s);
+        if ("payment".equals(kind) || "client".equals(kind) || "promise".equals(kind) || "handover".equals(kind)) return request(repId, kind, text, s);
         if ("activate".equals(kind)) return activate(repId, text, s);
         if ("help".equals(kind)) return new Reply(s.repHelp, false, null, s.repKeyboard);
         Map<String, String> mine = s.reps.get(repId);
@@ -722,13 +760,19 @@ final class TelegramReplies {
     /** 💵 / ➕ with the app closed: he's told it arrived, the operator is told, and the app records
      * it (for approval) when it opens. Without the details he gets the how-to instead. */
     static Reply request(String repId, String kind, String text, Snapshot s) {
+        return request(repId, kind, text, s, s.repKeyboard);
+    }
+
+    static Reply request(String repId, String kind, String text, Snapshot s, String keyboard) {
         String rest = afterCommand(text);
+        if ("handover".equals(kind) && normalize(rest).startsWith("المسؤول")) rest = rest.substring(Math.min(rest.length(), 7)).trim();
         if ("client".equals(kind) && normalize(rest).startsWith("جديد")) rest = rest.substring(Math.min(rest.length(), 4)).trim();
-        boolean money = "payment".equals(kind) || "promise".equals(kind);
+        boolean money = "payment".equals(kind) || "promise".equals(kind) || "handover".equals(kind);
         boolean complete = money ? normalize(rest).matches(".*\\d.*") : !rest.isEmpty();
         if (!complete) {
-            String hint = "payment".equals(kind) ? s.paymentHint : "promise".equals(kind) ? s.promiseHint : s.clientHint;
-            return new Reply(hint, false, null, s.repKeyboard);
+            String hint = "payment".equals(kind) ? s.paymentHint : "promise".equals(kind) ? s.promiseHint
+                : "handover".equals(kind) ? s.handoverHint : s.clientHint;
+            return new Reply(hint, false, null, keyboard);
         }
         Map<String, String> mine = s.reps.get(repId);
         String repName = mine != null && mine.get("name") != null ? mine.get("name") : "";
@@ -736,8 +780,151 @@ final class TelegramReplies {
         if (quoted.length() > 120) quoted = quoted.substring(0, 120);
         String template = "promise".equals(kind) && !s.promiseNotice.isEmpty() ? s.promiseNotice : s.requestNotice;
         String notice = template.replace("{rep}", repName).replace("{text}", quoted);
-        String received = "promise".equals(kind) && !s.promiseReceived.isEmpty() ? s.promiseReceived : s.requestReceived;
-        return new Reply(received, true, notice, s.repKeyboard);
+        String received = "promise".equals(kind) && !s.promiseReceived.isEmpty() ? s.promiseReceived
+            : "handover".equals(kind) && !s.handoverReceived.isEmpty() ? s.handoverReceived : s.requestReceived;
+        return new Reply(received, true, notice, keyboard);
+    }
+
+    // ---- 💰 the money bot (mirrors repBots.ts) ----
+
+    static final String[] MONEY_KINDS = {"payment", "promise", "mypromises", "debts", "statement", "handover"};
+
+    static boolean isMoneyKind(String kind) {
+        for (String k : MONEY_KINDS) if (k.equals(kind)) return true;
+        return false;
+    }
+
+    /** "/start d_<id>" from a device's "💰 المال" button -> that device's id, or null. */
+    static String startDevice(String text) {
+        String t = text == null ? "" : text.trim();
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("^/start(?:@\\w+)?\\s+d_([A-Za-z0-9_-]{1,62})$").matcher(t);
+        return m.matches() ? m.group(1) : null;
+    }
+
+    /** 📊 كشف · 💰 الدين · ⚡ تفعيل · 💬 debt reminder, for one device in the money bot. */
+    static String moneyCardMarkup(SearchEntry e) {
+        StringBuilder rows = new StringBuilder("[[").append(cb("💰 الدين", "v:d:" + e.id)).append(',').append(cb("📊 كشف", "v:s:" + e.id)).append(']');
+        if (fitsCallback("a:" + e.id)) rows.append(",[").append(cb("⚡ تفعيل", "a:" + e.id)).append(']');
+        if (e.debtUrl != null) rows.append(",[{\"text\":\"💬 تذكير الزبون بالدين\",\"url\":").append(jsonString(e.debtUrl)).append("}]");
+        return "{\"inline_keyboard\":" + rows.append(']') + "}";
+    }
+
+    static String moneyCardText(SearchEntry e, String code, Snapshot s) {
+        String section = e.sections.get(code);
+        return withTime(e.header + "\n\n" + (section == null || section.isEmpty() ? "—" : section), s);
+    }
+
+    static Reply moneyCard(SearchEntry e, Snapshot s) {
+        return new Reply(moneyCardText(e, "d", s), false, null, moneyCardMarkup(e));
+    }
+
+    /** A name / phone / KIT typed in the money bot: its debt and statement buttons. */
+    static Reply moneySearch(String repId, String query, Snapshot s) {
+        if (normalize(query).isEmpty()) return new Reply(s.moneyHelp, false, null, s.moneyKeyboard);
+        List<SearchEntry> found = matchEntries(repId, query, s);
+        List<SearchEntry> usable = new ArrayList<>();
+        for (SearchEntry e : found) if (e.hasMenu()) usable.add(e);
+        if (usable.isEmpty()) return new Reply("🔎 لم أجد «" + quote(query) + "» بين أجهزتك", false, null, s.moneyKeyboard);
+        if (usable.size() == 1) return moneyCard(usable.get(0), s);
+        List<SearchEntry> shown = usable.subList(0, Math.min(5, usable.size()));
+        StringBuilder text = new StringBuilder("🔎 نتائج «" + quote(query) + "» (" + usable.size() + "):");
+        StringBuilder rows = new StringBuilder();
+        for (int i = 0; i < shown.size(); i++) {
+            SearchEntry e = shown.get(i);
+            String debt = e.sections.get("d");
+            String firstLine = debt == null ? "" : debt.replaceFirst("^[^\\n]*\\n", "").split("\\n", 2)[0];
+            text.append("\n\n").append(i + 1).append(". ").append(e.header).append(firstLine.isEmpty() ? "" : "\n" + firstLine);
+            String label = "💰 " + e.deviceName();
+            if (label.length() > 40) label = label.substring(0, 40);
+            if (i > 0) rows.append(',');
+            rows.append('[').append(cb(label, "md:" + e.id)).append(']');
+        }
+        return new Reply(withTime(text.toString(), s), false, null, "{\"inline_keyboard\":[" + rows + "]}");
+    }
+
+    /** A linked rep in the money bot. */
+    static Reply forMoney(String repId, String text, Snapshot s) {
+        if (s == null) return new Reply(NOT_READY, false, null);
+        String device = startDevice(text);
+        if (device != null) {
+            SearchEntry e = findEntry(repId, device, s);
+            return e != null && e.hasMenu() ? moneyCard(e, s) : new Reply(s.moneyHelp, false, null, s.moneyKeyboard);
+        }
+        String kind = s.repWords.get(normalize(commandWord(text)));
+        if (kind == null) return moneySearch(repId, cleanText(text), s);
+        if ("help".equals(kind)) return new Reply(s.moneyHelp, false, null, s.moneyKeyboard);
+        if ("search".equals(kind)) return moneySearch(repId, afterCommand(text), s);
+        if ("payment".equals(kind) || "promise".equals(kind) || "handover".equals(kind)) return request(repId, kind, text, s, s.moneyKeyboard);
+        if ("activate".equals(kind)) {
+            String query = afterCommand(text);
+            if (query.isEmpty()) return new Reply(s.activationHint, false, null, s.moneyKeyboard);
+            List<SearchEntry> found = matchEntries(repId, query, s);
+            if (found.size() == 1 && !found.get(0).id.isEmpty()) return pickPlan(found.get(0), s);
+            return moneySearch(repId, query, s);
+        }
+        if ("mypromises".equals(kind) || "debts".equals(kind) || "statement".equals(kind)) {
+            Map<String, String> mine = s.reps.get(repId);
+            String answer = mine == null ? null : mine.get(kind);
+            if (answer == null) return new Reply(NOT_READY, false, null, s.moneyKeyboard);
+            String markup = mine.get(kind + "#kb");
+            return new Reply(withTime(answer, s), false, null, markup != null ? markup : s.moneyKeyboard);
+        }
+        // Devices, renewals, a new customer... belong to the devices bot.
+        return new Reply("📡 هذا في بوت الأجهزة" + (s.devicesBot.isEmpty() ? "" : ": @" + s.devicesBot), false, null, s.moneyKeyboard);
+    }
+
+    /** Someone not linked yet, in the money / alerts bot: never any data. */
+    static String notLinkedExtra(Snapshot s) {
+        return "👋 اربط حسابك أولاً من بوت الأجهزة" + (s == null || s.devicesBot.isEmpty() ? "" : " @" + s.devicesBot) + " - اضغط «ابدأ» هناك وانتظر موافقة المسؤول.";
+    }
+
+    static String approvedActivation(String what, String total, String count) {
+        return "✅ وافق المسؤول على تفعيل " + what + "\n\n💰 مجموع تفعيلاتك الموافق عليها هذا الشهر (" + count + "): " + total;
+    }
+
+    // ---- 🔔 the alerts bot ----
+
+    static String stoppedReason(String status) {
+        if ("canceled".equals(status)) return "الاشتراك ملغى";
+        return "موقوف بسبب الفوترة (لم يُدفع الاشتراك)";
+    }
+
+    static final String D_MARK_LINE = "🅳 علامة D: لم ندفع لـ Starlink بعد على هذا الجهاز";
+
+    /** "⛔ توقف جهاز" for one device, with its 🅳 mark (its header already carries it). */
+    static String stoppedAlert(SearchEntry e, String status) {
+        String header = e.header.isEmpty() ? "📡 " + e.deviceName() : e.header;
+        boolean markShown = header.contains(D_MARK_LINE);
+        return "⛔ توقف جهاز من أجهزتك\n\n" + header + (e.hasD && !markShown ? "\n" + D_MARK_LINE : "") + "\n\nالسبب: " + stoppedReason(status);
+    }
+
+    static String stoppedAlertMarkup(SearchEntry e) {
+        StringBuilder rows = new StringBuilder();
+        if (fitsCallback("pq:" + e.id)) rows.append('[').append(cb("📨 اطلب من المسؤول الدفع", "pq:" + e.id)).append(']');
+        if (e.stoppedUrl != null) {
+            if (rows.length() > 0) rows.append(',');
+            rows.append("[{\"text\":\"💬 أرسل للزبون\",\"url\":").append(jsonString(e.stoppedUrl)).append("}]");
+        }
+        return rows.length() == 0 ? null : "{\"inline_keyboard\":[" + rows + "]}";
+    }
+
+    /** The same alert with 📨 gone (asked already) - only the customer's button stays. */
+    static String afterPayRequestMarkup(SearchEntry e) {
+        return e.stoppedUrl == null ? null : "{\"inline_keyboard\":[[{\"text\":\"💬 أرسل للزبون\",\"url\":" + jsonString(e.stoppedUrl) + "}]]}";
+    }
+
+    static String payRequestToOwner(String repName, SearchEntry e) {
+        String header = e.header.isEmpty() ? "📡 " + e.deviceName() : e.header;
+        boolean markShown = header.contains(D_MARK_LINE);
+        return "📨 المندوب " + repName + " يطلب منك الدفع\n\n" + header + (e.hasD && !markShown ? "\n" + D_MARK_LINE : "")
+            + "\n\nالجهاز موقوف - ادفع اشتراك Starlink عنه لتعود الخدمة.";
+    }
+
+    static final String PAY_REQUEST_SENT = "\n\n✅ أُرسل طلب الدفع إلى المسؤول";
+
+    /** Every alert to a rep, copied to the operator's own bot. */
+    static String ownerCopy(String repName, String text) {
+        return "🔔 نسخة من تنبيه المندوب " + repName + ":\n\n" + text;
     }
 
     /** The file a rep's app shares ("📤 إرسال للمسؤول" in rep mode): starnet-device-....json. */

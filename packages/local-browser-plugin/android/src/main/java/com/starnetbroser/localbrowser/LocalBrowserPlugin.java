@@ -372,7 +372,12 @@ public class LocalBrowserPlugin extends Plugin {
     // representatives' bot; messages only ever go to a rep chat the operator linked).
 
     private static boolean isRepsBot(PluginCall call) {
-        return TelegramStore.REPS.equals(call.getString("bot"));
+        return TelegramStore.isRepBot(call.getString("bot"));
+    }
+
+    /** The rep bot this call goes out through (money / alerts fall back to the devices bot). */
+    private String repBot(PluginCall call) {
+        return TelegramStore.repBotFor(getContext(), call.getString("bot"));
     }
 
     /**
@@ -390,10 +395,28 @@ public class LocalBrowserPlugin extends Plugin {
         }
         String token = raw.trim();
         boolean reps = isRepsBot(call);
+        String extra = TelegramStore.isExtraBot(call.getString("bot")) ? call.getString("bot") : null;
         telegramExecutor.execute(() -> {
             try {
                 JSONObject me = TelegramClient.call(token, "getMe", new LinkedHashMap<>());
                 String botName = me.getJSONObject("result").optString("username", "");
+                if (extra != null) {
+                    // 💰 / 🔔: a separate bot of its own - never one already used for something else.
+                    if (!token.equals(TelegramStore.extraToken(getContext(), extra)) && TelegramStore.allTokens(getContext()).contains(token)) {
+                        call.reject("هذا المفتاح مستعمل لبوت آخر - أنشئ بوتاً جديداً من @BotFather");
+                        return;
+                    }
+                    if (!TelegramStore.saveExtraBot(getContext(), extra, token, botName)) {
+                        call.reject("تعذر حفظ الربط على الهاتف");
+                        return;
+                    }
+                    TelegramReplyService.refresh(getContext());
+                    JSObject ret = new JSObject();
+                    ret.put("botName", botName);
+                    ret.put("chatName", "");
+                    call.resolve(ret);
+                    return;
+                }
                 if (reps) {
                     if (token.equals(TelegramStore.token(getContext()))) {
                         call.reject("هذا مفتاح بوتك الشخصي - أنشئ بوتاً ثانياً للمندوبين من @BotFather");
@@ -468,6 +491,10 @@ public class LocalBrowserPlugin extends Plugin {
         ret.put("stoppedEnabled", TelegramStore.isStoppedEnabled(getContext()));
         ret.put("repsConfigured", TelegramStore.isRepsConfigured(getContext()));
         ret.put("repsBotName", TelegramStore.repsBotName(getContext()));
+        ret.put("moneyConfigured", TelegramStore.extraToken(getContext(), TelegramStore.MONEY) != null);
+        ret.put("moneyBotName", TelegramStore.extraBotName(getContext(), TelegramStore.MONEY));
+        ret.put("alertsConfigured", TelegramStore.extraToken(getContext(), TelegramStore.ALERTS) != null);
+        ret.put("alertsBotName", TelegramStore.extraBotName(getContext(), TelegramStore.ALERTS));
         ret.put("instant", TelegramStore.isInstantEnabled(getContext()));
         ret.put("instantRunning", TelegramReplyService.isPolling());
         ret.put("batteryUnrestricted", isIgnoringBatteryOptimizations());
@@ -484,7 +511,9 @@ public class LocalBrowserPlugin extends Plugin {
 
     @PluginMethod
     public void telegramDisconnect(PluginCall call) {
-        if (isRepsBot(call)) {
+        if (TelegramStore.isExtraBot(call.getString("bot"))) {
+            TelegramStore.clearExtraBot(getContext(), call.getString("bot"));
+        } else if (isRepsBot(call)) {
             TelegramStore.clearReps(getContext());
         } else {
             TelegramSendWorker.cancel(getContext(), "morning");
@@ -707,7 +736,7 @@ public class LocalBrowserPlugin extends Plugin {
         }
         String markup = call.getString("replyMarkup");
         if (TelegramStore.isLinkedRepChat(getContext(), chatId)) {
-            TelegramSendWorker.enqueueToRep(getContext(), chatId, text, markup);
+            TelegramSendWorker.enqueueToRepBot(getContext(), repBot(call), chatId, text, markup);
             ret.put("queued", true);
             call.resolve(ret);
             return;
@@ -746,7 +775,7 @@ public class LocalBrowserPlugin extends Plugin {
         if (!ready || text == null || text.trim().isEmpty()) {
             TelegramSendWorker.cancel(getContext(), key);
         } else {
-            TelegramSendWorker.schedule(getContext(), key, at, text, reps ? TelegramStore.REPS : TelegramStore.OWNER, reps ? chatId : null, reps ? call.getString("replyMarkup") : null);
+            TelegramSendWorker.schedule(getContext(), key, at, text, reps ? repBot(call) : TelegramStore.OWNER, reps ? chatId : null, reps ? call.getString("replyMarkup") : null);
         }
         call.resolve();
     }
@@ -766,7 +795,7 @@ public class LocalBrowserPlugin extends Plugin {
         String caption = call.getString("caption");
         boolean reps = isRepsBot(call);
         String chatId = reps ? call.getString("chatId") : TelegramStore.chatId(getContext());
-        String token = reps ? TelegramStore.repsToken(getContext()) : TelegramStore.token(getContext());
+        String token = reps ? TelegramStore.tokenFor(getContext(), repBot(call)) : TelegramStore.token(getContext());
         if (token == null || chatId == null || (reps && !TelegramStore.isLinkedRepChat(getContext(), chatId))) {
             call.reject(reps ? "المندوب غير مربوط ببوت المندوبين" : "اربط تيليغرام أولاً من الإعدادات");
             return;

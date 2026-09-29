@@ -8759,3 +8759,37 @@ button.today-tile {
   color: var(--orange);
   font-weight: 700;
 }
+
+/* The reps' optional 💰 money / 🔔 alerts bots */
+.rep-extra-bots {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.rep-extra-bot {
+  border-top: 1px dashed var(--border);
+  padding-top: 8px;
+}
+
+.rep-extra-bot-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.rep-extra-bot-connect {
+  display: flex;
+  gap: 6px;
+}
+
+.rep-extra-bot-connect .search-input {
+  flex: 1;
+  min-width: 0;
+}

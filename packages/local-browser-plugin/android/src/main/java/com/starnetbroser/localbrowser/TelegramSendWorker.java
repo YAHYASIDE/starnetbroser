@@ -40,7 +40,7 @@ public class TelegramSendWorker extends Worker {
         Context context = getApplicationContext();
         String text = getInputData().getString(INPUT_TEXT);
         String bot = getInputData().getString(INPUT_BOT);
-        boolean reps = TelegramStore.REPS.equals(bot);
+        boolean reps = TelegramStore.isRepBot(bot);
         // The reps bot only ever writes to a rep the operator linked (checked again at send time,
         // so unlinking a rep also stops anything still queued for him).
         String chatId = reps ? getInputData().getString(INPUT_CHAT_ID) : TelegramStore.chatId(context);
@@ -105,6 +105,13 @@ public class TelegramSendWorker extends Worker {
     static void enqueueToRep(Context context, String chatId, String text, String markup) {
         if (!TelegramStore.isRepsConfigured(context) || !TelegramStore.isLinkedRepChat(context, chatId)) return;
         WorkManager.getInstance(context).enqueue(request(text, TelegramStore.REPS, chatId, markup).build());
+    }
+
+    /** To one linked rep through `bot` (money / alerts), or the devices bot when that one isn't
+     * connected. */
+    static void enqueueToRepBot(Context context, String bot, String chatId, String text, String markup) {
+        if (!TelegramStore.isRepsConfigured(context) || !TelegramStore.isLinkedRepChat(context, chatId)) return;
+        WorkManager.getInstance(context).enqueue(request(text, TelegramStore.repBotFor(context, bot), chatId, markup).build());
     }
 
     private static int utf8(String s) {

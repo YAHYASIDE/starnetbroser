@@ -18,11 +18,9 @@ import type { Invoice } from "./invoiceStore";
 import type { LedgerByAccount } from "./ledgerStore";
 import type { RepresentativeStore, RepSettlementList } from "./repStore";
 import {
-  REP_HELP,
   REP_ACTIVATION_HINT,
   REP_ACTIVATION_PLANS,
   REP_CLIENT_HINT,
-  REP_KEYBOARD,
   REP_PAYMENT_HINT,
   REP_REQUEST_RECEIVED,
   REP_SEARCH_HINT,
@@ -41,6 +39,7 @@ import {
   repStoppedReply,
   OWNER_SEARCH_KEY,
 } from "./telegramRepMessages";
+import { devicesHelp, devicesKeyboard, moneyRedirectText, REP_ALERTS_INFO, REP_HANDOVER_HINT, REP_MONEY_HELP, REP_MONEY_KEYBOARD, type RepBotNames } from "./repBots";
 import { answerCash, answerExpiring, answerStopped, buildEveningTelegram, TELEGRAM_HELP, WORDS } from "./telegramMessages";
 
 /** Mirrors TelegramReplies.Snapshot (Java). */
@@ -72,6 +71,16 @@ export interface TelegramReplySnapshot {
   /** ⚡ تفعيل choices. */
   plans: string[];
   activationHint: string;
+  /** The reps' bots (repBots.ts) - "" when not connected. */
+  devicesBot: string;
+  moneyBot: string;
+  alertsBot: string;
+  moneyKeyboard: string;
+  moneyHelp: string;
+  moneyRedirect: string;
+  handoverHint: string;
+  handoverReceived: string;
+  alertsInfo: string;
 }
 
 function pad(n: number): string {
@@ -101,7 +110,10 @@ export function buildReplySnapshot(input: {
   adjustments?: PartyAdjustmentList;
   cardBalanceUsd?: number;
   openDebtsUsd?: number[];
+  /** Which of the reps' bots are connected. */
+  botNames?: RepBotNames;
 }): TelegramReplySnapshot {
+  const bots = input.botNames ?? {};
   const summary = buildEveningSummary({ day: input.today, accounts: input.accounts, ledgerStore: input.ledgerStore, cash: input.cash });
   const reps: Record<string, Record<string, string>> = {};
   const repSearch: Record<string, RepSearchEntry[]> = {};
@@ -130,7 +142,7 @@ export function buildReplySnapshot(input: {
   return {
     at: snapshotTime(input.now),
     ownerHelp: TELEGRAM_HELP,
-    repHelp: REP_HELP,
+    repHelp: devicesHelp(bots),
     unknown: "لم أفهم «{text}».",
     statementLater: "📄 وصل طلب الكشف - يُرسل لك الملف عند فتح تطبيق STAR NET على الهاتف",
     linkReply: repLinkRequestReply("{name}"),
@@ -169,7 +181,7 @@ export function buildReplySnapshot(input: {
         input.today,
       ),
     },
-    repKeyboard: REP_KEYBOARD,
+    repKeyboard: devicesKeyboard(bots),
     searchHint: REP_SEARCH_HINT,
     paymentHint: REP_PAYMENT_HINT,
     clientHint: REP_CLIENT_HINT,
@@ -180,5 +192,14 @@ export function buildReplySnapshot(input: {
     requestNotice: "📥 طلب من المندوب {rep}: «{text}»\nوافق عليه من صفحة المندوبين في التطبيق.",
     plans: REP_ACTIVATION_PLANS,
     activationHint: REP_ACTIVATION_HINT,
+    devicesBot: bots.devices ?? "",
+    moneyBot: bots.money ?? "",
+    alertsBot: bots.alerts ?? "",
+    moneyKeyboard: REP_MONEY_KEYBOARD,
+    moneyHelp: REP_MONEY_HELP,
+    moneyRedirect: bots.money ? moneyRedirectText(bots.money) : "",
+    handoverHint: REP_HANDOVER_HINT,
+    handoverReceived: "✅ وصل تسليمك - يُسجَّل في حسابك بعد تأكيد المسؤول وتصلك رسالة بذلك.",
+    alertsInfo: [REP_ALERTS_INFO, ...(bots.devices ? [`📡 الأجهزة: @${bots.devices}`] : []), ...(bots.money ? [`💰 المال: @${bots.money}`] : [])].join("\n"),
   };
 }

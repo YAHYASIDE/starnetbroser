@@ -25,6 +25,7 @@ import { notifyPaymentTelegram, sendRepText } from "@/lib/telegram";
 import { formatMoneyShort, matchRepDevices } from "@/lib/telegramRepMessages";
 import { editFieldName, isRepEditField } from "@/lib/repDeviceMenu";
 import { decideRepEdit } from "@/lib/repMenuRecords";
+import { recordRepHandover } from "@/lib/repHandover";
 
 interface Props {
   representatives: Representative[];
@@ -72,6 +73,16 @@ export function RepRequestsSection({ representatives, accounts, clientStore, onC
               rep={repById.get(request.repId)}
               accounts={accounts}
               clientStore={clientStore}
+              onDone={(status) => {
+                resolve(request, status);
+                onChanged();
+              }}
+            />
+          ) : request.kind === "handover" ? (
+            <HandoverRequestCard
+              key={request.id}
+              request={request}
+              rep={repById.get(request.repId)}
               onDone={(status) => {
                 resolve(request, status);
                 onChanged();
@@ -166,13 +177,15 @@ function PaymentRequestCard({
         `✅ سُجّلت دفعتك ${formatMoneyShort(value, currency)} عن ${device.name}${clientName ? ` (${clientName})` : ""}`,
         balanceAfter > 0.005 ? `المتبقي على الزبون: ${formatMoneyShort(balanceAfter, currency)}` : "✓ لم يبقَ على الزبون شيء",
       ].join("\n"),
+      undefined,
+      "money",
     );
     onDone("approved");
   }
 
   async function reject() {
     if (!window.confirm("رفض طلب الدفعة؟ يُبلَّغ المندوب بذلك.")) return;
-    await sendRepText(request.repId, `❌ لم يوافق المسؤول على طلب الدفعة: «${request.text}»`);
+    await sendRepText(request.repId, `❌ لم يوافق المسؤول على طلب الدفعة: «${request.text}»`, undefined, "money");
     onDone("rejected");
   }
 
@@ -316,6 +329,56 @@ function EditRequestCard({ request, rep, onDone }: { request: RepRequest; rep?: 
         </button>
         <button type="button" className="text-action" onClick={() => void decide(false)}>
           ❌ رفض
+        </button>
+      </div>
+    </li>
+  );
+}
+
+/** 🤲 Money the rep says he handed over (money bot) - confirmed here, it's recorded as a cash
+ * handover with its cash-register entry. */
+function HandoverRequestCard({ request, rep, onDone }: { request: RepRequest; rep?: Representative; onDone: (status: "approved" | "rejected") => void }) {
+  const [amount, setAmount] = useState(String(request.amount ?? ""));
+  const [currency, setCurrency] = useState<LedgerCurrency>(request.currency ?? "MRU");
+  const [error, setError] = useState<string | null>(null);
+
+  async function approve() {
+    const value = Number(amount);
+    if (!(value > 0)) return setError("المبلغ غير صحيح");
+    const result = recordRepHandover(request, value, currency, localDay(new Date()));
+    if (!result.ok) return setError(result.message);
+    await sendRepText(request.repId, `✅ أكّد المسؤول استلام ${formatMoneyShort(value, currency)} منك - سُجّلت في حسابك.`, undefined, "money");
+    onDone("approved");
+  }
+
+  async function reject() {
+    if (!window.confirm("لم تستلم هذا المبلغ؟ يُبلَّغ المندوب بذلك.")) return;
+    await sendRepText(request.repId, `❌ لم يؤكد المسؤول استلام: «${request.text}»`, undefined, "money");
+    onDone("rejected");
+  }
+
+  return (
+    <li className="rep-request">
+      <div className="rep-request-head">
+        <strong>🤲 {rep?.name ?? "مندوب"}</strong>
+        <span>{timeLabel(request.createdAt)}</span>
+      </div>
+      <p className="rep-request-text">«{request.text}»</p>
+      <div className="rep-request-row">
+        <input className="search-input" dir="ltr" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="المبلغ" />
+        <select className="search-input" value={currency} onChange={(e) => setCurrency(e.target.value as LedgerCurrency)}>
+          {LEDGER_CURRENCIES.map((c) => (
+            <option key={c} value={c}>{LEDGER_CURRENCY_LABELS[c]}</option>
+          ))}
+        </select>
+      </div>
+      {error && <p className="settings-hint telegram-stopped">{error}</p>}
+      <div className="settings-actions">
+        <button type="button" className="dialog-primary" onClick={() => void approve()}>
+          ✅ استلمته - سجّله
+        </button>
+        <button type="button" className="text-action" onClick={() => void reject()}>
+          ❌ لم أستلمه
         </button>
       </div>
     </li>

@@ -16,6 +16,7 @@ import { buildRepDailyStatement, listRepDeviceCommissions, type Representative, 
 import { daysUntilRenewal, isStoppedAccount, money, renewalGroups } from "./telegramMessages";
 import { buildWhatsAppLink, normalizePhoneForWhatsApp } from "./whatsapp";
 import { connectionLine } from "./deviceConnection";
+import { openDebtEntries } from "./deviceFault";
 import { deviceHeader, deviceSections, MENU_HINT, menuFits, menuMarkup, pickDeviceMarkup, repEditValues, type RepEditField, type RepSectionCode } from "./repDeviceMenu";
 
 const MAX_LINES = 60;
@@ -146,6 +147,7 @@ export type RepCommand =
   | { kind: "activate"; text: string }
   | { kind: "promise"; text: string }
   | { kind: "mypromises" }
+  | { kind: "handover"; text: string }
   | { kind: "unknown"; text: string };
 
 type RepWordKind = Exclude<RepCommand["kind"], "unknown">;
@@ -212,6 +214,9 @@ const REP_WORD_LIST: Record<string, RepWordKind> = {
   "وعودي": "mypromises",
   "وعود": "mypromises",
   "الوعود": "mypromises",
+  "سلمت": "handover",
+  "تسليم": "handover",
+  handover: "handover",
 };
 
 /** Keyed by the folded word, so "اجهزتي" = "أجهزتي", "الاجهزة" = "الأجهزة"... */
@@ -236,6 +241,8 @@ export function parseRepCommand(text: string): RepCommand {
   // "زبون جديد ..." / "دفعة 5000 ..." - the rest is the request itself.
   if (kind === "payment") return { kind: "payment", text: rest.join(" ").trim() };
   if (kind === "activate") return { kind: "activate", text: rest.join(" ").trim() };
+  // "🤲 سلّمت المسؤول 50000" (the button + amount) or "سلمت 50000".
+  if (kind === "handover") return { kind: "handover", text: rest.filter((w, i) => !(i === 0 && normalizeSearch(w) === "المسؤول")).join(" ").trim() };
   // "🤝 وعد دفع 5000 محمد الخميس" (the button) or "وعد 5000 ..." typed.
   if (kind === "promise") return { kind: "promise", text: rest.filter((w, i) => !(i === 0 && normalizeSearch(w) === "دفع")).join(" ").trim() };
   if (kind === "client") return { kind: "client", text: rest.filter((w, i) => !(i === 0 && normalizeSearch(w) === "جديد")).join(" ").trim() };
@@ -440,6 +447,11 @@ export interface RepSearchEntry {
   h?: string;
   x?: Record<RepSectionCode, string>;
   ev?: Record<RepEditField, string>;
+  /** "1" when the device still owes Starlink (an open D) - the 🅳 mark on alerts. */
+  dm?: string;
+  /** WhatsApp buttons for the 🔔 stopped alert and the 💰 debt reminder. */
+  sw?: string;
+  dw?: string;
 }
 
 function statusLabel(account: StarlinkAccountSummary): string {
@@ -501,7 +513,14 @@ export function repSearchIndex(accounts: StarlinkAccountSummary[], clients: Clie
       ...(target ? { l: target.label, w: target.url } : {}),
       ...(withMenu && menuFits(account.id)
         ? {
-            h: deviceHeader(account, client, tappablePhone),
+            h: deviceHeader(account, client, tappablePhone, openDebtEntries(ledgerStore[account.id] ?? []).length > 0),
+            ...(openDebtEntries(ledgerStore[account.id] ?? []).length > 0 ? { dm: "1" } : {}),
+            ...(() => {
+              const stopped = whatsappTarget(account, clients, (name) => stoppedReminderText(name, account.name));
+              const owedNow = Object.fromEntries(Object.entries(computeBalanceByCurrency(ledgerStore[account.id] ?? [])).filter(([, v]) => v > 0.005));
+              const debt = Object.keys(owedNow).length > 0 ? whatsappTarget(account, clients, (name) => debtReminderText(name, account.name, money(owedNow))) : null;
+              return { ...(stopped ? { sw: stopped.url } : {}), ...(debt ? { dw: debt.url } : {}) };
+            })(),
             x: deviceSections({
               account,
               client,
@@ -531,7 +550,7 @@ const MAX_RESULTS = 5;
  * lists that day's renewals instead. Mirrors TelegramReplies.search. */
 /** `owner`: the owner bot - WhatsApp buttons only (⚡ تفعيل is a reps-bot flow) and "not found"
  * talks about all devices. */
-export function repSearchReply(query: string, index: RepSearchEntry[], today?: string, owner = false): RepReply {
+export function repSearchReply(query: string, index: RepSearchEntry[], today?: string, owner = false, moneyBot?: string): RepReply {
   const day = today ? parseDayQuery(query, today) : null;
   if (day) return repDayReply(day, index);
   const words = normalizeSearch(query).split(" ").filter(Boolean);
@@ -548,7 +567,7 @@ export function repSearchReply(query: string, index: RepSearchEntry[], today?: s
     ...(found.length > MAX_RESULTS ? [`\n… و${found.length - MAX_RESULTS} أخرى - اكتب اسمًا أدق`] : []),
   ].join("\n");
   if (owner) return { text, markup: whatsappMarkup(shown.flatMap((entry) => (entry.w && entry.l ? [{ label: entry.l, url: entry.w }] : []))) };
-  if (shown.every((entry) => entry.h && entry.i)) return repMenuReply(query, found.length, shown);
+  if (shown.every((entry) => entry.h && entry.i)) return repMenuReply(query, found.length, shown, moneyBot);
   return {
     text,
     markup: deviceActionsMarkup(
@@ -559,12 +578,12 @@ export function repSearchReply(query: string, index: RepSearchEntry[], today?: s
 
 /** A rep's search with menus: one device -> its header and menu; several -> their headers and
  * one button each that opens that device's menu. Mirrors TelegramReplies.menuSearch (Java). */
-export function repMenuReply(query: string, total: number, shown: RepSearchEntry[]): RepReply {
+export function repMenuReply(query: string, total: number, shown: RepSearchEntry[], moneyBot?: string): RepReply {
   const title = `🔎 نتائج «${query.slice(0, 40)}» (${total}):`;
   const more = total > shown.length ? [`\n… و${total - shown.length} أخرى - اكتب اسمًا أدق`] : [];
   if (shown.length === 1) {
     const entry = shown[0]!;
-    return { text: [title, "", entry.h!, "", MENU_HINT, ...more].join("\n"), markup: menuMarkup(entry.i!, entry.w) };
+    return { text: [title, "", entry.h!, "", MENU_HINT, ...more].join("\n"), markup: menuMarkup(entry.i!, entry.w, moneyBot) };
   }
   return {
     text: [title, ...shown.map((entry, n) => `\n${n + 1}. ${entry.h}`), ...more, "", "اضغط على الجهاز لتظهر قائمته 👇"].join("\n"),

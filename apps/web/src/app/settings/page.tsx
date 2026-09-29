@@ -1,5 +1,6 @@
 "use client";
 
+import { RepExtraBotsSettings } from "@/components/RepExtraBotsSettings";
 import { RepModeEntrySection } from "@/components/RepModeEntrySection";
 import { useEffect, useRef, useState } from "react";
 import { checkHealth, listAccounts, login, register } from "@/lib/apiClient";
@@ -1532,7 +1533,7 @@ function TelegramRepsSection() {
 
   return (
     <section className="section telegram-section">
-      <h2 className="section-title">🤝 بوت المندوبين (تيليغرام)</h2>
+      <h2 className="section-title">🤝 بوتات المندوبين (تيليغرام)</h2>
       {!connection.repsConfigured ? (
         <>
           <p className="settings-hint">
@@ -1657,6 +1658,7 @@ function TelegramRepsSection() {
           <p className="settings-hint">
             للمندوب أزرار ثابتة أسفل المحادثة: أجهزتي، تنتهي، الموقوفة، ديون زبائني، كشفي، بحث - ويكفي أن يكتب اسم زبون أو رقمه للبحث. تحت القوائم أزرار 💬 واتساب ترسل للزبون رسالة جاهزة. من ليس مربوطاً لا يرى أي بيانات.
           </p>
+          <RepExtraBotsSettings />
           <div className="settings-actions">
             <button
               type="button"

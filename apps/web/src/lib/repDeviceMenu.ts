@@ -15,6 +15,7 @@ import { priorityDataState } from "./priorityData";
 import { cleanPlanName, effectiveServiceStatus, isSisPlan, planBadgeLabel } from "./status";
 import { daysUntilRenewal, money } from "./telegramMessages";
 import { buildAccountStatementMessage } from "./whatsapp";
+import { moneyDeepLink } from "./repBots";
 
 /** One-letter codes, kept short so every callback fits Telegram's 64 bytes. */
 export const REP_SECTION_CODES = ["r", "p", "d", "i", "f", "s"] as const;
@@ -55,13 +56,22 @@ export function menuFits(accountId: string): boolean {
 type Button = { text: string; callback_data: string } | { text: string; url: string };
 
 /** The device's menu - mirrors TelegramReplies.menuMarkup (Java). */
-export function menuMarkup(accountId: string, whatsappUrl?: string): string {
+/** `moneyBot`: once the 💰 money bot is connected, 💰 الدين / 📊 كشف leave the devices bot's
+ * menu for one "💰 المال" button that opens the money bot on this device. */
+export function menuMarkup(accountId: string, whatsappUrl?: string, moneyBot?: string): string {
   const cb = (text: string, data: string): Button => ({ text, callback_data: data });
-  const rows: Button[][] = [
-    [cb("📶 الشبكة", `v:n:${accountId}`), cb("📅 التجديد", `v:r:${accountId}`), cb("🛰️ الاشتراك", `v:p:${accountId}`)],
-    [cb("💰 الدين", `v:d:${accountId}`), cb("🔢 KIT/SN", `v:i:${accountId}`), cb("👤 المعلومات", `v:f:${accountId}`)],
-    [cb("✏️ تعديل", `e:${accountId}`), cb("📊 كشف", `v:s:${accountId}`), cb("📝 ملاحظة", `nt:${accountId}`)],
-  ];
+  const moneyLink = moneyDeepLink(moneyBot, accountId);
+  const rows: Button[][] = moneyBot
+    ? [
+        [cb("📶 الشبكة", `v:n:${accountId}`), cb("📅 التجديد", `v:r:${accountId}`), cb("🛰️ الاشتراك", `v:p:${accountId}`)],
+        [cb("🔢 KIT/SN", `v:i:${accountId}`), cb("👤 المعلومات", `v:f:${accountId}`), cb("📝 ملاحظة", `nt:${accountId}`)],
+        [cb("✏️ تعديل", `e:${accountId}`), ...(moneyLink ? [{ text: "💰 المال", url: moneyLink }] : [])],
+      ]
+    : [
+        [cb("📶 الشبكة", `v:n:${accountId}`), cb("📅 التجديد", `v:r:${accountId}`), cb("🛰️ الاشتراك", `v:p:${accountId}`)],
+        [cb("💰 الدين", `v:d:${accountId}`), cb("🔢 KIT/SN", `v:i:${accountId}`), cb("👤 المعلومات", `v:f:${accountId}`)],
+        [cb("✏️ تعديل", `e:${accountId}`), cb("📊 كشف", `v:s:${accountId}`), cb("📝 ملاحظة", `nt:${accountId}`)],
+      ];
   const last: Button[] = [];
   if (whatsappUrl) last.push({ text: "💬 واتساب", url: whatsappUrl });
   if (fits(`a:${accountId}`)) last.push(cb("⚡ تفعيل", `a:${accountId}`));
@@ -86,8 +96,16 @@ export function pickDeviceMarkup(devices: { id: string; name: string }[]): strin
 
 export const MENU_HINT = "اختر ما تريد معرفته 👇";
 
-export function deviceHeader(account: StarlinkAccountSummary, client: Client | undefined, tappable: (phone: string) => string): string {
-  return [`📡 ${account.name}`, client ? `👤 ${client.name}${client.phone ? ` (${tappable(client.phone)})` : ""}` : "👤 —"].join("\n");
+/** The D mark, never its amount (a rep never sees the Starlink cost). */
+export const D_MARK_LINE = "🅳 علامة D: لم ندفع لـ Starlink بعد على هذا الجهاز";
+
+/** `hasD`: the device still owes Starlink (an open D) - shown on every card and alert. */
+export function deviceHeader(account: StarlinkAccountSummary, client: Client | undefined, tappable: (phone: string) => string, hasD = false): string {
+  return [
+    `📡 ${account.name}`,
+    client ? `👤 ${client.name}${client.phone ? ` (${tappable(client.phone)})` : ""}` : "👤 —",
+    ...(hasD ? [D_MARK_LINE] : []),
+  ].join("\n");
 }
 
 /** The current value of each editable field (shown in the question and to the operator). */

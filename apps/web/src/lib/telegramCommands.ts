@@ -30,7 +30,9 @@ import {
   sendRepText,
   sendTelegramPdf,
   sendTelegramText,
+  repBotNames,
 } from "./telegram";
+import { devicesHelp, devicesKeyboard, isMoneyKind, moneyRedirectText, REP_HANDOVER_HINT, repHandoverReceivedText, type RepBot } from "./repBots";
 import { buildReplySnapshot } from "./telegramReplies";
 import { deviceDisplayName, readRepDeviceFile, repDeviceCode } from "./repDeviceTransfer";
 import { cardText, forecastText, goalsText, healthText, lapsedText, planText, promisesText } from "./ownerInsightsText";
@@ -42,8 +44,6 @@ import { getCurrency, loadCurrencyStore } from "./currencyStore";
 import { loadRepresentativeStore, loadRepSettlements, type Representative } from "./repStore";
 import {
   parseRepCommand,
-  REP_HELP,
-  REP_KEYBOARD,
   repAccounts,
   repDaysReply,
   repDebtsReply,
@@ -200,7 +200,7 @@ async function answerStatement(query: string): Promise<void> {
  * A message to the reps bot. From a linked rep: answered with HIS data only. From anyone else:
  * recorded as a link request for الإعدادات and told to wait - never answered with any data.
  */
-export async function answerRepMessage(message: TelegramPollMessage, alreadyReplied = false): Promise<void> {
+export async function answerRepMessage(message: TelegramPollMessage, alreadyReplied = false, bot: RepBot = "reps"): Promise<void> {
   const repId = repIdForChat(message.chatId);
   if (!repId) {
     // alreadyReplied: the background service told him and the operator already - just record it.
@@ -217,6 +217,16 @@ export async function answerRepMessage(message: TelegramPollMessage, alreadyRepl
     return;
   }
   const command = parseRepCommand(message.text);
+  const names = repBotNames();
+  // 💰 Once the money bot is connected, money commands live there only.
+  if (bot === "reps" && names.money && isMoneyKind(command.kind)) {
+    if (!alreadyReplied) await sendRepText(repId, moneyRedirectText(names.money));
+    return;
+  }
+  if (command.kind === "handover") {
+    await handleRepHandover(repId, rep, command.text, alreadyReplied);
+    return;
+  }
   if (command.kind === "payment" || command.kind === "client") {
     await handleRepRequest(repId, rep, command, alreadyReplied);
     return;
@@ -226,7 +236,23 @@ export async function answerRepMessage(message: TelegramPollMessage, alreadyRepl
     return;
   }
   const reply = await repReplyFor(repId, rep, command);
-  await sendRepText(repId, reply.text, reply.markup ?? REP_KEYBOARD);
+  await sendRepText(repId, reply.text, reply.markup ?? devicesKeyboard(names));
+}
+
+/** 🤲 Money the rep says he handed to the operator: kept for approval (the operator confirms it
+ * on the representatives page, which records it as a cash handover). */
+async function handleRepHandover(repId: string, rep: Representative, text: string, alreadyReplied: boolean): Promise<void> {
+  const parsed = parseRepPayment(text);
+  if (!parsed) {
+    if (!alreadyReplied) await sendRepText(repId, REP_HANDOVER_HINT, undefined, "money");
+    return;
+  }
+  saveRepRequests(addRepRequest(loadRepRequests(), { repId, kind: "handover", text: `سلّمت ${text}`, amount: parsed.amount, currency: parsed.currency }));
+  if (!alreadyReplied) {
+    const label = formatMoneyShort(parsed.amount, parsed.currency);
+    await sendRepText(repId, repHandoverReceivedText(label), undefined, "money");
+    await sendTelegramText(`🤲 المندوب ${rep.name} يقول إنه سلّمك ${label}\nأكّده من صفحة المندوبين في التطبيق.`);
+  }
 }
 
 export const REP_DEVICE_RECEIVED = "📥 وصل ملف الجهاز - بانتظار موافقة المسؤول.\nاضغط «✅ وصل» في تطبيقك لحذف الجلسة من هاتفك.";
@@ -263,7 +289,7 @@ async function handleRepDeviceFile(repId: string, rep: Representative, fileId: s
 async function handleRepPromise(repId: string, rep: Representative, text: string, alreadyReplied: boolean): Promise<void> {
   const parsed = parseRepPromise(text, new Date());
   if (!parsed) {
-    if (!alreadyReplied) await sendRepText(repId, REP_PROMISE_HINT);
+    if (!alreadyReplied) await sendRepText(repId, REP_PROMISE_HINT, undefined, "money");
     return;
   }
   const clients = loadClientStore();
@@ -285,7 +311,7 @@ async function handleRepPromise(repId: string, rep: Representative, text: string
   );
   if (!alreadyReplied) {
     const day = `${parsed.dueDate.slice(8, 10)}/${parsed.dueDate.slice(5, 7)}`;
-    await sendRepText(repId, `✅ سُجّل وعد ${name} بدفع ${formatMoneyShort(parsed.amount, parsed.currency)} يوم ${day}${parsed.defaulted ? " (بعد أسبوع - لم تذكر يوماً)" : ""}.`);
+    await sendRepText(repId, `✅ سُجّل وعد ${name} بدفع ${formatMoneyShort(parsed.amount, parsed.currency)} يوم ${day}${parsed.defaulted ? " (بعد أسبوع - لم تذكر يوماً)" : ""}.`, undefined, "money");
     await sendTelegramText(`🤝 وعد دفع عبر المندوب ${rep.name}: ${name} - ${formatMoneyShort(parsed.amount, parsed.currency)} يوم ${day}`);
   }
 }
@@ -301,7 +327,7 @@ async function handleRepRequest(
   if (command.kind === "payment") {
     const parsed = parseRepPayment(command.text);
     if (!parsed) {
-      if (!alreadyReplied) await sendRepText(repId, REP_PAYMENT_HINT);
+      if (!alreadyReplied) await sendRepText(repId, REP_PAYMENT_HINT, undefined, "money");
       return;
     }
     const matches = parsed.query ? matchRepDevices(parsed.query, repAccounts(await loadAccounts(), repId), loadClientStore()) : [];
@@ -318,7 +344,7 @@ async function handleRepRequest(
       }),
     );
     if (!alreadyReplied) {
-      await sendRepText(repId, repPaymentReceivedText(parsed.amount, parsed.currency, device?.name));
+      await sendRepText(repId, repPaymentReceivedText(parsed.amount, parsed.currency, device?.name), undefined, "money");
       await sendTelegramText(`💵 طلب دفعة من المندوب ${rep.name}: ${formatMoneyShort(parsed.amount, parsed.currency)}${device ? ` عن ${device.name}` : parsed.query ? ` («${parsed.query}»)` : ""}\nوافق عليه من صفحة المندوبين في التطبيق.`);
     }
     return;
@@ -343,7 +369,9 @@ async function repReplyFor(repId: string, rep: Representative, command: RepComma
   const mine = repAccounts(all, repId);
   switch (command.kind) {
     case "help":
-      return { text: REP_HELP };
+      return { text: devicesHelp(repBotNames()) };
+    case "handover":
+      return { text: REP_HANDOVER_HINT };
     case "devices":
       return { text: repDevicesText(mine, clients, today) };
     case "expiring":
@@ -354,7 +382,7 @@ async function repReplyFor(repId: string, rep: Representative, command: RepComma
       return repDebtsReply(repId, all, loadLedgerStore(), clients);
     case "activate":
       // Normally answered by the background service (its buttons need it); this is the fallback.
-      return command.text ? repSearchReply(command.text, repSearchIndex(mine, clients, loadLedgerStore(), today, true), today) : { text: REP_ACTIVATION_HINT };
+      return command.text ? repSearchReply(command.text, repSearchIndex(mine, clients, loadLedgerStore(), today, true), today, false, repBotNames().money) : { text: REP_ACTIVATION_HINT };
     case "payment":
       return { text: REP_PAYMENT_HINT };
     case "client":
@@ -366,10 +394,10 @@ async function repReplyFor(repId: string, rep: Representative, command: RepComma
     case "days":
       return repDaysReply(mine, clients, today);
     case "search":
-      return repSearchReply(command.query, repSearchIndex(mine, clients, loadLedgerStore(), today, true), today);
+      return repSearchReply(command.query, repSearchIndex(mine, clients, loadLedgerStore(), today, true), today, false, repBotNames().money);
     case "unknown": {
-      const found = repSearchReply(command.text, repSearchIndex(mine, clients, loadLedgerStore(), today, true), today);
-      return found.text.startsWith("🔎 لم أجد") ? { text: `${found.text}\n\n${REP_HELP}` } : found;
+      const found = repSearchReply(command.text, repSearchIndex(mine, clients, loadLedgerStore(), today, true), today, false, repBotNames().money);
+      return found.text.startsWith("🔎 لم أجد") ? { text: `${found.text}\n\n${devicesHelp(repBotNames())}` } : found;
     }
     case "statement": {
       const currencies = loadCurrencyStore();
@@ -401,6 +429,7 @@ export async function refreshTelegramReplies(): Promise<void> {
     adjustments: loadPartyAdjustments(),
     cardBalanceUsd: currentCardBalanceUsd(loadLedgerStore()),
     openDebtsUsd: listOpenShipmentDebts(loadLedgerStore()).map((d) => d.costUsd),
+    botNames: repBotNames(),
   });
   await pushTelegramReplies(snapshot);
 }

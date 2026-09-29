@@ -22,7 +22,8 @@ import { getCurrency, loadCurrencyStore } from "./currencyStore";
 import { loadInvoices } from "./invoiceStore";
 import type { LedgerByAccount } from "./ledgerStore";
 import { loadRepresentativeStore, loadRepSettlements } from "./repStore";
-import { REP_HELP, REP_KEYBOARD, repAccounts, repMoney, repMorningMarkup, repMorningText, repStatementText, repWelcomeText } from "./telegramRepMessages";
+import { repAccounts, repMoney, repMorningMarkup, repMorningText, repStatementText, repWelcomeText } from "./telegramRepMessages";
+import { devicesHelp, devicesKeyboard, otherBotsLines, REP_MONEY_KEYBOARD, type RepBot, type RepBotNames } from "./repBots";
 import type { PrintableDocument } from "./pdfDocument";
 import type { TelegramReplySnapshot } from "./telegramReplies";
 import { renderPrintablePdf } from "./pdfExport";
@@ -98,6 +99,9 @@ export async function telegramConnection(): Promise<TelegramConnection> {
     const status = await LocalBrowser.telegramStatus();
     safeSet(CONNECTED_KEY, status.configured ? "1" : null);
     safeSet(REPS_CONNECTED_KEY, status.repsConfigured ? "1" : null);
+    safeSet(REPS_BOT_NAME_KEY, status.repsConfigured ? status.repsBotName ?? null : null);
+    safeSet(MONEY_BOT_KEY, status.moneyConfigured ? status.moneyBotName || "money" : null);
+    safeSet(ALERTS_BOT_KEY, status.alertsConfigured ? status.alertsBotName || "alerts" : null);
     return {
       configured: status.configured,
       botName: status.botName ?? undefined,
@@ -161,7 +165,7 @@ export function notifyPaymentTelegram(input: Parameters<typeof buildPaymentTeleg
   const prefs = loadTelegramPrefs();
   const text = buildPaymentTelegram(input);
   if (isTelegramConnected() && prefs.payments) void sendTelegramText(text);
-  if (input.representativeId && prefs.repPayments) void sendRepText(input.representativeId, text);
+  if (input.representativeId && prefs.repPayments) void sendRepText(input.representativeId, text, undefined, "money");
 }
 
 /**
@@ -216,6 +220,55 @@ export async function rescheduleTelegramSummaries(input: {
 // ---- Reps bot: one bot for all representatives, each linked to his own chat ----
 
 const REPS_CONNECTED_KEY = "starnet.telegramRepsConnected";
+/** The reps' 💰 / 🔔 bots' @names while connected (the native store is the truth). */
+const MONEY_BOT_KEY = "starnet.telegramMoneyBot";
+const ALERTS_BOT_KEY = "starnet.telegramAlertsBot";
+const REPS_BOT_NAME_KEY = "starnet.telegramRepsBotName";
+
+/** Which of the reps' bots are connected, by @name. */
+export function repBotNames(): RepBotNames {
+  if (!isRunningInAndroidApp()) return {};
+  return {
+    devices: safeGet(REPS_BOT_NAME_KEY) ?? undefined,
+    money: safeGet(MONEY_BOT_KEY) ?? undefined,
+    alerts: safeGet(ALERTS_BOT_KEY) ?? undefined,
+  };
+}
+
+/** Connects the reps' 💰 money or 🔔 alerts bot (a separate bot from @BotFather). */
+export async function connectRepExtraBot(bot: "money" | "alerts", token: string): Promise<{ ok: true; botName: string } | { ok: false; message: string }> {
+  if (!isRunningInAndroidApp()) return { ok: false, message: "الربط يعمل داخل تطبيق أندرويد فقط" };
+  const clean = cleanBotToken(token);
+  if (!clean) return { ok: false, message: TOKEN_FORMAT_HELP };
+  try {
+    const result = await LocalBrowser.telegramConnect({ token: clean, bot });
+    safeSet(bot === "money" ? MONEY_BOT_KEY : ALERTS_BOT_KEY, result.botName || bot);
+    await announceRepBots();
+    return { ok: true, botName: result.botName };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : "تعذر الربط" };
+  }
+}
+
+export async function disconnectRepExtraBot(bot: "money" | "alerts"): Promise<void> {
+  safeSet(bot === "money" ? MONEY_BOT_KEY : ALERTS_BOT_KEY, null);
+  if (!isRunningInAndroidApp()) return;
+  try {
+    await LocalBrowser.telegramDisconnect({ bot });
+  } catch {
+    // nothing stored natively
+  }
+}
+
+/** Tells every linked rep about the new bots, with the devices bot's new buttons. */
+async function announceRepBots(): Promise<void> {
+  const names = repBotNames();
+  const lines = otherBotsLines(names);
+  if (lines.length === 0) return;
+  for (const repId of Object.keys(loadRepChats())) {
+    await sendRepText(repId, ["🆕 أصبح لديك بوتات منفصلة:", "📡 هذا البوت للأجهزة", ...lines].join("\n"), devicesKeyboard(names));
+  }
+}
 const REP_CHATS_KEY = "starnet.telegramRepChats";
 const REP_REQUESTS_KEY = "starnet.telegramRepRequests";
 const REPS_OFFSET_KEY = "starnet.telegramRepsOffset";
@@ -308,7 +361,7 @@ export async function linkRepChat(repId: string, request: RepLinkRequest, repNam
   chats[repId] = { chatId: request.chatId, name: request.name || request.username };
   await saveRepChats(chats);
   saveRepRequests(loadRepRequests().filter((r) => r.chatId !== request.chatId));
-  await sendRepText(repId, repWelcomeText(repName));
+  await sendRepText(repId, [repWelcomeText(repName), ...otherBotsLines(repBotNames())].join("\n"));
 }
 
 export async function unlinkRep(repId: string): Promise<void> {
@@ -339,12 +392,21 @@ export function repIdForChat(chatId: string): string | undefined {
   return Object.entries(loadRepChats()).find(([, c]) => c.chatId === chatId)?.[0];
 }
 
-/** Queued to a linked rep; false when he isn't linked. */
-export async function sendRepText(repId: string, text: string, replyMarkup: string = REP_KEYBOARD): Promise<boolean> {
+/** The buttons a message through `bot` carries by default. */
+function defaultKeyboard(bot: RepBot): string | undefined {
+  const names = repBotNames();
+  if (bot === "money" && names.money) return REP_MONEY_KEYBOARD;
+  if (bot === "alerts" && names.alerts) return undefined;
+  return devicesKeyboard(names);
+}
+
+/** Queued to a linked rep through `bot` (the devices bot when that one isn't connected); false
+ * when he isn't linked. */
+export async function sendRepText(repId: string, text: string, replyMarkup?: string, bot: RepBot = "reps"): Promise<boolean> {
   const chat = loadRepChats()[repId];
   if (!chat || !isRepsBotConnected()) return false;
   try {
-    return (await LocalBrowser.telegramSend({ text, bot: "reps", chatId: chat.chatId, replyMarkup })).queued;
+    return (await LocalBrowser.telegramSend({ text, bot, chatId: chat.chatId, replyMarkup: replyMarkup ?? defaultKeyboard(bot) })).queued;
   } catch {
     return false;
   }
@@ -402,7 +464,8 @@ async function rescheduleRepMornings(accounts: StarlinkAccountSummary[], morning
     const text = rep && (renewals || promiseLines.length) ? [renewals ?? `☀️ صباح الخير ${rep.name}`, ...promiseLines].join("\n") : null;
     const replyMarkup = repMorningMarkup(mine, clients, localDay(at));
     try {
-      await LocalBrowser.telegramSchedule({ key: repMorningKey(repId), at: at.getTime(), text: text ?? "", bot: "reps", chatId: chat.chatId, replyMarkup });
+      // 🔔 The alerts bot when connected (the devices bot otherwise).
+      await LocalBrowser.telegramSchedule({ key: repMorningKey(repId), at: at.getTime(), text: text ?? "", bot: "alerts", chatId: chat.chatId, replyMarkup });
     } catch {
       // Tried again on the next data change.
     }
@@ -422,7 +485,7 @@ export async function sendRepMonthlyStatements(month: string, ledgerStore: Ledge
     const rep = reps[repId];
     if (!rep) continue;
     const text = repStatementText(rep.name, month, repMoney({ rep, month, ledgerStore, invoices, settlements, rates }));
-    if (await sendRepText(repId, `🗓 تم إقفال شهر\n${text}`)) sent += 1;
+    if (await sendRepText(repId, `🗓 تم إقفال شهر\n${text}`, undefined, "money")) sent += 1;
   }
   return sent;
 }
@@ -519,7 +582,7 @@ export async function takeTelegramInbox(): Promise<{ messages: TelegramInboxMess
 
 const KEYBOARD_SENT_KEY = "starnet.telegramRepKeyboard";
 /** Bump when the rep keyboard changes, so every linked rep gets the new buttons once. */
-const KEYBOARD_VERSION = "6";
+const KEYBOARD_VERSION = "7";
 
 /** Gives every linked rep the button keyboard once (a rep linked before it existed never had it). */
 export async function sendRepKeyboardOnce(): Promise<void> {
@@ -533,7 +596,8 @@ export async function sendRepKeyboardOnce(): Promise<void> {
   let changed = false;
   for (const repId of Object.keys(loadRepChats())) {
     if (sent[repId] === KEYBOARD_VERSION) continue;
-    if (await sendRepText(repId, `✨ أزرار سريعة جديدة أسفل المحادثة 👇\n\n${REP_HELP}`, REP_KEYBOARD)) {
+    const names = repBotNames();
+    if (await sendRepText(repId, `✨ أزرار سريعة جديدة أسفل المحادثة 👇\n\n${devicesHelp(names)}`, devicesKeyboard(names))) {
       sent[repId] = KEYBOARD_VERSION;
       changed = true;
     }

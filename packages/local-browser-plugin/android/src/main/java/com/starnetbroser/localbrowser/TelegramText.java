@@ -123,4 +123,57 @@ final class TelegramText {
         byte[] bytes = s.getBytes(StandardCharsets.UTF_8);
         out.write(bytes, 0, bytes.length);
     }
+
+    /** "count|MRU=15000.0;USD=50.0" plus one more amount -> {new raw, count}. Pure. */
+    static String[] addToTally(String raw, String currency, double amount) {
+        int count = 0;
+        java.util.LinkedHashMap<String, Double> totals = new java.util.LinkedHashMap<>();
+        if (raw != null && raw.contains("|")) {
+            String[] parts = raw.split("\\|", 2);
+            try {
+                count = Integer.parseInt(parts[0]);
+            } catch (NumberFormatException ignored) {
+                count = 0;
+            }
+            for (String pair : parts[1].split(";")) {
+                int eq = pair.indexOf('=');
+                if (eq <= 0) continue;
+                try {
+                    totals.put(pair.substring(0, eq), Double.parseDouble(pair.substring(eq + 1)));
+                } catch (NumberFormatException ignored) {
+                    // skip a broken pair
+                }
+            }
+        }
+        totals.put(currency, (totals.containsKey(currency) ? totals.get(currency) : 0) + amount);
+        count += 1;
+        StringBuilder out = new StringBuilder().append(count).append('|');
+        boolean first = true;
+        for (java.util.Map.Entry<String, Double> e : totals.entrySet()) {
+            if (!first) out.append(';');
+            first = false;
+            out.append(e.getKey()).append('=').append(e.getValue());
+        }
+        return new String[] {out.toString(), String.valueOf(count)};
+    }
+
+    /** "MRU=15000.0;USD=50.0" part of a tally -> "15,000 أوقية + 50 دولار". */
+    static String tallyLabel(String raw) {
+        if (raw == null || !raw.contains("|")) return "";
+        StringBuilder out = new StringBuilder();
+        java.text.DecimalFormat format = new java.text.DecimalFormat("#,##0.##", java.text.DecimalFormatSymbols.getInstance(java.util.Locale.ROOT));
+        for (String pair : raw.split("\\|", 2)[1].split(";")) {
+            int eq = pair.indexOf('=');
+            if (eq <= 0) continue;
+            String code = pair.substring(0, eq);
+            String name = "USD".equals(code) ? "دولار" : "SIFA".equals(code) ? "سيفا" : "أوقية";
+            if (out.length() > 0) out.append(" + ");
+            try {
+                out.append(format.format(Double.parseDouble(pair.substring(eq + 1)))).append(' ').append(name);
+            } catch (NumberFormatException ignored) {
+                // skip
+            }
+        }
+        return out.toString();
+    }
 }

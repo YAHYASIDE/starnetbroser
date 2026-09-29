@@ -119,6 +119,8 @@ public class TelegramReplyService extends Service {
             int mine = ++generation;
             startPolling(TelegramStore.OWNER, mine);
             startPolling(TelegramStore.REPS, mine);
+            startPolling(TelegramStore.MONEY, mine);
+            startPolling(TelegramStore.ALERTS, mine);
         }
         return START_STICKY;
     }
@@ -195,7 +197,7 @@ public class TelegramReplyService extends Service {
         long backoffMs = 5_000;
         while (generation == mine) {
             String token = TelegramStore.tokenFor(context, bot);
-            boolean ready = TelegramStore.REPS.equals(bot) ? token != null : TelegramStore.isConfigured(context);
+            boolean ready = TelegramStore.isRepBot(bot) ? token != null : TelegramStore.isConfigured(context);
             if (!ready) {
                 sleep(30_000);
                 continue;
@@ -251,7 +253,7 @@ public class TelegramReplyService extends Service {
     /** One quick getUpdates round, answering everything here (TelegramWatchdogWorker). */
     static void pollOnce(Context context, String bot) {
         String token = TelegramStore.tokenFor(context, bot);
-        boolean ready = TelegramStore.REPS.equals(bot) ? token != null : TelegramStore.isConfigured(context);
+        boolean ready = TelegramStore.isRepBot(bot) ? token != null : TelegramStore.isConfigured(context);
         if (!ready) return;
         try {
             Map<String, String> params = new LinkedHashMap<>();
@@ -290,12 +292,17 @@ public class TelegramReplyService extends Service {
         boolean reps = TelegramStore.REPS.equals(bot);
         if (reps && handleDeviceFile(context, token, chatId, name, username, message.optJSONObject("document"))) return;
         if (text.trim().isEmpty()) return;
+        // 💰 / 🔔: always answered here, app open or not.
+        if (TelegramStore.isExtraBot(bot)) {
+            answerExtra(context, bot, token, chatId, name, username, text);
+            return;
+        }
         if (!reps && !chatId.equals(TelegramStore.chatId(context))) return; // the owner bot talks to the owner only
 
         // ✏️ / 📝 values and ⚡ تفعيل live here only (their buttons come back to this service),
         // app open or not.
         if (reps && handleFormText(context, token, chatId, text)) return;
-        if (reps && handleActivationText(context, token, chatId, text)) return;
+        if (reps && handleActivationText(context, bot, token, chatId, text)) return;
 
         if (appMayAnswer && appAnswering()) {
             addToInbox(context, bot, chatId, name, username, text, false);
@@ -325,7 +332,7 @@ public class TelegramReplyService extends Service {
 
     /** A rep's text that belongs to the activation flow: his price after choosing a plan, or
      * "تفعيل ...". True when handled. */
-    private static boolean handleActivationText(Context context, String token, String chatId, String text) throws JSONException {
+    private static boolean handleActivationText(Context context, String bot, String token, String chatId, String text) throws JSONException {
         String repId = TelegramStore.repIdForChat(context, chatId);
         if (repId == null) return false;
         TelegramReplies.Snapshot snapshot = loadSnapshot(context);
@@ -340,25 +347,25 @@ public class TelegramReplyService extends Service {
                 return false;
             }
             if (price == null) {
-                send(context, TelegramStore.REPS, token, chatId, "اكتب المبلغ بالأرقام فقط، مثلاً 15000 أو 50 دولار", TelegramReplies.FORCE_REPLY);
+                send(context, bot, token, chatId, "اكتب المبلغ بالأرقام فقط، مثلاً 15000 أو 50 دولار", TelegramReplies.FORCE_REPLY);
                 return true;
             }
             TelegramStore.clearPendingActivation(context, chatId);
-            submitActivation(context, token, chatId, repId, entry, pending[1], price, snapshot);
+            submitActivation(context, bot, token, chatId, repId, entry, pending[1], price, snapshot);
             return true;
         }
         if (pending != null) TelegramStore.clearPendingActivation(context, chatId); // he moved on
         if (!"activate".equals(kind)) return false;
-        TelegramReplies.Reply reply = TelegramReplies.forRep(repId, text, snapshot);
-        if (reply.text != null) send(context, TelegramStore.REPS, token, chatId, reply.text, reply.markup);
+        TelegramReplies.Reply reply = TelegramStore.MONEY.equals(bot) ? TelegramReplies.forMoney(repId, text, snapshot) : TelegramReplies.forRep(repId, text, snapshot);
+        if (reply.text != null) send(context, bot, token, chatId, reply.text, reply.markup);
         return true;
     }
 
     /** To the operator with ✅/❌ - the rep is told it's waiting. */
-    private static void submitActivation(Context context, String repsToken, String repChat, String repId, TelegramReplies.SearchEntry entry,
+    private static void submitActivation(Context context, String bot, String repsToken, String repChat, String repId, TelegramReplies.SearchEntry entry,
                                          String plan, TelegramReplies.Price price, TelegramReplies.Snapshot snapshot) throws JSONException {
         if (!TelegramStore.isConfigured(context)) {
-            send(context, TelegramStore.REPS, repsToken, repChat, "⚠️ تعذر إرسال الطلب - بوت المسؤول غير مربوط. أخبر المسؤول مباشرة.", null);
+            send(context, bot, repsToken, repChat, "⚠️ تعذر إرسال الطلب - بوت المسؤول غير مربوط. أخبر المسؤول مباشرة.", null);
             return;
         }
         String id = Long.toString(System.currentTimeMillis() % 2176782336L, 36) + Integer.toString((int) (Math.random() * 1296), 36);
@@ -369,10 +376,96 @@ public class TelegramReplyService extends Service {
         record.put("device", entry.deviceName());
         record.put("plan", plan);
         record.put("price", price.label());
+        record.put("amount", price.amount);
+        record.put("currency", price.currency);
+        record.put("repId", repId);
         TelegramStore.putActivation(context, id, record.toString());
         send(context, TelegramStore.OWNER, TelegramStore.token(context), TelegramStore.chatId(context),
             TelegramReplies.activationToOwner(repName, plan, entry, price), TelegramReplies.approvalButtons(id));
-        send(context, TelegramStore.REPS, repsToken, repChat, TelegramReplies.activationSent(plan, entry, price), null);
+        send(context, bot, repsToken, repChat, TelegramReplies.activationSent(plan, entry, price), null);
+    }
+
+    // ---- 💰 money / 🔔 alerts bots ----
+
+    /** A message to the money or alerts bot (always answered here). */
+    private static void answerExtra(Context context, String bot, String token, String chatId, String name, String username, String text) throws JSONException {
+        TelegramReplies.Snapshot snapshot = loadSnapshot(context);
+        String repId = TelegramStore.repIdForChat(context, chatId);
+        if (repId == null) {
+            send(context, bot, token, chatId, TelegramReplies.notLinkedExtra(snapshot), null);
+            return;
+        }
+        if (snapshot == null) {
+            send(context, bot, token, chatId, TelegramReplies.NOT_READY, null);
+            return;
+        }
+        if (TelegramStore.ALERTS.equals(bot)) {
+            send(context, bot, token, chatId, snapshot.alertsInfo, "{\"remove_keyboard\":true}");
+            return;
+        }
+        if (handleActivationText(context, bot, token, chatId, text)) return;
+        TelegramReplies.Reply reply = TelegramReplies.forMoney(repId, text, snapshot);
+        if (reply.toInbox) addToInbox(context, TelegramStore.MONEY, chatId, name, username, text, true);
+        if (reply.text != null) send(context, bot, token, chatId, reply.text, reply.markup);
+        if (reply.ownerNotice != null && TelegramStore.isConfigured(context)) {
+            send(context, TelegramStore.OWNER, TelegramStore.token(context), TelegramStore.chatId(context), reply.ownerNotice, null);
+        }
+    }
+
+    /** 💰 bot buttons: a device's card (md:), its debt / statement (v:d: / v:s:), ⚡. */
+    private static String moneyCallback(Context context, String token, String chatId, long messageId, String data) throws JSONException {
+        String repId = TelegramStore.repIdForChat(context, chatId);
+        TelegramReplies.Snapshot snapshot = loadSnapshot(context);
+        if (repId == null || snapshot == null) return "افتح تطبيق المسؤول مرة ثم أعد المحاولة";
+        if (data.startsWith("md:")) {
+            TelegramReplies.SearchEntry entry = TelegramReplies.findEntry(repId, data.substring(3), snapshot);
+            if (entry == null || !entry.hasMenu()) return "هذا الجهاز ليس من أجهزتك";
+            TelegramReplies.Reply reply = TelegramReplies.moneyCard(entry, snapshot);
+            send(context, TelegramStore.MONEY, token, chatId, reply.text, reply.markup);
+            return entry.deviceName();
+        }
+        if (data.startsWith("v:d:") || data.startsWith("v:s:")) {
+            TelegramReplies.SearchEntry entry = TelegramReplies.findEntry(repId, data.substring(4), snapshot);
+            if (entry == null || !entry.hasMenu()) return "هذا الجهاز ليس من أجهزتك";
+            editOrSend(context, TelegramStore.MONEY, token, chatId, messageId, TelegramReplies.moneyCardText(entry, data.substring(2, 3), snapshot), TelegramReplies.moneyCardMarkup(entry));
+            return null;
+        }
+        return activationCallback(context, TelegramStore.MONEY, token, chatId, repId, snapshot, data);
+    }
+
+    /** 🔔 "📨 اطلب من المسؤول الدفع" under a stopped-device alert. */
+    private static String alertsCallback(Context context, String token, String chatId, long messageId, String messageText, String data) throws JSONException {
+        if (!data.startsWith("pq:")) return null;
+        String repId = TelegramStore.repIdForChat(context, chatId);
+        TelegramReplies.Snapshot snapshot = loadSnapshot(context);
+        if (repId == null || snapshot == null) return "افتح تطبيق المسؤول مرة ثم أعد المحاولة";
+        TelegramReplies.SearchEntry entry = TelegramReplies.findEntry(repId, data.substring(3), snapshot);
+        if (entry == null) return "هذا الجهاز ليس من أجهزتك";
+        if (!TelegramStore.isConfigured(context)) return "بوت المسؤول غير مربوط - أخبره مباشرة";
+        Map<String, String> mine = snapshot.reps.get(repId);
+        String repName = mine != null && mine.get("name") != null ? mine.get("name") : "";
+        send(context, TelegramStore.OWNER, TelegramStore.token(context), TelegramStore.chatId(context), TelegramReplies.payRequestToOwner(repName, entry), null);
+        editOrSend(context, TelegramStore.ALERTS, token, chatId, messageId, messageText + TelegramReplies.PAY_REQUEST_SENT, TelegramReplies.afterPayRequestMarkup(entry));
+        return "✅ أُرسل للمسؤول";
+    }
+
+    /** ⛔ One device just stopped (AutoSyncWorker): to its rep's 🔔 alerts bot (the devices bot
+     * when that one isn't connected), with a copy to the operator. False when the app hasn't
+     * prepared that device yet - the caller then sends the plain list instead. */
+    static boolean queueStoppedAlert(Context context, String repId, String accountId, String status) {
+        if (repId == null || accountId == null || !TelegramStore.isRepsConfigured(context)) return false;
+        String chatId = TelegramStore.repChats(context).get(repId);
+        TelegramReplies.Snapshot snapshot = loadSnapshot(context);
+        if (chatId == null || snapshot == null) return false;
+        TelegramReplies.SearchEntry entry = TelegramReplies.findEntry(repId, accountId, snapshot);
+        if (entry == null) return false;
+        String text = TelegramReplies.stoppedAlert(entry, status);
+        TelegramSendWorker.enqueueToRepBot(context, TelegramStore.ALERTS, chatId, text, TelegramReplies.stoppedAlertMarkup(entry));
+        if (TelegramStore.extraToken(context, TelegramStore.ALERTS) != null && TelegramStore.isConfigured(context)) {
+            Map<String, String> mine = snapshot.reps.get(repId);
+            TelegramSendWorker.enqueue(context, TelegramReplies.ownerCopy(mine != null && mine.get("name") != null ? mine.get("name") : "", text));
+        }
+        return true;
     }
 
     // ---- ✏️ / 📝 typed after tapping them in the device menu ----
@@ -429,6 +522,10 @@ public class TelegramReplyService extends Service {
 
     /** Replaces the menu message in place; a new message when it can't be edited. */
     private static void editOrSend(Context context, String token, String chatId, long messageId, String text, String markup) {
+        editOrSend(context, TelegramStore.REPS, token, chatId, messageId, text, markup);
+    }
+
+    private static void editOrSend(Context context, String bot, String token, String chatId, long messageId, String text, String markup) {
         if (messageId > 0) {
             try {
                 TelegramClient.editMessageText(token, chatId, messageId, text, markup);
@@ -440,15 +537,15 @@ public class TelegramReplyService extends Service {
                 // fall through to a new message (queued if still offline)
             }
         }
-        send(context, TelegramStore.REPS, token, chatId, text, markup);
+        send(context, bot, token, chatId, text, markup);
     }
 
     private static final long NETWORK_WAIT_MS = 150_000;
     private static final long NETWORK_POLL_MS = 2_000;
 
     /** 📶: refresh the device from Starlink now, then show its dots - never an older reading. */
-    private static void checkNetwork(Context context, String token, String chatId, long messageId, TelegramReplies.SearchEntry entry) {
-        String menu = TelegramReplies.menuMarkup(entry);
+    private static void checkNetwork(Context context, String token, String chatId, long messageId, TelegramReplies.SearchEntry entry, TelegramReplies.Snapshot snapshot) {
+        String menu = TelegramReplies.menuMarkup(entry, snapshot);
         if (SyncPacing.inCooldown(SyncPacing.rateLimitedAt(context), System.currentTimeMillis())) {
             editOrSend(context, token, chatId, messageId, TelegramReplies.networkBusy(entry), menu);
             return;
@@ -485,15 +582,15 @@ public class TelegramReplyService extends Service {
         if (entry == null || !entry.hasMenu()) return "هذا الجهاز ليس من أجهزتك";
         switch (tap.kind) {
             case "menu":
-                send(context, TelegramStore.REPS, token, chatId, TelegramReplies.menuText(entry), TelegramReplies.menuMarkup(entry));
+                send(context, TelegramStore.REPS, token, chatId, TelegramReplies.menuText(entry), TelegramReplies.menuMarkup(entry, snapshot));
                 return entry.deviceName();
             case "view":
                 if ("n".equals(tap.code)) {
-                    checkNetwork(context, token, chatId, messageId, entry);
+                    checkNetwork(context, token, chatId, messageId, entry, snapshot);
                     return "📶 جارٍ التحديث...";
                 }
                 String text = "h".equals(tap.code) ? TelegramReplies.menuText(entry) : TelegramReplies.sectionText(entry, tap.code, snapshot);
-                editOrSend(context, token, chatId, messageId, text, TelegramReplies.menuMarkup(entry));
+                editOrSend(context, token, chatId, messageId, text, TelegramReplies.menuMarkup(entry, snapshot));
                 return "";
             case "edit":
                 editOrSend(context, token, chatId, messageId, TelegramReplies.editText(entry), TelegramReplies.editMarkup(entry.id));
@@ -520,8 +617,13 @@ public class TelegramReplyService extends Service {
         String chatId = chat != null ? String.valueOf(chat.optLong("id")) : "";
         String toast = null;
         try {
+            long messageId = message != null ? message.optLong("message_id") : 0;
             if (TelegramStore.REPS.equals(bot)) {
-                toast = repCallback(context, token, chatId, message != null ? message.optLong("message_id") : 0, data);
+                toast = repCallback(context, token, chatId, messageId, data);
+            } else if (TelegramStore.MONEY.equals(bot)) {
+                toast = moneyCallback(context, token, chatId, messageId, data);
+            } else if (TelegramStore.ALERTS.equals(bot)) {
+                toast = alertsCallback(context, token, chatId, messageId, message != null ? message.optString("text", "") : "", data);
             } else if (chatId.equals(TelegramStore.chatId(context))) {
                 toast = ownerCallback(context, token, chatId, message != null ? message.optLong("message_id") : 0, message != null ? message.optString("text", "") : "", data);
             }
@@ -546,21 +648,27 @@ public class TelegramReplyService extends Service {
             send(context, TelegramStore.REPS, token, chatId, reply.text, reply.markup);
             return day.label;
         }
+        return activationCallback(context, TelegramStore.REPS, token, chatId, repId, snapshot, data);
+    }
+
+    /** ⚡: a device (a:) -> its plans (p:) -> the price question - in the devices or money bot. */
+    private static String activationCallback(Context context, String bot, String token, String chatId, String repId, TelegramReplies.Snapshot snapshot, String data) {
         if (data.startsWith("a:")) {
             TelegramReplies.SearchEntry entry = TelegramReplies.findEntry(repId, data.substring(2), snapshot);
             if (entry == null) return "هذا الجهاز ليس من أجهزتك";
             TelegramReplies.Reply reply = TelegramReplies.pickPlan(entry, snapshot);
-            send(context, TelegramStore.REPS, token, chatId, reply.text, reply.markup);
+            send(context, bot, token, chatId, reply.text, reply.markup);
             return null;
         }
         if (data.startsWith("p:")) {
             int split = data.lastIndexOf(':');
+            if (split <= 2) return "اختيار غير صالح";
             String accountId = data.substring(2, split);
             String plan = data.substring(split + 1);
             TelegramReplies.SearchEntry entry = TelegramReplies.findEntry(repId, accountId, snapshot);
             if (entry == null || !snapshot.plans.contains(plan)) return "اختيار غير صالح";
             TelegramStore.setPendingActivation(context, chatId, accountId, plan);
-            send(context, TelegramStore.REPS, token, chatId, TelegramReplies.priceQuestion(plan, entry), TelegramReplies.FORCE_REPLY);
+            send(context, bot, token, chatId, TelegramReplies.priceQuestion(plan, entry), TelegramReplies.FORCE_REPLY);
             return plan;
         }
         return null;
@@ -576,10 +684,20 @@ public class TelegramReplyService extends Service {
         JSONObject record = new JSONObject(raw);
         TelegramStore.removeActivation(context, id);
         String what = record.optString("plan") + " لـ " + record.optString("device") + " بسعر " + record.optString("price");
-        String toRep = approve ? "✅ وافق المسؤول على تفعيل " + what : "❌ لم يوافق المسؤول على تفعيل " + what;
-        String repsToken = TelegramStore.repsToken(context);
+        String toRep = "❌ لم يوافق المسؤول على تفعيل " + what;
+        String repId = record.optString("repId", "");
+        if (approve && !repId.isEmpty() && record.has("amount")) {
+            // 💰 The approved amount with this month's total, in the money bot.
+            String month = new java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.ROOT).format(new java.util.Date());
+            String[] tally = TelegramStore.addApprovedActivation(context, repId, month, record.optString("currency", "MRU"), record.optDouble("amount", 0));
+            toRep = TelegramReplies.approvedActivation(what, TelegramText.tallyLabel(tally[0]), tally[1]);
+        } else if (approve) {
+            toRep = "✅ وافق المسؤول على تفعيل " + what;
+        }
+        String moneyBot = TelegramStore.repBotFor(context, TelegramStore.MONEY);
+        String repsToken = TelegramStore.tokenFor(context, moneyBot);
         String repChat = record.optString("repChat");
-        if (repsToken != null && TelegramStore.isLinkedRepChat(context, repChat)) send(context, TelegramStore.REPS, repsToken, repChat, toRep, null);
+        if (repsToken != null && TelegramStore.isLinkedRepChat(context, repChat)) send(context, moneyBot, repsToken, repChat, toRep, null);
         try {
             TelegramClient.editMessageText(token, chatId, messageId, messageText + "\n\n" + (approve ? "✅ وافقت - أُبلغ المندوب" : "❌ رفضت - أُبلغ المندوب"));
         } catch (IOException | TelegramClient.TelegramError ignored) {
@@ -643,7 +761,7 @@ public class TelegramReplyService extends Service {
             TelegramStore.diag(context, "replyAt", now());
         } catch (IOException offline) {
             TelegramStore.diag(context, "sendError", now() + " " + offline.getClass().getSimpleName());
-            if (TelegramStore.REPS.equals(bot)) TelegramSendWorker.enqueueToRep(context, chatId, text, markup);
+            if (TelegramStore.isRepBot(bot)) TelegramSendWorker.enqueueToRepBot(context, bot, chatId, text, markup);
             else TelegramSendWorker.enqueue(context, text);
         } catch (TelegramClient.TelegramError rejected) {
             TelegramStore.diag(context, "sendError", now() + " " + rejected.code + " " + rejected.getMessage());
@@ -700,6 +818,15 @@ public class TelegramReplyService extends Service {
             s.promiseNotice = json.optString("promiseNotice", "");
             s.requestNotice = json.optString("requestNotice", "");
             s.activationHint = json.optString("activationHint", "");
+            s.devicesBot = json.optString("devicesBot", "");
+            s.moneyBot = json.optString("moneyBot", "");
+            s.alertsBot = json.optString("alertsBot", "");
+            s.moneyKeyboard = json.optString("moneyKeyboard", "");
+            s.moneyHelp = json.optString("moneyHelp", "");
+            s.moneyRedirect = json.optString("moneyRedirect", "");
+            s.handoverHint = json.optString("handoverHint", "");
+            s.handoverReceived = json.optString("handoverReceived", "");
+            s.alertsInfo = json.optString("alertsInfo", "");
             JSONArray plans = json.optJSONArray("plans");
             for (int i = 0; plans != null && i < plans.length(); i++) s.plans.add(plans.optString(i));
             JSONObject search = json.optJSONObject("repSearch");
@@ -712,10 +839,14 @@ public class TelegramReplyService extends Service {
                     for (int i = 0; list != null && i < list.length(); i++) {
                         JSONObject e = list.optJSONObject(i);
                         if (e == null) continue;
-                        entries.add(new TelegramReplies.SearchEntry(
+                        TelegramReplies.SearchEntry entry = new TelegramReplies.SearchEntry(
                             e.optString("k", ""), e.optString("t", ""), e.optString("l", null), e.optString("w", null),
                             e.optString("d", ""), e.optString("s", ""), e.optString("r", null), e.optString("i", ""),
-                            e.optString("h", ""), strings(e.optJSONObject("x")), strings(e.optJSONObject("ev"))));
+                            e.optString("h", ""), strings(e.optJSONObject("x")), strings(e.optJSONObject("ev")));
+                        entry.hasD = "1".equals(e.optString("dm", ""));
+                        entry.stoppedUrl = e.optString("sw", null);
+                        entry.debtUrl = e.optString("dw", null);
+                        entries.add(entry);
                     }
                     s.repSearch.put(id, entries);
                 }

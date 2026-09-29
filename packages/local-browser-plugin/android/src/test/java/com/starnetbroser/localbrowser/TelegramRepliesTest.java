@@ -375,4 +375,98 @@ public class TelegramRepliesTest {
         assertNull(LiveCheckStore.decodeSince(null, 0));
         assertNull(LiveCheckStore.decodeSince("x\ny", 0));
     }
+
+    // ---- 💰 money / 🔔 alerts bots (mirrors repBots.test.ts) ----
+
+    private static TelegramReplies.Snapshot moneySnapshot() {
+        TelegramReplies.Snapshot s = menuSnapshot();
+        s.moneyBot = "m_bot";
+        s.devicesBot = "d_bot";
+        s.moneyKeyboard = "MONEY KB";
+        s.moneyHelp = "MONEY HELP";
+        s.moneyRedirect = "REDIRECT";
+        s.handoverHint = "HANDOVER HINT";
+        s.handoverReceived = "HANDOVER OK";
+        s.repWords.put("سلمت", "handover");
+        s.repWords.put("كشفي", "statement");
+        s.repWords.put("اجهزتي", "devices");
+        s.reps.get("r1").put("statement", "R1 STATEMENT");
+        TelegramReplies.SearchEntry e = TelegramReplies.findEntry("r1", "acc-1", s);
+        e.sections.put("d", "💰 الدين\n🔴 عليه: 3,000 أوقية");
+        e.sections.put("s", "📊 كشف حساب - مقهى");
+        e.debtUrl = "https://wa.me/debt";
+        return s;
+    }
+
+    @Test
+    public void menuWithTheMoneyBotMatchesTheApp() {
+        assertEquals(
+            "{\"inline_keyboard\":[[{\"text\":\"📶 الشبكة\",\"callback_data\":\"v:n:acc-1\"},{\"text\":\"📅 التجديد\",\"callback_data\":\"v:r:acc-1\"},{\"text\":\"🛰️ الاشتراك\",\"callback_data\":\"v:p:acc-1\"}],"
+                + "[{\"text\":\"🔢 KIT/SN\",\"callback_data\":\"v:i:acc-1\"},{\"text\":\"👤 المعلومات\",\"callback_data\":\"v:f:acc-1\"},{\"text\":\"📝 ملاحظة\",\"callback_data\":\"nt:acc-1\"}],"
+                + "[{\"text\":\"✏️ تعديل\",\"callback_data\":\"e:acc-1\"},{\"text\":\"💰 المال\",\"url\":\"https://t.me/m_bot?start=d_acc-1\"}],"
+                + "[{\"text\":\"⚡ تفعيل\",\"callback_data\":\"a:acc-1\"}]]}",
+            TelegramReplies.menuMarkup("acc-1", null, "m_bot"));
+        assertNull(TelegramReplies.moneyDeepLink("m_bot", "bad id"));
+    }
+
+    @Test
+    public void devicesBotSendsMoneyToTheMoneyBot() {
+        TelegramReplies.Reply reply = TelegramReplies.forRep("r1", "دفعة 5000 محمد", moneySnapshot());
+        assertEquals("REDIRECT", reply.text);
+        assertFalse(reply.toInbox);
+        // Without the money bot nothing changes.
+        assertEquals("RECEIVED", TelegramReplies.forRep("r1", "دفعة 5000 محمد", menuSnapshot()).text);
+    }
+
+    @Test
+    public void moneyBotAnswers() {
+        TelegramReplies.Snapshot s = moneySnapshot();
+        TelegramReplies.Reply card = TelegramReplies.forMoney("r1", "/start d_acc-1", s);
+        assertTrue(card.text.contains("🔴 عليه: 3,000 أوقية"));
+        assertTrue(card.markup.contains("\"callback_data\":\"v:s:acc-1\""));
+        assertTrue(card.markup.contains("https://wa.me/debt"));
+        assertTrue(TelegramReplies.forMoney("r1", "مقهى", s).text.contains("🔴 عليه"));
+        TelegramReplies.Reply two = TelegramReplies.forMoney("r1", "محمد", s);
+        assertTrue(two.markup.contains("\"callback_data\":\"md:acc-1\""));
+        TelegramReplies.Reply pay = TelegramReplies.forMoney("r1", "دفعة 5000 مقهى", s);
+        assertEquals("RECEIVED", pay.text);
+        assertTrue(pay.toInbox);
+        assertEquals("MONEY KB", pay.markup);
+        TelegramReplies.Reply handover = TelegramReplies.forMoney("r1", "🤲 سلّمت المسؤول 50000", s);
+        assertEquals("HANDOVER OK", handover.text);
+        assertTrue(handover.toInbox);
+        assertEquals("HANDOVER HINT", TelegramReplies.forMoney("r1", "🤲 سلّمت المسؤول", s).text);
+        assertTrue(TelegramReplies.forMoney("r1", "كشفي", s).text.startsWith("R1 STATEMENT"));
+        assertTrue(TelegramReplies.forMoney("r1", "اجهزتي", s).text.contains("@d_bot"));
+        assertEquals("acc-1", TelegramReplies.startDevice("/start d_acc-1"));
+        assertNull(TelegramReplies.startDevice("/start"));
+    }
+
+    @Test
+    public void stoppedAlertCarriesTheDMark() {
+        TelegramReplies.SearchEntry e = TelegramReplies.findEntry("r1", "acc-1", menuSnapshot());
+        e.hasD = true;
+        e.stoppedUrl = "https://wa.me/stopped";
+        String text = TelegramReplies.stoppedAlert(e, "suspended");
+        assertTrue(text.contains(TelegramReplies.D_MARK_LINE));
+        assertTrue(text.contains("موقوف بسبب الفوترة"));
+        String markup = TelegramReplies.stoppedAlertMarkup(e);
+        assertTrue(markup.contains("\"callback_data\":\"pq:acc-1\""));
+        assertTrue(markup.contains("https://wa.me/stopped"));
+        assertFalse(TelegramReplies.afterPayRequestMarkup(e).contains("pq:"));
+        assertTrue(TelegramReplies.payRequestToOwner("سالم", e).contains("المندوب سالم يطلب منك الدفع"));
+        assertTrue(TelegramReplies.ownerCopy("سالم", text).startsWith("🔔 نسخة من تنبيه المندوب سالم"));
+        e.hasD = false;
+        assertFalse(TelegramReplies.stoppedAlert(e, "canceled").contains(TelegramReplies.D_MARK_LINE));
+    }
+
+    @Test
+    public void approvedActivationsAddUpPerMonth() {
+        String[] first = TelegramText.addToTally(null, "MRU", 15000);
+        String[] second = TelegramText.addToTally(first[0], "MRU", 5000);
+        String[] third = TelegramText.addToTally(second[0], "USD", 50);
+        assertEquals("3", third[1]);
+        assertEquals("20,000 أوقية + 50 دولار", TelegramText.tallyLabel(third[0]));
+        assertTrue(TelegramReplies.approvedActivation("ROM لـ مقهى بسعر 15,000 أوقية", "20,000 أوقية", "2").contains("مجموع تفعيلاتك الموافق عليها هذا الشهر (2): 20,000 أوقية"));
+    }
 }

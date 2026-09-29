@@ -181,7 +181,9 @@ export interface SetAutoSyncAccountIdsOptions {
 }
 
 /** "owner" = the operator's own bot (default); "reps" = the representatives' bot. */
-export type TelegramBot = "owner" | "reps";
+/** "reps" = the reps' 📡 devices bot; "money" / "alerts" = their optional 💰 and 🔔 bots (sending to
+ * one that isn't connected goes through the devices bot instead). */
+export type TelegramBot = "owner" | "reps" | "money" | "alerts";
 
 export interface TelegramStatus {
   configured: boolean;
@@ -191,6 +193,10 @@ export interface TelegramStatus {
   stoppedEnabled: boolean;
   repsConfigured?: boolean;
   repsBotName?: string | null;
+  moneyConfigured?: boolean;
+  moneyBotName?: string | null;
+  alertsConfigured?: boolean;
+  alertsBotName?: string | null;
   /** Bots keep answering with the app closed (TelegramReplyService). */
   instant?: boolean;
   /** ...and its service is actually running right now. */

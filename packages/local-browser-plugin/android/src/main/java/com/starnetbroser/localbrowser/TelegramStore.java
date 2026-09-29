@@ -16,6 +16,11 @@ final class TelegramStore {
 
     static final String OWNER = "owner";
     static final String REPS = "reps";
+    /** The reps' 💰 money bot and 🔔 alerts bot (optional - without them everything stays in the
+     * devices bot, REPS). Reps are linked once: a private chat's id is the person's own Telegram
+     * id, the same in every bot, so REPS' links answer for all three. */
+    static final String MONEY = "money";
+    static final String ALERTS = "alerts";
 
     private static final String PREFS = "starnet_telegram";
     private static final String KEY_TOKEN = "token";
@@ -155,8 +160,57 @@ final class TelegramStore {
         return !prefs(context).getBoolean(KEY_REPS_STOPPED_OFF, false);
     }
 
-    /** The token to send with ("owner" or "reps"). */
+    // ---- 💰 money / 🔔 alerts bots ----
+
+    private static final String KEY_EXTRA_TOKEN = "tok_";
+    private static final String KEY_EXTRA_NAME = "name_";
+
+    static boolean isRepBot(String bot) {
+        return REPS.equals(bot) || MONEY.equals(bot) || ALERTS.equals(bot);
+    }
+
+    static boolean isExtraBot(String bot) {
+        return MONEY.equals(bot) || ALERTS.equals(bot);
+    }
+
+    static boolean saveExtraBot(Context context, String bot, String token, String botName) {
+        return prefs(context).edit()
+            .putString(KEY_EXTRA_TOKEN + bot, token)
+            .putString(KEY_EXTRA_NAME + bot, botName)
+            .remove(KEY_OFFSET + bot)
+            .commit();
+    }
+
+    static void clearExtraBot(Context context, String bot) {
+        prefs(context).edit().remove(KEY_EXTRA_TOKEN + bot).remove(KEY_EXTRA_NAME + bot).remove(KEY_OFFSET + bot).commit();
+    }
+
+    static String extraToken(Context context, String bot) {
+        return isExtraBot(bot) ? prefs(context).getString(KEY_EXTRA_TOKEN + bot, null) : null;
+    }
+
+    static String extraBotName(Context context, String bot) {
+        return isExtraBot(bot) ? prefs(context).getString(KEY_EXTRA_NAME + bot, null) : null;
+    }
+
+    /** The rep bot a message meant for `wanted` goes out through: itself when it's connected,
+     * otherwise the devices bot (so nothing is lost before the new bots are set up). */
+    static String repBotFor(Context context, String wanted) {
+        return isExtraBot(wanted) && extraToken(context, wanted) != null ? wanted : REPS;
+    }
+
+    /** Every token in use (to refuse connecting the same bot twice). */
+    static java.util.List<String> allTokens(Context context) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (String t : new String[] {token(context), repsToken(context), extraToken(context, MONEY), extraToken(context, ALERTS)}) {
+            if (t != null) out.add(t);
+        }
+        return out;
+    }
+
+    /** The token to send with ("owner", "reps", "money" or "alerts"). */
     static String tokenFor(Context context, String bot) {
+        if (isExtraBot(bot)) return extraToken(context, bot);
         return REPS.equals(bot) ? repsToken(context) : token(context);
     }
 
@@ -200,6 +254,19 @@ final class TelegramStore {
 
     static void removeActivation(Context context, String id) {
         prefs(context).edit().remove(KEY_ACT + id).commit();
+    }
+
+    // ---- ⚡ approved activations: the money bot shows each with the month's total ----
+
+    private static final String KEY_ACT_TOTAL = "acttot_";
+
+    /** Adds an approved activation to the rep's month ("2026-09") and returns the month's
+     * "currency amount;currency amount" totals and count as {totals, count}. */
+    static String[] addApprovedActivation(Context context, String repId, String month, String currency, double amount) {
+        String key = KEY_ACT_TOTAL + repId + "_" + month;
+        String[] updated = TelegramText.addToTally(prefs(context).getString(key, null), currency, amount);
+        prefs(context).edit().putString(key, updated[0]).commit();
+        return updated;
     }
 
     // ---- ✏️ / 📝 from the device menu (TelegramReplyService) ----
