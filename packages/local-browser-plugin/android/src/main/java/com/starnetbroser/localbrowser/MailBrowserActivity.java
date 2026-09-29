@@ -21,6 +21,7 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.webkit.ProfileStore;
+import androidx.webkit.WebSettingsCompat;
 import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
 import org.json.JSONArray;
@@ -93,14 +94,11 @@ public class MailBrowserActivity extends AppCompatActivity {
         WebViewCompat.setProfile(webView, profileName); // before anything else touches the WebView
 
         WebSettings settings = webView.getSettings();
-        settings.setJavaScriptEnabled(true);
-        settings.setDomStorageEnabled(true);
+        configureMailSettings(settings);
         settings.setSupportMultipleWindows(false);
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
-        // Full web inbox instead of Outlook's "get the app" page (see MailUrl.DESKTOP_USER_AGENT);
-        // pinch-zoom since that page is laid out for a computer screen.
-        settings.setUserAgentString(MailUrl.DESKTOP_USER_AGENT);
+        // Pinch-zoom since the desktop inbox is laid out for a computer screen.
         settings.setSupportZoom(true);
         settings.setBuiltInZoomControls(true);
         settings.setDisplayZoomControls(false);
@@ -123,6 +121,20 @@ public class MailBrowserActivity extends AppCompatActivity {
         ((Button) findViewById(R.id.starnet_error_retry)).setOnClickListener(v -> reload());
 
         webView.loadUrl(homeUrl);
+    }
+
+    /**
+     * Shared by the visible mailbox and MailCodeFetcher: a desktop browser identity (the full web
+     * inbox instead of a "get the app" page - MailUrl.DESKTOP_USER_AGENT) and no "X-Requested-With"
+     * app header, which Google's sign-in uses to refuse embedded browsers.
+     */
+    static void configureMailSettings(WebSettings settings) {
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setUserAgentString(MailUrl.DESKTOP_USER_AGENT);
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.REQUESTED_WITH_HEADER_ALLOW_LIST)) {
+            WebSettingsCompat.setRequestedWithHeaderOriginAllowList(settings, java.util.Collections.emptySet());
+        }
     }
 
     @Override
@@ -190,7 +202,7 @@ public class MailBrowserActivity extends AppCompatActivity {
                     storeRedirectRetried = true;
                     view.loadUrl(homeUrl);
                 } else {
-                    Toast.makeText(MailBrowserActivity.this, "Outlook يطلب تطبيقه - سجّل الدخول من هذه الصفحة", Toast.LENGTH_LONG).show();
+                    Toast.makeText(MailBrowserActivity.this, "البريد يطلب تثبيت تطبيقه - سجّل الدخول من هذه الصفحة", Toast.LENGTH_LONG).show();
                 }
                 return true;
             }

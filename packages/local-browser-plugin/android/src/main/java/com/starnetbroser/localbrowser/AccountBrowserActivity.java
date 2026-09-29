@@ -268,7 +268,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
         }
         final SharedPreferences prefs = getSharedPreferences(TRIED_CODES_PREFS, MODE_PRIVATE);
         try {
-            codeFetcher = new MailCodeFetcher(this, accountId, prefs.getString(accountId, ""), new MailCodeFetcher.Listener() {
+            codeFetcher = new MailCodeFetcher(this, accountId, getIntent().getStringExtra(EXTRA_LOGIN_EMAIL), prefs.getString(accountId, ""), new MailCodeFetcher.Listener() {
                 @Override
                 public void onCode(String code) {
                     codeFetcher = null;

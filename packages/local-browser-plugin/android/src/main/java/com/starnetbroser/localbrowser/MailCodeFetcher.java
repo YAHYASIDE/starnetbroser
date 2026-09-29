@@ -37,24 +37,24 @@ final class MailCodeFetcher {
     private final String tried;
     private final Context appContext;
     private final String accountId;
+    private final String inboxUrl;
     private WebView webView;
     private long startedAt;
     private long lastReloadAt;
     private boolean done;
 
-    MailCodeFetcher(Context context, String accountId, String tried, Listener listener) {
+    MailCodeFetcher(Context context, String accountId, String email, String tried, Listener listener) {
         this.listener = listener;
         this.tried = tried;
         this.appContext = context.getApplicationContext();
         this.accountId = accountId;
+        this.inboxUrl = MailUrl.inboxUrlFor(email); // Outlook, or Gmail for a Gmail address
         String profileName = ProfileNaming.mailProfileNameFor(accountId);
         ProfileStore.getInstance().getOrCreateProfile(profileName);
         webView = new WebView(context);
         WebViewCompat.setProfile(webView, profileName);
         WebSettings settings = webView.getSettings();
-        settings.setJavaScriptEnabled(true);
-        settings.setDomStorageEnabled(true);
-        settings.setUserAgentString(MailUrl.DESKTOP_USER_AGENT);
+        MailBrowserActivity.configureMailSettings(settings);
         DisplayMetrics metrics = context.getResources().getDisplayMetrics();
         int width = Math.max(metrics.widthPixels, 1280);
         int height = Math.max(metrics.heightPixels, 1280);
@@ -73,7 +73,7 @@ final class MailCodeFetcher {
     void start() {
         startedAt = System.currentTimeMillis();
         lastReloadAt = startedAt;
-        webView.loadUrl(MailUrl.INBOX_URL);
+        webView.loadUrl(inboxUrl);
         handler.postDelayed(this::poll, POLL_MS);
     }
 
@@ -95,7 +95,7 @@ final class MailCodeFetcher {
             return;
         }
         String url = webView.getUrl();
-        if (url != null && url.contains("login.") && now - startedAt > SIGNED_OUT_AFTER_MS) {
+        if (MailUrl.sessionState(url) == MailUrl.SessionState.SIGNED_OUT && now - startedAt > SIGNED_OUT_AFTER_MS) {
             MailSessionStore.markSignedOut(appContext, accountId);
             finish(() -> listener.onSignedOut());
             return;

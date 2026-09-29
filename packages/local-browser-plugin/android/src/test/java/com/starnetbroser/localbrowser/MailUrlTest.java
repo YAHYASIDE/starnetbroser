@@ -54,6 +54,21 @@ public class MailUrlTest {
     }
 
     @Test
+    public void gmailAddressesOpenGmail() {
+        assertEquals(MailUrl.Provider.GMAIL, MailUrl.providerFor(" TalaA@Gmail.com "));
+        assertEquals(MailUrl.Provider.GMAIL, MailUrl.providerFor("x@googlemail.com"));
+        assertEquals(MailUrl.Provider.OUTLOOK, MailUrl.providerFor("x@outlook.com"));
+        assertEquals(MailUrl.Provider.OUTLOOK, MailUrl.providerFor("x@gmail.com.evil.io"));
+        assertEquals(MailUrl.Provider.OUTLOOK, MailUrl.providerFor(null));
+        assertEquals(MailUrl.GMAIL_INBOX_URL, MailUrl.inboxUrlFor("talaa@gmail.com"));
+        assertTrue(MailUrl.isAllowed(MailUrl.GMAIL_INBOX_URL));
+        assertTrue(MailUrl.isAllowed("https://accounts.google.com/v3/signin/identifier"));
+        assertEquals(MailUrl.SessionState.SIGNED_IN, MailUrl.sessionState("https://mail.google.com/mail/u/0/#inbox"));
+        assertEquals(MailUrl.SessionState.SIGNED_OUT, MailUrl.sessionState("https://accounts.google.com/v3/signin/identifier?continue=x"));
+        assertTrue(MailUrl.isAppStoreRedirect("https://play.google.com/store/apps/details?id=com.google.android.gm"));
+    }
+
+    @Test
     public void storedSessionsReadBack() {
         String[] parts = MailSessionStore.parse("1727600000000|a@outlook.com");
         assertEquals("1727600000000", parts[0]);

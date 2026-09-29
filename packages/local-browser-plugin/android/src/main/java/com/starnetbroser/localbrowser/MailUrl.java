@@ -7,18 +7,31 @@ import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
 /**
- * The device's own mailbox (📧 البريد): Outlook on the web and the Microsoft sign-in pages, over
- * HTTPS only. Like AllowedUrl for Starlink, this decides what the mail browser may be opened on
+ * The device's own mailbox (📧 البريد): Outlook on the web (and the Microsoft sign-in pages) or,
+ * for a Gmail address, Gmail (and the Google sign-in pages), over HTTPS only. Like AllowedUrl for Starlink, this decides what the mail browser may be opened on
  * and where it may read a verification code from - never an arbitrary page. Pure, unit-tested.
  */
 public final class MailUrl {
 
     /** Outlook's inbox - it sends a signed-out visitor to the Microsoft sign-in page by itself. */
     public static final String INBOX_URL = "https://outlook.live.com/mail/0/";
+    /** Gmail's inbox - it sends a signed-out visitor to the Google sign-in page by itself. */
+    public static final String GMAIL_INBOX_URL = "https://mail.google.com/mail/u/0/";
+
+    /** Which web mailbox an email opens in. */
+    public enum Provider { OUTLOOK, GMAIL }
+
+    /** Gmail for @gmail.com / @googlemail.com, Outlook for everything else (outlook, hotmail...). */
+    public static Provider providerFor(String email) {
+        if (email == null) return Provider.OUTLOOK;
+        String lower = email.trim().toLowerCase(Locale.ROOT);
+        return lower.endsWith("@gmail.com") || lower.endsWith("@googlemail.com") ? Provider.GMAIL : Provider.OUTLOOK;
+    }
 
     private static final String[] ALLOWED_HOSTS = {
         "outlook.live.com", "outlook.com", "live.com", "hotmail.com",
         "microsoft.com", "microsoftonline.com", "office.com",
+        "mail.google.com", "accounts.google.com",
     };
 
     /**
@@ -84,12 +97,14 @@ public final class MailUrl {
         String host = uri.getHost().toLowerCase(Locale.ROOT);
         String path = uri.getPath() == null ? "" : uri.getPath().toLowerCase(Locale.ROOT);
         if (host.equals("outlook.live.com") && path.startsWith("/mail/")) return SessionState.SIGNED_IN;
-        if (host.startsWith("login.")) return SessionState.SIGNED_OUT;
+        if (host.equals("mail.google.com") && path.startsWith("/mail/")) return SessionState.SIGNED_IN;
+        if (host.startsWith("login.") || host.equals("accounts.google.com")) return SessionState.SIGNED_OUT;
         return SessionState.UNKNOWN;
     }
 
     /** The inbox, with the email as a sign-in hint when there is one. */
     public static String inboxUrlFor(String email) {
+        if (providerFor(email) == Provider.GMAIL) return GMAIL_INBOX_URL; // the sign-in form is autofilled
         if (email == null || email.trim().isEmpty()) return INBOX_URL;
         return INBOX_URL + "?login_hint=" + urlEncode(email.trim());
     }
