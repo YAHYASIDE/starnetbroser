@@ -26,6 +26,8 @@ export interface Representative {
    * that reduces what we owe them). Off by default: the operator carries every loss alone. Locked
    * onto each shipment at creation (LedgerEntry.representativeSharesLosses), like the percent. */
   sharesLosses?: boolean;
+  /** His color: every card of his devices is lightly tinted with it (REP_COLORS). */
+  color?: string;
   /** "تصفير الحساب" - a fresh start: only records after this point count toward his balances and
    * statement; older ones stay untouched, shown in the archive (see repAccount.ts). */
   resetFrom?: RepResetPoint;
@@ -79,6 +81,16 @@ export interface CreateRepresentativeInput {
   phone?: string;
   commissionPercent: number;
   sharesLosses?: boolean;
+  color?: string;
+}
+
+/** The colors a rep can be given (light tints on his devices' cards). */
+export const REP_COLORS = ["#1668e3", "#0e9f6e", "#e0294a", "#ea6a0c", "#7c3aed", "#0891b2", "#db2777", "#b7791f"];
+
+/** A color from REP_COLORS (or any "#rrggbb"), else undefined. */
+export function normalizeRepColor(color: string | undefined): string | undefined {
+  const value = color?.trim().toLowerCase();
+  return value && /^#[0-9a-f]{6}$/.test(value) ? value : undefined;
 }
 
 export function createRepresentative(
@@ -94,6 +106,7 @@ export function createRepresentative(
     phone: input.phone?.trim() || undefined,
     commissionPercent: Math.max(0, input.commissionPercent),
     sharesLosses: input.sharesLosses || undefined,
+    color: normalizeRepColor(input.color),
     createdAt: now,
     updatedAt: now,
   };
@@ -113,6 +126,7 @@ export function updateRepresentative(
     phone: patch.phone?.trim() || undefined,
     commissionPercent: Math.max(0, patch.commissionPercent),
     sharesLosses: patch.sharesLosses || undefined,
+    color: normalizeRepColor(patch.color),
     updatedAt: new Date().toISOString(),
   };
   return { ...store, [id]: updated };

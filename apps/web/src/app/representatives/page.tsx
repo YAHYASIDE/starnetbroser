@@ -37,6 +37,7 @@ import {
   totalRepDeviceCommissions,
   updateRepresentative,
   updateRepSettlement,
+  REP_COLORS,
   UpdateRepSettlementInput,
 } from "@/lib/repStore";
 import {
@@ -1515,12 +1516,13 @@ function RepresentativeForm({
   const [phoneDialCode, setPhoneDialCode] = useState(() => splitPhoneNumber(initial?.phone).dialCode);
   const [phoneLocalNumber, setPhoneLocalNumber] = useState(() => splitPhoneNumber(initial?.phone).localNumber);
   const [sharesLosses, setSharesLosses] = useState(initial?.sharesLosses ?? false);
+  const [color, setColor] = useState<string | undefined>(initial?.color);
 
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!name.trim() || !commissionPercent) return;
     const phone = combinePhoneNumber(phoneDialCode, phoneLocalNumber);
-    onSubmit({ name, phone: phone || undefined, commissionPercent: Number(commissionPercent), sharesLosses });
+    onSubmit({ name, phone: phone || undefined, commissionPercent: Number(commissionPercent), sharesLosses, color });
   }
 
   return (
@@ -1558,6 +1560,25 @@ function RepresentativeForm({
           value={phoneLocalNumber}
           onChange={(e) => setPhoneLocalNumber(e.target.value)}
         />
+      </div>
+      <div className="rep-color-field">
+        <span>🎨 لون بطاقات أجهزته</span>
+        <div className="rep-color-swatches" role="radiogroup" aria-label="لون المندوب">
+          <button type="button" className={`rep-color-swatch rep-color-none${!color ? " rep-color-active" : ""}`} onClick={() => setColor(undefined)} aria-pressed={!color} title="بدون لون">
+            ✕
+          </button>
+          {REP_COLORS.map((c) => (
+            <button
+              key={c}
+              type="button"
+              className={`rep-color-swatch${color === c ? " rep-color-active" : ""}`}
+              style={{ background: c }}
+              onClick={() => setColor(c)}
+              aria-pressed={color === c}
+              aria-label={c}
+            />
+          ))}
+        </div>
       </div>
       <label className="ledger-d-toggle party-cash-toggle">
         <input type="checkbox" checked={sharesLosses} onChange={(e) => setSharesLosses(e.target.checked)} />

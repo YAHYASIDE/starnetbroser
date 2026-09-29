@@ -1281,8 +1281,9 @@ button.overview-card:active {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 1rem;
-  font-weight: 700;
+  /* Usually the device's email - kept small so it never crowds the card. */
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
 .account-card-plan {
@@ -8862,4 +8863,70 @@ button.today-tile {
 .settings-group > .section,
 .settings-group > * > .section {
   border-inline-start: 3px solid var(--tone);
+}
+
+/* A rep's color (repStore REP_COLORS): a light tint on every card of his devices */
+.account-card-rep-tint:not(.account-card-suspended) {
+  background: color-mix(in srgb, var(--rep-tint) 9%, var(--surface));
+  border-color: color-mix(in srgb, var(--rep-tint) 45%, var(--border));
+}
+
+.account-card-rep-tint::before {
+  background: var(--rep-tint);
+}
+
+/* Cards answer a long press / double / triple tap (useCardGestures) - no text-selection menu. */
+.account-card {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.account-card input,
+.account-card textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.rep-color-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85rem;
+}
+
+.rep-color-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rep-color-swatch {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  cursor: pointer;
+  padding: 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.rep-color-none {
+  background: var(--surface-alt);
+}
+
+.rep-color-active {
+  border-color: var(--text);
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--text);
+}
+
+.rep-color-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-inline-end: 4px;
+  vertical-align: middle;
 }

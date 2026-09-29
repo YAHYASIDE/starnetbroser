@@ -1383,6 +1383,7 @@ export function HomeView({
                 onLedger={(selected) => setLedgerAccount(selected)}
                 onDeviceStatement={(selected) => setStatementAccount(selected)}
                 client={getClient(clientStore, account.clientId)}
+                repColor={getRepresentative(representativeStore, account.representativeId)?.color}
                 onOpenClient={(selectedClient) => setOpenClientId(selectedClient.id)}
                 currencyStore={currencyStore}
                 onSetDeviceFault={handleSetDeviceFault}

@@ -329,3 +329,34 @@ export function buildDeviceInfoMessage(account: StarlinkAccountSummary): string 
   lines.push("- STAR NET");
   return lines.join("\n");
 }
+
+/** «إرسال البيانات» (the edit dialog): everything known about the device, to share anywhere. */
+export function buildFullDeviceMessage(account: StarlinkAccountSummary, client?: { name: string; phone?: string }): string {
+  const line = (label: string, value: string | undefined) => (value && value.trim() ? [`${label}: ${value.trim()}`] : []);
+  const emails = [
+    ...(account.expectedEmail ? [`• ${account.expectedEmail}${account.expectedEmailPassword ? ` - كلمة السر: ${account.expectedEmailPassword}` : ""}`] : []),
+    ...(account.extraEmails ?? []).filter((e) => e.address).map((e) => `• ${e.address}${e.password ? ` - كلمة السر: ${e.password}` : ""}`),
+  ];
+  return [
+    `📋 بيانات الجهاز - ${account.name}`,
+    "",
+    ...line("👤 الزبون", client?.name),
+    ...line("📞 الهاتف", client?.phone || account.phone),
+    ...line("📅 التجديد", account.rechargeDate),
+    ...line("🛰️ الباقة", account.planName),
+    ...line("🌍 الدولة", account.serviceCountry),
+    "",
+    ...line("🔢 KIT", account.kitNumber),
+    ...line("🔢 SN", account.serialNumber),
+    ...line("🧾 رقم الاشتراك", account.subscriptionId),
+    ...line("🧾 رقم الحساب", account.accountNumber),
+    ...line("🪪 الاسم في Starlink", account.starlinkAccountHolderName),
+    ...(emails.length > 0 ? ["", "📧 البريد:", ...emails] : []),
+    ...line("📶 كود الواي فاي", account.wifiPassword),
+    ...line("📝 ملاحظة", account.alertReason),
+    "",
+    "- STAR NET",
+  ]
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n");
+}

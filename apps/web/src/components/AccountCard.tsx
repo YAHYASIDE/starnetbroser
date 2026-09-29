@@ -1,5 +1,7 @@
 "use client";
 
+import type React from "react";
+
 import { showsRestriction } from "@/lib/reminders";
 import { PromiseQuickSheet } from "./PromiseQuickSheet";
 import { useEffect, useState } from "react";
@@ -28,6 +30,7 @@ import {
   buildWhatsAppLink,
 } from "@/lib/whatsapp";
 import { DeviceFaultDialog } from "./DeviceFaultDialog";
+import { useCardGestures } from "./useCardGestures";
 import { RenewalConfirmDialog } from "./RenewalConfirmDialog";
 import { PreviousDebtDialog } from "./PreviousDebtDialog";
 
@@ -62,6 +65,8 @@ interface Props {
    * looked up here, so every card in a render pass sees the exact same store snapshot. */
   client?: Client;
   onOpenClient: (client: Client) => void;
+  /** His rep's color (repStore REP_COLORS): the card gets a light tint of it. */
+  repColor?: string;
   /** The general currency registry (see currencyStore.ts) - used only to show a small "≈ X USD"
    * line under a non-USD Starlink balance, when that currency's rate happens to be registered
    * (e.g. via the /currencies page). Never guessed, and never shown at all when no rate is known -
@@ -197,6 +202,7 @@ export function AccountCard({
   sessionNeedsLogin = false,
   previousDebts = [],
   onAddPreviousDebt,
+  repColor,
 }: Props) {
   const ledgerBalances = computeBalanceByCurrency(ledgerEntries);
   const serviceStatus = presentServiceStatus(effectiveServiceStatus(account));
@@ -306,6 +312,12 @@ export function AccountCard({
   // Everything not shown on the compact card sits one tap away behind "التفاصيل" at the bottom -
   // never a second toggle elsewhere on the same card.
   const [expanded, setExpanded] = useState(false);
+  // No "التفاصيل" button: hold the card for its details, tap twice for a payment, 3 times to edit.
+  const gestures = useCardGestures((gesture) => {
+    if (gesture === "details") setExpanded((v) => !v);
+    else if (gesture === "payment") onLedger(account);
+    else if (context === "active") onEdit(account);
+  });
   const [showFaultDialog, setShowFaultDialog] = useState(false);
   const [showRenewalDialog, setShowRenewalDialog] = useState(false);
   const [showPromise, setShowPromise] = useState(false);
@@ -386,7 +398,11 @@ export function AccountCard({
   );
 
   return (
-    <article className={`account-card${isSuspended ? " account-card-suspended" : ""}${sessionNeedsLogin ? " account-card-has-bubble" : ""}`}>
+    <article
+      className={`account-card${isSuspended ? " account-card-suspended" : ""}${sessionNeedsLogin ? " account-card-has-bubble" : ""}${repColor ? " account-card-rep-tint" : ""}${expanded ? " account-card-expanded" : ""}`}
+      style={repColor ? ({ "--rep-tint": repColor } as React.CSSProperties) : undefined}
+      {...gestures}
+    >
       {sessionNeedsLogin && (
         <button type="button" className="session-bubble" onClick={handleOpen} disabled={opening} title="الجلسة خرجت - افتح وسجّل الدخول">
           <span aria-hidden="true">🔒</span> سجّل الدخول
@@ -550,15 +566,6 @@ export function AccountCard({
       </div>
 
       <div className="account-card-main-actions">
-        <button
-          type="button"
-          className="account-card-more-toggle"
-          onClick={() => setExpanded((v) => !v)}
-          aria-expanded={expanded}
-        >
-          {expanded ? "طي التفاصيل" : "التفاصيل"}
-          <span className={`account-card-toggle-icon${expanded ? " is-open" : ""}`} aria-hidden="true">⌄</span>
-        </button>
         {whatsAppButton}
         <button
           className="card-action card-action-primary"

@@ -8,6 +8,7 @@ import {
   buildAccountStatementMessage,
   buildBalanceReminderMessage,
   buildDeviceInfoMessage,
+  buildFullDeviceMessage,
   buildExpiryReminderMessage,
   buildInvoiceMessage,
   buildStoreDebtReminderMessage,
@@ -435,5 +436,29 @@ describe("buildRepSummaryMessage", () => {
     expect(message).toContain("رصيدك: عليه 1,000 أوقية");
     expect(message).toContain("1 عملية بانتظار");
     expect(message).not.toContain("USD");
+  });
+});
+
+describe("buildFullDeviceMessage", () => {
+  it("has every field of the device and its customer, and skips the empty ones", () => {
+    const message = buildFullDeviceMessage(
+      account({
+        kitNumber: "KIT-1",
+        serialNumber: "SN-1",
+        subscriptionId: "SL-1",
+        rechargeDate: "2026/10/27",
+        planName: "التجوال - 100 غيغابايت",
+        wifiPassword: "wifi-1",
+        expectedEmail: "a@example.com",
+        expectedEmailPassword: "pass-1",
+        extraEmails: [{ address: "b@example.com" }],
+      }),
+      { name: "محمد", phone: "22212345" },
+    );
+    for (const part of ["👤 الزبون: محمد", "📞 الهاتف: 22212345", "📅 التجديد: 2026/10/27", "🔢 KIT: KIT-1", "🔢 SN: SN-1", "🧾 رقم الاشتراك: SL-1", "• a@example.com - كلمة السر: pass-1", "• b@example.com", "📶 كود الواي فاي: wifi-1"]) {
+      expect(message).toContain(part);
+    }
+    expect(message).not.toContain("رقم الحساب");
+    expect(message).not.toMatch(/\n{3,}/);
   });
 });

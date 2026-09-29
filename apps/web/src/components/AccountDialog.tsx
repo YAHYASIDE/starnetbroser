@@ -1,5 +1,7 @@
 "use client";
 
+import { shareText } from "@/lib/shareText";
+import { buildFullDeviceMessage } from "@/lib/whatsapp";
 import { DateInput } from "./DateInput";
 import { FormEvent, useMemo, useState } from "react";
 import { DeviceStatus, StarlinkAccountSummary } from "@starnet/shared";
@@ -120,6 +122,14 @@ export function AccountDialog({
   const isView = mode === "view";
   const title = mode === "add" ? "إضافة حساب جديد" : mode === "edit" ? "تعديل الحساب" : "معلومات الحساب";
   const clientName = (clientId?: string) => clients.find((c) => c.id === clientId)?.name;
+  const [sendNote, setSendNote] = useState<string | null>(null);
+
+  /** «إرسال البيانات»: the whole device (as edited so far) to WhatsApp / Telegram / anywhere. */
+  async function sendDeviceData() {
+    const client = clients.find((c) => c.id === draft.clientId);
+    const result = await shareText(buildFullDeviceMessage(draft, client), `بيانات ${draft.name}`);
+    setSendNote(result === "copied" ? "✓ نُسخت البيانات - الصقها حيث تريد" : result === "failed" ? "تعذّر الإرسال" : null);
+  }
   const representativeName = (representativeId?: string) => representatives.find((r) => r.id === representativeId)?.name;
   // Shown as a small colored badge next to the plan NAME itself (rule: never the generic "نشط"
   // word standing in for the plan's own name - see extractPlanName's own doc for that bug).
@@ -616,6 +626,11 @@ export function AccountDialog({
             </fieldset>
               </div>
             </details>
+
+            <button type="button" className="dialog-secondary account-send-data" onClick={() => void sendDeviceData()}>
+              📤 إرسال بيانات الجهاز كاملة
+            </button>
+            {sendNote && <span className="settings-hint">{sendNote}</span>}
 
             <div className="dialog-actions">
               {onDelete && (
