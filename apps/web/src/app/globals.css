@@ -9564,3 +9564,124 @@ button.today-tile {
 .store-page > .section:nth-of-type(4) .report-collapse-toggle {
   border-inline-start-color: var(--violet);
 }
+
+/* Currencies page, a little color (operator's request): tinted converter, colored pickers,
+   the result also in أوقية and سيفا as two colored chips, rows with a colored edge. */
+.currencies-page .currency-converter {
+  padding: 12px;
+  border-radius: 16px;
+  border: 1.5px solid color-mix(in srgb, var(--brand) 30%, var(--border));
+  background: linear-gradient(160deg, color-mix(in srgb, var(--brand) 9%, var(--surface)), var(--surface) 65%);
+}
+
+.currencies-page .currency-converter .search-input,
+.currencies-page .currency-picker-trigger {
+  border: 1.5px solid color-mix(in srgb, var(--brand) 35%, var(--border));
+  background: var(--surface);
+}
+
+.currencies-page .currency-converter-swap-btn {
+  border: 1.5px solid var(--brand);
+  background: color-mix(in srgb, var(--brand) 14%, var(--surface));
+}
+
+.currencies-page .currency-converter-result-box {
+  border: 1.5px solid color-mix(in srgb, var(--brand) 40%, var(--border));
+}
+
+.currencies-page .currency-converter-result-box-usd {
+  border-color: color-mix(in srgb, var(--green) 50%, var(--border));
+}
+
+.currency-local-equivalents {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.currency-local-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 7px 6px;
+  border: 1.5px solid;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  font-weight: 800;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.currency-local-chip small {
+  color: var(--text-muted);
+  font-size: 0.64rem;
+  font-weight: 700;
+}
+
+.currency-local-mru {
+  border-color: color-mix(in srgb, var(--yellow) 55%, var(--border));
+  background: var(--yellow-bg);
+  color: var(--yellow);
+}
+
+.currency-local-sifa {
+  border-color: color-mix(in srgb, var(--violet) 50%, var(--border));
+  background: var(--violet-bg);
+  color: var(--violet);
+}
+
+.currencies-page .currency-row {
+  border-inline-start: 4px solid var(--mint);
+  background: var(--surface);
+}
+
+.currencies-page .currency-row:nth-child(3n + 2) {
+  border-inline-start-color: var(--violet);
+}
+
+.currencies-page .currency-row:nth-child(3n) {
+  border-inline-start-color: var(--yellow);
+}
+
+.currencies-page .currency-row-code {
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--mint-bg);
+  color: var(--mint);
+  font-weight: 700;
+}
+
+.currencies-page .currency-row-actions .text-action {
+  color: var(--brand);
+}
+
+/* Representatives page, compact like the clients (operator's request). */
+.party-card-list .rep-card .party-stats {
+  grid-template-columns: none;
+}
+
+.party-card-list .rep-card .rep-stat-value {
+  font-size: 0.7rem;
+}
+
+.party-card-list .rep-card .rep-stat-value small {
+  font-size: 0.55rem;
+}
+
+.party-card-list .rep-percent {
+  padding: 2px 8px;
+  font-size: 0.7rem;
+}
+
+.party-card-list .rep-devices-debt {
+  gap: 2px 8px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 0.68rem;
+}
+
+.party-card-list .rep-devices-debt .rep-stat-value {
+  display: inline;
+  margin-inline-start: 6px;
+}

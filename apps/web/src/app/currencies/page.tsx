@@ -211,6 +211,7 @@ export default function CurrenciesPage() {
   // was never added to the registry at all.
   const usdEquivalent = convertAmount(store, convAmountNum, convFrom, "USD");
   const sifaEquivalent = convertAmount(store, convAmountNum, convFrom, "SIFA");
+  const mruEquivalent = convertAmount(store, convAmountNum, convFrom, "MRU");
 
   function swapConverterCurrencies() {
     setConvFrom(effectiveConvTo);
@@ -218,7 +219,7 @@ export default function CurrenciesPage() {
   }
 
   return (
-    <main className="home">
+    <main className="home currencies-page">
       <div className="session-header">
         <Link href="/" className="btn-link">
           ← رجوع
@@ -227,7 +228,7 @@ export default function CurrenciesPage() {
       </div>
 
       <section className="section currency-converter">
-        <h2 className="section-title">محول العملات</h2>
+        <h2 className="section-title">💱 محول العملات</h2>
         <div className="currency-converter-row">
           <label className="form-field">
             <span>المبلغ</span>
@@ -278,9 +279,24 @@ export default function CurrenciesPage() {
               )}
             </div>
 
-            {sifaEquivalent !== undefined && (
-              <div className="currency-converter-equivalents">
-                <span dir="ltr">≈ {formatAmount(sifaEquivalent)} سيفا</span>
+            {(mruEquivalent !== undefined || sifaEquivalent !== undefined) && (
+              <div className="currency-converter-equivalents currency-local-equivalents">
+                {mruEquivalent !== undefined && (
+                  <span className="currency-local-chip currency-local-mru">
+                    <small>بالأوقية</small>
+                    <span>
+                      <bdi dir="ltr">{formatAmount(mruEquivalent)}</bdi> أوقية
+                    </span>
+                  </span>
+                )}
+                {sifaEquivalent !== undefined && (
+                  <span className="currency-local-chip currency-local-sifa">
+                    <small>بالسيفا</small>
+                    <span>
+                      <bdi dir="ltr">{formatAmount(sifaEquivalent)}</bdi> سيفا
+                    </span>
+                  </span>
+                )}
               </div>
             )}
           </>

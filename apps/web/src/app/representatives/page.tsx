@@ -78,7 +78,7 @@ import { ACCOUNTS_CHANGED_EVENT } from "@/lib/repMenuRecords";
 import { listAccounts } from "@/lib/apiClient";
 import { partyHue, partyInitials } from "@/lib/partyColor";
 import { buildRepSummaryMessage, buildWhatsAppLink } from "@/lib/whatsapp";
-import { PartySheet } from "@/components/AccountsSection";
+import { ActionFace, PartySheet } from "@/components/AccountsSection";
 import { repDevicesDebt } from "@/lib/repDebts";
 import { confirmClosedMonthChange, ledgerEntryMonthDates, monthLabel, monthRange, recentMonths } from "@/lib/monthClosing";
 
@@ -594,7 +594,10 @@ function RepCard({
         <span className="party-avatar" aria-hidden="true">{partyInitials(rep.name)}</span>
         <div className="party-card-title">
           <strong>🤝 {rep.name}</strong>
-          <span dir="ltr">{rep.phone || "بدون هاتف"}</span>
+          <span className="party-card-sub">
+            <bdi dir="ltr">{rep.phone || "بدون هاتف"}</bdi>
+            <span className="party-mini-chip">📡 {devices.length}</span>
+          </span>
         </div>
         <span className="rep-percent" title={rep.sharesLosses ? "يتحمّل نسبته من الخسارة" : undefined}>
           {rep.commissionPercent}%{rep.sharesLosses ? " ⚖️" : ""}
@@ -621,20 +624,21 @@ function RepCard({
         {devicesDebt.rows.length === 0 ? <strong>لا ديون ✓</strong> : <StatValues values={devicesDebt.totalByCurrency} />}
       </div>
 
-      <div className="party-chips">
-        <span className="party-chip">📡 {devices.length} جهاز</span>
-        {rep.resetFrom && (
-          <span className="party-chip rep-chip-reset">
-            🔄 حساب جديد منذ <bdi dir="ltr">{rep.resetFrom.date}</bdi>
-          </span>
-        )}
-        {deviceTotals.pendingCount > 0 && (
-          <span className="party-chip">
-            ⏳ {deviceTotals.pendingCount} بانتظار D
-            {deviceTotals.expectedRepShareUsd > 0.0001 && <> · حصته المتوقعة {fx.usd(deviceTotals.expectedRepShareUsd)}</>}
-          </span>
-        )}
-      </div>
+      {(rep.resetFrom || deviceTotals.pendingCount > 0) && (
+        <div className="party-chips">
+          {rep.resetFrom && (
+            <span className="party-chip rep-chip-reset">
+              🔄 حساب جديد منذ <bdi dir="ltr">{rep.resetFrom.date}</bdi>
+            </span>
+          )}
+          {deviceTotals.pendingCount > 0 && (
+            <span className="party-chip">
+              ⏳ {deviceTotals.pendingCount} بانتظار D
+              {deviceTotals.expectedRepShareUsd > 0.0001 && <> · حصته المتوقعة {fx.usd(deviceTotals.expectedRepShareUsd)}</>}
+            </span>
+          )}
+        </div>
+      )}
 
       <div className="party-actions">
         <button
@@ -642,14 +646,14 @@ function RepCard({
           className={`party-action${panel === "statement" ? " party-action-active" : ""}`}
           onClick={() => setPanel((p) => (p === "statement" ? null : "statement"))}
         >
-          📄 الكشف
+          <ActionFace icon="📄" label="الكشف" />
         </button>
         <button type="button" className="party-action party-action-balance" onClick={() => setSheet({ kind: "settle" })}>
-          💵 تسوية
+          <ActionFace icon="💵" label="تسوية" />
         </button>
         {canWhatsApp && (
           <button type="button" className="party-action party-action-whatsapp" onClick={() => setSheet({ kind: "whatsapp" })}>
-            💬 واتساب
+            <ActionFace icon="💬" label="واتساب" />
           </button>
         )}
         <button
@@ -657,10 +661,10 @@ function RepCard({
           className={`party-action${panel === "devices" ? " party-action-active" : ""}`}
           onClick={() => setPanel((p) => (p === "devices" ? null : "devices"))}
         >
-          📡 الأجهزة ({devices.length})
+          <ActionFace icon="📡" label="الأجهزة" count={devices.length} />
         </button>
         <button type="button" className="party-action" onClick={() => setSheet({ kind: "manage" })}>
-          ⚙️ إدارة
+          <ActionFace icon="⚙️" label="إدارة" />
         </button>
       </div>
 

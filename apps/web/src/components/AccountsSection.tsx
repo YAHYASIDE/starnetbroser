@@ -320,7 +320,7 @@ type PartyPanel = "statement" | "devices" | null;
 type PartySheet = "balance" | "whatsapp" | "detail" | "edit" | "notes" | null;
 
 /** A card action: the icon over a tiny label (and a count badge) - one short row of buttons. */
-function ActionFace({ icon, label, count }: { icon: string; label: string; count?: number }) {
+export function ActionFace({ icon, label, count }: { icon: string; label: string; count?: number }) {
   return (
     <>
       <span className="party-action-icon" aria-hidden="true">
