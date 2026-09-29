@@ -14,6 +14,7 @@ import {
   telegramConnection,
 } from "@/lib/telegram";
 import { answerRepMessage, answerTelegramCommand, refreshTelegramReplies } from "@/lib/telegramCommands";
+import { handleRepMenuRecord } from "@/lib/repMenuRecords";
 
 const INBOX_EVERY_MS = 3000;
 const POLL_EVERY_MS = 4000;
@@ -47,6 +48,7 @@ export function TelegramBridge() {
         // reads the bots itself while open - never nobody answering.
         const inbox = isTelegramInstant() ? await takeTelegramInbox() : { messages: [], running: false };
         for (const message of inbox.messages) {
+          if (await handleRepMenuRecord(message)) continue;
           if (message.bot === "reps") await answerRepMessage(message, message.replied);
           else await answerTelegramCommand(message.text);
         }

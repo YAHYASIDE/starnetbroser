@@ -261,4 +261,118 @@ public class TelegramRepliesTest {
         assertEquals("احمد مكه 123", TelegramReplies.normalize("  أحمَد   مكة ١٢٣ "));
         assertEquals("\"a\\\"b\\nc\"", TelegramReplies.jsonString("a\"b\nc"));
     }
+
+    // ---- the device menu (mirrors repDeviceMenu.test.ts) ----
+
+    private static TelegramReplies.SearchEntry menuEntry(String id, String name, String keys) {
+        Map<String, String> sections = new HashMap<>();
+        sections.put("r", "📅 التجديد\nالتاريخ: 2026/10/27");
+        sections.put("f", "👤 معلومات الجهاز\n📶 كود الواي فاي: wifi-1");
+        Map<String, String> values = new HashMap<>();
+        values.put("w", "wifi-1");
+        return new TelegramReplies.SearchEntry(keys, "📡 " + name + "\nFULL CARD 🔴 غير متصل", "💬 محمد", "https://wa.me/1", "2026-10-27", "• " + name, null, id,
+            "📡 " + name + "\n👤 محمد", sections, values);
+    }
+
+    private static TelegramReplies.Snapshot menuSnapshot() {
+        TelegramReplies.Snapshot s = snapshot();
+        java.util.List<TelegramReplies.SearchEntry> list = new java.util.ArrayList<>();
+        list.add(menuEntry("acc-1", "مقهى", "مقهي محمد"));
+        list.add(menuEntry("acc-2", "منزل", "منزل محمد"));
+        s.repSearch.put("r1", list);
+        return s;
+    }
+
+    @Test
+    public void oneResultShowsItsMenuWithoutTheStaleDots() {
+        TelegramReplies.Reply reply = TelegramReplies.forRep("r1", "مقهى", menuSnapshot());
+        assertTrue(reply.text.contains("📡 مقهى\n👤 محمد"));
+        assertTrue(reply.text.contains(TelegramReplies.MENU_HINT));
+        assertFalse(reply.text.contains("غير متصل"));
+        assertTrue(reply.markup.contains("\"callback_data\":\"v:n:acc-1\""));
+        assertTrue(reply.markup.contains("\"callback_data\":\"nt:acc-1\""));
+        assertTrue(reply.markup.contains("\"url\":\"https://wa.me/1\""));
+        assertTrue(reply.markup.contains("\"callback_data\":\"a:acc-1\""));
+    }
+
+    @Test
+    public void severalResultsGetOneButtonEach() {
+        TelegramReplies.Reply reply = TelegramReplies.forRep("r1", "محمد", menuSnapshot());
+        assertTrue(reply.text.contains("1. 📡 مقهى"));
+        assertTrue(reply.text.contains("2. 📡 منزل"));
+        assertEquals("{\"inline_keyboard\":[[{\"text\":\"📡 مقهى\",\"callback_data\":\"m:acc-1\"}],[{\"text\":\"📡 منزل\",\"callback_data\":\"m:acc-2\"}]]}", reply.markup);
+    }
+
+    @Test
+    public void menuMarkupMatchesTheApp() {
+        assertEquals(
+            "{\"inline_keyboard\":[[{\"text\":\"📶 الشبكة\",\"callback_data\":\"v:n:x\"},{\"text\":\"📅 التجديد\",\"callback_data\":\"v:r:x\"},{\"text\":\"🛰️ الاشتراك\",\"callback_data\":\"v:p:x\"}],"
+                + "[{\"text\":\"💰 الدين\",\"callback_data\":\"v:d:x\"},{\"text\":\"🔢 KIT/SN\",\"callback_data\":\"v:i:x\"},{\"text\":\"👤 المعلومات\",\"callback_data\":\"v:f:x\"}],"
+                + "[{\"text\":\"✏️ تعديل\",\"callback_data\":\"e:x\"},{\"text\":\"📊 كشف\",\"callback_data\":\"v:s:x\"},{\"text\":\"📝 ملاحظة\",\"callback_data\":\"nt:x\"}],"
+                + "[{\"text\":\"⚡ تفعيل\",\"callback_data\":\"a:x\"}]]}",
+            TelegramReplies.menuMarkup("x", null));
+        String edit = TelegramReplies.editMarkup("x");
+        assertTrue(edit.contains("\"callback_data\":\"ef:w:x\""));
+        assertTrue(edit.endsWith("[{\"text\":\"↩️ رجوع\",\"callback_data\":\"v:h:x\"}]]}"));
+        assertFalse(TelegramReplies.menuFits(new String(new char[60]).replace('\0', 'x')));
+    }
+
+    @Test
+    public void tapsParse() {
+        assertEquals("menu", TelegramReplies.parseTap("m:acc-1").kind);
+        TelegramReplies.Tap view = TelegramReplies.parseTap("v:r:acc-1");
+        assertEquals("view", view.kind);
+        assertEquals("r", view.code);
+        assertEquals("acc-1", view.accountId);
+        TelegramReplies.Tap field = TelegramReplies.parseTap("ef:w:acc:1");
+        assertEquals("field", field.kind);
+        assertEquals("w", field.code);
+        assertEquals("acc:1", field.accountId);
+        assertEquals("edit", TelegramReplies.parseTap("e:acc-1").kind);
+        assertEquals("note", TelegramReplies.parseTap("nt:acc-1").kind);
+        assertNull(TelegramReplies.parseTap("ef:z:acc-1"));
+        assertNull(TelegramReplies.parseTap("y:ab1"));
+        assertNull(TelegramReplies.parseTap("dd:12"));
+        assertNull(TelegramReplies.parseTap("a:acc-1"));
+        assertNull(TelegramReplies.parseTap("p:acc-1:ROM"));
+    }
+
+    @Test
+    public void sectionsEditsAndNotes() {
+        TelegramReplies.Snapshot s = menuSnapshot();
+        TelegramReplies.SearchEntry e = TelegramReplies.findEntry("r1", "acc-1", s);
+        assertTrue(TelegramReplies.sectionText(e, "f", s).contains("📶 كود الواي فاي: wifi-1"));
+        assertTrue(TelegramReplies.sectionText(e, "zz", s).contains("—"));
+        assertTrue(TelegramReplies.fieldQuestion(e, "w").contains("كود الواي فاي - مقهى\nالحالي: wifi-1"));
+        assertTrue(TelegramReplies.fieldQuestion(e, "p").contains("الحالي: —"));
+        String owner = TelegramReplies.editToOwner("سالم", e, "w", "wifi-2");
+        assertTrue(owner.contains("المندوب سالم"));
+        assertTrue(owner.contains("الحالي: wifi-1\nالجديد: wifi-2"));
+        assertEquals("{\"inline_keyboard\":[[{\"text\":\"✅ موافق\",\"callback_data\":\"ey:q1\"},{\"text\":\"❌ رفض\",\"callback_data\":\"en:q1\"}]]}",
+            TelegramReplies.editButtons("q1"));
+        assertTrue(TelegramReplies.noteToOwner("سالم", e, "الجهاز في المخزن").contains("الجهاز في المخزن"));
+    }
+
+    @Test
+    public void networkOnlyFromAFreshReading() {
+        TelegramReplies.SearchEntry e = TelegramReplies.findEntry("r1", "acc-1", menuSnapshot());
+        String ok = TelegramReplies.networkResult(e, "online", "offline", "10:41");
+        assertTrue(ok.contains("تحديث 10:41"));
+        assertTrue(ok.contains("🛰️ الطبق: 🟢 متصل"));
+        assertTrue(ok.contains("📶 الواي فاي: 🔴 غير متصل"));
+        assertTrue(TelegramReplies.networkResult(e, "unknown", "", "10:41").contains("⚪ غير معروف"));
+        assertEquals(TelegramReplies.networkFailed(e), TelegramReplies.networkResult(e, "", "", "10:41"));
+        assertTrue(TelegramReplies.networkFailed(e).contains("لا تُعرض حالة الشبكة إلا بعد تحديث ناجح"));
+    }
+
+    @Test
+    public void liveCheckOnlyAfterTheAsk() {
+        String raw = LiveCheckStore.encode(2000, "online", "");
+        String[] dots = LiveCheckStore.decodeSince(raw, 1500);
+        assertEquals("online", dots[0]);
+        assertEquals("", dots[1]);
+        assertNull(LiveCheckStore.decodeSince(raw, 2500));
+        assertNull(LiveCheckStore.decodeSince(null, 0));
+        assertNull(LiveCheckStore.decodeSince("x\ny", 0));
+    }
 }

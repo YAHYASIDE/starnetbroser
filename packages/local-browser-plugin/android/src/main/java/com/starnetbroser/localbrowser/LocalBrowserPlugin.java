@@ -598,6 +598,14 @@ public class LocalBrowserPlugin extends Plugin {
         call.resolve();
     }
 
+    /** A rep's ✏️ decided in the app: its ✅/❌ in the owner's bot then says the request is over. */
+    @PluginMethod
+    public void telegramResolveEdit(PluginCall call) {
+        String id = call.getString("id");
+        if (id != null) TelegramStore.removeEdit(getContext(), id);
+        call.resolve();
+    }
+
     /** Answers with the app closed (TelegramReplyService, with its permanent notification). */
     @PluginMethod
     public void telegramSetInstant(PluginCall call) {
@@ -637,6 +645,10 @@ public class LocalBrowserPlugin extends Plugin {
             if (item.has("fileId")) {
                 out.put("fileId", item.optString("fileId", ""));
                 out.put("fileName", item.optString("fileName", ""));
+            }
+            if (item.has("kind")) {
+                out.put("kind", item.optString("kind", ""));
+                out.put("data", item.optString("data", ""));
             }
             messages.put(out);
         }

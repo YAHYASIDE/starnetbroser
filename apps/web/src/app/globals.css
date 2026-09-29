@@ -8722,3 +8722,14 @@ button.today-tile {
   overflow-wrap: anywhere;
   text-align: left;
 }
+
+/* ✏️ a rep's edit request: the current and the new value */
+.rep-edit-values {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 4px 0 8px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}

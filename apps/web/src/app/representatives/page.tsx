@@ -73,6 +73,7 @@ import { getStoreItem, loadStoreItems, StoreItemRegistry } from "@/lib/storeStor
 import { demoAccounts } from "@/lib/demoData";
 import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
 import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
+import { ACCOUNTS_CHANGED_EVENT } from "@/lib/repMenuRecords";
 import { listAccounts } from "@/lib/apiClient";
 import { partyHue, partyInitials } from "@/lib/partyColor";
 import { buildRepSummaryMessage, buildWhatsAppLink } from "@/lib/whatsapp";
@@ -205,6 +206,16 @@ export default function RepresentativesPage() {
     }
     if (!isLoggedIn()) return;
     listAccounts().then(setAccounts).catch(() => {});
+  }, []);
+
+  // A rep's ✏️ / 📝 from the bot changed a device or customer meanwhile.
+  useEffect(() => {
+    const reload = () => {
+      setClientStore(loadClientStore());
+      if (isDemoMode()) setAccounts(loadDemoAccounts(demoAccounts));
+    };
+    window.addEventListener(ACCOUNTS_CHANGED_EVENT, reload);
+    return () => window.removeEventListener(ACCOUNTS_CHANGED_EVENT, reload);
   }, []);
 
   const representatives = useMemo(() => listRepresentatives(representativeStore), [representativeStore]);
@@ -355,6 +366,7 @@ export default function RepresentativesPage() {
         onChanged={() => {
           setLedgerStore(loadLedgerStore());
           setClientStore(loadClientStore());
+          if (isDemoMode()) setAccounts(loadDemoAccounts(demoAccounts));
         }}
       />
 

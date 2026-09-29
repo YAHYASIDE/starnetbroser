@@ -38,7 +38,7 @@ public class TelegramReplyService extends Service {
     private static final int LONG_POLL_SECONDS = 25;
     /** The app counts as "in front" only while it keeps draining the inbox (every ~3 s). */
     private static final long APP_HEARTBEAT_MS = 10_000;
-    private static final int MAX_INBOX = 50;
+    private static final int MAX_INBOX = 150;
 
     /** Set by LocalBrowserPlugin from the activity's resume/pause. */
     static volatile boolean appVisible = false;
@@ -292,7 +292,9 @@ public class TelegramReplyService extends Service {
         if (text.trim().isEmpty()) return;
         if (!reps && !chatId.equals(TelegramStore.chatId(context))) return; // the owner bot talks to the owner only
 
-        // ⚡ تفعيل lives here only (its buttons come back to this service), app open or not.
+        // ✏️ / 📝 values and ⚡ تفعيل live here only (their buttons come back to this service),
+        // app open or not.
+        if (reps && handleFormText(context, token, chatId, text)) return;
         if (reps && handleActivationText(context, token, chatId, text)) return;
 
         if (appMayAnswer && appAnswering()) {
@@ -373,6 +375,142 @@ public class TelegramReplyService extends Service {
         send(context, TelegramStore.REPS, repsToken, repChat, TelegramReplies.activationSent(plan, entry, price), null);
     }
 
+    // ---- ✏️ / 📝 typed after tapping them in the device menu ----
+
+    /** The value a rep typed after ✏️ <field> or 📝: to the operator (an edit waits for ✅),
+     * and to the app, which records it. True when handled. */
+    private static boolean handleFormText(Context context, String token, String chatId, String text) throws JSONException {
+        String[] pending = TelegramStore.pendingForm(context, chatId);
+        if (pending == null) return false;
+        String repId = TelegramStore.repIdForChat(context, chatId);
+        TelegramReplies.Snapshot snapshot = loadSnapshot(context);
+        // A keyboard button or a command means he moved on.
+        boolean command = text.trim().startsWith("/") || (snapshot != null && snapshot.repWords.containsKey(TelegramReplies.normalize(TelegramReplies.commandWord(text))));
+        TelegramStore.clearPendingForm(context, chatId);
+        if (repId == null || snapshot == null || command) return false;
+        TelegramReplies.SearchEntry entry = TelegramReplies.findEntry(repId, pending[1], snapshot);
+        if (entry == null) return false;
+        String value = text.trim();
+        if (value.isEmpty()) return true;
+        if (value.length() > TelegramReplies.MAX_FORM_CHARS) value = value.substring(0, TelegramReplies.MAX_FORM_CHARS);
+        Map<String, String> mine = snapshot.reps.get(repId);
+        String repName = mine != null && mine.get("name") != null ? mine.get("name") : "";
+        boolean owner = TelegramStore.isConfigured(context);
+        JSONObject data = new JSONObject();
+        data.put("repId", repId);
+        data.put("accountId", entry.id);
+        data.put("at", System.currentTimeMillis());
+        if ("note".equals(pending[0])) {
+            data.put("text", value);
+            addToInbox(context, TelegramStore.REPS, chatId, "", "", "", true, null, null, "repNote", data.toString());
+            if (owner) send(context, TelegramStore.OWNER, TelegramStore.token(context), TelegramStore.chatId(context), TelegramReplies.noteToOwner(repName, entry, value), null);
+            send(context, TelegramStore.REPS, token, chatId, TelegramReplies.noteSent(entry), snapshot.repKeyboard);
+            return true;
+        }
+        String id = Long.toString(System.currentTimeMillis() % 2176782336L, 36) + Integer.toString((int) (Math.random() * 1296), 36);
+        String old = entry.editValues.get(pending[2]);
+        data.put("id", id);
+        data.put("field", pending[2]);
+        data.put("value", value);
+        data.put("old", old == null ? "" : old);
+        data.put("repChat", chatId);
+        data.put("device", entry.deviceName());
+        TelegramStore.putEdit(context, id, data.toString());
+        addToInbox(context, TelegramStore.REPS, chatId, "", "", "", true, null, null, "repEdit", data.toString());
+        if (owner) {
+            send(context, TelegramStore.OWNER, TelegramStore.token(context), TelegramStore.chatId(context),
+                TelegramReplies.editToOwner(repName, entry, pending[2], value), TelegramReplies.editButtons(id));
+        }
+        send(context, TelegramStore.REPS, token, chatId, TelegramReplies.editSent(entry, pending[2], value), snapshot.repKeyboard);
+        return true;
+    }
+
+    // ---- the device menu ----
+
+    /** Replaces the menu message in place; a new message when it can't be edited. */
+    private static void editOrSend(Context context, String token, String chatId, long messageId, String text, String markup) {
+        if (messageId > 0) {
+            try {
+                TelegramClient.editMessageText(token, chatId, messageId, text, markup);
+                return;
+            } catch (TelegramClient.TelegramError rejected) {
+                // "message is not modified" (the same button twice) - nothing to do.
+                if (rejected.getMessage() != null && rejected.getMessage().contains("not modified")) return;
+            } catch (IOException offline) {
+                // fall through to a new message (queued if still offline)
+            }
+        }
+        send(context, TelegramStore.REPS, token, chatId, text, markup);
+    }
+
+    private static final long NETWORK_WAIT_MS = 150_000;
+    private static final long NETWORK_POLL_MS = 2_000;
+
+    /** 📶: refresh the device from Starlink now, then show its dots - never an older reading. */
+    private static void checkNetwork(Context context, String token, String chatId, long messageId, TelegramReplies.SearchEntry entry) {
+        String menu = TelegramReplies.menuMarkup(entry);
+        if (SyncPacing.inCooldown(SyncPacing.rateLimitedAt(context), System.currentTimeMillis())) {
+            editOrSend(context, token, chatId, messageId, TelegramReplies.networkBusy(entry), menu);
+            return;
+        }
+        boolean signedIn = false;
+        for (AutoSyncAccountStore.Entry e : AutoSyncAccountStore.load(context)) signedIn |= e.accountId.equals(entry.id);
+        if (!signedIn) {
+            editOrSend(context, token, chatId, messageId, TelegramReplies.networkNoLogin(entry), menu);
+            return;
+        }
+        long askedAt = System.currentTimeMillis();
+        AutoSyncScheduler.triggerNow(context, entry.id, true);
+        editOrSend(context, token, chatId, messageId, TelegramReplies.networkChecking(entry), null);
+        Thread wait = new Thread(() -> {
+            String[] dots = null;
+            long until = System.currentTimeMillis() + NETWORK_WAIT_MS;
+            while (dots == null && System.currentTimeMillis() < until) {
+                sleep(NETWORK_POLL_MS);
+                dots = LiveCheckStore.since(context, entry.id, askedAt);
+            }
+            String time = new java.text.SimpleDateFormat("HH:mm", java.util.Locale.ROOT).format(new java.util.Date());
+            String text = dots == null ? TelegramReplies.networkFailed(entry) : TelegramReplies.networkResult(entry, dots[0], dots[1], time);
+            editOrSend(context, token, chatId, messageId, text, menu);
+        }, "starnet-network-check");
+        wait.setDaemon(true);
+        wait.start();
+    }
+
+    /** A tapped device-menu button; null when `data` isn't one. */
+    private static String menuCallback(Context context, String token, String chatId, long messageId, String repId, TelegramReplies.Snapshot snapshot, String data) {
+        TelegramReplies.Tap tap = TelegramReplies.parseTap(data);
+        if (tap == null) return null;
+        TelegramReplies.SearchEntry entry = TelegramReplies.findEntry(repId, tap.accountId, snapshot);
+        if (entry == null || !entry.hasMenu()) return "هذا الجهاز ليس من أجهزتك";
+        switch (tap.kind) {
+            case "menu":
+                send(context, TelegramStore.REPS, token, chatId, TelegramReplies.menuText(entry), TelegramReplies.menuMarkup(entry));
+                return entry.deviceName();
+            case "view":
+                if ("n".equals(tap.code)) {
+                    checkNetwork(context, token, chatId, messageId, entry);
+                    return "📶 جارٍ التحديث...";
+                }
+                String text = "h".equals(tap.code) ? TelegramReplies.menuText(entry) : TelegramReplies.sectionText(entry, tap.code, snapshot);
+                editOrSend(context, token, chatId, messageId, text, TelegramReplies.menuMarkup(entry));
+                return "";
+            case "edit":
+                editOrSend(context, token, chatId, messageId, TelegramReplies.editText(entry), TelegramReplies.editMarkup(entry.id));
+                return "";
+            case "field":
+                TelegramStore.setPendingForm(context, chatId, "edit", entry.id, tap.code);
+                send(context, TelegramStore.REPS, token, chatId, TelegramReplies.fieldQuestion(entry, tap.code), TelegramReplies.EDIT_REPLY);
+                return "";
+            case "note":
+                TelegramStore.setPendingForm(context, chatId, "note", entry.id, "");
+                send(context, TelegramStore.REPS, token, chatId, TelegramReplies.noteQuestion(entry), TelegramReplies.NOTE_REPLY);
+                return "";
+            default:
+                return null;
+        }
+    }
+
     /** A tapped inline button: a rep's ⚡ / plan, or the operator's ✅ / ❌. */
     private static void handleCallback(Context context, String bot, String token, JSONObject callback) throws JSONException {
         String callbackId = callback.optString("id", "");
@@ -383,7 +521,7 @@ public class TelegramReplyService extends Service {
         String toast = null;
         try {
             if (TelegramStore.REPS.equals(bot)) {
-                toast = repCallback(context, token, chatId, data);
+                toast = repCallback(context, token, chatId, message != null ? message.optLong("message_id") : 0, data);
             } else if (chatId.equals(TelegramStore.chatId(context))) {
                 toast = ownerCallback(context, token, chatId, message != null ? message.optLong("message_id") : 0, message != null ? message.optString("text", "") : "", data);
             }
@@ -396,10 +534,12 @@ public class TelegramReplyService extends Service {
         }
     }
 
-    private static String repCallback(Context context, String token, String chatId, String data) throws JSONException {
+    private static String repCallback(Context context, String token, String chatId, long messageId, String data) throws JSONException {
         String repId = TelegramStore.repIdForChat(context, chatId);
         TelegramReplies.Snapshot snapshot = loadSnapshot(context);
         if (repId == null || snapshot == null) return "افتح تطبيق المسؤول مرة ثم أعد المحاولة";
+        String menu = menuCallback(context, token, chatId, messageId, repId, snapshot, data);
+        if (menu != null) return menu.isEmpty() ? null : menu;
         TelegramReplies.DayQuery day = TelegramReplies.dayCallback(data);
         if (day != null) {
             TelegramReplies.Reply reply = TelegramReplies.dayReply(repId, day, snapshot);
@@ -427,6 +567,7 @@ public class TelegramReplyService extends Service {
     }
 
     private static String ownerCallback(Context context, String token, String chatId, long messageId, String messageText, String data) throws JSONException {
+        if (data.startsWith("ey:") || data.startsWith("en:")) return editDecision(context, token, chatId, messageId, messageText, data);
         boolean approve = data.startsWith("y:");
         if (!approve && !data.startsWith("n:")) return null;
         String id = data.substring(2);
@@ -441,6 +582,31 @@ public class TelegramReplyService extends Service {
         if (repsToken != null && TelegramStore.isLinkedRepChat(context, repChat)) send(context, TelegramStore.REPS, repsToken, repChat, toRep, null);
         try {
             TelegramClient.editMessageText(token, chatId, messageId, messageText + "\n\n" + (approve ? "✅ وافقت - أُبلغ المندوب" : "❌ رفضت - أُبلغ المندوب"));
+        } catch (IOException | TelegramClient.TelegramError ignored) {
+            // The buttons stay; tapping again says the request is over.
+        }
+        return approve ? "✅ تمت الموافقة" : "❌ تم الرفض";
+    }
+
+    /** ✅/❌ on a rep's ✏️: he's told, and the app applies (or drops) it when it opens. */
+    private static String editDecision(Context context, String token, String chatId, long messageId, String messageText, String data) throws JSONException {
+        boolean approve = data.startsWith("ey:");
+        String id = data.substring(3);
+        String raw = TelegramStore.edit(context, id);
+        if (raw == null) return "هذا الطلب انتهى";
+        JSONObject record = new JSONObject(raw);
+        TelegramStore.removeEdit(context, id);
+        // The whole edit rides along, so the app can apply it even if its "repEdit" got lost.
+        JSONObject decision = new JSONObject(raw);
+        decision.put("approve", approve);
+        addToInbox(context, TelegramStore.REPS, record.optString("repChat"), "", "", "", true, null, null, "repEditDecision", decision.toString());
+        String what = TelegramReplies.editFieldName(record.optString("field")) + " لـ " + record.optString("device") + " إلى «" + record.optString("value") + "»";
+        String toRep = approve ? "✅ وافق المسؤول على تعديل " + what : "❌ لم يوافق المسؤول على تعديل " + what;
+        String repsToken = TelegramStore.repsToken(context);
+        String repChat = record.optString("repChat");
+        if (repsToken != null && TelegramStore.isLinkedRepChat(context, repChat)) send(context, TelegramStore.REPS, repsToken, repChat, toRep, null);
+        try {
+            TelegramClient.editMessageText(token, chatId, messageId, messageText + "\n\n" + (approve ? "✅ وافقت - يُحفظ عند فتح التطبيق وأُبلغ المندوب" : "❌ رفضت - أُبلغ المندوب"));
         } catch (IOException | TelegramClient.TelegramError ignored) {
             // The buttons stay; tapping again says the request is over.
         }
@@ -548,7 +714,8 @@ public class TelegramReplyService extends Service {
                         if (e == null) continue;
                         entries.add(new TelegramReplies.SearchEntry(
                             e.optString("k", ""), e.optString("t", ""), e.optString("l", null), e.optString("w", null),
-                            e.optString("d", ""), e.optString("s", ""), e.optString("r", null), e.optString("i", "")));
+                            e.optString("d", ""), e.optString("s", ""), e.optString("r", null), e.optString("i", ""),
+                            e.optString("h", ""), strings(e.optJSONObject("x")), strings(e.optJSONObject("ev"))));
                     }
                     s.repSearch.put(id, entries);
                 }
@@ -586,6 +753,13 @@ public class TelegramReplyService extends Service {
     }
 
     private static void addToInbox(Context context, String bot, String chatId, String name, String username, String text, boolean replied, String fileId, String fileName) throws JSONException {
+        addToInbox(context, bot, chatId, name, username, text, replied, fileId, fileName, null, null);
+    }
+
+    /** `kind` / `data`: a record for the app from the device menu (repEdit, repEditDecision,
+     * repNote - JSON data), never answered by the app. */
+    private static void addToInbox(Context context, String bot, String chatId, String name, String username, String text, boolean replied,
+                                   String fileId, String fileName, String kind, String data) throws JSONException {
         synchronized (INBOX_LOCK) {
             JSONArray inbox = readInbox(context);
             JSONObject item = new JSONObject();
@@ -598,6 +772,10 @@ public class TelegramReplyService extends Service {
             if (fileId != null && !fileId.isEmpty()) {
                 item.put("fileId", fileId);
                 item.put("fileName", fileName != null ? fileName : "");
+            }
+            if (kind != null) {
+                item.put("kind", kind);
+                item.put("data", data != null ? data : "");
             }
             inbox.put(item);
             while (inbox.length() > MAX_INBOX) inbox.remove(0);

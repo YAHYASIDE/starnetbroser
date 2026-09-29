@@ -26,6 +26,7 @@ final class AutoSyncScheduler {
 
     static final String WORK_NAME = "starnet_auto_sync";
     private static final String IMMEDIATE_WORK_NAME = "starnet_auto_sync_now";
+    private static final String LIVE_CHECK_WORK_NAME = "starnet_live_check_";
 
     /** How often the worker wakes to see which devices are due (SyncPriority decides which, and
      * most wakes find few or none) - not how often each device is synced. */
@@ -69,15 +70,28 @@ final class AutoSyncScheduler {
      *     AutoSyncWorker#INPUT_ACCOUNT_ID) - null syncs every account, same as before.
      */
     static void triggerNow(Context context, String accountId) {
+        triggerNow(context, accountId, false);
+    }
+
+    /** `quiet`: a rep's 📶 check - no "تم تحديث" notification on the owner's phone. */
+    static void triggerNow(Context context, String accountId, boolean quiet) {
         Constraints constraints = new Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build();
         OneTimeWorkRequest.Builder builder = new OneTimeWorkRequest.Builder(AutoSyncWorker.class)
             .setConstraints(constraints);
         if (accountId != null && !accountId.trim().isEmpty()) {
-            builder.setInputData(new Data.Builder().putString(AutoSyncWorker.INPUT_ACCOUNT_ID, accountId).putBoolean(AutoSyncWorker.INPUT_MANUAL, true).build());
+            builder.setInputData(new Data.Builder().putString(AutoSyncWorker.INPUT_ACCOUNT_ID, accountId).putBoolean(AutoSyncWorker.INPUT_MANUAL, true)
+                .putBoolean(AutoSyncWorker.INPUT_QUIET, quiet).build());
         } else {
             builder.setInputData(new Data.Builder().putBoolean(AutoSyncWorker.INPUT_MANUAL, true).build());
+        }
+        // A rep's check has its own work name per device, so it never cancels the owner's own
+        // "مزامنة الآن" / "تحديث" (KEEP: a check already running for that device answers both).
+        if (quiet && accountId != null && !accountId.trim().isEmpty()) {
+            WorkManager.getInstance(context)
+                .enqueueUniqueWork(LIVE_CHECK_WORK_NAME + accountId, ExistingWorkPolicy.KEEP, builder.build());
+            return;
         }
         WorkManager.getInstance(context)
             .enqueueUniqueWork(IMMEDIATE_WORK_NAME, ExistingWorkPolicy.REPLACE, builder.build());

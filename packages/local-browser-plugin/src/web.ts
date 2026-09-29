@@ -132,6 +132,10 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
     return;
   }
 
+  async telegramResolveEdit(_options: { id: string }): Promise<void> {
+    return;
+  }
+
   async telegramForgetRequest(_options: { chatId: string }): Promise<void> {
     return;
   }

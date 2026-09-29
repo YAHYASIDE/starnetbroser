@@ -68,6 +68,11 @@ final class TelegramReplies {
         final String reminderUrl;
         /** The device's id (its ⚡ تفعيل button), or "". */
         final String id;
+        /** Reps only: the short header above the menu ("" = no menu, the old card), each menu
+         * button's prepared text ("r", "p", "d", "i", "f", "s") and the editable fields' values. */
+        final String header;
+        final Map<String, String> sections;
+        final Map<String, String> editValues;
 
         SearchEntry(String keys, String text, String buttonLabel, String buttonUrl) {
             this(keys, text, buttonLabel, buttonUrl, null, null, null, null);
@@ -78,6 +83,14 @@ final class TelegramReplies {
         }
 
         SearchEntry(String keys, String text, String buttonLabel, String buttonUrl, String date, String line, String reminderUrl, String id) {
+            this(keys, text, buttonLabel, buttonUrl, date, line, reminderUrl, id, null, null, null);
+        }
+
+        SearchEntry(String keys, String text, String buttonLabel, String buttonUrl, String date, String line, String reminderUrl, String id,
+                    String header, Map<String, String> sections, Map<String, String> editValues) {
+            this.header = header == null ? "" : header;
+            this.sections = sections == null ? new HashMap<>() : sections;
+            this.editValues = editValues == null ? new HashMap<>() : editValues;
             this.keys = keys == null ? "" : keys;
             this.text = text == null ? "" : text;
             this.buttonLabel = buttonLabel;
@@ -86,6 +99,10 @@ final class TelegramReplies {
             this.line = line == null ? "" : line;
             this.reminderUrl = reminderUrl;
             this.id = id == null ? "" : id;
+        }
+
+        boolean hasMenu() {
+            return !header.isEmpty() && menuFits(id);
         }
 
         /** "📡 name" -> "name". */
@@ -309,11 +326,206 @@ final class TelegramReplies {
             return new Reply(helpWhenNothing ? text + "\n\n" + s.repHelp : text, false, null, keyboard);
         }
         List<SearchEntry> shown = found.subList(0, Math.min(5, found.size()));
+        boolean menus = true;
+        for (SearchEntry e : shown) menus &= e.hasMenu();
+        if (menus) return menuSearch(query, found.size(), shown, s);
         StringBuilder text = new StringBuilder("🔎 نتائج «" + quote(query) + "» (" + found.size() + "):");
         for (SearchEntry e : shown) text.append("\n\n").append(e.text);
         if (found.size() > 5) text.append("\n\n… و").append(found.size() - 5).append(" أخرى - اكتب اسمًا أدق");
         String markup = actionsMarkup(shown);
         return new Reply(withTime(text.toString(), s), false, null, markup != null ? markup : keyboard);
+    }
+
+    // ---- The device menu (mirrors repDeviceMenu.ts / repMenuReply in telegramRepMessages.ts) ----
+
+    static final String MENU_HINT = "اختر ما تريد معرفته 👇";
+
+    /** Code -> button, in menu order; and the editable fields (code -> label). */
+    static final String[][] EDIT_FIELDS = {
+        {"n", "🏷️ اسم الجهاز"}, {"c", "👤 اسم الزبون"}, {"t", "📞 هاتف الزبون"}, {"e", "📧 الإيميل"},
+        {"p", "🔑 كود الإيميل"}, {"w", "📶 كود الواي فاي"}, {"k", "🔢 رقم KIT"},
+    };
+
+    static String editFieldLabel(String code) {
+        for (String[] f : EDIT_FIELDS) if (f[0].equals(code)) return f[1];
+        return null;
+    }
+
+    /** "🏷️ اسم الجهاز" -> "اسم الجهاز". */
+    static String editFieldName(String code) {
+        String label = editFieldLabel(code);
+        return label == null ? "" : label.replaceFirst("^\\S+\\s", "");
+    }
+
+    static boolean menuFits(String accountId) {
+        return accountId != null && !accountId.isEmpty() && fitsCallback("ef:w:" + accountId);
+    }
+
+    private static String cb(String text, String data) {
+        return "{\"text\":" + jsonString(text) + ",\"callback_data\":" + jsonString(data) + "}";
+    }
+
+    static String menuMarkup(String id, String whatsappUrl) {
+        StringBuilder rows = new StringBuilder("[");
+        rows.append('[').append(cb("📶 الشبكة", "v:n:" + id)).append(',').append(cb("📅 التجديد", "v:r:" + id)).append(',').append(cb("🛰️ الاشتراك", "v:p:" + id)).append("],");
+        rows.append('[').append(cb("💰 الدين", "v:d:" + id)).append(',').append(cb("🔢 KIT/SN", "v:i:" + id)).append(',').append(cb("👤 المعلومات", "v:f:" + id)).append("],");
+        rows.append('[').append(cb("✏️ تعديل", "e:" + id)).append(',').append(cb("📊 كشف", "v:s:" + id)).append(',').append(cb("📝 ملاحظة", "nt:" + id)).append(']');
+        StringBuilder last = new StringBuilder();
+        if (whatsappUrl != null) last.append("{\"text\":\"💬 واتساب\",\"url\":").append(jsonString(whatsappUrl)).append('}');
+        if (fitsCallback("a:" + id)) {
+            if (last.length() > 0) last.append(',');
+            last.append(cb("⚡ تفعيل", "a:" + id));
+        }
+        if (last.length() > 0) rows.append(",[").append(last).append(']');
+        return "{\"inline_keyboard\":" + rows.append(']') + "}";
+    }
+
+    static String editMarkup(String id) {
+        StringBuilder rows = new StringBuilder("[");
+        for (int i = 0; i < EDIT_FIELDS.length; i += 2) {
+            rows.append('[').append(cb(EDIT_FIELDS[i][1], "ef:" + EDIT_FIELDS[i][0] + ":" + id));
+            if (i + 1 < EDIT_FIELDS.length) rows.append(',').append(cb(EDIT_FIELDS[i + 1][1], "ef:" + EDIT_FIELDS[i + 1][0] + ":" + id));
+            rows.append("],");
+        }
+        rows.append('[').append(cb("↩️ رجوع", "v:h:" + id)).append("]]");
+        return "{\"inline_keyboard\":" + rows + "}";
+    }
+
+    static String menuMarkup(SearchEntry e) {
+        return menuMarkup(e.id, e.buttonUrl);
+    }
+
+    /** One device -> its header and menu; several -> their headers and a button each. */
+    static Reply menuSearch(String query, int total, List<SearchEntry> shown, Snapshot s) {
+        String title = "🔎 نتائج «" + quote(query) + "» (" + total + "):";
+        String more = total > shown.size() ? "\n\n… و" + (total - shown.size()) + " أخرى - اكتب اسمًا أدق" : "";
+        if (shown.size() == 1) {
+            SearchEntry e = shown.get(0);
+            return new Reply(title + "\n\n" + e.header + "\n\n" + MENU_HINT + more, false, null, menuMarkup(e));
+        }
+        StringBuilder text = new StringBuilder(title);
+        StringBuilder rows = new StringBuilder();
+        for (int i = 0; i < shown.size(); i++) {
+            SearchEntry e = shown.get(i);
+            text.append("\n\n").append(i + 1).append(". ").append(e.header);
+            String label = "📡 " + e.deviceName();
+            if (label.length() > 40) label = label.substring(0, 40);
+            if (i > 0) rows.append(',');
+            rows.append('[').append(cb(label, "m:" + e.id)).append(']');
+        }
+        text.append(more).append("\n\nاضغط على الجهاز لتظهر قائمته 👇");
+        return new Reply(text.toString(), false, null, "{\"inline_keyboard\":[" + rows + "]}");
+    }
+
+    /** A tapped menu button: m: (open the menu), v:<code>: (a section / h = the menu itself /
+     * n = the network), e: (edit fields), ef:<field>: (edit this field), nt: (a note). */
+    static final class Tap {
+        final String kind;
+        final String code;
+        final String accountId;
+
+        Tap(String kind, String code, String accountId) {
+            this.kind = kind;
+            this.code = code;
+            this.accountId = accountId;
+        }
+    }
+
+    static Tap parseTap(String data) {
+        if (data == null) return null;
+        if (data.startsWith("m:") && data.length() > 2) return new Tap("menu", "", data.substring(2));
+        if (data.startsWith("nt:") && data.length() > 3) return new Tap("note", "", data.substring(3));
+        if (data.startsWith("ef:") && data.length() > 5 && data.charAt(4) == ':') {
+            String code = data.substring(3, 4);
+            return editFieldLabel(code) == null ? null : new Tap("field", code, data.substring(5));
+        }
+        if (data.startsWith("e:") && data.length() > 2) return new Tap("edit", "", data.substring(2));
+        if (data.startsWith("v:") && data.length() > 4 && data.charAt(3) == ':') return new Tap("view", data.substring(2, 3), data.substring(4));
+        return null;
+    }
+
+    static String menuText(SearchEntry e) {
+        return e.header + "\n\n" + MENU_HINT;
+    }
+
+    static String sectionText(SearchEntry e, String code, Snapshot s) {
+        String section = e.sections.get(code);
+        return withTime(e.header + "\n\n" + (section == null || section.isEmpty() ? "—" : section), s);
+    }
+
+    static String editText(SearchEntry e) {
+        return e.header + "\n\n✏️ اختر ما تريد تعديله - يصل التعديل إلى المسؤول ولا يُحفظ إلا بعد موافقته.";
+    }
+
+    static String fieldQuestion(SearchEntry e, String code) {
+        String current = e.editValues.get(code);
+        return "✏️ " + editFieldName(code) + " - " + e.deviceName() + "\nالحالي: " + (current == null || current.isEmpty() ? "—" : current)
+            + "\n\nاكتب القيمة الجديدة:";
+    }
+
+    static final String EDIT_REPLY = "{\"force_reply\":true,\"input_field_placeholder\":\"القيمة الجديدة\"}";
+    static final String NOTE_REPLY = "{\"force_reply\":true,\"input_field_placeholder\":\"الملاحظة\"}";
+    static final int MAX_FORM_CHARS = 300;
+
+    static String noteQuestion(SearchEntry e) {
+        return "📝 ملاحظة على " + e.deviceName() + "\nاكتب ملاحظتك وستصل إلى المسؤول وتُحفظ على الجهاز:";
+    }
+
+    static String editSent(SearchEntry e, String code, String value) {
+        return "✅ أُرسل تعديل " + editFieldName(code) + " لـ " + e.deviceName() + " إلى «" + value + "» - ينتظر موافقة المسؤول.";
+    }
+
+    static String editToOwner(String repName, SearchEntry e, String code, String value) {
+        String old = e.editValues.get(code);
+        return "✏️ طلب تعديل من المندوب " + repName + "\n" + e.header + "\n\n" + editFieldName(code) + ":\nالحالي: "
+            + (old == null || old.isEmpty() ? "—" : old) + "\nالجديد: " + value + "\n\nهل توافق؟";
+    }
+
+    static String editButtons(String editId) {
+        return "{\"inline_keyboard\":[[" + cb("✅ موافق", "ey:" + editId) + "," + cb("❌ رفض", "en:" + editId) + "]]}";
+    }
+
+    static String noteSent(SearchEntry e) {
+        return "✅ وصلت ملاحظتك على " + e.deviceName() + " إلى المسؤول.";
+    }
+
+    static String noteToOwner(String repName, SearchEntry e, String text) {
+        return "📝 ملاحظة من المندوب " + repName + "\n" + e.header + "\n\n" + text + "\n\n(حُفظت على الجهاز)";
+    }
+
+    // ---- 📶 the network, always read fresh from Starlink ----
+
+    static String dotWord(String status) {
+        if ("online".equals(status)) return "🟢 متصل";
+        if ("offline".equals(status)) return "🔴 غير متصل (غير موصول بالكهرباء أو مطفأ)";
+        if ("warning".equals(status)) return "🟡 تنبيه";
+        return "⚪ غير معروف";
+    }
+
+    static boolean dotRead(String status) {
+        return status != null && !status.isEmpty();
+    }
+
+    static String networkChecking(SearchEntry e) {
+        return e.header + "\n\n📶 جارٍ تحديث الجهاز من Starlink... انتظر حتى دقيقة ⏳";
+    }
+
+    /** Only a reading made just now - never an older one. */
+    static String networkResult(SearchEntry e, String dish, String wifi, String time) {
+        if (!dotRead(dish) && !dotRead(wifi)) return networkFailed(e);
+        return e.header + "\n\n📶 حالة الشبكة الآن (تحديث " + time + "):\n🛰️ الطبق: " + dotWord(dish) + "\n📶 الواي فاي: " + dotWord(wifi);
+    }
+
+    static String networkFailed(SearchEntry e) {
+        return e.header + "\n\n⚠️ تعذّر تحديث الجهاز من Starlink الآن - لا تُعرض حالة الشبكة إلا بعد تحديث ناجح. حاول بعد قليل.";
+    }
+
+    static String networkBusy(SearchEntry e) {
+        return e.header + "\n\n⏳ Starlink طلب التمهّل - حاول بعد 20 دقيقة تقريباً.";
+    }
+
+    static String networkNoLogin(SearchEntry e) {
+        return e.header + "\n\n⚠️ هذا الجهاز غير مسجّل الدخول في تطبيق المسؤول - لا يمكن تحديثه.";
     }
 
     /** His devices whose keys hold every word (as typed, or compacted: "000-111" finds "000111"). */

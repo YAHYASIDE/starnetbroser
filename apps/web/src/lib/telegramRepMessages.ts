@@ -16,6 +16,7 @@ import { buildRepDailyStatement, listRepDeviceCommissions, type Representative, 
 import { daysUntilRenewal, isStoppedAccount, money, renewalGroups } from "./telegramMessages";
 import { buildWhatsAppLink, normalizePhoneForWhatsApp } from "./whatsapp";
 import { connectionLine } from "./deviceConnection";
+import { deviceHeader, deviceSections, MENU_HINT, menuFits, menuMarkup, pickDeviceMarkup, repEditValues, type RepEditField, type RepSectionCode } from "./repDeviceMenu";
 
 const MAX_LINES = 60;
 
@@ -252,6 +253,7 @@ export const REP_HELP = [
   "📊 كشفي - حصتك هذا الشهر ورصيدك",
   "📆 الأيام - أيام الشهر 1 إلى 28، اضغط على يوم لترى أجهزته",
   "🔎 بحث - أو اكتب مباشرة جزءاً من اسم زبون أو جهاز أو إيميل، أو رقم هاتف أو KIT",
+  "   تحت الجهاز أزرار: 📶 الشبكة (تُحدَّث من Starlink الآن) · 📅 التجديد · 🛰️ الاشتراك · 💰 الدين · 🔢 KIT/SN · 👤 المعلومات · ✏️ تعديل · 📊 كشف · 📝 ملاحظة",
   "📆 أو اكتب يوماً: اليوم، غداً، بعد غد، يوم 30، 30/09",
   "💵 دفعة - سجّل دفعة استلمتها: دفعة 5000 محمد",
   "➕ زبون جديد - اطلب إضافة زبون: زبون جديد الاسم الهاتف الإيميل",
@@ -433,6 +435,11 @@ export interface RepSearchEntry {
   r?: string;
   /** The device's id - for its ⚡ تفعيل button. */
   i?: string;
+  /** Reps only (repDeviceMenu.ts): the short header shown above the menu, each menu button's
+   * text, and the current value of each field he may ask to change. */
+  h?: string;
+  x?: Record<RepSectionCode, string>;
+  ev?: Record<RepEditField, string>;
 }
 
 function statusLabel(account: StarlinkAccountSummary): string {
@@ -441,7 +448,8 @@ function statusLabel(account: StarlinkAccountSummary): string {
   return "—";
 }
 
-export function repSearchIndex(accounts: StarlinkAccountSummary[], clients: ClientStore, ledgerStore: LedgerByAccount, today: string): RepSearchEntry[] {
+/** `withMenu`: a rep's index - each device also gets its menu (header, sections, edit values). */
+export function repSearchIndex(accounts: StarlinkAccountSummary[], clients: ClientStore, ledgerStore: LedgerByAccount, today: string, withMenu = false): RepSearchEntry[] {
   return accounts.map((account) => {
     const client = account.clientId ? clients[account.clientId] : undefined;
     const phoneDigits = client?.phone ? client.phone.replace(/[^\d]/g, "") : "";
@@ -491,6 +499,22 @@ export function repSearchIndex(accounts: StarlinkAccountSummary[], clients: Clie
       ),
       t: lines.join("\n"),
       ...(target ? { l: target.label, w: target.url } : {}),
+      ...(withMenu && menuFits(account.id)
+        ? {
+            h: deviceHeader(account, client, tappablePhone),
+            x: deviceSections({
+              account,
+              client,
+              entries: ledgerStore[account.id] ?? [],
+              siblings: client
+                ? accounts.filter((a) => a.id !== account.id && a.clientId === client.id).map((a) => ({ account: a, entries: ledgerStore[a.id] ?? [] }))
+                : [],
+              today,
+              tappable: tappablePhone,
+            }),
+            ev: repEditValues(account, client),
+          }
+        : {}),
     };
   });
 }
@@ -524,11 +548,27 @@ export function repSearchReply(query: string, index: RepSearchEntry[], today?: s
     ...(found.length > MAX_RESULTS ? [`\n… و${found.length - MAX_RESULTS} أخرى - اكتب اسمًا أدق`] : []),
   ].join("\n");
   if (owner) return { text, markup: whatsappMarkup(shown.flatMap((entry) => (entry.w && entry.l ? [{ label: entry.l, url: entry.w }] : []))) };
+  if (shown.every((entry) => entry.h && entry.i)) return repMenuReply(query, found.length, shown);
   return {
     text,
     markup: deviceActionsMarkup(
       shown.map((entry) => ({ whatsapp: entry.w && entry.l ? { label: entry.l, url: entry.w } : null, accountId: entry.i, name: entry.t.split("\n")[0]!.replace("📡 ", "") })),
     ),
+  };
+}
+
+/** A rep's search with menus: one device -> its header and menu; several -> their headers and
+ * one button each that opens that device's menu. Mirrors TelegramReplies.menuSearch (Java). */
+export function repMenuReply(query: string, total: number, shown: RepSearchEntry[]): RepReply {
+  const title = `🔎 نتائج «${query.slice(0, 40)}» (${total}):`;
+  const more = total > shown.length ? [`\n… و${total - shown.length} أخرى - اكتب اسمًا أدق`] : [];
+  if (shown.length === 1) {
+    const entry = shown[0]!;
+    return { text: [title, "", entry.h!, "", MENU_HINT, ...more].join("\n"), markup: menuMarkup(entry.i!, entry.w) };
+  }
+  return {
+    text: [title, ...shown.map((entry, n) => `\n${n + 1}. ${entry.h}`), ...more, "", "اضغط على الجهاز لتظهر قائمته 👇"].join("\n"),
+    markup: pickDeviceMarkup(shown.map((entry) => ({ id: entry.i!, name: entry.h!.split("\n")[0]!.replace("📡 ", "") }))),
   };
 }
 

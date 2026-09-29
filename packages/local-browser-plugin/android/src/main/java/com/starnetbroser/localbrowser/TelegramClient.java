@@ -69,6 +69,17 @@ final class TelegramClient {
         call(token, "answerCallbackQuery", params);
     }
 
+    /** Replaces a message's text and its buttons (`replyMarkup` JSON, or null for none). */
+    static void editMessageText(String token, String chatId, long messageId, String text, String replyMarkup) throws IOException, TelegramError {
+        Map<String, String> params = new LinkedHashMap<>();
+        params.put("chat_id", chatId);
+        params.put("message_id", String.valueOf(messageId));
+        params.put("text", TelegramText.truncate(text, TelegramText.MAX_MESSAGE_CHARS));
+        params.put("disable_web_page_preview", "true");
+        if (replyMarkup != null && !replyMarkup.isEmpty()) params.put("reply_markup", replyMarkup);
+        call(token, "editMessageText", params);
+    }
+
     /** Replaces a message's text (and drops its buttons). */
     static void editMessageText(String token, String chatId, long messageId, String text) throws IOException, TelegramError {
         Map<String, String> params = new LinkedHashMap<>();

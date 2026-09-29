@@ -215,6 +215,10 @@ export interface TelegramPollMessage {
 export interface TelegramInboxMessage extends TelegramPollMessage {
   bot: TelegramBot;
   replied: boolean;
+  /** A record from the reps bot's device menu (never a message to answer): a ✏️ edit waiting
+   * for approval, the owner's ✅/❌ on one in his bot, or a 📝 note - `data` is its JSON. */
+  kind?: "repEdit" | "repEditDecision" | "repNote";
+  data?: string;
 }
 
 export interface TelegramPollResult {
@@ -418,6 +422,8 @@ export interface LocalBrowserPlugin {
   openAutostartSettings(): Promise<{ opened: "maker" | "app" }>;
   /** Opens Android's "run in background without limits" dialog for STAR NET. */
   requestBatteryUnrestricted(): Promise<void>;
+  /** A rep's ✏️ edit decided in the app: its ✅/❌ in the owner's bot then answer "انتهى". */
+  telegramResolveEdit(options: { id: string }): Promise<void>;
   /** A dismissed link request: that person is answered again if he writes. */
   telegramForgetRequest(options: { chatId: string }): Promise<void>;
   /** Downloads a file a rep sent the reps bot (his device file - encrypted JSON) as text. */

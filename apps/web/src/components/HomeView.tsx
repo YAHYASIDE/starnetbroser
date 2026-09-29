@@ -100,6 +100,7 @@ import {
 import { ApiError, listAccounts } from "@/lib/apiClient";
 import { getLastBackupAt, isDemoMode, isLoggedIn, isRemindersBadgeEnabled } from "@/lib/settingsStore";
 import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
+import { ACCOUNTS_CHANGED_EVENT } from "@/lib/repMenuRecords";
 import { loadRepRequests, pendingRepRequests } from "@/lib/repRequests";
 import {
   ackPendingAccountSyncs,
@@ -446,6 +447,15 @@ export function HomeView({
   useEffect(() => {
     dataStateRef.current = dataState;
   }, [dataState]);
+  // A rep's approved ✏️ edit / 📝 note (repMenuRecords.ts) changed the stored devices or customers.
+  useEffect(() => {
+    const reload = () => {
+      setClientStore(loadClientStore());
+      if (dataStateRef.current === "demo") setAccounts(loadDemoAccounts(demoAccounts));
+    };
+    window.addEventListener(ACCOUNTS_CHANGED_EVENT, reload);
+    return () => window.removeEventListener(ACCOUNTS_CHANGED_EVENT, reload);
+  }, []);
 
   // "فحص جلسات الدخول" results (see settings) - a device found signed out gets a small "sign in"
   // bubble on its card. Whenever the app comes back to the front (typically right after signing

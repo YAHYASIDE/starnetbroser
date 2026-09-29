@@ -202,6 +202,47 @@ final class TelegramStore {
         prefs(context).edit().remove(KEY_ACT + id).commit();
     }
 
+    // ---- ✏️ / 📝 from the device menu (TelegramReplyService) ----
+
+    private static final String KEY_FORM_PENDING = "formpend_";
+    private static final String KEY_EDIT = "edit_";
+
+    /** The bot now waits for a rep's typed value: kind ("edit" / "note"), device, field. */
+    static void setPendingForm(Context context, String chatId, String kind, String accountId, String field) {
+        prefs(context).edit().putString(KEY_FORM_PENDING + chatId, kind + "\n" + accountId + "\n" + field + "\n" + System.currentTimeMillis()).commit();
+    }
+
+    /** {kind, accountId, field}, or null when none (or older than 30 minutes). */
+    static String[] pendingForm(Context context, String chatId) {
+        String raw = prefs(context).getString(KEY_FORM_PENDING + chatId, null);
+        if (raw == null) return null;
+        String[] parts = raw.split("\n", -1);
+        if (parts.length < 4) return null;
+        try {
+            if (System.currentTimeMillis() - Long.parseLong(parts[3]) > PENDING_MS) return null;
+        } catch (NumberFormatException broken) {
+            return null;
+        }
+        return new String[] {parts[0], parts[1], parts[2]};
+    }
+
+    static void clearPendingForm(Context context, String chatId) {
+        prefs(context).edit().remove(KEY_FORM_PENDING + chatId).commit();
+    }
+
+    /** An edit waiting for the operator's ✅/❌ (JSON), by its short id. */
+    static void putEdit(Context context, String id, String json) {
+        prefs(context).edit().putString(KEY_EDIT + id, json).commit();
+    }
+
+    static String edit(Context context, String id) {
+        return prefs(context).getString(KEY_EDIT + id, null);
+    }
+
+    static void removeEdit(Context context, String id) {
+        prefs(context).edit().remove(KEY_EDIT + id).commit();
+    }
+
     // ---- diagnostics shown in الإعدادات (never a token or message text) ----
 
     private static final String KEY_DIAG = "diag_";

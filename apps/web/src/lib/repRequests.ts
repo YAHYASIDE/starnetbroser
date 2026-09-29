@@ -10,7 +10,7 @@
 
 import type { LedgerCurrency } from "./ledgerStore";
 
-export type RepRequestKind = "payment" | "client" | "device";
+export type RepRequestKind = "payment" | "client" | "device" | "edit";
 export type RepRequestStatus = "pending" | "approved" | "rejected";
 
 export interface RepRequest {
@@ -39,6 +39,13 @@ export interface RepRequest {
   file?: string;
   /** His file doesn't open with the code this phone has for him (new code / wrong rep). */
   codeMismatch?: boolean;
+  // edit (✏️ from the device menu in the reps bot: `accountId` + one field's new value)
+  /** The id the owner's ✅/❌ in his bot carries (TelegramReplyService). */
+  editId?: string;
+  /** RepEditField code (repDeviceMenu.ts). */
+  field?: string;
+  value?: string;
+  oldValue?: string;
 }
 
 export type RepRequestList = RepRequest[];

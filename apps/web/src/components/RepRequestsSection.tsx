@@ -23,6 +23,8 @@ import { loadRepRequests, pendingRepRequests, RepRequest, resolveRepRequest, sav
 import type { Representative } from "@/lib/repStore";
 import { notifyPaymentTelegram, sendRepText } from "@/lib/telegram";
 import { formatMoneyShort, matchRepDevices } from "@/lib/telegramRepMessages";
+import { editFieldName, isRepEditField } from "@/lib/repDeviceMenu";
+import { decideRepEdit } from "@/lib/repMenuRecords";
 
 interface Props {
   representatives: Representative[];
@@ -72,6 +74,16 @@ export function RepRequestsSection({ representatives, accounts, clientStore, onC
               clientStore={clientStore}
               onDone={(status) => {
                 resolve(request, status);
+                onChanged();
+              }}
+            />
+          ) : request.kind === "edit" ? (
+            <EditRequestCard
+              key={request.id}
+              request={request}
+              rep={repById.get(request.repId)}
+              onDone={() => {
+                setRequests(pendingRepRequests(loadRepRequests()));
                 onChanged();
               }}
             />
@@ -264,6 +276,45 @@ function ClientRequestCard({ request, rep, onDone }: { request: RepRequest; rep?
           ✅ إضافة الزبون ثم الجهاز
         </button>
         <button type="button" className="text-action" onClick={() => void reject()}>
+          ❌ رفض
+        </button>
+      </div>
+    </li>
+  );
+}
+
+/** ✏️ A change the rep asked for from the device menu in the bot - saved only when approved
+ * (here, or with ✅ in the owner's bot). */
+function EditRequestCard({ request, rep, onDone }: { request: RepRequest; rep?: Representative; onDone: () => void }) {
+  const [error, setError] = useState<string | null>(null);
+  const field = request.field && isRepEditField(request.field) ? editFieldName(request.field) : "معلومة";
+
+  async function decide(approve: boolean) {
+    if (!approve && !window.confirm("رفض التعديل؟ يُبلَّغ المندوب بذلك.")) return;
+    const result = await decideRepEdit(request, approve, "app");
+    if (!result.ok) setError(result.message ?? "تعذّر الحفظ");
+    onDone();
+  }
+
+  return (
+    <li className="rep-request">
+      <div className="rep-request-head">
+        <strong>✏️ {rep?.name ?? "مندوب"}</strong>
+        <span>{timeLabel(request.createdAt)}</span>
+      </div>
+      <p className="rep-request-text">
+        {field} - {request.deviceName ?? "جهاز"}
+      </p>
+      <p className="rep-edit-values">
+        <span>الحالي: <bdi>{request.oldValue || "—"}</bdi></span>
+        <span>الجديد: <strong><bdi>{request.value || "—"}</bdi></strong></span>
+      </p>
+      {error && <p className="settings-hint telegram-stopped">{error}</p>}
+      <div className="settings-actions">
+        <button type="button" className="dialog-primary" onClick={() => void decide(true)}>
+          ✅ موافق - احفظ التعديل
+        </button>
+        <button type="button" className="text-action" onClick={() => void decide(false)}>
           ❌ رفض
         </button>
       </div>

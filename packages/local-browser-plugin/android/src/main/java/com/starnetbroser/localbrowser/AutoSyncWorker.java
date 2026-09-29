@@ -66,6 +66,10 @@ public class AutoSyncWorker extends Worker {
      * newly stopped. */
     static final String INPUT_MANUAL = "manual";
 
+    /** A rep's 📶 in the reps bot: a manual one-device run without the owner's "تم تحديث"
+     * notification - its reading goes to LiveCheckStore for TelegramReplyService. */
+    static final String INPUT_QUIET = "quiet";
+
     /** Extra wait after onPageFinished before reading the page: the Starlink portal is a
      * client-rendered SPA whose account data is often still filling in when the network load
      * itself completes - the exact same assumption a human tester would make by waiting a moment
@@ -98,6 +102,8 @@ public class AutoSyncWorker extends Worker {
 
     /** What each visited page showed this run: accountId -> {serviceStatus, renewalDate}. */
     private final Map<String, String[]> pageValues = new ConcurrentHashMap<>();
+    /** {dishStatus, wifiStatus} read on the الأجهزة page, per device (a deep read). */
+    private final Map<String, String[]> dotValues = new ConcurrentHashMap<>();
     private static final long WAIT_FOR_OTHER_RUN_MS = 35_000;
 
     public AutoSyncWorker(@NonNull Context context, @NonNull WorkerParameters params) {
@@ -109,11 +115,12 @@ public class AutoSyncWorker extends Worker {
     public Result doWork() {
         // Never fall back to a shared/unisolated session on a device that can't do Multi-Profile -
         // same rule AccountBrowserActivity/LocalBrowserPlugin already enforce for the manual flow.
+        Context context = getApplicationContext();
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
+            recordFailedCheck(context);
             return Result.success();
         }
 
-        Context context = getApplicationContext();
         boolean manual = getInputData().getBoolean(INPUT_MANUAL, false);
         if (!manual && !SyncPacing.isEnabled(context)) {
             return Result.success();
@@ -133,11 +140,13 @@ public class AutoSyncWorker extends Worker {
         }
 
         if (entries.isEmpty()) {
+            recordFailedCheck(context);
             return Result.success();
         }
 
         // Starlink asked us to slow down recently - try again on a later run.
         if (SyncPacing.inCooldown(SyncPacing.rateLimitedAt(context), System.currentTimeMillis())) {
+            recordFailedCheck(context);
             return Result.success();
         }
 
@@ -232,6 +241,10 @@ public class AutoSyncWorker extends Worker {
             }
             AutoSyncAccountStore.Entry entry = entries.get(i);
             syncOneAccountBlocking(context, entry, script);
+            if (deepRead) {
+                String[] dots = dotValues.get(entry.accountId);
+                LiveCheckStore.put(context, entry.accountId, System.currentTimeMillis(), dots != null ? dots[0] : "", dots != null ? dots[1] : "");
+            }
             if (rateLimited.get()) {
                 // Not a real visit - leave it due so it's tried again after the cooldown.
                 break;
@@ -262,10 +275,16 @@ public class AutoSyncWorker extends Worker {
                 if (chatId != null) TelegramSendWorker.enqueueToRep(context, chatId, TelegramText.repStoppedMessage(group.getValue()));
             }
         }
-        if (manual) {
+        if (manual && !getInputData().getBoolean(INPUT_QUIET, false)) {
             SyncNotifier.notifySyncCompleted(context, syncedAccountCount.get());
         }
         return Result.success();
+    }
+
+    /** A one-device run that can't start: the 📶 waiting in the reps bot hears it at once. */
+    private void recordFailedCheck(Context context) {
+        String accountId = getInputData().getString(INPUT_ACCOUNT_ID);
+        if (accountId != null && !accountId.trim().isEmpty()) LiveCheckStore.put(context, accountId, System.currentTimeMillis(), "", "");
     }
 
     /** Sleeps in short steps so a cancelled run stops promptly; false when it was stopped. */
@@ -479,6 +498,7 @@ public class AutoSyncWorker extends Worker {
                 return;
             }
             if (fields != null && fields.length() > 0 && AllowedUrl.isAllowed(webView.getUrl())) {
+                dotValues.put(entry.accountId, new String[] {fields.optString("dishStatus", ""), fields.optString("wifiStatus", "")});
                 String syncId = PendingSyncStore.save(context, entry.accountId, fields);
                 if (syncId != null) LocalBrowserPlugin.emitAccountDataSynced(syncId, entry.accountId, fields);
             }

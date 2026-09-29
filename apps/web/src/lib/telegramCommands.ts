@@ -354,7 +354,7 @@ async function repReplyFor(repId: string, rep: Representative, command: RepComma
       return repDebtsReply(repId, all, loadLedgerStore(), clients);
     case "activate":
       // Normally answered by the background service (its buttons need it); this is the fallback.
-      return command.text ? repSearchReply(command.text, repSearchIndex(mine, clients, loadLedgerStore(), today), today) : { text: REP_ACTIVATION_HINT };
+      return command.text ? repSearchReply(command.text, repSearchIndex(mine, clients, loadLedgerStore(), today, true), today) : { text: REP_ACTIVATION_HINT };
     case "payment":
       return { text: REP_PAYMENT_HINT };
     case "client":
@@ -366,9 +366,9 @@ async function repReplyFor(repId: string, rep: Representative, command: RepComma
     case "days":
       return repDaysReply(mine, clients, today);
     case "search":
-      return repSearchReply(command.query, repSearchIndex(mine, clients, loadLedgerStore(), today), today);
+      return repSearchReply(command.query, repSearchIndex(mine, clients, loadLedgerStore(), today, true), today);
     case "unknown": {
-      const found = repSearchReply(command.text, repSearchIndex(mine, clients, loadLedgerStore(), today), today);
+      const found = repSearchReply(command.text, repSearchIndex(mine, clients, loadLedgerStore(), today, true), today);
       return found.text.startsWith("🔎 لم أجد") ? { text: `${found.text}\n\n${REP_HELP}` } : found;
     }
     case "statement": {

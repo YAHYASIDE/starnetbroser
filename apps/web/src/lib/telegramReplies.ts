@@ -125,7 +125,7 @@ export function buildReplySnapshot(input: {
       reps[repId]![kind] = reply.text;
       if (reply.markup) reps[repId]![`${kind}#kb`] = reply.markup;
     }
-    repSearch[repId] = repSearchIndex(mine, input.clients, input.ledgerStore, input.today);
+    repSearch[repId] = repSearchIndex(mine, input.clients, input.ledgerStore, input.today, true);
   }
   return {
     at: snapshotTime(input.now),
