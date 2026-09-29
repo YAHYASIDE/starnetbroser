@@ -49,6 +49,8 @@ function dotCandidateKind(el: Element): "styled" | "bare" | null {
 /** A dot drawn by CSS on an element's ::before/::after (content set, colored background/glyph). */
 function pseudoStatus(el: Element): StatusColorValue | null {
   if (typeof getComputedStyle !== "function") return null;
+  // jsdom (the tests) has no pseudo-element styles - skip instead of logging "Not implemented".
+  if (typeof navigator !== "undefined" && /jsdom/i.test(navigator.userAgent)) return null;
   for (const pseudo of ["::before", "::after"]) {
     let style: CSSStyleDeclaration;
     try {
@@ -77,6 +79,17 @@ function describe(el: Element, style: CSSStyleDeclaration): string {
   return `${el.tagName.toLowerCase()}${cls ? "." + cls : ""}:${colors.join("/") || "-"}`;
 }
 
+function isTransparent(color: string | null | undefined): boolean {
+  return !color || color === "transparent" || /^rgba\([^)]*,\s*0(\.0+)?\)$/.test(color.replace(/\s+/g, " "));
+}
+
+/**
+ * The status inside one scope. Priority: an accessible label ("Online"/"غير متصل"), then a real
+ * dot - an empty element with a colored BACKGROUND (confirmed real page: an 8x8 box,
+ * rgb(244, 67, 54) for offline) - then a colored icon (the real page also tints a small alert
+ * icon light red next to an offline dish). A dot with a gray background is a real "unknown";
+ * white/gray icon strokes are just icons and never count.
+ */
 function statusInScope(scope: Element, seen?: string[]): StatusColorValue | null {
   const labeled = Array.from(scope.querySelectorAll("[aria-label], [title]"));
   for (const el of labeled) {
@@ -85,32 +98,32 @@ function statusInScope(scope: Element, seen?: string[]): StatusColorValue | null
     if (status) return status;
   }
 
-  // Broadening candidacy to class-styled leaves (above) means a scope can now hold several
-  // candidates - an icon, a spacer, the real dot - so every one is checked for an actual
-  // classifiable color before giving up, rather than committing to whichever happens to be
-  // first. Only once every candidate has been checked and NONE classified does this report the
-  // definitive "unknown" (a real gray/neutral dot) rather than "nothing found here" (undefined).
-  let sawCandidate = false;
+  let grayDot = false;
+  let iconStatus: StatusColorValue | null = null;
   for (const el of Array.from(scope.querySelectorAll("*"))) {
     const kind = dotCandidateKind(el);
     if (!kind) continue;
     const style = getComputedStyle(el);
-    if (seen && seen.length < 4 && kind === "styled") seen.push(describe(el, style));
-    const byBackground = statusFromComputedColor(style.backgroundColor);
-    if (byBackground !== "unknown") return byBackground;
-    const byColor = statusFromComputedColor(style.color);
-    if (byColor !== "unknown") return byColor;
-    const byFill = statusFromComputedColor(el.getAttribute("fill") || style.getPropertyValue("fill"));
-    if (byFill !== "unknown") return byFill;
-    if (kind === "styled") sawCandidate = true;
+    if (seen && seen.length < 4 && !isTransparent(style.backgroundColor)) seen.push(describe(el, style));
+    if (!isTransparent(style.backgroundColor)) {
+      const byBackground = statusFromComputedColor(style.backgroundColor);
+      if (byBackground !== "unknown") return byBackground;
+      grayDot = true;
+      continue;
+    }
+    if (!iconStatus) {
+      const byFill = statusFromComputedColor(el.getAttribute("fill") || style.getPropertyValue("fill"));
+      const byColor = statusFromComputedColor(style.color);
+      const icon = byFill !== "unknown" ? byFill : byColor;
+      if (icon !== "unknown") iconStatus = icon;
+    }
   }
   for (const el of [scope, ...Array.from(scope.querySelectorAll("*"))]) {
     const byPseudo = pseudoStatus(el);
     if (byPseudo) return byPseudo;
   }
-  if (sawCandidate) return "unknown";
-
-  return null;
+  if (iconStatus) return iconStatus;
+  return grayDot ? "unknown" : null;
 }
 
 /**
@@ -124,17 +137,20 @@ export interface DeviceStatusOptions {
   after?: Element;
   /** Receives one short note per label tried: its text, the result and what it looked at. */
   trace?: string[];
+  /** Every device row's label word (dish AND Wi-Fi): climbing stops before a scope that holds
+   * another row's label, so one device never borrows the other's dot. */
+  rowLabels?: string[];
 }
+
+/** How far up from a label to look for its dot - the real page nests it 4 levels up, in a
+ * sibling box of the name (li > button > [name box, dot box]). Leaving the row stops it sooner. */
+const MAX_HOPS = 6;
 
 export function extractDeviceStatus(doc: Document, labels: string[], options: DeviceStatusOptions = {}): StatusColorValue | undefined {
   const after = options.after;
-  const labelElements = findLabelElements(doc, labels).filter(
-    (el) => !after || (after.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
-  );
-  // Real, confirmed miss: the Devices page's first "STARLINK" is the collapsible section header
-  // (label + chevron icon, no dot) - its uncolored chevron read as a definitive "unknown" and
-  // stopped the search before the real device row's red/green dot was ever reached. A gray
-  // "unknown" is now only the answer when nothing anywhere had a real color.
+  const isAfter = (el: Element) => !after || (after.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+  const labelElements = findLabelElements(doc, labels).filter(isAfter);
+  const rowLabelElements = findLabelElements(doc, options.rowLabels ?? labels).filter(isAfter);
   let sawUnknown = false;
 
   for (const labelEl of labelElements) {
@@ -142,20 +158,22 @@ export function extractDeviceStatus(doc: Document, labels: string[], options: De
     if (ownStatus) return ownStatus;
 
     let scope: Element | null = labelEl.parentElement;
-    for (let hop = 0; hop < 3 && scope; hop++) {
+    for (let hop = 0; hop < MAX_HOPS && scope; hop++) {
+      const current: Element = scope;
+      // Left this device's row: the scope now holds another row's label.
+      if (rowLabelElements.some((other) => other !== labelEl && !other.contains(labelEl) && current.contains(other))) break;
       const seen: string[] = [];
-      const status = statusInScope(scope, options.trace ? seen : undefined);
-      if (options.trace && options.trace.length < 8) {
+      const status = statusInScope(current, options.trace ? seen : undefined);
+      if (options.trace && options.trace.length < 10 && (status || seen.length)) {
         options.trace.push(`${directText(labelEl).slice(0, 16)}#${hop}=${status ?? "-"}${seen.length ? `[${seen.join(",")}]` : ""}`);
       }
-      // A gray dot next to THIS label ends this label's search (climbing further could reach the
-      // other device's dot); the next label element still gets its own look.
+      // A gray dot next to THIS label is its real "unknown" - stop climbing for it.
       if (status === "unknown") {
         sawUnknown = true;
         break;
       }
       if (status) return status;
-      scope = scope.parentElement;
+      scope = current.parentElement;
     }
   }
 

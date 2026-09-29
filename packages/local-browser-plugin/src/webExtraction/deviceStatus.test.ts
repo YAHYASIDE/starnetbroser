@@ -121,18 +121,16 @@ describe("extractDeviceStatus", () => {
     expect(extractDeviceStatus(document, DISH_LABELS)).toBe("online");
   });
 
-  it("still finds it when the dot has no inline style at all and no aria-label/title", () => {
+  it("an empty element with no color at all is not evidence (icons/spacers on the real page)", () => {
     setBody(`
       <div class="row">
         <span>Wi-Fi</span>
         <span class="status-dot-green"></span>
       </div>
     `);
-    // jsdom never applies the CSS a real class would carry, so this dot's computed color is
-    // whatever jsdom defaults to (unclassifiable) - the real assertion here is that it's still
-    // recognized as a genuine dot *candidate* (not silently skipped for lacking inline style),
-    // so the definitive "unknown" comes back rather than "nothing found" (undefined).
-    expect(extractDeviceStatus(document, WIFI_LABELS)).toBe("unknown");
+    // Real page (snapshot): uncolored class-styled leaves are icon paths and spacers - only a
+    // colored background (a real dot) or a gray one (a real "unknown" dot) is an answer.
+    expect(extractDeviceStatus(document, WIFI_LABELS)).toBeUndefined();
   });
 
   it("keeps checking later candidates when an earlier one in the same scope doesn't classify", () => {

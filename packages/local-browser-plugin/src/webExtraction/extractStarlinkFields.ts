@@ -72,9 +72,10 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
   const devicesHeading = findDevicesHeading(doc);
   if (devicesHeading || !isOnAccountHomePage(lines)) {
     const trace: string[] = [];
-    const dishStatus = extractDeviceStatus(doc, DISH_LABELS, { after: devicesHeading, trace });
+    const rowLabels = [...DISH_LABELS, ...WIFI_LABELS];
+    const dishStatus = extractDeviceStatus(doc, DISH_LABELS, { after: devicesHeading, trace, rowLabels });
     if (dishStatus) fields.dishStatus = dishStatus;
-    const wifiStatus = extractDeviceStatus(doc, WIFI_LABELS, { after: devicesHeading, trace });
+    const wifiStatus = extractDeviceStatus(doc, WIFI_LABELS, { after: devicesHeading, trace, rowLabels });
     if (wifiStatus) fields.wifiStatus = wifiStatus;
     if (devicesHeading && trace.length > 0) fields.dotTrace = trace.join(" · ").slice(0, 700);
   }
