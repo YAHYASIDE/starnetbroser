@@ -7,7 +7,7 @@ const resolved: string[] = [];
 vi.mock("./telegram", () => ({ sendRepText: async (_rep: string, text: string) => { sent.push(text); return true; } }));
 vi.mock("@starnet/local-browser-plugin", () => ({ LocalBrowser: { telegramResolveEdit: async ({ id }: { id: string }) => { resolved.push(id); } } }));
 
-import { decideRepEdit, handleRepMenuRecord } from "./repMenuRecords";
+import { decideRepEdit, handleRepMenuRecord, repPaymentRequest } from "./repMenuRecords";
 import { loadRepRequests, pendingRepRequests } from "./repRequests";
 import { loadDemoAccounts, saveDemoAccounts } from "./demoAccountStore";
 import { loadClientStore, saveClientStore } from "./clientStore";
@@ -84,5 +84,26 @@ describe("rep menu records", () => {
 
   it("ordinary messages are left for the bot answers", async () => {
     expect(await handleRepMenuRecord({ bot: "reps", chatId: "9", name: "", username: "", text: "محمد", replied: false })).toBe(false);
+  });
+
+  it("💵 a payment entered step by step waits for approval on the customer's device", async () => {
+    const payment = (data: Record<string, unknown>) => ({
+      bot: "money" as const, chatId: "9", name: "", username: "", text: "", replied: true, kind: "repPayment" as const, data: JSON.stringify(data),
+    });
+    expect(await handleRepMenuRecord(payment({ repId: "r1", amount: 5000, currency: "SIFA", personal: false, accountId: "acc-1", target: "مقهى - محمد", label: "5,000 سيفا" }))).toBe(true);
+    const pending = pendingRepRequests(loadRepRequests());
+    expect(pending).toHaveLength(1);
+    expect(pending[0]).toMatchObject({ kind: "payment", repId: "r1", amount: 5000, currency: "SIFA", accountId: "acc-1", text: "💵 دفعة 5,000 سيفا عن مقهى - محمد" });
+    expect(sent).toEqual([]); // the bot told him already
+  });
+
+  it("💼 his own account becomes a handover request; broken records are dropped", () => {
+    expect(repPaymentRequest({ repId: "r1", amount: 50, currency: "USD", personal: true, label: "50 دولار" })).toEqual({
+      repId: "r1", kind: "handover", text: "💼 دفعة في حسابي الشخصي: 50 دولار", amount: 50, currency: "USD",
+    });
+    expect(repPaymentRequest({ repId: "r1", amount: 0, currency: "USD", personal: true })).toBeNull();
+    expect(repPaymentRequest({ repId: "r1", amount: 10, currency: "EUR", personal: true })).toBeNull();
+    expect(repPaymentRequest({ repId: "r1", amount: 10, currency: "MRU", personal: false, accountId: "" })).toBeNull();
+    expect(repPaymentRequest({ amount: 10, currency: "MRU", personal: true })).toBeNull();
   });
 });

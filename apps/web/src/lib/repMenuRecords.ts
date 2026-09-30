@@ -3,7 +3,8 @@
 /**
  * The app's side of the reps bot's device menu (TelegramReplyService leaves these in its inbox):
  * a ✏️ edit becomes a request on the representatives page (applied only once approved - here or
- * with ✅ in the owner's bot), a 📝 note is saved on the device straight away.
+ * with ✅ in the owner's bot), a 📝 note is saved on the device straight away, a 💵 payment waits
+ * for approval like one typed in full.
  */
 
 import type { StarlinkAccountSummary } from "@starnet/shared";
@@ -11,11 +12,13 @@ import { LocalBrowser, type TelegramInboxMessage } from "@starnet/local-browser-
 import { loadClientStore, saveClientStore, updateClient } from "./clientStore";
 import { loadDemoAccounts, saveDemoAccounts } from "./demoAccountStore";
 import { demoAccounts } from "./demoData";
+import { LEDGER_CURRENCIES, type LedgerCurrency } from "./ledgerStore";
 import { appendRepNote, editFieldName, isRepEditField, repEditPatch } from "./repDeviceMenu";
 import { addRepRequest, loadRepRequests, resolveRepRequest, saveRepRequests, type RepRequest } from "./repRequests";
 import { loadRepresentativeStore } from "./repStore";
 import { isDemoMode } from "./settingsStore";
 import { sendRepText } from "./telegram";
+import { formatMoneyShort } from "./telegramRepMessages";
 
 /** Fired after a device / customer changed outside the page showing them (HomeView and the
  * representatives page reload them). */
@@ -106,6 +109,23 @@ function recordRepEdit(data: Record<string, unknown>): void {
   );
 }
 
+/** 💵 A payment the rep entered step by step in the bot (amount -> currency -> whose -> ✅): a
+ * customer's device becomes a payment request, "في حسابي الشخصي" a handover to his own account -
+ * both wait for the operator's approval on the representatives page. */
+export function repPaymentRequest(data: Record<string, unknown>): Omit<RepRequest, "id" | "createdAt" | "status"> | null {
+  const amount = typeof data.amount === "number" ? data.amount : Number(data.amount);
+  const currency = str(data.currency);
+  const repId = str(data.repId);
+  if (!repId || !(amount > 0) || !LEDGER_CURRENCIES.includes(currency as LedgerCurrency)) return null;
+  const label = str(data.label) || formatMoneyShort(amount, currency);
+  if (data.personal === true) {
+    return { repId, kind: "handover", text: `💼 دفعة في حسابي الشخصي: ${label}`, amount, currency: currency as LedgerCurrency };
+  }
+  const accountId = str(data.accountId);
+  if (!accountId) return null;
+  return { repId, kind: "payment", text: `💵 دفعة ${label} عن ${str(data.target) || "جهاز"}`, amount, currency: currency as LedgerCurrency, accountId };
+}
+
 /** One inbox record from the device menu. True when it was one (handled or not). */
 export async function handleRepMenuRecord(message: TelegramInboxMessage): Promise<boolean> {
   if (!message.kind) return false;
@@ -120,6 +140,11 @@ export async function handleRepMenuRecord(message: TelegramInboxMessage): Promis
     recordRepEdit(data);
     const request = loadRepRequests().find((r) => r.editId === str(data.id));
     if (request) await decideRepEdit(request, data.approve === true, "telegram");
+    return true;
+  }
+  if (message.kind === "repPayment") {
+    const request = repPaymentRequest(data);
+    if (request) saveRepRequests(addRepRequest(loadRepRequests(), request));
     return true;
   }
   if (message.kind === "repNote") {

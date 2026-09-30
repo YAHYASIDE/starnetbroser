@@ -222,7 +222,8 @@ final class TelegramStore {
 
     /** A rep chose device + plan and the bot now waits for his price: "accountId\nplan". */
     static void setPendingActivation(Context context, String chatId, String accountId, String plan) {
-        prefs(context).edit().putString(KEY_ACT_PENDING + chatId, accountId + "\n" + plan + "\n" + System.currentTimeMillis()).commit();
+        prefs(context).edit().putString(KEY_ACT_PENDING + chatId, accountId + "\n" + plan + "\n" + System.currentTimeMillis())
+            .remove(KEY_PAY_PENDING + chatId).commit(); // one question at a time
     }
 
     /** {accountId, plan}, or null when none (or older than 30 minutes). */
@@ -256,6 +257,36 @@ final class TelegramStore {
         prefs(context).edit().remove(KEY_ACT + id).commit();
     }
 
+    // ---- 💵 دفعة, step by step (TelegramReplyService) ----
+
+    private static final String KEY_PAY_PENDING = "paypend_";
+
+    /** Where a rep is in 💵 دفعة: stage ("amount" / "currency" / "who" / "confirm"), the amount,
+     * its currency and whose it is (a device id, "me", or ""). */
+    static void setPendingPayment(Context context, String chatId, String stage, String amount, String currency, String target) {
+        prefs(context).edit().putString(KEY_PAY_PENDING + chatId,
+            stage + "\n" + amount + "\n" + currency + "\n" + target + "\n" + System.currentTimeMillis())
+            .remove(KEY_ACT_PENDING + chatId).remove(KEY_FORM_PENDING + chatId).commit(); // one question at a time
+    }
+
+    /** {stage, amount, currency, target}, or null when none (or older than 30 minutes). */
+    static String[] pendingPayment(Context context, String chatId) {
+        String raw = prefs(context).getString(KEY_PAY_PENDING + chatId, null);
+        if (raw == null) return null;
+        String[] parts = raw.split("\n", -1);
+        if (parts.length < 5) return null;
+        try {
+            if (System.currentTimeMillis() - Long.parseLong(parts[4]) > PENDING_MS) return null;
+        } catch (NumberFormatException broken) {
+            return null;
+        }
+        return new String[] {parts[0], parts[1], parts[2], parts[3]};
+    }
+
+    static void clearPendingPayment(Context context, String chatId) {
+        prefs(context).edit().remove(KEY_PAY_PENDING + chatId).commit();
+    }
+
     // ---- ⚡ approved activations: the money bot shows each with the month's total ----
 
     private static final String KEY_ACT_TOTAL = "acttot_";
@@ -276,7 +307,8 @@ final class TelegramStore {
 
     /** The bot now waits for a rep's typed value: kind ("edit" / "note"), device, field. */
     static void setPendingForm(Context context, String chatId, String kind, String accountId, String field) {
-        prefs(context).edit().putString(KEY_FORM_PENDING + chatId, kind + "\n" + accountId + "\n" + field + "\n" + System.currentTimeMillis()).commit();
+        prefs(context).edit().putString(KEY_FORM_PENDING + chatId, kind + "\n" + accountId + "\n" + field + "\n" + System.currentTimeMillis())
+            .remove(KEY_PAY_PENDING + chatId).commit(); // one question at a time
     }
 
     /** {kind, accountId, field}, or null when none (or older than 30 minutes). */

@@ -788,6 +788,133 @@ final class TelegramReplies {
         return new Reply(received, true, notice, keyboard);
     }
 
+    // ---- 💵 دفعة, step by step: amount -> currency -> whose (a customer / his own account) -> ✅ ----
+
+    static final String PAY_ME = "me";
+    static final String PAY_AMOUNT_QUESTION = "💵 دفعة جديدة\n\nاكتب المبلغ الذي استلمته (أرقام فقط)، مثلاً 15000";
+    static final String PAY_AMOUNT_AGAIN = "اكتب المبلغ بالأرقام فقط، مثلاً 15000";
+    static final String PAY_EXPIRED = "انتهت المهلة - اضغط «💵 دفعة» من جديد";
+    static final String PAY_CANCELLED = "❌ أُلغيت الدفعة - لم يُرسل شيء.";
+
+    /** The currency written with the amount ("50 دولار"), or null when none is. */
+    static String explicitCurrency(String text) {
+        String folded = normalize(text);
+        if (folded.contains("دولار") || folded.contains("$") || folded.contains("usd")) return "USD";
+        if (folded.contains("سيفا") || folded.contains("sifa") || folded.contains("فرنك") || folded.contains("cfa")) return "SIFA";
+        if (folded.contains("اوقي") || folded.contains("mru") || folded.matches(".*\\bum\\b.*")) return "MRU";
+        return null;
+    }
+
+    /** "5000 سيفا محمد" -> "محمد": what's left once the amount and its currency are gone. */
+    static String payQuery(String text) {
+        String rest = normalize(text).replaceAll("[\\d.,٬]+", " ");
+        for (String word : new String[] {"دولار", "usd", "$", "سيفا", "sifa", "فرنك", "cfa", "اوقيه", "اوقيات", "اوقية", "mru", "um", "عن", "من", "ل"}) {
+            rest = (" " + rest + " ").replace(" " + word + " ", " ");
+        }
+        return rest.replace("$", " ").trim().replaceAll("\\s+", " ");
+    }
+
+    static String amountLabel(double amount) {
+        return new java.text.DecimalFormat("#,##0.##", java.text.DecimalFormatSymbols.getInstance(Locale.ROOT)).format(amount);
+    }
+
+    static String currencyQuestion(double amount) {
+        return "💵 المبلغ: " + amountLabel(amount) + "\n\nاختر العملة:";
+    }
+
+    static String currencyMarkup() {
+        return "{\"inline_keyboard\":[[" + cb("أوقية", "payc:MRU") + "," + cb("سيفا", "payc:SIFA") + "," + cb("دولار", "payc:USD") + "],["
+            + cb("❌ إلغاء", "payx") + "]]}";
+    }
+
+    static boolean isPayCurrency(String code) {
+        return "MRU".equals(code) || "SIFA".equals(code) || "USD".equals(code);
+    }
+
+    /** "• device - customer (phone)" without the dot. */
+    static String payTargetLabel(SearchEntry e) {
+        String line = e.line.replaceFirst("^• ", "").trim();
+        return line.isEmpty() ? e.deviceName() : line;
+    }
+
+    /** "💰 عليه: 5,000 أوقية" from the device's card, or "". */
+    static String owedLine(SearchEntry e) {
+        for (String line : e.text.split("\n")) if (line.startsWith("💰 عليه:")) return line;
+        return "";
+    }
+
+    static boolean canPayFor(SearchEntry e) {
+        return !e.id.isEmpty() && fitsCallback("payt:" + e.id);
+    }
+
+    /** The customers offered as buttons before he types anything: those who owe first. */
+    static List<SearchEntry> payChoices(String repId, Snapshot s) {
+        List<SearchEntry> owing = new ArrayList<>();
+        List<SearchEntry> rest = new ArrayList<>();
+        List<SearchEntry> entries = s.repSearch.get(repId);
+        if (entries != null) for (SearchEntry e : entries) if (canPayFor(e)) (owedLine(e).isEmpty() ? rest : owing).add(e);
+        owing.addAll(rest);
+        return owing;
+    }
+
+    static final int PAY_BUTTONS = 8;
+
+    static String whoQuestion(Price price, int total, boolean searched, String query) {
+        StringBuilder text = new StringBuilder("💵 " + price.label() + "\n\n");
+        if (searched) {
+            text.append(total == 0 ? "🔎 لم أجد «" + quote(query) + "» بين زبائنك - اكتب اسماً آخر أو اختر من الأزرار:" : "🔎 نتائج «" + quote(query) + "» - اختر الزبون:");
+        } else {
+            text.append("عن من هذه الدفعة؟ اختر الزبون");
+            if (total > PAY_BUTTONS) text.append("، أو اكتب اسمه / هاتفه / KIT / إيميله لتظهر أزراره");
+            text.append(":");
+        }
+        return text.toString();
+    }
+
+    /** One button per customer (up to 8), then 💼 his own account and ❌. */
+    static String whoMarkup(List<SearchEntry> entries) {
+        StringBuilder rows = new StringBuilder();
+        int count = 0;
+        for (SearchEntry e : entries) {
+            if (count >= PAY_BUTTONS) break;
+            if (!canPayFor(e)) continue;
+            String label = "👤 " + payTargetLabel(e);
+            if (label.length() > 48) label = label.substring(0, 48);
+            rows.append('[').append(cb(label, "payt:" + e.id)).append("],");
+            count++;
+        }
+        rows.append('[').append(cb("💼 في حسابي الشخصي", "payt:" + PAY_ME)).append("],[").append(cb("❌ إلغاء", "payx")).append(']');
+        return "{\"inline_keyboard\":[" + rows + "]}";
+    }
+
+    /** Everything he entered, before it's sent. entry == null: his own account. */
+    static String payConfirmText(Price price, SearchEntry entry) {
+        StringBuilder text = new StringBuilder("📋 راجع الدفعة قبل إرسالها:\n\n💵 المبلغ: ").append(price.label());
+        if (entry == null) {
+            text.append("\n💼 في: حسابي الشخصي (تُحسب مما عليّ للمسؤول)");
+        } else {
+            text.append("\n👤 عن: ").append(payTargetLabel(entry));
+            String owed = owedLine(entry);
+            if (!owed.isEmpty()) text.append("\n").append(owed).append(" (قبل هذه الدفعة)");
+        }
+        return text.append("\n\nهل المعلومات صحيحة؟").toString();
+    }
+
+    static String payConfirmMarkup() {
+        return "{\"inline_keyboard\":[[" + cb("✅ موافق - أرسلها", "payok") + "],[" + cb("✏️ غيّر الزبون", "payw") + "," + cb("❌ إلغاء", "payx") + "]]}";
+    }
+
+    static String paySent(Price price, SearchEntry entry) {
+        return "✅ أُرسلت الدفعة إلى المسؤول - تُسجَّل بعد موافقته، وسيصلك تأكيد هنا.\n\n💵 " + price.label()
+            + (entry == null ? "\n💼 في حسابي الشخصي" : "\n👤 عن: " + payTargetLabel(entry));
+    }
+
+    static String payToOwner(String repName, Price price, SearchEntry entry) {
+        return "💵 دفعة من المندوب " + repName + ": " + price.label()
+            + (entry == null ? "\n💼 في حسابه الشخصي" : "\n👤 عن: " + payTargetLabel(entry))
+            + "\nوافق عليها من صفحة المندوبين في التطبيق.";
+    }
+
     // ---- 💰 the money bot (mirrors repBots.ts) ----
 
     static final String[] MONEY_KINDS = {"payment", "promise", "mypromises", "debts", "statement", "handover"};

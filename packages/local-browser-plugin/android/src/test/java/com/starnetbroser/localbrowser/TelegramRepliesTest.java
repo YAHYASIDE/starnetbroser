@@ -473,4 +473,75 @@ public class TelegramRepliesTest {
         assertEquals("20,000 أوقية + 50 دولار", TelegramText.tallyLabel(third[0]));
         assertTrue(TelegramReplies.approvedActivation("ROM لـ مقهى بسعر 15,000 أوقية", "20,000 أوقية", "2").contains("مجموع تفعيلاتك الموافق عليها هذا الشهر (2): 20,000 أوقية"));
     }
+
+    // ---- 💵 دفعة step by step ----
+
+    @Test
+    public void paymentAmountAndCurrencyParsing() {
+        assertNull(TelegramReplies.explicitCurrency("15000"));
+        assertEquals("SIFA", TelegramReplies.explicitCurrency("5000 سيفا"));
+        assertEquals("USD", TelegramReplies.explicitCurrency("50 دولار"));
+        assertEquals("MRU", TelegramReplies.explicitCurrency("٢٠٠٠ أوقية"));
+        assertEquals("محمد", TelegramReplies.payQuery("5,000 سيفا عن محمد"));
+        assertEquals("", TelegramReplies.payQuery("15000"));
+        assertEquals(15000, TelegramReplies.parsePrice("15,000").amount, 0.001);
+        assertEquals("💵 المبلغ: 15,000\n\nاختر العملة:", TelegramReplies.currencyQuestion(15000));
+        String currencies = TelegramReplies.currencyMarkup();
+        assertTrue(currencies.contains("\"callback_data\":\"payc:MRU\""));
+        assertTrue(currencies.contains("\"callback_data\":\"payc:SIFA\""));
+        assertTrue(currencies.contains("\"callback_data\":\"payc:USD\""));
+        assertTrue(currencies.contains("\"callback_data\":\"payx\""));
+        assertTrue(TelegramReplies.isPayCurrency("SIFA"));
+        assertFalse(TelegramReplies.isPayCurrency("EUR"));
+    }
+
+    @Test
+    public void paymentCustomersOweFirstThenHisOwnAccount() {
+        TelegramReplies.Snapshot s = menuSnapshot();
+        TelegramReplies.SearchEntry owing = TelegramReplies.findEntry("r1", "acc-2", s);
+        TelegramReplies.SearchEntry withDebt = new TelegramReplies.SearchEntry(owing.keys, owing.text + "\n💰 عليه: 3,000 أوقية", null, null, owing.date,
+            "• منزل - سالم", null, "acc-2");
+        s.repSearch.get("r1").set(1, withDebt);
+        java.util.List<TelegramReplies.SearchEntry> choices = TelegramReplies.payChoices("r1", s);
+        assertEquals("acc-2", choices.get(0).id);
+        assertEquals("acc-1", choices.get(1).id);
+        String markup = TelegramReplies.whoMarkup(choices);
+        assertTrue(markup.indexOf("payt:acc-2") < markup.indexOf("payt:acc-1"));
+        assertTrue(markup.contains("{\"text\":\"👤 منزل - سالم\",\"callback_data\":\"payt:acc-2\"}"));
+        assertTrue(markup.contains("{\"text\":\"💼 في حسابي الشخصي\",\"callback_data\":\"payt:me\"}"));
+        assertTrue(markup.endsWith("[{\"text\":\"❌ إلغاء\",\"callback_data\":\"payx\"}]]}"));
+        TelegramReplies.Price price = new TelegramReplies.Price(5000, "SIFA");
+        assertTrue(TelegramReplies.whoQuestion(price, 2, false, "").startsWith("💵 5,000 سيفا\n\nعن من هذه الدفعة؟"));
+        assertTrue(TelegramReplies.whoQuestion(price, 0, true, "زيد").contains("لم أجد «زيد»"));
+    }
+
+    @Test
+    public void paymentWhoButtonsStopAtEight() {
+        TelegramReplies.Snapshot s = snapshot();
+        java.util.List<TelegramReplies.SearchEntry> list = new java.util.ArrayList<>();
+        for (int i = 0; i < 12; i++) list.add(menuEntry("acc-" + i, "جهاز " + i, "جهاز"));
+        s.repSearch.put("r1", list);
+        String markup = TelegramReplies.whoMarkup(TelegramReplies.payChoices("r1", s));
+        assertTrue(markup.contains("payt:acc-7"));
+        assertFalse(markup.contains("payt:acc-8"));
+        assertTrue(TelegramReplies.whoQuestion(new TelegramReplies.Price(1, "MRU"), 12, false, "").contains("اكتب اسمه"));
+    }
+
+    @Test
+    public void paymentSummaryAndMessages() {
+        TelegramReplies.Snapshot s = menuSnapshot();
+        TelegramReplies.SearchEntry e = TelegramReplies.findEntry("r1", "acc-1", s);
+        TelegramReplies.Price price = new TelegramReplies.Price(15000, "MRU");
+        String confirm = TelegramReplies.payConfirmText(price, e);
+        assertTrue(confirm.contains("💵 المبلغ: 15,000 أوقية"));
+        assertTrue(confirm.contains("👤 عن: مقهى"));
+        assertTrue(TelegramReplies.payConfirmText(price, null).contains("💼 في: حسابي الشخصي"));
+        String buttons = TelegramReplies.payConfirmMarkup();
+        assertTrue(buttons.contains("\"callback_data\":\"payok\""));
+        assertTrue(buttons.contains("\"callback_data\":\"payw\""));
+        assertTrue(buttons.contains("\"callback_data\":\"payx\""));
+        assertTrue(TelegramReplies.paySent(price, e).startsWith("✅ أُرسلت الدفعة إلى المسؤول"));
+        assertEquals("💵 دفعة من المندوب علي: 50 دولار\n💼 في حسابه الشخصي\nوافق عليها من صفحة المندوبين في التطبيق.",
+            TelegramReplies.payToOwner("علي", new TelegramReplies.Price(50, "USD"), null));
+    }
 }
