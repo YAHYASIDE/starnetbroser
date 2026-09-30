@@ -761,6 +761,29 @@ public class LocalBrowserPlugin extends Plugin {
         });
     }
 
+    /** 📸 A payment photo a rep sent the reps or money bot, as a data: URL (jpeg / png). */
+    @PluginMethod
+    public void telegramDownloadImage(PluginCall call) {
+        String fileId = call.getString("fileId");
+        String bot = call.getString("bot", TelegramStore.REPS);
+        String token = TelegramStore.MONEY.equals(bot) ? TelegramStore.extraToken(getContext(), TelegramStore.MONEY) : TelegramStore.repsToken(getContext());
+        if (token == null || fileId == null || fileId.isEmpty()) {
+            call.reject("not configured");
+            return;
+        }
+        telegramExecutor.execute(() -> {
+            try {
+                byte[] bytes = TelegramClient.downloadBytes(token, fileId, 6_000_000);
+                boolean png = bytes.length > 3 && (bytes[0] & 0xff) == 0x89 && bytes[1] == 'P' && bytes[2] == 'N' && bytes[3] == 'G';
+                JSObject ret = new JSObject();
+                ret.put("dataUrl", "data:image/" + (png ? "png" : "jpeg") + ";base64," + android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP));
+                call.resolve(ret);
+            } catch (Exception e) {
+                call.reject("download failed: " + e.getClass().getSimpleName());
+            }
+        });
+    }
+
     /**
      * Queues a text message (sent once there's a network, even if the app closes). Reps bot: to
      * `chatId`, which must be a linked rep - or, with `reply: true`, a one-off answer right now to

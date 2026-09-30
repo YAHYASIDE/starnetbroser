@@ -8,7 +8,7 @@
  * Pure parsing + a small `starnet_` store.
  */
 
-import type { LedgerCurrency } from "./ledgerStore";
+import type { LedgerCurrency, PaymentMethod } from "./ledgerStore";
 
 export type RepRequestKind = "payment" | "client" | "device" | "edit" | "handover" | "loan";
 export type RepRequestStatus = "pending" | "approved" | "rejected";
@@ -28,6 +28,12 @@ export interface RepRequest {
   /** Words that name the device / customer, when not matched to exactly one device. */
   query?: string;
   accountId?: string;
+  /** How the customer paid (💵 دفعة step by step in the bot) - pre-selected on approval. */
+  paymentMethod?: PaymentMethod;
+  /** 📸 The payment photo he sent the bot (a Telegram file id, of `proofBot`) - shown here and
+   * saved as the payment's proof once approved. */
+  proofFileId?: string;
+  proofBot?: "reps" | "money";
   // client
   name?: string;
   phone?: string;

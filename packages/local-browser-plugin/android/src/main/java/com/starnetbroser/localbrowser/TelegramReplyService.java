@@ -291,6 +291,9 @@ public class TelegramReplyService extends Service {
         String username = chat.optString("username", "");
         boolean reps = TelegramStore.REPS.equals(bot);
         if (reps && handleDeviceFile(context, token, chatId, name, username, message.optJSONObject("document"))) return;
+        if (text.trim().isEmpty() && (reps || TelegramStore.MONEY.equals(bot))) {
+            if (handlePaymentPhoto(context, bot, token, chatId, photoFileId(message))) return;
+        }
         if (text.trim().isEmpty()) return;
         // 💰 / 🔔: always answered here, app open or not.
         if (TelegramStore.isExtraBot(bot)) {
@@ -427,8 +430,11 @@ public class TelegramReplyService extends Service {
                 send(context, bot, token, chatId, TelegramReplies.currencyQuestion(price.amount), TelegramReplies.currencyMarkup());
                 return true;
             }
-            price = new TelegramReplies.Price(price.amount, currency);
-            askWho(context, bot, token, chatId, 0, repId, snapshot, price, TelegramReplies.payQuery(text));
+            askMethod(context, bot, token, chatId, 0, new TelegramReplies.Price(price.amount, currency));
+            return true;
+        }
+        if ("method".equals(stage)) {
+            send(context, bot, token, chatId, TelegramReplies.methodQuestion(price), TelegramReplies.methodMarkup(price.currency));
             return true;
         }
         if ("who".equals(stage)) {
@@ -436,10 +442,69 @@ public class TelegramReplyService extends Service {
             askWho(context, bot, token, chatId, 0, repId, snapshot, price, text.trim(), mode, 0);
             return true;
         }
-        // "confirm": he typed instead of tapping - show the summary again.
         TelegramReplies.SearchEntry entry = TelegramReplies.PAY_ME.equals(pending[3]) ? null : TelegramReplies.findEntry(repId, pending[3], snapshot);
-        send(context, bot, token, chatId, TelegramReplies.payConfirmText(price, entry), TelegramReplies.payConfirmMarkup());
+        if ("photo".equals(stage)) {
+            send(context, bot, token, chatId, TelegramReplies.photoQuestion(price, entry, !pending[5].isEmpty()), TelegramReplies.photoMarkup(!pending[5].isEmpty()));
+            return true;
+        }
+        // "confirm": he typed instead of tapping - show the summary again.
+        sendPayConfirm(context, bot, token, chatId, 0, price, entry, pending);
         return true;
+    }
+
+    /** 📸 A photo sent while the bot waits for the payment's proof (or on the summary, to change
+     * it): kept by its Telegram file id - the app downloads it when the operator looks. */
+    private static boolean handlePaymentPhoto(Context context, String bot, String token, String chatId, String fileId) {
+        String repId = TelegramStore.repIdForChat(context, chatId);
+        String[] pending = TelegramStore.pendingPayment(context, chatId);
+        if (repId == null || pending == null || fileId == null || fileId.isEmpty()) return false;
+        if (!"photo".equals(pending[0]) && !"confirm".equals(pending[0])) return false;
+        TelegramReplies.Snapshot snapshot = loadSnapshot(context);
+        TelegramReplies.Price price = pendingPrice(pending);
+        if (snapshot == null || price == null) return false;
+        TelegramReplies.SearchEntry entry = TelegramReplies.PAY_ME.equals(pending[3]) ? null : TelegramReplies.findEntry(repId, pending[3], snapshot);
+        TelegramStore.setPendingPayment(context, chatId, "confirm", pending[1], pending[2], pending[3], pending[4], fileId);
+        sendPayConfirm(context, bot, token, chatId, 0, price, entry, TelegramStore.pendingPayment(context, chatId));
+        return true;
+    }
+
+    /** The biggest photo size Telegram offers (up to 5 MB), or an image sent as a file. */
+    private static String photoFileId(JSONObject message) {
+        JSONArray sizes = message.optJSONArray("photo");
+        String best = null;
+        for (int i = 0; sizes != null && i < sizes.length(); i++) {
+            JSONObject size = sizes.optJSONObject(i);
+            if (size != null && size.optLong("file_size", 0) <= 5_000_000L) best = size.optString("file_id", best);
+        }
+        if (best != null) return best;
+        JSONObject document = message.optJSONObject("document");
+        if (document != null && document.optString("mime_type", "").startsWith("image/")) return document.optString("file_id", null);
+        return null;
+    }
+
+    private static void sendPayConfirm(Context context, String bot, String token, String chatId, long messageId, TelegramReplies.Price price,
+                                       TelegramReplies.SearchEntry entry, String[] pending) {
+        String methodName = pending == null ? null : TelegramReplies.payMethodName(price.currency, pending[4]);
+        boolean hasPhoto = pending != null && !pending[5].isEmpty();
+        String text = TelegramReplies.payConfirmText(price, entry, methodName, hasPhoto);
+        if (messageId > 0) editOrSend(context, bot, token, chatId, messageId, text, TelegramReplies.payConfirmMarkup());
+        else send(context, bot, token, chatId, text, TelegramReplies.payConfirmMarkup());
+    }
+
+    /** 💳 كاش or the banking app - دولار has only كاش, so it goes straight to the customers. */
+    private static void askMethod(Context context, String bot, String token, String chatId, long messageId, TelegramReplies.Price price) {
+        if (TelegramReplies.bankApps(price.currency).length == 0) {
+            TelegramStore.setPendingPayment(context, chatId, "who", Double.toString(price.amount), price.currency, "", TelegramReplies.CASH, "");
+            TelegramReplies.Snapshot snapshot = loadSnapshot(context);
+            String repId = TelegramStore.repIdForChat(context, chatId);
+            if (snapshot != null && repId != null) askWho(context, bot, token, chatId, messageId, repId, snapshot, price, "");
+            return;
+        }
+        TelegramStore.setPendingPayment(context, chatId, "method", Double.toString(price.amount), price.currency, "", "", "");
+        String text = TelegramReplies.methodQuestion(price);
+        String markup = TelegramReplies.methodMarkup(price.currency);
+        if (messageId > 0) editOrSend(context, bot, token, chatId, messageId, text, markup);
+        else send(context, bot, token, chatId, text, markup);
     }
 
     /** "💵 دفعة" (maybe with "5000 سيفا محمد"), or the amount typed after it. */
@@ -447,17 +512,17 @@ public class TelegramReplyService extends Service {
         TelegramReplies.Price price = TelegramReplies.parsePrice(rest);
         if (price == null) {
             boolean retry = !rest.trim().isEmpty();
-            TelegramStore.setPendingPayment(context, chatId, "amount", "", "", "");
+            TelegramStore.setPendingPayment(context, chatId, "amount", "", "", "", "", "");
             send(context, bot, token, chatId, retry ? TelegramReplies.PAY_AMOUNT_AGAIN : TelegramReplies.PAY_AMOUNT_QUESTION, TelegramReplies.FORCE_REPLY);
             return;
         }
         String currency = TelegramReplies.explicitCurrency(rest);
         if (currency == null) {
-            TelegramStore.setPendingPayment(context, chatId, "currency", Double.toString(price.amount), "", "");
+            TelegramStore.setPendingPayment(context, chatId, "currency", Double.toString(price.amount), "", "", "", "");
             send(context, bot, token, chatId, TelegramReplies.currencyQuestion(price.amount), TelegramReplies.currencyMarkup());
             return;
         }
-        askWho(context, bot, token, chatId, 0, repId, snapshot, new TelegramReplies.Price(price.amount, currency), TelegramReplies.payQuery(rest));
+        askMethod(context, bot, token, chatId, 0, new TelegramReplies.Price(price.amount, currency));
     }
 
     /** The who step: the customers' names (a page of them), or what he searched for - mode "c"
@@ -498,10 +563,19 @@ public class TelegramReplyService extends Service {
         if (data.startsWith("payc:")) {
             String currency = data.substring(5);
             if (!TelegramReplies.isPayCurrency(currency)) return "اختيار غير صالح";
-            askWho(context, bot, token, chatId, messageId, repId, snapshot, new TelegramReplies.Price(price.amount, currency), "");
+            askMethod(context, bot, token, chatId, messageId, new TelegramReplies.Price(price.amount, currency));
             return null;
         }
         if (!TelegramReplies.isPayCurrency(price.currency)) return "اختر العملة أولاً";
+        if (data.startsWith("paym:")) {
+            String method = data.substring(5);
+            String methodName = TelegramReplies.payMethodName(price.currency, method);
+            if (methodName == null) return "اختيار غير صالح";
+            TelegramStore.setPendingPayment(context, chatId, "who", pending[1], price.currency, "", method, "");
+            askWho(context, bot, token, chatId, messageId, repId, snapshot, price, "");
+            return methodName;
+        }
+        if (TelegramReplies.payMethodName(price.currency, pending[4]) == null) return "اختر طريقة الدفع أولاً";
         if ("payw".equals(data)) {
             askWho(context, bot, token, chatId, messageId, repId, snapshot, price, "");
             return null;
@@ -535,8 +609,18 @@ public class TelegramReplyService extends Service {
             String target = data.substring(5);
             TelegramReplies.SearchEntry entry = TelegramReplies.PAY_ME.equals(target) ? null : TelegramReplies.findEntry(repId, target, snapshot);
             if (entry == null && !TelegramReplies.PAY_ME.equals(target)) return "هذا الجهاز ليس من أجهزتك";
+            TelegramStore.setPendingPayment(context, chatId, "photo", pending[1], price.currency, target);
+            boolean hasPhoto = !pending[5].isEmpty();
+            editOrSend(context, bot, token, chatId, messageId, TelegramReplies.photoQuestion(price, entry, hasPhoto), TelegramReplies.photoMarkup(hasPhoto));
+            return null;
+        }
+        if ("paynp".equals(data)) {
+            if (!"photo".equals(pending[0])) return "اختر الزبون أولاً";
+            String target = pending[3];
+            TelegramReplies.SearchEntry entry = TelegramReplies.PAY_ME.equals(target) ? null : TelegramReplies.findEntry(repId, target, snapshot);
+            if (entry == null && !TelegramReplies.PAY_ME.equals(target)) return "هذا الجهاز ليس من أجهزتك";
             TelegramStore.setPendingPayment(context, chatId, "confirm", pending[1], price.currency, target);
-            editOrSend(context, bot, token, chatId, messageId, TelegramReplies.payConfirmText(price, entry), TelegramReplies.payConfirmMarkup());
+            sendPayConfirm(context, bot, token, chatId, messageId, price, entry, TelegramStore.pendingPayment(context, chatId));
             return null;
         }
         if ("payok".equals(data)) {
@@ -553,14 +637,20 @@ public class TelegramReplyService extends Service {
             record.put("accountId", entry == null ? "" : entry.id);
             record.put("target", entry == null ? "" : TelegramReplies.payTargetLabel(entry));
             record.put("label", price.label());
+            record.put("method", pending[4]);
+            record.put("photo", pending[5]);
+            record.put("bot", bot);
             record.put("at", System.currentTimeMillis());
             addToInbox(context, bot, chatId, "", "", "", true, null, null, "repPayment", record.toString());
             Map<String, String> mine = snapshot.reps.get(repId);
             String repName = mine != null && mine.get("name") != null ? mine.get("name") : "";
+            String methodName = TelegramReplies.payMethodName(price.currency, pending[4]);
+            boolean hasPhoto = !pending[5].isEmpty();
             if (TelegramStore.isConfigured(context)) {
-                send(context, TelegramStore.OWNER, TelegramStore.token(context), TelegramStore.chatId(context), TelegramReplies.payToOwner(repName, price, entry), null);
+                send(context, TelegramStore.OWNER, TelegramStore.token(context), TelegramStore.chatId(context),
+                    TelegramReplies.payToOwner(repName, price, entry, methodName, hasPhoto), null);
             }
-            editOrSend(context, bot, token, chatId, messageId, TelegramReplies.paySent(price, entry), null);
+            editOrSend(context, bot, token, chatId, messageId, TelegramReplies.paySent(price, entry, methodName, hasPhoto), null);
             return "✅ أُرسلت";
         }
         return null;
@@ -630,11 +720,11 @@ public class TelegramReplyService extends Service {
     /** No amount yet -> ask for it; an amount -> the currency buttons. */
     private static void startLoan(Context context, String bot, String token, String chatId, TelegramReplies.Price price) {
         if (price == null) {
-            TelegramStore.setPendingPayment(context, chatId, "loan-amount", "", "", "");
+            TelegramStore.setPendingPayment(context, chatId, "loan-amount", "", "", "", "", "");
             send(context, bot, token, chatId, TelegramReplies.LOAN_AMOUNT_QUESTION, TelegramReplies.FORCE_REPLY);
             return;
         }
-        TelegramStore.setPendingPayment(context, chatId, "loan-currency", Double.toString(price.amount), "", "");
+        TelegramStore.setPendingPayment(context, chatId, "loan-currency", Double.toString(price.amount), "", "", "", "");
         send(context, bot, token, chatId, TelegramReplies.loanCurrencyQuestion(price.amount), TelegramReplies.loanCurrencyMarkup());
     }
 

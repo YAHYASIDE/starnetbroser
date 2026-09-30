@@ -117,4 +117,14 @@ describe("rep menu records", () => {
     expect(repLoanRequest({ repId: "r1", amount: 5, currency: "SIFA", app: "نيتا" })).toBeNull(); // no number
     expect(repLoanRequest({ repId: "r1", amount: 0, currency: "SIFA", app: "نيتا", number: "1" })).toBeNull();
   });
+
+  it("💳 the payment's method and 📸 photo come with it", () => {
+    expect(repPaymentRequest({ repId: "r1", amount: 5000, currency: "SIFA", accountId: "acc-1", target: "مقهى", label: "5,000 سيفا", method: "nita", photo: "FILE1", bot: "money" })).toMatchObject({
+      kind: "payment", paymentMethod: "nita", proofFileId: "FILE1", proofBot: "money", text: "💵 دفعة 5,000 سيفا (نيتا) عن مقهى",
+    });
+    const cash = repPaymentRequest({ repId: "r1", amount: 50, currency: "USD", personal: true, label: "50 دولار", method: "cash" });
+    expect(cash).toMatchObject({ kind: "handover", paymentMethod: "cash", text: "💼 دفعة في حسابي الشخصي: 50 دولار (نقدًا)" });
+    expect(cash).not.toHaveProperty("proofFileId");
+    expect(repPaymentRequest({ repId: "r1", amount: 5, currency: "MRU", accountId: "acc-1", method: "paypal" })).not.toHaveProperty("paymentMethod");
+  });
 });

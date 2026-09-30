@@ -12,7 +12,7 @@ import { LocalBrowser, type TelegramInboxMessage } from "@starnet/local-browser-
 import { loadClientStore, saveClientStore, updateClient } from "./clientStore";
 import { loadDemoAccounts, saveDemoAccounts } from "./demoAccountStore";
 import { demoAccounts } from "./demoData";
-import { LEDGER_CURRENCIES, type LedgerCurrency } from "./ledgerStore";
+import { LEDGER_CURRENCIES, PAYMENT_METHOD_LABELS, PAYMENT_METHODS, type LedgerCurrency, type PaymentMethod } from "./ledgerStore";
 import { appendRepNote, editFieldName, isRepEditField, repEditPatch } from "./repDeviceMenu";
 import { addRepRequest, loadRepRequests, resolveRepRequest, saveRepRequests, type RepRequest } from "./repRequests";
 import { loadRepresentativeStore } from "./repStore";
@@ -118,12 +118,19 @@ export function repPaymentRequest(data: Record<string, unknown>): Omit<RepReques
   const repId = str(data.repId);
   if (!repId || !(amount > 0) || !LEDGER_CURRENCIES.includes(currency as LedgerCurrency)) return null;
   const label = str(data.label) || formatMoneyShort(amount, currency);
+  const method = PAYMENT_METHODS.includes(str(data.method) as PaymentMethod) ? (str(data.method) as PaymentMethod) : undefined;
+  const photo = str(data.photo);
+  const extra = {
+    ...(method ? { paymentMethod: method } : {}),
+    ...(photo ? { proofFileId: photo, proofBot: str(data.bot) === "money" ? ("money" as const) : ("reps" as const) } : {}),
+  };
+  const via = method ? ` (${PAYMENT_METHOD_LABELS[method]})` : "";
   if (data.personal === true) {
-    return { repId, kind: "handover", text: `💼 دفعة في حسابي الشخصي: ${label}`, amount, currency: currency as LedgerCurrency };
+    return { repId, kind: "handover", text: `💼 دفعة في حسابي الشخصي: ${label}${via}`, amount, currency: currency as LedgerCurrency, ...extra };
   }
   const accountId = str(data.accountId);
   if (!accountId) return null;
-  return { repId, kind: "payment", text: `💵 دفعة ${label} عن ${str(data.target) || "جهاز"}`, amount, currency: currency as LedgerCurrency, accountId };
+  return { repId, kind: "payment", text: `💵 دفعة ${label}${via} عن ${str(data.target) || "جهاز"}`, amount, currency: currency as LedgerCurrency, accountId, ...extra };
 }
 
 /** 🏦 A loan (سلفة) the rep asked for step by step in the money bot (amount -> currency ->

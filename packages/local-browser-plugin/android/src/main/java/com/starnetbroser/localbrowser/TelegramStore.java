@@ -261,15 +261,23 @@ final class TelegramStore {
 
     private static final String KEY_PAY_PENDING = "paypend_";
 
-    /** Where a rep is in 💵 دفعة: stage ("amount" / "currency" / "who" / "confirm"), the amount,
-     * its currency and whose it is (a device id, "me", or ""). */
-    static void setPendingPayment(Context context, String chatId, String stage, String amount, String currency, String target) {
+    /** Where a rep is in 💵 دفعة / 🏦 دين: stage, the amount, its currency, whose it is (a device
+     * id, "me", or ""), how it was paid (cash / bankily...) and the payment photo's Telegram file id. */
+    static void setPendingPayment(Context context, String chatId, String stage, String amount, String currency, String target,
+                                  String method, String photo) {
         prefs(context).edit().putString(KEY_PAY_PENDING + chatId,
-            stage + "\n" + amount + "\n" + currency + "\n" + target + "\n" + System.currentTimeMillis())
+            stage + "\n" + amount + "\n" + currency + "\n" + target + "\n" + System.currentTimeMillis()
+                + "\n" + (method == null ? "" : method) + "\n" + (photo == null ? "" : photo))
             .remove(KEY_ACT_PENDING + chatId).remove(KEY_FORM_PENDING + chatId).commit(); // one question at a time
     }
 
-    /** {stage, amount, currency, target}, or null when none (or older than 30 minutes). */
+    /** The same, keeping the method and photo already chosen in this payment. */
+    static void setPendingPayment(Context context, String chatId, String stage, String amount, String currency, String target) {
+        String[] now = pendingPayment(context, chatId);
+        setPendingPayment(context, chatId, stage, amount, currency, target, now == null ? "" : now[4], now == null ? "" : now[5]);
+    }
+
+    /** {stage, amount, currency, target, method, photo}, or null when none (or older than 30 minutes). */
     static String[] pendingPayment(Context context, String chatId) {
         String raw = prefs(context).getString(KEY_PAY_PENDING + chatId, null);
         if (raw == null) return null;
@@ -280,7 +288,7 @@ final class TelegramStore {
         } catch (NumberFormatException broken) {
             return null;
         }
-        return new String[] {parts[0], parts[1], parts[2], parts[3]};
+        return new String[] {parts[0], parts[1], parts[2], parts[3], parts.length > 5 ? parts[5] : "", parts.length > 6 ? parts[6] : ""};
     }
 
     static void clearPendingPayment(Context context, String chatId) {

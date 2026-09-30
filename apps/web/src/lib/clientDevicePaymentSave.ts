@@ -6,7 +6,7 @@ import { loadCurrencyStore } from "./currencyStore";
 import { getAccountEntries, LedgerByAccount, LedgerCurrency, PaymentMethod, saveLedgerStore, withAccountEntries } from "./ledgerStore";
 import { getAccountAllocations, loadAllocationStore, saveAllocationStore, withAccountAllocations } from "./paymentAllocationStore";
 
-export type SaveClientDevicePaymentResult = { ok: true; ledgerStore: LedgerByAccount } | { ok: false; message: string };
+export type SaveClientDevicePaymentResult = { ok: true; ledgerStore: LedgerByAccount; entryId: string } | { ok: false; message: string };
 
 /** Saves a client's payment for one device (see clientDevicePayment.ts): the device's ledger, its
  * FIFO allocations, and - when the money came in as cash - the linked entry in الصندوق. */
@@ -34,5 +34,5 @@ export function saveClientDevicePayment(
     saveAllocationStore(withAccountAllocations(allocationStore, device.id, [...current, ...result.allocations]));
   }
   if (input.cashMoved) saveCashEntries(applyLedgerPaymentsToCash(loadCashEntries(), entries, nextEntries, device.name));
-  return { ok: true, ledgerStore: nextLedger };
+  return { ok: true, ledgerStore: nextLedger, entryId: result.entry.id };
 }

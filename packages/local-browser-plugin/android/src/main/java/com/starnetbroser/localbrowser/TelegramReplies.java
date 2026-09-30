@@ -1029,6 +1029,60 @@ final class TelegramReplies {
         return "{\"force_reply\":true,\"input_field_placeholder\":" + jsonString(placeholder) + "}";
     }
 
+    // How it was paid (💵 كاش or the currency's banking apps) and the payment photo.
+
+    static final String CASH = "cash";
+
+    /** 💵 كاش first, then the currency's banking apps (دولار: cash only). */
+    static String[][] payMethods(String currency) {
+        String[][] apps = bankApps(currency);
+        String[][] all = new String[apps.length + 1][];
+        all[0] = new String[] {CASH, "💵 كاش"};
+        System.arraycopy(apps, 0, all, 1, apps.length);
+        return all;
+    }
+
+    /** The method's name ("كاش", "بنكيلي"...), or null when it isn't one for that currency. */
+    static String payMethodName(String currency, String code) {
+        if (CASH.equals(code)) return "كاش";
+        for (String[] app : bankApps(currency)) if (app[0].equals(code)) return app[1];
+        return null;
+    }
+
+    static String methodQuestion(Price price) {
+        return payHeader(price) + "كيف دفع الزبون؟ اختر كاش أو التطبيق البنكي:";
+    }
+
+    static String methodMarkup(String currency) {
+        StringBuilder rows = new StringBuilder();
+        for (String[] m : payMethods(currency)) {
+            String label = CASH.equals(m[0]) ? m[1] : "📲 " + m[1];
+            rows.append('[').append(cb(label, "paym:" + m[0])).append("],");
+        }
+        return "{\"inline_keyboard\":[" + rows + "[" + cb("❌ إلغاء", "payx") + "]]}";
+    }
+
+    static String photoQuestion(Price price, SearchEntry entry, boolean hasPhoto) {
+        String who = entry == null ? "💼 في حسابي الشخصي" : "📡 " + payTargetLabel(entry);
+        return payHeader(price) + who + "\n\n" + (hasPhoto
+            ? "📸 صورة الدفع مرفقة ✅ - أرسل صورة أخرى لتغييرها، أو تابع."
+            : "📸 أرسل صورة إثبات الدفع (لقطة شاشة التحويل أو صورة الوصل)، أو تابع بدونها.");
+    }
+
+    static String photoMarkup(boolean hasPhoto) {
+        return "{\"inline_keyboard\":[[" + cb(hasPhoto ? "⏭️ متابعة" : "⏭️ متابعة بدون صورة", "paynp") + "],[" + cb("❌ إلغاء", "payx") + "]]}";
+    }
+
+    private static String methodLine(String methodName, boolean hasPhoto) {
+        return (methodName == null || methodName.isEmpty() ? "" : "\n💳 طريقة الدفع: " + methodName) + "\n📸 صورة الدفع: " + (hasPhoto ? "مرفقة ✅" : "بدون صورة");
+    }
+
+    static String payConfirmText(Price price, SearchEntry entry, String methodName, boolean hasPhoto) {
+        String base = payConfirmText(price, entry);
+        int cut = base.lastIndexOf("\n\nهل المعلومات صحيحة؟");
+        return base.substring(0, cut) + "\n" + methodLine(methodName, hasPhoto) + base.substring(cut);
+    }
+
     /** Everything he entered, before it's sent. entry == null: his own account. */
     static String payConfirmText(Price price, SearchEntry entry) {
         StringBuilder text = new StringBuilder("📋 راجع الدفعة قبل إرسالها:\n\n💵 المبلغ: ").append(price.label());
@@ -1060,11 +1114,22 @@ final class TelegramReplies {
     }
 
     static String paySent(Price price, SearchEntry entry) {
-        return "✅ أُرسلت الدفعة إلى المسؤول - تُسجَّل بعد موافقته، وسيصلك تأكيد هنا.\n\n💵 " + price.label() + payWhere(entry, false);
+        return paySent(price, entry, null, false);
+    }
+
+    static String paySent(Price price, SearchEntry entry, String methodName, boolean hasPhoto) {
+        return "✅ أُرسلت الدفعة إلى المسؤول - تُسجَّل بعد موافقته، وسيصلك تأكيد هنا.\n\n💵 " + price.label() + payWhere(entry, false)
+            + (methodName == null ? "" : methodLine(methodName, hasPhoto));
     }
 
     static String payToOwner(String repName, Price price, SearchEntry entry) {
-        return "💵 دفعة من المندوب " + repName + ": " + price.label() + payWhere(entry, true) + "\nوافق عليها من صفحة المندوبين في التطبيق.";
+        return payToOwner(repName, price, entry, null, false);
+    }
+
+    static String payToOwner(String repName, Price price, SearchEntry entry, String methodName, boolean hasPhoto) {
+        return "💵 دفعة من المندوب " + repName + ": " + price.label() + payWhere(entry, true)
+            + (methodName == null ? "" : methodLine(methodName, hasPhoto))
+            + "\nوافق عليها من صفحة المندوبين في التطبيق" + (hasPhoto ? " (الصورة تظهر هناك)." : ".");
     }
 
     // ---- 🏦 دين (سلفة), step by step: amount -> currency -> banking app -> recipient's number -> ✅ ----
@@ -1073,11 +1138,16 @@ final class TelegramReplies {
     static final String LOAN_CANCELLED = "❌ أُلغي طلب السلفة - لم يُرسل شيء.";
     static final String LOAN_EXPIRED = "انتهت المهلة - اضغط «🏦 دين (سلفة)» من جديد";
 
-    /** The banking apps per currency: {code, name}. أوقية: بنكيلي / سداد / مصرفي, سيفا: أورانج موني / نيتا. */
-    static String[][] loanApps(String currency) {
-        if ("MRU".equals(currency)) return new String[][] {{"bankily", "بنكيلي"}, {"sedad", "سداد"}, {"masrvi", "مصرفي"}};
+    /** The banking apps per currency: {code, name} - codes as PaymentMethod (ledgerStore.ts).
+     * أوقية: بنكيلي / مصرفي / سداد, سيفا: أورانج موني / نيتا. */
+    static String[][] bankApps(String currency) {
+        if ("MRU".equals(currency)) return new String[][] {{"bankily", "بنكيلي"}, {"masrvi", "مصرفي"}, {"sedad", "سداد"}};
         if ("SIFA".equals(currency)) return new String[][] {{"orange", "أورانج موني"}, {"nita", "نيتا"}};
         return new String[0][];
+    }
+
+    static String[][] loanApps(String currency) {
+        return bankApps(currency);
     }
 
     /** The app's name for its code in that currency, or null. */

@@ -7703,6 +7703,20 @@ button.today-tile {
   overflow-wrap: anywhere;
 }
 
+.rep-proof-photo {
+  display: block;
+  max-width: 100%;
+  max-height: 320px;
+  margin: 6px auto;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  object-fit: contain;
+}
+
+.rep-proof-button {
+  align-self: flex-start;
+}
+
 .rep-request-field {
   display: grid;
   gap: 4px;

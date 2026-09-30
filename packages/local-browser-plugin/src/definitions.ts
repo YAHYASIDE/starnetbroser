@@ -483,6 +483,8 @@ export interface LocalBrowserPlugin {
   telegramForgetRequest(options: { chatId: string }): Promise<void>;
   /** Downloads a file a rep sent the reps bot (his device file - encrypted JSON) as text. */
   telegramDownloadFile(options: { fileId: string }): Promise<{ text: string }>;
+  /** Downloads a 📸 payment photo a rep sent the reps or money bot, as a data: URL. */
+  telegramDownloadImage(options: { fileId: string; bot?: "reps" | "money" }): Promise<{ dataUrl: string }>;
 
   /**
    * Reads the raw login-session cookies for each given account's isolated profile - part of the

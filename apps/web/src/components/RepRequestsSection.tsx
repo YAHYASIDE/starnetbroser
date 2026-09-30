@@ -21,7 +21,8 @@ import {
 } from "@/lib/ledgerStore";
 import { loadRepRequests, pendingRepRequests, RepRequest, resolveRepRequest, saveRepRequests } from "@/lib/repRequests";
 import type { Representative } from "@/lib/repStore";
-import { notifyPaymentTelegram, sendRepText } from "@/lib/telegram";
+import { downloadRepImage, notifyPaymentTelegram, sendRepText } from "@/lib/telegram";
+import { putProof } from "@/lib/paymentProofStore";
 import { formatMoneyShort, matchRepDevices } from "@/lib/telegramRepMessages";
 import { editFieldName, isRepEditField } from "@/lib/repDeviceMenu";
 import { decideRepEdit } from "@/lib/repMenuRecords";
@@ -161,7 +162,8 @@ function PaymentRequestCard({
   const [deviceId, setDeviceId] = useState(suggested);
   const [amount, setAmount] = useState(String(request.amount ?? ""));
   const [currency, setCurrency] = useState<LedgerCurrency>(request.currency ?? "MRU");
-  const [method, setMethod] = useState<PaymentMethod>("cash");
+  const [method, setMethod] = useState<PaymentMethod>(request.paymentMethod ?? "cash");
+  const [proof, setProof] = useState<string | null>(null);
   const [cashMoved, setCashMoved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -177,6 +179,11 @@ function PaymentRequestCard({
       { amount: value, currencyCode: currency, date, note: `استلمها المندوب ${rep?.name ?? ""}`.trim(), paymentMethod: method, cashMoved },
     );
     if (!result.ok) return setError(result.message);
+    if (request.proofFileId) {
+      // 📸 The photo he sent the bot becomes the payment's proof, like one attached by hand.
+      const dataUrl = proof ?? (await downloadRepImage(request.proofFileId, request.proofBot));
+      if (dataUrl) await putProof(result.entryId, dataUrl);
+    }
     const balanceAfter = computeBalanceByCurrency(result.ledgerStore[device.id] ?? [])[currency] ?? 0;
     const clientName = device.clientId ? clientStore[device.clientId]?.name : undefined;
     // To the operator's own bot only - the rep gets his confirmation just below.
@@ -206,6 +213,7 @@ function PaymentRequestCard({
         <span>{timeLabel(request.createdAt)}</span>
       </div>
       <p className="rep-request-text">«{request.text}»</p>
+      {request.proofFileId && <RepProofPhoto fileId={request.proofFileId} bot={request.proofBot} onLoaded={setProof} />}
       <label className="rep-request-field">
         <span>الجهاز</span>
         <select value={deviceId} onChange={(e) => setDeviceId(e.target.value)}>
@@ -345,6 +353,27 @@ function EditRequestCard({ request, rep, onDone }: { request: RepRequest; rep?: 
   );
 }
 
+/** 📸 The payment photo a rep sent the bot - downloaded only when the operator asks to see it. */
+function RepProofPhoto({ fileId, bot, onLoaded }: { fileId: string; bot?: "reps" | "money"; onLoaded?: (dataUrl: string) => void }) {
+  const [dataUrl, setDataUrl] = useState<string | null>(null);
+  const [state, setState] = useState<"idle" | "loading" | "failed">("idle");
+
+  async function load() {
+    setState("loading");
+    const url = await downloadRepImage(fileId, bot);
+    if (!url) return setState("failed");
+    setDataUrl(url);
+    onLoaded?.(url);
+  }
+
+  if (dataUrl) return <img src={dataUrl} alt="صورة الدفع" className="rep-proof-photo" />;
+  return (
+    <button type="button" className="text-action rep-proof-button" onClick={() => void load()} disabled={state === "loading"}>
+      {state === "loading" ? "⏳ جارٍ تحميل الصورة…" : state === "failed" ? "⚠️ تعذّر التحميل - أعد المحاولة" : "📸 عرض صورة الدفع"}
+    </button>
+  );
+}
+
 /** 🏦 A loan (سلفة) the rep asked for in the money bot: the operator sends it through the banking
  * app to the number he gave, then records it here as an advance the rep owes. */
 function LoanRequestCard({ request, rep, onDone }: { request: RepRequest; rep?: Representative; onDone: (status: "approved" | "rejected") => void }) {
@@ -410,6 +439,7 @@ function HandoverRequestCard({ request, rep, onDone }: { request: RepRequest; re
   const [amount, setAmount] = useState(String(request.amount ?? ""));
   const [currency, setCurrency] = useState<LedgerCurrency>(request.currency ?? "MRU");
   const [error, setError] = useState<string | null>(null);
+  const proofPhoto = request.proofFileId ? <RepProofPhoto fileId={request.proofFileId} bot={request.proofBot} /> : null;
 
   async function approve() {
     const value = Number(amount);
@@ -433,6 +463,7 @@ function HandoverRequestCard({ request, rep, onDone }: { request: RepRequest; re
         <span>{timeLabel(request.createdAt)}</span>
       </div>
       <p className="rep-request-text">«{request.text}»</p>
+      {proofPhoto}
       <div className="rep-request-row">
         <input className="search-input" dir="ltr" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="المبلغ" />
         <select className="search-input" value={currency} onChange={(e) => setCurrency(e.target.value as LedgerCurrency)}>

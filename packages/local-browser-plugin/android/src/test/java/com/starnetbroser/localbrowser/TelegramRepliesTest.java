@@ -661,4 +661,45 @@ public class TelegramRepliesTest {
         assertTrue(TelegramReplies.loanToOwner("علي", price, "بنكيلي", "22123456").startsWith("🏦 طلب سلفة من المندوب علي: 20,000 أوقية\n📲 عبر: بنكيلي\n📱 إلى الرقم: 22123456"));
         assertTrue(TelegramReplies.isMoneyKind("loan"));
     }
+
+    // ---- 💵 دفعة: how it was paid + 📸 its photo ----
+
+    @Test
+    public void paymentMethodsFollowTheCurrency() {
+        String mru = TelegramReplies.methodMarkup("MRU");
+        assertTrue(mru.indexOf("paym:cash") < mru.indexOf("paym:bankily"));
+        assertTrue(mru.indexOf("paym:bankily") < mru.indexOf("paym:masrvi"));
+        assertTrue(mru.indexOf("paym:masrvi") < mru.indexOf("paym:sedad"));
+        assertTrue(mru.contains("{\"text\":\"💵 كاش\",\"callback_data\":\"paym:cash\"}"));
+        assertTrue(mru.contains("{\"text\":\"📲 بنكيلي\",\"callback_data\":\"paym:bankily\"}"));
+        assertFalse(mru.contains("orange"));
+        String sifa = TelegramReplies.methodMarkup("SIFA");
+        assertTrue(sifa.contains("paym:cash") && sifa.contains("paym:orange") && sifa.contains("paym:nita"));
+        assertFalse(sifa.contains("bankily"));
+        assertEquals(1, TelegramReplies.payMethods("USD").length); // دولار: كاش only
+        assertEquals("كاش", TelegramReplies.payMethodName("USD", "cash"));
+        assertEquals("نيتا", TelegramReplies.payMethodName("SIFA", "nita"));
+        assertNull(TelegramReplies.payMethodName("SIFA", "bankily"));
+        assertNull(TelegramReplies.payMethodName("MRU", ""));
+        // The loan's apps: the same banks, same order.
+        assertTrue(TelegramReplies.loanAppMarkup("MRU").indexOf("masrvi") < TelegramReplies.loanAppMarkup("MRU").indexOf("sedad"));
+    }
+
+    @Test
+    public void paymentPhotoStepAndSummary() {
+        TelegramReplies.Snapshot s = paySnapshot();
+        TelegramReplies.SearchEntry e = TelegramReplies.findEntry("r1", "d1", s);
+        TelegramReplies.Price price = new TelegramReplies.Price(5000, "SIFA");
+        assertTrue(TelegramReplies.photoQuestion(price, e, false).contains("📸 أرسل صورة إثبات الدفع"));
+        assertTrue(TelegramReplies.photoQuestion(price, null, true).contains("💼 في حسابي الشخصي"));
+        assertTrue(TelegramReplies.photoMarkup(false).contains("{\"text\":\"⏭️ متابعة بدون صورة\",\"callback_data\":\"paynp\"}"));
+        assertTrue(TelegramReplies.photoMarkup(true).contains("{\"text\":\"⏭️ متابعة\",\"callback_data\":\"paynp\"}"));
+        String confirm = TelegramReplies.payConfirmText(price, e, "أورانج موني", true);
+        assertTrue(confirm.contains("💳 طريقة الدفع: أورانج موني\n📸 صورة الدفع: مرفقة ✅"));
+        assertTrue(confirm.endsWith("\n\nهل المعلومات صحيحة؟"));
+        assertTrue(TelegramReplies.payConfirmText(price, e, "كاش", false).contains("📸 صورة الدفع: بدون صورة"));
+        assertTrue(TelegramReplies.payToOwner("علي", price, e, "نيتا", true).contains("💳 طريقة الدفع: نيتا"));
+        assertTrue(TelegramReplies.payToOwner("علي", price, e, "نيتا", true).endsWith("(الصورة تظهر هناك)."));
+        assertTrue(TelegramReplies.paySent(price, null, "كاش", false).contains("💳 طريقة الدفع: كاش"));
+    }
 }

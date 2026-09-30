@@ -105,6 +105,11 @@ final class TelegramClient {
     /** A file someone sent the bot (getFile, then the file itself), as UTF-8 text. Refuses files
      * over `maxBytes` - the rep's device file is a few KB. */
     static String downloadText(String token, String fileId, int maxBytes) throws IOException, TelegramError {
+        return new String(downloadBytes(token, fileId, maxBytes), StandardCharsets.UTF_8);
+    }
+
+    /** A file a user sent the bot (a device file, a payment photo), at most maxBytes. */
+    static byte[] downloadBytes(String token, String fileId, int maxBytes) throws IOException, TelegramError {
         Map<String, String> params = new LinkedHashMap<>();
         params.put("file_id", fileId);
         JSONObject file = call(token, "getFile", params).optJSONObject("result");
@@ -125,7 +130,7 @@ final class TelegramClient {
                     out.write(buffer, 0, read);
                     if (out.size() > maxBytes) throw new TelegramError(400, "file too big");
                 }
-                return new String(out.toByteArray(), StandardCharsets.UTF_8);
+                return out.toByteArray();
             }
         } finally {
             connection.disconnect();

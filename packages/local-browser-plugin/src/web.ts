@@ -154,6 +154,10 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
     throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
   }
 
+  async telegramDownloadImage(_options: { fileId: string; bot?: "reps" | "money" }): Promise<{ dataUrl: string }> {
+    throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
+  }
+
   async syncNow(_options?: SyncNowOptions): Promise<void> {
     throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
   }

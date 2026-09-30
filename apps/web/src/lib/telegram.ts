@@ -431,6 +431,16 @@ export async function downloadRepFile(fileId: string): Promise<string | null> {
   }
 }
 
+/** 📸 A payment photo a rep sent the reps / money bot, as a data: URL (null when unavailable). */
+export async function downloadRepImage(fileId: string, bot: "reps" | "money" = "reps"): Promise<string | null> {
+  if (!isRunningInAndroidApp()) return null;
+  try {
+    return (await LocalBrowser.telegramDownloadImage({ fileId, bot })).dataUrl;
+  } catch {
+    return null;
+  }
+}
+
 export async function pollRepsBot(): Promise<TelegramPollMessage[]> {
   if (!isRepsBotConnected()) return [];
   const offset = Number(safeGet(REPS_OFFSET_KEY)) || 0;
