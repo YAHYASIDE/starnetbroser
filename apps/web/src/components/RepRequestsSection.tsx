@@ -6,7 +6,7 @@ import type { StarlinkAccountSummary } from "@starnet/shared";
 import { saveClientDevicePayment } from "@/lib/clientDevicePaymentSave";
 import { duplicateQuestion, findClientDuplicates } from "@/lib/duplicates";
 import { DuplicateWarning } from "./DuplicateWarning";
-import { ClientStore, createClient, listClients, loadClientStore, saveClientStore } from "@/lib/clientStore";
+import { Client, ClientStore, createClient, listClients, loadClientStore, saveClientStore } from "@/lib/clientStore";
 import { buildNewDeviceHref } from "@/lib/deviceFromSale";
 import { localDay } from "@/lib/eveningSummary";
 import {
@@ -408,15 +408,40 @@ function DeviceRequestCard({
   const [phone, setPhone] = useState(request.phone ?? "");
   const [deviceName, setDeviceName] = useState(request.deviceName ?? "");
   const [error, setError] = useState<string | null>(null);
-  const existing = useMemo(
-    () => (digits(phone).length >= 8 ? listClients(clientStore).find((c) => digits(c.phone).endsWith(digits(phone).slice(-8))) : undefined),
-    [clientStore, phone],
+  // The operator picked an existing client from the name suggestions - the device links to him
+  // instead of creating a new client. Cleared the moment the name is edited by hand again.
+  const [pickedClientId, setPickedClientId] = useState<string | undefined>(undefined);
+  const [nameFocused, setNameFocused] = useState(false);
+  const clients = useMemo(() => listClients(clientStore), [clientStore]);
+  // Auto-match by phone (last 8 digits) stays as a fallback: a rep who sent a known number lands
+  // the device on that client even without picking from the list.
+  const phoneMatch = useMemo(
+    () => (digits(phone).length >= 8 ? clients.find((c) => digits(c.phone).endsWith(digits(phone).slice(-8))) : undefined),
+    [clients, phone],
   );
+  // Existing clients shown in the «اسم الزبون» field itself, by name (or phone), so the device can
+  // be added to one of them. Empty query lists everyone; capped so the dropdown never overflows.
+  const nameMatches = useMemo(() => {
+    const q = name.trim().toLowerCase();
+    const list = q
+      ? clients.filter((c) => c.name.toLowerCase().includes(q) || (digits(name).length >= 3 && digits(c.phone).includes(digits(name))))
+      : clients;
+    return list.slice(0, 8);
+  }, [clients, name]);
+  const linkedClient = pickedClientId ? clientStore[pickedClientId] : phoneMatch;
+
+  function pickClient(c: Client) {
+    setPickedClientId(c.id);
+    setName(c.name);
+    if (c.phone) setPhone(c.phone);
+    setNameFocused(false);
+    setError(null);
+  }
 
   function approve() {
     if (request.codeMismatch) return setError("الملف لا يُفتح برمز هذا المندوب - أرسل له رمزه من «إدارة» واطلب إعادة الإرسال");
-    if (!name.trim() && !existing) return setError("اكتب اسم الزبون");
-    let clientId = existing?.id;
+    if (!name.trim() && !linkedClient) return setError("اكتب اسم الزبون");
+    let clientId = linkedClient?.id;
     if (!clientId) {
       const { store, client } = createClient(loadClientStore(), { name, phone: phone || undefined });
       saveClientStore(store);
@@ -467,9 +492,37 @@ function DeviceRequestCard({
       )}
       {!request.codeMismatch && (
         <>
-          <input className="search-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="اسم الزبون" />
+          <div className="client-picker">
+            <input
+              className="search-input"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                setPickedClientId(undefined);
+              }}
+              onFocus={() => setNameFocused(true)}
+              onBlur={() => window.setTimeout(() => setNameFocused(false), 150)}
+              placeholder="اسم الزبون"
+            />
+            {nameFocused && !pickedClientId && nameMatches.length > 0 && (
+              <div className="client-picker-list">
+                {nameMatches.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className="client-picker-option"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => pickClient(c)}
+                  >
+                    <span>{c.name}</span>
+                    {c.phone && <span className="client-picker-option-phone" dir="ltr">{c.phone}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <input className="search-input" dir="ltr" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="الهاتف" />
-          {existing && <p className="settings-hint">👤 زبون موجود: {existing.name} - سيُضاف الجهاز إليه</p>}
+          {linkedClient && <p className="settings-hint">👤 زبون موجود: {linkedClient.name} - سيُضاف الجهاز إليه</p>}
           <input className="search-input" value={deviceName} onChange={(e) => setDeviceName(e.target.value)} placeholder="اسم الجهاز" />
         </>
       )}
