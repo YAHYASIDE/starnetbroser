@@ -132,4 +132,26 @@ describe("ensureEnglishStep", () => {
     expect(seen).toEqual([]);
     document.documentElement.removeAttribute("lang");
   });
+
+  it("answers the save-language question with «لا» - the customer's profile is never changed", () => {
+    document.body.innerHTML = `${ARABIC_HOME}
+      <div><div>UNITED STATES</div><a id="us-en" href="#">English</a></div>
+      <div><div>CANADA</div><a id="ca-en" href="#">English</a></div>
+      <div role="dialog">
+        <h2>حفظ اللغة؟</h2>
+        <p>هل ترغب أيضًا في حفظ هذه اللغة في ملفك الشخصي لاستخدامها في رسائل البريد الإلكتروني والاتصالات الأخرى؟</p>
+        <button id="yes">نعم</button><button id="no">لا</button>
+      </div>`;
+    const seen = clicks("yes", "no", "us-en");
+    expect(ensureEnglishStep()).toBe("clicked");
+    expect(seen).toEqual(["no"]);
+  });
+
+  it("answers the English version of the question with No", () => {
+    document.body.innerHTML = `${ENGLISH_HOME}
+      <div role="dialog"><h2>Save language?</h2><button id="yes">Yes</button><button id="no">No</button></div>`;
+    const seen = clicks("yes", "no");
+    expect(ensureEnglishStep()).toBe("clicked");
+    expect(seen).toEqual(["no"]);
+  });
 });

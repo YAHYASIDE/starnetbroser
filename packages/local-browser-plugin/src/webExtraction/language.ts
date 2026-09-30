@@ -106,6 +106,25 @@ function findEnglishOption(): HTMLElement | null {
   return null;
 }
 
+const SAVE_LANGUAGE_PROMPT = /حفظ اللغة|save (this )?language/i;
+const NO_ANSWER = /^(لا|no|no thanks|not now|لا شكرا|لا شكرًا)$/i;
+
+/** The "لا"/"No" button of the save-language question, when that question is on screen. */
+function findSaveLanguageNo(): HTMLElement | null {
+  const prompt = Array.from(document.body.querySelectorAll("*")).find(
+    (el) => SAVE_LANGUAGE_PROMPT.test(directText(el)) && isShown(el),
+  );
+  let scope: Element | null = prompt?.parentElement ?? null;
+  for (let hop = 0; hop < 6 && scope; hop++) {
+    const no = Array.from(scope.querySelectorAll<HTMLElement>("button, a, [role='button']")).find(
+      (el) => NO_ANSWER.test((el.textContent ?? "").trim()) && isShown(el),
+    );
+    if (no) return no;
+    scope = scope.parentElement;
+  }
+  return null;
+}
+
 /** The region/language list is on screen: "English" offered more than once (every English-speaking
  * region has its own entry), or the "UNITED STATES" region heading itself is showing. */
 function languageListOpen(): boolean {
@@ -169,6 +188,10 @@ function findMenuButton(): HTMLElement | null {
 /** One step toward an English page (see the module doc). `menuOpened` = the ☰ was already tapped
  * in this run, so it is never tapped again (a second tap would just close it). */
 export function ensureEnglishStep(menuOpened = false): EnglishStep {
+  // Right after "English", Starlink asks "حفظ اللغة؟ - also save this language to your profile for
+  // emails and other communications?" (real, confirmed screenshot). Always "لا": only the page's
+  // display changes - the customer's own account settings are never touched by the app.
+  if (tap(findSaveLanguageNo())) return "clicked";
   // The region/language list open on screen comes first: it is itself a long wall of Latin text
   // ("UNITED STATES", "CANADA", "ARGENTINA"...), which made the letter count below read the still
   // Arabic page as English and stop right there, the list open and nothing tapped (real, confirmed
