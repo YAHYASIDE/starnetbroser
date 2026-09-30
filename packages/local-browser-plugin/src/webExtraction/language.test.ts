@@ -104,4 +104,32 @@ describe("ensureEnglishStep", () => {
     expect(ensureEnglishStep()).toBe("clicked");
     expect(seen).toEqual(["us-en"]);
   });
+
+  it("taps English even though the open list's Latin names outnumber the Arabic page (real, confirmed)", () => {
+    // The real list runs to every region Starlink serves - dozens of Latin names.
+    const regions = Array.from({ length: 40 }, (_, i) => `<div>DEMO REGION ${i}</div><a href="#">English</a>`).join("");
+    document.documentElement.setAttribute("lang", "ar");
+    document.body.innerHTML = `${ARABIC_HOME}
+      <div role="dialog">
+        <h2>North America</h2>
+        <div><div>UNITED STATES</div><a id="us-en" href="#">English</a></div>
+        <div><div>CANADA</div><a href="#">Français</a><a id="ca-en" href="#">English</a></div>
+        <h2>Latin America &amp; The Caribbean</h2>${regions}
+        <div>ARGENTINA</div><a href="#">Español</a><div>BRASIL</div><a href="#">Português</a>
+      </div>`;
+    const seen = clicks("us-en", "ca-en");
+    expect(ensureEnglishStep(true)).toBe("clicked");
+    expect(seen).toEqual(["us-en"]);
+    document.documentElement.removeAttribute("lang");
+  });
+
+  it("with the list open on a page already in English (lang=en), taps nothing", () => {
+    document.documentElement.setAttribute("lang", "en-US");
+    document.body.innerHTML = `${ENGLISH_HOME}
+      <div><div>UNITED STATES</div><a id="us-en" href="#">English</a></div>`;
+    const seen = clicks("us-en");
+    expect(ensureEnglishStep()).toBe("english");
+    expect(seen).toEqual([]);
+    document.documentElement.removeAttribute("lang");
+  });
 });

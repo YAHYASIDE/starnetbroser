@@ -106,6 +106,19 @@ function findEnglishOption(): HTMLElement | null {
   return null;
 }
 
+/** The region/language list is on screen: "English" offered more than once (every English-speaking
+ * region has its own entry), or the "UNITED STATES" region heading itself is showing. */
+function languageListOpen(): boolean {
+  let english = 0;
+  for (const el of Array.from(document.body.querySelectorAll("*"))) {
+    const text = directText(el);
+    if (!text || text.length > 30 || !isShown(el)) continue;
+    if (/^united states$|^الولايات المتحدة$/i.test(text)) return true;
+    if (/^english\b/i.test(text) && ++english >= 2) return true;
+  }
+  return false;
+}
+
 const LANGUAGE_LABEL = /language|locale|region|country|اللغة|لغة|المنطقة|البلد|الدولة/i;
 /** The picker's own face: a two-letter region code ("US", "SA", "MR"), optionally with a language. */
 const REGION_CODE = /^[A-Z]{2}(\s*[|/·-]\s*\S{2,12})?$/;
@@ -156,6 +169,15 @@ function findMenuButton(): HTMLElement | null {
 /** One step toward an English page (see the module doc). `menuOpened` = the ☰ was already tapped
  * in this run, so it is never tapped again (a second tap would just close it). */
 export function ensureEnglishStep(menuOpened = false): EnglishStep {
+  // The region/language list open on screen comes first: it is itself a long wall of Latin text
+  // ("UNITED STATES", "CANADA", "ARGENTINA"...), which made the letter count below read the still
+  // Arabic page as English and stop right there, the list open and nothing tapped (real, confirmed
+  // screenshot). Only the page's own lang="en..." means English is already chosen.
+  if (languageListOpen()) {
+    const lang = (document.documentElement.getAttribute("lang") ?? "").toLowerCase();
+    if (lang.startsWith("en")) return "english";
+    if (tap(findEnglishOption())) return "clicked";
+  }
   const english = isEnglishText(toVisibleText(document.body));
   if (english === undefined) return "loading";
   if (english) return "english";
