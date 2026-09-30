@@ -57,3 +57,22 @@ export function phoneShortcut(route: string, label: string): PhoneShortcut | nul
   const look = LOOKS.find(([prefix]) => route === prefix || route.startsWith(prefix)) ?? (route === "/" ? ["/", "🏠", "#2f80ff"] : ["", "★", "#2f80ff"]);
   return { id: shortcutId(route), label: shortcutLabel(label), route, emoji: look[1], color: look[2] };
 }
+
+/** Every page / tool that can be pinned, for the settings list (long-press works anywhere too). */
+export const PINNABLE_PAGES: { route: string; label: string }[] = [
+  { route: "/", label: "الرئيسية" },
+  { route: "/?action=add-account", label: "إضافة حساب" },
+  { route: "/?action=sync", label: "مزامنة الآن" },
+  { route: "/tools#pay", label: "دفعة سريعة" },
+  { route: "/tools#today", label: "خطة اليوم" },
+  { route: "/tools#promises", label: "وعود الدفع" },
+  { route: "/tools", label: "الأدوات" },
+  { route: "/reminders", label: "التذكيرات" },
+  { route: "/clients", label: "الزبائن" },
+  { route: "/representatives", label: "المندوبون" },
+  { route: "/reports", label: "التقارير" },
+  { route: "/store", label: "المتجر" },
+  { route: "/starlink", label: "ستارلينك والبطاقة" },
+  { route: "/currencies", label: "العملات" },
+  { route: "/settings", label: "الإعدادات" },
+];

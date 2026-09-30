@@ -7,7 +7,9 @@ import { HOME_ACTION_EVENT, parseHomeAction } from "@/lib/homeActions";
 import { isRunningInAndroidApp } from "@/lib/localBrowser";
 import { isShortcutRoute, phoneShortcut, type PhoneShortcut } from "@/lib/shortcuts";
 
-const HOLD_MS = 600;
+// Android's WebView turns a long press into a "context menu" around 500 ms (and cancels the
+// pointer) - so open a bit before that, and on that contextmenu event too.
+const HOLD_MS = 420;
 const MOVE_PX = 10;
 
 /** The route an element leads to: its data-shortcut-route, or its in-app link. */
@@ -58,26 +60,36 @@ export function PhoneShortcutLayer() {
     let timer: number | undefined;
     let start: { x: number; y: number } | null = null;
     let suppressClick = false;
+    let openedAt = 0;
     const cancel = () => {
       if (timer !== undefined) window.clearTimeout(timer);
       timer = undefined;
       start = null;
     };
-    const onDown = (e: PointerEvent) => {
-      const target = (e.target as Element | null)?.closest?.("[data-shortcut-route], a[href]");
-      if (!target || target.closest("[data-no-shortcut]")) return;
+    /** The shortcut an element offers, or null. */
+    const shortcutOf = (el: EventTarget | null): PhoneShortcut | null => {
+      const target = (el as Element | null)?.closest?.("[data-shortcut-route], a[href]");
+      if (!target || target.closest("[data-no-shortcut]")) return null;
       const route = routeOf(target);
-      if (!route) return;
+      if (!route) return null;
+      const label = target.getAttribute("data-shortcut-label") || target.getAttribute("aria-label") || target.textContent || "";
+      return phoneShortcut(route, label);
+    };
+    const open = (shortcut: PhoneShortcut) => {
+      openedAt = Date.now();
+      suppressClick = true;
+      window.setTimeout(() => (suppressClick = false), 1500);
+      setStatus(null);
+      setOffer(shortcut);
+      if (navigator.vibrate) navigator.vibrate(20);
+    };
+    const onDown = (e: PointerEvent) => {
+      const shortcut = shortcutOf(e.target);
+      if (!shortcut) return;
       start = { x: e.clientX, y: e.clientY };
       timer = window.setTimeout(() => {
         timer = undefined;
-        const label = target.getAttribute("data-shortcut-label") || target.getAttribute("aria-label") || target.textContent || "";
-        const shortcut = phoneShortcut(route, label);
-        if (!shortcut) return;
-        suppressClick = true;
-        setStatus(null);
-        setOffer(shortcut);
-        if (navigator.vibrate) navigator.vibrate(20);
+        open(shortcut);
       }, HOLD_MS);
     };
     const onMove = (e: PointerEvent) => {
@@ -90,7 +102,12 @@ export function PhoneShortcutLayer() {
       e.stopPropagation();
     };
     const onContextMenu = (e: MouseEvent) => {
-      if ((e.target as Element | null)?.closest?.("[data-shortcut-route], a[href]")) e.preventDefault();
+      const shortcut = shortcutOf(e.target);
+      if (!shortcut) return;
+      e.preventDefault();
+      // The phone's own long press (it may cancel the pointer first): open it if not already.
+      cancel();
+      if (Date.now() - openedAt > 1000) open(shortcut);
     };
     document.addEventListener("pointerdown", onDown, true);
     document.addEventListener("pointermove", onMove, true);

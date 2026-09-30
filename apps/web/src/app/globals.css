@@ -9876,6 +9876,8 @@ button.today-tile {
 a[href],
 [data-shortcut-route] {
   -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .shortcut-sheet-layer {
@@ -9910,4 +9912,36 @@ a[href],
   display: grid;
   place-items: center;
   font-size: 28px;
+}
+
+.phone-shortcut-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.phone-shortcut-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.phone-shortcut-emoji {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 17px;
+  flex-shrink: 0;
+}
+
+.phone-shortcut-label {
+  flex: 1;
+  min-width: 0;
 }
