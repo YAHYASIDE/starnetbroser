@@ -150,7 +150,14 @@ function MoreMenu({
                   {content}
                 </Link>
               ) : (
-                <button type="button" className="more-menu-item" role="menuitem" onClick={() => onAction?.(item.action)}>
+                <button
+                  type="button"
+                  className="more-menu-item"
+                  role="menuitem"
+                  onClick={() => onAction?.(item.action)}
+                  data-shortcut-route={homeActionHref(item.action)}
+                  data-shortcut-label={item.label}
+                >
                   {content}
                 </button>
               )}

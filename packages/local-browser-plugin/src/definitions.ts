@@ -392,6 +392,15 @@ export interface LocalBrowserPlugin {
     listenerFunc: (event: AccountDataSyncedEvent) => void,
   ): Promise<PluginListenerHandle>;
 
+  /** 📌 A home-screen shortcut opened the running app on this page (best effort - also call
+   * takeShortcutRoute on open / resume). */
+  addListener(eventName: "shortcutOpened", listenerFunc: (event: { route: string }) => void): Promise<PluginListenerHandle>;
+
+  /** 📌 Pins a page of the app ("/tools#pay") to the phone's home screen; the phone asks to confirm. */
+  pinShortcut(options: { id: string; label: string; route: string; emoji?: string; color?: string }): Promise<{ pinned: boolean; unsupported: boolean }>;
+  /** The page a 📌 shortcut opened the app on (once), or null. */
+  takeShortcutRoute(): Promise<{ route: string | null }>;
+
   removeAllListeners(): Promise<void>;
 
   /**

@@ -86,12 +86,67 @@ public class LocalBrowserPlugin extends Plugin {
 
     private final DriveAuthorizer driveAuthorizer = new DriveAuthorizer();
 
+    /** 📌 The page a home-screen shortcut asked for, until the app takes it. */
+    private static String pendingShortcutRoute;
+
     @Override
     public void load() {
         activeInstance = new WeakReference<>(this);
         driveAuthorizer.register(getActivity());
         TelegramReplyService.appVisible = true;
         TelegramReplyService.refresh(getContext());
+        rememberShortcutRoute(getActivity() != null ? getActivity().getIntent() : null);
+    }
+
+    /** Opened from a 📌 shortcut while the app was running: go there now. */
+    @Override
+    protected void handleOnNewIntent(Intent intent) {
+        super.handleOnNewIntent(intent);
+        String route = rememberShortcutRoute(intent);
+        if (route != null) {
+            JSObject data = new JSObject();
+            data.put("route", route);
+            notifyListeners("shortcutOpened", data);
+        }
+    }
+
+    private static String rememberShortcutRoute(Intent intent) {
+        if (intent == null) return null;
+        String route = intent.getStringExtra(PhoneShortcuts.EXTRA_ROUTE);
+        intent.removeExtra(PhoneShortcuts.EXTRA_ROUTE); // not again on a rotation / recreate
+        if (!PhoneShortcuts.isRoute(route)) return null;
+        pendingShortcutRoute = route;
+        return route;
+    }
+
+    /** 📌 Pins a page of the app to the phone's home screen (the launcher asks to confirm). */
+    @PluginMethod
+    public void pinShortcut(PluginCall call) {
+        String route = call.getString("route");
+        String id = call.getString("id");
+        JSObject ret = new JSObject();
+        if (id == null || !id.matches("[a-z0-9_-]{1,60}") || !PhoneShortcuts.isRoute(route)) {
+            call.reject("invalid shortcut");
+            return;
+        }
+        if (!PhoneShortcuts.supported(getContext())) {
+            ret.put("pinned", false);
+            ret.put("unsupported", true);
+            call.resolve(ret);
+            return;
+        }
+        ret.put("pinned", PhoneShortcuts.pin(getContext(), id, call.getString("label"), route, call.getString("emoji"), call.getString("color")));
+        ret.put("unsupported", false);
+        call.resolve(ret);
+    }
+
+    /** The page a 📌 shortcut opened the app on (once), or null. */
+    @PluginMethod
+    public void takeShortcutRoute(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("route", pendingShortcutRoute);
+        pendingShortcutRoute = null;
+        call.resolve(ret);
     }
 
     /** In front, the app answers Telegram itself with live data; behind, TelegramReplyService does. */

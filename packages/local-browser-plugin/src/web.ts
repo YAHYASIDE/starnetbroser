@@ -150,6 +150,14 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
     return;
   }
 
+  async pinShortcut(_options: { id: string; label: string; route: string; emoji?: string; color?: string }): Promise<{ pinned: boolean; unsupported: boolean }> {
+    return { pinned: false, unsupported: true };
+  }
+
+  async takeShortcutRoute(): Promise<{ route: string | null }> {
+    return { route: null };
+  }
+
   async telegramResolveActivation(_options: { id: string }): Promise<void> {
     throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
   }

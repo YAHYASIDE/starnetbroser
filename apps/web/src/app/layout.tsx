@@ -9,6 +9,7 @@ import { AppLockGate } from "@/components/AppLockGate";
 import { RepModeGate } from "@/components/RepModeGate";
 import { StorageFullBanner } from "@/components/StorageFullBanner";
 import { TelegramBridge } from "@/components/TelegramBridge";
+import { PhoneShortcutLayer } from "@/components/PhoneShortcutLayer";
 
 export const metadata: Metadata = {
   title: "STAR NET",
@@ -42,6 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </RepModeGate>
         </AppLockGate>
         <TelegramBridge />
+        <PhoneShortcutLayer />
         <StorageFullBanner />
       </body>
     </html>

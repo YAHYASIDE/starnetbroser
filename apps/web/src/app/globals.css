@@ -9870,3 +9870,44 @@ button.today-tile {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+
+/* 📌 Long-press a page / tool: pin it to the phone's home screen (PhoneShortcutLayer). */
+a[href],
+[data-shortcut-route] {
+  -webkit-touch-callout: none;
+}
+
+.shortcut-sheet-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.shortcut-sheet {
+  width: min(100%, 480px);
+  margin: 0 8px 12px;
+  padding: 18px 16px 12px;
+  border-radius: 18px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.shortcut-sheet-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 28px;
+}
