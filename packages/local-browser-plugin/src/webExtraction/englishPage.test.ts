@@ -2,7 +2,8 @@
 import { describe, expect, it } from "vitest";
 import { extractStarlinkFields } from "./extractStarlinkFields";
 import { clickFirstSubscriptionRow, expandDevicesSection } from "./navigation";
-import { extractBillingDueDay, extractSubscriptionInvoiceDueDay, normalizeDateLike } from "./textFields";
+import { extractBillingDueDay, extractSubscriptionInvoiceDueDay, extractSubscriptionNames, normalizeDateLike } from "./textFields";
+import { parseMoney } from "./money";
 
 // Sync switches Starlink to English (United States) first (language.ts) - these are the English
 // pages it then reads. Fake/dummy data only - none of it is a real Starlink account.
@@ -74,6 +75,31 @@ describe("English Home page - real, confirmed wording (fake name/number)", () =>
     expect(fields.renewalDate).toBe("2026/10/16");
     expect(fields.pendingCancellationDate).toBe("2026/10/16");
     expect(fields.serviceStatus).toBe("active");
+  });
+});
+
+describe("Balance in any billing currency", () => {
+  it("reads Samoa's WST balance off the English Home card (real, confirmed miss)", () => {
+    const fields = read(`
+      <h1>Home</h1>
+      <div>DEMO NAME • ACC-DF-0000000-00000-00</div>
+      <div><div>Balance Due</div><button>Pay</button><div>WST 275.88</div></div>
+    `);
+    expect(fields.balanceDue).toBe("275.88");
+    expect(fields.currency).toBe("WST");
+  });
+
+  it("never takes an ordinary word next to a number for a currency", () => {
+    expect(parseMoney("due 25")).toBeNull();
+    expect(parseMoney("275.88 XOF")).toEqual({ amount: "275.88", currency: "XOF" });
+  });
+});
+
+describe("English Subscriptions list", () => {
+  it("stops at the table's Rows per page / 1–1 of 1 footer", () => {
+    expect(extractSubscriptionNames(["Subscriptions", "Roam - Unlimited", "Rows per page:", "10", "1–1 of 1"])).toEqual([
+      "Roam - Unlimited",
+    ]);
   });
 });
 

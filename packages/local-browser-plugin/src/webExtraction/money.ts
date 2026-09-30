@@ -19,6 +19,11 @@ const MONEY_PATTERN = new RegExp(
   "i",
 );
 
+/** Any other ISO 4217 code in capitals ("WST 275.88" - Samoa, a real, confirmed miss: the list
+ * above can never name every country Starlink bills in). Case-sensitive, so an ordinary word next
+ * to a number ("due 25") is never taken for a currency. */
+const ISO_CODE_PATTERN = new RegExp(`(?:(?<![A-Z])([A-Z]{3})\\s*${AMOUNT_TOKEN})|(?:${AMOUNT_TOKEN}\\s*([A-Z]{3})(?![A-Za-z]))`);
+
 export interface ParsedMoney {
   /** Always two decimal places, e.g. "0.00" - 0 is a real, confirmed "no balance due", not absent. */
   amount: string;
@@ -32,7 +37,7 @@ export interface ParsedMoney {
  */
 export function parseMoney(text: string): ParsedMoney | null {
   const normalized = normalizeArabicSeparators(toWesternDigits(text));
-  const match = MONEY_PATTERN.exec(normalized);
+  const match = MONEY_PATTERN.exec(normalized) ?? ISO_CODE_PATTERN.exec(normalized);
   if (!match) return null;
 
   const [, currencyA, amountA, amountB, currencyB] = match;

@@ -671,7 +671,8 @@ const SUBSCRIPTION_LIST_CHROME = [
   "user", "roles", "users",
 ];
 /** A list pager like "1 - 2" / "١ - ٢" that closes the rows. */
-const LIST_PAGER_PATTERN = /^[\d٠-٩]+\s*[-–]\s*[\d٠-٩]+$/;
+const LIST_PAGER_PATTERN = /^[\d٠-٩]+\s*[-–]\s*[\d٠-٩]+(\s+(of|من)\s+[\d٠-٩]+)?$/i;
+const ROWS_PER_PAGE = /^(rows per page|عدد الصفوف)/i;
 
 /**
  * On the Subscriptions list page (real, confirmed screenshot: a "Subscriptions" heading, then one
@@ -684,7 +685,8 @@ export function extractSubscriptionNames(lines: string[]): string[] {
   const trimmed = lines.map((l) => l.trim());
   const headingAt = trimmed.findIndex((l) => SUBSCRIPTIONS_HEADING_WORDS.includes(l.toLowerCase()));
   if (headingAt < 0) return [];
-  const pagerAt = trimmed.findIndex((l, idx) => idx > headingAt && LIST_PAGER_PATTERN.test(l));
+  // The English table closes with "Rows per page: 10" then "1–3 of 3" - the rows end at the first.
+  const pagerAt = trimmed.findIndex((l, idx) => idx > headingAt && (LIST_PAGER_PATTERN.test(l) || ROWS_PER_PAGE.test(l)));
   if (pagerAt < 0) return [];
   const names: string[] = [];
   const seen = new Set<string>();
