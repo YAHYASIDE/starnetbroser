@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { clickBillingRailItem, clickFirstSubscriptionRow, clickIconRailItem, clickSettingsRailItem, countIconRailItems, expandDevicesSection, railShowsFullAccess } from "./navigation";
+import { clickBillingRailItem, clickFirstSubscriptionRow, clickIconRailItem, clickSettingsRailItem, clickSubscriptionsRailItem, countIconRailItems, expandDevicesSection, railShowsFullAccess } from "./navigation";
 
 // Fake/dummy fixtures only - none of this is real Starlink account data. jsdom never computes
 // real layout, so every test that relies on clickIconRailItem's geometry check stubs
@@ -205,5 +205,39 @@ describe("rail on the LEFT edge (the RTL/Arabic account portal), with a ☰ top 
     const clicked = twoSided();
     expect(clickSettingsRailItem()).toBe(true);
     expect(clicked).toEqual(["l-gear"]);
+  });
+});
+
+describe("rail navigation by aria-label (confirmed on the real portal: Home/Subscriptions/Billing/Settings)", () => {
+  // Real, confirmed structure from the operator's diagnostic snapshots: each rail icon is an
+  // <a role="link" aria-label="..."> with the English label, while the big Home-page cards carry
+  // the same words only as plain text. aria-label is the reliable target, whatever the layout.
+  it("opens Subscriptions / Billing / Settings by aria-label, never the same-named Home card", () => {
+    document.body.innerHTML = `
+      <ul>
+        <li><a role="link" aria-label="Home">home</a></li>
+        <li><a role="link" aria-label="Subscriptions">subs</a></li>
+        <li><a role="link" aria-label="Billing">bill</a></li>
+        <li><a role="link" aria-label="Settings">gear</a></li>
+      </ul>
+      <a class="card"><p>Subscriptions</p><p>Manage Starlink service</p></a>
+      <a class="card"><p>Settings</p></a>
+    `;
+    const clicks: string[] = [];
+    document.querySelectorAll("a").forEach((a) =>
+      a.addEventListener("click", () => clicks.push(a.getAttribute("aria-label") ?? `card:${a.textContent?.slice(0, 12)}`)),
+    );
+    expect(clickSubscriptionsRailItem()).toBe(true);
+    expect(clickBillingRailItem()).toBe(true);
+    expect(clickSettingsRailItem()).toBe(true);
+    expect(clicks).toEqual(["Subscriptions", "Billing", "Settings"]);
+  });
+
+  it("matches the Arabic aria-labels too", () => {
+    document.body.innerHTML = `<a role="link" aria-label="الإعدادات">اعدادات</a>`;
+    let clicked = false;
+    document.querySelector("a")!.addEventListener("click", () => (clicked = true));
+    expect(clickSettingsRailItem()).toBe(true);
+    expect(clicked).toBe(true);
   });
 });

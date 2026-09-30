@@ -459,7 +459,7 @@ public class AutoSyncWorker extends Worker {
         Handler handler = new Handler(Looper.getMainLooper());
         String clickSubs, clickRow, expandDevices, clickSettings;
         try {
-            clickSubs = StarlinkExtractorSupport.loadClickIconRailItemScript(context, ICON_RAIL_INDEX_SUBSCRIPTIONS);
+            clickSubs = StarlinkExtractorSupport.loadClickSubscriptionsRailItemScript(context);
             clickRow = StarlinkExtractorSupport.loadClickFirstSubscriptionRowScript(context);
             expandDevices = StarlinkExtractorSupport.loadExpandDevicesSectionScript(context);
             clickSettings = StarlinkExtractorSupport.loadClickSettingsRailItemScript(context);

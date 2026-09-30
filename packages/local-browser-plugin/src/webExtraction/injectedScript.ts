@@ -1,6 +1,6 @@
 import { extractStarlinkFields } from "./extractStarlinkFields";
 import { captureSnapshot } from "./snapshot";
-import { clickBillingRailItem, clickFirstSubscriptionRow, clickIconRailItem, clickSettingsRailItem, expandDevicesSection } from "./navigation";
+import { clickBillingRailItem, clickFirstSubscriptionRow, clickIconRailItem, clickSettingsRailItem, clickSubscriptionsRailItem, expandDevicesSection } from "./navigation";
 
 /**
  * The one script AccountBrowserActivity/AutoSyncWorker ever inject into an isolated WebView.
@@ -23,6 +23,7 @@ type StarnetGlobal = typeof globalThis & {
   __starnetExtract?: () => string;
   __starnetClickIconRailItem?: (index: number) => boolean;
   __starnetClickBillingRailItem?: () => boolean;
+  __starnetClickSubscriptionsRailItem?: () => boolean;
   __starnetClickFirstSubscriptionRow?: () => boolean;
   __starnetExpandDevicesSection?: () => boolean;
   __starnetClickSettingsRailItem?: () => boolean;
@@ -38,6 +39,7 @@ starnetGlobal.__starnetExtract = () => JSON.stringify(extractStarlinkFields(docu
 /** Stage 2 navigation - see navigation.ts's own doc for why these exist and what each one does. */
 starnetGlobal.__starnetClickIconRailItem = clickIconRailItem;
 starnetGlobal.__starnetClickBillingRailItem = clickBillingRailItem;
+starnetGlobal.__starnetClickSubscriptionsRailItem = clickSubscriptionsRailItem;
 starnetGlobal.__starnetClickFirstSubscriptionRow = clickFirstSubscriptionRow;
 starnetGlobal.__starnetExpandDevicesSection = expandDevicesSection;
 starnetGlobal.__starnetClickSettingsRailItem = clickSettingsRailItem;

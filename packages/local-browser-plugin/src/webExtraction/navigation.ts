@@ -113,9 +113,43 @@ export function railShowsFullAccess(count: number): boolean | undefined {
   return count >= FULL_ACCESS_MIN_RAIL_ITEMS;
 }
 
-/** Opens "الفوترة" (rail index 3) - only on a full-access rail. On a limited account that index is
- * "الإعدادات", which must never be read as billing. */
+/**
+ * The rail's own icons carry a stable, confirmed `aria-label` ("Home"/"Subscriptions"/"Billing"/
+ * "Settings", plus the Arabic equivalents) - a far more reliable target than geometry, which broke
+ * on the RTL layout (rail on the left, a ☰ menu on the right). Clicks the first labeled control
+ * that matches; the big Home-page cards carry the same words as plain TEXT, never an aria-label,
+ * so they're never hit by mistake. Returns false when no such labeled control exists (then the
+ * caller falls back to geometry).
+ */
+function clickRailItemByAriaLabel(labels: string[]): boolean {
+  const wanted = labels.map((l) => l.trim().toLowerCase());
+  const candidates = Array.from(
+    document.querySelectorAll<HTMLElement>("a[aria-label], button[aria-label], [role='link'][aria-label], [role='button'][aria-label]"),
+  );
+  for (const el of candidates) {
+    const label = (el.getAttribute("aria-label") ?? "").trim().toLowerCase();
+    if (wanted.includes(label) && !isDangerousControl(el)) {
+      el.click();
+      return true;
+    }
+  }
+  return false;
+}
+
+const SUBSCRIPTIONS_RAIL_LABELS = ["subscriptions", "الاشتراكات", "الاشتراك"];
+const BILLING_RAIL_LABELS = ["billing", "الفوترة", "فوترة"];
+const SETTINGS_RAIL_LABELS = ["settings", "الإعدادات", "الاعدادات"];
+
+/** Opens "الاشتراكات" - by the rail icon's own aria-label first, then geometry (index 1). */
+export function clickSubscriptionsRailItem(): boolean {
+  if (clickRailItemByAriaLabel(SUBSCRIPTIONS_RAIL_LABELS)) return true;
+  return clickIconRailItem(1);
+}
+
+/** Opens "الفوترة" - by the rail icon's own aria-label first. Falls back to geometry (index 3) only
+ * on a full-access rail; on a limited account that index is "الإعدادات", never billing. */
 export function clickBillingRailItem(): boolean {
+  if (clickRailItemByAriaLabel(BILLING_RAIL_LABELS)) return true;
   const items = findIconRailItems();
   if (railShowsFullAccess(items.length) !== true) return false;
   if (isDangerousControl(items[3]!)) return false;
@@ -138,6 +172,7 @@ export function clickIconRailItem(index: number): boolean {
  * icons: the gear is index 6) or a limited user (4 icons: the gear is index 3). The Settings page
  * carries the Users table (Admin role) the operator confirmed is how a "primary" email is known. */
 export function clickSettingsRailItem(): boolean {
+  if (clickRailItemByAriaLabel(SETTINGS_RAIL_LABELS)) return true;
   const items = findIconRailItems();
   const target = items[items.length - 1];
   if (!target || isDangerousControl(target)) return false;

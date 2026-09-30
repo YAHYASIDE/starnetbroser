@@ -56,6 +56,12 @@ final class StarlinkExtractorSupport {
         return loadBundle(context) + "\n__starnetClickSettingsRailItem();";
     }
 
+    /** Opens "الاشتراكات" - by the rail icon's own aria-label first (reliable on any layout),
+     * geometry as fallback. Boolean result. */
+    static String loadClickSubscriptionsRailItemScript(Context context) throws IOException {
+        return loadBundle(context) + "\n__starnetClickSubscriptionsRailItem();";
+    }
+
     /** Within one multi-page sync run, a page that read the service as stopped (e.g. the Home
      * page's "تم تعطيل خدمتك بسبب..." banner) is never overwritten by a later page of the same run
      * that only shows the plan's "نشط" badge. Returns whether the run has seen "stopped" so far. */
