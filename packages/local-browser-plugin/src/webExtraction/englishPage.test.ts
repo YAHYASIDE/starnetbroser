@@ -103,6 +103,24 @@ describe("English Subscriptions list", () => {
   });
 });
 
+describe("restricted for moving too fast (a residential plan on the move)", () => {
+  it("is never read as the out-of-country restriction", () => {
+    const fields = read(`
+      <h3>Devices</h3>
+      <div>Your Starlink's service is restricted because it is moving too fast. To resume service, use Starlink while stationary or purchase a Starlink Aviation product.</div>
+    `);
+    expect(fields.isRestricted).toBeUndefined();
+  });
+
+  it("on the Home page it even clears an earlier wrong \"restricted\"", () => {
+    const fields = read(`
+      <div>DEMO NAME • ACC-0000-0000-DEMO</div>
+      <div>Your Starlink's service is restricted because it is moving too fast.</div>
+    `);
+    expect(fields.isRestricted).toBe(false);
+  });
+});
+
 describe("English subscription page", () => {
   it("reads the Service Plan badge and the Ends date", () => {
     const fields = read(`

@@ -82,8 +82,14 @@ export function hasBillingSuspensionBanner(lines: string[]): boolean {
  * be simultaneously "active" (billing-wise) and region-restricted (usage-wise). */
 export const REGION_RESTRICTED_BANNER_LABELS = ["مقيدة لأن الجهاز", "service is restricted"];
 
+/** The reason that makes it the out-of-country restriction. Real, confirmed false alarm this
+ * guards against: "Your Starlink's service is restricted because it is moving too fast. To resume
+ * service, use Starlink while stationary..." - a residential plan used while moving, which works
+ * again as soon as it stops; never the home-country restriction the app alarms about. */
+const HOME_COUNTRY_WORDS = ["home country", "outside of its", "outside its", "خارج البلد", "البلد المسجل"];
+
 export function hasRegionRestrictedBanner(lines: string[]): boolean {
-  return lines.some((line) => containsAny(line, REGION_RESTRICTED_BANNER_LABELS));
+  return lines.some((line) => containsAny(line, REGION_RESTRICTED_BANNER_LABELS) && containsAny(line, HOME_COUNTRY_WORDS));
 }
 
 /** The subscriptions page of an email with no subscription at all ("لا توجد اشتراكات" under
