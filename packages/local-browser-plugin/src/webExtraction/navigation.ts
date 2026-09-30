@@ -76,15 +76,20 @@ function findIconRailItems(): HTMLElement[] {
   const candidates = Array.from(document.querySelectorAll<HTMLElement>("button, a, [role='button']"));
   const railWidth = 60; // generous upper bound for a single icon button, never a text row
   const edgeSlack = 40; // how close to the viewport's own edge counts as "the rail", not "nearby"
-  return candidates
+  const sized = candidates
     .map((el) => ({ el, rect: el.getBoundingClientRect() }))
-    .filter(({ rect }) => {
-      if (rect.width <= 0 || rect.height <= 0) return false;
-      if (rect.width > railWidth || rect.height > railWidth) return false;
-      return window.innerWidth - rect.right <= edgeSlack;
-    })
-    .sort((a, b) => a.rect.top - b.rect.top)
-    .map(({ el }) => el);
+    .filter(({ rect }) => rect.width > 0 && rect.height > 0 && rect.width <= railWidth && rect.height <= railWidth);
+  // The rail hugs ONE side edge - which side isn't fixed: the real account portal renders it on the
+  // LEFT in the RTL/Arabic layout (confirmed screenshot) and on the RIGHT in others. Pick whichever
+  // side actually holds the vertical stack of icons; the opposite side's top bar (the cart + the ☰
+  // menu) is only ever a couple of items, so the side with MORE icons is the true rail. Ties keep
+  // the right, the layout this module was first confirmed against. Reading the ☰ menu as "the rail"
+  // is exactly the real, confirmed miss this fixes: it opened the account menu (email only) instead
+  // of the subscription/billing/settings sections, so a whole sync read nothing about the device.
+  const nearLeft = sized.filter(({ rect }) => rect.left <= edgeSlack);
+  const nearRight = sized.filter(({ rect }) => window.innerWidth - rect.right <= edgeSlack);
+  const rail = nearLeft.length > nearRight.length ? nearLeft : nearRight;
+  return rail.sort((a, b) => a.rect.top - b.rect.top).map(({ el }) => el);
 }
 
 /** A full-access (owner) account's rail has 7 icons (home, subscriptions, briefcase, billing,

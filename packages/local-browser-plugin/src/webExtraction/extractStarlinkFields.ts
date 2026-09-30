@@ -35,7 +35,6 @@ import {
   normalizeDateLike,
   normalizeServiceStatus,
 } from "./textFields";
-import { countIconRailItems, railShowsFullAccess } from "./navigation";
 import { readOceanMode } from "./oceanMode";
 import { toLines, toVisibleText } from "./visibleText";
 
@@ -131,12 +130,11 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
   if (hasRegionRestrictedBanner(lines)) fields.isRestricted = true;
   else if (isOnAccountHomePage(lines) || serviceStatus === "standby" || serviceStatus === "canceled" || onStandbyPlan) fields.isRestricted = false;
 
-  // An email with limited permissions on someone else's account: its rail has no billing icon, so
-  // billing/balance can never be read from it. Judged on the Home page only (a known layout).
-  if (isOnAccountHomePage(lines)) {
-    const fullAccess = railShowsFullAccess(countIconRailItems());
-    if (fullAccess !== undefined) fields.limitedAccess = !fullAccess;
-  }
+  // "إيميل غير رئيسي" is decided on the Settings → Users table only (the operator's confirmed
+  // signal): the web merge sets limitedAccess from whether this account's own login email carries
+  // the Admin role there. The old Home-page icon-rail heuristic (no billing icon = limited) was a
+  // real, confirmed false positive - a primary/admin email whose billing simply hadn't rendered
+  // that moment got flagged - so it no longer drives the flag at all.
 
   if (planName) fields.planName = planName;
 

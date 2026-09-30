@@ -272,18 +272,16 @@ export function mergeSyncedFields(
     next.subscriptions = subscriptionNames;
   }
 
-  // Settings → Users: the operator's confirmed signal for "primary". When this account's OWN login
-  // email carries an Admin role there, it IS the primary email - so clear any "إيميل غير رئيسي"
-  // flag the icon-rail billing heuristic set (a real, confirmed false positive: an Admin email that
-  // simply didn't load billing that moment). Matching a different admin email (a genuine limited
-  // user on someone else's account) is correctly not a match, so a truly limited email stays flagged.
-  if (
-    fields.adminEmails &&
-    fields.adminEmails.length > 0 &&
-    loginEmailIsAdmin(fields.adminEmails, fields.accountEmail, next.starlinkAccountEmail, next.expectedEmail)
-  ) {
-    note("adminEmails", next.limitedAccess !== false);
-    next.limitedAccess = false;
+  // Settings → Users is the ONE signal for "إيميل غير رئيسي" (the operator's confirmed rule): the
+  // yellow warning shows only when this account's OWN login email is NOT an account Admin there.
+  // When the login email carries the Admin role it IS primary -> no warning; any other role (or not
+  // listed at all among the admins) -> a real limited/secondary email -> warning. The old Home-page
+  // icon-rail heuristic no longer sets this at all (it false-flagged admin emails whose billing
+  // hadn't rendered), so a page without the Users table leaves the flag untouched.
+  if (fields.adminEmails && fields.adminEmails.length > 0) {
+    const isAdmin = loginEmailIsAdmin(fields.adminEmails, fields.accountEmail, next.starlinkAccountEmail, next.expectedEmail);
+    note("adminEmails", next.limitedAccess !== !isAdmin);
+    next.limitedAccess = !isAdmin;
   }
 
   const scanned = Object.keys(fields).length > 0;

@@ -622,27 +622,9 @@ describe("extractStarlinkFields - real region-restriction banner (round 19 regre
 });
 
 describe("extractStarlinkFields - limited-access email (real, confirmed: 4-icon rail, suspended banner)", () => {
-  function setRect(el: Element, rect: Partial<DOMRect>) {
-    (el as HTMLElement).getBoundingClientRect = () =>
-      ({ x: 0, y: 0, width: 0, height: 0, top: 0, left: 0, right: 0, bottom: 0, toJSON() {}, ...rect }) as DOMRect;
-  }
-  function home(railIcons: number, extra = "") {
-    Object.defineProperty(window, "innerWidth", { value: 360, configurable: true });
-    document.body.innerHTML = `
-      ${extra}
-      <div>الصفحة الرئيسية</div>
-      <div>Test Holder • ACC-DF-00000000-00000-00</div>
-      ${Array.from({ length: railIcons }, (_, i) => `<button id="r${i}">•</button>`).join("")}
-    `;
-    for (let i = 0; i < railIcons; i++) setRect(document.getElementById(`r${i}`)!, { top: 100 + i * 50, right: 350, width: 30, height: 30 });
-    return extractStarlinkFields(document);
-  }
-
-  it("flags a 4-icon Home page as limited access, a 7-icon one as full", () => {
-    expect(home(4).limitedAccess).toBe(true);
-    expect(home(7).limitedAccess).toBe(false);
-    expect(home(0).limitedAccess).toBeUndefined();
-  });
+  // "إيميل غير رئيسي" is no longer decided by the icon-rail count here (a real, confirmed false
+  // positive on an admin email whose billing hadn't rendered). It's now set by the web merge from
+  // the Settings → Users Admin role - see starlinkSync.test.ts.
 
   it("the suspension banner wins over an 'نشط' badge on the same page", () => {
     const fields = extractFrom(`

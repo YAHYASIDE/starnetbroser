@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { clickBillingRailItem, clickFirstSubscriptionRow, clickIconRailItem, countIconRailItems, expandDevicesSection, railShowsFullAccess } from "./navigation";
+import { clickBillingRailItem, clickFirstSubscriptionRow, clickIconRailItem, clickSettingsRailItem, countIconRailItems, expandDevicesSection, railShowsFullAccess } from "./navigation";
 
 // Fake/dummy fixtures only - none of this is real Starlink account data. jsdom never computes
 // real layout, so every test that relies on clickIconRailItem's geometry check stubs
@@ -19,10 +19,10 @@ describe("clickIconRailItem", () => {
       <button id="briefcase">💼</button>
       <button id="receipt">📄</button>
     `;
-    setRect(document.getElementById("home")!, { top: 100, right: 350, width: 30, height: 30 });
-    setRect(document.getElementById("edit")!, { top: 150, right: 350, width: 30, height: 30 });
-    setRect(document.getElementById("briefcase")!, { top: 200, right: 350, width: 30, height: 30 });
-    setRect(document.getElementById("receipt")!, { top: 250, right: 350, width: 30, height: 30 });
+    setRect(document.getElementById("home")!, { top: 100, left: 320, right: 350, width: 30, height: 30 });
+    setRect(document.getElementById("edit")!, { top: 150, left: 320, right: 350, width: 30, height: 30 });
+    setRect(document.getElementById("briefcase")!, { top: 200, left: 320, right: 350, width: 30, height: 30 });
+    setRect(document.getElementById("receipt")!, { top: 250, left: 320, right: 350, width: 30, height: 30 });
 
     let clicked: string | null = null;
     for (const id of ["home", "edit", "briefcase", "receipt"]) {
@@ -42,9 +42,9 @@ describe("clickIconRailItem", () => {
       <button id="center-btn">حفظ</button>
       <button id="rail-icon">⚙️</button>
     `;
-    setRect(document.getElementById("wide-row")!, { top: 50, right: 350, width: 300, height: 40 });
-    setRect(document.getElementById("center-btn")!, { top: 80, right: 200, width: 30, height: 30 });
-    setRect(document.getElementById("rail-icon")!, { top: 100, right: 350, width: 30, height: 30 });
+    setRect(document.getElementById("wide-row")!, { top: 50, left: 50, right: 350, width: 300, height: 40 });
+    setRect(document.getElementById("center-btn")!, { top: 80, left: 170, right: 200, width: 30, height: 30 });
+    setRect(document.getElementById("rail-icon")!, { top: 100, left: 320, right: 350, width: 30, height: 30 });
 
     let clicked: string | null = null;
     document.getElementById("rail-icon")!.addEventListener("click", () => {
@@ -58,7 +58,7 @@ describe("clickIconRailItem", () => {
   it("returns false (never throws) when fewer rail-shaped elements exist than the requested index", () => {
     Object.defineProperty(window, "innerWidth", { value: 360, configurable: true });
     document.body.innerHTML = `<button id="only">🏠</button>`;
-    setRect(document.getElementById("only")!, { top: 100, right: 350, width: 30, height: 30 });
+    setRect(document.getElementById("only")!, { top: 100, left: 320, right: 350, width: 30, height: 30 });
     expect(clickIconRailItem(3)).toBe(false);
   });
 
@@ -145,7 +145,7 @@ describe("expandDevicesSection", () => {
 function rail(ids: string[]) {
   Object.defineProperty(window, "innerWidth", { value: 360, configurable: true });
   document.body.innerHTML = ids.map((id) => `<button id="${id}">•</button>`).join("");
-  ids.forEach((id, i) => setRect(document.getElementById(id)!, { top: 100 + i * 50, right: 350, width: 30, height: 30 }));
+  ids.forEach((id, i) => setRect(document.getElementById(id)!, { top: 100 + i * 50, left: 320, right: 350, width: 30, height: 30 }));
   const clicked: string[] = [];
   ids.forEach((id) => document.getElementById(id)!.addEventListener("click", () => clicked.push(id)));
   return clicked;
@@ -170,5 +170,40 @@ describe("limited-access rail (an email that isn't the account's owner)", () => 
     expect(railShowsFullAccess(7)).toBe(true);
     expect(railShowsFullAccess(4)).toBe(false);
     expect(railShowsFullAccess(0)).toBeUndefined();
+  });
+});
+
+describe("rail on the LEFT edge (the RTL/Arabic account portal), with a ☰ top bar on the right", () => {
+  // Real, confirmed layout: the icon rail sits on the LEFT, while the top-right corner has only the
+  // cart + the ☰ account menu. The sync used to read that 2-item top bar as "the rail" and open the
+  // ☰ menu (email only) instead of the sections, so a whole sync learned nothing about the device.
+  function twoSided() {
+    Object.defineProperty(window, "innerWidth", { value: 360, configurable: true });
+    const leftIds = ["l-home", "l-subs", "l-briefcase", "l-billing", "l-gift", "l-envelope", "l-gear"];
+    const rightIds = ["cart", "hamburger"];
+    document.body.innerHTML = [...leftIds, ...rightIds].map((id) => `<button id="${id}">•</button>`).join("");
+    leftIds.forEach((id, i) => setRect(document.getElementById(id)!, { top: 100 + i * 50, left: 8, right: 38, width: 30, height: 30 }));
+    // The top bar hugs the RIGHT edge but is only two items.
+    rightIds.forEach((id, i) => setRect(document.getElementById(id)!, { top: 20, left: 300 + i * 34, right: 330 + i * 34, width: 30, height: 30 }));
+    const clicked: string[] = [];
+    [...leftIds, ...rightIds].forEach((id) => document.getElementById(id)!.addEventListener("click", () => clicked.push(id)));
+    return clicked;
+  }
+
+  it("detects the 7-icon LEFT rail, not the 2-item right top bar", () => {
+    twoSided();
+    expect(countIconRailItems()).toBe(7);
+  });
+
+  it("clickIconRailItem(1) opens Subscriptions on the left rail (never the cart/☰)", () => {
+    const clicked = twoSided();
+    expect(clickIconRailItem(1)).toBe(true);
+    expect(clicked).toEqual(["l-subs"]);
+  });
+
+  it("clickSettingsRailItem opens the left rail's gear, never the ☰ menu", () => {
+    const clicked = twoSided();
+    expect(clickSettingsRailItem()).toBe(true);
+    expect(clicked).toEqual(["l-gear"]);
   });
 });

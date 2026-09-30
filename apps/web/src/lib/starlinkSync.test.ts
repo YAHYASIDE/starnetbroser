@@ -104,6 +104,18 @@ describe("mergeSyncedFields - scanned vs. changed", () => {
     expect(still.updatedFields).toEqual([]);
   });
 
+  it("raises the 'غير رئيسي' warning from the Users table when the login email is NOT an Admin", () => {
+    // The Settings → Users page is the only thing that sets this now: a login email that carries
+    // no Admin role there is a real secondary/limited email and gets flagged, even if it never had
+    // the flag before.
+    const result = mergeSyncedFields(
+      baseAccount({ expectedEmail: "mylimited@mail.com" }),
+      { adminEmails: ["theowner@mail.com"] },
+    );
+    expect(result.account.limitedAccess).toBe(true);
+    expect(result.updatedFields.map((f) => f.field)).toEqual(["adminEmails"]);
+  });
+
   it("records the two subscriptions on one account and reports them as changed only when they differ", () => {
     const first = mergeSyncedFields(baseAccount(), { subscriptionNames: ["DEDE SIDI VAL", "ARAWANI DI"] });
     expect(first.account.subscriptions).toEqual(["DEDE SIDI VAL", "ARAWANI DI"]);
