@@ -8,6 +8,14 @@
 
 import { formatAmount } from "./formatAmount";
 
+/** From `from` on, this customer belongs to `repId` (absent = back to us). `carry` = the balance
+ * so far moved over to the new owner at that moment; otherwise it stays with the previous one. */
+export interface RepSegment {
+  repId?: string;
+  from: string;
+  carry: boolean;
+}
+
 export interface Client {
   id: string;
   name: string;
@@ -19,6 +27,9 @@ export interface Client {
    * InvoiceSection warns (never blocks) before a credit sale would push this client's own
    * same-currency store balance past it. Undefined means no ceiling was ever set. */
   creditLimit?: number;
+  /** Whose customer this is over time (repClients.ts) - absent = ours, the old model. The last
+   * segment is the current owner; a representative's customers owe HIM, and he owes us. */
+  repSegments?: RepSegment[];
   createdAt: string;
   updatedAt: string;
 }

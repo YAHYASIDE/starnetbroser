@@ -4,6 +4,7 @@
  * first, so the usual payment is one tap away.
  */
 
+import { ourDebtLedgerForClients } from "./repClients";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import type { ClientStore } from "./clientStore";
 import { computeBalanceByCurrency, LedgerByAccount } from "./ledgerStore";
@@ -28,6 +29,8 @@ export function listPaymentTargets(
   query = "",
 ): PaymentTarget[] {
   const q = normalize(query);
+  // A representative's customers owe him, not us (repClients.ts).
+  ledgerStore = ourDebtLedgerForClients(ledgerStore, accounts, Object.values(clients));
   const targets: PaymentTarget[] = [];
   for (const account of accounts) {
     if (account.deletedAt || account.archivedAt) continue;

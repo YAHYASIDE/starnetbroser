@@ -6,9 +6,9 @@
  * exactly like one typed by hand there - never before. A 🏦 loan (سلفة) becomes an advance he owes.
  */
 
-import { loadCashEntries, postRepSettlementToCash, saveCashEntries } from "./cashStore";
 import { getCurrency, loadCurrencyStore } from "./currencyStore";
-import { loadRepresentativeStore, loadRepSettlements, recordRepSettlement, saveRepSettlements } from "./repStore";
+import { recordRepMoneyHandover } from "./repClientsSave";
+import { loadRepSettlements, recordRepSettlement, saveRepSettlements } from "./repStore";
 import type { RepRequest } from "./repRequests";
 
 /** Rates (units per 1 USD) locked on the settlement, as the representatives page does. */
@@ -23,19 +23,9 @@ function lockedRates(currencyCode: string): Record<string, number> {
 }
 
 export function recordRepHandover(request: RepRequest, amount: number, currencyCode: string, date: string): { ok: true } | { ok: false; message: string } {
-  const result = recordRepSettlement(loadRepSettlements(), {
-    representativeId: request.repId,
-    kind: "cashHandover",
-    amount,
-    currencyCode,
-    date,
-    note: "سلّمها المندوب (بوت المال)",
-    rates: lockedRates(currencyCode),
-  });
-  if (!result.ok) return result;
-  saveRepSettlements(result.settlements);
-  saveCashEntries(postRepSettlementToCash(loadCashEntries(), result.settlement, loadRepresentativeStore()[request.repId]?.name ?? ""));
-  return { ok: true };
+  // First what he owes us for his own customers' devices (repClients.ts), then a cash handover.
+  const result = recordRepMoneyHandover(request.repId, { amount, currencyCode, date, note: "سلّمها المندوب (بوت المال)", rates: lockedRates(currencyCode) });
+  return result.ok ? { ok: true } : result;
 }
 
 /** 🏦 A loan (سلفة) the operator sent the rep through a banking app: recorded as an advance he

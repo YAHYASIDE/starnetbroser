@@ -67,7 +67,7 @@ import {
   loadLedgerStore,
   saveLedgerStore,
 } from "@/lib/ledgerStore";
-import { ClientStore, getClient, loadClientStore } from "@/lib/clientStore";
+import { ClientStore, getClient, loadClientStore, saveClientStore } from "@/lib/clientStore";
 import { combinePhoneNumber, PHONE_COUNTRY_CODES, splitPhoneNumber } from "@/lib/phoneCountryCodes";
 import { formatAmount } from "@/lib/formatAmount";
 import { getStoreItem, loadStoreItems, StoreItemRegistry } from "@/lib/storeStore";
@@ -81,6 +81,18 @@ import { partyHue, partyInitials } from "@/lib/partyColor";
 import { buildRepSummaryMessage, buildWhatsAppLink } from "@/lib/whatsapp";
 import { ActionFace, PartySheet } from "@/components/AccountsSection";
 import { repDevicesDebt } from "@/lib/repDebts";
+import {
+  listRepClients,
+  loadRepBook,
+  replayRepClients,
+  repTransferCandidates,
+  sumBalances,
+  transferClientsToRep,
+  type BookLine,
+  type ClientReplay,
+  type RepBookEntry,
+} from "@/lib/repClients";
+import { recordRepMoneyHandover } from "@/lib/repClientsSave";
 import { confirmClosedMonthChange, ledgerEntryMonthDates, monthLabel, monthRange, recentMonths } from "@/lib/monthClosing";
 
 const EPSILON = 0.0001;
@@ -182,6 +194,7 @@ export default function RepresentativesPage() {
   const [storeItems, setStoreItems] = useState<StoreItemRegistry>({});
   const [ledgerStore, setLedgerStore] = useState<LedgerByAccount>({});
   const [clientStore, setClientStore] = useState<ClientStore>({});
+  const [repBook, setRepBook] = useState<RepBookEntry[]>([]);
   const [accounts, setAccounts] = useState<StarlinkAccountSummary[]>(demoAccounts);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingRepId, setEditingRepId] = useState<string | null>(null);
@@ -204,6 +217,7 @@ export default function RepresentativesPage() {
     setStoreItems(loadStoreItems());
     setLedgerStore(loadLedgerStore());
     setClientStore(loadClientStore());
+    setRepBook(loadRepBook());
     if (isDemoMode()) {
       setAccounts(loadDemoAccounts(demoAccounts));
       return;
@@ -236,6 +250,8 @@ export default function RepresentativesPage() {
   }
 
   const representatives = useMemo(() => listRepresentatives(representativeStore), [representativeStore]);
+  // His own customers (repClients.ts): what they owe him, and what he owes us for them.
+  const replays = useMemo(() => replayRepClients(clientStore, accounts, ledgerStore, repBook), [clientStore, accounts, ledgerStore, repBook]);
 
   // Display currency (أوقية / سيفا / both) - a per-phone view setting, not business data.
   const [display, setDisplay] = useState<RepDisplay>("MRU");
@@ -310,6 +326,13 @@ export default function RepresentativesPage() {
 
   function handleSettlement(representativeId: string, input: UpdateRepSettlementInput): string | null {
     if (!confirmClosedMonthChange([input.date])) return "لم تُحفظ العملية (الشهر مُقفل)";
+    if (input.kind === "cashHandover") {
+      // First what he owes us for his own customers' devices, then (the rest) a cash handover.
+      const handover = recordRepMoneyHandover(representativeId, { ...input, rates: lockedRates(input.currencyCode) }, accounts);
+      if (!handover.ok) return handover.message;
+      reloadAll();
+      return null;
+    }
     const result = recordRepSettlement(settlements, { representativeId, ...input, rates: lockedRates(input.currencyCode) });
     if (!result.ok) return result.message;
     saveSettlementList(result.settlements);
@@ -343,6 +366,18 @@ export default function RepresentativesPage() {
     setLedgerStore(result.ledgerStore);
     saveLedgerStore(result.ledgerStore);
     return null;
+  }
+
+  // "نقل ديون زبائنه عليه": each customer (with all his devices) becomes the rep's, his balance too.
+  function handleTransferClients(repId: string, clientIds: string[]) {
+    const next = transferClientsToRep(clientStore, repId, clientIds, new Date().toISOString());
+    saveClientStore(next);
+    setClientStore(next);
+    const ids = new Set(clientIds);
+    const nextAccounts = accounts.map((a) => (a.clientId && ids.has(a.clientId) && !a.deletedAt ? { ...a, representativeId: repId } : a));
+    setAccounts(nextAccounts);
+    if (isDemoMode()) saveDemoAccounts(nextAccounts);
+    void refreshTelegramReplies().catch(() => {});
   }
 
   function handleReset(repId: string, resetFrom: RepResetPoint | undefined) {
@@ -454,6 +489,8 @@ export default function RepresentativesPage() {
                     ledgerStore={ledgerStore}
                     accounts={accounts}
                     clientStore={clientStore}
+                    replays={replays}
+                    onTransferClients={(ids) => handleTransferClients(rep.id, ids)}
                     storeItems={storeItems}
                     onEdit={() => setEditingRepId(rep.id)}
                     onSettle={(input) => handleSettlement(rep.id, input)}
@@ -484,6 +521,8 @@ interface RepCardProps {
   ledgerStore: LedgerByAccount;
   accounts: StarlinkAccountSummary[];
   clientStore: ClientStore;
+  replays: Map<string, ClientReplay>;
+  onTransferClients: (clientIds: string[]) => void;
   storeItems: StoreItemRegistry;
   onEdit: () => void;
   onSettle: (input: UpdateRepSettlementInput) => string | null;
@@ -497,11 +536,13 @@ interface RepCardProps {
   focusMonth?: string;
 }
 
-type RepPanel = "statement" | "devices" | null;
+type RepPanel = "statement" | "devices" | "clients" | null;
 type RepSheet =
   | { kind: "settle" | "whatsapp" | "manage" | "reset" | "delete" | "appCode" }
   | { kind: "settlement"; settlement: RepSettlement }
   | { kind: "shipment"; row: RepDeviceCommissionRow }
+  | { kind: "repClient"; clientId: string }
+  | { kind: "transfer" }
   | null;
 
 function RepCard({
@@ -512,6 +553,8 @@ function RepCard({
   ledgerStore,
   accounts,
   clientStore,
+  replays,
+  onTransferClients,
   storeItems,
   onEdit,
   onSettle,
@@ -554,8 +597,19 @@ function RepCard({
   const deviceRows = active.deviceRows;
   const deviceTotals = useMemo(() => totalRepDeviceCommissions(deviceRows), [deviceRows]);
   const devices = accounts.filter((a) => a.representativeId === rep.id);
-  // What the customers of his devices still owe us - per currency, never converted.
-  const devicesDebt = useMemo(() => repDevicesDebt(rep.id, accounts, ledgerStore), [rep.id, accounts, ledgerStore]);
+  // His own customers (repClients.ts) - what they owe him, and what he owes us for them.
+  const repClients = useMemo(() => listRepClients(rep.id, clientStore, accounts, replays), [rep.id, clientStore, accounts, replays]);
+  const owedToUsForClients = useMemo(() => sumBalances(repClients.map((r) => r.owedToUs)), [repClients]);
+  const clientsOweHim = useMemo(() => sumBalances(repClients.map((r) => r.book)), [repClients]);
+  const transferCandidates = useMemo(
+    () => repTransferCandidates(rep.id, clientStore, accounts, ledgerStore),
+    [rep.id, clientStore, accounts, ledgerStore],
+  );
+  // What the customers of his devices still owe US - only those not yet his own customers.
+  const devicesDebt = useMemo(
+    () => repDevicesDebt(rep.id, accounts.filter((a) => !a.clientId || !replays.has(a.clientId)), ledgerStore),
+    [rep.id, accounts, ledgerStore, replays],
+  );
   const owedByDevice = new Map(devicesDebt.rows.map((row) => [row.accountId, row.owed]));
 
   const allDays = useMemo(() => {
@@ -638,10 +692,18 @@ function RepCard({
         </div>
       </div>
 
-      <div className={`rep-devices-debt${devicesDebt.rows.length > 0 ? " rep-devices-debt-due" : ""}`}>
-        <span>💳 ديون أجهزته على الزبائن{devicesDebt.rows.length > 0 ? ` (${devicesDebt.rows.length} جهاز)` : ""}</span>
-        {devicesDebt.rows.length === 0 ? <strong>لا ديون ✓</strong> : <StatValues values={devicesDebt.totalByCurrency} />}
-      </div>
+      {repClients.length > 0 && (
+        <div className={`rep-devices-debt${Object.values(owedToUsForClients).some((v) => v > EPSILON) ? " rep-devices-debt-due" : ""}`}>
+          <span>🧾 عليه لك عن زبائنه ({repClients.filter((r) => r.current).length})</span>
+          {Object.keys(owedToUsForClients).length === 0 ? <strong>لا شيء ✓</strong> : <StatValues values={owedToUsForClients} />}
+        </div>
+      )}
+      {(repClients.length === 0 || devicesDebt.rows.length > 0) && (
+        <div className={`rep-devices-debt${devicesDebt.rows.length > 0 ? " rep-devices-debt-due" : ""}`}>
+          <span>💳 ديون أجهزته على الزبائن{devicesDebt.rows.length > 0 ? ` (${devicesDebt.rows.length} جهاز)` : ""}</span>
+          {devicesDebt.rows.length === 0 ? <strong>لا ديون ✓</strong> : <StatValues values={devicesDebt.totalByCurrency} />}
+        </div>
+      )}
 
       {(rep.resetFrom || deviceTotals.pendingCount > 0) && (
         <div className="party-chips">
@@ -681,6 +743,13 @@ function RepCard({
           onClick={() => setPanel((p) => (p === "devices" ? null : "devices"))}
         >
           <ActionFace icon="📡" label="الأجهزة" count={devices.length} />
+        </button>
+        <button
+          type="button"
+          className={`party-action${panel === "clients" ? " party-action-active" : ""}`}
+          onClick={() => setPanel((p) => (p === "clients" ? null : "clients"))}
+        >
+          <ActionFace icon="👥" label="زبائنه" count={repClients.filter((r) => r.current).length} />
         </button>
         <button type="button" className="party-action" onClick={() => setSheet({ kind: "manage" })}>
           <ActionFace icon="⚙️" label="إدارة" />
@@ -783,6 +852,47 @@ function RepCard({
         </div>
       )}
 
+      {panel === "clients" && (
+        <div className="party-panel rep-clients">
+          {transferCandidates.length > 0 && (
+            <button type="button" className="btn-secondary rep-transfer-btn" onClick={() => setSheet({ kind: "transfer" })}>
+              🔁 نقل ديون زبائنه عليه ({transferCandidates.length})
+            </button>
+          )}
+          {repClients.length === 0 ? (
+            <p className="party-empty">
+              لا زبائن له بعد في الدفتر.{transferCandidates.length > 0 ? " «نقل ديون زبائنه عليه» يجعل زبائن أجهزته زبائنه، وديونهم عليه." : ""}
+            </p>
+          ) : (
+            <>
+              <div className="rep-clients-total">
+                <span>زبائنه عليهم له</span>
+                <StatValues values={clientsOweHim} />
+              </div>
+              <ul className="party-devices">
+                {repClients.map((row) => (
+                  <li key={row.clientId}>
+                    <button type="button" className="party-device rep-client-row" onClick={() => setSheet({ kind: "repClient", clientId: row.clientId })}>
+                      <div className="party-device-top">
+                        <strong>
+                          {row.name}
+                          {!row.current && <span className="party-mini-chip rep-client-former">سابق</span>}
+                        </strong>
+                        <span className="party-device-date">📡 {row.deviceCount}</span>
+                      </div>
+                      <span className="rep-client-balances">
+                        <span>في دفتره: {bookText(row.book)}</span>
+                        {Object.keys(row.owedToUs).length > 0 && <span className="rep-client-ours">عليه لك: {bookText(row.owedToUs)}</span>}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
+
       {panel === "devices" && (
         <div className="party-panel">
           {devices.length === 0 ? (
@@ -812,6 +922,30 @@ function RepCard({
             </ul>
           )}
         </div>
+      )}
+
+      {sheet?.kind === "transfer" && (
+        <PartySheet title={`نقل ديون زبائنه عليه - ${rep.name}`} onClose={() => setSheet(null)}>
+          <RepTransferForm
+            candidates={transferCandidates}
+            onConfirm={(ids) => {
+              onTransferClients(ids);
+              setSheet(null);
+              setPanel("clients");
+            }}
+          />
+        </PartySheet>
+      )}
+
+      {sheet?.kind === "repClient" && (
+        <PartySheet title={`دفتر ${rep.name} - ${getClient(clientStore, sheet.clientId)?.name ?? "زبون"}`} onClose={() => setSheet(null)}>
+          <RepClientBook
+            lines={(replays.get(sheet.clientId)?.bookLines ?? []).filter((l) => l.repId === rep.id)}
+            balance={replays.get(sheet.clientId)?.book[rep.id] ?? {}}
+            owedToUs={replays.get(sheet.clientId)?.owedToUs[rep.id] ?? {}}
+            accountName={accountName}
+          />
+        </PartySheet>
       )}
 
       {sheet?.kind === "settle" && (
@@ -1686,4 +1820,126 @@ function buildRepStatementPdf(
     rows,
     footerNote: "«له» = مستحق للمندوب، «عليه» = مستحق عليه.",
   };
+}
+
+/** "عليه 1,500 أوقية · له 20 دولار" - + = owed. */
+function bookText(values: Record<string, number>): string {
+  const parts = nonZero(values).map(([code, v]) => `${v > 0 ? "عليه" : "له"} ${formatAmount(Math.abs(v))} ${currencyLabel(code)}`);
+  return parts.length ? parts.join(" · ") : "لا شيء ✓";
+}
+
+const BOOK_LINE_LABELS: Record<BookLine["kind"], string> = {
+  opening: "🔁 رصيده عند النقل",
+  renewal: "📡 تجديد",
+  charge: "➕ عليه",
+  credit: "➖ له",
+  payment: "💵 دفع للمندوب",
+  movedOut: "↪️ نُقل رصيده",
+};
+
+/** The rep's book on one customer - read only: the rep writes it from his bot. */
+function RepClientBook({
+  lines,
+  balance,
+  owedToUs,
+  accountName,
+}: {
+  lines: BookLine[];
+  balance: Record<string, number>;
+  owedToUs: Record<string, number>;
+  accountName: (accountId: string) => string;
+}) {
+  const newestFirst = [...lines].sort((a, b) => (a.at < b.at ? 1 : -1));
+  return (
+    <div className="rep-client-book">
+      <div className="rep-clients-total">
+        <span>عليه للمندوب</span>
+        <strong>{bookText(balance)}</strong>
+      </div>
+      <div className="rep-clients-total rep-client-ours">
+        <span>المندوب عليه لك عنه</span>
+        <strong>{bookText(owedToUs)}</strong>
+      </div>
+      <p className="settings-hint">دفتر المندوب - للعرض فقط. المندوب يسجّل فيه من البوت (دفعة، له/عليه، تراجع خلال 24 ساعة).</p>
+      {newestFirst.length === 0 ? (
+        <p className="party-empty">لا عمليات بعد.</p>
+      ) : (
+        <ul className="party-statement">
+          {newestFirst.map((line, i) => (
+            <li key={`${line.at}-${i}`} className="party-statement-row">
+              <div className="party-statement-top">
+                <span>{BOOK_LINE_LABELS[line.kind]}{line.accountId ? ` · ${accountName(line.accountId)}` : ""}</span>
+                <span dir="ltr" className="party-statement-date">{line.date}</span>
+              </div>
+              <div className="party-statement-top">
+                <span className="party-statement-note">{line.note ?? ""}</span>
+                <strong>
+                  {nonZero(line.amounts).map(([code, v]) => (
+                    <bdi key={code} dir="ltr">
+                      {v > 0 ? "+" : "−"}{formatAmount(Math.abs(v))} {currencyLabel(code)}{" "}
+                    </bdi>
+                  ))}
+                </strong>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** Review before moving his customers' debts onto him - each one ticked by default. */
+function RepTransferForm({
+  candidates,
+  onConfirm,
+}: {
+  candidates: { clientId: string; name: string; balance: Record<string, number>; deviceCount: number }[];
+  onConfirm: (clientIds: string[]) => void;
+}) {
+  const [picked, setPicked] = useState<Set<string>>(() => new Set(candidates.map((c) => c.clientId)));
+  const total: Record<string, number> = {};
+  for (const c of candidates) {
+    if (!picked.has(c.clientId)) continue;
+    for (const [code, v] of Object.entries(c.balance)) total[code] = (total[code] ?? 0) + v;
+  }
+  return (
+    <div className="rep-transfer">
+      <p className="settings-hint">
+        كل زبون مختار يصبح زبون المندوب بكل أجهزته: ما عليه الآن لك يصبح دينًا على المندوب لك، ويُفتح به حسابه في دفتر المندوب.
+        التجديدات القادمة تُسجَّل على المندوب، ويختفي هذا الدين من «ديون الزبائن» عندك.
+      </p>
+      <ul className="party-devices">
+        {candidates.map((c) => (
+          <li key={c.clientId}>
+            <label className="party-device rep-transfer-row">
+              <input
+                type="checkbox"
+                checked={picked.has(c.clientId)}
+                onChange={(e) =>
+                  setPicked((current) => {
+                    const next = new Set(current);
+                    if (e.target.checked) next.add(c.clientId);
+                    else next.delete(c.clientId);
+                    return next;
+                  })
+                }
+              />
+              <span className="rep-transfer-name">
+                <strong>{c.name}</strong> <span className="party-device-date">📡 {c.deviceCount}</span>
+              </span>
+              <span className="rep-client-balances">{bookText(c.balance)}</span>
+            </label>
+          </li>
+        ))}
+      </ul>
+      <div className="rep-clients-total">
+        <span>يصبح على المندوب</span>
+        <strong>{bookText(total)}</strong>
+      </div>
+      <button type="button" className="btn-primary" disabled={picked.size === 0} onClick={() => onConfirm([...picked])}>
+        ✅ نقل {picked.size} زبون على المندوب
+      </button>
+    </div>
+  );
 }

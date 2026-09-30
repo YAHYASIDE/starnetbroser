@@ -9,6 +9,8 @@ import { buildClientCombinedStatement } from "./clientAccount";
 import type { InvoiceList } from "./invoiceStore";
 import { getAccountEntries, LedgerByAccount } from "./ledgerStore";
 import type { PartyAdjustment } from "./partyBalanceStore";
+import type { RepSegment } from "./clientStore";
+import { ourDebtLedgerForClients } from "./repClients";
 
 export interface DebtMovement {
   /** yyyy-mm-dd */
@@ -92,13 +94,15 @@ export interface DebtorAging extends DebtAge {
 /** Every client (store + linked devices together) and every device with no client, per currency,
  * that still owes something - oldest debt first, then biggest. */
 export function computeDebtAging(input: {
-  clients: { id: string; name: string; phone?: string }[];
+  clients: { id: string; name: string; phone?: string; repSegments?: RepSegment[] }[];
   accounts: StarlinkAccountSummary[];
   invoices: InvoiceList;
   adjustments: PartyAdjustment[];
   ledgerStore: LedgerByAccount;
   today: string;
 }): DebtorAging[] {
+  // A representative's customers owe HIM - what's his debt to us is his, never theirs here.
+  input = { ...input, ledgerStore: ourDebtLedgerForClients(input.ledgerStore, input.accounts, input.clients) };
   const result: DebtorAging[] = [];
   const active = input.accounts.filter((a) => !a.deletedAt);
   const byCurrency = (rows: { currencyCode: string; date: string; delta: number }[]) => {

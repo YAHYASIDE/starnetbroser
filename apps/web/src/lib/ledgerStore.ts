@@ -124,6 +124,9 @@ export interface LedgerEntry {
   representativeCommissionPercent?: number;
   /** Locked with the percent: whether this rep also carries their percent of a loss. */
   representativeSharesLosses?: boolean;
+  /** Money a representative handed over for his own customers' devices (repClients.ts): this
+   * payment settles HIS debt to us, whoever the device's customer belongs to by the time it's read. */
+  heldByRepId?: string;
 }
 
 /** A "debit" entry with no starlinkCost info at all predates this feature - its profit can never

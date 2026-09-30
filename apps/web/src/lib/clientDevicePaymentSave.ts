@@ -13,7 +13,7 @@ export type SaveClientDevicePaymentResult = { ok: true; ledgerStore: LedgerByAcc
 export function saveClientDevicePayment(
   ledgerStore: LedgerByAccount,
   device: { id: string; name: string; email?: string },
-  input: { amount: number; currencyCode: string; date: string; note?: string; paymentMethod?: PaymentMethod; cashMoved?: boolean },
+  input: { amount: number; currencyCode: string; date: string; note?: string; paymentMethod?: PaymentMethod; cashMoved?: boolean; heldByRepId?: string },
 ): SaveClientDevicePaymentResult {
   const allocationStore = loadAllocationStore();
   const entries = getAccountEntries(ledgerStore, device.id);
@@ -26,6 +26,7 @@ export function saveClientDevicePayment(
     paymentMethod: input.paymentMethod ?? "cash",
   });
   if (!result.ok) return result;
+  if (input.heldByRepId) result.entry.heldByRepId = input.heldByRepId;
   const nextEntries = [...entries, result.entry];
   const nextLedger = withAccountEntries(ledgerStore, device.id, nextEntries);
   saveLedgerStore(nextLedger);

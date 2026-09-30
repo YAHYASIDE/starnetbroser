@@ -17,6 +17,7 @@ import { buildAutoSyncList } from "@/lib/autoSyncList";
 import { LedgerDialog } from "./LedgerDialog";
 import { ClientDialog } from "./ClientDialog";
 import { ClientsOverviewDialog } from "./ClientsOverviewDialog";
+import { ourDebtLedgerForClients } from "@/lib/repClients";
 import { LedgerEntryEditor } from "./LedgerEntryEditor";
 import { DeviceStatementDialog } from "./DeviceStatementDialog";
 import { ToastMessage, ToastStack } from "./ToastStack";
@@ -1069,11 +1070,11 @@ export function HomeView({
     () =>
       suspendedWithDebt.length +
       computeRenewalReminders(activeAccounts).length +
-      computeDeviceDebtReminders(activeAccounts, ledgerStore).length +
+      computeDeviceDebtReminders(activeAccounts, ledgerStore, clientStore).length +
       computeRestrictedDeviceReminders(activeAccounts).length +
       (isBackupOverdue(lastBackupAt) ? 1 : 0) +
       duePromiseCount,
-    [activeAccounts, ledgerStore, lastBackupAt, suspendedWithDebt, duePromiseCount],
+    [activeAccounts, ledgerStore, clientStore, lastBackupAt, suspendedWithDebt, duePromiseCount],
   );
 
   const dayCounts = useMemo(() => {
@@ -1563,7 +1564,7 @@ export function HomeView({
         <ClientsOverviewDialog
           clientStore={clientStore}
           accounts={accounts}
-          ledgerStore={ledgerStore}
+          ledgerStore={ourDebtLedgerForClients(ledgerStore, accounts, Object.values(clientStore))}
           onClose={() => setShowClientsOverview(false)}
           onOpenLedger={(account) => {
             setShowClientsOverview(false);

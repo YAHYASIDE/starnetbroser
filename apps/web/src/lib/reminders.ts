@@ -6,6 +6,7 @@
  * data (ledgerStore.ts, invoiceStore.ts, storeStore.ts) - nothing new is persisted.
  */
 
+import { ourDebtLedgerForClients } from "./repClients";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { daysRemainingNumber } from "./date";
 import { BalanceByCurrency, computeBalanceByCurrency, LEDGER_CURRENCIES, LedgerByAccount } from "./ledgerStore";
@@ -72,7 +73,10 @@ export interface DeviceDebtReminder {
 export function computeDeviceDebtReminders(
   accounts: StarlinkAccountSummary[],
   ledgerStore: LedgerByAccount,
+  clients?: ClientStore,
 ): DeviceDebtReminder[] {
+  // A representative's customers owe him, not us (repClients.ts).
+  if (clients) ledgerStore = ourDebtLedgerForClients(ledgerStore, accounts, Object.values(clients));
   const reminders: DeviceDebtReminder[] = [];
   for (const account of accounts) {
     if (account.archivedAt || account.deletedAt) continue;

@@ -284,7 +284,7 @@ export function PartyDirectory({
                 devices={isClients ? accounts.filter((a) => a.clientId === party.id && !a.deletedAt) : []}
                 ledgerStore={ledgerStore}
                 creditLimit={isClients ? (party as Client).creditLimit : undefined}
-                repNames={isClients && representatives ? clientRepNames(party.id, accounts, representatives) : []}
+                repNames={isClients && representatives ? clientRepNames(party.id, accounts, representatives, party as Client) : []}
                 onEdit={() => setEditingPartyId(party.id)}
                 onOpenCard={isClients && onOpenClientCard ? () => onOpenClientCard(party as Client) : undefined}
               />

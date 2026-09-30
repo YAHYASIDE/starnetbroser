@@ -9945,3 +9945,106 @@ a[href],
   flex: 1;
   min-width: 0;
 }
+
+/* Representatives: his own customers (زبائنه) and his book on each - read only. */
+.rep-clients .party-devices {
+  margin-top: 6px;
+}
+
+.rep-transfer-btn {
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+.rep-clients-total {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  font-size: 0.85rem;
+  margin-bottom: 6px;
+}
+
+.rep-clients-total > span {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.rep-client-row {
+  width: 100%;
+  text-align: start;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.rep-client-balances {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.rep-client-ours {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.rep-client-former {
+  margin-inline-start: 6px;
+}
+
+.rep-client-book .party-statement {
+  margin-top: 6px;
+}
+
+.rep-transfer .party-devices {
+  margin: 8px 0;
+}
+
+.rep-transfer-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 2px 8px;
+}
+
+.rep-transfer-row .rep-client-balances {
+  grid-column: 2;
+}
+
+.rep-transfer .btn-primary {
+  width: 100%;
+  margin-top: 8px;
+}
+
+/* Client card: whose customer (زبون مَن؟) and the move question. */
+.client-rep-owner {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+}
+
+.client-rep-owner-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.client-rep-owner-actions button {
+  min-width: 0;
+  white-space: normal;
+}

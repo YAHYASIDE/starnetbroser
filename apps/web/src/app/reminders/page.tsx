@@ -83,7 +83,7 @@ export default function RemindersPage() {
     [suspendedWithDebt, ledgerStore],
   );
   const renewalReminders = useMemo(() => computeRenewalReminders(accounts), [accounts]);
-  const deviceDebtReminders = useMemo(() => computeDeviceDebtReminders(accounts, ledgerStore), [accounts, ledgerStore]);
+  const deviceDebtReminders = useMemo(() => computeDeviceDebtReminders(accounts, ledgerStore, clientStore), [accounts, ledgerStore, clientStore]);
   const storeDebtReminders = useMemo(() => computeStoreDebtReminders(clientStore, invoices, partyAdjustments), [clientStore, invoices, partyAdjustments]);
   const lowStockReminders = useMemo(
     () => computeLowStockReminders(storeItems, storeTransactions),

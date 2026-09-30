@@ -9,11 +9,24 @@
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { computeBalanceByCurrency, LedgerByAccount } from "./ledgerStore";
 import { RepresentativeStore } from "./repStore";
+import type { Client } from "./clientStore";
+import { currentRepOfClient } from "./repClients";
 
 const EPSILON = 0.005;
 
 /** Names of the reps of this client's (not deleted) devices, each once, in device order. */
-export function clientRepNames(clientId: string, accounts: StarlinkAccountSummary[], reps: RepresentativeStore): string[] {
+export function clientRepNames(
+  clientId: string,
+  accounts: StarlinkAccountSummary[],
+  reps: RepresentativeStore,
+  client?: Pick<Client, "repSegments">,
+): string[] {
+  // A customer in the new model (repClients.ts) is one rep's - or ours again.
+  if (client?.repSegments?.length) {
+    const repId = currentRepOfClient(client);
+    const name = repId ? reps[repId]?.name : undefined;
+    return name ? [name] : [];
+  }
   const names: string[] = [];
   for (const account of accounts) {
     if (account.clientId !== clientId || account.deletedAt || !account.representativeId) continue;

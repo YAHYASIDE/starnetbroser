@@ -13,6 +13,7 @@ import { formatAmount } from "@/lib/formatAmount";
 import { partyHue, partyInitials } from "@/lib/partyColor";
 import { allocatedFromPayment, allStoredAllocations, AllocationsByAccount } from "@/lib/paymentAllocationStore";
 import { DeviceStatementDialog } from "./DeviceStatementDialog";
+import { currentRepOfClient } from "@/lib/repClients";
 
 interface Props {
   client: Client;
@@ -28,6 +29,10 @@ interface Props {
   onDelete?: () => void;
   /** Given, each device statement offers ✎ on its past operations; called with the saved store. */
   onLedgerChange?: (next: LedgerByAccount) => void;
+  /** Given, the card offers "المندوب": whose customer this is (repClients.ts), asking what happens
+   * to his balance so far when he moves. */
+  representatives?: { id: string; name: string }[];
+  onMoveRep?: (repId: string | undefined, carry: boolean) => void;
 }
 
 /**
@@ -36,7 +41,7 @@ interface Props {
  * together), and the aggregate totals across all of them. Each device's own full statement is one
  * tap away via the same DeviceStatementDialog used from the card itself.
  */
-export function ClientDialog({ client, devices, ledgerStore, allocationStore, onClose, onSave, onDelete, onLedgerChange }: Props) {
+export function ClientDialog({ client, devices, ledgerStore, allocationStore, onClose, onSave, onDelete, onLedgerChange, representatives, onMoveRep }: Props) {
   const [editingEntry, setEditingEntry] = useState<LedgerEntry | null>(null);
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(client.name);
@@ -220,8 +225,13 @@ export function ClientDialog({ client, devices, ledgerStore, allocationStore, on
 
               <div className="party-chips">
                 <span className="party-chip">📡 {devices.length} جهاز</span>
+                {currentRepOfClient(client) && (
+                  <span className="party-chip">🤝 زبون {representatives?.find((r) => r.id === currentRepOfClient(client))?.name ?? "مندوب"}</span>
+                )}
               </div>
             </div>
+
+            {representatives && onMoveRep && <RepOwnerPicker client={client} representatives={representatives} onMove={onMoveRep} />}
 
             <div className="party-insights">
               <div className="party-insight">
@@ -338,6 +348,54 @@ export function ClientDialog({ client, devices, ledgerStore, allocationStore, on
           onSaved={onLedgerChange}
           onClose={() => setEditingEntry(null)}
         />
+      )}
+    </div>
+  );
+}
+
+/** "المندوب": the whole customer (all his devices) belongs to one rep, or to us. Moving him asks
+ * whether his balance so far goes with him or stays with the previous owner. */
+function RepOwnerPicker({
+  client,
+  representatives,
+  onMove,
+}: {
+  client: Client;
+  representatives: { id: string; name: string }[];
+  onMove: (repId: string | undefined, carry: boolean) => void;
+}) {
+  const current = currentRepOfClient(client) ?? "";
+  const [target, setTarget] = useState(current);
+  const nameOf = (id: string) => (id ? representatives.find((r) => r.id === id)?.name ?? "مندوب" : "أنت");
+  const changed = target !== current;
+  return (
+    <div className="client-rep-owner">
+      <label className="form-field">
+        <span>زبون مَن؟</span>
+        <select value={target} onChange={(e) => setTarget(e.target.value)}>
+          <option value="">زبوني أنا</option>
+          {representatives.map((r) => (
+            <option key={r.id} value={r.id}>
+              🤝 زبون {r.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      {changed && (
+        <div className="client-rep-owner-question">
+          <p className="settings-hint">
+            نقل الزبون من {nameOf(current)} إلى {nameOf(target)}. ما مصير رصيده حتى الآن؟
+            {target ? ` التجديدات القادمة تُسجَّل على ${nameOf(target)} وفي دفتره.` : " التجديدات القادمة تكون عليه لك مباشرة."}
+          </p>
+          <div className="client-rep-owner-actions">
+            <button type="button" className="btn-primary" onClick={() => onMove(target || undefined, true)}>
+              🔁 ينتقل رصيده معه
+            </button>
+            <button type="button" className="btn-secondary" onClick={() => onMove(target || undefined, false)}>
+              📌 يبقى عند {nameOf(current)}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

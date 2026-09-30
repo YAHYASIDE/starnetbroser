@@ -47,6 +47,7 @@ import {
   savePartyAdjustments,
 } from "@/lib/partyBalanceStore";
 import { PartyDirectory } from "@/components/AccountsSection";
+import { moveClientToOwner, ourDebtLedgerForClients } from "@/lib/repClients";
 import { notifyPaymentTelegram } from "@/lib/telegram";
 import { ClientDialog } from "@/components/ClientDialog";
 
@@ -82,6 +83,8 @@ export default function ClientsPage() {
   }, []);
 
   const clients = useMemo(() => listClients(clientStore), [clientStore]);
+  // A representative's customers owe HIM (repClients.ts) - their debt to us here is only their own.
+  const debtLedger = useMemo(() => ourDebtLedgerForClients(ledgerStore, accounts, clients), [ledgerStore, accounts, clients]);
   const suppliers = useMemo(() => listSuppliers(supplierStore), [supplierStore]);
   const openClient = getClient(clientStore, openClientId ?? undefined);
 
@@ -99,6 +102,18 @@ export default function ClientsPage() {
 
   /** Removes the client record only: their devices are unlinked (kept, with every operation), and
    * invoices / balance entries stay as history. */
+  // "زبون مَن؟": the whole customer moves to a rep (or back to us), his devices with him.
+  function handleMoveClientRep(clientId: string, repId: string | undefined, carry: boolean) {
+    const client = clientStore[clientId];
+    if (!client) return;
+    const next = { ...clientStore, [clientId]: moveClientToOwner(client, repId, carry, new Date().toISOString()) };
+    saveClientStore(next);
+    setClientStore(next);
+    const nextAccounts = accounts.map((a) => (a.clientId === clientId && !a.deletedAt ? { ...a, representativeId: repId } : a));
+    setAccounts(nextAccounts);
+    if (isDemoMode()) saveDemoAccounts(nextAccounts);
+  }
+
   function handleDeleteClient(clientId: string) {
     if (accounts.some((a) => a.clientId === clientId)) {
       const nextAccounts = accounts.map((a) => (a.clientId === clientId ? { ...a, clientId: undefined } : a));
@@ -242,7 +257,7 @@ export default function ClientsPage() {
           suppliers={suppliers}
           invoices={invoices}
           accounts={accounts}
-          ledgerStore={ledgerStore}
+          ledgerStore={debtLedger}
           adjustments={partyAdjustments}
           onAddAdjustment={handleAddAdjustment}
           onDeleteAdjustment={handleDeleteAdjustment}
@@ -270,6 +285,8 @@ export default function ClientsPage() {
           onSave={(patch) => handleUpdateClient(openClient.id, { ...patch, creditLimit: openClient.creditLimit })}
           onDelete={() => handleDeleteClient(openClient.id)}
           onLedgerChange={setLedgerStore}
+          representatives={Object.values(representatives).map((r) => ({ id: r.id, name: r.name }))}
+          onMoveRep={(repId, carry) => handleMoveClientRep(openClient.id, repId, carry)}
         />
       )}
     </main>
