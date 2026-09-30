@@ -17,6 +17,7 @@ import { LEDGER_CURRENCIES, PAYMENT_METHOD_LABELS, PAYMENT_METHODS, type LedgerC
 import { isPaymentMethod, loadActivationCosts, recordRepActivation as recordActivationOnDevice, type ActivationCost } from "./repActivation";
 import { appendRepNote, editFieldName, isRepEditField, repEditPatch } from "./repDeviceMenu";
 import { addRepRequest, loadRepRequests, resolveRepRequest, saveRepRequests, type RepRequest } from "./repRequests";
+import { addRepBookEntry, currentRepOfClient, loadRepBook, saveRepBook, undoRepBookEntry } from "./repClients";
 import { loadRepresentativeStore } from "./repStore";
 import { isDemoMode } from "./settingsStore";
 import { sendRepText } from "./telegram";
@@ -135,6 +136,62 @@ export function repPaymentRequest(data: Record<string, unknown>): Omit<RepReques
   return { repId, kind: "payment", text: `💵 دفعة ${label}${via} عن ${str(data.target) || "جهاز"}`, amount, currency: currency as LedgerCurrency, accountId, ...extra };
 }
 
+/** 💵 for one of the rep's OWN customers -> a payment in his book (true), else false (the old
+ * approval path). The bot's id makes a repeated record count once. */
+export function bookRepPayment(data: Record<string, unknown>): boolean {
+  const repId = str(data.repId);
+  const amount = typeof data.amount === "number" ? data.amount : Number(data.amount);
+  const currency = str(data.currency);
+  if (!repId || data.personal === true || !(amount > 0) || !LEDGER_CURRENCIES.includes(currency as LedgerCurrency)) return false;
+  const clientId = findAccount(str(data.accountId))?.clientId;
+  const client = clientId ? loadClientStore()[clientId] : undefined;
+  if (!client || currentRepOfClient(client) !== repId) return false;
+  const method = PAYMENT_METHODS.includes(str(data.method) as PaymentMethod) ? (str(data.method) as PaymentMethod) : undefined;
+  const at = typeof data.at === "number" ? new Date(data.at) : new Date();
+  const result = addRepBookEntry(loadRepBook(), {
+    ...(str(data.id) ? { id: str(data.id) } : {}),
+    repId,
+    clientId: client.id,
+    kind: "payment",
+    amount,
+    currency: currency as LedgerCurrency,
+    note: method ? PAYMENT_METHOD_LABELS[method] : undefined,
+    ...(method ? { paymentMethod: method } : {}),
+    ...(str(data.photo) ? { proofFileId: str(data.photo), proofBot: str(data.bot) === "money" ? "money" : "reps" } : {}),
+    date: localDay(at),
+    createdAt: at.toISOString(),
+  });
+  if (!result.ok) return false;
+  saveRepBook(result.book);
+  return true;
+}
+
+/** ➕➖ له/عليه from the rep's bot -> an entry in his book, only on his own current customer. */
+export function bookRepEntry(data: Record<string, unknown>): boolean {
+  const repId = str(data.repId);
+  const amount = typeof data.amount === "number" ? data.amount : Number(data.amount);
+  const currency = str(data.currency);
+  const kind = str(data.kind);
+  const client = loadClientStore()[str(data.clientId)];
+  if (!repId || !client || currentRepOfClient(client) !== repId) return false;
+  if ((kind !== "charge" && kind !== "credit") || !(amount > 0) || !LEDGER_CURRENCIES.includes(currency as LedgerCurrency)) return false;
+  const at = typeof data.at === "number" ? new Date(data.at) : new Date();
+  const result = addRepBookEntry(loadRepBook(), {
+    ...(str(data.id) ? { id: str(data.id) } : {}),
+    repId,
+    clientId: client.id,
+    kind,
+    amount,
+    currency: currency as LedgerCurrency,
+    note: str(data.note) || undefined,
+    date: localDay(at),
+    createdAt: at.toISOString(),
+  });
+  if (!result.ok) return false;
+  saveRepBook(result.book);
+  return true;
+}
+
 /** 🏦 A loan (سلفة) the rep asked for step by step in the money bot (amount -> currency ->
  * banking app -> recipient's number -> ✅): waits for the operator on the representatives page. */
 export function repLoanRequest(data: Record<string, unknown>): Omit<RepRequest, "id" | "createdAt" | "status"> | null {
@@ -248,6 +305,11 @@ export async function handleRepMenuRecord(message: TelegramInboxMessage): Promis
     return true;
   }
   if (message.kind === "repPayment") {
+    // His own customer (repClients.ts): straight into his book - no approval.
+    if (bookRepPayment(data)) {
+      notifyChanged();
+      return true;
+    }
     const request = repPaymentRequest(data);
     if (request) {
       saveRepRequests(addRepRequest(loadRepRequests(), request));
@@ -260,6 +322,20 @@ export async function handleRepMenuRecord(message: TelegramInboxMessage): Promis
     if (request) {
       saveRepRequests(addRepRequest(loadRepRequests(), request));
       notifyChanged();
+    }
+    return true;
+  }
+  if (message.kind === "repBookEntry") {
+    if (bookRepEntry(data)) notifyChanged();
+    return true;
+  }
+  if (message.kind === "repBookUndo") {
+    const result = undoRepBookEntry(loadRepBook(), str(data.id), str(data.repId), new Date(typeof data.at === "number" ? data.at : Date.now()));
+    if (result.ok) {
+      saveRepBook(result.book);
+      notifyChanged();
+    } else if (str(data.repId)) {
+      await sendRepText(str(data.repId), `↩️ لم يُلغَ: ${result.message}`, undefined, "money");
     }
     return true;
   }

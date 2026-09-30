@@ -42,6 +42,7 @@ import {
 } from "./telegramRepMessages";
 import { devicesHelp, devicesKeyboard, moneyRedirectText, REP_ALERTS_INFO, REP_HANDOVER_HINT, REP_MONEY_HELP, REP_MONEY_KEYBOARD, type RepBotNames } from "./repBots";
 import { answerCash, answerExpiring, answerStopped, buildEveningTelegram, TELEGRAM_HELP, WORDS } from "./telegramMessages";
+import { loadRepBook, repOwnClientBooks, type RepBookEntry } from "./repClients";
 
 /** Mirrors TelegramReplies.Snapshot (Java). */
 export interface TelegramReplySnapshot {
@@ -115,7 +116,10 @@ export function buildReplySnapshot(input: {
   openDebtsUsd?: number[];
   /** Which of the reps' bots are connected. */
   botNames?: RepBotNames;
+  /** The reps' books (repClients.ts) - read from the phone when not given. */
+  repBook?: RepBookEntry[];
 }): TelegramReplySnapshot {
+  const repBook = input.repBook ?? loadRepBook();
   const bots = input.botNames ?? {};
   const summary = buildEveningSummary({ day: input.today, accounts: input.accounts, ledgerStore: input.ledgerStore, cash: input.cash });
   const reps: Record<string, Record<string, string>> = {};
@@ -125,13 +129,15 @@ export function buildReplySnapshot(input: {
     const rep = input.representatives[repId];
     if (!rep) continue;
     const mine = repAccounts(input.accounts, repId);
+    // His own customers: their balance is the one in his book (repClients.ts).
+    const own = repOwnClientBooks(repId, input.clients, input.accounts, input.ledgerStore, repBook);
     const figures = repMoney({ rep, month, ledgerStore: input.ledgerStore, invoices: input.invoices, settlements: input.settlements, rates: input.rates });
     const replies: Record<string, RepReply> = {
       devices: { text: repDevicesText(mine, input.clients, input.today) },
       expiring: repExpiringReply(mine, input.clients, input.today),
       stopped: repStoppedReply(mine, input.clients),
       days: repDaysReply(mine, input.clients, input.today),
-      debts: repDebtsReply(repId, input.accounts, input.ledgerStore, input.clients),
+      debts: repDebtsReply(repId, input.accounts, input.ledgerStore, input.clients, own.rows),
       statement: { text: repStatementText(rep.name, month, figures) },
       mypromises: { text: repPromisesText(repOpenPromises(repId, input.promises ?? [], new Set(mine.map((a) => a.clientId).filter((c): c is string => Boolean(c)))), input.today) },
     };
@@ -140,7 +146,7 @@ export function buildReplySnapshot(input: {
       reps[repId]![kind] = reply.text;
       if (reply.markup) reps[repId]![`${kind}#kb`] = reply.markup;
     }
-    repSearch[repId] = repSearchIndex(mine, input.clients, input.ledgerStore, input.today, true);
+    repSearch[repId] = repSearchIndex(mine, input.clients, input.ledgerStore, input.today, true, own.byClient);
   }
   return {
     at: snapshotTime(input.now),

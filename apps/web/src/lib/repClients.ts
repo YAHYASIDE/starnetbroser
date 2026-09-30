@@ -429,3 +429,15 @@ export function planRepHandover(
   }
   return { allocations, remainder: left > EPSILON ? Math.round(left * 100) / 100 : 0 };
 }
+
+/** A rep's CURRENT customers and their balance in his book (his bot shows these). */
+export function repOwnClientBooks(
+  repId: string,
+  clients: ClientStore,
+  accounts: StarlinkAccountSummary[],
+  ledgerStore: LedgerByAccount,
+  book: RepBookEntry[],
+): { rows: RepClientRow[]; byClient: Map<string, Balances> } {
+  const rows = listRepClients(repId, clients, accounts, replayRepClients(clients, accounts, ledgerStore, book)).filter((r) => r.current);
+  return { rows, byClient: new Map(rows.map((r) => [r.clientId, r.book])) };
+}

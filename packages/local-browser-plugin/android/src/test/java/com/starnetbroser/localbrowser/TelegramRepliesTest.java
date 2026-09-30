@@ -746,4 +746,41 @@ public class TelegramRepliesTest {
         assertTrue(owner.endsWith("هل توافق على السعر؟"));
         assertTrue(TelegramReplies.activationSent("100G", e, price, "").endsWith("💵 لم يدفع بعد - يبقى ديناً عليه"));
     }
+
+    @Test
+    public void bookListsOnlyTheRepsOwnCustomers() {
+        TelegramReplies.Snapshot s = paySnapshot();
+        assertEquals(TelegramReplies.BOOK_NONE, TelegramReplies.bookStart("r1", 0, s).text);
+        for (TelegramReplies.SearchEntry e : s.repSearch.get("r1")) if ("c1".equals(e.clientId)) {
+            e.own = true;
+            e.clientBalance = "عليه 1,500 أوقية";
+        }
+        java.util.List<TelegramReplies.PayClient> own = TelegramReplies.bookClients("r1", s);
+        assertEquals(1, own.size());
+        assertEquals("محمد لمين", own.get(0).name);
+        TelegramReplies.Reply start = TelegramReplies.bookStart("r1", 0, s);
+        assertTrue(start.markup.contains("\"callback_data\":\"bkl:c1\""));
+        assertFalse(start.markup.contains("bkl:c2"));
+        assertNull(TelegramReplies.findBookClient("r1", "c2", s));
+        assertTrue(TelegramReplies.bookKindQuestion(own.get(0)).contains("في دفترك: عليه 1,500 أوقية"));
+        assertTrue(TelegramReplies.bookKindMarkup().contains("\"callback_data\":\"bkk:c\""));
+        assertTrue(TelegramReplies.bookKindMarkup().contains("\"callback_data\":\"bkk:r\""));
+    }
+
+    @Test
+    public void bookEntrySavedCanBeUndoneWithin24Hours() {
+        TelegramReplies.Price price = new TelegramReplies.Price(500, "MRU");
+        String confirm = TelegramReplies.bookConfirmText("محمد", "c", price, "دين قديم");
+        assertTrue(confirm.contains("➕ عليه 500 أوقية"));
+        assertTrue(confirm.contains("📝 دين قديم"));
+        String saved = TelegramReplies.bookSaved("محمد", "➕ عليه", price, "");
+        assertTrue(saved.startsWith("✅ سُجّل في دفترك:"));
+        String undo = TelegramReplies.bookUndoMarkup("0f8fad5b-d9cb-469f-a165-70867728950e", 1_800_000_000_000L);
+        assertNotNull(undo);
+        assertTrue(undo.contains("\"callback_data\":\"bku:0f8fad5b-d9cb-469f-a165-70867728950e:30000000\""));
+        String undone = TelegramReplies.bookUndone(saved);
+        assertTrue(undone.startsWith("↩️ أُلغي من دفترك:"));
+        assertFalse(undone.contains("يمكنك التراجع"));
+        assertEquals("سطر واحد فقط", TelegramReplies.oneLine("  سطر\nواحد   فقط "));
+    }
 }

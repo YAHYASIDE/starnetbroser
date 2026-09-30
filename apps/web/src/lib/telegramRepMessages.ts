@@ -79,11 +79,29 @@ export function repDevicesText(accounts: StarlinkAccountSummary[], clients: Clie
   return lines.join("\n");
 }
 
-export function repDebtsText(repId: string, accounts: StarlinkAccountSummary[], ledgerStore: LedgerByAccount, clients: ClientStore): string {
-  const debt = repDevicesDebt(repId, accounts, ledgerStore);
-  if (debt.rows.length === 0) return "✓ لا ديون على زبائن أجهزتك";
+export function repDebtsText(
+  repId: string,
+  accounts: StarlinkAccountSummary[],
+  ledgerStore: LedgerByAccount,
+  clients: ClientStore,
+  own: { clientId: string; name: string; book: Record<string, number> }[] = [],
+): string {
+  const lines: string[] = [];
+  // His own customers first: what they owe HIM, from his book.
+  const owing = own.filter((r) => Object.values(r.book).some((v) => v > 0.005));
+  if (own.length > 0) {
+    const total: Record<string, number> = {};
+    for (const r of owing) for (const [c, v] of Object.entries(r.book)) if (v > 0.005) total[c] = (total[c] ?? 0) + v;
+    lines.push(owing.length === 0 ? "✓ لا ديون على زبائنك في دفترك" : `📒 زبائنك عليهم لك (دفترك): ${money(total)}`, "");
+    for (const r of owing.slice(0, MAX_LINES)) lines.push(`• ${r.name}: ${balanceWords(r.book)}`);
+    if (owing.length > MAX_LINES) lines.push(`• و${owing.length - MAX_LINES} آخر`);
+  }
+  const ownIds = new Set(own.map((r) => r.clientId));
+  const debt = repDevicesDebt(repId, accounts.filter((a) => !a.clientId || !ownIds.has(a.clientId)), ledgerStore);
+  if (debt.rows.length === 0) return lines.length > 0 ? lines.join("\n") : "✓ لا ديون على زبائن أجهزتك";
+  if (lines.length > 0) lines.push("");
   const byId = new Map(accounts.map((a) => [a.id, a]));
-  const lines = [`💰 ديون زبائن أجهزتك: ${money(debt.totalByCurrency)}`, ""];
+  lines.push(`💰 ديون زبائن أجهزتك: ${money(debt.totalByCurrency)}`, "");
   for (const row of debt.rows.slice(0, MAX_LINES)) {
     const account = byId.get(row.accountId);
     lines.push(`• ${account ? repLabel(account, clients) : "جهاز"}: ${money(row.owed)}`);
@@ -149,6 +167,7 @@ export type RepCommand =
   | { kind: "mypromises" }
   | { kind: "handover"; text: string }
   | { kind: "loan" }
+  | { kind: "book" }
   | { kind: "unknown"; text: string };
 
 type RepWordKind = Exclude<RepCommand["kind"], "unknown">;
@@ -227,6 +246,10 @@ const REP_WORD_LIST: Record<string, RepWordKind> = {
   "سلف": "loan",
   "قرض": "loan",
   loan: "loan",
+  // 📒 His own book (repClients.ts): ➕➖ له/عليه on his own customers.
+  "دفتري": "book",
+  "دفتر": "book",
+  book: "book",
 };
 
 /** Keyed by the folded word, so "اجهزتي" = "أجهزتي", "الاجهزة" = "الأجهزة"... */
@@ -409,21 +432,35 @@ export function repStoppedReply(accounts: StarlinkAccountSummary[], clients: Cli
   };
 }
 
-export function repDebtsReply(repId: string, accounts: StarlinkAccountSummary[], ledgerStore: LedgerByAccount, clients: ClientStore): RepReply {
+export function repDebtsReply(
+  repId: string,
+  accounts: StarlinkAccountSummary[],
+  ledgerStore: LedgerByAccount,
+  clients: ClientStore,
+  own: { clientId: string; name: string; book: Record<string, number> }[] = [],
+): RepReply {
   const byId = new Map(accounts.map((a) => [a.id, a]));
-  const rows = repDevicesDebt(repId, accounts, ledgerStore).rows;
+  const ownIds = new Set(own.map((r) => r.clientId));
+  const rows = repDevicesDebt(repId, accounts.filter((a) => !a.clientId || !ownIds.has(a.clientId)), ledgerStore).rows;
+  const ownTargets = own
+    .filter((r) => Object.values(r.book).some((v) => v > 0.005))
+    .map((r) => {
+      const account = accounts.find((a) => a.clientId === r.clientId && !a.deletedAt);
+      const owed = money(Object.fromEntries(Object.entries(r.book).filter(([, v]) => v > 0.005)));
+      return account ? whatsappTarget(account, clients, (name) => debtReminderText(name, account.name, owed)) : null;
+    });
   return {
-    text: repDebtsText(repId, accounts, ledgerStore, clients),
-    markup: whatsappMarkup(
-      rows.map((row) => {
+    text: repDebtsText(repId, accounts, ledgerStore, clients, own),
+    markup: whatsappMarkup([
+      ...ownTargets,
+      ...rows.map((row) => {
         const account = byId.get(row.accountId);
         return account ? whatsappTarget(account, clients, (name) => debtReminderText(name, account.name, money(row.owed))) : null;
       }),
-    ),
+    ]),
   };
 }
 
-/** Same folding as TelegramReplies.normalize (Java) - keys are stored folded, queries folded alike. */
 export function normalizeSearch(text: string): string {
   return text
     .toLowerCase()
@@ -470,6 +507,9 @@ export interface RepSearchEntry {
   /** Reps only: what the device / the customer (all his devices here) owes or has as credit. */
   b?: string;
   cb?: string;
+  /** "1" = the rep's own customer (repClients.ts): a 💵 دفعة goes straight into his book, and
+   * the ➕➖ له/عليه step lists only these. */
+  o?: string;
 }
 
 function statusLabel(account: StarlinkAccountSummary): string {
@@ -488,7 +528,15 @@ export function balanceWords(balances: Record<string, number>): string {
 }
 
 /** `withMenu`: a rep's index - each device also gets its menu (header, sections, edit values). */
-export function repSearchIndex(accounts: StarlinkAccountSummary[], clients: ClientStore, ledgerStore: LedgerByAccount, today: string, withMenu = false): RepSearchEntry[] {
+export function repSearchIndex(
+  accounts: StarlinkAccountSummary[],
+  clients: ClientStore,
+  ledgerStore: LedgerByAccount,
+  today: string,
+  withMenu = false,
+  /** The rep's own customers (repClients.ts) -> their balance in his book. Their debt is to HIM. */
+  book: Map<string, Record<string, number>> = new Map(),
+): RepSearchEntry[] {
   const clientBalance = (clientId: string): Record<string, number> => {
     const total: Record<string, number> = {};
     for (const a of accounts) {
@@ -501,14 +549,16 @@ export function repSearchIndex(accounts: StarlinkAccountSummary[], clients: Clie
     const client = account.clientId ? clients[account.clientId] : undefined;
     const phoneDigits = client?.phone ? client.phone.replace(/[^\d]/g, "") : "";
     const days = daysUntilRenewal(account, today);
-    const owed = money(Object.fromEntries(Object.entries(computeBalanceByCurrency(ledgerStore[account.id] ?? [])).filter(([, v]) => v > 0.005)));
+    const ownBook = client ? book.get(client.id) : undefined;
+    const deviceBalance = ownBook ?? computeBalanceByCurrency(ledgerStore[account.id] ?? []);
+    const owed = money(Object.fromEntries(Object.entries(deviceBalance).filter(([, v]) => v > 0.005)));
     const lines = [
       `📡 ${account.name}`,
       client ? `👤 ${client.name}${client.phone ? ` (${tappablePhone(client.phone)})` : ""}` : "👤 —",
       `📅 التجديد: ${account.rechargeDate || "—"}${days === null ? "" : days < 0 ? ` (انتهى منذ ${-days} يوم)` : ` (بعد ${days} يوم)`}`,
       `الحالة: ${statusLabel(account)}`,
       connectionLine(account),
-      owed ? `💰 عليه: ${owed}` : "💰 لا دين عليه",
+      ownBook ? `💰 في دفترك: ${balanceWords(ownBook)}` : owed ? `💰 عليه: ${owed}` : "💰 لا دين عليه",
       ...(account.kitNumber || account.serialNumber
         ? [`🔢 ${[account.kitNumber && `KIT: ${account.kitNumber}`, account.serialNumber && `SN: ${account.serialNumber}`].filter(Boolean).join(" · ")}`]
         : []),
@@ -532,10 +582,12 @@ export function repSearchIndex(accounts: StarlinkAccountSummary[], clients: Clie
       s: `• ${repLabel(account, clients)}${isStoppedAccount(account) ? " ⛔" : ""}`,
       i: account.id,
       ...(client ? { c: client.id, cn: client.name } : {}),
+      ...(ownBook ? { o: "1" } : {}),
       ...(withMenu
         ? {
-            b: balanceWords(computeBalanceByCurrency(ledgerStore[account.id] ?? [])),
-            ...(client ? { cb: balanceWords(clientBalance(client.id)) } : {}),
+            // His own customer: the balance is the one in his book, for the customer as a whole.
+            b: balanceWords(ownBook ?? computeBalanceByCurrency(ledgerStore[account.id] ?? [])),
+            ...(client ? { cb: balanceWords(ownBook ?? clientBalance(client.id)) } : {}),
           }
         : {}),
       ...(reminder ? { r: reminder.url } : {}),
@@ -559,7 +611,7 @@ export function repSearchIndex(accounts: StarlinkAccountSummary[], clients: Clie
             ...(openDebtEntries(ledgerStore[account.id] ?? []).length > 0 ? { dm: "1" } : {}),
             ...(() => {
               const stopped = whatsappTarget(account, clients, (name) => stoppedReminderText(name, account.name));
-              const owedNow = Object.fromEntries(Object.entries(computeBalanceByCurrency(ledgerStore[account.id] ?? [])).filter(([, v]) => v > 0.005));
+              const owedNow = Object.fromEntries(Object.entries(deviceBalance).filter(([, v]) => v > 0.005));
               const debt = Object.keys(owedNow).length > 0 ? whatsappTarget(account, clients, (name) => debtReminderText(name, account.name, money(owedNow))) : null;
               return { ...(stopped ? { sw: stopped.url } : {}), ...(debt ? { dw: debt.url } : {}) };
             })(),

@@ -8,6 +8,7 @@ import { CSSProperties, FormEvent, useEffect, useMemo, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { Client, clientDeleteQuestion, CreateClientInput } from "@/lib/clientStore";
 import { clientRepNames } from "@/lib/repDebts";
+import { currentRepOfClient } from "@/lib/repClients";
 import type { RepresentativeStore } from "@/lib/repStore";
 import { CreateSupplierInput, Supplier } from "@/lib/supplierStore";
 import {
@@ -366,11 +367,15 @@ function PartyCard({
   const overLimit =
     creditLimit !== undefined && Object.values(totals).some((t) => t.remaining > creditLimit + EPSILON);
 
+  // A representative's own customer (repClients.ts) owes HIM - "settled" would be wrong here.
+  const ownedByRep = isClient && Boolean(currentRepOfClient(party as Client));
   const status = hasDue
     ? { className: "party-status-due", label: isClient ? "عليه دين" : "مستحق له" }
     : hasCredit
       ? { className: "party-status-credit", label: isClient ? "له رصيد" : "لنا رصيد عنده" }
-      : { className: "party-status-clear", label: "مسدَّد ✓" };
+      : ownedByRep
+        ? { className: "party-status-credit", label: "🤝 عند المندوب" }
+        : { className: "party-status-clear", label: "مسدَّد ✓" };
 
   const statement =
     panel !== "statement"

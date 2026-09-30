@@ -20,7 +20,7 @@ export interface RepBotNames {
 }
 
 /** Commands that belong to the money bot once it's connected. */
-export const MONEY_KINDS = ["payment", "promise", "mypromises", "debts", "statement", "handover", "loan"] as const;
+export const MONEY_KINDS = ["payment", "promise", "mypromises", "debts", "statement", "handover", "loan", "book"] as const;
 
 export function isMoneyKind(kind: string): boolean {
   return (MONEY_KINDS as readonly string[]).includes(kind);
@@ -44,7 +44,7 @@ export const REP_MONEY_KEYBOARD = JSON.stringify({
   keyboard: [
     [{ text: "💵 دفعة" }, { text: "💰 ديون زبائني" }],
     [{ text: "📊 كشفي" }, { text: "🔎 بحث" }],
-    [{ text: "🏦 دين (سلفة)" }],
+    [{ text: "📒 دفتري (له/عليه)" }, { text: "🏦 دين (سلفة)" }],
   ],
   resize_keyboard: true,
   is_persistent: true,
@@ -69,7 +69,8 @@ export const REP_DEVICES_HELP = [
 export const REP_MONEY_HELP = [
   "💰 بوت المال - كل ما يخص المبالغ. استعمل الأزرار أسفل المحادثة:",
   "💵 دفعة - دفعة استلمتها: المبلغ ← العملة ← كاش أو التطبيق البنكي ← الزبون ثم جهازه (أو 💼 حسابك الشخصي) ← 📸 صورة الدفع ← ✅ موافق",
-  "💰 ديون زبائني - ما على زبائن أجهزتك",
+  "💰 ديون زبائني - ما على زبائنك في دفترك (وزبائن أجهزتك)",
+  "📒 دفتري (له/عليه) - سجّل على زبونك «عليه» أو «له» (دين قديم، خصم، تصحيح): الزبون ← عليه/له ← المبلغ ← ملاحظة ← ✅. دفعات زبائنك (💵 دفعة) تُسجَّل في دفترك مباشرة، و↩️ تراجع خلال 24 ساعة",
   "📊 كشفي - حصتك وأرباحك هذا الشهر ورصيدك مع المسؤول",
   "🔎 بحث - اضغطه لترى أسماء زبائنك ثم أجهزة كل زبون ودينه وكشفه، أو اكتب اسماً / هاتفاً / KIT",
   "🏦 دين (سلفة) - اطلب مبلغاً من المسؤول: المبلغ ← العملة ← التطبيق البنكي ← رقم المستلم ← ✅ موافق",
@@ -119,3 +120,5 @@ export function moneyDeepLink(moneyBot: string | undefined, accountId: string): 
 export function botForRequest(kind: string): RepBot {
   return kind === "payment" || kind === "handover" || kind === "promise" ? "money" : "reps";
 }
+
+export const REP_BOOK_HINT = "📒 دفتري: اضغط زر «📒 دفتري (له/عليه)» في بوت المال واتبع الخطوات.";

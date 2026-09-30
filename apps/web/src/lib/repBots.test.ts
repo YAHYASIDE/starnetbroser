@@ -19,7 +19,7 @@ describe("the reps' three bots", () => {
     expect(devices).toContain("⚡ تفعيل");
     expect(devices).not.toContain("➕ زبون جديد"); // customers are added from the app now
     expect(devices).toContain("❓ مساعدة");
-    expect(texts(REP_MONEY_KEYBOARD)).toEqual(["💵 دفعة", "💰 ديون زبائني", "📊 كشفي", "🔎 بحث", "🏦 دين (سلفة)"]);
+    expect(texts(REP_MONEY_KEYBOARD)).toEqual(["💵 دفعة", "💰 ديون زبائني", "📊 كشفي", "🔎 بحث", "📒 دفتري (له/عليه)", "🏦 دين (سلفة)"]);
     expect(moneyRedirectText("m_bot")).toContain("@m_bot");
     expect(otherBotsLines({ money: "m_bot", alerts: "a_bot" }).join("\n")).toContain("@a_bot");
   });

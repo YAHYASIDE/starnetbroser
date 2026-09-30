@@ -11,6 +11,7 @@ import { decideRepEdit, handleRepMenuRecord, repLoanRequest, repPaymentRequest }
 import { loadRepRequests, pendingRepRequests } from "./repRequests";
 import { loadDemoAccounts, saveDemoAccounts } from "./demoAccountStore";
 import { loadClientStore, saveClientStore } from "./clientStore";
+import { loadRepBook } from "./repClients";
 
 // Fake data only.
 function device(extra: Partial<StarlinkAccountSummary> = {}): StarlinkAccountSummary {
@@ -126,5 +127,49 @@ describe("rep menu records", () => {
     expect(cash).toMatchObject({ kind: "handover", paymentMethod: "cash", text: "💼 دفعة في حسابي الشخصي: 50 دولار (نقدًا)" });
     expect(cash).not.toHaveProperty("proofFileId");
     expect(repPaymentRequest({ repId: "r1", amount: 5, currency: "MRU", accountId: "acc-1", method: "paypal" })).not.toHaveProperty("paymentMethod");
+  });
+});
+
+describe("the rep's own book from his bot (repClients.ts)", () => {
+  const ownCustomer = () =>
+    saveClientStore({
+      c1: { id: "c1", name: "محمد", phone: "222", createdAt: "", updatedAt: "", repSegments: [{ repId: "r1", from: "2026-01-01T00:00:00.000Z", carry: true }] },
+    });
+  const record = (kind: "repPayment" | "repBookEntry" | "repBookUndo", data: Record<string, unknown>) => ({
+    bot: "money" as const, chatId: "9", name: "", username: "", text: "", replied: true, kind, data: JSON.stringify(data),
+  });
+
+  it("💵 for his own customer goes straight into his book - no request, recorded once", async () => {
+    ownCustomer();
+    const pay = record("repPayment", { id: "p1", repId: "r1", amount: 1500, currency: "MRU", accountId: "acc-1", method: "cash", at: Date.parse("2026-05-01T10:00:00Z") });
+    await handleRepMenuRecord(pay);
+    await handleRepMenuRecord(pay);
+    expect(loadRepRequests()).toEqual([]);
+    expect(loadRepBook()).toMatchObject([{ id: "p1", repId: "r1", clientId: "c1", kind: "payment", amount: 1500, currency: "MRU" }]);
+  });
+
+  it("💵 for a customer still in the old model waits for approval, as before", async () => {
+    await handleRepMenuRecord(record("repPayment", { id: "p2", repId: "r1", amount: 1500, currency: "MRU", accountId: "acc-1" }));
+    expect(loadRepBook()).toEqual([]);
+    expect(pendingRepRequests(loadRepRequests())).toHaveLength(1);
+  });
+
+  it("➕➖ له/عليه is written on his own customer only, and ↩️ تراجع removes it within 24 hours", async () => {
+    ownCustomer();
+    const now = Date.now();
+    await handleRepMenuRecord(record("repBookEntry", { id: "b1", repId: "r1", clientId: "c1", kind: "charge", amount: 300, currency: "MRU", note: "دين قديم", at: now }));
+    await handleRepMenuRecord(record("repBookEntry", { id: "b2", repId: "r2", clientId: "c1", kind: "charge", amount: 300, currency: "MRU", at: now }));
+    expect(loadRepBook().map((e) => e.id)).toEqual(["b1"]);
+    await handleRepMenuRecord(record("repBookUndo", { id: "b1", repId: "r1", at: now + 1000 }));
+    expect(loadRepBook()).toEqual([]);
+  });
+
+  it("↩️ after 24 hours is refused, and the rep is told", async () => {
+    ownCustomer();
+    const then = Date.now() - 2 * 24 * 60 * 60 * 1000;
+    await handleRepMenuRecord(record("repBookEntry", { id: "b3", repId: "r1", clientId: "c1", kind: "credit", amount: 50, currency: "USD", at: then }));
+    await handleRepMenuRecord(record("repBookUndo", { id: "b3", repId: "r1", at: Date.now() }));
+    expect(loadRepBook()).toHaveLength(1);
+    expect(sent.at(-1)).toContain("24 ساعة");
   });
 });

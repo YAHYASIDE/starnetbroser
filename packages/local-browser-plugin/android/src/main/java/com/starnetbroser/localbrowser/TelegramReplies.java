@@ -98,6 +98,9 @@ final class TelegramReplies {
          * (all his devices) - "" from an older app. */
         String balance = "";
         String clientBalance = "";
+        /** The rep's own customer (repClients.ts): a 💵 دفعة goes straight into his book, and
+         * ➕➖ له/عليه lists only these. */
+        boolean own;
 
         SearchEntry(String keys, String text, String buttonLabel, String buttonUrl) {
             this(keys, text, buttonLabel, buttonUrl, null, null, null, null);
@@ -913,6 +916,11 @@ final class TelegramReplies {
         boolean grouped() {
             return !id.isEmpty() && fitsCallback("payl:" + id);
         }
+
+        boolean own() {
+            for (SearchEntry e : devices) if (e.own) return true;
+            return false;
+        }
     }
 
     /** The rep's customers, each with his devices - those who owe first, then in the app's order. */
@@ -1285,7 +1293,7 @@ final class TelegramReplies {
 
     // ---- 💰 the money bot (mirrors repBots.ts) ----
 
-    static final String[] MONEY_KINDS = {"payment", "promise", "mypromises", "debts", "statement", "handover", "loan"};
+    static final String[] MONEY_KINDS = {"payment", "promise", "mypromises", "debts", "statement", "handover", "loan", "book"};
 
     static boolean isMoneyKind(String kind) {
         for (String k : MONEY_KINDS) if (k.equals(kind)) return true;
@@ -1450,5 +1458,98 @@ final class TelegramReplies {
         String who = name == null || name.trim().isEmpty() ? "" : name.trim();
         if (s == null) return new Reply(null, true, null);
         return new Reply(s.linkReply.replace("{name}", who), true, s.linkNotice.replace("{name}", who.isEmpty() ? "مستخدم" : who));
+    }
+    // ---- 📒 The rep's own book (repClients.ts): ➕➖ له/عليه, 💵 دفعة straight into it, ↩️ تراجع ----
+
+    static final String BOOK_NONE = "📒 لا زبائن لك في دفترك بعد.\nالمسؤول ينقل زبائنك إليك من التطبيق (صفحة المندوب ← زبائنه).";
+    static final String BOOK_AMOUNT_AGAIN = "لم أفهم المبلغ. اكتب رقماً مثل: 500 أوقية أو 20 دولار";
+    static final String BOOK_CANCELLED = "❌ أُلغي - لم يُسجَّل شيء.";
+    static final String BOOK_EXPIRED = "انتهت هذه العملية - ابدأ من جديد بـ ➕➖ له/عليه";
+    /** "↩️ تراجع" works this long after the entry. */
+    static final long BOOK_UNDO_MS = 24L * 60 * 60 * 1000;
+
+    /** Only his own customers (those the operator moved onto him). */
+    static List<PayClient> bookClients(String repId, Snapshot s) {
+        List<PayClient> own = new ArrayList<>();
+        for (PayClient c : payClients(repId, s)) if (c.grouped() && c.own()) own.add(c);
+        return own;
+    }
+
+    static PayClient findBookClient(String repId, String clientId, Snapshot s) {
+        for (PayClient c : bookClients(repId, s)) if (c.id.equals(clientId)) return c;
+        return null;
+    }
+
+    static Reply bookStart(String repId, int page, Snapshot s) {
+        List<PayClient> clients = bookClients(repId, s);
+        if (clients.isEmpty()) return new Reply(BOOK_NONE, false, null, null);
+        String text = "📒 له/عليه في دفترك: اختر الزبون" + searchPageLabel(clients.size(), page);
+        return new Reply(text, false, null, "{\"inline_keyboard\":[" + clientRows(clients, page, "bkl:", "bkl:", "bkp:") + "[" + cb("❌ إلغاء", "bkx") + "]]}");
+    }
+
+    static String bookKindQuestion(PayClient c) {
+        String balance = c.balance().isEmpty() ? "لا شيء عليه ولا له" : c.balance();
+        return "📒 " + c.name + "\nفي دفترك: " + balance + "\n\nماذا تسجّل؟";
+    }
+
+    static String bookKindMarkup() {
+        return "{\"inline_keyboard\":[[" + cb("➕ عليه (دين عليه)", "bkk:c") + "," + cb("➖ له (خصم/تصحيح)", "bkk:r") + "],[" + cb("❌ إلغاء", "bkx") + "]]}";
+    }
+
+    static String bookKindWord(String kind) {
+        return "c".equals(kind) ? "عليه" : "له";
+    }
+
+    static String bookAmountQuestion(String clientName, String kind) {
+        return "📒 " + clientName + " - " + bookKindWord(kind) + "\n\nاكتب المبلغ والعملة، مثلاً: 500 أوقية أو 20 دولار";
+    }
+
+    static String bookCurrencyMarkup() {
+        return "{\"inline_keyboard\":[[" + cb("أوقية", "bkc:MRU") + "," + cb("سيفا", "bkc:SIFA") + "," + cb("دولار", "bkc:USD") + "],[" + cb("❌ إلغاء", "bkx") + "]]}";
+    }
+
+    static String bookNoteQuestion() {
+        return "📝 اكتب ملاحظة (سبب المبلغ)، أو اضغط «بدون ملاحظة».";
+    }
+
+    static String bookNoteMarkup() {
+        return "{\"inline_keyboard\":[[" + cb("بدون ملاحظة", "bkn") + "],[" + cb("❌ إلغاء", "bkx") + "]]}";
+    }
+
+    static String bookConfirmText(String clientName, String kind, Price price, String note) {
+        return "📒 تأكيد:\n👤 " + clientName + "\n" + ("c".equals(kind) ? "➕ عليه " : "➖ له ") + price.label()
+            + (note == null || note.isEmpty() ? "" : "\n📝 " + note) + "\n\nيُسجَّل في دفترك مباشرة.";
+    }
+
+    static String bookConfirmMarkup() {
+        return "{\"inline_keyboard\":[[" + cb("✅ سجّل", "bkok") + "," + cb("❌ إلغاء", "bkx") + "]]}";
+    }
+
+    static String bookSaved(String clientName, String what, Price price, String note) {
+        return "✅ سُجّل في دفترك:\n👤 " + clientName + "\n" + what + " " + price.label()
+            + (note == null || note.isEmpty() ? "" : "\n📝 " + note) + "\n\n↩️ يمكنك التراجع خلال 24 ساعة.";
+    }
+
+    /** "bku:<id>:<minutes since epoch>" - the time lets the bot refuse after 24 hours by itself. */
+    static String bookUndoMarkup(String id, long atMillis) {
+        String data = "bku:" + id + ":" + (atMillis / 60000L);
+        return fitsCallback(data) ? "{\"inline_keyboard\":[[" + cb("↩️ تراجع", data) + "]]}" : null;
+    }
+
+    static String bookUndone(String text) {
+        return text.replace("✅ سُجّل في دفترك:", "↩️ أُلغي من دفترك:").replace("✅ سُجّلت في دفترك:", "↩️ أُلغيت من دفترك:")
+            .replaceAll("\n\n↩️ يمكنك التراجع خلال 24 ساعة\\.$", "");
+    }
+
+    /** 💵 دفعة for his own customer: straight into his book, no approval. */
+    static String payBooked(Price price, SearchEntry entry, String methodName, boolean hasPhoto) {
+        return "✅ سُجّلت في دفترك: دفعة " + price.label() + (entry.clientName.isEmpty() ? "" : "\n👤 " + entry.clientName)
+            + (methodName == null ? "" : methodLine(methodName, hasPhoto)) + "\n\n↩️ يمكنك التراجع خلال 24 ساعة.";
+    }
+
+    /** Collapses what the rep typed into one line - the waiting slot keeps it line by line. */
+    static String oneLine(String text) {
+        String t = text == null ? "" : text.replaceAll("\\s+", " ").trim();
+        return t.length() > 200 ? t.substring(0, 200) : t;
     }
 }

@@ -32,7 +32,7 @@ import {
   sendTelegramText,
   repBotNames,
 } from "./telegram";
-import { devicesHelp, devicesKeyboard, isMoneyKind, moneyRedirectText, REP_HANDOVER_HINT, repHandoverReceivedText, REP_LOAN_HINT, type RepBot } from "./repBots";
+import { devicesHelp, devicesKeyboard, isMoneyKind, moneyRedirectText, REP_BOOK_HINT, REP_HANDOVER_HINT, repHandoverReceivedText, REP_LOAN_HINT, type RepBot } from "./repBots";
 import { buildReplySnapshot } from "./telegramReplies";
 import { deviceDisplayName, readRepDeviceFile, repDeviceCode } from "./repDeviceTransfer";
 import { cardText, forecastText, goalsText, healthText, lapsedText, planText, promisesText } from "./ownerInsightsText";
@@ -75,6 +75,7 @@ import {
   parseTelegramCommand,
   TELEGRAM_HELP,
 } from "./telegramMessages";
+import { loadRepBook, repOwnClientBooks } from "./repClients";
 
 async function loadAccounts(): Promise<StarlinkAccountSummary[]> {
   if (isDemoMode()) return loadDemoAccounts(demoAccounts);
@@ -359,6 +360,7 @@ async function repReplyFor(repId: string, rep: Representative, command: RepComma
   const clients = loadClientStore();
   const all = await loadAccounts();
   const mine = repAccounts(all, repId);
+  const own = repOwnClientBooks(repId, clients, all, loadLedgerStore(), loadRepBook());
   switch (command.kind) {
     case "help":
       return { text: devicesHelp(repBotNames()) };
@@ -366,6 +368,8 @@ async function repReplyFor(repId: string, rep: Representative, command: RepComma
       return { text: REP_HANDOVER_HINT };
     case "loan":
       return { text: REP_LOAN_HINT };
+    case "book":
+      return { text: REP_BOOK_HINT };
     case "devices":
       return { text: repDevicesText(mine, clients, today) };
     case "expiring":
@@ -373,10 +377,10 @@ async function repReplyFor(repId: string, rep: Representative, command: RepComma
     case "stopped":
       return repStoppedReply(mine, clients);
     case "debts":
-      return repDebtsReply(repId, all, loadLedgerStore(), clients);
+      return repDebtsReply(repId, all, loadLedgerStore(), clients, own.rows);
     case "activate":
       // Normally answered by the background service (its buttons need it); this is the fallback.
-      return command.text ? repSearchReply(command.text, repSearchIndex(mine, clients, loadLedgerStore(), today, true), today, false, repBotNames().money) : { text: REP_ACTIVATION_HINT };
+      return command.text ? repSearchReply(command.text, repSearchIndex(mine, clients, loadLedgerStore(), today, true, own.byClient), today, false, repBotNames().money) : { text: REP_ACTIVATION_HINT };
     case "payment":
       return { text: REP_PAYMENT_HINT };
     case "client":
@@ -388,9 +392,9 @@ async function repReplyFor(repId: string, rep: Representative, command: RepComma
     case "days":
       return repDaysReply(mine, clients, today);
     case "search":
-      return repSearchReply(command.query, repSearchIndex(mine, clients, loadLedgerStore(), today, true), today, false, repBotNames().money);
+      return repSearchReply(command.query, repSearchIndex(mine, clients, loadLedgerStore(), today, true, own.byClient), today, false, repBotNames().money);
     case "unknown": {
-      const found = repSearchReply(command.text, repSearchIndex(mine, clients, loadLedgerStore(), today, true), today, false, repBotNames().money);
+      const found = repSearchReply(command.text, repSearchIndex(mine, clients, loadLedgerStore(), today, true, own.byClient), today, false, repBotNames().money);
       return found.text.startsWith("🔎 لم أجد") ? { text: `${found.text}\n\n${devicesHelp(repBotNames())}` } : found;
     }
     case "statement": {

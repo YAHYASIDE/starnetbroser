@@ -124,11 +124,15 @@ export function ClientDialog({ client, devices, ledgerStore, allocationStore, on
   );
   const hasDue = LEDGER_CURRENCIES.some((c) => (summary.totalDebt[c] ?? 0) > 0.0001);
   const hasCredit = !hasDue && LEDGER_CURRENCIES.some((c) => (creditByCurrency[c] ?? 0) > 0.0001);
-  const status = hasDue
-    ? { className: "party-status-due", label: "عليه دين" }
-    : hasCredit
-      ? { className: "party-status-credit", label: "له رصيد" }
-      : { className: "party-status-clear", label: "مسدَّد ✓" };
+  // A representative's own customer (repClients.ts): what his devices owe is the REP's debt to us.
+  const ownedByRep = Boolean(currentRepOfClient(client));
+  const status = ownedByRep
+    ? { className: "party-status-credit", label: "🤝 عند المندوب" }
+    : hasDue
+      ? { className: "party-status-due", label: "عليه دين" }
+      : hasCredit
+        ? { className: "party-status-credit", label: "له رصيد" }
+        : { className: "party-status-clear", label: "مسدَّد ✓" };
 
   return (
     <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => {
@@ -204,7 +208,7 @@ export function ClientDialog({ client, devices, ledgerStore, allocationStore, on
                       <strong dir="ltr">{formatAmount(summary.totalPaid[c] ?? 0)}</strong>
                     </div>
                     <div className={`party-stat ${(summary.totalDebt[c] ?? 0) > 0.0001 ? "party-stat-due" : "party-stat-clear"}`}>
-                      <span>المتبقي عليه</span>
+                      <span>{ownedByRep ? "على المندوب" : "المتبقي عليه"}</span>
                       <strong dir="ltr">{formatAmount(summary.totalDebt[c] ?? 0)}</strong>
                     </div>
                     {(creditByCurrency[c] ?? 0) > 0.0001 && (
