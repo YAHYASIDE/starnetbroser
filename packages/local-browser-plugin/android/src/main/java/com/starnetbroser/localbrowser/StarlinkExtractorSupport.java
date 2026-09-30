@@ -72,6 +72,17 @@ final class StarlinkExtractorSupport {
         return runSawStopped;
     }
 
+    /** Within one run, a Home read that showed the "restricted - outside its home country" banner is
+     * never undone by a later read of the same run without it. Real, confirmed miss: Starlink
+     * prints its banners a moment after the rest of Home, so one read can land before them and
+     * see "Home, no banner" (= not restricted). Returns whether the run has seen it so far. */
+    static boolean keepRestrictedWithinRun(JSObject fields, boolean runSawRestricted) {
+        if (!fields.has("isRestricted")) return runSawRestricted;
+        if (fields.optBoolean("isRestricted", false)) return true;
+        if (runSawRestricted) fields.remove("isRestricted");
+        return runSawRestricted;
+    }
+
     /** Clicks the account's first subscription row on the "الاشتراكات" list page. Boolean result. */
     static String loadClickFirstSubscriptionRowScript(Context context) throws IOException {
         return loadBundle(context) + "\n__starnetClickFirstSubscriptionRow();";

@@ -76,6 +76,8 @@ public class AccountBrowserActivity extends AppCompatActivity {
      * wait after tapping "English" for the page to come back in the new language. */
     private static final int MAX_ENGLISH_STEPS = 7;
     private static final long ENGLISH_RELOAD_DELAY_MS = 4500;
+    /** Home's banners load a moment after the page - wait this long before reading it. */
+    private static final long HOME_SETTLE_DELAY_MS = 6000;
 
     private WebView webView;
     private ProgressBar progressBar;
@@ -98,6 +100,10 @@ public class AccountBrowserActivity extends AppCompatActivity {
     private boolean syncSaveFailed;
     /** A page in this run read the service as stopped (see keepStoppedWithinRun). */
     private boolean syncSawStopped;
+    /** A page in this run showed the region-restricted banner (see keepRestrictedWithinRun). */
+    private boolean syncSawRestricted;
+    /** The run already ended on the account's Home page (its last read), so finishSync needn't reload it. */
+    private boolean syncEndedHome;
     /** This run's steps toward an English page so far, and whether its ☰ was already tapped. */
     private int englishSteps;
     private boolean englishMenuOpened;
@@ -392,6 +398,8 @@ public class AccountBrowserActivity extends AppCompatActivity {
         syncFoundAnything = false;
         syncSaveFailed = false;
         syncSawStopped = false;
+        syncSawRestricted = false;
+        syncEndedHome = false;
         englishSteps = 0;
         englishMenuOpened = false;
         Toast.makeText(this, R.string.starnet_sync_in_progress, Toast.LENGTH_SHORT).show();
@@ -412,6 +420,11 @@ public class AccountBrowserActivity extends AppCompatActivity {
         syncSteps.add(this::syncStepExtractCurrentPage); // billing
         syncSteps.add(() -> syncStepClick(StarlinkExtractorSupport::loadClickSettingsRailItemScript)); // Settings → Users
         syncSteps.add(this::syncStepExtractCurrentPage); // the Users table: which login email is Admin (the primary email)
+        // Home once more, fully settled: its banners ("restricted - outside its home country",
+        // "scheduled to end on …") appear a moment after the page itself, and the first read can
+        // come before them - real, confirmed miss right after the page was switched to English.
+        syncSteps.add(this::syncStepReturnHome);
+        syncSteps.add(this::syncStepExtractCurrentPage);
         syncSteps.add(this::finishSync);
 
         advanceSyncSteps();
@@ -461,6 +474,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
                 }
                 JSObject fields = StarlinkExtractorSupport.parseExtractedFields(value);
                 if (fields != null) syncSawStopped = StarlinkExtractorSupport.keepStoppedWithinRun(fields, syncSawStopped);
+                if (fields != null) syncSawRestricted = StarlinkExtractorSupport.keepRestrictedWithinRun(fields, syncSawRestricted);
                 if (fields != null && fields.length() > 0) {
                     // Durable write FIRST: the final toast must never claim more than what is
                     // actually safe on disk. The main STAR NET Activity/Bridge this screen sits on
@@ -513,7 +527,8 @@ public class AccountBrowserActivity extends AppCompatActivity {
                 return;
             }
             if (done) {
-                advanceSyncSteps();
+                // The page was just switched and reloaded: let Home's banners appear before the read.
+                syncHandler.postDelayed(this::advanceSyncSteps, englishSteps > 1 ? HOME_SETTLE_DELAY_MS : 0);
                 return;
             }
             if ("menu".equals(step)) englishMenuOpened = true;
@@ -563,13 +578,24 @@ public class AccountBrowserActivity extends AppCompatActivity {
         webView.evaluateJavascript(script, value -> syncHandler.postDelayed(this::advanceSyncSteps, settleDelayMs));
     }
 
+    /** Back to the account's Home page, then a long settle so its banners have appeared. */
+    private void syncStepReturnHome() {
+        if (!syncGuardOk()) {
+            finishSync();
+            return;
+        }
+        syncEndedHome = true;
+        webView.loadUrl(homeUrl);
+        syncHandler.postDelayed(this::advanceSyncSteps, HOME_SETTLE_DELAY_MS);
+    }
+
     /** Always the last step: returns to the Home page (regardless of which page the run ends on)
      * so the operator lands back somewhere familiar, then reports one combined result for the
      * whole run - never a separate toast per page, which would otherwise fire up to four times in
      * a row for one button tap. */
     private void finishSync() {
         syncSteps = null;
-        if (webView != null) {
+        if (webView != null && !syncEndedHome) {
             webView.loadUrl(homeUrl);
         }
         if (syncSaveFailed) {

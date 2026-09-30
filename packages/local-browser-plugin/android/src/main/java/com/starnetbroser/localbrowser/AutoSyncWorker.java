@@ -485,6 +485,10 @@ public class AutoSyncWorker extends Worker {
     /** Mirrors AccountBrowserActivity#syncFromStarlink's own AllowedUrl-before-and-after check:
      * the page could have navigated away during the settle delay above. */
     private void readAndSave(Context context, WebView webView, AutoSyncAccountStore.Entry entry, String script, Runnable teardown) {
+        readAndSave(context, webView, entry, script, teardown, false);
+    }
+
+    private void readAndSave(Context context, WebView webView, AutoSyncAccountStore.Entry entry, String script, Runnable teardown, boolean recheck) {
         if (!AllowedUrl.isAllowed(webView.getUrl())) {
             teardown.run();
             return;
@@ -493,6 +497,19 @@ public class AutoSyncWorker extends Worker {
             script,
             value -> {
                 JSObject fields = StarlinkExtractorSupport.parseExtractedFields(value);
+                // Home without the "restricted" banner - but Starlink prints its banners a moment
+                // after the page (real, confirmed miss), so read once more before trusting that
+                // and clearing a real restriction.
+                if (!recheck && fields != null && fields.has("isRestricted") && !fields.optBoolean("isRestricted", false)) {
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                        try {
+                            readAndSave(context, webView, entry, script, teardown, true);
+                        } catch (RuntimeException e) {
+                            teardown.run();
+                        }
+                    }, STEP_DELAY_MS);
+                    return;
+                }
                 if (fields != null && fields.length() > 0 && AllowedUrl.isAllowed(webView.getUrl())) {
                     pageValues.put(entry.accountId, new String[] {fields.getString("serviceStatus"), fields.getString("renewalDate")});
                     String syncId = PendingSyncStore.save(context, entry.accountId, fields);
