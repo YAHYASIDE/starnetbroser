@@ -124,11 +124,12 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
   // the account Home page with no such banner, actively correct a stale "restricted" left over from
   // an earlier sync (the kit may have already been returned to its home country) - the exact same
   // reasoning isOnAccountHomePage already applies to a stale "suspended" serviceStatus above.
-  // A device in standby (or canceled) isn't using the service at all, so a restriction from before
-  // no longer applies - real, confirmed case: a standby device's page (plan badge "وضع الاستعداد",
-  // no restriction banner) kept a stale "restricted" that only a Home-page read could ever clear.
+  // Only the Home page may clear it: the banner is printed there alone. Real, confirmed bug: a
+  // restricted device on the Standby Mode plan (SIS) read "restricted" on Home, then the next page of
+  // the same sync (its subscription, "standby" plan, no banner there) cleared it again. A standby /
+  // canceled device's restriction is hidden by the app anyway (reminders.ts showsRestriction).
   if (hasRegionRestrictedBanner(lines)) fields.isRestricted = true;
-  else if (isOnAccountHomePage(lines) || serviceStatus === "standby" || serviceStatus === "canceled" || onStandbyPlan) fields.isRestricted = false;
+  else if (isOnAccountHomePage(lines)) fields.isRestricted = false;
 
   // "إيميل غير رئيسي" is decided on the Settings → Users table only (the operator's confirmed
   // signal): the web merge sets limitedAccess from whether this account's own login email carries

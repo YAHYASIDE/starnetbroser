@@ -602,7 +602,7 @@ describe("extractStarlinkFields - real region-restriction banner (round 19 regre
     expect(fields.isRestricted).toBe(false);
   });
 
-  it("clears a stale isRestricted on a standby device's page (plan badge وضع الاستعداد, no banner)", () => {
+  it("a standby device's subscription page (no banner) never clears the Home page's restriction", () => {
     const fields = extractFrom(`
       <div>خدمتك في وضع الاستعداد حاليًا.</div>
       <div>استئناف الخدمة</div>
@@ -612,7 +612,9 @@ describe("extractStarlinkFields - real region-restriction banner (round 19 regre
     // Starlink's Standby Mode plan (SIS): active on purpose, never "waiting for activation".
     expect(fields.planName).toBe("وضع الاستعداد");
     expect(fields.serviceStatus).toBe("active");
-    expect(fields.isRestricted).toBe(false);
+    // Only the Home page (where the banner lives) decides - real case: Home said restricted, this
+    // page of the same sync cleared it again.
+    expect(fields).not.toHaveProperty("isRestricted");
   });
 
   it("leaves isRestricted unset on a page that is neither the confirmed Home page nor shows the banner", () => {
