@@ -562,6 +562,33 @@ public class TelegramRepliesTest {
     }
 
     @Test
+    public void paymentShowsWhatTheCustomerOwesOrHasAsCredit() {
+        TelegramReplies.Snapshot s = paySnapshot();
+        java.util.List<TelegramReplies.SearchEntry> list = s.repSearch.get("r1");
+        list.get(0).balance = "عليه 3,000 أوقية";
+        list.get(0).clientBalance = "عليه 3,000 أوقية · له 20 دولار";
+        list.get(2).balance = "له 20 دولار";
+        list.get(2).clientBalance = "عليه 3,000 أوقية · له 20 دولار";
+        list.get(1).balance = "لا شيء عليه ولا له";
+        list.get(1).clientBalance = "لا شيء عليه ولا له";
+        TelegramReplies.Price price = new TelegramReplies.Price(5000, "SIFA");
+
+        TelegramReplies.Reply who = TelegramReplies.payWho("r1", price, "", "", 0, s);
+        assertTrue(who.markup.contains("{\"text\":\"👤 محمد لمين (جهازان) · عليه 3,000 أوقية · له 20 دولار\",\"callback_data\":\"payl:c1\"}"));
+        assertTrue(who.markup.contains("{\"text\":\"👤 سالم\",\"callback_data\":\"payl:c2\"}")); // nothing either way
+
+        TelegramReplies.Reply devices = TelegramReplies.payClientDevices(price, TelegramReplies.findPayClient("r1", "c1", s));
+        assertTrue(devices.text.contains("💰 حسابه (كل أجهزته): عليه 3,000 أوقية · له 20 دولار"));
+        assertTrue(devices.text.contains("📡 a@gmail.com\n   💰 عليه 3,000 أوقية"));
+        assertTrue(devices.text.contains("📡 c@outlook.com\n   💰 له 20 دولار"));
+
+        String confirm = TelegramReplies.payConfirmText(price, list.get(2));
+        assertTrue(confirm.contains("💰 قبل هذه الدفعة:\n• الجهاز: له 20 دولار\n• حساب الزبون كله: عليه 3,000 أوقية · له 20 دولار"));
+        assertTrue(TelegramReplies.payConfirmText(price, list.get(1)).contains("• الجهاز: لا شيء عليه ولا له"));
+        assertFalse(TelegramReplies.payConfirmText(price, list.get(1)).contains("حساب الزبون كله"));
+    }
+
+    @Test
     public void paymentCustomersPageByEight() {
         TelegramReplies.Snapshot s = snapshot();
         java.util.List<TelegramReplies.SearchEntry> list = new java.util.ArrayList<>();

@@ -13,7 +13,7 @@ import {
   repEditPatch,
   repEditValues,
 } from "./repDeviceMenu";
-import { repSearchIndex, repSearchReply } from "./telegramRepMessages";
+import { balanceWords, repSearchIndex, repSearchReply } from "./telegramRepMessages";
 
 // Fake data only.
 function account(id: string, extra: Partial<StarlinkAccountSummary> = {}): StarlinkAccountSummary {
@@ -125,6 +125,16 @@ describe("rep search with menus", () => {
     const owner = repSearchIndex(accounts, clients, {}, TODAY);
     expect(owner[0]!.h).toBeUndefined();
     expect(repSearchReply("مقهى", owner, TODAY, true).text).toContain("الطبق");
+  });
+
+  it("💵 دفعة: what each device and its customer owes or has as credit", () => {
+    const ledger = { مقهى: [debit("1", 5000)], منزل: [debit("2", 20, "USD"), credit("3", 50, "USD")] };
+    const [cafe, home] = repSearchIndex(accounts, clients, ledger, TODAY, true);
+    expect(cafe).toMatchObject({ c: "c1", b: "عليه 5,000 أوقية", cb: "عليه 5,000 أوقية · له 30 دولار" });
+    expect(home!.b).toBe("له 30 دولار");
+    expect(repSearchIndex(accounts, clients, {}, TODAY, true)[0]!.b).toBe("لا شيء عليه ولا له");
+    expect(repSearchIndex(accounts, clients, ledger, TODAY)[0]!.b).toBeUndefined(); // the owner's index
+    expect(balanceWords({})).toBe("لا شيء عليه ولا له");
   });
 });
 

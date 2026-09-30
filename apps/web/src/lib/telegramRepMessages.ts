@@ -460,6 +460,9 @@ export interface RepSearchEntry {
   /** The device's customer (id, name) - the 💵 دفعة step lists customers first, then their devices. */
   c?: string;
   cn?: string;
+  /** Reps only: what the device / the customer (all his devices here) owes or has as credit. */
+  b?: string;
+  cb?: string;
 }
 
 function statusLabel(account: StarlinkAccountSummary): string {
@@ -468,8 +471,25 @@ function statusLabel(account: StarlinkAccountSummary): string {
   return "—";
 }
 
+/** A balance in words, per currency never mixed: "عليه 5,000 أوقية · له 20 دولار", or
+ * "لا شيء عليه ولا له" (positive = the customer owes, negative = his credit). */
+export function balanceWords(balances: Record<string, number>): string {
+  const owes = money(Object.fromEntries(Object.entries(balances).filter(([, v]) => v > 0.005)));
+  const credit = money(Object.fromEntries(Object.entries(balances).filter(([, v]) => v < -0.005).map(([c, v]) => [c, -v])));
+  const parts = [owes && `عليه ${owes}`, credit && `له ${credit}`].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : "لا شيء عليه ولا له";
+}
+
 /** `withMenu`: a rep's index - each device also gets its menu (header, sections, edit values). */
 export function repSearchIndex(accounts: StarlinkAccountSummary[], clients: ClientStore, ledgerStore: LedgerByAccount, today: string, withMenu = false): RepSearchEntry[] {
+  const clientBalance = (clientId: string): Record<string, number> => {
+    const total: Record<string, number> = {};
+    for (const a of accounts) {
+      if (a.clientId !== clientId) continue;
+      for (const [code, v] of Object.entries(computeBalanceByCurrency(ledgerStore[a.id] ?? []))) total[code] = (total[code] ?? 0) + v;
+    }
+    return total;
+  };
   return accounts.map((account) => {
     const client = account.clientId ? clients[account.clientId] : undefined;
     const phoneDigits = client?.phone ? client.phone.replace(/[^\d]/g, "") : "";
@@ -505,6 +525,12 @@ export function repSearchIndex(accounts: StarlinkAccountSummary[], clients: Clie
       s: `• ${repLabel(account, clients)}${isStoppedAccount(account) ? " ⛔" : ""}`,
       i: account.id,
       ...(client ? { c: client.id, cn: client.name } : {}),
+      ...(withMenu
+        ? {
+            b: balanceWords(computeBalanceByCurrency(ledgerStore[account.id] ?? [])),
+            ...(client ? { cb: balanceWords(clientBalance(client.id)) } : {}),
+          }
+        : {}),
       ...(reminder ? { r: reminder.url } : {}),
       // Readable text for names/emails, plus every number compacted (no dashes or spaces) so
       // "KIT-000 111", "kit000111" and "000111" all find the same kit.

@@ -1032,6 +1032,8 @@ public class TelegramReplyService extends Service {
                         entry.debtUrl = e.optString("dw", null);
                         entry.clientId = e.optString("c", "");
                         entry.clientName = e.optString("cn", "");
+                        entry.balance = e.optString("b", "");
+                        entry.clientBalance = e.optString("cb", "");
                         entries.add(entry);
                     }
                     s.repSearch.put(id, entries);

@@ -94,6 +94,10 @@ final class TelegramReplies {
         /** Its customer ("" = none) - 💵 دفعة lists customers first, then their devices. */
         String clientId = "";
         String clientName = "";
+        /** "عليه 5,000 أوقية" / "له 20 دولار" / "لا شيء عليه ولا له": the device, and its customer
+         * (all his devices) - "" from an older app. */
+        String balance = "";
+        String clientBalance = "";
 
         SearchEntry(String keys, String text, String buttonLabel, String buttonUrl) {
             this(keys, text, buttonLabel, buttonUrl, null, null, null, null);
@@ -863,8 +867,15 @@ final class TelegramReplies {
         }
 
         boolean owes() {
-            for (SearchEntry e : devices) if (!owedLine(e).isEmpty()) return true;
+            for (SearchEntry e : devices) if (e.balance.startsWith("عليه") || (e.balance.isEmpty() && !owedLine(e).isEmpty())) return true;
             return false;
+        }
+
+        /** The customer's balance ("" when unknown or nothing either way). */
+        String balance() {
+            SearchEntry first = devices.get(0);
+            String b = grouped() && !first.clientBalance.isEmpty() ? first.clientBalance : first.balance;
+            return b.startsWith("لا شيء") ? "" : b;
         }
 
         boolean grouped() {
@@ -904,14 +915,21 @@ final class TelegramReplies {
     static final int PAY_BUTTONS = 8;
 
     private static String cut(String label) {
-        return label.length() > 48 ? label.substring(0, 48) : label;
+        return label.length() > 64 ? label.substring(0, 64) : label;
     }
 
     static String clientButton(PayClient c) {
-        if (!c.grouped()) return cb(cut("📡 " + c.name), "payt:" + c.devices.get(0).id);
+        String balance = c.balance().isEmpty() ? "" : " · " + c.balance();
+        if (!c.grouped()) return cb(cut("📡 " + c.name + balance), "payt:" + c.devices.get(0).id);
         int n = c.devices.size();
         String count = n == 1 ? "" : n == 2 ? " (جهازان)" : " (" + n + " أجهزة)";
-        return cb(cut("👤 " + c.name + count), "payl:" + c.id);
+        return cb(cut("👤 " + c.name + count + balance), "payl:" + c.id);
+    }
+
+    /** "💰 عليه 5,000 أوقية" for a device: its balance words, else the card's owed line. */
+    static String deviceBalanceLine(SearchEntry e) {
+        if (!e.balance.isEmpty()) return "💰 " + e.balance;
+        return owedLine(e);
     }
 
     /** The two search buttons, 💼 his own account and ❌ - under every list of the who step. */
@@ -992,9 +1010,12 @@ final class TelegramReplies {
 
     /** A customer tapped: his devices, each with what it owes, to pick the one paid for. */
     static Reply payClientDevices(Price price, PayClient c) {
-        StringBuilder text = new StringBuilder(payHeader(price)).append("👤 الزبون: ").append(c.name).append("\n");
+        StringBuilder text = new StringBuilder(payHeader(price)).append("👤 الزبون: ").append(c.name);
+        String total = c.devices.get(0).clientBalance;
+        if (!total.isEmpty()) text.append("\n💰 حسابه").append(c.devices.size() > 1 ? " (كل أجهزته)" : "").append(": ").append(total);
+        text.append("\n");
         for (SearchEntry e : c.devices) {
-            String owed = owedLine(e);
+            String owed = c.devices.size() > 1 || total.isEmpty() ? deviceBalanceLine(e) : "";
             text.append("\n📡 ").append(e.deviceName()).append(owed.isEmpty() ? "" : "\n   " + owed);
         }
         text.append("\n\nعن أي جهاز من أجهزته هذه الدفعة؟");
@@ -1016,8 +1037,15 @@ final class TelegramReplies {
         } else {
             if (!entry.clientName.isEmpty()) text.append("\n👤 الزبون: ").append(entry.clientName);
             text.append("\n📡 الجهاز: ").append(entry.deviceName());
-            String owed = owedLine(entry);
-            if (!owed.isEmpty()) text.append("\n").append(owed).append(" (قبل هذه الدفعة)");
+            if (!entry.balance.isEmpty()) {
+                text.append("\n\n💰 قبل هذه الدفعة:\n• الجهاز: ").append(entry.balance);
+                if (!entry.clientBalance.isEmpty() && !entry.clientBalance.equals(entry.balance)) {
+                    text.append("\n• حساب الزبون كله: ").append(entry.clientBalance);
+                }
+            } else {
+                String owed = owedLine(entry);
+                if (!owed.isEmpty()) text.append("\n").append(owed).append(" (قبل هذه الدفعة)");
+            }
         }
         return text.append("\n\nهل المعلومات صحيحة؟").toString();
     }
