@@ -43,6 +43,8 @@ final class TelegramReplies {
         String searchHint = "";
         String paymentHint = "";
         String clientHint = "";
+        /** ➕ New customers are added from the app now - the redirect the bot answers with. */
+        String clientMoved = "";
         String requestReceived = "";
         String promiseHint = "";
         String promiseReceived = "";
@@ -747,7 +749,8 @@ final class TelegramReplies {
         if (kind != null && !s.moneyBot.isEmpty() && isMoneyKind(kind)) return new Reply(s.moneyRedirect, false, null, s.repKeyboard);
         if (kind == null) return search(repId, cleanText(text), true, s); // "محمد", "22212345"
         if ("search".equals(kind)) return search(repId, afterCommand(text), false, s);
-        if ("payment".equals(kind) || "client".equals(kind) || "promise".equals(kind) || "handover".equals(kind)) return request(repId, kind, text, s);
+        if ("client".equals(kind)) return new Reply(s.clientMoved, false, null, s.repKeyboard);
+        if ("payment".equals(kind) || "promise".equals(kind) || "handover".equals(kind)) return request(repId, kind, text, s);
         if ("activate".equals(kind)) return activate(repId, text, s);
         if ("help".equals(kind)) return new Reply(s.repHelp, false, null, s.repKeyboard);
         Map<String, String> mine = s.reps.get(repId);
@@ -869,7 +872,8 @@ final class TelegramReplies {
             String markup = mine.get(kind + "#kb");
             return new Reply(withTime(answer, s), false, null, markup != null ? markup : s.moneyKeyboard);
         }
-        // Devices, renewals, a new customer... belong to the devices bot.
+        if ("client".equals(kind)) return new Reply(s.clientMoved, false, null, s.moneyKeyboard);
+        // Devices, renewals... belong to the devices bot.
         return new Reply("📡 هذا في بوت الأجهزة" + (s.devicesBot.isEmpty() ? "" : ": @" + s.devicesBot), false, null, s.moneyKeyboard);
     }
 

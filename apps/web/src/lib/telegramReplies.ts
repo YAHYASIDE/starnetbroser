@@ -21,6 +21,7 @@ import {
   REP_ACTIVATION_HINT,
   REP_ACTIVATION_PLANS,
   REP_CLIENT_HINT,
+  REP_CLIENT_MOVED,
   REP_PAYMENT_HINT,
   REP_REQUEST_RECEIVED,
   REP_SEARCH_HINT,
@@ -62,6 +63,8 @@ export interface TelegramReplySnapshot {
   searchHint: string;
   paymentHint: string;
   clientHint: string;
+  /** ➕ New customers are added from the app now - the redirect the bot answers with. */
+  clientMoved: string;
   requestReceived: string;
   promiseHint: string;
   promiseReceived: string;
@@ -185,6 +188,7 @@ export function buildReplySnapshot(input: {
     searchHint: REP_SEARCH_HINT,
     paymentHint: REP_PAYMENT_HINT,
     clientHint: REP_CLIENT_HINT,
+    clientMoved: REP_CLIENT_MOVED,
     requestReceived: REP_REQUEST_RECEIVED,
     promiseHint: REP_PROMISE_HINT,
     promiseReceived: REP_PROMISE_RECEIVED,

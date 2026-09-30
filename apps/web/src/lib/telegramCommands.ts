@@ -60,12 +60,11 @@ import {
   formatMoneyShort,
   matchRepDevices,
   REP_ACTIVATION_HINT,
-  REP_CLIENT_HINT,
+  REP_CLIENT_MOVED,
   REP_PAYMENT_HINT,
-  REP_REQUEST_RECEIVED,
   repPaymentReceivedText,
 } from "./telegramRepMessages";
-import { addRepRequest, loadRepRequests, parseRepClient, parseRepPayment, saveRepRequests } from "./repRequests";
+import { addRepRequest, loadRepRequests, parseRepPayment, saveRepRequests } from "./repRequests";
 import {
   answerCash,
   answerExpiring,
@@ -349,16 +348,9 @@ async function handleRepRequest(
     }
     return;
   }
-  const parsed = parseRepClient(command.text);
-  if (!parsed) {
-    if (!alreadyReplied) await sendRepText(repId, REP_CLIENT_HINT);
-    return;
-  }
-  saveRepRequests(addRepRequest(loadRepRequests(), { repId, kind: "client", text: `زبون جديد ${command.text}`, ...parsed }));
-  if (!alreadyReplied) {
-    await sendRepText(repId, REP_REQUEST_RECEIVED);
-    await sendTelegramText(`➕ طلب زبون جديد من المندوب ${rep.name}: ${[parsed.name, parsed.phone, parsed.email, parsed.kit].filter(Boolean).join(" · ")}\nوافق عليه من صفحة المندوبين في التطبيق.`);
-  }
+  // ➕ New customers are added from the app now, never from the bot: no request is created, the
+  // operator isn't pinged, the rep is simply pointed to the app.
+  if (!alreadyReplied) await sendRepText(repId, REP_CLIENT_MOVED);
 }
 
 /** One rep command answered from the data right now (his own devices only). */
@@ -386,7 +378,7 @@ async function repReplyFor(repId: string, rep: Representative, command: RepComma
     case "payment":
       return { text: REP_PAYMENT_HINT };
     case "client":
-      return { text: REP_CLIENT_HINT };
+      return { text: REP_CLIENT_MOVED };
     case "promise":
       return { text: REP_PROMISE_HINT };
     case "mypromises":

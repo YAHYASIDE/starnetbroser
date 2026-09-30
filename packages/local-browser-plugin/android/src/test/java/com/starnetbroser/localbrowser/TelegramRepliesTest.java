@@ -47,6 +47,7 @@ public class TelegramRepliesTest {
         s.repWords.put("زبون", "client");
         s.paymentHint = "PAY HINT";
         s.clientHint = "CLIENT HINT";
+        s.clientMoved = "CLIENT MOVED";
         s.requestReceived = "RECEIVED";
         s.requestNotice = "طلب من {rep}: «{text}»";
         s.repWords.put("وعد", "promise");
@@ -191,10 +192,13 @@ public class TelegramRepliesTest {
         TelegramReplies.Reply button = TelegramReplies.forRep("r1", "💵 دفعة", snapshot());
         assertEquals("PAY HINT", button.text);
         assertFalse(button.toInbox);
-        assertEquals("CLIENT HINT", TelegramReplies.forRep("r1", "➕ زبون جديد", snapshot()).text);
+        // ➕ New customers are added from the app now: the bot only redirects, never records.
+        TelegramReplies.Reply clientButton = TelegramReplies.forRep("r1", "➕ زبون جديد", snapshot());
+        assertEquals("CLIENT MOVED", clientButton.text);
+        assertFalse(clientButton.toInbox);
         TelegramReplies.Reply client = TelegramReplies.forRep("r1", "زبون جديد محمد 22212345", snapshot());
-        assertTrue(client.toInbox);
-        assertEquals("RECEIVED", client.text);
+        assertFalse(client.toInbox);
+        assertEquals("CLIENT MOVED", client.text);
     }
 
     @Test

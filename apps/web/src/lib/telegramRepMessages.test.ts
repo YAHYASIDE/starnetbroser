@@ -123,6 +123,9 @@ describe("rep commands", () => {
     expect(parseRepCommand("استلمت 50 دولار من مقهى")).toEqual({ kind: "payment", text: "50 دولار من مقهى" });
     expect(parseRepCommand("➕ زبون جديد")).toEqual({ kind: "client", text: "" });
     expect(parseRepCommand("زبون جديد محمد 22212345")).toEqual({ kind: "client", text: "محمد 22212345" });
+    // ❓ مساعدة (and its variants) opens the help/FAQ.
+    expect(parseRepCommand("❓ مساعدة").kind).toBe("help");
+    expect(parseRepCommand("استفسار").kind).toBe("help");
     expect(parseRepCommand("⚡ تفعيل")).toEqual({ kind: "activate", text: "" });
     expect(parseRepCommand("تفعيل محمد")).toEqual({ kind: "activate", text: "محمد" });
     // An email is searched whole - only a "/command@bot" loses its @name.
@@ -138,11 +141,13 @@ describe("rep shortcuts", () => {
     account("بلا زبون", "2026/09/29"),
   ];
 
-  it("keyboard has the eleven buttons", () => {
+  it("keyboard buttons (no «زبون جديد» - added from the app now; «❓ مساعدة» added)", () => {
     const keyboard = JSON.parse(REP_KEYBOARD);
-    expect(keyboard.keyboard.flat().map((b: { text: string }) => b.text)).toEqual([
-      "📡 أجهزتي", "📅 تنتهي", "⛔ الموقوفة", "💰 ديون زبائني", "📊 كشفي", "📆 الأيام", "💵 دفعة", "➕ زبون جديد", "⚡ تفعيل", "🔎 بحث", "🤝 وعد دفع",
+    const buttons = keyboard.keyboard.flat().map((b: { text: string }) => b.text);
+    expect(buttons).toEqual([
+      "📡 أجهزتي", "📅 تنتهي", "⛔ الموقوفة", "💰 ديون زبائني", "📊 كشفي", "📆 الأيام", "💵 دفعة", "🤝 وعد دفع", "⚡ تفعيل", "🔎 بحث", "📋 وعودي", "❓ مساعدة",
     ]);
+    expect(buttons).not.toContain("➕ زبون جديد");
     expect(parseRepCommand("🤝 وعد دفع")).toEqual({ kind: "promise", text: "" });
     expect(parseRepCommand("وعد 5000 محمد الخميس")).toEqual({ kind: "promise", text: "5000 محمد الخميس" });
     expect(keyboard.is_persistent).toBe(true);
