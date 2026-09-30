@@ -508,7 +508,16 @@ export function AccountCard({
             👤 إيميل غير رئيسي - الفوترة لا تظهر
           </span>
         ) : balanceIsZero ? (
-          <strong className="stat-tile-value-ok">لا يوجد</strong>
+          // A device suspended for billing owes money by definition, so "لا يوجد" (nothing due)
+          // there is misleading - it just means the amount hasn't been read yet. Prompt to read it
+          // instead, and keep showing the real figure the moment a sync captures it.
+          isSuspended ? (
+            <span className="account-card-limited-note" title="الجهاز موقوف بسبب الفوترة - حدّث من Starlink أو افتح الحساب لقراءة المبلغ المستحق">
+              ⚠️ موقوف للفوترة - حدّث لقراءة المبلغ
+            </span>
+          ) : (
+            <strong className="stat-tile-value-ok">لا يوجد</strong>
+          )
         ) : (
           <span dir="ltr">
             {balanceUsdEquivalent !== undefined && (
