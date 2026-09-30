@@ -16,7 +16,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -432,7 +431,8 @@ public class TelegramReplyService extends Service {
             return true;
         }
         if ("who".equals(stage)) {
-            askWho(context, bot, token, chatId, 0, repId, snapshot, price, text.trim());
+            String mode = pending[3].startsWith("?") ? pending[3].substring(1) : "";
+            askWho(context, bot, token, chatId, 0, repId, snapshot, price, text.trim(), mode, 0);
             return true;
         }
         // "confirm": he typed instead of tapping - show the summary again.
@@ -459,26 +459,19 @@ public class TelegramReplyService extends Service {
         askWho(context, bot, token, chatId, 0, repId, snapshot, new TelegramReplies.Price(price.amount, currency), TelegramReplies.payQuery(rest));
     }
 
-    /** The customers as buttons (the ones matching what he typed, else those who owe first). */
+    /** The who step: the customers' names (a page of them), or what he searched for - mode "c"
+     * customers, "d" devices, "" both. Replaces the message the button was on (messageId > 0). */
+    private static void askWho(Context context, String bot, String token, String chatId, long messageId, String repId, TelegramReplies.Snapshot snapshot,
+                               TelegramReplies.Price price, String query, String mode, int page) {
+        TelegramStore.setPendingPayment(context, chatId, "who", Double.toString(price.amount), price.currency, mode.isEmpty() ? "" : "?" + mode);
+        TelegramReplies.Reply reply = TelegramReplies.payWho(repId, price, query, mode, page, snapshot);
+        if (messageId > 0) editOrSend(context, bot, token, chatId, messageId, reply.text, reply.markup);
+        else send(context, bot, token, chatId, reply.text, reply.markup);
+    }
+
     private static void askWho(Context context, String bot, String token, String chatId, long messageId, String repId, TelegramReplies.Snapshot snapshot,
                                TelegramReplies.Price price, String query) {
-        TelegramStore.setPendingPayment(context, chatId, "who", Double.toString(price.amount), price.currency, "");
-        boolean searched = !TelegramReplies.normalize(query).isEmpty();
-        List<TelegramReplies.SearchEntry> choices;
-        int total;
-        if (searched) {
-            choices = new java.util.ArrayList<>();
-            for (TelegramReplies.SearchEntry e : TelegramReplies.matchEntries(repId, query, snapshot)) if (TelegramReplies.canPayFor(e)) choices.add(e);
-            total = choices.size();
-            if (choices.isEmpty()) choices = TelegramReplies.payChoices(repId, snapshot);
-        } else {
-            choices = TelegramReplies.payChoices(repId, snapshot);
-            total = choices.size();
-        }
-        String text = TelegramReplies.whoQuestion(price, total, searched, query);
-        String markup = TelegramReplies.whoMarkup(choices);
-        if (messageId > 0) editOrSend(context, bot, token, chatId, messageId, text, markup);
-        else send(context, bot, token, chatId, text, markup);
+        askWho(context, bot, token, chatId, messageId, repId, snapshot, price, query, "", 0);
     }
 
     private static TelegramReplies.Price pendingPrice(String[] pending) {
@@ -510,6 +503,31 @@ public class TelegramReplyService extends Service {
         if (!TelegramReplies.isPayCurrency(price.currency)) return "اختر العملة أولاً";
         if ("payw".equals(data)) {
             askWho(context, bot, token, chatId, messageId, repId, snapshot, price, "");
+            return null;
+        }
+        if (data.startsWith("payp:")) {
+            int page;
+            try {
+                page = Integer.parseInt(data.substring(5));
+            } catch (NumberFormatException broken) {
+                return "اختيار غير صالح";
+            }
+            askWho(context, bot, token, chatId, messageId, repId, snapshot, price, "", "", page);
+            return null;
+        }
+        if (data.startsWith("payl:")) {
+            TelegramReplies.PayClient client = TelegramReplies.findPayClient(repId, data.substring(5), snapshot);
+            if (client == null) return "هذا الزبون ليس من زبائنك";
+            TelegramStore.setPendingPayment(context, chatId, "who", pending[1], price.currency, "");
+            TelegramReplies.Reply reply = TelegramReplies.payClientDevices(price, client);
+            editOrSend(context, bot, token, chatId, messageId, reply.text, reply.markup);
+            return client.name;
+        }
+        if ("payq:c".equals(data) || "payq:d".equals(data)) {
+            boolean clients = "payq:c".equals(data);
+            TelegramStore.setPendingPayment(context, chatId, "who", pending[1], price.currency, clients ? "?c" : "?d");
+            send(context, bot, token, chatId, clients ? TelegramReplies.PAY_SEARCH_CLIENT : TelegramReplies.PAY_SEARCH_DEVICE,
+                TelegramReplies.forceReply(clients ? "اسم الزبون" : "الجهاز / الإيميل / KIT"));
             return null;
         }
         if (data.startsWith("payt:")) {
@@ -1012,6 +1030,8 @@ public class TelegramReplyService extends Service {
                         entry.hasD = "1".equals(e.optString("dm", ""));
                         entry.stoppedUrl = e.optString("sw", null);
                         entry.debtUrl = e.optString("dw", null);
+                        entry.clientId = e.optString("c", "");
+                        entry.clientName = e.optString("cn", "");
                         entries.add(entry);
                     }
                     s.repSearch.put(id, entries);

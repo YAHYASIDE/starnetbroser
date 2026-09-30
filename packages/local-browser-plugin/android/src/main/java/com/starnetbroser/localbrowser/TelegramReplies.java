@@ -91,6 +91,9 @@ final class TelegramReplies {
         /** WhatsApp: the customer's "stopped" message, and his debt reminder (or null). */
         String stoppedUrl;
         String debtUrl;
+        /** Its customer ("" = none) - 💵 دفعة lists customers first, then their devices. */
+        String clientId = "";
+        String clientName = "";
 
         SearchEntry(String keys, String text, String buttonLabel, String buttonUrl) {
             this(keys, text, buttonLabel, buttonUrl, null, null, null, null);
@@ -831,8 +834,9 @@ final class TelegramReplies {
         return "MRU".equals(code) || "SIFA".equals(code) || "USD".equals(code);
     }
 
-    /** "• device - customer (phone)" without the dot. */
+    /** "device - customer" (the customer's name only, no phone). */
     static String payTargetLabel(SearchEntry e) {
+        if (!e.clientName.isEmpty()) return e.deviceName() + " - " + e.clientName;
         String line = e.line.replaceFirst("^• ", "").trim();
         return line.isEmpty() ? e.deviceName() : line;
     }
@@ -847,53 +851,171 @@ final class TelegramReplies {
         return !e.id.isEmpty() && fitsCallback("payt:" + e.id);
     }
 
-    /** The customers offered as buttons before he types anything: those who owe first. */
-    static List<SearchEntry> payChoices(String repId, Snapshot s) {
-        List<SearchEntry> owing = new ArrayList<>();
-        List<SearchEntry> rest = new ArrayList<>();
+    /** One customer and his devices (id "" = a device without a customer, shown on its own). */
+    static final class PayClient {
+        final String id;
+        final String name;
+        final List<SearchEntry> devices = new ArrayList<>();
+
+        PayClient(String id, String name) {
+            this.id = id;
+            this.name = name;
+        }
+
+        boolean owes() {
+            for (SearchEntry e : devices) if (!owedLine(e).isEmpty()) return true;
+            return false;
+        }
+
+        boolean grouped() {
+            return !id.isEmpty() && fitsCallback("payl:" + id);
+        }
+    }
+
+    /** The rep's customers, each with his devices - those who owe first, then in the app's order. */
+    static List<PayClient> payClients(String repId, Snapshot s) {
+        List<PayClient> all = new ArrayList<>();
+        Map<String, PayClient> byId = new HashMap<>();
         List<SearchEntry> entries = s.repSearch.get(repId);
-        if (entries != null) for (SearchEntry e : entries) if (canPayFor(e)) (owedLine(e).isEmpty() ? rest : owing).add(e);
-        owing.addAll(rest);
-        return owing;
+        if (entries != null) {
+            for (SearchEntry e : entries) {
+                if (!canPayFor(e)) continue;
+                PayClient c = e.clientId.isEmpty() ? null : byId.get(e.clientId);
+                if (c == null) {
+                    c = new PayClient(e.clientId, e.clientName.isEmpty() ? e.deviceName() : e.clientName);
+                    if (!c.grouped()) c = new PayClient("", e.deviceName());
+                    else byId.put(e.clientId, c);
+                    all.add(c);
+                }
+                c.devices.add(e);
+            }
+        }
+        List<PayClient> sorted = new ArrayList<>();
+        for (PayClient c : all) if (c.owes()) sorted.add(c);
+        for (PayClient c : all) if (!c.owes()) sorted.add(c);
+        return sorted;
+    }
+
+    static PayClient findPayClient(String repId, String clientId, Snapshot s) {
+        for (PayClient c : payClients(repId, s)) if (c.id.equals(clientId)) return c;
+        return null;
     }
 
     static final int PAY_BUTTONS = 8;
 
-    static String whoQuestion(Price price, int total, boolean searched, String query) {
-        StringBuilder text = new StringBuilder("💵 " + price.label() + "\n\n");
-        if (searched) {
-            text.append(total == 0 ? "🔎 لم أجد «" + quote(query) + "» بين زبائنك - اكتب اسماً آخر أو اختر من الأزرار:" : "🔎 نتائج «" + quote(query) + "» - اختر الزبون:");
-        } else {
-            text.append("عن من هذه الدفعة؟ اختر الزبون");
-            if (total > PAY_BUTTONS) text.append("، أو اكتب اسمه / هاتفه / KIT / إيميله لتظهر أزراره");
-            text.append(":");
-        }
-        return text.toString();
+    private static String cut(String label) {
+        return label.length() > 48 ? label.substring(0, 48) : label;
     }
 
-    /** One button per customer (up to 8), then 💼 his own account and ❌. */
-    static String whoMarkup(List<SearchEntry> entries) {
+    static String clientButton(PayClient c) {
+        if (!c.grouped()) return cb(cut("📡 " + c.name), "payt:" + c.devices.get(0).id);
+        int n = c.devices.size();
+        String count = n == 1 ? "" : n == 2 ? " (جهازان)" : " (" + n + " أجهزة)";
+        return cb(cut("👤 " + c.name + count), "payl:" + c.id);
+    }
+
+    /** The two search buttons, 💼 his own account and ❌ - under every list of the who step. */
+    private static String payFooter() {
+        return "[" + cb("🔎 بحث باسم الزبون", "payq:c") + "," + cb("🔎 بحث عن جهاز", "payq:d") + "],["
+            + cb("💼 في حسابي الشخصي", "payt:" + PAY_ME) + "],[" + cb("❌ إلغاء", "payx") + "]";
+    }
+
+    /** One page of customers (8 a page, ⬅️ المزيد / السابق ➡️), then the footer. */
+    static String clientsMarkup(List<PayClient> clients, int page) {
+        int pages = Math.max(1, (clients.size() + PAY_BUTTONS - 1) / PAY_BUTTONS);
+        int p = Math.max(0, Math.min(page, pages - 1));
+        StringBuilder rows = new StringBuilder();
+        for (int i = p * PAY_BUTTONS; i < Math.min(clients.size(), (p + 1) * PAY_BUTTONS); i++) {
+            rows.append('[').append(clientButton(clients.get(i))).append("],");
+        }
+        if (pages > 1) {
+            StringBuilder nav = new StringBuilder();
+            if (p > 0) nav.append(cb("➡️ السابق", "payp:" + (p - 1)));
+            if (p < pages - 1) {
+                if (nav.length() > 0) nav.append(',');
+                nav.append(cb("المزيد ⬅️", "payp:" + (p + 1)));
+            }
+            rows.append('[').append(nav).append("],");
+        }
+        return "{\"inline_keyboard\":[" + rows + payFooter() + "]}";
+    }
+
+    static String payHeader(Price price) {
+        return "💵 " + price.label() + "\n\n";
+    }
+
+    /** The who step: the customers' names (page), or what he searched for (mode "c" customers,
+     * "d" devices, "" both). */
+    static Reply payWho(String repId, Price price, String query, String mode, int page, Snapshot s) {
+        List<PayClient> clients = payClients(repId, s);
+        String folded = normalize(query);
+        if (folded.isEmpty()) {
+            int pages = Math.max(1, (clients.size() + PAY_BUTTONS - 1) / PAY_BUTTONS);
+            String text = payHeader(price) + (clients.isEmpty() ? "لا زبائن لك بعد - اختر «💼 في حسابي الشخصي» أو أخبر المسؤول."
+                : "عن أي زبون هذه الدفعة؟ اضغط اسمه لتظهر أجهزته" + (pages > 1 ? " (صفحة " + (Math.min(page, pages - 1) + 1) + " من " + pages + ")" : "") + ":");
+            return new Reply(text, false, null, clientsMarkup(clients, page));
+        }
+        if (!"d".equals(mode)) {
+            List<PayClient> found = new ArrayList<>();
+            for (PayClient c : clients) {
+                String name = normalize(c.name);
+                boolean all = true;
+                for (String w : folded.split(" ")) if (!name.contains(w)) { all = false; break; }
+                if (all) found.add(c);
+            }
+            if (!found.isEmpty() || "c".equals(mode)) {
+                String text = payHeader(price) + (found.isEmpty() ? "🔎 لا زبون باسم «" + quote(query) + "» - اكتب اسماً آخر أو اختر من القائمة:"
+                    : "🔎 الزبائن باسم «" + quote(query) + "» - اضغط اسمه:");
+                return new Reply(text, false, null, clientsMarkup(found.isEmpty() ? clients : found, 0));
+            }
+        }
+        List<SearchEntry> devices = new ArrayList<>();
+        for (SearchEntry e : matchEntries(repId, query, s)) if (canPayFor(e)) devices.add(e);
+        if (devices.isEmpty()) {
+            return new Reply(payHeader(price) + "🔎 لم أجد «" + quote(query) + "» بين أجهزتك - اكتب شيئاً آخر أو اختر الزبون:", false, null, clientsMarkup(clients, 0));
+        }
+        return new Reply(payHeader(price) + "🔎 الأجهزة المطابقة لـ «" + quote(query) + "» - اضغط الجهاز:", false, null, devicesMarkup(devices, true));
+    }
+
+    /** A device per row (with its customer when asked), then ↩️ back to the customers and ❌. */
+    static String devicesMarkup(List<SearchEntry> devices, boolean withClient) {
         StringBuilder rows = new StringBuilder();
         int count = 0;
-        for (SearchEntry e : entries) {
-            if (count >= PAY_BUTTONS) break;
-            if (!canPayFor(e)) continue;
-            String label = "👤 " + payTargetLabel(e);
-            if (label.length() > 48) label = label.substring(0, 48);
-            rows.append('[').append(cb(label, "payt:" + e.id)).append("],");
-            count++;
+        for (SearchEntry e : devices) {
+            if (count++ >= PAY_BUTTONS) break;
+            String label = "📡 " + e.deviceName() + (withClient && !e.clientName.isEmpty() ? " · 👤 " + e.clientName : "");
+            rows.append('[').append(cb(cut(label), "payt:" + e.id)).append("],");
         }
-        rows.append('[').append(cb("💼 في حسابي الشخصي", "payt:" + PAY_ME)).append("],[").append(cb("❌ إلغاء", "payx")).append(']');
+        rows.append('[').append(cb("↩️ رجوع للزبائن", "payw")).append(',').append(cb("❌ إلغاء", "payx")).append(']');
         return "{\"inline_keyboard\":[" + rows + "]}";
+    }
+
+    /** A customer tapped: his devices, each with what it owes, to pick the one paid for. */
+    static Reply payClientDevices(Price price, PayClient c) {
+        StringBuilder text = new StringBuilder(payHeader(price)).append("👤 الزبون: ").append(c.name).append("\n");
+        for (SearchEntry e : c.devices) {
+            String owed = owedLine(e);
+            text.append("\n📡 ").append(e.deviceName()).append(owed.isEmpty() ? "" : "\n   " + owed);
+        }
+        text.append("\n\nعن أي جهاز من أجهزته هذه الدفعة؟");
+        return new Reply(text.toString(), false, null, devicesMarkup(c.devices, false));
+    }
+
+    static final String PAY_SEARCH_CLIENT = "🔎 اكتب اسم الزبون (أو جزءاً منه):";
+    static final String PAY_SEARCH_DEVICE = "🔎 اكتب اسم الجهاز أو إيميله أو KIT أو رقم الهاتف:";
+
+    static String forceReply(String placeholder) {
+        return "{\"force_reply\":true,\"input_field_placeholder\":" + jsonString(placeholder) + "}";
     }
 
     /** Everything he entered, before it's sent. entry == null: his own account. */
     static String payConfirmText(Price price, SearchEntry entry) {
         StringBuilder text = new StringBuilder("📋 راجع الدفعة قبل إرسالها:\n\n💵 المبلغ: ").append(price.label());
         if (entry == null) {
-            text.append("\n💼 في: حسابي الشخصي (تُحسب مما عليّ للمسؤول)");
+            text.append("\n💼 في: حسابي الشخصي (تُخصم مما عليّ للمسؤول)");
         } else {
-            text.append("\n👤 عن: ").append(payTargetLabel(entry));
+            if (!entry.clientName.isEmpty()) text.append("\n👤 الزبون: ").append(entry.clientName);
+            text.append("\n📡 الجهاز: ").append(entry.deviceName());
             String owed = owedLine(entry);
             if (!owed.isEmpty()) text.append("\n").append(owed).append(" (قبل هذه الدفعة)");
         }
@@ -904,15 +1026,17 @@ final class TelegramReplies {
         return "{\"inline_keyboard\":[[" + cb("✅ موافق - أرسلها", "payok") + "],[" + cb("✏️ غيّر الزبون", "payw") + "," + cb("❌ إلغاء", "payx") + "]]}";
     }
 
+    private static String payWhere(SearchEntry entry, boolean his) {
+        if (entry == null) return his ? "\n💼 في حسابه الشخصي" : "\n💼 في حسابي الشخصي";
+        return (entry.clientName.isEmpty() ? "" : "\n👤 الزبون: " + entry.clientName) + "\n📡 الجهاز: " + entry.deviceName();
+    }
+
     static String paySent(Price price, SearchEntry entry) {
-        return "✅ أُرسلت الدفعة إلى المسؤول - تُسجَّل بعد موافقته، وسيصلك تأكيد هنا.\n\n💵 " + price.label()
-            + (entry == null ? "\n💼 في حسابي الشخصي" : "\n👤 عن: " + payTargetLabel(entry));
+        return "✅ أُرسلت الدفعة إلى المسؤول - تُسجَّل بعد موافقته، وسيصلك تأكيد هنا.\n\n💵 " + price.label() + payWhere(entry, false);
     }
 
     static String payToOwner(String repName, Price price, SearchEntry entry) {
-        return "💵 دفعة من المندوب " + repName + ": " + price.label()
-            + (entry == null ? "\n💼 في حسابه الشخصي" : "\n👤 عن: " + payTargetLabel(entry))
-            + "\nوافق عليها من صفحة المندوبين في التطبيق.";
+        return "💵 دفعة من المندوب " + repName + ": " + price.label() + payWhere(entry, true) + "\nوافق عليها من صفحة المندوبين في التطبيق.";
     }
 
     // ---- 💰 the money bot (mirrors repBots.ts) ----

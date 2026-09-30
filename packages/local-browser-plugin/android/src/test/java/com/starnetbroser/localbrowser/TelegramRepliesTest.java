@@ -495,36 +495,88 @@ public class TelegramRepliesTest {
         assertFalse(TelegramReplies.isPayCurrency("EUR"));
     }
 
-    @Test
-    public void paymentCustomersOweFirstThenHisOwnAccount() {
-        TelegramReplies.Snapshot s = menuSnapshot();
-        TelegramReplies.SearchEntry owing = TelegramReplies.findEntry("r1", "acc-2", s);
-        TelegramReplies.SearchEntry withDebt = new TelegramReplies.SearchEntry(owing.keys, owing.text + "\n💰 عليه: 3,000 أوقية", null, null, owing.date,
-            "• منزل - سالم", null, "acc-2");
-        s.repSearch.get("r1").set(1, withDebt);
-        java.util.List<TelegramReplies.SearchEntry> choices = TelegramReplies.payChoices("r1", s);
-        assertEquals("acc-2", choices.get(0).id);
-        assertEquals("acc-1", choices.get(1).id);
-        String markup = TelegramReplies.whoMarkup(choices);
-        assertTrue(markup.indexOf("payt:acc-2") < markup.indexOf("payt:acc-1"));
-        assertTrue(markup.contains("{\"text\":\"👤 منزل - سالم\",\"callback_data\":\"payt:acc-2\"}"));
-        assertTrue(markup.contains("{\"text\":\"💼 في حسابي الشخصي\",\"callback_data\":\"payt:me\"}"));
-        assertTrue(markup.endsWith("[{\"text\":\"❌ إلغاء\",\"callback_data\":\"payx\"}]]}"));
-        TelegramReplies.Price price = new TelegramReplies.Price(5000, "SIFA");
-        assertTrue(TelegramReplies.whoQuestion(price, 2, false, "").startsWith("💵 5,000 سيفا\n\nعن من هذه الدفعة؟"));
-        assertTrue(TelegramReplies.whoQuestion(price, 0, true, "زيد").contains("لم أجد «زيد»"));
+    private static TelegramReplies.SearchEntry payEntry(String id, String device, String clientId, String client, boolean owes) {
+        TelegramReplies.SearchEntry e = new TelegramReplies.SearchEntry(TelegramReplies.normalize(device + " " + client), "📡 " + device + (owes ? "\n💰 عليه: 3,000 أوقية" : ""),
+            null, null, "", "• " + device, null, id);
+        e.clientId = clientId;
+        e.clientName = client;
+        return e;
+    }
+
+    private static TelegramReplies.Snapshot paySnapshot() {
+        TelegramReplies.Snapshot s = snapshot();
+        java.util.List<TelegramReplies.SearchEntry> list = new java.util.ArrayList<>();
+        list.add(payEntry("d1", "a@gmail.com", "c1", "محمد لمين", false));
+        list.add(payEntry("d2", "b@outlook.com", "c2", "سالم", true));
+        list.add(payEntry("d3", "c@outlook.com", "c1", "محمد لمين", false));
+        list.add(payEntry("d4", "loose@gmail.com", "", "", false));
+        s.repSearch.put("r1", list);
+        return s;
     }
 
     @Test
-    public void paymentWhoButtonsStopAtEight() {
+    public void paymentListsCustomersFirstThenTheirDevices() {
+        TelegramReplies.Snapshot s = paySnapshot();
+        java.util.List<TelegramReplies.PayClient> clients = TelegramReplies.payClients("r1", s);
+        assertEquals(3, clients.size());
+        assertEquals("سالم", clients.get(0).name); // owes -> first
+        assertEquals("محمد لمين", clients.get(1).name);
+        assertEquals(2, clients.get(1).devices.size());
+        TelegramReplies.Price price = new TelegramReplies.Price(5000, "SIFA");
+        TelegramReplies.Reply who = TelegramReplies.payWho("r1", price, "", "", 0, s);
+        assertTrue(who.text.startsWith("💵 5,000 سيفا\n\nعن أي زبون هذه الدفعة؟"));
+        assertTrue(who.markup.contains("{\"text\":\"👤 سالم\",\"callback_data\":\"payl:c2\"}"));
+        assertTrue(who.markup.contains("{\"text\":\"👤 محمد لمين (جهازان)\",\"callback_data\":\"payl:c1\"}"));
+        assertTrue(who.markup.contains("{\"text\":\"📡 loose@gmail.com\",\"callback_data\":\"payt:d4\"}")); // no customer: the device itself
+        assertTrue(who.markup.contains("\"callback_data\":\"payq:c\""));
+        assertTrue(who.markup.contains("\"callback_data\":\"payq:d\""));
+        assertTrue(who.markup.contains("{\"text\":\"💼 في حسابي الشخصي\",\"callback_data\":\"payt:me\"}"));
+        assertTrue(who.markup.endsWith("[{\"text\":\"❌ إلغاء\",\"callback_data\":\"payx\"}]]}"));
+
+        TelegramReplies.Reply devices = TelegramReplies.payClientDevices(price, TelegramReplies.findPayClient("r1", "c1", s));
+        assertTrue(devices.text.contains("👤 الزبون: محمد لمين"));
+        assertTrue(devices.text.contains("📡 a@gmail.com"));
+        assertTrue(devices.text.contains("📡 c@outlook.com"));
+        assertTrue(devices.markup.contains("{\"text\":\"📡 a@gmail.com\",\"callback_data\":\"payt:d1\"}"));
+        assertTrue(devices.markup.contains("\"callback_data\":\"payw\""));
+        assertNull(TelegramReplies.findPayClient("r1", "c9", s));
+    }
+
+    @Test
+    public void paymentSearchByCustomerOrDevice() {
+        TelegramReplies.Snapshot s = paySnapshot();
+        TelegramReplies.Price price = new TelegramReplies.Price(100, "MRU");
+        TelegramReplies.Reply byName = TelegramReplies.payWho("r1", price, "لمين", "c", 0, s);
+        assertTrue(byName.markup.contains("payl:c1"));
+        assertFalse(byName.markup.contains("payl:c2"));
+        TelegramReplies.Reply noName = TelegramReplies.payWho("r1", price, "زيد", "c", 0, s);
+        assertTrue(noName.text.contains("لا زبون باسم «زيد»"));
+        assertTrue(noName.markup.contains("payl:c2")); // the full list again
+        TelegramReplies.Reply byDevice = TelegramReplies.payWho("r1", price, "outlook", "d", 0, s);
+        assertTrue(byDevice.markup.contains("{\"text\":\"📡 b@outlook.com · 👤 سالم\",\"callback_data\":\"payt:d2\"}"));
+        assertTrue(byDevice.markup.contains("payt:d3"));
+        assertFalse(byDevice.markup.contains("payt:d1"));
+        // Typed without a search button: a customer's name first, else devices.
+        assertTrue(TelegramReplies.payWho("r1", price, "سالم", "", 0, s).markup.contains("payl:c2"));
+        assertTrue(TelegramReplies.payWho("r1", price, "loose", "", 0, s).markup.contains("payt:d4"));
+    }
+
+    @Test
+    public void paymentCustomersPageByEight() {
         TelegramReplies.Snapshot s = snapshot();
         java.util.List<TelegramReplies.SearchEntry> list = new java.util.ArrayList<>();
-        for (int i = 0; i < 12; i++) list.add(menuEntry("acc-" + i, "جهاز " + i, "جهاز"));
+        for (int i = 0; i < 12; i++) list.add(payEntry("d" + i, "dev" + i, "c" + i, "زبون " + i, false));
         s.repSearch.put("r1", list);
-        String markup = TelegramReplies.whoMarkup(TelegramReplies.payChoices("r1", s));
-        assertTrue(markup.contains("payt:acc-7"));
-        assertFalse(markup.contains("payt:acc-8"));
-        assertTrue(TelegramReplies.whoQuestion(new TelegramReplies.Price(1, "MRU"), 12, false, "").contains("اكتب اسمه"));
+        TelegramReplies.Price price = new TelegramReplies.Price(1, "MRU");
+        TelegramReplies.Reply first = TelegramReplies.payWho("r1", price, "", "", 0, s);
+        assertTrue(first.markup.contains("payl:c7"));
+        assertFalse(first.markup.contains("payl:c8"));
+        assertTrue(first.markup.contains("\"callback_data\":\"payp:1\""));
+        assertTrue(first.text.contains("(صفحة 1 من 2)"));
+        TelegramReplies.Reply second = TelegramReplies.payWho("r1", price, "", "", 1, s);
+        assertTrue(second.markup.contains("payl:c11"));
+        assertTrue(second.markup.contains("\"callback_data\":\"payp:0\""));
+        assertFalse(second.markup.contains("payp:2"));
     }
 
     @Test
@@ -534,7 +586,7 @@ public class TelegramRepliesTest {
         TelegramReplies.Price price = new TelegramReplies.Price(15000, "MRU");
         String confirm = TelegramReplies.payConfirmText(price, e);
         assertTrue(confirm.contains("💵 المبلغ: 15,000 أوقية"));
-        assertTrue(confirm.contains("👤 عن: مقهى"));
+        assertTrue(confirm.contains("📡 الجهاز: مقهى"));
         assertTrue(TelegramReplies.payConfirmText(price, null).contains("💼 في: حسابي الشخصي"));
         String buttons = TelegramReplies.payConfirmMarkup();
         assertTrue(buttons.contains("\"callback_data\":\"payok\""));

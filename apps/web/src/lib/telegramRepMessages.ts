@@ -457,6 +457,9 @@ export interface RepSearchEntry {
   /** WhatsApp buttons for the 🔔 stopped alert and the 💰 debt reminder. */
   sw?: string;
   dw?: string;
+  /** The device's customer (id, name) - the 💵 دفعة step lists customers first, then their devices. */
+  c?: string;
+  cn?: string;
 }
 
 function statusLabel(account: StarlinkAccountSummary): string {
@@ -501,6 +504,7 @@ export function repSearchIndex(accounts: StarlinkAccountSummary[], clients: Clie
       ...(renewal ? { d: renewal } : {}),
       s: `• ${repLabel(account, clients)}${isStoppedAccount(account) ? " ⛔" : ""}`,
       i: account.id,
+      ...(client ? { c: client.id, cn: client.name } : {}),
       ...(reminder ? { r: reminder.url } : {}),
       // Readable text for names/emails, plus every number compacted (no dashes or spaces) so
       // "KIT-000 111", "kit000111" and "000111" all find the same kit.

@@ -170,6 +170,10 @@ describe("rep shortcuts", () => {
 
   it("search finds by client, device or phone, only among the given devices", () => {
     const index = repSearchIndex(mine, clients, {}, TODAY);
+    // 💵 دفعة groups devices by customer: each entry carries its customer's id and name.
+    const withClient = index.find((e) => e.c);
+    expect(withClient?.cn).toBe(clients[withClient!.c!]!.name);
+    expect(index.some((e) => !e.c && !e.cn)).toBe(true);
     const byClient = repSearchReply("مُحمّد", index);
     expect(byClient.text).toContain("نتائج «مُحمّد» (2)");
     expect(byClient.text).toContain("📅 التجديد: 2026/09/28 (بعد 1 يوم)");
