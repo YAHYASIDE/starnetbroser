@@ -102,6 +102,16 @@ final class TelegramClient {
         return send(token, "sendDocument", "multipart/form-data; boundary=" + boundary, body, TIMEOUT_MS);
     }
 
+    /** A picture shown inline in the chat (the operator's transfer screenshot to a rep). */
+    static JSONObject sendPhoto(String token, String chatId, String fileName, String contentType, byte[] file, String caption) throws IOException, TelegramError {
+        String boundary = "starnet" + UUID.randomUUID().toString().replace("-", "");
+        Map<String, String> fields = new LinkedHashMap<>();
+        fields.put("chat_id", chatId);
+        if (caption != null && !caption.isEmpty()) fields.put("caption", TelegramText.truncate(caption, TelegramText.MAX_CAPTION_CHARS));
+        byte[] body = TelegramText.multipart(boundary, fields, "photo", fileName, contentType, file);
+        return send(token, "sendPhoto", "multipart/form-data; boundary=" + boundary, body, TIMEOUT_MS);
+    }
+
     /** A file someone sent the bot (getFile, then the file itself), as UTF-8 text. Refuses files
      * over `maxBytes` - the rep's device file is a few KB. */
     static String downloadText(String token, String fileId, int maxBytes) throws IOException, TelegramError {

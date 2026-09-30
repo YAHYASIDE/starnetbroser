@@ -463,7 +463,8 @@ export interface LocalBrowserPlugin {
   /** Sends `text` at `at` (epoch ms), replacing what was scheduled under `key` ("morning"...). */
   telegramSchedule(options: { key: string; at: number; text: string; bot?: TelegramBot; chatId?: string; replyMarkup?: string }): Promise<void>;
   telegramCancel(options: { key: string }): Promise<void>;
-  telegramSendDocument(options: { fileName: string; base64: string; caption?: string; bot?: TelegramBot; chatId?: string }): Promise<void>;
+  /** A PDF - or, with `photo`, a jpeg / png shown as a picture (a transfer screenshot to a rep). */
+  telegramSendDocument(options: { fileName: string; base64: string; caption?: string; bot?: TelegramBot; chatId?: string; photo?: boolean }): Promise<void>;
   /** New messages to a bot (the app answers commands itself). */
   telegramPoll(options: { offset?: number; bot?: TelegramBot }): Promise<TelegramPollResult>;
   /** Replies with the app closed: a foreground service (permanent notification) answers both

@@ -161,6 +161,7 @@ export async function handleRepMenuRecord(message: TelegramInboxMessage): Promis
   if (!data) return true;
   if (message.kind === "repEdit") {
     recordRepEdit(data);
+    notifyChanged();
     return true;
   }
   if (message.kind === "repEditDecision") {
@@ -172,12 +173,18 @@ export async function handleRepMenuRecord(message: TelegramInboxMessage): Promis
   }
   if (message.kind === "repPayment") {
     const request = repPaymentRequest(data);
-    if (request) saveRepRequests(addRepRequest(loadRepRequests(), request));
+    if (request) {
+      saveRepRequests(addRepRequest(loadRepRequests(), request));
+      notifyChanged();
+    }
     return true;
   }
   if (message.kind === "repLoan") {
     const request = repLoanRequest(data);
-    if (request) saveRepRequests(addRepRequest(loadRepRequests(), request));
+    if (request) {
+      saveRepRequests(addRepRequest(loadRepRequests(), request));
+      notifyChanged();
+    }
     return true;
   }
   if (message.kind === "repNote") {

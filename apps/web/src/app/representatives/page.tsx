@@ -1,7 +1,7 @@
 "use client";
 
 import { DateInput } from "@/components/DateInput";
-import { createContext, CSSProperties, FormEvent, ReactNode, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, CSSProperties, FormEvent, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { LedgerEntryEditor } from "@/components/LedgerEntryEditor";
 import { getCurrency, loadCurrencyStore } from "@/lib/currencyStore";
@@ -75,6 +75,7 @@ import { demoAccounts } from "@/lib/demoData";
 import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
 import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
 import { ACCOUNTS_CHANGED_EVENT } from "@/lib/repMenuRecords";
+import { refreshTelegramReplies } from "@/lib/telegramCommands";
 import { listAccounts } from "@/lib/apiClient";
 import { partyHue, partyInitials } from "@/lib/partyColor";
 import { buildRepSummaryMessage, buildWhatsAppLink } from "@/lib/whatsapp";
@@ -194,7 +195,9 @@ export default function RepresentativesPage() {
     if (repId && month && /^\d{4}-\d{2}$/.test(month)) setFocus({ repId, month });
   }, []);
 
-  useEffect(() => {
+  /** Everything this page shows, read again from the phone - after a request is approved, a
+   * record from the bot, coming back to the app, or 🔄 تحديث. */
+  const reloadAll = useCallback(() => {
     setRepresentativeStore(loadRepresentativeStore());
     setInvoices(loadInvoices());
     setSettlements(loadRepSettlements());
@@ -209,15 +212,28 @@ export default function RepresentativesPage() {
     listAccounts().then(setAccounts).catch(() => {});
   }, []);
 
-  // A rep's ✏️ / 📝 from the bot changed a device or customer meanwhile.
   useEffect(() => {
-    const reload = () => {
-      setClientStore(loadClientStore());
-      if (isDemoMode()) setAccounts(loadDemoAccounts(demoAccounts));
+    reloadAll();
+    // A rep's ✏️ / 📝 / 💵 from the bot changed something meanwhile, or the app came back.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") reloadAll();
     };
-    window.addEventListener(ACCOUNTS_CHANGED_EVENT, reload);
-    return () => window.removeEventListener(ACCOUNTS_CHANGED_EVENT, reload);
-  }, []);
+    window.addEventListener(ACCOUNTS_CHANGED_EVENT, reloadAll);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener(ACCOUNTS_CHANGED_EVENT, reloadAll);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [reloadAll]);
+
+  const [refreshing, setRefreshing] = useState(false);
+  async function refreshNow() {
+    setRefreshing(true);
+    reloadAll();
+    // The reps' bots answer from a prepared copy - hand them the new figures now too.
+    await refreshTelegramReplies().catch(() => {});
+    setRefreshing(false);
+  }
 
   const representatives = useMemo(() => listRepresentatives(representativeStore), [representativeStore]);
 
@@ -358,6 +374,9 @@ export default function RepresentativesPage() {
           ← رجوع
         </Link>
         <h1 className="section-title">المندوبون</h1>
+        <button type="button" className="btn-link rep-refresh" onClick={() => void refreshNow()} disabled={refreshing}>
+          {refreshing ? "⏳" : "🔄 تحديث"}
+        </button>
       </div>
 
       <RepRequestsSection
@@ -365,9 +384,9 @@ export default function RepresentativesPage() {
         accounts={accounts}
         clientStore={clientStore}
         onChanged={() => {
-          setLedgerStore(loadLedgerStore());
-          setClientStore(loadClientStore());
-          if (isDemoMode()) setAccounts(loadDemoAccounts(demoAccounts));
+          reloadAll();
+          // The rep's bot shows his new balance / debts right away, not a minute later.
+          void refreshTelegramReplies().catch(() => {});
         }}
       />
 

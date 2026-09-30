@@ -412,6 +412,20 @@ export async function sendRepText(repId: string, text: string, replyMarkup?: str
   }
 }
 
+/** 📸 A picture (data: URL - the transfer screenshot) to a linked rep, with its caption. False
+ * when it couldn't be sent (the caller then sends the text alone). */
+export async function sendRepPhoto(repId: string, dataUrl: string, caption: string, bot: RepBot = "money"): Promise<boolean> {
+  const chat = loadRepChats()[repId];
+  const match = /^data:image\/(png|jpe?g);base64,(.+)$/.exec(dataUrl);
+  if (!chat || !match || !isRepsBotConnected()) return false;
+  try {
+    await LocalBrowser.telegramSendDocument({ fileName: match[1] === "png" ? "transfer.png" : "transfer.jpg", base64: match[2]!, caption, bot, chatId: chat.chatId, photo: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** A direct answer to someone who isn't linked (the "request received" reply). */
 export async function replyToChat(chatId: string, text: string): Promise<void> {
   try {

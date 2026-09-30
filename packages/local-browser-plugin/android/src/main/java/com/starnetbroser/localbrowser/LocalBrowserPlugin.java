@@ -864,7 +864,8 @@ public class LocalBrowserPlugin extends Plugin {
         call.resolve();
     }
 
-    /** Sends a PDF (base64) right away - to the operator, or to a linked rep (reps bot). */
+    /** Sends a PDF (base64) right away - to the operator, or to a linked rep (reps bot). With
+     * `photo: true` it's a jpeg / png shown as a picture (a transfer screenshot to a rep). */
     @PluginMethod
     public void telegramSendDocument(PluginCall call) {
         String base64 = call.getString("base64");
@@ -884,7 +885,12 @@ public class LocalBrowserPlugin extends Plugin {
         telegramExecutor.execute(() -> {
             try {
                 byte[] file = android.util.Base64.decode(base64, android.util.Base64.DEFAULT);
-                TelegramClient.sendDocument(token, chatId, fileName, file, caption);
+                if (Boolean.TRUE.equals(call.getBoolean("photo", false))) {
+                    String type = fileName.toLowerCase(java.util.Locale.ROOT).endsWith(".png") ? "image/png" : "image/jpeg";
+                    TelegramClient.sendPhoto(token, chatId, fileName, type, file, caption);
+                } else {
+                    TelegramClient.sendDocument(token, chatId, fileName, file, caption);
+                }
                 call.resolve();
             } catch (TelegramClient.TelegramError e) {
                 call.reject("رفض تيليغرام الملف: " + e.getMessage());

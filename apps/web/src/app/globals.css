@@ -896,6 +896,11 @@ a.btn-icon {
   padding-block: 8px;
 }
 
+.rep-refresh {
+  margin-inline-start: auto;
+  white-space: nowrap;
+}
+
 .vnc-viewer {
   position: relative;
   width: 100%;
@@ -7715,6 +7720,17 @@ button.today-tile {
 
 .rep-proof-button {
   align-self: flex-start;
+}
+
+.rep-proof-pick {
+  cursor: pointer;
+}
+
+.rep-proof-picked {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
 }
 
 .rep-request-field {

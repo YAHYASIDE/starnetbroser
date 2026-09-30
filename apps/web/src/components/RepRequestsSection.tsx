@@ -21,11 +21,12 @@ import {
 } from "@/lib/ledgerStore";
 import { loadRepRequests, pendingRepRequests, RepRequest, resolveRepRequest, saveRepRequests } from "@/lib/repRequests";
 import type { Representative } from "@/lib/repStore";
-import { downloadRepImage, notifyPaymentTelegram, sendRepText } from "@/lib/telegram";
+import { downloadRepImage, notifyPaymentTelegram, sendRepPhoto, sendRepText } from "@/lib/telegram";
+import { resizeImageToDataUrl } from "@/lib/imageUtils";
 import { putProof } from "@/lib/paymentProofStore";
 import { formatMoneyShort, matchRepDevices } from "@/lib/telegramRepMessages";
 import { editFieldName, isRepEditField } from "@/lib/repDeviceMenu";
-import { decideRepEdit } from "@/lib/repMenuRecords";
+import { ACCOUNTS_CHANGED_EVENT, decideRepEdit } from "@/lib/repMenuRecords";
 import { recordRepHandover, recordRepLoan } from "@/lib/repHandover";
 
 interface Props {
@@ -48,9 +49,14 @@ export function RepRequestsSection({ representatives, accounts, clientStore, onC
   useEffect(() => {
     const refresh = () => setRequests(pendingRepRequests(loadRepRequests()));
     refresh();
-    // New requests arrive through the bot while this page is open.
+    // New requests arrive through the bot while this page is open: shown as soon as the app
+    // records them (ACCOUNTS_CHANGED_EVENT), with a slow poll as a safety net.
+    window.addEventListener(ACCOUNTS_CHANGED_EVENT, refresh);
     const timer = window.setInterval(refresh, 5000);
-    return () => window.clearInterval(timer);
+    return () => {
+      window.removeEventListener(ACCOUNTS_CHANGED_EVENT, refresh);
+      window.clearInterval(timer);
+    };
   }, []);
 
   function resolve(request: RepRequest, status: "approved" | "rejected") {
@@ -380,18 +386,34 @@ function LoanRequestCard({ request, rep, onDone }: { request: RepRequest; rep?: 
   const [amount, setAmount] = useState(String(request.amount ?? ""));
   const [currency, setCurrency] = useState<LedgerCurrency>(request.currency ?? "MRU");
   const [error, setError] = useState<string | null>(null);
+  /** 📸 The transfer screenshot, sent to the rep with the confirmation. */
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function pickPhoto(file: File | undefined) {
+    if (!file) return;
+    try {
+      setPhoto(await resizeImageToDataUrl(file, 1600, 0.85));
+    } catch {
+      setError("تعذرت قراءة الصورة");
+    }
+  }
 
   async function approve() {
     const value = Number(amount);
     if (!(value > 0)) return setError("المبلغ غير صحيح");
+    setBusy(true);
     const result = recordRepLoan(request, value, currency, localDay(new Date()));
-    if (!result.ok) return setError(result.message);
-    await sendRepText(
-      request.repId,
-      `✅ وافق المسؤول على سلفتك ${formatMoneyShort(value, currency)} - تُرسل عبر ${request.loanApp ?? "التطبيق"} إلى ${request.loanNumber ?? "رقمك"}.\nسُجّلت عليك في حسابك.`,
-      undefined,
-      "money",
-    );
+    if (!result.ok) {
+      setBusy(false);
+      return setError(result.message);
+    }
+    const text = `✅ وافق المسؤول على سلفتك ${formatMoneyShort(value, currency)} - أُرسلت عبر ${request.loanApp ?? "التطبيق"} إلى ${request.loanNumber ?? "رقمك"}.\nسُجّلت عليك في حسابك.`;
+    // With the screenshot: one photo message captioned with the confirmation; else the text.
+    const sentPhoto = photo ? await sendRepPhoto(request.repId, photo, `📸 صورة التحويل\n${text}`) : false;
+    if (!sentPhoto) await sendRepText(request.repId, text, undefined, "money");
+    if (photo && !sentPhoto) window.alert("سُجّلت السلفة وأُبلغ المندوب، لكن تعذر إرسال الصورة.");
+    setBusy(false);
     onDone("approved");
   }
 
@@ -420,10 +442,23 @@ function LoanRequestCard({ request, rep, onDone }: { request: RepRequest; rep?: 
         </select>
       </div>
       <p className="settings-hint">أرسل المبلغ من التطبيق البنكي ثم اضغط «أرسلتها» - تُسجَّل سلفةً عليه في حسابه.</p>
+      {photo ? (
+        <div className="rep-proof-picked">
+          <img src={photo} alt="صورة التحويل" className="rep-proof-photo" />
+          <button type="button" className="text-action" onClick={() => setPhoto(null)}>
+            ✕ إزالة الصورة
+          </button>
+        </div>
+      ) : (
+        <label className="text-action rep-proof-button rep-proof-pick">
+          📸 إرفاق صورة التحويل (تصل للمندوب)
+          <input type="file" accept="image/*" hidden onChange={(e) => void pickPhoto(e.target.files?.[0])} />
+        </label>
+      )}
       {error && <p className="settings-hint telegram-stopped">{error}</p>}
       <div className="settings-actions">
-        <button type="button" className="dialog-primary" onClick={() => void approve()}>
-          ✅ أرسلتها - سجّلها عليه
+        <button type="button" className="dialog-primary" onClick={() => void approve()} disabled={busy}>
+          {busy ? "⏳ جارٍ الإرسال…" : photo ? "✅ أرسلتها - سجّلها وأرسل الصورة" : "✅ أرسلتها - سجّلها عليه"}
         </button>
         <button type="button" className="text-action" onClick={() => void reject()}>
           ❌ رفض
