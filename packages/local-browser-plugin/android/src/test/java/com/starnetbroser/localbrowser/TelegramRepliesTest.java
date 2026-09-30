@@ -702,4 +702,26 @@ public class TelegramRepliesTest {
         assertTrue(TelegramReplies.payToOwner("علي", price, e, "نيتا", true).endsWith("(الصورة تظهر هناك)."));
         assertTrue(TelegramReplies.paySent(price, null, "كاش", false).contains("💳 طريقة الدفع: كاش"));
     }
+
+    // ---- 🔎 بحث in the money bot ----
+
+    @Test
+    public void moneySearchButtonListsCustomersThenTheirDevices() {
+        TelegramReplies.Snapshot s = paySnapshot();
+        s.repWords.put("بحث", "search");
+        java.util.List<TelegramReplies.SearchEntry> list = s.repSearch.get("r1");
+        list.get(0).balance = "عليه 3,000 أوقية";
+        list.get(0).clientBalance = "عليه 3,000 أوقية";
+        TelegramReplies.Reply start = TelegramReplies.forMoney("r1", "🔎 بحث", s);
+        assertTrue(start.text.startsWith("🔎 ابحث عن زبون"));
+        assertTrue(start.markup.contains("{\"text\":\"👤 محمد لمين (جهازان) · عليه 3,000 أوقية\",\"callback_data\":\"sl:c1\"}"));
+        assertTrue(start.markup.contains("{\"text\":\"📡 loose@gmail.com\",\"callback_data\":\"md:d4\"}"));
+        assertTrue(start.markup.contains("\"callback_data\":\"sq:c\"") && start.markup.contains("\"callback_data\":\"sq:d\""));
+        assertFalse(start.markup.contains("payt:")); // not the payment's buttons
+        TelegramReplies.Reply devices = TelegramReplies.searchClientDevices(TelegramReplies.findPayClient("r1", "c1", s));
+        assertTrue(devices.text.contains("👤 الزبون: محمد لمين\n💰 حسابه (كل أجهزته): عليه 3,000 أوقية"));
+        assertTrue(devices.markup.contains("{\"text\":\"📡 a@gmail.com · عليه 3,000 أوقية\",\"callback_data\":\"md:d1\"}"));
+        assertTrue(devices.markup.contains("{\"text\":\"📡 c@outlook.com\",\"callback_data\":\"md:d3\"}"));
+        assertTrue(devices.markup.contains("\"callback_data\":\"sp:0\""));
+    }
 }

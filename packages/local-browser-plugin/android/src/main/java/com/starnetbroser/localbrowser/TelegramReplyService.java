@@ -817,6 +817,36 @@ public class TelegramReplyService extends Service {
         if (repId == null || snapshot == null) return "افتح تطبيق المسؤول مرة ثم أعد المحاولة";
         if (data.startsWith("pay")) return paymentCallback(context, TelegramStore.MONEY, token, chatId, messageId, repId, snapshot, data);
         if (data.startsWith("ln")) return loanCallback(context, TelegramStore.MONEY, token, chatId, messageId, repId, snapshot, data);
+        if (data.startsWith("sp:")) {
+            int page;
+            try {
+                page = Integer.parseInt(data.substring(3));
+            } catch (NumberFormatException broken) {
+                return "اختيار غير صالح";
+            }
+            TelegramReplies.Reply reply = TelegramReplies.moneySearchStart(repId, page, snapshot);
+            editOrSend(context, TelegramStore.MONEY, token, chatId, messageId, reply.text, reply.markup);
+            return null;
+        }
+        if (data.startsWith("sl:")) {
+            TelegramReplies.PayClient client = TelegramReplies.findPayClient(repId, data.substring(3), snapshot);
+            if (client == null) return "هذا الزبون ليس من زبائنك";
+            if (client.devices.size() == 1 && client.devices.get(0).hasMenu()) {
+                TelegramReplies.Reply card = TelegramReplies.moneyCard(client.devices.get(0), snapshot);
+                editOrSend(context, TelegramStore.MONEY, token, chatId, messageId, card.text, card.markup);
+                return client.name;
+            }
+            TelegramReplies.Reply reply = TelegramReplies.searchClientDevices(client);
+            editOrSend(context, TelegramStore.MONEY, token, chatId, messageId, reply.text, reply.markup);
+            return client.name;
+        }
+        if ("sq:c".equals(data) || "sq:d".equals(data)) {
+            boolean clients = "sq:c".equals(data);
+            // Whatever he types next is searched by forMoney (names, phones, KIT, emails).
+            send(context, TelegramStore.MONEY, token, chatId, clients ? TelegramReplies.PAY_SEARCH_CLIENT : TelegramReplies.PAY_SEARCH_DEVICE,
+                TelegramReplies.forceReply(clients ? "اسم الزبون" : "الجهاز / الإيميل / KIT"));
+            return null;
+        }
         if (data.startsWith("md:")) {
             TelegramReplies.SearchEntry entry = TelegramReplies.findEntry(repId, data.substring(3), snapshot);
             if (entry == null || !entry.hasMenu()) return "هذا الجهاز ليس من أجهزتك";

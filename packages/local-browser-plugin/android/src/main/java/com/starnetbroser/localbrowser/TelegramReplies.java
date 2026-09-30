@@ -919,11 +919,17 @@ final class TelegramReplies {
     }
 
     static String clientButton(PayClient c) {
+        return clientButton(c, "payl:", "payt:");
+    }
+
+    /** "👤 name (جهازان) · عليه ..." opening his devices (listPrefix + client id), or - a device
+     * without a customer - the device itself (devicePrefix + its id). */
+    static String clientButton(PayClient c, String listPrefix, String devicePrefix) {
         String balance = c.balance().isEmpty() ? "" : " · " + c.balance();
-        if (!c.grouped()) return cb(cut("📡 " + c.name + balance), "payt:" + c.devices.get(0).id);
+        if (!c.grouped()) return cb(cut("📡 " + c.name + balance), devicePrefix + c.devices.get(0).id);
         int n = c.devices.size();
         String count = n == 1 ? "" : n == 2 ? " (جهازان)" : " (" + n + " أجهزة)";
-        return cb(cut("👤 " + c.name + count + balance), "payl:" + c.id);
+        return cb(cut("👤 " + c.name + count + balance), listPrefix + c.id);
     }
 
     /** "💰 عليه 5,000 أوقية" for a device: its balance words, else the card's owed line. */
@@ -940,22 +946,61 @@ final class TelegramReplies {
 
     /** One page of customers (8 a page, ⬅️ المزيد / السابق ➡️), then the footer. */
     static String clientsMarkup(List<PayClient> clients, int page) {
+        return "{\"inline_keyboard\":[" + clientRows(clients, page, "payl:", "payt:", "payp:") + payFooter() + "]}";
+    }
+
+    /** One page of customer buttons and its ⬅️ / ➡️ row, each row followed by a comma. */
+    private static String clientRows(List<PayClient> clients, int page, String listPrefix, String devicePrefix, String pagePrefix) {
         int pages = Math.max(1, (clients.size() + PAY_BUTTONS - 1) / PAY_BUTTONS);
         int p = Math.max(0, Math.min(page, pages - 1));
         StringBuilder rows = new StringBuilder();
         for (int i = p * PAY_BUTTONS; i < Math.min(clients.size(), (p + 1) * PAY_BUTTONS); i++) {
-            rows.append('[').append(clientButton(clients.get(i))).append("],");
+            rows.append('[').append(clientButton(clients.get(i), listPrefix, devicePrefix)).append("],");
         }
         if (pages > 1) {
             StringBuilder nav = new StringBuilder();
-            if (p > 0) nav.append(cb("➡️ السابق", "payp:" + (p - 1)));
+            if (p > 0) nav.append(cb("➡️ السابق", pagePrefix + (p - 1)));
             if (p < pages - 1) {
                 if (nav.length() > 0) nav.append(',');
-                nav.append(cb("المزيد ⬅️", "payp:" + (p + 1)));
+                nav.append(cb("المزيد ⬅️", pagePrefix + (p + 1)));
             }
             rows.append('[').append(nav).append("],");
         }
-        return "{\"inline_keyboard\":[" + rows + payFooter() + "]}";
+        return rows.toString();
+    }
+
+    // ---- 🔎 بحث in the money bot: the customers' names -> his devices -> the device's card ----
+
+    static String searchPageLabel(int clients, int page) {
+        int pages = Math.max(1, (clients + PAY_BUTTONS - 1) / PAY_BUTTONS);
+        return pages > 1 ? " (صفحة " + (Math.max(0, Math.min(page, pages - 1)) + 1) + " من " + pages + ")" : "";
+    }
+
+    /** 🔎 بحث pressed: his customers as buttons (their balance on each), and the two searches. */
+    static Reply moneySearchStart(String repId, int page, Snapshot s) {
+        List<PayClient> clients = payClients(repId, s);
+        String text = clients.isEmpty() ? "🔎 لا زبائن لك بعد."
+            : "🔎 ابحث عن زبون: اضغط اسمه لترى أجهزته ودينه وكشفه" + searchPageLabel(clients.size(), page)
+                + "\nأو اكتب اسمه / هاتفه / KIT / إيميله مباشرةً.";
+        String footer = "[" + cb("🔎 بحث باسم الزبون", "sq:c") + "," + cb("🔎 بحث عن جهاز", "sq:d") + "]";
+        return new Reply(text, false, null, "{\"inline_keyboard\":[" + clientRows(clients, page, "sl:", "md:", "sp:") + footer + "]}");
+    }
+
+    /** A customer tapped in 🔎 بحث: his devices, each opening its card (💰 الدين / 📊 كشف). */
+    static Reply searchClientDevices(PayClient c) {
+        StringBuilder text = new StringBuilder("👤 الزبون: ").append(c.name);
+        String total = c.devices.get(0).clientBalance;
+        if (!total.isEmpty()) text.append("\n💰 حسابه").append(c.devices.size() > 1 ? " (كل أجهزته)" : "").append(": ").append(total);
+        text.append("\n\nاختر الجهاز لترى دينه وكشفه:");
+        StringBuilder rows = new StringBuilder();
+        int count = 0;
+        for (SearchEntry e : c.devices) {
+            if (count++ >= PAY_BUTTONS) break;
+            String balance = e.balance.isEmpty() || e.balance.startsWith("لا شيء") ? "" : " · " + e.balance;
+            rows.append('[').append(cb(cut("📡 " + e.deviceName() + balance), "md:" + e.id)).append("],");
+        }
+        rows.append('[').append(cb("↩️ رجوع للزبائن", "sp:0")).append(']');
+        return new Reply(text.toString(), false, null, "{\"inline_keyboard\":[" + rows + "]}");
     }
 
     static String payHeader(Price price) {
@@ -1241,7 +1286,7 @@ final class TelegramReplies {
 
     /** A name / phone / KIT typed in the money bot: its debt and statement buttons. */
     static Reply moneySearch(String repId, String query, Snapshot s) {
-        if (normalize(query).isEmpty()) return new Reply(s.moneyHelp, false, null, s.moneyKeyboard);
+        if (normalize(query).isEmpty()) return moneySearchStart(repId, 0, s);
         List<SearchEntry> found = matchEntries(repId, query, s);
         List<SearchEntry> usable = new ArrayList<>();
         for (SearchEntry e : found) if (e.hasMenu()) usable.add(e);
