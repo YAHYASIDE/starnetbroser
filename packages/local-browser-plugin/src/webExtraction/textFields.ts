@@ -24,6 +24,8 @@ export const RENEWAL_DATE_LABELS = [
   // sentence from "تنتهي خدمتك" above, but the same real-world meaning - see
   // SCHEDULED_END_BANNER_LABELS' own doc for why it must be treated identically.
   "ستتحول خدمتك",
+  // The same banner on the English page: "Your current service will transition to Standby Mode on …".
+  "service will transition",
 ];
 
 /** These banners ("من المقرر أن تنتهي خدمتك في ..." / "ستتحول خدمتك الحالية إلى وضع الاستعداد في
@@ -42,7 +44,7 @@ export const RENEWAL_DATE_LABELS = [
  * proving the two states are NOT always mutually exclusive on a real page the way earlier code
  * assumed. Whenever a banner like this is present, it wins over a "standby" badge reading, since
  * it is the more specific, dated, and never-yet-applied signal (see extractStarlinkFields.ts). */
-export const SCHEDULED_END_BANNER_LABELS = ["scheduled to end", "تنتهي خدمتك", "ستتحول خدمتك"];
+export const SCHEDULED_END_BANNER_LABELS = ["scheduled to end", "service will transition", "تنتهي خدمتك", "ستتحول خدمتك"];
 
 export function hasScheduledEndBanner(lines: string[]): boolean {
   return lines.some((line) => containsAny(line, SCHEDULED_END_BANNER_LABELS));
@@ -143,7 +145,7 @@ export function isOnAccountHomePage(lines: string[]): boolean {
  */
 export function extractPlanBadgeStatus(lines: string[]): NormalizedServiceStatus | undefined {
   for (let i = 0; i < lines.length; i++) {
-    if (!lines[i].includes("خطة الخدمة")) continue;
+    if (!lines[i].includes("خطة الخدمة") && !/^service plan\b/i.test(lines[i].trim())) continue;
     for (let j = i; j < Math.min(i + 3, lines.length); j++) {
       const status = normalizeServiceStatus(lines[j]);
       if (status) return status;
@@ -165,6 +167,12 @@ export function extractRenewalBadgeDate(lines: string[]): string | undefined {
     const western = toWesternDigits(line);
     const match = /النهاية\s*(\d{4}[/-]\d{1,2}[/-]\d{1,2})/.exec(western);
     if (match) return match[1];
+    // The same badge on the English page: "Ends 9/28/2026" / "Ends Sep 28, 2026".
+    const english = /^ends?\s+(.+)$/i.exec(western.trim());
+    if (english) {
+      const date = normalizeDateLike(english[1]!);
+      if (isCompleteDate(date)) return date;
+    }
   }
   return undefined;
 }
@@ -178,13 +186,13 @@ export const BILLING_DUE_DAY_LABELS = ["تاريخ استحقاق الدفع", "
 export function extractBillingDueDay(lines: string[]): number | undefined {
   const raw = extractLabeledValue(lines, BILLING_DUE_DAY_LABELS);
   if (!raw) return undefined;
-  const match = /^(\d{1,2})\b/.exec(toWesternDigits(raw).trim());
+  const western = toWesternDigits(raw).trim();
+  // "٢٨ أغسطس." on the Arabic page; "August 28." (or "28 August") on the English one.
+  const match = /^(\d{1,2})\b/.exec(western) ?? new RegExp(`^${MONTH_NAME}\\.?\\s+(\\d{1,2})\\b`, "i").exec(western);
   if (!match) return undefined;
-  const day = parseInt(match[1], 10);
+  const day = parseInt(match[match.length - 1]!, 10);
   return day >= 1 && day <= 31 ? day : undefined;
 }
-
-const INVOICE_DATE_PATTERN = /(\d{4})[/-](\d{1,2})[/-](\d{1,2})/;
 
 /** Fallback for a suspended-for-billing account's recurring billing day when the "دورة الفوترة"
  * section itself has gone blank - a real, confirmed page state ("لم تتم إضافة أي اشتراكات إلى هذا
@@ -200,14 +208,14 @@ const INVOICE_DATE_PATTERN = /(\d{4})[/-](\d{1,2})[/-](\d{1,2})/;
  * the PREVIOUS row's own trailing date cell instead of this row's. */
 export function extractSubscriptionInvoiceDueDay(lines: string[]): number | undefined {
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i].trim() !== "اشتراك") continue;
+    const cell = lines[i].trim();
+    if (cell !== "اشتراك" && cell.toLowerCase() !== "subscription") continue;
     for (let j = i; j < Math.min(i + 3, lines.length); j++) {
-      const western = toWesternDigits(lines[j]);
-      const match = INVOICE_DATE_PATTERN.exec(western);
-      if (match) {
-        const day = parseInt(match[3], 10);
-        if (day >= 1 && day <= 31) return day;
-      }
+      // Any date shape (the English page's "Aug 28, 2026" / "8/28/2026" too) - normalized first.
+      const date = normalizeDateLike(lines[j]);
+      if (!isCompleteDate(date)) continue;
+      const day = parseInt(date.slice(8), 10);
+      if (day >= 1 && day <= 31) return day;
     }
   }
   return undefined;
@@ -473,9 +481,33 @@ export function extractBalance(lines: string[]): ParsedMoney | undefined {
 export function normalizeDateLike(raw: string): string {
   const western = toWesternDigits(raw).trim();
   const match = /(\d{4})[/-](\d{1,2})[/-](\d{1,2})/.exec(western);
-  if (!match) return western;
-  const [, year, month, day] = match;
-  return `${year}/${month.padStart(2, "0")}/${day.padStart(2, "0")}`;
+  if (match) {
+    const [, year, month, day] = match;
+    return `${year}/${month.padStart(2, "0")}/${day.padStart(2, "0")}`;
+  }
+  // The English (United States) page - sync switches Starlink to it first (language.ts):
+  // "9/28/2026" (month first), "Sep 28, 2026" / "September 28, 2026", or "28 Sep 2026".
+  const us = /\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/.exec(western);
+  if (us) return ymd(us[3]!, Number(us[1]), Number(us[2]));
+  const monthFirst = new RegExp(`${MONTH_NAME}\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?,?\\s+(\\d{4})`, "i").exec(western);
+  if (monthFirst) return ymd(monthFirst[3]!, monthNumber(monthFirst[1]!), Number(monthFirst[2]));
+  const dayFirst = new RegExp(`\\b(\\d{1,2})\\s+${MONTH_NAME}\\.?,?\\s+(\\d{4})`, "i").exec(western);
+  if (dayFirst) return ymd(dayFirst[3]!, monthNumber(dayFirst[2]!), Number(dayFirst[1]));
+  return western;
+}
+
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+/** An English month name or its short form ("Sep", "Sept", "September") - one capture group. */
+const MONTH_NAME = "\\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\b";
+
+function monthNumber(name: string): number {
+  return MONTHS.indexOf(name.slice(0, 3).toLowerCase()) + 1;
+}
+
+/** "YYYY/MM/DD", or the input's year alone (never a complete date) when month/day are impossible. */
+function ymd(year: string, month: number, day: number): string {
+  if (month < 1 || month > 12 || day < 1 || day > 31) return year;
+  return `${year}/${String(month).padStart(2, "0")}/${String(day).padStart(2, "0")}`;
 }
 
 const COMPLETE_DATE_PATTERN = /^\d{4}\/\d{2}\/\d{2}$/;

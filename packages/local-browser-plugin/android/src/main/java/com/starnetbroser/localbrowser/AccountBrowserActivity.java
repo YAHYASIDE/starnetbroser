@@ -72,6 +72,10 @@ public class AccountBrowserActivity extends AppCompatActivity {
      * makes, just shorter since this flow is on-screen and the user is actively waiting on it. */
     private static final long SYNC_STEP_DELAY_MS = 1500;
     private static final long DEVICES_SETTLE_DELAY_MS = 3500;
+    /** Switching Starlink to English (language.ts): at most this many taps/checks per sync, and the
+     * wait after tapping "English" for the page to come back in the new language. */
+    private static final int MAX_ENGLISH_STEPS = 7;
+    private static final long ENGLISH_RELOAD_DELAY_MS = 4500;
 
     private WebView webView;
     private ProgressBar progressBar;
@@ -94,6 +98,9 @@ public class AccountBrowserActivity extends AppCompatActivity {
     private boolean syncSaveFailed;
     /** A page in this run read the service as stopped (see keepStoppedWithinRun). */
     private boolean syncSawStopped;
+    /** This run's steps toward an English page so far, and whether its ☰ was already tapped. */
+    private int englishSteps;
+    private boolean englishMenuOpened;
     /** Schedules the settle delay between sync steps - its own field (not WebView#postDelayed) so
      * onDestroy can cancel every pending step in one well-defined call
      * (Handler#removeCallbacksAndMessages), rather than relying on View#removeCallbacks, which
@@ -385,9 +392,15 @@ public class AccountBrowserActivity extends AppCompatActivity {
         syncFoundAnything = false;
         syncSaveFailed = false;
         syncSawStopped = false;
+        englishSteps = 0;
+        englishMenuOpened = false;
         Toast.makeText(this, R.string.starnet_sync_in_progress, Toast.LENGTH_SHORT).show();
 
         syncSteps = new ArrayDeque<>();
+        // Starlink reads cleanly in English (real, confirmed: the Arabic page kept syncing badly), so
+        // the page is switched first - ☰ → region/language → "UNITED STATES / English". The choice
+        // stays in this device's own browser, so later syncs find it already English.
+        syncSteps.add(this::syncStepEnsureEnglish);
         syncSteps.add(this::syncStepExtractCurrentPage); // whatever page the operator is already on
         syncSteps.add(() -> syncStepClick(StarlinkExtractorSupport::loadClickSubscriptionsRailItemScript));
         syncSteps.add(this::syncStepExtractCurrentPage); // the list itself: every subscription's name (a device can have more than one)
@@ -471,6 +484,60 @@ public class AccountBrowserActivity extends AppCompatActivity {
                 syncHandler.postDelayed(this::advanceSyncSteps, SYNC_STEP_DELAY_MS);
             }
         );
+    }
+
+    /** One tap toward an English page (language.ts), repeated until the page reads English, nothing
+     * more can be found, or MAX_ENGLISH_STEPS - never fatal: the sync then reads the page as it is. */
+    private void syncStepEnsureEnglish() {
+        if (!syncGuardOk()) {
+            finishSync();
+            return;
+        }
+        String script;
+        try {
+            script = StarlinkExtractorSupport.loadEnsureEnglishScript(getApplicationContext(), englishMenuOpened);
+        } catch (IOException e) {
+            advanceSyncSteps();
+            return;
+        }
+        webView.evaluateJavascript(script, value -> {
+            if (syncSteps == null) return;
+            String step = StarlinkExtractorSupport.parseStringResult(value);
+            englishSteps++;
+            boolean done = "english".equals(step) || "unknown".equals(step) || step.isEmpty() || englishSteps >= MAX_ENGLISH_STEPS;
+            if (done && englishMenuOpened && !"english".equals(step)) {
+                // Gave up with the ☰ panel still open over the page - reload so the rail is reachable.
+                englishMenuOpened = false;
+                webView.loadUrl(homeUrl);
+                syncHandler.postDelayed(this::advanceSyncSteps, ENGLISH_RELOAD_DELAY_MS);
+                return;
+            }
+            if (done) {
+                advanceSyncSteps();
+                return;
+            }
+            if ("menu".equals(step)) englishMenuOpened = true;
+            syncSteps.addFirst(this::syncStepEnsureEnglish);
+            if ("clicked".equals(step)) {
+                englishMenuOpened = false;
+                syncHandler.postDelayed(this::afterEnglishChosen, ENGLISH_RELOAD_DELAY_MS);
+                return;
+            }
+            syncHandler.postDelayed(this::advanceSyncSteps, SYNC_STEP_DELAY_MS);
+        });
+    }
+
+    /** After "English" was tapped: the picker may land on starlink.com's public site instead of
+     * the account - back to the account's own page, then check again. */
+    private void afterEnglishChosen() {
+        if (webView == null || syncSteps == null) return;
+        String url = webView.getUrl();
+        if (url == null || !url.contains("/account")) {
+            webView.loadUrl(homeUrl != null && homeUrl.contains("/account") ? homeUrl : LocalBrowserPlugin.DEFAULT_URL);
+            syncHandler.postDelayed(this::advanceSyncSteps, ENGLISH_RELOAD_DELAY_MS);
+            return;
+        }
+        advanceSyncSteps();
     }
 
     /** Runs one Stage-2 navigation tap (see navigation.ts) and moves on regardless of whether it

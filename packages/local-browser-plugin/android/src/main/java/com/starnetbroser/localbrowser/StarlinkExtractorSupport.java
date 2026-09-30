@@ -84,6 +84,13 @@ final class StarlinkExtractorSupport {
         return loadBundle(context) + "\n__starnetExpandDevicesSection();";
     }
 
+    /** One tap toward the page in English (language.ts): the result is one of "english",
+     * "loading", "clicked", "globe", "menu", "unknown" - parsed with parseStringResult.
+     * `menuOpened` = the ☰ was already tapped in this run, so it is never tapped again. */
+    static String loadEnsureEnglishScript(Context context, boolean menuOpened) throws IOException {
+        return loadBundle(context) + "\n__starnetEnsureEnglish(" + menuOpened + ");";
+    }
+
     /** 🧪 The open page's masked structure + colors (snapshot.ts) - a JSON string result. */
     static String loadSnapshotScript(Context context) throws IOException {
         return loadBundle(context) + "\n__starnetSnapshot();";
@@ -126,6 +133,17 @@ final class StarlinkExtractorSupport {
             return new JSObject((String) unquoted);
         } catch (JSONException e) {
             return null;
+        }
+    }
+
+    /** A JS string result ("\"english\"") unquoted; "" for anything else (null, a non-string). */
+    static String parseStringResult(String evaluateJavascriptResult) {
+        if (evaluateJavascriptResult == null) return "";
+        try {
+            Object value = new JSONTokener(evaluateJavascriptResult).nextValue();
+            return value instanceof String ? (String) value : "";
+        } catch (JSONException e) {
+            return "";
         }
     }
 

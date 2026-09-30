@@ -30,13 +30,20 @@ function directText(el: Element): string {
 /** The first element (in document order) whose OWN text - never a descendant's - equals `label`
  * exactly. Mirrors extractStarlinkFields.ts's own label-matching discipline: a label is a leaf's
  * direct text, never a substring match that could land on some unrelated, longer sentence. */
-function findExactTextElement(root: Element, label: string): Element | null {
+function findExactTextElement(root: Element, label: string | string[]): Element | null {
+  // Case-insensitive so the English page's "Subscription"/"SUBSCRIPTION" matches too - sync switches
+  // Starlink to English first (language.ts), the Arabic labels stay for a page it couldn't switch.
+  const wanted = (Array.isArray(label) ? label : [label]).map((l) => l.toLowerCase());
   const all = Array.from(root.querySelectorAll("*"));
   for (const el of all) {
-    if (directText(el) === label) return el;
+    if (wanted.includes(directText(el).toLowerCase())) return el;
   }
   return null;
 }
+
+const SUBSCRIPTION_COLUMN_LABELS = ["الاشتراك", "subscription"];
+const ADD_SUBSCRIPTION_LABELS = ["إضافة اشتراك", "add subscription"];
+const DEVICES_SECTION_LABELS = ["الأجهزة", "devices"];
 
 /** The next element after `el` in document order - a plain TreeWalker over `document.body`, used
  * to search forward from a confirmed label (e.g. "الأجهزة") for the real clickable control near
@@ -186,7 +193,7 @@ export function clickSettingsRailItem(): boolean {
  * sits right next to that same column header and would otherwise be the first clickable element
  * found after it. */
 export function clickFirstSubscriptionRow(): boolean {
-  const header = findExactTextElement(document.body, "الاشتراك");
+  const header = findExactTextElement(document.body, SUBSCRIPTION_COLUMN_LABELS);
   if (!header) return false;
 
   let node: Element | null = header;
@@ -194,7 +201,7 @@ export function clickFirstSubscriptionRow(): boolean {
     node = nextElementInDocumentOrder(node);
     if (!node) break;
     const text = directText(node);
-    if (!text || text === "إضافة اشتراك") continue;
+    if (!text || ADD_SUBSCRIPTION_LABELS.includes(text.toLowerCase())) continue;
     if (isClickable(node) && !isDangerousControl(node)) {
       (node as HTMLElement).click();
       return true;
@@ -211,7 +218,7 @@ export function clickFirstSubscriptionRow(): boolean {
  * searches forward from it for the real toggle (confirmed to show the dish's own product name,
  * e.g. "STARLINK", with a collapse/expand caret). */
 export function expandDevicesSection(): boolean {
-  const header = findExactTextElement(document.body, "الأجهزة");
+  const header = findExactTextElement(document.body, DEVICES_SECTION_LABELS);
   if (!header) return false;
   // Real, confirmed miss: Starlink remembers the section open, and tapping its toggle then CLOSED
   // it - the dots vanished right before the read. Already open (its Wi-Fi row is there, or the

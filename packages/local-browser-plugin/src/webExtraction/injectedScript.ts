@@ -1,5 +1,6 @@
 import { extractStarlinkFields } from "./extractStarlinkFields";
 import { captureSnapshot } from "./snapshot";
+import { ensureEnglishStep } from "./language";
 import { clickBillingRailItem, clickFirstSubscriptionRow, clickIconRailItem, clickSettingsRailItem, clickSubscriptionsRailItem, expandDevicesSection } from "./navigation";
 
 /**
@@ -28,6 +29,7 @@ type StarnetGlobal = typeof globalThis & {
   __starnetExpandDevicesSection?: () => boolean;
   __starnetClickSettingsRailItem?: () => boolean;
   __starnetSnapshot?: () => string;
+  __starnetEnsureEnglish?: (menuOpened: boolean) => string;
 };
 
 const starnetGlobal = globalThis as StarnetGlobal;
@@ -46,3 +48,6 @@ starnetGlobal.__starnetClickSettingsRailItem = clickSettingsRailItem;
 
 /** 🧪 "لقطة تشخيص": the open page's masked structure + colors (see snapshot.ts). */
 starnetGlobal.__starnetSnapshot = () => captureSnapshot(document);
+
+/** Before any read: one tap toward the page in English (see language.ts). */
+starnetGlobal.__starnetEnsureEnglish = (menuOpened: boolean) => ensureEnglishStep(menuOpened);

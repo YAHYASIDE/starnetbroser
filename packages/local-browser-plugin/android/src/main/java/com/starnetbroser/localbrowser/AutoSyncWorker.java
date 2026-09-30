@@ -82,6 +82,12 @@ public class AutoSyncWorker extends Worker {
     /** Wait after each tap of that walk, for the SPA to render the next page. */
     private static final long STEP_DELAY_MS = 3000;
     private static final long DEVICES_SETTLE_MS = 4500;
+    /** Switching Starlink to English first (language.ts, same walk as the account browser): at most
+     * this many taps/checks, the wait after tapping "English", and the extra time a visit may take
+     * when it had to switch (once per device - its browser keeps the choice). */
+    private static final int MAX_ENGLISH_STEPS = 6;
+    private static final long ENGLISH_RELOAD_MS = 4500;
+    private static final long ENGLISH_BUDGET_MS = 20000;
     private static final int ICON_RAIL_INDEX_SUBSCRIPTIONS = 1;
 
     /** This run refreshes one device ("تحديث" on its card): also read its dish/Wi-Fi dots. */
@@ -334,7 +340,7 @@ public class AutoSyncWorker extends Worker {
             () -> runOneAccountOnMainThread(context, entry, profileName, script, latch)
         );
         try {
-            latch.await(deepRead ? DEEP_ACCOUNT_TIMEOUT_MS : PER_ACCOUNT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+            latch.await((deepRead ? DEEP_ACCOUNT_TIMEOUT_MS : PER_ACCOUNT_TIMEOUT_MS) + ENGLISH_BUDGET_MS, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
@@ -395,7 +401,8 @@ public class AutoSyncWorker extends Worker {
                         // Already torn down (an error or a 429 page that still "finished") - the
                         // WebView is destroyed, nothing to read.
                         if (!handled.get() && readStarted.compareAndSet(false, true)) {
-                            readAndSave(context, webView, entry, script, teardown);
+                            ensureEnglish(context, webView, entry, handled, mainHandler, 0, false,
+                                () -> readAndSave(context, webView, entry, script, teardown));
                         }
                     }, SETTLE_DELAY_MS);
                 }
@@ -419,6 +426,60 @@ public class AutoSyncWorker extends Worker {
         );
 
         webView.loadUrl(entry.url);
+    }
+
+    /** Before the read: one tap at a time toward the page in English (language.ts) - the ☰, the
+     * region/language control, then "UNITED STATES / English" - until it reads English, nothing
+     * more is found, or MAX_ENGLISH_STEPS. Then `next` runs whatever the outcome. */
+    private void ensureEnglish(
+        Context context,
+        WebView webView,
+        AutoSyncAccountStore.Entry entry,
+        AtomicBoolean handled,
+        Handler handler,
+        int steps,
+        boolean menuOpened,
+        Runnable next
+    ) {
+        if (handled.get()) return;
+        if (!AllowedUrl.isAllowed(webView.getUrl())) {
+            next.run();
+            return;
+        }
+        String script;
+        try {
+            script = StarlinkExtractorSupport.loadEnsureEnglishScript(context, menuOpened);
+        } catch (IOException e) {
+            next.run();
+            return;
+        }
+        webView.evaluateJavascript(script, value -> {
+            if (handled.get()) return;
+            String step = StarlinkExtractorSupport.parseStringResult(value);
+            boolean done = "english".equals(step) || "unknown".equals(step) || step.isEmpty() || steps + 1 >= MAX_ENGLISH_STEPS;
+            if (done) {
+                if (menuOpened && !"english".equals(step)) {
+                    // Gave up with the ☰ panel still open over the page - reload it first.
+                    webView.loadUrl(entry.url);
+                    handler.postDelayed(() -> { if (!handled.get()) next.run(); }, ENGLISH_RELOAD_MS);
+                } else {
+                    next.run();
+                }
+                return;
+            }
+            if ("clicked".equals(step)) {
+                handler.postDelayed(() -> {
+                    if (handled.get()) return;
+                    // The picker can land on starlink.com's public site - back to the account page.
+                    String url = webView.getUrl();
+                    if (url == null || !url.contains("/account")) webView.loadUrl(entry.url);
+                    handler.postDelayed(() -> ensureEnglish(context, webView, entry, handled, handler, steps + 1, false, next), ENGLISH_RELOAD_MS);
+                }, ENGLISH_RELOAD_MS);
+                return;
+            }
+            boolean opened = menuOpened || "menu".equals(step);
+            handler.postDelayed(() -> ensureEnglish(context, webView, entry, handled, handler, steps + 1, opened, next), STEP_DELAY_MS);
+        });
     }
 
     /** Mirrors AccountBrowserActivity#syncFromStarlink's own AllowedUrl-before-and-after check:
