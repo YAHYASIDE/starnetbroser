@@ -25,6 +25,7 @@ import {
   extractSubscriptionId,
   extractSubscriptionInvoiceDueDay,
   hasBillingSuspensionBanner,
+  hasMovingRestrictedBanner,
   hasRegionRestrictedBanner,
   hasPriorityDataExhaustedBanner,
   hasNoSubscriptionsText,
@@ -130,6 +131,11 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
   // canceled device's restriction is hidden by the app anyway (reminders.ts showsRestriction).
   if (hasRegionRestrictedBanner(lines)) fields.isRestricted = true;
   else if (isOnAccountHomePage(lines)) fields.isRestricted = false;
+
+  // 🚗 Stopped for moving too fast: the banner sits under the subscription's Devices, so only a
+  // page showing Devices may clear it (never Home, which never prints it).
+  if (hasMovingRestrictedBanner(lines)) fields.movingRestricted = true;
+  else if (devicesHeading) fields.movingRestricted = false;
 
   // "إيميل غير رئيسي" is decided on the Settings → Users table only (the operator's confirmed
   // signal): the web merge sets limitedAccess from whether this account's own login email carries

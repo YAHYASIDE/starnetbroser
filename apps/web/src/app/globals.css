@@ -1474,6 +1474,18 @@ button.overview-card:active {
   border-radius: var(--radius-sm);
 }
 
+/* 🚗 Stopped for moving too fast - informative, calm (it works again once stopped). */
+.account-card-moving-banner {
+  background: var(--surface-alt);
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: center;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+}
+
 .account-card-priority-banner {
   background: var(--orange-bg);
   color: var(--orange);

@@ -41,6 +41,7 @@ const FIELD_INFO: Record<keyof SyncedStarlinkFields, { label: string; section: S
   dotTrace: { label: "تشخيص النقاط", section: "devices" },
   dataUsageGb: { label: "إجمالي استهلاك الباقة", section: "subscriptions" },
   isRestricted: { label: "تقييد الجهاز (خارج البلد المسجل)", section: "devices" },
+  movingRestricted: { label: "متوقف بسبب الحركة", section: "devices" },
   limitedAccess: { label: "إيميل غير رئيسي (بدون فوترة)", section: "identifiers" },
   adminEmails: { label: "الإيميل الرئيسي (Admin)", section: "identifiers" },
   subscriptionNames: { label: "الاشتراكات", section: "subscriptions" },
@@ -232,6 +233,12 @@ export function mergeSyncedFields(
   if (fields.isRestricted !== undefined) {
     note("isRestricted", next.isRestricted !== fields.isRestricted);
     next.isRestricted = fields.isRestricted;
+  }
+
+  // Explicit true/false: the Devices section without the banner clears it (he stopped).
+  if (fields.movingRestricted !== undefined) {
+    note("movingRestricted", next.movingRestricted !== fields.movingRestricted);
+    next.movingRestricted = fields.movingRestricted;
   }
 
   // Diagnostic only - kept up to date, never counted as an "updated field".

@@ -462,6 +462,9 @@ export function AccountCard({
           {priorityState.usedGb !== undefined && <> (الاستهلاك <bdi dir="ltr">{priorityState.usedGb} GB</bdi>)</>} - يعمل بسرعة محدودة حتى الدورة القادمة
         </div>
       )}
+      {account.movingRestricted && account.serviceStatus !== "canceled" && (
+        <div className="account-card-moving-banner">🚗 متوقف بسبب الحركة - يعمل عند توقف الجهاز (باقة المنازل)</div>
+      )}
       {showsRestriction(account) && (
         <div className="account-card-restricted-banner">
           🚫 الجهاز مقيّد — أعده إلى البلد المسجل ووصّله بالكهرباء لمدة 24 ساعة على الأقل لاستئناف الخدمة

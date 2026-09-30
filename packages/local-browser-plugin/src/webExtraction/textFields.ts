@@ -92,6 +92,16 @@ export function hasRegionRestrictedBanner(lines: string[]): boolean {
   return lines.some((line) => containsAny(line, REGION_RESTRICTED_BANNER_LABELS) && containsAny(line, HOME_COUNTRY_WORDS));
 }
 
+/** "Your Starlink's service is restricted because it is moving too fast. To resume service, use
+ * Starlink while stationary..." (real, confirmed screenshot, under the subscription's Devices): a
+ * residential plan used while moving - it works again once it stops. Its own calm flag, never the
+ * out-of-country restriction above. */
+const MOVING_WORDS = ["moving too fast", "while stationary", "تتحرك", "يتحرك", "الحركة", "ثابت"];
+
+export function hasMovingRestrictedBanner(lines: string[]): boolean {
+  return lines.some((line) => containsAny(line, [...REGION_RESTRICTED_BANNER_LABELS, "مقيدة", "restricted"]) && containsAny(line, MOVING_WORDS));
+}
+
 /** The subscriptions page of an email with no subscription at all ("لا توجد اشتراكات" under
  * "الاشتراكات", real, confirmed screenshot) - the device's subscription was canceled / moved away. */
 export function hasNoSubscriptionsText(lines: string[]): boolean {

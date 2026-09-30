@@ -133,6 +133,13 @@ describe("mergeSyncedFields - scanned vs. changed", () => {
     expect(mergeSyncedFields(out.account, { priorityDataExhausted: false }).account.priorityDataExhausted).toBe(false);
   });
 
+  it("🚗 movingRestricted: set true, then cleared by an explicit false (he stopped)", () => {
+    const moving = mergeSyncedFields(baseAccount(), { movingRestricted: true });
+    expect(moving.account.movingRestricted).toBe(true);
+    expect(moving.updatedFields.map((f) => f.field)).toEqual(["movingRestricted"]);
+    expect(mergeSyncedFields(moving.account, { movingRestricted: false }).account.movingRestricted).toBe(false);
+  });
+
   it("sets isRestricted true and reports it as an updated field", () => {
     const result = mergeSyncedFields(baseAccount(), { isRestricted: true });
     expect(result.account.isRestricted).toBe(true);

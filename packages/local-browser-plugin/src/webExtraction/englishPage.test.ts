@@ -110,6 +110,12 @@ describe("restricted for moving too fast (a residential plan on the move)", () =
       <div>Your Starlink's service is restricted because it is moving too fast. To resume service, use Starlink while stationary or purchase a Starlink Aviation product.</div>
     `);
     expect(fields.isRestricted).toBeUndefined();
+    expect(fields.movingRestricted).toBe(true);
+  });
+
+  it("🚗 clears once the Devices section shows no such banner (he stopped), but never from Home", () => {
+    expect(read(`<h3>Devices</h3><div>STARLINK</div>`).movingRestricted).toBe(false);
+    expect(read(`<div>DEMO NAME • ACC-0000-0000-DEMO</div>`).movingRestricted).toBeUndefined();
   });
 
   it("on the Home page it even clears an earlier wrong \"restricted\"", () => {

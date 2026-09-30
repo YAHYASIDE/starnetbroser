@@ -132,6 +132,9 @@ export interface StarlinkAccountSummary {
    * banner - independent of `serviceStatus` (a device can be "active" billing-wise and still
    * region-restricted). Undefined until the first sync that actually resolves it either way. */
   isRestricted?: boolean;
+  /** 🚗 "service is restricted because it is moving too fast" - a residential plan used while
+   * moving; it works again once stopped. Explicit true/false; never the out-of-country restriction. */
+  movingRestricted?: boolean;
   /** ISO two-letter code of the country in Starlink's "موقع الخدمة" address (e.g. "GR") - the
    * country the device is registered to, so also the currency Starlink bills it in. Synced only. */
   serviceCountry?: string;
