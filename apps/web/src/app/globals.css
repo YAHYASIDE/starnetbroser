@@ -477,6 +477,31 @@ select.search-input {
   overflow-wrap: anywhere;
 }
 
+.account-card-subscriptions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  font-size: 0.72rem;
+}
+
+.account-card-subscription-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.account-card-subscription-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
 .account-card-ledger-row {
   display: flex;
   align-items: center;

@@ -1,6 +1,7 @@
 import { DeviceStatus, StarlinkAccountSummary } from "@starnet/shared";
 import type { SyncedDeviceStatus, SyncedStarlinkFields } from "@starnet/local-browser-plugin";
 import { cleanPlanName } from "./status";
+import { loginEmailIsAdmin } from "./emailMatch";
 
 type Section = "devices" | "subscriptions" | "billing" | "identifiers";
 
@@ -41,6 +42,8 @@ const FIELD_INFO: Record<keyof SyncedStarlinkFields, { label: string; section: S
   dataUsageGb: { label: "إجمالي استهلاك الباقة", section: "subscriptions" },
   isRestricted: { label: "تقييد الجهاز (خارج البلد المسجل)", section: "devices" },
   limitedAccess: { label: "إيميل غير رئيسي (بدون فوترة)", section: "identifiers" },
+  adminEmails: { label: "الإيميل الرئيسي (Admin)", section: "identifiers" },
+  subscriptionNames: { label: "الاشتراكات", section: "subscriptions" },
 };
 
 export interface UpdatedField {
@@ -256,6 +259,31 @@ export function mergeSyncedFields(
   if (fields.limitedAccess !== undefined) {
     note("limitedAccess", next.limitedAccess !== fields.limitedAccess);
     next.limitedAccess = fields.limitedAccess;
+  }
+
+  // Subscriptions list page: the names of every subscription on this one account (a device can
+  // legitimately carry more than one, each its own KIT/number, one email - a Starlink quirk).
+  const subscriptionNames = fields.subscriptionNames?.map((name) => name.trim()).filter(Boolean);
+  if (subscriptionNames && subscriptionNames.length > 0) {
+    const unchanged =
+      next.subscriptions?.length === subscriptionNames.length &&
+      next.subscriptions.every((name, i) => name === subscriptionNames[i]);
+    note("subscriptionNames", !unchanged);
+    next.subscriptions = subscriptionNames;
+  }
+
+  // Settings → Users: the operator's confirmed signal for "primary". When this account's OWN login
+  // email carries an Admin role there, it IS the primary email - so clear any "إيميل غير رئيسي"
+  // flag the icon-rail billing heuristic set (a real, confirmed false positive: an Admin email that
+  // simply didn't load billing that moment). Matching a different admin email (a genuine limited
+  // user on someone else's account) is correctly not a match, so a truly limited email stays flagged.
+  if (
+    fields.adminEmails &&
+    fields.adminEmails.length > 0 &&
+    loginEmailIsAdmin(fields.adminEmails, fields.accountEmail, next.starlinkAccountEmail, next.expectedEmail)
+  ) {
+    note("adminEmails", next.limitedAccess !== false);
+    next.limitedAccess = false;
   }
 
   const scanned = Object.keys(fields).length > 0;

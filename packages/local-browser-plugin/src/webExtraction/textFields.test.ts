@@ -3,7 +3,9 @@ import {
   BALANCE_LABELS,
   PLAN_LABELS,
   RENEWAL_DATE_LABELS,
+  emailLocalPart,
   extractAccountEmail,
+  extractAdminUserKeys,
   extractBalance,
   extractBillingDueDay,
   extractDataUsageGb,
@@ -14,6 +16,7 @@ import {
   extractRenewalBadgeDate,
   extractSubscriptionId,
   extractSubscriptionInvoiceDueDay,
+  extractSubscriptionNames,
   hasBillingSuspensionBanner,
   hasPriorityDataExhaustedBanner,
   hasRegionRestrictedBanner,
@@ -428,5 +431,73 @@ describe("nextOccurrenceOfDay - always the upcoming due date, whatever month it'
     // (already auto-charged, balance already $0.00) showed up as "about to expire today" instead
     // of correctly current for another month.
     expect(nextOccurrenceOfDay(24, new Date(2026, 8, 24))).toBe("2026/10/24"); // Sept 24 -> Oct 24
+  });
+});
+
+describe("extractAdminUserKeys - Settings → Users: which login email is an account Admin", () => {
+  it("reads an email whose role is Admin on the same line", () => {
+    const lines = ["User", "Roles", "dedesidival868@outlook.com  Admin"];
+    expect(extractAdminUserKeys(lines)).toEqual(["dedesidival868@outlook.com"]);
+  });
+
+  it("reads a bare 'Admin' line preceded by the email on its own line", () => {
+    const lines = ["Users", "dedesidival868@", "Admin"];
+    expect(extractAdminUserKeys(lines)).toEqual(["dedesidival868@"]);
+  });
+
+  it("tolerates the truncated 'email@…' cell the table often shows", () => {
+    const lines = ["dedesidival868@…", "Admin"];
+    expect(extractAdminUserKeys(lines)).toEqual(["dedesidival868@…"]);
+  });
+
+  it("matches the Arabic role word مشرف too", () => {
+    const lines = ["someone@mail.com", "مشرف"];
+    expect(extractAdminUserKeys(lines)).toEqual(["someone@mail.com"]);
+  });
+
+  it("ignores non-admin roles (a genuine limited user)", () => {
+    const lines = ["viewer@mail.com", "Viewer", "editor@mail.com", "Editor"];
+    expect(extractAdminUserKeys(lines)).toEqual([]);
+  });
+
+  it("returns [] on a page with no users table at all", () => {
+    expect(extractAdminUserKeys(["Home", "Subscriptions", "STARLINK"])).toEqual([]);
+  });
+});
+
+describe("emailLocalPart", () => {
+  it("lowercases and takes the part before @", () => {
+    expect(emailLocalPart("Dede868@Out.com")).toBe("dede868");
+  });
+
+  it("handles a truncated 'local@' with no domain", () => {
+    expect(emailLocalPart("dede868@")).toBe("dede868");
+  });
+
+  it("is empty for undefined/blank", () => {
+    expect(emailLocalPart(undefined)).toBe("");
+    expect(emailLocalPart("   ")).toBe("");
+  });
+});
+
+describe("extractSubscriptionNames - the two subscriptions on one account", () => {
+  it("reads every subscription name between the heading and the pager", () => {
+    const lines = ["Subscriptions", "DEDE SIDI VAL", "ARAWANI DI", "1 - 2"];
+    expect(extractSubscriptionNames(lines)).toEqual(["DEDE SIDI VAL", "ARAWANI DI"]);
+  });
+
+  it("works on the Arabic heading and Arabic-numeral pager", () => {
+    const lines = ["الاشتراكات", "ديدي سيدي", "أراوني", "١ - ٢"];
+    expect(extractSubscriptionNames(lines)).toEqual(["ديدي سيدي", "أراوني"]);
+  });
+
+  it("skips list chrome like 'Add subscription' and de-dupes", () => {
+    const lines = ["Subscriptions", "Add subscription", "DEDE SIDI VAL", "DEDE SIDI VAL", "1 - 1"];
+    expect(extractSubscriptionNames(lines)).toEqual(["DEDE SIDI VAL"]);
+  });
+
+  it("returns [] without both a heading AND a pager (never grabs stray Home/Billing text)", () => {
+    expect(extractSubscriptionNames(["Subscriptions", "DEDE SIDI VAL"])).toEqual([]);
+    expect(extractSubscriptionNames(["DEDE SIDI VAL", "1 - 2"])).toEqual([]);
   });
 });

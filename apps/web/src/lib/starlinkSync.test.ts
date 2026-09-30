@@ -80,6 +80,40 @@ describe("mergeSyncedFields - scanned vs. changed", () => {
     expect(mergeSyncedFields(flagged.account, { planName: "x" }).account.limitedAccess).toBe(true);
   });
 
+  it("clears a false-positive limitedAccess when the login email is Admin in Settings → Users", () => {
+    // The icon-rail billing heuristic flagged an admin email as "غير رئيسي" because billing didn't
+    // load that moment (the operator's confirmed complaint). The Settings page then reads the Users
+    // table: the login email carries the Admin role, so it IS primary - the flag is cleared.
+    const flagged = mergeSyncedFields(
+      baseAccount({ expectedEmail: "dedesidival868@outlook.com" }),
+      { limitedAccess: true },
+    );
+    expect(flagged.account.limitedAccess).toBe(true);
+    const cleared = mergeSyncedFields(flagged.account, { adminEmails: ["dedesidival868@…"] });
+    expect(cleared.account.limitedAccess).toBe(false);
+    expect(cleared.updatedFields.map((f) => f.field)).toEqual(["adminEmails"]);
+  });
+
+  it("does NOT clear limitedAccess when only a DIFFERENT email is Admin (a genuine limited user)", () => {
+    const flagged = mergeSyncedFields(
+      baseAccount({ expectedEmail: "mylimited@mail.com" }),
+      { limitedAccess: true },
+    );
+    const still = mergeSyncedFields(flagged.account, { adminEmails: ["someoneelse@mail.com"] });
+    expect(still.account.limitedAccess).toBe(true);
+    expect(still.updatedFields).toEqual([]);
+  });
+
+  it("records the two subscriptions on one account and reports them as changed only when they differ", () => {
+    const first = mergeSyncedFields(baseAccount(), { subscriptionNames: ["DEDE SIDI VAL", "ARAWANI DI"] });
+    expect(first.account.subscriptions).toEqual(["DEDE SIDI VAL", "ARAWANI DI"]);
+    expect(first.updatedFields.map((f) => f.field)).toEqual(["subscriptionNames"]);
+    // Re-reading the same list is a confirming scan, not a change.
+    const again = mergeSyncedFields(first.account, { subscriptionNames: ["DEDE SIDI VAL", "ARAWANI DI"] });
+    expect(again.updatedFields).toEqual([]);
+    expect(again.scanned).toBe(true);
+  });
+
   it("sets and clears priorityDataExhausted explicitly", () => {
     const out = mergeSyncedFields(baseAccount(), { priorityDataExhausted: true });
     expect(out.account.priorityDataExhausted).toBe(true);

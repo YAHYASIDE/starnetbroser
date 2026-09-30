@@ -580,3 +580,93 @@ export function extractServiceCountry(lines: string[]): string | undefined {
   }
   return undefined;
 }
+
+// ---- Settings → Users table: which login email is an account Admin (the "primary" email) ----
+
+/** Role words that mark a user as an owner/primary on the Starlink account's Settings → Users
+ * table. Anything else (Viewer/Editor/…) is a secondary user of someone else's account. */
+const ADMIN_ROLE_WORDS = ["admin", "owner", "مشرف", "مدير", "المالك", "مالك"];
+
+/** An email, or an email whose domain the table truncated with an ellipsis (e.g.
+ * "dedesidival868@" / "dedesidival868@…"). The local part is what the web side matches on, since
+ * the account's login email is known there and the table cell is often cut off. */
+const EMAILISH_PATTERN = /^[^\s@]+@[^\s@]*$/;
+
+function isAdminRoleWord(line: string): boolean {
+  const t = line.trim().toLowerCase().replace(/[.…]/g, "");
+  return ADMIN_ROLE_WORDS.includes(t);
+}
+
+/**
+ * On the Settings → Users table (real, confirmed screenshot: a "User | Roles" table with rows like
+ * "dedesidival868@…  Admin  …"), the email tokens whose role is Admin. The operator confirmed this
+ * is the real signal for a "primary" email - not the icon rail, which can miss billing on an admin
+ * email too. Each row is [email, role] across one or two lines, so an Admin-role line takes the
+ * nearest emailish line at or just before it. Returns [] on any page without such a table.
+ */
+export function extractAdminUserKeys(lines: string[]): string[] {
+  const keys: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!.trim();
+    // "email Admin" on one line, or a bare "Admin" line preceded by the email line.
+    const inlineMatch = /^(\S+@\S*)\s+(.+)$/.exec(line);
+    if (inlineMatch && isAdminRoleWord(inlineMatch[2]!)) {
+      keys.push(inlineMatch[1]!);
+      continue;
+    }
+    if (!isAdminRoleWord(line)) continue;
+    for (let back = i; back >= Math.max(0, i - 3); back--) {
+      const candidate = lines[back]!.trim();
+      if (EMAILISH_PATTERN.test(candidate)) {
+        keys.push(candidate);
+        break;
+      }
+    }
+  }
+  return keys;
+}
+
+/** The local part of an email/emailish token, lowercased ("Dede868@Out.com" -> "dede868"). */
+export function emailLocalPart(value: string | undefined): string {
+  return (value ?? "").trim().toLowerCase().split("@")[0] ?? "";
+}
+
+// ---- Subscriptions list page: the names of every subscription on one account ----
+
+const SUBSCRIPTIONS_HEADING_WORDS = ["subscriptions", "الاشتراكات"];
+const SUBSCRIPTION_LIST_CHROME = [
+  "subscription", "subscriptions", "add subscription", "الاشتراك", "الاشتراكات", "إضافة اشتراك",
+  "user", "roles", "users",
+];
+/** A list pager like "1 - 2" / "١ - ٢" that closes the rows. */
+const LIST_PAGER_PATTERN = /^[\d٠-٩]+\s*[-–]\s*[\d٠-٩]+$/;
+
+/**
+ * On the Subscriptions list page (real, confirmed screenshot: a "Subscriptions" heading, then one
+ * row per subscription - "DEDE SIDI VAL", "ARAWANI DI" - then a "1 - 2" pager), the name of each
+ * subscription. A device legitimately has more than one (each its own KIT and number, one email);
+ * this is what lets the card show both. Returns [] unless BOTH the heading and the pager are
+ * present, so it never grabs stray text off the Home/Billing pages.
+ */
+export function extractSubscriptionNames(lines: string[]): string[] {
+  const trimmed = lines.map((l) => l.trim());
+  const headingAt = trimmed.findIndex((l) => SUBSCRIPTIONS_HEADING_WORDS.includes(l.toLowerCase()));
+  if (headingAt < 0) return [];
+  const pagerAt = trimmed.findIndex((l, idx) => idx > headingAt && LIST_PAGER_PATTERN.test(l));
+  if (pagerAt < 0) return [];
+  const names: string[] = [];
+  const seen = new Set<string>();
+  for (let i = headingAt + 1; i < pagerAt; i++) {
+    const name = trimmed[i]!;
+    if (!name) continue;
+    const lower = name.toLowerCase();
+    if (SUBSCRIPTION_LIST_CHROME.includes(lower)) continue;
+    if (LIST_PAGER_PATTERN.test(name)) continue;
+    if (name === ">" || name === "<" || name === "›" || name === "‹") continue;
+    if (seen.has(lower)) continue;
+    seen.add(lower);
+    names.push(name);
+    if (names.length >= 8) break;
+  }
+  return names;
+}

@@ -457,45 +457,68 @@ public class AutoSyncWorker extends Worker {
      */
     private void readDevices(Context context, WebView webView, AutoSyncAccountStore.Entry entry, String script, Runnable teardown) {
         Handler handler = new Handler(Looper.getMainLooper());
-        String[] taps;
+        String clickSubs, clickRow, expandDevices, clickSettings;
         try {
-            taps = new String[] {
-                StarlinkExtractorSupport.loadClickIconRailItemScript(context, ICON_RAIL_INDEX_SUBSCRIPTIONS),
-                StarlinkExtractorSupport.loadClickFirstSubscriptionRowScript(context),
-                StarlinkExtractorSupport.loadExpandDevicesSectionScript(context),
-            };
+            clickSubs = StarlinkExtractorSupport.loadClickIconRailItemScript(context, ICON_RAIL_INDEX_SUBSCRIPTIONS);
+            clickRow = StarlinkExtractorSupport.loadClickFirstSubscriptionRowScript(context);
+            expandDevices = StarlinkExtractorSupport.loadExpandDevicesSectionScript(context);
+            clickSettings = StarlinkExtractorSupport.loadClickSettingsRailItemScript(context);
         } catch (IOException e) {
             teardown.run();
             return;
         }
-        runTap(context, webView, entry, script, teardown, handler, taps, 0);
+        // The same walk "تحديث من Starlink" does: the subscriptions list (every subscription's name -
+        // a device can legitimately have more than one), then the subscription's own devices (the
+        // dish/Wi-Fi dots), then Settings → Users (which login email is Admin, i.e. the primary one).
+        Runnable settingsThenDone = () -> tapThen(context, webView, entry, teardown, handler, clickSettings, STEP_DELAY_MS,
+            () -> extractAndSave(context, webView, entry, script, teardown));
+        Runnable expandThenDevice = () -> tapThen(context, webView, entry, teardown, handler, expandDevices, DEVICES_SETTLE_MS,
+            () -> readDevicePage(context, webView, entry, script, settingsThenDone, handler, false));
+        Runnable rowThenExpand = () -> tapThen(context, webView, entry, teardown, handler, clickRow, STEP_DELAY_MS, expandThenDevice);
+        // Click the subscriptions-rail icon, read the list page's names, then drill into the first row.
+        tapThen(context, webView, entry, teardown, handler, clickSubs, STEP_DELAY_MS,
+            () -> extractAndSave(context, webView, entry, script, rowThenExpand));
     }
 
-    private void runTap(Context context, WebView webView, AutoSyncAccountStore.Entry entry, String script, Runnable teardown, Handler handler, String[] taps, int index) {
+    /** Clicks one navigation script, waits `delay` for the page to settle, then runs `next` - the
+     * generic Stage-2 tap the whole deep read is built from. A page that left starlink.com, or a
+     * WebView torn down meanwhile, ends the walk in `teardown` instead. */
+    private void tapThen(Context context, WebView webView, AutoSyncAccountStore.Entry entry, Runnable teardown, Handler handler, String tapScript, long delay, Runnable next) {
         if (!AllowedUrl.isAllowed(webView.getUrl())) {
             teardown.run();
             return;
         }
-        if (index >= taps.length) {
-            readDevicePage(context, webView, entry, script, teardown, handler, false);
-            return;
-        }
-        // The last tap opens "الأجهزة": its dots fill in only after their telemetry loads.
-        long delay = index == taps.length - 1 ? DEVICES_SETTLE_MS : STEP_DELAY_MS;
-        webView.evaluateJavascript(taps[index], value -> handler.postDelayed(() -> {
+        webView.evaluateJavascript(tapScript, value -> handler.postDelayed(() -> {
             try {
-                runTap(context, webView, entry, script, teardown, handler, taps, index + 1);
+                next.run();
             } catch (RuntimeException e) {
-                // The visit was torn down meanwhile (a destroyed WebView) - nothing left to do.
                 teardown.run();
             }
         }, delay));
     }
 
-    /** Reads the devices page; if neither dot has a color yet, waits once more and reads again. */
-    private void readDevicePage(Context context, WebView webView, AutoSyncAccountStore.Entry entry, String script, Runnable teardown, Handler handler, boolean retried) {
+    /** Reads whatever page is open now and stages its fields (the subscriptions list's names, or the
+     * Settings page's Admin email), then runs `next`. Tolerant: a miss just stages nothing. */
+    private void extractAndSave(Context context, WebView webView, AutoSyncAccountStore.Entry entry, String script, Runnable next) {
         if (!AllowedUrl.isAllowed(webView.getUrl())) {
-            teardown.run();
+            next.run();
+            return;
+        }
+        webView.evaluateJavascript(script, value -> {
+            JSObject fields = StarlinkExtractorSupport.parseExtractedFields(value);
+            if (fields != null && fields.length() > 0 && AllowedUrl.isAllowed(webView.getUrl())) {
+                String syncId = PendingSyncStore.save(context, entry.accountId, fields);
+                if (syncId != null) LocalBrowserPlugin.emitAccountDataSynced(syncId, entry.accountId, fields);
+            }
+            next.run();
+        });
+    }
+
+    /** Reads the devices page; if neither dot has a color yet, waits once more and reads again, then
+     * runs `after` (the Settings visit) whether or not dots were found. */
+    private void readDevicePage(Context context, WebView webView, AutoSyncAccountStore.Entry entry, String script, Runnable after, Handler handler, boolean retried) {
+        if (!AllowedUrl.isAllowed(webView.getUrl())) {
+            after.run();
             return;
         }
         webView.evaluateJavascript(script, value -> {
@@ -504,9 +527,9 @@ public class AutoSyncWorker extends Worker {
             if (!hasDots && !retried) {
                 handler.postDelayed(() -> {
                     try {
-                        readDevicePage(context, webView, entry, script, teardown, handler, true);
+                        readDevicePage(context, webView, entry, script, after, handler, true);
                     } catch (RuntimeException e) {
-                        teardown.run();
+                        after.run();
                     }
                 }, DEVICES_SETTLE_MS);
                 return;
@@ -516,7 +539,7 @@ public class AutoSyncWorker extends Worker {
                 String syncId = PendingSyncStore.save(context, entry.accountId, fields);
                 if (syncId != null) LocalBrowserPlugin.emitAccountDataSynced(syncId, entry.accountId, fields);
             }
-            teardown.run();
+            after.run();
         });
     }
 

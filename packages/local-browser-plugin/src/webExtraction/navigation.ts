@@ -129,6 +129,17 @@ export function clickIconRailItem(index: number): boolean {
   return true;
 }
 
+/** Opens "الإعدادات" - always the LAST icon in the rail, whether the account is full-access (7
+ * icons: the gear is index 6) or a limited user (4 icons: the gear is index 3). The Settings page
+ * carries the Users table (Admin role) the operator confirmed is how a "primary" email is known. */
+export function clickSettingsRailItem(): boolean {
+  const items = findIconRailItems();
+  const target = items[items.length - 1];
+  if (!target || isDangerousControl(target)) return false;
+  target.click();
+  return true;
+}
+
 /** On the confirmed "الاشتراكات" list page (reached via clickIconRailItem(1)): clicks the first
  * real row under the "الاشتراك" column - the account's own (usually only) subscription - to open
  * its own "الاشتراك" detail page. Deliberately skips the page's own "إضافة اشتراك" button, which

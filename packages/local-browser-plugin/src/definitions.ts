@@ -131,6 +131,14 @@ export interface SyncedStarlinkFields {
   /** The email is a limited user on someone else's account (no billing icon): billing, balance
    * and the billing-suspension state can't be read from it. Judged on the Home page only. */
   limitedAccess?: boolean;
+  /** Settings → Users: the email tokens that have an account Admin role there (the "primary"
+   * emails). The web side matches these against this account's own login email to decide whether
+   * it is primary - the reliable signal, since a real admin email can still miss the billing icon
+   * the `limitedAccess` rail check relies on. */
+  adminEmails?: string[];
+  /** Every subscription's name on this one account, from the Subscriptions list page - a device
+   * can legitimately have more than one (each its own KIT and number). */
+  subscriptionNames?: string[];
   /** "وضع المحيط" (Ocean Mode) switch on the subscription page: true = ON - maritime per-GB
    * billing that can reach thousands of dollars. Read only, never toggled by the app. */
   oceanMode?: boolean;

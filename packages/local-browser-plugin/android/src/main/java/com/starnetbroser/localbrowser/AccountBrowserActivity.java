@@ -390,12 +390,15 @@ public class AccountBrowserActivity extends AppCompatActivity {
         syncSteps = new ArrayDeque<>();
         syncSteps.add(this::syncStepExtractCurrentPage); // whatever page the operator is already on
         syncSteps.add(() -> syncStepClick(ctx -> StarlinkExtractorSupport.loadClickIconRailItemScript(ctx, ICON_RAIL_INDEX_SUBSCRIPTIONS)));
+        syncSteps.add(this::syncStepExtractCurrentPage); // the list itself: every subscription's name (a device can have more than one)
         syncSteps.add(() -> syncStepClick(StarlinkExtractorSupport::loadClickFirstSubscriptionRowScript));
         // Longer wait here: the dish/Wi-Fi dots fill in only after the section's telemetry loads.
         syncSteps.add(() -> syncStepClick(StarlinkExtractorSupport::loadExpandDevicesSectionScript, DEVICES_SETTLE_DELAY_MS));
         syncSteps.add(this::syncStepExtractCurrentPage); // plan + devices (now expanded) + identifiers
         syncSteps.add(() -> syncStepClick(StarlinkExtractorSupport::loadClickBillingRailItemScript)); // skipped on a limited email
         syncSteps.add(this::syncStepExtractCurrentPage); // billing
+        syncSteps.add(() -> syncStepClick(StarlinkExtractorSupport::loadClickSettingsRailItemScript)); // Settings → Users
+        syncSteps.add(this::syncStepExtractCurrentPage); // the Users table: which login email is Admin (the primary email)
         syncSteps.add(this::finishSync);
 
         advanceSyncSteps();

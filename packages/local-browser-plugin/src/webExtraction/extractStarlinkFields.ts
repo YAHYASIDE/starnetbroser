@@ -15,6 +15,8 @@ import {
   extractDataUsageGb,
   extractLabeledValue,
   extractPhoneNumber,
+  extractAdminUserKeys,
+  extractSubscriptionNames,
   extractPlanBadgeStatus,
   extractPlanName,
   extractRenewalBadgeDate,
@@ -190,6 +192,17 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
 
   const phone = extractPhoneNumber(lines);
   if (phone) fields.phone = phone;
+
+  // Settings → Users: the login email is "primary" when it's an account Admin there (the operator's
+  // confirmed signal). Emitted as the admin emails' keys; the web side matches them to this
+  // account's own login email.
+  const adminEmails = extractAdminUserKeys(lines);
+  if (adminEmails.length > 0) fields.adminEmails = adminEmails;
+
+  // Subscriptions list page: every subscription's name on this one account (a device can have
+  // more than one, each its own KIT/number).
+  const subscriptionNames = extractSubscriptionNames(lines);
+  if (subscriptionNames.length > 0) fields.subscriptionNames = subscriptionNames;
 
   const subscriptionId = extractSubscriptionId(text);
   if (subscriptionId) fields.subscriptionId = subscriptionId;

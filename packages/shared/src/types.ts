@@ -121,6 +121,11 @@ export interface StarlinkAccountSummary {
   /** Starts with "SL-" - the subscription's own identifier, a different value from `accountNumber`
    * (which starts with "ACC-"). */
   subscriptionId?: string;
+  /** Every subscription's name on this one account, from the Subscriptions list page. A device can
+   * legitimately carry more than one subscription (e.g. "DEDE SIDI VAL" and "ARAWANI DI"), each
+   * with its own KIT and subscription number but one login email - a Starlink quirk, not an error.
+   * Synced only; the card lists them so the operator sees both. */
+  subscriptions?: string[];
   /** Just the number, e.g. "261" - always gigabytes, so callers append the unit themselves. */
   dataUsageGb?: string;
   /** The Kit has been used outside its registered country/region for too long, per Starlink's own

@@ -49,6 +49,13 @@ final class StarlinkExtractorSupport {
         return loadBundle(context) + "\n__starnetClickBillingRailItem();";
     }
 
+    /** Opens "الإعدادات" - the LAST rail icon on any account (full-access or limited). Its
+     * Settings → Users table carries the Admin role the operator confirmed is how a "primary"
+     * email is truly known. Boolean result. */
+    static String loadClickSettingsRailItemScript(Context context) throws IOException {
+        return loadBundle(context) + "\n__starnetClickSettingsRailItem();";
+    }
+
     /** Within one multi-page sync run, a page that read the service as stopped (e.g. the Home
      * page's "تم تعطيل خدمتك بسبب..." banner) is never overwritten by a later page of the same run
      * that only shows the plan's "نشط" badge. Returns whether the run has seen "stopped" so far. */

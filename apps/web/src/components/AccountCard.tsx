@@ -687,6 +687,17 @@ export function AccountCard({
             </div>
           )}
 
+          {account.subscriptions && account.subscriptions.length >= 2 && (
+            <div className="account-card-subscriptions">
+              <span className="account-card-label">الاشتراكات ({account.subscriptions.length}):</span>
+              <span className="account-card-subscription-chips">
+                {account.subscriptions.map((name, i) => (
+                  <span key={`${name}-${i}`} className="account-card-subscription-chip">{name}</span>
+                ))}
+              </span>
+            </div>
+          )}
+
           {(profit.confirmedCount > 0 || profit.expectedCount > 0) && (
             <div className="account-card-profit-row">
               <span className="account-card-label">الربح:</span>
