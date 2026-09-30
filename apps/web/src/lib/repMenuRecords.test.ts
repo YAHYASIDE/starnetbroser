@@ -7,7 +7,7 @@ const resolved: string[] = [];
 vi.mock("./telegram", () => ({ sendRepText: async (_rep: string, text: string) => { sent.push(text); return true; } }));
 vi.mock("@starnet/local-browser-plugin", () => ({ LocalBrowser: { telegramResolveEdit: async ({ id }: { id: string }) => { resolved.push(id); } } }));
 
-import { decideRepEdit, handleRepMenuRecord, repPaymentRequest } from "./repMenuRecords";
+import { decideRepEdit, handleRepMenuRecord, repLoanRequest, repPaymentRequest } from "./repMenuRecords";
 import { loadRepRequests, pendingRepRequests } from "./repRequests";
 import { loadDemoAccounts, saveDemoAccounts } from "./demoAccountStore";
 import { loadClientStore, saveClientStore } from "./clientStore";
@@ -105,5 +105,16 @@ describe("rep menu records", () => {
     expect(repPaymentRequest({ repId: "r1", amount: 10, currency: "EUR", personal: true })).toBeNull();
     expect(repPaymentRequest({ repId: "r1", amount: 10, currency: "MRU", personal: false, accountId: "" })).toBeNull();
     expect(repPaymentRequest({ amount: 10, currency: "MRU", personal: true })).toBeNull();
+  });
+
+  it("🏦 a loan request waits for approval with its app and recipient's number", async () => {
+    await handleRepMenuRecord({
+      bot: "money", chatId: "9", name: "", username: "", text: "", replied: true, kind: "repLoan",
+      data: JSON.stringify({ repId: "r1", amount: 20000, currency: "MRU", app: "بنكيلي", number: "22123456", label: "20,000 أوقية" }),
+    });
+    const pending = pendingRepRequests(loadRepRequests());
+    expect(pending[0]).toMatchObject({ kind: "loan", amount: 20000, currency: "MRU", loanApp: "بنكيلي", loanNumber: "22123456", text: "🏦 سلفة 20,000 أوقية عبر بنكيلي إلى 22123456" });
+    expect(repLoanRequest({ repId: "r1", amount: 5, currency: "SIFA", app: "نيتا" })).toBeNull(); // no number
+    expect(repLoanRequest({ repId: "r1", amount: 0, currency: "SIFA", app: "نيتا", number: "1" })).toBeNull();
   });
 });

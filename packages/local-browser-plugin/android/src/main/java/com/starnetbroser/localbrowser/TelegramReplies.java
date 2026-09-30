@@ -1067,9 +1067,78 @@ final class TelegramReplies {
         return "💵 دفعة من المندوب " + repName + ": " + price.label() + payWhere(entry, true) + "\nوافق عليها من صفحة المندوبين في التطبيق.";
     }
 
+    // ---- 🏦 دين (سلفة), step by step: amount -> currency -> banking app -> recipient's number -> ✅ ----
+
+    static final String LOAN_AMOUNT_QUESTION = "🏦 طلب دين (سلفة) من المسؤول\n\nاكتب المبلغ الذي تحتاجه (أرقام فقط)، مثلاً 20000";
+    static final String LOAN_CANCELLED = "❌ أُلغي طلب السلفة - لم يُرسل شيء.";
+    static final String LOAN_EXPIRED = "انتهت المهلة - اضغط «🏦 دين (سلفة)» من جديد";
+
+    /** The banking apps per currency: {code, name}. أوقية: بنكيلي / سداد / مصرفي, سيفا: أورانج موني / نيتا. */
+    static String[][] loanApps(String currency) {
+        if ("MRU".equals(currency)) return new String[][] {{"bankily", "بنكيلي"}, {"sedad", "سداد"}, {"masrvi", "مصرفي"}};
+        if ("SIFA".equals(currency)) return new String[][] {{"orange", "أورانج موني"}, {"nita", "نيتا"}};
+        return new String[0][];
+    }
+
+    /** The app's name for its code in that currency, or null. */
+    static String loanAppName(String currency, String code) {
+        for (String[] app : loanApps(currency)) if (app[0].equals(code)) return app[1];
+        return null;
+    }
+
+    static String loanCurrencyQuestion(double amount) {
+        return "🏦 المبلغ: " + amountLabel(amount) + "\n\nاختر العملة:";
+    }
+
+    static String loanCurrencyMarkup() {
+        return "{\"inline_keyboard\":[[" + cb("أوقية", "lnc:MRU") + "," + cb("سيفا", "lnc:SIFA") + "],[" + cb("❌ إلغاء", "lnx") + "]]}";
+    }
+
+    static String loanAppQuestion(Price price) {
+        return "🏦 " + price.label() + "\n\nعبر أي تطبيق تريد استلامها؟";
+    }
+
+    static String loanAppMarkup(String currency) {
+        StringBuilder rows = new StringBuilder();
+        for (String[] app : loanApps(currency)) rows.append('[').append(cb("📲 " + app[1], "lna:" + app[0])).append("],");
+        return "{\"inline_keyboard\":[" + rows + "[" + cb("❌ إلغاء", "lnx") + "]]}";
+    }
+
+    static String loanNumberQuestion(Price price, String appName) {
+        return "🏦 " + price.label() + " عبر " + appName + "\n\n📱 اكتب رقم المستلم في " + appName + " (أرقام فقط):";
+    }
+
+    static final String LOAN_NUMBER_AGAIN = "📱 اكتب رقم المستلم بالأرقام فقط (8 أرقام على الأقل)، مثلاً 22123456";
+
+    /** "+222 22 12 34 56" / "٢٢١٢٣٤٥٦" -> digits only, or null when it isn't a phone / account number. */
+    static String parseLoanNumber(String text) {
+        String folded = normalize(text);
+        if (!folded.matches("[+\\d\\s\\-]+")) return null;
+        String digits = folded.replaceAll("[^\\d]", "");
+        return digits.length() >= 8 && digits.length() <= 15 ? digits : null;
+    }
+
+    static String loanConfirmText(Price price, String appName, String number) {
+        return "📋 راجع طلب السلفة قبل إرساله:\n\n💵 المبلغ: " + price.label() + "\n📲 التطبيق: " + appName + "\n📱 رقم المستلم: " + number
+            + "\n\nتُسجَّل عليك في حسابك بعد أن يرسلها المسؤول.\nهل المعلومات صحيحة؟";
+    }
+
+    static String loanConfirmMarkup() {
+        return "{\"inline_keyboard\":[[" + cb("✅ موافق - أرسل الطلب", "lnok") + "],[" + cb("❌ إلغاء", "lnx") + "]]}";
+    }
+
+    static String loanSent(Price price, String appName, String number) {
+        return "✅ أُرسل طلب السلفة إلى المسؤول - ينتظر موافقته، وسيصلك تأكيد هنا.\n\n💵 " + price.label() + "\n📲 " + appName + "\n📱 " + number;
+    }
+
+    static String loanToOwner(String repName, Price price, String appName, String number) {
+        return "🏦 طلب سلفة من المندوب " + repName + ": " + price.label() + "\n📲 عبر: " + appName + "\n📱 إلى الرقم: " + number
+            + "\nأرسلها ثم وافق عليها من صفحة المندوبين في التطبيق (تُسجَّل عليه).";
+    }
+
     // ---- 💰 the money bot (mirrors repBots.ts) ----
 
-    static final String[] MONEY_KINDS = {"payment", "promise", "mypromises", "debts", "statement", "handover"};
+    static final String[] MONEY_KINDS = {"payment", "promise", "mypromises", "debts", "statement", "handover", "loan"};
 
     static boolean isMoneyKind(String kind) {
         for (String k : MONEY_KINDS) if (k.equals(kind)) return true;

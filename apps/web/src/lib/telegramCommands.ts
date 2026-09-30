@@ -32,7 +32,7 @@ import {
   sendTelegramText,
   repBotNames,
 } from "./telegram";
-import { devicesHelp, devicesKeyboard, isMoneyKind, moneyRedirectText, REP_HANDOVER_HINT, repHandoverReceivedText, type RepBot } from "./repBots";
+import { devicesHelp, devicesKeyboard, isMoneyKind, moneyRedirectText, REP_HANDOVER_HINT, repHandoverReceivedText, REP_LOAN_HINT, type RepBot } from "./repBots";
 import { buildReplySnapshot } from "./telegramReplies";
 import { deviceDisplayName, readRepDeviceFile, repDeviceCode } from "./repDeviceTransfer";
 import { cardText, forecastText, goalsText, healthText, lapsedText, planText, promisesText } from "./ownerInsightsText";
@@ -364,6 +364,8 @@ async function repReplyFor(repId: string, rep: Representative, command: RepComma
       return { text: devicesHelp(repBotNames()) };
     case "handover":
       return { text: REP_HANDOVER_HINT };
+    case "loan":
+      return { text: REP_LOAN_HINT };
     case "devices":
       return { text: repDevicesText(mine, clients, today) };
     case "expiring":

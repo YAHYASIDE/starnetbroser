@@ -3,7 +3,7 @@
 /**
  * 🤲 "سلّمت المسؤول" from the reps' money bot: once the operator confirms it on the
  * representatives page it becomes a normal cash-handover settlement (with its cash-register entry),
- * exactly like one typed by hand there - never before.
+ * exactly like one typed by hand there - never before. A 🏦 loan (سلفة) becomes an advance he owes.
  */
 
 import { loadCashEntries, postRepSettlementToCash, saveCashEntries } from "./cashStore";
@@ -35,5 +35,22 @@ export function recordRepHandover(request: RepRequest, amount: number, currencyC
   if (!result.ok) return result;
   saveRepSettlements(result.settlements);
   saveCashEntries(postRepSettlementToCash(loadCashEntries(), result.settlement, loadRepresentativeStore()[request.repId]?.name ?? ""));
+  return { ok: true };
+}
+
+/** 🏦 A loan (سلفة) the operator sent the rep through a banking app: recorded as an advance he
+ * owes (a manual debit on his account) - no cash-register entry, the money left through the bank. */
+export function recordRepLoan(request: RepRequest, amount: number, currencyCode: string, date: string): { ok: true } | { ok: false; message: string } {
+  const result = recordRepSettlement(loadRepSettlements(), {
+    representativeId: request.repId,
+    kind: "manualDebit",
+    amount,
+    currencyCode,
+    date,
+    note: `سلفة عبر ${request.loanApp ?? "تطبيق بنكي"} إلى ${request.loanNumber ?? "—"} (بوت المال)`,
+    rates: lockedRates(currencyCode),
+  });
+  if (!result.ok) return result;
+  saveRepSettlements(result.settlements);
   return { ok: true };
 }

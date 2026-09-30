@@ -20,7 +20,7 @@ export interface RepBotNames {
 }
 
 /** Commands that belong to the money bot once it's connected. */
-export const MONEY_KINDS = ["payment", "promise", "mypromises", "debts", "statement", "handover"] as const;
+export const MONEY_KINDS = ["payment", "promise", "mypromises", "debts", "statement", "handover", "loan"] as const;
 
 export function isMoneyKind(kind: string): boolean {
   return (MONEY_KINDS as readonly string[]).includes(kind);
@@ -42,14 +42,13 @@ export const REP_DEVICES_KEYBOARD = JSON.stringify({
 /** 💰 The money bot's buttons. */
 export const REP_MONEY_KEYBOARD = JSON.stringify({
   keyboard: [
-    [{ text: "💵 دفعة" }, { text: "🤝 وعد دفع" }],
-    [{ text: "💰 ديون زبائني" }, { text: "📋 وعودي" }],
-    [{ text: "📊 كشفي" }, { text: "🤲 سلّمت المسؤول" }],
-    [{ text: "🔎 بحث" }, { text: "❓ مساعدة" }],
+    [{ text: "💵 دفعة" }, { text: "💰 ديون زبائني" }],
+    [{ text: "📊 كشفي" }, { text: "🔎 بحث" }],
+    [{ text: "🏦 دين (سلفة)" }],
   ],
   resize_keyboard: true,
   is_persistent: true,
-  input_field_placeholder: "اسم زبون أو جهاز لديونه وكشفه",
+  input_field_placeholder: "اسم زبون للبحث عن دينه وكشفه",
 });
 
 export function devicesKeyboard(names: RepBotNames): string {
@@ -68,15 +67,13 @@ export const REP_DEVICES_HELP = [
 ].join("\n");
 
 export const REP_MONEY_HELP = [
-  "💰 بوت المال - كل ما يخص المبالغ. استعمل الأزرار أو اكتب مباشرةً:",
-  "💵 دفعة - اضغطه ثم اتبع الخطوات: المبلغ ← العملة ← الزبون (أو 💼 حسابك الشخصي) ← ✅ موافق",
-  "🤝 وعد دفع - موعد وعدك فيه الزبون: وعد 5000 محمد الخميس",
-  "💰 ديون زبائني - ديون زبائن أجهزتك · 📋 وعودي - وعود الدفع المفتوحة",
+  "💰 بوت المال - كل ما يخص المبالغ. استعمل الأزرار أسفل المحادثة:",
+  "💵 دفعة - دفعة استلمتها: المبلغ ← العملة ← الزبون ثم جهازه (أو 💼 حسابك الشخصي) ← ✅ موافق",
+  "💰 ديون زبائني - ما على زبائن أجهزتك",
   "📊 كشفي - حصتك وأرباحك هذا الشهر ورصيدك مع المسؤول",
-  "🤲 سلّمت المسؤول - مبلغ سلّمته للمسؤول: سلمت 50000 · بالدولار: سلمت 100 دولار",
+  "🔎 بحث - اكتب اسم زبون أو جهاز لترى دينه وكشفه",
+  "🏦 دين (سلفة) - اطلب مبلغاً من المسؤول: المبلغ ← العملة ← التطبيق البنكي ← رقم المستلم ← ✅ موافق",
   "⚡ تفعيل - يظهر هنا مبلغه بعد موافقة المسؤول مع مجموع الشهر",
-  "🔎 اكتب اسم زبون أو جهاز لترى دينه وكشفه",
-  "❓ مساعدة - تُظهر هذه القائمة في أي وقت",
 ].join("\n");
 
 export const REP_ALERTS_INFO = "🔔 هذا بوت التنبيهات - تصلك هنا تنبيهات أجهزتك فقط (توقف، تجديدات...) مع أزرارها.";
@@ -90,6 +87,9 @@ export const REP_HANDOVER_HINT = [
 export function repHandoverReceivedText(amountLabel: string): string {
   return `✅ وصل تسليمك ${amountLabel} - يُسجَّل في حسابك بعد تأكيد المسؤول وتصلك رسالة بذلك.`;
 }
+
+/** 🏦 دين (سلفة) is a step-by-step flow of the background service - this is the app's fallback. */
+export const REP_LOAN_HINT = "🏦 لطلب دين (سلفة) اضغط زر «🏦 دين (سلفة)» في بوت المال واتبع الخطوات.";
 
 /** A money command typed in the devices bot once the money bot is connected. */
 export function moneyRedirectText(moneyBot: string): string {

@@ -148,6 +148,7 @@ export type RepCommand =
   | { kind: "promise"; text: string }
   | { kind: "mypromises" }
   | { kind: "handover"; text: string }
+  | { kind: "loan" }
   | { kind: "unknown"; text: string };
 
 type RepWordKind = Exclude<RepCommand["kind"], "unknown">;
@@ -220,6 +221,12 @@ const REP_WORD_LIST: Record<string, RepWordKind> = {
   "سلمت": "handover",
   "تسليم": "handover",
   handover: "handover",
+  "دين": "loan",
+  "سلفة": "loan",
+  "سلفه": "loan",
+  "سلف": "loan",
+  "قرض": "loan",
+  loan: "loan",
 };
 
 /** Keyed by the folded word, so "اجهزتي" = "أجهزتي", "الاجهزة" = "الأجهزة"... */

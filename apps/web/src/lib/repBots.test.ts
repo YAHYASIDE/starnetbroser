@@ -19,17 +19,22 @@ describe("the reps' three bots", () => {
     expect(devices).toContain("⚡ تفعيل");
     expect(devices).not.toContain("➕ زبون جديد"); // customers are added from the app now
     expect(devices).toContain("❓ مساعدة");
-    expect(texts(REP_MONEY_KEYBOARD)).toEqual(["💵 دفعة", "🤝 وعد دفع", "💰 ديون زبائني", "📋 وعودي", "📊 كشفي", "🤲 سلّمت المسؤول", "🔎 بحث", "❓ مساعدة"]);
+    expect(texts(REP_MONEY_KEYBOARD)).toEqual(["💵 دفعة", "💰 ديون زبائني", "📊 كشفي", "🔎 بحث", "🏦 دين (سلفة)"]);
     expect(moneyRedirectText("m_bot")).toContain("@m_bot");
     expect(otherBotsLines({ money: "m_bot", alerts: "a_bot" }).join("\n")).toContain("@a_bot");
   });
 
   it("money commands, and where confirmations go", () => {
-    for (const kind of ["payment", "promise", "mypromises", "debts", "statement", "handover"]) expect(isMoneyKind(kind)).toBe(true);
+    for (const kind of ["payment", "promise", "mypromises", "debts", "statement", "handover", "loan"]) expect(isMoneyKind(kind)).toBe(true);
     expect(isMoneyKind("devices")).toBe(false);
     expect(isMoneyKind("activate")).toBe(false); // ⚡ works in both bots
     expect(botForRequest("payment")).toBe("money");
     expect(botForRequest("client")).toBe("reps");
+  });
+
+  it("🏦 دين (سلفة) parses as a loan request", () => {
+    expect(parseRepCommand("🏦 دين (سلفة)")).toEqual({ kind: "loan" });
+    expect(parseRepCommand("سلفة")).toEqual({ kind: "loan" });
   });
 
   it("🤲 سلّمت المسؤول parses as a handover", () => {

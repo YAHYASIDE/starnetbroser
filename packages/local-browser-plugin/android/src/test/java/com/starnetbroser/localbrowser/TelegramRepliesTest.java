@@ -623,4 +623,42 @@ public class TelegramRepliesTest {
         assertEquals("💵 دفعة من المندوب علي: 50 دولار\n💼 في حسابه الشخصي\nوافق عليها من صفحة المندوبين في التطبيق.",
             TelegramReplies.payToOwner("علي", new TelegramReplies.Price(50, "USD"), null));
     }
+
+    // ---- 🏦 دين (سلفة) ----
+
+    @Test
+    public void loanAppsFollowTheCurrency() {
+        String mru = TelegramReplies.loanAppMarkup("MRU");
+        assertTrue(mru.contains("{\"text\":\"📲 بنكيلي\",\"callback_data\":\"lna:bankily\"}"));
+        assertTrue(mru.contains("{\"text\":\"📲 سداد\",\"callback_data\":\"lna:sedad\"}"));
+        assertTrue(mru.contains("{\"text\":\"📲 مصرفي\",\"callback_data\":\"lna:masrvi\"}"));
+        assertFalse(mru.contains("orange"));
+        String sifa = TelegramReplies.loanAppMarkup("SIFA");
+        assertTrue(sifa.contains("{\"text\":\"📲 أورانج موني\",\"callback_data\":\"lna:orange\"}"));
+        assertTrue(sifa.contains("{\"text\":\"📲 نيتا\",\"callback_data\":\"lna:nita\"}"));
+        assertFalse(sifa.contains("bankily"));
+        assertTrue(sifa.contains("\"callback_data\":\"lnx\""));
+        assertEquals("بنكيلي", TelegramReplies.loanAppName("MRU", "bankily"));
+        assertNull(TelegramReplies.loanAppName("SIFA", "bankily")); // not a سيفا app
+        assertEquals(0, TelegramReplies.loanApps("USD").length);
+        String currencies = TelegramReplies.loanCurrencyMarkup();
+        assertTrue(currencies.contains("lnc:MRU") && currencies.contains("lnc:SIFA"));
+        assertFalse(currencies.contains("USD"));
+    }
+
+    @Test
+    public void loanRecipientNumberAndSummary() {
+        assertEquals("22123456", TelegramReplies.parseLoanNumber("22 12 34 56"));
+        assertEquals("22222123456", TelegramReplies.parseLoanNumber("+222 22123456"));
+        assertEquals("22123456", TelegramReplies.parseLoanNumber("٢٢١٢٣٤٥٦"));
+        assertNull(TelegramReplies.parseLoanNumber("1234"));
+        assertNull(TelegramReplies.parseLoanNumber("محمد"));
+        TelegramReplies.Price price = new TelegramReplies.Price(20000, "MRU");
+        assertEquals("🏦 20,000 أوقية عبر بنكيلي\n\n📱 اكتب رقم المستلم في بنكيلي (أرقام فقط):", TelegramReplies.loanNumberQuestion(price, "بنكيلي"));
+        String confirm = TelegramReplies.loanConfirmText(price, "بنكيلي", "22123456");
+        assertTrue(confirm.contains("💵 المبلغ: 20,000 أوقية\n📲 التطبيق: بنكيلي\n📱 رقم المستلم: 22123456"));
+        assertTrue(TelegramReplies.loanConfirmMarkup().contains("\"callback_data\":\"lnok\""));
+        assertTrue(TelegramReplies.loanToOwner("علي", price, "بنكيلي", "22123456").startsWith("🏦 طلب سلفة من المندوب علي: 20,000 أوقية\n📲 عبر: بنكيلي\n📱 إلى الرقم: 22123456"));
+        assertTrue(TelegramReplies.isMoneyKind("loan"));
+    }
 }

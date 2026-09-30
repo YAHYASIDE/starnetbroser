@@ -10,7 +10,7 @@
 
 import type { LedgerCurrency } from "./ledgerStore";
 
-export type RepRequestKind = "payment" | "client" | "device" | "edit" | "handover";
+export type RepRequestKind = "payment" | "client" | "device" | "edit" | "handover" | "loan";
 export type RepRequestStatus = "pending" | "approved" | "rejected";
 
 export interface RepRequest {
@@ -46,6 +46,11 @@ export interface RepRequest {
   field?: string;
   value?: string;
   oldValue?: string;
+  // loan (🏦 دين/سلفة from the money bot: `amount` + `currency`, sent to him through a banking app)
+  /** The app's name as he chose it ("بنكيلي", "أورانج موني"...). */
+  loanApp?: string;
+  /** The recipient's number in that app. */
+  loanNumber?: string;
 }
 
 export type RepRequestList = RepRequest[];

@@ -126,6 +126,27 @@ export function repPaymentRequest(data: Record<string, unknown>): Omit<RepReques
   return { repId, kind: "payment", text: `💵 دفعة ${label} عن ${str(data.target) || "جهاز"}`, amount, currency: currency as LedgerCurrency, accountId };
 }
 
+/** 🏦 A loan (سلفة) the rep asked for step by step in the money bot (amount -> currency ->
+ * banking app -> recipient's number -> ✅): waits for the operator on the representatives page. */
+export function repLoanRequest(data: Record<string, unknown>): Omit<RepRequest, "id" | "createdAt" | "status"> | null {
+  const amount = typeof data.amount === "number" ? data.amount : Number(data.amount);
+  const currency = str(data.currency);
+  const repId = str(data.repId);
+  const app = str(data.app).trim();
+  const number = str(data.number).trim();
+  if (!repId || !(amount > 0) || !LEDGER_CURRENCIES.includes(currency as LedgerCurrency) || !app || !number) return null;
+  const label = str(data.label) || formatMoneyShort(amount, currency);
+  return {
+    repId,
+    kind: "loan",
+    text: `🏦 سلفة ${label} عبر ${app} إلى ${number}`,
+    amount,
+    currency: currency as LedgerCurrency,
+    loanApp: app,
+    loanNumber: number,
+  };
+}
+
 /** One inbox record from the device menu. True when it was one (handled or not). */
 export async function handleRepMenuRecord(message: TelegramInboxMessage): Promise<boolean> {
   if (!message.kind) return false;
@@ -144,6 +165,11 @@ export async function handleRepMenuRecord(message: TelegramInboxMessage): Promis
   }
   if (message.kind === "repPayment") {
     const request = repPaymentRequest(data);
+    if (request) saveRepRequests(addRepRequest(loadRepRequests(), request));
+    return true;
+  }
+  if (message.kind === "repLoan") {
+    const request = repLoanRequest(data);
     if (request) saveRepRequests(addRepRequest(loadRepRequests(), request));
     return true;
   }

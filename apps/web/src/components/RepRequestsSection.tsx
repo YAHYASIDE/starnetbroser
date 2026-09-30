@@ -25,7 +25,7 @@ import { notifyPaymentTelegram, sendRepText } from "@/lib/telegram";
 import { formatMoneyShort, matchRepDevices } from "@/lib/telegramRepMessages";
 import { editFieldName, isRepEditField } from "@/lib/repDeviceMenu";
 import { decideRepEdit } from "@/lib/repMenuRecords";
-import { recordRepHandover } from "@/lib/repHandover";
+import { recordRepHandover, recordRepLoan } from "@/lib/repHandover";
 
 interface Props {
   representatives: Representative[];
@@ -80,6 +80,16 @@ export function RepRequestsSection({ representatives, accounts, clientStore, onC
             />
           ) : request.kind === "handover" ? (
             <HandoverRequestCard
+              key={request.id}
+              request={request}
+              rep={repById.get(request.repId)}
+              onDone={(status) => {
+                resolve(request, status);
+                onChanged();
+              }}
+            />
+          ) : request.kind === "loan" ? (
+            <LoanRequestCard
               key={request.id}
               request={request}
               rep={repById.get(request.repId)}
@@ -328,6 +338,65 @@ function EditRequestCard({ request, rep, onDone }: { request: RepRequest; rep?: 
           ✅ موافق - احفظ التعديل
         </button>
         <button type="button" className="text-action" onClick={() => void decide(false)}>
+          ❌ رفض
+        </button>
+      </div>
+    </li>
+  );
+}
+
+/** 🏦 A loan (سلفة) the rep asked for in the money bot: the operator sends it through the banking
+ * app to the number he gave, then records it here as an advance the rep owes. */
+function LoanRequestCard({ request, rep, onDone }: { request: RepRequest; rep?: Representative; onDone: (status: "approved" | "rejected") => void }) {
+  const [amount, setAmount] = useState(String(request.amount ?? ""));
+  const [currency, setCurrency] = useState<LedgerCurrency>(request.currency ?? "MRU");
+  const [error, setError] = useState<string | null>(null);
+
+  async function approve() {
+    const value = Number(amount);
+    if (!(value > 0)) return setError("المبلغ غير صحيح");
+    const result = recordRepLoan(request, value, currency, localDay(new Date()));
+    if (!result.ok) return setError(result.message);
+    await sendRepText(
+      request.repId,
+      `✅ وافق المسؤول على سلفتك ${formatMoneyShort(value, currency)} - تُرسل عبر ${request.loanApp ?? "التطبيق"} إلى ${request.loanNumber ?? "رقمك"}.\nسُجّلت عليك في حسابك.`,
+      undefined,
+      "money",
+    );
+    onDone("approved");
+  }
+
+  async function reject() {
+    if (!window.confirm("رفض طلب السلفة؟ يُبلَّغ المندوب بذلك.")) return;
+    await sendRepText(request.repId, `❌ لم يوافق المسؤول على طلب السلفة: «${request.text}»`, undefined, "money");
+    onDone("rejected");
+  }
+
+  return (
+    <li className="rep-request">
+      <div className="rep-request-head">
+        <strong>🏦 {rep?.name ?? "مندوب"} - طلب سلفة</strong>
+        <span>{timeLabel(request.createdAt)}</span>
+      </div>
+      <p className="rep-edit-values">
+        <span>التطبيق: <strong>{request.loanApp ?? "—"}</strong></span>
+        <span>رقم المستلم: <strong><bdi dir="ltr">{request.loanNumber ?? "—"}</bdi></strong></span>
+      </p>
+      <div className="rep-request-row">
+        <input className="search-input" dir="ltr" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="المبلغ" />
+        <select className="search-input" value={currency} onChange={(e) => setCurrency(e.target.value as LedgerCurrency)}>
+          {LEDGER_CURRENCIES.map((c) => (
+            <option key={c} value={c}>{LEDGER_CURRENCY_LABELS[c]}</option>
+          ))}
+        </select>
+      </div>
+      <p className="settings-hint">أرسل المبلغ من التطبيق البنكي ثم اضغط «أرسلتها» - تُسجَّل سلفةً عليه في حسابه.</p>
+      {error && <p className="settings-hint telegram-stopped">{error}</p>}
+      <div className="settings-actions">
+        <button type="button" className="dialog-primary" onClick={() => void approve()}>
+          ✅ أرسلتها - سجّلها عليه
+        </button>
+        <button type="button" className="text-action" onClick={() => void reject()}>
           ❌ رفض
         </button>
       </div>

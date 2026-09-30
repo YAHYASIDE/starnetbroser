@@ -258,9 +258,9 @@ export interface TelegramInboxMessage extends TelegramPollMessage {
   bot: TelegramBot;
   replied: boolean;
   /** A record from the reps bot's device menu (never a message to answer): a ✏️ edit waiting
-   * for approval, the owner's ✅/❌ on one in his bot, a 📝 note, or a 💵 payment entered step by step
-   * (waiting for approval too) - `data` is its JSON. */
-  kind?: "repEdit" | "repEditDecision" | "repNote" | "repPayment";
+   * for approval, the owner's ✅/❌ on one in his bot, a 📝 note, or a 💵 payment or a 🏦 loan entered
+   * step by step (waiting for approval too) - `data` is its JSON. */
+  kind?: "repEdit" | "repEditDecision" | "repNote" | "repPayment" | "repLoan";
   data?: string;
 }
 
