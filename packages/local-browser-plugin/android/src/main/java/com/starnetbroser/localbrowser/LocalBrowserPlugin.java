@@ -689,6 +689,14 @@ public class LocalBrowserPlugin extends Plugin {
         call.resolve();
     }
 
+    /** An ⚡ activation decided in the app: its ✅/❌ in the owner's bot then says it's over. */
+    @PluginMethod
+    public void telegramResolveActivation(PluginCall call) {
+        String id = call.getString("id");
+        if (id != null) TelegramStore.removeActivation(getContext(), id);
+        call.resolve();
+    }
+
     /** Answers with the app closed (TelegramReplyService, with its permanent notification). */
     @PluginMethod
     public void telegramSetInstant(PluginCall call) {

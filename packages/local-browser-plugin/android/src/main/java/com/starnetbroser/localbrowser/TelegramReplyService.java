@@ -346,17 +346,23 @@ public class TelegramReplyService extends Service {
         String[] pending = TelegramStore.pendingActivation(context, chatId);
         if (pending != null && kind == null) {
             TelegramReplies.SearchEntry entry = TelegramReplies.findEntry(repId, pending[0], snapshot);
-            TelegramReplies.Price price = TelegramReplies.parsePrice(text);
             if (entry == null) {
                 TelegramStore.clearPendingActivation(context, chatId);
                 return false;
             }
+            TelegramReplies.Price asked = activationPrice(pending);
+            if (asked != null) {
+                // The price is in - he typed instead of answering "did the customer pay?".
+                send(context, bot, token, chatId, TelegramReplies.activationPaidQuestion(pending[1], entry, asked), TelegramReplies.activationPaidMarkup(asked.currency));
+                return true;
+            }
+            TelegramReplies.Price price = TelegramReplies.parsePrice(text);
             if (price == null) {
                 send(context, bot, token, chatId, "اكتب المبلغ بالأرقام فقط، مثلاً 15000 أو 50 دولار", TelegramReplies.FORCE_REPLY);
                 return true;
             }
-            TelegramStore.clearPendingActivation(context, chatId);
-            submitActivation(context, bot, token, chatId, repId, entry, pending[1], price, snapshot);
+            TelegramStore.setPendingActivationPrice(context, chatId, pending[0], pending[1], price.amount, price.currency);
+            send(context, bot, token, chatId, TelegramReplies.activationPaidQuestion(pending[1], entry, price), TelegramReplies.activationPaidMarkup(price.currency));
             return true;
         }
         if (pending != null) TelegramStore.clearPendingActivation(context, chatId); // he moved on
@@ -366,9 +372,21 @@ public class TelegramReplyService extends Service {
         return true;
     }
 
-    /** To the operator with ✅/❌ - the rep is told it's waiting. */
+    /** The price already typed for the waiting activation, or null. */
+    private static TelegramReplies.Price activationPrice(String[] pending) {
+        if (pending == null || pending[2].isEmpty()) return null;
+        try {
+            double amount = Double.parseDouble(pending[2]);
+            return amount > 0 ? new TelegramReplies.Price(amount, pending[3].isEmpty() ? "MRU" : pending[3]) : null;
+        } catch (NumberFormatException broken) {
+            return null;
+        }
+    }
+
+    /** To the operator with ✅/❌ - the rep is told it's waiting, the app shows it as a request.
+     * `paid`: how the customer already paid the rep ("cash", "bankily"...), "" = not yet. */
     private static void submitActivation(Context context, String bot, String repsToken, String repChat, String repId, TelegramReplies.SearchEntry entry,
-                                         String plan, TelegramReplies.Price price, TelegramReplies.Snapshot snapshot) throws JSONException {
+                                         String plan, TelegramReplies.Price price, TelegramReplies.Snapshot snapshot, String paid) throws JSONException {
         if (!TelegramStore.isConfigured(context)) {
             send(context, bot, repsToken, repChat, "⚠️ تعذر إرسال الطلب - بوت المسؤول غير مربوط. أخبر المسؤول مباشرة.", null);
             return;
@@ -384,10 +402,15 @@ public class TelegramReplyService extends Service {
         record.put("amount", price.amount);
         record.put("currency", price.currency);
         record.put("repId", repId);
+        record.put("accountId", entry.id);
+        record.put("paid", paid == null ? "" : paid);
+        record.put("id", id);
         TelegramStore.putActivation(context, id, record.toString());
+        // The app shows it on the representatives page too (✅ there or here).
+        addToInbox(context, bot, repChat, "", "", "", true, null, null, "repActivation", record.toString());
         send(context, TelegramStore.OWNER, TelegramStore.token(context), TelegramStore.chatId(context),
-            TelegramReplies.activationToOwner(repName, plan, entry, price), TelegramReplies.approvalButtons(id));
-        send(context, bot, repsToken, repChat, TelegramReplies.activationSent(plan, entry, price), null);
+            TelegramReplies.activationToOwner(repName, plan, entry, price, paid), TelegramReplies.approvalButtons(id));
+        send(context, bot, repsToken, repChat, TelegramReplies.activationSent(plan, entry, price, paid), null);
     }
 
     // ---- 💵 دفعة: amount -> currency -> whose -> ✅, then the operator approves it in the app ----
@@ -1084,7 +1107,20 @@ public class TelegramReplyService extends Service {
     }
 
     /** ⚡: a device (a:) -> its plans (p:) -> the price question - in the devices or money bot. */
-    private static String activationCallback(Context context, String bot, String token, String chatId, String repId, TelegramReplies.Snapshot snapshot, String data) {
+    private static String activationCallback(Context context, String bot, String token, String chatId, String repId, TelegramReplies.Snapshot snapshot, String data) throws JSONException {
+        if (data.startsWith("ap:")) {
+            String[] pending = TelegramStore.pendingActivation(context, chatId);
+            TelegramReplies.Price price = activationPrice(pending);
+            if (price == null) return "انتهت المهلة - اضغط ⚡ تفعيل من جديد";
+            TelegramReplies.SearchEntry entry = TelegramReplies.findEntry(repId, pending[0], snapshot);
+            if (entry == null) return "هذا الجهاز ليس من أجهزتك";
+            String paid = data.substring(3);
+            if ("no".equals(paid)) paid = "";
+            else if (TelegramReplies.payMethodName(price.currency, paid) == null) return "اختيار غير صالح";
+            TelegramStore.clearPendingActivation(context, chatId);
+            submitActivation(context, bot, token, chatId, repId, entry, pending[1], price, snapshot, paid);
+            return "✅ أُرسل";
+        }
         if (data.startsWith("a:")) {
             TelegramReplies.SearchEntry entry = TelegramReplies.findEntry(repId, data.substring(2), snapshot);
             if (entry == null) return "هذا الجهاز ليس من أجهزتك";
@@ -1115,6 +1151,11 @@ public class TelegramReplyService extends Service {
         if (raw == null) return "هذا الطلب انتهى";
         JSONObject record = new JSONObject(raw);
         TelegramStore.removeActivation(context, id);
+        // The app records it (✅: a renewal on the device) or drops it, whenever it opens.
+        JSONObject decision = new JSONObject(raw);
+        decision.put("id", id);
+        decision.put("approve", approve);
+        addToInbox(context, TelegramStore.OWNER, chatId, "", "", "", true, null, null, "repActivationDecision", decision.toString());
         String what = record.optString("plan") + " لـ " + record.optString("device") + " بسعر " + record.optString("price");
         String toRep = "❌ لم يوافق المسؤول على تفعيل " + what;
         String repId = record.optString("repId", "");

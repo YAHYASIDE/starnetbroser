@@ -12,7 +12,9 @@ import { LocalBrowser, type TelegramInboxMessage } from "@starnet/local-browser-
 import { loadClientStore, saveClientStore, updateClient } from "./clientStore";
 import { loadDemoAccounts, saveDemoAccounts } from "./demoAccountStore";
 import { demoAccounts } from "./demoData";
+import { localDay } from "./eveningSummary";
 import { LEDGER_CURRENCIES, PAYMENT_METHOD_LABELS, PAYMENT_METHODS, type LedgerCurrency, type PaymentMethod } from "./ledgerStore";
+import { isPaymentMethod, loadActivationCosts, recordRepActivation as recordActivationOnDevice, type ActivationCost } from "./repActivation";
 import { appendRepNote, editFieldName, isRepEditField, repEditPatch } from "./repDeviceMenu";
 import { addRepRequest, loadRepRequests, resolveRepRequest, saveRepRequests, type RepRequest } from "./repRequests";
 import { loadRepresentativeStore } from "./repStore";
@@ -154,6 +156,67 @@ export function repLoanRequest(data: Record<string, unknown>): Omit<RepRequest, 
   };
 }
 
+/** ⚡ An activation the rep asked for -> a pending request on the representatives page (once). */
+function recordRepActivation(data: Record<string, unknown>): void {
+  const activationId = str(data.id);
+  const amount = typeof data.amount === "number" ? data.amount : Number(data.amount);
+  if (!activationId || !(amount > 0) || loadRepRequests().some((r) => r.activationId === activationId)) return;
+  const paid = str(data.paid);
+  const currency = str(data.currency);
+  const label = str(data.price) || formatMoneyShort(amount, currency);
+  saveRepRequests(
+    addRepRequest(loadRepRequests(), {
+      repId: str(data.repId),
+      kind: "activation",
+      text: `⚡ تفعيل ${str(data.plan)} لـ ${str(data.device)} بسعر ${label}${isPaymentMethod(paid) ? ` - دفع للمندوب (${PAYMENT_METHOD_LABELS[paid]})` : " - لم يدفع بعد"}`,
+      activationId,
+      accountId: str(data.accountId),
+      deviceName: str(data.device),
+      plan: str(data.plan),
+      amount,
+      currency: LEDGER_CURRENCIES.includes(currency as LedgerCurrency) ? (currency as LedgerCurrency) : "MRU",
+      ...(isPaymentMethod(paid) ? { paymentMethod: paid } : {}),
+    }),
+  );
+}
+
+/** ✅/❌ on an activation, from the representatives page ("app", with the amounts as edited there)
+ * or the owner's bot ("telegram" - the rep was told there). Approving records it on the device. */
+export async function decideRepActivation(
+  request: RepRequest,
+  approve: boolean,
+  source: "app" | "telegram",
+  input?: { amount: number; currency: string; cost: ActivationCost | undefined; paid?: PaymentMethod },
+): Promise<{ ok: boolean; message?: string }> {
+  const current = loadRepRequests().find((r) => r.id === request.id);
+  if (!current || current.status !== "pending") return { ok: true };
+  if (source === "app" && current.activationId) void LocalBrowser.telegramResolveActivation({ id: current.activationId }).catch(() => {});
+  if (!approve) {
+    saveRepRequests(resolveRepRequest(loadRepRequests(), current.id, "rejected"));
+    if (source === "app") await sendRepText(current.repId, `❌ لم يوافق المسؤول على ${current.text.replace(/^⚡ /, "")}`, undefined, "money");
+    return { ok: true };
+  }
+  const values = input ?? {
+    amount: current.amount ?? 0,
+    currency: current.currency ?? "MRU",
+    cost: current.plan ? loadActivationCosts()[current.plan] : undefined,
+    paid: current.paymentMethod,
+  };
+  const accounts = isDemoMode() ? loadDemoAccounts(demoAccounts) : [];
+  const result = recordActivationOnDevice(current, { ...values, date: localDay(new Date()) }, accounts);
+  if (!result.ok) {
+    // ✅ in the bot but it can't be recorded yet: it stays here, marked, for the operator to finish.
+    if (source === "telegram") saveRepRequests(loadRepRequests().map((r) => (r.id === current.id ? { ...r, approvedInBot: true } : r)));
+    return { ok: false, message: result.message };
+  }
+  saveRepRequests(resolveRepRequest(loadRepRequests(), current.id, "approved"));
+  notifyChanged();
+  if (source === "app") {
+    await sendRepText(current.repId, `✅ وافق المسؤول على ${current.text.replace(/^⚡ /, "")}`, undefined, "money");
+  }
+  return { ok: true };
+}
+
 /** One inbox record from the device menu. True when it was one (handled or not). */
 export async function handleRepMenuRecord(message: TelegramInboxMessage): Promise<boolean> {
   if (!message.kind) return false;
@@ -169,6 +232,19 @@ export async function handleRepMenuRecord(message: TelegramInboxMessage): Promis
     recordRepEdit(data);
     const request = loadRepRequests().find((r) => r.editId === str(data.id));
     if (request) await decideRepEdit(request, data.approve === true, "telegram");
+    return true;
+  }
+  if (message.kind === "repActivation") {
+    recordRepActivation(data);
+    notifyChanged();
+    return true;
+  }
+  if (message.kind === "repActivationDecision") {
+    // Carries the whole request too, so a lost "repActivation" record never loses an approval.
+    recordRepActivation(data);
+    const request = loadRepRequests().find((r) => r.activationId === str(data.id));
+    if (request) await decideRepActivation(request, data.approve === true, "telegram");
+    notifyChanged();
     return true;
   }
   if (message.kind === "repPayment") {

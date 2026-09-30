@@ -724,4 +724,26 @@ public class TelegramRepliesTest {
         assertTrue(devices.markup.contains("{\"text\":\"📡 c@outlook.com\",\"callback_data\":\"md:d3\"}"));
         assertTrue(devices.markup.contains("\"callback_data\":\"sp:0\""));
     }
+
+    // ---- ⚡ تفعيل: did the customer pay? ----
+
+    @Test
+    public void activationAsksWhetherTheCustomerPaid() {
+        TelegramReplies.Snapshot s = paySnapshot();
+        TelegramReplies.SearchEntry e = TelegramReplies.findEntry("r1", "d1", s);
+        TelegramReplies.Price price = new TelegramReplies.Price(8000, "MRU");
+        assertEquals("⚡ 100G - a@gmail.com بسعر 8,000 أوقية\n\n💵 هل دفع الزبون هذا المبلغ؟", TelegramReplies.activationPaidQuestion("100G", e, price));
+        String markup = TelegramReplies.activationPaidMarkup("MRU");
+        assertTrue(markup.contains("{\"text\":\"✅ دفع - كاش\",\"callback_data\":\"ap:cash\"}"));
+        assertTrue(markup.contains("{\"text\":\"✅ دفع - بنكيلي\",\"callback_data\":\"ap:bankily\"}"));
+        assertTrue(markup.contains("{\"text\":\"⏳ لم يدفع بعد\",\"callback_data\":\"ap:no\"}"));
+        assertFalse(markup.contains("ap:orange"));
+        assertEquals("دفع للمندوب (بنكيلي)", TelegramReplies.activationPaidLabel("MRU", "bankily"));
+        assertEquals("لم يدفع بعد - يبقى ديناً عليه", TelegramReplies.activationPaidLabel("MRU", ""));
+        String owner = TelegramReplies.activationToOwner("علي", "100G", e, price, "cash");
+        assertTrue(owner.contains("💵 الزبون: دفع للمندوب (كاش)"));
+        assertTrue(owner.contains("يُسجَّل تجديداً على الجهاز"));
+        assertTrue(owner.endsWith("هل توافق على السعر؟"));
+        assertTrue(TelegramReplies.activationSent("100G", e, price, "").endsWith("💵 لم يدفع بعد - يبقى ديناً عليه"));
+    }
 }

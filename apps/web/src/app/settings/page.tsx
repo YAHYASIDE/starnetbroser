@@ -3,6 +3,7 @@
 import { groupForHash, loadRememberedGroup, rememberGroup, SETTINGS_GROUPS, type SettingsGroupId } from "@/lib/settingsGroups";
 import { RepExtraBotsSettings } from "@/components/RepExtraBotsSettings";
 import { RepModeEntrySection } from "@/components/RepModeEntrySection";
+import { ActivationCostsSection } from "@/components/ActivationCostsSection";
 import { useEffect, useRef, useState } from "react";
 import { checkHealth, listAccounts, login, register } from "@/lib/apiClient";
 import { ApiError } from "@/lib/apiClient";
@@ -332,6 +333,7 @@ export default function SettingsPage() {
           <>
             <TelegramSection />
             <TelegramRepsSection />
+            <ActivationCostsSection />
             <TelegramInstantSection />
           </>
         )}

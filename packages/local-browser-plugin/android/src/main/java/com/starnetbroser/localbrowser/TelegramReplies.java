@@ -710,6 +710,38 @@ final class TelegramReplies {
         return new Price(amount, currency);
     }
 
+    /** After the price: did the customer already pay him? */
+    static String activationPaidQuestion(String plan, SearchEntry entry, Price price) {
+        return "⚡ " + plan + " - " + entry.deviceName() + " بسعر " + price.label() + "\n\n💵 هل دفع الزبون هذا المبلغ؟";
+    }
+
+    /** ✅ دفع - كاش / 📲 each banking app of the currency / ⏳ لم يدفع بعد (callbacks "ap:<method>" / "ap:no"). */
+    static String activationPaidMarkup(String currency) {
+        StringBuilder rows = new StringBuilder();
+        for (String[] m : payMethods(currency)) {
+            String label = CASH.equals(m[0]) ? "✅ دفع - كاش" : "✅ دفع - " + m[1];
+            rows.append('[').append(cb(label, "ap:" + m[0])).append("],");
+        }
+        return "{\"inline_keyboard\":[" + rows + "[" + cb("⏳ لم يدفع بعد", "ap:no") + "]]}";
+    }
+
+    /** "دفع للمندوب (كاش)" / "لم يدفع بعد - يبقى ديناً عليه". */
+    static String activationPaidLabel(String currency, String paid) {
+        String name = paid == null || paid.isEmpty() ? null : payMethodName(currency, paid);
+        return name == null ? "لم يدفع بعد - يبقى ديناً عليه" : "دفع للمندوب (" + name + ")";
+    }
+
+    static String activationSent(String plan, SearchEntry entry, Price price, String paid) {
+        return activationSent(plan, entry, price) + "\n💵 " + activationPaidLabel(price.currency, paid);
+    }
+
+    static String activationToOwner(String repName, String plan, SearchEntry entry, Price price, String paid) {
+        String base = activationToOwner(repName, plan, entry, price);
+        int cut = base.lastIndexOf("\n\nهل توافق");
+        return base.substring(0, cut) + "\n💵 الزبون: " + activationPaidLabel(price.currency, paid)
+            + "\n(عند موافقتك يُسجَّل تجديداً على الجهاز في التطبيق)" + base.substring(cut);
+    }
+
     static String activationSent(String plan, SearchEntry entry, Price price) {
         return "✅ أُرسل طلب تفعيل " + plan + " لـ " + entry.deviceName() + " بسعر " + price.label() + " إلى المسؤول - ينتظر موافقته.";
     }

@@ -260,7 +260,7 @@ export interface TelegramInboxMessage extends TelegramPollMessage {
   /** A record from the reps bot's device menu (never a message to answer): a ✏️ edit waiting
    * for approval, the owner's ✅/❌ on one in his bot, a 📝 note, or a 💵 payment or a 🏦 loan entered
    * step by step (waiting for approval too) - `data` is its JSON. */
-  kind?: "repEdit" | "repEditDecision" | "repNote" | "repPayment" | "repLoan";
+  kind?: "repEdit" | "repEditDecision" | "repNote" | "repPayment" | "repLoan" | "repActivation" | "repActivationDecision";
   data?: string;
 }
 
@@ -483,6 +483,8 @@ export interface LocalBrowserPlugin {
   /** A dismissed link request: that person is answered again if he writes. */
   telegramForgetRequest(options: { chatId: string }): Promise<void>;
   /** Downloads a file a rep sent the reps bot (his device file - encrypted JSON) as text. */
+  /** An ⚡ activation decided in the app: its ✅/❌ in the owner's bot then says it's over. */
+  telegramResolveActivation(options: { id: string }): Promise<void>;
   telegramDownloadFile(options: { fileId: string }): Promise<{ text: string }>;
   /** Downloads a 📸 payment photo a rep sent the reps or money bot, as a data: URL. */
   telegramDownloadImage(options: { fileId: string; bot?: "reps" | "money" }): Promise<{ dataUrl: string }>;

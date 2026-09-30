@@ -26,7 +26,8 @@ import { resizeImageToDataUrl } from "@/lib/imageUtils";
 import { putProof } from "@/lib/paymentProofStore";
 import { formatMoneyShort, matchRepDevices } from "@/lib/telegramRepMessages";
 import { editFieldName, isRepEditField } from "@/lib/repDeviceMenu";
-import { ACCOUNTS_CHANGED_EVENT, decideRepEdit } from "@/lib/repMenuRecords";
+import { ACCOUNTS_CHANGED_EVENT, decideRepActivation, decideRepEdit } from "@/lib/repMenuRecords";
+import { loadActivationCosts } from "@/lib/repActivation";
 import { recordRepHandover, recordRepLoan } from "@/lib/repHandover";
 
 interface Props {
@@ -92,6 +93,16 @@ export function RepRequestsSection({ representatives, accounts, clientStore, onC
               rep={repById.get(request.repId)}
               onDone={(status) => {
                 resolve(request, status);
+                onChanged();
+              }}
+            />
+          ) : request.kind === "activation" ? (
+            <ActivationRequestCard
+              key={request.id}
+              request={request}
+              rep={repById.get(request.repId)}
+              onDone={() => {
+                setRequests(pendingRepRequests(loadRepRequests()));
                 onChanged();
               }}
             />
@@ -352,6 +363,93 @@ function EditRequestCard({ request, rep, onDone }: { request: RepRequest; rep?: 
           ✅ موافق - احفظ التعديل
         </button>
         <button type="button" className="text-action" onClick={() => void decide(false)}>
+          ❌ رفض
+        </button>
+      </div>
+    </li>
+  );
+}
+
+/** ⚡ An activation a rep asked for: approving records it on the device like «تجديد» (the
+ * customer owes the price, the package's Starlink cost as D, the rep's share) and, when the
+ * customer already paid the rep, his payment. */
+function ActivationRequestCard({ request, rep, onDone }: { request: RepRequest; rep?: Representative; onDone: () => void }) {
+  const savedCost = request.plan ? loadActivationCosts()[request.plan] : undefined;
+  const [amount, setAmount] = useState(String(request.amount ?? ""));
+  const [currency, setCurrency] = useState<LedgerCurrency>(request.currency ?? "MRU");
+  const [costAmount, setCostAmount] = useState(savedCost ? String(savedCost.amount) : "");
+  const [costCurrency, setCostCurrency] = useState(savedCost?.currency ?? "USD");
+  const [paid, setPaid] = useState<PaymentMethod | "">(request.paymentMethod ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function decide(approve: boolean) {
+    if (!approve && !window.confirm("رفض طلب التفعيل؟ يُبلَّغ المندوب بذلك.")) return;
+    const value = Number(amount);
+    const cost = Number(costAmount);
+    if (approve && !(value > 0)) return setError("السعر غير صحيح");
+    if (approve && !(cost > 0)) return setError("اكتب تكلفة Starlink لهذه الباقة");
+    setBusy(true);
+    const result = await decideRepActivation(request, approve, "app", {
+      amount: value,
+      currency,
+      cost: { amount: cost, currency: costCurrency },
+      paid: paid || undefined,
+    });
+    setBusy(false);
+    if (!result.ok) return setError(result.message ?? "تعذر التسجيل");
+    onDone();
+  }
+
+  return (
+    <li className="rep-request">
+      <div className="rep-request-head">
+        <strong>⚡ {rep?.name ?? "مندوب"} - تفعيل {request.plan ?? ""}</strong>
+        <span>{timeLabel(request.createdAt)}</span>
+      </div>
+      <p className="rep-request-text">
+        📡 {request.deviceName ?? "جهاز"}
+        {request.approvedInBot && " - ✅ وافقت عليه في البوت، أكمل التسجيل هنا"}
+      </p>
+      <label className="rep-request-field">
+        <span>يدفع الزبون</span>
+        <div className="rep-request-row">
+          <input className="search-input" dir="ltr" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} aria-label="السعر" />
+          <select className="search-input" value={currency} onChange={(e) => setCurrency(e.target.value as LedgerCurrency)} aria-label="عملة السعر">
+            {LEDGER_CURRENCIES.map((c) => (
+              <option key={c} value={c}>{LEDGER_CURRENCY_LABELS[c]}</option>
+            ))}
+          </select>
+        </div>
+      </label>
+      <label className="rep-request-field">
+        <span>تكلفة Starlink (D)</span>
+        <div className="rep-request-row">
+          <input className="search-input" dir="ltr" inputMode="decimal" value={costAmount} onChange={(e) => setCostAmount(e.target.value)} placeholder="مثلاً 50" aria-label="التكلفة" />
+          <select className="search-input" value={costCurrency} onChange={(e) => setCostCurrency(e.target.value)} aria-label="عملة التكلفة">
+            {LEDGER_CURRENCIES.map((c) => (
+              <option key={c} value={c}>{LEDGER_CURRENCY_LABELS[c]}</option>
+            ))}
+          </select>
+        </div>
+      </label>
+      <label className="rep-request-field">
+        <span>هل دفع الزبون؟</span>
+        <select value={paid} onChange={(e) => setPaid(e.target.value as PaymentMethod | "")}>
+          <option value="">⏳ لم يدفع بعد - يبقى ديناً عليه</option>
+          {PAYMENT_METHODS.map((m) => (
+            <option key={m} value={m}>
+              ✅ دفع للمندوب - {PAYMENT_METHOD_LABELS[m]}
+            </option>
+          ))}
+        </select>
+      </label>
+      {error && <p className="settings-hint telegram-stopped">{error}</p>}
+      <div className="settings-actions">
+        <button type="button" className="dialog-primary" onClick={() => void decide(true)} disabled={busy}>
+          ✅ موافق - سجّل التجديد
+        </button>
+        <button type="button" className="text-action" onClick={() => void decide(false)} disabled={busy}>
           ❌ رفض
         </button>
       </div>

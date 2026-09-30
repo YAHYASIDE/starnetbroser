@@ -10,7 +10,7 @@
 
 import type { LedgerCurrency, PaymentMethod } from "./ledgerStore";
 
-export type RepRequestKind = "payment" | "client" | "device" | "edit" | "handover" | "loan";
+export type RepRequestKind = "payment" | "client" | "device" | "edit" | "handover" | "loan" | "activation";
 export type RepRequestStatus = "pending" | "approved" | "rejected";
 
 export interface RepRequest {
@@ -57,6 +57,13 @@ export interface RepRequest {
   loanApp?: string;
   /** The recipient's number in that app. */
   loanNumber?: string;
+  // activation (⚡ from the bot: `accountId`, `deviceName`, `amount` + `currency` the customer
+  // pays, `paymentMethod` when he already paid the rep)
+  plan?: string;
+  /** The id the owner's ✅/❌ in his bot carries (TelegramReplyService). */
+  activationId?: string;
+  /** Approved with ✅ in the owner's bot but not recorded yet (e.g. the package's cost is missing). */
+  approvedInBot?: boolean;
 }
 
 export type RepRequestList = RepRequest[];

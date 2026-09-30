@@ -7722,6 +7722,16 @@ button.today-tile {
   align-self: flex-start;
 }
 
+.rep-request-row.activation-cost-row {
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  align-items: center;
+  margin-block: 6px;
+}
+
+.activation-cost-plan {
+  min-width: 48px;
+}
+
 .rep-proof-pick {
   cursor: pointer;
 }

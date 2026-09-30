@@ -226,7 +226,14 @@ final class TelegramStore {
             .remove(KEY_PAY_PENDING + chatId).commit(); // one question at a time
     }
 
-    /** {accountId, plan}, or null when none (or older than 30 minutes). */
+    /** The price is in - the bot now asks whether the customer already paid him. */
+    static void setPendingActivationPrice(Context context, String chatId, String accountId, String plan, double amount, String currency) {
+        prefs(context).edit().putString(KEY_ACT_PENDING + chatId,
+            accountId + "\n" + plan + "\n" + System.currentTimeMillis() + "\n" + amount + "\n" + currency)
+            .remove(KEY_PAY_PENDING + chatId).commit();
+    }
+
+    /** {accountId, plan, amount ("" until typed), currency}, or null when none (or older than 30 minutes). */
     static String[] pendingActivation(Context context, String chatId) {
         String raw = prefs(context).getString(KEY_ACT_PENDING + chatId, null);
         if (raw == null) return null;
@@ -237,7 +244,7 @@ final class TelegramStore {
         } catch (NumberFormatException broken) {
             return null;
         }
-        return new String[] {parts[0], parts[1]};
+        return new String[] {parts[0], parts[1], parts.length > 3 ? parts[3] : "", parts.length > 4 ? parts[4] : ""};
     }
 
     static void clearPendingActivation(Context context, String chatId) {
