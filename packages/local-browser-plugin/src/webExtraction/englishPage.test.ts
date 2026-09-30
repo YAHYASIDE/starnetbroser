@@ -61,6 +61,22 @@ describe("English Home page", () => {
   });
 });
 
+describe("English Home page - real, confirmed wording (fake name/number)", () => {
+  it("reads restricted + the scheduled end date together", () => {
+    const fields = read(`
+      <div><div>Earn €45 for each referral</div><div>Share your link to get started</div><button>Refer Now</button></div>
+      <div><div>Your Starlink's service is restricted because it has been outside of its home country for too long. To resume service, return Starlink to its home country, and ensure it is powered on and active for at least 24 hours.</div></div>
+      <div><div>Your service is scheduled to end on 10/16/2026.</div><button>Resume</button></div>
+      <h1>Home</h1>
+      <div>DEMO NAME • ACC-0000000-00000-00</div>
+    `);
+    expect(fields.isRestricted).toBe(true);
+    expect(fields.renewalDate).toBe("2026/10/16");
+    expect(fields.pendingCancellationDate).toBe("2026/10/16");
+    expect(fields.serviceStatus).toBe("active");
+  });
+});
+
 describe("English subscription page", () => {
   it("reads the Service Plan badge and the Ends date", () => {
     const fields = read(`
