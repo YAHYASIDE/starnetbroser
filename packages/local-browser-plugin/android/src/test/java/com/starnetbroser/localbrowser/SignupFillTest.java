@@ -11,13 +11,14 @@ public class SignupFillTest {
 
     @Test
     public void fillsMicrosoftsSignupWithWhatTheOperatorTyped() {
-        String script = SignupFill.outlookScript("demo.new@outlook.com", "demo-pass-1", "أحمد", "ولد سالم");
+        String script = SignupFill.outlookScript("demo.new@outlook.com", "demo-pass-1", "أحمد", "ولد سالم", "demo.recovery@example.com");
         assertTrue(script.contains("\"demo.new@outlook.com\""));
         assertTrue(script.contains("\"demo-pass-1\""));
         assertTrue(script.contains("\"ولد سالم\""));
-        // Never presses Microsoft's buttons (its human check is the operator's).
-        assertFalse(script.contains(".click()"));
-        assertNull(SignupFill.outlookScript(" ", "demo-pass-1", "a", "b"));
+        assertTrue(script.contains("\"demo.recovery@example.com\""));
+        // Never presses Microsoft's «Next» (its human check is the operator's) - only its domain list.
+        assertFalse(script.contains("Next"));
+        assertNull(SignupFill.outlookScript(" ", "demo-pass-1", "a", "b", null));
     }
 
     @Test
@@ -32,7 +33,7 @@ public class SignupFillTest {
 
     @Test
     public void valuesCannotBreakOutOfTheScript() {
-        String script = SignupFill.outlookScript("demo@outlook.com", "x\"</script><b>", "a", "b");
+        String script = SignupFill.outlookScript("demo@outlook.com", "x\"</script><b>", "a", "b", "");
         assertFalse(script.contains("</script>"));
         assertTrue(script.contains("x\\\"\\u003c/script\\u003e"));
     }

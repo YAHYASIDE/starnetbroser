@@ -49,7 +49,13 @@ describe("إنشاء حساب جديد", () => {
 
   it("fills Microsoft's signup and Starlink's activation from the device", () => {
     const device = buildCreatedAccount(base, input);
-    expect(outlookSignupFor(device)).toEqual({ email: "demo.ahmed@outlook.com", password: "demo-pass-1", firstName: "أحمد", lastName: "ولد سالم" });
+    expect(outlookSignupFor(device)).toEqual({
+      email: "demo.ahmed@outlook.com",
+      password: "demo-pass-1",
+      firstName: "أحمد",
+      lastName: "ولد سالم",
+      recoveryEmail: "starnet.om@gmail.com",
+    });
     expect(starlinkActivationFor(device)).toEqual({
       kit: "KIT00000DEMO1",
       firstName: "أحمد",

@@ -55,24 +55,41 @@ final class SignupFill {
     private static final String FIRST = "/first|given|الاسم الأول/i";
     private static final String LAST = "/last|family|surname|اسم العائلة/i";
 
-    /** Microsoft's signup pages. Null when there is no email to create. */
-    static String outlookScript(String email, String password, String firstName, String lastName) {
+    /** Microsoft's signup pages. Null when there is no email to create.
+     *  - «New email» comes with Microsoft's own «@outlook.com» domain list (a custom drop-down,
+     *    real screenshot): only the name before "@" is typed, the domain is picked from the list.
+     *  - «Add an email address» (the recovery email Microsoft sends its codes to) gets
+     *    `recoveryEmail`, never the new address itself. */
+    static String outlookScript(String email, String password, String firstName, String lastName, String recoveryEmail) {
         if (email == null || email.trim().isEmpty()) return null;
-        return "(function(e,p,f,l){"
+        return "(function(e,p,f,l,r){"
             + "if(window.__starnetSignup)return;window.__starnetSignup=1;"
             + PRELUDE
+            + "var at=e.indexOf('@'),dom=e.slice(at).toLowerCase();"
+            + "function heading(){var h=document.querySelectorAll('h1,h2,[role=heading]'),t='';for(var i=0;i<h.length;i++)if(vis(h[i]))t+=' '+h[i].textContent;return t;}"
+            // The domain list next to «New email»: a <select>, or Microsoft's own drop-down.
+            + "function picker(el){var c=document.querySelectorAll('select,[role=combobox],[aria-haspopup],button');"
+            + "for(var i=0;i<c.length;i++){var x=c[i];if(x===el||!vis(x))continue;"
+            + "var t=x.tagName==='SELECT'?((x.options[x.selectedIndex]||{}).text||''):(x.textContent||'');"
+            + "if(/@(outlook|hotmail)\\.[a-z.]+/i.test(t))return x;}return null;}"
+            + "function pickDomain(x){if(x.tagName==='SELECT'){for(var j=0;j<x.options.length;j++)if(x.options[j].text.toLowerCase().indexOf(dom)>=0){x.selectedIndex=j;"
+            + "x.dispatchEvent(new Event('change',{bubbles:true}));return;}return;}"
+            + "if((x.textContent||'').toLowerCase().indexOf(dom)>=0)return;x.click();"
+            + "setTimeout(function(){var o=document.querySelectorAll('[role=option],[role=menuitem],li,button');"
+            + "for(var k=0;k<o.length;k++)if(vis(o[k])&&(o[k].textContent||'').trim().toLowerCase()===dom){o[k].click();return;}},500);}"
             + "function tick(){"
-            // A «@outlook.com» domain picker next to the field: the name goes in, the domain is picked.
+            // The recovery email page: Microsoft's codes go to the shop's own address.
+            + "if(/add an email|recovery|security info|protect your account|alternate email|بريد.{0,12}(استرداد|بديل)|أضف عنوان بريد/i.test(heading())){"
+            + "if(r&&!d.r){var re=field(/mail|البريد/i,/password|كلمة/i);if(re&&!re.value){put(re,r);d.r=1;}}return;}"
             + "if(!d.e){var el=field(/mail|member|username|البريد/i,/password|كلمة/i);if(el&&!el.value){"
-            + "var at=e.indexOf('@'),dom=e.slice(at+1),sel=null,ss=document.querySelectorAll('select');"
-            + "for(var i=0;i<ss.length;i++){for(var j=0;j<ss[i].options.length;j++){if(ss[i].options[j].text.toLowerCase().indexOf(dom)>=0){sel=ss[i];sel.selectedIndex=j;"
-            + "sel.dispatchEvent(new Event('change',{bubbles:true}));break;}}if(sel)break;}"
-            + "put(el,sel?e.slice(0,at):e);d.e=1;}}"
+            + "var x=picker(el);if(x)pickDomain(x);"
+            + "put(el,x||/new email|بريد إلكتروني جديد/i.test(desc(el))?e.slice(0,at):e);d.e=1;}}"
             + "if(!d.p&&p){var w=document.querySelector('input[type=password]');if(w&&vis(w)&&!w.value){put(w,p);d.p=1;}}"
             + "once('f'," + FIRST + ",f);once('l'," + LAST + ",l);}"
             + "tick();var n=0;var t=setInterval(function(){tick();if(++n>500)clearInterval(t);},700);"
             + "})(" + LoginAutofill.literal(email.trim()) + "," + LoginAutofill.literal(password) + ","
-            + LoginAutofill.literal(firstName) + "," + LoginAutofill.literal(lastName) + ");";
+            + LoginAutofill.literal(firstName) + "," + LoginAutofill.literal(lastName) + ","
+            + LoginAutofill.literal(recoveryEmail == null ? "" : recoveryEmail.trim()) + ");";
     }
 
     /** Starlink's activation pages. Null when there is no KIT/SN. */

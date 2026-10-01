@@ -71,11 +71,15 @@ export function buildCreatedAccount(
   };
 }
 
+/** Microsoft's «Add an email address» (where it sends its codes) - always the shop's own. */
+export const SIGNUP_RECOVERY_EMAIL = "starnet.om@gmail.com";
+
 export interface OutlookSignup {
   email: string;
   password: string;
   firstName: string;
   lastName: string;
+  recoveryEmail: string;
 }
 
 /** What Microsoft's «إنشاء حساب» pages are filled with. Null when the device isn't being created. */
@@ -87,6 +91,7 @@ export function outlookSignupFor(account: StarlinkAccountSummary): OutlookSignup
     password: account.expectedEmailPassword ?? "",
     firstName: account.creation.firstName,
     lastName: account.creation.lastName,
+    recoveryEmail: SIGNUP_RECOVERY_EMAIL,
   };
 }
 

@@ -62,7 +62,7 @@ export interface OpenMailBrowserOptions {
   suggestions?: string[];
   /** 🆕 «إنشاء حساب جديد»: Microsoft's signup (email, password and these names typed in, nothing
    * pressed) instead of the inbox. */
-  signup?: { firstName: string; lastName: string };
+  signup?: { firstName: string; lastName: string; recoveryEmail?: string };
   /** With `signup`: the device's Starlink browser opened once the new inbox opens. */
   then?: Omit<OpenAccountBrowserOptions, "accountId">;
 }

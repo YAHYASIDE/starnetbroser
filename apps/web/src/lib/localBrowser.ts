@@ -164,7 +164,7 @@ export async function openAccountCreation(account: StarlinkAccountSummary, step:
         accountName: name,
         email: signup.email,
         password: signup.password,
-        signup: { firstName: signup.firstName, lastName: signup.lastName },
+        signup: { firstName: signup.firstName, lastName: signup.lastName, recoveryEmail: signup.recoveryEmail },
         then: starlink,
       });
     }

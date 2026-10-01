@@ -327,7 +327,7 @@ public class LocalBrowserPlugin extends Plugin {
                 Intent intent = MailBrowserActivity.intentFor(getActivity(), accountId, call.getString("accountName", accountId),
                     call.getString("email"), call.getString("password"));
                 JSObject then = call.getObject("then");
-                MailBrowserActivity.asSignup(intent, signup.getString("firstName"), signup.getString("lastName"),
+                MailBrowserActivity.asSignup(intent, signup.getString("firstName"), signup.getString("lastName"), signup.getString("recoveryEmail"),
                     then != null ? accountBrowserIntent(accountId, then) : null);
                 getActivity().startActivity(intent);
             }

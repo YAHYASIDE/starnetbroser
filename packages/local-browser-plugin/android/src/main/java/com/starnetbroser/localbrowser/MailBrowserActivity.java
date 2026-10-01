@@ -48,6 +48,8 @@ public class MailBrowserActivity extends AppCompatActivity {
     public static final String EXTRA_SIGNUP = "com.starnetbroser.localbrowser.MAIL_SIGNUP";
     public static final String EXTRA_SIGNUP_FIRST_NAME = "com.starnetbroser.localbrowser.MAIL_SIGNUP_FIRST_NAME";
     public static final String EXTRA_SIGNUP_LAST_NAME = "com.starnetbroser.localbrowser.MAIL_SIGNUP_LAST_NAME";
+    /** Microsoft's «Add an email address» (where its codes go) is filled with this one. */
+    public static final String EXTRA_SIGNUP_RECOVERY = "com.starnetbroser.localbrowser.MAIL_SIGNUP_RECOVERY";
     /** The device's «تفعيل Starlink» browser, started once the new inbox opens. */
     public static final String EXTRA_THEN = "com.starnetbroser.localbrowser.MAIL_THEN";
 
@@ -106,8 +108,9 @@ public class MailBrowserActivity extends AppCompatActivity {
     }
 
     /** 🆕 Turns a mailbox intent into «إنشاء حساب جديد»: the signup, then `then` (Starlink). */
-    static void asSignup(Intent intent, String firstName, String lastName, Intent then) {
+    static void asSignup(Intent intent, String firstName, String lastName, String recoveryEmail, Intent then) {
         intent.putExtra(EXTRA_SIGNUP, true);
+        intent.putExtra(EXTRA_SIGNUP_RECOVERY, recoveryEmail);
         intent.putExtra(EXTRA_SIGNUP_FIRST_NAME, firstName);
         intent.putExtra(EXTRA_SIGNUP_LAST_NAME, lastName);
         if (then != null) intent.putExtra(EXTRA_THEN, then);
@@ -126,7 +129,8 @@ public class MailBrowserActivity extends AppCompatActivity {
         if (signup) {
             homeUrl = SignupFill.OUTLOOK_SIGNUP_URL;
             signupScript = SignupFill.outlookScript(email, getIntent().getStringExtra(EXTRA_PASSWORD),
-                getIntent().getStringExtra(EXTRA_SIGNUP_FIRST_NAME), getIntent().getStringExtra(EXTRA_SIGNUP_LAST_NAME));
+                getIntent().getStringExtra(EXTRA_SIGNUP_FIRST_NAME), getIntent().getStringExtra(EXTRA_SIGNUP_LAST_NAME),
+                getIntent().getStringExtra(EXTRA_SIGNUP_RECOVERY));
             thenIntent = getIntent().getParcelableExtra(EXTRA_THEN);
         } else {
             homeUrl = MailUrl.inboxUrlFor(email);
