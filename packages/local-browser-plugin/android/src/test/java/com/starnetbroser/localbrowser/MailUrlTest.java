@@ -83,4 +83,11 @@ public class MailUrlTest {
         assertNotEquals(ProfileNaming.mailProfileNameFor("acc-1"), ProfileNaming.mailProfileNameFor("acc-2"));
         assertEquals(ProfileNaming.mailProfileNameFor("acc-1"), ProfileNaming.mailProfileNameFor("acc-1"));
     }
+
+    @Test
+    public void theJunkFolderIsPartOfTheSignedInMailbox() {
+        assertTrue(MailUrl.isAllowed(MailUrl.JUNK_URL));
+        assertEquals(MailUrl.SessionState.SIGNED_IN, MailUrl.sessionState(MailUrl.JUNK_URL));
+        assertTrue(MailUrl.OTHER_TAB_SCRIPT.contains("other"));
+    }
 }

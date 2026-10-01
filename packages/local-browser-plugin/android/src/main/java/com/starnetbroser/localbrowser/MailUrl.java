@@ -17,6 +17,15 @@ public final class MailUrl {
     public static final String INBOX_URL = "https://outlook.live.com/mail/0/";
     /** Gmail's inbox - it sends a signed-out visitor to the Google sign-in page by itself. */
     public static final String GMAIL_INBOX_URL = "https://mail.google.com/mail/u/0/";
+    /** Outlook's «بريد إلكتروني غير هام» folder - Starlink's code sometimes lands there. */
+    public static final String JUNK_URL = INBOX_URL + "junkemail";
+
+    /** Taps the inbox's «أخرى» / Other tab (Outlook's Focused Inbox hides Starlink's code
+     * there - real, confirmed) - "clicked", or "none" when the page has no such tab. */
+    public static final String OTHER_TAB_SCRIPT = "(function(){"
+        + "var l=document.querySelectorAll('[role=tab],button');for(var i=0;i<l.length;i++){"
+        + "var t=(l[i].innerText||l[i].textContent||'').replace(/\\s+/g,' ').trim();"
+        + "if(/^(other|\\u0623\\u062e\\u0631\\u0649)$/i.test(t)){l[i].click();return 'clicked';}}return 'none';})()";
 
     /**
      * The Outlook hosts whose cookies keep the mailbox signed in - read to move a rep's already

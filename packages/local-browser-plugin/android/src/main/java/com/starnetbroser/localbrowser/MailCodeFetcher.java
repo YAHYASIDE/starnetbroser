@@ -16,13 +16,15 @@ import org.json.JSONException;
 /**
  * Reads the newest Starlink code from a device's own mailbox without showing it: an off-screen
  * WebView in that device's mailbox profile (the one «📧 البريد» signs in to), polling the inbox
- * text with MailCode. Reports a code not tried yet, "signed out" when the mailbox needs a sign-in,
+ * text with MailCode - the Focused tab, then the «أخرى» tab, then the Junk folder, around again
+ * (Outlook's Focused Inbox puts Starlink's code in «أخرى», sometimes in Junk - real screenshots). Reports a code not tried yet, "signed out" when the mailbox needs a sign-in,
  * or "gave up" after a while. Nothing read here is logged or leaves the phone.
  */
 final class MailCodeFetcher implements CodeSource {
 
     private static final long POLL_MS = 3000;
-    private static final long RELOAD_MS = 30000;
+    /** How long one view (Focused / Other / Junk) is read before moving to the next. */
+    private static final long VIEW_MS = 9000;
     private static final long SIGNED_OUT_AFTER_MS = 12000;
     private static final long GIVE_UP_MS = 150000;
 
@@ -34,7 +36,10 @@ final class MailCodeFetcher implements CodeSource {
     private final String inboxUrl;
     private WebView webView;
     private long startedAt;
-    private long lastReloadAt;
+    private long viewSince;
+    /** 0 = the inbox (Focused), 1 = its «أخرى» tab, 2 = the Junk folder. */
+    private int view;
+    private final boolean outlook;
     private boolean done;
 
     MailCodeFetcher(Context context, String accountId, String email, String tried, Listener listener) {
@@ -43,6 +48,7 @@ final class MailCodeFetcher implements CodeSource {
         this.appContext = context.getApplicationContext();
         this.accountId = accountId;
         this.inboxUrl = MailUrl.inboxUrlFor(email); // Outlook, or Gmail for a Gmail address
+        this.outlook = MailUrl.providerFor(email) == MailUrl.Provider.OUTLOOK;
         String profileName = ProfileNaming.mailProfileNameFor(accountId);
         ProfileStore.getInstance().getOrCreateProfile(profileName);
         webView = new WebView(context);
@@ -67,7 +73,7 @@ final class MailCodeFetcher implements CodeSource {
     @Override
     public void start() {
         startedAt = System.currentTimeMillis();
-        lastReloadAt = startedAt;
+        viewSince = startedAt;
         webView.loadUrl(inboxUrl);
         handler.postDelayed(this::poll, POLL_MS);
     }
@@ -96,9 +102,12 @@ final class MailCodeFetcher implements CodeSource {
             finish(() -> listener.onSignedOut());
             return;
         }
-        if (now - lastReloadAt > RELOAD_MS) {
-            lastReloadAt = now;
-            webView.reload();
+        if (outlook && now - viewSince > VIEW_MS) {
+            // Nothing new here: the next place the code may be.
+            viewSince = now;
+            view = (view + 1) % 3;
+            if (view == 1) webView.evaluateJavascript(MailUrl.OTHER_TAB_SCRIPT, null);
+            else webView.loadUrl(view == 2 ? MailUrl.JUNK_URL : inboxUrl);
             handler.postDelayed(this::poll, POLL_MS);
             return;
         }
