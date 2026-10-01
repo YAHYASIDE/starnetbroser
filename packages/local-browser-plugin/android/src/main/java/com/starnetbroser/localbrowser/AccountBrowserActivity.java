@@ -125,6 +125,10 @@ public class AccountBrowserActivity extends AppCompatActivity {
     private CodeSource codeFetcher;
     /** Off for this screen after the mailbox needed a sign-in, no code came, or 3 tries. */
     private boolean autoCodeOff;
+    /** Off only until the operator comes back from «📧 البريد» (signed in there / checked it):
+     * then it reads the code by itself again. Real, confirmed miss: after signing in to the
+     * mailbox the code never came automatically on returning to Starlink. */
+    private boolean autoCodeWaitsForMail;
     private long lastFillAt;
     private int autoFills;
 
@@ -239,6 +243,11 @@ public class AccountBrowserActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        if (autoCodeWaitsForMail) {
+            autoCodeWaitsForMail = false;
+            autoCodeOff = false;
+            lastFillAt = 0;
+        }
         scheduleTwoStepCheck();
     }
 
@@ -300,6 +309,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
                 public void onSignedOut() {
                     codeFetcher = null;
                     autoCodeOff = true;
+                    autoCodeWaitsForMail = true;
                     Toast.makeText(AccountBrowserActivity.this, "📧 سجّل الدخول في «البريد» مرة واحدة ليُدخل التطبيق الرمز تلقائياً", Toast.LENGTH_LONG).show();
                 }
 
@@ -307,6 +317,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
                 public void onGiveUp() {
                     codeFetcher = null;
                     autoCodeOff = true;
+                    autoCodeWaitsForMail = true;
                     Toast.makeText(AccountBrowserActivity.this, "لم يصل رمز جديد إلى البريد - افتح «📧 البريد»", Toast.LENGTH_LONG).show();
                 }
             };
