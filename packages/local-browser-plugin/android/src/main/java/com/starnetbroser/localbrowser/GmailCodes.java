@@ -25,12 +25,16 @@ final class GmailCodes {
     static final String PROFILE_URL = "https://gmail.googleapis.com/gmail/v1/users/me/profile";
     private static final String MESSAGES_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages";
 
-    /** The newest few messages of the last day - codes are only ever fresh. */
+    /** Gmail's search for the code messages: Microsoft's own senders only (a card's or a shop's
+     * message of the same minute must never be read as the code - real screenshot), last day. */
+    static final String QUERY = "newer_than:1d (from:microsoft.com OR from:accountprotection.microsoft.com OR from:account.microsoft.com OR from:live.com)";
+
+    /** The newest few of Microsoft's messages of the last day - codes are only ever fresh. */
     static String listUrl() {
         try {
-            return MESSAGES_URL + "?maxResults=6&q=" + URLEncoder.encode("newer_than:1d", StandardCharsets.UTF_8.name());
+            return MESSAGES_URL + "?maxResults=8&q=" + URLEncoder.encode(QUERY, StandardCharsets.UTF_8.name());
         } catch (java.io.UnsupportedEncodingException e) {
-            return MESSAGES_URL + "?maxResults=6";
+            return MESSAGES_URL + "?maxResults=8";
         }
     }
 
@@ -63,7 +67,14 @@ final class GmailCodes {
         }
     }
 
-    /** The code in one message (format=full) received at or after `sinceMs`, or null. */
+    /** Microsoft's own "Security code: 202169" / "code is: 583120" line - the surest reading. */
+    private static final java.util.regex.Pattern CODE_LINE = java.util.regex.Pattern.compile(
+        "(?:security code|verification code|single-use code|code is|your code|رمز الأمان|رمز التحقق|الرمز)\\s*(?:is)?\\s*[:：]?\\s*(\\d{4,8})\\b",
+        java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.UNICODE_CASE);
+
+    /** The code in one message (format=full) received at or after `sinceMs`, or null. Only a
+     * message from Microsoft (its From header) counts: anything else of the same minute (a card,
+     * a shop) is skipped even if it carries numbers. */
     static String codeIn(String messageJson, long sinceMs) {
         try {
             JSONObject message = new JSONObject(messageJson);
@@ -71,21 +82,38 @@ final class GmailCodes {
             if (at < sinceMs) return null;
             StringBuilder text = new StringBuilder();
             JSONObject payload = message.optJSONObject("payload");
+            boolean fromMicrosoft = false;
             if (payload != null) {
                 JSONArray headers = payload.optJSONArray("headers");
                 if (headers != null) {
                     for (int i = 0; i < headers.length(); i++) {
                         JSONObject h = headers.getJSONObject(i);
-                        if ("subject".equalsIgnoreCase(h.optString("name"))) text.append(h.optString("value")).append('\n');
+                        String name = h.optString("name");
+                        if ("subject".equalsIgnoreCase(name)) text.append(h.optString("value")).append('\n');
+                        if ("from".equalsIgnoreCase(name)) fromMicrosoft = isMicrosoftSender(h.optString("value"));
                     }
                 }
             }
+            if (!fromMicrosoft) return null;
             text.append(message.optString("snippet", "")).append('\n');
             if (payload != null) appendBody(payload, text);
-            return MailCode.find(text.toString());
+            String all = text.toString();
+            java.util.regex.Matcher m = CODE_LINE.matcher(all);
+            if (m.find()) return m.group(1);
+            return MailCode.find(all);
         } catch (JSONException e) {
             return null;
         }
+    }
+
+    /** "Microsoft account team <account-security-noreply@accountprotection.microsoft.com>" and
+     * the like - never a card, a shop or a newsletter. */
+    static boolean isMicrosoftSender(String from) {
+        if (from == null) return false;
+        String lower = from.toLowerCase(Locale.ROOT);
+        return lower.contains("@accountprotection.microsoft.com") || lower.contains("@account.microsoft.com")
+            || lower.contains("@microsoft.com") || lower.contains("@live.com") || lower.contains("@outlook.com")
+            || lower.contains("@email.microsoft.com") || lower.contains("@microsoftonline.com");
     }
 
     /** The plain text of every part (HTML with its tags dropped), one line per block. */

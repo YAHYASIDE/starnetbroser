@@ -17,8 +17,12 @@ public class GmailCodesTest {
     }
 
     private static String message(long at, String subject, String snippet, String mime, String body) {
+        return message(at, "Microsoft account team <account-security-noreply@accountprotection.microsoft.com>", subject, snippet, mime, body);
+    }
+
+    private static String message(long at, String from, String subject, String snippet, String mime, String body) {
         return "{\"id\":\"m1\",\"internalDate\":\"" + at + "\",\"snippet\":\"" + snippet + "\","
-            + "\"payload\":{\"mimeType\":\"multipart/alternative\",\"headers\":[{\"name\":\"Subject\",\"value\":\"" + subject + "\"}],"
+            + "\"payload\":{\"mimeType\":\"multipart/alternative\",\"headers\":[{\"name\":\"From\",\"value\":\"" + from + "\"},{\"name\":\"Subject\",\"value\":\"" + subject + "\"}],"
             + "\"parts\":[{\"mimeType\":\"" + mime + "\",\"body\":{\"data\":\"" + b64url(body) + "\"}}]}}";
     }
 
@@ -27,6 +31,23 @@ public class GmailCodesTest {
         String json = message(2000, "Microsoft account security code", "Please use the following security code",
             "text/plain", "Please use the following security code for the Microsoft account de***@outlook.com.\nSecurity code: 4791\n");
         assertEquals("4791", GmailCodes.codeIn(json, 1000));
+    }
+
+    @Test
+    public void readsTheSecurityCodeLineNotAnotherNumberInTheMessage() {
+        String json = message(2000, "Microsoft account security code", "Please use the following security code",
+            "text/plain", "Please use the following security code for your personal Microsoft account me**8@outlook.com.\nSecurity code: 202169\nOnly enter this code on an official website. Ref 9000.\n");
+        assertEquals("202169", GmailCodes.codeIn(json, 1000));
+    }
+
+    @Test
+    public void ignoresMessagesThatAreNotMicrosofts() {
+        // A card's or a shop's message of the same minute carries numbers too (real screenshot: "9000").
+        String json = message(2000, "Bank Card <alerts@demo-bank.example>", "Your card code", "", "text/plain", "Security code: 9000");
+        assertNull(GmailCodes.codeIn(json, 1000));
+        assertTrue(GmailCodes.isMicrosoftSender("Microsoft account team <account-security-noreply@accountprotection.microsoft.com>"));
+        assertFalse(GmailCodes.isMicrosoftSender("alerts@demo-bank.example"));
+        assertTrue(GmailCodes.listUrl().contains("microsoft.com"));
     }
 
     @Test
