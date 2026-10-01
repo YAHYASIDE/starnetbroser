@@ -100,7 +100,7 @@ export interface StarlinkActivation {
   firstName: string;
   lastName: string;
   email: string;
-  /** Without the country code: Starlink's form picks the country itself. */
+  /** With its country code (+222…), as the operator wants it on the account. */
   phone: string;
 }
 
@@ -109,11 +109,14 @@ export function starlinkActivationFor(account: StarlinkAccountSummary): Starlink
   if (!account.creation) return null;
   const kit = account.kitNumber?.trim() || account.serialNumber?.trim() || "";
   if (!kit) return null;
+  // The names typed at creation; the device's own name if those were lost.
+  const names = account.creation.firstName ? account.creation : splitFullName(account.name);
+  const { dialCode, localNumber } = splitPhoneNumber(account.phone);
   return {
     kit,
-    firstName: account.creation.firstName,
-    lastName: account.creation.lastName,
+    firstName: names.firstName,
+    lastName: names.lastName,
     email: account.expectedEmail?.trim() ?? "",
-    phone: splitPhoneNumber(account.phone).localNumber,
+    phone: localNumber ? `${dialCode}${localNumber}` : "",
   };
 }

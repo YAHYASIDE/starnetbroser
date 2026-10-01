@@ -52,8 +52,8 @@ final class SignupFill {
         + "var d={};"
         + "function once(k,re,v,skip){if(d[k]||!v)return;var el=field(re,skip);if(el&&!el.value){put(el,v);d[k]=1;}}";
 
-    private static final String FIRST = "/first|given|الاسم الأول/i";
-    private static final String LAST = "/last|family|surname|اسم العائلة/i";
+    private static final String FIRST = "/first|given|fname|الاسم الأول|الاسم الاول|الإسم الأول/i";
+    private static final String LAST = "/last|family|surname|lname|العائلة|اللقب/i";
 
     /** Microsoft's signup pages. Null when there is no email to create.
      *  - «New email» comes with Microsoft's own «@outlook.com» domain list (a custom drop-down,
@@ -104,9 +104,18 @@ final class SignupFill {
             + "if(k){if(!d.k&&!k.value){put(k,a);d.k=Date.now();}"
             // «متابعة» once the page has taken the KIT in.
             + "if(d.k&&!d.go&&Date.now()-d.k>800){var b=button(/^(متابعة|التالي|استمرار|continue|next)$/i);if(b){b.click();d.go=1;}}return;}"
-            + "if(field(" + FIRST + ")||field(" + LAST + ")){"
-            + "once('f'," + FIRST + ",f);once('l'," + LAST + ",l);"
-            + "once('e',/mail|البريد/i,e);once('ph',/tel|phone|mobile|الهاتف|الجوال/i,ph,/mail/i);return;}"
+            // «معلومات الاتصال»: the names by their labels, else by place - the first and second plain
+            // text fields (not the email, phone or country) - since the page's labels aren't always
+            // tied to their fields (real screenshot: email and phone filled, names left empty).
+            + "var em=field(/mail|البريد/i),tel=field(/tel|phone|mobile|الهاتف|الجوال/i,/mail/i);"
+            + "var fi=field(" + FIRST + ",/mail/i),la=field(" + LAST + ",/mail/i);"
+            + "if(fi||la||(em&&tel)){"
+            + "var plain=[],ins=document.querySelectorAll('input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=submit])');"
+            + "for(var i=0;i<ins.length;i++){var x=ins[i];if(!vis(x)||x.disabled||x.readOnly||x===em||x===tel||x.type==='email'||x.type==='tel'"
+            + "||x.getAttribute('role')==='combobox'||/mail|phone|tel|الهاتف|البريد|البلد|country/i.test(desc(x)))continue;plain.push(x);}"
+            + "if(!fi)fi=plain.filter(function(x){return x!==la;})[0];if(!la)la=plain.filter(function(x){return x!==fi;})[0];"
+            + "function fill(k,el,v){if(!d[k]&&el&&!el.value&&v){put(el,v);d[k]=1;}}"
+            + "fill('f',fi,f);fill('l',la,l);fill('e',em,e);fill('ph',tel,ph);return;}"
             // On the sign-in page: «تفعيل خدمة Starlink» (once).
             + "if(!d.link){var g=button(/تفعيل خدمة\\s*Starlink|activate\\s*(your\\s*)?starlink/i);if(g){g.click();d.link=1;}}}"
             + "tick();var n=0;var t=setInterval(function(){tick();if(++n>500)clearInterval(t);},700);"

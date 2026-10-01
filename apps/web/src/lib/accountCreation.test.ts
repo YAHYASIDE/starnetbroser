@@ -61,8 +61,13 @@ describe("إنشاء حساب جديد", () => {
       firstName: "أحمد",
       lastName: "ولد سالم",
       email: "demo.ahmed@outlook.com",
-      phone: "12345678",
+      phone: "+22212345678",
     });
+    // A bare local number gets the default country's code; no phone stays empty.
+    expect(starlinkActivationFor({ ...device, phone: "12345678" })?.phone).toBe("+22212345678");
+    expect(starlinkActivationFor({ ...device, phone: undefined })?.phone).toBe("");
+    // Names lost from the creation record: the device's own name.
+    expect(starlinkActivationFor({ ...device, name: "سيدي محمد", creation: { firstName: "", lastName: "", startedAt: "" } })).toMatchObject({ firstName: "سيدي", lastName: "محمد" });
   });
 
   it("a device not being created fills nothing", () => {
