@@ -43,6 +43,7 @@ const FIELD_INFO: Record<keyof SyncedStarlinkFields, { label: string; section: S
   isRestricted: { label: "تقييد الجهاز (خارج البلد المسجل)", section: "devices" },
   movingRestricted: { label: "متوقف بسبب الحركة", section: "devices" },
   loginPassword: { label: "كلمة مرور Starlink الجديدة", section: "identifiers" },
+  mailPassword: { label: "كود البريد الجديد", section: "identifiers" },
   limitedAccess: { label: "إيميل غير رئيسي (بدون فوترة)", section: "identifiers" },
   adminEmails: { label: "الإيميل الرئيسي (Admin)", section: "identifiers" },
   subscriptionNames: { label: "الاشتراكات", section: "subscriptions" },
@@ -249,6 +250,12 @@ export function mergeSyncedFields(
   if (loginPassword) {
     note("loginPassword", next.starlinkPassword !== loginPassword);
     next.starlinkPassword = loginPassword;
+  }
+
+  const mailPassword = fields.mailPassword?.trim();
+  if (mailPassword) {
+    note("mailPassword", next.expectedEmailPassword !== mailPassword);
+    next.expectedEmailPassword = mailPassword;
   }
 
   // Diagnostic only - kept up to date, never counted as an "updated field".

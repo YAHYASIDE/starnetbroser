@@ -18,9 +18,11 @@ final class StarlinkLoginWatch {
     /** {"p": the password field's value ("" when none), "f": 1 when a password field shows,
      * "w": 1 when Starlink says the password is wrong}. */
     static final String SCRIPT = "(function(){"
-        + "var f=document.querySelector('input[type=password]');"
+        // The visible one: Microsoft's sign-in also carries a hidden password input.
+        + "var l=document.querySelectorAll('input[type=password]'),f=null;"
+        + "for(var i=0;i<l.length;i++){var r=l[i].getBoundingClientRect();if(r.width>0&&r.height>0){f=l[i];break;}}"
         + "var t=((document.body&&document.body.innerText)||'').toLowerCase();"
-        + "var w=/كلمة المرور غير صحيحة|كلمة السر غير صحيحة|incorrect password|wrong password|password is incorrect|invalid email or password/.test(t);"
+        + "var w=/كلمة المرور غير صحيحة|كلمة السر غير صحيحة|incorrect password|wrong password|password is incorrect|invalid email or password|password isn't right/.test(t);"
         + "return JSON.stringify({p:f?f.value:'',f:f?1:0,w:w?1:0});})()";
 
     static final class State {
@@ -46,6 +48,15 @@ final class StarlinkLoginWatch {
         } catch (JSONException e) {
             return null;
         }
+    }
+
+    /** Types `value` into the visible password field (the operator picked it from the list). */
+    static String fillPasswordScript(String value) {
+        return "(function(v){var l=document.querySelectorAll('input[type=password]');"
+            + "for(var i=0;i<l.length;i++){var el=l[i],r=el.getBoundingClientRect();if(r.width>0&&r.height>0){"
+            + "var s=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;el.focus();s.call(el,v);"
+            + "el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));return 1;}}return 0;})("
+            + LoginAutofill.literal(value) + ")";
     }
 
     /** Signed in: an account page (never the sign-in / verification steps). */

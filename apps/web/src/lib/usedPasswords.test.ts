@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { usedPasswords } from "./usedPasswords";
+import { passwordSuggestionsFor, usedPasswords } from "./usedPasswords";
 
 // Fake values only.
 const device = (name: string, extra: Record<string, unknown> = {}) => ({ name, ...extra });
@@ -23,5 +23,16 @@ describe("usedPasswords", () => {
 
   it("is empty when no device has a password", () => {
     expect(usedPasswords([device("x")])).toEqual([]);
+  });
+
+  it("the mailbox offers the device's own codes first, then the most used ones", () => {
+    const others = [
+      { name: "a", wifiPassword: "demo-common" },
+      { name: "b", wifiPassword: "demo-common" },
+      { name: "c", expectedEmailPassword: "demo-rare" },
+    ];
+    const device = { name: "d", wifiPassword: "demo-wifi", starlinkPassword: "demo-common" };
+    expect(passwordSuggestionsFor(device, others)).toEqual(["demo-common", "demo-wifi", "demo-rare"]);
+    expect(passwordSuggestionsFor({ name: "e", expectedEmailPassword: "demo-mail" }, others, 2)).toEqual(["demo-mail", "demo-common"]);
   });
 });

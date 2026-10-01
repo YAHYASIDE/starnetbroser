@@ -21,6 +21,8 @@ export interface OpenAccountBrowserOptions {
   loginPassword?: string;
   /** The device email's own password - only for its mailbox («📧 البريد» in the browser's bar). */
   mailPassword?: string;
+  /** Offered in «📧 البريد» when its password field is empty or the password was wrong. */
+  mailSuggestions?: string[];
   /** 🆕 «إنشاء حساب جديد»: «تفعيل Starlink» is filled with the KIT (then «متابعة»), and
    * «معلومات الاتصال» with the name, email and phone - the rest is done by hand. */
   activation?: StarlinkActivationFill;
@@ -56,6 +58,8 @@ export interface OpenMailBrowserOptions {
   email?: string;
   /** Typed into the Microsoft sign-in form's empty password field (never submitted by itself). */
   password?: string;
+  /** Offered (a list to pick from) when the password field is empty or the password was wrong. */
+  suggestions?: string[];
   /** 🆕 «إنشاء حساب جديد»: Microsoft's signup (email, password and these names typed in, nothing
    * pressed) instead of the inbox. */
   signup?: { firstName: string; lastName: string };
@@ -150,6 +154,9 @@ export interface SyncedStarlinkFields {
   /** The password the operator typed in Starlink's sign-in form after the saved one was refused,
    * once it got in - becomes the device's starlinkPassword. Never logged. */
   loginPassword?: string;
+  /** The device email's password that just worked in «📧 البريد» (picked from the suggestions or
+   * typed) when it differs from the saved «كود البريد» - replaces it. */
+  mailPassword?: string;
   /** 🚗 "service is restricted because it is moving too fast" - a residential plan used while
    * moving; it works again once stopped. Explicit true/false; never the out-of-country restriction. */
   movingRestricted?: boolean;

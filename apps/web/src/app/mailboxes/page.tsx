@@ -58,7 +58,7 @@ export default function MailboxesPage() {
     if (!account || opening) return;
     setOpening(accountId);
     try {
-      const result = await openIsolatedMailbox(account.id, account.name || "البريد", mailLoginFor(account));
+      const result = await openIsolatedMailbox(account.id, account.name || "البريد", mailLoginFor(account, accounts));
       if (!result.ok) window.alert(result.message);
     } finally {
       setOpening(null);

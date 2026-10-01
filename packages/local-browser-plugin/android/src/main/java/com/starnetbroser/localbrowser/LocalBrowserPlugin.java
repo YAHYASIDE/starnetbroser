@@ -235,6 +235,18 @@ public class LocalBrowserPlugin extends Plugin {
         call.resolve();
     }
 
+    /** A JS string[] option (empty when absent) - the passwords «📧 البريد» offers. */
+    private static String[] stringArray(JSObject options, String key) {
+        org.json.JSONArray array = options.optJSONArray(key);
+        if (array == null) return new String[0];
+        List<String> values = new ArrayList<>();
+        for (int i = 0; i < array.length(); i++) {
+            String value = array.optString(i, "");
+            if (!value.isEmpty()) values.add(value);
+        }
+        return values.toArray(new String[0]);
+    }
+
     /** Thrown by accountBrowserIntent for a start URL other than the real Starlink site. */
     private static final class InvalidUrlException extends RuntimeException {
         InvalidUrlException(String message) {
@@ -270,6 +282,8 @@ public class LocalBrowserPlugin extends Plugin {
         if (loginPassword != null && !loginPassword.isEmpty()) intent.putExtra(AccountBrowserActivity.EXTRA_LOGIN_PASSWORD, loginPassword);
         String mailPassword = options.getString("mailPassword");
         if (mailPassword != null && !mailPassword.isEmpty()) intent.putExtra(AccountBrowserActivity.EXTRA_MAIL_PASSWORD, mailPassword);
+        String[] mailSuggestions = stringArray(options, "mailSuggestions");
+        if (mailSuggestions.length > 0) intent.putExtra(AccountBrowserActivity.EXTRA_MAIL_SUGGESTIONS, mailSuggestions);
         // A distinct Uri per account (never loaded/navigated to - AccountBrowserActivity only
         // ever reads EXTRA_URL for that) is what makes each account its own separate "document"
         // task in Recents (see documentLaunchMode="intoExisting" on this Activity in the
@@ -307,7 +321,7 @@ public class LocalBrowserPlugin extends Plugin {
             JSObject signup = call.getObject("signup");
             if (signup == null) {
                 MailBrowserActivity.open(getActivity(), accountId, call.getString("accountName", accountId),
-                    call.getString("email"), call.getString("password"));
+                    call.getString("email"), call.getString("password"), stringArray(call.getData(), "suggestions"));
             } else {
                 // 🆕 «إنشاء حساب جديد»: Microsoft's signup instead of the inbox, then «تفعيل Starlink».
                 Intent intent = MailBrowserActivity.intentFor(getActivity(), accountId, call.getString("accountName", accountId),

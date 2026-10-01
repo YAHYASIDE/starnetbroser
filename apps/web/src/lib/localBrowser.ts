@@ -11,6 +11,7 @@ import {
 } from "@starnet/local-browser-plugin";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { outlookSignupFor, starlinkActivationFor } from "./accountCreation";
+import { passwordSuggestionsFor } from "./usedPasswords";
 import { SessionsByAccount } from "./accountBackup";
 import { markInternalLeave } from "./appLock";
 
@@ -60,18 +61,28 @@ export interface StarlinkLogin {
   loginPassword?: string;
   /** The email's own password - for «📧 البريد» inside the Starlink browser. */
   mailPassword?: string;
+  /** Offered there when that password is missing or wrong. */
+  mailSuggestions?: string[];
 }
 
 export interface MailLogin {
   email?: string;
   password?: string;
+  /** Offered when the password field is empty or the password was wrong. */
+  suggestions?: string[];
 }
 
-/** 📧 البريد: the device's main email and that email's own password ("كود الإيميل"). */
-export function mailLoginFor(account: Pick<StarlinkAccountSummary, "expectedEmail" | "expectedEmailPassword">): MailLogin {
+/** 📧 البريد: the device's main email and that email's own password ("كود الإيميل"), plus the
+ * passwords to offer when that one is missing or wrong (its other codes, then the most used). */
+export function mailLoginFor(
+  account: Pick<StarlinkAccountSummary, "expectedEmail" | "expectedEmailPassword" | "extraEmails" | "starlinkPassword" | "wifiPassword">,
+  accounts: StarlinkAccountSummary[] = [],
+): MailLogin {
   const email = account.expectedEmail?.trim() || undefined;
   const password = account.expectedEmailPassword?.trim() || undefined;
-  return { ...(email ? { email } : {}), ...(password ? { password } : {}) };
+  // The saved one is already typed in; offering it again after it was refused is no help.
+  const suggestions = passwordSuggestionsFor({ name: "", ...account }, accounts).filter((v) => v !== password);
+  return { ...(email ? { email } : {}), ...(password ? { password } : {}), ...(suggestions.length ? { suggestions } : {}) };
 }
 
 /** The devices whose mailbox is signed in on this phone (the green «📧 البريد»). Empty off-app. */

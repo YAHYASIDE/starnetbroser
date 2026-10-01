@@ -78,6 +78,8 @@ interface Props {
   /** `waiveDebts`: drop the device's open D (deviceFault.ts) - only ever true when marking a fault. */
   onSetDeviceFault: (account: StarlinkAccountSummary, fault: StarlinkAccountSummary["deviceFault"], waiveDebts: boolean) => void;
   /** 🛠️ قيد الإصلاح on / off. */
+  /** Every device - for the passwords «📧 البريد» offers (usedPasswords.ts). */
+  allAccounts?: StarlinkAccountSummary[];
   /** 🆕 «✅ انتهى» on a device being created («إنشاء حساب جديد»). */
   onFinishCreation?: (account: StarlinkAccountSummary) => void;
   onSetRepair: (account: StarlinkAccountSummary, repair: StarlinkAccountSummary["underRepair"]) => void;
@@ -205,7 +207,7 @@ function IconUndo() {
 
 export function AccountCard({
   account, onEdit, ledgerEntries, allocations, onLedger, onDeviceStatement, client, onOpenClient, currencyStore,
-  context = "active", onSetDeviceFault, onSetRepair, onFinishCreation, mailSignedIn = false, onArchive, onSoftDelete, onRestore, onPermanentDelete, onConfirmRenewal,
+  context = "active", onSetDeviceFault, onSetRepair, onFinishCreation, allAccounts = [], mailSignedIn = false, onArchive, onSoftDelete, onRestore, onPermanentDelete, onConfirmRenewal,
   sessionNeedsLogin = false,
   previousDebts = [],
   onAddPreviousDebt,
@@ -276,10 +278,11 @@ export function AccountCard({
     if (opening) return;
     setOpening(true);
     try {
-      const mailPassword = mailLoginFor(account).password;
+      const mail = mailLoginFor(account, allAccounts);
       const result = await openIsolatedAccountBrowser(account.id, account.name || "حساب Starlink", {
         ...starlinkLoginFor(account),
-        ...(mailPassword ? { mailPassword } : {}),
+        ...(mail.password ? { mailPassword: mail.password } : {}),
+        ...(mail.suggestions ? { mailSuggestions: mail.suggestions } : {}),
       });
       if (!result.ok) {
         window.alert(result.message);
@@ -306,7 +309,7 @@ export function AccountCard({
     if (opening) return;
     setOpening(true);
     try {
-      const result = await openIsolatedMailbox(account.id, account.name || "البريد", mailLoginFor(account));
+      const result = await openIsolatedMailbox(account.id, account.name || "البريد", mailLoginFor(account, allAccounts));
       if (!result.ok) window.alert(result.message);
     } finally {
       setOpening(false);

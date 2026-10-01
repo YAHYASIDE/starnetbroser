@@ -1456,6 +1456,7 @@ export function HomeView({
                 onSetDeviceFault={handleSetDeviceFault}
                 onSetRepair={(target, repair) => patchAccount(target.id, { underRepair: repair })}
                 onFinishCreation={(target) => patchAccount(target.id, { creation: null })}
+                allAccounts={accounts}
                 onArchive={handleArchive}
                 onSoftDelete={handleSoftDelete}
                 onRestore={handleRestore}

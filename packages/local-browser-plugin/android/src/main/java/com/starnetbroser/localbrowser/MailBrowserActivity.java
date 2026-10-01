@@ -42,6 +42,8 @@ public class MailBrowserActivity extends AppCompatActivity {
     public static final String EXTRA_EMAIL = "com.starnetbroser.localbrowser.MAIL_EMAIL";
     public static final String EXTRA_PASSWORD = "com.starnetbroser.localbrowser.MAIL_PASSWORD";
     public static final String EXTRA_ACCOUNT_ID = "com.starnetbroser.localbrowser.MAIL_ACCOUNT_ID";
+    /** The passwords offered when the password field is empty or the password was wrong. */
+    public static final String EXTRA_SUGGESTIONS = "com.starnetbroser.localbrowser.MAIL_SUGGESTIONS";
     /** 🆕 «إنشاء حساب جديد»: open Microsoft's signup (filled with these names) instead of the inbox. */
     public static final String EXTRA_SIGNUP = "com.starnetbroser.localbrowser.MAIL_SIGNUP";
     public static final String EXTRA_SIGNUP_FIRST_NAME = "com.starnetbroser.localbrowser.MAIL_SIGNUP_FIRST_NAME";
@@ -63,16 +65,30 @@ public class MailBrowserActivity extends AppCompatActivity {
     private boolean sawSignupPage;
     private boolean movedOn;
 
+    /** 🔑 The password watch: offers the suggestions (once per empty field / wrong password) and
+     * keeps the password that got into the inbox as the device's «كود البريد». */
+    private static final long PASSWORD_WATCH_MS = 1500;
+    private final android.os.Handler watchHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable passwordPoll = this::checkPassword;
+    private String savedPassword;
+    private String[] suggestions = new String[0];
+    private String typedPassword;
+    private boolean offeredForField;
+    private boolean offeredForWrong;
+    private android.app.AlertDialog pickerDialog;
+
     /**
      * Opens one device's Outlook mailbox inside the app (isolated web view, autofilled, code
      * reading). Gmail is not offered: Google refuses its sign-in inside an app's web view.
      */
-    static void open(android.app.Activity activity, String accountId, String title, String email, String password) {
+    static void open(android.app.Activity activity, String accountId, String title, String email, String password, String[] suggestions) {
         if (MailUrl.providerFor(email) == MailUrl.Provider.GMAIL) {
             android.widget.Toast.makeText(activity, "بريد Gmail لا يُفتح داخل التطبيق - Google تمنع ذلك", android.widget.Toast.LENGTH_LONG).show();
             return;
         }
-        activity.startActivity(intentFor(activity, accountId, title, email, password));
+        Intent intent = intentFor(activity, accountId, title, email, password);
+        if (suggestions != null && suggestions.length > 0) intent.putExtra(EXTRA_SUGGESTIONS, suggestions);
+        activity.startActivity(intent);
     }
 
     /** Starts one device's Outlook mailbox inside the app. */
@@ -114,7 +130,10 @@ public class MailBrowserActivity extends AppCompatActivity {
             thenIntent = getIntent().getParcelableExtra(EXTRA_THEN);
         } else {
             homeUrl = MailUrl.inboxUrlFor(email);
-            autofillScript = LoginAutofill.script(email, getIntent().getStringExtra(EXTRA_PASSWORD));
+            savedPassword = getIntent().getStringExtra(EXTRA_PASSWORD);
+            autofillScript = LoginAutofill.script(email, savedPassword);
+            String[] offered = getIntent().getStringArrayExtra(EXTRA_SUGGESTIONS);
+            if (offered != null) suggestions = offered;
         }
 
         if (profileName == null || !WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
@@ -178,8 +197,80 @@ public class MailBrowserActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        if (!signup) watchHandler.postDelayed(passwordPoll, PASSWORD_WATCH_MS);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        watchHandler.removeCallbacks(passwordPoll);
+    }
+
+    /** Microsoft's password step: what is typed, whether it says "wrong", and when to offer the list. */
+    private void checkPassword() {
+        if (webView == null || isFinishing()) return;
+        if (!MailUrl.isAllowed(webView.getUrl())) {
+            watchHandler.postDelayed(passwordPoll, PASSWORD_WATCH_MS);
+            return;
+        }
+        webView.evaluateJavascript(StarlinkLoginWatch.SCRIPT, value -> {
+            if (webView == null) return;
+            StarlinkLoginWatch.State state = StarlinkLoginWatch.parse(value);
+            if (state != null && state.hasPasswordField) {
+                if (!state.password.isEmpty()) typedPassword = state.password;
+                boolean nothingSaved = savedPassword == null || savedPassword.isEmpty();
+                if (state.wrongPassword && !offeredForWrong) {
+                    offeredForWrong = true;
+                    offerPasswords("❌ كلمة المرور غير صحيحة - اختر غيرها");
+                } else if (state.password.isEmpty() && nothingSaved && !offeredForField) {
+                    offeredForField = true;
+                    offerPasswords("🔑 اختر كلمة مرور البريد");
+                }
+            } else if (state != null) {
+                // The password step is gone (next step, or the inbox): offer again next time.
+                offeredForField = false;
+                offeredForWrong = false;
+            }
+            watchHandler.postDelayed(passwordPoll, PASSWORD_WATCH_MS);
+        });
+    }
+
+    /** The suggestions as a list (shown as written, like «كلمات المرور المستعملة»); the picked one
+     * is typed into the visible password field - nothing is pressed. */
+    private void offerPasswords(String title) {
+        if (suggestions.length == 0 || isFinishing() || (pickerDialog != null && pickerDialog.isShowing())) return;
+        pickerDialog = new android.app.AlertDialog.Builder(this)
+            .setTitle(title)
+            .setItems(suggestions, (dialog, which) -> {
+                String picked = suggestions[which];
+                typedPassword = picked;
+                if (webView != null) webView.evaluateJavascript(StarlinkLoginWatch.fillPasswordScript(picked), null);
+            })
+            .setNegativeButton("أكتبها بنفسي", null)
+            .show();
+    }
+
+    /** In the inbox with a password other than the saved one: it becomes the device's «كود البريد». */
+    private void keepWorkingPassword() {
+        if (accountId == null || !StarlinkLoginWatch.isNewPassword(typedPassword, savedPassword)) return;
+        com.getcapacitor.JSObject fields = new com.getcapacitor.JSObject();
+        fields.put("mailPassword", typedPassword);
+        String syncId = PendingSyncStore.save(getApplicationContext(), accountId, fields);
+        if (syncId != null) {
+            LocalBrowserPlugin.emitAccountDataSynced(syncId, accountId, fields);
+            savedPassword = typedPassword;
+            Toast.makeText(this, "✅ حُفظت كلمة مرور البريد لهذا الجهاز", Toast.LENGTH_LONG).show();
+        }
+        typedPassword = null;
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
+        watchHandler.removeCallbacks(passwordPoll);
+        if (pickerDialog != null) pickerDialog.dismiss();
         if (webView != null) {
             webView.stopLoading();
             webView.setWebViewClient(null);
@@ -265,7 +356,10 @@ public class MailBrowserActivity extends AppCompatActivity {
             super.onPageFinished(view, url);
             // Remembers whether this device's mailbox is signed in (the green «📧 البريد» button).
             MailUrl.SessionState state = MailUrl.sessionState(url);
-            if (state == MailUrl.SessionState.SIGNED_IN) MailSessionStore.markSignedIn(MailBrowserActivity.this, accountId, email);
+            if (state == MailUrl.SessionState.SIGNED_IN) {
+                MailSessionStore.markSignedIn(MailBrowserActivity.this, accountId, email);
+                if (!signup) keepWorkingPassword();
+            }
             else if (state == MailUrl.SessionState.SIGNED_OUT) MailSessionStore.markSignedOut(MailBrowserActivity.this, accountId);
             if (autofillScript != null && MailUrl.isAllowed(url)) view.evaluateJavascript(autofillScript, null);
             if (signup) {

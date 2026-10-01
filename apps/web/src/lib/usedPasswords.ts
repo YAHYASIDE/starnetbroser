@@ -38,3 +38,12 @@ export function usedPasswords(accounts: PasswordFields[]): UsedPassword[] {
     .sort((a, b) => b.count - a.count || a.firstSeen - b.firstSeen)
     .map(({ value, count, devices }) => ({ value, count, devices }));
 }
+
+/** What the mailbox offers when its password field is empty or the password was wrong: this
+ * device's own codes first (the email's code, then the Starlink / Wi-Fi ones), then the passwords
+ * used most on the other devices. At most `limit`, no repeats. */
+export function passwordSuggestionsFor(account: PasswordFields, accounts: PasswordFields[], limit = 8): string[] {
+  const own = [account.expectedEmailPassword, ...(account.extraEmails ?? []).map((e) => e.password), account.starlinkPassword, account.wifiPassword];
+  const values = [...own.map((v) => v?.trim() ?? ""), ...usedPasswords(accounts).map((p) => p.value)];
+  return [...new Set(values.filter((v) => v.length > 0))].slice(0, limit);
+}
