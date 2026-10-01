@@ -115,6 +115,7 @@ import {
   onAccountDataSynced,
   mailExtrasFor,
   openAccountCreation,
+  openAutoSignIn,
   openIsolatedAccountBrowser,
   starlinkLoginFor,
   syncAutoSyncAccountList,
@@ -784,8 +785,8 @@ export function HomeView({
     setSelectedDay(null);
     setQuery("");
     setDialog(null);
-    // A brand-new device (not a rep's, whose login is already transferred): straight into its
-    // Starlink browser with the email and password typed into the login form.
+    // A brand-new device (not a rep's, whose login is already transferred): 🤖 its mailbox first,
+    // signed in by itself, then its Starlink browser, signed in by itself (the code from the mailbox).
     const isNew = !accounts.some((item) => item.id === account.id);
     if (isNew && account.creation && isRunningInAndroidApp()) {
       // 🆕 «إنشاء حساب جديد»: the new email's signup first, then «تفعيل Starlink».
@@ -793,7 +794,7 @@ export function HomeView({
         if (!result.ok) pushToast(result.message);
       });
     } else if (isNew && !repRequestId && isRunningInAndroidApp() && account.expectedEmail?.trim()) {
-      void openIsolatedAccountBrowser(account.id, account.name || "حساب Starlink", { ...starlinkLoginFor(account), ...mailExtrasFor(account, accounts) }).then((result) => {
+      void openAutoSignIn(account, accounts).then((result) => {
         if (!result.ok) pushToast(result.message);
       });
     }

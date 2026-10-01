@@ -1,6 +1,6 @@
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { describe, expect, it } from "vitest";
-import { mailLoginFor, starlinkLoginFor } from "./localBrowser";
+import { autoSignInOptionsFor, mailLoginFor, starlinkLoginFor } from "./localBrowser";
 
 describe("starlinkLoginFor", () => {
   it("fills the email and uses the Wi-Fi code as the Starlink password", () => {
@@ -27,6 +27,31 @@ describe("mailLoginFor", () => {
       password: "demo-mail",
       suggestions: ["demo-wifi", "demo-common"],
       recoveryEmail: "starnet.om@gmail.com",
+    });
+  });
+});
+
+describe("autoSignInOptionsFor", () => {
+  it("opens the mailbox signed in by itself, then the Starlink browser signed in by itself", () => {
+    const account = { id: "d1", name: "جهاز 1", expectedEmail: "a@outlook.com", expectedEmailPassword: "demo-mail", wifiPassword: "demo-wifi" } as StarlinkAccountSummary;
+    expect(autoSignInOptionsFor(account, [account])).toEqual({
+      accountId: "d1",
+      accountName: "جهاز 1",
+      email: "a@outlook.com",
+      password: "demo-mail",
+      suggestions: ["demo-wifi"],
+      recoveryEmail: "starnet.om@gmail.com",
+      auto: true,
+      then: {
+        accountName: "جهاز 1",
+        url: "https://starlink.com/account/home",
+        loginEmail: "a@outlook.com",
+        loginPassword: "demo-wifi",
+        mailPassword: "demo-mail",
+        mailSuggestions: ["demo-wifi"],
+        mailRecoveryEmail: "starnet.om@gmail.com",
+        autoLogin: true,
+      },
     });
   });
 });

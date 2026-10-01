@@ -68,6 +68,9 @@ public class AccountBrowserActivity extends AppCompatActivity {
     public static final String EXTRA_ACTIVATION_LAST_NAME = "com.starnetbroser.localbrowser.ACTIVATION_LAST_NAME";
     public static final String EXTRA_ACTIVATION_EMAIL = "com.starnetbroser.localbrowser.ACTIVATION_EMAIL";
     public static final String EXTRA_ACTIVATION_PHONE = "com.starnetbroser.localbrowser.ACTIVATION_PHONE";
+    /** 🤖 «إضافة الحساب»: press «التالي» and «تسجيل الدخول» by itself once the fields are typed
+     * (StarlinkLoginWatch.autoStep); «التحقق بخطوتين» is already typed and pressed by itself. */
+    public static final String EXTRA_AUTO_LOGIN = "com.starnetbroser.localbrowser.AUTO_LOGIN";
 
     private static final String NOTIFICATION_PERMISSION_PREFS = "starnet_notification_permission";
     private static final String KEY_ASKED_NOTIFICATION_PERMISSION = "asked_post_notifications";
@@ -152,6 +155,14 @@ public class AccountBrowserActivity extends AppCompatActivity {
     private boolean warnedWrongPassword;
     private long lastFillAt;
     private int autoFills;
+    /** 🤖 The automatic sign-in (EXTRA_AUTO_LOGIN): on until signed in, a wrong password, or a page
+     * that doesn't move on after a few presses. */
+    private static final long AUTO_CLICK_GAP_MS = 4000;
+    private static final int AUTO_MAX_CLICKS_PER_STEP = 3;
+    private boolean autoLogin;
+    private String autoLastClick;
+    private int autoClicks;
+    private long autoLastClickAt;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -164,6 +175,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
         homeUrl = getIntent().getStringExtra(EXTRA_URL);
         autofillScript = LoginAutofill.script(getIntent().getStringExtra(EXTRA_LOGIN_EMAIL), getIntent().getStringExtra(EXTRA_LOGIN_PASSWORD));
         savedLoginPassword = getIntent().getStringExtra(EXTRA_LOGIN_PASSWORD);
+        autoLogin = getIntent().getBooleanExtra(EXTRA_AUTO_LOGIN, false);
         activationScript = SignupFill.starlinkScript(getIntent().getStringExtra(EXTRA_ACTIVATION_KIT),
             getIntent().getStringExtra(EXTRA_ACTIVATION_FIRST_NAME), getIntent().getStringExtra(EXTRA_ACTIVATION_LAST_NAME),
             getIntent().getStringExtra(EXTRA_ACTIVATION_EMAIL), getIntent().getStringExtra(EXTRA_ACTIVATION_PHONE));
@@ -233,6 +245,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
 
         webView.loadUrl(homeUrl);
         requestNotificationPermissionOnceIfNeeded();
+        if (autoLogin) Toast.makeText(this, "🤖 تسجيل الدخول إلى Starlink يجري وحده - ورمز التحقق يُجلب من البريد", Toast.LENGTH_LONG).show();
     }
 
     /**
@@ -300,6 +313,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
                 if (!state.password.isEmpty()) typedPassword = state.password;
                 if (state.wrongPassword && !warnedWrongPassword) {
                     warnedWrongPassword = true;
+                    autoLogin = false; // the right one is the operator's to type
                     Toast.makeText(this, "❌ كلمة المرور غير صحيحة - اكتب الصحيحة وسيحفظها التطبيق لهذا الجهاز بعد الدخول", Toast.LENGTH_LONG).show();
                 }
             } else if (state != null && typedPassword != null && StarlinkLoginWatch.isSignedInUrl(webView.getUrl())) {
@@ -316,8 +330,33 @@ public class AccountBrowserActivity extends AppCompatActivity {
                 typedPassword = null;
                 warnedWrongPassword = false;
             }
+            if (autoLogin && state != null) autoStep(state);
             twoStepHandler.postDelayed(loginWatchPoll, LOGIN_WATCH_MS);
         });
+    }
+
+    /** 🤖 One automatic press on Starlink's sign-in («التالي», «تسجيل الدخول»), seconds apart and a
+     * few times at most per step; over once an account page opens. */
+    private void autoStep(StarlinkLoginWatch.State state) {
+        String url = webView.getUrl();
+        if (StarlinkLoginWatch.isSignedInUrl(url)) {
+            autoLogin = false;
+            return;
+        }
+        String click = StarlinkLoginWatch.autoStep(state, url);
+        if (click == null || System.currentTimeMillis() - autoLastClickAt < AUTO_CLICK_GAP_MS) return;
+        if (!click.equals(autoLastClick)) {
+            autoLastClick = click;
+            autoClicks = 0;
+        }
+        if (autoClicks >= AUTO_MAX_CLICKS_PER_STEP) {
+            autoLogin = false;
+            Toast.makeText(this, "⏸️ الصفحة لا تتقدم - أكمل تسجيل الدخول بنفسك", Toast.LENGTH_LONG).show();
+            return;
+        }
+        autoClicks++;
+        autoLastClickAt = System.currentTimeMillis();
+        webView.evaluateJavascript(MsSignIn.clickScript(click), null);
     }
 
     private void scheduleTwoStepCheck() {

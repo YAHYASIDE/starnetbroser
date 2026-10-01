@@ -28,6 +28,10 @@ export interface OpenAccountBrowserOptions {
   /** 🆕 «إنشاء حساب جديد»: «تفعيل Starlink» is filled with the KIT (then «متابعة»), and
    * «معلومات الاتصال» with the name, email and phone - the rest is done by hand. */
   activation?: StarlinkActivationFill;
+  /** 🤖 «إضافة الحساب»: «التالي» and «تسجيل الدخول» are pressed by itself once the fields are
+   * typed, and the «التحقق بخطوتين» code is read from the mailbox and entered - no hand needed.
+   * Stops on a wrong password. */
+  autoLogin?: boolean;
 }
 
 export interface StarlinkActivationFill {
@@ -67,7 +71,13 @@ export interface OpenMailBrowserOptions {
   /** 🆕 «إنشاء حساب جديد»: Microsoft's signup (email, password and these names typed in, nothing
    * pressed) instead of the inbox. */
   signup?: { firstName: string; lastName: string; recoveryEmail?: string };
-  /** With `signup`: the device's Starlink browser opened once the new inbox opens. */
+  /** 🤖 «إضافة الحساب»: Microsoft's sign-in steps are pressed through by itself - the saved
+   * password first («Use your password»), a code sent to the shop's Gmail (`recoveryEmail`, read
+   * through «بريد الرموز») only when the password is missing or wrong and Microsoft offers that
+   * address, «Add an email address» / «Verify your email» filled with it, terms and «Stay signed
+   * in?» accepted. Stops (and says why) on an unknown page or a refused password. */
+  auto?: boolean;
+  /** With `signup` or `auto`: the device's Starlink browser opened once the inbox opens. */
   then?: Omit<OpenAccountBrowserOptions, "accountId">;
 }
 

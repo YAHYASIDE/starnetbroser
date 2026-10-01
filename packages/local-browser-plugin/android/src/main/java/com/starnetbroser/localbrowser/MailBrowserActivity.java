@@ -52,8 +52,10 @@ public class MailBrowserActivity extends AppCompatActivity {
     public static final String EXTRA_SIGNUP_LAST_NAME = "com.starnetbroser.localbrowser.MAIL_SIGNUP_LAST_NAME";
     /** Microsoft's «Add an email address» (where its codes go) is filled with this one. */
     public static final String EXTRA_SIGNUP_RECOVERY = "com.starnetbroser.localbrowser.MAIL_SIGNUP_RECOVERY";
-    /** The device's «تفعيل Starlink» browser, started once the new inbox opens. */
+    /** The device's Starlink browser («تفعيل Starlink», or the sign-in), started once the inbox opens. */
     public static final String EXTRA_THEN = "com.starnetbroser.localbrowser.MAIL_THEN";
+    /** 🤖 «إضافة الحساب»: sign in to the mailbox by itself (MsSignIn), then `EXTRA_THEN`. */
+    public static final String EXTRA_AUTO = "com.starnetbroser.localbrowser.MAIL_AUTO";
 
     private WebView webView;
     private ProgressBar progressBar;
@@ -68,6 +70,19 @@ public class MailBrowserActivity extends AppCompatActivity {
     private Intent thenIntent;
     private boolean sawSignupPage;
     private boolean movedOn;
+
+    /** 🤖 The automatic sign-in: Microsoft's steps are pressed through by MsSignIn (the operator
+     * does nothing); stops on an unknown page or a refused password (autoStopped), and on the
+     * inbox moves on to the device's Starlink browser. */
+    private static final long AUTO_CLICK_GAP_MS = 4000;
+    private static final int AUTO_MAX_CLICKS_PER_STEP = 3;
+    private boolean auto;
+    private boolean autoStopped;
+    private boolean autoPasswordFailed;
+    private MsSignIn.Kind autoKind;
+    private int autoClicks;
+    private long autoLastClickAt;
+    private String recoveryEmail;
 
     /** 🔑 The password watch: offers the suggestions (once per empty field / wrong password) and
      * keeps the password that got into the inbox as the device's «كود البريد». */
@@ -102,13 +117,23 @@ public class MailBrowserActivity extends AppCompatActivity {
     }
 
     static void open(android.app.Activity activity, String accountId, String title, String email, String password, String[] suggestions, String recoveryEmail) {
+        open(activity, accountId, title, email, password, suggestions, recoveryEmail, false, null);
+    }
+
+    /** With `auto`: 🤖 signs in by itself (MsSignIn) and, once the inbox opens, starts `then`
+     * (the device's Starlink browser - its own automatic sign-in). */
+    static void open(android.app.Activity activity, String accountId, String title, String email, String password, String[] suggestions,
+                     String recoveryEmail, boolean auto, Intent then) {
         if (MailUrl.providerFor(email) == MailUrl.Provider.GMAIL) {
             android.widget.Toast.makeText(activity, "بريد Gmail لا يُفتح داخل التطبيق - Google تمنع ذلك", android.widget.Toast.LENGTH_LONG).show();
+            if (then != null) activity.startActivity(then); // straight to Starlink: its code is typed by hand
             return;
         }
         Intent intent = intentFor(activity, accountId, title, email, password);
         if (suggestions != null && suggestions.length > 0) intent.putExtra(EXTRA_SUGGESTIONS, suggestions);
         if (recoveryEmail != null && !recoveryEmail.trim().isEmpty()) intent.putExtra(EXTRA_RECOVERY_EMAIL, recoveryEmail.trim());
+        if (auto) intent.putExtra(EXTRA_AUTO, true);
+        if (then != null) intent.putExtra(EXTRA_THEN, then);
         activity.startActivity(intent);
     }
 
@@ -157,7 +182,10 @@ public class MailBrowserActivity extends AppCompatActivity {
             autofillScript = LoginAutofill.script(email, savedPassword);
             String[] offered = getIntent().getStringArrayExtra(EXTRA_SUGGESTIONS);
             if (offered != null) suggestions = offered;
-            recoveryScript = GmailCodes.recoveryEmailScript(getIntent().getStringExtra(EXTRA_RECOVERY_EMAIL));
+            recoveryEmail = getIntent().getStringExtra(EXTRA_RECOVERY_EMAIL);
+            recoveryScript = GmailCodes.recoveryEmailScript(recoveryEmail);
+            auto = getIntent().getBooleanExtra(EXTRA_AUTO, false);
+            thenIntent = getIntent().getParcelableExtra(EXTRA_THEN);
         }
 
         if (profileName == null || !WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
@@ -198,6 +226,9 @@ public class MailBrowserActivity extends AppCompatActivity {
         if (signup && thenIntent != null) {
             BrowserBar.setUp(this, () -> { if (webView.canGoBack()) webView.goBack(); }, this::reload, "🛰️", "تفعيل Starlink", this::moveOnToStarlink);
             Toast.makeText(this, "🆕 أكمل إنشاء البريد (الخانات مكتوبة) - بعد فتح صندوق البريد ننتقل إلى تفعيل Starlink", Toast.LENGTH_LONG).show();
+        } else if (auto && thenIntent != null) {
+            BrowserBar.setUp(this, () -> { if (webView.canGoBack()) webView.goBack(); }, this::reload, "🛰️", "Starlink", this::moveOnToStarlink);
+            Toast.makeText(this, "🤖 تسجيل الدخول إلى البريد يجري وحده - ثم ننتقل إلى Starlink", Toast.LENGTH_LONG).show();
         } else {
             BrowserBar.setUp(this, () -> { if (webView.canGoBack()) webView.goBack(); }, this::reload, "📋", "نسخ الرمز", this::copyCode);
         }
@@ -239,7 +270,7 @@ public class MailBrowserActivity extends AppCompatActivity {
         webView.evaluateJavascript(recoveryScript, value -> {
             if ("\"ok\"".equals(value)) {
                 recoveryFilled = true;
-                Toast.makeText(this, "📨 كُتب بريد الاسترداد - اضغط Next", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "📨 كُتب بريد الاسترداد" + (auto && !autoStopped ? "" : " - اضغط Next"), Toast.LENGTH_LONG).show();
             }
         });
     }
@@ -282,7 +313,7 @@ public class MailBrowserActivity extends AppCompatActivity {
                     if (webView != null) webView.evaluateJavascript(GmailCodes.fillScript(code), null);
                     ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
                     if (clipboard != null) clipboard.setPrimaryClip(ClipData.newPlainText("code", code));
-                    Toast.makeText(MailBrowserActivity.this, "📨 كُتب الرمز " + code + " - اضغط Next", Toast.LENGTH_LONG).show();
+                    Toast.makeText(MailBrowserActivity.this, "📨 كُتب الرمز " + code + (auto && !autoStopped ? "" : " - اضغط Next"), Toast.LENGTH_LONG).show();
                 }
 
                 @Override
@@ -317,6 +348,11 @@ public class MailBrowserActivity extends AppCompatActivity {
             watchHandler.postDelayed(passwordPoll, PASSWORD_WATCH_MS);
             return;
         }
+        if (auto && !autoStopped) {
+            // 🤖 No list to pick from: the saved password is tried, and MsSignIn presses the buttons.
+            autoStep();
+            return;
+        }
         webView.evaluateJavascript(StarlinkLoginWatch.SCRIPT, value -> {
             if (webView == null) return;
             StarlinkLoginWatch.State state = StarlinkLoginWatch.parse(value);
@@ -348,6 +384,53 @@ public class MailBrowserActivity extends AppCompatActivity {
             }
             watchHandler.postDelayed(passwordPoll, PASSWORD_WATCH_MS);
         });
+    }
+
+    /** 🤖 One automatic step on Microsoft's sign-in pages (MsSignIn.decide): type the saved
+     * password, press the one right button, or stop and say why. At most a few presses per step,
+     * seconds apart - a page that doesn't move on is left to the operator. */
+    private void autoStep() {
+        if (webView == null || !GmailCodes.isMicrosoftStep(webView.getUrl())) {
+            watchHandler.postDelayed(passwordPoll, PASSWORD_WATCH_MS);
+            return;
+        }
+        webView.evaluateJavascript(MsSignIn.STATE_SCRIPT, value -> {
+            if (webView == null || isFinishing()) return;
+            MsSignIn.State state = MsSignIn.parse(value);
+            if (state != null) {
+                boolean hasPassword = savedPassword != null && !savedPassword.isEmpty();
+                MsSignIn.Step step = MsSignIn.decide(state, hasPassword, autoPasswordFailed, recoveryEmail);
+                MsSignIn.Kind kind = MsSignIn.kindOf(state);
+                if (kind != autoKind) {
+                    autoKind = kind;
+                    autoClicks = 0;
+                    if (kind != MsSignIn.Kind.PASSWORD) directFillTried = false; // a later password step is typed again
+                }
+                if (step.passwordFailed) autoPasswordFailed = true;
+                if (step.stop != null) {
+                    stopAuto("⏸️ " + step.stop);
+                } else if (step.fillPassword && !directFillTried) {
+                    directFillTried = true;
+                    typedPassword = savedPassword;
+                    webView.evaluateJavascript(StarlinkLoginWatch.fillPasswordScript(savedPassword), null);
+                } else if (step.click != null && System.currentTimeMillis() - autoLastClickAt > AUTO_CLICK_GAP_MS) {
+                    if (autoClicks >= AUTO_MAX_CLICKS_PER_STEP) {
+                        stopAuto("⏸️ الصفحة لا تتقدم - أكمل تسجيل الدخول بنفسك");
+                    } else {
+                        autoClicks++;
+                        autoLastClickAt = System.currentTimeMillis();
+                        webView.evaluateJavascript(MsSignIn.clickScript(step.click), null);
+                    }
+                }
+            }
+            if (!isFinishing()) watchHandler.postDelayed(passwordPoll, PASSWORD_WATCH_MS);
+        });
+    }
+
+    /** The automatic sign-in stops (the operator finishes by hand); the code typing still works. */
+    private void stopAuto(String message) {
+        autoStopped = true;
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
     }
 
     /** The suggestions as a list (shown as written, like «كلمات المرور المستعملة»); the picked one
@@ -412,7 +495,8 @@ public class MailBrowserActivity extends AppCompatActivity {
         webView.reload();
     }
 
-    /** 🆕 The new email is made: on to «تفعيل Starlink» in the device's own browser (once). */
+    /** The inbox is open (a new email made, or 🤖 signed in): on to the device's own Starlink
+     * browser - «تفعيل Starlink» or the sign-in (once). */
     private void moveOnToStarlink() {
         if (movedOn || thenIntent == null) return;
         movedOn = true;
@@ -484,6 +568,10 @@ public class MailBrowserActivity extends AppCompatActivity {
                     Toast.makeText(MailBrowserActivity.this, "✅ أُنشئ البريد - ننتقل إلى تفعيل Starlink", Toast.LENGTH_LONG).show();
                     moveOnToStarlink();
                 }
+            } else if (auto && state == MailUrl.SessionState.SIGNED_IN && thenIntent != null && !movedOn) {
+                // 🤖 Signed in to the mailbox: on to Starlink, whose sign-in runs by itself too.
+                Toast.makeText(MailBrowserActivity.this, "✅ البريد مسجّل الدخول - ننتقل إلى Starlink", Toast.LENGTH_LONG).show();
+                moveOnToStarlink();
             }
         }
 

@@ -379,6 +379,8 @@ public class LocalBrowserPlugin extends Plugin {
         // tap itself came from.
         intent.setData(Uri.parse("starnet-account://" + Uri.encode(accountId)));
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_DOCUMENT | Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
+        // 🤖 The Starlink sign-in pressed through by itself (after the automatic mailbox sign-in).
+        if (options.optBoolean("autoLogin", false)) intent.putExtra(AccountBrowserActivity.EXTRA_AUTO_LOGIN, true);
         JSObject activation = options.getJSObject("activation");
         if (activation != null) {
             intent.putExtra(AccountBrowserActivity.EXTRA_ACTIVATION_KIT, activation.getString("kit"));
@@ -405,9 +407,12 @@ public class LocalBrowserPlugin extends Plugin {
         try {
             JSObject signup = call.getObject("signup");
             if (signup == null) {
+                // 🤖 With `auto`: signs in by itself, then `then` (the device's Starlink browser).
+                JSObject then = call.getObject("then");
                 MailBrowserActivity.open(getActivity(), accountId, call.getString("accountName", accountId),
                     call.getString("email"), call.getString("password"), stringArray(call.getData(), "suggestions"),
-                    call.getString("recoveryEmail"));
+                    call.getString("recoveryEmail"), Boolean.TRUE.equals(call.getBoolean("auto", false)),
+                    then != null ? accountBrowserIntent(accountId, then) : null);
             } else {
                 // 🆕 «إنشاء حساب جديد»: Microsoft's signup instead of the inbox, then «تفعيل Starlink».
                 Intent intent = MailBrowserActivity.intentFor(getActivity(), accountId, call.getString("accountName", accountId),

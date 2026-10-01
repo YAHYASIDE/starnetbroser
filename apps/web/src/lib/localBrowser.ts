@@ -4,6 +4,7 @@ import { Capacitor, PluginListenerHandle } from "@capacitor/core";
 import {
   AccountDataSyncedEvent,
   LocalBrowser,
+  OpenMailBrowserOptions,
   PendingAccountSync,
   STARLINK_ACCOUNT_HOME_URL,
   STARLINK_ACTIVATE_URL,
@@ -146,6 +147,42 @@ export async function openIsolatedAccountBrowser(accountId: string, accountName:
     return { ok: true };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : "تعذر فتح المتصفح المحلي" };
+  }
+}
+
+/**
+ * 🤖 «إضافة الحساب» for a device that already has an email: its mailbox first, signed in by itself
+ * (the saved «كود البريد», else a code to the shop's Gmail), then its Starlink browser, signed in
+ * by itself too («التالي», «تسجيل الدخول», the «التحقق بخطوتين» code from the mailbox). A Gmail
+ * device skips the mailbox step (Google refuses its sign-in inside the app).
+ */
+export function autoSignInOptionsFor(account: StarlinkAccountSummary, accounts: StarlinkAccountSummary[] = []): OpenMailBrowserOptions {
+  const mail = mailLoginFor(account, accounts);
+  return {
+    accountId: account.id,
+    accountName: account.name || "حساب Starlink",
+    ...mail,
+    auto: true,
+    then: {
+      accountName: account.name || "حساب Starlink",
+      url: STARLINK_ACCOUNT_HOME_URL,
+      ...starlinkLoginFor(account),
+      ...mailExtrasFor(account, accounts),
+      autoLogin: true,
+    },
+  };
+}
+
+export async function openAutoSignIn(account: StarlinkAccountSummary, accounts: StarlinkAccountSummary[] = []): Promise<OpenResult> {
+  if (!isRunningInAndroidApp()) return { ok: false, message: ANDROID_ONLY_MESSAGE };
+  try {
+    const { supported } = await LocalBrowser.isSupported();
+    if (!supported) return { ok: false, message: UNSUPPORTED_DEVICE_MESSAGE };
+    markInternalLeave();
+    await LocalBrowser.openMailBrowser(autoSignInOptionsFor(account, accounts));
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : "تعذر فتح البريد" };
   }
 }
 
