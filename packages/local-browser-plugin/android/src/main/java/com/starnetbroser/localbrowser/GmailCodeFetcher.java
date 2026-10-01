@@ -115,7 +115,7 @@ final class GmailCodeFetcher implements CodeSource {
             listener.onGiveUp();
             return;
         }
-        DriveAuthorizer.authorizeSilently(activity, GmailCodes.SCOPE, new DriveAuthorizer.TokenCallback() {
+        DriveAuthorizer.authorizeSilently(activity, GmailCodes.SCOPE, linkedEmail(activity), new DriveAuthorizer.TokenCallback() {
             @Override
             public void onToken(String token) {
                 if (stopped) return;

@@ -63,25 +63,31 @@ final class DriveAuthorizer {
     }
 
     void authorize(Activity activity, PluginCall call, boolean interactive) {
-        authorize(activity, DRIVE_FILE_SCOPE, interactive, "يلزم ربط Google Drive من الإعدادات", forCall(call));
+        authorize(activity, DRIVE_FILE_SCOPE, null, interactive, "يلزم ربط Google Drive من الإعدادات", forCall(call));
     }
 
-    /** A token for `scope` (Drive's, or 📨 Gmail's read-only one). Non-interactive never shows a
-     * Google screen: it fails with ERROR_CONSENT_REQUIRED and `consentMessage`. */
-    void authorize(Activity activity, String scope, boolean interactive, String consentMessage, TokenCallback callback) {
-        authorizeWith(activity, scope, interactive, consentMessage, callback, consentLauncher);
+    /** A token for `scope` (Drive's, or 📨 Gmail's read-only one), for `accountEmail` when given
+     * (the Google account on this phone with that address - Google then never picks another one,
+     * such as the account already linked for Drive; real, confirmed) or whichever account Google
+     * picks when null. Non-interactive never shows a Google screen: it fails with
+     * ERROR_CONSENT_REQUIRED and `consentMessage`. */
+    void authorize(Activity activity, String scope, String accountEmail, boolean interactive, String consentMessage, TokenCallback callback) {
+        authorizeWith(activity, scope, accountEmail, interactive, consentMessage, callback, consentLauncher);
     }
 
     /** The same, from a screen that has no consent launcher (the mail browser): never interactive. */
-    static void authorizeSilently(Activity activity, String scope, TokenCallback callback) {
-        new DriveAuthorizer().authorizeWith(activity, scope, false, "", callback, null);
+    static void authorizeSilently(Activity activity, String scope, String accountEmail, TokenCallback callback) {
+        new DriveAuthorizer().authorizeWith(activity, scope, accountEmail, false, "", callback, null);
     }
 
-    private void authorizeWith(Activity activity, String scope, boolean interactive, String consentMessage,
+    private void authorizeWith(Activity activity, String scope, String accountEmail, boolean interactive, String consentMessage,
                                TokenCallback callback, ActivityResultLauncher<IntentSenderRequest> launcher) {
-        AuthorizationRequest request = AuthorizationRequest.builder()
-            .setRequestedScopes(Collections.singletonList(new Scope(scope)))
-            .build();
+        AuthorizationRequest.Builder builder = AuthorizationRequest.builder()
+            .setRequestedScopes(Collections.singletonList(new Scope(scope)));
+        if (accountEmail != null && !accountEmail.trim().isEmpty()) {
+            builder.setAccount(new android.accounts.Account(accountEmail.trim(), "com.google"));
+        }
+        AuthorizationRequest request = builder.build();
         Identity.getAuthorizationClient(activity)
             .authorize(request)
             .addOnSuccessListener(result -> {

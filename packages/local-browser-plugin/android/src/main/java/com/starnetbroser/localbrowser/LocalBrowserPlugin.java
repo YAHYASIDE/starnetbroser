@@ -179,7 +179,7 @@ public class LocalBrowserPlugin extends Plugin {
             call.reject("اكتب بريد Gmail أولاً");
             return;
         }
-        driveAuthorizer.authorize(getActivity(), GmailCodes.SCOPE, true, "يلزم ربط Gmail", new DriveAuthorizer.TokenCallback() {
+        driveAuthorizer.authorize(getActivity(), GmailCodes.SCOPE, email, true, "يلزم ربط Gmail", new DriveAuthorizer.TokenCallback() {
             @Override
             public void onToken(String token) {
                 telegramExecutor.execute(() -> {
@@ -201,7 +201,7 @@ public class LocalBrowserPlugin extends Plugin {
 
             @Override
             public void onError(String message, String code) {
-                call.reject(message, code);
+                call.reject(message + " - تأكد أن " + email + " مضاف في إعدادات الهاتف ← الحسابات", code);
             }
         });
     }
@@ -224,7 +224,7 @@ public class LocalBrowserPlugin extends Plugin {
     /** «🔍 جرّب»: the newest code of the last day in the linked Gmail (no `code` when none). */
     @PluginMethod
     public void latestGmailCode(PluginCall call) {
-        DriveAuthorizer.authorizeSilently(getActivity(), GmailCodes.SCOPE, new DriveAuthorizer.TokenCallback() {
+        DriveAuthorizer.authorizeSilently(getActivity(), GmailCodes.SCOPE, GmailCodeFetcher.linkedEmail(getContext()), new DriveAuthorizer.TokenCallback() {
             @Override
             public void onToken(String token) {
                 telegramExecutor.execute(() -> {
