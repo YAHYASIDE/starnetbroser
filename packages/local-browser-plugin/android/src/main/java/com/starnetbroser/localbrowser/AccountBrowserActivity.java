@@ -129,6 +129,15 @@ public class AccountBrowserActivity extends AppCompatActivity {
      * then it reads the code by itself again. Real, confirmed miss: after signing in to the
      * mailbox the code never came automatically on returning to Starlink. */
     private boolean autoCodeWaitsForMail;
+
+    // ---- كلمة المرور: Starlink said it is wrong, the operator typed the right one -> kept ----
+    private static final long LOGIN_WATCH_MS = 1500;
+    private final Runnable loginWatchPoll = this::checkLogin;
+    /** The password this device signs in with now (the saved one, then any new one that worked). */
+    private String savedLoginPassword;
+    /** The last password seen typed in Starlink's form, waiting to see whether it gets in. */
+    private String typedPassword;
+    private boolean warnedWrongPassword;
     private long lastFillAt;
     private int autoFills;
 
@@ -142,6 +151,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
         String accountName = getIntent().getStringExtra(EXTRA_ACCOUNT_NAME);
         homeUrl = getIntent().getStringExtra(EXTRA_URL);
         autofillScript = LoginAutofill.script(getIntent().getStringExtra(EXTRA_LOGIN_EMAIL), getIntent().getStringExtra(EXTRA_LOGIN_PASSWORD));
+        savedLoginPassword = getIntent().getStringExtra(EXTRA_LOGIN_PASSWORD);
 
         // Defensive re-check: the plugin already verified this before
         // starting the Activity, but this screen must never silently fall
@@ -243,6 +253,8 @@ public class AccountBrowserActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        twoStepHandler.removeCallbacks(loginWatchPoll);
+        twoStepHandler.postDelayed(loginWatchPoll, LOGIN_WATCH_MS);
         if (autoCodeWaitsForMail) {
             autoCodeWaitsForMail = false;
             autoCodeOff = false;
@@ -255,6 +267,42 @@ public class AccountBrowserActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         twoStepHandler.removeCallbacks(twoStepPoll);
+        twoStepHandler.removeCallbacks(loginWatchPoll);
+    }
+
+    /** Every 1.5 s on Starlink's pages: remembers the password typed in the sign-in form, says so
+     * once when Starlink calls it wrong, and - once an account page opens with a password that
+     * isn't the saved one - keeps it for this device (the old one is replaced). */
+    private void checkLogin() {
+        if (webView == null || accountId == null || syncSteps != null || !AllowedUrl.isAllowed(webView.getUrl())) {
+            if (webView != null) twoStepHandler.postDelayed(loginWatchPoll, LOGIN_WATCH_MS);
+            return;
+        }
+        webView.evaluateJavascript(StarlinkLoginWatch.SCRIPT, value -> {
+            if (webView == null) return;
+            StarlinkLoginWatch.State state = StarlinkLoginWatch.parse(value);
+            if (state != null && state.hasPasswordField) {
+                if (!state.password.isEmpty()) typedPassword = state.password;
+                if (state.wrongPassword && !warnedWrongPassword) {
+                    warnedWrongPassword = true;
+                    Toast.makeText(this, "❌ كلمة المرور غير صحيحة - اكتب الصحيحة وسيحفظها التطبيق لهذا الجهاز بعد الدخول", Toast.LENGTH_LONG).show();
+                }
+            } else if (state != null && typedPassword != null && StarlinkLoginWatch.isSignedInUrl(webView.getUrl())) {
+                if (StarlinkLoginWatch.isNewPassword(typedPassword, savedLoginPassword)) {
+                    JSObject fields = new JSObject();
+                    fields.put("loginPassword", typedPassword);
+                    String syncId = PendingSyncStore.save(getApplicationContext(), accountId, fields);
+                    if (syncId != null) {
+                        LocalBrowserPlugin.emitAccountDataSynced(syncId, accountId, fields);
+                        savedLoginPassword = typedPassword;
+                        Toast.makeText(this, "✅ حُفظت كلمة المرور الجديدة لهذا الجهاز", Toast.LENGTH_LONG).show();
+                    }
+                }
+                typedPassword = null;
+                warnedWrongPassword = false;
+            }
+            twoStepHandler.postDelayed(loginWatchPoll, LOGIN_WATCH_MS);
+        });
     }
 
     private void scheduleTwoStepCheck() {

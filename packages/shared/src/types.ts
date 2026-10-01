@@ -118,6 +118,10 @@ export interface StarlinkAccountSummary {
   /** Manually entered by the STAR NET operator - this device's own Wi-Fi network password (not
    * the Starlink account login password). Never touched by Starlink sync. */
   wifiPassword?: string;
+  /** The Starlink sign-in password itself, when it differs from the codes above: kept by the
+   * device's browser after Starlink said the saved one was wrong and the operator typed the right
+   * one (StarlinkLoginWatch.java), or typed in «تعديل». Used first when signing in. */
+  starlinkPassword?: string;
   /** Starts with "SL-" - the subscription's own identifier, a different value from `accountNumber`
    * (which starts with "ACC-"). */
   subscriptionId?: string;

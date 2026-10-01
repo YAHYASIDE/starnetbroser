@@ -1,3 +1,4 @@
+import { starlinkLoginFor } from "./localBrowser";
 import { DeviceStatus, StarlinkAccountSummary } from "@starnet/shared";
 import { describe, expect, it } from "vitest";
 import {
@@ -131,6 +132,14 @@ describe("mergeSyncedFields - scanned vs. changed", () => {
     expect(out.account.priorityDataExhausted).toBe(true);
     expect(out.updatedFields.map((f) => f.field)).toEqual(["priorityDataExhausted"]);
     expect(mergeSyncedFields(out.account, { priorityDataExhausted: false }).account.priorityDataExhausted).toBe(false);
+  });
+
+  it("🔐 a password that got in after the saved one was refused becomes the device's Starlink password", () => {
+    const result = mergeSyncedFields({ ...baseAccount(), wifiPassword: "demo-old" }, { loginPassword: " demo-new " });
+    expect(result.account.starlinkPassword).toBe("demo-new");
+    expect(result.account.wifiPassword).toBe("demo-old"); // the Wi-Fi code itself is never touched
+    expect(result.updatedFields.map((f) => f.field)).toEqual(["loginPassword"]);
+    expect(starlinkLoginFor(result.account).loginPassword).toBe("demo-new");
   });
 
   it("🚗 movingRestricted: set true, then cleared by an explicit false (he stopped)", () => {

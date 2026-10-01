@@ -44,9 +44,12 @@ export function isRunningInAndroidApp(): boolean {
 
 /** What the Starlink login form is filled with: the device's main email, and as the password its
  * "كود الواي فاي" (the operator uses it as the Starlink password), else the email's own code. */
-export function starlinkLoginFor(account: Pick<StarlinkAccountSummary, "expectedEmail" | "wifiPassword" | "expectedEmailPassword">): StarlinkLogin {
+export function starlinkLoginFor(
+  account: Pick<StarlinkAccountSummary, "expectedEmail" | "wifiPassword" | "expectedEmailPassword" | "starlinkPassword">,
+): StarlinkLogin {
   const loginEmail = account.expectedEmail?.trim() || undefined;
-  const loginPassword = account.wifiPassword?.trim() || account.expectedEmailPassword?.trim() || undefined;
+  // The Starlink password itself first (the one that last worked), then the codes as before.
+  const loginPassword = account.starlinkPassword?.trim() || account.wifiPassword?.trim() || account.expectedEmailPassword?.trim() || undefined;
   return { ...(loginEmail ? { loginEmail } : {}), ...(loginPassword ? { loginPassword } : {}) };
 }
 

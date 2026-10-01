@@ -13,6 +13,7 @@ import { Client, CreateClientInput } from "@/lib/clientStore";
 import { CreateRepresentativeInput, Representative } from "@/lib/repStore";
 import { combinePhoneNumber, PHONE_COUNTRY_CODES, splitPhoneNumber } from "@/lib/phoneCountryCodes";
 import { ClientPicker } from "./ClientPicker";
+import { usedPasswords } from "@/lib/usedPasswords";
 import { DuplicateWarning } from "./DuplicateWarning";
 import { duplicateQuestion, findDeviceDuplicates } from "@/lib/duplicates";
 import { RepresentativePicker } from "./RepresentativePicker";
@@ -103,6 +104,8 @@ export function AccountDialog({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const initial = useMemo(() => account ?? { ...createBlankAccount(), ...prefill }, [account]);
   const [draft, setDraft] = useState(initial);
+  // The passwords used most on the other devices - one tap to fill a field.
+  const passwordSuggestions = useMemo(() => usedPasswords(existingAccounts ?? []).slice(0, 4).map((p) => p.value), [existingAccounts]);
   // السعر الشهري الثابت - kept as raw strings while typing; all four empty means "no plan".
   const [planSale, setPlanSale] = useState(initial.renewalPlan ? String(initial.renewalPlan.saleAmount) : "");
   const [planSaleCurrency, setPlanSaleCurrency] = useState(initial.renewalPlan?.saleCurrency ?? "MRU");
@@ -241,6 +244,7 @@ export function AccountDialog({
       expectedEmailPassword: draft.expectedEmailPassword?.trim() || undefined,
       extraEmails: trimmedExtraEmails.length > 0 ? trimmedExtraEmails : undefined,
       wifiPassword: draft.wifiPassword?.trim() || undefined,
+      starlinkPassword: draft.starlinkPassword?.trim() || undefined,
       kitNumber: draft.kitNumber.trim(),
       serialNumber: draft.serialNumber.trim(),
       rechargeDate: draft.rechargeDate.replace(/-/g, "/"),
@@ -308,6 +312,9 @@ export function AccountDialog({
                 <strong dir="ltr">{entry.address}{entry.password ? ` - ${entry.password}` : ""}</strong>
               </div>
             ))}
+            {draft.starlinkPassword && (
+              <div><span>كلمة مرور Starlink</span><strong dir="ltr">{draft.starlinkPassword}</strong></div>
+            )}
             {draft.wifiPassword && (
               <div><span>كلمة سر Wi-Fi</span><strong dir="ltr">{draft.wifiPassword}</strong></div>
             )}
@@ -343,11 +350,13 @@ export function AccountDialog({
             <label className="form-field add-field add-field-code">
               <span className="add-field-label"><b aria-hidden="true">🔑</b> كود البريد</span>
               <input dir="ltr" value={draft.expectedEmailPassword ?? ""} onChange={(e) => update("expectedEmailPassword", e.target.value)} placeholder="اختياري" />
+              <PasswordChips values={passwordSuggestions} current={draft.expectedEmailPassword} onPick={(v) => update("expectedEmailPassword", v)} />
             </label>
 
             <label className="form-field add-field add-field-wifi">
               <span className="add-field-label"><b aria-hidden="true">📶</b> كود الواي فاي</span>
               <input dir="ltr" value={draft.wifiPassword ?? ""} onChange={(e) => update("wifiPassword", e.target.value)} placeholder="اختياري" />
+              <PasswordChips values={passwordSuggestions} current={draft.wifiPassword} onPick={(v) => update("wifiPassword", v)} />
             </label>
 
             <div className="form-field add-field add-field-client">
@@ -399,11 +408,19 @@ export function AccountDialog({
             <label className="form-field add-field add-field-half add-field-code">
               <span className="add-field-label"><b aria-hidden="true">🔑</b> كود البريد</span>
               <input dir="ltr" value={draft.expectedEmailPassword ?? ""} onChange={(e) => update("expectedEmailPassword", e.target.value)} placeholder="اختياري" />
+              <PasswordChips values={passwordSuggestions} current={draft.expectedEmailPassword} onPick={(v) => update("expectedEmailPassword", v)} />
             </label>
 
             <label className="form-field add-field add-field-half add-field-wifi">
               <span className="add-field-label"><b aria-hidden="true">📶</b> كود الواي فاي</span>
               <input dir="ltr" value={draft.wifiPassword ?? ""} onChange={(e) => update("wifiPassword", e.target.value)} placeholder="اختياري" />
+              <PasswordChips values={passwordSuggestions} current={draft.wifiPassword} onPick={(v) => update("wifiPassword", v)} />
+            </label>
+
+            <label className="form-field add-field add-field-code">
+              <span className="add-field-label"><b aria-hidden="true">🔐</b> كلمة مرور Starlink (إن كانت غير الكودين)</span>
+              <input dir="ltr" value={draft.starlinkPassword ?? ""} onChange={(e) => update("starlinkPassword", e.target.value)} placeholder="اختياري - تُحفظ وحدها حين تتغيّر" />
+              <PasswordChips values={passwordSuggestions} current={draft.starlinkPassword} onPick={(v) => update("starlinkPassword", v)} />
             </label>
 
             <div className="form-field add-field add-field-client">
@@ -650,5 +667,20 @@ export function AccountDialog({
         )}
       </section>
     </div>
+  );
+}
+
+/** The most used passwords as one-tap chips under a password field (not the one already in it). */
+function PasswordChips({ values, current, onPick }: { values: string[]; current?: string; onPick: (value: string) => void }) {
+  const shown = values.filter((v) => v !== (current ?? "").trim());
+  if (shown.length === 0) return null;
+  return (
+    <span className="password-chips">
+      {shown.map((v) => (
+        <button key={v} type="button" className="password-chip" dir="ltr" onClick={() => onPick(v)}>
+          🔑 {v}
+        </button>
+      ))}
+    </span>
   );
 }

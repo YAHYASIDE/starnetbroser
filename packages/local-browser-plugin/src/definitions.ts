@@ -128,6 +128,9 @@ export interface SyncedStarlinkFields {
    * extractStarlinkFields.ts's own doc for why this is a separate flag from `serviceStatus`: the
    * kit has been outside its registered country/region for too long, independent of billing. */
   isRestricted?: boolean;
+  /** The password the operator typed in Starlink's sign-in form after the saved one was refused,
+   * once it got in - becomes the device's starlinkPassword. Never logged. */
+  loginPassword?: string;
   /** 🚗 "service is restricted because it is moving too fast" - a residential plan used while
    * moving; it works again once stopped. Explicit true/false; never the out-of-country restriction. */
   movingRestricted?: boolean;
