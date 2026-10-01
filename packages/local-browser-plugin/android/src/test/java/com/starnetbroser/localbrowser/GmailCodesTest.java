@@ -72,4 +72,15 @@ public class GmailCodesTest {
         assertTrue(script.endsWith("(\"4791\");"));
         assertFalse(script.contains(".click()"));
     }
+
+    @Test
+    public void theRecoveryEmailGoesOnBothOfMicrosoftsRecoverySteps() {
+        String script = GmailCodes.recoveryEmailScript("demo.recovery@example.com");
+        assertTrue(script.contains("verify your email"));
+        assertTrue(script.contains("add an email"));
+        assertTrue(script.endsWith("(\"demo.recovery@example.com\")"));
+        assertNull(GmailCodes.recoveryEmailScript(" "));
+        // The sign-in autofill knows those steps too, so the device's own email never lands there.
+        assertTrue(LoginAutofill.script("demo@outlook.com", null).contains("verify your email"));
+    }
 }

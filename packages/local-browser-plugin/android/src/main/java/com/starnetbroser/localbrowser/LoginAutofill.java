@@ -53,8 +53,12 @@ final class LoginAutofill {
             + "s.call(el,v);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}"
             + "function wrong(){return /\\u0643\\u0644\\u0645\\u0629 \\u0627\\u0644\\u0645\\u0631\\u0648\\u0631 \\u063a\\u064a\\u0631 \\u0635\\u062d\\u064a\\u062d\\u0629|incorrect|wrong password|isn't right/i.test((document.body&&document.body.innerText)||'');}"
             + "function each(sel,f){var l=document.querySelectorAll(sel);for(var i=0;i<l.length;i++)if(vis(l[i])&&!l[i].value&&!l[i].__starnet)f(l[i]);}"
+            // Microsoft's recovery-email steps («Verify your email» / «Add an email address») ask for
+            // ANOTHER address - the device's own email must never go there (real screenshot).
+            + "function recov(){var h=document.querySelectorAll('h1,h2,[role=heading]'),t='';for(var i=0;i<h.length;i++)t+=' '+h[i].textContent;"
+            + "return " + GmailCodes.RECOVERY_HEADINGS + ".test(t)||/\\*{2,}@/.test((document.body&&document.body.innerText)||'');}"
             + "function tick(){if(!isLogin())return;"
-            + "if(e)each('input[type=email],input[autocomplete=username],input[name*=mail i],input[id*=mail i],input[name=loginfmt]',function(m){put(m,e);m.__starnet=1;});"
+            + "if(e&&!recov())each('input[type=email],input[autocomplete=username],input[name*=mail i],input[id*=mail i],input[name=loginfmt]',function(m){put(m,e);m.__starnet=1;});"
             + "if(p&&!wrong())each('input[type=password]',function(w){put(w,p);w.__starnet=1;});}"
             + "tick();var n=0;var t=setInterval(function(){tick();if(++n>300)clearInterval(t);},600);"
             + "})(" + literal(hasEmail ? email.trim() : "") + "," + literal(hasPassword ? password : "") + ");";
