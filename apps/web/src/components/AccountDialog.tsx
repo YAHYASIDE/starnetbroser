@@ -15,7 +15,7 @@ import { combinePhoneNumber, PHONE_COUNTRY_CODES, splitPhoneNumber } from "@/lib
 import { ClientPicker } from "./ClientPicker";
 import { usedPasswords } from "@/lib/usedPasswords";
 import { buildCreatedAccount, creationProblem } from "@/lib/accountCreation";
-import { DuplicateWarning } from "./DuplicateWarning";
+import { DuplicateWarning, FieldDuplicate } from "./DuplicateWarning";
 import { duplicateQuestion, findDeviceDuplicates } from "@/lib/duplicates";
 import { RepresentativePicker } from "./RepresentativePicker";
 import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS } from "@/lib/ledgerStore";
@@ -402,16 +402,19 @@ export function AccountDialog({
                 </select>
                 <input className="phone-local-input" dir="ltr" type="tel" value={phoneLocalNumber} onChange={(e) => updatePhoneLocalNumber(e.target.value)} placeholder="بدون رمز الدولة" />
               </div>
+              <FieldDuplicate hits={duplicates} field="phone" />
             </div>
 
             <label className="form-field add-field add-field-kit">
               <span className="add-field-label"><b aria-hidden="true">🔢</b> رقم KIT أو SN *</span>
               <input dir="ltr" value={draft.kitNumber} onChange={(e) => update("kitNumber", e.target.value)} placeholder="KIT…" autoCapitalize="characters" />
+              <FieldDuplicate hits={duplicates} field="kit" />
             </label>
 
             <label className="form-field add-field add-field-email">
               <span className="add-field-label"><b aria-hidden="true">📧</b> البريد الجديد (أوتلوك) *</span>
               <input dir="ltr" value={draft.expectedEmail ?? ""} onChange={(e) => update("expectedEmail", e.target.value)} placeholder="name@outlook.com" autoCapitalize="none" />
+              <FieldDuplicate hits={duplicates} field="email" />
             </label>
 
             <label className="form-field add-field add-field-code">
@@ -435,7 +438,7 @@ export function AccountDialog({
               ننتقل إلى «تفعيل Starlink»: يُكتب KIT ويُضغط «متابعة»، ثم الاسم والبريد والهاتف - وتكمل أنت يدوياً.
             </p>
 
-            <DuplicateWarning hits={duplicates} />
+            <DuplicateWarning hits={duplicates} inline={["phone", "kit", "email"]} />
             {createError && <span className="account-card-alert ledger-form-error" role="alert">{createError}</span>}
 
             <div className="dialog-actions">
@@ -451,6 +454,7 @@ export function AccountDialog({
             <label className="form-field add-field add-field-email">
               <span className="add-field-label"><b aria-hidden="true">📧</b> البريد الإلكتروني الرئيسي للجهاز</span>
               <input dir="ltr" type="email" value={draft.expectedEmail ?? ""} onChange={(e) => update("expectedEmail", e.target.value)} placeholder="name@example.com" />
+              <FieldDuplicate hits={duplicates} field="email" />
             </label>
 
             <label className="form-field add-field add-field-code">
@@ -488,6 +492,7 @@ export function AccountDialog({
             <label className="form-field add-field add-field-name">
               <span className="add-field-label"><b aria-hidden="true">🏷️</b> اسم الحساب / البطاقة *</span>
               <input required value={draft.name} onChange={(e) => update("name", e.target.value)} placeholder="مثال: منزل الحي الشرقي" />
+              <FieldDuplicate hits={duplicates} field="name" />
             </label>
 
             <label className="form-field add-field add-field-note">
@@ -495,7 +500,7 @@ export function AccountDialog({
               <textarea rows={2} value={draft.alertReason} onChange={(e) => update("alertReason", e.target.value)} placeholder="اختياري" />
             </label>
 
-            <DuplicateWarning hits={duplicates} />
+            <DuplicateWarning hits={duplicates} inline={["email", "name"]} />
 
             <div className="dialog-actions">
               <button className="dialog-secondary" type="button" onClick={onClose}>إلغاء</button>
@@ -509,6 +514,7 @@ export function AccountDialog({
             <label className="form-field add-field add-field-email">
               <span className="add-field-label"><b aria-hidden="true">📧</b> البريد الإلكتروني الرئيسي للجهاز</span>
               <input dir="ltr" type="email" value={draft.expectedEmail ?? ""} onChange={(e) => update("expectedEmail", e.target.value)} placeholder="name@example.com" />
+              <FieldDuplicate hits={duplicates} field="email" />
             </label>
 
             <label className="form-field add-field add-field-half add-field-code">
@@ -552,6 +558,7 @@ export function AccountDialog({
             <label className="form-field add-field add-field-name">
               <span className="add-field-label"><b aria-hidden="true">🏷️</b> اسم الحساب / البطاقة *</span>
               <input required value={draft.name} onChange={(e) => update("name", e.target.value)} placeholder="مثال: منزل الحي الشرقي" />
+              <FieldDuplicate hits={duplicates} field="name" />
             </label>
 
             <p className="add-section-title">🛰️ من Starlink</p>
@@ -581,6 +588,7 @@ export function AccountDialog({
             <label className="form-field add-field add-field-kit">
               <span className="add-field-label"><b aria-hidden="true">🔢</b> KIT</span>
               <input dir="ltr" value={draft.kitNumber} onChange={(e) => update("kitNumber", e.target.value)} placeholder="KIT…" />
+              <FieldDuplicate hits={duplicates} field="kit" />
             </label>
 
             <label className="form-field add-field add-field-sn">
@@ -602,7 +610,7 @@ export function AccountDialog({
               <p className="dot-trace" dir="ltr">🔍 {draft.dotTrace}</p>
             )}
 
-            <DuplicateWarning hits={duplicates} />
+            <DuplicateWarning hits={duplicates} inline={["email", "name", "kit"]} />
 
             <details className="add-more">
               <summary>⚙️ المزيد: رقم الهاتف، بريد إضافي، السعر الشهري</summary>

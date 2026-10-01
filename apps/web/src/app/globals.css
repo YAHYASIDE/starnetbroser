@@ -10180,3 +10180,17 @@ a[href],
   cursor: pointer;
   white-space: nowrap;
 }
+
+/* ⚠️ «مسجل من قبل» right under the duplicated field itself. */
+.field-duplicate {
+  display: block;
+  margin-top: 6px;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--orange-bg);
+  color: var(--orange);
+  border: 1px solid var(--orange);
+  font-size: 0.76rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
