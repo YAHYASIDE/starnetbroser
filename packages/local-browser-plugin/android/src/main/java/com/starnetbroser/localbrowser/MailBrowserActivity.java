@@ -42,6 +42,12 @@ public class MailBrowserActivity extends AppCompatActivity {
     public static final String EXTRA_EMAIL = "com.starnetbroser.localbrowser.MAIL_EMAIL";
     public static final String EXTRA_PASSWORD = "com.starnetbroser.localbrowser.MAIL_PASSWORD";
     public static final String EXTRA_ACCOUNT_ID = "com.starnetbroser.localbrowser.MAIL_ACCOUNT_ID";
+    /** 🆕 «إنشاء حساب جديد»: open Microsoft's signup (filled with these names) instead of the inbox. */
+    public static final String EXTRA_SIGNUP = "com.starnetbroser.localbrowser.MAIL_SIGNUP";
+    public static final String EXTRA_SIGNUP_FIRST_NAME = "com.starnetbroser.localbrowser.MAIL_SIGNUP_FIRST_NAME";
+    public static final String EXTRA_SIGNUP_LAST_NAME = "com.starnetbroser.localbrowser.MAIL_SIGNUP_LAST_NAME";
+    /** The device's «تفعيل Starlink» browser, started once the new inbox opens. */
+    public static final String EXTRA_THEN = "com.starnetbroser.localbrowser.MAIL_THEN";
 
     private WebView webView;
     private ProgressBar progressBar;
@@ -50,6 +56,12 @@ public class MailBrowserActivity extends AppCompatActivity {
     private String autofillScript;
     private String accountId;
     private String email;
+    /** Signup mode: Microsoft's pages are filled from the app (SignupFill), then «تفعيل Starlink». */
+    private boolean signup;
+    private String signupScript;
+    private Intent thenIntent;
+    private boolean sawSignupPage;
+    private boolean movedOn;
 
     /**
      * Opens one device's Outlook mailbox inside the app (isolated web view, autofilled, code
@@ -77,7 +89,16 @@ public class MailBrowserActivity extends AppCompatActivity {
         return intent;
     }
 
+    /** 🆕 Turns a mailbox intent into «إنشاء حساب جديد»: the signup, then `then` (Starlink). */
+    static void asSignup(Intent intent, String firstName, String lastName, Intent then) {
+        intent.putExtra(EXTRA_SIGNUP, true);
+        intent.putExtra(EXTRA_SIGNUP_FIRST_NAME, firstName);
+        intent.putExtra(EXTRA_SIGNUP_LAST_NAME, lastName);
+        if (then != null) intent.putExtra(EXTRA_THEN, then);
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
+    @SuppressWarnings("deprecation")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -85,8 +106,16 @@ public class MailBrowserActivity extends AppCompatActivity {
         String title = getIntent().getStringExtra(EXTRA_TITLE);
         accountId = getIntent().getStringExtra(EXTRA_ACCOUNT_ID);
         email = getIntent().getStringExtra(EXTRA_EMAIL);
-        homeUrl = MailUrl.inboxUrlFor(email);
-        autofillScript = LoginAutofill.script(email, getIntent().getStringExtra(EXTRA_PASSWORD));
+        signup = getIntent().getBooleanExtra(EXTRA_SIGNUP, false);
+        if (signup) {
+            homeUrl = SignupFill.OUTLOOK_SIGNUP_URL;
+            signupScript = SignupFill.outlookScript(email, getIntent().getStringExtra(EXTRA_PASSWORD),
+                getIntent().getStringExtra(EXTRA_SIGNUP_FIRST_NAME), getIntent().getStringExtra(EXTRA_SIGNUP_LAST_NAME));
+            thenIntent = getIntent().getParcelableExtra(EXTRA_THEN);
+        } else {
+            homeUrl = MailUrl.inboxUrlFor(email);
+            autofillScript = LoginAutofill.script(email, getIntent().getStringExtra(EXTRA_PASSWORD));
+        }
 
         if (profileName == null || !WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
             Toast.makeText(this, R.string.starnet_unsupported_device, Toast.LENGTH_LONG).show();
@@ -123,7 +152,12 @@ public class MailBrowserActivity extends AppCompatActivity {
             }
         });
 
-        BrowserBar.setUp(this, () -> { if (webView.canGoBack()) webView.goBack(); }, this::reload, "📋", "نسخ الرمز", this::copyCode);
+        if (signup && thenIntent != null) {
+            BrowserBar.setUp(this, () -> { if (webView.canGoBack()) webView.goBack(); }, this::reload, "🛰️", "تفعيل Starlink", this::moveOnToStarlink);
+            Toast.makeText(this, "🆕 أكمل إنشاء البريد (الخانات مكتوبة) - بعد فتح صندوق البريد ننتقل إلى تفعيل Starlink", Toast.LENGTH_LONG).show();
+        } else {
+            BrowserBar.setUp(this, () -> { if (webView.canGoBack()) webView.goBack(); }, this::reload, "📋", "نسخ الرمز", this::copyCode);
+        }
         ((Button) findViewById(R.id.starnet_error_retry)).setOnClickListener(v -> reload());
 
         webView.loadUrl(homeUrl);
@@ -171,6 +205,14 @@ public class MailBrowserActivity extends AppCompatActivity {
     private void reload() {
         showPage();
         webView.reload();
+    }
+
+    /** 🆕 The new email is made: on to «تفعيل Starlink» in the device's own browser (once). */
+    private void moveOnToStarlink() {
+        if (movedOn || thenIntent == null) return;
+        movedOn = true;
+        startActivity(thenIntent);
+        finish();
     }
 
     /** «📋 الرمز»: the newest Starlink verification code on the open mailbox page -> clipboard. */
@@ -226,6 +268,15 @@ public class MailBrowserActivity extends AppCompatActivity {
             if (state == MailUrl.SessionState.SIGNED_IN) MailSessionStore.markSignedIn(MailBrowserActivity.this, accountId, email);
             else if (state == MailUrl.SessionState.SIGNED_OUT) MailSessionStore.markSignedOut(MailBrowserActivity.this, accountId);
             if (autofillScript != null && MailUrl.isAllowed(url)) view.evaluateJavascript(autofillScript, null);
+            if (signup) {
+                if (SignupFill.isSignupPage(url)) sawSignupPage = true;
+                if (signupScript != null && MailUrl.isAllowed(url)) view.evaluateJavascript(signupScript, null);
+                // The new inbox opened after Microsoft's signup: the email is made.
+                if (state == MailUrl.SessionState.SIGNED_IN && sawSignupPage && thenIntent != null && !movedOn) {
+                    Toast.makeText(MailBrowserActivity.this, "✅ أُنشئ البريد - ننتقل إلى تفعيل Starlink", Toast.LENGTH_LONG).show();
+                    moveOnToStarlink();
+                }
+            }
         }
 
         @Override

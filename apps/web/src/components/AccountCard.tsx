@@ -22,7 +22,7 @@ import { formatAmount } from "@/lib/formatAmount";
 import { PaymentAllocation } from "@/lib/paymentAllocationStore";
 import { Client } from "@/lib/clientStore";
 import { isGmail } from "@/lib/mailboxes";
-import { isRunningInAndroidApp, mailLoginFor, openIsolatedAccountBrowser, openIsolatedMailbox, starlinkLoginFor, triggerImmediateSync } from "@/lib/localBrowser";
+import { isRunningInAndroidApp, mailLoginFor, openAccountCreation, openIsolatedAccountBrowser, openIsolatedMailbox, starlinkLoginFor, triggerImmediateSync } from "@/lib/localBrowser";
 import {
   buildAccountStatementMessage,
   buildBalanceReminderMessage,
@@ -78,6 +78,8 @@ interface Props {
   /** `waiveDebts`: drop the device's open D (deviceFault.ts) - only ever true when marking a fault. */
   onSetDeviceFault: (account: StarlinkAccountSummary, fault: StarlinkAccountSummary["deviceFault"], waiveDebts: boolean) => void;
   /** 🛠️ قيد الإصلاح on / off. */
+  /** 🆕 «✅ انتهى» on a device being created («إنشاء حساب جديد»). */
+  onFinishCreation?: (account: StarlinkAccountSummary) => void;
   onSetRepair: (account: StarlinkAccountSummary, repair: StarlinkAccountSummary["underRepair"]) => void;
   /** This device's mailbox (📧 البريد) is signed in on this phone - the button turns mint green. */
   mailSignedIn?: boolean;
@@ -203,7 +205,7 @@ function IconUndo() {
 
 export function AccountCard({
   account, onEdit, ledgerEntries, allocations, onLedger, onDeviceStatement, client, onOpenClient, currencyStore,
-  context = "active", onSetDeviceFault, onSetRepair, mailSignedIn = false, onArchive, onSoftDelete, onRestore, onPermanentDelete, onConfirmRenewal,
+  context = "active", onSetDeviceFault, onSetRepair, onFinishCreation, mailSignedIn = false, onArchive, onSoftDelete, onRestore, onPermanentDelete, onConfirmRenewal,
   sessionNeedsLogin = false,
   previousDebts = [],
   onAddPreviousDebt,
@@ -282,6 +284,18 @@ export function AccountCard({
       if (!result.ok) {
         window.alert(result.message);
       }
+    } finally {
+      setOpening(false);
+    }
+  }
+
+  /** 🆕 Continues «إنشاء حساب جديد» from one of its two pages. */
+  async function handleCreationStep(step: "mail" | "starlink") {
+    if (opening) return;
+    setOpening(true);
+    try {
+      const result = await openAccountCreation(account, step);
+      if (!result.ok) window.alert(result.message);
     } finally {
       setOpening(false);
     }
@@ -460,6 +474,14 @@ export function AccountCard({
         <div className="account-card-priority-banner">
           ⚠️ نفدت باقة الأولوية{priorityState.limitGb !== undefined && <> <bdi dir="ltr">{priorityState.limitGb}G</bdi></>}
           {priorityState.usedGb !== undefined && <> (الاستهلاك <bdi dir="ltr">{priorityState.usedGb} GB</bdi>)</>} - يعمل بسرعة محدودة حتى الدورة القادمة
+        </div>
+      )}
+      {account.creation && context === "active" && (
+        <div className="account-card-creation-banner">
+          <span>🆕 قيد الإنشاء - أكمل الخطوات ثم اضغط «انتهى»</span>
+          <button type="button" onClick={() => void handleCreationStep("mail")} disabled={opening}>📧 ١. البريد</button>
+          <button type="button" onClick={() => void handleCreationStep("starlink")} disabled={opening}>🛰️ ٢. التفعيل</button>
+          {onFinishCreation && <button type="button" onClick={() => onFinishCreation(account)}>✅ انتهى</button>}
         </div>
       )}
       {account.movingRestricted && account.serviceStatus !== "canceled" && (

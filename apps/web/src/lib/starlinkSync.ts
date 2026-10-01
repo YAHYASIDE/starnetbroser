@@ -189,6 +189,8 @@ export function mergeSyncedFields(
   if (accountNumber) {
     note("accountNumber", next.accountNumber !== accountNumber);
     next.accountNumber = accountNumber;
+    // 🆕 A device being created («إنشاء حساب جديد») has its account now: done.
+    if (next.creation) next.creation = null;
   }
 
   const subscriptionId = fields.subscriptionId?.trim();

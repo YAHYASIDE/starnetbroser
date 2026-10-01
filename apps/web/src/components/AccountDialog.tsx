@@ -3,7 +3,7 @@
 import { shareText } from "@/lib/shareText";
 import { buildFullDeviceMessage } from "@/lib/whatsapp";
 import { DateInput } from "./DateInput";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useMemo, useRef, useState } from "react";
 import { DeviceStatus, StarlinkAccountSummary } from "@starnet/shared";
 import { formatRelativeTime } from "@/lib/date";
 import { emailsMismatch } from "@/lib/emailMatch";
@@ -14,6 +14,7 @@ import { CreateRepresentativeInput, Representative } from "@/lib/repStore";
 import { combinePhoneNumber, PHONE_COUNTRY_CODES, splitPhoneNumber } from "@/lib/phoneCountryCodes";
 import { ClientPicker } from "./ClientPicker";
 import { usedPasswords } from "@/lib/usedPasswords";
+import { buildCreatedAccount, creationProblem } from "@/lib/accountCreation";
 import { DuplicateWarning } from "./DuplicateWarning";
 import { duplicateQuestion, findDeviceDuplicates } from "@/lib/duplicates";
 import { RepresentativePicker } from "./RepresentativePicker";
@@ -126,6 +127,49 @@ export function AccountDialog({
   const title = mode === "add" ? "إضافة حساب جديد" : mode === "edit" ? "تعديل الحساب" : "معلومات الحساب";
   const clientName = (clientId?: string) => clients.find((c) => c.id === clientId)?.name;
   const [sendNote, setSendNote] = useState<string | null>(null);
+  // 🆕 «إنشاء حساب جديد»: a brand-new Starlink account (new email + «تفعيل Starlink»), instead of
+  // adding a device that already has one.
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  // A customer added right here isn't in `clients` until the parent re-renders.
+  const createdClient = useRef<Client | null>(null);
+  const findClient = (clientId?: string) =>
+    clients.find((c) => c.id === clientId) ?? (createdClient.current?.id === clientId ? createdClient.current : undefined);
+
+  function createCreationClient(input: CreateClientInput): Client {
+    const client = onCreateClient(input);
+    createdClient.current = client;
+    return client;
+  }
+
+  function pickCreationClient(clientId: string | undefined) {
+    update("clientId", clientId);
+    // The customer's phone, unless one was already typed.
+    const phone = findClient(clientId)?.phone;
+    if (phone && !phoneLocalNumber) {
+      const split = splitPhoneNumber(phone);
+      setPhoneDialCode(split.dialCode);
+      setPhoneLocalNumber(split.localNumber);
+      update("phone", combinePhoneNumber(split.dialCode, split.localNumber));
+    }
+  }
+
+  function submitCreation(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const input = {
+      fullName: findClient(draft.clientId)?.name ?? "",
+      phone: draft.phone,
+      kit: draft.kitNumber,
+      email: draft.expectedEmail ?? "",
+      password: draft.expectedEmailPassword ?? "",
+    };
+    const problem = creationProblem(input);
+    setCreateError(problem);
+    if (problem) return;
+    if (duplicates.length > 0 && !window.confirm(duplicateQuestion(duplicates))) return;
+    onSave(buildCreatedAccount({ ...draft, name: "", kitNumber: "", serialNumber: "", rechargeDate: draft.rechargeDate.replace(/-/g, "/") }, input));
+  }
 
   /** «إرسال البيانات»: the whole device (as edited so far) to WhatsApp / Telegram / anywhere. */
   async function sendDeviceData() {
@@ -338,10 +382,72 @@ export function AccountDialog({
             )}
             <div className="info-wide"><span>التنبيه</span><strong>{displayValue(draft.alertReason)}</strong></div>
           </div>
+        ) : mode === "add" && creating ? (
+          // 🆕 A brand-new account: the customer, the KIT/SN on the box, and the new Outlook email
+          // to make - then Microsoft's signup and «تفعيل Starlink» open, already filled in.
+          <form className="account-form add-device-form" onSubmit={submitCreation}>
+            <CreationToggle creating onChange={setCreating} />
+            <div className="form-field add-field add-field-client">
+              <span className="add-field-label"><b aria-hidden="true">👤</b> الزبون (الاسم الكامل) *</span>
+              <ClientPicker clients={clients} selectedClientId={draft.clientId} onSelect={pickCreationClient} onCreateClient={createCreationClient} />
+            </div>
+
+            <div className="form-field add-field add-field-phone">
+              <span className="add-field-label"><b aria-hidden="true">📞</b> رقم الهاتف</span>
+              <div className="phone-input-row">
+                <select className="phone-country-select" dir="ltr" value={phoneDialCode} onChange={(e) => updatePhoneDialCode(e.target.value)} aria-label="رمز الدولة">
+                  {PHONE_COUNTRY_CODES.map((c) => (
+                    <option key={c.dialCode} value={c.dialCode}>{c.country} {c.dialCode}</option>
+                  ))}
+                </select>
+                <input className="phone-local-input" dir="ltr" type="tel" value={phoneLocalNumber} onChange={(e) => updatePhoneLocalNumber(e.target.value)} placeholder="بدون رمز الدولة" />
+              </div>
+            </div>
+
+            <label className="form-field add-field add-field-kit">
+              <span className="add-field-label"><b aria-hidden="true">🔢</b> رقم KIT أو SN *</span>
+              <input dir="ltr" value={draft.kitNumber} onChange={(e) => update("kitNumber", e.target.value)} placeholder="KIT…" autoCapitalize="characters" />
+            </label>
+
+            <label className="form-field add-field add-field-email">
+              <span className="add-field-label"><b aria-hidden="true">📧</b> البريد الجديد (أوتلوك) *</span>
+              <input dir="ltr" value={draft.expectedEmail ?? ""} onChange={(e) => update("expectedEmail", e.target.value)} placeholder="name@outlook.com" autoCapitalize="none" />
+            </label>
+
+            <label className="form-field add-field add-field-code">
+              <span className="add-field-label"><b aria-hidden="true">🔑</b> كلمة مرور البريد * (8 أحرف أو أكثر)</span>
+              <input dir="ltr" value={draft.expectedEmailPassword ?? ""} onChange={(e) => update("expectedEmailPassword", e.target.value)} placeholder="كلمة المرور" />
+              <PasswordChips values={passwordSuggestions} current={draft.expectedEmailPassword} onPick={(v) => update("expectedEmailPassword", v)} />
+            </label>
+
+            <div className="form-field add-field add-field-rep">
+              <span className="add-field-label"><b aria-hidden="true">🤝</b> المندوب</span>
+              <RepresentativePicker
+                representatives={representatives}
+                selectedRepresentativeId={draft.representativeId}
+                onSelect={(representativeId) => update("representativeId", representativeId)}
+                onCreateRepresentative={onCreateRepresentative}
+              />
+            </div>
+
+            <p className="creation-steps">
+              بعد «إنشاء»: ١- تُفتح صفحة إنشاء بريد أوتلوك مكتوبة - أكمل التحقق بيدك. ٢- بعد فتح البريد
+              ننتقل إلى «تفعيل Starlink»: يُكتب KIT ويُضغط «متابعة»، ثم الاسم والبريد والهاتف - وتكمل أنت يدوياً.
+            </p>
+
+            <DuplicateWarning hits={duplicates} />
+            {createError && <span className="account-card-alert ledger-form-error" role="alert">{createError}</span>}
+
+            <div className="dialog-actions">
+              <button className="dialog-secondary" type="button" onClick={onClose}>إلغاء</button>
+              <button className="dialog-primary" type="submit">🆕 إنشاء</button>
+            </div>
+          </form>
         ) : mode === "add" ? (
           // A new device needs only what Starlink can't tell us - the rest (KIT, plan, renewal,
           // phone...) comes from the first Starlink sync, or from "تعديل" later.
           <form className="account-form add-device-form" onSubmit={submit}>
+            <CreationToggle creating={false} onChange={setCreating} />
             <label className="form-field add-field add-field-email">
               <span className="add-field-label"><b aria-hidden="true">📧</b> البريد الإلكتروني الرئيسي للجهاز</span>
               <input dir="ltr" type="email" value={draft.expectedEmail ?? ""} onChange={(e) => update("expectedEmail", e.target.value)} placeholder="name@example.com" />
@@ -671,6 +777,16 @@ export function AccountDialog({
 }
 
 /** The most used passwords as one-tap chips under a password field (not the one already in it). */
+/** «➕ جهاز موجود» / «🆕 إنشاء حساب جديد» at the top of «إضافة حساب جديد». */
+function CreationToggle({ creating, onChange }: { creating: boolean; onChange: (creating: boolean) => void }) {
+  return (
+    <div className="creation-toggle" role="tablist">
+      <button type="button" role="tab" aria-selected={!creating} className={creating ? "" : "active"} onClick={() => onChange(false)}>➕ جهاز له حساب</button>
+      <button type="button" role="tab" aria-selected={creating} className={creating ? "active" : ""} onClick={() => onChange(true)}>🆕 إنشاء حساب جديد</button>
+    </div>
+  );
+}
+
 function PasswordChips({ values, current, onPick }: { values: string[]; current?: string; onPick: (value: string) => void }) {
   const shown = values.filter((v) => v !== (current ?? "").trim());
   if (shown.length === 0) return null;

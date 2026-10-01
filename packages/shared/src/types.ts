@@ -185,6 +185,10 @@ export interface StarlinkAccountSummary {
   /** 🛠️ "قيد الإصلاح": a technical problem we're following with Starlink support - separate from
    * deviceFault (the device stays in renewals and lists), shown in its own home list. */
   underRepair?: { note: string; since: string } | null;
+  /** 🆕 "قيد الإنشاء": a brand-new Starlink account the operator is creating from the app (a new
+   * Outlook email, then «تفعيل Starlink» with the KIT). The names typed into both forms are kept
+   * here until the operator marks it done, or the first sync reads the new account. */
+  creation?: { firstName: string; lastName: string; startedAt: string } | null;
   /** ISO timestamp set only by an explicit "أرشفة" action - an archived device is hidden from the
    * main list (see HomeView's "الأرشيف" view) but keeps every ledger entry, allocation and
    * exchange-rate link exactly as-is; null/undefined again once restored. Never implies deleted. */

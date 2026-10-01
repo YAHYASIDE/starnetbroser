@@ -58,6 +58,12 @@ public class AccountBrowserActivity extends AppCompatActivity {
     public static final String EXTRA_LOGIN_PASSWORD = "com.starnetbroser.localbrowser.LOGIN_PASSWORD";
     /** The device email's own password, for its mailbox (📧 البريد) - never the Starlink one. */
     public static final String EXTRA_MAIL_PASSWORD = "com.starnetbroser.localbrowser.MAIL_PASSWORD";
+    /** 🆕 «إنشاء حساب جديد»: what «تفعيل Starlink» is filled with (SignupFill), else absent. */
+    public static final String EXTRA_ACTIVATION_KIT = "com.starnetbroser.localbrowser.ACTIVATION_KIT";
+    public static final String EXTRA_ACTIVATION_FIRST_NAME = "com.starnetbroser.localbrowser.ACTIVATION_FIRST_NAME";
+    public static final String EXTRA_ACTIVATION_LAST_NAME = "com.starnetbroser.localbrowser.ACTIVATION_LAST_NAME";
+    public static final String EXTRA_ACTIVATION_EMAIL = "com.starnetbroser.localbrowser.ACTIVATION_EMAIL";
+    public static final String EXTRA_ACTIVATION_PHONE = "com.starnetbroser.localbrowser.ACTIVATION_PHONE";
 
     private static final String NOTIFICATION_PERMISSION_PREFS = "starnet_notification_permission";
     private static final String KEY_ASKED_NOTIFICATION_PERMISSION = "asked_post_notifications";
@@ -86,6 +92,8 @@ public class AccountBrowserActivity extends AppCompatActivity {
     private String accountId;
     /** The login form autofill script for this device (see LoginAutofill), or null. */
     private String autofillScript;
+    /** «تفعيل Starlink» for a new account being created (SignupFill), or null. */
+    private String activationScript;
 
     /** Non-null only while a multi-page "تحديث من Starlink" sync is in progress - each step polls
      * and runs the next one, so a null queue is also this class's "not currently syncing" flag. */
@@ -152,6 +160,9 @@ public class AccountBrowserActivity extends AppCompatActivity {
         homeUrl = getIntent().getStringExtra(EXTRA_URL);
         autofillScript = LoginAutofill.script(getIntent().getStringExtra(EXTRA_LOGIN_EMAIL), getIntent().getStringExtra(EXTRA_LOGIN_PASSWORD));
         savedLoginPassword = getIntent().getStringExtra(EXTRA_LOGIN_PASSWORD);
+        activationScript = SignupFill.starlinkScript(getIntent().getStringExtra(EXTRA_ACTIVATION_KIT),
+            getIntent().getStringExtra(EXTRA_ACTIVATION_FIRST_NAME), getIntent().getStringExtra(EXTRA_ACTIVATION_LAST_NAME),
+            getIntent().getStringExtra(EXTRA_ACTIVATION_EMAIL), getIntent().getStringExtra(EXTRA_ACTIVATION_PHONE));
 
         // Defensive re-check: the plugin already verified this before
         // starting the Activity, but this screen must never silently fall
@@ -765,6 +776,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
         public void onPageFinished(WebView view, String url) {
             super.onPageFinished(view, url);
             if (autofillScript != null && AllowedUrl.isAllowed(url)) view.evaluateJavascript(autofillScript, null);
+            if (activationScript != null && AllowedUrl.isAllowed(url)) view.evaluateJavascript(activationScript, null);
         }
 
         @Override

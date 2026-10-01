@@ -5,6 +5,8 @@ import type { PluginListenerHandle } from "@capacitor/core";
  * override it, but this is the one product requirement actually specifies.
  */
 export const STARLINK_ACCOUNT_HOME_URL = "https://starlink.com/account/home";
+/** «تفعيل Starlink» - where a brand-new account starts (🆕 «إنشاء حساب جديد»). */
+export const STARLINK_ACTIVATE_URL = "https://starlink.com/activate";
 
 export interface OpenAccountBrowserOptions {
   /** Same id as StarlinkAccountSummary.id - the isolation key. */
@@ -19,6 +21,18 @@ export interface OpenAccountBrowserOptions {
   loginPassword?: string;
   /** The device email's own password - only for its mailbox («📧 البريد» in the browser's bar). */
   mailPassword?: string;
+  /** 🆕 «إنشاء حساب جديد»: «تفعيل Starlink» is filled with the KIT (then «متابعة»), and
+   * «معلومات الاتصال» with the name, email and phone - the rest is done by hand. */
+  activation?: StarlinkActivationFill;
+}
+
+export interface StarlinkActivationFill {
+  kit: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  /** Without the country code. */
+  phone: string;
 }
 
 export interface MailSession {
@@ -42,6 +56,11 @@ export interface OpenMailBrowserOptions {
   email?: string;
   /** Typed into the Microsoft sign-in form's empty password field (never submitted by itself). */
   password?: string;
+  /** 🆕 «إنشاء حساب جديد»: Microsoft's signup (email, password and these names typed in, nothing
+   * pressed) instead of the inbox. */
+  signup?: { firstName: string; lastName: string };
+  /** With `signup`: the device's Starlink browser opened once the new inbox opens. */
+  then?: Omit<OpenAccountBrowserOptions, "accountId">;
 }
 
 export interface IsSupportedResult {

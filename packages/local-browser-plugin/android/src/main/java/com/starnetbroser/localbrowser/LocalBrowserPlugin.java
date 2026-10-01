@@ -221,23 +221,40 @@ public class LocalBrowserPlugin extends Plugin {
             return;
         }
 
-        String profileName;
+        Intent intent;
         try {
-            profileName = ProfileNaming.profileNameFor(accountId);
+            intent = accountBrowserIntent(accountId, call.getData());
+        } catch (InvalidUrlException ex) {
+            call.reject(ex.getMessage(), ERROR_CODE_INVALID_URL);
+            return;
         } catch (RuntimeException ex) {
             call.reject("Invalid accountId: " + ex.getMessage());
             return;
         }
+        getActivity().startActivity(intent);
+        call.resolve();
+    }
 
-        String accountName = call.getString("accountName", accountId);
-        String url = call.getString("url", DEFAULT_URL);
+    /** Thrown by accountBrowserIntent for a start URL other than the real Starlink site. */
+    private static final class InvalidUrlException extends RuntimeException {
+        InvalidUrlException(String message) {
+            super(message);
+        }
+    }
+
+    /** The device's Starlink browser, opened with these options (openAccountBrowser's, or the
+     * «تفعيل Starlink» that follows a new email in «إنشاء حساب جديد»). */
+    private Intent accountBrowserIntent(String accountId, JSObject options) {
+        String profileName = ProfileNaming.profileNameFor(accountId);
+
+        String accountName = options.getString("accountName", accountId);
+        String url = options.getString("url", DEFAULT_URL);
 
         // The caller (JS running in the app's WebView) is not trusted to pick where this
         // isolated, cookie-bearing browser navigates: only the real Starlink portal over HTTPS
         // is allowed, never http/file/javascript or an arbitrary host.
         if (!AllowedUrl.isAllowed(url)) {
-            call.reject("Only https://starlink.com (or a subdomain) is allowed as the initial URL", ERROR_CODE_INVALID_URL);
-            return;
+            throw new InvalidUrlException("Only https://starlink.com (or a subdomain) is allowed as the initial URL");
         }
 
         Context context = getContext();
@@ -247,11 +264,11 @@ public class LocalBrowserPlugin extends Plugin {
         intent.putExtra(AccountBrowserActivity.EXTRA_ACCOUNT_NAME, accountName);
         intent.putExtra(AccountBrowserActivity.EXTRA_URL, url);
         // Optional login autofill (only ever typed into empty Starlink login fields, never logged).
-        String loginEmail = call.getString("loginEmail");
-        String loginPassword = call.getString("loginPassword");
+        String loginEmail = options.getString("loginEmail");
+        String loginPassword = options.getString("loginPassword");
         if (loginEmail != null && !loginEmail.trim().isEmpty()) intent.putExtra(AccountBrowserActivity.EXTRA_LOGIN_EMAIL, loginEmail);
         if (loginPassword != null && !loginPassword.isEmpty()) intent.putExtra(AccountBrowserActivity.EXTRA_LOGIN_PASSWORD, loginPassword);
-        String mailPassword = call.getString("mailPassword");
+        String mailPassword = options.getString("mailPassword");
         if (mailPassword != null && !mailPassword.isEmpty()) intent.putExtra(AccountBrowserActivity.EXTRA_MAIL_PASSWORD, mailPassword);
         // A distinct Uri per account (never loaded/navigated to - AccountBrowserActivity only
         // ever reads EXTRA_URL for that) is what makes each account its own separate "document"
@@ -263,8 +280,15 @@ public class LocalBrowserPlugin extends Plugin {
         // tap itself came from.
         intent.setData(Uri.parse("starnet-account://" + Uri.encode(accountId)));
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_DOCUMENT | Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
-        getActivity().startActivity(intent);
-        call.resolve();
+        JSObject activation = options.getJSObject("activation");
+        if (activation != null) {
+            intent.putExtra(AccountBrowserActivity.EXTRA_ACTIVATION_KIT, activation.getString("kit"));
+            intent.putExtra(AccountBrowserActivity.EXTRA_ACTIVATION_FIRST_NAME, activation.getString("firstName"));
+            intent.putExtra(AccountBrowserActivity.EXTRA_ACTIVATION_LAST_NAME, activation.getString("lastName"));
+            intent.putExtra(AccountBrowserActivity.EXTRA_ACTIVATION_EMAIL, activation.getString("email"));
+            intent.putExtra(AccountBrowserActivity.EXTRA_ACTIVATION_PHONE, activation.getString("phone"));
+        }
+        return intent;
     }
 
     /** 📧 البريد: the device's own mailbox in its own isolated profile (MailBrowserActivity). */
@@ -280,8 +304,19 @@ public class LocalBrowserPlugin extends Plugin {
             return;
         }
         try {
-            MailBrowserActivity.open(getActivity(), accountId, call.getString("accountName", accountId),
-                call.getString("email"), call.getString("password"));
+            JSObject signup = call.getObject("signup");
+            if (signup == null) {
+                MailBrowserActivity.open(getActivity(), accountId, call.getString("accountName", accountId),
+                    call.getString("email"), call.getString("password"));
+            } else {
+                // 🆕 «إنشاء حساب جديد»: Microsoft's signup instead of the inbox, then «تفعيل Starlink».
+                Intent intent = MailBrowserActivity.intentFor(getActivity(), accountId, call.getString("accountName", accountId),
+                    call.getString("email"), call.getString("password"));
+                JSObject then = call.getObject("then");
+                MailBrowserActivity.asSignup(intent, signup.getString("firstName"), signup.getString("lastName"),
+                    then != null ? accountBrowserIntent(accountId, then) : null);
+                getActivity().startActivity(intent);
+            }
         } catch (RuntimeException ex) {
             call.reject("تعذر فتح البريد: " + ex.getMessage());
             return;

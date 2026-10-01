@@ -113,6 +113,7 @@ import {
   listMailSessions,
   listPendingAccountSyncs,
   onAccountDataSynced,
+  openAccountCreation,
   openIsolatedAccountBrowser,
   starlinkLoginFor,
   syncAutoSyncAccountList,
@@ -785,7 +786,12 @@ export function HomeView({
     // A brand-new device (not a rep's, whose login is already transferred): straight into its
     // Starlink browser with the email and password typed into the login form.
     const isNew = !accounts.some((item) => item.id === account.id);
-    if (isNew && !repRequestId && isRunningInAndroidApp() && account.expectedEmail?.trim()) {
+    if (isNew && account.creation && isRunningInAndroidApp()) {
+      // 🆕 «إنشاء حساب جديد»: the new email's signup first, then «تفعيل Starlink».
+      void openAccountCreation(account, "mail").then((result) => {
+        if (!result.ok) pushToast(result.message);
+      });
+    } else if (isNew && !repRequestId && isRunningInAndroidApp() && account.expectedEmail?.trim()) {
       void openIsolatedAccountBrowser(account.id, account.name || "حساب Starlink", starlinkLoginFor(account)).then((result) => {
         if (!result.ok) pushToast(result.message);
       });
@@ -1449,6 +1455,7 @@ export function HomeView({
                 currencyStore={currencyStore}
                 onSetDeviceFault={handleSetDeviceFault}
                 onSetRepair={(target, repair) => patchAccount(target.id, { underRepair: repair })}
+                onFinishCreation={(target) => patchAccount(target.id, { creation: null })}
                 onArchive={handleArchive}
                 onSoftDelete={handleSoftDelete}
                 onRestore={handleRestore}

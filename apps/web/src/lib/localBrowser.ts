@@ -6,9 +6,11 @@ import {
   LocalBrowser,
   PendingAccountSync,
   STARLINK_ACCOUNT_HOME_URL,
+  STARLINK_ACTIVATE_URL,
   SessionStatus,
 } from "@starnet/local-browser-plugin";
 import type { StarlinkAccountSummary } from "@starnet/shared";
+import { outlookSignupFor, starlinkActivationFor } from "./accountCreation";
 import { SessionsByAccount } from "./accountBackup";
 import { markInternalLeave } from "./appLock";
 
@@ -118,6 +120,46 @@ export async function openIsolatedAccountBrowser(accountId: string, accountName:
     return { ok: true };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : "تعذر فتح المتصفح المحلي" };
+  }
+}
+
+/**
+ * 🆕 «إنشاء حساب جديد», continued from `step`: "mail" opens Microsoft's signup (filled with the
+ * new email, its password and the customer's name) and, once the new inbox opens, «تفعيل
+ * Starlink»; "starlink" opens «تفعيل Starlink» directly (KIT, then name/email/phone).
+ */
+export async function openAccountCreation(account: StarlinkAccountSummary, step: "mail" | "starlink"): Promise<OpenResult> {
+  if (!isRunningInAndroidApp()) return { ok: false, message: ANDROID_ONLY_MESSAGE };
+  const activation = starlinkActivationFor(account);
+  const signup = outlookSignupFor(account);
+  if (!activation || !signup) return { ok: false, message: "هذا الجهاز ليس قيد الإنشاء" };
+  const name = account.name || "حساب جديد";
+  const starlink = {
+    accountName: name,
+    url: STARLINK_ACTIVATE_URL,
+    loginEmail: signup.email,
+    ...(signup.password ? { loginPassword: signup.password, mailPassword: signup.password } : {}),
+    activation,
+  };
+  try {
+    const { supported } = await LocalBrowser.isSupported();
+    if (!supported) return { ok: false, message: UNSUPPORTED_DEVICE_MESSAGE };
+    markInternalLeave();
+    if (step === "starlink") {
+      await LocalBrowser.openAccountBrowser({ accountId: account.id, ...starlink });
+    } else {
+      await LocalBrowser.openMailBrowser({
+        accountId: account.id,
+        accountName: name,
+        email: signup.email,
+        password: signup.password,
+        signup: { firstName: signup.firstName, lastName: signup.lastName },
+        then: starlink,
+      });
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : "تعذر فتح صفحة الإنشاء" };
   }
 }
 
