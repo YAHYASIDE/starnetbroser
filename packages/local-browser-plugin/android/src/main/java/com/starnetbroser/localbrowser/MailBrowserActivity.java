@@ -44,6 +44,8 @@ public class MailBrowserActivity extends AppCompatActivity {
     public static final String EXTRA_ACCOUNT_ID = "com.starnetbroser.localbrowser.MAIL_ACCOUNT_ID";
     /** The passwords offered when the password field is empty or the password was wrong. */
     public static final String EXTRA_SUGGESTIONS = "com.starnetbroser.localbrowser.MAIL_SUGGESTIONS";
+    /** Typed into Microsoft's «Add an email address» (the account has no recovery email yet). */
+    public static final String EXTRA_RECOVERY_EMAIL = "com.starnetbroser.localbrowser.MAIL_RECOVERY_EMAIL";
     /** 🆕 «إنشاء حساب جديد»: open Microsoft's signup (filled with these names) instead of the inbox. */
     public static final String EXTRA_SIGNUP = "com.starnetbroser.localbrowser.MAIL_SIGNUP";
     public static final String EXTRA_SIGNUP_FIRST_NAME = "com.starnetbroser.localbrowser.MAIL_SIGNUP_FIRST_NAME";
@@ -77,6 +79,11 @@ public class MailBrowserActivity extends AppCompatActivity {
     private String typedPassword;
     private boolean offeredForField;
     private boolean offeredForWrong;
+    /** The saved code typed straight from here when the page's own autofill left the field empty. */
+    private boolean directFillTried;
+    private boolean warnedNothingSaved;
+    private String recoveryScript;
+    private boolean recoveryFilled;
     private android.app.AlertDialog pickerDialog;
 
     /** 📨 Microsoft's "enter the code we sent" page: the code is read from the linked Gmail
@@ -91,12 +98,17 @@ public class MailBrowserActivity extends AppCompatActivity {
      * reading). Gmail is not offered: Google refuses its sign-in inside an app's web view.
      */
     static void open(android.app.Activity activity, String accountId, String title, String email, String password, String[] suggestions) {
+        open(activity, accountId, title, email, password, suggestions, null);
+    }
+
+    static void open(android.app.Activity activity, String accountId, String title, String email, String password, String[] suggestions, String recoveryEmail) {
         if (MailUrl.providerFor(email) == MailUrl.Provider.GMAIL) {
             android.widget.Toast.makeText(activity, "بريد Gmail لا يُفتح داخل التطبيق - Google تمنع ذلك", android.widget.Toast.LENGTH_LONG).show();
             return;
         }
         Intent intent = intentFor(activity, accountId, title, email, password);
         if (suggestions != null && suggestions.length > 0) intent.putExtra(EXTRA_SUGGESTIONS, suggestions);
+        if (recoveryEmail != null && !recoveryEmail.trim().isEmpty()) intent.putExtra(EXTRA_RECOVERY_EMAIL, recoveryEmail.trim());
         activity.startActivity(intent);
     }
 
@@ -145,6 +157,7 @@ public class MailBrowserActivity extends AppCompatActivity {
             autofillScript = LoginAutofill.script(email, savedPassword);
             String[] offered = getIntent().getStringArrayExtra(EXTRA_SUGGESTIONS);
             if (offered != null) suggestions = offered;
+            recoveryScript = GmailCodes.recoveryEmailScript(getIntent().getStringExtra(EXTRA_RECOVERY_EMAIL));
         }
 
         if (profileName == null || !WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
@@ -220,6 +233,17 @@ public class MailBrowserActivity extends AppCompatActivity {
         stopCodeWait();
     }
 
+    /** Microsoft's «Add an email address» (no recovery email yet): the shop's Gmail, once. */
+    private void checkRecoveryPage() {
+        if (webView == null || recoveryScript == null || recoveryFilled || !GmailCodes.isMicrosoftStep(webView.getUrl())) return;
+        webView.evaluateJavascript(recoveryScript, value -> {
+            if ("\"ok\"".equals(value)) {
+                recoveryFilled = true;
+                Toast.makeText(this, "📨 كُتب بريد الاسترداد - اضغط Next", Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+
     private void stopCodeWait() {
         if (gmailFetcher != null) gmailFetcher.stop();
         gmailFetcher = null;
@@ -287,6 +311,7 @@ public class MailBrowserActivity extends AppCompatActivity {
             return;
         }
         checkCodePage();
+        checkRecoveryPage();
         if (signup) {
             // The signup's password is the one the operator typed in the app - nothing to offer.
             watchHandler.postDelayed(passwordPoll, PASSWORD_WATCH_MS);
@@ -300,15 +325,26 @@ public class MailBrowserActivity extends AppCompatActivity {
                 boolean nothingSaved = savedPassword == null || savedPassword.isEmpty();
                 if (state.wrongPassword && !offeredForWrong) {
                     offeredForWrong = true;
-                    offerPasswords("❌ كلمة المرور غير صحيحة - اختر غيرها");
+                    if (suggestions.length > 0) offerPasswords("❌ كلمة المرور غير صحيحة - اختر غيرها");
+                    else Toast.makeText(this, "❌ كلمة المرور غير صحيحة - اكتب الصحيحة وتُحفظ بعد الدخول", Toast.LENGTH_LONG).show();
+                } else if (state.password.isEmpty() && !nothingSaved && !state.wrongPassword && !directFillTried) {
+                    // The page's own autofill (LoginAutofill) left it empty: type the saved code from here.
+                    directFillTried = true;
+                    webView.evaluateJavascript(StarlinkLoginWatch.fillPasswordScript(savedPassword), null);
+                    typedPassword = savedPassword;
                 } else if (state.password.isEmpty() && nothingSaved && !offeredForField) {
                     offeredForField = true;
-                    offerPasswords("🔑 اختر كلمة مرور البريد");
+                    if (suggestions.length > 0) offerPasswords("🔑 اختر كلمة مرور البريد");
+                    else if (!warnedNothingSaved) {
+                        warnedNothingSaved = true;
+                        Toast.makeText(this, "🔑 لا «كود بريد» محفوظ لهذا الجهاز - اكتبه، ويُحفظ وحده بعد الدخول", Toast.LENGTH_LONG).show();
+                    }
                 }
             } else if (state != null) {
                 // The password step is gone (next step, or the inbox): offer again next time.
                 offeredForField = false;
                 offeredForWrong = false;
+                directFillTried = false;
             }
             watchHandler.postDelayed(passwordPoll, PASSWORD_WATCH_MS);
         });

@@ -10,7 +10,7 @@ import {
   SessionStatus,
 } from "@starnet/local-browser-plugin";
 import type { StarlinkAccountSummary } from "@starnet/shared";
-import { outlookSignupFor, starlinkActivationFor } from "./accountCreation";
+import { SIGNUP_RECOVERY_EMAIL, outlookSignupFor, starlinkActivationFor } from "./accountCreation";
 import { passwordSuggestionsFor } from "./usedPasswords";
 import { SessionsByAccount } from "./accountBackup";
 import { markInternalLeave } from "./appLock";
@@ -63,6 +63,19 @@ export interface StarlinkLogin {
   mailPassword?: string;
   /** Offered there when that password is missing or wrong. */
   mailSuggestions?: string[];
+  /** Typed into Microsoft's «Add an email address» there. */
+  mailRecoveryEmail?: string;
+}
+
+/** The mailbox extras for a device's Starlink browser («📧 البريد» inside it): its email's code,
+ * the codes to offer, and the shop's recovery email. */
+export function mailExtrasFor(account: StarlinkAccountSummary, accounts: StarlinkAccountSummary[] = []): Pick<StarlinkLogin, "mailPassword" | "mailSuggestions" | "mailRecoveryEmail"> {
+  const mail = mailLoginFor(account, accounts);
+  return {
+    ...(mail.password ? { mailPassword: mail.password } : {}),
+    ...(mail.suggestions ? { mailSuggestions: mail.suggestions } : {}),
+    mailRecoveryEmail: SIGNUP_RECOVERY_EMAIL,
+  };
 }
 
 export interface MailLogin {
@@ -70,6 +83,8 @@ export interface MailLogin {
   password?: string;
   /** Offered when the password field is empty or the password was wrong. */
   suggestions?: string[];
+  /** Typed into Microsoft's «Add an email address» (no recovery email yet): the shop's Gmail. */
+  recoveryEmail?: string;
 }
 
 /** 📧 البريد: the device's main email and that email's own password ("كود الإيميل"), plus the
@@ -82,7 +97,7 @@ export function mailLoginFor(
   const password = account.expectedEmailPassword?.trim() || undefined;
   // The saved one is already typed in; offering it again after it was refused is no help.
   const suggestions = passwordSuggestionsFor({ name: "", ...account }, accounts).filter((v) => v !== password);
-  return { ...(email ? { email } : {}), ...(password ? { password } : {}), ...(suggestions.length ? { suggestions } : {}) };
+  return { ...(email ? { email } : {}), ...(password ? { password } : {}), ...(suggestions.length ? { suggestions } : {}), recoveryEmail: SIGNUP_RECOVERY_EMAIL };
 }
 
 /** The devices whose mailbox is signed in on this phone (the green «📧 البريد»). Empty off-app. */

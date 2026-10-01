@@ -146,6 +146,23 @@ final class GmailCodes {
         }
     }
 
+    /** The shop's Gmail where Microsoft sends its codes - typed into «Add an email address» (the
+     * account has no recovery email yet) on Microsoft's own steps, in «📧 البريد» too, not only at
+     * signup. Only the empty field; nothing is pressed. */
+    static String recoveryEmailScript(String email) {
+        if (email == null || email.trim().isEmpty()) return null;
+        return "(function(r){"
+            + "var h=document.querySelectorAll('h1,h2,[role=heading]'),t='';for(var i=0;i<h.length;i++){var b=h[i].getBoundingClientRect();if(b.width>0&&b.height>0)t+=' '+h[i].textContent;}"
+            + "if(!/add an email|recovery|security info|protect your account|alternate email|بريد.{0,12}(استرداد|بديل)|أضف عنوان بريد/i.test(t))return 'no';"
+            + "var l=document.querySelectorAll('input[type=email],input[type=text],input:not([type])');"
+            + "for(var j=0;j<l.length;j++){var el=l[j],c=el.getBoundingClientRect();if(c.width===0||c.height===0||el.disabled||el.readOnly)continue;"
+            + "if(/password|كلمة/i.test([el.name,el.id,el.placeholder,el.getAttribute('aria-label')].join(' ')))continue;"
+            + "if(el.value)return 'has';"
+            + "var s=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;el.focus();s.call(el,r);"
+            + "el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));return 'ok';}"
+            + "return 'no';})(" + LoginAutofill.literal(email.trim()) + ")";
+    }
+
     /** Microsoft's "enter the code we sent" pages (a new email's check, a sign-in check):
      * "1" = the page with an empty code box, "2" = filled, "0" = not that page. */
     static final String DETECT_SCRIPT = "(function(){"

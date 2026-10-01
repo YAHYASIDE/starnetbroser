@@ -22,7 +22,7 @@ import { formatAmount } from "@/lib/formatAmount";
 import { PaymentAllocation } from "@/lib/paymentAllocationStore";
 import { Client } from "@/lib/clientStore";
 import { isGmail } from "@/lib/mailboxes";
-import { isRunningInAndroidApp, mailLoginFor, openAccountCreation, openIsolatedAccountBrowser, openIsolatedMailbox, starlinkLoginFor, triggerImmediateSync } from "@/lib/localBrowser";
+import { isRunningInAndroidApp, mailExtrasFor, mailLoginFor, openAccountCreation, openIsolatedAccountBrowser, openIsolatedMailbox, starlinkLoginFor, triggerImmediateSync } from "@/lib/localBrowser";
 import {
   buildAccountStatementMessage,
   buildBalanceReminderMessage,
@@ -278,11 +278,9 @@ export function AccountCard({
     if (opening) return;
     setOpening(true);
     try {
-      const mail = mailLoginFor(account, allAccounts);
       const result = await openIsolatedAccountBrowser(account.id, account.name || "حساب Starlink", {
         ...starlinkLoginFor(account),
-        ...(mail.password ? { mailPassword: mail.password } : {}),
-        ...(mail.suggestions ? { mailSuggestions: mail.suggestions } : {}),
+        ...mailExtrasFor(account, allAccounts),
       });
       if (!result.ok) {
         window.alert(result.message);

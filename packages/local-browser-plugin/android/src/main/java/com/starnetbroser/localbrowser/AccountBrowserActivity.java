@@ -60,6 +60,8 @@ public class AccountBrowserActivity extends AppCompatActivity {
     public static final String EXTRA_MAIL_PASSWORD = "com.starnetbroser.localbrowser.MAIL_PASSWORD";
     /** Offered in «📧 البريد» when the email's password is missing or wrong. */
     public static final String EXTRA_MAIL_SUGGESTIONS = "com.starnetbroser.localbrowser.MAIL_SUGGESTIONS";
+    /** Typed into Microsoft's «Add an email address» in «📧 البريد». */
+    public static final String EXTRA_MAIL_RECOVERY = "com.starnetbroser.localbrowser.MAIL_RECOVERY";
     /** 🆕 «إنشاء حساب جديد»: what «تفعيل Starlink» is filled with (SignupFill), else absent. */
     public static final String EXTRA_ACTIVATION_KIT = "com.starnetbroser.localbrowser.ACTIVATION_KIT";
     public static final String EXTRA_ACTIVATION_FIRST_NAME = "com.starnetbroser.localbrowser.ACTIVATION_FIRST_NAME";
@@ -699,7 +701,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
             // This device's mailbox, e.g. to copy the Starlink verification code and come back.
             MailBrowserActivity.open(this, accountId, getTitle() != null ? getTitle().toString() : null,
                 getIntent().getStringExtra(EXTRA_LOGIN_EMAIL), getIntent().getStringExtra(EXTRA_MAIL_PASSWORD),
-                getIntent().getStringArrayExtra(EXTRA_MAIL_SUGGESTIONS));
+                getIntent().getStringArrayExtra(EXTRA_MAIL_SUGGESTIONS), getIntent().getStringExtra(EXTRA_MAIL_RECOVERY));
             return true;
         }
         return super.onOptionsItemSelected(item);

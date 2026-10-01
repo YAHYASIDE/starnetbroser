@@ -15,9 +15,9 @@ describe("starlinkLoginFor", () => {
 
 describe("mailLoginFor", () => {
   it("is the device email with the email's own password, never the Wi-Fi code", () => {
-    expect(mailLoginFor({ expectedEmail: " a@outlook.com ", expectedEmailPassword: " Bb2 " })).toEqual({ email: "a@outlook.com", password: "Bb2" });
-    expect(mailLoginFor({ expectedEmail: "a@outlook.com" })).toEqual({ email: "a@outlook.com" });
-    expect(mailLoginFor({})).toEqual({});
+    expect(mailLoginFor({ expectedEmail: " a@outlook.com ", expectedEmailPassword: " Bb2 " })).toEqual({ email: "a@outlook.com", password: "Bb2", recoveryEmail: "starnet.om@gmail.com" });
+    expect(mailLoginFor({ expectedEmail: "a@outlook.com" })).toEqual({ email: "a@outlook.com", recoveryEmail: "starnet.om@gmail.com" });
+    expect(mailLoginFor({})).toEqual({ recoveryEmail: "starnet.om@gmail.com" });
   });
 
   it("offers the device's other codes and the most used passwords, never the saved one again", () => {
@@ -26,6 +26,7 @@ describe("mailLoginFor", () => {
       email: "a@outlook.com",
       password: "demo-mail",
       suggestions: ["demo-wifi", "demo-common"],
+      recoveryEmail: "starnet.om@gmail.com",
     });
   });
 });

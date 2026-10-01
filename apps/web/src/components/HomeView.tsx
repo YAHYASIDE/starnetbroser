@@ -113,6 +113,7 @@ import {
   listMailSessions,
   listPendingAccountSyncs,
   onAccountDataSynced,
+  mailExtrasFor,
   openAccountCreation,
   openIsolatedAccountBrowser,
   starlinkLoginFor,
@@ -792,7 +793,7 @@ export function HomeView({
         if (!result.ok) pushToast(result.message);
       });
     } else if (isNew && !repRequestId && isRunningInAndroidApp() && account.expectedEmail?.trim()) {
-      void openIsolatedAccountBrowser(account.id, account.name || "حساب Starlink", starlinkLoginFor(account)).then((result) => {
+      void openIsolatedAccountBrowser(account.id, account.name || "حساب Starlink", { ...starlinkLoginFor(account), ...mailExtrasFor(account, accounts) }).then((result) => {
         if (!result.ok) pushToast(result.message);
       });
     }
@@ -1171,7 +1172,7 @@ export function HomeView({
         <OceanModeAlarm
           devices={oceanDevices}
           onOpen={(account) => {
-            void openIsolatedAccountBrowser(account.id, account.name || "حساب Starlink", starlinkLoginFor(account)).then((result) => {
+            void openIsolatedAccountBrowser(account.id, account.name || "حساب Starlink", { ...starlinkLoginFor(account), ...mailExtrasFor(account, accounts) }).then((result) => {
               if (!result.ok) pushToast(result.message);
             });
           }}

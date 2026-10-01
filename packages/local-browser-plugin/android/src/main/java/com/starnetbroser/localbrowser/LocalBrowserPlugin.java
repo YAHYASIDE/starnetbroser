@@ -367,6 +367,8 @@ public class LocalBrowserPlugin extends Plugin {
         if (mailPassword != null && !mailPassword.isEmpty()) intent.putExtra(AccountBrowserActivity.EXTRA_MAIL_PASSWORD, mailPassword);
         String[] mailSuggestions = stringArray(options, "mailSuggestions");
         if (mailSuggestions.length > 0) intent.putExtra(AccountBrowserActivity.EXTRA_MAIL_SUGGESTIONS, mailSuggestions);
+        String mailRecovery = options.getString("mailRecoveryEmail");
+        if (mailRecovery != null && !mailRecovery.trim().isEmpty()) intent.putExtra(AccountBrowserActivity.EXTRA_MAIL_RECOVERY, mailRecovery.trim());
         // A distinct Uri per account (never loaded/navigated to - AccountBrowserActivity only
         // ever reads EXTRA_URL for that) is what makes each account its own separate "document"
         // task in Recents (see documentLaunchMode="intoExisting" on this Activity in the
@@ -404,7 +406,8 @@ public class LocalBrowserPlugin extends Plugin {
             JSObject signup = call.getObject("signup");
             if (signup == null) {
                 MailBrowserActivity.open(getActivity(), accountId, call.getString("accountName", accountId),
-                    call.getString("email"), call.getString("password"), stringArray(call.getData(), "suggestions"));
+                    call.getString("email"), call.getString("password"), stringArray(call.getData(), "suggestions"),
+                    call.getString("recoveryEmail"));
             } else {
                 // 🆕 «إنشاء حساب جديد»: Microsoft's signup instead of the inbox, then «تفعيل Starlink».
                 Intent intent = MailBrowserActivity.intentFor(getActivity(), accountId, call.getString("accountName", accountId),
