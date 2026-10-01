@@ -202,4 +202,20 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
   async clearDriveToken(_options: ClearDriveTokenOptions): Promise<void> {
     return;
   }
+
+  async linkGmailCodes(_options: { email: string }): Promise<{ email: string }> {
+    throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
+  }
+
+  async gmailCodesStatus(): Promise<{ email?: string }> {
+    return {};
+  }
+
+  async unlinkGmailCodes(): Promise<void> {
+    return;
+  }
+
+  async latestGmailCode(): Promise<{ code?: string }> {
+    throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
+  }
 }

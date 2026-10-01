@@ -79,6 +79,13 @@ public class MailBrowserActivity extends AppCompatActivity {
     private boolean offeredForWrong;
     private android.app.AlertDialog pickerDialog;
 
+    /** 📨 Microsoft's "enter the code we sent" page: the code is read from the linked Gmail
+     * («بريد الرموز», GmailCodeFetcher) and typed in - the operator taps «Next». */
+    private GmailCodeFetcher gmailFetcher;
+    private boolean codeWaitDone;
+    private boolean warnedNotLinked;
+    private long lastCodeAt;
+
     /**
      * Opens one device's Outlook mailbox inside the app (isolated web view, autofilled, code
      * reading). Gmail is not offered: Google refuses its sign-in inside an app's web view.
@@ -203,19 +210,85 @@ public class MailBrowserActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (!signup) watchHandler.postDelayed(passwordPoll, PASSWORD_WATCH_MS);
+        watchHandler.postDelayed(passwordPoll, PASSWORD_WATCH_MS);
     }
 
     @Override
     protected void onPause() {
         super.onPause();
         watchHandler.removeCallbacks(passwordPoll);
+        stopCodeWait();
+    }
+
+    private void stopCodeWait() {
+        if (gmailFetcher != null) gmailFetcher.stop();
+        gmailFetcher = null;
+    }
+
+    /** The code page: start waiting for the code in Gmail (once per appearance of the page). */
+    private void checkCodePage() {
+        // Only Microsoft's sign-in / signup steps - never the inbox, whose messages mention codes.
+        if (webView == null || !GmailCodes.isMicrosoftStep(webView.getUrl())) return;
+        webView.evaluateJavascript(GmailCodes.DETECT_SCRIPT, value -> {
+            if (webView == null) return;
+            String state = value == null ? "" : value.replace("\"", "");
+            if ("0".equals(state)) {
+                codeWaitDone = false;
+                stopCodeWait();
+                return;
+            }
+            if (!"1".equals(state) || gmailFetcher != null || codeWaitDone) return;
+            String linked = GmailCodeFetcher.linkedEmail(this);
+            if (linked == null) {
+                if (!warnedNotLinked) {
+                    warnedNotLinked = true;
+                    Toast.makeText(this, "📨 اربط «بريد الرموز» من الإعدادات ليُكتب رمز التحقق وحده", Toast.LENGTH_LONG).show();
+                }
+                codeWaitDone = true;
+                return;
+            }
+            Toast.makeText(this, "📨 ننتظر الرمز في " + linked + "…", Toast.LENGTH_SHORT).show();
+            long since = Math.max(System.currentTimeMillis() - 2 * 60 * 1000, lastCodeAt + 1);
+            gmailFetcher = new GmailCodeFetcher(this, since, new CodeSource.Listener() {
+                @Override
+                public void onCode(String code) {
+                    gmailFetcher = null;
+                    codeWaitDone = true;
+                    lastCodeAt = System.currentTimeMillis();
+                    if (webView != null) webView.evaluateJavascript(GmailCodes.fillScript(code), null);
+                    ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                    if (clipboard != null) clipboard.setPrimaryClip(ClipData.newPlainText("code", code));
+                    Toast.makeText(MailBrowserActivity.this, "📨 كُتب الرمز " + code + " - اضغط Next", Toast.LENGTH_LONG).show();
+                }
+
+                @Override
+                public void onSignedOut() {
+                    gmailFetcher = null;
+                    codeWaitDone = true;
+                    Toast.makeText(MailBrowserActivity.this, "📨 Gmail الرموز غير مربوط بهذا الحساب - اربطه من الإعدادات", Toast.LENGTH_LONG).show();
+                }
+
+                @Override
+                public void onGiveUp() {
+                    gmailFetcher = null;
+                    codeWaitDone = true;
+                    Toast.makeText(MailBrowserActivity.this, "📨 لم يصل رمز خلال 3 دقائق - اطلبه من جديد", Toast.LENGTH_LONG).show();
+                }
+            });
+            gmailFetcher.start();
+        });
     }
 
     /** Microsoft's password step: what is typed, whether it says "wrong", and when to offer the list. */
     private void checkPassword() {
         if (webView == null || isFinishing()) return;
         if (!MailUrl.isAllowed(webView.getUrl())) {
+            watchHandler.postDelayed(passwordPoll, PASSWORD_WATCH_MS);
+            return;
+        }
+        checkCodePage();
+        if (signup) {
+            // The signup's password is the one the operator typed in the app - nothing to offer.
             watchHandler.postDelayed(passwordPoll, PASSWORD_WATCH_MS);
             return;
         }
@@ -274,6 +347,7 @@ public class MailBrowserActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         watchHandler.removeCallbacks(passwordPoll);
+        stopCodeWait();
         if (pickerDialog != null) pickerDialog.dismiss();
         if (webView != null) {
             webView.stopLoading();

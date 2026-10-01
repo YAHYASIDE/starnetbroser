@@ -170,6 +170,89 @@ public class LocalBrowserPlugin extends Plugin {
         driveAuthorizer.authorize(getActivity(), call, call.getBoolean("interactive", true));
     }
 
+    /** 📨 «بريد الرموز»: links the shop's Gmail (read-only) once - the Google screen lets the
+     * operator pick the account, and it must be `email` itself (checked against Gmail's profile). */
+    @PluginMethod
+    public void linkGmailCodes(PluginCall call) {
+        String email = call.getString("email", "").trim().toLowerCase(java.util.Locale.ROOT);
+        if (email.isEmpty()) {
+            call.reject("اكتب بريد Gmail أولاً");
+            return;
+        }
+        driveAuthorizer.authorize(getActivity(), GmailCodes.SCOPE, true, "يلزم ربط Gmail", new DriveAuthorizer.TokenCallback() {
+            @Override
+            public void onToken(String token) {
+                telegramExecutor.execute(() -> {
+                    try {
+                        String account = GmailCodes.profileEmail(GmailCodeFetcher.get(GmailCodes.PROFILE_URL, token));
+                        if (!email.equals(account)) {
+                            call.reject("اخترت حساباً آخر (" + account + ") - اختر " + email);
+                            return;
+                        }
+                        GmailCodeFetcher.setLinkedEmail(getContext(), email);
+                        JSObject ret = new JSObject();
+                        ret.put("email", email);
+                        call.resolve(ret);
+                    } catch (java.io.IOException ex) {
+                        call.reject(gmailError(ex));
+                    }
+                });
+            }
+
+            @Override
+            public void onError(String message, String code) {
+                call.reject(message, code);
+            }
+        });
+    }
+
+    /** Which Gmail «بريد الرموز» is linked to (no `email` when none). */
+    @PluginMethod
+    public void gmailCodesStatus(PluginCall call) {
+        JSObject ret = new JSObject();
+        String email = GmailCodeFetcher.linkedEmail(getContext());
+        if (email != null) ret.put("email", email); // absent = not linked
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void unlinkGmailCodes(PluginCall call) {
+        GmailCodeFetcher.setLinkedEmail(getContext(), null);
+        call.resolve();
+    }
+
+    /** «🔍 جرّب»: the newest code of the last day in the linked Gmail (no `code` when none). */
+    @PluginMethod
+    public void latestGmailCode(PluginCall call) {
+        DriveAuthorizer.authorizeSilently(getActivity(), GmailCodes.SCOPE, new DriveAuthorizer.TokenCallback() {
+            @Override
+            public void onToken(String token) {
+                telegramExecutor.execute(() -> {
+                    try {
+                        String code = GmailCodeFetcher.newestCode(token, System.currentTimeMillis() - 24L * 60 * 60 * 1000);
+                        JSObject ret = new JSObject();
+                        if (code != null) ret.put("code", code); // absent = no code today
+                        call.resolve(ret);
+                    } catch (java.io.IOException ex) {
+                        call.reject(gmailError(ex));
+                    }
+                });
+            }
+
+            @Override
+            public void onError(String message, String code) {
+                call.reject("اربط Gmail الرموز أولاً", code);
+            }
+        });
+    }
+
+    private static String gmailError(java.io.IOException ex) {
+        if (ex instanceof GmailCodeFetcher.HttpError && ((GmailCodeFetcher.HttpError) ex).status == 403) {
+            return "Gmail رفض الطلب (403) - فعّل Gmail API في مشروع Google Cloud";
+        }
+        return "تعذر الاتصال بـ Gmail: " + ex.getMessage();
+    }
+
     @PluginMethod
     public void clearDriveToken(PluginCall call) {
         String token = call.getString("accessToken");

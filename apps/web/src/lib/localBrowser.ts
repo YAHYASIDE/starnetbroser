@@ -174,6 +174,40 @@ export async function openAccountCreation(account: StarlinkAccountSummary, step:
   }
 }
 
+/** 📨 «بريد الرموز»: link the shop's Gmail (read-only) - see LocalBrowser.linkGmailCodes. */
+export async function linkGmailCodes(email: string): Promise<{ ok: true; email: string } | { ok: false; message: string }> {
+  if (!isRunningInAndroidApp()) return { ok: false, message: ANDROID_ONLY_MESSAGE };
+  try {
+    const result = await LocalBrowser.linkGmailCodes({ email: email.trim() });
+    return { ok: true, email: result.email };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : "تعذر ربط Gmail" };
+  }
+}
+
+export async function gmailCodesEmail(): Promise<string | null> {
+  if (!isRunningInAndroidApp()) return null;
+  try {
+    return (await LocalBrowser.gmailCodesStatus()).email ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function unlinkGmailCodes(): Promise<void> {
+  if (isRunningInAndroidApp()) await LocalBrowser.unlinkGmailCodes().catch(() => undefined);
+}
+
+/** «🔍 جرّب»: the newest code of the last day, or a message saying why there is none. */
+export async function latestGmailCode(): Promise<{ ok: true; code: string | null } | { ok: false; message: string }> {
+  if (!isRunningInAndroidApp()) return { ok: false, message: ANDROID_ONLY_MESSAGE };
+  try {
+    return { ok: true, code: (await LocalBrowser.latestGmailCode()).code ?? null };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : "تعذر القراءة من Gmail" };
+  }
+}
+
 /** Only call after the user separately confirms deleting the local session - never automatic. */
 export async function deleteIsolatedAccountSession(accountId: string): Promise<boolean> {
   if (!isRunningInAndroidApp()) return false;

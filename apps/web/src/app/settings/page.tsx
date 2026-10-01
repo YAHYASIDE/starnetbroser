@@ -6,6 +6,7 @@ import { RepModeEntrySection } from "@/components/RepModeEntrySection";
 import { ActivationCostsSection } from "@/components/ActivationCostsSection";
 import { PhoneShortcutsSection } from "@/components/PhoneShortcutsSection";
 import { UsedPasswordsSection } from "@/components/UsedPasswordsSection";
+import { GmailCodesSection } from "@/components/GmailCodesSection";
 import { useEffect, useRef, useState } from "react";
 import { checkHealth, listAccounts, login, register } from "@/lib/apiClient";
 import { ApiError } from "@/lib/apiClient";
@@ -225,6 +226,7 @@ export default function SettingsPage() {
           <>
       <PhoneShortcutsSection />
       <UsedPasswordsSection />
+      <GmailCodesSection />
       <section className="section">
         <h2 className="section-title">المظهر</h2>
         <p className="settings-hint">اختر مظهر التطبيق - يمكنك اختيار الوضع الداكن يدويًا بدل الاعتماد على إعداد الجهاز.</p>

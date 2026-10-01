@@ -575,4 +575,19 @@ export interface LocalBrowserPlugin {
 
   /** Drops a token Drive rejected (HTTP 401) so the next authorizeDrive returns a fresh one. */
   clearDriveToken(options: ClearDriveTokenOptions): Promise<void>;
+
+  /**
+   * 📨 «بريد الرموز»: links the shop's Gmail read-only (one Google screen to pick the account,
+   * which must be `email`). The mail browser then reads Microsoft's verification codes from it
+   * and types them in. Rejects on web.
+   */
+  linkGmailCodes(options: { email: string }): Promise<{ email: string }>;
+
+  /** The linked Gmail (no `email` when none). */
+  gmailCodesStatus(): Promise<{ email?: string }>;
+
+  unlinkGmailCodes(): Promise<void>;
+
+  /** The newest code of the last day in the linked Gmail (no `code` when none) - «🔍 جرّب». */
+  latestGmailCode(): Promise<{ code?: string }>;
 }

@@ -19,7 +19,8 @@ import com.google.android.gms.common.api.Scope;
 import java.util.Collections;
 
 /**
- * Google Drive access for the off-phone backup (Settings → Google Drive). Only ever asks for
+ * Google access tokens: Drive for the off-phone backup (Settings → Google Drive), and 📨 Gmail's
+ * read-only scope for «بريد الرموز» (GmailCodes). Drive only ever asks for
  * "drive.file": the app sees the files it created itself (its STARNET backups folder) and nothing
  * else in the operator's Drive. Uses Google Identity Services' AuthorizationClient, which needs no
  * client secret in the APK - Google matches this app by its package name + signing certificate
@@ -35,8 +36,15 @@ final class DriveAuthorizer {
     static final String ERROR_CANCELLED = "DRIVE_CANCELLED";
     static final String ERROR_FAILED = "DRIVE_AUTH_FAILED";
 
+    /** Where a token (or the reason there is none) goes - a plugin call, or GmailCodeFetcher. */
+    interface TokenCallback {
+        void onToken(String token);
+
+        void onError(String message, String code);
+    }
+
     private ActivityResultLauncher<IntentSenderRequest> consentLauncher;
-    private PluginCall pendingCall;
+    private TokenCallback pending;
 
     /** Must run while the Activity is being created (Plugin#load) - an ActivityResultLauncher can't
      * be registered once it has started. */
@@ -55,28 +63,60 @@ final class DriveAuthorizer {
     }
 
     void authorize(Activity activity, PluginCall call, boolean interactive) {
+        authorize(activity, DRIVE_FILE_SCOPE, interactive, "يلزم ربط Google Drive من الإعدادات", forCall(call));
+    }
+
+    /** A token for `scope` (Drive's, or 📨 Gmail's read-only one). Non-interactive never shows a
+     * Google screen: it fails with ERROR_CONSENT_REQUIRED and `consentMessage`. */
+    void authorize(Activity activity, String scope, boolean interactive, String consentMessage, TokenCallback callback) {
+        authorizeWith(activity, scope, interactive, consentMessage, callback, consentLauncher);
+    }
+
+    /** The same, from a screen that has no consent launcher (the mail browser): never interactive. */
+    static void authorizeSilently(Activity activity, String scope, TokenCallback callback) {
+        new DriveAuthorizer().authorizeWith(activity, scope, false, "", callback, null);
+    }
+
+    private void authorizeWith(Activity activity, String scope, boolean interactive, String consentMessage,
+                               TokenCallback callback, ActivityResultLauncher<IntentSenderRequest> launcher) {
         AuthorizationRequest request = AuthorizationRequest.builder()
-            .setRequestedScopes(Collections.singletonList(new Scope(DRIVE_FILE_SCOPE)))
+            .setRequestedScopes(Collections.singletonList(new Scope(scope)))
             .build();
         Identity.getAuthorizationClient(activity)
             .authorize(request)
             .addOnSuccessListener(result -> {
                 if (!result.hasResolution()) {
-                    resolveToken(call, result);
+                    resolveToken(callback, result);
                     return;
                 }
                 PendingIntent consent = result.getPendingIntent();
-                if (!interactive || consent == null || consentLauncher == null) {
-                    call.reject("يلزم ربط Google Drive من الإعدادات", ERROR_CONSENT_REQUIRED);
+                if (!interactive || consent == null || launcher == null) {
+                    callback.onError(consentMessage, ERROR_CONSENT_REQUIRED);
                     return;
                 }
-                if (pendingCall != null) {
-                    pendingCall.reject("طلب ربط آخر بدأ", ERROR_CANCELLED);
+                if (pending != null) {
+                    pending.onError("طلب ربط آخر بدأ", ERROR_CANCELLED);
                 }
-                pendingCall = call;
-                activity.runOnUiThread(() -> consentLauncher.launch(new IntentSenderRequest.Builder(consent.getIntentSender()).build()));
+                pending = callback;
+                activity.runOnUiThread(() -> launcher.launch(new IntentSenderRequest.Builder(consent.getIntentSender()).build()));
             })
-            .addOnFailureListener(error -> call.reject("تعذر الاتصال بحساب Google: " + error.getMessage(), ERROR_FAILED));
+            .addOnFailureListener(error -> callback.onError("تعذر الاتصال بحساب Google: " + error.getMessage(), ERROR_FAILED));
+    }
+
+    private static TokenCallback forCall(PluginCall call) {
+        return new TokenCallback() {
+            @Override
+            public void onToken(String token) {
+                JSObject ret = new JSObject();
+                ret.put("accessToken", token);
+                call.resolve(ret);
+            }
+
+            @Override
+            public void onError(String message, String code) {
+                call.reject(message, code);
+            }
+        };
     }
 
     /** A token Drive rejected (401) is dropped from Google Play services' cache, so the next
@@ -94,31 +134,29 @@ final class DriveAuthorizer {
     }
 
     private void onConsentResult(Activity activity, ActivityResult result) {
-        PluginCall call = pendingCall;
-        pendingCall = null;
-        if (call == null) {
+        TokenCallback callback = pending;
+        pending = null;
+        if (callback == null) {
             return;
         }
         if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null) {
-            call.reject("لم تتم الموافقة على الوصول إلى Google Drive", ERROR_CANCELLED);
+            callback.onError("لم تتم الموافقة على الوصول إلى حساب Google", ERROR_CANCELLED);
             return;
         }
         try {
             AuthorizationResult authorization = Identity.getAuthorizationClient(activity).getAuthorizationResultFromIntent(result.getData());
-            resolveToken(call, authorization);
+            resolveToken(callback, authorization);
         } catch (ApiException ex) {
-            call.reject("تعذر إكمال ربط Google Drive: " + ex.getMessage(), ERROR_FAILED);
+            callback.onError("تعذر إكمال الربط مع Google: " + ex.getMessage(), ERROR_FAILED);
         }
     }
 
-    private static void resolveToken(PluginCall call, AuthorizationResult result) {
+    private static void resolveToken(TokenCallback callback, AuthorizationResult result) {
         String token = result.getAccessToken();
         if (token == null || token.isEmpty()) {
-            call.reject("لم يُرجع Google رمز وصول", ERROR_FAILED);
+            callback.onError("لم يُرجع Google رمز وصول", ERROR_FAILED);
             return;
         }
-        JSObject ret = new JSObject();
-        ret.put("accessToken", token);
-        call.resolve(ret);
+        callback.onToken(token);
     }
 }
