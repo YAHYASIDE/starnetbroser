@@ -10062,25 +10062,50 @@ a[href],
 }
 
 /* 🔑 One-tap password chips under a password field, and the settings list. */
+/* Suggested passwords: hidden until the field is tapped, then a translucent list floating under
+ * it (takes no room in the form). */
+.add-field { position: relative; }
+
 .password-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 4px;
+  display: none;
+  position: absolute;
+  top: calc(100% - 6px);
+  inset-inline: 8px;
+  z-index: 30;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+  max-height: 210px;
+  overflow-y: auto;
 }
 
+.add-field:focus-within > .password-chips { display: flex; }
+
 .password-chip {
-  border: 1px solid var(--border);
-  background: var(--surface-alt);
+  border: 0;
+  background: transparent;
   color: var(--text);
-  border-radius: 999px;
-  padding: 2px 10px;
-  font-size: 0.78rem;
+  border-radius: calc(var(--radius-sm) - 2px);
+  padding: 8px 10px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  text-align: left;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
+}
+
+.password-chip:hover,
+.password-chip:active {
+  background: color-mix(in srgb, var(--brand) 14%, transparent);
 }
 
 .used-password-list {

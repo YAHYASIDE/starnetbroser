@@ -795,13 +795,29 @@ function CreationToggle({ creating, onChange }: { creating: boolean; onChange: (
   );
 }
 
+/** The most used passwords, as a translucent list that floats under the field only while it is
+ * tapped (focused) - hidden otherwise, so the form stays short. Narrowed by what is typed. */
 function PasswordChips({ values, current, onPick }: { values: string[]; current?: string; onPick: (value: string) => void }) {
-  const shown = values.filter((v) => v !== (current ?? "").trim());
+  const typed = (current ?? "").trim().toLowerCase();
+  const shown = values.filter((v) => v.toLowerCase() !== typed && (!typed || v.toLowerCase().includes(typed)));
   if (shown.length === 0) return null;
   return (
-    <span className="password-chips">
+    <span className="password-chips" role="listbox" aria-label="كلمات مرور مقترحة">
       {shown.map((v) => (
-        <button key={v} type="button" className="password-chip" dir="ltr" onClick={() => onPick(v)}>
+        <button
+          key={v}
+          type="button"
+          role="option"
+          aria-selected={false}
+          className="password-chip"
+          dir="ltr"
+          // Keeps the field focused (the list would close before the tap lands).
+          onPointerDown={(e) => e.preventDefault()}
+          onClick={() => {
+            onPick(v);
+            (document.activeElement as HTMLElement | null)?.blur();
+          }}
+        >
           🔑 {v}
         </button>
       ))}
