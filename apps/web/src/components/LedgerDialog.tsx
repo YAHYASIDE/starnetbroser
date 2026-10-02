@@ -712,8 +712,29 @@ export function LedgerDialog({
 
               {markD ? (
                 <div className="ledger-profit-section ledger-profit-pending">
-                  <strong>ربح العملية</strong>
-                  <span>الربح معلّق حتى تسديد تكلفة Starlink</span>
+                  <strong>{previewProfitUsd !== undefined && previewProfitUsd < 0 ? "خسارة متوقعة" : "ربح العملية المتوقع"}</strong>
+                  {previewProfitUsd !== undefined && (
+                    <span className="ledger-profit-expected-usd">
+                      <bdi dir="ltr">≈ {formatAmount(previewProfitUsd)} USD</bdi>
+                    </span>
+                  )}
+                  {previewProfitUsd !== undefined && (
+                    <div className="ledger-cost-convert-chips">
+                      <span className="ledger-cost-chip ledger-profit-chip">
+                        <small>أوقية</small>
+                        <bdi dir="ltr">{previewProfitMru !== undefined ? `≈ ${formatAmount(previewProfitMru)}` : "—"}</bdi>
+                      </span>
+                      <span className="ledger-cost-chip ledger-profit-chip">
+                        <small>سيفا</small>
+                        <bdi dir="ltr">{previewProfitSifa !== undefined ? `≈ ${formatAmount(previewProfitSifa)}` : "—"}</bdi>
+                      </span>
+                    </div>
+                  )}
+                  <span className="ledger-profit-hint">
+                    {previewProfitUsd !== undefined
+                      ? "D: يتأكد الربح عند تسديد تكلفة Starlink"
+                      : "أكمل بيانات المبلغ والتكلفة لحساب الربح المتوقع"}
+                  </span>
                 </div>
               ) : previewProfitUsd !== undefined ? (
                 <div className={`ledger-profit-section ${previewProfitUsd >= 0 ? "ledger-profit-positive" : "ledger-profit-negative"}`}>

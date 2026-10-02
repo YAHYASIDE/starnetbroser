@@ -10560,3 +10560,14 @@ a[href],
   background: var(--violet-bg);
   color: var(--violet);
 }
+
+/* D: the expected profit, in the pending (yellow) box. */
+.ledger-profit-chip {
+  background: color-mix(in srgb, var(--yellow) 14%, var(--surface));
+  color: var(--yellow);
+}
+
+.ledger-profit-expected-usd {
+  font-size: 1.05rem;
+  font-weight: 800;
+}
