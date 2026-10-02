@@ -62,9 +62,8 @@ final class AutoSyncScheduler {
      * "مزامنة الآن" (global) or a single card's own "تحديث" button: runs the exact same
      * AutoSyncWorker right away instead of waiting for the next periodic window. A separate
      * unique work name from the periodic job (WORK_NAME) so triggering this never disturbs the
-     * periodic schedule itself; REPLACE means triggering this again (whether for the same account,
-     * a different one, or the whole list) while one is still running simply restarts it rather
-     * than queuing duplicates - only one manual sync is ever in flight at a time.
+     * periodic schedule itself; a tap while one is still running is queued after it (APPEND_OR_REPLACE),
+     * so only one manual sync is ever in flight at a time and none is cancelled by the next.
      *
      * @param accountId when non-null, only that one account is synced this run (see
      *     AutoSyncWorker#INPUT_ACCOUNT_ID) - null syncs every account, same as before.
@@ -93,7 +92,9 @@ final class AutoSyncScheduler {
                 .enqueueUniqueWork(LIVE_CHECK_WORK_NAME + accountId, ExistingWorkPolicy.KEEP, builder.build());
             return;
         }
+        // Queued one after another (APPEND_OR_REPLACE), never REPLACE: tapping «تحديث» on a second
+        // card while the first still runs used to cancel the first one (it then looked failed).
         WorkManager.getInstance(context)
-            .enqueueUniqueWork(IMMEDIATE_WORK_NAME, ExistingWorkPolicy.REPLACE, builder.build());
+            .enqueueUniqueWork(IMMEDIATE_WORK_NAME, ExistingWorkPolicy.APPEND_OR_REPLACE, builder.build());
     }
 }

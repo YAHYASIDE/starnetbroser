@@ -166,9 +166,17 @@ public class AutoSyncWorker extends Worker {
                 }
             }
         }
+        // ⏳ A run the operator asked for keeps going when he leaves the app (BusyService).
+        String busyKey = "worker:" + getId();
+        if (manual) {
+            BusyService.start(context, busyKey, fullRun ? "🔄 مزامنة كل الأجهزة" : "🔄 تحديث " + (entries.get(0).accountName != null ? entries.get(0).accountName : ""));
+        }
         try {
             return runAccounts(context, entries, fullRun, manual);
         } finally {
+            if (manual) {
+                BusyService.stop(context, busyKey);
+            }
             if (fullRun) {
                 FULL_RUN_ACTIVE.set(false);
             }

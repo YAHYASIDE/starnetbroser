@@ -185,6 +185,8 @@ public class AccountBrowserActivity extends AppCompatActivity {
     private int cancelEnglishSteps;
     private boolean cancelMenuOpened;
     private String cancelEndDate;
+    /** The device's name, for the ⏳ notification while a task runs (BusyService). */
+    private String deviceLabel;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -194,6 +196,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
         String profileName = getIntent().getStringExtra(EXTRA_PROFILE_NAME);
         accountId = getIntent().getStringExtra(EXTRA_ACCOUNT_ID);
         String accountName = getIntent().getStringExtra(EXTRA_ACCOUNT_NAME);
+        deviceLabel = accountName != null ? accountName : "";
         homeUrl = getIntent().getStringExtra(EXTRA_URL);
         autofillScript = LoginAutofill.script(getIntent().getStringExtra(EXTRA_LOGIN_EMAIL), getIntent().getStringExtra(EXTRA_LOGIN_PASSWORD));
         savedLoginPassword = getIntent().getStringExtra(EXTRA_LOGIN_PASSWORD);
@@ -292,6 +295,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
             return;
         }
         cancelReason = reason.trim();
+        taskChanged("cancel", "🛑 إلغاء اشتراك " + deviceLabel);
         cancelPhase = CancelPhase.SIGN_IN;
         cancelPolls = 0;
         cancelSignInPolls = 0;
@@ -430,6 +434,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
     /** Every subscription says it ends: the card shows it (red «إلغاء الاشتراك»). */
     private void finishCancel() {
         cancelReason = null;
+        taskChanged("cancel", null);
         if (cancelEndDate != null && accountId != null) {
             JSObject fields = new JSObject();
             fields.put("pendingCancellationDate", cancelEndDate);
@@ -441,6 +446,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
 
     private void failCancel(String why) {
         cancelReason = null;
+        taskChanged("cancel", null);
         twoStepHandler.removeCallbacks(cancelPoll);
         Toast.makeText(this, "⏸️ لم يكتمل إلغاء الاشتراك: " + why + " - أكمل بنفسك", Toast.LENGTH_LONG).show();
         AlertSound.play(this);
@@ -637,10 +643,25 @@ public class AccountBrowserActivity extends AppCompatActivity {
         codeFetcher.start();
     }
 
+    /**
+     * ⏳ A task on this screen started (label) or ended (null): while any runs, BusyService keeps
+     * the app going and the page keeps believing it is on screen, so leaving STAR NET for another
+     * app no longer pauses it (real report: «تحديث» and «إلغاء الاشتراك» stopped until the operator
+     * came back, and sometimes failed).
+     */
+    private void taskChanged(String kind, String label) {
+        String key = kind + ":" + accountId;
+        if (label != null) BusyService.start(this, key, label);
+        else BusyService.stop(this, key);
+        if (webView instanceof TaskWebView) ((TaskWebView) webView).setKeepVisible(syncSteps != null || cancelReason != null);
+    }
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
         twoStepHandler.removeCallbacksAndMessages(null);
+        BusyService.stop(this, "sync:" + accountId);
+        BusyService.stop(this, "cancel:" + accountId);
         if (codeFetcher != null) {
             codeFetcher.stop();
             codeFetcher = null;
@@ -722,6 +743,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
         Toast.makeText(this, R.string.starnet_sync_in_progress, Toast.LENGTH_SHORT).show();
 
         syncSteps = new ArrayDeque<>();
+        taskChanged("sync", "🔄 تحديث " + deviceLabel);
         // Starlink reads cleanly in English (real, confirmed: the Arabic page kept syncing badly), so
         // the page is switched first - ☰ → region/language → "UNITED STATES / English". The choice
         // stays in this device's own browser, so later syncs find it already English.
@@ -912,6 +934,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
      * a row for one button tap. */
     private void finishSync() {
         syncSteps = null;
+        taskChanged("sync", null);
         if (webView != null && !syncEndedHome) {
             webView.loadUrl(homeUrl);
         }

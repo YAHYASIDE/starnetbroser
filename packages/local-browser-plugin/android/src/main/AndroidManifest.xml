@@ -59,6 +59,17 @@
                 android:value="Answers the operator's own Telegram bots from business data kept only on this phone" />
         </service>
 
+        <!-- ⏳ BusyService: held only while a task the operator started runs on Starlink's pages
+             («تحديث من Starlink», «إلغاء الاشتراك»), so it goes on when he leaves the app. -->
+        <service
+            android:name="com.starnetbroser.localbrowser.BusyService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Finishes a Starlink account update or cancellation the operator started, after he leaves the app" />
+        </service>
+
         <!-- 💳 Reads only the KAST app's own notifications (paid / refused / received) - the
              operator turns it on in Android's «Notification access». -->
         <service
