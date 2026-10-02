@@ -19,7 +19,10 @@ final class StarlinkLoginWatch {
      * "w": 1 when Starlink says the password is wrong, "e": the visible email field's value,
      * "ef": 1 when an (enabled) email field shows}. */
     static final String SCRIPT = "(function(){"
-        + "function vis(el){var r=el.getBoundingClientRect();return r.width>0&&r.height>0;}"
+        // Really on the screen: a sized but hidden/off-screen field (Starlink's email step carries one -
+        // real, confirmed silent wait) must not count as "the password step".
+        + "function vis(el){if(el.offsetParent===null&&getComputedStyle(el).position!=='fixed')return false;var r=el.getBoundingClientRect();"
+        + "if(r.width<=0||r.height<=0||r.bottom<=0||r.right<=0)return false;var s=getComputedStyle(el);return s.visibility!=='hidden'&&s.opacity!=='0';}"
         // The visible one: Microsoft's sign-in also carries a hidden password input.
         + "var l=document.querySelectorAll('input[type=password]'),f=null;"
         + "for(var i=0;i<l.length;i++){if(vis(l[i])){f=l[i];break;}}"
@@ -87,7 +90,8 @@ final class StarlinkLoginWatch {
      * field, or presses Enter in it. Returns "ok" / "form" / "enter" / "none". */
     static String pressScript(String regex) {
         return "(function(src){var re=new RegExp(src,'i');"
-            + "function vis(el){var r=el.getBoundingClientRect();return r.width>0&&r.height>0;}"
+            + "function vis(el){if(el.offsetParent===null&&getComputedStyle(el).position!=='fixed')return false;var r=el.getBoundingClientRect();"
+        + "if(r.width<=0||r.height<=0||r.bottom<=0||r.right<=0)return false;var s=getComputedStyle(el);return s.visibility!=='hidden'&&s.opacity!=='0';}"
             + "function txt(b){return (b.textContent||b.value||'').replace(/\\s+/g,' ').trim();}"
             + "var l=document.querySelectorAll('button,input[type=submit],input[type=button],a,[role=button],[role=link],[tabindex]'),best=null,bs=-1e9;"
             + "for(var i=0;i<l.length;i++){var b=l[i];if(!vis(b)||b.disabled||b.getAttribute('aria-disabled')==='true')continue;"
@@ -105,10 +109,24 @@ final class StarlinkLoginWatch {
     }
 
     static String autoStep(State s, String url) {
-        if (s == null || isSignedInUrl(url)) return null;
-        if (s.hasPasswordField) return s.wrongPassword || s.password.isEmpty() ? null : SIGN_IN;
-        if (s.hasEmailField && !s.email.trim().isEmpty()) return NEXT;
+        if (s == null || isSignedInUrl(url) || s.wrongPassword) return null;
+        // The email step: an enabled email field holding an address (the password step disables it).
+        if (s.hasEmailField && s.email.indexOf('@') > 0 && s.password.isEmpty()) return NEXT;
+        if (s.hasPasswordField) return s.password.isEmpty() ? null : SIGN_IN;
         return null;
+    }
+
+    /** What the watch sees, for the one diagnostic toast when nothing gets pressed. */
+    static String describe(State s, String url) {
+        String where = "";
+        try {
+            java.net.URI u = new java.net.URI(url);
+            where = u.getHost() + (u.getPath() == null ? "" : u.getPath());
+        } catch (java.net.URISyntaxException | NullPointerException ignored) {
+            // no url to show
+        }
+        return "بريد " + (s.hasEmailField ? (s.email.isEmpty() ? "فارغ" : "مكتوب") : "لا") + " · كلمة " + (s.hasPasswordField ? (s.password.isEmpty() ? "فارغة" : "مكتوبة") : "لا")
+            + (s.wrongPassword ? " · خطأ" : "") + " · " + where;
     }
 
     /** Signed in: an account page (never the sign-in / verification steps). */

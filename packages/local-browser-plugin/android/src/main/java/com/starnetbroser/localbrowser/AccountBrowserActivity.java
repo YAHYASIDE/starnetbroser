@@ -348,11 +348,11 @@ public class AccountBrowserActivity extends AppCompatActivity {
         }
         String click = StarlinkLoginWatch.autoStep(state, url);
         if (click == null) {
-            // A sign-in page with no field found for a while: say so once (the page is read by hand).
-            boolean loginPage = url != null && (url.contains("login") || url.contains("auth"));
-            if (loginPage && !state.hasEmailField && !state.hasPasswordField && ++autoIdlePolls >= 8 && !autoWarned) {
+            // Nothing to press for a while on a page that isn't the account: say once what is seen
+            // (the operator sends a screenshot of it), then keep watching.
+            if (++autoIdlePolls >= 6 && !autoWarned) {
                 autoWarned = true;
-                Toast.makeText(this, "⏸️ لم أجد خانة البريد في صفحة Starlink - أكمل بنفسك وأرسل لقطة", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "🧪 لم أضغط شيئاً - أرى: " + StarlinkLoginWatch.describe(state, url), Toast.LENGTH_LONG).show();
             }
             return;
         }

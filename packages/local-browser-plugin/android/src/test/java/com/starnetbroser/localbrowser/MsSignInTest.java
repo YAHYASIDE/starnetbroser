@@ -158,5 +158,8 @@ public class MsSignInTest {
         assertNull(StarlinkLoginWatch.autoStep(new StarlinkLoginWatch.State("", true, false, "", false), "https://www.starlink.com/auth/login"));
         assertNull(StarlinkLoginWatch.autoStep(new StarlinkLoginWatch.State("secret-demo", true, false, "", false), "https://www.starlink.com/account/home"));
         assertNull(StarlinkLoginWatch.autoStep(null, "https://www.starlink.com/auth/login"));
+        // The email step with a hidden (sized) password field alongside: still «التالي» (real, confirmed silent wait).
+        assertEquals(StarlinkLoginWatch.NEXT, StarlinkLoginWatch.autoStep(new StarlinkLoginWatch.State("", true, false, "demo@outlook.com", true), "https://www.starlink.com/auth/login"));
+        assertTrue(StarlinkLoginWatch.describe(new StarlinkLoginWatch.State("", true, false, "demo@outlook.com", true), "https://www.starlink.com/auth/login").contains("www.starlink.com/auth/login"));
     }
 }
