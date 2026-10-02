@@ -10571,3 +10571,334 @@ a[href],
   font-size: 1.05rem;
   font-weight: 800;
 }
+
+/* 📒 كشف الأرباح (reports → ستارلينك, ProfitStatement.tsx): a big net figure, then the period
+ * day by day like a bank statement; each row opens its details in a bottom sheet. */
+.profit-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 14px;
+  border-radius: 18px;
+  text-align: center;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--green) 16%, var(--surface)), var(--surface));
+  border: 1px solid color-mix(in srgb, var(--green) 30%, var(--border));
+}
+
+.profit-hero.is-loss {
+  background: linear-gradient(160deg, color-mix(in srgb, var(--red) 14%, var(--surface)), var(--surface));
+  border-color: color-mix(in srgb, var(--red) 30%, var(--border));
+}
+
+.profit-hero-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.profit-hero-value {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--green);
+}
+
+.profit-hero.is-loss .profit-hero-value {
+  color: var(--red);
+}
+
+.profit-hero-value small {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.profit-hero-parts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.profit-hero-parts span {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--surface-alt);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.profit-hero-hint {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.profit-days {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.profit-day {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.profit-day-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--surface-alt);
+  font-size: 0.8rem;
+}
+
+.profit-day-date {
+  font-weight: 800;
+}
+
+.profit-day-count {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
+.profit-day-head > strong {
+  margin-inline-start: auto;
+}
+
+.profit-day-hide {
+  border: 0;
+  background: transparent;
+  font-size: 0.95rem;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.profit-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.profit-rows li + li {
+  border-top: 1px solid var(--border);
+}
+
+.profit-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.profit-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.profit-row-main strong {
+  font-size: 0.82rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profit-row-main small {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.profit-row-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  flex: none;
+}
+
+.profit-chip {
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 800;
+}
+
+.profit-chip-confirmed {
+  background: var(--green-bg);
+  color: var(--green);
+}
+
+.profit-chip-expected {
+  background: var(--yellow-bg);
+  color: var(--yellow);
+}
+
+.profit-expected {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.profit-expected-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 11px 12px;
+  border: 1px solid color-mix(in srgb, var(--yellow) 35%, var(--border));
+  border-radius: 14px;
+  background: var(--yellow-bg);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.profit-hidden-days {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.profit-hidden-chip {
+  padding: 4px 10px;
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--brand);
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.profit-reset-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.profit-reset-btn {
+  min-height: 42px;
+  border: 1px solid color-mix(in srgb, var(--red) 40%, var(--border));
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--red);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.profit-reset-undo {
+  border-color: var(--border);
+  color: var(--brand);
+}
+
+.profit-detail {
+  margin: 0 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.profit-detail > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.8rem;
+}
+
+.profit-detail dt {
+  color: var(--text-muted);
+  font-weight: 700;
+  flex: none;
+}
+
+.profit-detail dd {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  text-align: end;
+  font-weight: 700;
+  min-width: 0;
+}
+
+.profit-detail dd small {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.profit-detail-block {
+  padding: 9px 10px;
+  border-radius: 12px;
+  background: var(--surface-alt);
+}
+
+.profit-detail-sale {
+  background: color-mix(in srgb, var(--brand) 9%, var(--surface));
+}
+
+.profit-detail-cost {
+  background: color-mix(in srgb, var(--orange) 9%, var(--surface));
+}
+
+.profit-detail-profit {
+  background: var(--green-bg);
+}
+
+.profit-detail-profit dd strong {
+  color: var(--green);
+}
+
+.profit-detail-loss {
+  background: var(--red-bg);
+}
+
+.profit-detail-loss dd strong {
+  color: var(--red);
+}
+
+.profit-detail-rep {
+  background: var(--violet-bg);
+}
+
+.profit-detail-ours {
+  border: 1px solid color-mix(in srgb, var(--green) 35%, var(--border));
+  background: var(--surface);
+}
+
+.profit-detail-ours dd strong {
+  color: var(--green);
+  font-size: 1rem;
+}
+
+.profit-detail-open {
+  display: block;
+  text-align: center;
+}

@@ -15,13 +15,26 @@ import { InvoiceList, loadInvoices } from "@/lib/invoiceStore";
 import { getStoreItem, loadStoreItems, loadStoreTransactions, StoreItemRegistry, StoreTransactionList } from "@/lib/storeStore";
 import { computeClientSalesTotals, computeItemSalesTotals, computeStoreSalesSummary } from "@/lib/storeReports";
 import { CashEntryList, loadCashEntries, listStandaloneCashEntries } from "@/lib/cashStore";
-import { computeRepSharesMru, listRepresentatives, loadRepresentativeStore, loadRepSettlements, RepresentativeStore, RepSettlementList } from "@/lib/repStore";
+import { computeRepSharesMru, listRepresentatives, loadRepresentativeStore, loadRepSettlements, RepresentativeStore, RepSettlementList, saveRepresentativeStore } from "@/lib/repStore";
 import { sumProfitMru } from "@/lib/profitMru";
 import { CurrencyStore, loadCurrencyStore } from "@/lib/currencyStore";
 import { daysRemainingNumber } from "@/lib/date";
 import { TodayPanel } from "@/components/TodayPanel";
 import { MonthClosingSection } from "@/components/MonthClosingSection";
-import { entriesAfterProfitReset, loadProfitReset, ProfitReset } from "@/lib/profitReset";
+import { entriesAfterProfitReset, loadProfitReset, ProfitReset, saveProfitReset, startProfitFresh, undoProfitFresh } from "@/lib/profitReset";
+import { loadAllocationStore, AllocationsByAccount } from "@/lib/paymentAllocationStore";
+import {
+  buildProfitRows,
+  groupProfitDays,
+  HiddenProfitDays,
+  hideProfitDay,
+  loadHiddenProfitDays,
+  saveHiddenProfitDays,
+  showProfitDay,
+  withoutHiddenProfitDays,
+} from "@/lib/profitStatement";
+import { ProfitStatement } from "@/components/ProfitStatement";
+import { askDeleteCode } from "@/components/DeleteCodePrompt";
 import { loadClientProfitResets, profitResetByAccount } from "@/lib/clientBulk";
 import { computeDebtAging } from "@/lib/debtAging";
 import { loadPartyAdjustments, PartyAdjustmentList } from "@/lib/partyBalanceStore";
@@ -72,6 +85,9 @@ export default function ReportsPage() {
   const [topUps, setTopUps] = useState<CardTopUpList>([]);
   const [previousDebts, setPreviousDebts] = useState<PreviousDebtList>([]);
   const [profitReset, setProfitReset] = useState<ProfitReset | null>(null);
+  const [hiddenDays, setHiddenDays] = useState<HiddenProfitDays>({});
+  const [allocations, setAllocations] = useState<AllocationsByAccount>({});
+  const [showExpected, setShowExpected] = useState(false);
   const [period, setPeriod] = useState<ReportPeriod>("month");
   const [tab, setTab] = useState<ReportTab>("net");
   const [netMonth, setNetMonth] = useState(() => new Date().toISOString().slice(0, 7));
@@ -90,6 +106,8 @@ export default function ReportsPage() {
     setTopUps(loadCardTopUps());
     setPreviousDebts(loadPreviousDebts());
     setProfitReset(loadProfitReset());
+    setHiddenDays(loadHiddenProfitDays());
+    setAllocations(loadAllocationStore());
     try {
       const saved = window.localStorage.getItem(TAB_KEY);
       if (saved === "net" || saved === "starlink" || saved === "store" || saved === "debts") setTab(saved);
@@ -126,14 +144,16 @@ export default function ReportsPage() {
   // ---- ستارلينك: profit counted on the day Starlink was paid, after any "fresh start" ----
   // Each device starts from the later of the global fresh start and its client's (clientBulk.ts).
   const resetByAccount = useMemo(() => profitResetByAccount(accounts, loadClientProfitResets(), profitReset), [accounts, profitReset]);
+  // 🙈 Hidden days are left out of every profit figure below (nothing is deleted).
+  const visibleLedger = useMemo(() => withoutHiddenProfitDays(ledgerStore, hiddenDays), [ledgerStore, hiddenDays]);
   const profitByAccount = useMemo(() => {
     const result: Record<string, LedgerByAccount[string]> = {};
-    for (const [accountId, entries] of Object.entries(ledgerStore)) {
+    for (const [accountId, entries] of Object.entries(visibleLedger)) {
       const reset = accountId in resetByAccount ? resetByAccount[accountId] : profitReset;
       result[accountId] = entriesAfterProfitReset(filterEntriesByProfitDate(entries, period), reset ?? null);
     }
     return result;
-  }, [ledgerStore, period, profitReset, resetByAccount]);
+  }, [visibleLedger, period, profitReset, resetByAccount]);
   const profitEntries = useMemo(() => Object.values(profitByAccount).flat(), [profitByAccount]);
   const openEntries = useMemo(
     () => Object.values(ledgerStore).flat().filter((e) => e.kind === "debit" && e.starlinkCost?.status === "pending"),
@@ -143,6 +163,52 @@ export default function ReportsPage() {
   const expected = useMemo(() => (mruRate ? sumProfitMru(openEntries, mruRate) : undefined), [openEntries, mruRate]);
   const repShares = useMemo(() => (mruRate ? computeRepSharesMru(profitEntries, mruRate).confirmed : undefined), [profitEntries, mruRate]);
   const profitChart = useMemo(() => (mruRate ? profitSeries(profitEntries, period, mruRate) : []), [profitEntries, period, mruRate]);
+  // 📒 The statement: the period's paid shipments day by day, and every open D as expected profit.
+  const statementDays = useMemo(() => groupProfitDays(buildProfitRows(profitByAccount, allocations, mruRate, "confirmed")), [profitByAccount, allocations, mruRate]);
+  const expectedDays = useMemo(() => groupProfitDays(buildProfitRows(ledgerStore, allocations, mruRate, "expected")), [ledgerStore, allocations, mruRate]);
+  const statementNames = useMemo(
+    () => ({
+      device: (id: string) => accounts.find((a) => a.id === id)?.name ?? "جهاز محذوف",
+      client: (id: string) => getClient(clientStore, accounts.find((a) => a.id === id)?.clientId)?.name,
+      rep: (id: string) => repStore[id]?.name,
+    }),
+    [accounts, clientStore, repStore],
+  );
+
+  async function handleHideDay(date: string) {
+    if (!(await askDeleteCode(`إخفاء أرباح يوم ${date} من التقارير؟\nلا يُحذف شيء: الشحنات والأرصدة تبقى، و«إظهار» يعيدها.`))) return;
+    const next = hideProfitDay(hiddenDays, date);
+    saveHiddenProfitDays(next);
+    setHiddenDays(next);
+  }
+
+  function handleShowDay(date: string) {
+    const next = showProfitDay(hiddenDays, date);
+    saveHiddenProfitDays(next);
+    setHiddenDays(next);
+  }
+
+  async function handleResetAll() {
+    const message = "تصفير كل الأرباح من الآن؟\n\n• التقارير تحسب الأرباح من اليوم فقط.\n• كل المندوبين يبدأون حسابًا جديدًا.\n• لا يُحذف شيء، و«↩️ إرجاع الأرباح» يعيدها.";
+    if (!(await askDeleteCode(message))) return;
+    const { reset: next, repStore: nextReps } = startProfitFresh(repStore);
+    const merged = profitReset ? { ...next, previousRepResets: { ...next.previousRepResets, ...profitReset.previousRepResets } } : next;
+    saveRepresentativeStore(nextReps);
+    setRepStore(nextReps);
+    saveProfitReset(merged);
+    setProfitReset(merged);
+  }
+
+  async function handleUndoReset() {
+    if (!profitReset) return;
+    if (!(await askDeleteCode("إرجاع كل الأرباح القديمة وحسابات المندوبين كما كانت؟"))) return;
+    const nextReps = undoProfitFresh(profitReset, repStore);
+    saveRepresentativeStore(nextReps);
+    setRepStore(nextReps);
+    saveProfitReset(null);
+    setProfitReset(null);
+  }
+
   const deviceRanks = useMemo(() => (mruRate ? rankDeviceProfits(profitByAccount, mruRate) : []), [profitByAccount, mruRate]);
   const clientRanks = useMemo(
     () => rankClientProfits(deviceRanks, (id) => accounts.find((a) => a.id === id)?.clientId),
@@ -154,9 +220,9 @@ export default function ReportsPage() {
   const netByMonth = useMemo(
     () =>
       netMonths.map((month) =>
-        buildMonthNet({ month, ledgerStore, invoices, transactions: storeTransactions, cash: cashEntries, rates, profitReset, profitResetByAccount: resetByAccount }),
+        buildMonthNet({ month, ledgerStore: visibleLedger, invoices, transactions: storeTransactions, cash: cashEntries, rates, profitReset, profitResetByAccount: resetByAccount }),
       ),
-    [netMonths, ledgerStore, invoices, storeTransactions, cashEntries, rates, profitReset, resetByAccount],
+    [netMonths, visibleLedger, invoices, storeTransactions, cashEntries, rates, profitReset, resetByAccount],
   );
   const netIndex = Math.max(0, netMonths.indexOf(netMonth));
   const net = netByMonth[netIndex];
@@ -348,23 +414,69 @@ export default function ReportsPage() {
               🔄 من بداية جديدة يوم <bdi dir="ltr">{profitReset.date}</bdi>
             </p>
           )}
-          <div className="report-kpis">
-            <Kpi
-              label="ربح الفترة"
-              value={profit ? `${profit.confirmedExact ? "" : "≈ "}${mru(profit.confirmedMru)}` : "—"}
-              sub={`أوقية · ${shipments(profit?.confirmedCount ?? 0)}`}
-              tone={profit && profit.confirmedMru < 0 ? "bad" : "good"}
-              info="يُحسب يوم دفع تكلفة Starlink (تسديد D)، لا يوم التجديد للزبون."
-            />
-            <Kpi label="صافي ربحي" value={profit && repShares !== undefined ? mru(profit.confirmedMru - repShares) : "—"} sub="أوقية · بعد حصص المندوبين" tone="good" />
-            <Kpi label="حصص المندوبين" value={mru(repShares)} sub="أوقية" tone="warn" />
-            <Kpi
-              label="ربح متوقع (D)"
-              value={expected ? `≈ ${mru(expected.expectedMru)}` : "—"}
-              sub={`أوقية · ${shipments(expected?.expectedCount ?? 0)}`}
-              tone="orange"
-              info="شحنات لم تُدفع تكلفتها لـ Starlink بعد (كل الفترات) - تدخل الربح يوم تسديدها."
-            />
+          <div className={`profit-hero${profit && profit.confirmedMru < 0 ? " is-loss" : ""}`}>
+            <span className="profit-hero-label">صافي ربحك · {REPORT_PERIOD_LABELS[period]}</span>
+            <strong className="profit-hero-value">
+              <bdi dir="ltr">{profit && repShares !== undefined ? `${profit.confirmedExact ? "" : "≈ "}${mru(profit.confirmedMru - repShares)}` : "—"}</bdi>
+              <small>أوقية</small>
+            </strong>
+            <div className="profit-hero-parts">
+              <span>
+                ربح الشحنات <bdi dir="ltr">{profit ? mru(profit.confirmedMru) : "—"}</bdi>
+              </span>
+              <span>
+                حصص المندوبين <bdi dir="ltr">{mru(repShares)}</bdi>
+              </span>
+              <span>{shipments(profit?.confirmedCount ?? 0)}</span>
+            </div>
+            <small className="profit-hero-hint">الربح يُحسب يوم دفع تكلفة Starlink. اضغط أي شحنة لترى تفاصيلها.</small>
+          </div>
+
+          <ProfitStatement
+            days={statementDays}
+            names={statementNames}
+            emptyText="لا يوجد ربح مؤكد في هذه الفترة."
+            onHideDay={handleHideDay}
+          />
+
+          {expectedDays.length > 0 && (
+            <div className="profit-expected">
+              <button type="button" className="profit-expected-toggle" aria-expanded={showExpected} onClick={() => setShowExpected((v) => !v)}>
+                <span>⏳ ربح متوقع (D) · {shipments(expected?.expectedCount ?? 0)}</span>
+                <strong className={expected && expected.expectedMru < 0 ? "report-bad" : "report-warn"}>
+                  <bdi dir="ltr">{expected ? `≈ ${mru(expected.expectedMru)}` : "—"}</bdi>
+                </strong>
+                <span aria-hidden="true">{showExpected ? "▲" : "▼"}</span>
+              </button>
+              {showExpected && (
+                <ProfitStatement days={expectedDays} names={statementNames} emptyText="لا توجد شحنات D." />
+              )}
+            </div>
+          )}
+
+          {Object.keys(hiddenDays).length > 0 && (
+            <div className="profit-hidden-days">
+              <span>🙈 أيام مخفية من التقارير:</span>
+              {Object.keys(hiddenDays)
+                .sort()
+                .reverse()
+                .map((date) => (
+                  <button key={date} type="button" className="profit-hidden-chip" onClick={() => handleShowDay(date)}>
+                    <bdi dir="ltr">{date}</bdi> · إظهار
+                  </button>
+                ))}
+            </div>
+          )}
+
+          <div className="profit-reset-row">
+            <button type="button" className="profit-reset-btn" onClick={handleResetAll}>
+              🔄 تصفير كل الأرباح
+            </button>
+            {profitReset && (
+              <button type="button" className="profit-reset-btn profit-reset-undo" onClick={handleUndoReset}>
+                ↩️ إرجاع الأرباح
+              </button>
+            )}
           </div>
 
           <ChartCard title={isLongPeriod(period) ? "الربح شهرًا بشهر" : "الربح يومًا بيوم"} note={REPORT_PERIOD_LABELS[period]} points={profitChart} />
