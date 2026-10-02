@@ -10,6 +10,7 @@ import { RepModeGate } from "@/components/RepModeGate";
 import { StorageFullBanner } from "@/components/StorageFullBanner";
 import { TelegramBridge } from "@/components/TelegramBridge";
 import { PhoneShortcutLayer } from "@/components/PhoneShortcutLayer";
+import { DeleteCodeHost } from "@/components/DeleteCodePrompt";
 
 export const metadata: Metadata = {
   title: "STAR NET",
@@ -45,6 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <TelegramBridge />
         <PhoneShortcutLayer />
         <StorageFullBanner />
+        <DeleteCodeHost />
       </body>
     </html>
   );

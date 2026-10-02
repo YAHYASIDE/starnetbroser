@@ -1,5 +1,6 @@
 "use client";
 
+import { askDeleteCode } from "@/components/DeleteCodePrompt";
 import { DuplicateWarning } from "./DuplicateWarning";
 import { duplicateQuestion, findClientDuplicates } from "@/lib/duplicates";
 import { ClientNotesPanel, clientNoteCount } from "./ClientNotesSheet";
@@ -348,10 +349,10 @@ export function PartyDirectory({
                   onCancel={() => setEditingPartyId(null)}
                   onDelete={
                     isClients && onDeleteClient
-                      ? () => {
+                      ? async () => {
                           const remaining = Object.fromEntries(Object.entries(totals).map(([c, t]) => [c, t.remaining]));
                           const linked = accounts.filter((a) => a.clientId === party.id).length;
-                          if (!window.confirm(clientDeleteQuestion(party.name, linked, remaining, currencyLabel))) return;
+                          if (!(await askDeleteCode(clientDeleteQuestion(party.name, linked, remaining, currencyLabel)))) return;
                           onDeleteClient(party.id);
                           setEditingPartyId(null);
                         }

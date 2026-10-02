@@ -1,5 +1,6 @@
 "use client";
 
+import { askDeleteCode } from "@/components/DeleteCodePrompt";
 import type React from "react";
 
 import { showsRestriction } from "@/lib/reminders";
@@ -393,14 +394,14 @@ export function AccountCard({
     onArchive(account);
   }
 
-  function handleSoftDeleteClick() {
-    if (!window.confirm(`نقل الجهاز "${account.name}" إلى سلة المحذوفات؟ يمكنك استعادته لاحقًا.`)) return;
+  async function handleSoftDeleteClick() {
+    if (!(await askDeleteCode(`نقل الجهاز "${account.name}" إلى سلة المحذوفات؟ يمكنك استعادته لاحقًا.`))) return;
     onSoftDelete(account);
   }
 
-  function handlePermanentDeleteClick() {
+  async function handlePermanentDeleteClick() {
     if (!onPermanentDelete) return;
-    if (!window.confirm(`حذف الجهاز "${account.name}" نهائيًا؟ لا يمكن التراجع عن هذا الإجراء.`)) return;
+    if (!(await askDeleteCode(`حذف الجهاز "${account.name}" نهائيًا؟ لا يمكن التراجع عن هذا الإجراء.`))) return;
     onPermanentDelete(account);
   }
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { askDeleteCode } from "@/components/DeleteCodePrompt";
 import { formatProfitMru, sumProfitMru } from "@/lib/profitMru";
 import { useMruRate } from "@/lib/useMruRate";
 import { CSSProperties, FormEvent, useState } from "react";
@@ -98,12 +99,12 @@ export function ClientDialog({ client, devices, ledgerStore, allocationStore, on
     setPhoneLocalNumber(splitPhoneNumber(client.phone).localNumber);
   }
 
-  function confirmDelete() {
+  async function confirmDelete() {
     if (!onDelete) return;
     const suffix = devices.length > 0
       ? ` سيتم فك ارتباط ${devices.length} جهاز عن هذا الزبون، دون حذف أي بيانات عن هذه الأجهزة.`
       : "";
-    if (window.confirm(`هل أنت متأكد من حذف الزبون "${client.name}"؟${suffix}`)) {
+    if (await askDeleteCode(`هل أنت متأكد من حذف الزبون "${client.name}"؟${suffix}`)) {
       onDelete();
     }
   }

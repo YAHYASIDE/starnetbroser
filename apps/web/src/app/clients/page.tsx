@@ -1,5 +1,6 @@
 "use client";
 
+import { askDeleteCode } from "@/components/DeleteCodePrompt";
 import { useRouter } from "next/navigation";
 import { PaymentPickerSheet } from "@/components/HomeFab";
 import { homePaymentHref } from "@/lib/homeActions";
@@ -144,8 +145,8 @@ export default function ClientsPage() {
     return list.length <= 5 ? list.join("، ") : `${list.slice(0, 5).join("، ")} و${list.length - 5} آخرين`;
   };
 
-  function handleBulkDelete(ids: string[]) {
-    if (!window.confirm(`حذف ${ids.length} زبون؟\n${names(ids)}\nأجهزتهم تبقى بكل عملياتها وتصبح «الزبون غير محدد».`)) return;
+  async function handleBulkDelete(ids: string[]) {
+    if (!(await askDeleteCode(`حذف ${ids.length} زبون؟\n${names(ids)}\nأجهزتهم تبقى بكل عملياتها وتصبح «الزبون غير محدد».`))) return;
     const gone = new Set(ids);
     if (accounts.some((a) => a.clientId && gone.has(a.clientId))) {
       const nextAccounts = accounts.map((a) => (a.clientId && gone.has(a.clientId) ? { ...a, clientId: undefined } : a));
@@ -184,20 +185,20 @@ export default function ClientsPage() {
   }
 
   /** «📈 الأرباح من 0»: the reports count only these clients' profit from today on. */
-  function handleBulkProfitFresh(ids: string[]) {
-    if (!window.confirm(`بدء أرباح ${ids.length} زبون من 0 اليوم؟\n${names(ids)}\nالتقارير تحسب أرباح أجهزتهم من اليوم فقط. لا يُحذف شيء، و«↩️ إرجاع الأرباح» يعيدها.`)) return;
+  async function handleBulkProfitFresh(ids: string[]) {
+    if (!(await askDeleteCode(`بدء أرباح ${ids.length} زبون من 0 اليوم؟\n${names(ids)}\nالتقارير تحسب أرباح أجهزتهم من اليوم فقط. لا يُحذف شيء، و«↩️ إرجاع الأرباح» يعيدها.`))) return;
     const next = startClientsProfitFresh(profitResets, ids);
     saveClientProfitResets(next);
     setProfitResets(next);
   }
 
-  function handleBulkProfitClear(ids: string[]) {
+  async function handleBulkProfitClear(ids: string[]) {
     const withReset = ids.filter((id) => profitResets[id]);
     if (!withReset.length) {
       window.alert("لا أحد من المحددين بدأت أرباحه من 0");
       return;
     }
-    if (!window.confirm(`إرجاع الأرباح القديمة لـ ${withReset.length} زبون؟\n${names(withReset)}`)) return;
+    if (!(await askDeleteCode(`إرجاع الأرباح القديمة لـ ${withReset.length} زبون؟\n${names(withReset)}`))) return;
     const next = clearClientsProfitFresh(profitResets, withReset);
     saveClientProfitResets(next);
     setProfitResets(next);

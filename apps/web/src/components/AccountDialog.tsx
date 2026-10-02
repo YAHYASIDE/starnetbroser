@@ -1,5 +1,6 @@
 "use client";
 
+import { askDeleteCode } from "@/components/DeleteCodePrompt";
 import { cardLabel, loadPaymentCards } from "@/lib/kastCards";
 import { shareText } from "@/lib/shareText";
 import { buildFullDeviceMessage } from "@/lib/whatsapp";
@@ -226,9 +227,9 @@ export function AccountDialog({
     update("extraEmails", extraEmails.filter((_, i) => i !== index));
   }
 
-  function confirmDelete() {
+  async function confirmDelete() {
     if (!account || !onDelete) return;
-    if (window.confirm(`هل أنت متأكد من حذف حساب "${account.name}"؟ لا يمكن التراجع عن هذا الإجراء.`)) {
+    if (await askDeleteCode(`هل أنت متأكد من حذف حساب "${account.name}"؟ لا يمكن التراجع عن هذا الإجراء.`)) {
       onDelete(account);
     }
   }

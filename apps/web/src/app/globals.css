@@ -10381,3 +10381,49 @@ a[href],
   border-color: var(--green);
   background: var(--green-bg);
 }
+
+/* 🔐 رمز الحذف (DeleteCodePrompt.tsx): above every other dialog. */
+.delete-code-backdrop {
+  z-index: 9000;
+}
+
+.delete-code-dialog {
+  width: min(100%, 340px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.delete-code-title {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.delete-code-message {
+  margin: 0;
+  white-space: pre-line;
+  color: var(--text);
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.delete-code-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.delete-code-dialog .app-lock-input {
+  flex: none;
+  width: 100%;
+  min-height: 48px;
+}
+
+.delete-code-actions .dialog-danger {
+  grid-column: auto;
+}
+
+.delete-code-actions .dialog-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

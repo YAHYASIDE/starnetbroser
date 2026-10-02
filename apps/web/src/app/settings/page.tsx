@@ -1,5 +1,6 @@
 "use client";
 
+import { askDeleteCode } from "@/components/DeleteCodePrompt";
 import { groupForHash, loadRememberedGroup, rememberGroup, SETTINGS_GROUPS, type SettingsGroupId } from "@/lib/settingsGroups";
 import { RepExtraBotsSettings } from "@/components/RepExtraBotsSettings";
 import { RepModeEntrySection } from "@/components/RepModeEntrySection";
@@ -1902,11 +1903,11 @@ function ProfitResetSection() {
   const [reset, setReset] = useState<ProfitReset | null>(null);
   useEffect(() => setReset(loadProfitReset()), []);
 
-  function start() {
+  async function start() {
     const message = reset
       ? "بدء الأرباح من الصفر مرة أخرى من الآن؟"
       : "بدء الأرباح من الصفر من الآن؟\n\n• التقارير تحسب الأرباح من اليوم فقط.\n• كل المندوبين يبدأون حسابًا جديدًا (القديم في الأرشيف).\n• لا يُحذف أي شيء من حسابات الزبائن، ويمكن التراجع.";
-    if (!window.confirm(message)) return;
+    if (!(await askDeleteCode(message))) return;
     const { reset: next, repStore } = startProfitFresh(loadRepresentativeStore());
     // Starting again keeps the representatives' resets from before the FIRST fresh start.
     const merged = reset ? { ...next, previousRepResets: { ...next.previousRepResets, ...reset.previousRepResets } } : next;
@@ -1915,9 +1916,9 @@ function ProfitResetSection() {
     setReset(merged);
   }
 
-  function undo() {
+  async function undo() {
     if (!reset) return;
-    if (!window.confirm("إلغاء البداية الجديدة وإرجاع كل الأرباح القديمة وحسابات المندوبين كما كانت؟")) return;
+    if (!(await askDeleteCode("إلغاء البداية الجديدة وإرجاع كل الأرباح القديمة وحسابات المندوبين كما كانت؟"))) return;
     saveRepresentativeStore(undoProfitFresh(reset, loadRepresentativeStore()));
     saveProfitReset(null);
     setReset(null);
