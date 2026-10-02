@@ -10902,3 +10902,7 @@ a[href],
   display: block;
   text-align: center;
 }
+
+.profit-section-head {
+  margin-top: 4px;
+}

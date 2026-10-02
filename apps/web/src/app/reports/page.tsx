@@ -166,6 +166,16 @@ export default function ReportsPage() {
   // 📒 The statement: the period's paid shipments day by day, and every open D as expected profit.
   const statementDays = useMemo(() => groupProfitDays(buildProfitRows(profitByAccount, allocations, mruRate, "confirmed")), [profitByAccount, allocations, mruRate]);
   const expectedDays = useMemo(() => groupProfitDays(buildProfitRows(ledgerStore, allocations, mruRate, "expected")), [ledgerStore, allocations, mruRate]);
+  // «الصافي» shows the chosen month's shipments the same way (every period, after resets/hidden days).
+  const allTimeProfitLedger = useMemo(() => {
+    const result: LedgerByAccount = {};
+    for (const [accountId, entries] of Object.entries(visibleLedger)) {
+      const reset = accountId in resetByAccount ? resetByAccount[accountId] : profitReset;
+      result[accountId] = entriesAfterProfitReset(entries, reset ?? null);
+    }
+    return result;
+  }, [visibleLedger, profitReset, resetByAccount]);
+  const allConfirmedRows = useMemo(() => buildProfitRows(allTimeProfitLedger, allocations, mruRate, "confirmed"), [allTimeProfitLedger, allocations, mruRate]);
   const statementNames = useMemo(
     () => ({
       device: (id: string) => accounts.find((a) => a.id === id)?.name ?? "جهاز محذوف",
@@ -574,6 +584,17 @@ export default function ReportsPage() {
             </strong>
             {previousNet && <NetChange current={net.netMru} previous={previousNet.netMru} previousLabel={monthLabel(previousNet.month)} />}
           </div>
+
+          <div className="report-card-head profit-section-head">
+            <h3>📒 شحنات ستارلينك في {monthLabel(net.month)}</h3>
+            <span className="report-card-note">اضغط أي شحنة للتفاصيل</span>
+          </div>
+          <ProfitStatement
+            days={groupProfitDays(allConfirmedRows.filter((row) => row.date.slice(0, 7) === net.month))}
+            names={statementNames}
+            emptyText="لا توجد شحنات دُفعت لستارلينك في هذا الشهر."
+            onHideDay={handleHideDay}
+          />
 
           <div className="report-card">
             <div className="report-card-head">
