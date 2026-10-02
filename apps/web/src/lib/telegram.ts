@@ -426,6 +426,25 @@ export async function sendRepPhoto(repId: string, dataUrl: string, caption: stri
   }
 }
 
+function utf8Base64(text: string): string {
+  const bytes = new TextEncoder().encode(text);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(binary);
+}
+
+/** 📋 A text file (the rep's copy) to a linked rep through the devices bot. */
+export async function sendRepDocument(repId: string, fileName: string, text: string, caption: string): Promise<{ ok: true } | { ok: false; message: string }> {
+  const chat = loadRepChats()[repId];
+  if (!chat || !isRepsBotConnected()) return { ok: false, message: "المندوب غير مربوط ببوت المندوبين" };
+  try {
+    await LocalBrowser.telegramSendDocument({ fileName, base64: utf8Base64(text), caption, bot: "reps", chatId: chat.chatId, contentType: "application/json" });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error && err.message ? err.message : "تعذّر الإرسال - تأكد من الإنترنت" };
+  }
+}
+
 /** A direct answer to someone who isn't linked (the "request received" reply). */
 export async function replyToChat(chatId: string, text: string): Promise<void> {
   try {

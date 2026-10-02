@@ -450,6 +450,16 @@ export async function importAccountSessions(sessions: SessionsByAccount): Promis
  * Whether one account's isolated browser is still signed in to Starlink (see
  * LocalBrowserPlugin#checkSession). "unknown" on web/failure, never throws.
  */
+/** 📥 The file last opened with STAR NET from Telegram (once); null when none / not on Android. */
+export async function takeSharedFile(): Promise<string | null> {
+  if (!isRunningInAndroidApp()) return null;
+  try {
+    return (await LocalBrowser.takeSharedFile()).text;
+  } catch {
+    return null;
+  }
+}
+
 export async function checkAccountSession(accountId: string): Promise<SessionStatus> {
   if (!isRunningInAndroidApp()) return "unknown";
   try {

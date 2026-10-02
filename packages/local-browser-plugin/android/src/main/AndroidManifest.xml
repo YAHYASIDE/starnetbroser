@@ -59,6 +59,32 @@
                 android:value="Answers the operator's own Telegram bots from business data kept only on this phone" />
         </service>
 
+        <!-- 📥 «فتح بـ STAR NET» for a file from Telegram (the rep's 📋 copy of his devices): only
+             keeps the file for the app to read; the app decides what it is (it must decrypt with
+             the rep's own code). -->
+        <activity
+            android:name="com.starnetbroser.localbrowser.SharedFileActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:label="STAR NET">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" android:mimeType="application/json" />
+                <data android:scheme="content" android:mimeType="application/octet-stream" />
+                <data android:scheme="content" android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/json" />
+                <data android:mimeType="application/octet-stream" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+
         <!-- ⏳ BusyService: held only while a task the operator started runs on Starlink's pages
              («تحديث من Starlink», «إلغاء الاشتراك»), so it goes on when he leaves the app. -->
         <service

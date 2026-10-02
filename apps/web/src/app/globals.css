@@ -10966,3 +10966,184 @@ button.today-tile {
   font-weight: 700;
   flex: none;
 }
+
+/* 📋 «إرسال نسخته» (RepAppCodePanel). */
+.rep-copy-send {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--brand) 30%, var(--border));
+  background: color-mix(in srgb, var(--brand) 6%, var(--surface));
+}
+
+/* 📋 «أجهزتي» in «وضع المندوب» (RepCopyView.tsx). */
+.rep-mode-tabs {
+  margin-bottom: 10px;
+}
+
+.rep-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rep-copy-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rep-copy-head small {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
+.rep-copy-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rep-copy-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.rep-copy-card.is-suspended {
+  border-color: color-mix(in srgb, var(--red) 50%, var(--border));
+  background: color-mix(in srgb, var(--red) 6%, var(--surface));
+}
+
+.rep-copy-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rep-copy-name {
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.rep-copy-status {
+  flex: none;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.rep-copy-status-good {
+  background: var(--green-bg);
+  color: var(--green);
+}
+
+.rep-copy-status-bad {
+  background: var(--red-bg);
+  color: var(--red);
+}
+
+.rep-copy-status-warn {
+  background: var(--yellow-bg);
+  color: var(--yellow);
+}
+
+.rep-copy-client {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.rep-copy-phone {
+  color: var(--brand);
+  text-decoration: none;
+}
+
+.rep-copy-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rep-copy-chip {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--surface-alt);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.rep-copy-chip.is-soon {
+  background: var(--yellow-bg);
+  color: var(--yellow);
+}
+
+.rep-copy-chip.is-expired {
+  background: var(--red-bg);
+  color: var(--red);
+}
+
+.rep-copy-money {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.rep-copy-money > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 9px;
+  border-radius: 10px;
+  background: var(--surface-alt);
+}
+
+.rep-copy-money small {
+  font-size: 0.66rem;
+  color: var(--text-muted);
+}
+
+.rep-copy-money strong {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.82rem;
+}
+
+.rep-copy-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.rep-copy-ops-title {
+  margin: 4px 0;
+  font-size: 0.85rem;
+}
+
+.rep-copy > .search-input {
+  flex: none;
+  width: 100%;
+  min-height: 44px;
+}
+
+.rep-copy-money strong.rep-copy-inline {
+  display: block;
+}

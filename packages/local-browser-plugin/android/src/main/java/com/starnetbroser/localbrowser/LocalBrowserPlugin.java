@@ -1132,6 +1132,35 @@ public class LocalBrowserPlugin extends Plugin {
 
     /** Sends a PDF (base64) right away - to the operator, or to a linked rep (reps bot). With
      * `photo: true` it's a jpeg / png shown as a picture (a transfer screenshot to a rep). */
+    /** 📥 The file last opened with STAR NET (SharedFileActivity), once - then forgotten. */
+    @PluginMethod
+    public void takeSharedFile(PluginCall call) {
+        java.io.File file = new java.io.File(getContext().getFilesDir(), SharedFileActivity.FILE_NAME);
+        JSObject result = new JSObject();
+        if (!file.exists()) {
+            result.put("text", null);
+            call.resolve(result);
+            return;
+        }
+        try {
+            byte[] bytes = new byte[(int) file.length()];
+            try (java.io.FileInputStream in = new java.io.FileInputStream(file)) {
+                int offset = 0;
+                while (offset < bytes.length) {
+                    int read = in.read(bytes, offset, bytes.length - offset);
+                    if (read < 0) break;
+                    offset += read;
+                }
+            }
+            result.put("text", new String(bytes, java.nio.charset.StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            result.put("text", null);
+        }
+        //noinspection ResultOfMethodCallIgnored
+        file.delete();
+        call.resolve(result);
+    }
+
     @PluginMethod
     public void telegramSendDocument(PluginCall call) {
         String base64 = call.getString("base64");
@@ -1155,7 +1184,8 @@ public class LocalBrowserPlugin extends Plugin {
                     String type = fileName.toLowerCase(java.util.Locale.ROOT).endsWith(".png") ? "image/png" : "image/jpeg";
                     TelegramClient.sendPhoto(token, chatId, fileName, type, file, caption);
                 } else {
-                    TelegramClient.sendDocument(token, chatId, fileName, file, caption);
+                    String contentType = call.getString("contentType", "application/pdf");
+                    TelegramClient.sendDocument(token, chatId, fileName, contentType, file, caption);
                 }
                 call.resolve();
             } catch (TelegramClient.TelegramError e) {

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { SessionStatus } from "@starnet/local-browser-plugin";
 import { checkAccountSession, deleteIsolatedAccountSession, openIsolatedAccountBrowser, openIsolatedMailbox } from "@/lib/localBrowser";
 import { isGmail } from "@/lib/mailboxes";
+import { RepCopyView } from "@/components/RepCopyView";
 import { forgetRepDeviceFile, shareRepDevice } from "@/lib/repDeviceShare";
 import {
   addRepModeDevice,
@@ -29,6 +30,8 @@ export function RepModeView({ settings, onExit }: { settings: RepModeSettings; o
   const [form, setForm] = useState(EMPTY_FORM);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // 📋 the copy of his devices from the operator, or ➕ the devices he is adding.
+  const [tab, setTab] = useState<"mine" | "new">("mine");
 
   const refreshSessions = useCallback(async (list: RepModeDevice[]) => {
     const entries = await Promise.all(list.map(async (d) => [d.id, await checkAccountSession(d.id)] as const));
@@ -115,6 +118,19 @@ export function RepModeView({ settings, onExit }: { settings: RepModeSettings; o
         {settings.name && <p>أهلاً {settings.name}</p>}
       </header>
 
+      <div className="report-tabs rep-mode-tabs" role="tablist">
+        <button type="button" role="tab" aria-selected={tab === "mine"} className={`report-tab${tab === "mine" ? " report-tab-active" : ""}`} onClick={() => setTab("mine")}>
+          📋 أجهزتي
+        </button>
+        <button type="button" role="tab" aria-selected={tab === "new"} className={`report-tab${tab === "new" ? " report-tab-active" : ""}`} onClick={() => setTab("new")}>
+          ➕ أجهزة جديدة{devices.length ? ` (${devices.length})` : ""}
+        </button>
+      </div>
+
+      {tab === "mine" ? (
+        <RepCopyView code={settings.code} />
+      ) : (
+      <>
       <ol className="rep-mode-steps">
         <li>➕ أضف جهاز الزبون</li>
         <li>🔐 سجّل دخوله إلى Starlink</li>
@@ -225,6 +241,9 @@ export function RepModeView({ settings, onExit }: { settings: RepModeSettings; o
           );
         })}
       </ul>
+
+      </>
+      )}
 
       <button type="button" className="text-action rep-mode-exit" onClick={exit}>
         الخروج من وضع المندوب

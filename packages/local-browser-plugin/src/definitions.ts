@@ -524,7 +524,10 @@ export interface LocalBrowserPlugin {
   telegramSchedule(options: { key: string; at: number; text: string; bot?: TelegramBot; chatId?: string; replyMarkup?: string }): Promise<void>;
   telegramCancel(options: { key: string }): Promise<void>;
   /** A PDF - or, with `photo`, a jpeg / png shown as a picture (a transfer screenshot to a rep). */
-  telegramSendDocument(options: { fileName: string; base64: string; caption?: string; bot?: TelegramBot; chatId?: string; photo?: boolean }): Promise<void>;
+  /** `contentType`: the document's type (default application/pdf). */
+  telegramSendDocument(options: { fileName: string; base64: string; caption?: string; bot?: TelegramBot; chatId?: string; photo?: boolean; contentType?: string }): Promise<void>;
+  /** 📥 The file last opened with STAR NET from another app (e.g. Telegram), once; null when none. */
+  takeSharedFile(): Promise<{ text: string | null }>;
   /** New messages to a bot (the app answers commands itself). */
   telegramPoll(options: { offset?: number; bot?: TelegramBot }): Promise<TelegramPollResult>;
   /** Replies with the app closed: a foreground service (permanent notification) answers both

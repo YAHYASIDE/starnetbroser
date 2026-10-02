@@ -1005,7 +1005,7 @@ function RepCard({
 
       {sheet?.kind === "appCode" && (
         <PartySheet title={`تطبيق المندوب - ${rep.name}`} onClose={() => setSheet(null)}>
-          <RepAppCodePanel rep={rep} />
+          <RepAppCodePanel rep={rep} accounts={accounts} />
         </PartySheet>
       )}
 

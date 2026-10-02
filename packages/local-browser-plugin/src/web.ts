@@ -116,7 +116,11 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
     return;
   }
 
-  async telegramSendDocument(_options: { fileName: string; base64: string; caption?: string; bot?: TelegramBot; chatId?: string; photo?: boolean }): Promise<void> {
+  async takeSharedFile(): Promise<{ text: string | null }> {
+    return { text: null };
+  }
+
+  async telegramSendDocument(_options: { fileName: string; base64: string; caption?: string; bot?: TelegramBot; chatId?: string; photo?: boolean; contentType?: string }): Promise<void> {
     throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
   }
 
