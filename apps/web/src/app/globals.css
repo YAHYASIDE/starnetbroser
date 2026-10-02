@@ -10906,3 +10906,63 @@ a[href],
 .profit-section-head {
   margin-top: 4px;
 }
+
+/* 📅 اليوم: tiles are buttons now - each opens the operations behind its number. */
+button.today-tile {
+  width: 100%;
+  font-family: inherit;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.today-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.today-lines li + li {
+  border-top: 1px solid var(--border);
+}
+
+.today-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 2px;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.82rem;
+}
+
+.today-line-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.today-line-main strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.today-line-main small {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
+.today-line > strong {
+  flex: none;
+}
+
+.today-line-go {
+  color: var(--brand);
+  font-weight: 700;
+  flex: none;
+}

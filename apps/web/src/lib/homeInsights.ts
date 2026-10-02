@@ -37,6 +37,48 @@ export function computeTodaySummary(ledgerStore: LedgerByAccount, cash: CashEntr
   return summary;
 }
 
+/** One line behind a "📅 اليوم" tile: what each tile's total is made of. */
+export interface TodayLine {
+  id: string;
+  /** The device for a ledger line; absent for a cash line. */
+  accountId?: string;
+  amount: number;
+  currency: string;
+  /** Cash: category or note. Ledger: the entry's note. */
+  label: string;
+  /** Shipments only: its Starlink cost is still unpaid (D). */
+  pendingD?: boolean;
+  kind: "in" | "out";
+}
+
+export interface TodayLines {
+  collected: TodayLine[];
+  charged: TodayLine[];
+  cash: TodayLine[];
+}
+
+/** The operations behind computeTodaySummary's totals, biggest first. */
+export function listTodayLines(ledgerStore: LedgerByAccount, cash: CashEntryList, today: string): TodayLines {
+  const lines: TodayLines = { collected: [], charged: [], cash: [] };
+  for (const [accountId, entries] of Object.entries(ledgerStore)) {
+    for (const entry of entries) {
+      if (entry.date !== today) continue;
+      const line: TodayLine = { id: entry.id, accountId, amount: entry.amount, currency: entry.currency, label: entry.note ?? "", kind: entry.kind === "credit" ? "in" : "out" };
+      if (entry.kind === "credit") lines.collected.push(line);
+      else lines.charged.push({ ...line, pendingD: entry.starlinkCost?.status === "pending" && (entry.starlinkCost.amount ?? 0) > 0 });
+    }
+  }
+  for (const entry of cash) {
+    if (entry.date !== today) continue;
+    lines.cash.push({ id: entry.id, amount: entry.amount, currency: entry.currencyCode, label: entry.category?.trim() || entry.note?.trim() || "", kind: entry.kind === "in" ? "in" : "out" });
+  }
+  const bigFirst = (a: TodayLine, b: TodayLine) => b.amount - a.amount;
+  lines.collected.sort(bigFirst);
+  lines.charged.sort(bigFirst);
+  lines.cash.sort((a, b) => (a.kind === b.kind ? b.amount - a.amount : a.kind === "in" ? -1 : 1));
+  return lines;
+}
+
 export type SearchResultKind = "client" | "supplier" | "representative" | "item";
 
 export interface SearchResult {

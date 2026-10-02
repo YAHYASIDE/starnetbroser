@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeTodaySummary, deviceMatchesQuery, normalizeSearchText, searchEverything } from "./homeInsights";
+import { computeTodaySummary, deviceMatchesQuery, listTodayLines, normalizeSearchText, searchEverything } from "./homeInsights";
 import type { LedgerEntry } from "./ledgerStore";
 import type { CashEntry } from "./cashStore";
 
@@ -71,5 +71,26 @@ describe("search", () => {
     expect(deviceMatchesQuery("sl df 1220", d)).toBe(true);
     expect(deviceMatchesQuery("ACC28771123", d)).toBe(true);
     expect(deviceMatchesQuery("KIT9999", d)).toBe(false);
+  });
+});
+
+describe("listTodayLines", () => {
+  it("lists what makes each tile: payments, shipments (with D), cash in before out", () => {
+    const today = "2026-10-02";
+    const ledger = {
+      a1: [
+        { id: "p1", kind: "credit" as const, amount: 5000, currency: "MRU" as const, note: "دفعة", email: "", date: today, createdAt: "" },
+        { id: "s1", kind: "debit" as const, amount: 16000, currency: "MRU" as const, note: "", email: "", date: today, createdAt: "", starlinkCost: { status: "pending" as const, currencyCode: "USD", amount: 30 } },
+        { id: "old", kind: "debit" as const, amount: 9000, currency: "MRU" as const, note: "", email: "", date: "2026-10-01", createdAt: "" },
+      ],
+    };
+    const cash = [
+      { id: "c1", kind: "out" as const, amount: 300, currencyCode: "MRU", date: today, category: "نقل", createdAt: "" },
+      { id: "c2", kind: "in" as const, amount: 100, currencyCode: "MRU", date: today, note: "إيداع", createdAt: "" },
+    ];
+    const lines = listTodayLines(ledger, cash, today);
+    expect(lines.collected.map((l) => [l.id, l.accountId, l.amount])).toEqual([["p1", "a1", 5000]]);
+    expect(lines.charged.map((l) => [l.id, l.pendingD])).toEqual([["s1", true]]);
+    expect(lines.cash.map((l) => [l.id, l.label, l.kind])).toEqual([["c2", "إيداع", "in"], ["c1", "نقل", "out"]]);
   });
 });

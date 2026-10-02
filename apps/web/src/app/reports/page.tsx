@@ -370,6 +370,22 @@ export default function ReportsPage() {
   }
   const usdToMru = (usd: number) => (mruRate ? usd * mruRate : undefined);
 
+  // ⏳ D shipments: their expected profit, listed with the same details (both tabs).
+  const expectedBlock = expectedDays.length > 0 && (
+            <div className="profit-expected">
+              <button type="button" className="profit-expected-toggle" aria-expanded={showExpected} onClick={() => setShowExpected((v) => !v)}>
+                <span>⏳ ربح متوقع (D) · {shipments(expected?.expectedCount ?? 0)}</span>
+                <strong className={expected && expected.expectedMru < 0 ? "report-bad" : "report-warn"}>
+                  <bdi dir="ltr">{expected ? `≈ ${mru(expected.expectedMru)}` : "—"}</bdi>
+                </strong>
+                <span aria-hidden="true">{showExpected ? "▲" : "▼"}</span>
+              </button>
+              {showExpected && (
+                <ProfitStatement days={expectedDays} names={statementNames} emptyText="لا توجد شحنات D." />
+              )}
+            </div>
+          );
+
   const periodChips = (
     <div className="report-period-row">
       {REPORT_PERIODS.map((p) => (
@@ -392,7 +408,8 @@ export default function ReportsPage() {
       <TodayPanel
         ledgerStore={ledgerStore}
         cashEntries={cashEntries}
-        renewalsToday={activeAccounts.filter((a) => daysRemainingNumber(a.rechargeDate || a.standbyDate) === 0).length}
+        renewalsToday={activeAccounts.filter((a) => daysRemainingNumber(a.rechargeDate || a.standbyDate) === 0).map((a) => ({ id: a.id, name: a.name }))}
+        names={statementNames}
       />
 
       <div className="report-tabs" role="tablist" aria-label="أقسام التقارير">
@@ -449,20 +466,7 @@ export default function ReportsPage() {
             onHideDay={handleHideDay}
           />
 
-          {expectedDays.length > 0 && (
-            <div className="profit-expected">
-              <button type="button" className="profit-expected-toggle" aria-expanded={showExpected} onClick={() => setShowExpected((v) => !v)}>
-                <span>⏳ ربح متوقع (D) · {shipments(expected?.expectedCount ?? 0)}</span>
-                <strong className={expected && expected.expectedMru < 0 ? "report-bad" : "report-warn"}>
-                  <bdi dir="ltr">{expected ? `≈ ${mru(expected.expectedMru)}` : "—"}</bdi>
-                </strong>
-                <span aria-hidden="true">{showExpected ? "▲" : "▼"}</span>
-              </button>
-              {showExpected && (
-                <ProfitStatement days={expectedDays} names={statementNames} emptyText="لا توجد شحنات D." />
-              )}
-            </div>
-          )}
+          {expectedBlock}
 
           {Object.keys(hiddenDays).length > 0 && (
             <div className="profit-hidden-days">
@@ -595,6 +599,8 @@ export default function ReportsPage() {
             emptyText="لا توجد شحنات دُفعت لستارلينك في هذا الشهر."
             onHideDay={handleHideDay}
           />
+
+          {expectedBlock}
 
           <div className="report-card">
             <div className="report-card-head">
