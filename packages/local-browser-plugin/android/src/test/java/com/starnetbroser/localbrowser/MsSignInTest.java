@@ -150,16 +150,18 @@ public class MsSignInTest {
     }
 
     @Test
-    public void starlinksOwnStepsAfterwards() {
-        assertEquals(StarlinkLoginWatch.NEXT, StarlinkLoginWatch.autoStep(new StarlinkLoginWatch.State("", false, false, "demo@outlook.com", true), "https://www.starlink.com/auth/login"));
-        assertNull(StarlinkLoginWatch.autoStep(new StarlinkLoginWatch.State("", false, false, "", true), "https://www.starlink.com/auth/login"));
-        assertEquals(StarlinkLoginWatch.SIGN_IN, StarlinkLoginWatch.autoStep(new StarlinkLoginWatch.State("secret-demo", true, false, "", false), "https://www.starlink.com/auth/login"));
-        assertNull(StarlinkLoginWatch.autoStep(new StarlinkLoginWatch.State("secret-demo", true, true, "", false), "https://www.starlink.com/auth/login"));
-        assertNull(StarlinkLoginWatch.autoStep(new StarlinkLoginWatch.State("", true, false, "", false), "https://www.starlink.com/auth/login"));
-        assertNull(StarlinkLoginWatch.autoStep(new StarlinkLoginWatch.State("secret-demo", true, false, "", false), "https://www.starlink.com/account/home"));
-        assertNull(StarlinkLoginWatch.autoStep(null, "https://www.starlink.com/auth/login"));
-        // The email step with a hidden (sized) password field alongside: still «التالي» (real, confirmed silent wait).
-        assertEquals(StarlinkLoginWatch.NEXT, StarlinkLoginWatch.autoStep(new StarlinkLoginWatch.State("", true, false, "demo@outlook.com", true), "https://www.starlink.com/auth/login"));
-        assertTrue(StarlinkLoginWatch.describe(new StarlinkLoginWatch.State("", true, false, "demo@outlook.com", true), "https://www.starlink.com/auth/login").contains("www.starlink.com/auth/login"));
+    public void starlinksOwnStepsRunInsideThePage() {
+        // «التالي» after the typed email, «تسجيل الدخول» after the typed password - pressed by the page script.
+        assertTrue(StarlinkLoginWatch.AUTO_SCRIPT.contains("window.__starnetAutoLogin"));
+        assertTrue(StarlinkLoginWatch.AUTO_SCRIPT.contains("التالي"));
+        assertTrue(StarlinkLoginWatch.AUTO_SCRIPT.contains("تسجيل الدخول"));
+        assertTrue(StarlinkLoginWatch.AUTO_SCRIPT.contains("window.__starnetAutoNote"));
+        assertFalse(StarlinkLoginWatch.AUTO_SCRIPT.contains("secret"));
+        // The watch reads the script's note, and describes what it sees for the diagnostic toast.
+        StarlinkLoginWatch.State s = StarlinkLoginWatch.parse("\"{\\\"p\\\":\\\"\\\",\\\"f\\\":1,\\\"w\\\":0,\\\"e\\\":\\\"demo@outlook.com\\\",\\\"ef\\\":1,\\\"a\\\":\\\"next:ok\\\"}\"");
+        assertNotNull(s);
+        assertEquals("next:ok", s.note);
+        assertTrue(StarlinkLoginWatch.describe(s, "https://www.starlink.com/auth/login").contains("www.starlink.com/auth/login"));
+        assertTrue(StarlinkLoginWatch.describe(new StarlinkLoginWatch.State("", false, false), "x").contains("السكربت لا يعمل"));
     }
 }

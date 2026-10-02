@@ -157,12 +157,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
     private int autoFills;
     /** 🤖 The automatic sign-in (EXTRA_AUTO_LOGIN): on until signed in, a wrong password, or a page
      * that doesn't move on after a few presses. */
-    private static final long AUTO_CLICK_GAP_MS = 4000;
-    private static final int AUTO_MAX_CLICKS_PER_STEP = 3;
     private boolean autoLogin;
-    private String autoLastClick;
-    private int autoClicks;
-    private long autoLastClickAt;
     /** Polls on a sign-in page with nothing to press (no field seen) - said once after a while. */
     private int autoIdlePolls;
     private boolean autoWarned;
@@ -338,45 +333,25 @@ public class AccountBrowserActivity extends AppCompatActivity {
         });
     }
 
-    /** 🤖 One automatic press on Starlink's sign-in («التالي», «تسجيل الدخول»), seconds apart and a
-     * few times at most per step; over once an account page opens. */
+    /** 🤖 Watches the in-page automatic sign-in (StarlinkLoginWatch.AUTO_SCRIPT): says once when it
+     * is stuck or when nothing was pressed for a while, with what it sees (for a screenshot). */
     private void autoStep(StarlinkLoginWatch.State state) {
         String url = webView.getUrl();
-        if (StarlinkLoginWatch.isSignedInUrl(url)) {
-            autoLogin = false;
+        if (state.note.startsWith("next") || state.note.startsWith("in")) {
+            autoIdlePolls = 0;
             return;
         }
-        String click = StarlinkLoginWatch.autoStep(state, url);
-        if (click == null) {
-            // Nothing to press for a while on a page that isn't the account: say once what is seen
-            // (the operator sends a screenshot of it), then keep watching.
-            if (++autoIdlePolls >= 6 && !autoWarned) {
-                autoWarned = true;
-                Toast.makeText(this, "🧪 لم أضغط شيئاً - أرى: " + StarlinkLoginWatch.describe(state, url), Toast.LENGTH_LONG).show();
-            }
+        if (StarlinkLoginWatch.isSignedInUrl(url) && !state.hasEmailField && !state.hasPasswordField) {
+            autoLogin = false; // in
             return;
         }
-        autoIdlePolls = 0;
-        if (System.currentTimeMillis() - autoLastClickAt < AUTO_CLICK_GAP_MS) return;
-        if (!click.equals(autoLastClick)) {
-            autoLastClick = click;
-            autoClicks = 0;
+        if (state.note.startsWith("stuck") && !autoWarned) {
+            autoWarned = true;
+            Toast.makeText(this, "⏸️ الصفحة لا تتقدم بعد الضغط - أكمل بنفسك وأرسل لقطة", Toast.LENGTH_LONG).show();
+        } else if (++autoIdlePolls >= 6 && !autoWarned) {
+            autoWarned = true;
+            Toast.makeText(this, "🧪 لم أضغط شيئاً - أرى: " + StarlinkLoginWatch.describe(state, url), Toast.LENGTH_LONG).show();
         }
-        if (autoClicks >= AUTO_MAX_CLICKS_PER_STEP) {
-            autoLogin = false;
-            Toast.makeText(this, "⏸️ الصفحة لا تتقدم - أكمل تسجيل الدخول بنفسك", Toast.LENGTH_LONG).show();
-            return;
-        }
-        autoClicks++;
-        autoLastClickAt = System.currentTimeMillis();
-        final boolean next = click.equals(StarlinkLoginWatch.NEXT);
-        webView.evaluateJavascript(StarlinkLoginWatch.pressScript(click), value -> {
-            if (webView == null) return;
-            if ("\"none\"".equals(value) && !autoWarned) {
-                autoWarned = true;
-                Toast.makeText(this, (next ? "⏸️ لم أجد زر «التالي»" : "⏸️ لم أجد زر «تسجيل الدخول»") + " - اضغطه بنفسك وأرسل لقطة", Toast.LENGTH_LONG).show();
-            }
-        });
     }
 
     private void scheduleTwoStepCheck() {
@@ -840,6 +815,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
         public void onPageFinished(WebView view, String url) {
             super.onPageFinished(view, url);
             if (autofillScript != null && AllowedUrl.isAllowed(url)) view.evaluateJavascript(autofillScript, null);
+            if (autoLogin && AllowedUrl.isAllowed(url)) view.evaluateJavascript(StarlinkLoginWatch.AUTO_SCRIPT, null);
             if (activationScript != null && AllowedUrl.isAllowed(url)) view.evaluateJavascript(activationScript, null);
         }
 
