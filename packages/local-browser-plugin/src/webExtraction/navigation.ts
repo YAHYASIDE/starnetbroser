@@ -193,8 +193,16 @@ export function clickSettingsRailItem(): boolean {
  * sits right next to that same column header and would otherwise be the first clickable element
  * found after it. */
 export function clickFirstSubscriptionRow(): boolean {
+  const row = findFirstSubscriptionRow();
+  if (!row) return false;
+  (row as HTMLElement).click();
+  return true;
+}
+
+/** The first real row under the "الاشتراك" column (see clickFirstSubscriptionRow), not clicked. */
+function findFirstSubscriptionRow(): Element | null {
   const header = findExactTextElement(document.body, SUBSCRIPTION_COLUMN_LABELS);
-  if (!header) return false;
+  if (!header) return null;
 
   let node: Element | null = header;
   for (let hop = 0; hop < 80 && node; hop++) {
@@ -202,12 +210,37 @@ export function clickFirstSubscriptionRow(): boolean {
     if (!node) break;
     const text = directText(node);
     if (!text || ADD_SUBSCRIPTION_LABELS.includes(text.toLowerCase())) continue;
-    if (isClickable(node) && !isDangerousControl(node)) {
-      (node as HTMLElement).click();
-      return true;
-    }
+    if (isClickable(node) && !isDangerousControl(node)) return node;
   }
-  return false;
+  return null;
+}
+
+/** Every subscription row on the "الاشتراكات" list: the first row (findFirstSubscriptionRow) and
+ * the rows built the same way (same tag and class) after it - a device can carry two subscriptions
+ * (real, confirmed). Never the "إضافة اشتراك" button. */
+function findSubscriptionRows(): Element[] {
+  const first = findFirstSubscriptionRow();
+  if (!first) return [];
+  const rows = Array.from(document.querySelectorAll(first.tagName)).filter((el) => {
+    if (el.className !== first.className) return false;
+    if (first.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_PRECEDING) return false;
+    const text = (el.textContent ?? "").trim().toLowerCase();
+    return !ADD_SUBSCRIPTION_LABELS.includes(text) && !isDangerousControl(el);
+  });
+  return rows.length ? rows : [first];
+}
+
+/** How many subscription rows the "الاشتراكات" list shows (0 when it isn't that page). */
+export function subscriptionRowCount(): number {
+  return findSubscriptionRows().length;
+}
+
+/** Opens the `index`th (0-based) subscription row of the "الاشتراكات" list. */
+export function clickSubscriptionRow(index: number): boolean {
+  const row = findSubscriptionRows()[index];
+  if (!row) return false;
+  (row as HTMLElement).click();
+  return true;
 }
 
 /** On the confirmed "الاشتراك" detail page: expands the "الأجهزة" accordion (confirmed ALWAYS

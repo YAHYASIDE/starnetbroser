@@ -13,6 +13,7 @@ import {
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { SIGNUP_RECOVERY_EMAIL, outlookSignupFor, starlinkActivationFor } from "./accountCreation";
 import { passwordSuggestionsFor } from "./usedPasswords";
+import { CANCEL_SUBSCRIPTION_REASON } from "./subscriptionCancel";
 import { SessionsByAccount } from "./accountBackup";
 import { markInternalLeave } from "./appLock";
 
@@ -144,6 +145,29 @@ export async function openIsolatedAccountBrowser(accountId: string, accountName:
     // count as "left the app" for the PIN re-lock.
     markInternalLeave();
     await LocalBrowser.openAccountBrowser({ accountId, accountName, url: STARLINK_ACCOUNT_HOME_URL, ...login });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : "تعذر فتح المتصفح المحلي" };
+  }
+}
+
+/** 🛑 «إلغاء الاشتراك»: the device's Starlink browser cancels every subscription by itself (signing
+ * in first if needed). Only called after the operator pressed the card's button and confirmed. */
+export async function openCancelSubscription(account: StarlinkAccountSummary, accounts: StarlinkAccountSummary[] = []): Promise<OpenResult> {
+  if (!isRunningInAndroidApp()) return { ok: false, message: ANDROID_ONLY_MESSAGE };
+  try {
+    const { supported } = await LocalBrowser.isSupported();
+    if (!supported) return { ok: false, message: UNSUPPORTED_DEVICE_MESSAGE };
+    markInternalLeave();
+    await LocalBrowser.openAccountBrowser({
+      accountId: account.id,
+      accountName: account.name || "حساب Starlink",
+      url: STARLINK_ACCOUNT_HOME_URL,
+      ...starlinkLoginFor(account),
+      ...mailExtrasFor(account, accounts),
+      autoLogin: true,
+      cancelSubscriptionReason: CANCEL_SUBSCRIPTION_REASON,
+    });
     return { ok: true };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : "تعذر فتح المتصفح المحلي" };

@@ -381,6 +381,9 @@ public class LocalBrowserPlugin extends Plugin {
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_DOCUMENT | Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
         // 🤖 The Starlink sign-in pressed through by itself (after the automatic mailbox sign-in).
         if (options.optBoolean("autoLogin", false)) intent.putExtra(AccountBrowserActivity.EXTRA_AUTO_LOGIN, true);
+        // 🛑 «إلغاء الاشتراك» (the operator pressed the card's button and confirmed).
+        String cancelReason = options.getString("cancelSubscriptionReason");
+        if (cancelReason != null && !cancelReason.trim().isEmpty()) intent.putExtra(AccountBrowserActivity.EXTRA_CANCEL_REASON, cancelReason.trim());
         JSObject activation = options.getJSObject("activation");
         if (activation != null) {
             intent.putExtra(AccountBrowserActivity.EXTRA_ACTIVATION_KIT, activation.getString("kit"));

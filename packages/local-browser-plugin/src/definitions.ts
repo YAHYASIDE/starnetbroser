@@ -32,6 +32,11 @@ export interface OpenAccountBrowserOptions {
    * typed, and the «التحقق بخطوتين» code is read from the mailbox and entered - no hand needed.
    * Stops on a wrong password. */
   autoLogin?: boolean;
+  /** 🛑 «إلغاء الاشتراك»: cancel every subscription of the device on Starlink with this reason
+   * (Manage → Cancel service → reason → Continue To Cancel ×2 → Confirm & Cancel Service). Only
+   * ever set after the operator pressed the card's button and confirmed. The end date comes back as
+   * pendingCancellationDate through accountDataSynced. */
+  cancelSubscriptionReason?: string;
 }
 
 export interface StarlinkActivationFill {

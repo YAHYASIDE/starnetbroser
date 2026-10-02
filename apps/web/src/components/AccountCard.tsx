@@ -22,7 +22,8 @@ import { formatAmount } from "@/lib/formatAmount";
 import { PaymentAllocation } from "@/lib/paymentAllocationStore";
 import { Client } from "@/lib/clientStore";
 import { isGmail } from "@/lib/mailboxes";
-import { isRunningInAndroidApp, mailExtrasFor, mailLoginFor, openAccountCreation, openIsolatedAccountBrowser, openIsolatedMailbox, starlinkLoginFor, triggerImmediateSync } from "@/lib/localBrowser";
+import { isRunningInAndroidApp, mailExtrasFor, mailLoginFor, openAccountCreation, openCancelSubscription, openIsolatedAccountBrowser, openIsolatedMailbox, starlinkLoginFor, triggerImmediateSync } from "@/lib/localBrowser";
+import { cancelConfirmQuestion, cancellationState, cancelledMessage } from "@/lib/subscriptionCancel";
 import {
   buildAccountStatementMessage,
   buildBalanceReminderMessage,
@@ -215,6 +216,7 @@ export function AccountCard({
 }: Props) {
   const ledgerBalances = computeBalanceByCurrency(ledgerEntries);
   const serviceStatus = presentServiceStatus(effectiveServiceStatus(account));
+  const cancellation = cancellationState(account);
   const deviceCountry = countryFromIso2(account.serviceCountry);
   const dishDot = connectionDot(account.dishStatus);
   const wifiDot = connectionDot(account.wifiStatus);
@@ -285,6 +287,24 @@ export function AccountCard({
       if (!result.ok) {
         window.alert(result.message);
       }
+    } finally {
+      setOpening(false);
+    }
+  }
+
+  /** 🛑 «إلغاء الاشتراك»: green = ask, then the device's browser cancels by itself; red = already
+   * cancelled, a message only. */
+  async function handleCancelSubscription() {
+    const state = cancellationState(account);
+    if (state.cancelled) {
+      window.alert(cancelledMessage(state));
+      return;
+    }
+    if (opening || !window.confirm(cancelConfirmQuestion(account))) return;
+    setOpening(true);
+    try {
+      const result = await openCancelSubscription(account, allAccounts);
+      if (!result.ok) window.alert(result.message);
     } finally {
       setOpening(false);
     }
@@ -525,6 +545,20 @@ export function AccountCard({
           </span>
         )}
         {serviceStatus && <span className={`badge ${serviceStatus.className} account-card-status-badge`}>{serviceStatus.label}</span>}
+        {context === "active" && !account.creation && (
+          <button
+            type="button"
+            className={`cancel-subscription-button${cancellation.cancelled ? " is-cancelled" : ""}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              void handleCancelSubscription();
+            }}
+            disabled={opening}
+            title={cancellation.cancelled ? cancelledMessage(cancellation) : "إلغاء الاشتراك في Starlink"}
+          >
+            {cancellation.cancelled ? "ملغى" : "إلغاء الاشتراك"}
+          </button>
+        )}
       </div>
 
       <div className="account-card-starlink-balance-row">

@@ -1,7 +1,8 @@
 import { extractStarlinkFields } from "./extractStarlinkFields";
 import { captureSnapshot } from "./snapshot";
 import { ensureEnglishStep } from "./language";
-import { clickBillingRailItem, clickFirstSubscriptionRow, clickIconRailItem, clickSettingsRailItem, clickSubscriptionsRailItem, expandDevicesSection } from "./navigation";
+import { clickBillingRailItem, clickFirstSubscriptionRow, clickIconRailItem, clickSettingsRailItem, clickSubscriptionRow, clickSubscriptionsRailItem, expandDevicesSection, subscriptionRowCount } from "./navigation";
+import { cancelSubscriptionStep } from "./cancelSubscription";
 
 /**
  * The one script AccountBrowserActivity/AutoSyncWorker ever inject into an isolated WebView.
@@ -30,6 +31,9 @@ type StarnetGlobal = typeof globalThis & {
   __starnetClickSettingsRailItem?: () => boolean;
   __starnetSnapshot?: () => string;
   __starnetEnsureEnglish?: (menuOpened: boolean) => string;
+  __starnetSubscriptionRowCount?: () => number;
+  __starnetClickSubscriptionRow?: (index: number) => boolean;
+  __starnetCancelStep?: (reason: string) => string;
 };
 
 const starnetGlobal = globalThis as StarnetGlobal;
@@ -51,3 +55,9 @@ starnetGlobal.__starnetSnapshot = () => captureSnapshot(document);
 
 /** Before any read: one tap toward the page in English (see language.ts). */
 starnetGlobal.__starnetEnsureEnglish = (menuOpened: boolean) => ensureEnglishStep(menuOpened);
+
+/** 🛑 «إلغاء الاشتراك» (only after the operator pressed the card's button and confirmed): the
+ * subscription rows, and one cancelling step on the open subscription (cancelSubscription.ts). */
+starnetGlobal.__starnetSubscriptionRowCount = subscriptionRowCount;
+starnetGlobal.__starnetClickSubscriptionRow = clickSubscriptionRow;
+starnetGlobal.__starnetCancelStep = (reason: string) => cancelSubscriptionStep(reason);

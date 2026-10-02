@@ -3,6 +3,7 @@ package com.starnetbroser.localbrowser;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
@@ -71,6 +72,9 @@ public class AccountBrowserActivity extends AppCompatActivity {
     /** 🤖 «إضافة الحساب»: press «التالي» and «تسجيل الدخول» by itself once the fields are typed
      * (StarlinkLoginWatch.autoStep); «التحقق بخطوتين» is already typed and pressed by itself. */
     public static final String EXTRA_AUTO_LOGIN = "com.starnetbroser.localbrowser.AUTO_LOGIN";
+    /** 🛑 «إلغاء الاشتراك»: cancel every subscription of this device on Starlink with this reason
+     * (the operator pressed the card's button and confirmed). */
+    public static final String EXTRA_CANCEL_REASON = "com.starnetbroser.localbrowser.CANCEL_REASON";
 
     private static final String NOTIFICATION_PERMISSION_PREFS = "starnet_notification_permission";
     private static final String KEY_ASKED_NOTIFICATION_PERMISSION = "asked_post_notifications";
@@ -165,6 +169,23 @@ public class AccountBrowserActivity extends AppCompatActivity {
      * page mean "signed in" (StarlinkLoginWatch.signInDone). */
     private boolean autoSawSignIn;
 
+    // ---- 🛑 «إلغاء الاشتراك»: signed in → English → «الاشتراكات» → each row → cancel (cancelSubscription.ts) ----
+    private static final long CANCEL_POLL_MS = 2000;
+    private static final int CANCEL_SIGN_IN_POLLS = 150; // 5 minutes for the sign-in (and its code)
+    private enum CancelPhase { SIGN_IN, ENGLISH, LIST, ROW, CANCELLING }
+    private final Runnable cancelPoll = this::cancelTick;
+    /** Non-null only while a cancellation runs. */
+    private String cancelReason;
+    private CancelPhase cancelPhase;
+    private CancelProgress cancelProgress;
+    private int cancelPolls;
+    private int cancelSignInPolls;
+    private int cancelRow;
+    private int cancelRows;
+    private int cancelEnglishSteps;
+    private boolean cancelMenuOpened;
+    private String cancelEndDate;
+
     @SuppressLint("SetJavaScriptEnabled")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -246,7 +267,183 @@ public class AccountBrowserActivity extends AppCompatActivity {
 
         webView.loadUrl(homeUrl);
         requestNotificationPermissionOnceIfNeeded();
-        if (autoLogin) Toast.makeText(this, "🤖 تسجيل الدخول إلى Starlink يجري وحده - ورمز التحقق يُجلب من البريد", Toast.LENGTH_LONG).show();
+        if (autoLogin && getIntent().getStringExtra(EXTRA_CANCEL_REASON) == null) {
+            Toast.makeText(this, "🤖 تسجيل الدخول إلى Starlink يجري وحده - ورمز التحقق يُجلب من البريد", Toast.LENGTH_LONG).show();
+        }
+        startCancel(getIntent().getStringExtra(EXTRA_CANCEL_REASON));
+    }
+
+    /** The device's browser was already open (one window per device): a new request - e.g.
+     * «إلغاء الاشتراك» from the card - reaches it here. */
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (intent.getBooleanExtra(EXTRA_AUTO_LOGIN, false)) autoLogin = true;
+        startCancel(intent.getStringExtra(EXTRA_CANCEL_REASON));
+    }
+
+    // ---- 🛑 «إلغاء الاشتراك» ----
+
+    private void startCancel(String reason) {
+        if (reason == null || reason.trim().isEmpty() || webView == null) return;
+        if (cancelReason != null) {
+            Toast.makeText(this, "🛑 إلغاء الاشتراك يجري الآن", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        cancelReason = reason.trim();
+        cancelPhase = CancelPhase.SIGN_IN;
+        cancelPolls = 0;
+        cancelSignInPolls = 0;
+        cancelRow = 0;
+        cancelRows = 0;
+        cancelEnglishSteps = 0;
+        cancelMenuOpened = false;
+        cancelEndDate = null;
+        Toast.makeText(this, "🛑 جارِ إلغاء الاشتراك… لا تلمس الصفحة", Toast.LENGTH_LONG).show();
+        twoStepHandler.removeCallbacks(cancelPoll);
+        twoStepHandler.postDelayed(cancelPoll, CANCEL_POLL_MS);
+    }
+
+    private void cancelAgainIn(long delayMs) {
+        if (cancelReason != null) twoStepHandler.postDelayed(cancelPoll, delayMs);
+    }
+
+    private void cancelTick() {
+        if (webView == null || cancelReason == null) return;
+        String url = webView.getUrl();
+        if (syncSteps != null || !AllowedUrl.isAllowed(url)) {
+            cancelAgainIn(CANCEL_POLL_MS);
+            return;
+        }
+        String script;
+        try {
+            switch (cancelPhase) {
+                case SIGN_IN:
+                    webView.evaluateJavascript(StarlinkLoginWatch.SCRIPT, value -> {
+                        StarlinkLoginWatch.State state = StarlinkLoginWatch.parse(value);
+                        boolean signedIn = state != null && StarlinkLoginWatch.isSignedInUrl(webView == null ? null : webView.getUrl())
+                            && !state.hasEmailField && !state.hasPasswordField;
+                        if (signedIn && ++cancelPolls >= 2) { // twice in a row: not the moment before the sign-in shows
+                            cancelPhase = CancelPhase.ENGLISH;
+                            cancelPolls = 0;
+                        } else if (!signedIn && cancelPolls > 0) {
+                            cancelPolls = 0;
+                        }
+                        if (!signedIn && ++cancelSignInPolls >= CANCEL_SIGN_IN_POLLS) {
+                            failCancel("لم يكتمل تسجيل الدخول");
+                            return;
+                        }
+                        cancelAgainIn(CANCEL_POLL_MS);
+                    });
+                    return;
+                case ENGLISH:
+                    script = StarlinkExtractorSupport.loadEnsureEnglishScript(getApplicationContext(), cancelMenuOpened);
+                    webView.evaluateJavascript(script, value -> {
+                        String step = StarlinkExtractorSupport.parseStringResult(value);
+                        cancelEnglishSteps++;
+                        if ("english".equals(step) || "unknown".equals(step) || step.isEmpty() || cancelEnglishSteps >= MAX_ENGLISH_STEPS) {
+                            if (cancelMenuOpened && !"english".equals(step) && webView != null) webView.loadUrl(homeUrl);
+                            cancelMenuOpened = false;
+                            cancelPhase = CancelPhase.LIST;
+                            cancelAgainIn(cancelEnglishSteps > 1 ? HOME_SETTLE_DELAY_MS : CANCEL_POLL_MS);
+                            return;
+                        }
+                        if ("menu".equals(step)) cancelMenuOpened = true;
+                        if ("clicked".equals(step)) {
+                            cancelMenuOpened = false;
+                            // The language picker may land on the public site: back to the account.
+                            twoStepHandler.postDelayed(() -> {
+                                if (webView == null || cancelReason == null) return;
+                                String now = webView.getUrl();
+                                if (now == null || !now.contains("/account")) webView.loadUrl(homeUrl != null && homeUrl.contains("/account") ? homeUrl : LocalBrowserPlugin.DEFAULT_URL);
+                                cancelAgainIn(ENGLISH_RELOAD_DELAY_MS);
+                            }, ENGLISH_RELOAD_DELAY_MS);
+                            return;
+                        }
+                        cancelAgainIn(SYNC_STEP_DELAY_MS);
+                    });
+                    return;
+                case LIST:
+                    script = StarlinkExtractorSupport.loadClickSubscriptionsRailItemScript(getApplicationContext());
+                    webView.evaluateJavascript(script, value -> {
+                        cancelPhase = CancelPhase.ROW;
+                        cancelPolls = 0;
+                        cancelAgainIn(DEVICES_SETTLE_DELAY_MS);
+                    });
+                    return;
+                case ROW:
+                    script = StarlinkExtractorSupport.loadSubscriptionRowCountScript(getApplicationContext());
+                    webView.evaluateJavascript(script, value -> {
+                        int rows;
+                        try {
+                            rows = (int) Double.parseDouble(value == null ? "0" : value.replace("\"", ""));
+                        } catch (NumberFormatException e) {
+                            rows = 0;
+                        }
+                        if (rows <= cancelRow) {
+                            if (++cancelPolls >= 4) failCancel(rows == 0 ? "لم أجد قائمة الاشتراكات" : "لم أجد الاشتراك التالي");
+                            else cancelAgainIn(CANCEL_POLL_MS);
+                            return;
+                        }
+                        if (cancelRows == 0) cancelRows = rows;
+                        try {
+                            webView.evaluateJavascript(StarlinkExtractorSupport.loadClickSubscriptionRowScript(getApplicationContext(), cancelRow), clicked -> {
+                                cancelPhase = CancelPhase.CANCELLING;
+                                cancelProgress = new CancelProgress();
+                                cancelAgainIn(DEVICES_SETTLE_DELAY_MS);
+                            });
+                        } catch (IOException e) {
+                            failCancel("تعذر تحميل خطوات الإلغاء");
+                        }
+                    });
+                    return;
+                case CANCELLING:
+                    script = StarlinkExtractorSupport.loadCancelStepScript(getApplicationContext(), cancelReason);
+                    webView.evaluateJavascript(script, value -> {
+                        if (cancelReason == null) return;
+                        String answer = StarlinkExtractorSupport.parseStringResult(value);
+                        String date = CancelProgress.doneDate(answer);
+                        if (date != null) {
+                            if (!date.isEmpty()) cancelEndDate = date;
+                            cancelRow++;
+                            if (cancelRow < cancelRows) {
+                                cancelPhase = CancelPhase.LIST; // the device's next subscription
+                                cancelAgainIn(CANCEL_POLL_MS);
+                            } else {
+                                finishCancel();
+                            }
+                            return;
+                        }
+                        String stop = cancelProgress.onAnswer(answer);
+                        if (stop != null) failCancel(stop);
+                        else cancelAgainIn(CANCEL_POLL_MS);
+                    });
+                    return;
+                default:
+            }
+        } catch (IOException e) {
+            failCancel("تعذر تحميل خطوات الإلغاء");
+        }
+    }
+
+    /** Every subscription says it ends: the card shows it (red «إلغاء الاشتراك»). */
+    private void finishCancel() {
+        cancelReason = null;
+        if (cancelEndDate != null && accountId != null) {
+            JSObject fields = new JSObject();
+            fields.put("pendingCancellationDate", cancelEndDate);
+            String syncId = PendingSyncStore.save(getApplicationContext(), accountId, fields);
+            if (syncId != null) LocalBrowserPlugin.emitAccountDataSynced(syncId, accountId, fields);
+        }
+        Toast.makeText(this, "✅ أُلغي الاشتراك" + (cancelEndDate != null ? " - ينتهي في " + cancelEndDate : ""), Toast.LENGTH_LONG).show();
+    }
+
+    private void failCancel(String why) {
+        cancelReason = null;
+        twoStepHandler.removeCallbacks(cancelPoll);
+        Toast.makeText(this, "⏸️ لم يكتمل إلغاء الاشتراك: " + why + " - أكمل بنفسك", Toast.LENGTH_LONG).show();
+        AlertSound.play(this);
     }
 
     /**
@@ -350,6 +547,8 @@ public class AccountBrowserActivity extends AppCompatActivity {
             autoLogin = false; // in
             return;
         }
+        // Already signed in (no sign-in page ever showed): nothing to press, nothing to say.
+        if (StarlinkLoginWatch.isSignedInUrl(url) && !state.hasEmailField && !state.hasPasswordField) return;
         if (state.note.startsWith("stuck") && !autoWarned) {
             autoWarned = true;
             Toast.makeText(this, "⏸️ الصفحة لا تتقدم بعد الضغط - أكمل بنفسك وأرسل لقطة", Toast.LENGTH_LONG).show();

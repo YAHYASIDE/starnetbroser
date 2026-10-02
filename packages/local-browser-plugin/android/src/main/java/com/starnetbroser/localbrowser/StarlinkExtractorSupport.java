@@ -102,6 +102,21 @@ final class StarlinkExtractorSupport {
         return loadBundle(context) + "\n__starnetEnsureEnglish(" + menuOpened + ");";
     }
 
+    /** 🛑 «إلغاء الاشتراك»: how many subscription rows the «الاشتراكات» list shows (a number). */
+    static String loadSubscriptionRowCountScript(Context context) throws IOException {
+        return loadBundle(context) + "\n__starnetSubscriptionRowCount();";
+    }
+
+    /** Opens the `index`th (0-based) subscription row. Boolean result. */
+    static String loadClickSubscriptionRowScript(Context context, int index) throws IOException {
+        return loadBundle(context) + "\n__starnetClickSubscriptionRow(" + index + ");";
+    }
+
+    /** One cancelling step on the open subscription (cancelSubscription.ts) - a string result. */
+    static String loadCancelStepScript(Context context, String reason) throws IOException {
+        return loadBundle(context) + "\n__starnetCancelStep(" + LoginAutofill.literal(reason) + ");";
+    }
+
     /** 🧪 The open page's masked structure + colors (snapshot.ts) - a JSON string result. */
     static String loadSnapshotScript(Context context) throws IOException {
         return loadBundle(context) + "\n__starnetSnapshot();";
