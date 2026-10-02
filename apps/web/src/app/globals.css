@@ -11147,3 +11147,11 @@ button.today-tile {
 .rep-copy-money strong.rep-copy-inline {
   display: block;
 }
+
+/* 🔍 search above «الأجهزة المتسلَّف عليها». */
+.sl-search {
+  flex: none;
+  width: 100%;
+  min-height: 44px;
+  margin-bottom: 10px;
+}

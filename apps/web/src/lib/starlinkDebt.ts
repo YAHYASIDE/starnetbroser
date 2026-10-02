@@ -317,3 +317,29 @@ export function buildCardStatement(topUps: CardTopUpList, payments: CardPayment[
   });
   return { rows: rows.reverse(), balanceUsd: balance };
 }
+
+/**
+ * 🔍 The «الأجهزة المتسلَّف عليها» search: a D row matches when the query is in its device /
+ * customer / rep / email (Arabic letters folded), or - when the query is a number - in its amount
+ * ("83" finds 83.33 $; Arabic digits and «,» work too).
+ */
+export function debtMatchesQuery(query: string, texts: (string | undefined)[], amountUsd: number): boolean {
+  const fold = (v: string) =>
+    v
+      .toLowerCase()
+      .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+      .replace(/[أإآ]/g, "ا")
+      .replace(/ى/g, "ي")
+      .replace(/ة/g, "ه")
+      .replace(/\s+/g, " ")
+      .trim();
+  const q = fold(query);
+  if (!q) return true;
+  if (texts.some((t) => t && fold(t).includes(q))) return true;
+  const number = q.replace(/[,٫$\s]/g, (c) => (c === "٫" ? "." : ""));
+  if (/^\d+(\.\d*)?$/.test(number)) {
+    const shown = (Math.round(amountUsd * 100) / 100).toString();
+    return shown.includes(number) || shown.startsWith(number);
+  }
+  return false;
+}

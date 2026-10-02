@@ -183,3 +183,18 @@ describe("editing past card operations", () => {
     expect(statement.rows.map((r) => r.balanceAfter)).toEqual([403.2, 500]);
   });
 });
+
+describe("debtMatchesQuery", () => {
+  it("finds a D row by name, customer (Arabic letters folded) or amount", async () => {
+    const { debtMatchesQuery } = await import("./starlinkDebt");
+    const texts = ["medoumar280@gmail.com", "فضيلي", "مندوب أحمد"];
+    expect(debtMatchesQuery("", texts, 83.33)).toBe(true);
+    expect(debtMatchesQuery("MEDOU", texts, 83.33)).toBe(true);
+    expect(debtMatchesQuery("فضيلي", texts, 83.33)).toBe(true);
+    expect(debtMatchesQuery("احمد", texts, 83.33)).toBe(true);
+    expect(debtMatchesQuery("83", texts, 83.33)).toBe(true);
+    expect(debtMatchesQuery("٨٣٫٣", texts, 83.33)).toBe(true);
+    expect(debtMatchesQuery("91", texts, 83.33)).toBe(false);
+    expect(debtMatchesQuery("غير موجود", texts, 83.33)).toBe(false);
+  });
+});

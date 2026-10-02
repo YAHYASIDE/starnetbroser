@@ -75,6 +75,7 @@ import {
   settleShipments,
   totalOpenDebtUsd,
   unsettleShipmentCost,
+  debtMatchesQuery,
 } from "@/lib/starlinkDebt";
 
 function todayInput(): string {
@@ -144,6 +145,8 @@ export default function StarlinkPage() {
   const mruRate = getCurrency(currencyStore, "MRU")?.rateFromUsd;
   const sifaRate = getCurrency(currencyStore, "SIFA")?.rateFromUsd;
   const debts = useMemo(() => listOpenShipmentDebts(ledgerStore), [ledgerStore]);
+  // 🔍 search the list by device, customer, rep, email or amount.
+  const [debtQuery, setDebtQuery] = useState("");
   // An earlier owner's unpaid debts (previousDebt.ts) - their own records, shown with an orange D.
   const openPrevious = useMemo(() => listOpenPreviousDebts(previousDebts, ledgerStore), [previousDebts, ledgerStore]);
   const totalDebt = totalOpenDebtUsd(debts) + totalPreviousDebtUsd(openPrevious);
@@ -153,6 +156,18 @@ export default function StarlinkPage() {
   const selectedDebts = debts.filter((d) => selected.has(d.entry.id));
 
   const account = (id: string) => accounts.find((a) => a.id === id);
+  const shownDebts = debts.filter((d) => {
+    const acc = account(d.accountId);
+    return debtMatchesQuery(
+      debtQuery,
+      [acc?.name, acc?.expectedEmail, getClient(clientStore, acc?.clientId)?.name, getRepresentative(repStore, d.entry.representativeId)?.name],
+      d.costUsd,
+    );
+  });
+  const shownPrevious = openPrevious.filter((d) => {
+    const acc = account(d.accountId);
+    return debtMatchesQuery(debtQuery, [acc?.name, acc?.expectedEmail, getClient(clientStore, acc?.clientId)?.name, d.note], d.amountUsd);
+  });
   const debtKey = (d: OpenShipmentDebt) => d.entry.id;
 
   function toggle(d: OpenShipmentDebt) {
@@ -402,17 +417,31 @@ export default function StarlinkPage() {
             <button
               type="button"
               className="text-action"
-              onClick={() => setSelected(selected.size === debts.length ? new Set() : new Set(debts.map(debtKey)))}
+              onClick={() =>
+                setSelected(shownDebts.length > 0 && shownDebts.every((d) => selected.has(debtKey(d))) ? new Set() : new Set(shownDebts.map(debtKey)))
+              }
             >
-              {selected.size === debts.length ? "إلغاء التحديد" : "تحديد الكل"}
+              {shownDebts.length > 0 && shownDebts.every((d) => selected.has(debtKey(d))) ? "إلغاء التحديد" : debtQuery.trim() ? `تحديد النتائج (${shownDebts.length})` : "تحديد الكل"}
             </button>
           )}
         </div>
+        {debts.length + openPrevious.length > 0 && (
+          <input
+            className="search-input sl-search"
+            type="search"
+            placeholder="🔍 ابحث: الزبون، الجهاز، المندوب أو المبلغ"
+            value={debtQuery}
+            onChange={(e) => setDebtQuery(e.target.value)}
+          />
+        )}
+        {debtQuery.trim() && shownDebts.length === 0 && shownPrevious.length === 0 && (
+          <p className="empty-state">لا توجد نتيجة لـ «{debtQuery.trim()}».</p>
+        )}
         {debts.length === 0 && openPrevious.length === 0 ? (
           <p className="empty-state">لا يوجد أي جهاز عليه D - لا شيء عليك لستارلينك الآن.</p>
         ) : (
           <ul className="sl-list">
-            {debts.map((d) => {
+            {shownDebts.map((d) => {
               const acc = account(d.accountId);
               const client = getClient(clientStore, acc?.clientId)?.name;
               const rep = getRepresentative(repStore, d.entry.representativeId);
@@ -454,9 +483,9 @@ export default function StarlinkPage() {
             })}
           </ul>
         )}
-        {openPrevious.length > 0 && (
+        {shownPrevious.length > 0 && (
           <ul className="sl-list sl-list-previous">
-            {openPrevious.map((d) => {
+            {shownPrevious.map((d) => {
               const acc = account(d.accountId);
               return (
                 <li key={d.id} className="sl-row sl-row-previous">
