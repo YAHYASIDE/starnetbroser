@@ -5,6 +5,7 @@ import type { SessionStatus } from "@starnet/local-browser-plugin";
 import { checkAccountSession, deleteIsolatedAccountSession, openIsolatedAccountBrowser, openIsolatedMailbox } from "@/lib/localBrowser";
 import { isGmail } from "@/lib/mailboxes";
 import { RepCopyView } from "@/components/RepCopyView";
+import { RepPairButton } from "@/components/RepPairButton";
 import { forgetRepDeviceFile, shareRepDevice } from "@/lib/repDeviceShare";
 import {
   addRepModeDevice,
@@ -122,6 +123,7 @@ export function RepModeView({ settings, onExit, onBack }: { settings: RepModeSet
         <h1>📱 وضع المندوب</h1>
         {settings.name && <p>أهلاً {settings.name}</p>}
       </header>
+      <RepPairButton />
 
       <div className="report-tabs rep-mode-tabs" role="tablist">
         <button type="button" role="tab" aria-selected={tab === "mine"} className={`report-tab${tab === "mine" ? " report-tab-active" : ""}`} onClick={() => setTab("mine")}>

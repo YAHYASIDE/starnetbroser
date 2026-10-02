@@ -5,6 +5,7 @@ import { askDeleteCode } from "@/components/DeleteCodePrompt";
 import { groupForHash, loadRememberedGroup, rememberGroup, SETTINGS_GROUPS, type SettingsGroupId } from "@/lib/settingsGroups";
 import { RepExtraBotsSettings } from "@/components/RepExtraBotsSettings";
 import { RepModeEntrySection } from "@/components/RepModeEntrySection";
+import { RepPairButton } from "@/components/RepPairButton";
 import { ActivationCostsSection } from "@/components/ActivationCostsSection";
 import { PhoneShortcutsSection } from "@/components/PhoneShortcutsSection";
 import { UsedPasswordsSection } from "@/components/UsedPasswordsSection";
@@ -229,6 +230,7 @@ export default function SettingsPage() {
           <p className="settings-hint">
             هذا التطبيق يعمل على نسخة أجهزتك من المسؤول. الخروج يحذف النسخة من هاتفك (تبقى أجهزتك غير المرسلة).
           </p>
+          <RepPairButton />
           <button
             type="button"
             className="dialog-danger"

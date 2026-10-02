@@ -121,10 +121,12 @@ export function repDeviceCode(repId: string): string | undefined {
   return loadRepDeviceCodes()[repId];
 }
 
-/** The rep's code, created the first time. `renew`: a new one (the old one stops working). */
+/** The rep's code, created the first time. `renew`: a new one (the old one stops working, and
+ * his phone must be linked again). */
 export function ensureRepDeviceCode(repId: string, renew = false): string {
   const codes = loadRepDeviceCodes();
   if (codes[repId] && !renew) return codes[repId]!;
+  if (renew) setRepPhoneKey(repId, null);
   codes[repId] = generateRepDeviceCode();
   try {
     window.localStorage.setItem(CODES_KEY, JSON.stringify(codes));
@@ -132,6 +134,63 @@ export function ensureRepDeviceCode(repId: string, renew = false): string {
     // storage full - the code still shows; it just won't be remembered
   }
   return codes[repId]!;
+}
+
+// ---- 🔗 binding a rep's copies to his own phone ----
+//
+// The rep's phone makes a random key of its own once (never shown, never backed up) and sends it
+// to the operator inside his first encrypted file («🔗 ربط هاتفي» / «تسجيلاتي»). From then on his
+// copies are encrypted with his code AND that key: the file and the code together still don't open
+// on any other phone.
+
+const PHONE_KEY = "starnet.repPhoneKey";
+const PHONE_KEYS = "starnet.repPhoneKeys";
+
+/** Rep side: this phone's own key, made the first time. */
+export function ensureRepPhoneKey(random: (n: number) => Uint8Array = (n) => crypto.getRandomValues(new Uint8Array(n))): string {
+  try {
+    const existing = window.localStorage.getItem(PHONE_KEY);
+    if (existing && existing.length >= 24) return existing;
+  } catch {
+    // unavailable - a fresh one below (not remembered)
+  }
+  const bytes = random(24);
+  let key = "";
+  for (let i = 0; i < 24; i++) key += CODE_ALPHABET[bytes[i]! % CODE_ALPHABET.length];
+  try {
+    window.localStorage.setItem(PHONE_KEY, key);
+  } catch {
+    // storage full
+  }
+  return key;
+}
+
+/** Operator side: the phone each rep's copies are bound to. */
+export function repPhoneKey(repId: string): string | undefined {
+  try {
+    const raw = window.localStorage.getItem(PHONE_KEYS);
+    const keys = raw ? (JSON.parse(raw) as Record<string, string>) : {};
+    return typeof keys[repId] === "string" ? keys[repId] : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function setRepPhoneKey(repId: string, key: string | null): void {
+  try {
+    const raw = window.localStorage.getItem(PHONE_KEYS);
+    const keys = raw ? (JSON.parse(raw) as Record<string, string>) : {};
+    if (key) keys[repId] = key;
+    else delete keys[repId];
+    window.localStorage.setItem(PHONE_KEYS, JSON.stringify(keys));
+  } catch {
+    // storage unavailable
+  }
+}
+
+/** The key a bound copy is encrypted with: the rep's code and his phone's own key. */
+export function boundCopyKey(code: string, phoneKey: string): string {
+  return `${code}#${phoneKey}`;
 }
 
 // ---- rep side: the mode and his devices ----

@@ -8,7 +8,7 @@ import { loadCurrencyStore } from "./currencyStore";
 import { loadLedgerStore } from "./ledgerStore";
 import { exportAccountSessions, isRunningInAndroidApp } from "./localBrowser";
 import { buildRepCopy, buildRepCopyFile, markRepCopySent, repCopyFileName } from "./repCopy";
-import { ensureRepDeviceCode } from "./repDeviceTransfer";
+import { ensureRepDeviceCode, repPhoneKey } from "./repDeviceTransfer";
 import { readStores, repStoreSlice } from "./repWorkspace";
 import { rejectedVersions } from "./repChanges";
 import { repDecisions } from "./repInbox";
@@ -24,6 +24,9 @@ export type SendCopyResult = { ok: true; devices: number; via: "bot" | "share" }
  */
 export async function sendRepCopy(rep: Representative, accounts: StarlinkAccountSummary[]): Promise<SendCopyResult> {
   if (!isRunningInAndroidApp()) return { ok: false, message: "الإرسال يعمل داخل تطبيق Android فقط" };
+  // 🔗 Only to his own phone: until it's linked, no copy leaves (a file + code alone open nowhere).
+  const phoneKey = repPhoneKey(rep.id);
+  if (!phoneKey) return { ok: false, message: `🔗 هاتف ${rep.name} غير مربوط بعد - يضغط في تطبيقه «🔗 ربط هاتفي» ويرسل الملف للبوت، ثم أرسل نسخته` };
   const clients = loadClientStore();
   const rates: Record<string, number> = {};
   for (const [code, currency] of Object.entries(loadCurrencyStore())) rates[code] = currency.rateFromUsd;
@@ -41,7 +44,7 @@ export async function sendRepCopy(rep: Representative, accounts: StarlinkAccount
   const stores = repStoreSlice(readStores(), rep.id);
   // ❌ What the operator rejected leaves his phone (repChangesApply.ts).
   const rejected = rejectedVersions(repDecisions(rep.id));
-  const text = await buildRepCopyFile({ ...copy, stores, rejected, sessions }, ensureRepDeviceCode(rep.id));
+  const text = await buildRepCopyFile({ ...copy, stores, rejected, sessions }, ensureRepDeviceCode(rep.id), phoneKey);
   const fileName = repCopyFileName(rep.id);
   const caption = `📋 نسختك من الأجهزة (${copy.devices.length} جهاز)\nاضغط الملف ← «فتح بـ STAR NET»، أو اضغطه مطولاً ← مشاركة ← STAR NET.`;
 

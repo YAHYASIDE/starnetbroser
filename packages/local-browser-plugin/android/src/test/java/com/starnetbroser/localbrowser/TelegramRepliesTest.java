@@ -269,6 +269,9 @@ public class TelegramRepliesTest {
         assertEquals(TelegramReplies.CHANGES_RECEIVED, reply.text);
         assertTrue(reply.toInbox);
         assertTrue(reply.ownerNotice.contains("تسجيلاته"));
+        TelegramReplies.Reply pairing = TelegramReplies.deviceFile("r1", "starnet-changes-pairing-1000.json", snapshot());
+        assertTrue(pairing.text.contains("ربط هاتفك"));
+        assertTrue(pairing.toInbox);
     }
 
     @Test

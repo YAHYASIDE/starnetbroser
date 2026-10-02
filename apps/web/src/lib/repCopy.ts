@@ -12,7 +12,8 @@
  */
 
 import type { StarlinkAccountSummary } from "@starnet/shared";
-import { decryptBackup, encryptBackup, type EncryptedBackup } from "./backupCrypto";
+import { decryptBackup, encryptBackup, WrongPasswordError, type EncryptedBackup } from "./backupCrypto";
+import { boundCopyKey } from "./repDeviceTransfer";
 import { computeBalanceByCurrency, type LedgerByAccount, type LedgerEntry } from "./ledgerStore";
 import { buildProfitRows, type ProfitRow } from "./profitStatement";
 
@@ -118,7 +119,16 @@ export function summarizeRepDevice(device: RepCopyDevice, mruRate: number | unde
 interface RepCopyFile {
   kind: "starnet-rep-copy";
   v: 1;
+  /** 🔗 Encrypted with the code AND the rep's phone key (repDeviceTransfer.boundCopyKey). */
+  bound?: true;
   enc: EncryptedBackup;
+}
+
+export class OtherPhoneError extends Error {
+  constructor() {
+    super("هذه النسخة مربوطة بهاتف المندوب - لا تُفتح على هاتف آخر");
+    this.name = "OtherPhoneError";
+  }
 }
 
 export class NotARepCopyError extends Error {
@@ -133,8 +143,11 @@ export function repCopyFileName(repId: string): string {
   return `starnet-copy-${slug}.json`;
 }
 
-export async function buildRepCopyFile(payload: RepCopyPayload, code: string): Promise<string> {
-  const file: RepCopyFile = { kind: "starnet-rep-copy", v: 1, enc: await encryptBackup(payload, code) };
+/** `phoneKey`: the rep's bound phone - only that phone opens it (with the code). */
+export async function buildRepCopyFile(payload: RepCopyPayload, code: string, phoneKey?: string): Promise<string> {
+  const file: RepCopyFile = phoneKey
+    ? { kind: "starnet-rep-copy", v: 1, bound: true, enc: await encryptBackup(payload, boundCopyKey(code, phoneKey)) }
+    : { kind: "starnet-rep-copy", v: 1, enc: await encryptBackup(payload, code) };
   return JSON.stringify(file);
 }
 
@@ -148,11 +161,23 @@ export function isRepCopyFile(text: string): boolean {
   }
 }
 
-/** Throws NotARepCopyError for anything else, WrongPasswordError for another rep's code. */
-export async function readRepCopyFile(text: string, code: string): Promise<RepCopyPayload> {
+/** Throws NotARepCopyError for anything else, WrongPasswordError for another rep's code,
+ * OtherPhoneError for a copy bound to another phone. */
+export async function readRepCopyFile(text: string, code: string, phoneKey?: string): Promise<RepCopyPayload> {
   if (!isRepCopyFile(text)) throw new NotARepCopyError();
   const file = JSON.parse(text) as RepCopyFile;
-  const payload = (await decryptBackup(file.enc, code)) as Partial<RepCopyPayload>;
+  let payload: Partial<RepCopyPayload>;
+  if (file.bound) {
+    if (!phoneKey) throw new OtherPhoneError();
+    try {
+      payload = (await decryptBackup(file.enc, boundCopyKey(code, phoneKey))) as Partial<RepCopyPayload>;
+    } catch (err) {
+      // The code is right but not the phone - or it's simply another rep's code.
+      throw err instanceof WrongPasswordError ? new OtherPhoneError() : err;
+    }
+  } else {
+    payload = (await decryptBackup(file.enc, code)) as Partial<RepCopyPayload>;
+  }
   if (!payload?.repId || !Array.isArray(payload.devices) || !payload.sentAt) throw new NotARepCopyError();
   return { ...payload, sessions: payload.sessions ?? {}, rates: payload.rates ?? {} } as RepCopyPayload;
 }

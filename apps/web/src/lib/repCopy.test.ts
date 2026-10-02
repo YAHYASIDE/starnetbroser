@@ -8,6 +8,7 @@ import {
   isOlderCopy,
   isRepCopyFile,
   NotARepCopyError,
+  OtherPhoneError,
   readRepCopyFile,
   removedDeviceIds,
   summarizeRepDevice,
@@ -53,6 +54,14 @@ describe("rep copy", () => {
     expect(withoutSessions(read)).not.toHaveProperty("sessions");
     await expect(readRepCopyFile(text, "ZZZZ-BBBB-CCCC")).rejects.toBeInstanceOf(WrongPasswordError);
     await expect(readRepCopyFile('{"kind":"starnet-rep-device"}', "AAAA-BBBB-CCCC")).rejects.toBeInstanceOf(NotARepCopyError);
+  }, 20000);
+
+  it("🔗 a copy bound to his phone opens only there - even with the file and the code", async () => {
+    const phone = "P".repeat(24);
+    const text = await buildRepCopyFile({ ...copy, sessions: {} }, "AAAA-BBBB-CCCC", phone);
+    expect((await readRepCopyFile(text, "AAAA-BBBB-CCCC", phone)).repId).toBe(copy.repId);
+    await expect(readRepCopyFile(text, "AAAA-BBBB-CCCC")).rejects.toBeInstanceOf(OtherPhoneError);
+    await expect(readRepCopyFile(text, "AAAA-BBBB-CCCC", "Q".repeat(24))).rejects.toBeInstanceOf(OtherPhoneError);
   }, 20000);
 
   it("a new copy removes devices that are no longer his; an older copy is refused", () => {

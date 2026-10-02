@@ -10,6 +10,7 @@ import {
   describeItems,
   isItemDecided,
   listRepChangeItems,
+  PAIRING_REP,
   readRepChangesFile,
   repChangesFileRep,
   withDecision,
@@ -20,7 +21,7 @@ import {
 export { REP_INBOX_EVENT, repInboxCount } from "./repInbox";
 import { sendRepCopy } from "./repCopySend";
 import { loadRepInbox, saveRepInbox, type RepInboxFile } from "./repInbox";
-import { repDeviceCode } from "./repDeviceTransfer";
+import { repDeviceCode, repPhoneKey, setRepPhoneKey } from "./repDeviceTransfer";
 import { ACCOUNTS_CHANGED_EVENT } from "./repMenuRecords";
 import { loadRepresentativeStore } from "./repStore";
 import { readStores } from "./repWorkspace";
@@ -45,8 +46,11 @@ function waiting(payload: RepChangesPayload, decisions: RepDecisions): RepChange
  * before he approves it. `fromRepId`: the bot chat it came from (the file must be his).
  */
 export async function receiveRepChanges(text: string, fromRepId?: string): Promise<ReceiveChangesResult> {
-  const repId = repChangesFileRep(text);
-  if (!repId) return { ok: false, message: "هذا ليس ملف تسجيلات مندوب" };
+  const fileRep = repChangesFileRep(text);
+  if (!fileRep) return { ok: false, message: "هذا ليس ملف تسجيلات مندوب" };
+  // 🔗 «ربط هاتفي» before his first copy: who he is comes from his own bot chat only.
+  if (fileRep === PAIRING_REP && !fromRepId) return { ok: false, message: "ربط هاتف المندوب يتم عبر بوت المندوبين فقط" };
+  const repId = fileRep === PAIRING_REP ? fromRepId! : fileRep;
   if (fromRepId && fromRepId !== repId) return { ok: false, message: "ملف تسجيلات لمندوب آخر - لم يُقبل" };
   const rep = loadRepresentativeStore()[repId];
   if (!rep) return { ok: false, message: "المندوب صاحب الملف غير موجود عندك" };
@@ -59,6 +63,22 @@ export async function receiveRepChanges(text: string, fromRepId?: string): Promi
   } catch (err) {
     return { ok: false, message: err instanceof WrongPasswordError ? `رمز ${rep.name} لا يفتح الملف - أرسل له رمزه من جديد` : "تعذّر فتح ملف التسجيلات" };
   }
+  // 🔗 His copies are bound to the phone that first linked through his bot chat; a file from any
+  // other phone (or an old app without the key, once bound) is refused.
+  const bound = repPhoneKey(repId);
+  if (bound && payload.phoneKey !== bound) {
+    await sendTelegramText(`🔒 وصل ملف باسم المندوب ${rep.name} من هاتف غير هاتفه المربوط - رُفض. إن غيّر هاتفه فعلاً: «🔄 رمز جديد» ثم يربط هاتفه الجديد.`);
+    return { ok: false, message: payload.phoneKey ? "هذا الملف من هاتف غير الهاتف المربوط - رُفض" : "حدّث تطبيقك ثم أعد الإرسال" };
+  }
+  if (!bound && payload.phoneKey && fromRepId) {
+    setRepPhoneKey(repId, payload.phoneKey);
+    await sendTelegramText(`🔗 رُبط هاتف المندوب ${rep.name} - نسخه تُفتح على هاتفه فقط من الآن.`);
+    const copy = await sendRepCopy(rep, loadDemoAccounts(demoAccounts));
+    await sendRepText(repId, `🔗 رُبط هاتفك ✓ - نسخ أجهزتك تُفتح على هذا الهاتف فقط.${copy.ok ? "\n📋 وصلتك نسختك - افتحها." : ""}`);
+    if (fileRep === PAIRING_REP) return { ok: true, message: `🔗 رُبط هاتف ${rep.name}` };
+  }
+  if (fileRep === PAIRING_REP) return { ok: true, message: `هاتف ${rep.name} مربوط من قبل` };
+
   const inbox = loadRepInbox();
   const current = inbox.files.find((f) => f.repId === repId);
   if (current && current.sentAt >= payload.sentAt) return { ok: false, message: `هذه تسجيلات ${rep.name} وصلت من قبل` };

@@ -1454,6 +1454,10 @@ final class TelegramReplies {
     static Reply deviceFile(String repId, String fileName, Snapshot s) {
         Map<String, String> mine = s != null ? s.reps.get(repId) : null;
         String repName = mine != null && mine.get("name") != null ? mine.get("name") : "";
+        if (isChangesFile(fileName) && fileName.toLowerCase(java.util.Locale.ROOT).startsWith("starnet-changes-pairing-")) {
+            String pairing = "🔗 المندوب " + repName + " يطلب ربط هاتفه - يُربط عندما تفتح التطبيق.";
+            return new Reply("📥 وصل طلب ربط هاتفك - يُربط عندما يفتح المسؤول التطبيق، ثم تصلك نسختك.", true, pairing, s != null ? s.repKeyboard : null);
+        }
         if (isChangesFile(fileName)) {
             String changes = "📝 المندوب " + repName + " أرسل تسجيلاته (دفعات، أجهزة، زبائن) - راجعها ووافق عليها في التطبيق.";
             return new Reply(CHANGES_RECEIVED, true, changes, s != null ? s.repKeyboard : null);

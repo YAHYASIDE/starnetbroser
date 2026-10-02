@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { loadRepCopySentAt, repCopyAccounts } from "@/lib/repCopy";
 import { sendRepCopy } from "@/lib/repCopySend";
-import { ensureRepDeviceCode, repDeviceCode } from "@/lib/repDeviceTransfer";
+import { ensureRepDeviceCode, repDeviceCode, repPhoneKey } from "@/lib/repDeviceTransfer";
 import type { Representative } from "@/lib/repStore";
 import { loadRepChats, sendRepText } from "@/lib/telegram";
 
@@ -17,6 +17,8 @@ export function RepAppCodePanel({ rep, accounts }: { rep: Representative; accoun
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
   const [sentAt, setSentAt] = useState(() => loadRepCopySentAt()[rep.id]);
   const deviceCount = repCopyAccounts(accounts, rep.id).length;
+  // 🔗 His copies open on his own phone only, once it's linked (repDeviceTransfer.ts).
+  const [phoneBound, setPhoneBound] = useState(() => Boolean(repPhoneKey(rep.id)));
 
   async function sendCopy() {
     const question =
@@ -42,15 +44,16 @@ export function RepAppCodePanel({ rep, accounts }: { rep: Representative; accoun
         "1) ثبّت التطبيق: https://github.com/YAHYASIDE/starnetbroser/releases/download/staging-latest/STAR-NET-Browser-debug.apk",
         "2) الإعدادات ← «📱 وضع المندوب» واكتب هذا الرمز:",
         code,
-        "3) أضف جهاز الزبون وسجّل دخوله إلى Starlink، ثم «📤 إرسال للمسؤول» وأرسل الملف هنا في هذه المحادثة.",
+        "3) اضغط «🔗 ربط هاتفي» وأرسل الملف هنا في هذه المحادثة - تصلك بعدها نسخة أجهزتك، ولا تُفتح إلا على هاتفك.",
       ].join("\n"),
     );
     setStatus(sent ? "✓ أُرسل الرمز للمندوب في البوت" : "المندوب غير مربوط ببوت المندوبين - أعطه الرمز يدوياً");
   }
 
   function renew() {
-    if (!window.confirm("رمز جديد؟ القديم يتوقف، وعلى المندوب إدخال الجديد في تطبيقه.")) return;
+    if (!window.confirm("رمز جديد؟ القديم يتوقف، ويُفك ربط هاتفه: يدخل الرمز الجديد في تطبيقه ثم «🔗 ربط هاتفي» من جديد.")) return;
     setCode(ensureRepDeviceCode(rep.id, true));
+    setPhoneBound(false);
     setStatus(null);
   }
 
@@ -80,7 +83,12 @@ export function RepAppCodePanel({ rep, accounts }: { rep: Representative; accoun
         <p className="settings-hint">
           كل أجهزته ({deviceCount}) بحالاتها وأرقامها ودخول Starlink، مشفّرة برمزه. أرسلها كلما تغيّر شيء - كل نسخة تحلّ محل التي قبلها، وما ليس له يُحذف من هاتفه.
         </p>
-        <button type="button" className="dialog-primary" disabled={copyBusy} onClick={() => void sendCopy()}>
+        <p className={`settings-hint rep-phone-bound${phoneBound ? " is-bound" : ""}`}>
+          {phoneBound
+            ? "🔗 مربوط بهاتفه ✓ - نسخه لا تُفتح على أي هاتف آخر، حتى مع الملف والرمز."
+            : "⚠️ هاتفه غير مربوط بعد: يضغط في تطبيقه «🔗 ربط هاتفي» ويرسل الملف إلى بوت المندوبين - بعدها تُرسل نسخته تلقائياً."}
+        </p>
+        <button type="button" className="dialog-primary" disabled={copyBusy || !phoneBound} onClick={() => void sendCopy()}>
           {copyBusy ? "⏳ جارِ التجهيز…" : `📤 إرسال نسخته (${deviceCount} جهاز)`}
         </button>
         {sentAt && (
@@ -90,7 +98,7 @@ export function RepAppCodePanel({ rep, accounts }: { rep: Representative; accoun
         )}
         {copyStatus && <p className="settings-hint">{copyStatus}</p>}
       </div>
-      <p className="settings-hint">🔒 الملف مشفّر بهذا الرمز، ولا يفتحه إلا هذا الهاتف. لا تعطِ الرمز لغير هذا المندوب.</p>
+      <p className="settings-hint">🔒 الملف مشفّر برمزه وبمفتاح هاتفه معاً: لا يفتحه إلا هاتف هذا المندوب. لا تعطِ الرمز لغيره.</p>
     </div>
   );
 }

@@ -11371,3 +11371,17 @@ button.today-tile {
   background: var(--brand);
   color: var(--brand-contrast);
 }
+
+/* 🔗 «ربط هاتفي» (rep) and the operator's binding status. */
+.rep-pair {
+  margin: 0 0 12px;
+}
+
+.rep-phone-bound {
+  color: var(--yellow);
+  font-weight: 700;
+}
+
+.rep-phone-bound.is-bound {
+  color: var(--green);
+}

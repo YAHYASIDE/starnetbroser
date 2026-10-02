@@ -2,7 +2,8 @@
 
 import { WrongPasswordError } from "./backupCrypto";
 import { deleteIsolatedAccountSession, importAccountSessions } from "./localBrowser";
-import { isOlderCopy, isRepCopyFile, loadRepCopy, readRepCopyFile, removedDeviceIds, saveRepCopy, withoutSessions } from "./repCopy";
+import { isOlderCopy, isRepCopyFile, loadRepCopy, OtherPhoneError, readRepCopyFile, removedDeviceIds, saveRepCopy, withoutSessions } from "./repCopy";
+import { ensureRepPhoneKey } from "./repDeviceTransfer";
 import { applyRepWorkspace } from "./repWorkspace";
 
 /** Fired after a copy was applied - the rep's app reloads its data. */
@@ -18,7 +19,7 @@ export type ApplyCopyResult = { ok: true; message: string } | { ok: false; messa
 export async function applyRepCopyText(text: string, code: string): Promise<ApplyCopyResult> {
   if (!isRepCopyFile(text)) return { ok: false, message: "هذا الملف ليس نسخة أجهزتك من المسؤول" };
   try {
-    const payload = await readRepCopyFile(text, code);
+    const payload = await readRepCopyFile(text, code, ensureRepPhoneKey());
     const current = loadRepCopy();
     if (isOlderCopy(current, payload)) return { ok: false, message: "هذه نسخة أقدم من التي عندك - لم تتغيّر" };
     const next = withoutSessions(payload);
@@ -31,6 +32,7 @@ export async function applyRepCopyText(text: string, code: string): Promise<Appl
     if (typeof window !== "undefined") window.dispatchEvent(new Event(REP_WORKSPACE_EVENT));
     return { ok: true, message: `✓ وصلت نسخة جديدة: ${next.devices.length} جهاز${removed.length ? ` · حُذف ${removed.length}` : ""}` };
   } catch (err) {
+    if (err instanceof OtherPhoneError) return { ok: false, message: "🔒 هذه النسخة مربوطة بهاتف آخر - لا تُفتح هنا. إن غيّرت هاتفك اطلب من المسؤول «🔄 رمز جديد»." };
     return { ok: false, message: err instanceof WrongPasswordError ? "هذه النسخة لمندوب آخر (رمزك لا يفتحها)" : "تعذّر فتح النسخة" };
   }
 }

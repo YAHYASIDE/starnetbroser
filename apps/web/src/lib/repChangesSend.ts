@@ -3,9 +3,9 @@
 import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
 import { exportAccountSessions, isRunningInAndroidApp } from "./localBrowser";
-import { buildRepChangeSet, buildRepChangesFile, countRepChanges, newDeviceIds, repChangesFileName } from "./repChanges";
+import { buildRepChangeSet, buildRepChangesFile, countRepChanges, newDeviceIds, PAIRING_REP, repChangesFileName } from "./repChanges";
 import { loadRepCopy } from "./repCopy";
-import { loadRepMode } from "./repDeviceTransfer";
+import { ensureRepPhoneKey, loadRepMode } from "./repDeviceTransfer";
 import { loadRepBase, readStores } from "./repWorkspace";
 
 export type SendChangesResult = { ok: true; count: number } | { ok: false; message: string };
@@ -24,14 +24,36 @@ export async function shareRepChanges(): Promise<SendChangesResult> {
   const changes = buildRepChangeSet(readStores(), base);
   const count = countRepChanges(changes);
   if (count === 0) return { ok: false, message: "لا توجد تسجيلات جديدة" };
-  const sessions = await exportAccountSessions(newDeviceIds(changes, base), true);
+  return shareChangesFile(mode.code, copy.repId, changes, count, copy.sentAt);
+}
+
+/**
+ * 🔗 «ربط هاتفي»: a small file (encrypted with his code) carrying only this phone's own key - once
+ * the operator's app receives it, his copies open on this phone only. `repId`: from the code's
+ * owner - the rep's first copy may not have arrived yet, so the operator matches it by the bot chat.
+ */
+export async function shareRepPairing(): Promise<SendChangesResult> {
+  if (!isRunningInAndroidApp()) return { ok: false, message: "الإرسال يعمل داخل تطبيق Android فقط" };
+  const mode = loadRepMode();
+  if (!mode) return { ok: false, message: "فعّل وضع المندوب أولاً" };
+  return shareChangesFile(mode.code, loadRepCopy()?.repId ?? PAIRING_REP, {}, 0, undefined);
+}
+
+
+async function shareChangesFile(code: string, repId: string, changes: ReturnType<typeof buildRepChangeSet>, count: number, baseSentAt: string | undefined): Promise<SendChangesResult> {
+  const base = loadRepBase();
+  const ids = newDeviceIds(changes, base);
+  const sessions = ids.length ? await exportAccountSessions(ids, true) : {};
   const now = new Date();
   const id = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `rc-${now.getTime()}`;
   try {
-    const text = await buildRepChangesFile({ id, repId: copy.repId, sentAt: now.toISOString(), baseSentAt: copy.sentAt, changes, sessions }, mode.code);
-    const written = await Filesystem.writeFile({ path: repChangesFileName(copy.repId, now), data: text, directory: Directory.Cache, encoding: Encoding.UTF8 });
-    await Share.share({ title: "تسجيلاتي لـ STAR NET", files: [written.uri], dialogTitle: "أرسله إلى بوت المندوبين في تيليغرام" });
-    markRepChangesSent(now.toISOString(), count);
+    const text = await buildRepChangesFile(
+      { id, repId, sentAt: now.toISOString(), ...(baseSentAt ? { baseSentAt } : {}), changes, sessions, phoneKey: ensureRepPhoneKey() },
+      code,
+    );
+    const written = await Filesystem.writeFile({ path: repChangesFileName(repId, now), data: text, directory: Directory.Cache, encoding: Encoding.UTF8 });
+    await Share.share({ title: count ? "تسجيلاتي لـ STAR NET" : "ربط هاتفي بـ STAR NET", files: [written.uri], dialogTitle: "أرسله إلى بوت المندوبين في تيليغرام" });
+    if (count) markRepChangesSent(now.toISOString(), count);
     return { ok: true, count };
   } catch (err) {
     const message = err instanceof Error ? err.message : "";

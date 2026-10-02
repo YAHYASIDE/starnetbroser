@@ -462,6 +462,10 @@ export function rejectedVersions(decisions: RepDecisions): Record<string, string
 
 // ---- the file ----
 
+/** «🔗 ربط هاتفي» before his first copy: the rep doesn't know his own id yet - the operator
+ * takes it from the bot chat the file came from. */
+export const PAIRING_REP = "pairing";
+
 export interface RepChangesPayload {
   /** Unique per send - the operator's app applies each file once. */
   id: string;
@@ -472,6 +476,8 @@ export interface RepChangesPayload {
   changes: RepChangeSet;
   /** accountId (or "mail:<accountId>") -> its session, for the devices he created. */
   sessions: Record<string, Record<string, string>>;
+  /** 🔗 His phone's own key: the operator binds his copies to it (repDeviceTransfer.ts). */
+  phoneKey?: string;
 }
 
 interface RepChangesFile {
