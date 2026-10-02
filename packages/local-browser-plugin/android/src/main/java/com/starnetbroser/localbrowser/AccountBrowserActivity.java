@@ -163,6 +163,9 @@ public class AccountBrowserActivity extends AppCompatActivity {
     private String autoLastClick;
     private int autoClicks;
     private long autoLastClickAt;
+    /** Polls on a sign-in page with nothing to press (no field seen) - said once after a while. */
+    private int autoIdlePolls;
+    private boolean autoWarned;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -344,7 +347,17 @@ public class AccountBrowserActivity extends AppCompatActivity {
             return;
         }
         String click = StarlinkLoginWatch.autoStep(state, url);
-        if (click == null || System.currentTimeMillis() - autoLastClickAt < AUTO_CLICK_GAP_MS) return;
+        if (click == null) {
+            // A sign-in page with no field found for a while: say so once (the page is read by hand).
+            boolean loginPage = url != null && (url.contains("login") || url.contains("auth"));
+            if (loginPage && !state.hasEmailField && !state.hasPasswordField && ++autoIdlePolls >= 8 && !autoWarned) {
+                autoWarned = true;
+                Toast.makeText(this, "⏸️ لم أجد خانة البريد في صفحة Starlink - أكمل بنفسك وأرسل لقطة", Toast.LENGTH_LONG).show();
+            }
+            return;
+        }
+        autoIdlePolls = 0;
+        if (System.currentTimeMillis() - autoLastClickAt < AUTO_CLICK_GAP_MS) return;
         if (!click.equals(autoLastClick)) {
             autoLastClick = click;
             autoClicks = 0;
@@ -356,7 +369,14 @@ public class AccountBrowserActivity extends AppCompatActivity {
         }
         autoClicks++;
         autoLastClickAt = System.currentTimeMillis();
-        webView.evaluateJavascript(MsSignIn.clickScript(click), null);
+        final boolean next = click.equals(StarlinkLoginWatch.NEXT);
+        webView.evaluateJavascript(StarlinkLoginWatch.pressScript(click), value -> {
+            if (webView == null) return;
+            if ("\"none\"".equals(value) && !autoWarned) {
+                autoWarned = true;
+                Toast.makeText(this, (next ? "⏸️ لم أجد زر «التالي»" : "⏸️ لم أجد زر «تسجيل الدخول»") + " - اضغطه بنفسك وأرسل لقطة", Toast.LENGTH_LONG).show();
+            }
+        });
     }
 
     private void scheduleTwoStepCheck() {

@@ -25,6 +25,9 @@ final class StarlinkLoginWatch {
         + "for(var i=0;i<l.length;i++){if(vis(l[i])){f=l[i];break;}}"
         + "var m=document.querySelectorAll('input[type=email],input[autocomplete=username],input[name*=mail i],input[id*=mail i],input[name=loginfmt]'),e=null;"
         + "for(var j=0;j<m.length;j++){if(vis(m[j])&&!m[j].disabled&&!m[j].readOnly){e=m[j];break;}}"
+        // Else any visible plain field holding an address, or labelled as the email (Starlink's own form).
+        + "if(!e){var a=document.querySelectorAll('input[type=text],input:not([type])');for(var k=0;k<a.length;k++){var x=a[k];if(!vis(x)||x.disabled||x.readOnly)continue;"
+        + "var d=[x.placeholder,x.getAttribute('aria-label'),x.name,x.id].join(' ');if(x.value.indexOf('@')>0||/mail|بريد/i.test(d)){e=x;break;}}}"
         + "var t=((document.body&&document.body.innerText)||'').toLowerCase();"
         + "var w=/كلمة المرور غير صحيحة|كلمة السر غير صحيحة|incorrect password|wrong password|password is incorrect|invalid email or password|password isn't right/.test(t);"
         + "return JSON.stringify({p:f?f.value:'',f:f?1:0,w:w?1:0,e:e?e.value:'',ef:e?1:0});})()";
@@ -75,8 +78,31 @@ final class StarlinkLoginWatch {
      * this page, as a regex source for MsSignIn.clickScript - «التالي» once the email is typed,
      * «تسجيل الدخول» once the password is typed - or null (wait; «التحقق بخطوتين» is pressed by
      * StarlinkTwoStep.fillScript, and a wrong password is the operator's). */
-    static final String NEXT = "^(التالي|next|continue)$";
-    static final String SIGN_IN = "^(تسجيل الدخول|sign in|log in)$";
+    static final String NEXT = "^(التالي|next|continue)(\\s|$)";
+    static final String SIGN_IN = "^(تسجيل الدخول|sign in|log in)(\\s|$)";
+
+    /** Presses the button whose text matches `regex`: a real button/submit input first (a wrapper
+     * carrying the same text is never the one pressed - real miss: «التالي» found but nothing
+     * happened), the innermost on a tie; failing that, submits the form of the visible sign-in
+     * field, or presses Enter in it. Returns "ok" / "form" / "enter" / "none". */
+    static String pressScript(String regex) {
+        return "(function(src){var re=new RegExp(src,'i');"
+            + "function vis(el){var r=el.getBoundingClientRect();return r.width>0&&r.height>0;}"
+            + "function txt(b){return (b.textContent||b.value||'').replace(/\\s+/g,' ').trim();}"
+            + "var l=document.querySelectorAll('button,input[type=submit],input[type=button],a,[role=button],[role=link],[tabindex]'),best=null,bs=-1e9;"
+            + "for(var i=0;i<l.length;i++){var b=l[i];if(!vis(b)||b.disabled||b.getAttribute('aria-disabled')==='true')continue;"
+            + "var t=txt(b);if(!t||t.length>40||!re.test(t))continue;"
+            + "var s=(b.tagName==='BUTTON'||b.tagName==='INPUT'?1000:0)-t.length;if(s>=bs){best=b;bs=s;}}"
+            + "if(best){best.click();return 'ok';}"
+            + "var f=null,ins=document.querySelectorAll('input[type=password],input[type=email],input[type=text],input:not([type])');"
+            + "for(var j=0;j<ins.length;j++){if(vis(ins[j])&&!ins[j].disabled&&ins[j].value){f=ins[j];}}"
+            + "if(!f)return 'none';"
+            + "var form=f.form||f.closest('form');"
+            + "if(form){var sb=form.querySelector('button[type=submit],input[type=submit],button:not([type])');"
+            + "if(sb&&vis(sb)&&!sb.disabled){sb.click();return 'form';}if(form.requestSubmit){form.requestSubmit();return 'form';}}"
+            + "['keydown','keypress','keyup'].forEach(function(k){f.dispatchEvent(new KeyboardEvent(k,{key:'Enter',code:'Enter',keyCode:13,which:13,bubbles:true}));});"
+            + "return 'enter';})(" + LoginAutofill.literal(regex) + ")";
+    }
 
     static String autoStep(State s, String url) {
         if (s == null || isSignedInUrl(url)) return null;
