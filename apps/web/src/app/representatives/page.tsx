@@ -1436,11 +1436,10 @@ function SettlementForm({
       <div className="party-balance-row">
         <input
           className="search-input"
-          type="number" lang="en"
+          type="text" inputMode="decimal"
           min="0"
           step="0.01"
           dir="ltr"
-          inputMode="decimal"
           placeholder="المبلغ"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
@@ -1559,12 +1558,11 @@ function ShipmentShareForm({
             <span>نسبته من ربح هذه الشحنة %</span>
             <input
               className="search-input"
-              type="number" lang="en"
+              type="text" inputMode="decimal"
               min="0"
               max="100"
               step="0.1"
               dir="ltr"
-              inputMode="decimal"
               value={pct}
               onChange={(e) => setPct(e.target.value)}
             />
@@ -1687,7 +1685,7 @@ function RepresentativeForm({
       <input className="search-input" placeholder="اسم المندوب *" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
       <input
         className="search-input"
-        type="number" lang="en"
+        type="text" inputMode="decimal"
         min="0"
         step="0.1"
         dir="ltr"

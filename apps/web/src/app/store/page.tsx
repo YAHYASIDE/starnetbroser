@@ -568,7 +568,7 @@ function ItemForm({ initial, onSubmit, onCancel }: ItemFormProps) {
       <div className="store-item-form-row">
         <input
           className="search-input"
-          type="number" lang="en"
+          type="text" inputMode="decimal"
           min="0"
           step="0.01"
           dir="ltr"
@@ -587,7 +587,7 @@ function ItemForm({ initial, onSubmit, onCancel }: ItemFormProps) {
       <div className="store-item-form-row">
         <input
           className="search-input"
-          type="number" lang="en"
+          type="text" inputMode="decimal"
           min="0"
           step="0.01"
           dir="ltr"
@@ -606,7 +606,7 @@ function ItemForm({ initial, onSubmit, onCancel }: ItemFormProps) {
 
       <input
         className="search-input"
-        type="number" lang="en"
+        type="text" inputMode="decimal"
         min="0"
         step="0.01"
         dir="ltr"
@@ -617,7 +617,7 @@ function ItemForm({ initial, onSubmit, onCancel }: ItemFormProps) {
 
       <input
         className="search-input"
-        type="number" lang="en"
+        type="text" inputMode="decimal"
         min="0"
         step="1"
         dir="ltr"
@@ -701,7 +701,7 @@ function StoreItemPanel({ item, stock, transactions, clientStore, onChange }: Pa
         <p className="store-panel-kind">📥 شراء - وارد للمخزون · البيع يكون بفاتورة بيع 🧾</p>
         <input
           className="search-input"
-          type="number" lang="en"
+          type="text" inputMode="decimal"
           min="0"
           step="0.01"
           dir="ltr"
@@ -711,7 +711,7 @@ function StoreItemPanel({ item, stock, transactions, clientStore, onChange }: Pa
         />
         <input
           className="search-input"
-          type="number" lang="en"
+          type="text" inputMode="decimal"
           min="0"
           step="0.01"
           dir="ltr"

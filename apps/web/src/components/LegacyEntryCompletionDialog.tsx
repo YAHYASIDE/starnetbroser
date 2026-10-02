@@ -168,7 +168,7 @@ export function LegacyEntryCompletionDialog({ entry, currencyStore, defaultCostC
               <span>سعر صرف قيمة البيع (1 USD = ؟ {entry.currency})</span>
               <input
                 className="search-input"
-                type="number" lang="en"
+                type="text" inputMode="decimal"
                 min="0"
                 step="0.0001"
                 dir="ltr"
@@ -213,13 +213,13 @@ export function LegacyEntryCompletionDialog({ entry, currencyStore, defaultCostC
 
               <label className="form-field">
                 <span>مبلغ التكلفة</span>
-                <input className="search-input" type="number" lang="en" min="0" step="0.01" dir="ltr" value={costAmount} onChange={(e) => setCostAmount(e.target.value)} />
+                <input className="search-input" type="text" inputMode="decimal" min="0" step="0.01" dir="ltr" value={costAmount} onChange={(e) => setCostAmount(e.target.value)} />
               </label>
 
               {!costIsUsd && (
                 <label className="form-field">
                   <span>سعر الصرف (1 USD = ؟ {costCurrencyCode})</span>
-                  <input className="search-input" type="number" lang="en" min="0" step="0.0001" dir="ltr" value={costRate} onChange={(e) => setCostRate(e.target.value)} />
+                  <input className="search-input" type="text" inputMode="decimal" min="0" step="0.0001" dir="ltr" value={costRate} onChange={(e) => setCostRate(e.target.value)} />
                 </label>
               )}
 

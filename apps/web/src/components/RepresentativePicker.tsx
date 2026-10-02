@@ -101,7 +101,7 @@ export function RepresentativePicker({ representatives, selectedRepresentativeId
           />
           <input
             className="search-input"
-            type="number" lang="en"
+            type="text" inputMode="decimal"
             min="0"
             step="0.1"
             dir="ltr"

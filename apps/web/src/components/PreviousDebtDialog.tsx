@@ -48,7 +48,7 @@ export function PreviousDebtDialog({
         <form className="account-form" onSubmit={submit}>
           <label className="form-field">
             <span>المبلغ بالدولار *</span>
-            <input type="number" inputMode="decimal" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} dir="ltr" required />
+            <input type="text" inputMode="decimal" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} dir="ltr" required />
           </label>
           <label className="form-field">
             <span>التاريخ *</span>

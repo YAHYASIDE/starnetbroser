@@ -200,3 +200,33 @@ describe("withStarterCurrencies", () => {
     expect(withStarterCurrencies(store)).toEqual(store);
   });
 });
+
+describe("rate from «amount = USD»", () => {
+  it("reads typed amounts in any digits and separators", async () => {
+    const { parseTypedAmount } = await import("./currencyStore");
+    expect(parseTypedAmount("100000")).toBe(100000);
+    expect(parseTypedAmount("١٠٠٠٠٠")).toBe(100000);
+    expect(parseTypedAmount("١٤٢٤,٢٤")).toBe(1424.24);
+    expect(parseTypedAmount("١٤٢٤٫٢٤")).toBe(1424.24);
+    expect(parseTypedAmount("100,000")).toBe(100000);
+    expect(parseTypedAmount("1,424.24")).toBe(1424.24);
+    expect(parseTypedAmount("100 000")).toBe(100000);
+    expect(parseTypedAmount("70.5")).toBe(70.5);
+    expect(parseTypedAmount("")).toBeNaN();
+    expect(parseTypedAmount("abc")).toBeNaN();
+    expect(parseTypedAmount("-5")).toBeNaN();
+  });
+
+  it("turns «100000 ARS = 70 USD» into 1 USD = 1428.57 ARS", async () => {
+    const { rateFromAmounts } = await import("./currencyStore");
+    expect(rateFromAmounts(100000, 70)).toBeCloseTo(1428.5714, 3);
+    expect(rateFromAmounts(100000, 0)).toBeNull();
+    expect(rateFromAmounts(0, 70)).toBeNull();
+    expect(rateFromAmounts(NaN, 70)).toBeNull();
+  });
+
+  it("counts the devices billed in that currency", async () => {
+    const { devicesInCurrency } = await import("./currencyStore");
+    expect(devicesInCurrency([{ currency: "ARS" }, { currency: "ars " }, { currency: "USD" }, {}], "ARS")).toBe(2);
+  });
+});

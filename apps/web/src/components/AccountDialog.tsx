@@ -687,11 +687,10 @@ export function AccountDialog({
                 <label className="renewal-plan-field">
                   <span>سعر البيع للزبون</span>
                   <input
-                    type="number" lang="en"
+                    type="text" inputMode="decimal"
                     min="0"
                     step="0.01"
                     dir="ltr"
-                    inputMode="decimal"
                     placeholder="0"
                     value={planSale}
                     onChange={(e) => setPlanSale(e.target.value)}
@@ -710,11 +709,10 @@ export function AccountDialog({
                 <label className="renewal-plan-field">
                   <span>تكلفة Starlink</span>
                   <input
-                    type="number" lang="en"
+                    type="text" inputMode="decimal"
                     min="0"
                     step="0.01"
                     dir="ltr"
-                    inputMode="decimal"
                     placeholder="0"
                     value={planCost}
                     onChange={(e) => setPlanCost(e.target.value)}

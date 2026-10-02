@@ -10427,3 +10427,136 @@ a[href],
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* «تعديل السعر» (currencies/page.tsx): amount = dollars, then the new rate before saving. */
+.currency-rate-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.currency-rate-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: end;
+  gap: 6px;
+}
+
+.currency-rate-equals {
+  padding-bottom: 12px;
+  font-weight: 800;
+}
+
+.currency-rate-preview {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+.currency-rate-preview small {
+  color: var(--text-muted);
+}
+
+.currency-rate-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.currency-rate-actions .dialog-primary:disabled {
+  opacity: 0.5;
+}
+
+.currency-rate-saved {
+  color: var(--green);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+/* تكلفة اشتراك Starlink (LedgerDialog): the two fields side by side on one line, tinted, and the
+ * converted amounts as two equal chips - nothing sits higher or lower than its neighbour. */
+.ledger-cost-row {
+  align-items: end;
+}
+
+.ledger-cost-field > span {
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ledger-cost-field .search-input {
+  font-weight: 700;
+  text-align: center;
+}
+
+.ledger-cost-field-amount > span {
+  color: var(--brand);
+}
+
+.ledger-cost-field-amount .search-input {
+  border-color: color-mix(in srgb, var(--brand) 45%, var(--border));
+  background: color-mix(in srgb, var(--brand) 6%, var(--surface));
+}
+
+.ledger-cost-field-rate > span {
+  color: var(--orange);
+}
+
+.ledger-cost-field-rate .search-input {
+  border-color: color-mix(in srgb, var(--orange) 45%, var(--border));
+  background: color-mix(in srgb, var(--orange) 6%, var(--surface));
+}
+
+.ledger-cost-save-rate {
+  flex: none;
+  padding: 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--orange) 40%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--orange) 10%, var(--surface));
+  color: var(--orange);
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ledger-cost-convert-usd strong {
+  font-size: 1.15rem;
+}
+
+.ledger-cost-convert-chips {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.ledger-cost-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 10px;
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+
+.ledger-cost-chip small {
+  font-size: 0.68rem;
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+.ledger-cost-chip-mru {
+  background: var(--green-bg);
+  color: var(--green);
+}
+
+.ledger-cost-chip-sifa {
+  background: var(--violet-bg);
+  color: var(--violet);
+}

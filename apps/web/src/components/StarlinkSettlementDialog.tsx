@@ -160,13 +160,13 @@ export function StarlinkSettlementDialog({ entry, currencyStore, defaultCurrency
 
           <label className="form-field">
             <span>مبلغ التكلفة</span>
-            <input className="search-input" type="number" lang="en" min="0" step="0.01" dir="ltr" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            <input className="search-input" type="text" inputMode="decimal" min="0" step="0.01" dir="ltr" value={amount} onChange={(e) => setAmount(e.target.value)} />
           </label>
 
           {!isUsd && (
             <label className="form-field">
               <span>سعر الصرف (1 USD = ؟ {currencyCode})</span>
-              <input className="search-input" type="number" lang="en" min="0" step="0.0001" dir="ltr" value={rate} onChange={(e) => setRate(e.target.value)} />
+              <input className="search-input" type="text" inputMode="decimal" min="0" step="0.0001" dir="ltr" value={rate} onChange={(e) => setRate(e.target.value)} />
             </label>
           )}
 

@@ -254,7 +254,7 @@ export function EditLedgerEntryDialog({ entry, currencyStore, hasAllocations, on
               </select>
               <input
                 className="search-input"
-                type="number" lang="en"
+                type="text" inputMode="decimal"
                 min="0"
                 step="0.01"
                 dir="ltr"
@@ -274,7 +274,7 @@ export function EditLedgerEntryDialog({ entry, currencyStore, hasAllocations, on
               <span>سعر عملة {isDebit ? "البيع" : "الدفعة"} (1 USD = ؟ {currency})</span>
               <input
                 className="search-input"
-                type="number" lang="en"
+                type="text" inputMode="decimal"
                 min="0"
                 step="0.0001"
                 dir="ltr"
@@ -323,7 +323,7 @@ export function EditLedgerEntryDialog({ entry, currencyStore, hasAllocations, on
                   <span>المبلغ المدفوع لـ Starlink</span>
                   <input
                     className="search-input"
-                    type="number" lang="en"
+                    type="text" inputMode="decimal"
                     min="0"
                     step="0.01"
                     dir="ltr"
@@ -336,7 +336,7 @@ export function EditLedgerEntryDialog({ entry, currencyStore, hasAllocations, on
                     <span>سعر العملة (1 USD = ؟ {costCurrencyCode || "عملة"})</span>
                     <input
                       className="search-input"
-                      type="number" lang="en"
+                      type="text" inputMode="decimal"
                       min="0"
                       step="0.0001"
                       dir="ltr"

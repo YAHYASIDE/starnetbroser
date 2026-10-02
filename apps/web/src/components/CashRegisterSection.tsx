@@ -186,7 +186,7 @@ export function CashRegisterSection({ entries, onChange, closings, onChangeClosi
               <div className="store-item-form-row">
                 <input
                   className="search-input"
-                  type="number" lang="en"
+                  type="text" inputMode="decimal"
                   min="0"
                   step="0.01"
                   dir="ltr"
@@ -315,11 +315,10 @@ function ClosingForm({ entries, onSubmit }: ClosingFormProps) {
             </div>
             <input
               className="search-input"
-              type="number" lang="en"
+              type="text" inputMode="decimal"
               min="0"
               step="0.01"
               dir="ltr"
-              inputMode="decimal"
               placeholder="المبلغ الفعلي بعد العدّ"
               aria-label={`المبلغ الفعلي ${currencyLabel(code)}`}
               value={raw}

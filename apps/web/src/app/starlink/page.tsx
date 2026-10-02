@@ -787,14 +787,14 @@ function PreviousPayForm({
       </p>
       <label className="rep-form-field">
         <span>ما دفعته لستارلينك (دولار)</span>
-        <input className="search-input" type="number" inputMode="decimal" min="0" step="0.01" dir="ltr" value={paidUsd} onChange={(e) => setPaidUsd(e.target.value)} />
+        <input className="search-input" type="text" inputMode="decimal" min="0" step="0.01" dir="ltr" value={paidUsd} onChange={(e) => setPaidUsd(e.target.value)} />
       </label>
       <div className="sl-form-row">
         <label className="rep-form-field">
           <span>يُسجَّل على الزبون</span>
           <input
             className="search-input"
-            type="number"
+            type="text"
             inputMode="decimal"
             min="0"
             step="0.01"
@@ -883,7 +883,7 @@ function TopUpForm({
         <span>المبلغ الذي دخل البطاقة (دولار)</span>
         <input
           className="search-input"
-          type="number"
+          type="text"
           lang="en"
           min="0"
           step="0.01"
@@ -900,7 +900,7 @@ function TopUpForm({
         <div className="party-balance-row">
           <input
             className="search-input"
-            type="number"
+            type="text"
             lang="en"
             min="0"
             step="0.01"
@@ -976,7 +976,7 @@ function SettlementEditForm({
         <span>المبلغ المدفوع لستارلينك (دولار)</span>
         <input
           className="search-input"
-          type="number"
+          type="text"
           lang="en"
           min="0"
           step="0.01"

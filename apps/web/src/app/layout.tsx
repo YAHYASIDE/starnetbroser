@@ -11,6 +11,7 @@ import { StorageFullBanner } from "@/components/StorageFullBanner";
 import { TelegramBridge } from "@/components/TelegramBridge";
 import { PhoneShortcutLayer } from "@/components/PhoneShortcutLayer";
 import { DeleteCodeHost } from "@/components/DeleteCodePrompt";
+import { LatinDigitInputs } from "@/components/LatinDigitInputs";
 
 export const metadata: Metadata = {
   title: "STAR NET",
@@ -47,6 +48,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <PhoneShortcutLayer />
         <StorageFullBanner />
         <DeleteCodeHost />
+        <LatinDigitInputs />
       </body>
     </html>
   );

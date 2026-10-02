@@ -6,9 +6,12 @@ import {
   Currency,
   CurrencyStore,
   convertAmount,
+  devicesInCurrency,
   getCurrency,
   listCurrencies,
   loadCurrencyStore,
+  parseTypedAmount,
+  rateFromAmounts,
   saveCurrencyStore,
   setCurrencyEnabled,
   setCurrencyRate,
@@ -16,6 +19,7 @@ import {
 } from "@/lib/currencyStore";
 import { COUNTRY_CURRENCIES } from "@/lib/countryCurrencies";
 import { formatAmount } from "@/lib/formatAmount";
+import { useToolsData } from "@/components/tools/useToolsData";
 
 function formatRate(currency: Currency): string {
   return `1 USD = ${currency.rateFromUsd} ${currency.symbol}`;
@@ -94,12 +98,61 @@ function CurrencyPickerField({
   );
 }
 
+/** «تعديل السعر»: «100000 ARS = 70 USD» → 1 USD = 1428.57 ARS, shown before saving. */
+function RateEditor({ code, oldRate, amount, usd, onAmount, onUsd, onSave, onCancel }: {
+  code: string;
+  oldRate: number;
+  amount: string;
+  usd: string;
+  onAmount: (v: string) => void;
+  onUsd: (v: string) => void;
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  const rate = rateFromAmounts(parseTypedAmount(amount), parseTypedAmount(usd));
+  return (
+    <div className="currency-rate-editor">
+      <div className="currency-rate-fields">
+        <label className="form-field">
+          <span>المبلغ بـ {code}</span>
+          <input className="search-input" type="text" inputMode="decimal" dir="ltr" placeholder="100000" value={amount} onChange={(e) => onAmount(e.target.value)} />
+        </label>
+        <span className="currency-rate-equals" aria-hidden="true">=</span>
+        <label className="form-field">
+          <span>بالدولار USD</span>
+          <input className="search-input" type="text" inputMode="decimal" dir="ltr" placeholder="70" value={usd} onChange={(e) => onUsd(e.target.value)} />
+        </label>
+      </div>
+      <p className="currency-rate-preview">
+        {rate !== null ? (
+          <>
+            السعر الجديد: <bdi dir="ltr">1 USD = {formatAmount(rate)} {code}</bdi>
+            <small>
+              {" "}(كان <bdi dir="ltr">{formatAmount(oldRate)}</bdi>)
+            </small>
+          </>
+        ) : (
+          "أدخل المبلغين (أكبر من صفر)"
+        )}
+      </p>
+      <div className="currency-rate-actions">
+        <button className="dialog-primary" type="button" disabled={rate === null} onClick={onSave}>حفظ</button>
+        <button className="dialog-secondary" type="button" onClick={onCancel}>إلغاء</button>
+      </div>
+    </div>
+  );
+}
+
 export default function CurrenciesPage() {
   const [store, setStore] = useState<CurrencyStore>({});
   useEffect(() => setStore(loadCurrencyStore()), []);
 
   const [editingCode, setEditingCode] = useState<string | null>(null);
-  const [editRate, setEditRate] = useState("");
+  // «تعديل السعر»: an amount of the currency and what it is worth in dollars (100000 ARS = 70 USD).
+  const [editAmount, setEditAmount] = useState("");
+  const [editUsd, setEditUsd] = useState("1");
+  const [savedNote, setSavedNote] = useState<{ code: string; text: string } | null>(null);
+  const { accounts } = useToolsData();
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState("");
   const [countryQuery, setCountryQuery] = useState("");
@@ -127,14 +180,22 @@ export default function CurrenciesPage() {
 
   function startEditRate(currency: Currency) {
     setEditingCode(currency.code);
-    setEditRate(String(currency.rateFromUsd));
+    setEditAmount(String(Math.round(currency.rateFromUsd * 10000) / 10000));
+    setEditUsd("1");
+    setSavedNote(null);
   }
 
   function saveEditRate(code: string) {
-    const rate = Number(editRate);
-    if (!Number.isFinite(rate) || rate <= 0) return;
+    const rate = rateFromAmounts(parseTypedAmount(editAmount), parseTypedAmount(editUsd));
+    if (rate === null) return;
     persist(setCurrencyRate(store, code, rate));
     setEditingCode(null);
+    // The device cards read the rate when they show: their «≈ USD» is already the new one.
+    const devices = devicesInCurrency(accounts, code);
+    setSavedNote({
+      code,
+      text: devices > 0 ? `✅ حُفظ السعر الجديد - ${devices} جهاز بعملة ${code} صار يظهر بالسعر الجديد` : "✅ حُفظ السعر الجديد",
+    });
   }
 
   function toggleEnabled(currency: Currency) {
@@ -234,7 +295,7 @@ export default function CurrenciesPage() {
             <span>المبلغ</span>
             <input
               className="search-input"
-              type="number" lang="en"
+              type="text" inputMode="decimal"
               min="0"
               step="any"
               dir="ltr"
@@ -332,23 +393,21 @@ export default function CurrenciesPage() {
                 <span className="currency-row-code" dir="ltr">{currency.code}</span>
               </div>
               {editingCode === currency.code ? (
-                <div className="currency-row-edit">
-                  <input
-                    className="search-input"
-                    type="number" lang="en"
-                    min="0"
-                    step="0.0001"
-                    dir="ltr"
-                    value={editRate}
-                    onChange={(e) => setEditRate(e.target.value)}
-                  />
-                  <button className="dialog-primary" type="button" onClick={() => saveEditRate(currency.code)}>حفظ</button>
-                  <button className="dialog-secondary" type="button" onClick={() => setEditingCode(null)}>إلغاء</button>
-                </div>
+                <RateEditor
+                  code={currency.code}
+                  oldRate={currency.rateFromUsd}
+                  amount={editAmount}
+                  usd={editUsd}
+                  onAmount={setEditAmount}
+                  onUsd={setEditUsd}
+                  onSave={() => saveEditRate(currency.code)}
+                  onCancel={() => setEditingCode(null)}
+                />
               ) : (
                 <div className="currency-row-info">
                   <span dir="ltr">{formatRate(currency)}</span>
                   <span className="currency-row-updated">آخر تحديث: {formatUpdatedAt(currency.updatedAt)}</span>
+                  {savedNote?.code === currency.code && <span className="currency-rate-saved">{savedNote.text}</span>}
                 </div>
               )}
               {currency.code !== "USD" && editingCode !== currency.code && (
@@ -403,7 +462,7 @@ export default function CurrenciesPage() {
                   <span>{newSymbol}</span>
                   <input
                     className="search-input"
-                    type="number" lang="en"
+                    type="text" inputMode="decimal"
                     min="0"
                     step="any"
                     dir="ltr"
@@ -417,7 +476,7 @@ export default function CurrenciesPage() {
                   <span>دولار</span>
                   <input
                     className="search-input"
-                    type="number" lang="en"
+                    type="text" inputMode="decimal"
                     min="0"
                     step="any"
                     dir="ltr"

@@ -520,7 +520,7 @@ function InvoiceForm({
             </select>
             <input
               className="search-input"
-              type="number" lang="en"
+              type="text" inputMode="decimal"
               min="0"
               step="0.01"
               dir="ltr"
@@ -530,7 +530,7 @@ function InvoiceForm({
             />
             <input
               className="search-input"
-              type="number" lang="en"
+              type="text" inputMode="decimal"
               min="0"
               step="0.01"
               dir="ltr"
@@ -560,7 +560,7 @@ function InvoiceForm({
             <div className="invoice-line-row">
               <input
                 className="search-input"
-                type="number" lang="en"
+                type="text" inputMode="decimal"
                 min="0"
                 step="0.01"
                 dir="ltr"
@@ -570,7 +570,7 @@ function InvoiceForm({
               />
               <input
                 className="search-input"
-                type="number" lang="en"
+                type="text" inputMode="decimal"
                 min="0"
                 step="0.01"
                 dir="ltr"
@@ -589,7 +589,7 @@ function InvoiceForm({
       <div className="store-item-form-row">
         <input
           className="search-input"
-          type="number" lang="en"
+          type="text" inputMode="decimal"
           min="0"
           step="0.01"
           dir="ltr"
@@ -599,7 +599,7 @@ function InvoiceForm({
         />
         <input
           className="search-input"
-          type="number" lang="en"
+          type="text" inputMode="decimal"
           min="0"
           step="0.01"
           dir="ltr"
@@ -757,7 +757,7 @@ function ReturnForm({ original, items, invoices, onCancel, onSubmit }: ReturnFor
             <span className="store-item-name">{item?.name ?? "مادة"}</span>
             <input
               className="search-input"
-              type="number" lang="en"
+              type="text" inputMode="decimal"
               min="0"
               step="0.01"
               dir="ltr"

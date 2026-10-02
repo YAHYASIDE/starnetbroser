@@ -113,7 +113,7 @@ export function PaymentAllocationDialog({ amount, currency, devices, initialDevi
                 </div>
                 <input
                   className="search-input"
-                  type="number" lang="en"
+                  type="text" inputMode="decimal"
                   min="0"
                   step="0.01"
                   dir="ltr"

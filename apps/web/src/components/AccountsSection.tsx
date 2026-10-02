@@ -983,11 +983,10 @@ function BalanceForm({ partyName, partyKind, devices, initial, submitLabel = "ح
       <div className="party-balance-row">
         <input
           className="search-input"
-          type="number" lang="en"
+          type="text" inputMode="decimal"
           min="0"
           step="0.01"
           dir="ltr"
-          inputMode="decimal"
           placeholder="المبلغ"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
@@ -1085,7 +1084,7 @@ function PartyForm({ initial, submitLabel, namePlaceholder, showCreditLimit, onS
       {showCreditLimit && (
         <input
           className="search-input"
-          type="number" lang="en"
+          type="text" inputMode="decimal"
           min="0"
           step="0.01"
           dir="ltr"

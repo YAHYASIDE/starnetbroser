@@ -180,3 +180,37 @@ export function convertAmount(
   if (!from || !to || !Number.isFinite(amount)) return undefined;
   return fromUsd(toUsd(amount, from.rateFromUsd), to.rateFromUsd);
 }
+
+/**
+ * A typed amount as a number: Arabic/Persian digits, «٫» or a lone «,» as the decimal point
+ * (unless it is followed by exactly 3 digits, a thousands separator), «٬», spaces and other
+ * thousands separators dropped. NaN when it isn't a number.
+ */
+export function parseTypedAmount(text: string): number {
+  let s = text
+    .trim()
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
+    .replace(/٫/g, ".")
+    .replace(/[٬\s'_]/g, "");
+  if (!s) return NaN;
+  if (s.includes(".")) s = s.replace(/,/g, "");
+  else {
+    const commas = s.split(",").length - 1;
+    if (commas === 1 && !/,\d{3}$/.test(s)) s = s.replace(",", ".");
+    else s = s.replace(/,/g, "");
+  }
+  return /^\d*\.?\d+$|^\d+\.$/.test(s) ? Number(s) : NaN;
+}
+
+/** «100000 ARS = 70 USD» → the rate (1 USD in that currency); null unless both are above 0. */
+export function rateFromAmounts(amount: number, usdAmount: number): number | null {
+  if (!Number.isFinite(amount) || !Number.isFinite(usdAmount) || amount <= 0 || usdAmount <= 0) return null;
+  return amount / usdAmount;
+}
+
+/** How many devices show their Starlink balance in this currency (their «≈ USD» follows the rate). */
+export function devicesInCurrency(accounts: ReadonlyArray<{ currency?: string }>, code: string): number {
+  const wanted = code.trim().toUpperCase();
+  return accounts.filter((a) => (a.currency ?? "").trim().toUpperCase() === wanted).length;
+}

@@ -570,7 +570,7 @@ export function LedgerDialog({
           </select>
           <input
             className="search-input"
-            type="number" lang="en"
+            type="text" inputMode="decimal"
             min="0"
             step="0.01"
             dir="ltr"
@@ -588,7 +588,7 @@ export function LedgerDialog({
               <span>سعر عملة {kind === "debit" ? "البيع" : "الدفعة"} (1 USD = ؟ {currency})</span>
               <input
                 className="search-input"
-                type="number" lang="en"
+                type="text" inputMode="decimal"
                 min="0"
                 step="0.0001"
                 dir="ltr"
@@ -646,11 +646,11 @@ export function LedgerDialog({
               </div>
 
               <div className="ledger-cost-row">
-                <label className="form-field">
-                  <span>المبلغ المدفوع لـ Starlink</span>
+                <label className="form-field ledger-cost-field ledger-cost-field-amount">
+                  <span>💳 المبلغ {costCurrencyCode ? <bdi dir="ltr">({costCurrencyCode})</bdi> : ""}</span>
                   <input
                     className="search-input"
-                    type="number" lang="en"
+                    type="text" inputMode="decimal"
                     min="0"
                     step="0.01"
                     dir="ltr"
@@ -659,11 +659,11 @@ export function LedgerDialog({
                   />
                 </label>
                 {!costIsUsd && (
-                  <label className="form-field">
-                    <span>سعر العملة (1 USD = ؟ {costCurrencyCode || "عملة"})</span>
+                  <label className="form-field ledger-cost-field ledger-cost-field-rate">
+                    <span>💱 سعر <bdi dir="ltr">1 USD</bdi></span>
                     <input
                       className="search-input"
-                      type="number" lang="en"
+                      type="text" inputMode="decimal"
                       min="0"
                       step="0.0001"
                       dir="ltr"
@@ -677,11 +677,11 @@ export function LedgerDialog({
                 <div className={`ledger-cost-rate-hint${costRateKnown ? "" : " is-missing"}`}>
                   <span>
                     {costRateKnown
-                      ? `سعر ${costCurrencyCode} واحد لكل الدول التي عملتها ${costCurrencyCode} - مأخوذ من الإعدادات، ويمكن تعديله لهذه الحركة فقط`
+                      ? "السعر من الإعدادات - تعديله هنا لهذه الحركة فقط"
                       : `⚠️ لم يُحدَّد سعر ${selectedCostCurrencyName} بعد - أدخل السعر ثم احفظه`}
                   </span>
-                  <button type="button" className="text-action" onClick={saveCostRateToSettings}>
-                    {costRateKnown ? "حفظ السعر في الإعدادات" : "تعديل السعر وحفظه"}
+                  <button type="button" className="ledger-cost-save-rate" onClick={saveCostRateToSettings}>
+                    💾 {costRateKnown ? "حفظ في الإعدادات" : "حفظ السعر"}
                   </button>
                 </div>
               )}
@@ -692,9 +692,15 @@ export function LedgerDialog({
                     {!costIsUsd && <span dir="ltr">{formatAmount(parsedCostAmount)} {costCurrencyCode} ÷ {formatAmount(parsedCostRate)}</span>}
                     <strong dir="ltr">{formatAmount(costUsdValue)} USD</strong>
                   </div>
-                  <div className="ledger-cost-convert-rows">
-                    <span dir="ltr">{costMruPreview !== undefined ? `${formatAmount(costMruPreview)} أوقية` : "أوقية: — (سجّل سعر الأوقية في الإعدادات)"}</span>
-                    <span dir="ltr">{costSifaPreview !== undefined ? `${formatAmount(costSifaPreview)} سيفا` : "سيفا: — (سجّل سعر السيفا في الإعدادات)"}</span>
+                  <div className="ledger-cost-convert-chips">
+                    <span className="ledger-cost-chip ledger-cost-chip-mru">
+                      <small>أوقية</small>
+                      <bdi dir="ltr">{costMruPreview !== undefined ? formatAmount(costMruPreview) : "—"}</bdi>
+                    </span>
+                    <span className="ledger-cost-chip ledger-cost-chip-sifa">
+                      <small>سيفا</small>
+                      <bdi dir="ltr">{costSifaPreview !== undefined ? formatAmount(costSifaPreview) : "—"}</bdi>
+                    </span>
                   </div>
                 </div>
               )}
