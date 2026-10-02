@@ -83,6 +83,8 @@ public class MailBrowserActivity extends AppCompatActivity {
     private int autoClicks;
     private long autoLastClickAt;
     private String recoveryEmail;
+    /** Polls that saw the inbox rendered (MsSignIn.INBOX_SCRIPT) - two in a row before moving on. */
+    private int inboxSeen;
 
     /** 🔑 The password watch: offers the suggestions (once per empty field / wrong password) and
      * keeps the password that got into the inbox as the device's «كود البريد». */
@@ -390,7 +392,26 @@ public class MailBrowserActivity extends AppCompatActivity {
      * password, press the one right button, or stop and say why. At most a few presses per step,
      * seconds apart - a page that doesn't move on is left to the operator. */
     private void autoStep() {
-        if (webView == null || !GmailCodes.isMicrosoftStep(webView.getUrl())) {
+        if (webView == null) return;
+        String url = webView.getUrl();
+        if (MailUrl.sessionState(url) == MailUrl.SessionState.SIGNED_IN && thenIntent != null && !movedOn) {
+            // The inbox URL alone comes a moment before Microsoft's sign-in: only the rendered inbox counts.
+            webView.evaluateJavascript(MsSignIn.INBOX_SCRIPT, value -> {
+                if (webView == null || isFinishing()) return;
+                inboxSeen = "\"1\"".equals(value) ? inboxSeen + 1 : 0;
+                if (inboxSeen >= 2) {
+                    MailSessionStore.markSignedIn(this, accountId, email);
+                    keepWorkingPassword();
+                    Toast.makeText(this, "✅ البريد مسجّل الدخول - ننتقل إلى Starlink", Toast.LENGTH_LONG).show();
+                    moveOnToStarlink();
+                } else {
+                    watchHandler.postDelayed(passwordPoll, PASSWORD_WATCH_MS);
+                }
+            });
+            return;
+        }
+        inboxSeen = 0;
+        if (!GmailCodes.isMicrosoftStep(url)) {
             watchHandler.postDelayed(passwordPoll, PASSWORD_WATCH_MS);
             return;
         }
@@ -568,11 +589,8 @@ public class MailBrowserActivity extends AppCompatActivity {
                     Toast.makeText(MailBrowserActivity.this, "✅ أُنشئ البريد - ننتقل إلى تفعيل Starlink", Toast.LENGTH_LONG).show();
                     moveOnToStarlink();
                 }
-            } else if (auto && state == MailUrl.SessionState.SIGNED_IN && thenIntent != null && !movedOn) {
-                // 🤖 Signed in to the mailbox: on to Starlink, whose sign-in runs by itself too.
-                Toast.makeText(MailBrowserActivity.this, "✅ البريد مسجّل الدخول - ننتقل إلى Starlink", Toast.LENGTH_LONG).show();
-                moveOnToStarlink();
             }
+            // 🤖 In the automatic sign-in the move to Starlink waits for the rendered inbox (autoStep).
         }
 
         @Override

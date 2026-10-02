@@ -52,6 +52,20 @@ final class MsSignIn {
         + "return JSON.stringify({h:h,o:o,m:mm?mm[0].toLowerCase():'',pw:pw?1:0,pwv:pw&&pw.value?1:0,tn:tf.length,tv:tf.length?tf[0].value:'',"
         + "af:tf.length>0&&tf.every(function(x){return x.value;})?1:0,w:w?1:0});})()";
 
+    /** "1" when the inbox itself is on the screen (Outlook's «New mail» button, message list or
+     * «Inbox» folder, and no sign-in field) - the URL alone says "/mail/" a moment before Microsoft
+     * sends the page to its sign-in (real, confirmed: the mailbox was called signed in and left at
+     * once), so only the rendered inbox counts. "0" otherwise. */
+    static final String INBOX_SCRIPT = "(function(){"
+        + "function vis(el){var r=el.getBoundingClientRect();return r.width>0&&r.height>0;}"
+        + "var ins=document.querySelectorAll('input[type=password],input[name=loginfmt],input[type=email]');"
+        + "for(var i=0;i<ins.length;i++)if(vis(ins[i]))return '0';"
+        + "if(document.querySelector('[aria-label=\"Message list\"],[aria-label=\"قائمة الرسائل\"],[data-app-section=\"MessageList\"],[role=\"treeitem\"][title=\"Inbox\"]'))return '1';"
+        + "var l=document.querySelectorAll('button,[role=button],[role=treeitem],[role=tab],span,div');"
+        + "for(var j=0;j<l.length;j++){var el=l[j];if(!vis(el)||el.children.length>2)continue;var t=(el.getAttribute('aria-label')||el.textContent||'').replace(/\\s+/g,' ').trim();"
+        + "if(/^(new mail|new message|بريد جديد|رسالة جديدة|inbox|علبة الوارد|البريد الوارد|focused|مركّز|مركز)$/i.test(t))return '1';}"
+        + "return '0';})()";
+
     enum Kind { EMAIL, REQUEST, WAYS, PASSWORD, VERIFY, CODE, TERMS, STAY, ADD_EMAIL, OTHER }
 
     static final class State {

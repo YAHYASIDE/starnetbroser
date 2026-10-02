@@ -142,6 +142,14 @@ public class MsSignInTest {
     }
 
     @Test
+    public void theInboxCountsOnlyWhenRenderedNeverByItsUrlAlone() {
+        // Real, confirmed: "/mail/" shows a moment before Microsoft's sign-in - the script, not the URL, decides.
+        assertTrue(MsSignIn.INBOX_SCRIPT.contains("input[type=password],input[name=loginfmt]"));
+        assertTrue(MsSignIn.INBOX_SCRIPT.contains("new mail"));
+        assertEquals(MailUrl.SessionState.SIGNED_IN, MailUrl.sessionState("https://outlook.live.com/mail/0/?login_hint=demo%40outlook.com"));
+    }
+
+    @Test
     public void starlinksOwnStepsAfterwards() {
         assertEquals(StarlinkLoginWatch.NEXT, StarlinkLoginWatch.autoStep(new StarlinkLoginWatch.State("", false, false, "demo@outlook.com", true), "https://www.starlink.com/auth/login"));
         assertNull(StarlinkLoginWatch.autoStep(new StarlinkLoginWatch.State("", false, false, "", true), "https://www.starlink.com/auth/login"));
