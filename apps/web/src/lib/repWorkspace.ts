@@ -15,7 +15,7 @@
 import type { StarlinkAccountSummary } from "@starnet/shared";
 
 /** How a store's records are laid out, so they can be compared one record at a time. */
-type Shape =
+export type Shape =
   /** [{ id }] */
   | "list"
   /** { id: record } */
@@ -27,12 +27,12 @@ type Shape =
 
 export const ACCOUNTS_KEY = "starnet_demo_accounts_v1";
 export const LEDGER_KEY = "starnet_customer_ledger_v1";
-const ALLOCATIONS_KEY = "starnet_payment_allocations_v1";
+export const ALLOCATIONS_KEY = "starnet_payment_allocations_v1";
 export const CLIENTS_KEY = "starnet_clients_v1";
-const ADJUSTMENTS_KEY = "starnet_party_adjustments_v1";
-const NOTES_KEY = "starnet_client_notes_v1";
-const PROMISES_KEY = "starnet_payment_promises_v1";
-const PREVIOUS_DEBTS_KEY = "starnet_previous_debts_v1";
+export const ADJUSTMENTS_KEY = "starnet_party_adjustments_v1";
+export const NOTES_KEY = "starnet_client_notes_v1";
+export const PROMISES_KEY = "starnet_payment_promises_v1";
+export const PREVIOUS_DEBTS_KEY = "starnet_previous_debts_v1";
 const CURRENCIES_KEY = "starnet_currencies_v1";
 const TEMPLATES_KEY = "starnet_message_templates_v1";
 const PROFILE_KEY = "starnet_business_profile_v1";
@@ -210,6 +210,16 @@ export function rebaseWorkspace(current: StoreValues, oldBase: StoreValues | nul
     }
     const ignoreSync = key === ACCOUNTS_KEY;
     const changes = diffStore(current[key], oldBase[key], shape, ignoreSync);
+    // A record the operator now has differently from the old copy was taken in by him (or changed
+    // after): his version wins and it's no longer pending - e.g. a payment he recorded from the
+    // rep's «تسجيلاتي» (with heldByRepId added).
+    const theirsBefore = flatten(oldBase[key], shape);
+    const theirsNow = flatten(nextBase[key], shape);
+    const strip = (r: Rec | undefined) => (r && ignoreSync ? withoutSync(r) : r);
+    for (const path of [...changes.set.keys()]) {
+      const now = theirsNow.get(path);
+      if (now && !same(strip(now), strip(theirsBefore.get(path)))) changes.set.delete(path);
+    }
     if (key === ACCOUNTS_KEY) {
       // A device the operator took away (moved to another rep) leaves - even if the rep edited it;
       // a device the rep created himself stays.

@@ -1434,10 +1434,19 @@ final class TelegramReplies {
         return "🔔 نسخة من تنبيه المندوب " + repName + ":\n\n" + text;
     }
 
-    /** The file a rep's app shares ("📤 إرسال للمسؤول" in rep mode): starnet-device-....json. */
+    /** A file a rep's app shares: a device ("📤 إرسال للمسؤول", starnet-device-....json) or all
+     * his recordings ("📤 إرسال تسجيلاتي", starnet-changes-....json). */
     static boolean isDeviceFile(String fileName) {
-        return fileName != null && fileName.toLowerCase(java.util.Locale.ROOT).startsWith("starnet-device-");
+        if (fileName == null) return false;
+        String name = fileName.toLowerCase(java.util.Locale.ROOT);
+        return name.startsWith("starnet-device-") || name.startsWith("starnet-changes-");
     }
+
+    static boolean isChangesFile(String fileName) {
+        return fileName != null && fileName.toLowerCase(java.util.Locale.ROOT).startsWith("starnet-changes-");
+    }
+
+    static final String CHANGES_RECEIVED = "📥 وصلت تسجيلاتك - تُثبَّت عند المسؤول عندما يفتح التطبيق، ثم تصلك نسخة جديدة.";
 
     static final String DEVICE_RECEIVED = "📥 وصل ملف الجهاز - بانتظار موافقة المسؤول.\nاضغط «✅ وصل» في تطبيقك لحذف الجلسة من هاتفك.";
 
@@ -1445,6 +1454,10 @@ final class TelegramReplies {
     static Reply deviceFile(String repId, String fileName, Snapshot s) {
         Map<String, String> mine = s != null ? s.reps.get(repId) : null;
         String repName = mine != null && mine.get("name") != null ? mine.get("name") : "";
+        if (isChangesFile(fileName)) {
+            String changes = "📥 المندوب " + repName + " أرسل تسجيلاته (دفعات، أجهزة، زبائن) - تُثبَّت عند فتح التطبيق.";
+            return new Reply(CHANGES_RECEIVED, true, changes, s != null ? s.repKeyboard : null);
+        }
         String notice = "📥 المندوب " + repName + " أرسل جهازاً جديداً مع دخوله إلى Starlink - وافق عليه من صفحة المندوبين في التطبيق.";
         return new Reply(DEVICE_RECEIVED, true, notice, s != null ? s.repKeyboard : null);
     }

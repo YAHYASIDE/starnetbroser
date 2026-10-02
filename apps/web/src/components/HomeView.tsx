@@ -2,6 +2,7 @@
 
 import { isRepWorkspace } from "@/lib/repMode";
 import { currentRepPending } from "@/lib/repWorkspace";
+import { loadRepChangesSent, shareRepChanges, type RepChangesSent } from "@/lib/repChangesSend";
 import { CSSProperties, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -399,6 +400,9 @@ export function HomeView({
   // 📱 On a rep's phone: devices with something he recorded that the operator hasn't confirmed.
   const [repPendingIds, setRepPendingIds] = useState<Set<string>>(() => new Set());
   const [repWorkspace, setRepWorkspace] = useState(false);
+  const [repPendingCount, setRepPendingCount] = useState(0);
+  const [repSent, setRepSent] = useState<RepChangesSent | null>(null);
+  const [repSending, setRepSending] = useState(false);
 
   function handleUpsertCurrency(input: UpsertCurrencyInput) {
     const next = upsertCurrency(currencyStore, input);
@@ -456,7 +460,12 @@ export function HomeView({
   useEffect(() => {
     const rep = isRepWorkspace();
     setRepWorkspace(rep);
-    if (rep) setRepPendingIds(currentRepPending().accountIds);
+    if (rep) {
+      const pending = currentRepPending();
+      setRepPendingIds(pending.accountIds);
+      setRepPendingCount(pending.count);
+      setRepSent(loadRepChangesSent());
+    }
   }, [accounts, ledgerStore]);
   // 🚨 وضع المحيط: devices with the maritime switch ON. The full-screen alarm comes back on every
   // app open, and for any device that newly turns ON, until Starlink reads it OFF.
@@ -503,6 +512,9 @@ export function HomeView({
   useEffect(() => {
     const reload = () => {
       setClientStore(loadClientStore());
+      // A rep's «تسجيلاتي» (repChangesApply.ts) also adds operations.
+      setLedgerStore(loadLedgerStore());
+      setAllocationStore(loadAllocationStore());
       if (dataStateRef.current === "demo") setAccounts(loadDemoAccounts(demoAccounts));
     };
     window.addEventListener(ACCOUNTS_CHANGED_EVENT, reload);
@@ -1294,6 +1306,31 @@ export function HomeView({
             <small>دفعات أو زبائن جدد أرسلوها من تيليغرام - اضغط للمراجعة</small>
           </span>
         </Link>
+      )}
+
+      {repWorkspace && repPendingCount > 0 && (
+        <button
+          type="button"
+          className="rep-send-banner"
+          disabled={repSending}
+          onClick={async () => {
+            setRepSending(true);
+            const result = await shareRepChanges();
+            setRepSending(false);
+            if (result.ok) setRepSent(loadRepChangesSent());
+            else pushToast(result.message);
+          }}
+        >
+          <span aria-hidden="true">📤</span>
+          <span>
+            <strong>{repSending ? "⏳ جارِ التجهيز…" : `إرسال تسجيلاتي للمسؤول (${repPendingCount})`}</strong>
+            <small>
+              {repSent
+                ? `أُرسلت ${repSent.at.slice(0, 16).replace("T", " ")} - تختفي ⏳ عندما تصلك النسخة الجديدة`
+                : "دفعاتك وأجهزتك وزبائنك الجدد - اختر تيليغرام ثم بوت المندوبين"}
+            </small>
+          </span>
+        </button>
       )}
 
       {!repWorkspace && isBackupOverdue(lastBackupAt, 2) && (

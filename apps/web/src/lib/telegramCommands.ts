@@ -35,6 +35,8 @@ import {
 import { devicesHelp, devicesKeyboard, isMoneyKind, moneyRedirectText, REP_BOOK_HINT, REP_HANDOVER_HINT, repHandoverReceivedText, REP_LOAN_HINT, type RepBot } from "./repBots";
 import { buildReplySnapshot } from "./telegramReplies";
 import { deviceDisplayName, readRepDeviceFile, repDeviceCode } from "./repDeviceTransfer";
+import { isRepChangesFileName } from "./repChanges";
+import { receiveRepChanges } from "./repChangesApply";
 import { cardText, forecastText, goalsText, healthText, lapsedText, planText, promisesText } from "./ownerInsightsText";
 import { addPromise, loadPromises, savePromises } from "./paymentPromises";
 import { parseRepPromise, REP_PROMISE_HINT, repOpenPromises, repPromisesText } from "./repPromises";
@@ -213,7 +215,8 @@ export async function answerRepMessage(message: TelegramPollMessage, alreadyRepl
   const rep = loadRepresentativeStore()[repId];
   if (!rep) return;
   if (message.fileId) {
-    await handleRepDeviceFile(repId, rep, message.fileId, alreadyReplied);
+    if (isRepChangesFileName(message.fileName)) await handleRepChangesFile(repId, rep, message.fileId);
+    else await handleRepDeviceFile(repId, rep, message.fileId, alreadyReplied);
     return;
   }
   const command = parseRepCommand(message.text);
@@ -281,6 +284,21 @@ async function handleRepDeviceFile(repId: string, rep: Representative, fileId: s
   if (!alreadyReplied) {
     await sendRepText(repId, REP_DEVICE_RECEIVED);
     await sendTelegramText(`📥 المندوب ${rep.name} أرسل جهازاً جديداً مع دخوله إلى Starlink${details.name ? ` (${details.name})` : ""} - وافق عليه من صفحة المندوبين في التطبيق.`);
+  }
+}
+
+/** 📤 «تسجيلاتي» from the rep's full app: applied straight away (lib/repChangesApply.ts), which
+ * also tells him and the operator and sends him a fresh copy. */
+async function handleRepChangesFile(repId: string, rep: Representative, fileId: string): Promise<void> {
+  const text = await downloadRepFile(fileId);
+  if (!text) {
+    await sendTelegramText(`⚠️ لم أتمكن من تنزيل ملف تسجيلات المندوب ${rep.name} - اطلب منه إعادة الإرسال.`);
+    return;
+  }
+  const result = await receiveRepChanges(text, repId);
+  if (!result.ok) {
+    await sendTelegramText(`⚠️ تسجيلات المندوب ${rep.name}: ${result.message}`);
+    await sendRepText(repId, `⚠️ لم تُثبَّت تسجيلاتك: ${result.message}`);
   }
 }
 

@@ -11189,3 +11189,39 @@ button.today-tile {
   font-weight: 800;
   white-space: nowrap;
 }
+
+/* 📤 «إرسال تسجيلاتي» on the rep's home (repChangesSend.ts). */
+.rep-send-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--violet);
+  border-radius: var(--radius-md);
+  background: var(--violet-bg);
+  color: var(--text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.rep-send-banner > span:first-child {
+  font-size: 1.4rem;
+}
+
+.rep-send-banner strong {
+  display: block;
+  color: var(--violet);
+  font-size: 0.9rem;
+}
+
+.rep-send-banner small {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}
+
+.rep-send-banner:disabled {
+  opacity: 0.7;
+}

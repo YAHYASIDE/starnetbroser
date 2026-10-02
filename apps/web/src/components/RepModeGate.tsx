@@ -8,6 +8,8 @@ import { applyRepCopyText, REP_WORKSPACE_EVENT } from "@/lib/repCopyApply";
 import { loadRepMode, REP_MODE_EVENT, type RepModeSettings } from "@/lib/repDeviceTransfer";
 import { exitRepMode, isRepAllowedPath, REP_SENDER_EVENT } from "@/lib/repMode";
 import { hasRepWorkspace } from "@/lib/repWorkspace";
+import { repChangesFileRep } from "@/lib/repChanges";
+import { receiveRepChanges } from "@/lib/repChangesApply";
 import { RepModeView } from "./RepModeView";
 
 const MESSAGE_KEY = "starnet.repCopyMessage";
@@ -37,7 +39,14 @@ export function RepModeGate({ children }: { children: ReactNode }) {
       window.removeEventListener(REP_SENDER_EVENT, openSender);
     };
   }, []);
-  if (!mode) return <>{children}</>;
+  if (!mode) {
+    return (
+      <>
+        <RepChangesListener />
+        {children}
+      </>
+    );
+  }
   if (!workspace || sender) {
     return <RepModeView settings={mode} onExit={exitRepMode} onBack={workspace ? () => setSender(false) : undefined} />;
   }
@@ -101,6 +110,40 @@ function RepCopyListener({ code }: { code: string }) {
   useEffect(() => {
     if (!message) return;
     const t = window.setTimeout(() => setMessage(null), 5000);
+    return () => window.clearTimeout(t);
+  }, [message]);
+
+  if (!message) return null;
+  return (
+    <div className="rep-copy-banner" role="status" onClick={() => setMessage(null)}>
+      {message}
+    </div>
+  );
+}
+
+/** 📥 On the operator's phone: a rep's «تسجيلاتي» file opened with STAR NET (sent by WhatsApp
+ * instead of the bot) is applied like one from the bot. */
+function RepChangesListener() {
+  const [message, setMessage] = useState<string | null>(null);
+  const check = useCallback(async () => {
+    const text = await takeSharedFile();
+    if (!text || !repChangesFileRep(text)) return;
+    setMessage("⏳ جارِ تثبيت تسجيلات المندوب…");
+    setMessage((await receiveRepChanges(text)).message);
+  }, []);
+
+  useEffect(() => {
+    void check();
+    const handles: Array<Promise<{ remove: () => Promise<void> }>> = [];
+    if (isRunningInAndroidApp()) handles.push(App.addListener("resume", () => void check()));
+    return () => {
+      for (const h of handles) void h.then((x) => x.remove());
+    };
+  }, [check]);
+
+  useEffect(() => {
+    if (!message || message.startsWith("⏳")) return;
+    const t = window.setTimeout(() => setMessage(null), 6000);
     return () => window.clearTimeout(t);
   }, [message]);
 

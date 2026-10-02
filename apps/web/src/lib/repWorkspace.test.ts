@@ -69,6 +69,23 @@ describe("rebase on a new copy (rep side)", () => {
     expect(Object.keys(merged[LEDGER_KEY] as object)).toEqual(["a1"]);
   });
 
+  it("what the operator took in (from «تسجيلاتي») is his version and no longer pending", () => {
+    const current = {
+      ...base,
+      [ACCOUNTS_KEY]: [acc("a1"), acc("a2"), acc("a9", { clientId: "c1" })],
+      [LEDGER_KEY]: { a1: [entry("e1", 100), entry("p1", 50)], a2: [] },
+    };
+    const next = {
+      ...base,
+      [ACCOUNTS_KEY]: [acc("a1"), acc("a2"), acc("a9", { clientId: "c1", representativeId: "r1" })],
+      [LEDGER_KEY]: { a1: [entry("e1", 100), { ...entry("p1", 50), heldByRepId: "r1" }], a2: [] },
+    };
+    const merged = rebaseWorkspace(current, base, next);
+    expect(merged[LEDGER_KEY]).toEqual(next[LEDGER_KEY]);
+    expect(merged[ACCOUNTS_KEY]).toEqual(next[ACCOUNTS_KEY]);
+    expect(repPending(merged, next).count).toBe(0);
+  });
+
   it("the first copy is taken as it is", () => {
     expect(rebaseWorkspace({}, null, base)).toEqual(base);
   });

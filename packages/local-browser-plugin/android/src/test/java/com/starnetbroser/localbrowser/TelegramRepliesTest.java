@@ -261,6 +261,17 @@ public class TelegramRepliesTest {
     }
 
     @Test
+    public void changesFileFromARep() {
+        assertTrue(TelegramReplies.isDeviceFile("starnet-changes-r1-1000.json"));
+        assertTrue(TelegramReplies.isChangesFile("starnet-changes-r1-1000.json"));
+        assertFalse(TelegramReplies.isChangesFile("starnet-device-ab12.json"));
+        TelegramReplies.Reply reply = TelegramReplies.deviceFile("r1", "starnet-changes-r1-1000.json", snapshot());
+        assertEquals(TelegramReplies.CHANGES_RECEIVED, reply.text);
+        assertTrue(reply.toInbox);
+        assertTrue(reply.ownerNotice.contains("تسجيلاته"));
+    }
+
+    @Test
     public void normalizeMatchesTheApp() {
         assertEquals("احمد مكه 123", TelegramReplies.normalize("  أحمَد   مكة ١٢٣ "));
         assertEquals("\"a\\\"b\\nc\"", TelegramReplies.jsonString("a\"b\nc"));
