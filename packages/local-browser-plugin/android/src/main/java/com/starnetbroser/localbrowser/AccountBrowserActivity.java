@@ -316,6 +316,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
                     warnedWrongPassword = true;
                     autoLogin = false; // the right one is the operator's to type
                     Toast.makeText(this, "❌ كلمة المرور غير صحيحة - اكتب الصحيحة وسيحفظها التطبيق لهذا الجهاز بعد الدخول", Toast.LENGTH_LONG).show();
+                    AlertSound.play(AccountBrowserActivity.this);
                 }
             } else if (state != null && typedPassword != null && StarlinkLoginWatch.isSignedInUrl(webView.getUrl())) {
                 if (StarlinkLoginWatch.isNewPassword(typedPassword, savedLoginPassword)) {
@@ -352,9 +353,11 @@ public class AccountBrowserActivity extends AppCompatActivity {
         if (state.note.startsWith("stuck") && !autoWarned) {
             autoWarned = true;
             Toast.makeText(this, "⏸️ الصفحة لا تتقدم بعد الضغط - أكمل بنفسك وأرسل لقطة", Toast.LENGTH_LONG).show();
+            AlertSound.play(AccountBrowserActivity.this);
         } else if (++autoIdlePolls >= 8 && !autoWarned) {
             autoWarned = true;
             Toast.makeText(this, "🧪 لم أضغط شيئاً - أرى: " + StarlinkLoginWatch.describe(state, url), Toast.LENGTH_LONG).show();
+            AlertSound.play(AccountBrowserActivity.this);
         }
     }
 
@@ -389,6 +392,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
         if (autoFills >= MAX_AUTO_FILLS) {
             autoCodeOff = true;
             Toast.makeText(this, "جُرّب الرمز " + MAX_AUTO_FILLS + " مرات - أدخله بنفسك من «📧 البريد»", Toast.LENGTH_LONG).show();
+            AlertSound.play(AccountBrowserActivity.this);
             return;
         }
         final SharedPreferences prefs = getSharedPreferences(TRIED_CODES_PREFS, MODE_PRIVATE);
@@ -412,6 +416,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
                     autoCodeOff = true;
                     autoCodeWaitsForMail = true;
                     Toast.makeText(AccountBrowserActivity.this, "📧 سجّل الدخول في «البريد» مرة واحدة ليُدخل التطبيق الرمز تلقائياً", Toast.LENGTH_LONG).show();
+                    AlertSound.play(AccountBrowserActivity.this);
                 }
 
                 @Override
@@ -420,6 +425,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
                     autoCodeOff = true;
                     autoCodeWaitsForMail = true;
                     Toast.makeText(AccountBrowserActivity.this, "لم يصل رمز جديد إلى البريد - افتح «📧 البريد»", Toast.LENGTH_LONG).show();
+                    AlertSound.play(AccountBrowserActivity.this);
                 }
             };
             codeFetcher = new MailCodeFetcher(this, accountId, mailEmail, prefs.getString(accountId, ""), listener);

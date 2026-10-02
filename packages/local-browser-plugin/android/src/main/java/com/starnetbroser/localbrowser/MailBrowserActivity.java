@@ -300,6 +300,7 @@ public class MailBrowserActivity extends AppCompatActivity {
                 if (!warnedNotLinked) {
                     warnedNotLinked = true;
                     Toast.makeText(this, "📨 اربط «بريد الرموز» من الإعدادات ليُكتب رمز التحقق وحده", Toast.LENGTH_LONG).show();
+                    AlertSound.play(MailBrowserActivity.this);
                 }
                 codeWaitDone = true;
                 return;
@@ -323,6 +324,7 @@ public class MailBrowserActivity extends AppCompatActivity {
                     gmailFetcher = null;
                     codeWaitDone = true;
                     Toast.makeText(MailBrowserActivity.this, "📨 Gmail الرموز غير مربوط بهذا الحساب - اربطه من الإعدادات", Toast.LENGTH_LONG).show();
+                    AlertSound.play(MailBrowserActivity.this);
                 }
 
                 @Override
@@ -330,6 +332,7 @@ public class MailBrowserActivity extends AppCompatActivity {
                     gmailFetcher = null;
                     codeWaitDone = true;
                     Toast.makeText(MailBrowserActivity.this, "📨 لم يصل رمز خلال 3 دقائق - اطلبه من جديد", Toast.LENGTH_LONG).show();
+                    AlertSound.play(MailBrowserActivity.this);
                 }
             });
             gmailFetcher.start();
@@ -363,6 +366,7 @@ public class MailBrowserActivity extends AppCompatActivity {
                 boolean nothingSaved = savedPassword == null || savedPassword.isEmpty();
                 if (state.wrongPassword && !offeredForWrong) {
                     offeredForWrong = true;
+                    AlertSound.play(this);
                     if (suggestions.length > 0) offerPasswords("❌ كلمة المرور غير صحيحة - اختر غيرها");
                     else Toast.makeText(this, "❌ كلمة المرور غير صحيحة - اكتب الصحيحة وتُحفظ بعد الدخول", Toast.LENGTH_LONG).show();
                 } else if (state.password.isEmpty() && !nothingSaved && !state.wrongPassword && !directFillTried) {
@@ -376,6 +380,7 @@ public class MailBrowserActivity extends AppCompatActivity {
                     else if (!warnedNothingSaved) {
                         warnedNothingSaved = true;
                         Toast.makeText(this, "🔑 لا «كود بريد» محفوظ لهذا الجهاز - اكتبه، ويُحفظ وحده بعد الدخول", Toast.LENGTH_LONG).show();
+                        AlertSound.play(MailBrowserActivity.this);
                     }
                 }
             } else if (state != null) {
@@ -452,6 +457,7 @@ public class MailBrowserActivity extends AppCompatActivity {
     private void stopAuto(String message) {
         autoStopped = true;
         Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+        AlertSound.play(this);
     }
 
     /** The suggestions as a list (shown as written, like «كلمات المرور المستعملة»); the picked one
