@@ -51,6 +51,20 @@ public class GmailCodesTest {
     }
 
     @Test
+    public void readsStarlinksCodeFromADevicesGmail() {
+        String json = message(2000, "Starlink <no-reply@starlink.com>", "Your Starlink verification code", "",
+            "text/plain", "Your verification code is 481203. It expires in 10 minutes.");
+        assertEquals("481203", GmailCodes.starlinkCodeIn(json, 1000));
+        assertNull(GmailCodes.starlinkCodeIn(json, 3000)); // older than the sign-in
+        // Microsoft's own code is not Starlink's - and Starlink's is not «بريد الرموز»'s.
+        assertNull(GmailCodes.starlinkCodeIn(message(2000, "Microsoft account security code", "", "text/plain", "Security code: 4791"), 1000));
+        assertNull(GmailCodes.codeIn(json, 1000));
+        assertTrue(GmailCodes.isStarlinkSender("SpaceX <noreply@spacex.com>"));
+        assertFalse(GmailCodes.isStarlinkSender("alerts@demo-bank.example"));
+        assertTrue(GmailCodes.starlinkListUrl().contains("starlink.com"));
+    }
+
+    @Test
     public void readsTheCodeFromAnHtmlOnlyMessage() {
         String json = message(2000, "Verify your email address", "", "text/html",
             "<html><body><p>Your single-use code is:</p><p><b>583120</b></p><p>Thanks</p></body></html>");

@@ -225,6 +225,26 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
     throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
   }
 
+  async linkDeviceGmail(_options: { email: string }): Promise<{ email: string }> {
+    throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
+  }
+
+  async deviceGmailStatus(): Promise<{ emails: string[] }> {
+    return { emails: [] };
+  }
+
+  async unlinkDeviceGmail(_options: { email: string }): Promise<void> {
+    return;
+  }
+
+  async latestDeviceGmailCode(_options: { email: string }): Promise<{ code?: string }> {
+    throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
+  }
+
+  async openAddGoogleAccount(): Promise<void> {
+    throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
+  }
+
   async kastSetDevices(_options: { devices: KastDevice[] }): Promise<void> {
     return;
   }

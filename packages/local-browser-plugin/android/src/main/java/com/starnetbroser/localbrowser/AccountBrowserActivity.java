@@ -589,9 +589,11 @@ public class AccountBrowserActivity extends AppCompatActivity {
 
     private void startCodeFetch() {
         String mailEmail = getIntent().getStringExtra(EXTRA_LOGIN_EMAIL);
-        if (MailUrl.providerFor(mailEmail) == MailUrl.Provider.GMAIL) {
-            // Gmail can't be read inside the app - its code is typed by hand.
+        final boolean gmail = MailUrl.providerFor(mailEmail) == MailUrl.Provider.GMAIL;
+        if (gmail && !GmailCodeFetcher.isDeviceLinked(this, mailEmail)) {
+            // Gmail can't be opened inside the app: read through Google once it's linked («📧 Gmail»).
             autoCodeOff = true;
+            Toast.makeText(this, "📧 اربط Gmail هذا الجهاز من زر «📧 Gmail» في البطاقة ليُدخل التطبيق الرمز تلقائياً", Toast.LENGTH_LONG).show();
             return;
         }
         if (autoFills >= MAX_AUTO_FILLS) {
@@ -620,7 +622,9 @@ public class AccountBrowserActivity extends AppCompatActivity {
                     codeFetcher = null;
                     autoCodeOff = true;
                     autoCodeWaitsForMail = true;
-                    Toast.makeText(AccountBrowserActivity.this, "📧 سجّل الدخول في «البريد» مرة واحدة ليُدخل التطبيق الرمز تلقائياً", Toast.LENGTH_LONG).show();
+                    Toast.makeText(AccountBrowserActivity.this, gmail
+                        ? "📧 لم يسمح Google بقراءة Gmail - أعد ربطه من زر «📧 Gmail» في البطاقة"
+                        : "📧 سجّل الدخول في «البريد» مرة واحدة ليُدخل التطبيق الرمز تلقائياً", Toast.LENGTH_LONG).show();
                     AlertSound.play(AccountBrowserActivity.this);
                 }
 
@@ -629,11 +633,16 @@ public class AccountBrowserActivity extends AppCompatActivity {
                     codeFetcher = null;
                     autoCodeOff = true;
                     autoCodeWaitsForMail = true;
-                    Toast.makeText(AccountBrowserActivity.this, "لم يصل رمز جديد إلى البريد - افتح «📧 البريد»", Toast.LENGTH_LONG).show();
+                    Toast.makeText(AccountBrowserActivity.this, gmail
+                        ? "لم يصل رمز جديد إلى Gmail - اطلب رمزاً جديداً من Starlink"
+                        : "لم يصل رمز جديد إلى البريد - افتح «📧 البريد»", Toast.LENGTH_LONG).show();
                     AlertSound.play(AccountBrowserActivity.this);
                 }
             };
-            codeFetcher = new MailCodeFetcher(this, accountId, mailEmail, prefs.getString(accountId, ""), listener);
+            codeFetcher = gmail
+                // Codes of the last 10 minutes only - an older one is long expired.
+                ? new GmailCodeFetcher(this, mailEmail, System.currentTimeMillis() - 10L * 60 * 1000, prefs.getString(accountId, ""), listener)
+                : new MailCodeFetcher(this, accountId, mailEmail, prefs.getString(accountId, ""), listener);
         } catch (RuntimeException e) {
             codeFetcher = null;
             autoCodeOff = true;

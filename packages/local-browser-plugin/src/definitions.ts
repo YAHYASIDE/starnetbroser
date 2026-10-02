@@ -613,6 +613,25 @@ export interface LocalBrowserPlugin {
   /** The newest code of the last day in the linked Gmail (no `code` when none) - «🔍 جرّب». */
   latestGmailCode(): Promise<{ code?: string }>;
 
+  /**
+   * 📧 A device's own Gmail, linked read-only through Google's screen (the account must be on the
+   * phone). Starlink's sign-in then types that device's two-step code by itself. Rejects with code
+   * "DRIVE_AUTH_FAILED" when Google can't use the account (mostly: not on the phone yet).
+   */
+  linkDeviceGmail(options: { email: string }): Promise<{ email: string }>;
+
+  /** The devices' Gmail addresses linked on this phone. */
+  deviceGmailStatus(): Promise<{ emails: string[] }>;
+
+  unlinkDeviceGmail(options: { email: string }): Promise<void>;
+
+  /** The newest Starlink code of the last day in a linked device Gmail (no `code` when none);
+   * rejects with "NOT_LINKED" when Google no longer allows reading it. */
+  latestDeviceGmailCode(options: { email: string }): Promise<{ code?: string }>;
+
+  /** Android's own «إضافة حساب Google» screen. */
+  openAddGoogleAccount(): Promise<void>;
+
   /** 💳 KAST card mail (read from the linked Gmail every hour, even with the app closed): the
    * devices' expected Starlink amounts and cards, to guess which device a refused payment was
    * (the Telegram alert). Also starts the hourly check. */

@@ -276,6 +276,65 @@ export async function unlinkGmailCodes(): Promise<void> {
   if (isRunningInAndroidApp()) await LocalBrowser.unlinkGmailCodes().catch(() => undefined);
 }
 
+// ---- 📧 a device's own Gmail (Starlink's codes, read through Google) ----
+
+let linkedDeviceGmails: Promise<Set<string>> | null = null;
+
+/** The devices' Gmail addresses linked on this phone (asked once, refreshed after a change). */
+export function deviceGmailLinked(): Promise<Set<string>> {
+  if (!isRunningInAndroidApp()) return Promise.resolve(new Set());
+  linkedDeviceGmails ??= LocalBrowser.deviceGmailStatus()
+    .then((r) => new Set(r.emails.map((e) => e.toLowerCase())))
+    .catch(() => new Set<string>());
+  return linkedDeviceGmails;
+}
+
+export type DeviceGmailLinkResult = { ok: true } | { ok: false; notOnPhone: boolean; message: string };
+
+export async function linkDeviceGmail(email: string): Promise<DeviceGmailLinkResult> {
+  if (!isRunningInAndroidApp()) return { ok: false, notOnPhone: false, message: ANDROID_ONLY_MESSAGE };
+  try {
+    await LocalBrowser.linkDeviceGmail({ email: email.trim() });
+    linkedDeviceGmails = null;
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "تعذر ربط Gmail";
+    // DRIVE_AUTH_FAILED: Google couldn't use that account - mostly it isn't on the phone yet.
+    const code = (err as { code?: string } | null)?.code;
+    return { ok: false, notOnPhone: code === "DRIVE_AUTH_FAILED", message };
+  }
+}
+
+export async function unlinkDeviceGmail(email: string): Promise<void> {
+  if (!isRunningInAndroidApp()) return;
+  await LocalBrowser.unlinkDeviceGmail({ email }).catch(() => undefined);
+  linkedDeviceGmails = null;
+}
+
+/** The newest Starlink code of the last day in a linked device Gmail. `notLinked`: Google no
+ * longer allows reading it (link it again). */
+export async function latestDeviceGmailCode(
+  email: string,
+): Promise<{ ok: true; code: string | null } | { ok: false; notLinked: boolean; message: string }> {
+  if (!isRunningInAndroidApp()) return { ok: false, notLinked: false, message: ANDROID_ONLY_MESSAGE };
+  try {
+    return { ok: true, code: (await LocalBrowser.latestDeviceGmailCode({ email })).code ?? null };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "تعذر القراءة من Gmail";
+    return { ok: false, notLinked: message === "NOT_LINKED", message };
+  }
+}
+
+export async function openAddGoogleAccount(): Promise<{ ok: true } | { ok: false; message: string }> {
+  if (!isRunningInAndroidApp()) return { ok: false, message: ANDROID_ONLY_MESSAGE };
+  try {
+    await LocalBrowser.openAddGoogleAccount();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : "افتح إعدادات الهاتف ← الحسابات ← إضافة حساب ← Google" };
+  }
+}
+
 /** «🔍 جرّب»: the newest code of the last day, or a message saying why there is none. */
 export async function latestGmailCode(): Promise<{ ok: true; code: string | null } | { ok: false; message: string }> {
   if (!isRunningInAndroidApp()) return { ok: false, message: ANDROID_ONLY_MESSAGE };

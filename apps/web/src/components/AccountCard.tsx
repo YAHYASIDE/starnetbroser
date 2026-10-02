@@ -33,6 +33,7 @@ import {
   buildWhatsAppLink,
 } from "@/lib/whatsapp";
 import { DeviceFaultDialog } from "./DeviceFaultDialog";
+import { DeviceGmailButton } from "./DeviceGmailButton";
 import { useCardGestures } from "./useCardGestures";
 import { RenewalConfirmDialog } from "./RenewalConfirmDialog";
 import { PreviousDebtDialog } from "./PreviousDebtDialog";
@@ -680,6 +681,7 @@ export function AccountCard({
         >
           <span aria-hidden="true">↗</span> {opening ? "جارِ الفتح…" : "فتح الحساب"}
         </button>
+        {isGmail(mailLoginFor(account).email) && isAndroidApp && <DeviceGmailButton email={mailLoginFor(account).email ?? ""} disabled={opening} />}
         {!isGmail(mailLoginFor(account).email) && (
           <button
             className={`card-action card-action-mail${mailSignedIn ? " card-action-mail-on" : ""}`}

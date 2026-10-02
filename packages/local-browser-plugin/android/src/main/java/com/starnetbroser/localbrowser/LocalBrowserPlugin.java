@@ -221,6 +221,101 @@ public class LocalBrowserPlugin extends Plugin {
         call.resolve();
     }
 
+    // ---- 📧 a device's own Gmail (Starlink's codes) ----
+
+    /** Links one device's Gmail (read-only), through Google's own screen - the account must be on
+     * the phone (Settings → Accounts), which Google's own pages add safely. */
+    @PluginMethod
+    public void linkDeviceGmail(PluginCall call) {
+        String email = call.getString("email", "").trim().toLowerCase(java.util.Locale.ROOT);
+        if (email.isEmpty()) {
+            call.reject("لا يوجد بريد Gmail لهذا الجهاز");
+            return;
+        }
+        driveAuthorizer.authorize(getActivity(), GmailCodes.SCOPE, email, true, "يلزم ربط Gmail", new DriveAuthorizer.TokenCallback() {
+            @Override
+            public void onToken(String token) {
+                telegramExecutor.execute(() -> {
+                    try {
+                        String account = GmailCodes.profileEmail(GmailCodeFetcher.get(GmailCodes.PROFILE_URL, token));
+                        if (!email.equals(account)) {
+                            call.reject("اخترت حساباً آخر (" + account + ") - اختر " + email);
+                            return;
+                        }
+                        GmailCodeFetcher.setDeviceLinked(getContext(), email, true);
+                        JSObject ret = new JSObject();
+                        ret.put("email", email);
+                        call.resolve(ret);
+                    } catch (java.io.IOException ex) {
+                        call.reject(gmailError(ex));
+                    }
+                });
+            }
+
+            @Override
+            public void onError(String message, String code) {
+                // DRIVE_AUTH_FAILED: mostly an account Google can't find on this phone.
+                call.reject(message, code);
+            }
+        });
+    }
+
+    /** The devices' Gmail addresses linked on this phone. */
+    @PluginMethod
+    public void deviceGmailStatus(PluginCall call) {
+        JSObject ret = new JSObject();
+        JSArray emails = new JSArray();
+        for (String email : GmailCodeFetcher.linkedDevices(getContext())) emails.put(email);
+        ret.put("emails", emails);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void unlinkDeviceGmail(PluginCall call) {
+        GmailCodeFetcher.setDeviceLinked(getContext(), call.getString("email", ""), false);
+        call.resolve();
+    }
+
+    /** «📧 Gmail» on a card: the newest Starlink code of the last day in that device's Gmail. */
+    @PluginMethod
+    public void latestDeviceGmailCode(PluginCall call) {
+        String email = call.getString("email", "").trim().toLowerCase(java.util.Locale.ROOT);
+        DriveAuthorizer.authorizeSilently(getActivity(), GmailCodes.SCOPE, email, new DriveAuthorizer.TokenCallback() {
+            @Override
+            public void onToken(String token) {
+                telegramExecutor.execute(() -> {
+                    try {
+                        String code = GmailCodeFetcher.newestStarlinkCode(token, System.currentTimeMillis() - 24L * 60 * 60 * 1000, null);
+                        JSObject ret = new JSObject();
+                        if (code != null) ret.put("code", code); // absent = no Starlink code today
+                        call.resolve(ret);
+                    } catch (java.io.IOException ex) {
+                        call.reject(gmailError(ex));
+                    }
+                });
+            }
+
+            @Override
+            public void onError(String message, String code) {
+                call.reject("NOT_LINKED", code);
+            }
+        });
+    }
+
+    /** Android's own «إضافة حساب Google» screen (Google's sign-in, not the app's). */
+    @PluginMethod
+    public void openAddGoogleAccount(PluginCall call) {
+        try {
+            android.content.Intent intent = new android.content.Intent(android.provider.Settings.ACTION_ADD_ACCOUNT);
+            intent.putExtra(android.provider.Settings.EXTRA_ACCOUNT_TYPES, new String[] {"com.google"});
+            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("افتح إعدادات الهاتف ← الحسابات ← إضافة حساب ← Google");
+        }
+    }
+
     /** «🔍 جرّب»: the newest code of the last day in the linked Gmail (no `code` when none). */
     @PluginMethod
     public void latestGmailCode(PluginCall call) {

@@ -38,6 +38,54 @@ final class GmailCodes {
         }
     }
 
+    // ---- 📧 a device's own Gmail: Starlink's two-step codes ----
+
+    /** Starlink's own messages of the last day (its codes come from starlink.com / spacex.com). */
+    static final String STARLINK_QUERY = "newer_than:1d (from:starlink.com OR from:spacex.com)";
+
+    static String starlinkListUrl() {
+        try {
+            return MESSAGES_URL + "?maxResults=5&q=" + URLEncoder.encode(STARLINK_QUERY, StandardCharsets.UTF_8.name());
+        } catch (java.io.UnsupportedEncodingException e) {
+            return MESSAGES_URL + "?maxResults=5";
+        }
+    }
+
+    static boolean isStarlinkSender(String from) {
+        if (from == null) return false;
+        String lower = from.toLowerCase(Locale.ROOT);
+        return lower.contains("starlink.com") || lower.contains("spacex.com");
+    }
+
+    /** Starlink's code in one message (format=full) received at or after `sinceMs`, or null. Only a
+     * message from Starlink counts. */
+    static String starlinkCodeIn(String messageJson, long sinceMs) {
+        try {
+            JSONObject message = new JSONObject(messageJson);
+            if (message.optLong("internalDate", 0) < sinceMs) return null;
+            StringBuilder text = new StringBuilder();
+            JSONObject payload = message.optJSONObject("payload");
+            boolean fromStarlink = false;
+            if (payload != null) {
+                JSONArray headers = payload.optJSONArray("headers");
+                if (headers != null) {
+                    for (int i = 0; i < headers.length(); i++) {
+                        JSONObject h = headers.getJSONObject(i);
+                        String name = h.optString("name");
+                        if ("subject".equalsIgnoreCase(name)) text.append(h.optString("value")).append('\n');
+                        if ("from".equalsIgnoreCase(name)) fromStarlink = isStarlinkSender(h.optString("value"));
+                    }
+                }
+            }
+            if (!fromStarlink) return null;
+            text.append(message.optString("snippet", "")).append('\n');
+            if (payload != null) appendBody(payload, text);
+            return MailCode.find(text.toString());
+        } catch (JSONException e) {
+            return null;
+        }
+    }
+
     static String messageUrl(String id) {
         return MESSAGES_URL + "/" + id + "?format=full";
     }
