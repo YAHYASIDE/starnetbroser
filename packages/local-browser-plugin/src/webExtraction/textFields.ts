@@ -26,6 +26,9 @@ export const RENEWAL_DATE_LABELS = [
   "ستتحول خدمتك",
   // The same banner on the English page: "Your current service will transition to Standby Mode on …".
   "service will transition",
+  // …and its other real, confirmed English wording: "Your current service will switch to Standby
+  // Mode on 10/3/2026." (screenshot) - missed before, so the card kept an old, wrong date.
+  "service will switch",
 ];
 
 /** These banners ("من المقرر أن تنتهي خدمتك في ..." / "ستتحول خدمتك الحالية إلى وضع الاستعداد في
@@ -44,7 +47,7 @@ export const RENEWAL_DATE_LABELS = [
  * proving the two states are NOT always mutually exclusive on a real page the way earlier code
  * assumed. Whenever a banner like this is present, it wins over a "standby" badge reading, since
  * it is the more specific, dated, and never-yet-applied signal (see extractStarlinkFields.ts). */
-export const SCHEDULED_END_BANNER_LABELS = ["scheduled to end", "service will transition", "تنتهي خدمتك", "ستتحول خدمتك"];
+export const SCHEDULED_END_BANNER_LABELS = ["scheduled to end", "service will transition", "service will switch", "تنتهي خدمتك", "ستتحول خدمتك"];
 
 export function hasScheduledEndBanner(lines: string[]): boolean {
   return lines.some((line) => containsAny(line, SCHEDULED_END_BANNER_LABELS));
@@ -197,7 +200,9 @@ export function extractRenewalBadgeDate(lines: string[]): string | undefined {
  * year at all (e.g. "تاريخ استحقاق الدفع: ٢٨ أغسطس.") since it describes a RECURRING monthly due
  * day, not a specific date. Deliberately returns only the bare day-of-month (1-31); combine with
  * nextOccurrenceOfDay to turn it into an actual date, rather than guessing a year from the text. */
-export const BILLING_DUE_DAY_LABELS = ["تاريخ استحقاق الدفع", "payment due date"];
+// "payment due date" before "payment due": the real English Billing page also says just "Payment
+// due September 3." (screenshot) - the longer label must win on a "Payment due date: …" line.
+export const BILLING_DUE_DAY_LABELS = ["تاريخ استحقاق الدفع", "payment due date", "payment due"];
 
 export function extractBillingDueDay(lines: string[]): number | undefined {
   const raw = extractLabeledValue(lines, BILLING_DUE_DAY_LABELS);

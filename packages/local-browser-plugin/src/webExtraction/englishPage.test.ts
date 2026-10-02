@@ -29,6 +29,8 @@ describe("English (United States) dates", () => {
   it("reads the Billing page's due day and the invoice list in English", () => {
     expect(extractBillingDueDay(["Payment due date: August 28."])).toBe(28);
     expect(extractBillingDueDay(["Payment due date", "Aug 5"])).toBe(5);
+    // Real wording on the Billing page: "Payment due September 3." (no "date").
+    expect(extractBillingDueDay(["Your billing period is September 3 - October 2.", "Payment due September 3."])).toBe(3);
     expect(extractSubscriptionInvoiceDueDay(["Paid", "Subscription", "Aug 24, 2026"])).toBe(24);
   });
 });
@@ -59,6 +61,17 @@ describe("English Home page", () => {
       <div>Your current service will transition to Standby Mode on 10/24/2026.</div>
     `);
     expect(fields.pendingCancellationDate).toBe("2026/10/24");
+  });
+
+  it("reads «will switch to Standby Mode» too, and the plan stays active (real wording)", () => {
+    const fields = read(`
+      <div>DEMO NAME • ACC-0000-0000-DEMO</div>
+      <div><div>Your current service will switch to Standby Mode on 10/3/2026.</div><button>Keep Current Service</button></div>
+      <div><p>Service Plan</p><span>Standby Mode Pending</span><button>Manage</button><p>Roam - Unlimited</p></div>
+    `);
+    expect(fields.renewalDate).toBe("2026/10/03");
+    expect(fields.pendingCancellationDate).toBe("2026/10/03");
+    expect(fields.serviceStatus).toBe("active");
   });
 });
 
