@@ -38,6 +38,11 @@ const TEMPLATES_KEY = "starnet_message_templates_v1";
 const PROFILE_KEY = "starnet_business_profile_v1";
 const REPS_KEY = "starnet_representatives_v1";
 const INVOICES_KEY = "starnet_store_invoices_v1";
+const SETTLEMENTS_KEY = "starnet_rep_settlements_v1";
+const REP_BOOK_KEY = "starnet_rep_book_v1";
+/** His share's operations on devices no longer his (moved, deleted): only the entries carrying
+ * his share, with the device's name - so «تقاريري» matches the operator's statement of him. */
+export const PAST_LEDGER_KEY = "starnet_rep_past_ledger_v1";
 
 export const REP_STORES: { key: string; shape: Shape }[] = [
   { key: ACCOUNTS_KEY, shape: "list" },
@@ -53,6 +58,10 @@ export const REP_STORES: { key: string; shape: Shape }[] = [
   { key: PROFILE_KEY, shape: "value" },
   { key: REPS_KEY, shape: "value" },
   { key: INVOICES_KEY, shape: "value" },
+  // 📊 «تقاريري»: his settlements with the operator and his customers' book - the operator's.
+  { key: SETTLEMENTS_KEY, shape: "value" },
+  { key: REP_BOOK_KEY, shape: "value" },
+  { key: PAST_LEDGER_KEY, shape: "value" },
 ];
 
 export type StoreValues = Record<string, unknown>;
@@ -87,8 +96,29 @@ export function repStoreSlice(stores: StoreValues, repId: string): StoreValues {
     [TEMPLATES_KEY]: stores[TEMPLATES_KEY] ?? null,
     [PROFILE_KEY]: stores[PROFILE_KEY] ?? null,
     [REPS_KEY]: reps[repId] ? { [repId]: reps[repId] } : {},
-    [INVOICES_KEY]: asList(stores[INVOICES_KEY]).filter((i) => i.clientId && clientIds.has(String(i.clientId))),
+    [INVOICES_KEY]: asList(stores[INVOICES_KEY]).filter((i) => i.representativeId === repId || (i.clientId && clientIds.has(String(i.clientId)))),
+    [SETTLEMENTS_KEY]: asList(stores[SETTLEMENTS_KEY]).filter((x) => x.representativeId === repId),
+    [REP_BOOK_KEY]: asList(stores[REP_BOOK_KEY]).filter((x) => x.repId === repId),
+    [PAST_LEDGER_KEY]: pastLedger(stores, accountIds, repId),
   };
+}
+
+export interface PastLedger {
+  ledger: Record<string, Rec[]>;
+  names: Record<string, string>;
+}
+
+function pastLedger(stores: StoreValues, current: Set<string>, repId: string): PastLedger {
+  const names = new Map(asList(stores[ACCOUNTS_KEY]).map((a) => [String(a.id), String(a.name ?? "")]));
+  const out: PastLedger = { ledger: {}, names: {} };
+  for (const [accountId, list] of Object.entries(asMap(stores[LEDGER_KEY]))) {
+    if (current.has(accountId)) continue;
+    const mine = asList(list).filter((e) => e.representativeId === repId);
+    if (mine.length === 0) continue;
+    out.ledger[accountId] = mine;
+    out.names[accountId] = names.get(accountId) || "جهاز سابق";
+  }
+  return out;
 }
 
 // ---- record-level compare / rebase ----
@@ -330,4 +360,10 @@ export function clearRepWorkspace(): void {
 
 export function currentRepPending(): RepPending {
   return repPending(readStores(), loadRepBase());
+}
+
+/** 📊 «تقاريري»: his share's operations on devices no longer his (null when none). */
+export function loadPastLedger(): PastLedger | null {
+  const value = readJson(PAST_LEDGER_KEY);
+  return isRec(value) && isRec(value.ledger) && isRec(value.names) ? (value as unknown as PastLedger) : null;
 }

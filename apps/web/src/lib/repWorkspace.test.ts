@@ -27,6 +27,28 @@ describe("rep slice (operator side)", () => {
   });
 });
 
+describe("rep slice for «تقاريري»", () => {
+  it("carries his settlements, his book, his store sales and his share on devices no longer his", () => {
+    const slice = repStoreSlice(
+      {
+        [ACCOUNTS_KEY]: [acc("a1", { representativeId: "r1" }), acc("old", { representativeId: "r2" })],
+        [LEDGER_KEY]: {
+          a1: [entry("e1", 1)],
+          old: [{ ...entry("s1", 5), representativeId: "r1" }, { ...entry("s2", 6), representativeId: "r2" }],
+        },
+        starnet_rep_settlements_v1: [{ id: "x1", representativeId: "r1" }, { id: "x2", representativeId: "r2" }],
+        starnet_rep_book_v1: [{ id: "b1", repId: "r1" }, { id: "b2", repId: "r2" }],
+        starnet_store_invoices_v1: [{ id: "i1", representativeId: "r1" }, { id: "i2", representativeId: "r2" }],
+      },
+      "r1",
+    );
+    expect((slice.starnet_rep_settlements_v1 as { id: string }[]).map((x) => x.id)).toEqual(["x1"]);
+    expect((slice.starnet_rep_book_v1 as { id: string }[]).map((x) => x.id)).toEqual(["b1"]);
+    expect((slice.starnet_store_invoices_v1 as { id: string }[]).map((x) => x.id)).toEqual(["i1"]);
+    expect(slice.starnet_rep_past_ledger_v1).toEqual({ ledger: { old: [{ ...entry("s1", 5), representativeId: "r1" }] }, names: { old: "جهاز old" } });
+  });
+});
+
 describe("rebase on a new copy (rep side)", () => {
   const base = {
     [ACCOUNTS_KEY]: [acc("a1"), acc("a2")],

@@ -50,6 +50,7 @@ export function BottomNav() {
     ? [
         { href: "/", label: "الرئيسية", icon: "home" },
         { href: "/clients", label: "الزبائن", icon: "people" },
+        { href: "/representatives", label: "تقاريري", icon: "chart" },
         { href: "/reminders", label: "التذكيرات", icon: "bell" },
         { href: "/tools", label: "الأدوات", icon: "tools" },
       ]
@@ -131,6 +132,7 @@ function repMoreItems(inApp: boolean): MoreItem[] {
 
 /** The rep's top «المزيد». */
 const REP_TOP_MORE_ITEMS: MoreItem[] = [
+  { label: "📊 تقاريري", icon: "chart", color: "#1668e3", tint: "#d6e3fb", href: "/representatives" },
   { label: "الأدوات والتوقعات", icon: "tools", color: "#8b5cf6", tint: "#ece4ff", href: "/tools" },
   { label: "العملات", icon: "coins", color: "#22c55e", tint: "#d4f7e1", href: "/currencies" },
   { label: "البريد المسجّل", icon: "mail", color: "#0891b2", tint: "#dbf3f9", href: "/mailboxes" },

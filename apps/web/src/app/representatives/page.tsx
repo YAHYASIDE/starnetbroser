@@ -75,6 +75,8 @@ import { demoAccounts } from "@/lib/demoData";
 import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
 import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
 import { ACCOUNTS_CHANGED_EVENT } from "@/lib/repMenuRecords";
+import { isRepWorkspace } from "@/lib/repMode";
+import { loadPastLedger } from "@/lib/repWorkspace";
 import { refreshTelegramReplies } from "@/lib/telegramCommands";
 import { listAccounts } from "@/lib/apiClient";
 import { partyHue, partyInitials } from "@/lib/partyColor";
@@ -197,6 +199,8 @@ export default function RepresentativesPage() {
   const [repBook, setRepBook] = useState<RepBookEntry[]>([]);
   const [accounts, setAccounts] = useState<StarlinkAccountSummary[]>(demoAccounts);
   const [showAddForm, setShowAddForm] = useState(false);
+  // 📊 On a rep's phone this page is «تقاريري»: his own account only, nothing to change.
+  const [repView, setRepView] = useState(false);
   const [editingRepId, setEditingRepId] = useState<string | null>(null);
   // Opened from "إقفال الشهر" (reports): ?rep=<id>&month=yyyy-mm opens that rep's statement for
   // that month, ready for its PDF.
@@ -218,6 +222,17 @@ export default function RepresentativesPage() {
     setLedgerStore(loadLedgerStore());
     setClientStore(loadClientStore());
     setRepBook(loadRepBook());
+    const rep = isRepWorkspace();
+    setRepView(rep);
+    if (rep) {
+      // His share on devices no longer his: their operations and names, read-only.
+      const past = loadPastLedger();
+      const ledger = loadLedgerStore();
+      setLedgerStore(past ? { ...(past.ledger as unknown as LedgerByAccount), ...ledger } : ledger);
+      const stubs = Object.entries(past?.names ?? {}).map(([id, name]) => ({ id, name, archivedAt: "past" }) as unknown as StarlinkAccountSummary);
+      setAccounts([...loadDemoAccounts(demoAccounts), ...stubs]);
+      return;
+    }
     if (isDemoMode()) {
       setAccounts(loadDemoAccounts(demoAccounts));
       return;
@@ -408,13 +423,13 @@ export default function RepresentativesPage() {
         <Link href="/" className="btn-link">
           ← رجوع
         </Link>
-        <h1 className="section-title">المندوبون</h1>
+        <h1 className="section-title">{repView ? "📊 تقاريري" : "المندوبون"}</h1>
         <button type="button" className="btn-link rep-refresh" onClick={() => void refreshNow()} disabled={refreshing}>
           {refreshing ? "⏳" : "🔄 تحديث"}
         </button>
       </div>
 
-      <RepRequestsSection
+      {!repView && <RepRequestsSection
         representatives={representatives}
         accounts={accounts}
         clientStore={clientStore}
@@ -423,7 +438,7 @@ export default function RepresentativesPage() {
           // The rep's bot shows his new balance / debts right away, not a minute later.
           void refreshTelegramReplies().catch(() => {});
         }}
-      />
+      />}
 
       <section className="section">
         <div className="party-section party-section-reps">
@@ -442,7 +457,7 @@ export default function RepresentativesPage() {
               </button>
             ))}
           </div>
-          <div className="rep-overview">
+          {!repView && <div className="rep-overview">
             <div className="rep-overview-item">
               <span>حصة المندوبين من أرباح الأجهزة</span>
               <strong>{fx.list(overview.repShare)}</strong>
@@ -455,14 +470,14 @@ export default function RepresentativesPage() {
               <span>مستحق للمندوبين الآن</span>
               <strong>{fx.list(nonZero(overview.owed).length ? overview.owed : {})}</strong>
             </div>
-          </div>
+          </div>}
 
-          <div className="party-toolbar">
+          {!repView && <div className="party-toolbar">
             <span className="settings-hint">{representatives.length} مندوب</span>
             <button type="button" className="btn-icon" onClick={() => setShowAddForm((v) => !v)}>
               {showAddForm ? "إلغاء" : "+ إضافة مندوب"}
             </button>
-          </div>
+          </div>}
 
           {showAddForm && <RepresentativeForm onSubmit={handleCreate} onCancel={() => setShowAddForm(false)} />}
 
@@ -501,6 +516,7 @@ export default function RepresentativesPage() {
                     onDelete={() => handleDeleteRep(rep.id)}
                     onLedgerChange={setLedgerStore}
                     focusMonth={focus?.repId === rep.id ? focus.month : undefined}
+                    readOnly={repView}
                   />
                 ),
               )}
@@ -534,6 +550,8 @@ interface RepCardProps {
   onLedgerChange: (next: LedgerByAccount) => void;
   /** Open the statement on this month (yyyy-mm) and scroll to this card. */
   focusMonth?: string;
+  /** 📊 The rep's own «تقاريري»: everything to read, nothing to change. */
+  readOnly?: boolean;
 }
 
 type RepPanel = "statement" | "devices" | "clients" | null;
@@ -565,6 +583,7 @@ function RepCard({
   onDelete,
   onLedgerChange,
   focusMonth,
+  readOnly = false,
 }: RepCardProps) {
   const [panel, setPanel] = useState<RepPanel>(null);
   const [sheet, setSheet] = useState<RepSheet>(null);
@@ -729,10 +748,10 @@ function RepCard({
         >
           <ActionFace icon="📄" label="الكشف" />
         </button>
-        <button type="button" className="party-action party-action-balance" onClick={() => setSheet({ kind: "settle" })}>
+        {!readOnly && <button type="button" className="party-action party-action-balance" onClick={() => setSheet({ kind: "settle" })}>
           <ActionFace icon="💵" label="تسوية" />
-        </button>
-        {canWhatsApp && (
+        </button>}
+        {canWhatsApp && !readOnly && (
           <button type="button" className="party-action party-action-whatsapp" onClick={() => setSheet({ kind: "whatsapp" })}>
             <ActionFace icon="💬" label="واتساب" />
           </button>
@@ -751,9 +770,9 @@ function RepCard({
         >
           <ActionFace icon="👥" label="زبائنه" count={repClients.filter((r) => r.current).length} />
         </button>
-        <button type="button" className="party-action" onClick={() => setSheet({ kind: "manage" })}>
+        {!readOnly && <button type="button" className="party-action" onClick={() => setSheet({ kind: "manage" })}>
           <ActionFace icon="⚙️" label="إدارة" />
-        </button>
+        </button>}
       </div>
 
       {panel === "statement" && (
@@ -802,7 +821,7 @@ function RepCard({
             </label>
           )}
 
-          <RepStatementSummary statement={statement} period={period} periodLabel={periodLabel} archive={showArchive && !!rep.resetFrom} />
+          <RepStatementSummary statement={statement} period={period} periodLabel={periodLabel} archive={showArchive && !!rep.resetFrom} hideOurs={readOnly} />
 
           <div className="party-panel-tools">
             <PdfButton
@@ -828,7 +847,7 @@ function RepCard({
                     {(Math.abs(day.repShareUsd) > EPSILON || Math.abs(day.ourShareUsd) > EPSILON) && (
                       <div className="rep-day-split">
                         <span className="rep-split-rep">حصته {fx.list(dayShares(day, "rep", fx.convert))}</span>
-                        <span className="rep-split-ours">حصتي {fx.list(dayShares(day, "ours", fx.convert))}</span>
+                        {!readOnly && <span className="rep-split-ours">حصتي {fx.list(dayShares(day, "ours", fx.convert))}</span>}
                       </div>
                     )}
                   </div>
@@ -841,7 +860,8 @@ function RepCard({
                         accountName={accountName}
                         clientNameFor={clientNameFor}
                         storeItems={storeItems}
-                        onOpen={row.type === "invoice" ? undefined : () => openRow(row)}
+                        onOpen={row.type === "invoice" || readOnly ? undefined : () => openRow(row)}
+                        hideOurs={readOnly}
                       />
                     ))}
                   </ul>
@@ -854,7 +874,7 @@ function RepCard({
 
       {panel === "clients" && (
         <div className="party-panel rep-clients">
-          {transferCandidates.length > 0 && (
+          {transferCandidates.length > 0 && !readOnly && (
             <button type="button" className="btn-secondary rep-transfer-btn" onClick={() => setSheet({ kind: "transfer" })}>
               🔁 نقل ديون زبائنه عليه ({transferCandidates.length})
             </button>
@@ -1176,11 +1196,13 @@ function RepStatementSummary({
   period,
   periodLabel,
   archive,
+  hideOurs = false,
 }: {
   statement: RepPeriodStatement;
   period: RepPeriod;
   periodLabel: string;
   archive: boolean;
+  hideOurs?: boolean;
 }) {
   const fx = useFx();
   const t = statement.totals;
@@ -1188,7 +1210,7 @@ function RepStatementSummary({
   if (t.deviceCount > 0) {
     lines.push(["ربح أجهزته", fx.list(t.deviceProfit)]);
     lines.push(["حصته", fx.list(t.repShare)]);
-    lines.push(["حصتي", fx.list(t.ourShare)]);
+    if (!hideOurs) lines.push(["حصتي", fx.list(t.ourShare)]);
     if (t.pendingCount > 0) lines.push(["شحنات بانتظار D", String(t.pendingCount)]);
   }
   // Already converted to the display currency by buildRepPeriodStatement.
@@ -1254,7 +1276,9 @@ function RepStatementLine({
   clientNameFor,
   storeItems,
   onOpen,
+  hideOurs = false,
 }: {
+  hideOurs?: boolean;
   row: RepStatementRow;
   balanceAfter?: Record<string, number>;
   accountName: (accountId: string) => string;
@@ -1294,7 +1318,7 @@ function RepStatementLine({
               <span className="rep-split-rep">
                 حصته ({percent}%) {fx.usd(repShareUsd ?? 0, entry)}
               </span>
-              <span className="rep-split-ours">حصتي {fx.usd(ourShareUsd ?? 0, entry)}</span>
+              {!hideOurs && <span className="rep-split-ours">حصتي {fx.usd(ourShareUsd ?? 0, entry)}</span>}
             </div>
           </>
         ) : (
