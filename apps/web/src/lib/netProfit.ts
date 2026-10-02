@@ -14,6 +14,7 @@ import { InvoiceList, invoiceTotal } from "./invoiceStore";
 import { LedgerByAccount } from "./ledgerStore";
 import { buildMonthReport, monthOf } from "./monthClosing";
 import { entriesAfterProfitReset, ProfitReset } from "./profitReset";
+import type { RepResetPoint } from "./repStore";
 import { RatesFromUsd, sumToMru } from "./reportsView";
 import { computeStoreSalesSummary } from "./storeReports";
 import { StoreTransactionList } from "./storeStore";
@@ -26,6 +27,9 @@ export interface MonthNetInput {
   cash: CashEntryList;
   rates: RatesFromUsd;
   profitReset?: ProfitReset | null;
+  /** Each device's own start point (the global one or its client's, whichever is later -
+   * clientBulk.ts#profitResetByAccount). When given, it replaces `profitReset` per device. */
+  profitResetByAccount?: Record<string, RepResetPoint | null>;
 }
 
 export interface ExpenseGroup {
@@ -70,7 +74,10 @@ export function buildMonthNet(input: MonthNetInput): MonthNet {
 
   // Starlink - the same figures as the month-closing report, after any "fresh start".
   const ledger: LedgerByAccount = {};
-  for (const [accountId, entries] of Object.entries(input.ledgerStore)) ledger[accountId] = entriesAfterProfitReset(entries, input.profitReset ?? null);
+  for (const [accountId, entries] of Object.entries(input.ledgerStore)) {
+    const reset = input.profitResetByAccount && accountId in input.profitResetByAccount ? input.profitResetByAccount[accountId] : input.profitReset;
+    ledger[accountId] = entriesAfterProfitReset(entries, reset ?? null);
+  }
   const mruRate = rates.MRU;
   const starlink = mruRate ? buildMonthReport(ledger, month, mruRate) : undefined;
 

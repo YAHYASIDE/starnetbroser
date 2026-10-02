@@ -93,4 +93,46 @@ public class KastMailTest {
         assertTrue(KastMatch.alert(m, KastMatch.parseDevices("[]")).contains("لم أجد جهازاً"));
         assertFalse(text.contains("null"));
     }
+
+    // ---- the KAST app's notifications (wording of the real, confirmed screenshots; fake numbers) ----
+
+    @Test
+    public void readsAPaidStarlinkNotification() {
+        KastMail.Message m = KastMail.fromNotification("Kah-ching 🤑", "صرفت 116.56$ في Starlink\nكاش باك 3.50$: 2% كاش + 1% نقاط", 120_000L);
+        assertNotNull(m);
+        assertEquals(KastMail.Kind.SPENT, m.kind);
+        assertEquals(116.56, m.amount, 0.001);
+        assertEquals("Starlink", m.merchant);
+        assertTrue(m.isStarlink());
+    }
+
+    @Test
+    public void readsARefusedNotificationWithItsCard() {
+        KastMail.Message m = KastMail.fromNotification("تم رفض البطاقة في STARLINK INTERNET",
+            "تم رفض دفعتك البالغة USD 43.45 إلى STARLINK INTERNET باستخدام البطاقة 1234. افتح تطبيق KAST للتحقق من السبب", 60_000L);
+        assertNotNull(m);
+        assertEquals(KastMail.Kind.DECLINED, m.kind);
+        assertEquals(43.45, m.amount, 0.001);
+        assertEquals("1234", m.cardLast4);
+        assertEquals("STARLINK INTERNET", m.merchant);
+    }
+
+    @Test
+    public void readsADepositAndIgnoresMoneySentOut() {
+        KastMail.Message m = KastMail.fromNotification("لقد تلقيت أموالاً", "لقد تلقيت إيداعاً بقيمة USDT 187.81. لقد قمنا بإضافته إلى حساب KAST الخاص بك", 0L);
+        assertNotNull(m);
+        assertEquals(KastMail.Kind.RECEIVED, m.kind);
+        assertEquals(187.81, m.amount, 0.001);
+        assertNull(KastMail.fromNotification("تم إرسال المبلغ الخاص بك", "لقد أرسلت USD 181.78 إلى demo.shop.", 0L));
+        assertNull(KastMail.fromNotification("Weekly tips", "Earn more points", 0L));
+    }
+
+    @Test
+    public void theSameNotificationKeepsItsIdWithinTheMinute() {
+        KastMail.Message a = KastMail.fromNotification("Kah-ching", "صرفت 9.99$ في Starlink", 61_000L);
+        KastMail.Message b = KastMail.fromNotification("Kah-ching", "صرفت 9.99$ في Starlink", 100_000L);
+        KastMail.Message c = KastMail.fromNotification("Kah-ching", "صرفت 9.99$ في Starlink", 200_000L);
+        assertEquals(a.id, b.id);
+        assertFalse(a.id.equals(c.id));
+    }
 }

@@ -10274,3 +10274,110 @@ a[href],
   flex: 1 1 110px;
   min-width: 0;
 }
+
+/* 👥 Clients «☑️ تحديد»: the actions bar and the compact selectable rows. */
+.party-bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 8px 0;
+  padding: 8px;
+  border: 1px solid var(--border, rgba(127, 127, 127, 0.3));
+  border-radius: 12px;
+}
+
+.party-bulk-count {
+  font-size: 13px;
+  opacity: 0.8;
+}
+
+.party-bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+}
+
+.party-bulk-actions button {
+  flex: 1 1 calc(50% - 6px);
+  min-width: 0;
+  padding: 8px 6px;
+  border-radius: 10px;
+  border: 1px solid var(--border, rgba(127, 127, 127, 0.3));
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+}
+
+.party-bulk-actions button.danger {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.party-bulk-actions button:disabled {
+  opacity: 0.45;
+}
+
+.party-select-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.party-select-row label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border, rgba(127, 127, 127, 0.3));
+  border-radius: 12px;
+  min-width: 0;
+}
+
+.party-select-row.is-selected label {
+  border-color: var(--green);
+  background: var(--green-bg);
+}
+
+.party-select-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.party-select-balance {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.kast-spend-row {
+  border-color: var(--accent, var(--green));
+}
+
+.kast-notify-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px dashed var(--red);
+  font-size: 13px;
+}
+
+.kast-notify-status.is-on {
+  border-color: var(--green);
+  background: var(--green-bg);
+}

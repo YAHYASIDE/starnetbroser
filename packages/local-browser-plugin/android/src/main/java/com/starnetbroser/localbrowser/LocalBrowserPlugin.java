@@ -451,7 +451,28 @@ public class LocalBrowserPlugin extends Plugin {
         call.resolve();
     }
 
-    /** The dollars received that the app hasn't saved yet. */
+    /** 💳 Whether «Notification access» is on (the KAST app's notifications are read). */
+    @PluginMethod
+    public void kastNotificationsStatus(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("enabled", KastNotificationListener.isEnabled(getContext()));
+        call.resolve(ret);
+    }
+
+    /** Opens Android's «Notification access» screen, where the operator turns it on. */
+    @PluginMethod
+    public void openKastNotificationAccess(PluginCall call) {
+        try {
+            Intent intent = new Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            call.resolve();
+        } catch (RuntimeException e) {
+            call.reject("تعذر فتح إعدادات الإشعارات");
+        }
+    }
+
+    /** The KAST events (dollars received, Starlink payments) the app hasn't saved yet. */
     @PluginMethod
     public void kastPendingDeposits(PluginCall call) {
         JSObject ret = new JSObject();

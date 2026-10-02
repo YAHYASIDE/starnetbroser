@@ -618,8 +618,15 @@ export interface LocalBrowserPlugin {
   /** One check of the KAST mail now (the app just opened). */
   kastCheckNow(): Promise<void>;
 
-  /** «لقد تلقيت دولارات» mails not yet saved by the app. */
+  /** KAST events not yet saved by the app: dollars received (mail or notification) and Starlink
+   * payments (only the KAST app's notification shows those). */
   kastPendingDeposits(): Promise<{ deposits: KastDeposit[] }>;
+
+  /** Whether STAR NET may read notifications («Notification access») - for the KAST app's own. */
+  kastNotificationsStatus(): Promise<{ enabled: boolean }>;
+
+  /** Opens Android's «Notification access» screen. */
+  openKastNotificationAccess(): Promise<void>;
 
   /** The app saved these deposits - forget them on the native side. */
   kastAckDeposits(options: { ids: string[] }): Promise<void>;
@@ -634,10 +641,15 @@ export interface KastDevice {
 }
 
 export interface KastDeposit {
-  /** The Gmail message id - never handled twice. */
+  /** The Gmail message id or the notification's - never handled twice. */
   id: string;
+  /** "received" (dollars in) or "spent" (a Starlink payment, from the notification). Older
+   * entries have none (= received). */
+  kind?: "received" | "spent";
   amountUsd: number;
   sender: string;
+  merchant?: string;
+  cardLast4?: string;
   /** When the mail arrived (ms). */
   at: number;
 }

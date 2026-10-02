@@ -7,6 +7,8 @@ import {
   cardLabel,
   depositLabel,
   expectedStarlinkUsd,
+  pendingCardSpends,
+  spendCandidates,
   kastDevicesSnapshot,
   mergeCardDeposits,
   pendingCardDeposits,
@@ -62,5 +64,20 @@ describe("dollars received", () => {
     expect(pendingCardDeposits(setDepositStatus(list, "m1", "recorded")).map((d) => d.id)).toEqual(["m0"]);
     expect(depositLabel(list[0]!)).toBe("وصل 18.30$ من demo-sender");
     expect(mergeCardDeposits([], [{ id: "m2", amountUsd: 0, sender: "", at: 0 }])).toEqual([]);
+  });
+});
+
+describe("Starlink payments from the KAST notification", () => {
+  it("are kept apart from dollars received and suggest the open D with the closest cost", () => {
+    const list = mergeCardDeposits([], [
+      { id: "n1", kind: "spent", amountUsd: 116.56, sender: "", merchant: "Starlink", cardLast4: "1234", at: 5 },
+      { id: "m1", amountUsd: 18.3, sender: "demo-sender", at: 2 },
+    ]);
+    expect(pendingCardSpends(list).map((d) => d.id)).toEqual(["n1"]);
+    expect(pendingCardDeposits(list).map((d) => d.id)).toEqual(["m1"]);
+    expect(depositLabel(list[0]!)).toBe("دُفع 116.56$ لـ Starlink بالبطاقة 1234");
+    const debts = [{ id: "a", costUsd: 50 }, { id: "b", costUsd: 116.56 }, { id: "c", costUsd: 115 }, { id: "d", costUsd: 130 }];
+    expect(spendCandidates(116.56, debts).map((d) => d.id)).toEqual(["b", "c"]);
+    expect(spendCandidates(9.99, debts)).toEqual([]);
   });
 });

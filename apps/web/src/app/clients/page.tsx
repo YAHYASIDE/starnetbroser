@@ -50,6 +50,15 @@ import { PartyDirectory } from "@/components/AccountsSection";
 import { moveClientToOwner, ourDebtLedgerForClients } from "@/lib/repClients";
 import { notifyPaymentTelegram } from "@/lib/telegram";
 import { ClientDialog } from "@/components/ClientDialog";
+import { computeClientCombinedTotals } from "@/lib/clientAccount";
+import {
+  clearClientsProfitFresh,
+  type ClientProfitResets,
+  loadClientProfitResets,
+  saveClientProfitResets,
+  startClientsProfitFresh,
+  zeroingAdjustments,
+} from "@/lib/clientBulk";
 
 /** "الزبائن" bottom-nav tab: every client and supplier as colour-coded cards (PartyDirectory), with
  * each client's full per-device card (ClientDialog) one tap away. */
@@ -64,6 +73,7 @@ export default function ClientsPage() {
   const [openClientId, setOpenClientId] = useState<string | null>(null);
   const [representatives, setRepresentatives] = useState<RepresentativeStore>({});
   const [picking, setPicking] = useState(false);
+  const [profitResets, setProfitResets] = useState<ClientProfitResets>({});
   const router = useRouter();
 
   useEffect(() => {
@@ -74,6 +84,7 @@ export default function ClientsPage() {
     setAllocationStore(loadAllocationStore());
     setPartyAdjustments(loadPartyAdjustments());
     setRepresentatives(loadRepresentativeStore());
+    setProfitResets(loadClientProfitResets());
     if (isDemoMode()) {
       setAccounts(loadDemoAccounts(demoAccounts));
       return;
@@ -124,6 +135,72 @@ export default function ClientsPage() {
     setClientStore(next);
     saveClientStore(next);
     setOpenClientId(null);
+  }
+
+  // ---- 👥 bulk actions (☑️ تحديد) - each asks first ----
+
+  const names = (ids: string[]) => {
+    const list = ids.map((id) => clientStore[id]?.name ?? "").filter(Boolean);
+    return list.length <= 5 ? list.join("، ") : `${list.slice(0, 5).join("، ")} و${list.length - 5} آخرين`;
+  };
+
+  function handleBulkDelete(ids: string[]) {
+    if (!window.confirm(`حذف ${ids.length} زبون؟\n${names(ids)}\nأجهزتهم تبقى بكل عملياتها وتصبح «الزبون غير محدد».`)) return;
+    const gone = new Set(ids);
+    if (accounts.some((a) => a.clientId && gone.has(a.clientId))) {
+      const nextAccounts = accounts.map((a) => (a.clientId && gone.has(a.clientId) ? { ...a, clientId: undefined } : a));
+      setAccounts(nextAccounts);
+      if (isDemoMode()) saveDemoAccounts(nextAccounts);
+    }
+    let next = clientStore;
+    for (const id of ids) next = deleteClient(next, id);
+    setClientStore(next);
+    saveClientStore(next);
+    setOpenClientId(null);
+  }
+
+  /** «تصفير الحساب»: one balance entry per currency brings each chosen client's total to 0 (no
+   * cash moves; deleting the entry from his statement undoes it). */
+  function handleBulkZero(ids: string[]) {
+    const today = new Date();
+    const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    const inputs = ids.flatMap((id) => {
+      const totals = computeClientCombinedTotals(invoices, partyAdjustments, id, accounts.filter((a) => a.clientId === id), debtLedger);
+      return zeroingAdjustments(id, Object.fromEntries(Object.entries(totals).map(([c, t]) => [c, t.remaining])), date);
+    });
+    if (!inputs.length) {
+      window.alert("حسابات الزبائن المحددين صفر أصلاً");
+      return;
+    }
+    const zeroed = new Set(inputs.map((i) => i.partyId)).size;
+    if (!window.confirm(`تصفير حساب ${zeroed} زبون؟\n${names([...new Set(inputs.map((i) => i.partyId))])}\nيُضاف قيد «تصفير الحساب» يجعل الرصيد 0، والسجل القديم يبقى. لا يتحرك الصندوق.`)) return;
+    let list = partyAdjustments;
+    for (const input of inputs) {
+      const result = recordPartyAdjustment(list, input);
+      if (result.ok) list = result.list;
+    }
+    setPartyAdjustments(list);
+    savePartyAdjustments(list);
+  }
+
+  /** «📈 الأرباح من 0»: the reports count only these clients' profit from today on. */
+  function handleBulkProfitFresh(ids: string[]) {
+    if (!window.confirm(`بدء أرباح ${ids.length} زبون من 0 اليوم؟\n${names(ids)}\nالتقارير تحسب أرباح أجهزتهم من اليوم فقط. لا يُحذف شيء، و«↩️ إرجاع الأرباح» يعيدها.`)) return;
+    const next = startClientsProfitFresh(profitResets, ids);
+    saveClientProfitResets(next);
+    setProfitResets(next);
+  }
+
+  function handleBulkProfitClear(ids: string[]) {
+    const withReset = ids.filter((id) => profitResets[id]);
+    if (!withReset.length) {
+      window.alert("لا أحد من المحددين بدأت أرباحه من 0");
+      return;
+    }
+    if (!window.confirm(`إرجاع الأرباح القديمة لـ ${withReset.length} زبون؟\n${names(withReset)}`)) return;
+    const next = clearClientsProfitFresh(profitResets, withReset);
+    saveClientProfitResets(next);
+    setProfitResets(next);
   }
 
   function handleCreateSupplier(input: CreateSupplierInput) {
@@ -271,6 +348,13 @@ export default function ClientsPage() {
           onOpenClientCard={(client: Client) => setOpenClientId(client.id)}
           onDeleteClient={handleDeleteClient}
           representatives={representatives}
+          bulk={{
+            onDelete: handleBulkDelete,
+            onZero: handleBulkZero,
+            onProfitFresh: handleBulkProfitFresh,
+            onProfitClear: handleBulkProfitClear,
+            profitFreshIds: new Set(Object.keys(profitResets)),
+          }}
         />
       </section>
 
@@ -284,6 +368,7 @@ export default function ClientsPage() {
           onClose={() => setOpenClientId(null)}
           onSave={(patch) => handleUpdateClient(openClient.id, { ...patch, creditLimit: openClient.creditLimit })}
           onDelete={() => handleDeleteClient(openClient.id)}
+          onZero={() => handleBulkZero([openClient.id])}
           onLedgerChange={setLedgerStore}
           representatives={Object.values(representatives).map((r) => ({ id: r.id, name: r.name }))}
           onMoveRep={(repId, carry) => handleMoveClientRep(openClient.id, repId, carry)}

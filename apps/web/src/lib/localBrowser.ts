@@ -498,6 +498,26 @@ export async function kastCheckNow(): Promise<void> {
   }
 }
 
+/** 💳 Whether STAR NET reads the KAST app's notifications («Notification access»). */
+export async function kastNotificationsEnabled(): Promise<boolean | null> {
+  if (!isRunningInAndroidApp()) return null;
+  try {
+    return (await LocalBrowser.kastNotificationsStatus()).enabled;
+  } catch {
+    return null;
+  }
+}
+
+/** Opens Android's «Notification access» screen. */
+export async function openKastNotificationAccess(): Promise<void> {
+  if (!isRunningInAndroidApp()) return;
+  try {
+    await LocalBrowser.openKastNotificationAccess();
+  } catch {
+    // nothing to open on this phone
+  }
+}
+
 /** Moves the dollars received (KAST mail) from the phone into the app's own store, then forgets
  * them there. Returns the ones that are new to the app. */
 export async function drainKastDeposits(): Promise<CardDeposit[]> {

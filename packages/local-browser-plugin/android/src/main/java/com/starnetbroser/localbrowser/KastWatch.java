@@ -31,6 +31,9 @@ final class KastWatch {
     private static final String KEY_SEEN = "seen";
     private static final String KEY_STARTED = "started";
     private static final String KEY_DEPOSITS = "deposits";
+    private static final String KEY_RECENT = "recent";
+    /** The same event from the mail and from the notification (or a repeated notification) counts once. */
+    private static final long SAME_EVENT_MS = 3 * 60 * 60 * 1000L;
     private static final int MAX_SEEN = 300;
 
     private static SharedPreferences prefs(Context context) {
@@ -41,7 +44,7 @@ final class KastWatch {
         prefs(context).edit().putString(KEY_DEVICES, json == null ? "[]" : json).apply();
     }
 
-    /** The dollars received, waiting for the app: [{"id","amountUsd","sender","at"}]. */
+    /** Waiting for the app: [{"id","kind":"received"|"spent","amountUsd","sender","merchant","cardLast4","at"}]. */
     static synchronized JSONArray pendingDeposits(Context context) {
         try {
             return new JSONArray(prefs(context).getString(KEY_DEPOSITS, "[]"));
@@ -65,11 +68,60 @@ final class KastWatch {
         JSONArray all = pendingDeposits(context);
         JSONObject d = new JSONObject();
         d.put("id", m.id);
+        d.put("kind", m.kind == KastMail.Kind.SPENT ? "spent" : "received");
         d.put("amountUsd", m.amount);
         d.put("sender", m.sender);
+        d.put("merchant", m.merchant);
+        d.put("cardLast4", m.cardLast4);
         d.put("at", m.at);
         all.put(d);
         prefs(context).edit().putString(KEY_DEPOSITS, all.toString()).commit();
+    }
+
+    /** Seen the same kind/amount/card in the last hours (from the other source, or repeated)? Records it. */
+    private static synchronized boolean repeated(Context context, KastMail.Message m) {
+        String key = m.kind + "|" + String.format(java.util.Locale.ROOT, "%.2f", m.amount) + "|" + m.cardLast4;
+        long now = System.currentTimeMillis();
+        JSONObject recent;
+        try {
+            recent = new JSONObject(prefs(context).getString(KEY_RECENT, "{}"));
+        } catch (JSONException e) {
+            recent = new JSONObject();
+        }
+        JSONObject kept = new JSONObject();
+        java.util.Iterator<String> keys = recent.keys();
+        while (keys.hasNext()) {
+            String k = keys.next();
+            long at = recent.optLong(k, 0);
+            if (now - at < SAME_EVENT_MS) {
+                try {
+                    kept.put(k, at);
+                } catch (JSONException ignored) {
+                    // a key that can't be kept is just forgotten
+                }
+            }
+        }
+        boolean seen = kept.has(key);
+        try {
+            kept.put(key, now);
+        } catch (JSONException ignored) {
+            // not remembered - at worst one more alert
+        }
+        prefs(context).edit().putString(KEY_RECENT, kept.toString()).commit();
+        return seen;
+    }
+
+    /** One KAST event (from the mail or the app's notification): a refusal → Telegram; a payment
+     * or dollars received → waits for the app. Blocking (network) - never on the main thread. */
+    static void handle(Context context, KastMail.Message m) throws IOException, JSONException, TelegramClient.TelegramError {
+        if (m == null || repeated(context, m)) return;
+        if (m.kind == KastMail.Kind.DECLINED) {
+            if (!TelegramStore.isConfigured(context)) return;
+            List<KastMatch.Device> devices = KastMatch.parseDevices(prefs(context).getString(KEY_DEVICES, "[]"));
+            TelegramClient.sendMessage(TelegramStore.token(context), TelegramStore.chatId(context), KastMatch.alert(m, devices));
+        } else if (m.kind == KastMail.Kind.RECEIVED || m.kind == KastMail.Kind.SPENT && m.isStarlink()) {
+            addDeposit(context, m);
+        }
     }
 
     /** One check. Blocking (network) - never on the main thread. */
@@ -82,7 +134,6 @@ final class KastWatch {
         Set<String> seen = new LinkedHashSet<>(Arrays.asList(prefs.getString(KEY_SEEN, "").split(",")));
         seen.remove("");
         boolean started = prefs.getBoolean(KEY_STARTED, false);
-        List<KastMatch.Device> devices = KastMatch.parseDevices(prefs.getString(KEY_DEVICES, "[]"));
         try {
             List<String> ids = GmailCodes.parseIds(GmailCodeFetcher.get(KastMail.listUrl(), token));
             List<String> fresh = new ArrayList<>();
@@ -90,14 +141,7 @@ final class KastWatch {
             // Oldest first, so two alerts arrive in the order they happened.
             java.util.Collections.reverse(fresh);
             for (String id : fresh) {
-                if (started) {
-                    KastMail.Message m = KastMail.parse(GmailCodeFetcher.get(GmailCodes.messageUrl(id), token));
-                    if (m != null && m.kind == KastMail.Kind.DECLINED && TelegramStore.isConfigured(context)) {
-                        TelegramClient.sendMessage(TelegramStore.token(context), TelegramStore.chatId(context), KastMatch.alert(m, devices));
-                    } else if (m != null && m.kind == KastMail.Kind.RECEIVED) {
-                        addDeposit(context, m);
-                    }
-                }
+                if (started) handle(context, KastMail.parse(GmailCodeFetcher.get(GmailCodes.messageUrl(id), token)));
                 seen.add(id); // only once handled: a failed send is tried again next time
             }
         } catch (IOException | JSONException | TelegramClient.TelegramError e) {

@@ -236,4 +236,12 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
   async kastAckDeposits(_options: { ids: string[] }): Promise<void> {
     return;
   }
+
+  async kastNotificationsStatus(): Promise<{ enabled: boolean }> {
+    return { enabled: false };
+  }
+
+  async openKastNotificationAccess(): Promise<void> {
+    throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
+  }
 }

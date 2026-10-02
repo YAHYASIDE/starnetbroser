@@ -59,6 +59,18 @@
                 android:value="Answers the operator's own Telegram bots from business data kept only on this phone" />
         </service>
 
+        <!-- 💳 Reads only the KAST app's own notifications (paid / refused / received) - the
+             operator turns it on in Android's «Notification access». -->
+        <service
+            android:name="com.starnetbroser.localbrowser.KastNotificationListener"
+            android:exported="true"
+            android:label="STAR NET - KAST"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
         <receiver
             android:name="com.starnetbroser.localbrowser.TelegramBootReceiver"
             android:exported="true">

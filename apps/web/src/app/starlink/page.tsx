@@ -42,12 +42,14 @@ import {
   loadPaymentCards,
   type PaymentCardList,
   pendingCardDeposits,
+  pendingCardSpends,
   removePaymentCard,
+  spendCandidates,
   saveCardDeposits,
   savePaymentCards,
   setDepositStatus,
 } from "@/lib/kastCards";
-import { drainKastDeposits } from "@/lib/localBrowser";
+import { drainKastDeposits, kastNotificationsEnabled, openKastNotificationAccess } from "@/lib/localBrowser";
 import { getRepresentative, loadRepresentativeStore, RepresentativeStore } from "@/lib/repStore";
 import {
   buildCardStatement,
@@ -115,6 +117,8 @@ export default function StarlinkPage() {
   const [paymentCards, setPaymentCards] = useState<PaymentCardList>([]);
   const [deposits, setDeposits] = useState<CardDeposit[]>([]);
   const [depositToRecord, setDepositToRecord] = useState<CardDeposit | null>(null);
+  const [spendToRecord, setSpendToRecord] = useState<CardDeposit | null>(null);
+  const [kastNotifications, setKastNotifications] = useState<boolean | null>(null);
 
   useEffect(() => {
     setLedgerStore(loadLedgerStore());
@@ -128,6 +132,7 @@ export default function StarlinkPage() {
     void drainKastDeposits().then((added) => {
       if (added.length) setDeposits(loadCardDeposits());
     });
+    void kastNotificationsEnabled().then(setKastNotifications);
     if (isDemoMode()) {
       setAccounts(loadDemoAccounts(demoAccounts));
       return;
@@ -175,6 +180,8 @@ export default function StarlinkPage() {
     setLedgerStore(next);
     saveLedgerStore(next);
     setSelected(new Set());
+    if (spendToRecord) updateDeposit(spendToRecord.id, "recorded");
+    setSpendToRecord(null);
     setSheet(null);
     setToast(`✓ تم تسديد ${payItems.length} جهاز بـ ${usd(totalOpenDebtUsd(payItems))} - الربح وحصص المندوبين نزلت بتاريخ ${date}`);
   }
@@ -500,6 +507,40 @@ export default function StarlinkPage() {
             + شحن البطاقة
           </button>
         </div>
+        {pendingCardSpends(deposits).length > 0 && (
+          <ul className="sl-list kast-deposits">
+            {pendingCardSpends(deposits).map((s) => {
+              const likely = spendCandidates(s.amountUsd, debts);
+              return (
+                <li key={s.id} className="sl-row kast-deposit-row kast-spend-row">
+                  <div className="sl-row-main">
+                    <strong>💳 {depositLabel(s)}</strong>
+                    <span>
+                      من إشعار KAST{s.at ? ` · ${new Date(s.at).toLocaleDateString("en-GB")}` : ""} -{" "}
+                      {likely.length ? "سدّد D الجهاز الذي دُفع له:" : "لا يوجد D مفتوح بهذا المبلغ"}
+                    </span>
+                  </div>
+                  <div className="kast-deposit-actions">
+                    {likely.map((d) => (
+                      <button
+                        key={d.entry.id}
+                        type="button"
+                        className="dialog-primary"
+                        onClick={() => {
+                          setSpendToRecord(s);
+                          openPay([d]);
+                        }}
+                      >
+                        سدّد {account(d.accountId)?.name ?? "جهاز"} (<bdi dir="ltr">{usd(d.costUsd)}</bdi>)
+                      </button>
+                    ))}
+                    <button type="button" className="text-action" onClick={() => updateDeposit(s.id, "dismissed")}>تجاهل</button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
         {pendingCardDeposits(deposits).length > 0 && (
           <ul className="sl-list kast-deposits">
             {pendingCardDeposits(deposits).map((d) => (
@@ -561,7 +602,17 @@ export default function StarlinkPage() {
         )}
       </section>
 
-      <PaymentCardsSection cards={paymentCards} onAdd={addCard} onRemove={removeCard} />
+      <PaymentCardsSection
+        cards={paymentCards}
+        onAdd={addCard}
+        onRemove={removeCard}
+        notifications={kastNotifications}
+        onEnableNotifications={() => {
+          void openKastNotificationAccess();
+          // Back from Android's screen: read the switch again.
+          window.setTimeout(() => void kastNotificationsEnabled().then(setKastNotifications), 4000);
+        }}
+      />
 
       {sheet === "pay" && (
         <PartySheet title="تسديد D لستارلينك" onClose={() => setSheet(null)}>
@@ -968,10 +1019,15 @@ function PaymentCardsSection({
   cards,
   onAdd,
   onRemove,
+  notifications,
+  onEnableNotifications,
 }: {
   cards: PaymentCardList;
   onAdd: (last4: string, name: string) => string | null;
   onRemove: (id: string) => void;
+  /** «Notification access» on (KAST payments read), off, or null off the phone. */
+  notifications: boolean | null;
+  onEnableNotifications: () => void;
 }) {
   const [last4, setLast4] = useState("");
   const [name, setName] = useState("");
@@ -995,6 +1051,20 @@ function PaymentCardsSection({
       <p className="settings-hint">
         عند رفض دفع Starlink يصلك تنبيه في تيليغرام مع الجهاز الأرجح (من المبلغ، وأجهزة البطاقة أولاً). اختر بطاقة كل جهاز من نافذة تعديله.
       </p>
+      {notifications !== null && (
+        <div className={`kast-notify-status${notifications ? " is-on" : ""}`}>
+          {notifications ? (
+            <span>🔔 قراءة إشعارات KAST مفعّلة ✓ - الدفعات الناجحة تظهر أعلاه لتسدّد D جهازها</span>
+          ) : (
+            <>
+              <span>🔔 الدفعات الناجحة تظهر فقط في إشعارات تطبيق KAST - فعّل «الوصول إلى الإشعارات» لـ STAR NET</span>
+              <button type="button" className="dialog-primary" onClick={onEnableNotifications}>
+                تفعيل
+              </button>
+            </>
+          )}
+        </div>
+      )}
       {cards.length > 0 && (
         <ul className="sl-list">
           {cards.map((card) => (

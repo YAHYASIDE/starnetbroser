@@ -783,7 +783,9 @@ export function HomeView({
     const check = () => {
       void kastCheckNow();
       void drainKastDeposits().then((added) => {
-        for (const d of added) pushToast(`💵 ${depositLabel(d)} إلى KAST - سجّله من «ستارلينك والبطاقة»`);
+        for (const d of added) {
+          pushToast(d.kind === "spent" ? `💳 ${depositLabel(d)} - سدّد D الجهاز من «ستارلينك والبطاقة»` : `💵 ${depositLabel(d)} إلى KAST - سجّله من «ستارلينك والبطاقة»`);
+        }
       });
     };
     check();

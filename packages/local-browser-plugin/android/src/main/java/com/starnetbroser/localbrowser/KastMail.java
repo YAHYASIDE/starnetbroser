@@ -31,7 +31,7 @@ final class KastMail {
         }
     }
 
-    enum Kind { DECLINED, RECEIVED }
+    enum Kind { DECLINED, RECEIVED, SPENT }
 
     static final class Message {
         final String id;
@@ -70,6 +70,60 @@ final class KastMail {
     private static final Pattern MERCHANT_EN = Pattern.compile("payment to\\s+(.+?)\\s+(?:using|with|was)", Pattern.CASE_INSENSITIVE);
     private static final Pattern SENDER = Pattern.compile("(?:اسم المرسل|sender(?: name)?)\\s*[:：]\\s*([^\\n]+)", Pattern.CASE_INSENSITIVE);
     private static final Pattern SENDER_SUBJECT = Pattern.compile("(?:دولارات من|dollars from|from)\\s+([^!\\n]+)!?", Pattern.CASE_INSENSITIVE);
+
+    // ---- the KAST app's own notifications (real, confirmed screenshots) ----
+    //  «Kah-ching 🤑» / «صرفت 116.56$ في Starlink» (paid - KAST mails nothing for it)
+    //  «تم رفض البطاقة في STARLINK INTERNET» / «تم رفض دفعتك البالغة USD 43.45 إلى STARLINK INTERNET باستخدام البطاقة 7932.»
+    //  «لقد تلقيت أموالاً» / «لقد تلقيت إيداعاً بقيمة USDT 187.81. …»
+    private static final Pattern N_SPENT = Pattern.compile("صرفت\\s*\\$?\\s*([0-9][0-9,]*(?:\\.[0-9]+)?)\\s*\\$?\\s*(?:في|لدى|عند)\\s+([^\\n]+)"
+        + "|you spent\\s*\\$?\\s*([0-9][0-9,]*(?:\\.[0-9]+)?)\\s*\\$?\\s*(?:at|on)\\s+([^\\n]+)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern N_DECLINED = Pattern.compile("(?:البالغة|of)\\s*(?:USD|\\$)?\\s*([0-9][0-9,]*(?:\\.[0-9]+)?)\\s*(?:USD|\\$)?\\s*(?:إلى|to)\\s+(.+?)\\s+(?:باستخدام|using|with)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern N_CARD = Pattern.compile("(?:البطاقة|card(?: ending(?: in)?)?)\\s*\\*?\\s*([0-9]{4})\\b", Pattern.CASE_INSENSITIVE);
+    private static final Pattern N_RECEIVED = Pattern.compile("(?:تلقيت إيداعاً بقيمة|تلقيت|received(?: a deposit of)?)\\s*(?:USDT|USDC|USD|\\$)?\\s*([0-9][0-9,]*(?:\\.[0-9]+)?)", Pattern.CASE_INSENSITIVE);
+
+    /** A KAST app notification → an event, or null (a transfer out, a promotion, anything else). */
+    static Message fromNotification(String title, String text, long at) {
+        String t = title == null ? "" : title;
+        String body = text == null ? "" : text;
+        String all = (t + "\n" + body).replace('\u00a0', ' ');
+        Matcher spent = N_SPENT.matcher(all);
+        if (spent.find()) {
+            String amount = spent.group(1) != null ? spent.group(1) : spent.group(3);
+            String merchant = (spent.group(2) != null ? spent.group(2) : spent.group(4)).replaceAll("[.!]+$", "").trim();
+            Double usd = toNumber(amount);
+            if (usd == null) return null;
+            return new Message(noticeId("spent", usd, "", merchant, at), at, Kind.SPENT, usd, group(N_CARD, all), merchant, "");
+        }
+        if (DECLINED.matcher(all).find()) {
+            Matcher d = N_DECLINED.matcher(all);
+            if (!d.find()) return null;
+            Double usd = toNumber(d.group(1));
+            if (usd == null) return null;
+            String card = group(N_CARD, all);
+            String merchant = d.group(2).trim();
+            return new Message(noticeId("declined", usd, card, merchant, at), at, Kind.DECLINED, usd, card, merchant, "");
+        }
+        if (Pattern.compile("تلقيت|received", Pattern.CASE_INSENSITIVE).matcher(all).find()) {
+            Double usd = number(N_RECEIVED, all);
+            if (usd == null) return null;
+            return new Message(noticeId("received", usd, "", "", at), at, Kind.RECEIVED, usd, "", "", "");
+        }
+        return null;
+    }
+
+    /** The same event (KAST repeats a notification when the shade is redrawn) keeps one id - the
+     * minute it was posted is part of it, so the same amount on another day is a new event. */
+    static String noticeId(String kind, double amount, String card, String merchant, long at) {
+        return "n:" + kind + ":" + String.format(Locale.ROOT, "%.2f", amount) + ":" + card + ":" + merchant.toUpperCase(Locale.ROOT) + ":" + (at / 60_000L);
+    }
+
+    private static Double toNumber(String s) {
+        try {
+            return s == null ? null : Double.parseDouble(s.replace(",", ""));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
 
     /** One message (format=full) → a KAST card event, or null (a code, a newsletter, someone else's mail). */
     static Message parse(String messageJson) {

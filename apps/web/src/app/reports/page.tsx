@@ -22,6 +22,7 @@ import { daysRemainingNumber } from "@/lib/date";
 import { TodayPanel } from "@/components/TodayPanel";
 import { MonthClosingSection } from "@/components/MonthClosingSection";
 import { entriesAfterProfitReset, loadProfitReset, ProfitReset } from "@/lib/profitReset";
+import { loadClientProfitResets, profitResetByAccount } from "@/lib/clientBulk";
 import { computeDebtAging } from "@/lib/debtAging";
 import { loadPartyAdjustments, PartyAdjustmentList } from "@/lib/partyBalanceStore";
 import { buildCardStatement, listCardPayments, listOpenShipmentDebts, loadCardTopUps, totalOpenDebtUsd, CardTopUpList } from "@/lib/starlinkDebt";
@@ -123,13 +124,16 @@ export default function ReportsPage() {
   const accountName = (id: string) => accounts.find((a) => a.id === id)?.name ?? "جهاز محذوف";
 
   // ---- ستارلينك: profit counted on the day Starlink was paid, after any "fresh start" ----
+  // Each device starts from the later of the global fresh start and its client's (clientBulk.ts).
+  const resetByAccount = useMemo(() => profitResetByAccount(accounts, loadClientProfitResets(), profitReset), [accounts, profitReset]);
   const profitByAccount = useMemo(() => {
     const result: Record<string, LedgerByAccount[string]> = {};
     for (const [accountId, entries] of Object.entries(ledgerStore)) {
-      result[accountId] = entriesAfterProfitReset(filterEntriesByProfitDate(entries, period), profitReset);
+      const reset = accountId in resetByAccount ? resetByAccount[accountId] : profitReset;
+      result[accountId] = entriesAfterProfitReset(filterEntriesByProfitDate(entries, period), reset ?? null);
     }
     return result;
-  }, [ledgerStore, period, profitReset]);
+  }, [ledgerStore, period, profitReset, resetByAccount]);
   const profitEntries = useMemo(() => Object.values(profitByAccount).flat(), [profitByAccount]);
   const openEntries = useMemo(
     () => Object.values(ledgerStore).flat().filter((e) => e.kind === "debit" && e.starlinkCost?.status === "pending"),
@@ -150,9 +154,9 @@ export default function ReportsPage() {
   const netByMonth = useMemo(
     () =>
       netMonths.map((month) =>
-        buildMonthNet({ month, ledgerStore, invoices, transactions: storeTransactions, cash: cashEntries, rates, profitReset }),
+        buildMonthNet({ month, ledgerStore, invoices, transactions: storeTransactions, cash: cashEntries, rates, profitReset, profitResetByAccount: resetByAccount }),
       ),
-    [netMonths, ledgerStore, invoices, storeTransactions, cashEntries, rates, profitReset],
+    [netMonths, ledgerStore, invoices, storeTransactions, cashEntries, rates, profitReset, resetByAccount],
   );
   const netIndex = Math.max(0, netMonths.indexOf(netMonth));
   const net = netByMonth[netIndex];

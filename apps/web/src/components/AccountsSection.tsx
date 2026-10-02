@@ -96,6 +96,16 @@ interface PartyDirectoryProps extends Props {
   onDeleteClient?: (clientId: string) => void;
   /** Representatives - a client whose devices belong to a rep shows that rep's name on the card. */
   representatives?: RepresentativeStore;
+  /** 👥 «☑️ تحديد» on the clients tab: delete, zero the accounts of, or start the profit from zero
+   * for the chosen clients (one, several or all). The page asks before each. */
+  bulk?: {
+    onDelete: (ids: string[]) => void;
+    onZero: (ids: string[]) => void;
+    onProfitFresh: (ids: string[]) => void;
+    onProfitClear: (ids: string[]) => void;
+    /** Clients whose profit already starts from zero (clientBulk.ts). */
+    profitFreshIds: Set<string>;
+  };
 }
 
 /** Clients and suppliers on two separate tabs (never one mixed list), each party a colour-coded
@@ -120,8 +130,11 @@ export function PartyDirectory({
   onOpenClientCard,
   onDeleteClient,
   representatives,
+  bulk,
 }: PartyDirectoryProps) {
   const [tab, setTab] = useState<PartyTab>("clients");
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [editingPartyId, setEditingPartyId] = useState<string | null>(null);
@@ -164,6 +177,8 @@ export function PartyDirectory({
 
   function switchTab(next: PartyTab) {
     setTab(next);
+    setSelecting(false);
+    setSelected(new Set());
     setShowAdd(false);
     setEditingPartyId(null);
     setQuery("");
@@ -219,7 +234,47 @@ export function PartyDirectory({
         <button type="button" className="btn-icon" onClick={() => setShowAdd((v) => !v)}>
           {showAdd ? "إلغاء" : `+ ${partyWord}`}
         </button>
+        {isClients && bulk && (
+          <button
+            type="button"
+            className={`btn-icon${selecting ? " is-active" : ""}`}
+            onClick={() => {
+              setSelecting((v) => !v);
+              setSelected(new Set());
+            }}
+          >
+            {selecting ? "إنهاء" : "☑️ تحديد"}
+          </button>
+        )}
       </div>
+
+      {isClients && bulk && selecting && (() => {
+        const ids = [...selected];
+        const allShown = filtered.length > 0 && filtered.every((r) => selected.has(r.party.id));
+        const run = (fn: (ids: string[]) => void) => {
+          if (!ids.length) return;
+          fn(ids);
+          setSelected(new Set());
+        };
+        return (
+          <div className="party-bulk-bar">
+            <button
+              type="button"
+              className="text-action"
+              onClick={() => setSelected(allShown ? new Set() : new Set(filtered.map((r) => r.party.id)))}
+            >
+              {allShown ? "إلغاء الكل" : `تحديد الكل (${filtered.length})`}
+            </button>
+            <span className="party-bulk-count">المحدد: {ids.length}</span>
+            <div className="party-bulk-actions">
+              <button type="button" disabled={!ids.length} onClick={() => run(bulk.onZero)}>0️⃣ تصفير الحساب</button>
+              <button type="button" disabled={!ids.length} onClick={() => run(bulk.onProfitFresh)}>📈 الأرباح من 0</button>
+              <button type="button" disabled={!ids.length} onClick={() => run(bulk.onProfitClear)}>↩️ إرجاع الأرباح</button>
+              <button type="button" className="danger" disabled={!ids.length} onClick={() => run(bulk.onDelete)}>🗑️ حذف</button>
+            </div>
+          </div>
+        );
+      })()}
 
       {showAdd && (
         <PartyForm
@@ -238,6 +293,41 @@ export function PartyDirectory({
 
       {filtered.length === 0 ? (
         <p className="empty-state">{query ? "لا توجد نتائج مطابقة." : isClients ? "لا يوجد زبائن بعد." : "لا يوجد موردون بعد."}</p>
+      ) : isClients && bulk && selecting ? (
+        <ul className="party-select-list">
+          {filtered.map(({ party, totals }) => {
+            const owed = Object.entries(totals).filter(([, t]) => Math.abs(t.remaining) > EPSILON);
+            return (
+              <li key={party.id} className={`party-select-row${selected.has(party.id) ? " is-selected" : ""}`}>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={selected.has(party.id)}
+                    onChange={() =>
+                      setSelected((current) => {
+                        const next = new Set(current);
+                        if (next.has(party.id)) next.delete(party.id);
+                        else next.add(party.id);
+                        return next;
+                      })
+                    }
+                  />
+                  <span className="party-select-name">{party.name}</span>
+                  {bulk.profitFreshIds.has(party.id) && <span className="badge badge-gray">📈 من 0</span>}
+                  <span className="party-select-balance">
+                    {owed.length === 0
+                      ? "0"
+                      : owed.map(([c, t]) => (
+                          <bdi key={c} dir="ltr">
+                            {formatAmount(t.remaining)} {currencyLabel(c)}
+                          </bdi>
+                        ))}
+                  </span>
+                </label>
+              </li>
+            );
+          })}
+        </ul>
       ) : (
         <ul className="party-card-list">
           {filtered.map(({ party, totals }) =>

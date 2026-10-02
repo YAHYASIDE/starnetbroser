@@ -27,6 +27,8 @@ interface Props {
   /** Absent (never rendered) when the caller doesn't offer deletion here - never assume every
    * caller wants it. */
   onDelete?: () => void;
+  /** «0️⃣ تصفير الحساب» for this one client (the page asks first). */
+  onZero?: () => void;
   /** Given, each device statement offers ✎ on its past operations; called with the saved store. */
   onLedgerChange?: (next: LedgerByAccount) => void;
   /** Given, the card offers "المندوب": whose customer this is (repClients.ts), asking what happens
@@ -41,7 +43,7 @@ interface Props {
  * together), and the aggregate totals across all of them. Each device's own full statement is one
  * tap away via the same DeviceStatementDialog used from the card itself.
  */
-export function ClientDialog({ client, devices, ledgerStore, allocationStore, onClose, onSave, onDelete, onLedgerChange, representatives, onMoveRep }: Props) {
+export function ClientDialog({ client, devices, ledgerStore, allocationStore, onClose, onSave, onDelete, onZero, onLedgerChange, representatives, onMoveRep }: Props) {
   const [editingEntry, setEditingEntry] = useState<LedgerEntry | null>(null);
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(client.name);
@@ -324,6 +326,7 @@ export function ClientDialog({ client, devices, ledgerStore, allocationStore, on
             </div>
 
             <div className="dialog-actions form-wide">
+              {onZero && <button className="dialog-secondary" type="button" onClick={onZero}>0️⃣ تصفير الحساب</button>}
               {onDelete && <button className="dialog-danger" type="button" onClick={confirmDelete}>حذف الزبون</button>}
               <button className="dialog-secondary" type="button" onClick={() => setEditing(true)}>تعديل بيانات الزبون</button>
               <button className="dialog-primary dialog-done" type="button" onClick={onClose}>تم</button>
