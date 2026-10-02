@@ -23,7 +23,7 @@ const EMPTY_FORM = { clientName: "", phone: "", email: "", emailPassword: "", wi
  * in its own isolated browser, send it to the operator (encrypted, through the reps bot), then
  * delete it here once it arrived. No operator data ever lives on this phone.
  */
-export function RepModeView({ settings, onExit }: { settings: RepModeSettings; onExit: () => void }) {
+export function RepModeView({ settings, onExit, onBack }: { settings: RepModeSettings; onExit: () => void; onBack?: () => void }) {
   const [devices, setDevices] = useState<RepModeDevice[]>([]);
   const [sessions, setSessions] = useState<Record<string, SessionStatus>>({});
   const [adding, setAdding] = useState(false);
@@ -107,12 +107,17 @@ export function RepModeView({ settings, onExit }: { settings: RepModeSettings; o
   }
 
   function exit() {
-    if (!window.confirm("الخروج من وضع المندوب؟ تبقى أجهزتك غير المرسلة محفوظة.")) return;
+    if (!window.confirm("الخروج من وضع المندوب؟ تُحذف نسخة أجهزة المسؤول من هاتفك، وتبقى أجهزتك غير المرسلة محفوظة.")) return;
     onExit();
   }
 
   return (
     <main className="rep-mode">
+      {onBack && (
+        <button type="button" className="btn-link rep-mode-back" onClick={onBack}>
+          ← الرجوع للتطبيق
+        </button>
+      )}
       <header className="rep-mode-head">
         <h1>📱 وضع المندوب</h1>
         {settings.name && <p>أهلاً {settings.name}</p>}

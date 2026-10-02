@@ -1,5 +1,6 @@
 "use client";
 
+import { exitRepMode, isRepWorkspace } from "@/lib/repMode";
 import { askDeleteCode } from "@/components/DeleteCodePrompt";
 import { groupForHash, loadRememberedGroup, rememberGroup, SETTINGS_GROUPS, type SettingsGroupId } from "@/lib/settingsGroups";
 import { RepExtraBotsSettings } from "@/components/RepExtraBotsSettings";
@@ -125,6 +126,8 @@ export default function SettingsPage() {
   const [remindersBadgeEnabled, setRemindersBadgeEnabledState] = useState(true);
   const [isAndroidApp, setIsAndroidApp] = useState(false);
   const [group, setGroup] = useState<SettingsGroupId>("general");
+  // 📱 the rep's app: a short settings page (lib/repMode.ts).
+  const [rep, setRep] = useState(false);
   const current = SETTINGS_GROUPS.find((g) => g.id === group) ?? SETTINGS_GROUPS[0]!;
 
   // A link like "/settings#backup" opens its group (and scrolls to it); otherwise the last one.
@@ -150,6 +153,7 @@ export default function SettingsPage() {
     setDefaultCurrency(getDefaultInvoiceCurrency());
     setRemindersBadgeEnabledState(isRemindersBadgeEnabled());
     setIsAndroidApp(isRunningInAndroidApp());
+    setRep(isRepWorkspace());
   }, []);
 
   function handleThemeChange(next: ThemePreference) {
@@ -196,6 +200,50 @@ export default function SettingsPage() {
   function handleLogout() {
     clearTokens();
     setLoggedIn(false);
+  }
+
+  if (rep) {
+    return (
+      <main className="home">
+        <h1 className="section-title">الإعدادات</h1>
+        <section className="section">
+          <h2 className="section-title">المظهر</h2>
+          <div className="theme-option-row">
+            {THEME_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                className={`theme-option-btn${theme === opt.value ? " theme-option-btn-active" : ""}`}
+                onClick={() => handleThemeChange(opt.value)}
+                aria-pressed={theme === opt.value}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </section>
+        <AppLockSection />
+        <AppUpdateSection />
+        <section className="section">
+          <h2 className="section-title">📱 وضع المندوب</h2>
+          <p className="settings-hint">
+            هذا التطبيق يعمل على نسخة أجهزتك من المسؤول. الخروج يحذف النسخة من هاتفك (تبقى أجهزتك غير المرسلة).
+          </p>
+          <button
+            type="button"
+            className="dialog-danger"
+            onClick={() => {
+              if (window.confirm("الخروج من وضع المندوب؟ تُحذف نسخة أجهزة المسؤول من هاتفك.")) {
+                exitRepMode();
+                window.location.href = "/";
+              }
+            }}
+          >
+            الخروج من وضع المندوب
+          </button>
+        </section>
+      </main>
+    );
   }
 
   return (

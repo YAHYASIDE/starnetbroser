@@ -4,30 +4,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { App } from "@capacitor/app";
 import { DeviceStatus } from "@starnet/shared";
 import { PartySheet } from "@/components/AccountsSection";
-import { WrongPasswordError } from "@/lib/backupCrypto";
 import { daysRemainingLabel, daysRemainingNumber } from "@/lib/date";
 import { formatAmount } from "@/lib/formatAmount";
 import { LEDGER_CURRENCY_LABELS, type LedgerCurrency } from "@/lib/ledgerStore";
+import { applyRepCopyText } from "@/lib/repCopyApply";
 import {
-  deleteIsolatedAccountSession,
-  importAccountSessions,
   isRunningInAndroidApp,
   openIsolatedAccountBrowser,
   starlinkLoginFor,
   takeSharedFile,
 } from "@/lib/localBrowser";
-import {
-  isOlderCopy,
-  isRepCopyFile,
-  loadRepCopy,
-  readRepCopyFile,
-  removedDeviceIds,
-  type RepCopy,
-  type RepCopyDevice,
-  saveRepCopy,
-  summarizeRepDevice,
-  withoutSessions,
-} from "@/lib/repCopy";
+import { loadRepCopy, type RepCopy, type RepCopyDevice, summarizeRepDevice } from "@/lib/repCopy";
 
 /**
  * 📋 «أجهزتي» in «وضع المندوب»: the copy of his devices the operator sent (lib/repCopy.ts). The
@@ -44,24 +31,11 @@ export function RepCopyView({ code }: { code: string }) {
 
   const apply = useCallback(
     async (text: string) => {
-      if (!isRepCopyFile(text)) return setMessage("هذا الملف ليس نسخة أجهزتك من المسؤول");
       setBusy(true);
-      try {
-        const payload = await readRepCopyFile(text, code);
-        const current = loadRepCopy();
-        if (isOlderCopy(current, payload)) return setMessage("هذه نسخة أقدم من التي عندك - لم تتغيّر");
-        const next = withoutSessions(payload);
-        const removed = removedDeviceIds(current, next);
-        for (const id of removed) await deleteIsolatedAccountSession(id);
-        await importAccountSessions(payload.sessions);
-        if (!saveRepCopy(next)) return setMessage("ذاكرة الهاتف ممتلئة - تعذّر حفظ النسخة");
-        setCopy(next);
-        setMessage(`✓ وصلت نسخة جديدة: ${next.devices.length} جهاز${removed.length ? ` · حُذف ${removed.length}` : ""}`);
-      } catch (err) {
-        setMessage(err instanceof WrongPasswordError ? "هذه النسخة لمندوب آخر (رمزك لا يفتحها)" : "تعذّر فتح النسخة");
-      } finally {
-        setBusy(false);
-      }
+      const result = await applyRepCopyText(text, code);
+      setBusy(false);
+      setMessage(result.message);
+      if (result.ok) setCopy(loadRepCopy());
     },
     [code],
   );

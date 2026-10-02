@@ -1,5 +1,7 @@
 "use client";
 
+import { isRepWorkspace } from "@/lib/repMode";
+import { currentRepPending } from "@/lib/repWorkspace";
 import { CSSProperties, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -394,6 +396,9 @@ export function HomeView({
   // cost settlements; the Settings page owns its own management UI for it, this is just a reader.
   const [currencyStore, setCurrencyStore] = useState<CurrencyStore>({});
   useEffect(() => setCurrencyStore(loadCurrencyStore()), []);
+  // 📱 On a rep's phone: devices with something he recorded that the operator hasn't confirmed.
+  const [repPendingIds, setRepPendingIds] = useState<Set<string>>(() => new Set());
+  const [repWorkspace, setRepWorkspace] = useState(false);
 
   function handleUpsertCurrency(input: UpsertCurrencyInput) {
     const next = upsertCurrency(currencyStore, input);
@@ -448,6 +453,11 @@ export function HomeView({
   // state) so there's no hydration mismatch; real data replaces it after
   // mount, never leaving the screen blank in between.
   const [accounts, setAccounts] = useState(demoAccounts);
+  useEffect(() => {
+    const rep = isRepWorkspace();
+    setRepWorkspace(rep);
+    if (rep) setRepPendingIds(currentRepPending().accountIds);
+  }, [accounts, ledgerStore]);
   // 🚨 وضع المحيط: devices with the maritime switch ON. The full-screen alarm comes back on every
   // app open, and for any device that newly turns ON, until Starlink reads it OFF.
   const oceanDevices = useMemo(() => oceanModeAccounts(accounts), [accounts]);
@@ -1286,7 +1296,7 @@ export function HomeView({
         </Link>
       )}
 
-      {isBackupOverdue(lastBackupAt, 2) && (
+      {!repWorkspace && isBackupOverdue(lastBackupAt, 2) && (
         <Link href="/settings#backup" className="backup-banner">
           <span aria-hidden="true">🛡️</span>
           <span>
@@ -1481,6 +1491,7 @@ export function HomeView({
               <AccountCard
                 key={account.id}
                 account={account}
+                repPending={repPendingIds.has(account.id)}
                 context={viewMode}
                 onEdit={(selected) => setDialog({ mode: "edit", account: selected })}
                 ledgerEntries={getAccountEntries(ledgerStore, account.id)}

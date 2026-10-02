@@ -5,8 +5,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { HOME_ACTION_EVENT, HomeAction, homeActionHref, REMINDER_COUNT_EVENT } from "@/lib/homeActions";
 import { isRunningInAndroidApp } from "@/lib/localBrowser";
+import { isRepWorkspace, REP_SENDER_EVENT } from "@/lib/repMode";
 
-type MoreItem = { label: string; icon: IconName; color: string; tint: string } & ({ href: string } | { action: HomeAction });
+type MoreItem = { label: string; icon: IconName; color: string; tint: string } & ({ href: string } | { action: HomeAction } | { event: string });
 
 /**
  * Global bottom navigation, rendered once in the root layout so it persists across every route.
@@ -19,11 +20,14 @@ export function BottomNav() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [reminderCount, setReminderCount] = useState(0);
   const [inApp, setInApp] = useState(false);
+  // 📱 the rep's full app: only the pages the operator allowed (lib/repMode.ts).
+  const [rep, setRep] = useState(false);
   const SHEET_DESTINATIONS = ["/tools", "/starlink", "/currencies", "/trash", "/archive", "/reminders", "/settings"];
   const onSheetDestination = SHEET_DESTINATIONS.includes(pathname ?? "");
 
   useEffect(() => {
     setInApp(isRunningInAndroidApp());
+    setRep(isRepWorkspace());
     // The removed Claude assistant kept its API keys here - wipe them from phones that had it.
     try {
       for (const key of ["starnet.claudeApiKey", "starnet.openrouterApiKey", "starnet.aiProvider"]) window.localStorage.removeItem(key);
@@ -42,17 +46,24 @@ export function BottomNav() {
   // nav bar over it would be intrusive and steal space from an already cramped viewer.
   if (pathname === "/session") return null;
 
-  const tabs: { href: string; label: string; icon: IconName }[] = [
-    { href: "/", label: "الرئيسية", icon: "home" },
-    { href: "/clients", label: "الزبائن", icon: "people" },
-    { href: "/reports", label: "التقارير", icon: "chart" },
-    { href: "/representatives", label: "المندوبون", icon: "handshake" },
-    { href: "/store", label: "المتجر", icon: "bag" },
-  ];
+  const tabs: { href: string; label: string; icon: IconName }[] = rep
+    ? [
+        { href: "/", label: "الرئيسية", icon: "home" },
+        { href: "/clients", label: "الزبائن", icon: "people" },
+        { href: "/reminders", label: "التذكيرات", icon: "bell" },
+        { href: "/tools", label: "الأدوات", icon: "tools" },
+      ]
+    : [
+        { href: "/", label: "الرئيسية", icon: "home" },
+        { href: "/clients", label: "الزبائن", icon: "people" },
+        { href: "/reports", label: "التقارير", icon: "chart" },
+        { href: "/representatives", label: "المندوبون", icon: "handshake" },
+        { href: "/store", label: "المتجر", icon: "bag" },
+      ];
 
   // "المزيد" (bottom): the everyday half, listed bottom (nearest the thumb) to top. The other half
   // is the home page's top "المزيد" (HeaderMore below).
-  const moreItems = bottomMoreItems(inApp);
+  const moreItems = rep ? repMoreItems(inApp) : bottomMoreItems(inApp);
 
   function runAction(action: HomeAction) {
     setSheetOpen(false);
@@ -104,6 +115,28 @@ function bottomMoreItems(inApp: boolean): MoreItem[] {
   ];
 }
 
+/** 📱 The rep's «المزيد»: the allowed pages and actions, plus sending new devices to the operator. */
+function repMoreItems(inApp: boolean): MoreItem[] {
+  return [
+    { label: "إضافة حساب", icon: "plus", color: "#2f80ff", tint: "#d6e6ff", action: "add-account" },
+    ...(inApp ? [{ label: "مزامنة الآن", icon: "sync" as const, color: "#10b8cc", tint: "#d2f4f8", action: "sync" as const }] : []),
+    { label: "دفعة سريعة", icon: "coins", color: "#0e9f6e", tint: "#dcf5ea", href: "/tools#pay" },
+    { label: "وعود الدفع", icon: "coins", color: "#7c3aed", tint: "#efe7ff", href: "/tools#promises" },
+    { label: "العملات", icon: "coins", color: "#22c55e", tint: "#d4f7e1", href: "/currencies" },
+    { label: "البريد المسجّل", icon: "mail", color: "#0891b2", tint: "#dbf3f9", href: "/mailboxes" },
+    { label: "📱 أجهزة للإرسال", icon: "handshake", color: "#f97316", tint: "#ffe4cc", event: REP_SENDER_EVENT },
+    { label: "الإعدادات", icon: "settings", color: "#f5a524", tint: "#ffecc7", href: "/settings" },
+  ];
+}
+
+/** The rep's top «المزيد». */
+const REP_TOP_MORE_ITEMS: MoreItem[] = [
+  { label: "الأدوات والتوقعات", icon: "tools", color: "#8b5cf6", tint: "#ece4ff", href: "/tools" },
+  { label: "العملات", icon: "coins", color: "#22c55e", tint: "#d4f7e1", href: "/currencies" },
+  { label: "البريد المسجّل", icon: "mail", color: "#0891b2", tint: "#dbf3f9", href: "/mailboxes" },
+  { label: "الإعدادات", icon: "settings", color: "#f5a524", tint: "#ffecc7", href: "/settings" },
+];
+
 /** The top "المزيد" (home page header): the other half, same look. */
 const TOP_MORE_ITEMS: MoreItem[] = [
   { label: "الأدوات والتوقعات", icon: "tools", color: "#8b5cf6", tint: "#ece4ff", href: "/tools" },
@@ -149,6 +182,18 @@ function MoreMenu({
                 <Link href={item.href} className="more-menu-item" role="menuitem" onClick={onClose}>
                   {content}
                 </Link>
+              ) : "event" in item ? (
+                <button
+                  type="button"
+                  className="more-menu-item"
+                  role="menuitem"
+                  onClick={() => {
+                    onClose();
+                    window.dispatchEvent(new Event(item.event));
+                  }}
+                >
+                  {content}
+                </button>
               ) : (
                 <button
                   type="button"
@@ -172,13 +217,15 @@ function MoreMenu({
 /** The home page's top-right "المزيد" (beside STAR NET). */
 export function HeaderMore() {
   const [open, setOpen] = useState(false);
+  const [rep, setRep] = useState(false);
+  useEffect(() => setRep(isRepWorkspace()), []);
   return (
     <>
       <button type="button" className="header-more" aria-label="المزيد" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
         <NavIcon name={open ? "close" : "more"} />
         <span>المزيد</span>
       </button>
-      {open && <MoreMenu items={TOP_MORE_ITEMS} onClose={() => setOpen(false)} top />}
+      {open && <MoreMenu items={rep ? REP_TOP_MORE_ITEMS : TOP_MORE_ITEMS} onClose={() => setOpen(false)} top />}
     </>
   );
 }

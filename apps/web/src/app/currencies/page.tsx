@@ -1,5 +1,6 @@
 "use client";
 
+import { isRepWorkspace } from "@/lib/repMode";
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import {
@@ -153,6 +154,9 @@ export default function CurrenciesPage() {
   const [editUsd, setEditUsd] = useState("1");
   const [savedNote, setSavedNote] = useState<{ code: string; text: string } | null>(null);
   const { accounts } = useToolsData();
+  // 📱 the rep sees the operator's rates only - they come with every copy.
+  const [rep, setRep] = useState(false);
+  useEffect(() => setRep(isRepWorkspace()), []);
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState("");
   const [countryQuery, setCountryQuery] = useState("");
@@ -410,7 +414,7 @@ export default function CurrenciesPage() {
                   {savedNote?.code === currency.code && <span className="currency-rate-saved">{savedNote.text}</span>}
                 </div>
               )}
-              {currency.code !== "USD" && editingCode !== currency.code && (
+              {!rep && currency.code !== "USD" && editingCode !== currency.code && (
                 <div className="currency-row-actions">
                   <button className="text-action" type="button" onClick={() => startEditRate(currency)}>تعديل السعر</button>
                   <button className="text-action" type="button" onClick={() => toggleEnabled(currency)}>
@@ -422,7 +426,9 @@ export default function CurrenciesPage() {
           ))}
         </ul>
 
-        {!showAddForm ? (
+        {rep ? (
+          <p className="settings-hint">💱 أسعار المسؤول - تتحدّث مع كل نسخة يرسلها لك.</p>
+        ) : !showAddForm ? (
           <div className="settings-actions">
             <button className="btn-icon" type="button" onClick={() => setShowAddForm(true)}>+ إضافة عملة جديدة</button>
           </div>

@@ -95,6 +95,8 @@ interface Props {
   onRestore: (account: StarlinkAccountSummary) => void;
   /** Trash context only - the original permanent delete (with the Starlink-session prompt). */
   onPermanentDelete?: (account: StarlinkAccountSummary) => void;
+  /** 📱 Rep's app: something on this device was recorded by the rep and awaits the operator. */
+  repPending?: boolean;
   /** Applies the confirmed new renewal date, then opens the ledger dialog for this account so the
    * operator can record the actual shipment/payment. */
   /** `settleFromCard` is set only when the device had open D's: the renewal pays them (from the card or not). */
@@ -211,6 +213,7 @@ export function AccountCard({
   account, onEdit, ledgerEntries, allocations, onLedger, onDeviceStatement, client, onOpenClient, currencyStore,
   context = "active", onSetDeviceFault, onSetRepair, onFinishCreation, allAccounts = [], mailSignedIn = false, onArchive, onSoftDelete, onRestore, onPermanentDelete, onConfirmRenewal,
   sessionNeedsLogin = false,
+  repPending = false,
   previousDebts = [],
   onAddPreviousDebt,
   repColor,
@@ -546,6 +549,11 @@ export function AccountCard({
           </span>
         )}
         {serviceStatus && <span className={`badge ${serviceStatus.className} account-card-status-badge`}>{serviceStatus.label}</span>}
+        {repPending && (
+          <span className="rep-pending-chip" title="سجّلته أنت - ينتظر تثبيت المسؤول">
+            ⏳ بانتظار المسؤول
+          </span>
+        )}
         {context === "active" && !account.creation && (
           <button
             type="button"

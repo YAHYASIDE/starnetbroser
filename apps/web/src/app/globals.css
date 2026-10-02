@@ -11155,3 +11155,37 @@ button.today-tile {
   min-height: 44px;
   margin-bottom: 10px;
 }
+
+/* 📥 «وصلت نسخة جديدة» on the rep's full app. */
+.rep-copy-banner {
+  position: fixed;
+  inset-inline: 16px;
+  top: max(12px, var(--safe-top, 0px));
+  z-index: 8000;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--green) 45%, var(--border));
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.rep-mode-back {
+  align-self: flex-start;
+  margin-bottom: 8px;
+}
+
+/* ⏳ Rep's app: recorded by the rep, awaiting the operator. */
+.rep-pending-chip {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--yellow-bg);
+  color: var(--yellow);
+  font-size: 0.66rem;
+  font-weight: 800;
+  white-space: nowrap;
+}

@@ -36,6 +36,8 @@ export interface RepCopy {
   devices: RepCopyDevice[];
   /** 1 USD in each registered currency (for showing amounts in أوقية / سيفا). */
   rates: Record<string, number>;
+  /** The rep's slice of the app's own stores (lib/repWorkspace.ts) - the full app runs on it. */
+  stores?: Record<string, unknown>;
 }
 
 export interface RepCopyPayload extends RepCopy {

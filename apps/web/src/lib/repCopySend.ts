@@ -9,6 +9,7 @@ import { loadLedgerStore } from "./ledgerStore";
 import { exportAccountSessions, isRunningInAndroidApp } from "./localBrowser";
 import { buildRepCopy, buildRepCopyFile, markRepCopySent, repCopyFileName } from "./repCopy";
 import { ensureRepDeviceCode } from "./repDeviceTransfer";
+import { readStores, repStoreSlice } from "./repWorkspace";
 import type { Representative } from "./repStore";
 import { loadRepChats, sendRepDocument } from "./telegram";
 
@@ -34,7 +35,9 @@ export async function sendRepCopy(rep: Representative, accounts: StarlinkAccount
     rates,
   });
   const sessions = await exportAccountSessions(copy.devices.map((d) => d.account.id), true);
-  const text = await buildRepCopyFile({ ...copy, sessions }, ensureRepDeviceCode(rep.id));
+  // His slice of every store, so his app is the full STAR NET on his devices only.
+  const stores = repStoreSlice(readStores(), rep.id);
+  const text = await buildRepCopyFile({ ...copy, stores, sessions }, ensureRepDeviceCode(rep.id));
   const fileName = repCopyFileName(rep.id);
   const caption = `📋 نسختك من الأجهزة (${copy.devices.length} جهاز)\nاضغط الملف ← «فتح بـ STAR NET»، أو اضغطه مطولاً ← مشاركة ← STAR NET.`;
 
