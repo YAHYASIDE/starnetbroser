@@ -164,4 +164,16 @@ public class MsSignInTest {
         assertTrue(StarlinkLoginWatch.describe(s, "https://www.starlink.com/auth/login").contains("www.starlink.com/auth/login"));
         assertTrue(StarlinkLoginWatch.describe(new StarlinkLoginWatch.State("", false, false), "x").contains("السكربت لا يعمل"));
     }
+
+    @Test
+    public void theAccountsHomeAddressAloneNeverEndsTheAutomaticSignIn() {
+        // Real, confirmed: the browser opens on /account/home and Starlink shows its sign-in there a moment later.
+        StarlinkLoginWatch.State loading = new StarlinkLoginWatch.State("", false, false);
+        assertFalse(StarlinkLoginWatch.signInDone(false, loading, "https://starlink.com/account/home"));
+        assertTrue(StarlinkLoginWatch.signInDone(true, loading, "https://starlink.com/account/home"));
+        assertFalse(StarlinkLoginWatch.signInDone(true, loading, "https://starlink.com/auth/login"));
+        assertFalse(StarlinkLoginWatch.signInDone(true, new StarlinkLoginWatch.State("", false, false, "demo@outlook.com", true), "https://starlink.com/account/home"));
+        // The page script presses only on the sign-in page itself.
+        assertTrue(StarlinkLoginWatch.AUTO_SCRIPT.contains("function onLogin()"));
+    }
 }

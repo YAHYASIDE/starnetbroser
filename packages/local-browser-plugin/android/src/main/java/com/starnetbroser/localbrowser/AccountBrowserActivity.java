@@ -161,6 +161,9 @@ public class AccountBrowserActivity extends AppCompatActivity {
     /** Polls on a sign-in page with nothing to press (no field seen) - said once after a while. */
     private int autoIdlePolls;
     private boolean autoWarned;
+    /** The sign-in page (a field, or the page script at work) was seen - only then can an account
+     * page mean "signed in" (StarlinkLoginWatch.signInDone). */
+    private boolean autoSawSignIn;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -337,18 +340,19 @@ public class AccountBrowserActivity extends AppCompatActivity {
      * is stuck or when nothing was pressed for a while, with what it sees (for a screenshot). */
     private void autoStep(StarlinkLoginWatch.State state) {
         String url = webView.getUrl();
+        if (state.hasEmailField || state.hasPasswordField || state.note.startsWith("next") || state.note.startsWith("in")) autoSawSignIn = true;
         if (state.note.startsWith("next") || state.note.startsWith("in")) {
             autoIdlePolls = 0;
             return;
         }
-        if (StarlinkLoginWatch.isSignedInUrl(url) && !state.hasEmailField && !state.hasPasswordField) {
+        if (StarlinkLoginWatch.signInDone(autoSawSignIn, state, url)) {
             autoLogin = false; // in
             return;
         }
         if (state.note.startsWith("stuck") && !autoWarned) {
             autoWarned = true;
             Toast.makeText(this, "⏸️ الصفحة لا تتقدم بعد الضغط - أكمل بنفسك وأرسل لقطة", Toast.LENGTH_LONG).show();
-        } else if (++autoIdlePolls >= 6 && !autoWarned) {
+        } else if (++autoIdlePolls >= 8 && !autoWarned) {
             autoWarned = true;
             Toast.makeText(this, "🧪 لم أضغط شيئاً - أرى: " + StarlinkLoginWatch.describe(state, url), Toast.LENGTH_LONG).show();
         }

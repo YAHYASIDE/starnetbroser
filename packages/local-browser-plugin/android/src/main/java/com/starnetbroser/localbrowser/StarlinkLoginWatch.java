@@ -117,7 +117,10 @@ final class StarlinkLoginWatch {
         + "var NEXT=new RegExp(" + LoginAutofill.literal(NEXT) + ",'i'),IN=new RegExp(" + LoginAutofill.literal(SIGN_IN) + ",'i');"
         + "var d={n:0,i:0,at:0,seen:0,step:''};"
         + "function note(v){window.__starnetAutoNote=v;}"
-        + "function tick(){if(wrong()){note('wrong');return;}"
+        // Only on the sign-in page itself (its address or its «تسجيل الدخول» heading) - never an account page.
+        + "function onLogin(){if(/login|auth|sign/i.test(location.href))return true;var h=document.querySelectorAll('h1,h2');"
+        + "for(var i=0;i<h.length;i++)if(vis(h[i])&&/^(تسجيل الدخول|sign in|log in)$/i.test(txt(h[i])))return true;return false;}"
+        + "function tick(){if(!onLogin()){note('wait:page');return;}if(wrong()){note('wrong');return;}"
         + "var pw=pwField(),em=emField(),now=Date.now(),step='',f=null;"
         + "if(em&&em.value.indexOf('@')>0&&(!pw||!pw.value)){step='next';f=em;}else if(pw&&pw.value){step='in';f=pw;}"
         + "if(!step){d.step='';d.seen=0;note('wait:'+(em?'e':'-')+(pw?'p':'-'));return;}"
@@ -127,6 +130,14 @@ final class StarlinkLoginWatch {
         + "note(step+':'+press(step==='next'?NEXT:IN,f));}"
         + "tick();var n=0;var t=setInterval(function(){tick();if(++n>600)clearInterval(t);},700);"
         + "})();";
+
+    /** Whether the automatic sign-in is over: an account page after the sign-in page was seen.
+     * The browser opens on the account's home address and Starlink shows its sign-in there a
+     * moment later (real, confirmed: the automatic sign-in switched itself off in that moment and
+     * nothing was ever pressed) - so the address alone never ends it. */
+    static boolean signInDone(boolean sawSignIn, State s, String url) {
+        return sawSignIn && s != null && isSignedInUrl(url) && !s.hasEmailField && !s.hasPasswordField;
+    }
 
     /** What the watch sees, for the one diagnostic toast when nothing gets pressed. */
     static String describe(State s, String url) {
