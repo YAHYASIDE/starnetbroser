@@ -117,7 +117,7 @@ final class GmailCodes {
     }
 
     /** The plain text of every part (HTML with its tags dropped), one line per block. */
-    private static void appendBody(JSONObject part, StringBuilder out) throws JSONException {
+    static void appendBody(JSONObject part, StringBuilder out) throws JSONException {
         String mime = part.optString("mimeType", "");
         JSONObject body = part.optJSONObject("body");
         String data = body != null ? body.optString("data", "") : "";

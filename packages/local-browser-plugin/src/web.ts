@@ -1,5 +1,7 @@
 import { WebPlugin } from "@capacitor/core";
 import type {
+  KastDeposit,
+  KastDevice,
   AckPendingAccountSyncsOptions,
   AckPendingAccountSyncsResult,
   AuthorizeDriveOptions,
@@ -217,5 +219,21 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
 
   async latestGmailCode(): Promise<{ code?: string }> {
     throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
+  }
+
+  async kastSetDevices(_options: { devices: KastDevice[] }): Promise<void> {
+    return;
+  }
+
+  async kastCheckNow(): Promise<void> {
+    return;
+  }
+
+  async kastPendingDeposits(): Promise<{ deposits: KastDeposit[] }> {
+    return { deposits: [] };
+  }
+
+  async kastAckDeposits(_options: { ids: string[] }): Promise<void> {
+    return;
   }
 }

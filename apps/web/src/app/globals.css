@@ -10245,3 +10245,32 @@ a[href],
   font-weight: 700;
   overflow-wrap: anywhere;
 }
+
+/* 💳 KAST: dollars received waiting to be recorded, and the cards form. */
+.kast-deposits {
+  margin-bottom: 10px;
+}
+
+.kast-deposit-row {
+  border: 1px dashed var(--green);
+  background: var(--green-bg);
+}
+
+.kast-deposit-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.kast-card-form {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.kast-card-form input {
+  flex: 1 1 110px;
+  min-width: 0;
+}

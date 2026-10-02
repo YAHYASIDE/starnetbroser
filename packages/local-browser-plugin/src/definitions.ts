@@ -609,4 +609,35 @@ export interface LocalBrowserPlugin {
 
   /** The newest code of the last day in the linked Gmail (no `code` when none) - «🔍 جرّب». */
   latestGmailCode(): Promise<{ code?: string }>;
+
+  /** 💳 KAST card mail (read from the linked Gmail every hour, even with the app closed): the
+   * devices' expected Starlink amounts and cards, to guess which device a refused payment was
+   * (the Telegram alert). Also starts the hourly check. */
+  kastSetDevices(options: { devices: KastDevice[] }): Promise<void>;
+
+  /** One check of the KAST mail now (the app just opened). */
+  kastCheckNow(): Promise<void>;
+
+  /** «لقد تلقيت دولارات» mails not yet saved by the app. */
+  kastPendingDeposits(): Promise<{ deposits: KastDeposit[] }>;
+
+  /** The app saved these deposits - forget them on the native side. */
+  kastAckDeposits(options: { ids: string[] }): Promise<void>;
+}
+
+export interface KastDevice {
+  name: string;
+  /** The device's expected Starlink charge, USD. */
+  expectedUsd: number;
+  /** Last 4 digits of the card that pays it ("" = not set). */
+  cardLast4: string;
+}
+
+export interface KastDeposit {
+  /** The Gmail message id - never handled twice. */
+  id: string;
+  amountUsd: number;
+  sender: string;
+  /** When the mail arrived (ms). */
+  at: number;
 }

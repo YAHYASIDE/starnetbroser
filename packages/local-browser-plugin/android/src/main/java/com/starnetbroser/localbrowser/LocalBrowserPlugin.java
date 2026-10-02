@@ -432,6 +432,45 @@ public class LocalBrowserPlugin extends Plugin {
         call.resolve();
     }
 
+    // ---- 💳 KAST card mail (KastWatch) ----
+
+    /** The devices' expected Starlink amounts and cards, for guessing which device a refused
+     * payment was; also starts the hourly check. */
+    @PluginMethod
+    public void kastSetDevices(PluginCall call) {
+        com.getcapacitor.JSArray devices = call.getArray("devices");
+        KastWatch.setDevices(getContext(), devices == null ? "[]" : devices.toString());
+        KastWatchWorker.schedule(getContext());
+        call.resolve();
+    }
+
+    /** One check now (the app just opened). */
+    @PluginMethod
+    public void kastCheckNow(PluginCall call) {
+        KastWatchWorker.checkNow(getContext());
+        call.resolve();
+    }
+
+    /** The dollars received that the app hasn't saved yet. */
+    @PluginMethod
+    public void kastPendingDeposits(PluginCall call) {
+        JSObject ret = new JSObject();
+        try {
+            ret.put("deposits", new com.getcapacitor.JSArray(KastWatch.pendingDeposits(getContext()).toString()));
+        } catch (org.json.JSONException e) {
+            ret.put("deposits", new com.getcapacitor.JSArray());
+        }
+        call.resolve(ret);
+    }
+
+    /** The app saved these deposits (in its own store) - forget them here. */
+    @PluginMethod
+    public void kastAckDeposits(PluginCall call) {
+        java.util.Set<String> ids = new java.util.HashSet<>(java.util.Arrays.asList(stringArray(call.getData(), "ids")));
+        KastWatch.ackDeposits(getContext(), ids);
+        call.resolve();
+    }
+
     /** The devices whose mailbox (📧 البريد) is signed in on this phone - id, email, since when. */
     @PluginMethod
     public void listMailSessions(PluginCall call) {

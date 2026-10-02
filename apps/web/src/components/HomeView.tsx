@@ -4,6 +4,7 @@ import { CSSProperties, ReactNode, useEffect, useMemo, useRef, useState } from "
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { App } from "@capacitor/app";
+import type { PluginListenerHandle } from "@capacitor/core";
 import { DeviceStatus, StarlinkAccountSummary } from "@starnet/shared";
 import { expiryDay } from "@starnet/shared";
 import { AccountCard, AccountCardContext } from "./AccountCard";
@@ -119,8 +120,12 @@ import {
   openIsolatedAccountBrowser,
   starlinkLoginFor,
   syncAutoSyncAccountList,
+  pushKastDevices,
+  kastCheckNow,
+  drainKastDeposits,
   triggerImmediateSync,
 } from "@/lib/localBrowser";
+import { depositLabel, kastDevicesSnapshot } from "@/lib/kastCards";
 import {
   accountIdsNeedingLogin,
   loadSessionCheckResults,
@@ -762,6 +767,36 @@ export function HomeView({
     // ones (7/3/1 days, just expired, stopped) automatically; see autoSyncList.ts.
     void syncAutoSyncAccountList(buildAutoSyncList(accounts));
   }, [accounts]);
+
+  // 💳 KAST card mail: each device's expected Starlink dollars and card go to the phone (it guesses
+  // the device of a refused payment for the Telegram alert); never the demo devices.
+  useEffect(() => {
+    if (dataState !== "loaded") return;
+    void pushKastDevices(kastDevicesSnapshot(accounts, ledgerStore, currencyStore));
+  }, [accounts, ledgerStore, currencyStore, dataState]);
+
+  // …and on opening / coming back: check the mail now, and tell about dollars received.
+  useEffect(() => {
+    if (!isRunningInAndroidApp()) return;
+    let handle: PluginListenerHandle | undefined;
+    let cancelled = false;
+    const check = () => {
+      void kastCheckNow();
+      void drainKastDeposits().then((added) => {
+        for (const d of added) pushToast(`💵 ${depositLabel(d)} إلى KAST - سجّله من «ستارلينك والبطاقة»`);
+      });
+    };
+    check();
+    App.addListener("resume", check).then((h) => {
+      if (cancelled) h.remove();
+      else handle = h;
+    });
+    return () => {
+      cancelled = true;
+      handle?.remove();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function saveAccount(account: StarlinkAccountSummary) {
     const repRequestId = repDeviceRequestRef.current;

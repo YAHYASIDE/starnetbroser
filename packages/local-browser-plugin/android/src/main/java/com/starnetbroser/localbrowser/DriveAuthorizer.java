@@ -80,6 +80,25 @@ final class DriveAuthorizer {
         new DriveAuthorizer().authorizeWith(activity, scope, accountEmail, false, "", callback, null);
     }
 
+    /** 💳 A token for the background (KastWatch): no screen, never asks - null when consent is
+     * needed or Google can't be reached. Blocking - never on the main thread. */
+    static String tokenInBackground(Context context, String scope, String accountEmail) {
+        AuthorizationRequest.Builder builder = AuthorizationRequest.builder()
+            .setRequestedScopes(Collections.singletonList(new Scope(scope)));
+        if (accountEmail != null && !accountEmail.trim().isEmpty()) {
+            builder.setAccount(new android.accounts.Account(accountEmail.trim(), "com.google"));
+        }
+        try {
+            AuthorizationResult result = com.google.android.gms.tasks.Tasks.await(
+                Identity.getAuthorizationClient(context).authorize(builder.build()), 30, java.util.concurrent.TimeUnit.SECONDS);
+            if (result.hasResolution()) return null;
+            String token = result.getAccessToken();
+            return token == null || token.isEmpty() ? null : token;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private void authorizeWith(Activity activity, String scope, String accountEmail, boolean interactive, String consentMessage,
                                TokenCallback callback, ActivityResultLauncher<IntentSenderRequest> launcher) {
         AuthorizationRequest.Builder builder = AuthorizationRequest.builder()

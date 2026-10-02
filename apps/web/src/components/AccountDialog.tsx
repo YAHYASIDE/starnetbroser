@@ -1,5 +1,6 @@
 "use client";
 
+import { cardLabel, loadPaymentCards } from "@/lib/kastCards";
 import { shareText } from "@/lib/shareText";
 import { buildFullDeviceMessage } from "@/lib/whatsapp";
 import { DateInput } from "./DateInput";
@@ -105,6 +106,7 @@ export function AccountDialog({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const initial = useMemo(() => account ?? { ...createBlankAccount(), ...prefill }, [account]);
   const [draft, setDraft] = useState(initial);
+  const [paymentCards] = useState(() => loadPaymentCards());
   // The passwords used most on the other devices - one tap to fill a field.
   const passwordSuggestions = useMemo(() => usedPasswords(existingAccounts ?? []).slice(0, 4).map((p) => p.value), [existingAccounts]);
   // السعر الشهري الثابت - kept as raw strings while typing; all four empty means "no plan".
@@ -613,8 +615,21 @@ export function AccountDialog({
             <DuplicateWarning hits={duplicates} inline={["email", "name", "kit"]} />
 
             <details className="add-more">
-              <summary>⚙️ المزيد: رقم الهاتف، بريد إضافي، السعر الشهري</summary>
+              <summary>⚙️ المزيد: رقم الهاتف، بريد إضافي، السعر الشهري، بطاقة الدفع</summary>
               <div className="add-more-body">
+            <label className="form-field form-wide">
+              <span>💳 بطاقة الدفع لـ Starlink (KAST)</span>
+              <select value={draft.paymentCardLast4 ?? ""} onChange={(e) => update("paymentCardLast4", e.target.value || undefined)}>
+                <option value="">— غير محددة —</option>
+                {paymentCards.map((card) => (
+                  <option key={card.id} value={card.last4}>{cardLabel(card)}</option>
+                ))}
+                {draft.paymentCardLast4 && !paymentCards.some((c) => c.last4 === draft.paymentCardLast4) && (
+                  <option value={draft.paymentCardLast4}>•{draft.paymentCardLast4}</option>
+                )}
+              </select>
+              {paymentCards.length === 0 && <small className="settings-hint">أضف بطاقاتك من «ستارلينك والبطاقة» ← «بطاقاتي».</small>}
+            </label>
             <div className="form-field form-wide">
               <span>رقم الهاتف (واتساب)</span>
               <div className="phone-input-row">

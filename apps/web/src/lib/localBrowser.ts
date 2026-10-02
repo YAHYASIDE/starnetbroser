@@ -3,6 +3,7 @@
 import { Capacitor, PluginListenerHandle } from "@capacitor/core";
 import {
   AccountDataSyncedEvent,
+  KastDevice,
   LocalBrowser,
   OpenMailBrowserOptions,
   PendingAccountSync,
@@ -14,6 +15,7 @@ import type { StarlinkAccountSummary } from "@starnet/shared";
 import { SIGNUP_RECOVERY_EMAIL, outlookSignupFor, starlinkActivationFor } from "./accountCreation";
 import { passwordSuggestionsFor } from "./usedPasswords";
 import { CANCEL_SUBSCRIPTION_REASON } from "./subscriptionCancel";
+import { type CardDeposit, loadCardDeposits, mergeCardDeposits, saveCardDeposits } from "./kastCards";
 import { SessionsByAccount } from "./accountBackup";
 import { markInternalLeave } from "./appLock";
 
@@ -470,5 +472,46 @@ export async function openNotificationSettings(): Promise<void> {
     await LocalBrowser.openNotificationSettings();
   } catch {
     // Nothing to recover - see doc comment above.
+  }
+}
+
+// ---- 💳 KAST card mail (KastWatch on the phone) ----
+
+/** The devices' expected Starlink dollars and cards, for the refused-payment alert (also starts
+ * the hourly check). No-op on web. */
+export async function pushKastDevices(devices: KastDevice[]): Promise<void> {
+  if (!isRunningInAndroidApp()) return;
+  try {
+    await LocalBrowser.kastSetDevices({ devices });
+  } catch {
+    // the next change pushes again
+  }
+}
+
+/** One check of the KAST mail now (the app just opened / came back). */
+export async function kastCheckNow(): Promise<void> {
+  if (!isRunningInAndroidApp()) return;
+  try {
+    await LocalBrowser.kastCheckNow();
+  } catch {
+    // the hourly check still runs
+  }
+}
+
+/** Moves the dollars received (KAST mail) from the phone into the app's own store, then forgets
+ * them there. Returns the ones that are new to the app. */
+export async function drainKastDeposits(): Promise<CardDeposit[]> {
+  if (!isRunningInAndroidApp()) return [];
+  try {
+    const { deposits } = await LocalBrowser.kastPendingDeposits();
+    if (!deposits.length) return [];
+    const before = loadCardDeposits();
+    const after = mergeCardDeposits(before, deposits);
+    saveCardDeposits(after);
+    await LocalBrowser.kastAckDeposits({ ids: deposits.map((d) => d.id) });
+    const known = new Set(before.map((d) => d.id));
+    return after.filter((d) => !known.has(d.id));
+  } catch {
+    return [];
   }
 }

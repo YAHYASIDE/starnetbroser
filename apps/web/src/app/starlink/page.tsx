@@ -34,6 +34,20 @@ import {
 } from "@/lib/ledgerStore";
 import { listAccounts } from "@/lib/apiClient";
 import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
+import {
+  addPaymentCard,
+  type CardDeposit,
+  depositLabel,
+  loadCardDeposits,
+  loadPaymentCards,
+  type PaymentCardList,
+  pendingCardDeposits,
+  removePaymentCard,
+  saveCardDeposits,
+  savePaymentCards,
+  setDepositStatus,
+} from "@/lib/kastCards";
+import { drainKastDeposits } from "@/lib/localBrowser";
 import { getRepresentative, loadRepresentativeStore, RepresentativeStore } from "@/lib/repStore";
 import {
   buildCardStatement,
@@ -97,6 +111,10 @@ export default function StarlinkPage() {
   const [prevPay, setPrevPay] = useState<PreviousDebt | null>(null);
   const [payItems, setPayItems] = useState<OpenShipmentDebt[]>([]);
   const [toast, setToast] = useState<string | null>(null);
+  // 💳 KAST: the cards (which pays which device) and the dollars received waiting to be recorded.
+  const [paymentCards, setPaymentCards] = useState<PaymentCardList>([]);
+  const [deposits, setDeposits] = useState<CardDeposit[]>([]);
+  const [depositToRecord, setDepositToRecord] = useState<CardDeposit | null>(null);
 
   useEffect(() => {
     setLedgerStore(loadLedgerStore());
@@ -105,6 +123,11 @@ export default function StarlinkPage() {
     setCurrencyStore(loadCurrencyStore());
     setTopUps(loadCardTopUps());
     setPreviousDebts(loadPreviousDebts());
+    setPaymentCards(loadPaymentCards());
+    setDeposits(loadCardDeposits());
+    void drainKastDeposits().then((added) => {
+      if (added.length) setDeposits(loadCardDeposits());
+    });
     if (isDemoMode()) {
       setAccounts(loadDemoAccounts(demoAccounts));
       return;
@@ -198,8 +221,37 @@ export default function StarlinkPage() {
     setTopUps(result.list);
     saveCardTopUps(result.list);
     saveCashEntries(postCardTopUpToCash(loadCashEntries(), result.topUp));
+    if (depositToRecord) updateDeposit(depositToRecord.id, "recorded");
+    setDepositToRecord(null);
     setSheet(null);
     return null;
+  }
+
+  function updateDeposit(id: string, status: CardDeposit["status"]) {
+    const next = setDepositStatus(loadCardDeposits(), id, status);
+    saveCardDeposits(next);
+    setDeposits(next);
+  }
+
+  function recordDeposit(deposit: CardDeposit) {
+    setDepositToRecord(deposit);
+    setSheet("topup");
+  }
+
+  function addCard(last4: string, name: string): string | null {
+    const result = addPaymentCard(paymentCards, { last4, name });
+    if (!result.ok) return result.message;
+    savePaymentCards(result.list);
+    setPaymentCards(result.list);
+    return null;
+  }
+
+  function removeCard(id: string) {
+    const card = paymentCards.find((c) => c.id === id);
+    if (!card || !window.confirm(`حذف البطاقة ${card.name} •${card.last4} من القائمة؟`)) return;
+    const next = removePaymentCard(paymentCards, id);
+    savePaymentCards(next);
+    setPaymentCards(next);
   }
 
   function removeTopUp(topUp: CardTopUp) {
@@ -448,6 +500,22 @@ export default function StarlinkPage() {
             + شحن البطاقة
           </button>
         </div>
+        {pendingCardDeposits(deposits).length > 0 && (
+          <ul className="sl-list kast-deposits">
+            {pendingCardDeposits(deposits).map((d) => (
+              <li key={d.id} className="sl-row kast-deposit-row">
+                <div className="sl-row-main">
+                  <strong>💵 {depositLabel(d)}</strong>
+                  <span>من بريد KAST{d.at ? ` · ${new Date(d.at).toLocaleDateString("en-GB")}` : ""} - لم يُسجَّل بعد</span>
+                </div>
+                <div className="kast-deposit-actions">
+                  <button type="button" className="dialog-primary" onClick={() => recordDeposit(d)}>سجّل شحناً</button>
+                  <button type="button" className="text-action" onClick={() => updateDeposit(d.id, "dismissed")}>تجاهل</button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
         {card.rows.length === 0 ? (
           <p className="empty-state">لا توجد حركات بعد. سجّل «شحن البطاقة» عندما تضع فيها مالًا.</p>
         ) : (
@@ -493,6 +561,8 @@ export default function StarlinkPage() {
         )}
       </section>
 
+      <PaymentCardsSection cards={paymentCards} onAdd={addCard} onRemove={removeCard} />
+
       {sheet === "pay" && (
         <PartySheet title="تسديد D لستارلينك" onClose={() => setSheet(null)}>
           <PayForm items={payItems} accountName={(id) => account(id)?.name ?? "جهاز"} cardBalance={card.balanceUsd} onPay={pay} onCancel={() => setSheet(null)} />
@@ -515,7 +585,16 @@ export default function StarlinkPage() {
 
       {sheet === "topup" && (
         <PartySheet title="شحن بطاقة كاش" onClose={() => setSheet(null)}>
-          <TopUpForm mruRate={mruRate} currencyStore={currencyStore} onSubmit={addTopUp} onCancel={() => setSheet(null)} />
+          <TopUpForm
+            mruRate={mruRate}
+            currencyStore={currencyStore}
+            prefill={depositToRecord ? { amountUsd: depositToRecord.amountUsd, note: `KAST: ${depositLabel(depositToRecord)}` } : undefined}
+            onSubmit={addTopUp}
+            onCancel={() => {
+              setDepositToRecord(null);
+              setSheet(null);
+            }}
+          />
         </PartySheet>
       )}
 
@@ -713,25 +792,28 @@ function TopUpForm({
   initial,
   mruRate,
   currencyStore,
+  prefill,
   onSubmit,
   onDelete,
   onCancel,
 }: {
   /** Set when editing a past top-up. */
   initial?: CardTopUp;
+  /** 💳 Dollars received on KAST (its mail): the amount and a note filled in. */
+  prefill?: { amountUsd: number; note: string };
   mruRate: number | undefined;
   currencyStore: CurrencyStore;
   onSubmit: (input: { amountUsd: number; paidAmount: number; paidCurrency: string; date: string; note: string }) => string | null;
   onDelete?: () => void;
   onCancel: () => void;
 }) {
-  const [amountUsd, setAmountUsd] = useState(initial ? String(initial.amountUsd) : "");
+  const [amountUsd, setAmountUsd] = useState(initial ? String(initial.amountUsd) : prefill ? String(prefill.amountUsd) : "");
   const [paidCurrency, setPaidCurrency] = useState<string>(initial?.paidCurrency ?? "MRU");
   const [paidAmount, setPaidAmount] = useState(initial ? String(initial.paidAmount) : "");
   // An edit starts from what really left الصندوق, never a re-suggestion from today's rate.
   const [paidTouched, setPaidTouched] = useState(Boolean(initial));
   const [date, setDate] = useState(initial?.date ?? todayInput());
-  const [note, setNote] = useState(initial?.note ?? "");
+  const [note, setNote] = useState(initial?.note ?? prefill?.note ?? "");
   const [error, setError] = useState<string | null>(null);
 
   // Suggests what left الصندوق from today's rate until the operator types the real figure.
@@ -877,5 +959,65 @@ function SettlementEditForm({
         {payment.entry.previousDebtId ? "حذف هذا التسديد (يرجع الدين السابق)" : "إلغاء التسديد (يرجع إلى D)"}
       </button>
     </form>
+  );
+}
+
+/** 💳 «بطاقاتي»: the KAST cards (last 4 digits + a name). Each device picks the one that pays its
+ * Starlink (its edit dialog) - so a refused payment's Telegram alert names the likely device. */
+function PaymentCardsSection({
+  cards,
+  onAdd,
+  onRemove,
+}: {
+  cards: PaymentCardList;
+  onAdd: (last4: string, name: string) => string | null;
+  onRemove: (id: string) => void;
+}) {
+  const [last4, setLast4] = useState("");
+  const [name, setName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    const problem = onAdd(last4, name);
+    setError(problem);
+    if (!problem) {
+      setLast4("");
+      setName("");
+    }
+  }
+
+  return (
+    <section className="section">
+      <div className="sl-head">
+        <h2 className="sl-title">💳 بطاقاتي (KAST)</h2>
+      </div>
+      <p className="settings-hint">
+        عند رفض دفع Starlink يصلك تنبيه في تيليغرام مع الجهاز الأرجح (من المبلغ، وأجهزة البطاقة أولاً). اختر بطاقة كل جهاز من نافذة تعديله.
+      </p>
+      {cards.length > 0 && (
+        <ul className="sl-list">
+          {cards.map((card) => (
+            <li key={card.id} className="sl-row">
+              <div className="sl-row-main">
+                <strong>{card.name}</strong>
+                <span>
+                  تنتهي بـ <bdi dir="ltr">{card.last4}</bdi>
+                </span>
+              </div>
+              <button type="button" className="text-action" onClick={() => onRemove(card.id)}>
+                حذف
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form className="kast-card-form" onSubmit={submit}>
+        <input dir="ltr" inputMode="numeric" maxLength={4} placeholder="آخر 4 أرقام" value={last4} onChange={(e) => setLast4(e.target.value.replace(/\D/g, ""))} />
+        <input placeholder="اسم البطاقة (اختياري)" value={name} onChange={(e) => setName(e.target.value)} />
+        <button type="submit" className="dialog-primary">+ إضافة</button>
+      </form>
+      {error && <div className="account-card-alert">{error}</div>}
+    </section>
   );
 }

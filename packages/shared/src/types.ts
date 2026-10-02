@@ -90,6 +90,9 @@ export interface StarlinkAccountSummary {
    * right now, this is just the date it will actually stop unless resumed before then. Shown as
    * its own separate info note, never folded into the plan/status badge itself. */
   pendingCancellationDate?: string;
+  /** 💳 Last 4 digits of the KAST card that pays this device's Starlink (kastCards.ts) - to guess
+   * which device a refused payment was. */
+  paymentCardLast4?: string;
   // `phone` below is manually-entered local customer contact number (like `name`), used only for
   // the "تواصل عبر واتساب" card action - never touched by Starlink sync, and unrelated to the
   // Settings page's own phone number, which sync deliberately never reads at all.
