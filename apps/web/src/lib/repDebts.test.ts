@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { StarlinkAccountSummary } from "@starnet/shared";
-import { clientRepNames, repDevicesDebt } from "./repDebts";
+import { clientRepIds, clientRepNames, matchesClientOwner, repDevicesDebt } from "./repDebts";
 import type { LedgerEntry } from "./ledgerStore";
 
 const acc = (o: Partial<StarlinkAccountSummary>) => ({ id: "x", name: "x", ...o }) as StarlinkAccountSummary;
@@ -43,5 +43,26 @@ describe("repDevicesDebt", () => {
     const debt = repDevicesDebt("r1", accounts, ledger);
     expect(debt.rows).toEqual([{ accountId: "a", owed: { MRU: 100000, SIFA: 12500 } }]);
     expect(debt.totalByCurrency).toEqual({ MRU: 100000, SIFA: 12500 });
+  });
+});
+
+describe("clients page: my customers / the reps' customers", () => {
+  const devices = [
+    { id: "a1", clientId: "c1", representativeId: "r1" },
+    { id: "a2", clientId: "c1", representativeId: "r2" },
+    { id: "a3", clientId: "c2" },
+    { id: "a4", clientId: "c3", representativeId: "r1", deletedAt: "2026-10-01" },
+  ] as unknown as StarlinkAccountSummary[];
+
+  it("tells whose customer each one is, and filters by it", () => {
+    expect(clientRepIds("c1", devices)).toEqual(["r1", "r2"]);
+    expect(clientRepIds("c2", devices)).toEqual([]);
+    expect(clientRepIds("c3", devices)).toEqual([]); // only a deleted device of r1
+    expect(matchesClientOwner([], "mine")).toBe(true);
+    expect(matchesClientOwner(["r1"], "mine")).toBe(false);
+    expect(matchesClientOwner(["r1"], "reps")).toBe(true);
+    expect(matchesClientOwner(["r1", "r2"], { repId: "r2" })).toBe(true);
+    expect(matchesClientOwner([], { repId: "r2" })).toBe(false);
+    expect(matchesClientOwner([], "all")).toBe(true);
   });
 });

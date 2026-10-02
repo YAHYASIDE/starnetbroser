@@ -3,6 +3,7 @@
 import { isRepWorkspace } from "@/lib/repMode";
 import { currentRepPending } from "@/lib/repWorkspace";
 import { loadRepChangesSent, shareRepChanges, type RepChangesSent } from "@/lib/repChangesSend";
+import { REP_INBOX_EVENT, repInboxCount } from "@/lib/repInbox";
 import { CSSProperties, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -153,7 +154,7 @@ type DialogState = { mode: AccountDialogMode; account?: StarlinkAccountSummary; 
  * ways of narrowing the SAME list, and combining them silently would be confusing rather than
  * useful. `total` never appears as a value: tapping "كل الحسابات" is just `showAll`, not a real
  * per-account filter. */
-type StatFilterKind = "online" | "expiringSoon" | "expired" | "suspended" | "faulty" | "repair";
+type StatFilterKind = "online" | "expiringSoon" | "expired" | "suspended" | "faulty" | "repair" | "fromRep";
 
 const STAT_FILTER_TITLES: Record<StatFilterKind, string> = {
   online: "الحسابات المتصلة الآن",
@@ -162,6 +163,7 @@ const STAT_FILTER_TITLES: Record<StatFilterKind, string> = {
   suspended: "الحسابات المتوقفة (فوترة)",
   faulty: "الأجهزة المعطلة",
   repair: "قيد الإصلاح (مع الدعم الفني)",
+  fromRep: "أجهزة أضافها المندوبون",
 };
 
 function matchesStatFilter(account: StarlinkAccountSummary, kind: StatFilterKind): boolean {
@@ -174,6 +176,8 @@ function matchesStatFilter(account: StarlinkAccountSummary, kind: StatFilterKind
       return isFaulty(account);
     case "repair":
       return isUnderRepair(account);
+    case "fromRep":
+      return Boolean(account.addedByRepId);
     case "expiringSoon": {
       // A broken device isn't renewed until it's repaired (see "المعطلة").
       if (isFaulty(account)) return false;
@@ -273,11 +277,20 @@ export function HomeView({
   // 📥 requests reps sent through the bot (repRequests.ts) - they arrive while the app is open.
   const [pendingRepRequestCount, setPendingRepRequestCount] = useState(0);
   useEffect(() => {
-    const refresh = () => setPendingRepRequestCount(pendingRepRequests(loadRepRequests()).length);
+    const refresh = () => {
+      setPendingRepRequestCount(pendingRepRequests(loadRepRequests()).length);
+      setRepInboxPending(repInboxCount());
+    };
     refresh();
     const timer = window.setInterval(refresh, 10000);
-    return () => window.clearInterval(timer);
+    window.addEventListener(REP_INBOX_EVENT, refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener(REP_INBOX_EVENT, refresh);
+    };
   }, []);
+  // 📝 reps' «تسجيلاتي» waiting for approval (repInbox.ts).
+  const [repInboxPending, setRepInboxPending] = useState(0);
 
   // Small, non-blocking top-of-screen bubbles for background sync results - never window.alert,
   // which would interrupt the user with a modal for something that happened on its own.
@@ -1200,13 +1213,19 @@ export function HomeView({
       if (statFilter === "faulty" && faultFilter) list = list.filter((a) => faultCategory(a) === faultFilter);
     }
     if (query.trim()) {
-      list = list.filter((a) => deviceMatchesQuery(query, a, a.clientId ? clientStore[a.clientId] : undefined));
+      // A rep's name shows his devices too.
+      list = list.filter(
+        (a) =>
+          deviceMatchesQuery(query, a, a.clientId ? clientStore[a.clientId] : undefined) ||
+          deviceMatchesQuery(query, { name: getRepresentative(representativeStore, a.representativeId)?.name ?? "", kitNumber: "", serialNumber: "" }),
+      );
     }
     return list;
-  }, [activeAccounts, selectedDay, statFilter, faultFilter, query, clientStore]);
+  }, [activeAccounts, selectedDay, statFilter, faultFilter, query, clientStore, representativeStore]);
 
   const faultCounts = useMemo(() => countFaultCategories(activeAccounts), [activeAccounts]);
   const repairCount = useMemo(() => activeAccounts.filter(isUnderRepair).length, [activeAccounts]);
+  const fromRepCount = useMemo(() => activeAccounts.filter((a) => a.addedByRepId).length, [activeAccounts]);
 
   const searchResults = useMemo(
     () =>
@@ -1298,6 +1317,16 @@ export function HomeView({
         </Link>
       )}
 
+      {repInboxPending > 0 && (
+        <Link href="/representatives#rep-inbox" className="backup-banner">
+          <span aria-hidden="true">📝</span>
+          <span>
+            <strong>{repInboxPending} تسجيلاً من المندوبين بانتظار موافقتك</strong>
+            <small>أجهزة ودفعات وزبائن من تطبيق المندوب - لا يدخل شيء قبل أن تثبّته</small>
+          </span>
+        </Link>
+      )}
+
       {pendingRepRequestCount > 0 && (
         <Link href="/representatives" className="backup-banner">
           <span aria-hidden="true">📥</span>
@@ -1326,7 +1355,7 @@ export function HomeView({
             <strong>{repSending ? "⏳ جارِ التجهيز…" : `إرسال تسجيلاتي للمسؤول (${repPendingCount})`}</strong>
             <small>
               {repSent
-                ? `أُرسلت ${repSent.at.slice(0, 16).replace("T", " ")} - تختفي ⏳ عندما تصلك النسخة الجديدة`
+                ? `أُرسلت ${repSent.at.slice(0, 16).replace("T", " ")} - بانتظار موافقة المسؤول، ثم تصلك نسخة جديدة`
                 : "دفعاتك وأجهزتك وزبائنك الجدد - اختر تيليغرام ثم بوت المندوبين"}
             </small>
           </span>
@@ -1452,6 +1481,15 @@ export function HomeView({
             >
               🛠️ قيد الإصلاح ({repairCount})
             </button>
+            {fromRepCount > 0 && (
+              <button
+                type="button"
+                className={`faulty-chip from-rep-chip${statFilter === "fromRep" ? " faulty-chip-active" : ""}`}
+                onClick={() => { toggleStatFilter("fromRep"); setSelectedDay(null); }}
+              >
+                📱 من المندوبين ({fromRepCount})
+              </button>
+            )}
           </div>
 
           <section className="section dashboard-section">
@@ -1537,6 +1575,7 @@ export function HomeView({
                 onDeviceStatement={(selected) => setStatementAccount(selected)}
                 client={getClient(clientStore, account.clientId)}
                 repColor={getRepresentative(representativeStore, account.representativeId)?.color}
+                addedByRepName={account.addedByRepId ? getRepresentative(representativeStore, account.addedByRepId)?.name ?? "مندوب" : undefined}
                 mailSignedIn={mailSignedIds.has(account.id)}
                 onOpenClient={(selectedClient) => setOpenClientId(selectedClient.id)}
                 currencyStore={currencyStore}

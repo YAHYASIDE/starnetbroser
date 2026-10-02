@@ -21,6 +21,7 @@ import {
   PREVIOUS_DEBTS_KEY,
   PROMISES_KEY,
   rebaseStore,
+  recordHash,
   REP_STORES,
   type Shape,
   type StoreChanges,
@@ -121,7 +122,7 @@ function records(value: unknown, shape: Shape): Map<string, Rec> {
  *   as held by the rep (the money is with him - nothing goes into الصندوق).
  * - customers: new ones, or customers of his devices; notes / adjustments / promises of those.
  */
-export function applyRepChangeSet(owner: StoreValues, changes: RepChangeSet, repId: string): ApplyRepChangesResult {
+export function applyRepChangeSet(owner: StoreValues, changes: RepChangeSet, repId: string, now: Date = new Date()): ApplyRepChangesResult {
   const summary = emptySummary();
   const stores: StoreValues = {};
 
@@ -132,13 +133,19 @@ export function applyRepChangeSet(owner: StoreValues, changes: RepChangeSet, rep
   for (const [id, mine] of Object.entries(changes[ACCOUNTS_KEY]?.set ?? {})) {
     const theirs = ownerAccounts.get(id);
     if (!theirs) {
-      accountChanges.set.set(id, { ...mine, representativeId: repId });
+      // 📱 marked for good: «أضافه المندوب» on its card, and the home filter.
+      accountChanges.set.set(id, { ...mine, representativeId: repId, addedByRepId: repId, addedByRepAt: now.toISOString() });
       created.push(id);
       summary.newDevices++;
     } else if (theirs.representativeId === repId && !theirs.deletedAt) {
       // He can't move a device to someone else, nor delete / archive it from here.
-      const { representativeId: _r, deletedAt: _d, archivedAt: _a, ...rest } = mine;
-      accountChanges.set.set(id, { ...rest, representativeId: repId, ...(theirs.archivedAt ? { archivedAt: theirs.archivedAt } : {}) });
+      const { representativeId: _r, deletedAt: _d, archivedAt: _a, addedByRepId: _b, addedByRepAt: _c, ...rest } = mine;
+      accountChanges.set.set(id, {
+        ...rest,
+        representativeId: repId,
+        ...(theirs.archivedAt ? { archivedAt: theirs.archivedAt } : {}),
+        ...(theirs.addedByRepId ? { addedByRepId: theirs.addedByRepId, addedByRepAt: theirs.addedByRepAt } : {}),
+      });
       summary.editedDevices++;
     } else {
       summary.refused++;
@@ -238,6 +245,219 @@ export function describeRepChanges(s: RepChangesSummary): string {
 
 export function totalApplied(s: RepChangesSummary): number {
   return s.newDevices + s.editedDevices + s.payments + s.shipments + s.editedEntries + s.removedEntries + s.newClients + s.editedClients + s.other;
+}
+
+// ---- operator side: reviewing, one item at a time ----
+
+export { recordHash };
+
+export type RepItemKind = "newDevice" | "deviceEdit" | "payment" | "shipment" | "entryEdit" | "entryRemove" | "newClient" | "clientEdit" | "other";
+
+export interface RepItemPart {
+  store: string;
+  path: string;
+  /** recordHash of the rep's version ("removed" for a removal). */
+  hash: string;
+}
+
+/** One thing the operator approves or rejects: a new device (with everything recorded on it), a
+ * payment, a shipment, a customer… */
+export interface RepChangeItem {
+  key: string;
+  kind: RepItemKind;
+  title: string;
+  detail?: string;
+  amount?: { value: number; currency: string };
+  /** The device it belongs to, when there is one. */
+  accountId?: string;
+  parts: RepItemPart[];
+}
+
+const OTHER_TITLES: Record<string, string> = {
+  [NOTES_KEY]: "📝 ملاحظة",
+  [PROMISES_KEY]: "🤝 وعد دفع",
+  [ADJUSTMENTS_KEY]: "⚖️ تعديل رصيد",
+  [PREVIOUS_DEBTS_KEY]: "📒 دين سابق",
+  [ALLOCATIONS_KEY]: "🔗 توزيع دفعة",
+};
+
+const partKey = (store: string, path: string) => `${store}|${path}`;
+const str = (v: unknown) => (typeof v === "string" ? v : "");
+const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+
+/** Everything in a rep's file, as items to review. Removing a device or a customer is never
+ * offered (never accepted anyway). */
+export function listRepChangeItems(changes: RepChangeSet, owner: StoreValues): RepChangeItem[] {
+  const items: RepChangeItem[] = [];
+  const used = new Set<string>();
+  const take = (store: string, path: string, record: Rec | undefined): RepItemPart => {
+    used.add(partKey(store, path));
+    return { store, path, hash: recordHash(record) };
+  };
+  const ownerAccounts = records(owner[ACCOUNTS_KEY], "list");
+  const ownerClients = records(owner[CLIENTS_KEY], "map");
+  const ownerLedger = records(owner[LEDGER_KEY], "groups");
+  const newAccounts = changes[ACCOUNTS_KEY]?.set ?? {};
+  const newClients = changes[CLIENTS_KEY]?.set ?? {};
+  const deviceName = (id: string) => str(newAccounts[id]?.name) || str(ownerAccounts.get(id)?.name) || "جهاز";
+  const clientName = (id: unknown) => (typeof id === "string" ? str(newClients[id]?.name) || str(ownerClients.get(id)?.name) : "");
+  const ledgerSet = changes[LEDGER_KEY]?.set ?? {};
+  const allocations = changes[ALLOCATIONS_KEY]?.set ?? {};
+  /** Allocations recorded with an entry travel with it. */
+  const allocationsOf = (accountId: string, entryId: string) =>
+    Object.entries(allocations)
+      .filter(([path, a]) => groupOf(path) === accountId && (a.paymentEntryId === entryId || a.shipmentEntryId === entryId))
+      .map(([path, a]) => take(ALLOCATIONS_KEY, path, a));
+
+  // 1. Devices: a new one carries its customer (when new too) and every operation on it.
+  for (const [id, account] of Object.entries(newAccounts)) {
+    const theirs = ownerAccounts.get(id);
+    if (theirs) {
+      items.push({ key: `edit:${id}`, kind: "deviceEdit", title: `✏️ تعديل الجهاز ${deviceName(id)}`, accountId: id, parts: [take(ACCOUNTS_KEY, id, account)] });
+      continue;
+    }
+    const parts = [take(ACCOUNTS_KEY, id, account)];
+    const client = typeof account.clientId === "string" ? account.clientId : undefined;
+    if (client && newClients[client] && !ownerClients.has(client)) parts.push(take(CLIENTS_KEY, client, newClients[client]));
+    let ops = 0;
+    for (const [path, entry] of Object.entries(ledgerSet)) {
+      if (groupOf(path) !== id) continue;
+      parts.push(take(LEDGER_KEY, path, entry), ...allocationsOf(id, String(entry.id)));
+      ops++;
+    }
+    for (const [path, debt] of Object.entries(changes[PREVIOUS_DEBTS_KEY]?.set ?? {})) {
+      if (String(debt.accountId) === id) parts.push(take(PREVIOUS_DEBTS_KEY, path, debt));
+    }
+    const name = clientName(account.clientId);
+    items.push({
+      key: `dev:${id}`,
+      kind: "newDevice",
+      title: `📡 جهاز جديد: ${deviceName(id)}`,
+      detail: [name ? `👤 ${name}` : "", str(account.expectedEmail), ops ? `${ops} عملية معه` : ""].filter(Boolean).join(" · "),
+      accountId: id,
+      parts,
+    });
+  }
+
+  // 2. Operations on devices already in the operator's list.
+  for (const [path, entry] of Object.entries(ledgerSet)) {
+    if (used.has(partKey(LEDGER_KEY, path))) continue;
+    const accountId = groupOf(path);
+    const edit = ownerLedger.has(path);
+    const credit = entry.kind === "credit";
+    const kind: RepItemKind = edit ? "entryEdit" : credit ? "payment" : "shipment";
+    const label = edit ? "✏️ تعديل عملية" : credit ? "💵 دفعة" : "📦 شحنة";
+    items.push({
+      key: `led:${path}`,
+      kind,
+      title: `${label} · ${deviceName(accountId)}`,
+      detail: [str(entry.date), str(entry.note)].filter(Boolean).join(" · "),
+      amount: { value: num(entry.amount), currency: str(entry.currency) },
+      accountId,
+      parts: [take(LEDGER_KEY, path, entry), ...allocationsOf(accountId, String(entry.id))],
+    });
+  }
+  for (const path of changes[LEDGER_KEY]?.removed ?? []) {
+    const accountId = groupOf(path);
+    const before = ownerLedger.get(path);
+    if (!before) continue;
+    const entryId = path.slice(path.lastIndexOf("/") + 1);
+    const allocParts = (changes[ALLOCATIONS_KEY]?.removed ?? [])
+      .filter((p) => groupOf(p) === accountId)
+      .filter((p) => {
+        const a = records(owner[ALLOCATIONS_KEY], "groups").get(p);
+        return a && (a.paymentEntryId === entryId || a.shipmentEntryId === entryId);
+      })
+      .map((p) => take(ALLOCATIONS_KEY, p, undefined));
+    items.push({
+      key: `del:${path}`,
+      kind: "entryRemove",
+      title: `🗑️ حذف ${before.kind === "credit" ? "دفعة" : "شحنة"} · ${deviceName(accountId)}`,
+      detail: str(before.date),
+      amount: { value: num(before.amount), currency: str(before.currency) },
+      accountId,
+      parts: [take(LEDGER_KEY, path, undefined), ...allocParts],
+    });
+  }
+
+  // 3. Customers.
+  for (const [id, client] of Object.entries(newClients)) {
+    if (used.has(partKey(CLIENTS_KEY, id))) continue;
+    const edit = ownerClients.has(id);
+    items.push({
+      key: `cli:${id}`,
+      kind: edit ? "clientEdit" : "newClient",
+      title: `${edit ? "✏️ تعديل الزبون" : "👤 زبون جديد"}: ${str(client.name) || "زبون"}`,
+      detail: str(client.phone),
+      parts: [take(CLIENTS_KEY, id, client)],
+    });
+  }
+
+  // 4. Anything else (notes, promises, adjustments, previous debts, lone allocations).
+  for (const [store, change] of Object.entries(changes)) {
+    if (store === ACCOUNTS_KEY || store === LEDGER_KEY || store === CLIENTS_KEY) continue;
+    const title = OTHER_TITLES[store] ?? "📝 تسجيل";
+    for (const [path, record] of Object.entries(change.set)) {
+      if (used.has(partKey(store, path))) continue;
+      items.push({
+        key: `oth:${store}:${path}`,
+        kind: "other",
+        title,
+        detail: [clientName(record.clientId ?? record.partyId), str(record.text ?? record.note), str(record.dueDate ?? record.date)].filter(Boolean).join(" · "),
+        ...(record.amount !== undefined ? { amount: { value: num(record.amount), currency: str(record.currency ?? record.currencyCode) } } : {}),
+        parts: [take(store, path, record)],
+      });
+    }
+    for (const path of change.removed) {
+      if (used.has(partKey(store, path))) continue;
+      items.push({ key: `oth-del:${store}:${path}`, kind: "other", title: `🗑️ حذف ${title}`, parts: [take(store, path, undefined)] });
+    }
+  }
+  return items;
+}
+
+/** store|path -> the operator's decision on that exact version. */
+export type RepDecisions = Record<string, { hash: string; decision: "approved" | "rejected"; at: string }>;
+
+export function isItemDecided(item: RepChangeItem, decisions: RepDecisions): boolean {
+  return item.parts.every((p) => decisions[partKey(p.store, p.path)]?.hash === p.hash);
+}
+
+export function withDecision(decisions: RepDecisions, items: RepChangeItem[], decision: "approved" | "rejected", now: Date = new Date()): RepDecisions {
+  const next = { ...decisions };
+  for (const item of items) for (const p of item.parts) next[partKey(p.store, p.path)] = { hash: p.hash, decision, at: now.toISOString() };
+  return next;
+}
+
+/** Only the chosen items' records, as a change set to apply. */
+export function changeSetOf(changes: RepChangeSet, items: RepChangeItem[]): RepChangeSet {
+  const out: RepChangeSet = {};
+  for (const item of items) {
+    for (const p of item.parts) {
+      const target = (out[p.store] ??= { set: {}, removed: [] });
+      const record = changes[p.store]?.set[p.path];
+      if (p.hash === "removed") target.removed.push(p.path);
+      else if (record) target.set[p.path] = record;
+    }
+  }
+  return out;
+}
+
+/** What the rep is told: "📡 1 جهاز جديد · 💵 2 دفعة". */
+export function describeItems(items: RepChangeItem[]): string {
+  const labels: Record<RepItemKind, string> = {
+    newDevice: "📡 جهاز جديد", deviceEdit: "✏️ تعديل جهاز", payment: "💵 دفعة", shipment: "📦 شحنة", entryEdit: "✏️ تعديل عملية",
+    entryRemove: "🗑️ حذف عملية", newClient: "👤 زبون جديد", clientEdit: "✏️ تعديل زبون", other: "📝 أخرى",
+  };
+  const counts = new Map<RepItemKind, number>();
+  for (const item of items) counts.set(item.kind, (counts.get(item.kind) ?? 0) + 1);
+  return [...counts].map(([kind, n]) => `${labels[kind]} ${n}`).join(" · ") || "لا شيء";
+}
+
+/** The rejected versions, for the rep's next copy: his phone then drops them (rep side, see
+ * repWorkspace.rebaseWorkspace) - unless he changed them again since. */
+export function rejectedVersions(decisions: RepDecisions): Record<string, string> {
+  return Object.fromEntries(Object.entries(decisions).filter(([, d]) => d.decision === "rejected").map(([k, d]) => [k, d.hash]));
 }
 
 // ---- the file ----

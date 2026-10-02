@@ -121,6 +121,16 @@ function pastLedger(stores: StoreValues, current: Set<string>, repId: string): P
   return out;
 }
 
+/** A short fingerprint of a record (or "removed") - an operator's decision on a rep's change holds
+ * only for that exact version (lib/repChanges.ts). */
+export function recordHash(record: unknown): string {
+  if (record === undefined) return "removed";
+  const text = JSON.stringify(record);
+  let h = 5381;
+  for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0;
+  return `${(h >>> 0).toString(36)}.${text.length}`;
+}
+
 // ---- record-level compare / rebase ----
 
 /** Fields the device's own Starlink sync writes - never a "change" the rep made: the newest read
@@ -230,7 +240,13 @@ function keepFreshestReads(merged: unknown, current: unknown): unknown {
 }
 
 /** Every store after a new copy: the operator's newer data with the rep's pending changes kept. */
-export function rebaseWorkspace(current: StoreValues, oldBase: StoreValues | null, nextBase: StoreValues): StoreValues {
+export function rebaseWorkspace(
+  current: StoreValues,
+  oldBase: StoreValues | null,
+  nextBase: StoreValues,
+  /** store|path -> the version the operator rejected: dropped here unless changed again since. */
+  rejected: Record<string, string> = {},
+): StoreValues {
   const result: StoreValues = {};
   for (const { key, shape } of REP_STORES) {
     if (!(key in nextBase)) continue;
@@ -250,6 +266,9 @@ export function rebaseWorkspace(current: StoreValues, oldBase: StoreValues | nul
       const now = theirsNow.get(path);
       if (now && !same(strip(now), strip(theirsBefore.get(path)))) changes.set.delete(path);
     }
+    // ❌ What the operator rejected leaves the rep's phone (the exact version he sent).
+    for (const [path, mine] of [...changes.set]) if (rejected[`${key}|${path}`] === recordHash(mine)) changes.set.delete(path);
+    for (const path of [...changes.removed]) if (rejected[`${key}|${path}`] === "removed") changes.removed.delete(path);
     if (key === ACCOUNTS_KEY) {
       // A device the operator took away (moved to another rep) leaves - even if the rep edited it;
       // a device the rep created himself stays.
@@ -334,8 +353,8 @@ export function hasRepWorkspace(): boolean {
 }
 
 /** Applies a new copy's stores, keeping the rep's pending changes. False when storage is full. */
-export function applyRepWorkspace(nextBase: StoreValues): boolean {
-  const merged = rebaseWorkspace(readStores(), loadRepBase(), nextBase);
+export function applyRepWorkspace(nextBase: StoreValues, rejected: Record<string, string> = {}): boolean {
+  const merged = rebaseWorkspace(readStores(), loadRepBase(), nextBase, rejected);
   try {
     for (const [key, value] of Object.entries(merged)) {
       if (value === null || value === undefined) window.localStorage.removeItem(key);

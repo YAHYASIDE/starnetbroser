@@ -11225,3 +11225,149 @@ button.today-tile {
 .rep-send-banner:disabled {
   opacity: 0.7;
 }
+
+/* 📱 «أضافه المندوب» on a device card (approved from his «تسجيلاتي»). */
+.rep-added-chip {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--violet-bg);
+  color: var(--violet);
+  font-size: 0.66rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* 📝 «تسجيلات المندوبين» (RepInboxSection). */
+.rep-inbox-card {
+  margin: 0 0 12px;
+  padding: 10px;
+  border: 1px solid var(--violet);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.rep-inbox-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 8px;
+  margin-bottom: 6px;
+}
+
+.rep-inbox-head small,
+.rep-inbox-main small {
+  color: var(--text-muted);
+  font-size: 0.74rem;
+}
+
+.rep-inbox-all {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  margin: 4px 0;
+}
+
+.rep-inbox-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.rep-inbox-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "check main buttons" "check amount buttons";
+  align-items: center;
+  gap: 2px 8px;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+}
+
+.rep-inbox-check {
+  grid-area: check;
+}
+
+.rep-inbox-main {
+  grid-area: main;
+  display: grid;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.rep-inbox-main strong {
+  font-size: 0.86rem;
+}
+
+.rep-inbox-amount {
+  grid-area: amount;
+  font-weight: 800;
+  font-size: 0.82rem;
+  color: var(--green);
+}
+
+.rep-inbox-buttons {
+  grid-area: buttons;
+  display: flex;
+  gap: 4px;
+}
+
+.rep-inbox-buttons button {
+  min-width: 36px;
+  min-height: 36px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.rep-inbox-newDevice {
+  border-inline-start: 3px solid var(--violet);
+}
+
+.rep-inbox-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.rep-inbox-actions button {
+  flex: 1 1 140px;
+}
+
+/* 👤 / 🤝 «زبائني / زبائن المندوبين» (clients tab). */
+.party-owner-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 4px;
+}
+
+.party-owner-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 34px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.party-owner-chip-active {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: var(--brand-contrast);
+}

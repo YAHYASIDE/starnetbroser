@@ -38,6 +38,8 @@ export interface RepCopy {
   rates: Record<string, number>;
   /** The rep's slice of the app's own stores (lib/repWorkspace.ts) - the full app runs on it. */
   stores?: Record<string, unknown>;
+  /** store|path -> version: his recordings the operator rejected (his phone drops them). */
+  rejected?: Record<string, string>;
 }
 
 export interface RepCopyPayload extends RepCopy {

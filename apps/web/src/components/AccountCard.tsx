@@ -71,6 +71,8 @@ interface Props {
   onOpenClient: (client: Client) => void;
   /** His rep's color (repStore REP_COLORS): the card gets a light tint of it. */
   repColor?: string;
+  /** 📱 The rep who added this device from his app (approved) - a lasting badge. */
+  addedByRepName?: string;
   /** The general currency registry (see currencyStore.ts) - used only to show a small "≈ X USD"
    * line under a non-USD Starlink balance, when that currency's rate happens to be registered
    * (e.g. via the /currencies page). Never guessed, and never shown at all when no rate is known -
@@ -218,6 +220,7 @@ export function AccountCard({
   previousDebts = [],
   onAddPreviousDebt,
   repColor,
+  addedByRepName,
 }: Props) {
   const ledgerBalances = computeBalanceByCurrency(ledgerEntries);
   const serviceStatus = presentServiceStatus(effectiveServiceStatus(account));
@@ -550,6 +553,12 @@ export function AccountCard({
           </span>
         )}
         {serviceStatus && <span className={`badge ${serviceStatus.className} account-card-status-badge`}>{serviceStatus.label}</span>}
+        {addedByRepName && (
+          <span className="rep-added-chip" title="أضافه المندوب من تطبيقه وثبّتّه أنت">
+            📱 أضافه {addedByRepName}
+            {account.addedByRepAt && <> · <bdi dir="ltr">{account.addedByRepAt.slice(0, 10)}</bdi></>}
+          </span>
+        )}
         {repPending && (
           <span className="rep-pending-chip" title="سجّلته أنت - ينتظر تثبيت المسؤول">
             ⏳ بانتظار المسؤول

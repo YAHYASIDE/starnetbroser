@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ACCOUNTS_KEY, CLIENTS_KEY, LEDGER_KEY, rebaseWorkspace, repPending, repStoreSlice } from "./repWorkspace";
+import { ACCOUNTS_KEY, CLIENTS_KEY, LEDGER_KEY, rebaseWorkspace, recordHash, repPending, repStoreSlice } from "./repWorkspace";
 
 // Fake records only.
 const acc = (id: string, extra: Record<string, unknown> = {}) => ({ id, name: `جهاز ${id}`, ...extra });
@@ -106,6 +106,15 @@ describe("rebase on a new copy (rep side)", () => {
     expect(merged[LEDGER_KEY]).toEqual(next[LEDGER_KEY]);
     expect(merged[ACCOUNTS_KEY]).toEqual(next[ACCOUNTS_KEY]);
     expect(repPending(merged, next).count).toBe(0);
+  });
+
+  it("what the operator rejected leaves the rep's phone - unless he changed it again", () => {
+    const mine = entry("p1", 50);
+    const current = { ...base, [LEDGER_KEY]: { a1: [entry("e1", 100), mine], a2: [] } };
+    const rejected = { [`${LEDGER_KEY}|a1/p1`]: recordHash(mine) };
+    expect(rebaseWorkspace(current, base, base, rejected)[LEDGER_KEY]).toEqual(base[LEDGER_KEY]);
+    const changed = { ...base, [LEDGER_KEY]: { a1: [entry("e1", 100), entry("p1", 60)], a2: [] } };
+    expect(rebaseWorkspace(changed, base, base, rejected)[LEDGER_KEY]).toEqual(changed[LEDGER_KEY]);
   });
 
   it("the first copy is taken as it is", () => {

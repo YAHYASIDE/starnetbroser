@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   applyRepChangeSet,
+  changeSetOf,
+  describeItems,
+  isItemDecided,
+  listRepChangeItems,
+  recordHash,
+  rejectedVersions,
+  withDecision,
   buildRepChangeSet,
   buildRepChangesFile,
   countRepChanges,
@@ -139,5 +146,51 @@ describe("rep changes file", () => {
     expect(name).toBe("starnet-changes-r1-1000.json");
     expect(isRepChangesFileName(name)).toBe(true);
     expect(isRepChangesFileName("starnet-device-ab.json")).toBe(false);
+  });
+});
+
+describe("reviewing a rep's recordings item by item", () => {
+  const owner = () => ({
+    [ACCOUNTS_KEY]: [{ id: "a1", name: "Dish 1", representativeId: "r1", clientId: "c1" }],
+    [LEDGER_KEY]: { a1: [entry("e1", "debit", 12000)] },
+    [CLIENTS_KEY]: { c1: { id: "c1", name: "Client One" } },
+  });
+  const changes = {
+    [ACCOUNTS_KEY]: { set: { a2: { id: "a2", name: "Dish 2", clientId: "c2", expectedEmail: "fake@example.com" } }, removed: [] },
+    [CLIENTS_KEY]: { set: { c2: { id: "c2", name: "Client Two" }, c3: { id: "c3", name: "Client Three" } }, removed: [] },
+    [LEDGER_KEY]: { set: { "a2/s1": entry("s1", "debit", 12000), "a1/p1": entry("p1", "credit", 5000) }, removed: ["a1/e1"] },
+    [PROMISES_KEY]: { set: { pr1: { id: "pr1", clientId: "c1", amount: 3000, currency: "MRU" } }, removed: [] },
+  };
+
+  it("a new device carries its new customer and its operations; the rest are their own items", () => {
+    const items = listRepChangeItems(changes, owner());
+    expect(items.map((i) => i.kind)).toEqual(["newDevice", "payment", "entryRemove", "newClient", "other"]);
+    const device = items[0]!;
+    expect(device.parts.map((p) => `${p.store}|${p.path}`)).toEqual([`${ACCOUNTS_KEY}|a2`, `${CLIENTS_KEY}|c2`, `${LEDGER_KEY}|a2/s1`]);
+    expect(device.detail).toContain("Client Two");
+    expect(items[1]).toMatchObject({ title: "💵 دفعة · Dish 1", amount: { value: 5000, currency: "MRU" } });
+  });
+
+  it("applies only the approved items, and remembers each decision for that exact version", () => {
+    const items = listRepChangeItems(changes, owner());
+    const approved = items.filter((i) => i.kind === "newDevice" || i.kind === "payment");
+    const subset = changeSetOf(changes, approved);
+    expect(Object.keys(subset[LEDGER_KEY]!.set).sort()).toEqual(["a1/p1", "a2/s1"]);
+    expect(subset[LEDGER_KEY]!.removed).toEqual([]);
+    const { stores } = applyRepChangeSet(owner(), subset, "r1", new Date("2026-10-02T10:00:00Z"));
+    const a2 = (stores[ACCOUNTS_KEY] as Array<Record<string, unknown>>).find((a) => a.id === "a2");
+    expect(a2).toMatchObject({ addedByRepId: "r1", addedByRepAt: "2026-10-02T10:00:00.000Z" });
+    expect((stores[LEDGER_KEY] as Record<string, unknown[]>).a1).toHaveLength(2); // e1 kept: its removal wasn't approved
+
+    let decisions = withDecision({}, approved, "approved");
+    decisions = withDecision(decisions, items.filter((i) => i.kind === "newClient"), "rejected");
+    const left = items.filter((i) => !isItemDecided(i, decisions));
+    expect(left.map((i) => i.kind)).toEqual(["entryRemove", "other"]);
+    expect(rejectedVersions(decisions)).toEqual({ [`${CLIENTS_KEY}|c3`]: recordHash(changes[CLIENTS_KEY].set.c3) });
+    expect(describeItems(approved)).toBe("📡 جهاز جديد 1 · 💵 دفعة 1");
+
+    // He edits the rejected customer again: it comes back for review.
+    const edited = { ...changes, [CLIENTS_KEY]: { set: { c3: { id: "c3", name: "Client 3 (fixed)" } }, removed: [] } };
+    expect(listRepChangeItems(edited, owner()).filter((i) => !isItemDecided(i, decisions)).map((i) => i.key)).toContain("cli:c3");
   });
 });

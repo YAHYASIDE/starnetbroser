@@ -8,7 +8,7 @@ import { DateInput } from "./DateInput";
 import { CSSProperties, FormEvent, useEffect, useMemo, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { Client, clientDeleteQuestion, CreateClientInput } from "@/lib/clientStore";
-import { clientRepNames } from "@/lib/repDebts";
+import { clientRepNames, clientRepIds, matchesClientOwner, type ClientOwnerFilter } from "@/lib/repDebts";
 import { currentRepOfClient } from "@/lib/repClients";
 import type { RepresentativeStore } from "@/lib/repStore";
 import { CreateSupplierInput, Supplier } from "@/lib/supplierStore";
@@ -139,6 +139,8 @@ export function PartyDirectory({
   const [query, setQuery] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [editingPartyId, setEditingPartyId] = useState<string | null>(null);
+  // 👤 / 🤝 whose customers are shown (repDebts.ts) - clients tab only.
+  const [owner, setOwner] = useState<ClientOwnerFilter>("all");
 
   const isClients = tab === "clients";
   const kind: InvoiceKind = isClients ? "sale" : "purchase";
@@ -152,29 +154,37 @@ export function PartyDirectory({
           ? computeClientCombinedTotals(invoices, adjustments, party.id, accounts.filter((a) => a.clientId === party.id), ledgerStore)
           : computePartyStoreTotals(invoices, kind, party.id, adjustments);
         const due = Object.values(totals).some((t) => t.remaining > EPSILON);
-        return { party, totals, due };
+        const repIds = isClients ? clientRepIds(party.id, accounts, party as Client) : [];
+        return { party, totals, due, repIds };
       }),
     [parties, invoices, kind, adjustments, isClients, accounts, ledgerStore],
   );
+  const ownerRows = useMemo(() => (isClients ? rows.filter((r) => matchesClientOwner(r.repIds, owner)) : rows), [rows, owner, isClients]);
+  /** «🤝 فلان» chips: every rep with at least one customer, with how many. */
+  const repChips = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const r of rows) for (const id of r.repIds) counts.set(id, (counts.get(id) ?? 0) + 1);
+    return [...counts].map(([id, count]) => ({ id, count, name: representatives?.[id]?.name ?? "مندوب" }));
+  }, [rows, representatives]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const matching = q
-      ? rows.filter((r) => r.party.name.toLowerCase().includes(q) || (r.party.phone ?? "").includes(q))
-      : rows;
+      ? ownerRows.filter((r) => r.party.name.toLowerCase().includes(q) || (r.party.phone ?? "").includes(q))
+      : ownerRows;
     // Parties who still owe / are owed first, then alphabetical - the ones needing attention on top.
     return [...matching].sort((a, b) => (a.due === b.due ? a.party.name.localeCompare(b.party.name, "ar") : a.due ? -1 : 1));
-  }, [rows, query]);
+  }, [ownerRows, query]);
 
   const outstandingByCurrency = useMemo(() => {
     const sum: Record<string, number> = {};
-    for (const { totals } of rows) {
+    for (const { totals } of ownerRows) {
       for (const [c, t] of Object.entries(totals)) {
         if (t.remaining > EPSILON) sum[c] = (sum[c] ?? 0) + t.remaining;
       }
     }
     return sum;
-  }, [rows]);
+  }, [ownerRows]);
 
   function switchTab(next: PartyTab) {
     setTab(next);
@@ -183,6 +193,7 @@ export function PartyDirectory({
     setShowAdd(false);
     setEditingPartyId(null);
     setQuery("");
+    setOwner("all");
   }
 
   const partyWord = isClients ? "زبون" : "مورد";
@@ -210,8 +221,38 @@ export function PartyDirectory({
         </button>
       </div>
 
+      {isClients && repChips.length > 0 && (
+        <div className="party-owner-chips" role="radiogroup" aria-label="زبائن من">
+          {[
+            { key: "all", label: "الكل", count: rows.length, value: "all" as ClientOwnerFilter },
+            { key: "mine", label: "👤 زبائني", count: rows.filter((r) => r.repIds.length === 0).length, value: "mine" as ClientOwnerFilter },
+            { key: "reps", label: "🤝 زبائن المندوبين", count: rows.filter((r) => r.repIds.length > 0).length, value: "reps" as ClientOwnerFilter },
+            ...(repChips.length > 1 ? repChips.map((c) => ({ key: `rep:${c.id}`, label: `🤝 ${c.name}`, count: c.count, value: { repId: c.id } as ClientOwnerFilter })) : []),
+          ].map((chip) => {
+            const active = typeof owner === "string" ? chip.value === owner : typeof chip.value !== "string" && chip.value.repId === owner.repId;
+            return (
+              <button
+                key={chip.key}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                className={`party-owner-chip${active ? " party-owner-chip-active" : ""}`}
+                onClick={() => {
+                  setOwner(chip.value);
+                  setSelected(new Set());
+                }}
+              >
+                {chip.label} <span className="party-tab-count">{chip.count}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div className="party-overview">
-        <span className="party-overview-label">{isClients ? "مجموع ما لنا عند الزبائن" : "مجموع ما علينا للموردين"}</span>
+        <span className="party-overview-label">
+          {!isClients ? "مجموع ما علينا للموردين" : owner === "mine" ? "مجموع ما لنا عند زبائني" : owner === "all" ? "مجموع ما لنا عند الزبائن" : "مجموع ما لنا عند زبائن المندوبين"}
+        </span>
         <div className="party-overview-values">
           {Object.keys(outstandingByCurrency).length === 0 ? (
             <strong>لا يوجد مستحق ✓</strong>
@@ -293,7 +334,7 @@ export function PartyDirectory({
       )}
 
       {filtered.length === 0 ? (
-        <p className="empty-state">{query ? "لا توجد نتائج مطابقة." : isClients ? "لا يوجد زبائن بعد." : "لا يوجد موردون بعد."}</p>
+        <p className="empty-state">{query ? "لا توجد نتائج مطابقة." : isClients && owner !== "all" ? "لا زبائن في هذا الاختيار." : isClients ? "لا يوجد زبائن بعد." : "لا يوجد موردون بعد."}</p>
       ) : isClients && bulk && selecting ? (
         <ul className="party-select-list">
           {filtered.map(({ party, totals }) => {

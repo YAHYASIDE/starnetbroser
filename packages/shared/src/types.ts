@@ -180,6 +180,11 @@ export interface StarlinkAccountSummary {
    * never a live reference to this field.
    */
   representativeId?: string;
+  /** 📱 The rep who added this device from his app (his «تسجيلاتي», approved by the operator) -
+   * shown on the card for good, and a home filter. */
+  addedByRepId?: string;
+  /** When the operator approved it (ISO). */
+  addedByRepAt?: string;
   /** Set only by an explicit operator action ("متعطل" on the card) - a hardware problem, entirely
    * independent of the Starlink subscription's own serviceStatus (a device can be active AND
    * broken, or suspended AND fine). Cleared (back to undefined/null) once the operator marks it

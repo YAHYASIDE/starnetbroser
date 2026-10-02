@@ -76,6 +76,7 @@ import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
 import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
 import { ACCOUNTS_CHANGED_EVENT } from "@/lib/repMenuRecords";
 import { isRepWorkspace } from "@/lib/repMode";
+import { RepInboxSection } from "@/components/RepInboxSection";
 import { loadPastLedger } from "@/lib/repWorkspace";
 import { refreshTelegramReplies } from "@/lib/telegramCommands";
 import { listAccounts } from "@/lib/apiClient";
@@ -429,6 +430,8 @@ export default function RepresentativesPage() {
         </button>
       </div>
 
+      {!repView && <RepInboxSection />}
+
       {!repView && <RepRequestsSection
         representatives={representatives}
         accounts={accounts}
@@ -615,7 +618,9 @@ function RepCard({
   );
   const deviceRows = active.deviceRows;
   const deviceTotals = useMemo(() => totalRepDeviceCommissions(deviceRows), [deviceRows]);
-  const devices = accounts.filter((a) => a.representativeId === rep.id);
+  // His live devices - the same ones «📤 إرسال نسخته» sends (deleted / archived ones are not).
+  const devices = accounts.filter((a) => a.representativeId === rep.id && !a.deletedAt && !a.archivedAt);
+  const retiredCount = accounts.filter((a) => a.representativeId === rep.id && (a.deletedAt || a.archivedAt)).length;
   // His own customers (repClients.ts) - what they owe him, and what he owes us for them.
   const repClients = useMemo(() => listRepClients(rep.id, clientStore, accounts, replays), [rep.id, clientStore, accounts, replays]);
   const owedToUsForClients = useMemo(() => sumBalances(repClients.map((r) => r.owedToUs)), [repClients]);
@@ -688,7 +693,10 @@ function RepCard({
           <strong>🤝 {rep.name}</strong>
           <span className="party-card-sub">
             <bdi dir="ltr">{rep.phone || "بدون هاتف"}</bdi>
-            <span className="party-mini-chip">📡 {devices.length}</span>
+            <span className="party-mini-chip" title={retiredCount ? `${retiredCount} في الأرشيف أو المحذوفات` : undefined}>
+              📡 {devices.length}
+              {retiredCount > 0 && <small> (+{retiredCount} 🗄)</small>}
+            </span>
           </span>
         </div>
         <span className="rep-percent" title={rep.sharesLosses ? "يتحمّل نسبته من الخسارة" : undefined}>

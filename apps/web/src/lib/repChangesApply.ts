@@ -4,8 +4,22 @@ import { WrongPasswordError } from "./backupCrypto";
 import { loadDemoAccounts } from "./demoAccountStore";
 import { demoAccounts } from "./demoData";
 import { importAccountSessions } from "./localBrowser";
-import { applyRepChangeSet, describeRepChanges, readRepChangesFile, repChangesFileRep, totalApplied } from "./repChanges";
+import {
+  applyRepChangeSet,
+  changeSetOf,
+  describeItems,
+  isItemDecided,
+  listRepChangeItems,
+  readRepChangesFile,
+  repChangesFileRep,
+  withDecision,
+  type RepChangeItem,
+  type RepChangesPayload,
+  type RepDecisions,
+} from "./repChanges";
+export { REP_INBOX_EVENT, repInboxCount } from "./repInbox";
 import { sendRepCopy } from "./repCopySend";
+import { loadRepInbox, saveRepInbox, type RepInboxFile } from "./repInbox";
 import { repDeviceCode } from "./repDeviceTransfer";
 import { ACCOUNTS_CHANGED_EVENT } from "./repMenuRecords";
 import { loadRepresentativeStore } from "./repStore";
@@ -15,76 +29,134 @@ import { sendRepText, sendTelegramText } from "./telegram";
 
 export type ReceiveChangesResult = { ok: true; message: string } | { ok: false; message: string };
 
-/** Files already applied (by id) - a file opened twice is applied once. Internal, not backed up. */
-const APPLIED_KEY = "starnet.repChangesApplied";
-
-function loadApplied(): string[] {
-  try {
-    const raw = window.localStorage.getItem(APPLIED_KEY);
-    const list = raw ? (JSON.parse(raw) as unknown) : [];
-    return Array.isArray(list) ? list.filter((x): x is string => typeof x === "string") : [];
-  } catch {
-    return [];
-  }
+async function openFile(text: string, repId: string): Promise<RepChangesPayload> {
+  const code = repDeviceCode(repId);
+  if (!code) throw new Error("no code");
+  return readRepChangesFile(text, code);
 }
 
-function markApplied(id: string): void {
-  try {
-    window.localStorage.setItem(APPLIED_KEY, JSON.stringify([...loadApplied(), id].slice(-200)));
-  } catch {
-    // worst case the same file could be applied again - it only rewrites the same records
-  }
+function waiting(payload: RepChangesPayload, decisions: RepDecisions): RepChangeItem[] {
+  return listRepChangeItems(payload.changes, readStores()).filter((item) => !isItemDecided(item, decisions));
 }
 
 /**
  * 📥 A rep's «تسجيلاتي» file on the operator's phone (from the reps bot, or opened with STAR NET):
- * applied straight away inside the rep's scope (lib/repChanges.ts), the sessions of the devices he
- * added restored, the rep told what was recorded, and a fresh copy sent back to him - so his ⏳
- * marks clear. `fromRepId`: the bot chat it came from (the file must be his).
+ * kept, still encrypted, for the operator to review item by item - nothing reaches his devices
+ * before he approves it. `fromRepId`: the bot chat it came from (the file must be his).
  */
 export async function receiveRepChanges(text: string, fromRepId?: string): Promise<ReceiveChangesResult> {
   const repId = repChangesFileRep(text);
   if (!repId) return { ok: false, message: "هذا ليس ملف تسجيلات مندوب" };
-  if (fromRepId && fromRepId !== repId) return { ok: false, message: "ملف تسجيلات لمندوب آخر - لم يُثبَّت" };
+  if (fromRepId && fromRepId !== repId) return { ok: false, message: "ملف تسجيلات لمندوب آخر - لم يُقبل" };
   const rep = loadRepresentativeStore()[repId];
   if (!rep) return { ok: false, message: "المندوب صاحب الملف غير موجود عندك" };
-  const code = repDeviceCode(repId);
-  if (!code) return { ok: false, message: `لا يوجد رمز تطبيق للمندوب ${rep.name}` };
-  if (!isDemoMode()) return { ok: false, message: "تثبيت تسجيلات المندوب يعمل مع بيانات الهاتف فقط" };
+  if (!repDeviceCode(repId)) return { ok: false, message: `لا يوجد رمز تطبيق للمندوب ${rep.name}` };
+  if (!isDemoMode()) return { ok: false, message: "تسجيلات المندوب تعمل مع بيانات الهاتف فقط" };
 
-  let payload;
+  let payload: RepChangesPayload;
   try {
-    payload = await readRepChangesFile(text, code);
+    payload = await openFile(text, repId);
   } catch (err) {
     return { ok: false, message: err instanceof WrongPasswordError ? `رمز ${rep.name} لا يفتح الملف - أرسل له رمزه من جديد` : "تعذّر فتح ملف التسجيلات" };
   }
-  if (loadApplied().includes(payload.id)) return { ok: false, message: `تسجيلات ${rep.name} هذه ثُبّتت من قبل` };
+  const inbox = loadRepInbox();
+  const current = inbox.files.find((f) => f.repId === repId);
+  if (current && current.sentAt >= payload.sentAt) return { ok: false, message: `هذه تسجيلات ${rep.name} وصلت من قبل` };
+  const items = waiting(payload, inbox.decisions[repId] ?? {});
+  if (items.length === 0) {
+    await sendRepText(repId, "✓ وصلت تسجيلاتك - لا شيء جديد فيها (كل شيء ثُبّت أو رُفض من قبل).");
+    return { ok: true, message: `لا جديد في تسجيلات ${rep.name}` };
+  }
+  const entry: RepInboxFile = { id: payload.id, repId, sentAt: payload.sentAt, receivedAt: new Date().toISOString(), file: text, pendingCount: items.length };
+  if (!saveRepInbox({ ...inbox, files: [...inbox.files.filter((f) => f.repId !== repId), entry] })) {
+    return { ok: false, message: "ذاكرة الهاتف ممتلئة - لم تُحفظ تسجيلات المندوب" };
+  }
+  const what = describeItems(items);
+  await sendRepText(repId, `📥 وصلت تسجيلاتك (${items.length}): ${what}\n⏳ بانتظار موافقة المسؤول.`);
+  await sendTelegramText(`📝 المندوب ${rep.name} أرسل ${items.length} تسجيلاً بانتظار موافقتك: ${what}\nراجعها في التطبيق (المندوبون ← تسجيلات المندوبين).`);
+  return { ok: true, message: `📝 وصلت تسجيلات ${rep.name} (${items.length}) - بانتظار موافقتك` };
+}
 
-  const result = applyRepChangeSet(readStores(), payload.changes, repId);
+// ---- reviewing ----
+
+export interface RepInboxView {
+  file: RepInboxFile;
+  repName: string;
+  items: RepChangeItem[];
+  /** Why it couldn't be opened (the rep's code changed…). */
+  error?: string;
+}
+
+/** Every waiting file, opened, with the items still to decide. */
+export async function openRepInbox(): Promise<RepInboxView[]> {
+  const inbox = loadRepInbox();
+  const reps = loadRepresentativeStore();
+  const views: RepInboxView[] = [];
+  for (const file of inbox.files) {
+    const repName = reps[file.repId]?.name ?? "مندوب";
+    try {
+      const payload = await openFile(file.file, file.repId);
+      views.push({ file, repName, items: waiting(payload, inbox.decisions[file.repId] ?? {}) });
+    } catch {
+      views.push({ file, repName, items: [], error: "رمز المندوب لا يفتح الملف - أرسل له رمزه من جديد ليعيد الإرسال" });
+    }
+  }
+  return views;
+}
+
+/**
+ * ✅ / ❌ on some of a rep's items: the approved ones are applied inside his scope (new devices get
+ * their Starlink sessions and «📱 أضافه المندوب»), every decision is remembered for that exact
+ * version, the rep is told, and he gets a fresh copy - his ⏳ marks clear, rejected ones leave.
+ */
+export async function decideRepItems(repId: string, approveKeys: string[], rejectKeys: string[]): Promise<{ ok: boolean; message: string }> {
+  const inbox = loadRepInbox();
+  const file = inbox.files.find((f) => f.repId === repId);
+  const rep = loadRepresentativeStore()[repId];
+  if (!file || !rep) return { ok: false, message: "التسجيلات لم تعد موجودة" };
+  let payload: RepChangesPayload;
   try {
-    for (const [key, value] of Object.entries(result.stores)) window.localStorage.setItem(key, JSON.stringify(value));
+    payload = await openFile(file.file, repId);
   } catch {
-    return { ok: false, message: "ذاكرة الهاتف ممتلئة - لم تُثبَّت تسجيلات المندوب" };
+    return { ok: false, message: "رمز المندوب لا يفتح الملف" };
   }
-  markApplied(payload.id);
+  const decisions = inbox.decisions[repId] ?? {};
+  const items = waiting(payload, decisions);
+  const approved = items.filter((i) => approveKeys.includes(i.key));
+  const rejected = items.filter((i) => rejectKeys.includes(i.key) && !approveKeys.includes(i.key));
+  if (approved.length === 0 && rejected.length === 0) return { ok: false, message: "اختر تسجيلاً أولاً" };
 
-  const sessions: Record<string, Record<string, string>> = {};
-  for (const id of result.newDeviceIds) {
-    if (payload.sessions[id]) sessions[id] = payload.sessions[id]!;
-    if (payload.sessions[`mail:${id}`]) sessions[`mail:${id}`] = payload.sessions[`mail:${id}`]!;
+  if (approved.length > 0) {
+    const result = applyRepChangeSet(readStores(), changeSetOf(payload.changes, approved), repId);
+    try {
+      for (const [key, value] of Object.entries(result.stores)) window.localStorage.setItem(key, JSON.stringify(value));
+    } catch {
+      return { ok: false, message: "ذاكرة الهاتف ممتلئة - لم يُثبَّت شيء" };
+    }
+    const sessions: Record<string, Record<string, string>> = {};
+    for (const id of result.newDeviceIds) {
+      if (payload.sessions[id]) sessions[id] = payload.sessions[id]!;
+      if (payload.sessions[`mail:${id}`]) sessions[`mail:${id}`] = payload.sessions[`mail:${id}`]!;
+    }
+    if (Object.keys(sessions).length > 0) await importAccountSessions(sessions);
   }
-  if (Object.keys(sessions).length > 0) await importAccountSessions(sessions);
+
+  let nextDecisions = withDecision(decisions, approved, "approved");
+  nextDecisions = withDecision(nextDecisions, rejected, "rejected");
+  const left = items.length - approved.length - rejected.length;
+  const files = left > 0 ? inbox.files.map((f) => (f.repId === repId ? { ...f, pendingCount: left } : f)) : inbox.files.filter((f) => f.repId !== repId);
+  saveRepInbox({ files, decisions: { ...inbox.decisions, [repId]: nextDecisions } });
   window.dispatchEvent(new Event(ACCOUNTS_CHANGED_EVENT));
 
-  const what = describeRepChanges(result.summary);
-  const refused = result.summary.refused ? `\n⚠️ ${result.summary.refused} سجل خارج أجهزتك لم يُقبل.` : "";
-  const applied = totalApplied(result.summary);
-  // A fresh copy back to him: what he sent is now the operator's data, so his ⏳ marks clear.
-  const copy = applied > 0 ? await sendRepCopy(rep, loadDemoAccounts(demoAccounts)) : null;
-  await sendRepText(
-    repId,
-    `✅ ثبّت المسؤول تسجيلاتك: ${what}${refused}${copy?.ok ? "\n📋 وصلتك نسخة جديدة - افتحها لتختفي علامات ⏳." : ""}`,
-  );
-  await sendTelegramText(`📥 ثُبّتت تسجيلات المندوب ${rep.name}: ${what}${copy && !copy.ok ? `\n⚠️ لم تُرسل له نسخة جديدة: ${copy.message}` : ""}`);
-  return { ok: true, message: `✓ ثُبّتت تسجيلات ${rep.name}: ${what}` };
+  // A fresh copy: what he sent is now the operator's (approved) or leaves his phone (rejected).
+  const copy = await sendRepCopy(rep, loadDemoAccounts(demoAccounts));
+  const lines = [
+    approved.length ? `✅ ثبّت المسؤول: ${describeItems(approved)}` : "",
+    rejected.length ? `❌ رفض: ${rejected.map((i) => i.title).join("، ")}` : "",
+    left ? `⏳ ما زال ${left} بانتظار المسؤول` : "",
+    copy.ok ? "📋 وصلتك نسخة جديدة - افتحها." : "",
+  ].filter(Boolean);
+  await sendRepText(repId, lines.join("\n"));
+  const parts = [approved.length ? `✓ ثُبّت ${approved.length}` : "", rejected.length ? `رُفض ${rejected.length}` : "", left ? `بقي ${left}` : ""].filter(Boolean);
+  return { ok: true, message: `${parts.join(" · ")}${copy.ok ? "" : ` - لم تُرسل له نسخة جديدة: ${copy.message}`}` };
 }

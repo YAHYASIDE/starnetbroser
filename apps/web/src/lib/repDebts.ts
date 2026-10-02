@@ -36,6 +36,31 @@ export function clientRepNames(
   return names;
 }
 
+/** The reps a client belongs to (same rule as clientRepNames), by id - for the «زبائني / زبائن
+ * المندوبين» filter on the clients page. Empty = the operator's own customer. */
+export function clientRepIds(clientId: string, accounts: StarlinkAccountSummary[], client?: Pick<Client, "repSegments">): string[] {
+  if (client?.repSegments?.length) {
+    const repId = currentRepOfClient(client);
+    return repId ? [repId] : [];
+  }
+  const ids: string[] = [];
+  for (const account of accounts) {
+    if (account.clientId !== clientId || account.deletedAt || !account.representativeId) continue;
+    if (!ids.includes(account.representativeId)) ids.push(account.representativeId);
+  }
+  return ids;
+}
+
+/** «الكل» / «زبائني» / «زبائن المندوبين» / one rep's customers. */
+export type ClientOwnerFilter = "all" | "mine" | "reps" | { repId: string };
+
+export function matchesClientOwner(repIds: string[], filter: ClientOwnerFilter): boolean {
+  if (filter === "all") return true;
+  if (filter === "mine") return repIds.length === 0;
+  if (filter === "reps") return repIds.length > 0;
+  return repIds.includes(filter.repId);
+}
+
 export interface RepDeviceDebtRow {
   accountId: string;
   /** Positive = the customer owes this much, per currency (only currencies still owed). */

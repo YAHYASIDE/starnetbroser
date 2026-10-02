@@ -25,8 +25,8 @@ export async function applyRepCopyText(text: string, code: string): Promise<Appl
     const removed = removedDeviceIds(current, next);
     for (const id of removed) await deleteIsolatedAccountSession(id);
     await importAccountSessions(payload.sessions);
-    const { stores, ...summary } = next;
-    if (stores && !applyRepWorkspace(stores)) return { ok: false, message: "ذاكرة الهاتف ممتلئة - تعذّر حفظ النسخة" };
+    const { stores, rejected, ...summary } = next;
+    if (stores && !applyRepWorkspace(stores, rejected ?? {})) return { ok: false, message: "ذاكرة الهاتف ممتلئة - تعذّر حفظ النسخة" };
     if (!saveRepCopy(summary)) return { ok: false, message: "ذاكرة الهاتف ممتلئة - تعذّر حفظ النسخة" };
     if (typeof window !== "undefined") window.dispatchEvent(new Event(REP_WORKSPACE_EVENT));
     return { ok: true, message: `✓ وصلت نسخة جديدة: ${next.devices.length} جهاز${removed.length ? ` · حُذف ${removed.length}` : ""}` };

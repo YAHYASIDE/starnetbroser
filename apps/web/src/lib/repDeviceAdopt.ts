@@ -1,6 +1,10 @@
 "use client";
 
+import { loadDemoAccounts, saveDemoAccounts } from "./demoAccountStore";
+import { demoAccounts } from "./demoData";
 import { importAccountSessions } from "./localBrowser";
+import { ACCOUNTS_CHANGED_EVENT } from "./repMenuRecords";
+import { isDemoMode } from "./settingsStore";
 import { deviceDisplayName, readRepDeviceFile, repDeviceCode } from "./repDeviceTransfer";
 import { loadRepRequests, resolveRepRequest, saveRepRequests } from "./repRequests";
 import { sendRepText } from "./telegram";
@@ -45,6 +49,12 @@ export async function adoptRepDevice(requestId: string, accountId: string): Prom
     ...(payload.mailCookies && Object.keys(payload.mailCookies).length > 0 ? { [`mail:${accountId}`]: payload.mailCookies } : {}),
   });
   saveRepRequests(resolveRepRequest(loadRepRequests(), requestId, "approved"));
+  // 📱 «أضافه المندوب» on its card for good.
+  if (isDemoMode()) {
+    const at = new Date().toISOString();
+    saveDemoAccounts(loadDemoAccounts(demoAccounts).map((a) => (a.id === accountId ? { ...a, addedByRepId: request.repId, addedByRepAt: at } : a)));
+    window.dispatchEvent(new Event(ACCOUNTS_CHANGED_EVENT));
+  }
   const name = deviceDisplayName(payload.device);
   await sendRepText(request.repId, `✅ أضاف المسؤول جهاز ${name} (${payload.device.clientName}).\nاضغط «✅ وصل» في تطبيقك إن لم تفعل - لتُحذف الجلسة من هاتفك.`);
   if (!imported.ok || imported.importedCount === 0) return { ok: false, message: `أُضيف ${name} لكن تعذّر نقل الدخول - افتحه وسجّل الدخول` };
