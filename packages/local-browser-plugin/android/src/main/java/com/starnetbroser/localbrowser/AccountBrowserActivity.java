@@ -2,6 +2,8 @@ package com.starnetbroser.localbrowser;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.content.ActivityNotFoundException;
+import android.content.ClipData;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -10,10 +12,14 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.net.Uri;
+import android.provider.MediaStore;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.webkit.PermissionRequest;
+import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -24,14 +30,18 @@ import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.ProgressBar;
 import android.widget.Toast;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.core.content.FileProvider;
 import androidx.webkit.ProfileStore;
 import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
 import com.getcapacitor.JSObject;
+import java.io.File;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -199,6 +209,22 @@ public class AccountBrowserActivity extends AppCompatActivity {
     /** The device's name, for the ⏳ notification while a task runs (BusyService). */
     private String deviceLabel;
 
+    // ---- 📷 Starlink's identity check: «التقاط صورة» and uploading a proof (CameraAccess) ----
+    /** A page's camera request waiting for Android's camera permission, or null. */
+    private PermissionRequest pendingCameraRequest;
+    /** The page's open file input (must always be answered, else it never opens again), or null. */
+    private ValueCallback<Uri[]> pendingFileCallback;
+    private WebChromeClient.FileChooserParams pendingFileParams;
+    /** The file input waits for the camera permission before showing the camera/gallery choice. */
+    private boolean fileChooserAwaitsCamera;
+    /** Where «الكاميرا» saves the photo for the current file input, or null. */
+    private File pendingCaptureFile;
+    private Uri pendingCaptureUri;
+    private final ActivityResultLauncher<String> cameraPermissionLauncher =
+        registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> onCameraPermissionResult(Boolean.TRUE.equals(granted)));
+    private final ActivityResultLauncher<Intent> fileChooserLauncher =
+        registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> onFileChosen(result.getResultCode(), result.getData()));
+
     @SuppressLint("SetJavaScriptEnabled")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -273,8 +299,25 @@ public class AccountBrowserActivity extends AppCompatActivity {
                         progressBar.setProgress(newProgress);
                     }
                 }
+
+                @Override
+                public void onPermissionRequest(PermissionRequest request) {
+                    onCameraRequest(request);
+                }
+
+                @Override
+                public void onPermissionRequestCanceled(PermissionRequest request) {
+                    if (request == pendingCameraRequest) pendingCameraRequest = null;
+                }
+
+                @Override
+                public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
+                    showFileChooser(callback, params);
+                    return true;
+                }
             }
         );
+        deleteOldCaptures();
 
         BrowserBar.setUp(this, this::goBackInWebView, this::reload, "⇣", getString(R.string.starnet_action_sync), this::syncFromStarlink);
         ((Button) findViewById(R.id.starnet_error_retry)).setOnClickListener(v -> reload());
@@ -693,6 +736,11 @@ public class AccountBrowserActivity extends AppCompatActivity {
             // appearing once the operator has already left).
             syncHandler.removeCallbacksAndMessages(null);
             syncSteps = null;
+            if (pendingCameraRequest != null) {
+                pendingCameraRequest.deny();
+                pendingCameraRequest = null;
+            }
+            finishFileChooser(null);
             webView.stopLoading();
             webView.setWebViewClient(null);
             webView.setWebChromeClient(null);
@@ -702,6 +750,139 @@ public class AccountBrowserActivity extends AppCompatActivity {
             }
             webView.destroy();
             webView = null;
+        }
+    }
+
+    // ---- 📷 camera + proof upload ----
+
+    private boolean hasCameraPermission() {
+        return ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    /** The page asked for the camera (getUserMedia): only the camera, only on Starlink; Android's
+     * own permission is asked the first time it's needed. */
+    private void onCameraRequest(PermissionRequest request) {
+        String[] grant = CameraAccess.grantFor(webView != null ? webView.getUrl() : null, String.valueOf(request.getOrigin()), request.getResources());
+        if (grant.length == 0) {
+            request.deny();
+            return;
+        }
+        if (hasCameraPermission()) {
+            request.grant(grant);
+            return;
+        }
+        if (pendingCameraRequest != null) pendingCameraRequest.deny();
+        pendingCameraRequest = request;
+        cameraPermissionLauncher.launch(Manifest.permission.CAMERA);
+    }
+
+    private void onCameraPermissionResult(boolean granted) {
+        if (pendingCameraRequest != null) {
+            PermissionRequest request = pendingCameraRequest;
+            pendingCameraRequest = null;
+            String[] grant = CameraAccess.grantFor(webView != null ? webView.getUrl() : null, String.valueOf(request.getOrigin()), request.getResources());
+            if (granted && grant.length > 0) request.grant(grant);
+            else request.deny();
+        }
+        if (fileChooserAwaitsCamera) {
+            fileChooserAwaitsCamera = false;
+            launchFileChooser(granted);
+        }
+        if (!granted) {
+            Toast.makeText(this, "📷 الكاميرا غير مسموحة لـ STAR NET - اسمح بها من إعدادات الهاتف ← التطبيقات ← STAR NET ← الأذونات", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    /** A file input on the page (uploading a proof): Android's picker - gallery and files, plus the
+     * camera when the input takes photos. */
+    private void showFileChooser(ValueCallback<Uri[]> callback, WebChromeClient.FileChooserParams params) {
+        finishFileChooser(null);
+        pendingFileCallback = callback;
+        pendingFileParams = params;
+        boolean offerCamera = webView != null && AllowedUrl.isAllowed(webView.getUrl()) && CameraAccess.acceptsImages(params.getAcceptTypes());
+        if (offerCamera && !hasCameraPermission()) {
+            fileChooserAwaitsCamera = true;
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA);
+            return;
+        }
+        launchFileChooser(offerCamera);
+    }
+
+    private void launchFileChooser(boolean withCamera) {
+        if (pendingFileCallback == null || pendingFileParams == null) return;
+        Intent content;
+        try {
+            content = pendingFileParams.createIntent();
+        } catch (RuntimeException e) {
+            content = new Intent(Intent.ACTION_GET_CONTENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*");
+        }
+        if (pendingFileParams.getMode() == WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE) {
+            content.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+        }
+        Intent chooser = Intent.createChooser(content, "📎 اختر صورة الإثبات");
+        pendingCaptureFile = null;
+        pendingCaptureUri = null;
+        if (withCamera && hasCameraPermission()) {
+            try {
+                File dir = new File(getCacheDir(), CaptureFileProvider.DIR);
+                if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("no capture dir");
+                File photo = new File(dir, "proof-" + System.currentTimeMillis() + ".jpg");
+                Uri uri = FileProvider.getUriForFile(this, getPackageName() + CaptureFileProvider.AUTHORITY_SUFFIX, photo);
+                Intent camera = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+                camera.putExtra(MediaStore.EXTRA_OUTPUT, uri);
+                camera.setClipData(ClipData.newRawUri("", uri));
+                camera.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                if (camera.resolveActivity(getPackageManager()) != null) {
+                    chooser.putExtra(Intent.EXTRA_INITIAL_INTENTS, new Intent[] { camera });
+                    pendingCaptureFile = photo;
+                    pendingCaptureUri = uri;
+                }
+            } catch (IOException | RuntimeException e) {
+                pendingCaptureFile = null;
+                pendingCaptureUri = null;
+            }
+        }
+        try {
+            fileChooserLauncher.launch(chooser);
+        } catch (ActivityNotFoundException e) {
+            finishFileChooser(null);
+        }
+    }
+
+    private void onFileChosen(int resultCode, Intent data) {
+        Uri[] chosen = null;
+        if (resultCode == RESULT_OK) {
+            if (pendingCaptureFile != null && pendingCaptureFile.length() > 0) {
+                chosen = new Uri[] { pendingCaptureUri };
+            } else if (data != null && data.getClipData() != null && data.getClipData().getItemCount() > 0) {
+                ClipData clip = data.getClipData();
+                chosen = new Uri[clip.getItemCount()];
+                for (int i = 0; i < clip.getItemCount(); i++) chosen[i] = clip.getItemAt(i).getUri();
+            } else if (data != null && data.getData() != null) {
+                chosen = new Uri[] { data.getData() };
+            }
+        }
+        finishFileChooser(chosen);
+    }
+
+    /** Answers the page's file input (null = cancelled) - always exactly once. */
+    private void finishFileChooser(Uri[] chosen) {
+        ValueCallback<Uri[]> callback = pendingFileCallback;
+        pendingFileCallback = null;
+        pendingFileParams = null;
+        fileChooserAwaitsCamera = false;
+        pendingCaptureFile = null;
+        pendingCaptureUri = null;
+        if (callback != null) callback.onReceiveValue(chosen);
+    }
+
+    /** Camera photos are only needed until the page has uploaded them: drop those over a day old. */
+    private void deleteOldCaptures() {
+        File[] old = new File(getCacheDir(), CaptureFileProvider.DIR).listFiles();
+        if (old == null) return;
+        long cutoff = System.currentTimeMillis() - 24L * 60 * 60 * 1000;
+        for (File file : old) {
+            if (file.lastModified() < cutoff) file.delete();
         }
     }
 

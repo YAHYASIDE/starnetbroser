@@ -88,6 +88,10 @@ plus the rules learned from real misreads; keep it updated when you learn a new 
   description), Arabic is status, description, date (date AFTER) - `extractSubscriptionInvoiceDueDay`
   reads the header to know which way to look.
 - Never put real account data in tests or fixtures; fake values only.
+- 📷 Camera / proof upload (Starlink's identity check): `CameraAccess` grants the camera only (never
+  the microphone) while the visible page is Starlink; file inputs open Android's picker with the
+  camera beside gallery/files (`CaptureFileProvider`, cache `starnet_capture/`). A file input's
+  callback must always be answered once (null on cancel) or the page's button stops working.
 
 ## Testing the Java parts
 

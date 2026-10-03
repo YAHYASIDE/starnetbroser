@@ -16,6 +16,16 @@
     <!-- TelegramReplyService keeps the CPU awake while it waits for Telegram, so phones that freeze
          background work (HONOR/Huawei and others) still answer reps within seconds. -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- 📷 Starlink's identity check in a device's browser («التقاط صورة» / a proof photo). Asked
+         only the first time a Starlink page needs it (AccountBrowserActivity, CameraAccess). -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <!-- Lets the file chooser find the camera app (package visibility, Android 11+). -->
+    <queries>
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
+    </queries>
 
     <application>
         <!--
@@ -107,6 +117,17 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+
+        <!-- 📷 Where the camera app saves a proof photo taken from a device's browser. -->
+        <provider
+            android:name="com.starnetbroser.localbrowser.CaptureFileProvider"
+            android:authorities="${applicationId}.starnet.capture"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/starnet_capture_paths" />
+        </provider>
 
         <receiver
             android:name="com.starnetbroser.localbrowser.TelegramBootReceiver"
