@@ -33,6 +33,7 @@ const SOURCE_LABELS: Record<CashSourceKind, string> = {
   "rep-settlement": "تسوية مندوب",
   closing: "إغلاق يومي",
   "card-topup": "شحن بطاقة كاش",
+  "personal-expense": "مصروف شخصي",
 };
 
 function sourceBadge(entry: CashEntry): string | null {

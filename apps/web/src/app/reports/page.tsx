@@ -42,6 +42,8 @@ import { buildCardStatement, listCardPayments, listOpenShipmentDebts, loadCardTo
 import { listOpenPreviousDebts, loadPreviousDebts, PreviousDebtList, totalPreviousDebtUsd } from "@/lib/previousDebt";
 import { buildBusinessWorkbook, xlsxFileName } from "@/lib/excelExport";
 import { buildMonthNet, monthChange } from "@/lib/netProfit";
+import { loadCustomCategories, loadPersonalExpenses, monthExpensesMru, type ExpenseCategory, type PersonalExpenseList } from "@/lib/personalExpenses";
+import { PersonalExpensesTab } from "@/components/PersonalExpensesTab";
 import { monthLabel, recentMonths } from "@/lib/monthClosing";
 import { exportXlsx } from "@/lib/xlsxExport";
 import {
@@ -56,9 +58,9 @@ import {
   valueSeries,
 } from "@/lib/reportsView";
 
-type ReportTab = "net" | "starlink" | "store" | "debts";
+type ReportTab = "net" | "starlink" | "store" | "debts" | "expenses";
 
-const TAB_LABELS: Record<ReportTab, string> = { net: "الصافي", starlink: "ستارلينك", store: "المتجر", debts: "الديون" };
+const TAB_LABELS: Record<ReportTab, string> = { net: "الصافي", starlink: "ستارلينك", store: "المتجر", debts: "الديون", expenses: "المصروفات" };
 const TAB_KEY = "starnet.reportsTab";
 
 function shipments(n: number): string {
@@ -91,6 +93,8 @@ export default function ReportsPage() {
   const [period, setPeriod] = useState<ReportPeriod>("month");
   const [tab, setTab] = useState<ReportTab>("net");
   const [netMonth, setNetMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [personal, setPersonal] = useState<PersonalExpenseList>([]);
+  const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([]);
 
   useEffect(() => {
     setLedgerStore(loadLedgerStore());
@@ -108,9 +112,11 @@ export default function ReportsPage() {
     setProfitReset(loadProfitReset());
     setHiddenDays(loadHiddenProfitDays());
     setAllocations(loadAllocationStore());
+    setPersonal(loadPersonalExpenses());
+    setExpenseCategories(loadCustomCategories());
     try {
       const saved = window.localStorage.getItem(TAB_KEY);
-      if (saved === "net" || saved === "starlink" || saved === "store" || saved === "debts") setTab(saved);
+      if (saved === "net" || saved === "starlink" || saved === "store" || saved === "debts" || saved === "expenses") setTab(saved);
     } catch {
       // A per-phone convenience only.
     }
@@ -236,6 +242,8 @@ export default function ReportsPage() {
   );
   const netIndex = Math.max(0, netMonths.indexOf(netMonth));
   const net = netByMonth[netIndex];
+  // 🧾 the operator's own spending (تبويب «المصروفات») - not a business expense: only «يبقى لك».
+  const personalMonth = net ? monthExpensesMru(personal, net.month, rates) : { mru: 0, missing: [] };
   const previousNet = netByMonth[netIndex + 1];
   const netTrend = useMemo(
     () =>
@@ -617,6 +625,12 @@ export default function ReportsPage() {
               />
               <NetLine label="المصاريف" hint="قيود «خارج» في الصندوق" value={-net.expensesMru} />
               <NetLine label="الصافي" value={net.netMru} total />
+              {personalMonth.mru > 0 && (
+                <>
+                  <NetLine label="مصروفاتك الشخصية" hint="تبويب «المصروفات»" value={-personalMonth.mru} />
+                  <NetLine label="يبقى لك" value={net.netMru - personalMonth.mru} total />
+                </>
+              )}
             </ul>
           </div>
 
@@ -637,6 +651,19 @@ export default function ReportsPage() {
             المتجر والمصاريف بغير الأوقية محوّلة بسعر اليوم (للعرض فقط). الإيداعات وشحن البطاقة ودفعات المندوبين ليست مصاريف ولا تدخل هنا.
           </p>
         </section>
+      )}
+
+      {tab === "expenses" && (
+        <PersonalExpensesTab
+          expenses={personal}
+          custom={expenseCategories}
+          rates={rates}
+          onChange={(list, custom) => {
+            setPersonal(list);
+            setExpenseCategories(custom);
+            setCashEntries(loadCashEntries());
+          }}
+        />
       )}
 
       {tab === "debts" && (
