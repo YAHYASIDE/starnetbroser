@@ -27,6 +27,7 @@ import {
   normalizeDateLike,
   extractPaymentCardLast4,
   extractDishAlerts,
+  isPlausibleBillingDate,
 } from "./textFields";
 
 // Fake/dummy line arrays only - none of this is real Starlink account data.
@@ -223,6 +224,22 @@ describe("extractSubscriptionInvoiceDueDay - real Billing-page invoice list, onc
   it("returns undefined when there is no 'اشتراك' row at all", () => {
     const lines = ["الحالة", "الوصف", "تاريخ الاستحقاق", "متأخر", "طلب", "2026/8/29"];
     expect(extractSubscriptionInvoiceDueDay(lines)).toBeUndefined();
+  });
+
+  it("English list (Due Date, Description, Status): the date BEFORE «Subscription», never the next Order's", () => {
+    const lines = [
+      "Due Date", "Description", "Status",
+      "9/24/2026", "Subscription", "Overdue",
+      "9/1/2026", "Order", "Overdue",
+      "8/24/2026", "Subscription", "Paid",
+    ];
+    expect(extractSubscriptionInvoiceDueDay(lines)).toBe(24);
+  });
+
+  it("takes the latest subscription invoice, and only a day from 1 to 28", () => {
+    const lines = ["Due Date", "Description", "Status", "7/24/2026", "Subscription", "Paid", "9/24/2026", "Subscription", "Overdue"];
+    expect(extractSubscriptionInvoiceDueDay(lines)).toBe(24);
+    expect(extractSubscriptionInvoiceDueDay(["Due Date", "Description", "Status", "10/31/2026", "Subscription", "Paid"])).toBeUndefined();
   });
 
   it("tries the next 'اشتراك' row when the nearest one has no parseable date nearby", () => {
@@ -539,5 +556,18 @@ describe("extractDishAlerts - the alert boxes under «الأجهزة»", () => {
     expect(extractDishAlerts(["STARLINK", "Learn More"])).toEqual([]);
     expect(extractDishAlerts(["Reboot", "Transfer", "WIFI 0000000"])).toEqual([]);
     expect(extractDishAlerts(["ستارلينك محجوب جزئياً عن السماء", "اعرف المزيد"])).toEqual(["ستارلينك محجوب جزئياً عن السماء"]);
+  });
+});
+
+describe("Starlink's billing day is 1-28 (the operator's rule)", () => {
+  it("rejects a 29th-31st as a renewal date", () => {
+    expect(isPlausibleBillingDate("2026/10/24")).toBe(true);
+    expect(isPlausibleBillingDate("2026/10/31")).toBe(false);
+    expect(isPlausibleBillingDate("2026/10")).toBe(false);
+  });
+
+  it("a «payment due» day after 28 is not read", () => {
+    expect(extractBillingDueDay(["Payment due", "September 7."])).toBe(7);
+    expect(extractBillingDueDay(["Payment due", "October 31."])).toBeUndefined();
   });
 });

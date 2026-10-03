@@ -212,7 +212,8 @@ export function extractBillingDueDay(lines: string[]): number | undefined {
   const match = /^(\d{1,2})\b/.exec(western) ?? new RegExp(`^${MONTH_NAME}\\.?\\s+(\\d{1,2})\\b`, "i").exec(western);
   if (!match) return undefined;
   const day = parseInt(match[match.length - 1]!, 10);
-  return day >= 1 && day <= 31 ? day : undefined;
+  // Starlink's billing day is 1-28 (real, confirmed by the operator) - anything else is a misread.
+  return day >= 1 && day <= 28 ? day : undefined;
 }
 
 /** Fallback for a suspended-for-billing account's recurring billing day when the "دورة الفوترة"
@@ -228,18 +229,48 @@ export function extractBillingDueDay(lines: string[]): number | undefined {
  * real row order is status, then description, then date) - looking backward too risks grabbing
  * the PREVIOUS row's own trailing date cell instead of this row's. */
 export function extractSubscriptionInvoiceDueDay(lines: string[]): number | undefined {
-  for (let i = 0; i < lines.length; i++) {
-    const cell = lines[i].trim();
+  // The operator's rule (real, confirmed): Starlink bills on a day from 1 to 28 only, and the
+  // «Subscription» invoices at the bottom of Billing carry the true day. Column order differs by
+  // language: the Arabic list is status, description, date; the English one is "Due Date,
+  // Description, Status" - the date comes BEFORE "Subscription", and reading forward there would
+  // take the next row's (an Order's) date. So the header decides the direction, and the latest
+  // subscription invoice wins whatever order the rows are in.
+  const isDescription = (t: string) => /^(description|الوصف)$/i.test(t);
+  const isDueHeader = (t: string) => /^(due date|تاريخ الاستحقاق)$/i.test(t);
+  const isRowLabel = (t: string) => /^(subscription|order|اشتراك|طلب)$/i.test(t);
+  const trimmed = lines.map((l) => l.trim());
+  const dueAt = trimmed.findIndex(isDueHeader);
+  const descAt = trimmed.findIndex(isDescription);
+  const dateBefore = dueAt >= 0 && descAt >= 0 && dueAt < descAt;
+
+  const dates: string[] = [];
+  const consider = (text: string | undefined) => {
+    if (text === undefined || isRowLabel(text)) return false;
+    const date = normalizeDateLike(text);
+    if (!isCompleteDate(date)) return false;
+    const day = parseInt(date.slice(8), 10);
+    if (day >= 1 && day <= 28) dates.push(date);
+    return true;
+  };
+  for (let i = 0; i < trimmed.length; i++) {
+    const cell = trimmed[i]!;
     if (cell !== "اشتراك" && cell.toLowerCase() !== "subscription") continue;
-    for (let j = i; j < Math.min(i + 3, lines.length); j++) {
-      // Any date shape (the English page's "Aug 28, 2026" / "8/28/2026" too) - normalized first.
-      const date = normalizeDateLike(lines[j]);
-      if (!isCompleteDate(date)) continue;
-      const day = parseInt(date.slice(8), 10);
-      if (day >= 1 && day <= 31) return day;
+    if (dateBefore) {
+      for (let j = i - 1; j >= Math.max(0, i - 2) && !isRowLabel(trimmed[j]!); j--) if (consider(trimmed[j])) break;
+    } else {
+      for (let j = i + 1; j < Math.min(i + 3, trimmed.length) && !isRowLabel(trimmed[j]!); j++) if (consider(trimmed[j])) break;
     }
   }
-  return undefined;
+  if (dates.length === 0) return undefined;
+  const latest = dates.reduce((a, b) => (b > a ? b : a));
+  return parseInt(latest.slice(8), 10);
+}
+
+/** Starlink's billing day is 1-28: a date on any other day is a misread, never a renewal. */
+export function isPlausibleBillingDate(date: string | undefined): boolean {
+  if (!date || !isCompleteDate(date)) return false;
+  const day = parseInt(date.slice(8), 10);
+  return day >= 1 && day <= 28;
 }
 
 /** Turns a bare recurring day-of-month into a real "YYYY/MM/DD": this month if that day hasn't

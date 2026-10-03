@@ -33,6 +33,7 @@ import {
   hasNoSubscriptionsText,
   hasScheduledEndBanner,
   isCompleteDate,
+  isPlausibleBillingDate,
   isOnAccountHomePage,
   nextOccurrenceOfDay,
   normalizeDateLike,
@@ -159,7 +160,9 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
     // that, so it comes back unchanged instead of a real date. Never store that: a corrupted
     // renewal date is worse than none, since expiryDay's fallback parsing can misread a bare
     // month digit as if it were the day.
-    if (isCompleteDate(normalized)) resolvedRenewalDate = normalized;
+    // Starlink's billing day is 1-28 (the operator's rule): a "31" is a misread (real, confirmed: a
+    // device showed 2026/10/31) - drop it and fall through to the billing day / invoices below.
+    if (isCompleteDate(normalized) && isPlausibleBillingDate(normalized)) resolvedRenewalDate = normalized;
   }
   // The Billing page's "دورة الفوترة" section has no other date signal on it at all (once the
   // account is active, the standby banner and "النهاية" badge are both gone) - only a bare

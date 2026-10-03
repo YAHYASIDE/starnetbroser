@@ -143,7 +143,10 @@ export function mergeSyncedFields(
   }
 
   const renewalDate = fields.renewalDate?.trim();
-  if (renewalDate) {
+  // Starlink bills on a day from 1 to 28 only (the operator's rule): a 29th-31st is a misread -
+  // never let it replace a good date.
+  const renewalDay = renewalDate ? Number(renewalDate.replace(/\D+$/, "").split(/\D/).pop()) : NaN;
+  if (renewalDate && (!Number.isFinite(renewalDay) || renewalDay <= 28)) {
     note("renewalDate", next.rechargeDate !== renewalDate);
     next.rechargeDate = renewalDate;
   }

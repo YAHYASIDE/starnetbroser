@@ -751,3 +751,18 @@ describe("extractStarlinkFields - an email with no subscription", () => {
     expect(extractFrom(`<div><div>الرصيد المستحق</div><div>0.00 USD</div></div>`).noSubscription).toBeUndefined();
   });
 });
+
+describe("renewal date on the English Billing page - the operator's rule (1-28, else the Subscription invoice)", () => {
+  it("drops a 31st and takes the day of the latest «Subscription» invoice instead", () => {
+    document.body.innerHTML = `
+      <div>Billing</div>
+      <div>Next billing date</div><div>October 31, 2026</div>
+      <div>Invoices</div>
+      <div><div>Due Date</div><div>Description</div><div>Status</div></div>
+      <div><div>9/24/2026</div><div>Subscription</div><div>Overdue</div></div>
+      <div><div>9/1/2026</div><div>Order</div><div>Overdue</div></div>
+      <div><div>8/24/2026</div><div>Subscription</div><div>Paid</div></div>`;
+    const fields = extractStarlinkFields(document);
+    expect(fields.renewalDate).toBe(nextOccurrenceOfDay(24));
+  });
+});

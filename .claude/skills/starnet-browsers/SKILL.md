@@ -78,6 +78,15 @@ plus the rules learned from real misreads; keep it updated when you learn a new 
   (a whole-page scan once read the wrong amount); label lookahead skips buttons and other labels.
 - A limited (non-admin) email has no Billing icon: no balance or card can be read from it.
 - Dates: normalize digits (Arabic numerals) and never store a truncated date.
+- **The renewal (billing) day is always 1-28** - the operator's rule: Starlink never bills on the
+  29th-31st, so such a date is a misread (a device once showed 2026/10/31). It is rejected in the
+  extractor (`isPlausibleBillingDate`, `extractBillingDueDay`) and again in the web merge.
+- **Where the true day comes from, in order:** the Billing page's cycle ("Payment due September 7");
+  if it isn't there (e.g. a suspended account's blank cycle), the **invoice list at the bottom of
+  Billing: the latest row described «Subscription» / «اشتراك»** - never an «Order» / «طلب» row.
+  Column order depends on the language: English is "Due Date, Description, Status" (date BEFORE the
+  description), Arabic is status, description, date (date AFTER) - `extractSubscriptionInvoiceDueDay`
+  reads the header to know which way to look.
 - Never put real account data in tests or fixtures; fake values only.
 
 ## Testing the Java parts

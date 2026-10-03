@@ -255,6 +255,14 @@ describe("mergeSyncedFields - the dish's alerts", () => {
   });
 });
 
+describe("mergeSyncedFields - Starlink's billing day is 1-28", () => {
+  it("never stores a 29th-31st renewal date", () => {
+    const account = baseAccount({ rechargeDate: "2026/10/24" });
+    expect(mergeSyncedFields(account, { renewalDate: "2026/10/31" }).account.rechargeDate).toBe("2026/10/24");
+    expect(mergeSyncedFields(account, { renewalDate: "2026/11/07" }).account.rechargeDate).toBe("2026/11/07");
+  });
+});
+
 describe("formatSyncMessage - three distinct outcomes", () => {
   it("shows the 'nothing found' message only when the page had nothing recognizable at all", () => {
     const message = formatSyncMessage("mounay", [], false);
