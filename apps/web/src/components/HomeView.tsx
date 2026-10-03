@@ -127,8 +127,11 @@ import {
   pushKastDevices,
   kastCheckNow,
   drainKastDeposits,
+  openAutoSync,
   triggerImmediateSync,
 } from "@/lib/localBrowser";
+import { SyncChoiceSheet, SyncQueueBar } from "./SyncNowSheet";
+import { loadSyncQueue, localToday, nextQueuedAccount, queueProgressLabel, saveSyncQueue, startSyncQueue, type SyncWindow } from "@/lib/syncQueue";
 import { depositLabel, kastDevicesSnapshot } from "@/lib/kastCards";
 import {
   accountIdsNeedingLogin,
@@ -273,7 +276,6 @@ export function HomeView({
     if (!isRunningInAndroidApp() || !shouldAutoCheck()) return;
     void checkForAppUpdate().then((result) => setUpdateAvailable(result.status === "update"));
   }, []);
-  const [syncingNow, setSyncingNow] = useState(false);
   // 📥 requests reps sent through the bot (repRequests.ts) - they arrive while the app is open.
   const [pendingRepRequestCount, setPendingRepRequestCount] = useState(0);
   useEffect(() => {
@@ -450,21 +452,101 @@ export function HomeView({
     });
   }
 
-  async function handleSyncNow() {
-    if (syncingNow) return;
-    setSyncingNow(true);
-    try {
-      const result = await triggerImmediateSync();
-      if (!result.ok) {
-        window.alert(result.message);
-      } else {
-        // Only scheduled, not finished - results arrive through the usual sync pipeline below.
-        pushToast("بدأت مزامنة الأجهزة المهمة (7 / 3 / 1 أيام، المنتهية والموقوفة) - جهاز بعد جهاز. لغيرها استعمل «تحديث» في البطاقة");
-      }
-    } finally {
-      setSyncingNow(false);
+  // 🔄 «مزامنة الآن»: the operator picks today / 3 / 7 / 10 / 20 days / all, then each device's own
+  // browser opens and runs «مزامنة» by itself (AccountBrowserActivity's auto-sync), one after another.
+  // The queue is kept in starnet.syncQueue; each time the app comes back from a browser this bar
+  // shows the next device with a short countdown and «إيقاف».
+  const [syncChoiceOpen, setSyncChoiceOpen] = useState(false);
+  const [queueStep, setQueueStep] = useState<{ label: string; progress: string; name: string; secondsLeft: number } | null>(null);
+  const QUEUE_COUNTDOWN_S = 3;
+
+  function handleSyncNow() {
+    setSyncChoiceOpen(true);
+  }
+
+  function refreshSyncQueue() {
+    const queue = loadSyncQueue();
+    if (!queue) {
+      setQueueStep(null);
+      return;
+    }
+    const next = nextQueuedAccount(queue, accountsRef.current);
+    if (!next) {
+      saveSyncQueue(null);
+      setQueueStep(null);
+      pushToast(`✓ انتهت المزامنة: ${queue.ids.length} جهاز (${queue.label})`);
+      return;
+    }
+    setQueueStep({ label: queue.label, progress: queueProgressLabel(queue, next.index), name: next.account.name, secondsLeft: QUEUE_COUNTDOWN_S });
+  }
+
+  async function runNextQueued() {
+    const queue = loadSyncQueue();
+    if (!queue) {
+      setQueueStep(null);
+      return;
+    }
+    const next = nextQueuedAccount(queue, accountsRef.current);
+    if (!next) {
+      refreshSyncQueue();
+      return;
+    }
+    // Moved on before opening, so coming back (done or closed by hand) continues with the next one.
+    saveSyncQueue({ ...queue, index: next.index + 1 });
+    setQueueStep(null);
+    const result = await openAutoSync(next.account, accountsRef.current, `${queue.label} · ${queueProgressLabel(queue, next.index)}`);
+    if (!result.ok) {
+      saveSyncQueue(null);
+      pushToast(result.message);
     }
   }
+
+  function startSyncRun(window: SyncWindow) {
+    setSyncChoiceOpen(false);
+    const queue = startSyncQueue(accountsRef.current, window, localToday());
+    if (!queue) {
+      pushToast("لا توجد أجهزة في هذا الاختيار");
+      return;
+    }
+    saveSyncQueue(queue);
+    void runNextQueued();
+  }
+
+  function stopSyncRun() {
+    saveSyncQueue(null);
+    setQueueStep(null);
+    pushToast("⏹ أُوقفت المزامنة");
+  }
+
+  useEffect(() => {
+    if (!queueStep) return;
+    if (queueStep.secondsLeft <= 0) {
+      void runNextQueued();
+      return;
+    }
+    const timer = setTimeout(() => setQueueStep((step) => (step ? { ...step, secondsLeft: step.secondsLeft - 1 } : step)), 1000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queueStep]);
+
+  useEffect(() => {
+    if (!isRunningInAndroidApp()) return;
+    let cancelled = false;
+    let handle: { remove: () => void } | undefined;
+    const check = () => void accountsReadyGateRef.current.whenReady().then(() => {
+      if (!cancelled) refreshSyncQueue();
+    });
+    check();
+    App.addListener("resume", check).then((h) => {
+      if (cancelled) h.remove();
+      else handle = h;
+    });
+    return () => {
+      cancelled = true;
+      handle?.remove();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Starts identical to the server-rendered output (demo data, demo
   // state) so there's no hydration mismatch; real data replaces it after
@@ -1261,6 +1343,17 @@ export function HomeView({
   return (
     <main className="home app-shell">
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
+      {syncChoiceOpen && <SyncChoiceSheet accounts={accounts} today={localToday()} onPick={startSyncRun} onClose={() => setSyncChoiceOpen(false)} />}
+      {queueStep && (
+        <SyncQueueBar
+          label={queueStep.label}
+          progress={queueStep.progress}
+          nextName={queueStep.name}
+          secondsLeft={queueStep.secondsLeft}
+          onNow={() => void runNextQueued()}
+          onStop={stopSyncRun}
+        />
+      )}
       {oceanShown && (
         <OceanModeAlarm
           devices={oceanDevices}

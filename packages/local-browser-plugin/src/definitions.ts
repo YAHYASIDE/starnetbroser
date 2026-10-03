@@ -37,6 +37,11 @@ export interface OpenAccountBrowserOptions {
    * ever set after the operator pressed the card's button and confirmed. The end date comes back as
    * pendingCancellationDate through accountDataSynced. */
   cancelSubscriptionReason?: string;
+  /** 🔄 «تحديث من Starlink» / «مزامنة الآن»: the browser signs in if needed, runs «مزامنة» by
+   * itself (the same read as the button), then closes and returns to the app. */
+  autoSync?: boolean;
+  /** Shown while the auto-sync runs, e.g. "3 / 10" in a run over several devices. */
+  autoSyncLabel?: string;
 }
 
 export interface StarlinkActivationFill {

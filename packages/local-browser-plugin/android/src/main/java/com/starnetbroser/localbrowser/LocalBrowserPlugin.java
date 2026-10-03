@@ -523,6 +523,12 @@ public class LocalBrowserPlugin extends Plugin {
         // 🛑 «إلغاء الاشتراك» (the operator pressed the card's button and confirmed).
         String cancelReason = options.getString("cancelSubscriptionReason");
         if (cancelReason != null && !cancelReason.trim().isEmpty()) intent.putExtra(AccountBrowserActivity.EXTRA_CANCEL_REASON, cancelReason.trim());
+        // 🔄 «تحديث من Starlink» / «مزامنة الآن»: «مزامنة» by itself, then back to the app.
+        if (options.optBoolean("autoSync", false)) {
+            intent.putExtra(AccountBrowserActivity.EXTRA_AUTO_SYNC, true);
+            String autoSyncLabel = options.getString("autoSyncLabel");
+            if (autoSyncLabel != null) intent.putExtra(AccountBrowserActivity.EXTRA_AUTO_SYNC_LABEL, autoSyncLabel);
+        }
         JSObject activation = options.getJSObject("activation");
         if (activation != null) {
             intent.putExtra(AccountBrowserActivity.EXTRA_ACTIVATION_KIT, activation.getString("kit"));

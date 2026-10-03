@@ -23,7 +23,7 @@ import { formatAmount } from "@/lib/formatAmount";
 import { PaymentAllocation } from "@/lib/paymentAllocationStore";
 import { Client } from "@/lib/clientStore";
 import { isGmail } from "@/lib/mailboxes";
-import { isRunningInAndroidApp, mailExtrasFor, mailLoginFor, openAccountCreation, openCancelSubscription, openIsolatedAccountBrowser, openIsolatedMailbox, starlinkLoginFor, triggerImmediateSync } from "@/lib/localBrowser";
+import { isRunningInAndroidApp, mailExtrasFor, mailLoginFor, openAccountCreation, openCancelSubscription, openIsolatedAccountBrowser, openAutoSync, openIsolatedMailbox, starlinkLoginFor } from "@/lib/localBrowser";
 import { cancelConfirmQuestion, cancellationState, cancelledMessage } from "@/lib/subscriptionCancel";
 import {
   buildAccountStatementMessage,
@@ -320,17 +320,16 @@ export function AccountCard({
     }
   }
 
-  // Scoped to just this one account (see localBrowser.ts#triggerImmediateSync) - a quick way to
-  // refresh a single card without waiting for the hourly schedule or syncing every other account
-  // via the header's own "مزامنة الآن". The actual sync result still surfaces through the normal
-  // accountDataSynced/listPendingAccountSyncs pipeline (see HomeView) - this only starts the job.
+  // 🔄 The device's own browser opens and runs «مزامنة» by itself, then closes back here (the
+  // operator's choice: the hidden background read did nothing for him). The result arrives through
+  // the normal accountDataSynced/listPendingAccountSyncs pipeline (see HomeView).
   const [syncingCard, setSyncingCard] = useState(false);
 
   async function handleCardSync() {
     if (syncingCard) return;
     setSyncingCard(true);
     try {
-      const result = await triggerImmediateSync(account.id);
+      const result = await openAutoSync(account, allAccounts);
       if (!result.ok) {
         window.alert(result.message);
       }

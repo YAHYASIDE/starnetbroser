@@ -153,6 +153,30 @@ export async function openIsolatedAccountBrowser(accountId: string, accountName:
   }
 }
 
+/** 🔄 «تحديث من Starlink» / «مزامنة الآن»: the device's browser opens, signs in by itself if
+ * needed, runs «مزامنة» (the same read as the button) and closes back to the app. */
+export async function openAutoSync(account: StarlinkAccountSummary, accounts: StarlinkAccountSummary[] = [], label?: string): Promise<OpenResult> {
+  if (!isRunningInAndroidApp()) return { ok: false, message: ANDROID_ONLY_MESSAGE };
+  try {
+    const { supported } = await LocalBrowser.isSupported();
+    if (!supported) return { ok: false, message: UNSUPPORTED_DEVICE_MESSAGE };
+    markInternalLeave();
+    await LocalBrowser.openAccountBrowser({
+      accountId: account.id,
+      accountName: account.name || "حساب Starlink",
+      url: STARLINK_ACCOUNT_HOME_URL,
+      ...starlinkLoginFor(account),
+      ...mailExtrasFor(account, accounts),
+      autoLogin: true,
+      autoSync: true,
+      ...(label ? { autoSyncLabel: label } : {}),
+    });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : "تعذر فتح المتصفح المحلي" };
+  }
+}
+
 /** 🛑 «إلغاء الاشتراك»: the device's Starlink browser cancels every subscription by itself (signing
  * in first if needed). Only called after the operator pressed the card's button and confirmed. */
 export async function openCancelSubscription(account: StarlinkAccountSummary, accounts: StarlinkAccountSummary[] = []): Promise<OpenResult> {

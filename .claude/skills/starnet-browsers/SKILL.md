@@ -92,6 +92,11 @@ plus the rules learned from real misreads; keep it updated when you learn a new 
   date), the header only breaks a tie: on a real phone the header didn't come through as its own
   lines and the reader took the next Order's 9/1 (→ "2026/11/01").
 - Never put real account data in tests or fixtures; fake values only.
+- 🔄 A hidden WebView (`AutoSyncWorker`, never attached to a window) often doesn't render Starlink's
+  SPA - the card's «تحديث من Starlink» "did nothing" for the operator. So the card button and
+  «مزامنة الآن» open the device's **visible** browser with `autoSync` (EXTRA_AUTO_SYNC): wait for the
+  sign-in, run the same «مزامنة», close back to the app; «مزامنة الآن» chains devices from
+  `apps/web/src/lib/syncQueue.ts` (today / 3 / 7 / 10 / 20 days + stopped + ran out ≤30 days, or all).
 - 🔔 Every finished sync rings once (`AlertSound`, the phone's notification tone; silent mode stays
   silent): the device browser's «مزامنة» and every `AutoSyncWorker` run - unless its «تم التحديث»
   notification already made the sound.

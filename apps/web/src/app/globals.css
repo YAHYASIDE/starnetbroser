@@ -11994,3 +11994,58 @@ button.today-tile {
   font-size: 0.72rem;
   resize: vertical;
 }
+
+/* 🔄 «مزامنة الآن»: the choice sheet's hint, and the bar between two devices of a run. */
+.sync-choice-hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.sync-queue-bar {
+  position: fixed;
+  z-index: 95;
+  left: 12px;
+  right: 12px;
+  bottom: calc(var(--bottom-nav-height) + var(--safe-bottom) + 10px);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.25);
+}
+
+.sync-queue-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 0.82rem;
+}
+
+.sync-queue-text span {
+  overflow: hidden;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sync-queue-now,
+.sync-queue-stop {
+  flex-shrink: 0;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  color: inherit;
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.sync-queue-stop {
+  color: var(--red);
+}

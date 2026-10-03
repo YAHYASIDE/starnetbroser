@@ -18,6 +18,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -85,6 +86,11 @@ public class AccountBrowserActivity extends AppCompatActivity {
     /** 🛑 «إلغاء الاشتراك»: cancel every subscription of this device on Starlink with this reason
      * (the operator pressed the card's button and confirmed). */
     public static final String EXTRA_CANCEL_REASON = "com.starnetbroser.localbrowser.CANCEL_REASON";
+    /** 🔄 «تحديث من Starlink» / «مزامنة الآن»: sign in if needed, run «مزامنة» by itself, then close
+     * and go back to the app (the same read as the manual button - it's the same code). */
+    public static final String EXTRA_AUTO_SYNC = "com.starnetbroser.localbrowser.AUTO_SYNC";
+    /** Shown while it runs, e.g. "3 / 10" in a run over several devices. */
+    public static final String EXTRA_AUTO_SYNC_LABEL = "com.starnetbroser.localbrowser.AUTO_SYNC_LABEL";
 
     private static final String NOTIFICATION_PERMISSION_PREFS = "starnet_notification_permission";
     private static final String KEY_ASKED_NOTIFICATION_PERMISSION = "asked_post_notifications";
@@ -193,6 +199,8 @@ public class AccountBrowserActivity extends AppCompatActivity {
     // ---- 🛑 «إلغاء الاشتراك»: signed in → English → «الاشتراكات» → each row → cancel (cancelSubscription.ts) ----
     private static final long CANCEL_POLL_MS = 2000;
     private static final int CANCEL_SIGN_IN_POLLS = 150; // 5 minutes for the sign-in (and its code)
+    /** 🔄 Auto-sync: closes this long after its sync ended (its toast and sound play first). */
+    private static final long AUTO_SYNC_CLOSE_DELAY_MS = 1500;
     private enum CancelPhase { SIGN_IN, ENGLISH, LIST, ROW, CANCELLING }
     private final Runnable cancelPoll = this::cancelTick;
     /** Non-null only while a cancellation runs. */
@@ -328,6 +336,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
             Toast.makeText(this, "🤖 تسجيل الدخول إلى Starlink يجري وحده - ورمز التحقق يُجلب من البريد", Toast.LENGTH_LONG).show();
         }
         startCancel(getIntent().getStringExtra(EXTRA_CANCEL_REASON));
+        if (getIntent().getBooleanExtra(EXTRA_AUTO_SYNC, false)) startAutoSync(getIntent().getStringExtra(EXTRA_AUTO_SYNC_LABEL));
     }
 
     /** The device's browser was already open (one window per device): a new request - e.g.
@@ -338,6 +347,69 @@ public class AccountBrowserActivity extends AppCompatActivity {
         setIntent(intent);
         if (intent.getBooleanExtra(EXTRA_AUTO_LOGIN, false)) autoLogin = true;
         startCancel(intent.getStringExtra(EXTRA_CANCEL_REASON));
+        if (intent.getBooleanExtra(EXTRA_AUTO_SYNC, false)) startAutoSync(intent.getStringExtra(EXTRA_AUTO_SYNC_LABEL));
+    }
+
+    // ---- 🔄 auto-sync: «مزامنة» by itself, then back to the app ----
+
+    /** True from the request until this screen closes itself after the sync. */
+    private boolean autoSyncThenClose;
+    private int autoSyncSignedInPolls;
+    private int autoSyncSignInPolls;
+    private final Runnable autoSyncPoll = this::autoSyncTick;
+
+    private void startAutoSync(String label) {
+        if (webView == null || autoSyncThenClose) return;
+        autoSyncThenClose = true;
+        autoSyncSignedInPolls = 0;
+        autoSyncSignInPolls = 0;
+        // The phone mustn't sleep in the middle of a run over several devices.
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        String suffix = label != null && !label.trim().isEmpty() ? " (" + label.trim() + ")" : "";
+        Toast.makeText(this, "🔄 مزامنة تلقائية" + suffix + " - لا تلمس الصفحة", Toast.LENGTH_SHORT).show();
+        twoStepHandler.removeCallbacks(autoSyncPoll);
+        twoStepHandler.postDelayed(autoSyncPoll, CANCEL_POLL_MS);
+    }
+
+    /** Waits until the account page is signed in (twice in a row - not the moment before the sign-in
+     * form shows), then runs the same «مزامنة» as the button. */
+    private void autoSyncTick() {
+        if (webView == null || !autoSyncThenClose || syncSteps != null) return;
+        if (cancelReason != null || !AllowedUrl.isAllowed(webView.getUrl())) {
+            autoSyncAgainOrGiveUp(false);
+            return;
+        }
+        webView.evaluateJavascript(StarlinkLoginWatch.SCRIPT, value -> {
+            if (webView == null || !autoSyncThenClose) return;
+            StarlinkLoginWatch.State state = StarlinkLoginWatch.parse(value);
+            boolean signedIn = state != null && StarlinkLoginWatch.isSignedInUrl(webView.getUrl())
+                && !state.hasEmailField && !state.hasPasswordField;
+            if (signedIn && ++autoSyncSignedInPolls >= 2) {
+                syncFromStarlink();
+                return;
+            }
+            if (!signedIn) autoSyncSignedInPolls = 0;
+            autoSyncAgainOrGiveUp(signedIn);
+        });
+    }
+
+    private void autoSyncAgainOrGiveUp(boolean signedIn) {
+        if (!signedIn && ++autoSyncSignInPolls >= CANCEL_SIGN_IN_POLLS) {
+            Toast.makeText(this, "⚠️ لم يكتمل تسجيل الدخول - لم تتم المزامنة", Toast.LENGTH_LONG).show();
+            AlertSound.play(this);
+            closeAfterAutoSync();
+            return;
+        }
+        twoStepHandler.postDelayed(autoSyncPoll, CANCEL_POLL_MS);
+    }
+
+    private void closeAfterAutoSync() {
+        if (!autoSyncThenClose) return;
+        autoSyncThenClose = false;
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        twoStepHandler.postDelayed(() -> {
+            if (!isFinishing()) finish();
+        }, AUTO_SYNC_CLOSE_DELAY_MS);
     }
 
     // ---- 🛑 «إلغاء الاشتراك» ----
@@ -1179,6 +1251,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
         }
         // 🔔 The operator asked for a sound when a sync ends (silent mode stays silent).
         AlertSound.play(this);
+        closeAfterAutoSync();
     }
 
     private static final int MENU_SNAPSHOT = 7001;
