@@ -113,6 +113,13 @@ public class AccountBrowserActivity extends AppCompatActivity {
     private static final long AFTER_TAP_MIN_MS = 600;
     private static final long AFTER_TAP_MAX_MS = 6000;
     private static final long DEVICES_MAX_MS = 7000;
+    /** Billing shows the balance first and its «Billing Cycle» (the renewal day) a moment later -
+     * real, confirmed: a read taken in between saved the balance without the date. Wait for it. */
+    private static final long BILLING_MAX_MS = 9000;
+    /** What a settled read must contain before the step may stop early. */
+    private static final int WANT_ANY = 0;
+    private static final int WANT_DOTS = 1;
+    private static final int WANT_RENEWAL = 2;
     /** Home's banners appear a moment after the page: never read it as final before this. */
     private static final long HOME_MIN_MS = 3500;
     private static final long HOME_MAX_MS = 8000;
@@ -1050,23 +1057,23 @@ public class AccountBrowserActivity extends AppCompatActivity {
         // the sync moves on as soon as the page is complete, and a slow page gets more time. After a
         // tap the read only counts once the page actually changed (the old page stays on screen for
         // a moment); a tap that found nothing (no billing icon on a limited email) just waits it out.
-        syncSteps.add(() -> syncStepReadSettled(0, CURRENT_PAGE_MAX_MS, 2, false, false)); // whatever page the operator is already on
+        syncSteps.add(() -> syncStepReadSettled(0, CURRENT_PAGE_MAX_MS, 2, false, WANT_ANY)); // whatever page the operator is already on
         syncSteps.add(() -> syncStepClick(StarlinkExtractorSupport::loadClickSubscriptionsRailItemScript));
-        syncSteps.add(() -> syncStepReadSettled(AFTER_TAP_MIN_MS, AFTER_TAP_MAX_MS, 2, true, false)); // the list itself: every subscription's name (a device can have more than one)
+        syncSteps.add(() -> syncStepReadSettled(AFTER_TAP_MIN_MS, AFTER_TAP_MAX_MS, 2, true, WANT_ANY)); // the list itself: every subscription's name (a device can have more than one)
         syncSteps.add(() -> syncStepClick(StarlinkExtractorSupport::loadClickFirstSubscriptionRowScript));
-        syncSteps.add(() -> syncStepReadSettled(AFTER_TAP_MIN_MS, AFTER_TAP_MAX_MS, 2, true, false)); // the subscription page is open before «الأجهزة» is tapped
+        syncSteps.add(() -> syncStepReadSettled(AFTER_TAP_MIN_MS, AFTER_TAP_MAX_MS, 2, true, WANT_ANY)); // the subscription page is open before «الأجهزة» is tapped
         syncSteps.add(() -> syncStepClick(StarlinkExtractorSupport::loadExpandDevicesSectionScript));
         // The dish/Wi-Fi dots fill in only after the section's telemetry loads: wait for a colored dot.
-        syncSteps.add(() -> syncStepReadSettled(AFTER_TAP_MIN_MS, DEVICES_MAX_MS, 2, false, true)); // plan + devices (now expanded) + identifiers
+        syncSteps.add(() -> syncStepReadSettled(AFTER_TAP_MIN_MS, DEVICES_MAX_MS, 2, false, WANT_DOTS)); // plan + devices (now expanded) + identifiers
         syncSteps.add(() -> syncStepClick(StarlinkExtractorSupport::loadClickBillingRailItemScript)); // skipped on a limited email
-        syncSteps.add(() -> syncStepReadSettled(AFTER_TAP_MIN_MS, AFTER_TAP_MAX_MS, 2, true, false)); // billing: balance + the paying card
+        syncSteps.add(() -> syncStepReadSettled(AFTER_TAP_MIN_MS, BILLING_MAX_MS, 2, true, WANT_RENEWAL)); // billing: balance + the paying card + the renewal day
         syncSteps.add(() -> syncStepClick(StarlinkExtractorSupport::loadClickSettingsRailItemScript)); // Settings → Users
-        syncSteps.add(() -> syncStepReadSettled(AFTER_TAP_MIN_MS, AFTER_TAP_MAX_MS, 2, true, false)); // the Users table: which login email is Admin (the primary email)
+        syncSteps.add(() -> syncStepReadSettled(AFTER_TAP_MIN_MS, AFTER_TAP_MAX_MS, 2, true, WANT_ANY)); // the Users table: which login email is Admin (the primary email)
         // Home once more, fully settled: its banners ("restricted - outside its home country",
         // "scheduled to end on …") appear a moment after the page itself, and the first read can
         // come before them - real, confirmed miss right after the page was switched to English.
         syncSteps.add(this::syncStepReturnHome);
-        syncSteps.add(() -> syncStepReadSettled(HOME_MIN_MS, HOME_MAX_MS, 3, false, false));
+        syncSteps.add(() -> syncStepReadSettled(HOME_MIN_MS, HOME_MAX_MS, 3, false, WANT_ANY));
         syncSteps.add(this::finishSync);
 
         advanceSyncSteps();
@@ -1101,7 +1108,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
      * page's is the old page still on screen, not the new one. {@code wantDots}: the devices section
      * - settled only once a dish/Wi-Fi dot has its color (or at the time limit).
      */
-    private void syncStepReadSettled(long minMs, long maxMs, int stableReads, boolean mustChange, boolean wantDots) {
+    private void syncStepReadSettled(long minMs, long maxMs, int stableReads, boolean mustChange, int want) {
         if (!syncGuardOk()) {
             finishSync();
             return;
@@ -1117,10 +1124,10 @@ public class AccountBrowserActivity extends AppCompatActivity {
         long started = android.os.SystemClock.elapsedRealtime();
         JSObject[] latest = new JSObject[1];
         String previousPage = lastSavedPageKey;
-        readSettledPoll(script, tracker, started, latest, mustChange ? previousPage : null, wantDots);
+        readSettledPoll(script, tracker, started, latest, mustChange ? previousPage : null, want);
     }
 
-    private void readSettledPoll(String script, SettleTracker tracker, long started, JSObject[] latest, String previousPage, boolean wantDots) {
+    private void readSettledPoll(String script, SettleTracker tracker, long started, JSObject[] latest, String previousPage, int want) {
         if (syncSteps == null) return;
         if (!syncGuardOk()) {
             finishSync();
@@ -1136,14 +1143,16 @@ public class AccountBrowserActivity extends AppCompatActivity {
             String key = StarlinkExtractorSupport.settleKey(fields);
             boolean stillOldPage = previousPage != null && !key.isEmpty() && key.equals(previousPage);
             if (!key.isEmpty() && !stillOldPage) latest[0] = fields;
-            boolean good = !stillOldPage && (!wantDots || StarlinkExtractorSupport.hasColoredDot(fields));
+            boolean good = !stillOldPage
+                && (want != WANT_DOTS || StarlinkExtractorSupport.hasColoredDot(fields))
+                && (want != WANT_RENEWAL || StarlinkExtractorSupport.hasRenewalDate(fields));
             long elapsed = android.os.SystemClock.elapsedRealtime() - started;
             if (tracker.offer(stillOldPage ? "" : key, good, elapsed)) {
                 saveSyncRead(latest[0]);
                 advanceSyncSteps();
                 return;
             }
-            syncHandler.postDelayed(() -> readSettledPoll(script, tracker, started, latest, previousPage, wantDots), READ_POLL_MS);
+            syncHandler.postDelayed(() -> readSettledPoll(script, tracker, started, latest, previousPage, want), READ_POLL_MS);
         });
     }
 

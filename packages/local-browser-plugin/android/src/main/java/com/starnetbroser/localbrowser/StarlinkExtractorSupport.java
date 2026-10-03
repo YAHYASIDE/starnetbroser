@@ -181,6 +181,11 @@ final class StarlinkExtractorSupport {
         return isColoredDot(fields.optString("dishStatus", "")) || isColoredDot(fields.optString("wifiStatus", ""));
     }
 
+    /** The Billing page's renewal day has loaded (its «Billing Cycle» box comes after the balance). */
+    static boolean hasRenewalDate(JSObject fields) {
+        return fields != null && !fields.optString("renewalDate", "").trim().isEmpty();
+    }
+
     private static boolean isColoredDot(String status) {
         return "online".equals(status) || "offline".equals(status) || "warning".equals(status);
     }
