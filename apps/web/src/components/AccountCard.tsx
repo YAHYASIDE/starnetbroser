@@ -169,32 +169,6 @@ function IconCopy() {
   );
 }
 
-function IconWrench() {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M14.7 6.3a4 4 0 0 0-5.6 5.6L3 18l3 3 6.1-6.1a4 4 0 0 0 5.6-5.6l-2.5 2.5-2-2 2.5-2.5Z" />
-    </svg>
-  );
-}
-
-function IconArchive() {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="3" y="4" width="18" height="4" rx="1" />
-      <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8M10 13h4" />
-    </svg>
-  );
-}
-
-function IconRenew() {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M20 11A8 8 0 1 0 6.3 17.7" />
-      <path d="M20 5v6h-6" />
-    </svg>
-  );
-}
-
 function IconTrash() {
   return (
     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -376,6 +350,7 @@ export function AccountCard({
   // Everything not shown on the compact card sits one tap away behind "التفاصيل" at the bottom -
   // never a second toggle elsewhere on the same card.
   const [expanded, setExpanded] = useState(false);
+  const [showMore, setShowMore] = useState(false);
   // No "التفاصيل" button: hold the card for its details, tap twice for a payment, 3 times to edit.
   const gestures = useCardGestures((gesture) => {
     if (gesture === "details") setExpanded((v) => !v);
@@ -533,7 +508,6 @@ export function AccountCard({
           ) : (
             <div className="account-card-client-missing">
               <span className="badge badge-gray">الزبون غير محدد</span>
-              <button type="button" className="text-action" onClick={() => onEdit(account)}>ربط بزبون</button>
             </div>
           )}
         </div>
@@ -564,18 +538,9 @@ export function AccountCard({
             ⏳ بانتظار المسؤول
           </span>
         )}
-        {context === "active" && !account.creation && (
-          <button
-            type="button"
-            className={`cancel-subscription-button${cancellation.cancelled ? " is-cancelled" : ""}`}
-            onClick={(event) => {
-              event.stopPropagation();
-              void handleCancelSubscription();
-            }}
-            disabled={opening}
-            title={cancellation.cancelled ? cancelledMessage(cancellation) : "إلغاء الاشتراك في Starlink"}
-          >
-            {cancellation.cancelled ? "ملغى" : "إلغاء الاشتراك"}
+        {context === "active" && !account.creation && cancellation.cancelled && (
+          <button type="button" className="cancel-subscription-button is-cancelled" onClick={() => void handleCancelSubscription()} title={cancelledMessage(cancellation)}>
+            ملغى
           </button>
         )}
       </div>
@@ -706,22 +671,16 @@ export function AccountCard({
       </div>
 
       {context === "active" ? (
-        <div className="account-card-quick-actions">
-          <button type="button" className="quick-action" onClick={() => setShowFaultDialog(true)}>
-            <span className="quick-action-icon quick-action-fault" aria-hidden="true"><IconWrench /></span>
-            متعطل
+        // The everyday buttons stay on the card; everything else is under «⋯» (the card doesn't grow).
+        <div className="account-card-daily-actions">
+          <button type="button" className="card-action card-daily-action" onClick={() => onLedger(account)}>
+            <span aria-hidden="true">💵</span> دفعة
           </button>
-          <button type="button" className="quick-action" onClick={() => setShowRenewalDialog(true)}>
-            <span className="quick-action-icon quick-action-renew" aria-hidden="true"><IconRenew /></span>
-            تجديد
+          <button type="button" className="card-action card-daily-action" onClick={() => setShowRenewalDialog(true)}>
+            <span aria-hidden="true">🔄</span> تجديد
           </button>
-          <button type="button" className="quick-action" onClick={handleArchiveClick}>
-            <span className="quick-action-icon quick-action-archive" aria-hidden="true"><IconArchive /></span>
-            أرشفة
-          </button>
-          <button type="button" className="quick-action" onClick={handleSoftDeleteClick}>
-            <span className="quick-action-icon quick-action-delete" aria-hidden="true"><IconTrash /></span>
-            حذف
+          <button type="button" className="card-action card-daily-action card-daily-more" onClick={() => setShowMore(true)} aria-label="المزيد">
+            ⋯
           </button>
         </div>
       ) : (
@@ -848,6 +807,45 @@ export function AccountCard({
             <button className="card-action" title="تعديل البيانات" onClick={() => onEdit(account)}>
               <span aria-hidden="true">✎</span> تعديل البيانات
             </button>
+          </div>
+        </div>
+      )}
+
+      {showMore && (
+        <div className="party-sheet-backdrop" role="presentation" onClick={() => setShowMore(false)}>
+          <div className="party-sheet" role="dialog" aria-modal="true" aria-label={account.name} onClick={(e) => e.stopPropagation()}>
+            <div className="party-sheet-head">
+              <strong>{account.name}</strong>
+              <button type="button" className="dialog-close" onClick={() => setShowMore(false)} aria-label="إغلاق">
+                ×
+              </button>
+            </div>
+            <div className="card-more-list">
+              {[
+                { icon: "📋", label: expanded ? "إخفاء التفاصيل" : "التفاصيل", run: () => setExpanded((v) => !v) },
+                { icon: client ? "✎" : "🔗", label: client ? "تعديل البيانات" : "ربط بزبون", run: () => onEdit(account) },
+                { icon: "🔧", label: "متعطل", run: () => setShowFaultDialog(true) },
+                { icon: "🤝", label: "وعد دفع", run: () => setShowPromise(true) },
+                ...(!account.creation
+                  ? [{ icon: "🛑", label: cancellation.cancelled ? "الاشتراك ملغى" : "إلغاء الاشتراك", run: () => void handleCancelSubscription(), tone: "bad" }]
+                  : []),
+                { icon: "🗄️", label: "أرشفة", run: () => void handleArchiveClick() },
+                { icon: "🗑️", label: "حذف", run: () => void handleSoftDeleteClick(), tone: "bad" },
+              ].map((item) => (
+                <button
+                  key={item.label}
+                  type="button"
+                  className={`card-more-item${item.tone === "bad" ? " card-more-item-bad" : ""}`}
+                  disabled={opening}
+                  onClick={() => {
+                    setShowMore(false);
+                    item.run();
+                  }}
+                >
+                  <span aria-hidden="true">{item.icon}</span> {item.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}

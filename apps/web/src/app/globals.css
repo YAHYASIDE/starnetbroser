@@ -11816,3 +11816,109 @@ button.today-tile {
   flex: 0 0 56px !important;
   text-align: center;
 }
+
+/* 🛡️ The backup reminder as one thin line on the home page. */
+.backup-banner-slim {
+  gap: 8px;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+}
+
+.backup-banner-slim > span:first-child {
+  font-size: 1rem;
+}
+
+.backup-banner-slim strong {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.backup-banner-go {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--yellow);
+}
+
+/* Home status circles: a lower row. */
+.status-rings {
+  padding: 6px 4px 5px;
+}
+
+.status-rings .status-ring {
+  gap: 2px;
+}
+
+.status-rings .status-ring .status-ring-dial {
+  width: 32px;
+  height: 32px;
+}
+
+.status-rings .status-ring .status-ring-core {
+  width: 26px;
+  height: 26px;
+}
+
+.status-rings .status-ring .status-ring-icon {
+  display: none;
+}
+
+.status-rings .status-ring .status-ring-value {
+  font-size: 0.78rem;
+}
+
+/* The card's everyday buttons: دفعة · تجديد · ⋯ (the rest is in the ⋯ sheet). */
+.account-card-daily-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.card-daily-action {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 36px;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.card-daily-more {
+  flex: 0 0 48px;
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.card-more-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.card-more-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  text-align: start;
+  cursor: pointer;
+}
+
+.card-more-item-bad {
+  color: var(--red);
+}
+
+.card-more-item:disabled {
+  opacity: 0.5;
+}

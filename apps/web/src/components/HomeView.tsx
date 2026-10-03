@@ -1377,12 +1377,10 @@ export function HomeView({
       )}
 
       {!repWorkspace && isBackupOverdue(lastBackupAt, 2) && (
-        <Link href="/settings#backup" className="backup-banner">
+        <Link href="/settings#backup" className="backup-banner backup-banner-slim" title="كل بياناتك موجودة على هذا الهاتف فقط - اضغط لحفظ نسخة كاملة الآن">
           <span aria-hidden="true">🛡️</span>
-          <span>
-            <strong>{lastBackupAt ? "لم تحفظ نسخة احتياطية منذ أيام" : "لم تحفظ أي نسخة احتياطية بعد"}</strong>
-            <small>كل بياناتك موجودة على هذا الهاتف فقط - اضغط لحفظ نسخة كاملة الآن</small>
-          </span>
+          <strong>{lastBackupAt ? "لا نسخة احتياطية منذ أيام" : "لم تحفظ نسخة احتياطية بعد"}</strong>
+          <span className="backup-banner-go">احفظ ‹</span>
         </Link>
       )}
 
