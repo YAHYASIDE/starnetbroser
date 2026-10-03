@@ -36,6 +36,7 @@ import { DeviceFaultDialog } from "./DeviceFaultDialog";
 import { DeviceGmailButton } from "./DeviceGmailButton";
 import { useCardGestures } from "./useCardGestures";
 import { describeDishAlerts } from "@/lib/dishAlerts";
+import { PasteSessionSheet } from "./PasteSessionSheet";
 import { RenewalConfirmDialog } from "./RenewalConfirmDialog";
 import { PreviousDebtDialog } from "./PreviousDebtDialog";
 
@@ -353,6 +354,7 @@ export function AccountCard({
   const [expanded, setExpanded] = useState(false);
   const [showMore, setShowMore] = useState(false);
   const [showDishAlerts, setShowDishAlerts] = useState(false);
+  const [showPasteSession, setShowPasteSession] = useState(false);
   const dishAlerts = describeDishAlerts(account.dishAlerts);
   // No "التفاصيل" button: hold the card for its details, tap twice for a payment, 3 times to edit.
   const gestures = useCardGestures((gesture) => {
@@ -820,6 +822,10 @@ export function AccountCard({
         </div>
       )}
 
+      {showPasteSession && (
+        <PasteSessionSheet accountId={account.id} accountName={account.name || "الجهاز"} onOpen={() => void handleOpen()} onClose={() => setShowPasteSession(false)} />
+      )}
+
       {showDishAlerts && (
         <div className="party-sheet-backdrop" role="presentation" onClick={() => setShowDishAlerts(false)}>
           <div className="party-sheet" role="dialog" aria-modal="true" aria-label="تنبيهات الطبق" onClick={(e) => e.stopPropagation()}>
@@ -868,6 +874,7 @@ export function AccountCard({
               {[
                 { icon: "📋", label: expanded ? "إخفاء التفاصيل" : "التفاصيل", run: () => setExpanded((v) => !v) },
                 { icon: client ? "✎" : "🔗", label: client ? "تعديل البيانات" : "ربط بزبون", run: () => onEdit(account) },
+                { icon: "📋", label: "لصق جلسة (من متصفح آخر)", run: () => setShowPasteSession(true) },
                 { icon: "🔧", label: "متعطل", run: () => setShowFaultDialog(true) },
                 { icon: "🤝", label: "وعد دفع", run: () => setShowPromise(true) },
                 ...(!account.creation

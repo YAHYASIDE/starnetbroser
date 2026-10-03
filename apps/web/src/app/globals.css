@@ -11967,3 +11967,22 @@ button.today-tile {
   color: var(--text-muted);
   text-align: left;
 }
+
+/* 📋 «لصق جلسة»: steps + the pasted cookies. */
+.paste-session-steps {
+  margin: 0 0 8px;
+  padding-inline-start: 18px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.paste-session-input {
+  width: 100%;
+  min-height: 96px;
+  font-family: ui-monospace, monospace;
+  font-size: 0.72rem;
+  resize: vertical;
+}
