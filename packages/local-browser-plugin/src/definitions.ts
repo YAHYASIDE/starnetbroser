@@ -44,6 +44,17 @@ export interface OpenAccountBrowserOptions {
   autoSyncLabel?: string;
 }
 
+/** 🔄 How one device's auto-sync ended: read and saved, nothing read, the save failed, not signed in
+ * to Starlink (skipped at once), no end within the time limit (skipped), or closed by hand. */
+export type AutoSyncOutcome = "ok" | "nothing" | "saveFailed" | "signedOut" | "stuck" | "closed";
+
+export interface AutoSyncResult {
+  accountId: string;
+  outcome: AutoSyncOutcome;
+  /** ms since epoch */
+  at: number;
+}
+
 export interface StarlinkActivationFill {
   kit: string;
   firstName: string;
@@ -477,6 +488,10 @@ export interface LocalBrowserPlugin {
    * however long the app stayed backgrounded after "تحديث من Starlink" was tapped.
    */
   listPendingAccountSyncs(): Promise<ListPendingAccountSyncsResult>;
+
+  /** 🔄 How each auto-sync ended since the last call («تحديث من Starlink» / «مزامنة الآن») - and
+   * forgets them. Empty on web. */
+  takeAutoSyncResults(): Promise<{ results: AutoSyncResult[] }>;
 
   /**
    * Discards the given syncIds so listPendingAccountSyncs stops returning them. Only call this

@@ -201,6 +201,10 @@ public class AccountBrowserActivity extends AppCompatActivity {
     private static final int CANCEL_SIGN_IN_POLLS = 150; // 5 minutes for the sign-in (and its code)
     /** 🔄 Auto-sync: closes this long after its sync ended (its toast and sound play first). */
     private static final long AUTO_SYNC_CLOSE_DELAY_MS = 1500;
+    /** A device that hasn't finished by then is skipped ("stuck") so a run over many goes on. */
+    private static final long AUTO_SYNC_MAX_MS = 120_000;
+    /** The sign-in page seen this many polls in a row: the device isn't signed in - skipped at once. */
+    private static final int AUTO_SYNC_SIGNED_OUT_POLLS = 3;
     private enum CancelPhase { SIGN_IN, ENGLISH, LIST, ROW, CANCELLING }
     private final Runnable cancelPoll = this::cancelTick;
     /** Non-null only while a cancellation runs. */
@@ -355,57 +359,73 @@ public class AccountBrowserActivity extends AppCompatActivity {
     /** True from the request until this screen closes itself after the sync. */
     private boolean autoSyncThenClose;
     private int autoSyncSignedInPolls;
-    private int autoSyncSignInPolls;
+    private int autoSyncSignedOutPolls;
     private final Runnable autoSyncPoll = this::autoSyncTick;
+    private final Runnable autoSyncWatchdog = () -> autoSyncGiveUp("stuck", "⚠️ تعلّقت المزامنة - تخطّي هذا الجهاز");
 
     private void startAutoSync(String label) {
         if (webView == null || autoSyncThenClose) return;
         autoSyncThenClose = true;
         autoSyncSignedInPolls = 0;
-        autoSyncSignInPolls = 0;
+        autoSyncSignedOutPolls = 0;
         // The phone mustn't sleep in the middle of a run over several devices.
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         String suffix = label != null && !label.trim().isEmpty() ? " (" + label.trim() + ")" : "";
         Toast.makeText(this, "🔄 مزامنة تلقائية" + suffix + " - لا تلمس الصفحة", Toast.LENGTH_SHORT).show();
         twoStepHandler.removeCallbacks(autoSyncPoll);
+        twoStepHandler.removeCallbacks(autoSyncWatchdog);
         twoStepHandler.postDelayed(autoSyncPoll, CANCEL_POLL_MS);
+        twoStepHandler.postDelayed(autoSyncWatchdog, AUTO_SYNC_MAX_MS);
     }
 
     /** Waits until the account page is signed in (twice in a row - not the moment before the sign-in
-     * form shows), then runs the same «مزامنة» as the button. */
+     * form shows), then runs the same «مزامنة» as the button. The sign-in page instead (a device
+     * not signed in to Starlink) is skipped at once - the operator's choice: no sign-in attempt. */
     private void autoSyncTick() {
         if (webView == null || !autoSyncThenClose || syncSteps != null) return;
         if (cancelReason != null || !AllowedUrl.isAllowed(webView.getUrl())) {
-            autoSyncAgainOrGiveUp(false);
+            twoStepHandler.postDelayed(autoSyncPoll, CANCEL_POLL_MS);
             return;
         }
         webView.evaluateJavascript(StarlinkLoginWatch.SCRIPT, value -> {
             if (webView == null || !autoSyncThenClose) return;
             StarlinkLoginWatch.State state = StarlinkLoginWatch.parse(value);
-            boolean signedIn = state != null && StarlinkLoginWatch.isSignedInUrl(webView.getUrl())
-                && !state.hasEmailField && !state.hasPasswordField;
+            boolean signedInUrl = StarlinkLoginWatch.isSignedInUrl(webView.getUrl());
+            boolean signedIn = state != null && signedInUrl && !state.hasEmailField && !state.hasPasswordField;
+            boolean signInPage = state != null && (state.hasEmailField || state.hasPasswordField);
             if (signedIn && ++autoSyncSignedInPolls >= 2) {
                 syncFromStarlink();
                 return;
             }
             if (!signedIn) autoSyncSignedInPolls = 0;
-            autoSyncAgainOrGiveUp(signedIn);
+            if (signInPage && ++autoSyncSignedOutPolls >= AUTO_SYNC_SIGNED_OUT_POLLS) {
+                autoSyncGiveUp("signedOut", "⚠️ الجهاز غير مسجّل في Starlink - تخطّي");
+                return;
+            }
+            if (!signInPage) autoSyncSignedOutPolls = 0;
+            twoStepHandler.postDelayed(autoSyncPoll, CANCEL_POLL_MS);
         });
     }
 
-    private void autoSyncAgainOrGiveUp(boolean signedIn) {
-        if (!signedIn && ++autoSyncSignInPolls >= CANCEL_SIGN_IN_POLLS) {
-            Toast.makeText(this, "⚠️ لم يكتمل تسجيل الدخول - لم تتم المزامنة", Toast.LENGTH_LONG).show();
-            AlertSound.play(this);
-            closeAfterAutoSync();
-            return;
+    /** Ends this device's auto-sync without a finished read (signed out / stuck): recorded, then closed. */
+    private void autoSyncGiveUp(String outcome, String message) {
+        if (!autoSyncThenClose) return;
+        AutoSyncResults.record(this, accountId, outcome);
+        syncHandler.removeCallbacksAndMessages(null);
+        if (syncSteps != null) {
+            syncSteps = null;
+            taskChanged("sync", null);
         }
-        twoStepHandler.postDelayed(autoSyncPoll, CANCEL_POLL_MS);
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+        AlertSound.play(this);
+        closeAfterAutoSync();
     }
 
     private void closeAfterAutoSync() {
         if (!autoSyncThenClose) return;
         autoSyncThenClose = false;
+        twoStepHandler.removeCallbacks(autoSyncPoll);
+        twoStepHandler.removeCallbacks(autoSyncWatchdog);
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         twoStepHandler.postDelayed(() -> {
             if (!isFinishing()) finish();
@@ -794,6 +814,8 @@ public class AccountBrowserActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        // Closed (by hand, or by Android) before its auto-sync ended.
+        if (autoSyncThenClose) AutoSyncResults.record(this, accountId, "closed");
         twoStepHandler.removeCallbacksAndMessages(null);
         BusyService.stop(this, "sync:" + accountId);
         BusyService.stop(this, "cancel:" + accountId);
@@ -1251,6 +1273,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
         }
         // 🔔 The operator asked for a sound when a sync ends (silent mode stays silent).
         AlertSound.play(this);
+        if (autoSyncThenClose) AutoSyncResults.record(this, accountId, syncSaveFailed ? "saveFailed" : syncFoundAnything ? "ok" : "nothing");
         closeAfterAutoSync();
     }
 

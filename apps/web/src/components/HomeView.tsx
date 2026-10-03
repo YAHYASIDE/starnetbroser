@@ -128,12 +128,14 @@ import {
   kastCheckNow,
   drainKastDeposits,
   openAutoSync,
+  takeAutoSyncResults,
   triggerImmediateSync,
 } from "@/lib/localBrowser";
 import { SyncChoiceSheet, SyncQueueBar } from "./SyncNowSheet";
 import { loadSyncQueue, localToday, nextQueuedAccount, queueProgressLabel, saveSyncQueue, startSyncQueue, syncedOnlyByCommand, syncQueueFor, type SyncWindow } from "@/lib/syncQueue";
 import { DayActionsSheet } from "./DayActionsSheet";
 import { accountsForDay } from "@/lib/dayActions";
+import { applyOutcomes, buildSyncReport, outcomeLabel, signedOutAlert } from "@/lib/syncReport";
 import { depositLabel, kastDevicesSnapshot } from "@/lib/kastCards";
 import {
   accountIdsNeedingLogin,
@@ -466,17 +468,35 @@ export function HomeView({
     setSyncChoiceOpen(true);
   }
 
-  function refreshSyncQueue() {
-    const queue = loadSyncQueue();
+  /** The bot message (owner's Telegram) and a toast - the run's report or a sign-in alert. */
+  function reportSync(text: string) {
+    if (isTelegramConnected()) void sendTelegramText(text);
+    pushToast(text.split("\n")[0]!);
+  }
+
+  async function refreshSyncQueue() {
+    // How the devices' auto-syncs ended since last time (signed out, stuck, done...).
+    const records = await takeAutoSyncResults();
+    let queue = loadSyncQueue();
     if (!queue) {
       setQueueStep(null);
+      // A single card's «تحديث من Starlink» that couldn't sync: say why.
+      for (const record of records) {
+        if (record.outcome === "ok") continue;
+        const name = accountsRef.current.find((a) => a.id === record.accountId)?.name ?? "";
+        pushToast(`${name}: ${outcomeLabel(record.outcome)}`);
+      }
       return;
     }
+    const applied = applyOutcomes(queue, records);
+    queue = applied.queue;
+    saveSyncQueue(queue);
+    for (const id of applied.newlySignedOut) reportSync(signedOutAlert(accountsRef.current.find((a) => a.id === id)));
     const next = nextQueuedAccount(queue, accountsRef.current);
     if (!next) {
       saveSyncQueue(null);
       setQueueStep(null);
-      pushToast(`✓ انتهت المزامنة: ${queue.ids.length} جهاز (${queue.label})`);
+      reportSync(buildSyncReport({ ...queue, index: queue.ids.length }, accountsRef.current));
       return;
     }
     setQueueStep({ label: queue.label, progress: queueProgressLabel(queue, next.index), name: next.account.name, secondsLeft: QUEUE_COUNTDOWN_S });
@@ -490,13 +510,13 @@ export function HomeView({
     }
     const next = nextQueuedAccount(queue, accountsRef.current);
     if (!next) {
-      refreshSyncQueue();
+      void refreshSyncQueue();
       return;
     }
     // Moved on before opening, so coming back (done or closed by hand) continues with the next one.
     saveSyncQueue({ ...queue, index: next.index + 1 });
     setQueueStep(null);
-    const result = await openAutoSync(next.account, accountsRef.current, `${queue.label} · ${queueProgressLabel(queue, next.index)}`);
+    const result = await openAutoSync(next.account, `${queue.label} · ${queueProgressLabel(queue, next.index)}`);
     if (!result.ok) {
       saveSyncQueue(null);
       pushToast(result.message);
@@ -510,8 +530,11 @@ export function HomeView({
       pushToast("لا توجد أجهزة في هذا الاختيار");
       return;
     }
-    saveSyncQueue(queue);
-    void runNextQueued();
+    // Results of earlier single syncs aren't this run's.
+    void takeAutoSyncResults().then(() => {
+      saveSyncQueue(queue);
+      void runNextQueued();
+    });
   }
 
   // 📅 Long press on a calendar day: that day's actions (DayActionsSheet).
@@ -524,14 +547,18 @@ export function HomeView({
     const queue = syncQueueFor(ids, `يوم ${day}`);
     if (!queue) pushToast("لا أجهزة للمزامنة في هذا اليوم (المعطلة والإيميل غير الرئيسي بأمر فقط)");
     if (!queue) return;
-    saveSyncQueue(queue);
-    void runNextQueued();
+    void takeAutoSyncResults().then(() => {
+      saveSyncQueue(queue);
+      void runNextQueued();
+    });
   }
 
   function stopSyncRun() {
+    const queue = loadSyncQueue();
     saveSyncQueue(null);
     setQueueStep(null);
-    pushToast("⏹ أُوقفت المزامنة");
+    if (queue && queue.index > 0) reportSync(buildSyncReport(queue, accountsRef.current, true));
+    else pushToast("⏹ أُوقفت المزامنة");
   }
 
   useEffect(() => {
@@ -550,7 +577,7 @@ export function HomeView({
     let cancelled = false;
     let handle: { remove: () => void } | undefined;
     const check = () => void accountsReadyGateRef.current.whenReady().then(() => {
-      if (!cancelled) refreshSyncQueue();
+      if (!cancelled) void refreshSyncQueue();
     });
     check();
     App.addListener("resume", check).then((h) => {

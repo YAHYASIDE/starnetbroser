@@ -712,6 +712,14 @@ public class LocalBrowserPlugin extends Plugin {
      * accountDataSynced event, which is lost whenever this Activity's Bridge/WebView wasn't
      * attached and resumed at the moment AccountBrowserActivity fired it.
      */
+    /** 🔄 How each auto-sync ended since the last call (AutoSyncResults) - and forgets them. */
+    @PluginMethod
+    public void takeAutoSyncResults(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("results", AutoSyncResults.take(getContext()));
+        call.resolve(ret);
+    }
+
     @PluginMethod
     public void listPendingAccountSyncs(PluginCall call) {
         JSONArray pending = PendingSyncStore.listPending(getContext());

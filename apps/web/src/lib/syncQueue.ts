@@ -80,6 +80,8 @@ export interface SyncQueue {
   index: number;
   /** What the operator chose, e.g. "7 أيام". */
   label: string;
+  /** How each device's auto-sync ended (syncReport.ts). */
+  results?: Record<string, "ok" | "nothing" | "saveFailed" | "signedOut" | "stuck" | "closed">;
 }
 
 export function startSyncQueue(accounts: StarlinkAccountSummary[], window: SyncWindow, today: string): SyncQueue | null {

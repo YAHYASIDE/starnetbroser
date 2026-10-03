@@ -17,6 +17,7 @@ import type {
   ImportSessionCookiesResult,
   IsSupportedResult,
   ListPendingAccountSyncsResult,
+  AutoSyncResult,
   LocalBrowserPlugin,
   OpenAccountBrowserOptions,
   OpenMailBrowserOptions,
@@ -64,6 +65,10 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
 
   async listPendingAccountSyncs(): Promise<ListPendingAccountSyncsResult> {
     return { syncs: [] };
+  }
+
+  async takeAutoSyncResults(): Promise<{ results: AutoSyncResult[] }> {
+    return { results: [] };
   }
 
   async ackPendingAccountSyncs(_options: AckPendingAccountSyncsOptions): Promise<AckPendingAccountSyncsResult> {

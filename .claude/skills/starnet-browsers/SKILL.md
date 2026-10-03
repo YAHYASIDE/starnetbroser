@@ -100,6 +100,10 @@ plus the rules learned from real misreads; keep it updated when you learn a new 
   also «الموقوفة بسبب الفوترة», «أضفناها اليوم» (`addedAt`), «كل الأجهزة». A faulty device and a
   limited (non-main) email sync **only from their own choice** - never by a day, «كل الأجهزة», a
   long-pressed calendar day, or the background list (faulty).
+  Each auto-sync records how it ended (`AutoSyncResults` → `takeAutoSyncResults`): ok / nothing /
+  saveFailed / **signedOut** (the sign-in page 3 polls in a row - skipped at once, no sign-in attempt)
+  / **stuck** (2-minute watchdog) / closed. The app alerts a signed-out device on the owner's bot at
+  once and sends every device's status at the end of the run (`apps/web/src/lib/syncReport.ts`).
 - 🔔 Every finished sync rings once (`AlertSound`, the phone's notification tone; silent mode stays
   silent): the device browser's «مزامنة» and every `AutoSyncWorker` run - unless its «تم التحديث»
   notification already made the sound.

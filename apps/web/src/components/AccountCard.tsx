@@ -329,7 +329,7 @@ export function AccountCard({
     if (syncingCard) return;
     setSyncingCard(true);
     try {
-      const result = await openAutoSync(account, allAccounts);
+      const result = await openAutoSync(account);
       if (!result.ok) {
         window.alert(result.message);
       }

@@ -153,9 +153,10 @@ export async function openIsolatedAccountBrowser(accountId: string, accountName:
   }
 }
 
-/** 🔄 «تحديث من Starlink» / «مزامنة الآن»: the device's browser opens, signs in by itself if
- * needed, runs «مزامنة» (the same read as the button) and closes back to the app. */
-export async function openAutoSync(account: StarlinkAccountSummary, accounts: StarlinkAccountSummary[] = [], label?: string): Promise<OpenResult> {
+/** 🔄 «تحديث من Starlink» / «مزامنة الآن»: the device's browser opens, runs «مزامنة» (the same
+ * read as the button) and closes back to the app. A device not signed in to Starlink is skipped at
+ * once (the operator's choice - no sign-in attempt) and reported (takeAutoSyncResults). */
+export async function openAutoSync(account: StarlinkAccountSummary, label?: string): Promise<OpenResult> {
   if (!isRunningInAndroidApp()) return { ok: false, message: ANDROID_ONLY_MESSAGE };
   try {
     const { supported } = await LocalBrowser.isSupported();
@@ -165,15 +166,23 @@ export async function openAutoSync(account: StarlinkAccountSummary, accounts: St
       accountId: account.id,
       accountName: account.name || "حساب Starlink",
       url: STARLINK_ACCOUNT_HOME_URL,
-      ...starlinkLoginFor(account),
-      ...mailExtrasFor(account, accounts),
-      autoLogin: true,
       autoSync: true,
       ...(label ? { autoSyncLabel: label } : {}),
     });
     return { ok: true };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : "تعذر فتح المتصفح المحلي" };
+  }
+}
+
+/** 🔄 How each auto-sync ended since the last call - and forgets them ([] on web). */
+export async function takeAutoSyncResults(): Promise<{ accountId: string; outcome: "ok" | "nothing" | "saveFailed" | "signedOut" | "stuck" | "closed" }[]> {
+  if (!isRunningInAndroidApp()) return [];
+  try {
+    const { results } = await LocalBrowser.takeAutoSyncResults();
+    return results;
+  } catch {
+    return [];
   }
 }
 
