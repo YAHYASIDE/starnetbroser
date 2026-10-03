@@ -1,0 +1,135 @@
+package com.starnetbroser.localbrowser;
+
+import android.content.Context;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.DisplayMetrics;
+import android.view.View;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import androidx.webkit.ProfileStore;
+import androidx.webkit.WebViewCompat;
+import org.json.JSONArray;
+import org.json.JSONException;
+
+/**
+ * Reads the newest Starlink code from a device's own mailbox without showing it: an off-screen
+ * WebView in that device's mailbox profile (the one «📧 البريد» signs in to), polling the inbox
+ * text with MailCode - the Focused tab, then the «أخرى» tab, then the Junk folder, around again
+ * (Outlook's Focused Inbox puts Starlink's code in «أخرى», sometimes in Junk - real screenshots). Reports a code not tried yet, "signed out" when the mailbox needs a sign-in,
+ * or "gave up" after a while. Nothing read here is logged or leaves the phone.
+ */
+final class MailCodeFetcher implements CodeSource {
+
+    private static final long POLL_MS = 3000;
+    /** How long one view (Focused / Other / Junk) is read before moving to the next. */
+    private static final long VIEW_MS = 9000;
+    private static final long SIGNED_OUT_AFTER_MS = 12000;
+    private static final long GIVE_UP_MS = 150000;
+
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private final Listener listener;
+    private final String tried;
+    private final Context appContext;
+    private final String accountId;
+    private final String inboxUrl;
+    private WebView webView;
+    private long startedAt;
+    private long viewSince;
+    /** 0 = the inbox (Focused), 1 = its «أخرى» tab, 2 = the Junk folder. */
+    private int view;
+    private final boolean outlook;
+    private boolean done;
+
+    MailCodeFetcher(Context context, String accountId, String email, String tried, Listener listener) {
+        this.listener = listener;
+        this.tried = tried;
+        this.appContext = context.getApplicationContext();
+        this.accountId = accountId;
+        this.inboxUrl = MailUrl.inboxUrlFor(email); // Outlook, or Gmail for a Gmail address
+        this.outlook = MailUrl.providerFor(email) == MailUrl.Provider.OUTLOOK;
+        String profileName = ProfileNaming.mailProfileNameFor(accountId);
+        ProfileStore.getInstance().getOrCreateProfile(profileName);
+        webView = new WebView(context);
+        WebViewCompat.setProfile(webView, profileName);
+        WebSettings settings = webView.getSettings();
+        MailBrowserActivity.configureMailSettings(settings);
+        DisplayMetrics metrics = context.getResources().getDisplayMetrics();
+        int width = Math.max(metrics.widthPixels, 1280);
+        int height = Math.max(metrics.heightPixels, 1280);
+        webView.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY));
+        webView.layout(0, 0, width, height);
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, android.webkit.WebResourceRequest request) {
+                String url = request.getUrl().toString();
+                String scheme = request.getUrl().getScheme();
+                return MailUrl.isAppStoreRedirect(url) || scheme == null || (!scheme.equals("http") && !scheme.equals("https"));
+            }
+        });
+    }
+
+    @Override
+    public void start() {
+        startedAt = System.currentTimeMillis();
+        viewSince = startedAt;
+        webView.loadUrl(inboxUrl);
+        handler.postDelayed(this::poll, POLL_MS);
+    }
+
+    @Override
+    public void stop() {
+        done = true;
+        handler.removeCallbacksAndMessages(null);
+        if (webView != null) {
+            webView.stopLoading();
+            webView.destroy();
+            webView = null;
+        }
+    }
+
+    private void poll() {
+        if (done || webView == null) return;
+        long now = System.currentTimeMillis();
+        if (now - startedAt > GIVE_UP_MS) {
+            finish(() -> listener.onGiveUp());
+            return;
+        }
+        String url = webView.getUrl();
+        if (MailUrl.sessionState(url) == MailUrl.SessionState.SIGNED_OUT && now - startedAt > SIGNED_OUT_AFTER_MS) {
+            MailSessionStore.markSignedOut(appContext, accountId);
+            finish(() -> listener.onSignedOut());
+            return;
+        }
+        if (outlook && now - viewSince > VIEW_MS) {
+            // Nothing new here: the next place the code may be.
+            viewSince = now;
+            view = (view + 1) % 3;
+            if (view == 1) webView.evaluateJavascript(MailUrl.OTHER_TAB_SCRIPT, null);
+            else webView.loadUrl(view == 2 ? MailUrl.JUNK_URL : inboxUrl);
+            handler.postDelayed(this::poll, POLL_MS);
+            return;
+        }
+        webView.evaluateJavascript("(function(){return document.body?document.body.innerText:'';})()", value -> {
+            if (done) return;
+            String text;
+            try {
+                text = new JSONArray("[" + value + "]").getString(0);
+            } catch (JSONException e) {
+                text = null;
+            }
+            String code = MailCode.find(text);
+            if (StarlinkTwoStep.isNew(code, tried)) {
+                finish(() -> listener.onCode(code));
+            } else {
+                handler.postDelayed(this::poll, POLL_MS);
+            }
+        });
+    }
+
+    private void finish(Runnable report) {
+        stop();
+        report.run();
+    }
+}

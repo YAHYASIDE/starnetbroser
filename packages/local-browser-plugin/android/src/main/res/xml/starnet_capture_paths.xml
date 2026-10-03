@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 📷 CaptureFileProvider: only the cache folder where proof photos are taken. -->
+<paths>
+    <cache-path name="starnet_capture" path="starnet_capture/" />
+</paths>

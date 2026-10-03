@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/starnet_toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="#0B1220"
+        android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
+        android:titleTextColor="#FFFFFF" />
+
+    <ProgressBar
+        android:id="@+id/starnet_progress"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="3dp"
+        android:max="100"
+        android:visibility="gone" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <com.starnetbroser.localbrowser.TaskWebView
+            android:id="@+id/starnet_webview"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <LinearLayout
+            android:id="@+id/starnet_error_overlay"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="24dp"
+            android:background="#FFFFFF"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/starnet_error_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/starnet_load_error"
+                android:textAlignment="center"
+                android:textSize="16sp"
+                android:layout_marginBottom="16dp" />
+
+            <Button
+                android:id="@+id/starnet_error_retry"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/starnet_retry" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <!-- Bottom bar: dark like the top bar, five equal buttons (a big icon over a small label, see
+         BrowserBar), the main action as a blue pill. -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#1E2A3F" />
+
+    <LinearLayout
+        android:id="@+id/starnet_bottom_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:weightSum="5"
+        android:paddingStart="5dp"
+        android:paddingEnd="5dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="8dp"
+        android:background="#0B1220">
+
+        <Button
+            android:id="@+id/starnet_btn_back"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="0dp"
+            android:layout_height="56dp"
+            android:layout_weight="1"
+            android:layout_marginStart="3dp"
+            android:layout_marginEnd="3dp"
+            android:background="@drawable/starnet_bar_button"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:lineSpacingExtra="1dp"
+            android:maxLines="2"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:padding="2dp"
+            android:textAllCaps="false"
+            android:textColor="#DCE6F5"
+            android:textSize="11sp" />
+
+        <Button
+            android:id="@+id/starnet_btn_refresh"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="0dp"
+            android:layout_height="56dp"
+            android:layout_weight="1"
+            android:layout_marginStart="3dp"
+            android:layout_marginEnd="3dp"
+            android:background="@drawable/starnet_bar_button"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:lineSpacingExtra="1dp"
+            android:maxLines="2"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:padding="2dp"
+            android:textAllCaps="false"
+            android:textColor="#DCE6F5"
+            android:textSize="11sp" />
+
+        <Button
+            android:id="@+id/starnet_btn_home"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="0dp"
+            android:layout_height="56dp"
+            android:layout_weight="1"
+            android:layout_marginStart="3dp"
+            android:layout_marginEnd="3dp"
+            android:background="@drawable/starnet_bar_button"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:lineSpacingExtra="1dp"
+            android:maxLines="2"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:padding="2dp"
+            android:textAllCaps="false"
+            android:textColor="#DCE6F5"
+            android:textSize="11sp" />
+
+        <Button
+            android:id="@+id/starnet_btn_close"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="0dp"
+            android:layout_height="56dp"
+            android:layout_weight="1"
+            android:layout_marginStart="3dp"
+            android:layout_marginEnd="3dp"
+            android:background="@drawable/starnet_bar_button"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:lineSpacingExtra="1dp"
+            android:maxLines="2"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:padding="2dp"
+            android:textAllCaps="false"
+            android:textColor="#DCE6F5"
+            android:textSize="11sp" />
+
+        <Button
+            android:id="@+id/starnet_btn_sync"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="0dp"
+            android:layout_height="56dp"
+            android:layout_weight="1"
+            android:layout_marginStart="3dp"
+            android:layout_marginEnd="3dp"
+            android:background="@drawable/starnet_bar_primary"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:lineSpacingExtra="1dp"
+            android:maxLines="2"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:padding="2dp"
+            android:textAllCaps="false"
+            android:textColor="#FFFFFF"
+            android:textSize="11sp" />
+    </LinearLayout>
+</LinearLayout>

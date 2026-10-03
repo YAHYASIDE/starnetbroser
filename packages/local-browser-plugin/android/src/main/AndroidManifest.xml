@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Required starting API 33 to post the "تمت المزامنة" notification (SyncNotifier) - the
+         runtime grant is requested once from AccountBrowserActivity; SyncNotifier itself checks
+         NotificationManagerCompat#areNotificationsEnabled() and silently skips posting if this
+         was never granted, so a sync never fails or crashes over a missing notification. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- TelegramReplyService: the bots keep answering with the app closed (its small permanent
+         notification is what lets Android keep it running), and come back after a restart. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Lets the operator exempt STAR NET from battery optimization (one system dialog, from
+         الإعدادات) so the bot keeps answering on phones that otherwise stop background apps. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- TelegramReplyService keeps the CPU awake while it waits for Telegram, so phones that freeze
+         background work (HONOR/Huawei and others) still answer reps within seconds. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- 📷 Starlink's identity check in a device's browser («التقاط صورة» / a proof photo). Asked
+         only the first time a Starlink page needs it (AccountBrowserActivity, CameraAccess). -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <!-- Lets the file chooser find the camera app (package visibility, Android 11+). -->
+    <queries>
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
+    </queries>
+
+    <application>
+        <!--
+          exported="false": only STAR NET's own MainActivity (via the
+          LocalBrowser plugin, same application/UID) can start this -
+          never reachable from another app or an external deep link.
+
+          documentLaunchMode="intoExisting" + resizeableActivity="true": lets the operator have
+          two or three different accounts' isolated browsers open side by side (Android's own
+          split-screen/multi-window, entered from Recents) instead of only ever one at a time.
+          LocalBrowserPlugin gives each account's launch Intent a distinct Uri (its accountId) so
+          Android treats different accounts as separate "documents"/tasks (each its own card in
+          Recents, each independently split-screenable) while reopening the SAME account brings
+          its own already-open task back to front rather than spawning a duplicate.
+        -->
+        <activity
+            android:name="com.starnetbroser.localbrowser.AccountBrowserActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout"
+            android:documentLaunchMode="intoExisting"
+            android:resizeableActivity="true"
+            android:label="STAR NET" />
+
+        <!-- 📧 البريد: one device's mailbox, in its own isolated profile (same launch model). -->
+        <activity
+            android:name="com.starnetbroser.localbrowser.MailBrowserActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout"
+            android:documentLaunchMode="intoExisting"
+            android:resizeableActivity="true"
+            android:label="STAR NET" />
+
+        <service
+            android:name="com.starnetbroser.localbrowser.TelegramReplyService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Answers the operator's own Telegram bots from business data kept only on this phone" />
+        </service>
+
+        <!-- 📥 «فتح بـ STAR NET» for a file from Telegram (the rep's 📋 copy of his devices): only
+             keeps the file for the app to read; the app decides what it is (it must decrypt with
+             the rep's own code). -->
+        <activity
+            android:name="com.starnetbroser.localbrowser.SharedFileActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:label="STAR NET">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" android:mimeType="application/json" />
+                <data android:scheme="content" android:mimeType="application/octet-stream" />
+                <data android:scheme="content" android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/json" />
+                <data android:mimeType="application/octet-stream" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+
+        <!-- ⏳ BusyService: held only while a task the operator started runs on Starlink's pages
+             («تحديث من Starlink», «إلغاء الاشتراك»), so it goes on when he leaves the app. -->
+        <service
+            android:name="com.starnetbroser.localbrowser.BusyService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Finishes a Starlink account update or cancellation the operator started, after he leaves the app" />
+        </service>
+
+        <!-- 💳 Reads only the KAST app's own notifications (paid / refused / received) - the
+             operator turns it on in Android's «Notification access». -->
+        <service
+            android:name="com.starnetbroser.localbrowser.KastNotificationListener"
+            android:exported="true"
+            android:label="STAR NET - KAST"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- 📷 Where the camera app saves a proof photo taken from a device's browser. -->
+        <provider
+            android:name="com.starnetbroser.localbrowser.CaptureFileProvider"
+            android:authorities="${applicationId}.starnet.capture"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/starnet_capture_paths" />
+        </provider>
+
+        <receiver
+            android:name="com.starnetbroser.localbrowser.TelegramBootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

@@ -1,0 +1,63 @@
+import { extractStarlinkFields } from "./extractStarlinkFields";
+import { captureSnapshot } from "./snapshot";
+import { ensureEnglishStep } from "./language";
+import { clickBillingRailItem, clickFirstSubscriptionRow, clickIconRailItem, clickSettingsRailItem, clickSubscriptionRow, clickSubscriptionsRailItem, expandDevicesSection, subscriptionRowCount } from "./navigation";
+import { cancelSubscriptionStep } from "./cancelSubscription";
+
+/**
+ * The one script AccountBrowserActivity/AutoSyncWorker ever inject into an isolated WebView.
+ * Bundled by esbuild (see scripts/bundleWebExtractor.mjs) into
+ * android/src/main/assets/starlinkExtractor.js. Deliberately a plain global assignment, not an ES
+ * module export - esbuild's IIFE format would otherwise wrap a default export in a CommonJS-
+ * interop object ({ default: ... }), an internal bundler detail Java would have to know about.
+ *
+ * Unlike the original Stage-1 version (which ran extraction immediately on injection), this
+ * bundle now only ever DEFINES a small set of named functions on globalThis and runs nothing on
+ * its own - Java re-injects this same bundle before every single step of a multi-page sync (see
+ * StarlinkExtractorSupport.java), then evaluates one specific `__starnet*(...)` call as a
+ * trailing statement to actually run that step. Re-injecting is always safe (plain `var`
+ * reassignment, never an "already declared" error) whether or not the page navigated since the
+ * last injection - callers never need to know whether a given tap caused a full page load or an
+ * in-page SPA route change, which this account portal was never confirmed to distinguish reliably
+ * either way.
+ */
+type StarnetGlobal = typeof globalThis & {
+  __starnetExtract?: () => string;
+  __starnetClickIconRailItem?: (index: number) => boolean;
+  __starnetClickBillingRailItem?: () => boolean;
+  __starnetClickSubscriptionsRailItem?: () => boolean;
+  __starnetClickFirstSubscriptionRow?: () => boolean;
+  __starnetExpandDevicesSection?: () => boolean;
+  __starnetClickSettingsRailItem?: () => boolean;
+  __starnetSnapshot?: () => string;
+  __starnetEnsureEnglish?: (menuOpened: boolean) => string;
+  __starnetSubscriptionRowCount?: () => number;
+  __starnetClickSubscriptionRow?: (index: number) => boolean;
+  __starnetCancelStep?: (reason: string) => string;
+};
+
+const starnetGlobal = globalThis as StarnetGlobal;
+
+/** Stage 1: reads whatever section of the page is currently open. Never raw HTML or page text -
+ * only the small, already-structured set of fields extractStarlinkFields.ts actually found. */
+starnetGlobal.__starnetExtract = () => JSON.stringify(extractStarlinkFields(document));
+
+/** Stage 2 navigation - see navigation.ts's own doc for why these exist and what each one does. */
+starnetGlobal.__starnetClickIconRailItem = clickIconRailItem;
+starnetGlobal.__starnetClickBillingRailItem = clickBillingRailItem;
+starnetGlobal.__starnetClickSubscriptionsRailItem = clickSubscriptionsRailItem;
+starnetGlobal.__starnetClickFirstSubscriptionRow = clickFirstSubscriptionRow;
+starnetGlobal.__starnetExpandDevicesSection = expandDevicesSection;
+starnetGlobal.__starnetClickSettingsRailItem = clickSettingsRailItem;
+
+/** 🧪 "لقطة تشخيص": the open page's masked structure + colors (see snapshot.ts). */
+starnetGlobal.__starnetSnapshot = () => captureSnapshot(document);
+
+/** Before any read: one tap toward the page in English (see language.ts). */
+starnetGlobal.__starnetEnsureEnglish = (menuOpened: boolean) => ensureEnglishStep(menuOpened);
+
+/** 🛑 «إلغاء الاشتراك» (only after the operator pressed the card's button and confirmed): the
+ * subscription rows, and one cancelling step on the open subscription (cancelSubscription.ts). */
+starnetGlobal.__starnetSubscriptionRowCount = subscriptionRowCount;
+starnetGlobal.__starnetClickSubscriptionRow = clickSubscriptionRow;
+starnetGlobal.__starnetCancelStep = (reason: string) => cancelSubscriptionStep(reason);
