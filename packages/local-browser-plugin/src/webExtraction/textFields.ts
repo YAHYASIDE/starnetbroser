@@ -725,3 +725,19 @@ export function extractSubscriptionNames(lines: string[]): string[] {
   }
   return names;
 }
+
+/** The Billing page's "Payment Method" card: "VISA ending in 1234" (or the Arabic "تنتهي بـ").
+ * Only the last 4 digits are kept - the card that pays this device, to match KAST's payments. */
+export const PAYMENT_METHOD_LABELS = ["payment method", "طريقة الدفع"];
+const CARD_ENDING_PATTERN = /(?:ending\s+in|ending\s+with|ends\s+in|تنتهي\s*(?:ب|بـ|في)|المنتهية\s*(?:ب|بـ))\s*[:\-]?\s*(?:[•*·.\s]*)(\d{4})\b/i;
+
+export function extractPaymentCardLast4(lines: string[]): string | undefined {
+  const start = lines.findIndex((line) => containsAny(line, PAYMENT_METHOD_LABELS));
+  if (start < 0) return undefined;
+  // The card's line sits right under the label (after the holder's name) - never further away.
+  for (const line of lines.slice(start, start + 6)) {
+    const match = CARD_ENDING_PATTERN.exec(line);
+    if (match) return match[1];
+  }
+  return undefined;
+}

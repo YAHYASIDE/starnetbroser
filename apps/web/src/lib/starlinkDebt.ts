@@ -12,7 +12,7 @@
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { computeExpectedShipmentProfit, starlinkCostUsd } from "./accountingStore";
 import { CashEntryList, recordCashEntry, removeLinkedCashEntries } from "./cashStore";
-import type { LedgerByAccount, LedgerEntry } from "./ledgerStore";
+import type { LedgerByAccount, LedgerEntry, StarlinkCost } from "./ledgerStore";
 import { totalPreviousDebtUsd, type PreviousDebt } from "./previousDebt";
 
 const EPSILON = 0.000001;
@@ -55,15 +55,37 @@ export interface SettleOptions {
   /** Today's MRU/SIFA rates, locked onto the shipment's profit. */
   profitRates: { MRU?: number; SIFA?: number };
   fromCard: boolean;
+  /** What really left the card for this one shipment (KAST's notice, or typed): the cost is
+   * recorded at it. Only when paying a single D - ignored for several at once. */
+  actual?: ActualPaid;
 }
 
-/** Pays one D shipment: its recorded cost becomes settled on `date`. */
+/** The real payment to Starlink: dollars that left the card and - for a cost in another currency
+ * (ARS…) - its amount in that currency, which locks the real rate (amount ÷ dollars). */
+export interface ActualPaid {
+  usd: number;
+  amount?: number;
+}
+
+/** The cost recorded at what was really paid: a USD cost takes the dollars; any other keeps (or
+ * takes the typed) amount in its own currency and locks the rate it really cost. */
+export function costAtActual(cost: StarlinkCost, actual: ActualPaid): { ok: true; cost: StarlinkCost } | { ok: false; message: string } {
+  if (!Number.isFinite(actual.usd) || actual.usd <= 0) return { ok: false, message: "أدخل المبلغ المدفوع بالدولار" };
+  const usd = Math.round(actual.usd * 100) / 100;
+  if (cost.currencyCode === "USD") return { ok: true, cost: { ...cost, amount: usd } };
+  const amount = actual.amount ?? cost.amount;
+  if (amount === undefined || !Number.isFinite(amount) || amount <= 0) return { ok: false, message: `أدخل المبلغ بالـ ${cost.currencyCode}` };
+  return { ok: true, cost: { ...cost, amount, rate: { rateFromUsd: Math.round((amount / usd) * 10000) / 10000, usdValue: usd } } };
+}
+
+/** Pays one D shipment: its recorded cost becomes settled on `date` (at `actual` when given). */
 export function settleShipmentCost(entry: LedgerEntry, options: SettleOptions): LedgerEntry {
   if (entry.kind !== "debit" || entry.starlinkCost?.status !== "pending") return entry;
+  const paid = options.actual ? costAtActual(entry.starlinkCost, options.actual) : null;
   return {
     ...entry,
     starlinkCost: {
-      ...entry.starlinkCost,
+      ...(paid?.ok ? paid.cost : entry.starlinkCost),
       status: "settled",
       paidAt: options.date,
       paidVia: options.fromCard ? "card" : undefined,
@@ -80,10 +102,11 @@ export function settleShipments(
   options: SettleOptions,
 ): LedgerByAccount {
   const next: LedgerByAccount = { ...ledgerStore };
+  const each = items.length === 1 ? options : { ...options, actual: undefined };
   for (const { accountId, entryId } of items) {
     const entries = next[accountId];
     if (!entries) continue;
-    next[accountId] = entries.map((e) => (e.id === entryId ? settleShipmentCost(e, options) : e));
+    next[accountId] = entries.map((e) => (e.id === entryId ? settleShipmentCost(e, each) : e));
   }
   return next;
 }
@@ -94,27 +117,30 @@ export interface SettlementEdit {
   /** yyyy-mm-dd - the new payment day (moves the profit with it). */
   date: string;
   fromCard: boolean;
-  /** New paid amount - only for a cost recorded in USD (others keep their locked rate). */
+  /** New paid amount in dollars - for a cost in another currency it re-locks the real rate. */
   amountUsd?: number;
+  /** New amount in the cost's own currency (ARS…) - not for a USD cost. */
+  amount?: number;
 }
 
 export type SettlementEditResult = { ok: true; entry: LedgerEntry } | { ok: false; message: string };
 
-/** Changes a settled Starlink payment's day, source (card or not) and - for a USD cost - amount.
- * The profit rates locked at settlement stay as they were. */
+/** Changes a settled Starlink payment's day, source (card or not) and what was really paid (for a
+ * cost in another currency: its amount and the dollars, locking the real rate). The profit rates
+ * locked at settlement stay as they were. */
 export function editSettlement(entry: LedgerEntry, edit: SettlementEdit): SettlementEditResult {
   const cost = entry.starlinkCost;
   if (entry.kind !== "debit" || cost?.status !== "settled") return { ok: false, message: "هذه العملية ليست تسديدًا لستارلينك" };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(edit.date)) return { ok: false, message: "اختر تاريخ التسديد" };
-  let amount = cost.amount;
+  let paid: StarlinkCost = cost;
   if (edit.amountUsd !== undefined) {
-    if (cost.currencyCode !== "USD") return { ok: false, message: "مبلغ هذه التكلفة ليس بالدولار - عدّله من كشف الجهاز" };
-    if (!Number.isFinite(edit.amountUsd) || edit.amountUsd <= 0) return { ok: false, message: "أدخل المبلغ المدفوع بالدولار" };
-    amount = edit.amountUsd;
+    const result = costAtActual(cost, { usd: edit.amountUsd, amount: edit.amount });
+    if (!result.ok) return result;
+    paid = result.cost;
   }
   return {
     ok: true,
-    entry: { ...entry, starlinkCost: { ...cost, amount, paidAt: edit.date, paidVia: edit.fromCard ? "card" : undefined } },
+    entry: { ...entry, starlinkCost: { ...paid, paidAt: edit.date, paidVia: edit.fromCard ? "card" : undefined } },
   };
 }
 

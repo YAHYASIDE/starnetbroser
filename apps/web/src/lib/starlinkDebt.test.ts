@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCardStatement,
+  costAtActual,
+  settleShipmentCost,
   editCardTopUp,
   editSettlement,
   replaceCardTopUpCash,
@@ -130,6 +132,29 @@ describe("suspended devices with an earlier owner's debt", () => {
   });
 });
 
+describe("settling at what the card really paid", () => {
+  it("a USD D takes the dollars; a peso D keeps (or takes) its pesos and locks the real rate", () => {
+    const usdD = shipment({ id: "u", starlinkCost: { status: "pending", currencyCode: "USD", amount: 75 } });
+    const paidUsd = settleShipmentCost(usdD, { date: "2026-10-01", profitRates: {}, fromCard: true, actual: { usd: 76.46 } });
+    expect(paidUsd.starlinkCost).toMatchObject({ status: "settled", amount: 76.46, paidVia: "card" });
+
+    const arsD = shipment({ id: "a", starlinkCost: { status: "pending", currencyCode: "ARS", amount: 112000, rate: { rateFromUsd: 1400, usdValue: 80 } } });
+    const paidArs = settleShipmentCost(arsD, { date: "2026-10-01", profitRates: {}, fromCard: true, actual: { usd: 76.46 } });
+    expect(paidArs.starlinkCost).toMatchObject({ status: "settled", amount: 112000, rate: { usdValue: 76.46, rateFromUsd: 1464.8182 } });
+    expect(costAtActual(arsD.starlinkCost!, { usd: 80, amount: 115000 })).toMatchObject({ ok: true, cost: { amount: 115000, rate: { rateFromUsd: 1437.5, usdValue: 80 } } });
+    expect(costAtActual(arsD.starlinkCost!, { usd: 0 }).ok).toBe(false);
+
+    // Several at once: no single real amount - each keeps its own cost.
+    const both = settleShipments({ x: [usdD, arsD] }, [{ accountId: "x", entryId: "u" }, { accountId: "x", entryId: "a" }], {
+      date: "2026-10-01",
+      profitRates: {},
+      fromCard: true,
+      actual: { usd: 10 },
+    });
+    expect(both.x!.map((e) => e.starlinkCost?.amount)).toEqual([75, 112000]);
+  });
+});
+
 describe("editing past card operations", () => {
   const paid = shipment({
     id: "p",
@@ -145,11 +170,14 @@ describe("editing past card operations", () => {
     expect(shipmentProfitDate(result.entry)).toBe("2026-09-25");
   });
 
-  it("refuses a bad amount, a non-USD amount change, or an unpaid shipment", () => {
+  it("refuses a bad amount or an unpaid shipment; a peso cost re-locks its real rate", () => {
     expect(editSettlement(paid, { date: "2026-09-25", fromCard: true, amountUsd: 0 }).ok).toBe(false);
-    const mru = shipment({ starlinkCost: { status: "settled", currencyCode: "MRU", amount: 4000, paidAt: "2026-09-26" } });
-    expect(editSettlement(mru, { date: "2026-09-25", fromCard: true, amountUsd: 90 }).ok).toBe(false);
-    expect(editSettlement(mru, { date: "2026-09-25", fromCard: true }).ok).toBe(true);
+    const ars = shipment({ starlinkCost: { status: "settled", currencyCode: "ARS", amount: 112000, rate: { rateFromUsd: 1400, usdValue: 80 }, paidAt: "2026-09-26" } });
+    const edited = editSettlement(ars, { date: "2026-09-25", fromCard: true, amountUsd: 76.46, amount: 112000 });
+    if (!edited.ok) throw new Error(edited.message);
+    expect(edited.entry.starlinkCost).toMatchObject({ currencyCode: "ARS", amount: 112000, rate: { rateFromUsd: 1464.8182, usdValue: 76.46 } });
+    expect(editSettlement(ars, { date: "2026-09-25", fromCard: true }).ok).toBe(true);
+    expect(editSettlement(ars, { date: "2026-09-25", fromCard: true, amountUsd: 76.46, amount: 0 }).ok).toBe(false);
     expect(editSettlement(shipment({}), { date: "2026-09-25", fromCard: true }).ok).toBe(false);
   });
 

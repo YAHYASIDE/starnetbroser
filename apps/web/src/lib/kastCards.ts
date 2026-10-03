@@ -157,14 +157,74 @@ export function pendingCardSpends(list: CardDeposit[]): CardDeposit[] {
   return list.filter((d) => d.status === "pending" && d.kind === "spent").sort((a, b) => a.at - b.at);
 }
 
-/** The open D's this payment probably settled: Starlink's cost close to the amount, nearest first
- * (at most 3). Only a suggestion - the operator presses «سدّد». */
-export function spendCandidates<T extends { costUsd: number }>(amountUsd: number, debts: T[]): T[] {
-  const tolerance = Math.max(0.5, amountUsd * 0.03);
-  return debts
-    .filter((d) => Math.abs(d.costUsd - amountUsd) <= tolerance)
-    .sort((a, b) => Math.abs(a.costUsd - amountUsd) - Math.abs(b.costUsd - amountUsd))
-    .slice(0, 3);
+/** An open D's cost as a KAST payment would show it. A cost in another currency (ARS…) was turned
+ * into dollars at the rate of the day it was recorded - the card pays at the rate of the day it
+ * pays (plus KAST's fee, sometimes waived), so it is also valued at today's registered rate. */
+export interface SpendDebtCost {
+  costUsd: number;
+  entry: { starlinkCost?: { currencyCode?: string; amount?: number } };
+}
+
+/** The D's cost at today's registered rate - undefined for a USD cost or an unknown rate. */
+export function debtUsdToday(debt: SpendDebtCost, currencyStore: CurrencyStore): number | undefined {
+  const cost = debt.entry.starlinkCost;
+  if (!cost?.currencyCode || cost.currencyCode === "USD" || !cost.amount) return undefined;
+  const rate = getCurrency(currencyStore, cost.currencyCode)?.rateFromUsd;
+  return rate && rate > 0 ? toUsd(cost.amount, rate) : undefined;
+}
+
+export interface SpendCandidate<T> {
+  debt: T;
+  /** The D's dollars nearest to the payment: as recorded, or (another currency) at today's rate. */
+  usd: number;
+  /** Close enough to be this payment; else only the nearest open D's (no exact one). */
+  exact: boolean;
+}
+
+/**
+ * The open D's this payment probably settled, nearest first (at most 3) - only a suggestion, the
+ * operator presses «سدّد». A USD cost must be within 3% (min 0.50$); a cost in another currency
+ * within 6% (min 1$) of its recorded or today's dollars - the peso moves and KAST adds a fee. With
+ * none that close, the nearest ones within 20% are offered as «الأقرب».
+ *
+ * 💳 The card first: with the payment's card known (KAST's notice) and the devices' own cards (read
+ * from Starlink's Billing → Payment Method), only that card's D's are looked at; a device paid by
+ * another card is never offered. Devices whose card isn't known yet come in only when that card's
+ * D's have no exact match.
+ */
+export function spendCandidates<T extends SpendDebtCost>(
+  amountUsd: number,
+  debts: T[],
+  currencyStore: CurrencyStore = {},
+  card?: { last4?: string; of: (debt: T) => string | undefined },
+): SpendCandidate<T>[] {
+  const last4 = card?.last4?.trim();
+  if (last4 && card) {
+    const same = debts.filter((d) => card.of(d) === last4);
+    const unknown = debts.filter((d) => !card.of(d));
+    const own = rankSpend(amountUsd, same, currencyStore);
+    if (own.some((c) => c.exact)) return own;
+    const others = rankSpend(amountUsd, unknown, currencyStore);
+    if (others.some((c) => c.exact)) return others;
+    return rankSpend(amountUsd, [...same, ...unknown], currencyStore);
+  }
+  return rankSpend(amountUsd, debts, currencyStore);
+}
+
+function rankSpend<T extends SpendDebtCost>(amountUsd: number, debts: T[], currencyStore: CurrencyStore): SpendCandidate<T>[] {
+  const scored = debts.map((debt) => {
+    const today = debtUsdToday(debt, currencyStore);
+    const values = today === undefined ? [debt.costUsd] : [debt.costUsd, today];
+    const usd = values.reduce((best, v) => (Math.abs(v - amountUsd) < Math.abs(best - amountUsd) ? v : best));
+    const foreign = Boolean(debt.entry.starlinkCost?.currencyCode && debt.entry.starlinkCost.currencyCode !== "USD");
+    const tolerance = foreign ? Math.max(1, amountUsd * 0.06) : Math.max(0.5, amountUsd * 0.03);
+    const distance = Math.abs(usd - amountUsd);
+    return { debt, usd, distance, exact: distance <= tolerance };
+  });
+  const byDistance = (a: { distance: number }, b: { distance: number }) => a.distance - b.distance;
+  const exact = scored.filter((c) => c.exact).sort(byDistance);
+  const picked = exact.length ? exact : scored.filter((c) => c.distance <= amountUsd * 0.2).sort(byDistance);
+  return picked.slice(0, 3).map(({ debt, usd, exact: isExact }) => ({ debt, usd, exact: isExact }));
 }
 
 export function setDepositStatus(list: CardDeposit[], id: string, status: CardDeposit["status"]): CardDeposit[] {

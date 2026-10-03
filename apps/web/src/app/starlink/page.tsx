@@ -44,6 +44,7 @@ import {
   pendingCardDeposits,
   pendingCardSpends,
   removePaymentCard,
+  debtUsdToday,
   spendCandidates,
   saveCardDeposits,
   savePaymentCards,
@@ -61,6 +62,7 @@ import {
   deleteCardTopUp,
   editCardTopUp,
   editSettlement,
+  type ActualPaid,
   listCardPayments,
   listOpenShipmentDebts,
   listSuspendedWithDebt,
@@ -181,16 +183,17 @@ export default function StarlinkPage() {
 
   function openPay(items: OpenShipmentDebt[]) {
     if (items.length === 0) return;
+    setSpendToRecord(null);
     setPayItems(items);
     setSheet("pay");
   }
 
-  function pay(date: string, fromCard: boolean) {
+  function pay(date: string, fromCard: boolean, actual?: ActualPaid) {
     if (!confirmClosedMonthChange([date])) return;
     const next = settleShipments(
       ledgerStore,
       payItems.map((d) => ({ accountId: d.accountId, entryId: d.entry.id })),
-      { date, profitRates: { MRU: mruRate, SIFA: sifaRate }, fromCard },
+      { date, profitRates: { MRU: mruRate, SIFA: sifaRate }, fromCard, ...(actual && payItems.length === 1 ? { actual } : {}) },
     );
     setLedgerStore(next);
     saveLedgerStore(next);
@@ -198,7 +201,8 @@ export default function StarlinkPage() {
     if (spendToRecord) updateDeposit(spendToRecord.id, "recorded");
     setSpendToRecord(null);
     setSheet(null);
-    setToast(`✓ تم تسديد ${payItems.length} جهاز بـ ${usd(totalOpenDebtUsd(payItems))} - الربح وحصص المندوبين نزلت بتاريخ ${date}`);
+    const paidUsd = actual && payItems.length === 1 ? actual.usd : totalOpenDebtUsd(payItems);
+    setToast(`✓ تم تسديد ${payItems.length} جهاز بـ ${usd(paidUsd)} - الربح وحصص المندوبين نزلت بتاريخ ${date}`);
   }
 
   function openPreviousPay(debt: PreviousDebt) {
@@ -539,30 +543,43 @@ export default function StarlinkPage() {
         {pendingCardSpends(deposits).length > 0 && (
           <ul className="sl-list kast-deposits">
             {pendingCardSpends(deposits).map((s) => {
-              const likely = spendCandidates(s.amountUsd, debts);
+              const likely = spendCandidates(s.amountUsd, debts, currencyStore, { last4: s.cardLast4, of: (d) => account(d.accountId)?.paymentCardLast4 });
+              const exact = likely.some((c) => c.exact);
               return (
                 <li key={s.id} className="sl-row kast-deposit-row kast-spend-row">
                   <div className="sl-row-main">
                     <strong>💳 {depositLabel(s)}</strong>
                     <span>
                       من إشعار KAST{s.at ? ` · ${new Date(s.at).toLocaleDateString("en-GB")}` : ""} -{" "}
-                      {likely.length ? "سدّد D الجهاز الذي دُفع له:" : "لا يوجد D مفتوح بهذا المبلغ"}
+                      {exact ? "سدّد D الجهاز الذي دُفع له:" : likely.length ? "لا يوجد D بنفس المبلغ - الأقرب:" : "لا يوجد D مفتوح قريب من هذا المبلغ"}
                     </span>
                   </div>
                   <div className="kast-deposit-actions">
-                    {likely.map((d) => (
-                      <button
-                        key={d.entry.id}
-                        type="button"
-                        className="dialog-primary"
-                        onClick={() => {
-                          setSpendToRecord(s);
-                          openPay([d]);
-                        }}
-                      >
-                        سدّد {account(d.accountId)?.name ?? "جهاز"} (<bdi dir="ltr">{usd(d.costUsd)}</bdi>)
-                      </button>
-                    ))}
+                    {likely.map(({ debt: d, usd: dUsd, exact: isExact }) => {
+                      const cost = d.entry.starlinkCost;
+                      const foreign = cost?.currencyCode && cost.currencyCode !== "USD" && cost.amount ? cost : undefined;
+                      return (
+                        <button
+                          key={d.entry.id}
+                          type="button"
+                          className={isExact ? "dialog-primary" : "dialog-secondary"}
+                          onClick={() => {
+                            openPay([d]);
+                            setSpendToRecord(s);
+                          }}
+                        >
+                          سدّد {account(d.accountId)?.name ?? "جهاز"} (
+                          {foreign ? (
+                            <>
+                              <bdi dir="ltr">{formatAmount(foreign.amount!)}</bdi> {foreign.currencyCode} ≈ <bdi dir="ltr">{usd(dUsd)}</bdi>
+                            </>
+                          ) : (
+                            <bdi dir="ltr">{usd(dUsd)}</bdi>
+                          )}
+                          )
+                        </button>
+                      );
+                    })}
                     <button type="button" className="text-action" onClick={() => updateDeposit(s.id, "dismissed")}>تجاهل</button>
                   </div>
                 </li>
@@ -644,8 +661,25 @@ export default function StarlinkPage() {
       />
 
       {sheet === "pay" && (
-        <PartySheet title="تسديد D لستارلينك" onClose={() => setSheet(null)}>
-          <PayForm items={payItems} accountName={(id) => account(id)?.name ?? "جهاز"} cardBalance={card.balanceUsd} onPay={pay} onCancel={() => setSheet(null)} />
+        <PartySheet
+          title="تسديد D لستارلينك"
+          onClose={() => {
+            setSpendToRecord(null);
+            setSheet(null);
+          }}
+        >
+          <PayForm
+            items={payItems}
+            accountName={(id) => account(id)?.name ?? "جهاز"}
+            cardBalance={card.balanceUsd}
+            spendUsd={spendToRecord?.amountUsd}
+            todayUsd={(d) => debtUsdToday(d, currencyStore)}
+            onPay={pay}
+            onCancel={() => {
+              setSpendToRecord(null);
+              setSheet(null);
+            }}
+          />
         </PartySheet>
       )}
 
@@ -709,18 +743,36 @@ function PayForm({
   items,
   accountName,
   cardBalance,
+  spendUsd,
+  todayUsd,
   onPay,
   onCancel,
 }: {
   items: OpenShipmentDebt[];
   accountName: (id: string) => string;
   cardBalance: number;
-  onPay: (date: string, fromCard: boolean) => void;
+  /** The KAST notice this payment comes from - what really left the card. */
+  spendUsd?: number;
+  /** A cost in another currency at today's registered rate. */
+  todayUsd: (d: OpenShipmentDebt) => number | undefined;
+  onPay: (date: string, fromCard: boolean, actual?: ActualPaid) => void;
   onCancel: () => void;
 }) {
   const [date, setDate] = useState(todayInput());
   const [fromCard, setFromCard] = useState(true);
-  const total = totalOpenDebtUsd(items);
+  // One D: what was really paid - the dollars (and, for ARS…, the amount in that currency, which
+  // locks the real rate). Several at once keep their recorded costs.
+  const single = items.length === 1 ? items[0] : undefined;
+  const cost = single?.entry.starlinkCost;
+  const foreign = cost?.currencyCode && cost.currencyCode !== "USD" ? cost.currencyCode : undefined;
+  const today = single ? todayUsd(single) : undefined;
+  const [paidUsd, setPaidUsd] = useState(single ? String(spendUsd ?? round2(single.costUsd)) : "");
+  const [paidAmount, setPaidAmount] = useState(foreign && cost?.amount ? String(cost.amount) : "");
+  const usdValue = Number(paidUsd);
+  const amountValue = Number(paidAmount);
+  const changed = single !== undefined && (Math.abs(usdValue - single.costUsd) > 0.004 || (foreign !== undefined && amountValue !== cost?.amount));
+  const valid = !single || (usdValue > 0 && (!foreign || amountValue > 0));
+  const total = single && usdValue > 0 ? usdValue : totalOpenDebtUsd(items);
   return (
     <div className="party-balance-form">
       <ul className="sl-pay-list">
@@ -730,11 +782,40 @@ function PayForm({
             <bdi dir="ltr">{usd(d.costUsd)}</bdi>
           </li>
         ))}
-        <li className="sl-pay-total">
-          <strong>المجموع</strong>
-          <strong dir="ltr">{usd(total)}</strong>
-        </li>
+        {!single && (
+          <li className="sl-pay-total">
+            <strong>المجموع</strong>
+            <strong dir="ltr">{usd(total)}</strong>
+          </li>
+        )}
       </ul>
+      {single && (
+        <>
+          {foreign && (
+            <label className="rep-form-field">
+              <span>المبلغ الذي دفعته لستارلينك ({foreign})</span>
+              <input className="search-input" type="text" lang="en" dir="ltr" inputMode="decimal" value={paidAmount} onChange={(e) => setPaidAmount(e.target.value)} />
+            </label>
+          )}
+          <label className="rep-form-field">
+            <span>{spendUsd !== undefined ? "ما خرج من البطاقة فعلاً (دولار - من إشعار KAST)" : "ما خرج فعلاً (دولار)"}</span>
+            <input className="search-input" type="text" lang="en" dir="ltr" inputMode="decimal" value={paidUsd} onChange={(e) => setPaidUsd(e.target.value)} />
+          </label>
+          {foreign && usdValue > 0 && amountValue > 0 && (
+            <p className="settings-hint">
+              السعر الحقيقي: <bdi dir="ltr">1$ = {formatAmount(Math.round((amountValue / usdValue) * 100) / 100)} {foreign}</bdi>
+              {today !== undefined && (
+                <>
+                  {" "}
+                  · بسعر اليوم المسجّل <bdi dir="ltr">{usd(today)}</bdi>
+                </>
+              )}{" "}
+              · عند التسجيل <bdi dir="ltr">{usd(single.costUsd)}</bdi>
+            </p>
+          )}
+          {changed && <p className="settings-hint">تُسجَّل التكلفة بما دُفع فعلاً، ويُحسب الربح عليه.</p>}
+        </>
+      )}
       <label className="rep-form-field">
         <span>تاريخ الدفع (يوم نزول الربح)</span>
         <DateInput className="search-input" value={date} onChange={(e) => setDate(e.target.value)} />
@@ -746,7 +827,12 @@ function PayForm({
       {fromCard && cardBalance < total && <p className="account-card-alert">رصيد البطاقة لا يكفي - سجّل شحن البطاقة أولًا، أو تابع ويصبح رصيدها سالبًا.</p>}
       <p className="settings-hint">تزول D عن {items.length === 1 ? "الجهاز" : "هذه الأجهزة"}، وينزل الربح وحصة المندوب بتاريخ الدفع.</p>
       <div className="settings-actions">
-        <button type="button" className="dialog-primary" disabled={!date} onClick={() => onPay(date, fromCard)}>
+        <button
+          type="button"
+          className="dialog-primary"
+          disabled={!date || !valid}
+          onClick={() => onPay(date, fromCard, changed ? { usd: usdValue, ...(foreign ? { amount: amountValue } : {}) } : undefined)}
+        >
           تأكيد التسديد
         </button>
         <button type="button" className="text-action" onClick={onCancel}>
@@ -755,6 +841,10 @@ function PayForm({
       </div>
     </div>
   );
+}
+
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 interface PreviousPayInput {
@@ -975,7 +1065,7 @@ function TopUpForm({
 }
 
 /** Edits a past payment to Starlink from the card list: its day, whether it came from the card,
- * and (for a USD cost) the amount - or undoes it. */
+ * and what was really paid (for ARS…: the amount and the dollars, the real rate) - or undoes it. */
 function SettlementEditForm({
   payment,
   onSave,
@@ -988,21 +1078,36 @@ function SettlementEditForm({
   onCancel: () => void;
 }) {
   const cost = payment.entry.starlinkCost;
-  const amountEditable = cost?.currencyCode === "USD";
+  const foreign = cost?.currencyCode && cost.currencyCode !== "USD" ? cost.currencyCode : undefined;
   const [date, setDate] = useState(payment.date);
-  const [amount, setAmount] = useState(String(amountEditable ? cost?.amount ?? "" : payment.amountUsd));
+  const [amount, setAmount] = useState(String(Math.round(payment.amountUsd * 100) / 100));
+  const [foreignAmount, setForeignAmount] = useState(foreign && cost?.amount ? String(cost.amount) : "");
   const [fromCard, setFromCard] = useState(cost?.paidVia === "card");
   const [error, setError] = useState<string | null>(null);
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    setError(onSave({ date, fromCard, amountUsd: amountEditable ? Number(amount) : undefined }));
+    const usdChanged = Math.abs(Number(amount) - payment.amountUsd) > 0.004;
+    const foreignChanged = foreign !== undefined && Number(foreignAmount) !== cost?.amount;
+    setError(
+      onSave({
+        date,
+        fromCard,
+        ...(usdChanged || foreignChanged ? { amountUsd: Number(amount), ...(foreign ? { amount: Number(foreignAmount) } : {}) } : {}),
+      }),
+    );
   }
 
   return (
     <form className="party-balance-form" onSubmit={submit}>
+      {foreign && (
+        <label className="rep-form-field">
+          <span>المبلغ المدفوع لستارلينك ({foreign})</span>
+          <input className="search-input" type="text" lang="en" dir="ltr" inputMode="decimal" value={foreignAmount} onChange={(e) => setForeignAmount(e.target.value)} />
+        </label>
+      )}
       <label className="rep-form-field">
-        <span>المبلغ المدفوع لستارلينك (دولار)</span>
+        <span>{foreign ? "ما خرج من البطاقة (دولار)" : "المبلغ المدفوع لستارلينك (دولار)"}</span>
         <input
           className="search-input"
           type="text"
@@ -1012,11 +1117,14 @@ function SettlementEditForm({
           dir="ltr"
           inputMode="decimal"
           value={amount}
-          disabled={!amountEditable}
           onChange={(e) => setAmount(e.target.value)}
         />
       </label>
-      {!amountEditable && <p className="settings-hint">تكلفة هذا الجهاز مسجّلة بعملة أخرى - عدّل مبلغها من كشف الجهاز.</p>}
+      {foreign && Number(amount) > 0 && Number(foreignAmount) > 0 && (
+        <p className="settings-hint">
+          السعر الحقيقي: <bdi dir="ltr">1$ = {formatAmount(Math.round((Number(foreignAmount) / Number(amount)) * 100) / 100)} {foreign}</bdi>
+        </p>
+      )}
       <label className="rep-form-field">
         <span>تاريخ الدفع (يوم نزول الربح)</span>
         <DateInput className="search-input" value={date} onChange={(e) => setDate(e.target.value)} />

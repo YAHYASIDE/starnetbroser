@@ -236,6 +236,15 @@ describe("mergeSyncedFields - scanned vs. changed", () => {
   });
 });
 
+describe("mergeSyncedFields - the card that pays the device", () => {
+  it("takes the Billing page's card (last 4 digits), replacing one picked by hand", () => {
+    const result = mergeSyncedFields(baseAccount({ paymentCardLast4: "1111" }), { paymentCardLast4: "4321" });
+    expect(result.account.paymentCardLast4).toBe("4321");
+    expect(result.updatedFields.map((f) => f.field)).toContain("paymentCardLast4");
+    expect(mergeSyncedFields(baseAccount({ paymentCardLast4: "1111" }), { paymentCardLast4: "12" }).account.paymentCardLast4).toBe("1111");
+  });
+});
+
 describe("formatSyncMessage - three distinct outcomes", () => {
   it("shows the 'nothing found' message only when the page had nothing recognizable at all", () => {
     const message = formatSyncMessage("mounay", [], false);

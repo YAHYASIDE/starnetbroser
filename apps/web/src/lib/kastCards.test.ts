@@ -8,6 +8,7 @@ import {
   depositLabel,
   expectedStarlinkUsd,
   pendingCardSpends,
+  debtUsdToday,
   spendCandidates,
   kastDevicesSnapshot,
   mergeCardDeposits,
@@ -76,8 +77,35 @@ describe("Starlink payments from the KAST notification", () => {
     expect(pendingCardSpends(list).map((d) => d.id)).toEqual(["n1"]);
     expect(pendingCardDeposits(list).map((d) => d.id)).toEqual(["m1"]);
     expect(depositLabel(list[0]!)).toBe("دُفع 116.56$ لـ Starlink بالبطاقة 1234");
-    const debts = [{ id: "a", costUsd: 50 }, { id: "b", costUsd: 116.56 }, { id: "c", costUsd: 115 }, { id: "d", costUsd: 130 }];
-    expect(spendCandidates(116.56, debts).map((d) => d.id)).toEqual(["b", "c"]);
+    const usdD = (id: string, costUsd: number) => ({ id, costUsd, entry: { starlinkCost: { currencyCode: "USD", amount: costUsd } } });
+    const debts = [usdD("a", 50), usdD("b", 116.56), usdD("c", 115), usdD("d", 130)];
+    expect(spendCandidates(116.56, debts).map((c) => [c.debt.id, c.exact])).toEqual([["b", true], ["c", true]]);
     expect(spendCandidates(9.99, debts)).toEqual([]);
+  });
+
+  it("matches a peso D at today's rate, and offers the nearest when none is close", () => {
+    // 112,000 ARS recorded at 1300 (86.15$); today 1465 → 76.45$ - KAST paid 76.46$.
+    const ars = { id: "ar", costUsd: 86.15, entry: { starlinkCost: { currencyCode: "ARS", amount: 112000 } } };
+    const usd = { id: "us", costUsd: 60, entry: { starlinkCost: { currencyCode: "USD", amount: 60 } } };
+    const store = { ARS: { code: "ARS", name: "ARS", symbol: "ARS", rateFromUsd: 1465, updatedAt: "", enabled: true } };
+    const [first] = spendCandidates(76.46, [usd, ars], store);
+    expect(first).toMatchObject({ debt: { id: "ar" }, exact: true });
+    expect(first!.usd).toBeCloseTo(76.45, 2);
+    expect(debtUsdToday(ars, store)).toBeCloseTo(76.45, 2);
+    expect(debtUsdToday(usd, store)).toBeUndefined();
+    // Without today's rate it isn't close enough - offered only as the nearest (60$ is too far).
+    expect(spendCandidates(76.46, [usd, ars]).map((c) => [c.debt.id, c.exact])).toEqual([["ar", false]]);
+  });
+
+  it("looks at the paying card's devices first, never at a device on another card", () => {
+    const d = (id: string, costUsd: number, card?: string) => ({ id, card, costUsd, entry: { starlinkCost: { currencyCode: "USD", amount: costUsd } } });
+    const debts = [d("same", 50, "1234"), d("other", 45.74, "5678"), d("unknown", 45.74)];
+    const of = (x: { card?: string }) => x.card;
+    // Card 1234's only D is far from 45.74 → its devices offer nothing, the unknown-card one is tried.
+    expect(spendCandidates(45.74, debts, {}, { last4: "1234", of }).map((c) => c.debt.id)).toEqual(["unknown"]);
+    // Card 5678 → its own device, exactly; the unknown-card twin isn't offered.
+    expect(spendCandidates(45.74, debts, {}, { last4: "5678", of }).map((c) => [c.debt.id, c.exact])).toEqual([["other", true]]);
+    // Card 1234 paying 50 → only its device, even though the others are close too.
+    expect(spendCandidates(49.5, debts, {}, { last4: "1234", of }).map((c) => c.debt.id)).toEqual(["same"]);
   });
 });

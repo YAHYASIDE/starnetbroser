@@ -157,6 +157,9 @@ export interface SyncedStarlinkFields {
   balanceDue?: string;
   /** Canonical form, e.g. "USD" - "$", "US$", "$US" and "USD" all normalize to this. */
   currency?: string;
+  /** Billing → Payment Method: the last 4 digits of the card that pays this device ("VISA ending
+   * in 1234") - matched against KAST's payment notices. Never the full number. */
+  paymentCardLast4?: string;
   /** Starts with "ACC-" - the STAR NET/Starlink account number, never confused with starlinkId. */
   accountNumber?: string;
   /** The dish's own internal identifier - not the account number. */

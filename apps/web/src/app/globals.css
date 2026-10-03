@@ -10363,6 +10363,17 @@ a[href],
 
 .kast-spend-row {
   border-color: var(--accent, var(--green));
+  flex-wrap: wrap;
+}
+
+.kast-spend-row .sl-row-main {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+.kast-spend-row .kast-deposit-actions button {
+  white-space: normal;
+  text-align: start;
 }
 
 .kast-notify-status {

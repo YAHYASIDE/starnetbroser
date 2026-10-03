@@ -14,6 +14,7 @@ import {
   extractBillingDueDay,
   extractDataUsageGb,
   extractLabeledValue,
+  extractPaymentCardLast4,
   extractPhoneNumber,
   extractAdminUserKeys,
   extractSubscriptionNames,
@@ -185,6 +186,9 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
     fields.balanceDue = balance.amount;
     fields.currency = balance.currency;
   }
+
+  const paymentCardLast4 = extractPaymentCardLast4(lines);
+  if (paymentCardLast4) fields.paymentCardLast4 = paymentCardLast4;
 
   const accountNumber = extractAccountNumber(lines, text);
   if (accountNumber) fields.accountNumber = accountNumber;

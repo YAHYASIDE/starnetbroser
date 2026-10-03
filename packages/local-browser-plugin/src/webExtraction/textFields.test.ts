@@ -25,6 +25,7 @@ import {
   isOnAccountHomePage,
   nextOccurrenceOfDay,
   normalizeDateLike,
+  extractPaymentCardLast4,
 } from "./textFields";
 
 // Fake/dummy line arrays only - none of this is real Starlink account data.
@@ -499,5 +500,18 @@ describe("extractSubscriptionNames - the two subscriptions on one account", () =
   it("returns [] without both a heading AND a pager (never grabs stray Home/Billing text)", () => {
     expect(extractSubscriptionNames(["Subscriptions", "DEDE SIDI VAL"])).toEqual([]);
     expect(extractSubscriptionNames(["DEDE SIDI VAL", "1 - 2"])).toEqual([]);
+  });
+});
+
+describe("extractPaymentCardLast4 - the Billing page's Payment Method card", () => {
+  it("reads the last 4 digits under the Payment Method label (English and Arabic)", () => {
+    expect(extractPaymentCardLast4(["Balance Due", "€0.00", "Payment Method", "Edit", "DEMO HOLDER", "VISA ending in 4321", "Expires: 1/30"])).toBe("4321");
+    expect(extractPaymentCardLast4(["طريقة الدفع", "تعديل", "DEMO HOLDER", "VISA تنتهي بـ 8765"])).toBe("8765");
+  });
+
+  it("ignores an 'ending in' far from the label, or a page without it", () => {
+    expect(extractPaymentCardLast4(["Your payment using the card ending in 1111 failed"])).toBeUndefined();
+    expect(extractPaymentCardLast4(["Payment Method", "a", "b", "c", "d", "e", "f", "VISA ending in 2222"])).toBeUndefined();
+    expect(extractPaymentCardLast4(["Payment Method", "Add a payment method"])).toBeUndefined();
   });
 });

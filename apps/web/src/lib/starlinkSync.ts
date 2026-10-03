@@ -29,6 +29,7 @@ const FIELD_INFO: Record<keyof SyncedStarlinkFields, { label: string; section: S
   phone: { label: "رقم الهاتف", section: "identifiers" },
   balanceDue: { label: "الرصيد المستحق", section: "billing" },
   currency: { label: "العملة", section: "billing" },
+  paymentCardLast4: { label: "بطاقة الدفع", section: "billing" },
   accountNumber: { label: "رقم الحساب", section: "identifiers" },
   subscriptionId: { label: "رقم الاشتراك", section: "identifiers" },
   starlinkId: { label: "معرف Starlink", section: "identifiers" },
@@ -216,6 +217,13 @@ export function mergeSyncedFields(
   if (kitNumber) {
     note("kitNumber", next.kitNumber !== kitNumber);
     next.kitNumber = kitNumber;
+  }
+
+  // Billing → Payment Method: the card Starlink really charges - it replaces a card picked by hand.
+  const cardLast4 = fields.paymentCardLast4?.trim();
+  if (cardLast4 && /^\d{4}$/.test(cardLast4)) {
+    note("paymentCardLast4", next.paymentCardLast4 !== cardLast4);
+    next.paymentCardLast4 = cardLast4;
   }
 
   const serviceCountry = fields.serviceCountry?.trim().toUpperCase();
