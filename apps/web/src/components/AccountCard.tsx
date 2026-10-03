@@ -251,6 +251,8 @@ export function AccountCard({
         unpaidStarlinkUsd + paidSinceLastSyncUsd(ledgerEntries, account.lastSuccessfulScanAt),
       );
   const [previousDebtDialog, setPreviousDebtDialog] = useState<{ suggestedUsd?: number } | null>(null);
+  // «الدين» on the unrecorded-difference line: choose an old (inherited) debt or a normal D charge.
+  const [debtChoiceUsd, setDebtChoiceUsd] = useState<number | null>(null);
   const expectedMru = currentMruRate !== undefined ? profit.expectedUsd * currentMruRate : undefined;
 
   // Defaults to "not the Android app" (matches server render, which never
@@ -593,8 +595,8 @@ export function AccountCard({
           <span>
             فرق <bdi dir="ltr">{formatAmount(unrecordedUsd)} $</bdi> غير مسجّل
           </span>
-          <button type="button" className="text-action" onClick={() => setPreviousDebtDialog({ suggestedUsd: unrecordedUsd })}>
-            سجّله كدين سابق
+          <button type="button" className="text-action" onClick={() => setDebtChoiceUsd(unrecordedUsd)}>
+            الدين
           </button>
         </div>
       )}
@@ -896,6 +898,44 @@ export function AccountCard({
                   <span aria-hidden="true">{item.icon}</span> {item.label}
                 </button>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {debtChoiceUsd !== null && (
+        <div className="party-sheet-backdrop" role="presentation" onClick={() => setDebtChoiceUsd(null)}>
+          <div className="party-sheet" role="dialog" aria-modal="true" aria-label="الدين" onClick={(e) => e.stopPropagation()}>
+            <div className="party-sheet-head">
+              <strong>
+                الدين · <bdi dir="ltr">{formatAmount(debtChoiceUsd)} $</bdi>
+              </strong>
+              <button type="button" className="dialog-close" onClick={() => setDebtChoiceUsd(null)} aria-label="إغلاق">
+                ×
+              </button>
+            </div>
+            <div className="card-more-list">
+              <button
+                type="button"
+                className="card-more-item"
+                onClick={() => {
+                  const suggestedUsd = debtChoiceUsd;
+                  setDebtChoiceUsd(null);
+                  setPreviousDebtDialog({ suggestedUsd });
+                }}
+              >
+                <span aria-hidden="true">📜</span> دين سابق <small>من قبلك، على Starlink</small>
+              </button>
+              <button
+                type="button"
+                className="card-more-item"
+                onClick={() => {
+                  setDebtChoiceUsd(null);
+                  onLedger(account);
+                }}
+              >
+                <span aria-hidden="true">🅳</span> دين D عادي <small>نحن سجّلناه عليه</small>
+              </button>
             </div>
           </div>
         </div>

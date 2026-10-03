@@ -11919,6 +11919,14 @@ button.today-tile {
   color: var(--red);
 }
 
+/* «الدين»: a short line under each choice saying what it means. */
+.card-more-item small {
+  margin-inline-start: auto;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  text-align: end;
+}
+
 .card-more-item:disabled {
   opacity: 0.5;
 }
