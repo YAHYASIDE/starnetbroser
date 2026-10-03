@@ -55,8 +55,7 @@ import {
   repRowKey,
   setShipmentRepShare,
   ShipmentRepPatch,
-  splitRepRecords,
-} from "@/lib/repAccount";
+  splitRepRecords, repNetPosition } from "@/lib/repAccount";
 import { InvoiceList, loadInvoices, saveInvoices } from "@/lib/invoiceStore";
 import {
   LEDGER_CURRENCIES,
@@ -683,6 +682,9 @@ function RepCard({
     [rep.id, deviceRows, active, fx],
   );
   const netBalance = account.closing;
+  // ⚖️ One figure: what he owes us for his customers minus what we owe him (his share).
+  const net = useMemo(() => repNetPosition(owedToUsForClients, netBalance, fx.convert), [owedToUsForClients, netBalance, fx]);
+  const netSign = Object.values(net).find((v) => Math.abs(v) > EPSILON) ?? 0;
   const balanceSign = Object.values(netBalance).find((v) => Math.abs(v) > EPSILON) ?? 0;
   const canWhatsApp = buildWhatsAppLink(rep.phone) !== null;
   const deletion = useMemo(
@@ -756,6 +758,15 @@ function RepCard({
         <div className={`rep-devices-debt${Object.values(owedToUsForClients).some((v) => v > EPSILON) ? " rep-devices-debt-due" : ""}`}>
           <span>🧾 عليه لك عن زبائنه ({repClients.filter((r) => r.current).length})</span>
           {Object.keys(owedToUsForClients).length === 0 ? <strong>لا شيء ✓</strong> : <StatValues values={owedToUsForClients} />}
+        </div>
+      )}
+      {repClients.length > 0 && (
+        <div className={`rep-devices-debt rep-net${netSign > EPSILON ? " rep-devices-debt-due" : ""}`}>
+          <span>
+            ⚖️ الصافي {netSign > EPSILON ? "عليه لك" : netSign < -EPSILON ? "له عندك" : ""}
+            <small> (عليه عن زبائنه − حصته، بسعر اليوم)</small>
+          </span>
+          {Object.keys(net).length === 0 ? <strong>متوازن ✓</strong> : <StatValues values={net} absolute />}
         </div>
       )}
       {(repClients.length === 0 || devicesDebt.rows.length > 0) && (

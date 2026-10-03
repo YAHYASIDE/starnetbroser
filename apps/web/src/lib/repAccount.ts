@@ -331,3 +331,17 @@ function localDate(date: Date): string {
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
+
+/**
+ * ⚖️ «الصافي»: what the rep owes us for his customers (per currency, converted at today's rate into
+ * the page's display currency) minus what we owe him (his share balance, already in it). + = he
+ * owes us, − = we owe him. Shown beside the two figures, never stored.
+ */
+export function repNetPosition(owedForClients: Record<string, number>, shareBalance: Record<string, number>, convert: RepConvert): Record<string, number> {
+  const net: Record<string, number> = {};
+  for (const [code, amount] of Object.entries(owedForClients)) {
+    for (const [to, value] of Object.entries(convert(amount, code))) net[to] = (net[to] ?? 0) + value;
+  }
+  for (const [code, amount] of Object.entries(shareBalance)) net[code] = (net[code] ?? 0) - amount;
+  return Object.fromEntries(Object.entries(net).filter(([, v]) => Math.abs(v) > 0.005));
+}

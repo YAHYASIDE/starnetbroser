@@ -5,6 +5,7 @@ import {
   makeRepConverter,
   makeRepResetPoint,
   planRepDeletion,
+  repNetPosition,
   repPeriod,
   repRowDelta,
   setShipmentRepShare,
@@ -234,5 +235,16 @@ describe("display currency", () => {
     expect(st.totals.settled.commissionPayout).toEqual({ MRU: 2000 });
     const inBoth = buildRepPeriodStatement(ds, {}, both);
     expect(inBoth.closing).toEqual({ MRU: -1000, SIFA: -15000 });
+  });
+});
+
+describe("⚖️ the rep's net position", () => {
+  it("his customers' debt to us minus his share balance, in the page's currency", () => {
+    const convert = makeRepConverter(["MRU"], { MRU: 400, SIFA: 600 });
+    // He owes 4,600 MRU + 600 SIFA (= 400 MRU) for his customers; we owe him 1,000 MRU of share.
+    expect(repNetPosition({ MRU: 4600, SIFA: 600 }, { MRU: 1000 }, convert)).toEqual({ MRU: 4000 });
+    // We owe him more than he owes us: negative.
+    expect(repNetPosition({ MRU: 500 }, { MRU: 800 }, convert)).toEqual({ MRU: -300 });
+    expect(repNetPosition({}, {}, convert)).toEqual({});
   });
 });

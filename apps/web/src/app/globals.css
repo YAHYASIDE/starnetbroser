@@ -11432,3 +11432,10 @@ button.today-tile {
   grid-column: 1 / -1;
   justify-self: start;
 }
+
+/* ⚖️ «الصافي» on the rep card. */
+.rep-net small {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
