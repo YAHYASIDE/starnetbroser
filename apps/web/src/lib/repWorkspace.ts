@@ -39,7 +39,7 @@ const PROFILE_KEY = "starnet_business_profile_v1";
 const REPS_KEY = "starnet_representatives_v1";
 const INVOICES_KEY = "starnet_store_invoices_v1";
 const SETTLEMENTS_KEY = "starnet_rep_settlements_v1";
-const REP_BOOK_KEY = "starnet_rep_book_v1";
+export const REP_BOOK_KEY = "starnet_rep_book_v1";
 /** His share's operations on devices no longer his (moved, deleted): only the entries carrying
  * his share, with the device's name - so «تقاريري» matches the operator's statement of him. */
 export const PAST_LEDGER_KEY = "starnet_rep_past_ledger_v1";
@@ -265,6 +265,11 @@ export function rebaseWorkspace(
     for (const path of [...changes.set.keys()]) {
       const now = theirsNow.get(path);
       if (now && !same(strip(now), strip(theirsBefore.get(path)))) changes.set.delete(path);
+    }
+    // A payment of his own customer the operator approved lives in his book now (same id).
+    if (key === LEDGER_KEY) {
+      const booked = new Set(asList(nextBase[REP_BOOK_KEY]).map((e) => String(e.id)));
+      for (const path of [...changes.set.keys()]) if (booked.has(path.slice(path.lastIndexOf("/") + 1))) changes.set.delete(path);
     }
     // ❌ What the operator rejected leaves the rep's phone (the exact version he sent).
     for (const [path, mine] of [...changes.set]) if (rejected[`${key}|${path}`] === recordHash(mine)) changes.set.delete(path);

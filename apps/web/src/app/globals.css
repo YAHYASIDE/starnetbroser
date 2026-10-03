@@ -11385,3 +11385,50 @@ button.today-tile {
 .rep-phone-bound.is-bound {
   color: var(--green);
 }
+
+/* 📒 «كل عمليات زبائنه» and the untangle review (representatives page). */
+.rep-ops {
+  margin-top: 8px;
+}
+
+.rep-op-side {
+  display: grid;
+  justify-items: end;
+  flex: none;
+}
+
+.rep-op-side small {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.rep-clients-owes strong {
+  color: var(--red);
+}
+
+.rep-untangle {
+  margin-top: 12px;
+}
+
+.rep-untangle-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 8px;
+  align-items: center;
+}
+
+.rep-untangle-row .rep-transfer-name {
+  display: grid;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.rep-untangle-row .rep-transfer-name small {
+  color: var(--text-muted);
+  font-size: 0.74rem;
+}
+
+.rep-untangle-row .text-action {
+  grid-column: 1 / -1;
+  justify-self: start;
+}

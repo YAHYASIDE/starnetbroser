@@ -117,6 +117,12 @@ describe("rebase on a new copy (rep side)", () => {
     expect(rebaseWorkspace(changed, base, base, rejected)[LEDGER_KEY]).toEqual(changed[LEDGER_KEY]);
   });
 
+  it("a payment the operator moved into the rep's book is no longer pending on his device", () => {
+    const current = { ...base, [LEDGER_KEY]: { a1: [entry("e1", 100), entry("p9", 50)], a2: [] } };
+    const next = { ...base, starnet_rep_book_v1: [{ id: "p9", repId: "r1", clientId: "c1", kind: "payment", amount: 50 }] };
+    expect(rebaseWorkspace(current, base, next)[LEDGER_KEY]).toEqual(base[LEDGER_KEY]);
+  });
+
   it("the first copy is taken as it is", () => {
     expect(rebaseWorkspace({}, null, base)).toEqual(base);
   });

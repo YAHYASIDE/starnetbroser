@@ -22,7 +22,7 @@ import { buildAutoSyncList } from "@/lib/autoSyncList";
 import { LedgerDialog } from "./LedgerDialog";
 import { ClientDialog } from "./ClientDialog";
 import { ClientsOverviewDialog } from "./ClientsOverviewDialog";
-import { ourDebtLedgerForClients } from "@/lib/repClients";
+import { ourDebtLedgerForClients, autoMoveClientToRep } from "@/lib/repClients";
 import { LedgerEntryEditor } from "./LedgerEntryEditor";
 import { DeviceStatementDialog } from "./DeviceStatementDialog";
 import { ToastMessage, ToastStack } from "./ToastStack";
@@ -853,6 +853,20 @@ export function HomeView({
       if (dataState === "demo") saveDemoAccounts(next);
       return next;
     });
+    // 🤝 Given to a rep: once all the customer's devices are that rep's, the customer is the rep's -
+    // he owes us nothing, the rep owes us everything (repClients.ts).
+    if (account.representativeId && account.clientId) {
+      const exists = accounts.some((item) => item.id === account.id);
+      const nextAccounts = exists ? accounts.map((item) => (item.id === account.id ? account : item)) : [account, ...accounts];
+      const moved = autoMoveClientToRep(clientStore[account.clientId], nextAccounts, new Date().toISOString());
+      if (moved) {
+        const nextClients = { ...clientStore, [moved.id]: moved };
+        setClientStore(nextClients);
+        saveClientStore(nextClients);
+        const repName = getRepresentative(representativeStore, account.representativeId)?.name ?? "المندوب";
+        pushToast(`🤝 ${moved.name} صار زبون ${repName} - ديونه على ${repName}`);
+      }
+    }
     setShowAll(true);
     setSelectedDay(null);
     setQuery("");

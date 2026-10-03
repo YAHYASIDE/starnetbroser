@@ -194,3 +194,30 @@ describe("reviewing a rep's recordings item by item", () => {
     expect(listRepChangeItems(edited, owner()).filter((i) => !isItemDecided(i, decisions)).map((i) => i.key)).toContain("cli:c3");
   });
 });
+
+describe("rep's own customers: everything on the rep", () => {
+  const owner = () => ({
+    [ACCOUNTS_KEY]: [{ id: "a1", name: "Dish 1", representativeId: "r1", clientId: "c1" }],
+    [LEDGER_KEY]: { a1: [entry("e1", "debit", 12000)] },
+    [CLIENTS_KEY]: { c1: { id: "c1", name: "Client One", repSegments: [{ repId: "r1", from: "2026-09-01T00:00:00.000Z", carry: true }] } },
+  });
+
+  it("a payment he took from his own customer goes into his book - never less on his debt to us", () => {
+    const changes = { [LEDGER_KEY]: { set: { "a1/p1": { ...entry("p1", "credit", 5000), createdAt: "2026-10-02T09:00:00.000Z" } }, removed: [] } };
+    const { stores, summary } = applyRepChangeSet(owner(), changes, "r1");
+    expect(stores[LEDGER_KEY]).toBeUndefined();
+    expect(stores.starnet_rep_book_v1).toEqual([
+      { id: "p1", repId: "r1", clientId: "c1", kind: "payment", amount: 5000, currency: "MRU", date: "2026-10-01", createdAt: "2026-10-02T09:00:00.000Z" },
+    ]);
+    expect(summary.payments).toBe(1);
+  });
+
+  it("the customer of his new device becomes his, with its balance", () => {
+    const changes = {
+      [ACCOUNTS_KEY]: { set: { a2: { id: "a2", name: "Dish 2", clientId: "c2" } }, removed: [] },
+      [CLIENTS_KEY]: { set: { c2: { id: "c2", name: "Client Two" } }, removed: [] },
+    };
+    const { stores } = applyRepChangeSet(owner(), changes, "r1", new Date("2026-10-02T10:00:00Z"));
+    expect((stores[CLIENTS_KEY] as Record<string, Record<string, unknown>>).c2!.repSegments).toEqual([{ repId: "r1", from: "2026-10-02T10:00:00.000Z", carry: true }]);
+  });
+});

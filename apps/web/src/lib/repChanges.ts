@@ -9,7 +9,10 @@
  * Pure helpers (tested) - the impure send / receive layers are repChangesSend.ts / repChangesApply.ts.
  */
 
+import type { StarlinkAccountSummary } from "@starnet/shared";
 import { decryptBackup, encryptBackup, type EncryptedBackup } from "./backupCrypto";
+import type { Client } from "./clientStore";
+import { autoMoveClientToRep, currentRepOfClient } from "./repClients";
 import {
   ACCOUNTS_KEY,
   ADJUSTMENTS_KEY,
@@ -22,6 +25,7 @@ import {
   PROMISES_KEY,
   rebaseStore,
   recordHash,
+  REP_BOOK_KEY,
   REP_STORES,
   type Shape,
   type StoreChanges,
@@ -171,6 +175,27 @@ export function applyRepChangeSet(owner: StoreValues, changes: RepChangeSet, rep
     [PROMISES_KEY]: (_p, r) => Boolean(r && ((r.clientId && myClients.has(String(r.clientId))) || r.repId === repId)),
   };
 
+  // 🤝 His new devices: their customer becomes his once all the customer's devices are his - the
+  // customer then owes us nothing, the rep owes us everything (repClients.ts).
+  const at = now.toISOString();
+  const changedClients = changes[CLIENTS_KEY]?.set ?? {};
+  const clientRecord = (id: string) => (isRec(changedClients[id]) ? changedClients[id] : ownerClients.get(id));
+  const liveAccounts = [...accounts.values()] as unknown as StarlinkAccountSummary[];
+  const movedClients = new Map<string, Rec>();
+  for (const id of created) {
+    const clientId = accounts.get(id)?.clientId;
+    if (typeof clientId !== "string" || movedClients.has(clientId)) continue;
+    const moved = autoMoveClientToRep(clientRecord(clientId) as unknown as Client | undefined, liveAccounts, at);
+    if (moved) movedClients.set(clientId, moved as unknown as Rec);
+  }
+  /** The customer is the rep's own now: what he pays the rep goes into the rep's book. */
+  const isRepsOwnClient = (clientId: unknown) => {
+    if (typeof clientId !== "string") return false;
+    const client = (movedClients.get(clientId) ?? clientRecord(clientId)) as unknown as Client | undefined;
+    return currentRepOfClient(client) === repId;
+  };
+  const bookEntries: Rec[] = [];
+
   // 2. Everything else, one store at a time.
   for (const [key, change] of Object.entries(changes)) {
     if (key === ACCOUNTS_KEY) continue;
@@ -190,6 +215,17 @@ export function applyRepChangeSet(owner: StoreValues, changes: RepChangeSet, rep
       }
       let record = mine;
       if (key === LEDGER_KEY && !theirs) {
+        if (mine.kind === "credit" && isRepsOwnClient(accounts.get(groupOf(path))?.clientId)) {
+          // His own customer paid HIM: his book (same id), never less on what he owes us.
+          const clientId = String(accounts.get(groupOf(path))!.clientId);
+          bookEntries.push({
+            id: mine.id, repId, clientId, kind: "payment", amount: num(mine.amount), currency: str(mine.currency),
+            ...(str(mine.note) ? { note: str(mine.note) } : {}), ...(str(mine.paymentMethod) ? { paymentMethod: str(mine.paymentMethod) } : {}),
+            date: str(mine.date), createdAt: str(mine.createdAt) || at,
+          });
+          summary.payments++;
+          continue;
+        }
         if (mine.kind === "credit") {
           record = { ...mine, heldByRepId: mine.heldByRepId ?? repId };
           summary.payments++;
@@ -223,6 +259,17 @@ export function applyRepChangeSet(owner: StoreValues, changes: RepChangeSet, rep
     }
     if (accepted.set.size === 0 && accepted.removed.size === 0) continue;
     stores[key] = rebaseStore(accepted, owner[key], shape);
+  }
+
+  if (movedClients.size > 0) {
+    const map = { ...((stores[CLIENTS_KEY] ?? owner[CLIENTS_KEY] ?? {}) as Record<string, unknown>) };
+    for (const [id, client] of movedClients) map[id] = client;
+    stores[CLIENTS_KEY] = map;
+  }
+  if (bookEntries.length > 0) {
+    const book = Array.isArray(owner[REP_BOOK_KEY]) ? (owner[REP_BOOK_KEY] as Rec[]) : [];
+    const ids = new Set(bookEntries.map((e) => e.id));
+    stores[REP_BOOK_KEY] = [...book.filter((e) => !ids.has(e.id)), ...bookEntries];
   }
 
   return { stores, summary, newDeviceIds: created };

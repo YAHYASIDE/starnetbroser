@@ -121,7 +121,8 @@ export function undoRepBookEntry(book: RepBookEntry[], id: string, repId: string
 
 // ---- Replaying one customer ----
 
-export type BookLineKind = "opening" | "renewal" | RepBookKind | "movedOut";
+/** paidUs: the customer paid the operator directly - less on the rep's debt AND in his book. */
+export type BookLineKind = "opening" | "renewal" | RepBookKind | "movedOut" | "paidUs";
 
 /** One line of a rep's book on one customer, as the operator reads it. */
 export interface BookLine {
@@ -224,6 +225,12 @@ export function simulateClient(
       if (owner !== OURS && entry.kind === "debit" && !entry.heldByRepId) {
         add(book, owner, entry.currency, entry.amount);
         bookLines.push({ repId: owner, kind: "renewal", amounts: { [entry.currency]: entry.amount }, date: entry.date, at: entry.createdAt, note: entry.note || undefined, accountId });
+      }
+      // His customer paid the operator directly: the rep owes us that much less (above), and the
+      // customer owes the rep that much less too.
+      if (owner !== OURS && entry.kind === "credit" && !entry.heldByRepId) {
+        add(book, owner, entry.currency, -entry.amount);
+        bookLines.push({ repId: owner, kind: "paidUs", amounts: { [entry.currency]: -entry.amount }, date: entry.date, at: entry.createdAt, note: entry.note || undefined, accountId });
       }
       continue;
     }
@@ -341,6 +348,55 @@ export function listRepClients(
   return rows.sort((a, b) => Number(b.current) - Number(a.current) || a.name.localeCompare(b.name, "ar"));
 }
 
+/** One operation of a rep's customers that is the rep's debt to us (+) or settles it (−). */
+export interface RepOperation {
+  entryId: string;
+  accountId: string;
+  clientId: string;
+  date: string;
+  at: string;
+  /** + renewal (he owes us more), − payment / handover (less). */
+  amount: number;
+  currency: string;
+  /** He handed it to us himself (heldByRepId), rather than his customer paying us directly. */
+  byRep: boolean;
+  note?: string;
+  /** What he owes us in that currency once this operation is counted. */
+  balanceAfter: number;
+}
+
+/** 📒 «كل عمليات زبائنه»: every record on his customers' devices that is his debt to us (moved
+ * onto him included), oldest first with the running balance - shown newest first. */
+export function repOperations(
+  repId: string,
+  replays: Map<string, ClientReplay>,
+  accounts: StarlinkAccountSummary[],
+  ledgerStore: LedgerByAccount,
+): RepOperation[] {
+  const clientOf = new Map(accounts.map((a) => [a.id, a.clientId]));
+  const rows: Omit<RepOperation, "balanceAfter">[] = [];
+  for (const [accountId, entries] of Object.entries(ledgerStore)) {
+    const clientId = clientOf.get(accountId);
+    const replay = clientId ? replays.get(clientId) : undefined;
+    if (!replay) continue;
+    for (const entry of entries) {
+      if (replay.entryOwner.get(entry.id) !== repId) continue;
+      rows.push({
+        entryId: entry.id, accountId, clientId: clientId!, date: entry.date, at: entry.createdAt,
+        amount: signedLedger(entry), currency: entry.currency, byRep: entry.heldByRepId === repId,
+        ...(entry.note ? { note: entry.note } : {}),
+      });
+    }
+  }
+  rows.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+  const running: Balances = {};
+  const withBalance = rows.map((row) => {
+    running[row.currency] = (running[row.currency] ?? 0) + row.amount;
+    return { ...row, balanceAfter: running[row.currency]! };
+  });
+  return withBalance.reverse();
+}
+
 export function sumBalances(rows: Balances[]): Balances {
   const result: Balances = {};
   for (const row of rows) for (const [currency, amount] of Object.entries(row)) result[currency] = (result[currency] ?? 0) + amount;
@@ -357,8 +413,8 @@ export interface RepTransferCandidate {
   deviceCount: number;
 }
 
-/** Customers not yet in the new model whose devices are this rep's (at least one, and none of
- * another rep's) - what the button would move onto him. */
+/** Customers not yet in the new model whose live devices are ALL this rep's - what the button
+ * moves onto him. A customer with devices of his own or of another rep too is «مختلط» (planRepUntangle). */
 export function repTransferCandidates(
   repId: string,
   clients: ClientStore,
@@ -369,13 +425,82 @@ export function repTransferCandidates(
   for (const client of Object.values(clients)) {
     if (client.repSegments?.length) continue;
     const devices = liveDevicesOf(client.id, accounts);
-    const reps = new Set(devices.map((d) => d.representativeId).filter(Boolean));
-    if (!reps.has(repId) || reps.size !== 1) continue;
+    if (devices.length === 0 || devices.some((d) => d.representativeId !== repId)) continue;
     const balance: Balances = {};
     for (const { entry } of deviceEntriesOf(devices, ledgerStore)) balance[entry.currency] = (balance[entry.currency] ?? 0) + signedLedger(entry);
     rows.push({ clientId: client.id, name: client.name, balance: cleanBalances(balance), deviceCount: devices.length });
   }
   return rows.sort((a, b) => a.name.localeCompare(b.name, "ar"));
+}
+
+/** A customer with devices of this rep AND devices that aren't (his own, or another rep's). */
+export interface RepMixedClient {
+  clientId: string;
+  name: string;
+  repDevices: { id: string; name: string }[];
+  otherDevices: { id: string; name: string; repId?: string }[];
+  balance: Balances;
+}
+
+/** A device of this rep with no customer: nobody to put its debt on yet. */
+export interface RepLooseDevice {
+  accountId: string;
+  name: string;
+  balance: Balances;
+}
+
+export interface RepUntanglePlan {
+  /** All his - moved onto him in one go. */
+  clean: RepTransferCandidate[];
+  /** To review: «كله للمندوب» or leave him ours. */
+  mixed: RepMixedClient[];
+  /** To review: «👤 زبون باسم الجهاز» first. */
+  loose: RepLooseDevice[];
+}
+
+function deviceBalance(entries: LedgerEntry[] | undefined): Balances {
+  const balance: Balances = {};
+  for (const entry of entries ?? []) balance[entry.currency] = (balance[entry.currency] ?? 0) + signedLedger(entry);
+  return cleanBalances(balance);
+}
+
+/** 🔁 «كل زبائنه عليه»: everything still owed to us through this rep's devices, sorted into what
+ * moves at once, and what the operator decides first. */
+export function planRepUntangle(repId: string, clients: ClientStore, accounts: StarlinkAccountSummary[], ledgerStore: LedgerByAccount): RepUntanglePlan {
+  const clean = repTransferCandidates(repId, clients, accounts, ledgerStore);
+  const mixed: RepMixedClient[] = [];
+  for (const client of Object.values(clients)) {
+    if (client.repSegments?.length) continue;
+    const devices = liveDevicesOf(client.id, accounts);
+    const mine = devices.filter((d) => d.representativeId === repId);
+    if (mine.length === 0 || mine.length === devices.length) continue;
+    const balance: Balances = {};
+    for (const { entry } of deviceEntriesOf(devices, ledgerStore)) balance[entry.currency] = (balance[entry.currency] ?? 0) + signedLedger(entry);
+    mixed.push({
+      clientId: client.id,
+      name: client.name,
+      repDevices: mine.map((d) => ({ id: d.id, name: d.name })),
+      otherDevices: devices.filter((d) => d.representativeId !== repId).map((d) => ({ id: d.id, name: d.name, ...(d.representativeId ? { repId: d.representativeId } : {}) })),
+      balance: cleanBalances(balance),
+    });
+  }
+  const loose = accounts
+    .filter((a) => a.representativeId === repId && !a.deletedAt && !a.archivedAt && (!a.clientId || !clients[a.clientId]))
+    .map((a) => ({ accountId: a.id, name: a.name, balance: deviceBalance(ledgerStore[a.id]) }));
+  return { clean, mixed: mixed.sort((a, b) => a.name.localeCompare(b.name, "ar")), loose };
+}
+
+/** When a device is given to a rep: our customer becomes the rep's (his balance with him) as soon
+ * as all his live devices are that rep's. Null = nothing to do (mixed, already a rep's, or ours). */
+export function autoMoveClientToRep(client: Client | undefined, accounts: StarlinkAccountSummary[], at: string): Client | null {
+  if (!client) return null;
+  const devices = liveDevicesOf(client.id, accounts);
+  const reps = new Set(devices.map((d) => d.representativeId ?? OURS));
+  if (devices.length === 0 || reps.size !== 1) return null;
+  const repId = [...reps][0]!;
+  // Only a customer who is ours now - from one rep to another, the client card asks about his balance.
+  if (repId === OURS || currentRepOfClient(client) !== undefined) return null;
+  return moveClientToOwner(client, repId, true, at);
 }
 
 /** The button itself: each customer now belongs to the rep, his balance moving with him. */

@@ -67,7 +67,7 @@ import {
   loadLedgerStore,
   saveLedgerStore,
 } from "@/lib/ledgerStore";
-import { ClientStore, getClient, loadClientStore, saveClientStore } from "@/lib/clientStore";
+import { ClientStore, createClient, getClient, loadClientStore, saveClientStore } from "@/lib/clientStore";
 import { combinePhoneNumber, PHONE_COUNTRY_CODES, splitPhoneNumber } from "@/lib/phoneCountryCodes";
 import { formatAmount } from "@/lib/formatAmount";
 import { getStoreItem, loadStoreItems, StoreItemRegistry } from "@/lib/storeStore";
@@ -88,7 +88,9 @@ import {
   listRepClients,
   loadRepBook,
   replayRepClients,
-  repTransferCandidates,
+  planRepUntangle,
+  repOperations,
+  type RepUntanglePlan,
   sumBalances,
   transferClientsToRep,
   type BookLine,
@@ -396,6 +398,28 @@ export default function RepresentativesPage() {
     void refreshTelegramReplies().catch(() => {});
   }
 
+  /** «كله للمندوب»: every live device of a mixed customer becomes the rep's, then the customer. */
+  function handleMixedToRep(repId: string, clientId: string) {
+    // The transfer itself gives every live device of the customer to the rep.
+    handleTransferClients(repId, [clientId]);
+  }
+
+  /** «👤 زبون باسم الجهاز»: a device of the rep with no customer gets one (named after it) - his. */
+  function handleLooseDevice(repId: string, accountId: string) {
+    const device = accounts.find((a) => a.id === accountId);
+    if (!device) return;
+    const created = createClient(clientStore, { name: device.name || "زبون" });
+    saveClientStore(created.store);
+    setClientStore(created.store);
+    const nextAccounts = accounts.map((a) => (a.id === accountId ? { ...a, clientId: created.client.id } : a));
+    setAccounts(nextAccounts);
+    if (isDemoMode()) saveDemoAccounts(nextAccounts);
+    const moved = transferClientsToRep(created.store, repId, [created.client.id], new Date().toISOString());
+    saveClientStore(moved);
+    setClientStore(moved);
+    void refreshTelegramReplies().catch(() => {});
+  }
+
   function handleReset(repId: string, resetFrom: RepResetPoint | undefined) {
     saveReps(setRepresentativeReset(representativeStore, repId, resetFrom));
   }
@@ -509,6 +533,8 @@ export default function RepresentativesPage() {
                     clientStore={clientStore}
                     replays={replays}
                     onTransferClients={(ids) => handleTransferClients(rep.id, ids)}
+                    onMixedToRep={(clientId) => handleMixedToRep(rep.id, clientId)}
+                    onLooseDevice={(accountId) => handleLooseDevice(rep.id, accountId)}
                     storeItems={storeItems}
                     onEdit={() => setEditingRepId(rep.id)}
                     onSettle={(input) => handleSettlement(rep.id, input)}
@@ -542,6 +568,8 @@ interface RepCardProps {
   clientStore: ClientStore;
   replays: Map<string, ClientReplay>;
   onTransferClients: (clientIds: string[]) => void;
+  onMixedToRep: (clientId: string) => void;
+  onLooseDevice: (accountId: string) => void;
   storeItems: StoreItemRegistry;
   onEdit: () => void;
   onSettle: (input: UpdateRepSettlementInput) => string | null;
@@ -576,6 +604,8 @@ function RepCard({
   clientStore,
   replays,
   onTransferClients,
+  onMixedToRep,
+  onLooseDevice,
   storeItems,
   onEdit,
   onSettle,
@@ -625,10 +655,13 @@ function RepCard({
   const repClients = useMemo(() => listRepClients(rep.id, clientStore, accounts, replays), [rep.id, clientStore, accounts, replays]);
   const owedToUsForClients = useMemo(() => sumBalances(repClients.map((r) => r.owedToUs)), [repClients]);
   const clientsOweHim = useMemo(() => sumBalances(repClients.map((r) => r.book)), [repClients]);
-  const transferCandidates = useMemo(
-    () => repTransferCandidates(rep.id, clientStore, accounts, ledgerStore),
-    [rep.id, clientStore, accounts, ledgerStore],
-  );
+  // 🔁 Everything still owed to us through his devices: what moves onto him, and what to review.
+  const untangle = useMemo(() => planRepUntangle(rep.id, clientStore, accounts, ledgerStore), [rep.id, clientStore, accounts, ledgerStore]);
+  const transferCandidates = untangle.clean;
+  const untangleCount = untangle.clean.length + untangle.mixed.length + untangle.loose.length;
+  // 📒 every operation of his customers that is his debt to us, newest first.
+  const [showOps, setShowOps] = useState(false);
+  const operations = useMemo(() => repOperations(rep.id, replays, accounts, ledgerStore), [rep.id, replays, accounts, ledgerStore]);
   // What the customers of his devices still owe US - only those not yet his own customers.
   const devicesDebt = useMemo(
     () => repDevicesDebt(rep.id, accounts.filter((a) => !a.clientId || !replays.has(a.clientId)), ledgerStore),
@@ -882,9 +915,9 @@ function RepCard({
 
       {panel === "clients" && (
         <div className="party-panel rep-clients">
-          {transferCandidates.length > 0 && !readOnly && (
+          {untangleCount > 0 && !readOnly && (
             <button type="button" className="btn-secondary rep-transfer-btn" onClick={() => setSheet({ kind: "transfer" })}>
-              🔁 نقل ديون زبائنه عليه ({transferCandidates.length})
+              🔁 كل زبائنه عليه ({untangleCount})
             </button>
           )}
           {repClients.length === 0 ? (
@@ -897,6 +930,38 @@ function RepCard({
                 <span>زبائنه عليهم له</span>
                 <StatValues values={clientsOweHim} />
               </div>
+              <div className="rep-clients-total rep-clients-owes">
+                <span>عليه لك عنهم</span>
+                <StatValues values={owedToUsForClients} />
+              </div>
+              <button type="button" className="text-action" onClick={() => setShowOps((v) => !v)}>
+                {showOps ? "▲ إخفاء العمليات" : `📒 كل عمليات زبائنه (${operations.length})`}
+              </button>
+              {showOps && (
+                <ul className="today-lines rep-ops">
+                  {operations.map((op) => (
+                    <li key={op.entryId} className="today-line">
+                      <span className="today-line-main">
+                        <strong>
+                          {op.amount > 0 ? "📦 تجديد" : op.byRep ? "🤲 سلّمك" : "💵 دفع لك الزبون"} · {getClient(clientStore, op.clientId)?.name ?? "زبون"}
+                        </strong>
+                        <small>
+                          {accountName(op.accountId)} · <bdi dir="ltr">{op.date}</bdi>
+                          {op.note ? ` · ${op.note}` : ""}
+                        </small>
+                      </span>
+                      <span className="rep-op-side">
+                        <strong className={op.amount > 0 ? "report-bad" : "report-good"}>
+                          <bdi dir="ltr">{op.amount > 0 ? "+" : "−"}{formatAmount(Math.abs(op.amount))}</bdi> {currencyLabel(op.currency)}
+                        </strong>
+                        <small>
+                          عليه <bdi dir="ltr">{formatAmount(op.balanceAfter)}</bdi>
+                        </small>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
               <ul className="party-devices">
                 {repClients.map((row) => (
                   <li key={row.clientId}>
@@ -953,15 +1018,24 @@ function RepCard({
       )}
 
       {sheet?.kind === "transfer" && (
-        <PartySheet title={`نقل ديون زبائنه عليه - ${rep.name}`} onClose={() => setSheet(null)}>
-          <RepTransferForm
-            candidates={transferCandidates}
-            onConfirm={(ids) => {
-              onTransferClients(ids);
-              setSheet(null);
-              setPanel("clients");
-            }}
+        <PartySheet title={`كل زبائنه عليه - ${rep.name}`} onClose={() => setSheet(null)}>
+          {transferCandidates.length > 0 && (
+            <RepTransferForm
+              candidates={transferCandidates}
+              onConfirm={(ids) => {
+                onTransferClients(ids);
+                setPanel("clients");
+              }}
+            />
+          )}
+          <RepUntangleReview
+            plan={untangle}
+            repName={rep.name}
+            repNameOf={(id) => representatives.find((r) => r.id === id)?.name ?? "مندوب آخر"}
+            onMixedToRep={onMixedToRep}
+            onLooseDevice={onLooseDevice}
           />
+          {untangleCount === 0 && <p className="party-empty">✓ كل زبائن أجهزته عليه الآن - لا شيء لك عند زبائنه.</p>}
         </PartySheet>
       )}
 
@@ -1865,6 +1939,7 @@ const BOOK_LINE_LABELS: Record<BookLine["kind"], string> = {
   credit: "➖ له",
   payment: "💵 دفع للمندوب",
   movedOut: "↪️ نُقل رصيده",
+  paidUs: "💵 دفع لك مباشرة",
 };
 
 /** The rep's book on one customer - read only: the rep writes it from his bot. */
@@ -1920,6 +1995,74 @@ function RepClientBook({
 }
 
 /** Review before moving his customers' debts onto him - each one ticked by default. */
+/** The cases the operator decides himself before they move onto the rep. */
+function RepUntangleReview({
+  plan,
+  repName,
+  repNameOf,
+  onMixedToRep,
+  onLooseDevice,
+}: {
+  plan: RepUntanglePlan;
+  repName: string;
+  repNameOf: (repId: string) => string;
+  onMixedToRep: (clientId: string) => void;
+  onLooseDevice: (accountId: string) => void;
+}) {
+  if (plan.mixed.length === 0 && plan.loose.length === 0) return null;
+  return (
+    <div className="rep-untangle">
+      {plan.mixed.length > 0 && (
+        <>
+          <h4 className="rep-copy-ops-title">⚠️ زبائن مختلطون ({plan.mixed.length})</h4>
+          <p className="settings-hint">لهم أجهزة عند {repName} وأجهزة أخرى. «كله على {repName}» يجعل كل أجهزتهم وديونهم عليه.</p>
+          <ul className="party-devices">
+            {plan.mixed.map((m) => (
+              <li key={m.clientId} className="party-device rep-untangle-row">
+                <span className="rep-transfer-name">
+                  <strong>{m.name}</strong>
+                  <small>
+                    عنده: {m.repDevices.map((d) => d.name).join("، ")} · غيره: {m.otherDevices.map((d) => `${d.name}${d.repId ? ` (${repNameOf(d.repId)})` : " (لك)"}`).join("، ")}
+                  </small>
+                </span>
+                <span className="rep-client-balances">{bookText(m.balance)}</span>
+                <button
+                  type="button"
+                  className="text-action"
+                  onClick={() => {
+                    if (window.confirm(`كل أجهزة ${m.name} وديونه (${bookText(m.balance)}) تصبح على ${repName}؟`)) onMixedToRep(m.clientId);
+                  }}
+                >
+                  كله على {repName}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {plan.loose.length > 0 && (
+        <>
+          <h4 className="rep-copy-ops-title">📡 أجهزة بدون زبون ({plan.loose.length})</h4>
+          <p className="settings-hint">«👤 زبون باسم الجهاز» ينشئ له زبوناً ويجعله على {repName} بديونه.</p>
+          <ul className="party-devices">
+            {plan.loose.map((d) => (
+              <li key={d.accountId} className="party-device rep-untangle-row">
+                <span className="rep-transfer-name">
+                  <strong>{d.name}</strong>
+                </span>
+                <span className="rep-client-balances">{bookText(d.balance)}</span>
+                <button type="button" className="text-action" onClick={() => onLooseDevice(d.accountId)}>
+                  👤 زبون باسم الجهاز
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
+
 function RepTransferForm({
   candidates,
   onConfirm,
