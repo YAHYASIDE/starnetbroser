@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ensureEnglishStep, isEnglishText } from "./language";
+import { toVisibleText } from "./visibleText";
 
 // Fake/dummy fixtures only - none of this is real Starlink account data.
 const ARABIC_HOME = `
@@ -153,5 +156,42 @@ describe("ensureEnglishStep", () => {
     const seen = clicks("yes", "no");
     expect(ensureEnglishStep()).toBe("clicked");
     expect(seen).toEqual(["no"]);
+  });
+});
+
+describe("a Starlink page in French (or another Latin language) is not English", () => {
+  it("real snapshot (masked): a rep's device opened in French - read as not English, the ☰ is tapped", () => {
+    const html = readFileSync(join(__dirname, "fixtures", "real-home-french.html"), "utf8");
+    document.documentElement.innerHTML = html.replace(/^<!doctype html>/i, "");
+    document.documentElement.removeAttribute("lang");
+    expect(isEnglishText(toVisibleText(document.body))).toBe(false);
+    expect(ensureEnglishStep(false)).toBe("menu");
+  });
+
+  it("French and Spanish wording without the snapshot", () => {
+    const french = "Votre service Starlink est actif. Accédez à votre compte, gérez vos abonnements, vos appareils et la facturation pour votre équipement. Paramètres du compte et préférences.";
+    const spanish = "Tu servicio de Starlink está activo. Administra tus suscripciones, los dispositivos y la facturación para tu cuenta con una sola página. Configuración de la cuenta.";
+    expect(isEnglishText(french)).toBe(false);
+    expect(isEnglishText(spanish)).toBe(false);
+  });
+
+  it("an English page with a customer's accented name stays English", () => {
+    const english = "Home. Your Starlink service is active. Manage your subscriptions, your devices and the billing for this account. José Müller • ACC-0000-0000-DEMO. Service Location. Billing.";
+    expect(isEnglishText(english)).toBe(true);
+  });
+
+  it("the French region list: «États-Unis» marks the English entry, and «Non» answers the save question", () => {
+    document.documentElement.setAttribute("lang", "fr");
+    document.body.innerHTML = `
+      <div><div>États-Unis</div><button id="us">English</button></div>
+      <div><div>Canada</div><button id="ca">English</button><button>Français</button></div>`;
+    const seen = clicks("us", "ca");
+    expect(ensureEnglishStep(true)).toBe("clicked");
+    expect(seen).toEqual(["us"]);
+    document.body.innerHTML = `<div><p>Enregistrer la langue ?</p><button id="non">Non</button><button>Oui</button></div>`;
+    const answered = clicks("non");
+    expect(ensureEnglishStep(true)).toBe("clicked");
+    expect(answered).toEqual(["non"]);
+    document.documentElement.removeAttribute("lang");
   });
 });

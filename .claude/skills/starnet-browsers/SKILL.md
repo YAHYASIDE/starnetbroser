@@ -69,6 +69,10 @@ plus the rules learned from real misreads; keep it updated when you learn a new 
 ## Rules learned from real misreads (don't regress these)
 
 - Read in English: the Arabic UI synced badly; `language.ts` switches each device's browser once.
+  "Not English" is not only Arabic: a rep's device opened Starlink in **French** (€ prices) and passed
+  as English (Latin letters), so it was never switched and nothing was read (real, confirmed -
+  `fixtures/real-home-french.html`). `isEnglishText` also counts accented letters and French/Spanish/
+  Portuguese/German words; the switcher knows «Langue/Région/Pays», «États-Unis», «Non».
 - Starlink renders in the browser: right after a tap the old page is still shown, and Home's banners
   ("restricted", "scheduled to end") appear a moment later. Never trust a single early read - use
   the settled read; keep the Home minimum wait.

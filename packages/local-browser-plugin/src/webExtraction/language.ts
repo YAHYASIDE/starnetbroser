@@ -27,11 +27,26 @@ const MIN_LETTERS = 40;
  * "ACC-..." and plan codes are Latin even on an Arabic page, so an Arabic page never gets near 0. */
 const ARABIC_SHARE = 0.2;
 
+/** Accented Latin letters (é è à â ç ñ ã ...): French, Spanish, Portuguese... - an English page has
+ * next to none (only in a customer's own name). Real, confirmed: a rep's device opened Starlink in
+ * French (prices in €) and passed as "English" - Latin letters, no Arabic - so it was never
+ * switched and nothing on it could be read. */
+const ACCENTED_LETTER = /[À-ÖØ-öø-ÿ]/g;
+const MIN_ACCENTED = 6;
+const ACCENTED_SHARE = 0.003;
+const FOREIGN_WORDS = /\b(votre|vos|des|les|pour|avec|aux|sur|est|une|vous|nous|tu|su|sus|los|las|para|con|una|seu|sua|seus|suas|para|com|uma|ihr|ihre|und|mit|für|der|die|das)\b/gi;
+const ENGLISH_WORDS = /\b(the|your|and|for|with|you|this|our|are|of)\b/gi;
+
 export function isEnglishText(text: string): boolean | undefined {
   const arabic = (text.match(ARABIC_LETTER) ?? []).length;
   const latin = (text.match(LATIN_LETTER) ?? []).length;
   if (arabic + latin < MIN_LETTERS) return undefined;
-  return arabic / (arabic + latin) < ARABIC_SHARE;
+  if (arabic / (arabic + latin) >= ARABIC_SHARE) return false;
+  const accented = (text.match(ACCENTED_LETTER) ?? []).length;
+  if (accented >= MIN_ACCENTED && accented / (latin + accented) >= ACCENTED_SHARE) return false;
+  const foreign = (text.match(FOREIGN_WORDS) ?? []).length;
+  const english = (text.match(ENGLISH_WORDS) ?? []).length;
+  return !(foreign >= 6 && foreign > english * 2);
 }
 
 function directText(el: Element): string {
@@ -77,7 +92,7 @@ function tap(el: HTMLElement | null): boolean {
   return true;
 }
 
-const UNITED_STATES = /united states|الولايات المتحدة/i;
+const UNITED_STATES = /united states|الولايات المتحدة|états-unis|etats-unis|estados unidos/i;
 
 /** "English" in the region/language list - the one under "UNITED STATES" first (the operator's
  * choice), else the first English entry at all. */
@@ -106,8 +121,8 @@ function findEnglishOption(): HTMLElement | null {
   return null;
 }
 
-const SAVE_LANGUAGE_PROMPT = /حفظ اللغة|save (this )?language/i;
-const NO_ANSWER = /^(لا|no|no thanks|not now|لا شكرا|لا شكرًا)$/i;
+const SAVE_LANGUAGE_PROMPT = /حفظ اللغة|save (this )?language|enregistrer (la |cette )?langue|guardar (el |este )?idioma|salvar (o |este )?idioma/i;
+const NO_ANSWER = /^(لا|no|no thanks|not now|لا شكرا|لا شكرًا|non|non merci|pas maintenant|no gracias|não|nao|agora não)$/i;
 
 /** The "لا"/"No" button of the save-language question, when that question is on screen. */
 function findSaveLanguageNo(): HTMLElement | null {
@@ -132,16 +147,16 @@ function languageListOpen(): boolean {
   for (const el of Array.from(document.body.querySelectorAll("*"))) {
     const text = directText(el);
     if (!text || text.length > 30 || !isShown(el)) continue;
-    if (/^united states$|^الولايات المتحدة$/i.test(text)) return true;
+    if (/^(united states|الولايات المتحدة|états-unis|etats-unis|estados unidos)$/i.test(text)) return true;
     if (/^english\b/i.test(text) && ++english >= 2) return true;
   }
   return false;
 }
 
-const LANGUAGE_LABEL = /language|locale|region|country|اللغة|لغة|المنطقة|البلد|الدولة/i;
+const LANGUAGE_LABEL = /language|locale|region|country|اللغة|لغة|المنطقة|البلد|الدولة|\b(langue|région|pays|idioma|región|país|região|língua|sprache)\b/i;
 /** The picker's own face: a two-letter region code ("US", "SA", "MR"), optionally with a language. */
 const REGION_CODE = /^[A-Z]{2}(\s*[|/·-]\s*\S{2,12})?$/;
-const LANGUAGE_NAMES = /^(العربية|عربي|english)$/i;
+const LANGUAGE_NAMES = /^(العربية|عربي|english|français|francais|español|espanol|português|portugues|deutsch|italiano)$/i;
 /** Two capitals that are never a region picker (data units, buttons). */
 const NOT_REGIONS = new Set(["GB", "MB", "TB", "KB", "OK", "ID"]);
 
@@ -162,7 +177,7 @@ function findLanguageControl(): HTMLElement | null {
   return null;
 }
 
-const MENU_LABEL = /menu|navigation|القائمة|قائمة|التنقل/i;
+const MENU_LABEL = /menu|navigation|القائمة|قائمة|التنقل|menú/i;
 const MENU_CLASS = /hamburger|burger|menu|drawer/i;
 
 /** The ☰ button: by its own label/class first; else the top bar's outermost small icon on the
