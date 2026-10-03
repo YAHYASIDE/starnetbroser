@@ -74,15 +74,16 @@ final class SyncNotifier {
     private SyncNotifier() {
     }
 
-    static void notifySyncCompleted(Context context, int syncedAccountCount) {
+    /** Returns whether the notification was posted (it makes the phone's own sound). */
+    static boolean notifySyncCompleted(Context context, int syncedAccountCount) {
         if (syncedAccountCount <= 0) {
             // Nothing new was actually found this run (offline, no logged-in accounts yet, or
             // simply nothing changed) - a notification with nothing to report would just be noise.
-            return;
+            return false;
         }
         ensureChannel(context);
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
-            return;
+            return false;
         }
 
         String body = syncedAccountCount == 1
@@ -98,9 +99,11 @@ final class SyncNotifier {
 
         try {
             NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, builder.build());
+            return true;
         } catch (SecurityException e) {
             // Permission revoked between the areNotificationsEnabled() check above and this call -
             // never crash a sync run over a missing notification.
+            return false;
         }
     }
 

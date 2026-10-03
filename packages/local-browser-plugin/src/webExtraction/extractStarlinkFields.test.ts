@@ -765,4 +765,30 @@ describe("renewal date on the English Billing page - the operator's rule (1-28, 
     const fields = extractStarlinkFields(document);
     expect(fields.renewalDate).toBe(nextOccurrenceOfDay(24));
   });
+
+  it("a stopped account's «Payment due» (the failed payment's retry, day 1) never beats the «Subscription» invoice's day", () => {
+    document.body.innerHTML = `
+      <div>Billing</div>
+      <div>Payment due October 1.</div>
+      <div>Invoices</div>
+      <div>Due Date Description Status</div>
+      <div><div>9/24/2026</div><div>Subscription</div><div>Overdue</div></div>
+      <div><div>9/1/2026</div><div>Order</div><div>Overdue</div></div>
+      <div><div>8/24/2026</div><div>Subscription</div><div>Paid</div></div>
+      <div>Payments</div>
+      <div><div>10/1/2026</div><div>ARS 7,300.00</div><div>Failed</div></div>`;
+    expect(extractStarlinkFields(document).renewalDate).toBe(nextOccurrenceOfDay(24));
+  });
+
+  it("the invoice day also wins over a dated line elsewhere on the page", () => {
+    document.body.innerHTML = `
+      <div>Next billing date</div><div>October 10, 2026</div>
+      <div><div>9/24/2026</div><div>Subscription</div><div>Paid</div></div>`;
+    expect(extractStarlinkFields(document).renewalDate).toBe(nextOccurrenceOfDay(24));
+  });
+
+  it("without any invoice, «Payment due» still gives the day", () => {
+    document.body.innerHTML = `<div>Billing</div><div>Payment due October 7.</div>`;
+    expect(extractStarlinkFields(document).renewalDate).toBe(nextOccurrenceOfDay(7));
+  });
 });

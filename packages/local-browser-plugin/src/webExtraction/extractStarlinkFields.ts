@@ -152,7 +152,7 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
   if (planName) fields.planName = planName;
 
   const renewalDate = extractLabeledValue(lines, RENEWAL_DATE_LABELS) ?? extractRenewalBadgeDate(lines);
-  let resolvedRenewalDate: string | undefined;
+  let labeledRenewalDate: string | undefined;
   if (renewalDate) {
     const normalized = normalizeDateLike(renewalDate);
     // A real page can split a date's year/month from its day across separate text nodes, so the
@@ -161,24 +161,20 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
     // renewal date is worse than none, since expiryDay's fallback parsing can misread a bare
     // month digit as if it were the day.
     // Starlink's billing day is 1-28 (the operator's rule): a "31" is a misread (real, confirmed: a
-    // device showed 2026/10/31) - drop it and fall through to the billing day / invoices below.
-    if (isCompleteDate(normalized) && isPlausibleBillingDate(normalized)) resolvedRenewalDate = normalized;
+    // device showed 2026/10/31) - drop it and fall through to the other signals below.
+    if (isCompleteDate(normalized) && isPlausibleBillingDate(normalized)) labeledRenewalDate = normalized;
   }
-  // The Billing page's "دورة الفوترة" section has no other date signal on it at all (once the
-  // account is active, the standby banner and "النهاية" badge are both gone) - only a bare
-  // recurring due DAY, with no year in the text to normalize. Tried last, since a real full date
-  // found elsewhere is always more specific/trustworthy than a computed "next occurrence".
+  // The operator's rule (real, confirmed): the latest «Subscription» invoice at the bottom of
+  // Billing carries the TRUE billing day, so it wins over everything else on the page. A stopped
+  // account's Billing page still shows a "Payment due" date at the top - the retry of the failed
+  // payment (10/1), not the subscription day (24) - which made a device read 2026/11/01.
+  const invoiceDueDay = extractSubscriptionInvoiceDueDay(lines);
+  let resolvedRenewalDate: string | undefined = invoiceDueDay !== undefined ? nextOccurrenceOfDay(invoiceDueDay) : labeledRenewalDate;
+  // The Billing page's "دورة الفوترة" section: only a bare recurring due DAY, with no year in the
+  // text to normalize - used when neither an invoice nor a real dated signal is on the page.
   if (!resolvedRenewalDate) {
     const billingDueDay = extractBillingDueDay(lines);
     if (billingDueDay !== undefined) resolvedRenewalDate = nextOccurrenceOfDay(billingDueDay);
-  }
-  // Once suspended for non-payment, even the "دورة الفوترة" section above goes blank (see
-  // extractSubscriptionInvoiceDueDay's own doc) - the "الفواتير" invoice list is the only date
-  // signal left on the Billing page at all. Tried last of all: both a real dated signal and the
-  // recurring billing-cycle day are always more specific/trustworthy when either is present.
-  if (!resolvedRenewalDate) {
-    const invoiceDueDay = extractSubscriptionInvoiceDueDay(lines);
-    if (invoiceDueDay !== undefined) resolvedRenewalDate = nextOccurrenceOfDay(invoiceDueDay);
   }
   if (resolvedRenewalDate) fields.renewalDate = resolvedRenewalDate;
   // Reuses the very same resolved date (no separate parse) - the "scheduled to end" banner and
@@ -186,7 +182,7 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
   // different spots on the page. Only ever set alongside the banner itself, never inferred from
   // an ordinary renewal date alone (an account can have a real upcoming renewal with no
   // cancellation pending at all).
-  if (hasScheduledEndBanner(lines) && resolvedRenewalDate) fields.pendingCancellationDate = resolvedRenewalDate;
+  if (hasScheduledEndBanner(lines) && (labeledRenewalDate ?? resolvedRenewalDate)) fields.pendingCancellationDate = labeledRenewalDate ?? resolvedRenewalDate;
 
   const balance = extractBalance(lines);
   if (balance) {

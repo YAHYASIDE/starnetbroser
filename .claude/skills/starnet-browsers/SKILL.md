@@ -81,15 +81,20 @@ plus the rules learned from real misreads; keep it updated when you learn a new 
 - **The renewal (billing) day is always 1-28** - the operator's rule: Starlink never bills on the
   29th-31st, so such a date is a misread (a device once showed 2026/10/31). It is rejected in the
   extractor (`isPlausibleBillingDate`, `extractBillingDueDay`) and again in the web merge.
-- **Where the true day comes from, in order:** the Billing page's cycle ("Payment due September 7");
-  if it isn't there (e.g. a suspended account's blank cycle), the **invoice list at the bottom of
-  Billing: the latest row described «Subscription» / «اشتراك»** - never an «Order» / «طلب» row.
+- **Where the true day comes from, in order:** the **invoice list at the bottom of Billing: the
+  latest row described «Subscription» / «اشتراك»** - never an «Order» / «طلب» row - wins over
+  everything on the page; then a dated renewal line; then the cycle ("Payment due September 7").
+  Real, confirmed: a stopped account's "Payment due October 1" is the failed payment's retry, not
+  the billing day (24) - trusting it first showed 2026/11/01.
   Column order depends on the language: English is "Due Date, Description, Status" (date BEFORE the
   description), Arabic is status, description, date (date AFTER) - `extractSubscriptionInvoiceDueDay`
   learns the side from the rows themselves (which neighbor of each Subscription/Order cell is a
   date), the header only breaks a tie: on a real phone the header didn't come through as its own
   lines and the reader took the next Order's 9/1 (→ "2026/11/01").
 - Never put real account data in tests or fixtures; fake values only.
+- 🔔 Every finished sync rings once (`AlertSound`, the phone's notification tone; silent mode stays
+  silent): the device browser's «مزامنة» and every `AutoSyncWorker` run - unless its «تم التحديث»
+  notification already made the sound.
 - 📷 Camera / proof upload (Starlink's identity check): `CameraAccess` grants the camera only (never
   the microphone) while the visible page is Starlink; file inputs open Android's picker with the
   camera beside gallery/files (`CaptureFileProvider`, cache `starnet_capture/`). A file input's

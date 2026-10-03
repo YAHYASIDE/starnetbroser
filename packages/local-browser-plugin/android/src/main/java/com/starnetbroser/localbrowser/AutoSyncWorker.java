@@ -303,9 +303,11 @@ public class AutoSyncWorker extends Worker {
                 if (chatId != null) TelegramSendWorker.enqueueToRepBot(context, TelegramStore.ALERTS, chatId, TelegramText.repStoppedMessage(group.getValue()), null);
             }
         }
-        if (manual && !getInputData().getBoolean(INPUT_QUIET, false)) {
-            SyncNotifier.notifySyncCompleted(context, syncedAccountCount.get());
-        }
+        boolean notified = manual && !getInputData().getBoolean(INPUT_QUIET, false)
+            && SyncNotifier.notifySyncCompleted(context, syncedAccountCount.get());
+        // 🔔 Every finished run rings once (the operator's choice, automatic runs too) - unless the
+        // «تم التحديث» notification above already made the phone's sound.
+        if (!notified) AlertSound.play(context);
         return Result.success();
     }
 

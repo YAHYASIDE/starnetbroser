@@ -1177,6 +1177,8 @@ public class AccountBrowserActivity extends AppCompatActivity {
         } else {
             Toast.makeText(this, R.string.starnet_sync_nothing_found, Toast.LENGTH_LONG).show();
         }
+        // 🔔 The operator asked for a sound when a sync ends (silent mode stays silent).
+        AlertSound.play(this);
     }
 
     private static final int MENU_SNAPSHOT = 7001;
