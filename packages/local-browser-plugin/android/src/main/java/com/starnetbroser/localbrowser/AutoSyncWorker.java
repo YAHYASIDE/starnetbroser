@@ -530,6 +530,7 @@ public class AutoSyncWorker extends Worker {
                     }
                 }
                 if (deepRead) readDevices(context, webView, entry, script, teardown);
+                else if (billingDue(context, entry.accountId)) readBilling(context, webView, entry, script, teardown);
                 else teardown.run();
             }
         );
@@ -538,16 +539,18 @@ public class AutoSyncWorker extends Worker {
     /**
      * The dish/Wi-Fi dots only exist on the subscription's own page, inside "الأجهزة" - the same
      * walk "تحديث من Starlink" in the account's browser does: the "الاشتراكات" rail icon, the
-     * subscription row, open "الأجهزة" (only if closed), then read. Every step tolerates a miss;
+     * subscription row, open "الأجهزة" (only if closed), then read; then the Billing page (balance and
+     * the paying card) and Settings. Every step tolerates a miss;
      * leaving starlink.com, or the visit being torn down, ends it.
      */
     private void readDevices(Context context, WebView webView, AutoSyncAccountStore.Entry entry, String script, Runnable teardown) {
         Handler handler = new Handler(Looper.getMainLooper());
-        String clickSubs, clickRow, expandDevices, clickSettings;
+        String clickSubs, clickRow, expandDevices, clickBilling, clickSettings;
         try {
             clickSubs = StarlinkExtractorSupport.loadClickSubscriptionsRailItemScript(context);
             clickRow = StarlinkExtractorSupport.loadClickFirstSubscriptionRowScript(context);
             expandDevices = StarlinkExtractorSupport.loadExpandDevicesSectionScript(context);
+            clickBilling = StarlinkExtractorSupport.loadClickBillingRailItemScript(context);
             clickSettings = StarlinkExtractorSupport.loadClickSettingsRailItemScript(context);
         } catch (IOException e) {
             teardown.run();
@@ -555,15 +558,45 @@ public class AutoSyncWorker extends Worker {
         }
         // The same walk "تحديث من Starlink" does: the subscriptions list (every subscription's name -
         // a device can legitimately have more than one), then the subscription's own devices (the
-        // dish/Wi-Fi dots), then Settings → Users (which login email is Admin, i.e. the primary one).
+        // dish/Wi-Fi dots), then Billing (the balance and the card that pays it - "VISA ending in …";
+        // no billing icon on a limited email, so nothing new is read there), then Settings → Users
+        // (which login email is Admin, i.e. the primary one).
         Runnable settingsThenDone = () -> tapThen(context, webView, entry, teardown, handler, clickSettings, STEP_DELAY_MS,
             () -> extractAndSave(context, webView, entry, script, teardown));
+        Runnable billingThenSettings = () -> tapThen(context, webView, entry, teardown, handler, clickBilling, STEP_DELAY_MS,
+            () -> extractAndSave(context, webView, entry, script, settingsThenDone));
         Runnable expandThenDevice = () -> tapThen(context, webView, entry, teardown, handler, expandDevices, DEVICES_SETTLE_MS,
-            () -> readDevicePage(context, webView, entry, script, settingsThenDone, handler, false));
+            () -> readDevicePage(context, webView, entry, script, billingThenSettings, handler, false));
         Runnable rowThenExpand = () -> tapThen(context, webView, entry, teardown, handler, clickRow, STEP_DELAY_MS, expandThenDevice);
         // Click the subscriptions-rail icon, read the list page's names, then drill into the first row.
         tapThen(context, webView, entry, teardown, handler, clickSubs, STEP_DELAY_MS,
             () -> extractAndSave(context, webView, entry, script, rowThenExpand));
+    }
+
+    // ---- the Billing page on a run over many devices: once a week per device ----
+
+    private static final String BILLING_VISITS_PREFS = "starnet_billing_visits";
+    private static final long BILLING_VISIT_EVERY_MS = 7L * 24 * 60 * 60 * 1000;
+
+    /** A run over many devices stays on Home (pace, rate limit) - but the card that pays each device
+     * ("Payment Method - VISA ending in …") is only on Billing, so each device visits it once a week. */
+    private static boolean billingDue(Context context, String accountId) {
+        long last = context.getSharedPreferences(BILLING_VISITS_PREFS, Context.MODE_PRIVATE).getLong(accountId, 0L);
+        return System.currentTimeMillis() - last >= BILLING_VISIT_EVERY_MS;
+    }
+
+    private void readBilling(Context context, WebView webView, AutoSyncAccountStore.Entry entry, String script, Runnable teardown) {
+        String clickBilling;
+        try {
+            clickBilling = StarlinkExtractorSupport.loadClickBillingRailItemScript(context);
+        } catch (IOException e) {
+            teardown.run();
+            return;
+        }
+        // Remembered on the attempt: a limited email (no billing icon) isn't retried every run.
+        context.getSharedPreferences(BILLING_VISITS_PREFS, Context.MODE_PRIVATE).edit().putLong(entry.accountId, System.currentTimeMillis()).apply();
+        Handler handler = new Handler(Looper.getMainLooper());
+        tapThen(context, webView, entry, teardown, handler, clickBilling, STEP_DELAY_MS, () -> extractAndSave(context, webView, entry, script, teardown));
     }
 
     /** Clicks one navigation script, waits `delay` for the page to settle, then runs `next` - the
