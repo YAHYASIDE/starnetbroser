@@ -131,7 +131,9 @@ import {
   triggerImmediateSync,
 } from "@/lib/localBrowser";
 import { SyncChoiceSheet, SyncQueueBar } from "./SyncNowSheet";
-import { loadSyncQueue, localToday, nextQueuedAccount, queueProgressLabel, saveSyncQueue, startSyncQueue, type SyncWindow } from "@/lib/syncQueue";
+import { loadSyncQueue, localToday, nextQueuedAccount, queueProgressLabel, saveSyncQueue, startSyncQueue, syncQueueFor, type SyncWindow } from "@/lib/syncQueue";
+import { DayActionsSheet } from "./DayActionsSheet";
+import { accountsForDay } from "@/lib/dayActions";
 import { depositLabel, kastDevicesSnapshot } from "@/lib/kastCards";
 import {
   accountIdsNeedingLogin,
@@ -508,6 +510,17 @@ export function HomeView({
       pushToast("لا توجد أجهزة في هذا الاختيار");
       return;
     }
+    saveSyncQueue(queue);
+    void runNextQueued();
+  }
+
+  // 📅 Long press on a calendar day: that day's actions (DayActionsSheet).
+  const [longPressDay, setLongPressDay] = useState<number | null>(null);
+
+  function syncDay(day: number) {
+    setLongPressDay(null);
+    const queue = syncQueueFor(accountsForDay(activeAccountsRef.current, day).map((a) => a.id), `يوم ${day}`);
+    if (!queue) return;
     saveSyncQueue(queue);
     void runNextQueued();
   }
@@ -1150,6 +1163,8 @@ export function HomeView({
   // operates on active devices - an archived or soft-deleted one is reached only through its own
   // dedicated view (see viewMode), never mixed into these counts/lists.
   const activeAccounts = useMemo(() => accounts.filter((a) => !a.archivedAt && !a.deletedAt), [accounts]);
+  const activeAccountsRef = useRef(activeAccounts);
+  activeAccountsRef.current = activeAccounts;
   const archivedAccounts = useMemo(() => accounts.filter((a) => a.archivedAt), [accounts]);
   const trashAccounts = useMemo(() => accounts.filter((a) => a.deletedAt), [accounts]);
   const needsLoginIds = useMemo(
@@ -1343,6 +1358,16 @@ export function HomeView({
   return (
     <main className="home app-shell">
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
+      {longPressDay !== null && (
+        <DayActionsSheet
+          day={longPressDay}
+          dayAccounts={accountsForDay(activeAccounts, longPressDay)}
+          reps={representativeStore}
+          phoneFor={(account) => getClient(clientStore, account.clientId)?.phone ?? account.phone}
+          onSync={() => syncDay(longPressDay)}
+          onClose={() => setLongPressDay(null)}
+        />
+      )}
       {syncChoiceOpen && <SyncChoiceSheet accounts={accounts} today={localToday()} onPick={startSyncRun} onClose={() => setSyncChoiceOpen(false)} />}
       {queueStep && (
         <SyncQueueBar
@@ -1611,6 +1636,7 @@ export function HomeView({
               counts={dayCounts}
               selectedDay={selectedDay}
               onSelectDay={(day) => { setSelectedDay(day); setStatFilter(null); }}
+              onLongPressDay={setLongPressDay}
             />
           </section>
         </>

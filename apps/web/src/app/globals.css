@@ -12049,3 +12049,65 @@ button.today-tile {
 .sync-queue-stop {
   color: var(--red);
 }
+
+/* 📅 Long press on a day: the rows of its sheet (reps, customers, summary). */
+.day-circle {
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+.day-sheet-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.day-sheet-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  font-size: 0.88rem;
+}
+
+.day-sheet-row > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.day-sheet-row small,
+.day-sheet-muted {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.day-sheet-wa {
+  flex-shrink: 0;
+  padding: 5px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--green);
+  color: #fff;
+  font-size: 0.8rem;
+  text-decoration: none;
+}
+
+.day-sheet-ok {
+  color: var(--green);
+  font-size: 0.8rem;
+}
+
+.day-sheet-bad {
+  color: var(--red);
+  font-size: 0.8rem;
+}
+
+.day-sheet-amount {
+  display: block;
+  text-align: end;
+}

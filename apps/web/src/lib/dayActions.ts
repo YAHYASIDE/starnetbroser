@@ -1,0 +1,78 @@
+/**
+ * 📅 Long-press on a day of «التجديد حسب اليوم»: what that day's devices need - each rep gets the
+ * names and emails of his devices renewing that day (reps bot), the day's devices are synced one by
+ * one, customers get a WhatsApp reminder, and a short summary of the day.
+ */
+
+import { expiryDay, type StarlinkAccountSummary } from "@starnet/shared";
+import type { RepresentativeStore } from "./repStore";
+
+/** The devices of a calendar day - the same matching as the day circles' counts. */
+export function accountsForDay(accounts: StarlinkAccountSummary[], day: number): StarlinkAccountSummary[] {
+  return accounts.filter((account) => expiryDay(account.rechargeDate || account.standbyDate) === day);
+}
+
+export function accountEmail(account: StarlinkAccountSummary): string {
+  return account.expectedEmail?.trim() || account.starlinkAccountEmail?.trim() || "";
+}
+
+export interface RepDayMessage {
+  repId: string;
+  repName: string;
+  phone?: string;
+  count: number;
+  text: string;
+}
+
+/** One message per rep: "📅 أجهزتك يوم 4" then one line per device - its name and email. */
+export function repDayMessages(dayAccounts: StarlinkAccountSummary[], day: number, reps: RepresentativeStore): { messages: RepDayMessage[]; withoutRep: number } {
+  const byRep = new Map<string, StarlinkAccountSummary[]>();
+  let withoutRep = 0;
+  for (const account of dayAccounts) {
+    const rep = account.representativeId ? reps[account.representativeId] : undefined;
+    if (!rep) {
+      withoutRep++;
+      continue;
+    }
+    byRep.set(rep.id, [...(byRep.get(rep.id) ?? []), account]);
+  }
+  const messages = [...byRep.entries()].map(([repId, list]) => {
+    const rep = reps[repId]!;
+    const lines = list.map((account) => `• ${account.name} — ${accountEmail(account) || "بلا إيميل"}`);
+    return {
+      repId,
+      repName: rep.name,
+      phone: rep.phone,
+      count: list.length,
+      text: [`📅 أجهزتك يوم ${day} (${list.length}):`, ...lines].join("\n"),
+    };
+  });
+  return { messages: messages.sort((a, b) => b.count - a.count || a.repName.localeCompare(b.repName)), withoutRep };
+}
+
+export interface DaySummary {
+  count: number;
+  stopped: number;
+  faulty: number;
+  /** What the customers pay for one month, per currency (devices with a monthly price). */
+  salesByCurrency: Record<string, number>;
+  /** What Starlink charges for that month, per currency. */
+  costByCurrency: Record<string, number>;
+  withoutPrice: number;
+}
+
+export function daySummary(dayAccounts: StarlinkAccountSummary[]): DaySummary {
+  const summary: DaySummary = { count: dayAccounts.length, stopped: 0, faulty: 0, salesByCurrency: {}, costByCurrency: {}, withoutPrice: 0 };
+  for (const account of dayAccounts) {
+    if (account.serviceStatus === "suspended") summary.stopped++;
+    if (account.deviceFault) summary.faulty++;
+    const plan = account.renewalPlan;
+    if (!plan) {
+      summary.withoutPrice++;
+      continue;
+    }
+    summary.salesByCurrency[plan.saleCurrency] = (summary.salesByCurrency[plan.saleCurrency] ?? 0) + plan.saleAmount;
+    summary.costByCurrency[plan.costCurrency] = (summary.costByCurrency[plan.costCurrency] ?? 0) + plan.costAmount;
+  }
+  return summary;
+}

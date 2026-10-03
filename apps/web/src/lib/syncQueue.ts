@@ -59,6 +59,11 @@ export function startSyncQueue(accounts: StarlinkAccountSummary[], window: SyncW
   return { ids, index: 0, label: SYNC_WINDOWS.find((w) => w.window === window)?.label ?? "" };
 }
 
+/** A run over chosen devices (e.g. the long-pressed day's), in the given order. */
+export function syncQueueFor(ids: string[], label: string): SyncQueue | null {
+  return ids.length === 0 ? null : { ids: [...ids], index: 0, label };
+}
+
 /** The next device still on the phone (one deleted meanwhile is skipped), or null when finished. */
 export function nextQueuedAccount(queue: SyncQueue, accounts: StarlinkAccountSummary[]): { account: StarlinkAccountSummary; index: number } | null {
   for (let i = queue.index; i < queue.ids.length; i++) {
