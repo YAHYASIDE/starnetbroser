@@ -136,7 +136,7 @@ export function recordHash(record: unknown): string {
 /** Fields the device's own Starlink sync writes - never a "change" the rep made: the newest read
  * (by lastSuccessfulScanAt) wins on a rebase instead. */
 const SYNC_FIELDS = [
-  "accountNumber", "balanceDue", "currency", "dataUsageGb", "dishStatus", "dotTrace", "isRestricted",
+  "accountNumber", "balanceDue", "currency", "dataUsageGb", "dishAlerts", "dishStatus", "dotTrace", "isRestricted",
   "lastSuccessfulScanAt", "lastUpdated", "limitedAccess", "movingRestricted", "noSubscription", "oceanMode",
   "pendingCancellationDate", "planName", "priorityDataExhausted", "rechargeDate", "serialNumber", "serviceCountry",
   "serviceStatus", "starlinkAccountEmail", "starlinkAccountHolderName", "starlinkId", "subscriptionId", "subscriptions",

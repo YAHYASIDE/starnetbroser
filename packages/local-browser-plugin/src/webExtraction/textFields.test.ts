@@ -26,6 +26,7 @@ import {
   nextOccurrenceOfDay,
   normalizeDateLike,
   extractPaymentCardLast4,
+  extractDishAlerts,
 } from "./textFields";
 
 // Fake/dummy line arrays only - none of this is real Starlink account data.
@@ -513,5 +514,30 @@ describe("extractPaymentCardLast4 - the Billing page's Payment Method card", () 
     expect(extractPaymentCardLast4(["Your payment using the card ending in 1111 failed"])).toBeUndefined();
     expect(extractPaymentCardLast4(["Payment Method", "a", "b", "c", "d", "e", "f", "VISA ending in 2222"])).toBeUndefined();
     expect(extractPaymentCardLast4(["Payment Method", "Add a payment method"])).toBeUndefined();
+  });
+});
+
+describe("extractDishAlerts - the alert boxes under «الأجهزة»", () => {
+  it("reads each sentence followed by «Learn More», once", () => {
+    const lines = [
+      "STARLINK",
+      "WIFI 0000000",
+      "Starlink is partially obstructed. Check that the Starlink is in an unobstructed location in all directions.",
+      "Learn More",
+      "Starlink is rate limited as it is out of priority data.",
+      "Learn More",
+      "Reboot",
+      "Transfer",
+    ];
+    expect(extractDishAlerts(lines)).toEqual([
+      "Starlink is partially obstructed. Check that the Starlink is in an unobstructed location in all directions.",
+      "Starlink is rate limited as it is out of priority data.",
+    ]);
+  });
+
+  it("ignores short lines, buttons, and pages without alerts", () => {
+    expect(extractDishAlerts(["STARLINK", "Learn More"])).toEqual([]);
+    expect(extractDishAlerts(["Reboot", "Transfer", "WIFI 0000000"])).toEqual([]);
+    expect(extractDishAlerts(["ستارلينك محجوب جزئياً عن السماء", "اعرف المزيد"])).toEqual(["ستارلينك محجوب جزئياً عن السماء"]);
   });
 });

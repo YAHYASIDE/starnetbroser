@@ -38,6 +38,7 @@ const FIELD_INFO: Record<keyof SyncedStarlinkFields, { label: string; section: S
   serviceCountry: { label: "دولة الجهاز", section: "subscriptions" },
   oceanMode: { label: "وضع المحيط", section: "subscriptions" },
   priorityDataExhausted: { label: "نفاد باقة الأولوية", section: "subscriptions" },
+  dishAlerts: { label: "تنبيهات الطبق", section: "devices" },
   noSubscription: { label: "لا توجد اشتراكات", section: "subscriptions" },
   dotTrace: { label: "تشخيص النقاط", section: "devices" },
   dataUsageGb: { label: "إجمالي استهلاك الباقة", section: "subscriptions" },
@@ -282,6 +283,13 @@ export function mergeSyncedFields(
   }
 
   // Explicit true/false: the usage figure shown without the banner clears it (a new cycle).
+  // A read of the devices section always sends its list (possibly empty - the alerts are gone).
+  if (Array.isArray(fields.dishAlerts)) {
+    const alerts = fields.dishAlerts.map((a) => String(a).trim()).filter(Boolean).slice(0, 10);
+    note("dishAlerts", JSON.stringify(next.dishAlerts ?? []) !== JSON.stringify(alerts));
+    next.dishAlerts = alerts;
+  }
+
   if (fields.priorityDataExhausted !== undefined) {
     note("priorityDataExhausted", next.priorityDataExhausted !== fields.priorityDataExhausted);
     next.priorityDataExhausted = fields.priorityDataExhausted;

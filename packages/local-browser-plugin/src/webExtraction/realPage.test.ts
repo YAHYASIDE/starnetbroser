@@ -19,6 +19,8 @@ describe("real Starlink page (snapshot) - الأجهزة with both dots red", ()
     expect(fields.dishStatus).toBe("offline");
     expect(fields.wifiStatus).toBe("offline");
     expect(fields.dotTrace).toContain("STARLINK#3=offline");
+    // No alert boxes on this page: an explicit empty list (clears alerts that are gone).
+    expect(fields.dishAlerts).toEqual([]);
   });
 
   it("reads Ocean Mode OFF from the real switch", () => {

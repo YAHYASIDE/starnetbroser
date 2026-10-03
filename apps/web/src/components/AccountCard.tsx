@@ -35,6 +35,7 @@ import {
 import { DeviceFaultDialog } from "./DeviceFaultDialog";
 import { DeviceGmailButton } from "./DeviceGmailButton";
 import { useCardGestures } from "./useCardGestures";
+import { describeDishAlerts } from "@/lib/dishAlerts";
 import { RenewalConfirmDialog } from "./RenewalConfirmDialog";
 import { PreviousDebtDialog } from "./PreviousDebtDialog";
 
@@ -351,6 +352,8 @@ export function AccountCard({
   // never a second toggle elsewhere on the same card.
   const [expanded, setExpanded] = useState(false);
   const [showMore, setShowMore] = useState(false);
+  const [showDishAlerts, setShowDishAlerts] = useState(false);
+  const dishAlerts = describeDishAlerts(account.dishAlerts);
   // No "التفاصيل" button: hold the card for its details, tap twice for a payment, 3 times to edit.
   const gestures = useCardGestures((gesture) => {
     if (gesture === "details") setExpanded((v) => !v);
@@ -620,9 +623,15 @@ export function AccountCard({
 
       <div className="account-card-mini-row">
         <span className="device-dots" title={`الطبق (STARLINK): ${dishDot.word} · الواي فاي: ${wifiDot.word}`}>
-          <span className={`device-dot device-dot-${dishDot.tone}`}>
+          <button
+            type="button"
+            className={`device-dot device-dot-${dishDot.tone} device-dot-button`}
+            onClick={() => setShowDishAlerts(true)}
+            aria-label="تنبيهات الطبق"
+          >
             <i aria-hidden="true" /> <IconDish /> الطبق: {dishDot.word}
-          </span>
+            {dishAlerts.length > 0 && <span className="device-dot-count">⚠️{dishAlerts.length}</span>}
+          </button>
           <span className={`device-dot device-dot-${wifiDot.tone}`}>
             <i aria-hidden="true" /> <IconWifi /> واي فاي: {wifiDot.word}
           </span>
@@ -807,6 +816,41 @@ export function AccountCard({
             <button className="card-action" title="تعديل البيانات" onClick={() => onEdit(account)}>
               <span aria-hidden="true">✎</span> تعديل البيانات
             </button>
+          </div>
+        </div>
+      )}
+
+      {showDishAlerts && (
+        <div className="party-sheet-backdrop" role="presentation" onClick={() => setShowDishAlerts(false)}>
+          <div className="party-sheet" role="dialog" aria-modal="true" aria-label="تنبيهات الطبق" onClick={(e) => e.stopPropagation()}>
+            <div className="party-sheet-head">
+              <strong>📡 الطبق: {dishDot.word}</strong>
+              <button type="button" className="dialog-close" onClick={() => setShowDishAlerts(false)} aria-label="إغلاق">
+                ×
+              </button>
+            </div>
+            {dishAlerts.length === 0 ? (
+              <p className="settings-hint">
+                {account.dishAlerts ? "لا تنبيهات على الطبق في آخر قراءة." : "لم تُقرأ تنبيهات الطبق بعد - اضغط «مزامنة» داخل متصفح الجهاز."}
+              </p>
+            ) : (
+              <ul className="dish-alert-list">
+                {dishAlerts.map((alert) => (
+                  <li key={alert.original} className="dish-alert">
+                    <strong>
+                      <span aria-hidden="true">{alert.icon}</span> {alert.title}
+                    </strong>
+                    {alert.advice && <span>{alert.advice}</span>}
+                    {alert.title !== alert.original && (
+                      <small dir="ltr" lang="en">
+                        {alert.original}
+                      </small>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {lastSynced && <p className="settings-hint">آخر قراءة: {lastSynced}</p>}
           </div>
         </div>
       )}

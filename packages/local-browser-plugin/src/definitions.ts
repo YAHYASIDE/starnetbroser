@@ -202,6 +202,10 @@ export interface SyncedStarlinkFields {
   /** "لا توجد اشتراكات" on the subscriptions page: this email has no subscription (canceled or
    * moved away) - the device shows under «المعطلة» as ملغي اشتراك. Explicit true/false. */
   noSubscription?: boolean;
+  /** The alerts Starlink lists under «الأجهزة» (each box with «Learn More»), as shown - e.g.
+   * "Starlink is partially obstructed. …". Set (possibly empty) only when the devices section was
+   * read, so an empty list clears alerts that are gone. */
+  dishAlerts?: string[];
   /** Diagnostic: what the dot reader saw under "الأجهزة" (labels, results, candidate colors) -
    * shown in the device's edit dialog, to fix a dot that reads wrong. No account data. */
   dotTrace?: string;

@@ -245,6 +245,16 @@ describe("mergeSyncedFields - the card that pays the device", () => {
   });
 });
 
+describe("mergeSyncedFields - the dish's alerts", () => {
+  it("keeps the latest list, and an empty list clears alerts that are gone", () => {
+    const withAlerts = mergeSyncedFields(baseAccount(), { dishAlerts: ["Starlink is partially obstructed."] });
+    expect(withAlerts.account.dishAlerts).toEqual(["Starlink is partially obstructed."]);
+    expect(withAlerts.updatedFields.map((f) => f.field)).toContain("dishAlerts");
+    expect(mergeSyncedFields(withAlerts.account, { dishAlerts: [] }).account.dishAlerts).toEqual([]);
+    expect(mergeSyncedFields(withAlerts.account, { planName: "x" }).account.dishAlerts).toEqual(["Starlink is partially obstructed."]);
+  });
+});
+
 describe("formatSyncMessage - three distinct outcomes", () => {
   it("shows the 'nothing found' message only when the page had nothing recognizable at all", () => {
     const message = formatSyncMessage("mounay", [], false);

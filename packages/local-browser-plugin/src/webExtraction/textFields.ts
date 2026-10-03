@@ -741,3 +741,21 @@ export function extractPaymentCardLast4(lines: string[]): string | undefined {
   }
   return undefined;
 }
+
+/** Under «الأجهزة» Starlink lists the dish's alerts as boxes - a sentence, then «Learn More»
+ * ("Starlink is partially obstructed. Check that…", "Starlink is rate limited as it is out of
+ * priority data.", real, confirmed screenshot). An alert is a sentence whose next line or the one
+ * after is that button. Returned as shown (the app translates the ones it knows). */
+export const ALERT_MORE_LABELS = ["learn more", "اعرف المزيد", "معرفة المزيد", "تعرّف على المزيد", "تعرف على المزيد"];
+
+export function extractDishAlerts(lines: string[]): string[] {
+  const isMore = (line: string | undefined) => line !== undefined && ALERT_MORE_LABELS.includes(line.trim().toLowerCase());
+  const alerts: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const text = lines[i]!.replace(/\s+/g, " ").trim();
+    if (text.length < 15 || text.length > 300 || isMore(text)) continue;
+    if (!(isMore(lines[i + 1]) || (isMore(lines[i + 2]) && (lines[i + 1] ?? "").trim().length < 15))) continue;
+    if (!alerts.includes(text)) alerts.push(text);
+  }
+  return alerts;
+}

@@ -150,6 +150,9 @@ export interface StarlinkAccountSummary {
   oceanMode?: boolean;
   /** "باقة الأولوية نفدت" banner: the plan's priority data (e.g. 100 GB) is used up - the service
    * still works, at limited speed, until the next cycle. Explicit true/false like isRestricted. */
+  /** The alerts Starlink lists under «الأجهزة» (as shown, e.g. "Starlink is partially obstructed.
+   * …"), from the latest read of that section - empty when it showed none. */
+  dishAlerts?: string[];
   priorityDataExhausted?: boolean;
   /** "لا توجد اشتراكات" on the subscriptions page: this email has no subscription (canceled or
    * moved away) - the device shows under «المعطلة» as ملغي اشتراك. Explicit true/false. */

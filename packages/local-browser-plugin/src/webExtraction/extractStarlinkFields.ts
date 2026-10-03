@@ -15,6 +15,7 @@ import {
   extractDataUsageGb,
   extractLabeledValue,
   extractPaymentCardLast4,
+  extractDishAlerts,
   extractPhoneNumber,
   extractAdminUserKeys,
   extractSubscriptionNames,
@@ -83,6 +84,9 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
     const wifiStatus = extractDeviceStatus(doc, WIFI_LABELS, { after: devicesHeading, trace, rowLabels });
     if (wifiStatus) fields.wifiStatus = wifiStatus;
     if (devicesHeading && trace.length > 0) fields.dotTrace = trace.join(" · ").slice(0, 700);
+    // The alerts listed with the devices («Learn More» boxes). Set (even empty) only while the
+    // devices section is on screen with its dish read - an empty list then clears old alerts.
+    if (devicesHeading && dishStatus) fields.dishAlerts = extractDishAlerts(lines);
   }
 
   // The real page never prints a labeled "الحالة: ..." line for most states - the status badge
