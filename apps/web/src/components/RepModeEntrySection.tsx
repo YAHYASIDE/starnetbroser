@@ -18,21 +18,19 @@ export function RepModeEntrySection() {
 
   return (
     <section className="section">
-      <details className="rep-mode-entry">
-        <summary className="section-title">📱 وضع المندوب</summary>
-        <p className="settings-hint">
-          لهاتف المندوب فقط: يضيف أجهزة زبائنه ويسجّل دخولها إلى Starlink، ثم يرسلها للمسؤول عبر بوت المندوبين. الرمز يعطيه المسؤول من صفحة
-          المندوبين ← إدارة ← «رمز تطبيق المندوب».
-        </p>
-        <input className="search-input" dir="ltr" value={code} onChange={(e) => setCode(e.target.value)} placeholder="XXXX-XXXX-XXXX" autoCapitalize="characters" />
-        <input className="search-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="اسمك (اختياري)" />
-        {error && <p className="settings-hint telegram-stopped">{error}</p>}
-        <div className="settings-actions">
-          <button type="button" className="dialog-primary" onClick={enter}>
-            تفعيل وضع المندوب
-          </button>
-        </div>
-      </details>
+      <h2 className="section-title">📱 وضع المندوب</h2>
+      <p className="settings-hint">
+        لهاتف المندوب فقط: يضيف أجهزة زبائنه ويسجّل دخولها إلى Starlink، ثم يرسلها للمسؤول عبر بوت المندوبين. الرمز يعطيه المسؤول من صفحة
+        المندوبين ← إدارة ← «رمز تطبيق المندوب».
+      </p>
+      <input className="search-input" dir="ltr" value={code} onChange={(e) => setCode(e.target.value)} placeholder="XXXX-XXXX-XXXX" autoCapitalize="characters" />
+      <input className="search-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="اسمك (اختياري)" />
+      {error && <p className="settings-hint telegram-stopped">{error}</p>}
+      <div className="settings-actions">
+        <button type="button" className="dialog-primary" onClick={enter}>
+          تفعيل وضع المندوب
+        </button>
+      </div>
     </section>
   );
 }

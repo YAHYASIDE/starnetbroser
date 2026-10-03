@@ -455,6 +455,11 @@ export interface LocalBrowserPlugin {
   /** The page a 📌 shortcut opened the app on (once), or null. */
   takeShortcutRoute(): Promise<{ route: string | null }>;
 
+  /** 🖐 A fingerprint (or face) can unlock the app on this phone right now. */
+  biometricStatus(): Promise<{ available: boolean }>;
+  /** 🖐 Android's fingerprint prompt - `ok` only when the finger was accepted (never rejects). */
+  authenticateBiometric(options: { title: string; subtitle?: string; cancel: string }): Promise<{ ok: boolean; error?: string }>;
+
   removeAllListeners(): Promise<void>;
 
   /**

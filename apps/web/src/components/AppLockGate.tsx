@@ -5,6 +5,7 @@ import { App } from "@capacitor/app";
 import {
   formatLockoutWait,
   hasAppPin,
+  isBiometricUnlockEnabled,
   isInternalLeave,
   loadPinFailures,
   lockoutRemainingMs,
@@ -13,7 +14,7 @@ import {
   shouldRelock,
   verifyAppPin,
 } from "@/lib/appLock";
-import { isRunningInAndroidApp } from "@/lib/localBrowser";
+import { isRunningInAndroidApp, unlockWithBiometric } from "@/lib/localBrowser";
 
 /**
  * Gates every page/BottomNav behind an optional PIN (الإعدادات → "قفل التطبيق"). Asked on every
@@ -21,6 +22,8 @@ import { isRunningInAndroidApp } from "@/lib/localBrowser";
  * (never after the app's own device-browser hand-off). A re-lock only covers the pages - they stay
  * mounted underneath, so a half-filled form is still there after unlocking. Five wrong PINs in a
  * row start a growing wait (30s, 1m, 2m, ... up to 15m) that survives closing the app.
+ * 🖐 With «فتح بالبصمة» on, the phone's fingerprint prompt opens by itself on the lock screen;
+ * «استخدم الرمز» (or a refused finger) leaves the PIN, which always works.
  * An operator who never sets a PIN never sees anything from this component at all.
  */
 export function AppLockGate({ children }: { children: React.ReactNode }) {
@@ -36,6 +39,8 @@ export function AppLockGate({ children }: { children: React.ReactNode }) {
   const [now, setNow] = useState(() => Date.now());
   const [failures, setFailures] = useState(() => ({ count: 0, lockedUntil: 0 }));
   const hidden = useRef<{ at: number; internal: boolean } | null>(null);
+  const [biometric, setBiometric] = useState(false);
+  const asking = useRef(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
   // The covered pages must not be reachable by keyboard/screen reader while locked.
@@ -52,7 +57,33 @@ export function AppLockGate({ children }: { children: React.ReactNode }) {
     setUnlocked(!locked);
     setEverUnlocked(!locked);
     setFailures(loadPinFailures());
+    setBiometric(isRunningInAndroidApp() && isBiometricUnlockEnabled());
   }, []);
+
+  function unlock() {
+    const cleared = { count: 0, lockedUntil: 0 };
+    setFailures(cleared);
+    savePinFailures(cleared);
+    setError(null);
+    setPin("");
+    setUnlocked(true);
+    setEverUnlocked(true);
+  }
+
+  async function askFinger() {
+    if (asking.current) return;
+    asking.current = true;
+    const ok = await unlockWithBiometric();
+    asking.current = false;
+    if (ok) unlock();
+  }
+
+  // Each time the lock screen appears: the fingerprint prompt first.
+  useEffect(() => {
+    if (unlocked !== false || !biometric) return;
+    void askFinger();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unlocked, biometric]);
 
   useEffect(() => {
     const onHide = () => {
@@ -106,12 +137,7 @@ export function AppLockGate({ children }: { children: React.ReactNode }) {
       setError("رمز غير صحيح");
       return;
     }
-    const cleared = { count: 0, lockedUntil: 0 };
-    setFailures(cleared);
-    savePinFailures(cleared);
-    setError(null);
-    setUnlocked(true);
-    setEverUnlocked(true);
+    unlock();
   }
 
   // One stable tree whether or not a re-lock is showing, so the pages never remount.
@@ -141,7 +167,7 @@ export function AppLockGate({ children }: { children: React.ReactNode }) {
           inputMode="numeric"
           maxLength={6}
           dir="ltr"
-          autoFocus
+          autoFocus={!biometric}
           placeholder="••••"
           value={pin}
           disabled={waitMs > 0}
@@ -157,6 +183,11 @@ export function AppLockGate({ children }: { children: React.ReactNode }) {
         <button className="dialog-primary app-lock-submit" type="submit" disabled={!pin || checking || waitMs > 0}>
           {checking ? "جارٍ التحقق…" : "فتح"}
         </button>
+        {biometric && (
+          <button type="button" className="dialog-secondary app-lock-submit" onClick={() => void askFinger()}>
+            🖐 البصمة
+          </button>
+        )}
       </form>
     </main>
   );

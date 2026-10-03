@@ -6,6 +6,8 @@ import {
   RELOCK_AFTER_MS,
   clearAppPin,
   formatLockoutWait,
+  isBiometricUnlockEnabled,
+  setBiometricUnlockEnabled,
   hasAppPin,
   isInternalLeave,
   loadPinFailures,
@@ -31,6 +33,17 @@ describe("appLock", () => {
     await setAppPin("1234");
     expect(hasAppPin()).toBe(true);
     await expect(verifyAppPin("1234")).resolves.toBe(true);
+  });
+
+  it("fingerprint unlock needs a PIN, and removing the PIN turns it off", async () => {
+    setBiometricUnlockEnabled(true);
+    expect(isBiometricUnlockEnabled()).toBe(false);
+    await setAppPin("1234");
+    setBiometricUnlockEnabled(true);
+    expect(isBiometricUnlockEnabled()).toBe(true);
+    clearAppPin();
+    await setAppPin("1234");
+    expect(isBiometricUnlockEnabled()).toBe(false);
   });
 
   it("rejects a wrong PIN", async () => {

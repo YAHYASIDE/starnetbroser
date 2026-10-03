@@ -4,16 +4,21 @@ import { useEffect, useState } from "react";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { listAccounts } from "@/lib/apiClient";
 import { loadDemoAccounts } from "@/lib/demoAccountStore";
+import { normalizeSearchText } from "@/lib/homeInsights";
 import { isDemoMode } from "@/lib/settingsStore";
+import { settingsItem } from "@/lib/settingsGroups";
 import { usedPasswords, type UsedPassword } from "@/lib/usedPasswords";
+import { PartySheet } from "./AccountsSection";
 
-const SHOWN = 10;
-
-/** 🔑 Every password on the devices, most used first (usedPasswords.ts) - shown as-is, with copy. */
+/** 🔑 Every password on the devices, most used first (usedPasswords.ts): one line in الإعدادات
+ * («كلمات المرور (12)») that opens a sheet - search, one small row each with copy, its devices on tap. */
 export function UsedPasswordsSection() {
   const [rows, setRows] = useState<UsedPassword[]>([]);
-  const [showAll, setShowAll] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [expanded, setExpanded] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const item = settingsItem("passwords");
 
   useEffect(() => {
     const load = async () => {
@@ -33,39 +38,59 @@ export function UsedPasswordsSection() {
     }
   }
 
-  const visible = showAll ? rows : rows.slice(0, SHOWN);
+  const q = normalizeSearchText(query);
+  const visible = q ? rows.filter((r) => normalizeSearchText(r.value).includes(q) || r.devices.some((d) => normalizeSearchText(d).includes(q))) : rows;
+
   return (
-    <section className="section">
-      <h2 className="section-title">🔑 كلمات المرور المستعملة</h2>
-      <p className="settings-hint">
-        كل كلمات المرور في أجهزتك، الأكثر استعمالاً أولاً. تظهر أيضاً أزراراً سريعة عند إضافة جهاز أو تعديله. حين يرفض Starlink كلمة مرور
-        وتكتب الصحيحة، يحفظها التطبيق للجهاز وحده.
-      </p>
-      {rows.length === 0 ? (
-        <p className="party-empty">لا كلمات مرور في الأجهزة بعد.</p>
-      ) : (
-        <ul className="used-password-list">
-          {visible.map((row) => (
-            <li key={row.value} className="used-password-row">
-              <div className="used-password-top">
-                <strong dir="ltr" className="used-password-value">{row.value}</strong>
-                <button type="button" className="btn-link" onClick={() => void copy(row.value)}>
-                  {copied === row.value ? "✓ نُسخت" : "📋 نسخ"}
-                </button>
-              </div>
-              <span className="used-password-devices">
-                📡 {row.count} جهاز: {row.devices.slice(0, 3).join("، ")}
-                {row.devices.length > 3 ? ` و${row.devices.length - 3} آخر` : ""}
-              </span>
-            </li>
-          ))}
-        </ul>
+    <>
+      <button type="button" className="settings-fold-summary settings-fold-row" id="fold-passwords" onClick={() => setOpen(true)}>
+        <span className="settings-fold-icon" aria-hidden="true">
+          {item.icon}
+        </span>
+        <span className="settings-fold-text">
+          <strong>
+            {item.title} ({rows.length})
+          </strong>
+          <small>{item.summary}</small>
+        </span>
+        <span className="settings-fold-chevron" aria-hidden="true">
+          ‹
+        </span>
+      </button>
+      {open && (
+        <PartySheet title={`🔑 كلمات المرور (${rows.length})`} onClose={() => setOpen(false)}>
+          <input
+            className="search-input"
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="ابحث بكلمة المرور أو اسم الجهاز"
+          />
+          {visible.length === 0 ? (
+            <p className="party-empty">{rows.length === 0 ? "لا كلمات مرور في الأجهزة بعد." : "لا نتيجة"}</p>
+          ) : (
+            <ul className="used-password-list used-password-compact">
+              {visible.map((row) => (
+                <li key={row.value} className="used-password-row">
+                  <div className="used-password-top">
+                    <button type="button" className="used-password-main" onClick={() => setExpanded((e) => (e === row.value ? null : row.value))}>
+                      <strong dir="ltr" className="used-password-value">
+                        {row.value}
+                      </strong>
+                      <small>📡 {row.count}</small>
+                    </button>
+                    <button type="button" className="btn-link" onClick={() => void copy(row.value)}>
+                      {copied === row.value ? "✓" : "📋"}
+                    </button>
+                  </div>
+                  {expanded === row.value && <span className="used-password-devices">{row.devices.join("، ")}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="settings-hint">تظهر أيضاً أزراراً سريعة عند إضافة جهاز أو تعديله.</p>
+        </PartySheet>
       )}
-      {rows.length > SHOWN && (
-        <button type="button" className="btn-link" onClick={() => setShowAll((v) => !v)}>
-          {showAll ? "عرض أقل" : `عرض الكل (${rows.length})`}
-        </button>
-      )}
-    </section>
+    </>
   );
 }

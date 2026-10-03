@@ -8968,6 +8968,205 @@ button.today-tile {
   border-inline-start: 3px solid var(--tone);
 }
 
+/* Compact الإعدادات: a small hub (icon + name), every setting one folded line, smaller text. */
+.settings-hub .settings-hub-subtitle {
+  display: none;
+}
+
+.settings-hub {
+  gap: 6px;
+  margin: 8px 0 10px;
+}
+
+.settings-hub-tile {
+  flex-direction: row;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 4px;
+}
+
+.settings-hub-icon {
+  font-size: 1rem;
+}
+
+.settings-hub-title {
+  font-size: 0.74rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.settings-group-title {
+  font-size: 0.92rem;
+  margin-bottom: 6px;
+}
+
+.settings-group .settings-hint {
+  font-size: 0.76rem;
+  line-height: 1.45;
+  margin-bottom: 8px;
+}
+
+.settings-group .section-title {
+  font-size: 0.88rem;
+}
+
+.settings-fold {
+  margin: 0 0 6px;
+  border: 1px solid var(--border);
+  border-inline-start: 3px solid var(--tone);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.settings-fold-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  cursor: pointer;
+  list-style: none;
+  font: inherit;
+  color: var(--text);
+  text-align: start;
+}
+
+.settings-fold-summary::-webkit-details-marker {
+  display: none;
+}
+
+button.settings-fold-row {
+  margin: 0 0 6px;
+  border: 1px solid var(--border);
+  border-inline-start: 3px solid var(--tone);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.settings-fold-icon {
+  font-size: 1rem;
+  flex: 0 0 auto;
+}
+
+.settings-fold-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.settings-fold-text strong {
+  font-size: 0.84rem;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-fold-text small {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-fold-chevron {
+  color: var(--text-muted);
+  transition: transform 0.15s ease;
+}
+
+.settings-fold[open] > .settings-fold-summary .settings-fold-chevron {
+  transform: rotate(-90deg);
+}
+
+.settings-fold[open] > .settings-fold-summary {
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-fold-body {
+  padding: 4px 10px 8px;
+  min-width: 0;
+}
+
+/* A setting that shows nothing here (phone-only, not set up) leaves no empty line. */
+.settings-fold:has(> .settings-fold-body:empty) {
+  display: none;
+}
+
+/* The folded line already names the setting: its own card frame and first heading go. */
+.settings-fold-body > .section,
+.settings-fold-body > * > .section {
+  margin-top: 6px;
+  border: 0;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.settings-fold-body > .section:first-child > .section-title:first-child {
+  display: none;
+}
+
+.settings-search {
+  position: relative;
+  margin: 4px 0 6px;
+}
+
+.settings-search-results {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.settings-search-hit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.used-password-compact .used-password-row {
+  padding: 5px 8px;
+}
+
+.used-password-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.used-password-main small {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  flex: 0 0 auto;
+}
+
 /* A rep's color (repStore REP_COLORS): a light tint on every card of his devices */
 .account-card-rep-tint:not(.account-card-suspended) {
   background: color-mix(in srgb, var(--rep-tint) 9%, var(--surface));

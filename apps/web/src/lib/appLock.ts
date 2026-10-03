@@ -76,6 +76,7 @@ export async function setAppPin(pin: string): Promise<void> {
 
 export function clearAppPin(): void {
   safeSet(PIN_KEY, null);
+  safeSet(BIOMETRIC_KEY, null);
 }
 
 /** False (never throws) for a missing/corrupted stored PIN, exactly like a wrong guess - a
@@ -92,6 +93,17 @@ export async function verifyAppPin(pin: string): Promise<boolean> {
   if (!stored.salt || !stored.hash) return false;
   const candidate = await derivePinHash(pin, fromBase64(stored.salt));
   return candidate === stored.hash;
+}
+
+const BIOMETRIC_KEY = "starnet.appLockBiometric";
+
+/** 🖐 Unlock with the fingerprint (the PIN stays the fallback) - only meaningful with a PIN set. */
+export function isBiometricUnlockEnabled(): boolean {
+  return hasAppPin() && safeGet(BIOMETRIC_KEY) === "1";
+}
+
+export function setBiometricUnlockEnabled(enabled: boolean): void {
+  safeSet(BIOMETRIC_KEY, enabled ? "1" : null);
 }
 
 /** Leaving the app for longer than this (home button, another app) locks it again on return. */

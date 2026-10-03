@@ -10,6 +10,9 @@ import { ActivationCostsSection } from "@/components/ActivationCostsSection";
 import { PhoneShortcutsSection } from "@/components/PhoneShortcutsSection";
 import { UsedPasswordsSection } from "@/components/UsedPasswordsSection";
 import { GmailCodesSection } from "@/components/GmailCodesSection";
+import { BiometricUnlockToggle } from "@/components/BiometricUnlockToggle";
+import { openSettingsFold, SettingsFold } from "@/components/SettingsFold";
+import { SettingsSearch } from "@/components/SettingsSearch";
 import { useEffect, useRef, useState } from "react";
 import { checkHealth, listAccounts, login, register } from "@/lib/apiClient";
 import { ApiError } from "@/lib/apiClient";
@@ -137,7 +140,7 @@ export default function SettingsPage() {
     const fromHash = groupForHash(hash);
     setGroup(fromHash ?? loadRememberedGroup() ?? "general");
     if (fromHash) {
-      window.setTimeout(() => document.getElementById(hash.slice(1))?.scrollIntoView({ block: "start" }), 300);
+      window.setTimeout(() => openSettingsFold(hash.slice(1)), 300);
     }
   }, []);
 
@@ -251,6 +254,12 @@ export default function SettingsPage() {
   return (
     <main className="home">
       <h1 className="section-title">الإعدادات</h1>
+      <SettingsSearch
+        onOpenSetting={(item) => {
+          chooseGroup(item.group);
+          window.setTimeout(() => openSettingsFold(item.id), 80);
+        }}
+      />
 
       <nav className="settings-hub" aria-label="أقسام الإعدادات">
         {SETTINGS_GROUPS.map((g) => (
@@ -262,7 +271,7 @@ export default function SettingsPage() {
             aria-pressed={group === g.id}
           >
             <span className="settings-hub-icon" aria-hidden="true">{g.icon}</span>
-            <span className="settings-hub-title">{g.title}</span>
+            <span className="settings-hub-title">{g.short}</span>
             <span className="settings-hub-subtitle">{g.subtitle}</span>
           </button>
         ))}
@@ -275,9 +284,10 @@ export default function SettingsPage() {
 
         {group === "general" && (
           <>
-      <PhoneShortcutsSection />
+      <SettingsFold id="shortcuts"><PhoneShortcutsSection /></SettingsFold>
       <UsedPasswordsSection />
-      <GmailCodesSection />
+      <SettingsFold id="gmail-codes"><GmailCodesSection /></SettingsFold>
+      <SettingsFold id="theme">
       <section className="section">
         <h2 className="section-title">المظهر</h2>
         <p className="settings-hint">اختر مظهر التطبيق - يمكنك اختيار الوضع الداكن يدويًا بدل الاعتماد على إعداد الجهاز.</p>
@@ -295,6 +305,8 @@ export default function SettingsPage() {
           ))}
         </div>
       </section>
+      </SettingsFold>
+      <SettingsFold id="help">
       <section className="section">
         <h2 className="section-title">المساعدة الذكية</h2>
         <p className="settings-hint">
@@ -312,6 +324,8 @@ export default function SettingsPage() {
           </span>
         </label>
       </section>
+      </SettingsFold>
+      <SettingsFold id="invoice-currency">
       <section className="section">
         <h2 className="section-title">العملة الافتراضية للفواتير</h2>
         <p className="settings-hint">
@@ -331,13 +345,15 @@ export default function SettingsPage() {
           ))}
         </div>
       </section>
-            <BusinessProfileSection />
-            <ProfitResetSection />
+      </SettingsFold>
+            <SettingsFold id="business"><BusinessProfileSection /></SettingsFold>
+            <SettingsFold id="profit-reset"><ProfitResetSection /></SettingsFold>
           </>
         )}
 
         {group === "alerts" && (
           <>
+      <SettingsFold id="reminders">
       <section className="section">
         <h2 className="section-title">التذكيرات والإشعارات</h2>
         <p className="settings-hint">
@@ -369,46 +385,50 @@ export default function SettingsPage() {
           بها من إعدادات إشعارات النظام لتطبيق STAR NET - الزر أعلاه يفتحها مباشرة.
         </p>
       </section>
+      </SettingsFold>
           </>
         )}
 
         {group === "devices" && (
           <>
-            {isAndroidApp ? (
-              <section className="section">
-                <h2 className="section-title">🔄 تحديث الأجهزة من Starlink</h2>
-                <AutoSyncSettings />
-              </section>
-            ) : (
-              <p className="settings-hint">المزامنة التلقائية تعمل داخل تطبيق أندرويد فقط.</p>
-            )}
-            <SessionCheckSection />
+            <SettingsFold id="auto-sync">
+              {isAndroidApp ? (
+                <section className="section">
+                  <h2 className="section-title">🔄 تحديث الأجهزة من Starlink</h2>
+                  <AutoSyncSettings />
+                </section>
+              ) : (
+                <p className="settings-hint">المزامنة التلقائية تعمل داخل تطبيق أندرويد فقط.</p>
+              )}
+            </SettingsFold>
+            <SettingsFold id="sessions"><SessionCheckSection /></SettingsFold>
           </>
         )}
 
         {group === "bots" && (
           <>
-            <TelegramSection />
-            <TelegramRepsSection />
-            <ActivationCostsSection />
-            <TelegramInstantSection />
+            <SettingsFold id="telegram"><TelegramSection /></SettingsFold>
+            <SettingsFold id="rep-bots"><TelegramRepsSection /></SettingsFold>
+            <SettingsFold id="activation-costs"><ActivationCostsSection /></SettingsFold>
+            <SettingsFold id="instant-replies"><TelegramInstantSection /></SettingsFold>
           </>
         )}
 
         {group === "backup" && (
           <>
-            <BackupSection />
-            <AutoBackupSection />
-            <DriveSection />
+            <SettingsFold id="backup-full"><BackupSection /></SettingsFold>
+            <SettingsFold id="backup-daily"><AutoBackupSection /></SettingsFold>
+            <SettingsFold id="drive"><DriveSection /></SettingsFold>
           </>
         )}
 
         {group === "security" && (
           <>
-            <AppLockSection />
-            <AppUpdateSection />
-            <RepModeEntrySection />
-            <StorageUsageSection />
+            <SettingsFold id="lock"><AppLockSection /></SettingsFold>
+            <SettingsFold id="update"><AppUpdateSection /></SettingsFold>
+            <SettingsFold id="rep-mode"><RepModeEntrySection /></SettingsFold>
+            <SettingsFold id="storage"><StorageUsageSection /></SettingsFold>
+      <SettingsFold id="server">
       <section className="section">
         <h2 className="section-title">عنوان الخادم</h2>
         <p className="settings-hint">
@@ -466,6 +486,7 @@ export default function SettingsPage() {
           )}
         </section>
       )}
+      </SettingsFold>
           </>
         )}
       </div>
@@ -586,6 +607,7 @@ function AppLockSection() {
           )}
         </div>
       )}
+      {mode === "idle" && pinSet && <BiometricUnlockToggle />}
 
       {mode === "setNew" && (
         <div className="auth-form">

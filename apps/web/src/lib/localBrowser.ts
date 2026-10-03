@@ -276,6 +276,29 @@ export async function unlinkGmailCodes(): Promise<void> {
   if (isRunningInAndroidApp()) await LocalBrowser.unlinkGmailCodes().catch(() => undefined);
 }
 
+// ---- 🖐 app lock by fingerprint ----
+
+/** A fingerprint (or face) can unlock the app on this phone right now. */
+export async function biometricAvailable(): Promise<boolean> {
+  if (!isRunningInAndroidApp()) return false;
+  try {
+    return (await LocalBrowser.biometricStatus()).available;
+  } catch {
+    return false;
+  }
+}
+
+/** Android's fingerprint prompt: true only when the finger was accepted (cancel = use the PIN). */
+export async function unlockWithBiometric(subtitle?: string): Promise<boolean> {
+  if (!isRunningInAndroidApp()) return false;
+  try {
+    const result = await LocalBrowser.authenticateBiometric({ title: "فتح STAR NET", ...(subtitle ? { subtitle } : {}), cancel: "استخدم الرمز" });
+    return result.ok;
+  } catch {
+    return false;
+  }
+}
+
 // ---- 📧 a device's own Gmail (Starlink's codes, read through Google) ----
 
 let linkedDeviceGmails: Promise<Set<string>> | null = null;

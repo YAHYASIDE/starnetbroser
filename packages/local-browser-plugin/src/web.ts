@@ -164,6 +164,14 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
     return { route: null };
   }
 
+  async biometricStatus(): Promise<{ available: boolean }> {
+    return { available: false };
+  }
+
+  async authenticateBiometric(_options: { title: string; subtitle?: string; cancel: string }): Promise<{ ok: boolean; error?: string }> {
+    return { ok: false, error: "unavailable" };
+  }
+
   async telegramResolveActivation(_options: { id: string }): Promise<void> {
     throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
   }

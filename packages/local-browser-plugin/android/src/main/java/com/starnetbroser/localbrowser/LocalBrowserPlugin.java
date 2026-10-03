@@ -140,6 +140,50 @@ public class LocalBrowserPlugin extends Plugin {
         call.resolve(ret);
     }
 
+    /** 🖐 Whether a fingerprint (or face) can unlock the app on this phone right now. */
+    @PluginMethod
+    public void biometricStatus(PluginCall call) {
+        JSObject ret = new JSObject();
+        boolean available = false;
+        try {
+            available = getActivity() != null && BiometricUnlock.available(getActivity());
+        } catch (RuntimeException e) {
+            available = false;
+        }
+        ret.put("available", available);
+        call.resolve(ret);
+    }
+
+    /** 🖐 Asks for the fingerprint; resolves { ok } (never rejects - a refusal means "use the PIN"). */
+    @PluginMethod
+    public void authenticateBiometric(PluginCall call) {
+        String title = call.getString("title", "فتح STAR NET");
+        String subtitle = call.getString("subtitle", "");
+        String cancel = call.getString("cancel", "استخدم الرمز");
+        if (getActivity() == null) {
+            JSObject ret = new JSObject();
+            ret.put("ok", false);
+            ret.put("error", "no activity");
+            call.resolve(ret);
+            return;
+        }
+        getActivity().runOnUiThread(() -> {
+            try {
+                BiometricUnlock.authenticate(getActivity(), title, subtitle, cancel, (ok, error) -> {
+                    JSObject ret = new JSObject();
+                    ret.put("ok", ok);
+                    if (error != null) ret.put("error", error);
+                    call.resolve(ret);
+                });
+            } catch (RuntimeException e) {
+                JSObject ret = new JSObject();
+                ret.put("ok", false);
+                ret.put("error", "unavailable");
+                call.resolve(ret);
+            }
+        });
+    }
+
     /** The page a 📌 shortcut opened the app on (once), or null. */
     @PluginMethod
     public void takeShortcutRoute(PluginCall call) {
