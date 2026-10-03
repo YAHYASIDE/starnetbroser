@@ -24,7 +24,7 @@ export function SyncChoiceSheet({
             ×
           </button>
         </div>
-        <p className="sync-choice-hint">جهاز بعد جهاز في متصفحه، مثل «مزامنة» اليدوية · مع الموقوفة والمنتهية</p>
+        <p className="sync-choice-hint">جهاز بعد جهاز في متصفحه، مثل «مزامنة» اليدوية · «3 أيام» = اليوم واليومان التاليان</p>
         <div className="card-more-list">
           {SYNC_WINDOWS.map(({ window, label }) => {
             const count = pickSyncAccounts(accounts, window, today).length;

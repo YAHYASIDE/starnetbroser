@@ -64,6 +64,7 @@ function createBlankAccount(): StarlinkAccountSummary {
   return {
     id,
     customerId: `customer-${id}`,
+    addedAt: new Date().toISOString(),
     name: "",
     phone: "",
     expectedEmail: "",

@@ -96,7 +96,10 @@ plus the rules learned from real misreads; keep it updated when you learn a new 
   SPA - the card's «تحديث من Starlink» "did nothing" for the operator. So the card button and
   «مزامنة الآن» open the device's **visible** browser with `autoSync` (EXTRA_AUTO_SYNC): wait for the
   sign-in, run the same «مزامنة», close back to the app; «مزامنة الآن» chains devices from
-  `apps/web/src/lib/syncQueue.ts` (today / 3 / 7 / 10 / 20 days + stopped + ran out ≤30 days, or all).
+  `apps/web/src/lib/syncQueue.ts`: «اليوم» = today only, «3 أيام» = today + the next 2 days (3, 4, 5);
+  also «الموقوفة بسبب الفوترة», «أضفناها اليوم» (`addedAt`), «كل الأجهزة». A faulty device and a
+  limited (non-main) email sync **only from their own choice** - never by a day, «كل الأجهزة», a
+  long-pressed calendar day, or the background list (faulty).
 - 🔔 Every finished sync rings once (`AlertSound`, the phone's notification tone; silent mode stays
   silent): the device browser's «مزامنة» and every `AutoSyncWorker` run - unless its «تم التحديث»
   notification already made the sound.

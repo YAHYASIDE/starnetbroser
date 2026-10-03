@@ -24,7 +24,7 @@ describe("buildAutoSyncList", () => {
       account("broken", { deviceFault: { reason: "burned", note: "", reportedAt: "2026-09-01" } }),
       account("nodate", { rechargeDate: " " }),
     ]);
-    expect(list.map((a) => a.id)).toEqual(["broken", "nodate"]);
+    expect(list.map((a) => a.id)).toEqual(["nodate"]);
     expect(list.every((a) => a.renewalDate === undefined)).toBe(true);
   });
 });

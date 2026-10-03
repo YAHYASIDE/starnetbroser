@@ -131,7 +131,7 @@ import {
   triggerImmediateSync,
 } from "@/lib/localBrowser";
 import { SyncChoiceSheet, SyncQueueBar } from "./SyncNowSheet";
-import { loadSyncQueue, localToday, nextQueuedAccount, queueProgressLabel, saveSyncQueue, startSyncQueue, syncQueueFor, type SyncWindow } from "@/lib/syncQueue";
+import { loadSyncQueue, localToday, nextQueuedAccount, queueProgressLabel, saveSyncQueue, startSyncQueue, syncedOnlyByCommand, syncQueueFor, type SyncWindow } from "@/lib/syncQueue";
 import { DayActionsSheet } from "./DayActionsSheet";
 import { accountsForDay } from "@/lib/dayActions";
 import { depositLabel, kastDevicesSnapshot } from "@/lib/kastCards";
@@ -519,7 +519,10 @@ export function HomeView({
 
   function syncDay(day: number) {
     setLongPressDay(null);
-    const queue = syncQueueFor(accountsForDay(activeAccountsRef.current, day).map((a) => a.id), `يوم ${day}`);
+    // A faulty device or a limited email is synced only from its own «مزامنة الآن» choice.
+    const ids = accountsForDay(activeAccountsRef.current, day).filter((a) => !syncedOnlyByCommand(a)).map((a) => a.id);
+    const queue = syncQueueFor(ids, `يوم ${day}`);
+    if (!queue) pushToast("لا أجهزة للمزامنة في هذا اليوم (المعطلة والإيميل غير الرئيسي بأمر فقط)");
     if (!queue) return;
     saveSyncQueue(queue);
     void runNextQueued();

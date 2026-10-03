@@ -188,6 +188,9 @@ export interface StarlinkAccountSummary {
   addedByRepId?: string;
   /** When the operator approved it (ISO). */
   addedByRepAt?: string;
+  /** When the device was added in the app (ISO) - for «مزامنة الآن» → «أضفناها اليوم». Absent on
+   * devices added before this existed. */
+  addedAt?: string;
   /** Set only by an explicit operator action ("متعطل" on the card) - a hardware problem, entirely
    * independent of the Starlink subscription's own serviceStatus (a device can be active AND
    * broken, or suspended AND fine). Cleared (back to undefined/null) once the operator marks it
