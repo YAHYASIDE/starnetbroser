@@ -162,6 +162,29 @@ final class StarlinkExtractorSupport {
         }
     }
 
+    /** One page read in comparable form for SettleTracker: "" when nothing was found; the dots'
+     * diagnostic (dotTrace - its candidate colors shift between reads) is left out. */
+    static String settleKey(JSObject fields) {
+        if (fields == null || fields.length() == 0) return "";
+        try {
+            JSObject copy = new JSObject(fields.toString());
+            copy.remove("dotTrace");
+            return copy.length() == 0 ? "" : copy.toString();
+        } catch (JSONException e) {
+            return fields.toString();
+        }
+    }
+
+    /** The devices section has loaded its telemetry: a dish or Wi-Fi dot has a real color. */
+    static boolean hasColoredDot(JSObject fields) {
+        if (fields == null) return false;
+        return isColoredDot(fields.optString("dishStatus", "")) || isColoredDot(fields.optString("wifiStatus", ""));
+    }
+
+    private static boolean isColoredDot(String status) {
+        return "online".equals(status) || "offline".equals(status) || "warning".equals(status);
+    }
+
     /** A JS string result ("\"english\"") unquoted; "" for anything else (null, a non-string). */
     static String parseStringResult(String evaluateJavascriptResult) {
         if (evaluateJavascriptResult == null) return "";

@@ -41,6 +41,9 @@ what he means.
 - Reuse what exists before adding: `normalizeSearchText` (homeInsights), `sumToMru`/`toMru`
   (reportsView), `recordCashEntry`/`removeLinkedCashEntries` (cashStore), `DateInput`,
   `formatAmount`, `LEDGER_CURRENCIES`/`LEDGER_CURRENCY_LABELS`.
+- Anything about reading Starlink pages (sync, a wrong/missing/slow read, a «🧪 لقطة تشخيص», a new
+  field from Starlink): also load the **`starnet-browsers`** skill - it has the pipeline map and the
+  rules learned from real misreads.
 - Native Android code lives in `packages/local-browser-plugin/android/...`. It can't be compiled in
   this container (no Android SDK) - CI compiles it, so keep native changes small and careful, and
   add the TS binding in `definitions.ts` + a stub in `web.ts`.

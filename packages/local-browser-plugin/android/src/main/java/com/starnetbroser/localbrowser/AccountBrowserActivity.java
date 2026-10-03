@@ -89,6 +89,17 @@ public class AccountBrowserActivity extends AppCompatActivity {
      * makes, just shorter since this flow is on-screen and the user is actively waiting on it. */
     private static final long SYNC_STEP_DELAY_MS = 1500;
     private static final long DEVICES_SETTLE_DELAY_MS = 3500;
+    /** Reading a page until it settles (SettleTracker): one read every READ_POLL_MS; after a tap the
+     * next step starts after AFTER_TAP_ADVANCE_MS (the read step does the real waiting). */
+    private static final long READ_POLL_MS = 500;
+    private static final long AFTER_TAP_ADVANCE_MS = 300;
+    private static final long CURRENT_PAGE_MAX_MS = 3000;
+    private static final long AFTER_TAP_MIN_MS = 600;
+    private static final long AFTER_TAP_MAX_MS = 6000;
+    private static final long DEVICES_MAX_MS = 7000;
+    /** Home's banners appear a moment after the page: never read it as final before this. */
+    private static final long HOME_MIN_MS = 3500;
+    private static final long HOME_MAX_MS = 8000;
     /** Switching Starlink to English (language.ts): at most this many taps/checks per sync, and the
      * wait after tapping "English" for the page to come back in the new language. */
     private static final int MAX_ENGLISH_STEPS = 7;
@@ -749,6 +760,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
         syncEndedHome = false;
         englishSteps = 0;
         englishMenuOpened = false;
+        lastSavedPageKey = "";
         Toast.makeText(this, R.string.starnet_sync_in_progress, Toast.LENGTH_SHORT).show();
 
         syncSteps = new ArrayDeque<>();
@@ -757,22 +769,27 @@ public class AccountBrowserActivity extends AppCompatActivity {
         // the page is switched first - ☰ → region/language → "UNITED STATES / English". The choice
         // stays in this device's own browser, so later syncs find it already English.
         syncSteps.add(this::syncStepEnsureEnglish);
-        syncSteps.add(this::syncStepExtractCurrentPage); // whatever page the operator is already on
+        // Each page is read until it has settled (SettleTracker) instead of once after a fixed wait:
+        // the sync moves on as soon as the page is complete, and a slow page gets more time. After a
+        // tap the read only counts once the page actually changed (the old page stays on screen for
+        // a moment); a tap that found nothing (no billing icon on a limited email) just waits it out.
+        syncSteps.add(() -> syncStepReadSettled(0, CURRENT_PAGE_MAX_MS, 2, false, false)); // whatever page the operator is already on
         syncSteps.add(() -> syncStepClick(StarlinkExtractorSupport::loadClickSubscriptionsRailItemScript));
-        syncSteps.add(this::syncStepExtractCurrentPage); // the list itself: every subscription's name (a device can have more than one)
+        syncSteps.add(() -> syncStepReadSettled(AFTER_TAP_MIN_MS, AFTER_TAP_MAX_MS, 2, true, false)); // the list itself: every subscription's name (a device can have more than one)
         syncSteps.add(() -> syncStepClick(StarlinkExtractorSupport::loadClickFirstSubscriptionRowScript));
-        // Longer wait here: the dish/Wi-Fi dots fill in only after the section's telemetry loads.
-        syncSteps.add(() -> syncStepClick(StarlinkExtractorSupport::loadExpandDevicesSectionScript, DEVICES_SETTLE_DELAY_MS));
-        syncSteps.add(this::syncStepExtractCurrentPage); // plan + devices (now expanded) + identifiers
+        syncSteps.add(() -> syncStepReadSettled(AFTER_TAP_MIN_MS, AFTER_TAP_MAX_MS, 2, true, false)); // the subscription page is open before «الأجهزة» is tapped
+        syncSteps.add(() -> syncStepClick(StarlinkExtractorSupport::loadExpandDevicesSectionScript));
+        // The dish/Wi-Fi dots fill in only after the section's telemetry loads: wait for a colored dot.
+        syncSteps.add(() -> syncStepReadSettled(AFTER_TAP_MIN_MS, DEVICES_MAX_MS, 2, false, true)); // plan + devices (now expanded) + identifiers
         syncSteps.add(() -> syncStepClick(StarlinkExtractorSupport::loadClickBillingRailItemScript)); // skipped on a limited email
-        syncSteps.add(this::syncStepExtractCurrentPage); // billing
+        syncSteps.add(() -> syncStepReadSettled(AFTER_TAP_MIN_MS, AFTER_TAP_MAX_MS, 2, true, false)); // billing: balance + the paying card
         syncSteps.add(() -> syncStepClick(StarlinkExtractorSupport::loadClickSettingsRailItemScript)); // Settings → Users
-        syncSteps.add(this::syncStepExtractCurrentPage); // the Users table: which login email is Admin (the primary email)
+        syncSteps.add(() -> syncStepReadSettled(AFTER_TAP_MIN_MS, AFTER_TAP_MAX_MS, 2, true, false)); // the Users table: which login email is Admin (the primary email)
         // Home once more, fully settled: its banners ("restricted - outside its home country",
         // "scheduled to end on …") appear a moment after the page itself, and the first read can
         // come before them - real, confirmed miss right after the page was switched to English.
         syncSteps.add(this::syncStepReturnHome);
-        syncSteps.add(this::syncStepExtractCurrentPage);
+        syncSteps.add(() -> syncStepReadSettled(HOME_MIN_MS, HOME_MAX_MS, 3, false, false));
         syncSteps.add(this::finishSync);
 
         advanceSyncSteps();
@@ -798,10 +815,16 @@ public class AccountBrowserActivity extends AppCompatActivity {
         String load(Context context) throws IOException;
     }
 
-    /** Reads whatever section of the page is currently open and durably saves anything found -
-     * identical field-parsing/save/emit logic to the original single-page flow, just reused here
-     * as one step among several instead of the whole flow. */
-    private void syncStepExtractCurrentPage() {
+    /** The comparable form of the last page read that was saved (for "did the tap change the page?"). */
+    private String lastSavedPageKey = "";
+
+    /**
+     * Reads the open page every READ_POLL_MS until it has settled (SettleTracker), then saves the
+     * last full read once. {@code mustChange}: right after a tap - a read equal to the previous
+     * page's is the old page still on screen, not the new one. {@code wantDots}: the devices section
+     * - settled only once a dish/Wi-Fi dot has its color (or at the time limit).
+     */
+    private void syncStepReadSettled(long minMs, long maxMs, int stableReads, boolean mustChange, boolean wantDots) {
         if (!syncGuardOk()) {
             finishSync();
             return;
@@ -813,39 +836,57 @@ public class AccountBrowserActivity extends AppCompatActivity {
             advanceSyncSteps();
             return;
         }
-        webView.evaluateJavascript(
-            script,
-            value -> {
-                if (!syncGuardOk()) {
-                    finishSync();
-                    return;
-                }
-                JSObject fields = StarlinkExtractorSupport.parseExtractedFields(value);
-                if (fields != null) syncSawStopped = StarlinkExtractorSupport.keepStoppedWithinRun(fields, syncSawStopped);
-                if (fields != null) syncSawRestricted = StarlinkExtractorSupport.keepRestrictedWithinRun(fields, syncSawRestricted);
-                if (fields != null && fields.length() > 0) {
-                    // Durable write FIRST: the final toast must never claim more than what is
-                    // actually safe on disk. The main STAR NET Activity/Bridge this screen sits on
-                    // top of may be stopped right now, in which case notifyListeners() below is
-                    // silently dropped - PendingSyncStore (drained by the web UI on open/resume)
-                    // is what actually guarantees this result is never lost, however long that
-                    // takes.
-                    String syncId = PendingSyncStore.save(getApplicationContext(), accountId, fields);
-                    if (syncId != null) {
-                        syncFoundAnything = true;
-                        // Best-effort live push, for when the app happens to be in the foreground
-                        // right now.
-                        LocalBrowserPlugin.emitAccountDataSynced(syncId, accountId, fields);
-                    } else {
-                        // The write genuinely did not reach disk (commit() failed) - never claim
-                        // success over a result that isn't safe anywhere, however many OTHER pages
-                        // in this same run did save correctly.
-                        syncSaveFailed = true;
-                    }
-                }
-                syncHandler.postDelayed(this::advanceSyncSteps, SYNC_STEP_DELAY_MS);
+        SettleTracker tracker = new SettleTracker(minMs, maxMs, stableReads);
+        long started = android.os.SystemClock.elapsedRealtime();
+        JSObject[] latest = new JSObject[1];
+        String previousPage = lastSavedPageKey;
+        readSettledPoll(script, tracker, started, latest, mustChange ? previousPage : null, wantDots);
+    }
+
+    private void readSettledPoll(String script, SettleTracker tracker, long started, JSObject[] latest, String previousPage, boolean wantDots) {
+        if (syncSteps == null) return;
+        if (!syncGuardOk()) {
+            finishSync();
+            return;
+        }
+        webView.evaluateJavascript(script, value -> {
+            if (syncSteps == null) return;
+            if (!syncGuardOk()) {
+                finishSync();
+                return;
             }
-        );
+            JSObject fields = StarlinkExtractorSupport.parseExtractedFields(value);
+            String key = StarlinkExtractorSupport.settleKey(fields);
+            boolean stillOldPage = previousPage != null && !key.isEmpty() && key.equals(previousPage);
+            if (!key.isEmpty() && !stillOldPage) latest[0] = fields;
+            boolean good = !stillOldPage && (!wantDots || StarlinkExtractorSupport.hasColoredDot(fields));
+            long elapsed = android.os.SystemClock.elapsedRealtime() - started;
+            if (tracker.offer(stillOldPage ? "" : key, good, elapsed)) {
+                saveSyncRead(latest[0]);
+                advanceSyncSteps();
+                return;
+            }
+            syncHandler.postDelayed(() -> readSettledPoll(script, tracker, started, latest, previousPage, wantDots), READ_POLL_MS);
+        });
+    }
+
+    /** Durably saves one page's read (and remembers it as "the page we were on"). */
+    private void saveSyncRead(JSObject fields) {
+        if (fields == null || fields.length() == 0) return;
+        lastSavedPageKey = StarlinkExtractorSupport.settleKey(fields);
+        syncSawStopped = StarlinkExtractorSupport.keepStoppedWithinRun(fields, syncSawStopped);
+        syncSawRestricted = StarlinkExtractorSupport.keepRestrictedWithinRun(fields, syncSawRestricted);
+        // Durable write FIRST: the final toast must never claim more than what is actually safe on
+        // disk. The main STAR NET Activity this screen sits on may be stopped right now, so the live
+        // event below can be dropped - PendingSyncStore (drained by the web UI on open/resume) is
+        // what guarantees the result is never lost.
+        String syncId = PendingSyncStore.save(getApplicationContext(), accountId, fields);
+        if (syncId != null) {
+            syncFoundAnything = true;
+            LocalBrowserPlugin.emitAccountDataSynced(syncId, accountId, fields);
+        } else {
+            syncSaveFailed = true;
+        }
     }
 
     /** One tap toward an English page (language.ts), repeated until the page reads English, nothing
@@ -908,7 +949,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
      * find nothing new on whatever page it left the operator on, exactly as tolerated everywhere
      * else in this flow. */
     private void syncStepClick(ScriptLoader loader) {
-        syncStepClick(loader, SYNC_STEP_DELAY_MS);
+        syncStepClick(loader, AFTER_TAP_ADVANCE_MS);
     }
 
     private void syncStepClick(ScriptLoader loader, long settleDelayMs) {
@@ -933,8 +974,9 @@ public class AccountBrowserActivity extends AppCompatActivity {
             return;
         }
         syncEndedHome = true;
+        lastSavedPageKey = "";
         webView.loadUrl(homeUrl);
-        syncHandler.postDelayed(this::advanceSyncSteps, HOME_SETTLE_DELAY_MS);
+        syncHandler.postDelayed(this::advanceSyncSteps, AFTER_TAP_ADVANCE_MS);
     }
 
     /** Always the last step: returns to the Home page (regardless of which page the run ends on)
