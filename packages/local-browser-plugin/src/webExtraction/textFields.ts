@@ -239,9 +239,23 @@ export function extractSubscriptionInvoiceDueDay(lines: string[]): number | unde
   const isDueHeader = (t: string) => /^(due date|تاريخ الاستحقاق)$/i.test(t);
   const isRowLabel = (t: string) => /^(subscription|order|اشتراك|طلب)$/i.test(t);
   const trimmed = lines.map((l) => l.trim());
+  const isDate = (t: string | undefined) => t !== undefined && !isRowLabel(t) && isCompleteDate(normalizeDateLike(t));
+  // The rows themselves say which side the date is on (the cell right next to each
+  // Subscription/Order description is its date on one side, its status on the other) - real,
+  // confirmed: on the English page the header did not come through as its own lines, the reader
+  // fell back to the Arabic order and took each next row's date (an Order's 9/1 → day 1).
+  let before = 0;
+  let after = 0;
+  for (let i = 0; i < trimmed.length; i++) {
+    if (!isRowLabel(trimmed[i]!)) continue;
+    const prev = isDate(trimmed[i - 1]);
+    const next = isDate(trimmed[i + 1]);
+    if (prev && !next) before++;
+    else if (next && !prev) after++;
+  }
   const dueAt = trimmed.findIndex(isDueHeader);
   const descAt = trimmed.findIndex(isDescription);
-  const dateBefore = dueAt >= 0 && descAt >= 0 && dueAt < descAt;
+  const dateBefore = before !== after ? before > after : dueAt >= 0 && descAt >= 0 && dueAt < descAt;
 
   const dates: string[] = [];
   const consider = (text: string | undefined) => {

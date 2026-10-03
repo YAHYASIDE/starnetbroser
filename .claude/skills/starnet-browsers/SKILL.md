@@ -86,7 +86,9 @@ plus the rules learned from real misreads; keep it updated when you learn a new 
   Billing: the latest row described «Subscription» / «اشتراك»** - never an «Order» / «طلب» row.
   Column order depends on the language: English is "Due Date, Description, Status" (date BEFORE the
   description), Arabic is status, description, date (date AFTER) - `extractSubscriptionInvoiceDueDay`
-  reads the header to know which way to look.
+  learns the side from the rows themselves (which neighbor of each Subscription/Order cell is a
+  date), the header only breaks a tie: on a real phone the header didn't come through as its own
+  lines and the reader took the next Order's 9/1 (→ "2026/11/01").
 - Never put real account data in tests or fixtures; fake values only.
 - 📷 Camera / proof upload (Starlink's identity check): `CameraAccess` grants the camera only (never
   the microphone) while the visible page is Starlink; file inputs open Android's picker with the

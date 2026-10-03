@@ -242,6 +242,31 @@ describe("extractSubscriptionInvoiceDueDay - real Billing-page invoice list, onc
     expect(extractSubscriptionInvoiceDueDay(["Due Date", "Description", "Status", "10/31/2026", "Subscription", "Paid"])).toBeUndefined();
   });
 
+  it("real English list whose header is not on its own lines: still the Subscription's own date (24), never the Order's 9/1", () => {
+    const rows = [
+      "9/24/2026", "Subscription", "Overdue",
+      "9/1/2026", "Order", "Overdue",
+      "8/24/2026", "Subscription", "Paid",
+      "7/25/2026", "Order", "Paid",
+      "7/24/2026", "Subscription", "Paid",
+      "6/24/2026", "Subscription", "Paid",
+      "5/24/2026", "Order", "Paid",
+      "4/24/2026", "Order", "Paid",
+      "3/26/2026", "Order", "Paid",
+      "1 - 10",
+      "Payments", "Date", "Payment", "Status",
+      "10/1/2026", "ARS 7,300.00", "Failed",
+      "10/1/2026", "ARS 94,530.91", "Failed",
+    ];
+    expect(extractSubscriptionInvoiceDueDay(["Invoices", "Due Date Description Status", ...rows])).toBe(24);
+    expect(extractSubscriptionInvoiceDueDay(["Invoices", ...rows])).toBe(24);
+  });
+
+  it("the Arabic order without a header still reads the date after «اشتراك»", () => {
+    const lines = ["متأخر", "طلب", "2026/9/1", "متأخر", "اشتراك", "2026/9/24", "مدفوع", "اشتراك", "2026/8/24"];
+    expect(extractSubscriptionInvoiceDueDay(lines)).toBe(24);
+  });
+
   it("tries the next 'اشتراك' row when the nearest one has no parseable date nearby", () => {
     const lines = ["اشتراك", "بلا تاريخ", "اشتراك", "2026/7/28"];
     expect(extractSubscriptionInvoiceDueDay(lines)).toBe(28);
