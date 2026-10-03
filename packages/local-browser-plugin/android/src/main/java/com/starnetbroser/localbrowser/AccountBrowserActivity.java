@@ -200,11 +200,13 @@ public class AccountBrowserActivity extends AppCompatActivity {
     private static final long CANCEL_POLL_MS = 2000;
     private static final int CANCEL_SIGN_IN_POLLS = 150; // 5 minutes for the sign-in (and its code)
     /** 🔄 Auto-sync: closes this long after its sync ended (its toast and sound play first). */
-    private static final long AUTO_SYNC_CLOSE_DELAY_MS = 1500;
+    private static final long AUTO_SYNC_CLOSE_DELAY_MS = 600;
+    /** How often the auto-sync checks whether the page is signed in (short: no idle waiting). */
+    private static final long AUTO_SYNC_POLL_MS = 700;
     /** A device that hasn't finished by then is skipped ("stuck") so a run over many goes on. */
     private static final long AUTO_SYNC_MAX_MS = 120_000;
-    /** The sign-in page seen this many polls in a row: the device isn't signed in - skipped at once. */
-    private static final int AUTO_SYNC_SIGNED_OUT_POLLS = 3;
+    /** The sign-in page seen this many polls in a row (~3.5 s): the device isn't signed in - skipped. */
+    private static final int AUTO_SYNC_SIGNED_OUT_POLLS = 5;
     private enum CancelPhase { SIGN_IN, ENGLISH, LIST, ROW, CANCELLING }
     private final Runnable cancelPoll = this::cancelTick;
     /** Non-null only while a cancellation runs. */
@@ -374,7 +376,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
         Toast.makeText(this, "🔄 مزامنة تلقائية" + suffix + " - لا تلمس الصفحة", Toast.LENGTH_SHORT).show();
         twoStepHandler.removeCallbacks(autoSyncPoll);
         twoStepHandler.removeCallbacks(autoSyncWatchdog);
-        twoStepHandler.postDelayed(autoSyncPoll, CANCEL_POLL_MS);
+        twoStepHandler.postDelayed(autoSyncPoll, AUTO_SYNC_POLL_MS);
         twoStepHandler.postDelayed(autoSyncWatchdog, AUTO_SYNC_MAX_MS);
     }
 
@@ -384,7 +386,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
     private void autoSyncTick() {
         if (webView == null || !autoSyncThenClose || syncSteps != null) return;
         if (cancelReason != null || !AllowedUrl.isAllowed(webView.getUrl())) {
-            twoStepHandler.postDelayed(autoSyncPoll, CANCEL_POLL_MS);
+            twoStepHandler.postDelayed(autoSyncPoll, AUTO_SYNC_POLL_MS);
             return;
         }
         webView.evaluateJavascript(StarlinkLoginWatch.SCRIPT, value -> {
@@ -403,7 +405,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
                 return;
             }
             if (!signInPage) autoSyncSignedOutPolls = 0;
-            twoStepHandler.postDelayed(autoSyncPoll, CANCEL_POLL_MS);
+            twoStepHandler.postDelayed(autoSyncPoll, AUTO_SYNC_POLL_MS);
         });
     }
 

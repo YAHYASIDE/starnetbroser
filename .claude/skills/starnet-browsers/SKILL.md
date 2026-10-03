@@ -101,7 +101,7 @@ plus the rules learned from real misreads; keep it updated when you learn a new 
   limited (non-main) email sync **only from their own choice** - never by a day, «كل الأجهزة», a
   long-pressed calendar day, or the background list (faulty).
   Each auto-sync records how it ended (`AutoSyncResults` → `takeAutoSyncResults`): ok / nothing /
-  saveFailed / **signedOut** (the sign-in page 3 polls in a row - skipped at once, no sign-in attempt)
+  saveFailed / **signedOut** (the sign-in page 5 polls of 0.7 s in a row - skipped, no sign-in attempt)
   / **stuck** (2-minute watchdog) / closed. The app alerts a signed-out device on the owner's bot at
   once and sends every device's status at the end of the run (`apps/web/src/lib/syncReport.ts`).
 - 🔔 Every finished sync rings once (`AlertSound`, the phone's notification tone; silent mode stays

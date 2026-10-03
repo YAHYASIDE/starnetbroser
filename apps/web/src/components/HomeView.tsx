@@ -462,7 +462,7 @@ export function HomeView({
   // shows the next device with a short countdown and «إيقاف».
   const [syncChoiceOpen, setSyncChoiceOpen] = useState(false);
   const [queueStep, setQueueStep] = useState<{ label: string; progress: string; name: string; secondsLeft: number } | null>(null);
-  const QUEUE_COUNTDOWN_S = 3;
+  const QUEUE_COUNTDOWN_S = 1;
 
   function handleSyncNow() {
     setSyncChoiceOpen(true);
