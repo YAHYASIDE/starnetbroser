@@ -117,6 +117,21 @@ mind). Exact texts and numbers live in the code - this file says where.
   «دين أخذته» or «دين رُدّ لي» (the customer/rep ones go to that book, not personal income).
 - The existing `KastNotificationListener` (Android «Notification access») is the place to extend.
 
+## 💳 Filling Starlink's card form with his own cards
+
+- In «ستارلينك والبطاقة», each KAST card (same list, last 4) gets «💳 أكمل البيانات»: full number
+  (check digit + must end with its last 4), name on card, MM/YY, security code, postal code,
+  address. **His choices:** kept on the phone **and in the encrypted backup** (`starnet_card_fill_v1`),
+  the code is filled too, **no fingerprint**; never in the rep's copy (`pushFillCards` sends [] in
+  rep mode), never to the assistant. Logic `lib/cardFill.ts`.
+- In a device's browser: tapping a card field of the payment form (or the top-bar «💳») lists the
+  completed cards; the one picked fills every field. The fields are usually inside the payment
+  company's own frames, so `starnetCardFill.js` (`src/webExtraction/cardFill.ts`,
+  `cardFillScript.ts`, bundled in CI like the extractor) runs at the start of **every** frame
+  (androidx.webkit document-start script + web-message listener, `CardFillController.java`); only
+  secure frames that have card fields receive the card. Not verified on his phone yet - if a field
+  isn't filled, ask for a «🧪 لقطة تشخيص» of that page.
+
 ## What customers receive
 
 - Debt reminder on WhatsApp: his exact wording - `debtReminderText` in `lib/whatsapp.ts` (السلام
