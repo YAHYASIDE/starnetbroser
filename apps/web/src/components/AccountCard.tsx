@@ -11,7 +11,7 @@ import { priorityDataLine, priorityDataState } from "@/lib/priorityData";
 import { presentServiceStatus, effectiveServiceStatus, isBalanceDueZero, planBadgeLabel, cleanPlanName } from "@/lib/status";
 import { countryFlag, countryFromIso2 } from "@/lib/countryCurrencies";
 import { connectionDot, connectionMessage } from "@/lib/deviceConnection";
-import { daysRemainingLabel, daysRemainingNumber, formatRelativeTime } from "@/lib/date";
+import { daysRemainingLabel, daysRemainingNumber, formatRelativeTime, renewalDateLabel } from "@/lib/date";
 import { emailsMismatch } from "@/lib/emailMatch";
 import { computeBalanceByCurrency, LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerEntry } from "@/lib/ledgerStore";
 import { starlinkCostUsd, summarizeDeviceProfit } from "@/lib/accountingStore";
@@ -617,9 +617,15 @@ export function AccountCard({
             );
           })
         )}
-        <span className="account-card-recharge-pill" dir="ltr">
-          <span aria-hidden="true">📅</span> {account.rechargeDate || account.standbyDate || "—"}
-        </span>
+        {(account.rechargeDate || account.standbyDate) ? (
+          <span className="account-card-recharge-pill" dir="ltr">
+            <span aria-hidden="true">📅</span> {account.rechargeDate || account.standbyDate}
+          </span>
+        ) : (
+          <span className="account-card-recharge-pill account-card-recharge-pill-unread">
+            <span aria-hidden="true">📅</span> {renewalDateLabel("")}
+          </span>
+        )}
         {identityEmail && (
           <span className="account-card-recharge-pill" dir="ltr">
             <IconEnvelope /> {identityEmail}

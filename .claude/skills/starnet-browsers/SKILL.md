@@ -101,12 +101,14 @@ plus the rules learned from real misreads; keep it updated when you learn a new 
   learns the side from the rows themselves (which neighbor of each Subscription/Order cell is a
   date), the header only breaks a tie: on a real phone the header didn't come through as its own
   lines and the reader took the next Order's 9/1 (→ "2026/11/01").
-- **A 29-31 date on a newly added device is not a misread - it is the add dialog's placeholder**
-  (`AccountDialog` `dateAfterDays(28)`: added on the 3rd → the 31st, "28 يومًا متبقٍ"). It stays until
-  a sync really reads the renewal day. Check this first before touching the readers.
+- **A new device starts with an empty renewal date, shown as «لم يُقرأ بعد»** (`renewalDateLabel`
+  in `lib/date.ts`) until a sync reads it. It used to get a placeholder (`dateAfterDays(28)`: added
+  on the 3rd → the 31st) that looked like a real misread - never bring a made-up date back. Devices
+  added before that change may still carry such a 29-31 placeholder: check this first before
+  touching the readers.
 - Billing loads its «Billing Cycle» box (the renewal day) after the balance: the billing step waits
   for `renewalDate` (WANT_RENEWAL, up to BILLING_MAX_MS) - a read taken in between saved the
-  balance (HNL 266.25) but no date, so the placeholder 31 stayed (real, confirmed).
+  balance (HNL 266.25) but no date, so the old placeholder 31 stayed (real, confirmed).
 - Never put real account data in tests or fixtures; fake values only.
 - 🔄 A hidden WebView (`AutoSyncWorker`, never attached to a window) often doesn't render Starlink's
   SPA - the card's «تحديث من Starlink» "did nothing" for the operator. So the card button and

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatRelativeTime } from "./date";
+import { formatRelativeTime, RENEWAL_DATE_UNREAD, renewalDateLabel } from "./date";
 
 describe("formatRelativeTime", () => {
   it("returns null for a missing timestamp - never synced, not 'synced now'", () => {
@@ -35,5 +35,17 @@ describe("formatRelativeTime", () => {
     const result = formatRelativeTime(longAgo);
     expect(result).not.toBeNull();
     expect(result).not.toContain("منذ");
+  });
+});
+
+describe("renewalDateLabel", () => {
+  it("shows the date when there is one", () => {
+    expect(renewalDateLabel("2026/10/24")).toBe("2026/10/24");
+  });
+
+  it("shows «لم يُقرأ بعد» for an empty or missing date", () => {
+    expect(renewalDateLabel("")).toBe(RENEWAL_DATE_UNREAD);
+    expect(renewalDateLabel("  ")).toBe(RENEWAL_DATE_UNREAD);
+    expect(renewalDateLabel(undefined)).toBe(RENEWAL_DATE_UNREAD);
   });
 });

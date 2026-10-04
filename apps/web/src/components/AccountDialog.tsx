@@ -7,7 +7,7 @@ import { buildFullDeviceMessage } from "@/lib/whatsapp";
 import { DateInput } from "./DateInput";
 import { FormEvent, useMemo, useRef, useState } from "react";
 import { DeviceStatus, StarlinkAccountSummary } from "@starnet/shared";
-import { formatRelativeTime } from "@/lib/date";
+import { formatRelativeTime, RENEWAL_DATE_UNREAD } from "@/lib/date";
 import { emailsMismatch } from "@/lib/emailMatch";
 import { cleanPlanName, effectiveServiceStatus, presentServiceStatus } from "@/lib/status";
 import { countryFlag, countryFromIso2 } from "@/lib/countryCurrencies";
@@ -50,12 +50,6 @@ const statusOptions = [
   { value: DeviceStatus.GRAY, label: "لا توجد بيانات" },
 ];
 
-function dateAfterDays(days: number): string {
-  const date = new Date();
-  date.setDate(date.getDate() + days);
-  return date.toISOString().slice(0, 10);
-}
-
 function createBlankAccount(): StarlinkAccountSummary {
   const id = typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
@@ -72,7 +66,8 @@ function createBlankAccount(): StarlinkAccountSummary {
     kitNumber: "",
     serialNumber: "",
     standbyDate: "",
-    rechargeDate: dateAfterDays(28),
+    // Empty until the first sync reads it (shown as «لم يُقرأ بعد») - a made-up date looked real.
+    rechargeDate: "",
     balanceDue: "0",
     currency: "$",
     dishStatus: DeviceStatus.GRAY,
@@ -337,7 +332,7 @@ export function AccountDialog({
             </div>
             <div><span>KIT</span><strong dir="ltr">{displayValue(draft.kitNumber)}</strong></div>
             <div><span>Serial</span><strong dir="ltr">{displayValue(draft.serialNumber)}</strong></div>
-            <div><span>موعد التجديد</span><strong dir="ltr">{displayValue(draft.rechargeDate)}</strong></div>
+            <div><span>موعد التجديد</span>{draft.rechargeDate.trim() ? <strong dir="ltr">{draft.rechargeDate}</strong> : <strong>{RENEWAL_DATE_UNREAD}</strong>}</div>
             <div><span>الرصيد المستحق لـStarlink</span><strong dir="ltr">{draft.currency}{displayValue(draft.balanceDue)}</strong></div>
             <div><span>حالة الجهاز</span><strong>{statusOptions.find((item) => item.value === draft.dishStatus)?.label ?? "—"}</strong></div>
             <div><span>حالة Wi-Fi</span><strong>{statusOptions.find((item) => item.value === draft.wifiStatus)?.label ?? "—"}</strong></div>

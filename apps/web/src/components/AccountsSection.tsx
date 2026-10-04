@@ -12,6 +12,7 @@ import { clientRepNames, clientRepIds, matchesClientOwner, type ClientOwnerFilte
 import { currentRepOfClient } from "@/lib/repClients";
 import type { RepresentativeStore } from "@/lib/repStore";
 import { CreateSupplierInput, Supplier } from "@/lib/supplierStore";
+import { renewalDateLabel } from "@/lib/date";
 import {
   computeBalanceByCurrency,
   getAccountEntries,
@@ -714,7 +715,7 @@ function PartyCard({
                   <li key={device.id} className="party-device">
                     <div className="party-device-top">
                       <strong>{device.name}</strong>
-                      <span className="party-device-date" dir="ltr">📅 {device.rechargeDate || "—"}</span>
+                      <span className="party-device-date" dir={device.rechargeDate?.trim() ? "ltr" : undefined}>📅 {renewalDateLabel(device.rechargeDate)}</span>
                     </div>
                     <div className="party-device-balances">
                       {owed.length === 0 ? (

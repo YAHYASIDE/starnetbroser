@@ -11,6 +11,15 @@ export function daysRemainingNumber(dateStr: string): number | null {
   return Math.round((parsed.getTime() - today.getTime()) / 86_400_000);
 }
 
+/** Shown instead of a renewal date that hasn't been read from Starlink yet (a new device starts
+ * with an empty date - never a made-up placeholder that looks like a real one). */
+export const RENEWAL_DATE_UNREAD = "لم يُقرأ بعد";
+
+/** The renewal date to display, or «لم يُقرأ بعد» when it's empty. */
+export function renewalDateLabel(dateStr: string | null | undefined): string {
+  return dateStr?.trim() || RENEWAL_DATE_UNREAD;
+}
+
 /** Best-effort "days remaining" label for a recharge/standby date string. */
 export function daysRemainingLabel(dateStr: string): string | null {
   const diffDays = daysRemainingNumber(dateStr);

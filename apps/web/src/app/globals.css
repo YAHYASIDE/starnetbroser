@@ -1611,6 +1611,12 @@ button.overview-card:active {
   overflow-wrap: anywhere;
 }
 
+/* No renewal date read from Starlink yet - «لم يُقرأ بعد», muted so it never looks like a date. */
+.account-card-recharge-pill-unread {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 .mini-status {
   display: inline-flex;
   align-items: center;
