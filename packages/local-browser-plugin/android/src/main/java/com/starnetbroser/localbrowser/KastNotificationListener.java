@@ -18,7 +18,8 @@ import java.util.concurrent.Executors;
  * further. The operator turns this on in Android's «Notification access» (from «ستارلينك
  * والبطاقة» or «حسابي»). A KAST event goes to KastWatch.handle: a refusal → Telegram, a Starlink
  * payment or dollars received → waits for the app to suggest it. A bank one is stored
- * (BankNoticeStore) for «حسابي» to suggest. Nothing is logged.
+ * (BankNoticeStore) for «حسابي» to suggest. 💳 While a device's browser adds a card, the card
+ * company's code from his mail notification goes to it (PaymentCodeInbox). Nothing is logged.
  */
 public class KastNotificationListener extends NotificationListenerService {
 
@@ -35,6 +36,7 @@ public class KastNotificationListener extends NotificationListenerService {
         if (isKast(sbn.getPackageName())) {
             handleKast(sbn);
         } else {
+            offerPaymentCode(sbn);
             keepBankNotice(sbn);
         }
     }
@@ -62,6 +64,14 @@ public class KastNotificationListener extends NotificationListenerService {
         CharSequence big = extras.getCharSequence(Notification.EXTRA_BIG_TEXT);
         CharSequence text = big != null ? big : extras.getCharSequence(Notification.EXTRA_TEXT);
         return new String[] {title == null ? "" : title.toString(), text == null ? "" : text.toString()};
+    }
+
+    /** 💳 Only while a device's browser is adding a card and waits for the card company's code
+     * (no-reply's mail «STARLINK INTERNET … code: ######») - otherwise nothing here is read. */
+    private void offerPaymentCode(StatusBarNotification sbn) {
+        if (!PaymentCodeInbox.isWaiting()) return;
+        String[] tt = titleAndText(sbn);
+        if (tt != null) PaymentCodeInbox.offer(tt[0], tt[1], sbn.getPostTime());
     }
 
     private void keepBankNotice(StatusBarNotification sbn) {

@@ -828,6 +828,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
         // Closed (by hand, or by Android) before its auto-sync ended.
         if (autoSyncThenClose) AutoSyncResults.record(this, accountId, "closed");
         twoStepHandler.removeCallbacksAndMessages(null);
+        cardFill.release();
         BusyService.stop(this, "sync:" + accountId);
         BusyService.stop(this, "cancel:" + accountId);
         if (codeFetcher != null) {
@@ -1294,7 +1295,29 @@ public class AccountBrowserActivity extends AppCompatActivity {
     private static final int MENU_MAIL = 7002;
     private static final int MENU_CARD = 7003;
     /** 💳 Fills Starlink's card form with one of the operator's saved cards. */
-    private final CardFillController cardFill = new CardFillController(this);
+    private final CardFillController cardFill = new CardFillController(this, new CardFillController.Host() {
+        @Override
+        public void openBilling() {
+            if (webView == null || !AllowedUrl.isAllowed(webView.getUrl())) return;
+            try {
+                webView.evaluateJavascript(StarlinkExtractorSupport.loadClickBillingRailItemScript(getApplicationContext()), null);
+            } catch (IOException e) {
+                Toast.makeText(AccountBrowserActivity.this, "افتح Billing بنفسك - يكمل التطبيق بعدها", Toast.LENGTH_LONG).show();
+            }
+        }
+
+        @Override
+        public void cardSaved() {
+            // Read the new card into the app (Billing's «ending in ####»).
+            if (syncSteps == null && webView != null) syncFromStarlink();
+        }
+    });
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        cardFill.onWindowFocus(hasFocus);
+    }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
