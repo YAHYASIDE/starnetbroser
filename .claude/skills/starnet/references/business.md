@@ -33,6 +33,18 @@ mind). Exact texts and numbers live in the code - this file says where.
 - No double counting: personal records post linked cash entries (`personal-expense`,
   `personal-income`, `personal-debt`) that the business reports ignore; the figures reuse the same
   functions as the clients, suppliers, reps, reports and card pages.
+- **Categories = groups like his «مصاريف» app** (his screenshots): small round icons (home-ring
+  size), a group opens under its row to its items (فواتير → الكهرباء، الغاز، الإنترنت، الاتصالات،
+  الإيجار، التلفاز، المياه…), «عام» = the group itself; his own top sections first (سحب رصيد، تحويل
+  رصيد، العائلة، خسارة من الأجهزة), «أخرى» last. **Long press** any icon → remove it (hidden; old
+  records keep the name) or add an item inside a group; dashed «➕ قسم جديد» adds a group. Same
+  for الدخل (its old categories kept, now in the same style). Tree: `DEFAULT_EXPENSE_TREE`
+  (`personalExpenses.ts`), `lib/categoryTree.ts`, `components/CategoryPicker.tsx`; stored
+  `starnet_expense_tree_v1` / `starnet_income_tree_v1`. **The old flat expense categories (أكل،
+  شرب، رصيد…) were removed with the expenses recorded on them** - his explicit choice, confirmed
+  twice («احذف المصاريف القديمة نفسها»); done once by `expenseTreeStore.loadExpenseTree` (with
+  their الكاش entries; an old 🔁 rule moves to the matching new category). Phone credit from a
+  bank notification → «فواتير · الاتصالات».
 - Logic: `myMoney.ts`, `moneyAccounts.ts`, `myMoneyData.ts`; UI: `app/money/page.tsx`,
   `components/MyMoney.tsx`. The reports' «المصروفات» tab and its 🧾 button stay too.
 - Next step he agreed to: read bank/wallet notifications (Bankily…) into these accounts - see
