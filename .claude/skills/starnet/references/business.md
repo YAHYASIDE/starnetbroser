@@ -42,7 +42,8 @@ mind). Exact texts and numbers live in the code - this file says where.
 
 - **Wait for ALL screenshots** before building (his choice): every app (بنكيلي، مصرفي، سداد، كليك،
   أمانتي، أورانج موني مالي، نيتا) and every kind (received from someone, sent/paid, withdrawal…).
-  Received so far: GIMTEL (سداد → بنكيلي), Bankily money sent to a person, Sedad phone credit.
+  Received so far: GIMTEL (سداد → بنكيلي), Bankily money sent to a person, Sedad money sent to a
+  person, Sedad phone credit.
 - **GIMTEL** = moving money between his own apps on the same number (e.g. سداد → بنكيلي). It arrives
   as two notifications for one operation, real wording (amount/number as he sent it):
   - Bankily app, title `Gimtel envoie de l'argent`: `Vous avez reçu 50.0 MRU du bénéficiaire :
@@ -57,6 +58,17 @@ mind). Exact texts and numbers live in the code - this file says where.
 - **Sedad phone credit**, title `PAIEMENT_CREDIT`: `تلقيتم رصيدا بمبلغ 10 أوقية جديدة من شنقيتل`
   = he bought phone airtime with Sedad money → **expense «رصيد الهاتف»** from Sedad (category
   changeable on confirm).
+- **Sedad money sent to a person**, title `ENVOI`: `أرسلتم مبلغ 200.0 أوقية جديدة لصالح <NAME> (
+  <number> )` → expense suggestion from Sedad with the name and number, like Bankily's above.
+  (Same title `ENVOI` as GIMTEL - GIMTEL is the one whose «لصالح» is his own number + `(BANKILY)`.)
+- **Keep everything the notification shows** on each suggestion and record (his decision): the
+  person's name and number, the transaction ID, the app, the full notification text and its time.
+  This stays on his phone and in his backup only - never in code, tests, fixtures or commits
+  (tests use fake names/numbers).
+- **Duplicates:** Sedad gives no transaction ID; two identical texts at different times were two
+  real transfers. Every notification posted at a different time is its own suggestion, flagged
+  «قد يكون مكررًا» when the same text came shortly before - he rejects what he doesn't want. A
+  transaction ID (Bankily) that was already seen is never suggested twice.
 - Every read notification is a **suggestion awaiting his confirmation** in «حسابي» (accept / edit /
   reject) - never recorded silently.
 - Money received from another person's number → **always personal income** in «حسابي» (he links it
