@@ -77,6 +77,29 @@ describe("buildMonthNet", () => {
     });
     expect(net.starlinkProfitMru).toBe(0);
   });
+
+  it("the fresh start also drops store sales and expenses before the reset day (الصافي from اليوم)", () => {
+    const net = buildMonthNet({
+      month: "2026-09",
+      ledgerStore: {},
+      invoices: [
+        { id: "buy", kind: "purchase", date: "2026-08-01", currencyCode: "MRU", lines: [{ itemId: "x", quantity: 10, unitPrice: 300, transactionId: "t0" }], discount: 0, paidAmount: 0, createdAt: "" },
+        { id: "before", kind: "sale", date: "2026-09-10", currencyCode: "MRU", lines: [{ itemId: "x", quantity: 1, unitPrice: 500, transactionId: "tb" }], discount: 0, paidAmount: 0, createdAt: "" },
+        { id: "after", kind: "sale", date: "2026-09-25", currencyCode: "MRU", lines: [{ itemId: "x", quantity: 1, unitPrice: 500, transactionId: "ta" }], discount: 0, paidAmount: 0, createdAt: "" },
+      ] as unknown as Invoice[],
+      transactions: [
+        { id: "t0", itemId: "x", kind: "buy", quantity: 10, unitPrice: 300, currencyCode: "MRU", date: "2026-08-01", createdAt: "" },
+        { id: "tb", itemId: "x", kind: "sell", quantity: 1, unitPrice: 500, currencyCode: "MRU", date: "2026-09-10", createdAt: "" },
+        { id: "ta", itemId: "x", kind: "sell", quantity: 1, unitPrice: 500, currencyCode: "MRU", date: "2026-09-25", createdAt: "" },
+      ] as never,
+      cash: [cash({ id: "e-before", category: "إيجار", amount: 3000, date: "2026-09-05" }), cash({ id: "e-after", category: "نقل", amount: 1000, date: "2026-09-25" })],
+      rates,
+      profitReset: { date: "2026-09-20", at: "2026-09-20T00:00:00.000Z" } as never,
+    });
+    // Only the devices/store/expenses on or after 2026-09-20 count.
+    expect(net.storeSalesMru).toBe(500);
+    expect(net.expensesMru).toBe(1000);
+  });
 });
 
 describe("monthChange", () => {

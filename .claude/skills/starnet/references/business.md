@@ -59,7 +59,11 @@ mind). Exact texts and numbers live in the code - this file says where.
   - «🔄 الأرباح والخسائر من 0 (الديون تبقى)» = **profits & losses only** (his choice): reports and
     «حسابي» (net, income, expense) count from today (`profitReset.ts`, the same
     `starnet_profit_reset_v1` as the reports' reset + every rep starts fresh; `monthLeft` takes
-    `since`). Nothing is deleted: الكاش, banks and customers'/people's debts stay. «↩️ إرجاع».
+    `since`). The «أرباح عملك (الصافي)» figure zeroes across **all** sources from that day:
+    `buildMonthNet` (netProfit.ts) drops not only the Starlink profit but also store sales / COGS /
+    commission and the business expenses dated before the reset day (bug he reported Oct 2026:
+    «زر تصفير الأرباح لا يعمل - الأرباح تبقى» - only Starlink was being trimmed before). Nothing is
+    deleted: الكاش, banks and customers'/people's debts stay. «↩️ إرجاع».
   - «🗑️ حذف كل المعاملات وتصفير كل الحسابات» = **the transactions only** (his choice): every
     money record is removed (shipments, payments, الكاش, invoices, stock moves, expenses, income,
     debts, party/rep entries, card top-ups, previous debts, closings - `wipeTransactions.ts`

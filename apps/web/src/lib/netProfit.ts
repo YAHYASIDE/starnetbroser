@@ -65,6 +65,12 @@ function addTo(record: Record<string, number>, code: string, amount: number) {
 
 export function buildMonthNet(input: MonthNetInput): MonthNet {
   const { month, rates } = input;
+  // «بداية جديدة للأرباح» counts «الصافي» from the reset day only - the dialog promises الصافي /
+  // الدخل / المصروف are computed من اليوم فقط. The Starlink side is trimmed per entry below; the
+  // store (sales, COGS, commission) and the business expenses are dated, so drop whatever is before
+  // the reset day too, otherwise the month's older store profit / expenses would survive the reset.
+  const resetDate = input.profitReset?.date;
+  const onOrAfterReset = (date: string) => !resetDate || date >= resetDate;
   const missing = new Set<string>();
   const take = (byCurrency: Record<string, number>) => {
     const result = sumToMru(byCurrency, rates);
@@ -82,7 +88,7 @@ export function buildMonthNet(input: MonthNetInput): MonthNet {
   const starlink = mruRate ? buildMonthReport(ledger, month, mruRate) : undefined;
 
   // Store - sale invoices dated in the month (returns count negative, as in the store report).
-  const monthInvoices = input.invoices.filter((inv) => monthOf(inv.date) === month);
+  const monthInvoices = input.invoices.filter((inv) => monthOf(inv.date) === month && onOrAfterReset(inv.date));
   const summary = computeStoreSalesSummary(input.transactions, input.invoices, monthInvoices);
   const commission: Record<string, number> = {};
   for (const inv of monthInvoices) {
@@ -98,7 +104,7 @@ export function buildMonthNet(input: MonthNetInput): MonthNet {
   const byCategory = new Map<string, Record<string, number>>();
   const counts = new Map<string, number>();
   for (const entry of listStandaloneCashEntries(input.cash)) {
-    if (entry.kind !== "out" || monthOf(entry.date) !== month) continue;
+    if (entry.kind !== "out" || monthOf(entry.date) !== month || !onOrAfterReset(entry.date)) continue;
     const category = entry.category?.trim() || NO_CATEGORY;
     const bucket = byCategory.get(category) ?? {};
     addTo(bucket, entry.currencyCode, entry.amount);
