@@ -21,12 +21,14 @@ export interface RenewalReminder {
   daysRemaining: number;
 }
 
-/** Active accounts whose renewal is due within `thresholdDays` (default 1, i.e. starts appearing
- * the day before) - stays listed through "due today" and however many days overdue, since the
- * point is "still needs a nudge", not a single-day window that then hides an unrenewed account. */
+/** Active accounts whose renewal is due within `thresholdDays` - the renewal date being the stop
+ * instant (midnight of that day), the default 2 starts the nudge on the day the device shows «يوم
+ * واحد متبقٍ», carries it through «ينتهي الليلة» (date is tomorrow) and «منتهٍ» (date is today),
+ * and stays listed however many days overdue, since the point is "still needs a nudge", not a
+ * single-day window that then hides an unrenewed account. */
 export function computeRenewalReminders(
   accounts: StarlinkAccountSummary[],
-  thresholdDays = 1,
+  thresholdDays = 2,
 ): RenewalReminder[] {
   const reminders: RenewalReminder[] = [];
   for (const account of accounts) {

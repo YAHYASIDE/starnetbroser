@@ -192,12 +192,14 @@ function matchesStatFilter(account: StarlinkAccountSummary, kind: StatFilterKind
       // A broken device isn't renewed until it's repaired (see "المعطلة").
       if (isFaulty(account)) return false;
       const days = daysRemainingNumber(account.rechargeDate || account.standbyDate);
-      return days !== null && days >= 0 && days <= NEAR_EXPIRY_THRESHOLD_DAYS;
+      // The renewal date is the stop instant, so 0 is already expired (see daysRemainingLabel):
+      // "expiring soon" starts at 1 ("ends tonight").
+      return days !== null && days >= 1 && days <= NEAR_EXPIRY_THRESHOLD_DAYS;
     }
     case "expired": {
       if (isFaulty(account)) return false;
       const days = daysRemainingNumber(account.rechargeDate || account.standbyDate);
-      return days !== null && days < 0;
+      return days !== null && days <= 0;
     }
   }
 }
@@ -1398,7 +1400,7 @@ export function HomeView({
 
       const days = daysRemainingNumber(account.rechargeDate || account.standbyDate);
       if (days === null) continue;
-      if (days < 0) expired += 1;
+      if (days <= 0) expired += 1; // renewal date = stop instant: 0 already stopped today
       else if (days <= NEAR_EXPIRY_THRESHOLD_DAYS) expiringSoon += 1;
     }
 

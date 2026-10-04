@@ -62,9 +62,11 @@ export function buildMorningDigests({ accounts, owedByCurrency, now, hour, promi
       if (account.deviceFault) continue; // not renewed while broken
       const d = dayDiff(account.rechargeDate || account.standbyDate || "", at);
       if (d === null) continue;
-      if (d === 0) today += 1;
-      else if (d === 1) tomorrow += 1;
-      else if (d < 0) expired += 1;
+      // The renewal date is the stop instant (midnight): date tomorrow (d=1) ends tonight,
+      // date today (d=0) already stopped.
+      if (d === 1) today += 1;
+      else if (d === 2) tomorrow += 1;
+      else if (d <= 0) expired += 1;
     }
     const lines: string[] = [];
     if (today > 0) lines.push(`${today} جهاز ينتهي اليوم`);

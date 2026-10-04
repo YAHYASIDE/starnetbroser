@@ -159,7 +159,8 @@ export function deviceSections(input: DeviceSectionsInput): Record<RepSectionCod
   const renewal = [
     "📅 التجديد",
     `التاريخ: ${account.rechargeDate || "—"}`,
-    ...(days === null ? [] : [days < 0 ? `انتهى منذ ${-days} يوم` : days === 0 ? "ينتهي اليوم" : `بعد ${days} يوم`]),
+    // The renewal date is the stop instant (midnight): date today = already stopped, tomorrow = ends tonight.
+    ...(days === null ? [] : [days <= 0 ? (days === 0 ? "انتهى اليوم" : `انتهى منذ ${-days} يوم`) : days === 1 ? "ينتهي الليلة" : `بعد ${days - 1} يوم`]),
   ].join("\n");
 
   const plan = cleanPlanName(account.planName);

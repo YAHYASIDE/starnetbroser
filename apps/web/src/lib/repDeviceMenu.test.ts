@@ -73,7 +73,7 @@ describe("device sections", () => {
   it("builds every section from the device", () => {
     const x = deviceSections({ account: device, client, entries: [debit("1", 3000)], siblings: [], today: TODAY, tappable });
     expect(x.r).toContain("2026/10/27");
-    expect(x.r).toContain("بعد 28 يوم");
+    expect(x.r).toContain("بعد 27 يوم");
     expect(x.p).toContain("100G - التجوال - 100 غيغابايت");
     expect(x.p).toContain("121 GB من 100");
     expect(x.p).toContain("نفدت باقة الأولوية");

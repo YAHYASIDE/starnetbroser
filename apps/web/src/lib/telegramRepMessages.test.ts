@@ -52,7 +52,7 @@ describe("rep bot texts", () => {
 
   it("morning lists his renewals with the client's phone, or nothing when he has none", () => {
     const text = repMorningText("سالم", repAccounts(accounts, "r1"), clients, TODAY)!;
-    expect(text).toContain("🟠 تنتهي غداً (1):\n• مقهى - محمد (22212345)");
+    expect(text).toContain("🔴 تنتهي اليوم (1):\n• مقهى - محمد (22212345)");
     expect(text).not.toContain("ليس له");
     expect(repMorningText("سالم", [account("x", "2026/12/01")], clients, TODAY)).toBeNull();
   });
@@ -63,7 +63,7 @@ describe("rep bot texts", () => {
     expect(devices).toContain("📡 أجهزتك (2)");
     expect(devices).toContain("⛔ موقوفة (1):\n• منزل");
     expect(devices.indexOf("مقهى - محمد")).toBeLessThan(devices.lastIndexOf("منزل"));
-    expect(repExpiringText(mine, clients, TODAY)).toContain("🟠 تنتهي غداً (1)");
+    expect(repExpiringText(mine, clients, TODAY)).toContain("🔴 تنتهي اليوم (1)");
     expect(repDevicesText([], clients, TODAY)).toContain("لا توجد أجهزة");
   });
 
@@ -176,7 +176,7 @@ describe("rep shortcuts", () => {
     expect(index.some((e) => !e.c && !e.cn)).toBe(true);
     const byClient = repSearchReply("مُحمّد", index);
     expect(byClient.text).toContain("نتائج «مُحمّد» (2)");
-    expect(byClient.text).toContain("📅 التجديد: 2026/09/28 (بعد 1 يوم)");
+    expect(byClient.text).toContain("📅 التجديد: 2026/09/28 (ينتهي الليلة)");
     expect(byClient.text).toContain("الحالة: ⛔ موقوف");
     expect(repSearchReply("٢٢٢١٢", index).text).toContain("(2)");
     // No phone -> no WhatsApp button, only ⚡ تفعيل.

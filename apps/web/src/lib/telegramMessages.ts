@@ -100,18 +100,21 @@ function list(title: string, accounts: StarlinkAccountSummary[], clients: Client
   return ["", `${title} (${accounts.length}):`, ...names];
 }
 
-/** The 7/3/1-day groups the operator cares about, plus the just-expired ones. */
+/** The 7/3/1-day groups the operator cares about, plus the just-expired ones. The renewal date is
+ * the stop instant (midnight of that day), so the device is active one day less than the raw count:
+ * `r = days - 1` is "whole days still left" (0 = ends tonight, -1 = stopped today). */
 export function renewalGroups(accounts: StarlinkAccountSummary[], today: string) {
   const groups = { expired: [] as StarlinkAccountSummary[], today: [] as StarlinkAccountSummary[], tomorrow: [] as StarlinkAccountSummary[], in3: [] as StarlinkAccountSummary[], in7: [] as StarlinkAccountSummary[] };
   for (const account of accounts) {
     if (!isLive(account)) continue;
     const days = daysUntilRenewal(account, today);
     if (days === null) continue;
-    if (days >= -3 && days < 0) groups.expired.push(account);
-    else if (days === 0) groups.today.push(account);
-    else if (days === 1) groups.tomorrow.push(account);
-    else if (days >= 2 && days <= 3) groups.in3.push(account);
-    else if (days >= 4 && days <= 7) groups.in7.push(account);
+    const r = days - 1;
+    if (r >= -3 && r < 0) groups.expired.push(account);
+    else if (r === 0) groups.today.push(account);
+    else if (r === 1) groups.tomorrow.push(account);
+    else if (r >= 2 && r <= 3) groups.in3.push(account);
+    else if (r >= 4 && r <= 7) groups.in7.push(account);
   }
   return groups;
 }

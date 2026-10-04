@@ -59,17 +59,19 @@ export function buildDailyPlan(input: DailyPlanInput): PlanTask[] {
     const date = parseRenewalDate(account.rechargeDate || account.standbyDate);
     if (!date) continue;
     const days = Math.round((date.getTime() - today.getTime()) / 86_400_000);
-    if (days < -2 || days > 1) continue;
+    // The renewal date is the stop instant (midnight): date tomorrow (days=1) = ends tonight,
+    // date today (days=0) = already stopped. Show the recently-stopped and the next two nights.
+    if (days < -2 || days > 2) continue;
     const client = clientOf(account);
     tasks.push({
       id: `renewal:${account.id}`,
       kind: "renewal",
-      title: `${days < 0 ? "⛔" : "📅"} ${account.name}`,
-      detail: `${client ? `${client.name} · ` : ""}${days === 0 ? "ينتهي اليوم" : days === 1 ? "ينتهي غداً" : `انتهى منذ ${-days} يوم`}`,
+      title: `${days <= 0 ? "⛔" : "📅"} ${account.name}`,
+      detail: `${client ? `${client.name} · ` : ""}${days <= 0 ? (days === 0 ? "انتهى اليوم" : `انتهى منذ ${-days} يوم`) : days === 1 ? "ينتهي اليوم" : "ينتهي غداً"}`,
       phone: account.phone || client?.phone,
       message: buildExpiryReminderMessage(client?.name ?? account.name),
       search: account.name,
-      priority: days < 0 ? 1 : days === 0 ? 2 : 4,
+      priority: days <= 0 ? 1 : days === 1 ? 2 : 4,
     });
   }
 

@@ -245,3 +245,10 @@ mind). Exact texts and numbers live in the code - this file says where.
 - Background sync (invisible overlay WebView) when enabled; otherwise the visible auto-sync.
 - Faulty and limited-access devices sync only by command.
 - A new device's renewal date is empty («لم يُقرأ بعد») until its first sync - never a placeholder.
+- The renewal date is the **stop instant**: the device goes off at that date's midnight, so it is
+  active only through the end of the day *before* its date. Every «أيام متبقية» display reflects this
+  (decided Oct 2026, his words «يوم 5 يعني ليلة ساعة 12»): date tomorrow ⇒ «ينتهي الليلة», the day
+  before ⇒ «يوم واحد متبقٍ», date today ⇒ «منتهٍ» (already stopped). Renewal reminders, the morning
+  Telegram digest, the rep bot's day lines and «تجديد اليوم» all count the same way (one day earlier
+  than the raw date). `daysRemainingNumber` still returns the raw calendar count; callers treat `<= 0`
+  as expired and show `days - 1` as the days left.

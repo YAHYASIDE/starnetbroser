@@ -35,7 +35,8 @@ function currencyLabel(code: string): string {
 }
 
 function urgencyClass(daysRemaining: number): string {
-  return daysRemaining < 0 ? "date-expired" : daysRemaining <= 3 ? "date-warning" : "date-safe";
+  // The renewal date is the stop instant: 0 (stops today) is already expired, matching the card.
+  return daysRemaining <= 0 ? "date-expired" : daysRemaining <= 3 ? "date-warning" : "date-safe";
 }
 
 export default function RemindersPage() {

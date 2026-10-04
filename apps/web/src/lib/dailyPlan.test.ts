@@ -13,8 +13,9 @@ describe("daily plan", () => {
   it("collects today's work, most urgent first", () => {
     const plan = buildDailyPlan({
       accounts: [
-        acc({ id: "a", name: "اليوم", clientId: "c1", rechargeDate: "2026/09/28" }),
-        acc({ id: "b", name: "غداً", rechargeDate: "2026/09/29" }),
+        // Dates are the stop instant: date tomorrow (09/29) = ends tonight, 09/30 = ends tomorrow.
+        acc({ id: "a", name: "اليوم", clientId: "c1", rechargeDate: "2026/09/29" }),
+        acc({ id: "b", name: "غداً", rechargeDate: "2026/09/30" }),
         acc({ id: "c", name: "أمس", rechargeDate: "2026/09/27" }),
         acc({ id: "d", name: "بعيد", rechargeDate: "2026/10/10" }),
         acc({ id: "e", name: "متوقف", clientId: "c1", rechargeDate: "2026/09/20" }),

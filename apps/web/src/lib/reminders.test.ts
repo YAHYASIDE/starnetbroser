@@ -99,10 +99,15 @@ describe("computeRestrictedDeviceReminders", () => {
 });
 
 describe("computeRenewalReminders", () => {
-  it("includes an account due tomorrow at the default 1-day threshold", () => {
+  it("includes an account due tomorrow at the default threshold", () => {
     const reminders = computeRenewalReminders([account({ rechargeDate: todayPlusDays(1) })]);
     expect(reminders).toHaveLength(1);
     expect(reminders[0]!.daysRemaining).toBe(1);
+  });
+
+  it("nudges a day earlier: a date two days out (shows «يوم واحد متبقٍ») is in by default, three is not", () => {
+    expect(computeRenewalReminders([account({ rechargeDate: todayPlusDays(2) })])).toHaveLength(1);
+    expect(computeRenewalReminders([account({ rechargeDate: todayPlusDays(3) })])).toHaveLength(0);
   });
 
   it("includes an account due today and an overdue one", () => {

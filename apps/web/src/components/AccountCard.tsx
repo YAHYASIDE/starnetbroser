@@ -233,9 +233,11 @@ export function AccountCard({
   // invoice) - the whole card turns red rather than just the small status badge, so it's
   // impossible to miss while scanning a list of cards.
   const isSuspended = account.serviceStatus === "suspended";
+  // The renewal date is the stop instant, so 0 (stops today) is already expired, 1 is "ends
+  // tonight" (still a red-hot warning), and the safe zone starts further out.
   const urgencyClass = remainingDays === null
     ? "date-neutral"
-    : remainingDays < 0
+    : remainingDays <= 0
       ? "date-expired"
       : remainingDays <= 3
         ? "date-warning"

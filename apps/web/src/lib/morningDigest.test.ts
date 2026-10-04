@@ -10,7 +10,8 @@ describe("buildMorningDigests", () => {
 
   it("starts tomorrow morning when today's time has passed and describes each day", () => {
     const list = buildMorningDigests({
-      accounts: [acc("a", "2026/09/26"), acc("b", "2026/09/27"), acc("c", "2026/09/20"), acc("gone", "2026/09/26", { deletedAt: "x" })],
+      // Dates are the stop instant: on the 26th, 09/28 ends tomorrow, 09/27 ends tonight, 09/20 stopped.
+      accounts: [acc("a", "2026/09/28"), acc("b", "2026/09/27"), acc("c", "2026/09/20"), acc("gone", "2026/09/28", { deletedAt: "x" })],
       owedByCurrency: { MRU: 1500, USD: 0 },
       now,
       hour: 8,

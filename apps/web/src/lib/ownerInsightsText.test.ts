@@ -71,7 +71,7 @@ describe("owner bot insight commands", () => {
 
   it("today's plan", () => {
     const text = planText({
-      accounts: [acc({ id: "a", name: "منزل", clientId: "c1", rechargeDate: "2026/09/28", lastSuccessfulScanAt: "2026-09-27T00:00:00Z" })],
+      accounts: [acc({ id: "a", name: "منزل", clientId: "c1", rechargeDate: "2026/09/29", lastSuccessfulScanAt: "2026-09-27T00:00:00Z" })],
       clients,
       promises: [],
       ledger: {},

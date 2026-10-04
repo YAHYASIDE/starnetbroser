@@ -32,18 +32,20 @@ describe("renewal groups", () => {
     expect(daysUntilRenewal(account("a", ""), TODAY)).toBeNull();
   });
 
-  it("sorts devices into the 7/3/1-day windows and skips broken or archived ones", () => {
+  it("sorts devices into the 7/3/1-day windows (date = stop instant) and skips broken or archived ones", () => {
+    // TODAY is 2026-09-27. The renewal date is the stop instant, so a device is live one day less
+    // than the raw count: date today = already stopped, date tomorrow = ends tonight.
     const g = renewalGroups(
       [
-        account("old", "2026/09/20"),
-        account("exp", "2026/09/25"),
-        account("today", "2026/09/27"),
-        account("tom", "2026/09/28"),
-        account("d3", "2026/09/30"),
-        account("d7", "2026/10/04"),
+        account("old", "2026/09/23"), // stopped 4 days ago - beyond the "last 3 days" window
+        account("exp", "2026/09/27"), // date today -> stopped today
+        account("today", "2026/09/28"), // date tomorrow -> ends tonight
+        account("tom", "2026/09/29"), // ends tomorrow night
+        account("d3", "2026/09/30"), // 2 days left
+        account("d7", "2026/10/02"), // within the week
         account("far", "2026/10/10"),
-        account("broken", "2026/09/27", { deviceFault: { reason: "other", note: "", reportedAt: "" } }),
-        account("arch", "2026/09/27", { archivedAt: "x" }),
+        account("broken", "2026/09/28", { deviceFault: { reason: "other", note: "", reportedAt: "" } }),
+        account("arch", "2026/09/28", { archivedAt: "x" }),
       ],
       TODAY,
     );
@@ -58,7 +60,7 @@ describe("renewal groups", () => {
 describe("messages", () => {
   it("morning lists the devices by window with the client name, plus debts", () => {
     const text = buildMorningTelegram({
-      accounts: [account("مقهى", "2026/09/27", { clientId: "c1" }), account("منزل", "2026/09/28")],
+      accounts: [account("مقهى", "2026/09/28", { clientId: "c1" }), account("منزل", "2026/09/29")],
       clients,
       owedByCurrency: { MRU: 3000 },
       today: TODAY,
@@ -109,7 +111,7 @@ describe("commands", () => {
   });
 
   it("answers from the data", () => {
-    const accounts = [account("a", "2026/09/28", { serviceStatus: "suspended", clientId: "c1" }), account("b", "2026/09/28")];
+    const accounts = [account("a", "2026/09/29", { serviceStatus: "suspended", clientId: "c1" }), account("b", "2026/09/29")];
     expect(answerStopped(accounts, clients)).toContain("• a (محمد)");
     expect(answerStopped([account("b", "")], {})).toContain("لا أجهزة موقوفة");
     expect(answerExpiring(accounts, clients, TODAY)).toContain("🟠 تنتهي غداً (2)");

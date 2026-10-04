@@ -441,7 +441,7 @@ export default function ReportsPage() {
       <TodayPanel
         ledgerStore={ledgerStore}
         cashEntries={cashEntries}
-        renewalsToday={activeAccounts.filter((a) => daysRemainingNumber(a.rechargeDate || a.standbyDate) === 0).map((a) => ({ id: a.id, name: a.name }))}
+        renewalsToday={activeAccounts.filter((a) => daysRemainingNumber(a.rechargeDate || a.standbyDate) === 1).map((a) => ({ id: a.id, name: a.name }))}
         names={statementNames}
       />
 

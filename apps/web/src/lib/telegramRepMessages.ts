@@ -555,7 +555,7 @@ export function repSearchIndex(
     const lines = [
       `📡 ${account.name}`,
       client ? `👤 ${client.name}${client.phone ? ` (${tappablePhone(client.phone)})` : ""}` : "👤 —",
-      `📅 التجديد: ${account.rechargeDate || "—"}${days === null ? "" : days < 0 ? ` (انتهى منذ ${-days} يوم)` : ` (بعد ${days} يوم)`}`,
+      `📅 التجديد: ${account.rechargeDate || "—"}${days === null ? "" : days <= 0 ? (days === 0 ? " (انتهى اليوم)" : ` (انتهى منذ ${-days} يوم)`) : days === 1 ? " (ينتهي الليلة)" : ` (بعد ${days - 1} يوم)`}`,
       `الحالة: ${statusLabel(account)}`,
       connectionLine(account),
       ownBook ? `💰 في دفترك: ${balanceWords(ownBook)}` : owed ? `💰 عليه: ${owed}` : "💰 لا دين عليه",
