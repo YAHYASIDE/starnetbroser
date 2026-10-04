@@ -38,7 +38,22 @@ mind). Exact texts and numbers live in the code - this file says where.
 - Next step he agreed to: read bank/wallet notifications (Bankily…) into these accounts - see
   «Bank / wallet notifications» below.
 
-## Bank / wallet notifications (decided, not built yet)
+## Bank / wallet notifications (built - «📩 عمليات البنوك» in «حسابي»)
+
+- **Built from the screenshots received so far (his call: «ابدأ ببناء الميزة بما وصلك الآن»).**
+  Native: `BankNotice.java` (which apps: package keywords, else known titles; needs a figure),
+  `BankNoticeStore.java` (kept on disk until the app acks), the same `KastNotificationListener`
+  (also scans active notifications when access is turned on). Web: `lib/bankNotices.ts` (parser +
+  inbox `starnet_bank_inbox_v1`, backed up), `lib/bankSuggestionSave.ts` (a confirmed choice → the
+  usual record), `components/BankInbox.tsx`, wired in `app/money/page.tsx`; drained on open and
+  when the app comes back (`drainBankNotices`).
+- A record from a notification goes through the chosen account (`accountId`), never through
+  الكاش. Supplier / rep payments carry `accountId` too (`partyFlows`); transfers between his
+  accounts are `AccountsBook.transfers` (listed and deletable in «البنوك والمحافظ»).
+- Limits for now: «دفعة زبون» only on an account linked to a payment method (بنكيلي، سداد، مصرفي،
+  نيتا، أورانج) - it's a device payment by that method; a transfer is only between his registered
+  accounts (KAST is the card, not an account here). Formats not received yet show as «إشعار لم
+  يُفهم» (he picks in/out) - add each new wording to the parser + tests when he sends it.
 
 - **Wait for ALL screenshots** before building (his choice): every app (بنكيلي، مصرفي، سداد، كليك،
   أمانتي، أورانج موني مالي، نيتا) and every kind (received from someone, sent/paid, withdrawal…).
