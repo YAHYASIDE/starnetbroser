@@ -156,6 +156,7 @@ const OUT_CHOICES: { type: ChoiceType; label: string }[] = [
   { type: "supplier", label: "🏭 لمورد" },
   { type: "rep", label: "🧑‍💼 لمندوب" },
   { type: "transfer", label: "🔁 لحسابي" },
+  { type: "cash", label: "💵 سحب للكاش" },
 ];
 
 const IN_CHOICES: { type: ChoiceType; label: string }[] = [
@@ -165,6 +166,7 @@ const IN_CHOICES: { type: ChoiceType; label: string }[] = [
   { type: "new-debt", label: "🤝 دين أخذته" },
   { type: "debt-payment", label: "🤝 دين رُدّ لي" },
   { type: "transfer", label: "🔁 من حسابي" },
+  { type: "cash", label: "💵 إيداع من الكاش" },
 ];
 
 export interface ConfirmData {
@@ -210,7 +212,7 @@ export function SuggestionConfirm({
   const [currency, setCurrency] = useState(s.currencyCode ?? firstAccount?.currencyCode ?? "MRU");
   const [date, setDate] = useState(noticeDay(s.at));
   const [note, setNote] = useState(suggestionNote(s));
-  const [choice, setChoice] = useState<ChoiceType>(transfer ? "transfer" : s.kind === "in" ? "income" : "expense");
+  const [choice, setChoice] = useState<ChoiceType>(transfer ? "transfer" : s.cashDeposit ? "cash" : s.kind === "in" ? "income" : "expense");
   const [expenseCat, setExpenseCat] = useState(s.kind === "airtime" ? AIRTIME_CATEGORY_ID : "other");
   const [incomeCat, setIncomeCat] = useState(allIncomeCategories(data.incomeCustom)[0]?.id ?? "other");
   const [person, setPerson] = useState(s.party?.name ?? s.party?.number ?? "");
@@ -281,6 +283,9 @@ export function SuggestionConfirm({
         picked = { type: "transfer", otherAccount: other };
         break;
       }
+      case "cash":
+        picked = { type: "cash" };
+        break;
     }
     setError(onSave({ account, direction, amount: value, currencyCode: currency, date, note, choice: picked }));
   }

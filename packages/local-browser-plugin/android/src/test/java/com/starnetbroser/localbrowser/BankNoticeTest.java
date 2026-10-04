@@ -23,6 +23,8 @@ public class BankNoticeTest {
         assertEquals("bankily", BankNotice.appKey("com.unknown.wallet", "Gimtel envoie de l'argent"));
         assertEquals("sedad", BankNotice.appKey("com.unknown.wallet", "PAIEMENT_CREDIT"));
         assertEquals("nita", BankNotice.appKey("com.unknown.wallet", "Compte à Compte"));
+        assertEquals("bankily", BankNotice.appKey("com.unknown.wallet", "Transfert d\u2019argent"));
+        assertEquals("bankily", BankNotice.appKey("com.unknown.wallet", "Versement espèces"));
     }
 
     @Test

@@ -7,6 +7,10 @@ import { AccountsManager, DebtsTab, IncomeTab, RecurringSection, today, WealthCa
 import { BankInboxCard, BankInboxList, SuggestionConfirm, type ConfirmData, type ConfirmInput } from "@/components/BankInbox";
 import { decideSuggestion, decidedSuggestions, EMPTY_BANK_INBOX, loadBankInbox, pendingSuggestions, reopenSuggestion, saveBankInbox, type BankInbox, type BankSuggestion } from "@/lib/bankNotices";
 import { saveSuggestionChoice } from "@/lib/bankSuggestionSave";
+import { askDeleteCode } from "@/components/DeleteCodePrompt";
+import { loadProfitReset, saveProfitReset, startProfitFresh, undoProfitFresh, type ProfitReset } from "@/lib/profitReset";
+import { loadRepresentativeStore as loadReps, saveRepresentativeStore } from "@/lib/repStore";
+import { loadWipeUndo, undoWipe, wipeAllTransactions, type WipeUndo } from "@/lib/wipeTransactions";
 import { listClients, loadClientStore } from "@/lib/clientStore";
 import { drainBankNotices, kastNotificationsEnabled, openKastNotificationAccess } from "@/lib/localBrowser";
 import { listRepresentatives, loadRepresentativeStore } from "@/lib/repStore";
@@ -132,6 +136,9 @@ export default function MoneyPage() {
   const [notifEnabled, setNotifEnabled] = useState<boolean | null>(null);
   // Bumped when a confirmed notification wrote a supplier / rep / customer record.
   const [inboxVersion, setInboxVersion] = useState(0);
+  // «🔄 الأرباح والخسائر من 0» (the same reset as the reports') and the last «حذف كل المعاملات».
+  const [profitReset, setProfitReset] = useState<ProfitReset | null>(null);
+  const [wipeUndo, setWipeUndo] = useState<WipeUndo | null>(null);
 
   function chooseTab(next: MoneyTab) {
     setTab(next);
@@ -179,6 +186,8 @@ export default function MoneyPage() {
     setBook(readyBook);
     setRates(loadRates());
     setInbox(loadBankInbox());
+    setProfitReset(loadProfitReset());
+    setWipeUndo(loadWipeUndo(window.localStorage));
     const ownNumbers = Array.from(new Set([...OWN_NUMBERS, ...readyBook.accounts.map((a) => a.number ?? "").filter(Boolean)]));
     const readNotices = () => {
       void drainBankNotices(ownNumbers).then((result) => {
@@ -224,7 +233,10 @@ export default function MoneyPage() {
   }, []);
 
   const business = useMemo(() => (loaded ? businessNetForMonth(month, accounts, rates) : { netMru: 0, missing: [] }), [loaded, month, accounts, rates, cashVersion]);
-  const left = useMemo(() => monthLeft({ month, businessNetMru: business.netMru, incomes, expenses, rates }), [month, business, incomes, expenses, rates]);
+  const left = useMemo(
+    () => monthLeft({ month, businessNetMru: business.netMru, incomes, expenses, rates, since: profitReset?.date }),
+    [month, business, incomes, expenses, rates, profitReset],
+  );
   const wealth = useMemo(
     () => buildWealth(loadWealthInput({ accounts, rates, incomes, expenses, debts, book })),
     // الكاش changes (cashVersion) are read from storage.
@@ -337,6 +349,52 @@ export default function MoneyPage() {
     setInboxVersion((v) => v + 1);
     setPicked(null);
     return null;
+  }
+
+  // ---- 🔄 من 0 / 🗑️ حذف الكل ----
+  async function resetProfits() {
+    const ok = await askDeleteCode(
+      "بدء كل الأرباح والخسائر من 0 اليوم؟\n\n• التقارير و«حسابي» (الصافي، الدخل، المصروف) تُحسب من اليوم فقط.\n• كل المندوبين يبدأون حسابًا جديدًا.\n• لا يُحذف شيء: الكاش والبنوك وديون الزبائن والناس كما هي.\n• «↩️ إرجاع الأرباح القديمة» يعيد كل شيء.",
+    );
+    if (!ok) return;
+    const reps = loadReps();
+    const { reset: next, repStore: nextReps } = startProfitFresh(reps);
+    const merged = profitReset ? { ...next, previousRepResets: { ...next.previousRepResets, ...profitReset.previousRepResets } } : next;
+    saveRepresentativeStore(nextReps);
+    saveProfitReset(merged);
+    setProfitReset(merged);
+    setCashVersion((v) => v + 1);
+  }
+
+  async function undoResetProfits() {
+    if (!profitReset || !(await askDeleteCode("إرجاع كل الأرباح والخسائر القديمة وحسابات المندوبين كما كانت؟"))) return;
+    saveRepresentativeStore(undoProfitFresh(profitReset, loadReps()));
+    saveProfitReset(null);
+    setProfitReset(null);
+    setCashVersion((v) => v + 1);
+  }
+
+  async function wipeEverything() {
+    const ok = await askDeleteCode(
+      "⚠️ حذف كل المعاملات وتصفير كل الحسابات؟\n\n• تُحذف كل الشحنات والدفعات والكاش والفواتير وحركات المخزون والمصاريف والدخل والديون وتسويات المناديب وشحن البطاقة والديون السابقة.\n• تصير كل الأرصدة 0 (البنوك والمحافظ تبقى برصيد 0).\n• تبقى الأجهزة والزبائن والمناديب والموردون والأصناف والإعدادات.\n• تُحفظ نسخة استرجاع على الهاتف: «↩️ استرجاع ما حُذف» يعيد كل شيء.",
+    );
+    if (!ok) return;
+    const result = wipeAllTransactions(window.localStorage, today());
+    if (!result.ok) {
+      window.alert(result.message);
+      return;
+    }
+    window.location.reload();
+  }
+
+  async function restoreWiped() {
+    if (!wipeUndo || !(await askDeleteCode(`استرجاع كل ما حُذف يوم ${wipeUndo.at.slice(0, 10)}؟ ما سجّلته بعده في نفس الأماكن يُستبدل بالقديم.`))) return;
+    const result = undoWipe(window.localStorage);
+    if (!result.ok) {
+      window.alert(result.message);
+      return;
+    }
+    window.location.reload();
   }
 
   // ---- الديون ----
@@ -530,6 +588,8 @@ export default function MoneyPage() {
                 setBook(next);
               }}
               onDeleteTransfer={(id) => {
+                // A transfer with الكاش takes its cash entry with it.
+                updateCash((cash) => removeLinkedCashEntries(cash, id));
                 const next = deleteAccountTransfer(book, id);
                 saveAccountsBook(next);
                 setBook(next);
@@ -572,6 +632,34 @@ export default function MoneyPage() {
           )}
         </PartySheet>
       )}
+
+      <section className="report-card money-danger">
+        <div className="report-card-head">
+          <h3>⚙️ البداية من جديد</h3>
+        </div>
+        {profitReset ? (
+          <>
+            <p className="settings-hint">
+              الأرباح والخسائر تُحسب من <bdi dir="ltr">{profitReset.date}</bdi>.
+            </p>
+            <button type="button" className="dialog-secondary" onClick={() => void undoResetProfits()}>
+              ↩️ إرجاع الأرباح والخسائر القديمة
+            </button>
+          </>
+        ) : (
+          <button type="button" className="dialog-secondary" onClick={() => void resetProfits()}>
+            🔄 الأرباح والخسائر من 0 (الديون تبقى)
+          </button>
+        )}
+        <button type="button" className="dialog-danger" onClick={() => void wipeEverything()}>
+          🗑️ حذف كل المعاملات وتصفير كل الحسابات
+        </button>
+        {wipeUndo && (
+          <button type="button" className="dialog-secondary" onClick={() => void restoreWiped()}>
+            ↩️ استرجاع ما حُذف يوم <bdi dir="ltr">{wipeUndo.at.slice(0, 10)}</bdi>
+          </button>
+        )}
+      </section>
 
       {/* ➕ like the home screen's: a new income / expense / debt for the open tab (long-press pins it). */}
       <div className="home-fab">

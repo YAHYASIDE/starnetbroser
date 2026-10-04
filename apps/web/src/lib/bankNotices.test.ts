@@ -118,6 +118,19 @@ describe("parseBankNotice", () => {
     expect(parseBankNotice(raw("z", "binance", "BTC is up 5%", "Bitcoin 65000 USDT"), OWN).kind).toBe("ignore");
   });
 
+  it("reads «Transfert d’argent» with a typographic apostrophe", () => {
+    expect(parseBankNotice(raw("x", "bankily", "Transfert d’argent", "Montant : 1370 MRU\nExpediteur : DEMO NAME,20000009…"), OWN)).toMatchObject({
+      kind: "in",
+      amount: 1370,
+      party: { name: "DEMO NAME", number: "20000009" },
+    });
+  });
+
+  it("Bankily «Versement espèces» is cash deposited into the account (from الكاش)", () => {
+    const n = raw("x", "bankily", "Versement espèces", "Votre compte a ete credite de 11800.0 MRU suite a votre versement espece.ID Trs: 0626100000000001");
+    expect(parseBankNotice(n, OWN)).toEqual({ kind: "in", amount: 11800, currencyCode: "MRU", cashDeposit: true, txId: "0626100000000001" });
+  });
+
   it("a notification not understood yet shows when it carries an amount", () => {
     expect(parseBankNotice(raw("x", "bankily", "MERPASSCDE", "Votre demande … Montant : 1000 MRU B…"), OWN)).toEqual({ kind: "unknown", amount: 1000, currencyCode: "MRU" });
     expect(parseBankNotice(raw("y", "sedad", "Sedad", "عرض جديد 2026"), OWN).kind).toBe("ignore");

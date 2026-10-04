@@ -9,7 +9,8 @@
 import { saveClientDevicePayment } from "./clientDevicePaymentSave";
 import { loadCurrencyStore } from "./currencyStore";
 import { loadLedgerStore, type LedgerByAccount } from "./ledgerStore";
-import { addAccountTransfer, loadAccountsBook, saveAccountsBook, type MoneyAccount } from "./moneyAccounts";
+import { addAccountTransfer, CASH_ACCOUNT_ID, loadAccountsBook, saveAccountsBook, transferCashEntry, type MoneyAccount } from "./moneyAccounts";
+import { loadCashEntries, recordCashEntry, saveCashEntries } from "./cashStore";
 import { addDebt, addDebtPayment, addIncome, incomeCategoryOf, loadDebtBook, loadIncome, loadIncomeCategories, saveDebtBook, saveIncome } from "./myMoney";
 import { loadPartyAdjustments, recordPartyAdjustment, savePartyAdjustments } from "./partyBalanceStore";
 import { categoryPath } from "./categoryTree";
@@ -27,7 +28,9 @@ export type SuggestionChoice =
   | { type: "supplier"; supplierId: string; supplierName: string }
   | { type: "rep"; repId: string; repName: string; kind: RepSettlementKind }
   | { type: "customer"; device: { id: string; name: string; email?: string } }
-  | { type: "transfer"; otherAccount: MoneyAccount };
+  | { type: "transfer"; otherAccount: MoneyAccount }
+  /** in = cash deposited into the account («Versement espèces»), out = cash withdrawn. */
+  | { type: "cash" };
 
 export interface SuggestionSaveInput {
   account: MoneyAccount;
@@ -138,6 +141,24 @@ export function saveSuggestionChoice(input: SuggestionSaveInput): SuggestionSave
       if (!result.ok) return result;
       saveAccountsBook(result.book);
       return { ok: true, outcome: out ? `🔁 تحويل إلى ${choice.otherAccount.name}` : `🔁 تحويل من ${choice.otherAccount.name}` };
+    }
+    case "cash": {
+      const book = loadAccountsBook();
+      const result = addAccountTransfer(book, {
+        fromAccountId: out ? account.id : CASH_ACCOUNT_ID,
+        toAccountId: out ? CASH_ACCOUNT_ID : account.id,
+        amount,
+        currencyCode,
+        date,
+        note,
+      });
+      if (!result.ok) return result;
+      const cashInput = transferCashEntry(result.transfer, account.name);
+      const posted = cashInput ? recordCashEntry(loadCashEntries(), cashInput) : null;
+      if (posted && !posted.ok) return posted;
+      saveAccountsBook(result.book);
+      if (posted) saveCashEntries(posted.entries);
+      return { ok: true, outcome: out ? `💵 سحب إلى الكاش من ${account.name}` : `💵 إيداع من الكاش في ${account.name}` };
     }
   }
 }

@@ -201,10 +201,11 @@ export function addRecurringRule(list: RecurringList, input: RecurringInput, tod
   return { ok: true, list: [...list, rule], rule };
 }
 
-/** The first month a new rule records: this month if its day hasn't passed yet, else the next. */
+/** The first month a new rule records: this month if its day is still ahead, else the next -
+ * never on the very day it's added (the operator's choice: «لا يُسجَّل يوم إضافته»). */
 export function firstRecurringMonth(today: string, day: number): string {
   const [y, m, d] = today.split("-").map(Number) as [number, number, number];
-  if (d <= day) return today.slice(0, 7);
+  if (d < day) return today.slice(0, 7);
   return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
 }
 
@@ -455,9 +456,18 @@ export interface MonthLeft {
 }
 
 /** One month: what the business earned (reports' «الصافي»), plus my income, minus my spending. */
-export function monthLeft(input: { month: string; businessNetMru: number; incomes: IncomeList; expenses: PersonalExpense[]; rates: RatesFromUsd }): MonthLeft {
-  const income = sumToMru(inMonth(input.incomes, input.month), input.rates);
-  const expense = sumToMru(inMonth(input.expenses, input.month), input.rates);
+export function monthLeft(input: {
+  month: string;
+  businessNetMru: number;
+  incomes: IncomeList;
+  expenses: PersonalExpense[];
+  rates: RatesFromUsd;
+  /** «الأرباح والخسائر من 0» (profitReset.ts): income / spending before this day don't count. */
+  since?: string;
+}): MonthLeft {
+  const after = <T extends { date: string }>(list: T[]) => (input.since ? list.filter((r) => r.date >= input.since!) : list);
+  const income = sumToMru(inMonth(after(input.incomes), input.month), input.rates);
+  const expense = sumToMru(inMonth(after(input.expenses), input.month), input.rates);
   return {
     businessMru: input.businessNetMru,
     incomeMru: income.mru,

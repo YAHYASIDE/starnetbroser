@@ -787,7 +787,7 @@ export function AccountsManager({
 }) {
   const [adding, setAdding] = useState(false);
   const [correcting, setCorrecting] = useState<string | null>(null);
-  const nameOf = (id: string) => book.accounts.find((a) => a.id === id)?.name ?? "حساب محذوف";
+  const nameOf = (id: string) => (id === "cash" ? "💵 الكاش" : book.accounts.find((a) => a.id === id)?.name ?? "حساب محذوف");
   const transfers = [...(book.transfers ?? [])].sort((a, b) => (b.date !== a.date ? (b.date < a.date ? -1 : 1) : b.createdAt < a.createdAt ? -1 : 1));
   return (
     <div className="party-balance-form">

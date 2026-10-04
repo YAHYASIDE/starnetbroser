@@ -4,6 +4,8 @@ import type { LedgerByAccount, LedgerEntry } from "./ledgerStore";
 import {
   accountBalance,
   addAccountTransfer,
+  CASH_ACCOUNT_ID,
+  transferCashEntry,
   addMoneyAccount,
   deleteAccountTransfer,
   partyFlows,
@@ -128,5 +130,18 @@ describe("partyFlows", () => {
       ],
     );
     expect(flows.map((f) => f.amount)).toEqual([-4600, 300, -100, 250]);
+  });
+});
+
+describe("cash deposited into an account («Versement espèces»)", () => {
+  it("adds to the account and takes the same amount out of الكاش (linked entry)", () => {
+    const made = bankily();
+    const t = addAccountTransfer(made.book, { fromAccountId: CASH_ACCOUNT_ID, toAccountId: made.account.id, amount: 11800, currencyCode: "MRU", date: "2026-10-04" });
+    if (!t.ok) throw new Error(t.message);
+    expect(accountBalance(t.book, made.account, [])).toEqual({ MRU: 21800 });
+    expect(transferCashEntry(t.transfer, "بنكيلي")).toMatchObject({ kind: "out", amount: 11800, sourceId: t.transfer.id, sourceKind: "account-transfer" });
+    const back = addAccountTransfer(made.book, { fromAccountId: made.account.id, toAccountId: CASH_ACCOUNT_ID, amount: 500, currencyCode: "MRU", date: "2026-10-04" });
+    if (!back.ok) throw new Error(back.message);
+    expect(transferCashEntry(back.transfer, "بنكيلي")?.kind).toBe("in");
   });
 });

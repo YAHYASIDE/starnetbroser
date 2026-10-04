@@ -93,15 +93,19 @@ describe("🔁 شهري", () => {
   });
 
   it("an expense rule (the rent) records personal expenses", () => {
-    const made = addRecurringRule([], { kind: "expense", categoryId: "home", amount: 20000, currencyCode: "MRU", day: 1, viaCash: false }, "2026-10-01", now);
+    const made = addRecurringRule([], { kind: "expense", categoryId: "home", amount: 20000, currencyCode: "MRU", day: 1, viaCash: false }, "2026-09-30", now);
     if (!made.ok) throw new Error();
+    // Added on the 30th for day 1: first recorded on 1 October.
+    expect(dueRecurring(made.list, [], [], "2026-09-30", now).expenses).toHaveLength(0);
     const due = dueRecurring(made.list, [], [], "2026-10-01", now);
     expect(due.expenses).toHaveLength(1);
     expect(due.expenses[0]).toMatchObject({ categoryId: "home", date: "2026-10-01", fromCash: false, recurringId: made.rule.id });
   });
 
-  it("starts on its first day on/after the day it was made", () => {
+  it("starts on its first day after the day it was made", () => {
     expect(firstRecurringMonth("2026-10-04", 5)).toBe("2026-10");
+    // Its day is today: not recorded on the day it's added - next month.
+    expect(firstRecurringMonth("2026-10-05", 5)).toBe("2026-11");
     expect(firstRecurringMonth("2026-10-06", 5)).toBe("2026-11");
     expect(firstRecurringMonth("2026-12-20", 1)).toBe("2027-01");
   });
@@ -150,6 +154,15 @@ describe("the final figures", () => {
     ] as PersonalExpense[];
     const left = monthLeft({ month: "2026-10", businessNetMru: 120000, incomes: income.list, expenses, rates });
     expect(left).toMatchObject({ businessMru: 120000, incomeMru: 50000, expenseMru: 6000, leftMru: 164000, missing: [] });
+  });
+
+  it("after «الأرباح والخسائر من 0», income and spending before that day don't count", () => {
+    const expenses = [
+      { id: "e1", categoryId: "food", amount: 6000, currencyCode: "MRU", date: "2026-10-02", fromCash: true, createdAt: "" },
+      { id: "e2", categoryId: "food", amount: 1000, currencyCode: "MRU", date: "2026-10-10", fromCash: true, createdAt: "" },
+    ] as PersonalExpense[];
+    const left = monthLeft({ month: "2026-10", businessNetMru: 0, incomes: [], expenses, rates, since: "2026-10-05" });
+    expect(left.expenseMru).toBe(1000);
   });
 
   it("«في يدك الآن» and «كل ما تملك»: have − owe, then + what's owed to me", () => {

@@ -7,7 +7,7 @@
  * different figure.
  */
 
-import type { CashEntryList } from "./cashStore";
+import type { CashEntryList, CreateCashEntryInput } from "./cashStore";
 import type { LedgerByAccount, PaymentMethod } from "./ledgerStore";
 import type { PartyAdjustment } from "./partyBalanceStore";
 import type { RepSettlement } from "./repStore";
@@ -190,6 +190,10 @@ export function correctBalance(
   return { ok: true, book: { ...book, adjustments: [...book.adjustments, adjustment] } };
 }
 
+/** الكاش as one side of a transfer (cash deposited at an agent, cash withdrawn): it has no
+ * account of its own - its linked cash entry (sourceId = the transfer's id) moves الكاش. */
+export const CASH_ACCOUNT_ID = "cash";
+
 export type TransferResult = { ok: true; book: AccountsBook; transfer: AccountTransfer } | { ok: false; message: string };
 
 export function addAccountTransfer(
@@ -199,7 +203,8 @@ export function addAccountTransfer(
 ): TransferResult {
   if (!input.fromAccountId || !input.toAccountId) return { ok: false, message: "اختر الحسابين" };
   if (input.fromAccountId === input.toAccountId) return { ok: false, message: "اختر حسابين مختلفين" };
-  if (!book.accounts.some((a) => a.id === input.fromAccountId) || !book.accounts.some((a) => a.id === input.toAccountId)) return { ok: false, message: "الحساب غير موجود" };
+  const exists = (id: string) => id === CASH_ACCOUNT_ID || book.accounts.some((a) => a.id === id);
+  if (!exists(input.fromAccountId) || !exists(input.toAccountId)) return { ok: false, message: "الحساب غير موجود" };
   if (!Number.isFinite(input.amount) || input.amount <= 0) return { ok: false, message: "أدخل المبلغ" };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) return { ok: false, message: "اختر التاريخ" };
   const transfer: AccountTransfer = {
@@ -213,6 +218,22 @@ export function addAccountTransfer(
     createdAt: now.toISOString(),
   };
   return { ok: true, book: { ...book, transfers: [...(book.transfers ?? []), transfer] }, transfer };
+}
+
+/** The الكاش entry of a transfer with الكاش (none for a transfer between two accounts). */
+export function transferCashEntry(transfer: AccountTransfer, accountName: string): CreateCashEntryInput | null {
+  const toCash = transfer.toAccountId === CASH_ACCOUNT_ID;
+  if (!toCash && transfer.fromAccountId !== CASH_ACCOUNT_ID) return null;
+  return {
+    kind: toCash ? "in" : "out",
+    amount: transfer.amount,
+    currencyCode: transfer.currencyCode,
+    date: transfer.date,
+    category: toCash ? `سحب من ${accountName}` : `إيداع في ${accountName}`,
+    ...(transfer.note ? { note: transfer.note } : {}),
+    sourceId: transfer.id,
+    sourceKind: "account-transfer",
+  };
 }
 
 export function deleteAccountTransfer(book: AccountsBook, id: string): AccountsBook {

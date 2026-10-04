@@ -12571,3 +12571,10 @@ button.today-tile {
   white-space: nowrap;
   cursor: pointer;
 }
+
+/* ⚙️ «البداية من جديد» at the bottom of «حسابي» */
+.money-danger {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 90px;
+}

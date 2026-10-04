@@ -36,6 +36,7 @@ const SOURCE_LABELS: Record<CashSourceKind, string> = {
   "personal-expense": "مصروف شخصي",
   "personal-income": "دخل شخصي",
   "personal-debt": "دين شخصي",
+  "account-transfer": "تحويل مع حساب بنكي",
 };
 
 function sourceBadge(entry: CashEntry): string | null {

@@ -55,6 +55,8 @@ export interface ParsedNotice {
   toApp?: string;
   /** A Binance deposit: income, or a transfer from another account of mine - he picks. */
   deposit?: boolean;
+  /** Cash he handed to an agent went into the account («Versement espèces»): from الكاش. */
+  cashDeposit?: boolean;
 }
 
 /** "50.0", "4600", "10000.0", "1 000", "1,000.50" → a number. */
@@ -120,11 +122,14 @@ function unknownOrIgnore(text: string, txId?: string): ParsedNotice {
  * of my apps on my own number is a transfer, not income.
  */
 export function parseBankNotice(raw: Pick<RawBankNotice, "app" | "title" | "text">, ownNumbers: string[]): ParsedNotice {
-  const title = raw.title.trim();
-  const text = raw.text.replace(/[\s ]+/g, " ").trim();
+  // Phones write the apostrophe several ways («Transfert d’argent»).
+  const quotes = (s: string) => s.replace(/[’‘ʼ`´]/g, "'");
+  const rawText = quotes(raw.text);
+  const title = quotes(raw.title).trim();
+  const text = rawText.replace(/[\s ]+/g, " ").trim();
   const all = `${title} ${text}`;
   const own = new Set(ownNumbers.map(localNumber));
-  const txId = /ID de transaction\s*:\s*(\d+)/i.exec(all)?.[1];
+  const txId = /(?:ID de transaction|ID Trs)\s*:\s*(\d+)/i.exec(all)?.[1];
   const withTx = txId ? { txId } : {};
 
   if (raw.app === "bankily") {
@@ -141,7 +146,13 @@ export function parseBankNotice(raw: Pick<RawBankNotice, "app" | "title" | "text
     // «Transfert d'argent» - «Montant : 10 MRU» + «Beneficiaire : NAME,NUMBER» (out) or
     // «Expediteur : NAME,NUMBER» (in).
     const montant = new RegExp(`Montant\\s*:\\s*${AMOUNT}\\s*MRU`, "i").exec(text);
-    const who = /(Beneficiaire|Bénéficiaire|Expediteur|Expéditeur)\s*:\s*([^\n]+)/i.exec(raw.text);
+    // «Versement espèces»: «Votre compte a ete credite de 11800.0 MRU suite a votre versement espece».
+    const cash = new RegExp(`cr[ée]dit[ée]e?\\s+de\\s+${AMOUNT}\\s*MRU\\s+suite\\s+[àa]\\s+votre\\s+versement\\s+esp[eè]ce`, "i").exec(text);
+    if (cash) {
+      const amount = parseNoticeAmount(cash[1]!);
+      if (amount) return { kind: "in", amount, currencyCode: "MRU", cashDeposit: true, ...withTx };
+    }
+    const who = /(Beneficiaire|Bénéficiaire|Expediteur|Expéditeur)\s*:\s*([^\n]+)/i.exec(rawText);
     if (montant && who && /transfert d'argent/i.test(title)) {
       const amount = parseNoticeAmount(montant[1]!);
       if (!amount) return unknownOrIgnore(text, txId);
@@ -229,6 +240,7 @@ export interface BankSuggestion {
   fromApp?: string;
   toApp?: string;
   deposit?: boolean;
+  cashDeposit?: boolean;
   /** Every notification behind it, as it was (a GIMTEL transfer has two). */
   notices: NoticeCopy[];
   /** The same text came a little before - perhaps a repeat, perhaps a second real transfer. */
@@ -310,6 +322,7 @@ export function ingestBankNotices(inbox: BankInbox, raws: RawBankNotice[], ownNu
       ...(parsed.fromApp ? { fromApp: parsed.fromApp } : {}),
       ...(parsed.toApp ? { toApp: parsed.toApp } : {}),
       ...(parsed.deposit ? { deposit: true } : {}),
+      ...(parsed.cashDeposit ? { cashDeposit: true } : {}),
       notices: [copy],
       ...(repeated ? { maybeDuplicate: true } : {}),
       status: "pending",

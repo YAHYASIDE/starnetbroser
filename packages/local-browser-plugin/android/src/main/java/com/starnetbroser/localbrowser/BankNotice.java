@@ -34,6 +34,7 @@ final class BankNotice {
         {"gimtel envoie de l'argent", "bankily"},
         {"transfert d'argent", "bankily"},
         {"merpasscde", "bankily"},
+        {"versement espèces", "bankily"},
         {"envoi", "sedad"},
         {"paiement_credit", "sedad"},
         {"compte à compte", "nita"},
@@ -47,7 +48,8 @@ final class BankNotice {
         String pkg = packageName == null ? "" : packageName.toLowerCase(Locale.ROOT);
         if (pkg.startsWith("com.starnetbroser")) return null;
         for (String[] p : PACKAGES) if (pkg.contains(p[0])) return p[1];
-        String t = title == null ? "" : title.trim().toLowerCase(Locale.ROOT);
+        // Phones write the apostrophe several ways («Transfert d’argent»).
+        String t = title == null ? "" : title.trim().toLowerCase(Locale.ROOT).replaceAll("[\u2019\u2018\u02bc`\u00b4]", "'");
         for (String[] p : TITLES) if (t.equals(p[0]) || t.startsWith(p[0] + " ")) return p[1];
         return null;
     }
