@@ -6,7 +6,7 @@
  * Arabic, French) - never by guessing a field with no card wording.
  */
 
-export type CardFieldKind = "number" | "name" | "expiry" | "expMonth" | "expYear" | "cvc" | "postal" | "address";
+export type CardFieldKind = "number" | "name" | "expiry" | "expMonth" | "expYear" | "cvc" | "postal" | "address" | "taxId";
 
 export interface FillCard {
   number: string;
@@ -18,6 +18,8 @@ export interface FillCard {
   cvc: string;
   postal?: string;
   address?: string;
+  /** DNI / RTN / Passport / tax id (some countries' Starlink payment form requires it). */
+  taxId?: string;
 }
 
 const AUTOCOMPLETE: Record<string, CardFieldKind> = {
@@ -42,6 +44,7 @@ const WORDING: [CardFieldKind, RegExp][] = [
   ["name", /name on card|card\s*holder|cardholder|as it appears on|كما يظهر في البطاقة|اسم حامل البطاقة|titulaire|nom sur la carte/i],
   ["postal", /zip|postal|post code|الرمز البريدي|code postal/i],
   ["address", /billing address|address line|street|عنوان الفوترة|adresse/i],
+  ["taxId", /\bdni\b|\brtn\b|passport|tax[\s._-]*id|\bcpf\b|\bcuit\b|\brut\b|c[eé]dula|documento|رقم الهوية|الهوية|الجواز|الرقم الضريبي/i],
 ];
 
 function labelText(el: HTMLInputElement | HTMLSelectElement): string {
@@ -112,6 +115,8 @@ function valueFor(kind: CardFieldKind, card: FillCard, el: HTMLInputElement | HT
       return card.postal || undefined;
     case "address":
       return card.address || undefined;
+    case "taxId":
+      return card.taxId || undefined;
   }
 }
 

@@ -1266,7 +1266,7 @@ function PaymentCardsSection({
       {error && <div className="account-card-alert">{error}</div>}
       {cards.length > 0 && (
         <p className="settings-hint">
-          💳 أكمل بيانات البطاقة (الرقم، الاسم، التاريخ، الرمز، العنوان) مرة واحدة: في متصفح أي جهاز، عند الضغط على خانة البطاقة في صفحة الدفع - أو زر 💳 في الأعلى - تختار البطاقة فتُملأ الخانات وحدها. تبقى في هاتفك ونسختك الاحتياطية فقط.
+          💳 أكمل بيانات البطاقة (الرقم، الاسم، التاريخ، الرمز، العنوان، رقم الهوية/الجواز) مرة واحدة: في متصفح أي جهاز، عند الضغط على خانة البطاقة في صفحة الدفع - أو زر 💳 في الأعلى - تختار البطاقة فتُملأ الخانات وحدها. تبقى في هاتفك ونسختك الاحتياطية فقط.
         </p>
       )}
       {detailsFor && (
@@ -1301,13 +1301,14 @@ function CardDetailsForm({ existing, onSave, onRemove }: { existing?: CardFillDa
   const [cvc, setCvc] = useState(existing?.cvc ?? "");
   const [postalCode, setPostalCode] = useState(existing?.postalCode ?? "");
   const [address, setAddress] = useState(existing?.address ?? "");
+  const [taxId, setTaxId] = useState(existing?.taxId ?? "");
   const [error, setError] = useState<string | null>(null);
   return (
     <form
       className="party-balance-form"
       onSubmit={(e) => {
         e.preventDefault();
-        setError(onSave({ number, holderName, expiry, cvc, postalCode, address }));
+        setError(onSave({ number, holderName, expiry, cvc, postalCode, address, taxId }));
       }}
     >
       {existing && <small className="settings-hint">محفوظة: <bdi dir="ltr">{maskedNumber(existing.number)}</bdi></small>}
@@ -1336,6 +1337,10 @@ function CardDetailsForm({ existing, onSave, onRemove }: { existing?: CardFillDa
       <label className="tool-field">
         <span>العنوان (اختياري)</span>
         <input className="search-input" autoComplete="off" value={address} onChange={(e) => setAddress(e.target.value)} />
+      </label>
+      <label className="tool-field">
+        <span>رقم الهوية/الجواز (اختياري - DNI/RTN/Passport)</span>
+        <input className="search-input" dir="ltr" autoComplete="off" value={taxId} onChange={(e) => setTaxId(e.target.value)} placeholder="DNI / RTN / Passport" />
       </label>
       {error && <div className="account-card-alert ledger-form-error">{error}</div>}
       <button className="dialog-primary" type="submit">

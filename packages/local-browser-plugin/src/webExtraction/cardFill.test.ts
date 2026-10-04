@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { cardFieldKind, cardFields, fillCardFields, type FillCard } from "./cardFill";
 
 // A test card number (Visa test digits) and fake data only.
-const CARD: FillCard = { number: "4111111111111111", name: "DEMO NAME", expMonth: "03", expYear: "30", cvc: "123", postal: "00000", address: "DEMO STREET" };
+const CARD: FillCard = { number: "4111111111111111", name: "DEMO NAME", expMonth: "03", expYear: "30", cvc: "123", postal: "00000", address: "DEMO STREET", taxId: "DEMOTAX123" };
 
 function page(html: string): Document {
   document.body.innerHTML = html;
@@ -70,5 +70,12 @@ describe("fillCardFields", () => {
     const doc = page(`<input id="c" name="cardnumber"><input id="z" autocomplete="postal-code">`);
     expect(fillCardFields(doc, { ...CARD, postal: "" })).toBe(1);
     expect((doc.getElementById("z") as HTMLInputElement).value).toBe("");
+  });
+
+  it("fills a «DNI / RTN / Passport» tax-id field when the form requires it", () => {
+    const doc = page(`<input id="t" placeholder="DNI / RTN / Passport"><input id="other" placeholder="Search by name">`);
+    expect(cardFields(doc).map((f) => [f.el.id, f.kind])).toEqual([["t", "taxId"]]);
+    expect(fillCardFields(doc, CARD)).toBe(1);
+    expect((document.getElementById("t") as HTMLInputElement).value).toBe("DEMOTAX123");
   });
 });

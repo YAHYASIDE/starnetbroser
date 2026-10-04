@@ -144,7 +144,9 @@ mind). Exact texts and numbers live in the code - this file says where.
 
 - In «ستارلينك والبطاقة», each KAST card (same list, last 4) gets «💳 أكمل البيانات»: full number
   (check digit + must end with its last 4), name on card, MM/YY, security code, postal code,
-  address. **His choices:** kept on the phone **and in the encrypted backup** (`starnet_card_fill_v1`),
+  address, and **DNI / RTN / Passport** (a tax id some countries' Starlink payment form requires -
+  the «taxId» card field, filled when the form shows a DNI/RTN/Passport box; his own id, kept per
+  card on the phone). **His choices:** kept on the phone **and in the encrypted backup** (`starnet_card_fill_v1`),
   the code is filled too, **no fingerprint**; never in the rep's copy (`pushFillCards` sends [] in
   rep mode), never to the assistant. Logic `lib/cardFill.ts`.
 - In a device's browser: tapping a card field of the payment form (or the top-bar «💳») lists the

@@ -17,6 +17,8 @@ export interface CardFillData {
   cvc: string;
   postalCode?: string;
   address?: string;
+  /** DNI / RTN / Passport - some countries' Starlink payment form requires it. */
+  taxId?: string;
   updatedAt: string;
 }
 
@@ -30,6 +32,7 @@ export interface CardFillInput {
   cvc: string;
   postalCode?: string;
   address?: string;
+  taxId?: string;
 }
 
 /** The standard check digit every real card number passes. */
@@ -85,9 +88,10 @@ export function validateCardFill(input: CardFillInput, card: Pick<PaymentCard, "
   if (cvc.length < 3 || cvc.length > 4) return { ok: false, message: "رمز التحقق 3 أو 4 أرقام" };
   const postalCode = input.postalCode?.trim();
   const address = input.address?.trim();
+  const taxId = input.taxId?.trim();
   return {
     ok: true,
-    data: { number, holderName, expiry, cvc, ...(postalCode ? { postalCode } : {}), ...(address ? { address } : {}), updatedAt: now.toISOString() },
+    data: { number, holderName, expiry, cvc, ...(postalCode ? { postalCode } : {}), ...(address ? { address } : {}), ...(taxId ? { taxId } : {}), updatedAt: now.toISOString() },
   };
 }
 
@@ -115,7 +119,7 @@ export function fillItems(cards: PaymentCard[], book: CardFillBook): { label: st
       const [expMonth, expYear] = d.expiry.split("/");
       return {
         label: `${c.name} ${maskedNumber(d.number)} · ${d.expiry}`,
-        payload: JSON.stringify({ number: d.number, name: d.holderName, expMonth, expYear, cvc: d.cvc, postal: d.postalCode ?? "", address: d.address ?? "" }),
+        payload: JSON.stringify({ number: d.number, name: d.holderName, expMonth, expYear, cvc: d.cvc, postal: d.postalCode ?? "", address: d.address ?? "", taxId: d.taxId ?? "" }),
       };
     });
 }
