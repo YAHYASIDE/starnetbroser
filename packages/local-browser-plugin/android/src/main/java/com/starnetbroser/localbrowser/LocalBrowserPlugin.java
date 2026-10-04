@@ -275,6 +275,58 @@ public class LocalBrowserPlugin extends Plugin {
         call.resolve();
     }
 
+    // ---- 💳 the card's billing Gmail (the card company's STARLINK payment code) ----
+
+    /** Links the Gmail that receives card verification codes (read-only), through Google's own
+     * screen - the account must be on the phone. Used by «أضف البطاقة» to read no-reply's code. */
+    @PluginMethod
+    public void linkCardGmail(PluginCall call) {
+        String email = call.getString("email", "").trim().toLowerCase(java.util.Locale.ROOT);
+        if (email.isEmpty()) {
+            call.reject("اكتب بريد البطاقة (Gmail) أولاً");
+            return;
+        }
+        driveAuthorizer.authorize(getActivity(), GmailCodes.SCOPE, email, true, "يلزم ربط Gmail", new DriveAuthorizer.TokenCallback() {
+            @Override
+            public void onToken(String token) {
+                telegramExecutor.execute(() -> {
+                    try {
+                        String account = GmailCodes.profileEmail(GmailCodeFetcher.get(GmailCodes.PROFILE_URL, token));
+                        if (!email.equals(account)) {
+                            call.reject("اخترت حساباً آخر (" + account + ") - اختر " + email);
+                            return;
+                        }
+                        GmailCodeFetcher.setCardCodeEmail(getContext(), email);
+                        JSObject ret = new JSObject();
+                        ret.put("email", email);
+                        call.resolve(ret);
+                    } catch (java.io.IOException ex) {
+                        call.reject(gmailError(ex));
+                    }
+                });
+            }
+
+            @Override
+            public void onError(String message, String code) {
+                call.reject(message + " - تأكد أن " + email + " مضاف في إعدادات الهاتف ← الحسابات", code);
+            }
+        });
+    }
+
+    @PluginMethod
+    public void cardGmailStatus(PluginCall call) {
+        JSObject ret = new JSObject();
+        String email = GmailCodeFetcher.cardCodeEmail(getContext());
+        if (email != null) ret.put("email", email);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void unlinkCardGmail(PluginCall call) {
+        GmailCodeFetcher.setCardCodeEmail(getContext(), null);
+        call.resolve();
+    }
+
     // ---- 📧 a device's own Gmail (Starlink's codes) ----
 
     /** Links one device's Gmail (read-only), through Google's own screen - the account must be on

@@ -11,6 +11,7 @@ import { ActivationCostsSection } from "@/components/ActivationCostsSection";
 import { PhoneShortcutsSection } from "@/components/PhoneShortcutsSection";
 import { UsedPasswordsSection } from "@/components/UsedPasswordsSection";
 import { GmailCodesSection } from "@/components/GmailCodesSection";
+import { CardGmailSection } from "@/components/CardGmailSection";
 import { BiometricUnlockToggle } from "@/components/BiometricUnlockToggle";
 import { openSettingsFold, SettingsFold } from "@/components/SettingsFold";
 import { SettingsSearch } from "@/components/SettingsSearch";
@@ -309,6 +310,7 @@ export default function SettingsPage() {
       <SettingsFold id="shortcuts"><PhoneShortcutsSection /></SettingsFold>
       <UsedPasswordsSection />
       <SettingsFold id="gmail-codes"><GmailCodesSection /></SettingsFold>
+      <SettingsFold id="card-gmail"><CardGmailSection /></SettingsFold>
       <SettingsFold id="theme">
       <section className="section">
         <h2 className="section-title">المظهر</h2>

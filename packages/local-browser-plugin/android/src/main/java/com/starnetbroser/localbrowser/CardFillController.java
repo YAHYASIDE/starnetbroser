@@ -67,6 +67,8 @@ final class CardFillController {
     private JavaScriptReplyProxy otpFrame;
     /** What was on the clipboard when the code field showed - an old copy is never the code. */
     private String clipAtOtp;
+    /** 💳 Reads the card company's code from the card's billing Gmail, when linked. */
+    private GmailCodeFetcher codeFromGmail;
     private final PaymentCodeInbox.Listener codeListener = code -> new Handler(Looper.getMainLooper()).post(() -> sendCode(code));
 
     CardFillController(Activity activity, Host host) {
@@ -291,16 +293,44 @@ final class CardFillController {
     private void awaitCode() {
         clipAtOtp = readClipboard();
         PaymentCodeInbox.await(flow.startedAt, codeListener);
-        if (KastNotificationListener.isEnabled(activity)) {
-            Toast.makeText(activity, "📧 ينتظر رمز no-reply من البريد - يُدخله التطبيق عند وصوله", Toast.LENGTH_LONG).show();
+        // 📧 The surest path: read the code straight from the card's billing Gmail (if linked),
+        // since Gmail's notification often hides it inside the mail body.
+        boolean gmail = GmailCodeFetcher.cardCodeEmail(activity) != null;
+        if (gmail) {
+            codeFromGmail = GmailCodeFetcher.forCardPayment(activity, flow.startedAt, new CodeSource.Listener() {
+                @Override
+                public void onCode(String code) {
+                    new Handler(Looper.getMainLooper()).post(() -> sendCode(code));
+                }
+
+                @Override
+                public void onSignedOut() {}
+
+                @Override
+                public void onGiveUp() {}
+            });
+            codeFromGmail.start();
+        }
+        if (gmail) {
+            Toast.makeText(activity, "📧 يقرأ التطبيق رمز no-reply من بريد البطاقة - انتظر قليلاً", Toast.LENGTH_LONG).show();
+        } else if (KastNotificationListener.isEnabled(activity)) {
+            Toast.makeText(activity, "📧 ينتظر رمز no-reply من البريد - يُدخله التطبيق عند وصوله (أو اربط بريد البطاقة في الإعدادات ليقرأه وحده)", Toast.LENGTH_LONG).show();
         } else {
-            Toast.makeText(activity, "📧 انسخ رمز no-reply من البريد وارجع - يُدخله التطبيق (أو فعّل «الوصول للإشعارات» ليقرأه وحده)", Toast.LENGTH_LONG).show();
+            Toast.makeText(activity, "📧 انسخ رمز no-reply من البريد وارجع - يُدخله التطبيق (أو اربط بريد البطاقة في الإعدادات ليقرأه وحده)", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void stopGmail() {
+        if (codeFromGmail != null) {
+            codeFromGmail.stop();
+            codeFromGmail = null;
         }
     }
 
     private void sendCode(String code) {
         if (!flowRunning() || !flow.awaitingCode() || otpFrame == null) return;
         PaymentCodeInbox.stop(codeListener);
+        stopGmail();
         send(otpFrame, "{\"cmd\":\"code\",\"code\":\"" + code.replaceAll("\\D", "") + "\"}");
     }
 
@@ -326,6 +356,7 @@ final class CardFillController {
         otpFrame = null;
         clipAtOtp = null;
         PaymentCodeInbox.stop(codeListener);
+        stopGmail();
         handler.removeCallbacks(tick);
         handler.removeCallbacks(fillNow);
     }

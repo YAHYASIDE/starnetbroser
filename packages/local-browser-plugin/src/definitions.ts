@@ -653,6 +653,17 @@ export interface LocalBrowserPlugin {
 
   unlinkGmailCodes(): Promise<void>;
 
+  /**
+   * 💳 The Gmail that receives the card company's STARLINK payment code (for «أضف البطاقة»),
+   * linked read-only through Google's screen (the account must be on the phone). Rejects on web.
+   */
+  linkCardGmail(options: { email: string }): Promise<{ email: string }>;
+
+  /** The linked card-code Gmail (no `email` when none). */
+  cardGmailStatus(): Promise<{ email?: string }>;
+
+  unlinkCardGmail(): Promise<void>;
+
   /** The newest code of the last day in the linked Gmail (no `code` when none) - «🔍 جرّب». */
   latestGmailCode(): Promise<{ code?: string }>;
 

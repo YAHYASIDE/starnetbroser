@@ -171,6 +171,15 @@ mind). Exact texts and numbers live in the code - this file says where.
   him to tap it himself and carries on. Code: `cardFlow.ts` (what a frame shows + the taps),
   `cardFillScript.ts`, `CardAddFlow.java` (step order, tested), `PaymentCode(Inbox).java`,
   `CardFillController.java`. Fingerprint/biometrics can never be done by an app.
+- **رمز البطاقة من البريد مباشرة** (his ask «اربط البريدين للقراءة التلقائية»): no-reply's card code
+  goes to the card's billing Gmail (his personal Gmail (not the shop's `starnet.om`)), NOT the device's
+  Starlink email nor «بريد الرموز» (`starnet.om`, that one is for Microsoft login codes). Gmail's
+  notification usually hides the code inside the body, so he links the card's Gmail once in
+  **Settings → «💳 بريد رمز البطاقة (Gmail)»** (read-only, via Google's screen); then «أضف البطاقة»
+  reads the code from that mailbox via the Gmail API and types it (notification + clipboard stay
+  as fallback). Code: `GmailCodes.PAYMENT_QUERY`/`paymentCodeIn`, `GmailCodeFetcher.forCardPayment`,
+  `CardFillController.awaitCode`, plugin `linkCardGmail`, `CardGmailSection`. Read-only Gmail scope;
+  the code is never logged.
 
 ## 📋 A Starlink session sent to a bot → a new device
 

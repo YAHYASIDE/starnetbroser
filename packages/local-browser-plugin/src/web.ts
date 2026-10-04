@@ -256,6 +256,18 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
     return;
   }
 
+  async linkCardGmail(_options: { email: string }): Promise<{ email: string }> {
+    throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
+  }
+
+  async cardGmailStatus(): Promise<{ email?: string }> {
+    return {};
+  }
+
+  async unlinkCardGmail(): Promise<void> {
+    return;
+  }
+
   async latestGmailCode(): Promise<{ code?: string }> {
     throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
   }

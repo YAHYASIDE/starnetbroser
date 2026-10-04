@@ -86,6 +86,46 @@ final class GmailCodes {
         }
     }
 
+    /** 💳 The card company's code for confirming a card on Starlink: the mail no-reply sends to
+     * the card's billing Gmail («STARLINK INTERNET … confirm your payment … code»). Searched by
+     * content (the payment processor's sender varies), of the last hour only. */
+    static final String PAYMENT_QUERY = "newer_than:1h (\"STARLINK INTERNET\" OR \"confirm your payment\" OR \"confirm the following payment\")";
+
+    static String paymentListUrl() {
+        try {
+            return MESSAGES_URL + "?maxResults=5&q=" + URLEncoder.encode(PAYMENT_QUERY, StandardCharsets.UTF_8.name());
+        } catch (java.io.UnsupportedEncodingException e) {
+            return MESSAGES_URL + "?maxResults=5";
+        }
+    }
+
+    /** The card-payment code in one message (format=full) received at or after `sinceMs`, or null.
+     * Reuses PaymentCode (subject as the title, the full body as the text); KAST's own codes are
+     * never this one. */
+    static String paymentCodeIn(String messageJson, long sinceMs) {
+        try {
+            JSONObject message = new JSONObject(messageJson);
+            if (message.optLong("internalDate", 0) < sinceMs) return null;
+            StringBuilder subject = new StringBuilder();
+            StringBuilder body = new StringBuilder();
+            JSONObject payload = message.optJSONObject("payload");
+            if (payload != null) {
+                JSONArray headers = payload.optJSONArray("headers");
+                if (headers != null) {
+                    for (int i = 0; i < headers.length(); i++) {
+                        JSONObject h = headers.getJSONObject(i);
+                        if ("subject".equalsIgnoreCase(h.optString("name"))) subject.append(h.optString("value"));
+                    }
+                }
+            }
+            body.append(message.optString("snippet", "")).append('\n');
+            if (payload != null) appendBody(payload, body);
+            return PaymentCode.fromNotification(subject.toString(), body.toString());
+        } catch (JSONException e) {
+            return null;
+        }
+    }
+
     static String messageUrl(String id) {
         return MESSAGES_URL + "/" + id + "?format=full";
     }

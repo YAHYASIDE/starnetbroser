@@ -64,6 +64,32 @@ final class GmailCodeFetcher implements CodeSource {
         context.getSharedPreferences(DEVICES_PREFS, Context.MODE_PRIVATE).edit().putStringSet(KEY_DEVICES, set).apply();
     }
 
+    // ---- 💳 the card's billing Gmail (the card company's STARLINK payment code) ----
+
+    private static final String CARD_PREFS = "starnet_gmail_card";
+    private static final String KEY_CARD = "email";
+
+    static String cardCodeEmail(Context context) {
+        String email = context.getSharedPreferences(CARD_PREFS, Context.MODE_PRIVATE).getString(KEY_CARD, null);
+        return email == null || email.isEmpty() ? null : email;
+    }
+
+    static void setCardCodeEmail(Context context, String email) {
+        SharedPreferences.Editor editor = context.getSharedPreferences(CARD_PREFS, Context.MODE_PRIVATE).edit();
+        if (email == null || email.isEmpty()) editor.remove(KEY_CARD);
+        else editor.putString(KEY_CARD, email.trim().toLowerCase(java.util.Locale.ROOT));
+        editor.apply();
+    }
+
+    /** The newest card-payment code at or after `sinceMs` in this token's mailbox, or null. Blocking. */
+    static String newestPaymentCode(String token, long sinceMs) throws IOException {
+        for (String id : GmailCodes.parseIds(get(GmailCodes.paymentListUrl(), token))) {
+            String code = GmailCodes.paymentCodeIn(get(GmailCodes.messageUrl(id), token), sinceMs);
+            if (code != null) return code;
+        }
+        return null;
+    }
+
     /** The newest Starlink code at or after `sinceMs` in this token's mailbox - null when there is
      * none, or when the newest was already tried on the device (wait for a fresh one). Blocking. */
     static String newestStarlinkCode(String token, long sinceMs, String tried) throws IOException {
@@ -126,9 +152,27 @@ final class GmailCodeFetcher implements CodeSource {
     /** null: «بريد الرموز» (Microsoft's codes); else a device's own Gmail (Starlink's codes). */
     private final String deviceEmail;
     private final String tried;
+    /** 💳 true: the card's billing Gmail (the card company's STARLINK payment code). */
+    private final boolean cardPayment;
+    private final String cardEmail;
 
     GmailCodeFetcher(Activity activity, long sinceMs, Listener listener) {
         this(activity, null, sinceMs, null, listener);
+    }
+
+    /** 💳 The card's billing Gmail: its newest STARLINK payment code (for «أضف البطاقة»). */
+    static GmailCodeFetcher forCardPayment(Activity activity, long sinceMs, Listener listener) {
+        return new GmailCodeFetcher(activity, sinceMs, cardCodeEmail(activity), listener);
+    }
+
+    private GmailCodeFetcher(Activity activity, long sinceMs, String cardEmail, Listener listener) {
+        this.activity = activity;
+        this.deviceEmail = null;
+        this.sinceMs = sinceMs;
+        this.tried = null;
+        this.cardPayment = true;
+        this.cardEmail = cardEmail == null ? null : cardEmail.trim().toLowerCase(java.util.Locale.ROOT);
+        this.listener = listener;
     }
 
     /** 📧 A device's own linked Gmail: its newest Starlink code not yet tried on the device. */
@@ -137,10 +181,13 @@ final class GmailCodeFetcher implements CodeSource {
         this.deviceEmail = deviceEmail == null ? null : deviceEmail.trim().toLowerCase(java.util.Locale.ROOT);
         this.sinceMs = sinceMs;
         this.tried = tried;
+        this.cardPayment = false;
+        this.cardEmail = null;
         this.listener = listener;
     }
 
     private String account() {
+        if (cardPayment) return cardEmail;
         return deviceEmail != null ? deviceEmail : linkedEmail(activity);
     }
 
@@ -188,7 +235,8 @@ final class GmailCodeFetcher implements CodeSource {
                 wrongAccount = linked != null && !linked.equals(GmailCodes.profileEmail(get(GmailCodes.PROFILE_URL, token)));
                 checkedAccount = true;
             }
-            if (!wrongAccount) code = deviceEmail != null ? newestStarlinkCode(token, sinceMs, tried) : newestCode(token, sinceMs);
+            if (!wrongAccount) code = cardPayment ? newestPaymentCode(token, sinceMs)
+                : deviceEmail != null ? newestStarlinkCode(token, sinceMs, tried) : newestCode(token, sinceMs);
         } catch (IOException ignored) {
             // a network hiccup or a stale token: the next poll tries again
         }

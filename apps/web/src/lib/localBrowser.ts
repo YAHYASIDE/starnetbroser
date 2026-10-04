@@ -367,6 +367,30 @@ export async function unlinkGmailCodes(): Promise<void> {
   if (isRunningInAndroidApp()) await LocalBrowser.unlinkGmailCodes().catch(() => undefined);
 }
 
+/** 💳 «بريد رمز البطاقة»: link the Gmail that receives card verification codes (read-only). */
+export async function linkCardGmail(email: string): Promise<{ ok: true; email: string } | { ok: false; message: string }> {
+  if (!isRunningInAndroidApp()) return { ok: false, message: ANDROID_ONLY_MESSAGE };
+  try {
+    const result = await LocalBrowser.linkCardGmail({ email: email.trim() });
+    return { ok: true, email: result.email };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : "تعذر ربط Gmail" };
+  }
+}
+
+export async function cardGmailEmail(): Promise<string | null> {
+  if (!isRunningInAndroidApp()) return null;
+  try {
+    return (await LocalBrowser.cardGmailStatus()).email ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function unlinkCardGmail(): Promise<void> {
+  if (isRunningInAndroidApp()) await LocalBrowser.unlinkCardGmail().catch(() => undefined);
+}
+
 // ---- 🖐 app lock by fingerprint ----
 
 /** A fingerprint (or face) can unlock the app on this phone right now. */
