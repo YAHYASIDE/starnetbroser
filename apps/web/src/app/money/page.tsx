@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { StarlinkAccountSummary } from "@starnet/shared";
-import { DebtsTab, IncomeTab, RecurringSection, today } from "@/components/MyMoney";
+import { AccountsManager, DebtsTab, IncomeTab, RecurringSection, today, WealthCard, WealthLineDetail } from "@/components/MyMoney";
+import { PartySheet } from "@/components/AccountsSection";
 import { PersonalExpensesTab } from "@/components/PersonalExpensesTab";
 import { loadCashEntries, removeLinkedCashEntries, saveCashEntries } from "@/lib/cashStore";
 import { formatAmount } from "@/lib/formatAmount";
@@ -25,7 +26,8 @@ import {
   loadIncomeCategories,
   loadRecurring,
   monthLeft,
-  netWorth,
+  buildWealth,
+  personalFlows,
   saveDebtBook,
   saveIncome,
   saveIncomeCategories,
@@ -38,8 +40,20 @@ import {
   type DebtBook,
   type IncomeList,
   type RecurringList,
+  type WealthLine,
 } from "@/lib/myMoney";
-import { businessNetForMonth, cardBalanceUsd, cashBalance, customersOwe, loadMoneyAccounts, loadRates } from "@/lib/myMoneyData";
+import { businessNetForMonth, loadMoneyAccounts, loadRates, loadWealthInput } from "@/lib/myMoneyData";
+import {
+  accountBalance,
+  addMoneyAccount,
+  correctBalance,
+  deleteMoneyAccount,
+  devicePaymentFlows,
+  loadAccountsBook,
+  saveAccountsBook,
+  type AccountsBook,
+} from "@/lib/moneyAccounts";
+import { loadLedgerStore } from "@/lib/ledgerStore";
 import {
   loadCustomCategories,
   loadPersonalExpenses,
@@ -93,6 +107,8 @@ export default function MoneyPage() {
   const [expenseCats, setExpenseCats] = useState<ExpenseCategory[]>([]);
   const [rules, setRules] = useState<RecurringList>([]);
   const [debts, setDebts] = useState<DebtBook>({ debts: [], payments: [] });
+  const [book, setBook] = useState<AccountsBook>({ accounts: [], adjustments: [] });
+  const [openLine, setOpenLine] = useState<WealthLine | null>(null);
   // Bumped whenever الصندوق changes, so «كل ما تملك» is recomputed.
   const [cashVersion, setCashVersion] = useState(0);
   const [newRecord, setNewRecord] = useState(false);
@@ -136,6 +152,7 @@ export default function MoneyPage() {
     setIncomeCats(incomeCustom);
     setExpenseCats(expenseCustom);
     setDebts(loadDebtBook());
+    setBook(loadAccountsBook());
     setRates(loadRates());
     try {
       const saved = window.localStorage.getItem(TAB_KEY);
@@ -167,13 +184,21 @@ export default function MoneyPage() {
 
   const business = useMemo(() => (loaded ? businessNetForMonth(month, accounts, rates) : { netMru: 0, missing: [] }), [loaded, month, accounts, rates, cashVersion]);
   const left = useMemo(() => monthLeft({ month, businessNetMru: business.netMru, incomes, expenses, rates }), [month, business, incomes, expenses, rates]);
-  const worth = useMemo(
-    () => netWorth({ cash: cashBalance(), cardUsd: cardBalanceUsd(), customers: loaded ? customersOwe(accounts) : {}, debts, rates }),
+  const wealth = useMemo(
+    () => buildWealth(loadWealthInput({ accounts, rates, incomes, expenses, debts, book })),
+    // الصندوق changes (cashVersion) are read from storage.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [loaded, accounts, debts, rates, cashVersion, incomes, expenses],
+    [accounts, rates, incomes, expenses, debts, book, cashVersion, loaded],
   );
+  const accountBalances = useMemo(() => {
+    const ledger = loadLedgerStore();
+    const flows = personalFlows(incomes, expenses, debts);
+    return Object.fromEntries(book.accounts.map((a) => [a.id, accountBalance(book, a, [...devicePaymentFlows(ledger, a), ...flows])]));
+  }, [book, incomes, expenses, debts]);
+  const sources = book.accounts.map((a) => ({ id: a.id, name: a.name, icon: a.icon }));
   const owed = useMemo(() => debtTotals(debts), [debts]);
-  const missing = Array.from(new Set([...business.missing, ...left.missing, ...worth.missing]));
+  const missing = Array.from(new Set([...business.missing, ...left.missing, ...wealth.missing]));
+  const shownLine = openLine ? wealth.lines.find((l) => l.key === openLine.key) ?? openLine : null;
 
   function updateCash(change: (cash: ReturnType<typeof loadCashEntries>) => ReturnType<typeof loadCashEntries>) {
     saveCashEntries(change(loadCashEntries()));
@@ -261,19 +286,7 @@ export default function MoneyPage() {
         </ul>
       </div>
 
-      <div className={`net-hero money-hero money-hero-worth${worth.totalMru < 0 ? " is-loss" : ""}`}>
-        <span className="net-hero-label">كل ما تملك الآن</span>
-        <strong className="net-hero-value">
-          <bdi dir="ltr">{mru(worth.totalMru)}</bdi> <small>أوقية</small>
-        </strong>
-        <ul className="money-lines">
-          <Line icon="💵" label="الصندوق" value={worth.cashMru} />
-          <Line icon="💳" label="البطاقة" value={worth.cardMru} />
-          <Line icon="👥" label="لك عند الزبائن" value={worth.customersMru} />
-          <Line icon="🤝" label="لك عند الناس" value={worth.lentMru} />
-          <Line icon="↩" label="عليك للناس" value={worth.borrowedMru} minus />
-        </ul>
-      </div>
+      <WealthCard wealth={wealth} onOpen={setOpenLine} />
       {missing.length > 0 && (
         <p className="settings-hint">
           لم تُحتسب مبالغ بعملات بلا سعر: {missing.join("، ")} - <Link href="/currencies">سجّل أسعارها</Link>.
@@ -304,6 +317,7 @@ export default function MoneyPage() {
       {tab === "income" && (
         <>
           <IncomeTab
+            accounts={sources}
             month={month}
             incomes={incomes}
             custom={incomeCats}
@@ -320,13 +334,14 @@ export default function MoneyPage() {
               return null;
             }}
           />
-          <RecurringSection kind="income" rules={rules} incomeCustom={incomeCats} expenseCustom={expenseCats} onAdd={addRule} onDelete={removeRule} />
+          <RecurringSection accounts={sources} kind="income" rules={rules} incomeCustom={incomeCats} expenseCustom={expenseCats} onAdd={addRule} onDelete={removeRule} />
         </>
       )}
 
       {tab === "expense" && (
         <>
           <PersonalExpensesTab
+            accounts={sources}
             openNew={newRecord}
             onOpened={consumed}
             expenses={expenses}
@@ -347,12 +362,13 @@ export default function MoneyPage() {
               setCashVersion((v) => v + 1);
             }}
           />
-          <RecurringSection kind="expense" rules={rules} incomeCustom={incomeCats} expenseCustom={expenseCats} onAdd={addRule} onDelete={removeRule} />
+          <RecurringSection accounts={sources} kind="expense" rules={rules} incomeCustom={incomeCats} expenseCustom={expenseCats} onAdd={addRule} onDelete={removeRule} />
         </>
       )}
 
       {tab === "debts" && (
         <DebtsTab
+          accounts={sources}
           book={debts}
           totals={owed}
           openNew={newRecord}
@@ -364,8 +380,8 @@ export default function MoneyPage() {
             saveDebts(result.book);
             return null;
           }}
-          onPay={(debt, amount, date, viaCash) => {
-            const result = addDebtPayment(debts, { debtId: debt.id, amount, date, viaCash });
+          onPay={(debt, amount, date, viaCash, accountId) => {
+            const result = addDebtPayment(debts, { debtId: debt.id, amount, date, viaCash, accountId });
             if (!result.ok) return result.message;
             updateCash((cash) => syncDebtPaymentCash(cash, result.payment, debt));
             saveDebts(result.book);
@@ -381,6 +397,42 @@ export default function MoneyPage() {
             saveDebts(deleteDebtPayment(debts, paymentId));
           }}
         />
+      )}
+
+      {shownLine && (
+        <PartySheet title={`${shownLine.icon} ${shownLine.label}`} onClose={() => setOpenLine(null)}>
+          {shownLine.key === "banks" ? (
+            <AccountsManager
+              book={book}
+              balances={accountBalances}
+              onAdd={(input) => {
+                const result = addMoneyAccount(book, input);
+                if (!result.ok) return result.message;
+                saveAccountsBook(result.book);
+                setBook(result.book);
+                return null;
+              }}
+              onCorrect={(account, actual) => {
+                const ledger = loadLedgerStore();
+                const flows = [...devicePaymentFlows(ledger, account), ...personalFlows(incomes, expenses, debts)];
+                const result = correctBalance(book, account, flows, actual, today());
+                if (!result.ok) return result.message;
+                saveAccountsBook(result.book);
+                setBook(result.book);
+                return null;
+              }}
+              onDelete={(account) => {
+                const next = deleteMoneyAccount(book, account.id);
+                saveAccountsBook(next);
+                setBook(next);
+              }}
+            />
+          ) : (
+            <WealthLineDetail line={shownLine} />
+          )}
+          {shownLine.key === "cash" && <p className="settings-hint">الصندوق كما في «الصندوق»، بدون دفعات الزبائن التي دخلت حساباً بنكياً مربوطاً بطريقتها.</p>}
+          {shownLine.key === "starlink" && <p className="settings-hint">شحنات D والديون السابقة التي لم تُدفع لستارلينك بعد (بالدولار).</p>}
+        </PartySheet>
       )}
 
       {/* ➕ like the home screen's: a new income / expense / debt for the open tab (long-press pins it). */}

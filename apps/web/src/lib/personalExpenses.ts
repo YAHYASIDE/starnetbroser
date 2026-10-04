@@ -40,6 +40,8 @@ export interface PersonalExpense {
   createdAt: string;
   /** Created by a monthly rule (myMoney.ts «🔁 شهري»), e.g. the rent. */
   recurringId?: string;
+  /** Paid from a bank / wallet (moneyAccounts.ts) instead of الصندوق. */
+  accountId?: string;
 }
 
 export type PersonalExpenseList = PersonalExpense[];
@@ -97,6 +99,7 @@ export interface ExpenseInput {
   date: string;
   note?: string;
   fromCash: boolean;
+  accountId?: string;
 }
 
 export type ExpenseResult = { ok: true; list: PersonalExpenseList; expense: PersonalExpense } | { ok: false; message: string };
@@ -112,7 +115,8 @@ export function addPersonalExpense(list: PersonalExpenseList, input: ExpenseInpu
     currencyCode: input.currencyCode,
     date: input.date,
     ...(input.note?.trim() ? { note: input.note.trim() } : {}),
-    fromCash: input.fromCash,
+    fromCash: input.fromCash && !input.accountId,
+    ...(input.accountId ? { accountId: input.accountId } : {}),
     createdAt: now.toISOString(),
   };
   return { ok: true, list: [...list, expense], expense };
@@ -124,7 +128,12 @@ export function editPersonalExpense(list: PersonalExpenseList, id: string, input
   if (!existing) return { ok: false, message: "المصروف غير موجود" };
   const checked = addPersonalExpense([], input);
   if (!checked.ok) return checked;
-  const expense: PersonalExpense = { ...checked.expense, id, createdAt: existing.createdAt };
+  const expense: PersonalExpense = {
+    ...checked.expense,
+    id,
+    createdAt: existing.createdAt,
+    ...(existing.recurringId ? { recurringId: existing.recurringId } : {}),
+  };
   return { ok: true, list: list.map((e) => (e.id === id ? expense : e)), expense };
 }
 

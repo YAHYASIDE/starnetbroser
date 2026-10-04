@@ -23,6 +23,7 @@ import {
   type PersonalExpenseList,
 } from "@/lib/personalExpenses";
 import type { RatesFromUsd } from "@/lib/reportsView";
+import { SourceSelect, sourceOf, sourceToFields } from "@/components/MyMoney";
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -41,6 +42,7 @@ function money(byCurrency: Record<string, number>): string {
  * month by category, and the latest expenses (tap one to edit or delete).
  */
 export function PersonalExpensesTab({
+  accounts = [],
   openNew = false,
   onOpened,
   expenses,
@@ -48,6 +50,8 @@ export function PersonalExpensesTab({
   rates,
   onChange,
 }: {
+  /** My banks / wallets (moneyAccounts.ts) - an expense can be paid from one instead of الصندوق. */
+  accounts?: { id: string; name: string; icon: string }[];
   /** Set by a floating «+» / a shortcut: opens a new expense right away, once (then onOpened). */
   openNew?: boolean;
   onOpened?: () => void;
@@ -158,6 +162,7 @@ export function PersonalExpensesTab({
                     <small>
                       <bdi dir="ltr">{e.date.slice(5)}</bdi>
                       {e.fromCash ? " · 💵 الصندوق" : ""}
+                      {e.accountId ? ` · ${accounts.find((a) => a.id === e.accountId)?.name ?? "🏦"}` : ""}
                     </small>
                   </span>
                   <bdi dir="ltr" className="expenses-row-amount">
@@ -173,6 +178,7 @@ export function PersonalExpensesTab({
       {form && (
         <PartySheet title={`${categoryOf(form.categoryId, custom).icon} ${categoryOf(form.categoryId, custom).name}`} onClose={() => setForm(null)}>
           <ExpenseForm
+            accounts={accounts}
             categoryId={form.categoryId}
             categories={categories}
             editing={form.editing}
@@ -214,6 +220,7 @@ export function PersonalExpensesTab({
 }
 
 function ExpenseForm({
+  accounts,
   categoryId,
   categories,
   editing,
@@ -221,11 +228,12 @@ function ExpenseForm({
   onSave,
   onDelete,
 }: {
+  accounts: { id: string; name: string; icon: string }[];
   categoryId: string;
   categories: ExpenseCategory[];
   editing?: PersonalExpense;
   lastCurrency?: string;
-  onSave: (input: { categoryId: string; amount: number; currencyCode: string; date: string; note?: string; fromCash: boolean }) => string | null;
+  onSave: (input: { categoryId: string; amount: number; currencyCode: string; date: string; note?: string; fromCash: boolean; accountId?: string }) => string | null;
   onDelete?: () => void;
 }) {
   const [category, setCategory] = useState(editing?.categoryId ?? categoryId);
@@ -233,12 +241,13 @@ function ExpenseForm({
   const [currency, setCurrency] = useState(editing?.currencyCode ?? lastCurrency ?? "MRU");
   const [date, setDate] = useState(editing?.date ?? today());
   const [note, setNote] = useState(editing?.note ?? "");
-  const [fromCash, setFromCash] = useState(editing?.fromCash ?? true);
+  const [source, setSource] = useState(editing ? sourceOf(editing.fromCash, editing.accountId) : "cash");
   const [error, setError] = useState<string | null>(null);
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    setError(onSave({ categoryId: category, amount: Number(amount.replace(",", ".")), currencyCode: currency, date, note, fromCash }));
+    const { viaCash, accountId } = sourceToFields(source);
+    setError(onSave({ categoryId: category, amount: Number(amount.replace(",", ".")), currencyCode: currency, date, note, fromCash: viaCash, accountId }));
   }
 
   return (
@@ -276,10 +285,7 @@ function ExpenseForm({
           </select>
         )}
       </div>
-      <label className="ledger-d-toggle party-cash-toggle">
-        <input type="checkbox" checked={fromCash} onChange={(e) => setFromCash(e.target.checked)} />
-        <span>💵 من الصندوق</span>
-      </label>
+      <SourceSelect value={source} onChange={setSource} accounts={accounts} label="دُفع من" />
       {error && <div className="account-card-alert ledger-form-error">{error}</div>}
       <div className="settings-actions">
         <button className="dialog-primary" type="submit" disabled={!amount}>

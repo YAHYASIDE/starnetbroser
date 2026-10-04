@@ -11,6 +11,7 @@
 
 import { recordCashEntry, removeLinkedCashEntries, type CashEntryList } from "./cashStore";
 import { addPersonalExpense, type ExpenseCategory, type PersonalExpense } from "./personalExpenses";
+import type { AccountFlow } from "./moneyAccounts";
 import { sumToMru, type RatesFromUsd } from "./reportsView";
 
 function newId(prefix: string): string {
@@ -65,6 +66,8 @@ export interface IncomeRecord {
   createdAt: string;
   /** Created by a monthly rule (🔁). */
   recurringId?: string;
+  /** Went into a bank / wallet (moneyAccounts.ts) instead of الصندوق. */
+  accountId?: string;
 }
 
 export type IncomeList = IncomeRecord[];
@@ -76,6 +79,7 @@ export interface IncomeInput {
   date: string;
   note?: string;
   toCash: boolean;
+  accountId?: string;
 }
 
 export type IncomeResult = { ok: true; list: IncomeList; income: IncomeRecord } | { ok: false; message: string };
@@ -91,9 +95,10 @@ export function addIncome(list: IncomeList, input: IncomeInput, now = new Date()
     currencyCode: input.currencyCode,
     date: input.date,
     ...(input.note?.trim() ? { note: input.note.trim() } : {}),
-    toCash: input.toCash,
+    toCash: input.toCash && !input.accountId,
     createdAt: now.toISOString(),
     ...(recurringId ? { recurringId } : {}),
+    ...(input.accountId ? { accountId: input.accountId } : {}),
   };
   return { ok: true, list: [...list, income], income };
 }
@@ -142,6 +147,8 @@ export interface RecurringRule {
   note?: string;
   /** Through الصندوق (income in / expense out). */
   viaCash: boolean;
+  /** Through a bank / wallet instead. */
+  accountId?: string;
   /** yyyy-mm: the first month it records (its first day on/after the rule was made). */
   startMonth: string;
   /** Months whose record the operator deleted - never recreated. */
@@ -159,6 +166,7 @@ export interface RecurringInput {
   day: number;
   note?: string;
   viaCash: boolean;
+  accountId?: string;
 }
 
 export type RecurringResult = { ok: true; list: RecurringList; rule: RecurringRule } | { ok: false; message: string };
@@ -175,7 +183,8 @@ export function addRecurringRule(list: RecurringList, input: RecurringInput, tod
     currencyCode: input.currencyCode,
     day: input.day,
     ...(input.note?.trim() ? { note: input.note.trim() } : {}),
-    viaCash: input.viaCash,
+    viaCash: input.viaCash && !input.accountId,
+    ...(input.accountId ? { accountId: input.accountId } : {}),
     startMonth: firstRecurringMonth(today, input.day),
     skipped: [],
     createdAt: now.toISOString(),
@@ -230,7 +239,7 @@ export function dueRecurring(
     for (const month of monthsFrom(rule.startMonth, today.slice(0, 7))) {
       const date = `${month}-${String(rule.day).padStart(2, "0")}`;
       if (date > today || done.has(month) || rule.skipped.includes(month)) continue;
-      const input = { categoryId: rule.categoryId, amount: rule.amount, currencyCode: rule.currencyCode, date, note: rule.note };
+      const input = { categoryId: rule.categoryId, amount: rule.amount, currencyCode: rule.currencyCode, date, note: rule.note, accountId: rule.accountId };
       if (rule.kind === "income") {
         const made = addIncome([], { ...input, toCash: rule.viaCash }, now, rule.id);
         if (made.ok) out.incomes.push(made.income);
@@ -257,6 +266,8 @@ export interface PersonalDebt {
   date: string;
   note?: string;
   viaCash: boolean;
+  /** Through a bank / wallet instead of الصندوق. */
+  accountId?: string;
   createdAt: string;
 }
 
@@ -267,6 +278,7 @@ export interface DebtPayment {
   amount: number;
   date: string;
   viaCash: boolean;
+  accountId?: string;
   createdAt: string;
 }
 
@@ -285,6 +297,7 @@ export interface DebtInput {
   date: string;
   note?: string;
   viaCash: boolean;
+  accountId?: string;
 }
 
 export type DebtResult = { ok: true; book: DebtBook; debt: PersonalDebt } | { ok: false; message: string };
@@ -301,7 +314,8 @@ export function addDebt(book: DebtBook, input: DebtInput, now = new Date()): Deb
     currencyCode: input.currencyCode,
     date: input.date,
     ...(input.note?.trim() ? { note: input.note.trim() } : {}),
-    viaCash: input.viaCash,
+    viaCash: input.viaCash && !input.accountId,
+    ...(input.accountId ? { accountId: input.accountId } : {}),
     createdAt: now.toISOString(),
   };
   return { ok: true, book: { ...book, debts: [...book.debts, debt] }, debt };
@@ -318,14 +332,22 @@ export type DebtPaymentResult = { ok: true; book: DebtBook; payment: DebtPayment
 
 export function addDebtPayment(
   book: DebtBook,
-  input: { debtId: string; amount: number; date: string; viaCash: boolean },
+  input: { debtId: string; amount: number; date: string; viaCash: boolean; accountId?: string },
   now = new Date(),
 ): DebtPaymentResult {
   if (!book.debts.some((d) => d.id === input.debtId)) return { ok: false, message: "الدين غير موجود" };
   if (!Number.isFinite(input.amount) || input.amount <= 0) return { ok: false, message: "أدخل المبلغ" };
   if (input.amount > debtRemaining(book, input.debtId) + 0.0001) return { ok: false, message: "المبلغ أكبر من الباقي" };
   if (!DATE_RE.test(input.date)) return { ok: false, message: "اختر التاريخ" };
-  const payment: DebtPayment = { id: newId("pay"), ...input, createdAt: now.toISOString() };
+  const payment: DebtPayment = {
+    id: newId("pay"),
+    debtId: input.debtId,
+    amount: input.amount,
+    date: input.date,
+    viaCash: input.viaCash && !input.accountId,
+    ...(input.accountId ? { accountId: input.accountId } : {}),
+    createdAt: now.toISOString(),
+  };
   return { ok: true, book: { ...book, payments: [...book.payments, payment] }, payment };
 }
 
@@ -387,6 +409,25 @@ export function debtTotals(book: DebtBook): { lent: Record<string, number>; borr
   return { lent, borrowed };
 }
 
+// ---- through a bank / wallet ----
+
+/** Every one of my records that went through a bank / wallet, signed (+ in, − out). */
+export function personalFlows(incomes: IncomeList, expenses: PersonalExpense[], book: DebtBook): AccountFlow[] {
+  const flows: AccountFlow[] = [];
+  for (const i of incomes) if (i.accountId) flows.push({ accountId: i.accountId, currencyCode: i.currencyCode, date: i.date, amount: i.amount });
+  for (const e of expenses) if (e.accountId) flows.push({ accountId: e.accountId, currencyCode: e.currencyCode, date: e.date, amount: -e.amount });
+  const byId = new Map(book.debts.map((d) => [d.id, d]));
+  for (const d of book.debts) {
+    if (d.accountId) flows.push({ accountId: d.accountId, currencyCode: d.currencyCode, date: d.date, amount: d.kind === "lent" ? -d.amount : d.amount });
+  }
+  for (const p of book.payments) {
+    const debt = byId.get(p.debtId);
+    if (!debt || !p.accountId) continue;
+    flows.push({ accountId: p.accountId, currencyCode: debt.currencyCode, date: p.date, amount: debt.kind === "lent" ? p.amount : -p.amount });
+  }
+  return flows;
+}
+
 // ---- the final figures ----
 
 function inMonth(records: { date: string; amount: number; currencyCode: string }[], month: string): Record<string, number> {
@@ -417,39 +458,93 @@ export function monthLeft(input: { month: string; businessNetMru: number; income
   };
 }
 
-export interface NetWorth {
-  cashMru: number;
-  cardMru: number;
-  customersMru: number;
-  lentMru: number;
-  borrowedMru: number;
-  /** «كل ما تملك» = الصندوق + البطاقة + what customers and people owe me − what I owe. */
+/** One person / account / device behind a line, for the line's detail sheet. */
+export interface WealthItem {
+  name: string;
+  byCurrency: Record<string, number>;
+  mru: number;
+}
+
+export interface WealthLine {
+  key: string;
+  icon: string;
+  label: string;
+  /** Always positive; `kind` says which way it counts. */
+  mru: number;
+  kind: "have" | "owed" | "owe";
+  items: WealthItem[];
+}
+
+export interface Wealth {
+  lines: WealthLine[];
+  /** «في يدك الآن» = الصندوق + البنوك + البطاقة − everything I owe. */
+  inHandMru: number;
+  /** «كل ما تملك» = in hand + everything owed to me (customers, reps, people). */
   totalMru: number;
   missing: string[];
 }
 
-export function netWorth(input: {
+export interface WealthGroup {
+  name: string;
+  byCurrency: Record<string, number>;
+}
+
+export interface WealthInput {
+  /** الصندوق - cash in hand. */
   cash: Record<string, number>;
+  banks: WealthGroup[];
   cardUsd: number;
-  customers: Record<string, number>;
+  /** Positive balances only. */
+  customers: WealthGroup[];
+  /** Per rep: positive = he owes me, negative = I owe him (أوقية). */
+  repsMru: { name: string; mru: number }[];
   debts: DebtBook;
+  /** What I still owe each supplier (positive only). */
+  suppliers: WealthGroup[];
+  /** Open D's and previous debts still to pay Starlink, per device (USD). */
+  starlink: { name: string; usd: number }[];
   rates: RatesFromUsd;
-}): NetWorth {
-  const { lent, borrowed } = debtTotals(input.debts);
-  const cash = sumToMru(input.cash, input.rates);
-  const card = sumToMru({ USD: input.cardUsd }, input.rates);
-  const customers = sumToMru(input.customers, input.rates);
-  const lentMru = sumToMru(lent, input.rates);
-  const borrowedMru = sumToMru(borrowed, input.rates);
-  return {
-    cashMru: cash.mru,
-    cardMru: card.mru,
-    customersMru: customers.mru,
-    lentMru: lentMru.mru,
-    borrowedMru: borrowedMru.mru,
-    totalMru: cash.mru + card.mru + customers.mru + lentMru.mru - borrowedMru.mru,
-    missing: Array.from(new Set([...cash.missing, ...card.missing, ...customers.missing, ...lentMru.missing, ...borrowedMru.missing])),
+}
+
+/** The whole picture, line by line: what I have, what's owed to me, what I owe. */
+export function buildWealth(input: WealthInput): Wealth {
+  const missing = new Set<string>();
+  const item = (name: string, byCurrency: Record<string, number>): WealthItem => {
+    const converted = sumToMru(byCurrency, input.rates);
+    converted.missing.forEach((m) => missing.add(m));
+    return { name, byCurrency, mru: converted.mru };
   };
+  const line = (key: string, icon: string, label: string, kind: WealthLine["kind"], items: WealthItem[]): WealthLine => ({
+    key,
+    icon,
+    label,
+    kind,
+    items: items.filter((i) => Object.values(i.byCurrency).some((v) => Math.abs(v) > 0.0001)).sort((a, b) => b.mru - a.mru),
+    mru: items.reduce((sum, i) => sum + i.mru, 0),
+  });
+
+  const people = { lent: [] as WealthItem[], borrowed: [] as WealthItem[] };
+  for (const d of input.debts.debts) {
+    const left = debtRemaining(input.debts, d.id);
+    if (left > 0) people[d.kind === "lent" ? "lent" : "borrowed"].push(item(d.person, { [d.currencyCode]: left }));
+  }
+  const mruItem = (name: string, mru: number): WealthItem => ({ name, byCurrency: { MRU: mru }, mru });
+
+  const lines: WealthLine[] = [
+    line("cash", "💵", "الصندوق (نقداً)", "have", [item("الصندوق", input.cash)]),
+    line("banks", "🏦", "البنوك والمحافظ", "have", input.banks.map((b) => item(b.name, b.byCurrency))),
+    line("card", "💳", "بطاقة KAST", "have", [item("البطاقة", { USD: input.cardUsd })]),
+    line("customers", "👥", "لك عند الزبائن", "owed", input.customers.map((c) => item(c.name, c.byCurrency))),
+    line("repsOwe", "🧑‍💼", "لك عند المندوبين", "owed", input.repsMru.filter((r) => r.mru > 0).map((r) => mruItem(r.name, r.mru))),
+    line("lent", "🤝", "لك عند الناس", "owed", people.lent),
+    line("starlink", "🛰️", "عليك لستارلينك (D)", "owe", input.starlink.map((s) => item(s.name, { USD: s.usd }))),
+    line("suppliers", "🏭", "عليك للموردين", "owe", input.suppliers.map((s) => item(s.name, s.byCurrency))),
+    line("repsOwed", "🧑‍💼", "عليك للمندوبين", "owe", input.repsMru.filter((r) => r.mru < 0).map((r) => mruItem(r.name, -r.mru))),
+    line("borrowed", "↩", "عليك للناس", "owe", people.borrowed),
+  ];
+  const sum = (kind: WealthLine["kind"]) => lines.filter((l) => l.kind === kind).reduce((s, l) => s + l.mru, 0);
+  const inHandMru = sum("have") - sum("owe");
+  return { lines, inHandMru, totalMru: inHandMru + sum("owed"), missing: Array.from(missing) };
 }
 
 // ---- storage (business data: `starnet_` keys, so the full backup carries them) ----

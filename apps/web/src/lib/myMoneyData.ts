@@ -25,6 +25,15 @@ import type { RatesFromUsd } from "./reportsView";
 import { isDemoMode, isLoggedIn } from "./settingsStore";
 import { currentCardBalanceUsd } from "./starlinkDebt";
 import { loadStoreTransactions } from "./storeStore";
+import { computeSupplierStoreBalance } from "./invoiceStore";
+import { accountBalance, cashInHandEntries, devicePaymentFlows, type AccountsBook } from "./moneyAccounts";
+import { personalFlows, type DebtBook, type IncomeList, type WealthInput } from "./myMoney";
+import type { PersonalExpense } from "./personalExpenses";
+import { listOpenPreviousDebts, loadPreviousDebts } from "./previousDebt";
+import { listRepresentatives, loadRepresentativeStore, loadRepSettlements } from "./repStore";
+import { repBalancesMru } from "./reportsView";
+import { listOpenShipmentDebts } from "./starlinkDebt";
+import { listSuppliers, loadSupplierStore } from "./supplierStore";
 
 export async function loadMoneyAccounts(): Promise<StarlinkAccountSummary[]> {
   if (isDemoMode()) return loadDemoAccounts(demoAccounts);
@@ -55,24 +64,65 @@ export function businessNetForMonth(month: string, accounts: StarlinkAccountSumm
   return { netMru: net.netMru, missing: net.missingCurrencies };
 }
 
-/** What customers owe me (only positive balances), per currency - the clients page's total. */
-export function customersOwe(accounts: StarlinkAccountSummary[]): Record<string, number> {
-  const clients = listClients(loadClientStore());
-  const ledger = ourDebtLedgerForClients(loadLedgerStore(), accounts, clients);
+/** Everything «كل ما تملك» is made of, read from the app's own records (same figures as the
+ * clients, suppliers, representatives, reports and «ستارلينك والبطاقة» pages). */
+export function loadWealthInput(input: {
+  accounts: StarlinkAccountSummary[];
+  rates: RatesFromUsd;
+  incomes: IncomeList;
+  expenses: PersonalExpense[];
+  debts: DebtBook;
+  book: AccountsBook;
+}): WealthInput {
+  const ledger = loadLedgerStore();
   const invoices = loadInvoices();
   const adjustments = loadPartyAdjustments();
-  const out: Record<string, number> = {};
-  for (const client of clients) {
-    const totals = computeClientCombinedTotals(invoices, adjustments, client.id, accounts.filter((a) => a.clientId === client.id), ledger);
-    for (const [code, t] of Object.entries(totals)) if (t.remaining > 0.0001) out[code] = (out[code] ?? 0) + t.remaining;
-  }
-  return out;
-}
+  const deviceName = (id: string) => input.accounts.find((a) => a.id === id)?.name ?? "جهاز";
 
-export function cashBalance(): Record<string, number> {
-  return computeCashBalanceByCurrency(loadCashEntries());
-}
+  const flows = personalFlows(input.incomes, input.expenses, input.debts);
+  const banks = input.book.accounts.map((account) => ({
+    name: `${account.icon} ${account.name}`,
+    byCurrency: accountBalance(input.book, account, [...devicePaymentFlows(ledger, account), ...flows]),
+  }));
 
-export function cardBalanceUsd(): number {
-  return currentCardBalanceUsd(loadLedgerStore());
+  const clients = listClients(loadClientStore());
+  const debtLedger = ourDebtLedgerForClients(ledger, input.accounts, clients);
+  const customers = clients
+    .map((client) => {
+      const totals = computeClientCombinedTotals(invoices, adjustments, client.id, input.accounts.filter((a) => a.clientId === client.id), debtLedger);
+      const byCurrency: Record<string, number> = {};
+      for (const [code, t] of Object.entries(totals)) if (t.remaining > 0.0001) byCurrency[code] = t.remaining;
+      return { name: client.name, byCurrency };
+    })
+    .filter((c) => Object.keys(c.byCurrency).length > 0);
+
+  const suppliers = listSuppliers(loadSupplierStore())
+    .map((supplier) => {
+      const byCurrency: Record<string, number> = {};
+      for (const [code, v] of Object.entries(computeSupplierStoreBalance(invoices, supplier.id, adjustments))) if (v > 0.0001) byCurrency[code] = v;
+      return { name: supplier.name, byCurrency };
+    })
+    .filter((s) => Object.keys(s.byCurrency).length > 0);
+
+  const starlinkByDevice = new Map<string, number>();
+  for (const d of listOpenShipmentDebts(ledger)) starlinkByDevice.set(d.accountId, (starlinkByDevice.get(d.accountId) ?? 0) + d.costUsd);
+  for (const d of listOpenPreviousDebts(loadPreviousDebts(), ledger)) starlinkByDevice.set(d.accountId, (starlinkByDevice.get(d.accountId) ?? 0) + d.amountUsd);
+
+  // repBalancesMru: positive = we owe him; here positive = he owes me.
+  const repsMru = repBalancesMru(listRepresentatives(loadRepresentativeStore()), ledger, invoices, loadRepSettlements(), input.rates).map((r) => ({
+    name: r.rep.name,
+    mru: -r.balanceMru,
+  }));
+
+  return {
+    cash: computeCashBalanceByCurrency(cashInHandEntries(loadCashEntries(), ledger, input.book)),
+    banks,
+    cardUsd: currentCardBalanceUsd(ledger),
+    customers,
+    repsMru,
+    debts: input.debts,
+    suppliers,
+    starlink: Array.from(starlinkByDevice, ([id, usd]) => ({ name: deviceName(id), usd })),
+    rates: input.rates,
+  };
 }

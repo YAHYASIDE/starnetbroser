@@ -4,7 +4,8 @@ import { FormEvent, useEffect, useState } from "react";
 import { DateInput } from "@/components/DateInput";
 import { PartySheet } from "@/components/AccountsSection";
 import { formatAmount } from "@/lib/formatAmount";
-import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, type LedgerCurrency } from "@/lib/ledgerStore";
+import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, PAYMENT_METHOD_LABELS, type LedgerCurrency, type PaymentMethod } from "@/lib/ledgerStore";
+import type { AccountInput, AccountsBook, MoneyAccount } from "@/lib/moneyAccounts";
 import { monthLabel } from "@/lib/monthClosing";
 import {
   allIncomeCategories,
@@ -19,6 +20,8 @@ import {
   type PersonalDebt,
   type RecurringInput,
   type RecurringList,
+  type Wealth,
+  type WealthLine,
 } from "@/lib/myMoney";
 import { allCategories, categoryOf, summarizeExpenses, type ExpenseCategory } from "@/lib/personalExpenses";
 import type { RatesFromUsd } from "@/lib/reportsView";
@@ -68,6 +71,48 @@ function AmountInput({ value, onChange, autoFocus }: { value: string; onChange: 
 
 const toNumber = (v: string) => Number(v.replace(",", "."));
 
+/** Where the money went / came from: الصندوق, one of my banks / wallets, or neither. */
+export type MoneySourceValue = string;
+
+export function sourceOf(viaCash: boolean, accountId?: string): MoneySourceValue {
+  return accountId ?? (viaCash ? "cash" : "none");
+}
+
+export function sourceToFields(value: MoneySourceValue): { viaCash: boolean; accountId?: string } {
+  if (value === "cash") return { viaCash: true };
+  if (value === "none") return { viaCash: false };
+  return { viaCash: false, accountId: value };
+}
+
+export function SourceSelect({
+  value,
+  onChange,
+  accounts,
+  label,
+}: {
+  value: MoneySourceValue;
+  onChange: (value: MoneySourceValue) => void;
+  accounts: { id: string; name: string; icon: string }[];
+  label: string;
+}) {
+  return (
+    <label className="tool-field money-source">
+      <span>{label}</span>
+      <select className="search-input" value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="cash">💵 الصندوق</option>
+        {accounts.map((a) => (
+          <option key={a.id} value={a.id}>
+            {a.icon} {a.name}
+          </option>
+        ))}
+        <option value="none">— لا هذا ولا ذاك</option>
+      </select>
+    </label>
+  );
+}
+
+type SourceAccounts = { id: string; name: string; icon: string }[];
+
 // ---- 💵 الدخل ----
 
 export function IncomeTab({
@@ -80,7 +125,9 @@ export function IncomeTab({
   onSave,
   onDelete,
   onAddCategory,
+  accounts = [],
 }: {
+  accounts?: SourceAccounts;
   month: string;
   incomes: IncomeList;
   custom: ExpenseCategory[];
@@ -145,6 +192,7 @@ export function IncomeTab({
                     <small>
                       <bdi dir="ltr">{e.date.slice(5)}</bdi>
                       {e.toCash ? " · 💵 الصندوق" : ""}
+                      {e.accountId ? ` · ${accounts.find((a) => a.id === e.accountId)?.name ?? "🏦"}` : ""}
                       {e.recurringId ? " · 🔁 شهري" : ""}
                     </small>
                   </span>
@@ -161,6 +209,7 @@ export function IncomeTab({
       {form && (
         <PartySheet title={`${incomeCategoryOf(form.categoryId, custom).icon} ${incomeCategoryOf(form.categoryId, custom).name}`} onClose={() => setForm(null)}>
           <IncomeForm
+            accounts={accounts}
             categoryId={form.categoryId}
             categories={categories}
             editing={form.editing}
@@ -199,6 +248,7 @@ export function IncomeTab({
 }
 
 function IncomeForm({
+  accounts,
   categoryId,
   categories,
   editing,
@@ -206,6 +256,7 @@ function IncomeForm({
   onSave,
   onDelete,
 }: {
+  accounts: SourceAccounts;
   categoryId: string;
   categories: ExpenseCategory[];
   editing?: IncomeRecord;
@@ -218,12 +269,13 @@ function IncomeForm({
   const [currency, setCurrency] = useState(editing?.currencyCode ?? lastCurrency ?? "MRU");
   const [date, setDate] = useState(editing?.date ?? today());
   const [note, setNote] = useState(editing?.note ?? "");
-  const [toCash, setToCash] = useState(editing?.toCash ?? true);
+  const [source, setSource] = useState(editing ? sourceOf(editing.toCash, editing.accountId) : "cash");
   const [error, setError] = useState<string | null>(null);
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    setError(onSave({ categoryId: category, amount: toNumber(amount), currencyCode: currency, date, note, toCash }));
+    const { viaCash, accountId } = sourceToFields(source);
+    setError(onSave({ categoryId: category, amount: toNumber(amount), currencyCode: currency, date, note, toCash: viaCash, accountId }));
   }
 
   return (
@@ -243,10 +295,7 @@ function IncomeForm({
           ))}
         </select>
       </div>
-      <label className="ledger-d-toggle party-cash-toggle">
-        <input type="checkbox" checked={toCash} onChange={(e) => setToCash(e.target.checked)} />
-        <span>💵 دخل إلى الصندوق</span>
-      </label>
+      <SourceSelect value={source} onChange={setSource} accounts={accounts} label="دخل إلى" />
       {error && <div className="account-card-alert ledger-form-error">{error}</div>}
       <div className="settings-actions">
         <button className="dialog-primary" type="submit" disabled={!amount}>
@@ -295,7 +344,9 @@ export function RecurringSection({
   expenseCustom,
   onAdd,
   onDelete,
+  accounts = [],
 }: {
+  accounts?: SourceAccounts;
   kind: "income" | "expense";
   rules: RecurringList;
   incomeCustom: ExpenseCategory[];
@@ -346,6 +397,7 @@ export function RecurringSection({
       {adding && (
         <PartySheet title={kind === "income" ? "🔁 دخل شهري" : "🔁 مصروف شهري"} onClose={() => setAdding(false)}>
           <RecurringForm
+            accounts={accounts}
             kind={kind}
             categories={kind === "income" ? allIncomeCategories(incomeCustom) : allCategories(expenseCustom)}
             onSave={(input) => {
@@ -361,10 +413,12 @@ export function RecurringSection({
 }
 
 function RecurringForm({
+  accounts,
   kind,
   categories,
   onSave,
 }: {
+  accounts: SourceAccounts;
   kind: "income" | "expense";
   categories: ExpenseCategory[];
   onSave: (input: RecurringInput) => string | null;
@@ -374,7 +428,7 @@ function RecurringForm({
   const [currency, setCurrency] = useState("MRU");
   const [day, setDay] = useState(Math.min(28, Number(today().slice(8, 10))));
   const [note, setNote] = useState("");
-  const [viaCash, setViaCash] = useState(true);
+  const [source, setSource] = useState("cash");
   const [error, setError] = useState<string | null>(null);
   const first = `${firstRecurringMonth(today(), day)}-${String(day).padStart(2, "0")}`;
   return (
@@ -382,7 +436,7 @@ function RecurringForm({
       className="party-balance-form"
       onSubmit={(e) => {
         e.preventDefault();
-        setError(onSave({ kind, categoryId: category, amount: toNumber(amount), currencyCode: currency, day, note, viaCash }));
+        setError(onSave({ kind, categoryId: category, amount: toNumber(amount), currencyCode: currency, day, note, ...sourceToFields(source) }));
       }}
     >
       <select className="search-input" value={category} onChange={(e) => setCategory(e.target.value)} aria-label="القسم">
@@ -407,10 +461,7 @@ function RecurringForm({
         </select>
       </label>
       <input className="search-input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="ملاحظة (اختياري)" />
-      <label className="ledger-d-toggle party-cash-toggle">
-        <input type="checkbox" checked={viaCash} onChange={(e) => setViaCash(e.target.checked)} />
-        <span>{kind === "income" ? "💵 يدخل الصندوق" : "💵 من الصندوق"}</span>
-      </label>
+      <SourceSelect value={source} onChange={setSource} accounts={accounts} label={kind === "income" ? "يدخل إلى" : "يُدفع من"} />
       <p className="settings-hint">
         يُسجَّل وحده يوم <bdi dir="ltr">{day}</bdi> من كل شهر - أول مرة <bdi dir="ltr">{first}</bdi>. تستطيع تعديل أو حذف أي شهر.
       </p>
@@ -433,13 +484,15 @@ export function DebtsTab({
   onPay,
   onDeleteDebt,
   onDeletePayment,
+  accounts = [],
 }: {
+  accounts?: SourceAccounts;
   book: DebtBook;
   totals: { lent: Record<string, number>; borrowed: Record<string, number> };
   openNew: boolean;
   onOpened: () => void;
   onAdd: (input: DebtInput) => string | null;
-  onPay: (debt: PersonalDebt, amount: number, date: string, viaCash: boolean) => string | null;
+  onPay: (debt: PersonalDebt, amount: number, date: string, viaCash: boolean, accountId?: string) => string | null;
   onDeleteDebt: (debt: PersonalDebt) => void;
   onDeletePayment: (paymentId: string) => void;
 }) {
@@ -513,6 +566,7 @@ export function DebtsTab({
       {adding && (
         <PartySheet title={adding === "lent" ? "🤝 سلّفت شخصاً" : "↩ استلفت من شخص"} onClose={() => setAdding(null)}>
           <DebtForm
+            accounts={accounts}
             kind={adding}
             onSave={(input) => {
               const message = onAdd(input);
@@ -526,9 +580,10 @@ export function DebtsTab({
       {open && (
         <PartySheet title={`${open.kind === "lent" ? "🤝" : "↩"} ${open.person}`} onClose={() => setOpenId(null)}>
           <DebtDetail
+            accounts={accounts}
             book={book}
             debt={open}
-            onPay={(amount, date, viaCash) => onPay(open, amount, date, viaCash)}
+            onPay={(amount, date, viaCash, accountId) => onPay(open, amount, date, viaCash, accountId)}
             onDeletePayment={onDeletePayment}
             onDelete={() => {
               if (!window.confirm(`حذف دين ${open.person} وكل ما رُدّ منه؟`)) return;
@@ -542,20 +597,20 @@ export function DebtsTab({
   );
 }
 
-function DebtForm({ kind, onSave }: { kind: "lent" | "borrowed"; onSave: (input: DebtInput) => string | null }) {
+function DebtForm({ accounts, kind, onSave }: { accounts: SourceAccounts; kind: "lent" | "borrowed"; onSave: (input: DebtInput) => string | null }) {
   const [person, setPerson] = useState("");
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState("MRU");
   const [date, setDate] = useState(today());
   const [note, setNote] = useState("");
-  const [viaCash, setViaCash] = useState(true);
+  const [source, setSource] = useState("cash");
   const [error, setError] = useState<string | null>(null);
   return (
     <form
       className="party-balance-form"
       onSubmit={(e) => {
         e.preventDefault();
-        setError(onSave({ kind, person, amount: toNumber(amount), currencyCode: currency, date, note, viaCash }));
+        setError(onSave({ kind, person, amount: toNumber(amount), currencyCode: currency, date, note, ...sourceToFields(source) }));
       }}
     >
       <input className="search-input" value={person} onChange={(e) => setPerson(e.target.value)} placeholder="الاسم" autoFocus />
@@ -565,10 +620,7 @@ function DebtForm({ kind, onSave }: { kind: "lent" | "borrowed"; onSave: (input:
       </div>
       <DateInput className="search-input" value={date} onChange={(e) => setDate(e.target.value)} />
       <input className="search-input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="ملاحظة (اختياري)" />
-      <label className="ledger-d-toggle party-cash-toggle">
-        <input type="checkbox" checked={viaCash} onChange={(e) => setViaCash(e.target.checked)} />
-        <span>{kind === "lent" ? "💵 خرج من الصندوق" : "💵 دخل الصندوق"}</span>
-      </label>
+      <SourceSelect value={source} onChange={setSource} accounts={accounts} label={kind === "lent" ? "خرج من" : "دخل إلى"} />
       {error && <div className="account-card-alert ledger-form-error">{error}</div>}
       <button className="dialog-primary" type="submit" disabled={!amount || !person.trim()}>
         سجّل
@@ -578,22 +630,24 @@ function DebtForm({ kind, onSave }: { kind: "lent" | "borrowed"; onSave: (input:
 }
 
 function DebtDetail({
+  accounts,
   book,
   debt,
   onPay,
   onDeletePayment,
   onDelete,
 }: {
+  accounts: SourceAccounts;
   book: DebtBook;
   debt: PersonalDebt;
-  onPay: (amount: number, date: string, viaCash: boolean) => string | null;
+  onPay: (amount: number, date: string, viaCash: boolean, accountId?: string) => string | null;
   onDeletePayment: (paymentId: string) => void;
   onDelete: () => void;
 }) {
   const left = debtRemaining(book, debt.id);
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(today());
-  const [viaCash, setViaCash] = useState(debt.viaCash);
+  const [source, setSource] = useState(sourceOf(debt.viaCash, debt.accountId));
   const [error, setError] = useState<string | null>(null);
   const payments = book.payments.filter((p) => p.debtId === debt.id);
   return (
@@ -640,7 +694,8 @@ function DebtDetail({
           className="party-balance-form"
           onSubmit={(e) => {
             e.preventDefault();
-            const message = onPay(toNumber(amount), date, viaCash);
+            const { viaCash, accountId } = sourceToFields(source);
+            const message = onPay(toNumber(amount), date, viaCash, accountId);
             setError(message);
             if (!message) setAmount("");
           }}
@@ -652,10 +707,7 @@ function DebtDetail({
             </button>
           </div>
           <DateInput className="search-input" value={date} onChange={(e) => setDate(e.target.value)} />
-          <label className="ledger-d-toggle party-cash-toggle">
-            <input type="checkbox" checked={viaCash} onChange={(e) => setViaCash(e.target.checked)} />
-            <span>{debt.kind === "lent" ? "💵 دخل الصندوق" : "💵 خرج من الصندوق"}</span>
-          </label>
+          <SourceSelect value={source} onChange={setSource} accounts={accounts} label={debt.kind === "lent" ? "دخل إلى" : "خرج من"} />
           {error && <div className="account-card-alert ledger-form-error">{error}</div>}
           <button className="dialog-primary" type="submit" disabled={!amount}>
             {debt.kind === "lent" ? "✓ ردّ لي" : "✓ رددت له"}
@@ -666,5 +718,256 @@ function DebtDetail({
         حذف الدين
       </button>
     </div>
+  );
+}
+
+// ---- 💰 the whole picture ----
+
+function mruText(value: number): string {
+  return `${value < 0 ? "-" : ""}${formatAmount(Math.round(Math.abs(value)))}`;
+}
+
+const GROUPS: { kind: "have" | "owed" | "owe"; title: string }[] = [
+  { kind: "have", title: "عندك" },
+  { kind: "owe", title: "عليك" },
+  { kind: "owed", title: "لك عند الآخرين" },
+];
+
+export function WealthCard({ wealth, onOpen }: { wealth: Wealth; onOpen: (line: WealthLine) => void }) {
+  return (
+    <div className={`net-hero money-hero money-hero-worth${wealth.inHandMru < 0 ? " is-loss" : ""}`}>
+      <div className="money-two">
+        <div>
+          <span className="net-hero-label">في يدك الآن</span>
+          <strong className={`net-hero-value${wealth.inHandMru < 0 ? " money-out" : ""}`}>
+            <bdi dir="ltr">{mruText(wealth.inHandMru)}</bdi> <small>أوقية</small>
+          </strong>
+          <small className="money-two-hint">الصندوق + البنوك + البطاقة − ما عليك</small>
+        </div>
+        <div>
+          <span className="net-hero-label">كل ما تملك</span>
+          <strong className="net-hero-value">
+            <bdi dir="ltr">{mruText(wealth.totalMru)}</bdi> <small>أوقية</small>
+          </strong>
+          <small className="money-two-hint">+ ما لك عند الزبائن والمندوبين والناس</small>
+        </div>
+      </div>
+      {GROUPS.map((group) => (
+        <div key={group.kind} className="money-group">
+          <span className="money-group-title">{group.title}</span>
+          <ul className="money-lines">
+            {wealth.lines
+              .filter((l) => l.kind === group.kind)
+              .map((l) => (
+                <li key={l.key}>
+                  <button type="button" className="money-line-button" onClick={() => onOpen(l)}>
+                    <span>
+                      {l.icon} {l.label}
+                      {l.items.length > 1 ? <small> ({l.items.length})</small> : null}
+                    </span>
+                    <bdi dir="ltr" className={l.mru === 0 ? undefined : l.kind === "owe" ? "money-out" : "money-in"}>
+                      {`${l.kind === "owe" && l.mru ? "-" : ""}${mruText(l.mru)}`}
+                    </bdi>
+                    <span className="money-line-go" aria-hidden="true">
+                      ‹
+                    </span>
+                  </button>
+                </li>
+              ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** A line's detail: who / which account, how much, in its own currencies. */
+export function WealthLineDetail({ line }: { line: WealthLine }) {
+  if (line.items.length === 0) return <p className="party-empty">لا شيء هنا الآن.</p>;
+  return (
+    <ul className="money-recurring-list">
+      {line.items.map((item, i) => (
+        <li key={`${item.name}-${i}`}>
+          <span>{item.name}</span>
+          <bdi dir="ltr">{signedMoney(item.byCurrency)}</bdi>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function signedMoney(byCurrency: Record<string, number>): string {
+  const parts = Object.entries(byCurrency)
+    .filter(([, v]) => Math.abs(v) > 0.0001)
+    .map(([code, v]) => `${v < 0 ? "-" : ""}${formatAmount(Math.round(Math.abs(v) * 100) / 100)} ${currencyLabel(code)}`);
+  return parts.length ? parts.join(" + ") : "0";
+}
+
+// ---- 🏦 my banks / wallets ----
+
+export function AccountsManager({
+  book,
+  balances,
+  onAdd,
+  onCorrect,
+  onDelete,
+}: {
+  book: AccountsBook;
+  balances: Record<string, Record<string, number>>;
+  onAdd: (input: AccountInput) => string | null;
+  onCorrect: (account: MoneyAccount, actual: number) => string | null;
+  onDelete: (account: MoneyAccount) => void;
+}) {
+  const [adding, setAdding] = useState(book.accounts.length === 0);
+  const [correcting, setCorrecting] = useState<string | null>(null);
+  return (
+    <div className="party-balance-form">
+      {book.accounts.length > 0 && (
+        <ul className="money-recurring-list">
+          {book.accounts.map((a) => (
+            <li key={a.id} className="money-account-row">
+              <span>
+                {a.icon} {a.name}
+                {a.method ? <small> · دفعات «{PAYMENT_METHOD_LABELS[a.method]}» هنا</small> : null}
+              </span>
+              <bdi dir="ltr">{signedMoney(balances[a.id] ?? {})}</bdi>
+              <button type="button" className="btn-icon" onClick={() => setCorrecting(correcting === a.id ? null : a.id)}>
+                ✎
+              </button>
+              {correcting === a.id && (
+                <CorrectForm
+                  account={a}
+                  onSave={(actual) => {
+                    const message = onCorrect(a, actual);
+                    if (!message) setCorrecting(null);
+                    return message;
+                  }}
+                  onDelete={() => {
+                    if (window.confirm(`حذف حساب «${a.name}»؟ ما سُجّل عليه يبقى في سجلاته.`)) onDelete(a);
+                  }}
+                />
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {adding ? (
+        <AccountForm
+          usedMethods={book.accounts.map((a) => a.method).filter((m): m is PaymentMethod => Boolean(m))}
+          onSave={(input) => {
+            const message = onAdd(input);
+            if (!message) setAdding(false);
+            return message;
+          }}
+        />
+      ) : (
+        <button type="button" className="dialog-primary" onClick={() => setAdding(true)}>
+          ➕ حساب بنكي / محفظة
+        </button>
+      )}
+      <p className="settings-hint">
+        اكتب الرصيد الذي يظهر في التطبيق الآن مرة واحدة. بعدها يُحسب وحده: دفعات الزبائن بطريقته، وما تسجّله «إلى/من» هذا الحساب. إن اختلف عن التطبيق اضغط ✎ واكتب الرصيد الحقيقي.
+      </p>
+    </div>
+  );
+}
+
+const ACCOUNT_PRESETS: { name: string; icon: string; method?: PaymentMethod }[] = [
+  { name: "بنكيلي", icon: "🟢", method: "bankily" },
+  { name: "مصرفي", icon: "🔵", method: "masrvi" },
+  { name: "سداد", icon: "🟣", method: "sedad" },
+  { name: "أورانج موني", icon: "🟠", method: "orange" },
+  { name: "نيتا", icon: "🟡", method: "nita" },
+];
+
+function AccountForm({ usedMethods, onSave }: { usedMethods: PaymentMethod[]; onSave: (input: AccountInput) => string | null }) {
+  const free = ACCOUNT_PRESETS.filter((p) => !p.method || !usedMethods.includes(p.method));
+  const [preset, setPreset] = useState(free[0]?.name ?? "");
+  const [name, setName] = useState(free[0]?.name ?? "");
+  const [balance, setBalance] = useState("");
+  const [currency, setCurrency] = useState("MRU");
+  const [error, setError] = useState<string | null>(null);
+  const chosen = ACCOUNT_PRESETS.find((p) => p.name === preset);
+  return (
+    <form
+      className="party-balance-form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        setError(
+          onSave({
+            name,
+            icon: chosen?.icon ?? "🏦",
+            currencyCode: currency,
+            method: chosen && name === chosen.name ? chosen.method : undefined,
+            openingBalance: toNumber(balance || "0"),
+            openingDate: today(),
+          }),
+        );
+      }}
+    >
+      <div className="expenses-cats money-presets" role="group" aria-label="الحساب">
+        {free.map((p) => (
+          <button
+            key={p.name}
+            type="button"
+            className={`expenses-cat${preset === p.name ? " money-preset-active" : ""}`}
+            onClick={() => {
+              setPreset(p.name);
+              setName(p.name);
+            }}
+          >
+            <span aria-hidden="true">{p.icon}</span>
+            <small>{p.name}</small>
+          </button>
+        ))}
+        <button
+          type="button"
+          className={`expenses-cat${preset === "" ? " money-preset-active" : ""}`}
+          onClick={() => {
+            setPreset("");
+            setName("");
+          }}
+        >
+          <span aria-hidden="true">🏦</span>
+          <small>آخر</small>
+        </button>
+      </div>
+      {preset === "" && <input className="search-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="اسم الحساب" />}
+      <div className="expenses-amount-row">
+        <AmountInput value={balance} onChange={setBalance} />
+        <CurrencySelect value={currency} onChange={setCurrency} />
+      </div>
+      <small className="settings-hint">الرصيد الحالي كما يظهر في التطبيق</small>
+      {error && <div className="account-card-alert ledger-form-error">{error}</div>}
+      <button className="dialog-primary" type="submit" disabled={!name.trim()}>
+        حفظ الحساب
+      </button>
+    </form>
+  );
+}
+
+function CorrectForm({ account, onSave, onDelete }: { account: MoneyAccount; onSave: (actual: number) => string | null; onDelete: () => void }) {
+  const [actual, setActual] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <form
+      className="party-balance-form money-correct"
+      onSubmit={(e) => {
+        e.preventDefault();
+        setError(onSave(toNumber(actual)));
+      }}
+    >
+      <div className="expenses-amount-row">
+        <AmountInput value={actual} onChange={setActual} autoFocus />
+        <button className="dialog-primary" type="submit" disabled={!actual}>
+          تصحيح الرصيد
+        </button>
+      </div>
+      <small className="settings-hint">الرصيد الحقيقي في {account.name} الآن ({currencyLabel(account.currencyCode)})</small>
+      {error && <div className="account-card-alert ledger-form-error">{error}</div>}
+      <button type="button" className="dialog-danger" onClick={onDelete}>
+        حذف الحساب
+      </button>
+    </form>
   );
 }

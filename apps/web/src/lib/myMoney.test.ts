@@ -16,7 +16,8 @@ import {
   editIncome,
   firstRecurringMonth,
   monthLeft,
-  netWorth,
+  buildWealth,
+  personalFlows,
   skipRecurringMonth,
   syncDebtCash,
   syncDebtPaymentCash,
@@ -150,19 +151,48 @@ describe("the final figures", () => {
     expect(left).toMatchObject({ businessMru: 120000, incomeMru: 50000, expenseMru: 6000, leftMru: 164000, missing: [] });
   });
 
-  it("«كل ما تملك» = الصندوق + البطاقة + what's owed to me − what I owe, in أوقية", () => {
+  it("«في يدك الآن» and «كل ما تملك»: have − owe, then + what's owed to me", () => {
     const a = addDebt(EMPTY_DEBT_BOOK, { kind: "lent", person: "A", amount: 1000, currencyCode: "MRU", date: "2026-10-01", viaCash: false });
     if (!a.ok) throw new Error();
     const b = addDebt(a.book, { kind: "borrowed", person: "B", amount: 10, currencyCode: "USD", date: "2026-10-01", viaCash: false });
     if (!b.ok) throw new Error();
-    const worth = netWorth({ cash: { MRU: 20000, XOF: 6000 }, cardUsd: 100, customers: { MRU: 46000 }, debts: b.book, rates });
+    const wealth = buildWealth({
+      cash: { MRU: 20000, XOF: 6000 },
+      banks: [{ name: "DEMO BANK", byCurrency: { MRU: 8000 } }],
+      cardUsd: 100,
+      customers: [{ name: "DEMO NAME", byCurrency: { MRU: 46000 } }],
+      repsMru: [{ name: "REP A", mru: 3000 }, { name: "REP B", mru: -2000 }],
+      debts: b.book,
+      suppliers: [{ name: "SUPPLIER", byCurrency: { MRU: 5000 } }],
+      starlink: [{ name: "demo-a", usd: 50 }],
+      rates,
+    });
+    const by = Object.fromEntries(wealth.lines.map((l) => [l.key, l.mru]));
     // XOF 6000 at 600/USD = 10 USD = 4000 MRU.
-    expect(worth).toMatchObject({ cashMru: 24000, cardMru: 40000, customersMru: 46000, lentMru: 1000, borrowedMru: 4000, totalMru: 107000, missing: [] });
+    expect(by).toMatchObject({ cash: 24000, banks: 8000, card: 40000, customers: 46000, repsOwe: 3000, lent: 1000, starlink: 20000, suppliers: 5000, repsOwed: 2000, borrowed: 4000 });
+    // have 72,000 − owe 31,000
+    expect(wealth.inHandMru).toBe(41000);
+    // + owed to me 50,000
+    expect(wealth.totalMru).toBe(91000);
+    expect(wealth.lines.find((l) => l.key === "customers")?.items[0]).toMatchObject({ name: "DEMO NAME", mru: 46000 });
+    expect(wealth.missing).toEqual([]);
   });
 
   it("says which currency had no rate instead of guessing", () => {
-    const worth = netWorth({ cash: { EUR: 10 }, cardUsd: 0, customers: {}, debts: EMPTY_DEBT_BOOK, rates });
-    expect(worth.missing).toEqual(["EUR"]);
-    expect(worth.totalMru).toBe(0);
+    const wealth = buildWealth({ cash: { EUR: 10 }, banks: [], cardUsd: 0, customers: [], repsMru: [], debts: EMPTY_DEBT_BOOK, suppliers: [], starlink: [], rates });
+    expect(wealth.missing).toEqual(["EUR"]);
+    expect(wealth.totalMru).toBe(0);
+  });
+
+  it("records through a bank / wallet become its flows (+ in, − out), not الصندوق", () => {
+    const inc = addIncome([], { categoryId: "salary", amount: 500, currencyCode: "MRU", date: "2026-10-01", toCash: true, accountId: "bank" }, now);
+    if (!inc.ok) throw new Error();
+    expect(inc.income.toCash).toBe(false);
+    const lent = addDebt(EMPTY_DEBT_BOOK, { kind: "lent", person: "A", amount: 200, currencyCode: "MRU", date: "2026-10-02", viaCash: true, accountId: "bank" });
+    if (!lent.ok) throw new Error();
+    const paid = addDebtPayment(lent.book, { debtId: lent.debt.id, amount: 50, date: "2026-10-03", viaCash: false, accountId: "bank" });
+    if (!paid.ok) throw new Error();
+    const expenses = [{ id: "e", categoryId: "food", amount: 30, currencyCode: "MRU", date: "2026-10-02", fromCash: false, accountId: "bank", createdAt: "" }] as PersonalExpense[];
+    expect(personalFlows(inc.list, expenses, paid.book).map((f) => f.amount)).toEqual([500, -30, -200, 50]);
   });
 });
