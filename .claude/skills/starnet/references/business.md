@@ -35,8 +35,26 @@ mind). Exact texts and numbers live in the code - this file says where.
   functions as the clients, suppliers, reps, reports and card pages.
 - Logic: `myMoney.ts`, `moneyAccounts.ts`, `myMoneyData.ts`; UI: `app/money/page.tsx`,
   `components/MyMoney.tsx`. The reports' «المصروفات» tab and its 🧾 button stay too.
-- Next step he agreed to: read bank/wallet notifications (Bankily…) into these accounts - wait for
-  his real notification screenshots (masked) before building.
+- Next step he agreed to: read bank/wallet notifications (Bankily…) into these accounts - see
+  «Bank / wallet notifications» below.
+
+## Bank / wallet notifications (decided, not built yet)
+
+- **Wait for ALL screenshots** before building (his choice): every app (بنكيلي، مصرفي، سداد، كليك،
+  أمانتي، أورانج موني مالي، نيتا) and every kind (received from someone, sent/paid, withdrawal…).
+  Received so far: a GIMTEL transfer only (below).
+- **GIMTEL** = moving money between his own apps on the same number (e.g. سداد → بنكيلي). It arrives
+  as two notifications for one operation, real wording (amount/number as he sent it):
+  - Bankily app, title `Gimtel envoie de l'argent`: `Vous avez reçu 50.0 MRU du bénéficiaire :
+    +22222227268 (SEDAD). ID de transaction : <id>`
+  - Sedad app, title `ENVOI`: `أرسلتم مبلغ 50.0 أوقية جديدة لصالح 22227268 (BANKILY)`
+  → one **transfer between his accounts** (minus from one, plus to the other; not income/expense,
+  «كل ما تملك» unchanged); the two notifications are merged into one.
+- Every read notification is a **suggestion awaiting his confirmation** in «حسابي» (accept / edit /
+  reject) - never recorded silently.
+- Money received from another person's number → **always personal income** in «حسابي» (he links it
+  to a customer by hand if he wants) - no automatic customer matching.
+- The existing `KastNotificationListener` (Android «Notification access») is the place to extend.
 
 ## What customers receive
 
