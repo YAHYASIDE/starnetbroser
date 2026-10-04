@@ -4,11 +4,14 @@ import { Directory, Filesystem } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
 import { isRunningInAndroidApp } from "./localBrowser";
 import { buildPrintableHtml, loadBusinessProfile, pdfFileName, PrintableDocument } from "./pdfDocument";
+import { buildStatementHtml } from "./statementDocument";
 
 export type PdfResult = { ok: true } | { ok: false; message: string };
 
 const A4_WIDTH_MM = 210;
 const A4_HEIGHT_MM = 297;
+/** A4 at 96dpi - the width every printable page is laid out at. */
+const A4_PAGE_WIDTH_PX = 794;
 
 /** The rendered PDF, ready to share, download or send (Telegram). */
 export interface RenderedPdf {
@@ -23,7 +26,10 @@ export async function renderPrintablePdf(doc: PrintableDocument): Promise<Render
   const generatedAt = `${now.toISOString().slice(0, 10)} ${now.toTimeString().slice(0, 5)}`;
   const host = document.createElement("div");
   host.style.cssText = "position:fixed;left:-10000px;top:0;z-index:-1;background:#fff";
-  host.innerHTML = buildPrintableHtml(doc, loadBusinessProfile(), generatedAt);
+  const business = loadBusinessProfile();
+  host.innerHTML = doc.statement
+    ? buildStatementHtml(doc.statement, business, generatedAt, { width: A4_PAGE_WIDTH_PX })
+    : buildPrintableHtml(doc, business, generatedAt);
   document.body.appendChild(host);
   try {
     const page = host.firstElementChild as HTMLElement;

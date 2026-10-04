@@ -34,6 +34,8 @@ import {
 } from "@/lib/invoiceStore";
 import { PdfButton } from "./PdfButton";
 import { buildPartyStatementPdf, statementKindLabel } from "@/lib/partyStatementPdf";
+import { buildStatementData } from "@/lib/statementDocument";
+import { StatementImageButton } from "./StatementImageButton";
 import { combinePhoneNumber, PHONE_COUNTRY_CODES, splitPhoneNumber } from "@/lib/phoneCountryCodes";
 import { formatAmount } from "@/lib/formatAmount";
 import { partyHue, partyInitials } from "@/lib/partyColor";
@@ -517,6 +519,7 @@ function PartyCard({
         ? buildClientCombinedStatement(invoices, adjustments, party.id, devices, ledgerStore)
         : buildPartyStatement(invoices, kind, party.id, adjustments);
   const canWhatsApp = buildWhatsAppLink(party.phone) !== null;
+  const deviceNames = devices.map((d) => d.name.trim()).filter(Boolean);
 
   const detailRow = detailRowId ? statement.find((r) => r.id === detailRowId) : undefined;
   function confirmDeleteAdjustment(adjustment: PartyAdjustment) {
@@ -653,10 +656,13 @@ function PartyCard({
       {panel === "statement" && (
         <div className="party-panel">
           <div className="party-panel-tools">
+            <StatementImageButton
+              build={() => buildStatementData(party, isClient, totals, statement, deviceNames)}
+            />
             <PdfButton
               className="party-action party-action-pdf"
-              label="🖨️ تصدير الكشف PDF"
-              build={() => buildPartyStatementPdf(party, isClient, totals, statement)}
+              label="📄 PDF"
+              build={() => buildPartyStatementPdf(party, isClient, totals, statement, deviceNames)}
             />
           </div>
           {statement.length === 0 ? (

@@ -1250,6 +1250,16 @@ function BusinessProfileSection() {
         <input className="search-input" placeholder="اسم النشاط (مثال: STAR NET)" value={profile.name} onChange={(e) => update({ name: e.target.value })} />
         <input className="search-input" dir="ltr" type="tel" placeholder="هاتف النشاط (اختياري)" value={profile.phone ?? ""} onChange={(e) => update({ phone: e.target.value })} />
         <input className="search-input" placeholder="العنوان (اختياري)" value={profile.address ?? ""} onChange={(e) => update({ address: e.target.value })} />
+        <p className="settings-hint">أسفل كشف حساب الزبون (الصورة و PDF): البريد ورقما واتساب، لكل رقم رمز QR. اترك الخانة فارغة لإخفائها.</p>
+        <input className="search-input" dir="ltr" type="email" placeholder="البريد الإلكتروني" value={profile.email ?? ""} onChange={(e) => update({ email: e.target.value })} />
+        <label className="tool-field">
+          <span>🇲🇷 واتساب موريتانيا (بدون <bdi dir="ltr">+222</bdi>)</span>
+          <input className="search-input" dir="ltr" type="tel" inputMode="numeric" value={profile.whatsappMauritania ?? ""} onChange={(e) => update({ whatsappMauritania: e.target.value })} />
+        </label>
+        <label className="tool-field">
+          <span>🇲🇱 واتساب مالي (بدون <bdi dir="ltr">+223</bdi>)</span>
+          <input className="search-input" dir="ltr" type="tel" inputMode="numeric" value={profile.whatsappMali ?? ""} onChange={(e) => update({ whatsappMali: e.target.value })} />
+        </label>
         <label className="tool-field">
           <span>طرق الدفع في رسائل تذكير الديون (سطر لكل طريقة)</span>
           <textarea

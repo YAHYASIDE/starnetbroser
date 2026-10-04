@@ -4,13 +4,28 @@
  * the layout and escaping are unit-tested; the browser only ever renders the string this returns.
  */
 
+import type { StatementData } from "./statementDocument";
+
 export interface BusinessProfile {
   name: string;
   phone?: string;
   address?: string;
   /** "How to pay" lines in the WhatsApp debt reminders (one per line). */
   paymentInstructions?: string;
+  /** Shown under the client statement (image + PDF). An empty string hides it. */
+  email?: string;
+  /** WhatsApp numbers (without the country code) shown under the client statement, each with its
+   * own QR code. An empty string hides that one. */
+  whatsappMauritania?: string;
+  whatsappMali?: string;
 }
+
+/** The operator's own contact details - used until the operator changes them in settings. */
+export const DEFAULT_CONTACT = {
+  email: "starnet.om@gmail.com",
+  whatsappMauritania: "22227268",
+  whatsappMali: "74646158",
+} as const;
 
 export const DEFAULT_PAYMENT_INSTRUCTIONS = "• بنكيلي / سداد / نيتا: 22227268\n• أورانج موني: 74646158";
 
@@ -21,7 +36,7 @@ export function paymentInstructions(): string {
 
 const PROFILE_KEY = "starnet_business_profile_v1";
 
-export const DEFAULT_BUSINESS_PROFILE: BusinessProfile = { name: "STAR NET" };
+export const DEFAULT_BUSINESS_PROFILE: BusinessProfile = { name: "STAR NET", ...DEFAULT_CONTACT };
 
 /** Stored under a starnet_ data key on purpose, so the full backup (accountBackup.ts) carries it. */
 export function loadBusinessProfile(): BusinessProfile {
@@ -30,7 +45,14 @@ export function loadBusinessProfile(): BusinessProfile {
     const raw = window.localStorage.getItem(PROFILE_KEY);
     if (!raw) return DEFAULT_BUSINESS_PROFILE;
     const parsed = JSON.parse(raw) as Partial<BusinessProfile>;
-    return { ...DEFAULT_BUSINESS_PROFILE, ...parsed, name: parsed.name?.trim() || DEFAULT_BUSINESS_PROFILE.name };
+    return {
+      ...DEFAULT_BUSINESS_PROFILE,
+      ...parsed,
+      name: parsed.name?.trim() || DEFAULT_BUSINESS_PROFILE.name,
+      email: parsed.email ?? DEFAULT_CONTACT.email,
+      whatsappMauritania: parsed.whatsappMauritania ?? DEFAULT_CONTACT.whatsappMauritania,
+      whatsappMali: parsed.whatsappMali ?? DEFAULT_CONTACT.whatsappMali,
+    };
   } catch {
     return DEFAULT_BUSINESS_PROFILE;
   }
@@ -45,6 +67,10 @@ export function saveBusinessProfile(profile: BusinessProfile): void {
       phone: profile.phone?.trim() || undefined,
       address: profile.address?.trim() || undefined,
       paymentInstructions: profile.paymentInstructions?.trim() || undefined,
+      // Kept even when emptied (""), so clearing one really hides it instead of restoring the default.
+      email: profile.email?.trim() ?? DEFAULT_CONTACT.email,
+      whatsappMauritania: profile.whatsappMauritania?.trim() ?? DEFAULT_CONTACT.whatsappMauritania,
+      whatsappMali: profile.whatsappMali?.trim() ?? DEFAULT_CONTACT.whatsappMali,
     }),
   );
 }
@@ -70,6 +96,9 @@ export interface PrintableDocument {
   /** Optional per-row tone (same length as rows) - colours that row's last cell. */
   rowTones?: PrintableTone[];
   footerNote?: string;
+  /** Set for a client/supplier statement: rendered with the invoice-style statement layout
+   * (statementDocument.ts) instead of the generic table above. */
+  statement?: StatementData;
 }
 
 /** Wraps a left-to-right fragment (a date, a code, a number with a sign) in Unicode isolates so it

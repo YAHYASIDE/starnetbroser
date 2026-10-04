@@ -184,7 +184,13 @@ async function answerStatement(query: string): Promise<void> {
     const ledgerStore = loadLedgerStore();
     const devices = (await loadAccounts()).filter((a) => a.clientId === match.id && !a.deletedAt);
     const totals = computeClientCombinedTotals(invoices, adjustments, match.id, devices, ledgerStore);
-    doc = buildPartyStatementPdf(party, true, totals, buildClientCombinedStatement(invoices, adjustments, match.id, devices, ledgerStore));
+    doc = buildPartyStatementPdf(
+      party,
+      true,
+      totals,
+      buildClientCombinedStatement(invoices, adjustments, match.id, devices, ledgerStore),
+      devices.map((d) => d.name.trim()).filter(Boolean),
+    );
     remaining = Object.fromEntries(Object.entries(totals).map(([c, t]) => [c, t.remaining]));
   } else {
     const party = supplierStore[match.id]!;
