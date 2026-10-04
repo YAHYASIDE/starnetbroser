@@ -24,8 +24,10 @@ mind). Exact texts and numbers live in the code - this file says where.
 ## «💰 حسابي» (`/money`) - his own money in one place
 
 - Like the app «مصاريف»: tabs الدخل / المصروف / الديون, sections with icons, green «+» (pinnable,
-  `/money?add=1`), 🔁 monthly income/expense (salary, rent) that records itself from its first day
-  on/after creation; a deleted month stays deleted.
+  `/money?add=1`), 🔁 monthly income/expense (salary, rent) that records itself on its day each month; **never on
+  the day it's added** (his rule: a day that is today or already passed → first record next month;
+  a later day this month → this month), never twice in a month (`firstRecurringMonth`); a deleted
+  month stays deleted.
 - Figure 1 «يبقى لك هذا الشهر» = the reports' business «الصافي» + income − personal expenses.
 - Figure 2 «في يدك الآن» = الكاش + banks/wallets + KAST − what he owes (Starlink D + previous debts,
   suppliers, reps, people); «كل ما تملك» = that + what customers, reps and people owe him.
@@ -47,6 +49,17 @@ mind). Exact texts and numbers live in the code - this file says where.
   bank notification → «فواتير · الاتصالات».
 - Logic: `myMoney.ts`, `moneyAccounts.ts`, `myMoneyData.ts`; UI: `app/money/page.tsx`,
   `components/MyMoney.tsx`. The reports' «المصروفات» tab and its 🧾 button stay too.
+- **«⚙️ البداية من جديد»** (bottom of «حسابي», both behind the delete code, both undoable):
+  - «🔄 الأرباح والخسائر من 0 (الديون تبقى)» = **profits & losses only** (his choice): reports and
+    «حسابي» (net, income, expense) count from today (`profitReset.ts`, the same
+    `starnet_profit_reset_v1` as the reports' reset + every rep starts fresh; `monthLeft` takes
+    `since`). Nothing is deleted: الكاش, banks and customers'/people's debts stay. «↩️ إرجاع».
+  - «🗑️ حذف كل المعاملات وتصفير كل الحسابات» = **the transactions only** (his choice): every
+    money record is removed (shipments, payments, الكاش, invoices, stock moves, expenses, income,
+    debts, party/rep entries, card top-ups, previous debts, closings - `wipeTransactions.ts`
+    `TRANSACTION_KEYS`); banks/wallets stay at 0 from today, 🔁 rules restart at their next day.
+    Devices, customers, reps, suppliers, items, categories and settings stay. A snapshot is kept
+    on the phone first (`starnet.wipeUndo`, not in backups) → «↩️ استرجاع ما حُذف».
 - Next step he agreed to: read bank/wallet notifications (Bankily…) into these accounts - see
   «Bank / wallet notifications» below.
 
@@ -60,7 +73,8 @@ mind). Exact texts and numbers live in the code - this file says where.
   usual record), `components/BankInbox.tsx`, wired in `app/money/page.tsx`; drained on open and
   when the app comes back (`drainBankNotices`).
 - A record from a notification goes through the chosen account (`accountId`), never through
-  الكاش. Supplier / rep payments carry `accountId` too (`partyFlows`); transfers between his
+  الكاش - except the «💵 إيداع من الكاش / سحب للكاش» choice, which is a transfer between الكاش and
+  that account (`CASH_ACCOUNT_ID`, a linked cash entry `account-transfer`, deleted together). Supplier / rep payments carry `accountId` too (`partyFlows`); transfers between his
   accounts are `AccountsBook.transfers` (listed and deletable in «البنوك والمحافظ»).
 - Limits for now: «دفعة زبون» only on an account linked to a payment method (بنكيلي، سداد، مصرفي،
   نيتا، أورانج) - it's a device payment by that method; a transfer is only between his registered
@@ -93,6 +107,11 @@ mind). Exact texts and numbers live in the code - this file says where.
   (Same title `ENVOI` as GIMTEL - GIMTEL is the one whose «لصالح» is his own number + `(BANKILY)`.)
 - **Bankily money received**: same title `Transfert d'argent`, but `Expediteur : <NAME>,<number>`
   instead of `Beneficiaire` → received (Expediteur = in, Beneficiaire = out).
+- **Bankily `Versement espèces`**: `Votre compte a été crédité de 11800 MRU suite à votre versement
+  espèce… ID Trs : <id>` = he put cash into Bankily → suggested as **«💵 إيداع من الكاش»** (his
+  choice: a transfer from الكاش to بنكيلي; changeable on confirm).
+- Phones write the apostrophe as ’ («Transfert d’argent») - both the Java title match and the
+  parser normalize it (the first real Bankily transfers were missed because of it).
 - **Bankily `MERPASSCDE`** (`Votre demande…`, `Montant : 1000 MRU`, `B…`): meaning not known yet -
   ask him for the expanded notification before reading it.
 - **Binance**: `USDT Deposit Processing` (ignore) then `USDT Deposit Successful`: `You have
@@ -129,8 +148,18 @@ mind). Exact texts and numbers live in the code - this file says where.
   company's own frames, so `starnetCardFill.js` (`src/webExtraction/cardFill.ts`,
   `cardFillScript.ts`, bundled in CI like the extractor) runs at the start of **every** frame
   (androidx.webkit document-start script + web-message listener, `CardFillController.java`); only
-  secure frames that have card fields receive the card. Not verified on his phone yet - if a field
-  isn't filled, ask for a «🧪 لقطة تشخيص» of that page.
+  secure frames that have card fields receive the card. **Works on his phone** (all fields
+  filled); if a field isn't filled, ask for a «🧪 لقطة تشخيص» of that page.
+- **«Additional verification needed to process this payment…»** on Save = the KAST card is
+  **frozen** (not an app problem). His steps to add a KAST card to a device:
+  1. KAST app → «البطاقات» → swipe to the card (several cards, last 4 shown) → «إلغاء التجميد» →
+     fingerprint/code → a KAST code by email, or «تجربة طريقة أخرى» → WhatsApp/SMS → paste it.
+  2. Device browser → Billing → Payment Method «Edit» → fill the card (💳) → Save → a white
+     «VISA» page → «Verify transaction» → choose **Email** → the code comes from **no-reply**
+     («STARLINK INTERNET – Please confirm the following payment… €0.00», 6 digits). The emails
+     titled «Your KAST verification code» are the unfreeze codes - not this one.
+  3. Paste it → Submit → wait → Billing shows «VISA ending in ####».
+  Never store or log these codes, the card number or the CVV from his screenshots.
 
 ## What customers receive
 
