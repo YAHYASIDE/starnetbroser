@@ -45,6 +45,21 @@ export function buildExpiryReminderMessage(accountName: string): string {
   return `مرحبًا ${accountName}، نود تذكيرك بأن اشتراك Starlink الخاص بك سينتهي الليلة. يرجى التجديد لتفادي انقطاع الخدمة.\n\n- STAR NET`;
 }
 
+/** The operator's own wording for every "you owe us" WhatsApp reminder (device ledger and client
+ * debt alike): the amounts per currency, never summed, then how to pay. */
+function debtReminderText(name: string, owedAmounts: string[]): string {
+  return (
+    `السلام عليكم ورحمة الله وبركاته\n\n` +
+    `${name}،\n\n` +
+    `نود تذكيركم بأن عليكم حاليًا رصيدًا بقيمة ${owedAmounts.join(" و")}\n\n` +
+    `يرجى تسوية المبلغ في أقرب وقت، حتى يبقى حسابكم محدثًا وتستمر خدماتكم دون أي تأخير.\n\n` +
+    `💳 طرق الدفع المتاحة:\n\n` +
+    `${paymentInstructions()}\n\n` +
+    `بعد إتمام الدفع، يرجى إرسال إشعار أو صورة العملية عبر الواتساب لتأكيد الدفع وتحديث حسابكم.\n\n` +
+    `⭐ STAR NET.OM`
+  );
+}
+
 /** STAR NET's own payment-collection numbers (not customer data) - shown to the customer inside
  * the balance-reminder WhatsApp message so they know where to send payment. Built entirely from
  * the local customer ledger (see ledgerStore.ts), same as buildAccountStatementMessage below -
@@ -64,15 +79,7 @@ export function buildBalanceReminderMessage(accountName: string, entries: Ledger
     );
   }
 
-  return (
-    `مرحبًا ${accountName} 👋\n\n` +
-    `نود إعلامك بأن لديك رصيدًا مستحقًا حاليًا بقيمة ${owedAmounts.join(" و")}.\n` +
-    `نرجو منك التكرم بتسديد المبلغ في أقرب وقت ممكن لتفادي انقطاع الخدمة.\n\n` +
-    `يمكنكم الدفع عبر إحدى الوسائل التالية:\n` +
-    `${paymentInstructions()}\n\n` +
-    `شكرًا لتعاونكم معنا 🙏\n` +
-    `- STAR NET`
-  );
+  return debtReminderText(accountName, owedAmounts);
 }
 
 /** Store-debt payment reminder for a client with an outstanding retail balance (invoiceStore.ts) -
@@ -91,15 +98,7 @@ export function buildStoreDebtReminderMessage(clientName: string, balanceByCurre
     );
   }
 
-  return (
-    `مرحبًا ${clientName} 👋\n\n` +
-    `نود إعلامك بأن لديك رصيدًا مستحقًا في المتجر بقيمة ${owedAmounts.join(" و")}.\n` +
-    `نرجو منك التكرم بتسديد المبلغ في أقرب وقت ممكن.\n\n` +
-    `يمكنكم الدفع عبر إحدى الوسائل التالية:\n` +
-    `${paymentInstructions()}\n\n` +
-    `شكرًا لتعاونكم معنا 🙏\n` +
-    `- STAR NET`
-  );
+  return debtReminderText(clientName, owedAmounts);
 }
 
 /** Store account summary for a client or supplier (AccountsSection's WhatsApp options) - one block

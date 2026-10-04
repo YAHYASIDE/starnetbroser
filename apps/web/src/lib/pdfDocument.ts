@@ -27,7 +27,7 @@ export const DEFAULT_CONTACT = {
   whatsappMali: "74646158",
 } as const;
 
-export const DEFAULT_PAYMENT_INSTRUCTIONS = "• بنكيلي / سداد / نيتا: 22227268\n• أورانج موني: 74646158";
+export const DEFAULT_PAYMENT_INSTRUCTIONS = "• BANKILY - NITA : 22227268\n• ORANGE MONEY : 74646158";
 
 /** The "how to pay" lines for reminder messages: the operator's own, or the original ones. */
 export function paymentInstructions(): string {

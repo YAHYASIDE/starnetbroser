@@ -462,3 +462,30 @@ describe("buildFullDeviceMessage", () => {
     expect(message).not.toMatch(/\n{3,}/);
   });
 });
+
+describe("debt reminder wording", () => {
+  const expected = (amounts: string) =>
+    "السلام عليكم ورحمة الله وبركاته\n\n" +
+    "زبون تجريبي،\n\n" +
+    `نود تذكيركم بأن عليكم حاليًا رصيدًا بقيمة ${amounts}\n\n` +
+    "يرجى تسوية المبلغ في أقرب وقت، حتى يبقى حسابكم محدثًا وتستمر خدماتكم دون أي تأخير.\n\n" +
+    "💳 طرق الدفع المتاحة:\n\n" +
+    "• BANKILY - NITA : 22227268\n• ORANGE MONEY : 74646158\n\n" +
+    "بعد إتمام الدفع، يرجى إرسال إشعار أو صورة العملية عبر الواتساب لتأكيد الدفع وتحديث حسابكم.\n\n" +
+    "⭐ STAR NET.OM";
+
+  it("is the operator's exact text for a client debt, with the currency after the amount", () => {
+    expect(buildStoreDebtReminderMessage("زبون تجريبي", { MRU: 44000 })).toBe(expected("44,000 أوقية"));
+  });
+
+  it("is the same text for a device's ledger balance", () => {
+    const entries: LedgerEntry[] = [
+      { id: "e1", kind: "debit", amount: 44000, currency: "MRU", note: "", email: "", date: "2026-10-01", createdAt: "2026-10-01T10:00:00.000Z" } as LedgerEntry,
+    ];
+    expect(buildBalanceReminderMessage("زبون تجريبي", entries)).toBe(expected("44,000 أوقية"));
+  });
+
+  it("names every owed currency separately", () => {
+    expect(buildStoreDebtReminderMessage("زبون تجريبي", { MRU: 44000, SIFA: 12000 })).toBe(expected("44,000 أوقية و12,000 سيفا"));
+  });
+});
