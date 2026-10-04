@@ -61,8 +61,23 @@ describe("contactBlockHtml", () => {
     expect(html.match(/<svg /g)).toHaveLength(2);
   });
 
-  it("is empty when nothing is set", () => {
-    expect(contactBlockHtml({ name: "X", email: "", whatsappMauritania: "", whatsappMali: "" })).toBe("");
+  it("lists the payment methods (the operator's own lines, or the default ones)", () => {
+    const html = contactBlockHtml({ ...business, paymentInstructions: "• DEMO BANK : 11112222\n• DEMO MONEY : 33334444" });
+    expect(html).toContain("طرق الدفع المتاحة");
+    expect(html).toContain("DEMO BANK : 11112222");
+    expect(html).toContain("DEMO MONEY : 33334444");
+    expect(html).not.toContain("• DEMO");
+    expect(contactBlockHtml(business)).toContain("BANKILY - NITA : 22227268");
+  });
+
+  it("draws the QR codes small", () => {
+    expect(contactBlockHtml(business)).toContain('width="64"');
+  });
+
+  it("still shows the payment methods with no e-mail or WhatsApp", () => {
+    const html = contactBlockHtml({ name: "X", email: "", whatsappMauritania: "", whatsappMali: "" });
+    expect(html).toContain("ORANGE MONEY : 74646158");
+    expect(html).not.toContain("<svg");
   });
 });
 

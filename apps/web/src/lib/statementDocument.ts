@@ -8,7 +8,7 @@ import qrcode from "qrcode-generator";
 import { formatAmount } from "./formatAmount";
 import type { PartyStatementRow, PartyStoreTotals } from "./invoiceStore";
 import { LEDGER_CURRENCY_LABELS, LedgerCurrency } from "./ledgerStore";
-import { BusinessProfile, escapeHtml } from "./pdfDocument";
+import { BusinessProfile, DEFAULT_PAYMENT_INSTRUCTIONS, escapeHtml } from "./pdfDocument";
 
 const EPSILON = 0.0001;
 
@@ -157,27 +157,47 @@ function moneyCell(value: string): string {
   return `<bdi dir="ltr">${escapeHtml(value.slice(0, space))}</bdi> ${escapeHtml(value.slice(space + 1))}`;
 }
 
-/** The contact block under the statement: the e-mail, then one QR code per WhatsApp number with
- * the number (and its country code) written under it. Empty when nothing is set. */
-export function contactBlockHtml(business: BusinessProfile, qrSize = 112): string {
+/** The "how to pay" lines (settings ← بيانات النشاط, or the default ones), one per line. */
+export function paymentMethodLines(business: BusinessProfile): string[] {
+  return (business.paymentInstructions?.trim() || DEFAULT_PAYMENT_INSTRUCTIONS)
+    .split("\n")
+    .map((line) => line.replace(/^[•\-\s]+/, "").trim())
+    .filter(Boolean);
+}
+
+/** The block under the statement: the payment methods, then one small QR code per WhatsApp
+ * number beside the number (and its country code), then the e-mail. Empty when nothing is set. */
+export function contactBlockHtml(business: BusinessProfile, qrSize = 64): string {
   const e = escapeHtml;
   const email = business.email?.trim();
   const contacts = whatsappContacts(business);
-  if (!email && contacts.length === 0) return "";
+  const methods = paymentMethodLines(business);
+  if (!email && contacts.length === 0 && methods.length === 0) return "";
+  const payment = methods.length
+    ? `<div style="padding:10px 12px;border-radius:12px;background:#fff;border:1px solid ${C.line};margin-bottom:10px">` +
+      `<div style="font-size:14px;font-weight:800;color:${C.ink};margin-bottom:6px">💳 طرق الدفع المتاحة</div>` +
+      methods
+        .map((m) => `<div dir="ltr" style="font-size:15px;font-weight:700;color:${C.brand};text-align:right;padding:3px 0">${e(m)}</div>`)
+        .join("") +
+      `</div>`
+    : "";
   const cards = contacts
     .map(
       (c) =>
-        `<div style="flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 8px;border:1px solid ${C.line};border-radius:12px;background:#fff">` +
-        `<div style="padding:4px;background:#fff">${qrSvg(c.link, qrSize)}</div>` +
-        `<div style="font-size:13px;font-weight:700;color:${C.ink}">${c.flag} واتساب ${e(c.country)}</div>` +
-        `<div dir="ltr" style="font-size:16px;font-weight:800;color:${C.brand};letter-spacing:.5px">+${e(c.dial)} ${e(c.number)}</div>` +
+        `<div style="flex:1;min-width:0;display:flex;align-items:center;gap:8px;padding:8px;border:1px solid ${C.line};border-radius:12px;background:#fff">` +
+        `<div style="flex:none">${qrSvg(c.link, qrSize)}</div>` +
+        `<div style="min-width:0"><div style="font-size:12px;font-weight:700;color:${C.ink}">${c.flag} واتساب ${e(c.country)}</div>` +
+        `<div dir="ltr" style="font-size:14px;font-weight:800;color:${C.brand};text-align:right;white-space:nowrap">+${e(c.dial)} ${e(c.number)}</div></div>` +
         `</div>`,
     )
     .join("");
   return (
-    `<div style="margin-top:18px;padding:14px;border-radius:14px;background:${C.soft};border:1px solid ${C.line}">` +
-    `<div style="text-align:center;font-size:13px;font-weight:700;color:${C.muted};margin-bottom:10px">للتواصل والدفع - امسح الرمز لفتح واتساب</div>` +
-    (cards ? `<div style="display:flex;gap:10px">${cards}</div>` : "") +
+    `<div style="margin-top:18px;padding:12px;border-radius:14px;background:${C.soft};border:1px solid ${C.line}">` +
+    payment +
+    (cards
+      ? `<div style="text-align:center;font-size:12px;font-weight:700;color:${C.muted};margin-bottom:8px">للتواصل - امسح الرمز لفتح واتساب</div>` +
+        `<div style="display:flex;gap:8px">${cards}</div>`
+      : "") +
     (email
       ? `<div style="margin-top:10px;text-align:center;font-size:14px;color:${C.ink}">✉️ <span dir="ltr" style="font-weight:700">${e(email)}</span></div>`
       : "") +
