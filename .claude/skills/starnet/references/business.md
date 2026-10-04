@@ -43,7 +43,7 @@ mind). Exact texts and numbers live in the code - this file says where.
 - **Wait for ALL screenshots** before building (his choice): every app (بنكيلي، مصرفي، سداد، كليك،
   أمانتي، أورانج موني مالي، نيتا) and every kind (received from someone, sent/paid, withdrawal…).
   Received so far: GIMTEL (سداد → بنكيلي), Bankily money sent to a person, Sedad money sent to a
-  person, Sedad phone credit, Nita money received.
+  person, Sedad phone credit, Nita money received, Bankily money received, Binance deposit.
 - **GIMTEL** = moving money between his own apps on the same number (e.g. سداد → بنكيلي). It arrives
   as two notifications for one operation, real wording (amount/number as he sent it):
   - Bankily app, title `Gimtel envoie de l'argent`: `Vous avez reçu 50.0 MRU du bénéficiaire :
@@ -64,6 +64,14 @@ mind). Exact texts and numbers live in the code - this file says where.
 - **Sedad money sent to a person**, title `ENVOI`: `أرسلتم مبلغ 200.0 أوقية جديدة لصالح <NAME> (
   <number> )` → outgoing-money suggestion from Sedad with the name and number, like Bankily's.
   (Same title `ENVOI` as GIMTEL - GIMTEL is the one whose «لصالح» is his own number + `(BANKILY)`.)
+- **Bankily money received**: same title `Transfert d'argent`, but `Expediteur : <NAME>,<number>`
+  instead of `Beneficiaire` → received (Expediteur = in, Beneficiaire = out).
+- **Bankily `MERPASSCDE`** (`Votre demande…`, `Montant : 1000 MRU`, `B…`): meaning not known yet -
+  ask him for the expanded notification before reading it.
+- **Binance**: `USDT Deposit Processing` (ignore) then `USDT Deposit Successful`: `You have
+  successfully deposited 10 USDT at 2026-05-20 22:48:40 (UTC)…` → only "Successful" counts, a
+  suggestion in his Binance account where on confirming he picks **income** or **transfer from
+  another account of his** (KAST…). **USDT = USD** (recorded as dollars).
 - **Nita (Niger) money received**, app «my NITA», title `Compte à Compte`: `<NAME> vient de
   transferer un montant de 5000.0 F CFA vers votre…` (cut - read the full big text) → **income**
   suggestion in his «نيتا النيجر» account; `F CFA` = SIFA (never converted).
@@ -77,8 +85,9 @@ mind). Exact texts and numbers live in the code - this file says where.
   transaction ID (Bankily) that was already seen is never suggested twice.
 - Every read notification is a **suggestion awaiting his confirmation** in «حسابي» (accept / edit /
   reject) - never recorded silently.
-- Money received from another person's number → **always personal income** in «حسابي» (he links it
-  to a customer by hand if he wants) - no automatic customer matching.
+- Money received from another person's number → suggested as **personal income**, no automatic
+  customer matching; on confirming he can change it to: payment from a customer, money from a rep,
+  «دين أخذته» or «دين رُدّ لي» (the customer/rep ones go to that book, not personal income).
 - The existing `KastNotificationListener` (Android «Notification access») is the place to extend.
 
 ## What customers receive
