@@ -267,7 +267,9 @@ final class CardFillController {
         }
     }
 
-    private final Runnable fillNow = () -> {
+    private final Runnable fillNow = this::fillCard;
+
+    private void fillCard() {
         if (!flowRunning() || flowPayload == null) return;
         if (cardFrames.isEmpty()) {
             Toast.makeText(activity, "لم تُعرف خانات البطاقة في هذه الصفحة - أرسل «🧪 لقطة تشخيص»", Toast.LENGTH_LONG).show();
@@ -277,7 +279,7 @@ final class CardFillController {
         toldFilled = false;
         String command = "{\"cmd\":\"fill\",\"card\":" + flowPayload + "}";
         for (JavaScriptReplyProxy frame : new ArrayList<>(cardFrames)) send(frame, command);
-    };
+    }
 
     private void sendSave() {
         if (!flowRunning()) return;
