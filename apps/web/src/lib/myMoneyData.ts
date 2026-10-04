@@ -95,14 +95,21 @@ export function loadWealthInput(input: {
 
   const clients = listClients(loadClientStore());
   const debtLedger = ourDebtLedgerForClients(ledger, input.accounts, clients);
-  const customers = clients
-    .map((client) => {
-      const totals = computeClientCombinedTotals(invoices, adjustments, client.id, input.accounts.filter((a) => a.clientId === client.id), debtLedger);
-      const byCurrency: Record<string, number> = {};
-      for (const [code, t] of Object.entries(totals)) if (t.remaining > 0.0001) byCurrency[code] = t.remaining;
-      return { name: client.name, byCurrency };
-    })
-    .filter((c) => Object.keys(c.byCurrency).length > 0);
+  // One pass per client: a positive remaining = he owes us («لك عند الزبائن»); a negative one = we
+  // owe him a credit («له رصيد» → «عليك للزبائن»). Before this both negatives were dropped, so a
+  // customer we owed never appeared anywhere (his Oct 2026 report: «شخص له عندنا 1,917,900 لا يظهر»).
+  const clientTotals = clients.map((client) => {
+    const totals = computeClientCombinedTotals(invoices, adjustments, client.id, input.accounts.filter((a) => a.clientId === client.id), debtLedger);
+    const owes: Record<string, number> = {};
+    const credit: Record<string, number> = {};
+    for (const [code, t] of Object.entries(totals)) {
+      if (t.remaining > 0.0001) owes[code] = t.remaining;
+      else if (t.remaining < -0.0001) credit[code] = -t.remaining;
+    }
+    return { name: client.name, owes, credit };
+  });
+  const customers = clientTotals.filter((c) => Object.keys(c.owes).length > 0).map((c) => ({ name: c.name, byCurrency: c.owes }));
+  const customersOwe = clientTotals.filter((c) => Object.keys(c.credit).length > 0).map((c) => ({ name: c.name, byCurrency: c.credit }));
 
   const suppliers = listSuppliers(loadSupplierStore())
     .map((supplier) => {
@@ -127,6 +134,7 @@ export function loadWealthInput(input: {
     banks,
     cardUsd: currentCardBalanceUsd(ledger),
     customers,
+    customersOwe,
     repsMru,
     debts: input.debts,
     suppliers,

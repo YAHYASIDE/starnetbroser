@@ -233,6 +233,29 @@ describe("the final figures", () => {
     expect(starlink.mru).toBe(20000); // 50 USD × 400
   });
 
+  it("a customer we owe (credit / «له رصيد») shows under «عليك للزبائن» and counts against في يدك", () => {
+    const wealth = buildWealth({
+      cash: { MRU: 10000 },
+      banks: [],
+      cardUsd: 0,
+      customers: [{ name: "يدين لنا", byCurrency: { MRU: 2000 } }],
+      customersOwe: [{ name: "له رصيد", byCurrency: { MRU: 1917900 } }],
+      repsMru: [],
+      debts: EMPTY_DEBT_BOOK,
+      suppliers: [],
+      starlink: [],
+      rates,
+    });
+    const owe = wealth.lines.find((l) => l.key === "customersOwe")!;
+    expect(owe.kind).toBe("owe");
+    expect(owe.mru).toBe(1917900);
+    expect(owe.items[0]).toMatchObject({ name: "له رصيد", mru: 1917900 });
+    // have 10,000 − owe 1,917,900
+    expect(wealth.inHandMru).toBe(10000 - 1917900);
+    // + owed to me 2,000
+    expect(wealth.totalMru).toBe(10000 - 1917900 + 2000);
+  });
+
   it("the KAST card shows its دولار beside the أوقية", () => {
     const wealth = buildWealth({
       cash: {},

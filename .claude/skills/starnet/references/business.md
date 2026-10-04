@@ -35,8 +35,12 @@ mind). Exact texts and numbers live in the code - this file says where.
   month stays deleted.
 - Figure 1 «يبقى لك هذا الشهر» = the reports' business «الصافي» + income − personal expenses.
 - Figure 2 «في يدك الآن» = الكاش + banks/wallets + KAST − what he owes (Starlink D + previous debts,
-  suppliers, reps, people); «كل ما تملك» = that + what customers, reps and people owe him.
-  Every line opens who/which account and how much (`buildWealth`, `loadWealthInput`).
+  **customers he owes**, suppliers, reps, people); «كل ما تملك» = that + what customers, reps and
+  people owe him. Every line opens who/which account and how much (`buildWealth`, `loadWealthInput`).
+- **A customer with a credit («له رصيد», a negative balance = we owe him) shows under «👥 عليك
+  للزبائن»** (his Oct 2026 report: «شخص له عندنا 1,917,900 لا يظهر»). `loadWealthInput` splits each
+  client's combined total: positive remaining → «لك عند الزبائن», negative → `customersOwe` → «عليك
+  للزبائن». Before this, negatives were dropped, so a customer we owed appeared nowhere.
 - **Foreign-currency lines show their own currency beside the أوقية** (his Oct 2026 choice): a
   wallet/app that runs in a non-أوقية currency comes out to its **own front-line entry** shown as
   «السعر الأصلي + مقابله بالأوقية» - أورانج موني & نيتا (سيفا), بينانس (دولار). The أوقية apps

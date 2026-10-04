@@ -516,8 +516,10 @@ export interface WealthInput {
   cash: Record<string, number>;
   banks: WealthGroup[];
   cardUsd: number;
-  /** Positive balances only. */
+  /** Customers who owe us (positive balances only) - «لك عند الزبائن». */
   customers: WealthGroup[];
+  /** Customers we owe (a credit / «له رصيد»), positive amounts - «عليك للزبائن». */
+  customersOwe?: WealthGroup[];
   /** Per rep: positive = he owes me, negative = I owe him (أوقية). */
   repsMru: { name: string; mru: number }[];
   debts: DebtBook;
@@ -577,6 +579,7 @@ export function buildWealth(input: WealthInput): Wealth {
     line("repsOwe", "🧑‍💼", "لك عند المندوبين", "owed", input.repsMru.filter((r) => r.mru > 0).map((r) => mruItem(r.name, r.mru))),
     line("lent", "🤝", "لك عند الناس", "owed", people.lent),
     line("starlink", "🛰️", "عليك لستارلينك (D)", "owe", input.starlink.map((s) => item(s.name, { USD: s.usd }))),
+    line("customersOwe", "👥", "عليك للزبائن", "owe", (input.customersOwe ?? []).map((c) => item(c.name, c.byCurrency))),
     line("suppliers", "🏭", "عليك للموردين", "owe", input.suppliers.map((s) => item(s.name, s.byCurrency))),
     line("repsOwed", "🧑‍💼", "عليك للمندوبين", "owe", input.repsMru.filter((r) => r.mru < 0).map((r) => mruItem(r.name, -r.mru))),
     line("borrowed", "↩", "عليك للناس", "owe", people.borrowed),
