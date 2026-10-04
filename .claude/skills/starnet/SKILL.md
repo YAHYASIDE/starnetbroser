@@ -23,6 +23,11 @@ what he means.
 - Skip the questions only for a small fix whose meaning is clear (a typo, a layout bug he showed),
   or when he already chose in an earlier answer.
 - A question about the app ("why 45 vs 39?") gets an answer from the code and data, not a change.
+- **His business facts and past decisions** (his money places and numbers, «الكاش» wording,
+  «حسابي», what customers receive, notifications, what the rep's app has) are in
+  `references/business.md` - read it before touching money, statements, messages or the rep app,
+  so you don't ask again or undo a decision. **Every new decision he makes goes into that file in
+  the same commit.**
 - If a link can't be opened (e.g. TikTok is blocked here), say so and ask what's in it.
 
 ## 2. Build it the way the app is built
@@ -49,6 +54,8 @@ what he means.
   add the TS binding in `definitions.ts` + a stub in `web.ts`.
 - Never put a real password, email, card number, phone or rep code in code, tests or commits - even
   if it appears in his screenshots. Tests use fake values (`DemoPass-1`, `demo-sender`, `1234`).
+  The only exception: his own public business contacts he asked to print (see
+  `references/business.md`), as code defaults (a test may check a default text containing them).
 - Don't change `services/api` or `services/browser-worker`; keep `FEATURE_CLOUD_SESSIONS` false.
 - There is no Prettier config: don't run Prettier over existing files (it reflows them to 80
   columns and bloats the diff). Match the surrounding style by hand.

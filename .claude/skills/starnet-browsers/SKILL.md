@@ -29,6 +29,12 @@ plus the rules learned from real misreads; keep it updated when you learn a new 
      then each page is **read until it settles** (`SettleTracker`), Subscriptions → subscription →
      «الأجهزة» (waits for a colored dot) → Billing → Settings → Home (banners: never final before
      3.5 s). After a tap a read only counts once the page changed.
+   - `BackgroundSyncService.java` + `SyncRunner.java` - 🌙 «المزامنة في الخلفية» (settings toggle,
+     `starnet.backgroundSync`): one device after another, each WebView in an **invisible, untouchable
+     overlay window** («الظهور فوق التطبيقات» permission) so Starlink's page really draws. SyncRunner is
+     a copy of the device browser's walk - **any change to `syncFromStarlink`'s steps or waits must be
+     made in SyncRunner too**. Progress notification with «إيقاف»; signed-out alert + per-device report
+     on the owner bot (`BackgroundSyncReport`).
    - `AutoSyncWorker.java` - background sync. A run over many devices reads Home only (pace +
      Starlink's 429 rate limit, `SyncPacing`), plus Billing once a week per device; a single device's
      own run does the deep walk (subscriptions, devices, billing, settings).
@@ -69,6 +75,10 @@ plus the rules learned from real misreads; keep it updated when you learn a new 
 ## Rules learned from real misreads (don't regress these)
 
 - Read in English: the Arabic UI synced badly; `language.ts` switches each device's browser once.
+  "Not English" is not only Arabic: a rep's device opened Starlink in **French** (€ prices) and passed
+  as English (Latin letters), so it was never switched and nothing was read (real, confirmed -
+  `fixtures/real-home-french.html`). `isEnglishText` also counts accented letters and French/Spanish/
+  Portuguese/German words; the switcher knows «Langue/Région/Pays», «États-Unis», «Non».
 - Starlink renders in the browser: right after a tap the old page is still shown, and Home's banners
   ("restricted", "scheduled to end") appear a moment later. Never trust a single early read - use
   the settled read; keep the Home minimum wait.
@@ -81,15 +91,40 @@ plus the rules learned from real misreads; keep it updated when you learn a new 
 - **The renewal (billing) day is always 1-28** - the operator's rule: Starlink never bills on the
   29th-31st, so such a date is a misread (a device once showed 2026/10/31). It is rejected in the
   extractor (`isPlausibleBillingDate`, `extractBillingDueDay`) and again in the web merge.
-- **Where the true day comes from, in order:** the Billing page's cycle ("Payment due September 7");
-  if it isn't there (e.g. a suspended account's blank cycle), the **invoice list at the bottom of
-  Billing: the latest row described «Subscription» / «اشتراك»** - never an «Order» / «طلب» row.
+- **Where the true day comes from, in order:** the **invoice list at the bottom of Billing: the
+  latest row described «Subscription» / «اشتراك»** - never an «Order» / «طلب» row - wins over
+  everything on the page; then a dated renewal line; then the cycle ("Payment due September 7").
+  Real, confirmed: a stopped account's "Payment due October 1" is the failed payment's retry, not
+  the billing day (24) - trusting it first showed 2026/11/01.
   Column order depends on the language: English is "Due Date, Description, Status" (date BEFORE the
   description), Arabic is status, description, date (date AFTER) - `extractSubscriptionInvoiceDueDay`
   learns the side from the rows themselves (which neighbor of each Subscription/Order cell is a
   date), the header only breaks a tie: on a real phone the header didn't come through as its own
   lines and the reader took the next Order's 9/1 (→ "2026/11/01").
+- **A new device starts with an empty renewal date, shown as «لم يُقرأ بعد»** (`renewalDateLabel`
+  in `lib/date.ts`) until a sync reads it. It used to get a placeholder (`dateAfterDays(28)`: added
+  on the 3rd → the 31st) that looked like a real misread - never bring a made-up date back. Devices
+  added before that change may still carry such a 29-31 placeholder: check this first before
+  touching the readers.
+- Billing loads its «Billing Cycle» box (the renewal day) after the balance: the billing step waits
+  for `renewalDate` (WANT_RENEWAL, up to BILLING_MAX_MS) - a read taken in between saved the
+  balance (HNL 266.25) but no date, so the old placeholder 31 stayed (real, confirmed).
 - Never put real account data in tests or fixtures; fake values only.
+- 🔄 A hidden WebView (`AutoSyncWorker`, never attached to a window) often doesn't render Starlink's
+  SPA - the card's «تحديث من Starlink» "did nothing" for the operator. So the card button and
+  «مزامنة الآن» open the device's **visible** browser with `autoSync` (EXTRA_AUTO_SYNC): wait for the
+  sign-in, run the same «مزامنة», close back to the app; «مزامنة الآن» chains devices from
+  `apps/web/src/lib/syncQueue.ts`: «اليوم» = today only, «3 أيام» = today + the next 2 days (3, 4, 5);
+  also «الموقوفة بسبب الفوترة», «أضفناها اليوم» (`addedAt`), «كل الأجهزة». A faulty device and a
+  limited (non-main) email sync **only from their own choice** - never by a day, «كل الأجهزة», a
+  long-pressed calendar day, or the background list (faulty).
+  Each auto-sync records how it ended (`AutoSyncResults` → `takeAutoSyncResults`): ok / nothing /
+  saveFailed / **signedOut** (the sign-in page 5 polls of 0.7 s in a row - skipped, no sign-in attempt)
+  / **stuck** (2-minute watchdog) / closed. The app alerts a signed-out device on the owner's bot at
+  once and sends every device's status at the end of the run (`apps/web/src/lib/syncReport.ts`).
+- 🔔 Every finished sync rings once (`AlertSound`, the phone's notification tone; silent mode stays
+  silent): the device browser's «مزامنة» and every `AutoSyncWorker` run - unless its «تم التحديث»
+  notification already made the sound.
 - 📷 Camera / proof upload (Starlink's identity check): `CameraAccess` grants the camera only (never
   the microphone) while the visible page is Starlink; file inputs open Android's picker with the
   camera beside gallery/files (`CaptureFileProvider`, cache `starnet_capture/`). A file input's
