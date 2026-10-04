@@ -14,6 +14,10 @@ operator speaks Arabic; the whole UI is Arabic/RTL. Reply to the operator in Ara
 - Do not change application code in `services/api` or `services/browser-worker`.
   `packages/shared` may change (types used by the web app).
 - Ask the operator clarifying questions before building a large, ambiguous feature.
+- The operator's business facts and past decisions (his money places and numbers, «الكاش»
+  wording, «حسابي», customer messages/statements, the rep's app) are in
+  `.claude/skills/starnet/references/business.md` - read it before any change to money, messages
+  or the rep app, and add every new decision of his to it in the same commit.
 
 ## Layout
 
