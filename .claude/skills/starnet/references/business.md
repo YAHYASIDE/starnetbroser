@@ -43,7 +43,7 @@ mind). Exact texts and numbers live in the code - this file says where.
 - **Wait for ALL screenshots** before building (his choice): every app (بنكيلي، مصرفي، سداد، كليك،
   أمانتي، أورانج موني مالي، نيتا) and every kind (received from someone, sent/paid, withdrawal…).
   Received so far: GIMTEL (سداد → بنكيلي), Bankily money sent to a person, Sedad money sent to a
-  person, Sedad phone credit.
+  person, Sedad phone credit, Nita money received.
 - **GIMTEL** = moving money between his own apps on the same number (e.g. سداد → بنكيلي). It arrives
   as two notifications for one operation, real wording (amount/number as he sent it):
   - Bankily app, title `Gimtel envoie de l'argent`: `Vous avez reçu 50.0 MRU du bénéficiaire :
@@ -64,6 +64,9 @@ mind). Exact texts and numbers live in the code - this file says where.
 - **Sedad money sent to a person**, title `ENVOI`: `أرسلتم مبلغ 200.0 أوقية جديدة لصالح <NAME> (
   <number> )` → outgoing-money suggestion from Sedad with the name and number, like Bankily's.
   (Same title `ENVOI` as GIMTEL - GIMTEL is the one whose «لصالح» is his own number + `(BANKILY)`.)
+- **Nita (Niger) money received**, app «my NITA», title `Compte à Compte`: `<NAME> vient de
+  transferer un montant de 5000.0 F CFA vers votre…` (cut - read the full big text) → **income**
+  suggestion in his «نيتا النيجر» account; `F CFA` = SIFA (never converted).
 - **Keep everything the notification shows** on each suggestion and record (his decision): the
   person's name and number, the transaction ID, the app, the full notification text and its time.
   This stays on his phone and in his backup only - never in code, tests, fixtures or commits
