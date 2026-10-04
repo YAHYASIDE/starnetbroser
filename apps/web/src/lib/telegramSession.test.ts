@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PART_GAP_MS, SessionCollector, looksLikeSessionContinuation, looksLikeSessionStart, sessionDevice } from "./telegramSession";
+import { PART_GAP_MS, SessionCollector, isSessionFragment, sessionDevice } from "./telegramSession";
 
 // Shaped like a «Cookie-Editor» export - fake names and values only.
 const LONG = "A".repeat(5000);
@@ -48,17 +48,20 @@ describe("📋 a session sent to a bot", () => {
     const c = new SessionCollector();
     expect(c.add("owner", "متوقف", 0).status).toBe("ignored");
     expect(c.add("owner", "starlink", 0).status).toBe("ignored");
-    expect(looksLikeSessionStart("كم رصيد الكاش")).toBe(false);
-    expect(looksLikeSessionContinuation("ابحث عن محمد")).toBe(false);
+    expect(isSessionFragment("كم رصيد الكاش")).toBe(false);
+    expect(isSessionFragment("ابحث عن محمد")).toBe(false);
+    expect(isSessionFragment("متوقف")).toBe(false);
   });
 
   it("parts of different chats never mix; a part long after is a new message", () => {
     const c = new SessionCollector();
     const [first, second] = cut(EXPORT);
+    // Each chat buffers on its own - rep-1's head and rep-2's tail never complete each other.
     expect(c.add("rep-1", first!, 0).status).toBe("waiting");
-    expect(c.add("rep-2", second!, 1).status).toBe("ignored");
+    expect(c.add("rep-2", second!, 1).status).toBe("waiting");
     expect(c.isOpen("rep-1", 2)).toBe(true);
     expect(c.isOpen("rep-1", PART_GAP_MS + 10)).toBe(false);
+    // The rest of rep-1's session, long after the gap, starts a fresh buffer (never completes alone).
     expect(c.add("rep-1", second!, PART_GAP_MS + 10).status).not.toBe("done");
   });
 

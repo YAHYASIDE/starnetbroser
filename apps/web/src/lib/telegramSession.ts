@@ -2,40 +2,41 @@
  * 📋 A Starlink session sent to a bot as text (Firefox clone → «Cookie-Editor» → Export → JSON,
  * pasted in Telegram) becomes a new device whose browser opens already signed in (his choice:
  * new device + «مزامنة»; his own bot adds it at once, a rep's needs his approval; the message
- * stays in Telegram). Telegram cuts a long text into several messages of ~4096 characters, so the
- * parts of one chat are joined until they read as a whole session (pastedSession.ts). Pure; the
- * session is never logged and lives only in memory until it's in the device's browser.
+ * stays in Telegram). Telegram cuts a long text into messages of ~4096 characters - often inside
+ * one long cookie value - so every piece that looks like exported cookies is buffered per chat
+ * and joined, in arrival order, until it reads as a whole session (pastedSession.ts). No piece is
+ * ever answered as a command. Pure; the session is never logged and lives only in memory until
+ * it's in the device's browser.
  */
 
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { DeviceStatus } from "@starnet/shared";
 import { parsePastedSession } from "./pastedSession";
 
-/** Parts of one session that arrive further apart than this are not joined. */
-export const PART_GAP_MS = 3 * 60_000;
-const MAX_PARTS = 12;
-const MAX_CHARS = 60_000;
+/** Pieces of one session that arrive further apart than this are not joined. */
+export const PART_GAP_MS = 5 * 60_000;
+const MAX_PARTS = 16;
+const MAX_CHARS = 120_000;
 
-const SESSION_WORDS = /starlink/i;
-const COOKIE_SHAPE = /"(name|value|domain)"\s*:|\tTRUE\t|\tFALSE\t|Starlink\.Com\./i;
+const COOKIE_KEY = /"(name|value|domain|path|secure|httpOnly|hostOnly|expirationDate|sameSite)"\s*:/i;
+const NETSCAPE = /\t(TRUE|FALSE)\t/;
+const ARABIC = /[؀-ۿ]/;
 
-/** The first part of a session: an exported cookie list (its first cookie's value can fill the
- * whole first message, before its "starlink.com" shows), or cookies that name Starlink. */
-export function looksLikeSessionStart(text: string): boolean {
+/**
+ * One message that is (a piece of) an exported session - never a normal command. A command is a
+ * few short Arabic/English words with spaces; a session piece is JSON, cookies.txt lines, a
+ * "Name=value" header, or the cut-off middle of a long cookie value (a big blob with no spaces).
+ * Order-independent: the first piece, a middle, or the tail all count, so a split session is
+ * never mistaken for a command.
+ */
+export function isSessionFragment(text: string): boolean {
   const t = text.trim();
-  if (/^[[{]/.test(t)) return /"name"\s*:/.test(t) && /"value"\s*:/.test(t);
-  // cookies.txt lines, or "Name=value; Name2=value2" - never a piece from inside a JSON list.
-  if (/"(name|value|domain)"\s*:/.test(t)) return false;
-  return SESSION_WORDS.test(t) && (/\t(TRUE|FALSE)\t/.test(t) || /(^|;\s*)[A-Za-z0-9._-]+=[^\s;]{8,}/.test(t));
-}
-
-/** A following part (the cut-off rest of a long cookie, or more cookies) of a session that's
- * still being received - never an ordinary command (short words with spaces). */
-export function looksLikeSessionContinuation(text: string): boolean {
-  const t = text.trim();
-  if (!t) return false;
-  if (COOKIE_SHAPE.test(t) || /^[\]},]/.test(t)) return true;
-  return t.length >= 200 && !/\s/.test(t);
+  if (t.length < 40 || ARABIC.test(t)) return false;
+  if (/^[[{\]},"]/.test(t) || COOKIE_KEY.test(t) || NETSCAPE.test(t)) return true;
+  // The middle/tail of a long cookie value Telegram cut: a long run with no spaces.
+  if (t.length >= 120 && !/\s/.test(t)) return true;
+  // "Name=value; Name2=value2" header with long values (not a short command with spaces).
+  return /(^|;\s*)[A-Za-z0-9._-]+=[^\s;]{12,}/.test(t) && !/^\S+\s+\S+\s/.test(t);
 }
 
 export type SessionStep =
@@ -49,24 +50,22 @@ interface Pending {
   lastAt: number;
 }
 
-/** Joins the parts of the sessions being received, per chat. */
+/** Joins the pieces of the sessions being received, per chat. */
 export class SessionCollector {
   private pending = new Map<string, Pending>();
 
-  /** Feeds one message; "ignored" when it isn't (part of) a session. */
+  /** Feeds one message; "ignored" when it isn't (a piece of) a session. */
   add(chatKey: string, text: string, now: number): SessionStep {
     const open = this.pending.get(chatKey);
     const fresh = open && now - open.lastAt <= PART_GAP_MS ? open : undefined;
     if (!fresh) this.pending.delete(chatKey);
-    if (fresh && looksLikeSessionContinuation(text)) {
-      fresh.parts.push(text);
-      fresh.lastAt = now;
-    } else if (looksLikeSessionStart(text)) {
-      this.pending.set(chatKey, { parts: [text], lastAt: now });
-    } else {
-      return { status: "ignored" };
-    }
-    const current = this.pending.get(chatKey)!;
+    if (!isSessionFragment(text)) return { status: "ignored" };
+
+    const current: Pending = fresh ?? { parts: [], lastAt: now };
+    current.parts.push(text);
+    current.lastAt = now;
+    this.pending.set(chatKey, current);
+
     const whole = joinParts(current.parts);
     if (whole) {
       this.pending.delete(chatKey);
@@ -80,31 +79,35 @@ export class SessionCollector {
     return { status: "waiting", parts: current.parts.length };
   }
 
-  /** Whether a session of this chat is still being received. */
+  /** Whether a session of this chat is still being received (so a reply can wait). */
   isOpen(chatKey: string, now: number): boolean {
     const open = this.pending.get(chatKey);
     return Boolean(open && now - open.lastAt <= PART_GAP_MS);
   }
 }
 
-/** The parts as one session, or null while it's still incomplete. Telegram may drop the line
- * break at a cut, or cut inside a value - both ways are tried. */
+/** The pieces as one session, or null while it's still incomplete. Telegram splits the raw text,
+ * so joining with nothing rebuilds the original (a value cut in the middle included); a dropped
+ * line break at the cut is the one other case tried. */
 function joinParts(parts: string[]): SessionStep | null {
   const first = parts[0]!.trim();
   const json = first.startsWith("[") || first.startsWith("{");
   for (const glue of ["", "\n"]) {
     const text = parts.join(glue).trim();
     if (json) {
+      // A complete JSON list: a session, or the clear reason it isn't one (wrong domain…).
       try {
         JSON.parse(text);
       } catch {
-        continue;
+        continue; // not whole yet - wait for more
       }
+      const parsed = parsePastedSession(text);
+      return parsed.ok ? { status: "done", cookiesByUrl: parsed.cookiesByUrl, count: parsed.count } : { status: "failed", message: parsed.message };
     }
-    // Whole (it parsed, or it isn't JSON): a session, or the reason it isn't one.
+    // Not (yet) a JSON list - a cookies.txt / header paste, or a tail that arrived first: only
+    // finish when it already reads as a session; otherwise keep waiting for more pieces.
     const parsed = parsePastedSession(text);
     if (parsed.ok) return { status: "done", cookiesByUrl: parsed.cookiesByUrl, count: parsed.count };
-    return { status: "failed", message: parsed.message };
   }
   return null;
 }

@@ -176,7 +176,7 @@ mind). Exact texts and numbers live in the code - this file says where.
 
 - He (or a linked rep) pastes the Firefox session («Cookie-Editor» → Export → JSON) in the bot.
   **Telegram cuts it into 2+ messages** (~4096 characters, often inside one long cookie value -
-  his screenshot): the app joins the parts of one chat that arrive within 3 minutes and adds the
+  his screenshot): the app joins the pieces of one chat (within 5 min, any cookie-looking piece in any order) and adds the
   device only when they read as a whole session; no part is ever answered as a command.
 - **His choices:** his own bot → a **new device at once** (named «📋 جهاز جديد HH:MM») whose browser
   is signed in, then «مزامنة» reads its email/KIT/dates (a device already on the app gets «⚠️
