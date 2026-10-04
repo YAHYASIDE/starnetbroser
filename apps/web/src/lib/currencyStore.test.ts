@@ -6,6 +6,7 @@ import {
   fromUsd,
   getCurrency,
   listCurrencies,
+  realRateFromUsd,
   setCurrencyEnabled,
   setCurrencyRate,
   toUsd,
@@ -117,6 +118,21 @@ describe("setCurrencyRate", () => {
   it("is a no-op for an unknown code", () => {
     const store = { ARS: currency() };
     expect(setCurrencyRate(store, "EUR", 1)).toEqual(store);
+  });
+});
+
+describe("realRateFromUsd", () => {
+  it("derives the rate a real payment reveals (foreign ÷ dollars), rounded to 4 decimals", () => {
+    expect(realRateFromUsd(2700, 100.61)).toBe(26.8363);
+    expect(realRateFromUsd(5000, 10)).toBe(500);
+  });
+
+  it("is null when either side is missing or non-positive", () => {
+    expect(realRateFromUsd(2700, 0)).toBeNull();
+    expect(realRateFromUsd(0, 100)).toBeNull();
+    expect(realRateFromUsd(undefined, 100)).toBeNull();
+    expect(realRateFromUsd(2700, undefined)).toBeNull();
+    expect(realRateFromUsd(-5, 100)).toBeNull();
   });
 });
 

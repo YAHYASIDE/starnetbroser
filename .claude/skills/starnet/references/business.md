@@ -32,6 +32,12 @@ mind). Exact texts and numbers live in the code - this file says where.
 - Figure 2 «في يدك الآن» = الكاش + banks/wallets + KAST − what he owes (Starlink D + previous debts,
   suppliers, reps, people); «كل ما تملك» = that + what customers, reps and people owe him.
   Every line opens who/which account and how much (`buildWealth`, `loadWealthInput`).
+- **The registered exchange rate follows real payments.** When he settles a Starlink D from the card
+  («تسديد D») or pays a previous debt, the dollars that actually leave the card against the foreign
+  amount reveal today's true rate (e.g. 2700 HNL ÷ 100.61 $ = 26.84). That currency's **current**
+  registered rate is then updated automatically from this payment (his Oct 2026 choice: «تلقائيًا
+  بدون سؤال», everywhere «السعر الحقيقي» is shown). Future-only: no past record is recomputed - each
+  keeps its locked snapshot rate (`realRateFromUsd` + `setCurrencyRate`, the toast says «حُدّث سعر …»).
 - No double counting: personal records post linked cash entries (`personal-expense`,
   `personal-income`, `personal-debt`) that the business reports ignore; the figures reuse the same
   functions as the clients, suppliers, reps, reports and card pages.

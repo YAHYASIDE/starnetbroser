@@ -145,6 +145,17 @@ export function setCurrencyRate(store: CurrencyStore, code: string, rateFromUsd:
   return { ...store, [code]: { ...existing, rateFromUsd, updatedAt: nowIso() } };
 }
 
+/** The real rateFromUsd a Starlink card payment reveals: the foreign amount actually paid divided
+ * by the dollars that actually left the card, rounded to 4 decimals (e.g. 2700 HNL ÷ 100.61 $ =
+ * 26.84). Null when either side is missing or non-positive - then the registered rate is left as is.
+ * Used to keep a currency's *current* rate fresh from real payments; it never rewrites the snapshot
+ * rate locked onto past records. */
+export function realRateFromUsd(foreignPaid: number | undefined, usdPaid: number | undefined): number | null {
+  if (!foreignPaid || foreignPaid <= 0 || !usdPaid || usdPaid <= 0) return null;
+  const rate = Math.round((foreignPaid / usdPaid) * 10000) / 10000;
+  return Number.isFinite(rate) && rate > 0 ? rate : null;
+}
+
 /** USD can never be hidden - every conversion in the app is expressed relative to it. */
 export function setCurrencyEnabled(store: CurrencyStore, code: string, enabled: boolean): CurrencyStore {
   const existing = store[code];

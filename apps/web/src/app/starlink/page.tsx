@@ -19,7 +19,7 @@ import { DateInput } from "@/components/DateInput";
 import { PartySheet } from "@/components/AccountsSection";
 import { loadCashEntries, saveCashEntries } from "@/lib/cashStore";
 import { ClientStore, getClient, loadClientStore } from "@/lib/clientStore";
-import { CurrencyStore, getCurrency, loadCurrencyStore } from "@/lib/currencyStore";
+import { CurrencyStore, getCurrency, loadCurrencyStore, realRateFromUsd, saveCurrencyStore, setCurrencyRate } from "@/lib/currencyStore";
 import { demoAccounts } from "@/lib/demoData";
 import { loadDemoAccounts } from "@/lib/demoAccountStore";
 import { formatAmount } from "@/lib/formatAmount";
@@ -192,6 +192,22 @@ export default function StarlinkPage() {
     setSheet("pay");
   }
 
+  // 💱 A real card payment to Starlink reveals today's true rate (foreign paid ÷ dollars out). Keep
+  // the currency's registered *current* rate fresh from it, going forward only - setCurrencyRate
+  // never touches the snapshot rate already locked onto past records. Returns the new rate when it
+  // actually changed, so the toast can mention it (the operator asked for this to be automatic).
+  function recordRealRate(code: string | undefined, foreignPaid: number | undefined, usdPaid: number): number | null {
+    if (!code || code === "USD") return null;
+    const rate = realRateFromUsd(foreignPaid, usdPaid);
+    if (rate === null) return null;
+    const current = getCurrency(currencyStore, code)?.rateFromUsd;
+    if (current === undefined || Math.abs(current - rate) < 1e-6) return null;
+    const next = setCurrencyRate(currencyStore, code, rate);
+    setCurrencyStore(next);
+    saveCurrencyStore(next);
+    return rate;
+  }
+
   function pay(date: string, fromCard: boolean, actual?: ActualPaid) {
     if (!confirmClosedMonthChange([date])) return;
     const next = settleShipments(
@@ -206,7 +222,11 @@ export default function StarlinkPage() {
     setSpendToRecord(null);
     setSheet(null);
     const paidUsd = actual && payItems.length === 1 ? actual.usd : totalOpenDebtUsd(payItems);
-    setToast(`✓ تم تسديد ${payItems.length} جهاز بـ ${usd(paidUsd)} - الربح وحصص المندوبين نزلت بتاريخ ${date}`);
+    const costCode = payItems.length === 1 ? payItems[0]!.entry.starlinkCost?.currencyCode : undefined;
+    const newRate = actual && payItems.length === 1 ? recordRealRate(costCode, actual.amount, actual.usd) : null;
+    setToast(
+      `✓ تم تسديد ${payItems.length} جهاز بـ ${usd(paidUsd)} - الربح وحصص المندوبين نزلت بتاريخ ${date}${newRate !== null && costCode ? ` · حُدّث سعر ${costCode} الحالي إلى ${formatAmount(newRate)}` : ""}`,
+    );
   }
 
   function openPreviousPay(debt: PreviousDebt) {
@@ -232,8 +252,9 @@ export default function StarlinkPage() {
     saveLedgerStore(next);
     setSheet(null);
     setPrevPay(null);
+    const newRate = recordRealRate(input.chargeCurrency, input.chargeAmount, input.paidUsd);
     setToast(
-      `✓ تم تسديد الدين السابق على ${acc?.name ?? "الجهاز"} (${usd(input.paidUsd)}) وسُجّل على الزبون ${formatAmount(input.chargeAmount)} ${LEDGER_CURRENCY_LABELS[input.chargeCurrency]}`,
+      `✓ تم تسديد الدين السابق على ${acc?.name ?? "الجهاز"} (${usd(input.paidUsd)}) وسُجّل على الزبون ${formatAmount(input.chargeAmount)} ${LEDGER_CURRENCY_LABELS[input.chargeCurrency]}${newRate !== null ? ` · حُدّث سعر ${LEDGER_CURRENCY_LABELS[input.chargeCurrency]} الحالي إلى ${formatAmount(newRate)}` : ""}`,
     );
     return null;
   }
@@ -834,6 +855,7 @@ function PayForm({
                 </>
               )}{" "}
               · عند التسجيل <bdi dir="ltr">{usd(single.costUsd)}</bdi>
+              {" "}· يصبح سعر {foreign} الحالي
             </p>
           )}
           {changed && <p className="settings-hint">تُسجَّل التكلفة بما دُفع فعلاً، ويُحسب الربح عليه.</p>}
@@ -1146,6 +1168,7 @@ function SettlementEditForm({
       {foreign && Number(amount) > 0 && Number(foreignAmount) > 0 && (
         <p className="settings-hint">
           السعر الحقيقي: <bdi dir="ltr">1$ = {formatAmount(Math.round((Number(foreignAmount) / Number(amount)) * 100) / 100)} {foreign}</bdi>
+          {" "}· يصبح سعر {foreign} الحالي
         </p>
       )}
       <label className="rep-form-field">
