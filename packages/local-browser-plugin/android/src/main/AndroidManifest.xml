@@ -109,12 +109,13 @@
                 android:value="Finishes a Starlink account update or cancellation the operator started, after he leaves the app" />
         </service>
 
-        <!-- 💳 Reads only the KAST app's own notifications (paid / refused / received) - the
-             operator turns it on in Android's «Notification access». -->
+        <!-- 💳 Reads only the KAST app's own notifications (paid / refused / received) and 🏦 the
+             operator's bank / wallet apps' (BankNotice) - he turns it on in Android's
+             «Notification access». Every other app's notification is ignored. -->
         <service
             android:name="com.starnetbroser.localbrowser.KastNotificationListener"
             android:exported="true"
-            android:label="STAR NET - KAST"
+            android:label="STAR NET - KAST والبنوك"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />

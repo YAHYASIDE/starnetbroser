@@ -695,6 +695,27 @@ export interface LocalBrowserPlugin {
 
   /** The app saved these deposits - forget them on the native side. */
   kastAckDeposits(options: { ids: string[] }): Promise<void>;
+
+  /** 🏦 The bank / wallet apps' notifications (بنكيلي، سداد، نيتا، بينانس…) kept since the app last
+   * saved them - read through the same «Notification access» as KAST's. Oldest first. */
+  bankPendingNotices(): Promise<{ notices: BankNoticeRaw[] }>;
+
+  /** The app saved these as suggestions - forget them on the native side. */
+  bankAckNotices(options: { ids: string[] }): Promise<void>;
+}
+
+export interface BankNoticeRaw {
+  /** One per posted notification (package + time + content). */
+  id: string;
+  /** "bankily" | "sedad" | "nita" | "binance" | "masrvi" | "amanty" | "orange". */
+  app: string;
+  /** The Android package that posted it. */
+  pkg: string;
+  title: string;
+  /** The expanded text when the app gives one. */
+  text: string;
+  /** When it was posted (ms). */
+  at: number;
 }
 
 export interface KastDevice {

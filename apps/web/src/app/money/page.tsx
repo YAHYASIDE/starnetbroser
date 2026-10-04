@@ -4,6 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { AccountsManager, DebtsTab, IncomeTab, RecurringSection, today, WealthCard, WealthLineDetail } from "@/components/MyMoney";
+import { BankInboxCard, BankInboxList, SuggestionConfirm, type ConfirmData, type ConfirmInput } from "@/components/BankInbox";
+import { decideSuggestion, decidedSuggestions, EMPTY_BANK_INBOX, loadBankInbox, pendingSuggestions, reopenSuggestion, saveBankInbox, type BankInbox, type BankSuggestion } from "@/lib/bankNotices";
+import { saveSuggestionChoice } from "@/lib/bankSuggestionSave";
+import { listClients, loadClientStore } from "@/lib/clientStore";
+import { drainBankNotices, kastNotificationsEnabled, openKastNotificationAccess } from "@/lib/localBrowser";
+import { listRepresentatives, loadRepresentativeStore } from "@/lib/repStore";
+import { listSuppliers, loadSupplierStore } from "@/lib/supplierStore";
 import { PartySheet } from "@/components/AccountsSection";
 import { PersonalExpensesTab } from "@/components/PersonalExpensesTab";
 import { loadCashEntries, removeLinkedCashEntries, saveCashEntries } from "@/lib/cashStore";
@@ -42,13 +49,13 @@ import {
   type RecurringList,
   type WealthLine,
 } from "@/lib/myMoney";
-import { businessNetForMonth, loadMoneyAccounts, loadRates, loadWealthInput } from "@/lib/myMoneyData";
+import { businessNetForMonth, loadAccountFlows, loadMoneyAccounts, loadRates, loadWealthInput } from "@/lib/myMoneyData";
 import {
   accountBalance,
   addMoneyAccount,
   correctBalance,
+  deleteAccountTransfer,
   deleteMoneyAccount,
-  devicePaymentFlows,
   loadAccountsBook,
   saveAccountsBook,
   seedDefaultAccounts,
@@ -74,6 +81,8 @@ const TABS: { id: MoneyTab; label: string }[] = [
   { id: "debts", label: "الديون" },
 ];
 const TAB_KEY = "starnet.moneyTab";
+/** His public numbers (business.md) - money between his own apps on them is a transfer. */
+const OWN_NUMBERS = ["22227268", "74646158"];
 
 function mru(value: number): string {
   return `${value < 0 ? "-" : ""}${formatAmount(Math.round(Math.abs(value)))}`;
@@ -115,6 +124,13 @@ export default function MoneyPage() {
   const [cashVersion, setCashVersion] = useState(0);
   const [newRecord, setNewRecord] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  // 🏦 bank / wallet notifications waiting for his confirmation (lib/bankNotices.ts).
+  const [inbox, setInbox] = useState<BankInbox>(EMPTY_BANK_INBOX);
+  const [inboxOpen, setInboxOpen] = useState(false);
+  const [picked, setPicked] = useState<BankSuggestion | null>(null);
+  const [notifEnabled, setNotifEnabled] = useState<boolean | null>(null);
+  // Bumped when a confirmed notification wrote a supplier / rep / customer record.
+  const [inboxVersion, setInboxVersion] = useState(0);
 
   function chooseTab(next: MoneyTab) {
     setTab(next);
@@ -160,6 +176,20 @@ export default function MoneyPage() {
     if (readyBook !== storedBook) saveAccountsBook(readyBook);
     setBook(readyBook);
     setRates(loadRates());
+    setInbox(loadBankInbox());
+    const ownNumbers = Array.from(new Set([...OWN_NUMBERS, ...readyBook.accounts.map((a) => a.number ?? "").filter(Boolean)]));
+    const readNotices = () => {
+      void drainBankNotices(ownNumbers).then((result) => {
+        if (result) setInbox(result.inbox);
+      });
+      void kastNotificationsEnabled().then(setNotifEnabled);
+    };
+    readNotices();
+    // Back from a bank app / Android's «Notification access»: read again.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") readNotices();
+    };
+    document.addEventListener("visibilitychange", onVisible);
     try {
       const saved = window.localStorage.getItem(TAB_KEY);
       if (saved === "income" || saved === "expense" || saved === "debts") setTab(saved);
@@ -180,7 +210,10 @@ export default function MoneyPage() {
       if (route.includes("?") && parseAddMoney(route.slice(route.indexOf("?")))) startNew();
     };
     window.addEventListener(SAME_PAGE_ROUTE_EVENT, onRoute);
-    return () => window.removeEventListener(SAME_PAGE_ROUTE_EVENT, onRoute);
+    return () => {
+      window.removeEventListener(SAME_PAGE_ROUTE_EVENT, onRoute);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
 
   const months = useMemo(() => {
@@ -194,13 +227,15 @@ export default function MoneyPage() {
     () => buildWealth(loadWealthInput({ accounts, rates, incomes, expenses, debts, book })),
     // الكاش changes (cashVersion) are read from storage.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [accounts, rates, incomes, expenses, debts, book, cashVersion, loaded],
+    [accounts, rates, incomes, expenses, debts, book, cashVersion, loaded, inboxVersion],
   );
   const accountBalances = useMemo(() => {
     const ledger = loadLedgerStore();
     const flows = personalFlows(incomes, expenses, debts);
-    return Object.fromEntries(book.accounts.map((a) => [a.id, accountBalance(book, a, [...devicePaymentFlows(ledger, a), ...flows])]));
-  }, [book, incomes, expenses, debts]);
+    return Object.fromEntries(book.accounts.map((a) => [a.id, accountBalance(book, a, loadAccountFlows(ledger, a, flows))]));
+    // Supplier / rep payments from a bank notification are read from storage (inboxVersion).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [book, incomes, expenses, debts, inboxVersion]);
   const sources = book.accounts.map((a) => ({ id: a.id, name: a.name, icon: a.icon }));
   const owed = useMemo(() => debtTotals(debts), [debts]);
   const missing = Array.from(new Set([...business.missing, ...left.missing, ...wealth.missing]));
@@ -264,6 +299,44 @@ export default function MoneyPage() {
     setRules(next);
   }
 
+  // ---- 🏦 عمليات البنوك ----
+  const pending = useMemo(() => pendingSuggestions(inbox), [inbox]);
+  const decided = useMemo(() => decidedSuggestions(inbox), [inbox]);
+  const confirmData = useMemo<ConfirmData | null>(() => {
+    if (!inboxOpen) return null;
+    const clients: ConfirmData["clients"] = {};
+    for (const c of listClients(loadClientStore())) clients[c.id] = { name: c.name, ...(c.phone ? { phone: c.phone } : {}) };
+    return {
+      accounts: book.accounts,
+      expenseCustom: expenseCats,
+      incomeCustom: incomeCats,
+      debts,
+      suppliers: listSuppliers(loadSupplierStore()).map((x) => ({ id: x.id, name: x.name })),
+      reps: listRepresentatives(loadRepresentativeStore()).map((x) => ({ id: x.id, name: x.name })),
+      devices: accounts,
+      clients,
+    };
+  }, [inboxOpen, book, expenseCats, incomeCats, debts, accounts]);
+
+  function storeInbox(next: BankInbox) {
+    saveBankInbox(next);
+    setInbox(next);
+  }
+
+  function confirmSuggestion(s: BankSuggestion, input: ConfirmInput): string | null {
+    const result = saveSuggestionChoice(input);
+    if (!result.ok) return result.message;
+    storeInbox(decideSuggestion(inbox, s.id, "done", result.outcome));
+    // The record went to its own store - read them again.
+    setIncomes(loadIncome());
+    setExpenses(loadPersonalExpenses());
+    setDebts(loadDebtBook());
+    setBook(loadAccountsBook());
+    setInboxVersion((v) => v + 1);
+    setPicked(null);
+    return null;
+  }
+
   // ---- الديون ----
   function saveDebts(book: DebtBook) {
     saveDebtBook(book);
@@ -309,6 +382,16 @@ export default function MoneyPage() {
           التقارير ←
         </Link>
       </div>
+
+      <BankInboxCard
+        pending={pending.length}
+        enabled={notifEnabled}
+        onOpen={() => setInboxOpen(true)}
+        onEnable={() => {
+          void openKastNotificationAccess();
+          window.setTimeout(() => void kastNotificationsEnabled().then(setNotifEnabled), 4000);
+        }}
+      />
 
       {hero}
 
@@ -427,7 +510,7 @@ export default function MoneyPage() {
                   return null;
                 }
                 const ledger = loadLedgerStore();
-                const flows = [...devicePaymentFlows(ledger, account), ...personalFlows(incomes, expenses, debts)];
+                const flows = loadAccountFlows(ledger, account, personalFlows(incomes, expenses, debts));
                 const result = correctBalance(book, account, flows, actual, today());
                 if (!result.ok) return result.message;
                 saveAccountsBook(result.book);
@@ -439,12 +522,47 @@ export default function MoneyPage() {
                 saveAccountsBook(next);
                 setBook(next);
               }}
+              onDeleteTransfer={(id) => {
+                const next = deleteAccountTransfer(book, id);
+                saveAccountsBook(next);
+                setBook(next);
+              }}
             />
           ) : (
             <WealthLineDetail line={shownLine} />
           )}
           {shownLine.key === "cash" && <p className="settings-hint">الكاش كما في صفحة «الكاش»، بدون دفعات الزبائن التي دخلت تطبيقاً بنكياً مربوطاً بطريقتها.</p>}
           {shownLine.key === "starlink" && <p className="settings-hint">شحنات D والديون السابقة التي لم تُدفع لستارلينك بعد (بالدولار).</p>}
+        </PartySheet>
+      )}
+
+      {inboxOpen && (
+        <PartySheet
+          title={picked ? "📩 أكّد العملية" : "📩 عمليات البنوك"}
+          onClose={() => {
+            setPicked(null);
+            setInboxOpen(false);
+          }}
+        >
+          {picked && confirmData ? (
+            <>
+              <button type="button" className="btn-icon" onClick={() => setPicked(null)}>
+                → القائمة
+              </button>
+              <SuggestionConfirm
+                key={picked.id}
+                suggestion={picked}
+                data={confirmData}
+                onSave={(input) => confirmSuggestion(picked, input)}
+                onReject={() => {
+                  storeInbox(decideSuggestion(inbox, picked.id, "rejected", undefined));
+                  setPicked(null);
+                }}
+              />
+            </>
+          ) : (
+            <BankInboxList pending={pending} decided={decided} onPick={setPicked} onReopen={(s) => storeInbox(reopenSuggestion(inbox, s.id))} />
+          )}
         </PartySheet>
       )}
 

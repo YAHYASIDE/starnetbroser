@@ -2,11 +2,15 @@
  * 🏦 حساباتي البنكية والمحافظ (بنكيلي، مصرفي، سداد، أورانج موني…) - each one's balance derived,
  * never stored as a counter: the balance typed when it was added (its opening), plus everything
  * that went through it since (customers' device payments by its method, my income / expenses /
- * debts recorded on it) plus «تصحيح الرصيد» entries when the real app shows a different figure.
+ * debts recorded on it, supplier / representative payments recorded from a bank notification,
+ * transfers between my own accounts) plus «تصحيح الرصيد» entries when the real app shows a
+ * different figure.
  */
 
 import type { CashEntryList } from "./cashStore";
 import type { LedgerByAccount, PaymentMethod } from "./ledgerStore";
+import type { PartyAdjustment } from "./partyBalanceStore";
+import type { RepSettlement } from "./repStore";
 
 export interface MoneyAccount {
   id: string;
@@ -35,9 +39,23 @@ export interface AccountAdjustment {
   createdAt: string;
 }
 
+/** 🔁 Money moved between two of my own accounts (e.g. GIMTEL سداد → بنكيلي): minus from one, plus
+ * to the other - neither income nor expense. */
+export interface AccountTransfer {
+  id: string;
+  fromAccountId: string;
+  toAccountId: string;
+  amount: number;
+  currencyCode: string;
+  date: string;
+  note?: string;
+  createdAt: string;
+}
+
 export interface AccountsBook {
   accounts: MoneyAccount[];
   adjustments: AccountAdjustment[];
+  transfers?: AccountTransfer[];
   /** The ready-made accounts were added once (never again, even if deleted). */
   seeded?: boolean;
 }
@@ -146,6 +164,11 @@ export function accountBalance(book: AccountsBook, account: MoneyAccount, flows:
   const add = (code: string, amount: number) => (out[code] = (out[code] ?? 0) + amount);
   for (const f of flows) if (f.accountId === account.id && f.date >= account.openingDate) add(f.currencyCode, f.amount);
   for (const a of book.adjustments) if (a.accountId === account.id) add(account.currencyCode, a.amount);
+  for (const t of book.transfers ?? []) {
+    if (t.date < account.openingDate) continue;
+    if (t.fromAccountId === account.id) add(t.currencyCode, -t.amount);
+    if (t.toAccountId === account.id) add(t.currencyCode, t.amount);
+  }
   for (const code of Object.keys(out)) out[code] = Math.round(out[code]! * 100) / 100;
   return out;
 }
@@ -165,6 +188,56 @@ export function correctBalance(
   if (diff === 0) return { ok: true, book };
   const adjustment: AccountAdjustment = { id: newId("adj"), accountId: account.id, amount: diff, date, note: "تصحيح الرصيد", createdAt: now.toISOString() };
   return { ok: true, book: { ...book, adjustments: [...book.adjustments, adjustment] } };
+}
+
+export type TransferResult = { ok: true; book: AccountsBook; transfer: AccountTransfer } | { ok: false; message: string };
+
+export function addAccountTransfer(
+  book: AccountsBook,
+  input: { fromAccountId: string; toAccountId: string; amount: number; currencyCode: string; date: string; note?: string },
+  now = new Date(),
+): TransferResult {
+  if (!input.fromAccountId || !input.toAccountId) return { ok: false, message: "اختر الحسابين" };
+  if (input.fromAccountId === input.toAccountId) return { ok: false, message: "اختر حسابين مختلفين" };
+  if (!book.accounts.some((a) => a.id === input.fromAccountId) || !book.accounts.some((a) => a.id === input.toAccountId)) return { ok: false, message: "الحساب غير موجود" };
+  if (!Number.isFinite(input.amount) || input.amount <= 0) return { ok: false, message: "أدخل المبلغ" };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) return { ok: false, message: "اختر التاريخ" };
+  const transfer: AccountTransfer = {
+    id: newId("trf"),
+    fromAccountId: input.fromAccountId,
+    toAccountId: input.toAccountId,
+    amount: input.amount,
+    currencyCode: input.currencyCode,
+    date: input.date,
+    ...(input.note?.trim() ? { note: input.note.trim() } : {}),
+    createdAt: now.toISOString(),
+  };
+  return { ok: true, book: { ...book, transfers: [...(book.transfers ?? []), transfer] }, transfer };
+}
+
+export function deleteAccountTransfer(book: AccountsBook, id: string): AccountsBook {
+  return { ...book, transfers: (book.transfers ?? []).filter((t) => t.id !== id) };
+}
+
+/** Supplier / client balance entries and representative settlements that went through a bank /
+ * wallet (their `accountId`), signed for that account: a payment I made (to a supplier, to a rep)
+ * is −, money I received (a client's payment, a rep handing over, a supplier refund) is +. */
+export function partyFlows(
+  adjustments: Pick<PartyAdjustment, "accountId" | "partyKind" | "direction" | "amount" | "currencyCode" | "date">[],
+  settlements: Pick<RepSettlement, "accountId" | "kind" | "amount" | "currencyCode" | "date">[],
+): AccountFlow[] {
+  const flows: AccountFlow[] = [];
+  for (const a of adjustments) {
+    if (!a.accountId) continue;
+    // A client's «له» (he paid) or a supplier's «له» (money back) is money in; «عليه» is money out.
+    const incoming = a.direction === "weOwe";
+    flows.push({ accountId: a.accountId, currencyCode: a.currencyCode, date: a.date, amount: incoming ? a.amount : -a.amount });
+  }
+  for (const s of settlements) {
+    if (!s.accountId) continue;
+    flows.push({ accountId: s.accountId, currencyCode: s.currencyCode, date: s.date, amount: s.kind === "cashHandover" ? s.amount : -s.amount });
+  }
+  return flows;
 }
 
 /**
@@ -191,6 +264,7 @@ export function loadAccountsBook(): AccountsBook {
     return {
       accounts: Array.isArray(parsed.accounts) ? parsed.accounts : [],
       adjustments: Array.isArray(parsed.adjustments) ? parsed.adjustments : [],
+      ...(Array.isArray(parsed.transfers) && parsed.transfers.length ? { transfers: parsed.transfers } : {}),
       ...(parsed.seeded ? { seeded: true } : {}),
     };
   } catch {

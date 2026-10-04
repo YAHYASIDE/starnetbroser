@@ -12343,3 +12343,108 @@ button.today-tile {
   padding: 4px 10px;
   font-size: 0.8rem;
 }
+
+/* 📩 bank / wallet notifications waiting for confirmation («حسابي») */
+.bank-inbox-card {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.bank-inbox-open {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.bank-inbox-open strong {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.bank-inbox-has {
+  border-color: var(--orange);
+  background: var(--orange-bg);
+}
+
+.bank-inbox-has strong {
+  color: var(--orange);
+}
+
+.bank-inbox-enable {
+  width: 100%;
+}
+
+.bank-inbox-neutral {
+  color: var(--text);
+}
+
+.bank-confirm-head {
+  display: grid;
+  gap: 2px;
+  padding: 10px;
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+  text-align: center;
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+.bank-confirm-head > strong {
+  font-size: 1.3rem;
+}
+
+.bank-confirm-head.is-in {
+  background: var(--green-bg);
+}
+
+.bank-confirm-head.is-in > strong {
+  color: var(--green);
+}
+
+.bank-confirm-head.is-out {
+  background: var(--red-bg);
+}
+
+.bank-confirm-head.is-out > strong {
+  color: var(--red);
+}
+
+.bank-confirm-head small {
+  color: var(--text-muted);
+}
+
+.bank-confirm-head .bank-confirm-warn {
+  color: var(--orange);
+}
+
+.bank-confirm-raw {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.bank-confirm-raw summary {
+  cursor: pointer;
+}
+
+.bank-confirm-raw p {
+  margin: 6px 0;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  white-space: pre-line;
+}
+
+.bank-confirm-q {
+  font-size: 0.85rem;
+}

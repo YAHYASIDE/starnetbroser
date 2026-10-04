@@ -3,7 +3,10 @@ import type { CashEntryList } from "./cashStore";
 import type { LedgerByAccount, LedgerEntry } from "./ledgerStore";
 import {
   accountBalance,
+  addAccountTransfer,
   addMoneyAccount,
+  deleteAccountTransfer,
+  partyFlows,
   cashInHandEntries,
   correctBalance,
   DEFAULT_ACCOUNTS,
@@ -82,5 +85,48 @@ describe("🏦 bank / wallet accounts", () => {
     ] as CashEntryList;
     expect(cashInHandEntries(cash, ledger, book).map((c) => c.id)).toEqual(["c2", "c3"]);
     expect(cashInHandEntries(cash, ledger, EMPTY_ACCOUNTS_BOOK)).toHaveLength(3);
+  });
+});
+
+describe("transfers between my accounts", () => {
+  function twoAccounts() {
+    const a = bankily();
+    const b = addMoneyAccount(a.book, { name: "سداد", icon: "🟣", currencyCode: "MRU", method: "sedad", openingBalance: 500, openingDate: "2026-10-01" });
+    if (!b.ok) throw new Error();
+    return { book: b.book, bankily: a.account, sedad: b.account };
+  }
+
+  it("moves the amount: minus from one, plus to the other, nothing else", () => {
+    const { book, bankily: bk, sedad } = twoAccounts();
+    const t = addAccountTransfer(book, { fromAccountId: sedad.id, toAccountId: bk.id, amount: 50, currencyCode: "MRU", date: "2026-10-04", note: "GIMTEL" });
+    if (!t.ok) throw new Error(t.message);
+    expect(accountBalance(t.book, bk, [])).toEqual({ MRU: 10050 });
+    expect(accountBalance(t.book, sedad, [])).toEqual({ MRU: 450 });
+    const undone = deleteAccountTransfer(t.book, t.transfer.id);
+    expect(accountBalance(undone, bk, [])).toEqual({ MRU: 10000 });
+  });
+
+  it("refuses the same account twice or no amount", () => {
+    const { book, bankily: bk, sedad } = twoAccounts();
+    expect(addAccountTransfer(book, { fromAccountId: bk.id, toAccountId: bk.id, amount: 5, currencyCode: "MRU", date: "2026-10-04" }).ok).toBe(false);
+    expect(addAccountTransfer(book, { fromAccountId: sedad.id, toAccountId: bk.id, amount: 0, currencyCode: "MRU", date: "2026-10-04" }).ok).toBe(false);
+  });
+});
+
+describe("partyFlows", () => {
+  it("supplier / rep payments made from an account are out, money received is in; others don't move it", () => {
+    const flows = partyFlows(
+      [
+        { accountId: "acc", partyKind: "supplier", direction: "owesUs", amount: 4600, currencyCode: "MRU", date: "2026-10-04" },
+        { accountId: "acc", partyKind: "client", direction: "weOwe", amount: 300, currencyCode: "MRU", date: "2026-10-04" },
+        { partyKind: "supplier", direction: "owesUs", amount: 999, currencyCode: "MRU", date: "2026-10-04" },
+      ],
+      [
+        { accountId: "acc", kind: "commissionPayout", amount: 100, currencyCode: "MRU", date: "2026-10-04" },
+        { accountId: "acc", kind: "cashHandover", amount: 250, currencyCode: "MRU", date: "2026-10-04" },
+        { kind: "cashHandover", amount: 999, currencyCode: "MRU", date: "2026-10-04" },
+      ],
+    );
+    expect(flows.map((f) => f.amount)).toEqual([-4600, 300, -100, 250]);
   });
 });

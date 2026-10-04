@@ -26,7 +26,8 @@ import { isDemoMode, isLoggedIn } from "./settingsStore";
 import { currentCardBalanceUsd } from "./starlinkDebt";
 import { loadStoreTransactions } from "./storeStore";
 import { computeSupplierStoreBalance } from "./invoiceStore";
-import { accountBalance, cashInHandEntries, devicePaymentFlows, type AccountsBook } from "./moneyAccounts";
+import { accountBalance, cashInHandEntries, devicePaymentFlows, partyFlows, type AccountFlow, type AccountsBook, type MoneyAccount } from "./moneyAccounts";
+import type { LedgerByAccount } from "./ledgerStore";
 import { personalFlows, type DebtBook, type IncomeList, type WealthInput } from "./myMoney";
 import type { PersonalExpense } from "./personalExpenses";
 import { listOpenPreviousDebts, loadPreviousDebts } from "./previousDebt";
@@ -64,6 +65,13 @@ export function businessNetForMonth(month: string, accounts: StarlinkAccountSumm
   return { netMru: net.netMru, missing: net.missingCurrencies };
 }
 
+/** Everything that went through one bank / wallet: customers' device payments by its method, my
+ * own records on it (`personal` = myMoney.personalFlows), and supplier / rep payments recorded
+ * from a bank notification. */
+export function loadAccountFlows(ledger: LedgerByAccount, account: MoneyAccount, personal: AccountFlow[]): AccountFlow[] {
+  return [...devicePaymentFlows(ledger, account), ...personal, ...partyFlows(loadPartyAdjustments(), loadRepSettlements())];
+}
+
 /** Everything «كل ما تملك» is made of, read from the app's own records (same figures as the
  * clients, suppliers, representatives, reports and «ستارلينك والبطاقة» pages). */
 export function loadWealthInput(input: {
@@ -82,7 +90,7 @@ export function loadWealthInput(input: {
   const flows = personalFlows(input.incomes, input.expenses, input.debts);
   const banks = input.book.accounts.map((account) => ({
     name: `${account.icon} ${account.name}`,
-    byCurrency: accountBalance(input.book, account, [...devicePaymentFlows(ledger, account), ...flows]),
+    byCurrency: accountBalance(input.book, account, loadAccountFlows(ledger, account, flows)),
   }));
 
   const clients = listClients(loadClientStore());

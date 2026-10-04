@@ -16,6 +16,7 @@ import { SIGNUP_RECOVERY_EMAIL, outlookSignupFor, starlinkActivationFor } from "
 import { passwordSuggestionsFor } from "./usedPasswords";
 import { CANCEL_SUBSCRIPTION_REASON } from "./subscriptionCancel";
 import { type CardDeposit, loadCardDeposits, mergeCardDeposits, saveCardDeposits } from "./kastCards";
+import { ingestBankNotices, loadBankInbox, saveBankInbox, type BankInbox } from "./bankNotices";
 import { SessionsByAccount } from "./accountBackup";
 import { markInternalLeave } from "./appLock";
 
@@ -713,5 +714,21 @@ export async function drainKastDeposits(): Promise<CardDeposit[]> {
     return after.filter((d) => !known.has(d.id));
   } catch {
     return [];
+  }
+}
+
+/** 🏦 Moves the bank / wallet notifications kept on the phone into «حسابي»'s suggestions (saved
+ * before they're forgotten there). `ownNumbers`: my numbers, to tell my own transfers apart. */
+export async function drainBankNotices(ownNumbers: string[]): Promise<{ inbox: BankInbox; added: number } | null> {
+  if (!isRunningInAndroidApp()) return null;
+  try {
+    const { notices } = await LocalBrowser.bankPendingNotices();
+    if (!notices.length) return null;
+    const result = ingestBankNotices(loadBankInbox(), notices, ownNumbers);
+    saveBankInbox(result.inbox);
+    await LocalBrowser.bankAckNotices({ ids: notices.map((n) => n.id) });
+    return result;
+  } catch {
+    return null;
   }
 }

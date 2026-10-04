@@ -811,15 +811,19 @@ export function AccountsManager({
   onAdd,
   onCorrect,
   onDelete,
+  onDeleteTransfer,
 }: {
   book: AccountsBook;
   balances: Record<string, Record<string, number>>;
   onAdd: (input: AccountInput) => string | null;
   onCorrect: (account: MoneyAccount, actual: number) => string | null;
   onDelete: (account: MoneyAccount) => void;
+  onDeleteTransfer: (id: string) => void;
 }) {
   const [adding, setAdding] = useState(false);
   const [correcting, setCorrecting] = useState<string | null>(null);
+  const nameOf = (id: string) => book.accounts.find((a) => a.id === id)?.name ?? "حساب محذوف";
+  const transfers = [...(book.transfers ?? [])].sort((a, b) => (b.date !== a.date ? (b.date < a.date ? -1 : 1) : b.createdAt < a.createdAt ? -1 : 1));
   return (
     <div className="party-balance-form">
       {book.accounts.length > 0 && (
@@ -864,6 +868,38 @@ export function AccountsManager({
             </li>
           ))}
         </ul>
+      )}
+      {transfers.length > 0 && (
+        <>
+          <strong className="money-group-title">🔁 تحويلات بين حساباتي</strong>
+          <ul className="money-recurring-list">
+            {transfers.slice(0, 30).map((t) => (
+              <li key={t.id} className="money-account-row">
+                <span>
+                  من {nameOf(t.fromAccountId)} إلى {nameOf(t.toAccountId)}
+                  <small>
+                    {" "}
+                    · <bdi dir="ltr">{t.date}</bdi>
+                    {t.note ? ` · ${t.note}` : ""}
+                  </small>
+                </span>
+                <bdi dir="ltr">
+                  {formatAmount(t.amount)} {currencyLabel(t.currencyCode)}
+                </bdi>
+                <button
+                  type="button"
+                  className="btn-icon"
+                  aria-label="حذف التحويل"
+                  onClick={() => {
+                    if (window.confirm("حذف هذا التحويل؟ يرجع الرصيدان كما كانا.")) onDeleteTransfer(t.id);
+                  }}
+                >
+                  🗑
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
       {adding ? (
         <AccountForm

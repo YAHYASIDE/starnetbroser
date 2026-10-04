@@ -166,6 +166,9 @@ export interface RepSettlement {
   /** Exchange rates (units per 1 USD) locked when it was recorded - used only to show it in
    * another currency (repAccount.ts's converter), never to change its own amount. */
   rates?: Record<string, number>;
+  /** The bank / wallet of «حسابي» (moneyAccounts.ts) the money went through - set when it was
+   * recorded from a bank notification; that account's balance moves with it. */
+  accountId?: string;
   createdAt: string;
 }
 

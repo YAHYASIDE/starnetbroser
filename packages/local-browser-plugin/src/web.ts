@@ -1,5 +1,6 @@
 import { WebPlugin } from "@capacitor/core";
 import type {
+  BankNoticeRaw,
   KastDeposit,
   KastDevice,
   AckPendingAccountSyncsOptions,
@@ -300,5 +301,13 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
 
   async openKastNotificationAccess(): Promise<void> {
     throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
+  }
+
+  async bankPendingNotices(): Promise<{ notices: BankNoticeRaw[] }> {
+    return { notices: [] };
+  }
+
+  async bankAckNotices(_options: { ids: string[] }): Promise<void> {
+    return;
   }
 }

@@ -28,6 +28,9 @@ export interface PartyAdjustment {
   cashMoved?: boolean;
   /** How the money moved, for a payment entry (e.g. بنكيلي). */
   paymentMethod?: PaymentMethod;
+  /** The bank / wallet of «حسابي» (moneyAccounts.ts) the money went through - set when it was
+   * recorded from a bank notification; that account's balance moves with it. */
+  accountId?: string;
   createdAt: string;
 }
 

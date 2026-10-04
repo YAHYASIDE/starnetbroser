@@ -13,10 +13,12 @@ import java.util.concurrent.Executors;
 
 /**
  * 💳 The KAST app's own notifications - the only place a successful card payment shows (KAST mails
- * nothing for it; real, confirmed). Every other app's notification is ignored at once and never
- * read further. The operator turns this on in Android's «Notification access» (from «ستارلينك
- * والبطاقة»). Each event goes to KastWatch.handle: a refusal → Telegram, a Starlink payment or
- * dollars received → waits for the app to suggest it. Nothing is logged.
+ * nothing for it; real, confirmed) - and 🏦 the operator's bank / wallet apps' (BankNotice:
+ * بنكيلي، سداد، نيتا، بينانس…). Every other app's notification is ignored at once and never read
+ * further. The operator turns this on in Android's «Notification access» (from «ستارلينك
+ * والبطاقة» or «حسابي»). A KAST event goes to KastWatch.handle: a refusal → Telegram, a Starlink
+ * payment or dollars received → waits for the app to suggest it. A bank one is stored
+ * (BankNoticeStore) for «حسابي» to suggest. Nothing is logged.
  */
 public class KastNotificationListener extends NotificationListenerService {
 
@@ -29,15 +31,54 @@ public class KastNotificationListener extends NotificationListenerService {
 
     @Override
     public void onNotificationPosted(StatusBarNotification sbn) {
-        if (sbn == null || !isKast(sbn.getPackageName())) return;
+        if (sbn == null) return;
+        if (isKast(sbn.getPackageName())) {
+            handleKast(sbn);
+        } else {
+            keepBankNotice(sbn);
+        }
+    }
+
+    /** Bank notifications posted while access was off are still on the screen: kept once (the same
+     * posted notification is never stored twice). */
+    @Override
+    public void onListenerConnected() {
+        try {
+            StatusBarNotification[] active = getActiveNotifications();
+            if (active == null) return;
+            for (StatusBarNotification sbn : active) if (sbn != null && !isKast(sbn.getPackageName())) keepBankNotice(sbn);
+        } catch (RuntimeException ignored) {
+            // not allowed right now - the next ones still arrive one by one
+        }
+    }
+
+    /** {title, text} - the expanded text when the app gives one (a cut line ends with «…»). */
+    private static String[] titleAndText(StatusBarNotification sbn) {
         Notification n = sbn.getNotification();
-        if (n == null || (n.flags & Notification.FLAG_GROUP_SUMMARY) != 0) return;
+        if (n == null || (n.flags & Notification.FLAG_GROUP_SUMMARY) != 0) return null;
         Bundle extras = n.extras;
-        if (extras == null) return;
+        if (extras == null) return null;
         CharSequence title = extras.getCharSequence(Notification.EXTRA_TITLE);
         CharSequence big = extras.getCharSequence(Notification.EXTRA_BIG_TEXT);
         CharSequence text = big != null ? big : extras.getCharSequence(Notification.EXTRA_TEXT);
-        final KastMail.Message m = KastMail.fromNotification(title == null ? "" : title.toString(), text == null ? "" : text.toString(), sbn.getPostTime());
+        return new String[] {title == null ? "" : title.toString(), text == null ? "" : text.toString()};
+    }
+
+    private void keepBankNotice(StatusBarNotification sbn) {
+        final String[] tt = titleAndText(sbn);
+        if (tt == null) return;
+        final String app = BankNotice.keep(sbn.getPackageName(), tt[0], tt[1]);
+        if (app == null) return;
+        final Context context = getApplicationContext();
+        final String pkg = sbn.getPackageName();
+        final long at = sbn.getPostTime();
+        WORK.execute(() -> BankNoticeStore.add(context, app, pkg, tt[0], tt[1], at));
+    }
+
+    private void handleKast(StatusBarNotification sbn) {
+        String[] tt = titleAndText(sbn);
+        if (tt == null) return;
+        final KastMail.Message m = KastMail.fromNotification(tt[0], tt[1], sbn.getPostTime());
         if (m == null) return;
         final Context context = getApplicationContext();
         WORK.execute(() -> {

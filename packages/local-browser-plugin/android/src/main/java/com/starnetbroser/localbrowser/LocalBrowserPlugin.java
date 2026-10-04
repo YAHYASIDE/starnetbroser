@@ -647,6 +647,28 @@ public class LocalBrowserPlugin extends Plugin {
         call.resolve();
     }
 
+    // ---- 🏦 bank / wallet notifications (BankNotice) ----
+
+    /** The bank / wallet notifications the app hasn't saved as suggestions yet, oldest first. */
+    @PluginMethod
+    public void bankPendingNotices(PluginCall call) {
+        JSObject ret = new JSObject();
+        try {
+            ret.put("notices", new com.getcapacitor.JSArray(BankNoticeStore.pending(getContext()).toString()));
+        } catch (org.json.JSONException e) {
+            ret.put("notices", new com.getcapacitor.JSArray());
+        }
+        call.resolve(ret);
+    }
+
+    /** The app saved these (in its own store) - forget them here. */
+    @PluginMethod
+    public void bankAckNotices(PluginCall call) {
+        java.util.Set<String> ids = new java.util.HashSet<>(java.util.Arrays.asList(stringArray(call.getData(), "ids")));
+        BankNoticeStore.ack(getContext(), ids);
+        call.resolve();
+    }
+
     /** The devices whose mailbox (📧 البريد) is signed in on this phone - id, email, since when. */
     @PluginMethod
     public void listMailSessions(PluginCall call) {
