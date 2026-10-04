@@ -20,6 +20,9 @@ export function parseHomePayment(search: string): string | null {
 }
 
 export const HOME_ACTION_EVENT = "starnet:home-action";
+/** A notification or shortcut asked the open home screen to show a device ("?q=...") - same
+ * pathname, so no navigation happens; HomeView applies the search itself (detail: the query). */
+export const HOME_SEARCH_EVENT = "starnet:home-search";
 export const REMINDER_COUNT_EVENT = "starnet:reminder-count";
 
 export function homeActionHref(action: HomeAction): string {

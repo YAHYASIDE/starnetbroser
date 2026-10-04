@@ -6,7 +6,6 @@ import { loadRepChangesSent, shareRepChanges, type RepChangesSent } from "@/lib/
 import { REP_INBOX_EVENT, repInboxCount } from "@/lib/repInbox";
 import { CSSProperties, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { App } from "@capacitor/app";
 import type { PluginListenerHandle } from "@capacitor/core";
 import { DeviceStatus, StarlinkAccountSummary } from "@starnet/shared";
@@ -34,7 +33,8 @@ import { applyLedgerPaymentsToCash, loadCashEntries, saveCashEntries } from "@/l
 import { parseNewDevicePrefill } from "@/lib/deviceFromSale";
 import { adoptRepDevice, repDeviceSecrets } from "@/lib/repDeviceAdopt";
 import { bucketPromises, loadPromises } from "@/lib/paymentPromises";
-import { HOME_ACTION_EVENT, HomeAction, parseHomeAction, parseHomePayment, REMINDER_COUNT_EVENT, parseHomeSearch } from "@/lib/homeActions";
+import { HOME_ACTION_EVENT, HOME_SEARCH_EVENT, HomeAction, parseHomeAction, parseHomePayment, REMINDER_COUNT_EVENT, parseHomeSearch } from "@/lib/homeActions";
+import { deviceRoute, HOME_ROUTE, KAST_ROUTE, notifyPhone } from "@/lib/appEvents";
 import { buildRenewalShipment } from "@/lib/renewalPlan";
 import { runAutoBackup } from "@/lib/autoBackupRunner";
 import { runDriveBackup } from "@/lib/driveBackupRunner";
@@ -42,7 +42,6 @@ import {
   getEveningSummaryHour,
   getMorningDigestHour,
   notifySuspendedWithDebt,
-  onDigestTapped,
   rescheduleEveningSummary,
   rescheduleMorningDigests,
 } from "@/lib/morningNotifications";
@@ -277,7 +276,6 @@ export function HomeView({
   const [updateAvailable, setUpdateAvailable] = useState(false);
   // النسخ الاحتياطي التلقائي (autoBackup.ts): once accounts are loaded, at most once a day.
   const autoBackupStartedRef = useRef(false);
-  const router = useRouter();
   useEffect(() => {
     if (!isRunningInAndroidApp() || !shouldAutoCheck()) return;
     void checkForAppUpdate().then((result) => setUpdateAvailable(result.status === "update"));
@@ -471,8 +469,9 @@ export function HomeView({
   }
 
   /** The bot message (owner's Telegram) and a toast - the run's report or a sign-in alert. */
-  function reportSync(text: string) {
+  function reportSync(text: string, route: string = HOME_ROUTE) {
     if (isTelegramConnected()) void sendTelegramText(text);
+    void notifyPhone(text, route);
     pushToast(text.split("\n")[0]!);
   }
 
@@ -493,7 +492,10 @@ export function HomeView({
     const applied = applyOutcomes(queue, records);
     queue = applied.queue;
     saveSyncQueue(queue);
-    for (const id of applied.newlySignedOut) reportSync(signedOutAlert(accountsRef.current.find((a) => a.id === id)));
+    for (const id of applied.newlySignedOut) {
+      const account = accountsRef.current.find((a) => a.id === id);
+      reportSync(signedOutAlert(account), deviceRoute(account?.name ?? ""));
+    }
     const next = nextQueuedAccount(queue, accountsRef.current);
     if (!next) {
       saveSyncQueue(null);
@@ -907,7 +909,6 @@ export function HomeView({
   // syncing once a device has been set aside.
   // التنبيه الصباحي (morningDigest.ts): rescheduled whenever devices or balances change, once the
   // real account list is loaded; tapping one opens the reminders page.
-  useEffect(() => onDigestTapped((route) => router.push(route)), [router]);
   useEffect(() => {
     let cancelled = false;
     void accountsReadyGateRef.current.whenReady().then(() => {
@@ -967,7 +968,9 @@ export function HomeView({
       void kastCheckNow();
       void drainKastDeposits().then((added) => {
         for (const d of added) {
-          pushToast(d.kind === "spent" ? `💳 ${depositLabel(d)} - سدّد D الجهاز من «ستارلينك والبطاقة»` : `💵 ${depositLabel(d)} إلى KAST - سجّله من «ستارلينك والبطاقة»`);
+          const text = d.kind === "spent" ? `💳 ${depositLabel(d)} - سدّد D الجهاز من «ستارلينك والبطاقة»` : `💵 ${depositLabel(d)} إلى KAST - سجّله من «ستارلينك والبطاقة»`;
+          pushToast(text);
+          void notifyPhone(text, KAST_ROUTE);
         }
       });
     };
@@ -1276,6 +1279,15 @@ export function HomeView({
     if (viewMode !== "active") return;
     const onAction = (event: Event) => homeActionRef.current((event as CustomEvent<HomeAction>).detail);
     window.addEventListener(HOME_ACTION_EVENT, onAction);
+    // 🔔 A notification about a device, tapped while the home screen is already open.
+    const onSearch = (event: Event) => {
+      const value = (event as CustomEvent<string>).detail;
+      if (!value) return;
+      setQuery(value);
+      setShowAll(true);
+      setSelectedDay(null);
+    };
+    window.addEventListener(HOME_SEARCH_EVENT, onSearch);
     const searchFromUrl = parseHomeSearch(window.location.search);
     if (searchFromUrl) {
       window.history.replaceState(null, "", window.location.pathname);
@@ -1299,7 +1311,10 @@ export function HomeView({
       window.history.replaceState(null, "", window.location.pathname);
       homeActionRef.current(fromUrl);
     }
-    return () => window.removeEventListener(HOME_ACTION_EVENT, onAction);
+    return () => {
+      window.removeEventListener(HOME_ACTION_EVENT, onAction);
+      window.removeEventListener(HOME_SEARCH_EVENT, onSearch);
+    };
   }, [viewMode]);
 
   // 🤝 Payment promises due today or overdue (paymentPromises.ts) also count as reminders.

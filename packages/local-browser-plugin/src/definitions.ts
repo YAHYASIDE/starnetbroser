@@ -474,6 +474,9 @@ export interface LocalBrowserPlugin {
   pinShortcut(options: { id: string; label: string; route: string; emoji?: string; color?: string }): Promise<{ pinned: boolean; unsupported: boolean }>;
   /** The page a 📌 shortcut opened the app on (once), or null. */
   takeShortcutRoute(): Promise<{ route: string | null }>;
+  /** 🔔 An app event (a rep's request, a sync report, money on KAST...) in the phone's notification
+   * bar - first line the title; tapping it opens the app on `route` (like a 📌 shortcut). */
+  postAppEvent(options: { text: string; route?: string }): Promise<{ posted: boolean }>;
 
   /** 🖐 A fingerprint (or face) can unlock the app on this phone right now. */
   biometricStatus(): Promise<{ available: boolean }>;

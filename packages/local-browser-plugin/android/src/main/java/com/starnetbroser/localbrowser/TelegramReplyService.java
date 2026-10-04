@@ -328,9 +328,7 @@ public class TelegramReplyService extends Service {
         TelegramReplies.Reply reply = TelegramReplies.deviceFile(repId, document.optString("file_name", ""), loadSnapshot(context));
         addToInbox(context, TelegramStore.REPS, chatId, name, username, "", true, document.optString("file_id", ""), document.optString("file_name", ""));
         send(context, TelegramStore.REPS, token, chatId, reply.text, reply.markup);
-        if (TelegramStore.isConfigured(context)) {
-            send(context, TelegramStore.OWNER, TelegramStore.token(context), TelegramStore.chatId(context), reply.ownerNotice, null);
-        }
+        tellOwner(context, reply.ownerNotice, null);
         return true;
     }
 
@@ -409,8 +407,7 @@ public class TelegramReplyService extends Service {
         TelegramStore.putActivation(context, id, record.toString());
         // The app shows it on the representatives page too (✅ there or here).
         addToInbox(context, bot, repChat, "", "", "", true, null, null, "repActivation", record.toString());
-        send(context, TelegramStore.OWNER, TelegramStore.token(context), TelegramStore.chatId(context),
-            TelegramReplies.activationToOwner(repName, plan, entry, price, paid), TelegramReplies.approvalButtons(id));
+        tellOwner(context, TelegramReplies.activationToOwner(repName, plan, entry, price, paid), TelegramReplies.approvalButtons(id));
         send(context, bot, repsToken, repChat, TelegramReplies.activationSent(plan, entry, price, paid), null);
     }
 
@@ -679,10 +676,7 @@ public class TelegramReplyService extends Service {
                     TelegramReplies.bookUndoMarkup(recordId, now));
                 return "✅ سُجّلت";
             }
-            if (TelegramStore.isConfigured(context)) {
-                send(context, TelegramStore.OWNER, TelegramStore.token(context), TelegramStore.chatId(context),
-                    TelegramReplies.payToOwner(repName, price, entry, methodName, hasPhoto), null);
-            }
+            tellOwner(context, TelegramReplies.payToOwner(repName, price, entry, methodName, hasPhoto), null);
             editOrSend(context, bot, token, chatId, messageId, TelegramReplies.paySent(price, entry, methodName, hasPhoto), null);
             return "✅ أُرسلت";
         }
@@ -979,9 +973,7 @@ public class TelegramReplyService extends Service {
             addToInbox(context, bot, chatId, "", "", "", true, null, null, "repLoan", record.toString());
             Map<String, String> mine = snapshot.reps.get(repId);
             String repName = mine != null && mine.get("name") != null ? mine.get("name") : "";
-            if (TelegramStore.isConfigured(context)) {
-                send(context, TelegramStore.OWNER, TelegramStore.token(context), TelegramStore.chatId(context), TelegramReplies.loanToOwner(repName, price, appName, target[1]), null);
-            }
+            tellOwner(context, TelegramReplies.loanToOwner(repName, price, appName, target[1]), null);
             editOrSend(context, bot, token, chatId, messageId, TelegramReplies.loanSent(price, appName, target[1]), null);
             return "✅ أُرسل";
         }
@@ -1013,9 +1005,7 @@ public class TelegramReplyService extends Service {
         TelegramReplies.Reply reply = TelegramReplies.forMoney(repId, text, snapshot);
         if (reply.toInbox) addToInbox(context, TelegramStore.MONEY, chatId, name, username, text, true);
         if (reply.text != null) send(context, bot, token, chatId, reply.text, reply.markup);
-        if (reply.ownerNotice != null && TelegramStore.isConfigured(context)) {
-            send(context, TelegramStore.OWNER, TelegramStore.token(context), TelegramStore.chatId(context), reply.ownerNotice, null);
-        }
+        if (reply.ownerNotice != null) tellOwner(context, reply.ownerNotice, null);
     }
 
     /** 💰 bot buttons: a device's card (md:), its debt / statement (v:d: / v:s:), ⚡. */
@@ -1082,7 +1072,7 @@ public class TelegramReplyService extends Service {
         if (!TelegramStore.isConfigured(context)) return "بوت المسؤول غير مربوط - أخبره مباشرة";
         Map<String, String> mine = snapshot.reps.get(repId);
         String repName = mine != null && mine.get("name") != null ? mine.get("name") : "";
-        send(context, TelegramStore.OWNER, TelegramStore.token(context), TelegramStore.chatId(context), TelegramReplies.payRequestToOwner(repName, entry), null);
+        tellOwner(context, TelegramReplies.payRequestToOwner(repName, entry), null);
         editOrSend(context, TelegramStore.ALERTS, token, chatId, messageId, messageText + TelegramReplies.PAY_REQUEST_SENT, TelegramReplies.afterPayRequestMarkup(entry));
         return "✅ أُرسل للمسؤول";
     }
@@ -1134,7 +1124,7 @@ public class TelegramReplyService extends Service {
         if ("note".equals(pending[0])) {
             data.put("text", value);
             addToInbox(context, TelegramStore.REPS, chatId, "", "", "", true, null, null, "repNote", data.toString());
-            if (owner) send(context, TelegramStore.OWNER, TelegramStore.token(context), TelegramStore.chatId(context), TelegramReplies.noteToOwner(repName, entry, value), null);
+            if (owner) tellOwner(context, TelegramReplies.noteToOwner(repName, entry, value), null);
             send(context, TelegramStore.REPS, token, chatId, TelegramReplies.noteSent(entry), snapshot.repKeyboard);
             return true;
         }
@@ -1148,10 +1138,7 @@ public class TelegramReplyService extends Service {
         data.put("device", entry.deviceName());
         TelegramStore.putEdit(context, id, data.toString());
         addToInbox(context, TelegramStore.REPS, chatId, "", "", "", true, null, null, "repEdit", data.toString());
-        if (owner) {
-            send(context, TelegramStore.OWNER, TelegramStore.token(context), TelegramStore.chatId(context),
-                TelegramReplies.editToOwner(repName, entry, pending[2], value), TelegramReplies.editButtons(id));
-        }
+        if (owner) tellOwner(context, TelegramReplies.editToOwner(repName, entry, pending[2], value), TelegramReplies.editButtons(id));
         send(context, TelegramStore.REPS, token, chatId, TelegramReplies.editSent(entry, pending[2], value), snapshot.repKeyboard);
         return true;
     }
@@ -1413,9 +1400,7 @@ public class TelegramReplyService extends Service {
         }
         if (reply.toInbox) addToInbox(context, bot, chatId, name, username, text, reply.text != null);
         if (reply.text != null) send(context, bot, token, chatId, reply.text, reply.markup);
-        if (reply.ownerNotice != null && TelegramStore.isConfigured(context)) {
-            send(context, TelegramStore.OWNER, TelegramStore.token(context), TelegramStore.chatId(context), reply.ownerNotice, null);
-        }
+        if (reply.ownerNotice != null) tellOwner(context, reply.ownerNotice, null);
     }
 
     /** Right away; if the network drops, queued through TelegramSendWorker (linked chats only). */
@@ -1545,6 +1530,16 @@ public class TelegramReplyService extends Service {
             if (value != null) out.put(key, value);
         }
         return out;
+    }
+
+    /** A rep's event for the operator: the operator's Telegram (when connected) and the phone's notification
+     * bar - tapping it opens the representatives page, even with the app closed. */
+    private static void tellOwner(Context context, String text, String markup) {
+        if (text == null || text.trim().isEmpty()) return;
+        if (TelegramStore.isConfigured(context)) {
+            send(context, TelegramStore.OWNER, TelegramStore.token(context), TelegramStore.chatId(context), text, markup);
+        }
+        AppEventNotifier.post(context, text, AppEventText.REPS_ROUTE);
     }
 
     // ---- inbox (drained by the app) ----

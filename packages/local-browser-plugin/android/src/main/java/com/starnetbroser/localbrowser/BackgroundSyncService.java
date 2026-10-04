@@ -47,7 +47,6 @@ public class BackgroundSyncService extends Service {
 
     private static final String CHANNEL_ID = "starnet_bg_sync_v1";
     private static final int NOTIFICATION_ID = 4417;
-    private static final int DONE_NOTIFICATION_ID = 4418;
     private static final long GAP_MS = 1000;
     private static final long MAX_HOLD_MS = 3L * 60 * 60 * 1000;
 
@@ -90,7 +89,7 @@ public class BackgroundSyncService extends Service {
             return START_NOT_STICKY;
         }
         if (!canRun(this) || !WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
-            postDone("⚠️ اسمح لـ STAR NET بـ«الظهور فوق التطبيقات» لتعمل المزامنة في الخلفية");
+            AppEventNotifier.post(this, "⚠️ اسمح لـ STAR NET بـ«الظهور فوق التطبيقات» لتعمل المزامنة في الخلفية", "/settings");
             stopSelfNow();
             return START_NOT_STICKY;
         }
@@ -205,7 +204,11 @@ public class BackgroundSyncService extends Service {
     private void deviceDone(String accountId, String name, String outcome) {
         if (!running) return;
         outcomes.add(outcome);
-        if ("signedOut".equals(outcome)) TelegramSendWorker.enqueue(this, BackgroundSyncReport.signedOutAlert(name));
+        if ("signedOut".equals(outcome)) {
+            String alert = BackgroundSyncReport.signedOutAlert(name);
+            TelegramSendWorker.enqueue(this, alert);
+            AppEventNotifier.post(this, alert, AppEventText.deviceRoute(name));
+        }
         // Kept for the app too: it shows why a device wasn't synced when it comes back.
         AutoSyncResults.record(this, accountId, outcome);
         removeWebView();
@@ -221,7 +224,8 @@ public class BackgroundSyncService extends Service {
         if (wasRunning && !outcomes.isEmpty()) {
             String report = BackgroundSyncReport.report(label, names.subList(0, outcomes.size()), outcomes, stopped);
             TelegramSendWorker.enqueue(this, report);
-            postDone(report.split("\n")[0]);
+            // The whole report in the notification bar; a tap opens the app's home screen.
+            AppEventNotifier.post(this, report, AppEventText.HOME_ROUTE);
             AlertSound.play(this);
         }
         stopSelfNow();
@@ -268,22 +272,6 @@ public class BackgroundSyncService extends Service {
             manager.notify(NOTIFICATION_ID, buildProgress(text));
         } catch (RuntimeException ignored) {
             // notifications off - the run goes on
-        }
-    }
-
-    private void postDone(String text) {
-        ensureChannel();
-        NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        if (manager == null) return;
-        try {
-            manager.notify(DONE_NOTIFICATION_ID, new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.stat_notify_sync)
-                .setContentTitle("STAR NET")
-                .setContentText(text)
-                .setAutoCancel(true)
-                .build());
-        } catch (RuntimeException ignored) {
-            // notifications off
         }
     }
 

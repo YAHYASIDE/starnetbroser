@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { LocalBrowser } from "@starnet/local-browser-plugin";
-import { HOME_ACTION_EVENT, parseHomeAction } from "@/lib/homeActions";
+import { HOME_ACTION_EVENT, HOME_SEARCH_EVENT, parseHomeAction, parseHomeSearch } from "@/lib/homeActions";
+import { onDigestTapped } from "@/lib/morningNotifications";
 import { isRunningInAndroidApp } from "@/lib/localBrowser";
 import { isShortcutRoute, phoneShortcut, type PhoneShortcut } from "@/lib/shortcuts";
 
@@ -23,7 +24,7 @@ function routeOf(el: Element): string | null {
 /**
  * 📌 Long-press any page or tool (an in-app link, or a button marked data-shortcut-route) to pin
  * it on the phone's home screen; the shortcut opens the app on that page. Rendered once in the
- * layout - it also opens the page a shortcut launched the app with.
+ * layout - it also opens the page a shortcut or a 🔔 notification launched the app with.
  */
 export function PhoneShortcutLayer() {
   const router = useRouter();
@@ -39,7 +40,9 @@ export function PhoneShortcutLayer() {
     const go = (route: string | null | undefined) => {
       if (!route || !isShortcutRoute(route)) return;
       const action = route.startsWith("/?") ? parseHomeAction(route.slice(1)) : null;
+      const search = route.startsWith("/?") ? parseHomeSearch(route.slice(1)) : null;
       if (action && pathRef.current === "/") window.dispatchEvent(new CustomEvent(HOME_ACTION_EVENT, { detail: action }));
+      else if (search && pathRef.current === "/") window.dispatchEvent(new CustomEvent(HOME_SEARCH_EVENT, { detail: search }));
       else router.push(route);
     };
     const take = () => void LocalBrowser.takeShortcutRoute().then((r) => go(r.route)).catch(() => {});
@@ -49,9 +52,13 @@ export function PhoneShortcutLayer() {
     };
     document.addEventListener("visibilitychange", onVisible);
     const handle = LocalBrowser.addListener("shortcutOpened", () => take());
+    // 🔔 The morning / evening summaries (scheduled LocalNotifications) carry their page too -
+    // handled here, once for the whole app, so a tap works whatever page is open.
+    const stopDigests = onDigestTapped(go);
     return () => {
       document.removeEventListener("visibilitychange", onVisible);
       void handle.then((h) => h.remove()).catch(() => {});
+      stopDigests();
     };
   }, [router]);
 

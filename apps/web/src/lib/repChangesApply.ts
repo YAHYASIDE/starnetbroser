@@ -26,7 +26,8 @@ import { ACCOUNTS_CHANGED_EVENT } from "./repMenuRecords";
 import { loadRepresentativeStore } from "./repStore";
 import { readStores } from "./repWorkspace";
 import { isDemoMode } from "./settingsStore";
-import { sendRepText, sendTelegramText } from "./telegram";
+import { REP_INBOX_ROUTE, tellOwner } from "./appEvents";
+import { sendRepText } from "./telegram";
 
 export type ReceiveChangesResult = { ok: true; message: string } | { ok: false; message: string };
 
@@ -67,12 +68,12 @@ export async function receiveRepChanges(text: string, fromRepId?: string): Promi
   // other phone (or an old app without the key, once bound) is refused.
   const bound = repPhoneKey(repId);
   if (bound && payload.phoneKey !== bound) {
-    await sendTelegramText(`🔒 وصل ملف باسم المندوب ${rep.name} من هاتف غير هاتفه المربوط - رُفض. إن غيّر هاتفه فعلاً: «🔄 رمز جديد» ثم يربط هاتفه الجديد.`);
+    await tellOwner(`🔒 وصل ملف باسم المندوب ${rep.name} من هاتف غير هاتفه المربوط - رُفض. إن غيّر هاتفه فعلاً: «🔄 رمز جديد» ثم يربط هاتفه الجديد.`);
     return { ok: false, message: payload.phoneKey ? "هذا الملف من هاتف غير الهاتف المربوط - رُفض" : "حدّث تطبيقك ثم أعد الإرسال" };
   }
   if (!bound && payload.phoneKey && fromRepId) {
     setRepPhoneKey(repId, payload.phoneKey);
-    await sendTelegramText(`🔗 رُبط هاتف المندوب ${rep.name} - نسخه تُفتح على هاتفه فقط من الآن.`);
+    await tellOwner(`🔗 رُبط هاتف المندوب ${rep.name} - نسخه تُفتح على هاتفه فقط من الآن.`);
     const copy = await sendRepCopy(rep, loadDemoAccounts(demoAccounts));
     await sendRepText(repId, `🔗 رُبط هاتفك ✓ - نسخ أجهزتك تُفتح على هذا الهاتف فقط.${copy.ok ? "\n📋 وصلتك نسختك - افتحها." : ""}`);
     if (fileRep === PAIRING_REP) return { ok: true, message: `🔗 رُبط هاتف ${rep.name}` };
@@ -93,7 +94,7 @@ export async function receiveRepChanges(text: string, fromRepId?: string): Promi
   }
   const what = describeItems(items);
   await sendRepText(repId, `📥 وصلت تسجيلاتك (${items.length}): ${what}\n⏳ بانتظار موافقة المسؤول.`);
-  await sendTelegramText(`📝 المندوب ${rep.name} أرسل ${items.length} تسجيلاً بانتظار موافقتك: ${what}\nراجعها في التطبيق (المندوبون ← تسجيلات المندوبين).`);
+  await tellOwner(`📝 المندوب ${rep.name} أرسل ${items.length} تسجيلاً بانتظار موافقتك: ${what}\nراجعها في التطبيق (المندوبون ← تسجيلات المندوبين).`, REP_INBOX_ROUTE);
   return { ok: true, message: `📝 وصلت تسجيلات ${rep.name} (${items.length}) - بانتظار موافقتك` };
 }
 

@@ -184,6 +184,16 @@ public class LocalBrowserPlugin extends Plugin {
         });
     }
 
+    /** An app event in the phone's notification bar; tapping it opens `route` (AppEventNotifier). */
+    @PluginMethod
+    public void postAppEvent(PluginCall call) {
+        String text = call.getString("text", "");
+        String route = call.getString("route", AppEventText.HOME_ROUTE);
+        JSObject ret = new JSObject();
+        ret.put("posted", AppEventNotifier.post(getContext(), text, route));
+        call.resolve(ret);
+    }
+
     /** The page a 📌 shortcut opened the app on (once), or null. */
     @PluginMethod
     public void takeShortcutRoute(PluginCall call) {

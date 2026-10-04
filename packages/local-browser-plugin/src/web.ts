@@ -185,6 +185,10 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
     return { route: null };
   }
 
+  async postAppEvent(_options: { text: string; route?: string }): Promise<{ posted: boolean }> {
+    return { posted: false };
+  }
+
   async biometricStatus(): Promise<{ available: boolean }> {
     return { available: false };
   }

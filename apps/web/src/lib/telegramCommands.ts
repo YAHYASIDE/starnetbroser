@@ -32,6 +32,7 @@ import {
   sendTelegramText,
   repBotNames,
 } from "./telegram";
+import { PROMISES_ROUTE, TELEGRAM_SETTINGS_ROUTE, tellOwner } from "./appEvents";
 import { devicesHelp, devicesKeyboard, isMoneyKind, moneyRedirectText, REP_BOOK_HINT, REP_HANDOVER_HINT, repHandoverReceivedText, REP_LOAN_HINT, type RepBot } from "./repBots";
 import { buildReplySnapshot } from "./telegramReplies";
 import { deviceDisplayName, readRepDeviceFile, repDeviceCode } from "./repDeviceTransfer";
@@ -214,7 +215,7 @@ export async function answerRepMessage(message: TelegramPollMessage, alreadyRepl
     // alreadyReplied: the background service told him and the operator already - just record it.
     if (recordRepRequest(message) && !alreadyReplied) {
       await replyToChat(message.chatId, repLinkRequestReply(message.name));
-      await sendTelegramText(`🤝 طلب ربط جديد ببوت المندوبين من ${message.name || message.username || "مستخدم"} - اربطه بمندوبه من الإعدادات ← تيليغرام`);
+      await tellOwner(`🤝 طلب ربط جديد ببوت المندوبين من ${message.name || message.username || "مستخدم"} - اربطه بمندوبه من الإعدادات ← تيليغرام`, TELEGRAM_SETTINGS_ROUTE);
     }
     return;
   }
@@ -260,7 +261,7 @@ async function handleRepHandover(repId: string, rep: Representative, text: strin
   if (!alreadyReplied) {
     const label = formatMoneyShort(parsed.amount, parsed.currency);
     await sendRepText(repId, repHandoverReceivedText(label), undefined, "money");
-    await sendTelegramText(`🤲 المندوب ${rep.name} يقول إنه سلّمك ${label}\nأكّده من صفحة المندوبين في التطبيق.`);
+    await tellOwner(`🤲 المندوب ${rep.name} يقول إنه سلّمك ${label}\nأكّده من صفحة المندوبين في التطبيق.`);
   }
 }
 
@@ -271,7 +272,7 @@ export const REP_DEVICE_RECEIVED = "📥 وصل ملف الجهاز - بانتظ
 async function handleRepDeviceFile(repId: string, rep: Representative, fileId: string, alreadyReplied: boolean): Promise<void> {
   const text = await downloadRepFile(fileId);
   if (!text) {
-    await sendTelegramText(`⚠️ لم أتمكن من تنزيل ملف الجهاز الذي أرسله المندوب ${rep.name} - اطلب منه إعادة الإرسال.`);
+    await tellOwner(`⚠️ لم أتمكن من تنزيل ملف الجهاز الذي أرسله المندوب ${rep.name} - اطلب منه إعادة الإرسال.`);
     return;
   }
   const code = repDeviceCode(repId);
@@ -289,7 +290,7 @@ async function handleRepDeviceFile(repId: string, rep: Representative, fileId: s
   );
   if (!alreadyReplied) {
     await sendRepText(repId, REP_DEVICE_RECEIVED);
-    await sendTelegramText(`📥 المندوب ${rep.name} أرسل جهازاً جديداً مع دخوله إلى Starlink${details.name ? ` (${details.name})` : ""} - وافق عليه من صفحة المندوبين في التطبيق.`);
+    await tellOwner(`📥 المندوب ${rep.name} أرسل جهازاً جديداً مع دخوله إلى Starlink${details.name ? ` (${details.name})` : ""} - وافق عليه من صفحة المندوبين في التطبيق.`);
   }
 }
 
@@ -298,12 +299,12 @@ async function handleRepDeviceFile(repId: string, rep: Representative, fileId: s
 async function handleRepChangesFile(repId: string, rep: Representative, fileId: string): Promise<void> {
   const text = await downloadRepFile(fileId);
   if (!text) {
-    await sendTelegramText(`⚠️ لم أتمكن من تنزيل ملف تسجيلات المندوب ${rep.name} - اطلب منه إعادة الإرسال.`);
+    await tellOwner(`⚠️ لم أتمكن من تنزيل ملف تسجيلات المندوب ${rep.name} - اطلب منه إعادة الإرسال.`);
     return;
   }
   const result = await receiveRepChanges(text, repId);
   if (!result.ok) {
-    await sendTelegramText(`⚠️ تسجيلات المندوب ${rep.name}: ${result.message}`);
+    await tellOwner(`⚠️ تسجيلات المندوب ${rep.name}: ${result.message}`);
     await sendRepText(repId, `⚠️ لم تُثبَّت تسجيلاتك: ${result.message}`);
   }
 }
@@ -336,7 +337,7 @@ async function handleRepPromise(repId: string, rep: Representative, text: string
   if (!alreadyReplied) {
     const day = `${parsed.dueDate.slice(8, 10)}/${parsed.dueDate.slice(5, 7)}`;
     await sendRepText(repId, `✅ سُجّل وعد ${name} بدفع ${formatMoneyShort(parsed.amount, parsed.currency)} يوم ${day}${parsed.defaulted ? " (بعد أسبوع - لم تذكر يوماً)" : ""}.`, undefined, "money");
-    await sendTelegramText(`🤝 وعد دفع عبر المندوب ${rep.name}: ${name} - ${formatMoneyShort(parsed.amount, parsed.currency)} يوم ${day}`);
+    await tellOwner(`🤝 وعد دفع عبر المندوب ${rep.name}: ${name} - ${formatMoneyShort(parsed.amount, parsed.currency)} يوم ${day}`, PROMISES_ROUTE);
   }
 }
 
@@ -369,7 +370,7 @@ async function handleRepRequest(
     );
     if (!alreadyReplied) {
       await sendRepText(repId, repPaymentReceivedText(parsed.amount, parsed.currency, device?.name), undefined, "money");
-      await sendTelegramText(`💵 طلب دفعة من المندوب ${rep.name}: ${formatMoneyShort(parsed.amount, parsed.currency)}${device ? ` عن ${device.name}` : parsed.query ? ` («${parsed.query}»)` : ""}\nوافق عليه من صفحة المندوبين في التطبيق.`);
+      await tellOwner(`💵 طلب دفعة من المندوب ${rep.name}: ${formatMoneyShort(parsed.amount, parsed.currency)}${device ? ` عن ${device.name}` : parsed.query ? ` («${parsed.query}»)` : ""}\nوافق عليه من صفحة المندوبين في التطبيق.`);
     }
     return;
   }
