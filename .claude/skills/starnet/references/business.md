@@ -134,6 +134,10 @@ mind). Exact texts and numbers live in the code - this file says where.
 - Money received from another person's number → suggested as **personal income**, no automatic
   customer matching; on confirming he can change it to: payment from a customer, money from a rep,
   «دين أخذته» or «دين رُدّ لي» (the customer/rep ones go to that book, not personal income).
+- A bank notification whose body is **InboxStyle** (several lines, like Bankily's «Transfert
+  d'argent»: «Montant : … MRU» on one line, «Beneficiaire : …» on the next) was dropped because
+  the lines live in `EXTRA_TEXT_LINES`, not `EXTRA_TEXT` - the capture now joins `EXTRA_TEXT_LINES`
+  and `EXTRA_SUB_TEXT` too (`KastNotificationListener.titleAndText`).
 - The existing `KastNotificationListener` (Android «Notification access») is the place to extend.
 
 ## 💳 Filling Starlink's card form with his own cards
