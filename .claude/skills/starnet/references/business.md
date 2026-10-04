@@ -160,6 +160,17 @@ mind). Exact texts and numbers live in the code - this file says where.
      titled «Your KAST verification code» are the unfreeze codes - not this one.
   3. Paste it → Submit → wait → Billing shows «VISA ending in ####».
   Never store or log these codes, the card number or the CVV from his screenshots.
+- **«💳 أضف البطاقة» is automatic** (his choice when asked «الا توجد طريقة لنجعل كل شي تلقائي»:
+  **the KAST card stays unfrozen**, so nothing in KAST is needed; **one device at a time**). He
+  taps «💳» (or a card field) and picks the card; the app opens Billing → Payment Method → Edit,
+  fills, taps Save, picks **Email** on «Verify transaction», reads **no-reply's** code from the
+  phone's mail notification (the same «Notification access»; read only while waiting, KAST's own
+  codes ignored) - or takes the code he copied when he comes back to the app - types it, taps
+  Submit, and when Billing shows the card's last 4 says «✅» and runs «مزامنة». «Additional
+  verification needed» → tells him the card is probably frozen. Any step it can't find → tells
+  him to tap it himself and carries on. Code: `cardFlow.ts` (what a frame shows + the taps),
+  `cardFillScript.ts`, `CardAddFlow.java` (step order, tested), `PaymentCode(Inbox).java`,
+  `CardFillController.java`. Fingerprint/biometrics can never be done by an app.
 
 ## What customers receive
 
