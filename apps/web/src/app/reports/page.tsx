@@ -43,7 +43,8 @@ import { buildCardStatement, listCardPayments, listOpenShipmentDebts, loadCardTo
 import { listOpenPreviousDebts, loadPreviousDebts, PreviousDebtList, totalPreviousDebtUsd } from "@/lib/previousDebt";
 import { buildBusinessWorkbook, xlsxFileName } from "@/lib/excelExport";
 import { buildMonthNet, monthChange } from "@/lib/netProfit";
-import { loadCustomCategories, loadPersonalExpenses, monthExpensesMru, type ExpenseCategory, type PersonalExpenseList } from "@/lib/personalExpenses";
+import { loadExpenseTree } from "@/lib/expenseTreeStore";
+import { loadPersonalExpenses, monthExpensesMru, type ExpenseCategory, type PersonalExpenseList } from "@/lib/personalExpenses";
 import { PersonalExpensesTab } from "@/components/PersonalExpensesTab";
 import { monthLabel, recentMonths } from "@/lib/monthClosing";
 import { exportXlsx } from "@/lib/xlsxExport";
@@ -135,8 +136,9 @@ export default function ReportsPage() {
     setProfitReset(loadProfitReset());
     setHiddenDays(loadHiddenProfitDays());
     setAllocations(loadAllocationStore());
+    // The groups first: setting them up once removes the old expenses (his choice).
+    setExpenseCategories(loadExpenseTree());
     setPersonal(loadPersonalExpenses());
-    setExpenseCategories(loadCustomCategories());
     try {
       const saved = window.localStorage.getItem(TAB_KEY);
       if (saved === "net" || saved === "starlink" || saved === "store" || saved === "debts" || saved === "expenses") setTab(saved);

@@ -10,6 +10,7 @@
  */
 
 import { recordCashEntry, removeLinkedCashEntries, type CashEntryList } from "./cashStore";
+import { addTreeNode, hideTreeNode, visibleCategories } from "./categoryTree";
 import { addPersonalExpense, type ExpenseCategory, type PersonalExpense } from "./personalExpenses";
 import type { AccountFlow } from "./moneyAccounts";
 import { sumToMru, type RatesFromUsd } from "./reportsView";
@@ -38,19 +39,27 @@ export const DEFAULT_INCOME_CATEGORIES: ExpenseCategory[] = [
   { id: "other", icon: "❤️", name: "أخرى" },
 ];
 
-export function allIncomeCategories(custom: ExpenseCategory[]): ExpenseCategory[] {
-  return [...DEFAULT_INCOME_CATEGORIES.filter((c) => c.id !== "other"), ...custom, DEFAULT_INCOME_CATEGORIES.find((c) => c.id === "other")!];
+/** First time with groups: the built-in income categories, then his own, «أخرى» last. */
+export function seedIncomeTree(oldCustom: ExpenseCategory[]): ExpenseCategory[] {
+  return [...DEFAULT_INCOME_CATEGORIES.filter((c) => c.id !== "other"), ...oldCustom.filter((c) => c.id && c.name), DEFAULT_INCOME_CATEGORIES.find((c) => c.id === "other")!];
 }
 
-export function incomeCategoryOf(id: string, custom: ExpenseCategory[]): ExpenseCategory {
-  return allIncomeCategories(custom).find((c) => c.id === id) ?? { id, icon: "💵", name: "دخل" };
+/** Everything that can be picked (groups and their items). */
+export function allIncomeCategories(tree: ExpenseCategory[]): ExpenseCategory[] {
+  return visibleCategories(tree.length ? tree : DEFAULT_INCOME_CATEGORIES);
 }
 
-export function addIncomeCategory(custom: ExpenseCategory[], name: string, icon = "🏷️"): { ok: true; list: ExpenseCategory[] } | { ok: false; message: string } {
-  const clean = name.trim();
-  if (!clean) return { ok: false, message: "اكتب اسم القسم" };
-  if (allIncomeCategories(custom).some((c) => c.name === clean)) return { ok: false, message: "هذا القسم موجود" };
-  return { ok: true, list: [...custom, { id: newId("icat"), icon: icon.trim() || "🏷️", name: clean }] };
+export function incomeCategoryOf(id: string, tree: ExpenseCategory[]): ExpenseCategory {
+  return (tree.length ? tree : DEFAULT_INCOME_CATEGORIES).find((c) => c.id === id) ?? { id, icon: "💵", name: "دخل" };
+}
+
+/** A new income group, or an item inside `parentId`. */
+export function addIncomeCategory(tree: ExpenseCategory[], name: string, icon = "🏷️", parentId?: string): { ok: true; list: ExpenseCategory[] } | { ok: false; message: string } {
+  return addTreeNode(tree.length ? tree : DEFAULT_INCOME_CATEGORIES, { name, icon, parentId }, newId("icat"));
+}
+
+export function removeIncomeCategory(tree: ExpenseCategory[], id: string): ExpenseCategory[] {
+  return hideTreeNode(tree.length ? tree : DEFAULT_INCOME_CATEGORIES, id);
 }
 
 export interface IncomeRecord {
@@ -550,7 +559,9 @@ export function buildWealth(input: WealthInput): Wealth {
 // ---- storage (business data: `starnet_` keys, so the full backup carries them) ----
 
 const INCOME_KEY = "starnet_personal_income_v1";
+/** Before the groups: his own income categories (flat). */
 const INCOME_CATEGORIES_KEY = "starnet_income_categories_v1";
+const INCOME_TREE_KEY = "starnet_income_tree_v1";
 const RECURRING_KEY = "starnet_recurring_v1";
 const DEBTS_KEY = "starnet_personal_debts_v1";
 
@@ -573,8 +584,12 @@ const asArray = <T>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
 
 export const loadIncome = (): IncomeList => asArray<IncomeRecord>(read(INCOME_KEY, []));
 export const saveIncome = (list: IncomeList): void => write(INCOME_KEY, list);
-export const loadIncomeCategories = (): ExpenseCategory[] => asArray<ExpenseCategory>(read(INCOME_CATEGORIES_KEY, []));
-export const saveIncomeCategories = (list: ExpenseCategory[]): void => write(INCOME_CATEGORIES_KEY, list);
+/** The income categories as groups (the old flat list of his own ones is folded in once). */
+export function loadIncomeCategories(): ExpenseCategory[] {
+  const tree = asArray<ExpenseCategory>(read(INCOME_TREE_KEY, []));
+  return tree.length ? tree : seedIncomeTree(asArray<ExpenseCategory>(read(INCOME_CATEGORIES_KEY, [])));
+}
+export const saveIncomeCategories = (tree: ExpenseCategory[]): void => write(INCOME_TREE_KEY, tree);
 export const loadRecurring = (): RecurringList => asArray<RecurringRule>(read(RECURRING_KEY, []));
 export const saveRecurring = (list: RecurringList): void => write(RECURRING_KEY, list);
 export function loadDebtBook(): DebtBook {

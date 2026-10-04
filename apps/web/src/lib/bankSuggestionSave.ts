@@ -12,7 +12,9 @@ import { loadLedgerStore, type LedgerByAccount } from "./ledgerStore";
 import { addAccountTransfer, loadAccountsBook, saveAccountsBook, type MoneyAccount } from "./moneyAccounts";
 import { addDebt, addDebtPayment, addIncome, incomeCategoryOf, loadDebtBook, loadIncome, loadIncomeCategories, saveDebtBook, saveIncome } from "./myMoney";
 import { loadPartyAdjustments, recordPartyAdjustment, savePartyAdjustments } from "./partyBalanceStore";
-import { addPersonalExpense, categoryOf, loadCustomCategories, loadPersonalExpenses, savePersonalExpenses } from "./personalExpenses";
+import { categoryPath } from "./categoryTree";
+import { loadExpenseTree } from "./expenseTreeStore";
+import { addPersonalExpense, categoryOf, loadPersonalExpenses, savePersonalExpenses } from "./personalExpenses";
 import { loadRepSettlements, recordRepSettlement, saveRepSettlements, type RepSettlementKind } from "./repStore";
 
 export type SuggestionChoice =
@@ -56,18 +58,20 @@ export function saveSuggestionChoice(input: SuggestionSaveInput): SuggestionSave
 
   switch (choice.type) {
     case "expense": {
+      const tree = loadExpenseTree();
       const result = addPersonalExpense(loadPersonalExpenses(), { categoryId: choice.categoryId, amount, currencyCode, date, note, fromCash: false, accountId: account.id });
       if (!result.ok) return result;
       savePersonalExpenses(result.list);
-      const cat = categoryOf(choice.categoryId, loadCustomCategories());
-      return { ok: true, outcome: `🧾 مصروف: ${cat.icon} ${cat.name}` };
+      const cat = categoryOf(choice.categoryId, tree);
+      return { ok: true, outcome: `🧾 مصروف: ${cat.icon} ${categoryPath(tree, choice.categoryId) || cat.name}` };
     }
     case "income": {
       const result = addIncome(loadIncome(), { categoryId: choice.categoryId, amount, currencyCode, date, note, toCash: false, accountId: account.id });
       if (!result.ok) return result;
       saveIncome(result.list);
-      const cat = incomeCategoryOf(choice.categoryId, loadIncomeCategories());
-      return { ok: true, outcome: `💵 دخل: ${cat.icon} ${cat.name}` };
+      const incomeTree = loadIncomeCategories();
+      const cat = incomeCategoryOf(choice.categoryId, incomeTree);
+      return { ok: true, outcome: `💵 دخل: ${cat.icon} ${categoryPath(incomeTree, choice.categoryId) || cat.name}` };
     }
     case "new-debt": {
       const result = addDebt(loadDebtBook(), { kind: out ? "lent" : "borrowed", person: choice.person, amount, currencyCode, date, note, viaCash: false, accountId: account.id });

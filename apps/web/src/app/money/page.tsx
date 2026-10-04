@@ -44,6 +44,7 @@ import {
   syncDebtPaymentCash,
   syncIncomeCash,
   addIncomeCategory,
+  removeIncomeCategory,
   type DebtBook,
   type IncomeList,
   type RecurringList,
@@ -63,8 +64,8 @@ import {
   type AccountsBook,
 } from "@/lib/moneyAccounts";
 import { loadLedgerStore } from "@/lib/ledgerStore";
+import { loadExpenseTree } from "@/lib/expenseTreeStore";
 import {
-  loadCustomCategories,
   loadPersonalExpenses,
   savePersonalExpenses,
   syncExpenseCash,
@@ -147,11 +148,12 @@ export default function MoneyPage() {
   const consumed = () => setNewRecord(false);
 
   useEffect(() => {
+    // First, the expense groups (set up once: the old أكل/شرب… expenses go, his choice).
+    const expenseCustom = loadExpenseTree();
     const ruleList = loadRecurring();
     let incomeList = loadIncome();
     let expenseList = loadPersonalExpenses();
     const incomeCustom = loadIncomeCategories();
-    const expenseCustom = loadCustomCategories();
     // 🔁 the salary / the rent: whatever came due since the last visit records itself now.
     const due = dueRecurring(ruleList, incomeList, expenseList, today());
     if (due.incomes.length || due.expenses.length) {
@@ -415,12 +417,17 @@ export default function MoneyPage() {
             onOpened={consumed}
             onSave={saveIncomeRecord}
             onDelete={removeIncome}
-            onAddCategory={(name, icon) => {
-              const result = addIncomeCategory(incomeCats, name, icon);
+            onAddCategory={(name, icon, parentId) => {
+              const result = addIncomeCategory(incomeCats, name, icon, parentId);
               if (!result.ok) return result.message;
               saveIncomeCategories(result.list);
               setIncomeCats(result.list);
               return null;
+            }}
+            onRemoveCategory={(id) => {
+              const next = removeIncomeCategory(incomeCats, id);
+              saveIncomeCategories(next);
+              setIncomeCats(next);
             }}
           />
           <RecurringSection accounts={sources} kind="income" rules={rules} incomeCustom={incomeCats} expenseCustom={expenseCats} onAdd={addRule} onDelete={removeRule} />

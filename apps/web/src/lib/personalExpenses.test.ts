@@ -28,7 +28,7 @@ describe("personal expenses", () => {
     if (!added.ok) throw new Error(added.message);
     let cash: CashEntryList = syncExpenseCash([], added.expense, []);
     expect(cash).toHaveLength(1);
-    expect(cash[0]).toMatchObject({ kind: "out", amount: 500, currencyCode: "MRU", category: "مصروف شخصي: أكل", sourceKind: "personal-expense", sourceId: added.expense.id });
+    expect(cash[0]).toMatchObject({ kind: "out", amount: 500, currencyCode: "MRU", category: "مصروف شخصي: الغذاء", sourceKind: "personal-expense", sourceId: added.expense.id });
     const edited = editPersonalExpense(added.list, added.expense.id, { ...base, amount: 700 });
     if (!edited.ok) throw new Error(edited.message);
     cash = syncExpenseCash(cash, edited.expense, []);
@@ -66,7 +66,7 @@ describe("personal expenses", () => {
     if (!r.ok) throw new Error(r.message);
     const names = allCategories(r.list).map((c) => c.name);
     expect(names.slice(-2)).toEqual(["مدرسة الأولاد", "أخرى"]);
-    expect(addCustomCategory(r.list, "أكل").ok).toBe(false);
+    expect(addCustomCategory(r.list, "الغذاء").ok).toBe(false);
     expect(categoryOf("gone", []).name).toBe("مصروف");
   });
 });

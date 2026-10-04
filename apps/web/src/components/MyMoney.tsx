@@ -3,6 +3,8 @@
 import { FormEvent, useEffect, useState } from "react";
 import { DateInput } from "@/components/DateInput";
 import { PartySheet } from "@/components/AccountsSection";
+import { CategoryPicker } from "@/components/CategoryPicker";
+import { categoryPath, groupIdOf } from "@/lib/categoryTree";
 import { formatAmount } from "@/lib/formatAmount";
 import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, PAYMENT_METHOD_LABELS, type LedgerCurrency } from "@/lib/ledgerStore";
 import type { AccountInput, AccountsBook, MoneyAccount } from "@/lib/moneyAccounts";
@@ -125,6 +127,7 @@ export function IncomeTab({
   onSave,
   onDelete,
   onAddCategory,
+  onRemoveCategory,
   accounts = [],
 }: {
   accounts?: SourceAccounts;
@@ -137,10 +140,10 @@ export function IncomeTab({
   onOpened: () => void;
   onSave: (input: IncomeInput, editingId?: string) => string | null;
   onDelete: (income: IncomeRecord) => void;
-  onAddCategory: (name: string, icon: string) => string | null;
+  onAddCategory: (name: string, icon: string, parentId?: string) => string | null;
+  onRemoveCategory: (id: string) => void;
 }) {
   const [form, setForm] = useState<{ categoryId: string; editing?: IncomeRecord } | null>(null);
-  const [addingCategory, setAddingCategory] = useState(false);
   const categories = allIncomeCategories(custom);
   useEffect(() => {
     if (!openNew) return;
@@ -148,7 +151,12 @@ export function IncomeTab({
     onOpened();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openNew]);
-  const summary = summarizeExpenses(incomes, `${month}-01`, `${month}-31`, rates);
+  const summary = summarizeExpenses(
+    incomes.map((e) => ({ ...e, categoryId: groupIdOf(custom, e.categoryId) })),
+    `${month}-01`,
+    `${month}-31`,
+    rates,
+  );
   const list = incomes
     .filter((e) => e.date.slice(0, 7) === month)
     .sort((a, b) => (b.date !== a.date ? (b.date < a.date ? -1 : 1) : b.createdAt < a.createdAt ? -1 : 1));
@@ -164,18 +172,7 @@ export function IncomeTab({
         </div>
       </div>
 
-      <div className="expenses-cats" role="group" aria-label="سجّل دخلاً">
-        {categories.map((c) => (
-          <button key={c.id} type="button" className="expenses-cat" onClick={() => setForm({ categoryId: c.id })}>
-            <span aria-hidden="true">{c.icon}</span>
-            <small>{c.name}</small>
-          </button>
-        ))}
-        <button type="button" className="expenses-cat expenses-cat-new" onClick={() => setAddingCategory(true)}>
-          <span aria-hidden="true">🏷️</span>
-          <small>قسم جديد</small>
-        </button>
-      </div>
+      <CategoryPicker label="سجّل دخلاً" tree={custom} onPick={(id) => setForm({ categoryId: id })} onAdd={onAddCategory} onRemove={onRemoveCategory} />
 
       {list.length === 0 ? (
         <p className="party-empty">لا دخل في {monthLabel(month)}. المس قسماً لتسجّل.</p>
@@ -188,7 +185,7 @@ export function IncomeTab({
                 <button type="button" className="expenses-row" onClick={() => setForm({ categoryId: e.categoryId, editing: e })}>
                   <span aria-hidden="true">{c.icon}</span>
                   <span className="expenses-row-main">
-                    <strong>{e.note || c.name}</strong>
+                    <strong>{e.note || categoryPath(custom, e.categoryId) || c.name}</strong>
                     <small>
                       <bdi dir="ltr">{e.date.slice(5)}</bdi>
                       {e.toCash ? " · 💵 الكاش" : ""}
@@ -207,11 +204,11 @@ export function IncomeTab({
       )}
 
       {form && (
-        <PartySheet title={`${incomeCategoryOf(form.categoryId, custom).icon} ${incomeCategoryOf(form.categoryId, custom).name}`} onClose={() => setForm(null)}>
+        <PartySheet title={`${incomeCategoryOf(form.categoryId, custom).icon} ${categoryPath(custom, form.categoryId) || incomeCategoryOf(form.categoryId, custom).name}`} onClose={() => setForm(null)}>
           <IncomeForm
             accounts={accounts}
             categoryId={form.categoryId}
-            categories={categories}
+            categories={categories.map((c) => ({ ...c, name: categoryPath(custom, c.id) || c.name }))}
             editing={form.editing}
             lastCurrency={incomes[incomes.length - 1]?.currencyCode}
             onSave={(input) => {
@@ -232,17 +229,6 @@ export function IncomeTab({
         </PartySheet>
       )}
 
-      {addingCategory && (
-        <PartySheet title="🏷️ قسم دخل جديد" onClose={() => setAddingCategory(false)}>
-          <CategoryForm
-            onSave={(name, icon) => {
-              const message = onAddCategory(name, icon);
-              if (!message) setAddingCategory(false);
-              return message;
-            }}
-          />
-        </PartySheet>
-      )}
     </section>
   );
 }
@@ -311,30 +297,6 @@ function IncomeForm({
   );
 }
 
-export function CategoryForm({ onSave }: { onSave: (name: string, icon: string) => string | null }) {
-  const [name, setName] = useState("");
-  const [icon, setIcon] = useState("🏷️");
-  const [error, setError] = useState<string | null>(null);
-  return (
-    <form
-      className="party-balance-form"
-      onSubmit={(e) => {
-        e.preventDefault();
-        setError(onSave(name, icon));
-      }}
-    >
-      <div className="expenses-amount-row">
-        <input className="search-input expenses-icon-input" value={icon} onChange={(e) => setIcon(e.target.value)} aria-label="الأيقونة" />
-        <input className="search-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="اسم القسم" autoFocus />
-      </div>
-      {error && <div className="account-card-alert ledger-form-error">{error}</div>}
-      <button className="dialog-primary" type="submit" disabled={!name.trim()}>
-        إضافة
-      </button>
-    </form>
-  );
-}
-
 // ---- 🔁 الشهري ----
 
 export function RecurringSection({
@@ -399,7 +361,10 @@ export function RecurringSection({
           <RecurringForm
             accounts={accounts}
             kind={kind}
-            categories={kind === "income" ? allIncomeCategories(incomeCustom) : allCategories(expenseCustom)}
+            categories={(kind === "income" ? allIncomeCategories(incomeCustom) : allCategories(expenseCustom)).map((c) => ({
+              ...c,
+              name: categoryPath(kind === "income" ? incomeCustom : expenseCustom, c.id) || c.name,
+            }))}
             onSave={(input) => {
               const message = onAdd(input);
               if (!message) setAdding(false);

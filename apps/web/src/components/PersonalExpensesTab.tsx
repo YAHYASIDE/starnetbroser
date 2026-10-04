@@ -7,6 +7,8 @@ import { loadCashEntries, removeLinkedCashEntries, saveCashEntries } from "@/lib
 import { formatAmount } from "@/lib/formatAmount";
 import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, type LedgerCurrency } from "@/lib/ledgerStore";
 import { monthLabel } from "@/lib/monthClosing";
+import { CategoryPicker } from "@/components/CategoryPicker";
+import { categoryPath, groupIdOf } from "@/lib/categoryTree";
 import {
   addCustomCategory,
   addPersonalExpense,
@@ -14,7 +16,8 @@ import {
   categoryOf,
   deletePersonalExpense,
   editPersonalExpense,
-  saveCustomCategories,
+  removeCategory,
+  saveExpenseTree,
   savePersonalExpenses,
   summarizeExpenses,
   syncExpenseCash,
@@ -62,7 +65,6 @@ export function PersonalExpensesTab({
 }) {
   const [month, setMonth] = useState(() => today().slice(0, 7));
   const [form, setForm] = useState<{ categoryId: string; editing?: PersonalExpense } | null>(null);
-  const [addingCategory, setAddingCategory] = useState(false);
   const categories = allCategories(custom);
   useEffect(() => {
     if (!openNew) return;
@@ -76,7 +78,13 @@ export function PersonalExpensesTab({
   }, []);
 
   const day = summarizeExpenses(expenses, today(), today(), rates);
-  const monthSummary = summarizeExpenses(expenses, `${month}-01`, `${month}-31`, rates);
+  // The month by group (فواتير = الكهرباء + الغاز + …).
+  const monthSummary = summarizeExpenses(
+    expenses.map((e) => ({ ...e, categoryId: groupIdOf(custom, e.categoryId) })),
+    `${month}-01`,
+    `${month}-31`,
+    rates,
+  );
   const recent = expenses
     .filter((e) => e.date.slice(0, 7) === month)
     .sort((a, b) => (b.date !== a.date ? (b.date < a.date ? -1 : 1) : b.createdAt < a.createdAt ? -1 : 1));
@@ -109,18 +117,23 @@ export function PersonalExpensesTab({
         </div>
       </div>
 
-      <div className="expenses-cats" role="group" aria-label="سجّل مصروفاً">
-        {categories.map((c) => (
-          <button key={c.id} type="button" className="expenses-cat" onClick={() => setForm({ categoryId: c.id })}>
-            <span aria-hidden="true">{c.icon}</span>
-            <small>{c.name}</small>
-          </button>
-        ))}
-        <button type="button" className="expenses-cat expenses-cat-new" onClick={() => setAddingCategory(true)}>
-          <span aria-hidden="true">🏷️</span>
-          <small>فئة جديدة</small>
-        </button>
-      </div>
+      <CategoryPicker
+        label="سجّل مصروفاً"
+        tree={custom}
+        onPick={(id) => setForm({ categoryId: id })}
+        onAdd={(name, icon, parentId) => {
+          const result = addCustomCategory(custom, name, icon, parentId);
+          if (!result.ok) return result.message;
+          saveExpenseTree(result.list);
+          onChange(expenses, result.list);
+          return null;
+        }}
+        onRemove={(id) => {
+          const next = removeCategory(custom, id);
+          saveExpenseTree(next);
+          onChange(expenses, next);
+        }}
+      />
 
       <div className="report-period-row">
         {months.map((m) => (
@@ -158,7 +171,7 @@ export function PersonalExpensesTab({
                 <button type="button" className="expenses-row" onClick={() => setForm({ categoryId: e.categoryId, editing: e })}>
                   <span aria-hidden="true">{c.icon}</span>
                   <span className="expenses-row-main">
-                    <strong>{e.note || c.name}</strong>
+                    <strong>{e.note || categoryPath(custom, e.categoryId) || c.name}</strong>
                     <small>
                       <bdi dir="ltr">{e.date.slice(5)}</bdi>
                       {e.fromCash ? " · 💵 الكاش" : ""}
@@ -176,11 +189,11 @@ export function PersonalExpensesTab({
       )}
 
       {form && (
-        <PartySheet title={`${categoryOf(form.categoryId, custom).icon} ${categoryOf(form.categoryId, custom).name}`} onClose={() => setForm(null)}>
+        <PartySheet title={`${categoryOf(form.categoryId, custom).icon} ${categoryPath(custom, form.categoryId) || categoryOf(form.categoryId, custom).name}`} onClose={() => setForm(null)}>
           <ExpenseForm
             accounts={accounts}
             categoryId={form.categoryId}
-            categories={categories}
+            categories={categories.map((c) => ({ ...c, name: categoryPath(custom, c.id) }))}
             editing={form.editing}
             lastCurrency={expenses[expenses.length - 1]?.currencyCode}
             onSave={(input) => {
@@ -201,20 +214,6 @@ export function PersonalExpensesTab({
         </PartySheet>
       )}
 
-      {addingCategory && (
-        <PartySheet title="🏷️ فئة جديدة" onClose={() => setAddingCategory(false)}>
-          <CategoryForm
-            onSave={(name, icon) => {
-              const result = addCustomCategory(custom, name, icon);
-              if (!result.ok) return result.message;
-              saveCustomCategories(result.list);
-              onChange(expenses, result.list);
-              setAddingCategory(false);
-              return null;
-            }}
-          />
-        </PartySheet>
-      )}
     </section>
   );
 }
@@ -297,30 +296,6 @@ function ExpenseForm({
           </button>
         )}
       </div>
-    </form>
-  );
-}
-
-function CategoryForm({ onSave }: { onSave: (name: string, icon: string) => string | null }) {
-  const [name, setName] = useState("");
-  const [icon, setIcon] = useState("🏷️");
-  const [error, setError] = useState<string | null>(null);
-  return (
-    <form
-      className="party-balance-form"
-      onSubmit={(e) => {
-        e.preventDefault();
-        setError(onSave(name, icon));
-      }}
-    >
-      <div className="expenses-amount-row">
-        <input className="search-input expenses-icon-input" value={icon} onChange={(e) => setIcon(e.target.value)} aria-label="الرمز" maxLength={4} />
-        <input className="search-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="اسم الفئة (مثلاً: مدرسة)" autoFocus />
-      </div>
-      {error && <div className="account-card-alert ledger-form-error">{error}</div>}
-      <button className="dialog-primary" type="submit" disabled={!name.trim()}>
-        إضافة
-      </button>
     </form>
   );
 }

@@ -1,31 +1,91 @@
 /**
- * 🧾 «المصروفات»: what the operator spends on himself and his home - food, drink, medicine,
- * clothes, his wife, the house… One tap on a category, the amount, save. Each expense keeps its own
+ * 🧾 «المصروفات»: what the operator spends on himself and his home, in groups like his «مصاريف»
+ * app (فواتير → الكهرباء، الغاز…; categoryTree.ts). One tap on a category, the amount, save. Each expense keeps its own
  * currency (never mixed); one taken «من الكاش» posts a linked cash-out (removed with it). They
  * are not business expenses: the business net stays as it is, and the reports add one line
  * «يبقى لك» = the month's net − these.
  */
 
+import { addTreeNode, hideTreeNode, visibleCategories, type ExpenseCategory } from "./categoryTree";
 import { recordCashEntry, removeLinkedCashEntries, type CashEntryList } from "./cashStore";
 import { RatesFromUsd, sumToMru } from "./reportsView";
 
-export interface ExpenseCategory {
-  id: string;
-  icon: string;
-  name: string;
-}
+export type { ExpenseCategory };
 
-export const DEFAULT_EXPENSE_CATEGORIES: ExpenseCategory[] = [
-  { id: "food", icon: "🍞", name: "أكل" },
-  { id: "drink", icon: "🥤", name: "شرب" },
-  { id: "medicine", icon: "💊", name: "دواء" },
-  { id: "clothes", icon: "👕", name: "لباس" },
-  { id: "wife", icon: "👩", name: "الزوجة" },
-  { id: "home", icon: "🏠", name: "البيت" },
-  { id: "transport", icon: "⛽", name: "نقل" },
-  { id: "phone", icon: "📱", name: "رصيد" },
-  { id: "other", icon: "➕", name: "أخرى" },
+const g = (id: string, icon: string, name: string): ExpenseCategory => ({ id, icon, name });
+const c = (parentId: string, id: string, icon: string, name: string): ExpenseCategory => ({ id, icon, name, parentId });
+
+/** The operator's categories, like his «مصاريف» app: groups that open to their items. */
+export const DEFAULT_EXPENSE_TREE: ExpenseCategory[] = [
+  g("withdraw", "🏧", "سحب رصيد"),
+  g("credit-transfer", "💸", "تحويل رصيد"),
+  g("family", "👨‍👩‍👧", "العائلة"),
+  g("device-loss", "📉", "خسارة من الأجهزة"),
+  g("food", "🍽️", "الغذاء"),
+  c("food", "food-cafe", "☕", "المقاهي"),
+  c("food", "food-restaurant", "🍴", "المطاعم"),
+  g("transport", "🚗", "المواصلات"),
+  c("transport", "transport-fuel", "⛽", "البنزين"),
+  c("transport", "transport-repair", "🔧", "الصيانة"),
+  c("transport", "transport-parking", "🅿️", "الجراج"),
+  c("transport", "transport-taxi", "🚕", "الأجرة"),
+  g("bills", "🧾", "فواتير"),
+  c("bills", "bills-power", "💡", "الكهرباء"),
+  c("bills", "bills-gas", "🔥", "الغاز"),
+  c("bills", "bills-internet", "🌐", "الإنترنت"),
+  c("bills", "bills-telecom", "📞", "الاتصالات"),
+  c("bills", "bills-rent", "🏠", "الإيجار"),
+  c("bills", "bills-tv", "📺", "التلفاز"),
+  c("bills", "bills-water", "🚰", "المياه"),
+  g("household", "🏡", "الأسرة"),
+  c("household", "household-kids", "👶", "الأطفال"),
+  c("household", "household-repair", "🛠️", "الصيانة المنزلية"),
+  c("household", "household-services", "🧺", "الخدمات"),
+  g("health", "❤️", "الصحة واللياقة"),
+  c("health", "health-doctors", "🩺", "الأطباء"),
+  c("health", "health-meds", "💊", "الأدوية"),
+  c("health", "health-care", "🧴", "العناية الشخصية"),
+  c("health", "health-sport", "🏃", "الأنشطة الرياضية"),
+  g("insurance", "🛡️", "التأمينات"),
+  g("shopping", "🛍️", "التسوق"),
+  c("shopping", "shopping-accessories", "💍", "اكسسوارات"),
+  c("shopping", "shopping-clothes", "👕", "ملابس"),
+  c("shopping", "shopping-electronics", "📱", "الكترونيات"),
+  c("shopping", "shopping-shoes", "👟", "أحذية"),
+  g("travel", "✈️", "السفر"),
+  g("education", "🎓", "التعليم"),
+  c("education", "education-books", "📚", "كتب دراسية"),
+  c("education", "education-courses", "📝", "الدورات التدريبية"),
+  g("investment", "📈", "إستثمار"),
+  g("fun", "🎮", "الترفيه"),
+  c("fun", "fun-games", "🕹️", "ألعاب"),
+  c("fun", "fun-media", "🎬", "أفلام وصوتيات"),
+  g("fees", "📄", "الرسوم والإشتراكات"),
+  g("giving", "🤲", "التبرعات والهدايا"),
+  c("giving", "giving-sadaqa", "📦", "الصدقة"),
+  c("giving", "giving-zakat", "💚", "الزكاة"),
+  c("giving", "giving-gifts", "🎁", "الهدايا"),
+  g("other", "➕", "أخرى"),
 ];
+
+/** Phone credit bought (a bank notification «رصيد») is suggested here. */
+export const AIRTIME_CATEGORY_ID = "bills-telecom";
+
+/** The categories before the groups (أكل، شرب…) - his old expenses on them were removed. */
+export const OLD_EXPENSE_IDS = ["food", "drink", "medicine", "clothes", "wife", "home", "transport", "phone", "other"];
+
+/** An old 🔁 monthly rule keeps going on the matching new category. */
+export const OLD_TO_NEW_CATEGORY: Record<string, string> = {
+  food: "food",
+  drink: "food-cafe",
+  medicine: "health-meds",
+  clothes: "shopping-clothes",
+  wife: "family",
+  home: "household",
+  transport: "transport",
+  phone: "bills-telecom",
+  other: "other",
+};
 
 export interface PersonalExpense {
   id: string;
@@ -47,7 +107,9 @@ export interface PersonalExpense {
 export type PersonalExpenseList = PersonalExpense[];
 
 const EXPENSES_KEY = "starnet_personal_expenses_v1";
-const CATEGORIES_KEY = "starnet_expense_categories_v1";
+/** Before the groups: the operator's own extra categories (flat). */
+export const OLD_CATEGORIES_KEY = "starnet_expense_categories_v1";
+const TREE_KEY = "starnet_expense_tree_v1";
 
 function newId(prefix: string): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -72,24 +134,38 @@ function save<T>(key: string, list: T[]): void {
 
 export const loadPersonalExpenses = (): PersonalExpenseList => load<PersonalExpense>(EXPENSES_KEY);
 export const savePersonalExpenses = (list: PersonalExpenseList): void => save(EXPENSES_KEY, list);
-/** The operator's own categories (added with «➕»), after the built-in ones. */
-export const loadCustomCategories = (): ExpenseCategory[] => load<ExpenseCategory>(CATEGORIES_KEY);
-export const saveCustomCategories = (list: ExpenseCategory[]): void => save(CATEGORIES_KEY, list);
+/** The stored category tree, or null before the groups existed on this phone
+ * (expenseTreeStore.ts sets it up once). */
+export function readExpenseTree(): ExpenseCategory[] | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(TREE_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : null;
+    return Array.isArray(parsed) && parsed.length > 0 ? (parsed as ExpenseCategory[]) : null;
+  } catch {
+    return null;
+  }
+}
+export const saveExpenseTree = (tree: ExpenseCategory[]): void => save(TREE_KEY, tree);
+export const loadOldCustomCategories = (): ExpenseCategory[] => load<ExpenseCategory>(OLD_CATEGORIES_KEY);
 
-export function allCategories(custom: ExpenseCategory[]): ExpenseCategory[] {
-  return [...DEFAULT_EXPENSE_CATEGORIES.filter((c) => c.id !== "other"), ...custom, DEFAULT_EXPENSE_CATEGORIES.find((c) => c.id === "other")!];
+/** Everything that can be picked (groups and their items). */
+export function allCategories(tree: ExpenseCategory[]): ExpenseCategory[] {
+  return visibleCategories(tree.length ? tree : DEFAULT_EXPENSE_TREE);
 }
 
-export function categoryOf(id: string, custom: ExpenseCategory[]): ExpenseCategory {
-  return allCategories(custom).find((c) => c.id === id) ?? { id, icon: "🧾", name: "مصروف" };
+export function categoryOf(id: string, tree: ExpenseCategory[]): ExpenseCategory {
+  return (tree.length ? tree : DEFAULT_EXPENSE_TREE).find((c) => c.id === id) ?? { id, icon: "🧾", name: "مصروف" };
 }
 
-export function addCustomCategory(custom: ExpenseCategory[], name: string, icon = "🏷️"): { ok: true; list: ExpenseCategory[]; category: ExpenseCategory } | { ok: false; message: string } {
-  const clean = name.trim();
-  if (!clean) return { ok: false, message: "اكتب اسم الفئة" };
-  if (allCategories(custom).some((c) => c.name === clean)) return { ok: false, message: "هذه الفئة موجودة" };
-  const category = { id: newId("cat"), icon: icon.trim() || "🏷️", name: clean };
-  return { ok: true, list: [...custom, category], category };
+/** A new group, or a new item inside `parentId`. */
+export function addCustomCategory(tree: ExpenseCategory[], name: string, icon = "🏷️", parentId?: string): { ok: true; list: ExpenseCategory[]; category: ExpenseCategory } | { ok: false; message: string } {
+  return addTreeNode(tree.length ? tree : DEFAULT_EXPENSE_TREE, { name, icon, parentId }, newId("cat"));
+}
+
+/** Removes a group (with its items) or an item; what was recorded on it keeps its name. */
+export function removeCategory(tree: ExpenseCategory[], id: string): ExpenseCategory[] {
+  return hideTreeNode(tree.length ? tree : DEFAULT_EXPENSE_TREE, id);
 }
 
 export interface ExpenseInput {

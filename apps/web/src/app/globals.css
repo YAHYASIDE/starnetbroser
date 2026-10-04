@@ -12448,3 +12448,100 @@ button.today-tile {
 .bank-confirm-q {
   font-size: 0.85rem;
 }
+
+/* 🗂️ categories as small circles (like the home rings), groups open to their items */
+.cat-picker {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-auto-flow: row dense;
+  gap: 8px 4px;
+  margin-bottom: 8px;
+}
+
+.cat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+.cat-circle {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  font-size: 1.15rem;
+  line-height: 1;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.cat-item:active .cat-circle {
+  transform: scale(0.94);
+}
+
+.cat-item small {
+  max-width: 100%;
+  font-size: 0.66rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cat-more {
+  position: absolute;
+  bottom: -3px;
+  inset-inline-start: -3px;
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.55rem;
+  font-style: normal;
+}
+
+.cat-item-active .cat-circle {
+  border-color: var(--green);
+  box-shadow: 0 0 0 2px var(--green-bg);
+  background: var(--green-bg);
+}
+
+.cat-item-active small {
+  color: var(--green);
+}
+
+.cat-item-new .cat-circle {
+  border-style: dashed;
+  background: transparent;
+}
+
+.cat-panel {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px 4px;
+  padding: 8px 4px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}

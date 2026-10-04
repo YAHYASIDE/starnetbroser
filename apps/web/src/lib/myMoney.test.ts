@@ -22,6 +22,7 @@ import {
   syncDebtCash,
   syncDebtPaymentCash,
   syncIncomeCash,
+  seedIncomeTree,
 } from "./myMoney";
 
 const rates = { MRU: 400, XOF: 600 };
@@ -53,7 +54,7 @@ describe("💵 الدخل", () => {
 
   it("adds the operator's own income sections, never twice", () => {
     const made = addIncomeCategory([], " DEMO ", "🏷️");
-    expect(made.ok && made.list.map((c) => c.name)).toEqual(["DEMO"]);
+    expect(made.ok && made.list.map((c) => c.name).slice(-2)).toEqual(["DEMO", "أخرى"]);
     if (!made.ok) throw new Error();
     expect(addIncomeCategory(made.list, "DEMO").ok).toBe(false);
     expect(addIncomeCategory([], "الراتب").ok).toBe(false);
@@ -62,7 +63,7 @@ describe("💵 الدخل", () => {
   });
 
   it("keeps «أخرى» last after the operator's own sections", () => {
-    const names = allIncomeCategories([{ id: "c1", icon: "🏷️", name: "DEMO" }]).map((c) => c.id);
+    const names = allIncomeCategories(seedIncomeTree([{ id: "c1", icon: "🏷️", name: "DEMO" }])).map((c) => c.id);
     expect(names.at(-1)).toBe("other");
     expect(names.at(-2)).toBe("c1");
   });

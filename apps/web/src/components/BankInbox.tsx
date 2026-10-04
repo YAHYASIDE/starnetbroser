@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { StarlinkAccountSummary } from "@starnet/shared";
+import { CategoryPicker } from "@/components/CategoryPicker";
 import { DateInput } from "@/components/DateInput";
 import {
   accountForApp,
@@ -18,7 +19,7 @@ import { deviceMatchesQuery } from "@/lib/homeInsights";
 import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, type LedgerCurrency } from "@/lib/ledgerStore";
 import type { MoneyAccount } from "@/lib/moneyAccounts";
 import { allIncomeCategories, debtRemaining, type DebtBook } from "@/lib/myMoney";
-import { allCategories, type ExpenseCategory } from "@/lib/personalExpenses";
+import { AIRTIME_CATEGORY_ID, type ExpenseCategory } from "@/lib/personalExpenses";
 import type { RepSettlementKind } from "@/lib/repStore";
 
 function currencyLabel(code: string): string {
@@ -210,7 +211,7 @@ export function SuggestionConfirm({
   const [date, setDate] = useState(noticeDay(s.at));
   const [note, setNote] = useState(suggestionNote(s));
   const [choice, setChoice] = useState<ChoiceType>(transfer ? "transfer" : s.kind === "in" ? "income" : "expense");
-  const [expenseCat, setExpenseCat] = useState(s.kind === "airtime" ? "phone" : "other");
+  const [expenseCat, setExpenseCat] = useState(s.kind === "airtime" ? AIRTIME_CATEGORY_ID : "other");
   const [incomeCat, setIncomeCat] = useState(allIncomeCategories(data.incomeCustom)[0]?.id ?? "other");
   const [person, setPerson] = useState(s.party?.name ?? s.party?.number ?? "");
   const [debtId, setDebtId] = useState("");
@@ -364,27 +365,9 @@ export function SuggestionConfirm({
         ))}
       </div>
 
-      {choice === "expense" && (
-        <div className="expenses-cats" role="group" aria-label="نوع المصروف">
-          {allCategories(data.expenseCustom).map((c) => (
-            <button key={c.id} type="button" className={`expenses-cat${expenseCat === c.id ? " money-preset-active" : ""}`} onClick={() => setExpenseCat(c.id)}>
-              <span aria-hidden="true">{c.icon}</span>
-              <small>{c.name}</small>
-            </button>
-          ))}
-        </div>
-      )}
+      {choice === "expense" && <CategoryPicker label="نوع المصروف" tree={data.expenseCustom} selectedId={expenseCat} onPick={setExpenseCat} />}
 
-      {choice === "income" && (
-        <div className="expenses-cats" role="group" aria-label="نوع الدخل">
-          {allIncomeCategories(data.incomeCustom).map((c) => (
-            <button key={c.id} type="button" className={`expenses-cat${incomeCat === c.id ? " money-preset-active" : ""}`} onClick={() => setIncomeCat(c.id)}>
-              <span aria-hidden="true">{c.icon}</span>
-              <small>{c.name}</small>
-            </button>
-          ))}
-        </div>
-      )}
+      {choice === "income" && <CategoryPicker label="نوع الدخل" tree={data.incomeCustom} selectedId={incomeCat} onPick={setIncomeCat} />}
 
       {choice === "new-debt" && <input className="search-input" value={person} onChange={(e) => setPerson(e.target.value)} placeholder="اسم الشخص" />}
 
