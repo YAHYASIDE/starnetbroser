@@ -1,0 +1,68 @@
+# The operator's business - facts and decisions
+
+What the operator told us about his business and what he decided, so the next session doesn't ask
+again or undo it. Add a line here with every new decision (and correct a line when he changes his
+mind). Exact texts and numbers live in the code - this file says where.
+
+## Money places (where his money is)
+
+- **«الكاش»** - cash in hand. He has no "till/box": every UI text says «الكاش» (never «الصندوق»;
+  the store/key is still `cashStore` / `starnet_cash_entries_v1`). The bot also accepts «كاش»,
+  «الكاش» and the old «الصندوق».
+- **Mauritanian apps (أوقية, on his number 22227268):** بنكيلي، مصرفي، سداد، كليك، أمانتي.
+- **Foreign apps (سيفا):** أورانج موني مالي (74646158), نيتا النيجر (22227268).
+- **Wallets (USD):** KAST (= the existing card: `starlinkDebt.ts` top-ups − card payments, shown as
+  «محفظة KAST»; never also a money account - it would count twice) and بينانس.
+- The ready-made accounts: `DEFAULT_ACCOUNTS` in `apps/web/src/lib/moneyAccounts.ts` (added once,
+  each «اكتب الرصيد» until he types its real balance; deleted ones never come back).
+- Customers' payment methods stay: بنكيلي، مصرفي، سداد، أورانج موني، نيتا، نقدًا (he said no to
+  adding كليك/أمانتي/بينانس). A payment by a method linked to an account goes to that account, and
+  is left out of «الكاش» in «حسابي» (`cashInHandEntries`).
+- These two numbers are his public business contacts (on invoices, statements, reminders) - fine in
+  code defaults. Customers' phones, emails, cards, passwords: never in code/tests/commits.
+
+## «💰 حسابي» (`/money`) - his own money in one place
+
+- Like the app «مصاريف»: tabs الدخل / المصروف / الديون, sections with icons, green «+» (pinnable,
+  `/money?add=1`), 🔁 monthly income/expense (salary, rent) that records itself from its first day
+  on/after creation; a deleted month stays deleted.
+- Figure 1 «يبقى لك هذا الشهر» = the reports' business «الصافي» + income − personal expenses.
+- Figure 2 «في يدك الآن» = الكاش + banks/wallets + KAST − what he owes (Starlink D + previous debts,
+  suppliers, reps, people); «كل ما تملك» = that + what customers, reps and people owe him.
+  Every line opens who/which account and how much (`buildWealth`, `loadWealthInput`).
+- No double counting: personal records post linked cash entries (`personal-expense`,
+  `personal-income`, `personal-debt`) that the business reports ignore; the figures reuse the same
+  functions as the clients, suppliers, reps, reports and card pages.
+- Logic: `myMoney.ts`, `moneyAccounts.ts`, `myMoneyData.ts`; UI: `app/money/page.tsx`,
+  `components/MyMoney.tsx`. The reports' «المصروفات» tab and its 🧾 button stay too.
+- Next step he agreed to: read bank/wallet notifications (Bankily…) into these accounts - wait for
+  his real notification screenshots (masked) before building.
+
+## What customers receive
+
+- Debt reminder on WhatsApp: his exact wording - `debtReminderText` in `lib/whatsapp.ts` (السلام
+  عليكم… amount with currency… payment lines… ⭐ STAR NET.OM). Payment lines come from settings
+  (`paymentInstructions`) or `DEFAULT_PAYMENT_INSTRUCTIONS` (BANKILY - NITA / ORANGE MONEY).
+- Client statement: invoice-style image (last 15 operations) + PDF (all), with payment methods,
+  small WhatsApp QR codes for both numbers and his email - `lib/statementDocument.ts`; contact
+  defaults `DEFAULT_CONTACT` in `lib/pdfDocument.ts`, editable in settings «بيانات النشاط».
+
+## Notifications
+
+- Events go to the phone's notification bar and a tap opens the page: rep requests (even with the
+  app closed - native `tellOwner` in `TelegramReplyService`), sync results, KAST money, morning /
+  evening summaries. In-app toasts stay too. Native: `AppEventNotifier`; web: `lib/appEvents.ts`.
+
+## The rep's app (same APK, rep mode)
+
+- He has: home, clients, reminders, tools (+ خطة اليوم), «تقاريري», **التقارير** (his devices'
+  numbers), background sync, morning/evening summaries, «بيانات النشاط» (once he saves it, it's his
+  own and a new copy doesn't replace it). Pages: `REP_ALLOWED_PATHS` in `lib/repMode.ts`.
+- Owner-only: store, «ستارلينك والبطاقة», archive, trash, backup, Telegram settings, «حسابي».
+- After a new APK, the operator sends the rep a fresh copy so shared data (business profile…) updates.
+
+## Sync decisions (details in the `starnet-browsers` skill)
+
+- Background sync (invisible overlay WebView) when enabled; otherwise the visible auto-sync.
+- Faulty and limited-access devices sync only by command.
+- A new device's renewal date is empty («لم يُقرأ بعد») until its first sync - never a placeholder.
