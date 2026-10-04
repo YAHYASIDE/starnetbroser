@@ -63,7 +63,16 @@ public class KastNotificationListener extends NotificationListenerService {
         CharSequence title = extras.getCharSequence(Notification.EXTRA_TITLE);
         CharSequence big = extras.getCharSequence(Notification.EXTRA_BIG_TEXT);
         CharSequence text = big != null ? big : extras.getCharSequence(Notification.EXTRA_TEXT);
-        return new String[] {title == null ? "" : title.toString(), text == null ? "" : text.toString()};
+        StringBuilder body = new StringBuilder(text == null ? "" : text.toString());
+        // 🏦 InboxStyle: several lines (Bankily's «Montant : … MRU» / «Beneficiaire : …») that
+        // aren't in EXTRA_TEXT; without them a bank notice carries no amount and would be dropped.
+        CharSequence[] lines = extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES);
+        if (lines != null) {
+            for (CharSequence line : lines) if (line != null && line.length() > 0) body.append('\n').append(line);
+        }
+        CharSequence sub = extras.getCharSequence(Notification.EXTRA_SUB_TEXT);
+        if (sub != null && sub.length() > 0) body.append('\n').append(sub);
+        return new String[] {title == null ? "" : title.toString(), body.toString()};
     }
 
     /** 💳 Only while a device's browser is adding a card and waits for the card company's code
