@@ -1,4 +1,5 @@
 import { toWesternDigits } from "./arabicNumerals";
+import { typeValue } from "./formInput";
 
 /**
  * 🛑 «إلغاء الاشتراك»: ONE step of cancelling the open subscription on Starlink's own pages, called
@@ -119,15 +120,9 @@ function describeField(dialog: Element): HTMLInputElement | HTMLTextAreaElement 
   );
 }
 
-/** React-safe typing (the page's own state sees the value). */
+/** React-safe typing (the page's own state sees the value, and its buttons re-validate). */
 function typeInto(field: HTMLInputElement | HTMLTextAreaElement, value: string): void {
-  const proto = field.tagName === "TEXTAREA" ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-  const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
-  field.focus();
-  if (setter) setter.call(field, value);
-  else field.value = value;
-  field.dispatchEvent(new Event("input", { bubbles: true }));
-  field.dispatchEvent(new Event("change", { bubbles: true }));
+  typeValue(field, value);
 }
 
 /** The end date once the subscription is cancelled - the plan's «Ending ٢٠٢٦/١٠/٩» chip first

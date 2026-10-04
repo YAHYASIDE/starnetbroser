@@ -162,6 +162,12 @@ mind). Exact texts and numbers live in the code - this file says where.
   (androidx.webkit document-start script + web-message listener, `CardFillController.java`); only
   secure frames that have card fields receive the card. **Works on his phone** (all fields
   filled); if a field isn't filled, ask for a «🧪 لقطة تشخيص» of that page.
+- **Filled values must enable «Submit»/«Save».** Starlink's forms are React; a plain `input.value`
+  set (or `execCommand`) leaves React's hidden value tracker stale, so the button stays greyed out
+  until a real keystroke - which is why the operator's workaround was «delete the last digit and
+  retype it». All field typing (card fields and the OTP code) now goes through `formInput.ts`
+  (`typeValue` / `setNativeValue`): native prototype setter + tracker reset + a real `InputEvent`
+  and key events, so the form re-validates and the button enables on its own.
 - **«Additional verification needed to process this payment…»** on Save = the KAST card is
   **frozen** (not an app problem). His steps to add a KAST card to a device:
   1. KAST app → «البطاقات» → swipe to the card (several cards, last 4 shown) → «إلغاء التجميد» →

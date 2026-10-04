@@ -10,6 +10,7 @@
  */
 
 import { cardFieldKind } from "./cardFill";
+import { typeValue } from "./formInput";
 
 export type CardError = "needs-verification" | "declined";
 
@@ -118,23 +119,10 @@ export function findOtpField(doc: Document): { input: HTMLInputElement; submit: 
   return { input, submit: clickables(doc, SUBMIT)[0] ?? null };
 }
 
-/** Types the code like a person (real input events). */
+/** Types the code like a person, so the OTP form's «Submit» actually enables (see formInput.ts -
+ * a plain value set leaves React's validation stale and Submit greyed out). */
 export function typeCode(input: HTMLInputElement, code: string): boolean {
-  input.focus();
-  let typed = false;
-  try {
-    input.select();
-    typed = input.ownerDocument.execCommand("insertText", false, code);
-  } catch {
-    typed = false;
-  }
-  if (!typed || input.value.replace(/\D/g, "") !== code) {
-    const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), "value")?.set;
-    if (setter) setter.call(input, code);
-    else input.value = code;
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-  }
-  input.dispatchEvent(new Event("change", { bubbles: true }));
+  typeValue(input, code);
   return input.value.replace(/\D/g, "") === code;
 }
 

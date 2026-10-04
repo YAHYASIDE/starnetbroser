@@ -6,6 +6,8 @@
  * Arabic, French) - never by guessing a field with no card wording.
  */
 
+import { typeValue } from "./formInput";
+
 export type CardFieldKind = "number" | "name" | "expiry" | "expMonth" | "expYear" | "cvc" | "postal" | "address" | "taxId";
 
 export interface FillCard {
@@ -135,27 +137,11 @@ const digitsOf = (s: string) => s.replace(/\D/g, "");
 /** Types the value the way a person would (frameworks and payment fields see real input events);
  * falls back to setting it directly. */
 function typeInto(input: HTMLInputElement, value: string): boolean {
-  input.focus();
-  try {
-    input.select();
-  } catch {
-    // some field types can't be selected - it's empty anyway or replaced below
-  }
-  let typed = false;
-  try {
-    typed = input.ownerDocument.execCommand("insertText", false, value);
-  } catch {
-    typed = false;
-  }
-  const looksRight = (v: string) => (digitsOf(value) ? digitsOf(v) === digitsOf(value) : v.trim() === value.trim());
-  if (!typed || !looksRight(input.value)) {
-    const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), "value")?.set;
-    if (setter) setter.call(input, value);
-    else input.value = value;
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-  }
-  input.dispatchEvent(new Event("change", { bubbles: true }));
+  // Set the value the way a keystroke would, so React re-validates and «Save» enables - a plain
+  // value set leaves the form pristine and the button greyed out (see formInput.ts).
+  typeValue(input, value);
   input.dispatchEvent(new Event("blur", { bubbles: true }));
+  const looksRight = (v: string) => (digitsOf(value) ? digitsOf(v) === digitsOf(value) : v.trim() === value.trim());
   return looksRight(input.value);
 }
 
