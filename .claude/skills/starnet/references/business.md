@@ -10,7 +10,12 @@ mind). Exact texts and numbers live in the code - this file says where.
   the store/key is still `cashStore` / `starnet_cash_entries_v1`). The bot also accepts «كاش»,
   «الكاش» and the old «الصندوق».
 - **Mauritanian apps (أوقية, on his number 22227268):** بنكيلي، مصرفي، سداد، كليك، أمانتي.
-- **Foreign apps (سيفا):** أورانج موني مالي (74646158), نيتا النيجر (22227268).
+- **Foreign apps (سيفا):** أورانج موني مالي (74646158), نيتا النيجر (22227268). These two run in
+  **«فرانك»** (his rate, Oct 2026: **5 فرانك = 1 سيفا**): in «حسابي» their balance is typed and shown
+  in فرانك (as their app shows it), and the app stores/totals it in سيفا (÷5) - so transfers,
+  totals and customers' payments (still entered in سيفا) are untouched. Computed from the account's
+  method (orange/nita), `accountDisplayUnit` / `FRANC_PER_SIFA` in `moneyAccounts.ts`; no data change,
+  but he must re-type each one's current balance once in فرانك after the update.
 - **Wallets (USD):** KAST (= the existing card: `starlinkDebt.ts` top-ups − card payments, shown as
   «محفظة KAST»; never also a money account - it would count twice) and بينانس.
 - The ready-made accounts: `DEFAULT_ACCOUNTS` in `apps/web/src/lib/moneyAccounts.ts` (added once,

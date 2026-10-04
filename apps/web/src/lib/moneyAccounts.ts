@@ -112,6 +112,38 @@ export function deleteMoneyAccount(book: AccountsBook, id: string): AccountsBook
   return { ...book, accounts: book.accounts.filter((a) => a.id !== id), adjustments: book.adjustments.filter((x) => x.accountId !== id) };
 }
 
+/** A counting unit some wallets show instead of their own currency: أورانج موني (مالي) and نيتا
+ * (النيجر) run in «فرانك» even though the account's currency is سيفا (his rate: 5 فرانك = 1 سيفا).
+ * The balance is still stored and totalled in the account's own currency - this only changes how it
+ * is typed and shown, so the rest of «حسابي» (totals, transfers, customers' payments) is untouched. */
+export interface AccountDisplayUnit {
+  label: string;
+  /** How many display units equal one unit of the account's currency (5 فرانك per 1 سيفا). */
+  perCurrencyUnit: number;
+}
+
+/** His rate: 5 فرانك = 1 سيفا. */
+export const FRANC_PER_SIFA = 5;
+
+/** The display unit for an account, or null when it is shown in its own currency. Orange Money /
+ * Nita (SIFA wallets) are typed and shown in «فرانك». */
+export function accountDisplayUnit(account: Pick<MoneyAccount, "currencyCode" | "method">): AccountDisplayUnit | null {
+  if (account.currencyCode === "SIFA" && (account.method === "orange" || account.method === "nita")) {
+    return { label: "فرانك", perCurrencyUnit: FRANC_PER_SIFA };
+  }
+  return null;
+}
+
+/** account-currency amount → the number shown/typed in the display unit (سيفا → فرانك: ×5). */
+export function toDisplayAmount(accountAmount: number, unit: AccountDisplayUnit): number {
+  return accountAmount * unit.perCurrencyUnit;
+}
+
+/** A number typed in the display unit → the account-currency amount to store (فرانك → سيفا: ÷5). */
+export function toAccountAmount(displayAmount: number, unit: AccountDisplayUnit): number {
+  return displayAmount / unit.perCurrencyUnit;
+}
+
 /** The operator's own apps and wallets (KAST is the card, tracked on its own). */
 export const DEFAULT_ACCOUNTS: Omit<AccountInput, "openingBalance" | "openingDate">[] = [
   { name: "بنكيلي", icon: "🟢", currencyCode: "MRU", method: "bankily", number: "22227268" },

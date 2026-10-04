@@ -7,7 +7,7 @@ import { CategoryPicker } from "@/components/CategoryPicker";
 import { categoryPath, groupIdOf } from "@/lib/categoryTree";
 import { formatAmount } from "@/lib/formatAmount";
 import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, PAYMENT_METHOD_LABELS, type LedgerCurrency } from "@/lib/ledgerStore";
-import type { AccountInput, AccountsBook, MoneyAccount } from "@/lib/moneyAccounts";
+import { accountDisplayUnit, toAccountAmount, toDisplayAmount, type AccountInput, type AccountsBook, type MoneyAccount } from "@/lib/moneyAccounts";
 import { monthLabel } from "@/lib/monthClosing";
 import {
   allIncomeCategories,
@@ -768,6 +768,21 @@ function signedMoney(byCurrency: Record<string, number>): string {
   return parts.length ? parts.join(" + ") : "0";
 }
 
+/** The account's balance, shown in its display unit when it has one (Orange/Nita: «فرانك»); the
+ * account-currency amount is converted, any other currency stays as it is. */
+function accountBalanceText(account: MoneyAccount, byCurrency: Record<string, number>): string {
+  const unit = accountDisplayUnit(account);
+  if (!unit) return signedMoney(byCurrency);
+  const parts = Object.entries(byCurrency)
+    .filter(([, v]) => Math.abs(v) > 0.0001)
+    .map(([code, v]) => {
+      const shown = code === account.currencyCode ? toDisplayAmount(v, unit) : v;
+      const label = code === account.currencyCode ? unit.label : currencyLabel(code);
+      return `${shown < 0 ? "-" : ""}${formatAmount(Math.round(Math.abs(shown) * 100) / 100)} ${label}`;
+    });
+  return parts.length ? parts.join(" + ") : "0";
+}
+
 // ---- 🏦 my banks / wallets ----
 
 export function AccountsManager({
@@ -811,7 +826,7 @@ export function AccountsManager({
                 </button>
               ) : (
                 <>
-                  <bdi dir="ltr">{signedMoney(balances[a.id] ?? {})}</bdi>
+                  <bdi dir="ltr">{accountBalanceText(a, balances[a.id] ?? {})}</bdi>
                   <button type="button" className="btn-icon" onClick={() => setCorrecting(correcting === a.id ? null : a.id)}>
                     ✎
                   </button>
@@ -916,12 +931,14 @@ function AccountForm({ onSave }: { onSave: (input: AccountInput) => string | nul
 function CorrectForm({ account, onSave, onDelete }: { account: MoneyAccount; onSave: (actual: number) => string | null; onDelete: () => void }) {
   const [actual, setActual] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // Orange/Nita are typed in «فرانك»; convert to the account's currency (سيفا) before saving.
+  const unit = accountDisplayUnit(account);
   return (
     <form
       className="party-balance-form money-correct"
       onSubmit={(e) => {
         e.preventDefault();
-        setError(onSave(toNumber(actual)));
+        setError(onSave(unit ? toAccountAmount(toNumber(actual), unit) : toNumber(actual)));
       }}
     >
       <div className="expenses-amount-row">
@@ -930,7 +947,9 @@ function CorrectForm({ account, onSave, onDelete }: { account: MoneyAccount; onS
           {account.balanceSet === false ? "حفظ الرصيد" : "تصحيح الرصيد"}
         </button>
       </div>
-      <small className="settings-hint">الرصيد الحقيقي في {account.name} الآن ({currencyLabel(account.currencyCode)})</small>
+      <small className="settings-hint">
+        الرصيد الحقيقي في {account.name} الآن ({unit ? `${unit.label} · ${unit.perCurrencyUnit} ${unit.label} = 1 ${currencyLabel(account.currencyCode)}` : currencyLabel(account.currencyCode)})
+      </small>
       {error && <div className="account-card-alert ledger-form-error">{error}</div>}
       <button type="button" className="dialog-danger" onClick={onDelete}>
         حذف الحساب

@@ -3,6 +3,9 @@ import type { CashEntryList } from "./cashStore";
 import type { LedgerByAccount, LedgerEntry } from "./ledgerStore";
 import {
   accountBalance,
+  accountDisplayUnit,
+  toAccountAmount,
+  toDisplayAmount,
   addAccountTransfer,
   CASH_ACCOUNT_ID,
   transferCashEntry,
@@ -27,6 +30,22 @@ const bankily = () => {
 
 const payment = (id: string, amount: number, date: string, method: LedgerEntry["paymentMethod"]) =>
   ({ id, kind: "credit", amount, currency: "MRU", date, paymentMethod: method, note: "", email: "", createdAt: "" }) as unknown as LedgerEntry;
+
+describe("فرانك display unit (Orange Money / Nita)", () => {
+  it("only SIFA Orange/Nita wallets are shown in فرانك, 5 فرانك = 1 سيفا", () => {
+    expect(accountDisplayUnit({ currencyCode: "SIFA", method: "orange" })).toEqual({ label: "فرانك", perCurrencyUnit: 5 });
+    expect(accountDisplayUnit({ currencyCode: "SIFA", method: "nita" })).toEqual({ label: "فرانك", perCurrencyUnit: 5 });
+    expect(accountDisplayUnit({ currencyCode: "SIFA", method: undefined })).toBeNull();
+    expect(accountDisplayUnit({ currencyCode: "MRU", method: "bankily" })).toBeNull();
+    expect(accountDisplayUnit({ currencyCode: "USD", method: "orange" })).toBeNull();
+  });
+
+  it("converts both ways (5000 فرانك = 1000 سيفا)", () => {
+    const unit = { label: "فرانك", perCurrencyUnit: 5 };
+    expect(toDisplayAmount(1000, unit)).toBe(5000); // سيفا → فرانك
+    expect(toAccountAmount(5000, unit)).toBe(1000); // فرانك → سيفا
+  });
+});
 
 describe("🏦 bank / wallet accounts", () => {
   it("one account per name and per payment method", () => {
