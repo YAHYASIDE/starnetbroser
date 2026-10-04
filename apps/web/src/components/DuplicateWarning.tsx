@@ -6,6 +6,13 @@ import { type DuplicateField, type DuplicateHit, duplicateLine } from "@/lib/dup
 export function FieldDuplicate({ hits, field }: { hits: DuplicateHit[]; field: DuplicateField }) {
   const owners = hits.filter((h) => h.field === field);
   if (owners.length === 0) return null;
+  if (owners[0]!.kind === "owner") {
+    return (
+      <span className="field-duplicate" role="alert">
+        ⚠️ مسجّل عند المسؤول على جهاز آخر - تأكد أنه ليس مكرراً قبل الإرسال
+      </span>
+    );
+  }
   return (
     <span className="field-duplicate" role="alert">
       ⚠️ مسجل من قبل {owners[0]!.kind === "device" ? "على الجهاز" : "للزبون"} {owners.slice(0, 3).map((h) => `«${h.owner}»`).join("، ")}

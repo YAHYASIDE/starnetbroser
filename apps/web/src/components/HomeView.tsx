@@ -1,6 +1,7 @@
 "use client";
 
 import { isRepWorkspace } from "@/lib/repMode";
+import { deviceTwins, mergeDevices } from "@/lib/deviceMerge";
 import { currentRepPending } from "@/lib/repWorkspace";
 import { loadRepChangesSent, shareRepChanges, type RepChangesSent } from "@/lib/repChangesSend";
 import { REP_INBOX_EVENT, repInboxCount } from "@/lib/repInbox";
@@ -1106,6 +1107,21 @@ export function HomeView({
     patchAccount(account.id, { archivedAt: new Date().toISOString() });
   }
 
+  // 🔗 The same device registered twice: everything on `drop` moves to `keep`, then `drop` goes to
+  // the trash (lib/deviceMerge.ts).
+  function handleMergeDevices(drop: StarlinkAccountSummary, keep: StarlinkAccountSummary) {
+    const result = mergeDevices({ keep, drop, ledger: ledgerStore, allocations: allocationStore, previousDebts });
+    saveLedgerStore(result.ledger);
+    setLedgerStore(result.ledger);
+    saveAllocationStore(result.allocations);
+    setAllocationStore(result.allocations);
+    savePreviousDebts(result.previousDebts);
+    setPreviousDebts(result.previousDebts);
+    if (Object.keys(result.keepPatch).length > 0) patchAccount(keep.id, result.keepPatch);
+    patchAccount(drop.id, { deletedAt: new Date().toISOString() });
+    pushToast(`🔗 دُمج «${drop.name}» في «${keep.name}»${result.movedEntries ? ` - انتقلت ${result.movedEntries} عملية` : ""}، والمكرّر في السلة`);
+  }
+
   function handleSoftDelete(account: StarlinkAccountSummary) {
     patchAccount(account.id, { deletedAt: new Date().toISOString() });
   }
@@ -1229,6 +1245,8 @@ export function HomeView({
   activeAccountsRef.current = activeAccounts;
   const archivedAccounts = useMemo(() => accounts.filter((a) => a.archivedAt), [accounts]);
   const trashAccounts = useMemo(() => accounts.filter((a) => a.deletedAt), [accounts]);
+  // 🔗 Devices registered twice (same email or KIT) → their twin, for «⚠️ مكرّر · دمج».
+  const deviceTwinMap = useMemo(() => deviceTwins(accounts), [accounts]);
   const needsLoginIds = useMemo(
     () => new Set(accountIdsNeedingLogin(sessionResults, activeAccounts.map((a) => a.id))),
     [sessionResults, activeAccounts],
@@ -1781,6 +1799,8 @@ export function HomeView({
                 client={getClient(clientStore, account.clientId)}
                 repColor={getRepresentative(representativeStore, account.representativeId)?.color}
                 addedByRepName={account.addedByRepId ? getRepresentative(representativeStore, account.addedByRepId)?.name ?? "مندوب" : undefined}
+                twin={viewMode === "active" ? deviceTwinMap.get(account.id) : undefined}
+                onMergeInto={viewMode === "active" && !isRepWorkspace() ? handleMergeDevices : undefined}
                 mailSignedIn={mailSignedIds.has(account.id)}
                 onOpenClient={(selectedClient) => setOpenClientId(selectedClient.id)}
                 currencyStore={currencyStore}

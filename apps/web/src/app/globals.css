@@ -12545,3 +12545,29 @@ button.today-tile {
   background: var(--surface);
   border: 1px solid var(--border);
 }
+
+/* ⚠️ a device the operator already has, sent again by a rep */
+.rep-inbox-duplicate {
+  border-color: var(--orange) !important;
+  background: var(--orange-bg) !important;
+}
+
+.rep-inbox-dup-note {
+  color: var(--orange) !important;
+  font-weight: 600;
+}
+
+/* ⚠️ the same device registered twice - tap to merge it into its twin */
+.duplicate-chip {
+  flex: none;
+  padding: 2px 8px;
+  border: 1px solid var(--orange);
+  border-radius: 999px;
+  background: var(--orange-bg);
+  color: var(--orange);
+  font: inherit;
+  font-size: 0.66rem;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}

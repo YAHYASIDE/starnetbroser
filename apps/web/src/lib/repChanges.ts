@@ -12,6 +12,7 @@
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { decryptBackup, encryptBackup, type EncryptedBackup } from "./backupCrypto";
 import type { Client } from "./clientStore";
+import { sameDeviceAs } from "./duplicates";
 import { autoMoveClientToRep, currentRepOfClient } from "./repClients";
 import {
   ACCOUNTS_KEY,
@@ -318,6 +319,9 @@ export interface RepChangeItem {
   /** The device it belongs to, when there is one. */
   accountId?: string;
   parts: RepItemPart[];
+  /** A new device the operator already has (same email or KIT): never installed as a second one -
+   * rejected, or that device linked to the rep instead. */
+  duplicateOf?: { accountId: string; name: string; field: "email" | "kit" };
 }
 
 const OTHER_TITLES: Record<string, string> = {
@@ -376,6 +380,7 @@ export function listRepChangeItems(changes: RepChangeSet, owner: StoreValues): R
       if (String(debt.accountId) === id) parts.push(take(PREVIOUS_DEBTS_KEY, path, debt));
     }
     const name = clientName(account.clientId);
+    const same = sameDeviceAs({ ...(account as unknown as StarlinkAccountSummary), id }, [...ownerAccounts.values()] as unknown as StarlinkAccountSummary[]);
     items.push({
       key: `dev:${id}`,
       kind: "newDevice",
@@ -383,6 +388,7 @@ export function listRepChangeItems(changes: RepChangeSet, owner: StoreValues): R
       detail: [name ? `👤 ${name}` : "", str(account.expectedEmail), ops ? `${ops} عملية معه` : ""].filter(Boolean).join(" · "),
       accountId: id,
       parts,
+      ...(same ? { duplicateOf: { accountId: same.account.id, name: same.account.name || "جهاز", field: same.field } } : {}),
     });
   }
 

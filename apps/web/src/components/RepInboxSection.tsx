@@ -25,10 +25,10 @@ export function RepInboxSection() {
 
   if (views.length === 0) return null;
 
-  async function decide(repId: string, approve: string[], reject: string[]) {
+  async function decide(repId: string, approve: string[], reject: string[], link: string[] = []) {
     setBusy(repId);
     setMessage(null);
-    const result = await decideRepItems(repId, approve, reject);
+    const result = await decideRepItems(repId, approve, reject, link);
     setBusy(null);
     setMessage(result.message);
     await refresh();
@@ -39,15 +39,16 @@ export function RepInboxSection() {
       <h2 className="section-title">📝 تسجيلات المندوبين</h2>
       {message && <p className="settings-hint rep-mode-message">{message}</p>}
       {views.map((view) => (
-        <RepInboxCard key={view.file.id} view={view} busy={busy === view.file.repId} onDecide={(a, r) => void decide(view.file.repId, a, r)} />
+        <RepInboxCard key={view.file.id} view={view} busy={busy === view.file.repId} onDecide={(a, r, l) => void decide(view.file.repId, a, r, l)} />
       ))}
     </section>
   );
 }
 
-function RepInboxCard({ view, busy, onDecide }: { view: RepInboxView; busy: boolean; onDecide: (approve: string[], reject: string[]) => void }) {
+function RepInboxCard({ view, busy, onDecide }: { view: RepInboxView; busy: boolean; onDecide: (approve: string[], reject: string[], link?: string[]) => void }) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
-  const keys = view.items.map((i) => i.key);
+  // A device you already have never goes with «تثبيت الكل» - it's rejected or linked one by one.
+  const keys = view.items.filter((i) => !i.duplicateOf).map((i) => i.key);
   const allSelected = keys.length > 0 && keys.every((k) => selected.has(k));
 
   function toggle(key: string) {
@@ -84,13 +85,18 @@ function RepInboxCard({ view, busy, onDecide }: { view: RepInboxView; busy: bool
           </label>
           <ul className="rep-inbox-items">
             {view.items.map((item) => (
-              <li key={item.key} className={`rep-inbox-item rep-inbox-${item.kind}`}>
+              <li key={item.key} className={`rep-inbox-item rep-inbox-${item.kind}${item.duplicateOf ? " rep-inbox-duplicate" : ""}`}>
                 <label className="rep-inbox-check">
-                  <input type="checkbox" checked={selected.has(item.key)} onChange={() => toggle(item.key)} aria-label={item.title} />
+                  {!item.duplicateOf && <input type="checkbox" checked={selected.has(item.key)} onChange={() => toggle(item.key)} aria-label={item.title} />}
                 </label>
                 <span className="rep-inbox-main">
                   <strong>{item.title}</strong>
                   {item.detail && <small>{item.detail}</small>}
+                  {item.duplicateOf && (
+                    <small className="rep-inbox-dup-note">
+                      ⚠️ مسجّل عندك من قبل: «{item.duplicateOf.name}» ({item.duplicateOf.field === "email" ? "نفس الإيميل" : "نفس رقم KIT"}) - لا يُضاف مرة ثانية
+                    </small>
+                  )}
                 </span>
                 {item.amount && item.amount.value > 0 && (
                   <span className="rep-inbox-amount">
@@ -98,14 +104,38 @@ function RepInboxCard({ view, busy, onDecide }: { view: RepInboxView; busy: bool
                   </span>
                 )}
                 <span className="rep-inbox-buttons">
-                  <button type="button" className="rep-inbox-ok" disabled={busy} onClick={() => onDecide([item.key], [])} aria-label="تثبيت">
-                    ✅
-                  </button>
+                  {item.duplicateOf ? (
+                    <button
+                      type="button"
+                      className="rep-inbox-ok"
+                      disabled={busy}
+                      onClick={() =>
+                        confirmThen(
+                          `ربط جهازك «${item.duplicateOf!.name}» بالمندوب ${view.repName}؟\nلا يُضاف جهاز جديد، وما سجّله المندوب على هذا المكرر لا يُنقل.`,
+                          () => onDecide([], [], [item.key]),
+                        )
+                      }
+                      aria-label="ربط بالجهاز الموجود"
+                    >
+                      🔗
+                    </button>
+                  ) : (
+                    <button type="button" className="rep-inbox-ok" disabled={busy} onClick={() => onDecide([item.key], [])} aria-label="تثبيت">
+                      ✅
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="rep-inbox-no"
                     disabled={busy}
-                    onClick={() => confirmThen(`رفض «${item.title}»؟ يُحذف من هاتف المندوب مع نسخته القادمة.`, () => onDecide([], [item.key]))}
+                    onClick={() =>
+                      confirmThen(
+                        item.duplicateOf
+                          ? `رفض «${item.title}»؟ يُبلَّغ المندوب أنه مسجّل عندك من قبل، ويُحذف من هاتفه مع نسخته القادمة.`
+                          : `رفض «${item.title}»؟ يُحذف من هاتف المندوب مع نسخته القادمة.`,
+                        () => onDecide([], [item.key]),
+                      )
+                    }
                     aria-label="رفض"
                   >
                     ❌

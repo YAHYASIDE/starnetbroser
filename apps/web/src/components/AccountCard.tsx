@@ -75,6 +75,9 @@ interface Props {
   repColor?: string;
   /** 📱 The rep who added this device from his app (approved) - a lasting badge. */
   addedByRepName?: string;
+  /** 🔗 The same device registered again (same email or KIT) - merge this one into it. */
+  twin?: StarlinkAccountSummary;
+  onMergeInto?: (drop: StarlinkAccountSummary, keep: StarlinkAccountSummary) => void;
   /** The general currency registry (see currencyStore.ts) - used only to show a small "≈ X USD"
    * line under a non-USD Starlink balance, when that currency's rate happens to be registered
    * (e.g. via the /currencies page). Never guessed, and never shown at all when no rate is known -
@@ -197,6 +200,8 @@ export function AccountCard({
   onAddPreviousDebt,
   repColor,
   addedByRepName,
+  twin,
+  onMergeInto,
 }: Props) {
   const ledgerBalances = computeBalanceByCurrency(ledgerEntries);
   const serviceStatus = presentServiceStatus(effectiveServiceStatus(account));
@@ -541,6 +546,24 @@ export function AccountCard({
             📱 أضافه {addedByRepName}
             {account.addedByRepAt && <> · <bdi dir="ltr">{account.addedByRepAt.slice(0, 10)}</bdi></>}
           </span>
+        )}
+        {twin && onMergeInto && (
+          <button
+            type="button"
+            className="duplicate-chip"
+            title="نفس الجهاز مسجّل مرتين"
+            onClick={() => {
+              const same = (twin.expectedEmail ?? "").trim().toLowerCase() && (twin.expectedEmail ?? "").trim().toLowerCase() === (account.expectedEmail ?? "").trim().toLowerCase();
+              if (
+                window.confirm(
+                  `⚠️ هذا الجهاز مكرّر مع «${twin.name}» (${same ? "نفس الإيميل" : "نفس رقم KIT"}).\n\nدمج «${account.name}» في «${twin.name}»؟\n• تنتقل شحناته ودفعاته وديونه السابقة إلى «${twin.name}»\n• وما ينقص «${twin.name}» (الزبون، المندوب، الهاتف، الكلمات…) يؤخذ منه\n• ثم يُنقل «${account.name}» إلى سلة المحذوفات\n\nلتبقي هذا بدل الآخر: اضغط «مكرّر» على البطاقة الأخرى.`,
+                )
+              )
+                onMergeInto(account, twin);
+            }}
+          >
+            ⚠️ مكرّر · دمج
+          </button>
         )}
         {repPending && (
           <span className="rep-pending-chip" title="سجّلته أنت - ينتظر تثبيت المسؤول">

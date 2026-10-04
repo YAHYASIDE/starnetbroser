@@ -12,7 +12,8 @@ export interface DuplicateHit {
   field: DuplicateField;
   /** Who already has it: a device name, or a customer name. */
   owner: string;
-  kind: "device" | "client";
+  /** "owner": on the operator's own list (the rep's app only knows it's there - KnownDevices). */
+  kind: "device" | "client" | "owner";
   /** The existing customer's id (client hits) - lets the picker offer "use this one". */
   id?: string;
 }
@@ -62,8 +63,62 @@ export interface DeviceDraft {
   kitNumber?: string;
 }
 
-/** Other (non-deleted) devices already carrying this draft's email, KIT, phone or name. */
-export function findDeviceDuplicates(draft: DeviceDraft, accounts: StarlinkAccountSummary[]): DuplicateHit[] {
+/**
+ * The operator's devices as the rep's app may know them: one-way fingerprints of each device's
+ * emails and KIT (never the email or KIT itself), so a rep typing a device the operator already
+ * has is warned without seeing the operator's other devices.
+ */
+export interface KnownDevices {
+  emails: string[];
+  kits: string[];
+}
+
+/** A short one-way fingerprint (not reversible to the email / KIT). */
+export function deviceFingerprint(value: string): string {
+  let h1 = 0xdeadbeef ^ 7;
+  let h2 = 0x41c6ce57 ^ 7;
+  const text = `starnet|${value}`;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+}
+
+/** Fingerprints of the operator's (non-deleted) devices, minus `except` (the rep's own). */
+export function knownDevicesOf(accounts: StarlinkAccountSummary[], except: Set<string>): KnownDevices {
+  const emails = new Set<string>();
+  const kits = new Set<string>();
+  for (const a of accounts) {
+    if (a.deletedAt || except.has(a.id)) continue;
+    for (const e of deviceEmails(a)) emails.add(deviceFingerprint(e));
+    const k = kit(a.kitNumber);
+    if (k.length >= 4) kits.add(deviceFingerprint(k));
+  }
+  return { emails: [...emails], kits: [...kits] };
+}
+
+/** Which of the operator's devices (non-deleted, not `id`) is the same device: same email or KIT. */
+export function sameDeviceAs(
+  draft: Pick<StarlinkAccountSummary, "expectedEmail" | "starlinkAccountEmail" | "extraEmails" | "kitNumber"> & { id?: string },
+  accounts: StarlinkAccountSummary[],
+): { account: StarlinkAccountSummary; field: "email" | "kit" } | null {
+  const emails = new Set(deviceEmails(draft));
+  const draftKit = kit(draft.kitNumber);
+  for (const a of accounts) {
+    if (a.id === draft.id || a.deletedAt) continue;
+    if (emails.size && deviceEmails(a).some((e) => emails.has(e))) return { account: a, field: "email" };
+    if (draftKit.length >= 4 && kit(a.kitNumber) === draftKit) return { account: a, field: "kit" };
+  }
+  return null;
+}
+
+/** Other (non-deleted) devices already carrying this draft's email, KIT, phone or name - and, in
+ * the rep's app, the operator's devices it only knows by fingerprint. */
+export function findDeviceDuplicates(draft: DeviceDraft, accounts: StarlinkAccountSummary[], known?: KnownDevices): DuplicateHit[] {
   const others = accounts.filter((a) => a.id !== draft.id && !a.deletedAt);
   const hits: DuplicateHit[] = [];
   const add = (field: DuplicateField, owner: string) => {
@@ -78,6 +133,12 @@ export function findDeviceDuplicates(draft: DeviceDraft, accounts: StarlinkAccou
     if (draftKit.length >= 4 && kit(a.kitNumber) === draftKit) add("kit", a.name);
     if (draftPhone && phoneKey(a.phone) === draftPhone) add("phone", a.name);
     if (draftName.length >= 3 && foldName(a.name) === draftName) add("name", a.name);
+  }
+  // The rep's own devices aren't among the fingerprints, so editing one never warns.
+  if (known) {
+    const knownEmails = new Set(known.emails);
+    if ([...emails].some((e) => knownEmails.has(deviceFingerprint(e)))) hits.push({ field: "email", owner: "المسؤول", kind: "owner" });
+    if (draftKit.length >= 4 && known.kits.includes(deviceFingerprint(draftKit))) hits.push({ field: "kit", owner: "المسؤول", kind: "owner" });
   }
   return hits;
 }
@@ -96,6 +157,7 @@ export function findClientDuplicates(draft: { id?: string; name: string; phone?:
 }
 
 export function duplicateLine(hit: DuplicateHit): string {
+  if (hit.kind === "owner") return `${DUPLICATE_FIELD_LABELS[hit.field]} مسجّل عند المسؤول على جهاز آخر - قد يكون الجهاز مسجّلاً من قبل`;
   return `${DUPLICATE_FIELD_LABELS[hit.field]} مسجل من قبل ${hit.kind === "device" ? "على الجهاز" : "للزبون"} «${hit.owner}»`;
 }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { WrongPasswordError } from "./backupCrypto";
-import { loadDemoAccounts } from "./demoAccountStore";
+import { loadDemoAccounts, saveDemoAccounts } from "./demoAccountStore";
 import { demoAccounts } from "./demoData";
 import { importAccountSessions } from "./localBrowser";
 import {
@@ -130,7 +130,7 @@ export async function openRepInbox(): Promise<RepInboxView[]> {
  * their Starlink sessions and «📱 أضافه المندوب»), every decision is remembered for that exact
  * version, the rep is told, and he gets a fresh copy - his ⏳ marks clear, rejected ones leave.
  */
-export async function decideRepItems(repId: string, approveKeys: string[], rejectKeys: string[]): Promise<{ ok: boolean; message: string }> {
+export async function decideRepItems(repId: string, approveKeys: string[], rejectKeys: string[], linkKeys: string[] = []): Promise<{ ok: boolean; message: string }> {
   const inbox = loadRepInbox();
   const file = inbox.files.find((f) => f.repId === repId);
   const rep = loadRepresentativeStore()[repId];
@@ -143,9 +143,17 @@ export async function decideRepItems(repId: string, approveKeys: string[], rejec
   }
   const decisions = inbox.decisions[repId] ?? {};
   const items = waiting(payload, decisions);
-  const approved = items.filter((i) => approveKeys.includes(i.key));
-  const rejected = items.filter((i) => rejectKeys.includes(i.key) && !approveKeys.includes(i.key));
+  // A device the operator already has is never installed a second time.
+  const approved = items.filter((i) => approveKeys.includes(i.key) && !i.duplicateOf);
+  // «🔗 ربط»: the operator's own device goes to this rep; the duplicate itself is dropped.
+  const linked = items.filter((i) => linkKeys.includes(i.key) && i.duplicateOf && !approveKeys.includes(i.key));
+  const rejected = items.filter((i) => (rejectKeys.includes(i.key) || linked.includes(i)) && !approved.includes(i));
   if (approved.length === 0 && rejected.length === 0) return { ok: false, message: "اختر تسجيلاً أولاً" };
+
+  if (linked.length > 0) {
+    const ids = new Set(linked.map((i) => i.duplicateOf!.accountId));
+    saveDemoAccounts(loadDemoAccounts(demoAccounts).map((a) => (ids.has(a.id) ? { ...a, representativeId: repId } : a)));
+  }
 
   if (approved.length > 0) {
     const result = applyRepChangeSet(readStores(), changeSetOf(payload.changes, approved), repId);
@@ -173,11 +181,18 @@ export async function decideRepItems(repId: string, approveKeys: string[], rejec
   const copy = await sendRepCopy(rep, loadDemoAccounts(demoAccounts));
   const lines = [
     approved.length ? `✅ ثبّت المسؤول: ${describeItems(approved)}` : "",
-    rejected.length ? `❌ رفض: ${rejected.map((i) => i.title).join("، ")}` : "",
+    linked.length ? `🔗 الجهاز مسجّل عند المسؤول من قبل، وأصبح في قائمتك: ${linked.map((i) => i.duplicateOf!.name).join("، ")}` : "",
+    rejected.filter((i) => !linked.includes(i)).length
+      ? `❌ رفض: ${rejected
+          .filter((i) => !linked.includes(i))
+          .map((i) => (i.duplicateOf ? `${i.title} (مسجّل عند المسؤول من قبل)` : i.title))
+          .join("، ")}`
+      : "",
     left ? `⏳ ما زال ${left} بانتظار المسؤول` : "",
     copy.ok ? "📋 وصلتك نسخة جديدة - افتحها." : "",
   ].filter(Boolean);
   await sendRepText(repId, lines.join("\n"));
-  const parts = [approved.length ? `✓ ثُبّت ${approved.length}` : "", rejected.length ? `رُفض ${rejected.length}` : "", left ? `بقي ${left}` : ""].filter(Boolean);
+  const notLinked = rejected.length - linked.length;
+  const parts = [approved.length ? `✓ ثُبّت ${approved.length}` : "", linked.length ? `🔗 رُبط ${linked.length}` : "", notLinked ? `رُفض ${notLinked}` : "", left ? `بقي ${left}` : ""].filter(Boolean);
   return { ok: true, message: `${parts.join(" · ")}${copy.ok ? "" : ` - لم تُرسل له نسخة جديدة: ${copy.message}`}` };
 }

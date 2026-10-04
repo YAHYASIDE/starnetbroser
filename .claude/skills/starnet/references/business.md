@@ -155,6 +155,20 @@ mind). Exact texts and numbers live in the code - this file says where.
 - Owner-only: store, «ستارلينك والبطاقة», archive, trash, backup, Telegram settings, «حسابي».
 - After a new APK, the operator sends the rep a fresh copy so shared data (business profile…) updates.
 
+## Duplicate devices (same email or KIT)
+
+- **Rep's app: warning only, he can still send** (his choice). His copy carries `known`: one-way
+  fingerprints of the operator's other devices' emails/KITs (`knownDevicesOf`, `deviceFingerprint`
+  in `lib/duplicates.ts`) - never the emails themselves; his add dialog says «مسجّل عند المسؤول».
+- **Owner's «تسجيلات المندوبين»:** a new device that matches one he has (`duplicateOf`, computed
+  in `listRepChangeItems`) is **never installed as a second device**: no ✅, not in «تثبيت الكل»;
+  ❌ rejects it (the rep is told «مسجّل عند المسؤول من قبل») or 🔗 links the operator's existing
+  device to that rep instead (`decideRepItems(..., linkKeys)`).
+- **Existing duplicates:** «⚠️ مكرّر · دمج» on the card (`deviceTwins`); merging moves the
+  duplicate's operations, allocations and previous debts to its twin, fills what the twin lacks
+  (customer, rep, phone, KIT, passwords, monthly price…) and sends the duplicate to the trash
+  (`lib/deviceMerge.ts`). The card pressed is the one merged away.
+
 ## Sync decisions (details in the `starnet-browsers` skill)
 
 - Background sync (invisible overlay WebView) when enabled; otherwise the visible auto-sync.

@@ -12,6 +12,7 @@
  */
 
 import type { StarlinkAccountSummary } from "@starnet/shared";
+import { knownDevicesOf, type KnownDevices } from "./duplicates";
 import { decryptBackup, encryptBackup, WrongPasswordError, type EncryptedBackup } from "./backupCrypto";
 import { boundCopyKey } from "./repDeviceTransfer";
 import { computeBalanceByCurrency, type LedgerByAccount, type LedgerEntry } from "./ledgerStore";
@@ -41,6 +42,8 @@ export interface RepCopy {
   stores?: Record<string, unknown>;
   /** store|path -> version: his recordings the operator rejected (his phone drops them). */
   rejected?: Record<string, string>;
+  /** The operator's other devices, as fingerprints only - his add dialog warns on a duplicate. */
+  known?: KnownDevices;
 }
 
 export interface RepCopyPayload extends RepCopy {
@@ -81,6 +84,7 @@ export function buildRepCopy(input: RepCopyInput): RepCopy {
     sentAt: (input.now ?? new Date()).toISOString(),
     devices,
     rates: input.rates,
+    known: knownDevicesOf(input.accounts, new Set(devices.map((d) => d.account.id))),
   };
 }
 

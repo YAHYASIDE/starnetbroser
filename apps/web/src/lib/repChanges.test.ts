@@ -221,3 +221,32 @@ describe("rep's own customers: everything on the rep", () => {
     expect((stores[CLIENTS_KEY] as Record<string, Record<string, unknown>>).c2!.repSegments).toEqual([{ repId: "r1", from: "2026-10-02T10:00:00.000Z", carry: true }]);
   });
 });
+
+describe("a new device the operator already has", () => {
+  it("is flagged with the operator's device (same email or KIT), never as a plain new one", () => {
+    const owner = {
+      [ACCOUNTS_KEY]: [
+        { id: "o1", name: "Owner Dish", expectedEmail: "same@example.com", kitNumber: "" },
+        { id: "o2", name: "Owner Dish 2", kitNumber: "KIT99998888" },
+        { id: "o3", name: "Gone", expectedEmail: "gone@example.com", deletedAt: "2026-10-01" },
+      ],
+    };
+    const changes = {
+      [ACCOUNTS_KEY]: {
+        set: {
+          n1: { id: "n1", name: "منزل", expectedEmail: "SAME@example.com" },
+          n2: { id: "n2", name: "Other", kitNumber: "kit-9999-8888" },
+          n3: { id: "n3", name: "Fresh", expectedEmail: "new@example.com" },
+          n4: { id: "n4", name: "Back", expectedEmail: "gone@example.com" },
+        },
+        removed: [],
+      },
+    };
+    const items = listRepChangeItems(changes, owner);
+    const dup = Object.fromEntries(items.map((i) => [i.accountId, i.duplicateOf]));
+    expect(dup.n1).toEqual({ accountId: "o1", name: "Owner Dish", field: "email" });
+    expect(dup.n2).toEqual({ accountId: "o2", name: "Owner Dish 2", field: "kit" });
+    expect(dup.n3).toBeUndefined();
+    expect(dup.n4).toBeUndefined();
+  });
+});

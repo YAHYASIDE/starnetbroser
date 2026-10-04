@@ -19,6 +19,8 @@ import { usedPasswords } from "@/lib/usedPasswords";
 import { buildCreatedAccount, creationProblem } from "@/lib/accountCreation";
 import { DuplicateWarning, FieldDuplicate } from "./DuplicateWarning";
 import { duplicateQuestion, findDeviceDuplicates } from "@/lib/duplicates";
+import { loadRepCopy } from "@/lib/repCopy";
+import { isRepWorkspace } from "@/lib/repMode";
 import { RepresentativePicker } from "./RepresentativePicker";
 import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS } from "@/lib/ledgerStore";
 import { validateRenewalPlan } from "@/lib/renewalPlan";
@@ -205,9 +207,14 @@ export function AccountDialog({
   }
 
   const extraEmails = draft.extraEmails ?? [];
+  // In the rep's app: the operator's other devices, known only by fingerprint (his copy).
+  const knownDevices = useMemo(() => (isRepWorkspace() ? loadRepCopy()?.known : undefined), []);
   const duplicates = useMemo(
-    () => (isView ? [] : findDeviceDuplicates({ id: draft.id, name: draft.name, phone: draft.phone, expectedEmail: draft.expectedEmail, extraEmails, kitNumber: draft.kitNumber }, existingAccounts)),
-    [isView, draft.id, draft.name, draft.phone, draft.expectedEmail, extraEmails, draft.kitNumber, existingAccounts],
+    () =>
+      isView
+        ? []
+        : findDeviceDuplicates({ id: draft.id, name: draft.name, phone: draft.phone, expectedEmail: draft.expectedEmail, extraEmails, kitNumber: draft.kitNumber }, existingAccounts, knownDevices),
+    [isView, draft.id, draft.name, draft.phone, draft.expectedEmail, extraEmails, draft.kitNumber, existingAccounts, knownDevices],
   );
 
   function updateExtraEmail(index: number, field: "address" | "password", value: string) {
