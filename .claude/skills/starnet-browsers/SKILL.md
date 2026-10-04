@@ -29,6 +29,12 @@ plus the rules learned from real misreads; keep it updated when you learn a new 
      then each page is **read until it settles** (`SettleTracker`), Subscriptions → subscription →
      «الأجهزة» (waits for a colored dot) → Billing → Settings → Home (banners: never final before
      3.5 s). After a tap a read only counts once the page changed.
+   - `BackgroundSyncService.java` + `SyncRunner.java` - 🌙 «المزامنة في الخلفية» (settings toggle,
+     `starnet.backgroundSync`): one device after another, each WebView in an **invisible, untouchable
+     overlay window** («الظهور فوق التطبيقات» permission) so Starlink's page really draws. SyncRunner is
+     a copy of the device browser's walk - **any change to `syncFromStarlink`'s steps or waits must be
+     made in SyncRunner too**. Progress notification with «إيقاف»; signed-out alert + per-device report
+     on the owner bot (`BackgroundSyncReport`).
    - `AutoSyncWorker.java` - background sync. A run over many devices reads Home only (pace +
      Starlink's 429 rate limit, `SyncPacing`), plus Billing once a week per device; a single device's
      own run does the deep walk (subscriptions, devices, billing, settings).

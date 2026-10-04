@@ -492,6 +492,14 @@ export interface LocalBrowserPlugin {
   /** 🔄 How each auto-sync ended since the last call («تحديث من Starlink» / «مزامنة الآن») - and
    * forgets them. Empty on web. */
   takeAutoSyncResults(): Promise<{ results: AutoSyncResult[] }>;
+  /** 🔄 Background sync can run (the «الظهور فوق التطبيقات» permission is granted). */
+  backgroundSyncStatus(): Promise<{ canRun: boolean }>;
+  /** Opens Android's «الظهور فوق التطبيقات» page for STAR NET. */
+  openOverlaySettings(): Promise<void>;
+  /** 🔄 «مزامنة الآن» fully in the background, one device after another; `started` false when the
+   * permission is missing. Progress is a notification with «إيقاف»; the report goes to the bot. */
+  startBackgroundSync(options: { accounts: { accountId: string; accountName: string }[]; label?: string }): Promise<{ started: boolean }>;
+  stopBackgroundSync(): Promise<void>;
 
   /**
    * Discards the given syncIds so listPendingAccountSyncs stops returning them. Only call this

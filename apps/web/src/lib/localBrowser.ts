@@ -175,6 +175,61 @@ export async function openAutoSync(account: StarlinkAccountSummary, label?: stri
   }
 }
 
+// ---- 🔄 Sync fully in the background (BackgroundSyncService) ----
+
+const BACKGROUND_SYNC_KEY = "starnet.backgroundSync";
+
+/** The operator chose to sync in the background (settings) - phone-only choice, not backed up. */
+export function isBackgroundSyncEnabled(): boolean {
+  try {
+    return window.localStorage.getItem(BACKGROUND_SYNC_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function setBackgroundSyncEnabled(enabled: boolean): void {
+  try {
+    if (enabled) window.localStorage.setItem(BACKGROUND_SYNC_KEY, "1");
+    else window.localStorage.removeItem(BACKGROUND_SYNC_KEY);
+  } catch {
+    // storage unavailable - stays off
+  }
+}
+
+/** «الظهور فوق التطبيقات» is granted (the background sync can run). */
+export async function backgroundSyncCanRun(): Promise<boolean> {
+  if (!isRunningInAndroidApp()) return false;
+  try {
+    return (await LocalBrowser.backgroundSyncStatus()).canRun;
+  } catch {
+    return false;
+  }
+}
+
+export async function openOverlaySettings(): Promise<void> {
+  if (!isRunningInAndroidApp()) return;
+  try {
+    await LocalBrowser.openOverlaySettings();
+  } catch {
+    // nothing to open
+  }
+}
+
+/** Starts the background sync of these devices; false when it can't (permission missing, web). */
+export async function startBackgroundSync(accounts: { id: string; name: string }[], label: string): Promise<boolean> {
+  if (!isRunningInAndroidApp() || accounts.length === 0) return false;
+  try {
+    const { started } = await LocalBrowser.startBackgroundSync({
+      accounts: accounts.map((a) => ({ accountId: a.id, accountName: a.name || "" })),
+      label,
+    });
+    return started;
+  } catch {
+    return false;
+  }
+}
+
 /** 🔄 How each auto-sync ended since the last call - and forgets them ([] on web). */
 export async function takeAutoSyncResults(): Promise<{ accountId: string; outcome: "ok" | "nothing" | "saveFailed" | "signedOut" | "stuck" | "closed" }[]> {
   if (!isRunningInAndroidApp()) return [];

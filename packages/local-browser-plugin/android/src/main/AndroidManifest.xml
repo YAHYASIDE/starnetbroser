@@ -19,6 +19,9 @@
     <!-- 📷 Starlink's identity check in a device's browser («التقاط صورة» / a proof photo). Asked
          only the first time a Starlink page needs it (AccountBrowserActivity, CameraAccess). -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- 🔄 Background sync: each device's page is drawn in an invisible, untouchable window
+         (BackgroundSyncService) - the operator grants «الظهور فوق التطبيقات» once. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <!-- Lets the file chooser find the camera app (package visibility, Android 11+). -->
     <queries>
@@ -116,6 +119,16 @@
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
+        </service>
+
+        <!-- 🔄 «مزامنة الآن» fully in the background, one device after another. -->
+        <service
+            android:name="com.starnetbroser.localbrowser.BackgroundSyncService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Reads the operator's own Starlink accounts in the background when he starts a sync" />
         </service>
 
         <!-- 📷 Where the camera app saves a proof photo taken from a device's browser. -->

@@ -129,6 +129,8 @@ import {
   drainKastDeposits,
   openAutoSync,
   takeAutoSyncResults,
+  isBackgroundSyncEnabled,
+  startBackgroundSync,
   triggerImmediateSync,
 } from "@/lib/localBrowser";
 import { SyncChoiceSheet, SyncQueueBar } from "./SyncNowSheet";
@@ -523,6 +525,22 @@ export function HomeView({
     }
   }
 
+  /** 🌙 The operator chose the background sync (settings): the devices are read without opening
+   * their pages. Returns false when it can't run (permission missing) - the visible run is used. */
+  async function trySyncInBackground(ids: string[], label: string): Promise<boolean> {
+    if (!isBackgroundSyncEnabled()) return false;
+    const list = ids
+      .map((id) => accountsRef.current.find((a) => a.id === id))
+      .filter((a): a is StarlinkAccountSummary => Boolean(a))
+      .map((a) => ({ id: a.id, name: a.name }));
+    if (await startBackgroundSync(list, label)) {
+      pushToast(`🌙 بدأت المزامنة في الخلفية (${list.length} جهاز) - تابعها في الإشعار، والنتيجة في البوت`);
+      return true;
+    }
+    pushToast("⚠️ اسمح بـ«الظهور فوق التطبيقات» من الإعدادات لتعمل المزامنة في الخلفية - تعمل الآن بالطريقة العادية");
+    return false;
+  }
+
   function startSyncRun(window: SyncWindow) {
     setSyncChoiceOpen(false);
     const queue = startSyncQueue(accountsRef.current, window, localToday());
@@ -530,6 +548,12 @@ export function HomeView({
       pushToast("لا توجد أجهزة في هذا الاختيار");
       return;
     }
+    void trySyncInBackground(queue.ids, queue.label).then((background) => {
+      if (!background) startVisibleRun(queue);
+    });
+  }
+
+  function startVisibleRun(queue: NonNullable<ReturnType<typeof loadSyncQueue>>) {
     // Results of earlier single syncs aren't this run's.
     void takeAutoSyncResults().then(() => {
       saveSyncQueue(queue);
@@ -547,9 +571,8 @@ export function HomeView({
     const queue = syncQueueFor(ids, `يوم ${day}`);
     if (!queue) pushToast("لا أجهزة للمزامنة في هذا اليوم (المعطلة والإيميل غير الرئيسي بأمر فقط)");
     if (!queue) return;
-    void takeAutoSyncResults().then(() => {
-      saveSyncQueue(queue);
-      void runNextQueued();
+    void trySyncInBackground(queue.ids, queue.label).then((background) => {
+      if (!background) startVisibleRun(queue);
     });
   }
 

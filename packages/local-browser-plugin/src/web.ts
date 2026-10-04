@@ -71,6 +71,22 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
     return { results: [] };
   }
 
+  async backgroundSyncStatus(): Promise<{ canRun: boolean }> {
+    return { canRun: false };
+  }
+
+  async openOverlaySettings(): Promise<void> {
+    return;
+  }
+
+  async startBackgroundSync(_options: { accounts: { accountId: string; accountName: string }[]; label?: string }): Promise<{ started: boolean }> {
+    return { started: false };
+  }
+
+  async stopBackgroundSync(): Promise<void> {
+    return;
+  }
+
   async ackPendingAccountSyncs(_options: AckPendingAccountSyncsOptions): Promise<AckPendingAccountSyncsResult> {
     return { acked: true };
   }

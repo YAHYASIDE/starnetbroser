@@ -712,6 +712,65 @@ public class LocalBrowserPlugin extends Plugin {
      * accountDataSynced event, which is lost whenever this Activity's Bridge/WebView wasn't
      * attached and resumed at the moment AccountBrowserActivity fired it.
      */
+    /** 🔄 Background sync needs «الظهور فوق التطبيقات» (BackgroundSyncService). */
+    @PluginMethod
+    public void backgroundSyncStatus(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("canRun", BackgroundSyncService.canRun(getContext()));
+        call.resolve(ret);
+    }
+
+    /** Opens Android's «الظهور فوق التطبيقات» page for STAR NET. */
+    @PluginMethod
+    public void openOverlaySettings(PluginCall call) {
+        try {
+            Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getContext().getPackageName()));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            call.resolve();
+        } catch (RuntimeException e) {
+            call.reject("تعذر فتح الإعدادات");
+        }
+    }
+
+    /** 🔄 «مزامنة الآن» in the background: these devices, one after another (BackgroundSyncService). */
+    @PluginMethod
+    public void startBackgroundSync(PluginCall call) {
+        JSArray accounts = call.getArray("accounts");
+        if (accounts == null || accounts.length() == 0) {
+            call.reject("لا أجهزة");
+            return;
+        }
+        String[] ids = new String[accounts.length()];
+        String[] names = new String[accounts.length()];
+        for (int i = 0; i < accounts.length(); i++) {
+            JSONObject account = accounts.optJSONObject(i);
+            ids[i] = account != null ? account.optString("accountId", null) : null;
+            names[i] = account != null ? account.optString("accountName", "") : "";
+        }
+        JSObject ret = new JSObject();
+        if (!BackgroundSyncService.canRun(getContext())) {
+            ret.put("started", false);
+            call.resolve(ret);
+            return;
+        }
+        BackgroundSyncService.start(getContext(), ids, names, call.getString("label", ""));
+        ret.put("started", true);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void stopBackgroundSync(PluginCall call) {
+        Intent intent = new Intent(getContext(), BackgroundSyncService.class).setAction(BackgroundSyncService.ACTION_STOP);
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) getContext().startForegroundService(intent);
+            else getContext().startService(intent);
+        } catch (RuntimeException ignored) {
+            // not running
+        }
+        call.resolve();
+    }
+
     /** 🔄 How each auto-sync ended since the last call (AutoSyncResults) - and forgets them. */
     @PluginMethod
     public void takeAutoSyncResults(PluginCall call) {

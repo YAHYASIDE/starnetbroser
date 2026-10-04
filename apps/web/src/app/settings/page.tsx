@@ -73,6 +73,10 @@ import {
   openIsolatedAccountBrowser,
   openNotificationSettings,
   isAutoSyncEnabled,
+  isBackgroundSyncEnabled,
+  setBackgroundSyncEnabled,
+  backgroundSyncCanRun,
+  openOverlaySettings,
   setAutoSyncEnabled,
 } from "@/lib/localBrowser";
 import {
@@ -396,6 +400,7 @@ export default function SettingsPage() {
                 <section className="section">
                   <h2 className="section-title">🔄 تحديث الأجهزة من Starlink</h2>
                   <AutoSyncSettings />
+                  <BackgroundSyncSettings />
                 </section>
               ) : (
                 <p className="settings-hint">المزامنة التلقائية تعمل داخل تطبيق أندرويد فقط.</p>
@@ -1858,6 +1863,55 @@ function AutoSyncSettings() {
       <p className="settings-hint">
         عندما يكتشف التطبيق أن Starlink أوقف جهازاً يصلك إشعار واحد بكل الأجهزة التي توقفت. الأجهزة
         تُحدَّث واحداً بعد واحد مع استراحة حتى لا يوقفك Starlink بخطأ 429.
+      </p>
+    </div>
+  );
+}
+
+/** 🔄 المزامنة في الخلفية - «مزامنة الآن», the day menu and the card's «تحديث من Starlink» read the
+ * devices without opening their pages (BackgroundSyncService), once «الظهور فوق التطبيقات» is allowed. */
+function BackgroundSyncSettings() {
+  const [enabled, setEnabled] = useState(false);
+  const [canRun, setCanRun] = useState<boolean | null>(null);
+  useEffect(() => {
+    setEnabled(isBackgroundSyncEnabled());
+    const check = () => void backgroundSyncCanRun().then(setCanRun);
+    check();
+    // Back from Android's permission page.
+    window.addEventListener("focus", check);
+    document.addEventListener("visibilitychange", check);
+    return () => {
+      window.removeEventListener("focus", check);
+      document.removeEventListener("visibilitychange", check);
+    };
+  }, []);
+
+  return (
+    <div className="morning-digest-settings">
+      <label className="toggle-switch-row">
+        <span>🌙 المزامنة في الخلفية (بدون فتح الصفحات)</span>
+        <span className={`toggle-switch${enabled ? " toggle-switch-on" : ""}`}>
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={(e) => {
+              setEnabled(e.target.checked);
+              setBackgroundSyncEnabled(e.target.checked);
+              if (e.target.checked && canRun === false) void openOverlaySettings();
+            }}
+          />
+          <span className="toggle-switch-thumb" />
+        </span>
+      </label>
+      {enabled && canRun === false && (
+        <button type="button" className="dialog-primary" onClick={() => void openOverlaySettings()}>
+          اسمح بـ«الظهور فوق التطبيقات»
+        </button>
+      )}
+      {enabled && canRun && <span className="settings-hint">✓ الإذن ممنوح - المزامنة تعمل في الخلفية</span>}
+      <p className="settings-hint">
+        «مزامنة الآن» وأيام التقويم و«تحديث من Starlink» تقرأ الأجهزة دون أن تظهر صفحاتها: إشعار
+        «🔄 3 / 10» مع «إيقاف»، والنتيجة في البوت. الشاشة تبقى مضاءة حتى تنتهي.
       </p>
     </div>
   );

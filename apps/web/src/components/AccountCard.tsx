@@ -23,7 +23,7 @@ import { formatAmount } from "@/lib/formatAmount";
 import { PaymentAllocation } from "@/lib/paymentAllocationStore";
 import { Client } from "@/lib/clientStore";
 import { isGmail } from "@/lib/mailboxes";
-import { isRunningInAndroidApp, mailExtrasFor, mailLoginFor, openAccountCreation, openCancelSubscription, openIsolatedAccountBrowser, openAutoSync, openIsolatedMailbox, starlinkLoginFor } from "@/lib/localBrowser";
+import { isRunningInAndroidApp, mailExtrasFor, mailLoginFor, openAccountCreation, openCancelSubscription, openIsolatedAccountBrowser, isBackgroundSyncEnabled, openAutoSync, openIsolatedMailbox, startBackgroundSync, starlinkLoginFor } from "@/lib/localBrowser";
 import { cancelConfirmQuestion, cancellationState, cancelledMessage } from "@/lib/subscriptionCancel";
 import {
   buildAccountStatementMessage,
@@ -329,6 +329,9 @@ export function AccountCard({
     if (syncingCard) return;
     setSyncingCard(true);
     try {
+      // 🌙 In the background when the operator chose it (settings) - a notification shows it; else
+      // (or without the permission) the device's browser opens and syncs by itself.
+      if (isBackgroundSyncEnabled() && (await startBackgroundSync([{ id: account.id, name: account.name }], account.name || ""))) return;
       const result = await openAutoSync(account);
       if (!result.ok) {
         window.alert(result.message);
