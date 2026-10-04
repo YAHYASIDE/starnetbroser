@@ -122,7 +122,9 @@ function repMoreItems(inApp: boolean): MoreItem[] {
     { label: "إضافة حساب", icon: "plus", color: "#2f80ff", tint: "#d6e6ff", action: "add-account" },
     ...(inApp ? [{ label: "مزامنة الآن", icon: "sync" as const, color: "#10b8cc", tint: "#d2f4f8", action: "sync" as const }] : []),
     { label: "دفعة سريعة", icon: "coins", color: "#0e9f6e", tint: "#dcf5ea", href: "/tools#pay" },
+    { label: "خطة اليوم", icon: "tools", color: "#0e9f6e", tint: "#dcf5ea", href: "/tools#today" },
     { label: "وعود الدفع", icon: "coins", color: "#7c3aed", tint: "#efe7ff", href: "/tools#promises" },
+    { label: "التقارير", icon: "chart", color: "#1668e3", tint: "#d6e3fb", href: "/reports" },
     { label: "العملات", icon: "coins", color: "#22c55e", tint: "#d4f7e1", href: "/currencies" },
     { label: "البريد المسجّل", icon: "mail", color: "#0891b2", tint: "#dbf3f9", href: "/mailboxes" },
     { label: "📱 أجهزة للإرسال", icon: "handshake", color: "#f97316", tint: "#ffe4cc", event: REP_SENDER_EVENT },
@@ -133,6 +135,7 @@ function repMoreItems(inApp: boolean): MoreItem[] {
 /** The rep's top «المزيد». */
 const REP_TOP_MORE_ITEMS: MoreItem[] = [
   { label: "📊 تقاريري", icon: "chart", color: "#1668e3", tint: "#d6e3fb", href: "/representatives" },
+  { label: "📈 التقارير", icon: "chart", color: "#1668e3", tint: "#d6e3fb", href: "/reports" },
   { label: "الأدوات والتوقعات", icon: "tools", color: "#8b5cf6", tint: "#ece4ff", href: "/tools" },
   { label: "العملات", icon: "coins", color: "#22c55e", tint: "#d4f7e1", href: "/currencies" },
   { label: "البريد المسجّل", icon: "mail", color: "#0891b2", tint: "#dbf3f9", href: "/mailboxes" },

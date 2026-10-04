@@ -246,10 +246,16 @@ export function rebaseWorkspace(
   nextBase: StoreValues,
   /** store|path -> the version the operator rejected: dropped here unless changed again since. */
   rejected: Record<string, string> = {},
+  /** The rep edited his own business profile (name, numbers, payment methods): it stays. */
+  keepOwnProfile = false,
 ): StoreValues {
   const result: StoreValues = {};
   for (const { key, shape } of REP_STORES) {
     if (!(key in nextBase)) continue;
+    if (key === PROFILE_KEY && keepOwnProfile && current[PROFILE_KEY] != null) {
+      result[key] = current[PROFILE_KEY];
+      continue;
+    }
     if (shape === "value" || !oldBase) {
       result[key] = nextBase[key];
       continue;
@@ -359,7 +365,7 @@ export function hasRepWorkspace(): boolean {
 
 /** Applies a new copy's stores, keeping the rep's pending changes. False when storage is full. */
 export function applyRepWorkspace(nextBase: StoreValues, rejected: Record<string, string> = {}): boolean {
-  const merged = rebaseWorkspace(readStores(), loadRepBase(), nextBase, rejected);
+  const merged = rebaseWorkspace(readStores(), loadRepBase(), nextBase, rejected, hasOwnRepProfile());
   try {
     for (const [key, value] of Object.entries(merged)) {
       if (value === null || value === undefined) window.localStorage.removeItem(key);
@@ -372,11 +378,32 @@ export function applyRepWorkspace(nextBase: StoreValues, rejected: Record<string
   }
 }
 
+const OWN_PROFILE_KEY = "starnet.repOwnProfile";
+
+/** The rep saved his own «بيانات النشاط»: a new copy from the operator no longer replaces it. */
+export function hasOwnRepProfile(): boolean {
+  try {
+    return window.localStorage.getItem(OWN_PROFILE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function setOwnRepProfile(own: boolean): void {
+  try {
+    if (own) window.localStorage.setItem(OWN_PROFILE_KEY, "1");
+    else window.localStorage.removeItem(OWN_PROFILE_KEY);
+  } catch {
+    // storage unavailable - the operator's profile simply applies
+  }
+}
+
 /** Leaving rep mode clears the workspace (the operator's data must not stay on the phone). */
 export function clearRepWorkspace(): void {
   try {
     for (const { key } of REP_STORES) window.localStorage.removeItem(key);
     window.localStorage.removeItem(BASE_KEY);
+    window.localStorage.removeItem(OWN_PROFILE_KEY);
   } catch {
     // nothing stored
   }

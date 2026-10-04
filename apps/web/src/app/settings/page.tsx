@@ -1,6 +1,7 @@
 "use client";
 
 import { exitRepMode, isRepWorkspace } from "@/lib/repMode";
+import { hasOwnRepProfile, setOwnRepProfile } from "@/lib/repWorkspace";
 import { askDeleteCode } from "@/components/DeleteCodePrompt";
 import { groupForHash, loadRememberedGroup, rememberGroup, SETTINGS_GROUPS, type SettingsGroupId } from "@/lib/settingsGroups";
 import { RepExtraBotsSettings } from "@/components/RepExtraBotsSettings";
@@ -231,6 +232,23 @@ export default function SettingsPage() {
           </div>
         </section>
         <AppLockSection />
+        <section className="section">
+          <h2 className="section-title">🔄 المزامنة</h2>
+          <BackgroundSyncSettings />
+        </section>
+        <section className="section">
+          <h2 className="section-title">🔔 الإشعارات</h2>
+          <MorningDigestSettings />
+          <EveningSummarySettings />
+          {isAndroidApp && (
+            <div className="settings-actions" style={{ marginTop: "12px" }}>
+              <button className="btn-icon" onClick={() => openNotificationSettings()}>
+                إعدادات إشعارات التطبيق (النظام)
+              </button>
+            </div>
+          )}
+        </section>
+        <BusinessProfileSection rep />
         <AppUpdateSection />
         <section className="section">
           <h2 className="section-title">📱 وضع المندوب</h2>
@@ -1223,8 +1241,11 @@ function SessionCheckSection() {
   );
 }
 
-/** اسم النشاط وهاتفه وعنوانه - تظهر في رأس كل كشف أو فاتورة PDF. */
-function BusinessProfileSection() {
+/** اسم النشاط وهاتفه وعنوانه - تظهر في رأس كل كشف أو فاتورة PDF. On a rep's phone, saving it
+ * makes it his own: a new copy from the operator no longer replaces it (repWorkspace.ts). */
+function BusinessProfileSection({ rep = false }: { rep?: boolean }) {
+  const [own, setOwn] = useState(false);
+  useEffect(() => setOwn(rep && hasOwnRepProfile()), [rep]);
   const [profile, setProfile] = useState<BusinessProfile>({ name: "" });
   const [saved, setSaved] = useState(false);
   useEffect(() => setProfile(loadBusinessProfile()), []);
@@ -1243,6 +1264,10 @@ function BusinessProfileSection() {
         onSubmit={(event) => {
           event.preventDefault();
           saveBusinessProfile(profile);
+          if (rep) {
+            setOwnRepProfile(true);
+            setOwn(true);
+          }
           setProfile(loadBusinessProfile());
           setSaved(true);
         }}
@@ -1273,7 +1298,24 @@ function BusinessProfileSection() {
         <button className="dialog-primary" type="submit">
           {saved ? "✓ تم الحفظ" : "حفظ بيانات النشاط"}
         </button>
+        {rep && own && (
+          <button
+            type="button"
+            className="btn-icon"
+            onClick={() => {
+              setOwnRepProfile(false);
+              setOwn(false);
+            }}
+          >
+            ↩ العودة لبيانات المسؤول (مع النسخة القادمة)
+          </button>
+        )}
       </form>
+      {rep && (
+        <p className="settings-hint">
+          {own ? "✓ بياناتك أنت - تبقى كما هي حتى لو وصلتك نسخة جديدة من المسؤول." : "الآن: بيانات المسؤول (تصلك مع كل نسخة). إن حفظت تعديلاً صارت بياناتك أنت."}
+        </p>
+      )}
     </section>
   );
 }
@@ -1921,7 +1963,7 @@ function BackgroundSyncSettings() {
       {enabled && canRun && <span className="settings-hint">✓ الإذن ممنوح - المزامنة تعمل في الخلفية</span>}
       <p className="settings-hint">
         «مزامنة الآن» وأيام التقويم و«تحديث من Starlink» تقرأ الأجهزة دون أن تظهر صفحاتها: إشعار
-        «🔄 3 / 10» مع «إيقاف»، والنتيجة في البوت. الشاشة تبقى مضاءة حتى تنتهي.
+        «🔄 3 / 10» مع «إيقاف»، والنتيجة في الإشعارات (وفي البوت إن كان مربوطاً). الشاشة تبقى مضاءة حتى تنتهي.
       </p>
     </div>
   );

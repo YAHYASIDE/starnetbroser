@@ -83,6 +83,16 @@ describe("rebase on a new copy (rep side)", () => {
     expect(merged.starnet_currencies_v1).toEqual({ MRU: 410 });
   });
 
+  it("the business profile follows the operator's copy, unless the rep saved his own", () => {
+    const P = "starnet_business_profile_v1";
+    const current = { ...base, [P]: { name: "DEMO REP SHOP" } };
+    const next = { ...base, [P]: { name: "STAR NET" } };
+    expect(rebaseWorkspace(current, base, next)[P]).toEqual({ name: "STAR NET" });
+    expect(rebaseWorkspace(current, base, next, {}, true)[P]).toEqual({ name: "DEMO REP SHOP" });
+    // Nothing saved yet on the phone: the operator's one applies even when "own" is set.
+    expect(rebaseWorkspace({ ...base }, base, next, {}, true)[P]).toEqual({ name: "STAR NET" });
+  });
+
   it("a device the operator moved away leaves with its operations, even if the rep edited it", () => {
     const current = { ...base, [ACCOUNTS_KEY]: [acc("a1"), acc("a2", { phone: "+0" })], [LEDGER_KEY]: { a1: [entry("e1", 100)], a2: [entry("x", 5)] } };
     const next = { ...base, [ACCOUNTS_KEY]: [acc("a1")], [LEDGER_KEY]: { a1: [entry("e1", 100)] } };

@@ -5,7 +5,7 @@ import { saveRepCopy } from "./repCopy";
 import { clearRepWorkspace, hasRepWorkspace } from "./repWorkspace";
 
 /** Pages the rep's full app shows (the operator's choice): everything else goes back home. */
-export const REP_ALLOWED_PATHS = ["/", "/clients", "/currencies", "/reminders", "/mailboxes", "/tools", "/settings", "/representatives"];
+export const REP_ALLOWED_PATHS = ["/", "/clients", "/currencies", "/reminders", "/mailboxes", "/tools", "/settings", "/representatives", "/reports"];
 
 export function isRepAllowedPath(pathname: string): boolean {
   const path = pathname.replace(/\/+$/, "") || "/";
