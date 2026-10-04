@@ -53,13 +53,16 @@ mind). Exact texts and numbers live in the code - this file says where.
   «كل ما تملك» unchanged); the two notifications are merged into one.
 - **Bankily money sent to a person**, title `Transfert d'argent`: `Montant : 10 MRU` /
   `Beneficiaire : <NAME>,<number>` (the text is cut with «…» when long - read the full big text)
-  → an **expense suggestion** from Bankily carrying the beneficiary's name; on confirming he picks
-  the category, or turns it into «دين أعطيته» / «تسديد دين».
+  → an **outgoing-money suggestion** from Bankily carrying the beneficiary's name (amounts can be
+  large, e.g. 4600, no thousands separator; the number may be cut off entirely). On confirming he
+  picks one of: personal expense (category), «دين أعطيته», «تسديد دين», **payment to a supplier**
+  or **money given to a rep** - the last two go to that supplier's / rep's book (business), not to
+  personal expenses. Same choice for every outgoing transfer (Sedad's below too).
 - **Sedad phone credit**, title `PAIEMENT_CREDIT`: `تلقيتم رصيدا بمبلغ 10 أوقية جديدة من شنقيتل`
   = he bought phone airtime with Sedad money → **expense «رصيد الهاتف»** from Sedad (category
   changeable on confirm).
 - **Sedad money sent to a person**, title `ENVOI`: `أرسلتم مبلغ 200.0 أوقية جديدة لصالح <NAME> (
-  <number> )` → expense suggestion from Sedad with the name and number, like Bankily's above.
+  <number> )` → outgoing-money suggestion from Sedad with the name and number, like Bankily's.
   (Same title `ENVOI` as GIMTEL - GIMTEL is the one whose «لصالح» is his own number + `(BANKILY)`.)
 - **Keep everything the notification shows** on each suggestion and record (his decision): the
   person's name and number, the transaction ID, the app, the full notification text and its time.
