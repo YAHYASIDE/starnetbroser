@@ -192,6 +192,63 @@ describe("the final figures", () => {
     expect(wealth.missing).toEqual([]);
   });
 
+  it("a foreign wallet (أورانج/نيتا/بينانس) comes out to its own line with its own-currency amount; أوقية apps stay under «البنوك»", () => {
+    const wealth = buildWealth({
+      cash: {},
+      banks: [
+        { name: "بنكيلي", byCurrency: { MRU: 8000 } },
+        { name: "أورانج موني", byCurrency: { XOF: 6000 } },
+      ],
+      cardUsd: 0,
+      customers: [],
+      repsMru: [],
+      debts: EMPTY_DEBT_BOOK,
+      suppliers: [],
+      starlink: [],
+      rates,
+    });
+    const banks = wealth.lines.find((l) => l.key === "banks")!;
+    expect(banks.items.map((i) => i.name)).toEqual(["بنكيلي"]);
+    expect(banks.native).toBeUndefined();
+    const orange = wealth.lines.find((l) => l.label === "أورانج موني")!;
+    expect(orange.kind).toBe("have");
+    expect(orange.native).toEqual({ XOF: 6000 });
+    expect(orange.mru).toBe(4000); // 6000 XOF ÷ 600/USD × 400/USD
+  });
+
+  it("«عليك لستارلينك (D)» shows the دولار beside the أوقية", () => {
+    const wealth = buildWealth({
+      cash: {},
+      banks: [],
+      cardUsd: 0,
+      customers: [],
+      repsMru: [],
+      debts: EMPTY_DEBT_BOOK,
+      suppliers: [],
+      starlink: [{ name: "a", usd: 30 }, { name: "b", usd: 20 }],
+      rates,
+    });
+    const starlink = wealth.lines.find((l) => l.key === "starlink")!;
+    expect(starlink.native).toEqual({ USD: 50 });
+    expect(starlink.mru).toBe(20000); // 50 USD × 400
+  });
+
+  it("the KAST card shows its دولار beside the أوقية", () => {
+    const wealth = buildWealth({
+      cash: {},
+      banks: [],
+      cardUsd: 100,
+      customers: [],
+      repsMru: [],
+      debts: EMPTY_DEBT_BOOK,
+      suppliers: [],
+      starlink: [],
+      rates,
+    });
+    const card = wealth.lines.find((l) => l.key === "card")!;
+    expect(card.native).toEqual({ USD: 100 });
+  });
+
   it("says which currency had no rate instead of guessing", () => {
     const wealth = buildWealth({ cash: { EUR: 10 }, banks: [], cardUsd: 0, customers: [], repsMru: [], debts: EMPTY_DEBT_BOOK, suppliers: [], starlink: [], rates });
     expect(wealth.missing).toEqual(["EUR"]);

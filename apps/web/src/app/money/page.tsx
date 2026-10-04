@@ -17,7 +17,7 @@ import { listRepresentatives, loadRepresentativeStore } from "@/lib/repStore";
 import { listSuppliers, loadSupplierStore } from "@/lib/supplierStore";
 import { PartySheet } from "@/components/AccountsSection";
 import { PersonalExpensesTab } from "@/components/PersonalExpensesTab";
-import { loadCashEntries, removeLinkedCashEntries, saveCashEntries } from "@/lib/cashStore";
+import { computeCashBalanceByCurrency, hasCashReset, loadCashEntries, removeLinkedCashEntries, resetCashToZero, saveCashEntries, undoCashReset } from "@/lib/cashStore";
 import { formatAmount } from "@/lib/formatAmount";
 import { monthLabel } from "@/lib/monthClosing";
 import {
@@ -58,6 +58,7 @@ import { businessNetForMonth, loadAccountFlows, loadMoneyAccounts, loadRates, lo
 import {
   accountBalance,
   addMoneyAccount,
+  cashInHandEntries,
   correctBalance,
   deleteAccountTransfer,
   deleteMoneyAccount,
@@ -139,6 +140,8 @@ export default function MoneyPage() {
   // «🔄 الأرباح والخسائر من 0» (the same reset as the reports') and the last «حذف كل المعاملات».
   const [profitReset, setProfitReset] = useState<ProfitReset | null>(null);
   const [wipeUndo, setWipeUndo] = useState<WipeUndo | null>(null);
+  // «↩️ تراجع عن تصفير الكاش» is shown only while reset entries exist.
+  const [cashResetOn, setCashResetOn] = useState(false);
 
   function chooseTab(next: MoneyTab) {
     setTab(next);
@@ -188,6 +191,7 @@ export default function MoneyPage() {
     setInbox(loadBankInbox());
     setProfitReset(loadProfitReset());
     setWipeUndo(loadWipeUndo(window.localStorage));
+    setCashResetOn(hasCashReset(loadCashEntries()));
     const ownNumbers = Array.from(new Set([...OWN_NUMBERS, ...readyBook.accounts.map((a) => a.number ?? "").filter(Boolean)]));
     const readNotices = () => {
       void drainBankNotices(ownNumbers).then((result) => {
@@ -371,6 +375,27 @@ export default function MoneyPage() {
     saveRepresentativeStore(undoProfitFresh(profitReset, loadReps()));
     saveProfitReset(null);
     setProfitReset(null);
+    setCashVersion((v) => v + 1);
+  }
+
+  // ↩️ ارجاع الكاش إلى 0: a correction entry per currency offsets الكاش to 0 (undoable, nothing deleted).
+  async function resetCash() {
+    const ledger = loadLedgerStore();
+    const balance = computeCashBalanceByCurrency(cashInHandEntries(loadCashEntries(), ledger, book));
+    if (!Object.values(balance).some((v) => Math.abs(v) >= 0.005)) {
+      window.alert("الكاش 0 بالفعل.");
+      return;
+    }
+    if (!(await askDeleteCode("إرجاع الكاش إلى 0؟\n\n• يُسجَّل قيد تصحيح يجعل رصيد الكاش 0 اليوم.\n• لا يُحذف شيء، ولا يُحسب كمصروف.\n• «↩️ تراجع عن تصفير الكاش» يعيده."))) return;
+    saveCashEntries(resetCashToZero(loadCashEntries(), balance, today()));
+    setCashResetOn(true);
+    setCashVersion((v) => v + 1);
+  }
+
+  async function undoResetCash() {
+    if (!(await askDeleteCode("التراجع عن تصفير الكاش (حذف قيود التصفير)؟"))) return;
+    saveCashEntries(undoCashReset(loadCashEntries()));
+    setCashResetOn(false);
     setCashVersion((v) => v + 1);
   }
 
@@ -649,6 +674,15 @@ export default function MoneyPage() {
         ) : (
           <button type="button" className="dialog-secondary" onClick={() => void resetProfits()}>
             🔄 الأرباح والخسائر من 0 (الديون تبقى)
+          </button>
+        )}
+        {cashResetOn ? (
+          <button type="button" className="dialog-secondary" onClick={() => void undoResetCash()}>
+            ↩️ تراجع عن تصفير الكاش
+          </button>
+        ) : (
+          <button type="button" className="dialog-secondary" onClick={() => void resetCash()}>
+            💵 إرجاع الكاش إلى 0
           </button>
         )}
         <button type="button" className="dialog-danger" onClick={() => void wipeEverything()}>

@@ -727,9 +727,15 @@ export function WealthCard({ wealth, onOpen }: { wealth: Wealth; onOpen: (line: 
                 <li key={l.key}>
                   <button type="button" className="money-line-button" onClick={() => onOpen(l)}>
                     <span>
-                      {l.icon} {l.label}
+                      {l.icon ? `${l.icon} ` : ""}
+                      {l.label}
                       {l.items.length > 1 ? <small> ({l.items.length})</small> : null}
                     </span>
+                    {l.native ? (
+                      <small className="money-line-native">
+                        <bdi dir="ltr">{signedMoney(l.native)}</bdi>
+                      </small>
+                    ) : null}
                     <bdi dir="ltr" className={l.mru === 0 ? undefined : l.kind === "owe" ? "money-out" : "money-in"}>
                       {`${l.kind === "owe" && l.mru ? "-" : ""}${mruText(l.mru)}`}
                     </bdi>

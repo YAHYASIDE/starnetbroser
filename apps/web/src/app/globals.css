@@ -12308,6 +12308,17 @@ button.today-tile {
   white-space: nowrap;
 }
 
+/* The line's own-currency amount (سيفا / دولار …) beside the أوقية total. */
+.money-line-native {
+  color: var(--text-muted);
+  font-size: 0.8em;
+  white-space: nowrap;
+}
+
+.money-line-native bdi {
+  font-weight: 600;
+}
+
 .money-line-go {
   color: var(--text-muted);
 }

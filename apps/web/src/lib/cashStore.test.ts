@@ -14,6 +14,9 @@ import {
   computeCashDaySummary,
   recordCashClosing,
   deleteCashClosing,
+  resetCashToZero,
+  undoCashReset,
+  hasCashReset,
 } from "./cashStore";
 import type { PartyAdjustment } from "./partyBalanceStore";
 import type { RepSettlement } from "./repStore";
@@ -82,6 +85,41 @@ describe("computeCashBalanceByCurrency", () => {
       entry({ id: "3", kind: "in", amount: 50, currencyCode: "USD" }),
     ];
     expect(computeCashBalanceByCurrency(entries)).toEqual({ MRU: 700, USD: 50 });
+  });
+});
+
+describe("resetCashToZero / undoCashReset / hasCashReset", () => {
+  const balance = { MRU: 700, USD: -50 };
+
+  it("adds an offsetting entry per currency so the balance becomes 0", () => {
+    const entries = [entry({ id: "1", kind: "in", amount: 700 }), entry({ id: "2", kind: "out", amount: 50, currencyCode: "USD" })];
+    const after = resetCashToZero(entries, balance, "2026-10-04");
+    expect(computeCashBalanceByCurrency(after)).toEqual({ MRU: 0, USD: 0 });
+    const added = after.filter((e) => e.sourceKind === "cash-reset");
+    expect(added).toHaveLength(2);
+    // positive balance → money leaves; negative → money comes in.
+    expect(added.find((e) => e.currencyCode === "MRU")).toMatchObject({ kind: "out", amount: 700 });
+    expect(added.find((e) => e.currencyCode === "USD")).toMatchObject({ kind: "in", amount: 50 });
+    // one source id ties the whole reset together.
+    expect(new Set(added.map((e) => e.sourceId)).size).toBe(1);
+  });
+
+  it("does nothing when the balance is already 0", () => {
+    const entries = [entry({ id: "1" })];
+    expect(resetCashToZero(entries, { MRU: 0, USD: 0.004 }, "2026-10-04")).toBe(entries);
+  });
+
+  it("is not counted as a standalone expense (carries a sourceId)", () => {
+    const after = resetCashToZero([], { MRU: 700 }, "2026-10-04");
+    expect(listStandaloneCashEntries(after)).toEqual([]);
+  });
+
+  it("undo removes exactly the reset entries, leaving the rest", () => {
+    const after = resetCashToZero([entry({ id: "keep" })], { MRU: 700 }, "2026-10-04");
+    expect(hasCashReset(after)).toBe(true);
+    const undone = undoCashReset(after);
+    expect(hasCashReset(undone)).toBe(false);
+    expect(undone.map((e) => e.id)).toEqual(["keep"]);
   });
 });
 

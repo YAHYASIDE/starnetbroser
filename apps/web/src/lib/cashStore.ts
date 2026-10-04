@@ -38,7 +38,7 @@ export interface CashEntry {
   createdAt: string;
 }
 
-export type CashSourceKind = "device-payment" | "party-balance" | "rep-settlement" | "closing" | "card-topup" | "personal-expense" | "personal-income" | "personal-debt" | "account-transfer";
+export type CashSourceKind = "device-payment" | "party-balance" | "rep-settlement" | "closing" | "card-topup" | "personal-expense" | "personal-income" | "personal-debt" | "account-transfer" | "cash-reset";
 
 export type CashEntryList = CashEntry[];
 
@@ -136,6 +136,44 @@ export function listStandaloneCashEntries(entries: CashEntryList): CashEntryList
 /** Removes every cash entry auto-posted from `sourceId` (see CashEntry.sourceId). */
 export function removeLinkedCashEntries(entries: CashEntryList, sourceId: string): CashEntryList {
   return entries.filter((e) => e.sourceId !== sourceId);
+}
+
+export const CASH_RESET_NOTE = "تصفير الكاش";
+
+/** «تصفير الكاش»: brings the الكاش balance to 0 by adding one offsetting entry per currency that has
+ * a balance (an "out" for a positive balance, an "in" for a negative one). Nothing is deleted - the
+ * old entries stay, and these reset entries carry sourceKind "cash-reset" so they are not counted as
+ * standalone expenses and can be removed to undo. `balanceByCurrency` is the current الكاش balance
+ * (cashInHandEntries → computeCashBalanceByCurrency). Returns the list unchanged when already 0. */
+export function resetCashToZero(entries: CashEntryList, balanceByCurrency: Record<string, number>, date: string, now = new Date()): CashEntryList {
+  const sourceId = newId();
+  const added: CashEntry[] = [];
+  for (const [currencyCode, balance] of Object.entries(balanceByCurrency)) {
+    const rounded = Math.round(balance * 100) / 100;
+    if (Math.abs(rounded) < 0.005) continue;
+    added.push({
+      id: newId(),
+      kind: rounded > 0 ? "out" : "in",
+      amount: Math.abs(rounded),
+      currencyCode,
+      date,
+      note: CASH_RESET_NOTE,
+      sourceId,
+      sourceKind: "cash-reset",
+      createdAt: now.toISOString(),
+    });
+  }
+  return added.length ? [...entries, ...added] : entries;
+}
+
+/** Undo «تصفير الكاش»: removes every reset entry, so the balance returns to what it was. */
+export function undoCashReset(entries: CashEntryList): CashEntryList {
+  return entries.filter((e) => e.sourceKind !== "cash-reset");
+}
+
+/** Whether the الكاش has a standing «تصفير» (so «↩️ تراجع» can be offered). */
+export function hasCashReset(entries: CashEntryList): boolean {
+  return entries.some((e) => e.sourceKind === "cash-reset");
 }
 
 /** Keeps the till in step with one device's ledger after an edit: a newly added payment

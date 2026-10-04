@@ -37,6 +37,12 @@ mind). Exact texts and numbers live in the code - this file says where.
 - Figure 2 «في يدك الآن» = الكاش + banks/wallets + KAST − what he owes (Starlink D + previous debts,
   suppliers, reps, people); «كل ما تملك» = that + what customers, reps and people owe him.
   Every line opens who/which account and how much (`buildWealth`, `loadWealthInput`).
+- **Foreign-currency lines show their own currency beside the أوقية** (his Oct 2026 choice): a
+  wallet/app that runs in a non-أوقية currency comes out to its **own front-line entry** shown as
+  «السعر الأصلي + مقابله بالأوقية» - أورانج موني & نيتا (سيفا), بينانس (دولار). The أوقية apps
+  (بنكيلي، مصرفي…) stay grouped under «🏦 البنوك والمحافظ». «💳 محفظة KAST» and «🛰️ عليك لستارلينك (D)»
+  likewise show دولار + أوقية. The own-currency figure is `WealthLine.native` (any non-MRU balance
+  on the line), rendered small/muted (`.money-line-native`); all totals stay computed in أوقية.
 - **The registered exchange rate follows real payments.** When he settles a Starlink D from the card
   («تسديد D») or pays a previous debt, the dollars that actually leave the card against the foreign
   amount reveal today's true rate (e.g. 2700 HNL ÷ 100.61 $ = 26.84). That currency's **current**
@@ -69,6 +75,12 @@ mind). Exact texts and numbers live in the code - this file says where.
     commission and the business expenses dated before the reset day (bug he reported Oct 2026:
     «زر تصفير الأرباح لا يعمل - الأرباح تبقى» - only Starlink was being trimmed before). Nothing is
     deleted: الكاش, banks and customers'/people's debts stay. «↩️ إرجاع».
+  - «💵 إرجاع الكاش إلى 0» = **the till only** (his Oct 2026 choice: «تصحيح إلى 0، قابل للتراجع»): one
+    offsetting cash entry per currency brings الكاش to 0 today (`resetCashToZero`, `sourceKind:"cash-reset"`).
+    Nothing is deleted and it is **not** counted as a مصروف (it carries a `sourceId`, so
+    `listStandaloneCashEntries` skips it); banks, wallets and all debts stay untouched. While a reset
+    stands, the button turns into «↩️ تراجع عن تصفير الكاش» (`undoCashReset`, `hasCashReset`). Also
+    behind the delete code.
   - «🗑️ حذف كل المعاملات وتصفير كل الحسابات» = **the transactions only** (his choice): every
     money record is removed (shipments, payments, الكاش, invoices, stock moves, expenses, income,
     debts, party/rep entries, card top-ups, previous debts, closings - `wipeTransactions.ts`
