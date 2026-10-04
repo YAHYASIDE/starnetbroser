@@ -42,7 +42,7 @@ mind). Exact texts and numbers live in the code - this file says where.
 
 - **Wait for ALL screenshots** before building (his choice): every app (بنكيلي، مصرفي، سداد، كليك،
   أمانتي، أورانج موني مالي، نيتا) and every kind (received from someone, sent/paid, withdrawal…).
-  Received so far: a GIMTEL transfer only (below).
+  Received so far: GIMTEL (سداد → بنكيلي), Bankily money sent to a person, Sedad phone credit.
 - **GIMTEL** = moving money between his own apps on the same number (e.g. سداد → بنكيلي). It arrives
   as two notifications for one operation, real wording (amount/number as he sent it):
   - Bankily app, title `Gimtel envoie de l'argent`: `Vous avez reçu 50.0 MRU du bénéficiaire :
@@ -50,6 +50,13 @@ mind). Exact texts and numbers live in the code - this file says where.
   - Sedad app, title `ENVOI`: `أرسلتم مبلغ 50.0 أوقية جديدة لصالح 22227268 (BANKILY)`
   → one **transfer between his accounts** (minus from one, plus to the other; not income/expense,
   «كل ما تملك» unchanged); the two notifications are merged into one.
+- **Bankily money sent to a person**, title `Transfert d'argent`: `Montant : 10 MRU` /
+  `Beneficiaire : <NAME>,<number>` (the text is cut with «…» when long - read the full big text)
+  → an **expense suggestion** from Bankily carrying the beneficiary's name; on confirming he picks
+  the category, or turns it into «دين أعطيته» / «تسديد دين».
+- **Sedad phone credit**, title `PAIEMENT_CREDIT`: `تلقيتم رصيدا بمبلغ 10 أوقية جديدة من شنقيتل`
+  = he bought phone airtime with Sedad money → **expense «رصيد الهاتف»** from Sedad (category
+  changeable on confirm).
 - Every read notification is a **suggestion awaiting his confirmation** in «حسابي» (accept / edit /
   reject) - never recorded silently.
 - Money received from another person's number → **always personal income** in «حسابي» (he links it
