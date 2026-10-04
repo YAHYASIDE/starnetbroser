@@ -6,7 +6,7 @@ import { LocalBrowser } from "@starnet/local-browser-plugin";
 import { HOME_ACTION_EVENT, HOME_SEARCH_EVENT, parseHomeAction, parseHomeSearch } from "@/lib/homeActions";
 import { onDigestTapped } from "@/lib/morningNotifications";
 import { isRunningInAndroidApp } from "@/lib/localBrowser";
-import { isShortcutRoute, phoneShortcut, type PhoneShortcut } from "@/lib/shortcuts";
+import { isShortcutRoute, phoneShortcut, routePath, SAME_PAGE_ROUTE_EVENT, type PhoneShortcut } from "@/lib/shortcuts";
 
 // Android's WebView turns a long press into a "context menu" around 500 ms (and cancels the
 // pointer) - so open a bit before that, and on that contextmenu event too.
@@ -43,7 +43,10 @@ export function PhoneShortcutLayer() {
       const search = route.startsWith("/?") ? parseHomeSearch(route.slice(1)) : null;
       if (action && pathRef.current === "/") window.dispatchEvent(new CustomEvent(HOME_ACTION_EVENT, { detail: action }));
       else if (search && pathRef.current === "/") window.dispatchEvent(new CustomEvent(HOME_SEARCH_EVENT, { detail: search }));
-      else router.push(route);
+      // The page is already open (e.g. 🧾 on /reports): it applies the route itself.
+      else if (route.includes("?") && routePath(route) === (pathRef.current.replace(/\/+$/, "") || "/")) {
+        window.dispatchEvent(new CustomEvent(SAME_PAGE_ROUTE_EVENT, { detail: route }));
+      } else router.push(route);
     };
     const take = () => void LocalBrowser.takeShortcutRoute().then((r) => go(r.route)).catch(() => {});
     take();

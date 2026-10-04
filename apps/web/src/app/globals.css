@@ -7336,6 +7336,13 @@ button.today-tile {
   transition: transform 0.2s ease;
 }
 
+/* 🧾 the reports page's «إضافة مصروف» - same place and size as the home "+", its own color. */
+.expense-fab-button {
+  background: linear-gradient(135deg, #f0455f, #c81e3a);
+  box-shadow: 0 10px 26px rgb(200 30 58 / 0.4);
+  font-size: 1.6rem;
+}
+
 .home-fab-button span {
   display: block;
   transform: translateY(-2px);

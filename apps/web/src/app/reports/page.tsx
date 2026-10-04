@@ -2,6 +2,7 @@
 
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { ADD_EXPENSE_ROUTE, parseAddExpense, SAME_PAGE_ROUTE_EVENT } from "@/lib/shortcuts";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { demoAccounts } from "@/lib/demoData";
 import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
@@ -95,6 +96,28 @@ export default function ReportsPage() {
   const [netMonth, setNetMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [personal, setPersonal] = useState<PersonalExpenseList>([]);
   const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([]);
+  // 🧾 bumped by the floating button / the home-screen shortcut: opens a new expense.
+  const [newExpense, setNewExpense] = useState(0);
+
+  function startExpense() {
+    chooseTab("expenses");
+    setNewExpense((n) => n + 1);
+  }
+
+  // Opened from the 📌 shortcut ("/reports?add=expense"), or it tapped while the page is open.
+  useEffect(() => {
+    if (parseAddExpense(window.location.search)) {
+      window.history.replaceState(null, "", window.location.pathname);
+      startExpense();
+    }
+    const onRoute = (event: Event) => {
+      const route = (event as CustomEvent<string>).detail ?? "";
+      if (route.includes("?") && parseAddExpense(route.slice(route.indexOf("?")))) startExpense();
+    };
+    window.addEventListener(SAME_PAGE_ROUTE_EVENT, onRoute);
+    return () => window.removeEventListener(SAME_PAGE_ROUTE_EVENT, onRoute);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     setLedgerStore(loadLedgerStore());
@@ -655,6 +678,7 @@ export default function ReportsPage() {
 
       {tab === "expenses" && (
         <PersonalExpensesTab
+          newExpense={newExpense}
           expenses={personal}
           custom={expenseCategories}
           rates={rates}
@@ -753,6 +777,20 @@ export default function ReportsPage() {
           </div>
         </section>
       )}
+
+      {/* 🧾 like the home screen's "+": one tap records an expense (long-press pins it). */}
+      <div className="home-fab">
+        <button
+          type="button"
+          className="home-fab-button expense-fab-button"
+          aria-label="إضافة مصروف"
+          title="إضافة مصروف"
+          data-shortcut-route={ADD_EXPENSE_ROUTE}
+          onClick={startExpense}
+        >
+          <span aria-hidden="true">🧾</span>
+        </button>
+      </div>
     </main>
   );
 }

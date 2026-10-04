@@ -24,6 +24,7 @@ const LOOKS: [prefix: string, emoji: string, color: string][] = [
   ["/reminders", "🔔", "#f0455f"],
   ["/clients", "👥", "#2f80ff"],
   ["/representatives", "🤝", "#7c3aed"],
+  ["/reports?add=expense", "🧾", "#e0294a"],
   ["/reports", "📊", "#1668e3"],
   ["/store", "🛍️", "#f59e0b"],
   ["/starlink", "🛰️", "#1668e3"],
@@ -34,6 +35,23 @@ const LOOKS: [prefix: string, emoji: string, color: string][] = [
   ["/settings", "⚙️", "#f5a524"],
   ["/assistant", "🤖", "#8b5cf6"],
 ];
+
+/** 🧾 «إضافة مصروف»: the reports page opening a new expense straight away (its floating button,
+ * and a home-screen shortcut). */
+export const ADD_EXPENSE_ROUTE = "/reports?add=expense";
+
+export function parseAddExpense(search: string): boolean {
+  return new URLSearchParams(search).get("add") === "expense";
+}
+
+/** A shortcut / notification for the page that's already open ("/reports?add=expense" while on
+ * /reports): no navigation happens, so the page gets it as this event (detail: the route). */
+export const SAME_PAGE_ROUTE_EVENT = "starnet:same-page-route";
+
+/** The path of a route, without its "?query" or "#hash". */
+export function routePath(route: string): string {
+  return route.split(/[?#]/)[0] || "/";
+}
 
 /** An in-app route ("/tools#pay", "/?action=sync") - never another site or a scheme. */
 export function isShortcutRoute(route: string): boolean {
@@ -71,6 +89,7 @@ export const PINNABLE_PAGES: { route: string; label: string }[] = [
   { route: "/clients", label: "الزبائن" },
   { route: "/representatives", label: "المندوبون" },
   { route: "/reports", label: "التقارير" },
+  { route: "/reports?add=expense", label: "إضافة مصروف" },
   { route: "/store", label: "المتجر" },
   { route: "/starlink", label: "ستارلينك والبطاقة" },
   { route: "/currencies", label: "العملات" },

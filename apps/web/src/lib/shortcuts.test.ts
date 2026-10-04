@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isShortcutRoute, phoneShortcut, shortcutId, shortcutLabel } from "./shortcuts";
+import { ADD_EXPENSE_ROUTE, isShortcutRoute, parseAddExpense, phoneShortcut, routePath, shortcutId, shortcutLabel } from "./shortcuts";
 
 describe("📌 home-screen shortcuts", () => {
   it("only in-app routes can be pinned", () => {
@@ -26,5 +26,16 @@ describe("📌 home-screen shortcuts", () => {
     expect(shortcutLabel("9+ التذكيرات")).toBe("التذكيرات");
     expect(shortcutLabel("")).toBe("STAR NET");
     expect(shortcutLabel("أ".repeat(40))).toHaveLength(25);
+  });
+
+  it("🧾 «إضافة مصروف» can be pinned with its own icon and opens a new expense", () => {
+    expect(isShortcutRoute(ADD_EXPENSE_ROUTE)).toBe(true);
+    expect(phoneShortcut(ADD_EXPENSE_ROUTE, "إضافة مصروف")).toMatchObject({ id: "sc_reports_add_expense", emoji: "🧾" });
+    expect(phoneShortcut("/reports", "التقارير")?.emoji).toBe("📊");
+    expect(parseAddExpense(ADD_EXPENSE_ROUTE.slice(ADD_EXPENSE_ROUTE.indexOf("?")))).toBe(true);
+    expect(parseAddExpense("?tab=net")).toBe(false);
+    expect(routePath(ADD_EXPENSE_ROUTE)).toBe("/reports");
+    expect(routePath("/tools#pay")).toBe("/tools");
+    expect(routePath("/?q=x")).toBe("/");
   });
 });
