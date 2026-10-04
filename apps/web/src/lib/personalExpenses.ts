@@ -38,6 +38,8 @@ export interface PersonalExpense {
   /** Taken from الصندوق - a linked cash-out entry exists with sourceId = id. */
   fromCash: boolean;
   createdAt: string;
+  /** Created by a monthly rule (myMoney.ts «🔁 شهري»), e.g. the rent. */
+  recurringId?: string;
 }
 
 export type PersonalExpenseList = PersonalExpense[];
@@ -157,7 +159,10 @@ export interface ExpenseSummary {
 }
 
 /** Expenses dated from `from` to `to` (yyyy-mm-dd, inclusive). */
-export function summarizeExpenses(list: PersonalExpenseList, from: string, to: string, rates: RatesFromUsd = {}): ExpenseSummary {
+/** Any dated money records with a category (expenses, and the income in myMoney.ts). */
+export type CategorizedRecord = Pick<PersonalExpense, "categoryId" | "amount" | "currencyCode" | "date">;
+
+export function summarizeExpenses(list: CategorizedRecord[], from: string, to: string, rates: RatesFromUsd = {}): ExpenseSummary {
   const byCurrency: Record<string, number> = {};
   const groups = new Map<string, { byCurrency: Record<string, number>; count: number }>();
   let count = 0;

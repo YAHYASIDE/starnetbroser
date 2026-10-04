@@ -12124,3 +12124,116 @@ button.today-tile {
   display: block;
   text-align: end;
 }
+
+/* ---- 💰 «حسابي» ---- */
+.money-page .page-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.money-hero {
+  text-align: start;
+}
+
+.money-hero .net-hero-label,
+.money-hero .net-hero-value {
+  text-align: center;
+}
+
+.money-hero-worth {
+  border-color: var(--border);
+  background: var(--surface-alt);
+}
+
+.money-lines {
+  display: grid;
+  gap: 4px;
+  margin: 4px 0 0;
+  padding: 8px 0 0;
+  list-style: none;
+  border-top: 1px dashed var(--border);
+  font-size: 0.85rem;
+}
+
+.money-lines li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.money-lines bdi {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.money-in {
+  color: var(--green);
+}
+
+.money-out {
+  color: var(--red);
+}
+
+.money-recurring .report-card-head {
+  align-items: center;
+}
+
+.money-recurring-add {
+  flex: none;
+  padding: 4px 10px;
+}
+
+.money-recurring-list {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.money-recurring-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+  font-size: 0.85rem;
+}
+
+.money-recurring-list li > span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.money-recurring-list li > bdi {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.money-debt-actions {
+  margin: 10px 0 4px;
+}
+
+.money-debt-done {
+  opacity: 0.6;
+}
+
+/* the green "+" like the finance app's */
+.money-fab-button {
+  background: linear-gradient(135deg, var(--green), #0b7a54);
+  box-shadow: 0 10px 26px rgb(14 159 110 / 0.4);
+}
+
+/* green boxes for money coming in (income, what people owe me) */
+.expenses-totals > div.money-box-in {
+  background: var(--green-bg);
+}
+
+.expenses-totals > div.money-box-in strong,
+.expenses-totals strong.money-in {
+  color: var(--green);
+}

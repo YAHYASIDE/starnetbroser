@@ -41,14 +41,16 @@ function money(byCurrency: Record<string, number>): string {
  * month by category, and the latest expenses (tap one to edit or delete).
  */
 export function PersonalExpensesTab({
-  newExpense = 0,
+  openNew = false,
+  onOpened,
   expenses,
   custom,
   rates,
   onChange,
 }: {
-  /** Bumped by the reports page's 🧾 floating button: opens a new expense right away. */
-  newExpense?: number;
+  /** Set by a floating «+» / a shortcut: opens a new expense right away, once (then onOpened). */
+  openNew?: boolean;
+  onOpened?: () => void;
   expenses: PersonalExpenseList;
   custom: ExpenseCategory[];
   rates: RatesFromUsd;
@@ -59,9 +61,11 @@ export function PersonalExpensesTab({
   const [addingCategory, setAddingCategory] = useState(false);
   const categories = allCategories(custom);
   useEffect(() => {
-    if (newExpense > 0) setForm({ categoryId: allCategories(custom)[0]?.id ?? "other" });
+    if (!openNew) return;
+    setForm({ categoryId: allCategories(custom)[0]?.id ?? "other" });
+    onOpened?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [newExpense]);
+  }, [openNew]);
   const months = useMemo(() => {
     const now = new Date();
     return [0, 1, 2].map((i) => new Date(now.getFullYear(), now.getMonth() - i, 15).toISOString().slice(0, 7));

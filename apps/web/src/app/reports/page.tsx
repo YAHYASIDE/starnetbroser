@@ -97,11 +97,11 @@ export default function ReportsPage() {
   const [personal, setPersonal] = useState<PersonalExpenseList>([]);
   const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([]);
   // 🧾 bumped by the floating button / the home-screen shortcut: opens a new expense.
-  const [newExpense, setNewExpense] = useState(0);
+  const [newExpense, setNewExpense] = useState(false);
 
   function startExpense() {
     chooseTab("expenses");
-    setNewExpense((n) => n + 1);
+    setNewExpense(true);
   }
 
   // Opened from the 📌 shortcut ("/reports?add=expense"), or it tapped while the page is open.
@@ -678,7 +678,8 @@ export default function ReportsPage() {
 
       {tab === "expenses" && (
         <PersonalExpensesTab
-          newExpense={newExpense}
+          openNew={newExpense}
+          onOpened={() => setNewExpense(false)}
           expenses={personal}
           custom={expenseCategories}
           rates={rates}

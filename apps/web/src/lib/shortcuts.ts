@@ -25,6 +25,8 @@ const LOOKS: [prefix: string, emoji: string, color: string][] = [
   ["/clients", "👥", "#2f80ff"],
   ["/representatives", "🤝", "#7c3aed"],
   ["/reports?add=expense", "🧾", "#e0294a"],
+  ["/money?add=1", "➕", "#0e9f6e"],
+  ["/money", "💰", "#0e9f6e"],
   ["/reports", "📊", "#1668e3"],
   ["/store", "🛍️", "#f59e0b"],
   ["/starlink", "🛰️", "#1668e3"],
@@ -42,6 +44,13 @@ export const ADD_EXPENSE_ROUTE = "/reports?add=expense";
 
 export function parseAddExpense(search: string): boolean {
   return new URLSearchParams(search).get("add") === "expense";
+}
+
+/** 💰 «حسابي» opening a new income / expense / debt (its "+" and a home-screen shortcut). */
+export const ADD_MONEY_ROUTE = "/money?add=1";
+
+export function parseAddMoney(search: string): boolean {
+  return new URLSearchParams(search).get("add") === "1";
 }
 
 /** A shortcut / notification for the page that's already open ("/reports?add=expense" while on
@@ -90,6 +99,8 @@ export const PINNABLE_PAGES: { route: string; label: string }[] = [
   { route: "/representatives", label: "المندوبون" },
   { route: "/reports", label: "التقارير" },
   { route: "/reports?add=expense", label: "إضافة مصروف" },
+  { route: "/money", label: "حسابي" },
+  { route: "/money?add=1", label: "إضافة دخل / مصروف" },
   { route: "/store", label: "المتجر" },
   { route: "/starlink", label: "ستارلينك والبطاقة" },
   { route: "/currencies", label: "العملات" },

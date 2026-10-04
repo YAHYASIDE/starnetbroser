@@ -113,6 +113,7 @@ function bottomMoreItems(inApp: boolean): MoreItem[] {
     { label: "دفعة سريعة", icon: "coins", color: "#0e9f6e", tint: "#dcf5ea", href: "/tools#pay" },
     { label: "خطة اليوم", icon: "tools", color: "#0e9f6e", tint: "#dcf5ea", href: "/tools#today" },
     { label: "وعود الدفع", icon: "coins", color: "#7c3aed", tint: "#efe7ff", href: "/tools#promises" },
+    { label: "💰 حسابي", icon: "coins", color: "#0e9f6e", tint: "#dcf5ea", href: "/money" },
   ];
 }
 
@@ -144,6 +145,7 @@ const REP_TOP_MORE_ITEMS: MoreItem[] = [
 
 /** The top "المزيد" (home page header): the other half, same look. */
 const TOP_MORE_ITEMS: MoreItem[] = [
+  { label: "💰 حسابي", icon: "coins", color: "#0e9f6e", tint: "#dcf5ea", href: "/money" },
   { label: "الأدوات والتوقعات", icon: "tools", color: "#8b5cf6", tint: "#ece4ff", href: "/tools" },
   { label: "ستارلينك والبطاقة", icon: "card", color: "#1668e3", tint: "#d6e3fb", href: "/starlink" },
   { label: "العملات", icon: "coins", color: "#22c55e", tint: "#d4f7e1", href: "/currencies" },

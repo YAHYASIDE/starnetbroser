@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADD_EXPENSE_ROUTE, isShortcutRoute, parseAddExpense, phoneShortcut, routePath, shortcutId, shortcutLabel } from "./shortcuts";
+import { ADD_EXPENSE_ROUTE, ADD_MONEY_ROUTE, parseAddMoney, isShortcutRoute, parseAddExpense, phoneShortcut, routePath, shortcutId, shortcutLabel } from "./shortcuts";
 
 describe("📌 home-screen shortcuts", () => {
   it("only in-app routes can be pinned", () => {
@@ -37,5 +37,12 @@ describe("📌 home-screen shortcuts", () => {
     expect(routePath(ADD_EXPENSE_ROUTE)).toBe("/reports");
     expect(routePath("/tools#pay")).toBe("/tools");
     expect(routePath("/?q=x")).toBe("/");
+  });
+
+  it("💰 «حسابي» and its «+» can be pinned", () => {
+    expect(phoneShortcut(ADD_MONEY_ROUTE, "إضافة")?.emoji).toBe("➕");
+    expect(phoneShortcut("/money", "حسابي")?.emoji).toBe("💰");
+    expect(parseAddMoney("?add=1")).toBe(true);
+    expect(routePath(ADD_MONEY_ROUTE)).toBe("/money");
   });
 });
