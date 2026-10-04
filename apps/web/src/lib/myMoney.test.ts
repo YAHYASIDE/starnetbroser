@@ -35,7 +35,7 @@ describe("💵 الدخل", () => {
     expect(addIncome([], { categoryId: "", amount: 5, currencyCode: "MRU", date: "2026-10-01", toCash: true }).ok).toBe(false);
   });
 
-  it("goes into الصندوق as a linked entry the business reports leave out", () => {
+  it("goes into الكاش as a linked entry the business reports leave out", () => {
     const made = addIncome([], { categoryId: "gift", amount: 3000, currencyCode: "MRU", date: "2026-10-02", toCash: true }, now);
     if (!made.ok) throw new Error();
     const cash = syncIncomeCash([], made.income, []);
@@ -184,7 +184,7 @@ describe("the final figures", () => {
     expect(wealth.totalMru).toBe(0);
   });
 
-  it("records through a bank / wallet become its flows (+ in, − out), not الصندوق", () => {
+  it("records through a bank / wallet become its flows (+ in, − out), not الكاش", () => {
     const inc = addIncome([], { categoryId: "salary", amount: 500, currencyCode: "MRU", date: "2026-10-01", toCash: true, accountId: "bank" }, now);
     if (!inc.ok) throw new Error();
     expect(inc.income.toCash).toBe(false);

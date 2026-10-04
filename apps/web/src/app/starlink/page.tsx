@@ -281,7 +281,7 @@ export default function StarlinkPage() {
   }
 
   function removeTopUp(topUp: CardTopUp) {
-    if (!window.confirm("حذف عملية الشحن هذه؟ يُحذف قيدها من الصندوق أيضًا.")) return;
+    if (!window.confirm("حذف عملية الشحن هذه؟ يُحذف قيدها من الكاش أيضًا.")) return;
     if (!confirmClosedMonthChange([topUp.date])) return;
     const next = deleteCardTopUp(topUps, topUp.id);
     setTopUps(next);
@@ -303,7 +303,7 @@ export default function StarlinkPage() {
     saveCardTopUps(result.list);
     saveCashEntries(replaceCardTopUpCash(loadCashEntries(), result.topUp));
     setSheet(null);
-    setToast("✓ تم تعديل عملية الشحن وقيدها في الصندوق");
+    setToast("✓ تم تعديل عملية الشحن وقيدها في الكاش");
     return null;
   }
 
@@ -614,7 +614,7 @@ export default function StarlinkPage() {
                     <>
                       <strong>⬆️ شحن البطاقة</strong>
                       <span>
-                        من الصندوق <bdi dir="ltr">{formatAmount(row.topUp.paidAmount)}</bdi>{" "}
+                        من الكاش <bdi dir="ltr">{formatAmount(row.topUp.paidAmount)}</bdi>{" "}
                         {LEDGER_CURRENCY_LABELS[row.topUp.paidCurrency as LedgerCurrency] ?? row.topUp.paidCurrency}
                         {row.topUp.note ? ` · ${row.topUp.note}` : ""}
                       </span>
@@ -980,13 +980,13 @@ function TopUpForm({
   const [amountUsd, setAmountUsd] = useState(initial ? String(initial.amountUsd) : prefill ? String(prefill.amountUsd) : "");
   const [paidCurrency, setPaidCurrency] = useState<string>(initial?.paidCurrency ?? "MRU");
   const [paidAmount, setPaidAmount] = useState(initial ? String(initial.paidAmount) : "");
-  // An edit starts from what really left الصندوق, never a re-suggestion from today's rate.
+  // An edit starts from what really left الكاش, never a re-suggestion from today's rate.
   const [paidTouched, setPaidTouched] = useState(Boolean(initial));
   const [date, setDate] = useState(initial?.date ?? todayInput());
   const [note, setNote] = useState(initial?.note ?? prefill?.note ?? "");
   const [error, setError] = useState<string | null>(null);
 
-  // Suggests what left الصندوق from today's rate until the operator types the real figure.
+  // Suggests what left الكاش from today's rate until the operator types the real figure.
   const rate = paidCurrency === "USD" ? 1 : paidCurrency === "MRU" ? mruRate : getCurrency(currencyStore, paidCurrency)?.rateFromUsd;
   const suggested = Number(amountUsd) > 0 && rate ? Math.round(Number(amountUsd) * rate * 100) / 100 : undefined;
   const shownPaid = paidTouched ? paidAmount : suggested !== undefined ? String(suggested) : "";
@@ -1015,7 +1015,7 @@ function TopUpForm({
         />
       </label>
       <label className="rep-form-field">
-        <span>خرج من الصندوق</span>
+        <span>خرج من الكاش</span>
         <div className="party-balance-row">
           <input
             className="search-input"

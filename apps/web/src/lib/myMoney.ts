@@ -5,7 +5,7 @@
  * figures: «يبقى لك هذا الشهر» and «كل ما تملك».
  *
  * Every amount keeps its own currency; أوقية totals are display-only at today's rates. Records
- * taken through الصندوق post a linked cash entry (sourceId = the record's id, removed with it),
+ * taken through الكاش post a linked cash entry (sourceId = the record's id, removed with it),
  * which the business reports already leave out (listStandaloneCashEntries).
  */
 
@@ -61,12 +61,12 @@ export interface IncomeRecord {
   /** yyyy-mm-dd */
   date: string;
   note?: string;
-  /** Went into الصندوق - a linked cash-in entry exists with sourceId = id. */
+  /** Went into الكاش - a linked cash-in entry exists with sourceId = id. */
   toCash: boolean;
   createdAt: string;
   /** Created by a monthly rule (🔁). */
   recurringId?: string;
-  /** Went into a bank / wallet (moneyAccounts.ts) instead of الصندوق. */
+  /** Went into a bank / wallet (moneyAccounts.ts) instead of الكاش. */
   accountId?: string;
 }
 
@@ -117,7 +117,7 @@ export function deleteIncome(list: IncomeList, id: string): IncomeList {
   return list.filter((e) => e.id !== id);
 }
 
-/** The income's الصندوق entry, rebuilt: removed, then posted again only when it went «في الصندوق». */
+/** The income's الكاش entry, rebuilt: removed, then posted again only when it went «في الكاش». */
 export function syncIncomeCash(cash: CashEntryList, income: IncomeRecord, custom: ExpenseCategory[]): CashEntryList {
   const without = removeLinkedCashEntries(cash, income.id);
   if (!income.toCash) return without;
@@ -145,7 +145,7 @@ export interface RecurringRule {
   /** Day of the month it lands on (1-28, so every month has it). */
   day: number;
   note?: string;
-  /** Through الصندوق (income in / expense out). */
+  /** Through الكاش (income in / expense out). */
   viaCash: boolean;
   /** Through a bank / wallet instead. */
   accountId?: string;
@@ -266,7 +266,7 @@ export interface PersonalDebt {
   date: string;
   note?: string;
   viaCash: boolean;
-  /** Through a bank / wallet instead of الصندوق. */
+  /** Through a bank / wallet instead of الكاش. */
   accountId?: string;
   createdAt: string;
 }
@@ -364,7 +364,7 @@ export function deleteDebtPayment(book: DebtBook, paymentId: string): DebtBook {
   return { ...book, payments: book.payments.filter((p) => p.id !== paymentId) };
 }
 
-/** The debt's الصندوق entry: lending takes money out, borrowing brings it in. */
+/** The debt's الكاش entry: lending takes money out, borrowing brings it in. */
 export function syncDebtCash(cash: CashEntryList, debt: PersonalDebt): CashEntryList {
   const without = removeLinkedCashEntries(cash, debt.id);
   if (!debt.viaCash) return without;
@@ -381,7 +381,7 @@ export function syncDebtCash(cash: CashEntryList, debt: PersonalDebt): CashEntry
   return posted.ok ? posted.entries : without;
 }
 
-/** A repayment's الصندوق entry: the opposite way of its debt. */
+/** A repayment's الكاش entry: the opposite way of its debt. */
 export function syncDebtPaymentCash(cash: CashEntryList, payment: DebtPayment, debt: PersonalDebt): CashEntryList {
   const without = removeLinkedCashEntries(cash, payment.id);
   if (!payment.viaCash) return without;
@@ -477,7 +477,7 @@ export interface WealthLine {
 
 export interface Wealth {
   lines: WealthLine[];
-  /** «في يدك الآن» = الصندوق + البنوك + البطاقة − everything I owe. */
+  /** «في يدك الآن» = الكاش + البنوك + البطاقة − everything I owe. */
   inHandMru: number;
   /** «كل ما تملك» = in hand + everything owed to me (customers, reps, people). */
   totalMru: number;
@@ -490,7 +490,7 @@ export interface WealthGroup {
 }
 
 export interface WealthInput {
-  /** الصندوق - cash in hand. */
+  /** الكاش - cash in hand. */
   cash: Record<string, number>;
   banks: WealthGroup[];
   cardUsd: number;
@@ -531,9 +531,9 @@ export function buildWealth(input: WealthInput): Wealth {
   const mruItem = (name: string, mru: number): WealthItem => ({ name, byCurrency: { MRU: mru }, mru });
 
   const lines: WealthLine[] = [
-    line("cash", "💵", "الصندوق (نقداً)", "have", [item("الصندوق", input.cash)]),
+    line("cash", "💵", "كاش", "have", [item("الكاش", input.cash)]),
     line("banks", "🏦", "البنوك والمحافظ", "have", input.banks.map((b) => item(b.name, b.byCurrency))),
-    line("card", "💳", "بطاقة KAST", "have", [item("البطاقة", { USD: input.cardUsd })]),
+    line("card", "💳", "محفظة KAST", "have", [item("KAST", { USD: input.cardUsd })]),
     line("customers", "👥", "لك عند الزبائن", "owed", input.customers.map((c) => item(c.name, c.byCurrency))),
     line("repsOwe", "🧑‍💼", "لك عند المندوبين", "owed", input.repsMru.filter((r) => r.mru > 0).map((r) => mruItem(r.name, r.mru))),
     line("lent", "🤝", "لك عند الناس", "owed", people.lent),

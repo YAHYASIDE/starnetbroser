@@ -6,7 +6,7 @@
  * - Paying Starlink settles the D (paidAt = that day, the day its profit becomes real, profit
  *   rates locked then). A payment made from the card is marked paidVia "card".
  * - The card's balance (USD) is derived: every top-up (a record here, which also takes the money
- *   out of الصندوق) minus every settled cost paid from it. Nothing is kept as a running counter.
+ *   out of الكاش) minus every settled cost paid from it. Nothing is kept as a running counter.
  */
 
 import type { StarlinkAccountSummary } from "@starnet/shared";
@@ -197,7 +197,7 @@ export interface CardTopUp {
   id: string;
   /** What landed on the card, USD. */
   amountUsd: number;
-  /** What left الصندوق for it, in its own currency. */
+  /** What left الكاش for it, in its own currency. */
   paidAmount: number;
   paidCurrency: string;
   date: string;
@@ -238,7 +238,7 @@ export type CardTopUpResult = { ok: true; list: CardTopUpList; topUp: CardTopUp 
 
 export function recordCardTopUp(list: CardTopUpList, input: CardTopUpInput): CardTopUpResult {
   if (!Number.isFinite(input.amountUsd) || input.amountUsd <= 0) return { ok: false, message: "أدخل مبلغ الشحن بالدولار" };
-  if (!Number.isFinite(input.paidAmount) || input.paidAmount <= 0) return { ok: false, message: "أدخل المبلغ الذي خرج من الصندوق" };
+  if (!Number.isFinite(input.paidAmount) || input.paidAmount <= 0) return { ok: false, message: "أدخل المبلغ الذي خرج من الكاش" };
   const topUp: CardTopUp = {
     id: typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `card-${Date.now()}-${Math.random()}`,
     amountUsd: input.amountUsd,
@@ -255,7 +255,7 @@ export function deleteCardTopUp(list: CardTopUpList, id: string): CardTopUpList 
   return list.filter((t) => t.id !== id);
 }
 
-/** Replaces a past top-up's figures (same id, so its الصندوق entry is re-posted to match). */
+/** Replaces a past top-up's figures (same id, so its الكاش entry is re-posted to match). */
 export function editCardTopUp(list: CardTopUpList, id: string, input: CardTopUpInput): CardTopUpResult {
   const existing = list.find((t) => t.id === id);
   if (!existing) return { ok: false, message: "عملية الشحن غير موجودة" };
@@ -265,12 +265,12 @@ export function editCardTopUp(list: CardTopUpList, id: string, input: CardTopUpI
   return { ok: true, list: list.map((t) => (t.id === id ? topUp : t)), topUp };
 }
 
-/** The الصندوق entry of an edited top-up, rebuilt from its new figures. */
+/** The الكاش entry of an edited top-up, rebuilt from its new figures. */
 export function replaceCardTopUpCash(cash: CashEntryList, topUp: CardTopUp): CashEntryList {
   return postCardTopUpToCash(removeCardTopUpCash(cash, topUp.id), topUp);
 }
 
-/** A top-up takes its money out of الصندوق (linked, removed together with it). */
+/** A top-up takes its money out of الكاش (linked, removed together with it). */
 export function postCardTopUpToCash(cash: CashEntryList, topUp: CardTopUp): CashEntryList {
   const posted = recordCashEntry(cash, {
     kind: "out",

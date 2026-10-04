@@ -38,7 +38,7 @@ function money(byCurrency: Record<string, number>): string {
 
 /**
  * 🧾 «المصروفات» (Reports tab): the operator's own spending. Tap a category, type the amount, save -
- * «💵 من الصندوق» (on by default) also takes it out of الصندوق. Today / this month at the top, the
+ * «💵 من الكاش» (on by default) also takes it out of الكاش. Today / this month at the top, the
  * month by category, and the latest expenses (tap one to edit or delete).
  */
 export function PersonalExpensesTab({
@@ -50,7 +50,7 @@ export function PersonalExpensesTab({
   rates,
   onChange,
 }: {
-  /** My banks / wallets (moneyAccounts.ts) - an expense can be paid from one instead of الصندوق. */
+  /** My banks / wallets (moneyAccounts.ts) - an expense can be paid from one instead of الكاش. */
   accounts?: { id: string; name: string; icon: string }[];
   /** Set by a floating «+» / a shortcut: opens a new expense right away, once (then onOpened). */
   openNew?: boolean;
@@ -161,7 +161,7 @@ export function PersonalExpensesTab({
                     <strong>{e.note || c.name}</strong>
                     <small>
                       <bdi dir="ltr">{e.date.slice(5)}</bdi>
-                      {e.fromCash ? " · 💵 الصندوق" : ""}
+                      {e.fromCash ? " · 💵 الكاش" : ""}
                       {e.accountId ? ` · ${accounts.find((a) => a.id === e.accountId)?.name ?? "🏦"}` : ""}
                     </small>
                   </span>

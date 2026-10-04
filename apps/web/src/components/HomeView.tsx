@@ -339,7 +339,7 @@ export function HomeView({
   const [editingStatementEntry, setEditingStatementEntry] = useState<LedgerEntry | null>(null);
 
   function updateLedgerEntries(accountId: string, entries: LedgerEntry[]) {
-    // Every device payment also moves money into الصندوق - computed from the current (pre-edit)
+    // Every device payment also moves money into الكاش - computed from the current (pre-edit)
     // entries, outside the state updater so it runs exactly once.
     const deviceName = accounts.find((a) => a.id === accountId)?.name ?? "";
     const nextCash = applyLedgerPaymentsToCash(loadCashEntries(), getAccountEntries(ledgerStore, accountId), entries, deviceName);

@@ -1,5 +1,5 @@
 /**
- * الصندوق - a simple cash register: every amount that actually moved in or out of the till, and
+ * الكاش - a simple cash register: every amount that actually moved in or out of the till, and
  * the running balance that log implies (never stored as a separate mutable counter, same
  * derive-don't-store philosophy as storeStore.ts's own stock). Two kinds of entry:
  *  - manual, entered directly here (rent, transport, any expense/income not tied to a specific
@@ -197,7 +197,7 @@ export function postPartyAdjustmentToCash(cash: CashEntryList, adjustment: Party
 
 /** A representative handing over collected cash ("cashHandover") puts it in the till; paying out
  * their commission ("commissionPayout") takes it out. Manual credit/debit adjustments are
- * bookkeeping corrections, not cash, so they never touch الصندوق. */
+ * bookkeeping corrections, not cash, so they never touch الكاش. */
 export function postRepSettlementToCash(cash: CashEntryList, settlement: RepSettlement, repName: string): CashEntryList {
   if (settlement.kind !== "cashHandover" && settlement.kind !== "commissionPayout") return cash;
   const isHandover = settlement.kind === "cashHandover";
@@ -214,7 +214,7 @@ export function postRepSettlementToCash(cash: CashEntryList, settlement: RepSett
   return posted.ok ? posted.entries : cash;
 }
 
-// ---- Daily closing (إغلاق الصندوق اليومي) ----
+// ---- Daily closing (إغلاق الكاش اليومي) ----
 
 /** One currency's line on a daily closing: what the log says should be in the till by the end of
  * the day vs what was actually counted. A non-zero difference is also posted to the log itself
@@ -295,7 +295,7 @@ export function recordCashClosing(
   note?: string,
 ): RecordCashClosingResult {
   const codes = Object.keys(counted);
-  if (codes.length === 0) return { ok: false, message: "أدخل المبلغ الفعلي في الصندوق" };
+  if (codes.length === 0) return { ok: false, message: "أدخل المبلغ الفعلي في الكاش" };
   for (const code of codes) {
     const value = counted[code]!;
     if (!Number.isFinite(value) || value < 0) return { ok: false, message: "أدخل مبلغًا صحيحًا (صفر أو أكثر)" };
@@ -320,7 +320,7 @@ export function recordCashClosing(
       amount: Math.abs(line.difference),
       currencyCode: line.currencyCode,
       date,
-      category: line.difference > 0 ? "زيادة في الصندوق" : "عجز في الصندوق",
+      category: line.difference > 0 ? "زيادة في الكاش" : "عجز في الكاش",
       note: `إغلاق يوم ${date}`,
       sourceId: closing.id,
       sourceKind: "closing",

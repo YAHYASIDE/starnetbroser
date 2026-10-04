@@ -101,7 +101,7 @@ describe("the كاش card", () => {
     expect(recordCardTopUp([], { amountUsd: 0, paidAmount: 1, paidCurrency: "MRU", date: "x" }).ok).toBe(false);
   });
 
-  it("a top-up takes its money out of الصندوق, linked to it", () => {
+  it("a top-up takes its money out of الكاش, linked to it", () => {
     const top = recordCardTopUp([], { amountUsd: 200, paidAmount: 8000, paidCurrency: "MRU", date: "2026-09-01" });
     if (!top.ok) throw new Error(top.message);
     const cash = postCardTopUpToCash([], top.topUp);

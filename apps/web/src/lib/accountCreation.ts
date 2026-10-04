@@ -43,7 +43,7 @@ export function normalizeKit(kit: string): string {
 /** The first problem with the form, in Arabic, or null when it can start. */
 export function creationProblem(input: CreationInput): string | null {
   if (!input.fullName.trim()) return "اختر الزبون أولاً";
-  if (normalizeKit(input.kit).length < 6) return "اكتب رقم KIT أو SN كما على الصندوق";
+  if (normalizeKit(input.kit).length < 6) return "اكتب رقم KIT أو SN كما على الكاش";
   const email = normalizeNewEmail(input.email);
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return "اكتب البريد الجديد (مثال: name@outlook.com)";
   // Microsoft refuses a shorter one.

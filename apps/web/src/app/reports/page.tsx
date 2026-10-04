@@ -646,7 +646,7 @@ export default function ReportsPage() {
                 hint={net.storeSalesMru === 0 && net.storeCogsMru === 0 ? "لا مبيعات هذا الشهر" : `مبيعات ${mru(net.storeSalesMru)} − بضاعة ${mru(net.storeCogsMru)} − شحن ${mru(net.storeShippingMru)}${net.storeRepCommissionMru ? ` − عمولات ${mru(net.storeRepCommissionMru)}` : ""}`}
                 value={net.storeNetMru}
               />
-              <NetLine label="المصاريف" hint="قيود «خارج» في الصندوق" value={-net.expensesMru} />
+              <NetLine label="المصاريف" hint="قيود «خارج» في الكاش" value={-net.expensesMru} />
               <NetLine label="الصافي" value={net.netMru} total />
               {personalMonth.mru > 0 && (
                 <>
@@ -661,7 +661,7 @@ export default function ReportsPage() {
             title="المصاريف حسب النوع"
             tone="bad"
             barTone="bad"
-            empty="لا توجد مصاريف مسجّلة هذا الشهر. سجّلها في الصندوق كـ«خارج» مع تصنيف (إيجار، نقل، إنترنت…) لتظهر هنا."
+            empty="لا توجد مصاريف مسجّلة هذا الشهر. سجّلها في الكاش كـ«خارج» مع تصنيف (إيجار، نقل، إنترنت…) لتظهر هنا."
             rows={net.expenses.map((e) => ({ key: e.category, title: e.category, subtitle: `${e.count} ${e.count === 1 ? "قيد" : "قيود"}`, value: -e.mru }))}
           />
 

@@ -170,7 +170,7 @@ function useFx(): Fx {
   return useContext(FxContext);
 }
 
-/** The operator only ever picks "له" or "عليه" (plus whether cash went through الصندوق); the
+/** The operator only ever picks "له" or "عليه" (plus whether cash went through الكاش); the
  * stored kind keeps both facts so the till entry and older records stay exact. */
 const SETTLEMENT_LABELS: Record<RepSettlementKind, string> = {
   cashHandover: "➕ له · استلمت منه نقدًا",
@@ -1082,7 +1082,7 @@ function RepCard({
             submitLabel="حفظ التعديل"
             onCancel={() => setSheet(null)}
             onDelete={() => {
-              if (!window.confirm("حذف هذه العملية؟ يُحذف قيدها في الصندوق أيضًا.")) return;
+              if (!window.confirm("حذف هذه العملية؟ يُحذف قيدها في الكاش أيضًا.")) return;
               onDeleteSettlement(sheet.settlement.id);
               setSheet(null);
             }}
@@ -1181,7 +1181,7 @@ function RepCard({
               </p>
             )}
             <ul className="rep-delete-list">
-              <li>🗑 تُحذف {deletion.settlements} تسوية (ويُحذف قيدها في الصندوق)</li>
+              <li>🗑 تُحذف {deletion.settlements} تسوية (ويُحذف قيدها في الكاش)</li>
               <li>📡 تُلغى حصته من {deletion.shipments} شحنة - يصبح ربحها كله لك</li>
               {deletion.invoices > 0 && <li>🧾 تُلغى عمولته من {deletion.invoices} فاتورة متجر</li>}
               <li>💰 رصيده الحالي: {balanceText(netBalance)}</li>
@@ -1577,7 +1577,7 @@ function SettlementForm({
       </label>
       <label className="ledger-d-toggle party-cash-toggle">
         <input type="checkbox" checked={viaCash} onChange={(e) => setViaCash(e.target.checked)} />
-        <span>{direction === "debit" ? "دفعتها له نقدًا (تخرج من الصندوق)" : "استلمتها منه نقدًا (تدخل الصندوق)"}</span>
+        <span>{direction === "debit" ? "دفعتها له نقدًا (تخرج من الكاش)" : "استلمتها منه نقدًا (تدخل الكاش)"}</span>
       </label>
       <input className="search-input" placeholder="ملاحظة (اختياري)" value={note} onChange={(e) => setNote(e.target.value)} />
       {error && <div className="account-card-alert ledger-form-error">{error}</div>}

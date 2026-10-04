@@ -13,8 +13,12 @@ export interface MoneyAccount {
   name: string;
   icon: string;
   currencyCode: string;
-  /** Customers' device payments with this method land here (instead of الصندوق). */
+  /** Customers' device payments with this method land here (instead of الكاش). */
   method?: PaymentMethod;
+  /** The phone number it's on (shown only). */
+  number?: string;
+  /** False for a ready-made account whose real balance hasn't been typed yet. */
+  balanceSet?: boolean;
   /** The real balance when it was added, on `openingDate` (yyyy-mm-dd). */
   openingBalance: number;
   openingDate: string;
@@ -34,6 +38,8 @@ export interface AccountAdjustment {
 export interface AccountsBook {
   accounts: MoneyAccount[];
   adjustments: AccountAdjustment[];
+  /** The ready-made accounts were added once (never again, even if deleted). */
+  seeded?: boolean;
 }
 
 export const EMPTY_ACCOUNTS_BOOK: AccountsBook = { accounts: [], adjustments: [] };
@@ -57,6 +63,7 @@ export interface AccountInput {
   icon: string;
   currencyCode: string;
   method?: PaymentMethod;
+  number?: string;
   openingBalance: number;
   openingDate: string;
 }
@@ -75,6 +82,7 @@ export function addMoneyAccount(book: AccountsBook, input: AccountInput, now = n
     icon: input.icon.trim() || "🏦",
     currencyCode: input.currencyCode,
     ...(input.method ? { method: input.method } : {}),
+    ...(input.number ? { number: input.number } : {}),
     openingBalance: input.openingBalance,
     openingDate: input.openingDate,
     createdAt: now.toISOString(),
@@ -83,7 +91,40 @@ export function addMoneyAccount(book: AccountsBook, input: AccountInput, now = n
 }
 
 export function deleteMoneyAccount(book: AccountsBook, id: string): AccountsBook {
-  return { accounts: book.accounts.filter((a) => a.id !== id), adjustments: book.adjustments.filter((x) => x.accountId !== id) };
+  return { ...book, accounts: book.accounts.filter((a) => a.id !== id), adjustments: book.adjustments.filter((x) => x.accountId !== id) };
+}
+
+/** The operator's own apps and wallets (KAST is the card, tracked on its own). */
+export const DEFAULT_ACCOUNTS: Omit<AccountInput, "openingBalance" | "openingDate">[] = [
+  { name: "بنكيلي", icon: "🟢", currencyCode: "MRU", method: "bankily", number: "22227268" },
+  { name: "مصرفي", icon: "🔵", currencyCode: "MRU", method: "masrvi", number: "22227268" },
+  { name: "سداد", icon: "🟣", currencyCode: "MRU", method: "sedad", number: "22227268" },
+  { name: "كليك", icon: "🔴", currencyCode: "MRU", number: "22227268" },
+  { name: "أمانتي", icon: "🟤", currencyCode: "MRU", number: "22227268" },
+  { name: "أورانج موني (مالي)", icon: "🟠", currencyCode: "SIFA", method: "orange", number: "74646158" },
+  { name: "نيتا (النيجر)", icon: "🟡", currencyCode: "SIFA", method: "nita", number: "22227268" },
+  { name: "محفظة بينانس", icon: "🔶", currencyCode: "USD" },
+];
+
+/** The ready-made accounts, once, each waiting for its real balance. */
+export function seedDefaultAccounts(book: AccountsBook, today: string, now = new Date()): AccountsBook {
+  if (book.seeded) return book;
+  let next: AccountsBook = { ...book, seeded: true };
+  for (const preset of DEFAULT_ACCOUNTS) {
+    if (next.accounts.some((a) => a.name === preset.name || (preset.method && a.method === preset.method))) continue;
+    const made = addMoneyAccount(next, { ...preset, openingBalance: 0, openingDate: today }, now);
+    if (made.ok) next = { ...made.book, accounts: made.book.accounts.map((a) => (a.id === made.account.id ? { ...a, balanceSet: false } : a)) };
+  }
+  return next;
+}
+
+/** The first real balance of a ready-made account: it becomes its opening, from today. */
+export function setOpeningBalance(book: AccountsBook, accountId: string, amount: number, today: string): { ok: true; book: AccountsBook } | { ok: false; message: string } {
+  if (!Number.isFinite(amount)) return { ok: false, message: "اكتب الرصيد الحقيقي" };
+  return {
+    ok: true,
+    book: { ...book, accounts: book.accounts.map((a) => (a.id === accountId ? { ...a, openingBalance: amount, openingDate: today, balanceSet: true } : a)) },
+  };
 }
 
 /** Customers' device payments made with `method`, from the account's opening day on (+). */
@@ -127,7 +168,7 @@ export function correctBalance(
 }
 
 /**
- * الصندوق as cash in hand: the till's entries, without the customers' payments that went into a
+ * الكاش as cash in hand: the till's entries, without the customers' payments that went into a
  * linked bank/wallet (they're posted to the till as «دفعة جهاز», but the money is in the app).
  */
 export function cashInHandEntries(cash: CashEntryList, ledger: LedgerByAccount, book: AccountsBook): CashEntryList {
@@ -147,7 +188,11 @@ export function loadAccountsBook(): AccountsBook {
   try {
     const raw = window.localStorage.getItem(KEY);
     const parsed = raw ? (JSON.parse(raw) as Partial<AccountsBook>) : {};
-    return { accounts: Array.isArray(parsed.accounts) ? parsed.accounts : [], adjustments: Array.isArray(parsed.adjustments) ? parsed.adjustments : [] };
+    return {
+      accounts: Array.isArray(parsed.accounts) ? parsed.accounts : [],
+      adjustments: Array.isArray(parsed.adjustments) ? parsed.adjustments : [],
+      ...(parsed.seeded ? { seeded: true } : {}),
+    };
   } catch {
     return EMPTY_ACCOUNTS_BOOK;
   }

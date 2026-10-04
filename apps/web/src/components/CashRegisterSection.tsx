@@ -51,7 +51,7 @@ interface Props {
   onChangeClosings: (entries: CashEntryList, closings: CashClosingList) => void;
 }
 
-/** الصندوق والمصاريف: every manually-recorded amount in or out, plus every amount auto-posted
+/** الكاش والمصاريف: every manually-recorded amount in or out, plus every amount auto-posted
  * from an invoice's own paidAmount (see store/page.tsx's onChange wiring) - and the running
  * balance that log implies, per currency. An invoice-linked entry is shown the same as any other
  * here (it really did move cash), but is excluded from "مصاريف" when computing net profit
@@ -108,14 +108,14 @@ export function CashRegisterSection({ entries, onChange, closings, onChangeClosi
   );
 
   function remove(entryId: string) {
-    if (!window.confirm("هل تريد حذف هذه الحركة من الصندوق؟ لا يمكن التراجع عن هذا الإجراء.")) return;
+    if (!window.confirm("هل تريد حذف هذه الحركة من الكاش؟ لا يمكن التراجع عن هذا الإجراء.")) return;
     onChange(deleteCashEntry(entries, entryId));
   }
 
   return (
     <section className="section">
       <button type="button" className="report-collapse-toggle" onClick={() => setExpanded((v) => !v)} aria-expanded={expanded}>
-        💵 الصندوق والمصاريف {expanded ? "▲" : "▼"}
+        💵 الكاش والمصاريف {expanded ? "▲" : "▼"}
       </button>
 
       {expanded && (
@@ -224,7 +224,7 @@ export function CashRegisterSection({ entries, onChange, closings, onChangeClosi
             </form>
           )}
 
-          {sorted.length === 0 && !showForm && <p className="empty-state">لا توجد حركات في الصندوق بعد.</p>}
+          {sorted.length === 0 && !showForm && <p className="empty-state">لا توجد حركات في الكاش بعد.</p>}
 
           <ul className="ledger-entry-list">
             {sorted.map((entry) => (
@@ -313,7 +313,7 @@ function ClosingForm({ entries, onSubmit }: ClosingFormProps) {
               <bdi dir="ltr">+{formatAmount(s.in)}</bdi>
               <span>خرج اليوم</span>
               <bdi dir="ltr">-{formatAmount(s.out)}</bdi>
-              <strong>المفروض في الصندوق</strong>
+              <strong>المفروض في الكاش</strong>
               <strong dir="ltr">{formatAmount(s.expected)}</strong>
             </div>
             <input

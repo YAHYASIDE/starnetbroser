@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { DateInput } from "@/components/DateInput";
 import { PartySheet } from "@/components/AccountsSection";
 import { formatAmount } from "@/lib/formatAmount";
-import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, PAYMENT_METHOD_LABELS, type LedgerCurrency, type PaymentMethod } from "@/lib/ledgerStore";
+import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, PAYMENT_METHOD_LABELS, type LedgerCurrency } from "@/lib/ledgerStore";
 import type { AccountInput, AccountsBook, MoneyAccount } from "@/lib/moneyAccounts";
 import { monthLabel } from "@/lib/monthClosing";
 import {
@@ -71,7 +71,7 @@ function AmountInput({ value, onChange, autoFocus }: { value: string; onChange: 
 
 const toNumber = (v: string) => Number(v.replace(",", "."));
 
-/** Where the money went / came from: الصندوق, one of my banks / wallets, or neither. */
+/** Where the money went / came from: الكاش, one of my banks / wallets, or neither. */
 export type MoneySourceValue = string;
 
 export function sourceOf(viaCash: boolean, accountId?: string): MoneySourceValue {
@@ -99,7 +99,7 @@ export function SourceSelect({
     <label className="tool-field money-source">
       <span>{label}</span>
       <select className="search-input" value={value} onChange={(e) => onChange(e.target.value)}>
-        <option value="cash">💵 الصندوق</option>
+        <option value="cash">💵 كاش</option>
         {accounts.map((a) => (
           <option key={a.id} value={a.id}>
             {a.icon} {a.name}
@@ -191,7 +191,7 @@ export function IncomeTab({
                     <strong>{e.note || c.name}</strong>
                     <small>
                       <bdi dir="ltr">{e.date.slice(5)}</bdi>
-                      {e.toCash ? " · 💵 الصندوق" : ""}
+                      {e.toCash ? " · 💵 الكاش" : ""}
                       {e.accountId ? ` · ${accounts.find((a) => a.id === e.accountId)?.name ?? "🏦"}` : ""}
                       {e.recurringId ? " · 🔁 شهري" : ""}
                     </small>
@@ -742,7 +742,7 @@ export function WealthCard({ wealth, onOpen }: { wealth: Wealth; onOpen: (line: 
           <strong className={`net-hero-value${wealth.inHandMru < 0 ? " money-out" : ""}`}>
             <bdi dir="ltr">{mruText(wealth.inHandMru)}</bdi> <small>أوقية</small>
           </strong>
-          <small className="money-two-hint">الصندوق + البنوك + البطاقة − ما عليك</small>
+          <small className="money-two-hint">الكاش + البنوك + المحافظ − ما عليك</small>
         </div>
         <div>
           <span className="net-hero-label">كل ما تملك</span>
@@ -818,7 +818,7 @@ export function AccountsManager({
   onCorrect: (account: MoneyAccount, actual: number) => string | null;
   onDelete: (account: MoneyAccount) => void;
 }) {
-  const [adding, setAdding] = useState(book.accounts.length === 0);
+  const [adding, setAdding] = useState(false);
   const [correcting, setCorrecting] = useState<string | null>(null);
   return (
     <div className="party-balance-form">
@@ -828,12 +828,26 @@ export function AccountsManager({
             <li key={a.id} className="money-account-row">
               <span>
                 {a.icon} {a.name}
+                {a.number ? (
+                  <small>
+                    {" "}
+                    · <bdi dir="ltr">{a.number}</bdi>
+                  </small>
+                ) : null}
                 {a.method ? <small> · دفعات «{PAYMENT_METHOD_LABELS[a.method]}» هنا</small> : null}
               </span>
-              <bdi dir="ltr">{signedMoney(balances[a.id] ?? {})}</bdi>
-              <button type="button" className="btn-icon" onClick={() => setCorrecting(correcting === a.id ? null : a.id)}>
-                ✎
-              </button>
+              {a.balanceSet === false ? (
+                <button type="button" className="dialog-primary money-set-balance" onClick={() => setCorrecting(a.id)}>
+                  اكتب الرصيد
+                </button>
+              ) : (
+                <>
+                  <bdi dir="ltr">{signedMoney(balances[a.id] ?? {})}</bdi>
+                  <button type="button" className="btn-icon" onClick={() => setCorrecting(correcting === a.id ? null : a.id)}>
+                    ✎
+                  </button>
+                </>
+              )}
               {correcting === a.id && (
                 <CorrectForm
                   account={a}
@@ -853,7 +867,6 @@ export function AccountsManager({
       )}
       {adding ? (
         <AccountForm
-          usedMethods={book.accounts.map((a) => a.method).filter((m): m is PaymentMethod => Boolean(m))}
           onSave={(input) => {
             const message = onAdd(input);
             if (!message) setAdding(false);
@@ -861,8 +874,8 @@ export function AccountsManager({
           }}
         />
       ) : (
-        <button type="button" className="dialog-primary" onClick={() => setAdding(true)}>
-          ➕ حساب بنكي / محفظة
+        <button type="button" className="btn-icon" onClick={() => setAdding(true)}>
+          ➕ حساب آخر
         </button>
       )}
       <p className="settings-hint">
@@ -872,67 +885,20 @@ export function AccountsManager({
   );
 }
 
-const ACCOUNT_PRESETS: { name: string; icon: string; method?: PaymentMethod }[] = [
-  { name: "بنكيلي", icon: "🟢", method: "bankily" },
-  { name: "مصرفي", icon: "🔵", method: "masrvi" },
-  { name: "سداد", icon: "🟣", method: "sedad" },
-  { name: "أورانج موني", icon: "🟠", method: "orange" },
-  { name: "نيتا", icon: "🟡", method: "nita" },
-];
-
-function AccountForm({ usedMethods, onSave }: { usedMethods: PaymentMethod[]; onSave: (input: AccountInput) => string | null }) {
-  const free = ACCOUNT_PRESETS.filter((p) => !p.method || !usedMethods.includes(p.method));
-  const [preset, setPreset] = useState(free[0]?.name ?? "");
-  const [name, setName] = useState(free[0]?.name ?? "");
+function AccountForm({ onSave }: { onSave: (input: AccountInput) => string | null }) {
+  const [name, setName] = useState("");
   const [balance, setBalance] = useState("");
   const [currency, setCurrency] = useState("MRU");
   const [error, setError] = useState<string | null>(null);
-  const chosen = ACCOUNT_PRESETS.find((p) => p.name === preset);
   return (
     <form
       className="party-balance-form"
       onSubmit={(e) => {
         e.preventDefault();
-        setError(
-          onSave({
-            name,
-            icon: chosen?.icon ?? "🏦",
-            currencyCode: currency,
-            method: chosen && name === chosen.name ? chosen.method : undefined,
-            openingBalance: toNumber(balance || "0"),
-            openingDate: today(),
-          }),
-        );
+        setError(onSave({ name, icon: "🏦", currencyCode: currency, openingBalance: toNumber(balance || "0"), openingDate: today() }));
       }}
     >
-      <div className="expenses-cats money-presets" role="group" aria-label="الحساب">
-        {free.map((p) => (
-          <button
-            key={p.name}
-            type="button"
-            className={`expenses-cat${preset === p.name ? " money-preset-active" : ""}`}
-            onClick={() => {
-              setPreset(p.name);
-              setName(p.name);
-            }}
-          >
-            <span aria-hidden="true">{p.icon}</span>
-            <small>{p.name}</small>
-          </button>
-        ))}
-        <button
-          type="button"
-          className={`expenses-cat${preset === "" ? " money-preset-active" : ""}`}
-          onClick={() => {
-            setPreset("");
-            setName("");
-          }}
-        >
-          <span aria-hidden="true">🏦</span>
-          <small>آخر</small>
-        </button>
-      </div>
-      {preset === "" && <input className="search-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="اسم الحساب" />}
+      <input className="search-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="اسم الحساب / المحفظة" autoFocus />
       <div className="expenses-amount-row">
         <AmountInput value={balance} onChange={setBalance} />
         <CurrencySelect value={currency} onChange={setCurrency} />
@@ -960,7 +926,7 @@ function CorrectForm({ account, onSave, onDelete }: { account: MoneyAccount; onS
       <div className="expenses-amount-row">
         <AmountInput value={actual} onChange={setActual} autoFocus />
         <button className="dialog-primary" type="submit" disabled={!actual}>
-          تصحيح الرصيد
+          {account.balanceSet === false ? "حفظ الرصيد" : "تصحيح الرصيد"}
         </button>
       </div>
       <small className="settings-hint">الرصيد الحقيقي في {account.name} الآن ({currencyLabel(account.currencyCode)})</small>

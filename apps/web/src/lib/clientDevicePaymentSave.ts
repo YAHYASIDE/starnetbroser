@@ -9,7 +9,7 @@ import { getAccountAllocations, loadAllocationStore, saveAllocationStore, withAc
 export type SaveClientDevicePaymentResult = { ok: true; ledgerStore: LedgerByAccount; entryId: string } | { ok: false; message: string };
 
 /** Saves a client's payment for one device (see clientDevicePayment.ts): the device's ledger, its
- * FIFO allocations, and - when the money came in as cash - the linked entry in الصندوق. */
+ * FIFO allocations, and - when the money came in as cash - the linked entry in الكاش. */
 export function saveClientDevicePayment(
   ledgerStore: LedgerByAccount,
   device: { id: string; name: string; email?: string },

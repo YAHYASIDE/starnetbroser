@@ -22,7 +22,7 @@ export interface PartyAdjustment {
   currencyCode: string;
   date: string;
   note?: string;
-  /** True when this entry was real money moving through الصندوق (a payment received from a
+  /** True when this entry was real money moving through الكاش (a payment received from a
    * client, a payment made to a supplier) - it then has a linked cash entry (cashStore.ts
    * sourceId = this id), removed together with it. */
   cashMoved?: boolean;
@@ -139,7 +139,7 @@ export function adjustmentDelta(adjustment: PartyAdjustment): number {
   return adjustment.direction === "owesUs" ? owesUsSign * adjustment.amount : -owesUsSign * adjustment.amount;
 }
 
-/** Which way cash moves for a balance entry that went through الصندوق: a client's "له" (a payment
+/** Which way cash moves for a balance entry that went through الكاش: a client's "له" (a payment
  * from them) or a supplier's "عليه" (a payment we made them) are the usual cases; the reverse
  * directions are cash going the other way (a refund to a client, money back from a supplier). */
 export function partyAdjustmentCashKind(partyKind: PartyKind, direction: PartyAdjustmentDirection): "in" | "out" {

@@ -1,7 +1,7 @@
 /**
  * 🧾 «المصروفات»: what the operator spends on himself and his home - food, drink, medicine,
  * clothes, his wife, the house… One tap on a category, the amount, save. Each expense keeps its own
- * currency (never mixed); one taken «من الصندوق» posts a linked cash-out (removed with it). They
+ * currency (never mixed); one taken «من الكاش» posts a linked cash-out (removed with it). They
  * are not business expenses: the business net stays as it is, and the reports add one line
  * «يبقى لك» = the month's net − these.
  */
@@ -35,12 +35,12 @@ export interface PersonalExpense {
   /** yyyy-mm-dd */
   date: string;
   note?: string;
-  /** Taken from الصندوق - a linked cash-out entry exists with sourceId = id. */
+  /** Taken from الكاش - a linked cash-out entry exists with sourceId = id. */
   fromCash: boolean;
   createdAt: string;
   /** Created by a monthly rule (myMoney.ts «🔁 شهري»), e.g. the rent. */
   recurringId?: string;
-  /** Paid from a bank / wallet (moneyAccounts.ts) instead of الصندوق. */
+  /** Paid from a bank / wallet (moneyAccounts.ts) instead of الكاش. */
   accountId?: string;
 }
 
@@ -141,7 +141,7 @@ export function deletePersonalExpense(list: PersonalExpenseList, id: string): Pe
   return list.filter((e) => e.id !== id);
 }
 
-/** The expense's الصندوق entry, rebuilt: removed, then posted again only when it's «من الصندوق». */
+/** The expense's الكاش entry, rebuilt: removed, then posted again only when it's «من الكاش». */
 export function syncExpenseCash(cash: CashEntryList, expense: PersonalExpense, categories: ExpenseCategory[]): CashEntryList {
   const without = removeLinkedCashEntries(cash, expense.id);
   if (!expense.fromCash) return without;

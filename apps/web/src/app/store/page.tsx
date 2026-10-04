@@ -432,7 +432,7 @@ export default function StorePage() {
   );
 
   /** Every invoice with a positive paidAmount also moves real cash, so it's mirrored into
-   * الصندوق automatically (invoiceId set, so it's never double-counted as a standalone expense -
+   * الكاش automatically (invoiceId set, so it's never double-counted as a standalone expense -
    * see cashStore.ts's listStandaloneCashEntries) rather than making the operator re-enter the
    * same amount by hand in two places. */
   function postInvoiceCashEntry(invoice: Invoice) {

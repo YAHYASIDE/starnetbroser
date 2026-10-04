@@ -123,7 +123,7 @@ function records(value: unknown, shape: Shape): Map<string, Rec> {
  * - devices: new ones (always his), or edits of devices that are his on the operator's phone;
  *   the freshest Starlink read is kept. Removing a device is never accepted.
  * - operations (ledger, allocations, previous debts): of his devices only. A new payment is marked
- *   as held by the rep (the money is with him - nothing goes into الصندوق).
+ *   as held by the rep (the money is with him - nothing goes into الكاش).
  * - customers: new ones, or customers of his devices; notes / adjustments / promises of those.
  */
 export function applyRepChangeSet(owner: StoreValues, changes: RepChangeSet, repId: string, now: Date = new Date()): ApplyRepChangesResult {

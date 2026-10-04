@@ -1,7 +1,18 @@
 import { describe, expect, it } from "vitest";
 import type { CashEntryList } from "./cashStore";
 import type { LedgerByAccount, LedgerEntry } from "./ledgerStore";
-import { accountBalance, addMoneyAccount, cashInHandEntries, correctBalance, deleteMoneyAccount, devicePaymentFlows, EMPTY_ACCOUNTS_BOOK } from "./moneyAccounts";
+import {
+  accountBalance,
+  addMoneyAccount,
+  cashInHandEntries,
+  correctBalance,
+  DEFAULT_ACCOUNTS,
+  deleteMoneyAccount,
+  devicePaymentFlows,
+  EMPTY_ACCOUNTS_BOOK,
+  seedDefaultAccounts,
+  setOpeningBalance,
+} from "./moneyAccounts";
 
 const bankily = () => {
   const made = addMoneyAccount(EMPTY_ACCOUNTS_BOOK, { name: "بنكيلي", icon: "🏦", currencyCode: "MRU", method: "bankily", openingBalance: 10000, openingDate: "2026-10-01" });
@@ -38,7 +49,30 @@ describe("🏦 bank / wallet accounts", () => {
     expect(deleteMoneyAccount(fixed.book, account.id)).toEqual(EMPTY_ACCOUNTS_BOOK);
   });
 
-  it("الصندوق in hand leaves out customers' payments that went into a linked bank", () => {
+  it("the ready-made accounts come once, each waiting for its real balance", () => {
+    const seeded = seedDefaultAccounts(EMPTY_ACCOUNTS_BOOK, "2026-10-04");
+    expect(seeded.accounts.map((a) => a.name)).toEqual(DEFAULT_ACCOUNTS.map((a) => a.name));
+    expect(seeded.accounts.every((a) => a.balanceSet === false && a.openingBalance === 0)).toBe(true);
+    expect(seeded.accounts.find((a) => a.method === "orange")?.currencyCode).toBe("SIFA");
+    // Deleted later: never re-added.
+    const emptied = seeded.accounts.reduce((book, a) => deleteMoneyAccount(book, a.id), seeded);
+    expect(seedDefaultAccounts(emptied, "2026-10-05").accounts).toEqual([]);
+    // An account already there (same method) is not duplicated.
+    const { book } = bankily();
+    expect(seedDefaultAccounts(book, "2026-10-04").accounts.filter((a) => a.method === "bankily")).toHaveLength(1);
+  });
+
+  it("the first real balance becomes the opening, from that day", () => {
+    const seeded = seedDefaultAccounts(EMPTY_ACCOUNTS_BOOK, "2026-10-01");
+    const id = seeded.accounts[0]!.id;
+    const set = setOpeningBalance(seeded, id, 5000, "2026-10-04");
+    if (!set.ok) throw new Error();
+    const account = set.book.accounts[0]!;
+    expect(account).toMatchObject({ openingBalance: 5000, openingDate: "2026-10-04", balanceSet: true });
+    expect(accountBalance(set.book, account, [])).toEqual({ MRU: 5000 });
+  });
+
+  it("الكاش in hand leaves out customers' payments that went into a linked bank", () => {
     const { book } = bankily();
     const ledger: LedgerByAccount = { a1: [payment("p1", 3000, "2026-10-02", "bankily"), payment("p2", 700, "2026-10-02", "cash")] };
     const cash = [

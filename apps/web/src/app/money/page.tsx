@@ -51,6 +51,8 @@ import {
   devicePaymentFlows,
   loadAccountsBook,
   saveAccountsBook,
+  seedDefaultAccounts,
+  setOpeningBalance,
   type AccountsBook,
 } from "@/lib/moneyAccounts";
 import { loadLedgerStore } from "@/lib/ledgerStore";
@@ -94,7 +96,7 @@ function Line({ icon, label, value, minus }: { icon: string; label: string; valu
 /**
  * 💰 «حسابي»: الدخل / المصروف / الديون like a personal finance app, and two final figures - what's
  * left for me this month (the business «الصافي» + my income − my spending) and everything I own
- * (الصندوق + البطاقة + what's owed to me − what I owe). Logic: lib/myMoney.ts.
+ * (الكاش + البطاقة + what's owed to me − what I owe). Logic: lib/myMoney.ts.
  */
 export default function MoneyPage() {
   const [accounts, setAccounts] = useState<StarlinkAccountSummary[]>([]);
@@ -109,7 +111,7 @@ export default function MoneyPage() {
   const [debts, setDebts] = useState<DebtBook>({ debts: [], payments: [] });
   const [book, setBook] = useState<AccountsBook>({ accounts: [], adjustments: [] });
   const [openLine, setOpenLine] = useState<WealthLine | null>(null);
-  // Bumped whenever الصندوق changes, so «كل ما تملك» is recomputed.
+  // Bumped whenever الكاش changes, so «كل ما تملك» is recomputed.
   const [cashVersion, setCashVersion] = useState(0);
   const [newRecord, setNewRecord] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -152,7 +154,11 @@ export default function MoneyPage() {
     setIncomeCats(incomeCustom);
     setExpenseCats(expenseCustom);
     setDebts(loadDebtBook());
-    setBook(loadAccountsBook());
+    // 🏦 the operator's apps and wallets, ready the first time (each waits for its balance).
+    const storedBook = loadAccountsBook();
+    const readyBook = seedDefaultAccounts(storedBook, today());
+    if (readyBook !== storedBook) saveAccountsBook(readyBook);
+    setBook(readyBook);
     setRates(loadRates());
     try {
       const saved = window.localStorage.getItem(TAB_KEY);
@@ -186,7 +192,7 @@ export default function MoneyPage() {
   const left = useMemo(() => monthLeft({ month, businessNetMru: business.netMru, incomes, expenses, rates }), [month, business, incomes, expenses, rates]);
   const wealth = useMemo(
     () => buildWealth(loadWealthInput({ accounts, rates, incomes, expenses, debts, book })),
-    // الصندوق changes (cashVersion) are read from storage.
+    // الكاش changes (cashVersion) are read from storage.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [accounts, rates, incomes, expenses, debts, book, cashVersion, loaded],
   );
@@ -413,6 +419,13 @@ export default function MoneyPage() {
                 return null;
               }}
               onCorrect={(account, actual) => {
+                if (account.balanceSet === false) {
+                  const first = setOpeningBalance(book, account.id, actual, today());
+                  if (!first.ok) return first.message;
+                  saveAccountsBook(first.book);
+                  setBook(first.book);
+                  return null;
+                }
                 const ledger = loadLedgerStore();
                 const flows = [...devicePaymentFlows(ledger, account), ...personalFlows(incomes, expenses, debts)];
                 const result = correctBalance(book, account, flows, actual, today());
@@ -430,7 +443,7 @@ export default function MoneyPage() {
           ) : (
             <WealthLineDetail line={shownLine} />
           )}
-          {shownLine.key === "cash" && <p className="settings-hint">الصندوق كما في «الصندوق»، بدون دفعات الزبائن التي دخلت حساباً بنكياً مربوطاً بطريقتها.</p>}
+          {shownLine.key === "cash" && <p className="settings-hint">الكاش كما في صفحة «الكاش»، بدون دفعات الزبائن التي دخلت تطبيقاً بنكياً مربوطاً بطريقتها.</p>}
           {shownLine.key === "starlink" && <p className="settings-hint">شحنات D والديون السابقة التي لم تُدفع لستارلينك بعد (بالدولار).</p>}
         </PartySheet>
       )}

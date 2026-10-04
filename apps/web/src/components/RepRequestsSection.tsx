@@ -261,7 +261,7 @@ function PaymentRequestCard({
         </select>
       </div>
       <label className="toggle-switch-row rep-request-cash">
-        <span>{cashMoved ? "💵 وصل المبلغ إلى الصندوق" : "🤝 المبلغ ما زال عند المندوب"}</span>
+        <span>{cashMoved ? "💵 وصل المبلغ إلى الكاش" : "🤝 المبلغ ما زال عند المندوب"}</span>
         <span className={`toggle-switch${cashMoved ? " toggle-switch-on" : ""}`}>
           <input type="checkbox" checked={cashMoved} onChange={(e) => setCashMoved(e.target.checked)} />
           <span className="toggle-switch-thumb" />

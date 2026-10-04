@@ -62,7 +62,7 @@ export function deviceRecordsQuestion(deviceName: string, summary: DeviceRecords
   if (summary.previousDebtCount > 0) parts.push(`${summary.previousDebtCount} دين سابق`);
   return (
     `للجهاز "${deviceName}" ${parts.join(" و ")}.\n` +
-    "هل تريد حذفها أيضًا؟ ستُحذف من الأرباح والديون والصندوق والتقارير نهائيًا.\n\n" +
+    "هل تريد حذفها أيضًا؟ ستُحذف من الأرباح والديون والكاش والتقارير نهائيًا.\n\n" +
     "موافق = احذفها مع الجهاز\n" +
     "إلغاء = احتفظ بها (تبقى في التقارير باسم «جهاز محذوف»)"
   );

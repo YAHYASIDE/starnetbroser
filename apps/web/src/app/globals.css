@@ -12336,3 +12336,10 @@ button.today-tile {
   border-color: var(--green);
   background: var(--green-bg);
 }
+
+.money-set-balance {
+  flex: none;
+  width: auto;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+}

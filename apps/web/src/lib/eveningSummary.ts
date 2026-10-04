@@ -80,7 +80,7 @@ export function buildEveningSummary(input: {
   lines.push(paymentCount > 0 ? `💵 تحصّل اليوم: ${money(collected)} (${paymentCount} دفعة)` : "💵 لم تُسجَّل دفعات اليوم");
   if (shipmentCount > 0) lines.push(`📡 شحنات اليوم: ${shipmentCount} (${money(shipped)})`);
   if (money(expenses)) lines.push(`💸 مصاريف اليوم: ${money(expenses)}`);
-  if (money(till)) lines.push(`🏦 في الصندوق: ${money(till)}`);
+  if (money(till)) lines.push(`🏦 في الكاش: ${money(till)}`);
   lines.push(debtorCount > 0 ? `⏳ لم يدفع بعد: ${debtorCount} جهاز - ${money(owed)}` : "✓ لا ديون على الزبائن");
 
   return {

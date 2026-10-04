@@ -35,7 +35,7 @@ export function ExpensesTool({ data }: { data: ToolsData }) {
       </div>
       {currencies.length === 0 && (
         <p className="settings-hint">
-          لا مصاريف مسجلة. سجّلها من <Link href="/store">المتجر ← الصندوق</Link> كـ«خروج» مع فئة (إيجار، نقل…).
+          لا مصاريف مسجلة. سجّلها من <Link href="/store">المتجر ← الكاش</Link> كـ«خروج» مع فئة (إيجار، نقل…).
         </p>
       )}
       {currencies.map((code) => {

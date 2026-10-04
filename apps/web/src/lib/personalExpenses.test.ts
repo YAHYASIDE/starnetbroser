@@ -23,7 +23,7 @@ describe("personal expenses", () => {
     expect(addPersonalExpense([], { ...base, date: "" }).ok).toBe(false);
   });
 
-  it("«من الصندوق» posts a linked cash-out, re-posted on edit and removed when turned off", () => {
+  it("«من الكاش» posts a linked cash-out, re-posted on edit and removed when turned off", () => {
     const added = addPersonalExpense([], base);
     if (!added.ok) throw new Error(added.message);
     let cash: CashEntryList = syncExpenseCash([], added.expense, []);

@@ -105,7 +105,7 @@ describe("rep commands", () => {
     expect(parseRepCommand("تنتهي")).toEqual({ kind: "expiring" });
     expect(parseRepCommand("كشفي")).toEqual({ kind: "statement" });
     expect(parseRepCommand("ديون زبائني")).toEqual({ kind: "debts" });
-    expect(parseRepCommand("الصندوق")).toEqual({ kind: "unknown", text: "الصندوق" });
+    expect(parseRepCommand("الكاش")).toEqual({ kind: "unknown", text: "الكاش" });
     // Keyboard buttons send the emoji too.
     expect(parseRepCommand("📡 أجهزتي")).toEqual({ kind: "devices" });
     expect(parseRepCommand("⛔️ الموقوفة")).toEqual({ kind: "stopped" });

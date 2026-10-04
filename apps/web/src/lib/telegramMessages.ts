@@ -214,6 +214,8 @@ export const WORDS: Record<string, Exclude<TelegramCommand["kind"], "statement" 
   "تنتهي": "expiring",
   "التجديدات": "expiring",
   cash: "cash",
+  "الكاش": "cash",
+  "كاش": "cash",
   "الصندوق": "cash",
   "صندوق": "cash",
   summary: "summary",
@@ -262,7 +264,7 @@ export const TELEGRAM_HELP = [
   "🤖 أوامر STAR NET:",
   "• المتوقفة - الأجهزة الموقوفة عند Starlink",
   "• تنتهي - الأجهزة التي تنتهي خلال 7 أيام",
-  "• الصندوق - رصيد الصندوق",
+  "• الكاش - رصيد الكاش",
   "• ملخص - ملخص اليوم",
   "• كشف <اسم> - كشف حساب زبون أو مورد (PDF)",
   "• توقعات - دخل التجديدات خلال 30 يوماً",
@@ -288,7 +290,7 @@ export function answerExpiring(accounts: StarlinkAccountSummary[], clients: Clie
 
 export function answerCash(cash: CashEntryList): string {
   const balance = money(computeCashBalanceByCurrency(cash));
-  return balance ? `🏦 في الصندوق الآن: ${balance}` : "🏦 الصندوق فارغ";
+  return balance ? `🏦 في الكاش الآن: ${balance}` : "🏦 الكاش فارغ";
 }
 
 function normalize(text: string): string {

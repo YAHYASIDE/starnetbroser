@@ -101,7 +101,7 @@ describe("commands", () => {
     expect(parseTelegramCommand("المتوقفة")).toEqual({ kind: "stopped" });
     expect(parseTelegramCommand("/stopped@StarNetBot")).toEqual({ kind: "stopped" });
     expect(parseTelegramCommand("تنتهي")).toEqual({ kind: "expiring" });
-    expect(parseTelegramCommand("الصندوق")).toEqual({ kind: "cash" });
+    expect(parseTelegramCommand("الكاش")).toEqual({ kind: "cash" });
     expect(parseTelegramCommand("ملخص")).toEqual({ kind: "summary" });
     expect(parseTelegramCommand("كشف أحمد سالم")).toEqual({ kind: "statement", query: "أحمد سالم" });
     expect(parseTelegramCommand("كشف")).toEqual({ kind: "help" });
@@ -113,7 +113,7 @@ describe("commands", () => {
     expect(answerStopped(accounts, clients)).toContain("• a (محمد)");
     expect(answerStopped([account("b", "")], {})).toContain("لا أجهزة موقوفة");
     expect(answerExpiring(accounts, clients, TODAY)).toContain("🟠 تنتهي غداً (2)");
-    expect(answerCash([{ id: "1", kind: "in", amount: 500, currencyCode: "MRU", date: TODAY, createdAt: "" }])).toBe("🏦 في الصندوق الآن: 500 أوقية");
+    expect(answerCash([{ id: "1", kind: "in", amount: 500, currencyCode: "MRU", date: TODAY, createdAt: "" }])).toBe("🏦 في الكاش الآن: 500 أوقية");
   });
 
   it("finds a client or supplier by part of the name, ignoring hamza/ta marbuta differences", () => {

@@ -2,7 +2,7 @@
  * «صافي الربح الحقيقي»: one number per calendar month for the whole business -
  *   ربح ستارلينك − حصص المندوبين
  * + ربح المتجر (المبيعات − تكلفة البضاعة − الشحن) − عمولات المندوبين على المتجر
- * − المصاريف (قيود «خارج» يدوية في الصندوق، غير مرتبطة بفاتورة أو دفعة)
+ * − المصاريف (قيود «خارج» يدوية في الكاش، غير مرتبطة بفاتورة أو دفعة)
  * Each part follows the app's own rules (Starlink profit on the day Starlink was paid, each at its
  * locked rate - see monthClosing.ts's buildMonthReport). Everything is shown in أوقية; store and
  * expense amounts in other currencies use today's registered rates (display only - the records keep

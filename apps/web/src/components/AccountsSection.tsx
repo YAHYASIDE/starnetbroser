@@ -920,7 +920,7 @@ function defaultCashMoved(partyKind: PartyKind, direction: PartyAdjustmentDirect
 function cashMovedLabel(partyKind: PartyKind, direction: PartyAdjustmentDirection): string {
   const kind = partyAdjustmentCashKind(partyKind, direction);
   const who = partyKind === "client" ? "الزبون" : "المورد";
-  return kind === "in" ? `💵 استلمناها نقدًا من ${who} - تدخل الصندوق` : `💵 دفعناها نقدًا إلى ${who} - تخرج من الصندوق`;
+  return kind === "in" ? `💵 استلمناها نقدًا من ${who} - تدخل الكاش` : `💵 دفعناها نقدًا إلى ${who} - تخرج من الكاش`;
 }
 
 function BalanceForm({ partyName, partyKind, devices, initial, submitLabel = "حفظ الرصيد", onCancel, onSubmit }: BalanceFormProps) {
@@ -1184,7 +1184,7 @@ function StatementRowDetail({
   ];
   if (row.deviceName) details.push(["الجهاز", row.deviceName]);
   if (adj?.paymentMethod) details.push(["طريقة الدفع", PAYMENT_METHOD_LABELS[adj.paymentMethod]]);
-  if (adj) details.push(["الصندوق", adj.cashMoved ? "دخلت/خرجت من الصندوق" : "لم تمر بالصندوق"]);
+  if (adj) details.push(["الكاش", adj.cashMoved ? "دخلت/خرجت من الكاش" : "لم تمر بالكاش"]);
   if (row.type === "invoice") details.push(["المدفوع من الفاتورة", `${formatAmount(row.paid)} ${cur}`]);
   if (row.note) details.push(["ملاحظة", row.note]);
   if (adj) details.push(["سُجّلت في", adj.createdAt.slice(0, 16).replace("T", " ")]);

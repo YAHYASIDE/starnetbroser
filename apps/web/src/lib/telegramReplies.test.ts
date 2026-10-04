@@ -54,7 +54,7 @@ describe("buildReplySnapshot", () => {
     expect(snapshot.ownerWords["كشف"]).toBe("statement");
     expect(snapshot.ownerWords["المتوقفة"]).toBe("stopped");
     expect(snapshot.repWords["اجهزتي"]).toBe("devices"); // folded, as the service looks it up
-    expect(snapshot.repWords["الصندوق"]).toBeUndefined();
+    expect(snapshot.repWords["الكاش"]).toBeUndefined();
     expect(snapshot.linkReply).toContain("{name}");
     expect(snapshot.at).toBe("27/09 16:05");
   });

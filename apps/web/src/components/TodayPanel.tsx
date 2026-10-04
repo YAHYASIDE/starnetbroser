@@ -37,7 +37,7 @@ type TileKey = "collected" | "charged" | "cash" | "renewals";
 const TILE_TITLES: Record<TileKey, string> = {
   collected: "💵 تحصيل الأجهزة اليوم",
   charged: "📦 شحنات اليوم",
-  cash: "🧾 الصندوق اليوم",
+  cash: "🧾 الكاش اليوم",
   renewals: "🔁 تجديد اليوم",
 };
 
@@ -84,7 +84,7 @@ export function TodayPanel({
           <AmountStack values={today.charged} />
         </button>
         <button type="button" className="today-tile today-cash" onClick={() => setOpen("cash")}>
-          <span>الصندوق (دخل / خرج)</span>
+          <span>الكاش (دخل / خرج)</span>
           <AmountStack values={today.cashIn} prefix="+" />
           <AmountStack values={today.cashOut} prefix="-" hideEmpty />
         </button>

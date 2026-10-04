@@ -174,7 +174,7 @@ export default function ClientsPage() {
       return;
     }
     const zeroed = new Set(inputs.map((i) => i.partyId)).size;
-    if (!window.confirm(`تصفير حساب ${zeroed} زبون؟\n${names([...new Set(inputs.map((i) => i.partyId))])}\nيُضاف قيد «تصفير الحساب» يجعل الرصيد 0، والسجل القديم يبقى. لا يتحرك الصندوق.`)) return;
+    if (!window.confirm(`تصفير حساب ${zeroed} زبون؟\n${names([...new Set(inputs.map((i) => i.partyId))])}\nيُضاف قيد «تصفير الحساب» يجعل الرصيد 0، والسجل القديم يبقى. لا يتحرك الكاش.`)) return;
     let list = partyAdjustments;
     for (const input of inputs) {
       const result = recordPartyAdjustment(list, input);

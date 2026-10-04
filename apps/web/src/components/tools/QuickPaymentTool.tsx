@@ -144,7 +144,7 @@ export function QuickPaymentTool({ data }: { data: ToolsData }) {
           <button type="button" className="dialog-primary" onClick={save}>
             💵 تسجيل الدفعة
           </button>
-          {method === "cash" && <p className="settings-hint">النقد يُضاف إلى الصندوق تلقائياً.</p>}
+          {method === "cash" && <p className="settings-hint">النقد يُضاف إلى الكاش تلقائياً.</p>}
         </div>
       )}
       {done && (
