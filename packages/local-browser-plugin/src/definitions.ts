@@ -702,6 +702,17 @@ export interface LocalBrowserPlugin {
 
   /** The app saved these as suggestions - forget them on the native side. */
   bankAckNotices(options: { ids: string[] }): Promise<void>;
+
+  /** 💳 The operator's payment cards for filling Starlink's card form in a device's browser
+   * (replaces the list; [] removes them all). Kept on this phone only. */
+  setFillCards(options: { cards: FillCardItem[] }): Promise<void>;
+}
+
+export interface FillCardItem {
+  /** What the browser's card list shows («KAST •••• 1234 · 03/30»). */
+  label: string;
+  /** The card for the page, JSON: {number, name, expMonth, expYear, cvc, postal, address}. */
+  payload: string;
 }
 
 export interface BankNoticeRaw {

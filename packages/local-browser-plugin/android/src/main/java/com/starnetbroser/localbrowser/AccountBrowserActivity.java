@@ -343,6 +343,8 @@ public class AccountBrowserActivity extends AppCompatActivity {
         BrowserBar.setUp(this, this::goBackInWebView, this::reload, "⇣", getString(R.string.starnet_action_sync), this::syncFromStarlink);
         ((Button) findViewById(R.id.starnet_error_retry)).setOnClickListener(v -> reload());
 
+        // 💳 Before the first page: the card-fill script must run at the start of every frame.
+        cardFill.setUp(webView);
         webView.loadUrl(homeUrl);
         requestNotificationPermissionOnceIfNeeded();
         if (autoLogin && getIntent().getStringExtra(EXTRA_CANCEL_REASON) == null) {
@@ -1290,16 +1292,24 @@ public class AccountBrowserActivity extends AppCompatActivity {
 
     private static final int MENU_SNAPSHOT = 7001;
     private static final int MENU_MAIL = 7002;
+    private static final int MENU_CARD = 7003;
+    /** 💳 Fills Starlink's card form with one of the operator's saved cards. */
+    private final CardFillController cardFill = new CardFillController(this);
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         menu.add(Menu.NONE, MENU_MAIL, Menu.NONE, "📧 البريد").setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
         menu.add(Menu.NONE, MENU_SNAPSHOT, Menu.NONE, "🧪 لقطة تشخيص").setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
+        if (cardFill.isOn()) menu.add(Menu.NONE, MENU_CARD, Menu.NONE, "💳").setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
         return true;
     }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == MENU_CARD) {
+            cardFill.showPicker();
+            return true;
+        }
         if (item.getItemId() == MENU_SNAPSHOT) {
             sendSnapshot();
             return true;
@@ -1371,6 +1381,12 @@ public class AccountBrowserActivity extends AppCompatActivity {
      * screen instead of leaving a blank white page on a load failure.
      */
     private class IsolatedWebViewClient extends WebViewClient {
+
+        @Override
+        public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+            super.onPageStarted(view, url, favicon);
+            cardFill.onNewPage();
+        }
 
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {

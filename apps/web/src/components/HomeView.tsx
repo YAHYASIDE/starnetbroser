@@ -123,6 +123,7 @@ import {
   openIsolatedAccountBrowser,
   starlinkLoginFor,
   syncAutoSyncAccountList,
+  pushFillCards,
   pushKastDevices,
   kastCheckNow,
   drainKastDeposits,
@@ -958,6 +959,11 @@ export function HomeView({
     if (dataState !== "loaded") return;
     void pushKastDevices(kastDevicesSnapshot(accounts, ledgerStore, currencyStore));
   }, [accounts, ledgerStore, currencyStore, dataState]);
+
+  // 💳 My completed cards to the device browsers (for filling Starlink's card form).
+  useEffect(() => {
+    void pushFillCards();
+  }, []);
 
   // …and on opening / coming back: check the mail now, and tell about dollars received.
   useEffect(() => {

@@ -1,6 +1,7 @@
 import { WebPlugin } from "@capacitor/core";
 import type {
   BankNoticeRaw,
+  FillCardItem,
   KastDeposit,
   KastDevice,
   AckPendingAccountSyncsOptions,
@@ -308,6 +309,10 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
   }
 
   async bankAckNotices(_options: { ids: string[] }): Promise<void> {
+    return;
+  }
+
+  async setFillCards(_options: { cards: FillCardItem[] }): Promise<void> {
     return;
   }
 }

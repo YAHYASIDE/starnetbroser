@@ -50,7 +50,8 @@ import {
   savePaymentCards,
   setDepositStatus,
 } from "@/lib/kastCards";
-import { drainKastDeposits, kastNotificationsEnabled, openKastNotificationAccess } from "@/lib/localBrowser";
+import { drainKastDeposits, kastNotificationsEnabled, openKastNotificationAccess, pushFillCards } from "@/lib/localBrowser";
+import { loadCardFillBook, maskedNumber, removeCardFill, saveCardFillBook, setCardFill, validateCardFill, type CardFillBook, type CardFillData, type CardFillInput } from "@/lib/cardFill";
 import { getRepresentative, loadRepresentativeStore, RepresentativeStore } from "@/lib/repStore";
 import {
   buildCardStatement,
@@ -118,6 +119,8 @@ export default function StarlinkPage() {
   const [toast, setToast] = useState<string | null>(null);
   // 💳 KAST: the cards (which pays which device) and the dollars received waiting to be recorded.
   const [paymentCards, setPaymentCards] = useState<PaymentCardList>([]);
+  // 💳 the cards' full details, for filling Starlink's card form in a device's browser.
+  const [fillBook, setFillBook] = useState<CardFillBook>({});
   const [deposits, setDeposits] = useState<CardDeposit[]>([]);
   const [depositToRecord, setDepositToRecord] = useState<CardDeposit | null>(null);
   const [spendToRecord, setSpendToRecord] = useState<CardDeposit | null>(null);
@@ -131,6 +134,7 @@ export default function StarlinkPage() {
     setTopUps(loadCardTopUps());
     setPreviousDebts(loadPreviousDebts());
     setPaymentCards(loadPaymentCards());
+    setFillBook(loadCardFillBook());
     setDeposits(loadCardDeposits());
     void drainKastDeposits().then((added) => {
       if (added.length) setDeposits(loadCardDeposits());
@@ -278,6 +282,20 @@ export default function StarlinkPage() {
     const next = removePaymentCard(paymentCards, id);
     savePaymentCards(next);
     setPaymentCards(next);
+    if (fillBook[id]) storeFillBook(removeCardFill(fillBook, id));
+  }
+
+  function storeFillBook(next: CardFillBook) {
+    saveCardFillBook(next);
+    setFillBook(next);
+    void pushFillCards();
+  }
+
+  function saveCardDetails(card: PaymentCardList[number], input: CardFillInput): string | null {
+    const result = validateCardFill(input, card);
+    if (!result.ok) return result.message;
+    storeFillBook(setCardFill(fillBook, card.id, result.data));
+    return null;
   }
 
   function removeTopUp(topUp: CardTopUp) {
@@ -650,8 +668,13 @@ export default function StarlinkPage() {
 
       <PaymentCardsSection
         cards={paymentCards}
+        fillBook={fillBook}
         onAdd={addCard}
         onRemove={removeCard}
+        onSaveDetails={saveCardDetails}
+        onRemoveDetails={(card) => {
+          if (window.confirm(`حذف بيانات التعبئة للبطاقة ${card.name} •${card.last4}؟ تبقى البطاقة في القائمة.`)) storeFillBook(removeCardFill(fillBook, card.id));
+        }}
         notifications={kastNotifications}
         onEnableNotifications={() => {
           void openKastNotificationAccess();
@@ -1154,14 +1177,20 @@ function SettlementEditForm({
  * Starlink (its edit dialog) - so a refused payment's Telegram alert names the likely device. */
 function PaymentCardsSection({
   cards,
+  fillBook,
   onAdd,
   onRemove,
+  onSaveDetails,
+  onRemoveDetails,
   notifications,
   onEnableNotifications,
 }: {
   cards: PaymentCardList;
+  fillBook: CardFillBook;
   onAdd: (last4: string, name: string) => string | null;
   onRemove: (id: string) => void;
+  onSaveDetails: (card: PaymentCardList[number], input: CardFillInput) => string | null;
+  onRemoveDetails: (card: PaymentCardList[number]) => void;
   /** «Notification access» on (KAST payments read), off, or null off the phone. */
   notifications: boolean | null;
   onEnableNotifications: () => void;
@@ -1169,6 +1198,7 @@ function PaymentCardsSection({
   const [last4, setLast4] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [detailsFor, setDetailsFor] = useState<PaymentCardList[number] | null>(null);
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -1210,8 +1240,17 @@ function PaymentCardsSection({
                 <strong>{card.name}</strong>
                 <span>
                   تنتهي بـ <bdi dir="ltr">{card.last4}</bdi>
+                  {fillBook[card.id] ? (
+                    <>
+                      {" "}
+                      · 💳 جاهزة للتعبئة <bdi dir="ltr">{fillBook[card.id]!.expiry}</bdi>
+                    </>
+                  ) : null}
                 </span>
               </div>
+              <button type="button" className="text-action" onClick={() => setDetailsFor(card)}>
+                {fillBook[card.id] ? "✎ البيانات" : "💳 أكمل البيانات"}
+              </button>
               <button type="button" className="text-action" onClick={() => onRemove(card.id)}>
                 حذف
               </button>
@@ -1225,6 +1264,88 @@ function PaymentCardsSection({
         <button type="submit" className="dialog-primary">+ إضافة</button>
       </form>
       {error && <div className="account-card-alert">{error}</div>}
+      {cards.length > 0 && (
+        <p className="settings-hint">
+          💳 أكمل بيانات البطاقة (الرقم، الاسم، التاريخ، الرمز، العنوان) مرة واحدة: في متصفح أي جهاز، عند الضغط على خانة البطاقة في صفحة الدفع - أو زر 💳 في الأعلى - تختار البطاقة فتُملأ الخانات وحدها. تبقى في هاتفك ونسختك الاحتياطية فقط.
+        </p>
+      )}
+      {detailsFor && (
+        <PartySheet title={`💳 ${detailsFor.name} •${detailsFor.last4}`} onClose={() => setDetailsFor(null)}>
+          <CardDetailsForm
+            existing={fillBook[detailsFor.id]}
+            onSave={(input) => {
+              const problem = onSaveDetails(detailsFor, input);
+              if (!problem) setDetailsFor(null);
+              return problem;
+            }}
+            onRemove={
+              fillBook[detailsFor.id]
+                ? () => {
+                    onRemoveDetails(detailsFor);
+                    setDetailsFor(null);
+                  }
+                : undefined
+            }
+          />
+        </PartySheet>
+      )}
     </section>
+  );
+}
+
+/** The card's full details for the device browsers' card form (lib/cardFill.ts). */
+function CardDetailsForm({ existing, onSave, onRemove }: { existing?: CardFillData; onSave: (input: CardFillInput) => string | null; onRemove?: () => void }) {
+  const [number, setNumber] = useState(existing?.number.replace(/(\d{4})(?=\d)/g, "$1 ") ?? "");
+  const [holderName, setHolderName] = useState(existing?.holderName ?? "");
+  const [expiry, setExpiry] = useState(existing?.expiry ?? "");
+  const [cvc, setCvc] = useState(existing?.cvc ?? "");
+  const [postalCode, setPostalCode] = useState(existing?.postalCode ?? "");
+  const [address, setAddress] = useState(existing?.address ?? "");
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <form
+      className="party-balance-form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        setError(onSave({ number, holderName, expiry, cvc, postalCode, address }));
+      }}
+    >
+      {existing && <small className="settings-hint">محفوظة: <bdi dir="ltr">{maskedNumber(existing.number)}</bdi></small>}
+      <label className="tool-field">
+        <span>رقم البطاقة</span>
+        <input className="search-input" dir="ltr" inputMode="numeric" autoComplete="off" value={number} onChange={(e) => setNumber(e.target.value)} placeholder="0000 0000 0000 0000" />
+      </label>
+      <label className="tool-field">
+        <span>الاسم كما يظهر على البطاقة</span>
+        <input className="search-input" dir="ltr" autoComplete="off" value={holderName} onChange={(e) => setHolderName(e.target.value.toUpperCase())} />
+      </label>
+      <div className="expenses-amount-row">
+        <label className="tool-field">
+          <span>شهر/سنة</span>
+          <input className="search-input" dir="ltr" inputMode="numeric" autoComplete="off" value={expiry} onChange={(e) => setExpiry(e.target.value)} placeholder="03/30" />
+        </label>
+        <label className="tool-field">
+          <span>رمز التحقق</span>
+          <input className="search-input" dir="ltr" inputMode="numeric" autoComplete="off" maxLength={4} value={cvc} onChange={(e) => setCvc(e.target.value.replace(/\D/g, ""))} placeholder="123" />
+        </label>
+      </div>
+      <label className="tool-field">
+        <span>الرمز البريدي (اختياري)</span>
+        <input className="search-input" dir="ltr" autoComplete="off" value={postalCode} onChange={(e) => setPostalCode(e.target.value)} />
+      </label>
+      <label className="tool-field">
+        <span>العنوان (اختياري)</span>
+        <input className="search-input" autoComplete="off" value={address} onChange={(e) => setAddress(e.target.value)} />
+      </label>
+      {error && <div className="account-card-alert ledger-form-error">{error}</div>}
+      <button className="dialog-primary" type="submit">
+        حفظ البيانات
+      </button>
+      {onRemove && (
+        <button type="button" className="dialog-danger" onClick={onRemove}>
+          حذف بيانات التعبئة
+        </button>
+      )}
+    </form>
   );
 }

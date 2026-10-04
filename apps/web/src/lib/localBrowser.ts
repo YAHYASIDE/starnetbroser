@@ -15,7 +15,9 @@ import type { StarlinkAccountSummary } from "@starnet/shared";
 import { SIGNUP_RECOVERY_EMAIL, outlookSignupFor, starlinkActivationFor } from "./accountCreation";
 import { passwordSuggestionsFor } from "./usedPasswords";
 import { CANCEL_SUBSCRIPTION_REASON } from "./subscriptionCancel";
-import { type CardDeposit, loadCardDeposits, mergeCardDeposits, saveCardDeposits } from "./kastCards";
+import { type CardDeposit, loadCardDeposits, loadPaymentCards, mergeCardDeposits, saveCardDeposits } from "./kastCards";
+import { fillItems, loadCardFillBook } from "./cardFill";
+import { isRepWorkspace } from "./repMode";
 import { ingestBankNotices, loadBankInbox, saveBankInbox, type BankInbox } from "./bankNotices";
 import { SessionsByAccount } from "./accountBackup";
 import { markInternalLeave } from "./appLock";
@@ -653,6 +655,20 @@ export async function openNotificationSettings(): Promise<void> {
     await LocalBrowser.openNotificationSettings();
   } catch {
     // Nothing to recover - see doc comment above.
+  }
+}
+
+// ---- 💳 filling Starlink's card form with my own cards (CardFillController on the phone) ----
+
+/** The completed cards go to the device browsers (this phone only); [] removes them. Never on a
+ * rep's phone. No-op on web. */
+export async function pushFillCards(): Promise<void> {
+  if (!isRunningInAndroidApp()) return;
+  try {
+    const cards = isRepWorkspace() ? [] : fillItems(loadPaymentCards(), loadCardFillBook());
+    await LocalBrowser.setFillCards({ cards });
+  } catch {
+    // the next change pushes again
   }
 }
 

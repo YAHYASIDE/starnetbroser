@@ -647,6 +647,16 @@ public class LocalBrowserPlugin extends Plugin {
         call.resolve();
     }
 
+    // ---- 💳 payment cards for filling Starlink's card form (CardFillController) ----
+
+    /** The operator's cards as the device browser's picker shows them: [{label, payload}]. */
+    @PluginMethod
+    public void setFillCards(PluginCall call) {
+        com.getcapacitor.JSArray cards = call.getArray("cards");
+        CardFillStore.save(getContext(), cards == null ? new org.json.JSONArray() : cards);
+        call.resolve();
+    }
+
     // ---- 🏦 bank / wallet notifications (BankNotice) ----
 
     /** The bank / wallet notifications the app hasn't saved as suggestions yet, oldest first. */

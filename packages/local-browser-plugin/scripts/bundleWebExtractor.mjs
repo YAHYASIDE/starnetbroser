@@ -19,3 +19,14 @@ await build({
   legalComments: "none",
   logLevel: "info",
 });
+
+// 💳 The card-fill script, run at the start of every frame of a device's browser.
+await build({
+  entryPoints: [join(here, "..", "src", "webExtraction", "cardFillScript.ts")],
+  outfile: join(here, "..", "android", "src", "main", "assets", "starnetCardFill.js"),
+  bundle: true,
+  format: "iife",
+  target: "es2017",
+  legalComments: "none",
+  logLevel: "info",
+});
