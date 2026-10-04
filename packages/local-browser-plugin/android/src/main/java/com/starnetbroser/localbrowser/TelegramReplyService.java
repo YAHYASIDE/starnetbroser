@@ -302,6 +302,16 @@ public class TelegramReplyService extends Service {
         }
         if (!reps && !chatId.equals(TelegramStore.chatId(context))) return; // the owner bot talks to the owner only
 
+        // 📋 A Starlink session (or one of the parts Telegram cut it into): always for the app,
+        // which joins the parts and adds the device - never answered as a command here.
+        if ((!reps || TelegramStore.repIdForChat(context, chatId) != null) && SessionText.take(bot + ":" + chatId, text, System.currentTimeMillis())) {
+            addToInbox(context, bot, chatId, name, username, text, false);
+            if (!appAnswering() && SessionText.isStart(text)) {
+                send(context, bot, token, chatId, "📥 وصلت الجلسة - يُضيف التطبيق الجهاز عند فتحه.", null);
+            }
+            return;
+        }
+
         // ✏️ / 📝 values and ⚡ تفعيل live here only (their buttons come back to this service),
         // app open or not.
         if (reps && handleFormText(context, token, chatId, text)) return;

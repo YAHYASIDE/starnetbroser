@@ -51,4 +51,12 @@ describe("request list", () => {
     expect(done[0]!.file).toBeUndefined();
     expect(done[0]).toMatchObject({ name: "محمد", status: "rejected" });
   });
+
+  it("📋 a rep's session: its cookies are dropped once he decides", () => {
+    const list = addRepRequest([], { repId: "r1", kind: "session", text: "📋 جلسة ستارلينك (2 كوكيز)", cookies: { "https://starlink.com/": "Demo=1" } });
+    expect(list[0]!.cookies).toBeDefined();
+    const done = resolveRepRequest(list, list[0]!.id, "approved");
+    expect(done[0]!.cookies).toBeUndefined();
+    expect(done[0]!.status).toBe("approved");
+  });
 });

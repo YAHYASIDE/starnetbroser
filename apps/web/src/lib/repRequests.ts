@@ -10,7 +10,7 @@
 
 import type { LedgerCurrency, PaymentMethod } from "./ledgerStore";
 
-export type RepRequestKind = "payment" | "client" | "device" | "edit" | "handover" | "loan" | "activation";
+export type RepRequestKind = "payment" | "client" | "device" | "edit" | "handover" | "loan" | "activation" | "session";
 export type RepRequestStatus = "pending" | "approved" | "rejected";
 
 export interface RepRequest {
@@ -64,6 +64,9 @@ export interface RepRequest {
   activationId?: string;
   /** Approved with ✅ in the owner's bot but not recorded yet (e.g. the package's cost is missing). */
   approvedInBot?: boolean;
+  // session (📋 a Starlink session the rep pasted in the bot - telegramSessionRunner.ts): its
+  // cookies per address until approved / rejected, then dropped.
+  cookies?: Record<string, string>;
 }
 
 export type RepRequestList = RepRequest[];
@@ -199,7 +202,7 @@ export function addRepRequest(list: RepRequestList, request: Omit<RepRequest, "i
 export function resolveRepRequest(list: RepRequestList, id: string, status: Exclude<RepRequestStatus, "pending">, now = new Date()): RepRequestList {
   return list.map((r) => {
     if (r.id !== id) return r;
-    const { file: _file, ...rest } = r;
+    const { file: _file, cookies: _cookies, ...rest } = r;
     return { ...rest, status, resolvedAt: now.toISOString() };
   });
 }

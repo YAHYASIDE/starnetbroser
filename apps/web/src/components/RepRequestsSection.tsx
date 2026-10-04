@@ -29,6 +29,7 @@ import { editFieldName, isRepEditField } from "@/lib/repDeviceMenu";
 import { ACCOUNTS_CHANGED_EVENT, decideRepActivation, decideRepEdit } from "@/lib/repMenuRecords";
 import { loadActivationCosts } from "@/lib/repActivation";
 import { recordRepHandover, recordRepLoan } from "@/lib/repHandover";
+import { approveRepSession } from "@/lib/telegramSessionRunner";
 
 interface Props {
   representatives: Representative[];
@@ -123,6 +124,20 @@ export function RepRequestsSection({ representatives, accounts, clientStore, onC
               rep={repById.get(request.repId)}
               onDone={() => {
                 setRequests(pendingRepRequests(loadRepRequests()));
+                onChanged();
+              }}
+            />
+          ) : request.kind === "session" ? (
+            <SessionRequestCard
+              key={request.id}
+              request={request}
+              rep={repById.get(request.repId)}
+              onDone={() => {
+                setRequests(pendingRepRequests(loadRepRequests()));
+                onChanged();
+              }}
+              onRejected={() => {
+                resolve(request, "rejected");
                 onChanged();
               }}
             />
@@ -273,6 +288,47 @@ function PaymentRequestCard({
           ✅ تسجيل الدفعة
         </button>
         <button type="button" className="text-action" onClick={() => void reject()}>
+          ❌ رفض
+        </button>
+      </div>
+    </li>
+  );
+}
+
+/** 📋 A Starlink session the rep pasted in the bot: approved → a new device of his, signed in,
+ * then «مزامنة» reads it (telegramSessionRunner.ts). */
+function SessionRequestCard({ request, rep, onDone, onRejected }: { request: RepRequest; rep?: Representative; onDone: () => void; onRejected: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function approve() {
+    setBusy(true);
+    setError(null);
+    const result = await approveRepSession(request.id);
+    setBusy(false);
+    if (!result.ok) return setError(result.message);
+    onDone();
+  }
+
+  async function reject() {
+    if (!window.confirm("رفض جلسة المندوب؟ تُحذف من التطبيق ويُبلَّغ المندوب.")) return;
+    await sendRepText(request.repId, "❌ لم يوافق المسؤول على الجلسة التي أرسلتها.");
+    onRejected();
+  }
+
+  return (
+    <li className="rep-request">
+      <div className="rep-request-head">
+        <strong>📋 {rep?.name ?? "مندوب"}</strong>
+        <span>{timeLabel(request.createdAt)}</span>
+      </div>
+      <p className="rep-request-text">{request.text} - جهاز جديد مسجّل الدخول، تُقرأ بياناته بالمزامنة.</p>
+      {error && <p className="settings-hint telegram-stopped">{error}</p>}
+      <div className="settings-actions">
+        <button type="button" className="dialog-primary" disabled={busy} onClick={() => void approve()}>
+          {busy ? "⏳ جارِ الإضافة…" : "✅ أضف الجهاز"}
+        </button>
+        <button type="button" className="text-action" disabled={busy} onClick={() => void reject()}>
           ❌ رفض
         </button>
       </div>

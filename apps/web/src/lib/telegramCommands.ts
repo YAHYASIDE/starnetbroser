@@ -42,6 +42,7 @@ import { cardText, forecastText, goalsText, healthText, lapsedText, planText, pr
 import { addPromise, loadPromises, savePromises } from "./paymentPromises";
 import { parseRepPromise, REP_PROMISE_HINT, repOpenPromises, repPromisesText } from "./repPromises";
 import { loadGoals } from "./goals";
+import { handleOwnerSessionText, handleRepSessionText } from "./telegramSessionRunner";
 import type { TelegramPollMessage } from "@starnet/local-browser-plugin";
 import { getCurrency, loadCurrencyStore } from "./currencyStore";
 import { loadRepresentativeStore, loadRepSettlements, type Representative } from "./repStore";
@@ -91,6 +92,8 @@ async function loadAccounts(): Promise<StarlinkAccountSummary[]> {
 }
 
 export async function answerTelegramCommand(text: string): Promise<void> {
+  // 📋 A Starlink session pasted in his bot (often in several parts) → a new device.
+  if (await handleOwnerSessionText(text)) return;
   const command = parseTelegramCommand(text);
   const today = localDay(new Date());
   switch (command.kind) {
@@ -221,6 +224,8 @@ export async function answerRepMessage(message: TelegramPollMessage, alreadyRepl
   }
   const rep = loadRepresentativeStore()[repId];
   if (!rep) return;
+  // 📋 A Starlink session pasted by the rep → waits for the owner's approval.
+  if (!message.fileId && (await handleRepSessionText(repId, rep.name, message.chatId, message.text))) return;
   if (message.fileId) {
     if (isRepChangesFileName(message.fileName)) await handleRepChangesFile(repId, rep, message.fileId);
     else await handleRepDeviceFile(repId, rep, message.fileId, alreadyReplied);

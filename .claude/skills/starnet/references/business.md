@@ -172,6 +172,22 @@ mind). Exact texts and numbers live in the code - this file says where.
   `cardFillScript.ts`, `CardAddFlow.java` (step order, tested), `PaymentCode(Inbox).java`,
   `CardFillController.java`. Fingerprint/biometrics can never be done by an app.
 
+## 📋 A Starlink session sent to a bot → a new device
+
+- He (or a linked rep) pastes the Firefox session («Cookie-Editor» → Export → JSON) in the bot.
+  **Telegram cuts it into 2+ messages** (~4096 characters, often inside one long cookie value -
+  his screenshot): the app joins the parts of one chat that arrive within 3 minutes and adds the
+  device only when they read as a whole session; no part is ever answered as a command.
+- **His choices:** his own bot → a **new device at once** (named «📋 جهاز جديد HH:MM») whose browser
+  is signed in, then «مزامنة» reads its email/KIT/dates (a device already on the app gets «⚠️
+  مكرّر» + «دمج»); **reps' bot too**, but a rep's session waits in «طلبات المناديب» (✅ أضف الجهاز /
+  ❌ رفض) and becomes his device; **the Telegram message is left as is** (not deleted).
+- Code: `telegramSession.ts` (joining + checks, tested), `telegramSessionRunner.ts`,
+  `RepRequestsSection` (session card), native `SessionText.java` (TelegramReplyService hands the
+  parts to the app, «📥 وصلت الجلسة» when the app is closed). The cookies of a rep's request are
+  dropped when he decides. Never log or commit a session; tell him to sign out if one is pasted
+  in a chat with Claude.
+
 ## What customers receive
 
 - Debt reminder on WhatsApp: his exact wording - `debtReminderText` in `lib/whatsapp.ts` (السلام
