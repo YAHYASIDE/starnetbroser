@@ -1312,6 +1312,8 @@ export function HomeView({
       setQuery(value);
       setShowAll(true);
       setSelectedDay(null);
+      setStatFilter(null);
+      setFaultFilter(null);
     };
     window.addEventListener(HOME_SEARCH_EVENT, onSearch);
     const searchFromUrl = parseHomeSearch(window.location.search);
@@ -1606,7 +1608,17 @@ export function HomeView({
           inputMode="search"
           placeholder="ابحث: جهاز، Kit، اشتراك، زبون، هاتف، مندوب…"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            const value = e.target.value;
+            // Typing searches ALL devices: starting a search clears the active chip/day so results
+            // aren't confined to it; he can then tap a chip to narrow (his request).
+            if (value.trim() && !query.trim()) {
+              setStatFilter(null);
+              setSelectedDay(null);
+              setFaultFilter(null);
+            }
+            setQuery(value);
+          }}
           aria-label="بحث"
         />
       </section>
