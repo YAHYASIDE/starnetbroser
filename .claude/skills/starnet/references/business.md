@@ -111,8 +111,8 @@ mind). Exact texts and numbers live in the code - this file says where.
   `components/MyMoney.tsx`. The reports' «المصروفات» tab and its 🧾 button stay too.
 - **📥 «استيراد زبائن من ملف»** (clients page, his Oct 2026 request: a list exported from «مدونة
   الحسابات» as PDF - 51 customers). His choices: a name that looks like an existing customer is
-  **skipped automatically** (`findExistingClient`: letters folded, «ولد/بن» dropped, «احمد ولد
-  محجوب» = «احمد محجوب»; one shared word alone never matches); each balance becomes an **opening
+  **skipped automatically** (`findExistingClient`: letters folded, «ولد/بن» dropped, «سالم ولد
+  الأمين» = «سالم الأمين» - example names; one shared word alone never matches); each balance becomes an **opening
   balance in أوقية, money didn't move, dated with the file's own date** («عليه» = owesUs, «له» =
   weOwe); **a ready file I send him** (JSON `{kind:"starnet-clients-import", rows}` made from his PDF
   in the session - never committed: customers' names stay out of the repo). The parser also takes

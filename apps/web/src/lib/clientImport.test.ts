@@ -14,12 +14,12 @@ const client = (id: string, name: string): Client => ({ id, name, createdAt: "",
 
 describe("📥 استيراد زبائن", () => {
   it("reads «date له/عليه amount name» lines - also the PDF's presentation-form letters", () => {
-    const text = ["التاريخ نوع الحساب الرصيد اسم الحساب", "2026-09-30 له 1,917,900 زبون أول", "2025-02-27 ﻋﻠﻴﻪ 160,000 ﺯﺑﻮﻥ ﺛﺎﻥ", "Google Play Store"].join("\n");
+    const text = ["التاريخ نوع الحساب الرصيد اسم الحساب", "2026-09-30 له 1,234,500 زبون أول", "2025-02-27 ﻋﻠﻴﻪ 160,000 ﺯﺑﻮﻥ ﺛﺎﻥ", "Google Play Store"].join("\n");
     const parsed = parseClientImport(text);
     expect(parsed).toEqual({
       ok: true,
       rows: [
-        { name: "زبون أول", direction: "weOwe", amount: 1917900, date: "2026-09-30" },
+        { name: "زبون أول", direction: "weOwe", amount: 1234500, date: "2026-09-30" },
         { name: "زبون ثان", direction: "owesUs", amount: 160000, date: "2025-02-27" },
       ],
     });
@@ -39,9 +39,9 @@ describe("📥 استيراد زبائن", () => {
     expect(parseClientImport("").ok).toBe(false);
   });
 
-  it("skips a name that is already a customer - «احمد ولد محجوب» = «احمد محجوب», letters folded", () => {
-    const clients = [client("a", "احمد محجوب"), client("b", "جمال"), client("c", "محمد")];
-    expect(findExistingClient("أحمد ولد محجوب", clients)?.id).toBe("a");
+  it("skips a name that is already a customer - «سالم ولد الأمين» = «سالم الأمين», letters folded", () => {
+    const clients = [client("a", "سالم الأمين"), client("b", "جمال"), client("c", "محمد")];
+    expect(findExistingClient("سالم ولد الأمين", clients)?.id).toBe("a");
     expect(findExistingClient("جمال", clients)?.id).toBe("b");
     // one shared word alone is not enough
     expect(findExistingClient("محمد ولد بكر", clients)).toBeUndefined();
@@ -50,13 +50,13 @@ describe("📥 استيراد زبائن", () => {
 
   it("plans: new rows added, existing ones skipped, totals per side", () => {
     const rows = [
-      { name: "احمد ولد محجوب", direction: "weOwe" as const, amount: 1917900, date: "2026-09-30" },
+      { name: "سالم ولد الأمين", direction: "weOwe" as const, amount: 500000, date: "2026-09-30" },
       { name: "زبون جديد", direction: "owesUs" as const, amount: 1000, date: "2026-09-01" },
     ];
-    const plan = planClientImport(rows, [client("a", "احمد محجوب")]);
+    const plan = planClientImport(rows, [client("a", "سالم الأمين")]);
     expect(plan.toAdd.map((r) => r.name)).toEqual(["زبون جديد"]);
     expect(plan.skipped.map((s) => s.existing.id)).toEqual(["a"]);
-    expect(planTotals(rows)).toEqual({ owesUs: 1000, weOwe: 1917900 });
+    expect(planTotals(rows)).toEqual({ owesUs: 1000, weOwe: 500000 });
   });
 
   it("adds each customer with an opening balance in أوقية on the file's date (money didn't move), and undoes it", () => {

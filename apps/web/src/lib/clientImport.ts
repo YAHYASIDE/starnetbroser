@@ -1,7 +1,7 @@
 /**
  * 📥 «استيراد زبائن»: many customers at once, each with an opening balance in أوقية (his Oct 2026
  * request - a list exported from «مدونة الحسابات»). The file is JSON prepared for him
- * ({ kind: "starnet-clients-import", rows }) or plain lines «2026-09-30 له 1,917,900 الاسم»
+ * ({ kind: "starnet-clients-import", rows }) or plain lines «2026-09-30 له 1,234,500 الاسم»
  * (the same lines that app's PDF export holds).
  *
  * His choices: a name that looks like an existing customer is SKIPPED automatically; each balance
@@ -97,7 +97,7 @@ export function nameTokens(name: string): string[] {
 }
 
 /** The existing customer a name refers to: the same name once folded, or - for names of two words
- * or more - one name's words all inside the other's («احمد ولد محجوب» = «احمد محجوب»). */
+ * or more - one name's words all inside the other's («سالم ولد الأمين» = «سالم الأمين»). */
 export function findExistingClient(name: string, clients: Client[]): Client | undefined {
   const tokens = nameTokens(name);
   if (tokens.length === 0) return undefined;
