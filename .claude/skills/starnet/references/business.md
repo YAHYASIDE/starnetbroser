@@ -76,6 +76,17 @@ mind). Exact texts and numbers live in the code - this file says where.
   registered rate is then updated automatically from this payment (his Oct 2026 choice: «تلقائيًا
   بدون سؤال», everywhere «السعر الحقيقي» is shown). Future-only: no past record is recomputed - each
   keeps its locked snapshot rate (`realRateFromUsd` + `setCurrencyRate`, the toast says «حُدّث سعر …»).
+- **💳 بطاقة كاش - شحن + سحب رصيد** (his Oct 2026 request): the card page has «+ شحن البطاقة» (money
+  INTO the card) and «💵 سحب رصيد» (money OUT). Both ask «من أين/إلى أين تحرّك المال؟»: **الكاش**
+  (posts a linked cash entry - a charge takes money OUT of الكاش, a withdrawal brings it IN), **a
+  bank/wallet app** (its «حسابي» balance follows, no cash entry, via `cardMovementFlows` in
+  `loadAccountFlows`), or - **withdrawal only** - **«خسارة (مال ضائع)»**. A loss has no counterpart:
+  the withdrawn dollars are counted as a business expense «خسارة بطاقة كاش» in that month's reports
+  «الصافي» (derived from the card movement via `buildMonthNet`'s `cardTopUps`, so it disappears on its
+  own if the movement is deleted - never a stored record). Both charge and withdraw can attach a
+  «📷 صورة إثبات دفع» (optional, not for a loss), kept in IndexedDB by the movement id and carried in
+  backups. Model: `CardTopUp.direction`/`via`/`accountId`, `cardMoveDeltaUsd`; the statement shows a
+  charge «⬆️ شحن البطاقة» and a withdrawal «💵 سحب رصيد» with its source/destination.
 - No double counting: personal records post linked cash entries (`personal-expense`,
   `personal-income`, `personal-debt`) that the business reports ignore; the figures reuse the same
   functions as the clients, suppliers, reps, reports and card pages.

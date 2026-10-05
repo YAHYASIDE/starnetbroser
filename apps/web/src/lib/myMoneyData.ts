@@ -23,7 +23,7 @@ import { loadProfitReset } from "./profitReset";
 import { ourDebtLedgerForClients } from "./repClients";
 import type { RatesFromUsd } from "./reportsView";
 import { isDemoMode, isLoggedIn } from "./settingsStore";
-import { currentCardBalanceUsd } from "./starlinkDebt";
+import { cardMovementFlows, currentCardBalanceUsd, loadCardTopUps } from "./starlinkDebt";
 import { loadStoreTransactions } from "./storeStore";
 import { computeSupplierStoreBalance } from "./invoiceStore";
 import { accountBalance, cashInHandEntries, devicePaymentFlows, partyFlows, type AccountFlow, type AccountsBook, type MoneyAccount } from "./moneyAccounts";
@@ -61,6 +61,7 @@ export function businessNetForMonth(month: string, accounts: StarlinkAccountSumm
     rates,
     profitReset,
     profitResetByAccount: profitResetByAccount(accounts, loadClientProfitResets(), profitReset),
+    cardTopUps: loadCardTopUps(),
   });
   return { netMru: net.netMru, missing: net.missingCurrencies };
 }
@@ -69,7 +70,7 @@ export function businessNetForMonth(month: string, accounts: StarlinkAccountSumm
  * own records on it (`personal` = myMoney.personalFlows), and supplier / rep payments recorded
  * from a bank notification. */
 export function loadAccountFlows(ledger: LedgerByAccount, account: MoneyAccount, personal: AccountFlow[]): AccountFlow[] {
-  return [...devicePaymentFlows(ledger, account), ...personal, ...partyFlows(loadPartyAdjustments(), loadRepSettlements())];
+  return [...devicePaymentFlows(ledger, account), ...personal, ...partyFlows(loadPartyAdjustments(), loadRepSettlements()), ...cardMovementFlows(loadCardTopUps())];
 }
 
 /** Everything «كل ما تملك» is made of, read from the app's own records (same figures as the

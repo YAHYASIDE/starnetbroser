@@ -19,4 +19,10 @@ describe("payment proofs", () => {
     expect(orphanProofIds(["p1", "p2"], {})).toEqual([]);
     expect(orphanProofIds(["p1"], { d1: [] })).toEqual([]);
   });
+
+  it("keeps photos owned by a party adjustment or a card movement (not a ledger entry)", () => {
+    const ledger = { d1: [entry("p1")] };
+    // p2 is a party-adjustment photo, p3 a card-movement photo - both owners still exist, so neither is an orphan.
+    expect(orphanProofIds(["p1", "p2", "p3", "gone"], ledger, ["p2", "p3"])).toEqual(["gone"]);
+  });
 });

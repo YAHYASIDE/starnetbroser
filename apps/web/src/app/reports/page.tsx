@@ -261,9 +261,9 @@ export default function ReportsPage() {
   const netByMonth = useMemo(
     () =>
       netMonths.map((month) =>
-        buildMonthNet({ month, ledgerStore: visibleLedger, invoices, transactions: storeTransactions, cash: cashEntries, rates, profitReset, profitResetByAccount: resetByAccount }),
+        buildMonthNet({ month, ledgerStore: visibleLedger, invoices, transactions: storeTransactions, cash: cashEntries, rates, profitReset, profitResetByAccount: resetByAccount, cardTopUps: topUps }),
       ),
-    [netMonths, visibleLedger, invoices, storeTransactions, cashEntries, rates, profitReset, resetByAccount],
+    [netMonths, visibleLedger, invoices, storeTransactions, cashEntries, rates, profitReset, resetByAccount, topUps],
   );
   const netIndex = Math.max(0, netMonths.indexOf(netMonth));
   const net = netByMonth[netIndex];

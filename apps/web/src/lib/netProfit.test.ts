@@ -100,6 +100,22 @@ describe("buildMonthNet", () => {
     expect(net.storeSalesMru).toBe(500);
     expect(net.expensesMru).toBe(1000);
   });
+
+  it("counts a card withdrawal to «خسارة» as a business expense in the month it was withdrawn", () => {
+    const cardTopUps = [
+      { id: "w1", amountUsd: 10, paidAmount: 0, paidCurrency: "USD", date: "2026-09-15", createdAt: "", direction: "out" as const, via: "loss" as const },
+      // a withdrawal to الكاش is not a loss (money kept), and a plain charge is not a loss either
+      { id: "w2", amountUsd: 20, paidAmount: 800, paidCurrency: "MRU", date: "2026-09-16", createdAt: "", direction: "out" as const, via: "cash" as const },
+      { id: "t1", amountUsd: 30, paidAmount: 1200, paidCurrency: "MRU", date: "2026-09-16", createdAt: "" },
+      // last month's loss stays out of this month
+      { id: "w0", amountUsd: 99, paidAmount: 0, paidCurrency: "USD", date: "2026-08-15", createdAt: "", direction: "out" as const, via: "loss" as const },
+    ];
+    const net = buildMonthNet({ month: "2026-09", ledgerStore: {}, invoices: [], transactions: [], cash: [], rates, cardTopUps });
+    const loss = net.expenses.find((e) => e.category === "خسارة بطاقة كاش");
+    expect(loss).toMatchObject({ mru: 400, count: 1 }); // 10 USD × 40
+    expect(net.expensesMru).toBe(400);
+    expect(net.netMru).toBe(-400);
+  });
 });
 
 describe("monthChange", () => {

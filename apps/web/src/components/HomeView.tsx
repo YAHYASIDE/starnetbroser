@@ -50,7 +50,8 @@ import { isTelegramConnected, rescheduleTelegramSummaries, sendTelegramText } fr
 import { loadPriorityAlerted, priorityAlertsToSend, priorityTelegramText, savePriorityAlerted } from "@/lib/priorityData";
 import { loadOceanAlerted, oceanAlertsToSend, oceanModeAccounts, oceanTelegramText, saveOceanAlerted } from "@/lib/oceanMode";
 import { OceanModeAlarm } from "./OceanModeAlarm";
-import { cardShortfallForSuspended, currentCardBalanceUsd, listOpenShipmentDebts, listSuspendedWithDebt, settleShipmentCost } from "@/lib/starlinkDebt";
+import { cardShortfallForSuspended, currentCardBalanceUsd, listOpenShipmentDebts, listSuspendedWithDebt, loadCardTopUps, settleShipmentCost } from "@/lib/starlinkDebt";
+import { loadPartyAdjustments } from "@/lib/partyBalanceStore";
 import { APK_DOWNLOAD_URL, checkForAppUpdate, shouldAutoCheck } from "@/lib/appUpdate";
 import { deviceMatchesQuery, searchEverything, SearchResult } from "@/lib/homeInsights";
 import { listSuppliers, loadSupplierStore, SupplierStore } from "@/lib/supplierStore";
@@ -322,7 +323,10 @@ export function HomeView({
   // Payment photos whose payment was deleted anywhere (statements, device removal) - read from
   // storage itself, never from the not-yet-loaded state.
   useEffect(() => {
-    const timer = window.setTimeout(() => void pruneOrphanProofs(loadLedgerStore()), 4000);
+    const timer = window.setTimeout(
+      () => void pruneOrphanProofs(loadLedgerStore(), [...loadPartyAdjustments().map((a) => a.id), ...loadCardTopUps().map((t) => t.id)]),
+      4000,
+    );
     return () => window.clearTimeout(timer);
   }, []);
   // Read-only here: the till (for the "اليوم" panel), suppliers and store items (for global search).

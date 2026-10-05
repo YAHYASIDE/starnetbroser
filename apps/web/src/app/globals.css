@@ -6026,6 +6026,19 @@ button.today-tile {
   margin-bottom: 10px;
 }
 
+/* 💳 بطاقة كاش: شحن + سحب جنبًا إلى جنب (يلتفّان على العرض الضيق). */
+.sl-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.sl-withdraw-btn {
+  background: var(--danger-soft, rgba(220, 80, 80, 0.14));
+  color: var(--danger, #d05050);
+}
+
 /* 🔽 fold a section away - the whole title row is the toggle. */
 .sl-collapse {
   display: inline-flex;

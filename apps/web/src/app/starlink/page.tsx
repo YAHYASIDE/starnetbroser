@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { confirmClosedMonthChange, ledgerEntryMonthDates } from "@/lib/monthClosing";
 import { loadAllocationStore, removeAllocationsForEntryFromStore, saveAllocationStore } from "@/lib/paymentAllocationStore";
@@ -18,6 +18,9 @@ import { StarlinkAccountSummary } from "@starnet/shared";
 import { DateInput } from "@/components/DateInput";
 import { PartySheet } from "@/components/AccountsSection";
 import { loadCashEntries, saveCashEntries } from "@/lib/cashStore";
+import { deleteProof, getProof, putProof } from "@/lib/paymentProofStore";
+import { resizeImageToDataUrl } from "@/lib/imageUtils";
+import { loadAccountsBook, type MoneyAccount } from "@/lib/moneyAccounts";
 import { ClientStore, getClient, loadClientStore } from "@/lib/clientStore";
 import { CurrencyStore, getCurrency, loadCurrencyStore, realRateFromUsd, saveCurrencyStore, setCurrencyRate } from "@/lib/currencyStore";
 import { demoAccounts } from "@/lib/demoData";
@@ -55,6 +58,7 @@ import { loadCardFillBook, maskedNumber, removeCardFill, saveCardFillBook, setCa
 import { getRepresentative, loadRepresentativeStore, RepresentativeStore } from "@/lib/repStore";
 import {
   buildCardStatement,
+  CardMoveVia,
   CardPayment,
   cardShortfallForSuspended,
   CardTopUp,
@@ -112,8 +116,10 @@ export default function StarlinkPage() {
   const [repStore, setRepStore] = useState<RepresentativeStore>({});
   const [currencyStore, setCurrencyStore] = useState<CurrencyStore>({});
   const [topUps, setTopUps] = useState<CardTopUpList>([]);
+  // 💰 «حسابي»'s bank/wallet accounts - a card charge/withdraw can move one of them (its balance follows).
+  const [moneyAccounts, setMoneyAccounts] = useState<MoneyAccount[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [sheet, setSheet] = useState<"pay" | "topup" | "prevpay" | "edittopup" | "editpay" | null>(null);
+  const [sheet, setSheet] = useState<"pay" | "topup" | "withdraw" | "prevpay" | "edittopup" | "editpay" | null>(null);
   const [editTopUp, setEditTopUp] = useState<CardTopUp | null>(null);
   const [editPayment, setEditPayment] = useState<CardPayment | null>(null);
   const [previousDebts, setPreviousDebts] = useState<PreviousDebtList>([]);
@@ -154,6 +160,7 @@ export default function StarlinkPage() {
     setRepStore(loadRepresentativeStore());
     setCurrencyStore(loadCurrencyStore());
     setTopUps(loadCardTopUps());
+    setMoneyAccounts(loadAccountsBook().accounts);
     setPreviousDebts(loadPreviousDebts());
     setPaymentCards(loadPaymentCards());
     setFillBook(loadCardFillBook());
@@ -288,12 +295,17 @@ export default function StarlinkPage() {
     setPreviousDebts(next);
   }
 
-  function addTopUp(input: { amountUsd: number; paidAmount: number; paidCurrency: string; date: string; note: string }): string | null {
+  // 💳 Records a card charge (direction "in") or withdrawal (direction "out"). The counterpart money
+  // moves through الكاش, a bank/wallet app (its balance follows) or - for a withdrawal - «خسارة»
+  // (gone, counts as a مصروف in the reports). An optional payment-proof photo is kept by movement id.
+  function saveMovement(input: CardTopUpInput, proofDataUrl?: string): string | null {
+    if (!confirmClosedMonthChange([input.date])) return "لم يُحفظ (الشهر مُقفل)";
     const result = recordCardTopUp(topUps, input);
     if (!result.ok) return result.message;
     setTopUps(result.list);
     saveCardTopUps(result.list);
     saveCashEntries(postCardTopUpToCash(loadCashEntries(), result.topUp));
+    if (proofDataUrl) void putProof(result.topUp.id, proofDataUrl);
     if (depositToRecord) updateDeposit(depositToRecord.id, "recorded");
     setDepositToRecord(null);
     setSheet(null);
@@ -342,12 +354,14 @@ export default function StarlinkPage() {
   }
 
   function removeTopUp(topUp: CardTopUp) {
-    if (!window.confirm("حذف عملية الشحن هذه؟ يُحذف قيدها من الكاش أيضًا.")) return;
+    const isWithdraw = topUp.direction === "out";
+    if (!window.confirm(isWithdraw ? "حذف عملية السحب هذه؟ يُحذف أثرها من الكاش/التطبيق أيضًا." : "حذف عملية الشحن هذه؟ يُحذف قيدها من الكاش أيضًا.")) return;
     if (!confirmClosedMonthChange([topUp.date])) return;
     const next = deleteCardTopUp(topUps, topUp.id);
     setTopUps(next);
     saveCardTopUps(next);
     saveCashEntries(removeCardTopUpCash(loadCashEntries(), topUp.id));
+    void deleteProof(topUp.id);
     setSheet(null);
   }
 
@@ -356,15 +370,16 @@ export default function StarlinkPage() {
     setSheet("edittopup");
   }
 
-  function saveTopUpEdit(topUp: CardTopUp, input: CardTopUpInput): string | null {
+  function saveTopUpEdit(topUp: CardTopUp, input: CardTopUpInput, proofDataUrl?: string): string | null {
     if (!confirmClosedMonthChange([topUp.date, input.date])) return "لم يُحفظ (الشهر مُقفل)";
     const result = editCardTopUp(topUps, topUp.id, input);
     if (!result.ok) return result.message;
     setTopUps(result.list);
     saveCardTopUps(result.list);
     saveCashEntries(replaceCardTopUpCash(loadCashEntries(), result.topUp));
+    if (proofDataUrl) void putProof(topUp.id, proofDataUrl);
     setSheet(null);
-    setToast("✓ تم تعديل عملية الشحن وقيدها في الكاش");
+    setToast(input.direction === "out" ? "✓ تم تعديل عملية السحب" : "✓ تم تعديل عملية الشحن وقيدها في الكاش");
     return null;
   }
 
@@ -607,9 +622,14 @@ export default function StarlinkPage() {
             <h2 className="sl-title">💳 بطاقة كاش</h2>
           </button>
           {!collapsed.card && (
-            <button type="button" className="btn-icon" onClick={() => setSheet("topup")}>
-              + شحن البطاقة
-            </button>
+            <div className="sl-card-actions">
+              <button type="button" className="btn-icon" onClick={() => setSheet("topup")}>
+                + شحن البطاقة
+              </button>
+              <button type="button" className="btn-icon sl-withdraw-btn" onClick={() => setSheet("withdraw")}>
+                💵 سحب رصيد
+              </button>
+            </div>
           )}
         </div>
         {!collapsed.card && (<>
@@ -684,14 +704,29 @@ export default function StarlinkPage() {
               <li key={`${row.type}-${row.id}`} className={`sl-row sl-card-row sl-card-${row.type}`}>
                 <div className="sl-row-main">
                   {row.type === "topup" ? (
-                    <>
-                      <strong>⬆️ شحن البطاقة</strong>
-                      <span>
-                        من الكاش <bdi dir="ltr">{formatAmount(row.topUp.paidAmount)}</bdi>{" "}
-                        {LEDGER_CURRENCY_LABELS[row.topUp.paidCurrency as LedgerCurrency] ?? row.topUp.paidCurrency}
-                        {row.topUp.note ? ` · ${row.topUp.note}` : ""}
-                      </span>
-                    </>
+                    (() => {
+                      const t = row.topUp;
+                      const out = t.direction === "out";
+                      const via = t.via ?? "cash";
+                      const acc = via === "account" ? moneyAccounts.find((a) => a.id === t.accountId) : undefined;
+                      const place = via === "loss" ? "خسارة (مال ضائع)" : via === "account" ? `${acc?.icon ? `${acc.icon} ` : ""}${acc?.name ?? "تطبيق"}` : "الكاش";
+                      return (
+                        <>
+                          <strong>{out ? "💵 سحب رصيد" : "⬆️ شحن البطاقة"}</strong>
+                          <span>
+                            {via === "loss" ? (
+                              <>خسارة (مال ضائع){t.note ? ` · ${t.note}` : ""}</>
+                            ) : (
+                              <>
+                                {out ? "إلى" : "من"} {place} <bdi dir="ltr">{formatAmount(t.paidAmount)}</bdi>{" "}
+                                {LEDGER_CURRENCY_LABELS[t.paidCurrency as LedgerCurrency] ?? t.paidCurrency}
+                                {t.note ? ` · ${t.note}` : ""}
+                              </>
+                            )}
+                          </span>
+                        </>
+                      );
+                    })()
                   ) : (
                     <>
                       <strong>⬇️ تسديد {account(row.payment.accountId)?.name ?? "جهاز"}</strong>
@@ -778,11 +813,13 @@ export default function StarlinkPage() {
 
       {sheet === "topup" && (
         <PartySheet title="شحن بطاقة كاش" onClose={() => setSheet(null)}>
-          <TopUpForm
+          <MovementForm
+            direction="in"
             mruRate={mruRate}
             currencyStore={currencyStore}
+            moneyAccounts={moneyAccounts}
             prefill={depositToRecord ? { amountUsd: depositToRecord.amountUsd, note: `KAST: ${depositLabel(depositToRecord)}` } : undefined}
-            onSubmit={addTopUp}
+            onSubmit={saveMovement}
             onCancel={() => {
               setDepositToRecord(null);
               setSheet(null);
@@ -791,13 +828,29 @@ export default function StarlinkPage() {
         </PartySheet>
       )}
 
-      {sheet === "edittopup" && editTopUp && (
-        <PartySheet title="تعديل شحن البطاقة" onClose={() => setSheet(null)}>
-          <TopUpForm
-            initial={editTopUp}
+      {sheet === "withdraw" && (
+        <PartySheet title="سحب رصيد من البطاقة" onClose={() => setSheet(null)}>
+          <MovementForm
+            direction="out"
             mruRate={mruRate}
             currencyStore={currencyStore}
-            onSubmit={(input) => saveTopUpEdit(editTopUp, input)}
+            moneyAccounts={moneyAccounts}
+            onSubmit={saveMovement}
+            onCancel={() => setSheet(null)}
+          />
+        </PartySheet>
+      )}
+
+      {sheet === "edittopup" && editTopUp && (
+        <PartySheet title={editTopUp.direction === "out" ? "تعديل سحب الرصيد" : "تعديل شحن البطاقة"} onClose={() => setSheet(null)}>
+          <MovementForm
+            direction={editTopUp.direction === "out" ? "out" : "in"}
+            initial={editTopUp}
+            proofKey={editTopUp.id}
+            mruRate={mruRate}
+            currencyStore={currencyStore}
+            moneyAccounts={moneyAccounts}
+            onSubmit={(input, proof) => saveTopUpEdit(editTopUp, input, proof)}
             onDelete={() => removeTopUp(editTopUp)}
             onCancel={() => setSheet(null)}
           />
@@ -1038,48 +1091,110 @@ function PreviousPayForm({
   );
 }
 
-function TopUpForm({
+/**
+ * 💳 One card movement: a charge (`direction="in"`, money INTO the card) or a withdrawal
+ * (`direction="out"`, money OUT of it). The counterpart moves through الكاش, a bank/wallet app of
+ * «حسابي» (its balance follows) or - only for a withdrawal - «خسارة» (gone, no counterpart, counts
+ * as a مصروف in the reports). A payment-proof photo may be attached (kept by the movement id).
+ */
+function MovementForm({
+  direction,
   initial,
+  proofKey,
   mruRate,
   currencyStore,
+  moneyAccounts,
   prefill,
   onSubmit,
   onDelete,
   onCancel,
 }: {
-  /** Set when editing a past top-up. */
+  direction: "in" | "out";
+  /** Set when editing a past movement. */
   initial?: CardTopUp;
-  /** 💳 Dollars received on KAST (its mail): the amount and a note filled in. */
+  /** The movement id whose saved proof photo to load (editing). */
+  proofKey?: string;
+  /** 💳 Dollars received on KAST (its mail): the amount and a note filled in (a charge). */
   prefill?: { amountUsd: number; note: string };
   mruRate: number | undefined;
   currencyStore: CurrencyStore;
-  onSubmit: (input: { amountUsd: number; paidAmount: number; paidCurrency: string; date: string; note: string }) => string | null;
+  moneyAccounts: MoneyAccount[];
+  onSubmit: (input: CardTopUpInput, proofDataUrl?: string) => string | null;
   onDelete?: () => void;
   onCancel: () => void;
 }) {
+  const isOut = direction === "out";
   const [amountUsd, setAmountUsd] = useState(initial ? String(initial.amountUsd) : prefill ? String(prefill.amountUsd) : "");
+  // Where the counterpart money moves: "cash" (الكاش), a bank/wallet id, or "loss" (withdrawal only).
+  const initialVia = initial ? (initial.via === "account" ? (initial.accountId ?? "cash") : initial.via === "loss" ? "loss" : "cash") : "cash";
+  const [via, setVia] = useState<string>(initialVia);
+  const isLoss = via === "loss";
+  const viaAccount = moneyAccounts.find((a) => a.id === via);
   const [paidCurrency, setPaidCurrency] = useState<string>(initial?.paidCurrency ?? "MRU");
   const [paidAmount, setPaidAmount] = useState(initial ? String(initial.paidAmount) : "");
-  // An edit starts from what really left الكاش, never a re-suggestion from today's rate.
+  // An edit starts from what really moved, never a re-suggestion from today's rate.
   const [paidTouched, setPaidTouched] = useState(Boolean(initial));
   const [date, setDate] = useState(initial?.date ?? todayInput());
   const [note, setNote] = useState(initial?.note ?? prefill?.note ?? "");
   const [error, setError] = useState<string | null>(null);
+  // 📷 إثبات دفع (اختياري) - يُحفظ بمفتاح معرّف العملية (لا مع «خسارة»).
+  const [proofDraft, setProofDraft] = useState<string | null>(null);
+  const [savedProof, setSavedProof] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    let cancelled = false;
+    if (proofKey) void getProof(proofKey).then((d) => !cancelled && setSavedProof(d));
+    return () => {
+      cancelled = true;
+    };
+  }, [proofKey]);
 
-  // Suggests what left الكاش from today's rate until the operator types the real figure.
+  async function pickProof(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    try {
+      setProofDraft(await resizeImageToDataUrl(file, 1280, 0.72));
+    } catch {
+      setError("تعذرت قراءة الصورة - جرّب صورة أخرى");
+    }
+  }
+
+  // Suggests the counterpart from today's rate until the operator types the real figure.
   const rate = paidCurrency === "USD" ? 1 : paidCurrency === "MRU" ? mruRate : getCurrency(currencyStore, paidCurrency)?.rateFromUsd;
   const suggested = Number(amountUsd) > 0 && rate ? Math.round(Number(amountUsd) * rate * 100) / 100 : undefined;
   const shownPaid = paidTouched ? paidAmount : suggested !== undefined ? String(suggested) : "";
+  const counterpartLabel = isLoss
+    ? ""
+    : via === "cash"
+      ? isOut
+        ? "دخل الكاش"
+        : "خرج من الكاش"
+      : `${isOut ? "دخل" : "خرج من"} ${viaAccount?.icon ? `${viaAccount.icon} ` : ""}${viaAccount?.name ?? "التطبيق"}`;
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    setError(onSubmit({ amountUsd: Number(amountUsd), paidAmount: Number(shownPaid), paidCurrency, date, note }));
+    const resolvedVia: CardMoveVia = via === "cash" ? "cash" : via === "loss" ? "loss" : "account";
+    setError(
+      onSubmit(
+        {
+          amountUsd: Number(amountUsd),
+          paidAmount: isLoss ? 0 : Number(shownPaid),
+          paidCurrency,
+          date,
+          note,
+          ...(isOut ? { direction: "out" as const } : {}),
+          via: resolvedVia,
+          ...(resolvedVia === "account" ? { accountId: via } : {}),
+        },
+        !isLoss && proofDraft ? proofDraft : undefined,
+      ),
+    );
   }
 
   return (
     <form className="party-balance-form" onSubmit={submit}>
       <label className="rep-form-field">
-        <span>المبلغ الذي دخل البطاقة (دولار)</span>
+        <span>{isOut ? "المبلغ المسحوب من البطاقة (دولار)" : "المبلغ الذي دخل البطاقة (دولار)"}</span>
         <input
           className="search-input"
           type="text"
@@ -1094,42 +1209,78 @@ function TopUpForm({
           autoFocus={!initial}
         />
       </label>
-      <label className="rep-form-field">
-        <span>خرج من الكاش</span>
-        <div className="party-balance-row">
-          <input
-            className="search-input"
-            type="text"
-            lang="en"
-            min="0"
-            step="0.01"
-            dir="ltr"
-            inputMode="decimal"
-            placeholder="0"
-            value={shownPaid}
-            onChange={(e) => {
-              setPaidTouched(true);
-              setPaidAmount(e.target.value);
-            }}
-          />
-          <select className="search-input" value={paidCurrency} onChange={(e) => setPaidCurrency(e.target.value)}>
-            {LEDGER_CURRENCIES.map((c) => (
-              <option key={c} value={c}>
-                {LEDGER_CURRENCY_LABELS[c]}
-              </option>
-            ))}
-          </select>
-        </div>
+      <label className="form-field party-source-field">
+        <span>{isOut ? "إلى أين ذهب المال؟" : "من أين جاء المال؟"}</span>
+        <select className="search-input" value={via} onChange={(e) => setVia(e.target.value)}>
+          <option value="cash">{isOut ? "إلى الكاش" : "من الكاش"}</option>
+          {moneyAccounts.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.icon ? `${a.icon} ` : ""}
+              {a.name}
+            </option>
+          ))}
+          {isOut && <option value="loss">خسارة (مال ضائع)</option>}
+        </select>
       </label>
+      {isLoss ? (
+        <p className="settings-hint">💸 المبلغ المسحوب يُحسب خسارة (مصروف) في التقارير - لا يدخل أي مكان.</p>
+      ) : (
+        <label className="rep-form-field">
+          <span>{counterpartLabel}</span>
+          <div className="party-balance-row">
+            <input
+              className="search-input"
+              type="text"
+              lang="en"
+              min="0"
+              step="0.01"
+              dir="ltr"
+              inputMode="decimal"
+              placeholder="0"
+              value={shownPaid}
+              onChange={(e) => {
+                setPaidTouched(true);
+                setPaidAmount(e.target.value);
+              }}
+            />
+            <select className="search-input" value={paidCurrency} onChange={(e) => setPaidCurrency(e.target.value)}>
+              {LEDGER_CURRENCIES.map((c) => (
+                <option key={c} value={c}>
+                  {LEDGER_CURRENCY_LABELS[c]}
+                </option>
+              ))}
+            </select>
+          </div>
+        </label>
+      )}
       <label className="rep-form-field">
         <span>التاريخ</span>
         <DateInput className="search-input" value={date} onChange={(e) => setDate(e.target.value)} />
       </label>
       <input className="search-input" placeholder="ملاحظة (اختياري)" value={note} onChange={(e) => setNote(e.target.value)} />
+      {!isLoss && (
+        <div className="ledger-proof-field">
+          {proofDraft || savedProof ? (
+            <>
+              <img src={proofDraft ?? savedProof} alt="صورة إثبات الدفع" className="ledger-proof-thumb" />
+              <span>📷 {proofDraft ? "صورة جديدة - تُحفظ مع العملية" : "إثبات محفوظ"}</span>
+              <label className="text-action">
+                تغيير
+                <input type="file" accept="image/*" hidden onChange={pickProof} />
+              </label>
+            </>
+          ) : (
+            <label className="ledger-proof-pick">
+              📷 إرفاق صورة إثبات الدفع (اختياري)
+              <input type="file" accept="image/*" hidden onChange={pickProof} />
+            </label>
+          )}
+        </div>
+      )}
       {error && <div className="account-card-alert ledger-form-error">{error}</div>}
       <div className="settings-actions">
         <button className="dialog-primary" type="submit" disabled={!amountUsd}>
-          {initial ? "حفظ التعديل" : "حفظ الشحن"}
+          {initial ? "حفظ التعديل" : isOut ? "حفظ السحب" : "حفظ الشحن"}
         </button>
         <button type="button" className="text-action" onClick={onCancel}>
           إلغاء
@@ -1137,7 +1288,7 @@ function TopUpForm({
       </div>
       {onDelete && (
         <button type="button" className="dialog-danger" onClick={onDelete}>
-          حذف عملية الشحن
+          {isOut ? "حذف عملية السحب" : "حذف عملية الشحن"}
         </button>
       )}
     </form>

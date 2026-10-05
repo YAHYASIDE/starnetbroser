@@ -87,9 +87,10 @@ export async function replaceAllProofs(proofs: ProofMap): Promise<void> {
   }, undefined);
 }
 
-/** Removes photos whose payment was deleted. */
-export async function pruneOrphanProofs(ledgerStore: LedgerByAccount): Promise<void> {
-  for (const id of orphanProofIds(await listProofIds(), ledgerStore)) await deleteProof(id);
+/** Removes photos whose owner was deleted. `otherOwnerIds` carries the non-ledger owners of a photo
+ * (party-balance adjustments, card movements) so their proofs are not pruned as orphans. */
+export async function pruneOrphanProofs(ledgerStore: LedgerByAccount, otherOwnerIds: Iterable<string> = []): Promise<void> {
+  for (const id of orphanProofIds(await listProofIds(), ledgerStore, otherOwnerIds)) await deleteProof(id);
 }
 
 /** A backup snapshot plus the payment photos (only when there are any). */

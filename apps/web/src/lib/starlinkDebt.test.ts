@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCardStatement,
+  cardMovementFlows,
+  cardMoveDeltaUsd,
   costAtActual,
   settleShipmentCost,
   editCardTopUp,
@@ -107,6 +109,53 @@ describe("the كاش card", () => {
     const cash = postCardTopUpToCash([], top.topUp);
     expect(cash).toHaveLength(1);
     expect(cash[0]).toMatchObject({ kind: "out", amount: 8000, currencyCode: "MRU", sourceId: top.topUp.id, sourceKind: "card-topup" });
+  });
+});
+
+describe("card movements - charge via an app, and withdrawals (سحب رصيد)", () => {
+  it("cardMoveDeltaUsd: a top-up adds to the card, a withdrawal subtracts", () => {
+    const base = { id: "x", amountUsd: 50, paidAmount: 0, paidCurrency: "USD", date: "2026-10-01", createdAt: "2026-10-01T00:00:00.000Z" } as const;
+    expect(cardMoveDeltaUsd({ ...base })).toBe(50);
+    expect(cardMoveDeltaUsd({ ...base, direction: "out" })).toBe(-50);
+  });
+
+  it("a charge from a bank app keeps no cash entry but moves the app's balance (−)", () => {
+    const top = recordCardTopUp([], { amountUsd: 100, paidAmount: 4000, paidCurrency: "MRU", date: "2026-10-01", via: "account", accountId: "bankily" });
+    if (!top.ok) throw new Error(top.message);
+    expect(top.topUp).toMatchObject({ via: "account", accountId: "bankily" });
+    expect(postCardTopUpToCash([], top.topUp)).toHaveLength(0); // not الكاش → no cash entry
+    expect(cardMovementFlows(top.list)).toEqual([{ accountId: "bankily", currencyCode: "MRU", date: "2026-10-01", amount: -4000 }]);
+  });
+
+  it("a withdrawal to الكاش brings money IN to الكاش and lowers the card balance", () => {
+    const top = recordCardTopUp([], { amountUsd: 30, paidAmount: 1200, paidCurrency: "MRU", date: "2026-10-02", direction: "out", via: "cash" });
+    if (!top.ok) throw new Error(top.message);
+    const cash = postCardTopUpToCash([], top.topUp);
+    expect(cash).toHaveLength(1);
+    expect(cash[0]).toMatchObject({ kind: "in", amount: 1200, currencyCode: "MRU", sourceId: top.topUp.id, sourceKind: "card-topup" });
+    const statement = buildCardStatement(top.list, []);
+    expect(statement.balanceUsd).toBe(-30);
+  });
+
+  it("a withdrawal to a bank app moves the app's balance IN (+), no cash entry", () => {
+    const top = recordCardTopUp([], { amountUsd: 30, paidAmount: 1200, paidCurrency: "MRU", date: "2026-10-02", direction: "out", via: "account", accountId: "masrvi" });
+    if (!top.ok) throw new Error(top.message);
+    expect(postCardTopUpToCash([], top.topUp)).toHaveLength(0);
+    expect(cardMovementFlows(top.list)).toEqual([{ accountId: "masrvi", currencyCode: "MRU", date: "2026-10-02", amount: 1200 }]);
+  });
+
+  it("a withdrawal to «خسارة» needs no counterpart, keeps paidAmount 0, and moves no app/cash", () => {
+    const top = recordCardTopUp([], { amountUsd: 25, paidAmount: 0, paidCurrency: "USD", date: "2026-10-03", direction: "out", via: "loss" });
+    if (!top.ok) throw new Error(top.message);
+    expect(top.topUp).toMatchObject({ via: "loss", direction: "out", paidAmount: 0 });
+    expect(postCardTopUpToCash([], top.topUp)).toHaveLength(0);
+    expect(cardMovementFlows(top.list)).toEqual([]);
+    expect(buildCardStatement(top.list, []).balanceUsd).toBe(-25);
+  });
+
+  it("rejects a bank-app movement with no account chosen, and a non-loss with no counterpart amount", () => {
+    expect(recordCardTopUp([], { amountUsd: 10, paidAmount: 0, paidCurrency: "MRU", date: "x", via: "account" }).ok).toBe(false);
+    expect(recordCardTopUp([], { amountUsd: 10, paidAmount: 0, paidCurrency: "MRU", date: "x", direction: "out", via: "cash" }).ok).toBe(false);
   });
 });
 

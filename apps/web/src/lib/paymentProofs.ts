@@ -33,12 +33,15 @@ export function parseProofs(raw: string | undefined): ProofMap {
   }
 }
 
-/** Photo ids whose payment no longer exists anywhere in the ledger. Returns nothing when the
- * ledger is empty - an empty ledger far more likely means it failed to load than that every
- * payment was deleted, and photos are not worth that risk. */
-export function orphanProofIds(proofIds: string[], ledgerStore: LedgerByAccount): string[] {
-  const entryIds = new Set<string>();
-  for (const entries of Object.values(ledgerStore)) for (const entry of entries) entryIds.add(entry.id);
-  if (entryIds.size === 0) return [];
-  return proofIds.filter((id) => !entryIds.has(id));
+/** Photo ids whose owner no longer exists. A proof is keyed by its owner's id: a ledger entry
+ * (device payment), a party adjustment (a client/supplier balance payment) or a card movement
+ * («حسابي»'s card charge/withdraw). `otherOwnerIds` carries those non-ledger owners so their photos
+ * are never pruned as orphans. Returns nothing when there are no owners at all - that far more
+ * likely means storage failed to load than that every record was deleted, and photos are not worth
+ * that risk. */
+export function orphanProofIds(proofIds: string[], ledgerStore: LedgerByAccount, otherOwnerIds: Iterable<string> = []): string[] {
+  const ownerIds = new Set<string>(otherOwnerIds);
+  for (const entries of Object.values(ledgerStore)) for (const entry of entries) ownerIds.add(entry.id);
+  if (ownerIds.size === 0) return [];
+  return proofIds.filter((id) => !ownerIds.has(id));
 }

@@ -17,7 +17,12 @@ import { entriesAfterProfitReset, ProfitReset } from "./profitReset";
 import type { RepResetPoint } from "./repStore";
 import { RatesFromUsd, sumToMru } from "./reportsView";
 import { computeStoreSalesSummary } from "./storeReports";
+import type { CardTopUpList } from "./starlinkDebt";
 import { StoreTransactionList } from "./storeStore";
+
+/** The category of the «خسارة» bucket a card withdrawal to loss lands in, inside the reports'
+ * expenses - money that left the card and is gone (not paid to anyone). */
+export const CARD_LOSS_CATEGORY = "خسارة بطاقة كاش";
 
 export interface MonthNetInput {
   month: string;
@@ -30,6 +35,8 @@ export interface MonthNetInput {
   /** Each device's own start point (the global one or its client's, whichever is later -
    * clientBulk.ts#profitResetByAccount). When given, it replaces `profitReset` per device. */
   profitResetByAccount?: Record<string, RepResetPoint | null>;
+  /** Card movements - a withdrawal to «خسارة» is counted as a business expense this month. */
+  cardTopUps?: CardTopUpList;
 }
 
 export interface ExpenseGroup {
@@ -110,6 +117,17 @@ export function buildMonthNet(input: MonthNetInput): MonthNet {
     addTo(bucket, entry.currencyCode, entry.amount);
     byCategory.set(category, bucket);
     counts.set(category, (counts.get(category) ?? 0) + 1);
+  }
+  // A card withdrawal to «خسارة» is money gone (not paid to anyone): the dollars that left the card
+  // count as a business expense in the month they were withdrawn (derived from the card movement, so
+  // it disappears on its own if the movement is deleted - never stored as its own record).
+  for (const t of input.cardTopUps ?? []) {
+    if (t.direction !== "out" || t.via !== "loss") continue;
+    if (monthOf(t.date) !== month || !onOrAfterReset(t.date)) continue;
+    const bucket = byCategory.get(CARD_LOSS_CATEGORY) ?? {};
+    addTo(bucket, "USD", t.amountUsd);
+    byCategory.set(CARD_LOSS_CATEGORY, bucket);
+    counts.set(CARD_LOSS_CATEGORY, (counts.get(CARD_LOSS_CATEGORY) ?? 0) + 1);
   }
   const expenses: ExpenseGroup[] = Array.from(byCategory.entries())
     .map(([category, bucket]) => ({ category, mru: take(bucket), count: counts.get(category) ?? 0 }))

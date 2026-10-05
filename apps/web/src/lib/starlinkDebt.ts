@@ -10,6 +10,7 @@
  */
 
 import type { StarlinkAccountSummary } from "@starnet/shared";
+import type { AccountFlow } from "./moneyAccounts";
 import { computeExpectedShipmentProfit, starlinkCostUsd } from "./accountingStore";
 import { CashEntryList, recordCashEntry, removeLinkedCashEntries } from "./cashStore";
 import type { LedgerByAccount, LedgerEntry, StarlinkCost } from "./ledgerStore";
@@ -193,16 +194,32 @@ export function cardShortfallForSuspended(suspended: SuspendedDebtDevice[], card
 
 // ---- The "كاش" card ----
 
+/** Where the counterpart money moved for a card movement: الكاش (default/legacy), a bank/wallet of
+ * «حسابي» (its balance follows), or a loss (money gone - recorded as a مصروف in the reports). */
+export type CardMoveVia = "cash" | "account" | "loss";
+
 export interface CardTopUp {
   id: string;
-  /** What landed on the card, USD. */
+  /** How much the card balance moves, USD (added for a top-up, taken off for a withdrawal). */
   amountUsd: number;
-  /** What left الكاش for it, in its own currency. */
+  /** The counterpart amount in its own currency: what left الكاش/the app for a top-up, what came
+   * into الكاش/the app for a withdrawal. Unused (0) for a withdrawal to «خسارة». */
   paidAmount: number;
   paidCurrency: string;
   date: string;
   note?: string;
   createdAt: string;
+  /** "out" = سحب رصيد (money leaves the card); undefined/"in" = شحن (legacy top-up). */
+  direction?: "out";
+  /** Where the counterpart moved. Undefined = "cash" (legacy top-ups all came from الكاش). */
+  via?: CardMoveVia;
+  /** The bank/wallet (moneyAccounts) when via === "account" - its balance follows the movement. */
+  accountId?: string;
+}
+
+/** Signed card-balance delta of one movement: a top-up adds, a withdrawal subtracts. */
+export function cardMoveDeltaUsd(t: CardTopUp): number {
+  return t.direction === "out" ? -t.amountUsd : t.amountUsd;
 }
 
 export type CardTopUpList = CardTopUp[];
@@ -232,21 +249,37 @@ export interface CardTopUpInput {
   paidCurrency: string;
   date: string;
   note?: string;
+  /** "out" = سحب; omit for a top-up. */
+  direction?: "out";
+  via?: CardMoveVia;
+  accountId?: string;
 }
 
 export type CardTopUpResult = { ok: true; list: CardTopUpList; topUp: CardTopUp } | { ok: false; message: string };
 
 export function recordCardTopUp(list: CardTopUpList, input: CardTopUpInput): CardTopUpResult {
-  if (!Number.isFinite(input.amountUsd) || input.amountUsd <= 0) return { ok: false, message: "أدخل مبلغ الشحن بالدولار" };
-  if (!Number.isFinite(input.paidAmount) || input.paidAmount <= 0) return { ok: false, message: "أدخل المبلغ الذي خرج من الكاش" };
+  const isWithdraw = input.direction === "out";
+  const via: CardMoveVia = input.via ?? "cash";
+  if (!Number.isFinite(input.amountUsd) || input.amountUsd <= 0) {
+    return { ok: false, message: isWithdraw ? "أدخل المبلغ المسحوب بالدولار" : "أدخل مبلغ الشحن بالدولار" };
+  }
+  // A loss has no counterpart money; every other movement does (cash or an app).
+  const needsCounterpart = via !== "loss";
+  if (needsCounterpart && (!Number.isFinite(input.paidAmount) || input.paidAmount <= 0)) {
+    return { ok: false, message: isWithdraw ? "أدخل المبلغ الذي دخل" : "أدخل المبلغ الذي خرج" };
+  }
+  if (via === "account" && !input.accountId) return { ok: false, message: "اختر التطبيق البنكي" };
   const topUp: CardTopUp = {
     id: typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `card-${Date.now()}-${Math.random()}`,
     amountUsd: input.amountUsd,
-    paidAmount: input.paidAmount,
+    paidAmount: needsCounterpart ? input.paidAmount : 0,
     paidCurrency: input.paidCurrency,
     date: input.date,
     note: input.note?.trim() || undefined,
     createdAt: new Date().toISOString(),
+    ...(isWithdraw ? { direction: "out" as const } : {}),
+    ...(via !== "cash" ? { via } : {}),
+    ...(via === "account" && input.accountId ? { accountId: input.accountId } : {}),
   };
   return { ok: true, list: [...list, topUp], topUp };
 }
@@ -270,19 +303,36 @@ export function replaceCardTopUpCash(cash: CashEntryList, topUp: CardTopUp): Cas
   return postCardTopUpToCash(removeCardTopUpCash(cash, topUp.id), topUp);
 }
 
-/** A top-up takes its money out of الكاش (linked, removed together with it). */
+/** The الكاش side of a card movement (linked, removed together with it) - only when it went through
+ * الكاش: a top-up takes money OUT of الكاش, a withdrawal brings money IN. A movement through a bank
+ * app or to «خسارة» touches no cash entry (the app's balance / the loss is handled elsewhere). */
 export function postCardTopUpToCash(cash: CashEntryList, topUp: CardTopUp): CashEntryList {
+  if ((topUp.via ?? "cash") !== "cash" || topUp.paidAmount <= 0) return cash;
+  const isWithdraw = topUp.direction === "out";
+  const label = isWithdraw ? `سحب من البطاقة ${topUp.amountUsd} $` : `شحن البطاقة ${topUp.amountUsd} $`;
   const posted = recordCashEntry(cash, {
-    kind: "out",
+    kind: isWithdraw ? "in" : "out",
     amount: topUp.paidAmount,
     currencyCode: topUp.paidCurrency,
     date: topUp.date,
-    category: "شحن بطاقة كاش",
-    note: topUp.note ? `شحن البطاقة ${topUp.amountUsd} $ - ${topUp.note}` : `شحن البطاقة ${topUp.amountUsd} $`,
+    category: "بطاقة كاش",
+    note: topUp.note ? `${label} - ${topUp.note}` : label,
     sourceId: topUp.id,
     sourceKind: "card-topup",
   });
   return posted.ok ? posted.entries : cash;
+}
+
+/** Account flows for card movements that went through a bank/wallet («حسابي»): a top-up takes money
+ * OUT of the app (−), a withdrawal brings it IN (+). Fed into loadAccountFlows so the app's balance
+ * follows (same role as partyFlows / devicePaymentFlows). */
+export function cardMovementFlows(list: CardTopUpList): AccountFlow[] {
+  const flows: AccountFlow[] = [];
+  for (const t of list) {
+    if (t.via !== "account" || !t.accountId || t.paidAmount <= 0) continue;
+    flows.push({ accountId: t.accountId, currencyCode: t.paidCurrency, date: t.date, amount: t.direction === "out" ? t.paidAmount : -t.paidAmount });
+  }
+  return flows;
 }
 
 export function removeCardTopUpCash(cash: CashEntryList, topUpId: string): CashEntryList {
@@ -323,7 +373,7 @@ export type CardStatementRow =
 /** The card's statement, newest first, with the balance after every movement. */
 export function buildCardStatement(topUps: CardTopUpList, payments: CardPayment[]): { rows: CardStatementRow[]; balanceUsd: number } {
   const movements: Omit<CardStatementRow, "balanceAfter">[] = [
-    ...topUps.map((t) => ({ type: "topup" as const, id: t.id, date: t.date, createdAt: t.createdAt, amountUsd: t.amountUsd, topUp: t })),
+    ...topUps.map((t) => ({ type: "topup" as const, id: t.id, date: t.date, createdAt: t.createdAt, amountUsd: cardMoveDeltaUsd(t), topUp: t })),
     ...payments.map((p) => ({
       type: "payment" as const,
       id: p.entry.id,
