@@ -86,6 +86,19 @@ describe("🏦 bank / wallet accounts", () => {
     expect(seedDefaultAccounts(book, "2026-10-04").accounts.filter((a) => a.method === "bankily")).toHaveLength(1);
   });
 
+  it("«كاش سيفا» is added once to an older (already-seeded) book, and never re-added if deleted", () => {
+    // A book seeded before «كاش سيفا» existed: no seededCashSifa flag, no such account.
+    const old = seedDefaultAccounts(EMPTY_ACCOUNTS_BOOK, "2026-10-01");
+    const before = { ...old, seededCashSifa: undefined, accounts: old.accounts.filter((a) => a.name !== "كاش سيفا") };
+    const migrated = seedDefaultAccounts(before, "2026-10-05");
+    const cashSifa = migrated.accounts.find((a) => a.name === "كاش سيفا");
+    expect(cashSifa).toMatchObject({ currencyCode: "SIFA", balanceSet: false });
+    expect(cashSifa?.method).toBeUndefined();
+    // Deleted, then re-seed: not brought back.
+    const emptied = deleteMoneyAccount(migrated, cashSifa!.id);
+    expect(seedDefaultAccounts(emptied, "2026-10-06").accounts.some((a) => a.name === "كاش سيفا")).toBe(false);
+  });
+
   it("the first real balance becomes the opening, from that day", () => {
     const seeded = seedDefaultAccounts(EMPTY_ACCOUNTS_BOOK, "2026-10-01");
     const id = seeded.accounts[0]!.id;

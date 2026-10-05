@@ -58,6 +58,8 @@ export interface AccountsBook {
   transfers?: AccountTransfer[];
   /** The ready-made accounts were added once (never again, even if deleted). */
   seeded?: boolean;
+  /** «كاش سيفا» was introduced after the first seed and added once to older books (never re-added). */
+  seededCashSifa?: boolean;
 }
 
 export const EMPTY_ACCOUNTS_BOOK: AccountsBook = { accounts: [], adjustments: [] };
@@ -154,18 +156,32 @@ export const DEFAULT_ACCOUNTS: Omit<AccountInput, "openingBalance" | "openingDat
   { name: "أورانج موني (مالي)", icon: "🟠", currencyCode: "SIFA", method: "orange", number: "74646158" },
   { name: "نيتا (النيجر)", icon: "🟡", currencyCode: "SIFA", method: "nita", number: "22227268" },
   { name: "محفظة بينانس", icon: "🔶", currencyCode: "USD" },
+  CASH_SIFA_PRESET(),
 ];
+
+/** 💵 نقد السيفا في يده (منفصل عن «الكاش» بالأوقية) - محفظة بلا طريقة دفع، رصيدها يدوي + تحويلات. */
+function CASH_SIFA_PRESET(): Omit<AccountInput, "openingBalance" | "openingDate"> {
+  return { name: "كاش سيفا", icon: "💵", currencyCode: "SIFA" };
+}
 
 /** The ready-made accounts, once, each waiting for its real balance. */
 export function seedDefaultAccounts(book: AccountsBook, today: string, now = new Date()): AccountsBook {
-  if (book.seeded) return book;
-  let next: AccountsBook = { ...book, seeded: true };
-  for (const preset of DEFAULT_ACCOUNTS) {
-    if (next.accounts.some((a) => a.name === preset.name || (preset.method && a.method === preset.method))) continue;
+  let next = book;
+  const addPreset = (preset: Omit<AccountInput, "openingBalance" | "openingDate">) => {
+    if (next.accounts.some((a) => a.name === preset.name || (preset.method && a.method === preset.method))) return;
     const made = addMoneyAccount(next, { ...preset, openingBalance: 0, openingDate: today }, now);
     if (made.ok) next = { ...made.book, accounts: made.book.accounts.map((a) => (a.id === made.account.id ? { ...a, balanceSet: false } : a)) };
+  };
+  if (!next.seeded) {
+    next = { ...next, seeded: true };
+    for (const preset of DEFAULT_ACCOUNTS) addPreset(preset);
   }
-  return next;
+  // One-time: introduce «كاش سيفا» to books seeded before it existed (never re-added once deleted).
+  if (!next.seededCashSifa) {
+    next = { ...next, seededCashSifa: true };
+    addPreset(CASH_SIFA_PRESET());
+  }
+  return next === book ? book : next;
 }
 
 /** The first real balance of a ready-made account: it becomes its opening, from today. */
@@ -319,6 +335,7 @@ export function loadAccountsBook(): AccountsBook {
       adjustments: Array.isArray(parsed.adjustments) ? parsed.adjustments : [],
       ...(Array.isArray(parsed.transfers) && parsed.transfers.length ? { transfers: parsed.transfers } : {}),
       ...(parsed.seeded ? { seeded: true } : {}),
+      ...(parsed.seededCashSifa ? { seededCashSifa: true } : {}),
     };
   } catch {
     return EMPTY_ACCOUNTS_BOOK;

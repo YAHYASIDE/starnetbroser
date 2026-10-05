@@ -18,6 +18,11 @@ mind). Exact texts and numbers live in the code - this file says where.
   but he must re-type each one's current balance once in فرانك after the update.
 - **Wallets (USD):** KAST (= the existing card: `starlinkDebt.ts` top-ups − card payments, shown as
   «محفظة KAST»; never also a money account - it would count twice) and بينانس.
+- **«💵 كاش سيفا»** (his Oct 2026 request): a SIFA cash wallet, separate from «الكاش» (which is his
+  أوقية cash in hand). It is a money account with **no payment method** (balance = opening + transfers
+  + its party `accountId` flows), so it shows in «حسابي» as its own front line (سيفا + أوقية, via the
+  foreign-wallet rule). In `DEFAULT_ACCOUNTS`, and added once to already-seeded older books via the
+  `seededCashSifa` one-time flag (never re-added if he deletes it).
 - The ready-made accounts: `DEFAULT_ACCOUNTS` in `apps/web/src/lib/moneyAccounts.ts` (added once,
   each «اكتب الرصيد» until he types its real balance; deleted ones never come back).
 - Customers' payment methods stay: بنكيلي، مصرفي، سداد، أورانج موني، نيتا، نقدًا (he said no to
