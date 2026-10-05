@@ -5,7 +5,7 @@ import { DuplicateWarning } from "./DuplicateWarning";
 import { duplicateQuestion, findClientDuplicates } from "@/lib/duplicates";
 import { ClientNotesPanel, clientNoteCount } from "./ClientNotesSheet";
 import { DateInput } from "./DateInput";
-import { CSSProperties, FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, CSSProperties, FormEvent, useEffect, useMemo, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { Client, clientDeleteQuestion, CreateClientInput } from "@/lib/clientStore";
 import { clientRepNames, clientRepIds, matchesClientOwner, type ClientOwnerFilter } from "@/lib/repDebts";
@@ -13,6 +13,8 @@ import { currentRepOfClient } from "@/lib/repClients";
 import type { RepresentativeStore } from "@/lib/repStore";
 import { CreateSupplierInput, Supplier } from "@/lib/supplierStore";
 import { loadAccountsBook } from "@/lib/moneyAccounts";
+import { getProof } from "@/lib/paymentProofStore";
+import { resizeImageToDataUrl } from "@/lib/imageUtils";
 import { renewalDateLabel } from "@/lib/date";
 import {
   computeBalanceByCurrency,
@@ -70,14 +72,16 @@ interface Props {
   onUpdateSupplier: (supplierId: string, input: CreateSupplierInput) => void;
   /** Manual balance entries ("إضافة رصيد", partyBalanceStore.ts) for every client/supplier. */
   adjustments: PartyAdjustment[];
-  /** Returns an error message to show, or null on success. */
-  onAddAdjustment: (input: RecordPartyAdjustmentInput) => string | null;
+  /** Returns an error message to show, or null on success. `proofDataUrl` (optional) is a payment
+   * photo to save keyed by the new adjustment's id. */
+  onAddAdjustment: (input: RecordPartyAdjustmentInput, proofDataUrl?: string) => string | null;
   onDeleteAdjustment: (adjustmentId: string) => void;
   /** A client's payment for one of their devices ("الدفعة عن" in إضافة رصيد) - recorded in that
    * device's own ledger. Returns an error message, or null on success. */
   onAddDevicePayment?: (deviceId: string, input: Omit<BalanceFormInput, "deviceId">) => string | null;
-  /** Edits a balance entry. Returns an error message, or null on success. */
-  onUpdateAdjustment?: (adjustmentId: string, input: Omit<BalanceFormInput, "deviceId">) => string | null;
+  /** Edits a balance entry. Returns an error message, or null on success. `proofDataUrl` replaces
+   * the saved photo when given. */
+  onUpdateAdjustment?: (adjustmentId: string, input: Omit<BalanceFormInput, "deviceId">, proofDataUrl?: string) => string | null;
   /** Turns a general "له" balance entry into a payment on one of the client's devices. */
   onMoveAdjustmentToDevice?: (adjustmentId: string, deviceId: string, input: Omit<BalanceFormInput, "deviceId">) => string | null;
 }
@@ -473,7 +477,7 @@ interface PartyCardProps {
   totals: Record<string, PartyStoreTotals>;
   invoices: InvoiceList;
   adjustments: PartyAdjustment[];
-  onAddAdjustment: (input: RecordPartyAdjustmentInput) => string | null;
+  onAddAdjustment: Props["onAddAdjustment"];
   onDeleteAdjustment: (adjustmentId: string) => void;
   onAddDevicePayment?: Props["onAddDevicePayment"];
   onUpdateAdjustment?: Props["onUpdateAdjustment"];
@@ -795,11 +799,11 @@ function PartyCard({
             }
             onCancel={() => setSheet(null)}
             onSubmit={(input) => {
-              const { deviceId, ...rest } = input;
+              const { deviceId, proofDataUrl, ...rest } = input;
               const error =
                 deviceId && onAddDevicePayment
                   ? onAddDevicePayment(deviceId, rest)
-                  : onAddAdjustment({ ...rest, partyKind, partyId: party.id });
+                  : onAddAdjustment({ ...rest, partyKind, partyId: party.id }, proofDataUrl);
               if (!error) setSheet(null);
               return error;
             }}
@@ -837,14 +841,16 @@ function PartyCard({
                 note: detailRow.adjustment!.note,
                 cashMoved: detailRow.adjustment!.cashMoved,
                 paymentMethod: detailRow.adjustment!.paymentMethod,
+                accountId: detailRow.adjustment!.accountId,
               }}
+              proofKey={detailRow.adjustment!.id}
               submitLabel="حفظ التعديل"
               onCancel={() => setSheet("detail")}
               onSubmit={(input) => {
-                const { deviceId, ...rest } = input;
+                const { deviceId, proofDataUrl, ...rest } = input;
                 const id = detailRow.adjustment!.id;
                 const error =
-                  deviceId && onMoveAdjustmentToDevice ? onMoveAdjustmentToDevice(id, deviceId, rest) : onUpdateAdjustment?.(id, rest) ?? null;
+                  deviceId && onMoveAdjustmentToDevice ? onMoveAdjustmentToDevice(id, deviceId, rest) : onUpdateAdjustment?.(id, rest, proofDataUrl) ?? null;
                 if (!error) setSheet(null);
                 return error;
               }}
@@ -929,6 +935,8 @@ interface BalanceFormProps {
   devices: { id: string; name: string; email?: string }[];
   /** Editing an existing entry: its current values. */
   initial?: Omit<BalanceFormInput, "deviceId">;
+  /** Editing: the adjustment id, so an already-saved 📷 إثبات can be shown/replaced. */
+  proofKey?: string;
   submitLabel?: string;
   onCancel: () => void;
   /** Returns an error message, or null on success. */
@@ -948,6 +956,9 @@ export interface BalanceFormInput {
   /** The bank / wallet the money moved through («حسابي»); its balance follows. Mutually exclusive
    * with cashMoved: money is cash, or one app, or didn't move. */
   accountId?: string;
+  /** 📷 إثبات الدفع (a new/changed image) - saved by the page keyed by the new adjustment id
+   * (paymentProofStore). UI-only, never stored on the adjustment itself. */
+  proofDataUrl?: string;
 }
 
 /** The usual case is real cash: a client paying us ("له") or us paying a supplier ("عليه"). */
@@ -961,7 +972,7 @@ function cashMovedLabel(partyKind: PartyKind, direction: PartyAdjustmentDirectio
   return kind === "in" ? `💵 استلمناها نقدًا من ${who} - تدخل الكاش` : `💵 دفعناها نقدًا إلى ${who} - تخرج من الكاش`;
 }
 
-function BalanceForm({ partyName, partyKind, devices, initial, submitLabel = "حفظ الرصيد", onCancel, onSubmit }: BalanceFormProps) {
+function BalanceForm({ partyName, partyKind, devices, initial, proofKey, submitLabel = "حفظ الرصيد", onCancel, onSubmit }: BalanceFormProps) {
   const [direction, setDirectionState] = useState<PartyAdjustmentDirection>(
     initial?.direction ?? (partyKind === "client" && devices.length > 0 ? "weOwe" : "owesUs"),
   );
@@ -986,6 +997,28 @@ function BalanceForm({ partyName, partyKind, devices, initial, submitLabel = "ح
   const [date, setDate] = useState(initial?.date ?? todayDateInputValue());
   const [note, setNote] = useState(initial?.note ?? "");
   const [error, setError] = useState<string | null>(null);
+  // 📷 إثبات دفع (اختياري) - يظهر عند الدفع عبر تطبيق بنكي، يُحفظ بمفتاح معرّف العملية.
+  const [proofDraft, setProofDraft] = useState<string | null>(null);
+  const [savedProof, setSavedProof] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    let cancelled = false;
+    if (proofKey) void getProof(proofKey).then((d) => !cancelled && setSavedProof(d));
+    return () => {
+      cancelled = true;
+    };
+  }, [proofKey]);
+  const viaAccount = moneyAccounts.some((a) => a.id === source);
+
+  async function pickProof(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    try {
+      setProofDraft(await resizeImageToDataUrl(file, 1280, 0.72));
+    } catch {
+      setError("تعذرت قراءة الصورة - جرّب صورة أخرى");
+    }
+  }
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -997,9 +1030,10 @@ function BalanceForm({ partyName, partyKind, devices, initial, submitLabel = "ح
         date,
         note,
         cashMoved: source === "cash",
-        accountId: moneyAccounts.some((a) => a.id === source) ? source : undefined,
+        accountId: viaAccount ? source : undefined,
         deviceId: canPickDevice && deviceId ? deviceId : undefined,
         paymentMethod: isPayment ? paymentMethod : undefined,
+        proofDataUrl: viaAccount && proofDraft ? proofDraft : undefined,
       }),
     );
   }
@@ -1107,6 +1141,25 @@ function BalanceForm({ partyName, partyKind, devices, initial, submitLabel = "ح
           ))}
         </select>
       </label>
+      {viaAccount && (
+        <div className="ledger-proof-field">
+          {proofDraft || savedProof ? (
+            <>
+              <img src={proofDraft ?? savedProof} alt="صورة إثبات الدفع" className="ledger-proof-thumb" />
+              <span>📷 {proofDraft ? "صورة جديدة - تُحفظ مع العملية" : "إثبات محفوظ"}</span>
+              <label className="text-action">
+                تغيير
+                <input type="file" accept="image/*" hidden onChange={pickProof} />
+              </label>
+            </>
+          ) : (
+            <label className="ledger-proof-pick">
+              📷 إرفاق صورة إثبات الدفع (اختياري)
+              <input type="file" accept="image/*" hidden onChange={pickProof} />
+            </label>
+          )}
+        </div>
+      )}
       {error && <div className="account-card-alert ledger-form-error">{error}</div>}
       <div className="settings-actions">
         <button className="dialog-primary" type="submit" disabled={!amount}>

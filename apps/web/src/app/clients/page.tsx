@@ -9,6 +9,7 @@ import { saveClientDevicePayment } from "@/lib/clientDevicePaymentSave";
 import { useEffect, useMemo, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { loadCashEntries, postPartyAdjustmentToCash, removeLinkedCashEntries, saveCashEntries } from "@/lib/cashStore";
+import { deleteProof, putProof } from "@/lib/paymentProofStore";
 import {
   Client,
   ClientStore,
@@ -216,11 +217,12 @@ export default function ClientsPage() {
     saveSupplierStore(next);
   }
 
-  function handleAddAdjustment(input: RecordPartyAdjustmentInput): string | null {
+  function handleAddAdjustment(input: RecordPartyAdjustmentInput, proofDataUrl?: string): string | null {
     const result = recordPartyAdjustment(partyAdjustments, input);
     if (!result.ok) return result.message;
     setPartyAdjustments(result.list);
     savePartyAdjustments(result.list);
+    if (proofDataUrl) void putProof(result.adjustment.id, proofDataUrl);
     if (input.partyKind === "client" && input.direction === "weOwe") {
       // A client paying into their general (store) account.
       notifyPaymentTelegram({
@@ -241,11 +243,12 @@ export default function ClientsPage() {
   }
 
   /** Edits a balance entry; its linked cash entry (if any) is replaced to match. */
-  function handleUpdateAdjustment(adjustmentId: string, input: Omit<BalanceFormInput, "deviceId">): string | null {
+  function handleUpdateAdjustment(adjustmentId: string, input: Omit<BalanceFormInput, "deviceId">, proofDataUrl?: string): string | null {
     const result = updatePartyAdjustment(partyAdjustments, adjustmentId, input);
     if (!result.ok) return result.message;
     setPartyAdjustments(result.list);
     savePartyAdjustments(result.list);
+    if (proofDataUrl) void putProof(adjustmentId, proofDataUrl);
     const party = result.adjustment.partyKind === "client" ? clientStore[result.adjustment.partyId] : supplierStore[result.adjustment.partyId];
     const cash = postPartyAdjustmentToCash(removeLinkedCashEntries(loadCashEntries(), adjustmentId), result.adjustment, party?.name ?? "");
     saveCashEntries(cash);
@@ -307,6 +310,7 @@ export default function ClientsPage() {
     savePartyAdjustments(next);
     const cash = removeLinkedCashEntries(loadCashEntries(), adjustmentId);
     saveCashEntries(cash);
+    void deleteProof(adjustmentId);
   }
 
   return (

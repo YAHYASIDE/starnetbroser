@@ -48,7 +48,9 @@ mind). Exact texts and numbers live in the code - this file says where.
   `partyFlows`, already in `loadAccountFlows`) and **no** cash entry is posted; «الكاش» posts a cash
   entry as before; «لم يتحرك» records a plain balance entry. `accountId` and `cashMoved` are mutually
   exclusive (the store drops `cashMoved` when `accountId` is set). Useful for a customer outside
-  Starlink paid through a bank app.
+  Starlink paid through a bank app. **When an app is the source, a «📷 إرفاق صورة إثبات الدفع»
+  (optional)** appears; it is saved in IndexedDB keyed by the adjustment id (`paymentProofStore`,
+  carried in backups), viewable/replaceable when editing the entry, removed when it is deleted.
 - **Clients page filter** (his Oct 2026 choice): «👤 زبائني» is the first chip and the default
   (instead of «الكل»); a second row filters by balance direction - «الكل / 🔴 مدينون لنا / 🟢 لهم
   رصيد علينا» (`BalanceFilter`, counts per chip).
