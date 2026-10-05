@@ -60,7 +60,7 @@ export function rememberGroup(id: SettingsGroupId): void {
 // ---- every setting as one folded line (and what the settings search finds) ----
 
 export type SettingsItemId =
-  | "shortcuts" | "passwords" | "gmail-codes" | "card-gmail" | "theme" | "help" | "invoice-currency" | "business" | "profit-reset"
+  | "whats-new" | "shortcuts" | "passwords" | "gmail-codes" | "card-gmail" | "theme" | "help" | "invoice-currency" | "business" | "profit-reset"
   | "reminders"
   | "auto-sync" | "sessions"
   | "telegram" | "rep-bots" | "activation-costs" | "instant-replies"
@@ -79,6 +79,7 @@ export interface SettingsItem {
 }
 
 export const SETTINGS_ITEMS: SettingsItem[] = [
+  { id: "whats-new", group: "general", icon: "🆕", title: "ما الجديد", summary: "جولة تشرح ما تغيّر في كل تحديث", keywords: ["جديد", "تحديث", "جولة", "شرح", "تغيير"] },
   { id: "shortcuts", group: "general", icon: "📌", title: "اختصارات على شاشة الهاتف", summary: "ثبّت أي صفحة على الشاشة الرئيسية", keywords: ["اختصار", "تثبيت", "شاشة"] },
   { id: "passwords", group: "general", icon: "🔑", title: "كلمات المرور المستعملة", summary: "كل كلمات مرور الأجهزة مع النسخ", keywords: ["كلمة سر", "كلمات السر", "باسورد", "password", "مرور"] },
   { id: "gmail-codes", group: "general", icon: "📨", title: "بريد الرموز (Gmail)", summary: "رموز مايكروسوفت تُكتب وحدها", keywords: ["gmail", "جيميل", "رمز", "كود", "outlook", "مايكروسوفت"] },

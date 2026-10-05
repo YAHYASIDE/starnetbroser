@@ -12,6 +12,7 @@ import { TelegramBridge } from "@/components/TelegramBridge";
 import { PhoneShortcutLayer } from "@/components/PhoneShortcutLayer";
 import { DeleteCodeHost } from "@/components/DeleteCodePrompt";
 import { LatinDigitInputs } from "@/components/LatinDigitInputs";
+import { WhatsNewTour } from "@/components/WhatsNewTour";
 
 export const metadata: Metadata = {
   title: "STAR NET",
@@ -42,6 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <RepModeGate>
             {children}
             <BottomNav />
+            <WhatsNewTour />
           </RepModeGate>
         </AppLockGate>
         <TelegramBridge />

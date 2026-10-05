@@ -6035,8 +6035,8 @@ button.today-tile {
 }
 
 .sl-withdraw-btn {
-  background: var(--danger-soft, rgba(220, 80, 80, 0.14));
-  color: var(--danger, #d05050);
+  background: var(--red-bg);
+  color: var(--red);
 }
 
 /* 🔽 fold a section away - the whole title row is the toggle. */
@@ -12651,5 +12651,133 @@ button.today-tile {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  color: var(--text-muted);
+}
+
+/* 🆕 «ما الجديد» - the update tour: the changed place lit up, the rest dimmed, a card with
+   «كان / الآن» and «موافق». Above everything (bottom nav, sheets). */
+.tour-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+}
+
+.tour-dim {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 0.62);
+}
+
+.tour-spotlight {
+  position: fixed;
+  border-radius: var(--radius-md);
+  box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.62);
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  transition: top 0.2s, left 0.2s, width 0.2s, height 0.2s;
+  pointer-events: none;
+}
+
+.tour-card {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(var(--bottom-nav-height) + var(--safe-bottom) + 10px);
+  max-height: 46vh;
+  overflow-y: auto;
+  padding: 14px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  box-shadow: var(--glow);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tour-card-top {
+  bottom: auto;
+  top: calc(var(--safe-top) + 10px);
+}
+
+.tour-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tour-badge {
+  font-size: 0.8rem;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--violet-bg);
+  color: var(--violet);
+}
+
+.tour-count {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.tour-title {
+  font-size: 1.02rem;
+}
+
+.tour-before,
+.tour-after {
+  margin: 0;
+  line-height: 1.6;
+  font-size: 0.92rem;
+}
+
+.tour-before {
+  color: var(--text-muted);
+}
+
+.tour-before span {
+  color: var(--red);
+  font-weight: 600;
+}
+
+.tour-after span {
+  color: var(--green);
+  font-weight: 600;
+}
+
+.tour-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.tour-actions .dialog-primary {
+  flex: 1;
+}
+
+.whats-new-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.whats-new-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.whats-new-row span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.whats-new-row small {
   color: var(--text-muted);
 }

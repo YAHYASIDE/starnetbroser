@@ -14,6 +14,7 @@ import { GmailCodesSection } from "@/components/GmailCodesSection";
 import { CardGmailSection } from "@/components/CardGmailSection";
 import { BiometricUnlockToggle } from "@/components/BiometricUnlockToggle";
 import { openSettingsFold, SettingsFold } from "@/components/SettingsFold";
+import { WhatsNewSection } from "@/components/WhatsNewSection";
 import { SettingsSearch } from "@/components/SettingsSearch";
 import { useEffect, useRef, useState } from "react";
 import { checkHealth, listAccounts, login, register } from "@/lib/apiClient";
@@ -307,6 +308,7 @@ export default function SettingsPage() {
 
         {group === "general" && (
           <>
+      <SettingsFold id="whats-new"><WhatsNewSection /></SettingsFold>
       <SettingsFold id="shortcuts"><PhoneShortcutsSection /></SettingsFold>
       <UsedPasswordsSection />
       <SettingsFold id="gmail-codes"><GmailCodesSection /></SettingsFold>

@@ -458,7 +458,9 @@ export default function MoneyPage() {
         </ul>
       </div>
 
-      <WealthCard wealth={wealth} onOpen={setOpenLine} />
+      <div data-tour="money-wealth">
+        <WealthCard wealth={wealth} onOpen={setOpenLine} />
+      </div>
       {missing.length > 0 && (
         <p className="settings-hint">
           لم تُحتسب مبالغ بعملات بلا سعر: {missing.join("، ")} - <Link href="/currencies">سجّل أسعارها</Link>.
@@ -633,7 +635,7 @@ export default function MoneyPage() {
         </PartySheet>
       )}
 
-      <section className="report-card money-danger">
+      <section className="report-card money-danger" data-tour="money-fresh-start">
         <div className="report-card-head">
           <h3>⚙️ البداية من جديد</h3>
         </div>

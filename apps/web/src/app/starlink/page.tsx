@@ -616,7 +616,7 @@ export default function StarlinkPage() {
       </section>
 
       <section className="section">
-        <div className="sl-head">
+        <div className="sl-head" data-tour="card-section">
           <button type="button" className="sl-collapse" aria-expanded={!collapsed.card} onClick={() => toggleSection("card")}>
             <span className="sl-collapse-chevron" aria-hidden="true">{collapsed.card ? "▸" : "▾"}</span>
             <h2 className="sl-title">💳 بطاقة كاش</h2>

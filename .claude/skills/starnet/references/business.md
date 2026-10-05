@@ -109,6 +109,13 @@ mind). Exact texts and numbers live in the code - this file says where.
   تسديد ستارلينك)، والمؤكَّد بسعره المقفل.
 - Logic: `myMoney.ts`, `moneyAccounts.ts`, `myMoneyData.ts`; UI: `app/money/page.tsx`,
   `components/MyMoney.tsx`. The reports' «المصروفات» tab and its 🧾 button stay too.
+- **🆕 «ما الجديد» - a guided tour after every update** (his Oct 2026 request and choices: «جولة
+  خطوة بخطوة»، «تلقائيًا مرة واحدة + زر لإعادتها»، «كل تغيير تراه في الشاشة»). Each step opens the
+  page, lights up the changed place and shows «كان: … / الآن: …» with «موافق» (next) / «تخطي الجولة».
+  Plays once by itself after an update (the newest unseen updates, at most 3; on the feature's very
+  first run only the newest), never in a rep's app; Settings → «🆕 ما الجديد» → «▶️ شاهد» replays any.
+  Seen ids per phone in `starnet.whatsNewSeen` (not backed up). Logic `lib/whatsNew.ts` (WHATS_NEW,
+  newest first), UI `components/WhatsNewTour.tsx` (mounted in the layout) + `WhatsNewSection.tsx`.
 - **An app holds only its own currency** (his Oct 2026 rule: «بنكيلي فقط أوقية»): a customer's device
   payment lands in its method's app only when the currencies match (`devicePaymentAccountId`). A
   payment in another currency (a SIFA payment left on the default «بنكيلي» showed «13,500 سيفا» in
