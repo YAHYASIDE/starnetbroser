@@ -557,8 +557,9 @@ export interface LocalBrowserPlugin {
   telegramStatus(): Promise<TelegramStatus>;
   telegramDisconnect(options?: { bot?: TelegramBot }): Promise<void>;
   telegramSetOptions(options: { stopped?: boolean; repsStopped?: boolean }): Promise<void>;
-  /** The reps linked to the reps bot: repId -> chatId (replaces the previous map). */
-  telegramSetRepChats(options: { chats: Record<string, string> }): Promise<void>;
+  /** The phones linked to the reps bot: chatId -> repId - a rep may have several (replaces the
+   * previous map). */
+  telegramSetRepChats(options: { chatReps: Record<string, string> }): Promise<void>;
   /** Queued natively: sent once there's a network, even if the app closes. Reps bot: to a linked
    * rep's `chatId`, or with `reply` a one-off answer to someone who just wrote to the bot.
    * `replyMarkup`: Telegram reply_markup JSON (buttons). */

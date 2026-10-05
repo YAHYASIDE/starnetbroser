@@ -63,11 +63,11 @@ export async function handleRepSessionText(repId: string, repName: string, chatI
   if (step.status === "ignored") return false;
   if (step.status === "waiting") return true;
   if (step.status === "failed") {
-    await sendRepText(repId, `📋 ${step.message}`);
+    await sendRepText(repId, `📋 ${step.message}`, undefined, "reps", chatId);
     return true;
   }
   saveRepRequests(addRepRequest(loadRepRequests(), { repId, kind: "session", text: `📋 جلسة ستارلينك (${step.count} كوكيز)`, cookies: step.cookiesByUrl }));
-  await sendRepText(repId, "📥 وصلت الجلسة - تنتظر موافقة المسؤول، وسيصلك إشعار عند إضافة الجهاز.");
+  await sendRepText(repId, "📥 وصلت الجلسة - تنتظر موافقة المسؤول، وسيصلك إشعار عند إضافة الجهاز.", undefined, "reps", chatId);
   await tellOwner(`📋 ${repName} أرسل جلسة ستارلينك لجهاز جديد - وافق عليها من «طلبات المناديب».`, REPS_ROUTE);
   return true;
 }

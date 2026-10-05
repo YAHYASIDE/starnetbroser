@@ -1152,19 +1152,20 @@ public class LocalBrowserPlugin extends Plugin {
         call.resolve();
     }
 
-    /** The reps the operator linked: {chats: {repId: chatId}} - replaces the previous map. */
+    /** The reps the operator linked: {chatReps: {chatId: repId}} (a rep may have several phones) -
+     * replaces the previous map. */
     @PluginMethod
     public void telegramSetRepChats(PluginCall call) {
-        JSObject chats = call.getObject("chats", new JSObject());
+        JSObject chats = call.getObject("chatReps", new JSObject());
         Map<String, String> map = new LinkedHashMap<>();
         Iterator<String> keys = chats.keys();
         while (keys.hasNext()) {
-            String repId = keys.next();
-            String chatId = chats.optString(repId, "");
-            if (!chatId.isEmpty()) map.put(repId, chatId);
+            String chatId = keys.next();
+            String repId = chats.optString(chatId, "");
+            if (!repId.isEmpty() && !chatId.isEmpty()) map.put(chatId, repId);
         }
-        TelegramStore.setRepChats(getContext(), map);
-        for (String chatId : map.values()) TelegramStore.forgetRequested(getContext(), chatId);
+        TelegramStore.setChatReps(getContext(), map);
+        for (String chatId : map.keySet()) TelegramStore.forgetRequested(getContext(), chatId);
         call.resolve();
     }
 

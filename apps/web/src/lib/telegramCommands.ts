@@ -235,31 +235,31 @@ export async function answerRepMessage(message: TelegramPollMessage, alreadyRepl
   const names = repBotNames();
   // 💰 Once the money bot is connected, money commands live there only.
   if (bot === "reps" && names.money && isMoneyKind(command.kind)) {
-    if (!alreadyReplied) await sendRepText(repId, moneyRedirectText(names.money));
+    if (!alreadyReplied) await sendRepText(repId, moneyRedirectText(names.money), undefined, "reps", message.chatId);
     return;
   }
   if (command.kind === "handover") {
-    await handleRepHandover(repId, rep, command.text, alreadyReplied);
+    await handleRepHandover(repId, rep, command.text, alreadyReplied, message.chatId);
     return;
   }
   if (command.kind === "payment" || command.kind === "client") {
-    await handleRepRequest(repId, rep, command, alreadyReplied);
+    await handleRepRequest(repId, rep, command, alreadyReplied, message.chatId);
     return;
   }
   if (command.kind === "promise") {
-    await handleRepPromise(repId, rep, command.text, alreadyReplied);
+    await handleRepPromise(repId, rep, command.text, alreadyReplied, message.chatId);
     return;
   }
   const reply = await repReplyFor(repId, rep, command);
-  await sendRepText(repId, reply.text, reply.markup ?? devicesKeyboard(names));
+  await sendRepText(repId, reply.text, reply.markup ?? devicesKeyboard(names), "reps", message.chatId);
 }
 
 /** 🤲 Money the rep says he handed to the operator: kept for approval (the operator confirms it
  * on the representatives page, which records it as a cash handover). */
-async function handleRepHandover(repId: string, rep: Representative, text: string, alreadyReplied: boolean): Promise<void> {
+async function handleRepHandover(repId: string, rep: Representative, text: string, alreadyReplied: boolean, chatId?: string): Promise<void> {
   const parsed = parseRepPayment(text);
   if (!parsed) {
-    if (!alreadyReplied) await sendRepText(repId, REP_HANDOVER_HINT, undefined, "money");
+    if (!alreadyReplied) await sendRepText(repId, REP_HANDOVER_HINT, undefined, "money", chatId);
     return;
   }
   saveRepRequests(addRepRequest(loadRepRequests(), { repId, kind: "handover", text: `سلّمت ${text}`, amount: parsed.amount, currency: parsed.currency }));
@@ -316,10 +316,10 @@ async function handleRepChangesFile(repId: string, rep: Representative, fileId: 
 
 /** 🤝 A customer's payment promise reported by the rep: a follow-up record (never money), so it's
  * saved straight away - tied to the customer when the words match one of his devices. */
-async function handleRepPromise(repId: string, rep: Representative, text: string, alreadyReplied: boolean): Promise<void> {
+async function handleRepPromise(repId: string, rep: Representative, text: string, alreadyReplied: boolean, chatId?: string): Promise<void> {
   const parsed = parseRepPromise(text, new Date());
   if (!parsed) {
-    if (!alreadyReplied) await sendRepText(repId, REP_PROMISE_HINT, undefined, "money");
+    if (!alreadyReplied) await sendRepText(repId, REP_PROMISE_HINT, undefined, "money", chatId);
     return;
   }
   const clients = loadClientStore();
@@ -353,11 +353,12 @@ async function handleRepRequest(
   rep: Representative,
   command: { kind: "payment" | "client"; text: string },
   alreadyReplied: boolean,
+  chatId?: string,
 ): Promise<void> {
   if (command.kind === "payment") {
     const parsed = parseRepPayment(command.text);
     if (!parsed) {
-      if (!alreadyReplied) await sendRepText(repId, REP_PAYMENT_HINT, undefined, "money");
+      if (!alreadyReplied) await sendRepText(repId, REP_PAYMENT_HINT, undefined, "money", chatId);
       return;
     }
     const matches = parsed.query ? matchRepDevices(parsed.query, repAccounts(await loadAccounts(), repId), loadClientStore()) : [];
@@ -381,7 +382,7 @@ async function handleRepRequest(
   }
   // ➕ New customers are added from the app now, never from the bot: no request is created, the
   // operator isn't pinged, the rep is simply pointed to the app.
-  if (!alreadyReplied) await sendRepText(repId, REP_CLIENT_MOVED);
+  if (!alreadyReplied) await sendRepText(repId, REP_CLIENT_MOVED, undefined, "reps", chatId);
 }
 
 /** One rep command answered from the data right now (his own devices only). */

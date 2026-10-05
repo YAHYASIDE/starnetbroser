@@ -12,6 +12,20 @@ import org.junit.Test;
 public class TelegramTextTest {
 
     @Test
+    public void readsTheOldOnePhoneMapAsChatToRepAndListsEveryPhoneOfARep() {
+        Map<String, String> old = new LinkedHashMap<>();
+        old.put("rep1", "111");
+        old.put("rep2", "222");
+        Map<String, String> chatReps = TelegramText.invertPairs(old);
+        assertEquals("rep1", chatReps.get("111"));
+        assertEquals("rep2", chatReps.get("222"));
+        chatReps.put("333", "rep1");
+        assertEquals(java.util.Arrays.asList("111", "333"), TelegramText.keysFor(chatReps, "rep1"));
+        assertEquals(java.util.Collections.emptyList(), TelegramText.keysFor(chatReps, "rep9"));
+        assertEquals(chatReps, TelegramText.decodePairs(TelegramText.encodePairs(chatReps)));
+    }
+
+    @Test
     public void truncatesOnlyWhenTooLong() {
         assertEquals("abc", TelegramText.truncate("abc", 5));
         assertEquals("abcd…", TelegramText.truncate("abcdefgh", 5));

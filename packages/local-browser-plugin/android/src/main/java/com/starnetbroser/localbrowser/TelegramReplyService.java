@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -1092,13 +1093,13 @@ public class TelegramReplyService extends Service {
      * prepared that device yet - the caller then sends the plain list instead. */
     static boolean queueStoppedAlert(Context context, String repId, String accountId, String status) {
         if (repId == null || accountId == null || !TelegramStore.isRepsConfigured(context)) return false;
-        String chatId = TelegramStore.repChats(context).get(repId);
+        List<String> chatIds = TelegramStore.repChatIds(context, repId);
         TelegramReplies.Snapshot snapshot = loadSnapshot(context);
-        if (chatId == null || snapshot == null) return false;
+        if (chatIds.isEmpty() || snapshot == null) return false;
         TelegramReplies.SearchEntry entry = TelegramReplies.findEntry(repId, accountId, snapshot);
         if (entry == null) return false;
         String text = TelegramReplies.stoppedAlert(entry, status);
-        TelegramSendWorker.enqueueToRepBot(context, TelegramStore.ALERTS, chatId, text, TelegramReplies.stoppedAlertMarkup(entry));
+        for (String chatId : chatIds) TelegramSendWorker.enqueueToRepBot(context, TelegramStore.ALERTS, chatId, text, TelegramReplies.stoppedAlertMarkup(entry));
         if (TelegramStore.extraToken(context, TelegramStore.ALERTS) != null && TelegramStore.isConfigured(context)) {
             Map<String, String> mine = snapshot.reps.get(repId);
             TelegramSendWorker.enqueue(context, TelegramReplies.ownerCopy(mine != null && mine.get("name") != null ? mine.get("name") : "", text));

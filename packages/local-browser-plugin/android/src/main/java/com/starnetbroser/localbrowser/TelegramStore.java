@@ -2,6 +2,7 @@ package com.starnetbroser.localbrowser;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -31,6 +32,7 @@ final class TelegramStore {
     private static final String KEY_REPS_TOKEN = "repsToken";
     private static final String KEY_REPS_BOT_NAME = "repsBotName";
     private static final String KEY_REP_CHATS = "repChats";
+    private static final String KEY_CHAT_REPS = "chatReps";
     private static final String KEY_REPS_STOPPED_OFF = "repsStoppedOff";
     private static final String KEY_INSTANT_OFF = "instantOff";
     private static final String KEY_OFFSET = "offset_";
@@ -130,26 +132,33 @@ final class TelegramStore {
         return repsToken(context) != null;
     }
 
-    /** repId -> chatId, as linked by the operator in الإعدادات. */
-    static void setRepChats(Context context, Map<String, String> chats) {
-        prefs(context).edit().putString(KEY_REP_CHATS, TelegramText.encodePairs(chats)).apply();
+    /** chatId -> repId, as linked by the operator in الإعدادات - a rep may have several phones
+     * (Telegram accounts) linked to the same bot. Replaces the old repId -> chatId map. */
+    static void setChatReps(Context context, Map<String, String> chatReps) {
+        prefs(context).edit().putString(KEY_CHAT_REPS, TelegramText.encodePairs(chatReps)).remove(KEY_REP_CHATS).apply();
     }
 
-    static Map<String, String> repChats(Context context) {
-        return TelegramText.decodePairs(prefs(context).getString(KEY_REP_CHATS, null));
+    /** chatId -> repId (read from the old one-phone-per-rep map until the app saves the new one). */
+    static Map<String, String> chatReps(Context context) {
+        SharedPreferences p = prefs(context);
+        String raw = p.getString(KEY_CHAT_REPS, null);
+        if (raw != null) return TelegramText.decodePairs(raw);
+        return TelegramText.invertPairs(TelegramText.decodePairs(p.getString(KEY_REP_CHATS, null)));
+    }
+
+    /** Every chat (phone) linked to a rep - messages to him go to each. */
+    static List<String> repChatIds(Context context, String repId) {
+        return TelegramText.keysFor(chatReps(context), repId);
     }
 
     static boolean isLinkedRepChat(Context context, String chatId) {
-        return chatId != null && repChats(context).containsValue(chatId);
+        return chatId != null && chatReps(context).containsKey(chatId);
     }
 
     /** The rep a chat is linked to, or null. */
     static String repIdForChat(Context context, String chatId) {
         if (chatId == null) return null;
-        for (Map.Entry<String, String> e : repChats(context).entrySet()) {
-            if (chatId.equals(e.getValue())) return e.getKey();
-        }
-        return null;
+        return chatReps(context).get(chatId);
     }
 
     static void setRepsStoppedEnabled(Context context, boolean enabled) {

@@ -108,6 +108,25 @@ final class TelegramText {
         return out.toString();
     }
 
+    /** value -> key (the old repId -> chatId map read as chatId -> repId). */
+    static Map<String, String> invertPairs(Map<String, String> pairs) {
+        Map<String, String> out = new LinkedHashMap<>();
+        for (Map.Entry<String, String> e : pairs.entrySet()) {
+            if (e.getKey() != null && e.getValue() != null) out.put(e.getValue(), e.getKey());
+        }
+        return out;
+    }
+
+    /** Every key mapped to `value` (a rep's linked chats, in link order). */
+    static java.util.List<String> keysFor(Map<String, String> pairs, String value) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        if (value == null) return out;
+        for (Map.Entry<String, String> e : pairs.entrySet()) {
+            if (value.equals(e.getValue())) out.add(e.getKey());
+        }
+        return out;
+    }
+
     static Map<String, String> decodePairs(String raw) {
         Map<String, String> pairs = new LinkedHashMap<>();
         if (raw == null) return pairs;

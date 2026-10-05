@@ -123,7 +123,7 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
     return;
   }
 
-  async telegramSetRepChats(_options: { chats: Record<string, string> }): Promise<void> {
+  async telegramSetRepChats(_options: { chatReps: Record<string, string> }): Promise<void> {
     return;
   }
 

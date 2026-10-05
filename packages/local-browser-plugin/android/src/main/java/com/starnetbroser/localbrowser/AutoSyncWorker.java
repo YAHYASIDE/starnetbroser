@@ -287,7 +287,6 @@ public class AutoSyncWorker extends Worker {
             TelegramSendWorker.enqueue(context, TelegramText.stoppedMessage(newlyStopped));
         }
         if (!newlyStopped.isEmpty() && TelegramStore.isRepsConfigured(context) && TelegramStore.isRepsStoppedEnabled(context)) {
-            Map<String, String> repChats = TelegramStore.repChats(context);
             // One alert per device (🔔 bot, with its 🅳 mark and "📨 اطلب من المسؤول الدفع");
             // devices the app hasn't prepared yet go in the plain list below.
             List<String> leftNames = new ArrayList<>();
@@ -299,8 +298,9 @@ public class AutoSyncWorker extends Worker {
                 }
             }
             for (Map.Entry<String, List<String>> group : TelegramText.groupByRep(leftReps, leftNames).entrySet()) {
-                String chatId = repChats.get(group.getKey());
-                if (chatId != null) TelegramSendWorker.enqueueToRepBot(context, TelegramStore.ALERTS, chatId, TelegramText.repStoppedMessage(group.getValue()), null);
+                for (String chatId : TelegramStore.repChatIds(context, group.getKey())) {
+                    TelegramSendWorker.enqueueToRepBot(context, TelegramStore.ALERTS, chatId, TelegramText.repStoppedMessage(group.getValue()), null);
+                }
             }
         }
         boolean notified = manual && !getInputData().getBoolean(INPUT_QUIET, false)

@@ -26,6 +26,7 @@ import { repAccounts, repMoney, repMorningMarkup, repMorningText, repStatementTe
 import { devicesHelp, devicesKeyboard, otherBotsLines, REP_MONEY_KEYBOARD, type RepBot, type RepBotNames } from "./repBots";
 import type { PrintableDocument } from "./pdfDocument";
 import type { TelegramReplySnapshot } from "./telegramReplies";
+import { addRepChat, chatRepsMap, removeRepChat, repChatPhones, repIdOfChat, targetChatIds, type RepChat } from "./repChatLinks";
 import { renderPrintablePdf } from "./pdfExport";
 import {
   buildEveningTelegram,
@@ -75,7 +76,7 @@ export async function saveTelegramPrefs(prefs: TelegramPrefs): Promise<void> {
     if (!prefs.morning) await LocalBrowser.telegramCancel({ key: "morning" });
     if (!prefs.evening) await LocalBrowser.telegramCancel({ key: "evening" });
     if (!prefs.weekly) await LocalBrowser.telegramCancel({ key: "weekly" });
-    if (!prefs.repMorning) for (const repId of Object.keys(loadRepChats())) await LocalBrowser.telegramCancel({ key: repMorningKey(repId) });
+    if (!prefs.repMorning) for (const [repId, chat] of Object.entries(loadRepChats())) for (const phone of repChatPhones(chat)) await cancelRepMorning(repId, phone.chatId);
   } catch {
     // Applied on the next schedule.
   }
@@ -273,11 +274,7 @@ const REP_CHATS_KEY = "starnet.telegramRepChats";
 const REP_REQUESTS_KEY = "starnet.telegramRepRequests";
 const REPS_OFFSET_KEY = "starnet.telegramRepsOffset";
 
-export interface RepChat {
-  chatId: string;
-  /** The Telegram name, to recognise him in الإعدادات. */
-  name: string;
-}
+export type { RepChat } from "./repChatLinks";
 
 export interface RepLinkRequest {
   chatId: string;
@@ -302,7 +299,7 @@ async function saveRepChats(chats: Record<string, RepChat>): Promise<void> {
   safeSet(REP_CHATS_KEY, JSON.stringify(chats));
   if (!isRunningInAndroidApp()) return;
   try {
-    await LocalBrowser.telegramSetRepChats({ chats: Object.fromEntries(Object.entries(chats).map(([repId, c]) => [repId, c.chatId])) });
+    await LocalBrowser.telegramSetRepChats({ chatReps: chatRepsMap(chats) });
   } catch {
     // Pushed again on the next change.
   }
@@ -336,12 +333,8 @@ export async function connectRepsBot(token: string): Promise<{ ok: true; botName
 }
 
 export async function disconnectRepsBot(): Promise<void> {
-  for (const repId of Object.keys(loadRepChats())) {
-    try {
-      await LocalBrowser.telegramCancel({ key: repMorningKey(repId) });
-    } catch {
-      // nothing scheduled
-    }
+  for (const [repId, chat] of Object.entries(loadRepChats())) {
+    for (const phone of repChatPhones(chat)) await cancelRepMorning(repId, phone.chatId);
   }
   safeSet(REPS_CONNECTED_KEY, null);
   safeSet(REP_CHATS_KEY, null);
@@ -355,24 +348,23 @@ export async function disconnectRepsBot(): Promise<void> {
   }
 }
 
-/** Links a Telegram chat (from a request) to a rep and welcomes him. A chat belongs to one rep. */
+/** Links a Telegram chat (from a request) to a rep - one more phone when he already has one - and
+ * welcomes that phone. A chat belongs to one rep. */
 export async function linkRepChat(repId: string, request: RepLinkRequest, repName: string): Promise<void> {
-  const chats = Object.fromEntries(Object.entries(loadRepChats()).filter(([, c]) => c.chatId !== request.chatId));
-  chats[repId] = { chatId: request.chatId, name: request.name || request.username };
-  await saveRepChats(chats);
+  const before = repIdOfChat(loadRepChats(), request.chatId);
+  if (before && before !== repId) await cancelRepMorning(before, request.chatId);
+  await saveRepChats(addRepChat(loadRepChats(), repId, { chatId: request.chatId, name: request.name || request.username }));
   saveRepRequests(loadRepRequests().filter((r) => r.chatId !== request.chatId));
-  await sendRepText(repId, [repWelcomeText(repName), ...otherBotsLines(repBotNames())].join("\n"));
+  await sendRepText(repId, [repWelcomeText(repName), ...otherBotsLines(repBotNames())].join("\n"), undefined, "reps", request.chatId);
 }
 
-export async function unlinkRep(repId: string): Promise<void> {
-  const chats = loadRepChats();
-  delete chats[repId];
+/** Unlinks one of the rep's phones (`chatId`), or all of them. */
+export async function unlinkRep(repId: string, chatId?: string): Promise<void> {
+  const phones = repChatPhones(loadRepChats()[repId]).filter((p) => !chatId || p.chatId === chatId);
+  let chats = loadRepChats();
+  for (const phone of phones) chats = removeRepChat(chats, repId, phone.chatId);
   await saveRepChats(chats);
-  try {
-    await LocalBrowser.telegramCancel({ key: repMorningKey(repId) });
-  } catch {
-    // nothing scheduled
-  }
+  for (const phone of phones) await cancelRepMorning(repId, phone.chatId);
 }
 
 export function dismissRepRequest(chatId: string) {
@@ -389,7 +381,7 @@ export function recordRepRequest(message: TelegramPollMessage): boolean {
 }
 
 export function repIdForChat(chatId: string): string | undefined {
-  return Object.entries(loadRepChats()).find(([, c]) => c.chatId === chatId)?.[0];
+  return repIdOfChat(loadRepChats(), chatId);
 }
 
 /** The buttons a message through `bot` carries by default. */
@@ -400,30 +392,38 @@ function defaultKeyboard(bot: RepBot): string | undefined {
   return devicesKeyboard(names);
 }
 
-/** Queued to a linked rep through `bot` (the devices bot when that one isn't connected); false
- * when he isn't linked. */
-export async function sendRepText(repId: string, text: string, replyMarkup?: string, bot: RepBot = "reps"): Promise<boolean> {
-  const chat = loadRepChats()[repId];
-  if (!chat || !isRepsBotConnected()) return false;
-  try {
-    return (await LocalBrowser.telegramSend({ text, bot, chatId: chat.chatId, replyMarkup: replyMarkup ?? defaultKeyboard(bot) })).queued;
-  } catch {
-    return false;
+/** Queued to a linked rep through `bot` (the devices bot when that one isn't connected) - to each
+ * of his phones, or only to `onlyChat` (the phone that asked); false when he isn't linked. */
+export async function sendRepText(repId: string, text: string, replyMarkup?: string, bot: RepBot = "reps", onlyChat?: string): Promise<boolean> {
+  const chatIds = targetChatIds(loadRepChats()[repId], onlyChat);
+  if (!chatIds.length || !isRepsBotConnected()) return false;
+  let queued = false;
+  for (const chatId of chatIds) {
+    try {
+      if ((await LocalBrowser.telegramSend({ text, bot, chatId, replyMarkup: replyMarkup ?? defaultKeyboard(bot) })).queued) queued = true;
+    } catch {
+      // the other phones still get it
+    }
   }
+  return queued;
 }
 
 /** 📸 A picture (data: URL - the transfer screenshot) to a linked rep, with its caption. False
  * when it couldn't be sent (the caller then sends the text alone). */
 export async function sendRepPhoto(repId: string, dataUrl: string, caption: string, bot: RepBot = "money"): Promise<boolean> {
-  const chat = loadRepChats()[repId];
+  const chatIds = targetChatIds(loadRepChats()[repId]);
   const match = /^data:image\/(png|jpe?g);base64,(.+)$/.exec(dataUrl);
-  if (!chat || !match || !isRepsBotConnected()) return false;
-  try {
-    await LocalBrowser.telegramSendDocument({ fileName: match[1] === "png" ? "transfer.png" : "transfer.jpg", base64: match[2]!, caption, bot, chatId: chat.chatId, photo: true });
-    return true;
-  } catch {
-    return false;
+  if (!chatIds.length || !match || !isRepsBotConnected()) return false;
+  let sent = false;
+  for (const chatId of chatIds) {
+    try {
+      await LocalBrowser.telegramSendDocument({ fileName: match[1] === "png" ? "transfer.png" : "transfer.jpg", base64: match[2]!, caption, bot, chatId, photo: true });
+      sent = true;
+    } catch {
+      // the other phones still get it
+    }
   }
+  return sent;
 }
 
 function utf8Base64(text: string): string {
@@ -435,14 +435,19 @@ function utf8Base64(text: string): string {
 
 /** 📋 A text file (the rep's copy) to a linked rep through the devices bot. */
 export async function sendRepDocument(repId: string, fileName: string, text: string, caption: string): Promise<{ ok: true } | { ok: false; message: string }> {
-  const chat = loadRepChats()[repId];
-  if (!chat || !isRepsBotConnected()) return { ok: false, message: "المندوب غير مربوط ببوت المندوبين" };
-  try {
-    await LocalBrowser.telegramSendDocument({ fileName, base64: utf8Base64(text), caption, bot: "reps", chatId: chat.chatId, contentType: "application/json" });
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, message: err instanceof Error && err.message ? err.message : "تعذّر الإرسال - تأكد من الإنترنت" };
+  const chatIds = targetChatIds(loadRepChats()[repId]);
+  if (!chatIds.length || !isRepsBotConnected()) return { ok: false, message: "المندوب غير مربوط ببوت المندوبين" };
+  let failure: string | null = null;
+  let sent = false;
+  for (const chatId of chatIds) {
+    try {
+      await LocalBrowser.telegramSendDocument({ fileName, base64: utf8Base64(text), caption, bot: "reps", chatId, contentType: "application/json" });
+      sent = true;
+    } catch (err) {
+      failure = err instanceof Error && err.message ? err.message : "تعذّر الإرسال - تأكد من الإنترنت";
+    }
   }
+  return sent ? { ok: true } : { ok: false, message: failure ?? "تعذّر الإرسال - تأكد من الإنترنت" };
 }
 
 /** A direct answer to someone who isn't linked (the "request received" reply). */
@@ -486,8 +491,25 @@ export async function pollRepsBot(): Promise<TelegramPollMessage[]> {
   }
 }
 
-function repMorningKey(repId: string): string {
+/** The schedule before several phones (one per rep) - only cancelled now. */
+function legacyRepMorningKey(repId: string): string {
   return `rep_${repId.toLowerCase().replace(/[^a-z0-9_-]/g, "_").slice(0, 50)}`;
+}
+
+/** One morning message per phone of the rep. */
+function repMorningKey(repId: string, chatId: string): string {
+  const clean = (v: string, n: number) => v.toLowerCase().replace(/[^a-z0-9_-]/g, "_").slice(0, n);
+  return `rep_${clean(repId, 30)}_${clean(chatId, 24)}`;
+}
+
+async function cancelRepMorning(repId: string, chatId: string): Promise<void> {
+  for (const key of [repMorningKey(repId, chatId), legacyRepMorningKey(repId)]) {
+    try {
+      await LocalBrowser.telegramCancel({ key });
+    } catch {
+      // nothing scheduled
+    }
+  }
 }
 
 /** Each linked rep's "☀️ تجديدات أجهزتك", scheduled for the next morning (cancelled when he has none). */
@@ -507,10 +529,17 @@ async function rescheduleRepMornings(accounts: StarlinkAccountSummary[], morning
     const text = rep && (renewals || promiseLines.length) ? [renewals ?? `☀️ صباح الخير ${rep.name}`, ...promiseLines].join("\n") : null;
     const replyMarkup = repMorningMarkup(mine, clients, localDay(at));
     try {
-      // 🔔 The alerts bot when connected (the devices bot otherwise).
-      await LocalBrowser.telegramSchedule({ key: repMorningKey(repId), at: at.getTime(), text: text ?? "", bot: "alerts", chatId: chat.chatId, replyMarkup });
+      await LocalBrowser.telegramCancel({ key: legacyRepMorningKey(repId) });
     } catch {
-      // Tried again on the next data change.
+      // nothing scheduled
+    }
+    for (const phone of repChatPhones(chat)) {
+      try {
+        // 🔔 The alerts bot when connected (the devices bot otherwise).
+        await LocalBrowser.telegramSchedule({ key: repMorningKey(repId, phone.chatId), at: at.getTime(), text: text ?? "", bot: "alerts", chatId: phone.chatId, replyMarkup });
+      } catch {
+        // Tried again on the next data change.
+      }
     }
   }
 }

@@ -42,6 +42,7 @@ import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
 import { STORAGE_BUDGET_CHARS, StorageUsage, formatChars, isQuotaError, measureStorage, storageKeyLabel } from "@/lib/storageGuard";
 import { collectAppData, createEncryptedBackupFile, mergeImportedAccounts, readEncryptedBackupFile, restoreAppData } from "@/lib/accountBackup";
 import { restoreProofsFromBackup, withProofs } from "@/lib/paymentProofStore";
+import { repChatPhones } from "@/lib/repChatLinks";
 import {
   connectRepsBot,
   disconnectRepsBot,
@@ -1788,7 +1789,7 @@ function TelegramRepsSection() {
                     {reps.map((r) => (
                       <option key={r.id} value={r.id}>
                         {r.name}
-                        {chats[r.id] ? " (مربوط)" : ""}
+                        {chats[r.id] ? ` (مربوط بـ ${repChatPhones(chats[r.id]).length} - يُضاف هاتف آخر)` : ""}
                       </option>
                     ))}
                   </select>
@@ -1802,7 +1803,7 @@ function TelegramRepsSection() {
                         await linkRepChat(repId, request, repName(repId));
                         setChats(loadRepChats());
                         setRequests(loadRepRequests());
-                        setMessage(`✓ رُبط ${repName(repId)} - وصلته رسالة ترحيب`);
+                        setMessage(`✓ رُبط هاتف ${request.name || request.username || ""} بـ ${repName(repId)} - وصلته رسالة ترحيب`);
                       }}
                     >
                       ربط
@@ -1823,31 +1824,37 @@ function TelegramRepsSection() {
             </div>
           )}
 
+          <p className="settings-hint">📱 هاتف ثانٍ لنفس المندوب: يكتب للبوت من حسابه الآخر في تيليغرام، ثم تختار اسم المندوب نفسه في «طلبات ربط جديدة» - تصل الرسائل إلى كل هواتفه.</p>
           <ul className="telegram-rep-list">
             {reps.length === 0 && <li className="settings-hint">لا يوجد مندوبون بعد</li>}
-            {reps.map((r) => (
-              <li key={r.id}>
-                <span>
-                  {chats[r.id] ? "✓" : "○"} {r.name}
-                  {chats[r.id] && <small> - {chats[r.id]!.name}</small>}
-                </span>
-                {chats[r.id] ? (
-                  <button
-                    type="button"
-                    className="text-action"
-                    onClick={async () => {
-                      if (!window.confirm(`فك ربط ${r.name}؟ لن تصله رسائل البوت.`)) return;
-                      await unlinkRep(r.id);
-                      setChats(loadRepChats());
-                    }}
-                  >
-                    فك الربط
-                  </button>
-                ) : (
-                  <small className="settings-hint">غير مربوط</small>
-                )}
-              </li>
-            ))}
+            {reps.map((r) => {
+              const phones = repChatPhones(chats[r.id]);
+              return (
+                <li key={r.id} data-tour={phones.length ? "rep-bot-phones" : undefined}>
+                  <span>
+                    {phones.length ? "✓" : "○"} {r.name}
+                    {phones.length > 1 && <small> - {phones.length} هواتف</small>}
+                  </span>
+                  {phones.length === 0 && <small className="settings-hint">غير مربوط</small>}
+                  {phones.map((phone) => (
+                    <span key={phone.chatId} className="telegram-rep-phone">
+                      <small>📱 {phone.name || "بدون اسم"}</small>
+                      <button
+                        type="button"
+                        className="text-action"
+                        onClick={async () => {
+                          if (!window.confirm(`فك ربط هاتف «${phone.name || "بدون اسم"}» من ${r.name}؟ لن تصله رسائل البوت.`)) return;
+                          await unlinkRep(r.id, phone.chatId);
+                          setChats(loadRepChats());
+                        }}
+                      >
+                        فك الربط
+                      </button>
+                    </span>
+                  ))}
+                </li>
+              );
+            })}
           </ul>
 
           {options.map((option) => (

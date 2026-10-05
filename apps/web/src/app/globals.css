@@ -7742,6 +7742,7 @@ button.today-tile {
 
 .telegram-rep-list li {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -7752,6 +7753,20 @@ button.today-tile {
 
 .telegram-rep-list small {
   color: var(--text-muted);
+}
+
+/* 📱 each phone linked to the rep (a rep may have several) */
+.telegram-rep-phone {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.telegram-rep-phone small {
+  overflow-wrap: anywhere;
 }
 
 .telegram-running {
