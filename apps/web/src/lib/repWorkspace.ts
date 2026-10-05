@@ -445,3 +445,25 @@ export function loadPastLedger(): PastLedger | null {
   const value = readJson(PAST_LEDGER_KEY);
   return isRec(value) && isRec(value.ledger) && isRec(value.names) ? (value as unknown as PastLedger) : null;
 }
+
+/**
+ * ☁️ A change that arrived from the operator over the live link (lib/liveSync.ts) is his already:
+ * written into the phone's stores AND into the base copy, so it never shows as one of the rep's
+ * own pending «تسجيلاتي» items. `update` gets and returns { [CLIENTS_KEY], [ACCOUNTS_KEY] }.
+ */
+export function applyOperatorLiveChange(update: (stores: StoreValues) => StoreValues): boolean {
+  const keys = [CLIENTS_KEY, ACCOUNTS_KEY];
+  const pick = (from: StoreValues | null): StoreValues => Object.fromEntries(keys.map((k) => [k, from?.[k]]));
+  try {
+    const current = update(pick(readStores()));
+    for (const k of keys) if (current[k] !== undefined) window.localStorage.setItem(k, JSON.stringify(current[k]));
+    const base = loadRepBase();
+    if (base) {
+      const nextBase = { ...base, ...update(pick(base)) };
+      window.localStorage.setItem(BASE_KEY, JSON.stringify(nextBase));
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}

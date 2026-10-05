@@ -31,6 +31,19 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-05-live-sync",
+    date: "2026-10-05",
+    title: "الربط الحيّ مع المندوبين (Firebase)",
+    steps: [
+      {
+        path: "/settings",
+        title: "☁️ الربط الحيّ مع المندوبين",
+        before: "زبائن المندوب لا يصلونك إلا حين يرسل «تسجيلاتي» وتوافق عليها.",
+        after: "الإعدادات ← البوتات ← «☁️ الربط الحيّ مع المندوبين»: الصق apiKey وprojectId من Firebase واضغط «حفظ وتجربة الاتصال»، ثم أرسل لكل مندوب نسخة جديدة. بعدها كل زبون يضيفه أو يربطه بجهاز يظهر عندك خلال ثوانٍ تحت اسمه.",
+      },
+    ],
+  },
+  {
     id: "2026-10-05-rep-customers-kept",
     date: "2026-10-05",
     title: "زبائن المندوب لا تتغيّر بنسختك",

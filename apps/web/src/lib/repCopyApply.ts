@@ -5,6 +5,7 @@ import { deleteIsolatedAccountSession, importAccountSessions } from "./localBrow
 import { isOlderCopy, isRepCopyFile, loadRepCopy, OtherPhoneError, readRepCopyFile, removedDeviceIds, saveRepCopy, withoutSessions } from "./repCopy";
 import { ensureRepPhoneKey } from "./repDeviceTransfer";
 import { applyRepWorkspace } from "./repWorkspace";
+import { saveLiveSyncConfig } from "./liveSyncConfig";
 
 /** Fired after a copy was applied - the rep's app reloads its data. */
 export const REP_WORKSPACE_EVENT = "starnet:rep-workspace";
@@ -26,7 +27,9 @@ export async function applyRepCopyText(text: string, code: string): Promise<Appl
     const removed = removedDeviceIds(current, next);
     for (const id of removed) await deleteIsolatedAccountSession(id);
     await importAccountSessions(payload.sessions);
-    const { stores, rejected, ...summary } = next;
+    const { stores, rejected, liveSync, ...summary } = next;
+    // ☁️ The operator switched the live link on: this phone joins his Firebase space.
+    if (liveSync) saveLiveSyncConfig({ ...liveSync, enabled: true });
     if (stores && !applyRepWorkspace(stores, rejected ?? {})) return { ok: false, message: "ذاكرة الهاتف ممتلئة - تعذّر حفظ النسخة" };
     if (!saveRepCopy(summary)) return { ok: false, message: "ذاكرة الهاتف ممتلئة - تعذّر حفظ النسخة" };
     if (typeof window !== "undefined") window.dispatchEvent(new Event(REP_WORKSPACE_EVENT));

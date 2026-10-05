@@ -1,6 +1,7 @@
 "use client";
 
 import { DateInput } from "@/components/DateInput";
+import { LIVE_SYNC_EVENT } from "@/lib/liveSync";
 import { createContext, CSSProperties, FormEvent, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { LedgerEntryEditor } from "@/components/LedgerEntryEditor";
@@ -207,6 +208,16 @@ export default function RepresentativesPage() {
   // Opened from "إقفال الشهر" (reports): ?rep=<id>&month=yyyy-mm opens that rep's statement for
   // that month, ready for its PDF.
   const [focus, setFocus] = useState<{ repId: string; month: string } | null>(null);
+  // ☁️ The live link brought a rep's customer / device link (lib/liveSync.ts).
+  useEffect(() => {
+    const reload = () => {
+      setClientStore(loadClientStore());
+      if (isDemoMode()) setAccounts(loadDemoAccounts(demoAccounts));
+    };
+    window.addEventListener(LIVE_SYNC_EVENT, reload);
+    return () => window.removeEventListener(LIVE_SYNC_EVENT, reload);
+  }, []);
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const repId = params.get("rep");

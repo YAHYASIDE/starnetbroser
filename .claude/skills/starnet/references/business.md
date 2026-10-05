@@ -114,11 +114,20 @@ mind). Exact texts and numbers live in the code - this file says where.
   (`repWorkspace.mergeDevice`): the operator's news (renewal date, name…) arrives, the rep's
   untouched-by-operator edits stay, and the rep's `clientId` always stays. Before this, any operator
   change on that device (a renewal moving `renewalDate`) took the rep's customer off it.
-- **Next (his Oct 2026 choice): live sync with the rep over the internet - his own Firebase** (he
-  already has one). His wish: every rep customer linked on both phones with info and devices; on the
-  rep's phone they look normal; on the operator's they show under the rep with their total counted
-  on the rep (the existing rep-owes-all model). Data encrypted with the rep's code before leaving
-  the phone. Not built yet - stage 1 was the copy merge above.
+- **☁️ Live link with the reps over his own Firebase** (his Oct 2026 choices: «مزامنة حيّة عبر
+  الإنترنت»، «زبون المندوب يغلب»، he already has Firebase). v1 syncs a rep's **customers (name,
+  phone) and his devices' customer links**, both ways, every 30 s while the app is open
+  (`LiveSyncRunner`) and on return to the front. On the operator's phone a customer the rep added
+  becomes **that rep's customer** (rep segment) - shown under the rep, total counted on the rep
+  (rep-owes-all). Payments/balances still travel by «تسجيلاتي» with his approval. Conflict rule
+  (`liveSyncData.mergeIncoming`): newest change wins except a record both changed → the rep's; on the
+  first sync a real value always beats an empty one (an empty link never wipes the other side's).
+  Deleting a customer is not synced (v1). Transport: Firestore REST + anonymous auth
+  (`firestoreRest.ts`), docs `starnet/{spaceId}/reps/{repId}/sides/{rep|owner}`, each encrypted with
+  the rep's code + phone key (same key as his copy). Config (apiKey, projectId, spaceId) in
+  `starnet.liveSync` - Settings → البوتات → «☁️ الربط الحيّ مع المندوبين» (save + real connection
+  test); the rep's phone gets it inside his next copy. Setup he was given: Authentication →
+  Anonymous on; Firestore created; rules allowing `starnet/{space}/**` to signed-in users.
 - **📥 «استيراد زبائن من ملف»** (clients page, his Oct 2026 request: a list exported from «مدونة
   الحسابات» as PDF - 51 customers). His choices: a name that looks like an existing customer is
   **skipped automatically** (`findExistingClient`: letters folded, «ولد/بن» dropped, «سالم ولد

@@ -12813,3 +12813,24 @@ button.today-tile {
   font-size: 0.88rem;
   line-height: 1.7;
 }
+
+/* ☁️ الربط الحيّ مع المندوبين (settings) */
+.live-sync-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.live-sync-ok {
+  color: var(--green);
+}
+
+.live-sync-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+}

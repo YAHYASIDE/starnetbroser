@@ -17,6 +17,7 @@ import { decryptBackup, encryptBackup, WrongPasswordError, type EncryptedBackup 
 import { boundCopyKey } from "./repDeviceTransfer";
 import { computeBalanceByCurrency, type LedgerByAccount, type LedgerEntry } from "./ledgerStore";
 import { buildProfitRows, type ProfitRow } from "./profitStatement";
+import type { LiveSyncShare } from "./liveSyncConfig";
 
 /** url -> cookie string, as exportSessionCookies gives it. */
 export type DeviceCookies = Record<string, string>;
@@ -44,6 +45,8 @@ export interface RepCopy {
   rejected?: Record<string, string>;
   /** The operator's other devices, as fingerprints only - his add dialog warns on a duplicate. */
   known?: KnownDevices;
+  /** ☁️ The operator's Firebase for the live link (liveSyncConfig.ts) - his phone joins it. */
+  liveSync?: LiveSyncShare;
 }
 
 export interface RepCopyPayload extends RepCopy {

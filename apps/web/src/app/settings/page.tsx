@@ -15,6 +15,7 @@ import { CardGmailSection } from "@/components/CardGmailSection";
 import { BiometricUnlockToggle } from "@/components/BiometricUnlockToggle";
 import { openSettingsFold, SettingsFold } from "@/components/SettingsFold";
 import { WhatsNewSection } from "@/components/WhatsNewSection";
+import { LiveSyncSection } from "@/components/LiveSyncSection";
 import { SettingsSearch } from "@/components/SettingsSearch";
 import { useEffect, useRef, useState } from "react";
 import { checkHealth, listAccounts, login, register } from "@/lib/apiClient";
@@ -436,6 +437,7 @@ export default function SettingsPage() {
           <>
             <SettingsFold id="telegram"><TelegramSection /></SettingsFold>
             <SettingsFold id="rep-bots"><TelegramRepsSection /></SettingsFold>
+            <SettingsFold id="live-sync"><LiveSyncSection /></SettingsFold>
             <SettingsFold id="activation-costs"><ActivationCostsSection /></SettingsFold>
             <SettingsFold id="instant-replies"><TelegramInstantSection /></SettingsFold>
           </>

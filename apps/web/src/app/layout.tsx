@@ -13,6 +13,7 @@ import { PhoneShortcutLayer } from "@/components/PhoneShortcutLayer";
 import { DeleteCodeHost } from "@/components/DeleteCodePrompt";
 import { LatinDigitInputs } from "@/components/LatinDigitInputs";
 import { WhatsNewTour } from "@/components/WhatsNewTour";
+import { LiveSyncRunner } from "@/components/LiveSyncRunner";
 
 export const metadata: Metadata = {
   title: "STAR NET",
@@ -44,6 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             {children}
             <BottomNav />
             <WhatsNewTour />
+            <LiveSyncRunner />
           </RepModeGate>
         </AppLockGate>
         <TelegramBridge />

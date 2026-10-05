@@ -63,7 +63,7 @@ export type SettingsItemId =
   | "whats-new" | "shortcuts" | "passwords" | "gmail-codes" | "card-gmail" | "theme" | "help" | "invoice-currency" | "business" | "profit-reset"
   | "reminders"
   | "auto-sync" | "sessions"
-  | "telegram" | "rep-bots" | "activation-costs" | "instant-replies"
+  | "telegram" | "rep-bots" | "live-sync" | "activation-costs" | "instant-replies"
   | "backup-full" | "backup-daily" | "drive"
   | "lock" | "update" | "rep-mode" | "storage" | "server";
 
@@ -94,6 +94,7 @@ export const SETTINGS_ITEMS: SettingsItem[] = [
   { id: "sessions", group: "devices", icon: "🔐", title: "فحص جلسات الدخول", summary: "أي الأجهزة خرجت من Starlink", keywords: ["جلسة", "جلسات", "دخول", "خروج"] },
   { id: "telegram", group: "bots", icon: "✈️", title: "تيليغرام (بوتك)", summary: "التنبيهات والأوامر من بوتك", keywords: ["تيليغرام", "تلغرام", "telegram", "بوت"] },
   { id: "rep-bots", group: "bots", icon: "🤝", title: "بوتات المندوبين", summary: "ربط كل مندوب ببوته", keywords: ["مندوب", "مندوبين", "بوت"] },
+  { id: "live-sync", group: "bots", icon: "☁️", title: "الربط الحيّ مع المندوبين", summary: "زبائن المندوب عندك وعنده تلقائيًا (Firebase)", keywords: ["فايربيس", "firebase", "ربط", "مزامنة", "مندوب", "زبائن", "حي"] },
   { id: "activation-costs", group: "bots", icon: "⚡", title: "تكلفة باقات التفعيل", summary: "أسعار التفعيل في البوت", keywords: ["تفعيل", "باقة", "تكلفة"] },
   { id: "instant-replies", group: "bots", icon: "⚡", title: "رد البوت والتطبيق مغلق", summary: "خدمة الرد في الخلفية", keywords: ["رد", "مغلق", "خلفية"] },
   { id: "backup-full", group: "backup", icon: "🔒", title: "نسخة احتياطية كاملة محمية", summary: "تصدير واستيراد بكلمة سر", keywords: ["نسخة", "احتياطي", "استيراد", "تصدير", "استرجاع", "backup"] },

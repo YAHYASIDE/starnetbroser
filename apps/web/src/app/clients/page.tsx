@@ -2,6 +2,7 @@
 
 import { askDeleteCode } from "@/components/DeleteCodePrompt";
 import { ClientImport } from "@/components/ClientImport";
+import { LIVE_SYNC_EVENT } from "@/lib/liveSync";
 import { useRouter } from "next/navigation";
 import { PaymentPickerSheet } from "@/components/HomeFab";
 import { homePaymentHref } from "@/lib/homeActions";
@@ -78,6 +79,16 @@ export default function ClientsPage() {
   const [picking, setPicking] = useState(false);
   const [profitResets, setProfitResets] = useState<ClientProfitResets>({});
   const router = useRouter();
+
+  // ☁️ The live link brought a rep's customer / device link (lib/liveSync.ts).
+  useEffect(() => {
+    const reload = () => {
+      setClientStore(loadClientStore());
+      if (isDemoMode()) setAccounts(loadDemoAccounts(demoAccounts));
+    };
+    window.addEventListener(LIVE_SYNC_EVENT, reload);
+    return () => window.removeEventListener(LIVE_SYNC_EVENT, reload);
+  }, []);
 
   useEffect(() => {
     setClientStore(loadClientStore());

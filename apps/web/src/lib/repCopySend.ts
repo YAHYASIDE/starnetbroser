@@ -14,6 +14,7 @@ import { rejectedVersions } from "./repChanges";
 import { repDecisions } from "./repInbox";
 import type { Representative } from "./repStore";
 import { loadRepChats, sendRepDocument } from "./telegram";
+import { loadLiveSyncConfig } from "./liveSyncConfig";
 
 export type SendCopyResult = { ok: true; devices: number; via: "bot" | "share" } | { ok: false; message: string };
 
@@ -44,7 +45,10 @@ export async function sendRepCopy(rep: Representative, accounts: StarlinkAccount
   const stores = repStoreSlice(readStores(), rep.id);
   // ❌ What the operator rejected leaves his phone (repChangesApply.ts).
   const rejected = rejectedVersions(repDecisions(rep.id));
-  const text = await buildRepCopyFile({ ...copy, stores, rejected, sessions }, ensureRepDeviceCode(rep.id), phoneKey);
+  // ☁️ The live link: his phone joins the operator's Firebase space (only when it's switched on).
+  const live = loadLiveSyncConfig();
+  const liveSync = live?.enabled ? { apiKey: live.apiKey, projectId: live.projectId, spaceId: live.spaceId } : undefined;
+  const text = await buildRepCopyFile({ ...copy, stores, rejected, sessions, ...(liveSync ? { liveSync } : {}) }, ensureRepDeviceCode(rep.id), phoneKey);
   const fileName = repCopyFileName(rep.id);
   const caption = `📋 نسختك من الأجهزة (${copy.devices.length} جهاز)\nاضغط الملف ← «فتح بـ STAR NET»، أو اضغطه مطولاً ← مشاركة ← STAR NET.`;
 
