@@ -627,13 +627,12 @@ export default function MoneyPage() {
             🔄 الأرباح والخسائر من 0 (الديون تبقى)
           </button>
         )}
-        {cashResetOn ? (
+        <button type="button" className="dialog-secondary" onClick={() => void resetCash()}>
+          💵 إرجاع الكاش إلى 0
+        </button>
+        {cashResetOn && (
           <button type="button" className="dialog-secondary" onClick={() => void undoResetCash()}>
             ↩️ تراجع عن تصفير الكاش
-          </button>
-        ) : (
-          <button type="button" className="dialog-secondary" onClick={() => void resetCash()}>
-            💵 إرجاع الكاش إلى 0
           </button>
         )}
         <button type="button" className="dialog-danger" onClick={() => void wipeEverything()}>

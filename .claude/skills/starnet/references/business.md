@@ -110,9 +110,10 @@ mind). Exact texts and numbers live in the code - this file says where.
   - «💵 إرجاع الكاش إلى 0» = **the till only** (his Oct 2026 choice: «تصحيح إلى 0، قابل للتراجع»): one
     offsetting cash entry per currency brings الكاش to 0 today (`resetCashToZero`, `sourceKind:"cash-reset"`).
     Nothing is deleted and it is **not** counted as a مصروف (it carries a `sourceId`, so
-    `listStandaloneCashEntries` skips it); banks, wallets and all debts stay untouched. While a reset
-    stands, the button turns into «↩️ تراجع عن تصفير الكاش» (`undoCashReset`, `hasCashReset`). Also
-    behind the delete code.
+    `listStandaloneCashEntries` skips it); banks, wallets and all debts stay untouched. The button is
+    **always available** (his Oct 2026 note: «أريد تصفير في أي وقت») - each press offsets the current
+    balance to 0 again; «↩️ تراجع عن تصفير الكاش» (`undoCashReset`, removes every reset entry) shows
+    **in addition** whenever a reset stands (`hasCashReset`). Both behind the delete code.
   - «🗑️ حذف كل المعاملات وتصفير كل الحسابات» = **the transactions only** (his choice): every
     money record is removed (shipments, payments, الكاش, invoices, stock moves, expenses, income,
     debts, party/rep entries, card top-ups, previous debts, closings - `wipeTransactions.ts`
