@@ -8,6 +8,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -307,6 +308,9 @@ public class AccountBrowserActivity extends AppCompatActivity {
         settings.setSupportMultipleWindows(false);
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
+        // 📷 Starlink's identity check shows the live camera in a <video> the page starts by itself;
+        // WebView's default blocks that until a tap, so the camera stayed a gray ▶ (his Oct 2026 report).
+        settings.setMediaPlaybackRequiresUserGesture(false);
 
         webView.setWebViewClient(new IsolatedWebViewClient());
         webView.setWebChromeClient(
@@ -319,6 +323,12 @@ public class AccountBrowserActivity extends AppCompatActivity {
                         progressBar.setVisibility(View.VISIBLE);
                         progressBar.setProgress(newProgress);
                     }
+                }
+
+                /** No gray ▶ placeholder over the camera preview while it starts. */
+                @Override
+                public Bitmap getDefaultVideoPoster() {
+                    return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
                 }
 
                 @Override
