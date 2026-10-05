@@ -31,6 +31,20 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-05-client-import",
+    date: "2026-10-05",
+    title: "استيراد الزبائن من ملف",
+    steps: [
+      {
+        path: "/clients",
+        target: "client-import",
+        title: "📥 استيراد زبائن من ملف",
+        before: "كان كل زبون يُضاف واحدًا واحدًا مع رصيده بيدك.",
+        after: "زر «📥 استيراد زبائن من ملف»: تختار الملف فيُضاف كل الزبائن مرة واحدة مع أرصدتهم بالأوقية. الموجودون عندك يُتخطّون، و«↩️ تراجع عن آخر استيراد» يلغيه.",
+      },
+    ],
+  },
+  {
     id: "2026-10-05-card-withdraw-fresh-start",
     date: "2026-10-05",
     title: "سحب رصيد البطاقة، بنكيلي بالأوقية فقط، والبداية من جديد",
@@ -74,11 +88,12 @@ export const MAX_RELEASES_PER_TOUR = 3;
 
 /**
  * The updates to walk through now, oldest first. `seen` = the ids already shown on this phone, or
- * null on the very first run of this feature - then only the newest one plays (not the whole past).
+ * null on the very first run of this feature - then only the newest day's updates play (not the
+ * whole past).
  */
 export function pendingReleases(releases: WhatsNewRelease[], seen: string[] | null): WhatsNewRelease[] {
   if (releases.length === 0) return [];
-  if (seen === null) return [releases[0]!];
+  if (seen === null) return releases.filter((r) => r.date === releases[0]!.date).slice(0, MAX_RELEASES_PER_TOUR).reverse();
   const seenSet = new Set(seen);
   return releases
     .filter((r) => !seenSet.has(r.id))

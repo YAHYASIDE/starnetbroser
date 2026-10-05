@@ -11,8 +11,9 @@ const release = (id: string, steps = 1): WhatsNewRelease => ({
 const releases = [release("r4"), release("r3"), release("r2"), release("r1")];
 
 describe("🆕 ما الجديد", () => {
-  it("first run of the feature: only the newest update plays, not the whole past", () => {
-    expect(pendingReleases(releases, null).map((r) => r.id)).toEqual(["r4"]);
+  it("first run of the feature: only the newest day's updates play, not the whole past", () => {
+    const dated = [{ ...release("b"), date: "2026-10-05" }, { ...release("a"), date: "2026-10-05" }, { ...release("old"), date: "2026-09-01" }];
+    expect(pendingReleases(dated, null).map((r) => r.id)).toEqual(["a", "b"]);
   });
 
   it("plays the updates not seen yet, oldest first, at most a few", () => {

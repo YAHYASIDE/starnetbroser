@@ -109,6 +109,16 @@ mind). Exact texts and numbers live in the code - this file says where.
   تسديد ستارلينك)، والمؤكَّد بسعره المقفل.
 - Logic: `myMoney.ts`, `moneyAccounts.ts`, `myMoneyData.ts`; UI: `app/money/page.tsx`,
   `components/MyMoney.tsx`. The reports' «المصروفات» tab and its 🧾 button stay too.
+- **📥 «استيراد زبائن من ملف»** (clients page, his Oct 2026 request: a list exported from «مدونة
+  الحسابات» as PDF - 51 customers). His choices: a name that looks like an existing customer is
+  **skipped automatically** (`findExistingClient`: letters folded, «ولد/بن» dropped, «احمد ولد
+  محجوب» = «احمد محجوب»; one shared word alone never matches); each balance becomes an **opening
+  balance in أوقية, money didn't move, dated with the file's own date** («عليه» = owesUs, «له» =
+  weOwe); **a ready file I send him** (JSON `{kind:"starnet-clients-import", rows}` made from his PDF
+  in the session - never committed: customers' names stay out of the repo). The parser also takes
+  plain «date له/عليه amount name» lines. A summary (count, totals, skipped, list) before saving;
+  «↩️ تراجع عن آخر استيراد» (delete code) removes the batch (`starnet_client_import_v1`), keeping a
+  customer who got anything since. Logic `lib/clientImport.ts`, UI `components/ClientImport.tsx`.
 - **🆕 «ما الجديد» - a guided tour after every update** (his Oct 2026 request and choices: «جولة
   خطوة بخطوة»، «تلقائيًا مرة واحدة + زر لإعادتها»، «كل تغيير تراه في الشاشة»). Each step opens the
   page, lights up the changed place and shows «كان: … / الآن: …» with «موافق» (next) / «تخطي الجولة».

@@ -12781,3 +12781,35 @@ button.today-tile {
 .whats-new-row small {
   color: var(--text-muted);
 }
+
+/* 📥 استيراد زبائن (clients page) */
+.client-import-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px;
+}
+
+.client-import-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+}
+
+.client-import-skipped summary {
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.client-import-skipped ul {
+  margin: 6px 0 0;
+  padding-inline-start: 18px;
+  max-height: 34vh;
+  overflow-y: auto;
+  font-size: 0.88rem;
+  line-height: 1.7;
+}

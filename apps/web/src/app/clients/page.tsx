@@ -1,6 +1,7 @@
 "use client";
 
 import { askDeleteCode } from "@/components/DeleteCodePrompt";
+import { ClientImport } from "@/components/ClientImport";
 import { useRouter } from "next/navigation";
 import { PaymentPickerSheet } from "@/components/HomeFab";
 import { homePaymentHref } from "@/lib/homeActions";
@@ -321,6 +322,19 @@ export default function ClientsPage() {
           💵 دفعة من زبون
         </button>
       </div>
+      <ClientImport
+        clientStore={clientStore}
+        adjustments={partyAdjustments}
+        devices={accounts}
+        invoices={invoices}
+        onSaved={(store, adjustments, message) => {
+          setClientStore(store);
+          saveClientStore(store);
+          setPartyAdjustments(adjustments);
+          savePartyAdjustments(adjustments);
+          window.alert(message);
+        }}
+      />
       {picking && (
         <PaymentPickerSheet
           accounts={accounts.filter((a) => !a.deletedAt)}
