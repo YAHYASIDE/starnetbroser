@@ -33,7 +33,12 @@ mind). Exact texts and numbers live in the code - this file says where.
 
 ## «💰 حسابي» (`/money`) - his own money in one place
 
-- Like the app «مصاريف»: tabs الدخل / المصروف / الديون, sections with icons, green «+» (pinnable,
+- **Tabs: الدخل / المصروف only** (his Oct 2026 choice: «انقل السلف إلى صفحة الزبائن»). The old
+  «الديون» tab (سلّفت/استلفت مع الناس) and its «👥 لك عند الناس / ↩ عليك للناس» overview lines were
+  removed; a person he lends to / borrows from is now added as a **client** on `/clients` and managed
+  with عليه/له there (so it shows under «لك عند الزبائن» / «عليك للزبائن»). `DebtBook` lib + storage
+  (`starnet_personal_debts_v1`) are kept for old data/backups but no longer surfaced or counted.
+- Like the app «مصاريف»: sections with icons, green «+» (pinnable,
   `/money?add=1`), 🔁 monthly income/expense (salary, rent) that records itself on its day each month; **never on
   the day it's added** (his rule: a day that is today or already passed → first record next month;
   a later day this month → this month), never twice in a month (`firstRecurringMonth`); a deleted

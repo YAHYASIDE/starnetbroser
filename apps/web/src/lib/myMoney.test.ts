@@ -166,28 +166,27 @@ describe("the final figures", () => {
   });
 
   it("«في يدك الآن» and «كل ما تملك»: have − owe, then + what's owed to me", () => {
-    const a = addDebt(EMPTY_DEBT_BOOK, { kind: "lent", person: "A", amount: 1000, currencyCode: "MRU", date: "2026-10-01", viaCash: false });
-    if (!a.ok) throw new Error();
-    const b = addDebt(a.book, { kind: "borrowed", person: "B", amount: 10, currencyCode: "USD", date: "2026-10-01", viaCash: false });
-    if (!b.ok) throw new Error();
     const wealth = buildWealth({
       cash: { MRU: 20000, XOF: 6000 },
       banks: [{ name: "DEMO BANK", byCurrency: { MRU: 8000 } }],
       cardUsd: 100,
       customers: [{ name: "DEMO NAME", byCurrency: { MRU: 46000 } }],
       repsMru: [{ name: "REP A", mru: 3000 }, { name: "REP B", mru: -2000 }],
-      debts: b.book,
+      debts: EMPTY_DEBT_BOOK,
       suppliers: [{ name: "SUPPLIER", byCurrency: { MRU: 5000 } }],
       starlink: [{ name: "demo-a", usd: 50 }],
       rates,
     });
     const by = Object.fromEntries(wealth.lines.map((l) => [l.key, l.mru]));
-    // XOF 6000 at 600/USD = 10 USD = 4000 MRU.
-    expect(by).toMatchObject({ cash: 24000, banks: 8000, card: 40000, customers: 46000, repsOwe: 3000, lent: 1000, starlink: 20000, suppliers: 5000, repsOwed: 2000, borrowed: 4000 });
-    // have 72,000 − owe 31,000
-    expect(wealth.inHandMru).toBe(41000);
-    // + owed to me 50,000
-    expect(wealth.totalMru).toBe(91000);
+    // XOF 6000 at 600/USD = 10 USD = 4000 MRU. (Personal people-debts moved to the clients page - no
+    // «لك/عليك للناس» lines here anymore.)
+    expect(by).toMatchObject({ cash: 24000, banks: 8000, card: 40000, customers: 46000, repsOwe: 3000, starlink: 20000, suppliers: 5000, repsOwed: 2000 });
+    expect(Object.keys(by)).not.toContain("lent");
+    expect(Object.keys(by)).not.toContain("borrowed");
+    // have 72,000 − owe 27,000
+    expect(wealth.inHandMru).toBe(45000);
+    // + owed to me 49,000
+    expect(wealth.totalMru).toBe(94000);
     expect(wealth.lines.find((l) => l.key === "customers")?.items[0]).toMatchObject({ name: "DEMO NAME", mru: 46000 });
     expect(wealth.missing).toEqual([]);
   });

@@ -555,11 +555,6 @@ export function buildWealth(input: WealthInput): Wealth {
     native: nativeOf(items),
   });
 
-  const people = { lent: [] as WealthItem[], borrowed: [] as WealthItem[] };
-  for (const d of input.debts.debts) {
-    const left = debtRemaining(input.debts, d.id);
-    if (left > 0) people[d.kind === "lent" ? "lent" : "borrowed"].push(item(d.person, { [d.currencyCode]: left }));
-  }
   const mruItem = (name: string, mru: number): WealthItem => ({ name, byCurrency: { MRU: mru }, mru });
 
   // أورانج موني / نيتا (سيفا) and بينانس (دولار) come out to the front, each its own line shown in its
@@ -577,12 +572,10 @@ export function buildWealth(input: WealthInput): Wealth {
     line("card", "💳", "محفظة KAST", "have", [item("KAST", { USD: input.cardUsd })]),
     line("customers", "👥", "لك عند الزبائن", "owed", input.customers.map((c) => item(c.name, c.byCurrency))),
     line("repsOwe", "🧑‍💼", "لك عند المندوبين", "owed", input.repsMru.filter((r) => r.mru > 0).map((r) => mruItem(r.name, r.mru))),
-    line("lent", "🤝", "لك عند الناس", "owed", people.lent),
     line("starlink", "🛰️", "عليك لستارلينك (D)", "owe", input.starlink.map((s) => item(s.name, { USD: s.usd }))),
     line("customersOwe", "👥", "عليك للزبائن", "owe", (input.customersOwe ?? []).map((c) => item(c.name, c.byCurrency))),
     line("suppliers", "🏭", "عليك للموردين", "owe", input.suppliers.map((s) => item(s.name, s.byCurrency))),
     line("repsOwed", "🧑‍💼", "عليك للمندوبين", "owe", input.repsMru.filter((r) => r.mru < 0).map((r) => mruItem(r.name, -r.mru))),
-    line("borrowed", "↩", "عليك للناس", "owe", people.borrowed),
   ];
   const sum = (kind: WealthLine["kind"]) => lines.filter((l) => l.kind === kind).reduce((s, l) => s + l.mru, 0);
   const inHandMru = sum("have") - sum("owe");

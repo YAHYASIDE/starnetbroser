@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { StarlinkAccountSummary } from "@starnet/shared";
-import { AccountsManager, DebtsTab, IncomeTab, RecurringSection, today, WealthCard, WealthLineDetail } from "@/components/MyMoney";
+import { AccountsManager, IncomeTab, RecurringSection, today, WealthCard, WealthLineDetail } from "@/components/MyMoney";
 import { BankInboxCard, BankInboxList, SuggestionConfirm, type ConfirmData, type ConfirmInput } from "@/components/BankInbox";
 import { decideSuggestion, decidedSuggestions, EMPTY_BANK_INBOX, loadBankInbox, pendingSuggestions, reopenSuggestion, saveBankInbox, type BankInbox, type BankSuggestion } from "@/lib/bankNotices";
 import { saveSuggestionChoice } from "@/lib/bankSuggestionSave";
@@ -21,13 +21,8 @@ import { computeCashBalanceByCurrency, hasCashReset, loadCashEntries, removeLink
 import { formatAmount } from "@/lib/formatAmount";
 import { monthLabel } from "@/lib/monthClosing";
 import {
-  addDebt,
-  addDebtPayment,
   addIncome,
   addRecurringRule,
-  debtTotals,
-  deleteDebt,
-  deleteDebtPayment,
   deleteIncome,
   deleteRecurringRule,
   dueRecurring,
@@ -39,13 +34,10 @@ import {
   monthLeft,
   buildWealth,
   personalFlows,
-  saveDebtBook,
   saveIncome,
   saveIncomeCategories,
   saveRecurring,
   skipRecurringMonth,
-  syncDebtCash,
-  syncDebtPaymentCash,
   syncIncomeCash,
   addIncomeCategory,
   removeIncomeCategory,
@@ -80,11 +72,10 @@ import {
 import type { RatesFromUsd } from "@/lib/reportsView";
 import { ADD_MONEY_ROUTE, parseAddMoney, SAME_PAGE_ROUTE_EVENT } from "@/lib/shortcuts";
 
-type MoneyTab = "income" | "expense" | "debts";
+type MoneyTab = "income" | "expense";
 const TABS: { id: MoneyTab; label: string }[] = [
   { id: "income", label: "الدخل" },
   { id: "expense", label: "المصروف" },
-  { id: "debts", label: "الديون" },
 ];
 const TAB_KEY = "starnet.moneyTab";
 /** His public numbers (business.md) - money between his own apps on them is a transfer. */
@@ -207,7 +198,7 @@ export default function MoneyPage() {
     document.addEventListener("visibilitychange", onVisible);
     try {
       const saved = window.localStorage.getItem(TAB_KEY);
-      if (saved === "income" || saved === "expense" || saved === "debts") setTab(saved);
+      if (saved === "income" || saved === "expense") setTab(saved);
     } catch {
       // ignored
     }
@@ -255,7 +246,6 @@ export default function MoneyPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [book, incomes, expenses, debts, inboxVersion]);
   const sources = book.accounts.map((a) => ({ id: a.id, name: a.name, icon: a.icon }));
-  const owed = useMemo(() => debtTotals(debts), [debts]);
   const missing = Array.from(new Set([...business.missing, ...left.missing, ...wealth.missing]));
   const shownLine = openLine ? wealth.lines.find((l) => l.key === openLine.key) ?? openLine : null;
 
@@ -422,12 +412,6 @@ export default function MoneyPage() {
     window.location.reload();
   }
 
-  // ---- الديون ----
-  function saveDebts(book: DebtBook) {
-    saveDebtBook(book);
-    setDebts(book);
-  }
-
   const hero = (
     <>
       <div className="report-period-row">
@@ -543,39 +527,6 @@ export default function MoneyPage() {
           />
           <RecurringSection accounts={sources} kind="expense" rules={rules} incomeCustom={incomeCats} expenseCustom={expenseCats} onAdd={addRule} onDelete={removeRule} />
         </>
-      )}
-
-      {tab === "debts" && (
-        <DebtsTab
-          accounts={sources}
-          book={debts}
-          totals={owed}
-          openNew={newRecord}
-          onOpened={consumed}
-          onAdd={(input) => {
-            const result = addDebt(debts, input);
-            if (!result.ok) return result.message;
-            updateCash((cash) => syncDebtCash(cash, result.debt));
-            saveDebts(result.book);
-            return null;
-          }}
-          onPay={(debt, amount, date, viaCash, accountId) => {
-            const result = addDebtPayment(debts, { debtId: debt.id, amount, date, viaCash, accountId });
-            if (!result.ok) return result.message;
-            updateCash((cash) => syncDebtPaymentCash(cash, result.payment, debt));
-            saveDebts(result.book);
-            return null;
-          }}
-          onDeleteDebt={(debt) => {
-            const removed = deleteDebt(debts, debt.id);
-            updateCash((cash) => removed.removedIds.reduce((acc, id) => removeLinkedCashEntries(acc, id), cash));
-            saveDebts(removed.book);
-          }}
-          onDeletePayment={(paymentId) => {
-            updateCash((cash) => removeLinkedCashEntries(cash, paymentId));
-            saveDebts(deleteDebtPayment(debts, paymentId));
-          }}
-        />
       )}
 
       {shownLine && (
