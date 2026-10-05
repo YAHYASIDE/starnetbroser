@@ -50,6 +50,9 @@ function currencyLabel(code: string): string {
 }
 
 type PartyTab = "clients" | "suppliers";
+/** Second clients row: everyone / only those who owe us / only those with a credit on us. */
+type BalanceFilter = "all" | "owes" | "credit";
+const hasCredit = (totals: Record<string, { remaining: number }>) => Object.values(totals).some((t) => t.remaining < -EPSILON);
 
 interface Props {
   clients: Client[];
@@ -142,8 +145,11 @@ export function PartyDirectory({
   const [query, setQuery] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [editingPartyId, setEditingPartyId] = useState<string | null>(null);
-  // 👤 / 🤝 whose customers are shown (repDebts.ts) - clients tab only.
-  const [owner, setOwner] = useState<ClientOwnerFilter>("all");
+  // 👤 / 🤝 whose customers are shown (repDebts.ts) - clients tab only. «زبائني» first and default
+  // (his choice): he works with his own customers most, reps' customers are the exception.
+  const [owner, setOwner] = useState<ClientOwnerFilter>("mine");
+  // Second row: show everyone / only who owes us / only who has a credit on us («له رصيد»).
+  const [balance, setBalance] = useState<BalanceFilter>("all");
 
   const isClients = tab === "clients";
   const kind: InvoiceKind = isClients ? "sale" : "purchase";
@@ -172,12 +178,15 @@ export function PartyDirectory({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const matching = q
+    let matching = q
       ? ownerRows.filter((r) => r.party.name.toLowerCase().includes(q) || (r.party.phone ?? "").includes(q))
       : ownerRows;
+    // Second row (clients): only those who owe us, or only those with a credit on us («له رصيد»).
+    if (isClients && balance === "owes") matching = matching.filter((r) => r.due);
+    else if (isClients && balance === "credit") matching = matching.filter((r) => hasCredit(r.totals));
     // Parties who still owe / are owed first, then alphabetical - the ones needing attention on top.
     return [...matching].sort((a, b) => (a.due === b.due ? a.party.name.localeCompare(b.party.name, "ar") : a.due ? -1 : 1));
-  }, [ownerRows, query]);
+  }, [ownerRows, query, isClients, balance]);
 
   const outstandingByCurrency = useMemo(() => {
     const sum: Record<string, number> = {};
@@ -196,7 +205,8 @@ export function PartyDirectory({
     setShowAdd(false);
     setEditingPartyId(null);
     setQuery("");
-    setOwner("all");
+    setOwner("mine");
+    setBalance("all");
   }
 
   const partyWord = isClients ? "زبون" : "مورد";
@@ -227,8 +237,8 @@ export function PartyDirectory({
       {isClients && repChips.length > 0 && (
         <div className="party-owner-chips" role="radiogroup" aria-label="زبائن من">
           {[
-            { key: "all", label: "الكل", count: rows.length, value: "all" as ClientOwnerFilter },
             { key: "mine", label: "👤 زبائني", count: rows.filter((r) => r.repIds.length === 0).length, value: "mine" as ClientOwnerFilter },
+            { key: "all", label: "الكل", count: rows.length, value: "all" as ClientOwnerFilter },
             { key: "reps", label: "🤝 زبائن المندوبين", count: rows.filter((r) => r.repIds.length > 0).length, value: "reps" as ClientOwnerFilter },
             ...(repChips.length > 1 ? repChips.map((c) => ({ key: `rep:${c.id}`, label: `🤝 ${c.name}`, count: c.count, value: { repId: c.id } as ClientOwnerFilter })) : []),
           ].map((chip) => {
@@ -249,6 +259,30 @@ export function PartyDirectory({
               </button>
             );
           })}
+        </div>
+      )}
+
+      {isClients && (
+        <div className="party-owner-chips party-balance-chips" role="radiogroup" aria-label="حسب الرصيد">
+          {[
+            { key: "all", label: "الكل", count: ownerRows.length, value: "all" as BalanceFilter },
+            { key: "owes", label: "🔴 مدينون لنا", count: ownerRows.filter((r) => r.due).length, value: "owes" as BalanceFilter },
+            { key: "credit", label: "🟢 لهم رصيد علينا", count: ownerRows.filter((r) => hasCredit(r.totals)).length, value: "credit" as BalanceFilter },
+          ].map((chip) => (
+            <button
+              key={chip.key}
+              type="button"
+              role="radio"
+              aria-checked={balance === chip.value}
+              className={`party-owner-chip${balance === chip.value ? " party-owner-chip-active" : ""}`}
+              onClick={() => {
+                setBalance(chip.value);
+                setSelected(new Set());
+              }}
+            >
+              {chip.label} <span className="party-tab-count">{chip.count}</span>
+            </button>
+          ))}
         </div>
       )}
 

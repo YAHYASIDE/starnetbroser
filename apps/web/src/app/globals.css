@@ -11597,6 +11597,11 @@ button.today-tile {
   color: var(--brand-contrast);
 }
 
+/* The second clients row (debtors / creditors): sits just under the owner chips, lighter spacing. */
+.party-balance-chips {
+  margin: 0 0 6px;
+}
+
 /* 🔗 «ربط هاتفي» (rep) and the operator's binding status. */
 .rep-pair {
   margin: 0 0 12px;
