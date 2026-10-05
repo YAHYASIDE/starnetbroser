@@ -7,7 +7,12 @@ import { toWesternDigits } from "./arabicNumerals";
 // currencies too rather than waiting for each one to surface as its own bug report.
 const CURRENCY_TOKEN =
   "(USDT|USD|SAR|MRU|ARS|CLP|PEN|COP|MXN|BRL|EUR|GBP|CAD|AUD|NZD|ZAR|NGN|KES|PHP|MYR|IDR|INR|JPY" +
-  "|US\\$|\\$US|\\$|€|£|ريال|ر\\.س)";
+  // Currency SYMBOLS, not just codes: ₱ (Philippine peso) was a real, confirmed miss - a
+  // Philippines-billed account showed "Balance Due ₱5,999.00" and its balance came back as
+  // "not found" because only the code "PHP" was recognized, never the symbol the page actually
+  // prints. ₹ (INR) and ₦ (NGN) are the same shape of bug waiting to happen for markets already
+  // in the list above, so they are covered here too.
+  "|US\\$|\\$US|\\$|€|£|₱|₹|₦|ريال|ر\\.س)";
 // A whole number, optionally grouped into 3-digit chunks by "." or "," (either can be the
 // thousands separator depending on locale - Starlink's page isn't always US-style), with an
 // optional final 1-2 digit fractional part. Must start and end on a digit so a trailing/leading
@@ -77,5 +82,8 @@ function normalizeCurrency(token: string): string {
   if (upper === "$" || upper === "US$" || upper === "$US" || upper === "USD") return "USD";
   if (token === "€") return "EUR";
   if (token === "£") return "GBP";
+  if (token === "₱") return "PHP";
+  if (token === "₹") return "INR";
+  if (token === "₦") return "NGN";
   return upper;
 }

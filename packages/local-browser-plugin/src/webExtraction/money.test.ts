@@ -62,4 +62,11 @@ describe("parseMoney", () => {
     expect(parseMoney("€12.50")).toEqual({ amount: "12.50", currency: "EUR" });
     expect(parseMoney("£12.50")).toEqual({ amount: "12.50", currency: "GBP" });
   });
+
+  it("reads the ₱/₹/₦ symbols (real miss: «Balance Due ₱5,999.00» came back as not found)", () => {
+    expect(parseMoney("₱5,999.00")).toEqual({ amount: "5999.00", currency: "PHP" });
+    expect(parseMoney("Balance Due ₱5,999.00")).toEqual({ amount: "5999.00", currency: "PHP" });
+    expect(parseMoney("₹1,499.00")).toEqual({ amount: "1499.00", currency: "INR" });
+    expect(parseMoney("₦25,000")).toEqual({ amount: "25000.00", currency: "NGN" });
+  });
 });

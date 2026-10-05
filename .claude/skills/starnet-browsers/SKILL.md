@@ -87,6 +87,9 @@ plus the rules learned from real misreads; keep it updated when you learn a new 
 - A gray dot is `unknown` only for a genuine dot candidate; balance is read near its label only
   (a whole-page scan once read the wrong amount); label lookahead skips buttons and other labels.
 - A limited (non-admin) email has no Billing icon: no balance or card can be read from it.
+- Balance currency SYMBOLS, not just ISO codes: «Balance Due ₱5,999.00» (Philippine peso) came back
+  as «not found» because only the code `PHP` was listed, never the ₱ symbol the page prints. `money.ts`
+  `CURRENCY_TOKEN` now also covers ₱/₹/₦ (and $/€/£). Add the symbol when a new market surfaces.
 - Dates: normalize digits (Arabic numerals) and never store a truncated date.
 - **The renewal (billing) day is always 1-28** - the operator's rule: Starlink never bills on the
   29th-31st, so such a date is a misread (a device once showed 2026/10/31). It is rejected in the
