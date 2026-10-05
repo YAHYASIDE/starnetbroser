@@ -6020,6 +6020,38 @@ button.today-tile {
   margin-bottom: 10px;
 }
 
+/* 🔽 fold a section away - the whole title row is the toggle. */
+.sl-collapse {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  padding: 2px 0;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.sl-collapse-chevron {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  width: 1em;
+}
+
+.sl-collapse-count {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface-2, var(--surface));
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
 .sl-alert {
   border-color: var(--red);
   background: color-mix(in srgb, var(--red) 8%, var(--surface));

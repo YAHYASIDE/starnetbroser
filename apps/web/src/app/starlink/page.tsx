@@ -102,6 +102,9 @@ function usd(value: number): string {
  * once), and the card's own balance and statement. Paying a D is the moment its profit and the
  * representative's share become real (dated that day).
  */
+/** Per-phone: which «ستارلينك والبطاقة» sections the operator folded away (settings-style key, not backed up). */
+const COLLAPSE_KEY = "starnet.starlinkCollapsed";
+
 export default function StarlinkPage() {
   const [ledgerStore, setLedgerStore] = useState<LedgerByAccount>({});
   const [accounts, setAccounts] = useState<StarlinkAccountSummary[]>(demoAccounts);
@@ -125,6 +128,25 @@ export default function StarlinkPage() {
   const [depositToRecord, setDepositToRecord] = useState<CardDeposit | null>(null);
   const [spendToRecord, setSpendToRecord] = useState<CardDeposit | null>(null);
   const [kastNotifications, setKastNotifications] = useState<boolean | null>(null);
+  // 🔽 which sections the operator folded away (long lists). Per-phone convenience only.
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
+    try {
+      return JSON.parse(window.localStorage.getItem(COLLAPSE_KEY) ?? "{}") as Record<string, boolean>;
+    } catch {
+      return {};
+    }
+  });
+  function toggleSection(key: string) {
+    setCollapsed((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      try {
+        window.localStorage.setItem(COLLAPSE_KEY, JSON.stringify(next));
+      } catch {
+        // per-phone convenience only
+      }
+      return next;
+    });
+  }
 
   useEffect(() => {
     setLedgerStore(loadLedgerStore());
@@ -455,8 +477,12 @@ export default function StarlinkPage() {
 
       <section className="section">
         <div className="sl-head">
-          <h2 className="sl-title">📋 الأجهزة المتسلَّف عليها</h2>
-          {debts.length > 0 && (
+          <button type="button" className="sl-collapse" aria-expanded={!collapsed.devices} onClick={() => toggleSection("devices")}>
+            <span className="sl-collapse-chevron" aria-hidden="true">{collapsed.devices ? "▸" : "▾"}</span>
+            <h2 className="sl-title">📋 الأجهزة المتسلَّف عليها</h2>
+            <span className="sl-collapse-count">{debts.length + openPrevious.length}</span>
+          </button>
+          {!collapsed.devices && debts.length > 0 && (
             <button
               type="button"
               className="text-action"
@@ -468,6 +494,7 @@ export default function StarlinkPage() {
             </button>
           )}
         </div>
+        {!collapsed.devices && (<>
         {debts.length + openPrevious.length > 0 && (
           <input
             className="search-input sl-search"
@@ -570,15 +597,22 @@ export default function StarlinkPage() {
             </button>
           </div>
         )}
+        </>)}
       </section>
 
       <section className="section">
         <div className="sl-head">
-          <h2 className="sl-title">💳 بطاقة كاش</h2>
-          <button type="button" className="btn-icon" onClick={() => setSheet("topup")}>
-            + شحن البطاقة
+          <button type="button" className="sl-collapse" aria-expanded={!collapsed.card} onClick={() => toggleSection("card")}>
+            <span className="sl-collapse-chevron" aria-hidden="true">{collapsed.card ? "▸" : "▾"}</span>
+            <h2 className="sl-title">💳 بطاقة كاش</h2>
           </button>
+          {!collapsed.card && (
+            <button type="button" className="btn-icon" onClick={() => setSheet("topup")}>
+              + شحن البطاقة
+            </button>
+          )}
         </div>
+        {!collapsed.card && (<>
         {pendingCardSpends(deposits).length > 0 && (
           <ul className="sl-list kast-deposits">
             {pendingCardSpends(deposits).map((s) => {
@@ -685,6 +719,7 @@ export default function StarlinkPage() {
             ))}
           </ul>
         )}
+        </>)}
       </section>
 
       <PaymentCardsSection
