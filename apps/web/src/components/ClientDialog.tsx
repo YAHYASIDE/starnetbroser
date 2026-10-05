@@ -64,6 +64,16 @@ export function ClientDialog({ client, devices, ledgerStore, allocationStore, on
   const clientProfitMru = mruRate
     ? devices.reduce((sum, a) => sum + sumProfitMru(getAccountEntries(ledgerStore, a.id), mruRate).confirmedMru, 0)
     : undefined;
+  // الربح الكامل = المؤكَّد + المتوقَّع من عمليات D غير المسددة (بلغه: «كل ربح يظهر حتى وإن كان D»).
+  const clientProfitTotals = mruRate
+    ? devices.reduce(
+        (acc, a) => {
+          const t = sumProfitMru(getAccountEntries(ledgerStore, a.id), mruRate);
+          return { fullMru: acc.fullMru + t.confirmedMru + t.expectedMru, expectedMru: acc.expectedMru + t.expectedMru, expectedCount: acc.expectedCount + t.expectedCount };
+        },
+        { fullMru: 0, expectedMru: 0, expectedCount: 0 },
+      )
+    : undefined;
   const summary = computeClientAccountingSummary(
     devices.map((account) => ({ accountId: account.id, accountName: account.name, entries: getAccountEntries(ledgerStore, account.id) })),
   );
@@ -250,6 +260,12 @@ export function ClientDialog({ client, devices, ledgerStore, allocationStore, on
                     {summary.netResult.netUsd >= 0 ? "ربح" : "خسارة"} {formatProfitMru(summary.netResult.netUsd, mruRate, clientProfitMru)}
                   </strong>
                 )}
+                {clientProfitTotals && clientProfitTotals.expectedCount > 0 && (
+                  <span className={`party-insight-full ${clientProfitTotals.fullMru >= 0 ? "profit-positive" : "profit-negative"}`} dir="ltr">
+                    الربح الكامل (مع المتوقع): {clientProfitTotals.fullMru >= 0 ? "ربح" : "خسارة"} ≈{" "}
+                    {Math.round(Math.abs(clientProfitTotals.fullMru)).toLocaleString("en-US")} أوقية
+                  </span>
+                )}
                 {summary.netResult.status === "incomplete" && (
                   <span className="badge badge-yellow">غير مكتمل - أحد الأجهزة لديه عمليات D غير مسددة</span>
                 )}
@@ -279,6 +295,10 @@ export function ClientDialog({ client, devices, ledgerStore, allocationStore, on
                     );
                     const account = devices.find((a) => a.id === device.accountId);
                     const net = device.accounting.netResult;
+                    // الربح الكامل للجهاز = المؤكَّد + المتوقَّع (D). يظهر دائمًا، حتى لو كانت عملية D.
+                    const deviceTotals = mruRate ? sumProfitMru(getAccountEntries(ledgerStore, device.accountId), mruRate) : undefined;
+                    const deviceFullMru = deviceTotals ? deviceTotals.confirmedMru + deviceTotals.expectedMru : undefined;
+                    const deviceShipments = deviceTotals ? deviceTotals.confirmedCount + deviceTotals.expectedCount : 0;
 
                     return (
                       <li key={device.accountId} className="party-device">
@@ -306,17 +326,15 @@ export function ClientDialog({ client, devices, ledgerStore, allocationStore, on
                             )
                           )}
                           <span
-                            className={`badge ${net.netUsd === undefined ? "badge-gray" : net.netUsd >= 0 ? "badge-green" : "badge-red"}`}
+                            className={`badge ${deviceFullMru === undefined || deviceShipments === 0 ? "badge-gray" : deviceFullMru >= 0 ? "badge-green" : "badge-red"}`}
                             dir="ltr"
                           >
-                            {net.netUsd !== undefined
-                              ? `${net.netUsd >= 0 ? "ربح" : "خسارة"} ${formatProfitMru(
-                                  net.netUsd,
-                                  mruRate,
-                                  mruRate ? sumProfitMru(getAccountEntries(ledgerStore, device.accountId), mruRate).confirmedMru : undefined,
-                                )}`
-                              : "الربح غير محسوب"}
-                            {net.status === "incomplete" && " (غير مكتمل)"}
+                            {deviceFullMru !== undefined && deviceShipments > 0
+                              ? `${deviceFullMru >= 0 ? "ربح" : "خسارة"} ${deviceTotals!.expectedCount > 0 ? "≈ " : ""}${Math.round(Math.abs(deviceFullMru)).toLocaleString("en-US")} أوقية`
+                              : deviceFullMru === undefined && net.netUsd !== undefined
+                                ? `${net.netUsd >= 0 ? "ربح" : "خسارة"} ${formatProfitMru(net.netUsd, mruRate)}`
+                                : "الربح غير محسوب"}
+                            {deviceTotals && deviceTotals.expectedCount > 0 && " · يشمل متوقّع D"}
                           </span>
                         </div>
                       </li>

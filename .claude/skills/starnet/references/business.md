@@ -86,6 +86,11 @@ mind). Exact texts and numbers live in the code - this file says where.
   twice («احذف المصاريف القديمة نفسها»); done once by `expenseTreeStore.loadExpenseTree` (with
   their الكاش entries; an old 🔁 rule moves to the matching new category). Phone credit from a
   bank notification → «فواتير · الاتصالات».
+- **بطاقة الزبون (`ClientDialog`) تُظهر الربح دائمًا، حتى لعمليات D** (بلاغه Oct 2026: «أريد كل ربح
+  يظهر حتى وإن كان D»): كل جهاز يعرض **الربح الكامل = المؤكَّد + المتوقَّع** (`sumProfitMru`:
+  `confirmedMru + expectedMru`) بدل «الربح غير محسوب»، مع «· يشمل متوقّع D» و«≈» عند وجود عمليات D؛
+  وفي الأعلى سطر «الربح الكامل (مع المتوقع)» يجمع كل الأجهزة. المتوقَّع بسعر اليوم (تقريبي، يتأكد عند
+  تسديد ستارلينك)، والمؤكَّد بسعره المقفل.
 - Logic: `myMoney.ts`, `moneyAccounts.ts`, `myMoneyData.ts`; UI: `app/money/page.tsx`,
   `components/MyMoney.tsx`. The reports' «المصروفات» tab and its 🧾 button stay too.
 - **«⚙️ البداية من جديد»** (bottom of «حسابي», both behind the delete code, both undoable):

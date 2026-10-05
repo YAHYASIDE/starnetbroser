@@ -3989,6 +3989,12 @@ button.overview-card:active {
   font-size: 1rem;
 }
 
+/* «الربح الكامل (مع المتوقع)» under the client's net result. */
+.party-insight-full {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .party-stat,
   :root:not([data-theme="light"]) .party-action {
