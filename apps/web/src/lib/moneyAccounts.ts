@@ -23,6 +23,9 @@ export interface MoneyAccount {
   number?: string;
   /** False for a ready-made account whose real balance hasn't been typed yet. */
   balanceSet?: boolean;
+  /** 💵 A cash wallet in its currency («كاش سيفا»): a customer's payment in this currency whose
+   * method's app runs in another one lands here (a SIFA payment left on «بنكيلي»). */
+  cashWallet?: boolean;
   /** The real balance when it was added, on `openingDate` (yyyy-mm-dd). */
   openingBalance: number;
   openingDate: string;
@@ -34,8 +37,12 @@ export interface AccountAdjustment {
   id: string;
   accountId: string;
   amount: number;
+  /** The currency it corrects - the account's own one when absent (every older adjustment). */
+  currencyCode?: string;
   date: string;
   note?: string;
+  /** Posted by «🔄 البداية من جديد» (zeroing every account) - removed together by its undo. */
+  fromReset?: boolean;
   createdAt: string;
 }
 
@@ -84,6 +91,7 @@ export interface AccountInput {
   currencyCode: string;
   method?: PaymentMethod;
   number?: string;
+  cashWallet?: boolean;
   openingBalance: number;
   openingDate: string;
 }
@@ -102,6 +110,7 @@ export function addMoneyAccount(book: AccountsBook, input: AccountInput, now = n
     icon: input.icon.trim() || "🏦",
     currencyCode: input.currencyCode,
     ...(input.method ? { method: input.method } : {}),
+    ...(input.cashWallet ? { cashWallet: true } : {}),
     ...(input.number ? { number: input.number } : {}),
     openingBalance: input.openingBalance,
     openingDate: input.openingDate,
@@ -161,7 +170,12 @@ export const DEFAULT_ACCOUNTS: Omit<AccountInput, "openingBalance" | "openingDat
 
 /** 💵 نقد السيفا في يده (منفصل عن «الكاش» بالأوقية) - محفظة بلا طريقة دفع، رصيدها يدوي + تحويلات. */
 function CASH_SIFA_PRESET(): Omit<AccountInput, "openingBalance" | "openingDate"> {
-  return { name: "كاش سيفا", icon: "💵", currencyCode: "SIFA" };
+  return { name: "كاش سيفا", icon: "💵", currencyCode: "SIFA", cashWallet: true };
+}
+
+/** A cash wallet - flagged, or the «كاش سيفا» preset added before the flag existed. */
+export function isCashWallet(account: Pick<MoneyAccount, "cashWallet" | "method" | "name">): boolean {
+  return Boolean(account.cashWallet) || (!account.method && account.name === "كاش سيفا");
 }
 
 /** The ready-made accounts, once, each waiting for its real balance. */
@@ -193,13 +207,36 @@ export function setOpeningBalance(book: AccountsBook, accountId: string, amount:
   };
 }
 
-/** Customers' device payments made with `method`, from the account's opening day on (+). */
-export function devicePaymentFlows(ledger: LedgerByAccount, account: MoneyAccount): AccountFlow[] {
-  if (!account.method) return [];
+/**
+ * Where a customer's device payment lands: the bank/wallet of its method when it runs in the
+ * payment's currency. A payment in another currency (a SIFA payment left on the default «بنكيلي»,
+ * which is أوقية only) goes to that currency's cash wallet («💵 كاش سيفا» - his Oct 2026 choice).
+ * null = الكاش (no linked app, or no cash wallet in that currency).
+ */
+export function devicePaymentAccountId(entry: { paymentMethod?: PaymentMethod; currency: string }, accounts: MoneyAccount[]): string | null {
+  if (!entry.paymentMethod) return null;
+  const linked = accounts.find((a) => a.method === entry.paymentMethod);
+  if (!linked) return null;
+  if (linked.currencyCode === entry.currency) return linked.id;
+  return accounts.find((a) => isCashWallet(a) && a.currencyCode === entry.currency)?.id ?? null;
+}
+
+/** The first day whose records count in the account: its opening day - or every day while its
+ * real balance was never typed (a ready-made account like «كاش سيفا», opening 0 on the day it was
+ * added, which would otherwise drop the payments routed to it before that day). */
+export function countsFrom(account: Pick<MoneyAccount, "balanceSet" | "openingDate">): string {
+  return account.balanceSet === false ? "" : account.openingDate;
+}
+
+/** Customers' device payments that land in `account` (see devicePaymentAccountId), from its
+ * opening day on (+). `accounts` = every account of the book (to route a mismatched currency). */
+export function devicePaymentFlows(ledger: LedgerByAccount, account: MoneyAccount, accounts: MoneyAccount[] = [account]): AccountFlow[] {
   const flows: AccountFlow[] = [];
+  const from = countsFrom(account);
   for (const entries of Object.values(ledger)) {
     for (const e of entries) {
-      if (e.kind !== "credit" || e.paymentMethod !== account.method || e.date < account.openingDate) continue;
+      if (e.kind !== "credit" || e.date < from) continue;
+      if (devicePaymentAccountId(e, accounts) !== account.id) continue;
       flows.push({ accountId: account.id, currencyCode: e.currency, date: e.date, amount: e.amount });
     }
   }
@@ -210,10 +247,11 @@ export function devicePaymentFlows(ledger: LedgerByAccount, account: MoneyAccoun
 export function accountBalance(book: AccountsBook, account: MoneyAccount, flows: AccountFlow[]): Record<string, number> {
   const out: Record<string, number> = { [account.currencyCode]: account.openingBalance };
   const add = (code: string, amount: number) => (out[code] = (out[code] ?? 0) + amount);
-  for (const f of flows) if (f.accountId === account.id && f.date >= account.openingDate) add(f.currencyCode, f.amount);
-  for (const a of book.adjustments) if (a.accountId === account.id) add(account.currencyCode, a.amount);
+  const from = countsFrom(account);
+  for (const f of flows) if (f.accountId === account.id && f.date >= from) add(f.currencyCode, f.amount);
+  for (const a of book.adjustments) if (a.accountId === account.id) add(a.currencyCode ?? account.currencyCode, a.amount);
   for (const t of book.transfers ?? []) {
-    if (t.date < account.openingDate) continue;
+    if (t.date < from) continue;
     if (t.fromAccountId === account.id) add(t.currencyCode, -t.amount);
     if (t.toAccountId === account.id) add(t.currencyCode, t.amount);
   }
@@ -314,13 +352,37 @@ export function partyFlows(
  * linked bank/wallet (they're posted to the till as «دفعة جهاز», but the money is in the app).
  */
 export function cashInHandEntries(cash: CashEntryList, ledger: LedgerByAccount, book: AccountsBook): CashEntryList {
-  const linked = new Set(book.accounts.map((a) => a.method).filter((m): m is PaymentMethod => Boolean(m)));
-  if (linked.size === 0) return cash;
+  if (!book.accounts.some((a) => a.method)) return cash;
   const bankPayments = new Set<string>();
   for (const entries of Object.values(ledger)) {
-    for (const e of entries) if (e.kind === "credit" && e.paymentMethod && linked.has(e.paymentMethod)) bankPayments.add(e.id);
+    for (const e of entries) if (e.kind === "credit" && devicePaymentAccountId(e, book.accounts) !== null) bankPayments.add(e.id);
   }
   return cash.filter((c) => !(c.sourceKind === "device-payment" && c.sourceId && bankPayments.has(c.sourceId)));
+}
+
+/**
+ * «🔄 البداية من جديد»: one correction per account and currency that brings every bank/wallet to 0
+ * today (tagged `fromReset`, removed together by undoAccountsReset). Nothing is deleted.
+ * `balances` = each account's current derived balance (accountBalance).
+ */
+export function zeroAccountsBalances(book: AccountsBook, balances: Record<string, Record<string, number>>, date: string, now = new Date()): AccountsBook {
+  const added: AccountAdjustment[] = [];
+  for (const account of book.accounts) {
+    for (const [code, value] of Object.entries(balances[account.id] ?? {})) {
+      const amount = Math.round(-value * 100) / 100;
+      if (Math.abs(amount) < 0.005) continue;
+      added.push({ id: newId("adj"), accountId: account.id, amount, currencyCode: code, date, note: "تصفير - البداية من جديد", fromReset: true, createdAt: now.toISOString() });
+    }
+  }
+  return added.length ? { ...book, adjustments: [...book.adjustments, ...added] } : book;
+}
+
+export function undoAccountsReset(book: AccountsBook): AccountsBook {
+  return { ...book, adjustments: book.adjustments.filter((a) => !a.fromReset) };
+}
+
+export function hasAccountsReset(book: AccountsBook): boolean {
+  return book.adjustments.some((a) => a.fromReset);
 }
 
 const KEY = "starnet_money_accounts_v1";

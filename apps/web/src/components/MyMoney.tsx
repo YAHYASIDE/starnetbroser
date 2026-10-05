@@ -827,9 +827,15 @@ export function AccountsManager({
                 {a.method ? <small> · دفعات «{PAYMENT_METHOD_LABELS[a.method]}» هنا</small> : null}
               </span>
               {a.balanceSet === false ? (
-                <button type="button" className="dialog-primary money-set-balance" onClick={() => setCorrecting(a.id)}>
-                  اكتب الرصيد
-                </button>
+                <>
+                  {/* money routed here before its balance was typed (a SIFA payment → «كاش سيفا») */}
+                  {Object.values(balances[a.id] ?? {}).some((v) => Math.abs(v) >= 0.005) && (
+                    <bdi dir="ltr">{accountBalanceText(a, balances[a.id] ?? {})}</bdi>
+                  )}
+                  <button type="button" className="dialog-primary money-set-balance" onClick={() => setCorrecting(a.id)}>
+                    اكتب الرصيد
+                  </button>
+                </>
               ) : (
                 <>
                   <bdi dir="ltr">{accountBalanceText(a, balances[a.id] ?? {})}</bdi>

@@ -58,8 +58,12 @@ import {
   saveAccountsBook,
   seedDefaultAccounts,
   setOpeningBalance,
+  hasAccountsReset,
+  undoAccountsReset,
+  zeroAccountsBalances,
   type AccountsBook,
 } from "@/lib/moneyAccounts";
+import { currentCardBalanceUsd, hasCardReset, loadCardTopUps, saveCardTopUps, undoCardReset, zeroCardBalance } from "@/lib/starlinkDebt";
 import { loadLedgerStore } from "@/lib/ledgerStore";
 import { loadExpenseTree } from "@/lib/expenseTreeStore";
 import {
@@ -133,6 +137,8 @@ export default function MoneyPage() {
   const [wipeUndo, setWipeUndo] = useState<WipeUndo | null>(null);
   // «↩️ تراجع عن تصفير الكاش» is shown only while reset entries exist.
   const [cashResetOn, setCashResetOn] = useState(false);
+  // 💳 KAST brought to 0 by «🔄 البداية من جديد» (its correction movement exists).
+  const [cardResetOn, setCardResetOn] = useState(false);
 
   function chooseTab(next: MoneyTab) {
     setTab(next);
@@ -183,6 +189,7 @@ export default function MoneyPage() {
     setProfitReset(loadProfitReset());
     setWipeUndo(loadWipeUndo(window.localStorage));
     setCashResetOn(hasCashReset(loadCashEntries()));
+    setCardResetOn(hasCardReset(loadCardTopUps()));
     const ownNumbers = Array.from(new Set([...OWN_NUMBERS, ...readyBook.accounts.map((a) => a.number ?? "").filter(Boolean)]));
     const readNotices = () => {
       void drainBankNotices(ownNumbers).then((result) => {
@@ -241,7 +248,7 @@ export default function MoneyPage() {
   const accountBalances = useMemo(() => {
     const ledger = loadLedgerStore();
     const flows = personalFlows(incomes, expenses, debts);
-    return Object.fromEntries(book.accounts.map((a) => [a.id, accountBalance(book, a, loadAccountFlows(ledger, a, flows))]));
+    return Object.fromEntries(book.accounts.map((a) => [a.id, accountBalance(book, a, loadAccountFlows(ledger, a, flows, book.accounts))]));
     // Supplier / rep payments from a bank notification are read from storage (inboxVersion).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [book, incomes, expenses, debts, inboxVersion]);
@@ -345,26 +352,50 @@ export default function MoneyPage() {
     return null;
   }
 
-  // ---- 🔄 من 0 / 🗑️ حذف الكل ----
+  // ---- 🔄 البداية من جديد / 🗑️ حذف الكل ----
+  // His Oct 2026 rule: one permanent button. Each press starts profits & losses from today AND brings
+  // الكاش, every bank/wallet and the KAST card to 0 (one correction each - nothing is deleted). The
+  // debts stay: customers, suppliers, D (Starlink), representatives. «↩️» undoes every press at once.
   async function resetProfits() {
     const ok = await askDeleteCode(
-      "بدء كل الأرباح والخسائر من 0 اليوم؟\n\n• التقارير و«حسابي» (الصافي، الدخل، المصروف) تُحسب من اليوم فقط.\n• كل المندوبين يبدأون حسابًا جديدًا.\n• لا يُحذف شيء: الكاش والبنوك وديون الزبائن والناس كما هي.\n• «↩️ إرجاع الأرباح القديمة» يعيد كل شيء.",
+      "البداية من جديد اليوم؟\n\n• الأرباح والخسائر (الصافي، الدخل، المصروف) تُحسب من اليوم، وكل المندوبين يبدأون حسابًا جديدًا.\n• الكاش وكل البنوك والمحافظ وبطاقة KAST تصير 0 (قيد تصحيح، ليس مصروفًا).\n• تبقى الديون: الزبائن، الموردون، D لستارلينك، المندوبون.\n• «↩️ إرجاع كل شيء كما كان» يعيده.",
     );
     if (!ok) return;
+    const day = today();
     const reps = loadReps();
     const { reset: next, repStore: nextReps } = startProfitFresh(reps);
     const merged = profitReset ? { ...next, previousRepResets: { ...next.previousRepResets, ...profitReset.previousRepResets } } : next;
     saveRepresentativeStore(nextReps);
     saveProfitReset(merged);
     setProfitReset(merged);
+    // الكاش → 0
+    const ledger = loadLedgerStore();
+    const cashBalance = computeCashBalanceByCurrency(cashInHandEntries(loadCashEntries(), ledger, book));
+    saveCashEntries(resetCashToZero(loadCashEntries(), cashBalance, day));
+    setCashResetOn(hasCashReset(loadCashEntries()));
+    // every bank / wallet → 0
+    const zeroedBook = zeroAccountsBalances(book, accountBalances, day);
+    saveAccountsBook(zeroedBook);
+    setBook(zeroedBook);
+    // 💳 KAST → 0
+    const cardList = zeroCardBalance(loadCardTopUps(), currentCardBalanceUsd(ledger), day);
+    saveCardTopUps(cardList);
+    setCardResetOn(hasCardReset(cardList));
     setCashVersion((v) => v + 1);
   }
 
   async function undoResetProfits() {
-    if (!profitReset || !(await askDeleteCode("إرجاع كل الأرباح والخسائر القديمة وحسابات المندوبين كما كانت؟"))) return;
-    saveRepresentativeStore(undoProfitFresh(profitReset, loadReps()));
+    if (!(await askDeleteCode("إرجاع كل شيء كما كان؟\n\nالأرباح والخسائر القديمة، حسابات المندوبين، ورصيد الكاش والبنوك والمحافظ وبطاقة KAST قبل التصفير."))) return;
+    if (profitReset) saveRepresentativeStore(undoProfitFresh(profitReset, loadReps()));
     saveProfitReset(null);
     setProfitReset(null);
+    saveCashEntries(undoCashReset(loadCashEntries()));
+    setCashResetOn(false);
+    const restoredBook = undoAccountsReset(book);
+    saveAccountsBook(restoredBook);
+    setBook(restoredBook);
+    saveCardTopUps(undoCardReset(loadCardTopUps()));
+    setCardResetOn(false);
     setCashVersion((v) => v + 1);
   }
 
@@ -379,13 +410,6 @@ export default function MoneyPage() {
     if (!(await askDeleteCode("إرجاع الكاش إلى 0؟\n\n• يُسجَّل قيد تصحيح يجعل رصيد الكاش 0 اليوم.\n• لا يُحذف شيء، ولا يُحسب كمصروف.\n• «↩️ تراجع عن تصفير الكاش» يعيده."))) return;
     saveCashEntries(resetCashToZero(loadCashEntries(), balance, today()));
     setCashResetOn(true);
-    setCashVersion((v) => v + 1);
-  }
-
-  async function undoResetCash() {
-    if (!(await askDeleteCode("التراجع عن تصفير الكاش (حذف قيود التصفير)؟"))) return;
-    saveCashEntries(undoCashReset(loadCashEntries()));
-    setCashResetOn(false);
     setCashVersion((v) => v + 1);
   }
 
@@ -551,7 +575,7 @@ export default function MoneyPage() {
                   return null;
                 }
                 const ledger = loadLedgerStore();
-                const flows = loadAccountFlows(ledger, account, personalFlows(incomes, expenses, debts));
+                const flows = loadAccountFlows(ledger, account, personalFlows(incomes, expenses, debts), book.accounts);
                 const result = correctBalance(book, account, flows, actual, today());
                 if (!result.ok) return result.message;
                 saveAccountsBook(result.book);
@@ -613,26 +637,20 @@ export default function MoneyPage() {
         <div className="report-card-head">
           <h3>⚙️ البداية من جديد</h3>
         </div>
-        {profitReset ? (
-          <>
-            <p className="settings-hint">
-              الأرباح والخسائر تُحسب من <bdi dir="ltr">{profitReset.date}</bdi>.
-            </p>
-            <button type="button" className="dialog-secondary" onClick={() => void undoResetProfits()}>
-              ↩️ إرجاع الأرباح والخسائر القديمة
-            </button>
-          </>
-        ) : (
-          <button type="button" className="dialog-secondary" onClick={() => void resetProfits()}>
-            🔄 الأرباح والخسائر من 0 (الديون تبقى)
-          </button>
+        {profitReset && (
+          <p className="settings-hint">
+            آخر بداية: <bdi dir="ltr">{profitReset.date}</bdi> - الأرباح والخسائر تُحسب منها.
+          </p>
         )}
-        <button type="button" className="dialog-secondary" onClick={() => void resetCash()}>
-          💵 إرجاع الكاش إلى 0
+        <button type="button" className="dialog-secondary" onClick={() => void resetProfits()}>
+          🔄 البداية من جديد: الأرباح والكاش والبنوك من 0 (الديون تبقى)
         </button>
-        {cashResetOn && (
-          <button type="button" className="dialog-secondary" onClick={() => void undoResetCash()}>
-            ↩️ تراجع عن تصفير الكاش
+        <button type="button" className="dialog-secondary" onClick={() => void resetCash()}>
+          💵 إرجاع الكاش إلى 0 فقط
+        </button>
+        {(profitReset || cashResetOn || cardResetOn || hasAccountsReset(book)) && (
+          <button type="button" className="dialog-secondary" onClick={() => void undoResetProfits()}>
+            ↩️ إرجاع كل شيء كما كان (قبل التصفير)
           </button>
         )}
         <button type="button" className="dialog-danger" onClick={() => void wipeEverything()}>

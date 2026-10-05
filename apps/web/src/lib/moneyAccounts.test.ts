@@ -20,6 +20,11 @@ import {
   EMPTY_ACCOUNTS_BOOK,
   seedDefaultAccounts,
   setOpeningBalance,
+  devicePaymentAccountId,
+  zeroAccountsBalances,
+  undoAccountsReset,
+  hasAccountsReset,
+  type AccountsBook,
 } from "./moneyAccounts";
 
 const bankily = () => {
@@ -175,5 +180,49 @@ describe("cash deposited into an account («Versement espèces»)", () => {
     const back = addAccountTransfer(made.book, { fromAccountId: made.account.id, toAccountId: CASH_ACCOUNT_ID, amount: 500, currencyCode: "MRU", date: "2026-10-04" });
     if (!back.ok) throw new Error(back.message);
     expect(transferCashEntry(back.transfer, "بنكيلي")?.kind).toBe("in");
+  });
+});
+
+describe("an app holds only its own currency (بنكيلي = أوقية فقط)", () => {
+  // بنكيلي (أوقية, opening 2026-10-01) + «كاش سيفا» (untyped, added 2026-10-05).
+  const book = (): AccountsBook => {
+    const b = bankily();
+    const w = addMoneyAccount(b.book, { name: "كاش سيفا", icon: "💵", currencyCode: "SIFA", cashWallet: true, openingBalance: 0, openingDate: "2026-10-05" });
+    if (!w.ok) throw new Error();
+    return { ...w.book, accounts: w.book.accounts.map((a) => (a.id === w.account.id ? { ...a, balanceSet: false } : a)) };
+  };
+  const sifaPayment = { ...payment("s1", 13500, "2026-10-03", "bankily"), currency: "SIFA" } as LedgerEntry;
+  const ledger: LedgerByAccount = { a1: [payment("p1", 3000, "2026-10-02", "bankily"), sifaPayment] };
+
+  it("routes a SIFA payment left on «بنكيلي» to «كاش سيفا», not to بنكيلي", () => {
+    const b = book();
+    const [bank, wallet] = b.accounts;
+    expect(devicePaymentAccountId(ledger.a1![0]!, b.accounts)).toBe(bank!.id);
+    expect(devicePaymentAccountId(sifaPayment, b.accounts)).toBe(wallet!.id);
+    expect(accountBalance(b, bank!, devicePaymentFlows(ledger, bank!, b.accounts))).toEqual({ MRU: 13000 });
+    // the wallet's balance was never typed: the payment from before it was added still counts
+    expect(accountBalance(b, wallet!, devicePaymentFlows(ledger, wallet!, b.accounts))).toEqual({ SIFA: 13500 });
+  });
+
+  it("with no cash wallet in that currency the payment stays in الكاش", () => {
+    const { book: onlyBank } = bankily();
+    expect(devicePaymentAccountId(sifaPayment, onlyBank.accounts)).toBeNull();
+    const cash = [{ id: "c1", kind: "in", amount: 13500, currencyCode: "SIFA", date: "2026-10-03", sourceId: "s1", sourceKind: "device-payment", createdAt: "" }] as CashEntryList;
+    expect(cashInHandEntries(cash, { a1: [sifaPayment] }, onlyBank)).toHaveLength(1);
+    expect(cashInHandEntries(cash, { a1: [sifaPayment] }, book())).toHaveLength(0);
+  });
+
+  it("«🔄 البداية من جديد» brings every account to 0, and its undo restores it", () => {
+    const b = book();
+    const balances = Object.fromEntries(b.accounts.map((a) => [a.id, accountBalance(b, a, devicePaymentFlows(ledger, a, b.accounts))]));
+    const zeroed = zeroAccountsBalances(b, balances, "2026-10-05");
+    expect(hasAccountsReset(zeroed)).toBe(true);
+    for (const a of zeroed.accounts) {
+      const after = accountBalance(zeroed, a, devicePaymentFlows(ledger, a, zeroed.accounts));
+      expect(Object.values(after).every((v) => v === 0)).toBe(true);
+    }
+    const restored = undoAccountsReset(zeroed);
+    expect(restored.adjustments).toEqual(b.adjustments);
+    expect(hasAccountsReset(restored)).toBe(false);
   });
 });

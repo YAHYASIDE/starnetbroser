@@ -195,8 +195,10 @@ export function cardShortfallForSuspended(suspended: SuspendedDebtDevice[], card
 // ---- The "كاش" card ----
 
 /** Where the counterpart money moved for a card movement: الكاش (default/legacy), a bank/wallet of
- * «حسابي» (its balance follows), or a loss (money gone - recorded as a مصروف in the reports). */
-export type CardMoveVia = "cash" | "account" | "loss";
+ * «حسابي» (its balance follows), a loss (money gone - recorded as a مصروف in the reports), or
+ * "reset" - «🔄 البداية من جديد» bringing the card to 0 (a correction: no counterpart, not a مصروف,
+ * removed together by its undo). */
+export type CardMoveVia = "cash" | "account" | "loss" | "reset";
 
 export interface CardTopUp {
   id: string;
@@ -263,8 +265,8 @@ export function recordCardTopUp(list: CardTopUpList, input: CardTopUpInput): Car
   if (!Number.isFinite(input.amountUsd) || input.amountUsd <= 0) {
     return { ok: false, message: isWithdraw ? "أدخل المبلغ المسحوب بالدولار" : "أدخل مبلغ الشحن بالدولار" };
   }
-  // A loss has no counterpart money; every other movement does (cash or an app).
-  const needsCounterpart = via !== "loss";
+  // A loss / a reset correction has no counterpart money; every other movement does (cash or an app).
+  const needsCounterpart = via !== "loss" && via !== "reset";
   if (needsCounterpart && (!Number.isFinite(input.paidAmount) || input.paidAmount <= 0)) {
     return { ok: false, message: isWithdraw ? "أدخل المبلغ الذي دخل" : "أدخل المبلغ الذي خرج" };
   }
@@ -333,6 +335,31 @@ export function cardMovementFlows(list: CardTopUpList): AccountFlow[] {
     flows.push({ accountId: t.accountId, currencyCode: t.paidCurrency, date: t.date, amount: t.direction === "out" ? t.paidAmount : -t.paidAmount });
   }
   return flows;
+}
+
+/** «🔄 البداية من جديد»: one correction that brings the card's balance to 0 on `date` (none when it
+ * is already 0). Tagged via "reset" - not a مصروف, no cash/app movement. */
+export function zeroCardBalance(list: CardTopUpList, balanceUsd: number, date: string): CardTopUpList {
+  const amount = Math.round(Math.abs(balanceUsd) * 100) / 100;
+  if (amount < 0.005) return list;
+  const result = recordCardTopUp(list, {
+    amountUsd: amount,
+    paidAmount: 0,
+    paidCurrency: "USD",
+    date,
+    note: "تصفير - البداية من جديد",
+    ...(balanceUsd > 0 ? { direction: "out" as const } : {}),
+    via: "reset",
+  });
+  return result.ok ? result.list : list;
+}
+
+export function undoCardReset(list: CardTopUpList): CardTopUpList {
+  return list.filter((t) => t.via !== "reset");
+}
+
+export function hasCardReset(list: CardTopUpList): boolean {
+  return list.some((t) => t.via === "reset");
 }
 
 export function removeCardTopUpCash(cash: CashEntryList, topUpId: string): CashEntryList {

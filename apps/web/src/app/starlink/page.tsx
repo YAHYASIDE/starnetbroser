@@ -710,6 +710,14 @@ export default function StarlinkPage() {
                       const via = t.via ?? "cash";
                       const acc = via === "account" ? moneyAccounts.find((a) => a.id === t.accountId) : undefined;
                       const place = via === "loss" ? "خسارة (مال ضائع)" : via === "account" ? `${acc?.icon ? `${acc.icon} ` : ""}${acc?.name ?? "تطبيق"}` : "الكاش";
+                      if (via === "reset") {
+                        return (
+                          <>
+                            <strong>🔄 تصفير الرصيد</strong>
+                            <span>البداية من جديد - تصحيح، ليس مصروفًا</span>
+                          </>
+                        );
+                      }
                       return (
                         <>
                           <strong>{out ? "💵 سحب رصيد" : "⬆️ شحن البطاقة"}</strong>
@@ -742,13 +750,15 @@ export default function StarlinkPage() {
                     {row.amountUsd >= 0 ? "+" : "-"}
                     {formatAmount(Math.abs(row.amountUsd))} $
                   </strong>
-                  <button
-                    type="button"
-                    className="text-action sl-edit"
-                    onClick={() => (row.type === "topup" ? openEditTopUp(row.topUp) : openEditPayment(row.payment))}
-                  >
-                    تعديل
-                  </button>
+                  {!(row.type === "topup" && row.topUp.via === "reset") && (
+                    <button
+                      type="button"
+                      className="text-action sl-edit"
+                      onClick={() => (row.type === "topup" ? openEditTopUp(row.topUp) : openEditPayment(row.payment))}
+                    >
+                      تعديل
+                    </button>
+                  )}
                 </div>
               </li>
             ))}
@@ -1160,7 +1170,9 @@ function MovementForm({
   }
 
   // Suggests the counterpart from today's rate until the operator types the real figure.
-  const rate = paidCurrency === "USD" ? 1 : paidCurrency === "MRU" ? mruRate : getCurrency(currencyStore, paidCurrency)?.rateFromUsd;
+  // An app only holds its own currency: the amount that moved through it is in that currency.
+  const currency = viaAccount ? viaAccount.currencyCode : paidCurrency;
+  const rate = currency === "USD" ? 1 : currency === "MRU" ? mruRate : getCurrency(currencyStore, currency)?.rateFromUsd;
   const suggested = Number(amountUsd) > 0 && rate ? Math.round(Number(amountUsd) * rate * 100) / 100 : undefined;
   const shownPaid = paidTouched ? paidAmount : suggested !== undefined ? String(suggested) : "";
   const counterpartLabel = isLoss
@@ -1179,7 +1191,7 @@ function MovementForm({
         {
           amountUsd: Number(amountUsd),
           paidAmount: isLoss ? 0 : Number(shownPaid),
-          paidCurrency,
+          paidCurrency: currency,
           date,
           note,
           ...(isOut ? { direction: "out" as const } : {}),
@@ -1243,13 +1255,17 @@ function MovementForm({
                 setPaidAmount(e.target.value);
               }}
             />
-            <select className="search-input" value={paidCurrency} onChange={(e) => setPaidCurrency(e.target.value)}>
-              {LEDGER_CURRENCIES.map((c) => (
-                <option key={c} value={c}>
-                  {LEDGER_CURRENCY_LABELS[c]}
-                </option>
-              ))}
-            </select>
+            {viaAccount ? (
+              <span className="search-input sl-fixed-currency">{LEDGER_CURRENCY_LABELS[currency as LedgerCurrency] ?? currency}</span>
+            ) : (
+              <select className="search-input" value={paidCurrency} onChange={(e) => setPaidCurrency(e.target.value)}>
+                {LEDGER_CURRENCIES.map((c) => (
+                  <option key={c} value={c}>
+                    {LEDGER_CURRENCY_LABELS[c]}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         </label>
       )}

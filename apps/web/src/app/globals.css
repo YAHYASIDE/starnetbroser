@@ -12645,3 +12645,11 @@ button.today-tile {
   gap: 8px;
   margin-bottom: 90px;
 }
+
+/* 💳 a card movement through an app: its currency is the app's own (not selectable). */
+.sl-fixed-currency {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}

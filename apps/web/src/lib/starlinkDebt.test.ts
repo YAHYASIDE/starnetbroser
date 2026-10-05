@@ -17,6 +17,9 @@ import {
   recordCardTopUp,
   settleShipments,
   totalOpenDebtUsd,
+  zeroCardBalance,
+  undoCardReset,
+  hasCardReset,
 } from "./starlinkDebt";
 import { computeShipmentProfit, shipmentProfitDate } from "./accountingStore";
 import { filterEntriesByProfitDate } from "./reportPeriod";
@@ -273,5 +276,26 @@ describe("debtMatchesQuery", () => {
     expect(debtMatchesQuery("٨٣٫٣", texts, 83.33)).toBe(true);
     expect(debtMatchesQuery("91", texts, 83.33)).toBe(false);
     expect(debtMatchesQuery("غير موجود", texts, 83.33)).toBe(false);
+  });
+});
+
+describe("«🔄 البداية من جديد» on the KAST card", () => {
+  it("one reset correction brings the card to 0 - no cash, no app, no loss - and its undo removes it", () => {
+    const top = recordCardTopUp([], { amountUsd: 141.16, paidAmount: 6000, paidCurrency: "MRU", date: "2026-10-01" });
+    if (!top.ok) throw new Error(top.message);
+    const zeroed = zeroCardBalance(top.list, 141.16, "2026-10-05");
+    expect(buildCardStatement(zeroed, []).balanceUsd).toBeCloseTo(0);
+    const reset = zeroed.find((t) => t.via === "reset")!;
+    expect(reset).toMatchObject({ direction: "out", amountUsd: 141.16, paidAmount: 0 });
+    expect(postCardTopUpToCash([], reset)).toHaveLength(0);
+    expect(cardMovementFlows([reset])).toEqual([]);
+    expect(hasCardReset(zeroed)).toBe(true);
+    expect(undoCardReset(zeroed)).toEqual(top.list);
+    // a negative card is brought up to 0 the same way; an empty one needs nothing
+    const up = zeroCardBalance([], -20, "2026-10-05");
+    expect(up).toHaveLength(1);
+    expect(up[0]!.direction).toBeUndefined(); // adds 20 $ to a card at −20 $
+    expect(cardMoveDeltaUsd(up[0]!)).toBe(20);
+    expect(zeroCardBalance(top.list, 0, "2026-10-05")).toBe(top.list);
   });
 });

@@ -68,9 +68,10 @@ export function businessNetForMonth(month: string, accounts: StarlinkAccountSumm
 
 /** Everything that went through one bank / wallet: customers' device payments by its method, my
  * own records on it (`personal` = myMoney.personalFlows), and supplier / rep payments recorded
- * from a bank notification. */
-export function loadAccountFlows(ledger: LedgerByAccount, account: MoneyAccount, personal: AccountFlow[]): AccountFlow[] {
-  return [...devicePaymentFlows(ledger, account), ...personal, ...partyFlows(loadPartyAdjustments(), loadRepSettlements()), ...cardMovementFlows(loadCardTopUps())];
+ * from a bank notification. `accounts` = the whole book's accounts (a payment in a currency its
+ * app doesn't hold is routed to that currency's cash wallet - devicePaymentAccountId). */
+export function loadAccountFlows(ledger: LedgerByAccount, account: MoneyAccount, personal: AccountFlow[], accounts: MoneyAccount[]): AccountFlow[] {
+  return [...devicePaymentFlows(ledger, account, accounts), ...personal, ...partyFlows(loadPartyAdjustments(), loadRepSettlements()), ...cardMovementFlows(loadCardTopUps())];
 }
 
 /** Everything «كل ما تملك» is made of, read from the app's own records (same figures as the
@@ -91,7 +92,7 @@ export function loadWealthInput(input: {
   const flows = personalFlows(input.incomes, input.expenses, input.debts);
   const banks = input.book.accounts.map((account) => ({
     name: `${account.icon} ${account.name}`,
-    byCurrency: accountBalance(input.book, account, loadAccountFlows(ledger, account, flows)),
+    byCurrency: accountBalance(input.book, account, loadAccountFlows(ledger, account, flows, input.book.accounts)),
   }));
 
   const clients = listClients(loadClientStore());

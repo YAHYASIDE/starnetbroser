@@ -1007,7 +1007,11 @@ function BalanceForm({ partyName, partyKind, devices, initial, proofKey, submitL
       cancelled = true;
     };
   }, [proofKey]);
-  const viaAccount = moneyAccounts.some((a) => a.id === source);
+  // An app only holds its own currency (بنكيلي = أوقية فقط - his Oct 2026 rule): only apps in the
+  // chosen currency are offered; a picked app that no longer matches falls back to «لم يتحرك».
+  const currencyAccounts = moneyAccounts.filter((a) => a.currencyCode === currencyCode);
+  const effectiveSource = source === "none" || source === "cash" || currencyAccounts.some((a) => a.id === source) ? source : "none";
+  const viaAccount = currencyAccounts.some((a) => a.id === effectiveSource);
 
   async function pickProof(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -1029,8 +1033,8 @@ function BalanceForm({ partyName, partyKind, devices, initial, proofKey, submitL
         currencyCode,
         date,
         note,
-        cashMoved: source === "cash",
-        accountId: viaAccount ? source : undefined,
+        cashMoved: effectiveSource === "cash",
+        accountId: viaAccount ? effectiveSource : undefined,
         deviceId: canPickDevice && deviceId ? deviceId : undefined,
         paymentMethod: isPayment ? paymentMethod : undefined,
         proofDataUrl: viaAccount && proofDraft ? proofDraft : undefined,
@@ -1130,10 +1134,10 @@ function BalanceForm({ partyName, partyKind, devices, initial, proofKey, submitL
       <input className="search-input" placeholder="ملاحظة (اختياري) - مثال: رصيد افتتاحي" value={note} onChange={(e) => setNote(e.target.value)} />
       <label className="form-field party-source-field">
         <span>من أين تحرّك المال؟</span>
-        <select className="search-input" value={source} onChange={(e) => setSource(e.target.value)}>
+        <select className="search-input" value={effectiveSource} onChange={(e) => setSource(e.target.value)}>
           <option value="none">لم يتحرك المال (رصيد فقط)</option>
           <option value="cash">{cashMovedLabel(partyKind, direction)}</option>
-          {moneyAccounts.map((a) => (
+          {currencyAccounts.map((a) => (
             <option key={a.id} value={a.id}>
               {a.icon ? `${a.icon} ` : ""}
               {a.name}

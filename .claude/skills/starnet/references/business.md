@@ -109,6 +109,19 @@ mind). Exact texts and numbers live in the code - this file says where.
   تسديد ستارلينك)، والمؤكَّد بسعره المقفل.
 - Logic: `myMoney.ts`, `moneyAccounts.ts`, `myMoneyData.ts`; UI: `app/money/page.tsx`,
   `components/MyMoney.tsx`. The reports' «المصروفات» tab and its 🧾 button stay too.
+- **An app holds only its own currency** (his Oct 2026 rule: «بنكيلي فقط أوقية»): a customer's device
+  payment lands in its method's app only when the currencies match (`devicePaymentAccountId`). A
+  payment in another currency (a SIFA payment left on the default «بنكيلي» showed «13,500 سيفا» in
+  بنكيلي) goes to **«💵 كاش سيفا»** (`cashWallet`, his choice), or stays in الكاش when no cash wallet
+  exists in that currency. An account whose balance was never typed counts every routed payment
+  (`countsFrom`). The forms only offer apps in the chosen currency («إضافة رصيد»), and a card
+  charge/withdraw through an app is in that app's currency.
+- **«🔄 البداية من جديد» is ONE permanent button** (his Oct 2026 rule - it used to vanish after one
+  press): every press starts profits & losses from today **and** brings الكاش, every bank/wallet
+  (`zeroAccountsBalances`, adjustments tagged `fromReset`) and **the KAST card** (`zeroCardBalance`,
+  a `via:"reset"` card movement - not a مصروف) to 0. Debts stay: customers, suppliers, D, reps.
+  «↩️ إرجاع كل شيء كما كان» undoes every press at once. «💵 إرجاع الكاش إلى 0 فقط» stays.
+  (The older wording below is the history of this section.)
 - **«⚙️ البداية من جديد»** (bottom of «حسابي», both behind the delete code, both undoable):
   - «🔄 الأرباح والخسائر من 0 (الديون تبقى)» = **profits & losses only** (his choice): reports and
     «حسابي» (net, income, expense) count from today (`profitReset.ts`, the same
