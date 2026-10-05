@@ -12,6 +12,7 @@ import { clientRepNames, clientRepIds, matchesClientOwner, type ClientOwnerFilte
 import { currentRepOfClient } from "@/lib/repClients";
 import type { RepresentativeStore } from "@/lib/repStore";
 import { CreateSupplierInput, Supplier } from "@/lib/supplierStore";
+import { loadAccountsBook } from "@/lib/moneyAccounts";
 import { renewalDateLabel } from "@/lib/date";
 import {
   computeBalanceByCurrency,
@@ -944,6 +945,9 @@ export interface BalanceFormInput {
   /** Set when the payment is for one specific device - recorded in that device's ledger. */
   deviceId?: string;
   paymentMethod?: PaymentMethod;
+  /** The bank / wallet the money moved through («حسابي»); its balance follows. Mutually exclusive
+   * with cashMoved: money is cash, or one app, or didn't move. */
+  accountId?: string;
 }
 
 /** The usual case is real cash: a client paying us ("له") or us paying a supplier ("عليه"). */
@@ -964,10 +968,15 @@ function BalanceForm({ partyName, partyKind, devices, initial, submitLabel = "ح
   // "" = a general balance entry (store); otherwise the device this payment is for.
   const [deviceId, setDeviceId] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(initial?.paymentMethod ?? "bankily");
-  const [cashMoved, setCashMoved] = useState(initial ? Boolean(initial.cashMoved) : defaultCashMoved(partyKind, direction));
+  // Where the money moved: "none" (a balance entry only), "cash" (الكاش), or a bank/wallet id from
+  // «حسابي» (its balance follows the payment, via partyFlows). His Oct 2026 choice.
+  const [moneyAccounts] = useState(() => loadAccountsBook().accounts);
+  const [source, setSource] = useState<string>(
+    initial?.accountId ? initial.accountId : initial ? (initial.cashMoved ? "cash" : "none") : defaultCashMoved(partyKind, direction) ? "cash" : "none",
+  );
   function setDirection(next: PartyAdjustmentDirection) {
     setDirectionState(next);
-    setCashMoved(defaultCashMoved(partyKind, next));
+    setSource(defaultCashMoved(partyKind, next) ? "cash" : "none");
   }
   // A payment: money from the client ("له") or to the supplier ("عليه") - it has a channel.
   const isPayment = partyKind === "client" ? direction === "weOwe" : direction === "owesUs";
@@ -987,7 +996,8 @@ function BalanceForm({ partyName, partyKind, devices, initial, submitLabel = "ح
         currencyCode,
         date,
         note,
-        cashMoved,
+        cashMoved: source === "cash",
+        accountId: moneyAccounts.some((a) => a.id === source) ? source : undefined,
         deviceId: canPickDevice && deviceId ? deviceId : undefined,
         paymentMethod: isPayment ? paymentMethod : undefined,
       }),
@@ -1084,9 +1094,18 @@ function BalanceForm({ partyName, partyKind, devices, initial, submitLabel = "ح
       </div>
       <DateInput className="search-input"  value={date} onChange={(e) => setDate(e.target.value)} />
       <input className="search-input" placeholder="ملاحظة (اختياري) - مثال: رصيد افتتاحي" value={note} onChange={(e) => setNote(e.target.value)} />
-      <label className="ledger-d-toggle party-cash-toggle">
-        <input type="checkbox" checked={cashMoved} onChange={(e) => setCashMoved(e.target.checked)} />
-        <span>{cashMovedLabel(partyKind, direction)}</span>
+      <label className="form-field party-source-field">
+        <span>من أين تحرّك المال؟</span>
+        <select className="search-input" value={source} onChange={(e) => setSource(e.target.value)}>
+          <option value="none">لم يتحرك المال (رصيد فقط)</option>
+          <option value="cash">{cashMovedLabel(partyKind, direction)}</option>
+          {moneyAccounts.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.icon ? `${a.icon} ` : ""}
+              {a.name}
+            </option>
+          ))}
+        </select>
       </label>
       {error && <div className="account-card-alert ledger-form-error">{error}</div>}
       <div className="settings-actions">

@@ -67,6 +67,9 @@ export interface RecordPartyAdjustmentInput {
   note?: string;
   cashMoved?: boolean;
   paymentMethod?: PaymentMethod;
+  /** The bank / wallet of «حسابي» the money moved through (its balance moves with it). Mutually
+   * exclusive with cashMoved: money is cash, or through one app, or didn't move at all. */
+  accountId?: string;
 }
 
 export type RecordPartyAdjustmentResult =
@@ -92,8 +95,9 @@ export function recordPartyAdjustment(
     currencyCode: input.currencyCode,
     date: input.date,
     note: input.note?.trim() || undefined,
-    cashMoved: input.cashMoved || undefined,
+    cashMoved: input.accountId ? undefined : input.cashMoved || undefined,
     paymentMethod: input.paymentMethod,
+    accountId: input.accountId || undefined,
     createdAt: new Date().toISOString(),
   };
   return { ok: true, list: [...list, adjustment], adjustment };
@@ -120,8 +124,9 @@ export function updatePartyAdjustment(
     currencyCode: input.currencyCode,
     date: input.date,
     note: input.note?.trim() || undefined,
-    cashMoved: input.cashMoved || undefined,
+    cashMoved: input.accountId ? undefined : input.cashMoved || undefined,
     paymentMethod: input.paymentMethod,
+    accountId: input.accountId || undefined,
   };
   return { ok: true, list: list.map((a) => (a.id === id ? adjustment : a)), adjustment };
 }

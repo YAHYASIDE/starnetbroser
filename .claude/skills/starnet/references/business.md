@@ -41,6 +41,17 @@ mind). Exact texts and numbers live in the code - this file says where.
   للزبائن»** (his Oct 2026 report: «شخص له عندنا 1,917,900 لا يظهر»). `loadWealthInput` splits each
   client's combined total: positive remaining → «لك عند الزبائن», negative → `customersOwe` → «عليك
   للزبائن». Before this, negatives were dropped, so a customer we owed appeared nowhere.
+- **«إضافة رصيد» (party balance, `BalanceForm`) - how the money moved** (his Oct 2026 choice, both
+  «عليه» and «له»): one selector «من أين تحرّك المال؟» replaces the old cash-only checkbox - «لم
+  يتحرك المال (رصيد فقط)» / «💵 الكاش» / **any of his banks/wallets** (listed from `loadAccountsBook`).
+  Picking an app sets the adjustment's `accountId`, so that app's balance moves in «حسابي» (via
+  `partyFlows`, already in `loadAccountFlows`) and **no** cash entry is posted; «الكاش» posts a cash
+  entry as before; «لم يتحرك» records a plain balance entry. `accountId` and `cashMoved` are mutually
+  exclusive (the store drops `cashMoved` when `accountId` is set). Useful for a customer outside
+  Starlink paid through a bank app.
+- **Clients page filter** (his Oct 2026 choice): «👤 زبائني» is the first chip and the default
+  (instead of «الكل»); a second row filters by balance direction - «الكل / 🔴 مدينون لنا / 🟢 لهم
+  رصيد علينا» (`BalanceFilter`, counts per chip).
 - **Foreign-currency lines show their own currency beside the أوقية** (his Oct 2026 choice): a
   wallet/app that runs in a non-أوقية currency comes out to its **own front-line entry** shown as
   «السعر الأصلي + مقابله بالأوقية» - أورانج موني & نيتا (سيفا), بينانس (دولار). The أوقية apps

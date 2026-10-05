@@ -44,6 +44,23 @@ describe("recordPartyAdjustment", () => {
     expect(result.list).toHaveLength(1);
     expect(result.adjustment.note).toBe("رصيد افتتاحي");
   });
+
+  it("money moved through a bank app records accountId and never cash", () => {
+    const r = recordPartyAdjustment([], {
+      partyKind: "client",
+      partyId: "c1",
+      direction: "weOwe",
+      amount: 5000,
+      currencyCode: "MRU",
+      date: "2026-10-05",
+      cashMoved: true,
+      accountId: "acc-bankily",
+    });
+    if (!r.ok) throw new Error();
+    // accountId wins: the app's balance moves, not الكاش (no linked cash entry).
+    expect(r.adjustment.accountId).toBe("acc-bankily");
+    expect(r.adjustment.cashMoved).toBeUndefined();
+  });
 });
 
 describe("adjustmentDelta", () => {
