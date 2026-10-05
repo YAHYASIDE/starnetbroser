@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ACCOUNTS_KEY, CLIENTS_KEY, LEDGER_KEY, rebaseWorkspace, recordHash, repPending, repStoreSlice } from "./repWorkspace";
+import { ACCOUNTS_KEY, CLIENTS_KEY, LEDGER_KEY, mergeDevice, rebaseWorkspace, recordHash, repPending, repStoreSlice } from "./repWorkspace";
 
 // Fake records only.
 const acc = (id: string, extra: Record<string, unknown> = {}) => ({ id, name: `جهاز ${id}`, ...extra });
@@ -131,6 +131,33 @@ describe("rebase on a new copy (rep side)", () => {
     const current = { ...base, [LEDGER_KEY]: { a1: [entry("e1", 100), entry("p9", 50)], a2: [] } };
     const next = { ...base, starnet_rep_book_v1: [{ id: "p9", repId: "r1", clientId: "c1", kind: "payment", amount: 50 }] };
     expect(rebaseWorkspace(current, base, next)[LEDGER_KEY]).toEqual(base[LEDGER_KEY]);
+  });
+
+  it("a new copy never takes the rep's customer off his device, even when the operator changed that device", () => {
+    // The rep linked both old devices to his own customers; the operator meanwhile renewed a2
+    // (new renewal date) and linked a1 to someone else; plus a brand-new device.
+    const current = {
+      ...base,
+      [ACCOUNTS_KEY]: [acc("a1", { clientId: "mine1" }), acc("a2", { clientId: "mine2" })],
+      [CLIENTS_KEY]: { c1: { id: "c1", name: "زبون" }, mine1: { id: "mine1", name: "زبون المندوب 1" }, mine2: { id: "mine2", name: "زبون المندوب 2" } },
+    };
+    const next = {
+      ...base,
+      [ACCOUNTS_KEY]: [acc("a1", { clientId: "c1" }), acc("a2", { renewalDate: "2026-11-10" }), acc("new")],
+    };
+    const merged = rebaseWorkspace(current, base, next);
+    const accounts = merged[ACCOUNTS_KEY] as { id: string; clientId?: string; renewalDate?: string }[];
+    expect(accounts.map((a) => [a.id, a.clientId])).toEqual([["a1", "mine1"], ["a2", "mine2"], ["new", undefined]]);
+    // the operator's renewal date still arrives
+    expect(accounts[1]!.renewalDate).toBe("2026-11-10");
+    expect(Object.keys(merged[CLIENTS_KEY] as object).sort()).toEqual(["c1", "mine1", "mine2"]);
+  });
+
+  it("mergeDevice: the operator's news, the rep's untouched-by-operator edits, the rep's customer always", () => {
+    const before = { id: "d", name: "A", phone: "1", clientId: "x" };
+    const mine = { id: "d", name: "A", phone: "2", clientId: "mine" };
+    const theirs = { id: "d", name: "B", phone: "1", clientId: "theirs" };
+    expect(mergeDevice(mine, before, theirs)).toEqual({ id: "d", name: "B", phone: "2", clientId: "mine" });
   });
 
   it("the first copy is taken as it is", () => {

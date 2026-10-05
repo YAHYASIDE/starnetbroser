@@ -202,6 +202,24 @@ export function diffStore(current: unknown, base: unknown, shape: Shape, ignoreS
   return changes;
 }
 
+/**
+ * A device both sides changed since the last copy, merged field by field: the operator's news
+ * (renewal date, name, plan…) is taken, and what the rep changed that the operator didn't stays.
+ * His customer link always stays (his Oct 2026 rule: «زبون المندوب يغلب») - a new copy never takes
+ * the rep's customers off his devices. Starlink-read fields are left to keepFreshestReads.
+ */
+export function mergeDevice(mine: Rec, before: Rec, theirs: Rec): Rec {
+  const merged: Rec = { ...theirs };
+  for (const k of new Set([...Object.keys(mine), ...Object.keys(before)])) {
+    if (SYNC_FIELDS.includes(k) || same(mine[k], before[k])) continue;
+    if (k === "clientId" || same(theirs[k], before[k])) {
+      if (k in mine) merged[k] = mine[k];
+      else delete merged[k];
+    }
+  }
+  return merged;
+}
+
 /** The rep's changes re-applied on top of a newer base. For devices, the freshest Starlink read
  * (sync fields) is kept, whichever side it came from. */
 export function rebaseStore(changes: StoreChanges, nextBase: unknown, shape: Shape, ignoreSync = false): unknown {
@@ -270,7 +288,16 @@ export function rebaseWorkspace(
     const strip = (r: Rec | undefined) => (r && ignoreSync ? withoutSync(r) : r);
     for (const path of [...changes.set.keys()]) {
       const now = theirsNow.get(path);
-      if (now && !same(strip(now), strip(theirsBefore.get(path)))) changes.set.delete(path);
+      const before = theirsBefore.get(path);
+      if (!now || same(strip(now), strip(before))) continue;
+      // A device both sides changed: merged field by field, the rep's customer link kept.
+      if (key === ACCOUNTS_KEY && before) {
+        const merged = mergeDevice(changes.set.get(path)!, before, now);
+        if (same(strip(merged), strip(now))) changes.set.delete(path);
+        else changes.set.set(path, merged);
+      } else {
+        changes.set.delete(path);
+      }
     }
     // A payment of his own customer the operator approved lives in his book now (same id).
     if (key === LEDGER_KEY) {

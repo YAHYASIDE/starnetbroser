@@ -109,6 +109,16 @@ mind). Exact texts and numbers live in the code - this file says where.
   تسديد ستارلينك)، والمؤكَّد بسعره المقفل.
 - Logic: `myMoney.ts`, `moneyAccounts.ts`, `myMoneyData.ts`; UI: `app/money/page.tsx`,
   `components/MyMoney.tsx`. The reports' «المصروفات» tab and its 🧾 button stay too.
+- **A rep's customers never change with a new copy** (his Oct 2026 rule; his choice on a conflict:
+  «زبون المندوب يغلب»). A device both sides changed since the last copy is merged field by field
+  (`repWorkspace.mergeDevice`): the operator's news (renewal date, name…) arrives, the rep's
+  untouched-by-operator edits stay, and the rep's `clientId` always stays. Before this, any operator
+  change on that device (a renewal moving `renewalDate`) took the rep's customer off it.
+- **Next (his Oct 2026 choice): live sync with the rep over the internet - his own Firebase** (he
+  already has one). His wish: every rep customer linked on both phones with info and devices; on the
+  rep's phone they look normal; on the operator's they show under the rep with their total counted
+  on the rep (the existing rep-owes-all model). Data encrypted with the rep's code before leaving
+  the phone. Not built yet - stage 1 was the copy merge above.
 - **📥 «استيراد زبائن من ملف»** (clients page, his Oct 2026 request: a list exported from «مدونة
   الحسابات» as PDF - 51 customers). His choices: a name that looks like an existing customer is
   **skipped automatically** (`findExistingClient`: letters folded, «ولد/بن» dropped, «سالم ولد
