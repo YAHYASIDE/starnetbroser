@@ -351,6 +351,10 @@ mind). Exact texts and numbers live in the code - this file says where.
   own and a new copy doesn't replace it). Pages: `REP_ALLOWED_PATHS` in `lib/repMode.ts`.
 - Owner-only: store, «ستارلينك والبطاقة», archive, trash, backup, Telegram settings, «حسابي».
 - After a new APK, the operator sends the rep a fresh copy so shared data (business profile…) updates.
+- **Reps bots: several phones per rep** (Oct 2026, «بوت المندوب حسين اريد ربط فيه هاتفين»): linking
+  another Telegram account to a rep ADDS a phone (never replaces). News/alerts/approvals/copy/month
+  statement go to every phone; a direct answer (search, hints, session steps) only to the phone that
+  asked. Each phone has its own «فك الربط». Logic: `lib/repChatLinks.ts`; native map chatId → repId.
 
 ## Duplicate devices (same email or KIT)
 
