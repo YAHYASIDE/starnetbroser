@@ -382,3 +382,12 @@ mind). Exact texts and numbers live in the code - this file says where.
   Telegram digest, the rep bot's day lines and «تجديد اليوم» all count the same way (one day earlier
   than the raw date). `daysRemainingNumber` still returns the raw calendar count; callers treat `<= 0`
   as expired and show `days - 1` as the days left.
+
+## Big ideas go to the council first
+
+- Oct 2026, his choice after reading about «Claude Council»: a big idea / plan / direction is put to
+  the `council` skill (5 advisors → blind peer review → chairman's verdict, an Arabic HTML report)
+  before anything is built. First council: «خطة تطوير التطبيق» (6 Oct 2026) - verdict: two weeks of
+  stabilizing and using what exists, only money-leak protections (losing-margin devices, KAST need
+  for the next 7 days), Firebase with one rep, then easier rep onboarding; first step: restore a
+  full backup on another phone. Awaiting his decision.
