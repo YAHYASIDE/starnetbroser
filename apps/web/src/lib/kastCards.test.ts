@@ -10,6 +10,7 @@ import {
   pendingCardSpends,
   debtUsdToday,
   spendCandidates,
+  rankAllSpend,
   kastDevicesSnapshot,
   mergeCardDeposits,
   pendingCardDeposits,
@@ -95,6 +96,13 @@ describe("Starlink payments from the KAST notification", () => {
     expect(debtUsdToday(usd, store)).toBeUndefined();
     // Without today's rate it isn't close enough - offered only as the nearest (60$ is too far).
     expect(spendCandidates(76.46, [usd, ars]).map((c) => [c.debt.id, c.exact])).toEqual([["ar", false]]);
+  });
+
+  it("«جهاز آخر» lists every open D, the paying card's first, then nearest", () => {
+    const d = (id: string, costUsd: number, card?: string) => ({ id, card, costUsd, entry: { starlinkCost: { currencyCode: "USD", amount: costUsd } } });
+    const list = rankAllSpend(83.33, [d("far", 20), d("twin2", 83.33), d("twin1", 83.33, "7232"), d("near", 85)], {}, { last4: "7232", of: (x) => x.card });
+    expect(list.map((c) => c.debt.id)).toEqual(["twin1", "twin2", "near", "far"]);
+    expect(list.map((c) => c.exact)).toEqual([true, true, false, false]);
   });
 
   it("looks at the paying card's devices first, never at a device on another card", () => {

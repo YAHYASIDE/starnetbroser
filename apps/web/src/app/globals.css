@@ -13076,3 +13076,30 @@ button.today-tile {
   border-top: 1px dashed var(--border);
   font-size: 0.8rem;
 }
+
+/* ✏️ choosing a KAST payment's device by hand */
+.spend-picker {
+  display: grid;
+  gap: 8px;
+}
+
+.spend-picker-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.spend-picker-row > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

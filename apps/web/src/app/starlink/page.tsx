@@ -18,6 +18,7 @@ import { StarlinkAccountSummary } from "@starnet/shared";
 import { buildCardStatementFor, groupDevicesByCard, type CardDeviceGroups, type CardStatement } from "@/lib/cardDevices";
 import { DateInput } from "@/components/DateInput";
 import { PartySheet } from "@/components/AccountsSection";
+import { deviceMatchesQuery } from "@/lib/homeInsights";
 import { loadCashEntries, saveCashEntries } from "@/lib/cashStore";
 import { deleteProof, getProof, putProof } from "@/lib/paymentProofStore";
 import { resizeImageToDataUrl } from "@/lib/imageUtils";
@@ -50,6 +51,7 @@ import {
   removePaymentCard,
   debtUsdToday,
   spendCandidates,
+  rankAllSpend,
   saveCardDeposits,
   savePaymentCards,
   setDepositStatus,
@@ -134,6 +136,8 @@ export default function StarlinkPage() {
   const [deposits, setDeposits] = useState<CardDeposit[]>([]);
   const [depositToRecord, setDepositToRecord] = useState<CardDeposit | null>(null);
   const [spendToRecord, setSpendToRecord] = useState<CardDeposit | null>(null);
+  /** «✏️ جهاز آخر»: the KAST payment whose device he is choosing by hand. */
+  const [pickFor, setPickFor] = useState<CardDeposit | null>(null);
   const [kastNotifications, setKastNotifications] = useState<boolean | null>(null);
   // 🔽 which sections the operator folded away (long lists). Per-phone convenience only.
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
@@ -681,12 +685,31 @@ export default function StarlinkPage() {
                         </button>
                       );
                     })}
+                    <button type="button" className="dialog-secondary" onClick={() => setPickFor(s)}>
+                      ✏️ جهاز آخر
+                    </button>
                     <button type="button" className="text-action" onClick={() => updateDeposit(s.id, "dismissed")}>تجاهل</button>
                   </div>
                 </li>
               );
             })}
           </ul>
+        )}
+        {pickFor && (
+          <SpendPickerSheet
+            spend={pickFor}
+            debts={debts}
+            currencyStore={currencyStore}
+            account={account}
+            clientOf={(clientId) => getClient(clientStore, clientId)}
+            onPick={(d) => {
+              const spend = pickFor;
+              setPickFor(null);
+              openPay([d]);
+              setSpendToRecord(spend);
+            }}
+            onClose={() => setPickFor(null)}
+          />
         )}
         {!collapsed.notices && pendingCardDeposits(deposits).length > 0 && (
           <ul className="sl-list kast-deposits">
@@ -1572,6 +1595,77 @@ function PaymentCardsSection({
         </PartySheet>
       )}
     </section>
+  );
+}
+
+/** ✏️ The KAST payment's device, chosen by hand: every open D, the paying card's first then the
+ * nearest amount, with a search by device name, customer, phone or KIT. */
+function SpendPickerSheet({
+  spend,
+  debts,
+  currencyStore,
+  account,
+  clientOf,
+  onPick,
+  onClose,
+}: {
+  spend: CardDeposit;
+  debts: OpenShipmentDebt[];
+  currencyStore: CurrencyStore;
+  account: (id: string) => StarlinkAccountSummary | undefined;
+  clientOf: (clientId: string | undefined) => { name: string; phone?: string } | undefined;
+  onPick: (debt: OpenShipmentDebt) => void;
+  onClose: () => void;
+}) {
+  const [search, setSearch] = useState("");
+  const ranked = useMemo(
+    () => rankAllSpend(spend.amountUsd, debts, currencyStore, { last4: spend.cardLast4, of: (d) => account(d.accountId)?.paymentCardLast4 }),
+    [spend, debts, currencyStore, account],
+  );
+  const shown = ranked.filter(({ debt }) => {
+    if (!search.trim()) return true;
+    const acc = account(debt.accountId);
+    if (!acc) return false;
+    const client = clientOf(acc.clientId);
+    return deviceMatchesQuery(search, acc, { name: client?.name ?? "", phone: client?.phone ?? acc.phone });
+  });
+  return (
+    <PartySheet title={`✏️ لأي جهاز دفعة ${formatAmount(spend.amountUsd)}$؟`} onClose={onClose}>
+      <div className="spend-picker">
+        <input
+          id="spend-picker-search"
+          className="search-input"
+          type="search"
+          placeholder="ابحث: اسم الجهاز، الزبون، الهاتف أو KIT"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <p className="settings-hint">الأجهزة التي عليها D، الأقرب مبلغًا أولًا{spend.cardLast4 ? ` (أجهزة البطاقة ${spend.cardLast4} في الأعلى)` : ""}.</p>
+        {shown.length === 0 ? (
+          <p className="settings-hint">لا يوجد جهاز عليه D بهذا البحث.</p>
+        ) : (
+          <ul className="kast-card-devices">
+            {shown.map(({ debt, usd: dUsd, exact, sameCard }) => {
+              const acc = account(debt.accountId);
+              const client = clientOf(acc?.clientId);
+              return (
+                <li key={debt.entry.id}>
+                  <button type="button" className="spend-picker-row" onClick={() => onPick(debt)}>
+                    <span>
+                      {exact ? "✓ " : ""}
+                      {acc?.name ?? "جهاز"}
+                      {client?.name ? <small> · {client.name}</small> : null}
+                      {sameCard ? <small> · 💳 {spend.cardLast4}</small> : null}
+                    </span>
+                    <bdi dir="ltr">{formatAmount(dUsd)} $</bdi>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </PartySheet>
   );
 }
 

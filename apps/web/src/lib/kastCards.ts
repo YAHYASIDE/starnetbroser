@@ -228,6 +228,29 @@ function rankSpend<T extends SpendDebtCost>(amountUsd: number, debts: T[], curre
   return picked.slice(0, 3).map(({ debt, usd, exact: isExact }) => ({ debt, usd, exact: isExact }));
 }
 
+/** «✏️ جهاز آخر»: EVERY open D for a payment, nearest first (no 3 limit, no tolerance) - he picks
+ * the right device himself when the suggestion was wrong (two devices with the same price). The
+ * paying card's devices first when the payment's card is known. */
+export function rankAllSpend<T extends SpendDebtCost>(
+  amountUsd: number,
+  debts: T[],
+  currencyStore: CurrencyStore = {},
+  card?: { last4?: string; of: (debt: T) => string | undefined },
+): (SpendCandidate<T> & { sameCard: boolean })[] {
+  const last4 = card?.last4?.trim();
+  return debts
+    .map((debt) => {
+      const today = debtUsdToday(debt, currencyStore);
+      const values = today === undefined ? [debt.costUsd] : [debt.costUsd, today];
+      const usd = values.reduce((best, v) => (Math.abs(v - amountUsd) < Math.abs(best - amountUsd) ? v : best));
+      const distance = Math.abs(usd - amountUsd);
+      const sameCard = Boolean(last4 && card && card.of(debt) === last4);
+      return { debt, usd, exact: distance <= Math.max(0.5, amountUsd * 0.02), sameCard, distance };
+    })
+    .sort((a, b) => Number(b.sameCard) - Number(a.sameCard) || a.distance - b.distance)
+    .map(({ debt, usd, exact, sameCard }) => ({ debt, usd, exact, sameCard }));
+}
+
 export function setDepositStatus(list: CardDeposit[], id: string, status: CardDeposit["status"]): CardDeposit[] {
   return list.map((d) => (d.id === id ? { ...d, status } : d));
 }

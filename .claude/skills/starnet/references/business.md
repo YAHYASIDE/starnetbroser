@@ -363,6 +363,9 @@ mind). Exact texts and numbers live in the code - this file says where.
   the D's paid for them by month, its pending KAST notices (`lib/cardDevices.ts`).
 - A device billed to a card he didn't register: warning in the cards section + «💳 •XXXX غير مسجّلة» on
   the device card. A KAST payment matches a same-card D within **2%** (his example: 100$ ← 98-102$).
+- A KAST payment's suggested device can be wrong (two devices, same price): «✏️ جهاز آخر» lists every
+  open D (same card first, then nearest amount) with a search (name, customer, phone, KIT) - his pick
+  settles that D (`rankAllSpend` in `lib/kastCards.ts`).
 - The pending KAST notices fold under one line «📩 إشعارات KAST تنتظر (N)», rows smaller.
 
 ## 📅 Renewal calendar (home «التجديد حسب اليوم»)
