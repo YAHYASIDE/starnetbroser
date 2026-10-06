@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { StarlinkAccountSummary } from "@starnet/shared";
-import { groupTravelByOwner, buildTravelCheckReport, buildTravelRegistrationMessage, isTravelPending, isTravelVerified, markTravelDone, needsTravelRegistration, setTravelPrice, travelDoneRepMessage, travelDueArabic, travelEarnings, undoTravelDone } from "./travelRegistration";
+import { travelWhatsAppLink, groupTravelByOwner, buildTravelCheckReport, buildTravelRegistrationMessage, isTravelPending, isTravelVerified, markTravelDone, needsTravelRegistration, setTravelPrice, travelDoneRepMessage, travelDueArabic, travelEarnings, undoTravelDone } from "./travelRegistration";
 
 const dev = (id: string, extra: Partial<StarlinkAccountSummary> = {}) => ({ id, name: `جهاز ${id}`, ...extra }) as StarlinkAccountSummary;
 
@@ -19,6 +19,13 @@ describe("🛂 travel registration", () => {
     expect(text).toContain("«جهاز أ»");
     expect(text).toContain("قبل 15 أكتوبر");
     expect(text).toContain("سيُغلق الحساب");
+  });
+
+  it("the WhatsApp message names the device by its Starlink email (his rule), the name only without one", () => {
+    const withEmail = decodeURIComponent(travelWhatsAppLink(dev("a", { name: "اسم داخلي", expectedEmail: "demo@example.com", travelRegistrationDue: "October 15" }), "+222 12345678"));
+    expect(withEmail).toContain("«demo@example.com»");
+    expect(withEmail).not.toContain("اسم داخلي");
+    expect(decodeURIComponent(travelWhatsAppLink(dev("b", { name: "جهاز ب" }), undefined))).toContain("«جهاز ب»");
   });
 
   it("one report: only the devices that need it, with a WhatsApp button each", () => {

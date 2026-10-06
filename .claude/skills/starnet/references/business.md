@@ -412,6 +412,8 @@ mind). Exact texts and numbers live in the code - this file says where.
   only when a Home read finds the banner gone (`travelRegistrationVerifiedAt`, set by the merge).
   There «💰 السعر» records what he charged (`travelRegistrationPrice`), and the top line sums it per
   currency - a record only, not the cash or the customer's account (his choice).
+- The customer's WhatsApp message names the device by its **Starlink email**, not his internal device
+  name («الإيميل أهم شيء في الرسالة»); the name only when there's no email.
 - «اجعل هناك فارق»: the list is split - «🏠 أجهزتي» first, then each rep's devices under his name
   (`groupTravelByOwner`).
 

@@ -48,7 +48,8 @@ export function buildTravelRegistrationMessage(deviceName: string, due: string |
 /** The customer's WhatsApp with the message ready; with no number, WhatsApp opens on the message
  * and he picks the contact himself (his request: a WhatsApp button even without a number). */
 export function travelWhatsAppLink(account: StarlinkAccountSummary, phone: string | undefined): string {
-  const message = buildTravelRegistrationMessage(account.name, account.travelRegistrationDue);
+  // His rule (Oct 7): the Starlink email names the device for the customer - «أهم شيء في الرسالة».
+  const message = buildTravelRegistrationMessage(account.expectedEmail || account.starlinkAccountEmail || account.name, account.travelRegistrationDue);
   return buildWhatsAppLink(phone, message) ?? `https://wa.me/?text=${encodeURIComponent(message)}`;
 }
 
