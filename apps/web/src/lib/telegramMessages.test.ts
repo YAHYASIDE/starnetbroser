@@ -78,7 +78,9 @@ describe("messages", () => {
       today: TODAY,
       promisesDue: [{ name: "سالم", amount: 5000, currency: "MRU" }],
       cardShortUsd: 29.5,
+      marginsLine: "🔻 1 جهاز خاسر (تدفع لستارلينك أكثر مما تأخذ)",
     });
+    expect(text).toContain("🔻 1 جهاز خاسر");
     expect(text).toContain("🤝 وعود دفع مستحقة (1):\n• سالم: 5,000 أوقية");
     expect(text).toContain("⚠️ اشحن بطاقة Starlink بـ30$");
     expect(text).toContain("✅ لقائمة مهام اليوم اكتب: خطة");

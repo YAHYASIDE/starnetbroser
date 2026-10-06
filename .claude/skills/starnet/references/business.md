@@ -390,4 +390,5 @@ mind). Exact texts and numbers live in the code - this file says where.
   before anything is built. First council: «خطة تطوير التطبيق» (6 Oct 2026) - verdict: two weeks of
   stabilizing and using what exists, only money-leak protections (losing-margin devices, KAST need
   for the next 7 days), Firebase with one rep, then easier rep onboarding; first step: restore a
-  full backup on another phone. Awaiting his decision.
+  full backup on another phone. **He accepted it (6 Oct 2026)**: two weeks with no new feature areas -
+  only fixes of what bothers him + the two money alerts.

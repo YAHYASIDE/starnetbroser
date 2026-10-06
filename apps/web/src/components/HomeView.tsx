@@ -50,6 +50,9 @@ import { isTelegramConnected, rescheduleTelegramSummaries, sendTelegramText } fr
 import { loadPriorityAlerted, priorityAlertsToSend, priorityTelegramText, savePriorityAlerted } from "@/lib/priorityData";
 import { loadOceanAlerted, oceanAlertsToSend, oceanModeAccounts, oceanTelegramText, saveOceanAlerted } from "@/lib/oceanMode";
 import { OceanModeAlarm } from "./OceanModeAlarm";
+import { PartySheet } from "@/components/AccountsSection";
+import { cardNeed, computeRenewalForecast } from "@/lib/renewalForecast";
+import { computeDeviceMargins, WEAK_MARGIN_PERCENT } from "@/lib/deviceMargins";
 import { cardShortfallForSuspended, currentCardBalanceUsd, listOpenShipmentDebts, listSuspendedWithDebt, loadCardTopUps, settleShipmentCost } from "@/lib/starlinkDebt";
 import { loadPartyAdjustments } from "@/lib/partyBalanceStore";
 import { APK_DOWNLOAD_URL, checkForAppUpdate, shouldAutoCheck } from "@/lib/appUpdate";
@@ -1274,6 +1277,19 @@ export function HomeView({
     () => (suspendedWithDebt.length > 0 ? cardShortfallForSuspended(suspendedWithDebt, currentCardBalanceUsd(ledgerStore)) : 0),
     [suspendedWithDebt, ledgerStore],
   );
+  // 🔻 / 💳 The council's money alerts (Oct 2026): losing or weak devices at today's rates, and
+  // what the KAST card must cover for the next 7 days' renewals. Owner only (Starlink costs).
+  const [ownerView, setOwnerView] = useState(false);
+  useEffect(() => setOwnerView(!isRepWorkspace()), []);
+  const [moneyAlertsOpen, setMoneyAlertsOpen] = useState(false);
+  const weekCardNeed = useMemo(
+    () => (ownerView ? cardNeed(computeRenewalForecast(activeAccounts, new Date(), 7), currentCardBalanceUsd(ledgerStore)) : null),
+    [ownerView, activeAccounts, ledgerStore],
+  );
+  const deviceMargins = useMemo(() => (ownerView ? computeDeviceMargins(activeAccounts, currencyStore) : null), [ownerView, activeAccounts, currencyStore]);
+  const moneyAlertCount = (deviceMargins?.losing.length ?? 0) + (deviceMargins?.weak.length ?? 0);
+  const showMoneyAlerts = Boolean((weekCardNeed && weekCardNeed.shortUsd > 0) || moneyAlertCount > 0);
+
   useEffect(() => {
     void notifySuspendedWithDebt(
       suspendedWithDebt.map((s) => ({
@@ -1547,6 +1563,77 @@ export function HomeView({
             )}
           </span>
         </Link>
+      )}
+
+      {showMoneyAlerts && (
+        <button type="button" className="backup-banner money-alert-banner" data-tour="money-alerts" onClick={() => setMoneyAlertsOpen(true)}>
+          <span aria-hidden="true">{weekCardNeed && weekCardNeed.shortUsd > 0 ? "💳" : "🔻"}</span>
+          <span>
+            {weekCardNeed && weekCardNeed.shortUsd > 0 && (
+              <strong>
+                تحتاج <bdi dir="ltr">{formatAmount(weekCardNeed.needUsd)} $</bdi> للتجديدات خلال 7 أيام · رصيد KAST <bdi dir="ltr">{formatAmount(weekCardNeed.balanceUsd)} $</bdi>
+              </strong>
+            )}
+            {moneyAlertCount > 0 && deviceMargins && (
+              <strong>
+                {deviceMargins.losing.length > 0 && `🔻 ${deviceMargins.losing.length} ${deviceMargins.losing.length === 1 ? "جهاز خاسر" : "أجهزة خاسرة"}`}
+                {deviceMargins.losing.length > 0 && deviceMargins.weak.length > 0 && " · "}
+                {deviceMargins.weak.length > 0 && `🟡 ${deviceMargins.weak.length} ضعيفة الربح`}
+              </strong>
+            )}
+            <small>اضغط لترى التفاصيل</small>
+          </span>
+        </button>
+      )}
+
+      {moneyAlertsOpen && deviceMargins && weekCardNeed && (
+        <PartySheet title="💰 تنبيهات المال" onClose={() => setMoneyAlertsOpen(false)}>
+          <div className="money-alerts">
+            <section>
+              <strong>💳 بطاقة KAST والأيام السبعة القادمة</strong>
+              <p>
+                {weekCardNeed.devices} {weekCardNeed.devices === 1 ? "جهاز يتجدد" : "أجهزة تتجدد"} وتكلفتها <bdi dir="ltr">{formatAmount(weekCardNeed.needUsd)} $</bdi> · رصيد البطاقة <bdi dir="ltr">{formatAmount(weekCardNeed.balanceUsd)} $</bdi>
+              </p>
+              {weekCardNeed.shortUsd > 0 ? (
+                <p className="money-alerts-bad">
+                  ينقصها <bdi dir="ltr">{formatAmount(weekCardNeed.shortUsd)} $</bdi> - <Link href="/starlink">اشحن البطاقة</Link>
+                </p>
+              ) : (
+                <p className="money-alerts-good">✓ الرصيد يكفي</p>
+              )}
+            </section>
+            {(["losing", "weak"] as const).map((kind) =>
+              deviceMargins[kind].length > 0 ? (
+                <section key={kind}>
+                  <strong>{kind === "losing" ? "🔻 أجهزة خاسرة (تدفع لستارلينك أكثر مما تأخذ)" : `🟡 ربحها أقل من ${WEAK_MARGIN_PERCENT}% من سعر البيع`}</strong>
+                  <ul>
+                    {deviceMargins[kind].map((d) => (
+                      <li key={d.id}>
+                        <span>
+                          {d.name}
+                          {d.clientId && clientStore[d.clientId] ? <small> · {clientStore[d.clientId]!.name}</small> : null}
+                        </span>
+                        <small>
+                          بيع <bdi dir="ltr">{formatAmount(d.saleUsd)} $</bdi> · ستارلينك <bdi dir="ltr">{formatAmount(d.costUsd)} $</bdi> · ربح{" "}
+                          <bdi dir="ltr" className={d.profitUsd < 0 ? "money-alerts-bad" : undefined}>
+                            {formatAmount(d.profitUsd)} $ ({Math.round(d.percent)}%)
+                          </bdi>
+                        </small>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null,
+            )}
+            {(deviceMargins.unpriced > 0 || deviceMargins.noRate > 0) && (
+              <p className="settings-hint">
+                {deviceMargins.unpriced > 0 && `${deviceMargins.unpriced} ${deviceMargins.unpriced === 1 ? "جهاز" : "أجهزة"} بلا سعر شهري أو تكلفة ستارلينك - لا يُحكم عليها حتى تكتبه في بطاقة الجهاز. `}
+                {deviceMargins.noRate > 0 && `${deviceMargins.noRate} بعملة ليس لها سعر صرف مسجّل - سجّله في العملات.`}
+              </p>
+            )}
+            <p className="settings-hint">الربح محسوب بأسعار الصرف المسجّلة اليوم: إذا ارتفع الدولار أو سعر ستارلينك يظهر هنا دون أن تغيّر شيئًا.</p>
+          </div>
+        </PartySheet>
       )}
 
       {repInboxPending > 0 && (

@@ -12849,3 +12849,62 @@ button.today-tile {
   font-size: 0.88rem;
   color: var(--text-muted);
 }
+
+/* 💰 the council's money alerts on the home page: a banner (a button) + its sheet */
+.money-alert-banner {
+  width: 100%;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.money-alert-banner > span:last-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.money-alerts {
+  display: grid;
+  gap: 14px;
+}
+
+.money-alerts section {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.money-alerts p {
+  margin: 0;
+}
+
+.money-alerts ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.money-alerts li {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.money-alerts small {
+  color: var(--text-muted);
+}
+
+.money-alerts-bad {
+  color: var(--red);
+}
+
+.money-alerts-good {
+  color: var(--green);
+}

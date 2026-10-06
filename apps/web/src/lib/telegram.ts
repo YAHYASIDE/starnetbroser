@@ -26,6 +26,7 @@ import { repAccounts, repMoney, repMorningMarkup, repMorningText, repStatementTe
 import { devicesHelp, devicesKeyboard, otherBotsLines, REP_MONEY_KEYBOARD, type RepBot, type RepBotNames } from "./repBots";
 import type { PrintableDocument } from "./pdfDocument";
 import type { TelegramReplySnapshot } from "./telegramReplies";
+import { computeDeviceMargins, marginsTelegramLine } from "./deviceMargins";
 import { addRepChat, chatRepsMap, removeRepChat, repChatPhones, repIdOfChat, targetChatIds, type RepChat } from "./repChatLinks";
 import { renderPrintablePdf } from "./pdfExport";
 import {
@@ -191,7 +192,8 @@ export async function rescheduleTelegramSummaries(input: {
       const day = localDay(at);
       const promisesDue = loadPromises().filter((p) => p.status === "open" && p.dueDate <= day);
       const cardShortUsd = cardNeed(computeRenewalForecast(input.accounts, at, 7), currentCardBalanceUsd(input.ledgerStore)).shortUsd;
-      const text = buildMorningTelegram({ accounts: input.accounts, clients: loadClientStore(), owedByCurrency: input.owedByCurrency, today: day, promisesDue, cardShortUsd });
+      const marginsLine = marginsTelegramLine(computeDeviceMargins(input.accounts, loadCurrencyStore()));
+      const text = buildMorningTelegram({ accounts: input.accounts, clients: loadClientStore(), owedByCurrency: input.owedByCurrency, today: day, promisesDue, cardShortUsd, marginsLine });
       await LocalBrowser.telegramSchedule({ key: "morning", at: at.getTime(), text });
     }
     if (prefs.evening) {
