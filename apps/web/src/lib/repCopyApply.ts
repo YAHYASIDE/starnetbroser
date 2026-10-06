@@ -6,6 +6,7 @@ import { isOlderCopy, isRepCopyFile, loadRepCopy, OtherPhoneError, readRepCopyFi
 import { ensureRepPhoneKey } from "./repDeviceTransfer";
 import { applyRepWorkspace } from "./repWorkspace";
 import { saveLiveSyncConfig } from "./liveSyncConfig";
+import { markLiveSyncRebaseline } from "./liveSync";
 
 /** Fired after a copy was applied - the rep's app reloads its data. */
 export const REP_WORKSPACE_EVENT = "starnet:rep-workspace";
@@ -31,6 +32,8 @@ export async function applyRepCopyText(text: string, code: string): Promise<Appl
     // ☁️ The operator switched the live link on: this phone joins his Firebase space.
     if (liveSync) saveLiveSyncConfig({ ...liveSync, enabled: true });
     if (stores && !applyRepWorkspace(stores, rejected ?? {})) return { ok: false, message: "ذاكرة الهاتف ممتلئة - تعذّر حفظ النسخة" };
+    // ☁️ The copy's customers / links are the operator's, never the rep's changes (lib/liveSync.ts).
+    if (stores) markLiveSyncRebaseline();
     if (!saveRepCopy(summary)) return { ok: false, message: "ذاكرة الهاتف ممتلئة - تعذّر حفظ النسخة" };
     if (typeof window !== "undefined") window.dispatchEvent(new Event(REP_WORKSPACE_EVENT));
     return { ok: true, message: `✓ وصلت نسخة جديدة: ${next.devices.length} جهاز${removed.length ? ` · حُذف ${removed.length}` : ""}` };

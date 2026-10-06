@@ -14,6 +14,23 @@ import { ACCOUNTS_KEY, CLIENTS_KEY } from "./repWorkspace";
 const dev = (id: string, extra: Partial<StarlinkAccountSummary> = {}) => ({ id, name: id, ...extra }) as StarlinkAccountSummary;
 const client = (id: string, name: string, extra: object = {}) => ({ id, name, createdAt: "", updatedAt: "", ...extra });
 
+/** A fake Firestore over `docs` (path -> fields). */
+function firestore(docs: Record<string, Record<string, string>>): FetchFn {
+  return async (url, init) => {
+    if (url.includes("accounts:signUp")) return new Response(JSON.stringify({ idToken: "t", refreshToken: "r", expiresIn: "3600" }), { status: 200 });
+    const path = decodeURIComponent(url.split("/documents/")[1] ?? "");
+    if (init?.method === "PATCH") {
+      const body = JSON.parse(String(init.body)) as { fields: Record<string, { stringValue: string }> };
+      docs[path] = Object.fromEntries(Object.entries(body.fields).map(([k, v]) => [k, v.stringValue]));
+      return new Response("{}", { status: 200 });
+    }
+    const doc = docs[path];
+    return doc
+      ? new Response(JSON.stringify({ fields: Object.fromEntries(Object.entries(doc).map(([k, v]) => [k, { stringValue: v }])) }), { status: 200 })
+      : new Response(JSON.stringify({ error: { message: `Document "projects/p/databases/(default)/documents/${path}" not found.` } }), { status: 404 });
+  };
+}
+
 describe("☁️ live link - what each phone shares and takes", () => {
   it("the operator shares, per rep, that rep's customers and his devices' links", () => {
     const clients: ClientStore = {
@@ -59,19 +76,7 @@ describe("☁️ live link - a full round on the operator's phone", () => {
     const docs: Record<string, Record<string, string>> = {
       "starnet/space1/reps/r1/sides/rep": { data: JSON.stringify(await encryptBackup(repSide, key)), at: "2026-10-05T10:00:00.000Z" },
     };
-    const fetchFn: FetchFn = async (url, init) => {
-      if (url.includes("accounts:signUp")) return new Response(JSON.stringify({ idToken: "t", refreshToken: "r", expiresIn: "3600" }), { status: 200 });
-      const path = decodeURIComponent(url.split("/documents/")[1] ?? "");
-      if (init?.method === "PATCH") {
-        const body = JSON.parse(String(init.body)) as { fields: Record<string, { stringValue: string }> };
-        docs[path] = Object.fromEntries(Object.entries(body.fields).map(([k, v]) => [k, v.stringValue]));
-        return new Response("{}", { status: 200 });
-      }
-      const doc = docs[path];
-      return doc
-        ? new Response(JSON.stringify({ fields: Object.fromEntries(Object.entries(doc).map(([k, v]) => [k, { stringValue: v }])) }), { status: 200 })
-        : new Response(JSON.stringify({ error: { message: `Document "projects/p/databases/(default)/documents/${path}" not found.` } }), { status: 404 });
-    };
+    const fetchFn = firestore(docs);
 
     const run = await runLiveSyncOnce(fetchFn, [{ id: "r1", name: "المندوب" }]);
     expect(run).toMatchObject({ ok: true, changed: true, reps: 1 });
@@ -90,5 +95,32 @@ describe("☁️ live link - a full round on the operator's phone", () => {
     const before = ownerDoc.at;
     expect(await runLiveSyncOnce(fetchFn, [{ id: "r1", name: "المندوب" }])).toMatchObject({ ok: true, changed: false });
     expect(docs["starnet/space1/reps/r1/sides/owner"]!.at).toBe(before);
+  }, 30_000);
+
+  it("after the update, a device the operator linked keeps its customer even if the rep's phone wrongly published it empty", async () => {
+    const code = "TEST-CODE-1234";
+    const phoneKey = "phone-key-for-tests-0000000000";
+    const key = boundCopyKey(code, phoneKey);
+    window.localStorage.setItem("starnet.repDeviceCodes", JSON.stringify({ r1: code }));
+    window.localStorage.setItem("starnet.repPhoneKeys", JSON.stringify({ r1: phoneKey }));
+    saveLiveSyncConfig({ apiKey: "AIzaFAKE_key_for_tests_0000000000000", projectId: "demo-project", spaceId: "space1", enabled: true });
+    window.localStorage.setItem(CLIENTS_KEY, JSON.stringify({ c1: client("c1", "زبون") }));
+    window.localStorage.setItem(ACCOUNTS_KEY, JSON.stringify([dev("d1", { representativeId: "r1", clientId: "c1" })]));
+    // the old meta (before the fix) is dropped
+    window.localStorage.setItem("starnet.liveSyncMeta", JSON.stringify({ "owner:r1": { state: { clients: {}, links: { d1: { value: "c1", at: "2026-10-05T09:00:00.000Z" } }, started: true } } }));
+
+    // the rep's phone (old version) stamped the device empty when an older copy brought it
+    const repLocal = { clients: {}, links: { d1: null } };
+    const repState = trackLocal(trackLocal(EMPTY_TRACK, { clients: {}, links: {} }, "2026-10-05T09:00:00.000Z"), repLocal, "2026-10-05T10:00:00.000Z");
+    repState.links.d1 = { value: null, at: "2026-10-05T10:00:00.000Z" };
+    const docs: Record<string, Record<string, string>> = {
+      "starnet/space1/reps/r1/sides/rep": { data: JSON.stringify(await encryptBackup(buildSide(repState, repLocal, "2026-10-05T10:00:00.000Z"), key)), at: "2026-10-05T10:00:00.000Z" },
+    };
+
+    await runLiveSyncOnce(firestore(docs), [{ id: "r1", name: "المندوب" }]);
+    expect((JSON.parse(window.localStorage.getItem(ACCOUNTS_KEY)!) as StarlinkAccountSummary[])[0]!.clientId).toBe("c1");
+    expect(window.localStorage.getItem("starnet.liveSyncMeta")).toBeNull();
+    const ownerSide = (await decryptBackup(JSON.parse(docs["starnet/space1/reps/r1/sides/owner"]!.data!), key)) as SidePayload;
+    expect(ownerSide.links.d1!.clientId).toBe("c1");
   }, 30_000);
 });

@@ -128,6 +128,15 @@ mind). Exact texts and numbers live in the code - this file says where.
   `starnet.liveSync` - Settings → البوتات → «☁️ الربط الحيّ مع المندوبين» (save + real connection
   test); the rep's phone gets it inside his next copy. Setup he was given: Authentication →
   Anonymous on; Firestore created; rules allowing `starnet/{space}/**` to signed-in users.
+  **🔗 Links disappearing - fixed (his Oct 2026 report: «نربط الجهاز بزبون… أخرج وأرجع لا أجده
+  مربوطًا، عندي وعند المندوب»).** Cause: a device that reached the rep's phone in a copy (made before
+  the link) counted as the rep's own "unlink, now", and the rep wins a conflict → the operator's link
+  was wiped on both phones on the next round (also: an older copy opened after a live link). Now
+  (`liveSyncData.ts`): a device new on a phone is a starting point (BASELINE), a copy's changes are
+  re-based (`rebaselineTracked`, flag `starnet.liveSyncRebaseline` set by `repCopyApply`), a starting
+  point meeting the other side for the first time keeps «a real customer beats an empty one», and the
+  other side is merged every round (not only when it changed). The tracked state moved to
+  `starnet.liveSyncMeta.v2` so every phone starts over once with that rule.
 - **📥 «استيراد زبائن من ملف»** (clients page, his Oct 2026 request: a list exported from «مدونة
   الحسابات» as PDF - 51 customers). His choices: a name that looks like an existing customer is
   **skipped automatically** (`findExistingClient`: letters folded, «ولد/بن» dropped, «سالم ولد

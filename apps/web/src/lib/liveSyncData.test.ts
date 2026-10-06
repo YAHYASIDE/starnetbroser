@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BASELINE, buildSide, EMPTY_TRACK, mergeIncoming, sameSide, trackLocal, type LocalView, type TrackState } from "./liveSyncData";
+import { BASELINE, buildSide, EMPTY_TRACK, mergeIncoming, rebaselineTracked, sameSide, trackLocal, type LocalView, type TrackState } from "./liveSyncData";
 
 const T0 = "2026-10-05T09:00:00.000Z";
 const T1 = "2026-10-05T10:00:00.000Z";
@@ -87,5 +87,74 @@ describe("☁️ live sync of a rep's customers", () => {
     const state = started(local);
     expect(sameSide(buildSide(state, local, T1), buildSide(state, local, T2))).toBe(true);
     expect(sameSide(null, buildSide(state, local, T1))).toBe(false);
+  });
+
+  // 🔗 His Oct 2026 report: «نربط الجهاز بزبون… عندما أخرج وأرجع لا أجده مربوطًا، عندي وعند المندوب».
+  describe("a customer link never disappears by itself", () => {
+    it("a device that reaches the rep's phone after the operator linked it gets the operator's customer, and the operator keeps it", () => {
+      const owner0: LocalView = { clients: {}, links: { d1: null } };
+      const ownerLocal: LocalView = { clients: { c1: { name: "زبون" } }, links: { d1: "c1" } };
+      const ownerState = trackLocal(started(owner0), ownerLocal, T1);
+      const ownerSide = buildSide(ownerState, ownerLocal, T1);
+
+      // The rep's phone read the operator's side before the device was on it - nothing to link yet.
+      const rep0: LocalView = { clients: {}, links: {} };
+      const repState0 = mergeIncoming(started(rep0), rep0, ownerSide, false).state;
+      // Then a copy made before the link brings the device (no customer) - not the rep's change.
+      const repLocal: LocalView = { clients: { c1: { name: "زبون" } }, links: { d1: null } };
+      const repState = trackLocal(repState0, repLocal, T2);
+      const repSide = buildSide(repState, repLocal, T2);
+
+      expect(mergeIncoming(ownerState, ownerLocal, repSide, true).links).toEqual({});
+      const atRep = mergeIncoming(repState, repLocal, ownerSide, false);
+      expect(atRep.links).toEqual({ d1: "c1" });
+    });
+
+    it("a copy opened after the live link brought a customer does not undo it on either phone", () => {
+      const base: LocalView = { clients: {}, links: { d1: null } };
+      const ownerLocal: LocalView = { clients: { c1: { name: "زبون" } }, links: { d1: "c1" } };
+      const ownerState = trackLocal(started(base), ownerLocal, T1);
+      const ownerSide = buildSide(ownerState, ownerLocal, T1);
+      const linked: LocalView = { clients: { c1: { name: "زبون" } }, links: { d1: "c1" } };
+      const repTook = mergeIncoming(started(base), base, ownerSide, false);
+      expect(repTook.links).toEqual({ d1: "c1" });
+      const repState1 = trackLocal(repTook.state, linked, T2);
+
+      // The older copy (sent before the link) is opened now: the device is back without customer.
+      const afterCopy: LocalView = { clients: {}, links: { d1: null } };
+      const repState = trackLocal(rebaselineTracked(repState1, afterCopy), afterCopy, T3);
+      const repSide = buildSide(repState, afterCopy, T3);
+
+      expect(mergeIncoming(ownerState, ownerLocal, repSide, true).links).toEqual({});
+      const atRep = mergeIncoming(repState, afterCopy, ownerSide, false);
+      expect(atRep.links).toEqual({ d1: "c1" });
+      // the copy also took the customer off the phone: it comes back with the link
+      expect(atRep.clients).toEqual({ c1: { name: "زبون" } });
+    });
+
+    it("a phone starting over (or a device new on it) never empties the other phone's linked device", () => {
+      const ownerLocal: LocalView = { clients: {}, links: { d1: "c1" } };
+      const fromRep = { v: 1 as const, clients: {}, links: { d1: { clientId: null, at: T2 } }, at: T2 };
+      expect(mergeIncoming(started(ownerLocal), ownerLocal, fromRep, true).links).toEqual({});
+
+      const repLocal: LocalView = { clients: {}, links: { d1: null } };
+      const fromOwner = { v: 1 as const, clients: {}, links: { d1: { clientId: "c1", at: T1 } }, at: T1 };
+      expect(mergeIncoming(started(repLocal), repLocal, fromOwner, false).links).toEqual({ d1: "c1" });
+    });
+
+    it("a device new on a phone is a starting point, not a change made there", () => {
+      const state = trackLocal(started({ clients: {}, links: {} }), { clients: {}, links: { d1: null } }, T2);
+      expect(state.links.d1).toEqual({ value: null, at: BASELINE });
+    });
+
+    it("the user's own unlink still reaches the other phone", () => {
+      const base: LocalView = { clients: {}, links: { d1: "c1" } };
+      const agreed = buildSide(started(base), base, T0);
+      const repState0 = mergeIncoming(started(base), base, agreed, false).state;
+      const ownerState0 = mergeIncoming(started(base), base, agreed, true).state;
+      const ownerLocal: LocalView = { clients: {}, links: { d1: null } };
+      const ownerState = trackLocal(ownerState0, ownerLocal, T2);
+      expect(mergeIncoming(repState0, base, buildSide(ownerState, ownerLocal, T2), false).links).toEqual({ d1: null });
+    });
   });
 });

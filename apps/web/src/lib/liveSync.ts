@@ -15,7 +15,7 @@ import type { StarlinkAccountSummary } from "@starnet/shared";
 import { decryptBackup, encryptBackup, type EncryptedBackup } from "./backupCrypto";
 import type { Client, ClientStore } from "./clientStore";
 import { readDocument, writeDocument, type FetchFn } from "./firestoreRest";
-import { buildSide, EMPTY_TRACK, mergeIncoming, sameSide, trackLocal, type LocalView, type MergeResult, type SidePayload, type TrackState } from "./liveSyncData";
+import { buildSide, EMPTY_TRACK, mergeIncoming, rebaselineTracked, sameSide, trackLocal, type LocalView, type MergeResult, type SidePayload, type TrackState } from "./liveSyncData";
 import { loadLiveSyncConfig, type LiveSyncConfig } from "./liveSyncConfig";
 import { currentRepOfClient, moveClientToOwner } from "./repClients";
 import { loadRepCopy } from "./repCopy";
@@ -85,7 +85,12 @@ interface ScopeMeta {
   lastPulledAt?: string;
 }
 
-const META_KEY = "starnet.liveSyncMeta";
+/** v2 (Oct 2026): links were being wiped by devices new on a phone - every phone starts over once,
+ * where a real customer always beats an empty one (liveSyncData.ts). */
+const META_KEY = "starnet.liveSyncMeta.v2";
+const OLD_META_KEY = "starnet.liveSyncMeta";
+/** Set when a copy was applied on the rep's phone: its values are the operator's, not his. */
+const REBASELINE_KEY = "starnet.liveSyncRebaseline";
 const STATUS_KEY = "starnet.liveSyncStatus";
 
 export interface LiveSyncStatus {
@@ -104,9 +109,30 @@ function loadMeta(): Record<string, ScopeMeta> {
 
 function saveMeta(meta: Record<string, ScopeMeta>): void {
   try {
+    window.localStorage.removeItem(OLD_META_KEY);
     window.localStorage.setItem(META_KEY, JSON.stringify(meta));
   } catch {
     // starts over next time
+  }
+}
+
+/** 📥 A copy was applied on the rep's phone (lib/repCopyApply.ts): on the next round, whatever it
+ * changed counts as the operator's starting point, so it never undoes a newer live link. */
+export function markLiveSyncRebaseline(): void {
+  try {
+    window.localStorage.setItem(REBASELINE_KEY, "1");
+  } catch {
+    // the copy's values simply count as his
+  }
+}
+
+function takeRebaseline(): boolean {
+  try {
+    if (window.localStorage.getItem(REBASELINE_KEY) !== "1") return false;
+    window.localStorage.removeItem(REBASELINE_KEY);
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -157,12 +183,15 @@ async function exchange(x: Exchange, meta: Record<string, ScopeMeta>): Promise<{
   const theirs = x.mine === "rep" ? "owner" : "rep";
   const base = `starnet/${x.config.spaceId}/reps/${x.repId}/sides`;
   const scope = meta[x.scope] ?? { state: EMPTY_TRACK };
-  let state = trackLocal(scope.state, x.view(), nowIso);
+  const before = x.mine === "rep" && takeRebaseline() ? rebaselineTracked(scope.state, x.view()) : scope.state;
+  let state = trackLocal(before, x.view(), nowIso);
   let changed = false;
 
   const pulled = await readDocument(x.config, `${base}/${theirs}`, x.fetchFn);
   if (!pulled.ok) return pulled;
-  if (pulled.value?.data && pulled.value.at !== scope.lastPulledAt) {
+  // Merged every round (not only when the other side changed): a device or customer that reached
+  // this phone since then still gets the other side's value.
+  if (pulled.value?.data) {
     try {
       const incoming = (await decryptBackup(JSON.parse(pulled.value.data) as EncryptedBackup, x.key)) as SidePayload;
       const merge = mergeIncoming(state, x.view(), incoming, x.mine === "owner");

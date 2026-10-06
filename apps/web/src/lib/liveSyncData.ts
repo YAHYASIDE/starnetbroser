@@ -72,9 +72,36 @@ export function trackLocal(state: TrackState, local: LocalView, now: string): Tr
   const links: TrackState["links"] = { ...state.links };
   for (const [deviceId, clientId] of Object.entries(local.links)) {
     const prev = links[deviceId];
-    if (!prev || prev.value !== clientId) links[deviceId] = { value: clientId, at: stamp, seen: prev?.seen };
+    // A device new on this phone (a copy brought it, or it was just given to the rep) is a
+    // starting point, not a link made here - stamping it "now" let a copy without the customer
+    // wipe the link the other phone had made (his Oct 2026 report: «لا أجده مربوطًا»).
+    if (!prev) links[deviceId] = { value: clientId, at: BASELINE };
+    else if (prev.value !== clientId) links[deviceId] = { value: clientId, at: stamp, seen: prev.seen };
   }
   return { clients, links, started: true };
+}
+
+/**
+ * 📥 A copy from the operator was just applied on the rep's phone: every customer / link it changed
+ * is the operator's value, not one the rep made - it goes back to a starting point (BASELINE, not
+ * seen yet), so the operator's live value (newer than any copy) is taken and a real customer is
+ * never replaced by an empty one.
+ */
+export function rebaselineTracked(state: TrackState, local: LocalView): TrackState {
+  const clients: TrackState["clients"] = {};
+  for (const [id, prev] of Object.entries(state.clients)) {
+    const value = local.clients[id];
+    // a customer the copy took off this phone is forgotten: the operator's live side brings it back
+    if (!value) continue;
+    clients[id] = sameClient(prev.value, value) ? prev : { value: { name: value.name, ...(value.phone ? { phone: value.phone } : {}) }, at: BASELINE };
+  }
+  const links: TrackState["links"] = {};
+  for (const [deviceId, prev] of Object.entries(state.links)) {
+    if (!(deviceId in local.links)) continue;
+    const clientId = local.links[deviceId]!;
+    links[deviceId] = prev.value === clientId ? prev : { value: clientId, at: BASELINE };
+  }
+  return { ...state, clients, links };
 }
 
 /** This side as published: every tracked record with its time. */
@@ -114,9 +141,11 @@ function decide<V>(
   const news = theirsAt > (mine.seen ?? "") || firstExchange;
   if (!news) return "skip";
   if (same(mine.value, theirsValue)) return "keep";
-  // Both still at their starting point (the link was just switched on): a real value beats an
-  // empty one; two different real values - the rep's wins.
-  if (mine.at === BASELINE && theirsAt === BASELINE) {
+  // Mine is still a starting point - the link was just switched on, the device is new here, or a
+  // copy set it - and either theirs is too or it's the first time this record meets theirs: a real
+  // value beats an empty one (a link never disappears by itself); two different real values - the
+  // rep's wins.
+  if (mine.at === BASELINE && (theirsAt === BASELINE || firstExchange)) {
     if (isEmpty(theirsValue)) return "keep";
     if (isEmpty(mine.value)) return "take";
     return incomingWins ? "take" : "keep";
@@ -156,6 +185,14 @@ export function mergeIncoming(state: TrackState, local: LocalView, incoming: Sid
     }
     if (local.links[deviceId] !== theirs.clientId) out.links[deviceId] = theirs.clientId;
     out.state.links[deviceId] = { value: theirs.clientId, at: theirs.at, seen: theirs.at };
+    // Never a link to a customer this phone doesn't have: the other side's record comes with it.
+    const linked = theirs.clientId;
+    const record = linked ? incoming.clients[linked] : undefined;
+    if (linked && record && !local.clients[linked] && !out.clients[linked]) {
+      const value = { name: record.name, ...(record.phone ? { phone: record.phone } : {}) };
+      out.clients[linked] = value;
+      out.state.clients[linked] = { value, at: record.at, seen: record.at };
+    }
   }
   return out;
 }
