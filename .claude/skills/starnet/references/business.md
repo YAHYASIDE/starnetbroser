@@ -374,6 +374,12 @@ mind). Exact texts and numbers live in the code - this file says where.
   ⏳ never synced, 👤 faulty «إيميل غير رئيسي», 🔥 faulty «محروق» - each opens its devices
   (`lib/dayBuckets.ts`). Day 28 stays a normal day (his choice).
 
+## 📇 Device card taps (Oct 2026)
+
+- His request: one tap opens the full card (and closes it); holding still works; 2 quick taps =
+  payment, 3 = edit (unchanged). Tapping the email at the top of the card copies it («✓ نُسخ»).
+  Logic: `lib/cardGestures.ts`.
+
 ## 👤 Devices without a customer (home chip)
 
 - His request (Oct 2026): a «👤 بدون زبون (N)» chip next to «المعطلة» / «قيد الإصلاح»; tapping it

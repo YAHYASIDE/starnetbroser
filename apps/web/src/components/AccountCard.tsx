@@ -374,7 +374,7 @@ export function AccountCard({
   const [showDishAlerts, setShowDishAlerts] = useState(false);
   const [showPasteSession, setShowPasteSession] = useState(false);
   const dishAlerts = describeDishAlerts(account.dishAlerts);
-  // No "التفاصيل" button: hold the card for its details, tap twice for a payment, 3 times to edit.
+  // No "التفاصيل" button: one tap (or holding) opens the details, two taps a payment, 3 edit.
   const gestures = useCardGestures((gesture) => {
     if (gesture === "details") setExpanded((v) => !v);
     else if (gesture === "payment") onLedger(account);
@@ -384,6 +384,7 @@ export function AccountCard({
   const [showRenewalDialog, setShowRenewalDialog] = useState(false);
   const [showPromise, setShowPromise] = useState(false);
   const identityEmail = account.expectedEmail || account.starlinkAccountEmail;
+  const [emailCopied, setEmailCopied] = useState(false);
 
   async function copyToClipboard(value: string) {
     try {
@@ -685,9 +686,20 @@ export function AccountCard({
           <RenewalLockSheet account={account} onPatch={(patch) => onPatch(account, patch)} onClose={() => setRenewalSheet(false)} />
         )}
         {identityEmail && (
-          <span className="account-card-recharge-pill" dir="ltr">
-            <IconEnvelope /> {identityEmail}
-          </span>
+          <button
+            type="button"
+            className="account-card-recharge-pill account-card-email-copy"
+            dir="ltr"
+            data-tour="email-copy"
+            aria-label="نسخ البريد"
+            onClick={() => {
+              void copyToClipboard(identityEmail);
+              setEmailCopied(true);
+              window.setTimeout(() => setEmailCopied(false), 1500);
+            }}
+          >
+            <IconEnvelope /> {emailCopied ? "✓ نُسخ" : identityEmail}
+          </button>
         )}
       </div>
 

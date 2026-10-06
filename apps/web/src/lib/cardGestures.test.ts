@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 import { gestureForTaps, isInteractiveTarget } from "./cardGestures";
 
 describe("card gestures", () => {
-  it("two taps = payment, three = edit, one = nothing", () => {
-    expect(gestureForTaps(1)).toBeNull();
+  it("one tap = details, two = payment, three = edit", () => {
+    expect(gestureForTaps(0)).toBeNull();
+    expect(gestureForTaps(1)).toBe("details");
     expect(gestureForTaps(2)).toBe("payment");
     expect(gestureForTaps(3)).toBe("edit");
     expect(gestureForTaps(5)).toBe("edit");
