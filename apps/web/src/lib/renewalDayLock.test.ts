@@ -17,6 +17,10 @@ describe("📌 locked renewal day", () => {
     expect(lockRenewalDay(dev())).toEqual({ lockedRenewalDay: 10, renewalDayMismatch: null, renewalDayIgnored: null });
     expect(lockRenewalDay(dev(), 12)).toMatchObject({ lockedRenewalDay: 12, rechargeDate: "2026/10/12" });
     expect(lockRenewalDay(dev({ rechargeDate: "" }))).toBeNull();
+    // a 29-31 misread / old placeholder moves onto the nearest date with the locked day (his real case)
+    expect(lockRenewalDay(dev({ rechargeDate: "2026/10/30" }), 3)).toMatchObject({ lockedRenewalDay: 3, rechargeDate: "2026/11/03" });
+    expect(lockRenewalDay(dev({ rechargeDate: "2026/12/30" }), 3)).toMatchObject({ rechargeDate: "2027/01/03" });
+    expect(lockRenewalDay(dev({ rechargeDate: "2026/10/05" }), 28)).toMatchObject({ rechargeDate: "2026/09/28" });
     expect(unlockRenewalDay()).toEqual({ lockedRenewalDay: null, renewalDayMismatch: null, renewalDayIgnored: null });
   });
 

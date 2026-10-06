@@ -35,9 +35,13 @@ export function lockRenewalDay(account: StarlinkAccountSummary, day?: number): P
   const value = day ?? renewalDayOf(account.rechargeDate);
   if (!value || value < 1 || value > 28) return null;
   const patch: Partial<StarlinkAccountSummary> = { lockedRenewalDay: value, renewalDayMismatch: null, renewalDayIgnored: null };
-  // Typing another day by hand moves the saved date onto it (same month).
+  // Another day (or a 29-31 misread / old placeholder) moves the saved date onto the locked day -
+  // the nearest such date (2026/10/30 locked on 3 → 2026/11/03, never back to 10/03).
   const current = renewalDayOf(account.rechargeDate);
-  if (current !== null && current !== value) patch.rechargeDate = withDay(account.rechargeDate, value);
+  if (current !== value) {
+    const moved = nearestWithDay(account.rechargeDate, value);
+    if (moved) patch.rechargeDate = moved;
+  }
   return patch;
 }
 
@@ -72,8 +76,19 @@ export function lockAllRenewalDays(accounts: StarlinkAccountSummary[]): { accoun
   return { accounts: next, locked };
 }
 
-function withDay(date: string, day: number): string {
+/** The date with day `day` nearest to `date` (this month, the one before or after), same format. */
+function nearestWithDay(date: string, day: number): string | null {
   const match = /^(\d{4})([/-])(\d{1,2})\2(\d{1,2})/.exec(date.trim());
-  if (!match) return date;
-  return `${match[1]}${match[2]}${match[3]!.padStart(2, "0")}${match[2]}${String(day).padStart(2, "0")}`;
+  if (!match) return null;
+  const sep = match[2]!;
+  const year = Number(match[1]);
+  const month = Number(match[3]) - 1;
+  const from = Date.UTC(year, month, Number(match[4]));
+  let best: Date | null = null;
+  for (const offset of [-1, 0, 1]) {
+    const candidate = new Date(Date.UTC(year, month + offset, day));
+    if (!best || Math.abs(candidate.getTime() - from) < Math.abs(best.getTime() - from)) best = candidate;
+  }
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${best!.getUTCFullYear()}${sep}${pad(best!.getUTCMonth() + 1)}${sep}${pad(best!.getUTCDate())}`;
 }

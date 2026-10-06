@@ -26,7 +26,7 @@ export function RenewalLockSheet({
   }
 
   function lock() {
-    const value = Number(day);
+    const value = Number(day.replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d))));
     if (!Number.isInteger(value) || value < 1 || value > 28) {
       setError("اكتب يومًا من 1 إلى 28 - ستارلينك لا يجدد بعد يوم 28");
       return;
