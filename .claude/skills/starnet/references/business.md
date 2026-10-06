@@ -405,6 +405,8 @@ mind). Exact texts and numbers live in the code - this file says where.
   stores `travelRegistrationDoneFor` (= the deadline) so the device leaves the list and the card
   banner until Starlink asks again with another date, and its rep gets «✅ تم توثيق جهاز…» on the
   reps bot.
+- «اجعل هناك فارق»: the list is split - «🏠 أجهزتي» first, then each rep's devices under his name
+  (`groupTravelByOwner`).
 
 ## 📇 Device card taps (Oct 2026)
 

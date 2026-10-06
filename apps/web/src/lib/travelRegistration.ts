@@ -7,6 +7,7 @@
  */
 
 import type { StarlinkAccountSummary } from "@starnet/shared";
+import type { RepresentativeStore } from "./repStore";
 import { buildWhatsAppLink } from "./whatsapp";
 
 const MONTHS: Record<string, string> = {
@@ -133,4 +134,26 @@ export function markTravelSent(accountId: string, at: Date = new Date()): Record
     // storage unavailable - only the ✓ is lost
   }
   return next;
+}
+
+// ---- 👥 his devices apart from each rep's (his Oct 2026 request: «اجعل هناك فارق») ----
+
+export interface TravelGroup {
+  /** "mine" or the rep's id. */
+  key: string;
+  label: string;
+  accounts: StarlinkAccountSummary[];
+}
+
+/** «🏠 أجهزتي» first, then each rep's devices under his name (most first). */
+export function groupTravelByOwner(accounts: StarlinkAccountSummary[], reps: RepresentativeStore): TravelGroup[] {
+  const mine = accounts.filter((a) => !a.representativeId);
+  const byRep = new Map<string, StarlinkAccountSummary[]>();
+  for (const account of accounts) {
+    if (account.representativeId) byRep.set(account.representativeId, [...(byRep.get(account.representativeId) ?? []), account]);
+  }
+  const repGroups = [...byRep]
+    .map(([repId, list]) => ({ key: repId, label: `📱 ${reps[repId]?.name ?? "مندوب محذوف"}`, accounts: list }))
+    .sort((a, b) => b.accounts.length - a.accounts.length || a.label.localeCompare(b.label, "ar"));
+  return [...(mine.length ? [{ key: "mine", label: "🏠 أجهزتي", accounts: mine }] : []), ...repGroups];
 }

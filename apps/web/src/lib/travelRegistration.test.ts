@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { StarlinkAccountSummary } from "@starnet/shared";
-import { buildTravelCheckReport, buildTravelRegistrationMessage, markTravelDone, needsTravelRegistration, travelDoneRepMessage, travelDueArabic } from "./travelRegistration";
+import { groupTravelByOwner, buildTravelCheckReport, buildTravelRegistrationMessage, markTravelDone, needsTravelRegistration, travelDoneRepMessage, travelDueArabic } from "./travelRegistration";
 
 const dev = (id: string, extra: Partial<StarlinkAccountSummary> = {}) => ({ id, name: `جهاز ${id}`, ...extra }) as StarlinkAccountSummary;
 
@@ -68,5 +68,17 @@ describe("✅ «اكتمل التوثيق»", () => {
 
   it("tells the rep which device is done", () => {
     expect(travelDoneRepMessage(flagged)).toBe("✅ تم توثيق جهاز «جهاز a»\n📧 a@example.com\nلن تتوقف خدمته خارج البلد - يمكنك إخبار الزبون.");
+  });
+});
+
+describe("👥 his devices apart from each rep's", () => {
+  it("mine first, then each rep under his name", () => {
+    const reps = { r1: { id: "r1", name: "مندوب أ" } } as unknown as Parameters<typeof groupTravelByOwner>[1];
+    const groups = groupTravelByOwner([dev("x", { representativeId: "r1" }), dev("m"), dev("y", { representativeId: "r1" }), dev("z", { representativeId: "gone" })], reps);
+    expect(groups.map((g) => [g.label, g.accounts.map((a) => a.id)])).toEqual([
+      ["🏠 أجهزتي", ["m"]],
+      ["📱 مندوب أ", ["x", "y"]],
+      ["📱 مندوب محذوف", ["z"]],
+    ]);
   });
 });

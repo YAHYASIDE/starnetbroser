@@ -1553,6 +1553,7 @@ export function HomeView({
         <TravelCheckSheet
           {...travelResult}
           accounts={accounts}
+          reps={representativeStore}
           phoneFor={(account) => getClient(clientStore, account.clientId)?.phone ?? account.phone}
           onDone={handleTravelDone}
           onClose={() => setTravelResult(null)}

@@ -9719,6 +9719,30 @@ button.settings-fold-row {
   color: #fff;
 }
 
+.travel-group + .travel-group {
+  margin-top: 12px;
+}
+
+.travel-group-title {
+  margin: 4px 0 6px;
+  font-size: 0.85rem;
+  color: var(--brand);
+}
+
+.travel-group-rep {
+  color: var(--violet);
+}
+
+.travel-group-title small {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+/* A rep's device: a violet edge, so it never looks like one of his own. */
+.travel-row-rep {
+  border-inline-start: 4px solid var(--violet);
+}
+
 .travel-row-actions {
   display: flex;
   flex-direction: column;

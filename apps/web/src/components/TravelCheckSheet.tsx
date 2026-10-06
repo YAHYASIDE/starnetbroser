@@ -3,7 +3,8 @@
 import { useState } from "react";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { PartySheet } from "./AccountsSection";
-import { loadTravelSent, markTravelSent, needsTravelRegistration, travelDueArabic, travelWhatsAppLink } from "@/lib/travelRegistration";
+import type { RepresentativeStore } from "@/lib/repStore";
+import { groupTravelByOwner, loadTravelSent, markTravelSent, needsTravelRegistration, travelDueArabic, travelWhatsAppLink } from "@/lib/travelRegistration";
 
 /** 🛂 The devices that need the travel registration, each with its WhatsApp message ready - after
  * a «كشف توثيق» (`checked`: how many were checked) or from the home «🛂 تحتاج توثيق» button (all of
@@ -15,6 +16,7 @@ export function TravelCheckSheet({
   skipped = 0,
   checked = true,
   accounts,
+  reps,
   phoneFor,
   onDone,
   onClose,
@@ -24,6 +26,8 @@ export function TravelCheckSheet({
   skipped?: number;
   checked?: boolean;
   accounts: StarlinkAccountSummary[];
+  /** 👥 His devices apart from each rep's. */
+  reps: RepresentativeStore;
   phoneFor: (account: StarlinkAccountSummary) => string | undefined;
   /** ✅ «اكتمل التوثيق» - takes the device out of the list (and tells its rep). */
   onDone?: (account: StarlinkAccountSummary) => void;
@@ -42,45 +46,52 @@ export function TravelCheckSheet({
       {found.length === 0 ? (
         <p className="sync-choice-hint">✅ لا جهاز يحتاج توثيقًا.</p>
       ) : (
-        <div className="day-sheet-rows">
-          {found.map((account) => {
-            const phone = phoneFor(account);
-            return (
-              <div key={account.id} className="day-sheet-row">
-                <span>
-                  {account.name}
-                  <small> · قبل {travelDueArabic(account.travelRegistrationDue)}</small>
-                  {sent[account.id] && <small className="day-sheet-ok"> · ✓ أُرسل</small>}
-                  <br />
-                  <small dir="ltr">{account.expectedEmail || account.starlinkAccountEmail || "—"}</small>
-                  {!phone && <small> · بلا رقم - تختار الزبون في واتساب</small>}
-                </span>
-                <span className="travel-row-actions">
-                  <a
-                    className="day-sheet-wa"
-                    href={travelWhatsAppLink(account, phone)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => setSent(markTravelSent(account.id))}
-                  >
-                    واتساب
-                  </a>
-                  {onDone && (
-                    <button
-                      type="button"
-                      className="travel-done"
-                      onClick={() => {
-                        if (window.confirm(`اكتمل توثيق «${account.name}»؟ يخرج من القائمة${account.representativeId ? " ويصل إشعار لمندوبه" : ""}.`)) onDone(account);
-                      }}
-                    >
-                      ✅ اكتمل
-                    </button>
-                  )}
-                </span>
-              </div>
-            );
-          })}
-        </div>
+        groupTravelByOwner(found, reps).map((group) => (
+          <div key={group.key} className="travel-group">
+            <h3 className={`travel-group-title${group.key === "mine" ? "" : " travel-group-rep"}`}>
+              {group.label} <small>({group.accounts.length})</small>
+            </h3>
+            <div className="day-sheet-rows">
+              {group.accounts.map((account) => {
+                const phone = phoneFor(account);
+                return (
+                  <div key={account.id} className={`day-sheet-row${account.representativeId ? " travel-row-rep" : ""}`}>
+                    <span>
+                      {account.name}
+                      <small> · قبل {travelDueArabic(account.travelRegistrationDue)}</small>
+                      {sent[account.id] && <small className="day-sheet-ok"> · ✓ أُرسل</small>}
+                      <br />
+                      <small dir="ltr">{account.expectedEmail || account.starlinkAccountEmail || "—"}</small>
+                      {!phone && <small> · بلا رقم - تختار الزبون في واتساب</small>}
+                    </span>
+                    <span className="travel-row-actions">
+                      <a
+                        className="day-sheet-wa"
+                        href={travelWhatsAppLink(account, phone)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => setSent(markTravelSent(account.id))}
+                      >
+                        واتساب
+                      </a>
+                      {onDone && (
+                        <button
+                          type="button"
+                          className="travel-done"
+                          onClick={() => {
+                            if (window.confirm(`اكتمل توثيق «${account.name}»؟ يخرج من القائمة${account.representativeId ? " ويصل إشعار لمندوبه" : ""}.`)) onDone(account);
+                          }}
+                        >
+                          ✅ اكتمل
+                        </button>
+                      )}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))
       )}
     </PartySheet>
   );
