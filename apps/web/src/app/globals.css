@@ -9579,6 +9579,17 @@ button.settings-fold-row {
   color: #fff;
 }
 
+.no-client-chip {
+  border-color: var(--mint);
+  background: var(--mint-bg);
+  color: var(--mint);
+}
+
+.no-client-chip.faulty-chip-active {
+  background: var(--mint);
+  color: #fff;
+}
+
 .account-card-repair-banner {
   background: var(--violet-bg);
   color: var(--violet);

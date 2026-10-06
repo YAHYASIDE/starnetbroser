@@ -31,6 +31,20 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-06-no-client",
+    date: "2026-10-06",
+    title: "الأجهزة بدون زبون",
+    steps: [
+      {
+        path: "/",
+        target: "no-client",
+        title: "👤 زر «بدون زبون»",
+        before: "لم يكن هناك مكان يجمع الأجهزة التي ليس عليها زبون.",
+        after: "زر «👤 بدون زبون» بجانب «المعطلة» و«قيد الإصلاح» مع عددها. اضغطه فتظهر الأجهزة، وفوقها اختيار: «🏠 أجهزتي» أو أجهزة كل مندوب باسمه.",
+      },
+    ],
+  },
+  {
     id: "2026-10-06-spend-picker",
     date: "2026-10-06",
     title: "اختيار جهاز دفعة KAST بيدك",

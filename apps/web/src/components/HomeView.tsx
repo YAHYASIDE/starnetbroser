@@ -52,6 +52,7 @@ import { OceanModeAlarm } from "./OceanModeAlarm";
 import { PartySheet } from "@/components/AccountsSection";
 import { isUnregisteredCard } from "@/lib/cardDevices";
 import { countDayKeys, deviceDayKeys, type DayKey } from "@/lib/dayBuckets";
+import { countNoClient, matchesNoClientGroup, type NoClientGroup } from "@/lib/noClientDevices";
 import { loadPaymentCards, type PaymentCard } from "@/lib/kastCards";
 import { cardNeed, computeRenewalForecast } from "@/lib/renewalForecast";
 import { computeDeviceMargins, WEAK_MARGIN_PERCENT } from "@/lib/deviceMargins";
@@ -170,7 +171,7 @@ type DialogState = { mode: AccountDialogMode; account?: StarlinkAccountSummary; 
  * ways of narrowing the SAME list, and combining them silently would be confusing rather than
  * useful. `total` never appears as a value: tapping "كل الحسابات" is just `showAll`, not a real
  * per-account filter. */
-type StatFilterKind = "online" | "expiringSoon" | "expired" | "suspended" | "faulty" | "repair" | "fromRep";
+type StatFilterKind = "online" | "expiringSoon" | "expired" | "suspended" | "faulty" | "repair" | "fromRep" | "noClient";
 
 const STAT_FILTER_TITLES: Record<StatFilterKind, string> = {
   online: "الحسابات المتصلة الآن",
@@ -180,6 +181,7 @@ const STAT_FILTER_TITLES: Record<StatFilterKind, string> = {
   faulty: "الأجهزة المعطلة",
   repair: "قيد الإصلاح (مع الدعم الفني)",
   fromRep: "أجهزة أضافها المندوبون",
+  noClient: "أجهزة بدون زبون",
 };
 
 function matchesStatFilter(account: StarlinkAccountSummary, kind: StatFilterKind): boolean {
@@ -194,6 +196,9 @@ function matchesStatFilter(account: StarlinkAccountSummary, kind: StatFilterKind
       return isUnderRepair(account);
     case "fromRep":
       return Boolean(account.addedByRepId);
+    case "noClient":
+      // Needs the client list - narrowed in `filtered` (matchesNoClientGroup).
+      return true;
     case "expiringSoon": {
       // A broken device isn't renewed until it's repaired (see "المعطلة").
       if (isFaulty(account)) return false;
@@ -246,6 +251,8 @@ export function HomeView({
   const [statFilter, setStatFilter] = useState<StatFilterKind | null>(null);
   /** One group of «المعطلة» (ملغي / محروق / منقول / إيميل غير رئيسي), or all of them. */
   const [faultFilter, setFaultFilter] = useState<DeviceFaultReason | null>(null);
+  /** «بدون زبون»: all of them, mine, or one representative's. */
+  const [noClientGroup, setNoClientGroup] = useState<NoClientGroup>("all");
 
   function toggleStatFilter(kind: StatFilterKind) {
     setStatFilter((current) => (current === kind ? null : kind));
@@ -1437,6 +1444,7 @@ export function HomeView({
     if (statFilter) {
       list = list.filter((a) => matchesStatFilter(a, statFilter));
       if (statFilter === "faulty" && faultFilter) list = list.filter((a) => faultCategory(a) === faultFilter);
+      if (statFilter === "noClient") list = list.filter((a) => matchesNoClientGroup(a, clientStore, noClientGroup));
     }
     if (query.trim()) {
       // A rep's name shows his devices too.
@@ -1447,11 +1455,12 @@ export function HomeView({
       );
     }
     return list;
-  }, [activeAccounts, selectedDay, statFilter, faultFilter, query, clientStore, representativeStore]);
+  }, [activeAccounts, selectedDay, statFilter, faultFilter, noClientGroup, query, clientStore, representativeStore]);
 
   const faultCounts = useMemo(() => countFaultCategories(activeAccounts), [activeAccounts]);
   const repairCount = useMemo(() => activeAccounts.filter(isUnderRepair).length, [activeAccounts]);
   const fromRepCount = useMemo(() => activeAccounts.filter((a) => a.addedByRepId).length, [activeAccounts]);
+  const noClient = useMemo(() => countNoClient(activeAccounts, clientStore, representativeStore), [activeAccounts, clientStore, representativeStore]);
 
   const searchResults = useMemo(
     () =>
@@ -1879,6 +1888,16 @@ export function HomeView({
                 📱 من المندوبين ({fromRepCount})
               </button>
             )}
+            {noClient.total > 0 && (
+              <button
+                type="button"
+                data-tour="no-client"
+                className={`faulty-chip no-client-chip${statFilter === "noClient" ? " faulty-chip-active" : ""}`}
+                onClick={() => { toggleStatFilter("noClient"); setNoClientGroup("all"); setSelectedDay(null); }}
+              >
+                👤 بدون زبون ({noClient.total})
+              </button>
+            )}
           </div>
 
           <section className="section dashboard-section">
@@ -1939,6 +1958,27 @@ export function HomeView({
                 onClick={() => setFaultFilter(c.reason)}
               >
                 {c.icon} {c.label} ({faultCounts[c.reason]})
+              </button>
+            ))}
+          </div>
+        )}
+
+        {viewMode === "active" && statFilter === "noClient" && (
+          <div className="fault-groups" role="radiogroup" aria-label="بدون زبون: أجهزة من؟">
+            <button type="button" className={`fault-group${noClientGroup === "all" ? " fault-group-active" : ""}`} onClick={() => setNoClientGroup("all")}>
+              الكل ({noClient.total})
+            </button>
+            <button type="button" className={`fault-group${noClientGroup === "mine" ? " fault-group-active" : ""}`} onClick={() => setNoClientGroup("mine")}>
+              🏠 أجهزتي ({noClient.mine})
+            </button>
+            {noClient.reps.map((r) => (
+              <button
+                key={r.repId}
+                type="button"
+                className={`fault-group${noClientGroup === r.repId ? " fault-group-active" : ""}`}
+                onClick={() => setNoClientGroup(r.repId)}
+              >
+                📱 {r.name} ({r.count})
               </button>
             ))}
           </div>

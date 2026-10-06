@@ -374,6 +374,12 @@ mind). Exact texts and numbers live in the code - this file says where.
   ⏳ never synced, 👤 faulty «إيميل غير رئيسي», 🔥 faulty «محروق» - each opens its devices
   (`lib/dayBuckets.ts`). Day 28 stays a normal day (his choice).
 
+## 👤 Devices without a customer (home chip)
+
+- His request (Oct 2026): a «👤 بدون زبون (N)» chip next to «المعطلة» / «قيد الإصلاح»; tapping it
+  lists them with a row «الكل / 🏠 أجهزتي / 📱 <each rep>». «Without a customer» = no client, or its
+  client was deleted; «mine» = no representative. Logic: `lib/noClientDevices.ts`.
+
 ## 📌 Locked renewal day
 
 - His rule (Oct 2026): a device's renewal day never moves («ينتهي يوم 10 … شهر 11 يوم 10») except when
