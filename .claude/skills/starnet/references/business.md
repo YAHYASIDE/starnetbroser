@@ -387,6 +387,8 @@ mind). Exact texts and numbers live in the code - this file says where.
   (no rep) or one rep's (`dayOwnerGroups` in `lib/dayActions.ts`); with one group only (e.g. the
   rep's own app) they run at once. The result also opens in the app (TravelCheckSheet, WhatsApp
   buttons) - the rep's app has no bot.
+- Many rep devices are in **French**: the check reads them as they are (no language switch) and
+  waits for Home to load on a slow phone (his report: «يخرج بسرعة ويكتب لم يتم العثور»).
 
 ## 📇 Device card taps (Oct 2026)
 

@@ -76,10 +76,12 @@ export function hasBillingSuspensionBanner(lines: string[]): boolean {
 
 /** 🛂 Home's "Complete Travel Registration by October 15. If you do not, your service will be
  * disabled outside your home country until you complete it." (real, confirmed screenshot, Oct
- * 2026). Returns the deadline as printed ("October 15"; "" when none is readable), or undefined
- * when the banner isn't on the page. A line and the next are read together - the sentence can be
- * split across text nodes. */
-const TRAVEL_REGISTRATION_WORDS = ["travel registration", "تسجيل السفر"];
+ * 2026), and the French page of a rep's devices, read as is - the «كشف توثيق» never switches the
+ * language: "Terminez l'inscription de voyage avant le 15 octobre. Si vous ne le faites pas…"
+ * (real, confirmed). Returns the deadline as printed ("October 15" / "15 octobre"; "" when none is
+ * readable), or undefined when the banner isn't on the page. A line and the next are read together
+ * - the sentence can be split across text nodes. */
+const TRAVEL_REGISTRATION_WORDS = ["travel registration", "inscription de voyage", "تسجيل السفر"];
 
 export function extractTravelRegistrationDue(lines: string[]): string | undefined {
   for (let i = 0; i < lines.length; i++) {
@@ -87,6 +89,8 @@ export function extractTravelRegistrationDue(lines: string[]): string | undefine
     if (!containsAny(lines[i], TRAVEL_REGISTRATION_WORDS)) continue;
     const english = /travel registration by\s+([A-Za-z]+\.?\s+\d{1,2})/i.exec(text);
     if (english) return english[1]!.replace(/\s+/g, " ").trim();
+    const french = /inscription de voyage avant le\s+(\d{1,2})(?:er)?\s+([A-Za-zÀ-ÿ]+)/i.exec(text);
+    if (french) return `${french[1]} ${french[2]!.toLowerCase()}`;
     const arabic = /(?:بحلول|قبل)\s+(\d{1,2}\s+[\u0600-\u06FF]+|[\u0600-\u06FF]+\s+\d{1,2})/.exec(text);
     return arabic ? arabic[1]!.trim() : "";
   }

@@ -8,6 +8,8 @@ describe("🛂 travel registration", () => {
   it("writes Starlink's date in Arabic", () => {
     expect(travelDueArabic("October 15")).toBe("15 أكتوبر");
     expect(travelDueArabic("Nov. 3")).toBe("3 نوفمبر");
+    expect(travelDueArabic("15 octobre")).toBe("15 أكتوبر");
+    expect(travelDueArabic("1 février")).toBe("1 فبراير");
     expect(travelDueArabic("")).toBe("الموعد المحدد");
     expect(travelDueArabic("15 أكتوبر")).toBe("15 أكتوبر");
   });

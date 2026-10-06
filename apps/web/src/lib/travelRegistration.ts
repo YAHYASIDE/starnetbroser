@@ -14,13 +14,23 @@ const MONTHS: Record<string, string> = {
   jul: "يوليو", aug: "أغسطس", sep: "سبتمبر", oct: "أكتوبر", nov: "نوفمبر", dec: "ديسمبر",
 };
 
-/** "October 15" → "15 أكتوبر"; anything else as printed; no date → "الموعد المحدد". */
+/** French month names as Starlink prints them (a rep's devices are in French). */
+const FRENCH_MONTHS: Record<string, string> = {
+  janvier: "يناير", "février": "فبراير", fevrier: "فبراير", mars: "مارس", avril: "أبريل", mai: "مايو", juin: "يونيو",
+  juillet: "يوليو", "août": "أغسطس", aout: "أغسطس", septembre: "سبتمبر", octobre: "أكتوبر", novembre: "نوفمبر",
+  "décembre": "ديسمبر", decembre: "ديسمبر",
+};
+
+/** "October 15" / "15 octobre" → "15 أكتوبر"; anything else as printed; no date → "الموعد المحدد". */
 export function travelDueArabic(due: string | undefined): string {
   const text = due?.trim() ?? "";
   if (!text) return "الموعد المحدد";
-  const match = /^([A-Za-z]+)\.?\s+(\d{1,2})$/.exec(text);
-  const month = match ? MONTHS[match[1]!.slice(0, 3).toLowerCase()] : undefined;
-  return match && month ? `${match[2]} ${month}` : text;
+  const english = /^([A-Za-z]+)\.?\s+(\d{1,2})$/.exec(text);
+  const englishMonth = english ? MONTHS[english[1]!.slice(0, 3).toLowerCase()] : undefined;
+  if (english && englishMonth) return `${english[2]} ${englishMonth}`;
+  const french = /^(\d{1,2})\s+(\S+)$/.exec(text);
+  const frenchMonth = french ? FRENCH_MONTHS[french[2]!.toLowerCase()] : undefined;
+  return french && frenchMonth ? `${french[1]} ${frenchMonth}` : text;
 }
 
 /** The customer's WhatsApp message. */

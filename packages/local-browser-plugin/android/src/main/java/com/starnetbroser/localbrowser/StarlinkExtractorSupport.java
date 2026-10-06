@@ -181,6 +181,11 @@ final class StarlinkExtractorSupport {
         return isColoredDot(fields.optString("dishStatus", "")) || isColoredDot(fields.optString("wifiStatus", ""));
     }
 
+    /** 🛂 Home has loaded: the travel-registration notice was decided (its banner, or the account line without it). */
+    static boolean hasHomeRead(JSObject fields) {
+        return fields != null && fields.has("travelRegistrationRequired");
+    }
+
     /** The Billing page's renewal day has loaded (its «Billing Cycle» box comes after the balance). */
     static boolean hasRenewalDate(JSObject fields) {
         return fields != null && !fields.optString("renewalDate", "").trim().isEmpty();

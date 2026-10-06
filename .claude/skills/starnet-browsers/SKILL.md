@@ -121,6 +121,10 @@ plus the rules learned from real misreads; keep it updated when you learn a new 
 - 🛂 «Complete Travel Registration by …» is a Home banner: only a Home read may clear
   `travelRegistrationRequired`. A `checkOnly` read («كشف توثيق», Home only) must never change any
   other field (`mergeSyncedFields` keeps only the travel fields).
+- 🛂 The «كشف توثيق» never switches the language (a rep's devices are in French): the banner is read
+  in English, French («Terminez l'inscription de voyage avant le 15 octobre») and Arabic. It waits
+  for Home to really load (`WANT_HOME`: the account line or the banner, up to 30 s) - a slow phone
+  showed Home's spinner and the old 8 s read gave «لم يتم العثور على بيانات».
 - Never put real account data in tests or fixtures; fake values only.
 - 🔄 A hidden WebView (`AutoSyncWorker`, never attached to a window) often doesn't render Starlink's
   SPA - the card's «تحديث من Starlink» "did nothing" for the operator. So the card button and

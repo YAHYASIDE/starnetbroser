@@ -124,9 +124,15 @@ public class AccountBrowserActivity extends AppCompatActivity {
     private static final int WANT_ANY = 0;
     private static final int WANT_DOTS = 1;
     private static final int WANT_RENEWAL = 2;
+    /** 🛂 «كشف توثيق»: Home has really loaded (its account line or the travel banner was read). */
+    private static final int WANT_HOME = 3;
     /** Home's banners appear a moment after the page: never read it as final before this. */
     private static final long HOME_MIN_MS = 3500;
     private static final long HOME_MAX_MS = 8000;
+    /** 🛂 A slow phone shows Home's spinner for a long while (real, confirmed on a rep's phone):
+     * the check waits for the page itself, up to this long. */
+    private static final long HOME_CHECK_MIN_MS = 4000;
+    private static final long HOME_CHECK_MAX_MS = 30_000;
     /** Switching Starlink to English (language.ts): at most this many taps/checks per sync, and the
      * wait after tapping "English" for the page to come back in the new language. */
     private static final int MAX_ENGLISH_STEPS = 7;
@@ -1069,18 +1075,19 @@ public class AccountBrowserActivity extends AppCompatActivity {
 
         syncSteps = new ArrayDeque<>();
         taskChanged("sync", "🔄 تحديث " + deviceLabel);
-        // Starlink reads cleanly in English (real, confirmed: the Arabic page kept syncing badly), so
-        // the page is switched first - ☰ → region/language → "UNITED STATES / English". The choice
-        // stays in this device's own browser, so later syncs find it already English.
-        syncSteps.add(this::syncStepEnsureEnglish);
         if (syncHomeOnly) {
-            // 🛂 «كشف توثيق»: only Home's banners matter - nothing else is read.
+            // 🛂 «كشف توثيق»: only Home's banners matter - nothing else is read, and the page keeps
+            // its language (the banner is recognized in English, French and Arabic).
             syncSteps.add(this::syncStepReturnHome);
-            syncSteps.add(() -> syncStepReadSettled(HOME_MIN_MS, HOME_MAX_MS, 3, false, WANT_ANY));
+            syncSteps.add(() -> syncStepReadSettled(HOME_CHECK_MIN_MS, HOME_CHECK_MAX_MS, 3, false, WANT_HOME));
             syncSteps.add(this::finishSync);
             advanceSyncSteps();
             return;
         }
+        // Starlink reads cleanly in English (real, confirmed: the Arabic page kept syncing badly), so
+        // the page is switched first - ☰ → region/language → "UNITED STATES / English". The choice
+        // stays in this device's own browser, so later syncs find it already English.
+        syncSteps.add(this::syncStepEnsureEnglish);
         // Each page is read until it has settled (SettleTracker) instead of once after a fixed wait:
         // the sync moves on as soon as the page is complete, and a slow page gets more time. After a
         // tap the read only counts once the page actually changed (the old page stays on screen for
@@ -1173,7 +1180,8 @@ public class AccountBrowserActivity extends AppCompatActivity {
             if (!key.isEmpty() && !stillOldPage) latest[0] = fields;
             boolean good = !stillOldPage
                 && (want != WANT_DOTS || StarlinkExtractorSupport.hasColoredDot(fields))
-                && (want != WANT_RENEWAL || StarlinkExtractorSupport.hasRenewalDate(fields));
+                && (want != WANT_RENEWAL || StarlinkExtractorSupport.hasRenewalDate(fields))
+                && (want != WANT_HOME || StarlinkExtractorSupport.hasHomeRead(fields));
             long elapsed = android.os.SystemClock.elapsedRealtime() - started;
             if (tracker.offer(stillOldPage ? "" : key, good, elapsed)) {
                 saveSyncRead(latest[0]);

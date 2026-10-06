@@ -816,3 +816,20 @@ describe("🛂 travel registration (Home banner)", () => {
     expect(extractFrom(`<div>Billing</div><div>Payment due October 7.</div>`).travelRegistrationRequired).toBeUndefined();
   });
 });
+
+describe("🛂 travel registration in French (a rep's devices, read without switching)", () => {
+  it("reads the French banner and its date (real Oct 2026 wording)", () => {
+    const fields = extractFrom(`
+      <div>Donnez un mois et obtenez-en un</div>
+      <div><span>Terminez l'inscription de voyage avant le 15 octobre. Si vous ne le faites pas, votre service sera désactivé à l'extérieur de votre pays d'origine jusqu'à ce que vous le complétiez.</span><button>Mettre à jour</button></div>
+      <div>Accueil</div>
+      <div>Demo Starlink • ACC-DF-00000000-00000-00</div>
+    `);
+    expect(fields.travelRegistrationRequired).toBe(true);
+    expect(fields.travelRegistrationDue).toBe("15 octobre");
+  });
+
+  it("a French Home without it clears the notice (the account line is language-free)", () => {
+    expect(extractFrom(`<div>Accueil</div><div>Demo Starlink • ACC-DF-00000000-00000-00</div>`).travelRegistrationRequired).toBe(false);
+  });
+});
