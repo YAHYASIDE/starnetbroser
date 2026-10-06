@@ -545,6 +545,11 @@ describe("🛂 travel registration merge", () => {
     const cleared = mergeSyncedFields(marked, { travelRegistrationRequired: false }).account;
     expect(cleared.travelRegistrationRequired).toBe(false);
     expect(cleared.travelRegistrationDue).toBeUndefined();
+    // ✅ confirmed registered - into «تم توثيقها», with the deadline it was for
+    expect(cleared.travelRegistrationVerifiedAt).toBeTruthy();
+    expect(cleared.travelRegistrationVerifiedDue).toBe("October 15");
+    // a device that never had the banner is not "registered"
+    expect(mergeSyncedFields(baseAccount(), { travelRegistrationRequired: false }).account.travelRegistrationVerifiedAt).toBeUndefined();
   });
 
   it("a «كشف توثيق» read (checkOnly) changes nothing but the notice - not even the sync time", () => {

@@ -276,6 +276,11 @@ export function mergeSyncedFields(
 
   // 🛂 Explicit true/false like isRestricted: Home without the banner clears it (and its date).
   if (fields.travelRegistrationRequired !== undefined) {
+    // ✅ The banner was there and Home no longer shows it: registered - into «تم توثيقها».
+    if (!fields.travelRegistrationRequired && next.travelRegistrationRequired === true) {
+      next.travelRegistrationVerifiedAt = new Date().toISOString();
+      next.travelRegistrationVerifiedDue = next.travelRegistrationDue ?? null;
+    }
     const due = fields.travelRegistrationRequired ? fields.travelRegistrationDue ?? next.travelRegistrationDue : undefined;
     note("travelRegistrationRequired", next.travelRegistrationRequired !== fields.travelRegistrationRequired || next.travelRegistrationDue !== due);
     next.travelRegistrationRequired = fields.travelRegistrationRequired;

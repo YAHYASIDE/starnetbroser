@@ -36,7 +36,8 @@ import {
 import { DeviceFaultDialog } from "./DeviceFaultDialog";
 import { DeviceGmailButton } from "./DeviceGmailButton";
 import { useCardGestures } from "./useCardGestures";
-import { needsTravelRegistration, travelDueArabic } from "@/lib/travelRegistration";
+import { isTravelPending, isTravelVerified, needsTravelRegistration, travelDueArabic, travelWhatsAppLink, undoTravelDone } from "@/lib/travelRegistration";
+import { TravelPriceSheet } from "./TravelPriceSheet";
 import { describeDishAlerts } from "@/lib/dishAlerts";
 import { PasteSessionSheet } from "./PasteSessionSheet";
 import { RenewalLockSheet } from "./RenewalLockSheet";
@@ -81,6 +82,12 @@ interface Props {
   /** 🔗 The same device registered again (same email or KIT) - merge this one into it. */
   twin?: StarlinkAccountSummary;
   onMergeInto?: (drop: StarlinkAccountSummary, keep: StarlinkAccountSummary) => void;
+  /** 🛂 «✅ تم التوثيق» (tells its rep). */
+  onTravelDone?: (account: StarlinkAccountSummary) => void;
+  /** 🛂 «🔄 تحقق الآن»: reads this device's Home only. */
+  onTravelCheck?: (account: StarlinkAccountSummary) => void;
+  /** ✅ In «تم توثيقها»: the registration line with its price. */
+  showTravelVerified?: boolean;
   /** The general currency registry (see currencyStore.ts) - used only to show a small "≈ X USD"
    * line under a non-USD Starlink balance, when that currency's rate happens to be registered
    * (e.g. via the /currencies page). Never guessed, and never shown at all when no rate is known -
@@ -209,7 +216,12 @@ export function AccountCard({
   addedByRepName,
   twin,
   onMergeInto,
+  onTravelDone,
+  onTravelCheck,
+  showTravelVerified = false,
 }: Props) {
+  const [travelPriceOpen, setTravelPriceOpen] = useState(false);
+  const travelPending = isTravelPending(account);
   const ledgerBalances = computeBalanceByCurrency(ledgerEntries);
   const serviceStatus = presentServiceStatus(effectiveServiceStatus(account));
   const cancellation = cancellationState(account);
@@ -517,9 +529,62 @@ export function AccountCard({
         <div className="account-card-moving-banner">🚗 متوقف بسبب الحركة - يعمل عند توقف الجهاز (باقة المنازل)</div>
       )}
       {needsTravelRegistration(account) && account.serviceStatus !== "canceled" && (
-        <div className="account-card-travel-banner" data-tour="travel-badge">
-          🛂 يجب توثيق السفر قبل {travelDueArabic(account.travelRegistrationDue)} - وإلا تتوقف الخدمة خارج البلد
+        <div className={`account-card-travel-banner${travelPending ? " account-card-travel-pending" : ""}`} data-tour="travel-badge">
+          <span>
+            {travelPending
+              ? "⏳ وُثّق - بانتظار أن يؤكّد التحديث اختفاء رسالة ستارلينك"
+              : `🛂 يجب توثيق السفر قبل ${travelDueArabic(account.travelRegistrationDue)} - وإلا تتوقف الخدمة خارج البلد`}
+          </span>
+          {context === "active" && (
+            <span className="account-card-travel-actions">
+              {!travelPending && (
+                <a href={travelWhatsAppLink(account, client?.phone ?? account.phone)} target="_blank" rel="noopener noreferrer">
+                  💬 واتساب
+                </a>
+              )}
+              {!travelPending && onTravelDone && (
+                <button type="button" onClick={() => onTravelDone(account)}>
+                  ✅ تم التوثيق
+                </button>
+              )}
+              {travelPending && onTravelCheck && (
+                <button type="button" onClick={() => onTravelCheck(account)}>
+                  🔄 تحقق الآن
+                </button>
+              )}
+              {travelPending && onPatch && (
+                <button type="button" onClick={() => onPatch(account, undoTravelDone())}>
+                  ↩️ لم يتم
+                </button>
+              )}
+            </span>
+          )}
         </div>
+      )}
+      {showTravelVerified && isTravelVerified(account) && (
+        <div className="account-card-travel-banner account-card-travel-verified">
+          <span>
+            ✅ وُثّق السفر{account.travelRegistrationVerifiedDue ? ` (موعد ${travelDueArabic(account.travelRegistrationVerifiedDue)})` : ""}
+            {" · "}
+            {account.travelRegistrationPrice ? (
+              <bdi dir="ltr">
+                {formatAmount(account.travelRegistrationPrice.amount)} {account.travelRegistrationPrice.currency}
+              </bdi>
+            ) : (
+              "بلا سعر"
+            )}
+          </span>
+          {onPatch && (
+            <span className="account-card-travel-actions">
+              <button type="button" onClick={() => setTravelPriceOpen(true)}>
+                💰 {account.travelRegistrationPrice ? "تعديل السعر" : "السعر"}
+              </button>
+            </span>
+          )}
+        </div>
+      )}
+      {travelPriceOpen && onPatch && (
+        <TravelPriceSheet account={account} onPatch={(patch) => onPatch(account, patch)} onClose={() => setTravelPriceOpen(false)} />
       )}
       {showsRestriction(account) && (
         <div className="account-card-restricted-banner">

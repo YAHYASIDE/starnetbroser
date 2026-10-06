@@ -1476,6 +1476,9 @@ button.overview-card:active {
 
 /* 🛂 Starlink asks for the travel registration before a date. */
 .account-card-travel-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   background: var(--orange-bg);
   color: var(--orange);
   border: 1px solid var(--orange);
@@ -1484,6 +1487,74 @@ button.overview-card:active {
   text-align: center;
   padding: 6px 10px;
   border-radius: var(--radius-sm);
+}
+
+.account-card-travel-pending {
+  background: var(--violet-bg);
+  color: var(--violet);
+  border-color: var(--violet);
+}
+
+.account-card-travel-verified {
+  background: var(--green-bg, var(--surface-alt));
+  color: var(--green);
+  border-color: var(--green);
+}
+
+.account-card-travel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.account-card-travel-actions a,
+.account-card-travel-actions button {
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  font-size: 0.72rem;
+  padding: 3px 10px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.travel-done-chip {
+  border-color: var(--green);
+  background: var(--surface);
+  color: var(--green);
+}
+
+.travel-done-chip.faulty-chip-active {
+  background: var(--green);
+  color: #fff;
+}
+
+.travel-chip.faulty-chip-active {
+  background: var(--orange);
+  color: #fff;
+}
+
+.travel-earnings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: center;
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--green);
+  border-radius: var(--radius-sm);
+  color: var(--green);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.travel-earnings small {
+  flex-basis: 100%;
+  color: var(--text-muted);
+  font-weight: 600;
 }
 
 /* 🚗 Stopped for moving too fast - informative, calm (it works again once stopped). */
@@ -9679,68 +9750,6 @@ button.settings-fold-row {
 .repair-chip.faulty-chip-active {
   background: var(--violet);
   color: #fff;
-}
-
-/* 🛂 «الأجهزة التي تحتاج توثيق» - its own button under the shortcuts. */
-.travel-shortcut {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  margin: 0 0 8px;
-  padding: 7px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--text);
-  font: inherit;
-  font-size: 0.78rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.travel-shortcut b {
-  margin-inline-start: auto;
-  min-width: 22px;
-  padding: 0 6px;
-  border-radius: 999px;
-  background: var(--surface-alt);
-  text-align: center;
-}
-
-.travel-shortcut-due {
-  border-color: var(--orange);
-  background: var(--orange-bg);
-  color: var(--orange);
-}
-
-.travel-shortcut-due b {
-  background: var(--orange);
-  color: #fff;
-}
-
-.travel-group + .travel-group {
-  margin-top: 12px;
-}
-
-.travel-group-title {
-  margin: 4px 0 6px;
-  font-size: 0.85rem;
-  color: var(--brand);
-}
-
-.travel-group-rep {
-  color: var(--violet);
-}
-
-.travel-group-title small {
-  color: var(--text-muted);
-  font-weight: 600;
-}
-
-/* A rep's device: a violet edge, so it never looks like one of his own. */
-.travel-row-rep {
-  border-inline-start: 4px solid var(--violet);
 }
 
 .travel-row-actions {

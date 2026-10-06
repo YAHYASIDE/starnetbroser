@@ -405,6 +405,13 @@ mind). Exact texts and numbers live in the code - this file says where.
   stores `travelRegistrationDoneFor` (= the deadline) so the device leaves the list and the card
   banner until Starlink asks again with another date, and its rep gets «✅ تم توثيق جهاز…» on the
   reps bot.
+- **Redesign (Oct 7, his choices)**: no separate list - two chips beside «المعطلة»: «🛂 تحتاج توثيق (N)»
+  and «✅ تم توثيقها (N)», each filtering the home device cards. The card's travel strip has «💬 واتساب»
+  / «✅ تم التوثيق»; after «تم التوثيق» the device STAYS («⏳ بانتظار التأكيد», «🔄 تحقق الآن» = Home-only
+  read of that device, «↩️ لم يتم»), and the rep is told at once (his choice). It moves to «تم توثيقها»
+  only when a Home read finds the banner gone (`travelRegistrationVerifiedAt`, set by the merge).
+  There «💰 السعر» records what he charged (`travelRegistrationPrice`), and the top line sums it per
+  currency - a record only, not the cash or the customer's account (his choice).
 - «اجعل هناك فارق»: the list is split - «🏠 أجهزتي» first, then each rep's devices under his name
   (`groupTravelByOwner`).
 

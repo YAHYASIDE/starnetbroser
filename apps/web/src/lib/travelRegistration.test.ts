@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { StarlinkAccountSummary } from "@starnet/shared";
-import { groupTravelByOwner, buildTravelCheckReport, buildTravelRegistrationMessage, markTravelDone, needsTravelRegistration, travelDoneRepMessage, travelDueArabic } from "./travelRegistration";
+import { groupTravelByOwner, buildTravelCheckReport, buildTravelRegistrationMessage, isTravelPending, isTravelVerified, markTravelDone, needsTravelRegistration, setTravelPrice, travelDoneRepMessage, travelDueArabic, travelEarnings, undoTravelDone } from "./travelRegistration";
 
 const dev = (id: string, extra: Partial<StarlinkAccountSummary> = {}) => ({ id, name: `جهاز ${id}`, ...extra }) as StarlinkAccountSummary;
 
@@ -52,18 +52,31 @@ describe("🛂 travel registration", () => {
 describe("✅ «اكتمل التوثيق»", () => {
   const flagged = dev("a", { travelRegistrationRequired: true, travelRegistrationDue: "October 15", expectedEmail: "a@example.com" });
 
-  it("takes the device out of the list for that deadline only", () => {
+  it("stays in the list ⏳ until an update confirms; «لم يتم» undoes it", () => {
     expect(needsTravelRegistration(flagged)).toBe(true);
     const done = { ...flagged, ...markTravelDone(flagged, new Date("2026-10-07T10:00:00Z")) };
     expect(done).toMatchObject({ travelRegistrationDoneFor: "October 15", travelRegistrationDoneAt: "2026-10-07T10:00:00.000Z" });
-    expect(needsTravelRegistration(done)).toBe(false);
-    // Starlink asks again with another date → back in the list
-    expect(needsTravelRegistration({ ...done, travelRegistrationDue: "November 15" })).toBe(true);
+    expect(needsTravelRegistration(done)).toBe(true);
+    expect(isTravelPending(done)).toBe(true);
+    // Starlink asks again with another date → no longer pending
+    expect(isTravelPending({ ...done, travelRegistrationDue: "November 15" })).toBe(false);
+    expect(isTravelPending({ ...done, ...undoTravelDone() })).toBe(false);
   });
 
   it("works when Starlink printed no date", () => {
     const noDate = dev("b", { travelRegistrationRequired: true });
-    expect(needsTravelRegistration({ ...noDate, ...markTravelDone(noDate) })).toBe(false);
+    expect(isTravelPending({ ...noDate, ...markTravelDone(noDate) })).toBe(true);
+  });
+
+  it("«تم توثيقها»: confirmed devices, with what he charged per currency", () => {
+    const verified = (id: string, price?: { amount: number; currency: string }) =>
+      dev(id, { travelRegistrationRequired: false, travelRegistrationVerifiedAt: "2026-10-08T00:00:00Z", travelRegistrationPrice: price ?? null });
+    const accounts = [verified("a", { amount: 500, currency: "MRU" }), verified("b", { amount: 700, currency: "MRU" }), verified("c", { amount: 10, currency: "USD" }), verified("d"), flagged];
+    expect(isTravelVerified(accounts[0]!)).toBe(true);
+    expect(isTravelVerified(flagged)).toBe(false);
+    expect(travelEarnings(accounts)).toEqual({ count: 4, byCurrency: { MRU: 1200, USD: 10 }, unpriced: 1 });
+    expect(setTravelPrice(300, "MRU")).toEqual({ travelRegistrationPrice: { amount: 300, currency: "MRU" } });
+    expect(setTravelPrice(0, "MRU")).toEqual({ travelRegistrationPrice: null });
   });
 
   it("tells the rep which device is done", () => {

@@ -140,7 +140,7 @@ const SYNC_FIELDS = [
   "lastSuccessfulScanAt", "lastUpdated", "limitedAccess", "movingRestricted", "noSubscription", "oceanMode",
   "pendingCancellationDate", "planName", "priorityDataExhausted", "rechargeDate", "serialNumber", "serviceCountry",
   "serviceStatus", "starlinkAccountEmail", "starlinkAccountHolderName", "starlinkId", "subscriptionId", "subscriptions",
-  "wifiStatus", "alertReason", "renewalDayMismatch", "travelRegistrationRequired", "travelRegistrationDue",
+  "wifiStatus", "alertReason", "renewalDayMismatch", "travelRegistrationRequired", "travelRegistrationDue", "travelRegistrationVerifiedAt", "travelRegistrationVerifiedDue",
 ];
 
 function withoutSync(record: Rec): Rec {

@@ -146,7 +146,7 @@ import { loadSyncQueue, localToday, nextQueuedAccount, queueProgressLabel, saveS
 import { DayActionsSheet } from "./DayActionsSheet";
 import { TravelCheckSheet } from "./TravelCheckSheet";
 import { NotificationsBell } from "./NotificationsBell";
-import { buildTravelCheckReport, markTravelDone, needsTravelRegistration, travelDoneRepMessage } from "@/lib/travelRegistration";
+import { buildTravelCheckReport, isTravelVerified, markTravelDone, needsTravelRegistration, travelDoneRepMessage, travelEarnings } from "@/lib/travelRegistration";
 import { accountsForDay, accountsOfOwner, type DayOwner } from "@/lib/dayActions";
 import { applyOutcomes, buildSyncReport, outcomeLabel, signedOutAlert } from "@/lib/syncReport";
 import { depositLabel, kastDevicesSnapshot } from "@/lib/kastCards";
@@ -174,7 +174,7 @@ type DialogState = { mode: AccountDialogMode; account?: StarlinkAccountSummary; 
  * ways of narrowing the SAME list, and combining them silently would be confusing rather than
  * useful. `total` never appears as a value: tapping "كل الحسابات" is just `showAll`, not a real
  * per-account filter. */
-type StatFilterKind = "online" | "expiringSoon" | "expired" | "suspended" | "faulty" | "repair" | "fromRep" | "noClient";
+type StatFilterKind = "online" | "expiringSoon" | "expired" | "suspended" | "faulty" | "repair" | "fromRep" | "noClient" | "travel" | "travelDone";
 
 const STAT_FILTER_TITLES: Record<StatFilterKind, string> = {
   online: "الحسابات المتصلة الآن",
@@ -185,6 +185,8 @@ const STAT_FILTER_TITLES: Record<StatFilterKind, string> = {
   repair: "قيد الإصلاح (مع الدعم الفني)",
   fromRep: "أجهزة أضافها المندوبون",
   noClient: "أجهزة بدون زبون",
+  travel: "🛂 الأجهزة التي تحتاج توثيق",
+  travelDone: "✅ الأجهزة التي تم توثيقها",
 };
 
 function matchesStatFilter(account: StarlinkAccountSummary, kind: StatFilterKind): boolean {
@@ -199,6 +201,10 @@ function matchesStatFilter(account: StarlinkAccountSummary, kind: StatFilterKind
       return isUnderRepair(account);
     case "fromRep":
       return Boolean(account.addedByRepId);
+    case "travel":
+      return needsTravelRegistration(account);
+    case "travelDone":
+      return isTravelVerified(account);
     case "noClient":
       // Needs the client list - narrowed in `filtered` (matchesNoClientGroup).
       return true;
@@ -604,11 +610,12 @@ export function HomeView({
     });
   }
 
-  /** ✅ «اكتمل التوثيق»: out of the list (the device stays in its place); its rep hears it on his bot. */
+  /** ✅ «تم التوثيق»: ⏳ until an update confirms (the device stays in the list); its rep hears it
+   * on his bot at once (his choice). */
   function handleTravelDone(account: StarlinkAccountSummary) {
     patchAccount(account.id, markTravelDone(account));
     if (!account.representativeId) {
-      pushToast(`✅ «${account.name}» وُثّق`);
+      pushToast(`⏳ «${account.name}» - اضغط «🔄 تحقق الآن» ليتأكد التحديث`);
       return;
     }
     void sendRepText(account.representativeId, travelDoneRepMessage(account)).then((sent) =>
@@ -636,7 +643,12 @@ export function HomeView({
   function travelCheckDay(day: number, owner: DayOwner = "all", ownerLabel = "") {
     setLongPressDay(null);
     const ids = accountsOfOwner(accountsForDay(activeAccountsRef.current, day), owner).filter((a) => !a.deviceFault).map((a) => a.id);
-    const queue = syncQueueFor(ids, `يوم ${day}${ownerLabel ? ` · ${ownerLabel}` : ""}`, true);
+    travelCheckIds(ids, `يوم ${day}${ownerLabel ? ` · ${ownerLabel}` : ""}`);
+  }
+
+  /** 🛂 Reads these devices' Home only, one by one (a day, or one card's «🔄 تحقق الآن»). */
+  function travelCheckIds(ids: string[], label: string) {
+    const queue = syncQueueFor(ids, label, true);
     if (!queue) {
       pushToast("لا أجهزة للكشف في هذا اليوم");
       return;
@@ -1515,7 +1527,8 @@ export function HomeView({
   const faultCounts = useMemo(() => countFaultCategories(activeAccounts), [activeAccounts]);
   const repairCount = useMemo(() => activeAccounts.filter(isUnderRepair).length, [activeAccounts]);
   const fromRepCount = useMemo(() => activeAccounts.filter((a) => a.addedByRepId).length, [activeAccounts]);
-  const travelIds = useMemo(() => activeAccounts.filter(needsTravelRegistration).map((a) => a.id), [activeAccounts]);
+  const travelCount = useMemo(() => activeAccounts.filter(needsTravelRegistration).length, [activeAccounts]);
+  const travelDone = useMemo(() => travelEarnings(activeAccounts), [activeAccounts]);
   const noClient = useMemo(() => countNoClient(activeAccounts, clientStore, representativeStore), [activeAccounts, clientStore, representativeStore]);
 
   const searchResults = useMemo(
@@ -1609,16 +1622,6 @@ export function HomeView({
           الأدوات
         </Link>
       </nav>
-
-      <button
-        type="button"
-        data-tour="travel-list"
-        className={`travel-shortcut${travelIds.length ? " travel-shortcut-due" : ""}`}
-        onClick={() => setTravelResult({ label: "", ids: travelIds, skipped: 0, checked: false })}
-      >
-        <span aria-hidden="true">🛂</span> الأجهزة التي تحتاج توثيق
-        <b>{travelIds.length}</b>
-      </button>
 
       {updateAvailable && (
         <a href={APK_DOWNLOAD_URL} target="_blank" rel="noreferrer" className="backup-banner update-banner">
@@ -1966,6 +1969,22 @@ export function HomeView({
                 📱 من المندوبين ({fromRepCount})
               </button>
             )}
+            <button
+              type="button"
+              data-tour="travel-list"
+              className={`faulty-chip travel-chip${statFilter === "travel" ? " faulty-chip-active" : ""}`}
+              onClick={() => { toggleStatFilter("travel"); setSelectedDay(null); }}
+            >
+              🛂 تحتاج توثيق ({travelCount})
+            </button>
+            <button
+              type="button"
+              data-tour="travel-done"
+              className={`faulty-chip travel-done-chip${statFilter === "travelDone" ? " faulty-chip-active" : ""}`}
+              onClick={() => { toggleStatFilter("travelDone"); setSelectedDay(null); }}
+            >
+              ✅ تم توثيقها ({travelDone.count})
+            </button>
             {noClient.total > 0 && (
               <button
                 type="button"
@@ -2041,6 +2060,24 @@ export function HomeView({
           </div>
         )}
 
+        {viewMode === "active" && statFilter === "travelDone" && (
+          <div className="travel-earnings" data-tour="travel-earnings">
+            <span>✅ وُثّق {travelDone.count} جهاز</span>
+            <span>
+              💰 حصلنا:{" "}
+              {Object.keys(travelDone.byCurrency).length === 0
+                ? "—"
+                : Object.entries(travelDone.byCurrency).map(([currency, amount], i) => (
+                    <bdi key={currency} dir="ltr">
+                      {i > 0 ? " + " : ""}
+                      {formatAmount(amount)} {currency}
+                    </bdi>
+                  ))}
+            </span>
+            {travelDone.unpriced > 0 && <small>{travelDone.unpriced} جهاز بلا سعر - اضغط «💰 السعر» على بطاقته</small>}
+          </div>
+        )}
+
         {viewMode === "active" && statFilter === "noClient" && (
           <div className="fault-groups" role="radiogroup" aria-label="بدون زبون: أجهزة من؟">
             <button type="button" className={`fault-group${noClientGroup === "all" ? " fault-group-active" : ""}`} onClick={() => setNoClientGroup("all")}>
@@ -2092,6 +2129,9 @@ export function HomeView({
                 onSetDeviceFault={handleSetDeviceFault}
                 onSetRepair={(target, repair) => patchAccount(target.id, { underRepair: repair })}
                 onPatch={viewMode === "active" ? (target, patch) => patchAccount(target.id, patch) : undefined}
+                onTravelDone={viewMode === "active" ? handleTravelDone : undefined}
+                onTravelCheck={viewMode === "active" ? (target) => travelCheckIds([target.id], target.name) : undefined}
+                showTravelVerified={statFilter === "travelDone"}
                 unregisteredCard={viewMode === "active" && isUnregisteredCard(account, paymentCards)}
                 onFinishCreation={(target) => patchAccount(target.id, { creation: null })}
                 allAccounts={accounts}

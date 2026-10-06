@@ -57,15 +57,56 @@ function dueKey(account: Pick<StarlinkAccountSummary, "travelRegistrationDue">):
   return account.travelRegistrationDue?.trim() ?? "";
 }
 
+/** 🛂 Starlink still shows the banner: in «تحتاج توثيق» - even after «✅ تم التوثيق» (his rule:
+ * it stays until an update confirms the banner is gone). */
 export function needsTravelRegistration(account: StarlinkAccountSummary): boolean {
-  if (account.travelRegistrationRequired !== true || account.deletedAt || account.archivedAt) return false;
-  // ✅ He marked it done for this same deadline - a new deadline from Starlink brings it back.
-  return !(typeof account.travelRegistrationDoneFor === "string" && account.travelRegistrationDoneFor === dueKey(account));
+  return account.travelRegistrationRequired === true && !account.deletedAt && !account.archivedAt;
 }
 
-/** ✅ «اكتمل التوثيق»: the device leaves the list (a copy - the device itself stays in its place). */
+/** ⏳ He pressed «✅ تم التوثيق» for this deadline - waiting for an update to confirm. */
+export function isTravelPending(account: StarlinkAccountSummary): boolean {
+  return needsTravelRegistration(account) && typeof account.travelRegistrationDoneFor === "string" && account.travelRegistrationDoneFor === dueKey(account);
+}
+
+/** ✅ In «تم توثيقها»: an update read Home without the banner after it was there. */
+export function isTravelVerified(account: StarlinkAccountSummary): boolean {
+  return Boolean(account.travelRegistrationVerifiedAt) && account.travelRegistrationRequired !== true && !account.deletedAt && !account.archivedAt;
+}
+
+/** ✅ «تم التوثيق»: marked done (⏳ until an update confirms) - the device stays in its place. */
 export function markTravelDone(account: StarlinkAccountSummary, now: Date = new Date()): Partial<StarlinkAccountSummary> {
   return { travelRegistrationDoneFor: dueKey(account), travelRegistrationDoneAt: now.toISOString() };
+}
+
+/** ↩️ «لم يتم»: the «تم التوثيق» was early / wrong. */
+export function undoTravelDone(): Partial<StarlinkAccountSummary> {
+  return { travelRegistrationDoneFor: null, travelRegistrationDoneAt: null };
+}
+
+/** 💰 The registration price (null clears it). */
+export function setTravelPrice(amount: number | null, currency: string): Partial<StarlinkAccountSummary> {
+  return { travelRegistrationPrice: amount !== null && Number.isFinite(amount) && amount > 0 ? { amount, currency } : null };
+}
+
+export interface TravelEarnings {
+  count: number;
+  /** What he charged, per currency - never mixed. */
+  byCurrency: Record<string, number>;
+  /** Verified devices still without a price. */
+  unpriced: number;
+}
+
+/** «وُثّق N جهاز · حصلنا …» over the verified devices. */
+export function travelEarnings(accounts: StarlinkAccountSummary[]): TravelEarnings {
+  const out: TravelEarnings = { count: 0, byCurrency: {}, unpriced: 0 };
+  for (const account of accounts) {
+    if (!isTravelVerified(account)) continue;
+    out.count += 1;
+    const price = account.travelRegistrationPrice;
+    if (price && price.amount > 0) out.byCurrency[price.currency] = (out.byCurrency[price.currency] ?? 0) + price.amount;
+    else out.unpriced += 1;
+  }
+  return out;
 }
 
 /** The rep's bot message when the owner registered one of his devices. */

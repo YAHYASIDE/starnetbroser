@@ -148,6 +148,12 @@ export interface StarlinkAccountSummary {
    * leaves «الأجهزة التي تحتاج توثيق» until Starlink asks again with another date. */
   travelRegistrationDoneFor?: string | null;
   travelRegistrationDoneAt?: string | null;
+  /** ✅ A Home read confirmed the banner is gone after it was there (set by the sync merge) - the
+   * device is in «تم توثيقها». The deadline it was for is kept beside it. */
+  travelRegistrationVerifiedAt?: string | null;
+  travelRegistrationVerifiedDue?: string | null;
+  /** 💰 What he charged for the registration (his record in «تم توثيقها», per currency). */
+  travelRegistrationPrice?: { amount: number; currency: string } | null;
   /** 🚗 "service is restricted because it is moving too fast" - a residential plan used while
    * moving; it works again once stopped. Explicit true/false; never the out-of-country restriction. */
   movingRestricted?: boolean;
