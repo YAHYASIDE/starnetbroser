@@ -20,6 +20,8 @@ interface Props {
   allEntries: LedgerEntry[];
   /** Opens a past shipment or payment for editing (✎ on each row) - hidden when not given. */
   onEditEntry?: (entry: LedgerEntry) => void;
+  /** 🗑 Deletes a shipment or payment (🗑 on each row) - hidden when not given. */
+  onDeleteEntry?: (entry: LedgerEntry) => void;
   onClose: () => void;
 }
 
@@ -40,7 +42,7 @@ const PAYMENT_STATUS_BADGE: Record<ShipmentPaymentStatus, string> = {
  * plus the summary totals up top. Never mixes this device's numbers with any other device, even
  * if they share the same customer (see DeviceCard/ClientDialog for the customer-level rollup).
  */
-export function DeviceStatementDialog({ accountName, entries, allocations, allEntries, onEditEntry, onClose }: Props) {
+export function DeviceStatementDialog({ accountName, entries, allocations, allEntries, onEditEntry, onDeleteEntry, onClose }: Props) {
   const mruRate = useMruRate();
   const summary = computeDeviceAccountingSummary(entries);
   const shipments = sortEntriesNewestFirst(entries.filter((e) => e.kind === "debit"));
@@ -143,6 +145,11 @@ export function DeviceStatementDialog({ accountName, entries, allocations, allEn
                       ✎ تعديل
                     </button>
                   )}
+                  {onDeleteEntry && (
+                    <button type="button" className="statement-edit-btn statement-delete-btn" onClick={() => onDeleteEntry(entry)} aria-label="حذف الشحنة">
+                      🗑 حذف
+                    </button>
+                  )}
                   <span dir="ltr">{entry.date}</span>
                   <span dir="ltr">عليه {formatAmount(entry.amount)} {entry.currency}</span>
                   {saleValueUsd !== undefined && entry.currency !== "USD" && (
@@ -202,6 +209,11 @@ export function DeviceStatementDialog({ accountName, entries, allocations, allEn
                     {onEditEntry && (
                       <button type="button" className="statement-edit-btn" onClick={() => onEditEntry(entry)} aria-label="تعديل الدفعة">
                         ✎ تعديل
+                      </button>
+                    )}
+                    {onDeleteEntry && (
+                      <button type="button" className="statement-edit-btn statement-delete-btn" onClick={() => onDeleteEntry(entry)} aria-label="حذف الدفعة">
+                        🗑 حذف
                       </button>
                     )}
                     <span dir="ltr">{entry.date}</span>

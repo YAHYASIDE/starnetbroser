@@ -5,7 +5,8 @@
  */
 
 import { applyLedgerPaymentsToCash, CashEntryList } from "./cashStore";
-import { getAccountEntries, LedgerByAccount, LedgerEntry, updateEntry, withAccountEntries } from "./ledgerStore";
+import { getAccountEntries, LedgerByAccount, LedgerEntry, removeEntry, updateEntry, withAccountEntries } from "./ledgerStore";
+import { AllocationsByAccount, removeAllocationsForEntryFromStore } from "./paymentAllocationStore";
 
 export function applyLedgerEntryEdit(
   ledgerStore: LedgerByAccount,
@@ -20,5 +21,25 @@ export function applyLedgerEntryEdit(
   return {
     ledgerStore: withAccountEntries(ledgerStore, accountId, after),
     cash: applyLedgerPaymentsToCash(cash, before, after, deviceName),
+  };
+}
+
+/** 🗑 Deleting one past operation from a statement (his request «زر حذف العملية»): the same effect
+ * as deleting it in «إضافة دفعة» - the entry, its linked cash entry, and every allocation that
+ * used it go together. */
+export function applyLedgerEntryDelete(
+  ledgerStore: LedgerByAccount,
+  cash: CashEntryList,
+  allocations: AllocationsByAccount,
+  accountId: string,
+  entryId: string,
+  deviceName: string,
+): { ledgerStore: LedgerByAccount; cash: CashEntryList; allocations: AllocationsByAccount } {
+  const before = getAccountEntries(ledgerStore, accountId);
+  const after = removeEntry(before, entryId);
+  return {
+    ledgerStore: withAccountEntries(ledgerStore, accountId, after),
+    cash: applyLedgerPaymentsToCash(cash, before, after, deviceName),
+    allocations: removeAllocationsForEntryFromStore(allocations, entryId),
   };
 }

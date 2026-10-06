@@ -6011,6 +6011,14 @@ button.today-tile {
   cursor: pointer;
 }
 
+/* 🗑 Delete sits beside ✎ edit, in red. */
+.statement-edit-btn.statement-delete-btn {
+  margin-inline-start: 6px;
+  border-color: var(--red);
+  background: color-mix(in srgb, var(--red) 10%, transparent);
+  color: var(--red);
+}
+
 .statement-section-title {
   margin: 14px 0 6px;
   font-size: 0.95rem;

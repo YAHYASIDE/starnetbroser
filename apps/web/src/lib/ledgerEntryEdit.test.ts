@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyLedgerEntryEdit } from "./ledgerEntryEdit";
+import { applyLedgerEntryDelete, applyLedgerEntryEdit } from "./ledgerEntryEdit";
 import type { LedgerEntry } from "./ledgerStore";
 
 function entry(overrides: Partial<LedgerEntry>): LedgerEntry {
@@ -20,5 +20,21 @@ describe("applyLedgerEntryEdit", () => {
     const till = [{ id: "k", kind: "in" as const, amount: 1000, currencyCode: "MRU", date: "2026-09-20", note: "", sourceId: "p", sourceKind: "device-payment" as const, createdAt: "" }];
     const result = applyLedgerEntryEdit({ d1: [pay] }, till, "d1", "p", { amount: 1500, date: "2026-09-21" }, "جهاز");
     expect(result.cash).toEqual([{ ...till[0], amount: 1500, date: "2026-09-21" }]);
+  });
+});
+
+describe("applyLedgerEntryDelete", () => {
+  it("removes the payment, its cash entry and its allocations - nothing else", () => {
+    const pay = entry({ id: "p", kind: "credit", amount: 1000 });
+    const ship = entry({ id: "s" });
+    const till = [
+      { id: "k", kind: "in" as const, amount: 1000, currencyCode: "MRU", date: "2026-09-20", note: "", sourceId: "p", sourceKind: "device-payment" as const, createdAt: "" },
+      { id: "other", kind: "in" as const, amount: 5, currencyCode: "MRU", date: "2026-09-20", note: "", createdAt: "" },
+    ];
+    const allocations = { d1: [{ id: "al", paymentEntryId: "p", shipmentEntryId: "s", amount: 1000, createdAt: "" }] } as never;
+    const result = applyLedgerEntryDelete({ d1: [ship, pay] }, till, allocations, "d1", "p", "جهاز");
+    expect(result.ledgerStore.d1).toEqual([ship]);
+    expect(result.cash.map((c) => c.id)).toEqual(["other"]);
+    expect(Object.values(result.allocations).flat()).toEqual([]);
   });
 });

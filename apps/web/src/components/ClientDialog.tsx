@@ -9,7 +9,7 @@ import { Client } from "@/lib/clientStore";
 import { combinePhoneNumber, PHONE_COUNTRY_CODES, splitPhoneNumber } from "@/lib/phoneCountryCodes";
 import { computeClientAccountingSummary } from "@/lib/accountingStore";
 import { BalanceByCurrency, getAccountEntries, LEDGER_CURRENCIES, LedgerByAccount, LEDGER_CURRENCY_LABELS, LedgerEntry } from "@/lib/ledgerStore";
-import { LedgerEntryEditor } from "./LedgerEntryEditor";
+import { confirmAndDeleteLedgerEntry, LedgerEntryEditor } from "./LedgerEntryEditor";
 import { formatAmount } from "@/lib/formatAmount";
 import { partyHue, partyInitials } from "@/lib/partyColor";
 import { allocatedFromPayment, allStoredAllocations, AllocationsByAccount } from "@/lib/paymentAllocationStore";
@@ -361,6 +361,14 @@ export function ClientDialog({ client, devices, ledgerStore, allocationStore, on
           allocations={allAllocations}
           allEntries={allLedgerEntries}
           onEditEntry={onLedgerChange ? setEditingEntry : undefined}
+          onDeleteEntry={
+            onLedgerChange
+              ? (entry) => {
+                  const result = confirmAndDeleteLedgerEntry(ledgerStore, statementAccount.id, entry, statementAccount.name);
+                  if (result) onLedgerChange(result.ledgerStore);
+                }
+              : undefined
+          }
           onClose={() => setStatementAccount(null)}
         />
       )}

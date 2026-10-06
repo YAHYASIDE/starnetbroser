@@ -22,7 +22,7 @@ import { LedgerDialog } from "./LedgerDialog";
 import { ClientDialog } from "./ClientDialog";
 import { ClientsOverviewDialog } from "./ClientsOverviewDialog";
 import { ourDebtLedgerForClients, autoMoveClientToRep } from "@/lib/repClients";
-import { LedgerEntryEditor } from "./LedgerEntryEditor";
+import { confirmAndDeleteLedgerEntry, LedgerEntryEditor } from "./LedgerEntryEditor";
 import { DeviceStatementDialog } from "./DeviceStatementDialog";
 import { ToastMessage, ToastStack } from "./ToastStack";
 import { HelpHint } from "./HelpHint";
@@ -2218,6 +2218,13 @@ export function HomeView({
           allocations={allAllocations}
           allEntries={allLedgerEntries}
           onEditEntry={setEditingStatementEntry}
+          onDeleteEntry={(entry) => {
+            const result = confirmAndDeleteLedgerEntry(ledgerStore, statementAccount.id, entry, statementAccount.name);
+            if (!result) return;
+            setLedgerStore(result.ledgerStore);
+            setAllocationStore(result.allocations);
+            pushToast("🗑 حُذفت العملية");
+          }}
           onClose={() => setStatementAccount(null)}
         />
       )}
