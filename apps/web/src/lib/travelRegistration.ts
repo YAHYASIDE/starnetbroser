@@ -44,6 +44,13 @@ export function buildTravelRegistrationMessage(deviceName: string, due: string |
   );
 }
 
+/** The customer's WhatsApp with the message ready; with no number, WhatsApp opens on the message
+ * and he picks the contact himself (his request: a WhatsApp button even without a number). */
+export function travelWhatsAppLink(account: StarlinkAccountSummary, phone: string | undefined): string {
+  const message = buildTravelRegistrationMessage(account.name, account.travelRegistrationDue);
+  return buildWhatsAppLink(phone, message) ?? `https://wa.me/?text=${encodeURIComponent(message)}`;
+}
+
 export function needsTravelRegistration(account: StarlinkAccountSummary): boolean {
   return account.travelRegistrationRequired === true && !account.deletedAt && !account.archivedAt;
 }
@@ -72,8 +79,7 @@ export function buildTravelCheckReport(
   const lines = found.map((account, i) => {
     const email = account.expectedEmail || account.starlinkAccountEmail;
     const phone = phoneFor(account);
-    const wa = buildWhatsAppLink(phone, buildTravelRegistrationMessage(account.name, account.travelRegistrationDue));
-    if (wa) rows.push([{ text: `💬 واتساب ${account.name}`, url: wa }]);
+    rows.push([{ text: phone ? `💬 واتساب ${account.name}` : `💬 واتساب ${account.name} (اختر الرقم)`, url: travelWhatsAppLink(account, phone) }]);
     return [
       `${i + 1}) ${account.name}`,
       `📧 ${email || "بلا بريد"}`,
@@ -82,8 +88,31 @@ export function buildTravelCheckReport(
     ].join("\n");
   });
   return {
-    text: `${head}\n\n${lines.join("\n\n")}${rows.length ? "\n\nاضغط زر الواتساب: الرسالة جاهزة للزبون." : ""}`,
-    replyMarkup: rows.length ? JSON.stringify({ inline_keyboard: rows }) : undefined,
+    text: `${head}\n\n${lines.join("\n\n")}\n\nاضغط زر الواتساب: الرسالة جاهزة للزبون.`,
+    replyMarkup: JSON.stringify({ inline_keyboard: rows }),
     found: found.length,
   };
+}
+
+// ---- ✓ «أُرسل»: which customers he already messaged (phone-only, `starnet.travelSent`) ----
+
+const SENT_KEY = "starnet.travelSent";
+
+export function loadTravelSent(): Record<string, string> {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(SENT_KEY) ?? "{}") as Record<string, string>;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+export function markTravelSent(accountId: string, at: Date = new Date()): Record<string, string> {
+  const next = { ...loadTravelSent(), [accountId]: at.toISOString() };
+  try {
+    localStorage.setItem(SENT_KEY, JSON.stringify(next));
+  } catch {
+    // storage unavailable - only the ✓ is lost
+  }
+  return next;
 }

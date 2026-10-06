@@ -9478,6 +9478,89 @@ button.settings-fold-row {
   font-size: 0.9rem;
 }
 
+/* 🔔 The app's own notification list. */
+.header-bell {
+  position: relative;
+  padding: 4px 9px;
+}
+
+.header-bell-badge {
+  position: absolute;
+  top: -6px;
+  inset-inline-start: -6px;
+  min-width: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--red);
+  color: #fff;
+  font-size: 0.62rem;
+  line-height: 18px;
+  text-align: center;
+}
+
+.event-log {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.event-log-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+}
+
+.event-log-unread {
+  border-color: var(--brand);
+}
+
+.event-log-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.event-log-open strong {
+  font-size: 0.8rem;
+}
+
+.event-log-open span {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  max-height: 5.5em;
+  overflow: hidden;
+}
+
+.event-log-open small {
+  font-size: 0.66rem;
+  color: var(--text-muted);
+  align-self: flex-end;
+}
+
+.event-log-delete {
+  flex: 0 0 auto;
+  border: 0;
+  background: none;
+  padding: 0 10px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
 .header-more {
   display: inline-flex;
   align-items: center;
@@ -9596,6 +9679,12 @@ button.settings-fold-row {
 .repair-chip.faulty-chip-active {
   background: var(--violet);
   color: #fff;
+}
+
+.travel-chip {
+  border-color: var(--orange);
+  background: var(--orange-bg);
+  color: var(--orange);
 }
 
 .no-client-chip {

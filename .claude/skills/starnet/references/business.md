@@ -390,6 +390,17 @@ mind). Exact texts and numbers live in the code - this file says where.
 - Many rep devices are in **French**: the check reads them as they are (no language switch) and
   waits for Home to load on a slow phone (his report: «يخرج بسرعة ويكتب لم يتم العثور»).
 
+## 🔔 Notifications stay (Oct 2026)
+
+- His rule «أي إشعار يأتي يبقى هناك ولا يُمحى» - his choice «الاثنان معًا»: the phone's notification no
+  longer disappears when tapped (only when swiped), and every app event is also kept natively
+  (`AppEventLog.java`, even with the app closed / notifications off) and copied into the app's 🔔
+  list (top of home, unread badge), which only he empties (🗑 per item / «مسح الكل»). Phone-only
+  (`starnet.eventLog`). Logic: `lib/eventLog.ts`.
+- 🛂 «تحتاج توثيق (N)» chip on home (his choice): every device still showing the banner, any time,
+  with WhatsApp; no number → WhatsApp opens on the message and he picks the contact; «✓ أُرسل»
+  marks (`starnet.travelSent`, phone-only).
+
 ## 📇 Device card taps (Oct 2026)
 
 - His request: one tap opens the full card (and closes it); holding still works; 2 quick taps =

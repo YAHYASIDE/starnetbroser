@@ -32,6 +32,8 @@ final class AppEventNotifier {
     static boolean post(Context context, String text, String route) {
         if (text == null || text.trim().isEmpty()) return false;
         Context app = context.getApplicationContext();
+        // 🔔 Kept for the app's own list first - even with notifications off.
+        AppEventLog.add(app, text, AppEventText.safeRoute(route), System.currentTimeMillis());
         ensureChannel(app);
         if (!NotificationManagerCompat.from(app).areNotificationsEnabled()) return false;
         String[] parts = AppEventText.titleAndBody(text);
@@ -42,7 +44,8 @@ final class AppEventNotifier {
             .setContentText(parts[1])
             .setStyle(new NotificationCompat.BigTextStyle().bigText(parts[1]))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true);
+            // His rule (Oct 2026): a tap opens the page but the notification stays until swiped away.
+            .setAutoCancel(false);
         Intent launch = app.getPackageManager().getLaunchIntentForPackage(app.getPackageName());
         if (launch != null) {
             launch.setAction(Intent.ACTION_MAIN);

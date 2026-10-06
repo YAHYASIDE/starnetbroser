@@ -728,6 +728,23 @@ export interface LocalBrowserPlugin {
   /** 💳 The operator's payment cards for filling Starlink's card form in a device's browser
    * (replaces the list; [] removes them all). Kept on this phone only. */
   setFillCards(options: { cards: FillCardItem[] }): Promise<void>;
+
+  /** 🔔 The app events (postAppEvent / native events) kept since the app last saved them - even
+   * while the app was closed. Oldest first. */
+  appEventsPending(): Promise<{ events: AppEventRaw[] }>;
+
+  /** The app saved these in its 🔔 list - forget them on the native side. */
+  appEventsAck(options: { ids: string[] }): Promise<void>;
+}
+
+export interface AppEventRaw {
+  id: string;
+  /** First line = title. */
+  text: string;
+  /** The app page it opens. */
+  route: string;
+  /** Epoch ms. */
+  at: number;
 }
 
 export interface FillCardItem {

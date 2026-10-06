@@ -1,5 +1,6 @@
 import { WebPlugin } from "@capacitor/core";
 import type {
+  AppEventRaw,
   BankNoticeRaw,
   FillCardItem,
   KastDeposit,
@@ -325,6 +326,14 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
   }
 
   async setFillCards(_options: { cards: FillCardItem[] }): Promise<void> {
+    return;
+  }
+
+  async appEventsPending(): Promise<{ events: AppEventRaw[] }> {
+    return { events: [] };
+  }
+
+  async appEventsAck(_options: { ids: string[] }): Promise<void> {
     return;
   }
 }

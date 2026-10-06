@@ -194,6 +194,26 @@ public class LocalBrowserPlugin extends Plugin {
         call.resolve(ret);
     }
 
+    /** 🔔 The app events the app hasn't copied into its own list yet, oldest first. */
+    @PluginMethod
+    public void appEventsPending(PluginCall call) {
+        JSObject ret = new JSObject();
+        try {
+            ret.put("events", new com.getcapacitor.JSArray(AppEventLog.pending(getContext()).toString()));
+        } catch (org.json.JSONException e) {
+            ret.put("events", new com.getcapacitor.JSArray());
+        }
+        call.resolve(ret);
+    }
+
+    /** The app saved these in its 🔔 list - forget them here. */
+    @PluginMethod
+    public void appEventsAck(PluginCall call) {
+        java.util.Set<String> ids = new java.util.HashSet<>(java.util.Arrays.asList(stringArray(call.getData(), "ids")));
+        AppEventLog.ack(getContext(), ids);
+        call.resolve();
+    }
+
     /** The page a 📌 shortcut opened the app on (once), or null. */
     @PluginMethod
     public void takeShortcutRoute(PluginCall call) {

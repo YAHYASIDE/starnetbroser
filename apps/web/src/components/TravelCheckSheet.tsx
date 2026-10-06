@@ -1,34 +1,39 @@
 "use client";
 
+import { useState } from "react";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { PartySheet } from "./AccountsSection";
-import { buildTravelRegistrationMessage, needsTravelRegistration, travelDueArabic } from "@/lib/travelRegistration";
-import { buildWhatsAppLink } from "@/lib/whatsapp";
+import { loadTravelSent, markTravelSent, needsTravelRegistration, travelDueArabic, travelWhatsAppLink } from "@/lib/travelRegistration";
 
-/** 🛂 The «كشف توثيق» result in the app (the owner also gets it in the bot; the rep's app has no
- * bot): each device that needs it, with its WhatsApp message ready. */
+/** 🛂 The devices that need the travel registration, each with its WhatsApp message ready - after
+ * a «كشف توثيق» (`checked`: how many were checked) or from the home «🛂 تحتاج توثيق» button (all of
+ * them, any time: add a number, come back, send). A device leaves the list by itself once Starlink
+ * no longer shows the banner. */
 export function TravelCheckSheet({
   label,
   ids,
-  skipped,
+  skipped = 0,
+  checked = true,
   accounts,
   phoneFor,
   onClose,
 }: {
   label: string;
   ids: string[];
-  skipped: number;
+  skipped?: number;
+  checked?: boolean;
   accounts: StarlinkAccountSummary[];
   phoneFor: (account: StarlinkAccountSummary) => string | undefined;
   onClose: () => void;
 }) {
+  const [sent, setSent] = useState<Record<string, string>>(() => loadTravelSent());
   const found = ids
     .map((id) => accounts.find((a) => a.id === id))
     .filter((a): a is StarlinkAccountSummary => Boolean(a) && needsTravelRegistration(a!));
   return (
-    <PartySheet title={`🛂 كشف توثيق${label ? ` - ${label}` : ""}`} onClose={onClose}>
+    <PartySheet title={`🛂 ${checked ? "كشف توثيق" : "تحتاج توثيق"}${label ? ` - ${label}` : ""}`} onClose={onClose}>
       <p className="sync-choice-hint">
-        فُحص {ids.length} جهاز · يحتاج توثيق: {found.length}
+        {checked ? `فُحص ${ids.length} جهاز · ` : ""}يحتاج توثيق: {found.length}
         {skipped > 0 && ` · لم يُفحص ${skipped}`}
       </p>
       {found.length === 0 ? (
@@ -37,22 +42,25 @@ export function TravelCheckSheet({
         <div className="day-sheet-rows">
           {found.map((account) => {
             const phone = phoneFor(account);
-            const wa = buildWhatsAppLink(phone, buildTravelRegistrationMessage(account.name, account.travelRegistrationDue));
             return (
               <div key={account.id} className="day-sheet-row">
                 <span>
                   {account.name}
                   <small> · قبل {travelDueArabic(account.travelRegistrationDue)}</small>
+                  {sent[account.id] && <small className="day-sheet-ok"> · ✓ أُرسل</small>}
                   <br />
                   <small dir="ltr">{account.expectedEmail || account.starlinkAccountEmail || "—"}</small>
+                  {!phone && <small> · بلا رقم - تختار الزبون في واتساب</small>}
                 </span>
-                {wa ? (
-                  <a className="day-sheet-wa" href={wa} target="_blank" rel="noopener noreferrer">
-                    واتساب
-                  </a>
-                ) : (
-                  <span className="day-sheet-muted">بلا رقم</span>
-                )}
+                <a
+                  className="day-sheet-wa"
+                  href={travelWhatsAppLink(account, phone)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setSent(markTravelSent(account.id))}
+                >
+                  واتساب
+                </a>
               </div>
             );
           })}

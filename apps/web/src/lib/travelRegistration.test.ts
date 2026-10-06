@@ -33,9 +33,12 @@ describe("🛂 travel registration", () => {
     expect(report.text).toContain("1) جهاز a\n📧 a@example.com\n📱 +222 12345678\n⏰ قبل 15 أكتوبر");
     expect(report.text).toContain("2) جهاز c\n📧 بلا بريد\n📱 بلا رقم");
     const keyboard = JSON.parse(report.replyMarkup!);
-    expect(keyboard.inline_keyboard).toHaveLength(1);
+    expect(keyboard.inline_keyboard).toHaveLength(2);
     expect(keyboard.inline_keyboard[0][0].text).toBe("💬 واتساب جهاز a");
     expect(keyboard.inline_keyboard[0][0].url).toMatch(/^https:\/\/wa\.me\/22212345678\?text=/);
+    // no number: WhatsApp opens on the message and he picks the contact
+    expect(keyboard.inline_keyboard[1][0].text).toBe("💬 واتساب جهاز c (اختر الرقم)");
+    expect(keyboard.inline_keyboard[1][0].url).toMatch(/^https:\/\/wa\.me\/\?text=/);
   });
 
   it("nothing found says so, without buttons", () => {

@@ -2,6 +2,7 @@
 
 import { LocalBrowser } from "@starnet/local-browser-plugin";
 import { homeSearchHref } from "./homeActions";
+import { drainAppEvents } from "./eventLog";
 import { isRunningInAndroidApp } from "./localBrowser";
 import { sendTelegramText } from "./telegram";
 
@@ -24,6 +25,8 @@ export async function notifyPhone(text: string, route: string = HOME_ROUTE): Pro
   if (!isRunningInAndroidApp() || !text.trim()) return;
   try {
     await LocalBrowser.postAppEvent({ text, route });
+    // 🔔 Into the app's own list at once (the native side kept a copy - lib/eventLog.ts).
+    void drainAppEvents();
   } catch {
     // An old app build without postAppEvent, or notifications off - the event itself still happened.
   }

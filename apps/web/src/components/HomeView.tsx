@@ -145,7 +145,8 @@ import { SyncChoiceSheet, SyncQueueBar } from "./SyncNowSheet";
 import { loadSyncQueue, localToday, nextQueuedAccount, queueProgressLabel, saveSyncQueue, startSyncQueue, syncedOnlyByCommand, syncQueueFor, type SyncWindow } from "@/lib/syncQueue";
 import { DayActionsSheet } from "./DayActionsSheet";
 import { TravelCheckSheet } from "./TravelCheckSheet";
-import { buildTravelCheckReport } from "@/lib/travelRegistration";
+import { NotificationsBell } from "./NotificationsBell";
+import { buildTravelCheckReport, needsTravelRegistration } from "@/lib/travelRegistration";
 import { accountsForDay, accountsOfOwner, type DayOwner } from "@/lib/dayActions";
 import { applyOutcomes, buildSyncReport, outcomeLabel, signedOutAlert } from "@/lib/syncReport";
 import { depositLabel, kastDevicesSnapshot } from "@/lib/kastCards";
@@ -589,7 +590,7 @@ export function HomeView({
   // 📅 Long press on a calendar day: that day's actions (DayActionsSheet).
   const [longPressDay, setLongPressDay] = useState<number | null>(null);
   /** 🛂 The last «كشف توثيق» result, shown in the app (and sent to the bot when connected). */
-  const [travelResult, setTravelResult] = useState<{ label: string; ids: string[]; skipped: number } | null>(null);
+  const [travelResult, setTravelResult] = useState<{ label: string; ids: string[]; skipped: number; checked?: boolean } | null>(null);
 
   function syncDay(day: number, owner: DayOwner = "all", ownerLabel = "") {
     setLongPressDay(null);
@@ -1502,6 +1503,7 @@ export function HomeView({
   const faultCounts = useMemo(() => countFaultCategories(activeAccounts), [activeAccounts]);
   const repairCount = useMemo(() => activeAccounts.filter(isUnderRepair).length, [activeAccounts]);
   const fromRepCount = useMemo(() => activeAccounts.filter((a) => a.addedByRepId).length, [activeAccounts]);
+  const travelIds = useMemo(() => activeAccounts.filter(needsTravelRegistration).map((a) => a.id), [activeAccounts]);
   const noClient = useMemo(() => countNoClient(activeAccounts, clientStore, representativeStore), [activeAccounts, clientStore, representativeStore]);
 
   const searchResults = useMemo(
@@ -1567,6 +1569,7 @@ export function HomeView({
       )}
       <header className="app-header app-header-compact">
         <HeaderMore />
+        <NotificationsBell />
         <div className="brand-lockup">
           <span className="brand-logo" aria-hidden="true">★</span>
           <span className="brand-mark">STAR NET</span>
@@ -1937,6 +1940,16 @@ export function HomeView({
                 onClick={() => { toggleStatFilter("fromRep"); setSelectedDay(null); }}
               >
                 📱 من المندوبين ({fromRepCount})
+              </button>
+            )}
+            {travelIds.length > 0 && (
+              <button
+                type="button"
+                data-tour="travel-list"
+                className="faulty-chip travel-chip"
+                onClick={() => setTravelResult({ label: "", ids: travelIds, skipped: 0, checked: false })}
+              >
+                🛂 تحتاج توثيق ({travelIds.length})
               </button>
             )}
             {noClient.total > 0 && (
