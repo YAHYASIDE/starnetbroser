@@ -12952,3 +12952,89 @@ button.today-tile {
 .renewal-lock-error {
   color: var(--red);
 }
+
+/* 💳 the card page, compact (his Oct 2026 request): the KAST notices fold, smaller rows */
+.kast-notices-toggle {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.kast-deposit-row {
+  padding: 8px 10px;
+  gap: 6px;
+}
+
+.kast-deposit-row .sl-row-main strong {
+  font-size: 0.82rem;
+}
+
+.kast-deposit-row .sl-row-main span {
+  font-size: 0.72rem;
+}
+
+.kast-deposit-actions button {
+  font-size: 0.75rem;
+  padding: 5px 10px;
+  min-height: 0;
+}
+
+.kast-unregistered {
+  width: 100%;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  margin: 8px 0;
+}
+
+.kast-card-statement {
+  display: grid;
+  gap: 14px;
+}
+
+.kast-card-statement section {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.kast-card-months {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.kast-card-devices {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.kast-card-devices li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  font-size: 0.8rem;
+  min-width: 0;
+}
+
+.kast-card-devices li > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.kast-card-devices small {
+  color: var(--text-muted);
+}
+
+.kast-card-notice {
+  border: 1px dashed var(--green);
+}

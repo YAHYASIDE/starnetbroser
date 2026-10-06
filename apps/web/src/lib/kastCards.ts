@@ -183,7 +183,8 @@ export interface SpendCandidate<T> {
 
 /**
  * The open D's this payment probably settled, nearest first (at most 3) - only a suggestion, the
- * operator presses «سدّد». A USD cost must be within 3% (min 0.50$); a cost in another currency
+ * operator presses «سدّد». A USD cost must be within 2% (min 0.50$ - his rule: a 100$ D matches a
+ * payment of 98-102$); a cost in another currency
  * within 6% (min 1$) of its recorded or today's dollars - the peso moves and KAST adds a fee. With
  * none that close, the nearest ones within 20% are offered as «الأقرب».
  *
@@ -217,7 +218,7 @@ function rankSpend<T extends SpendDebtCost>(amountUsd: number, debts: T[], curre
     const values = today === undefined ? [debt.costUsd] : [debt.costUsd, today];
     const usd = values.reduce((best, v) => (Math.abs(v - amountUsd) < Math.abs(best - amountUsd) ? v : best));
     const foreign = Boolean(debt.entry.starlinkCost?.currencyCode && debt.entry.starlinkCost.currencyCode !== "USD");
-    const tolerance = foreign ? Math.max(1, amountUsd * 0.06) : Math.max(0.5, amountUsd * 0.03);
+    const tolerance = foreign ? Math.max(1, amountUsd * 0.06) : Math.max(0.5, amountUsd * 0.02);
     const distance = Math.abs(usd - amountUsd);
     return { debt, usd, distance, exact: distance <= tolerance };
   });

@@ -15,6 +15,7 @@ import {
   type PreviousDebtList,
 } from "@/lib/previousDebt";
 import { StarlinkAccountSummary } from "@starnet/shared";
+import { buildCardStatementFor, groupDevicesByCard, type CardDeviceGroups, type CardStatement } from "@/lib/cardDevices";
 import { DateInput } from "@/components/DateInput";
 import { PartySheet } from "@/components/AccountsSection";
 import { loadCashEntries, saveCashEntries } from "@/lib/cashStore";
@@ -187,6 +188,7 @@ export default function StarlinkPage() {
   const totalDebt = totalOpenDebtUsd(debts) + totalPreviousDebtUsd(openPrevious);
   const suspended = useMemo(() => listSuspendedWithDebt(accounts, debts, openPrevious), [accounts, debts, openPrevious]);
   const card = useMemo(() => buildCardStatement(topUps, listCardPayments(ledgerStore)), [topUps, ledgerStore]);
+  const cardGroups = useMemo(() => groupDevicesByCard(accounts, paymentCards), [accounts, paymentCards]);
   const suspendedShortfall = cardShortfallForSuspended(suspended, card.balanceUsd);
   const selectedDebts = debts.filter((d) => selected.has(d.entry.id));
 
@@ -633,7 +635,13 @@ export default function StarlinkPage() {
           )}
         </div>
         {!collapsed.card && (<>
-        {pendingCardSpends(deposits).length > 0 && (
+        {pendingCardSpends(deposits).length + pendingCardDeposits(deposits).length > 0 && (
+          <button type="button" className="sl-collapse kast-notices-toggle" aria-expanded={!collapsed.notices} onClick={() => toggleSection("notices")}>
+            <span className="sl-collapse-chevron" aria-hidden="true">{collapsed.notices ? "▸" : "▾"}</span>
+            📩 إشعارات KAST تنتظر ({pendingCardSpends(deposits).length + pendingCardDeposits(deposits).length})
+          </button>
+        )}
+        {!collapsed.notices && pendingCardSpends(deposits).length > 0 && (
           <ul className="sl-list kast-deposits">
             {pendingCardSpends(deposits).map((s) => {
               const likely = spendCandidates(s.amountUsd, debts, currencyStore, { last4: s.cardLast4, of: (d) => account(d.accountId)?.paymentCardLast4 });
@@ -680,7 +688,7 @@ export default function StarlinkPage() {
             })}
           </ul>
         )}
-        {pendingCardDeposits(deposits).length > 0 && (
+        {!collapsed.notices && pendingCardDeposits(deposits).length > 0 && (
           <ul className="sl-list kast-deposits">
             {pendingCardDeposits(deposits).map((d) => (
               <li key={d.id} className="sl-row kast-deposit-row">
@@ -769,6 +777,9 @@ export default function StarlinkPage() {
 
       <PaymentCardsSection
         cards={paymentCards}
+        groups={cardGroups}
+        statementFor={(last4) => buildCardStatementFor(last4, accounts, listCardPayments(ledgerStore), deposits)}
+        clientName={(clientId) => getClient(clientStore, clientId)?.name}
         fillBook={fillBook}
         onAdd={addCard}
         onRemove={removeCard}
@@ -1402,6 +1413,9 @@ function SettlementEditForm({
  * Starlink (its edit dialog) - so a refused payment's Telegram alert names the likely device. */
 function PaymentCardsSection({
   cards,
+  groups,
+  statementFor,
+  clientName,
   fillBook,
   onAdd,
   onRemove,
@@ -1411,6 +1425,10 @@ function PaymentCardsSection({
   onEnableNotifications,
 }: {
   cards: PaymentCardList;
+  /** Each card's devices, devices on an unregistered card, devices whose card isn't known. */
+  groups: CardDeviceGroups;
+  statementFor: (last4: string) => CardStatement;
+  clientName: (clientId: string | undefined) => string | undefined;
   fillBook: CardFillBook;
   onAdd: (last4: string, name: string) => string | null;
   onRemove: (id: string) => void;
@@ -1424,6 +1442,8 @@ function PaymentCardsSection({
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [detailsFor, setDetailsFor] = useState<PaymentCardList[number] | null>(null);
+  const [statementOf, setStatementOf] = useState<PaymentCardList[number] | null>(null);
+  const [showUnregistered, setShowUnregistered] = useState(false);
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -1472,7 +1492,11 @@ function PaymentCardsSection({
                     </>
                   ) : null}
                 </span>
+                <span>📡 {groups.byCard[card.last4]?.length ?? 0} جهاز مربوط بها</span>
               </div>
+              <button type="button" className="text-action" onClick={() => setStatementOf(card)}>
+                📄 الكشف
+              </button>
               <button type="button" className="text-action" onClick={() => setDetailsFor(card)}>
                 {fillBook[card.id] ? "✎ البيانات" : "💳 أكمل البيانات"}
               </button>
@@ -1482,6 +1506,14 @@ function PaymentCardsSection({
             </li>
           ))}
         </ul>
+      )}
+      {cards.length > 0 && groups.unregistered.length > 0 && (
+        <button type="button" className="account-card-alert kast-unregistered" onClick={() => setShowUnregistered(true)}>
+          ⚠️ {groups.unregistered.length} {groups.unregistered.length === 1 ? "جهاز يُدفع ببطاقة غير مسجّلة" : "أجهزة تُدفع ببطاقات غير مسجّلة"} عندك - اضغط لتراها
+        </button>
+      )}
+      {cards.length > 0 && groups.unknown > 0 && (
+        <p className="settings-hint">{groups.unknown} جهاز لم تُعرف بطاقته بعد - تُقرأ من صفحة الفوترة عند المزامنة.</p>
       )}
       <form className="kast-card-form" onSubmit={submit}>
         <input dir="ltr" inputMode="numeric" maxLength={4} placeholder="آخر 4 أرقام" value={last4} onChange={(e) => setLast4(e.target.value.replace(/\D/g, ""))} />
@@ -1493,6 +1525,31 @@ function PaymentCardsSection({
         <p className="settings-hint">
           💳 أكمل بيانات البطاقة (الرقم، الاسم، التاريخ، الرمز، العنوان، رقم الهوية/الجواز) مرة واحدة: في متصفح أي جهاز، عند الضغط على خانة البطاقة في صفحة الدفع - أو زر 💳 في الأعلى - تختار البطاقة فتُملأ الخانات وحدها. تبقى في هاتفك ونسختك الاحتياطية فقط.
         </p>
+      )}
+      {showUnregistered && (
+        <PartySheet title="⚠️ أجهزة ببطاقة غير مسجّلة" onClose={() => setShowUnregistered(false)}>
+          <p className="settings-hint">بطاقة الدفع في ستارلينك لهذه الأجهزة ليست من بطاقاتك المسجّلة. سجّل البطاقة إن كانت لك، أو غيّرها في ستارلينك.</p>
+          <ul className="kast-card-devices">
+            {groups.unregistered.map((a) => (
+              <li key={a.id}>
+                <span>
+                  {a.name}
+                  {clientName(a.clientId) ? <small> · {clientName(a.clientId)}</small> : null}
+                </span>
+                <bdi dir="ltr">•{a.paymentCardLast4}</bdi>
+              </li>
+            ))}
+          </ul>
+        </PartySheet>
+      )}
+      {statementOf && (
+        <CardStatementSheet
+          card={statementOf}
+          devices={groups.byCard[statementOf.last4] ?? []}
+          statement={statementFor(statementOf.last4)}
+          clientName={clientName}
+          onClose={() => setStatementOf(null)}
+        />
       )}
       {detailsFor && (
         <PartySheet title={`💳 ${detailsFor.name} •${detailsFor.last4}`} onClose={() => setDetailsFor(null)}>
@@ -1515,6 +1572,80 @@ function PaymentCardsSection({
         </PartySheet>
       )}
     </section>
+  );
+}
+
+/** 📄 One card: its devices, then what was paid with it (D's of its devices, by month) and its KAST
+ * notices still waiting to be matched. */
+function CardStatementSheet({
+  card,
+  devices,
+  statement,
+  clientName,
+  onClose,
+}: {
+  card: PaymentCardList[number];
+  devices: StarlinkAccountSummary[];
+  statement: CardStatement;
+  clientName: (clientId: string | undefined) => string | undefined;
+  onClose: () => void;
+}) {
+  const months = Object.entries(statement.months).sort(([a], [b]) => b.localeCompare(a));
+  return (
+    <PartySheet title={`📄 كشف ${card.name} •${card.last4}`} onClose={onClose}>
+      <div className="kast-card-statement">
+        <section>
+          <strong>📡 الأجهزة المربوطة بها ({devices.length})</strong>
+          {devices.length === 0 ? (
+            <p className="settings-hint">لا يوجد جهاز بهذه البطاقة بعد - تُقرأ بطاقة كل جهاز من صفحة الفوترة عند المزامنة.</p>
+          ) : (
+            <ul className="kast-card-devices">
+              {devices.map((a) => (
+                <li key={a.id}>
+                  <span>
+                    {a.name}
+                    {clientName(a.clientId) ? <small> · {clientName(a.clientId)}</small> : null}
+                  </span>
+                  {a.balanceDue ? <bdi dir="ltr">{a.balanceDue} {a.currency ?? ""}</bdi> : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+        <section>
+          <strong>
+            💵 المدفوع بها: <bdi dir="ltr">{formatAmount(statement.totalPaidUsd)} $</bdi>
+          </strong>
+          {months.length > 0 && (
+            <div className="kast-card-months">
+              {months.map(([month, total]) => (
+                <span key={month}>
+                  <bdi dir="ltr">{month}</bdi>: <bdi dir="ltr">{formatAmount(total)} $</bdi>
+                </span>
+              ))}
+            </div>
+          )}
+          {statement.rows.length === 0 ? (
+            <p className="settings-hint">لا توجد دفعات بعد.</p>
+          ) : (
+            <ul className="kast-card-devices">
+              {statement.rows.map((r, i) => (
+                <li key={`${r.kind}-${r.date}-${i}`} className={r.kind === "notice" ? "kast-card-notice" : undefined}>
+                  <span>
+                    {r.kind === "paid" ? `⬇️ D ${r.label}` : `📩 إشعار لم يُربط بجهاز (${r.label})`}
+                    <small>
+                      {" "}
+                      · <bdi dir="ltr">{r.date}</bdi>
+                    </small>
+                  </span>
+                  <bdi dir="ltr">{formatAmount(r.amountUsd)} $</bdi>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
+    </PartySheet>
   );
 }
 

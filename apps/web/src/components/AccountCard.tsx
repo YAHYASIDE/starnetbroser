@@ -2,6 +2,7 @@
 
 import { askDeleteCode } from "@/components/DeleteCodePrompt";
 import type React from "react";
+import Link from "next/link";
 
 import { showsRestriction } from "@/lib/reminders";
 import { PromiseQuickSheet } from "./PromiseQuickSheet";
@@ -96,6 +97,8 @@ interface Props {
   onSetRepair: (account: StarlinkAccountSummary, repair: StarlinkAccountSummary["underRepair"]) => void;
   /** 📌 Small changes to the device itself (the locked renewal day, RenewalLockSheet). */
   onPatch?: (account: StarlinkAccountSummary, patch: Partial<StarlinkAccountSummary>) => void;
+  /** ⚠️ Starlink bills this device to a card that isn't one of his registered cards. */
+  unregisteredCard?: boolean;
   /** This device's mailbox (📧 البريد) is signed in on this phone - the button turns mint green. */
   mailSignedIn?: boolean;
   /** Moves the device to the archive ("active" context only). */
@@ -196,7 +199,7 @@ function IconUndo() {
 
 export function AccountCard({
   account, onEdit, ledgerEntries, allocations, onLedger, onDeviceStatement, client, onOpenClient, currencyStore,
-  context = "active", onSetDeviceFault, onSetRepair, onPatch, onFinishCreation, allAccounts = [], mailSignedIn = false, onArchive, onSoftDelete, onRestore, onPermanentDelete, onConfirmRenewal,
+  context = "active", onSetDeviceFault, onSetRepair, onPatch, unregisteredCard = false, onFinishCreation, allAccounts = [], mailSignedIn = false, onArchive, onSoftDelete, onRestore, onPermanentDelete, onConfirmRenewal,
   sessionNeedsLogin = false,
   repPending = false,
   previousDebts = [],
@@ -667,6 +670,11 @@ export function AccountCard({
           <span className="account-card-recharge-pill account-card-recharge-pill-unread">
             <span aria-hidden="true">📅</span> {renewalDateLabel("")}
           </span>
+        )}
+        {unregisteredCard && (
+          <Link href="/starlink" className="badge badge-red" title="بطاقة الدفع في ستارلينك ليست من بطاقاتك المسجّلة">
+            💳 <bdi dir="ltr">•{account.paymentCardLast4}</bdi> غير مسجّلة
+          </Link>
         )}
         {account.renewalDayMismatch && onPatch && (
           <button type="button" className="badge badge-red account-card-recharge-btn" onClick={() => setRenewalSheet(true)}>

@@ -51,6 +51,8 @@ import { loadPriorityAlerted, priorityAlertsToSend, priorityTelegramText, savePr
 import { loadOceanAlerted, oceanAlertsToSend, oceanModeAccounts, oceanTelegramText, saveOceanAlerted } from "@/lib/oceanMode";
 import { OceanModeAlarm } from "./OceanModeAlarm";
 import { PartySheet } from "@/components/AccountsSection";
+import { isUnregisteredCard } from "@/lib/cardDevices";
+import { loadPaymentCards, type PaymentCard } from "@/lib/kastCards";
 import { cardNeed, computeRenewalForecast } from "@/lib/renewalForecast";
 import { computeDeviceMargins, WEAK_MARGIN_PERCENT } from "@/lib/deviceMargins";
 import { cardShortfallForSuspended, currentCardBalanceUsd, listOpenShipmentDebts, listSuspendedWithDebt, loadCardTopUps, settleShipmentCost } from "@/lib/starlinkDebt";
@@ -1282,6 +1284,8 @@ export function HomeView({
   const [ownerView, setOwnerView] = useState(false);
   useEffect(() => setOwnerView(!isRepWorkspace()), []);
   const [moneyAlertsOpen, setMoneyAlertsOpen] = useState(false);
+  const [paymentCards, setPaymentCards] = useState<PaymentCard[]>([]);
+  useEffect(() => setPaymentCards(loadPaymentCards()), []);
   const weekCardNeed = useMemo(
     () => (ownerView ? cardNeed(computeRenewalForecast(activeAccounts, new Date(), 7), currentCardBalanceUsd(ledgerStore)) : null),
     [ownerView, activeAccounts, ledgerStore],
@@ -1912,6 +1916,7 @@ export function HomeView({
                 onSetDeviceFault={handleSetDeviceFault}
                 onSetRepair={(target, repair) => patchAccount(target.id, { underRepair: repair })}
                 onPatch={viewMode === "active" ? (target, patch) => patchAccount(target.id, patch) : undefined}
+                unregisteredCard={viewMode === "active" && isUnregisteredCard(account, paymentCards)}
                 onFinishCreation={(target) => patchAccount(target.id, { creation: null })}
                 allAccounts={accounts}
                 onArchive={handleArchive}

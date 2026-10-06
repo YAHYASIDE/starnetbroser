@@ -356,6 +356,15 @@ mind). Exact texts and numbers live in the code - this file says where.
   statement go to every phone; a direct answer (search, hints, session steps) only to the phone that
   asked. Each phone has its own «فك الربط». Logic: `lib/repChatLinks.ts`; native map chatId → repId.
 
+## 💳 Cards ↔ devices (Oct 2026)
+
+- Each registered card («بطاقاتي (KAST)») lists its devices (device `paymentCardLast4`, read from
+  Starlink's Billing → Payment Method or chosen in the device dialog) and has «📄 الكشف»: its devices,
+  the D's paid for them by month, its pending KAST notices (`lib/cardDevices.ts`).
+- A device billed to a card he didn't register: warning in the cards section + «💳 •XXXX غير مسجّلة» on
+  the device card. A KAST payment matches a same-card D within **2%** (his example: 100$ ← 98-102$).
+- The pending KAST notices fold under one line «📩 إشعارات KAST تنتظر (N)», rows smaller.
+
 ## 📌 Locked renewal day
 
 - His rule (Oct 2026): a device's renewal day never moves («ينتهي يوم 10 … شهر 11 يوم 10») except when
