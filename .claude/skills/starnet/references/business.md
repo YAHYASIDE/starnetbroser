@@ -383,6 +383,10 @@ mind). Exact texts and numbers live in the code - this file says where.
   need it (name, email, phone, deadline) with a WhatsApp button each; the customer text is his
   **strong** wording («وإلا سيُغلق الحساب وتتوقف الخدمة»); every sync also puts a 🛂 banner on the
   card, cleared when Home no longer shows it. Logic: `lib/travelRegistration.ts`.
+- His follow-up: the day's «🔄 تحديث» and «🛂 كشف توثيق» ask whose devices first - «الكل», «🏠 أجهزتي»
+  (no rep) or one rep's (`dayOwnerGroups` in `lib/dayActions.ts`); with one group only (e.g. the
+  rep's own app) they run at once. The result also opens in the app (TravelCheckSheet, WhatsApp
+  buttons) - the rep's app has no bot.
 
 ## 📇 Device card taps (Oct 2026)
 

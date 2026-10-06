@@ -76,3 +76,34 @@ export function daySummary(dayAccounts: StarlinkAccountSummary[]): DaySummary {
   }
   return summary;
 }
+
+/** Whose devices a day's run covers: all, mine (no representative), or one representative's. */
+export type DayOwner = "all" | "mine" | string;
+
+export interface DayOwnerGroup {
+  key: DayOwner;
+  label: string;
+  count: number;
+}
+
+export function accountsOfOwner(accounts: StarlinkAccountSummary[], owner: DayOwner): StarlinkAccountSummary[] {
+  if (owner === "all") return accounts;
+  if (owner === "mine") return accounts.filter((a) => !a.representativeId);
+  return accounts.filter((a) => a.representativeId === owner);
+}
+
+/** 👥 «تحديث» / «كشف توثيق» for my customers alone or one rep's alone (his Oct 2026 request):
+ * the choices for a day's devices - «الكل», «🏠 أجهزتي», then each rep, most devices first. Only
+ * one group (e.g. all mine, or the rep's own app) → that group alone, nothing to choose. */
+export function dayOwnerGroups(dayAccounts: StarlinkAccountSummary[], reps: RepresentativeStore): DayOwnerGroup[] {
+  const mine = accountsOfOwner(dayAccounts, "mine").length;
+  const byRep = new Map<string, number>();
+  for (const account of dayAccounts) {
+    if (account.representativeId) byRep.set(account.representativeId, (byRep.get(account.representativeId) ?? 0) + 1);
+  }
+  const repGroups = [...byRep]
+    .map(([repId, count]) => ({ key: repId, label: `📱 ${reps[repId]?.name ?? "مندوب محذوف"}`, count }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "ar"));
+  const groups: DayOwnerGroup[] = [...(mine ? [{ key: "mine", label: "🏠 أجهزتي", count: mine }] : []), ...repGroups];
+  return groups.length > 1 ? [{ key: "all", label: "الكل", count: dayAccounts.length }, ...groups] : groups;
+}

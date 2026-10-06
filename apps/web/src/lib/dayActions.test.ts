@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { StarlinkAccountSummary } from "@starnet/shared";
-import { accountsForDay, daySummary, repDayMessages } from "./dayActions";
+import { accountsForDay, accountsOfOwner, dayOwnerGroups, daySummary, repDayMessages } from "./dayActions";
 import type { RepresentativeStore } from "./repStore";
 
 function device(id: string, rechargeDate: string, extra: Partial<StarlinkAccountSummary> = {}): StarlinkAccountSummary {
@@ -59,5 +59,31 @@ describe("daySummary", () => {
       costByCurrency: { USD: 55, ARS: 35000 },
       withoutPrice: 1,
     });
+  });
+});
+
+describe("👥 a day's run: mine or one rep's", () => {
+  const reps = { r1: { id: "r1", name: "مندوب أ" }, r2: { id: "r2", name: "مندوب ب" } } as unknown as RepresentativeStore;
+  const dev = (id: string, representativeId?: string) => ({ id, name: id, representativeId }) as StarlinkAccountSummary;
+  const day = [dev("m1"), dev("a1", "r1"), dev("a2", "r1"), dev("b1", "r2"), dev("m2")];
+
+  it("offers all, mine, then each rep (most first)", () => {
+    expect(dayOwnerGroups(day, reps)).toEqual([
+      { key: "all", label: "الكل", count: 5 },
+      { key: "mine", label: "🏠 أجهزتي", count: 2 },
+      { key: "r1", label: "📱 مندوب أ", count: 2 },
+      { key: "r2", label: "📱 مندوب ب", count: 1 },
+    ]);
+  });
+
+  it("one group only (all mine, or the rep's own app): nothing to choose", () => {
+    expect(dayOwnerGroups([dev("m1")], reps)).toEqual([{ key: "mine", label: "🏠 أجهزتي", count: 1 }]);
+    expect(dayOwnerGroups([dev("a1", "r1"), dev("a2", "r1")], reps)).toEqual([{ key: "r1", label: "📱 مندوب أ", count: 2 }]);
+  });
+
+  it("filters the devices of the chosen group", () => {
+    expect(accountsOfOwner(day, "mine").map((a) => a.id)).toEqual(["m1", "m2"]);
+    expect(accountsOfOwner(day, "r1").map((a) => a.id)).toEqual(["a1", "a2"]);
+    expect(accountsOfOwner(day, "all")).toHaveLength(5);
   });
 });

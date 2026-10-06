@@ -144,8 +144,9 @@ import {
 import { SyncChoiceSheet, SyncQueueBar } from "./SyncNowSheet";
 import { loadSyncQueue, localToday, nextQueuedAccount, queueProgressLabel, saveSyncQueue, startSyncQueue, syncedOnlyByCommand, syncQueueFor, type SyncWindow } from "@/lib/syncQueue";
 import { DayActionsSheet } from "./DayActionsSheet";
+import { TravelCheckSheet } from "./TravelCheckSheet";
 import { buildTravelCheckReport } from "@/lib/travelRegistration";
-import { accountsForDay } from "@/lib/dayActions";
+import { accountsForDay, accountsOfOwner, type DayOwner } from "@/lib/dayActions";
 import { applyOutcomes, buildSyncReport, outcomeLabel, signedOutAlert } from "@/lib/syncReport";
 import { depositLabel, kastDevicesSnapshot } from "@/lib/kastCards";
 import {
@@ -587,12 +588,14 @@ export function HomeView({
 
   // 📅 Long press on a calendar day: that day's actions (DayActionsSheet).
   const [longPressDay, setLongPressDay] = useState<number | null>(null);
+  /** 🛂 The last «كشف توثيق» result, shown in the app (and sent to the bot when connected). */
+  const [travelResult, setTravelResult] = useState<{ label: string; ids: string[]; skipped: number } | null>(null);
 
-  function syncDay(day: number) {
+  function syncDay(day: number, owner: DayOwner = "all", ownerLabel = "") {
     setLongPressDay(null);
     // A faulty device or a limited email is synced only from its own «مزامنة الآن» choice.
-    const ids = accountsForDay(activeAccountsRef.current, day).filter((a) => !syncedOnlyByCommand(a)).map((a) => a.id);
-    const queue = syncQueueFor(ids, `يوم ${day}`);
+    const ids = accountsOfOwner(accountsForDay(activeAccountsRef.current, day), owner).filter((a) => !syncedOnlyByCommand(a)).map((a) => a.id);
+    const queue = syncQueueFor(ids, `يوم ${day}${ownerLabel ? ` · ${ownerLabel}` : ""}`);
     if (!queue) pushToast("لا أجهزة للمزامنة في هذا اليوم (المعطلة والإيميل غير الرئيسي بأمر فقط)");
     if (!queue) return;
     void trySyncInBackground(queue.ids, queue.label).then((background) => {
@@ -610,17 +613,17 @@ export function HomeView({
       }).length;
       const report = buildTravelCheckReport(queue.label, ids, accountsRef.current, (account) => getClient(clientStoreRef.current, account.clientId)?.phone ?? account.phone, skipped);
       if (isTelegramConnected()) void sendTelegramText(report.text, report.replyMarkup);
-      else pushToast("اربط بوت تيليغرام من الإعدادات ليصلك كشف التوثيق");
+      setTravelResult({ label: queue.label, ids, skipped });
       void notifyPhone(report.text.split("\n").slice(0, 2).join(" · "), HOME_ROUTE);
-      pushToast(report.found ? `🛂 ${report.found} جهاز يحتاج توثيق - التفاصيل في البوت` : "🛂 كشف التوثيق: لا جهاز يحتاج توثيقًا");
+      pushToast(report.found ? `🛂 ${report.found} جهاز يحتاج توثيق` : "🛂 كشف التوثيق: لا جهاز يحتاج توثيقًا");
     }, 2500);
   }
 
   /** 🛂 «كشف توثيق» of a calendar day: each device's Home only, one by one, nothing else changes. */
-  function travelCheckDay(day: number) {
+  function travelCheckDay(day: number, owner: DayOwner = "all", ownerLabel = "") {
     setLongPressDay(null);
-    const ids = accountsForDay(activeAccountsRef.current, day).filter((a) => !a.deviceFault).map((a) => a.id);
-    const queue = syncQueueFor(ids, `يوم ${day}`, true);
+    const ids = accountsOfOwner(accountsForDay(activeAccountsRef.current, day), owner).filter((a) => !a.deviceFault).map((a) => a.id);
+    const queue = syncQueueFor(ids, `يوم ${day}${ownerLabel ? ` · ${ownerLabel}` : ""}`, true);
     if (!queue) {
       pushToast("لا أجهزة للكشف في هذا اليوم");
       return;
@@ -1527,9 +1530,17 @@ export function HomeView({
           dayAccounts={accountsForDay(activeAccounts, longPressDay)}
           reps={representativeStore}
           phoneFor={(account) => getClient(clientStore, account.clientId)?.phone ?? account.phone}
-          onSync={() => syncDay(longPressDay)}
-          onTravelCheck={() => travelCheckDay(longPressDay)}
+          onSync={(owner, ownerLabel) => syncDay(longPressDay, owner, ownerLabel)}
+          onTravelCheck={(owner, ownerLabel) => travelCheckDay(longPressDay, owner, ownerLabel)}
           onClose={() => setLongPressDay(null)}
+        />
+      )}
+      {travelResult && (
+        <TravelCheckSheet
+          {...travelResult}
+          accounts={accounts}
+          phoneFor={(account) => getClient(clientStore, account.clientId)?.phone ?? account.phone}
+          onClose={() => setTravelResult(null)}
         />
       )}
       {syncChoiceOpen && <SyncChoiceSheet accounts={accounts} today={localToday()} onPick={startSyncRun} onClose={() => setSyncChoiceOpen(false)} />}

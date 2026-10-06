@@ -2,14 +2,14 @@
 
 import { useMemo, useState } from "react";
 import type { StarlinkAccountSummary } from "@starnet/shared";
-import { daySummary, repDayMessages } from "@/lib/dayActions";
+import { dayOwnerGroups, daySummary, repDayMessages, type DayOwner, type DayOwnerGroup } from "@/lib/dayActions";
 import { formatAmount } from "@/lib/formatAmount";
 import type { RepresentativeStore } from "@/lib/repStore";
 import { isRepsBotConnected, loadRepChats, sendRepText } from "@/lib/telegram";
 import { needsTravelRegistration } from "@/lib/travelRegistration";
 import { buildExpiryReminderMessage, buildWhatsAppLink } from "@/lib/whatsapp";
 
-type View = "menu" | "reps" | "remind" | "summary";
+type View = "menu" | "reps" | "remind" | "summary" | "pickSync" | "pickTravel";
 
 /** 📅 Long press on a day of «التجديد حسب اليوم»: send each rep his devices of that day (reps bot),
  * sync that day's devices one by one, remind the customers on WhatsApp, or see the day's summary. */
@@ -26,8 +26,8 @@ export function DayActionsSheet({
   dayAccounts: StarlinkAccountSummary[];
   reps: RepresentativeStore;
   phoneFor: (account: StarlinkAccountSummary) => string | undefined;
-  onSync: () => void;
-  onTravelCheck: () => void;
+  onSync: (owner: DayOwner, ownerLabel: string) => void;
+  onTravelCheck: (owner: DayOwner, ownerLabel: string) => void;
   onClose: () => void;
 }) {
   const [view, setView] = useState<View>("menu");
@@ -38,6 +38,25 @@ export function DayActionsSheet({
   const summary = useMemo(() => daySummary(dayAccounts), [dayAccounts]);
   const linkedCount = messages.filter((m) => linked[m.repId]).length;
   const travelCount = dayAccounts.filter(needsTravelRegistration).length;
+  const ownerGroups = useMemo(() => dayOwnerGroups(dayAccounts, reps), [dayAccounts, reps]);
+
+  /** 👥 Several owners that day → ask whose devices; one → run at once. */
+  function chooseOwner(next: "pickSync" | "pickTravel", run: (owner: DayOwner, ownerLabel: string) => void) {
+    if (ownerGroups.length > 1) setView(next);
+    else run(ownerGroups[0]?.key ?? "all", "");
+  }
+
+  function ownerPicker(run: (owner: DayOwner, ownerLabel: string) => void) {
+    return (
+      <div className="card-more-list">
+        {ownerGroups.map((group: DayOwnerGroup) => (
+          <button key={group.key} type="button" className="card-more-item" onClick={() => run(group.key, group.key === "all" ? "" : group.label)}>
+            {group.label} <small>{group.count} جهاز</small>
+          </button>
+        ))}
+      </div>
+    );
+  }
 
   async function sendToLinked() {
     setSending(true);
@@ -50,7 +69,13 @@ export function DayActionsSheet({
     setSending(false);
   }
 
-  const title = view === "reps" ? "📨 للمندوبين" : view === "remind" ? "💬 تذكير الزبائن" : view === "summary" ? "📊 ملخص اليوم" : "";
+  const title =
+    view === "reps" ? "📨 للمندوبين"
+    : view === "remind" ? "💬 تذكير الزبائن"
+    : view === "summary" ? "📊 ملخص اليوم"
+    : view === "pickSync" ? "🔄 أجهزة من؟"
+    : view === "pickTravel" ? "🛂 أجهزة من؟"
+    : "";
 
   return (
     <div className="party-sheet-backdrop" role="presentation" onClick={onClose}>
@@ -69,10 +94,10 @@ export function DayActionsSheet({
             <button type="button" className="card-more-item" onClick={() => setView("reps")}>
               <span aria-hidden="true">📨</span> إرسال للمندوبين <small>{messages.length} مندوب</small>
             </button>
-            <button type="button" className="card-more-item" onClick={onSync}>
+            <button type="button" className="card-more-item" onClick={() => chooseOwner("pickSync", onSync)}>
               <span aria-hidden="true">🔄</span> تحديث أجهزة هذا اليوم <small>جهاز بعد جهاز</small>
             </button>
-            <button type="button" className="card-more-item" data-tour="travel-check" onClick={onTravelCheck}>
+            <button type="button" className="card-more-item" data-tour="travel-check" onClick={() => chooseOwner("pickTravel", onTravelCheck)}>
               <span aria-hidden="true">🛂</span> كشف توثيق <small>{travelCount > 0 ? `${travelCount} يحتاج توثيق` : "الرئيسية فقط"}</small>
             </button>
             <button type="button" className="card-more-item" onClick={() => setView("remind")}>
@@ -83,6 +108,9 @@ export function DayActionsSheet({
             </button>
           </div>
         )}
+
+        {view === "pickSync" && ownerPicker(onSync)}
+        {view === "pickTravel" && ownerPicker(onTravelCheck)}
 
         {view === "reps" && (
           <>
