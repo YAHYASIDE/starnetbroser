@@ -13038,3 +13038,18 @@ button.today-tile {
 .kast-card-notice {
   border: 1px dashed var(--green);
 }
+
+/* 📅 the four lists in place of days 29-31 (dayBuckets.ts) */
+.day-circle-special .day-circle-num {
+  font-size: 1rem;
+}
+
+.day-circles-legend {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 4px 0 0;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}

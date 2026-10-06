@@ -10,7 +10,6 @@ import Link from "next/link";
 import { App } from "@capacitor/app";
 import type { PluginListenerHandle } from "@capacitor/core";
 import { DeviceStatus, StarlinkAccountSummary } from "@starnet/shared";
-import { expiryDay } from "@starnet/shared";
 import { AccountCard, AccountCardContext } from "./AccountCard";
 import { DayCircles } from "./DayCircles";
 import { ConnectionStatus } from "./ConnectionStatus";
@@ -52,6 +51,7 @@ import { loadOceanAlerted, oceanAlertsToSend, oceanModeAccounts, oceanTelegramTe
 import { OceanModeAlarm } from "./OceanModeAlarm";
 import { PartySheet } from "@/components/AccountsSection";
 import { isUnregisteredCard } from "@/lib/cardDevices";
+import { countDayKeys, deviceDayKeys, type DayKey } from "@/lib/dayBuckets";
 import { loadPaymentCards, type PaymentCard } from "@/lib/kastCards";
 import { cardNeed, computeRenewalForecast } from "@/lib/renewalForecast";
 import { computeDeviceMargins, WEAK_MARGIN_PERCENT } from "@/lib/deviceMargins";
@@ -242,7 +242,7 @@ export function HomeView({
     };
   }, []);
   const [query, setQuery] = useState("");
-  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [selectedDay, setSelectedDay] = useState<DayKey | null>(null);
   const [statFilter, setStatFilter] = useState<StatFilterKind | null>(null);
   /** One group of «المعطلة» (ملغي / محروق / منقول / إيميل غير رئيسي), or all of them. */
   const [faultFilter, setFaultFilter] = useState<DeviceFaultReason | null>(null);
@@ -1388,14 +1388,7 @@ export function HomeView({
     [activeAccounts, ledgerStore, clientStore, lastBackupAt, suspendedWithDebt, duePromiseCount],
   );
 
-  const dayCounts = useMemo(() => {
-    const counts = new Map<number, number>();
-    for (const account of activeAccounts) {
-      const day = expiryDay(account.rechargeDate || account.standbyDate);
-      if (day) counts.set(day, (counts.get(day) ?? 0) + 1);
-    }
-    return counts;
-  }, [activeAccounts]);
+  const dayCounts = useMemo(() => countDayKeys(activeAccounts), [activeAccounts]);
 
   const expiredOrNearExpiry = useMemo(
     () =>
@@ -1437,7 +1430,7 @@ export function HomeView({
   const filtered = useMemo(() => {
     let list = activeAccounts;
     if (selectedDay !== null) {
-      list = list.filter((a) => expiryDay(a.rechargeDate || a.standbyDate) === selectedDay);
+      list = list.filter((a) => deviceDayKeys(a).includes(selectedDay));
     }
     if (statFilter) {
       list = list.filter((a) => matchesStatFilter(a, statFilter));

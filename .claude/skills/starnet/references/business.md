@@ -365,6 +365,12 @@ mind). Exact texts and numbers live in the code - this file says where.
   the device card. A KAST payment matches a same-card D within **2%** (his example: 100$ ← 98-102$).
 - The pending KAST notices fold under one line «📩 إشعارات KAST تنتظر (N)», rows smaller.
 
+## 📅 Renewal calendar (home «التجديد حسب اليوم»)
+
+- Days **1-28 only** (his Oct 2026 rule). In place of 29-31: ❓ unknown date (synced, no valid date),
+  ⏳ never synced, 👤 faulty «إيميل غير رئيسي», 🔥 faulty «محروق» - each opens its devices
+  (`lib/dayBuckets.ts`). Day 28 stays a normal day (his choice).
+
 ## 📌 Locked renewal day
 
 - His rule (Oct 2026): a device's renewal day never moves («ينتهي يوم 10 … شهر 11 يوم 10») except when

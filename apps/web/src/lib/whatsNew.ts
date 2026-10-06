@@ -31,6 +31,20 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-06-day-calendar",
+    date: "2026-10-06",
+    title: "تقويم التجديد: 1 إلى 28 فقط",
+    steps: [
+      {
+        path: "/",
+        target: "day-specials",
+        title: "📅 أيام 29 و30 و31 أُزيلت",
+        before: "التقويم كان من 1 إلى 31، وستارلينك لا يجدد بعد يوم 28.",
+        after: "صار من 1 إلى 28، وفي مكان 29-31 أربع دوائر: ❓ غير معروف التاريخ، ⏳ لم تُحدَّث بعد، 👤 معطّل: إيميل غير رئيسي، 🔥 معطّل: محروق. اضغط أيّها لترى أجهزتها.",
+      },
+    ],
+  },
+  {
     id: "2026-10-06-cards-devices",
     date: "2026-10-06",
     title: "البطاقات: أجهزتها وكشوفها",
