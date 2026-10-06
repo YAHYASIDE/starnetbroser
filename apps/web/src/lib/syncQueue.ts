@@ -82,6 +82,8 @@ export interface SyncQueue {
   label: string;
   /** How each device's auto-sync ended (syncReport.ts). */
   results?: Record<string, "ok" | "nothing" | "saveFailed" | "signedOut" | "stuck" | "closed">;
+  /** 🛂 «كشف توثيق»: each browser reads Home only and changes nothing (travelRegistration.ts). */
+  travelCheck?: boolean;
 }
 
 export function startSyncQueue(accounts: StarlinkAccountSummary[], window: SyncWindow, today: string): SyncQueue | null {
@@ -91,8 +93,9 @@ export function startSyncQueue(accounts: StarlinkAccountSummary[], window: SyncW
 }
 
 /** A run over chosen devices (e.g. the long-pressed day's), in the given order. */
-export function syncQueueFor(ids: string[], label: string): SyncQueue | null {
-  return ids.length === 0 ? null : { ids: [...ids], index: 0, label };
+export function syncQueueFor(ids: string[], label: string, travelCheck = false): SyncQueue | null {
+  if (ids.length === 0) return null;
+  return travelCheck ? { ids: [...ids], index: 0, label, travelCheck: true } : { ids: [...ids], index: 0, label };
 }
 
 /** The next device still on the phone (one deleted meanwhile is skipped), or null when finished. */

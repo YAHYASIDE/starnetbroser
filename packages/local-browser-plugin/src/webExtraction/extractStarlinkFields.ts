@@ -38,6 +38,7 @@ import {
   nextOccurrenceOfDay,
   normalizeDateLike,
   normalizeServiceStatus,
+  extractTravelRegistrationDue,
 } from "./textFields";
 import { readOceanMode } from "./oceanMode";
 import { toLines, toVisibleText } from "./visibleText";
@@ -137,6 +138,13 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
   // canceled device's restriction is hidden by the app anyway (reminders.ts showsRestriction).
   if (hasRegionRestrictedBanner(lines)) fields.isRestricted = true;
   else if (isOnAccountHomePage(lines)) fields.isRestricted = false;
+
+  // 🛂 «Complete Travel Registration by …»: printed on Home only, so only Home may clear it.
+  const travelDue = extractTravelRegistrationDue(lines);
+  if (travelDue !== undefined) {
+    fields.travelRegistrationRequired = true;
+    if (travelDue) fields.travelRegistrationDue = travelDue;
+  } else if (isOnAccountHomePage(lines)) fields.travelRegistrationRequired = false;
 
   // 🚗 Stopped for moving too fast: the banner sits under the subscription's Devices, so only a
   // page showing Devices may clear it (never Home, which never prints it).

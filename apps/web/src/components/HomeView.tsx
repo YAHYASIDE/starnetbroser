@@ -144,6 +144,7 @@ import {
 import { SyncChoiceSheet, SyncQueueBar } from "./SyncNowSheet";
 import { loadSyncQueue, localToday, nextQueuedAccount, queueProgressLabel, saveSyncQueue, startSyncQueue, syncedOnlyByCommand, syncQueueFor, type SyncWindow } from "@/lib/syncQueue";
 import { DayActionsSheet } from "./DayActionsSheet";
+import { buildTravelCheckReport } from "@/lib/travelRegistration";
 import { accountsForDay } from "@/lib/dayActions";
 import { applyOutcomes, buildSyncReport, outcomeLabel, signedOutAlert } from "@/lib/syncReport";
 import { depositLabel, kastDevicesSnapshot } from "@/lib/kastCards";
@@ -520,7 +521,8 @@ export function HomeView({
     if (!next) {
       saveSyncQueue(null);
       setQueueStep(null);
-      reportSync(buildSyncReport({ ...queue, index: queue.ids.length }, accountsRef.current));
+      if (queue.travelCheck) finishTravelCheck(queue, queue.ids);
+      else reportSync(buildSyncReport({ ...queue, index: queue.ids.length }, accountsRef.current));
       return;
     }
     setQueueStep({ label: queue.label, progress: queueProgressLabel(queue, next.index), name: next.account.name, secondsLeft: QUEUE_COUNTDOWN_S });
@@ -540,7 +542,7 @@ export function HomeView({
     // Moved on before opening, so coming back (done or closed by hand) continues with the next one.
     saveSyncQueue({ ...queue, index: next.index + 1 });
     setQueueStep(null);
-    const result = await openAutoSync(next.account, `${queue.label} · ${queueProgressLabel(queue, next.index)}`);
+    const result = await openAutoSync(next.account, `${queue.label} · ${queueProgressLabel(queue, next.index)}`, queue.travelCheck === true);
     if (!result.ok) {
       saveSyncQueue(null);
       pushToast(result.message);
@@ -598,10 +600,43 @@ export function HomeView({
     });
   }
 
+  /** 🛂 The «كشف توثيق» run ended: ONE bot message with the devices that need it. Waits a moment
+   * so the last device's read (drained on resume) is on the device first. */
+  function finishTravelCheck(queue: NonNullable<ReturnType<typeof loadSyncQueue>>, ids: string[]) {
+    window.setTimeout(() => {
+      const skipped = ids.filter((id) => {
+        const outcome = queue.results?.[id];
+        return outcome === "signedOut" || outcome === "stuck" || outcome === "closed";
+      }).length;
+      const report = buildTravelCheckReport(queue.label, ids, accountsRef.current, (account) => getClient(clientStoreRef.current, account.clientId)?.phone ?? account.phone, skipped);
+      if (isTelegramConnected()) void sendTelegramText(report.text, report.replyMarkup);
+      else pushToast("اربط بوت تيليغرام من الإعدادات ليصلك كشف التوثيق");
+      void notifyPhone(report.text.split("\n").slice(0, 2).join(" · "), HOME_ROUTE);
+      pushToast(report.found ? `🛂 ${report.found} جهاز يحتاج توثيق - التفاصيل في البوت` : "🛂 كشف التوثيق: لا جهاز يحتاج توثيقًا");
+    }, 2500);
+  }
+
+  /** 🛂 «كشف توثيق» of a calendar day: each device's Home only, one by one, nothing else changes. */
+  function travelCheckDay(day: number) {
+    setLongPressDay(null);
+    const ids = accountsForDay(activeAccountsRef.current, day).filter((a) => !a.deviceFault).map((a) => a.id);
+    const queue = syncQueueFor(ids, `يوم ${day}`, true);
+    if (!queue) {
+      pushToast("لا أجهزة للكشف في هذا اليوم");
+      return;
+    }
+    startVisibleRun(queue);
+  }
+
   function stopSyncRun() {
     const queue = loadSyncQueue();
     saveSyncQueue(null);
     setQueueStep(null);
+    if (queue?.travelCheck) {
+      if (queue.index > 0) finishTravelCheck(queue, queue.ids.slice(0, queue.index));
+      else pushToast("⏹ أُوقف كشف التوثيق");
+      return;
+    }
     if (queue && queue.index > 0) reportSync(buildSyncReport(queue, accountsRef.current, true));
     else pushToast("⏹ أُوقفت المزامنة");
   }
@@ -687,6 +722,10 @@ export function HomeView({
   useEffect(() => {
     accountsRef.current = accounts;
   }, [accounts]);
+  const clientStoreRef = useRef(clientStore);
+  useEffect(() => {
+    clientStoreRef.current = clientStore;
+  }, [clientStore]);
   const dataStateRef = useRef(dataState);
   useEffect(() => {
     dataStateRef.current = dataState;
@@ -1489,6 +1528,7 @@ export function HomeView({
           reps={representativeStore}
           phoneFor={(account) => getClient(clientStore, account.clientId)?.phone ?? account.phone}
           onSync={() => syncDay(longPressDay)}
+          onTravelCheck={() => travelCheckDay(longPressDay)}
           onClose={() => setLongPressDay(null)}
         />
       )}

@@ -50,7 +50,18 @@ const FIELD_INFO: Record<keyof SyncedStarlinkFields, { label: string; section: S
   limitedAccess: { label: "إيميل غير رئيسي (بدون فوترة)", section: "identifiers" },
   adminEmails: { label: "الإيميل الرئيسي (Admin)", section: "identifiers" },
   subscriptionNames: { label: "الاشتراكات", section: "subscriptions" },
+  travelRegistrationRequired: { label: "🛂 توثيق السفر مطلوب", section: "subscriptions" },
+  travelRegistrationDue: { label: "موعد توثيق السفر", section: "subscriptions" },
+  checkOnly: { label: "كشف توثيق", section: "subscriptions" },
 };
+
+/** 🛂 A «كشف توثيق» read (checkOnly): only the travel-registration notice is taken from it. */
+function onlyTravelFields(fields: SyncedStarlinkFields): SyncedStarlinkFields {
+  const kept: SyncedStarlinkFields = {};
+  if (fields.travelRegistrationRequired !== undefined) kept.travelRegistrationRequired = fields.travelRegistrationRequired;
+  if (fields.travelRegistrationDue) kept.travelRegistrationDue = fields.travelRegistrationDue;
+  return kept;
+}
 
 export interface UpdatedField {
   field: keyof SyncedStarlinkFields;
@@ -100,8 +111,10 @@ function toDeviceStatus(value: SyncedDeviceStatus): DeviceStatus {
  */
 export function mergeSyncedFields(
   account: StarlinkAccountSummary,
-  fields: SyncedStarlinkFields,
+  syncedFields: SyncedStarlinkFields,
 ): MergeSyncResult {
+  const checkOnly = syncedFields.checkOnly === true;
+  const fields = checkOnly ? onlyTravelFields(syncedFields) : syncedFields;
   const next: StarlinkAccountSummary = { ...account };
   const updatedFields: UpdatedField[] = [];
 
@@ -261,6 +274,15 @@ export function mergeSyncedFields(
     next.isRestricted = fields.isRestricted;
   }
 
+  // 🛂 Explicit true/false like isRestricted: Home without the banner clears it (and its date).
+  if (fields.travelRegistrationRequired !== undefined) {
+    const due = fields.travelRegistrationRequired ? fields.travelRegistrationDue ?? next.travelRegistrationDue : undefined;
+    note("travelRegistrationRequired", next.travelRegistrationRequired !== fields.travelRegistrationRequired || next.travelRegistrationDue !== due);
+    next.travelRegistrationRequired = fields.travelRegistrationRequired;
+    if (due) next.travelRegistrationDue = due;
+    else delete next.travelRegistrationDue;
+  }
+
   // Explicit true/false: the Devices section without the banner clears it (he stopped).
   if (fields.movingRestricted !== undefined) {
     note("movingRestricted", next.movingRestricted !== fields.movingRestricted);
@@ -339,13 +361,13 @@ export function mergeSyncedFields(
 
   const scanned = Object.keys(fields).length > 0;
 
-  if (scanned) {
+  if (scanned && !checkOnly) {
     // A scan that found fields is a confirmed, successful read of the page - record it even when
     // every value it found already matched what was saved, since "checked and nothing changed" is
     // still real information, not a no-op.
     next.lastSuccessfulScanAt = new Date().toISOString();
   }
-  if (updatedFields.length > 0) {
+  if (updatedFields.length > 0 && !checkOnly) {
     next.lastUpdated = "الآن";
   }
 

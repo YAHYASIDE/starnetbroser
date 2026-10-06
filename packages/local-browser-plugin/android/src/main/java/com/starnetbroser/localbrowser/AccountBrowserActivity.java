@@ -92,6 +92,9 @@ public class AccountBrowserActivity extends AppCompatActivity {
     public static final String EXTRA_AUTO_SYNC = "com.starnetbroser.localbrowser.AUTO_SYNC";
     /** Shown while it runs, e.g. "3 / 10" in a run over several devices. */
     public static final String EXTRA_AUTO_SYNC_LABEL = "com.starnetbroser.localbrowser.AUTO_SYNC_LABEL";
+    /** 🛂 «كشف توثيق»: the auto-sync reads Home only, and its reads are marked check-only (the app
+     * takes nothing from them but the travel-registration notice). */
+    public static final String EXTRA_AUTO_SYNC_HOME_ONLY = "com.starnetbroser.localbrowser.AUTO_SYNC_HOME_ONLY";
 
     private static final String NOTIFICATION_PERMISSION_PREFS = "starnet_notification_permission";
     private static final String KEY_ASKED_NOTIFICATION_PERMISSION = "asked_post_notifications";
@@ -361,7 +364,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
             Toast.makeText(this, "🤖 تسجيل الدخول إلى Starlink يجري وحده - ورمز التحقق يُجلب من البريد", Toast.LENGTH_LONG).show();
         }
         startCancel(getIntent().getStringExtra(EXTRA_CANCEL_REASON));
-        if (getIntent().getBooleanExtra(EXTRA_AUTO_SYNC, false)) startAutoSync(getIntent().getStringExtra(EXTRA_AUTO_SYNC_LABEL));
+        if (getIntent().getBooleanExtra(EXTRA_AUTO_SYNC, false)) startAutoSync(getIntent().getStringExtra(EXTRA_AUTO_SYNC_LABEL), getIntent().getBooleanExtra(EXTRA_AUTO_SYNC_HOME_ONLY, false));
     }
 
     /** The device's browser was already open (one window per device): a new request - e.g.
@@ -372,27 +375,30 @@ public class AccountBrowserActivity extends AppCompatActivity {
         setIntent(intent);
         if (intent.getBooleanExtra(EXTRA_AUTO_LOGIN, false)) autoLogin = true;
         startCancel(intent.getStringExtra(EXTRA_CANCEL_REASON));
-        if (intent.getBooleanExtra(EXTRA_AUTO_SYNC, false)) startAutoSync(intent.getStringExtra(EXTRA_AUTO_SYNC_LABEL));
+        if (intent.getBooleanExtra(EXTRA_AUTO_SYNC, false)) startAutoSync(intent.getStringExtra(EXTRA_AUTO_SYNC_LABEL), intent.getBooleanExtra(EXTRA_AUTO_SYNC_HOME_ONLY, false));
     }
 
     // ---- 🔄 auto-sync: «مزامنة» by itself, then back to the app ----
 
     /** True from the request until this screen closes itself after the sync. */
     private boolean autoSyncThenClose;
+    /** 🛂 This auto-sync is a «كشف توثيق»: Home only, reads marked checkOnly. */
+    private boolean syncHomeOnly;
     private int autoSyncSignedInPolls;
     private int autoSyncSignedOutPolls;
     private final Runnable autoSyncPoll = this::autoSyncTick;
     private final Runnable autoSyncWatchdog = () -> autoSyncGiveUp("stuck", "⚠️ تعلّقت المزامنة - تخطّي هذا الجهاز");
 
-    private void startAutoSync(String label) {
+    private void startAutoSync(String label, boolean homeOnly) {
         if (webView == null || autoSyncThenClose) return;
         autoSyncThenClose = true;
+        syncHomeOnly = homeOnly;
         autoSyncSignedInPolls = 0;
         autoSyncSignedOutPolls = 0;
         // The phone mustn't sleep in the middle of a run over several devices.
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         String suffix = label != null && !label.trim().isEmpty() ? " (" + label.trim() + ")" : "";
-        Toast.makeText(this, "🔄 مزامنة تلقائية" + suffix + " - لا تلمس الصفحة", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, (homeOnly ? "🛂 كشف توثيق" : "🔄 مزامنة تلقائية") + suffix + " - لا تلمس الصفحة", Toast.LENGTH_SHORT).show();
         twoStepHandler.removeCallbacks(autoSyncPoll);
         twoStepHandler.removeCallbacks(autoSyncWatchdog);
         twoStepHandler.postDelayed(autoSyncPoll, AUTO_SYNC_POLL_MS);
@@ -445,6 +451,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
     private void closeAfterAutoSync() {
         if (!autoSyncThenClose) return;
         autoSyncThenClose = false;
+        syncHomeOnly = false;
         twoStepHandler.removeCallbacks(autoSyncPoll);
         twoStepHandler.removeCallbacks(autoSyncWatchdog);
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -1066,6 +1073,14 @@ public class AccountBrowserActivity extends AppCompatActivity {
         // the page is switched first - ☰ → region/language → "UNITED STATES / English". The choice
         // stays in this device's own browser, so later syncs find it already English.
         syncSteps.add(this::syncStepEnsureEnglish);
+        if (syncHomeOnly) {
+            // 🛂 «كشف توثيق»: only Home's banners matter - nothing else is read.
+            syncSteps.add(this::syncStepReturnHome);
+            syncSteps.add(() -> syncStepReadSettled(HOME_MIN_MS, HOME_MAX_MS, 3, false, WANT_ANY));
+            syncSteps.add(this::finishSync);
+            advanceSyncSteps();
+            return;
+        }
         // Each page is read until it has settled (SettleTracker) instead of once after a fixed wait:
         // the sync moves on as soon as the page is complete, and a slow page gets more time. After a
         // tap the read only counts once the page actually changed (the old page stays on screen for
@@ -1173,6 +1188,8 @@ public class AccountBrowserActivity extends AppCompatActivity {
     private void saveSyncRead(JSObject fields) {
         if (fields == null || fields.length() == 0) return;
         lastSavedPageKey = StarlinkExtractorSupport.settleKey(fields);
+        // 🛂 A «كشف توثيق» read changes nothing on the device but the travel-registration notice.
+        if (syncHomeOnly) fields.put("checkOnly", true);
         syncSawStopped = StarlinkExtractorSupport.keepStoppedWithinRun(fields, syncSawStopped);
         syncSawRestricted = StarlinkExtractorSupport.keepRestrictedWithinRun(fields, syncSawRestricted);
         // Durable write FIRST: the final toast must never claim more than what is actually safe on

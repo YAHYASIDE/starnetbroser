@@ -118,6 +118,9 @@ plus the rules learned from real misreads; keep it updated when you learn a new 
 - Billing loads its «Billing Cycle» box (the renewal day) after the balance: the billing step waits
   for `renewalDate` (WANT_RENEWAL, up to BILLING_MAX_MS) - a read taken in between saved the
   balance (HNL 266.25) but no date, so the old placeholder 31 stayed (real, confirmed).
+- 🛂 «Complete Travel Registration by …» is a Home banner: only a Home read may clear
+  `travelRegistrationRequired`. A `checkOnly` read («كشف توثيق», Home only) must never change any
+  other field (`mergeSyncedFields` keeps only the travel fields).
 - Never put real account data in tests or fixtures; fake values only.
 - 🔄 A hidden WebView (`AutoSyncWorker`, never attached to a window) often doesn't render Starlink's
   SPA - the card's «تحديث من Starlink» "did nothing" for the operator. So the card button and

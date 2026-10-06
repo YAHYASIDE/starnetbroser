@@ -374,6 +374,16 @@ mind). Exact texts and numbers live in the code - this file says where.
   ⏳ never synced, 👤 faulty «إيميل غير رئيسي», 🔥 faulty «محروق» - each opens its devices
   (`lib/dayBuckets.ts`). Day 28 stays a normal day (his choice).
 
+## 🛂 Travel registration («كشف توثيق», Oct 2026)
+
+- Starlink's Home banner «Complete Travel Registration by October 15 … disabled outside your home
+  country». His choices: «🛂 كشف توثيق» in the day's long-press menu runs **device by device in front
+  of him** (visible browser, Home only - `autoSyncHomeOnly`; its reads are `checkOnly` and change
+  nothing but the notice, not even the sync time); then **one** bot message lists the devices that
+  need it (name, email, phone, deadline) with a WhatsApp button each; the customer text is his
+  **strong** wording («وإلا سيُغلق الحساب وتتوقف الخدمة»); every sync also puts a 🛂 banner on the
+  card, cleared when Home no longer shows it. Logic: `lib/travelRegistration.ts`.
+
 ## 📇 Device card taps (Oct 2026)
 
 - His request: one tap opens the full card (and closes it); holding still works; 2 quick taps =

@@ -79,3 +79,10 @@ describe("the queue", () => {
     expect(localToday(new Date(2026, 9, 3, 23, 30))).toBe("2026-10-03");
   });
 });
+
+describe("🛂 «كشف توثيق» queue", () => {
+  it("marks the run as a travel check only when asked", () => {
+    expect(syncQueueFor(["a"], "يوم 1", true)).toEqual({ ids: ["a"], index: 0, label: "يوم 1", travelCheck: true });
+    expect(syncQueueFor(["a"], "يوم 1")).toEqual({ ids: ["a"], index: 0, label: "يوم 1" });
+  });
+});

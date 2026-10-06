@@ -36,6 +36,7 @@ import {
 import { DeviceFaultDialog } from "./DeviceFaultDialog";
 import { DeviceGmailButton } from "./DeviceGmailButton";
 import { useCardGestures } from "./useCardGestures";
+import { travelDueArabic } from "@/lib/travelRegistration";
 import { describeDishAlerts } from "@/lib/dishAlerts";
 import { PasteSessionSheet } from "./PasteSessionSheet";
 import { RenewalLockSheet } from "./RenewalLockSheet";
@@ -514,6 +515,11 @@ export function AccountCard({
       )}
       {account.movingRestricted && account.serviceStatus !== "canceled" && (
         <div className="account-card-moving-banner">🚗 متوقف بسبب الحركة - يعمل عند توقف الجهاز (باقة المنازل)</div>
+      )}
+      {account.travelRegistrationRequired && account.serviceStatus !== "canceled" && (
+        <div className="account-card-travel-banner" data-tour="travel-badge">
+          🛂 يجب توثيق السفر قبل {travelDueArabic(account.travelRegistrationDue)} - وإلا تتوقف الخدمة خارج البلد
+        </div>
       )}
       {showsRestriction(account) && (
         <div className="account-card-restricted-banner">

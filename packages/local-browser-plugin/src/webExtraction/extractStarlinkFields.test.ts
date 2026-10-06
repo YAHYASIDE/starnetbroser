@@ -792,3 +792,27 @@ describe("renewal date on the English Billing page - the operator's rule (1-28, 
     expect(extractStarlinkFields(document).renewalDate).toBe(nextOccurrenceOfDay(7));
   });
 });
+
+describe("🛂 travel registration (Home banner)", () => {
+  it("reads the banner and its deadline (real Oct 2026 wording)", () => {
+    const fields = extractFrom(`
+      <div>Give one month, Get one month</div>
+      <div><span>Complete Travel Registration by October 15. If you do not, your service will be disabled outside your home country until you complete it.</span><button>Update</button></div>
+      <div>Home</div>
+      <div>Demo Starlink • ACC-DF-00000000-00000-00</div>
+    `);
+    expect(fields.travelRegistrationRequired).toBe(true);
+    expect(fields.travelRegistrationDue).toBe("October 15");
+  });
+
+  it("a sentence split over two text nodes still gives the date", () => {
+    const fields = extractFrom(`<div>Complete Travel Registration by</div><div>October 15. If you do not, your service will be disabled</div>`);
+    expect(fields.travelRegistrationRequired).toBe(true);
+    expect(fields.travelRegistrationDue).toBe("October 15");
+  });
+
+  it("Home without the banner clears it; another page says nothing", () => {
+    expect(extractFrom(`<div>Home</div><div>Demo Starlink • ACC-DF-00000000-00000-00</div>`).travelRegistrationRequired).toBe(false);
+    expect(extractFrom(`<div>Billing</div><div>Payment due October 7.</div>`).travelRegistrationRequired).toBeUndefined();
+  });
+});

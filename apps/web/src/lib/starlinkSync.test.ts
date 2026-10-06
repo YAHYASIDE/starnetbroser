@@ -537,3 +537,26 @@ describe("summarizeSyncMessages", () => {
     expect(summarizeSyncMessages([msg("أ", 0), msg("ب", 0)])).toBe("✓ تم فحص 2 أجهزة - لا تغييرات");
   });
 });
+
+describe("🛂 travel registration merge", () => {
+  it("a Home read with the banner marks the device, and one without clears it", () => {
+    const marked = mergeSyncedFields(baseAccount(), { travelRegistrationRequired: true, travelRegistrationDue: "October 15" }).account;
+    expect(marked).toMatchObject({ travelRegistrationRequired: true, travelRegistrationDue: "October 15" });
+    const cleared = mergeSyncedFields(marked, { travelRegistrationRequired: false }).account;
+    expect(cleared.travelRegistrationRequired).toBe(false);
+    expect(cleared.travelRegistrationDue).toBeUndefined();
+  });
+
+  it("a «كشف توثيق» read (checkOnly) changes nothing but the notice - not even the sync time", () => {
+    const before = baseAccount({ serviceStatus: "active" });
+    const { account } = mergeSyncedFields(before, {
+      checkOnly: true,
+      serviceStatus: "suspended",
+      balanceDue: "99.00",
+      dishStatus: "offline",
+      travelRegistrationRequired: true,
+      travelRegistrationDue: "October 15",
+    });
+    expect(account).toEqual({ ...before, travelRegistrationRequired: true, travelRegistrationDue: "October 15" });
+  });
+});

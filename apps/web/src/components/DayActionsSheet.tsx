@@ -6,6 +6,7 @@ import { daySummary, repDayMessages } from "@/lib/dayActions";
 import { formatAmount } from "@/lib/formatAmount";
 import type { RepresentativeStore } from "@/lib/repStore";
 import { isRepsBotConnected, loadRepChats, sendRepText } from "@/lib/telegram";
+import { needsTravelRegistration } from "@/lib/travelRegistration";
 import { buildExpiryReminderMessage, buildWhatsAppLink } from "@/lib/whatsapp";
 
 type View = "menu" | "reps" | "remind" | "summary";
@@ -18,6 +19,7 @@ export function DayActionsSheet({
   reps,
   phoneFor,
   onSync,
+  onTravelCheck,
   onClose,
 }: {
   day: number;
@@ -25,6 +27,7 @@ export function DayActionsSheet({
   reps: RepresentativeStore;
   phoneFor: (account: StarlinkAccountSummary) => string | undefined;
   onSync: () => void;
+  onTravelCheck: () => void;
   onClose: () => void;
 }) {
   const [view, setView] = useState<View>("menu");
@@ -34,6 +37,7 @@ export function DayActionsSheet({
   const [sending, setSending] = useState(false);
   const summary = useMemo(() => daySummary(dayAccounts), [dayAccounts]);
   const linkedCount = messages.filter((m) => linked[m.repId]).length;
+  const travelCount = dayAccounts.filter(needsTravelRegistration).length;
 
   async function sendToLinked() {
     setSending(true);
@@ -67,6 +71,9 @@ export function DayActionsSheet({
             </button>
             <button type="button" className="card-more-item" onClick={onSync}>
               <span aria-hidden="true">🔄</span> تحديث أجهزة هذا اليوم <small>جهاز بعد جهاز</small>
+            </button>
+            <button type="button" className="card-more-item" data-tour="travel-check" onClick={onTravelCheck}>
+              <span aria-hidden="true">🛂</span> كشف توثيق <small>{travelCount > 0 ? `${travelCount} يحتاج توثيق` : "الرئيسية فقط"}</small>
             </button>
             <button type="button" className="card-more-item" onClick={() => setView("remind")}>
               <span aria-hidden="true">💬</span> تذكير الزبائن بواتساب

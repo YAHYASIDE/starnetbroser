@@ -74,6 +74,25 @@ export function hasBillingSuspensionBanner(lines: string[]): boolean {
   return lines.some((line) => containsAny(line, BILLING_SUSPENSION_BANNER_LABELS));
 }
 
+/** 🛂 Home's "Complete Travel Registration by October 15. If you do not, your service will be
+ * disabled outside your home country until you complete it." (real, confirmed screenshot, Oct
+ * 2026). Returns the deadline as printed ("October 15"; "" when none is readable), or undefined
+ * when the banner isn't on the page. A line and the next are read together - the sentence can be
+ * split across text nodes. */
+const TRAVEL_REGISTRATION_WORDS = ["travel registration", "تسجيل السفر"];
+
+export function extractTravelRegistrationDue(lines: string[]): string | undefined {
+  for (let i = 0; i < lines.length; i++) {
+    const text = `${lines[i]} ${lines[i + 1] ?? ""}`;
+    if (!containsAny(lines[i], TRAVEL_REGISTRATION_WORDS)) continue;
+    const english = /travel registration by\s+([A-Za-z]+\.?\s+\d{1,2})/i.exec(text);
+    if (english) return english[1]!.replace(/\s+/g, " ").trim();
+    const arabic = /(?:بحلول|قبل)\s+(\d{1,2}\s+[\u0600-\u06FF]+|[\u0600-\u06FF]+\s+\d{1,2})/.exec(text);
+    return arabic ? arabic[1]!.trim() : "";
+  }
+  return undefined;
+}
+
 /** The real page's banner once a Kit has been used outside its registered country/region for too
  * long ("خدمة Starlink مقيدة لأن الجهاز كان خارج البلد المسجل فيه لفترة طويلة جدًا جدًا. لاستئناف
  * الخدمة، أعد جهاز Starlink إلى البلد المسجل فيه...", real, confirmed page text/screenshot) - an

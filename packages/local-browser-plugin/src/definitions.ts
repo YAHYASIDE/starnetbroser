@@ -42,6 +42,8 @@ export interface OpenAccountBrowserOptions {
   autoSync?: boolean;
   /** Shown while the auto-sync runs, e.g. "3 / 10" in a run over several devices. */
   autoSyncLabel?: string;
+  /** 🛂 «كشف توثيق»: the auto-sync reads Home only, and marks its reads `checkOnly`. */
+  autoSyncHomeOnly?: boolean;
 }
 
 /** 🔄 How one device's auto-sync ended: read and saved, nothing read, the save failed, not signed in
@@ -189,6 +191,14 @@ export interface SyncedStarlinkFields {
    * extractStarlinkFields.ts's own doc for why this is a separate flag from `serviceStatus`: the
    * kit has been outside its registered country/region for too long, independent of billing. */
   isRestricted?: boolean;
+  /** 🛂 Home's «Complete Travel Registration by …» banner: true while it shows, false once Home is
+   * read without it (never absent-means-false). */
+  travelRegistrationRequired?: boolean;
+  /** The deadline as Starlink prints it, e.g. "October 15". */
+  travelRegistrationDue?: string;
+  /** Set by the native side on a «🛂 كشف توثيق» read: the app takes only the travel-registration
+   * fields from it and changes nothing else on the device. */
+  checkOnly?: boolean;
   /** The password the operator typed in Starlink's sign-in form after the saved one was refused,
    * once it got in - becomes the device's starlinkPassword. Never logged. */
   loginPassword?: string;

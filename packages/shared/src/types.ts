@@ -139,6 +139,11 @@ export interface StarlinkAccountSummary {
    * banner - independent of `serviceStatus` (a device can be "active" billing-wise and still
    * region-restricted). Undefined until the first sync that actually resolves it either way. */
   isRestricted?: boolean;
+  /** 🛂 Home shows «Complete Travel Registration by …» (Oct 2026): the service stops outside the
+   * home country after the deadline. Explicit true/false from a Home read. */
+  travelRegistrationRequired?: boolean;
+  /** Its deadline as Starlink prints it ("October 15"). */
+  travelRegistrationDue?: string;
   /** 🚗 "service is restricted because it is moving too fast" - a residential plan used while
    * moving; it works again once stopped. Explicit true/false; never the out-of-country restriction. */
   movingRestricted?: boolean;

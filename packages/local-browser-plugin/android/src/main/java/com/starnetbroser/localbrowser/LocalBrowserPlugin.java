@@ -590,6 +590,7 @@ public class LocalBrowserPlugin extends Plugin {
             intent.putExtra(AccountBrowserActivity.EXTRA_AUTO_SYNC, true);
             String autoSyncLabel = options.getString("autoSyncLabel");
             if (autoSyncLabel != null) intent.putExtra(AccountBrowserActivity.EXTRA_AUTO_SYNC_LABEL, autoSyncLabel);
+            if (options.optBoolean("autoSyncHomeOnly", false)) intent.putExtra(AccountBrowserActivity.EXTRA_AUTO_SYNC_HOME_ONLY, true);
         }
         JSObject activation = options.getJSObject("activation");
         if (activation != null) {
