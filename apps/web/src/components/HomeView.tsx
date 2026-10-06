@@ -1284,6 +1284,8 @@ export function HomeView({
   const [ownerView, setOwnerView] = useState(false);
   useEffect(() => setOwnerView(!isRepWorkspace()), []);
   const [moneyAlertsOpen, setMoneyAlertsOpen] = useState(false);
+  const [marginOpen, setMarginOpen] = useState<string | null>(null);
+  const currencyLabel = (code: string) => (LEDGER_CURRENCY_LABELS as Record<string, string>)[code] ?? getCurrency(currencyStore, code)?.name ?? code;
   const [paymentCards, setPaymentCards] = useState<PaymentCard[]>([]);
   useEffect(() => setPaymentCards(loadPaymentCards()), []);
   const weekCardNeed = useMemo(
@@ -1606,16 +1608,79 @@ export function HomeView({
                   <ul>
                     {deviceMargins[kind].map((d) => (
                       <li key={d.id}>
-                        <span>
-                          {d.name}
-                          {d.clientId && clientStore[d.clientId] ? <small> · {clientStore[d.clientId]!.name}</small> : null}
-                        </span>
-                        <small>
-                          بيع <bdi dir="ltr">{formatAmount(d.saleUsd)} $</bdi> · ستارلينك <bdi dir="ltr">{formatAmount(d.costUsd)} $</bdi> · ربح{" "}
-                          <bdi dir="ltr" className={d.profitUsd < 0 ? "money-alerts-bad" : undefined}>
-                            {formatAmount(d.profitUsd)} $ ({Math.round(d.percent)}%)
-                          </bdi>
-                        </small>
+                        <button type="button" className="money-alerts-row" aria-expanded={marginOpen === d.id} onClick={() => setMarginOpen(marginOpen === d.id ? null : d.id)}>
+                          <span>
+                            {d.name}
+                            {d.clientId && clientStore[d.clientId] ? <small> · {clientStore[d.clientId]!.name}</small> : null}
+                          </span>
+                          <small>
+                            ربح{" "}
+                            <bdi dir="ltr" className={d.profitUsd < 0 ? "money-alerts-bad" : undefined}>
+                              {formatAmount(d.profitUsd)} $
+                            </bdi>{" "}
+                            في الشهر {marginOpen === d.id ? "▴" : "▾"}
+                          </small>
+                        </button>
+                        {marginOpen === d.id && (
+                          <div className="money-alerts-detail">
+                            <p>
+                              💵 يدفع لك الزبون شهريًا: <bdi dir="ltr">{formatAmount(d.sale.amount)}</bdi> {currencyLabel(d.sale.currency)}
+                              {d.sale.currency !== "USD" && (
+                                <>
+                                  {" "}
+                                  ÷ <bdi dir="ltr">{formatAmount(d.sale.rateFromUsd)}</bdi> (سعر الدولار اليوم) = <bdi dir="ltr">{formatAmount(d.saleUsd)} $</bdi>
+                                </>
+                              )}
+                            </p>
+                            <p>
+                              🛰️ تدفع لستارلينك شهريًا: <bdi dir="ltr">{formatAmount(d.cost.amount)}</bdi> {currencyLabel(d.cost.currency)}
+                              {d.cost.currency !== "USD" && (
+                                <>
+                                  {" "}
+                                  ÷ <bdi dir="ltr">{formatAmount(d.cost.rateFromUsd)}</bdi> = <bdi dir="ltr">{formatAmount(d.costUsd)} $</bdi>
+                                </>
+                              )}
+                            </p>
+                            <p>
+                              {d.profitUsd < 0 ? "🔻 خسارة" : "🟡 ربح"}: <bdi dir="ltr">{formatAmount(d.saleUsd)} $</bdi> − <bdi dir="ltr">{formatAmount(d.costUsd)} $</bdi> ={" "}
+                              <bdi dir="ltr" className={d.profitUsd < 0 ? "money-alerts-bad" : undefined}>
+                                {formatAmount(d.profitUsd)} $
+                              </bdi>{" "}
+                              في الشهر{d.suspicious ? "" : ` (${Math.round(d.percent)}% من سعر البيع)`}
+                            </p>
+                            {d.suspicious && (
+                              <p className="money-alerts-bad">
+                                ⚠️ هذه الأرقام غير منطقية: غالبًا السعر الشهري مكتوب خطأ (العملة أو المبلغ) في بطاقة الجهاز. صحّحه من «✏️ عدّل السعر الشهري».
+                              </p>
+                            )}
+                            <div className="settings-actions">
+                              <button
+                                type="button"
+                                className="dialog-primary"
+                                onClick={() => {
+                                  const target = accounts.find((a) => a.id === d.id);
+                                  setMoneyAlertsOpen(false);
+                                  if (target) setDialog({ mode: "edit", account: target });
+                                }}
+                              >
+                                ✏️ عدّل السعر الشهري
+                              </button>
+                              <button
+                                type="button"
+                                className="text-action"
+                                onClick={() => {
+                                  setMoneyAlertsOpen(false);
+                                  setSelectedDay(null);
+                                  setStatFilter(null);
+                                  setQuery(d.name);
+                                  window.setTimeout(() => document.querySelector(".accounts-section")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+                                }}
+                              >
+                                📡 افتح بطاقة الجهاز
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </li>
                     ))}
                   </ul>

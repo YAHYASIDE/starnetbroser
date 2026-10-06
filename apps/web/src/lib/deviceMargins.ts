@@ -20,6 +20,12 @@ export interface DeviceMargin {
   profitUsd: number;
   /** profit / sale, 0-100 (negative when losing). */
   percent: number;
+  /** How it was worked out (the device's monthly price as typed, and today's rates). */
+  sale: { amount: number; currency: string; rateFromUsd: number };
+  cost: { amount: number; currency: string; rateFromUsd: number };
+  /** The numbers can't be right (Starlink costing 10× the sale, or a loss over 200$ a month) - most
+   * likely the monthly price was typed in the wrong currency or amount. */
+  suspicious: boolean;
 }
 
 export interface DeviceMargins {
@@ -57,7 +63,18 @@ export function computeDeviceMargins(accounts: StarlinkAccountSummary[], currenc
     const saleUsd = plan.saleAmount / saleRate;
     const costUsd = plan.costAmount / costRate;
     const profitUsd = saleUsd - costUsd;
-    const margin: DeviceMargin = { id: account.id, name: account.name, clientId: account.clientId, saleUsd, costUsd, profitUsd, percent: (profitUsd / saleUsd) * 100 };
+    const margin: DeviceMargin = {
+      id: account.id,
+      name: account.name,
+      clientId: account.clientId,
+      saleUsd,
+      costUsd,
+      profitUsd,
+      percent: (profitUsd / saleUsd) * 100,
+      sale: { amount: plan.saleAmount, currency: plan.saleCurrency, rateFromUsd: saleRate },
+      cost: { amount: plan.costAmount, currency: plan.costCurrency, rateFromUsd: costRate },
+      suspicious: costUsd > saleUsd * 10 || profitUsd < -200,
+    };
     if (profitUsd < 0) out.losing.push(margin);
     else if (margin.percent < WEAK_MARGIN_PERCENT) out.weak.push(margin);
   }

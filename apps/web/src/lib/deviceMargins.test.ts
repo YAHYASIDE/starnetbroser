@@ -26,6 +26,13 @@ describe("🔻 losing and weak devices", () => {
     expect(m.losing[0]!.profitUsd).toBeCloseTo(-10);
     expect(m.weak.map((d) => d.id)).toEqual(["weak"]);
     expect(m.weak[0]!.percent).toBeCloseTo(6);
+    expect(m.losing[0]).toMatchObject({ sale: { amount: 1600, currency: "MRU", rateFromUsd: 40 }, cost: { amount: 50, currency: "USD", rateFromUsd: 1 }, suspicious: false });
+  });
+
+  it("flags numbers that can't be right (his real case: 15 أوقية sale vs 8,000$ cost)", () => {
+    const m = computeDeviceMargins([dev("typo", { saleAmount: 15, saleCurrency: "MRU", costAmount: 8000, costCurrency: "USD" })], currencies);
+    expect(m.losing[0]).toMatchObject({ suspicious: true });
+    expect(m.losing[0]!.saleUsd).toBeCloseTo(0.375);
   });
 
   it("a dollar rise turns a device into a loser without touching its record", () => {
