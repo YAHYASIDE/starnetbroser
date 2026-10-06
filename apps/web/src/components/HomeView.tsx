@@ -45,7 +45,7 @@ import {
   rescheduleEveningSummary,
   rescheduleMorningDigests,
 } from "@/lib/morningNotifications";
-import { isTelegramConnected, rescheduleTelegramSummaries, sendTelegramText } from "@/lib/telegram";
+import { isTelegramConnected, rescheduleTelegramSummaries, sendRepText, sendTelegramText } from "@/lib/telegram";
 import { loadPriorityAlerted, priorityAlertsToSend, priorityTelegramText, savePriorityAlerted } from "@/lib/priorityData";
 import { loadOceanAlerted, oceanAlertsToSend, oceanModeAccounts, oceanTelegramText, saveOceanAlerted } from "@/lib/oceanMode";
 import { OceanModeAlarm } from "./OceanModeAlarm";
@@ -146,7 +146,7 @@ import { loadSyncQueue, localToday, nextQueuedAccount, queueProgressLabel, saveS
 import { DayActionsSheet } from "./DayActionsSheet";
 import { TravelCheckSheet } from "./TravelCheckSheet";
 import { NotificationsBell } from "./NotificationsBell";
-import { buildTravelCheckReport, needsTravelRegistration } from "@/lib/travelRegistration";
+import { buildTravelCheckReport, markTravelDone, needsTravelRegistration, travelDoneRepMessage } from "@/lib/travelRegistration";
 import { accountsForDay, accountsOfOwner, type DayOwner } from "@/lib/dayActions";
 import { applyOutcomes, buildSyncReport, outcomeLabel, signedOutAlert } from "@/lib/syncReport";
 import { depositLabel, kastDevicesSnapshot } from "@/lib/kastCards";
@@ -602,6 +602,18 @@ export function HomeView({
     void trySyncInBackground(queue.ids, queue.label).then((background) => {
       if (!background) startVisibleRun(queue);
     });
+  }
+
+  /** ✅ «اكتمل التوثيق»: out of the list (the device stays in its place); its rep hears it on his bot. */
+  function handleTravelDone(account: StarlinkAccountSummary) {
+    patchAccount(account.id, markTravelDone(account));
+    if (!account.representativeId) {
+      pushToast(`✅ «${account.name}» وُثّق`);
+      return;
+    }
+    void sendRepText(account.representativeId, travelDoneRepMessage(account)).then((sent) =>
+      pushToast(sent ? `✅ «${account.name}» وُثّق - وصل الإشعار لمندوبه` : `✅ «${account.name}» وُثّق (المندوب غير مربوط بالبوت)`),
+    );
   }
 
   /** 🛂 The «كشف توثيق» run ended: ONE bot message with the devices that need it. Waits a moment
@@ -1542,6 +1554,7 @@ export function HomeView({
           {...travelResult}
           accounts={accounts}
           phoneFor={(account) => getClient(clientStore, account.clientId)?.phone ?? account.phone}
+          onDone={handleTravelDone}
           onClose={() => setTravelResult(null)}
         />
       )}
@@ -1595,6 +1608,16 @@ export function HomeView({
           الأدوات
         </Link>
       </nav>
+
+      <button
+        type="button"
+        data-tour="travel-list"
+        className={`travel-shortcut${travelIds.length ? " travel-shortcut-due" : ""}`}
+        onClick={() => setTravelResult({ label: "", ids: travelIds, skipped: 0, checked: false })}
+      >
+        <span aria-hidden="true">🛂</span> الأجهزة التي تحتاج توثيق
+        <b>{travelIds.length}</b>
+      </button>
 
       {updateAvailable && (
         <a href={APK_DOWNLOAD_URL} target="_blank" rel="noreferrer" className="backup-banner update-banner">
@@ -1940,16 +1963,6 @@ export function HomeView({
                 onClick={() => { toggleStatFilter("fromRep"); setSelectedDay(null); }}
               >
                 📱 من المندوبين ({fromRepCount})
-              </button>
-            )}
-            {travelIds.length > 0 && (
-              <button
-                type="button"
-                data-tour="travel-list"
-                className="faulty-chip travel-chip"
-                onClick={() => setTravelResult({ label: "", ids: travelIds, skipped: 0, checked: false })}
-              >
-                🛂 تحتاج توثيق ({travelIds.length})
               </button>
             )}
             {noClient.total > 0 && (

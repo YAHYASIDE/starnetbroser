@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { StarlinkAccountSummary } from "@starnet/shared";
-import { buildTravelCheckReport, buildTravelRegistrationMessage, travelDueArabic } from "./travelRegistration";
+import { buildTravelCheckReport, buildTravelRegistrationMessage, markTravelDone, needsTravelRegistration, travelDoneRepMessage, travelDueArabic } from "./travelRegistration";
 
 const dev = (id: string, extra: Partial<StarlinkAccountSummary> = {}) => ({ id, name: `جهاز ${id}`, ...extra }) as StarlinkAccountSummary;
 
@@ -46,5 +46,27 @@ describe("🛂 travel registration", () => {
     expect(report.found).toBe(0);
     expect(report.replyMarkup).toBeUndefined();
     expect(report.text).toContain("✅ لا جهاز يحتاج توثيقًا");
+  });
+});
+
+describe("✅ «اكتمل التوثيق»", () => {
+  const flagged = dev("a", { travelRegistrationRequired: true, travelRegistrationDue: "October 15", expectedEmail: "a@example.com" });
+
+  it("takes the device out of the list for that deadline only", () => {
+    expect(needsTravelRegistration(flagged)).toBe(true);
+    const done = { ...flagged, ...markTravelDone(flagged, new Date("2026-10-07T10:00:00Z")) };
+    expect(done).toMatchObject({ travelRegistrationDoneFor: "October 15", travelRegistrationDoneAt: "2026-10-07T10:00:00.000Z" });
+    expect(needsTravelRegistration(done)).toBe(false);
+    // Starlink asks again with another date → back in the list
+    expect(needsTravelRegistration({ ...done, travelRegistrationDue: "November 15" })).toBe(true);
+  });
+
+  it("works when Starlink printed no date", () => {
+    const noDate = dev("b", { travelRegistrationRequired: true });
+    expect(needsTravelRegistration({ ...noDate, ...markTravelDone(noDate) })).toBe(false);
+  });
+
+  it("tells the rep which device is done", () => {
+    expect(travelDoneRepMessage(flagged)).toBe("✅ تم توثيق جهاز «جهاز a»\n📧 a@example.com\nلن تتوقف خدمته خارج البلد - يمكنك إخبار الزبون.");
   });
 });

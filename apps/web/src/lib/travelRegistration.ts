@@ -51,8 +51,26 @@ export function travelWhatsAppLink(account: StarlinkAccountSummary, phone: strin
   return buildWhatsAppLink(phone, message) ?? `https://wa.me/?text=${encodeURIComponent(message)}`;
 }
 
+/** The deadline a «اكتمل» is matched against ("" when Starlink printed none). */
+function dueKey(account: Pick<StarlinkAccountSummary, "travelRegistrationDue">): string {
+  return account.travelRegistrationDue?.trim() ?? "";
+}
+
 export function needsTravelRegistration(account: StarlinkAccountSummary): boolean {
-  return account.travelRegistrationRequired === true && !account.deletedAt && !account.archivedAt;
+  if (account.travelRegistrationRequired !== true || account.deletedAt || account.archivedAt) return false;
+  // ✅ He marked it done for this same deadline - a new deadline from Starlink brings it back.
+  return !(typeof account.travelRegistrationDoneFor === "string" && account.travelRegistrationDoneFor === dueKey(account));
+}
+
+/** ✅ «اكتمل التوثيق»: the device leaves the list (a copy - the device itself stays in its place). */
+export function markTravelDone(account: StarlinkAccountSummary, now: Date = new Date()): Partial<StarlinkAccountSummary> {
+  return { travelRegistrationDoneFor: dueKey(account), travelRegistrationDoneAt: now.toISOString() };
+}
+
+/** The rep's bot message when the owner registered one of his devices. */
+export function travelDoneRepMessage(account: StarlinkAccountSummary): string {
+  const email = account.expectedEmail || account.starlinkAccountEmail;
+  return `✅ تم توثيق جهاز «${account.name}»${email ? `\n📧 ${email}` : ""}\nلن تتوقف خدمته خارج البلد - يمكنك إخبار الزبون.`;
 }
 
 export interface TravelCheckReport {

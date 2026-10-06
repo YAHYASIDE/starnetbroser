@@ -16,6 +16,7 @@ export function TravelCheckSheet({
   checked = true,
   accounts,
   phoneFor,
+  onDone,
   onClose,
 }: {
   label: string;
@@ -24,6 +25,8 @@ export function TravelCheckSheet({
   checked?: boolean;
   accounts: StarlinkAccountSummary[];
   phoneFor: (account: StarlinkAccountSummary) => string | undefined;
+  /** ✅ «اكتمل التوثيق» - takes the device out of the list (and tells its rep). */
+  onDone?: (account: StarlinkAccountSummary) => void;
   onClose: () => void;
 }) {
   const [sent, setSent] = useState<Record<string, string>>(() => loadTravelSent());
@@ -31,7 +34,7 @@ export function TravelCheckSheet({
     .map((id) => accounts.find((a) => a.id === id))
     .filter((a): a is StarlinkAccountSummary => Boolean(a) && needsTravelRegistration(a!));
   return (
-    <PartySheet title={`🛂 ${checked ? "كشف توثيق" : "تحتاج توثيق"}${label ? ` - ${label}` : ""}`} onClose={onClose}>
+    <PartySheet title={`🛂 ${checked ? "كشف توثيق" : "الأجهزة التي تحتاج توثيق"}${label ? ` - ${label}` : ""}`} onClose={onClose}>
       <p className="sync-choice-hint">
         {checked ? `فُحص ${ids.length} جهاز · ` : ""}يحتاج توثيق: {found.length}
         {skipped > 0 && ` · لم يُفحص ${skipped}`}
@@ -52,15 +55,28 @@ export function TravelCheckSheet({
                   <small dir="ltr">{account.expectedEmail || account.starlinkAccountEmail || "—"}</small>
                   {!phone && <small> · بلا رقم - تختار الزبون في واتساب</small>}
                 </span>
-                <a
-                  className="day-sheet-wa"
-                  href={travelWhatsAppLink(account, phone)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => setSent(markTravelSent(account.id))}
-                >
-                  واتساب
-                </a>
+                <span className="travel-row-actions">
+                  <a
+                    className="day-sheet-wa"
+                    href={travelWhatsAppLink(account, phone)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setSent(markTravelSent(account.id))}
+                  >
+                    واتساب
+                  </a>
+                  {onDone && (
+                    <button
+                      type="button"
+                      className="travel-done"
+                      onClick={() => {
+                        if (window.confirm(`اكتمل توثيق «${account.name}»؟ يخرج من القائمة${account.representativeId ? " ويصل إشعار لمندوبه" : ""}.`)) onDone(account);
+                      }}
+                    >
+                      ✅ اكتمل
+                    </button>
+                  )}
+                </span>
               </div>
             );
           })}

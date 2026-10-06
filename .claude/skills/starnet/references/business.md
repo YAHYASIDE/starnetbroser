@@ -400,6 +400,11 @@ mind). Exact texts and numbers live in the code - this file says where.
 - 🛂 «تحتاج توثيق (N)» chip on home (his choice): every device still showing the banner, any time,
   with WhatsApp; no number → WhatsApp opens on the message and he picks the contact; «✓ أُرسل»
   marks (`starnet.travelSent`, phone-only).
+- His follow-up: its own button «🛂 الأجهزة التي تحتاج توثيق (N)» under the home shortcuts (the chip
+  is gone) - copies only, devices stay in place. He registers the reps' devices himself: «✅ اكتمل»
+  stores `travelRegistrationDoneFor` (= the deadline) so the device leaves the list and the card
+  banner until Starlink asks again with another date, and its rep gets «✅ تم توثيق جهاز…» on the
+  reps bot.
 
 ## 📇 Device card taps (Oct 2026)
 

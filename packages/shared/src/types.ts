@@ -144,6 +144,10 @@ export interface StarlinkAccountSummary {
   travelRegistrationRequired?: boolean;
   /** Its deadline as Starlink prints it ("October 15"). */
   travelRegistrationDue?: string;
+  /** ✅ «اكتمل التوثيق» pressed (his Oct 2026 request): the deadline it was done for - the device
+   * leaves «الأجهزة التي تحتاج توثيق» until Starlink asks again with another date. */
+  travelRegistrationDoneFor?: string | null;
+  travelRegistrationDoneAt?: string | null;
   /** 🚗 "service is restricted because it is moving too fast" - a residential plan used while
    * moving; it works again once stopped. Explicit true/false; never the out-of-country restriction. */
   movingRestricted?: boolean;

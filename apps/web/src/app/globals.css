@@ -9681,10 +9681,61 @@ button.settings-fold-row {
   color: #fff;
 }
 
-.travel-chip {
+/* 🛂 «الأجهزة التي تحتاج توثيق» - its own button under the shortcuts. */
+.travel-shortcut {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin: 0 0 8px;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.travel-shortcut b {
+  margin-inline-start: auto;
+  min-width: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface-alt);
+  text-align: center;
+}
+
+.travel-shortcut-due {
   border-color: var(--orange);
   background: var(--orange-bg);
   color: var(--orange);
+}
+
+.travel-shortcut-due b {
+  background: var(--orange);
+  color: #fff;
+}
+
+.travel-row-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.travel-done {
+  border: 1px solid var(--green);
+  border-radius: 999px;
+  background: none;
+  color: var(--green);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  cursor: pointer;
 }
 
 .no-client-chip {
