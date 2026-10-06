@@ -1911,6 +1911,7 @@ export function HomeView({
                 currencyStore={currencyStore}
                 onSetDeviceFault={handleSetDeviceFault}
                 onSetRepair={(target, repair) => patchAccount(target.id, { underRepair: repair })}
+                onPatch={viewMode === "active" ? (target, patch) => patchAccount(target.id, patch) : undefined}
                 onFinishCreation={(target) => patchAccount(target.id, { creation: null })}
                 allAccounts={accounts}
                 onArchive={handleArchive}

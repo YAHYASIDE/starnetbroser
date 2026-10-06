@@ -356,6 +356,14 @@ mind). Exact texts and numbers live in the code - this file says where.
   statement go to every phone; a direct answer (search, hints, session steps) only to the phone that
   asked. Each phone has its own «فك الربط». Logic: `lib/repChatLinks.ts`; native map chatId → repId.
 
+## 📌 Locked renewal day
+
+- His rule (Oct 2026): a device's renewal day never moves («ينتهي يوم 10 … شهر 11 يوم 10») except when
+  it moves to another country (rare). His choices: a button per device (tap the card's 📅 date) **and**
+  one «📌 ثبّت يوم التجديد لكل الأجهزة» in Settings → الأجهزة والتحديث; on a different read: a mark on
+  the card with «اقبل اليوم الجديد (نُقل لدولة أخرى)» / «تجاهل», plus the sync result line.
+  Logic: `lib/renewalDayLock.ts`, merge in `starlinkSync.ts`.
+
 ## Duplicate devices (same email or KIT)
 
 - **Rep's app: warning only, he can still send** (his choice). His copy carries `known`: one-way

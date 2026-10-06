@@ -37,6 +37,7 @@ import { DeviceGmailButton } from "./DeviceGmailButton";
 import { useCardGestures } from "./useCardGestures";
 import { describeDishAlerts } from "@/lib/dishAlerts";
 import { PasteSessionSheet } from "./PasteSessionSheet";
+import { RenewalLockSheet } from "./RenewalLockSheet";
 import { RenewalConfirmDialog } from "./RenewalConfirmDialog";
 import { PreviousDebtDialog } from "./PreviousDebtDialog";
 
@@ -93,6 +94,8 @@ interface Props {
   /** 🆕 «✅ انتهى» on a device being created («إنشاء حساب جديد»). */
   onFinishCreation?: (account: StarlinkAccountSummary) => void;
   onSetRepair: (account: StarlinkAccountSummary, repair: StarlinkAccountSummary["underRepair"]) => void;
+  /** 📌 Small changes to the device itself (the locked renewal day, RenewalLockSheet). */
+  onPatch?: (account: StarlinkAccountSummary, patch: Partial<StarlinkAccountSummary>) => void;
   /** This device's mailbox (📧 البريد) is signed in on this phone - the button turns mint green. */
   mailSignedIn?: boolean;
   /** Moves the device to the archive ("active" context only). */
@@ -193,7 +196,7 @@ function IconUndo() {
 
 export function AccountCard({
   account, onEdit, ledgerEntries, allocations, onLedger, onDeviceStatement, client, onOpenClient, currencyStore,
-  context = "active", onSetDeviceFault, onSetRepair, onFinishCreation, allAccounts = [], mailSignedIn = false, onArchive, onSoftDelete, onRestore, onPermanentDelete, onConfirmRenewal,
+  context = "active", onSetDeviceFault, onSetRepair, onPatch, onFinishCreation, allAccounts = [], mailSignedIn = false, onArchive, onSoftDelete, onRestore, onPermanentDelete, onConfirmRenewal,
   sessionNeedsLogin = false,
   repPending = false,
   previousDebts = [],
@@ -258,6 +261,7 @@ export function AccountCard({
         unpaidStarlinkUsd + paidSinceLastSyncUsd(ledgerEntries, account.lastSuccessfulScanAt),
       );
   const [previousDebtDialog, setPreviousDebtDialog] = useState<{ suggestedUsd?: number } | null>(null);
+  const [renewalSheet, setRenewalSheet] = useState(false);
   // «الدين» on the unrecorded-difference line: choose an old (inherited) debt or a normal D charge.
   const [debtChoiceUsd, setDebtChoiceUsd] = useState<number | null>(null);
   const expectedMru = currentMruRate !== undefined ? profit.expectedUsd * currentMruRate : undefined;
@@ -643,13 +647,34 @@ export function AccountCard({
           })
         )}
         {(account.rechargeDate || account.standbyDate) ? (
-          <span className="account-card-recharge-pill" dir="ltr">
-            <span aria-hidden="true">📅</span> {account.rechargeDate || account.standbyDate}
-          </span>
+          onPatch ? (
+            <button
+              type="button"
+              className="account-card-recharge-pill account-card-recharge-btn"
+              dir="ltr"
+              data-tour="renewal-lock"
+              aria-label={account.lockedRenewalDay ? `يوم التجديد مثبّت على ${account.lockedRenewalDay}` : "ثبّت يوم التجديد"}
+              onClick={() => setRenewalSheet(true)}
+            >
+              <span aria-hidden="true">{account.lockedRenewalDay ? "📌" : "📅"}</span> {account.rechargeDate || account.standbyDate}
+            </button>
+          ) : (
+            <span className="account-card-recharge-pill" dir="ltr">
+              <span aria-hidden="true">{account.lockedRenewalDay ? "📌" : "📅"}</span> {account.rechargeDate || account.standbyDate}
+            </span>
+          )
         ) : (
           <span className="account-card-recharge-pill account-card-recharge-pill-unread">
             <span aria-hidden="true">📅</span> {renewalDateLabel("")}
           </span>
+        )}
+        {account.renewalDayMismatch && onPatch && (
+          <button type="button" className="badge badge-red account-card-recharge-btn" onClick={() => setRenewalSheet(true)}>
+            ⚠️ قرأ يوم {account.renewalDayMismatch.day} بدل {account.lockedRenewalDay}
+          </button>
+        )}
+        {renewalSheet && onPatch && (
+          <RenewalLockSheet account={account} onPatch={(patch) => onPatch(account, patch)} onClose={() => setRenewalSheet(false)} />
         )}
         {identityEmail && (
           <span className="account-card-recharge-pill" dir="ltr">

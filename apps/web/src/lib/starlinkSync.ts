@@ -1,3 +1,4 @@
+import { decideRenewalRead } from "./renewalDayLock";
 import { DeviceStatus, StarlinkAccountSummary } from "@starnet/shared";
 import type { SyncedDeviceStatus, SyncedStarlinkFields } from "@starnet/local-browser-plugin";
 import { cleanPlanName } from "./status";
@@ -147,8 +148,17 @@ export function mergeSyncedFields(
   // never let it replace a good date.
   const renewalDay = renewalDate ? Number(renewalDate.replace(/\D+$/, "").split(/\D/).pop()) : NaN;
   if (renewalDate && (!Number.isFinite(renewalDay) || renewalDay <= 28)) {
-    note("renewalDate", next.rechargeDate !== renewalDate);
-    next.rechargeDate = renewalDate;
+    // 📌 A locked renewal day (renewalDayLock.ts): the month may move, the day never does - a read
+    // on another day keeps the saved date and is set aside as a warning for him to decide.
+    const decision = decideRenewalRead(next, renewalDate);
+    if (decision.kind === "accept") {
+      note("renewalDate", next.rechargeDate !== renewalDate);
+      next.rechargeDate = renewalDate;
+      if (next.renewalDayMismatch) next.renewalDayMismatch = null;
+    } else if (decision.kind === "mismatch" && next.renewalDayMismatch?.date !== renewalDate) {
+      next.renewalDayMismatch = { date: renewalDate, day: decision.day, at: new Date().toISOString() };
+      updatedFields.push({ field: "renewalDate", label: `⚠️ يوم تجديد مختلف (${decision.day}) - بقي المثبّت ${next.lockedRenewalDay}`, section: FIELD_INFO.renewalDate.section });
+    }
   }
 
   const pendingCancellationDate = fields.pendingCancellationDate?.trim();

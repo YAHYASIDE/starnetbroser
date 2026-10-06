@@ -39,6 +39,7 @@ import {
 } from "@/lib/settingsStore";
 import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerCurrency } from "@/lib/ledgerStore";
 import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
+import { lockAllRenewalDays, renewalDayOf } from "@/lib/renewalDayLock";
 import { STORAGE_BUDGET_CHARS, StorageUsage, formatChars, isQuotaError, measureStorage, storageKeyLabel } from "@/lib/storageGuard";
 import { collectAppData, createEncryptedBackupFile, mergeImportedAccounts, readEncryptedBackupFile, restoreAppData } from "@/lib/accountBackup";
 import { restoreProofsFromBackup, withProofs } from "@/lib/paymentProofStore";
@@ -431,6 +432,7 @@ export default function SettingsPage() {
               )}
             </SettingsFold>
             <SettingsFold id="sessions"><SessionCheckSection /></SettingsFold>
+            <SettingsFold id="renewal-lock"><RenewalLockAllSection /></SettingsFold>
           </>
         )}
 
@@ -1108,6 +1110,47 @@ function DriveSection() {
  * "فحص جلسات الدخول": opens each device's isolated Starlink browser hidden, one by one, and shows
  * which are still signed in - the check to run right after restoring a backup.
  */
+/** 📌 «ثبّت يوم التجديد لكل الأجهزة»: every device with a date and no lock yet, at its current day. */
+function RenewalLockAllSection() {
+  const [message, setMessage] = useState<string | null>(null);
+  const [counts, setCounts] = useState<{ locked: number; open: number } | null>(null);
+  useEffect(() => {
+    if (!isDemoMode()) return;
+    const list = loadDemoAccounts([]).filter((a) => !a.deletedAt && !a.archivedAt);
+    setCounts({ locked: list.filter((a) => a.lockedRenewalDay).length, open: list.filter((a) => !a.lockedRenewalDay && renewalDayOf(a.rechargeDate)).length });
+  }, [message]);
+  return (
+    <section className="section">
+      <h2 className="section-title">📌 تثبيت يوم التجديد</h2>
+      <p className="settings-hint">
+        يوم تجديد الجهاز لا يتغيّر (إلا إذا نُقل لدولة أخرى). بعد التثبيت تغيّر المزامنة الشهر فقط، وإن قرأت يومًا آخر يبقى اليوم المثبّت وتظهر علامة ⚠️ على الجهاز.
+        لتثبيت جهاز واحد أو تغيير يومه: اضغط تاريخه 📅 في بطاقته.
+      </p>
+      {counts && (
+        <p className="settings-hint">
+          مثبّت: {counts.locked} جهاز · غير مثبّت: {counts.open}
+        </p>
+      )}
+      <div className="settings-actions">
+        <button
+          type="button"
+          className="dialog-primary"
+          disabled={!counts || counts.open === 0}
+          onClick={() => {
+            if (!window.confirm("تثبيت يوم التجديد لكل الأجهزة غير المثبّتة على أيامها الحالية؟")) return;
+            const result = lockAllRenewalDays(loadDemoAccounts([]));
+            saveDemoAccounts(result.accounts);
+            setMessage(`✓ ثُبّت يوم التجديد لـ ${result.locked} جهاز`);
+          }}
+        >
+          📌 ثبّت يوم التجديد لكل الأجهزة
+        </button>
+      </div>
+      {message && <p className="settings-hint">{message}</p>}
+    </section>
+  );
+}
+
 function SessionCheckSection() {
   const [accounts, setAccounts] = useState<StarlinkAccountSummary[]>([]);
   const [results, setResults] = useState<SessionCheckResults>({});

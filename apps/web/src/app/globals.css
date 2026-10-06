@@ -12908,3 +12908,47 @@ button.today-tile {
 .money-alerts-good {
   color: var(--green);
 }
+
+/* 📌 the locked renewal day (RenewalLockSheet) */
+.account-card-recharge-btn {
+  font: inherit;
+  cursor: pointer;
+  border: 0;
+}
+
+.renewal-lock {
+  display: grid;
+  gap: 10px;
+}
+
+.renewal-lock-warning {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--red);
+  background: var(--surface-alt);
+  min-width: 0;
+}
+
+.renewal-lock-warning strong {
+  color: var(--red);
+}
+
+.renewal-lock-warning small {
+  color: var(--text-muted);
+}
+
+.renewal-lock-day {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.renewal-lock-day input {
+  max-width: 6rem;
+}
+
+.renewal-lock-error {
+  color: var(--red);
+}

@@ -199,6 +199,13 @@ export interface StarlinkAccountSummary {
   /** 🛠️ "قيد الإصلاح": a technical problem we're following with Starlink support - separate from
    * deviceFault (the device stays in renewals and lists), shown in its own home list. */
   underRepair?: { note: string; since: string } | null;
+  /** 📌 The renewal (billing) day the operator locked (1-28): a sync may move the month but never
+   * this day - a read on another day is kept aside as `renewalDayMismatch` for him to decide. */
+  lockedRenewalDay?: number | null;
+  /** ⚠️ A sync read a renewal date whose day differs from `lockedRenewalDay` (the date was kept). */
+  renewalDayMismatch?: { date: string; day: number; at: string } | null;
+  /** A read date he chose to ignore - the same read never raises the warning again. */
+  renewalDayIgnored?: string | null;
   /** 🆕 "قيد الإنشاء": a brand-new Starlink account the operator is creating from the app (a new
    * Outlook email, then «تفعيل Starlink» with the KIT). The names typed into both forms are kept
    * here until the operator marks it done, or the first sync reads the new account. */

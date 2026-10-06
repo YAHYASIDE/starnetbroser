@@ -94,6 +94,12 @@ plus the rules learned from real misreads; keep it updated when you learn a new 
 - **The renewal (billing) day is always 1-28** - the operator's rule: Starlink never bills on the
   29th-31st, so such a date is a misread (a device once showed 2026/10/31). It is rejected in the
   extractor (`isPlausibleBillingDate`, `extractBillingDueDay`) and again in the web merge.
+- **📌 A locked renewal day wins over every read** (his Oct 2026 rule: the day never moves except
+  when the device moves country). `lockedRenewalDay` + `decideRenewalRead` (`lib/renewalDayLock.ts`)
+  in the web merge: a read on the locked day moves the month; another day keeps the saved date and
+  raises `renewalDayMismatch` (card «⚠️ قرأ يوم X بدل Y» → «اقبل» / «تجاهل»; an ignored read never
+  warns again). A wrong day on a locked device is a misread to fix in the extractor, not a reason
+  to unlock.
 - **Where the true day comes from, in order:** the **invoice list at the bottom of Billing: the
   latest row described «Subscription» / «اشتراك»** - never an «Order» / «طلب» row - wins over
   everything on the page; then a dated renewal line; then the cycle ("Payment due September 7").

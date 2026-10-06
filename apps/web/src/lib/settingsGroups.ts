@@ -62,7 +62,7 @@ export function rememberGroup(id: SettingsGroupId): void {
 export type SettingsItemId =
   | "whats-new" | "shortcuts" | "passwords" | "gmail-codes" | "card-gmail" | "theme" | "help" | "invoice-currency" | "business" | "profit-reset"
   | "reminders"
-  | "auto-sync" | "sessions"
+  | "auto-sync" | "sessions" | "renewal-lock"
   | "telegram" | "rep-bots" | "live-sync" | "activation-costs" | "instant-replies"
   | "backup-full" | "backup-daily" | "drive"
   | "lock" | "update" | "rep-mode" | "storage" | "server";
@@ -91,6 +91,7 @@ export const SETTINGS_ITEMS: SettingsItem[] = [
   { id: "profit-reset", group: "general", icon: "🔁", title: "بداية جديدة للأرباح", summary: "تصفير الأرباح من تاريخ", keywords: ["ارباح", "أرباح", "تصفير", "بداية"] },
   { id: "reminders", group: "alerts", icon: "🔔", title: "التذكيرات والإشعارات", summary: "عدد التذكيرات، ملخص الصباح والمساء", keywords: ["تذكير", "اشعار", "إشعار", "صباح", "مساء", "ملخص"] },
   { id: "auto-sync", group: "devices", icon: "🔄", title: "تحديث الأجهزة من Starlink", summary: "المزامنة التلقائية ووقتها", keywords: ["مزامنة", "تحديث", "ستارلينك", "starlink", "تلقائي"] },
+  { id: "renewal-lock", group: "devices", icon: "📌", title: "تثبيت يوم التجديد", summary: "يوم التجديد لا يتغيّر مع المزامنة", keywords: ["تثبيت", "يوم التجديد", "تاريخ", "تجديد", "مثبت"] },
   { id: "sessions", group: "devices", icon: "🔐", title: "فحص جلسات الدخول", summary: "أي الأجهزة خرجت من Starlink", keywords: ["جلسة", "جلسات", "دخول", "خروج"] },
   { id: "telegram", group: "bots", icon: "✈️", title: "تيليغرام (بوتك)", summary: "التنبيهات والأوامر من بوتك", keywords: ["تيليغرام", "تلغرام", "telegram", "بوت"] },
   { id: "rep-bots", group: "bots", icon: "🤝", title: "بوتات المندوبين", summary: "ربط كل مندوب ببوته", keywords: ["مندوب", "مندوبين", "بوت"] },
