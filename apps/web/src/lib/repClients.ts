@@ -366,23 +366,37 @@ export interface RepOperation {
 }
 
 /** 📒 «كل عمليات زبائنه»: every record on his customers' devices that is his debt to us (moved
- * onto him included), oldest first with the running balance - shown newest first. */
+ * onto him included), oldest first with the running balance - shown newest first.
+ *
+ * `allHisDevices` (🔒 «زبائنه عنده فقط», his Oct 2026 rule «يجب أن تظهر عليه كل الديون… فهي مسجّلة
+ * على المندوب»): every record on his devices is his too, whoever the device's customer is - a
+ * renewal sold while the device was his (its locked `representativeId`, or none recorded) and every
+ * payment on a device that is his now. Records another rep owes stay that rep's. */
 export function repOperations(
   repId: string,
   replays: Map<string, ClientReplay>,
   accounts: StarlinkAccountSummary[],
   ledgerStore: LedgerByAccount,
+  options: { allHisDevices?: boolean } = {},
 ): RepOperation[] {
   const clientOf = new Map(accounts.map((a) => [a.id, a.clientId]));
+  const hisDevice = new Set(accounts.filter((a) => a.representativeId === repId && !a.deletedAt).map((a) => a.id));
   const rows: Omit<RepOperation, "balanceAfter">[] = [];
   for (const [accountId, entries] of Object.entries(ledgerStore)) {
     const clientId = clientOf.get(accountId);
     const replay = clientId ? replays.get(clientId) : undefined;
-    if (!replay) continue;
+    if (!replay && !(options.allHisDevices && hisDevice.has(accountId))) continue;
     for (const entry of entries) {
-      if (replay.entryOwner.get(entry.id) !== repId) continue;
+      const owner = replay?.entryOwner.get(entry.id) ?? OURS;
+      const his =
+        owner === repId ||
+        (options.allHisDevices &&
+          owner === OURS &&
+          hisDevice.has(accountId) &&
+          (entry.kind === "credit" || entry.representativeId === undefined || entry.representativeId === repId));
+      if (!his) continue;
       rows.push({
-        entryId: entry.id, accountId, clientId: clientId!, date: entry.date, at: entry.createdAt,
+        entryId: entry.id, accountId, clientId: clientId ?? "", date: entry.date, at: entry.createdAt,
         amount: signedLedger(entry), currency: entry.currency, byRep: entry.heldByRepId === repId,
         ...(entry.note ? { note: entry.note } : {}),
       });
@@ -395,6 +409,24 @@ export function repOperations(
     return { ...row, balanceAfter: running[row.currency]! };
   });
   return withBalance.reverse();
+}
+
+/** What his operations add up to (he owes us), per currency - and per device. */
+export function operationsBalance(ops: Pick<RepOperation, "amount" | "currency">[]): Balances {
+  const result: Balances = {};
+  for (const op of ops) result[op.currency] = (result[op.currency] ?? 0) + op.amount;
+  return cleanBalances(result);
+}
+
+export function operationsByDevice(ops: Pick<RepOperation, "accountId" | "amount" | "currency">[]): Map<string, Balances> {
+  const byDevice = new Map<string, Pick<RepOperation, "amount" | "currency">[]>();
+  for (const op of ops) byDevice.set(op.accountId, [...(byDevice.get(op.accountId) ?? []), op]);
+  const result = new Map<string, Balances>();
+  for (const [accountId, list] of byDevice) {
+    const balance = operationsBalance(list);
+    if (Object.keys(balance).length) result.set(accountId, balance);
+  }
+  return result;
 }
 
 export function sumBalances(rows: Balances[]): Balances {

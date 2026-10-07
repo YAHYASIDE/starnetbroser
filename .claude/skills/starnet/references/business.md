@@ -178,6 +178,14 @@ mind). Exact texts and numbers live in the code - this file says where.
   cost, profit, his share, and totals (`repProfitBreakdown`); the PDF carries both as tables.
   «📤 أرسل له الكشف» sends that PDF to the rep's Telegram through the reps bot (`sendRepPdf`); with
   «🔒 زبائنه عنده فقط» on, customer names stay out of the statement and PDF.
+- **🔒 With «زبائنه عنده فقط» every operation on his devices is his debt** (Oct 2026: «لماذا تظهر 13500
+  فقط… يجب أن تظهر عليه كل الديون حتى لو عادت D فهي مسجّلة على المندوب»). Before, only records of
+  customers registered as his (rep segments) were his; the others showed as «ديون أجهزته على الزبائن».
+  Now, for a rep with the switch on, `repOperations(…, { allHisDevices })` adds every record on his
+  live devices: a renewal sold while the device was his (locked `representativeId`, or none) and every
+  payment on it; a record another rep owes stays that rep's. «عليه لك عن أجهزته», «الصافي», the
+  statement and the PDF all use it; the «ديون أجهزته على الزبائن» line is gone for him. Reps without
+  the switch keep the old customer-based rule.
 - **🗑 Delete a device operation from the customer's statement** (clients page «تفاصيل العملية», his
   Oct 2026 request): same path as the device statement's delete (`confirmAndDeleteLedgerEntry` -
   closed-month check, confirm, removes its cash entry and allocations). «✎ تعديل» there opens the

@@ -31,6 +31,19 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-07-rep-owes-all-devices",
+    date: "2026-10-07",
+    title: "🔒 كل ديون أجهزته عليه",
+    steps: [
+      {
+        path: "/representatives",
+        title: "🧾 كل عمليات أجهزته عليه",
+        before: "مع «🔒 زبائنه عنده فقط» كان يُحسب عليه فقط ما على زبائنه المسجَّلين له، والباقي يظهر «ديون أجهزته على الزبائن».",
+        after: "كل تجديد على أجهزته (حتى بانتظار D) عليه هو، وكل دفعة له: في «عليه لك عن أجهزته» و«الصافي» والكشف وملف PDF.",
+      },
+    ],
+  },
+  {
     id: "2026-10-07-rep-statement-full",
     date: "2026-10-07",
     title: "📄 كشف المندوب الكامل",

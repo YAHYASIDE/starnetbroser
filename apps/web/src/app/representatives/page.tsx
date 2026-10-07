@@ -93,6 +93,8 @@ import {
   replayRepClients,
   planRepUntangle,
   repOperations,
+  operationsBalance,
+  operationsByDevice,
   type RepUntanglePlan,
   sumBalances,
   transferClientsToRep,
@@ -675,7 +677,16 @@ function RepCard({
   );
   // His own customers (repClients.ts) - what they owe him, and what he owes us for them.
   const repClients = useMemo(() => listRepClients(rep.id, clientStore, accounts, replays), [rep.id, clientStore, accounts, replays]);
-  const owedToUsForClients = useMemo(() => sumBalances(repClients.map((r) => r.owedToUs)), [repClients]);
+  // 📒 every operation that is his debt to us, newest first - with «🔒 زبائنه عنده فقط» every
+  // operation on his devices (his Oct 2026 rule: «كل الديون… مسجّلة على المندوب»).
+  const operations = useMemo(
+    () => repOperations(rep.id, replays, accounts, ledgerNow, { allHisDevices: customersHidden }),
+    [rep.id, replays, accounts, ledgerNow, customersHidden],
+  );
+  const owedToUsForClients = useMemo(
+    () => (customersHidden ? operationsBalance(operations) : sumBalances(repClients.map((r) => r.owedToUs))),
+    [customersHidden, operations, repClients],
+  );
   const clientsOweHim = useMemo(() => sumBalances(repClients.map((r) => r.book)), [repClients]);
   // 🔁 Everything still owed to us through his devices: what moves onto him, and what to review.
   const untangle = useMemo(() => planRepUntangle(rep.id, clientStore, accounts, ledgerNow), [rep.id, clientStore, accounts, ledgerNow]);
@@ -683,13 +694,13 @@ function RepCard({
   const untangleCount = untangle.clean.length + untangle.mixed.length + untangle.loose.length;
   // 📒 every operation of his customers that is his debt to us, newest first.
   const [showOps, setShowOps] = useState(false);
-  const operations = useMemo(() => repOperations(rep.id, replays, accounts, ledgerNow), [rep.id, replays, accounts, ledgerNow]);
-  // What the customers of his devices still owe US - only those not yet his own customers.
+  // What the customers of his devices still owe US - only those not yet his own customers (none
+  // when his customers are his alone: then all of it is his, above).
   const devicesDebt = useMemo(
-    () => repDevicesDebt(rep.id, accounts.filter((a) => !a.clientId || !replays.has(a.clientId)), ledgerNow),
-    [rep.id, accounts, ledgerNow, replays],
+    () => (customersHidden ? { rows: [], totalByCurrency: {} } : repDevicesDebt(rep.id, accounts.filter((a) => !a.clientId || !replays.has(a.clientId)), ledgerNow)),
+    [customersHidden, rep.id, accounts, ledgerNow, replays],
   );
-  const owedByDevice = new Map(devicesDebt.rows.map((row) => [row.accountId, row.owed]));
+  const owedByDevice = customersHidden ? operationsByDevice(operations) : new Map(devicesDebt.rows.map((row) => [row.accountId, row.owed]));
 
   const allDays = useMemo(() => {
     if (panel !== "statement" && sheet?.kind !== "reset") return [];
@@ -697,10 +708,10 @@ function RepCard({
     const source = archive ? splitRepRecords(rep, { deviceRows: allDeviceRows, invoices, settlements }, "archive") : active;
     // 📡 His customers' device operations (his debt to us) run in the same balance (his Oct 2026 choice).
     const customerOps = archive
-      ? repOperations(rep.id, allReplays, accounts, ledgerStore).filter((op) => !isAfterRepReset(rep.resetFrom, { date: op.date, createdAt: op.at }))
+      ? repOperations(rep.id, allReplays, accounts, ledgerStore, { allHisDevices: customersHidden }).filter((op) => !isAfterRepReset(rep.resetFrom, { date: op.date, createdAt: op.at }))
       : operations;
     return buildRepDailyStatement(rep.id, source.deviceRows, source.invoices, source.settlements, customerOps);
-  }, [panel, sheet, showArchive, rep, allDeviceRows, invoices, settlements, active, operations, allReplays, accounts, ledgerStore]);
+  }, [panel, sheet, showArchive, rep, allDeviceRows, invoices, settlements, active, operations, allReplays, accounts, ledgerStore, customersHidden]);
   const period = periodKind === "month" ? monthRange(periodMonth) : repPeriod(periodKind, todayDateInputValue(), customPeriod);
   const statement = useMemo(() => buildRepPeriodStatement(allDays, period, fx.convert), [allDays, period.from, period.to, fx]); // eslint-disable-line react-hooks/exhaustive-deps
   // 📈 The period's shipments, one line each: confirmed and expected (D) apart.
@@ -806,13 +817,13 @@ function RepCard({
         </div>
       </div>
 
-      {repClients.length > 0 && (
+      {(repClients.length > 0 || customersHidden) && (
         <div className={`rep-devices-debt${Object.values(owedToUsForClients).some((v) => v > EPSILON) ? " rep-devices-debt-due" : ""}`}>
           <span>{customersHidden ? "🧾 عليه لك عن أجهزته" : `🧾 عليه لك عن زبائنه (${repClients.filter((r) => r.current).length})`}</span>
           {Object.keys(owedToUsForClients).length === 0 ? <strong>لا شيء ✓</strong> : <StatValues values={owedToUsForClients} />}
         </div>
       )}
-      {repClients.length > 0 && (
+      {(repClients.length > 0 || customersHidden) && (
         <div className={`rep-devices-debt rep-net${netSign > EPSILON ? " rep-devices-debt-due" : ""}`}>
           <span>
             ⚖️ الصافي {netSign > EPSILON ? "عليه لك" : netSign < -EPSILON ? "له عندك" : ""}
@@ -821,7 +832,7 @@ function RepCard({
           {Object.keys(net).length === 0 ? <strong>متوازن ✓</strong> : <StatValues values={net} absolute />}
         </div>
       )}
-      {(repClients.length === 0 || devicesDebt.rows.length > 0) && (
+      {!customersHidden && (repClients.length === 0 || devicesDebt.rows.length > 0) && (
         <div className={`rep-devices-debt${devicesDebt.rows.length > 0 ? " rep-devices-debt-due" : ""}`}>
           <span>💳 ديون أجهزته على الزبائن{devicesDebt.rows.length > 0 ? ` (${devicesDebt.rows.length} جهاز)` : ""}</span>
           {devicesDebt.rows.length === 0 ? <strong>لا ديون ✓</strong> : <StatValues values={devicesDebt.totalByCurrency} />}

@@ -9,6 +9,8 @@ import {
   autoMoveClientToRep,
   planRepUntangle,
   repOperations,
+  operationsBalance,
+  operationsByDevice,
   sumBalances,
   currentRepOfClient,
   listRepClients,
@@ -263,5 +265,29 @@ describe("🔄 the rep's reset «من 0 إلى 0»", () => {
   it("no reset: the same records come back", () => {
     expect(ledgerAfterRepReset(undefined, ledger)).toBe(ledger);
     expect(bookAfterRepReset(undefined, book)).toBe(book);
+  });
+});
+
+describe("🔒 «زبائنه عنده فقط»: every operation on his devices is his", () => {
+  const accounts = [device("d1", "c1", "r1"), device("d2", "c2", "r1"), { ...device("d3", "c3", "r1"), deletedAt: "2026-06-01" } as StarlinkAccountSummary, device("d4", "c4", "r2")];
+  const clients: ClientStore = { c1: { ...client("c1"), repSegments: [{ repId: "r1", from: T1, carry: true }] }, c2: client("c2"), c3: client("c3"), c4: client("c4") };
+  const ledger: LedgerByAccount = {
+    d1: [entry("debit", 13500, T2)],
+    // his device, but its customer isn't his customer: a renewal with D, one sold under r2, a payment
+    d2: [entry("debit", 6000, T2, { representativeId: "r1" }), entry("debit", 3000, T3, { representativeId: "r2" }), entry("credit", 1000, T4), entry("debit", 3000, T4)],
+    d3: [entry("debit", 999, T2)],
+    d4: [entry("debit", 700, T2)],
+  };
+  const replays = replayRepClients(clients, accounts, ledger, []);
+
+  it("off: only his customers' operations", () => {
+    expect(operationsBalance(repOperations("r1", replays, accounts, ledger))).toEqual({ MRU: 13500 });
+  });
+
+  it("on: his customers' and every other operation on his live devices", () => {
+    const ops = repOperations("r1", replays, accounts, ledger, { allHisDevices: true });
+    expect(operationsBalance(ops)).toEqual({ MRU: 13500 + 6000 - 1000 + 3000 });
+    expect(operationsByDevice(ops)).toEqual(new Map([["d1", { MRU: 13500 }], ["d2", { MRU: 8000 }]]));
+    expect(ops[0]!.balanceAfter).toBe(21500);
   });
 });
