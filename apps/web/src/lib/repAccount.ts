@@ -60,6 +60,25 @@ export function splitRepRecords(rep: Representative, records: RepRecords, side: 
   };
 }
 
+/**
+ * 🔄 «من 0 إلى 0» (his Oct 2026 ask: «اريد تصفير حساب المندوب حتي لا تظهر له اي عملية سابقة»): the
+ * rep card's customer lines (what he owes us for his customers, his devices' debts, the operations
+ * list, the net) read only the device operations recorded after his reset, like his share does.
+ * Nothing is deleted - the customers' own statements still hold every operation. No reset: the
+ * same objects come back.
+ */
+export function ledgerAfterRepReset(reset: RepResetPoint | undefined, ledgerStore: LedgerByAccount): LedgerByAccount {
+  if (!reset) return ledgerStore;
+  const result: LedgerByAccount = {};
+  for (const [accountId, entries] of Object.entries(ledgerStore)) result[accountId] = entries.filter((e) => isAfterRepReset(reset, e));
+  return result;
+}
+
+/** His book with his customers (repClients.ts) after the reset - the same cut. */
+export function bookAfterRepReset<T extends { date: string; createdAt: string }>(reset: RepResetPoint | undefined, book: T[]): T[] {
+  return reset ? book.filter((e) => isAfterRepReset(reset, e)) : book;
+}
+
 // ---- Display currency ----
 
 /** Turns an amount in `fromCode` into the currencies the operator chose to see (أوقية, سيفا or

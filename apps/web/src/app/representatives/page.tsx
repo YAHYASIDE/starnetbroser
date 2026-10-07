@@ -58,7 +58,7 @@ import {
   repRowKey,
   setShipmentRepShare,
   ShipmentRepPatch,
-  splitRepRecords, repNetPosition } from "@/lib/repAccount";
+  splitRepRecords, repNetPosition, ledgerAfterRepReset, bookAfterRepReset } from "@/lib/repAccount";
 import { InvoiceList, loadInvoices, saveInvoices } from "@/lib/invoiceStore";
 import {
   LEDGER_CURRENCIES,
@@ -536,6 +536,7 @@ export default function RepresentativesPage() {
                     accounts={accounts}
                     clientStore={clientStore}
                     replays={replays}
+                    repBook={repBook}
                     onTransferClients={(ids) => handleTransferClients(rep.id, ids)}
                     onMixedToRep={(clientId) => handleMixedToRep(rep.id, clientId)}
                     onLooseDevice={(accountId) => handleLooseDevice(rep.id, accountId)}
@@ -572,6 +573,7 @@ interface RepCardProps {
   accounts: StarlinkAccountSummary[];
   clientStore: ClientStore;
   replays: Map<string, ClientReplay>;
+  repBook: RepBookEntry[];
   onTransferClients: (clientIds: string[]) => void;
   onMixedToRep: (clientId: string) => void;
   onLooseDevice: (accountId: string) => void;
@@ -609,7 +611,8 @@ function RepCard({
   ledgerStore,
   accounts,
   clientStore,
-  replays,
+  replays: allReplays,
+  repBook,
   onTransferClients,
   onMixedToRep,
   onLooseDevice,
@@ -663,21 +666,27 @@ function RepCard({
   // 📋 What his phone lacks since the last copy he was sent (his choice: «أرسلها بيدي» + a warning).
   const gaps = copyGaps(loadRepCopySentDevices()[rep.id], accounts, rep.id);
   const retiredCount = accounts.filter((a) => a.representativeId === rep.id && (a.deletedAt || a.archivedAt)).length;
+  // 🔄 After his reset («من 0 إلى 0») his customer lines read only the later operations, like his share.
+  const ledgerNow = useMemo(() => ledgerAfterRepReset(rep.resetFrom, ledgerStore), [rep.resetFrom, ledgerStore]);
+  const replays = useMemo(
+    () => (rep.resetFrom ? replayRepClients(clientStore, accounts, ledgerNow, bookAfterRepReset(rep.resetFrom, repBook)) : allReplays),
+    [rep.resetFrom, clientStore, accounts, ledgerNow, repBook, allReplays],
+  );
   // His own customers (repClients.ts) - what they owe him, and what he owes us for them.
   const repClients = useMemo(() => listRepClients(rep.id, clientStore, accounts, replays), [rep.id, clientStore, accounts, replays]);
   const owedToUsForClients = useMemo(() => sumBalances(repClients.map((r) => r.owedToUs)), [repClients]);
   const clientsOweHim = useMemo(() => sumBalances(repClients.map((r) => r.book)), [repClients]);
   // 🔁 Everything still owed to us through his devices: what moves onto him, and what to review.
-  const untangle = useMemo(() => planRepUntangle(rep.id, clientStore, accounts, ledgerStore), [rep.id, clientStore, accounts, ledgerStore]);
+  const untangle = useMemo(() => planRepUntangle(rep.id, clientStore, accounts, ledgerNow), [rep.id, clientStore, accounts, ledgerNow]);
   const transferCandidates = untangle.clean;
   const untangleCount = untangle.clean.length + untangle.mixed.length + untangle.loose.length;
   // 📒 every operation of his customers that is his debt to us, newest first.
   const [showOps, setShowOps] = useState(false);
-  const operations = useMemo(() => repOperations(rep.id, replays, accounts, ledgerStore), [rep.id, replays, accounts, ledgerStore]);
+  const operations = useMemo(() => repOperations(rep.id, replays, accounts, ledgerNow), [rep.id, replays, accounts, ledgerNow]);
   // What the customers of his devices still owe US - only those not yet his own customers.
   const devicesDebt = useMemo(
-    () => repDevicesDebt(rep.id, accounts.filter((a) => !a.clientId || !replays.has(a.clientId)), ledgerStore),
-    [rep.id, accounts, ledgerStore, replays],
+    () => repDevicesDebt(rep.id, accounts.filter((a) => !a.clientId || !replays.has(a.clientId)), ledgerNow),
+    [rep.id, accounts, ledgerNow, replays],
   );
   const owedByDevice = new Map(devicesDebt.rows.map((row) => [row.accountId, row.owed]));
 
@@ -1207,7 +1216,7 @@ function RepCard({
         <PartySheet title={`تصفير الحساب - ${rep.name}`} onClose={() => setSheet(null)}>
           <RepResetForm
             rep={rep}
-            balance={balanceText(netBalance)}
+            balance={balanceText(net)}
             onCancel={() => setSheet(null)}
             onReset={(point) => {
               onReset(point);
@@ -1797,9 +1806,9 @@ function RepResetForm({
       </label>
       <p className="settings-hint">
         {date === today
-          ? "يبدأ من هذه اللحظة: كل العمليات المسجّلة حتى الآن تنتقل إلى الأرشيف ويصبح رصيده صفرًا."
+          ? "يبدأ من هذه اللحظة: كل العمليات المسجّلة حتى الآن تنتقل إلى الأرشيف ويبدأ كل شيء في بطاقته من 0: نصيبه، وما عليه عن أجهزته وزبائنه، وديون أجهزته، وعمليات زبائنه."
           : "العمليات قبل هذا التاريخ تنتقل إلى الأرشيف، وعمليات هذا اليوم وما بعده تبقى في حسابه."}{" "}
-        لا يُحذف شيء، وتبقى الأرشيف ظاهرًا في الكشف. سوِّ رصيده أولًا إن كان عليه أو له مبلغ.
+        لا يُحذف شيء: يبقى الأرشيف ظاهرًا في الكشف، وكل عملية تبقى في كشف زبونها. سوِّ رصيده أولًا إن كان عليه أو له مبلغ.
       </p>
       <div className="settings-actions">
         <button

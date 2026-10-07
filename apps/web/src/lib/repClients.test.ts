@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import type { Client, ClientStore } from "./clientStore";
 import type { LedgerByAccount, LedgerEntry } from "./ledgerStore";
+import { bookAfterRepReset, ledgerAfterRepReset } from "./repAccount";
+import { repDevicesDebt } from "./repDebts";
 import {
   addRepBookEntry,
   autoMoveClientToRep,
   planRepUntangle,
   repOperations,
+  sumBalances,
   currentRepOfClient,
   listRepClients,
   moveClientToOwner,
@@ -227,5 +230,38 @@ describe("📒 all his customers' operations on the rep", () => {
       [1500, 2500, false],
       [1000, 1000, false], // owed before the transfer, moved onto him
     ]);
+  });
+});
+
+describe("🔄 the rep's reset «من 0 إلى 0»", () => {
+  const accounts = [device("d1", "c1", "r1"), device("d2", "c2", "r1")];
+  const clients: ClientStore = { c1: { ...client("c1"), repSegments: [{ repId: "r1", from: T1, carry: true }] }, c2: client("c2") };
+  const ledger: LedgerByAccount = {
+    d1: [entry("debit", 1500, T2), entry("debit", 800, T4)],
+    d2: [entry("debit", 900, T2)],
+  };
+  const book = [bookEntry("payment", 500, T2), bookEntry("payment", 300, T4)];
+  const reset = { date: T3.slice(0, 10), at: "" };
+
+  it("before the reset his customers and devices carry the old amounts", () => {
+    const replays = replayRepClients(clients, accounts, ledger, book);
+    expect(sumBalances(listRepClients("r1", clients, accounts, replays).map((r) => r.owedToUs))).toEqual({ MRU: 2300 });
+    expect(repDevicesDebt("r1", [accounts[1]!], ledger).totalByCurrency).toEqual({ MRU: 900 });
+  });
+
+  it("after it only what came later counts; nothing older shows", () => {
+    const resetLedger = ledgerAfterRepReset(reset, ledger);
+    const replays = replayRepClients(clients, accounts, resetLedger, bookAfterRepReset(reset, book));
+    const [row] = listRepClients("r1", clients, accounts, replays);
+    expect(row).toMatchObject({ owedToUs: { MRU: 800 }, book: { MRU: 500 } });
+    expect(repOperations("r1", replays, accounts, resetLedger).map((o) => o.amount)).toEqual([800]);
+    expect(repDevicesDebt("r1", [accounts[1]!], resetLedger).totalByCurrency).toEqual({});
+    // nothing deleted: the stored ledger keeps every operation
+    expect(ledger.d1).toHaveLength(2);
+  });
+
+  it("no reset: the same records come back", () => {
+    expect(ledgerAfterRepReset(undefined, ledger)).toBe(ledger);
+    expect(bookAfterRepReset(undefined, book)).toBe(book);
   });
 });

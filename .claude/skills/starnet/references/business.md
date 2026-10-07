@@ -162,6 +162,13 @@ mind). Exact texts and numbers live in the code - this file says where.
   Money model unchanged: rep-owes-all + % of profit, renewal by the device's saved monthly price. The
   council's later options, NOT built (need his agreement with the rep): a wholesale price per device
   tied to cost, a debt ceiling per rep, «استلمت لحساب المندوب». Logic `lib/repSeparation.ts`.
+- **🔄 Rep reset = «من 0 إلى 0»** (his Oct 2026 ask: «أريد تصفير حساب المندوب حتى لا تظهر له أي
+  عملية سابقة»): the existing «🔄 تصفير الحساب» (`rep.resetFrom`) used to zero only his share; now
+  every line of his card starts from 0 too - «عليه لك عن أجهزته», «الصافي», «ديون أجهزته على
+  الزبائن», his customers' books, the operations list and «🔁 ترتيب ديون أجهزته» read only device
+  operations and rep-book entries after the reset (`ledgerAfterRepReset` / `bookAfterRepReset` in
+  `lib/repAccount.ts`). Nothing is deleted: the customers' own statements and the stored ledger keep
+  everything, and «إلغاء التصفير» brings the old amounts back. The rep's copy / his phone is unchanged.
 - **🗑 Delete a device operation from the customer's statement** (clients page «تفاصيل العملية», his
   Oct 2026 request): same path as the device statement's delete (`confirmAndDeleteLedgerEntry` -
   closed-month check, confirm, removes its cash entry and allocations). «✎ تعديل» there opens the
