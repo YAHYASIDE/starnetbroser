@@ -98,6 +98,17 @@ describe("rep menu records", () => {
     expect(sent).toEqual([]); // the bot told him already
   });
 
+  it("🔒 the same bot payment read twice makes one card (his Oct 2026 double payment)", async () => {
+    const payment = {
+      bot: "money" as const, chatId: "9", name: "", username: "", text: "", replied: true, kind: "repPayment" as const,
+      data: JSON.stringify({ id: "pay-77", repId: "r1", amount: 10000, currency: "SIFA", personal: false, accountId: "acc-1", target: "جهاز", method: "orange" }),
+    };
+    await handleRepMenuRecord(payment);
+    await handleRepMenuRecord(payment);
+    expect(pendingRepRequests(loadRepRequests())).toHaveLength(1);
+    expect(loadRepRequests()[0]!.botId).toBe("pay-77");
+  });
+
   it("💼 his own account becomes a handover request; broken records are dropped", () => {
     expect(repPaymentRequest({ repId: "r1", amount: 50, currency: "USD", personal: true, label: "50 دولار" })).toEqual({
       repId: "r1", kind: "handover", text: "💼 دفعة في حسابي الشخصي: 50 دولار", amount: 50, currency: "USD",

@@ -6,17 +6,21 @@ import { loadCurrencyStore } from "./currencyStore";
 import { getAccountEntries, LedgerByAccount, LedgerCurrency, PaymentMethod, saveLedgerStore, withAccountEntries } from "./ledgerStore";
 import { getAccountAllocations, loadAllocationStore, saveAllocationStore, withAccountAllocations } from "./paymentAllocationStore";
 
-export type SaveClientDevicePaymentResult = { ok: true; ledgerStore: LedgerByAccount; entryId: string } | { ok: false; message: string };
+export type SaveClientDevicePaymentResult =
+  | { ok: true; ledgerStore: LedgerByAccount; entryId: string; alreadyRecorded?: boolean }
+  | { ok: false; message: string };
 
 /** Saves a client's payment for one device (see clientDevicePayment.ts): the device's ledger, its
  * FIFO allocations, and - when the money came in as cash - the linked entry in الكاش. */
 export function saveClientDevicePayment(
   ledgerStore: LedgerByAccount,
   device: { id: string; name: string; email?: string },
-  input: { amount: number; currencyCode: string; date: string; note?: string; paymentMethod?: PaymentMethod; cashMoved?: boolean; heldByRepId?: string },
+  input: { amount: number; currencyCode: string; date: string; note?: string; paymentMethod?: PaymentMethod; cashMoved?: boolean; heldByRepId?: string; entryId?: string },
 ): SaveClientDevicePaymentResult {
   const allocationStore = loadAllocationStore();
   const entries = getAccountEntries(ledgerStore, device.id);
+  // 🔒 This very payment is already on the device: nothing is added a second time.
+  if (input.entryId && entries.some((e) => e.id === input.entryId)) return { ok: true, ledgerStore, entryId: input.entryId, alreadyRecorded: true };
   const result = buildClientDevicePayment(entries, getAccountAllocations(allocationStore, device.id), loadCurrencyStore(), {
     amount: input.amount,
     currency: input.currencyCode as LedgerCurrency,
@@ -24,6 +28,7 @@ export function saveClientDevicePayment(
     note: input.note,
     email: device.email,
     paymentMethod: input.paymentMethod ?? "cash",
+    ...(input.entryId ? { entryId: input.entryId } : {}),
   });
   if (!result.ok) return result;
   if (input.heldByRepId) result.entry.heldByRepId = input.heldByRepId;

@@ -19,7 +19,8 @@ import {
   PAYMENT_METHODS,
   PaymentMethod,
 } from "@/lib/ledgerStore";
-import { loadRepRequests, pendingRepRequests, RepRequest, resolveRepRequest, saveRepRequests } from "@/lib/repRequests";
+import { claimRepRequest, loadRepRequests, pendingRepRequests, releaseRepRequest, RepRequest, resolveRepRequest, saveRepRequests } from "@/lib/repRequests";
+import { repPaymentConfirmation } from "@/lib/repPaymentConfirm";
 import type { Representative } from "@/lib/repStore";
 import { downloadRepImage, notifyPaymentTelegram, sendRepPhoto, sendRepText } from "@/lib/telegram";
 import { resizeImageToDataUrl } from "@/lib/imageUtils";
@@ -198,19 +199,32 @@ function PaymentRequestCard({
   const [proof, setProof] = useState<string | null>(null);
   const [cashMoved, setCashMoved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   async function approve() {
+    if (busy) return;
     const device = repDevices.find((a) => a.id === deviceId);
     const value = Number(amount);
     if (!device) return setError("اختر الجهاز");
     if (!(value > 0)) return setError("المبلغ غير صحيح");
+    // 🔒 Taken BEFORE anything slow (his Oct 2026 double payment): a second tap, a second card of
+    // the same message, or a retry after a cut finds it taken and records nothing.
+    const claimed = claimRepRequest(loadRepRequests(), request.id);
+    if (!claimed) return onDone("approved");
+    saveRepRequests(claimed);
+    setBusy(true);
     const date = localDay(new Date());
     const result = saveClientDevicePayment(
       loadLedgerStore(),
       { id: device.id, name: device.name, email: device.expectedEmail || device.starlinkAccountEmail || undefined },
-      { amount: value, currencyCode: currency, date, note: `استلمها المندوب ${rep?.name ?? ""}`.trim(), paymentMethod: method, cashMoved },
+      { amount: value, currencyCode: currency, date, note: `استلمها المندوب ${rep?.name ?? ""}`.trim(), paymentMethod: method, cashMoved, entryId: `rep-${request.id}` },
     );
-    if (!result.ok) return setError(result.message);
+    if (!result.ok) {
+      saveRepRequests(releaseRepRequest(loadRepRequests(), request.id));
+      setBusy(false);
+      return setError(result.message);
+    }
+    if (result.alreadyRecorded) return onDone("approved");
     if (request.proofFileId) {
       // 📸 The photo he sent the bot becomes the payment's proof, like one attached by hand.
       const dataUrl = proof ?? (await downloadRepImage(request.proofFileId, request.proofBot));
@@ -222,10 +236,7 @@ function PaymentRequestCard({
     notifyPaymentTelegram({ deviceName: device.name, clientName, amount: value, currency, method: PAYMENT_METHOD_LABELS[method], balanceAfter, date });
     await sendRepText(
       request.repId,
-      [
-        `✅ سُجّلت دفعتك ${formatMoneyShort(value, currency)} عن ${device.name}${clientName ? ` (${clientName})` : ""}`,
-        balanceAfter > 0.005 ? `المتبقي على الزبون: ${formatMoneyShort(balanceAfter, currency)}` : "✓ لم يبقَ على الزبون شيء",
-      ].join("\n"),
+      repPaymentConfirmation({ rep, value, currency, device, clientName, balanceAfter, accounts, clientStore, ledgerStore: result.ledgerStore }),
       undefined,
       "money",
     );
@@ -284,8 +295,8 @@ function PaymentRequestCard({
       </label>
       {error && <p className="settings-hint telegram-stopped">{error}</p>}
       <div className="settings-actions">
-        <button type="button" className="dialog-primary" onClick={() => void approve()}>
-          ✅ تسجيل الدفعة
+        <button type="button" className="dialog-primary" onClick={() => void approve()} disabled={busy}>
+          {busy ? "⏳ جارِ التسجيل…" : "✅ تسجيل الدفعة"}
         </button>
         <button type="button" className="text-action" onClick={() => void reject()}>
           ❌ رفض

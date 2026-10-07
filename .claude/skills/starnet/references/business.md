@@ -207,6 +207,17 @@ mind). Exact texts and numbers live in the code - this file says where.
   a newer copy). He can archive but not delete: no «حذف» on his cards / dialog, and a removed or
   trashed operator device comes back on the next copy. The ☁️ live link (customers only) is stopped
   (`LIVE_SYNC_STOPPED`); copies no longer carry its config.
+- **🔒 A rep's bot payment is recorded once** (Oct 2026: a 10,000-franc Orange payment showed as
+  20,000 سيفا paid - recorded twice, two «سُجّلت دفعتك» messages; council report «الدفعة المكرّرة»;
+  his choice «نعم، ابنِ القفل»). The bot's record id travels as `RepRequest.botId`
+  (`hasBotRequest`: the same inbox message never makes a second card, payments and loans); the
+  approve button claims the request first (`claimRepRequest` → approved, `releaseRepRequest` if
+  saving fails) and the ledger entry id is `rep-<requestId>` (`saveClientDevicePayment` skips an
+  id already on the device). For a «زبائنه عنده فقط» rep the confirmation says what HE still owes
+  for his devices (`repPaymentConfirm.ts`), never «لم يبقَ على الزبون شيء».
+  **Units:** his reps count Orange/Nita money in **فرانك**; the app's «سيفا» is **5 فرانك** (his
+  words: «10000 فرانك… قيمة 2000 سيفا»). That day's payment was really 2,000 سيفا (he fixes it by
+  hand: one entry edited to 2,000, the duplicate deleted → 44,000 owed).
 - **🗑 Delete a device operation from the customer's statement** (clients page «تفاصيل العملية», his
   Oct 2026 request): same path as the device statement's delete (`confirmAndDeleteLedgerEntry` -
   closed-month check, confirm, removes its cash entry and allocations). «✎ تعديل» there opens the

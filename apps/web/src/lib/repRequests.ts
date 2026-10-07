@@ -22,6 +22,9 @@ export interface RepRequest {
   createdAt: string;
   status: RepRequestStatus;
   resolvedAt?: string;
+  /** 🔒 The bot's own id for what the rep sent: the same message arriving twice (the background
+   * service and the app both reading the inbox, a retry) never makes a second card. */
+  botId?: string;
   // payment
   amount?: number;
   currency?: LedgerCurrency;
@@ -197,6 +200,29 @@ export function saveRepRequests(list: RepRequestList): void {
 export function addRepRequest(list: RepRequestList, request: Omit<RepRequest, "id" | "createdAt" | "status">, now = new Date()): RepRequestList {
   const id = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `rr-${now.getTime()}-${Math.random()}`;
   return [...list, { ...request, text: request.text.trim().slice(0, 300), id, createdAt: now.toISOString(), status: "pending" }];
+}
+
+/** Already here (any status) - the bot's message was delivered again. */
+export function hasBotRequest(list: RepRequestList, botId: string | undefined): boolean {
+  return Boolean(botId) && list.some((r) => r.botId === botId);
+}
+
+/** 🔒 Taken for recording right now, before anything slow (a photo download, a bot message): a
+ * second tap, or a second identical card, finds it no longer pending and records nothing. Null
+ * when it was already taken. */
+export function claimRepRequest(list: RepRequestList, id: string, now = new Date()): RepRequestList | null {
+  const request = list.find((r) => r.id === id);
+  if (!request || request.status !== "pending") return null;
+  return resolveRepRequest(list, id, "approved", now);
+}
+
+/** Puts a claimed request back when recording it failed. */
+export function releaseRepRequest(list: RepRequestList, id: string): RepRequestList {
+  return list.map((r) => {
+    if (r.id !== id) return r;
+    const { resolvedAt: _at, ...rest } = r;
+    return { ...rest, status: "pending" as const };
+  });
 }
 
 export function resolveRepRequest(list: RepRequestList, id: string, status: Exclude<RepRequestStatus, "pending">, now = new Date()): RepRequestList {

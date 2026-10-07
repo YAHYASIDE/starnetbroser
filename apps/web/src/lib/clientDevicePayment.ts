@@ -17,6 +17,9 @@ export interface ClientDevicePaymentInput {
   note?: string;
   email?: string;
   paymentMethod: PaymentMethod;
+  /** 🔒 A fixed id (e.g. from the rep's request): recording it twice is impossible - see
+   * saveClientDevicePayment. */
+  entryId?: string;
 }
 
 export type ClientDevicePaymentResult =
@@ -38,7 +41,7 @@ export function buildClientDevicePayment(
     }
     paymentRate = { rateFromUsd: rate, usdValue: input.amount / rate };
   }
-  const entry = createLedgerEntry({
+  const created = createLedgerEntry({
     kind: "credit",
     amount: input.amount,
     currency: input.currency,
@@ -48,6 +51,7 @@ export function buildClientDevicePayment(
     date: input.date,
     paymentRate,
   });
+  const entry = input.entryId ? { ...created, id: input.entryId } : created;
   const { plan, unallocated } = planFifoAllocation(deviceEntries, deviceAllocations, input.amount, input.currency);
   const allocations = plan.map((item) => createAllocation(entry.id, item.shipmentEntryId, item.amount, input.currency));
   return { ok: true, entry, allocations, unallocated };

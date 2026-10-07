@@ -16,7 +16,7 @@ import { localDay } from "./eveningSummary";
 import { LEDGER_CURRENCIES, PAYMENT_METHOD_LABELS, PAYMENT_METHODS, type LedgerCurrency, type PaymentMethod } from "./ledgerStore";
 import { isPaymentMethod, loadActivationCosts, recordRepActivation as recordActivationOnDevice, type ActivationCost } from "./repActivation";
 import { appendRepNote, editFieldName, isRepEditField, repEditPatch } from "./repDeviceMenu";
-import { addRepRequest, loadRepRequests, resolveRepRequest, saveRepRequests, type RepRequest } from "./repRequests";
+import { addRepRequest, hasBotRequest, loadRepRequests, resolveRepRequest, saveRepRequests, type RepRequest } from "./repRequests";
 import { addRepBookEntry, currentRepOfClient, loadRepBook, saveRepBook, undoRepBookEntry } from "./repClients";
 import { loadRepresentativeStore } from "./repStore";
 import { isDemoMode } from "./settingsStore";
@@ -123,7 +123,9 @@ export function repPaymentRequest(data: Record<string, unknown>): Omit<RepReques
   const label = str(data.label) || formatMoneyShort(amount, currency);
   const method = PAYMENT_METHODS.includes(str(data.method) as PaymentMethod) ? (str(data.method) as PaymentMethod) : undefined;
   const photo = str(data.photo);
+  const botId = str(data.id);
   const extra = {
+    ...(botId ? { botId } : {}),
     ...(method ? { paymentMethod: method } : {}),
     ...(photo ? { proofFileId: photo, proofBot: str(data.bot) === "money" ? ("money" as const) : ("reps" as const) } : {}),
   };
@@ -203,6 +205,7 @@ export function repLoanRequest(data: Record<string, unknown>): Omit<RepRequest, 
   if (!repId || !(amount > 0) || !LEDGER_CURRENCIES.includes(currency as LedgerCurrency) || !app || !number) return null;
   const label = str(data.label) || formatMoneyShort(amount, currency);
   return {
+    ...(str(data.id) ? { botId: str(data.id) } : {}),
     repId,
     kind: "loan",
     text: `🏦 سلفة ${label} عبر ${app} إلى ${number}`,
@@ -311,7 +314,8 @@ export async function handleRepMenuRecord(message: TelegramInboxMessage): Promis
       return true;
     }
     const request = repPaymentRequest(data);
-    if (request) {
+    // 🔒 The same message read twice never makes a second card (his Oct 2026 double payment).
+    if (request && !hasBotRequest(loadRepRequests(), request.botId)) {
       saveRepRequests(addRepRequest(loadRepRequests(), request));
       notifyChanged();
     }
@@ -319,7 +323,7 @@ export async function handleRepMenuRecord(message: TelegramInboxMessage): Promis
   }
   if (message.kind === "repLoan") {
     const request = repLoanRequest(data);
-    if (request) {
+    if (request && !hasBotRequest(loadRepRequests(), request.botId)) {
       saveRepRequests(addRepRequest(loadRepRequests(), request));
       notifyChanged();
     }

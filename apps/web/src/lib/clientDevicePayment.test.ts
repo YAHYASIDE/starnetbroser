@@ -28,4 +28,11 @@ describe("buildClientDevicePayment", () => {
     const bad = buildClientDevicePayment([], [], { USD: store.USD! }, { amount: 10, currency: "SIFA", date: "2026-09-25", paymentMethod: "cash" });
     expect(bad.ok).toBe(false);
   });
+
+  it("🔒 a fixed id (from the rep's request) is the payment's id and its allocations'", () => {
+    const r = buildClientDevicePayment([shipment("s", 100, "2026-09-01")], [], store, { amount: 50, currency: "MRU", date: "2026-09-25", paymentMethod: "cash", entryId: "rep-req1" });
+    if (!r.ok) throw new Error("expected ok");
+    expect(r.entry.id).toBe("rep-req1");
+    expect(r.allocations.every((a) => a.paymentEntryId === "rep-req1")).toBe(true);
+  });
 });
