@@ -9,6 +9,7 @@ import { getCurrency, loadCurrencyStore } from "@/lib/currencyStore";
 import { PdfButton } from "@/components/PdfButton";
 import { RepAppCodePanel } from "@/components/RepAppCodePanel";
 import { copyGaps, copyGapsText, loadRepCopySentDevices } from "@/lib/repCopy";
+import { setRepCustomersHidden } from "@/lib/repStore";
 import { RepRequestsSection } from "@/components/RepRequestsSection";
 import { PrintableDocument } from "@/lib/pdfDocument";
 import { loadCashEntries, postRepSettlementToCash, removeLinkedCashEntries, saveCashEntries } from "@/lib/cashStore";
@@ -545,6 +546,7 @@ export default function RepresentativesPage() {
                     onDeleteSettlement={handleDeleteSettlement}
                     onShipmentShare={handleShipmentShare}
                     onReset={(resetFrom) => handleReset(rep.id, resetFrom)}
+                    onSetCustomersHidden={(hidden) => saveReps(setRepCustomersHidden(representativeStore, rep.id, hidden))}
                     onDelete={() => handleDeleteRep(rep.id)}
                     onLedgerChange={setLedgerStore}
                     focusMonth={focus?.repId === rep.id ? focus.month : undefined}
@@ -586,6 +588,8 @@ interface RepCardProps {
   focusMonth?: string;
   /** 📊 The rep's own «تقاريري»: everything to read, nothing to change. */
   readOnly?: boolean;
+  /** 🔒 «زبائنه عنده فقط» on/off (repSeparation.ts). */
+  onSetCustomersHidden?: (hidden: boolean) => void;
 }
 
 type RepPanel = "statement" | "devices" | "clients" | null;
@@ -620,7 +624,10 @@ function RepCard({
   onLedgerChange,
   focusMonth,
   readOnly = false,
+  onSetCustomersHidden,
 }: RepCardProps) {
+  // 🔒 His customers stay with him: no customer list here, only what he owes.
+  const customersHidden = Boolean(rep.customersHidden);
   const [panel, setPanel] = useState<RepPanel>(null);
   const [sheet, setSheet] = useState<RepSheet>(null);
   const [periodKind, setPeriodKind] = useState<RepPeriodKind>("all");
@@ -768,7 +775,7 @@ function RepCard({
 
       {repClients.length > 0 && (
         <div className={`rep-devices-debt${Object.values(owedToUsForClients).some((v) => v > EPSILON) ? " rep-devices-debt-due" : ""}`}>
-          <span>🧾 عليه لك عن زبائنه ({repClients.filter((r) => r.current).length})</span>
+          <span>{customersHidden ? "🧾 عليه لك عن أجهزته" : `🧾 عليه لك عن زبائنه (${repClients.filter((r) => r.current).length})`}</span>
           {Object.keys(owedToUsForClients).length === 0 ? <strong>لا شيء ✓</strong> : <StatValues values={owedToUsForClients} />}
         </div>
       )}
@@ -776,7 +783,7 @@ function RepCard({
         <div className={`rep-devices-debt rep-net${netSign > EPSILON ? " rep-devices-debt-due" : ""}`}>
           <span>
             ⚖️ الصافي {netSign > EPSILON ? "عليه لك" : netSign < -EPSILON ? "له عندك" : ""}
-            <small> (عليه عن زبائنه − حصته، بسعر اليوم)</small>
+            <small>{customersHidden ? " (عليه عن أجهزته − حصته، بسعر اليوم)" : " (عليه عن زبائنه − حصته، بسعر اليوم)"}</small>
           </span>
           {Object.keys(net).length === 0 ? <strong>متوازن ✓</strong> : <StatValues values={net} absolute />}
         </div>
@@ -785,6 +792,12 @@ function RepCard({
         <div className={`rep-devices-debt${devicesDebt.rows.length > 0 ? " rep-devices-debt-due" : ""}`}>
           <span>💳 ديون أجهزته على الزبائن{devicesDebt.rows.length > 0 ? ` (${devicesDebt.rows.length} جهاز)` : ""}</span>
           {devicesDebt.rows.length === 0 ? <strong>لا ديون ✓</strong> : <StatValues values={devicesDebt.totalByCurrency} />}
+        </div>
+      )}
+
+      {customersHidden && (
+        <div className="party-chips">
+          <span className="party-chip rep-chip-hidden">🔒 زبائنه عنده فقط</span>
         </div>
       )}
 
@@ -827,13 +840,13 @@ function RepCard({
         >
           <ActionFace icon="📡" label="الأجهزة" count={devices.length} />
         </button>
-        <button
+        {!customersHidden && <button
           type="button"
           className={`party-action${panel === "clients" ? " party-action-active" : ""}`}
           onClick={() => setPanel((p) => (p === "clients" ? null : "clients"))}
         >
           <ActionFace icon="👥" label="زبائنه" count={repClients.filter((r) => r.current).length} />
-        </button>
+        </button>}
         {!readOnly && <button type="button" className="party-action" onClick={() => setSheet({ kind: "manage" })}>
           <ActionFace icon="⚙️" label="إدارة" />
         </button>}
@@ -936,7 +949,7 @@ function RepCard({
         </div>
       )}
 
-      {panel === "clients" && (
+      {panel === "clients" && !customersHidden && (
         <div className="party-panel rep-clients">
           {untangleCount > 0 && !readOnly && (
             <button type="button" className="btn-secondary rep-transfer-btn" onClick={() => setSheet({ kind: "transfer" })}>
@@ -1151,6 +1164,27 @@ function RepCard({
                 <small>يضيف أجهزته ويسجّل دخولها من هاتفه، وتصلك جاهزة</small>
               </span>
             </button>
+            {onSetCustomersHidden && (
+              <button
+                type="button"
+                className="party-sheet-option"
+                onClick={() => {
+                  const next = !customersHidden;
+                  const question = next
+                    ? `🔒 زبائن ${rep.name} عنده فقط؟\n\n• يختفي زبائنه من صفحة الزبائن ومن بطاقات أجهزته (يظهر اسمه بدلهم).\n• رسائل واتساب والتذكيرات لأجهزته تذهب له هو.\n• أجهزته وتجديدها وما يدين لك به يبقى كما هو.\n• لا يُحذف شيء، وتعيده بنفس الزر.`
+                    : `إظهار زبائن ${rep.name} من جديد في التطبيق؟`;
+                  if (!window.confirm(question)) return;
+                  onSetCustomersHidden(next);
+                  setSheet(null);
+                }}
+              >
+                <span aria-hidden="true">🔒</span>
+                <span>
+                  <strong>{customersHidden ? "إظهار زبائنه من جديد" : "زبائنه عنده فقط"}</strong>
+                  <small>{customersHidden ? "زبائنه مخفيون الآن - تسجّل عليه هو فقط" : "تخفي زبائنه عنك وتسجّل عليه هو فقط - لا يُحذف شيء"}</small>
+                </span>
+              </button>
+            )}
             <button type="button" className="party-sheet-option" onClick={() => setSheet({ kind: "reset" })}>
               <span aria-hidden="true">🔄</span>
               <span>

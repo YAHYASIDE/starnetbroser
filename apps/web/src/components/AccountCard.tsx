@@ -77,6 +77,8 @@ interface Props {
   onOpenClient: (client: Client) => void;
   /** His rep's color (repStore REP_COLORS): the card gets a light tint of it. */
   repColor?: string;
+  /** 🔒 The device's rep keeps his customers to himself (repSeparation.ts): his name instead of a customer. */
+  heldByRepName?: string;
   /** 📱 The rep who added this device from his app (approved) - a lasting badge. */
   addedByRepName?: string;
   /** 🔗 The same device registered again (same email or KIT) - merge this one into it. */
@@ -213,6 +215,7 @@ export function AccountCard({
   previousDebts = [],
   onAddPreviousDebt,
   repColor,
+  heldByRepName,
   addedByRepName,
   twin,
   onMergeInto,
@@ -608,6 +611,10 @@ export function AccountCard({
             <button type="button" className="account-card-client-name" onClick={() => onOpenClient(client)} title="فتح بطاقة الزبون">
               {client.name}
             </button>
+          ) : heldByRepName ? (
+            <div className="account-card-client-missing">
+              <span className="badge account-card-held-by-rep">🔒 زبون {heldByRepName}</span>
+            </div>
           ) : (
             <div className="account-card-client-missing">
               <span className="badge badge-gray">الزبون غير محدد</span>

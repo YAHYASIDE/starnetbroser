@@ -13365,3 +13365,15 @@ button.today-tile {
 .party-device-back {
   align-self: flex-start;
 }
+
+/* 🔒 A device whose rep keeps his customers to himself: the rep's name instead of a customer. */
+.account-card-held-by-rep {
+  background: var(--violet-bg);
+  color: var(--violet);
+}
+
+/* 🔒 «زبائنه عنده فقط» on a rep's card. */
+.rep-chip-hidden {
+  background: var(--violet-bg);
+  color: var(--violet);
+}

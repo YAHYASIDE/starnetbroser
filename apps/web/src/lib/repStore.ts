@@ -31,6 +31,10 @@ export interface Representative {
   /** "تصفير الحساب" - a fresh start: only records after this point count toward his balances and
    * statement; older ones stay untouched, shown in the archive (see repAccount.ts). */
   resetFrom?: RepResetPoint;
+  /** 🔒 «زبائنه عنده فقط» (his Oct 2026 choice, lib/repSeparation.ts): this rep's customers are hidden
+   * from every operator screen - his devices show under his name, the operator records only on
+   * him. Hidden, never deleted; turning it off brings everything back. */
+  customersHidden?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -130,6 +134,14 @@ export function updateRepresentative(
     updatedAt: new Date().toISOString(),
   };
   return { ...store, [id]: updated };
+}
+
+/** Turns «🔒 زبائنه عنده فقط» on or off for one rep. */
+export function setRepCustomersHidden(store: RepresentativeStore, id: string, hidden: boolean): RepresentativeStore {
+  const existing = store[id];
+  if (!existing) return store;
+  const { customersHidden: _was, ...rest } = existing;
+  return { ...store, [id]: { ...rest, ...(hidden ? { customersHidden: true } : {}), updatedAt: new Date().toISOString() } };
 }
 
 export function setRepresentativeReset(

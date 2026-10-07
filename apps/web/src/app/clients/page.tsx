@@ -52,6 +52,7 @@ import {
 } from "@/lib/partyBalanceStore";
 import { PartyDirectory } from "@/components/AccountsSection";
 import { ClientDeviceCard } from "@/components/ClientDeviceCard";
+import { hiddenRepIds, visibleClients } from "@/lib/repSeparation";
 import { confirmAndDeleteLedgerEntry, LedgerEntryEditor } from "@/components/LedgerEntryEditor";
 import { moveClientToOwner, ourDebtLedgerForClients } from "@/lib/repClients";
 import { notifyPaymentTelegram } from "@/lib/telegram";
@@ -111,7 +112,9 @@ export default function ClientsPage() {
     listAccounts().then(setAccounts).catch(() => {});
   }, []);
 
-  const clients = useMemo(() => listClients(clientStore), [clientStore]);
+  // 🔒 A rep with «زبائنه عنده فقط» keeps his customers to himself (repSeparation.ts).
+  const hiddenReps = useMemo(() => hiddenRepIds(representatives), [representatives]);
+  const clients = useMemo(() => visibleClients(listClients(clientStore), hiddenReps), [clientStore, hiddenReps]);
   // A representative's customers owe HIM (repClients.ts) - their debt to us here is only their own.
   const debtLedger = useMemo(() => ourDebtLedgerForClients(ledgerStore, accounts, clients), [ledgerStore, accounts, clients]);
   const suppliers = useMemo(() => listSuppliers(supplierStore), [supplierStore]);

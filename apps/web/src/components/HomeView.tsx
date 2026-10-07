@@ -146,6 +146,7 @@ import { loadSyncQueue, localToday, nextQueuedAccount, queueProgressLabel, saveS
 import { DayActionsSheet } from "./DayActionsSheet";
 import { TravelCheckSheet } from "./TravelCheckSheet";
 import { NotificationsBell } from "./NotificationsBell";
+import { hiddenRepIds, isHiddenRepDevice, repContact } from "@/lib/repSeparation";
 import { buildTravelCheckReport, isTravelVerified, markTravelDone, needsTravelRegistration, travelDoneRepMessage, travelEarnings } from "@/lib/travelRegistration";
 import { accountsForDay, accountsOfOwner, type DayOwner } from "@/lib/dayActions";
 import { applyOutcomes, buildSyncReport, outcomeLabel, signedOutAlert } from "@/lib/syncReport";
@@ -427,6 +428,21 @@ export function HomeView({
   const [representativeStore, setRepresentativeStore] = useState<RepresentativeStore>({});
   useEffect(() => setRepresentativeStore(loadRepresentativeStore()), []);
   const representatives = useMemo(() => listRepresentatives(representativeStore), [representativeStore]);
+  // 🔒 «زبائنه عنده فقط» (repSeparation.ts): a hidden rep's device shows no customer - its messages
+  // go to the rep.
+  const hiddenReps = useMemo(() => hiddenRepIds(representativeStore), [representativeStore]);
+  const hiddenRepsRef = useRef(hiddenReps);
+  hiddenRepsRef.current = hiddenReps;
+  const representativeStoreRef = useRef(representativeStore);
+  representativeStoreRef.current = representativeStore;
+  /** The customer the operator sees on a device (none for a hidden rep's device). */
+  const visibleClientOf = (account: { clientId?: string; representativeId?: string }, store: ClientStore = clientStore) =>
+    isHiddenRepDevice(account, hiddenRepsRef.current) ? undefined : getClient(store, account.clientId);
+  /** Who a device's messages go to: its customer, or its rep when his customers are hidden. */
+  const messagePhoneOf = (account: StarlinkAccountSummary, store: ClientStore = clientStore) =>
+    isHiddenRepDevice(account, hiddenRepsRef.current)
+      ? repContact(account, representativeStoreRef.current)?.phone
+      : getClient(store, account.clientId)?.phone ?? account.phone;
 
   function handleCreateRepresentative(input: CreateRepresentativeInput): Representative {
     const result = createRepresentative(representativeStore, input);
@@ -626,7 +642,7 @@ export function HomeView({
         const outcome = queue.results?.[id];
         return outcome === "signedOut" || outcome === "stuck" || outcome === "closed";
       }).length;
-      const report = buildTravelCheckReport(queue.label, ids, accountsRef.current, (account) => getClient(clientStoreRef.current, account.clientId)?.phone ?? account.phone, skipped);
+      const report = buildTravelCheckReport(queue.label, ids, accountsRef.current, (account) => messagePhoneOf(account, clientStoreRef.current), skipped);
       if (isTelegramConnected()) void sendTelegramText(report.text, report.replyMarkup);
       setTravelResult({ label: queue.label, ids, skipped });
       void notifyPhone(report.text.split("\n").slice(0, 2).join(" · "), HOME_ROUTE);
@@ -1515,7 +1531,7 @@ export function HomeView({
       // A rep's name shows his devices too.
       list = list.filter(
         (a) =>
-          deviceMatchesQuery(query, a, a.clientId ? clientStore[a.clientId] : undefined) ||
+          deviceMatchesQuery(query, a, visibleClientOf(a)) ||
           deviceMatchesQuery(query, { name: getRepresentative(representativeStore, a.representativeId)?.name ?? "", kitNumber: "", serialNumber: "" }),
       );
     }
@@ -1554,7 +1570,7 @@ export function HomeView({
           day={longPressDay}
           dayAccounts={accountsForDay(activeAccounts, longPressDay)}
           reps={representativeStore}
-          phoneFor={(account) => getClient(clientStore, account.clientId)?.phone ?? account.phone}
+          phoneFor={(account) => messagePhoneOf(account)}
           onSync={(owner, ownerLabel) => syncDay(longPressDay, owner, ownerLabel)}
           onTravelCheck={(owner, ownerLabel) => travelCheckDay(longPressDay, owner, ownerLabel)}
           onClose={() => setLongPressDay(null)}
@@ -1565,7 +1581,7 @@ export function HomeView({
           {...travelResult}
           accounts={accounts}
           reps={representativeStore}
-          phoneFor={(account) => getClient(clientStore, account.clientId)?.phone ?? account.phone}
+          phoneFor={(account) => messagePhoneOf(account)}
           onDone={handleTravelDone}
           onClose={() => setTravelResult(null)}
         />
@@ -1699,7 +1715,7 @@ export function HomeView({
                         <button type="button" className="money-alerts-row" aria-expanded={marginOpen === d.id} onClick={() => setMarginOpen(marginOpen === d.id ? null : d.id)}>
                           <span>
                             {d.name}
-                            {d.clientId && clientStore[d.clientId] ? <small> · {clientStore[d.clientId]!.name}</small> : null}
+                            {visibleClientOf(d) ? <small> · {visibleClientOf(d)!.name}</small> : null}
                           </span>
                           <small>
                             ربح{" "}
@@ -2116,7 +2132,8 @@ export function HomeView({
                 allocations={allAllocations}
                 onLedger={(selected) => setLedgerAccount(selected)}
                 onDeviceStatement={(selected) => setStatementAccount(selected)}
-                client={getClient(clientStore, account.clientId)}
+                client={visibleClientOf(account)}
+                heldByRepName={isHiddenRepDevice(account, hiddenReps) ? repContact(account, representativeStore)?.name : undefined}
                 repColor={getRepresentative(representativeStore, account.representativeId)?.color}
                 addedByRepName={account.addedByRepId ? getRepresentative(representativeStore, account.addedByRepId)?.name ?? "مندوب" : undefined}
                 twin={viewMode === "active" ? deviceTwinMap.get(account.id) : undefined}
@@ -2200,8 +2217,8 @@ export function HomeView({
             currency: ledgerAccount.currency,
             balanceDue: ledgerAccount.balanceDue,
           }}
-          clientName={getClient(clientStore, ledgerAccount.clientId)?.name}
-          clientPhone={getClient(clientStore, ledgerAccount.clientId)?.phone ?? ledgerAccount.phone}
+          clientName={visibleClientOf(ledgerAccount)?.name ?? (isHiddenRepDevice(ledgerAccount, hiddenReps) ? repContact(ledgerAccount, representativeStore)?.name : undefined)}
+          clientPhone={messagePhoneOf(ledgerAccount)}
           representative={(() => {
             const rep = getRepresentative(representativeStore, ledgerAccount.representativeId);
             return rep ? { id: rep.id, commissionPercent: rep.commissionPercent, sharesLosses: rep.sharesLosses } : undefined;

@@ -11,6 +11,8 @@ import { loadDemoAccounts } from "@/lib/demoAccountStore";
 import { listAccounts } from "@/lib/apiClient";
 import { LEDGER_CURRENCY_LABELS, LedgerByAccount, LedgerCurrency, loadLedgerStore } from "@/lib/ledgerStore";
 import { ClientStore, loadClientStore } from "@/lib/clientStore";
+import { hiddenRepIds, isHiddenRepClient, isHiddenRepDevice, repContact } from "@/lib/repSeparation";
+import { loadRepresentativeStore, type RepresentativeStore } from "@/lib/repStore";
 import { InvoiceList, loadInvoices } from "@/lib/invoiceStore";
 import { loadPartyAdjustments, PartyAdjustmentList } from "@/lib/partyBalanceStore";
 import { loadStoreItems, loadStoreTransactions, StoreItemRegistry, StoreTransactionList } from "@/lib/storeStore";
@@ -43,6 +45,15 @@ export default function RemindersPage() {
   const [accounts, setAccounts] = useState<StarlinkAccountSummary[]>(demoAccounts);
   const [ledgerStore, setLedgerStore] = useState<LedgerByAccount>({});
   const [clientStore, setClientStore] = useState<ClientStore>({});
+  // 🔒 Reps with «زبائنه عنده فقط»: their customers' debts are not chased here; messages go to the rep.
+  const [repStore, setRepStore] = useState<RepresentativeStore>({});
+  useEffect(() => setRepStore(loadRepresentativeStore()), []);
+  const hiddenReps = useMemo(() => hiddenRepIds(repStore), [repStore]);
+  const ownAccounts = useMemo(() => accounts.filter((a) => !isHiddenRepDevice(a, hiddenReps)), [accounts, hiddenReps]);
+  const ownClientStore = useMemo(
+    () => (hiddenReps.size ? Object.fromEntries(Object.entries(clientStore).filter(([, c]) => !isHiddenRepClient(c, hiddenReps))) : clientStore),
+    [clientStore, hiddenReps],
+  );
   const [invoices, setInvoices] = useState<InvoiceList>([]);
   const [partyAdjustments, setPartyAdjustments] = useState<PartyAdjustmentList>([]);
   const [storeItems, setStoreItems] = useState<StoreItemRegistry>({});
@@ -84,8 +95,8 @@ export default function RemindersPage() {
     [suspendedWithDebt, ledgerStore],
   );
   const renewalReminders = useMemo(() => computeRenewalReminders(accounts), [accounts]);
-  const deviceDebtReminders = useMemo(() => computeDeviceDebtReminders(accounts, ledgerStore, clientStore), [accounts, ledgerStore, clientStore]);
-  const storeDebtReminders = useMemo(() => computeStoreDebtReminders(clientStore, invoices, partyAdjustments), [clientStore, invoices, partyAdjustments]);
+  const deviceDebtReminders = useMemo(() => computeDeviceDebtReminders(ownAccounts, ledgerStore, ownClientStore), [ownAccounts, ledgerStore, ownClientStore]);
+  const storeDebtReminders = useMemo(() => computeStoreDebtReminders(ownClientStore, invoices, partyAdjustments), [ownClientStore, invoices, partyAdjustments]);
   const lowStockReminders = useMemo(
     () => computeLowStockReminders(storeItems, storeTransactions),
     [storeItems, storeTransactions],
@@ -94,17 +105,18 @@ export default function RemindersPage() {
   const debtors = useMemo(
     () =>
       computeDebtAging({
-        clients: Object.values(clientStore),
-        accounts,
+        clients: Object.values(ownClientStore),
+        accounts: ownAccounts,
         invoices,
         adjustments: partyAdjustments,
         ledgerStore,
         today: new Date().toISOString().slice(0, 10),
       }),
-    [clientStore, accounts, invoices, partyAdjustments, ledgerStore],
+    [ownClientStore, ownAccounts, invoices, partyAdjustments, ledgerStore],
   );
   /** A device's own phone, or else the phone of the client it's linked to. */
-  const phoneFor = (account: StarlinkAccountSummary) => account.phone || (account.clientId ? clientStore[account.clientId]?.phone : undefined);
+  const phoneFor = (account: StarlinkAccountSummary) =>
+    isHiddenRepDevice(account, hiddenReps) ? repContact(account, repStore)?.phone : account.phone || (account.clientId ? clientStore[account.clientId]?.phone : undefined);
 
   const renewalTargets = renewalReminders.flatMap(({ account }) => {
     const link = buildWhatsAppLink(phoneFor(account), buildExpiryReminderMessage(account.name));

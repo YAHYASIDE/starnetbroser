@@ -151,6 +151,17 @@ mind). Exact texts and numbers live in the code - this file says where.
 - **🎨 Rep color on device cards** (his Oct 2026 choice «الاثنان معًا»): the whole card tinted with the
   rep's color (20%), a full 3px frame in it, and a 3px line across the middle under the device /
   customer name (`.account-card-rep-tint`). Before: a light 9% tint + one top line.
+- **🔒 «زبائنه عنده فقط» - a rep's customers separated from the operator** (Oct 2026: «أريد أن أسجّل
+  فقط على المندوب ولا أعرف حسابات زبائنه… يكفيني زبائني الشخصيون»; went to the council first - report
+  artifact «فصل زبائن المندوب»; his choice: «مفتاح لكل مندوب»). Per rep, `Representative.customersHidden`
+  (rep card → ⚙️ إدارة). On: his customers vanish from the clients page (`visibleClients`), his devices'
+  cards show «🔒 زبون <rep>» instead of the customer, WhatsApp / reminders / receipts for his devices go
+  to the rep's phone, the reminders page drops his customers' debts, and his card loses «👥 زبائنه»
+  («عليه لك عن أجهزته» stays - what he owes is unchanged). Nothing is deleted (customer stays on the
+  device, hidden - a safeguard if the rep disappears); the same button brings everything back.
+  Money model unchanged: rep-owes-all + % of profit, renewal by the device's saved monthly price. The
+  council's later options, NOT built (need his agreement with the rep): a wholesale price per device
+  tied to cost, a debt ceiling per rep, «استلمت لحساب المندوب». Logic `lib/repSeparation.ts`.
 - **🗑 Delete a device operation from the customer's statement** (clients page «تفاصيل العملية», his
   Oct 2026 request): same path as the device statement's delete (`confirmAndDeleteLedgerEntry` -
   closed-month check, confirm, removes its cash entry and allocations). «✎ تعديل» there opens the
