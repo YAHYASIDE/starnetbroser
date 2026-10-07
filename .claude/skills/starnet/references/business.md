@@ -151,6 +151,9 @@ mind). Exact texts and numbers live in the code - this file says where.
 - **🎨 Rep color on device cards** (his Oct 2026 choice «الاثنان معًا»): the whole card tinted with the
   rep's color (20%), a full 3px frame in it, and a 3px line across the middle under the device /
   customer name (`.account-card-rep-tint`). Before: a light 9% tint + one top line.
+- **🗑 Delete a device operation from the customer's statement** (clients page «تفاصيل العملية», his
+  Oct 2026 request): same path as the device statement's delete (`confirmAndDeleteLedgerEntry` -
+  closed-month check, confirm, removes its cash entry and allocations).
 - **👥 Clients page order + device cards** (his Oct 2026 request): customers are ordered by their
   latest activity - the newest of the customer edited, an operation on one of his devices, a store
   invoice, a manual balance entry (`lib/clientActivity.ts`); suppliers keep «who owes first, then

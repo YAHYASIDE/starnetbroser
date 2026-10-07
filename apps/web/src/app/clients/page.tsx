@@ -52,6 +52,7 @@ import {
 } from "@/lib/partyBalanceStore";
 import { PartyDirectory } from "@/components/AccountsSection";
 import { ClientDeviceCard } from "@/components/ClientDeviceCard";
+import { confirmAndDeleteLedgerEntry } from "@/components/LedgerEntryEditor";
 import { moveClientToOwner, ourDebtLedgerForClients } from "@/lib/repClients";
 import { notifyPaymentTelegram } from "@/lib/telegram";
 import { ClientDialog } from "@/components/ClientDialog";
@@ -366,6 +367,19 @@ export default function ClientsPage() {
           onOpenClientCard={(client: Client) => setOpenClientId(client.id)}
           onDeleteClient={handleDeleteClient}
           representatives={representatives}
+          onDeleteDeviceEntry={(entryId) => {
+            // The full ledger (not the debt view above): find the device holding this operation.
+            const full = loadLedgerStore();
+            const accountId = Object.keys(full).find((id) => (full[id] ?? []).some((e) => e.id === entryId));
+            const entry = accountId ? full[accountId]!.find((e) => e.id === entryId) : undefined;
+            if (!accountId || !entry) return false;
+            const deviceName = accounts.find((a) => a.id === accountId)?.name ?? "";
+            const result = confirmAndDeleteLedgerEntry(full, accountId, entry, deviceName);
+            if (!result) return false;
+            setLedgerStore(result.ledgerStore);
+            setAllocationStore(result.allocations);
+            return true;
+          }}
           renderDevice={(device) => (
             <ClientDeviceCard
               device={device}

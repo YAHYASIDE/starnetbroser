@@ -31,6 +31,19 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-07-client-stmt-delete",
+    date: "2026-10-07",
+    title: "🗑 حذف عملية من كشف الزبون",
+    steps: [
+      {
+        path: "/clients",
+        title: "🗑 حذف العملية",
+        before: "عملية الجهاز في كشف الزبون (شحن أو دفعة) تُحذف فقط من سجل الجهاز في الرئيسية.",
+        after: "في «تفاصيل العملية» داخل كشف الزبون زر «🗑 حذف العملية»: يسأل أولًا، ويحذف معها حركتها في الكاش وربطها بالدفعات.",
+      },
+    ],
+  },
+  {
     id: "2026-10-07-clients-recent",
     date: "2026-10-07",
     title: "👥 الزبائن: آخر من عملت عليه أولًا + بطاقة الجهاز",
