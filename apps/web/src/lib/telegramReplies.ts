@@ -28,21 +28,22 @@ import {
   REP_WORDS,
   repAccounts,
   repDaysReply,
-  repDebtsReply,
+  repPositionDebtsReply,
+  repPositionText,
   repDevicesText,
   repExpiringReply,
   repLinkRequestReply,
-  repMoney,
   type RepReply,
   type RepSearchEntry,
   repSearchIndex,
-  repStatementText,
   repStoppedReply,
   OWNER_SEARCH_KEY,
 } from "./telegramRepMessages";
 import { devicesHelp, devicesKeyboard, moneyRedirectText, REP_ALERTS_INFO, REP_HANDOVER_HINT, REP_MONEY_HELP, REP_MONEY_KEYBOARD, type RepBotNames } from "./repBots";
 import { answerCash, answerExpiring, answerStopped, buildEveningTelegram, TELEGRAM_HELP, WORDS } from "./telegramMessages";
-import { loadRepBook, repOwnClientBooks, type RepBookEntry } from "./repClients";
+import { loadRepBook, type RepBookEntry } from "./repClients";
+import { loadRepDisplayCodes, repPosition } from "./repPosition";
+import { ledgerAfterRepReset, makeRepConverter } from "./repAccount";
 
 /** Mirrors TelegramReplies.Snapshot (Java). */
 export interface TelegramReplySnapshot {
@@ -118,27 +119,30 @@ export function buildReplySnapshot(input: {
   botNames?: RepBotNames;
   /** The reps' books (repClients.ts) - read from the phone when not given. */
   repBook?: RepBookEntry[];
+  /** The currencies the reps page shows (أوقية / سيفا) - read from the phone when not given. */
+  repDisplay?: string[];
 }): TelegramReplySnapshot {
   const repBook = input.repBook ?? loadRepBook();
   const bots = input.botNames ?? {};
   const summary = buildEveningSummary({ day: input.today, accounts: input.accounts, ledgerStore: input.ledgerStore, cash: input.cash });
   const reps: Record<string, Record<string, string>> = {};
   const repSearch: Record<string, RepSearchEntry[]> = {};
-  const month = input.today.slice(0, 7);
   for (const repId of input.linkedRepIds) {
     const rep = input.representatives[repId];
     if (!rep) continue;
     const mine = repAccounts(input.accounts, repId);
     // His own customers: their balance is the one in his book (repClients.ts).
-    const own = repOwnClientBooks(repId, input.clients, input.accounts, input.ledgerStore, repBook);
-    const figures = repMoney({ rep, month, ledgerStore: input.ledgerStore, invoices: input.invoices, settlements: input.settlements, rates: input.rates });
+    // ⚖️ The same position as his card in the app, from his reset on (repPosition.ts).
+    const position = repPosition({ rep, clients: input.clients, accounts: input.accounts, ledgerStore: input.ledgerStore, book: repBook, invoices: input.invoices, settlements: input.settlements, convert: makeRepConverter(input.repDisplay ?? loadRepDisplayCodes(), input.rates) });
+    const ownBooks = new Map(position.customers.map((r) => [r.clientId, r.book]));
+    const deviceName = (accountId: string) => input.accounts.find((a) => a.id === accountId)?.name ?? "جهاز";
     const replies: Record<string, RepReply> = {
       devices: { text: repDevicesText(mine, input.clients, input.today) },
       expiring: repExpiringReply(mine, input.clients, input.today),
       stopped: repStoppedReply(mine, input.clients),
       days: repDaysReply(mine, input.clients, input.today),
-      debts: repDebtsReply(repId, input.accounts, input.ledgerStore, input.clients, own.rows),
-      statement: { text: repStatementText(rep.name, month, figures) },
+      debts: repPositionDebtsReply(position, input.accounts, input.clients),
+      statement: { text: repPositionText(rep.name, position, deviceName) },
       mypromises: { text: repPromisesText(repOpenPromises(repId, input.promises ?? [], new Set(mine.map((a) => a.clientId).filter((c): c is string => Boolean(c)))), input.today) },
     };
     reps[repId] = { name: rep.name };
@@ -146,7 +150,7 @@ export function buildReplySnapshot(input: {
       reps[repId]![kind] = reply.text;
       if (reply.markup) reps[repId]![`${kind}#kb`] = reply.markup;
     }
-    repSearch[repId] = repSearchIndex(mine, input.clients, input.ledgerStore, input.today, true, own.byClient);
+    repSearch[repId] = repSearchIndex(mine, input.clients, ledgerAfterRepReset(rep.resetFrom, input.ledgerStore), input.today, true, ownBooks);
   }
   return {
     at: snapshotTime(input.now),

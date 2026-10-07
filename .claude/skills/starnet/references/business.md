@@ -186,6 +186,15 @@ mind). Exact texts and numbers live in the code - this file says where.
   payment on it; a record another rep owes stays that rep's. «عليه لك عن أجهزته», «الصافي», the
   statement and the PDF all use it; the «ديون أجهزته على الزبائن» line is gone for him. Reps without
   the switch keep the old customer-based rule.
+- **🤖 The rep's money bot shows his card's figures** (Oct 2026: «بوت الأموال غير جيد» - «كشفي» said
+  «متعادل ✓» while he owed 46,000 سيفا, «ديون زبائني» listed pre-reset debts, «دفتري» odd balances;
+  his choices: «مثل بطاقته + PDF»، «دفتره + ما عليه لك بعد التصفير»). One computation for card and bot:
+  `lib/repPosition.ts` `repPosition` (since his reset: owed for devices, confirmed/expected share,
+  net, his book, operations). «📊 كشفي» = `repPositionText` (+ last 10 operations by device name; the
+  full PDF stays the app's «📤 أرسل له الكشف»); «💰 ديون زبائني» = `repPositionDebtsReply` (his book by
+  name, then what he owes us per device; the old «ديون زبائن أجهزتك» section is gone); «دفتري»
+  balances and the bot search read the post-reset ledger/book too. Amounts in the reps page's display
+  currency (`starnet.repDisplayCurrency`). The month-closing message uses the same text.
 - **🗑 Delete a device operation from the customer's statement** (clients page «تفاصيل العملية», his
   Oct 2026 request): same path as the device statement's delete (`confirmAndDeleteLedgerEntry` -
   closed-month check, confirm, removes its cash entry and allocations). «✎ تعديل» there opens the

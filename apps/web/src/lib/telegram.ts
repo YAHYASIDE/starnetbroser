@@ -22,7 +22,10 @@ import { getCurrency, loadCurrencyStore } from "./currencyStore";
 import { loadInvoices } from "./invoiceStore";
 import type { LedgerByAccount } from "./ledgerStore";
 import { loadRepresentativeStore, loadRepSettlements } from "./repStore";
-import { repAccounts, repMoney, repMorningMarkup, repMorningText, repStatementText, repWelcomeText } from "./telegramRepMessages";
+import { repAccounts, repMoney, repMorningMarkup, repMorningText, repPositionText, repStatementText, repWelcomeText } from "./telegramRepMessages";
+import { loadRepDisplayCodes, repPosition } from "./repPosition";
+import { makeRepConverter } from "./repAccount";
+import { loadRepBook } from "./repClients";
 import { devicesHelp, devicesKeyboard, otherBotsLines, REP_MONEY_KEYBOARD, type RepBot, type RepBotNames } from "./repBots";
 import type { PrintableDocument } from "./pdfDocument";
 import type { TelegramReplySnapshot } from "./telegramReplies";
@@ -574,7 +577,7 @@ async function rescheduleRepMornings(accounts: StarlinkAccountSummary[], morning
 }
 
 /** "📊 كشف حسابك" to every linked rep - sent when a month is closed. */
-export async function sendRepMonthlyStatements(month: string, ledgerStore: LedgerByAccount): Promise<number> {
+export async function sendRepMonthlyStatements(month: string, ledgerStore: LedgerByAccount, accounts: StarlinkAccountSummary[] = []): Promise<number> {
   if (!isRepsBotConnected() || !loadTelegramPrefs().repMonthly) return 0;
   const reps = loadRepresentativeStore();
   const currencies = loadCurrencyStore();
@@ -585,7 +588,10 @@ export async function sendRepMonthlyStatements(month: string, ledgerStore: Ledge
   for (const repId of Object.keys(loadRepChats())) {
     const rep = reps[repId];
     if (!rep) continue;
-    const text = repStatementText(rep.name, month, repMoney({ rep, month, ledgerStore, invoices, settlements, rates }));
+    // His month's share, then his whole position - the same as his card (repPosition.ts).
+    const monthLine = repStatementText(rep.name, month, repMoney({ rep, month, ledgerStore, invoices, settlements, rates })).split("\n")[1] ?? "";
+    const position = repPosition({ rep, clients: loadClientStore(), accounts, ledgerStore, book: loadRepBook(), invoices, settlements, convert: makeRepConverter(loadRepDisplayCodes(), rates) });
+    const text = [monthLine, repPositionText(rep.name, position, (id) => accounts.find((a) => a.id === id)?.name ?? "جهاز")].filter(Boolean).join("\n");
     if (await sendRepText(repId, `🗓 تم إقفال شهر\n${text}`, undefined, "money")) sent += 1;
   }
   return sent;

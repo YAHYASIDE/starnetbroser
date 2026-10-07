@@ -17,6 +17,7 @@ import { daysUntilRenewal, isStoppedAccount, money, renewalGroups } from "./tele
 import { buildWhatsAppLink, normalizePhoneForWhatsApp } from "./whatsapp";
 import { connectionLine } from "./deviceConnection";
 import { openDebtEntries } from "./deviceFault";
+import type { RepPosition } from "./repPosition";
 import { deviceHeader, deviceSections, MENU_HINT, menuFits, menuMarkup, pickDeviceMarkup, repEditValues, type RepEditField, type RepSectionCode } from "./repDeviceMenu";
 
 const MAX_LINES = 60;
@@ -147,6 +148,64 @@ export function repStatementText(repName: string, month: string, figures: RepMon
     `حصتك لشهر ${monthLabel(month)}: ${share || "0"}`,
     balanceValue > 0.005 ? `الرصيد الآن: مستحق لك ${balance}` : balanceValue < -0.005 ? `الرصيد الآن: عليك ${balance}` : "الرصيد الآن: متعادل ✓",
   ].join("\n");
+}
+
+/** "07/10" from "2026-10-07". */
+function shortDate(date: string): string {
+  const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(date);
+  return m ? `${m[2]}/${m[1]}` : date;
+}
+
+function signedMoney(values: Record<string, number>, owes: string, owed: string): string {
+  const v = Object.values(values).find((x) => Math.abs(x) > 0.005) ?? 0;
+  if (Math.abs(v) <= 0.005) return "متعادل ✓";
+  return `${v > 0 ? owes : owed} ${money(Object.fromEntries(Object.entries(values).map(([c, x]) => [c, Math.abs(x)])))}`;
+}
+
+const OPS_IN_STATEMENT = 10;
+
+/** 📊 «كشفي» - the same figures as his card in the app (his Oct 2026 choice «مثل بطاقته»). */
+export function repPositionText(repName: string, p: RepPosition, deviceName: (accountId: string) => string): string {
+  const lines = [`📊 كشف حسابك يا ${repName}`];
+  if (p.since) lines.push(`🔄 منذ ${p.since}`);
+  lines.push("", `🧾 عليك عن أجهزتك: ${money(p.owed) || "لا شيء ✓"}`, `✓ حصتك المؤكدة: ${money(p.share) || "0"}`);
+  const shareLeft = money(p.shareBalance);
+  if (shareLeft && shareLeft !== money(p.share)) lines.push(`💵 الباقي لك من حصتك بعد التسويات: ${signedMoney(p.shareBalance, "لك", "عليك")}`);
+  if (p.expectedCount > 0) lines.push(`⏳ حصتك المتوقعة (${p.expectedCount} بانتظار D): ${money(p.expectedShare) || "تُعرف بعد التسديد"}`);
+  lines.push(`⚖️ الصافي: ${signedMoney(p.net, "عليك", "لك")}`);
+  if (p.operations.length > 0) {
+    lines.push("", `📒 آخر العمليات (${Math.min(p.operations.length, OPS_IN_STATEMENT)} من ${p.operations.length}):`);
+    for (const op of p.operations.slice(0, OPS_IN_STATEMENT)) {
+      const what = op.amount > 0 ? "📡" : "💵";
+      lines.push(`• ${shortDate(op.date)} ${what} ${deviceName(op.accountId)}: ${op.amount > 0 ? "عليك" : "دفعت"} ${money({ [op.currency]: Math.abs(op.amount) })}`);
+    }
+  }
+  return lines.join("\n");
+}
+
+/** 💰 «ديون زبائني» - his book with his customers, then what he owes us for each device - all since
+ * his reset (his Oct 2026 choice «دفتره + ما عليه لك بعد التصفير»). */
+export function repPositionDebtsReply(p: RepPosition, accounts: StarlinkAccountSummary[], clients: ClientStore): RepReply {
+  const lines: string[] = [];
+  const owing = p.customers.filter((r) => Object.values(r.book).some((v) => v > 0.005));
+  if (p.customers.length > 0) {
+    const total: Record<string, number> = {};
+    for (const r of owing) for (const [c, v] of Object.entries(r.book)) if (v > 0.005) total[c] = (total[c] ?? 0) + v;
+    lines.push(owing.length === 0 ? "✓ لا ديون على زبائنك في دفترك" : `📒 زبائنك عليهم لك (دفترك): ${money(total)}`);
+    for (const r of owing.slice(0, MAX_LINES)) lines.push(`• ${r.name}: ${balanceWords(r.book)}`);
+    lines.push("");
+  }
+  const byId = new Map(accounts.map((a) => [a.id, a]));
+  const devices = [...p.owedByDevice.entries()].filter(([, b]) => Object.values(b).some((v) => Math.abs(v) > 0.005));
+  lines.push(devices.length === 0 ? "🧾 عليك لنا عن أجهزتك: لا شيء ✓" : `🧾 عليك لنا عن أجهزتك: ${money(p.owed)}`);
+  for (const [accountId, balance] of devices.slice(0, MAX_LINES)) lines.push(`• ${byId.get(accountId)?.name ?? "جهاز"}: ${money(balance)}`);
+  if (p.since) lines.push("", `🔄 منذ ${p.since}`);
+  const targets = owing.map((r) => {
+    const account = accounts.find((a) => a.clientId === r.clientId && !a.deletedAt);
+    const owed = money(Object.fromEntries(Object.entries(r.book).filter(([, v]) => v > 0.005)));
+    return account ? whatsappTarget(account, clients, (name) => debtReminderText(name, account.name, owed)) : null;
+  });
+  return { text: lines.join("\n").trim(), markup: whatsappMarkup(targets) };
 }
 
 // ---- Commands a rep can send ----
@@ -289,8 +348,8 @@ export const REP_HELP = [
   "📡 أجهزتي - كل أجهزتك وتواريخ تجديدها",
   "📅 تنتهي - أجهزتك التي تنتهي خلال 7 أيام",
   "⛔ الموقوفة - أجهزتك المتوقفة الآن",
-  "💰 ديون زبائني - ما على زبائن أجهزتك",
-  "📊 كشفي - حصتك هذا الشهر ورصيدك مع المسؤول",
+  "💰 ديون زبائني - ما على زبائنك في دفترك، وما عليك لنا عن أجهزتك",
+  "📊 كشفي - ما عليك عن أجهزتك، حصتك، والصافي",
   "📆 الأيام - أيام الشهر 1 إلى 28، اضغط على يوم لترى أجهزته",
   "🔎 بحث - أو اكتب مباشرة جزءاً من اسم زبون أو جهاز أو إيميل، أو رقم هاتف أو KIT",
   "   تحت الجهاز أزرار: 📶 الشبكة (تُحدَّث من Starlink الآن) · 📅 التجديد · 🛰️ الاشتراك · 💰 الدين · 🔢 KIT/SN · 👤 المعلومات · ✏️ تعديل · 📊 كشف · 📝 ملاحظة",

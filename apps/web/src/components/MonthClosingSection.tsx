@@ -65,7 +65,7 @@ export function MonthClosingSection({
     saveMonthClosings(next);
     setClosings(next);
     // Each rep linked to the reps bot gets his share and balance for the month.
-    void sendRepMonthlyStatements(month, ledgerStore);
+    void sendRepMonthlyStatements(month, ledgerStore, accounts);
   }
 
   return (

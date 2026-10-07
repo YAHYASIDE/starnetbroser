@@ -50,16 +50,15 @@ import {
   parseRepCommand,
   repAccounts,
   repDaysReply,
-  repDebtsReply,
+  repPositionDebtsReply,
+  repPositionText,
   repDevicesText,
   repExpiringReply,
   repLinkRequestReply,
-  repMoney,
   type RepCommand,
   type RepReply,
   repSearchIndex,
   repSearchReply,
-  repStatementText,
   repStoppedReply,
   formatMoneyShort,
   matchRepDevices,
@@ -79,7 +78,9 @@ import {
   parseTelegramCommand,
   TELEGRAM_HELP,
 } from "./telegramMessages";
-import { loadRepBook, repOwnClientBooks } from "./repClients";
+import { loadRepBook } from "./repClients";
+import { loadRepDisplayCodes, repPosition } from "./repPosition";
+import { ledgerAfterRepReset, makeRepConverter } from "./repAccount";
 
 async function loadAccounts(): Promise<StarlinkAccountSummary[]> {
   if (isDemoMode()) return loadDemoAccounts(demoAccounts);
@@ -391,7 +392,12 @@ async function repReplyFor(repId: string, rep: Representative, command: RepComma
   const clients = loadClientStore();
   const all = await loadAccounts();
   const mine = repAccounts(all, repId);
-  const own = repOwnClientBooks(repId, clients, all, loadLedgerStore(), loadRepBook());
+  const currencies = loadCurrencyStore();
+  const rates = { MRU: getCurrency(currencies, "MRU")?.rateFromUsd, SIFA: getCurrency(currencies, "SIFA")?.rateFromUsd };
+  // ⚖️ The same position as his card in the app, from his reset on (repPosition.ts).
+  const position = repPosition({ rep, clients, accounts: all, ledgerStore: loadLedgerStore(), book: loadRepBook(), invoices: loadInvoices(), settlements: loadRepSettlements(), convert: makeRepConverter(loadRepDisplayCodes(), rates) });
+  const own = { byClient: new Map(position.customers.map((r) => [r.clientId, r.book])) };
+  const searchLedger = () => ledgerAfterRepReset(rep.resetFrom, loadLedgerStore());
   switch (command.kind) {
     case "help":
       return { text: devicesHelp(repBotNames()) };
@@ -408,10 +414,10 @@ async function repReplyFor(repId: string, rep: Representative, command: RepComma
     case "stopped":
       return repStoppedReply(mine, clients);
     case "debts":
-      return repDebtsReply(repId, all, loadLedgerStore(), clients, own.rows);
+      return repPositionDebtsReply(position, all, clients);
     case "activate":
       // Normally answered by the background service (its buttons need it); this is the fallback.
-      return command.text ? repSearchReply(command.text, repSearchIndex(mine, clients, loadLedgerStore(), today, true, own.byClient), today, false, repBotNames().money) : { text: REP_ACTIVATION_HINT };
+      return command.text ? repSearchReply(command.text, repSearchIndex(mine, clients, searchLedger(), today, true, own.byClient), today, false, repBotNames().money) : { text: REP_ACTIVATION_HINT };
     case "payment":
       return { text: REP_PAYMENT_HINT };
     case "client":
@@ -423,17 +429,13 @@ async function repReplyFor(repId: string, rep: Representative, command: RepComma
     case "days":
       return repDaysReply(mine, clients, today);
     case "search":
-      return repSearchReply(command.query, repSearchIndex(mine, clients, loadLedgerStore(), today, true, own.byClient), today, false, repBotNames().money);
+      return repSearchReply(command.query, repSearchIndex(mine, clients, searchLedger(), today, true, own.byClient), today, false, repBotNames().money);
     case "unknown": {
-      const found = repSearchReply(command.text, repSearchIndex(mine, clients, loadLedgerStore(), today, true, own.byClient), today, false, repBotNames().money);
+      const found = repSearchReply(command.text, repSearchIndex(mine, clients, searchLedger(), today, true, own.byClient), today, false, repBotNames().money);
       return found.text.startsWith("🔎 لم أجد") ? { text: `${found.text}\n\n${devicesHelp(repBotNames())}` } : found;
     }
-    case "statement": {
-      const currencies = loadCurrencyStore();
-      const rates = { MRU: getCurrency(currencies, "MRU")?.rateFromUsd, SIFA: getCurrency(currencies, "SIFA")?.rateFromUsd };
-      const figures = repMoney({ rep, month: today.slice(0, 7), ledgerStore: loadLedgerStore(), invoices: loadInvoices(), settlements: loadRepSettlements(), rates });
-      return { text: repStatementText(rep.name, today.slice(0, 7), figures) };
-    }
+    case "statement":
+      return { text: repPositionText(rep.name, position, (accountId) => all.find((a) => a.id === accountId)?.name ?? "جهاز") };
   }
 }
 
