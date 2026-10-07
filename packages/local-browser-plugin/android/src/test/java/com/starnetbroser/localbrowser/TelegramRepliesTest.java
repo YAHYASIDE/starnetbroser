@@ -797,4 +797,18 @@ public class TelegramRepliesTest {
         assertFalse(undone.contains("يمكنك التراجع"));
         assertEquals("سطر واحد فقط", TelegramReplies.oneLine("  سطر\nواحد   فقط "));
     }
+
+    @Test
+    public void orangeAndNitaCountInFrancs() {
+        // His Oct 2026 rule: 5 فرانك = 1 سيفا - a rep's «10000» with أورانج is 2,000 سيفا.
+        assertTrue(TelegramReplies.isFrancApp("orange"));
+        assertTrue(TelegramReplies.isFrancApp("nita"));
+        assertFalse(TelegramReplies.isFrancApp("cash"));
+        assertFalse(TelegramReplies.isFrancApp(""));
+        TelegramReplies.Price typed = new TelegramReplies.Price(10000, "SIFA");
+        TelegramReplies.Price sifa = TelegramReplies.francToSifa(typed);
+        assertEquals(2000, sifa.amount, 0.001);
+        assertEquals("SIFA", sifa.currency);
+        assertEquals("10,000 فرانك = 2,000 سيفا", TelegramReplies.francNote(typed, sifa));
+    }
 }

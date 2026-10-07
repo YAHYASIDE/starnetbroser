@@ -1225,6 +1225,24 @@ final class TelegramReplies {
 
     /** The banking apps per currency: {code, name} - codes as PaymentMethod (ledgerStore.ts).
      * أوقية: بنكيلي / مصرفي / سداد, سيفا: أورانج موني / نيتا. */
+    /** 🟠 Apps that count in فرانك (his Oct 2026 rule: 5 فرانك = 1 سيفا). */
+    static final int FRANC_PER_SIFA = 5;
+
+    static boolean isFrancApp(String method) {
+        return "orange".equals(method) || "nita".equals(method);
+    }
+
+    /** What the rep typed in فرانك, as سيفا. */
+    static Price francToSifa(Price typed) {
+        return new Price(typed.amount / FRANC_PER_SIFA, "SIFA");
+    }
+
+    /** "10,000 فرانك = 2,000 سيفا" */
+    static String francNote(Price typed, Price sifa) {
+        java.text.DecimalFormat format = new java.text.DecimalFormat("#,##0.##", java.text.DecimalFormatSymbols.getInstance(Locale.ROOT));
+        return format.format(typed.amount) + " فرانك = " + sifa.label();
+    }
+
     static String[][] bankApps(String currency) {
         if ("MRU".equals(currency)) return new String[][] {{"bankily", "بنكيلي"}, {"masrvi", "مصرفي"}, {"sedad", "سداد"}};
         if ("SIFA".equals(currency)) return new String[][] {{"orange", "أورانج موني"}, {"nita", "نيتا"}};

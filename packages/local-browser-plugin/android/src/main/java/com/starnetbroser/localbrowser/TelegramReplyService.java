@@ -603,9 +603,12 @@ public class TelegramReplyService extends Service {
             String method = data.substring(5);
             String methodName = TelegramReplies.payMethodName(price.currency, method);
             if (methodName == null) return "اختيار غير صالح";
-            TelegramStore.setPendingPayment(context, chatId, "who", pending[1], price.currency, "", method, "");
-            askWho(context, bot, token, chatId, messageId, repId, snapshot, price, "");
-            return methodName;
+            // 🟠 أورانج / نيتا count in فرانك (5 فرانك = 1 سيفا): the amount he typed is فرانك.
+            TelegramReplies.Price paid = TelegramReplies.isFrancApp(method) && !TelegramReplies.isFrancApp(pending[4])
+                ? TelegramReplies.francToSifa(price) : price;
+            TelegramStore.setPendingPayment(context, chatId, "who", Double.toString(paid.amount), paid.currency, "", method, "");
+            askWho(context, bot, token, chatId, messageId, repId, snapshot, paid, "");
+            return paid == price ? methodName : methodName + ": " + TelegramReplies.francNote(price, paid);
         }
         if (TelegramReplies.payMethodName(price.currency, pending[4]) == null) return "اختر طريقة الدفع أولاً";
         if ("payw".equals(data)) {
