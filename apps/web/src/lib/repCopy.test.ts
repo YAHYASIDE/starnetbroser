@@ -3,6 +3,9 @@ import type { StarlinkAccountSummary } from "@starnet/shared";
 import { demoAccounts } from "./demoData";
 import { WrongPasswordError } from "./backupCrypto";
 import {
+  copyGaps,
+  copyGapsText,
+  copySnapshot,
   buildRepCopy,
   buildRepCopyFile,
   isOlderCopy,
@@ -90,5 +93,23 @@ describe("rep device card figures", () => {
     expect(summary.repShareMru).toBe(2000);
     expect(summary.expectedMru).toBe(0);
     expect(summary.rows.map((r) => r.entryId)).toEqual(["s1"]);
+  });
+});
+
+describe("📋 is the rep's copy still current", () => {
+  const dev = (id: string, extra: Partial<StarlinkAccountSummary> = {}) => ({ id, name: id, representativeId: "r1", ...extra }) as StarlinkAccountSummary;
+
+  it("no copy recorded, or nothing changed: no warning", () => {
+    const accounts = [dev("d1", { clientId: "c1" })];
+    expect(copyGaps(undefined, accounts, "r1")).toBeNull();
+    expect(copyGaps(copySnapshot(accounts, "r1"), accounts, "r1")).toBeNull();
+  });
+
+  it("counts devices given since, devices relinked, devices taken away", () => {
+    const sent = copySnapshot([dev("d1"), dev("d2", { clientId: "c1" }), dev("d3")], "r1");
+    const now = [dev("d1", { clientId: "c9" }), dev("d2", { clientId: "c1" }), dev("d3", { representativeId: "r2" }), dev("d4"), dev("d5", { archivedAt: "x" })];
+    const gaps = copyGaps(sent, now, "r1");
+    expect(gaps).toEqual({ missing: 1, relinked: 1, removed: 1 });
+    expect(copyGapsText(gaps!)).toBe("⚠️ نسخته قديمة: 1 جهاز لم يصله · 1 تغيّر زبونه · 1 لم يعد له - أرسل نسخة جديدة");
   });
 });

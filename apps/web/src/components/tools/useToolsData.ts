@@ -8,7 +8,7 @@ import { InvoiceList, loadInvoices } from "@/lib/invoiceStore";
 import { loadPartyAdjustments, PartyAdjustmentList } from "@/lib/partyBalanceStore";
 import { ClientStore, loadClientStore } from "@/lib/clientStore";
 import { CurrencyStore, listCurrencies, loadCurrencyStore } from "@/lib/currencyStore";
-import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
+import { commitDemoAccounts, loadDemoAccounts } from "@/lib/demoAccountStore";
 import { demoAccounts } from "@/lib/demoData";
 import { LedgerByAccount, loadLedgerStore } from "@/lib/ledgerStore";
 import { loadRepresentativeStore, RepresentativeStore } from "@/lib/repStore";
@@ -54,8 +54,8 @@ export function useToolsData(): ToolsData {
   }, []);
   const saveAccounts = useCallback((accounts: StarlinkAccountSummary[]) => {
     if (!isDemoMode()) return false;
-    saveDemoAccounts(accounts);
-    setData((current) => ({ ...current, accounts }));
+    // 🔗 only what the tool changed, onto the latest stored devices (lib/storeMerge.ts)
+    setData((current) => ({ ...current, accounts: commitDemoAccounts(current.accounts, accounts, "tools") }));
     return true;
   }, []);
   return { ...data, saveAccounts };

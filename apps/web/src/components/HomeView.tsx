@@ -81,7 +81,7 @@ import {
   getClient,
   listClients,
   loadClientStore,
-  saveClientStore,
+  commitClientStore,
   updateClient,
 } from "@/lib/clientStore";
 import {
@@ -114,7 +114,7 @@ import {
 } from "@/lib/paymentAllocationStore";
 import { ApiError, listAccounts } from "@/lib/apiClient";
 import { getLastBackupAt, isDemoMode, isLoggedIn, isRemindersBadgeEnabled } from "@/lib/settingsStore";
-import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
+import { commitDemoAccounts, loadDemoAccounts } from "@/lib/demoAccountStore";
 import { ACCOUNTS_CHANGED_EVENT } from "@/lib/repMenuRecords";
 import { loadRepRequests, pendingRepRequests } from "@/lib/repRequests";
 import {
@@ -396,16 +396,13 @@ export function HomeView({
 
   function handleCreateClient(input: CreateClientInput): Client {
     const result = createClient(clientStore, input);
-    setClientStore(result.store);
-    saveClientStore(result.store);
+    setClientStore(commitClientStore(clientStore, result.store));
     return result.client;
   }
 
   function handleUpdateClient(clientId: string, patch: CreateClientInput) {
     setClientStore((current) => {
-      const next = updateClient(current, clientId, patch);
-      saveClientStore(next);
-      return next;
+      return commitClientStore(current, updateClient(current, clientId, patch));
     });
   }
 
@@ -418,9 +415,7 @@ export function HomeView({
       if (account.clientId === clientId) patchAccount(account.id, { clientId: undefined });
     }
     setClientStore((current) => {
-      const next = deleteClient(current, clientId);
-      saveClientStore(next);
-      return next;
+      return commitClientStore(current, deleteClient(current, clientId));
     });
     setOpenClientId(null);
   }
@@ -923,9 +918,15 @@ export function HomeView({
       // then save, then message - and never claim success or mark anything applied unless the
       // save genuinely succeeds." Only the native ack call itself (a separately-scheduled retry
       // concern, see retryAcks) stays out here.
-      const outcome = runSyncBatch(accountsRef.current, syncs, processedSyncIds, {
+      // 🔗 a Starlink read changes only the fields it read, on the latest stored list - an older
+      // in-memory list never takes off a customer linked meanwhile (lib/storeMerge.ts)
+      const base = accountsRef.current;
+      const committed: { list: StarlinkAccountSummary[] | null } = { list: null };
+      const outcome = runSyncBatch(base, syncs, processedSyncIds, {
         isDemoMode: dataStateRef.current === "demo",
-        saveDemoAccounts,
+        saveDemoAccounts: (next) => {
+          committed.list = commitDemoAccounts(base, next, "sync");
+        },
         saveSyncedFieldsCache,
         showAlert: pushToast,
       });
@@ -936,11 +937,12 @@ export function HomeView({
         processedSyncIds.add(id);
         unackedSyncIds.add(id);
       }
-      setAccounts(outcome.accounts);
+      const applied = committed.list ?? outcome.accounts;
+      setAccounts(applied);
       // Keep this listener's own view of "current accounts" correct for the very next sync
       // without waiting for React's render -> effect cycle to catch up: a live event and a
       // resume-time drain (or two quick live events) can arrive back-to-back faster than that.
-      accountsRef.current = outcome.accounts;
+      accountsRef.current = applied;
 
       await retryAcks();
     }
@@ -1093,8 +1095,8 @@ export function HomeView({
         ? current.map((item) => item.id === account.id ? account : item)
         : [account, ...current];
 
-      if (dataState === "demo") saveDemoAccounts(next);
-      return next;
+      // 🔗 only what this edit changed, onto the latest stored list (lib/storeMerge.ts)
+      return dataState === "demo" ? commitDemoAccounts(current, next, "edit", { unlink: true }) : next;
     });
     // 🤝 Given to a rep: once all the customer's devices are that rep's, the customer is the rep's -
     // he owes us nothing, the rep owes us everything (repClients.ts).
@@ -1103,9 +1105,7 @@ export function HomeView({
       const nextAccounts = exists ? accounts.map((item) => (item.id === account.id ? account : item)) : [account, ...accounts];
       const moved = autoMoveClientToRep(clientStore[account.clientId], nextAccounts, new Date().toISOString());
       if (moved) {
-        const nextClients = { ...clientStore, [moved.id]: moved };
-        setClientStore(nextClients);
-        saveClientStore(nextClients);
+        setClientStore(commitClientStore(clientStore, { ...clientStore, [moved.id]: moved }));
         const repName = getRepresentative(representativeStore, account.representativeId)?.name ?? "المندوب";
         pushToast(`🤝 ${moved.name} صار زبون ${repName} - ديونه على ${repName}`);
       }
@@ -1132,8 +1132,7 @@ export function HomeView({
   function removeAccountCard(account: StarlinkAccountSummary) {
     setAccounts((current) => {
       const next = current.filter((item) => item.id !== account.id);
-      if (dataState === "demo") saveDemoAccounts(next);
-      return next;
+      return dataState === "demo" ? commitDemoAccounts(current, next, "remove") : next;
     });
     setDialog(null);
   }
@@ -1145,8 +1144,7 @@ export function HomeView({
   function patchAccount(accountId: string, patch: Partial<StarlinkAccountSummary>) {
     setAccounts((current) => {
       const next = current.map((item) => (item.id === accountId ? { ...item, ...patch } : item));
-      if (dataState === "demo") saveDemoAccounts(next);
-      return next;
+      return dataState === "demo" ? commitDemoAccounts(current, next, "patch", { unlink: "clientId" in patch }) : next;
     });
   }
 

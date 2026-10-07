@@ -66,6 +66,12 @@ export function saveEventLog(events: LoggedEvent[]): void {
   }
 }
 
+/** An event the app itself notices (not posted to the phone's bar): kept in the 🔔 list. */
+export function addLocalEvent(text: string, route = "/", now = Date.now()): void {
+  const event: LoggedEvent = { id: `local-${now}-${Math.random().toString(36).slice(2, 8)}`, text, route, at: now };
+  saveEventLog(mergeEvents(loadEventLog(), [event]));
+}
+
 /** Copies the events waiting on the native side into the list, then lets the native side forget them. */
 export async function drainAppEvents(): Promise<LoggedEvent[]> {
   const current = loadEventLog();

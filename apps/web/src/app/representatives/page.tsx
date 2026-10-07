@@ -8,6 +8,7 @@ import { LedgerEntryEditor } from "@/components/LedgerEntryEditor";
 import { getCurrency, loadCurrencyStore } from "@/lib/currencyStore";
 import { PdfButton } from "@/components/PdfButton";
 import { RepAppCodePanel } from "@/components/RepAppCodePanel";
+import { copyGaps, copyGapsText, loadRepCopySentDevices } from "@/lib/repCopy";
 import { RepRequestsSection } from "@/components/RepRequestsSection";
 import { PrintableDocument } from "@/lib/pdfDocument";
 import { loadCashEntries, postRepSettlementToCash, removeLinkedCashEntries, saveCashEntries } from "@/lib/cashStore";
@@ -67,13 +68,13 @@ import {
   loadLedgerStore,
   saveLedgerStore,
 } from "@/lib/ledgerStore";
-import { ClientStore, createClient, getClient, loadClientStore, saveClientStore } from "@/lib/clientStore";
+import { ClientStore, commitClientStore, createClient, getClient, loadClientStore } from "@/lib/clientStore";
 import { combinePhoneNumber, PHONE_COUNTRY_CODES, splitPhoneNumber } from "@/lib/phoneCountryCodes";
 import { formatAmount } from "@/lib/formatAmount";
 import { getStoreItem, loadStoreItems, StoreItemRegistry } from "@/lib/storeStore";
 import { demoAccounts } from "@/lib/demoData";
 import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
-import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
+import { commitDemoAccounts, loadDemoAccounts } from "@/lib/demoAccountStore";
 import { ACCOUNTS_CHANGED_EVENT } from "@/lib/repMenuRecords";
 import { isRepWorkspace } from "@/lib/repMode";
 import { RepInboxSection } from "@/components/RepInboxSection";
@@ -398,13 +399,10 @@ export default function RepresentativesPage() {
 
   // "نقل ديون زبائنه عليه": each customer (with all his devices) becomes the rep's, his balance too.
   function handleTransferClients(repId: string, clientIds: string[]) {
-    const next = transferClientsToRep(clientStore, repId, clientIds, new Date().toISOString());
-    saveClientStore(next);
-    setClientStore(next);
+    setClientStore(commitClientStore(clientStore, transferClientsToRep(clientStore, repId, clientIds, new Date().toISOString())));
     const ids = new Set(clientIds);
     const nextAccounts = accounts.map((a) => (a.clientId && ids.has(a.clientId) && !a.deletedAt ? { ...a, representativeId: repId } : a));
-    setAccounts(nextAccounts);
-    if (isDemoMode()) saveDemoAccounts(nextAccounts);
+    setAccounts(isDemoMode() ? commitDemoAccounts(accounts, nextAccounts, "rep-transfer") : nextAccounts);
     void refreshTelegramReplies().catch(() => {});
   }
 
@@ -419,14 +417,10 @@ export default function RepresentativesPage() {
     const device = accounts.find((a) => a.id === accountId);
     if (!device) return;
     const created = createClient(clientStore, { name: device.name || "زبون" });
-    saveClientStore(created.store);
-    setClientStore(created.store);
     const nextAccounts = accounts.map((a) => (a.id === accountId ? { ...a, clientId: created.client.id } : a));
-    setAccounts(nextAccounts);
-    if (isDemoMode()) saveDemoAccounts(nextAccounts);
+    setAccounts(isDemoMode() ? commitDemoAccounts(accounts, nextAccounts, "rep-loose") : nextAccounts);
     const moved = transferClientsToRep(created.store, repId, [created.client.id], new Date().toISOString());
-    saveClientStore(moved);
-    setClientStore(moved);
+    setClientStore(commitClientStore(clientStore, moved));
     void refreshTelegramReplies().catch(() => {});
   }
 
@@ -446,8 +440,7 @@ export default function RepresentativesPage() {
     saveLedgerStore(plan.ledgerStore);
     setInvoices(plan.invoices);
     saveInvoices(plan.invoices);
-    setAccounts(plan.accounts);
-    if (isDemoMode()) saveDemoAccounts(plan.accounts);
+    setAccounts(isDemoMode() ? commitDemoAccounts(accounts, plan.accounts, "rep-delete") : plan.accounts);
     saveReps(deleteRepresentative(representativeStore, repId));
   }
 
@@ -660,6 +653,8 @@ function RepCard({
   const deviceTotals = useMemo(() => totalRepDeviceCommissions(deviceRows), [deviceRows]);
   // His live devices - the same ones «📤 إرسال نسخته» sends (deleted / archived ones are not).
   const devices = accounts.filter((a) => a.representativeId === rep.id && !a.deletedAt && !a.archivedAt);
+  // 📋 What his phone lacks since the last copy he was sent (his choice: «أرسلها بيدي» + a warning).
+  const gaps = copyGaps(loadRepCopySentDevices()[rep.id], accounts, rep.id);
   const retiredCount = accounts.filter((a) => a.representativeId === rep.id && (a.deletedAt || a.archivedAt)).length;
   // His own customers (repClients.ts) - what they owe him, and what he owes us for them.
   const repClients = useMemo(() => listRepClients(rep.id, clientStore, accounts, replays), [rep.id, clientStore, accounts, replays]);
@@ -749,6 +744,12 @@ function RepCard({
           {rep.commissionPercent}%{rep.sharesLosses ? " ⚖️" : ""}
         </span>
       </div>
+
+      {gaps && (
+        <button type="button" className="rep-copy-stale" data-tour="rep-copy-stale" onClick={() => setSheet({ kind: "appCode" })}>
+          {copyGapsText(gaps)}
+        </button>
+      )}
 
       <div className="party-stats rep-stats">
         <div className="party-stat">

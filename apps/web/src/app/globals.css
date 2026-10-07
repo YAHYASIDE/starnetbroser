@@ -9347,9 +9347,19 @@ button.settings-fold-row {
 }
 
 /* A rep's color (repStore REP_COLORS): a light tint on every card of his devices */
+/* 🎨 The rep's color (his Oct 2026 choice «الاثنان معًا»): the whole card tinted with it, a full
+   frame in it, and a line across the middle under the device / customer name. */
 .account-card-rep-tint:not(.account-card-suspended) {
-  background: color-mix(in srgb, var(--rep-tint) 9%, var(--surface));
-  border-color: color-mix(in srgb, var(--rep-tint) 45%, var(--border));
+  background: color-mix(in srgb, var(--rep-tint) 20%, var(--surface));
+}
+
+.account-card-rep-tint {
+  border: 3px solid var(--rep-tint);
+}
+
+.account-card-rep-tint .account-card-top-row {
+  padding-bottom: 8px;
+  border-bottom: 3px solid var(--rep-tint);
 }
 
 .account-card-rep-tint::before {
@@ -13313,4 +13323,20 @@ button.today-tile {
 .spend-picker-row > span {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+/* 📋 His copy is behind the app (repCopy.ts copyGaps) - a tap opens «إرسال نسخته». */
+.rep-copy-stale {
+  display: block;
+  width: 100%;
+  margin: 6px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--orange);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--orange) 14%, var(--surface));
+  color: var(--text);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: start;
 }

@@ -21,7 +21,7 @@ import {
   getClient,
   listClients,
   loadClientStore,
-  saveClientStore,
+  commitClientStore,
   updateClient,
 } from "@/lib/clientStore";
 import {
@@ -38,7 +38,7 @@ import { computeBalanceByCurrency, LedgerByAccount, LedgerCurrency, loadLedgerSt
 import { AllocationsByAccount, loadAllocationStore } from "@/lib/paymentAllocationStore";
 import { demoAccounts } from "@/lib/demoData";
 import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
-import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
+import { commitDemoAccounts, loadDemoAccounts } from "@/lib/demoAccountStore";
 import { loadRepresentativeStore, RepresentativeStore } from "@/lib/repStore";
 import { listAccounts } from "@/lib/apiClient";
 import {
@@ -114,15 +114,11 @@ export default function ClientsPage() {
   const openClient = getClient(clientStore, openClientId ?? undefined);
 
   function handleCreateClient(input: CreateClientInput) {
-    const next = createClient(clientStore, input).store;
-    setClientStore(next);
-    saveClientStore(next);
+    setClientStore(commitClientStore(clientStore, createClient(clientStore, input).store));
   }
 
   function handleUpdateClient(clientId: string, input: CreateClientInput) {
-    const next = updateClient(clientStore, clientId, input);
-    setClientStore(next);
-    saveClientStore(next);
+    setClientStore(commitClientStore(clientStore, updateClient(clientStore, clientId, input)));
   }
 
   /** Removes the client record only: their devices are unlinked (kept, with every operation), and
@@ -131,23 +127,17 @@ export default function ClientsPage() {
   function handleMoveClientRep(clientId: string, repId: string | undefined, carry: boolean) {
     const client = clientStore[clientId];
     if (!client) return;
-    const next = { ...clientStore, [clientId]: moveClientToOwner(client, repId, carry, new Date().toISOString()) };
-    saveClientStore(next);
-    setClientStore(next);
+    setClientStore(commitClientStore(clientStore, { ...clientStore, [clientId]: moveClientToOwner(client, repId, carry, new Date().toISOString()) }));
     const nextAccounts = accounts.map((a) => (a.clientId === clientId && !a.deletedAt ? { ...a, representativeId: repId } : a));
-    setAccounts(nextAccounts);
-    if (isDemoMode()) saveDemoAccounts(nextAccounts);
+    setAccounts(isDemoMode() ? commitDemoAccounts(accounts, nextAccounts, "client-move") : nextAccounts);
   }
 
   function handleDeleteClient(clientId: string) {
     if (accounts.some((a) => a.clientId === clientId)) {
       const nextAccounts = accounts.map((a) => (a.clientId === clientId ? { ...a, clientId: undefined } : a));
-      setAccounts(nextAccounts);
-      if (isDemoMode()) saveDemoAccounts(nextAccounts);
+      setAccounts(isDemoMode() ? commitDemoAccounts(accounts, nextAccounts, "client-delete", { unlink: true }) : nextAccounts);
     }
-    const next = deleteClient(clientStore, clientId);
-    setClientStore(next);
-    saveClientStore(next);
+    setClientStore(commitClientStore(clientStore, deleteClient(clientStore, clientId)));
     setOpenClientId(null);
   }
 
@@ -163,13 +153,11 @@ export default function ClientsPage() {
     const gone = new Set(ids);
     if (accounts.some((a) => a.clientId && gone.has(a.clientId))) {
       const nextAccounts = accounts.map((a) => (a.clientId && gone.has(a.clientId) ? { ...a, clientId: undefined } : a));
-      setAccounts(nextAccounts);
-      if (isDemoMode()) saveDemoAccounts(nextAccounts);
+      setAccounts(isDemoMode() ? commitDemoAccounts(accounts, nextAccounts, "client-delete", { unlink: true }) : nextAccounts);
     }
     let next = clientStore;
     for (const id of ids) next = deleteClient(next, id);
-    setClientStore(next);
-    saveClientStore(next);
+    setClientStore(commitClientStore(clientStore, next));
     setOpenClientId(null);
   }
 
@@ -339,8 +327,7 @@ export default function ClientsPage() {
         devices={accounts}
         invoices={invoices}
         onSaved={(store, adjustments, message) => {
-          setClientStore(store);
-          saveClientStore(store);
+          setClientStore(commitClientStore(clientStore, store));
           setPartyAdjustments(adjustments);
           savePartyAdjustments(adjustments);
           window.alert(message);

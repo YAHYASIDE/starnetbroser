@@ -7,7 +7,7 @@ import { loadClientStore } from "./clientStore";
 import { loadCurrencyStore } from "./currencyStore";
 import { loadLedgerStore } from "./ledgerStore";
 import { exportAccountSessions, isRunningInAndroidApp } from "./localBrowser";
-import { buildRepCopy, buildRepCopyFile, markRepCopySent, repCopyFileName } from "./repCopy";
+import { buildRepCopy, buildRepCopyFile, copySnapshot, markRepCopySent, markRepCopySentDevices, repCopyFileName } from "./repCopy";
 import { ensureRepDeviceCode, repPhoneKey } from "./repDeviceTransfer";
 import { readStores, repStoreSlice } from "./repWorkspace";
 import { rejectedVersions } from "./repChanges";
@@ -56,12 +56,14 @@ export async function sendRepCopy(rep: Representative, accounts: StarlinkAccount
     const sent = await sendRepDocument(rep.id, fileName, text, caption);
     if (!sent.ok) return sent;
     markRepCopySent(rep.id, copy.sentAt);
+    markRepCopySentDevices(rep.id, copySnapshot(accounts, rep.id));
     return { ok: true, devices: copy.devices.length, via: "bot" };
   }
   try {
     const written = await Filesystem.writeFile({ path: fileName, data: text, directory: Directory.Cache, encoding: Encoding.UTF8 });
     await Share.share({ title: `نسخة ${rep.name}`, text: caption, files: [written.uri], dialogTitle: "أرسل النسخة للمندوب" });
     markRepCopySent(rep.id, copy.sentAt);
+    markRepCopySentDevices(rep.id, copySnapshot(accounts, rep.id));
     return { ok: true, devices: copy.devices.length, via: "share" };
   } catch (err) {
     const message = err instanceof Error ? err.message : "";

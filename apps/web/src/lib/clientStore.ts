@@ -7,6 +7,7 @@
  */
 
 import { formatAmount } from "./formatAmount";
+import { mergeMap } from "./storeMerge";
 
 /** From `from` on, this customer belongs to `repId` (absent = back to us). `carry` = the balance
  * so far moved over to the new owner at that moment; otherwise it stays with the previous one. */
@@ -55,6 +56,15 @@ export function loadClientStore(): ClientStore {
 export function saveClientStore(store: ClientStore): void {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+}
+
+/** 🔗 Saves what a screen changed in the customers (`base` → `next`) onto the latest stored ones,
+ * so an older in-memory copy never drops a customer added meanwhile (lib/storeMerge.ts). */
+export function commitClientStore(base: ClientStore, next: ClientStore): ClientStore {
+  if (typeof window === "undefined") return next;
+  const merged = mergeMap(loadClientStore(), base, next);
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+  return merged;
 }
 
 // ---- Pure logic below - independent of localStorage, so this is what is actually unit-tested. ----

@@ -128,7 +128,7 @@ mind). Exact texts and numbers live in the code - this file says where.
   `starnet.liveSync` - Settings → البوتات → «☁️ الربط الحيّ مع المندوبين» (save + real connection
   test); the rep's phone gets it inside his next copy. Setup he was given: Authentication →
   Anonymous on; Firestore created; rules allowing `starnet/{space}/**` to signed-in users.
-  **🔗 Links disappearing - fixed (his Oct 2026 report: «نربط الجهاز بزبون… أخرج وأرجع لا أجده
+  **🔗 Live-link side of disappearing links (his Oct 2026 report: «نربط الجهاز بزبون… أخرج وأرجع لا أجده
   مربوطًا، عندي وعند المندوب»).** Cause: a device that reached the rep's phone in a copy (made before
   the link) counted as the rep's own "unlink, now", and the rep wins a conflict → the operator's link
   was wiped on both phones on the next round (also: an older copy opened after a live link). Now
@@ -137,6 +137,25 @@ mind). Exact texts and numbers live in the code - this file says where.
   point meeting the other side for the first time keeps «a real customer beats an empty one», and the
   other side is merged every round (not only when it changed). The tracked state moved to
   `starnet.liveSyncMeta.v2` so every phone starts over once with that rule.
+  **He does NOT use the live link** (Oct 2026: «المزامنة من خلال فايربيس لم افعلها ولا اريدها») -
+  the links he lost had another cause, below.
+- **🔗 A saved customer link must never be written over (Oct 2026: linked on the card, the name
+  showed, «أخرج للشاشة الرئيسية» and back → «الزبون غير محدد», on every device, his phone and the
+  rep's; nothing else he edited was lost).** Every screen kept its own in-memory device list and saved
+  it WHOLE (`saveDemoAccounts(next)`), so any later save from an older list (a Starlink read drained
+  on resume, a page, a tool) wrote the link away. Now device/customer saves go through
+  `commitDemoAccounts(base, next, source)` / `commitClientStore(base, next)` (`lib/storeMerge.ts`):
+  only the fields that screen changed, applied onto the latest stored list. A link removed by anything
+  but him (the edit dialog, deleting a customer) posts a 🔔 «⚠️ أُزيل الزبون عن N جهاز … المصدر: …»
+  (`LinkGuardListener`) - if he ever sends that, the source names the culprit.
+- **🎨 Rep color on device cards** (his Oct 2026 choice «الاثنان معًا»): the whole card tinted with the
+  rep's color (20%), a full 3px frame in it, and a 3px line across the middle under the device /
+  customer name (`.account-card-rep-tint`). Before: a light 9% tint + one top line.
+- **📋 The rep's copy is sent by hand** (his choice «لا، أرسلها بيدي» - no automatic copy). Devices he
+  gives a rep (or links) reach the rep's phone only with the next «📤 إرسال نسخته». Each sent copy
+  records which devices / customers it held (`starnet.repCopySentDevices`); the rep card then shows
+  «⚠️ نسخته قديمة: X جهاز لم يصله · Y تغيّر زبونه · Z لم يعد له» (`repCopy.copyGaps`), a tap opens the
+  send panel. Shown only after the first copy sent with this version.
 - **📥 «استيراد زبائن من ملف»** (clients page, his Oct 2026 request: a list exported from «مدونة
   الحسابات» as PDF - 51 customers). His choices: a name that looks like an existing customer is
   **skipped automatically** (`findExistingClient`: letters folded, «ولد/بن» dropped, «سالم ولد

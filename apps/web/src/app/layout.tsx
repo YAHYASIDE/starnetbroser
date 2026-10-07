@@ -14,6 +14,7 @@ import { DeleteCodeHost } from "@/components/DeleteCodePrompt";
 import { LatinDigitInputs } from "@/components/LatinDigitInputs";
 import { WhatsNewTour } from "@/components/WhatsNewTour";
 import { LiveSyncRunner } from "@/components/LiveSyncRunner";
+import { LinkGuardListener } from "@/components/LinkGuardListener";
 
 export const metadata: Metadata = {
   title: "STAR NET",
@@ -46,6 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <BottomNav />
             <WhatsNewTour />
             <LiveSyncRunner />
+            <LinkGuardListener />
           </RepModeGate>
         </AppLockGate>
         <TelegramBridge />

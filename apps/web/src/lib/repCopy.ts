@@ -252,3 +252,64 @@ export function markRepCopySent(repId: string, at: string): void {
     // only the "last sent" line is lost
   }
 }
+
+// ---- 📋 is his copy still current? (his Oct 2026 report: devices given to the rep that he didn't
+// have - no copy had been sent since; his choice: «أرسلها بيدي» with a warning) ----
+
+/** What a sent copy held: device id -> its customer ("" = none). */
+export type CopySnapshot = Record<string, string>;
+
+const SENT_DEVICES_KEY = "starnet.repCopySentDevices";
+
+export function copySnapshot(accounts: StarlinkAccountSummary[], repId: string): CopySnapshot {
+  return Object.fromEntries(repCopyAccounts(accounts, repId).map((a) => [a.id, a.clientId ?? ""]));
+}
+
+export interface CopyGaps {
+  /** His devices now that the last copy didn't have. */
+  missing: number;
+  /** Devices in both whose customer changed since. */
+  relinked: number;
+  /** Devices in the copy that are no longer his. */
+  removed: number;
+}
+
+/** What his phone lacks since the last copy (null = no copy recorded, or nothing to send). */
+export function copyGaps(snapshot: CopySnapshot | undefined, accounts: StarlinkAccountSummary[], repId: string): CopyGaps | null {
+  if (!snapshot) return null;
+  const now = copySnapshot(accounts, repId);
+  let missing = 0;
+  let relinked = 0;
+  for (const [id, clientId] of Object.entries(now)) {
+    if (!(id in snapshot)) missing += 1;
+    else if (snapshot[id] !== clientId) relinked += 1;
+  }
+  const removed = Object.keys(snapshot).filter((id) => !(id in now)).length;
+  return missing + relinked + removed > 0 ? { missing, relinked, removed } : null;
+}
+
+export function copyGapsText(gaps: CopyGaps): string {
+  const parts = [
+    gaps.missing ? `${gaps.missing} جهاز لم يصله` : "",
+    gaps.relinked ? `${gaps.relinked} تغيّر زبونه` : "",
+    gaps.removed ? `${gaps.removed} لم يعد له` : "",
+  ].filter(Boolean);
+  return `⚠️ نسخته قديمة: ${parts.join(" · ")} - أرسل نسخة جديدة`;
+}
+
+export function loadRepCopySentDevices(): Record<string, CopySnapshot> {
+  try {
+    const parsed: unknown = JSON.parse(window.localStorage.getItem(SENT_DEVICES_KEY) ?? "{}");
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, CopySnapshot>) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function markRepCopySentDevices(repId: string, snapshot: CopySnapshot): void {
+  try {
+    window.localStorage.setItem(SENT_DEVICES_KEY, JSON.stringify({ ...loadRepCopySentDevices(), [repId]: snapshot }));
+  } catch {
+    // only the warning is lost
+  }
+}

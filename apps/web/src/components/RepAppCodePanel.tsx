@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { StarlinkAccountSummary } from "@starnet/shared";
-import { loadRepCopySentAt, repCopyAccounts } from "@/lib/repCopy";
+import { copyGaps, copyGapsText, loadRepCopySentAt, loadRepCopySentDevices, repCopyAccounts } from "@/lib/repCopy";
 import { sendRepCopy } from "@/lib/repCopySend";
 import { ensureRepDeviceCode, repDeviceCode, repPhoneKey } from "@/lib/repDeviceTransfer";
 import type { Representative } from "@/lib/repStore";
@@ -17,6 +17,7 @@ export function RepAppCodePanel({ rep, accounts }: { rep: Representative; accoun
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
   const [sentAt, setSentAt] = useState(() => loadRepCopySentAt()[rep.id]);
   const deviceCount = repCopyAccounts(accounts, rep.id).length;
+  const gaps = sentAt ? copyGaps(loadRepCopySentDevices()[rep.id], accounts, rep.id) : null;
   // 🔗 His copies open on his own phone only, once it's linked (repDeviceTransfer.ts).
   const [phoneBound, setPhoneBound] = useState(() => Boolean(repPhoneKey(rep.id)));
 
@@ -96,6 +97,7 @@ export function RepAppCodePanel({ rep, accounts }: { rep: Representative; accoun
             آخر نسخة: <bdi dir="ltr">{sentAt.slice(0, 16).replace("T", " ")}</bdi>
           </small>
         )}
+        {gaps && !copyStatus && <p className="rep-copy-stale">{copyGapsText(gaps)}</p>}
         {copyStatus && <p className="settings-hint">{copyStatus}</p>}
       </div>
       <p className="settings-hint">🔒 الملف مشفّر برمزه وبمفتاح هاتفه معاً: لا يفتحه إلا هاتف هذا المندوب. لا تعطِ الرمز لغيره.</p>
