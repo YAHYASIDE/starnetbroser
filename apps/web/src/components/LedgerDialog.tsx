@@ -1,5 +1,6 @@
 "use client";
 
+import { FrancHint } from "./FrancHint";
 import { DateInput } from "./DateInput";
 import type { RenewalPlan } from "@starnet/shared";
 import { PdfButton } from "./PdfButton";
@@ -50,7 +51,7 @@ import { PaymentRateCompletionDialog } from "./PaymentRateCompletionDialog";
 import { EditLedgerEntryDialog } from "./EditLedgerEntryDialog";
 import { confirmClosedMonthChange, ledgerEditMonthDates, ledgerEntryMonthDates } from "@/lib/monthClosing";
 import { HelpHint } from "./HelpHint";
-import { fitPayMethod, francNote, PAY_CURRENCIES, PAY_CURRENCY_LABELS, payMethodsFor, toLedgerPayment, type PayCurrency } from "@/lib/payCurrency";
+import { fitPayMethod, methodLabel, PAY_CURRENCIES, PAY_CURRENCY_LABELS, payMethodsFor, toLedgerPayment, type PayCurrency } from "@/lib/payCurrency";
 
 /** One other device linked to the same customer - siblings, never the account currently open in
  * this dialog. Lets a payment recorded here be allocated to a shipment on a DIFFERENT device
@@ -600,9 +601,7 @@ export function LedgerDialog({
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
           />
-          {payCurrency === "FRANC" && francNote(payCurrency, Number(amount)) && (
-            <p className="settings-hint">🟠 {francNote(payCurrency, Number(amount))}</p>
-          )}
+          {payCurrency === "FRANC" && <FrancHint amount={amount} />}
           <DateInput
             className="search-input"
             value={date}
@@ -882,7 +881,7 @@ export function LedgerDialog({
               </div>
               {(entry.note || entry.email || entry.paymentMethod) && (
                 <div className="ledger-entry-row-bottom">
-                  {entry.paymentMethod && <span className="ledger-entry-method">{PAYMENT_METHOD_LABELS[entry.paymentMethod]}</span>}
+                  {entry.paymentMethod && <span className="ledger-entry-method">{methodLabel(entry.paymentMethod, entry.currency, entry.amount)}</span>}
                   {entry.note && <span className="ledger-entry-note">{entry.note}</span>}
                   {entry.email && <span className="ledger-entry-email" dir="ltr">{entry.email}</span>}
                 </div>
@@ -1042,7 +1041,7 @@ export function LedgerDialog({
               clientName,
               amount: pendingPayment.amount,
               currency: pendingPayment.currency,
-              method: pendingPayment.paymentMethod ? PAYMENT_METHOD_LABELS[pendingPayment.paymentMethod] : undefined,
+              method: pendingPayment.paymentMethod ? methodLabel(pendingPayment.paymentMethod, pendingPayment.currency, pendingPayment.amount) : undefined,
               balanceAfter: balanceAfterPayment([...entries, pendingPayment], pendingPayment),
               date: pendingPayment.date,
               representativeId: representative?.id,

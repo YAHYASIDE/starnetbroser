@@ -1,10 +1,11 @@
 "use client";
 
+import { methodLabel } from "@/lib/payCurrency";
 import { formatProfitMru, sumProfitMru } from "@/lib/profitMru";
 import { useMruRate } from "@/lib/useMruRate";
 import { computeDeviceAccountingSummary, computeShipmentProfit } from "@/lib/accountingStore";
 import { computeShipmentPaymentStatus, paidTowardShipment, PaymentAllocation, ShipmentPaymentStatus } from "@/lib/paymentAllocationStore";
-import { isLegacyShipmentEntry, LEDGER_CURRENCY_LABELS, LedgerCurrency, LedgerEntry, PAYMENT_METHOD_LABELS, sortEntriesNewestFirst } from "@/lib/ledgerStore";
+import { isLegacyShipmentEntry, LEDGER_CURRENCY_LABELS, LedgerCurrency, LedgerEntry, sortEntriesNewestFirst } from "@/lib/ledgerStore";
 import { formatAmount } from "@/lib/formatAmount";
 
 interface Props {
@@ -220,7 +221,7 @@ export function DeviceStatementDialog({ accountName, entries, allocations, allEn
                     <span>
                       له <bdi dir="ltr">{formatAmount(entry.amount)}</bdi> {LEDGER_CURRENCY_LABELS[entry.currency]}
                     </span>
-                    {entry.paymentMethod && <span className="badge badge-gray">{PAYMENT_METHOD_LABELS[entry.paymentMethod]}</span>}
+                    {entry.paymentMethod && <span className="badge badge-gray">{methodLabel(entry.paymentMethod, entry.currency, entry.amount)}</span>}
                   </div>
                   {entry.note && <div className="ledger-entry-note">{entry.note}</div>}
                 </li>

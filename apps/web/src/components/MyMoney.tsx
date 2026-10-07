@@ -7,6 +7,8 @@ import { CategoryPicker } from "@/components/CategoryPicker";
 import { categoryPath, groupIdOf } from "@/lib/categoryTree";
 import { formatAmount } from "@/lib/formatAmount";
 import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, PAYMENT_METHOD_LABELS, type LedgerCurrency } from "@/lib/ledgerStore";
+import { FrancHint, FrancUnit } from "./FrancHint";
+import { francBadge, francToSifa, isFrancAccount, sifaToFranc } from "@/lib/payCurrency";
 import { accountDisplayUnit, toAccountAmount, toDisplayAmount, type AccountInput, type AccountsBook, type MoneyAccount } from "@/lib/moneyAccounts";
 import { monthLabel } from "@/lib/monthClosing";
 import {
@@ -94,7 +96,7 @@ export function SourceSelect({
 }: {
   value: MoneySourceValue;
   onChange: (value: MoneySourceValue) => void;
-  accounts: { id: string; name: string; icon: string }[];
+  accounts: { id: string; name: string; icon: string; currencyCode?: string; method?: string }[];
   label: string;
 }) {
   return (
@@ -105,6 +107,7 @@ export function SourceSelect({
         {accounts.map((a) => (
           <option key={a.id} value={a.id}>
             {a.icon} {a.name}
+            {isFrancAccount(a) ? " · بالفرانك" : ""}
           </option>
         ))}
         <option value="none">— لا هذا ولا ذاك</option>
@@ -113,7 +116,50 @@ export function SourceSelect({
   );
 }
 
-type SourceAccounts = { id: string; name: string; icon: string }[];
+type SourceAccounts = { id: string; name: string; icon: string; currencyCode?: string; method?: string }[];
+
+/** 🟠 Money in or out of أورانج / نيتا is typed in فرانك and kept in سيفا ÷5 (payCurrency.ts). */
+export function francSource(accounts: SourceAccounts, source: MoneySourceValue): boolean {
+  return isFrancAccount(accounts.find((a) => a.id === source));
+}
+
+/** The amount typed for a record: فرانك ÷5 → سيفا when it goes through أورانج / نيتا. */
+export function storedAmount(franc: boolean, typed: string, currency: string): { amount: number; currencyCode: string } {
+  const value = toNumber(typed);
+  return franc ? { amount: francToSifa(value), currencyCode: "SIFA" } : { amount: value, currencyCode: currency };
+}
+
+/** A saved amount as it is typed again (×5 فرانك for أورانج / نيتا). */
+export function typedAmount(franc: boolean, amount: number): string {
+  return String(franc ? sifaToFranc(amount) : amount);
+}
+
+/** Amount + currency, or amount + «🟠 فرانك» and its note when the money goes through أورانج / نيتا. */
+export function AmountRow({
+  amount,
+  onAmount,
+  currency,
+  onCurrency,
+  franc,
+  autoFocus,
+}: {
+  amount: string;
+  onAmount: (v: string) => void;
+  currency: string;
+  onCurrency: (code: string) => void;
+  franc: boolean;
+  autoFocus?: boolean;
+}) {
+  return (
+    <>
+      <div className="expenses-amount-row">
+        <AmountInput value={amount} onChange={onAmount} autoFocus={autoFocus} />
+        {franc ? <FrancUnit /> : <CurrencySelect value={currency} onChange={onCurrency} />}
+      </div>
+      {franc && <FrancHint amount={amount} />}
+    </>
+  );
+}
 
 // ---- 💵 الدخل ----
 
@@ -190,6 +236,9 @@ export function IncomeTab({
                       <bdi dir="ltr">{e.date.slice(5)}</bdi>
                       {e.toCash ? " · 💵 الكاش" : ""}
                       {e.accountId ? ` · ${accounts.find((a) => a.id === e.accountId)?.name ?? "🏦"}` : ""}
+                      {francBadge(e, isFrancAccount(accounts.find((a) => a.id === e.accountId))) && (
+                        <span className="franc-badge"> · {francBadge(e, true)}</span>
+                      )}
                       {e.recurringId ? " · 🔁 شهري" : ""}
                     </small>
                   </span>
@@ -251,25 +300,23 @@ function IncomeForm({
   onDelete?: () => void;
 }) {
   const [category, setCategory] = useState(editing?.categoryId ?? categoryId);
-  const [amount, setAmount] = useState(editing ? String(editing.amount) : "");
+  const [source, setSource] = useState(editing ? sourceOf(editing.toCash, editing.accountId) : "cash");
+  const [amount, setAmount] = useState(editing ? typedAmount(francSource(accounts, source), editing.amount) : "");
   const [currency, setCurrency] = useState(editing?.currencyCode ?? lastCurrency ?? "MRU");
   const [date, setDate] = useState(editing?.date ?? today());
   const [note, setNote] = useState(editing?.note ?? "");
-  const [source, setSource] = useState(editing ? sourceOf(editing.toCash, editing.accountId) : "cash");
   const [error, setError] = useState<string | null>(null);
+  const franc = francSource(accounts, source);
 
   function submit(event: FormEvent) {
     event.preventDefault();
     const { viaCash, accountId } = sourceToFields(source);
-    setError(onSave({ categoryId: category, amount: toNumber(amount), currencyCode: currency, date, note, toCash: viaCash, accountId }));
+    setError(onSave({ categoryId: category, ...storedAmount(franc, amount, currency), date, note, toCash: viaCash, accountId }));
   }
 
   return (
     <form className="party-balance-form" onSubmit={submit}>
-      <div className="expenses-amount-row">
-        <AmountInput value={amount} onChange={setAmount} autoFocus={!editing} />
-        <CurrencySelect value={currency} onChange={setCurrency} />
-      </div>
+      <AmountRow amount={amount} onAmount={setAmount} currency={currency} onCurrency={setCurrency} franc={franc} autoFocus={!editing} />
       <input className="search-input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="ملاحظة (اختياري)" />
       <div className="expenses-amount-row">
         <DateInput className="search-input" value={date} onChange={(e) => setDate(e.target.value)} />
@@ -401,7 +448,7 @@ function RecurringForm({
       className="party-balance-form"
       onSubmit={(e) => {
         e.preventDefault();
-        setError(onSave({ kind, categoryId: category, amount: toNumber(amount), currencyCode: currency, day, note, ...sourceToFields(source) }));
+        setError(onSave({ kind, categoryId: category, ...storedAmount(francSource(accounts, source), amount, currency), day, note, ...sourceToFields(source) }));
       }}
     >
       <select className="search-input" value={category} onChange={(e) => setCategory(e.target.value)} aria-label="القسم">
@@ -411,10 +458,7 @@ function RecurringForm({
           </option>
         ))}
       </select>
-      <div className="expenses-amount-row">
-        <AmountInput value={amount} onChange={setAmount} autoFocus />
-        <CurrencySelect value={currency} onChange={setCurrency} />
-      </div>
+      <AmountRow amount={amount} onAmount={setAmount} currency={currency} onCurrency={setCurrency} franc={francSource(accounts, source)} autoFocus />
       <label className="tool-field">
         <span>يوم الشهر</span>
         <select className="search-input" value={day} onChange={(e) => setDay(Number(e.target.value))}>
@@ -733,7 +777,7 @@ export function WealthCard({ wealth, onOpen }: { wealth: Wealth; onOpen: (line: 
                     </span>
                     {l.native ? (
                       <small className="money-line-native">
-                        <bdi dir="ltr">{signedMoney(l.native)}</bdi>
+                        <bdi dir="ltr">{l.franc ? francMoney(l.native) : signedMoney(l.native)}</bdi>
                       </small>
                     ) : null}
                     <bdi dir="ltr" className={l.mru === 0 ? undefined : l.kind === "owe" ? "money-out" : "money-in"}>
@@ -772,6 +816,11 @@ function signedMoney(byCurrency: Record<string, number>): string {
     .filter(([, v]) => Math.abs(v) > 0.0001)
     .map(([code, v]) => `${v < 0 ? "-" : ""}${formatAmount(Math.round(Math.abs(v) * 100) / 100)} ${currencyLabel(code)}`);
   return parts.length ? parts.join(" + ") : "0";
+}
+
+/** 🟠 أورانج / نيتا: their سيفا shown as فرانك (×5), other currencies as they are. */
+function francMoney(byCurrency: Record<string, number>): string {
+  return signedMoney(Object.fromEntries(Object.entries(byCurrency).map(([code, v]) => (code === "SIFA" ? ["فرانك", sifaToFranc(v)] : [code, v]))));
 }
 
 /** The account's balance, shown in its display unit when it has one (Orange/Nita: «فرانك»); the
@@ -825,6 +874,7 @@ export function AccountsManager({
                   </small>
                 ) : null}
                 {a.method ? <small> · دفعات «{PAYMENT_METHOD_LABELS[a.method]}» هنا</small> : null}
+                {isFrancAccount(a) ? <small className="franc-badge"> · 🟠 بالفرانك (5 فرانك = 1 سيفا)</small> : null}
               </span>
               {a.balanceSet === false ? (
                 <>
@@ -878,6 +928,9 @@ export function AccountsManager({
                 <bdi dir="ltr">
                   {formatAmount(t.amount)} {currencyLabel(t.currencyCode)}
                 </bdi>
+                {francBadge(t, [t.fromAccountId, t.toAccountId].some((id) => isFrancAccount(book.accounts.find((a) => a.id === id)))) && (
+                  <small className="franc-badge">{francBadge(t, true)}</small>
+                )}
                 <button
                   type="button"
                   className="btn-icon"

@@ -7,7 +7,7 @@
  */
 
 import { formatAmount } from "./formatAmount";
-import type { LedgerCurrency, PaymentMethod } from "./ledgerStore";
+import { PAYMENT_METHOD_LABELS, type LedgerCurrency, type PaymentMethod } from "./ledgerStore";
 import { FRANC_PER_SIFA } from "./moneyAccounts";
 
 export type PayCurrency = LedgerCurrency | "FRANC";
@@ -62,4 +62,42 @@ export function payFormOf(entry: { currency: LedgerCurrency; amount: number; pay
 export function francNote(currency: PayCurrency, amount: number): string {
   if (currency !== "FRANC" || !Number.isFinite(amount) || amount <= 0) return "";
   return `${formatAmount(amount)} فرانك = ${formatAmount(amount / FRANC_PER_SIFA)} سيفا`;
+}
+
+/** A money account that counts in فرانك: أورانج موني / نيتا (a سيفا wallet). */
+export function isFrancAccount(account: { currencyCode?: string; method?: string } | null | undefined): boolean {
+  return Boolean(account && account.currencyCode === "SIFA" && isFrancMethod(account.method as PaymentMethod));
+}
+
+/** فرانك → سيفا (÷5) and back (×5). */
+export function francToSifa(franc: number): number {
+  return franc / FRANC_PER_SIFA;
+}
+export function sifaToFranc(sifa: number): number {
+  return sifa * FRANC_PER_SIFA;
+}
+
+/** 🟠 The note shown wherever money is typed for أورانج / نيتا: what the typed فرانك are in سيفا,
+ * or how to type it while the amount is still empty. */
+export function francHint(francAmount: number, where = "أورانج / نيتا"): string {
+  if (!Number.isFinite(francAmount) || francAmount <= 0) return `${where} بالفرانك - اكتب المبلغ كما يظهر في التطبيق (5 فرانك = 1 سيفا)`;
+  return `${where} بالفرانك: ${formatAmount(francAmount)} فرانك = ${formatAmount(francToSifa(francAmount))} سيفا`;
+}
+
+/** 🟠 A fixed سيفا amount that goes through أورانج / نيتا: «8,000 سيفا = 40,000 فرانك». */
+export function sifaAsFranc(sifa: number): string {
+  return `${formatAmount(sifa)} سيفا = ${formatAmount(sifaToFranc(sifa))} فرانك`;
+}
+
+/** The فرانك badge for a saved سيفا record by أورانج / نيتا (a payment, a transfer…), or "". */
+export function francBadge(record: { currencyCode?: string; currency?: string; amount: number }, viaFranc: boolean): string {
+  const code = record.currencyCode ?? record.currency;
+  return viaFranc && code === "SIFA" ? `🟠 ${formatAmount(sifaToFranc(record.amount))} فرانك` : "";
+}
+
+/** A payment's method as shown or sent: «أورانج موني · 🟠 10,000 فرانك» for a سيفا payment by
+ * أورانج / نيتا, the plain name otherwise. */
+export function methodLabel(method: PaymentMethod, currency: string, amount: number): string {
+  const name = PAYMENT_METHOD_LABELS[method];
+  return isFrancMethod(method) && currency === "SIFA" ? `${name} · 🟠 ${formatAmount(sifaToFranc(amount))} فرانك` : name;
 }

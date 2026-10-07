@@ -1,5 +1,7 @@
 "use client";
 
+import { FrancHint, FrancUnit } from "@/components/FrancHint";
+import { francBadge, francToSifa, isFrancAccount, sifaToFranc } from "@/lib/payCurrency";
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { confirmClosedMonthChange, ledgerEntryMonthDates } from "@/lib/monthClosing";
@@ -759,6 +761,7 @@ export default function StarlinkPage() {
                               <>
                                 {out ? "إلى" : "من"} {place} <bdi dir="ltr">{formatAmount(t.paidAmount)}</bdi>{" "}
                                 {LEDGER_CURRENCY_LABELS[t.paidCurrency as LedgerCurrency] ?? t.paidCurrency}
+                                {isFrancAccount(acc) && <span className="franc-badge"> ({francBadge({ currencyCode: t.paidCurrency, amount: t.paidAmount }, true)})</span>}
                                 {t.note ? ` · ${t.note}` : ""}
                               </>
                             )}
@@ -1175,7 +1178,12 @@ function MovementForm({
   const isLoss = via === "loss";
   const viaAccount = moneyAccounts.find((a) => a.id === via);
   const [paidCurrency, setPaidCurrency] = useState<string>(initial?.paidCurrency ?? "MRU");
-  const [paidAmount, setPaidAmount] = useState(initial ? String(initial.paidAmount) : "");
+  // 🟠 أورانج / نيتا count in فرانك: typed ×5, kept in سيفا (payCurrency.ts).
+  const [paidAmount, setPaidAmount] = useState(() => {
+    if (!initial) return "";
+    const initialAccount = initial.via === "account" ? moneyAccounts.find((a) => a.id === initial.accountId) : undefined;
+    return String(isFrancAccount(initialAccount) ? sifaToFranc(initial.paidAmount) : initial.paidAmount);
+  });
   // An edit starts from what really moved, never a re-suggestion from today's rate.
   const [paidTouched, setPaidTouched] = useState(Boolean(initial));
   const [date, setDate] = useState(initial?.date ?? todayInput());
@@ -1207,7 +1215,8 @@ function MovementForm({
   // An app only holds its own currency: the amount that moved through it is in that currency.
   const currency = viaAccount ? viaAccount.currencyCode : paidCurrency;
   const rate = currency === "USD" ? 1 : currency === "MRU" ? mruRate : getCurrency(currencyStore, currency)?.rateFromUsd;
-  const suggested = Number(amountUsd) > 0 && rate ? Math.round(Number(amountUsd) * rate * 100) / 100 : undefined;
+  const franc = isFrancAccount(viaAccount);
+  const suggested = Number(amountUsd) > 0 && rate ? Math.round(Number(amountUsd) * rate * (franc ? sifaToFranc(1) : 1) * 100) / 100 : undefined;
   const shownPaid = paidTouched ? paidAmount : suggested !== undefined ? String(suggested) : "";
   const counterpartLabel = isLoss
     ? ""
@@ -1224,7 +1233,7 @@ function MovementForm({
       onSubmit(
         {
           amountUsd: Number(amountUsd),
-          paidAmount: isLoss ? 0 : Number(shownPaid),
+          paidAmount: isLoss ? 0 : franc ? francToSifa(Number(shownPaid)) : Number(shownPaid),
           paidCurrency: currency,
           date,
           note,
@@ -1289,7 +1298,9 @@ function MovementForm({
                 setPaidAmount(e.target.value);
               }}
             />
-            {viaAccount ? (
+            {franc ? (
+              <FrancUnit />
+            ) : viaAccount ? (
               <span className="search-input sl-fixed-currency">{LEDGER_CURRENCY_LABELS[currency as LedgerCurrency] ?? currency}</span>
             ) : (
               <select className="search-input" value={paidCurrency} onChange={(e) => setPaidCurrency(e.target.value)}>
@@ -1301,6 +1312,7 @@ function MovementForm({
               </select>
             )}
           </div>
+          {franc && <FrancHint amount={shownPaid} where={viaAccount?.name} />}
         </label>
       )}
       <label className="rep-form-field">

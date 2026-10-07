@@ -495,6 +495,8 @@ export interface WealthLine {
   /** The line's amount in its own (non-أوقية) currency, shown beside the أوقية total for a wallet
    * that runs in سيفا / دولار (أورانج، نيتا، كاست، بينانس، D لستارلينك). Absent for أوقية lines. */
   native?: Record<string, number>;
+  /** 🟠 أورانج / نيتا: `native` سيفا is shown in فرانك. */
+  franc?: boolean;
 }
 
 export interface Wealth {
@@ -509,6 +511,8 @@ export interface Wealth {
 export interface WealthGroup {
   name: string;
   byCurrency: Record<string, number>;
+  /** 🟠 أورانج / نيتا: its سيفا is shown in فرانك (5 فرانك = 1 سيفا). */
+  franc?: boolean;
 }
 
 export interface WealthInput {
@@ -563,7 +567,7 @@ export function buildWealth(input: WealthInput): Wealth {
   const mruBanks = input.banks.filter((b) => !bankIsForeign(b));
   const foreignBankLines = input.banks
     .filter(bankIsForeign)
-    .map((b, i) => line(`bank:${i}:${b.name}`, "", b.name, "have", [item(b.name, b.byCurrency)]));
+    .map((b, i) => ({ ...line(`bank:${i}:${b.name}`, "", b.name, "have", [item(b.name, b.byCurrency)]), ...(b.franc ? { franc: true } : {}) }));
 
   const lines: WealthLine[] = [
     line("cash", "💵", "كاش", "have", [item("الكاش", input.cash)]),

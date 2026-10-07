@@ -13421,3 +13421,21 @@ button.today-tile {
   background: var(--violet-bg);
   color: var(--violet);
 }
+
+/* 🟠 أورانج / نيتا count in فرانك (5 فرانك = 1 سيفا): the unit chip that stands in for the currency
+   select, and the note under the amount (FrancHint.tsx). */
+.franc-unit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.franc-hint {
+  margin: 0;
+}
+.franc-badge {
+  color: var(--text-muted);
+  font-size: 0.85em;
+  white-space: nowrap;
+}

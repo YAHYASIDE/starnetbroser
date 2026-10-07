@@ -1,10 +1,12 @@
 "use client";
 
+import { FrancHint } from "./FrancHint";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { saveClientDevicePayment } from "@/lib/clientDevicePaymentSave";
-import { fitPayMethod, francNote, PAY_CURRENCIES, PAY_CURRENCY_LABELS, payFormOf, payMethodsFor, toLedgerPayment, type PayCurrency } from "@/lib/payCurrency";
+import { formatAmount } from "@/lib/formatAmount";
+import { fitPayMethod, isFrancMethod, methodLabel, sifaAsFranc, sifaToFranc, PAY_CURRENCIES, PAY_CURRENCY_LABELS, payFormOf, payMethodsFor, toLedgerPayment, type PayCurrency } from "@/lib/payCurrency";
 import { duplicateQuestion, findClientDuplicates } from "@/lib/duplicates";
 import { DuplicateWarning } from "./DuplicateWarning";
 import { Client, ClientStore, createClient, listClients, loadClientStore, saveClientStore } from "@/lib/clientStore";
@@ -239,7 +241,7 @@ function PaymentRequestCard({
     const balanceAfter = computeBalanceByCurrency(result.ledgerStore[device.id] ?? [])[currency] ?? 0;
     const clientName = device.clientId ? clientStore[device.clientId]?.name : undefined;
     // To the operator's own bot only - the rep gets his confirmation just below.
-    notifyPaymentTelegram({ deviceName: device.name, clientName, amount: value, currency, method: PAYMENT_METHOD_LABELS[method], balanceAfter, date });
+    notifyPaymentTelegram({ deviceName: device.name, clientName, amount: value, currency, method: methodLabel(method, currency, value), balanceAfter, date });
     await sendRepText(
       request.repId,
       repPaymentConfirmation({ rep, value, currency, device, clientName, balanceAfter, accounts, clientStore, ledgerStore: result.ledgerStore }),
@@ -292,7 +294,7 @@ function PaymentRequestCard({
           ))}
         </select>
       </div>
-      {francNote(payCurrency, Number(amount)) && <p className="settings-hint">🟠 {francNote(payCurrency, Number(amount))}</p>}
+      {payCurrency === "FRANC" && <FrancHint amount={amount} />}
       <label className="toggle-switch-row rep-request-cash">
         <span>{cashMoved ? "💵 وصل المبلغ إلى الكاش" : "🤝 المبلغ ما زال عند المندوب"}</span>
         <span className={`toggle-switch${cashMoved ? " toggle-switch-on" : ""}`}>
@@ -518,6 +520,9 @@ function ActivationRequestCard({ request, rep, onDone }: { request: RepRequest; 
           ))}
         </select>
       </label>
+      {paid && isFrancMethod(paid) && currency === "SIFA" && Number(amount) > 0 && (
+        <p className="settings-hint franc-hint">🟠 {PAYMENT_METHOD_LABELS[paid]} بالفرانك: {sifaAsFranc(Number(amount))}</p>
+      )}
       {error && <p className="settings-hint telegram-stopped">{error}</p>}
       <div className="settings-actions">
         <button type="button" className="dialog-primary" onClick={() => void decide(true)} disabled={busy}>
@@ -557,6 +562,8 @@ function RepProofPhoto({ fileId, bot, onLoaded }: { fileId: string; bot?: "reps"
 function LoanRequestCard({ request, rep, onDone }: { request: RepRequest; rep?: Representative; onDone: (status: "approved" | "rejected") => void }) {
   const [amount, setAmount] = useState(String(request.amount ?? ""));
   const [currency, setCurrency] = useState<LedgerCurrency>(request.currency ?? "MRU");
+  // 🟠 A loan sent by أورانج / نيتا leaves the app in فرانك (5 فرانك = 1 سيفا).
+  const francLoanApp = /أورانج|اورانج|نيتا|orange|nita/i.test(request.loanApp ?? "");
   const [error, setError] = useState<string | null>(null);
   /** 📸 The transfer screenshot, sent to the rep with the confirmation. */
   const [photo, setPhoto] = useState<string | null>(null);
@@ -580,7 +587,8 @@ function LoanRequestCard({ request, rep, onDone }: { request: RepRequest; rep?: 
       setBusy(false);
       return setError(result.message);
     }
-    const text = `✅ وافق المسؤول على سلفتك ${formatMoneyShort(value, currency)} - أُرسلت عبر ${request.loanApp ?? "التطبيق"} إلى ${request.loanNumber ?? "رقمك"}.\nسُجّلت عليك في حسابك.`;
+    const viaFranc = francLoanApp && currency === "SIFA" ? ` (= ${formatAmount(sifaToFranc(value))} فرانك)` : "";
+    const text = `✅ وافق المسؤول على سلفتك ${formatMoneyShort(value, currency)}${viaFranc} - أُرسلت عبر ${request.loanApp ?? "التطبيق"} إلى ${request.loanNumber ?? "رقمك"}.\nسُجّلت عليك في حسابك.`;
     // With the screenshot: one photo message captioned with the confirmation; else the text.
     const sentPhoto = photo ? await sendRepPhoto(request.repId, photo, `📸 صورة التحويل\n${text}`) : false;
     if (!sentPhoto) await sendRepText(request.repId, text, undefined, "money");
@@ -614,6 +622,12 @@ function LoanRequestCard({ request, rep, onDone }: { request: RepRequest; rep?: 
         </select>
       </div>
       <p className="settings-hint">أرسل المبلغ من التطبيق البنكي ثم اضغط «أرسلتها» - تُسجَّل سلفةً عليه في حسابه.</p>
+      {francLoanApp && currency === "SIFA" && (
+        <p className="settings-hint franc-hint">
+          🟠 {request.loanApp} بالفرانك:{" "}
+          {Number(amount) > 0 ? `أرسل ${formatAmount(sifaToFranc(Number(amount)))} فرانك (= ${formatAmount(Number(amount))} سيفا)` : "اكتب المبلغ بالسيفا، وأرسل من التطبيق 5 أضعافه فرانك"}
+        </p>
+      )}
       {photo ? (
         <div className="rep-proof-picked">
           <img src={photo} alt="صورة التحويل" className="rep-proof-photo" />

@@ -252,7 +252,7 @@ export default function MoneyPage() {
     // Supplier / rep payments from a bank notification are read from storage (inboxVersion).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [book, incomes, expenses, debts, inboxVersion]);
-  const sources = book.accounts.map((a) => ({ id: a.id, name: a.name, icon: a.icon }));
+  const sources = book.accounts.map((a) => ({ id: a.id, name: a.name, icon: a.icon, currencyCode: a.currencyCode, method: a.method }));
   const missing = Array.from(new Set([...business.missing, ...left.missing, ...wealth.missing]));
   const shownLine = openLine ? wealth.lines.find((l) => l.key === openLine.key) ?? openLine : null;
 

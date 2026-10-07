@@ -1,5 +1,6 @@
 "use client";
 
+import { FrancHint } from "./FrancHint";
 import { DateInput } from "./DateInput";
 import { FormEvent, useState } from "react";
 import {
@@ -11,7 +12,7 @@ import {
   PaymentMethod,
   StarlinkCost,
 } from "@/lib/ledgerStore";
-import { fitPayMethod, francNote, PAY_CURRENCIES, PAY_CURRENCY_LABELS, payFormOf, payMethodsFor, toLedgerPayment, type PayCurrency } from "@/lib/payCurrency";
+import { fitPayMethod, PAY_CURRENCIES, PAY_CURRENCY_LABELS, payFormOf, payMethodsFor, toLedgerPayment, type PayCurrency } from "@/lib/payCurrency";
 import { Currency, CurrencyStore, getCurrency, UpsertCurrencyInput } from "@/lib/currencyStore";
 import { COUNTRY_CURRENCIES, CountryCurrencyOption } from "@/lib/countryCurrencies";
 import { formatAmount } from "@/lib/formatAmount";
@@ -287,9 +288,7 @@ export function EditLedgerEntryDialog({ entry, currencyStore, hasAllocations, on
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
               />
-              {payCurrency === "FRANC" && francNote(payCurrency, Number(amount)) && (
-                <p className="settings-hint">🟠 {francNote(payCurrency, Number(amount))}</p>
-              )}
+              {payCurrency === "FRANC" && <FrancHint amount={amount} />}
             </>
           )}
           <DateInput

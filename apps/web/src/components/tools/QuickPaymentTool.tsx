@@ -1,12 +1,13 @@
 "use client";
 
+import { FrancHint } from "../FrancHint";
 import { useMemo, useState } from "react";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { saveClientDevicePayment } from "@/lib/clientDevicePaymentSave";
 import { localDay } from "@/lib/eveningSummary";
 import { deviceMatchesQuery } from "@/lib/homeInsights";
 import { computeBalanceByCurrency, LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, type LedgerCurrency, PAYMENT_METHOD_LABELS, type PaymentMethod } from "@/lib/ledgerStore";
-import { fitPayMethod, francNote, PAY_CURRENCIES, PAY_CURRENCY_LABELS, payMethodsFor, toLedgerPayment, type PayCurrency } from "@/lib/payCurrency";
+import { fitPayMethod, methodLabel, francNote, PAY_CURRENCIES, PAY_CURRENCY_LABELS, payMethodsFor, toLedgerPayment, type PayCurrency } from "@/lib/payCurrency";
 import { buildReceiptWhatsAppMessage } from "@/lib/receipt";
 import { notifyPaymentTelegram } from "@/lib/telegram";
 import { buildWhatsAppLink } from "@/lib/whatsapp";
@@ -77,7 +78,7 @@ export function QuickPaymentTool({ data }: { data: ToolsData }) {
       clientName: client?.name,
       amount: stored.amount,
       currency: stored.currency,
-      method: PAYMENT_METHOD_LABELS[method],
+      method: methodLabel(method, stored.currency, stored.amount),
       balanceAfter,
       date,
       representativeId: device.representativeId,
@@ -137,7 +138,7 @@ export function QuickPaymentTool({ data }: { data: ToolsData }) {
               ))}
             </select>
           </div>
-          {francNote(currency, Number(amount)) && <p className="settings-hint">🟠 {francNote(currency, Number(amount))}</p>}
+          {currency === "FRANC" && <FrancHint amount={amount} />}
           <div className="tool-chips">
             {payMethodsFor(currency).map((m) => (
               <button key={m} type="button" className={`tool-chip${method === m ? " tool-chip-on" : ""}`} onClick={() => setMethod(m)}>

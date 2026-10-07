@@ -1,5 +1,6 @@
 "use client";
 
+import { methodLabel } from "@/lib/payCurrency";
 import { askDeleteCode } from "@/components/DeleteCodePrompt";
 import { ClientImport } from "@/components/ClientImport";
 import { LIVE_SYNC_EVENT } from "@/lib/liveSync";
@@ -34,7 +35,7 @@ import {
   updateSupplier,
 } from "@/lib/supplierStore";
 import { InvoiceList, loadInvoices } from "@/lib/invoiceStore";
-import { computeBalanceByCurrency, LedgerByAccount, LedgerCurrency, type LedgerEntry, loadLedgerStore, PAYMENT_METHOD_LABELS } from "@/lib/ledgerStore";
+import { computeBalanceByCurrency, LedgerByAccount, LedgerCurrency, type LedgerEntry, loadLedgerStore } from "@/lib/ledgerStore";
 import { AllocationsByAccount, loadAllocationStore } from "@/lib/paymentAllocationStore";
 import { demoAccounts } from "@/lib/demoData";
 import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
@@ -303,7 +304,7 @@ export default function ClientsPage() {
       clientName: device.clientId ? clientStore[device.clientId]?.name : undefined,
       amount: input.amount,
       currency: input.currencyCode,
-      method: input.paymentMethod ? PAYMENT_METHOD_LABELS[input.paymentMethod] : undefined,
+      method: input.paymentMethod ? methodLabel(input.paymentMethod, input.currencyCode, input.amount) : undefined,
       balanceAfter: computeBalanceByCurrency(result.ledgerStore[device.id] ?? [])[input.currencyCode as LedgerCurrency] ?? 0,
       date: input.date,
       representativeId: device.representativeId,

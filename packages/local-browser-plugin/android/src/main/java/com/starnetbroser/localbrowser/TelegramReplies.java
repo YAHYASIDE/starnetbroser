@@ -715,7 +715,7 @@ final class TelegramReplies {
 
     /** After the price: did the customer already pay him? */
     static String activationPaidQuestion(String plan, SearchEntry entry, Price price) {
-        return "⚡ " + plan + " - " + entry.deviceName() + " بسعر " + price.label() + "\n\n💵 هل دفع الزبون هذا المبلغ؟";
+        return "⚡ " + plan + " - " + entry.deviceName() + " بسعر " + price.label() + francLine(price, true) + "\n\n💵 هل دفع الزبون هذا المبلغ؟";
     }
 
     /** ✅ دفع - كاش / 📲 each banking app of the currency / ⏳ لم يدفع بعد (callbacks "ap:<method>" / "ap:no"). */
@@ -725,7 +725,7 @@ final class TelegramReplies {
         java.util.List<String[]> methods = new java.util.ArrayList<>(java.util.Arrays.asList(payMethods(currency)));
         if ("SIFA".equals(currency)) methods.addAll(java.util.Arrays.asList(bankApps(FRANC)));
         for (String[] m : methods) {
-            String label = CASH.equals(m[0]) ? "✅ دفع - كاش" : "✅ دفع - " + m[1];
+            String label = CASH.equals(m[0]) ? "✅ دفع - كاش" : "✅ دفع - " + m[1] + ("SIFA".equals(currency) && isFrancApp(m[0]) ? " (بالفرانك)" : "");
             rows.append('[').append(cb(label, "ap:" + m[0])).append("],");
         }
         return "{\"inline_keyboard\":[" + rows + "[" + cb("⏳ لم يدفع بعد", "ap:no") + "]]}";
@@ -738,13 +738,13 @@ final class TelegramReplies {
     }
 
     static String activationSent(String plan, SearchEntry entry, Price price, String paid) {
-        return activationSent(plan, entry, price) + "\n💵 " + activationPaidLabel(price.currency, paid);
+        return activationSent(plan, entry, price) + "\n💵 " + activationPaidLabel(price.currency, paid) + francLine(price, isFrancApp(paid));
     }
 
     static String activationToOwner(String repName, String plan, SearchEntry entry, Price price, String paid) {
         String base = activationToOwner(repName, plan, entry, price);
         int cut = base.lastIndexOf("\n\nهل توافق");
-        return base.substring(0, cut) + "\n💵 الزبون: " + activationPaidLabel(price.currency, paid)
+        return base.substring(0, cut) + "\n💵 الزبون: " + activationPaidLabel(price.currency, paid) + francLine(price, isFrancApp(paid))
             + "\n(عند موافقتك يُسجَّل تجديداً على الجهاز في التطبيق)" + base.substring(cut);
     }
 
@@ -1253,6 +1253,18 @@ final class TelegramReplies {
         return "orange".equals(method) || "nita".equals(method);
     }
 
+    /** "\n🟠 أورانج / نيتا بالفرانك: 8,000 سيفا = 40,000 فرانك" for a سيفا amount through أورانج / نيتا, else "". */
+    static String francLine(Price price, boolean viaFrancApp) {
+        if (!viaFrancApp || !"SIFA".equals(price.currency)) return "";
+        java.text.DecimalFormat format = new java.text.DecimalFormat("#,##0.##", java.text.DecimalFormatSymbols.getInstance(Locale.ROOT));
+        return "\n🟠 أورانج / نيتا بالفرانك: " + price.label() + " = " + format.format(price.amount * FRANC_PER_SIFA) + " فرانك";
+    }
+
+    /** An app's name ("أورانج موني" / "نيتا") that counts in فرانك. */
+    static boolean isFrancAppName(String appName) {
+        return appName != null && (appName.contains("أورانج") || appName.contains("نيتا"));
+    }
+
     /** What the rep typed in فرانك, as سيفا. */
     static Price francToSifa(Price typed) {
         return new Price(typed.amount / FRANC_PER_SIFA, "SIFA");
@@ -1300,7 +1312,7 @@ final class TelegramReplies {
     }
 
     static String loanNumberQuestion(Price price, String appName) {
-        return "🏦 " + price.label() + " عبر " + appName + "\n\n📱 اكتب رقم المستلم في " + appName + " (أرقام فقط):";
+        return "🏦 " + price.label() + " عبر " + appName + francLine(price, isFrancAppName(appName)) + "\n\n📱 اكتب رقم المستلم في " + appName + " (أرقام فقط):";
     }
 
     static final String LOAN_NUMBER_AGAIN = "📱 اكتب رقم المستلم بالأرقام فقط (8 أرقام على الأقل)، مثلاً 22123456";
@@ -1314,7 +1326,7 @@ final class TelegramReplies {
     }
 
     static String loanConfirmText(Price price, String appName, String number) {
-        return "📋 راجع طلب السلفة قبل إرساله:\n\n💵 المبلغ: " + price.label() + "\n📲 التطبيق: " + appName + "\n📱 رقم المستلم: " + number
+        return "📋 راجع طلب السلفة قبل إرساله:\n\n💵 المبلغ: " + price.label() + francLine(price, isFrancAppName(appName)) + "\n📲 التطبيق: " + appName + "\n📱 رقم المستلم: " + number
             + "\n\nتُسجَّل عليك في حسابك بعد أن يرسلها المسؤول.\nهل المعلومات صحيحة؟";
     }
 
@@ -1323,12 +1335,12 @@ final class TelegramReplies {
     }
 
     static String loanSent(Price price, String appName, String number) {
-        return "✅ أُرسل طلب السلفة إلى المسؤول - ينتظر موافقته، وسيصلك تأكيد هنا.\n\n💵 " + price.label() + "\n📲 " + appName + "\n📱 " + number;
+        return "✅ أُرسل طلب السلفة إلى المسؤول - ينتظر موافقته، وسيصلك تأكيد هنا.\n\n💵 " + price.label() + francLine(price, isFrancAppName(appName)) + "\n📲 " + appName + "\n📱 " + number;
     }
 
     static String loanToOwner(String repName, Price price, String appName, String number) {
         return "🏦 طلب سلفة من المندوب " + repName + ": " + price.label() + "\n📲 عبر: " + appName + "\n📱 إلى الرقم: " + number
-            + "\nأرسلها ثم وافق عليها من صفحة المندوبين في التطبيق (تُسجَّل عليه).";
+            + francLine(price, isFrancAppName(appName)) + "\nأرسلها ثم وافق عليها من صفحة المندوبين في التطبيق (تُسجَّل عليه).";
     }
 
     // ---- 💰 the money bot (mirrors repBots.ts) ----

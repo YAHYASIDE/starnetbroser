@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fitPayMethod, francNote, isFrancMethod, PAY_CURRENCIES, payFormOf, payMethodsFor, toLedgerPayment } from "./payCurrency";
+import { fitPayMethod, francBadge, francHint, francNote, isFrancAccount, isFrancMethod, methodLabel, sifaAsFranc, PAY_CURRENCIES, payFormOf, payMethodsFor, toLedgerPayment } from "./payCurrency";
 
 describe("payCurrency - «سيفا كاش فقط، أورانج موني لفرانك فقط»", () => {
   it("offers فرانك beside the three currencies", () => {
@@ -44,5 +44,25 @@ describe("payCurrency - «سيفا كاش فقط، أورانج موني لفر�
     expect(francNote("FRANC", 0)).toBe("");
     expect(isFrancMethod("nita")).toBe(true);
     expect(isFrancMethod("cash")).toBe(false);
+  });
+
+  it("knows the أورانج / نيتا accounts (سيفا wallets) and explains them", () => {
+    expect(isFrancAccount({ currencyCode: "SIFA", method: "orange" })).toBe(true);
+    expect(isFrancAccount({ currencyCode: "SIFA", method: "nita" })).toBe(true);
+    expect(isFrancAccount({ currencyCode: "SIFA" })).toBe(false); // كاش سيفا
+    expect(isFrancAccount({ currencyCode: "MRU", method: "bankily" })).toBe(false);
+    expect(isFrancAccount(undefined)).toBe(false);
+    expect(francHint(10000)).toBe("أورانج / نيتا بالفرانك: 10,000 فرانك = 2,000 سيفا");
+    expect(francHint(0, "نيتا")).toBe("نيتا بالفرانك - اكتب المبلغ كما يظهر في التطبيق (5 فرانك = 1 سيفا)");
+    expect(sifaAsFranc(8000)).toBe("8,000 سيفا = 40,000 فرانك");
+  });
+
+  it("marks saved سيفا records that went through أورانج / نيتا", () => {
+    expect(francBadge({ currencyCode: "SIFA", amount: 2000 }, true)).toBe("🟠 10,000 فرانك");
+    expect(francBadge({ currency: "SIFA", amount: 2000 }, false)).toBe("");
+    expect(francBadge({ currencyCode: "MRU", amount: 2000 }, true)).toBe("");
+    expect(methodLabel("orange", "SIFA", 2000)).toBe("أورانج موني · 🟠 10,000 فرانك");
+    expect(methodLabel("bankily", "MRU", 2000)).toBe("بنكيلي");
+    expect(methodLabel("cash", "SIFA", 2000)).toBe("نقدًا");
   });
 });

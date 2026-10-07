@@ -5,6 +5,7 @@
  * the clients page («مجموع ما لنا عند الزبائن») already show, so the final figures match them.
  */
 
+import { isFrancAccount } from "./payCurrency";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { listAccounts } from "./apiClient";
 import { computeCashBalanceByCurrency, loadCashEntries } from "./cashStore";
@@ -93,6 +94,7 @@ export function loadWealthInput(input: {
   const banks = input.book.accounts.map((account) => ({
     name: `${account.icon} ${account.name}`,
     byCurrency: accountBalance(input.book, account, loadAccountFlows(ledger, account, flows, input.book.accounts)),
+    ...(isFrancAccount(account) ? { franc: true } : {}),
   }));
 
   const clients = listClients(loadClientStore());

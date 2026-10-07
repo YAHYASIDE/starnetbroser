@@ -1,5 +1,7 @@
 "use client";
 
+import { FrancHint, FrancUnit } from "./FrancHint";
+import { francToSifa, isFrancAccount } from "@/lib/payCurrency";
 import { useMemo, useState } from "react";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { CategoryPicker } from "@/components/CategoryPicker";
@@ -42,8 +44,15 @@ function directionText(s: BankSuggestion): string {
   return "❔ لم يُفهم";
 }
 
+/** أورانج / نيتا write «F CFA» = فرانك (5 فرانك = 1 سيفا) - never the app's سيفا as it is. */
+function francNotice(s: BankSuggestion): boolean {
+  return (s.app === "orange" || s.app === "nita") && s.currencyCode === "SIFA";
+}
+
 function amountText(s: BankSuggestion): string {
-  return s.amount !== undefined ? `${formatAmount(s.amount)} ${s.currencyCode ? currencyLabel(s.currencyCode) : ""}`.trim() : "؟";
+  if (s.amount === undefined) return "؟";
+  if (francNotice(s)) return `${formatAmount(s.amount)} فرانك = ${formatAmount(francToSifa(s.amount))} سيفا`;
+  return `${formatAmount(s.amount)} ${s.currencyCode ? currencyLabel(s.currencyCode) : ""}`.trim();
 }
 
 /** «📩 عمليات البنوك»: how many wait, and the switch to turn the reading on. */
@@ -207,6 +216,7 @@ export function SuggestionConfirm({
   const firstAccount = accountForApp(data.accounts, transfer ? s.toApp : s.app) ?? data.accounts[0];
   const [accountId, setAccountId] = useState(firstAccount?.id ?? "");
   const account = data.accounts.find((a) => a.id === accountId);
+  const franc = isFrancAccount(account);
   const [direction, setDirection] = useState<"in" | "out">(transfer || s.kind === "in" ? "in" : "out");
   const [amount, setAmount] = useState(s.amount !== undefined ? String(s.amount) : "");
   const [currency, setCurrency] = useState(s.currencyCode ?? firstAccount?.currencyCode ?? "MRU");
@@ -287,7 +297,8 @@ export function SuggestionConfirm({
         picked = { type: "cash" };
         break;
     }
-    setError(onSave({ account, direction, amount: value, currencyCode: currency, date, note, choice: picked }));
+    // 🟠 أورانج / نيتا: the amount is in فرانك, kept in سيفا ÷5.
+    setError(onSave({ account, direction, amount: franc ? francToSifa(value) : value, currencyCode: franc ? "SIFA" : currency, date, note, choice: picked }));
   }
 
   return (
@@ -351,14 +362,19 @@ export function SuggestionConfirm({
 
       <div className="expenses-amount-row">
         <input className="search-input" type="text" lang="en" dir="ltr" inputMode="decimal" placeholder="المبلغ" value={amount} onChange={(e) => setAmount(e.target.value)} />
-        <select className="search-input" value={currency} onChange={(e) => setCurrency(e.target.value)} aria-label="العملة">
-          {LEDGER_CURRENCIES.map((code) => (
-            <option key={code} value={code}>
-              {currencyLabel(code)}
-            </option>
-          ))}
-        </select>
+        {franc ? (
+          <FrancUnit />
+        ) : (
+          <select className="search-input" value={currency} onChange={(e) => setCurrency(e.target.value)} aria-label="العملة">
+            {LEDGER_CURRENCIES.map((code) => (
+              <option key={code} value={code}>
+                {currencyLabel(code)}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
+      {franc && <FrancHint amount={amount} where={account?.name} />}
       <DateInput className="search-input" value={date} onChange={(e) => setDate(e.target.value)} />
 
       <strong className="bank-confirm-q">ماذا كانت؟</strong>

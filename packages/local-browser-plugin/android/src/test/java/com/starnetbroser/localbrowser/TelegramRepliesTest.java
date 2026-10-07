@@ -830,4 +830,16 @@ public class TelegramRepliesTest {
         // a loan still goes out through أورانج / نيتا
         assertEquals(2, TelegramReplies.loanApps("SIFA").length);
     }
+
+    @Test
+    public void francHintWhereverOrangeOrNitaCarriesSifa() {
+        TelegramReplies.Price sifa = new TelegramReplies.Price(8000, "SIFA");
+        assertEquals("\n🟠 أورانج / نيتا بالفرانك: 8,000 سيفا = 40,000 فرانك", TelegramReplies.francLine(sifa, true));
+        assertEquals("", TelegramReplies.francLine(sifa, false));
+        assertEquals("", TelegramReplies.francLine(new TelegramReplies.Price(8000, "MRU"), true));
+        assertTrue(TelegramReplies.isFrancAppName("أورانج موني") && TelegramReplies.isFrancAppName("نيتا") && !TelegramReplies.isFrancAppName("بنكيلي"));
+        assertTrue(TelegramReplies.loanConfirmText(sifa, "أورانج موني", "74646158").contains("= 40,000 فرانك"));
+        assertTrue(TelegramReplies.loanToOwner("علي", sifa, "نيتا", "22227268").contains("= 40,000 فرانك"));
+        assertTrue(TelegramReplies.activationPaidMarkup("SIFA").contains("✅ دفع - أورانج موني (بالفرانك)"));
+    }
 }

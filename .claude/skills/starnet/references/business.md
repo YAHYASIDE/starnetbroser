@@ -231,6 +231,19 @@ mind). Exact texts and numbers live in the code - this file says where.
   أورانج/نيتا); فرانك saves as سيفا ÷5 with «10,000 فرانك = 2,000 سيفا» under the amount, and a saved
   سيفا payment by أورانج/نيتا reopens in فرانك ×5 (`lib/payCurrency.ts`). Nothing new is stored; an
   older entry's own (non-فرانك) method stays listed when edited. Activations keep their أورانج / نيتا.
+  **Everywhere money goes through أورانج / نيتا** (his «تأكد من كل الأقسام… يكون ظاهر اشارة او تعليمات»):
+  choosing an أورانج / نيتا account (`isFrancAccount`) turns the currency into «🟠 فرانك» with the
+  `FrancHint` note under the amount, saving سيفا ÷5 and reopening ×5 - «حسابي» income / expense /
+  monthly (`AmountRow`, `storedAmount`), the card top-up / withdrawal, the bank-notice confirm (Nita's
+  «F CFA» is فرانك: 5,000 F CFA = 1,000 سيفا - supersedes «F CFA = SIFA never converted»), and the
+  client/supplier balance form offers أورانج / نيتا as a source only with «فرانك». Saved records show
+  it: `methodLabel` («أورانج موني · 🟠 10,000 فرانك») in device / client statements and payment
+  notifications, `francBadge` on expenses, incomes, transfers and card moves, the أورانج / نيتا
+  lines of «حسابي» in فرانك. Fixed سيفا amounts through أورانج / نيتا (activations, loans) show
+  «8,000 سيفا = 40,000 فرانك» in the app cards and the bot (`TelegramReplies.francLine`).
+- **✎ in the rep statement** (his «اجعل هناك خيارات تعديل», on the duplicate 10,000 payment): a
+  customer's renewal / payment row opens «✎ تعديل العملية» (`LedgerEntryEditor`) and «🗑 حذف العملية»
+  (`confirmAndDeleteLedgerEntry`).
 - **🗑 Delete a device operation from the customer's statement** (clients page «تفاصيل العملية», his
   Oct 2026 request): same path as the device statement's delete (`confirmAndDeleteLedgerEntry` -
   closed-month check, confirm, removes its cash entry and allocations). «✎ تعديل» there opens the
@@ -365,7 +378,7 @@ mind). Exact texts and numbers live in the code - this file says where.
   another account of his** (KAST…). **USDT = USD** (recorded as dollars).
 - **Nita (Niger) money received**, app «my NITA», title `Compte à Compte`: `<NAME> vient de
   transferer un montant de 5000.0 F CFA vers votre…` (cut - read the full big text) → **income**
-  suggestion in his «نيتا النيجر» account; `F CFA` = SIFA (never converted).
+  suggestion in his «نيتا النيجر» account; `F CFA` = فرانك (÷5 = سيفا, Oct 2026 - see «أورانج / نيتا»).
 - **Keep everything the notification shows** on each suggestion and record (his decision): the
   person's name and number, the transaction ID, the app, the full notification text and its time.
   This stays on his phone and in his backup only - never in code, tests, fixtures or commits

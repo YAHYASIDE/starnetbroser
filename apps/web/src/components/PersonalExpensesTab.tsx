@@ -5,7 +5,7 @@ import { DateInput } from "@/components/DateInput";
 import { PartySheet } from "@/components/AccountsSection";
 import { loadCashEntries, removeLinkedCashEntries, saveCashEntries } from "@/lib/cashStore";
 import { formatAmount } from "@/lib/formatAmount";
-import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, type LedgerCurrency } from "@/lib/ledgerStore";
+import { LEDGER_CURRENCY_LABELS, type LedgerCurrency } from "@/lib/ledgerStore";
 import { monthLabel } from "@/lib/monthClosing";
 import { CategoryPicker } from "@/components/CategoryPicker";
 import { categoryPath, groupIdOf } from "@/lib/categoryTree";
@@ -26,7 +26,8 @@ import {
   type PersonalExpenseList,
 } from "@/lib/personalExpenses";
 import type { RatesFromUsd } from "@/lib/reportsView";
-import { SourceSelect, sourceOf, sourceToFields } from "@/components/MyMoney";
+import { francBadge, isFrancAccount } from "@/lib/payCurrency";
+import { AmountRow, francSource, SourceSelect, sourceOf, sourceToFields, storedAmount, typedAmount } from "@/components/MyMoney";
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -54,7 +55,7 @@ export function PersonalExpensesTab({
   onChange,
 }: {
   /** My banks / wallets (moneyAccounts.ts) - an expense can be paid from one instead of الكاش. */
-  accounts?: { id: string; name: string; icon: string }[];
+  accounts?: { id: string; name: string; icon: string; currencyCode?: string; method?: string }[];
   /** Set by a floating «+» / a shortcut: opens a new expense right away, once (then onOpened). */
   openNew?: boolean;
   onOpened?: () => void;
@@ -176,6 +177,9 @@ export function PersonalExpensesTab({
                       <bdi dir="ltr">{e.date.slice(5)}</bdi>
                       {e.fromCash ? " · 💵 الكاش" : ""}
                       {e.accountId ? ` · ${accounts.find((a) => a.id === e.accountId)?.name ?? "🏦"}` : ""}
+                      {francBadge(e, isFrancAccount(accounts.find((a) => a.id === e.accountId))) && (
+                        <span className="franc-badge"> · {francBadge(e, true)}</span>
+                      )}
                     </small>
                   </span>
                   <bdi dir="ltr" className="expenses-row-amount">
@@ -227,7 +231,7 @@ function ExpenseForm({
   onSave,
   onDelete,
 }: {
-  accounts: { id: string; name: string; icon: string }[];
+  accounts: { id: string; name: string; icon: string; currencyCode?: string; method?: string }[];
   categoryId: string;
   categories: ExpenseCategory[];
   editing?: PersonalExpense;
@@ -236,41 +240,24 @@ function ExpenseForm({
   onDelete?: () => void;
 }) {
   const [category, setCategory] = useState(editing?.categoryId ?? categoryId);
-  const [amount, setAmount] = useState(editing ? String(editing.amount) : "");
+  const [source, setSource] = useState(editing ? sourceOf(editing.fromCash, editing.accountId) : "cash");
+  // 🟠 من أورانج / نيتا: typed in فرانك, kept in سيفا ÷5.
+  const [amount, setAmount] = useState(editing ? typedAmount(francSource(accounts, source), editing.amount) : "");
   const [currency, setCurrency] = useState(editing?.currencyCode ?? lastCurrency ?? "MRU");
   const [date, setDate] = useState(editing?.date ?? today());
   const [note, setNote] = useState(editing?.note ?? "");
-  const [source, setSource] = useState(editing ? sourceOf(editing.fromCash, editing.accountId) : "cash");
   const [error, setError] = useState<string | null>(null);
+  const franc = francSource(accounts, source);
 
   function submit(event: FormEvent) {
     event.preventDefault();
     const { viaCash, accountId } = sourceToFields(source);
-    setError(onSave({ categoryId: category, amount: Number(amount.replace(",", ".")), currencyCode: currency, date, note, fromCash: viaCash, accountId }));
+    setError(onSave({ categoryId: category, ...storedAmount(franc, amount, currency), date, note, fromCash: viaCash, accountId }));
   }
 
   return (
     <form className="party-balance-form" onSubmit={submit}>
-      <div className="expenses-amount-row">
-        <input
-          className="search-input"
-          type="text"
-          lang="en"
-          dir="ltr"
-          inputMode="decimal"
-          placeholder="المبلغ"
-          autoFocus={!editing}
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-        />
-        <select className="search-input" value={currency} onChange={(e) => setCurrency(e.target.value)} aria-label="العملة">
-          {LEDGER_CURRENCIES.map((code) => (
-            <option key={code} value={code}>
-              {LEDGER_CURRENCY_LABELS[code as LedgerCurrency]}
-            </option>
-          ))}
-        </select>
-      </div>
+      <AmountRow amount={amount} onAmount={setAmount} currency={currency} onCurrency={setCurrency} franc={franc} autoFocus={!editing} />
       <input className="search-input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="ملاحظة (اختياري)" />
       <div className="expenses-amount-row">
         <DateInput className="search-input" value={date} onChange={(e) => setDate(e.target.value)} />

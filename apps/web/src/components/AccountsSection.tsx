@@ -1,5 +1,6 @@
 "use client";
 
+import { FrancHint } from "./FrancHint";
 import { askDeleteCode } from "@/components/DeleteCodePrompt";
 import { byLastActivity, clientLastActivity } from "@/lib/clientActivity";
 import { DuplicateWarning } from "./DuplicateWarning";
@@ -14,7 +15,7 @@ import { currentRepOfClient } from "@/lib/repClients";
 import type { RepresentativeStore } from "@/lib/repStore";
 import { CreateSupplierInput, Supplier } from "@/lib/supplierStore";
 import { loadAccountsBook } from "@/lib/moneyAccounts";
-import { fitPayMethod, francNote, PAY_CURRENCIES, PAY_CURRENCY_LABELS, payFormOf, payMethodsFor, toLedgerPayment, type PayCurrency } from "@/lib/payCurrency";
+import { fitPayMethod, isFrancAccount, methodLabel, PAY_CURRENCIES, PAY_CURRENCY_LABELS, payFormOf, payMethodsFor, toLedgerPayment, type PayCurrency } from "@/lib/payCurrency";
 import { getProof } from "@/lib/paymentProofStore";
 import { resizeImageToDataUrl } from "@/lib/imageUtils";
 import { renewalDateLabel } from "@/lib/date";
@@ -1088,7 +1089,8 @@ function BalanceForm({ partyName, partyKind, devices, initial, proofKey, submitL
   }, [proofKey]);
   // An app only holds its own currency (بنكيلي = أوقية فقط - his Oct 2026 rule): only apps in the
   // chosen currency are offered; a picked app that no longer matches falls back to «لم يتحرك».
-  const currencyAccounts = moneyAccounts.filter((a) => a.currencyCode === currencyCode);
+  // 🟠 أورانج / نيتا hold فرانك: offered only with «فرانك», never with «سيفا (كاش)».
+  const currencyAccounts = moneyAccounts.filter((a) => a.currencyCode === currencyCode && isFrancAccount(a) === (payCurrency === "FRANC"));
   const effectiveSource = source === "none" || source === "cash" || currencyAccounts.some((a) => a.id === source) ? source : "none";
   const viaAccount = currencyAccounts.some((a) => a.id === effectiveSource);
 
@@ -1192,7 +1194,7 @@ function BalanceForm({ partyName, partyKind, devices, initial, proofKey, submitL
           ))}
         </select>
       </div>
-      {francNote(payCurrency, Number(amount)) && <p className="settings-hint">🟠 {francNote(payCurrency, Number(amount))}</p>}
+      {payCurrency === "FRANC" && <FrancHint amount={amount} />}
       {isPayment && (
         <fieldset className="pay-methods">
           <legend>طريقة الدفع</legend>
@@ -1374,7 +1376,7 @@ function StatementRowDetail({
     ["المبلغ", `${formatAmount(row.amount)} ${cur}`],
   ];
   if (row.deviceName) details.push(["الجهاز", row.deviceName]);
-  if (adj?.paymentMethod) details.push(["طريقة الدفع", PAYMENT_METHOD_LABELS[adj.paymentMethod]]);
+  if (adj?.paymentMethod) details.push(["طريقة الدفع", methodLabel(adj.paymentMethod, adj.currencyCode, adj.amount)]);
   if (adj) details.push(["الكاش", adj.cashMoved ? "دخلت/خرجت من الكاش" : "لم تمر بالكاش"]);
   if (row.type === "invoice") details.push(["المدفوع من الفاتورة", `${formatAmount(row.paid)} ${cur}`]);
   if (row.note) details.push(["ملاحظة", row.note]);

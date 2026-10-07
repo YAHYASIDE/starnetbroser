@@ -4,7 +4,8 @@ import { DateInput } from "@/components/DateInput";
 import { LIVE_SYNC_EVENT } from "@/lib/liveSync";
 import { createContext, CSSProperties, FormEvent, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { LedgerEntryEditor } from "@/components/LedgerEntryEditor";
+import { confirmAndDeleteLedgerEntry, LedgerEntryEditor } from "@/components/LedgerEntryEditor";
+import { methodLabel } from "@/lib/payCurrency";
 import { getCurrency, loadCurrencyStore } from "@/lib/currencyStore";
 import { PdfButton } from "@/components/PdfButton";
 import { RepAppCodePanel } from "@/components/RepAppCodePanel";
@@ -34,6 +35,7 @@ import {
   RepSettlementList,
   RepStatementDay,
   RepStatementRow,
+  type RepCustomerOp,
   saveRepresentativeStore,
   saveRepSettlements,
   setRepresentativeReset,
@@ -602,6 +604,7 @@ type RepSheet =
   | { kind: "settle" | "whatsapp" | "manage" | "reset" | "delete" | "appCode" }
   | { kind: "settlement"; settlement: RepSettlement }
   | { kind: "shipment"; row: RepDeviceCommissionRow }
+  | { kind: "customerOp"; op: RepCustomerOp }
   | { kind: "repClient"; clientId: string }
   | { kind: "transfer" }
   | null;
@@ -655,7 +658,8 @@ function RepCard({
   const [showArchive, setShowArchive] = useState(false);
 
   const fx = useFx();
-  const [editingShipment, setEditingShipment] = useState<RepDeviceCommissionRow | null>(null);
+  // A device operation opened for editing - a shipment, or a customer's renewal / payment (✎).
+  const [editingShipment, setEditingShipment] = useState<{ accountId: string; entry: LedgerEntry } | null>(null);
   const allDeviceRows = useMemo(() => listRepDeviceCommissions(rep.id, ledgerStore), [rep.id, ledgerStore]);
   // Only records after his reset (تصفير) count; older ones are the archive.
   const active = useMemo(
@@ -766,6 +770,7 @@ function RepCard({
   function openRow(row: RepStatementRow) {
     if (row.type === "device") setSheet({ kind: "shipment", row: row.row });
     else if (row.type === "settlement") setSheet({ kind: "settlement", settlement: row.settlement });
+    else if (row.type === "customer") setSheet({ kind: "customerOp", op: row.op });
   }
 
   const periodLabel =
@@ -994,7 +999,7 @@ function RepCard({
                         accountName={accountName}
                         clientNameFor={clientNameFor}
                         storeItems={storeItems}
-                        onOpen={row.type === "invoice" || row.type === "customer" || readOnly ? undefined : () => openRow(row)}
+                        onOpen={row.type === "invoice" || readOnly ? undefined : () => openRow(row)}
                         hideOurs={readOnly}
                       />
                     ))}
@@ -1197,6 +1202,57 @@ function RepCard({
           />
         </PartySheet>
       )}
+
+      {sheet?.kind === "customerOp" &&
+        (() => {
+          const op = sheet.op;
+          const entry = ledgerStore[op.accountId]?.find((e) => e.id === op.entryId);
+          const device = accountName(op.accountId);
+          return (
+            <PartySheet title={`العملية - ${device}`} onClose={() => setSheet(null)}>
+              <p className="settings-hint">
+                {entry?.kind === "credit" ? "💵 دفعة" : "📡 تجديد"} <bdi dir="ltr">{formatAmount(Math.abs(op.amount))}</bdi> {LEDGER_CURRENCY_LABELS[op.currency as LedgerCurrency] ?? op.currency} · <bdi dir="ltr">{op.date}</bdi>
+                {entry?.paymentMethod ? ` · ${methodLabel(entry.paymentMethod, entry.currency, entry.amount)}` : ""}
+              </p>
+              {!entry ? (
+                <p className="party-empty">لم تعد هذه العملية موجودة على الجهاز.</p>
+              ) : (
+                <div className="party-sheet-options">
+                  <button
+                    type="button"
+                    className="party-sheet-option"
+                    onClick={() => {
+                      setEditingShipment({ accountId: op.accountId, entry });
+                      setSheet(null);
+                    }}
+                  >
+                    <span aria-hidden="true">✎</span>
+                    <span>
+                      <strong>تعديل العملية</strong>
+                      <small>المبلغ والعملة والتاريخ وطريقة الدفع</small>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="party-sheet-option party-sheet-option-danger"
+                    onClick={() => {
+                      const result = confirmAndDeleteLedgerEntry(ledgerStore, op.accountId, entry, device);
+                      if (!result) return;
+                      onLedgerChange(result.ledgerStore);
+                      setSheet(null);
+                    }}
+                  >
+                    <span aria-hidden="true">🗑</span>
+                    <span>
+                      <strong>حذف العملية</strong>
+                      <small>مثل دفعة سُجّلت مرتين - تُحذف معها حركتها في الكاش</small>
+                    </span>
+                  </button>
+                </div>
+              )}
+            </PartySheet>
+          );
+        })()}
 
       {sheet?.kind === "appCode" && (
         <PartySheet title={`تطبيق المندوب - ${rep.name}`} onClose={() => setSheet(null)}>
