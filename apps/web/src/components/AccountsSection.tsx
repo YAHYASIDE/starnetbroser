@@ -14,16 +14,15 @@ import { currentRepOfClient } from "@/lib/repClients";
 import type { RepresentativeStore } from "@/lib/repStore";
 import { CreateSupplierInput, Supplier } from "@/lib/supplierStore";
 import { loadAccountsBook } from "@/lib/moneyAccounts";
+import { fitPayMethod, francNote, PAY_CURRENCIES, PAY_CURRENCY_LABELS, payFormOf, payMethodsFor, toLedgerPayment, type PayCurrency } from "@/lib/payCurrency";
 import { getProof } from "@/lib/paymentProofStore";
 import { resizeImageToDataUrl } from "@/lib/imageUtils";
 import { renewalDateLabel } from "@/lib/date";
 import {
   computeBalanceByCurrency,
   getAccountEntries,
-  LEDGER_CURRENCIES,
   LEDGER_CURRENCY_LABELS,
   PAYMENT_METHOD_LABELS,
-  PAYMENT_METHODS,
   PaymentMethod,
   LedgerByAccount,
   LedgerCurrency,
@@ -1049,7 +1048,7 @@ function BalanceForm({ partyName, partyKind, devices, initial, proofKey, submitL
   );
   // "" = a general balance entry (store); otherwise the device this payment is for.
   const [deviceId, setDeviceId] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(initial?.paymentMethod ?? "bankily");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(initial?.paymentMethod ?? "cash");
   // Where the money moved: "none" (a balance entry only), "cash" (الكاش), or a bank/wallet id from
   // «حسابي» (its balance follows the payment, via partyFlows). His Oct 2026 choice.
   const [moneyAccounts] = useState(() => loadAccountsBook().accounts);
@@ -1063,8 +1062,17 @@ function BalanceForm({ partyName, partyKind, devices, initial, proofKey, submitL
   // A payment: money from the client ("له") or to the supplier ("عليه") - it has a channel.
   const isPayment = partyKind === "client" ? direction === "weOwe" : direction === "owesUs";
   const canPickDevice = partyKind === "client" && direction === "weOwe" && devices.length > 0;
-  const [amount, setAmount] = useState(initial ? String(initial.amount) : "");
-  const [currencyCode, setCurrencyCode] = useState<LedgerCurrency>((initial?.currencyCode as LedgerCurrency) ?? "MRU");
+  // 🟠 أوقية / سيفا (كاش) / دولار / فرانك (أورانج / نيتا) - فرانك is saved as سيفا ÷5, and a saved
+  // سيفا payment by أورانج / نيتا opens back in فرانك (payCurrency.ts).
+  const [initialPay] = useState(() =>
+    initial ? payFormOf({ currency: initial.currencyCode as LedgerCurrency, amount: initial.amount, paymentMethod: initial.paymentMethod }) : undefined,
+  );
+  const [amount, setAmount] = useState(initialPay ? String(initialPay.amount) : "");
+  const [payCurrency, setPayCurrency] = useState<PayCurrency>(initialPay?.currency ?? "MRU");
+  const currencyCode: LedgerCurrency = payCurrency === "FRANC" ? "SIFA" : payCurrency;
+  // An older payment keeps its own method listed - except a فرانك app, which only belongs to فرانك.
+  const keepMethod = initialPay?.currency === "FRANC" ? undefined : initial?.paymentMethod;
+  const method = fitPayMethod(payCurrency, paymentMethod, keepMethod);
   const [date, setDate] = useState(initial?.date ?? todayDateInputValue());
   const [note, setNote] = useState(initial?.note ?? "");
   const [error, setError] = useState<string | null>(null);
@@ -1097,17 +1105,18 @@ function BalanceForm({ partyName, partyKind, devices, initial, proofKey, submitL
 
   function submit(event: FormEvent) {
     event.preventDefault();
+    const stored = toLedgerPayment(payCurrency, Number(amount));
     setError(
       onSubmit({
         direction,
-        amount: Number(amount),
-        currencyCode,
+        amount: stored.amount,
+        currencyCode: stored.currency,
         date,
         note,
         cashMoved: effectiveSource === "cash",
         accountId: viaAccount ? effectiveSource : undefined,
         deviceId: canPickDevice && deviceId ? deviceId : undefined,
-        paymentMethod: isPayment ? paymentMethod : undefined,
+        paymentMethod: isPayment ? method : undefined,
         proofDataUrl: viaAccount && proofDraft ? proofDraft : undefined,
       }),
     );
@@ -1163,16 +1172,37 @@ function BalanceForm({ partyName, partyKind, devices, initial, proofKey, submitL
           </div>
         </fieldset>
       )}
+      <div className="party-balance-row">
+        <input
+          className="search-input"
+          type="text" inputMode="decimal"
+          min="0"
+          step="0.01"
+          dir="ltr"
+          placeholder={payCurrency === "FRANC" ? "المبلغ بالفرانك" : "المبلغ"}
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          autoFocus
+        />
+        <select className="search-input" value={payCurrency} onChange={(e) => setPayCurrency(e.target.value as PayCurrency)}>
+          {PAY_CURRENCIES.map((c) => (
+            <option key={c} value={c}>
+              {PAY_CURRENCY_LABELS[c]}
+            </option>
+          ))}
+        </select>
+      </div>
+      {francNote(payCurrency, Number(amount)) && <p className="settings-hint">🟠 {francNote(payCurrency, Number(amount))}</p>}
       {isPayment && (
         <fieldset className="pay-methods">
           <legend>طريقة الدفع</legend>
           <div className="pay-method-options">
-            {PAYMENT_METHODS.map((m) => (
+            {payMethodsFor(payCurrency, keepMethod).map((m) => (
               <button
                 key={m}
                 type="button"
-                className={`pay-method pay-method-${m}${paymentMethod === m ? " pay-method-active" : ""}`}
-                aria-pressed={paymentMethod === m}
+                className={`pay-method pay-method-${m}${method === m ? " pay-method-active" : ""}`}
+                aria-pressed={method === m}
                 onClick={() => setPaymentMethod(m)}
               >
                 {PAYMENT_METHOD_LABELS[m]}
@@ -1181,26 +1211,6 @@ function BalanceForm({ partyName, partyKind, devices, initial, proofKey, submitL
           </div>
         </fieldset>
       )}
-      <div className="party-balance-row">
-        <input
-          className="search-input"
-          type="text" inputMode="decimal"
-          min="0"
-          step="0.01"
-          dir="ltr"
-          placeholder="المبلغ"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          autoFocus
-        />
-        <select className="search-input" value={currencyCode} onChange={(e) => setCurrencyCode(e.target.value as LedgerCurrency)}>
-          {LEDGER_CURRENCIES.map((c) => (
-            <option key={c} value={c}>
-              {LEDGER_CURRENCY_LABELS[c]}
-            </option>
-          ))}
-        </select>
-      </div>
       <DateInput className="search-input"  value={date} onChange={(e) => setDate(e.target.value)} />
       <input className="search-input" placeholder="ملاحظة (اختياري) - مثال: رصيد افتتاحي" value={note} onChange={(e) => setNote(e.target.value)} />
       <label className="form-field party-source-field">

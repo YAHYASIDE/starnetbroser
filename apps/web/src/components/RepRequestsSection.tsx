@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { saveClientDevicePayment } from "@/lib/clientDevicePaymentSave";
+import { fitPayMethod, francNote, PAY_CURRENCIES, PAY_CURRENCY_LABELS, payFormOf, payMethodsFor, toLedgerPayment, type PayCurrency } from "@/lib/payCurrency";
 import { duplicateQuestion, findClientDuplicates } from "@/lib/duplicates";
 import { DuplicateWarning } from "./DuplicateWarning";
 import { Client, ClientStore, createClient, listClients, loadClientStore, saveClientStore } from "@/lib/clientStore";
@@ -193,9 +194,14 @@ function PaymentRequestCard({
     return matches.length === 1 ? matches[0]!.id : "";
   }, [request, repDevices, clientStore]);
   const [deviceId, setDeviceId] = useState(suggested);
-  const [amount, setAmount] = useState(String(request.amount ?? ""));
-  const [currency, setCurrency] = useState<LedgerCurrency>(request.currency ?? "MRU");
-  const [method, setMethod] = useState<PaymentMethod>(request.paymentMethod ?? "cash");
+  // 🟠 A سيفا payment by أورانج / نيتا shows in فرانك, as the rep typed it (payCurrency.ts).
+  const [initialPay] = useState(() =>
+    request.amount !== undefined ? payFormOf({ currency: request.currency ?? "MRU", amount: request.amount, paymentMethod: request.paymentMethod }) : undefined,
+  );
+  const [amount, setAmount] = useState(String(initialPay?.amount ?? ""));
+  const [payCurrency, setPayCurrency] = useState<PayCurrency>(initialPay?.currency ?? request.currency ?? "MRU");
+  const [chosenMethod, setMethod] = useState<PaymentMethod>(request.paymentMethod ?? "cash");
+  const method = fitPayMethod(payCurrency, chosenMethod);
   const [proof, setProof] = useState<string | null>(null);
   const [cashMoved, setCashMoved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -204,9 +210,9 @@ function PaymentRequestCard({
   async function approve() {
     if (busy) return;
     const device = repDevices.find((a) => a.id === deviceId);
-    const value = Number(amount);
     if (!device) return setError("اختر الجهاز");
-    if (!(value > 0)) return setError("المبلغ غير صحيح");
+    if (!(Number(amount) > 0)) return setError("المبلغ غير صحيح");
+    const { amount: value, currency } = toLedgerPayment(payCurrency, Number(amount));
     // 🔒 Taken BEFORE anything slow (his Oct 2026 double payment): a second tap, a second card of
     // the same message, or a retry after a cut finds it taken and records nothing.
     const claimed = claimRepRequest(loadRepRequests(), request.id);
@@ -271,21 +277,22 @@ function PaymentRequestCard({
       </label>
       <div className="rep-request-row">
         <input className="search-input" inputMode="decimal" dir="ltr" value={amount} onChange={(e) => setAmount(e.target.value)} aria-label="المبلغ" />
-        <select value={currency} onChange={(e) => setCurrency(e.target.value as LedgerCurrency)} aria-label="العملة">
-          {LEDGER_CURRENCIES.map((c) => (
+        <select value={payCurrency} onChange={(e) => setPayCurrency(e.target.value as PayCurrency)} aria-label="العملة">
+          {PAY_CURRENCIES.map((c) => (
             <option key={c} value={c}>
-              {LEDGER_CURRENCY_LABELS[c]}
+              {PAY_CURRENCY_LABELS[c]}
             </option>
           ))}
         </select>
         <select value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)} aria-label="طريقة الدفع">
-          {PAYMENT_METHODS.map((m) => (
+          {payMethodsFor(payCurrency).map((m) => (
             <option key={m} value={m}>
               {PAYMENT_METHOD_LABELS[m]}
             </option>
           ))}
         </select>
       </div>
+      {francNote(payCurrency, Number(amount)) && <p className="settings-hint">🟠 {francNote(payCurrency, Number(amount))}</p>}
       <label className="toggle-switch-row rep-request-cash">
         <span>{cashMoved ? "💵 وصل المبلغ إلى الكاش" : "🤝 المبلغ ما زال عند المندوب"}</span>
         <span className={`toggle-switch${cashMoved ? " toggle-switch-on" : ""}`}>

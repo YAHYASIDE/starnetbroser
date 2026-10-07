@@ -224,6 +224,13 @@ mind). Exact texts and numbers live in the code - this file says where.
   `francToSifa`, `explicitPayCurrency` reads «فرنك/فرانك/cfa» typed with the amount); the rep sees
   «10,000 فرانك = 2,000 سيفا». A recorded سيفا payment keeps its أورانج/نيتا label; activations (fixed
   سيفا price) and loans still offer أورانج / نيتا.
+  **The same rule in the app's forms** (his «طبّق نفس قاعدة أورانج فرانك في نماذج التطبيق»): every
+  customer-payment form (device «له» `LedgerDialog`, «تعديل الحركة», «💵 دفعة سريعة», the client /
+  supplier `BalanceForm`, a rep's payment-request card) picks أوقية / «سيفا (كاش)» / دولار / «🟠 فرانك
+  (أورانج / نيتا)»; methods follow it (أوقية: كاش/بنكيلي/مصرفي/سداد, سيفا & دولار: كاش, فرانك:
+  أورانج/نيتا); فرانك saves as سيفا ÷5 with «10,000 فرانك = 2,000 سيفا» under the amount, and a saved
+  سيفا payment by أورانج/نيتا reopens in فرانك ×5 (`lib/payCurrency.ts`). Nothing new is stored; an
+  older entry's own (non-فرانك) method stays listed when edited. Activations keep their أورانج / نيتا.
 - **🗑 Delete a device operation from the customer's statement** (clients page «تفاصيل العملية», his
   Oct 2026 request): same path as the device statement's delete (`confirmAndDeleteLedgerEntry` -
   closed-month check, confirm, removes its cash entry and allocations). «✎ تعديل» there opens the

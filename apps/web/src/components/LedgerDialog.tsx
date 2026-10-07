@@ -23,7 +23,6 @@ import {
   LedgerEntry,
   LedgerEntryKind,
   PAYMENT_METHOD_LABELS,
-  PAYMENT_METHODS,
   PaymentMethod,
   removeEntry,
   sortEntriesNewestFirst,
@@ -51,6 +50,7 @@ import { PaymentRateCompletionDialog } from "./PaymentRateCompletionDialog";
 import { EditLedgerEntryDialog } from "./EditLedgerEntryDialog";
 import { confirmClosedMonthChange, ledgerEditMonthDates, ledgerEntryMonthDates } from "@/lib/monthClosing";
 import { HelpHint } from "./HelpHint";
+import { fitPayMethod, francNote, PAY_CURRENCIES, PAY_CURRENCY_LABELS, payMethodsFor, toLedgerPayment, type PayCurrency } from "@/lib/payCurrency";
 
 /** One other device linked to the same customer - siblings, never the account currently open in
  * this dialog. Lets a payment recorded here be allocated to a shipment on a DIFFERENT device
@@ -163,7 +163,9 @@ export function LedgerDialog({
   // Prefilled from the device's own already-known email when available - still a plain field the
   // operator can freely clear or change per entry, never locked to it.
   const [email, setEmail] = useState(accountEmail ?? "");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("nita");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  // 🟠 «له» typed in فرانك (أورانج / نيتا) - stored as سيفا ÷5 (payCurrency.ts).
+  const [francPay, setFrancPay] = useState(false);
   const [date, setDate] = useState(todayDateInputValue());
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -261,6 +263,9 @@ export function LedgerDialog({
   // under D until Starlink is settled) - accountingStore.ts's own rule XIII: cash actually
   // collected from this device's customer, minus only what's actually been paid to Starlink.
   const accountingSummary = computeDeviceAccountingSummary(entries);
+
+  const payCurrency: PayCurrency = kind === "credit" && francPay ? "FRANC" : currency;
+  const method = fitPayMethod(payCurrency, paymentMethod);
 
   function selectCurrency(next: LedgerCurrency) {
     setCurrency(next);
@@ -366,6 +371,7 @@ export function LedgerDialog({
       return;
     }
 
+    const stored = kind === "credit" ? toLedgerPayment(payCurrency, parsedAmount) : { currency, amount: parsedAmount };
     const needsRate = currency !== "USD";
     const parsedRate = Number(rateInput);
     if (needsRate && (!Number.isFinite(parsedRate) || parsedRate <= 0)) {
@@ -421,14 +427,14 @@ export function LedgerDialog({
       });
     }
 
-    const rateSnapshot = needsRate ? { rateFromUsd: parsedRate, usdValue: parsedAmount / parsedRate } : undefined;
+    const rateSnapshot = needsRate ? { rateFromUsd: parsedRate, usdValue: stored.amount / parsedRate } : undefined;
     const entry = createLedgerEntry({
       kind,
-      amount: parsedAmount,
-      currency,
+      amount: stored.amount,
+      currency: stored.currency,
       note,
       email,
-      paymentMethod: kind === "credit" ? paymentMethod : undefined,
+      paymentMethod: kind === "credit" ? method : undefined,
       date,
       saleRate: kind === "debit" ? rateSnapshot : undefined,
       paymentRate: kind === "credit" ? rateSnapshot : undefined,
@@ -563,21 +569,40 @@ export function LedgerDialog({
             <option value="debit">عليه</option>
             <option value="credit">له</option>
           </select>
-          <select className="search-input" value={currency} onChange={(e) => selectCurrency(e.target.value as LedgerCurrency)}>
-            {LEDGER_CURRENCIES.map((c) => (
-              <option key={c} value={c}>{LEDGER_CURRENCY_LABELS[c]}</option>
-            ))}
-          </select>
+          {kind === "credit" ? (
+            <select
+              className="search-input"
+              value={payCurrency}
+              onChange={(e) => {
+                const next = e.target.value as PayCurrency;
+                setFrancPay(next === "FRANC");
+                selectCurrency(next === "FRANC" ? "SIFA" : next);
+              }}
+            >
+              {PAY_CURRENCIES.map((c) => (
+                <option key={c} value={c}>{PAY_CURRENCY_LABELS[c]}</option>
+              ))}
+            </select>
+          ) : (
+            <select className="search-input" value={currency} onChange={(e) => selectCurrency(e.target.value as LedgerCurrency)}>
+              {LEDGER_CURRENCIES.map((c) => (
+                <option key={c} value={c}>{LEDGER_CURRENCY_LABELS[c]}</option>
+              ))}
+            </select>
+          )}
           <input
             className="search-input"
             type="text" inputMode="decimal"
             min="0"
             step="0.01"
             dir="ltr"
-            placeholder="المبلغ"
+            placeholder={payCurrency === "FRANC" ? "المبلغ بالفرانك" : "المبلغ"}
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
           />
+          {payCurrency === "FRANC" && francNote(payCurrency, Number(amount)) && (
+            <p className="settings-hint">🟠 {francNote(payCurrency, Number(amount))}</p>
+          )}
           <DateInput
             className="search-input"
             value={date}
@@ -756,10 +781,10 @@ export function LedgerDialog({
           {kind === "credit" && (
             <select
               className="search-input ledger-payment-method-input"
-              value={paymentMethod}
+              value={method}
               onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
             >
-              {PAYMENT_METHODS.map((m) => (
+              {payMethodsFor(payCurrency).map((m) => (
                 <option key={m} value={m}>{PAYMENT_METHOD_LABELS[m]}</option>
               ))}
             </select>

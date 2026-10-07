@@ -5,7 +5,8 @@ import type { StarlinkAccountSummary } from "@starnet/shared";
 import { saveClientDevicePayment } from "@/lib/clientDevicePaymentSave";
 import { localDay } from "@/lib/eveningSummary";
 import { deviceMatchesQuery } from "@/lib/homeInsights";
-import { computeBalanceByCurrency, LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, type LedgerCurrency, PAYMENT_METHOD_LABELS, PAYMENT_METHODS, type PaymentMethod } from "@/lib/ledgerStore";
+import { computeBalanceByCurrency, LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, type LedgerCurrency, PAYMENT_METHOD_LABELS, type PaymentMethod } from "@/lib/ledgerStore";
+import { fitPayMethod, francNote, PAY_CURRENCIES, PAY_CURRENCY_LABELS, payMethodsFor, toLedgerPayment, type PayCurrency } from "@/lib/payCurrency";
 import { buildReceiptWhatsAppMessage } from "@/lib/receipt";
 import { notifyPaymentTelegram } from "@/lib/telegram";
 import { buildWhatsAppLink } from "@/lib/whatsapp";
@@ -30,8 +31,10 @@ export function QuickPaymentTool({ data }: { data: ToolsData }) {
   const [query, setQuery] = useState(() => (typeof window === "undefined" ? "" : takeHandedQuery()));
   const [device, setDevice] = useState<StarlinkAccountSummary | null>(null);
   const [amount, setAmount] = useState("");
-  const [currency, setCurrency] = useState<LedgerCurrency>("MRU");
-  const [method, setMethod] = useState<PaymentMethod>("cash");
+  // أوقية / سيفا (كاش) / دولار / 🟠 فرانك (أورانج / نيتا) - فرانك is saved as سيفا ÷5 (payCurrency.ts).
+  const [currency, setCurrency] = useState<PayCurrency>("MRU");
+  const [chosenMethod, setMethod] = useState<PaymentMethod>("cash");
+  const method = fitPayMethod(currency, chosenMethod);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ text: string; receipt?: string } | null>(null);
   const [ledger, setLedger] = useState(data.ledger);
@@ -57,22 +60,23 @@ export function QuickPaymentTool({ data }: { data: ToolsData }) {
     const value = Number(amount);
     if (!(value > 0)) return setError("المبلغ غير صحيح");
     const date = localDay(new Date());
+    const stored = toLedgerPayment(currency, value);
     const result = saveClientDevicePayment(
       ledger,
       { id: device.id, name: device.name, email: device.expectedEmail || device.starlinkAccountEmail || undefined },
-      { amount: value, currencyCode: currency, date, paymentMethod: method, cashMoved: method === "cash" },
+      { amount: stored.amount, currencyCode: stored.currency, date, paymentMethod: method, cashMoved: method === "cash" },
     );
     if (!result.ok) return setError(result.message);
     setLedger(result.ledgerStore);
     const entries = result.ledgerStore[device.id] ?? [];
     const payment = entries[entries.length - 1]!;
     const client = device.clientId ? data.clients[device.clientId] : undefined;
-    const balanceAfter = computeBalanceByCurrency(entries)[currency] ?? 0;
+    const balanceAfter = computeBalanceByCurrency(entries)[stored.currency] ?? 0;
     notifyPaymentTelegram({
       deviceName: device.name,
       clientName: client?.name,
-      amount: value,
-      currency,
+      amount: stored.amount,
+      currency: stored.currency,
       method: PAYMENT_METHOD_LABELS[method],
       balanceAfter,
       date,
@@ -80,7 +84,7 @@ export function QuickPaymentTool({ data }: { data: ToolsData }) {
     });
     const receipt = buildWhatsAppLink(device.phone || client?.phone, buildReceiptWhatsAppMessage({ payment, entries, deviceName: device.name, clientName: client?.name }));
     setDone({
-      text: `✓ سُجّلت ${value.toLocaleString("en-US")} ${LEDGER_CURRENCY_LABELS[currency]} على ${device.name}${balanceAfter > 0.005 ? ` - المتبقي ${Math.round(balanceAfter).toLocaleString("en-US")}` : " - لا شيء متبقٍّ ✓"}`,
+      text: `✓ سُجّلت ${stored.amount.toLocaleString("en-US")} ${LEDGER_CURRENCY_LABELS[stored.currency]}${currency === "FRANC" ? ` (${francNote(currency, value)})` : ""} على ${device.name}${balanceAfter > 0.005 ? ` - المتبقي ${Math.round(balanceAfter).toLocaleString("en-US")}` : " - لا شيء متبقٍّ ✓"}`,
       receipt: receipt ?? undefined,
     });
     setAmount("");
@@ -124,17 +128,18 @@ export function QuickPaymentTool({ data }: { data: ToolsData }) {
             </button>
           </div>
           <div className="tool-form-row">
-            <input className="search-input" inputMode="decimal" dir="ltr" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="المبلغ" autoFocus />
-            <select value={currency} onChange={(e) => setCurrency(e.target.value as LedgerCurrency)} aria-label="العملة">
-              {LEDGER_CURRENCIES.map((c) => (
+            <input className="search-input" inputMode="decimal" dir="ltr" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={currency === "FRANC" ? "المبلغ بالفرانك" : "المبلغ"} autoFocus />
+            <select value={currency} onChange={(e) => setCurrency(e.target.value as PayCurrency)} aria-label="العملة">
+              {PAY_CURRENCIES.map((c) => (
                 <option key={c} value={c}>
-                  {LEDGER_CURRENCY_LABELS[c]}
+                  {PAY_CURRENCY_LABELS[c]}
                 </option>
               ))}
             </select>
           </div>
+          {francNote(currency, Number(amount)) && <p className="settings-hint">🟠 {francNote(currency, Number(amount))}</p>}
           <div className="tool-chips">
-            {PAYMENT_METHODS.map((m) => (
+            {payMethodsFor(currency).map((m) => (
               <button key={m} type="button" className={`tool-chip${method === m ? " tool-chip-on" : ""}`} onClick={() => setMethod(m)}>
                 {PAYMENT_METHOD_LABELS[m]}
               </button>
