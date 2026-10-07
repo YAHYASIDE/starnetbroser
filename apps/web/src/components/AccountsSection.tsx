@@ -1,6 +1,7 @@
 "use client";
 
 import { askDeleteCode } from "@/components/DeleteCodePrompt";
+import { byLastActivity, clientLastActivity } from "@/lib/clientActivity";
 import { DuplicateWarning } from "./DuplicateWarning";
 import { duplicateQuestion, findClientDuplicates } from "@/lib/duplicates";
 import { ClientNotesPanel, clientNoteCount } from "./ClientNotesSheet";
@@ -118,6 +119,9 @@ interface PartyDirectoryProps extends Props {
     /** Clients whose profit already starts from zero (clientBulk.ts). */
     profitFreshIds: Set<string>;
   };
+  /** 📡 A device tapped in a customer's «الأجهزة» opens its full card right there (his Oct 2026
+   * request). Absent = the list only. */
+  renderDevice?: (device: StarlinkAccountSummary) => React.ReactNode;
 }
 
 /** Clients and suppliers on two separate tabs (never one mixed list), each party a colour-coded
@@ -143,6 +147,7 @@ export function PartyDirectory({
   onDeleteClient,
   representatives,
   bulk,
+  renderDevice,
 }: PartyDirectoryProps) {
   const [tab, setTab] = useState<PartyTab>("clients");
   const [selecting, setSelecting] = useState(false);
@@ -169,7 +174,16 @@ export function PartyDirectory({
           : computePartyStoreTotals(invoices, kind, party.id, adjustments);
         const due = Object.values(totals).some((t) => t.remaining > EPSILON);
         const repIds = isClients ? clientRepIds(party.id, accounts, party as Client) : [];
-        return { party, totals, due, repIds };
+        // 🕒 His latest operation or edit - the customer on top is the last one worked on.
+        const activity = isClients
+          ? clientLastActivity({
+              client: party,
+              entries: accounts.filter((a) => a.clientId === party.id).flatMap((a) => ledgerStore[a.id] ?? []),
+              invoices: invoices.filter((i) => i.clientId === party.id),
+              adjustments: adjustments.filter((a) => a.partyKind === "client" && a.partyId === party.id),
+            })
+          : "";
+        return { party, totals, due, repIds, activity };
       }),
     [parties, invoices, kind, adjustments, isClients, accounts, ledgerStore],
   );
@@ -189,7 +203,9 @@ export function PartyDirectory({
     // Second row (clients): only those who owe us, or only those with a credit on us («له رصيد»).
     if (isClients && balance === "owes") matching = matching.filter((r) => r.due);
     else if (isClients && balance === "credit") matching = matching.filter((r) => hasCredit(r.totals));
-    // Parties who still owe / are owed first, then alphabetical - the ones needing attention on top.
+    // Customers: the last one worked on first (his Oct 2026 choice). Suppliers: who still owe / are
+    // owed first, then alphabetical.
+    if (isClients) return [...matching].sort((a, b) => byLastActivity({ activity: a.activity, name: a.party.name }, { activity: b.activity, name: b.party.name }));
     return [...matching].sort((a, b) => (a.due === b.due ? a.party.name.localeCompare(b.party.name, "ar") : a.due ? -1 : 1));
   }, [ownerRows, query, isClients, balance]);
 
@@ -462,6 +478,7 @@ export function PartyDirectory({
                 repNames={isClients && representatives ? clientRepNames(party.id, accounts, representatives, party as Client) : []}
                 onEdit={() => setEditingPartyId(party.id)}
                 onOpenCard={isClients && onOpenClientCard ? () => onOpenClientCard(party as Client) : undefined}
+                renderDevice={isClients ? renderDevice : undefined}
               />
             ),
           )}
@@ -489,6 +506,7 @@ interface PartyCardProps {
   repNames?: string[];
   onEdit: () => void;
   onOpenCard?: () => void;
+  renderDevice?: (device: StarlinkAccountSummary) => React.ReactNode;
 }
 
 type PartyPanel = "statement" | "devices" | null;
@@ -524,8 +542,12 @@ function PartyCard({
   repNames = [],
   onEdit,
   onOpenCard,
+  renderDevice,
 }: PartyCardProps) {
   const [panel, setPanel] = useState<PartyPanel>(null);
+  // 📡 The device opened from «الأجهزة» (its card shows in place of the list).
+  const [openDeviceId, setOpenDeviceId] = useState<string | null>(null);
+  const openDevice = openDeviceId ? devices.find((d) => d.id === openDeviceId) : undefined;
   const [sheet, setSheet] = useState<PartySheet>(null);
   const [detailRowId, setDetailRowId] = useState<string | null>(null);
   const isClient = kind === "sale";
@@ -745,7 +767,16 @@ function PartyCard({
 
       {panel === "devices" && (
         <div className="party-panel">
-          <p className="party-panel-note">اشتراكات Starlink - حساب منفصل عن فواتير المتجر</p>
+          {openDevice && renderDevice ? (
+            <div className="party-device-open">
+              <button type="button" className="text-action party-device-back" onClick={() => setOpenDeviceId(null)}>
+                → كل أجهزته ({devices.length})
+              </button>
+              {renderDevice(openDevice)}
+            </div>
+          ) : (
+          <>
+          <p className="party-panel-note">اشتراكات Starlink - حساب منفصل عن فواتير المتجر{renderDevice && devices.length > 0 ? " · اضغط جهازًا لفتح بطاقته" : ""}</p>
           {devices.length === 0 ? (
             <p className="party-empty">لا يوجد جهاز مرتبط بهذا الزبون - يُربط من بطاقة الجهاز في الصفحة الرئيسية</p>
           ) : (
@@ -757,7 +788,11 @@ function PartyCard({
                   number,
                 ][];
                 return (
-                  <li key={device.id} className="party-device">
+                  <li
+                    key={device.id}
+                    className={`party-device${renderDevice ? " party-device-tappable" : ""}`}
+                    {...(renderDevice ? { role: "button", tabIndex: 0, onClick: () => setOpenDeviceId(device.id), onKeyDown: (e: React.KeyboardEvent) => e.key === "Enter" && setOpenDeviceId(device.id) } : {})}
+                  >
                     <div className="party-device-top">
                       <strong>{device.name}</strong>
                       <span className="party-device-date" dir={device.rechargeDate?.trim() ? "ltr" : undefined}>📅 {renewalDateLabel(device.rechargeDate)}</span>
@@ -783,6 +818,8 @@ function PartyCard({
                 );
               })}
             </ul>
+          )}
+          </>
           )}
         </div>
       )}

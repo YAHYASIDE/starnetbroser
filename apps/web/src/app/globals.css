@@ -13340,3 +13340,28 @@ button.today-tile {
   font-weight: 700;
   text-align: start;
 }
+
+/* 📡 A customer's device in «الأجهزة»: a tap opens its full card in place of the list. */
+.party-device-tappable {
+  cursor: pointer;
+  position: relative;
+}
+
+.party-device-tappable::after {
+  content: "‹";
+  position: absolute;
+  inset-inline-end: 10px;
+  bottom: 8px;
+  color: var(--text-muted);
+  font-size: 1.2rem;
+}
+
+.party-device-open {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.party-device-back {
+  align-self: flex-start;
+}

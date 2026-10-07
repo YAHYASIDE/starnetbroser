@@ -51,6 +51,7 @@ import {
   savePartyAdjustments,
 } from "@/lib/partyBalanceStore";
 import { PartyDirectory } from "@/components/AccountsSection";
+import { ClientDeviceCard } from "@/components/ClientDeviceCard";
 import { moveClientToOwner, ourDebtLedgerForClients } from "@/lib/repClients";
 import { notifyPaymentTelegram } from "@/lib/telegram";
 import { ClientDialog } from "@/components/ClientDialog";
@@ -365,6 +366,24 @@ export default function ClientsPage() {
           onOpenClientCard={(client: Client) => setOpenClientId(client.id)}
           onDeleteClient={handleDeleteClient}
           representatives={representatives}
+          renderDevice={(device) => (
+            <ClientDeviceCard
+              device={device}
+              allAccounts={accounts}
+              ledgerStore={ledgerStore}
+              allocationStore={allocationStore}
+              clientStore={clientStore}
+              representatives={representatives}
+              onPatch={
+                isDemoMode()
+                  ? (target, patch) => {
+                      const next = accounts.map((a) => (a.id === target.id ? { ...a, ...patch } : a));
+                      setAccounts(commitDemoAccounts(accounts, next, "patch", { unlink: "clientId" in patch }));
+                    }
+                  : undefined
+              }
+            />
+          )}
           bulk={{
             onDelete: handleBulkDelete,
             onZero: handleBulkZero,

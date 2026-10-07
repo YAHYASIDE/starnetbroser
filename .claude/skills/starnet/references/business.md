@@ -151,6 +151,12 @@ mind). Exact texts and numbers live in the code - this file says where.
 - **🎨 Rep color on device cards** (his Oct 2026 choice «الاثنان معًا»): the whole card tinted with the
   rep's color (20%), a full 3px frame in it, and a 3px line across the middle under the device /
   customer name (`.account-card-rep-tint`). Before: a light 9% tint + one top line.
+- **👥 Clients page order + device cards** (his Oct 2026 request): customers are ordered by their
+  latest activity - the newest of the customer edited, an operation on one of his devices, a store
+  invoice, a manual balance entry (`lib/clientActivity.ts`); suppliers keep «who owes first, then
+  by name». In a customer's «الأجهزة», tapping a device shows its full home-page card in place of
+  the list (`ClientDeviceCard`, «→ كل أجهزته» back); actions needing the home page's dialogs (edit,
+  payment, statement, archive…) open that device on the home page (`/?q=<email>`).
 - **💱 «فرق غير مسجّل» is never just the exchange rate** (his Oct 2026 report: a D of ARS 54,876
   locked at $38.53, the same ARS bill read at $39.94 → «فرق 1.41 $ غير مسجّل»; «لا أريد أن تظهر هذه
   الزيادات… أضفه للعملية السابقة»). An open D in the bill's own currency counts at today's rate
