@@ -10,6 +10,8 @@ import {
   recordPreviousDebt,
   totalPreviousDebtUsd,
   unrecordedStarlinkBalanceUsd,
+  openDebtUsdToday,
+  unrecordedGapUsd,
 } from "./previousDebt";
 import { buildCardStatement, listCardPayments, listOpenShipmentDebts } from "./starlinkDebt";
 
@@ -81,3 +83,22 @@ describe("paidSinceLastSyncUsd", () => {
     expect(paidSinceLastSyncUsd(entries, null, new Date("2026-09-27T00:00:00.000Z"))).toBe(127);
   });
 });
+
+describe("💱 a D in the bill's own currency is not a «فرق غير مسجّل» when only the rate moved", () => {
+  it("an ARS D counts at today's ARS rate; a USD D at its own value", () => {
+    // D of ARS 54,876.48 locked at $38.53; today 1 USD = 1374 ARS -> the bill is $39.94
+    const d = [{ currencyCode: "ARS", amount: 54876.48, lockedUsd: 38.53 }];
+    expect(openDebtUsdToday(d, "ARS", 1374)).toBeCloseTo(39.94, 2);
+    expect(unrecordedGapUsd(54876.48 / 1374, openDebtUsdToday(d, "ARS", 1374), 38.53)).toBe(0);
+    expect(openDebtUsdToday([{ currencyCode: "USD", amount: 40, lockedUsd: 40 }], "ARS", 1374)).toBe(40);
+    expect(openDebtUsdToday(d, "ARS", undefined)).toBe(38.53);
+  });
+
+  it("with a D open, a small drift is part of it; a new bill still shows; no D: any gap over $1 shows", () => {
+    expect(unrecordedGapUsd(39.94, 38.53, 38.53)).toBe(0);
+    expect(unrecordedGapUsd(80, 38.53, 38.53)).toBe(41.47);
+    expect(unrecordedGapUsd(41.5, 38.53, 38.53)).toBe(0);
+    expect(unrecordedGapUsd(10, 0, 0)).toBe(10);
+  });
+});
+

@@ -91,6 +91,38 @@ export function unrecordedStarlinkBalanceUsd(starlinkDueUsd: number | undefined,
   return gap >= 1 ? Math.round(gap * 100) / 100 : 0;
 }
 
+/**
+ * 💱 An open D recorded in the very currency Starlink bills the device in (ARS…) is worth, today,
+ * what Starlink's bill is worth today - the bill didn't change, only the dollar rate did. So such a
+ * D counts at today's rate (`billRateFromUsd`); a D in another currency at its own locked value.
+ * His Oct 2026 report: a D of ARS 54,876 locked at $38.53 vs the same ARS bill read at $39.94 showed
+ * «فرق 1.41 $ غير مسجّل» - not a debt, only the rate moving.
+ */
+export function openDebtUsdToday(
+  openDebts: { currencyCode?: string; amount?: number; lockedUsd: number }[],
+  billCurrency: string,
+  billRateFromUsd: number | undefined,
+): number {
+  const bill = billCurrency.trim().toUpperCase();
+  return openDebts.reduce((sum, d) => {
+    const same = (d.currencyCode ?? "").toUpperCase() === bill && bill !== "USD";
+    if (same && billRateFromUsd && billRateFromUsd > 0 && Number.isFinite(d.amount)) return sum + (d.amount ?? 0) / billRateFromUsd;
+    return sum + d.lockedUsd;
+  }, 0);
+}
+
+/**
+ * The «فرق غير مسجّل» hint, only for a real gap (his Oct 2026 rule: «لا أريد أن تظهر هذه الزيادات»):
+ * while a D is open, Starlink's bill drifting a little above it (rates, a few cents of tax) is part
+ * of that D - it's paid at its real amount when the D is settled - so it shows only when the gap is
+ * a new bill of its own (over 25% of the open D, and at least $5).
+ */
+export function unrecordedGapUsd(starlinkDueUsd: number | undefined, recordedUnpaidUsd: number, openDebtUsd: number): number {
+  const gap = unrecordedStarlinkBalanceUsd(starlinkDueUsd, recordedUnpaidUsd);
+  if (gap === 0 || openDebtUsd <= 0) return gap;
+  return gap > Math.max(5, openDebtUsd * 0.25) ? gap : 0;
+}
+
 /** Starlink costs paid (USD) after Starlink's balance was last read - Starlink still shows them
  * as due until the next sync, so they must not look "unrecorded". With no sync time known, the
  * last 30 days' payments count. */

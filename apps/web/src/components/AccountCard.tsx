@@ -17,7 +17,7 @@ import { emailsMismatch } from "@/lib/emailMatch";
 import { computeBalanceByCurrency, LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerEntry } from "@/lib/ledgerStore";
 import { starlinkCostUsd, summarizeDeviceProfit } from "@/lib/accountingStore";
 import { faultCategory, faultLabel, isAutoFault, isWaivedCost, openDebtEntries } from "@/lib/deviceFault";
-import { paidSinceLastSyncUsd, totalPreviousDebtUsd, unrecordedStarlinkBalanceUsd, type PreviousDebt } from "@/lib/previousDebt";
+import { openDebtUsdToday, paidSinceLastSyncUsd, totalPreviousDebtUsd, unrecordedGapUsd, type PreviousDebt } from "@/lib/previousDebt";
 import { computeDeviceMarks } from "@/lib/deviceMarks";
 import { CurrencyStore, getCurrency, toUsd } from "@/lib/currencyStore";
 import { formatAmount } from "@/lib/formatAmount";
@@ -269,12 +269,20 @@ export function AccountCard({
   const openDebtUsd = openDebtEntries(ledgerEntries).reduce((sum, e) => sum + (starlinkCostUsd(e) ?? 0), 0);
   const previousDebtUsd = totalPreviousDebtUsd(previousDebts);
   const unpaidStarlinkUsd = openDebtUsd + previousDebtUsd;
-  // What Starlink shows as due beyond everything recorded - offered as a previous debt.
+  // What Starlink shows as due beyond everything recorded - offered as a previous debt. A D in
+  // the bill's own currency is compared at today's rate (only the rate moved), and a small drift
+  // over an open D is part of that D (previousDebt.ts unrecordedGapUsd).
+  const openDebtTodayUsd = openDebtUsdToday(
+    openDebtEntries(ledgerEntries).map((e) => ({ currencyCode: e.starlinkCost?.currencyCode, amount: e.starlinkCost?.amount, lockedUsd: starlinkCostUsd(e) ?? 0 })),
+    account.currency,
+    balanceRate,
+  );
   const unrecordedUsd = balanceIsZero
     ? 0
-    : unrecordedStarlinkBalanceUsd(
+    : unrecordedGapUsd(
         isUsdBalance ? balanceNumeric : balanceUsdEquivalent,
-        unpaidStarlinkUsd + paidSinceLastSyncUsd(ledgerEntries, account.lastSuccessfulScanAt),
+        openDebtTodayUsd + previousDebtUsd + paidSinceLastSyncUsd(ledgerEntries, account.lastSuccessfulScanAt),
+        openDebtTodayUsd,
       );
   const [previousDebtDialog, setPreviousDebtDialog] = useState<{ suggestedUsd?: number } | null>(null);
   const [renewalSheet, setRenewalSheet] = useState(false);

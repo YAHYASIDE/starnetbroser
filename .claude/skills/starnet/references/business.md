@@ -151,6 +151,12 @@ mind). Exact texts and numbers live in the code - this file says where.
 - **🎨 Rep color on device cards** (his Oct 2026 choice «الاثنان معًا»): the whole card tinted with the
   rep's color (20%), a full 3px frame in it, and a 3px line across the middle under the device /
   customer name (`.account-card-rep-tint`). Before: a light 9% tint + one top line.
+- **💱 «فرق غير مسجّل» is never just the exchange rate** (his Oct 2026 report: a D of ARS 54,876
+  locked at $38.53, the same ARS bill read at $39.94 → «فرق 1.41 $ غير مسجّل»; «لا أريد أن تظهر هذه
+  الزيادات… أضفه للعملية السابقة»). An open D in the bill's own currency counts at today's rate
+  (`previousDebt.openDebtUsdToday`); while a D is open, a gap counts only when it's a new bill (over
+  25% of the open D and at least $5, `unrecordedGapUsd`) - a smaller drift is part of that D and is
+  paid at its real amount when the D is settled (the settle dialog takes what was actually paid).
 - **📋 The rep's copy is sent by hand** (his choice «لا، أرسلها بيدي» - no automatic copy). Devices he
   gives a rep (or links) reach the rep's phone only with the next «📤 إرسال نسخته». Each sent copy
   records which devices / customers it held (`starnet.repCopySentDevices`); the rep card then shows
