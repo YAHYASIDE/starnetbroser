@@ -35,6 +35,29 @@ describe("pdfDocument", () => {
     expect(html).toContain("<td");
   });
 
+  it("renders extra titled sections after the main table, escaped", () => {
+    const html = buildPrintableHtml(
+      {
+        title: "كشف حساب مندوب",
+        partyName: "سالم",
+        summary: [],
+        columns: ["التاريخ"],
+        rows: [],
+        sections: [
+          { title: "📈 أرباح أجهزته - مؤكد", columns: ["الجهاز", "الربح"], rows: [["<b>جهاز 1</b>", "40"]], note: "المجموع 40" },
+          { title: "⏳ متوقع (D)", columns: ["الجهاز"], rows: [] },
+        ],
+      },
+      { name: "STAR NET" },
+      "2026-10-07",
+    );
+    expect(html).toContain("📈 أرباح أجهزته - مؤكد");
+    expect(html).toContain("&lt;b&gt;جهاز 1");
+    expect(html).toContain("المجموع 40");
+    expect(html).toContain("⏳ متوقع (D)");
+    expect(html.indexOf("لا توجد حركات")).toBeLessThan(html.indexOf("📈"));
+  });
+
   it("builds a safe file name", () => {
     expect(pdfFileName("كشف حساب زبون", "2026-09-25-1338")).toBe("starnet-statement-2026-09-25-1338.pdf");
     expect(pdfFileName("فاتورة بيع", "2026-09-25-1338")).toBe("starnet-invoice-2026-09-25-1338.pdf");

@@ -14,7 +14,7 @@
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import type { Invoice } from "./invoiceStore";
 import type { LedgerByAccount } from "./ledgerStore";
-import { shipmentProfitMoment } from "./accountingStore";
+import { computeExpectedShipmentProfit, shipmentProfitMoment } from "./accountingStore";
 import type {
   RepDeviceCommissionRow,
   Representative,
@@ -126,6 +126,10 @@ export function repRowDelta(row: RepStatementRow, convert: RepConvert = keepCurr
     const share = row.row.repShareUsd;
     return share !== undefined && Math.abs(share) > EPSILON ? convert(share, "USD", row.row.entry.profitCurrencyRates) : {};
   }
+  if (row.type === "customer") {
+    // A renewal on his customer's device is his debt (−); a payment brings it back (+).
+    return Math.abs(row.op.amount) > EPSILON ? convert(-row.op.amount, row.op.currency) : {};
+  }
   if (row.type === "invoice") {
     const net = row.row.commissionAmount - Math.max(0, row.row.invoice.paidAmount);
     return Math.abs(net) > EPSILON ? convert(net, row.row.invoice.currencyCode) : {};
@@ -166,6 +170,9 @@ export interface RepPeriodTotals {
   cashCollected: Record<string, number>;
   /** Settlements by kind, per currency. */
   settled: Record<RepSettlementKind, Record<string, number>>;
+  /** 📡 His customers' devices: renewals (his debt to us) and what was paid against them. */
+  customerCharges: Record<string, number>;
+  customerPaid: Record<string, number>;
 }
 
 export interface RepPeriodStatement {
@@ -210,6 +217,8 @@ export function buildRepPeriodStatement(
     commissions: {},
     cashCollected: {},
     settled: { commissionPayout: {}, cashHandover: {}, manualCredit: {}, manualDebit: {} },
+    customerCharges: {},
+    customerPaid: {},
   };
   const days: RepStatementDay[] = [];
 
@@ -238,6 +247,9 @@ export function buildRepPeriodStatement(
         } else if (row.row.profit.status === "pending") {
           totals.pendingCount += 1;
         }
+      } else if (row.type === "customer") {
+        if (row.op.amount > 0) add(totals.customerCharges, convert(row.op.amount, row.op.currency));
+        else add(totals.customerPaid, convert(-row.op.amount, row.op.currency));
       } else if (row.type === "invoice") {
         const code = row.row.invoice.currencyCode;
         add(totals.commissions, convert(row.row.commissionAmount, code));
@@ -256,6 +268,80 @@ export function buildRepPeriodStatement(
 function clean(values: Record<string, number>): Record<string, number> {
   const result: Record<string, number> = {};
   for (const [code, value] of Object.entries(values)) if (Math.abs(value) > EPSILON) result[code] = value;
+  return result;
+}
+
+// ---- 📈 His devices' profit, one line per shipment ----
+
+export interface RepProfitItem {
+  accountId: string;
+  entryId: string;
+  /** The day the profit counts on (Starlink paid), or the sale day while still D. */
+  date: string;
+  /** What the customer was charged, in its own currency. */
+  saleAmount: number;
+  saleCurrency: string;
+  /** USD; confirmed shipments only. */
+  saleUsd?: number;
+  costUsd?: number;
+  profitUsd: number;
+  shareUsd: number;
+  percent: number;
+  /** The shipment's locked rates (for showing USD in أوقية / سيفا). */
+  rates?: Record<string, number>;
+}
+
+export interface RepProfitBreakdown {
+  /** Starlink paid: real profit and his real share - newest first. */
+  confirmed: RepProfitItem[];
+  /** Still D: expected profit and his expected share (not owed yet) - newest first. */
+  expected: RepProfitItem[];
+  /** D shipments whose expected profit can't be known yet (no cost or rate). */
+  unknownCount: number;
+  /** Totals in the display currencies (each shipment at its own locked rates). */
+  confirmedProfit: Record<string, number>;
+  confirmedShare: Record<string, number>;
+  expectedProfit: Record<string, number>;
+  expectedShare: Record<string, number>;
+}
+
+/** His wish (Oct 2026): «تظهر ربحه والمتوقع ومن أي جهاز بتفاصيل ليست مختلطة» - each shipment on
+ * his devices on its own line, confirmed and expected (D) apart, each with its totals. */
+export function repProfitBreakdown(rows: RepDeviceCommissionRow[], convert: RepConvert = keepCurrency): RepProfitBreakdown {
+  const result: RepProfitBreakdown = {
+    confirmed: [],
+    expected: [],
+    unknownCount: 0,
+    confirmedProfit: {},
+    confirmedShare: {},
+    expectedProfit: {},
+    expectedShare: {},
+  };
+  for (const row of rows) {
+    const { entry, profit, percent } = row;
+    const rates = entry.profitCurrencyRates;
+    const base = { accountId: row.accountId, entryId: entry.id, date: shipmentProfitMoment(entry).date, saleAmount: entry.amount, saleCurrency: entry.currency, percent, ...(rates ? { rates } : {}) };
+    if (profit.status === "computed" && row.repShareUsd !== undefined) {
+      const item: RepProfitItem = { ...base, saleUsd: profit.saleValueUsd, costUsd: profit.starlinkCostUsd, profitUsd: profit.profitUsd ?? 0, shareUsd: row.repShareUsd };
+      result.confirmed.push(item);
+      add(result.confirmedProfit, convert(item.profitUsd, "USD", rates));
+      add(result.confirmedShare, convert(item.shareUsd, "USD", rates));
+      continue;
+    }
+    if (profit.status !== "pending") continue;
+    const expected = computeExpectedShipmentProfit(entry);
+    if (expected.status !== "expected" || expected.profitUsd === undefined || row.expectedRepShareUsd === undefined) {
+      result.unknownCount += 1;
+      continue;
+    }
+    const item: RepProfitItem = { ...base, profitUsd: expected.profitUsd, shareUsd: row.expectedRepShareUsd };
+    result.expected.push(item);
+    add(result.expectedProfit, convert(item.profitUsd, "USD"));
+    add(result.expectedShare, convert(item.shareUsd, "USD"));
+  }
+  const newestFirst = (a: RepProfitItem, b: RepProfitItem) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0);
+  result.confirmed.sort(newestFirst);
+  result.expected.sort(newestFirst);
   return result;
 }
 

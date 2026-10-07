@@ -4385,6 +4385,50 @@ button.overview-card:active {
   background: var(--violet-bg);
 }
 
+/* 📡 an operation on his customers' devices (his debt to us) */
+.rep-line-customer {
+  background: var(--orange-bg);
+}
+
+/* 📈 «أرباح أجهزته»: one line per shipment, confirmed and expected apart */
+.rep-profits {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.rep-profits-toggle {
+  justify-self: start;
+  font-weight: 700;
+}
+
+.rep-profit-group {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+}
+
+.rep-profit-expected {
+  border-style: dashed;
+}
+
+.rep-profit-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 10px;
+  font-size: 0.85rem;
+}
+
+.rep-profit-head span {
+  color: var(--text-muted);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .report-rep-split {
   display: grid;
   grid-template-columns: 1fr 1fr;

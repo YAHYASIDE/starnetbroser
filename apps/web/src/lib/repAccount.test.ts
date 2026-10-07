@@ -7,6 +7,7 @@ import {
   planRepDeletion,
   repNetPosition,
   repPeriod,
+  repProfitBreakdown,
   repRowDelta,
   setShipmentRepShare,
   splitRepRecords,
@@ -246,5 +247,42 @@ describe("⚖️ the rep's net position", () => {
     // We owe him more than he owes us: negative.
     expect(repNetPosition({ MRU: 500 }, { MRU: 800 }, convert)).toEqual({ MRU: -300 });
     expect(repNetPosition({}, {}, convert)).toEqual({});
+  });
+});
+
+describe("📡 his customers' devices inside his statement", () => {
+  const op = (entryId: string, amount: number, date: string, currency = "SIFA") => ({ entryId, accountId: "d9", date, at: `${date}T10:00:00.000Z`, amount, currency, byRep: false });
+
+  it("a renewal is his debt, a payment brings it back; the closing balance carries both with his share", () => {
+    const allDays = buildRepDailyStatement("r1", listRepDeviceCommissions("r1", ledger), [], [], [op("o1", 13500, "2026-09-22"), op("o2", -3500, "2026-09-23")]);
+    const st = buildRepPeriodStatement(allDays, {});
+    // his shares: 20 + 30 USD (we owe him); 13,500 − 3,500 سيفا (he owes us)
+    expect(st.closing).toEqual({ USD: 50, SIFA: -10000 });
+    expect(st.totals.customerCharges).toEqual({ SIFA: 13500 });
+    expect(st.totals.customerPaid).toEqual({ SIFA: 3500 });
+    expect(st.balanceAfter["customer-o1"]).toEqual({ USD: 50, SIFA: -13500 });
+  });
+
+  it("no customer operations: the statement is as before", () => {
+    expect(buildRepPeriodStatement(days(), {}).totals.customerCharges).toEqual({});
+  });
+});
+
+describe("📈 his devices' profit, one line per shipment", () => {
+  it("confirmed and expected (D) apart, each with its totals", () => {
+    const pendingLedger = {
+      d1: [
+        shipment(),
+        shipment({ id: "e3", date: "2026-09-25", createdAt: "2026-09-25T09:00:00.000Z", amount: 110, starlinkCost: { status: "pending", currencyCode: "USD", amount: 50 } }),
+        shipment({ id: "e4", date: "2026-09-26", createdAt: "2026-09-26T09:00:00.000Z", starlinkCost: { status: "pending" } }),
+      ],
+    };
+    const b = repProfitBreakdown(listRepDeviceCommissions("r1", pendingLedger));
+    expect(b.confirmed.map((i) => [i.entryId, i.accountId, i.saleUsd, i.costUsd, i.profitUsd, i.shareUsd])).toEqual([["e1", "d1", 100, 60, 40, 20]]);
+    expect(b.expected.map((i) => [i.entryId, i.profitUsd, i.shareUsd])).toEqual([["e3", 60, 30]]);
+    expect(b.unknownCount).toBe(1);
+    expect(b.confirmedShare).toEqual({ USD: 20 });
+    expect(b.expectedProfit).toEqual({ USD: 60 });
+    expect(b.expectedShare).toEqual({ USD: 30 });
   });
 });

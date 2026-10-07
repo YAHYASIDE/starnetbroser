@@ -169,6 +169,15 @@ mind). Exact texts and numbers live in the code - this file says where.
   operations and rep-book entries after the reset (`ledgerAfterRepReset` / `bookAfterRepReset` in
   `lib/repAccount.ts`). Nothing is deleted: the customers' own statements and the stored ledger keep
   everything, and «إلغاء التصفير» brings the old amounts back. The rep's copy / his phone is unchanged.
+- **📄 The rep's statement is his whole account** (Oct 2026: «عليه 13,500 لماذا لا تظهر… تظهر ربحه
+  ومتوقع ومن أي جهاز بتفاصيل… وإرسال له كشف حسابه PDF»; his choices: «عمليات أجهزته داخل الكشف»،
+  «قائمة لكل جهاز مفصولة»، «زر أرسل له الكشف»). The statement now runs his customers' device operations
+  (renewal = عليه, payment / handover = له, `RepStatementRow` type "customer" from `repOperations`)
+  in the same balance as his share, so «الرصيد الحالي» = the card's «الصافي». «📈 أرباح أجهزته جهازًا
+  جهازًا» lists the period's shipments: ✓ confirmed and ⏳ expected (D) apart, each with device, sale,
+  cost, profit, his share, and totals (`repProfitBreakdown`); the PDF carries both as tables.
+  «📤 أرسل له الكشف» sends that PDF to the rep's Telegram through the reps bot (`sendRepPdf`); with
+  «🔒 زبائنه عنده فقط» on, customer names stay out of the statement and PDF.
 - **🗑 Delete a device operation from the customer's statement** (clients page «تفاصيل العملية», his
   Oct 2026 request): same path as the device statement's delete (`confirmAndDeleteLedgerEntry` -
   closed-month check, confirm, removes its cash entry and allocations). «✎ تعديل» there opens the

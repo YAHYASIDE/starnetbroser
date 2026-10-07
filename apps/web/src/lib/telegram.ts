@@ -452,6 +452,33 @@ export async function sendRepDocument(repId: string, fileName: string, text: str
   return sent ? { ok: true } : { ok: false, message: failure ?? "تعذّر الإرسال - تأكد من الإنترنت" };
 }
 
+/** 📤 «أرسل له الكشف»: a PDF straight to the rep's own chat through the reps bot. */
+export function isRepLinkedToBot(repId: string): boolean {
+  return isRepsBotConnected() && targetChatIds(loadRepChats()[repId]).length > 0;
+}
+
+export async function sendRepPdf(repId: string, doc: PrintableDocument, caption: string): Promise<{ ok: true } | { ok: false; message: string }> {
+  const chatIds = targetChatIds(loadRepChats()[repId]);
+  if (!chatIds.length || !isRepsBotConnected()) return { ok: false, message: "المندوب غير مربوط ببوت المندوبين" };
+  let rendered: { fileName: string; base64: string };
+  try {
+    rendered = await renderPrintablePdf(doc);
+  } catch (err) {
+    return { ok: false, message: err instanceof Error && err.message ? err.message : "تعذّر تجهيز الملف" };
+  }
+  let failure: string | null = null;
+  let sent = false;
+  for (const chatId of chatIds) {
+    try {
+      await LocalBrowser.telegramSendDocument({ fileName: rendered.fileName, base64: rendered.base64, caption, bot: "reps", chatId, contentType: "application/pdf" });
+      sent = true;
+    } catch (err) {
+      failure = err instanceof Error && err.message ? err.message : "تعذّر الإرسال - تأكد من الإنترنت";
+    }
+  }
+  return sent ? { ok: true } : { ok: false, message: failure ?? "تعذّر الإرسال - تأكد من الإنترنت" };
+}
+
 /** A direct answer to someone who isn't linked (the "request received" reply). */
 export async function replyToChat(chatId: string, text: string): Promise<void> {
   try {

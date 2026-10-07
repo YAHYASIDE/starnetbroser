@@ -83,6 +83,15 @@ export interface PrintableSummaryItem {
   tone?: PrintableTone;
 }
 
+/** An extra titled table after the main one (e.g. a rep's profit per device). */
+export interface PrintableSection {
+  title: string;
+  columns: string[];
+  rows: string[][];
+  /** A totals line under the table. */
+  note?: string;
+}
+
 export interface PrintableDocument {
   /** e.g. "كشف حساب زبون" or "فاتورة بيع". */
   title: string;
@@ -99,6 +108,7 @@ export interface PrintableDocument {
   /** Set for a client/supplier statement: rendered with the invoice-style statement layout
    * (statementDocument.ts) instead of the generic table above. */
   statement?: StatementData;
+  sections?: PrintableSection[];
 }
 
 /** Wraps a left-to-right fragment (a date, a code, a number with a sign) in Unicode isolates so it
@@ -145,6 +155,21 @@ export function buildPrintableHtml(doc: PrintableDocument, business: BusinessPro
       return `<tr style="background:${index % 2 ? "#fafbfc" : "#ffffff"}">${cells}</tr>`;
     })
     .join("");
+  const sections = (doc.sections ?? [])
+    .map((section) => {
+      const sHead = section.columns.map((c) => `<th style="padding:7px 6px;text-align:right;font-size:12px">${e(c)}</th>`).join("");
+      const sBody = section.rows
+        .map((row, index) => `<tr style="background:${index % 2 ? "#fafbfc" : "#ffffff"}">${row.map((cell) => `<td style="padding:6px;border-bottom:1px solid #e1e5ea;font-size:12px"><bdi>${e(cell)}</bdi></td>`).join("")}</tr>`)
+        .join("");
+      return (
+        `<div style="font-size:15px;font-weight:700;margin:22px 0 8px">${e(section.title)}</div>` +
+        (section.rows.length
+          ? `<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#e8eef5;color:#14181f">${sHead}</tr></thead><tbody>${sBody}</tbody></table>`
+          : `<p style="color:#5b6472;font-size:12px">لا شيء</p>`) +
+        (section.note ? `<div style="font-size:12px;font-weight:700;margin-top:6px">${e(section.note)}</div>` : "")
+      );
+    })
+    .join("");
   const empty = doc.rows.length === 0 ? `<p style="text-align:center;color:#5b6472;padding:16px">لا توجد حركات</p>` : "";
   return (
     `<div dir="rtl" style="width:794px;box-sizing:border-box;padding:36px 40px;background:#fff;color:#14181f;font-family:Tahoma,Arial,sans-serif">` +
@@ -160,6 +185,7 @@ export function buildPrintableHtml(doc: PrintableDocument, business: BusinessPro
     (summary ? `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">${summary}</div>` : "") +
     `<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#075985;color:#fff">${head}</tr></thead><tbody>${body}</tbody></table>` +
     empty +
+    sections +
     (doc.footerNote ? `<p style="font-size:11px;color:#5b6472;margin-top:14px">${e(doc.footerNote)}</p>` : "") +
     `<p style="font-size:10px;color:#8a94a3;margin-top:24px;text-align:center">${e(business.name)} - مستند صادر من التطبيق</p>` +
     `</div>`

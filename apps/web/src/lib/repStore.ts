@@ -518,8 +518,23 @@ export function computeRepSharesUsd(entries: LedgerEntry[]): number {
   return total;
 }
 
+/** 📡 One operation on his customers' devices that is his debt to us (repClients.ts repOperations):
+ * a renewal (+, he owes us more) or a payment / handover (−). */
+export interface RepCustomerOp {
+  entryId: string;
+  accountId: string;
+  date: string;
+  at: string;
+  amount: number;
+  currency: string;
+  /** He handed it to us himself, rather than his customer paying us directly. */
+  byRep: boolean;
+  note?: string;
+}
+
 export type RepStatementRow =
   | { type: "device"; id: string; date: string; createdAt: string; row: RepDeviceCommissionRow }
+  | { type: "customer"; id: string; date: string; createdAt: string; op: RepCustomerOp }
   | { type: "invoice"; id: string; date: string; createdAt: string; row: RepInvoiceCommissionRow }
   | { type: "settlement"; id: string; date: string; createdAt: string; settlement: RepSettlement };
 
@@ -533,15 +548,18 @@ export interface RepStatementDay {
 }
 
 /** كشف حساب المندوب اليومي: every device shipment on his devices, every store invoice commission,
- * and every settlement, grouped by day (newest day first, newest row first within a day) with
+ * every settlement and (his Oct 2026 choice «عمليات أجهزته داخل الكشف») every operation on his
+ * customers' devices that is his debt to us, grouped by day (newest day first, newest row first within a day) with
  * that day's own device-profit split. */
 export function buildRepDailyStatement(
   representativeId: string,
   deviceCommissions: RepDeviceCommissionRow[],
   invoices: Invoice[],
   settlements: RepSettlementList,
+  customerOps: RepCustomerOp[] = [],
 ): RepStatementDay[] {
   const rows: RepStatementRow[] = [
+    ...customerOps.map((op) => ({ type: "customer" as const, id: op.entryId, date: op.date, createdAt: op.at, op })),
     // A shipment's share lands on the day Starlink was paid (its profit became real), not the
     // day it was sold; a still-D shipment sits on its own date as "expected".
     ...deviceCommissions.map((row) => ({

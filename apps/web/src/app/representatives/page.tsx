@@ -58,7 +58,8 @@ import {
   repRowKey,
   setShipmentRepShare,
   ShipmentRepPatch,
-  splitRepRecords, repNetPosition, ledgerAfterRepReset, bookAfterRepReset } from "@/lib/repAccount";
+  splitRepRecords, repNetPosition, ledgerAfterRepReset, bookAfterRepReset, isAfterRepReset, repProfitBreakdown, type RepProfitBreakdown, type RepProfitItem } from "@/lib/repAccount";
+import { isRepLinkedToBot, sendRepPdf } from "@/lib/telegram";
 import { InvoiceList, loadInvoices, saveInvoices } from "@/lib/invoiceStore";
 import {
   LEDGER_CURRENCIES,
@@ -692,11 +693,22 @@ function RepCard({
 
   const allDays = useMemo(() => {
     if (panel !== "statement" && sheet?.kind !== "reset") return [];
-    const source = showArchive && rep.resetFrom ? splitRepRecords(rep, { deviceRows: allDeviceRows, invoices, settlements }, "archive") : active;
-    return buildRepDailyStatement(rep.id, source.deviceRows, source.invoices, source.settlements);
-  }, [panel, sheet, showArchive, rep, allDeviceRows, invoices, settlements, active]);
+    const archive = showArchive && !!rep.resetFrom;
+    const source = archive ? splitRepRecords(rep, { deviceRows: allDeviceRows, invoices, settlements }, "archive") : active;
+    // 📡 His customers' device operations (his debt to us) run in the same balance (his Oct 2026 choice).
+    const customerOps = archive
+      ? repOperations(rep.id, allReplays, accounts, ledgerStore).filter((op) => !isAfterRepReset(rep.resetFrom, { date: op.date, createdAt: op.at }))
+      : operations;
+    return buildRepDailyStatement(rep.id, source.deviceRows, source.invoices, source.settlements, customerOps);
+  }, [panel, sheet, showArchive, rep, allDeviceRows, invoices, settlements, active, operations, allReplays, accounts, ledgerStore]);
   const period = periodKind === "month" ? monthRange(periodMonth) : repPeriod(periodKind, todayDateInputValue(), customPeriod);
   const statement = useMemo(() => buildRepPeriodStatement(allDays, period, fx.convert), [allDays, period.from, period.to, fx]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 📈 The period's shipments, one line each: confirmed and expected (D) apart.
+  const profits = useMemo(
+    () => repProfitBreakdown(statement.days.flatMap((day) => day.rows.flatMap((row) => (row.type === "device" ? [row.row] : []))), fx.convert),
+    [statement, fx],
+  );
+  const [sendState, setSendState] = useState<{ busy: boolean; message?: string; ok?: boolean }>({ busy: false });
   // His whole current account (since the reset), in the display currency: profit, his share, and
   // the running balance - every له/عليه entry and payout counted against his share.
   const account = useMemo(
@@ -725,7 +737,19 @@ function RepCard({
   }
 
   function clientNameFor(accountId: string): string | undefined {
+    // 🔒 «زبائنه عنده فقط»: his customers' names stay out of his statement.
+    if (customersHidden) return undefined;
     return getClient(clientStore, accounts.find((a) => a.id === accountId)?.clientId)?.name;
+  }
+
+  function statementDoc() {
+    return buildRepStatementPdf(rep, statement, periodLabel + (showArchive && rep.resetFrom ? " (أرشيف)" : ""), accountName, clientNameFor, storeItems, fx, profits);
+  }
+
+  async function sendStatementToRep() {
+    setSendState({ busy: true });
+    const result = await sendRepPdf(rep.id, statementDoc(), `📄 كشف حسابك - ${periodLabel}`);
+    setSendState(result.ok ? { busy: false, ok: true, message: `✓ أُرسل الكشف إلى ${rep.name} في تيليغرام` } : { busy: false, ok: false, message: result.message });
   }
 
   function openRow(row: RepStatementRow) {
@@ -910,14 +934,27 @@ function RepCard({
           <RepStatementSummary statement={statement} period={period} periodLabel={periodLabel} archive={showArchive && !!rep.resetFrom} hideOurs={readOnly} />
 
           <div className="party-panel-tools">
-            <PdfButton
-              className="party-action party-action-pdf"
-              label="🖨️ تصدير الكشف PDF"
-              build={() =>
-                buildRepStatementPdf(rep, statement, periodLabel + (showArchive && rep.resetFrom ? " (أرشيف)" : ""), accountName, clientNameFor, storeItems, fx)
-              }
-            />
+            <PdfButton className="party-action party-action-pdf" label="🖨️ تصدير الكشف PDF" build={statementDoc} />
+            {!readOnly && (
+              <button
+                type="button"
+                className="party-action party-action-pdf"
+                data-tour="rep-send-statement"
+                disabled={sendState.busy}
+                onClick={() => {
+                  if (!isRepLinkedToBot(rep.id)) {
+                    setSendState({ busy: false, ok: false, message: "المندوب غير مربوط ببوت المندوبين بعد - صدّر الملف بـ«🖨️ تصدير الكشف PDF» وأرسله له واتساب." });
+                    return;
+                  }
+                  void sendStatementToRep();
+                }}
+              >
+                {sendState.busy ? "⏳ جارِ الإرسال…" : "📤 أرسل له الكشف"}
+              </button>
+            )}
           </div>
+          {sendState.message && <p className={sendState.ok ? "pdf-sent-note" : "account-card-alert ledger-form-error"}>{sendState.message}</p>}
+          <RepProfitList breakdown={profits} accountName={accountName} />
           {statement.days.length === 0 ? (
             <p className="party-empty">
               {allDays.length === 0
@@ -946,7 +983,7 @@ function RepCard({
                         accountName={accountName}
                         clientNameFor={clientNameFor}
                         storeItems={storeItems}
-                        onOpen={row.type === "invoice" || readOnly ? undefined : () => openRow(row)}
+                        onOpen={row.type === "invoice" || row.type === "customer" || readOnly ? undefined : () => openRow(row)}
                         hideOurs={readOnly}
                       />
                     ))}
@@ -1372,6 +1409,8 @@ function RepStatementSummary({
   };
   const credits = sum(t.settled.cashHandover, t.settled.manualCredit);
   const debits = sum(t.settled.commissionPayout, t.settled.manualDebit);
+  if (nonZero(t.customerCharges).length) lines.push(["📡 تجديدات أجهزته (عليه)", list(t.customerCharges)]);
+  if (nonZero(t.customerPaid).length) lines.push(["💵 دُفع عنها (له)", list(t.customerPaid)]);
   if (nonZero(credits).length) lines.push(["له (أُضيف لرصيده)", list(credits)]);
   if (nonZero(debits).length) lines.push(["عليه (خُصم من رصيده)", list(debits)]);
 
@@ -1481,6 +1520,24 @@ function RepStatementLine({
             )}
           </span>
         )}
+      </>
+    );
+  } else if (row.type === "customer") {
+    const { op } = row;
+    const client = clientNameFor(op.accountId);
+    className = "rep-line-customer";
+    body = (
+      <>
+        <div className="party-statement-top">
+          <span className="party-statement-kind">
+            {customerOpLabel(op)} · {accountName(op.accountId)}
+            {client ? ` · ${client}` : ""}
+          </span>
+          <strong dir="ltr">
+            {formatAmount(Math.abs(op.amount))} {currencyLabel(op.currency)}
+          </strong>
+        </div>
+        {op.note && <span className="party-statement-note">{op.note}</span>}
       </>
     );
   } else if (row.type === "invoice") {
@@ -1948,6 +2005,11 @@ function repRowCells(
     }
     return [row.date, title, `ربح ${fx.usd(profit.profitUsd ?? 0, entry)} · حصته ${fx.usd(repShareUsd ?? 0, entry)} (${percent}%)`, delta, balance];
   }
+  if (row.type === "customer") {
+    const { op } = row;
+    const client = clientNameFor(op.accountId);
+    return [row.date, `${customerOpLabel(op)} · ${accountName(op.accountId)}${client ? ` · ${client}` : ""}`, `${formatAmount(Math.abs(op.amount))} ${currencyLabel(op.currency)}${op.note ? ` · ${op.note}` : ""}`, delta, balance];
+  }
   if (row.type === "invoice") {
     const { invoice, commissionAmount } = row.row;
     const names = invoice.lines.map((l) => getStoreItem(storeItems, l.itemId)?.name).filter(Boolean).join("، ");
@@ -1966,6 +2028,7 @@ function buildRepStatementPdf(
   clientNameFor: (accountId: string) => string | undefined,
   storeItems: StoreItemRegistry,
   fx: Fx,
+  profits?: RepProfitBreakdown,
 ): PrintableDocument {
   // Oldest first on paper, so the running balance reads top-down.
   const rows = [...statement.days]
@@ -1984,12 +2047,101 @@ function buildRepStatementPdf(
       { label: "ربح أجهزته", value: fx.list(t.deviceProfit) },
       { label: "حصته", value: fx.list(t.repShare), tone: "due" as const },
       { label: "حصتي", value: fx.list(t.ourShare), tone: "clear" as const },
+      ...(nonZero(t.customerCharges).length ? [{ label: "تجديدات أجهزته (عليه)", value: fx.list(t.customerCharges), tone: "due" as const }] : []),
+      ...(nonZero(t.customerPaid).length ? [{ label: "دُفع عنها (له)", value: fx.list(t.customerPaid), tone: "clear" as const }] : []),
       { label: "الرصيد", value: balanceText(statement.closing), tone: "due" as const },
     ],
+    ...(profits ? { sections: profitSections(profits, accountName, fx) } : {}),
     columns: ["التاريخ", "العملية", "التفاصيل", "الحركة", "الرصيد بعدها"],
     rows,
     footerNote: "«له» = مستحق للمندوب، «عليه» = مستحق عليه.",
   };
+}
+
+function customerOpLabel(op: { amount: number; byRep: boolean }): string {
+  if (op.amount > 0) return "📡 تجديد عليه";
+  return op.byRep ? "💵 سلّمك" : "💵 دفع زبونه لك";
+}
+
+/** 📈 The PDF's two profit tables: confirmed, then expected (D). */
+function profitSections(b: RepProfitBreakdown, accountName: (accountId: string) => string, fx: Fx) {
+  const sale = (i: RepProfitItem) => `${formatAmount(i.saleAmount)} ${currencyLabel(i.saleCurrency)}`;
+  const usd = (value: number, i: RepProfitItem) => fx.amount(value, "USD", i.rates);
+  return [
+    {
+      title: `📈 أرباح أجهزته - مؤكدة (${b.confirmed.length})`,
+      columns: ["التاريخ", "الجهاز", "البيع", "التكلفة", "الربح", "حصته"],
+      rows: b.confirmed.map((i) => [i.date, accountName(i.accountId), sale(i), i.costUsd !== undefined ? usd(i.costUsd, i) : "", usd(i.profitUsd, i), `${usd(i.shareUsd, i)} (${i.percent}%)`]),
+      note: `المجموع: ربح ${fx.list(b.confirmedProfit)} · حصته ${fx.list(b.confirmedShare)}`,
+    },
+    {
+      title: `⏳ أرباح متوقعة - بانتظار D (${b.expected.length})`,
+      columns: ["التاريخ", "الجهاز", "البيع", "الربح المتوقع", "حصته المتوقعة"],
+      rows: b.expected.map((i) => [i.date, accountName(i.accountId), sale(i), usd(i.profitUsd, i), `${usd(i.shareUsd, i)} (${i.percent}%)`]),
+      note: `المجموع المتوقع: ربح ${fx.list(b.expectedProfit)} · حصته ${fx.list(b.expectedShare)} - تتأكد بعد تسديد Starlink${b.unknownCount ? ` · ${b.unknownCount} شحنة بلا تكلفة معروفة بعد` : ""}`,
+    },
+  ];
+}
+
+/** 📈 «أرباح أجهزته»: every shipment of the period on its own line, confirmed and expected apart. */
+function RepProfitList({ breakdown: b, accountName }: { breakdown: RepProfitBreakdown; accountName: (accountId: string) => string }) {
+  const fx = useFx();
+  const [open, setOpen] = useState(false);
+  const count = b.confirmed.length + b.expected.length;
+  if (count === 0 && b.unknownCount === 0) return null;
+  const usd = (value: number, i: RepProfitItem) => fx.amount(value, "USD", i.rates);
+  const group = (title: string, items: RepProfitItem[], expected: boolean, profit: Record<string, number>, share: Record<string, number>) => (
+    <div className={`rep-profit-group${expected ? " rep-profit-expected" : ""}`}>
+      <div className="rep-profit-head">
+        <strong>{title} ({items.length})</strong>
+        <span>
+          ربح {fx.list(profit)} · حصته {fx.list(share)}
+        </span>
+      </div>
+      {items.length === 0 ? (
+        <p className="party-empty">لا شيء</p>
+      ) : (
+        <ul className="party-statement">
+          {items.map((i) => (
+            <li key={i.entryId} className="party-statement-row">
+              <div className="party-statement-top">
+                <span className="party-statement-kind">📡 {accountName(i.accountId)}</span>
+                <span className="party-statement-date" dir="ltr">{i.date}</span>
+              </div>
+              <div className="rep-line-calc">
+                <span>
+                  بيع <bdi dir="ltr">{formatAmount(i.saleAmount)}</bdi> {currencyLabel(i.saleCurrency)}
+                </span>
+                {i.costUsd !== undefined && <span>− تكلفة {usd(i.costUsd, i)}</span>}
+                <span className={i.profitUsd >= 0 ? "party-statement-clear" : "party-statement-due"}>
+                  = {expected ? "ربح متوقع" : "ربح"} {usd(i.profitUsd, i)}
+                </span>
+              </div>
+              <div className="rep-day-split">
+                <span className="rep-split-rep">
+                  {expected ? "حصته المتوقعة" : "حصته"} ({i.percent}%) {usd(i.shareUsd, i)}
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+  return (
+    <div className="rep-profits" data-tour="rep-profits">
+      <button type="button" className="text-action rep-profits-toggle" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+        📈 أرباح أجهزته جهازًا جهازًا ({count}) {open ? "▲" : "▼"}
+      </button>
+      {open && (
+        <>
+          {group("✓ مؤكد", b.confirmed, false, b.confirmedProfit, b.confirmedShare)}
+          {group("⏳ متوقع - بانتظار D", b.expected, true, b.expectedProfit, b.expectedShare)}
+          {b.unknownCount > 0 && <p className="settings-hint">{b.unknownCount} شحنة بانتظار D بلا تكلفة معروفة بعد - يظهر ربحها بعد تسجيل التكلفة.</p>}
+        </>
+      )}
+    </div>
+  );
 }
 
 /** "عليه 1,500 أوقية · له 20 دولار" - + = owed. */
