@@ -687,9 +687,11 @@ public class TelegramRepliesTest {
         assertTrue(mru.contains("{\"text\":\"💵 كاش\",\"callback_data\":\"paym:cash\"}"));
         assertTrue(mru.contains("{\"text\":\"📲 بنكيلي\",\"callback_data\":\"paym:bankily\"}"));
         assertFalse(mru.contains("orange"));
-        String sifa = TelegramReplies.methodMarkup("SIFA");
-        assertTrue(sifa.contains("paym:cash") && sifa.contains("paym:orange") && sifa.contains("paym:nita"));
-        assertFalse(sifa.contains("bankily"));
+        String sifa = TelegramReplies.methodMarkup("SIFA"); // «سيفا تدفع فقط كاش»
+        assertTrue(sifa.contains("paym:cash"));
+        assertFalse(sifa.contains("orange") || sifa.contains("nita") || sifa.contains("bankily"));
+        String franc = TelegramReplies.methodMarkup(TelegramReplies.FRANC);
+        assertTrue(franc.contains("paym:orange") && franc.contains("paym:nita") && !franc.contains("paym:cash"));
         assertEquals(1, TelegramReplies.payMethods("USD").length); // دولار: كاش only
         assertEquals("كاش", TelegramReplies.payMethodName("USD", "cash"));
         assertEquals("نيتا", TelegramReplies.payMethodName("SIFA", "nita"));
