@@ -457,7 +457,7 @@ public class TelegramReplyService extends Service {
             return false;
         }
         if ("currency".equals(stage)) {
-            String currency = TelegramReplies.explicitCurrency(text);
+            String currency = TelegramReplies.explicitPayCurrency(text);
             if (currency == null) {
                 send(context, bot, token, chatId, TelegramReplies.currencyQuestion(price.amount), TelegramReplies.currencyMarkup());
                 return true;
@@ -548,7 +548,7 @@ public class TelegramReplyService extends Service {
             send(context, bot, token, chatId, retry ? TelegramReplies.PAY_AMOUNT_AGAIN : TelegramReplies.PAY_AMOUNT_QUESTION, TelegramReplies.FORCE_REPLY);
             return;
         }
-        String currency = TelegramReplies.explicitCurrency(rest);
+        String currency = TelegramReplies.explicitPayCurrency(rest);
         if (currency == null) {
             TelegramStore.setPendingPayment(context, chatId, "currency", Double.toString(price.amount), "", "", "", "");
             send(context, bot, token, chatId, TelegramReplies.currencyQuestion(price.amount), TelegramReplies.currencyMarkup());
@@ -594,18 +594,17 @@ public class TelegramReplyService extends Service {
         if (price == null) return TelegramReplies.PAY_EXPIRED;
         if (data.startsWith("payc:")) {
             String currency = data.substring(5);
-            if (!TelegramReplies.isPayCurrency(currency)) return "اختيار غير صالح";
+            if (!TelegramReplies.isPayFlowCurrency(currency)) return "اختيار غير صالح";
             askMethod(context, bot, token, chatId, messageId, new TelegramReplies.Price(price.amount, currency));
             return null;
         }
-        if (!TelegramReplies.isPayCurrency(price.currency)) return "اختر العملة أولاً";
+        if (!TelegramReplies.isPayFlowCurrency(price.currency)) return "اختر العملة أولاً";
         if (data.startsWith("paym:")) {
             String method = data.substring(5);
             String methodName = TelegramReplies.payMethodName(price.currency, method);
             if (methodName == null) return "اختيار غير صالح";
-            // 🟠 أورانج / نيتا count in فرانك (5 فرانك = 1 سيفا): the amount he typed is فرانك.
-            TelegramReplies.Price paid = TelegramReplies.isFrancApp(method) && !TelegramReplies.isFrancApp(pending[4])
-                ? TelegramReplies.francToSifa(price) : price;
+            // 🟠 فرانك (أورانج / نيتا): 5 فرانك = 1 سيفا - from here on the payment is سيفا.
+            TelegramReplies.Price paid = TelegramReplies.FRANC.equals(price.currency) ? TelegramReplies.francToSifa(price) : price;
             TelegramStore.setPendingPayment(context, chatId, "who", Double.toString(paid.amount), paid.currency, "", method, "");
             askWho(context, bot, token, chatId, messageId, repId, snapshot, paid, "");
             return paid == price ? methodName : methodName + ": " + TelegramReplies.francNote(price, paid);

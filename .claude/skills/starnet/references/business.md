@@ -218,9 +218,12 @@ mind). Exact texts and numbers live in the code - this file says where.
   **Units:** his reps count Orange/Nita money in **فرانك**; the app's «سيفا» is **5 فرانك** (his
   words: «10000 فرانك… قيمة 2000 سيفا»). That day's payment was really 2,000 سيفا (he fixes it by
   hand: one entry edited to 2,000, the duplicate deleted → 44,000 owed).
-  **His choice «أورانج/نيتا = فرانك دائمًا»:** in the money bot's 💵 دفعة, choosing أورانج موني or
-  نيتا turns the typed amount (فرانك) into سيفا ÷5 (`TelegramReplies.isFrancApp` / `francToSifa`,
-  once - re-choosing doesn't divide again); the rep sees «10,000 فرانك = 2,000 سيفا».
+  **His rule «أورانج موني لفرانك فقط… سيفا تدفع فقط كاش»:** the money bot's 💵 دفعة currency step
+  offers أوقية / «سيفا (كاش)» / دولار / «🟠 فرانك (أورانج / نيتا)». سيفا → cash only; فرانك → أورانج
+  or نيتا only, and on choosing the app the amount becomes سيفا ÷5 (`TelegramReplies.FRANC`,
+  `francToSifa`, `explicitPayCurrency` reads «فرنك/فرانك/cfa» typed with the amount); the rep sees
+  «10,000 فرانك = 2,000 سيفا». A recorded سيفا payment keeps its أورانج/نيتا label; activations (fixed
+  سيفا price) and loans still offer أورانج / نيتا.
 - **🗑 Delete a device operation from the customer's statement** (clients page «تفاصيل العملية», his
   Oct 2026 request): same path as the device statement's delete (`confirmAndDeleteLedgerEntry` -
   closed-month check, confirm, removes its cash entry and allocations). «✎ تعديل» there opens the

@@ -811,4 +811,21 @@ public class TelegramRepliesTest {
         assertEquals("SIFA", sifa.currency);
         assertEquals("10,000 فرانك = 2,000 سيفا", TelegramReplies.francNote(typed, sifa));
     }
+
+    @Test
+    public void sifaIsCashOnlyAndFrancIsOrangeOrNita() {
+        // «سيفا تدفع فقط كاش» - «أورانج موني لفرانك فقط».
+        assertEquals(1, TelegramReplies.payMethods("SIFA").length);
+        assertEquals(TelegramReplies.CASH, TelegramReplies.payMethods("SIFA")[0][0]);
+        assertEquals(2, TelegramReplies.payMethods(TelegramReplies.FRANC).length);
+        assertNull(TelegramReplies.payMethodName(TelegramReplies.FRANC, TelegramReplies.CASH));
+        assertEquals("أورانج موني", TelegramReplies.payMethodName(TelegramReplies.FRANC, "orange"));
+        // once converted the payment is سيفا and its app stays valid
+        assertEquals("أورانج موني", TelegramReplies.payMethodName("SIFA", "orange"));
+        assertEquals(TelegramReplies.FRANC, TelegramReplies.explicitPayCurrency("10000 فرنك"));
+        assertEquals("SIFA", TelegramReplies.explicitPayCurrency("10000 سيفا"));
+        assertTrue(TelegramReplies.currencyMarkup().contains("payc:FRANC"));
+        // a loan still goes out through أورانج / نيتا
+        assertEquals(2, TelegramReplies.loanApps("SIFA").length);
+    }
 }

@@ -697,7 +697,7 @@ final class TelegramReplies {
 
         String label() {
             java.text.DecimalFormat format = new java.text.DecimalFormat("#,##0.##", java.text.DecimalFormatSymbols.getInstance(Locale.ROOT));
-            String name = "USD".equals(currency) ? "دولار" : "SIFA".equals(currency) ? "سيفا" : "أوقية";
+            String name = "USD".equals(currency) ? "دولار" : "SIFA".equals(currency) ? "سيفا" : FRANC.equals(currency) ? "فرانك" : "أوقية";
             return format.format(amount) + " " + name;
         }
     }
@@ -721,7 +721,10 @@ final class TelegramReplies {
     /** ✅ دفع - كاش / 📲 each banking app of the currency / ⏳ لم يدفع بعد (callbacks "ap:<method>" / "ap:no"). */
     static String activationPaidMarkup(String currency) {
         StringBuilder rows = new StringBuilder();
-        for (String[] m : payMethods(currency)) {
+        // A fixed price in سيفا may still be paid through أورانج / نيتا (its فرانك value).
+        java.util.List<String[]> methods = new java.util.ArrayList<>(java.util.Arrays.asList(payMethods(currency)));
+        if ("SIFA".equals(currency)) methods.addAll(java.util.Arrays.asList(bankApps(FRANC)));
+        for (String[] m : methods) {
             String label = CASH.equals(m[0]) ? "✅ دفع - كاش" : "✅ دفع - " + m[1];
             rows.append('[').append(cb(label, "ap:" + m[0])).append("],");
         }
@@ -865,12 +868,25 @@ final class TelegramReplies {
     }
 
     static String currencyMarkup() {
-        return "{\"inline_keyboard\":[[" + cb("أوقية", "payc:MRU") + "," + cb("سيفا", "payc:SIFA") + "," + cb("دولار", "payc:USD") + "],["
+        return "{\"inline_keyboard\":[[" + cb("أوقية", "payc:MRU") + "," + cb("سيفا (كاش)", "payc:SIFA") + "," + cb("دولار", "payc:USD") + "],["
+            + cb("🟠 فرانك (أورانج / نيتا)", "payc:" + FRANC) + "],["
             + cb("❌ إلغاء", "payx") + "]]}";
     }
 
     static boolean isPayCurrency(String code) {
         return "MRU".equals(code) || "SIFA".equals(code) || "USD".equals(code);
+    }
+
+    /** 🟠 The 💵 دفعة steps also take فرانك - only until the app is chosen, then it is سيفا. */
+    static boolean isPayFlowCurrency(String code) {
+        return isPayCurrency(code) || FRANC.equals(code);
+    }
+
+    /** The currency written with a payment's amount: «فرنك/فرانك/cfa» is فرانك (أورانج / نيتا). */
+    static String explicitPayCurrency(String text) {
+        String folded = normalize(text);
+        if (folded.contains("فرنك") || folded.contains("فرانك") || folded.contains("cfa") || folded.contains("franc")) return FRANC;
+        return explicitCurrency(text);
     }
 
     /** "device - customer" (the customer's name only, no phone). */
@@ -1118,9 +1134,10 @@ final class TelegramReplies {
 
     static final String CASH = "cash";
 
-    /** 💵 كاش first, then the currency's banking apps (دولار: cash only). */
+    /** 💵 كاش first, then the currency's banking apps (دولار / سيفا: cash only; فرانك: its apps only). */
     static String[][] payMethods(String currency) {
         String[][] apps = bankApps(currency);
+        if (FRANC.equals(currency)) return apps;
         String[][] all = new String[apps.length + 1][];
         all[0] = new String[] {CASH, "💵 كاش"};
         System.arraycopy(apps, 0, all, 1, apps.length);
@@ -1129,8 +1146,10 @@ final class TelegramReplies {
 
     /** The method's name ("كاش", "بنكيلي"...), or null when it isn't one for that currency. */
     static String payMethodName(String currency, String code) {
-        if (CASH.equals(code)) return "كاش";
+        if (CASH.equals(code)) return FRANC.equals(currency) ? null : "كاش";
         for (String[] app : bankApps(currency)) if (app[0].equals(code)) return app[1];
+        // A فرانك payment is سيفا once its app is chosen - the app stays valid.
+        if ("SIFA".equals(currency)) for (String[] app : bankApps(FRANC)) if (app[0].equals(code)) return app[1];
         return null;
     }
 
@@ -1225,8 +1244,10 @@ final class TelegramReplies {
 
     /** The banking apps per currency: {code, name} - codes as PaymentMethod (ledgerStore.ts).
      * أوقية: بنكيلي / مصرفي / سداد, سيفا: أورانج موني / نيتا. */
-    /** 🟠 Apps that count in فرانك (his Oct 2026 rule: 5 فرانك = 1 سيفا). */
+    /** 🟠 أورانج موني / نيتا count in فرانك (his Oct 2026 rule: 5 فرانك = 1 سيفا); سيفا itself is
+     * paid in cash only («سيفا تدفع فقط كاش»). */
     static final int FRANC_PER_SIFA = 5;
+    static final String FRANC = "FRANC";
 
     static boolean isFrancApp(String method) {
         return "orange".equals(method) || "nita".equals(method);
@@ -1245,12 +1266,13 @@ final class TelegramReplies {
 
     static String[][] bankApps(String currency) {
         if ("MRU".equals(currency)) return new String[][] {{"bankily", "بنكيلي"}, {"masrvi", "مصرفي"}, {"sedad", "سداد"}};
-        if ("SIFA".equals(currency)) return new String[][] {{"orange", "أورانج موني"}, {"nita", "نيتا"}};
+        if (FRANC.equals(currency)) return new String[][] {{"orange", "أورانج موني"}, {"nita", "نيتا"}};
         return new String[0][];
     }
 
+    /** A loan the operator sends: سيفا goes out through أورانج / نيتا too. */
     static String[][] loanApps(String currency) {
-        return bankApps(currency);
+        return "SIFA".equals(currency) ? bankApps(FRANC) : bankApps(currency);
     }
 
     /** The app's name for its code in that currency, or null. */
