@@ -49,8 +49,12 @@ describe("rep changes (rep side)", () => {
     const changes = buildRepChangeSet(current, b);
     expect(Object.keys(changes[ACCOUNTS_KEY]!.set)).toEqual(["a2"]);
     expect(Object.keys(changes[LEDGER_KEY]!.set)).toEqual(["a1/p1"]);
-    expect(Object.keys(changes[CLIENTS_KEY]!.set)).toEqual(["c2"]);
-    expect(countRepChanges(changes)).toBe(3);
+    // 👥 his customers stay on his phone - never sent
+    expect(changes[CLIENTS_KEY]).toBeUndefined();
+    expect(countRepChanges(changes)).toBe(2);
+    // linking his own customer to a device is not a change either
+    const linked = { ...b, [ACCOUNTS_KEY]: [{ ...b[ACCOUNTS_KEY][0]!, clientId: "his" }] };
+    expect(buildRepChangeSet(linked, b)).toEqual({});
     expect(newDeviceIds(changes, b)).toEqual(["a2"]);
     expect(buildRepChangeSet(b, b)).toEqual({});
   });
@@ -70,7 +74,7 @@ describe("rep changes (operator side, applied directly)", () => {
     };
   }
 
-  it("adds his new device, customer and payment; a payment is held by the rep, never in the till", () => {
+  it("adds his new device and payment - never his customer; a payment is held by the rep, never in the till", () => {
     const changes = {
       [ACCOUNTS_KEY]: { set: { a2: { id: "a2", name: "Dish 2", clientId: "c2" } }, removed: [] },
       [CLIENTS_KEY]: { set: { c2: { id: "c2", name: "Client Two" } }, removed: [] },
@@ -78,15 +82,16 @@ describe("rep changes (operator side, applied directly)", () => {
     };
     const { stores, summary, newDeviceIds: created } = applyRepChangeSet(ownerStores(), changes, "r1");
     const accounts = stores[ACCOUNTS_KEY] as Array<Record<string, unknown>>;
-    expect(accounts.find((a) => a.id === "a2")).toMatchObject({ representativeId: "r1", clientId: "c2" });
+    expect(accounts.find((a) => a.id === "a2")).toMatchObject({ representativeId: "r1" });
+    expect(accounts.find((a) => a.id === "a2")!.clientId).toBeUndefined();
     expect(accounts).toHaveLength(4);
     const ledger = stores[LEDGER_KEY] as Record<string, Array<Record<string, unknown>>>;
     expect(ledger.a1!.find((e) => e.id === "p1")).toMatchObject({ heldByRepId: "r1" });
     expect(ledger.a2!.map((e) => e.id)).toEqual(["s1"]);
     expect(ledger.x1).toHaveLength(1);
-    expect((stores[CLIENTS_KEY] as Record<string, unknown>).c2).toBeTruthy();
+    expect(stores[CLIENTS_KEY]).toBeUndefined();
     expect(created).toEqual(["a2"]);
-    expect(summary).toMatchObject({ newDevices: 1, payments: 1, shipments: 1, newClients: 1, refused: 0 });
+    expect(summary).toMatchObject({ newDevices: 1, payments: 1, shipments: 1, newClients: 0, refused: 1 });
     expect(describeRepChanges(summary)).toContain("💵 1 دفعة");
   });
 
@@ -127,10 +132,17 @@ describe("rep changes (operator side, applied directly)", () => {
     expect(summary.removedEntries).toBe(1);
   });
 
-  it("a promise he added is tagged with him", () => {
+  it("his customers' promises stay with him (never applied here)", () => {
     const changes = { [PROMISES_KEY]: { set: { pr1: { id: "pr1", clientId: "c1", amount: 3000 } }, removed: [] } };
-    const { stores } = applyRepChangeSet(ownerStores(), changes, "r1");
-    expect(stores[PROMISES_KEY]).toEqual([{ id: "pr1", clientId: "c1", amount: 3000, repId: "r1" }]);
+    const { stores, summary } = applyRepChangeSet(ownerStores(), changes, "r1");
+    expect(stores[PROMISES_KEY]).toBeUndefined();
+    expect(summary.refused).toBe(1);
+  });
+
+  it("his edit of a device keeps the operator's customer on it", () => {
+    const changes = { [ACCOUNTS_KEY]: { set: { a1: { id: "a1", name: "Dish 1 (roof)", representativeId: "r1", clientId: "his-own" } }, removed: [] } };
+    const a1 = (applyRepChangeSet(ownerStores(), changes, "r1").stores[ACCOUNTS_KEY] as Array<Record<string, unknown>>).find((a) => a.id === "a1");
+    expect(a1).toMatchObject({ name: "Dish 1 (roof)", clientId: "c1" });
   });
 });
 
@@ -162,12 +174,11 @@ describe("reviewing a rep's recordings item by item", () => {
     [PROMISES_KEY]: { set: { pr1: { id: "pr1", clientId: "c1", amount: 3000, currency: "MRU" } }, removed: [] },
   };
 
-  it("a new device carries its new customer and its operations; the rest are their own items", () => {
+  it("a new device carries its operations; the rest are their own items - his customers never offered", () => {
     const items = listRepChangeItems(changes, owner());
-    expect(items.map((i) => i.kind)).toEqual(["newDevice", "payment", "entryRemove", "newClient", "other"]);
+    expect(items.map((i) => i.kind)).toEqual(["newDevice", "payment", "entryRemove"]);
     const device = items[0]!;
-    expect(device.parts.map((p) => `${p.store}|${p.path}`)).toEqual([`${ACCOUNTS_KEY}|a2`, `${CLIENTS_KEY}|c2`, `${LEDGER_KEY}|a2/s1`]);
-    expect(device.detail).toContain("Client Two");
+    expect(device.parts.map((p) => `${p.store}|${p.path}`)).toEqual([`${ACCOUNTS_KEY}|a2`, `${LEDGER_KEY}|a2/s1`]);
     expect(items[1]).toMatchObject({ title: "💵 دفعة · Dish 1", amount: { value: 5000, currency: "MRU" } });
   });
 
@@ -183,15 +194,11 @@ describe("reviewing a rep's recordings item by item", () => {
     expect((stores[LEDGER_KEY] as Record<string, unknown[]>).a1).toHaveLength(2); // e1 kept: its removal wasn't approved
 
     let decisions = withDecision({}, approved, "approved");
-    decisions = withDecision(decisions, items.filter((i) => i.kind === "newClient"), "rejected");
-    const left = items.filter((i) => !isItemDecided(i, decisions));
-    expect(left.map((i) => i.kind)).toEqual(["entryRemove", "other"]);
-    expect(rejectedVersions(decisions)).toEqual({ [`${CLIENTS_KEY}|c3`]: recordHash(changes[CLIENTS_KEY].set.c3) });
+    const removal = items.filter((i) => i.kind === "entryRemove");
+    decisions = withDecision(decisions, removal, "rejected");
+    expect(items.filter((i) => !isItemDecided(i, decisions))).toEqual([]);
+    expect(rejectedVersions(decisions)).toEqual({ [`${LEDGER_KEY}|a1/e1`]: recordHash(undefined) });
     expect(describeItems(approved)).toBe("📡 جهاز جديد 1 · 💵 دفعة 1");
-
-    // He edits the rejected customer again: it comes back for review.
-    const edited = { ...changes, [CLIENTS_KEY]: { set: { c3: { id: "c3", name: "Client 3 (fixed)" } }, removed: [] } };
-    expect(listRepChangeItems(edited, owner()).filter((i) => !isItemDecided(i, decisions)).map((i) => i.key)).toContain("cli:c3");
   });
 });
 
@@ -212,13 +219,14 @@ describe("rep's own customers: everything on the rep", () => {
     expect(summary.payments).toBe(1);
   });
 
-  it("the customer of his new device becomes his, with its balance", () => {
+  it("his new device arrives without his customer - his customers stay on his phone", () => {
     const changes = {
       [ACCOUNTS_KEY]: { set: { a2: { id: "a2", name: "Dish 2", clientId: "c2" } }, removed: [] },
       [CLIENTS_KEY]: { set: { c2: { id: "c2", name: "Client Two" } }, removed: [] },
     };
     const { stores } = applyRepChangeSet(owner(), changes, "r1", new Date("2026-10-02T10:00:00Z"));
-    expect((stores[CLIENTS_KEY] as Record<string, Record<string, unknown>>).c2!.repSegments).toEqual([{ repId: "r1", from: "2026-10-02T10:00:00.000Z", carry: true }]);
+    expect(stores[CLIENTS_KEY]).toBeUndefined();
+    expect((stores[ACCOUNTS_KEY] as Array<Record<string, unknown>>).find((a) => a.id === "a2")!.clientId).toBeUndefined();
   });
 });
 

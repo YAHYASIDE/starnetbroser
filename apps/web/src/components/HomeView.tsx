@@ -2151,9 +2151,9 @@ export function HomeView({
                 onFinishCreation={(target) => patchAccount(target.id, { creation: null })}
                 allAccounts={accounts}
                 onArchive={handleArchive}
-                onSoftDelete={handleSoftDelete}
+                onSoftDelete={ownerView ? handleSoftDelete : undefined}
                 onRestore={handleRestore}
-                onPermanentDelete={viewMode === "trash" ? deleteAccount : undefined}
+                onPermanentDelete={viewMode === "trash" && ownerView ? deleteAccount : undefined}
                 onConfirmRenewal={handleConfirmRenewal}
                 sessionNeedsLogin={viewMode === "active" && needsLoginIds.has(account.id)}
                 previousDebts={openPreviousDebts.filter((d) => d.accountId === account.id)}
@@ -2182,7 +2182,7 @@ export function HomeView({
             setDialog(null);
           }}
           onSave={saveAccount}
-          onDelete={deleteAccount}
+          onDelete={ownerView ? deleteAccount : undefined}
           existingAccounts={accounts}
         />
       )}

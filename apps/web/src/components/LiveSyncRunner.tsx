@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { runLiveSyncOnce } from "@/lib/liveSync";
+import { LIVE_SYNC_STOPPED, runLiveSyncOnce } from "@/lib/liveSync";
 import { loadLiveSyncConfig } from "@/lib/liveSyncConfig";
 import { listRepresentatives, loadRepresentativeStore } from "@/lib/repStore";
 
@@ -15,7 +15,7 @@ const EVERY_MS = 30_000;
 export function LiveSyncRunner() {
   useEffect(() => {
     const tick = () => {
-      if (document.visibilityState !== "visible" || !loadLiveSyncConfig()?.enabled) return;
+      if (LIVE_SYNC_STOPPED || document.visibilityState !== "visible" || !loadLiveSyncConfig()?.enabled) return;
       const reps = listRepresentatives(loadRepresentativeStore()).map((r) => ({ id: r.id, name: r.name }));
       void runLiveSyncOnce(fetch, reps);
     };

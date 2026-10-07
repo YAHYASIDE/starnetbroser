@@ -19,6 +19,7 @@ import {
   ADJUSTMENTS_KEY,
   ALLOCATIONS_KEY,
   CLIENTS_KEY,
+  CUSTOMER_STORES,
   diffStore,
   LEDGER_KEY,
   NOTES_KEY,
@@ -45,8 +46,9 @@ export interface StoreChangeSet {
 /** storeKey -> its changes (only stores that changed). */
 export type RepChangeSet = Record<string, StoreChangeSet>;
 
-/** The business stores a rep may change (the operator's own values - rates, templates… - never). */
-const CHANGE_STORES = REP_STORES.filter((s) => s.shape !== "value");
+/** The business stores a rep may change (the operator's own values - rates, templates… - never;
+ * his customers neither: they are his alone, CUSTOMER_STORES). */
+const CHANGE_STORES = REP_STORES.filter((s) => s.shape !== "value" && !CUSTOMER_STORES.has(s.key));
 
 function shapeOf(key: string): Shape | undefined {
   return CHANGE_STORES.find((s) => s.key === key)?.shape;
@@ -137,17 +139,20 @@ export function applyRepChangeSet(owner: StoreValues, changes: RepChangeSet, rep
   const created: string[] = [];
   for (const [id, mine] of Object.entries(changes[ACCOUNTS_KEY]?.set ?? {})) {
     const theirs = ownerAccounts.get(id);
+    // 👥 His customer on the device is his phone's alone - never put on the operator's device.
+    const { clientId: _client, ...device } = mine;
     if (!theirs) {
       // 📱 marked for good: «أضافه المندوب» on its card, and the home filter.
-      accountChanges.set.set(id, { ...mine, representativeId: repId, addedByRepId: repId, addedByRepAt: now.toISOString() });
+      accountChanges.set.set(id, { ...device, representativeId: repId, addedByRepId: repId, addedByRepAt: now.toISOString() });
       created.push(id);
       summary.newDevices++;
     } else if (theirs.representativeId === repId && !theirs.deletedAt) {
       // He can't move a device to someone else, nor delete / archive it from here.
-      const { representativeId: _r, deletedAt: _d, archivedAt: _a, addedByRepId: _b, addedByRepAt: _c, ...rest } = mine;
+      const { representativeId: _r, deletedAt: _d, archivedAt: _a, addedByRepId: _b, addedByRepAt: _c, ...rest } = device;
       accountChanges.set.set(id, {
         ...rest,
         representativeId: repId,
+        ...(theirs.clientId ? { clientId: theirs.clientId } : {}),
         ...(theirs.archivedAt ? { archivedAt: theirs.archivedAt } : {}),
         ...(theirs.addedByRepId ? { addedByRepId: theirs.addedByRepId, addedByRepAt: theirs.addedByRepAt } : {}),
       });
@@ -201,7 +206,8 @@ export function applyRepChangeSet(owner: StoreValues, changes: RepChangeSet, rep
   for (const [key, change] of Object.entries(changes)) {
     if (key === ACCOUNTS_KEY) continue;
     const shape = shapeOf(key);
-    const allowed = inScope[key];
+    // His customers never come in (an older rep app may still send them).
+    const allowed = CUSTOMER_STORES.has(key) ? undefined : inScope[key];
     if (!shape || !allowed) {
       summary.refused += Object.keys(change.set).length + change.removed.length;
       continue;
@@ -338,7 +344,9 @@ const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0
 
 /** Everything in a rep's file, as items to review. Removing a device or a customer is never
  * offered (never accepted anyway). */
-export function listRepChangeItems(changes: RepChangeSet, owner: StoreValues): RepChangeItem[] {
+export function listRepChangeItems(all: RepChangeSet, owner: StoreValues): RepChangeItem[] {
+  // 👥 His customers are his alone - never offered (an older rep app may still send them).
+  const changes: RepChangeSet = Object.fromEntries(Object.entries(all).filter(([key]) => !CUSTOMER_STORES.has(key)));
   const items: RepChangeItem[] = [];
   const used = new Set<string>();
   const take = (store: string, path: string, record: Rec | undefined): RepItemPart => {

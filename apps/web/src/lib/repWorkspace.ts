@@ -64,6 +64,18 @@ export const REP_STORES: { key: string; shape: Shape }[] = [
   { key: PAST_LEDGER_KEY, shape: "value" },
 ];
 
+/**
+ * 👥 The rep's customers are his alone (his Oct 2026 rule: «النسخة فيها الأجهزة فقط… تتوقف نسختي
+ * ونسخته من الزبائن»): no copy carries the operator's customers, and the rep's own customers (and
+ * their notes, balance adjustments, payment promises) never travel back. These stores on the rep's
+ * phone are his - a copy never touches them.
+ */
+export const CUSTOMER_STORES = new Set([CLIENTS_KEY, ADJUSTMENTS_KEY, NOTES_KEY, PROMISES_KEY]);
+
+/** Device fields that belong to the rep's phone: his customer on the device. Never compared, never
+ * sent, never replaced by a copy. */
+const LOCAL_FIELDS = ["clientId"];
+
 export type StoreValues = Record<string, unknown>;
 
 type Rec = Record<string, unknown>;
@@ -73,30 +85,30 @@ const asMap = (v: unknown): Record<string, unknown> => (isRec(v) ? v : {});
 
 // ---- operator side: the rep's slice ----
 
-/** Only what belongs to the rep: his devices and their records, their customers, and the
- * operator's shared settings (rates, templates, business name, the rep himself). */
+/** Only what belongs to the rep: his devices (without the operator's customer on them) and their
+ * operations, and the operator's shared settings (rates, templates, business name, the rep
+ * himself). No customers - see CUSTOMER_STORES. */
 export function repStoreSlice(stores: StoreValues, repId: string): StoreValues {
-  const accounts = asList(stores[ACCOUNTS_KEY]).filter(
-    (a) => a.representativeId === repId && !a.deletedAt && !a.archivedAt,
-  ) as unknown as StarlinkAccountSummary[];
+  const accounts = asList(stores[ACCOUNTS_KEY])
+    .filter((a) => a.representativeId === repId && !a.deletedAt && !a.archivedAt)
+    .map((a) => {
+      const device: Rec = { ...a };
+      for (const f of LOCAL_FIELDS) delete device[f];
+      return device;
+    }) as unknown as StarlinkAccountSummary[];
   const accountIds = new Set(accounts.map((a) => a.id));
-  const clientIds = new Set(accounts.map((a) => a.clientId).filter((id): id is string => Boolean(id)));
   const pick = (v: unknown, keep: Set<string>) => Object.fromEntries(Object.entries(asMap(v)).filter(([k]) => keep.has(k)));
   const reps = asMap(stores[REPS_KEY]);
   return {
     [ACCOUNTS_KEY]: accounts,
     [LEDGER_KEY]: pick(stores[LEDGER_KEY], accountIds),
     [ALLOCATIONS_KEY]: pick(stores[ALLOCATIONS_KEY], accountIds),
-    [CLIENTS_KEY]: pick(stores[CLIENTS_KEY], clientIds),
-    [ADJUSTMENTS_KEY]: asList(stores[ADJUSTMENTS_KEY]).filter((a) => a.partyKind === "client" && clientIds.has(String(a.partyId))),
-    [NOTES_KEY]: pick(stores[NOTES_KEY], clientIds),
-    [PROMISES_KEY]: asList(stores[PROMISES_KEY]).filter((p) => (p.clientId && clientIds.has(String(p.clientId))) || p.repId === repId),
     [PREVIOUS_DEBTS_KEY]: asList(stores[PREVIOUS_DEBTS_KEY]).filter((d) => accountIds.has(String(d.accountId))),
     [CURRENCIES_KEY]: stores[CURRENCIES_KEY] ?? {},
     [TEMPLATES_KEY]: stores[TEMPLATES_KEY] ?? null,
     [PROFILE_KEY]: stores[PROFILE_KEY] ?? null,
     [REPS_KEY]: reps[repId] ? { [repId]: reps[repId] } : {},
-    [INVOICES_KEY]: asList(stores[INVOICES_KEY]).filter((i) => i.representativeId === repId || (i.clientId && clientIds.has(String(i.clientId)))),
+    [INVOICES_KEY]: asList(stores[INVOICES_KEY]).filter((i) => i.representativeId === repId),
     [SETTLEMENTS_KEY]: asList(stores[SETTLEMENTS_KEY]).filter((x) => x.representativeId === repId),
     [REP_BOOK_KEY]: asList(stores[REP_BOOK_KEY]).filter((x) => x.repId === repId),
     [PAST_LEDGER_KEY]: pastLedger(stores, accountIds, repId),
@@ -146,6 +158,7 @@ const SYNC_FIELDS = [
 function withoutSync(record: Rec): Rec {
   const copy: Rec = { ...record };
   for (const f of SYNC_FIELDS) delete copy[f];
+  for (const f of LOCAL_FIELDS) delete copy[f];
   return copy;
 }
 
@@ -204,20 +217,34 @@ export function diffStore(current: unknown, base: unknown, shape: Shape, ignoreS
 
 /**
  * A device both sides changed since the last copy, merged field by field: the operator's news
- * (renewal date, name, plan…) is taken, and what the rep changed that the operator didn't stays.
- * His customer link always stays (his Oct 2026 rule: «زبون المندوب يغلب») - a new copy never takes
- * the rep's customers off his devices. Starlink-read fields are left to keepFreshestReads.
+ * (renewal date, name, plan…) is taken, and every field the rep changed stays his until the
+ * operator approves or rejects it (his Oct 2026 choice «عنده تبقى ولا تُمسح»). His customer on the
+ * device is his phone's alone (LOCAL_FIELDS, keepLocalFields). Starlink-read fields are left to
+ * keepFreshestReads.
  */
 export function mergeDevice(mine: Rec, before: Rec, theirs: Rec): Rec {
   const merged: Rec = { ...theirs };
   for (const k of new Set([...Object.keys(mine), ...Object.keys(before)])) {
-    if (SYNC_FIELDS.includes(k) || same(mine[k], before[k])) continue;
-    if (k === "clientId" || same(theirs[k], before[k])) {
-      if (k in mine) merged[k] = mine[k];
-      else delete merged[k];
-    }
+    if (SYNC_FIELDS.includes(k) || LOCAL_FIELDS.includes(k) || same(mine[k], before[k])) continue;
+    if (k in mine) merged[k] = mine[k];
+    else delete merged[k];
   }
   return merged;
+}
+
+/** The rep's own customer on each device stays exactly as on his phone; a device new from the copy
+ * has none. */
+function keepLocalFields(merged: unknown, current: unknown): unknown {
+  const mine = flatten(current, "list");
+  return asList(merged).map((r) => {
+    const local = mine.get(String(r.id));
+    const out: Rec = { ...r };
+    for (const f of LOCAL_FIELDS) {
+      if (local && local[f] !== undefined) out[f] = local[f];
+      else delete out[f];
+    }
+    return out;
+  });
 }
 
 /** The rep's changes re-applied on top of a newer base. For devices, the freshest Starlink read
@@ -274,8 +301,9 @@ export function rebaseWorkspace(
       result[key] = current[PROFILE_KEY];
       continue;
     }
+    if (CUSTOMER_STORES.has(key)) continue;
     if (shape === "value" || !oldBase) {
-      result[key] = nextBase[key];
+      result[key] = key === ACCOUNTS_KEY ? keepLocalFields(nextBase[key], current[key]) : nextBase[key];
       continue;
     }
     const ignoreSync = key === ACCOUNTS_KEY;
@@ -313,9 +341,18 @@ export function rebaseWorkspace(
       const keep = flatten(nextBase[key], shape);
       const before = flatten(oldBase[key], shape);
       for (const path of [...changes.set.keys()]) if (!keep.has(path) && before.has(path)) changes.set.delete(path);
+      // 🚫 He can't delete the operator's devices: a removed or trashed one comes back.
+      for (const path of [...changes.removed]) if (keep.has(path)) changes.removed.delete(path);
+      for (const [path, mine] of [...changes.set]) {
+        const theirs = keep.get(path);
+        if (theirs && mine.deletedAt && !theirs.deletedAt) {
+          const { deletedAt: _gone, ...rest } = mine;
+          changes.set.set(path, rest);
+        }
+      }
     }
     result[key] = rebaseStore(changes, nextBase[key], shape, ignoreSync);
-    if (key === ACCOUNTS_KEY) result[key] = keepFreshestReads(result[key], current[key]);
+    if (key === ACCOUNTS_KEY) result[key] = keepLocalFields(keepFreshestReads(result[key], current[key]), current[key]);
   }
   // Operations of devices no longer on the phone go with them.
   if (oldBase && Array.isArray(result[ACCOUNTS_KEY])) {
@@ -347,9 +384,8 @@ export function repPending(current: StoreValues, base: StoreValues | null): RepP
     pending.entryPaths.add(path);
     pending.accountIds.add(path.slice(0, path.lastIndexOf("/")));
   }
-  const clients = diffStore(current[CLIENTS_KEY], base[CLIENTS_KEY], "map");
-  for (const id of clients.set.keys()) pending.clientIds.add(id);
-  pending.count = accounts.set.size + accounts.removed.size + ledger.set.size + ledger.removed.size + clients.set.size + clients.removed.size;
+  // His customers are his own (CUSTOMER_STORES): never pending, never sent.
+  pending.count = accounts.set.size + accounts.removed.size + ledger.set.size + ledger.removed.size;
   return pending;
 }
 

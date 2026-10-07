@@ -23,6 +23,10 @@ import { boundCopyKey, ensureRepPhoneKey, loadRepDeviceCodes, loadRepMode, repPh
 import { isRepWorkspace } from "./repMode";
 import { ACCOUNTS_KEY, applyOperatorLiveChange, CLIENTS_KEY } from "./repWorkspace";
 
+/** 👥 Stopped (his Oct 2026 rule «تتوقف نسختي ونسخته من الزبائن»): the live link only carried
+ * customers and their links, and a rep's customers now stay on his phone alone. */
+export const LIVE_SYNC_STOPPED = true;
+
 // ---- what each phone shares (pure) ----
 
 const live = (a: StarlinkAccountSummary) => !a.deletedAt && !a.archivedAt;

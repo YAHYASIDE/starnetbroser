@@ -71,8 +71,10 @@ export function repCopyAccounts(accounts: StarlinkAccountSummary[], repId: strin
 }
 
 export function buildRepCopy(input: RepCopyInput): RepCopy {
-  const devices = repCopyAccounts(input.accounts, input.repId).map((account) => {
-    const client = account.clientId ? input.clients[account.clientId] : undefined;
+  const devices = repCopyAccounts(input.accounts, input.repId).map((full) => {
+    const client = full.clientId ? input.clients[full.clientId] : undefined;
+    // 👥 Devices only: the operator's customer never travels on a device (his Oct 2026 rule).
+    const { clientId: _client, ...account } = full;
     return {
       account,
       entries: input.ledger[account.id] ?? [],

@@ -109,12 +109,12 @@ mind). Exact texts and numbers live in the code - this file says where.
   تسديد ستارلينك)، والمؤكَّد بسعره المقفل.
 - Logic: `myMoney.ts`, `moneyAccounts.ts`, `myMoneyData.ts`; UI: `app/money/page.tsx`,
   `components/MyMoney.tsx`. The reports' «المصروفات» tab and its 🧾 button stay too.
-- **A rep's customers never change with a new copy** (his Oct 2026 rule; his choice on a conflict:
+- **A rep's customers never change with a new copy** (*superseded: copies carry no customers at all - see «📱 The rep's copy carries devices only»*) (his Oct 2026 rule; his choice on a conflict:
   «زبون المندوب يغلب»). A device both sides changed since the last copy is merged field by field
   (`repWorkspace.mergeDevice`): the operator's news (renewal date, name…) arrives, the rep's
   untouched-by-operator edits stay, and the rep's `clientId` always stays. Before this, any operator
   change on that device (a renewal moving `renewalDate`) took the rep's customer off it.
-- **☁️ Live link with the reps over his own Firebase** (his Oct 2026 choices: «مزامنة حيّة عبر
+- **☁️ Live link with the reps over his own Firebase** (*STOPPED Oct 2026 - customers no longer travel; see «📱 The rep's copy carries devices only»*) (his Oct 2026 choices: «مزامنة حيّة عبر
   الإنترنت»، «زبون المندوب يغلب»، he already has Firebase). v1 syncs a rep's **customers (name,
   phone) and his devices' customer links**, both ways, every 30 s while the app is open
   (`LiveSyncRunner`) and on return to the front. On the operator's phone a customer the rep added
@@ -195,6 +195,18 @@ mind). Exact texts and numbers live in the code - this file says where.
   name, then what he owes us per device; the old «ديون زبائن أجهزتك» section is gone); «دفتري»
   balances and the bot search read the post-reset ledger/book too. Amounts in the reps page's display
   currency (`starnet.repDisplayCurrency`). The month-closing message uses the same text.
+- **📱 The rep's copy carries devices only - no customers either way** (Oct 2026: «النسخ التي أرسلها
+  للمندوب فيها الأجهزة فقط… تتوقف نسختي ونسخته من الزبائن… إذا عدّل المندوب على أجهزته تظهر له… لا
+  يمكنه حذفها»; his choices: «الأجهزة + عملياتها»، «عنده تبقى ولا تُمسح»، «الحذف فقط»).
+  `repStoreSlice` sends his devices (without `clientId`), their ledger/allocations/previous debts and
+  the shared settings - never `CUSTOMER_STORES` (customers, notes, adjustments, promises). On his phone
+  those stores are his alone: a copy never touches them, his device↔customer link (`LOCAL_FIELDS`) is
+  kept from his phone, and none of it is pending or sent back (`buildRepChangeSet`, `repPending`);
+  the operator's side refuses customer stores and never takes his `clientId` (older rep apps).
+  Every device field he changed stays his until approved/rejected (`mergeDevice` - his edit wins over
+  a newer copy). He can archive but not delete: no «حذف» on his cards / dialog, and a removed or
+  trashed operator device comes back on the next copy. The ☁️ live link (customers only) is stopped
+  (`LIVE_SYNC_STOPPED`); copies no longer carry its config.
 - **🗑 Delete a device operation from the customer's statement** (clients page «تفاصيل العملية», his
   Oct 2026 request): same path as the device statement's delete (`confirmAndDeleteLedgerEntry` -
   closed-month check, confirm, removes its cash entry and allocations). «✎ تعديل» there opens the

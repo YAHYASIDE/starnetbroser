@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { LIVE_SYNC_NOW_EVENT } from "@/components/LiveSyncRunner";
 import { readDocument, writeDocument } from "@/lib/firestoreRest";
-import { loadLiveSyncStatus, LIVE_SYNC_EVENT, type LiveSyncStatus } from "@/lib/liveSync";
+import { LIVE_SYNC_STOPPED, loadLiveSyncStatus, LIVE_SYNC_EVENT, type LiveSyncStatus } from "@/lib/liveSync";
 import { checkConfigInput, loadLiveSyncConfig, newSpaceId, saveLiveSyncConfig, type LiveSyncConfig } from "@/lib/liveSyncConfig";
 
 /** ☁️ Settings → «الربط الحيّ مع المندوبين»: his Firebase (apiKey + projectId), a real connection
@@ -71,6 +71,11 @@ export function LiveSyncSection() {
 
   return (
     <section className="section live-sync-section">
+      {LIVE_SYNC_STOPPED && (
+        <p className="account-card-alert">
+          ⏸️ متوقف: زبائن المندوب صاروا عنده فقط، ونسختك له تحمل أجهزته وعملياتها فقط - لا يُنقل أي زبون بين الهاتفين.
+        </p>
+      )}
       <p className="settings-hint">
         زبائن كل مندوب وربطهم بأجهزته يظهرون عندك وعنده تلقائيًا خلال ثوانٍ (عبر Firebase الخاص بك). البيانات مشفّرة برمز المندوب قبل أن تخرج من الهاتف.
       </p>

@@ -6,7 +6,7 @@ const acc = (id: string, extra: Record<string, unknown> = {}) => ({ id, name: `�
 const entry = (id: string, amount: number) => ({ id, kind: "credit", amount, currency: "MRU", date: "2026-10-02" });
 
 describe("rep slice (operator side)", () => {
-  it("keeps only the rep's live devices, their records and customers, plus shared settings", () => {
+  it("keeps only the rep's live devices and their records, plus shared settings - no customers", () => {
     const slice = repStoreSlice(
       {
         [ACCOUNTS_KEY]: [acc("a1", { representativeId: "r1", clientId: "c1" }), acc("a2", { representativeId: "r2", clientId: "c2" }), acc("a3", { representativeId: "r1", deletedAt: "x" })],
@@ -18,10 +18,11 @@ describe("rep slice (operator side)", () => {
       },
       "r1",
     );
-    expect((slice[ACCOUNTS_KEY] as { id: string }[]).map((a) => a.id)).toEqual(["a1"]);
+    expect(slice[ACCOUNTS_KEY]).toEqual([acc("a1", { representativeId: "r1" })]);
     expect(slice[LEDGER_KEY]).toEqual({ a1: [entry("e1", 1)] });
-    expect(Object.keys(slice[CLIENTS_KEY] as object)).toEqual(["c1"]);
-    expect((slice.starnet_party_adjustments_v1 as { id: string }[]).map((j) => j.id)).toEqual(["j1"]);
+    // 👥 his Oct 2026 rule: the copy carries devices only, never customers
+    expect(CLIENTS_KEY in slice).toBe(false);
+    expect("starnet_party_adjustments_v1" in slice).toBe(false);
     expect(Object.keys(slice.starnet_representatives_v1 as object)).toEqual(["r1"]);
     expect(slice.starnet_currencies_v1).toEqual({ MRU: { code: "MRU", rateFromUsd: 400 } });
   });
@@ -150,17 +151,29 @@ describe("rebase on a new copy (rep side)", () => {
     expect(accounts.map((a) => [a.id, a.clientId])).toEqual([["a1", "mine1"], ["a2", "mine2"], ["new", undefined]]);
     // the operator's renewal date still arrives
     expect(accounts[1]!.renewalDate).toBe("2026-11-10");
-    expect(Object.keys(merged[CLIENTS_KEY] as object).sort()).toEqual(["c1", "mine1", "mine2"]);
+    // his customers are his phone's: a copy never writes them (left as they are on the phone)
+    expect(CLIENTS_KEY in merged).toBe(false);
   });
 
-  it("mergeDevice: the operator's news, the rep's untouched-by-operator edits, the rep's customer always", () => {
-    const before = { id: "d", name: "A", phone: "1", clientId: "x" };
-    const mine = { id: "d", name: "A", phone: "2", clientId: "mine" };
-    const theirs = { id: "d", name: "B", phone: "1", clientId: "theirs" };
-    expect(mergeDevice(mine, before, theirs)).toEqual({ id: "d", name: "B", phone: "2", clientId: "mine" });
+  it("mergeDevice: the operator's news, and every field the rep changed stays his («عنده تبقى»)", () => {
+    const before = { id: "d", name: "A", phone: "1", note: "x" };
+    const mine = { id: "d", name: "A", phone: "2", note: "عندي" };
+    const theirs = { id: "d", name: "B", phone: "1", note: "عنده" };
+    expect(mergeDevice(mine, before, theirs)).toEqual({ id: "d", name: "B", phone: "2", note: "عندي" });
   });
 
-  it("the first copy is taken as it is", () => {
-    expect(rebaseWorkspace({}, null, base)).toEqual(base);
+  it("🚫 he can't delete a device the operator gave him: a removed or trashed one comes back", () => {
+    const removed = { ...base, [ACCOUNTS_KEY]: [acc("a1")] };
+    expect((rebaseWorkspace(removed, base, base)[ACCOUNTS_KEY] as { id: string }[]).map((a) => a.id)).toEqual(["a1", "a2"]);
+    const trashed = { ...base, [ACCOUNTS_KEY]: [acc("a1", { deletedAt: "2026-10-07" }), acc("a2", { archivedAt: "2026-10-07" })] };
+    const merged = rebaseWorkspace(trashed, base, base)[ACCOUNTS_KEY] as Record<string, unknown>[];
+    expect(merged[0]!.deletedAt).toBeUndefined();
+    // archiving stays his choice
+    expect(merged[1]!.archivedAt).toBe("2026-10-07");
+  });
+
+  it("the first copy is taken as it is (his customers' stores untouched)", () => {
+    const { [CLIENTS_KEY]: _c, ...devices } = base;
+    expect(rebaseWorkspace({}, null, base)).toEqual(devices);
   });
 });

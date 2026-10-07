@@ -114,7 +114,8 @@ interface Props {
   /** Moves the device to the archive ("active" context only). */
   onArchive: (account: StarlinkAccountSummary) => void;
   /** Moves the device to the recoverable trash ("active" context only). */
-  onSoftDelete: (account: StarlinkAccountSummary) => void;
+  /** Omitted on a rep's phone (his Oct 2026 rule: the rep can archive his devices, never delete them). */
+  onSoftDelete?: (account: StarlinkAccountSummary) => void;
   /** Restores from whichever of archive/trash this card is currently shown in. */
   onRestore: (account: StarlinkAccountSummary) => void;
   /** Trash context only - the original permanent delete (with the Starlink-session prompt). */
@@ -426,7 +427,7 @@ export function AccountCard({
 
   async function handleSoftDeleteClick() {
     if (!(await askDeleteCode(`نقل الجهاز "${account.name}" إلى سلة المحذوفات؟ يمكنك استعادته لاحقًا.`))) return;
-    onSoftDelete(account);
+    onSoftDelete?.(account);
   }
 
   async function handlePermanentDeleteClick() {
@@ -1047,7 +1048,7 @@ export function AccountCard({
                   ? [{ icon: "🛑", label: cancellation.cancelled ? "الاشتراك ملغى" : "إلغاء الاشتراك", run: () => void handleCancelSubscription(), tone: "bad" }]
                   : []),
                 { icon: "🗄️", label: "أرشفة", run: () => void handleArchiveClick() },
-                { icon: "🗑️", label: "حذف", run: () => void handleSoftDeleteClick(), tone: "bad" },
+                ...(onSoftDelete ? [{ icon: "🗑️", label: "حذف", run: () => void handleSoftDeleteClick(), tone: "bad" }] : []),
               ].map((item) => (
                 <button
                   key={item.label}
