@@ -34,7 +34,7 @@ import {
   updateSupplier,
 } from "@/lib/supplierStore";
 import { InvoiceList, loadInvoices } from "@/lib/invoiceStore";
-import { computeBalanceByCurrency, LedgerByAccount, LedgerCurrency, loadLedgerStore, PAYMENT_METHOD_LABELS } from "@/lib/ledgerStore";
+import { computeBalanceByCurrency, LedgerByAccount, LedgerCurrency, type LedgerEntry, loadLedgerStore, PAYMENT_METHOD_LABELS } from "@/lib/ledgerStore";
 import { AllocationsByAccount, loadAllocationStore } from "@/lib/paymentAllocationStore";
 import { demoAccounts } from "@/lib/demoData";
 import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
@@ -52,7 +52,7 @@ import {
 } from "@/lib/partyBalanceStore";
 import { PartyDirectory } from "@/components/AccountsSection";
 import { ClientDeviceCard } from "@/components/ClientDeviceCard";
-import { confirmAndDeleteLedgerEntry } from "@/components/LedgerEntryEditor";
+import { confirmAndDeleteLedgerEntry, LedgerEntryEditor } from "@/components/LedgerEntryEditor";
 import { moveClientToOwner, ourDebtLedgerForClients } from "@/lib/repClients";
 import { notifyPaymentTelegram } from "@/lib/telegram";
 import { ClientDialog } from "@/components/ClientDialog";
@@ -80,6 +80,8 @@ export default function ClientsPage() {
   const [representatives, setRepresentatives] = useState<RepresentativeStore>({});
   const [picking, setPicking] = useState(false);
   const [profitResets, setProfitResets] = useState<ClientProfitResets>({});
+  // ✎ A device operation opened for editing from a customer's statement (same dialog as the device's).
+  const [editingEntry, setEditingEntry] = useState<{ accountId: string; entry: LedgerEntry; deviceName: string; ledger: LedgerByAccount } | null>(null);
   const router = useRouter();
 
   // ☁️ The live link brought a rep's customer / device link (lib/liveSync.ts).
@@ -347,6 +349,19 @@ export default function ClientsPage() {
           onClose={() => setPicking(false)}
         />
       )}
+      {editingEntry && (
+        <LedgerEntryEditor
+          accountId={editingEntry.accountId}
+          entry={editingEntry.entry}
+          deviceName={editingEntry.deviceName}
+          ledgerStore={editingEntry.ledger}
+          onSaved={(next) => {
+            setLedgerStore(next);
+            setAllocationStore(loadAllocationStore());
+          }}
+          onClose={() => setEditingEntry(null)}
+        />
+      )}
       <section className="section">
         <PartyDirectory
           clients={clients}
@@ -367,6 +382,12 @@ export default function ClientsPage() {
           onOpenClientCard={(client: Client) => setOpenClientId(client.id)}
           onDeleteClient={handleDeleteClient}
           representatives={representatives}
+          onEditDeviceEntry={(entryId) => {
+            const full = loadLedgerStore();
+            const accountId = Object.keys(full).find((id) => (full[id] ?? []).some((e) => e.id === entryId));
+            const entry = accountId ? full[accountId]!.find((e) => e.id === entryId) : undefined;
+            if (accountId && entry) setEditingEntry({ accountId, entry, deviceName: accounts.find((a) => a.id === accountId)?.name ?? "", ledger: full });
+          }}
           onDeleteDeviceEntry={(entryId) => {
             // The full ledger (not the debt view above): find the device holding this operation.
             const full = loadLedgerStore();

@@ -153,7 +153,9 @@ mind). Exact texts and numbers live in the code - this file says where.
   customer name (`.account-card-rep-tint`). Before: a light 9% tint + one top line.
 - **🗑 Delete a device operation from the customer's statement** (clients page «تفاصيل العملية», his
   Oct 2026 request): same path as the device statement's delete (`confirmAndDeleteLedgerEntry` -
-  closed-month check, confirm, removes its cash entry and allocations).
+  closed-month check, confirm, removes its cash entry and allocations). «✎ تعديل» there opens the
+  device's own operation dialog (`LedgerEntryEditor`) right on the clients page - his ask was «يذهب بي
+  إلى الجهاز ويعدّل العملية من هناك»; the same dialog without leaving the page.
 - **👥 Clients page order + device cards** (his Oct 2026 request): customers are ordered by their
   latest activity - the newest of the customer edited, an operation on one of his devices, a store
   invoice, a manual balance entry (`lib/clientActivity.ts`); suppliers keep «who owes first, then

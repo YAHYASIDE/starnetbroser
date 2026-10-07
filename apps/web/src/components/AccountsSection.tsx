@@ -125,6 +125,8 @@ interface PartyDirectoryProps extends Props {
   /** 🗑 Deletes a device operation from a customer's statement (his Oct 2026 request) - true once
    * deleted (the caller asks first). */
   onDeleteDeviceEntry?: (entryId: string) => boolean;
+  /** ✎ Edits a device operation from a customer's statement, in the device's own operation dialog. */
+  onEditDeviceEntry?: (entryId: string) => void;
 }
 
 /** Clients and suppliers on two separate tabs (never one mixed list), each party a colour-coded
@@ -152,6 +154,7 @@ export function PartyDirectory({
   bulk,
   renderDevice,
   onDeleteDeviceEntry,
+  onEditDeviceEntry,
 }: PartyDirectoryProps) {
   const [tab, setTab] = useState<PartyTab>("clients");
   const [selecting, setSelecting] = useState(false);
@@ -484,6 +487,7 @@ export function PartyDirectory({
                 onOpenCard={isClients && onOpenClientCard ? () => onOpenClientCard(party as Client) : undefined}
                 renderDevice={isClients ? renderDevice : undefined}
                 onDeleteDeviceEntry={isClients ? onDeleteDeviceEntry : undefined}
+                onEditDeviceEntry={isClients ? onEditDeviceEntry : undefined}
               />
             ),
           )}
@@ -513,6 +517,7 @@ interface PartyCardProps {
   onOpenCard?: () => void;
   renderDevice?: (device: StarlinkAccountSummary) => React.ReactNode;
   onDeleteDeviceEntry?: (entryId: string) => boolean;
+  onEditDeviceEntry?: (entryId: string) => void;
 }
 
 type PartyPanel = "statement" | "devices" | null;
@@ -550,6 +555,7 @@ function PartyCard({
   onOpenCard,
   renderDevice,
   onDeleteDeviceEntry,
+  onEditDeviceEntry,
 }: PartyCardProps) {
   const [panel, setPanel] = useState<PartyPanel>(null);
   // 📡 The device opened from «الأجهزة» (its card shows in place of the list).
@@ -865,7 +871,17 @@ function PartyCard({
               row={detailRow}
               kindLabel={statementKindLabel(detailRow, isClient)}
               isClient={isClient}
-              onEdit={detailRow.adjustment ? () => setSheet("edit") : undefined}
+              onEdit={
+                detailRow.adjustment
+                  ? () => setSheet("edit")
+                  : onEditDeviceEntry && (detailRow.type === "device-charge" || detailRow.type === "device-payment")
+                    ? () => {
+                        onEditDeviceEntry(detailRow.id);
+                        setSheet(null);
+                        setDetailRowId(null);
+                      }
+                    : undefined
+              }
               onDelete={
                 detailRow.adjustment
                   ? () => confirmDeleteAdjustment(detailRow.adjustment!)
@@ -1390,8 +1406,8 @@ function StatementRowDetail({
       {!adj && (
         <p className="settings-hint">
           {row.type === "device-charge" || row.type === "device-payment"
-            ? onDelete
-              ? "هذه عملية على الجهاز - تُعدَّل من سجل الجهاز في الصفحة الرئيسية، أو تُحذف من هنا."
+            ? onEdit
+              ? "هذه عملية على الجهاز - «تعديل» يفتحها في نافذة عمليات الجهاز نفسها."
               : "هذه عملية على الجهاز - تُعدَّل من سجل الجهاز في الصفحة الرئيسية."
             : "هذه فاتورة من المتجر - تُعدَّل أو تُرجَع من قسم الفواتير في المتجر."}
         </p>
