@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fitPayMethod, francBadge, francHint, francNote, isFrancAccount, isFrancMethod, methodLabel, sifaAsFranc, PAY_CURRENCIES, payFormOf, payMethodsFor, toLedgerPayment } from "./payCurrency";
+import { fitPayMethod, francBadge, francHint, francNote, francPayLine, isFrancAccount, isFrancMethod, methodLabel, sifaAsFranc, PAY_CURRENCIES, payFormOf, payMethodsFor, toLedgerPayment } from "./payCurrency";
 
 describe("payCurrency - «سيفا كاش فقط، أورانج موني لفرانك فقط»", () => {
   it("offers فرانك beside the three currencies", () => {
@@ -64,5 +64,11 @@ describe("payCurrency - «سيفا كاش فقط، أورانج موني لفر�
     expect(methodLabel("orange", "SIFA", 2000)).toBe("أورانج موني · 🟠 10,000 فرانك");
     expect(methodLabel("bankily", "MRU", 2000)).toBe("بنكيلي");
     expect(methodLabel("cash", "SIFA", 2000)).toBe("نقدًا");
+  });
+
+  it("gives the customer the فرانك to send by أورانج / نيتا", () => {
+    expect(francPayLine(10000)).toBe("🟠 بأورانج موني / نيتا تُدفع بالفرانك: 10,000 سيفا = 50,000 فرانك");
+    expect(francPayLine(0)).toBe("");
+    expect(francPayLine()).toBe("🟠 أورانج موني / نيتا تُدفع بالفرانك: 5 فرانك = 1 سيفا");
   });
 });

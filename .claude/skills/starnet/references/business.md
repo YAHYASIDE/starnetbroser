@@ -475,6 +475,12 @@ mind). Exact texts and numbers live in the code - this file says where.
 - Client statement: invoice-style image (last 15 operations) + PDF (all), with payment methods,
   small WhatsApp QR codes for both numbers and his email - `lib/statementDocument.ts`; contact
   defaults `DEFAULT_CONTACT` in `lib/pdfDocument.ts`, editable in settings «بيانات النشاط».
+- **🟠 The فرانك line for customers** (his «نعم أضف سطر الفرانك في رسائل الزبائن», Oct 2026): a customer
+  who owes سيفا gets, under the payment lines of the debt reminder, «🟠 بأورانج موني / نيتا تُدفع
+  بالفرانك: 10,000 سيفا = 50,000 فرانك» (`francPayLine`); the WhatsApp statement shows «• عليه 10,000
+  سيفا (🟠 بأورانج / نيتا: 50,000 فرانك)», the statement image / PDF has the same line under «💳 طرق
+  الدفع المتاحة» (`contactBlockHtml`), and a payment by أورانج / نيتا reads «أورانج موني · 🟠 10,000
+  فرانك» in statements and the receipt (`methodLabel`). No line when nothing is owed in سيفا.
 
 ## Notifications
 

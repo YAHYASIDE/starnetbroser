@@ -4,6 +4,7 @@
  * only, which imageExport.ts / pdfExport.ts rasterise with the WebView's own text engine.
  */
 
+import { francPayLine } from "./payCurrency";
 import qrcode from "qrcode-generator";
 import { formatAmount } from "./formatAmount";
 import type { PartyStatementRow, PartyStoreTotals } from "./invoiceStore";
@@ -167,7 +168,7 @@ export function paymentMethodLines(business: BusinessProfile): string[] {
 
 /** The block under the statement: the payment methods, then one small QR code per WhatsApp
  * number beside the number (and its country code), then the e-mail. Empty when nothing is set. */
-export function contactBlockHtml(business: BusinessProfile, qrSize = 64): string {
+export function contactBlockHtml(business: BusinessProfile, qrSize = 64, sifaOwed?: number): string {
   const e = escapeHtml;
   const email = business.email?.trim();
   const contacts = whatsappContacts(business);
@@ -179,6 +180,7 @@ export function contactBlockHtml(business: BusinessProfile, qrSize = 64): string
       methods
         .map((m) => `<div dir="ltr" style="font-size:15px;font-weight:700;color:${C.brand};text-align:right;padding:3px 0">${e(m)}</div>`)
         .join("") +
+      (francPayLine(sifaOwed) ? `<div style="font-size:13px;font-weight:700;color:${C.ink};padding:4px 0 0">${e(francPayLine(sifaOwed))}</div>` : "") +
       `</div>`
     : "";
   const cards = contacts
@@ -317,7 +319,7 @@ export function buildStatementHtml(
     creditLine +
     totalsTable +
     operations +
-    contactBlockHtml(business) +
+    contactBlockHtml(business, 64, data.totals.find((t) => t.currency === LEDGER_CURRENCY_LABELS.SIFA)?.remaining ?? 0) +
     `<p style="font-size:11px;color:#8a94a3;margin-top:14px;text-align:center">${e(business.name)} - شكراً لتعاملكم معنا</p>` +
     `</div>`
   );

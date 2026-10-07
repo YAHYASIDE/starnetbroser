@@ -101,3 +101,11 @@ export function methodLabel(method: PaymentMethod, currency: string, amount: num
   const name = PAYMENT_METHOD_LABELS[method];
   return isFrancMethod(method) && currency === "SIFA" ? `${name} · 🟠 ${formatAmount(sifaToFranc(amount))} فرانك` : name;
 }
+
+/** 🟠 For the customer (reminders, statements): «🟠 بأورانج موني / نيتا تُدفع بالفرانك: 10,000 سيفا =
+ * 50,000 فرانك» when he owes سيفا, the plain rate when the amount isn't known, "" for nothing owed. */
+export function francPayLine(sifaOwed?: number): string {
+  if (sifaOwed === undefined) return "🟠 أورانج موني / نيتا تُدفع بالفرانك: 5 فرانك = 1 سيفا";
+  if (!(sifaOwed > 0.0001)) return "";
+  return `🟠 بأورانج موني / نيتا تُدفع بالفرانك: ${sifaAsFranc(sifaOwed)}`;
+}

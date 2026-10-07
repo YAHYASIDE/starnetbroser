@@ -464,13 +464,14 @@ describe("buildFullDeviceMessage", () => {
 });
 
 describe("debt reminder wording", () => {
-  const expected = (amounts: string) =>
+  const expected = (amounts: string, franc = "") =>
     "السلام عليكم ورحمة الله وبركاته\n\n" +
     "زبون تجريبي،\n\n" +
     `نود تذكيركم بأن عليكم حاليًا رصيدًا بقيمة ${amounts}\n\n` +
     "يرجى تسوية المبلغ في أقرب وقت، حتى يبقى حسابكم محدثًا وتستمر خدماتكم دون أي تأخير.\n\n" +
     "💳 طرق الدفع المتاحة:\n\n" +
     "• BANKILY - NITA : 22227268\n• ORANGE MONEY : 74646158\n\n" +
+    (franc ? `${franc}\n\n` : "") +
     "بعد إتمام الدفع، يرجى إرسال إشعار أو صورة العملية عبر الواتساب لتأكيد الدفع وتحديث حسابكم.\n\n" +
     "⭐ STAR NET.OM";
 
@@ -486,6 +487,16 @@ describe("debt reminder wording", () => {
   });
 
   it("names every owed currency separately", () => {
-    expect(buildStoreDebtReminderMessage("زبون تجريبي", { MRU: 44000, SIFA: 12000 })).toBe(expected("44,000 أوقية و12,000 سيفا"));
+    expect(buildStoreDebtReminderMessage("زبون تجريبي", { MRU: 44000, SIFA: 12000 })).toBe(
+      expected("44,000 أوقية و12,000 سيفا", "🟠 بأورانج موني / نيتا تُدفع بالفرانك: 12,000 سيفا = 60,000 فرانك"),
+    );
+  });
+
+  it("tells a سيفا customer what to send by أورانج / نيتا (5 فرانك = 1 سيفا)", () => {
+    const entries: LedgerEntry[] = [
+      { id: "e1", kind: "debit", amount: 10000, currency: "SIFA", note: "", email: "", date: "2026-10-01", createdAt: "2026-10-01T10:00:00.000Z" } as LedgerEntry,
+    ];
+    expect(buildBalanceReminderMessage("زبون تجريبي", entries)).toContain("🟠 بأورانج موني / نيتا تُدفع بالفرانك: 10,000 سيفا = 50,000 فرانك");
+    expect(buildAccountStatementMessage("زبون تجريبي", entries)).toContain("• عليه 10,000 سيفا (🟠 بأورانج / نيتا: 50,000 فرانك)");
   });
 });

@@ -4,6 +4,7 @@
  * directly testable.
  */
 
+import { francPayLine, methodLabel, sifaToFranc } from "./payCurrency";
 import { paymentInstructions } from "./pdfDocument";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import {
@@ -11,7 +12,6 @@ import {
   LEDGER_CURRENCIES,
   LEDGER_CURRENCY_LABELS,
   LedgerEntry,
-  PAYMENT_METHOD_LABELS,
   sortEntriesNewestFirst,
 } from "./ledgerStore";
 import { computeShipmentPaymentStatus, PaymentAllocation } from "./paymentAllocationStore";
@@ -47,7 +47,9 @@ export function buildExpiryReminderMessage(accountName: string): string {
 
 /** The operator's own wording for every "you owe us" WhatsApp reminder (device ledger and client
  * debt alike): the amounts per currency, never summed, then how to pay. */
-function debtReminderText(name: string, owedAmounts: string[]): string {
+function debtReminderText(name: string, owedAmounts: string[], sifaOwed = 0): string {
+  // 🟠 His rule: أورانج موني / نيتا count in فرانك (5 فرانك = 1 سيفا) - the customer sees what to send.
+  const franc = francPayLine(sifaOwed);
   return (
     `السلام عليكم ورحمة الله وبركاته\n\n` +
     `${name}،\n\n` +
@@ -55,6 +57,7 @@ function debtReminderText(name: string, owedAmounts: string[]): string {
     `يرجى تسوية المبلغ في أقرب وقت، حتى يبقى حسابكم محدثًا وتستمر خدماتكم دون أي تأخير.\n\n` +
     `💳 طرق الدفع المتاحة:\n\n` +
     `${paymentInstructions()}\n\n` +
+    (franc ? `${franc}\n\n` : "") +
     `بعد إتمام الدفع، يرجى إرسال إشعار أو صورة العملية عبر الواتساب لتأكيد الدفع وتحديث حسابكم.\n\n` +
     `⭐ STAR NET.OM`
   );
@@ -79,7 +82,7 @@ export function buildBalanceReminderMessage(accountName: string, entries: Ledger
     );
   }
 
-  return debtReminderText(accountName, owedAmounts);
+  return debtReminderText(accountName, owedAmounts, balances.SIFA ?? 0);
 }
 
 /** Store-debt payment reminder for a client with an outstanding retail balance (invoiceStore.ts) -
@@ -98,7 +101,7 @@ export function buildStoreDebtReminderMessage(clientName: string, balanceByCurre
     );
   }
 
-  return debtReminderText(clientName, owedAmounts);
+  return debtReminderText(clientName, owedAmounts, balanceByCurrency.SIFA ?? 0);
 }
 
 /** Store account summary for a client or supplier (AccountsSection's WhatsApp options) - one block
@@ -219,14 +222,14 @@ export function buildAccountStatementMessage(
   const balanceLines = LEDGER_CURRENCIES.filter((currency) => balances[currency]).map((currency) => {
     const balance = balances[currency]!;
     return balance > 0
-      ? `• عليه ${formatAmount(balance)} ${LEDGER_CURRENCY_LABELS[currency]}`
+      ? `• عليه ${formatAmount(balance)} ${LEDGER_CURRENCY_LABELS[currency]}${currency === "SIFA" ? ` (🟠 بأورانج / نيتا: ${formatAmount(sifaToFranc(balance))} فرانك)` : ""}`
       : `• له ${formatAmount(-balance)} ${LEDGER_CURRENCY_LABELS[currency]}`;
   });
 
   const entryLines = sortEntriesNewestFirst(entries).map((entry) => {
     const kindLabel = entry.kind === "debit" ? "عليه" : "له";
     const amount = `${formatAmount(entry.amount)} ${LEDGER_CURRENCY_LABELS[entry.currency]}`;
-    const method = entry.paymentMethod ? ` (${PAYMENT_METHOD_LABELS[entry.paymentMethod]})` : "";
+    const method = entry.paymentMethod ? ` (${methodLabel(entry.paymentMethod, entry.currency, entry.amount)})` : "";
     const note = entry.note ? ` - ${entry.note}` : "";
     const paymentStatus = entry.kind === "debit" ? PAYMENT_STATUS_SUFFIX[computeShipmentPaymentStatus(entry, allocations)] : "";
     return `${entry.date}: ${kindLabel} ${amount}${method}${note}${paymentStatus}`;

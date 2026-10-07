@@ -5,7 +5,8 @@
  * change an already-issued receipt's figure.
  */
 
-import { LEDGER_CURRENCY_LABELS, LedgerEntry, PAYMENT_METHOD_LABELS } from "./ledgerStore";
+import { methodLabel } from "./payCurrency";
+import { LEDGER_CURRENCY_LABELS, LedgerEntry } from "./ledgerStore";
 import { formatAmount } from "./formatAmount";
 import { ltr, type PrintableDocument } from "./pdfDocument";
 
@@ -58,7 +59,7 @@ export function buildPaymentReceipt(input: {
       [
         payment.note || "دفعة اشتراك Starlink",
         input.deviceName,
-        payment.paymentMethod ? PAYMENT_METHOD_LABELS[payment.paymentMethod] : "-",
+        payment.paymentMethod ? methodLabel(payment.paymentMethod, payment.currency, payment.amount) : "-",
         `${formatAmount(payment.amount)} ${currency}`,
       ],
     ],
@@ -77,7 +78,7 @@ export function buildReceiptWhatsAppMessage(input: {
   const { payment } = input;
   const currency = LEDGER_CURRENCY_LABELS[payment.currency] ?? payment.currency;
   const balance = balanceAfterPayment(input.entries, payment);
-  const method = payment.paymentMethod ? ` (${PAYMENT_METHOD_LABELS[payment.paymentMethod]})` : "";
+  const method = payment.paymentMethod ? ` (${methodLabel(payment.paymentMethod, payment.currency, payment.amount)})` : "";
   const after =
     balance > 0.0001
       ? `المتبقي عليك: ${formatAmount(balance)} ${currency}`

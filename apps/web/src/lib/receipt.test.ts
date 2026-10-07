@@ -48,3 +48,13 @@ describe("buildReceiptWhatsAppMessage", () => {
     expect(msg).toContain("لا يوجد عليك أي مبلغ متبقٍّ ✓");
   });
 });
+
+describe("أورانج / نيتا on the receipt", () => {
+  it("shows the فرانك sent beside the سيفا received", () => {
+    const entries = [
+      { id: "d", kind: "debit", amount: 10000, currency: "SIFA", note: "", email: "", date: "2026-10-01", createdAt: "2026-10-01T10:00:00.000Z" },
+      { id: "p", kind: "credit", amount: 2000, currency: "SIFA", paymentMethod: "orange", note: "", email: "", date: "2026-10-02", createdAt: "2026-10-02T10:00:00.000Z" },
+    ] as LedgerEntry[];
+    expect(buildReceiptWhatsAppMessage({ payment: entries[1]!, entries, deviceName: "منزل" })).toContain("المبلغ: 2,000 سيفا (أورانج موني · 🟠 10,000 فرانك)");
+  });
+});
