@@ -631,3 +631,21 @@ mind). Exact texts and numbers live in the code - this file says where.
 - **Under each card, its devices**: «📡 N جهاز مربوط بها» opens each device's Starlink email and its
   renewal day of the month (the locked day, else the day of `rechargeDate`) - the day the card is
   charged - soonest first (`cardDeviceRows` in `lib/cardDevices.ts`).
+
+## ✅ خطة اليوم, reminders and the «المزيد» menu
+
+- **«المزيد» (home ➕ fan)** (his Oct 2026 ask): «💳 البطاقة» (/starlink) and «الإعدادات» added,
+  «وعود الدفع» and «إضافة حساب» removed (`bottomMoreItems` in `BottomNav.tsx`; the rep's menu is
+  unchanged).
+- **No reps' devices in his «خطة اليوم» and reminders** («ازل عني فيها اجهزة المندوبين»; his choice
+  «خطة اليوم + صفحة التذكيرات»): any device with a rep and any customer who belongs to a rep now are
+  left out (`ownerOnly` in `repSeparation.ts`) - plan, the reminders page and the bell count. Only
+  «توقفت وعليها D» keeps every device (he pays Starlink for the reps' too). On the rep's own phone
+  (`isRepWorkspace`) nothing is left out.
+- **A task opens its device**: a device task (renewal, win-back) opens a sheet with the device
+  (customer, phone, email, KIT, renewal, what it owes) + «📡 افتح الجهاز» (home search by KIT, else
+  email, else name - `deviceSearchKey`) + «واتساب». A «🩺 بيانات» task opens its devices; a duplicate
+  (email / KIT / customer phone, his choice «الجهازان معًا + الدليل + دمج») shows each group with the
+  shared value as proof, both devices with customer, date added, last sync and operations count,
+  «افتح» each, and «🔗 اعرضهما للدمج» (home search on the shared value, where each card has «دمج»)
+  (`duplicateGroups` in `lib/duplicateProof.ts`).

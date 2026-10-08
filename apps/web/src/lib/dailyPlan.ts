@@ -7,7 +7,7 @@
 
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import type { ClientStore } from "./clientStore";
-import type { HealthIssue } from "./dataHealth";
+import type { HealthIssue, HealthIssueKind } from "./dataHealth";
 import type { DebtorAging } from "./debtAging";
 import type { PaymentPromise } from "./paymentPromises";
 import { parseRenewalDate } from "./renewalForecast";
@@ -27,6 +27,10 @@ export interface PlanTask {
   message?: string;
   /** A device/client name to find on the home screen. */
   search?: string;
+  /** 📡 The device the task is about - tapping it opens that device. */
+  accountId?: string;
+  /** 🩺 The data problem behind a «بيانات» task - tapping it lists its devices (and the proof). */
+  issueKind?: HealthIssueKind;
   /** Lower first. */
   priority: number;
 }
@@ -71,6 +75,7 @@ export function buildDailyPlan(input: DailyPlanInput): PlanTask[] {
       phone: account.phone || client?.phone,
       message: buildExpiryReminderMessage(client?.name ?? account.name),
       search: account.name,
+      accountId: account.id,
       priority: days <= 0 ? 1 : days === 1 ? 2 : 4,
     });
   }
@@ -112,13 +117,14 @@ export function buildDailyPlan(input: DailyPlanInput): PlanTask[] {
       phone: d.phone,
       message: buildWinBackMessage(d),
       search: d.name,
+      accountId: d.id,
       priority: 6,
     });
   }
 
   for (const issue of input.issues) {
     if (issue.severity !== "high") continue;
-    tasks.push({ id: `data:${issue.kind}`, kind: "data", title: `🩺 ${issue.title}`, detail: `${issue.items.length} - ${issue.hint}`, priority: 7 });
+    tasks.push({ id: `data:${issue.kind}`, kind: "data", title: `🩺 ${issue.title}`, detail: `${issue.items.length} - ${issue.hint}`, issueKind: issue.kind, priority: 7 });
   }
 
   return tasks.sort((a, b) => a.priority - b.priority || a.title.localeCompare(b.title));

@@ -1,5 +1,6 @@
 "use client";
 
+import { isRepDevice } from "@/lib/repSeparation";
 import { isRepWorkspace } from "@/lib/repMode";
 import { deviceTwins, mergeDevices } from "@/lib/deviceMerge";
 import { currentRepPending } from "@/lib/repWorkspace";
@@ -1340,6 +1341,8 @@ export function HomeView({
   // operates on active devices - an archived or soft-deleted one is reached only through its own
   // dedicated view (see viewMode), never mixed into these counts/lists.
   const activeAccounts = useMemo(() => accounts.filter((a) => !a.archivedAt && !a.deletedAt), [accounts]);
+  // 🤝 The reminders (bell count) leave the reps' devices to the reps (his Oct 2026 ask).
+  const ownActiveAccounts = useMemo(() => (isRepWorkspace() ? activeAccounts : activeAccounts.filter((a) => !isRepDevice(a))), [activeAccounts]);
   const activeAccountsRef = useRef(activeAccounts);
   activeAccountsRef.current = activeAccounts;
   const archivedAccounts = useMemo(() => accounts.filter((a) => a.archivedAt), [accounts]);
@@ -1470,12 +1473,12 @@ export function HomeView({
   const reminderCount = useMemo(
     () =>
       suspendedWithDebt.length +
-      computeRenewalReminders(activeAccounts).length +
-      computeDeviceDebtReminders(activeAccounts, ledgerStore, clientStore).length +
-      computeRestrictedDeviceReminders(activeAccounts).length +
+      computeRenewalReminders(ownActiveAccounts).length +
+      computeDeviceDebtReminders(ownActiveAccounts, ledgerStore, clientStore).length +
+      computeRestrictedDeviceReminders(ownActiveAccounts).length +
       (isBackupOverdue(lastBackupAt) ? 1 : 0) +
       duePromiseCount,
-    [activeAccounts, ledgerStore, clientStore, lastBackupAt, suspendedWithDebt, duePromiseCount],
+    [ownActiveAccounts, ledgerStore, clientStore, lastBackupAt, suspendedWithDebt, duePromiseCount],
   );
 
   const dayCounts = useMemo(() => countDayKeys(activeAccounts), [activeAccounts]);

@@ -106,13 +106,14 @@ export function BottomNav() {
 }
 
 function bottomMoreItems(inApp: boolean): MoreItem[] {
+  // His Oct 2026 choice: «البطاقة» and «الإعدادات» in, «وعود الدفع» and «إضافة حساب» out.
   return [
-    { label: "إضافة حساب", icon: "plus", color: "#2f80ff", tint: "#d6e6ff", action: "add-account" },
+    { label: "الإعدادات", icon: "settings", color: "#f5a524", tint: "#ffecc7", href: "/settings" },
     ...(inApp ? [{ label: "مزامنة الآن", icon: "sync" as const, color: "#10b8cc", tint: "#d2f4f8", action: "sync" as const }] : []),
     { label: "التذكيرات", icon: "bell", color: "#f0455f", tint: "#ffd9df", href: "/reminders" },
     { label: "دفعة سريعة", icon: "coins", color: "#0e9f6e", tint: "#dcf5ea", href: "/tools#pay" },
     { label: "خطة اليوم", icon: "tools", color: "#0e9f6e", tint: "#dcf5ea", href: "/tools#today" },
-    { label: "وعود الدفع", icon: "coins", color: "#7c3aed", tint: "#efe7ff", href: "/tools#promises" },
+    { label: "💳 البطاقة", icon: "card", color: "#1668e3", tint: "#d6e3fb", href: "/starlink" },
     { label: "💰 حسابي", icon: "coins", color: "#0e9f6e", tint: "#dcf5ea", href: "/money" },
   ];
 }

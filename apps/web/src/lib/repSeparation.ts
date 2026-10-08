@@ -38,3 +38,25 @@ export function repContact(account: Pick<StarlinkAccountSummary, "representative
   const rep = account.representativeId ? reps[account.representativeId] : undefined;
   return rep ? { name: rep.name, phone: rep.phone } : undefined;
 }
+
+/** 🤝 Any rep's device - the rep follows it up, so it stays out of the operator's «خطة اليوم» and
+ * reminders (his Oct 2026 ask «ازل عني فيها اجهزة المندوبين»); it stays on the home and rep pages. */
+export function isRepDevice(account: Pick<StarlinkAccountSummary, "representativeId">): boolean {
+  return Boolean(account.representativeId);
+}
+
+/** A customer who belongs to a rep now. */
+export function isRepClient(client: Pick<Client, "repSegments"> | undefined): boolean {
+  return Boolean(currentRepOfClient(client));
+}
+
+/** The operator's own devices and customers (no rep's). */
+export function ownerOnly<A extends Pick<StarlinkAccountSummary, "representativeId">, C extends Pick<Client, "repSegments">>(
+  accounts: A[],
+  clients: Record<string, C>,
+): { accounts: A[]; clients: Record<string, C> } {
+  return {
+    accounts: accounts.filter((a) => !isRepDevice(a)),
+    clients: Object.fromEntries(Object.entries(clients).filter(([, c]) => !isRepClient(c))),
+  };
+}

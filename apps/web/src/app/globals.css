@@ -13566,3 +13566,98 @@ button.today-tile {
   overflow-wrap: anywhere;
   text-align: start;
 }
+
+/* ✅ «خطة اليوم»: a task opens its device / its data problem in a sheet (TodayPlanTool). */
+.plan-open {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.plan-device-facts {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+.plan-device-facts li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+}
+.plan-device-facts li span {
+  flex: none;
+  color: var(--text-muted);
+}
+.plan-device-facts li bdi {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: end;
+  font-weight: 700;
+}
+
+/* 🔗 a duplicate group: the proof, then the devices side by side, then «اعرضهما للدمج» */
+.dup-group {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid var(--yellow);
+  border-radius: var(--radius-md);
+  background: var(--yellow-bg);
+}
+.dup-proof {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+  font-weight: 800;
+  color: var(--yellow);
+}
+.dup-proof bdi {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text);
+}
+.dup-members {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dup-members li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.dup-members li strong,
+.dup-members li small {
+  grid-column: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.dup-members li small {
+  color: var(--text-muted);
+}
+.dup-members li .text-action {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+.dup-merge {
+  justify-self: start;
+  text-decoration: none;
+}
+.dup-members li small bdi {
+  white-space: nowrap;
+}

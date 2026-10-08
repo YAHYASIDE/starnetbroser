@@ -1,5 +1,6 @@
 "use client";
 
+import { isRepWorkspace } from "@/lib/repMode";
 import { listOpenPreviousDebts, loadPreviousDebts } from "@/lib/previousDebt";
 import { cardShortfallForSuspended, currentCardBalanceUsd, listOpenShipmentDebts, listSuspendedWithDebt } from "@/lib/starlinkDebt";
 import { useEffect, useMemo, useState } from "react";
@@ -11,7 +12,7 @@ import { loadDemoAccounts } from "@/lib/demoAccountStore";
 import { listAccounts } from "@/lib/apiClient";
 import { LEDGER_CURRENCY_LABELS, LedgerByAccount, LedgerCurrency, loadLedgerStore } from "@/lib/ledgerStore";
 import { ClientStore, loadClientStore } from "@/lib/clientStore";
-import { hiddenRepIds, isHiddenRepClient, isHiddenRepDevice, repContact } from "@/lib/repSeparation";
+import { hiddenRepIds, isHiddenRepDevice, ownerOnly, repContact } from "@/lib/repSeparation";
 import { loadRepresentativeStore, type RepresentativeStore } from "@/lib/repStore";
 import { InvoiceList, loadInvoices } from "@/lib/invoiceStore";
 import { loadPartyAdjustments, PartyAdjustmentList } from "@/lib/partyBalanceStore";
@@ -49,11 +50,11 @@ export default function RemindersPage() {
   const [repStore, setRepStore] = useState<RepresentativeStore>({});
   useEffect(() => setRepStore(loadRepresentativeStore()), []);
   const hiddenReps = useMemo(() => hiddenRepIds(repStore), [repStore]);
-  const ownAccounts = useMemo(() => accounts.filter((a) => !isHiddenRepDevice(a, hiddenReps)), [accounts, hiddenReps]);
-  const ownClientStore = useMemo(
-    () => (hiddenReps.size ? Object.fromEntries(Object.entries(clientStore).filter(([, c]) => !isHiddenRepClient(c, hiddenReps))) : clientStore),
-    [clientStore, hiddenReps],
-  );
+  // 🤝 The reps follow their own devices and customers - his Oct 2026 ask «ازل عني فيها اجهزة
+  // المندوبين». Only «توقفت وعليها D» keeps every device: he pays Starlink for theirs too.
+  const own = useMemo(() => (isRepWorkspace() ? { accounts, clients: clientStore } : ownerOnly(accounts, clientStore)), [accounts, clientStore]);
+  const ownAccounts = own.accounts;
+  const ownClientStore = own.clients;
   const [invoices, setInvoices] = useState<InvoiceList>([]);
   const [partyAdjustments, setPartyAdjustments] = useState<PartyAdjustmentList>([]);
   const [storeItems, setStoreItems] = useState<StoreItemRegistry>({});
@@ -85,7 +86,7 @@ export default function RemindersPage() {
     const buckets = bucketPromises(loadPromises(), todayKey);
     setDuePromises([...buckets.overdue, ...buckets.today]);
   }, [todayKey]);
-  const restrictedReminders = useMemo(() => computeRestrictedDeviceReminders(accounts), [accounts]);
+  const restrictedReminders = useMemo(() => computeRestrictedDeviceReminders(ownAccounts), [ownAccounts]);
   const suspendedWithDebt = useMemo(
     () => listSuspendedWithDebt(accounts, listOpenShipmentDebts(ledgerStore), listOpenPreviousDebts(loadPreviousDebts(), ledgerStore)),
     [accounts, ledgerStore],
@@ -94,7 +95,7 @@ export default function RemindersPage() {
     () => (suspendedWithDebt.length > 0 ? cardShortfallForSuspended(suspendedWithDebt, currentCardBalanceUsd(ledgerStore)) : 0),
     [suspendedWithDebt, ledgerStore],
   );
-  const renewalReminders = useMemo(() => computeRenewalReminders(accounts), [accounts]);
+  const renewalReminders = useMemo(() => computeRenewalReminders(ownAccounts), [ownAccounts]);
   const deviceDebtReminders = useMemo(() => computeDeviceDebtReminders(ownAccounts, ledgerStore, ownClientStore), [ownAccounts, ledgerStore, ownClientStore]);
   const storeDebtReminders = useMemo(() => computeStoreDebtReminders(ownClientStore, invoices, partyAdjustments), [ownClientStore, invoices, partyAdjustments]);
   const lowStockReminders = useMemo(
