@@ -714,3 +714,11 @@ His Oct 2026 report «تسجيلات اليوم لا تظهر عندي، تظه�
 the stop instant (midnight), so a card that says «ينتهي اليوم» is dated TOMORROW. «اليوم» now takes
 those (ending tonight) plus the ones dated today (stopped this midnight) - `days` 0..1; «N أيام» takes
 `days` 0..N (`pickSyncAccounts` in `lib/syncQueue.ts`).
+
+## 💳 Card auto-add: the CVC
+
+His Oct 2026 report «دايم خانة الكود لا تمتلئ» (the Starlink Payment Method form: every field filled
+except CVC, then «Something went wrong»): typing the card number makes the form clear the security
+code a moment later while it checks the card type. The fill now has a second pass (0.7 / 1.8 / 3.5 s)
+that refills only the fields that are empty again (`fillCardFields(doc, card, onlyEmpty)`), and «Save»
+is never pressed while a field is empty - it refills and saves on the next try (`cardFillScript.ts`).

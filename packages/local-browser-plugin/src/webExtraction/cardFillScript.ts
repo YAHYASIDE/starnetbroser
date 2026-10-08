@@ -90,6 +90,9 @@ interface Command {
     tick();
   };
 
+  /** The card of the last «fill», for the second pass and the check before «Save». */
+  let lastCard: FillCard | null = null;
+
   bridge.onmessage = (event) => {
     let command: Command;
     try {
@@ -99,10 +102,18 @@ interface Command {
     }
     switch (command.cmd) {
       case "fill":
-        if (command.card) post({ type: "filled", count: fillCardFields(document, command.card) });
+        if (command.card) {
+          const card = command.card;
+          lastCard = card;
+          post({ type: "filled", count: fillCardFields(document, card) });
+          // The second pass: a security code the form cleared after the number, or a late field.
+          for (const delay of [700, 1800, 3500]) setTimeout(() => fillCardFields(document, card, true), delay);
+        }
         break;
       case "save":
         retry(() => {
+          // Never save with a field the form emptied again - refill it and save on the next try.
+          if (lastCard && fillCardFields(document, lastCard, true) > 0) return false;
           const save = findSaveButton(document);
           if (!save || !isEnabled(save)) return false;
           save.click();

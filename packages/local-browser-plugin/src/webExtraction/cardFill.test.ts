@@ -57,6 +57,22 @@ describe("fillCardFields", () => {
     expect(seen).toContain("change");
   });
 
+  it("the second pass refills only what the form emptied again (the CVC cleared after the number)", () => {
+    const doc = page(`
+      <input id="c" autocomplete="cc-number">
+      <input id="v" placeholder="CVC">
+      <input id="e" placeholder="MM / YY">`);
+    expect(fillCardFields(doc, CARD)).toBe(3);
+    // The form checks the card type and empties the security code.
+    (doc.getElementById("v") as HTMLInputElement).value = "";
+    const numberInputs: string[] = [];
+    doc.getElementById("c")!.addEventListener("input", () => numberInputs.push("x"));
+    expect(fillCardFields(doc, CARD, true)).toBe(1);
+    expect((doc.getElementById("v") as HTMLInputElement).value).toBe("123");
+    expect(numberInputs).toEqual([]); // the number wasn't typed again
+    expect(fillCardFields(doc, CARD, true)).toBe(0);
+  });
+
   it("separate month / year selects, and a 4-digit year", () => {
     const doc = page(`
       <select id="m" autocomplete="cc-exp-month"><option value="">--</option><option value="3">03</option></select>

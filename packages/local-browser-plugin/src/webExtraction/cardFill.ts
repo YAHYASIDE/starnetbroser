@@ -145,10 +145,14 @@ function typeInto(input: HTMLInputElement, value: string): boolean {
   return looksRight(input.value);
 }
 
-/** Fills this document's card fields; returns how many were filled. */
-export function fillCardFields(doc: Document, card: FillCard): number {
+/** Fills this document's card fields; returns how many were filled. `onlyEmpty` = the second pass:
+ * only fields that are (again) empty - typing the card number makes many forms clear the security
+ * code a moment later while they check the card type, and a late field misses the first pass (his
+ * Oct 2026 report «دايم خانة الكود لا تمتلئ»). */
+export function fillCardFields(doc: Document, card: FillCard, onlyEmpty = false): number {
   let filled = 0;
   for (const { el, kind } of cardFields(doc)) {
+    if (onlyEmpty && el.value.trim() !== "") continue;
     const value = valueFor(kind, card, el);
     if (!value) continue;
     if (el.tagName === "SELECT" ? pickOption(el as HTMLSelectElement, value) : typeInto(el as HTMLInputElement, value)) filled++;
