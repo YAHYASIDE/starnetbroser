@@ -116,7 +116,7 @@ import {
 import { ApiError, listAccounts } from "@/lib/apiClient";
 import { getLastBackupAt, isDemoMode, isLoggedIn, isRemindersBadgeEnabled } from "@/lib/settingsStore";
 import { commitDemoAccounts, loadDemoAccounts } from "@/lib/demoAccountStore";
-import { loadDeviceNotes, mergeDeviceNotes, pinnedDevices, saveDeviceNote, saveDeviceNotes, setDevicePinned, type DeviceNotesStore } from "@/lib/deviceNotes";
+import { isPinned, loadDeviceNotes, mergeDeviceNotes, noteMatchesQuery, pinnedDevices, saveDeviceNote, saveDeviceNotes, setDevicePinned, shouldAskUnpin, unpinAll, type DeviceNotesStore } from "@/lib/deviceNotes";
 import { ACCOUNTS_CHANGED_EVENT } from "@/lib/repMenuRecords";
 import { loadRepRequests, pendingRepRequests } from "@/lib/repRequests";
 import {
@@ -270,6 +270,8 @@ export function HomeView({
     saveDeviceNotes(next);
     setDeviceNotes(next);
   }
+  // 🧹 A renewal or payment on a pinned device asks «إزالة التثبيت؟» (once its dialog is closed).
+  const [unpinAsk, setUnpinAsk] = useState<string | null>(null);
   /** One group of «المعطلة» (ملغي / محروق / منقول / إيميل غير رئيسي), or all of them. */
   const [faultFilter, setFaultFilter] = useState<DeviceFaultReason | null>(null);
   /** «بدون زبون»: all of them, mine, or one representative's. */
@@ -382,6 +384,7 @@ export function HomeView({
   function updateLedgerEntries(accountId: string, entries: LedgerEntry[]) {
     // Every device payment also moves money into الكاش - computed from the current (pre-edit)
     // entries, outside the state updater so it runs exactly once.
+    if (shouldAskUnpin(deviceNotes, accountId, getAccountEntries(ledgerStore, accountId), entries)) setUnpinAsk(accountId);
     const deviceName = accounts.find((a) => a.id === accountId)?.name ?? "";
     const nextCash = applyLedgerPaymentsToCash(loadCashEntries(), getAccountEntries(ledgerStore, accountId), entries, deviceName);
     saveCashEntries(nextCash);
@@ -1255,6 +1258,7 @@ export function HomeView({
     settleFromCard: boolean | null = null,
   ) {
     patchAccount(account.id, { rechargeDate: newRechargeDate, lastUpdated: "الآن" });
+    if (isPinned(deviceNotes, account.id)) setUnpinAsk(account.id);
     const today = new Date().toISOString().slice(0, 10);
     const entries = getAccountEntries(ledgerStore, account.id);
     const open = openDebtEntries(entries);
@@ -1547,6 +1551,7 @@ export function HomeView({
       list = list.filter(
         (a) =>
           deviceMatchesQuery(query, a, visibleClientOf(a)) ||
+          noteMatchesQuery(deviceNotes[a.id], query) ||
           deviceMatchesQuery(query, { name: getRepresentative(representativeStore, a.representativeId)?.name ?? "", kitNumber: "", serialNumber: "" }),
       );
     }
@@ -1986,6 +1991,19 @@ export function HomeView({
                 📌 المثبتة ({pinnedCount})
               </button>
             )}
+            {statFilter === "pinned" && pinnedCount > 1 && (
+              <button
+                type="button"
+                className="faulty-chip pinned-clear-chip"
+                onClick={() => {
+                  if (!window.confirm(`إلغاء تثبيت كل الأجهزة (${pinnedCount})؟ تبقى الملاحظات كما هي.`)) return;
+                  commitDeviceNotes(unpinAll(loadDeviceNotes()));
+                  setStatFilter(null);
+                }}
+              >
+                🧹 إلغاء كل التثبيتات
+              </button>
+            )}
             <button
               type="button"
               className={`faulty-chip${statFilter === "faulty" ? " faulty-chip-active" : ""}`}
@@ -2192,6 +2210,33 @@ export function HomeView({
           </div>
         )}
       </section>
+
+      {unpinAsk && !ledgerAccount && isPinned(deviceNotes, unpinAsk) && (() => {
+        const device = accounts.find((a) => a.id === unpinAsk);
+        const note = deviceNotes[unpinAsk];
+        return (
+          <PartySheet title={`📌 ${device?.name ?? "الجهاز"} مثبت`} onClose={() => setUnpinAsk(null)}>
+            <p className="settings-hint">سجّلت له تجديدًا أو دفعة - هل انتهى سبب تثبيته؟</p>
+            {note?.text && <p className="device-note-ask-text" dir="auto">📝 {note.text}</p>}
+            <div className="party-sheet-options">
+              <button
+                type="button"
+                className="dialog-primary"
+                onClick={() => {
+                  commitDeviceNotes(setDevicePinned(loadDeviceNotes(), unpinAsk, false));
+                  setUnpinAsk(null);
+                  pushToast("📌 أُزيل التثبيت - الملاحظة باقية");
+                }}
+              >
+                🧹 إزالة التثبيت
+              </button>
+              <button type="button" className="dialog-secondary" onClick={() => setUnpinAsk(null)}>
+                أبقِه مثبتًا
+              </button>
+            </div>
+          </PartySheet>
+        );
+      })()}
 
       {viewMode === "active" && !dialog && !ledgerAccount && (
         <HomeFab onAddDevice={() => setDialog({ mode: "add" })} />

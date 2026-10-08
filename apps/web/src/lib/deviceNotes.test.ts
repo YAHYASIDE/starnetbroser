@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { duePins, isPinned, mergeDeviceNotes, pinAgeText, pinnedDevices, saveDeviceNote, setDevicePinned, type DeviceNotesStore } from "./deviceNotes";
+import { duePins, isPinned, mergeDeviceNotes, noteMatchesQuery, pinAgeText, pinnedDevices, saveDeviceNote, setDevicePinned, shouldAskUnpin, unpinAll, type DeviceNotesStore } from "./deviceNotes";
 
 const NOW = new Date(2026, 9, 8, 12, 0, 0);
 
@@ -23,8 +23,8 @@ describe("saveDeviceNote", () => {
     const noted = saveDeviceNote(pinned, "a", { text: "x", pin: false }, NOW);
     expect(isPinned(noted, "a")).toBe(true);
     const cleared = saveDeviceNote(noted, "a", { text: " ", pin: false }, NOW);
-    expect(cleared.a).toEqual({ pinnedAt: NOW.toISOString() });
-    expect(setDevicePinned(cleared, "a", false)).toEqual({});
+    expect(cleared.a).toEqual({ pinnedAt: NOW.toISOString(), history: [{ text: "x", at: NOW.toISOString() }] });
+    expect(setDevicePinned(saveDeviceNote({}, "b", { text: "", pin: true }, NOW), "b", false)).toEqual({});
   });
 
   it("keeps the note's time when only the pin changes", () => {
@@ -74,5 +74,43 @@ describe("mergeDeviceNotes", () => {
       keep: { text: "وعد بالدفع · بُدّل الراوتر", noteAt: "2026-10-03T00:00:00.000Z", pinnedAt: "2026-10-01T00:00:00.000Z" },
     });
     expect(mergeDeviceNotes({ keep: { text: "x" } }, "drop", "keep")).toEqual({ keep: { text: "x" } });
+  });
+});
+
+describe("📜 the note log", () => {
+  it("keeps every replaced or deleted note with its date, newest first", () => {
+    const d1 = new Date(2026, 9, 1), d2 = new Date(2026, 9, 3), d3 = new Date(2026, 9, 5);
+    let store = saveDeviceNote({}, "a", { text: "بُدّل الراوتر", pin: false }, d1);
+    store = saveDeviceNote(store, "a", { text: "وعد بالدفع", pin: false }, d2);
+    store = saveDeviceNote(store, "a", { text: "", pin: false }, d3);
+    expect(store.a).toEqual({
+      history: [
+        { text: "وعد بالدفع", at: d2.toISOString() },
+        { text: "بُدّل الراوتر", at: d1.toISOString() },
+      ],
+    });
+    expect(pinnedDevices(store, [{ id: "a" }])).toEqual([]);
+  });
+});
+
+describe("🧹 / 🔍", () => {
+  it("unpins everything and keeps the notes", () => {
+    const store: DeviceNotesStore = { a: { pinnedAt: "x", pinUntil: "2026-10-09", text: "t" }, b: { pinnedAt: "y" } };
+    expect(unpinAll(store)).toEqual({ a: { text: "t" } });
+  });
+
+  it("finds a device by its current or older note", () => {
+    const note = { text: "الطبق عند الفني", history: [{ text: "Router changed", at: "x" }] };
+    expect(noteMatchesQuery(note, "الفني")).toBe(true);
+    expect(noteMatchesQuery(note, "router")).toBe(true);
+    expect(noteMatchesQuery(note, "بطاقة")).toBe(false);
+    expect(noteMatchesQuery(undefined, "x")).toBe(false);
+  });
+
+  it("asks to unpin only when an operation was added to a pinned device", () => {
+    const store: DeviceNotesStore = { a: { pinnedAt: "x" } };
+    expect(shouldAskUnpin(store, "a", [{ id: "1" }], [{ id: "1" }, { id: "2" }])).toBe(true);
+    expect(shouldAskUnpin(store, "a", [{ id: "1" }], [{ id: "1" }])).toBe(false);
+    expect(shouldAskUnpin(store, "b", [], [{ id: "2" }])).toBe(false);
   });
 });

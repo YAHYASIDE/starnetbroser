@@ -98,13 +98,26 @@ export function DeviceNoteSheet({
           <span>⏰ حتى تاريخ (اختياري - يظهر في «خطة اليوم» يومها)</span>
           <DateInput className="search-input" value={until} onChange={(e) => setUntil(e.target.value)} />
         </label>
-        <p className="settings-hint">لك وحدك: لا تصل للمندوب، ولا تظهر في رسائل الزبون ولا الكشوف.</p>
+        <p className="settings-hint">لك وحدك: لا تصل للمندوب، ولا تظهر في رسائل الزبون ولا الكشوف. الملاحظة القديمة تبقى في السجل بتاريخها.</p>
         <button type="button" className="dialog-primary" onClick={() => save(true)} disabled={!text.trim() && !until && !pinned}>
           📌 حفظ وتثبيت
         </button>
         <button type="button" className="dialog-secondary" onClick={() => save(false)} disabled={!text.trim() && !note?.text}>
           💾 ملاحظة فقط
         </button>
+        {note?.history && note.history.length > 0 && (
+          <details className="device-note-log">
+            <summary>📜 سجل الملاحظات ({note.history.length})</summary>
+            <ul>
+              {note.history.map((h, i) => (
+                <li key={`${h.at}-${i}`}>
+                  <bdi dir="ltr">{h.at.slice(0, 10)}</bdi>
+                  <span dir="auto">{h.text}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
         {note?.text && (
           <button
             type="button"

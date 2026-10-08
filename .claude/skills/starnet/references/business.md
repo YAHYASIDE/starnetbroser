@@ -693,5 +693,10 @@ council (skill 5; report https://claude.ai/artifact/PpqKVH5ZecHYiM7H5Bfn91); his
   record, so never in a rep's copy / live link (not in `REP_STORES`), never in customer messages,
   statements or images. Follows the device to the trash and back; merging a duplicate moves the
   note onto the kept device (`lib/deviceNotes.ts`).
-- Later options offered, not built: search inside notes, «إزالة التثبيت؟» after a renewal/payment,
-  bulk unpin, a dated note log.
+- **His follow-up «اضف الاقتراحات»** (all four built):
+  - 🔍 home search also matches note text, current and logged (`noteMatchesQuery`);
+  - 🧹 a renewal (any kind) or a new operation on a pinned device asks «إزالة التثبيت؟» once its
+    dialog is closed (`shouldAskUnpin`) - unpinning keeps the note;
+  - 🧹 «إلغاء كل التثبيتات» inside «📌 المثبتة» (≥ 2 pinned), notes kept (`unpinAll`);
+  - 📜 a replaced or deleted note moves to the device's dated log (≤ 30, newest first), shown in the
+    note editor; merging duplicates joins both logs.

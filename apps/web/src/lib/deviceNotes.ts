@@ -22,7 +22,18 @@ export interface DeviceNote {
   pinnedAt?: string;
   /** yyyy-mm-dd - «⏰ حتى تاريخ»: from this day on the pin is a task in «خطة اليوم». */
   pinUntil?: string;
+  /** 📜 The device's earlier notes, newest first (his choice «سجل ملاحظات بالتاريخ»): a note that
+   * is replaced or deleted moves here with its date. */
+  history?: DeviceNoteLog[];
 }
+
+export interface DeviceNoteLog {
+  text: string;
+  /** ISO - when that note was written. */
+  at: string;
+}
+
+export const MAX_NOTE_HISTORY = 30;
 
 /** accountId -> its note / pin. */
 export type DeviceNotesStore = Record<string, DeviceNote>;
@@ -50,6 +61,7 @@ export function saveDeviceNotes(store: DeviceNotesStore): void {
 function withEntry(store: DeviceNotesStore, id: string, entry: DeviceNote): DeviceNotesStore {
   const next = { ...store };
   const clean: DeviceNote = {};
+  if (entry.history?.length) clean.history = entry.history.slice(0, MAX_NOTE_HISTORY);
   if (entry.text) {
     clean.text = entry.text;
     clean.noteAt = entry.noteAt;
@@ -58,7 +70,7 @@ function withEntry(store: DeviceNotesStore, id: string, entry: DeviceNote): Devi
     clean.pinnedAt = entry.pinnedAt;
     if (entry.pinUntil) clean.pinUntil = entry.pinUntil;
   }
-  if (clean.text || clean.pinnedAt) next[id] = clean;
+  if (clean.text || clean.pinnedAt || clean.history) next[id] = clean;
   else delete next[id];
   return next;
 }
@@ -75,7 +87,9 @@ export function saveDeviceNote(
   const current = store[id] ?? {};
   const text = input.text.trim().replace(/\s+/g, " ").slice(0, MAX_NOTE_LENGTH);
   const changed = text !== (current.text ?? "");
-  const entry: DeviceNote = { ...current, text: text || undefined, noteAt: text ? (changed ? now.toISOString() : current.noteAt) : undefined };
+  // The replaced (or deleted) note goes to the log with its own date.
+  const history = changed && current.text ? [{ text: current.text, at: current.noteAt ?? now.toISOString() }, ...(current.history ?? [])] : current.history;
+  const entry: DeviceNote = { ...current, text: text || undefined, noteAt: text ? (changed ? now.toISOString() : current.noteAt) : undefined, history };
   if (input.pin) {
     entry.pinnedAt = current.pinnedAt ?? now.toISOString();
     entry.pinUntil = input.until || undefined;
@@ -143,11 +157,35 @@ export function mergeDeviceNotes(store: DeviceNotesStore, dropId: string, keepId
   const text = [keep.text, drop.text].filter(Boolean).join(" · ").slice(0, MAX_NOTE_LENGTH) || undefined;
   const pinnedAt = [keep.pinnedAt, drop.pinnedAt].filter(Boolean).sort()[0];
   const until = [keep.pinUntil, drop.pinUntil].filter(Boolean).sort()[0];
+  const history = [...(keep.history ?? []), ...(drop.history ?? [])].sort((a, b) => b.at.localeCompare(a.at));
   const merged = withEntry(store, keepId, {
     text,
     noteAt: [keep.noteAt, drop.noteAt].filter(Boolean).sort().pop(),
     pinnedAt,
     pinUntil: until,
+    history: history.length ? history : undefined,
   });
   return withEntry(merged, dropId, {});
+}
+
+/** 🧹 «إلغاء كل التثبيتات»: every pin off at once - the notes and their log stay. */
+export function unpinAll(store: DeviceNotesStore): DeviceNotesStore {
+  let next = store;
+  for (const id of Object.keys(store)) if (store[id]!.pinnedAt) next = setDevicePinned(next, id, false);
+  return next;
+}
+
+/** 🔍 Home search finds a device by its note (current or in the log). */
+export function noteMatchesQuery(note: DeviceNote | undefined, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q || !note) return false;
+  return [note.text, ...(note.history ?? []).map((h) => h.text)].some((t) => t?.toLowerCase().includes(q));
+}
+
+/** 🧹 After a renewal or a payment on a pinned device: ask «إزالة التثبيت؟» - its reason (a promise,
+ * a pending renewal) is often done now. True when an operation was added to a pinned device. */
+export function shouldAskUnpin(store: DeviceNotesStore, id: string, before: { id: string }[], after: { id: string }[]): boolean {
+  if (!isPinned(store, id)) return false;
+  const known = new Set(before.map((e) => e.id));
+  return after.some((e) => !known.has(e.id));
 }
