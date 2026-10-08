@@ -9,7 +9,10 @@ import type { ToolsData } from "./useToolsData";
 
 /** 🩺 What's missing or inconsistent - each device links to its card on the home screen. */
 export function DataHealthTool({ data }: { data: ToolsData }) {
-  const issues = useMemo(() => checkDataHealth(data.accounts, data.clients, { ledger: data.ledger }), [data.accounts, data.clients, data.ledger]);
+  const issues = useMemo(
+    () => checkDataHealth(data.accounts, data.clients, { ledger: data.ledger, currency: { accounts: data.accounts, clients: data.clients, reps: data.reps, ledger: data.ledger } }),
+    [data.accounts, data.clients, data.reps, data.ledger],
+  );
   const score = useMemo(() => healthScore(data.accounts, issues), [data.accounts, issues]);
   const tone = score >= 90 ? "good" : score >= 70 ? "warn" : "bad";
   const suggestions = useMemo(() => suggestRenewalPlans(data.accounts, data.ledger), [data.accounts, data.ledger]);

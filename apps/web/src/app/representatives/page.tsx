@@ -72,6 +72,9 @@ import {
   loadLedgerStore,
   saveLedgerStore,
 } from "@/lib/ledgerStore";
+import { DefaultCurrencyField } from "@/components/CurrencyGuard";
+import { autoCurrencyOf, mismatchedEntryIds } from "@/lib/partyCurrency";
+import { loadPartyCurrencyContext } from "@/lib/partyCurrencyData";
 import { ClientStore, commitClientStore, createClient, getClient, loadClientStore } from "@/lib/clientStore";
 import { combinePhoneNumber, PHONE_COUNTRY_CODES, splitPhoneNumber } from "@/lib/phoneCountryCodes";
 import { formatAmount } from "@/lib/formatAmount";
@@ -658,6 +661,18 @@ function RepCard({
   const [showArchive, setShowArchive] = useState(false);
 
   const fx = useFx();
+  // 💱 His operations in another currency than his (partyCurrency.ts) - «⚠️ عملة مختلفة» on the line.
+  const wrongCurrency = useMemo(
+    () =>
+      mismatchedEntryIds({
+        accounts,
+        clients: clientStore,
+        reps: Object.fromEntries(representatives.map((r) => [r.id, r])),
+        ledger: ledgerStore,
+        repWorkspace: isRepWorkspace(),
+      }),
+    [accounts, clientStore, representatives, ledgerStore],
+  );
   // A device operation opened for editing - a shipment, or a customer's renewal / payment (✎).
   const [editingShipment, setEditingShipment] = useState<{ accountId: string; entry: LedgerEntry } | null>(null);
   const allDeviceRows = useMemo(() => listRepDeviceCommissions(rep.id, ledgerStore), [rep.id, ledgerStore]);
@@ -999,6 +1014,7 @@ function RepCard({
                         accountName={accountName}
                         clientNameFor={clientNameFor}
                         storeItems={storeItems}
+                        wrongCurrency={wrongCurrency}
                         onOpen={row.type === "invoice" || readOnly ? undefined : () => openRow(row)}
                         hideOurs={readOnly}
                       />
@@ -1531,8 +1547,11 @@ function RepStatementLine({
   storeItems,
   onOpen,
   hideOurs = false,
+  wrongCurrency,
 }: {
   hideOurs?: boolean;
+  /** 💱 Operations in another currency than his - marked «⚠️ عملة مختلفة». */
+  wrongCurrency?: Set<string>;
   row: RepStatementRow;
   balanceAfter?: Record<string, number>;
   accountName: (accountId: string) => string;
@@ -1554,6 +1573,7 @@ function RepStatementLine({
           <span className="party-statement-kind">
             📡 {accountName(accountId)}
             {client ? ` · ${client}` : ""}
+            {wrongCurrency?.has(entry.id) && <span className="cur-badge">⚠️ عملة مختلفة</span>}
           </span>
           <span className="party-statement-date" dir="ltr">
             {formatAmount(entry.amount)} {currencyLabel(entry.currency)}
@@ -1599,6 +1619,7 @@ function RepStatementLine({
           <span className="party-statement-kind">
             {customerOpLabel(op)} · {accountName(op.accountId)}
             {client ? ` · ${client}` : ""}
+            {op.entryId && wrongCurrency?.has(op.entryId) && <span className="cur-badge">⚠️ عملة مختلفة</span>}
           </span>
           <strong dir="ltr">
             {formatAmount(Math.abs(op.amount))} {currencyLabel(op.currency)}
@@ -1968,12 +1989,14 @@ function RepresentativeForm({
   const [phoneLocalNumber, setPhoneLocalNumber] = useState(() => splitPhoneNumber(initial?.phone).localNumber);
   const [sharesLosses, setSharesLosses] = useState(initial?.sharesLosses ?? false);
   const [color, setColor] = useState<string | undefined>(initial?.color);
+  const [defaultCurrency, setDefaultCurrency] = useState<LedgerCurrency | undefined>(initial?.defaultCurrency);
+  const autoCurrency = useMemo(() => (initial ? autoCurrencyOf("rep", initial.id, loadPartyCurrencyContext()) : undefined), [initial]);
 
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!name.trim() || !commissionPercent) return;
     const phone = combinePhoneNumber(phoneDialCode, phoneLocalNumber);
-    onSubmit({ name, phone: phone || undefined, commissionPercent: Number(commissionPercent), sharesLosses, color });
+    onSubmit({ name, phone: phone || undefined, commissionPercent: Number(commissionPercent), sharesLosses, color, defaultCurrency });
   }
 
   return (
@@ -2031,6 +2054,7 @@ function RepresentativeForm({
           ))}
         </div>
       </div>
+      <DefaultCurrencyField value={defaultCurrency} auto={autoCurrency} onChange={setDefaultCurrency} />
       <label className="ledger-d-toggle party-cash-toggle">
         <input type="checkbox" checked={sharesLosses} onChange={(e) => setSharesLosses(e.target.checked)} />
         <span>يتحمّل نسبته من الخسارة أيضًا (إذا خسر جهاز تُخصم حصته من مستحقاته)</span>

@@ -24,6 +24,8 @@ import { isRepWorkspace } from "@/lib/repMode";
 import { RepresentativePicker } from "./RepresentativePicker";
 import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS } from "@/lib/ledgerStore";
 import { validateRenewalPlan } from "@/lib/renewalPlan";
+import { loadExpectedCurrency } from "@/lib/partyCurrencyData";
+import { CurrencyBanner, useCurrencyGuard } from "./CurrencyGuard";
 import { formatAmount } from "@/lib/formatAmount";
 import { getCurrency, listCurrencies, loadCurrencyStore } from "@/lib/currencyStore";
 
@@ -114,6 +116,12 @@ export function AccountDialog({
   const [planCost, setPlanCost] = useState(initial.renewalPlan ? String(initial.renewalPlan.costAmount) : "");
   const [planCostCurrency, setPlanCostCurrency] = useState(initial.renewalPlan?.costCurrency ?? "USD");
   const [planCostPending, setPlanCostPending] = useState(initial.renewalPlan?.costPending ?? true);
+  // 💱 The monthly price in another currency than the device's rep / customer is stopped by a window.
+  const expectedCurrency = useMemo(
+    () => loadExpectedCurrency({ accountId: account?.id, clientId: draft.clientId, representativeId: draft.representativeId }),
+    [account?.id, draft.clientId, draft.representativeId],
+  );
+  const currencyGuard = useCurrencyGuard(expectedCurrency);
   const [planError, setPlanError] = useState<string | null>(null);
   // Every registered currency can be Starlink's cost currency; a hidden one stays listed only
   // when this device's plan already uses it.
@@ -273,6 +281,7 @@ export function AccountDialog({
         costAmount: Number(planCost),
         costCurrency: planCostCurrency.trim().toUpperCase(),
         costPending: planCostPending,
+        currencyConfirmed: (initial.renewalPlan?.saleCurrency === planSaleCurrency && initial.renewalPlan?.currencyConfirmed) || undefined,
       };
       const planProblem = validateRenewalPlan(renewalPlan);
       if (planProblem) {
@@ -282,6 +291,15 @@ export function AccountDialog({
     }
     setPlanError(null);
 
+    currencyGuard.ask(
+      renewalPlan?.currencyConfirmed ? "" : (renewalPlan?.saleCurrency ?? ""),
+      renewalPlan?.saleAmount ?? 0,
+      (confirmed) => finishSave(renewalPlan && confirmed ? { ...renewalPlan, currencyConfirmed: true } : renewalPlan),
+      (next) => setPlanSaleCurrency(next),
+    );
+  }
+
+  function finishSave(renewalPlan: StarlinkAccountSummary["renewalPlan"]) {
     const trimmedExtraEmails = extraEmails
       .map((entry) => ({ address: entry.address.trim(), password: entry.password?.trim() || undefined }))
       .filter((entry) => entry.address.length > 0);
@@ -708,6 +726,7 @@ export function AccountDialog({
                   </select>
                 </label>
               </div>
+              <CurrencyBanner expected={expectedCurrency} chosen={planSale.trim() ? planSaleCurrency : ""} amount={Number(planSale)} />
               <div className="renewal-plan-row">
                 <label className="renewal-plan-field">
                   <span>تكلفة Starlink</span>
@@ -796,6 +815,7 @@ export function AccountDialog({
             <button className="dialog-primary dialog-done" type="button" onClick={onClose}>تم</button>
           </div>
         )}
+        {currencyGuard.modal}
       </section>
     </div>
   );

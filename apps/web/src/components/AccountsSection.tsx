@@ -46,6 +46,9 @@ import { partyHue, partyInitials } from "@/lib/partyColor";
 import { buildClientCombinedStatement, computeClientCombinedTotals } from "@/lib/clientAccount";
 import { buildStoreDebtReminderMessage, buildStoreStatementMessage, buildWhatsAppLink } from "@/lib/whatsapp";
 import { PartyAdjustment, partyAdjustmentCashKind, PartyAdjustmentDirection, PartyKind, RecordPartyAdjustmentInput } from "@/lib/partyBalanceStore";
+import { DefaultCurrencyField } from "./CurrencyGuard";
+import { autoCurrencyOf } from "@/lib/partyCurrency";
+import { loadPartyCurrencyContext } from "@/lib/partyCurrencyData";
 
 const EPSILON = 0.0001;
 
@@ -1261,7 +1264,7 @@ function BalanceForm({ partyName, partyKind, devices, initial, proofKey, submitL
 }
 
 interface PartyFormProps {
-  initial?: { name: string; phone?: string; creditLimit?: number };
+  initial?: { id?: string; name: string; phone?: string; creditLimit?: number; defaultCurrency?: LedgerCurrency };
   submitLabel: string;
   namePlaceholder: string;
   /** Client-only (see Client.creditLimit's own doc) - a credit ceiling only ever applies to money a
@@ -1280,6 +1283,12 @@ function PartyForm({ initial, submitLabel, namePlaceholder, showCreditLimit, onS
   const [phoneDialCode, setPhoneDialCode] = useState(() => splitPhoneNumber(initial?.phone).dialCode);
   const [phoneLocalNumber, setPhoneLocalNumber] = useState(() => splitPhoneNumber(initial?.phone).localNumber);
   const [creditLimit, setCreditLimit] = useState(initial?.creditLimit ? String(initial.creditLimit) : "");
+  // 💱 A customer's currency (clients only): automatic, or fixed by him (partyCurrency.ts).
+  const [defaultCurrency, setDefaultCurrency] = useState<LedgerCurrency | undefined>(initial?.defaultCurrency);
+  const autoCurrency = useMemo(
+    () => (showCreditLimit && initial?.id ? autoCurrencyOf("client", initial.id, loadPartyCurrencyContext()) : undefined),
+    [showCreditLimit, initial?.id],
+  );
 
   const duplicates = useMemo(
     () => findClientDuplicates({ id: selfId, name, phone: combinePhoneNumber(phoneDialCode, phoneLocalNumber) }, existing),
@@ -1294,6 +1303,7 @@ function PartyForm({ initial, submitLabel, namePlaceholder, showCreditLimit, onS
       name,
       phone: combinePhoneNumber(phoneDialCode, phoneLocalNumber) || undefined,
       creditLimit: showCreditLimit && creditLimit ? Number(creditLimit) : undefined,
+      ...(showCreditLimit ? { defaultCurrency } : {}),
     });
   }
 
@@ -1334,6 +1344,7 @@ function PartyForm({ initial, submitLabel, namePlaceholder, showCreditLimit, onS
           onChange={(e) => setCreditLimit(e.target.value)}
         />
       )}
+      {showCreditLimit && <DefaultCurrencyField value={defaultCurrency} auto={autoCurrency} onChange={setDefaultCurrency} />}
       <div className="settings-actions">
         <button className="dialog-primary" type="submit" disabled={!name.trim()}>
           {submitLabel}

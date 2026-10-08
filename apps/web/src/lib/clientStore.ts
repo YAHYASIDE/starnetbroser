@@ -8,6 +8,7 @@
 
 import { formatAmount } from "./formatAmount";
 import { mergeMap } from "./storeMerge";
+import type { LedgerCurrency } from "./ledgerStore";
 
 /** From `from` on, this customer belongs to `repId` (absent = back to us). `carry` = the balance
  * so far moved over to the new owner at that moment; otherwise it stays with the previous one. */
@@ -31,6 +32,9 @@ export interface Client {
   /** Whose customer this is over time (repClients.ts) - absent = ours, the old model. The last
    * segment is the current owner; a representative's customers owe HIM, and he owes us. */
   repSegments?: RepSegment[];
+  /** 💱 «عملته»: the currency we deal with him in (lib/partyCurrency.ts). Absent = automatic, from
+   * most of his devices' operations. */
+  defaultCurrency?: LedgerCurrency;
   createdAt: string;
   updatedAt: string;
 }
@@ -96,6 +100,8 @@ export interface CreateClientInput {
   /** See Client.creditLimit's own doc. Floored at 0 like every other limit/rate in this app;
    * undefined or 0 both mean "no ceiling". */
   creditLimit?: number;
+  /** Left out = keep his current one; `undefined` given = back to automatic. */
+  defaultCurrency?: LedgerCurrency;
 }
 
 function normalizeCreditLimit(value: number | undefined): number | undefined {
@@ -111,6 +117,7 @@ export function createClient(store: ClientStore, input: CreateClientInput): { st
     name: input.name.trim(),
     phone: input.phone?.trim() || undefined,
     creditLimit: normalizeCreditLimit(input.creditLimit),
+    defaultCurrency: input.defaultCurrency,
     createdAt: now,
     updatedAt: now,
   };
@@ -125,6 +132,7 @@ export function updateClient(store: ClientStore, clientId: string, patch: Create
     name: patch.name.trim(),
     phone: patch.phone?.trim() || undefined,
     creditLimit: normalizeCreditLimit(patch.creditLimit),
+    defaultCurrency: "defaultCurrency" in patch ? patch.defaultCurrency : existing.defaultCurrency,
     updatedAt: new Date().toISOString(),
   };
   return { ...store, [clientId]: updated };

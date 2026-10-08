@@ -47,7 +47,15 @@ export function TodayPlanTool({ data }: { data: ToolsData }) {
   // 🤝 The reps follow their own devices and customers - only his own here (his Oct 2026 ask).
   // (On the rep's own phone every device is his - nothing is left out there.)
   const own = useMemo(() => (isRepWorkspace() ? { accounts: data.accounts, clients: data.clients } : ownerOnly(data.accounts, data.clients)), [data.accounts, data.clients]);
-  const issues = useMemo(() => checkDataHealth(own.accounts, own.clients, { ledger: data.ledger }), [own, data.ledger]);
+  const issues = useMemo(
+    () =>
+      checkDataHealth(own.accounts, own.clients, {
+        ledger: data.ledger,
+        // 💱 currency problems on every device, the reps' included (his Oct 2026 ask).
+        currency: { accounts: data.accounts, clients: data.clients, reps: data.reps, ledger: data.ledger, repWorkspace: isRepWorkspace() },
+      }),
+    [own, data.accounts, data.clients, data.reps, data.ledger],
+  );
   const plan = useMemo(() => {
     const debtors = computeDebtAging({
       clients: listClients(own.clients),
@@ -206,6 +214,18 @@ function DeviceSheet({ account, data, task, onClose }: { account?: StarlinkAccou
 
 /** 🩺 A data problem with its devices - for a duplicate, each group side by side with the proof
  * (the shared email / KIT / phone) and what tells them apart, and the way to merge them. */
+/** 💱 «✓ صحيحة»: the operation (or the monthly price) really is in that currency - never flagged again. */
+function confirmCurrency(data: ToolsData, accountId: string, entryId: string | undefined) {
+  if (entryId) {
+    const entries = data.ledger[accountId] ?? [];
+    data.saveLedger({ ...data.ledger, [accountId]: entries.map((e) => (e.id === entryId ? { ...e, currencyConfirmed: true } : e)) });
+    return;
+  }
+  data.saveAccounts(
+    data.accounts.map((a) => (a.id === accountId && a.renewalPlan ? { ...a, renewalPlan: { ...a.renewalPlan, currencyConfirmed: true } } : a)),
+  );
+}
+
 function IssueSheet({ issue, data, onOpenDevice, onClose }: { issue?: HealthIssue; data: ToolsData; onOpenDevice: (id: string) => void; onClose: () => void }) {
   if (!issue) {
     return (
@@ -263,6 +283,11 @@ function IssueSheet({ issue, data, onOpenDevice, onClose }: { issue?: HealthIssu
               {item.accountId && (
                 <button type="button" className="text-action" onClick={() => onOpenDevice(item.accountId!)}>
                   افتح
+                </button>
+              )}
+              {issue.kind === "currency-mismatch" && item.accountId && (
+                <button type="button" className="text-action" onClick={() => confirmCurrency(data, item.accountId!, item.entryId)}>
+                  ✓ صحيحة
                 </button>
               )}
             </li>

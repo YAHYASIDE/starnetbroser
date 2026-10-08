@@ -250,6 +250,8 @@ export interface RenewalPlan {
   /** Whether a renewal starts with the Starlink cost unpaid (D - the usual case: the month is
    * borrowed from Starlink and paid when the device stops). Unset means D. */
   costPending?: boolean;
+  /** 💱 He confirmed this price really is in another currency than the device's rep / customer. */
+  currencyConfirmed?: boolean;
 }
 
 /** Detail-view shape - includes decrypted secrets, only ever returned to

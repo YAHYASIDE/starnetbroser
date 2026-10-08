@@ -13661,3 +13661,117 @@ button.today-tile {
 .dup-members li small bdi {
   white-space: nowrap;
 }
+
+/* 💱 Currency guard: the rep's / customer's own currency (lib/partyCurrency.ts) */
+.cur-guard-banner {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 2px solid var(--red);
+  border-radius: var(--radius-md);
+  background: var(--red-bg);
+  color: var(--red);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.cur-guard-banner span {
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.cur-guard-backdrop {
+  z-index: 200;
+}
+
+.cur-guard-modal {
+  width: min(100%, 420px);
+  display: grid;
+  gap: 10px;
+  padding: 20px 18px;
+  border: 3px solid var(--red);
+  border-radius: 22px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: center;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.35);
+  animation: cur-guard-shake 0.45s ease-in-out;
+}
+
+.cur-guard-icon {
+  font-size: 2.4rem;
+  line-height: 1;
+}
+
+.cur-guard-modal h2 {
+  margin: 0;
+  color: var(--red);
+  font-size: 1.35rem;
+}
+
+.cur-guard-main {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--red-bg);
+  color: var(--red);
+  font-weight: 800;
+  font-size: 1.02rem;
+  line-height: 1.6;
+}
+
+.cur-guard-source,
+.cur-guard-note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.cur-guard-actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.cur-guard-actions button {
+  width: 100%;
+  min-height: 46px;
+}
+
+.cur-guard-confirm {
+  border: 1.5px solid var(--red);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--red);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cur-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--red-bg);
+  color: var(--red);
+  font-size: 0.72rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.cur-default-field select {
+  width: 100%;
+}
+
+@keyframes cur-guard-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-5px); }
+  80% { transform: translateX(5px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cur-guard-modal { animation: none; }
+}

@@ -11,6 +11,7 @@ import type { ClientStore } from "./clientStore";
 import { computeShipmentProfit } from "./accountingStore";
 import { emailsMismatch } from "./emailMatch";
 import type { LedgerByAccount } from "./ledgerStore";
+import { currencyMismatches, mismatchLine, type PartyCurrencyContext } from "./partyCurrency";
 
 export type HealthSeverity = "high" | "medium" | "low";
 
@@ -28,12 +29,15 @@ export type HealthIssueKind =
   | "client-no-phone"
   | "loss-shipment"
   | "duplicate-client-phone"
-  | "renewed-unrecorded";
+  | "renewed-unrecorded"
+  | "currency-mismatch";
 
 export interface HealthItem {
   /** The device, when the issue is about one. */
   accountId?: string;
   clientId?: string;
+  /** The operation the issue is about (💱 currency-mismatch); absent for a monthly price. */
+  entryId?: string;
   label: string;
   detail?: string;
 }
@@ -64,6 +68,11 @@ const META: Record<HealthIssueKind, { severity: HealthSeverity; title: string; h
     title: "تجدد في Starlink بدون تجديد مسجل",
     hint: "موعده القادم بعيد لكن آخر شحنة مسجلة قديمة - ربما جددته ولم تسجل المبلغ على الزبون",
   },
+  "currency-mismatch": {
+    severity: "high",
+    title: "💱 عملية بعملة مختلفة عن عملة صاحبها",
+    hint: "المندوب أو الزبون يتعامل بعملة وهذه سُجّلت بأخرى - صحّحها، أو اضغط «✓ صحيحة» إن كانت مقصودة",
+  },
   "duplicate-client-phone": { severity: "medium", title: "زبونان بنفس الهاتف", hint: "غالباً نفس الزبون مسجل مرتين - ادمج أجهزته في زبون واحد" },
 };
 
@@ -93,6 +102,9 @@ export interface HealthOptions {
   staleDays?: number;
   /** With the ledger, settled shipments sold below cost in the last 90 days are flagged. */
   ledger?: LedgerByAccount;
+  /** 💱 With it, operations in another currency than their rep's / customer's are listed (from
+   * every device - the reps' too, it's the operator's money). */
+  currency?: PartyCurrencyContext;
 }
 
 export function checkDataHealth(accounts: StarlinkAccountSummary[], clients: ClientStore, options: HealthOptions = {}): HealthIssue[] {
@@ -163,6 +175,12 @@ export function checkDataHealth(accounts: StarlinkAccountSummary[], clients: Cli
           push("loss-shipment", item(account, `${entry.date} · خسارة ${Math.round(-profit.profitUsd)}$`));
         }
       }
+    }
+  }
+  if (options.currency) {
+    for (const m of currencyMismatches(options.currency)) {
+      const line = mismatchLine(m);
+      push("currency-mismatch", { accountId: m.accountId, entryId: m.entry?.id, label: line.label, detail: line.detail });
     }
   }
   const byPhone = new Map<string, string[]>();

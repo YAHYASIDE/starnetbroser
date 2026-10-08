@@ -8,7 +8,7 @@ import { formatProfitMru } from "@/lib/profitMru";
 import { useMruRate } from "@/lib/useMruRate";
 import { balanceAfterPayment, buildPaymentReceipt, buildReceiptWhatsAppMessage } from "@/lib/receipt";
 import { notifyPaymentTelegram } from "@/lib/telegram";
-import { ChangeEvent, FormEvent, useEffect, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { resizeImageToDataUrl } from "@/lib/imageUtils";
 import { deleteProof, getProof, listProofIds, putProof } from "@/lib/paymentProofStore";
 import { buildWhatsAppLink } from "@/lib/whatsapp";
@@ -51,6 +51,8 @@ import { PaymentRateCompletionDialog } from "./PaymentRateCompletionDialog";
 import { EditLedgerEntryDialog } from "./EditLedgerEntryDialog";
 import { confirmClosedMonthChange, ledgerEditMonthDates, ledgerEntryMonthDates } from "@/lib/monthClosing";
 import { HelpHint } from "./HelpHint";
+import { loadExpectedCurrency } from "@/lib/partyCurrencyData";
+import { CurrencyBadge, CurrencyBanner, useCurrencyGuard } from "./CurrencyGuard";
 import { fitPayMethod, methodLabel, PAY_CURRENCIES, PAY_CURRENCY_LABELS, payMethodsFor, toLedgerPayment, type PayCurrency } from "@/lib/payCurrency";
 
 /** One other device linked to the same customer - siblings, never the account currently open in
@@ -158,7 +160,11 @@ export function LedgerDialog({
     renewalPlan && LEDGER_CURRENCIES.includes(renewalPlan.saleCurrency as LedgerCurrency)
       ? (renewalPlan.saleCurrency as LedgerCurrency)
       : undefined;
-  const [currency, setCurrency] = useState<LedgerCurrency>(planSaleCurrency ?? "MRU");
+  // 💱 His rep's / customer's currency (partyCurrency.ts): the default for a new entry, and another
+  // one is stopped by a window before saving.
+  const expectedCurrency = useMemo(() => loadExpectedCurrency({ accountId }), [accountId]);
+  const guard = useCurrencyGuard(expectedCurrency);
+  const [currency, setCurrency] = useState<LedgerCurrency>(planSaleCurrency ?? expectedCurrency?.currency ?? "MRU");
   const [amount, setAmount] = useState(renewalPlan && planSaleCurrency && initialKind === "debit" ? String(renewalPlan.saleAmount) : "");
   const [note, setNote] = useState("");
   // Prefilled from the device's own already-known email when available - still a plain field the
@@ -412,53 +418,61 @@ export function LedgerDialog({
         : { status: "settled", currencyCode: costCurrencyCode, amount: parsedCostAmount, rate: costRateSnapshot, paidAt: date };
       profitCurrencyRates = markD ? undefined : { MRU: mruRateKnown, SIFA: sifaRateKnown };
     }
-    if (!confirmClosedMonthChange([date])) return;
-    setFormError(null);
-
-    if (needsRate) {
-      // Keeps the registry's "last used" rate for this currency current (rule VI) - the entry's
-      // own saleRate/paymentRate below is a separate, permanently locked snapshot, never
-      // re-derived from this.
-      const existing = getCurrency(currencyStore, currency);
-      onUpsertCurrency({
-        code: currency,
-        name: existing?.name ?? LEDGER_CURRENCY_LABELS[currency],
-        symbol: existing?.symbol ?? currency,
-        rateFromUsd: parsedRate,
-      });
-    }
-
-    const rateSnapshot = needsRate ? { rateFromUsd: parsedRate, usdValue: stored.amount / parsedRate } : undefined;
-    const entry = createLedgerEntry({
-      kind,
-      amount: stored.amount,
-      currency: stored.currency,
-      note,
-      email,
-      paymentMethod: kind === "credit" ? method : undefined,
-      date,
-      saleRate: kind === "debit" ? rateSnapshot : undefined,
-      paymentRate: kind === "credit" ? rateSnapshot : undefined,
-      starlinkCost: starlinkCostInput,
-      profitCurrencyRates,
-      representative,
+    guard.ask(stored.currency, stored.amount, (confirmed) => finishSubmit(confirmed), (next) => {
+      setFrancPay(false);
+      selectCurrency(next);
     });
 
-    setAmount("");
-    setNote("");
-    setEmail(accountEmail ?? "");
-    setMarkD(false);
-    setCostAmount("");
+    function finishSubmit(currencyConfirmed: boolean) {
+      if (!confirmClosedMonthChange([date])) return;
+      setFormError(null);
 
-    if (kind === "credit") {
-      // A payment is never added directly - it first goes through the allocation dialog below
-      // (rule 3: "يعرض النظام الشحنة التي ستُخصص لها الدفعة قبل الحفظ"), which is what actually
-      // adds it (along with whatever allocation records the operator confirms).
-      setPendingPayment(entry);
-      return;
+      if (needsRate) {
+        // Keeps the registry's "last used" rate for this currency current (rule VI) - the entry's
+        // own saleRate/paymentRate below is a separate, permanently locked snapshot, never
+        // re-derived from this.
+        const existing = getCurrency(currencyStore, currency);
+        onUpsertCurrency({
+          code: currency,
+          name: existing?.name ?? LEDGER_CURRENCY_LABELS[currency],
+          symbol: existing?.symbol ?? currency,
+          rateFromUsd: parsedRate,
+        });
+      }
+
+      const rateSnapshot = needsRate ? { rateFromUsd: parsedRate, usdValue: stored.amount / parsedRate } : undefined;
+      const entry = createLedgerEntry({
+        kind,
+        amount: stored.amount,
+        currency: stored.currency,
+        note,
+        email,
+        paymentMethod: kind === "credit" ? method : undefined,
+        date,
+        saleRate: kind === "debit" ? rateSnapshot : undefined,
+        paymentRate: kind === "credit" ? rateSnapshot : undefined,
+        starlinkCost: starlinkCostInput,
+        profitCurrencyRates,
+        representative,
+      });
+      if (currencyConfirmed) entry.currencyConfirmed = true;
+
+      setAmount("");
+      setNote("");
+      setEmail(accountEmail ?? "");
+      setMarkD(false);
+      setCostAmount("");
+
+      if (kind === "credit") {
+        // A payment is never added directly - it first goes through the allocation dialog below
+        // (rule 3: "يعرض النظام الشحنة التي ستُخصص لها الدفعة قبل الحفظ"), which is what actually
+        // adds it (along with whatever allocation records the operator confirms).
+        setPendingPayment(entry);
+        return;
+      }
+
+      onChange([...entries, entry]);
     }
-
-    onChange([...entries, entry]);
   }
 
   function deleteEntry(entryId: string) {
@@ -602,6 +616,7 @@ export function LedgerDialog({
             onChange={(e) => setAmount(e.target.value)}
           />
           {payCurrency === "FRANC" && <FrancHint amount={amount} />}
+          <CurrencyBanner expected={expectedCurrency} chosen={currency} amount={Number(amount) > 0 ? (kind === "credit" ? toLedgerPayment(payCurrency, Number(amount)).amount : Number(amount)) : undefined} />
           <DateInput
             className="search-input"
             value={date}
@@ -824,6 +839,7 @@ export function LedgerDialog({
           {formError && <div className="account-card-alert ledger-form-error">{formError}</div>}
           <button className="dialog-primary" type="submit">إضافة حركة</button>
         </form>
+        {guard.modal}
 
         {justPaid && (
           <div className="ledger-paid-strip" role="status">
@@ -859,6 +875,7 @@ export function LedgerDialog({
                   {entry.kind === "debit" ? "عليه" : "له"}
                 </span>
                 <span className="ledger-entry-amount" dir="ltr">{formatMoney(entry.amount, entry.currency)}</span>
+                <CurrencyBadge expected={expectedCurrency} entry={entry} />
                 <span className="ledger-entry-date" dir="ltr">{entry.date}</span>
                 <button
                   className="text-action"

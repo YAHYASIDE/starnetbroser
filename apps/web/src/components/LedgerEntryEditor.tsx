@@ -8,6 +8,7 @@ import { applyLedgerEntryDelete, applyLedgerEntryEdit } from "@/lib/ledgerEntryE
 import { confirmClosedMonthChange, ledgerEditMonthDates, ledgerEntryMonthDates } from "@/lib/monthClosing";
 import { LedgerByAccount, LedgerEntry, saveLedgerStore } from "@/lib/ledgerStore";
 import { deleteProof } from "@/lib/paymentProofStore";
+import { loadExpectedCurrency } from "@/lib/partyCurrencyData";
 import {
   AllocationsByAccount,
   allocatedFromPayment,
@@ -54,6 +55,7 @@ export function LedgerEntryEditor({
   onClose: () => void;
 }) {
   const [currencyStore, setCurrencyStore] = useState(loadCurrencyStore);
+  const expectedCurrency = useMemo(() => loadExpectedCurrency({ accountId }), [accountId]);
   const allocations = useMemo(() => allStoredAllocations(loadAllocationStore()), []);
   const hasAllocations =
     entry.kind === "debit" ? paidTowardShipment(allocations, entry.id) > 0 : allocatedFromPayment(allocations, entry.id) > 0;
@@ -70,6 +72,7 @@ export function LedgerEntryEditor({
       entry={entry}
       currencyStore={currencyStore}
       hasAllocations={hasAllocations}
+      expectedCurrency={expectedCurrency}
       onUpsertCurrency={handleUpsertCurrency}
       onClose={onClose}
       onSave={(patch) => {

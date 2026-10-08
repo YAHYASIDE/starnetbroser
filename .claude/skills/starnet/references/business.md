@@ -626,8 +626,9 @@ mind). Exact texts and numbers live in the code - this file says where.
   total, «تحديد أجهزته») · 💳 البطاقات (بطاقة كاش movements + «بطاقاتي (KAST)») · 🔔 إشعارات كاست
   (pending KAST spends = سحب and deposits = دخل). A count sits on each icon; the last icon opened is
   remembered on the phone (`starnet.starlinkTab`). The «توقفت وعليها D» alert stays above the icons.
-  A D is a rep's when its shipment carries `representativeId`, else the device's current rep
-  (`lib/starlinkTabs.ts`).
+  A D is the rep's of the device's CURRENT rep (his Oct 2026 report: a device taken off a rep still
+  showed under him because its old shipment locked the rep) - the shipment's `representativeId` only
+  when the device is gone (`debtRepId` in `lib/starlinkTabs.ts`).
 - **Under each card, its devices**: «📡 N جهاز مربوط بها» opens each device's Starlink email and its
   renewal day of the month (the locked day, else the day of `rechargeDate`) - the day the card is
   charged - soonest first (`cardDeviceRows` in `lib/cardDevices.ts`).
@@ -649,3 +650,24 @@ mind). Exact texts and numbers live in the code - this file says where.
   shared value as proof, both devices with customer, date added, last sync and operations count,
   «افتح» each, and «🔗 اعرضهما للدمج» (home search on the shared value, where each card has «دمج»)
   (`duplicateGroups` in `lib/duplicateProof.ts`).
+
+## 💱 عملة المندوب / الزبون (currency alerts)
+
+His Oct 2026 ask «ان كنا نتعامل معه علي عملة فلتكن هي عملته الافتراضي وعندما نغير احد اجهزته الي
+عملة اخرا… يجب ان يظهر لنا تنبيه واضح جدا» (it came from the rep whose renewal was typed as 6,000 أوقية
+instead of سيفا); his choices «تلقائية + تستطيع تغييرها», «نافذة توقفك», «علامة عليها + قائمة».
+
+- **Whose currency**: a device's operations belong to its rep (device rep, else the customer's current
+  rep), else its customer; on the rep's own phone always the customer (`partyOf`).
+- **His currency**: «💱 عملته» on the rep / customer form (`defaultCurrency`; empty = automatic). Automatic
+  = the currency with strictly the most votes - one per shipment (عليه) on his devices + each device's
+  monthly price; a tie = no default yet, no warning (`lib/partyCurrency.ts`).
+- **Before saving** (new operation, editing one, «دفعة» quick tool, the device's monthly price): a red
+  line in the form, then a red window «عملة مختلفة!» with «غيّر إلى X» / «متأكد، سجّل» / «رجوع». A new
+  operation starts in his currency. A فرانك payment is سيفا, so it matches a سيفا party. Nothing is ever
+  converted.
+- **Confirmed = never flagged again**: «متأكد» stamps `currencyConfirmed` on the entry (or on the
+  monthly price).
+- **Older ones**: «⚠️ عملة مختلفة» on the device's operations and the rep statement lines; the list is
+  a 🩺 high data issue «💱 عملية بعملة مختلفة» in «خطة اليوم» and فحص البيانات - from every device, the
+  reps' too - with «افتح» and «✓ صحيحة».

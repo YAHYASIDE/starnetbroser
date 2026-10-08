@@ -127,6 +127,9 @@ export interface LedgerEntry {
   /** Money a representative handed over for his own customers' devices (repClients.ts): this
    * payment settles HIS debt to us, whoever the device's customer belongs to by the time it's read. */
   heldByRepId?: string;
+  /** 💱 He confirmed in the warning window that this operation really is in another currency than
+   * its rep's / customer's (partyCurrency.ts) - never flagged as «⚠️ عملة مختلفة» again. */
+  currencyConfirmed?: boolean;
 }
 
 /** A "debit" entry with no starlinkCost info at all predates this feature - its profit can never

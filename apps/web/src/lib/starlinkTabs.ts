@@ -20,9 +20,11 @@ export function isStarlinkTab(value: unknown): value is StarlinkTab {
   return STARLINK_TABS.some((t) => t.id === value);
 }
 
-/** The rep a D belongs to: the one on the shipment, else the device's current rep. */
+/** The rep a D belongs to: the device's CURRENT rep (a device taken off a rep is his own again,
+ * whatever rep its older shipment locked); the shipment's rep only when the device is gone. */
 export function debtRepId(debt: OpenShipmentDebt, account: Pick<StarlinkAccountSummary, "representativeId"> | undefined): string | undefined {
-  return debt.entry.representativeId || account?.representativeId || undefined;
+  if (account) return account.representativeId || undefined;
+  return debt.entry.representativeId || undefined;
 }
 
 export interface RepDebtGroup {

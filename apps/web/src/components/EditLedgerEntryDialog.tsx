@@ -16,6 +16,8 @@ import { fitPayMethod, PAY_CURRENCIES, PAY_CURRENCY_LABELS, payFormOf, payMethod
 import { Currency, CurrencyStore, getCurrency, UpsertCurrencyInput } from "@/lib/currencyStore";
 import { COUNTRY_CURRENCIES, CountryCurrencyOption } from "@/lib/countryCurrencies";
 import { formatAmount } from "@/lib/formatAmount";
+import type { ExpectedCurrency } from "@/lib/partyCurrency";
+import { CurrencyBanner, useCurrencyGuard } from "./CurrencyGuard";
 
 interface Props {
   entry: LedgerEntry;
@@ -28,6 +30,8 @@ interface Props {
   onUpsertCurrency: (input: UpsertCurrencyInput) => Currency;
   onClose: () => void;
   onSave: (patch: Partial<LedgerEntry>) => void;
+  /** 💱 The device's rep / customer currency - another one is stopped by a window. */
+  expectedCurrency?: ExpectedCurrency;
 }
 
 /**
@@ -38,8 +42,9 @@ interface Props {
  * would silently invalidate its allocations/cost/profit history, so that requires deleting and
  * re-adding instead.
  */
-export function EditLedgerEntryDialog({ entry, currencyStore, hasAllocations, onUpsertCurrency, onClose, onSave }: Props) {
+export function EditLedgerEntryDialog({ entry, currencyStore, hasAllocations, onUpsertCurrency, onClose, onSave, expectedCurrency }: Props) {
   const isDebit = entry.kind === "debit";
+  const guard = useCurrencyGuard(expectedCurrency);
 
   // 🟠 A سيفا payment by أورانج / نيتا is edited in فرانك (×5) and saved back as سيفا (payCurrency.ts).
   const initialPay = isDebit ? { currency: entry.currency as PayCurrency, amount: entry.amount } : payFormOf(entry);
@@ -221,18 +226,31 @@ export function EditLedgerEntryDialog({ entry, currencyStore, hasAllocations, on
 
     const rateSnapshot = needsRate ? { rateFromUsd: parsedRate, usdValue: stored.amount / parsedRate } : undefined;
 
-    onSave({
-      amount: stored.amount,
-      currency: stored.currency,
-      note,
-      email,
-      paymentMethod: entry.kind === "credit" ? method : undefined,
-      date,
-      saleRate: isDebit ? rateSnapshot : entry.saleRate,
-      paymentRate: !isDebit ? rateSnapshot : entry.paymentRate,
-      starlinkCost: starlinkCostPatch,
-      profitCurrencyRates,
-    });
+    const changedCurrency = stored.currency !== entry.currency;
+    guard.ask(
+      stored.currency,
+      stored.amount,
+      (confirmed) =>
+        onSave({
+          amount: stored.amount,
+          currency: stored.currency,
+          note,
+          email,
+          paymentMethod: entry.kind === "credit" ? method : undefined,
+          date,
+          saleRate: isDebit ? rateSnapshot : entry.saleRate,
+          paymentRate: !isDebit ? rateSnapshot : entry.paymentRate,
+          starlinkCost: starlinkCostPatch,
+          profitCurrencyRates,
+          currencyConfirmed: confirmed || (!changedCurrency && entry.currencyConfirmed) || undefined,
+        }),
+      hasAllocations
+        ? undefined
+        : (next) => {
+            setFrancPay(false);
+            selectCurrency(next);
+          },
+    );
   }
 
   return (
@@ -444,12 +462,14 @@ export function EditLedgerEntryDialog({ entry, currencyStore, hasAllocations, on
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
+          <CurrencyBanner expected={expectedCurrency} chosen={currency} amount={Number(amount) > 0 ? (isDebit ? Number(amount) : toLedgerPayment(payCurrency, Number(amount)).amount) : undefined} />
           {formError && <div className="account-card-alert ledger-form-error">{formError}</div>}
           <div className="dialog-actions form-wide">
             <button className="dialog-secondary" type="button" onClick={onClose}>إلغاء</button>
             <button className="dialog-primary" type="submit">حفظ التعديل</button>
           </div>
         </form>
+        {guard.modal}
       </section>
     </div>
   );

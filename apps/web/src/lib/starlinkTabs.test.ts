@@ -25,12 +25,12 @@ describe("starlinkTabs", () => {
       (id) => accounts[id],
       (id) => names[id] ?? id,
     );
-    expect(mine.map((d) => d.entry.id)).toEqual(["1"]);
-    expect(reps.map((g) => [g.repId, g.debts.map((d) => d.entry.id), g.totalUsd])).toEqual([
-      ["r2", ["2", "4"], 27],
-      ["r1", ["3"], 5],
-    ]);
-    expect(debtRepId(debt("5", "a", 1, "r1"), { representativeId: "r2" })).toBe("r1"); // the shipment's rep wins
+    // "c" was taken off rep r1: its older shipment still names r1, but it is his own now.
+    expect(mine.map((d) => d.entry.id)).toEqual(["1", "3"]);
+    expect(reps.map((g) => [g.repId, g.debts.map((d) => d.entry.id), g.totalUsd])).toEqual([["r2", ["2", "4"], 27]]);
+    expect(debtRepId(debt("5", "a", 1, "r1"), { representativeId: "r2" })).toBe("r2"); // the device's current rep wins
+    expect(debtRepId(debt("6", "a", 1, "r1"), {})).toBeUndefined();
+    expect(debtRepId(debt("7", "gone", 1, "r1"), undefined)).toBe("r1"); // device gone: the shipment's rep
   });
 });
 

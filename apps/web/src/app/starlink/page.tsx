@@ -203,7 +203,7 @@ export default function StarlinkPage() {
     const acc = account(d.accountId);
     return debtMatchesQuery(
       debtQuery,
-      [acc?.name, acc?.expectedEmail, getClient(clientStore, acc?.clientId)?.name, getRepresentative(repStore, d.entry.representativeId)?.name],
+      [acc?.name, acc?.expectedEmail, getClient(clientStore, acc?.clientId)?.name, getRepresentative(repStore, debtRepId(d, acc))?.name],
       d.costUsd,
     );
   });

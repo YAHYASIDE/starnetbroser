@@ -10,7 +10,7 @@
  */
 
 import { Invoice, invoiceTotal } from "./invoiceStore";
-import { LedgerByAccount, LedgerEntry } from "./ledgerStore";
+import { LedgerByAccount, LedgerCurrency, LedgerEntry } from "./ledgerStore";
 import { computeExpectedShipmentProfit, computeShipmentProfit, shipmentProfitDate, ShipmentProfit } from "./accountingStore";
 
 export interface Representative {
@@ -35,6 +35,9 @@ export interface Representative {
    * from every operator screen - his devices show under his name, the operator records only on
    * him. Hidden, never deleted; turning it off brings everything back. */
   customersHidden?: boolean;
+  /** 💱 «عملته»: the currency we deal with him in (lib/partyCurrency.ts). Absent = automatic, from
+   * most of his devices' operations. */
+  defaultCurrency?: LedgerCurrency;
   createdAt: string;
   updatedAt: string;
 }
@@ -86,6 +89,8 @@ export interface CreateRepresentativeInput {
   commissionPercent: number;
   sharesLosses?: boolean;
   color?: string;
+  /** Left out = keep his current one; `undefined` given = back to automatic. */
+  defaultCurrency?: LedgerCurrency;
 }
 
 /** The colors a rep can be given (light tints on his devices' cards). */
@@ -111,6 +116,7 @@ export function createRepresentative(
     commissionPercent: Math.max(0, input.commissionPercent),
     sharesLosses: input.sharesLosses || undefined,
     color: normalizeRepColor(input.color),
+    defaultCurrency: input.defaultCurrency,
     createdAt: now,
     updatedAt: now,
   };
@@ -131,6 +137,7 @@ export function updateRepresentative(
     commissionPercent: Math.max(0, patch.commissionPercent),
     sharesLosses: patch.sharesLosses || undefined,
     color: normalizeRepColor(patch.color),
+    defaultCurrency: "defaultCurrency" in patch ? patch.defaultCurrency : existing.defaultCurrency,
     updatedAt: new Date().toISOString(),
   };
   return { ...store, [id]: updated };

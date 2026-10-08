@@ -12,6 +12,9 @@ import { buildReceiptWhatsAppMessage } from "@/lib/receipt";
 import { notifyPaymentTelegram } from "@/lib/telegram";
 import { buildWhatsAppLink } from "@/lib/whatsapp";
 import type { ToolsData } from "./useToolsData";
+import { CurrencyBanner, useCurrencyGuard } from "../CurrencyGuard";
+import { expectedCurrencyFor } from "@/lib/partyCurrency";
+import { isRepWorkspace } from "@/lib/repMode";
 
 /** A name handed over (e.g. from a kept payment promise) to start the search with. */
 export const QUICK_PAY_QUERY_KEY = "starnet.quickPayQuery";
@@ -39,6 +42,12 @@ export function QuickPaymentTool({ data }: { data: ToolsData }) {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ text: string; receipt?: string } | null>(null);
   const [ledger, setLedger] = useState(data.ledger);
+  // 💱 His rep's / customer's currency - another one is stopped by a window before saving.
+  const expected = useMemo(
+    () => (device ? expectedCurrencyFor(device, { accounts: data.accounts, clients: data.clients, reps: data.reps, ledger, repWorkspace: isRepWorkspace() }) : undefined),
+    [device, data.accounts, data.clients, data.reps, ledger],
+  );
+  const guard = useCurrencyGuard(expected);
 
   const matches = useMemo(() => {
     if (query.trim().length < 2) return [];
@@ -62,10 +71,14 @@ export function QuickPaymentTool({ data }: { data: ToolsData }) {
     if (!(value > 0)) return setError("المبلغ غير صحيح");
     const date = localDay(new Date());
     const stored = toLedgerPayment(currency, value);
+    guard.ask(stored.currency, stored.amount, (confirmed) => record(device, value, date, stored, confirmed), (next) => setCurrency(next));
+  }
+
+  function record(device: StarlinkAccountSummary, value: number, date: string, stored: { currency: LedgerCurrency; amount: number }, currencyConfirmed: boolean) {
     const result = saveClientDevicePayment(
       ledger,
       { id: device.id, name: device.name, email: device.expectedEmail || device.starlinkAccountEmail || undefined },
-      { amount: stored.amount, currencyCode: stored.currency, date, paymentMethod: method, cashMoved: method === "cash" },
+      { amount: stored.amount, currencyCode: stored.currency, date, paymentMethod: method, cashMoved: method === "cash", currencyConfirmed },
     );
     if (!result.ok) return setError(result.message);
     setLedger(result.ledgerStore);
@@ -139,6 +152,7 @@ export function QuickPaymentTool({ data }: { data: ToolsData }) {
             </select>
           </div>
           {currency === "FRANC" && <FrancHint amount={amount} />}
+          <CurrencyBanner expected={expected} chosen={currency === "FRANC" ? "SIFA" : currency} amount={Number(amount) > 0 ? toLedgerPayment(currency, Number(amount)).amount : undefined} />
           <div className="tool-chips">
             {payMethodsFor(currency).map((m) => (
               <button key={m} type="button" className={`tool-chip${method === m ? " tool-chip-on" : ""}`} onClick={() => setMethod(m)}>
@@ -153,6 +167,7 @@ export function QuickPaymentTool({ data }: { data: ToolsData }) {
           {method === "cash" && <p className="settings-hint">النقد يُضاف إلى الكاش تلقائياً.</p>}
         </div>
       )}
+      {guard.modal}
       {done && (
         <div className="tool-goal">
           <strong className="telegram-running">{done.text}</strong>

@@ -10,7 +10,7 @@ import { ClientStore, loadClientStore } from "@/lib/clientStore";
 import { CurrencyStore, listCurrencies, loadCurrencyStore } from "@/lib/currencyStore";
 import { commitDemoAccounts, loadDemoAccounts } from "@/lib/demoAccountStore";
 import { demoAccounts } from "@/lib/demoData";
-import { LedgerByAccount, loadLedgerStore } from "@/lib/ledgerStore";
+import { LedgerByAccount, loadLedgerStore, saveLedgerStore } from "@/lib/ledgerStore";
 import { loadRepresentativeStore, RepresentativeStore } from "@/lib/repStore";
 import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
 
@@ -26,11 +26,13 @@ export interface ToolsData {
   loaded: boolean;
   /** Saves edited devices (phone-only data mode); false when they live on a server. */
   saveAccounts: (accounts: StarlinkAccountSummary[]) => boolean;
+  /** Saves the whole ledger (a tool's explicit change, e.g. «✓ العملة صحيحة»). */
+  saveLedger: (ledger: LedgerByAccount) => void;
 }
 
 /** Everything the tools read - loaded once from the phone's stores (never written here). */
 export function useToolsData(): ToolsData {
-  const [data, setData] = useState<Omit<ToolsData, "saveAccounts">>({ accounts: [], clients: {}, ledger: {}, currencies: {}, reps: {}, invoices: [], adjustments: [], cash: [], loaded: false });
+  const [data, setData] = useState<Omit<ToolsData, "saveAccounts" | "saveLedger">>({ accounts: [], clients: {}, ledger: {}, currencies: {}, reps: {}, invoices: [], adjustments: [], cash: [], loaded: false });
   useEffect(() => {
     const rest = {
       clients: loadClientStore(),
@@ -58,7 +60,11 @@ export function useToolsData(): ToolsData {
     setData((current) => ({ ...current, accounts: commitDemoAccounts(current.accounts, accounts, "tools") }));
     return true;
   }, []);
-  return { ...data, saveAccounts };
+  const saveLedger = useCallback((ledger: LedgerByAccount) => {
+    saveLedgerStore(ledger);
+    setData((current) => ({ ...current, ledger }));
+  }, []);
+  return { ...data, saveAccounts, saveLedger };
 }
 
 export function currencyOptions(store: CurrencyStore): { code: string; label: string }[] {

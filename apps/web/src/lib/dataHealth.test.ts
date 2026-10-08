@@ -3,6 +3,7 @@ import type { StarlinkAccountSummary } from "@starnet/shared";
 import { DeviceStatus } from "@starnet/shared";
 import type { ClientStore } from "./clientStore";
 import { checkDataHealth, healthScore } from "./dataHealth";
+import type { LedgerByAccount } from "./ledgerStore";
 
 const base: StarlinkAccountSummary = {
   id: "",
@@ -95,3 +96,24 @@ describe("data health", () => {
     ]);
   });
 });
+
+describe("💱 currency-mismatch", () => {
+  it("lists operations in another currency than their rep's, with the entry to confirm", () => {
+    const T = "2026-10-01T00:00:00.000Z";
+    const accounts = [{ id: "d1", name: "جهاز 1", representativeId: "r1" }] as StarlinkAccountSummary[];
+    const ledger = {
+      d1: [
+        { id: "e1", kind: "debit", amount: 10000, currency: "SIFA", note: "", email: "", date: "2026-10-01", createdAt: T },
+        { id: "e2", kind: "debit", amount: 10000, currency: "SIFA", note: "", email: "", date: "2026-10-02", createdAt: T },
+        { id: "e3", kind: "debit", amount: 6000, currency: "MRU", note: "", email: "", date: "2026-10-03", createdAt: T },
+      ],
+    } as LedgerByAccount;
+    const reps = { r1: { id: "r1", name: "مندوب", commissionPercent: 10, createdAt: T, updatedAt: T } };
+    const issues = checkDataHealth(accounts, {}, { currency: { accounts, clients: {}, reps, ledger } });
+    const issue = issues.find((i) => i.kind === "currency-mismatch")!;
+    expect(issue.severity).toBe("high");
+    expect(issue.items).toEqual([{ accountId: "d1", entryId: "e3", label: "جهاز 1", detail: "شحنة 6,000 أوقية · 2026-10-03 - المندوب «مندوب» يتعامل بالسيفا" }]);
+    expect(checkDataHealth(accounts, {}, {}).some((i) => i.kind === "currency-mismatch")).toBe(false);
+  });
+});
+
