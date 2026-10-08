@@ -7,6 +7,7 @@
 
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import type { CardDeposit, PaymentCard } from "./kastCards";
+import { renewalDayOf } from "./renewalDayLock";
 
 const live = (a: StarlinkAccountSummary) => !a.deletedAt && !a.archivedAt;
 const last4Of = (a: Pick<StarlinkAccountSummary, "paymentCardLast4">) => (a.paymentCardLast4 ?? "").replace(/\D/g, "").slice(-4);
@@ -83,4 +84,25 @@ export function buildCardStatementFor(
   }
   rows.sort((a, b) => b.date.localeCompare(a.date));
   return { rows, months, totalPaidUsd };
+}
+
+/** One device under its card (his Oct 2026 ask «أضف لي كل بطاقة البريد واليوم الذي يشحن فيه
+ * الجهاز»): its Starlink email and the day of the month it renews (when the card is charged). */
+export interface CardDeviceRow {
+  id: string;
+  name: string;
+  email?: string;
+  /** 1-28: the locked renewal day, else the day of its renewal date; undefined when not read yet. */
+  day?: number;
+}
+
+/** A card's devices with email and renewal day, the soonest day of the month first (unknown last). */
+export function cardDeviceRows(devices: StarlinkAccountSummary[]): CardDeviceRow[] {
+  return devices
+    .map((d) => {
+      const day = d.lockedRenewalDay ?? renewalDayOf(d.rechargeDate);
+      const email = d.starlinkAccountEmail?.trim() || d.expectedEmail?.trim() || undefined;
+      return { id: d.id, name: d.name, ...(email ? { email } : {}), ...(day ? { day } : {}) };
+    })
+    .sort((a, b) => (a.day ?? 99) - (b.day ?? 99) || a.name.localeCompare(b.name));
 }

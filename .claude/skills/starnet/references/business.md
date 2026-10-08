@@ -617,3 +617,17 @@ mind). Exact texts and numbers live in the code - this file says where.
   for the next 7 days), Firebase with one rep, then easier rep onboarding; first step: restore a
   full backup on another phone. **He accepted it (6 Oct 2026)**: two weeks with no new feature areas -
   only fixes of what bothers him + the two money alerts.
+
+## 🛰️ «ستارلينك والبطاقة» page layout
+
+- **Four icons at the top instead of one long page** (his Oct 2026 ask «بدل تقليب تحت الي تحت اجعلهم
+  ايقونات الفوق»; his choices «4 أيقونات», «أيقونة خاصة 🤝 المناديب», «تحت كل بطاقة: أجهزتها»):
+  📋 أجهزتي (his own D's + previous debts) · 🤝 المناديب (each rep on his own: his D devices, their
+  total, «تحديد أجهزته») · 💳 البطاقات (بطاقة كاش movements + «بطاقاتي (KAST)») · 🔔 إشعارات كاست
+  (pending KAST spends = سحب and deposits = دخل). A count sits on each icon; the last icon opened is
+  remembered on the phone (`starnet.starlinkTab`). The «توقفت وعليها D» alert stays above the icons.
+  A D is a rep's when its shipment carries `representativeId`, else the device's current rep
+  (`lib/starlinkTabs.ts`).
+- **Under each card, its devices**: «📡 N جهاز مربوط بها» opens each device's Starlink email and its
+  renewal day of the month (the locked day, else the day of `rechargeDate`) - the day the card is
+  charged - soonest first (`cardDeviceRows` in `lib/cardDevices.ts`).

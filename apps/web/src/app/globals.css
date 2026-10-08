@@ -13439,3 +13439,130 @@ button.today-tile {
   font-size: 0.85em;
   white-space: nowrap;
 }
+
+/* 🛰️ «ستارلينك والبطاقة»: four icons at the top, one section at a time (starlinkTabs.ts). */
+.sl-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin: 12px 0;
+}
+.sl-tab {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.sl-tab small {
+  font-size: 0.72rem;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.sl-tab-icon {
+  font-size: 1.45rem;
+  line-height: 1;
+}
+.sl-tab-active {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: var(--brand-contrast);
+  box-shadow: var(--glow);
+}
+.sl-tab-count {
+  position: absolute;
+  top: 4px;
+  inset-inline-end: 4px;
+  min-width: 20px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--surface-alt);
+  color: var(--text);
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 18px;
+}
+.sl-tab-count-alert {
+  background: var(--red);
+  color: #fff;
+}
+
+/* 🤝 one rep's devices with a D */
+.sl-rep-group {
+  margin-top: 10px;
+}
+.sl-rep-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+}
+.sl-rep-head span {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+.sl-rep-head .text-action {
+  margin-inline-start: auto;
+}
+
+/* 💳 a card's devices: the day it renews (= the card is charged) + the Starlink email */
+.sl-card-devices-toggle {
+  padding: 0;
+  text-align: start;
+}
+.sl-card-devices {
+  list-style: none;
+  padding: 0 4px 8px;
+}
+.sl-card-devices ul {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sl-card-devices li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+}
+.sl-card-device-day {
+  flex: none;
+  min-width: 58px;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--brand);
+  color: var(--brand-contrast);
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-align: center;
+}
+.sl-card-device-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.sl-card-device-main small {
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+  text-align: start;
+}

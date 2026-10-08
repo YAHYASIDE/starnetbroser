@@ -2,7 +2,7 @@
 
 import { FrancHint, FrancUnit } from "@/components/FrancHint";
 import { francBadge, francToSifa, isFrancAccount, sifaToFranc } from "@/lib/payCurrency";
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { confirmClosedMonthChange, ledgerEntryMonthDates } from "@/lib/monthClosing";
 import { loadAllocationStore, removeAllocationsForEntryFromStore, saveAllocationStore } from "@/lib/paymentAllocationStore";
@@ -17,7 +17,8 @@ import {
   type PreviousDebtList,
 } from "@/lib/previousDebt";
 import { StarlinkAccountSummary } from "@starnet/shared";
-import { buildCardStatementFor, groupDevicesByCard, type CardDeviceGroups, type CardStatement } from "@/lib/cardDevices";
+import { buildCardStatementFor, cardDeviceRows, groupDevicesByCard, type CardDeviceGroups, type CardStatement } from "@/lib/cardDevices";
+import { debtRepId, isStarlinkTab, splitDebtsByRep, STARLINK_TABS, type StarlinkTab } from "@/lib/starlinkTabs";
 import { DateInput } from "@/components/DateInput";
 import { PartySheet } from "@/components/AccountsSection";
 import { deviceMatchesQuery } from "@/lib/homeInsights";
@@ -112,7 +113,8 @@ function usd(value: number): string {
  * representative's share become real (dated that day).
  */
 /** Per-phone: which «ستارلينك والبطاقة» sections the operator folded away (settings-style key, not backed up). */
-const COLLAPSE_KEY = "starnet.starlinkCollapsed";
+/** 🛰️ The icon he opened last (per-phone convenience). */
+const TAB_KEY = "starnet.starlinkTab";
 
 export default function StarlinkPage() {
   const [ledgerStore, setLedgerStore] = useState<LedgerByAccount>({});
@@ -141,24 +143,22 @@ export default function StarlinkPage() {
   /** «✏️ جهاز آخر»: the KAST payment whose device he is choosing by hand. */
   const [pickFor, setPickFor] = useState<CardDeposit | null>(null);
   const [kastNotifications, setKastNotifications] = useState<boolean | null>(null);
-  // 🔽 which sections the operator folded away (long lists). Per-phone convenience only.
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
+  // 🛰️ Four icons at the top instead of one long page (his Oct 2026 ask): one section at a time.
+  const [tab, setTab] = useState<StarlinkTab>(() => {
     try {
-      return JSON.parse(window.localStorage.getItem(COLLAPSE_KEY) ?? "{}") as Record<string, boolean>;
+      const saved = window.localStorage.getItem(TAB_KEY);
+      return isStarlinkTab(saved) ? saved : "devices";
     } catch {
-      return {};
+      return "devices";
     }
   });
-  function toggleSection(key: string) {
-    setCollapsed((prev) => {
-      const next = { ...prev, [key]: !prev[key] };
-      try {
-        window.localStorage.setItem(COLLAPSE_KEY, JSON.stringify(next));
-      } catch {
-        // per-phone convenience only
-      }
-      return next;
-    });
+  function chooseTab(next: StarlinkTab) {
+    setTab(next);
+    try {
+      window.localStorage.setItem(TAB_KEY, next);
+    } catch {
+      // per-phone convenience only
+    }
   }
 
   useEffect(() => {
@@ -212,6 +212,77 @@ export default function StarlinkPage() {
     return debtMatchesQuery(debtQuery, [acc?.name, acc?.expectedEmail, getClient(clientStore, acc?.clientId)?.name, d.note], d.amountUsd);
   });
   const debtKey = (d: OpenShipmentDebt) => d.entry.id;
+  const repName = (id: string) => getRepresentative(repStore, id)?.name ?? "مندوب";
+  // 📋 his own D's / 🤝 each rep's D's - the shown (searched) ones and all of them (for the counts).
+  const shownSplit = splitDebtsByRep(shownDebts, account, repName);
+  const allSplit = splitDebtsByRep(debts, account, repName);
+  const pendingNotices = pendingCardSpends(deposits).length + pendingCardDeposits(deposits).length;
+  const tabCount: Record<StarlinkTab, number> = {
+    devices: allSplit.mine.length + openPrevious.length,
+    reps: debts.length - allSplit.mine.length,
+    cards: paymentCards.length,
+    notices: pendingNotices,
+  };
+  const toggleAll = (list: OpenShipmentDebt[]) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      const all = list.length > 0 && list.every((d) => next.has(debtKey(d)));
+      for (const d of list) {
+        if (all) next.delete(debtKey(d));
+        else next.add(debtKey(d));
+      }
+      return next;
+    });
+  /** One D row (his devices and the reps' share it): select, device, customer, rep, cost, «سدّدت». */
+  const debtRow = (d: OpenShipmentDebt) => {
+    const acc = account(d.accountId);
+    const client = getClient(clientStore, acc?.clientId)?.name;
+    const rep = getRepresentative(repStore, debtRepId(d, acc));
+    const isSelected = selected.has(debtKey(d));
+    return (
+      <li key={debtKey(d)} className={`sl-row${isSelected ? " sl-row-selected" : ""}`}>
+        <label className="sl-check">
+          <input type="checkbox" checked={isSelected} onChange={() => toggle(d)} aria-label={`تحديد ${acc?.name ?? ""}`} />
+        </label>
+        <div className="sl-row-main">
+          <strong>
+            <span className="sl-d">D</span> {acc?.name ?? "جهاز محذوف"}
+            {acc?.serviceStatus === "suspended" && <span className="sl-stopped">متوقف</span>}
+          </strong>
+          <span>
+            {client ?? "بدون زبون"}
+            {rep ? ` · 🤝 ${rep.name}` : ""}
+          </span>
+          <span className="sl-meta">
+            منذ <bdi dir="ltr">{d.entry.date}</bdi> ({daysSince(d.entry.date)} يوم)
+            {d.expectedProfitUsd !== undefined && (
+              <>
+                {" "}· ربح متوقع{" "}
+                <bdi dir="ltr">
+                  {mruRate ? `${formatAmount(Math.round(d.expectedProfitUsd * mruRate))} أوقية` : usd(d.expectedProfitUsd)}
+                </bdi>
+              </>
+            )}
+          </span>
+        </div>
+        <div className="sl-row-side">
+          <strong dir="ltr">{usd(d.costUsd)}</strong>
+          <button type="button" className="text-action" onClick={() => openPay([d])}>
+            سدّدت
+          </button>
+        </div>
+      </li>
+    );
+  };
+  const searchBox = (
+    <input
+      className="search-input sl-search"
+      type="search"
+      placeholder="🔍 ابحث: الزبون، الجهاز، المندوب أو المبلغ"
+      value={debtQuery}
+      onChange={(e) => setDebtQuery(e.target.value)}
+    />
+  );
 
   function toggle(d: OpenShipmentDebt) {
     setSelected((current) => {
@@ -472,7 +543,7 @@ export default function StarlinkPage() {
           <h2 className="sl-title">⚠️ أجهزة توقفت وعليها D - ادفع لستارلينك الآن</h2>
           {suspendedShortfall > 0 && (
             <p className="sl-card-short">
-              💳 رصيد البطاقة لا يكفي لها - ينقصها <bdi dir="ltr">{usd(suspendedShortfall)}</bdi>. اشحن البطاقة من الأسفل.
+              💳 رصيد البطاقة لا يكفي لها - ينقصها <bdi dir="ltr">{usd(suspendedShortfall)}</bdi>. اشحنها من أيقونة «💳 البطاقات».
             </p>
           )}
           <ul className="sl-list">
@@ -498,82 +569,44 @@ export default function StarlinkPage() {
         </section>
       )}
 
+      <nav className="sl-tabs" role="tablist" aria-label="أقسام ستارلينك والبطاقة" data-tour="starlink-tabs">
+        {STARLINK_TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            className={`sl-tab${tab === t.id ? " sl-tab-active" : ""}`}
+            onClick={() => chooseTab(t.id)}
+          >
+            <span className="sl-tab-icon" aria-hidden="true">
+              {t.icon}
+            </span>
+            <small>{t.label}</small>
+            {tabCount[t.id] > 0 && <b className={`sl-tab-count${t.id === "notices" ? " sl-tab-count-alert" : ""}`}>{tabCount[t.id]}</b>}
+          </button>
+        ))}
+      </nav>
+
+      {tab === "devices" && (
       <section className="section">
         <div className="sl-head">
-          <button type="button" className="sl-collapse" aria-expanded={!collapsed.devices} onClick={() => toggleSection("devices")}>
-            <span className="sl-collapse-chevron" aria-hidden="true">{collapsed.devices ? "▸" : "▾"}</span>
-            <h2 className="sl-title">📋 الأجهزة المتسلَّف عليها</h2>
-            <span className="sl-collapse-count">{debts.length + openPrevious.length}</span>
-          </button>
-          {!collapsed.devices && debts.length > 0 && (
-            <button
-              type="button"
-              className="text-action"
-              onClick={() =>
-                setSelected(shownDebts.length > 0 && shownDebts.every((d) => selected.has(debtKey(d))) ? new Set() : new Set(shownDebts.map(debtKey)))
-              }
-            >
-              {shownDebts.length > 0 && shownDebts.every((d) => selected.has(debtKey(d))) ? "إلغاء التحديد" : debtQuery.trim() ? `تحديد النتائج (${shownDebts.length})` : "تحديد الكل"}
+          <h2 className="sl-title">📋 أجهزتي المتسلَّف عليها</h2>
+          {shownSplit.mine.length > 0 && (
+            <button type="button" className="text-action" onClick={() => toggleAll(shownSplit.mine)}>
+              {shownSplit.mine.every((d) => selected.has(debtKey(d))) ? "إلغاء التحديد" : debtQuery.trim() ? `تحديد النتائج (${shownSplit.mine.length})` : "تحديد الكل"}
             </button>
           )}
         </div>
-        {!collapsed.devices && (<>
-        {debts.length + openPrevious.length > 0 && (
-          <input
-            className="search-input sl-search"
-            type="search"
-            placeholder="🔍 ابحث: الزبون، الجهاز، المندوب أو المبلغ"
-            value={debtQuery}
-            onChange={(e) => setDebtQuery(e.target.value)}
-          />
-        )}
-        {debtQuery.trim() && shownDebts.length === 0 && shownPrevious.length === 0 && (
+        {allSplit.mine.length + openPrevious.length > 0 && searchBox}
+        {debtQuery.trim() && shownSplit.mine.length === 0 && shownPrevious.length === 0 && (
           <p className="empty-state">لا توجد نتيجة لـ «{debtQuery.trim()}».</p>
         )}
-        {debts.length === 0 && openPrevious.length === 0 ? (
-          <p className="empty-state">لا يوجد أي جهاز عليه D - لا شيء عليك لستارلينك الآن.</p>
+        {allSplit.mine.length === 0 && openPrevious.length === 0 ? (
+          <p className="empty-state">لا يوجد جهاز لك عليه D{allSplit.reps.length ? " - أجهزة المناديب في «🤝 المناديب»." : " - لا شيء عليك لستارلينك الآن."}</p>
         ) : (
           <ul className="sl-list">
-            {shownDebts.map((d) => {
-              const acc = account(d.accountId);
-              const client = getClient(clientStore, acc?.clientId)?.name;
-              const rep = getRepresentative(repStore, d.entry.representativeId);
-              const isSelected = selected.has(debtKey(d));
-              return (
-                <li key={debtKey(d)} className={`sl-row${isSelected ? " sl-row-selected" : ""}`}>
-                  <label className="sl-check">
-                    <input type="checkbox" checked={isSelected} onChange={() => toggle(d)} aria-label={`تحديد ${acc?.name ?? ""}`} />
-                  </label>
-                  <div className="sl-row-main">
-                    <strong>
-                      <span className="sl-d">D</span> {acc?.name ?? "جهاز محذوف"}
-                      {acc?.serviceStatus === "suspended" && <span className="sl-stopped">متوقف</span>}
-                    </strong>
-                    <span>
-                      {client ?? "بدون زبون"}
-                      {rep ? ` · 🤝 ${rep.name}` : ""}
-                    </span>
-                    <span className="sl-meta">
-                      منذ <bdi dir="ltr">{d.entry.date}</bdi> ({daysSince(d.entry.date)} يوم)
-                      {d.expectedProfitUsd !== undefined && (
-                        <>
-                          {" "}· ربح متوقع{" "}
-                          <bdi dir="ltr">
-                            {mruRate ? `${formatAmount(Math.round(d.expectedProfitUsd * mruRate))} أوقية` : usd(d.expectedProfitUsd)}
-                          </bdi>
-                        </>
-                      )}
-                    </span>
-                  </div>
-                  <div className="sl-row-side">
-                    <strong dir="ltr">{usd(d.costUsd)}</strong>
-                    <button type="button" className="text-action" onClick={() => openPay([d])}>
-                      سدّدت
-                    </button>
-                  </div>
-                </li>
-              );
-            })}
+            {shownSplit.mine.map((d) => debtRow(d))}
           </ul>
         )}
         {shownPrevious.length > 0 && (
@@ -610,125 +643,62 @@ export default function StarlinkPage() {
             })}
           </ul>
         )}
-        {selectedDebts.length > 0 && (
-          <div className="sl-batch-bar">
-            <span>
-              {selectedDebts.length} جهاز · <bdi dir="ltr">{usd(totalOpenDebtUsd(selectedDebts))}</bdi>
-            </span>
-            <button type="button" className="dialog-primary" onClick={() => openPay(selectedDebts)}>
-              تسديد المحدد
-            </button>
-          </div>
-        )}
-        </>)}
       </section>
+      )}
 
+      {tab === "reps" && (
+        <section className="section">
+          <div className="sl-head">
+            <h2 className="sl-title">🤝 أجهزة المناديب المتسلَّف عليها</h2>
+          </div>
+          {allSplit.reps.length > 0 && searchBox}
+          {allSplit.reps.length === 0 ? (
+            <p className="empty-state">لا يوجد جهاز مندوب عليه D الآن.</p>
+          ) : shownSplit.reps.length === 0 ? (
+            <p className="empty-state">لا توجد نتيجة لـ «{debtQuery.trim()}».</p>
+          ) : (
+            shownSplit.reps.map((group) => (
+              <div key={group.repId} className="sl-rep-group">
+                <div className="sl-rep-head">
+                  <strong>🤝 {repName(group.repId)}</strong>
+                  <span>
+                    {group.debts.length} جهاز · <bdi dir="ltr">{usd(group.totalUsd)}</bdi>
+                  </span>
+                  <button type="button" className="text-action" onClick={() => toggleAll(group.debts)}>
+                    {group.debts.every((d) => selected.has(debtKey(d))) ? "إلغاء التحديد" : "تحديد أجهزته"}
+                  </button>
+                </div>
+                <ul className="sl-list">{group.debts.map((d) => debtRow(d))}</ul>
+              </div>
+            ))
+          )}
+        </section>
+      )}
+
+      {(tab === "devices" || tab === "reps") && selectedDebts.length > 0 && (
+        <div className="sl-batch-bar">
+          <span>
+            {selectedDebts.length} جهاز · <bdi dir="ltr">{usd(totalOpenDebtUsd(selectedDebts))}</bdi>
+          </span>
+          <button type="button" className="dialog-primary" onClick={() => openPay(selectedDebts)}>
+            تسديد المحدد
+          </button>
+        </div>
+      )}
+
+      {tab === "cards" && (
       <section className="section">
         <div className="sl-head" data-tour="card-section">
-          <button type="button" className="sl-collapse" aria-expanded={!collapsed.card} onClick={() => toggleSection("card")}>
-            <span className="sl-collapse-chevron" aria-hidden="true">{collapsed.card ? "▸" : "▾"}</span>
-            <h2 className="sl-title">💳 بطاقة كاش</h2>
-          </button>
-          {!collapsed.card && (
-            <div className="sl-card-actions">
-              <button type="button" className="btn-icon" onClick={() => setSheet("topup")}>
-                + شحن البطاقة
-              </button>
-              <button type="button" className="btn-icon sl-withdraw-btn" onClick={() => setSheet("withdraw")}>
-                💵 سحب رصيد
-              </button>
-            </div>
-          )}
+          <h2 className="sl-title">💳 بطاقة كاش</h2>
+          <div className="sl-card-actions">
+            <button type="button" className="btn-icon" onClick={() => setSheet("topup")}>
+              + شحن البطاقة
+            </button>
+            <button type="button" className="btn-icon sl-withdraw-btn" onClick={() => setSheet("withdraw")}>
+              💵 سحب رصيد
+            </button>
+          </div>
         </div>
-        {!collapsed.card && (<>
-        {pendingCardSpends(deposits).length + pendingCardDeposits(deposits).length > 0 && (
-          <button type="button" className="sl-collapse kast-notices-toggle" aria-expanded={!collapsed.notices} onClick={() => toggleSection("notices")}>
-            <span className="sl-collapse-chevron" aria-hidden="true">{collapsed.notices ? "▸" : "▾"}</span>
-            📩 إشعارات KAST تنتظر ({pendingCardSpends(deposits).length + pendingCardDeposits(deposits).length})
-          </button>
-        )}
-        {!collapsed.notices && pendingCardSpends(deposits).length > 0 && (
-          <ul className="sl-list kast-deposits">
-            {pendingCardSpends(deposits).map((s) => {
-              const likely = spendCandidates(s.amountUsd, debts, currencyStore, { last4: s.cardLast4, of: (d) => account(d.accountId)?.paymentCardLast4 });
-              const exact = likely.some((c) => c.exact);
-              return (
-                <li key={s.id} className="sl-row kast-deposit-row kast-spend-row">
-                  <div className="sl-row-main">
-                    <strong>💳 {depositLabel(s)}</strong>
-                    <span>
-                      من إشعار KAST{s.at ? ` · ${new Date(s.at).toLocaleDateString("en-GB")}` : ""} -{" "}
-                      {exact ? "سدّد D الجهاز الذي دُفع له:" : likely.length ? "لا يوجد D بنفس المبلغ - الأقرب:" : "لا يوجد D مفتوح قريب من هذا المبلغ"}
-                    </span>
-                  </div>
-                  <div className="kast-deposit-actions">
-                    {likely.map(({ debt: d, usd: dUsd, exact: isExact }) => {
-                      const cost = d.entry.starlinkCost;
-                      const foreign = cost?.currencyCode && cost.currencyCode !== "USD" && cost.amount ? cost : undefined;
-                      return (
-                        <button
-                          key={d.entry.id}
-                          type="button"
-                          className={isExact ? "dialog-primary" : "dialog-secondary"}
-                          onClick={() => {
-                            openPay([d]);
-                            setSpendToRecord(s);
-                          }}
-                        >
-                          سدّد {account(d.accountId)?.name ?? "جهاز"} (
-                          {foreign ? (
-                            <>
-                              <bdi dir="ltr">{formatAmount(foreign.amount!)}</bdi> {foreign.currencyCode} ≈ <bdi dir="ltr">{usd(dUsd)}</bdi>
-                            </>
-                          ) : (
-                            <bdi dir="ltr">{usd(dUsd)}</bdi>
-                          )}
-                          )
-                        </button>
-                      );
-                    })}
-                    <button type="button" className="dialog-secondary" onClick={() => setPickFor(s)}>
-                      ✏️ جهاز آخر
-                    </button>
-                    <button type="button" className="text-action" onClick={() => updateDeposit(s.id, "dismissed")}>تجاهل</button>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        {pickFor && (
-          <SpendPickerSheet
-            spend={pickFor}
-            debts={debts}
-            currencyStore={currencyStore}
-            account={account}
-            clientOf={(clientId) => getClient(clientStore, clientId)}
-            onPick={(d) => {
-              const spend = pickFor;
-              setPickFor(null);
-              openPay([d]);
-              setSpendToRecord(spend);
-            }}
-            onClose={() => setPickFor(null)}
-          />
-        )}
-        {!collapsed.notices && pendingCardDeposits(deposits).length > 0 && (
-          <ul className="sl-list kast-deposits">
-            {pendingCardDeposits(deposits).map((d) => (
-              <li key={d.id} className="sl-row kast-deposit-row">
-                <div className="sl-row-main">
-                  <strong>💵 {depositLabel(d)}</strong>
-                  <span>من بريد KAST{d.at ? ` · ${new Date(d.at).toLocaleDateString("en-GB")}` : ""} - لم يُسجَّل بعد</span>
-                </div>
-                <div className="kast-deposit-actions">
-                  <button type="button" className="dialog-primary" onClick={() => recordDeposit(d)}>سجّل شحناً</button>
-                  <button type="button" className="text-action" onClick={() => updateDeposit(d.id, "dismissed")}>تجاهل</button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
         {card.rows.length === 0 ? (
           <p className="empty-state">لا توجد حركات بعد. سجّل «شحن البطاقة» عندما تضع فيها مالًا.</p>
         ) : (
@@ -798,9 +768,10 @@ export default function StarlinkPage() {
             ))}
           </ul>
         )}
-        </>)}
       </section>
+      )}
 
+      {tab === "cards" && (
       <PaymentCardsSection
         cards={paymentCards}
         groups={cardGroups}
@@ -820,6 +791,100 @@ export default function StarlinkPage() {
           window.setTimeout(() => void kastNotificationsEnabled().then(setKastNotifications), 4000);
         }}
       />
+      )}
+
+      {tab === "notices" && (
+        <section className="section">
+          <div className="sl-head">
+            <h2 className="sl-title">🔔 إشعارات كاست - دخل وسحب</h2>
+          </div>
+          {pendingNotices === 0 && (
+            <p className="empty-state">لا إشعارات KAST تنتظر. كل دفعة من البطاقة (سحب) أو شحن لها (دخل) يصل إشعارها يظهر هنا لتسجّله.</p>
+          )}
+        {pendingCardSpends(deposits).length > 0 && (
+          <ul className="sl-list kast-deposits">
+            {pendingCardSpends(deposits).map((s) => {
+              const likely = spendCandidates(s.amountUsd, debts, currencyStore, { last4: s.cardLast4, of: (d) => account(d.accountId)?.paymentCardLast4 });
+              const exact = likely.some((c) => c.exact);
+              return (
+                <li key={s.id} className="sl-row kast-deposit-row kast-spend-row">
+                  <div className="sl-row-main">
+                    <strong>💳 {depositLabel(s)}</strong>
+                    <span>
+                      من إشعار KAST{s.at ? ` · ${new Date(s.at).toLocaleDateString("en-GB")}` : ""} -{" "}
+                      {exact ? "سدّد D الجهاز الذي دُفع له:" : likely.length ? "لا يوجد D بنفس المبلغ - الأقرب:" : "لا يوجد D مفتوح قريب من هذا المبلغ"}
+                    </span>
+                  </div>
+                  <div className="kast-deposit-actions">
+                    {likely.map(({ debt: d, usd: dUsd, exact: isExact }) => {
+                      const cost = d.entry.starlinkCost;
+                      const foreign = cost?.currencyCode && cost.currencyCode !== "USD" && cost.amount ? cost : undefined;
+                      return (
+                        <button
+                          key={d.entry.id}
+                          type="button"
+                          className={isExact ? "dialog-primary" : "dialog-secondary"}
+                          onClick={() => {
+                            openPay([d]);
+                            setSpendToRecord(s);
+                          }}
+                        >
+                          سدّد {account(d.accountId)?.name ?? "جهاز"} (
+                          {foreign ? (
+                            <>
+                              <bdi dir="ltr">{formatAmount(foreign.amount!)}</bdi> {foreign.currencyCode} ≈ <bdi dir="ltr">{usd(dUsd)}</bdi>
+                            </>
+                          ) : (
+                            <bdi dir="ltr">{usd(dUsd)}</bdi>
+                          )}
+                          )
+                        </button>
+                      );
+                    })}
+                    <button type="button" className="dialog-secondary" onClick={() => setPickFor(s)}>
+                      ✏️ جهاز آخر
+                    </button>
+                    <button type="button" className="text-action" onClick={() => updateDeposit(s.id, "dismissed")}>تجاهل</button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {pickFor && (
+          <SpendPickerSheet
+            spend={pickFor}
+            debts={debts}
+            currencyStore={currencyStore}
+            account={account}
+            clientOf={(clientId) => getClient(clientStore, clientId)}
+            onPick={(d) => {
+              const spend = pickFor;
+              setPickFor(null);
+              openPay([d]);
+              setSpendToRecord(spend);
+            }}
+            onClose={() => setPickFor(null)}
+          />
+        )}
+        {pendingCardDeposits(deposits).length > 0 && (
+          <ul className="sl-list kast-deposits">
+            {pendingCardDeposits(deposits).map((d) => (
+              <li key={d.id} className="sl-row kast-deposit-row">
+                <div className="sl-row-main">
+                  <strong>💵 {depositLabel(d)}</strong>
+                  <span>من بريد KAST{d.at ? ` · ${new Date(d.at).toLocaleDateString("en-GB")}` : ""} - لم يُسجَّل بعد</span>
+                </div>
+                <div className="kast-deposit-actions">
+                  <button type="button" className="dialog-primary" onClick={() => recordDeposit(d)}>سجّل شحناً</button>
+                  <button type="button" className="text-action" onClick={() => updateDeposit(d.id, "dismissed")}>تجاهل</button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+        </section>
+      )}
 
       {sheet === "pay" && (
         <PartySheet
@@ -1479,6 +1544,8 @@ function PaymentCardsSection({
   const [detailsFor, setDetailsFor] = useState<PaymentCardList[number] | null>(null);
   const [statementOf, setStatementOf] = useState<PaymentCardList[number] | null>(null);
   const [showUnregistered, setShowUnregistered] = useState(false);
+  // 📡 The card whose devices are open (email + the day each one renews = when the card is charged).
+  const [openCard, setOpenCard] = useState<string | null>(null);
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -1515,7 +1582,8 @@ function PaymentCardsSection({
       {cards.length > 0 && (
         <ul className="sl-list">
           {cards.map((card) => (
-            <li key={card.id} className="sl-row">
+            <Fragment key={card.id}>
+            <li className="sl-row">
               <div className="sl-row-main">
                 <strong>{card.name}</strong>
                 <span>
@@ -1527,7 +1595,14 @@ function PaymentCardsSection({
                     </>
                   ) : null}
                 </span>
-                <span>📡 {groups.byCard[card.last4]?.length ?? 0} جهاز مربوط بها</span>
+                <button
+                  type="button"
+                  className="text-action sl-card-devices-toggle"
+                  aria-expanded={openCard === card.id}
+                  onClick={() => setOpenCard(openCard === card.id ? null : card.id)}
+                >
+                  📡 {groups.byCard[card.last4]?.length ?? 0} جهاز مربوط بها {openCard === card.id ? "▴" : "▾"}
+                </button>
               </div>
               <button type="button" className="text-action" onClick={() => setStatementOf(card)}>
                 📄 الكشف
@@ -1539,6 +1614,26 @@ function PaymentCardsSection({
                 حذف
               </button>
             </li>
+            {openCard === card.id && (
+              <li className="sl-card-devices">
+                {(groups.byCard[card.last4] ?? []).length === 0 ? (
+                  <p className="party-empty">لا يوجد جهاز مربوط بهذه البطاقة بعد.</p>
+                ) : (
+                  <ul>
+                    {cardDeviceRows(groups.byCard[card.last4] ?? []).map((d) => (
+                      <li key={d.id}>
+                        <span className="sl-card-device-day">{d.day ? `يوم ${d.day}` : "اليوم ؟"}</span>
+                        <span className="sl-card-device-main">
+                          <strong>{d.name}</strong>
+                          <small dir="ltr">{d.email ?? "لا بريد بعد"}</small>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            )}
+            </Fragment>
           ))}
         </ul>
       )}
