@@ -36,6 +36,8 @@ import {
 import { DeviceFaultDialog } from "./DeviceFaultDialog";
 import { DeviceGmailButton } from "./DeviceGmailButton";
 import { useCardGestures } from "./useCardGestures";
+import { DeviceNoteSheet, type DeviceNoteSheetMode } from "./DeviceNoteSheet";
+import { pinAgeText, type DeviceNote } from "@/lib/deviceNotes";
 import { isTravelPending, isTravelVerified, needsTravelRegistration, travelDueArabic, travelWhatsAppLink, undoTravelDone } from "@/lib/travelRegistration";
 import { TravelPriceSheet } from "./TravelPriceSheet";
 import { describeDishAlerts } from "@/lib/dishAlerts";
@@ -53,6 +55,11 @@ export type AccountCardContext = "active" | "archived" | "trash";
 
 interface Props {
   account: StarlinkAccountSummary;
+  /** 📌 His private pin / purple note on this device (lib/deviceNotes.ts). With `onSaveNote` a
+   * long-press opens «تثبيت · ملاحظة · التفاصيل»; without it a long-press opens the details. */
+  deviceNote?: DeviceNote;
+  onSaveNote?: (account: StarlinkAccountSummary, input: { text: string; pin: boolean; until?: string }) => void;
+  onSetPinned?: (account: StarlinkAccountSummary, pinned: boolean) => void;
   /** Earlier owners' unpaid Starlink debts on this device (previousDebt.ts). */
   previousDebts?: PreviousDebt[];
   /** Records a previous debt - returns an error message, or null once saved. */
@@ -223,6 +230,9 @@ export function AccountCard({
   onTravelDone,
   onTravelCheck,
   showTravelVerified = false,
+  deviceNote,
+  onSaveNote,
+  onSetPinned,
 }: Props) {
   const [travelPriceOpen, setTravelPriceOpen] = useState(false);
   const travelPending = isTravelPending(account);
@@ -400,8 +410,12 @@ export function AccountCard({
   const [showPasteSession, setShowPasteSession] = useState(false);
   const dishAlerts = describeDishAlerts(account.dishAlerts);
   // No "التفاصيل" button: one tap (or holding) opens the details, two taps a payment, 3 edit.
+  const [noteSheet, setNoteSheet] = useState<DeviceNoteSheetMode | null>(null);
   const gestures = useCardGestures((gesture) => {
-    if (gesture === "details") setExpanded((v) => !v);
+    if (gesture === "menu") {
+      if (onSaveNote && onSetPinned) setNoteSheet("menu");
+      else setExpanded((v) => !v);
+    } else if (gesture === "details") setExpanded((v) => !v);
     else if (gesture === "payment") onLedger(account);
     else if (context === "active") onEdit(account);
   });
@@ -485,12 +499,34 @@ export function AccountCard({
     </div>
   );
 
+  const notePinned = Boolean(deviceNote?.pinnedAt);
   return (
+    <>
     <article
       className={`account-card${isSuspended ? " account-card-suspended" : ""}${sessionNeedsLogin ? " account-card-has-bubble" : ""}${repColor ? " account-card-rep-tint" : ""}${expanded ? " account-card-expanded" : ""}`}
       style={repColor ? ({ "--rep-tint": repColor } as React.CSSProperties) : undefined}
       {...gestures}
     >
+      {(deviceNote?.text || notePinned) && (
+        <button
+          type="button"
+          className="device-note-line"
+          onClick={() => (onSaveNote ? setNoteSheet(deviceNote?.text ? "note" : "menu") : undefined)}
+          title={deviceNote?.text}
+        >
+          {notePinned && (
+            <span className="device-note-pin">
+              📌 {pinAgeText(deviceNote!.pinnedAt!)}
+              {deviceNote?.pinUntil && <> · ⏰ <bdi dir="ltr">{deviceNote.pinUntil}</bdi></>}
+            </span>
+          )}
+          {deviceNote?.text && (
+            <span className="device-note-text-line" dir="auto">
+              📝 {deviceNote.text}
+            </span>
+          )}
+        </button>
+      )}
       {sessionNeedsLogin && (
         <button type="button" className="session-bubble" onClick={handleOpen} disabled={opening} title="الجلسة خرجت - افتح وسجّل الدخول">
           <span aria-hidden="true">🔒</span> سجّل الدخول
@@ -1144,5 +1180,17 @@ export function AccountCard({
         />
       )}
     </article>
+    {noteSheet && onSaveNote && onSetPinned && (
+      <DeviceNoteSheet
+        deviceName={account.name}
+        note={deviceNote}
+        mode={noteSheet}
+        onSave={(input) => onSaveNote(account, input)}
+        onSetPinned={(pinned) => onSetPinned(account, pinned)}
+        onDetails={() => setExpanded(true)}
+        onClose={() => setNoteSheet(null)}
+      />
+    )}
+    </>
   );
 }

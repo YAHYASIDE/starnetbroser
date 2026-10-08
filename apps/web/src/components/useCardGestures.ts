@@ -28,7 +28,7 @@ export function useCardGestures(onGesture: (gesture: CardGesture) => void) {
       state.timer = window.setTimeout(() => {
         state.long = true;
         taps.current.count = 0;
-        handler.current("details");
+        handler.current("menu");
       }, LONG_PRESS_MS);
       press.current = state;
     },

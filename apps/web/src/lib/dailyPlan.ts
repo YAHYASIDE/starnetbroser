@@ -9,13 +9,14 @@ import type { StarlinkAccountSummary } from "@starnet/shared";
 import type { ClientStore } from "./clientStore";
 import type { HealthIssue, HealthIssueKind } from "./dataHealth";
 import type { DebtorAging } from "./debtAging";
+import type { DuePin } from "./deviceNotes";
 import type { PaymentPromise } from "./paymentPromises";
 import { parseRenewalDate } from "./renewalForecast";
 import { buildExpiryReminderMessage, buildStoreDebtReminderMessage } from "./whatsapp";
 import { buildWinBackMessage, listLapsedDevices } from "./winBack";
 import { buildPromiseReminder } from "./paymentPromises";
 
-export type PlanTaskKind = "renewal" | "promise" | "debt" | "winback" | "data";
+export type PlanTaskKind = "renewal" | "promise" | "debt" | "winback" | "data" | "pin";
 
 export interface PlanTask {
   /** Stable for the day, so a ticked task stays ticked. */
@@ -46,6 +47,8 @@ export interface DailyPlanInput {
   currencyLabel: (code: string) => string;
   maxDebts?: number;
   maxWinBack?: number;
+  /** ⏰ His pins whose «حتى تاريخ» has come (lib/deviceNotes.ts duePins). */
+  pins?: DuePin[];
 }
 
 function localDate(iso: string): Date {
@@ -58,6 +61,18 @@ export function buildDailyPlan(input: DailyPlanInput): PlanTask[] {
   const today = localDate(input.today);
   const active = input.accounts.filter((a) => !a.deletedAt && !a.archivedAt && !a.deviceFault);
   const clientOf = (a: StarlinkAccountSummary) => (a.clientId ? input.clients[a.clientId] : undefined);
+
+  for (const pin of input.pins ?? []) {
+    tasks.push({
+      id: `pin:${pin.accountId}:${pin.pinUntil}`,
+      kind: "pin",
+      title: `📌 ${pin.name}`,
+      detail: `${pin.text ? `${pin.text} · ` : ""}${pin.pinUntil === input.today ? "موعده اليوم" : `موعده كان ${pin.pinUntil}`}`,
+      search: pin.name,
+      accountId: pin.accountId,
+      priority: 3,
+    });
+  }
 
   for (const account of active) {
     const date = parseRenewalDate(account.rechargeDate || account.standbyDate);

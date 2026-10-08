@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { PartySheet } from "@/components/AccountsSection";
 import { buildDailyPlan, type PlanTask } from "@/lib/dailyPlan";
+import { duePins, loadDeviceNotes } from "@/lib/deviceNotes";
 import { checkDataHealth, type HealthIssue, type HealthIssueKind } from "@/lib/dataHealth";
 import { deviceSearchKey, duplicateGroups, isDuplicateKind } from "@/lib/duplicateProof";
 import { computeBalanceByCurrency } from "@/lib/ledgerStore";
@@ -35,6 +36,7 @@ const KIND_LABEL: Record<PlanTask["kind"], string> = {
   debt: "دين قديم",
   winback: "استرجاع",
   data: "بيانات",
+  pin: "مثبت",
 };
 
 /** ✅ Today's checklist - ticks are remembered for the day on this phone only. */
@@ -73,6 +75,7 @@ export function TodayPlanTool({ data }: { data: ToolsData }) {
       issues,
       today,
       currencyLabel: currencyLabelFor(data.currencies),
+      pins: duePins(loadDeviceNotes(), data.accounts, today),
     });
   }, [data, own, issues, today]);
 

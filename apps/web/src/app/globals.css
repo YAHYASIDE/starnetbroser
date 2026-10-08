@@ -13775,3 +13775,87 @@ button.today-tile {
 @media (prefers-reduced-motion: reduce) {
   .cur-guard-modal { animation: none; }
 }
+
+/* 📌 Pin + purple note on top of a device card (lib/deviceNotes.ts) - one line, never grows the card */
+.device-note-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  margin: 0 0 8px;
+  padding: 5px 10px;
+  border: 1px solid color-mix(in srgb, var(--violet) 35%, transparent);
+  border-radius: var(--radius-sm);
+  background: var(--violet-bg);
+  color: var(--violet);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: start;
+  cursor: pointer;
+}
+
+.device-note-pin {
+  flex: none;
+  white-space: nowrap;
+}
+
+.device-note-text-line {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.pinned-chip {
+  border-color: var(--violet);
+  color: var(--violet);
+}
+
+.pinned-chip.faulty-chip-active {
+  background: var(--violet);
+  border-color: var(--violet);
+  color: var(--brand-contrast);
+}
+
+.device-note-menu .party-sheet-option small {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  max-width: 62vw;
+}
+
+.device-note-editor {
+  display: grid;
+  gap: 10px;
+}
+
+.device-note-text {
+  width: 100%;
+  min-height: 84px;
+  resize: vertical;
+  border-color: var(--violet);
+  font: inherit;
+}
+
+.device-note-until {
+  display: grid;
+  gap: 4px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.device-note-editor .dialog-primary {
+  background: var(--violet);
+  border-color: var(--violet);
+}
+
+.device-note-delete {
+  justify-self: center;
+  color: var(--red);
+}

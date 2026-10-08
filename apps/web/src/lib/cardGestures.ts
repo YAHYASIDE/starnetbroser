@@ -1,11 +1,13 @@
 /**
  * A device card's gestures (the "التفاصيل" button's replacement): one tap (his Oct 2026 request
- * «تفتح كامل بضغطة واحدة») or a short long-press opens the full details, two quick taps open
- * "إضافة دفعة", three open "تعديل البيانات". Pure - the timing
- * rules; useCardGestures.ts wires them to pointer events.
+ * «تفتح كامل بضغطة واحدة») opens the full details, two quick taps open "إضافة دفعة", three open
+ * "تعديل البيانات". A long-press opens «📌 تثبيت · 📝 ملاحظة · 📋 التفاصيل» (his later ask «عندما
+ * اضغط علي الجهاز ضغط مطول تاتيني خيارات تثبيت او اضافة ملاحظه» - lib/deviceNotes.ts); a card
+ * without that menu still opens its details. Pure - the timing rules; useCardGestures.ts wires them
+ * to pointer events.
  */
 
-export type CardGesture = "details" | "payment" | "edit";
+export type CardGesture = "details" | "payment" | "edit" | "menu";
 
 /** Held this long (ms) = a long press. */
 export const LONG_PRESS_MS = 450;

@@ -116,6 +116,7 @@ import {
 import { ApiError, listAccounts } from "@/lib/apiClient";
 import { getLastBackupAt, isDemoMode, isLoggedIn, isRemindersBadgeEnabled } from "@/lib/settingsStore";
 import { commitDemoAccounts, loadDemoAccounts } from "@/lib/demoAccountStore";
+import { loadDeviceNotes, mergeDeviceNotes, pinnedDevices, saveDeviceNote, saveDeviceNotes, setDevicePinned, type DeviceNotesStore } from "@/lib/deviceNotes";
 import { ACCOUNTS_CHANGED_EVENT } from "@/lib/repMenuRecords";
 import { loadRepRequests, pendingRepRequests } from "@/lib/repRequests";
 import {
@@ -176,7 +177,7 @@ type DialogState = { mode: AccountDialogMode; account?: StarlinkAccountSummary; 
  * ways of narrowing the SAME list, and combining them silently would be confusing rather than
  * useful. `total` never appears as a value: tapping "كل الحسابات" is just `showAll`, not a real
  * per-account filter. */
-type StatFilterKind = "online" | "expiringSoon" | "expired" | "suspended" | "faulty" | "repair" | "fromRep" | "noClient" | "travel" | "travelDone";
+type StatFilterKind = "online" | "expiringSoon" | "expired" | "suspended" | "faulty" | "repair" | "fromRep" | "noClient" | "travel" | "travelDone" | "pinned";
 
 const STAT_FILTER_TITLES: Record<StatFilterKind, string> = {
   online: "الحسابات المتصلة الآن",
@@ -189,6 +190,7 @@ const STAT_FILTER_TITLES: Record<StatFilterKind, string> = {
   noClient: "أجهزة بدون زبون",
   travel: "🛂 الأجهزة التي تحتاج توثيق",
   travelDone: "✅ الأجهزة التي تم توثيقها",
+  pinned: "📌 الأجهزة المثبتة",
 };
 
 function matchesStatFilter(account: StarlinkAccountSummary, kind: StatFilterKind): boolean {
@@ -208,7 +210,8 @@ function matchesStatFilter(account: StarlinkAccountSummary, kind: StatFilterKind
     case "travelDone":
       return isTravelVerified(account);
     case "noClient":
-      // Needs the client list - narrowed in `filtered` (matchesNoClientGroup).
+    case "pinned":
+      // Needs another store - narrowed in `filtered` (client list / 📌 device notes).
       return true;
     case "expiringSoon": {
       // A broken device isn't renewed until it's repaired (see "المعطلة").
@@ -260,6 +263,13 @@ export function HomeView({
   const [query, setQuery] = useState("");
   const [selectedDay, setSelectedDay] = useState<DayKey | null>(null);
   const [statFilter, setStatFilter] = useState<StatFilterKind | null>(null);
+  // 📌 His private pins + purple notes per device (lib/deviceNotes.ts) - never sent to a rep.
+  const [deviceNotes, setDeviceNotes] = useState<DeviceNotesStore>({});
+  useEffect(() => setDeviceNotes(loadDeviceNotes()), []);
+  function commitDeviceNotes(next: DeviceNotesStore) {
+    saveDeviceNotes(next);
+    setDeviceNotes(next);
+  }
   /** One group of «المعطلة» (ملغي / محروق / منقول / إيميل غير رئيسي), or all of them. */
   const [faultFilter, setFaultFilter] = useState<DeviceFaultReason | null>(null);
   /** «بدون زبون»: all of them, mine, or one representative's. */
@@ -1219,6 +1229,7 @@ export function HomeView({
     setPreviousDebts(result.previousDebts);
     if (Object.keys(result.keepPatch).length > 0) patchAccount(keep.id, result.keepPatch);
     patchAccount(drop.id, { deletedAt: new Date().toISOString() });
+    commitDeviceNotes(mergeDeviceNotes(loadDeviceNotes(), drop.id, keep.id));
     pushToast(`🔗 دُمج «${drop.name}» في «${keep.name}»${result.movedEntries ? ` - انتقلت ${result.movedEntries} عملية` : ""}، والمكرّر في السلة`);
   }
 
@@ -1529,6 +1540,7 @@ export function HomeView({
       list = list.filter((a) => matchesStatFilter(a, statFilter));
       if (statFilter === "faulty" && faultFilter) list = list.filter((a) => faultCategory(a) === faultFilter);
       if (statFilter === "noClient") list = list.filter((a) => matchesNoClientGroup(a, clientStore, noClientGroup));
+      if (statFilter === "pinned") list = pinnedDevices(deviceNotes, list);
     }
     if (query.trim()) {
       // A rep's name shows his devices too.
@@ -1539,11 +1551,12 @@ export function HomeView({
       );
     }
     return list;
-  }, [activeAccounts, selectedDay, statFilter, faultFilter, noClientGroup, query, clientStore, representativeStore]);
+  }, [activeAccounts, selectedDay, statFilter, faultFilter, noClientGroup, query, clientStore, representativeStore, deviceNotes]);
 
   const faultCounts = useMemo(() => countFaultCategories(activeAccounts), [activeAccounts]);
   const repairCount = useMemo(() => activeAccounts.filter(isUnderRepair).length, [activeAccounts]);
   const fromRepCount = useMemo(() => activeAccounts.filter((a) => a.addedByRepId).length, [activeAccounts]);
+  const pinnedCount = useMemo(() => pinnedDevices(deviceNotes, activeAccounts).length, [deviceNotes, activeAccounts]);
   const travelCount = useMemo(() => activeAccounts.filter(needsTravelRegistration).length, [activeAccounts]);
   const travelDone = useMemo(() => travelEarnings(activeAccounts), [activeAccounts]);
   const noClient = useMemo(() => countNoClient(activeAccounts, clientStore, representativeStore), [activeAccounts, clientStore, representativeStore]);
@@ -1963,6 +1976,16 @@ export function HomeView({
           </section>
 
           <div className="status-chips">
+            {(pinnedCount > 0 || statFilter === "pinned") && (
+              <button
+                type="button"
+                data-tour="pinned-chip"
+                className={`faulty-chip pinned-chip${statFilter === "pinned" ? " faulty-chip-active" : ""}`}
+                onClick={() => { toggleStatFilter("pinned"); setSelectedDay(null); }}
+              >
+                📌 المثبتة ({pinnedCount})
+              </button>
+            )}
             <button
               type="button"
               className={`faulty-chip${statFilter === "faulty" ? " faulty-chip-active" : ""}`}
@@ -2161,6 +2184,9 @@ export function HomeView({
                 sessionNeedsLogin={viewMode === "active" && needsLoginIds.has(account.id)}
                 previousDebts={openPreviousDebts.filter((d) => d.accountId === account.id)}
                 onAddPreviousDebt={viewMode === "active" ? handleAddPreviousDebt : undefined}
+                deviceNote={deviceNotes[account.id]}
+                onSaveNote={(target, input) => commitDeviceNotes(saveDeviceNote(loadDeviceNotes(), target.id, input))}
+                onSetPinned={(target, pinned) => commitDeviceNotes(setDevicePinned(loadDeviceNotes(), target.id, pinned))}
               />
             ))}
           </div>

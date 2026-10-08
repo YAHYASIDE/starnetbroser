@@ -671,3 +671,27 @@ instead of سيفا); his choices «تلقائية + تستطيع تغييرها
 - **Older ones**: «⚠️ عملة مختلفة» on the device's operations and the rep statement lines; the list is
   a 🩺 high data issue «💱 عملية بعملة مختلفة» in «خطة اليوم» and فحص البيانات - from every device, the
   reps' too - with «افتح» and «✓ صحيحة».
+
+## 📌 تثبيت الأجهزة + الملاحظة البنفسجية
+
+His Oct 2026 ask «اضف ايقونة مع الايقونات فيه المثبت… ضغط مطول تاتيني خيارات تثبيت او اضافة ملاحظه،
+والملاحظة تكون ظاهر فوق الجهاز بلون ارجواني… يسالني هل يوضع في تثبيتات ام فقط ملاحظات», judged by the
+council (skill 5; report https://claude.ai/artifact/PpqKVH5ZecHYiM7H5Bfn91); his choices «كما في
+التوصية» + «⏰ تثبيت حتى تاريخ».
+
+- **Long-press on a device card** opens «📌 تثبيت / إلغاء · 📝 ملاحظة · 📋 التفاصيل» (the one tap still
+  opens the details - the long-press only repeated it). A card without the menu (customer page) still
+  opens its details on a long-press (`cardGestures.ts`, `DeviceNoteSheet.tsx`).
+- **His question at save = two buttons**: «📌 حفظ وتثبيت» / «💾 ملاحظة فقط» (no extra pop-up). Optional
+  «⏰ حتى تاريخ» on the pin: from that day it's a «📌 مثبت» task in «خطة اليوم» (`duePins`).
+- **One current note per device** (about the dish, not the customer - customer notes stay separate),
+  ≤ 300 chars, shown as ONE purple line on top of the card (cut with …, tap = edit), with «📌 منذ N
+  أيام» when pinned. The card never grows.
+- **«📌 المثبتة (N)»** first in the home chip row, only when something is pinned; live devices only;
+  normal sort order kept (a pin never buries a device that ends today).
+- **Private**: own store `starnet_device_notes_v1` (backed up), keyed by device id - never on the device
+  record, so never in a rep's copy / live link (not in `REP_STORES`), never in customer messages,
+  statements or images. Follows the device to the trash and back; merging a duplicate moves the
+  note onto the kept device (`lib/deviceNotes.ts`).
+- Later options offered, not built: search inside notes, «إزالة التثبيت؟» after a renewal/payment,
+  bulk unpin, a dated note log.

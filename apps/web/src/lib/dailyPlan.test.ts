@@ -51,3 +51,25 @@ describe("daily plan", () => {
     expect(plan.find((t) => t.id === "debt:c1:MRU")!.message).toContain("9,000");
   });
 });
+
+describe("⏰ pins in the plan", () => {
+  it("adds a task for each due pin, opening its device", () => {
+    const tasks = buildDailyPlan({
+      accounts: [],
+      clients: {},
+      promises: [],
+      debtors: [],
+      issues: [],
+      today: "2026-10-08",
+      currencyLabel: (c) => c,
+      pins: [
+        { accountId: "a", name: "جهاز أ", text: "اتصل بالفني", pinUntil: "2026-10-08" },
+        { accountId: "b", name: "جهاز ب", pinUntil: "2026-10-05" },
+      ],
+    });
+    expect(tasks.filter((t) => t.kind === "pin").map((t) => [t.title, t.detail, t.accountId])).toEqual([
+      ["📌 جهاز أ", "اتصل بالفني · موعده اليوم", "a"],
+      ["📌 جهاز ب", "موعده كان 2026-10-05", "b"],
+    ]);
+  });
+});
