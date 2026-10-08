@@ -707,3 +707,10 @@ His Oct 2026 report «لماذا لا يمكنني تنزيل pdf الفاتور
 Starlink page hands out) is now saved in the phone's Downloads / STAR NET folder and opened at once, so
 he can share it (WhatsApp) or print it. Session-aware: it uses that device's own login. See the
 starnet-browsers skill («Downloads from a device's browser»).
+
+## 🔄 «مزامنة الآن ← اليوم»
+
+His Oct 2026 report «تسجيلات اليوم لا تظهر عندي، تظهر فقط عندما اضغط على 7 أيام»: the renewal date is
+the stop instant (midnight), so a card that says «ينتهي اليوم» is dated TOMORROW. «اليوم» now takes
+those (ending tonight) plus the ones dated today (stopped this midnight) - `days` 0..1; «N أيام» takes
+`days` 0..N (`pickSyncAccounts` in `lib/syncQueue.ts`).

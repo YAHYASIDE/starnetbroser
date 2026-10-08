@@ -1,7 +1,10 @@
 /**
  * 🔄 «مزامنة الآن» over several devices, one after another, each in its own visible browser (the
  * same «مزامنة» that works by hand - AccountBrowserActivity's auto-sync). The operator's choices:
- * «اليوم» is today only, «3 أيام» today and the next two days (3, 4, 5), and so on; the devices
+ * «اليوم» is what the cards call «ينتهي اليوم» - the renewal date is the stop instant (midnight), so
+ * the devices dated tomorrow (ending tonight) plus those dated today (stopped this midnight) (his Oct
+ * 2026 report «تسجيلات اليوم لا تظهر… تظهر فقط عندما اضغط على 7 أيام»); «3 أيام» adds the next two
+ * days the same way, and so on; the devices
  * stopped for billing; the devices added today; every device. A faulty device (متعطل) and one whose
  * email isn't the account's main one (limited, no billing) are synced only from their own choice -
  * never by a day or «كل الأجهزة». The queue lives in `starnet.syncQueue` (phone state, not backed up)
@@ -54,7 +57,8 @@ export function pickSyncAccounts(accounts: StarlinkAccountSummary[], window: Syn
   const chosen = rows.filter(({ account, days }) => {
     switch (window.kind) {
       case "days":
-        return !syncedOnlyByCommand(account) && days !== null && days >= 0 && days < window.days;
+        // days = date − today: 0 stopped this midnight, 1 ends tonight («ينتهي اليوم»), …
+        return !syncedOnlyByCommand(account) && days !== null && days >= 0 && days <= window.days;
       case "suspended":
         return !syncedOnlyByCommand(account) && account.serviceStatus === "suspended";
       case "addedToday":

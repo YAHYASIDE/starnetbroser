@@ -28,12 +28,12 @@ const accounts = [
 const ids = (window: SyncWindow) => pickSyncAccounts(accounts, window, TODAY).map((a) => a.id);
 
 describe("«مزامنة الآن» choices", () => {
-  it("«اليوم» is today only - no expired, stopped, faulty or limited device", () => {
-    expect(ids({ kind: "days", days: 1 })).toEqual(["d3"]);
+  it("«اليوم» is the cards' «ينتهي اليوم»: ends tonight (dated tomorrow) + stopped this midnight - no expired, stopped, faulty or limited device", () => {
+    expect(ids({ kind: "days", days: 1 })).toEqual(["d3", "d4"]);
   });
 
-  it("«3 أيام» is today and the next two days (3, 4, 5)", () => {
-    expect(ids({ kind: "days", days: 3 })).toEqual(["d3", "d4", "d5"]);
+  it("«3 أيام» is today and the next two days, the same way", () => {
+    expect(ids({ kind: "days", days: 3 })).toEqual(["d3", "d4", "d5", "d6"]);
     expect(ids({ kind: "days", days: 7 })).toEqual(["d3", "d4", "d5", "d6"]);
   });
 
@@ -65,7 +65,7 @@ describe("the queue", () => {
     expect(startSyncQueue([device("x", "2027/01/01")], { kind: "days", days: 3 }, TODAY)).toBeNull();
     const queue = startSyncQueue(accounts, { kind: "days", days: 3 }, TODAY)!;
     expect(queue.label).toBe("3 أيام");
-    expect(queueProgressLabel(queue, 1)).toBe("2 / 3");
+    expect(queueProgressLabel(queue, 1)).toBe("2 / 4");
     expect(syncQueueFor([], "يوم 4")).toBeNull();
   });
 
