@@ -146,6 +146,16 @@ plus the rules learned from real misreads; keep it updated when you learn a new 
   camera beside gallery/files (`CaptureFileProvider`, cache `starnet_capture/`). A file input's
   callback must always be answered once (null on cancel) or the page's button stops working.
 
+## Downloads from a device's browser
+
+A WebView drops every download unless the app takes it (his Oct 2026 report: Starlink's «Invoice PDF»
+did nothing). `PageDownloads.java` takes them: a `blob:` link (how Starlink builds the PDF) is read
+back by the page (`DownloadFiles.BLOB_HOOK` keeps each blob for 60 s even if the page revokes it at
+once, `readBlobScript` sends it as a data URL to the `StarnetDownload` bridge); an http(s) link is
+fetched with that device's own profile cookies. Saved in Downloads / STAR NET (Android 10+; older =
+the app cache via CaptureFileProvider) and opened. Only on AllowedUrl pages. Pure logic +
+JUnit: `DownloadFiles`.
+
 ## Testing the Java parts
 
 Android classes can't compile here (no Android SDK) - CI compiles them. Keep decisions in pure Java

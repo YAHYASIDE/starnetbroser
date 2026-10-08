@@ -2,4 +2,6 @@
 <!-- 📷 CaptureFileProvider: only the cache folder where proof photos are taken. -->
 <paths>
     <cache-path name="starnet_capture" path="starnet_capture/" />
+    <!-- ⬇️ PageDownloads on Android 9 and older: a downloaded file opened in its viewer. -->
+    <cache-path name="starnet_downloads" path="starnet_downloads/" />
 </paths>

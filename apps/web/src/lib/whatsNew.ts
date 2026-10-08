@@ -31,6 +31,18 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-08-browser-downloads",
+    date: "2026-10-08",
+    title: "⬇️ تنزيل فواتير Starlink من متصفح الجهاز",
+    steps: [
+      {
+        title: "📄 Invoice PDF",
+        before: "الضغط على «Invoice PDF» في صفحة الفوترة لا يفعل شيئًا.",
+        after: "يُنزَّل الملف ويُحفظ في «التنزيلات / STAR NET» ثم يفتح مباشرة - تستطيع مشاركته أو إرساله واتساب من هناك.",
+      },
+    ],
+  },
+  {
     id: "2026-10-08-device-pins-extras",
     date: "2026-10-08",
     title: "📌 إضافات التثبيت والملاحظات",

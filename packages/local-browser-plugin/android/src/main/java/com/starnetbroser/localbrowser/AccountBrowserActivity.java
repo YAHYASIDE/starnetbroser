@@ -141,6 +141,8 @@ public class AccountBrowserActivity extends AppCompatActivity {
     private static final long HOME_SETTLE_DELAY_MS = 6000;
 
     private WebView webView;
+    /** ⬇️ Saves the files the page hands out (PageDownloads). */
+    private PageDownloads pageDownloads;
     private ProgressBar progressBar;
     private View errorOverlay;
     private String homeUrl;
@@ -320,6 +322,10 @@ public class AccountBrowserActivity extends AppCompatActivity {
         // 📷 Starlink's identity check shows the live camera in a <video> the page starts by itself;
         // WebView's default blocks that until a tap, so the camera stayed a gray ▶ (his Oct 2026 report).
         settings.setMediaPlaybackRequiresUserGesture(false);
+
+        // ⬇️ Starlink's «Invoice PDF» and any other file the page hands out (PageDownloads).
+        pageDownloads = new PageDownloads(this, webView, profileName);
+        pageDownloads.attach();
 
         webView.setWebViewClient(new IsolatedWebViewClient());
         webView.setWebChromeClient(
@@ -1449,6 +1455,11 @@ public class AccountBrowserActivity extends AppCompatActivity {
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
             String scheme = request.getUrl().getScheme();
+            // ⬇️ A page opening its own blob: / data: file (the invoice PDF) - save it.
+            if (("blob".equals(scheme) || "data".equals(scheme)) && pageDownloads != null) {
+                pageDownloads.start(request.getUrl().toString(), null, null, null);
+                return true;
+            }
             if (scheme == null || (!scheme.equals("http") && !scheme.equals("https"))) {
                 // Refuse non-http(s) schemes (e.g. intent:, market:) rather than dispatching
                 // them as external intents - this stays a contained, isolated browser.
@@ -1464,6 +1475,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
             if (autofillScript != null && AllowedUrl.isAllowed(url)) view.evaluateJavascript(autofillScript, null);
             if (autoLogin && AllowedUrl.isAllowed(url)) view.evaluateJavascript(StarlinkLoginWatch.AUTO_SCRIPT, null);
             if (activationScript != null && AllowedUrl.isAllowed(url)) view.evaluateJavascript(activationScript, null);
+            if (pageDownloads != null) pageDownloads.hookPage();
         }
 
         @Override

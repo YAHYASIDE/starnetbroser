@@ -700,3 +700,10 @@ council (skill 5; report https://claude.ai/artifact/PpqKVH5ZecHYiM7H5Bfn91); his
   - 🧹 «إلغاء كل التثبيتات» inside «📌 المثبتة» (≥ 2 pinned), notes kept (`unpinAll`);
   - 📜 a replaced or deleted note moves to the device's dated log (≤ 30, newest first), shown in the
     note editor; merging duplicates joins both logs.
+
+## ⬇️ Downloads in a device's browser
+
+His Oct 2026 report «لماذا لا يمكنني تنزيل pdf الفاتورة»: the Starlink «Invoice PDF» (and any file the
+Starlink page hands out) is now saved in the phone's Downloads / STAR NET folder and opened at once, so
+he can share it (WhatsApp) or print it. Session-aware: it uses that device's own login. See the
+starnet-browsers skill («Downloads from a device's browser»).
