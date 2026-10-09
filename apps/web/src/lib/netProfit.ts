@@ -12,7 +12,7 @@
 import { CashEntryList, listStandaloneCashEntries } from "./cashStore";
 import { InvoiceList, invoiceTotal } from "./invoiceStore";
 import { LedgerByAccount } from "./ledgerStore";
-import { buildMonthReport, monthOf } from "./monthClosing";
+import { buildPeriodReport, monthOf } from "./monthClosing";
 import { entriesAfterProfitReset, ProfitReset } from "./profitReset";
 import type { RepResetPoint } from "./repStore";
 import { RatesFromUsd, sumToMru } from "./reportsView";
@@ -47,6 +47,11 @@ export interface ExpenseGroup {
 
 export interface MonthNet {
   month: string;
+  /** Realized Starlink renewals (their cost paid in the period): what customers were charged, what
+   * Starlink cost, how many - sales − cost = starlinkProfitMru. */
+  starlinkSalesMru: number;
+  starlinkCostMru: number;
+  starlinkShipments: number;
   starlinkProfitMru: number;
   starlinkRepSharesMru: number;
   storeSalesMru: number;
@@ -71,7 +76,18 @@ function addTo(record: Record<string, number>, code: string, amount: number) {
 }
 
 export function buildMonthNet(input: MonthNetInput): MonthNet {
-  const { month, rates } = input;
+  return buildNet(input, input.month, (date) => monthOf(date) === input.month);
+}
+
+/** «الصافي» over any days, from `from` to `to` (yyyy-mm-dd, both included) - the same calculation as
+ * the month's (the financial dashboard uses it, so a figure never differs between screens). */
+export function buildPeriodNet(input: Omit<MonthNetInput, "month"> & { from: string; to: string }): MonthNet {
+  return buildNet({ ...input, month: `${input.from}..${input.to}` }, `${input.from}..${input.to}`, (date) => date >= input.from && date <= input.to);
+}
+
+function buildNet(input: MonthNetInput, label: string, inPeriod: (date: string) => boolean): MonthNet {
+  const { rates } = input;
+  const month = label;
   // «بداية جديدة للأرباح» counts «الصافي» from the reset day only - the dialog promises الصافي /
   // الدخل / المصروف are computed من اليوم فقط. The Starlink side is trimmed per entry below; the
   // store (sales, COGS, commission) and the business expenses are dated, so drop whatever is before
@@ -92,10 +108,10 @@ export function buildMonthNet(input: MonthNetInput): MonthNet {
     ledger[accountId] = entriesAfterProfitReset(entries, reset ?? null);
   }
   const mruRate = rates.MRU;
-  const starlink = mruRate ? buildMonthReport(ledger, month, mruRate) : undefined;
+  const starlink = mruRate ? buildPeriodReport(ledger, month, inPeriod, mruRate) : undefined;
 
   // Store - sale invoices dated in the month (returns count negative, as in the store report).
-  const monthInvoices = input.invoices.filter((inv) => monthOf(inv.date) === month && onOrAfterReset(inv.date));
+  const monthInvoices = input.invoices.filter((inv) => inPeriod(inv.date) && onOrAfterReset(inv.date));
   const summary = computeStoreSalesSummary(input.transactions, input.invoices, monthInvoices);
   const commission: Record<string, number> = {};
   for (const inv of monthInvoices) {
@@ -111,7 +127,7 @@ export function buildMonthNet(input: MonthNetInput): MonthNet {
   const byCategory = new Map<string, Record<string, number>>();
   const counts = new Map<string, number>();
   for (const entry of listStandaloneCashEntries(input.cash)) {
-    if (entry.kind !== "out" || monthOf(entry.date) !== month || !onOrAfterReset(entry.date)) continue;
+    if (entry.kind !== "out" || !inPeriod(entry.date) || !onOrAfterReset(entry.date)) continue;
     const category = entry.category?.trim() || NO_CATEGORY;
     const bucket = byCategory.get(category) ?? {};
     addTo(bucket, entry.currencyCode, entry.amount);
@@ -123,7 +139,7 @@ export function buildMonthNet(input: MonthNetInput): MonthNet {
   // it disappears on its own if the movement is deleted - never stored as its own record).
   for (const t of input.cardTopUps ?? []) {
     if (t.direction !== "out" || t.via !== "loss") continue;
-    if (monthOf(t.date) !== month || !onOrAfterReset(t.date)) continue;
+    if (!inPeriod(t.date) || !onOrAfterReset(t.date)) continue;
     const bucket = byCategory.get(CARD_LOSS_CATEGORY) ?? {};
     addTo(bucket, "USD", t.amountUsd);
     byCategory.set(CARD_LOSS_CATEGORY, bucket);
@@ -140,6 +156,9 @@ export function buildMonthNet(input: MonthNetInput): MonthNet {
   if (!mruRate && Object.values(input.ledgerStore).some((entries) => entries.length > 0)) missing.add("MRU");
   return {
     month,
+    starlinkSalesMru: starlink ? starlink.rows.reduce((sum, r) => sum + r.saleMru, 0) : 0,
+    starlinkCostMru: starlink ? starlink.rows.reduce((sum, r) => sum + r.costMru, 0) : 0,
+    starlinkShipments: starlink?.rows.length ?? 0,
     starlinkProfitMru,
     starlinkRepSharesMru,
     storeSalesMru,

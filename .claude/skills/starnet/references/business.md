@@ -747,3 +747,26 @@ except CVC, then «Something went wrong»): typing the card number makes the for
 code a moment later while it checks the card type. The fill now has a second pass (0.7 / 1.8 / 3.5 s)
 that refills only the fields that are empty again (`fillCardFields(doc, card, onlyEmpty)`), and «Save»
 is never pressed while a field is empty - it refills and saves on the next try (`cardFillScript.ts`).
+
+## 📊 Bottom nav + the financial dashboard (Oct 9 2026)
+
+- His order: bottom tabs «الرئيسية · الزبائن · 💰 حسابي · المندوبون · 📊 التقارير»; «المتجر» moved into the
+  bottom «المزيد» (his choice), «حسابي» left both «المزيد» menus (it is a tab now).
+- His long brief «STAR NET Financial Dashboard» is built in **3 phases** (his choice), one update each:
+  1. (done) «📊 الملخص» = the reports' first tab: sticky top bar (search «ابحث عن أي شيء في STAR NET...»,
+     ⋯ = Excel export / refresh / rates), period filter (اليوم … هذه السنة, مخصصة), collapsible sections
+     with «طي الكل / فتح الكل» (state kept on the phone, `starnet.dashboard`), KPI cards (tap = how it is
+     computed + «التفاصيل»), «مقارنة الأداء» (default = same day last month, his example 9 Oct ↔ 9 Sep;
+     or previous day / week / year; no % on a zero base → «لا توجد قاعدة مقارنة»), «تحليل الأداء الشهري»
+     (12-month bars per year, up to two money metrics or the renewals count alone, best/worst month,
+     growth, table), «من أين جاء صافي الربح؟», payment sources.
+  2. money sources in full, Starlink analysis, debts & collections, rings/gauge, goals & alerts.
+  3. export by section, and an audit log of edits in a CLOSED month (his choice: keep «إقفال الشهر»,
+     no daily close).
+- Currency (his choice): everything in أوقية - Starlink at each renewal's locked rate, the rest at
+  today's rate marked ≈; a currency without a rate is listed, never guessed.
+- Accounting rules (his brief, kept in `lib/financeDashboard.ts`): revenue is REALIZED (a renewal counts
+  on the day Starlink was paid) so revenue − Starlink cost − rep shares + store net − expenses = net,
+  exactly the «الصافي» figure (`buildPeriodNet` = the month calculation over any days); a renewal whose
+  cost is still owed (D) is «ربح معلّق», never profit; payments are collections, never revenue; personal
+  expenses are not business expenses; a figure with no data shows «لا توجد بيانات كافية».

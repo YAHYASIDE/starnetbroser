@@ -107,7 +107,8 @@ export function normalizeSearchText(value: string): string {
     .trim();
 }
 
-function matches(query: string, ...fields: (string | undefined)[]): boolean {
+/** A forgiving match of `query` in any of the fields (also used by the reports search). */
+export function matches(query: string, ...fields: (string | undefined)[]): boolean {
   const q = normalizeSearchText(query);
   if (!q) return false;
   const digits = q.replace(/\D/g, "");

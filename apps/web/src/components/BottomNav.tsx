@@ -22,7 +22,7 @@ export function BottomNav() {
   const [inApp, setInApp] = useState(false);
   // 📱 the rep's full app: only the pages the operator allowed (lib/repMode.ts).
   const [rep, setRep] = useState(false);
-  const SHEET_DESTINATIONS = ["/tools", "/starlink", "/currencies", "/trash", "/archive", "/reminders", "/settings"];
+  const SHEET_DESTINATIONS = ["/tools", "/starlink", "/currencies", "/trash", "/archive", "/reminders", "/settings", "/store"];
   const onSheetDestination = SHEET_DESTINATIONS.includes(pathname ?? "");
 
   useEffect(() => {
@@ -55,11 +55,13 @@ export function BottomNav() {
         { href: "/tools", label: "الأدوات", icon: "tools" },
       ]
     : [
+        // His Oct 9 2026 order: «حسابي» where «التقارير» was, «التقارير» where «المتجر» was, and
+        // «المتجر» moved into «المزيد».
         { href: "/", label: "الرئيسية", icon: "home" },
         { href: "/clients", label: "الزبائن", icon: "people" },
-        { href: "/reports", label: "التقارير", icon: "chart" },
+        { href: "/money", label: "حسابي", icon: "coins" },
         { href: "/representatives", label: "المندوبون", icon: "handshake" },
-        { href: "/store", label: "المتجر", icon: "bag" },
+        { href: "/reports", label: "التقارير", icon: "chart" },
       ];
 
   // "المزيد" (bottom): the everyday half, listed bottom (nearest the thumb) to top. The other half
@@ -114,7 +116,7 @@ function bottomMoreItems(inApp: boolean): MoreItem[] {
     { label: "دفعة سريعة", icon: "coins", color: "#0e9f6e", tint: "#dcf5ea", href: "/tools#pay" },
     { label: "خطة اليوم", icon: "tools", color: "#0e9f6e", tint: "#dcf5ea", href: "/tools#today" },
     { label: "💳 البطاقة", icon: "card", color: "#1668e3", tint: "#d6e3fb", href: "/starlink" },
-    { label: "💰 حسابي", icon: "coins", color: "#0e9f6e", tint: "#dcf5ea", href: "/money" },
+    { label: "🛍️ المتجر", icon: "bag", color: "#7c3aed", tint: "#efe7ff", href: "/store" },
   ];
 }
 
@@ -146,7 +148,6 @@ const REP_TOP_MORE_ITEMS: MoreItem[] = [
 
 /** The top "المزيد" (home page header): the other half, same look. */
 const TOP_MORE_ITEMS: MoreItem[] = [
-  { label: "💰 حسابي", icon: "coins", color: "#0e9f6e", tint: "#dcf5ea", href: "/money" },
   { label: "الأدوات والتوقعات", icon: "tools", color: "#8b5cf6", tint: "#ece4ff", href: "/tools" },
   { label: "ستارلينك والبطاقة", icon: "card", color: "#1668e3", tint: "#d6e3fb", href: "/starlink" },
   { label: "العملات", icon: "coins", color: "#22c55e", tint: "#d4f7e1", href: "/currencies" },

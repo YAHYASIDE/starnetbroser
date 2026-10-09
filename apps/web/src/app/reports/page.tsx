@@ -13,7 +13,7 @@ import { filterEntriesByPeriod, filterEntriesByProfitDate, REPORT_PERIOD_LABELS,
 import { ClientStore, getClient, listClients, loadClientStore } from "@/lib/clientStore";
 import { formatAmount } from "@/lib/formatAmount";
 import { InvoiceList, loadInvoices } from "@/lib/invoiceStore";
-import { getStoreItem, loadStoreItems, loadStoreTransactions, StoreItemRegistry, StoreTransactionList } from "@/lib/storeStore";
+import { getStoreItem, listStoreItems, loadStoreItems, loadStoreTransactions, StoreItemRegistry, StoreTransactionList } from "@/lib/storeStore";
 import { computeClientSalesTotals, computeItemSalesTotals, computeStoreSalesSummary } from "@/lib/storeReports";
 import { CashEntryList, loadCashEntries, listStandaloneCashEntries } from "@/lib/cashStore";
 import { computeRepSharesMru, listRepresentatives, loadRepresentativeStore, loadRepSettlements, RepresentativeStore, RepSettlementList, saveRepresentativeStore } from "@/lib/repStore";
@@ -48,6 +48,10 @@ import { loadPersonalExpenses, monthExpensesMru, type ExpenseCategory, type Pers
 import { PersonalExpensesTab } from "@/components/PersonalExpensesTab";
 import { monthLabel, recentMonths } from "@/lib/monthClosing";
 import { exportXlsx } from "@/lib/xlsxExport";
+import { DASH_SECTIONS, FinanceDashboard, type DashSnapshot } from "@/components/FinanceDashboard";
+import type { DashInput } from "@/lib/financeDashboard";
+import { REPORT_HIT_LABELS, searchReports, type ReportHit } from "@/lib/reportSearch";
+import { listSuppliers, loadSupplierStore, type SupplierStore } from "@/lib/supplierStore";
 import {
   profitSeries,
   RatesFromUsd,
@@ -60,10 +64,12 @@ import {
   valueSeries,
 } from "@/lib/reportsView";
 
-type ReportTab = "net" | "starlink" | "store" | "debts" | "expenses";
+type ReportTab = "dash" | "net" | "starlink" | "store" | "debts" | "expenses";
 
-const TAB_LABELS: Record<ReportTab, string> = { net: "الصافي", starlink: "ستارلينك", store: "المتجر", debts: "الديون", expenses: "المصروفات" };
-const TAB_KEY = "starnet.reportsTab";
+const TAB_LABELS: Record<ReportTab, string> = { dash: "📊 الملخص", net: "الصافي", starlink: "ستارلينك", store: "المتجر", debts: "الديون", expenses: "المصروفات" };
+// A new key (his Oct 9 2026 dashboard): «📊 الملخص» opens first once, then the phone remembers his tab.
+const TAB_KEY = "starnet.reportsTab2";
+const TAB_IDS = Object.keys(TAB_LABELS) as ReportTab[];
 
 function shipments(n: number): string {
   return `${n} ${n >= 3 && n <= 10 ? "شحنات" : "شحنة"}`;
@@ -93,7 +99,15 @@ export default function ReportsPage() {
   const [allocations, setAllocations] = useState<AllocationsByAccount>({});
   const [showExpected, setShowExpected] = useState(false);
   const [period, setPeriod] = useState<ReportPeriod>("month");
-  const [tab, setTab] = useState<ReportTab>("net");
+  const [tab, setTab] = useState<ReportTab>("dash");
+  const [supplierStore, setSupplierStore] = useState<SupplierStore>({});
+  // 🔎 «ابحث عن أي شيء في STAR NET...»: typed text, and the debounced query actually searched.
+  const [searchText, setSearchText] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearchQuery(searchText), 200);
+    return () => window.clearTimeout(timer);
+  }, [searchText]);
   const [netMonth, setNetMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [personal, setPersonal] = useState<PersonalExpenseList>([]);
   const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([]);
@@ -139,9 +153,10 @@ export default function ReportsPage() {
     // The groups first: setting them up once removes the old expenses (his choice).
     setExpenseCategories(loadExpenseTree());
     setPersonal(loadPersonalExpenses());
+    setSupplierStore(loadSupplierStore());
     try {
       const saved = window.localStorage.getItem(TAB_KEY);
-      if (saved === "net" || saved === "starlink" || saved === "store" || saved === "debts" || saved === "expenses") setTab(saved);
+      if (TAB_IDS.includes(saved as ReportTab)) setTab(saved as ReportTab);
     } catch {
       // A per-phone convenience only.
     }
@@ -403,6 +418,61 @@ export default function ReportsPage() {
   }
   const usdToMru = (usd: number) => (mruRate ? usd * mruRate : undefined);
 
+  // ---- 📊 الملخص (lib/financeDashboard.ts): the same records and the same «الصافي» calculation ----
+  const today = new Date().toISOString().slice(0, 10);
+  const dashInput = useMemo<DashInput>(
+    () => ({
+      ledgerStore: visibleLedger,
+      activityLedger: ledgerStore,
+      invoices,
+      transactions: storeTransactions,
+      cash: cashEntries,
+      rates,
+      cardTopUps: topUps,
+      profitReset,
+      profitResetByAccount: resetByAccount,
+      clientOf: (id) => accounts.find((a) => a.id === id)?.clientId,
+    }),
+    [visibleLedger, ledgerStore, invoices, storeTransactions, cashEntries, rates, topUps, profitReset, resetByAccount, accounts],
+  );
+  const dashSnapshot = useMemo<DashSnapshot>(
+    () => ({
+      debtorsMru: mruRate ? debtorsTotal : undefined,
+      debtorsCount: debtors.length,
+      owedStarlinkMru: usdToMru(ownDUsd + previousUsd),
+      activeDevices: activeAccounts.length,
+      activeClients: new Set(activeAccounts.map((a) => a.clientId).filter(Boolean)).size,
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [mruRate, debtorsTotal, debtors.length, ownDUsd, previousUsd, activeAccounts],
+  );
+  const searchHits = useMemo(
+    () =>
+      searchReports(searchQuery, {
+        sections: [
+          ...DASH_SECTIONS.map((s) => ({ id: s.id, title: s.title, keywords: s.keywords })),
+          ...TAB_IDS.filter((t) => t !== "dash").map((t) => ({ id: `tab-${t}`, title: TAB_LABELS[t], tab: t })),
+        ],
+        accounts,
+        clients: listClients(clientStore),
+        reps: listRepresentatives(repStore),
+        suppliers: listSuppliers(supplierStore),
+        items: listStoreItems(storeItems),
+        ledger: ledgerStore,
+        cash: cashEntries,
+      }),
+    [searchQuery, accounts, clientStore, repStore, supplierStore, storeItems, ledgerStore, cashEntries],
+  );
+  function openHit(hit: ReportHit) {
+    setSearchText("");
+    setSearchQuery("");
+    if (hit.tab) chooseTab(hit.tab as ReportTab);
+    else if (hit.section) {
+      chooseTab("dash");
+      window.setTimeout(() => document.getElementById(`dash-${hit.section}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+    }
+  }
+
   // ⏳ D shipments: their expected profit, listed with the same details (both tabs).
   const expectedBlock = expectedDays.length > 0 && (
             <div className="profit-expected">
@@ -431,11 +501,68 @@ export default function ReportsPage() {
 
   return (
     <main className="home">
-      <div className="session-header">
-        <Link href="/" className="btn-link">
-          ← رجوع
-        </Link>
-        <h1 className="section-title">الأرباح والتقارير</h1>
+      <div className="reports-topbar">
+        <div className="reports-topbar-row">
+          <h1 className="section-title">📊 التقارير</h1>
+          <details className="reports-more">
+            <summary aria-label="المزيد">⋯</summary>
+            <div className="reports-more-menu">
+              <button type="button" onClick={handleExportExcel} disabled={exporting}>
+                {exporting ? "⏳ جارِ التجهيز…" : `📊 تصدير Excel (${REPORT_PERIOD_LABELS[period]})`}
+              </button>
+              <button type="button" onClick={() => window.location.reload()}>
+                ↻ تحديث البيانات
+              </button>
+              <Link href="/currencies">💱 أسعار العملات</Link>
+            </div>
+          </details>
+        </div>
+        <div className="reports-search">
+          <input
+            className="search-input"
+            type="search"
+            dir="rtl"
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            placeholder="ابحث عن أي شيء في STAR NET..."
+            aria-label="ابحث عن أي شيء في STAR NET"
+          />
+          {searchText && (
+            <button type="button" className="reports-search-clear" aria-label="مسح البحث" onClick={() => { setSearchText(""); setSearchQuery(""); }}>
+              ×
+            </button>
+          )}
+        </div>
+        {searchQuery.trim() && (
+          <div className="reports-search-results" role="listbox" aria-label="نتائج البحث">
+            {searchHits.length === 0 ? (
+              <p className="party-empty">لا نتائج لـ«{searchQuery.trim()}».</p>
+            ) : (
+              searchHits.map((hit) => {
+                const meta = REPORT_HIT_LABELS[hit.kind];
+                const body = (
+                  <>
+                    <span className="global-search-icon" aria-hidden="true">{meta.icon}</span>
+                    <span className="global-search-text">
+                      <strong>{hit.title}</strong>
+                      {hit.subtitle && <small dir="auto">{hit.subtitle}</small>}
+                    </span>
+                    <span className="global-search-kind">{meta.label}</span>
+                  </>
+                );
+                return hit.href ? (
+                  <Link key={`${hit.kind}-${hit.id}`} href={hit.href} className="global-search-row">
+                    {body}
+                  </Link>
+                ) : (
+                  <button key={`${hit.kind}-${hit.id}`} type="button" className="global-search-row" onClick={() => openHit(hit)}>
+                    {body}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        )}
       </div>
 
       <TodayPanel
@@ -453,18 +580,15 @@ export default function ReportsPage() {
         ))}
       </div>
 
-      <div className="report-export-row">
-        <button type="button" className="party-action report-export-btn" onClick={handleExportExcel} disabled={exporting}>
-          {exporting ? "⏳ جارِ التجهيز…" : `📊 تصدير Excel (${REPORT_PERIOD_LABELS[period]})`}
-        </button>
-        {exportError && <span className="account-card-alert ledger-form-error">{exportError}</span>}
-      </div>
+      {exportError && <p className="account-card-alert ledger-form-error">{exportError}</p>}
 
       {!mruRate && (
         <p className="account-card-alert">
           سجّل سعر الأوقية في <Link href="/currencies" className="btn-link">صفحة العملات</Link> لتظهر الأرقام بالأوقية.
         </p>
       )}
+
+      {tab === "dash" && <FinanceDashboard input={dashInput} snapshot={dashSnapshot} today={today} onOpenTab={(t) => chooseTab(t as ReportTab)} />}
 
       {tab === "starlink" && (
         <section className="section report-tab-panel">

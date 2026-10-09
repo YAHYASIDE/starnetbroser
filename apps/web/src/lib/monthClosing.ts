@@ -133,6 +133,10 @@ export interface MonthShipmentRow {
   profitMru: number;
   representativeId?: string;
   repShareMru: number;
+  /** What the customer was charged and what Starlink cost, in أوقية at the SAME rate as the profit
+   * (so saleMru − costMru = profitMru, always). */
+  saleMru: number;
+  costMru: number;
   /** False when the MRU figure uses today's rate (no rate was locked at payment). */
   exact: boolean;
 }
@@ -159,15 +163,24 @@ export interface MonthReport {
 /** Every shipment whose Starlink cost was paid in `month`, oldest first, with its profit and rep
  * share in أوقية (each at its own locked rate; today's rate only where none was locked). */
 export function buildMonthReport(ledgerStore: LedgerByAccount, month: string, currentMruRate: number): MonthReport {
+  return buildPeriodReport(ledgerStore, month, (profitDate) => monthOf(profitDate) === month, currentMruRate);
+}
+
+/** The same report over any days (the financial dashboard's periods) - `inPeriod` gets each
+ * shipment's profit date; `label` fills `month`. One calculation for both. */
+export function buildPeriodReport(ledgerStore: LedgerByAccount, label: string, inPeriod: (date: string) => boolean, currentMruRate: number): MonthReport {
+  const month = label;
   const rows: MonthShipmentRow[] = [];
   for (const [accountId, entries] of Object.entries(ledgerStore)) {
     for (const entry of entries) {
       if (entry.kind !== "debit" || entry.starlinkCost?.status !== "settled") continue;
       const profitDate = shipmentProfitDate(entry);
-      if (monthOf(profitDate) !== month) continue;
+      if (!inPeriod(profitDate)) continue;
       const profit = computeShipmentProfit(entry);
       if (profit.status !== "computed" || profit.profitUsd === undefined) continue;
       const share = shipmentRepShareUsd(entry) ?? 0;
+      const rate = entry.profitCurrencyRates?.MRU ?? currentMruRate;
+      const saleMru = (profit.saleValueUsd ?? 0) * rate;
       rows.push({
         accountId,
         entry,
@@ -176,6 +189,8 @@ export function buildMonthReport(ledgerStore: LedgerByAccount, month: string, cu
         profitMru: profit.profitMru ?? profit.profitUsd * currentMruRate,
         representativeId: entry.representativeId,
         repShareMru: entryUsdToMru(share, entry, currentMruRate),
+        saleMru,
+        costMru: saleMru - (profit.profitMru ?? profit.profitUsd * currentMruRate),
         exact: profit.profitMru !== undefined,
       });
     }
