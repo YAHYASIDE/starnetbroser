@@ -50,6 +50,8 @@ import { monthLabel, recentMonths } from "@/lib/monthClosing";
 import { exportXlsx } from "@/lib/xlsxExport";
 import { DASH_SECTIONS, FinanceDashboard, type DashSnapshot } from "@/components/FinanceDashboard";
 import type { DashInput } from "@/lib/financeDashboard";
+import type { MoneyInput } from "@/lib/financeAnalysis";
+import { computeSupplierStoreBalance } from "@/lib/invoiceStore";
 import { REPORT_HIT_LABELS, searchReports, type ReportHit } from "@/lib/reportSearch";
 import { listSuppliers, loadSupplierStore, type SupplierStore } from "@/lib/supplierStore";
 import {
@@ -435,6 +437,22 @@ export default function ReportsPage() {
     }),
     [visibleLedger, ledgerStore, invoices, storeTransactions, cashEntries, rates, topUps, profitReset, resetByAccount, accounts],
   );
+  // 🏭 What I owe suppliers now (the same figure «حسابي» shows), in أوقية ≈.
+  const suppliersOwed = useMemo(() => {
+    let mru = 0;
+    let count = 0;
+    let known = true;
+    for (const supplier of listSuppliers(supplierStore)) {
+      const owed: Record<string, number> = {};
+      for (const [code, v] of Object.entries(computeSupplierStoreBalance(invoices, supplier.id, adjustments))) if (v > 0.0001) owed[code] = v;
+      if (Object.keys(owed).length === 0) continue;
+      count += 1;
+      const sum = sumToMru(owed, rates);
+      if (sum.missing.length) known = false;
+      mru += sum.mru;
+    }
+    return { suppliersMru: known && (mruRate || count === 0) ? mru : undefined, suppliersCount: count };
+  }, [supplierStore, invoices, adjustments, rates, mruRate]);
   const dashSnapshot = useMemo<DashSnapshot>(
     () => ({
       debtorsMru: mruRate ? debtorsTotal : undefined,
@@ -442,10 +460,16 @@ export default function ReportsPage() {
       owedStarlinkMru: usdToMru(ownDUsd + previousUsd),
       activeDevices: activeAccounts.length,
       activeClients: new Set(activeAccounts.map((a) => a.clientId).filter(Boolean)).size,
+      ...suppliersOwed,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [mruRate, debtorsTotal, debtors.length, ownDUsd, previousUsd, activeAccounts],
+    [mruRate, debtorsTotal, debtors.length, ownDUsd, previousUsd, activeAccounts, suppliersOwed],
   );
+  const dashMoney = useMemo<MoneyInput>(
+    () => ({ ledger: ledgerStore, invoices, adjustments, settlements, cash: cashEntries, rates }),
+    [ledgerStore, invoices, adjustments, settlements, cashEntries, rates],
+  );
+  const dashClientName = useMemo(() => (id: string) => getClient(clientStore, id)?.name, [clientStore]);
   const searchHits = useMemo(
     () =>
       searchReports(searchQuery, {
@@ -588,7 +612,17 @@ export default function ReportsPage() {
         </p>
       )}
 
-      {tab === "dash" && <FinanceDashboard input={dashInput} snapshot={dashSnapshot} today={today} onOpenTab={(t) => chooseTab(t as ReportTab)} />}
+      {tab === "dash" && (
+        <FinanceDashboard
+          input={dashInput}
+          money={dashMoney}
+          accounts={accounts}
+          clientName={dashClientName}
+          snapshot={dashSnapshot}
+          today={today}
+          onOpenTab={(t) => (t === "money" ? window.location.assign("/money/") : chooseTab(t as ReportTab))}
+        />
+      )}
 
       {tab === "starlink" && (
         <section className="section report-tab-panel">

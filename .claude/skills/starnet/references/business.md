@@ -770,3 +770,16 @@ is never pressed while a field is empty - it refills and saves on the next try (
   exactly the «الصافي» figure (`buildPeriodNet` = the month calculation over any days); a renewal whose
   cost is still owed (D) is «ربح معلّق», never profit; payments are collections, never revenue; personal
   expenses are not business expenses; a figure with no data shows «لا توجد بيانات كافية».
+- **Phase 2 (done, Oct 9 2026)**, `lib/financeAnalysis.ts`: «🔔 التنبيهات» (only from the numbers: net
+  profit ≥ 20% below the compared period, expenses ≥ 30% and ≥ 1,000 above it, new debts beyond
+  collections by ≥ 1,000, ≥ 3 renewals still owing Starlink, goals near / reached / ceiling passed) shown
+  in the dashboard only; «🎯 الأهداف» in أوقية kept with «أهداف الشهر» (`starnet_goals_v1`: daily and
+  monthly profit, monthly collection, ceilings on monthly expenses and new debts) with a half-circle
+  gauge; «⭕ النسب والتوزيع» rings (each says its formula and numbers on tap) and donuts in the fixed
+  categorical order; «💳 مصادر الأموال» - each amount once: device payments by method, rep handovers
+  (the device part is already a device payment `heldByRepId`, only the remainder is a settlement),
+  store paid at the till, manual «داخل»; sales on credit shown apart, refunds not recorded in the app
+  (said on screen); «📡 اشتراكات ستارلينك» realized vs pending, paid vs owed, best devices/customers,
+  ending within 7 days; «🧾 الديون والتحصيلات» new debts vs collections (collection ratio = collected ÷
+  new debt of the period), owed by customers / to suppliers / to Starlink now, paid to suppliers. The
+  operating balance stays in «💰 حسابي» (the card links there - never computed twice).

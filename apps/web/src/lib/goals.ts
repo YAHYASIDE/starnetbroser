@@ -6,8 +6,11 @@
 
 import type { ClientStore } from "./clientStore";
 import { isShipmentEntry, type LedgerByAccount } from "./ledgerStore";
+import type { MoneyGoals } from "./financeAnalysis";
 
-export interface MonthlyGoals {
+/** The money goals (أوقية: daily / monthly profit, monthly collection, ceilings on expenses and new
+ * debts) live here too - the dashboard's «🎯 الأهداف» (lib/financeAnalysis.ts) reads and sets them. */
+export interface MonthlyGoals extends MoneyGoals {
   /** Shipments recorded (renewals + new devices) in the month. */
   renewals?: number;
   newClients?: number;

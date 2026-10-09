@@ -21,6 +21,14 @@
   --violet: #7c3aed;
   --chart-1: #1668e3;
   --chart-2: #e0294a;
+  --cat-1: #2a78d6;
+  --cat-2: #eb6834;
+  --cat-3: #1baf7a;
+  --cat-4: #eda100;
+  --cat-5: #e87ba4;
+  --cat-6: #008300;
+  --cat-7: #4a3aa7;
+  --cat-8: #e34948;
   --violet-bg: #efe7ff;
   --orange: #ea6a0c;
   --orange-bg: #ffead8;
@@ -63,6 +71,14 @@
   --violet: #a98bff;
   --chart-1: #2f86ec;
   --chart-2: #ee4664;
+  --cat-1: #3987e5;
+  --cat-2: #d95926;
+  --cat-3: #199e70;
+  --cat-4: #c98500;
+  --cat-5: #d55181;
+  --cat-6: #008300;
+  --cat-7: #9085e9;
+  --cat-8: #e66767;
   --violet-bg: #231c48;
   --orange: #ff9a3d;
   --orange-bg: #3a220c;
@@ -104,6 +120,14 @@
   --violet: #a98bff;
   --chart-1: #2f86ec;
   --chart-2: #ee4664;
+  --cat-1: #3987e5;
+  --cat-2: #d95926;
+  --cat-3: #199e70;
+  --cat-4: #c98500;
+  --cat-5: #d55181;
+  --cat-6: #008300;
+  --cat-7: #9085e9;
+  --cat-8: #e66767;
   --violet-bg: #231c48;
   --orange: #ff9a3d;
   --orange-bg: #3a220c;
@@ -14298,3 +14322,127 @@ button.today-tile {
 .dash-sources-bar i { display: block; height: 100%; border-radius: 999px; background: var(--chart-1); }
 .dash-sources-value { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .dash-sources-value small { color: var(--text-muted); font-weight: 600; }
+
+
+/* ---- 📊 الملخص, phase 2: rings, donuts, gauge, alerts, goals, mini tiles, ranks ---- */
+.dash-alerts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.dash-alert {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border-inline-start: 4px solid var(--tone, var(--brand));
+  background: color-mix(in srgb, var(--tone, var(--brand)) 10%, var(--surface));
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+.dash-alert-good { --tone: var(--green); }
+.dash-alert-warn { --tone: var(--yellow); }
+.dash-alert-bad { --tone: var(--red); }
+
+.dash-goals { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.dash-goal { --tone: var(--chart-1); display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; font-size: 0.8rem; }
+.dash-goal-good { --tone: var(--green); }
+.dash-goal-warn { --tone: var(--yellow); }
+.dash-goal-bad { --tone: var(--red); }
+.dash-goal-rev { --tone: var(--chart-1); }
+.dash-goal-label { font-weight: 700; }
+.dash-goal-bar { height: 10px; border-radius: 999px; background: color-mix(in srgb, var(--tone) 14%, transparent); overflow: hidden; }
+.dash-goal-bar i { display: block; height: 100%; border-radius: 999px; background: var(--tone); transition: width 0.3s ease; }
+.dash-goal small { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.dash-goals-form { display: flex; flex-direction: column; gap: 8px; }
+
+.fin-rings { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.fin-ring { display: flex; flex-direction: column; align-items: center; min-width: 0; }
+.fin-ring-open { grid-column: 1 / -1; }
+.fin-ring-btn { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px; border: 0; background: transparent; color: var(--text); font: inherit; }
+.fin-ring-svg { width: 76px; height: 76px; }
+.fin-ring-track { fill: none; stroke: color-mix(in srgb, var(--text-muted) 18%, transparent); stroke-width: 7; }
+.fin-ring-text { fill: var(--text); font-size: 13px; font-weight: 800; }
+.fin-ring-label { font-size: 0.72rem; color: var(--text-muted); text-align: center; line-height: 1.3; }
+.fin-ring-how { margin: 2px 0 0; font-size: 0.75rem; color: var(--text-muted); text-align: center; }
+
+.fin-donut { display: flex; flex-direction: column; gap: 6px; padding-top: 6px; border-top: 1px dashed var(--border); }
+.fin-donut-title { font-size: 0.85rem; }
+.fin-donut-body { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; align-items: center; }
+.fin-donut-svg { width: 96px; height: 96px; }
+.fin-donut-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fin-donut-legend button {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 30px;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.75rem;
+  text-align: start;
+}
+.fin-donut-legend button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fin-donut-legend i { width: 10px; height: 10px; border-radius: 3px; }
+.fin-donut-legend bdi { font-weight: 700; font-variant-numeric: tabular-nums; }
+.fin-donut-legend small { color: var(--text-muted); }
+.fin-donut-on { background: color-mix(in srgb, var(--brand) 10%, transparent) !important; }
+.fin-donut-unit { color: var(--text-muted); font-size: 0.7rem; }
+
+.fin-gauge { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.fin-gauge-svg { width: 180px; height: 100px; max-width: 100%; }
+.fin-gauge-text { fill: var(--text); font-size: 18px; font-weight: 800; }
+.fin-gauge-label { font-weight: 700; font-size: 0.85rem; }
+.fin-gauge-sub { color: var(--text-muted); font-size: 0.75rem; }
+
+.dash-mini-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.dash-mini {
+  --tone: var(--brand);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--tone) 30%, var(--border));
+  background: color-mix(in srgb, var(--tone) 8%, var(--surface));
+}
+.dash-mini-good { --tone: var(--green); }
+.dash-mini-bad { --tone: var(--red); }
+.dash-mini-warn { --tone: var(--yellow); }
+.dash-mini-rev { --tone: var(--chart-1); }
+.dash-mini-neutral { --tone: var(--text-muted); }
+.dash-mini span { font-size: 0.72rem; color: var(--text-muted); font-weight: 600; }
+.dash-mini strong { font-size: 1rem; font-variant-numeric: tabular-nums; }
+.dash-mini small { font-size: 0.68rem; color: var(--text-muted); }
+
+.dash-ranks { display: flex; flex-direction: column; gap: 4px; }
+.dash-rank { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.dash-rank li { display: grid; grid-template-columns: minmax(0, 1fr) 70px auto; align-items: center; gap: 8px; font-size: 0.8rem; }
+.dash-rank li > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-rank li small { color: var(--text-muted); }
+.dash-rank li bdi { font-weight: 700; font-variant-numeric: tabular-nums; }
+.dash-rank-bar { height: 8px; border-radius: 999px; background: color-mix(in srgb, var(--green) 14%, transparent); overflow: hidden; }
+.dash-rank-bar i { display: block; height: 100%; border-radius: 999px; background: var(--green); }
+.dash-rank-more { color: var(--text-muted); }
+.dash-ranks + .dash-ranks { margin-top: 4px; }
+
+.dash-aside-box {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--yellow);
+  font-size: 0.8rem;
+}
+.dash-aside-box bdi { font-weight: 700; font-variant-numeric: tabular-nums; }
+.dash-sources-value { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 2px 6px; }
+.dash-section-alerts { border-color: color-mix(in srgb, var(--yellow) 45%, var(--border)); }
+.dash-section-goals { border-color: color-mix(in srgb, var(--green) 40%, var(--border)); }
+.dash-section-starlink { border-color: color-mix(in srgb, var(--chart-1) 40%, var(--border)); }
+.dash-section-debts { border-color: color-mix(in srgb, var(--red) 35%, var(--border)); }
+
+/* Six report tabs since «📊 الملخص»: two rows of three, every label whole at 360px. */
+.report-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.report-tabs .report-tab { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

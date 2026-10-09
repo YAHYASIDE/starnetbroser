@@ -23,6 +23,20 @@ import {
   type PeriodMetrics,
 } from "@/lib/financeDashboard";
 import { monthLabel } from "@/lib/monthClosing";
+import { PartySheet } from "./AccountsSection";
+import { Donut, Gauge, Ring } from "./FinanceCharts";
+import type { StarlinkAccountSummary } from "@starnet/shared";
+import {
+  buildAlerts,
+  buildDebtFlow,
+  buildGoalItems,
+  buildMoneySources,
+  buildStarlinkAnalysis,
+  type GoalItem,
+  type MoneyGoals,
+  type MoneyInput,
+} from "@/lib/financeAnalysis";
+import { loadGoals, saveGoals } from "@/lib/goals";
 
 /** What the dashboard shows that isn't a period total: balances as they are today. */
 export interface DashSnapshot {
@@ -33,16 +47,24 @@ export interface DashSnapshot {
   owedStarlinkMru?: number;
   activeDevices: number;
   activeClients: number;
+  /** What I owe suppliers now (store purchases unpaid + their balance entries), أوقية ≈. */
+  suppliersMru?: number;
+  suppliersCount: number;
 }
 
-export type DashSectionId = "kpis" | "compare" | "monthly" | "waterfall" | "sources";
+export type DashSectionId = "alerts" | "kpis" | "goals" | "compare" | "monthly" | "rings" | "waterfall" | "sources" | "starlink" | "debts";
 
 export const DASH_SECTIONS: { id: DashSectionId; icon: string; title: string; keywords: string }[] = [
+  { id: "alerts", icon: "🔔", title: "التنبيهات", keywords: "تنبيه انخفاض ارتفاع تحذير" },
   { id: "kpis", icon: "💎", title: "المؤشرات الرئيسية", keywords: "ملخص ايرادات ربح مصروفات هامش متوسط" },
+  { id: "goals", icon: "🎯", title: "الأهداف", keywords: "هدف اهداف حد سقف" },
   { id: "compare", icon: "⚖️", title: "مقارنة الأداء", keywords: "مقارنة الشهر الماضي امس اسبوع" },
   { id: "monthly", icon: "📈", title: "تحليل الأداء الشهري", keywords: "شهري سنوي مخطط افضل شهر نمو" },
+  { id: "rings", icon: "⭕", title: "النسب والتوزيع", keywords: "نسبة دائرة هامش توزيع" },
   { id: "waterfall", icon: "🧮", title: "من أين جاء صافي الربح؟", keywords: "صافي ربح تكلفة معلق محقق" },
-  { id: "sources", icon: "💳", title: "مصادر التحصيل", keywords: "بنكيلي اورانج سداد نقدا تحصيل وسيلة دفع" },
+  { id: "sources", icon: "💳", title: "مصادر الأموال", keywords: "بنكيلي اورانج سداد نقدا تحصيل وسيلة دفع مصدر" },
+  { id: "starlink", icon: "📡", title: "اشتراكات ستارلينك", keywords: "ستارلينك تجديد اشتراك تكلفة d تنتهي" },
+  { id: "debts", icon: "🧾", title: "الديون والتحصيلات", keywords: "ديون دين تحصيل موردين" },
 ];
 
 const PREFS_KEY = "starnet.dashboard";
@@ -174,7 +196,7 @@ const SHORT_MONTHS = ["ينا", "فبر", "مار", "أبر", "ماي", "يون"
 
 /** 📈 Months of a year as bars - one metric in its own color, or two money metrics side by side
  * (blue / red, legend + values on tap). One axis only: a count is never mixed with money. */
-function MonthChart({ points, metrics }: { points: { month: string; values: number[]; future: boolean }[]; metrics: { key: MonthMetricKey; label: string; count?: boolean }[] }) {
+function MonthChart({ points, metrics }: { points: { month: string; values: number[]; future: boolean }[]; metrics: { key: MonthMetricKey | string; label: string; count?: boolean }[] }) {
   const [selected, setSelected] = useState<number | null>(null);
   const W = 340;
   const H = 170;
@@ -253,11 +275,18 @@ function MonthChart({ points, metrics }: { points: { month: string; values: numb
 
 export function FinanceDashboard({
   input,
+  money,
+  accounts,
+  clientName,
   snapshot,
   today,
   onOpenTab,
 }: {
   input: DashInput;
+  /** Every money record (phase 2: sources, debts). */
+  money: MoneyInput;
+  accounts: StarlinkAccountSummary[];
+  clientName: (clientId: string) => string | undefined;
   snapshot: DashSnapshot;
   today: string;
   onOpenTab: (tab: string) => void;
@@ -288,6 +317,48 @@ export function FinanceDashboard({
     return earliest;
   }, [input, today]);
 
+  // ---- phase 2: money sources, Starlink, debts, goals, alerts ----
+  const sources = useMemo(() => buildMoneySources(money, range, previousRange), [money, range, previousRange]);
+  const debtFlow = useMemo(() => buildDebtFlow(money, range), [money, range]);
+  const starlink = useMemo(
+    () => buildStarlinkAnalysis(current, input.ledgerStore, input.activityLedger ?? input.ledgerStore, accounts, clientName, input.rates),
+    [current, input, accounts, clientName],
+  );
+  const [goals, setGoals] = useState<MoneyGoals>({});
+  useEffect(() => setGoals(loadGoals()), []);
+  const [goalsOpen, setGoalsOpen] = useState(false);
+  const monthRange = useMemo(() => periodRange("month", today), [today]);
+  const monthMetrics = useMemo(() => buildPeriodMetrics(input, monthRange), [input, monthRange]);
+  const dayMetrics = useMemo(() => buildPeriodMetrics(input, { from: today, to: today }), [input, today]);
+  const monthDebt = useMemo(() => buildDebtFlow(money, monthRange), [money, monthRange]);
+  const goalItems = useMemo(() => buildGoalItems(goals, dayMetrics, monthMetrics, monthDebt), [goals, dayMetrics, monthMetrics, monthDebt]);
+  const alerts = useMemo(
+    () =>
+      buildAlerts({
+        current,
+        previous,
+        previousLabel: COMPARE_MODES.find((m) => m.mode === mode)?.label ?? "الفترة السابقة",
+        debt: debtFlow,
+        openDCount: starlink.openDCount,
+        openDMru: starlink.openDMru,
+        goals: goalItems,
+      }),
+    [current, previous, mode, debtFlow, starlink, goalItems],
+  );
+  const debtYear = useMemo(
+    () =>
+      yearData.months.map((p) => {
+        const flow = buildDebtFlow(money, p.metrics.range);
+        return { month: p.month, future: p.future, values: [flow.collectedMru, flow.newDebtMru] };
+      }),
+    [yearData, money],
+  );
+  function saveMoneyGoals(next: MoneyGoals) {
+    const merged = { ...loadGoals(), ...next };
+    saveGoals(merged);
+    setGoals(merged);
+  }
+
   const isOpen = (id: DashSectionId) => !prefs.collapsed.includes(id);
   const toggle = (id: DashSectionId) => update({ collapsed: isOpen(id) ? [...prefs.collapsed, id] : prefs.collapsed.filter((c) => c !== id) });
   const approx = current.approximate;
@@ -300,12 +371,13 @@ export function FinanceDashboard({
     { id: "collected", icon: "💵", label: "المحصّل من العملاء", value: current.collectedCount ? mru(current.collectedMru, approx) : null, unit: "أوقية", tone: "rev", change: byKey.collected, how: "دفعات الزبائن عن الأجهزة المسجلة في الفترة («له»). تحصيل مال وليس ربحًا: لا يُضاف إلى الأرباح.", tab: "debts" },
     { id: "pending", icon: "⏳", label: "ربح معلّق (D)", value: current.pendingCount ? mru(current.pendingProfitMru, true) : null, unit: `أوقية · ${current.pendingCount} تجديد`, tone: "warn", how: "تجديدات الفترة التي ما زالت تكلفتها دينًا عليك لستارلينك: هامش متوقع، لا يُعتبر ربحًا محققًا ولا متاحًا للسحب حتى تسدّد ستارلينك.", tab: "starlink" },
     { id: "debtors", icon: "🧾", label: "ديون العملاء المستحقة", value: snapshot.debtorsMru !== undefined && snapshot.debtorsCount ? mru(snapshot.debtorsMru, true) : null, unit: `أوقية · ${snapshot.debtorsCount} زبون`, tone: "warn", how: "ما على الزبائن الآن (كل الأجهزة والمتجر)، أيًا كانت الفترة.", tab: "debts" },
-    { id: "owed", icon: "🏭", label: "عليّ لستارلينك", value: snapshot.owedStarlinkMru !== undefined ? mru(snapshot.owedStarlinkMru, true) : null, unit: "أوقية", tone: "warn", how: "تكاليف D غير المسددة + ديون الملاك السابقين، الآن. ديون الموردين الآخرين في المرحلة القادمة.", tab: "debts" },
+    { id: "owed", icon: "📡", label: "عليّ لستارلينك", value: snapshot.owedStarlinkMru !== undefined ? mru(snapshot.owedStarlinkMru, true) : null, unit: "أوقية", tone: "warn", how: "تكاليف D غير المسددة + ديون الملاك السابقين، الآن.", tab: "debts" },
+    { id: "suppliers", icon: "🏭", label: "المستحق للموردين", value: snapshot.suppliersCount && snapshot.suppliersMru !== undefined ? mru(snapshot.suppliersMru, true) : null, unit: `أوقية · ${snapshot.suppliersCount} مورد`, tone: "warn", how: "ما بقي عليك للموردين الآن: فواتير الشراء غير المسددة + قيود أرصدتهم.", tab: "store" },
     { id: "renewals", icon: "🔄", label: "عمليات التجديد", value: String(current.renewals), tone: "neutral", change: byKey.renewals, how: "كل تجديد مسجل بتاريخه في الفترة (D أو مسدد). دين التوثيق ليس تجديدًا." },
     { id: "active", icon: "📡", label: "الأجهزة / العملاء النشطون", value: `${snapshot.activeDevices} / ${snapshot.activeClients}`, tone: "neutral", how: "الأجهزة غير المؤرشفة وغير المحذوفة الآن، والزبائن الذين لهم جهاز منها." },
     { id: "avg", icon: "➗", label: "متوسط الربح لكل تجديد", value: current.avgProfitPerRenewalMru !== undefined ? mru(current.avgProfitPerRenewalMru) : null, unit: "أوقية", tone: "profit", how: "ربح ستارلينك المحقق ÷ عدد التجديدات المحققة في الفترة (قبل حصص المندوبين)." },
     { id: "margin", icon: "％", label: "هامش الربح", value: current.marginPct !== undefined ? `${Math.round(current.marginPct)}%` : null, tone: current.marginPct !== undefined && current.marginPct < 0 ? "loss" : "profit", how: "صافي الربح ÷ الإيرادات المحققة × 100." },
-    { id: "capital", icon: "🏦", label: "الرصيد التشغيلي", value: null, tone: "neutral", how: "أرصدتك في الكاش والحسابات البنكية موجودة في «💰 حسابي» - تُربط هنا في المرحلة القادمة." },
+    { id: "capital", icon: "🏦", label: "الرصيد التشغيلي", value: null, tone: "neutral", how: "أرصدة الكاش والحسابات البنكية والمحافظ تُحسب في «💰 حسابي» (رصيد كل حساب من تاريخ ضبطه) - لا يُعاد حسابها هنا حتى لا يظهر رقمان مختلفان.", tab: "money" },
   ];
 
   const chosenMetrics = MONTH_METRICS.filter((m) => prefs.metrics.includes(m.key));
@@ -321,8 +393,6 @@ export function FinanceDashboard({
     const money = prefs.metrics.filter((k) => !MONTH_METRICS.find((m) => m.key === k)?.count);
     update({ metrics: [...money.slice(-1), key] });
   }
-
-  const totalCollected = current.collectedMru;
 
   return (
     <div className="dash">
@@ -372,12 +442,52 @@ export function FinanceDashboard({
         {current.missingCurrencies.length > 0 && ` · لم تُحتسب عملات بلا سعر: ${current.missingCurrencies.join("، ")}`}
       </p>
 
+      <DashSection id="alerts" open={isOpen("alerts")} onToggle={() => toggle("alerts")}>
+        {alerts.length === 0 ? (
+          <p className="party-empty">✅ لا تنبيهات: لا انخفاض في الربح، ولا ارتفاع غير معتاد في المصروفات أو الديون.</p>
+        ) : (
+          <ul className="dash-alerts">
+            {alerts.map((a) => (
+              <li key={a.key} className={`dash-alert dash-alert-${a.tone}`}>
+                {a.text}
+              </li>
+            ))}
+          </ul>
+        )}
+      </DashSection>
+
       <DashSection id="kpis" open={isOpen("kpis")} onToggle={() => toggle("kpis")}>
         <div className="dash-kpis">
           {kpis.map((card) => (
             <KpiCard key={card.id} card={card} open={openKpi === card.id} onToggle={() => setOpenKpi(openKpi === card.id ? null : card.id)} onOpenTab={onOpenTab} />
           ))}
         </div>
+      </DashSection>
+
+      <DashSection
+        id="goals"
+        open={isOpen("goals")}
+        onToggle={() => toggle("goals")}
+        extra={
+          <button type="button" className="dash-tool" onClick={() => setGoalsOpen(true)}>
+            ✏️ الأهداف
+          </button>
+        }
+      >
+        {goalItems.length === 0 ? (
+          <p className="party-empty">لم تحدد أهدافًا بعد. اضغط «✏️ الأهداف» لتحدد هدف الربح اليومي والشهري، هدف التحصيل، وحد المصروفات والديون الجديدة.</p>
+        ) : (
+          <>
+            {goalItems.find((g) => g.key === "profitMonthMru") && (
+              <Gauge label="هدف ربح الشهر" done={goalItems.find((g) => g.key === "profitMonthMru")!.done} target={goalItems.find((g) => g.key === "profitMonthMru")!.target} />
+            )}
+            <ul className="dash-goals">
+              {goalItems.map((g) => (
+                <GoalRow key={g.key} goal={g} />
+              ))}
+            </ul>
+          </>
+        )}
       </DashSection>
 
       <DashSection
@@ -492,6 +602,26 @@ export function FinanceDashboard({
         )}
       </DashSection>
 
+      <DashSection id="rings" open={isOpen("rings")} onToggle={() => toggle("rings")}>
+        <div className="fin-rings">
+          <Ring label="الربح ÷ الإيرادات" ratio={current.revenueMru > 0 ? current.netMru / current.revenueMru : undefined} tone={current.netMru < 0 ? "bad" : "good"} how={`صافي الربح ${mru(current.netMru)} ÷ الإيرادات المحققة ${mru(current.revenueMru)} أوقية.`} />
+          <Ring label="المصروفات ÷ الإيرادات" ratio={current.revenueMru > 0 ? current.expensesMru / current.revenueMru : undefined} tone="bad" how={`المصروفات ${mru(current.expensesMru)} ÷ الإيرادات المحققة ${mru(current.revenueMru)} أوقية.`} />
+          <Ring label="نسبة التحصيل" ratio={debtFlow.ratioPct !== undefined ? debtFlow.ratioPct / 100 : undefined} tone="rev" how={`المحصّل من العملاء ${mru(debtFlow.collectedMru)} ÷ الديون الجديدة في الفترة ${mru(debtFlow.newDebtMru)} أوقية (تجديدات وتوثيق ومبيعات بالدين).`} />
+          <Ring label="تجديدات مسددة لستارلينك" ratio={starlink.periodSettled + starlink.periodPending > 0 ? starlink.periodSettled / (starlink.periodSettled + starlink.periodPending) : undefined} tone="warn" how={`${starlink.periodSettled} تجديدًا سُددت تكلفته لستارلينك و${starlink.periodPending} ما زالت دينًا، من تجديدات الفترة.`} />
+          {goalItems.find((g) => g.key === "profitMonthMru") && (
+            <Ring label="هدف ربح الشهر" ratio={goalItems.find((g) => g.key === "profitMonthMru")!.ratio} tone="good" how={`ربح الشهر ${mru(monthMetrics.netMru)} من هدف ${mru(goals.profitMonthMru ?? 0)} أوقية.`} />
+          )}
+        </div>
+        <Donut
+          title="الإيرادات حسب النوع"
+          slices={[
+            { key: "starlink", label: "تجديدات ستارلينك", value: current.net.starlinkSalesMru },
+            { key: "store", label: "مبيعات المتجر", value: current.net.storeSalesMru },
+          ]}
+        />
+        <Donut title="الأموال الداخلة حسب المصدر" slices={sources.rows.map((r) => ({ key: r.key, label: r.label, value: r.mru }))} />
+      </DashSection>
+
       <DashSection id="waterfall" open={isOpen("waterfall")} onToggle={() => toggle("waterfall")}>
         {current.empty ? (
           <p className="party-empty">{NO_DATA} في هذه الفترة.</p>
@@ -518,27 +648,90 @@ export function FinanceDashboard({
       </DashSection>
 
       <DashSection id="sources" open={isOpen("sources")} onToggle={() => toggle("sources")}>
-        {current.collectedByMethod.length === 0 ? (
-          <p className="party-empty">لا تحصيلات في هذه الفترة.</p>
+        {sources.rows.length === 0 ? (
+          <p className="party-empty">لا أموال داخلة في هذه الفترة.</p>
         ) : (
-          <ul className="dash-sources">
-            {current.collectedByMethod.map((m) => (
-              <li key={m.method}>
-                <span className="dash-sources-label">
-                  {m.label} <small>({m.count})</small>
-                </span>
-                <span className="dash-sources-bar" aria-hidden="true">
-                  <i style={{ width: `${totalCollected > 0 ? Math.max(2, (m.mru / totalCollected) * 100) : 0}%` }} />
-                </span>
-                <span className="dash-sources-value">
-                  <bdi dir="ltr">{mru(m.mru)}</bdi> <small>{totalCollected > 0 ? `${Math.round((m.mru / totalCollected) * 100)}%` : ""}</small>
-                </span>
+          <>
+            <p className="dash-period-note">
+              المجموع <bdi dir="ltr">{mru(sources.totalMru, sources.approx)}</bdi> أوقية · كان <bdi dir="ltr">{mru(sources.previousTotalMru)}</bdi>
+            </p>
+            <ul className="dash-sources">
+              {sources.rows.map((m) => (
+                <li key={m.key}>
+                  <span className="dash-sources-label">
+                    {m.label} <small>({m.count})</small>
+                  </span>
+                  <span className="dash-sources-bar" aria-hidden="true">
+                    <i style={{ width: `${sources.totalMru > 0 ? Math.max(m.mru > 0 ? 2 : 0, (m.mru / sources.totalMru) * 100) : 0}%` }} />
+                  </span>
+                  <span className="dash-sources-value">
+                    <bdi dir="ltr">{mru(m.mru)}</bdi> <small>{Math.round(m.share)}%</small>
+                    <Change row={{ diff: m.mru - m.previousMru, pct: m.changePct, upIsGood: true }} />
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+        <div className="dash-aside-box">
+          <span>🧾 مبيعات بالدين في الفترة (ليست مالًا داخلًا)</span>
+          <bdi dir="ltr">{mru(sources.creditSalesMru, sources.approx)}</bdi>
+        </div>
+        <p className="settings-hint">
+          كل مبلغ يُحسب مرة واحدة: دفعات الزبائن بوسيلتها، تسليم المندوبين، المدفوع عند البيع في المتجر، وقيود «داخل» اليدوية. الاستردادات والإلغاءات غير مسجلة في التطبيق فلا تظهر هنا.
+          {sources.missing.length > 0 && ` لم تُحتسب عملات بلا سعر: ${sources.missing.join("، ")}.`}
+        </p>
+      </DashSection>
+
+      <DashSection id="starlink" open={isOpen("starlink")} onToggle={() => toggle("starlink")}>
+        <div className="dash-mini-grid">
+          <Mini label="أرباح محققة" value={mru(starlink.realizedProfitMru)} sub={`${starlink.realizedCount} تجديد`} tone="good" />
+          <Mini label="ربح معلّق (D)" value={mru(starlink.pendingProfitMru, true)} sub={`${starlink.pendingCount} تجديد`} tone="warn" />
+          <Mini label="تكلفة الاشتراكات" value={mru(starlink.costMru)} sub="المسددة لستارلينك" tone="bad" />
+          <Mini label="المدفوع من العملاء" value={mru(current.collectedMru, approx)} sub="دفعات الأجهزة" tone="rev" />
+          <Mini label="عليّ لستارلينك الآن" value={starlink.openDMru !== undefined ? mru(starlink.openDMru, true) : "—"} sub={`${starlink.openDCount} تجديد غير مسدد`} tone="warn" />
+          <Mini label="متوسط الربح لكل تجديد" value={starlink.avgProfitMru !== undefined ? mru(starlink.avgProfitMru) : NO_DATA} sub="المحقق" tone="good" />
+        </div>
+        <p className="settings-hint">الربح المعلّق ليس ربحًا متاحًا للسحب: تكلفته ما زالت دينًا عليك لستارلينك، ويصير محققًا يوم تسدّدها. تحصيل قيمة الاشتراك من الزبون شيء، وتسديد تكلفته لستارلينك شيء آخر.</p>
+        <RankList title="🏆 أكثر الأجهزة ربحًا" rows={starlink.topDevices} countLabel="تجديد" />
+        <RankList title="👥 أفضل العملاء ربحًا" rows={starlink.topClients} countLabel="جهاز" />
+        <h3 className="dash-sub">⏰ تقترب من الانتهاء (7 أيام)</h3>
+        {starlink.expiringSoon.length === 0 ? (
+          <p className="party-empty">لا أجهزة تنتهي خلال 7 أيام.</p>
+        ) : (
+          <ul className="dash-rank">
+            {starlink.expiringSoon.slice(0, 8).map((r) => (
+              <li key={r.id}>
+                <span>{r.name}</span>
+                <small>{r.days === 0 ? "توقف هذه الليلة" : r.days === 1 ? "تنتهي اليوم" : `بعد ${r.days} أيام`}</small>
               </li>
             ))}
+            {starlink.expiringSoon.length > 8 && <li className="dash-rank-more">+{starlink.expiringSoon.length - 8} جهاز آخر</li>}
           </ul>
         )}
-        <p className="settings-hint">دفعات الزبائن عن الأجهزة فقط. البيع بالدين ليس مالًا داخلًا. التحليل الكامل لمصادر الأموال والمقارنة في المرحلة القادمة.</p>
+        <button type="button" className="text-action" onClick={() => onOpenTab("starlink")}>
+          كشف التجديدات الكامل ←
+        </button>
       </DashSection>
+
+      <DashSection id="debts" open={isOpen("debts")} onToggle={() => toggle("debts")}>
+        <div className="dash-mini-grid">
+          <Mini label="ديون جديدة في الفترة" value={mru(debtFlow.newDebtMru, debtFlow.approx)} sub="تجديدات، توثيق، بيع بالدين" tone="warn" />
+          <Mini label="تحصيلات في الفترة" value={mru(debtFlow.collectedMru, debtFlow.approx)} sub="دفعات العملاء" tone="rev" />
+          <Mini label="على العملاء الآن" value={snapshot.debtorsMru !== undefined ? mru(snapshot.debtorsMru, true) : NO_DATA} sub={`${snapshot.debtorsCount} زبون`} tone="warn" />
+          <Mini label="للموردين الآن" value={snapshot.suppliersMru !== undefined ? mru(snapshot.suppliersMru, true) : NO_DATA} sub={`${snapshot.suppliersCount} مورد`} tone="bad" />
+          <Mini label="دفعتُه للموردين" value={mru(debtFlow.paidSuppliersMru)} sub="في الفترة" tone="neutral" />
+          <Mini label="عليّ لستارلينك" value={snapshot.owedStarlinkMru !== undefined ? mru(snapshot.owedStarlinkMru, true) : NO_DATA} sub="D + ديون سابقة" tone="bad" />
+        </div>
+        <h3 className="dash-sub">التحصيلات (أزرق) مقابل الديون الجديدة (أحمر) - <bdi dir="ltr">{year}</bdi></h3>
+        <MonthChart points={debtYear} metrics={[{ key: "collected", label: "التحصيلات" }, { key: "debt", label: "الديون الجديدة" }]} />
+        <p className="settings-hint">تحصيل دين قديم يُحسب هنا تحصيلًا فقط - لا يدخل الأرباح مرة ثانية. ودفعك للمورد ليس مصروفًا جديدًا إن كانت تكلفة البضاعة احتُسبت عند البيع.</p>
+        <button type="button" className="text-action" onClick={() => onOpenTab("debts")}>
+          قائمة المدينين وأعمار الديون ←
+        </button>
+      </DashSection>
+
+      {goalsOpen && <GoalsSheet goals={goals} onSave={(next) => { saveMoneyGoals(next); setGoalsOpen(false); }} onClose={() => setGoalsOpen(false)} />}
     </div>
   );
 }
@@ -553,6 +746,108 @@ function WaterLine({ label, value, total, approx, aside, onClick }: { label: str
         </bdi>
       </button>
     </li>
+  );
+}
+
+function Mini({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone: "good" | "bad" | "warn" | "rev" | "neutral" }) {
+  return (
+    <div className={`dash-mini dash-mini-${tone}`}>
+      <span>{label}</span>
+      <strong>
+        <bdi dir="ltr">{value}</bdi>
+      </strong>
+      {sub && <small>{sub}</small>}
+    </div>
+  );
+}
+
+function RankList({ title, rows, countLabel }: { title: string; rows: { id: string; name: string; value: number; count: number }[]; countLabel: string }) {
+  const max = Math.max(1, ...rows.map((r) => Math.abs(r.value)));
+  return (
+    <div className="dash-ranks">
+      <h3 className="dash-sub">{title}</h3>
+      {rows.length === 0 ? (
+        <p className="party-empty">{NO_DATA} في هذه الفترة.</p>
+      ) : (
+        <ul className="dash-rank">
+          {rows.map((r) => (
+            <li key={r.id}>
+              <span>
+                {r.name} <small>({r.count} {countLabel})</small>
+              </span>
+              <span className="dash-rank-bar" aria-hidden="true">
+                <i style={{ width: `${(Math.abs(r.value) / max) * 100}%` }} />
+              </span>
+              <bdi dir="ltr" className={r.value < 0 ? "dash-change-bad" : undefined}>
+                {mru(r.value)}
+              </bdi>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function GoalRow({ goal }: { goal: GoalItem }) {
+  const pct = Math.round(goal.ratio * 100);
+  const tone = goal.status === "done" ? "good" : goal.status === "over" ? "bad" : goal.status === "near" ? (goal.ceiling ? "warn" : "good") : "rev";
+  return (
+    <li className={`dash-goal dash-goal-${tone}`}>
+      <span className="dash-goal-label">
+        {goal.label}
+        {goal.ceiling ? " (حد أعلى)" : ""}
+      </span>
+      <span className="dash-goal-bar" aria-hidden="true">
+        <i style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
+      </span>
+      <small>
+        <bdi dir="ltr">{mru(goal.done)}</bdi> / <bdi dir="ltr">{mru(goal.target)}</bdi> · <bdi dir="ltr">{`${pct}%`}</bdi>
+        {goal.status === "done" && " 🎉"}
+        {goal.status === "over" && " ⛔"}
+      </small>
+    </li>
+  );
+}
+
+const GOAL_FIELDS: { key: keyof MoneyGoals; label: string }[] = [
+  { key: "profitDayMru", label: "هدف الربح اليومي" },
+  { key: "profitMonthMru", label: "هدف الربح الشهري" },
+  { key: "collectionMonthMru", label: "هدف التحصيل الشهري" },
+  { key: "expensesMaxMru", label: "الحد الأعلى للمصروفات (شهريًا)" },
+  { key: "newDebtsMaxMru", label: "الحد الأعلى للديون الجديدة (شهريًا)" },
+];
+
+/** ✏️ The money goals, in أوقية - empty = no goal. */
+function GoalsSheet({ goals, onSave, onClose }: { goals: MoneyGoals; onSave: (next: MoneyGoals) => void; onClose: () => void }) {
+  const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(GOAL_FIELDS.map((f) => [f.key, goals[f.key] ? String(goals[f.key]) : ""])));
+  const parse = (v: string) => Number(v.replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d))).replace(/[,\s]/g, ""));
+  return (
+    <PartySheet title="🎯 الأهداف (أوقية)" onClose={onClose}>
+      <div className="dash-goals-form">
+        {GOAL_FIELDS.map((f) => (
+          <label key={f.key} className="renewal-lock-day">
+            <span>{f.label}</span>
+            <input className="search-input" inputMode="decimal" dir="ltr" value={values[f.key] ?? ""} placeholder="—" onChange={(e) => setValues({ ...values, [f.key]: e.target.value })} />
+          </label>
+        ))}
+        <p className="settings-hint">اترك الخانة فارغة لإلغاء الهدف. التنبيهات تُحسب من أرقامك الحقيقية فقط.</p>
+        <button
+          type="button"
+          className="dialog-primary"
+          onClick={() => {
+            const next: MoneyGoals = {};
+            for (const f of GOAL_FIELDS) {
+              const n = parse(values[f.key] ?? "");
+              next[f.key] = Number.isFinite(n) && n > 0 ? n : undefined;
+            }
+            onSave(next);
+          }}
+        >
+          💾 حفظ
+        </button>
+      </div>
+    </PartySheet>
   );
 }
 
