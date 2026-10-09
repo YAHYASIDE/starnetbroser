@@ -196,7 +196,7 @@ export function buildTravelCheckReport(
   const found = ids
     .map((id) => accounts.find((a) => a.id === id))
     .filter((a): a is StarlinkAccountSummary => Boolean(a) && needsTravelRegistration(a!));
-  const head = `🛂 كشف توثيق${label ? ` - ${label}` : ""}\nفُحص ${ids.length} جهاز · يحتاج توثيق: ${found.length}${skipped ? ` · لم يُفحص ${skipped} (غير مسجّل/تعلّق)` : ""}`;
+  const head = `🛂 كشف توثيق${label ? ` - ${label}` : ""}\nفُحص ${Math.max(0, ids.length - skipped)} جهاز · يحتاج توثيق: ${found.length}${skipped ? ` · لم يُفحص ${skipped} (غير مسجّل/تعلّق/لم تظهر الصفحة)` : ""}`;
   if (found.length === 0) return { text: `${head}\n\n✅ لا جهاز يحتاج توثيقًا.`, found: 0 };
   const rows: { text: string; url: string }[][] = [];
   const lines = found.map((account, i) => {
@@ -215,6 +215,74 @@ export function buildTravelCheckReport(
     replyMarkup: JSON.stringify({ inline_keyboard: rows }),
     found: found.length,
   };
+}
+
+// ---- 🛂 Which devices a run did NOT check (his rule «لكي لا يرتكب الأخطاء») ----
+
+/** A run outcome that means the device's Home never said whether registration is needed: signed
+ * out, stuck, closed, Home never loaded ("nothing"), or the read couldn't be saved. Such a device is
+ * «لم يُفحص», never «لا يحتاج». */
+export function isTravelUnchecked(outcome: string | undefined): boolean {
+  return outcome === "signedOut" || outcome === "stuck" || outcome === "closed" || outcome === "nothing" || outcome === "saveFailed";
+}
+
+export function travelUncheckedCount(ids: string[], results: Record<string, string> | undefined): number {
+  return ids.filter((id) => isTravelUnchecked(results?.[id])).length;
+}
+
+// ---- 🌙 A «كشف توثيق» running in the background (phone-only `starnet.travelBgRun`) ----
+
+/** The check BackgroundSyncService is running: its devices, and how each ended so far (the native
+ * side records every device's outcome - "closed" for the ones a «إيقاف» left). */
+export interface TravelBgRun {
+  label: string;
+  ids: string[];
+  results: Record<string, string>;
+  startedAt: string;
+}
+
+/** A run whose devices never all reported (the phone killed the service) is dropped after this. */
+const TRAVEL_BG_MAX_MS = 12 * 60 * 60 * 1000;
+
+/** Takes this run's devices' outcomes out of `records` (the rest stay for the usual handling).
+ * `finished` once every device has one; `run` null when it finished or went stale. Pure. */
+export function absorbTravelResults<T extends { accountId: string; outcome: string }>(
+  run: TravelBgRun | null,
+  records: T[],
+  now: Date = new Date(),
+): { run: TravelBgRun | null; finished: TravelBgRun | null; rest: T[] } {
+  if (!run) return { run: null, finished: null, rest: records };
+  const results = { ...run.results };
+  const rest: T[] = [];
+  for (const record of records) {
+    if (run.ids.includes(record.accountId) && results[record.accountId] === undefined) results[record.accountId] = record.outcome;
+    else rest.push(record);
+  }
+  const next = { ...run, results };
+  if (run.ids.every((id) => results[id] !== undefined)) return { run: null, finished: next, rest };
+  const started = new Date(run.startedAt).getTime();
+  if (!Number.isFinite(started) || now.getTime() - started > TRAVEL_BG_MAX_MS) return { run: null, finished: null, rest };
+  return { run: next, finished: null, rest };
+}
+
+const BG_RUN_KEY = "starnet.travelBgRun";
+
+export function loadTravelBgRun(): TravelBgRun | null {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(BG_RUN_KEY) ?? "null") as TravelBgRun | null;
+    return parsed && Array.isArray(parsed.ids) && typeof parsed.results === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveTravelBgRun(run: TravelBgRun | null): void {
+  try {
+    if (run) localStorage.setItem(BG_RUN_KEY, JSON.stringify(run));
+    else localStorage.removeItem(BG_RUN_KEY);
+  } catch {
+    // storage unavailable - the bot and the notification still carry the report
+  }
 }
 
 // ---- ✓ «أُرسل»: which customers he already messaged (phone-only, `starnet.travelSent`) ----

@@ -869,7 +869,7 @@ public class LocalBrowserPlugin extends Plugin {
             call.resolve(ret);
             return;
         }
-        BackgroundSyncService.start(getContext(), ids, names, call.getString("label", ""));
+        BackgroundSyncService.start(getContext(), ids, names, call.getString("label", ""), Boolean.TRUE.equals(call.getBoolean("travelCheck", false)));
         ret.put("started", true);
         call.resolve(ret);
     }

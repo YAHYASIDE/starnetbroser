@@ -533,6 +533,14 @@ mind). Exact texts and numbers live in the code - this file says where.
   buttons) - the rep's app has no bot.
 - Many rep devices are in **French**: the check reads them as they are (no language switch) and
   waits for Home to load on a slow phone (his report: «يخرج بسرعة ويكتب لم يتم العثور»).
+- His Oct 9 request («اجعل زر كشف الأجهزة الموثق يعمل في الخلفية… وتأكد أنه يعمل جيد… وفي زر كل
+  الأجهزة»): with «🌙 المزامنة في الخلفية» on, every «🛂 كشف توثيق» (a day, a card's «🔄 تحقق الآن», all
+  devices) runs in the background service - the same Home-only read, nothing else changes. New
+  «🛂 كشف توثيق كل الأجهزة» in «🔄 مزامنة الآن»: every device except the faulty ones (متعطل / محروق…) and
+  the non-main emails (= the «كل الأجهزة» sync set). No errors rule: a device counts as checked only
+  when Home really said it (its account line or the banner); signed out / stuck / closed / page never
+  loaded = «لم يُفحص» in the report, never «لا يحتاج». The bot and the phone notification get the
+  report at the end; the app shows it with the WhatsApp buttons when opened (`starnet.travelBgRun`).
 
 ## 🔔 Notifications stay (Oct 2026)
 

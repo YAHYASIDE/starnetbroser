@@ -36,6 +36,11 @@ import java.util.List;
  * (the «الظهور فوق التطبيقات» permission, granted once) - it draws normally while the operator sees
  * nothing and keeps using the phone. A notification shows "3 / 10" with «إيقاف»; a device not signed
  * in is alerted on the owner's bot at once, and the whole run is reported there at the end.
+ *
+ * 🛂 The same service runs «كشف توثيق» in the background (EXTRA_TRAVEL_CHECK): each such device is
+ * read Home-only by SyncRunner, and those devices get their own report (TravelCheckReport). Every
+ * device keeps the mode it was queued with, so a check added while a sync runs (or the other way
+ * round) is never read the wrong way.
  */
 public class BackgroundSyncService extends Service {
 
@@ -44,6 +49,7 @@ public class BackgroundSyncService extends Service {
     static final String EXTRA_IDS = "ids";
     static final String EXTRA_NAMES = "names";
     static final String EXTRA_LABEL = "label";
+    static final String EXTRA_TRAVEL_CHECK = "travelCheck";
 
     private static final String CHANNEL_ID = "starnet_bg_sync_v1";
     private static final int NOTIFICATION_ID = 4417;
@@ -54,7 +60,12 @@ public class BackgroundSyncService extends Service {
     private final List<String> ids = new ArrayList<>();
     private final List<String> names = new ArrayList<>();
     private final List<String> outcomes = new ArrayList<>();
-    private String label = "";
+    /** 🛂 Per device: queued as a «كشف توثيق» (Home only), and its label. */
+    private final List<Boolean> travelModes = new ArrayList<>();
+    private final List<String> labels = new ArrayList<>();
+    /** 🛂 Per finished device of a check: needs / clear / why unchecked, and the deadline. */
+    private final List<String> travelResults = new ArrayList<>();
+    private final List<String> travelDues = new ArrayList<>();
     private int index;
     private boolean running;
     private WebView webView;
@@ -66,9 +77,10 @@ public class BackgroundSyncService extends Service {
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(context);
     }
 
-    static void start(Context context, String[] accountIds, String[] accountNames, String runLabel) {
+    static void start(Context context, String[] accountIds, String[] accountNames, String runLabel, boolean travelCheck) {
         Intent intent = new Intent(context, BackgroundSyncService.class).setAction(ACTION_START)
-            .putExtra(EXTRA_IDS, accountIds).putExtra(EXTRA_NAMES, accountNames).putExtra(EXTRA_LABEL, runLabel);
+            .putExtra(EXTRA_IDS, accountIds).putExtra(EXTRA_NAMES, accountNames).putExtra(EXTRA_LABEL, runLabel)
+            .putExtra(EXTRA_TRAVEL_CHECK, travelCheck);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent);
         else context.startService(intent);
     }
@@ -95,21 +107,33 @@ public class BackgroundSyncService extends Service {
         }
         String[] newIds = intent != null ? intent.getStringArrayExtra(EXTRA_IDS) : null;
         String[] newNames = intent != null ? intent.getStringArrayExtra(EXTRA_NAMES) : null;
+        boolean travelCheck = intent != null && intent.getBooleanExtra(EXTRA_TRAVEL_CHECK, false);
+        String newLabel = intent != null ? intent.getStringExtra(EXTRA_LABEL) : null;
         if (newIds != null) {
             for (int i = 0; i < newIds.length; i++) {
-                if (newIds[i] == null || ids.contains(newIds[i])) continue;
+                if (newIds[i] == null) continue;
+                // Already waiting in the same mode: once is enough. Already done, or in the other
+                // mode: queued again (a check after a sync is a different read).
+                if (isQueued(newIds[i], travelCheck)) continue;
                 ids.add(newIds[i]);
                 names.add(newNames != null && i < newNames.length && newNames[i] != null ? newNames[i] : "");
+                travelModes.add(travelCheck);
+                labels.add(newLabel != null ? newLabel : "");
             }
         }
         if (!running) {
-            String newLabel = intent != null ? intent.getStringExtra(EXTRA_LABEL) : null;
-            label = newLabel != null ? newLabel : "";
             running = true;
             acquireWakeLock();
             handler.post(this::runNext);
         }
         return START_NOT_STICKY;
+    }
+
+    private boolean isQueued(String accountId, boolean travelCheck) {
+        for (int i = index; i < ids.size(); i++) {
+            if (ids.get(i).equals(accountId) && travelModes.get(i) == travelCheck) return true;
+        }
+        return false;
     }
 
     private void acquireWakeLock() {
@@ -129,7 +153,10 @@ public class BackgroundSyncService extends Service {
         }
         String accountId = ids.get(index);
         String name = names.get(index);
-        updateProgress("🔄 مزامنة في الخلفية · " + BackgroundSyncReport.progress(index, ids.size(), name));
+        boolean travelCheck = travelModes.get(index);
+        updateProgress(travelCheck
+            ? TravelCheckReport.progress(index, ids.size(), name)
+            : "🔄 مزامنة في الخلفية · " + BackgroundSyncReport.progress(index, ids.size(), name));
         String profileName;
         try {
             profileName = ProfileNaming.profileNameFor(accountId);
@@ -139,7 +166,7 @@ public class BackgroundSyncService extends Service {
             return;
         }
         String homeUrl = LocalBrowserPlugin.DEFAULT_URL;
-        runner = new SyncRunner(this, webView, accountId, homeUrl, outcome -> deviceDone(accountId, name, outcome));
+        runner = new SyncRunner(this, webView, accountId, homeUrl, travelCheck, outcome -> deviceDone(accountId, name, outcome));
         webView.loadUrl(homeUrl);
         runner.start();
     }
@@ -204,6 +231,14 @@ public class BackgroundSyncService extends Service {
     private void deviceDone(String accountId, String name, String outcome) {
         if (!running) return;
         outcomes.add(outcome);
+        if (travelModes.get(index)) {
+            SyncRunner finished = runner;
+            travelResults.add(TravelCheckReport.result(outcome, finished != null ? finished.travelRequired() : null));
+            travelDues.add(finished != null ? finished.travelDue() : "");
+        } else {
+            travelResults.add(null);
+            travelDues.add(null);
+        }
         if ("signedOut".equals(outcome)) {
             String alert = BackgroundSyncReport.signedOutAlert(name);
             TelegramSendWorker.enqueue(this, alert);
@@ -221,14 +256,41 @@ public class BackgroundSyncService extends Service {
         running = false;
         handler.removeCallbacksAndMessages(null);
         removeWebView();
-        if (wasRunning && !outcomes.isEmpty()) {
-            String report = BackgroundSyncReport.report(label, names.subList(0, outcomes.size()), outcomes, stopped);
-            TelegramSendWorker.enqueue(this, report);
-            // The whole report in the notification bar; a tap opens the app's home screen.
-            AppEventNotifier.post(this, report, AppEventText.HOME_ROUTE);
-            AlertSound.play(this);
+        if (wasRunning) {
+            // 🛂 A check's devices that never ran are recorded as such, so the app closes the run.
+            for (int i = outcomes.size(); i < ids.size(); i++) {
+                if (travelModes.get(i)) AutoSyncResults.record(this, ids.get(i), "closed");
+            }
+            List<String> syncNames = new ArrayList<>();
+            List<String> syncOutcomes = new ArrayList<>();
+            List<String> travelNames = new ArrayList<>();
+            List<String> checks = new ArrayList<>();
+            List<String> dues = new ArrayList<>();
+            String syncLabel = null;
+            String travelLabel = null;
+            for (int i = 0; i < outcomes.size(); i++) {
+                if (travelModes.get(i)) {
+                    if (travelLabel == null) travelLabel = labels.get(i);
+                    travelNames.add(names.get(i));
+                    checks.add(travelResults.get(i));
+                    dues.add(travelDues.get(i));
+                } else {
+                    if (syncLabel == null) syncLabel = labels.get(i);
+                    syncNames.add(names.get(i));
+                    syncOutcomes.add(outcomes.get(i));
+                }
+            }
+            if (!syncOutcomes.isEmpty()) announce(BackgroundSyncReport.report(syncLabel, syncNames, syncOutcomes, stopped));
+            if (!checks.isEmpty()) announce(TravelCheckReport.report(travelLabel, travelNames, checks, dues, stopped));
+            if (!outcomes.isEmpty()) AlertSound.play(this);
         }
         stopSelfNow();
+    }
+
+    /** The owner's bot, and the whole report in the notification bar (a tap opens the home screen). */
+    private void announce(String report) {
+        TelegramSendWorker.enqueue(this, report);
+        AppEventNotifier.post(this, report, AppEventText.HOME_ROUTE);
     }
 
     private void stopSelfNow() {

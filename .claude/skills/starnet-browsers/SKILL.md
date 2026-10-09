@@ -34,7 +34,11 @@ plus the rules learned from real misreads; keep it updated when you learn a new 
      overlay window** («الظهور فوق التطبيقات» permission) so Starlink's page really draws. SyncRunner is
      a copy of the device browser's walk - **any change to `syncFromStarlink`'s steps or waits must be
      made in SyncRunner too**. Progress notification with «إيقاف»; signed-out alert + per-device report
-     on the owner bot (`BackgroundSyncReport`).
+     on the owner bot (`BackgroundSyncReport`). 🛂 «كشف توثيق» runs there too (`travelCheck`): SyncRunner's
+     Home-only mode = the device browser's `EXTRA_AUTO_SYNC_HOME_ONLY` walk (reload Home, wait up to
+     30 s for `hasHomeRead`, reads marked `checkOnly`, page language kept) - keep the two in step. A
+     check is "ok" only when Home really answered; otherwise "nothing" = «لم يُفحص», never «لا يحتاج»
+     (both runners). Its own bot report: `TravelCheckReport`; each queued device keeps its mode.
    - `AutoSyncWorker.java` - background sync. A run over many devices reads Home only (pace +
      Starlink's 429 rate limit, `SyncPacing`), plus Billing once a week per device; a single device's
      own run does the deep walk (subscriptions, devices, billing, settings).

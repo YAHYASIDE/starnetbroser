@@ -159,6 +159,8 @@ public class AccountBrowserActivity extends AppCompatActivity {
      * tracked separately from a single page's own result, since a page with nothing on it (e.g.
      * an unexpectedly-shaped "الاشتراكات" list) must never flip an already-true result back. */
     private boolean syncFoundAnything;
+    /** 🛂 «كشف توثيق»: Home said whether the travel registration is needed. */
+    private boolean syncSawHomeRead;
     /** True the moment PendingSyncStore.save fails even once - takes priority over
      * syncFoundAnything when this run finishes, since a save failure is real data loss the
      * operator must be told about, never silently outweighed by an earlier page's success. */
@@ -1070,6 +1072,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
         }
 
         syncFoundAnything = false;
+        syncSawHomeRead = false;
         syncSaveFailed = false;
         syncSawStopped = false;
         syncSawRestricted = false;
@@ -1203,7 +1206,10 @@ public class AccountBrowserActivity extends AppCompatActivity {
         if (fields == null || fields.length() == 0) return;
         lastSavedPageKey = StarlinkExtractorSupport.settleKey(fields);
         // 🛂 A «كشف توثيق» read changes nothing on the device but the travel-registration notice.
-        if (syncHomeOnly) fields.put("checkOnly", true);
+        if (syncHomeOnly) {
+            fields.put("checkOnly", true);
+            if (StarlinkExtractorSupport.hasHomeRead(fields)) syncSawHomeRead = true;
+        }
         syncSawStopped = StarlinkExtractorSupport.keepStoppedWithinRun(fields, syncSawStopped);
         syncSawRestricted = StarlinkExtractorSupport.keepRestrictedWithinRun(fields, syncSawRestricted);
         // Durable write FIRST: the final toast must never claim more than what is actually safe on
@@ -1328,7 +1334,10 @@ public class AccountBrowserActivity extends AppCompatActivity {
         }
         // 🔔 The operator asked for a sound when a sync ends (silent mode stays silent).
         AlertSound.play(this);
-        if (autoSyncThenClose) AutoSyncResults.record(this, accountId, syncSaveFailed ? "saveFailed" : syncFoundAnything ? "ok" : "nothing");
+        // 🛂 A check counts only when Home really said whether registration is needed - a page that
+        // never loaded is "nothing" (not checked), never a silent «لا يحتاج».
+        boolean found = syncHomeOnly ? syncSawHomeRead : syncFoundAnything;
+        if (autoSyncThenClose) AutoSyncResults.record(this, accountId, syncSaveFailed ? "saveFailed" : found ? "ok" : "nothing");
         closeAfterAutoSync();
     }
 

@@ -220,13 +220,15 @@ export async function openOverlaySettings(): Promise<void> {
   }
 }
 
-/** Starts the background sync of these devices; false when it can't (permission missing, web). */
-export async function startBackgroundSync(accounts: { id: string; name: string }[], label: string): Promise<boolean> {
+/** Starts the background sync of these devices; false when it can't (permission missing, web).
+ * `travelCheck`: a «🛂 كشف توثيق» - each device's Home only, nothing else changes. */
+export async function startBackgroundSync(accounts: { id: string; name: string }[], label: string, travelCheck = false): Promise<boolean> {
   if (!isRunningInAndroidApp() || accounts.length === 0) return false;
   try {
     const { started } = await LocalBrowser.startBackgroundSync({
       accounts: accounts.map((a) => ({ accountId: a.id, accountName: a.name || "" })),
       label,
+      ...(travelCheck ? { travelCheck: true } : {}),
     });
     return started;
   } catch {

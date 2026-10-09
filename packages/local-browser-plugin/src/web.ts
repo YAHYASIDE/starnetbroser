@@ -82,7 +82,7 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
     return;
   }
 
-  async startBackgroundSync(_options: { accounts: { accountId: string; accountName: string }[]; label?: string }): Promise<{ started: boolean }> {
+  async startBackgroundSync(_options: { accounts: { accountId: string; accountName: string }[]; label?: string; travelCheck?: boolean }): Promise<{ started: boolean }> {
     return { started: false };
   }
 

@@ -144,12 +144,12 @@ import {
   triggerImmediateSync,
 } from "@/lib/localBrowser";
 import { SyncChoiceSheet, SyncQueueBar } from "./SyncNowSheet";
-import { loadSyncQueue, localToday, nextQueuedAccount, queueProgressLabel, saveSyncQueue, startSyncQueue, syncedOnlyByCommand, syncQueueFor, type SyncWindow } from "@/lib/syncQueue";
+import { loadSyncQueue, localToday, nextQueuedAccount, pickSyncAccounts, queueProgressLabel, saveSyncQueue, startSyncQueue, syncedOnlyByCommand, syncQueueFor, type SyncWindow } from "@/lib/syncQueue";
 import { DayActionsSheet } from "./DayActionsSheet";
 import { TravelCheckSheet } from "./TravelCheckSheet";
 import { NotificationsBell } from "./NotificationsBell";
 import { hiddenRepIds, isHiddenRepDevice, repContact } from "@/lib/repSeparation";
-import { applyTravelFee, buildTravelCheckReport, isTravelVerified, markTravelDone, needsTravelRegistration, setTravelPrice, travelDoneRepMessage, travelEarnings } from "@/lib/travelRegistration";
+import { absorbTravelResults, applyTravelFee, buildTravelCheckReport, isTravelVerified, loadTravelBgRun, markTravelDone, needsTravelRegistration, saveTravelBgRun, setTravelPrice, travelDoneRepMessage, travelEarnings, travelUncheckedCount, type TravelBgRun } from "@/lib/travelRegistration";
 import { buildAccountStatementMessage, buildWhatsAppLink } from "@/lib/whatsapp";
 import { accountsForDay, accountsOfOwner, type DayOwner } from "@/lib/dayActions";
 import { applyOutcomes, buildSyncReport, outcomeLabel, signedOutAlert } from "@/lib/syncReport";
@@ -534,7 +534,11 @@ export function HomeView({
 
   async function refreshSyncQueue() {
     // How the devices' auto-syncs ended since last time (signed out, stuck, done...).
-    const records = await takeAutoSyncResults();
+    // 🛂 A «كشف توثيق» in the background takes its own devices' outcomes first.
+    const absorbed = absorbTravelResults(loadTravelBgRun(), await takeAutoSyncResults());
+    saveTravelBgRun(absorbed.run);
+    if (absorbed.finished) showTravelBgResult(absorbed.finished);
+    const records = absorbed.rest;
     let queue = loadSyncQueue();
     if (!queue) {
       setQueueStep(null);
@@ -587,17 +591,29 @@ export function HomeView({
 
   /** 🌙 The operator chose the background sync (settings): the devices are read without opening
    * their pages. Returns false when it can't run (permission missing) - the visible run is used. */
-  async function trySyncInBackground(ids: string[], label: string): Promise<boolean> {
+  async function trySyncInBackground(ids: string[], label: string, travelCheck = false): Promise<boolean> {
     if (!isBackgroundSyncEnabled()) return false;
     const list = ids
       .map((id) => accountsRef.current.find((a) => a.id === id))
       .filter((a): a is StarlinkAccountSummary => Boolean(a))
       .map((a) => ({ id: a.id, name: a.name }));
-    if (await startBackgroundSync(list, label)) {
-      pushToast(`🌙 بدأت المزامنة في الخلفية (${list.length} جهاز) - تابعها في الإشعار، والنتيجة في البوت`);
+    if (await startBackgroundSync(list, label, travelCheck)) {
+      if (travelCheck) {
+        // Remembered so the app shows the result (with the WhatsApp buttons) when it comes back.
+        const earlier = loadTravelBgRun();
+        const listIds = list.map((a) => a.id);
+        saveTravelBgRun(
+          earlier
+            ? { ...earlier, label, ids: [...new Set([...earlier.ids, ...listIds])], results: Object.fromEntries(Object.entries(earlier.results).filter(([id]) => !listIds.includes(id))) }
+            : { label, ids: listIds, results: {}, startedAt: new Date().toISOString() },
+        );
+        pushToast(`🌙 بدأ «🛂 كشف التوثيق» في الخلفية (${list.length} جهاز) - تابعه في الإشعار، والنتيجة في البوت وهنا`);
+      } else {
+        pushToast(`🌙 بدأت المزامنة في الخلفية (${list.length} جهاز) - تابعها في الإشعار، والنتيجة في البوت`);
+      }
       return true;
     }
-    pushToast("⚠️ اسمح بـ«الظهور فوق التطبيقات» من الإعدادات لتعمل المزامنة في الخلفية - تعمل الآن بالطريقة العادية");
+    pushToast(`⚠️ اسمح بـ«الظهور فوق التطبيقات» من الإعدادات لتعمل ${travelCheck ? "«كشف التوثيق»" : "المزامنة"} في الخلفية - تعمل الآن بالطريقة العادية`);
     return false;
   }
 
@@ -679,16 +695,35 @@ export function HomeView({
    * so the last device's read (drained on resume) is on the device first. */
   function finishTravelCheck(queue: NonNullable<ReturnType<typeof loadSyncQueue>>, ids: string[]) {
     window.setTimeout(() => {
-      const skipped = ids.filter((id) => {
-        const outcome = queue.results?.[id];
-        return outcome === "signedOut" || outcome === "stuck" || outcome === "closed";
-      }).length;
+      // Home never answered (signed out, stuck, closed, page never loaded): «لم يُفحص», never «لا يحتاج».
+      const skipped = travelUncheckedCount(ids, queue.results);
       const report = buildTravelCheckReport(queue.label, ids, accountsRef.current, (account) => messagePhoneOf(account, clientStoreRef.current), skipped);
       if (isTelegramConnected()) void sendTelegramText(report.text, report.replyMarkup);
       setTravelResult({ label: queue.label, ids, skipped });
       void notifyPhone(report.text.split("\n").slice(0, 2).join(" · "), HOME_ROUTE);
       pushToast(report.found ? `🛂 ${report.found} جهاز يحتاج توثيق` : "🛂 كشف التوثيق: لا جهاز يحتاج توثيقًا");
     }, 2500);
+  }
+
+  /** 🌙 A background «كشف توثيق» ended: the bot and the notification already have its report
+   * (native), so the app only shows it with its WhatsApp buttons - once its reads are drained. */
+  function showTravelBgResult(run: TravelBgRun) {
+    window.setTimeout(() => {
+      const skipped = travelUncheckedCount(run.ids, run.results);
+      const found = run.ids.filter((id) => {
+        const account = accountsRef.current.find((a) => a.id === id);
+        return account && needsTravelRegistration(account);
+      }).length;
+      setTravelResult({ label: run.label, ids: run.ids, skipped });
+      pushToast(`🛂 انتهى كشف التوثيق في الخلفية: ${found ? `${found} جهاز يحتاج توثيق` : "لا جهاز يحتاج توثيقًا"}${skipped ? ` · لم يُفحص ${skipped}` : ""}`);
+    }, 2500);
+  }
+
+  /** 🛂 «كشف توثيق» of every device (his request): all but the faulty ones (المتعطلة / المحروقة…)
+   * and the non-main emails - the same devices as «🔄 مزامنة الآن ← كل الأجهزة». */
+  function travelCheckAll() {
+    setSyncChoiceOpen(false);
+    travelCheckIds(pickSyncAccounts(accountsRef.current, { kind: "all" }, localToday()).map((a) => a.id), "كل الأجهزة");
   }
 
   /** 🛂 «كشف توثيق» of a calendar day: each device's Home only, one by one, nothing else changes. */
@@ -702,10 +737,13 @@ export function HomeView({
   function travelCheckIds(ids: string[], label: string) {
     const queue = syncQueueFor(ids, label, true);
     if (!queue) {
-      pushToast("لا أجهزة للكشف في هذا اليوم");
+      pushToast("لا أجهزة للكشف");
       return;
     }
-    startVisibleRun(queue);
+    // 🌙 With «المزامنة في الخلفية» on: the same Home-only check, without opening the pages.
+    void trySyncInBackground(queue.ids, label, true).then((background) => {
+      if (!background) startVisibleRun(queue);
+    });
   }
 
   function stopSyncRun() {
@@ -1634,7 +1672,7 @@ export function HomeView({
           onClose={() => setTravelResult(null)}
         />
       )}
-      {syncChoiceOpen && <SyncChoiceSheet accounts={accounts} today={localToday()} onPick={startSyncRun} onClose={() => setSyncChoiceOpen(false)} />}
+      {syncChoiceOpen && <SyncChoiceSheet accounts={accounts} today={localToday()} onPick={startSyncRun} onTravelAll={travelCheckAll} onClose={() => setSyncChoiceOpen(false)} />}
       {queueStep && (
         <SyncQueueBar
           label={queueStep.label}

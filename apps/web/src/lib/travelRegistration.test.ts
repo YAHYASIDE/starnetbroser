@@ -4,7 +4,7 @@ import { computeShipmentProfit } from "./accountingStore";
 import { computeDeviceMarks } from "./deviceMarks";
 import { computeBalanceByCurrency, isLegacyShipmentEntry, isShipmentEntry, isTravelFeeEntry, type LedgerEntry } from "./ledgerStore";
 import { buildAccountStatementMessage } from "./whatsapp";
-import { applyTravelFee, TRAVEL_FEE_NOTE, travelFeeKey, travelWhatsAppLink, groupTravelByOwner, buildTravelCheckReport, buildTravelRegistrationMessage, isTravelPending, isTravelVerified, markTravelDone, needsTravelRegistration, setTravelPrice, travelDoneRepMessage, travelDueArabic, travelEarnings, undoTravelDone } from "./travelRegistration";
+import { absorbTravelResults, applyTravelFee, isTravelUnchecked, TRAVEL_FEE_NOTE, travelUncheckedCount, type TravelBgRun, travelFeeKey, travelWhatsAppLink, groupTravelByOwner, buildTravelCheckReport, buildTravelRegistrationMessage, isTravelPending, isTravelVerified, markTravelDone, needsTravelRegistration, setTravelPrice, travelDoneRepMessage, travelDueArabic, travelEarnings, undoTravelDone } from "./travelRegistration";
 
 const dev = (id: string, extra: Partial<StarlinkAccountSummary> = {}) => ({ id, name: `جهاز ${id}`, ...extra }) as StarlinkAccountSummary;
 
@@ -40,7 +40,7 @@ describe("🛂 travel registration", () => {
     ];
     const report = buildTravelCheckReport("يوم 1", ["a", "b", "c"], accounts, (a) => (a.id === "a" ? "+222 12345678" : undefined), 1);
     expect(report.found).toBe(2);
-    expect(report.text).toContain("فُحص 3 جهاز · يحتاج توثيق: 2 · لم يُفحص 1");
+    expect(report.text).toContain("فُحص 2 جهاز · يحتاج توثيق: 2 · لم يُفحص 1");
     expect(report.text).toContain("1) جهاز a\n📧 a@example.com\n📱 +222 12345678\n⏰ قبل 15 أكتوبر");
     expect(report.text).toContain("2) جهاز c\n📧 بلا بريد\n📱 بلا رقم");
     const keyboard = JSON.parse(report.replyMarkup!);
@@ -160,5 +160,38 @@ describe("🛂 the registration price is a debt on the owner", () => {
     expect(computeBalanceByCurrency([entry!])).toEqual({ MRU: 15000 });
     expect(computeDeviceMarks([entry!], [])).toEqual({ d: null, p: null });
     expect(buildAccountStatementMessage("جهاز أ", [entry!])).toContain("عليه 15,000 أوقية - 🛂 توثيق السفر");
+  });
+});
+
+describe("🌙 «كشف توثيق» in the background", () => {
+  const NOW = new Date("2026-10-09T12:00:00.000Z");
+  const run: TravelBgRun = { label: "كل الأجهزة", ids: ["a", "b", "c"], results: {}, startedAt: "2026-10-09T11:00:00.000Z" };
+
+  it("a device is «لم يُفحص» unless Home really answered", () => {
+    expect(["signedOut", "stuck", "closed", "nothing", "saveFailed"].every(isTravelUnchecked)).toBe(true);
+    expect(isTravelUnchecked("ok")).toBe(false);
+    expect(travelUncheckedCount(["a", "b", "c"], { a: "ok", b: "nothing", c: "signedOut" })).toBe(2);
+  });
+
+  it("takes only this run's outcomes, finishes once every device reported", () => {
+    const first = absorbTravelResults(run, [{ accountId: "a", outcome: "ok" }, { accountId: "x", outcome: "stuck" }], NOW);
+    expect(first.finished).toBeNull();
+    expect(first.run?.results).toEqual({ a: "ok" });
+    expect(first.rest).toEqual([{ accountId: "x", outcome: "stuck" }]);
+    const second = absorbTravelResults(first.run, [{ accountId: "b", outcome: "nothing" }, { accountId: "c", outcome: "closed" }], NOW);
+    expect(second.run).toBeNull();
+    expect(second.finished?.results).toEqual({ a: "ok", b: "nothing", c: "closed" });
+  });
+
+  it("a run that never ended is dropped after 12 hours; no run takes nothing", () => {
+    const stale = absorbTravelResults(run, [], new Date("2026-10-10T00:00:01.000Z"));
+    expect(stale).toEqual({ run: null, finished: null, rest: [] });
+    expect(absorbTravelResults(null, [{ accountId: "a", outcome: "ok" }]).rest).toHaveLength(1);
+  });
+
+  it("the report counts the unchecked apart from the checked", () => {
+    const accounts = [dev("a", { travelRegistrationRequired: true, travelRegistrationDue: "October 15" }), dev("b"), dev("c")];
+    const report = buildTravelCheckReport("كل الأجهزة", ["a", "b", "c"], accounts, () => undefined, 1);
+    expect(report.text).toContain("فُحص 2 جهاز · يحتاج توثيق: 1 · لم يُفحص 1");
   });
 });

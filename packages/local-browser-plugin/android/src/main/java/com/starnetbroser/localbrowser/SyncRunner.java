@@ -19,6 +19,13 @@ import java.util.Deque;
  * colored dot), Billing (waits for the renewal day), Settings, Home. Every read is saved
  * (PendingSyncStore) before it's announced. Ends once with an outcome: "ok", "nothing",
  * "saveFailed", "signedOut" or "stuck" (no end within MAX_MS). Main thread only.
+ *
+ * 🛂 Home-only mode («كشف توثيق» in the background, the same as the device browser's auto-sync with
+ * EXTRA_AUTO_SYNC_HOME_ONLY - keep the two in step): after sign-in it only reloads Home and waits
+ * for the page itself to say whether the travel registration is needed (up to 30 s for a slow
+ * phone), keeps the page's language, and marks its reads `checkOnly` so nothing else on the device
+ * changes. "ok" only when Home really said it (its account line or the banner) - otherwise
+ * "nothing", never a silent «لا يحتاج».
  */
 final class SyncRunner {
 
@@ -45,12 +52,16 @@ final class SyncRunner {
     private static final int WANT_ANY = 0;
     private static final int WANT_DOTS = 1;
     private static final int WANT_RENEWAL = 2;
+    private static final int WANT_HOME = 3;
+    private static final long HOME_CHECK_MIN_MS = 4000;
+    private static final long HOME_CHECK_MAX_MS = 30_000;
 
     private final Context context;
     private final WebView webView;
     private final String accountId;
     private final String homeUrl;
     private final Listener listener;
+    private final boolean homeOnly;
     private final Handler handler = new Handler(Looper.getMainLooper());
 
     private boolean done;
@@ -64,13 +75,21 @@ final class SyncRunner {
     private int englishSteps;
     private boolean englishMenuOpened;
     private String lastSavedPageKey = "";
+    /** 🛂 What Home said (null until it said it) and Starlink's deadline as printed. */
+    private Boolean travelRequired;
+    private String travelDue = "";
 
     private interface ScriptLoader {
         String load(Context context) throws IOException;
     }
 
     SyncRunner(Context context, WebView webView, String accountId, String homeUrl, Listener listener) {
+        this(context, webView, accountId, homeUrl, false, listener);
+    }
+
+    SyncRunner(Context context, WebView webView, String accountId, String homeUrl, boolean homeOnly, Listener listener) {
         this.context = context.getApplicationContext();
+        this.homeOnly = homeOnly;
         this.webView = webView;
         this.accountId = accountId;
         this.homeUrl = homeUrl;
@@ -132,8 +151,25 @@ final class SyncRunner {
 
     // ---- the walk (same as AccountBrowserActivity#syncFromStarlink) ----
 
+    /** 🛂 Home-only: true = needs registration, false = Home showed it isn't asked, null = not known. */
+    Boolean travelRequired() {
+        return travelRequired;
+    }
+
+    String travelDue() {
+        return travelDue;
+    }
+
     private void startSteps() {
         steps = new ArrayDeque<>();
+        if (homeOnly) {
+            // 🛂 Only Home's banner matters; the page keeps its language (English, French or Arabic).
+            steps.add(this::stepReturnHome);
+            steps.add(() -> stepReadSettled(HOME_CHECK_MIN_MS, HOME_CHECK_MAX_MS, 3, false, WANT_HOME));
+            steps.add(() -> end(saveFailed ? "saveFailed" : travelRequired != null ? "ok" : "nothing"));
+            advance();
+            return;
+        }
         steps.add(this::stepEnsureEnglish);
         steps.add(() -> stepReadSettled(0, CURRENT_PAGE_MAX_MS, 2, false, WANT_ANY));
         steps.add(() -> stepClick(StarlinkExtractorSupport::loadClickSubscriptionsRailItemScript));
@@ -263,7 +299,8 @@ final class SyncRunner {
             if (!key.isEmpty() && !stillOldPage) latest[0] = fields;
             boolean good = !stillOldPage
                 && (want != WANT_DOTS || StarlinkExtractorSupport.hasColoredDot(fields))
-                && (want != WANT_RENEWAL || StarlinkExtractorSupport.hasRenewalDate(fields));
+                && (want != WANT_RENEWAL || StarlinkExtractorSupport.hasRenewalDate(fields))
+                && (want != WANT_HOME || StarlinkExtractorSupport.hasHomeRead(fields));
             long elapsed = SystemClock.elapsedRealtime() - started;
             if (tracker.offer(stillOldPage ? "" : key, good, elapsed)) {
                 save(latest[0]);
@@ -278,6 +315,14 @@ final class SyncRunner {
     private void save(JSObject fields) {
         if (fields == null || fields.length() == 0) return;
         lastSavedPageKey = StarlinkExtractorSupport.settleKey(fields);
+        if (homeOnly) {
+            // 🛂 A «كشف توثيق» read changes nothing on the device but the travel-registration notice.
+            fields.put("checkOnly", true);
+            if (StarlinkExtractorSupport.hasHomeRead(fields)) {
+                travelRequired = fields.optBoolean("travelRegistrationRequired", false);
+                travelDue = travelRequired ? fields.optString("travelRegistrationDue", "") : "";
+            }
+        }
         sawStopped = StarlinkExtractorSupport.keepStoppedWithinRun(fields, sawStopped);
         sawRestricted = StarlinkExtractorSupport.keepRestrictedWithinRun(fields, sawRestricted);
         String syncId = PendingSyncStore.save(context, accountId, fields);

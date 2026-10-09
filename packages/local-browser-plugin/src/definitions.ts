@@ -511,7 +511,12 @@ export interface LocalBrowserPlugin {
   openOverlaySettings(): Promise<void>;
   /** 🔄 «مزامنة الآن» fully in the background, one device after another; `started` false when the
    * permission is missing. Progress is a notification with «إيقاف»; the report goes to the bot. */
-  startBackgroundSync(options: { accounts: { accountId: string; accountName: string }[]; label?: string }): Promise<{ started: boolean }>;
+  startBackgroundSync(options: {
+    accounts: { accountId: string; accountName: string }[];
+    label?: string;
+    /** 🛂 A «كشف توثيق»: each device's Home only, reads marked `checkOnly` (like autoSyncHomeOnly). */
+    travelCheck?: boolean;
+  }): Promise<{ started: boolean }>;
   stopBackgroundSync(): Promise<void>;
 
   /**

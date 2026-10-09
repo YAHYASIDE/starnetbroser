@@ -8,13 +8,17 @@ export function SyncChoiceSheet({
   accounts,
   today,
   onPick,
+  onTravelAll,
   onClose,
 }: {
   accounts: StarlinkAccountSummary[];
   today: string;
   onPick: (window: SyncWindow) => void;
+  /** 🛂 «كشف توثيق» of every device (the same ones as «كل الأجهزة»). */
+  onTravelAll?: () => void;
   onClose: () => void;
 }) {
+  const travelCount = onTravelAll ? pickSyncAccounts(accounts, { kind: "all" }, today).length : 0;
   return (
     <div className="party-sheet-backdrop" role="presentation" onClick={onClose}>
       <div className="party-sheet" role="dialog" aria-modal="true" aria-label="مزامنة الآن" onClick={(e) => e.stopPropagation()}>
@@ -35,6 +39,16 @@ export function SyncChoiceSheet({
             );
           })}
         </div>
+        {onTravelAll && (
+          <>
+            <p className="sync-choice-hint">🛂 كشف التوثيق: يقرأ الصفحة الرئيسية فقط ولا يغيّر شيئًا آخر - كل الأجهزة إلا المعطلة (والمحروقة) والإيميل غير الرئيسي</p>
+            <div className="card-more-list">
+              <button type="button" className="card-more-item" data-tour="travel-check-all" disabled={travelCount === 0} onClick={onTravelAll}>
+                🛂 كشف توثيق كل الأجهزة <small>{travelCount} جهاز</small>
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
