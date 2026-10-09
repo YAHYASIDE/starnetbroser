@@ -274,7 +274,7 @@ function RepCopyDetails({ device, mruRate, onClose }: { device: RepCopyDevice; m
               <li key={entry.id} className="today-line">
                 <span className="today-line-main">
                   <strong>
-                    {isShipment ? "📦 شحنة" : "💵 دفعة"} · <bdi dir="ltr">{entry.date}</bdi>
+                    {entry.travelFeeFor !== undefined ? "🛂 توثيق" : isShipment ? "📦 شحنة" : "💵 دفعة"} · <bdi dir="ltr">{entry.date}</bdi>
                   </strong>
                   <small>
                     {isShipment && entry.starlinkCost?.status === "pending" ? "D غير مدفوعة لـ Starlink" : ""}

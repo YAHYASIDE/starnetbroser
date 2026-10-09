@@ -130,13 +130,28 @@ export interface LedgerEntry {
   /** 💱 He confirmed in the warning window that this operation really is in another currency than
    * its rep's / customer's (partyCurrency.ts) - never flagged as «⚠️ عملة مختلفة» again. */
   currencyConfirmed?: boolean;
+  /** 🛂 Posted from the device's «💰 سعر التوثيق» (travelRegistration.ts `applyTravelFee`): the
+   * owner's debt for the travel registration, keyed by that registration (its deadline). Changed
+   * and removed with the price. A debt, never a renewal: no Starlink cost, no profit, no D. */
+  travelFeeFor?: string;
+}
+
+/** 🛂 The travel-registration debt (LedgerEntry.travelFeeFor) - not a Starlink renewal. */
+export function isTravelFeeEntry(entry: Pick<LedgerEntry, "travelFeeFor">): boolean {
+  return typeof entry.travelFeeFor === "string";
+}
+
+/** A "عليه" that is a real renewal (a shipment) - every debit except the travel-registration debt. */
+export function isShipmentEntry(entry: Pick<LedgerEntry, "kind" | "travelFeeFor">): boolean {
+  return entry.kind === "debit" && !isTravelFeeEntry(entry);
 }
 
 /** A "debit" entry with no starlinkCost info at all predates this feature - its profit can never
  * be computed (not even "pending"), and it must never be silently assigned a cost or a rate. A
- * "credit" entry is never a shipment, so it is never legacy in this sense either. */
+ * "credit" entry is never a shipment, so it is never legacy in this sense either; nor is the
+ * travel-registration debt, which has no Starlink cost by design. */
 export function isLegacyShipmentEntry(entry: LedgerEntry): boolean {
-  return entry.kind === "debit" && !entry.starlinkCost;
+  return isShipmentEntry(entry) && !entry.starlinkCost;
 }
 
 /** A "credit" (payment) entry whose currency isn't USD but has no paymentRate - either predates

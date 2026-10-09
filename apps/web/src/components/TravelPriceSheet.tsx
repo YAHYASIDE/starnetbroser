@@ -1,24 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { PartySheet } from "./AccountsSection";
+import { CurrencyBanner, useCurrencyGuard } from "./CurrencyGuard";
 import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS } from "@/lib/ledgerStore";
-import { setTravelPrice } from "@/lib/travelRegistration";
+import { loadExpectedCurrency } from "@/lib/partyCurrencyData";
 
-/** 💰 What he charged for a device's travel registration (shown in «تم توثيقها»). */
+/** 💰 What he charged for a device's travel registration (shown in «تم توثيقها»). Saving it also
+ * puts the debt on the device's owner (HomeView → travelRegistration.ts `applyTravelFee`). */
 export function TravelPriceSheet({
   account,
-  onPatch,
+  onSave,
   onClose,
 }: {
   account: StarlinkAccountSummary;
-  onPatch: (patch: Partial<StarlinkAccountSummary>) => void;
+  /** `amount` null = «حذف السعر»; `currencyConfirmed` = he kept a currency other than the owner's. */
+  onSave: (amount: number | null, currency: string, currencyConfirmed: boolean) => void;
   onClose: () => void;
 }) {
   const current = account.travelRegistrationPrice;
+  const expected = useMemo(() => loadExpectedCurrency({ accountId: account.id }), [account.id]);
+  const guard = useCurrencyGuard(expected);
   const [amount, setAmount] = useState(current ? String(current.amount) : "");
-  const [currency, setCurrency] = useState(current?.currency ?? "MRU");
+  const [currency, setCurrency] = useState(current?.currency ?? expected?.currency ?? "MRU");
   const value = Number(amount.replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d))).replace(",", "."));
 
   return (
@@ -38,15 +43,24 @@ export function TravelPriceSheet({
             ))}
           </select>
         </label>
+        <CurrencyBanner expected={expected} chosen={currency} amount={value > 0 ? value : undefined} />
+        <p className="settings-hint">🧾 يُسجَّل «عليه» على صاحب الجهاز في كشفه (🛂 توثيق السفر) - ليس تجديدًا ولا يُحسب ربح شحنة.</p>
         <div className="settings-actions">
           <button
             type="button"
             className="dialog-primary"
             disabled={!(value > 0)}
-            onClick={() => {
-              onPatch(setTravelPrice(value, currency));
-              onClose();
-            }}
+            onClick={() =>
+              guard.ask(
+                currency,
+                value,
+                (confirmed) => {
+                  onSave(value, currency, confirmed);
+                  onClose();
+                },
+                (next) => setCurrency(next),
+              )
+            }
           >
             💾 حفظ
           </button>
@@ -55,7 +69,7 @@ export function TravelPriceSheet({
               type="button"
               className="text-action"
               onClick={() => {
-                onPatch(setTravelPrice(null, currency));
+                onSave(null, currency, false);
                 onClose();
               }}
             >
@@ -64,6 +78,7 @@ export function TravelPriceSheet({
           )}
         </div>
       </div>
+      {guard.modal}
     </PartySheet>
   );
 }

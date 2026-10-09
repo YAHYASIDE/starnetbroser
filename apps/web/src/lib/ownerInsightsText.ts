@@ -12,7 +12,7 @@ import { computeDebtAging } from "./debtAging";
 import type { InvoiceList } from "./invoiceStore";
 import type { PartyAdjustmentList } from "./partyBalanceStore";
 import { computeGoalProgress, type MonthlyGoals } from "./goals";
-import type { LedgerByAccount } from "./ledgerStore";
+import { isShipmentEntry, type LedgerByAccount } from "./ledgerStore";
 import { bucketPromises, type PaymentPromise } from "./paymentPromises";
 import { cardNeed, computeRenewalForecast } from "./renewalForecast";
 import { currencyLabel, money } from "./telegramMessages";
@@ -155,7 +155,7 @@ export function weeklyText(input: {
   for (const [accountId, entries] of Object.entries(input.ledger)) {
     for (const e of entries) {
       if (!inWeek(e.date)) continue;
-      if (e.kind === "debit" && !e.previousDebtId) {
+      if (isShipmentEntry(e) && !e.previousDebtId) {
         shipments += 1;
         const rep = repOf.get(accountId);
         if (rep) byRep[rep] = (byRep[rep] ?? 0) + 1;

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { StarlinkAccountSummary } from "@starnet/shared";
-import { travelWhatsAppLink, groupTravelByOwner, buildTravelCheckReport, buildTravelRegistrationMessage, isTravelPending, isTravelVerified, markTravelDone, needsTravelRegistration, setTravelPrice, travelDoneRepMessage, travelDueArabic, travelEarnings, undoTravelDone } from "./travelRegistration";
+import { computeShipmentProfit } from "./accountingStore";
+import { computeDeviceMarks } from "./deviceMarks";
+import { computeBalanceByCurrency, isLegacyShipmentEntry, isShipmentEntry, isTravelFeeEntry, type LedgerEntry } from "./ledgerStore";
+import { buildAccountStatementMessage } from "./whatsapp";
+import { applyTravelFee, TRAVEL_FEE_NOTE, travelFeeKey, travelWhatsAppLink, groupTravelByOwner, buildTravelCheckReport, buildTravelRegistrationMessage, isTravelPending, isTravelVerified, markTravelDone, needsTravelRegistration, setTravelPrice, travelDoneRepMessage, travelDueArabic, travelEarnings, undoTravelDone } from "./travelRegistration";
 
 const dev = (id: string, extra: Partial<StarlinkAccountSummary> = {}) => ({ id, name: `جهاز ${id}`, ...extra }) as StarlinkAccountSummary;
 
@@ -100,5 +104,61 @@ describe("👥 his devices apart from each rep's", () => {
       ["📱 مندوب أ", ["x", "y"]],
       ["📱 مندوب محذوف", ["z"]],
     ]);
+  });
+});
+
+describe("🛂 the registration price is a debt on the owner", () => {
+  const NOW = new Date(2026, 9, 9, 10, 0, 0);
+  const verified = (price: { amount: number; currency: string } | null) =>
+    dev("a", { travelRegistrationVerifiedAt: "2026-10-08T09:00:00.000Z", travelRegistrationVerifiedDue: "October 15", travelRegistrationPrice: price });
+  const shipment = { id: "s1", kind: "debit", amount: 9000, currency: "MRU", note: "", email: "", date: "2026-10-01", createdAt: "x", starlinkCost: { status: "settled" } } as LedgerEntry;
+
+  it("saving a price adds «عليه 🛂 توثيق السفر» linked to this registration", () => {
+    const result = applyTravelFee([shipment], verified({ amount: 15000, currency: "MRU" }), "2026-10-09", NOW, () => "t1");
+    expect(result.change).toBe("added");
+    expect(result.entries).toHaveLength(2);
+    expect(result.entry).toEqual({
+      id: "t1", kind: "debit", amount: 15000, currency: "MRU", note: TRAVEL_FEE_NOTE, email: "",
+      date: "2026-10-09", createdAt: NOW.toISOString(), travelFeeFor: "October 15",
+    });
+    expect(result.dates).toEqual(["2026-10-09"]);
+  });
+
+  it("changing the price changes the same entry; the same price changes nothing", () => {
+    const first = applyTravelFee([shipment], verified({ amount: 15000, currency: "MRU" }), "2026-10-09", NOW, () => "t1");
+    const edited = applyTravelFee(first.entries, verified({ amount: 3000, currency: "SIFA" }), "2026-10-20", NOW, () => "t2");
+    expect(edited.change).toBe("updated");
+    expect(edited.entries).toHaveLength(2);
+    expect(edited.entry).toMatchObject({ id: "t1", amount: 3000, currency: "SIFA", date: "2026-10-09" });
+    expect(applyTravelFee(edited.entries, verified({ amount: 3000, currency: "SIFA" }), "2026-10-20", NOW).change).toBe("none");
+  });
+
+  it("«حذف السعر» removes the debt, and only it", () => {
+    const first = applyTravelFee([shipment], verified({ amount: 15000, currency: "MRU" }), "2026-10-09", NOW, () => "t1");
+    const removed = applyTravelFee(first.entries, verified(null), "2026-10-10", NOW);
+    expect(removed.change).toBe("removed");
+    expect(removed.entries).toEqual([shipment]);
+    expect(removed.dates).toEqual(["2026-10-09"]);
+    expect(applyTravelFee([shipment], verified(null), "2026-10-10", NOW).change).toBe("none");
+  });
+
+  it("a later registration (another deadline) gets its own debt; the old one stays", () => {
+    const first = applyTravelFee([], verified({ amount: 15000, currency: "MRU" }), "2026-10-09", NOW, () => "t1");
+    const later = dev("a", { travelRegistrationVerifiedAt: "2027-03-01T09:00:00.000Z", travelRegistrationVerifiedDue: "March 10", travelRegistrationPrice: { amount: 15000, currency: "MRU" } });
+    const second = applyTravelFee(first.entries, later, "2027-03-02", NOW, () => "t2");
+    expect(second.change).toBe("added");
+    expect(second.entries.map((e) => e.travelFeeFor)).toEqual(["October 15", "March 10"]);
+    expect(travelFeeKey(dev("b", { travelRegistrationVerifiedAt: "2026-10-08T09:00:00.000Z" }))).toBe("2026-10-08");
+  });
+
+  it("is a debt, not a renewal: no D, no profit, not «عملية قديمة», not counted as a shipment", () => {
+    const { entry } = applyTravelFee([], verified({ amount: 15000, currency: "MRU" }), "2026-10-09", NOW, () => "t1");
+    expect(isTravelFeeEntry(entry!)).toBe(true);
+    expect(isShipmentEntry(entry!)).toBe(false);
+    expect(isLegacyShipmentEntry(entry!)).toBe(false);
+    expect(computeShipmentProfit(entry!).status).toBe("legacy");
+    expect(computeBalanceByCurrency([entry!])).toEqual({ MRU: 15000 });
+    expect(computeDeviceMarks([entry!], [])).toEqual({ d: null, p: null });
+    expect(buildAccountStatementMessage("جهاز أ", [entry!])).toContain("عليه 15,000 أوقية - 🛂 توثيق السفر");
   });
 });

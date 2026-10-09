@@ -5,7 +5,7 @@
  */
 
 import type { ClientStore } from "./clientStore";
-import type { LedgerByAccount } from "./ledgerStore";
+import { isShipmentEntry, type LedgerByAccount } from "./ledgerStore";
 
 export interface MonthlyGoals {
   /** Shipments recorded (renewals + new devices) in the month. */
@@ -60,7 +60,7 @@ export function computeGoalProgress(goals: MonthlyGoals, month: string, today: s
   for (const entries of Object.values(ledger)) {
     for (const entry of entries) {
       if (!entry.date.startsWith(month)) continue;
-      if (entry.kind === "debit" && !entry.previousDebtId) renewals += 1;
+      if (isShipmentEntry(entry) && !entry.previousDebtId) renewals += 1;
       if (entry.kind === "credit") collected[entry.currency] = (collected[entry.currency] ?? 0) + entry.amount;
     }
   }

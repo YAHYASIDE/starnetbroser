@@ -5,7 +5,7 @@ import { formatProfitMru, sumProfitMru } from "@/lib/profitMru";
 import { useMruRate } from "@/lib/useMruRate";
 import { computeDeviceAccountingSummary, computeShipmentProfit } from "@/lib/accountingStore";
 import { computeShipmentPaymentStatus, paidTowardShipment, PaymentAllocation, ShipmentPaymentStatus } from "@/lib/paymentAllocationStore";
-import { isLegacyShipmentEntry, LEDGER_CURRENCY_LABELS, LedgerCurrency, LedgerEntry, sortEntriesNewestFirst } from "@/lib/ledgerStore";
+import { isLegacyShipmentEntry, isTravelFeeEntry, LEDGER_CURRENCY_LABELS, LedgerCurrency, LedgerEntry, sortEntriesNewestFirst } from "@/lib/ledgerStore";
 import { formatAmount } from "@/lib/formatAmount";
 
 interface Props {
@@ -160,6 +160,7 @@ export function DeviceStatementDialog({ accountName, entries, allocations, allEn
                 <div className="statement-shipment-badges">
                   <span className={`badge ${PAYMENT_STATUS_BADGE[paymentStatus]}`}>{PAYMENT_STATUS_LABELS[paymentStatus]}</span>
                   {isLegacyShipmentEntry(entry) && <span className="badge badge-gray">عملية قديمة</span>}
+                  {isTravelFeeEntry(entry) && <span className="badge badge-gray">🛂 توثيق السفر</span>}
                   {cost?.status === "pending" && <span className="badge badge-yellow">D - غير مسدد</span>}
                   {cost?.status === "settled" && !cost.waived && <span className="badge badge-green">مسدد لـ Starlink</span>}
                   {cost?.waived && <span className="badge badge-yellow">🔥 معطل - لن يُدفع لـ Starlink</span>}

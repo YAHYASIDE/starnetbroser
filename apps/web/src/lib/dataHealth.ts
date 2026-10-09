@@ -10,7 +10,7 @@ import type { StarlinkAccountSummary } from "@starnet/shared";
 import type { ClientStore } from "./clientStore";
 import { computeShipmentProfit } from "./accountingStore";
 import { emailsMismatch } from "./emailMatch";
-import type { LedgerByAccount } from "./ledgerStore";
+import { isShipmentEntry, type LedgerByAccount } from "./ledgerStore";
 import { currencyMismatches, mismatchLine, type PartyCurrencyContext } from "./partyCurrency";
 
 export type HealthSeverity = "high" | "medium" | "low";
@@ -161,7 +161,7 @@ export function checkDataHealth(accounts: StarlinkAccountSummary[], clients: Cli
     for (const account of active) {
       const next = parseRenewalDay(account.rechargeDate);
       if (!next || (next.getTime() - today0.getTime()) / 86_400_000 < 15) continue;
-      const shipments = (options.ledger[account.id] ?? []).filter((e) => e.kind === "debit" && !e.previousDebtId);
+      const shipments = (options.ledger[account.id] ?? []).filter((e) => isShipmentEntry(e) && !e.previousDebtId);
       if (shipments.length === 0) continue;
       const last = shipments.reduce((a, b) => (b.date > a ? b.date : a), "");
       if (last < oldShipment) push("renewed-unrecorded", item(account, `آخر شحنة ${last} · القادم ${account.rechargeDate}`));

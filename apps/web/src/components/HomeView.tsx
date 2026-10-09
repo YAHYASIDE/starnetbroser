@@ -149,7 +149,8 @@ import { DayActionsSheet } from "./DayActionsSheet";
 import { TravelCheckSheet } from "./TravelCheckSheet";
 import { NotificationsBell } from "./NotificationsBell";
 import { hiddenRepIds, isHiddenRepDevice, repContact } from "@/lib/repSeparation";
-import { buildTravelCheckReport, isTravelVerified, markTravelDone, needsTravelRegistration, travelDoneRepMessage, travelEarnings } from "@/lib/travelRegistration";
+import { applyTravelFee, buildTravelCheckReport, isTravelVerified, markTravelDone, needsTravelRegistration, setTravelPrice, travelDoneRepMessage, travelEarnings } from "@/lib/travelRegistration";
+import { buildAccountStatementMessage, buildWhatsAppLink } from "@/lib/whatsapp";
 import { accountsForDay, accountsOfOwner, type DayOwner } from "@/lib/dayActions";
 import { applyOutcomes, buildSyncReport, outcomeLabel, signedOutAlert } from "@/lib/syncReport";
 import { depositLabel, kastDevicesSnapshot } from "@/lib/kastCards";
@@ -272,6 +273,8 @@ export function HomeView({
   }
   // 🧹 A renewal or payment on a pinned device asks «إزالة التثبيت؟» (once its dialog is closed).
   const [unpinAsk, setUnpinAsk] = useState<string | null>(null);
+  /** 🛂 After a registration price became a debt: «💬 أرسل له كشفه» (the device id). */
+  const [travelFeeSent, setTravelFeeSent] = useState<{ accountId: string; text: string } | null>(null);
   /** One group of «المعطلة» (ملغي / محروق / منقول / إيميل غير رئيسي), or all of them. */
   const [faultFilter, setFaultFilter] = useState<DeviceFaultReason | null>(null);
   /** «بدون زبون»: all of them, mine, or one representative's. */
@@ -646,6 +649,30 @@ export function HomeView({
     void sendRepText(account.representativeId, travelDoneRepMessage(account)).then((sent) =>
       pushToast(sent ? `✅ «${account.name}» وُثّق - وصل الإشعار لمندوبه` : `✅ «${account.name}» وُثّق (المندوب غير مربوط بالبوت)`),
     );
+  }
+
+  /** 💰 «سعر التوثيق» saved / removed: the price on the device AND its debt on the device's owner
+   * (his Oct 9 request), then «💬 أرسل له كشفه». */
+  function handleTravelPrice(account: StarlinkAccountSummary, amount: number | null, currency: string, currencyConfirmed: boolean) {
+    const patch = setTravelPrice(amount, currency);
+    const result = applyTravelFee(getAccountEntries(ledgerStore, account.id), { ...account, ...patch }, localToday());
+    if (result.dates.length > 0 && !confirmClosedMonthChange(result.dates)) return;
+    patchAccount(account.id, patch);
+    if (result.change === "none") return;
+    const entries = currencyConfirmed && result.entry
+      ? result.entries.map((e) => (e.id === result.entry!.id ? { ...e, currencyConfirmed: true } : e))
+      : result.entries;
+    setLedgerStore((current) => {
+      const next = withAccountEntries(current, account.id, entries);
+      saveLedgerStore(next);
+      return next;
+    });
+    if (result.change === "removed") {
+      pushToast(`🗑 حُذف سعر التوثيق ودينه من كشف «${account.name}»`);
+      return;
+    }
+    const price = `${formatAmount(result.entry!.amount)} ${LEDGER_CURRENCY_LABELS[result.entry!.currency]}`;
+    setTravelFeeSent({ accountId: account.id, text: result.change === "added" ? `🧾 سُجّل عليه ${price} (🛂 توثيق السفر)` : `🧾 عُدّل دين التوثيق إلى ${price}` });
   }
 
   /** 🛂 The «كشف توثيق» run ended: ONE bot message with the devices that need it. Waits a moment
@@ -2188,6 +2215,7 @@ export function HomeView({
                 onSetDeviceFault={handleSetDeviceFault}
                 onSetRepair={(target, repair) => patchAccount(target.id, { underRepair: repair })}
                 onPatch={viewMode === "active" ? (target, patch) => patchAccount(target.id, patch) : undefined}
+                onTravelPrice={viewMode === "active" ? handleTravelPrice : undefined}
                 onTravelDone={viewMode === "active" ? handleTravelDone : undefined}
                 onTravelCheck={viewMode === "active" ? (target) => travelCheckIds([target.id], target.name) : undefined}
                 showTravelVerified={statFilter === "travelDone"}
@@ -2210,6 +2238,39 @@ export function HomeView({
           </div>
         )}
       </section>
+
+      {travelFeeSent && (() => {
+        const device = accounts.find((a) => a.id === travelFeeSent.accountId);
+        if (!device) return null;
+        const hiddenRep = isHiddenRepDevice(device, hiddenReps);
+        const owner = hiddenRep ? repContact(device, representativeStore)?.name : visibleClientOf(device)?.name;
+        const message = buildAccountStatementMessage(device.name, getAccountEntries(ledgerStore, device.id), allAllocations);
+        const phone = messagePhoneOf(device);
+        // No number → WhatsApp opens on the statement and he picks the contact (as the travel message does).
+        const link = buildWhatsAppLink(phone, message) ?? `https://wa.me/?text=${encodeURIComponent(message)}`;
+        return (
+          <PartySheet title={`🛂 ${device.name}`} onClose={() => setTravelFeeSent(null)}>
+            <p className="settings-hint">
+              {travelFeeSent.text}
+              {owner ? ` على «${owner}»` : ""} - في كشف الجهاز.
+            </p>
+            <div className="party-sheet-options">
+              <a
+                className="dialog-primary travel-fee-send"
+                href={link}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setTravelFeeSent(null)}
+              >
+                💬 أرسل له كشفه{phone ? "" : " (اختر الرقم)"}
+              </a>
+              <button type="button" className="dialog-secondary" onClick={() => setTravelFeeSent(null)}>
+                لاحقًا
+              </button>
+            </div>
+          </PartySheet>
+        );
+      })()}
 
       {unpinAsk && !ledgerAccount && isPinned(deviceNotes, unpinAsk) && (() => {
         const device = accounts.find((a) => a.id === unpinAsk);

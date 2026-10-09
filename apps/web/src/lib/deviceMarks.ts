@@ -6,7 +6,7 @@
  *    it is paid; nothing when none of it is.
  */
 
-import { computeBalanceByCurrency, LedgerEntry } from "./ledgerStore";
+import { computeBalanceByCurrency, isShipmentEntry, LedgerEntry } from "./ledgerStore";
 import { computeShipmentPaymentStatus, PaymentAllocation } from "./paymentAllocationStore";
 
 export interface DeviceMarks {
@@ -20,7 +20,7 @@ function newestFirst(a: LedgerEntry, b: LedgerEntry): number {
 }
 
 export function computeDeviceMarks(entries: LedgerEntry[], allocations: PaymentAllocation[]): DeviceMarks {
-  const shipments = entries.filter((e) => e.kind === "debit").sort(newestFirst);
+  const shipments = entries.filter(isShipmentEntry).sort(newestFirst);
   const latest = shipments[0];
   if (!latest) return { d: null, p: null };
 

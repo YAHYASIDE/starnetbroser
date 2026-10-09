@@ -17,6 +17,7 @@ import {
   createLedgerEntry,
   isIncompletePaymentRateEntry,
   isLegacyShipmentEntry,
+  isTravelFeeEntry,
   lastUsedCostCurrency,
   LEDGER_CURRENCIES,
   LEDGER_CURRENCY_LABELS,
@@ -1157,6 +1158,15 @@ function ShipmentStatusRow({
       {paymentStatus === "paid" ? "مدفوعة بالكامل" : paymentStatus === "partial" ? "مدفوعة جزئيًا" : "غير مدفوعة"}
     </span>
   );
+
+  if (isTravelFeeEntry(entry)) {
+    return (
+      <div className="ledger-shipment-row">
+        {paymentBadge}
+        <span className="badge badge-gray">🛂 توثيق السفر - ليس تجديدًا</span>
+      </div>
+    );
+  }
 
   if (isLegacyShipmentEntry(entry)) {
     return (

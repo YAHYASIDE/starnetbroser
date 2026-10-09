@@ -24,6 +24,7 @@ import {
   computeBalanceByCurrency,
   isIncompletePaymentRateEntry,
   isLegacyShipmentEntry,
+  isShipmentEntry,
   LEDGER_CURRENCIES,
   LedgerEntry,
   RateSnapshot,
@@ -86,7 +87,7 @@ export interface ShipmentProfit {
  * shipment and has nothing to compute a profit for.
  */
 export function computeShipmentProfit(entry: LedgerEntry): ShipmentProfit {
-  if (entry.kind !== "debit" || isLegacyShipmentEntry(entry)) return { status: "legacy" };
+  if (entry.kind !== "debit" || !entry.starlinkCost || isLegacyShipmentEntry(entry)) return { status: "legacy" };
 
   const cost = entry.starlinkCost!;
   if (cost.status !== "settled" || cost.currencyCode === undefined || cost.amount === undefined) {
@@ -170,7 +171,7 @@ function computeNetResult(profits: ShipmentProfit[], pendingCount: number): Devi
 /** The full accounting picture for one device's ledger entries (see LedgerByAccount - a device IS
  * an account in this store, keyed the same way). Never mutates its input. */
 export function computeDeviceAccountingSummary(entries: LedgerEntry[]): DeviceAccountingSummary {
-  const debitEntries = entries.filter((e) => e.kind === "debit");
+  const debitEntries = entries.filter(isShipmentEntry);
   const profits = debitEntries.map(computeShipmentProfit);
 
   const legacyShipmentCount = profits.filter((p) => p.status === "legacy").length;
@@ -239,8 +240,8 @@ export function computeDeviceAccountingSummary(entries: LedgerEntry[]): DeviceAc
 export function computePendingStarlinkCostUsd(entries: LedgerEntry[]): number {
   let total = 0;
   for (const entry of entries) {
-    if (entry.kind !== "debit" || isLegacyShipmentEntry(entry)) continue;
-    const cost = entry.starlinkCost!;
+    if (entry.kind !== "debit" || !entry.starlinkCost) continue;
+    const cost = entry.starlinkCost;
     if (cost.status !== "pending" || cost.currencyCode === undefined || cost.amount === undefined) continue;
     const usd = resolveUsdValue(cost.amount, cost.currencyCode, cost.rate);
     if (usd !== undefined) total += usd;

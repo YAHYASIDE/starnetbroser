@@ -13907,3 +13907,10 @@ button.today-tile {
   color: var(--violet);
   font-weight: 700;
 }
+
+/* 🛂 «💬 أرسل له كشفه» after a registration price became the owner's debt. */
+.travel-fee-send {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+}

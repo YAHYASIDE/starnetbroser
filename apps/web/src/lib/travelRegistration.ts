@@ -7,6 +7,7 @@
  */
 
 import type { StarlinkAccountSummary } from "@starnet/shared";
+import { LEDGER_CURRENCIES, type LedgerCurrency, type LedgerEntry } from "./ledgerStore";
 import type { RepresentativeStore } from "./repStore";
 import { buildWhatsAppLink } from "./whatsapp";
 
@@ -87,6 +88,67 @@ export function undoTravelDone(): Partial<StarlinkAccountSummary> {
 /** 💰 The registration price (null clears it). */
 export function setTravelPrice(amount: number | null, currency: string): Partial<StarlinkAccountSummary> {
   return { travelRegistrationPrice: amount !== null && Number.isFinite(amount) && amount > 0 ? { amount, currency } : null };
+}
+
+// ---- 🛂 The registration price is a debt on the device's owner (his Oct 9 2026 request) ----
+
+/** The note the owner reads in his statement. */
+export const TRAVEL_FEE_NOTE = "🛂 توثيق السفر";
+
+/** Which registration a fee belongs to: the deadline it answered, else the day it was verified -
+ * Starlink asking again later is a new registration with its own fee. */
+export function travelFeeKey(account: Pick<StarlinkAccountSummary, "travelRegistrationVerifiedDue" | "travelRegistrationVerifiedAt">): string {
+  return account.travelRegistrationVerifiedDue?.trim() || account.travelRegistrationVerifiedAt?.slice(0, 10) || "travel";
+}
+
+export interface TravelFeeResult {
+  entries: LedgerEntry[];
+  change: "added" | "updated" | "removed" | "none";
+  /** The entry as it is now («added» / «updated»). */
+  entry?: LedgerEntry;
+  /** Days of the entries touched - for the closed-month check. */
+  dates: string[];
+}
+
+/** «💰 سعر التوثيق» saved or removed → the device's ledger gets / changes / loses its «عليه 🛂
+ * توثيق السفر» entry, so the owner's balance and statement carry it (the device's customer, or
+ * its rep's book for a rep's device - the same as every operation on the device). The entry is
+ * linked to the registration (`travelFeeFor`), never a renewal: no Starlink cost, no profit, no
+ * rep commission. `account` carries the price as it is AFTER the change. Pure. */
+export function applyTravelFee(
+  entries: LedgerEntry[],
+  account: Pick<StarlinkAccountSummary, "travelRegistrationPrice" | "travelRegistrationVerifiedDue" | "travelRegistrationVerifiedAt">,
+  today: string,
+  now: Date = new Date(),
+  newId: () => string = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `ledger-${now.getTime()}-${Math.random()}`),
+): TravelFeeResult {
+  const key = travelFeeKey(account);
+  const index = entries.findIndex((e) => e.travelFeeFor === key);
+  const existing = index >= 0 ? entries[index] : undefined;
+  const price = account.travelRegistrationPrice;
+  const currency = price && (LEDGER_CURRENCIES as string[]).includes(price.currency) ? (price.currency as LedgerCurrency) : undefined;
+
+  if (!price || !(price.amount > 0) || !currency) {
+    if (!existing) return { entries, change: "none", dates: [] };
+    return { entries: entries.filter((_, i) => i !== index), change: "removed", dates: [existing.date] };
+  }
+  if (existing) {
+    if (existing.amount === price.amount && existing.currency === currency) return { entries, change: "none", entry: existing, dates: [] };
+    const entry: LedgerEntry = { ...existing, amount: price.amount, currency };
+    return { entries: entries.map((e, i) => (i === index ? entry : e)), change: "updated", entry, dates: [existing.date] };
+  }
+  const entry: LedgerEntry = {
+    id: newId(),
+    kind: "debit",
+    amount: price.amount,
+    currency,
+    note: TRAVEL_FEE_NOTE,
+    email: "",
+    date: today,
+    createdAt: now.toISOString(),
+    travelFeeFor: key,
+  };
+  return { entries: [...entries, entry], change: "added", entry, dates: [today] };
 }
 
 export interface TravelEarnings {

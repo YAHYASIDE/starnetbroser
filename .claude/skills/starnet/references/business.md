@@ -555,7 +555,15 @@ mind). Exact texts and numbers live in the code - this file says where.
   read of that device, «↩️ لم يتم»), and the rep is told at once (his choice). It moves to «تم توثيقها»
   only when a Home read finds the banner gone (`travelRegistrationVerifiedAt`, set by the merge).
   There «💰 السعر» records what he charged (`travelRegistrationPrice`), and the top line sums it per
-  currency - a record only, not the cash or the customer's account (his choice).
+  currency. *Changed Oct 9 2026* («اجعل عندما اضيف سعر علي الاجهزة الموثقة ان يطلع علي صاحب الجهاز
+  دين من توثيق الجهاز وان ارسل له كشفه بعد العملية»): saving the price also posts «عليه 🛂 توثيق
+  السفر» on the device's ledger, so it lands on the device's owner (his customer, or the rep's book
+  for a rep's device) - linked to that registration (`LedgerEntry.travelFeeFor` = its deadline),
+  changed with the price, removed by «حذف السعر»; a later registration gets its own debt. It is a
+  debt, **not a renewal**: no Starlink cost, no D, no profit, no rep commission, not counted as a
+  shipment (`isShipmentEntry`). The price sheet defaults to the owner's currency and warns on
+  another one. After saving, «💬 أرسل له كشفه» opens WhatsApp with the device statement (no number →
+  he picks the contact). Not the cash (no money came in yet). Logic: `applyTravelFee`.
 - The customer's WhatsApp message names the device by its **Starlink email**, not his internal device
   name («الإيميل أهم شيء في الرسالة»); the name only when there's no email.
 - «اجعل هناك فارق»: the list is split - «🏠 أجهزتي» first, then each rep's devices under his name

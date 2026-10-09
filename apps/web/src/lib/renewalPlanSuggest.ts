@@ -6,7 +6,7 @@
  */
 
 import type { RenewalPlan, StarlinkAccountSummary } from "@starnet/shared";
-import type { LedgerByAccount } from "./ledgerStore";
+import { isShipmentEntry, type LedgerByAccount } from "./ledgerStore";
 
 export interface PlanSuggestion {
   accountId: string;
@@ -21,7 +21,7 @@ export function suggestRenewalPlans(accounts: StarlinkAccountSummary[], ledger: 
   for (const account of accounts) {
     if (account.renewalPlan || account.deletedAt || account.archivedAt) continue;
     const shipments = (ledger[account.id] ?? [])
-      .filter((e) => e.kind === "debit" && !e.previousDebtId && e.amount > 0)
+      .filter((e) => isShipmentEntry(e) && !e.previousDebtId && e.amount > 0)
       .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
     const last = shipments[0];
     if (!last) continue;

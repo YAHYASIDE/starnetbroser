@@ -38,7 +38,7 @@ import { DeviceGmailButton } from "./DeviceGmailButton";
 import { useCardGestures } from "./useCardGestures";
 import { DeviceNoteSheet, type DeviceNoteSheetMode } from "./DeviceNoteSheet";
 import { pinAgeText, type DeviceNote } from "@/lib/deviceNotes";
-import { isTravelPending, isTravelVerified, needsTravelRegistration, travelDueArabic, travelWhatsAppLink, undoTravelDone } from "@/lib/travelRegistration";
+import { isTravelPending, isTravelVerified, needsTravelRegistration, setTravelPrice, travelDueArabic, travelWhatsAppLink, undoTravelDone } from "@/lib/travelRegistration";
 import { TravelPriceSheet } from "./TravelPriceSheet";
 import { describeDishAlerts } from "@/lib/dishAlerts";
 import { PasteSessionSheet } from "./PasteSessionSheet";
@@ -114,6 +114,8 @@ interface Props {
   onSetRepair: (account: StarlinkAccountSummary, repair: StarlinkAccountSummary["underRepair"]) => void;
   /** 📌 Small changes to the device itself (the locked renewal day, RenewalLockSheet). */
   onPatch?: (account: StarlinkAccountSummary, patch: Partial<StarlinkAccountSummary>) => void;
+  /** 💰 «سعر التوثيق» saved / removed - also the owner's debt (falls back to a plain patch). */
+  onTravelPrice?: (account: StarlinkAccountSummary, amount: number | null, currency: string, currencyConfirmed: boolean) => void;
   /** ⚠️ Starlink bills this device to a card that isn't one of his registered cards. */
   unregisteredCard?: boolean;
   /** This device's mailbox (📧 البريد) is signed in on this phone - the button turns mint green. */
@@ -217,7 +219,7 @@ function IconUndo() {
 
 export function AccountCard({
   account, onEdit, ledgerEntries, allocations, onLedger, onDeviceStatement, client, onOpenClient, currencyStore,
-  context = "active", onSetDeviceFault, onSetRepair, onPatch, unregisteredCard = false, onFinishCreation, allAccounts = [], mailSignedIn = false, onArchive, onSoftDelete, onRestore, onPermanentDelete, onConfirmRenewal,
+  context = "active", onSetDeviceFault, onSetRepair, onPatch, onTravelPrice, unregisteredCard = false, onFinishCreation, allAccounts = [], mailSignedIn = false, onArchive, onSoftDelete, onRestore, onPermanentDelete, onConfirmRenewal,
   sessionNeedsLogin = false,
   repPending = false,
   previousDebts = [],
@@ -632,7 +634,13 @@ export function AccountCard({
         </div>
       )}
       {travelPriceOpen && onPatch && (
-        <TravelPriceSheet account={account} onPatch={(patch) => onPatch(account, patch)} onClose={() => setTravelPriceOpen(false)} />
+        <TravelPriceSheet
+          account={account}
+          onSave={(amount, currency, confirmed) =>
+            onTravelPrice ? onTravelPrice(account, amount, currency, confirmed) : onPatch(account, setTravelPrice(amount, currency))
+          }
+          onClose={() => setTravelPriceOpen(false)}
+        />
       )}
       {showsRestriction(account) && (
         <div className="account-card-restricted-banner">

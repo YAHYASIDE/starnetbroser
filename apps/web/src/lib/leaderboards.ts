@@ -7,7 +7,7 @@
 
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import type { ClientStore } from "./clientStore";
-import type { LedgerByAccount } from "./ledgerStore";
+import { isShipmentEntry, type LedgerByAccount } from "./ledgerStore";
 import type { RepresentativeStore } from "./repStore";
 import { parseRenewalDate } from "./renewalForecast";
 
@@ -42,7 +42,7 @@ export function repLeaderboard(accounts: StarlinkAccountSummary[], ledger: Ledge
     }
     for (const entry of ledger[account.id] ?? []) {
       if (!entry.date.startsWith(month)) continue;
-      if (entry.kind === "debit" && !entry.previousDebtId) row.shipments += 1;
+      if (isShipmentEntry(entry) && !entry.previousDebtId) row.shipments += 1;
       if (entry.kind === "credit") add(row.collected, entry.currency, entry.amount);
     }
   }
@@ -73,7 +73,7 @@ export function clientLeaderboard(accounts: StarlinkAccountSummary[], ledger: Le
     for (const entry of ledger[account.id] ?? []) {
       if (!row.since || entry.date < row.since) row.since = entry.date;
       if (entry.kind === "debit") {
-        if (!entry.previousDebtId) row.shipments += 1;
+        if (isShipmentEntry(entry) && !entry.previousDebtId) row.shipments += 1;
         add(row.owes, entry.currency, entry.amount);
       } else {
         add(row.paid, entry.currency, entry.amount);
