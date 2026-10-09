@@ -94,7 +94,10 @@ import {
   Representative,
   RepresentativeStore,
   saveRepresentativeStore,
+  setRepTravelPercent,
 } from "@/lib/repStore";
+import { buildTravelBook, lockRepTravelPercent, lockTravelPrice, matchesTravelGroup, travelStateOf, type TravelGroup } from "@/lib/travelBook";
+import { TravelBookPanel } from "@/components/TravelBookPanel";
 import { CurrencyStore, getCurrency, loadCurrencyStore, saveCurrencyStore, upsertCurrency, UpsertCurrencyInput } from "@/lib/currencyStore";
 import { countFaultCategories, FAULT_CATEGORIES, faultCategory, isFaulty, isUnderRepair, openDebtEntries, restoreWaivedDebts, waiveOpenDebts } from "@/lib/deviceFault";
 import type { DeviceFaultReason } from "@starnet/shared";
@@ -279,6 +282,8 @@ export function HomeView({
   const [faultFilter, setFaultFilter] = useState<DeviceFaultReason | null>(null);
   /** «بدون زبون»: all of them, mine, or one representative's. */
   const [noClientGroup, setNoClientGroup] = useState<NoClientGroup>("all");
+  /** 🛂 Which «✅ تم توثيقها» circle is open (lib/travelBook.ts). */
+  const [travelGroup, setTravelGroup] = useState<TravelGroup>("all");
 
   function toggleStatFilter(kind: StatFilterKind) {
     setStatFilter((current) => (current === kind ? null : kind));
@@ -670,7 +675,8 @@ export function HomeView({
   /** 💰 «سعر التوثيق» saved / removed: the price on the device AND its debt on the device's owner
    * (his Oct 9 request), then «💬 أرسل له كشفه». */
   function handleTravelPrice(account: StarlinkAccountSummary, amount: number | null, currency: string, currencyConfirmed: boolean) {
-    const patch = setTravelPrice(amount, currency);
+    // A rep's device locks that rep and his travel percent on the price (lib/travelBook.ts).
+    const patch = { travelRegistrationPrice: lockTravelPrice(account, setTravelPrice(amount, currency).travelRegistrationPrice ?? null, representativeStore) };
     const result = applyTravelFee(getAccountEntries(ledgerStore, account.id), { ...account, ...patch }, localToday());
     if (result.dates.length > 0 && !confirmClosedMonthChange(result.dates)) return;
     patchAccount(account.id, patch);
@@ -689,6 +695,38 @@ export function HomeView({
     }
     const price = `${formatAmount(result.entry!.amount)} ${LEDGER_CURRENCY_LABELS[result.entry!.currency]}`;
     setTravelFeeSent({ accountId: account.id, text: result.change === "added" ? `🧾 سُجّل عليه ${price} (🛂 توثيق السفر)` : `🧾 عُدّل دين التوثيق إلى ${price}` });
+  }
+
+  /** ⚙️ A rep's travel percent: kept on him for new prices, and locked now on his priced devices
+   * that have none yet (the locked ones keep theirs). */
+  function handleRepTravelPercent(repId: string, percent: number | undefined) {
+    const next = setRepTravelPercent(representativeStore, repId, percent);
+    setRepresentativeStore(next);
+    saveRepresentativeStore(next);
+    if (percent === undefined) return;
+    const patches = lockRepTravelPercent(accountsRef.current, repId, percent);
+    for (const { id, patch } of patches) patchAccount(id, patch);
+    pushToast(`⚙️ نسبة التوثيق ${percent}% لـ«${next[repId]?.name ?? "المندوب"}»${patches.length ? ` - ثُبّتت على ${patches.length} جهاز` : ""}`);
+  }
+
+  /** 🧾 Prices saved before a price became a debt: post their debts now (one tap, his choice to make). */
+  function postOldTravelDebts() {
+    const today = localToday();
+    if (!confirmClosedMonthChange([today])) return;
+    let next = ledgerStore;
+    let count = 0;
+    for (const account of accountsRef.current) {
+      if (!isTravelVerified(account) || !travelStateOf(account, next, allAllocations).noDebt) continue;
+      const result = applyTravelFee(getAccountEntries(next, account.id), account, today);
+      if (result.change !== "added") continue;
+      next = withAccountEntries(next, account.id, result.entries);
+      count += 1;
+    }
+    if (count > 0) {
+      saveLedgerStore(next);
+      setLedgerStore(next);
+    }
+    pushToast(count ? `🧾 سُجّل دين التوثيق على ${count} جهاز - في كشف كل صاحب جهاز` : "لا أجهزة بلا دين");
   }
 
   /** 🛂 The «كشف توثيق» run ended: ONE bot message with the devices that need it. Waits a moment
@@ -1610,6 +1648,7 @@ export function HomeView({
       if (statFilter === "faulty" && faultFilter) list = list.filter((a) => faultCategory(a) === faultFilter);
       if (statFilter === "noClient") list = list.filter((a) => matchesNoClientGroup(a, clientStore, noClientGroup));
       if (statFilter === "pinned") list = pinnedDevices(deviceNotes, list);
+      if (statFilter === "travelDone" && travelGroup !== "all") list = list.filter((a) => matchesTravelGroup(travelStateOf(a, ledgerStore, allAllocations), travelGroup));
     }
     if (query.trim()) {
       // A rep's name shows his devices too.
@@ -1621,7 +1660,7 @@ export function HomeView({
       );
     }
     return list;
-  }, [activeAccounts, selectedDay, statFilter, faultFilter, noClientGroup, query, clientStore, representativeStore, deviceNotes]);
+  }, [activeAccounts, selectedDay, statFilter, faultFilter, noClientGroup, travelGroup, ledgerStore, allAllocations, query, clientStore, representativeStore, deviceNotes]);
 
   const faultCounts = useMemo(() => countFaultCategories(activeAccounts), [activeAccounts]);
   const repairCount = useMemo(() => activeAccounts.filter(isUnderRepair).length, [activeAccounts]);
@@ -1629,6 +1668,10 @@ export function HomeView({
   const pinnedCount = useMemo(() => pinnedDevices(deviceNotes, activeAccounts).length, [deviceNotes, activeAccounts]);
   const travelCount = useMemo(() => activeAccounts.filter(needsTravelRegistration).length, [activeAccounts]);
   const travelDone = useMemo(() => travelEarnings(activeAccounts), [activeAccounts]);
+  const travelBook = useMemo(
+    () => buildTravelBook(activeAccounts, representativeStore, ledgerStore, allAllocations),
+    [activeAccounts, representativeStore, ledgerStore, allAllocations],
+  );
   const noClient = useMemo(() => countNoClient(activeAccounts, clientStore, representativeStore), [activeAccounts, clientStore, representativeStore]);
 
   const searchResults = useMemo(
@@ -2184,21 +2227,14 @@ export function HomeView({
         )}
 
         {viewMode === "active" && statFilter === "travelDone" && (
-          <div className="travel-earnings" data-tour="travel-earnings">
-            <span>✅ وُثّق {travelDone.count} جهاز</span>
-            <span>
-              💰 حصلنا:{" "}
-              {Object.keys(travelDone.byCurrency).length === 0
-                ? "—"
-                : Object.entries(travelDone.byCurrency).map(([currency, amount], i) => (
-                    <bdi key={currency} dir="ltr">
-                      {i > 0 ? " + " : ""}
-                      {formatAmount(amount)} {currency}
-                    </bdi>
-                  ))}
-            </span>
-            {travelDone.unpriced > 0 && <small>{travelDone.unpriced} جهاز بلا سعر - اضغط «💰 السعر» على بطاقته</small>}
-          </div>
+          <TravelBookPanel
+            book={travelBook}
+            accounts={activeAccounts}
+            group={travelGroup}
+            onGroup={setTravelGroup}
+            onRepPercent={handleRepTravelPercent}
+            onPostOldDebts={postOldTravelDebts}
+          />
         )}
 
         {viewMode === "active" && statFilter === "noClient" && (

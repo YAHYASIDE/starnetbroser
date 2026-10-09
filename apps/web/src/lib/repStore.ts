@@ -38,6 +38,9 @@ export interface Representative {
   /** 💱 «عملته»: the currency we deal with him in (lib/partyCurrency.ts). Absent = automatic, from
    * most of his devices' operations. */
   defaultCurrency?: LedgerCurrency;
+  /** 🛂 «نسبة التوثيق»: his percent of each travel-registration price (his Oct 2026 choice - its own
+   * percent, not the renewal one). Locked onto each price when saved (lib/travelBook.ts). */
+  travelPercent?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -141,6 +144,15 @@ export function updateRepresentative(
     updatedAt: new Date().toISOString(),
   };
   return { ...store, [id]: updated };
+}
+
+/** 🛂 Sets (or clears, with undefined) a rep's travel-registration percent. */
+export function setRepTravelPercent(store: RepresentativeStore, id: string, percent: number | undefined): RepresentativeStore {
+  const existing = store[id];
+  if (!existing) return store;
+  const { travelPercent: _was, ...rest } = existing;
+  const valid = percent !== undefined && Number.isFinite(percent) ? Math.min(100, Math.max(0, percent)) : undefined;
+  return { ...store, [id]: { ...rest, ...(valid !== undefined ? { travelPercent: valid } : {}), updatedAt: new Date().toISOString() } };
 }
 
 /** Turns «🔒 زبائنه عنده فقط» on or off for one rep. */

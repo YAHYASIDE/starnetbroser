@@ -152,8 +152,10 @@ export interface StarlinkAccountSummary {
    * device is in «تم توثيقها». The deadline it was for is kept beside it. */
   travelRegistrationVerifiedAt?: string | null;
   travelRegistrationVerifiedDue?: string | null;
-  /** 💰 What he charged for the registration (his record in «تم توثيقها», per currency). */
-  travelRegistrationPrice?: { amount: number; currency: string } | null;
+  /** 💰 What he charged for the registration (his record in «تم توثيقها», per currency). On a rep's
+   * device it also LOCKS that rep and his travel percent at the moment it is saved
+   * (apps/web/src/lib/travelBook.ts) - changing the percent later never rewrites it. */
+  travelRegistrationPrice?: { amount: number; currency: string; repId?: string; repPercent?: number } | null;
   /** 🚗 "service is restricted because it is moving too fast" - a residential plan used while
    * moving; it works again once stopped. Explicit true/false; never the out-of-country restriction. */
   movingRestricted?: boolean;

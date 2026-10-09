@@ -13914,3 +13914,94 @@ button.today-tile {
   text-align: center;
   text-decoration: none;
 }
+
+/* 🛂 «✅ تم توثيقها» as circles (TravelBookPanel). */
+.status-ring-violet { --tone: var(--violet); }
+
+.travel-book {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.travel-rings {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.travel-book-money {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 10px;
+  align-items: start;
+  padding: 8px 12px;
+  border: 1px solid var(--green);
+  border-radius: var(--radius-sm);
+  color: var(--green);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.travel-book-money-list {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.travel-book-money-amount {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.travel-book-money-none {
+  color: var(--text-muted);
+}
+
+.travel-book-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.travel-book-rep {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: 0.82rem;
+}
+
+.travel-book-rep .travel-book-money {
+  border-color: var(--violet);
+  color: var(--violet);
+}
+
+.travel-book-warn {
+  color: var(--yellow);
+  font-weight: 600;
+}
+
+.travel-book-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+
+.travel-book-actions a {
+  text-decoration: none;
+}
+
+.travel-book-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

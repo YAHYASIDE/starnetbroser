@@ -572,6 +572,15 @@ mind). Exact texts and numbers live in the code - this file says where.
   shipment (`isShipmentEntry`). The price sheet defaults to the owner's currency and warns on
   another one. After saving, «💬 أرسل له كشفه» opens WhatsApp with the device statement (no number →
   he picks the contact). Not the cash (no money came in yet). Logic: `applyTravelFee`.
+- **«✅ تم توثيقها» as circles (Oct 9, his choices)**: six circles - الكل · 🏠 أجهزتي · 👥 المندوبين (then
+  one chip per rep) · 💰 بلا سعر · 🧾 لم يُدفع (its debt not fully paid) · 📈 ربحي (sheet with the split) -
+  each filters the cards; money per currency, one line each («حصلنا» no longer glued). A rep gets his
+  **own travel percent** («⚙️ النسبة», `Representative.travelPercent`, not his renewal percent), of the
+  price, **no cost** (his choice «بلا تكلفة»): locked on each price when saved (`repId`/`repPercent`
+  on `travelRegistrationPrice`); setting it locks it on his priced devices that have none yet, the
+  locked ones keep theirs. Per rep: his devices' total, his share, mine, and «💬 كشفه» (WhatsApp
+  statement by Starlink email). Prices saved before they became debts can be posted in one tap
+  («سجّل الدين عليهم» under 🧾). Logic: `lib/travelBook.ts`.
 - The customer's WhatsApp message names the device by its **Starlink email**, not his internal device
   name («الإيميل أهم شيء في الرسالة»); the name only when there's no email.
 - «اجعل هناك فارق»: the list is split - «🏠 أجهزتي» first, then each rep's devices under his name
