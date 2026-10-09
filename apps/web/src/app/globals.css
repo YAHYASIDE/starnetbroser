@@ -14441,8 +14441,202 @@ button.today-tile {
 .dash-section-alerts { border-color: color-mix(in srgb, var(--yellow) 45%, var(--border)); }
 .dash-section-goals { border-color: color-mix(in srgb, var(--green) 40%, var(--border)); }
 .dash-section-starlink { border-color: color-mix(in srgb, var(--chart-1) 40%, var(--border)); }
-.dash-section-debts { border-color: color-mix(in srgb, var(--red) 35%, var(--border)); }
+.dash-section-customers, .dash-section-debts { border-color: color-mix(in srgb, var(--red) 35%, var(--border)); }
 
 /* Six report tabs since «📊 الملخص»: two rows of three, every label whole at 360px. */
 .report-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .report-tabs .report-tab { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* 📊 Dashboard phase 2b - the alert center, goals, money places, Starlink, debts, drill-down. */
+.dash-section-suppliers { border-color: color-mix(in srgb, var(--orange) 35%, var(--border)); }
+.dash-section-alerts { border-color: color-mix(in srgb, var(--yellow) 40%, var(--border)); }
+.dash-section-badge {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--red) 14%, var(--surface));
+  color: var(--red);
+  font-size: 0.7rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.dash-mini-btn { font: inherit; color: var(--text); text-align: start; cursor: pointer; }
+.dash-mini-btn:active { transform: scale(0.98); }
+
+.dash-center { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.dash-center-item {
+  --tone: var(--brand);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--tone) 35%, var(--border));
+  border-inline-start: 4px solid var(--tone);
+  background: color-mix(in srgb, var(--tone) 6%, var(--surface));
+  min-width: 0;
+}
+.dash-sev-info { --tone: var(--chart-1); }
+.dash-sev-warn { --tone: var(--yellow); }
+.dash-sev-critical { --tone: var(--red); }
+.dash-center-resolved { opacity: 0.75; }
+.dash-center-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: start;
+}
+.dash-sev-badge {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--tone);
+  color: var(--surface);
+  font-size: 0.65rem;
+  font-weight: 800;
+}
+.dash-center-title { flex: 1; min-width: 0; font-size: 0.82rem; font-weight: 700; overflow-wrap: anywhere; }
+.dash-center-new { flex: none; color: var(--red); font-size: 0.65rem; font-weight: 800; }
+.dash-center-meta { color: var(--text-muted); font-size: 0.68rem; }
+.dash-center-body { display: flex; flex-direction: column; gap: 4px; font-size: 0.78rem; }
+.dash-center-body p { margin: 0; }
+.dash-center-amount { font-weight: 700; }
+.dash-center-actions { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+
+.dash-rules { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.dash-rules li { display: grid; grid-template-columns: minmax(0, 1fr) 96px; gap: 6px; align-items: center; font-size: 0.78rem; }
+.dash-rule-on { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.dash-rule-sev { padding: 4px 6px; font-size: 0.75rem; }
+
+.dash-goal-rate { color: var(--text-muted); }
+.dash-goal-field { display: grid; grid-template-columns: minmax(0, 1fr) 90px; gap: 6px; align-items: end; }
+.dash-goal-cur { padding: 6px; }
+.dash-forecast { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px dashed var(--border); }
+.dash-forecast > strong { font-size: 0.85rem; }
+
+.dash-kinds { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.dash-kinds button {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  padding: 4px 6px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: start;
+}
+.dash-kinds button > span:first-child { min-width: 0; }
+.dash-kinds small { color: var(--text-muted); }
+.dash-kinds-values { display: flex; flex-direction: column; align-items: flex-end; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.dash-places { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.dash-place {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: start;
+  min-width: 0;
+}
+.dash-place > strong { font-size: 0.85rem; }
+.dash-place > strong small { color: var(--text-muted); font-weight: 600; }
+.dash-place-lines { display: flex; flex-direction: column; gap: 1px; font-size: 0.76rem; font-variant-numeric: tabular-nums; }
+.dash-place-total { font-weight: 800; padding-top: 2px; border-top: 1px solid var(--border); }
+
+.dash-lists { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.dash-list-btn {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.75rem;
+  text-align: start;
+}
+.dash-list-btn strong { font-size: 0.85rem; }
+.dash-list-btn:disabled { opacity: 0.6; }
+.dash-rank-name { padding: 0; border: 0; background: transparent; color: var(--text); font: inherit; text-align: start; min-width: 0; overflow-wrap: anywhere; }
+.dash-rank-name small { color: var(--text-muted); }
+.dash-rank li a { color: var(--text); overflow-wrap: anywhere; }
+
+.dash-aging { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.dash-aging button {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 32px;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.78rem;
+  text-align: start;
+}
+.dash-aging bdi { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dash-aging-on { background: color-mix(in srgb, var(--brand) 10%, transparent) !important; }
+.dash-filters { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; }
+.dash-filters input { grid-column: 1 / -1; }
+.dash-debtors { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.dash-debtor-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  width: 100%;
+  padding: 6px 4px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: start;
+}
+.dash-debtor-head > span { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+.dash-debtor-head bdi { font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dash-debtor-head small { grid-column: 1 / -1; color: var(--text-muted); font-size: 0.7rem; }
+.dash-debtor-body { display: flex; flex-direction: column; gap: 2px; padding: 4px 6px 8px; font-size: 0.75rem; }
+
+.dash-drill { display: flex; flex-direction: column; gap: 6px; }
+.dash-drill-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.dash-drill-list li > a,
+.dash-drill-list li > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 2px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  text-decoration: none;
+}
+.dash-drill-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.dash-drill-main strong { font-size: 0.8rem; overflow-wrap: anywhere; }
+.dash-drill-main small { color: var(--text-muted); font-size: 0.7rem; overflow-wrap: anywhere; }
+.dash-drill-list bdi { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 0.8rem; }
+.dash-bars-svg { height: 150px; }
+.money-text { white-space: nowrap; }
+.dash-drill-amount { font-weight: 700; font-size: 0.8rem; flex: none; }

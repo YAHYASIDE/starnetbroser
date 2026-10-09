@@ -783,3 +783,36 @@ is never pressed while a field is empty - it refills and saves on the next try (
   ending within 7 days; «🧾 الديون والتحصيلات» new debts vs collections (collection ratio = collected ÷
   new debt of the period), owed by customers / to suppliers / to Starlink now, paid to suppliers. The
   operating balance stays in «💰 حسابي» (the card links there - never computed twice).
+- **Phase 2 completed (his detailed brief «المرحلة الثانية», Oct 9 2026)** - built on the existing records,
+  nothing new is stored except alert statuses:
+  - «💳 مصادر الأموال والتحصيلات» (`lib/moneyMovements.ts`): every record that moved money is classified
+    (sale paid at the till, debt collection, advance = the part of a payment beyond what the customer owed
+    on his whole account, money from a supplier, transfer between his places, operating expense, supplier /
+    Starlink payment, rep payout, money out to a customer, personal withdrawal, money from outside, manual
+    «داخل», balance correction). Per place (الكاش, each «حسابي» account, the KAST card): opening +
+    received + transfers in − paid − transfers out (± corrections) = closing - equal to «حسابي»'s balance
+    (tested). An account whose balance was never typed, or typed after the period started, shows the
+    period's net only (no invented opening). A transfer counts once and is never income.
+  - «📡 تحليل اشتراكات Starlink» (`lib/financeStarlink.ts`): each renewal of the period with sale, cost,
+    paid by the customer (his payments settle the oldest charges first - FIFO, like debt aging), paid to
+    Starlink, still owed both ways, margin. The profit POLICY is unchanged (realized on the day Starlink
+    was paid); shown apart: «محقق ومحصّل بالكامل» (customer paid AND Starlink paid). A renewal without cost
+    or sale value = «بيانات غير مكتملة», never a loss/profit.
+  - «🧾 ديون العملاء» (`lib/financeDebts.ts`): ages 0-7 / 8-30 / 31-60 / 60+. **Debts have no due date in
+    the app**: «متأخر» only when a «وعد دفع» is past its day; otherwise only the age is shown. Customers who
+    paid beyond what they owe = «رصيد زائد» kept for them. «🏭 ديون الموردين»: store suppliers + Starlink
+    (open D + earlier owners' debts), compared with the end of the compared period, and the renewals coming
+    within 7 days by their monthly price.
+  - «🎯 الأهداف المالية» (`lib/financeGoals.ts`): + week (Monday→Sunday), year, today's collection, ceiling
+    on open debts, renewals and new customers (same `starnet_goals_v1`); a goal in another currency is
+    compared at today's rate, the rate written beside it. End-of-month forecast = profit so far ÷ days
+    passed × days of the month - hidden before day 5, with < 3 profit days, or when one day makes > 60%.
+  - «🔔 مركز التنبيهات» (`lib/alertCenter.ts`): fixed windows (this month so far vs the same days of last
+    month, last 30 days, now) - never the chosen period, so changing it resolves nothing; the old period
+    alerts stay listed under it. Status جديد → راجعتُه → تم حلّه (only when its cause is gone, with the
+    time) and «تمت المعالجة» for causes that can be legitimate (stays quiet until its numbers change).
+    States `starnet_alert_states_v1` (backed up, resolved kept 60 days). **Defaults I chose (he can change
+    them in «⚙️ القواعد», per phone `starnet.alertRules`)**: margin under 10%, one customer over 30,000
+    أوقية, 30 days without paying, expenses +30% (and ≥ 1,000), ≥ 3 Starlink costs unpaid. Nothing is sent
+    or paid automatically.
+  - A rep's app never shows «حسابي»'s places (owner-only).

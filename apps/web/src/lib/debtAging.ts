@@ -33,6 +33,12 @@ export interface DebtAge {
   buckets: AgingBuckets;
   /** Age in days of the oldest still-unpaid charge (0 when nothing is owed). */
   oldestDays: number;
+  /** The charges still unpaid (FIFO), oldest first - for finer age buckets (financeDebts.ts). */
+  open: { date: string; amount: number }[];
+  /** Paid beyond everything owed: a credit kept for the party (no charge left to settle). */
+  credit: number;
+  /** The last day he paid anything (absent: never). */
+  lastPaymentDate?: string;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -49,6 +55,7 @@ export function ageDebt(movements: DebtMovement[], today: string): DebtAge {
   const sorted = [...movements].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
   const open: { date: string; amount: number }[] = [];
   let credit = 0;
+  let lastPaymentDate: string | undefined;
   for (const m of sorted) {
     if (m.delta > 0) {
       let amount = m.delta;
@@ -58,6 +65,7 @@ export function ageDebt(movements: DebtMovement[], today: string): DebtAge {
       amount -= used;
       if (amount > EPSILON) open.push({ date: m.date, amount });
     } else if (m.delta < 0) {
+      lastPaymentDate = m.date;
       let payment = -m.delta;
       while (payment > EPSILON && open.length > 0) {
         const oldest = open[0]!;
@@ -80,7 +88,7 @@ export function ageDebt(movements: DebtMovement[], today: string): DebtAge {
     else if (days <= 60) buckets.late += charge.amount;
     else buckets.overdue += charge.amount;
   }
-  return { total, buckets, oldestDays };
+  return { total, buckets, oldestDays, open, credit, ...(lastPaymentDate ? { lastPaymentDate } : {}) };
 }
 
 export interface DebtorAging extends DebtAge {
@@ -100,6 +108,8 @@ export function computeDebtAging(input: {
   adjustments: PartyAdjustment[];
   ledgerStore: LedgerByAccount;
   today: string;
+  /** Also list who has a credit with us (paid beyond what he owed) - with total 0. */
+  includeCredit?: boolean;
 }): DebtorAging[] {
   // A representative's customers owe HIM - what's his debt to us is his, never theirs here.
   input = { ...input, ledgerStore: ourDebtLedgerForClients(input.ledgerStore, input.accounts, input.clients) };
@@ -120,7 +130,7 @@ export function computeDebtAging(input: {
     const rows = buildClientCombinedStatement(input.invoices, input.adjustments, client.id, devices, input.ledgerStore);
     for (const [currencyCode, movements] of byCurrency(rows)) {
       const age = ageDebt(movements, input.today);
-      if (age.total > EPSILON) result.push({ kind: "client", id: client.id, name: client.name, phone: client.phone, currencyCode, ...age });
+      if (age.total > EPSILON || (input.includeCredit && age.credit > EPSILON)) result.push({ kind: "client", id: client.id, name: client.name, phone: client.phone, currencyCode, ...age });
     }
   }
 
@@ -134,7 +144,7 @@ export function computeDebtAging(input: {
     }));
     for (const [currencyCode, movements] of byCurrency(rows)) {
       const age = ageDebt(movements, input.today);
-      if (age.total > EPSILON) result.push({ kind: "device", id: account.id, name: account.name, phone: account.phone, currencyCode, ...age });
+      if (age.total > EPSILON || (input.includeCredit && age.credit > EPSILON)) result.push({ kind: "device", id: account.id, name: account.name, phone: account.phone, currencyCode, ...age });
     }
   }
 

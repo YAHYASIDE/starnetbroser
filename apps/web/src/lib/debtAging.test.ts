@@ -14,12 +14,24 @@ describe("ageDebt", () => {
       ],
       "2026-09-25",
     );
-    expect(age).toEqual({ total: 600, buckets: { fresh: 300, late: 300, overdue: 0 }, oldestDays: 46 });
+    expect(age).toEqual({
+      total: 600,
+      buckets: { fresh: 300, late: 300, overdue: 0 },
+      oldestDays: 46,
+      open: [
+        { date: "2026-08-10", amount: 300 },
+        { date: "2026-09-20", amount: 300 },
+      ],
+      credit: 0,
+      lastPaymentDate: "2026-09-21",
+    });
   });
 
   it("applies an earlier overpayment to later charges and reports nothing owed when clear", () => {
     expect(ageDebt([{ date: "2026-09-01", delta: -100 }, { date: "2026-09-10", delta: 80 }], "2026-09-25").total).toBe(0);
-    expect(ageDebt([], "2026-09-25")).toEqual({ total: 0, buckets: { fresh: 0, late: 0, overdue: 0 }, oldestDays: 0 });
+    expect(ageDebt([], "2026-09-25")).toEqual({ total: 0, buckets: { fresh: 0, late: 0, overdue: 0 }, oldestDays: 0, open: [], credit: 0 });
+    // Paid beyond everything owed: a credit kept for him.
+    expect(ageDebt([{ date: "2026-09-01", delta: 50 }, { date: "2026-09-02", delta: -80 }], "2026-09-25")).toMatchObject({ total: 0, credit: 30 });
   });
 
   it("counts days between dates (slash or dash)", () => {

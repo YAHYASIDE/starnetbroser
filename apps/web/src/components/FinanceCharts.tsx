@@ -121,3 +121,53 @@ export function Gauge({ label, done, target }: { label: string; done: number; ta
     </div>
   );
 }
+
+/** 📊 Bars over time (one series, one axis): tap a bar for its value and count; the labels are
+ * thinned so they never overlap at 360px. */
+export function Bars({ points }: { points: { key: string; label: string; value: number; count: number }[] }) {
+  const [selected, setSelected] = useState<number | null>(null);
+  if (!points.some((p) => p.value > 0.5)) return <p className="party-empty">لا تحصيلات في هذه الفترة.</p>;
+  const W = 340;
+  const H = 140;
+  const top = 10;
+  const bottom = 18;
+  const max = Math.max(...points.map((p) => p.value), 1);
+  const w = W / points.length;
+  const every = Math.max(1, Math.ceil(points.length / 8));
+  const sel = selected !== null ? points[selected] : undefined;
+  return (
+    <div className="dash-chart">
+      <div className="dash-chart-tip" aria-live="polite">
+        {sel ? (
+          <>
+            <strong>{sel.label}</strong>
+            <span>
+              <bdi dir="ltr">{mru(sel.value)}</bdi> أوقية · {sel.count} عملية
+            </span>
+          </>
+        ) : (
+          <span className="dash-chart-hint">اضغط عمودًا لترى رقمه</span>
+        )}
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="dash-chart-svg dash-bars-svg" role="img" aria-label="التحصيلات" preserveAspectRatio="none">
+        <line x1={0} x2={W} y1={H - bottom} y2={H - bottom} className="dash-chart-base" />
+        {points.map((p, i) => {
+          // RTL: the first day on the right.
+          const x = W - (i + 1) * w;
+          const h = ((H - top - bottom) * p.value) / max;
+          return (
+            <g key={p.key} onClick={() => setSelected(selected === i ? null : i)} className="dash-chart-group">
+              <rect x={x} y={0} width={w} height={H} className={`dash-chart-hit${selected === i ? " dash-chart-hit-on" : ""}`} />
+              {p.value > 0 && <rect x={x + w * 0.18} y={H - bottom - Math.max(h, 2)} width={w * 0.64} height={Math.max(h, 2)} rx={2} fill="var(--chart-1)" />}
+              {i % every === 0 && (
+                <text x={x + w / 2} y={H - 5} textAnchor="middle" className="dash-chart-axis">
+                  {p.label}
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}

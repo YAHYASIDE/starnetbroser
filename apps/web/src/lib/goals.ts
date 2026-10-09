@@ -15,6 +15,9 @@ export interface MonthlyGoals extends MoneyGoals {
   renewals?: number;
   newClients?: number;
   collection?: { amount: number; currency: string };
+  /** A money goal typed in another currency than أوقية (lib/financeGoals.ts compares it at today's
+   * rate and says which). Absent = أوقية. */
+  goalCurrencies?: Partial<Record<keyof MoneyGoals, string>>;
 }
 
 export interface GoalProgress {

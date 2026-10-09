@@ -289,10 +289,15 @@ export function buildDebtFlow(input: MoneyInput, range: DateRange): DebtFlow {
 /** The money goals (أوقية) kept with «🎯 أهداف الشهر» (lib/goals.ts). */
 export interface MoneyGoals {
   profitDayMru?: number;
+  profitWeekMru?: number;
   profitMonthMru?: number;
+  profitYearMru?: number;
+  collectionDayMru?: number;
   collectionMonthMru?: number;
   expensesMaxMru?: number;
   newDebtsMaxMru?: number;
+  /** A ceiling on what customers owe right now. */
+  openDebtsMaxMru?: number;
 }
 
 export interface GoalItem {

@@ -48,7 +48,12 @@ import { loadPersonalExpenses, monthExpensesMru, type ExpenseCategory, type Pers
 import { PersonalExpensesTab } from "@/components/PersonalExpensesTab";
 import { monthLabel, recentMonths } from "@/lib/monthClosing";
 import { exportXlsx } from "@/lib/xlsxExport";
-import { DASH_SECTIONS, FinanceDashboard, type DashSnapshot } from "@/components/FinanceDashboard";
+import { DASH_SECTIONS, FinanceDashboard, type DashBooks, type DashSnapshot } from "@/components/FinanceDashboard";
+import { loadAccountsBook, EMPTY_ACCOUNTS_BOOK, type AccountsBook } from "@/lib/moneyAccounts";
+import { EMPTY_DEBT_BOOK, loadDebtBook, loadIncome, type DebtBook, type IncomeList } from "@/lib/myMoney";
+import { loadPromises, type PaymentPromise } from "@/lib/paymentPromises";
+import { allStoredAllocations } from "@/lib/paymentAllocationStore";
+import { isRepWorkspace } from "@/lib/repMode";
 import type { DashInput } from "@/lib/financeDashboard";
 import type { MoneyInput } from "@/lib/financeAnalysis";
 import { computeSupplierStoreBalance } from "@/lib/invoiceStore";
@@ -99,6 +104,14 @@ export default function ReportsPage() {
   const [profitReset, setProfitReset] = useState<ProfitReset | null>(null);
   const [hiddenDays, setHiddenDays] = useState<HiddenProfitDays>({});
   const [allocations, setAllocations] = useState<AllocationsByAccount>({});
+  // 💳 «حسابي»'s books for the dashboard's money sources / alerts (read only here).
+  const [moneyBooks, setMoneyBooks] = useState<{ book: AccountsBook; incomes: IncomeList; debts: DebtBook; promises: PaymentPromise[]; ownerView: boolean }>({
+    book: EMPTY_ACCOUNTS_BOOK,
+    incomes: [],
+    debts: EMPTY_DEBT_BOOK,
+    promises: [],
+    ownerView: true,
+  });
   const [showExpected, setShowExpected] = useState(false);
   const [period, setPeriod] = useState<ReportPeriod>("month");
   const [tab, setTab] = useState<ReportTab>("dash");
@@ -152,6 +165,7 @@ export default function ReportsPage() {
     setProfitReset(loadProfitReset());
     setHiddenDays(loadHiddenProfitDays());
     setAllocations(loadAllocationStore());
+    setMoneyBooks({ book: loadAccountsBook(), incomes: loadIncome(), debts: loadDebtBook(), promises: loadPromises(), ownerView: !isRepWorkspace() });
     // The groups first: setting them up once removes the old expenses (his choice).
     setExpenseCategories(loadExpenseTree());
     setPersonal(loadPersonalExpenses());
@@ -470,6 +484,31 @@ export default function ReportsPage() {
     [ledgerStore, invoices, adjustments, settlements, cashEntries, rates],
   );
   const dashClientName = useMemo(() => (id: string) => getClient(clientStore, id)?.name, [clientStore]);
+  const dashBooks = useMemo<DashBooks>(() => {
+    const month = today.slice(0, 7);
+    const used = new Set<string>();
+    for (const entries of Object.values(ledgerStore)) for (const e of entries) used.add(e.currency);
+    for (const c of cashEntries) used.add(c.currencyCode);
+    for (const inv of invoices) used.add(inv.currencyCode);
+    for (const a of adjustments) used.add(a.currencyCode);
+    return {
+      book: moneyBooks.book,
+      cardTopUps: topUps,
+      incomes: moneyBooks.incomes,
+      expenses: personal,
+      debts: moneyBooks.debts,
+      allocations: allStoredAllocations(allocations),
+      promises: moneyBooks.promises,
+      suppliers: listSuppliers(supplierStore).map((x) => ({ id: x.id, name: x.name })),
+      previousDebts,
+      debtors: computeDebtAging({ clients: listClients(clientStore), accounts, invoices, adjustments, ledgerStore, today, includeCredit: true }),
+      newClientsThisMonth: listClients(clientStore).filter((c) => c.createdAt?.startsWith(month)).length,
+      cardBalanceUsd: cardUsd,
+      usedCurrencies: [...used],
+      partyName: (kind, id) => (kind === "client" ? getClient(clientStore, id)?.name : kind === "supplier" ? supplierStore[id]?.name : repStore[id]?.name),
+      ownerView: moneyBooks.ownerView,
+    };
+  }, [today, ledgerStore, cashEntries, invoices, adjustments, moneyBooks, topUps, personal, allocations, supplierStore, previousDebts, clientStore, accounts, cardUsd, repStore]);
   const searchHits = useMemo(
     () =>
       searchReports(searchQuery, {
@@ -619,6 +658,7 @@ export default function ReportsPage() {
           accounts={accounts}
           clientName={dashClientName}
           snapshot={dashSnapshot}
+          books={dashBooks}
           today={today}
           onOpenTab={(t) => (t === "money" ? window.location.assign("/money/") : chooseTab(t as ReportTab))}
         />
