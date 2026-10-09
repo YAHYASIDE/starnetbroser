@@ -4,8 +4,9 @@
  * derived from the records every time (never stored). Pure + a small `starnet_` store.
  */
 
+import { isRenewalEntry } from "./renewals";
 import type { ClientStore } from "./clientStore";
-import { isShipmentEntry, type LedgerByAccount } from "./ledgerStore";
+import type { LedgerByAccount } from "./ledgerStore";
 import type { MoneyGoals } from "./financeAnalysis";
 
 /** The money goals (أوقية: daily / monthly profit, monthly collection, ceilings on expenses and new
@@ -66,7 +67,7 @@ export function computeGoalProgress(goals: MonthlyGoals, month: string, today: s
   for (const entries of Object.values(ledger)) {
     for (const entry of entries) {
       if (!entry.date.startsWith(month)) continue;
-      if (isShipmentEntry(entry) && !entry.previousDebtId) renewals += 1;
+      if (isRenewalEntry(entry, entries)) renewals += 1;
       if (entry.kind === "credit") collected[entry.currency] = (collected[entry.currency] ?? 0) + entry.amount;
     }
   }

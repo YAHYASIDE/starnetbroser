@@ -15,6 +15,7 @@
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { computeExpectedShipmentProfit, starlinkCostUsd } from "./accountingStore";
 import { isShipmentEntry, type LedgerByAccount, type LedgerEntry } from "./ledgerStore";
+import { isRenewalEntry } from "./renewals";
 import { toMru, type RatesFromUsd } from "./reportsView";
 
 const EPS = 0.005;
@@ -49,6 +50,8 @@ export interface RenewalRow {
   complete: boolean;
   /** A figure used today's rate instead of a locked one. */
   approx: boolean;
+  /** Counts as a renewal (renewals.ts: a new D after the previous one was paid, or his answer). */
+  renewal: boolean;
 }
 
 /** Per device and currency: how much of each charge his payments settled, oldest charge first. */
@@ -137,6 +140,7 @@ export function buildRenewalRows(input: {
         marginPct: marginMru !== undefined && saleMru ? (marginMru / saleMru) * 100 : undefined,
         complete: marginMru !== undefined,
         approx: !settled || e.currency !== "MRU",
+        renewal: isRenewalEntry(e, entries),
       });
     }
   }
@@ -157,7 +161,10 @@ export interface GroupRow {
 
 export interface StarlinkBook {
   rows: RenewalRow[];
+  /** Every Starlink sale of the period (the money figures below cover them all). */
   count: number;
+  /** Of them, the renewals (renewals.ts). */
+  renewals: number;
   salesMru: number;
   /** Paid by customers toward these renewals / still owed by them (أوقية, ≈ for other currencies). */
   paidByClientsMru: number;
@@ -254,6 +261,7 @@ export function summarizeStarlink(rows: RenewalRow[], minMarginPct = 10): Starli
   return {
     rows,
     count: rows.length,
+    renewals: rows.filter((r) => r.renewal).length,
     salesMru,
     paidByClientsMru: paidMru,
     owedByClientsMru: owedMru,

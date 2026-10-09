@@ -68,5 +68,7 @@ export function buildRenewalShipment(
     profitCurrencyRates: costPending ? undefined : { MRU: mru!, SIFA: sifa! },
     representative: options.representative,
   });
+  // Recorded by the «تجديد» button: a renewal by definition (renewals.ts).
+  entry.renewal = true;
   return { ok: true, entry };
 }

@@ -816,3 +816,20 @@ is never pressed while a field is empty - it refills and saves on the next try (
     أوقية, 30 days without paying, expenses +30% (and ≥ 1,000), ≥ 3 Starlink costs unpaid. Nothing is sent
     or paid automatically.
   - A rep's app never shows «حسابي»'s places (owner-only).
+
+## 🔄 What a renewal is (Oct 9 2026)
+
+- His report: he forgets the «تجديد» button and records the month from «الدين» / «دفعة» (the device's
+  «عليه» form); and «التجديد يجب أن يُحسب فقط لجهاز كانت عليه فاتورة D وأزلتها عنه وأضفت له D جديد».
+  His choices: **«D جديد بعد تسديد السابق»** (a Starlink «عليه» recorded while no earlier D of the
+  device was unpaid - its D was paid, or it is the device's first; a D added while another is still
+  unpaid is more on the same month, not a renewal), **«سؤال قبل الحفظ»** (saving any «عليه» asks
+  «🔄 هل هذا تجديد اشتراك؟» with the rule's answer suggested; stored as `LedgerEntry.renewal`, which
+  wins over the rule; the «تجديد» button's own shipment is `renewal: true`), and **recount the past by
+  the rule** (derived - no record changes). Only COUNTS use it (reports' «عمليات التجديد», goals,
+  leaderboards, the weekly insight, the dashboard's «تجديدات الفترة»); sale, cost and profit of every
+  shipment are unchanged. Logic `lib/renewals.ts`.
+- **سيفا form rate bug** (same report: a سيفا customer's «حساب الزبون» opened in سيفا with the أوقية
+  rate 430 in «سعر عملة البيع», so profit was wrong until he switched currencies back and forth): the
+  rate now follows the currency the form opens in. **Old records saved with the wrong rate are left as
+  they are** (his choice «اتركها كما هي»).

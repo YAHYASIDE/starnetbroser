@@ -29,7 +29,7 @@ const base = (o: Partial<AlertInput> = {}): AlertInput => ({
   deviceName: () => "جهاز",
   ...o,
 });
-const renewal = (o: Partial<RenewalRow>): RenewalRow => ({ entryId: "r", accountId: "a1", device: "جهاز 1", date: T, currency: "MRU", sale: 4000, saleMru: 4000, paid: 0, unpaid: 4000, costState: "settled", costMru: 2400, marginMru: 1600, marginPct: 40, complete: true, approx: false, ...o });
+const renewal = (o: Partial<RenewalRow>): RenewalRow => ({ entryId: "r", accountId: "a1", device: "جهاز 1", date: T, currency: "MRU", sale: 4000, saleMru: 4000, paid: 0, unpaid: 4000, costState: "settled", costMru: 2400, marginMru: 1600, marginPct: 40, complete: true, approx: false, renewal: true, ...o });
 const debtor = (o: Partial<DebtorRow>): DebtorRow => ({ key: "client-c1-MRU", kind: "client", id: "c1", name: "زبون أ", currency: "MRU", total: 5000, mru: 5000, buckets: { d0_7: 5000, d8_30: 0, d31_60: 0, d60p: 0 }, oldestDays: 3, overdue: 0, upcoming: 0, ...o });
 
 describe("buildCenterAlerts - every alert from the numbers, nothing fixed", () => {

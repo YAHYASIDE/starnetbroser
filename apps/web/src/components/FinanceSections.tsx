@@ -699,7 +699,7 @@ export function StarlinkBody({
       <p className="dash-period-note">تجديدات الفترة حسب تاريخ تسجيلها · {book.approx ? "≈ بعض المبالغ بسعر اليوم" : "بأسعارها المثبتة"}</p>
       <div className="dash-mini-grid">
         <MiniBtn label="الأجهزة المسجلة / العملاء النشطون" value={`${activeDevices} / ${activeClients}`} tone="neutral" />
-        <MiniBtn label="تجديدات الفترة" value={String(book.count)} sub="كل تجديد بتاريخه" tone="neutral" onClick={all("📡 تجديدات الفترة", book.rows)} />
+        <MiniBtn label="تجديدات الفترة" value={String(book.renewals)} sub={book.count !== book.renewals ? `من ${book.count} عملية بيع (الباقي إضافات على شهر لم يُسدَّد)` : "D جديد بعد تسديد السابق"} tone="neutral" onClick={all("📡 تجديدات الفترة", book.rows.filter((r) => r.renewal))} />
         <MiniBtn label="قيمة التجديدات (البيع)" value={mru(book.salesMru, book.approx)} tone="rev" onClick={all("قيمة التجديدات", book.rows)} />
         <MiniBtn label="دفعه العملاء منها" value={mru(book.paidByClientsMru, book.approx)} tone="good" onClick={all("ما دفعه العملاء", book.rows.filter((r) => r.paid > 0))} />
         <MiniBtn label="ما زال على العملاء منها" value={mru(book.owedByClientsMru, book.approx)} tone="warn" onClick={all("ما زال على العملاء", book.rows.filter((r) => r.unpaid > 0.005))} />

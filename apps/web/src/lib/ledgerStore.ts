@@ -134,6 +134,9 @@ export interface LedgerEntry {
    * owner's debt for the travel registration, keyed by that registration (its deadline). Changed
    * and removed with the price. A debt, never a renewal: no Starlink cost, no profit, no D. */
   travelFeeFor?: string;
+  /** 🔄 His answer when saving it (Oct 2026: «سؤال قبل الحفظ»): true = a monthly renewal, false =
+   * another charge (more on the same month, a fix…). Absent = decided by the rule in renewals.ts. */
+  renewal?: boolean;
 }
 
 /** 🛂 The travel-registration debt (LedgerEntry.travelFeeFor) - not a Starlink renewal. */

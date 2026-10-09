@@ -15,6 +15,7 @@
  * Pure.
  */
 
+import { isRenewalEntry } from "./renewals";
 import { computeExpectedShipmentProfit } from "./accountingStore";
 import type { CashEntryList } from "./cashStore";
 import type { InvoiceList } from "./invoiceStore";
@@ -223,7 +224,7 @@ export function buildPeriodMetrics(input: DashInput, range: DateRange): PeriodMe
         continue;
       }
       if (!isShipmentEntry(entry)) continue;
-      if (!entry.previousDebtId) {
+      if (isRenewalEntry(entry, entries)) {
         renewals += 1;
         clients.add(input.clientOf?.(accountId) ?? `device:${accountId}`);
       }

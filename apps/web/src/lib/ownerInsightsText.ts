@@ -4,6 +4,7 @@
  * snapshot). Pure text builders over the same pure tool functions.
  */
 
+import { isRenewalEntry } from "./renewals";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import type { ClientStore } from "./clientStore";
 import { buildDailyPlan } from "./dailyPlan";
@@ -156,6 +157,7 @@ export function weeklyText(input: {
     for (const e of entries) {
       if (!inWeek(e.date)) continue;
       if (isShipmentEntry(e) && !e.previousDebtId) {
+        if (!isRenewalEntry(e, entries)) continue;
         shipments += 1;
         const rep = repOf.get(accountId);
         if (rep) byRep[rep] = (byRep[rep] ?? 0) + 1;

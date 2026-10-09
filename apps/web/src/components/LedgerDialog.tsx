@@ -31,7 +31,8 @@ import {
   StarlinkCost,
   updateEntry,
 } from "@/lib/ledgerStore";
-import { computeDeviceAccountingSummary, computeExpectedShipmentProfit, computeShipmentProfit } from "@/lib/accountingStore";
+import { computeDeviceAccountingSummary, computeExpectedShipmentProfit, computeShipmentProfit, starlinkCostUsd } from "@/lib/accountingStore";
+import { openDsNow } from "@/lib/renewals";
 import { Currency, CurrencyStore, getCurrency, toUsd, UpsertCurrencyInput } from "@/lib/currencyStore";
 import { COUNTRY_CURRENCIES, CountryCurrencyOption, countryFlag, COUNTRY_BY_ISO2 } from "@/lib/countryCurrencies";
 import { starlinkCostDefaults } from "@/lib/starlinkCostDefaults";
@@ -165,7 +166,11 @@ export function LedgerDialog({
   // one is stopped by a window before saving.
   const expectedCurrency = useMemo(() => loadExpectedCurrency({ accountId }), [accountId]);
   const guard = useCurrencyGuard(expectedCurrency);
-  const [currency, setCurrency] = useState<LedgerCurrency>(planSaleCurrency ?? expectedCurrency?.currency ?? "MRU");
+  // The form opens in this currency - and its rate field opens with THIS currency's rate (his Oct 2026
+  // report: a سيفا customer's form showed سيفا with the أوقية rate 430, so the profit was wrong until
+  // he switched currencies back and forth).
+  const initialCurrency: LedgerCurrency = planSaleCurrency ?? expectedCurrency?.currency ?? "MRU";
+  const [currency, setCurrency] = useState<LedgerCurrency>(initialCurrency);
   const [amount, setAmount] = useState(renewalPlan && planSaleCurrency && initialKind === "debit" ? String(renewalPlan.saleAmount) : "");
   const [note, setNote] = useState("");
   // Prefilled from the device's own already-known email when available - still a plain field the
@@ -185,7 +190,7 @@ export function LedgerDialog({
   // rate blocks submission instead of silently defaulting to a wrong one - pre-filled here for the
   // default MRU currency above, same as selectCurrency does when switching currencies later.
   const [rateInput, setRateInput] = useState(() => {
-    const known = getCurrency(currencyStore, planSaleCurrency ?? "MRU")?.rateFromUsd;
+    const known = initialCurrency === "USD" ? 1 : getCurrency(currencyStore, initialCurrency)?.rateFromUsd;
     return known !== undefined ? String(known) : "";
   });
 
@@ -220,6 +225,8 @@ export function LedgerDialog({
   const [costPendingSymbol, setCostPendingSymbol] = useState<string | undefined>(costDefaults.country?.symbol);
 
   const [settlingEntry, setSettlingEntry] = useState<LedgerEntry | null>(null);
+  // 🔄 «هل هذا تجديد؟» before an «عليه» is saved (renewals.ts - his choice «سؤال قبل الحفظ»).
+  const [renewalAsk, setRenewalAsk] = useState<((renewal: boolean) => void) | null>(null);
   const [pendingPayment, setPendingPayment] = useState<LedgerEntry | null>(null);
   // صورة إثبات الدفع: picked with the new payment, saved (IndexedDB) once the payment is.
   const [proofDraft, setProofDraft] = useState<string | null>(null);
@@ -419,12 +426,12 @@ export function LedgerDialog({
         : { status: "settled", currencyCode: costCurrencyCode, amount: parsedCostAmount, rate: costRateSnapshot, paidAt: date };
       profitCurrencyRates = markD ? undefined : { MRU: mruRateKnown, SIFA: sifaRateKnown };
     }
-    guard.ask(stored.currency, stored.amount, (confirmed) => finishSubmit(confirmed), (next) => {
+    guard.ask(stored.currency, stored.amount, (confirmed) => (kind === "debit" ? setRenewalAsk(() => (renewal: boolean) => finishSubmit(confirmed, renewal)) : finishSubmit(confirmed)), (next) => {
       setFrancPay(false);
       selectCurrency(next);
     });
 
-    function finishSubmit(currencyConfirmed: boolean) {
+    function finishSubmit(currencyConfirmed: boolean, renewal?: boolean) {
       if (!confirmClosedMonthChange([date])) return;
       setFormError(null);
 
@@ -457,6 +464,7 @@ export function LedgerDialog({
         representative,
       });
       if (currencyConfirmed) entry.currencyConfirmed = true;
+      if (renewal !== undefined) entry.renewal = renewal;
 
       setAmount("");
       setNote("");
@@ -841,6 +849,7 @@ export function LedgerDialog({
           <button className="dialog-primary" type="submit">إضافة حركة</button>
         </form>
         {guard.modal}
+        {renewalAsk && <RenewalQuestion openDs={openDsNow(entries)} onAnswer={(renewal) => { const go = renewalAsk; setRenewalAsk(null); go(renewal); }} onBack={() => setRenewalAsk(null)} />}
 
         {justPaid && (
           <div className="ledger-paid-strip" role="status">
@@ -1225,6 +1234,47 @@ function ShipmentStatusRow({
         {formatAmount(profit.profitUsd!)} USD
         {profit.profitSifa !== undefined && ` / ${formatAmount(profit.profitSifa)} سيفا`}
       </span>
+    </div>
+  );
+}
+
+/** 🔄 Asked before an «عليه» is saved: is it the month's renewal? The suggested answer follows his
+ * rule (renewals.ts): no unpaid D on the device → a renewal; an unpaid D → more on the same month. */
+function RenewalQuestion({ openDs, onAnswer, onBack }: { openDs: LedgerEntry[]; onAnswer: (renewal: boolean) => void; onBack: () => void }) {
+  const usd = openDs.reduce((sum, e) => sum + (starlinkCostUsd(e) ?? 0), 0);
+  const suggestRenewal = openDs.length === 0;
+  const yes = (
+    <button key="yes" type="button" className={suggestRenewal ? "dialog-primary" : "dialog-secondary"} onClick={() => onAnswer(true)}>
+      🔄 نعم، تجديد شهري{suggestRenewal ? " (مقترح)" : ""}
+    </button>
+  );
+  const no = (
+    <button key="no" type="button" className={suggestRenewal ? "dialog-secondary" : "dialog-primary"} onClick={() => onAnswer(false)}>
+      ➕ لا، دين آخر (إضافة أو تصحيح){suggestRenewal ? "" : " (مقترح)"}
+    </button>
+  );
+  return (
+    <div className="dialog-backdrop renewal-ask-backdrop" role="presentation">
+      <section className="renewal-ask" role="alertdialog" aria-modal="true" aria-labelledby="renewal-ask-title" data-tour="renewal-ask">
+        <div className="renewal-ask-icon" aria-hidden="true">🔄</div>
+        <h2 id="renewal-ask-title">هل هذا تجديد اشتراك؟</h2>
+        <p className="renewal-ask-main">
+          {suggestRenewal ? (
+            "لا يوجد D غير مسدد على هذا الجهاز - هذا يبدو تجديد الشهر (D جديد بعد تسديد السابق)."
+          ) : (
+            <>
+              على هذا الجهاز {openDs.length === 1 ? "فاتورة D" : <><bdi dir="ltr">{openDs.length}</bdi> فواتير D</>} لم تُسدَّد بعد بمبلغ <bdi dir="ltr">{formatAmount(Math.round(usd * 100) / 100)} $</bdi> - فهذا غالبًا إضافة على نفس الشهر، لا تجديد جديد.
+            </>
+          )}
+        </p>
+        <p className="renewal-ask-note">التجديد يُعدّ في «عدد التجديدات» والأهداف والتقارير. المبلغ والربح يُحسبان في الحالتين.</p>
+        <div className="renewal-ask-actions">
+          {suggestRenewal ? [yes, no] : [no, yes]}
+          <button type="button" className="dialog-secondary" onClick={onBack}>
+            رجوع
+          </button>
+        </div>
+      </section>
     </div>
   );
 }

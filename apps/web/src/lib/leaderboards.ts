@@ -5,9 +5,10 @@
  * he's been a customer and what he owes now. Sums are per currency, never converted. Pure.
  */
 
+import { isRenewalEntry } from "./renewals";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import type { ClientStore } from "./clientStore";
-import { isShipmentEntry, type LedgerByAccount } from "./ledgerStore";
+import type { LedgerByAccount } from "./ledgerStore";
 import type { RepresentativeStore } from "./repStore";
 import { parseRenewalDate } from "./renewalForecast";
 
@@ -42,7 +43,7 @@ export function repLeaderboard(accounts: StarlinkAccountSummary[], ledger: Ledge
     }
     for (const entry of ledger[account.id] ?? []) {
       if (!entry.date.startsWith(month)) continue;
-      if (isShipmentEntry(entry) && !entry.previousDebtId) row.shipments += 1;
+      if (isRenewalEntry(entry, ledger[account.id] ?? [])) row.shipments += 1;
       if (entry.kind === "credit") add(row.collected, entry.currency, entry.amount);
     }
   }
@@ -73,7 +74,7 @@ export function clientLeaderboard(accounts: StarlinkAccountSummary[], ledger: Le
     for (const entry of ledger[account.id] ?? []) {
       if (!row.since || entry.date < row.since) row.since = entry.date;
       if (entry.kind === "debit") {
-        if (isShipmentEntry(entry) && !entry.previousDebtId) row.shipments += 1;
+        if (isRenewalEntry(entry, ledger[account.id] ?? [])) row.shipments += 1;
         add(row.owes, entry.currency, entry.amount);
       } else {
         add(row.paid, entry.currency, entry.amount);
