@@ -889,4 +889,9 @@ is never pressed while a field is empty - it refills and saves on the next try (
   commission + any exchange difference); a line «💸 أرباح التحويل» in «يبقى لك» of that month. What is still
   owed shows in «كل ما تملك» → «لك عند الزبائن» as «💸 name». The dashboard's money movements show them as
   «💸 تحويل أموال (حوالة)».
+- **The rate the way he quotes it** (his Oct 10 2026 correction, with a real example: 50,000 فرانك in on
+  أورانج = 10,000 سيفا, «اشتريتها بـ 3600» → 36,000 أوقية out of بنكيلي): the rate field is «سعر 1,000 سيفا
+  بالأوقية» (3600) / «سعر الدولار بالأوقية»; between two non-أوقية currencies «1 X = ? Y». Beside it «أو المبلغ
+  المرسَل» - typing the amount sent sets the rate from it. Profit is measured against the «العملات» rate of
+  the day (keep the سيفا rate there up to date).
 

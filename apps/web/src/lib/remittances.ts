@@ -123,6 +123,31 @@ export function registryRate(inCurrency: string, outCurrency: string, rates: Rat
   return to / from;
 }
 
+/** How he quotes a rate (his Oct 10 2026 example: «10,000 سيفا … بـ 3600» = 36,000 أوقية): the price
+ * in أوقية of 1,000 سيفا, or of 1 dollar. Null when neither side is أوقية (then «1 X = ? Y»). */
+export function rateQuote(inCurrency: string, outCurrency: string): { foreign: string; block: number } | null {
+  if (inCurrency === outCurrency) return null;
+  const foreign = inCurrency === "MRU" ? outCurrency : outCurrency === "MRU" ? inCurrency : null;
+  if (!foreign) return null;
+  return { foreign, block: foreign === "SIFA" ? 1000 : 1 };
+}
+
+/** His quote (أوقية per block of the other currency) → the transfer's rate (sent per 1 received). */
+export function rateFromQuote(quote: number, inCurrency: string, outCurrency: string): number {
+  const q = rateQuote(inCurrency, outCurrency);
+  if (!q || !(quote > 0)) return NaN;
+  const mruPerUnit = quote / q.block;
+  return inCurrency === "MRU" ? 1 / mruPerUnit : mruPerUnit;
+}
+
+/** The transfer's rate → his quote (for showing the «العملات» rate in his words). */
+export function quoteFromRate(rate: number, inCurrency: string, outCurrency: string): number | undefined {
+  const q = rateQuote(inCurrency, outCurrency);
+  if (!q || !(rate > 0)) return undefined;
+  const mruPerUnit = inCurrency === "MRU" ? 1 / rate : rate;
+  return mruPerUnit * q.block;
+}
+
 function newId(prefix: string): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return `${prefix}-${crypto.randomUUID()}`;
   return `${prefix}-${Date.now()}-${Math.random()}`;

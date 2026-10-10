@@ -9,6 +9,9 @@ import { francToSifa, isFrancAccount, sifaToFranc } from "@/lib/payCurrency";
 import type { RatesFromUsd } from "@/lib/reportsView";
 import {
   CASH_ID,
+  quoteFromRate,
+  rateFromQuote,
+  rateQuote,
   registryRate,
   remittanceFigures,
   remittanceMonth,
@@ -244,6 +247,7 @@ function RemittanceForm({ accounts, rates, onSave, onCancel }: { accounts: Money
   const [commissionText, setCommissionText] = useState("");
   const [who, setWho] = useState<CommissionWho>("onTop");
   const [rateText, setRateText] = useState("");
+  const [sentText, setSentText] = useState("");
   const [paidText, setPaidText] = useState("");
   const [date, setDate] = useState(today());
   const [note, setNote] = useState("");
@@ -258,20 +262,26 @@ function RemittanceForm({ accounts, rates, onSave, onCancel }: { accounts: Money
   // Amounts are typed in the unit he sees (فرانك for أورانج / نيتا) and kept in the currency.
   const toIn = (typed: number) => (inFranc ? francToSifa(typed) : typed);
 
-  // The rate is typed the natural way round («1 دولار = 400 أوقية», «1 أوقية = 7.5 فرانك») and in
-  // the units he sees (فرانك for أورانج / نيتا); `rate` itself stays in the currencies' units.
+  // The rate is typed his way: «سعر 1,000 سيفا بالأوقية» (3600) / «سعر الدولار بالأوقية» (430); between
+  // two other currencies «1 X = ? Y». Or he types the amount sent and the rate follows from it.
   const offered = registryRate(inCurrency, outCurrency, rates);
-  const same = inCurrency === outCurrency && inFranc === outFranc;
-  const unitFactor = (outFranc ? sifaToFranc(1) : 1) / (inFranc ? sifaToFranc(1) : 1);
-  const offeredUnits = offered === undefined ? undefined : offered * unitFactor;
-  const inverted = !same && offeredUnits !== undefined && offeredUnits < 1;
+  const same = inCurrency === outCurrency;
+  const quote = rateQuote(inCurrency, outCurrency);
   const typedRate = parse(rateText);
-  const rate = same ? 1 : rateText.trim() === "" ? offered ?? NaN : (inverted ? 1 / typedRate : typedRate) / unitFactor;
-  const rateHint = inverted ? `1 ${outUnit} = ? ${inUnit}` : `1 ${inUnit} = ? ${outUnit}`;
-  const offeredShown = offeredUnits === undefined ? undefined : inverted ? 1 / offeredUnits : offeredUnits;
+  const rateFromTyped = quote ? rateFromQuote(typedRate, inCurrency, outCurrency) : typedRate;
+  const rateHint = quote
+    ? `سعر ${quote.block === 1000 ? "1,000 " : ""}${cur(quote.foreign)} بالأوقية`
+    : `1 ${cur(inCurrency)} = ? ${cur(outCurrency)}`;
+  const offeredShown = offered === undefined ? undefined : quote ? quoteFromRate(offered, inCurrency, outCurrency) : offered;
+  const toOut = (typed: number) => (outFranc ? francToSifa(typed) : typed);
 
   const amount = toIn(parse(amountText));
   const commissionValue = mode === "fixed" ? toIn(parse(commissionText) || 0) : parse(commissionText) || 0;
+  // What is converted: the amount, less the commission when it's taken from what is sent.
+  const base = remittanceFigures({ amount, commissionMode: mode, commissionValue, commissionWho: who, rate: 1 });
+  const baseIn = who === "onTop" ? amount : base.sent;
+  const sentTyped = toOut(parse(sentText));
+  const rate = same ? 1 : sentText.trim() !== "" && sentTyped > 0 && baseIn > 0 ? sentTyped / baseIn : rateText.trim() !== "" ? rateFromTyped : offered ?? NaN;
   const figures = remittanceFigures({ amount, commissionMode: mode, commissionValue, commissionWho: who, rate });
   const paidNow = paidText.trim() === "" ? undefined : toIn(parse(paidText));
   const shownIn = (n: number) => (
@@ -327,6 +337,7 @@ function RemittanceForm({ accounts, rates, onSave, onCancel }: { accounts: Money
           setInId(id);
           setInCurrency(c);
           setRateText("");
+          setSentText("");
         }}
       />
       <label className="form-field">
@@ -342,19 +353,42 @@ function RemittanceForm({ accounts, rates, onSave, onCancel }: { accounts: Money
           setOutId(id);
           setOutCurrency(c);
           setRateText("");
+          setSentText("");
         }}
       />
       {!same && (
-        <label className="form-field">
-          <span>سعر الصرف: {rateHint}</span>
-          <input
-            className="search-input"
-            value={rateText}
-            onChange={(e) => setRateText(e.target.value)}
-            inputMode="decimal"
-            placeholder={offeredShown !== undefined ? `${formatAmount(Math.round(offeredShown * 10000) / 10000)} (سعر «العملات»)` : "اكتب السعر"}
-          />
-        </label>
+        <div className="remittance-grid">
+          <label className="form-field">
+            <span>{rateHint}</span>
+            <input
+              className="search-input"
+              value={rateText}
+              onChange={(e) => {
+                setRateText(e.target.value);
+                setSentText("");
+              }}
+              inputMode="decimal"
+              placeholder={(() => {
+                // From the amount sent when he typed it, else the «العملات» rate.
+                const shown = sentText.trim() !== "" && rate > 0 ? (quote ? quoteFromRate(rate, inCurrency, outCurrency) : rate) : offeredShown;
+                return shown !== undefined ? formatAmount(Math.round(shown * 100) / 100) : "اكتب السعر";
+              })()}
+            />
+          </label>
+          <label className="form-field">
+            <span>أو المبلغ المرسَل ({outUnit})</span>
+            <input
+              className="search-input"
+              value={sentText}
+              onChange={(e) => {
+                setSentText(e.target.value);
+                setRateText("");
+              }}
+              inputMode="decimal"
+              placeholder={figures.sent > 0 ? formatAmount(outFranc ? sifaToFranc(figures.sent) : figures.sent) : "0"}
+            />
+          </label>
+        </div>
       )}
       <div className="remittance-commission">
         <span>العمولة</span>

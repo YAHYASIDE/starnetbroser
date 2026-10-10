@@ -3,6 +3,9 @@ import {
   addRemittancePayment,
   createRemittance,
   deleteRemittance,
+  quoteFromRate,
+  rateFromQuote,
+  rateQuote,
   registryRate,
   remittanceCashEntries,
   remittanceDebtors,
@@ -140,3 +143,25 @@ describe("where the money moved (balances are derived)", () => {
     expect(deleteRemittance(r.list, r.remittance.id)).toEqual([]);
   });
 });
+
+describe("the rate as he quotes it («10,000 سيفا بـ 3600» = 36,000 أوقية)", () => {
+  it("سيفا in, أوقية out: 3600 per 1,000 سيفا → 3.6 أوقية per سيفا", () => {
+    expect(rateQuote("SIFA", "MRU")).toEqual({ foreign: "SIFA", block: 1000 });
+    expect(rateFromQuote(3600, "SIFA", "MRU")).toBeCloseTo(3.6, 10);
+    expect(remittanceFigures({ amount: 10000, commissionMode: "fixed", commissionValue: 0, commissionWho: "onTop", rate: rateFromQuote(3600, "SIFA", "MRU") }).sent).toBe(36000);
+  });
+
+  it("أوقية in, سيفا / دولار out, and back to his words", () => {
+    expect(rateFromQuote(3600, "MRU", "SIFA")).toBeCloseTo(1 / 3.6, 10);
+    expect(rateFromQuote(430, "MRU", "USD")).toBeCloseTo(1 / 430, 10);
+    expect(quoteFromRate(3.6, "SIFA", "MRU")).toBeCloseTo(3600, 6);
+    expect(quoteFromRate(1 / 430, "MRU", "USD")).toBeCloseTo(430, 6);
+  });
+
+  it("neither side أوقية, or the same currency: no quote", () => {
+    expect(rateQuote("SIFA", "USD")).toBeNull();
+    expect(rateQuote("SIFA", "SIFA")).toBeNull();
+    expect(rateFromQuote(3600, "SIFA", "USD")).toBeNaN();
+  });
+});
+
