@@ -901,4 +901,10 @@ is never pressed while a field is empty - it refills and saves on the next try (
   / «Standby Mode Pending», and the card showed «ملغي» - «هو غير ملغي، عليه خدمة SIS». That banner now
   gives the card a neutral chip «⏸️ SIS من 2026/10/24»; «ملغى» only for «scheduled to end» / «تنتهي خدمتك».
   A device already marked «ملغي» by this banner is corrected on its next sync.
+- **Receipt + editing** (his Oct 10 2026 request: «الحوالات اريد لها وصل فاتورة وفاتورة بصورة ولعمليات التي
+  اضيفة يمكن تعديلها»): in a transfer's detail «🧾 وصل PDF» and «🖼️ وصل صورة» (`remittanceReceipt.ts`, the
+  branded layout; number «H-yyyymmdd-XXXX»; amounts in فرانك for أورانج/نيتا; the agreed rate «1,000 سيفا =
+  3,600 أوقية»; what reaches the beneficiary, paid, left; **never his profit**), «✎ تعديل» (everything
+  recomputed, payments kept; refused below what's already paid, or changing the received currency while
+  payments exist), and ✕ on a later payment entered by mistake.
 

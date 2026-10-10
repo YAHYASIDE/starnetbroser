@@ -8,7 +8,7 @@ import { BankInboxCard, BankInboxList, SuggestionConfirm, type ConfirmData, type
 import { decideSuggestion, decidedSuggestions, EMPTY_BANK_INBOX, loadBankInbox, pendingSuggestions, reopenSuggestion, saveBankInbox, type BankInbox, type BankSuggestion } from "@/lib/bankNotices";
 import { saveSuggestionChoice } from "@/lib/bankSuggestionSave";
 import { RemittanceSection } from "@/components/RemittanceSection";
-import { addRemittancePayment, createRemittance, deleteRemittance, loadRemittances, remittanceCashEntries, remittanceMonth, saveRemittances, type Remittance, type RemittanceList } from "@/lib/remittances";
+import { addRemittancePayment, createRemittance, deleteRemittance, deleteRemittancePayment, loadRemittances, updateRemittance, remittanceCashEntries, remittanceMonth, saveRemittances, type Remittance, type RemittanceList } from "@/lib/remittances";
 import { ouguiyaFixMessage, runOuguiyaFixOnce } from "@/lib/bankOuguiyaRun";
 import { askDeleteCode } from "@/components/DeleteCodePrompt";
 import { loadProfitReset, saveProfitReset, startProfitFresh, undoProfitFresh, type ProfitReset } from "@/lib/profitReset";
@@ -394,6 +394,18 @@ export default function MoneyPage() {
     return null;
   }
 
+  function editRemittance(id: string, input: Parameters<typeof createRemittance>[1]): string | null {
+    const result = updateRemittance(remittances, id, input);
+    if (!result.ok) return result.message;
+    storeRemittances(result.list, result.remittance);
+    return null;
+  }
+
+  function removeRemittancePayment(id: string, paymentId: string) {
+    const next = deleteRemittancePayment(remittances, id, paymentId);
+    storeRemittances(next, next.find((r) => r.id === id) ?? null);
+  }
+
   function removeRemittance(id: string) {
     storeRemittances(deleteRemittance(remittances, id), null, id);
   }
@@ -546,6 +558,8 @@ export default function MoneyPage() {
         onSave={addRemittance}
         onPay={payRemittance}
         onDelete={removeRemittance}
+        onEdit={editRemittance}
+        onDeletePayment={removeRemittancePayment}
       />
 
       <div className="report-tabs" role="tablist" aria-label="حسابي">

@@ -221,6 +221,25 @@ export function addRemittancePayment(
   return { ok: true, list: list.map((x) => (x.id === id ? { ...x, payments: [...x.payments, payment] } : x)), payment };
 }
 
+/** ✎ Edits a transfer: everything recomputed from the new input (its payments, id and creation
+ * stay). Refused if the payments already made are more than the new total. */
+export function updateRemittance(list: RemittanceList, id: string, input: RemittanceInput): RemittanceResult {
+  const current = list.find((r) => r.id === id);
+  if (!current) return { ok: false, message: "الحوالة غير موجودة" };
+  const built = createRemittance([], input, new Date(current.createdAt));
+  if (!built.ok) return built;
+  if (current.payments.length > 0 && current.inCurrency !== input.inCurrency) return { ok: false, message: "عليها دفعات بعملة الاستلام - احذفها أولاً لتغيير العملة" };
+  const later = current.payments.reduce((s, p) => s + p.amount, 0);
+  if (built.remittance.paidNow + later > built.remittance.owed + 0.005) return { ok: false, message: "المدفوع (مع الدفعات) أكبر مما عليه" };
+  const remittance: Remittance = { ...built.remittance, id: current.id, createdAt: current.createdAt, payments: current.payments };
+  return { ok: true, list: list.map((r) => (r.id === id ? remittance : r)), remittance };
+}
+
+/** Removes one later payment (a mistake). */
+export function deleteRemittancePayment(list: RemittanceList, id: string, paymentId: string): RemittanceList {
+  return list.map((r) => (r.id === id ? { ...r, payments: r.payments.filter((p) => p.id !== paymentId) } : r));
+}
+
 export function deleteRemittance(list: RemittanceList, id: string): RemittanceList {
   return list.filter((r) => r.id !== id);
 }

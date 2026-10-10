@@ -197,6 +197,8 @@ export function buildPrintableHtml(doc: PrintableDocument, business: BusinessPro
 export function pdfFileName(title: string, stamp: string): string {
   const kind = title.includes("إقفال")
     ? "month-closing"
+    : title.includes("حوالة")
+      ? "transfer-receipt"
     : title.includes("سند")
       ? "receipt"
       : title.includes("فاتورة") || title.includes("مرتجع")

@@ -3,7 +3,7 @@
 import { Directory, Filesystem } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
 import { isRunningInAndroidApp } from "./localBrowser";
-import { loadBusinessProfile } from "./pdfDocument";
+import { buildPrintableHtml, loadBusinessProfile, type PrintableDocument } from "./pdfDocument";
 import type { PdfResult } from "./pdfExport";
 import { buildStatementHtml, IMAGE_STATEMENT_ROWS, StatementData } from "./statementDocument";
 
@@ -47,3 +47,34 @@ export async function exportStatementImage(data: StatementData): Promise<PdfResu
     host.remove();
   }
 }
+
+/** Any printable document (a transfer receipt…) as one picture, to the share sheet. */
+export async function exportPrintableImage(doc: PrintableDocument, fileKind = "receipt"): Promise<PdfResult> {
+  const host = document.createElement("div");
+  try {
+    const { toCanvas } = await import("html-to-image");
+    const now = new Date();
+    const generatedAt = `${now.toISOString().slice(0, 10)} ${now.toTimeString().slice(0, 5)}`;
+    host.style.cssText = "position:fixed;left:-10000px;top:0;z-index:-1;background:#fff";
+    host.innerHTML = buildPrintableHtml(doc, loadBusinessProfile(), generatedAt);
+    document.body.appendChild(host);
+    const canvas = await toCanvas(host.firstElementChild as HTMLElement, { pixelRatio: 2, backgroundColor: "#ffffff" });
+    const dataUrl = canvas.toDataURL("image/png");
+    const fileName = `starnet-${fileKind}-${now.toISOString().slice(0, 10)}-${now.toTimeString().slice(0, 5).replace(":", "")}.png`;
+    if (!isRunningInAndroidApp()) {
+      const link = document.createElement("a");
+      link.href = dataUrl;
+      link.download = fileName;
+      link.click();
+      return { ok: true };
+    }
+    const written = await Filesystem.writeFile({ path: fileName, data: dataUrl.split(",")[1] ?? "", directory: Directory.Cache });
+    await Share.share({ title: doc.title, files: [written.uri] });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : "تعذر إنشاء الصورة" };
+  } finally {
+    host.remove();
+  }
+}
+

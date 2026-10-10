@@ -3,7 +3,11 @@
 import { useMemo, useState } from "react";
 import { DateInput } from "@/components/DateInput";
 import { PartySheet } from "@/components/AccountsSection";
+import { PdfButton } from "@/components/PdfButton";
 import { formatAmount } from "@/lib/formatAmount";
+import { exportPrintableImage } from "@/lib/imageExport";
+import type { PrintableDocument } from "@/lib/pdfDocument";
+import { buildRemittanceReceipt, type ReceiptPlace } from "@/lib/remittanceReceipt";
 import type { MoneyAccount } from "@/lib/moneyAccounts";
 import { francToSifa, isFrancAccount, sifaToFranc } from "@/lib/payCurrency";
 import type { RatesFromUsd } from "@/lib/reportsView";
@@ -57,6 +61,8 @@ interface Props {
   onSave: (input: RemittanceInput) => string | null;
   onPay: (id: string, input: { amount: number; date: string; accountId: string }) => string | null;
   onDelete: (id: string) => void;
+  onEdit: (id: string, input: RemittanceInput) => string | null;
+  onDeletePayment: (id: string, paymentId: string) => void;
 }
 
 /** 💸 «تحويل الأموال» in «حسابي»: the month's profit and who still owes, a tap opens it all. */
@@ -88,9 +94,13 @@ export function RemittanceSection(props: Props) {
   );
 }
 
-function RemittanceBody({ list, accounts, rates, onSave, onPay, onDelete }: Props) {
+function RemittanceBody({ list, accounts, rates, onSave, onPay, onDelete, onEdit, onDeletePayment }: Props) {
   const [adding, setAdding] = useState(list.length === 0);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const receiptPlace = (id: string): ReceiptPlace | undefined =>
+    id === CASH_ID ? { name: "الكاش" } : accountOf(id) ? { name: accountOf(id)!.name, franc: isFrancAccount(accountOf(id)) } : undefined;
+  const receipt = (r: Remittance) => buildRemittanceReceipt(r, { in: receiptPlace(r.inAccountId), out: receiptPlace(r.outAccountId), of: receiptPlace });
   const sorted = [...list].sort((a, b) => (a.date !== b.date ? (a.date < b.date ? 1 : -1) : a.createdAt < b.createdAt ? 1 : -1));
   const accountOf = (id: string) => accounts.find((a) => a.id === id);
   const place = (id: string) => (id === CASH_ID ? "💵 الكاش" : `${accountOf(id)?.icon ?? ""} ${accountOf(id)?.name ?? "حساب محذوف"}`);
@@ -168,13 +178,43 @@ function RemittanceBody({ list, accounts, rates, onSave, onPay, onDelete }: Prop
                       <p>
                         دفعات:{" "}
                         {r.payments.map((p) => (
-                          <span key={p.id}>
-                            <bdi dir="ltr">{p.date}</bdi> <Money amount={p.amount} currency={r.inCurrency} account={accountOf(r.inAccountId)} /> ({place(p.accountId)}){" "}
+                          <span key={p.id} className="remittance-payment">
+                            <bdi dir="ltr">{p.date}</bdi> <Money amount={p.amount} currency={r.inCurrency} account={accountOf(r.inAccountId)} /> ({place(p.accountId)})
+                            <button
+                              type="button"
+                              className="btn-icon"
+                              aria-label="حذف الدفعة"
+                              onClick={() => {
+                                if (window.confirm("حذف هذه الدفعة؟ يعود مبلغها دينًا على الزبون.")) onDeletePayment(r.id, p.id);
+                              }}
+                            >
+                              ✕
+                            </button>{" "}
                           </span>
                         ))}
                       </p>
                     )}
-                    {left > 0 && <PayForm remittance={r} accounts={accounts} onPay={(input) => onPay(r.id, input)} />}
+                    <div className="remittance-actions">
+                      <PdfButton build={() => receipt(r)} label="🧾 وصل PDF" className="dialog-secondary" />
+                      <ReceiptImageButton build={() => receipt(r)} />
+                      <button type="button" className="dialog-secondary" onClick={() => setEditingId(editingId === r.id ? null : r.id)}>
+                        ✎ تعديل
+                      </button>
+                    </div>
+                    {editingId === r.id && (
+                      <RemittanceForm
+                        accounts={accounts}
+                        rates={rates}
+                        initial={r}
+                        onCancel={() => setEditingId(null)}
+                        onSave={(input) => {
+                          const message = onEdit(r.id, input);
+                          if (!message) setEditingId(null);
+                          return message;
+                        }}
+                      />
+                    )}
+                    {left > 0 && editingId !== r.id && <PayForm remittance={r} accounts={accounts} onPay={(input) => onPay(r.id, input)} />}
                     <button
                       type="button"
                       className="dialog-danger"
@@ -232,25 +272,33 @@ function PlacePicker({ label, accounts, value, currency, onChange }: { label: st
   );
 }
 
-function RemittanceForm({ accounts, rates, onSave, onCancel }: { accounts: MoneyAccount[]; rates: RatesFromUsd; onSave: (input: RemittanceInput) => string | null; onCancel?: () => void }) {
-  const [client, setClient] = useState("");
-  const [clientPhone, setClientPhone] = useState("");
-  const [beneficiary, setBeneficiary] = useState("");
-  const [beneficiaryNumber, setBeneficiaryNumber] = useState("");
-  const [inId, setInId] = useState(CASH_ID);
-  const [inCurrency, setInCurrency] = useState("MRU");
+function RemittanceForm({ accounts, rates, onSave, onCancel, initial }: { accounts: MoneyAccount[]; rates: RatesFromUsd; onSave: (input: RemittanceInput) => string | null; onCancel?: () => void; initial?: Remittance }) {
+  // ✎ Editing: the transfer's own figures, in the units he typed them (فرانك for أورانج / نيتا).
+  const typedIn = (n: number, id: string) => String(Math.round((isFrancAccount(accounts.find((a) => a.id === id)) ? sifaToFranc(n) : n) * 100) / 100);
+  const [client, setClient] = useState(initial?.client ?? "");
+  const [clientPhone, setClientPhone] = useState(initial?.clientPhone ?? "");
+  const [beneficiary, setBeneficiary] = useState(initial?.beneficiary ?? "");
+  const [beneficiaryNumber, setBeneficiaryNumber] = useState(initial?.beneficiaryNumber ?? "");
+  const [inId, setInId] = useState(initial?.inAccountId ?? CASH_ID);
+  const [inCurrency, setInCurrency] = useState(initial?.inCurrency ?? "MRU");
   const firstOut = accounts.find((a) => a.currencyCode !== "MRU") ?? accounts[0];
-  const [outId, setOutId] = useState(firstOut?.id ?? CASH_ID);
-  const [outCurrency, setOutCurrency] = useState(firstOut?.currencyCode ?? "MRU");
-  const [amountText, setAmountText] = useState("");
-  const [mode, setMode] = useState<CommissionMode>("percent");
-  const [commissionText, setCommissionText] = useState("");
-  const [who, setWho] = useState<CommissionWho>("onTop");
-  const [rateText, setRateText] = useState("");
+  const [outId, setOutId] = useState(initial?.outAccountId ?? firstOut?.id ?? CASH_ID);
+  const [outCurrency, setOutCurrency] = useState(initial?.outCurrency ?? firstOut?.currencyCode ?? "MRU");
+  const [amountText, setAmountText] = useState(initial ? typedIn(initial.amount, initial.inAccountId) : "");
+  const [mode, setMode] = useState<CommissionMode>(initial?.commissionMode ?? "percent");
+  const [commissionText, setCommissionText] = useState(
+    initial && initial.commissionValue > 0 ? (initial.commissionMode === "fixed" ? typedIn(initial.commissionValue, initial.inAccountId) : String(initial.commissionValue)) : "",
+  );
+  const [who, setWho] = useState<CommissionWho>(initial?.commissionWho ?? "onTop");
+  const [rateText, setRateText] = useState(() => {
+    if (!initial || initial.inCurrency === initial.outCurrency) return "";
+    const quoted = rateQuote(initial.inCurrency, initial.outCurrency) ? quoteFromRate(initial.rate, initial.inCurrency, initial.outCurrency) : initial.rate;
+    return quoted === undefined ? "" : String(Math.round(quoted * 10000) / 10000);
+  });
   const [sentText, setSentText] = useState("");
-  const [paidText, setPaidText] = useState("");
-  const [date, setDate] = useState(today());
-  const [note, setNote] = useState("");
+  const [paidText, setPaidText] = useState(initial ? typedIn(initial.paidNow, initial.inAccountId) : "");
+  const [date, setDate] = useState(initial?.date ?? today());
+  const [note, setNote] = useState(initial?.note ?? "");
   const [error, setError] = useState<string | null>(null);
 
   const inAccount = accounts.find((a) => a.id === inId);
@@ -437,7 +485,7 @@ function RemittanceForm({ accounts, rates, onSave, onCancel }: { accounts: Money
           </button>
         )}
         <button type="button" className="dialog-primary" onClick={submit}>
-          💸 سجّل الحوالة
+          {initial ? "✓ حفظ التعديل" : "💸 سجّل الحوالة"}
         </button>
       </div>
     </div>
@@ -484,3 +532,29 @@ function PayForm({ remittance, accounts, onPay }: { remittance: Remittance; acco
     </div>
   );
 }
+
+/** «🖼️ وصل صورة» - the same receipt as a picture, straight to the share sheet (WhatsApp…). */
+function ReceiptImageButton({ build }: { build: () => PrintableDocument }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <>
+      <button
+        type="button"
+        className="dialog-secondary"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          setError(null);
+          const result = await exportPrintableImage(build(), "transfer-receipt");
+          setBusy(false);
+          if (!result.ok) setError(result.message);
+        }}
+      >
+        {busy ? "⏳ جارِ التجهيز…" : "🖼️ وصل صورة"}
+      </button>
+      {error && <span className="ledger-form-error">{error}</span>}
+    </>
+  );
+}
+
