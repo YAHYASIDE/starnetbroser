@@ -17,6 +17,7 @@ import {
 } from "@/lib/bankNotices";
 import type { SuggestionChoice } from "@/lib/bankSuggestionSave";
 import type { BankRule } from "@/lib/bankRules";
+import { BalanceHint } from "./PlaceBalances";
 import { formatAmount } from "@/lib/formatAmount";
 import { deviceMatchesQuery } from "@/lib/homeInsights";
 import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, type LedgerCurrency } from "@/lib/ledgerStore";
@@ -435,6 +436,7 @@ export function SuggestionConfirm({
             </option>
           ))}
         </select>
+        <BalanceHint placeId={accountId} />
       </label>
 
       <div className="expenses-amount-row">
@@ -557,6 +559,7 @@ export function SuggestionConfirm({
                 </option>
               ))}
           </select>
+          <BalanceHint placeId={otherId} />
         </label>
       )}
 

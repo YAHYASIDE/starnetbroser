@@ -14700,7 +14700,8 @@ button.today-tile {
   gap: 6px;
 }
 
-.remittance-place .form-field:only-child {
+.remittance-place .form-field:only-of-type,
+.remittance-place .balance-hint {
   grid-column: 1 / -1;
 }
 
@@ -15029,4 +15030,37 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   gap: 6px;
   font-size: 0.8rem;
   color: var(--text-muted);
+}
+
+/* 📅 «حسابي»: pick one day for the top card. */
+.money-day-pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.money-day-pick .search-input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 💰 «الرصيد الآن» under an account choice (PlaceBalances.BalanceHint). */
+.balance-hint {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+/* 📅 «حسابي»'s periods on one line, scrolled sideways inside the row (never the page). */
+.money-period-row {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.money-period-row .report-period-btn {
+  flex: 0 0 auto;
 }

@@ -1001,3 +1001,15 @@ is never pressed while a field is empty - it refills and saves on the next try (
   account or الكاش in a currency), amount (فرانك for أورانج / نيتا), date, note → `addAccountTransfer` + its
   الكاش entry (`transferCashEntry`, removed with it). One currency only (`transferCurrencyError`); between two
   currencies → «💱 شراء عملة». The last 15 transfers are listed with delete.
+
+## 📅 «حسابي» periods: اليوم / أمس / a picked day + 💰 balance under every account choice (Oct 10 2026)
+
+- His request (screenshot of the month chips): «اليوم، أمس وتحديد تاريخ». lib/moneyPeriod.ts: chips «اليوم»,
+  «أمس», «📅 تاريخ» (one day), then this month and 4 before, on one line scrolling sideways. The top card
+  («يبقى لك اليوم / أمس / يوم … / في …») takes every figure over from..to: business «الصافي»
+  (`businessNetForPeriod` = netProfit.buildPeriodNet; a month still uses businessNetForMonth), transfers'
+  profit (`remittancePeriod`), income / spending (`periodLeft`); the income tab follows the same period.
+- «في كل مكان رصيد الحساب ظاهر»: components/PlaceBalances.tsx - «حسابي» provides every place's balance
+  (`loadPlaceBalances`) in a context; `BalanceHint` («💰 الرصيد الآن: …», فرانك for أورانج / نيتا, الكاش in its
+  chosen currency) sits under PlacePicker (transfer, purchase, transfers to people), SourceSelect (income,
+  expense, debts) and the bank-confirm account choices.

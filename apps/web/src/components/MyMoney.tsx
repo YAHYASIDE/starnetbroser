@@ -9,6 +9,7 @@ import { formatAmount } from "@/lib/formatAmount";
 import { CASH_CURRENCIES, cashCurrencyLabel } from "@/lib/cashCurrencies";
 import { PAYMENT_METHOD_LABELS } from "@/lib/ledgerStore";
 import { FrancHint, FrancUnit } from "./FrancHint";
+import { BalanceHint } from "./PlaceBalances";
 import { francBadge, francToSifa, isFrancAccount, sifaToFranc } from "@/lib/payCurrency";
 import { accountDisplayUnit, toAccountAmount, toDisplayAmount, type AccountInput, type AccountsBook, type MoneyAccount } from "@/lib/moneyAccounts";
 import { monthLabel } from "@/lib/monthClosing";
@@ -113,6 +114,7 @@ export function SourceSelect({
         ))}
         <option value="none">— لا هذا ولا ذاك</option>
       </select>
+      <BalanceHint placeId={value} />
     </label>
   );
 }
@@ -166,6 +168,7 @@ export function AmountRow({
 
 export function IncomeTab({
   month,
+  period,
   incomes,
   custom,
   rates,
@@ -179,6 +182,8 @@ export function IncomeTab({
 }: {
   accounts?: SourceAccounts;
   month: string;
+  /** 📅 The top card's period (a day, or the month): its income only. */
+  period?: { from: string; to: string; label: string };
   incomes: IncomeList;
   custom: ExpenseCategory[];
   rates: RatesFromUsd;
@@ -200,19 +205,20 @@ export function IncomeTab({
   }, [openNew]);
   const summary = summarizeExpenses(
     incomes.map((e) => ({ ...e, categoryId: groupIdOf(custom, e.categoryId) })),
-    `${month}-01`,
-    `${month}-31`,
+    period?.from ?? `${month}-01`,
+    period?.to ?? `${month}-31`,
     rates,
   );
+  const shownLabel = period?.label ?? monthLabel(month);
   const list = incomes
-    .filter((e) => e.date.slice(0, 7) === month)
+    .filter((e) => (period ? e.date >= period.from && e.date <= period.to : e.date.slice(0, 7) === month))
     .sort((a, b) => (b.date !== a.date ? (b.date < a.date ? -1 : 1) : b.createdAt < a.createdAt ? -1 : 1));
 
   return (
     <section className="section report-tab-panel expenses-tab">
       <div className="expenses-totals money-income-total">
         <div className="money-box-in">
-          <small>دخل {monthLabel(month)}</small>
+          <small>دخل {shownLabel}</small>
           <strong>
             <bdi dir="ltr">{money(summary.byCurrency)}</bdi>
           </strong>
@@ -222,7 +228,7 @@ export function IncomeTab({
       <CategoryPicker label="سجّل دخلاً" tree={custom} onPick={(id) => setForm({ categoryId: id })} onAdd={onAddCategory} onRemove={onRemoveCategory} />
 
       {list.length === 0 ? (
-        <p className="party-empty">لا دخل في {monthLabel(month)}. المس قسماً لتسجّل.</p>
+        <p className="party-empty">لا دخل - {shownLabel}. المس قسماً لتسجّل.</p>
       ) : (
         <ul className="expenses-list">
           {list.map((e) => {

@@ -441,9 +441,9 @@ export function personalFlows(incomes: IncomeList, expenses: PersonalExpense[], 
 
 // ---- the final figures ----
 
-function inMonth(records: { date: string; amount: number; currencyCode: string }[], month: string): Record<string, number> {
+function inRange(records: { date: string; amount: number; currencyCode: string }[], from: string, to: string): Record<string, number> {
   const out: Record<string, number> = {};
-  for (const r of records) if (r.date.slice(0, 7) === month) add(out, r.currencyCode, r.amount);
+  for (const r of records) if (r.date >= from && r.date <= to) add(out, r.currencyCode, r.amount);
   return out;
 }
 
@@ -465,14 +465,28 @@ export function monthLeft(input: {
   incomes: IncomeList;
   expenses: PersonalExpense[];
   rates: RatesFromUsd;
+  since?: string;
+  remittanceMru?: number;
+}): MonthLeft {
+  return periodLeft({ ...input, from: `${input.month}-01`, to: `${input.month}-31` });
+}
+
+/** The same figure over any days (📅 «اليوم» / «أمس» / a picked day - lib/moneyPeriod.ts). */
+export function periodLeft(input: {
+  from: string;
+  to: string;
+  businessNetMru: number;
+  incomes: IncomeList;
+  expenses: PersonalExpense[];
+  rates: RatesFromUsd;
   /** «الأرباح والخسائر من 0» (profitReset.ts): income / spending before this day don't count. */
   since?: string;
   /** 💸 The month's transfers' profit in أوقية (remittances.remittanceMonth). */
   remittanceMru?: number;
 }): MonthLeft {
   const after = <T extends { date: string }>(list: T[]) => (input.since ? list.filter((r) => r.date >= input.since!) : list);
-  const income = sumToMru(inMonth(after(input.incomes), input.month), input.rates);
-  const expense = sumToMru(inMonth(after(input.expenses), input.month), input.rates);
+  const income = sumToMru(inRange(after(input.incomes), input.from, input.to), input.rates);
+  const expense = sumToMru(inRange(after(input.expenses), input.from, input.to), input.rates);
   const remittanceMru = input.remittanceMru ?? 0;
   return {
     businessMru: input.businessNetMru,

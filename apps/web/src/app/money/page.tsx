@@ -13,11 +13,12 @@ import { ExchangeSection } from "@/components/ExchangeSection";
 import { TransferSection, type TransferInput } from "@/components/TransferSection";
 import { averageCosts, createExchange, deleteExchange, exchangeCashEntries, loadExchanges, saveExchanges, updateExchange, type Exchange, type ExchangeList } from "@/lib/exchanges";
 import { PlaceStatement } from "@/components/PlaceStatement";
-import { loadPlaceLedger, pendingForPlace, runBalanceAlerts } from "@/lib/placeLedgerData";
+import { loadPlaceBalances, loadPlaceLedger, pendingForPlace, runBalanceAlerts } from "@/lib/placeLedgerData";
+import { PlaceBalancesContext } from "@/components/PlaceBalances";
 import { CARD_PLACE, CASH_PLACE } from "@/lib/moneyMovements";
 import { alertKey, EMPTY_BALANCE_ALERTS, loadBalanceAlerts, saveBalanceAlerts, setThreshold, type BalanceAlerts } from "@/lib/balanceAlerts";
 import { notifyPhone } from "@/lib/appEvents";
-import { addRemittancePayment, createRemittance, deleteRemittance, deleteRemittancePayment, loadRemittances, updateRemittance, remittanceCashEntries, remittanceMonth, saveRemittances, type Remittance, type RemittanceList } from "@/lib/remittances";
+import { addRemittancePayment, createRemittance, deleteRemittance, deleteRemittancePayment, loadRemittances, updateRemittance, remittanceCashEntries, remittancePeriod, saveRemittances, type Remittance, type RemittanceList } from "@/lib/remittances";
 import { ouguiyaFixMessage, runOuguiyaFixOnce } from "@/lib/bankOuguiyaRun";
 import { askDeleteCode } from "@/components/DeleteCodePrompt";
 import { loadProfitReset, saveProfitReset, startProfitFresh, undoProfitFresh, type ProfitReset } from "@/lib/profitReset";
@@ -31,7 +32,8 @@ import { PartySheet } from "@/components/AccountsSection";
 import { PersonalExpensesTab } from "@/components/PersonalExpensesTab";
 import { computeCashBalanceByCurrency, hasCashReset, loadCashEntries, recordCashEntry, removeLinkedCashEntries, resetCashToZero, saveCashEntries, undoCashReset } from "@/lib/cashStore";
 import { formatAmount } from "@/lib/formatAmount";
-import { monthLabel } from "@/lib/monthClosing";
+import { dayPeriod, monthPeriod, periodChoices, samePeriod, type MoneyPeriod } from "@/lib/moneyPeriod";
+import { DateInput } from "@/components/DateInput";
 import {
   addIncome,
   addRecurringRule,
@@ -43,7 +45,7 @@ import {
   loadIncome,
   loadIncomeCategories,
   loadRecurring,
-  monthLeft,
+  periodLeft,
   buildWealth,
   personalFlows,
   saveIncome,
@@ -58,7 +60,7 @@ import {
   type RecurringList,
   type WealthLine,
 } from "@/lib/myMoney";
-import { businessNetForMonth, loadAccountFlows, loadMoneyAccounts, loadRates, loadWealthInput } from "@/lib/myMoneyData";
+import { businessNetForMonth, businessNetForPeriod, loadAccountFlows, loadMoneyAccounts, loadRates, loadWealthInput } from "@/lib/myMoneyData";
 import {
   accountBalance,
   addMoneyAccount,
@@ -125,7 +127,10 @@ function Line({ icon, label, value, minus }: { icon: string; label: string; valu
 export default function MoneyPage() {
   const [accounts, setAccounts] = useState<StarlinkAccountSummary[]>([]);
   const [rates, setRates] = useState<RatesFromUsd>({});
-  const [month, setMonth] = useState(() => today().slice(0, 7));
+  // 📅 The top card's period: اليوم / أمس / a picked day / a month (lib/moneyPeriod.ts).
+  const [period, setPeriod] = useState<MoneyPeriod>(() => monthPeriod(today().slice(0, 7)));
+  const [pickingDay, setPickingDay] = useState(false);
+  const month = period.from.slice(0, 7);
   const [tab, setTab] = useState<MoneyTab>("income");
   const [incomes, setIncomes] = useState<IncomeList>([]);
   const [incomeCats, setIncomeCats] = useState<ExpenseCategory[]>([]);
@@ -254,16 +259,22 @@ export default function MoneyPage() {
     };
   }, []);
 
-  const months = useMemo(() => {
-    const now = new Date();
-    return [0, 1, 2, 3, 4].map((i) => new Date(now.getFullYear(), now.getMonth() - i, 15).toISOString().slice(0, 7));
-  }, []);
+  const choices = useMemo(() => periodChoices(today()), []);
 
-  const business = useMemo(() => (loaded ? businessNetForMonth(month, accounts, rates) : { netMru: 0, missing: [] }), [loaded, month, accounts, rates, cashVersion]);
-  const remittanceMru = useMemo(() => remittanceMonth(remittances, month, profitReset?.date).profitMru, [remittances, month, profitReset]);
+  const business = useMemo(
+    () =>
+      !loaded
+        ? { netMru: 0, missing: [] }
+        : period.kind === "month"
+          ? businessNetForMonth(month, accounts, rates)
+          : businessNetForPeriod(period.from, period.to, accounts, rates),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [loaded, period, accounts, rates, cashVersion],
+  );
+  const remittanceMru = useMemo(() => remittancePeriod(remittances, period.from, period.to, profitReset?.date).profitMru, [remittances, period, profitReset]);
   const left = useMemo(
-    () => monthLeft({ month, businessNetMru: business.netMru, incomes, expenses, rates, since: profitReset?.date, remittanceMru }),
-    [month, business, incomes, expenses, rates, profitReset, remittanceMru],
+    () => periodLeft({ from: period.from, to: period.to, businessNetMru: business.netMru, incomes, expenses, rates, since: profitReset?.date, remittanceMru }),
+    [period, business, incomes, expenses, rates, profitReset, remittanceMru],
   );
   const wealth = useMemo(
     () => buildWealth(loadWealthInput({ accounts, rates, incomes, expenses, debts, book })),
@@ -299,6 +310,13 @@ export default function MoneyPage() {
     setAlerts(loadBalanceAlerts());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded, accounts, book, incomes, expenses, debts, cashVersion, inboxVersion, remittances, alertsVersion, exchanges]);
+  // 💰 Every place's balance now, shown under every account choice (components/PlaceBalances.tsx).
+  const placeBalances = useMemo(
+    () => (loaded ? loadPlaceBalances(accounts) : {}),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [loaded, accounts, book, incomes, expenses, debts, cashVersion, inboxVersion, remittances, exchanges],
+  );
+  const balanceContext = useMemo(() => ({ balances: placeBalances, accounts: book.accounts }), [placeBalances, book.accounts]);
   const statementPending = useMemo(
     () => (statementOf && loaded ? pendingForPlace(statementOf) : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -669,16 +687,43 @@ export default function MoneyPage() {
 
   const hero = (
     <>
-      <div className="report-period-row">
-        {months.map((m) => (
-          <button key={m} type="button" className={`report-period-btn${m === month ? " report-period-btn-active" : ""}`} onClick={() => setMonth(m)}>
-            {monthLabel(m)}
+      <div className="report-period-row money-period-row">
+        {choices.slice(0, 2).map((p) => (
+          <button key={p.from + p.to} type="button" className={`report-period-btn${samePeriod(p, period) ? " report-period-btn-active" : ""}`} onClick={() => (setPeriod(p), setPickingDay(false))}>
+            {p.label}
+          </button>
+        ))}
+        <button
+          type="button"
+          className={`report-period-btn${period.kind === "day" && !choices.some((p) => samePeriod(p, period)) ? " report-period-btn-active" : ""}`}
+          onClick={() => setPickingDay(!pickingDay)}
+        >
+          📅 {period.kind === "day" && !choices.some((p) => samePeriod(p, period)) ? period.label : "تاريخ"}
+        </button>
+        {choices.slice(2).map((p) => (
+          <button key={p.from + p.to} type="button" className={`report-period-btn${samePeriod(p, period) ? " report-period-btn-active" : ""}`} onClick={() => (setPeriod(p), setPickingDay(false))}>
+            {p.label}
           </button>
         ))}
       </div>
+      {pickingDay && (
+        <div className="money-day-pick">
+          <span>اختر اليوم:</span>
+          <DateInput
+            className="search-input"
+            value={period.kind === "day" ? period.from : today()}
+            onChange={(e) => {
+              if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value)) {
+                setPeriod(dayPeriod(e.target.value, today()));
+                setPickingDay(false);
+              }
+            }}
+          />
+        </div>
+      )}
 
       <div className={`net-hero money-hero${left.leftMru < 0 ? " is-loss" : ""}`}>
-        <span className="net-hero-label">يبقى لك في {monthLabel(month)}</span>
+        <span className="net-hero-label">يبقى لك {period.phrase}</span>
         <strong className="net-hero-value">
           <bdi dir="ltr">{mru(left.leftMru)}</bdi> <small>أوقية</small>
         </strong>
@@ -702,6 +747,7 @@ export default function MoneyPage() {
   );
 
   return (
+    <PlaceBalancesContext.Provider value={balanceContext}>
     <main className="home money-page">
       <div className="page-title-row">
         <h1 className="section-title">💰 حسابي</h1>
@@ -774,6 +820,7 @@ export default function MoneyPage() {
           <IncomeTab
             accounts={sources}
             month={month}
+            period={period}
             incomes={incomes}
             custom={incomeCats}
             rates={rates}
@@ -983,5 +1030,6 @@ export default function MoneyPage() {
         </button>
       </div>
     </main>
+    </PlaceBalancesContext.Provider>
   );
 }

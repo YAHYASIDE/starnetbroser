@@ -19,7 +19,7 @@ import { demoAccounts } from "./demoData";
 import { loadDemoAccounts } from "./demoAccountStore";
 import { loadInvoices } from "./invoiceStore";
 import { loadLedgerStore } from "./ledgerStore";
-import { buildMonthNet } from "./netProfit";
+import { buildMonthNet, buildPeriodNet } from "./netProfit";
 import { loadPartyAdjustments } from "./partyBalanceStore";
 import { loadHiddenProfitDays, withoutHiddenProfitDays } from "./profitStatement";
 import { loadProfitReset } from "./profitReset";
@@ -57,6 +57,25 @@ export function businessNetForMonth(month: string, accounts: StarlinkAccountSumm
   const profitReset = loadProfitReset();
   const net = buildMonthNet({
     month,
+    ledgerStore: ledger,
+    invoices: loadInvoices(),
+    transactions: loadStoreTransactions(),
+    cash: loadCashEntries(),
+    rates,
+    profitReset,
+    profitResetByAccount: profitResetByAccount(accounts, loadClientProfitResets(), profitReset),
+    cardTopUps: loadCardTopUps(),
+  });
+  return { netMru: net.netMru, missing: net.missingCurrencies };
+}
+
+/** «الصافي» over any days (📅 a day in «حسابي») - the same calculation (netProfit.buildPeriodNet). */
+export function businessNetForPeriod(from: string, to: string, accounts: StarlinkAccountSummary[], rates: RatesFromUsd): { netMru: number; missing: string[] } {
+  const ledger = withoutHiddenProfitDays(loadLedgerStore(), loadHiddenProfitDays());
+  const profitReset = loadProfitReset();
+  const net = buildPeriodNet({
+    from,
+    to,
     ledgerStore: ledger,
     invoices: loadInvoices(),
     transactions: loadStoreTransactions(),

@@ -299,11 +299,16 @@ export function remittanceProfitMru(r: Remittance): number | undefined {
 
 /** The month's line in «يبقى لك»: profit in أوقية (from `since` on, like the rest of «حسابي»). */
 export function remittanceMonth(list: RemittanceList, month: string, since?: string): { count: number; profitMru: number; missing: number } {
+  return remittancePeriod(list, `${month}-01`, `${month}-31`, since);
+}
+
+/** The same over any days (📅 «اليوم» / «أمس» / a picked day). */
+export function remittancePeriod(list: RemittanceList, from: string, to: string, since?: string): { count: number; profitMru: number; missing: number } {
   let count = 0;
   let profitMru = 0;
   let missing = 0;
   for (const r of list) {
-    if (r.date.slice(0, 7) !== month || (since && r.date < since)) continue;
+    if (r.date < from || r.date > to || (since && r.date < since)) continue;
     count += 1;
     const p = remittanceProfitMru(r);
     if (p === undefined) missing += 1;

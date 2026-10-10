@@ -11,6 +11,7 @@ import { buildRemittanceReceipt, type ReceiptPlace } from "@/lib/remittanceRecei
 import type { MoneyAccount } from "@/lib/moneyAccounts";
 import { francToSifa, isFrancAccount, sifaToFranc } from "@/lib/payCurrency";
 import { CASH_CURRENCIES, cashCurrencyLabel } from "@/lib/cashCurrencies";
+import { BalanceHint } from "./PlaceBalances";
 import type { RatesFromUsd } from "@/lib/reportsView";
 import {
   CASH_ID,
@@ -272,6 +273,7 @@ export function PlacePicker({ label, accounts, value, currency, onChange }: { la
           </select>
         </label>
       )}
+      <BalanceHint placeId={value} currency={value === CASH_ID ? currency : undefined} />
     </div>
   );
 }
