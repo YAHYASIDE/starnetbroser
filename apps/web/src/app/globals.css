@@ -14680,3 +14680,106 @@ button.today-tile {
 .renewal-ask-note { margin: 0; color: var(--text-muted); font-size: 0.82rem; line-height: 1.5; }
 .renewal-ask-actions { display: grid; gap: 8px; }
 .renewal-ask-actions button { width: 100%; min-height: 46px; }
+
+/* ---- 💸 تحويل الأموال (RemittanceSection) ---- */
+.remittance-open {
+  margin-bottom: 10px;
+}
+
+.remittance-body,
+.remittance-form,
+.remittance-pay {
+  display: grid;
+  gap: 8px;
+}
+
+.remittance-grid,
+.remittance-place {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.remittance-place .form-field:only-child {
+  grid-column: 1 / -1;
+}
+
+.remittance-grid select,
+.remittance-place select {
+  min-width: 0;
+  width: 100%;
+}
+
+.remittance-commission {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.remittance-preview {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2, var(--surface));
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+
+.remittance-list {
+  display: grid;
+  gap: 6px;
+}
+
+.money-recurring-list.remittance-list > li.remittance-row {
+  display: grid;
+  align-items: stretch;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.remittance-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.remittance-row-head > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.remittance-row-head small {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  overflow-wrap: anywhere;
+}
+
+.remittance-row-figures {
+  flex-shrink: 0;
+  text-align: end;
+}
+
+.remittance-detail {
+  display: grid;
+  gap: 6px;
+  font-size: 0.8rem;
+}
+
+.remittance-detail p {
+  margin: 0;
+  line-height: 1.6;
+}

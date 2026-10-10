@@ -871,3 +871,22 @@ is never pressed while a field is empty - it refills and saves on the next try (
   + day). A record he changed by hand, or two identical candidates, is left as it is and counted in the
   message he sees once. The list of fixes is kept in the bank inbox (`ouguiyaFix`).
 
+## 💸 «تحويل الأموال» - the remittance branch (Oct 10 2026)
+
+- His request: «فرع تحويل اموال يكون في حسابي … بين تطبيقات البنكية واورانج موني ونيتا والكاش ودولار …
+  وفيه عمولة او اضافة». His choices: **حوالات للناس** (a person pays him in one place, he sends from
+  another, for that person or someone else, and takes a commission); **the rate is typed on each one**
+  (the «العملات» rate is offered, locked on the record); **commission chosen each time** (% or a fixed
+  amount; paid on top by the customer, or deducted from what is sent); **what isn't paid stays a debt** on
+  the customer until he pays it (one or more payments, into الكاش or an account).
+- Where: a «💸 تحويل الأموال» card in «حسابي» (under «كل ما تملك») → a sheet with «➕ حوالة جديدة» and the
+  list (tap one: details, «تسديد الباقي», delete). Store `starnet_remittances_v1` (backed up, wiped by
+  «حذف كل المعاملات»).
+- Money: received money is added to its account, sent money leaves its account (derived, like every
+  balance); a الكاش leg is a cash entry with `sourceKind: "remittance"` and the transfer's id (removed with
+  it). Orange / Nita are typed and shown in فرانك (the rate too); kept in سيفا.
+- Profit = what the customer owes − what was sent, both in أوقية at the day's locked rates (the
+  commission + any exchange difference); a line «💸 أرباح التحويل» in «يبقى لك» of that month. What is still
+  owed shows in «كل ما تملك» → «لك عند الزبائن» as «💸 name». The dashboard's money movements show them as
+  «💸 تحويل أموال (حوالة)».
+

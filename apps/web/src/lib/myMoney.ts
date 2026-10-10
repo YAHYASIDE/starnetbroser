@@ -448,9 +448,11 @@ function inMonth(records: { date: string; amount: number; currencyCode: string }
 
 export interface MonthLeft {
   businessMru: number;
+  /** 💸 «تحويل الأموال»: the month's transfers' profit (commission + exchange). */
+  remittanceMru: number;
   incomeMru: number;
   expenseMru: number;
-  /** «يبقى لك هذا الشهر» = business net + income − expenses. */
+  /** «يبقى لك هذا الشهر» = business net + transfers' profit + income − expenses. */
   leftMru: number;
   missing: string[];
 }
@@ -464,15 +466,19 @@ export function monthLeft(input: {
   rates: RatesFromUsd;
   /** «الأرباح والخسائر من 0» (profitReset.ts): income / spending before this day don't count. */
   since?: string;
+  /** 💸 The month's transfers' profit in أوقية (remittances.remittanceMonth). */
+  remittanceMru?: number;
 }): MonthLeft {
   const after = <T extends { date: string }>(list: T[]) => (input.since ? list.filter((r) => r.date >= input.since!) : list);
   const income = sumToMru(inMonth(after(input.incomes), input.month), input.rates);
   const expense = sumToMru(inMonth(after(input.expenses), input.month), input.rates);
+  const remittanceMru = input.remittanceMru ?? 0;
   return {
     businessMru: input.businessNetMru,
+    remittanceMru,
     incomeMru: income.mru,
     expenseMru: expense.mru,
-    leftMru: input.businessNetMru + income.mru - expense.mru,
+    leftMru: input.businessNetMru + remittanceMru + income.mru - expense.mru,
     missing: Array.from(new Set([...income.missing, ...expense.missing])),
   };
 }

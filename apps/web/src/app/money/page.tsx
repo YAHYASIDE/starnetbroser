@@ -7,6 +7,8 @@ import { AccountsManager, IncomeTab, RecurringSection, today, WealthCard, Wealth
 import { BankInboxCard, BankInboxList, SuggestionConfirm, type ConfirmData, type ConfirmInput } from "@/components/BankInbox";
 import { decideSuggestion, decidedSuggestions, EMPTY_BANK_INBOX, loadBankInbox, pendingSuggestions, reopenSuggestion, saveBankInbox, type BankInbox, type BankSuggestion } from "@/lib/bankNotices";
 import { saveSuggestionChoice } from "@/lib/bankSuggestionSave";
+import { RemittanceSection } from "@/components/RemittanceSection";
+import { addRemittancePayment, createRemittance, deleteRemittance, loadRemittances, remittanceCashEntries, remittanceMonth, saveRemittances, type Remittance, type RemittanceList } from "@/lib/remittances";
 import { ouguiyaFixMessage, runOuguiyaFixOnce } from "@/lib/bankOuguiyaRun";
 import { askDeleteCode } from "@/components/DeleteCodePrompt";
 import { loadProfitReset, saveProfitReset, startProfitFresh, undoProfitFresh, type ProfitReset } from "@/lib/profitReset";
@@ -18,7 +20,7 @@ import { listRepresentatives, loadRepresentativeStore } from "@/lib/repStore";
 import { listSuppliers, loadSupplierStore } from "@/lib/supplierStore";
 import { PartySheet } from "@/components/AccountsSection";
 import { PersonalExpensesTab } from "@/components/PersonalExpensesTab";
-import { computeCashBalanceByCurrency, hasCashReset, loadCashEntries, removeLinkedCashEntries, resetCashToZero, saveCashEntries, undoCashReset } from "@/lib/cashStore";
+import { computeCashBalanceByCurrency, hasCashReset, loadCashEntries, recordCashEntry, removeLinkedCashEntries, resetCashToZero, saveCashEntries, undoCashReset } from "@/lib/cashStore";
 import { formatAmount } from "@/lib/formatAmount";
 import { monthLabel } from "@/lib/monthClosing";
 import {
@@ -128,6 +130,7 @@ export default function MoneyPage() {
   const [loaded, setLoaded] = useState(false);
   // 🏦 bank / wallet notifications waiting for his confirmation (lib/bankNotices.ts).
   const [inbox, setInbox] = useState<BankInbox>(EMPTY_BANK_INBOX);
+  const [remittances, setRemittances] = useState<RemittanceList>([]);
   const [inboxOpen, setInboxOpen] = useState(false);
   const [picked, setPicked] = useState<BankSuggestion | null>(null);
   const [notifEnabled, setNotifEnabled] = useState<boolean | null>(null);
@@ -191,6 +194,7 @@ export default function MoneyPage() {
     setBook(readyBook);
     setRates(loadRates());
     setInbox(loadBankInbox());
+    setRemittances(loadRemittances());
     setProfitReset(loadProfitReset());
     setWipeUndo(loadWipeUndo(window.localStorage));
     setCashResetOn(hasCashReset(loadCashEntries()));
@@ -240,15 +244,16 @@ export default function MoneyPage() {
   }, []);
 
   const business = useMemo(() => (loaded ? businessNetForMonth(month, accounts, rates) : { netMru: 0, missing: [] }), [loaded, month, accounts, rates, cashVersion]);
+  const remittanceMru = useMemo(() => remittanceMonth(remittances, month, profitReset?.date).profitMru, [remittances, month, profitReset]);
   const left = useMemo(
-    () => monthLeft({ month, businessNetMru: business.netMru, incomes, expenses, rates, since: profitReset?.date }),
-    [month, business, incomes, expenses, rates, profitReset],
+    () => monthLeft({ month, businessNetMru: business.netMru, incomes, expenses, rates, since: profitReset?.date, remittanceMru }),
+    [month, business, incomes, expenses, rates, profitReset, remittanceMru],
   );
   const wealth = useMemo(
     () => buildWealth(loadWealthInput({ accounts, rates, incomes, expenses, debts, book })),
     // الكاش changes (cashVersion) are read from storage.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [accounts, rates, incomes, expenses, debts, book, cashVersion, loaded, inboxVersion],
+    [accounts, rates, incomes, expenses, debts, book, cashVersion, loaded, inboxVersion, remittances],
   );
   const accountBalances = useMemo(() => {
     const ledger = loadLedgerStore();
@@ -256,7 +261,7 @@ export default function MoneyPage() {
     return Object.fromEntries(book.accounts.map((a) => [a.id, accountBalance(book, a, loadAccountFlows(ledger, a, flows, book.accounts))]));
     // Supplier / rep payments from a bank notification are read from storage (inboxVersion).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [book, incomes, expenses, debts, inboxVersion]);
+  }, [book, incomes, expenses, debts, inboxVersion, remittances]);
   const sources = book.accounts.map((a) => ({ id: a.id, name: a.name, icon: a.icon, currencyCode: a.currencyCode, method: a.method }));
   const missing = Array.from(new Set([...business.missing, ...left.missing, ...wealth.missing]));
   const shownLine = openLine ? wealth.lines.find((l) => l.key === openLine.key) ?? openLine : null;
@@ -355,6 +360,42 @@ export default function MoneyPage() {
     setInboxVersion((v) => v + 1);
     setPicked(null);
     return null;
+  }
+
+  // ---- 💸 تحويل الأموال (remittances.ts) ----
+  // Its الكاش legs are cash entries carrying the transfer's id: rewritten whole on every change.
+  function storeRemittances(next: RemittanceList, changed: Remittance | null, removedId?: string) {
+    let cash = loadCashEntries();
+    const id = changed?.id ?? removedId;
+    if (id) cash = removeLinkedCashEntries(cash, id);
+    if (changed) {
+      for (const entry of remittanceCashEntries(changed)) {
+        const posted = recordCashEntry(cash, entry);
+        if (posted.ok) cash = posted.entries;
+      }
+    }
+    saveCashEntries(cash);
+    saveRemittances(next);
+    setRemittances(next);
+    setCashVersion((v) => v + 1);
+  }
+
+  function addRemittance(input: Parameters<typeof createRemittance>[1]): string | null {
+    const result = createRemittance(remittances, input);
+    if (!result.ok) return result.message;
+    storeRemittances(result.list, result.remittance);
+    return null;
+  }
+
+  function payRemittance(id: string, input: { amount: number; date: string; accountId: string }): string | null {
+    const result = addRemittancePayment(remittances, id, input);
+    if (!result.ok) return result.message;
+    storeRemittances(result.list, result.list.find((r) => r.id === id) ?? null);
+    return null;
+  }
+
+  function removeRemittance(id: string) {
+    storeRemittances(deleteRemittance(remittances, id), null, id);
   }
 
   // ---- 🔄 البداية من جديد / 🗑️ حذف الكل ----
@@ -458,6 +499,7 @@ export default function MoneyPage() {
         </strong>
         <ul className="money-lines">
           <Line icon="📈" label="أرباح عملك (الصافي)" value={left.businessMru} />
+          {left.remittanceMru !== 0 && <Line icon="💸" label="أرباح التحويل" value={left.remittanceMru} />}
           <Line icon="💵" label="دخلك" value={left.incomeMru} />
           <Line icon="🧾" label="مصروفاتك" value={left.expenseMru} minus />
         </ul>
@@ -494,6 +536,17 @@ export default function MoneyPage() {
       />
 
       {hero}
+
+      <RemittanceSection
+        list={remittances}
+        accounts={book.accounts}
+        rates={rates}
+        month={month}
+        since={profitReset?.date}
+        onSave={addRemittance}
+        onPay={payRemittance}
+        onDelete={removeRemittance}
+      />
 
       <div className="report-tabs" role="tablist" aria-label="حسابي">
         {TABS.map((t) => (

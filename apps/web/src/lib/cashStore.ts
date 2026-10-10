@@ -38,7 +38,7 @@ export interface CashEntry {
   createdAt: string;
 }
 
-export type CashSourceKind = "device-payment" | "party-balance" | "rep-settlement" | "closing" | "card-topup" | "personal-expense" | "personal-income" | "personal-debt" | "account-transfer" | "cash-reset";
+export type CashSourceKind = "device-payment" | "party-balance" | "rep-settlement" | "closing" | "card-topup" | "personal-expense" | "personal-income" | "personal-debt" | "account-transfer" | "cash-reset" | "remittance";
 
 export type CashEntryList = CashEntry[];
 

@@ -6,6 +6,7 @@
  */
 
 import { isFrancAccount } from "./payCurrency";
+import { loadRemittances, remittanceDebtors, remittanceFlows } from "./remittances";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { listAccounts } from "./apiClient";
 import { computeCashBalanceByCurrency, loadCashEntries } from "./cashStore";
@@ -72,7 +73,14 @@ export function businessNetForMonth(month: string, accounts: StarlinkAccountSumm
  * from a bank notification. `accounts` = the whole book's accounts (a payment in a currency its
  * app doesn't hold is routed to that currency's cash wallet - devicePaymentAccountId). */
 export function loadAccountFlows(ledger: LedgerByAccount, account: MoneyAccount, personal: AccountFlow[], accounts: MoneyAccount[]): AccountFlow[] {
-  return [...devicePaymentFlows(ledger, account, accounts), ...personal, ...partyFlows(loadPartyAdjustments(), loadRepSettlements()), ...cardMovementFlows(loadCardTopUps())];
+  return [
+    ...devicePaymentFlows(ledger, account, accounts),
+    ...personal,
+    ...partyFlows(loadPartyAdjustments(), loadRepSettlements()),
+    ...cardMovementFlows(loadCardTopUps()),
+    // 💸 «تحويل الأموال»: money in from the customer, out to the beneficiary.
+    ...remittanceFlows(loadRemittances()),
+  ];
 }
 
 /** Everything «كل ما تملك» is made of, read from the app's own records (same figures as the
@@ -112,7 +120,11 @@ export function loadWealthInput(input: {
     }
     return { name: client.name, owes, credit };
   });
-  const customers = clientTotals.filter((c) => Object.keys(c.owes).length > 0).map((c) => ({ name: c.name, byCurrency: c.owes }));
+  const customers = [
+    ...clientTotals.filter((c) => Object.keys(c.owes).length > 0).map((c) => ({ name: c.name, byCurrency: c.owes })),
+    // 💸 what's still owed on transfers («تحويل الأموال»)
+    ...remittanceDebtors(loadRemittances()),
+  ];
   const customersOwe = clientTotals.filter((c) => Object.keys(c.credit).length > 0).map((c) => ({ name: c.name, byCurrency: c.credit }));
 
   const suppliers = listSuppliers(loadSupplierStore())

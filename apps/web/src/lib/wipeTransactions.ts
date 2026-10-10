@@ -37,6 +37,7 @@ export const TRANSACTION_KEYS = [
   "starnet_personal_debts_v1",
   "starnet_payment_promises_v1",
   "starnet_payment_proofs_v1",
+  "starnet_remittances_v1",
 ] as const;
 
 const ACCOUNTS_BOOK_KEY = "starnet_money_accounts_v1";

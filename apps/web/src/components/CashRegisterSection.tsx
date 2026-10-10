@@ -38,6 +38,7 @@ const SOURCE_LABELS: Record<CashSourceKind, string> = {
   "personal-debt": "دين شخصي",
   "account-transfer": "تحويل مع حساب بنكي",
   "cash-reset": "تصفير الكاش",
+  remittance: "تحويل أموال",
 };
 
 function sourceBadge(entry: CashEntry): string | null {
