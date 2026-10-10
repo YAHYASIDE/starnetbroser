@@ -24,6 +24,8 @@ import {
   extractRenewalBadgeDate,
   extractServiceCountry,
   isStandbyModePlan,
+  hasServiceEndBanner,
+  hasStandbyTransitionBanner,
   extractSubscriptionId,
   extractSubscriptionInvoiceDueDay,
   hasBillingSuspensionBanner,
@@ -190,7 +192,11 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
   // different spots on the page. Only ever set alongside the banner itself, never inferred from
   // an ordinary renewal date alone (an account can have a real upcoming renewal with no
   // cancellation pending at all).
-  if (hasScheduledEndBanner(lines) && (labeledRenewalDate ?? resolvedRenewalDate)) fields.pendingCancellationDate = labeledRenewalDate ?? resolvedRenewalDate;
+  // «scheduled to end» = a real cancellation (ملغي); «will switch/transition to Standby Mode» =
+  // the device moves to the Standby plan (SIS) and keeps a service - its own field.
+  const bannerDate = labeledRenewalDate ?? resolvedRenewalDate;
+  if (bannerDate && hasServiceEndBanner(lines)) fields.pendingCancellationDate = bannerDate;
+  else if (bannerDate && hasStandbyTransitionBanner(lines)) fields.pendingStandbyDate = bannerDate;
 
   const balance = extractBalance(lines);
   if (balance) {

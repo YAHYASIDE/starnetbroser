@@ -60,7 +60,9 @@ describe("English Home page", () => {
       <div>DEMO NAME • ACC-0000-0000-DEMO</div>
       <div>Your current service will transition to Standby Mode on 10/24/2026.</div>
     `);
-    expect(fields.pendingCancellationDate).toBe("2026/10/24");
+    // Moving to Standby (SIS) is not a cancellation.
+    expect(fields.pendingStandbyDate).toBe("2026/10/24");
+    expect(fields.pendingCancellationDate).toBeUndefined();
   });
 
   it("reads «will switch to Standby Mode» too, and the plan stays active (real wording)", () => {
@@ -70,7 +72,8 @@ describe("English Home page", () => {
       <div><p>Service Plan</p><span>Standby Mode Pending</span><button>Manage</button><p>Roam - Unlimited</p></div>
     `);
     expect(fields.renewalDate).toBe("2026/10/03");
-    expect(fields.pendingCancellationDate).toBe("2026/10/03");
+    expect(fields.pendingStandbyDate).toBe("2026/10/03");
+    expect(fields.pendingCancellationDate).toBeUndefined();
     expect(fields.serviceStatus).toBe("active");
   });
 });

@@ -720,6 +720,12 @@ export function AccountCard({
             ⏳ بانتظار المسؤول
           </span>
         )}
+        {/* ⏸️ Moving to the Standby plan (SIS) - still a service, not «ملغي». */}
+        {account.pendingStandbyDate && !cancellation.cancelled && (
+          <span className="standby-pending-chip" title={`ينتقل إلى وضع الاستعداد (SIS) في ${account.pendingStandbyDate}`}>
+            ⏸️ SIS من <bdi dir="ltr">{account.pendingStandbyDate}</bdi>
+          </span>
+        )}
         {context === "active" && !account.creation && cancellation.cancelled && (
           <button type="button" className="cancel-subscription-button is-cancelled" onClick={() => void handleCancelSubscription()} title={cancelledMessage(cancellation)}>
             ملغى

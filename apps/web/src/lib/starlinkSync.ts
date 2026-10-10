@@ -26,6 +26,7 @@ const FIELD_INFO: Record<keyof SyncedStarlinkFields, { label: string; section: S
   planName: { label: "الخطة", section: "subscriptions" },
   renewalDate: { label: "تاريخ التجديد", section: "subscriptions" },
   pendingCancellationDate: { label: "موعد إيقاف الاشتراك", section: "subscriptions" },
+  pendingStandbyDate: { label: "موعد الانتقال إلى SIS (وضع الاستعداد)", section: "subscriptions" },
   accountHolderName: { label: "اسم صاحب الحساب (Starlink)", section: "identifiers" },
   accountEmail: { label: "البريد الإلكتروني (Starlink)", section: "identifiers" },
   phone: { label: "رقم الهاتف", section: "identifiers" },
@@ -179,6 +180,15 @@ export function mergeSyncedFields(
   if (pendingCancellationDate) {
     note("pendingCancellationDate", next.pendingCancellationDate !== pendingCancellationDate);
     next.pendingCancellationDate = pendingCancellationDate;
+  }
+
+  // ⏸️ Moving to the Standby plan (SIS) - not a cancellation. An older read stored this same banner
+  // as a cancellation date («ملغي» on the card): that one goes now.
+  const pendingStandbyDate = fields.pendingStandbyDate?.trim();
+  if (pendingStandbyDate) {
+    note("pendingStandbyDate", next.pendingStandbyDate !== pendingStandbyDate);
+    next.pendingStandbyDate = pendingStandbyDate;
+    if (next.pendingCancellationDate === pendingStandbyDate) delete next.pendingCancellationDate;
   }
 
   const accountHolderName = fields.accountHolderName?.trim();

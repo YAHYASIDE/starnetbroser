@@ -90,6 +90,9 @@ export interface StarlinkAccountSummary {
    * right now, this is just the date it will actually stop unless resumed before then. Shown as
    * its own separate info note, never folded into the plan/status badge itself. */
   pendingCancellationDate?: string;
+  /** ⏸️ Starlink's «will switch to Standby Mode on …» banner: the device moves to the Standby plan
+   * (SIS) on this date - still a service, never «ملغي». */
+  pendingStandbyDate?: string;
   /** 💳 Last 4 digits of the KAST card that pays this device's Starlink (kastCards.ts) - to guess
    * which device a refused payment was. */
   paymentCardLast4?: string;

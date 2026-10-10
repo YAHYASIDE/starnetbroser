@@ -53,6 +53,20 @@ export function hasScheduledEndBanner(lines: string[]): boolean {
   return lines.some((line) => containsAny(line, SCHEDULED_END_BANNER_LABELS));
 }
 
+/** Of those banners, the ones that move the device to Starlink's Standby Mode (the plan he sells
+ * as «SIS») - NOT a cancellation: the device keeps a (standby) service. His Oct 10 2026 report: the
+ * card said «ملغي» for «Your current service will switch to Standby Mode on 10/24/2026». */
+export const STANDBY_TRANSITION_LABELS = ["service will transition", "service will switch", "ستتحول خدمتك"];
+
+export function hasStandbyTransitionBanner(lines: string[]): boolean {
+  return lines.some((line) => containsAny(line, STANDBY_TRANSITION_LABELS));
+}
+
+/** A real end of service («scheduled to end» / «تنتهي خدمتك») - the only banner that means «ملغي». */
+export function hasServiceEndBanner(lines: string[]): boolean {
+  return lines.some((line) => containsAny(line, ["scheduled to end", "تنتهي خدمتك"]));
+}
+
 /** The real page's top banner once suspended for non-payment ("تم تعطيل خدمتك بسبب مشكلة في
  * الفوترة. يرجى التأكد من دفع جميع الفواتير.") - unlike SCHEDULED_END_BANNER_LABELS (which still
  * means the service is running), this one means the service is ALREADY suspended right now.

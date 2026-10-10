@@ -150,7 +150,7 @@ export function recordHash(record: unknown): string {
 const SYNC_FIELDS = [
   "accountNumber", "balanceDue", "currency", "dataUsageGb", "dishAlerts", "dishStatus", "dotTrace", "isRestricted",
   "lastSuccessfulScanAt", "lastUpdated", "limitedAccess", "movingRestricted", "noSubscription", "oceanMode",
-  "pendingCancellationDate", "planName", "priorityDataExhausted", "rechargeDate", "serialNumber", "serviceCountry",
+  "pendingCancellationDate", "pendingStandbyDate", "planName", "priorityDataExhausted", "rechargeDate", "serialNumber", "serviceCountry",
   "serviceStatus", "starlinkAccountEmail", "starlinkAccountHolderName", "starlinkId", "subscriptionId", "subscriptions",
   "wifiStatus", "alertReason", "renewalDayMismatch", "travelRegistrationRequired", "travelRegistrationDue", "travelRegistrationVerifiedAt", "travelRegistrationVerifiedDue",
 ];

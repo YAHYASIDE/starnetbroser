@@ -895,3 +895,10 @@ is never pressed while a field is empty - it refills and saves on the next try (
   المرسَل» - typing the amount sent sets the rate from it. Profit is measured against the «العملات» rate of
   the day (keep the سيفا rate there up to date).
 
+## ⏸️ Moving to Standby (SIS) is not «ملغي» (Oct 10 2026)
+
+- His report (screenshot): Starlink said «Your current service will switch to Standby Mode on 10/24/2026»
+  / «Standby Mode Pending», and the card showed «ملغي» - «هو غير ملغي، عليه خدمة SIS». That banner now
+  gives the card a neutral chip «⏸️ SIS من 2026/10/24»; «ملغى» only for «scheduled to end» / «تنتهي خدمتك».
+  A device already marked «ملغي» by this banner is corrected on its next sync.
+

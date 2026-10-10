@@ -569,3 +569,19 @@ describe("🛂 travel registration merge", () => {
     expect(account).toEqual({ ...before, travelRegistrationRequired: true, travelRegistrationDue: "October 15" });
   });
 });
+
+describe("⏸️ moving to Standby (SIS) is not «ملغي»", () => {
+  it("stores the date on its own, and drops an older read that took it for a cancellation", () => {
+    const old = { ...baseAccount(), pendingCancellationDate: "2026/10/24" };
+    const { account } = mergeSyncedFields(old, { pendingStandbyDate: "2026/10/24" });
+    expect(account.pendingStandbyDate).toBe("2026/10/24");
+    expect(account.pendingCancellationDate).toBeUndefined();
+  });
+
+  it("a real cancellation on another date stays", () => {
+    const old = { ...baseAccount(), pendingCancellationDate: "2026/11/02" };
+    const { account } = mergeSyncedFields(old, { pendingStandbyDate: "2026/10/24" });
+    expect(account.pendingCancellationDate).toBe("2026/11/02");
+  });
+});
+

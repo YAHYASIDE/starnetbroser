@@ -129,6 +129,11 @@ plus the rules learned from real misreads; keep it updated when you learn a new 
   in English, French («Terminez l'inscription de voyage avant le 15 octobre») and Arabic. It waits
   for Home to really load (`WANT_HOME`: the account line or the banner, up to 30 s) - a slow phone
   showed Home's spinner and the old 8 s read gave «لم يتم العثور على بيانات».
+- **«will switch / transition to Standby Mode on …» («ستتحول خدمتك…») is NOT a cancellation**: the
+  device moves to Starlink's Standby plan (he sells it as «SIS») and keeps a service. It is read into
+  `pendingStandbyDate` (card chip «⏸️ SIS من …»); only «scheduled to end» / «تنتهي خدمتك» sets
+  `pendingCancellationDate` («ملغى»). Real, confirmed (Oct 10 2026): a device moving to SIS showed «ملغي».
+  The merge drops an older cancellation date equal to the standby date.
 - Never put real account data in tests or fixtures; fake values only.
 - 🔄 A hidden WebView (`AutoSyncWorker`, never attached to a window) often doesn't render Starlink's
   SPA - the card's «تحديث من Starlink» "did nothing" for the operator. So the card button and

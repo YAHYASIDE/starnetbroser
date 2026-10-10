@@ -14783,3 +14783,15 @@ button.today-tile {
   margin: 0;
   line-height: 1.6;
 }
+
+/* ⏸️ Moving to the Standby plan (SIS) - a service, not «ملغي». */
+.standby-pending-chip {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--blue-bg, var(--surface-alt));
+  color: var(--blue, var(--text));
+  font-size: 0.66rem;
+  font-weight: 800;
+  white-space: nowrap;
+}

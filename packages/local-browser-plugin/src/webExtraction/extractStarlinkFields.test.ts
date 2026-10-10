@@ -504,7 +504,9 @@ describe("extractStarlinkFields - real 'نشط' plan badge once the account is a
     expect(fields.serviceStatus).toBe("active");
     expect(fields.planName).toBe("التجوال - 100 غيغابايت");
     expect(fields.renewalDate).toBe("2026/10/24");
-    expect(fields.pendingCancellationDate).toBe("2026/10/24");
+    // «ستتحول خدمتك… إلى وضع الاستعداد» = moving to SIS, not «ملغي» (his Oct 10 2026 report).
+    expect(fields.pendingStandbyDate).toBe("2026/10/24");
+    expect(fields.pendingCancellationDate).toBeUndefined();
   });
 });
 

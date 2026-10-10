@@ -157,6 +157,9 @@ export interface SyncedStarlinkFields {
    * `serviceStatus: "active"` right now, this is just the date it will actually stop unless
    * resumed before then. Never set for an ordinary upcoming renewal with nothing pending. */
   pendingCancellationDate?: string;
+  /** «Your current service will switch/transition to Standby Mode on …» («ستتحول خدمتك…»): the
+   * device moves to the Standby plan (SIS) that day - it keeps a service, it is NOT cancelled. */
+  pendingStandbyDate?: string;
   /** The Starlink account holder's own name, as Starlink reports it - written to its own separate
    * field, never onto the account's `name` (see this interface's own doc comment). */
   accountHolderName?: string;
