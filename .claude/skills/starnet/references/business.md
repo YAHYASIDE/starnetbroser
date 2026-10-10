@@ -964,6 +964,21 @@ is never pressed while a field is empty - it refills and saves on the next try (
   are forgotten, so the Sedad notices remembered as seen before the fix (still in the tray) are read again.
   Nothing comes twice: suggested ones are held by their suggestion, transaction IDs stay in `txIds`.
 
+## 🔄 The notification reader stopped after updates (Oct 10 2026)
+
+- His screenshots at 18:13: the tray held Bankily «Montant : 3500 MRU» (2 min old), Bankily «1000 MRU» from
+  15:49 and two Sedad «ENVOI», yet «عمليات البنوك»'s newest was 15:21 - nothing at all was read after the
+  update he installed then. «Notification access» still showed on: the phone (HONOR-type) just never bound
+  the reader again after the app update.
+- `KastNotificationListener.forceRebind`: our reader component off → on (DONT_KILL_APP) + `requestRebind`
+  = what him switching access off/on does. Runs on `MY_PACKAGE_REPLACED` (every update), and from
+  `ensureConnected` when a plain rebind asked 20 s+ earlier didn't bring it back (BankWatchService checks
+  every 5 min, «حسابي» on open).
+- «حسابي»: when access is on but the reader isn't bound, a red «⚠️ قارئ الإشعارات متوقف» box shows the time
+  the last notification reached it (`lastSeenAt`) and «🔄 أعد تشغيل القارئ»; if still down after 3 s, it opens
+  «Notification access» and tells him to switch STAR NET off and on. On reconnect the bank notices still in
+  the tray are read.
+
 ## 💵 «كل ما تملك»: cash one line per currency, أورانج / نيتا always in فرانك (Oct 10 2026)
 
 - His words: «كاش سيفا اجعله وحده وكاش العملة وحده. واجعل أورانج ونيتا يظهران بالفرانك أيضاً في الأمام».

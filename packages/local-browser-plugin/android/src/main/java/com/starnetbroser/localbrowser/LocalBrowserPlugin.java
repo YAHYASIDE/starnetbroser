@@ -686,8 +686,26 @@ public class LocalBrowserPlugin extends Plugin {
     public void kastNotificationsStatus(PluginCall call) {
         JSObject ret = new JSObject();
         ret.put("enabled", KastNotificationListener.isEnabled(getContext()));
+        ret.put("connected", KastNotificationListener.isConnected());
+        ret.put("lastSeenAt", KastNotificationListener.lastSeenAt(getContext()));
         BankWatchService.refresh(getContext());
         call.resolve(ret);
+    }
+
+    /** 🔄 «أعد تشغيل القارئ»: turns the notification reader off and on, then says after 3 s
+     * whether Android bound it again. */
+    @PluginMethod
+    public void restartNotificationReader(PluginCall call) {
+        final android.content.Context context = getContext();
+        KastNotificationListener.forceRebind(context);
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+            KastNotificationListener.rescan(context);
+            JSObject ret = new JSObject();
+            ret.put("enabled", KastNotificationListener.isEnabled(context));
+            ret.put("connected", KastNotificationListener.isConnected());
+            ret.put("lastSeenAt", KastNotificationListener.lastSeenAt(context));
+            call.resolve(ret);
+        }, 3000L);
     }
 
     /** Opens Android's «Notification access» screen, where the operator turns it on. */

@@ -718,7 +718,11 @@ export interface LocalBrowserPlugin {
   kastPendingDeposits(): Promise<{ deposits: KastDeposit[] }>;
 
   /** Whether STAR NET may read notifications («Notification access») - for the KAST app's own. */
-  kastNotificationsStatus(): Promise<{ enabled: boolean }>;
+  kastNotificationsStatus(): Promise<NotificationReaderStatus>;
+
+  /** 🔄 Turns the notification reader off and on (some phones never bind it again after an
+   * update), then reports after ~3 s. */
+  restartNotificationReader(): Promise<NotificationReaderStatus>;
 
   /** Opens Android's «Notification access» screen. */
   openKastNotificationAccess(): Promise<void>;
@@ -796,4 +800,13 @@ export interface KastDeposit {
   cardLast4?: string;
   /** When the mail arrived (ms). */
   at: number;
+}
+
+/** «Notification access» on, and whether Android really has the reader bound right now. */
+export interface NotificationReaderStatus {
+  enabled: boolean;
+  /** Absent on older builds. */
+  connected?: boolean;
+  /** When the reader last received any notification (ms, 0 = never). */
+  lastSeenAt?: number;
 }

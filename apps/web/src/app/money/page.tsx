@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { AccountsManager, IncomeTab, RecurringSection, today, WealthCard, WealthLineDetail } from "@/components/MyMoney";
@@ -25,7 +25,8 @@ import { loadProfitReset, saveProfitReset, startProfitFresh, undoProfitFresh, ty
 import { loadRepresentativeStore as loadReps, saveRepresentativeStore } from "@/lib/repStore";
 import { loadWipeUndo, undoWipe, wipeAllTransactions, type WipeUndo } from "@/lib/wipeTransactions";
 import { listClients, loadClientStore } from "@/lib/clientStore";
-import { drainBankNotices, kastNotificationsEnabled, openKastNotificationAccess } from "@/lib/localBrowser";
+import { drainBankNotices, notificationReaderStatus, openKastNotificationAccess, restartNotificationReader } from "@/lib/localBrowser";
+import { lastSeenText, readerProblem, type ReaderStatus } from "@/lib/notificationReader";
 import { listRepresentatives, loadRepresentativeStore } from "@/lib/repStore";
 import { listSuppliers, loadSupplierStore } from "@/lib/supplierStore";
 import { PartySheet } from "@/components/AccountsSection";
@@ -153,7 +154,10 @@ export default function MoneyPage() {
   const exchangeCosts = useMemo(() => averageCosts(exchanges, today()), [exchanges]);
   const [inboxOpen, setInboxOpen] = useState(false);
   const [picked, setPicked] = useState<BankSuggestion | null>(null);
-  const [notifEnabled, setNotifEnabled] = useState<boolean | null>(null);
+  const [reader, setReader] = useState<ReaderStatus | null>(null);
+  const [readerNote, setReaderNote] = useState<string | null>(null);
+  const ownNumbersRef = useRef<string[]>(OWN_NUMBERS);
+  const notifEnabled = reader ? reader.enabled : null;
   // Bumped when a confirmed notification wrote a supplier / rep / customer record.
   const [inboxVersion, setInboxVersion] = useState(0);
   // «🔄 الأرباح والخسائر من 0» (the same reset as the reports') and the last «حذف كل المعاملات».
@@ -221,11 +225,12 @@ export default function MoneyPage() {
     setCashResetOn(hasCashReset(loadCashEntries()));
     setCardResetOn(hasCardReset(loadCardTopUps()));
     const ownNumbers = Array.from(new Set([...OWN_NUMBERS, ...readyBook.accounts.map((a) => a.number ?? "").filter(Boolean)]));
+    ownNumbersRef.current = ownNumbers;
     const readNotices = () => {
       void drainBankNotices(ownNumbers).then((result) => {
         if (result) setInbox(result.inbox);
       });
-      void kastNotificationsEnabled().then(setNotifEnabled);
+      void notificationReaderStatus().then(setReader);
     };
     readNotices();
     // Back from a bank app / Android's «Notification access»: read again.
@@ -762,7 +767,23 @@ export default function MoneyPage() {
         onOpen={() => setInboxOpen(true)}
         onEnable={() => {
           void openKastNotificationAccess();
-          window.setTimeout(() => void kastNotificationsEnabled().then(setNotifEnabled), 4000);
+          window.setTimeout(() => void notificationReaderStatus().then(setReader), 4000);
+        }}
+        down={readerProblem(reader) === "down"}
+        lastSeen={reader ? lastSeenText(reader.lastSeenAt) : undefined}
+        restartNote={readerNote}
+        onRestart={() => {
+          setReaderNote("⏳ يعيد التشغيل…");
+          void restartNotificationReader().then((status) => {
+            setReader(status);
+            if (readerProblem(status) !== "down") {
+              setReaderNote(null);
+              void drainBankNotices(ownNumbersRef.current).then((result) => result && setInbox(result.inbox));
+              return;
+            }
+            setReaderNote("لم يرجع. في الشاشة التي ستفتح: أطفئ STAR NET ثم شغّله من جديد، ثم ارجع هنا.");
+            void openKastNotificationAccess();
+          });
         }}
       />
 

@@ -1,5 +1,6 @@
 import { WebPlugin } from "@capacitor/core";
 import type {
+  NotificationReaderStatus,
   AppEventRaw,
   BankNoticeRaw,
   FillCardItem,
@@ -309,7 +310,11 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
     return;
   }
 
-  async kastNotificationsStatus(): Promise<{ enabled: boolean }> {
+  async kastNotificationsStatus(): Promise<NotificationReaderStatus> {
+    return { enabled: false };
+  }
+
+  async restartNotificationReader(): Promise<NotificationReaderStatus> {
     return { enabled: false };
   }
 

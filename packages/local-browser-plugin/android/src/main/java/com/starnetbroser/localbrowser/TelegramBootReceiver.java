@@ -14,6 +14,8 @@ public class TelegramBootReceiver extends BroadcastReceiver {
         if (Intent.ACTION_BOOT_COMPLETED.equals(action) || Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)) {
             TelegramReplyService.refresh(context);
             BankWatchService.refresh(context);
+            // 🔄 An update can leave the notification reader unbound on some phones.
+            if (Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)) KastNotificationListener.forceRebind(context);
         }
     }
 }

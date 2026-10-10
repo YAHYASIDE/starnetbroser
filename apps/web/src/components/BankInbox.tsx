@@ -63,12 +63,22 @@ export function BankInboxCard({
   enabled,
   onOpen,
   onEnable,
+  down = false,
+  lastSeen,
+  onRestart,
+  restartNote,
 }: {
   pending: number;
   /** null = not on the phone (nothing to turn on). */
   enabled: boolean | null;
   onOpen: () => void;
   onEnable: () => void;
+  /** Access on but the phone has the reader stopped (after an update): nothing is read. */
+  down?: boolean;
+  /** «آخر إشعار وصل: …». */
+  lastSeen?: string;
+  onRestart?: () => void;
+  restartNote?: string | null;
 }) {
   if (enabled === null && pending === 0) return null;
   return (
@@ -81,6 +91,18 @@ export function BankInboxCard({
         <button type="button" className="dialog-secondary bank-inbox-enable" onClick={onEnable}>
           🔔 فعّل قراءة إشعارات البنوك
         </button>
+      )}
+      {enabled !== false && down && (
+        <div className="bank-reader-down" role="alert">
+          <strong>⚠️ قارئ الإشعارات متوقف - لا يُقرأ شيء من البنوك</strong>
+          <small>
+            الهاتف أوقفه (يحدث بعد تحديث التطبيق في بعض الهواتف).{lastSeen ? ` ${lastSeen}` : ""}
+          </small>
+          <button type="button" className="dialog-primary" onClick={onRestart}>
+            🔄 أعد تشغيل القارئ
+          </button>
+          {restartNote && <small>{restartNote}</small>}
+        </div>
       )}
     </div>
   );

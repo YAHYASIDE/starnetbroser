@@ -5,6 +5,7 @@ import {
   AccountDataSyncedEvent,
   KastDevice,
   LocalBrowser,
+  NotificationReaderStatus,
   OpenMailBrowserOptions,
   PendingAccountSync,
   STARLINK_ACCOUNT_HOME_URL,
@@ -727,6 +728,26 @@ export async function kastNotificationsEnabled(): Promise<boolean | null> {
   if (!isRunningInAndroidApp()) return null;
   try {
     return (await LocalBrowser.kastNotificationsStatus()).enabled;
+  } catch {
+    return null;
+  }
+}
+
+/** 🔔 The notification reader: access on, and really bound right now (null off the phone). */
+export async function notificationReaderStatus(): Promise<NotificationReaderStatus | null> {
+  if (!isRunningInAndroidApp()) return null;
+  try {
+    return await LocalBrowser.kastNotificationsStatus();
+  } catch {
+    return null;
+  }
+}
+
+/** 🔄 Turns the reader off and on (after an update some phones never bind it again). */
+export async function restartNotificationReader(): Promise<NotificationReaderStatus | null> {
+  if (!isRunningInAndroidApp()) return null;
+  try {
+    return await LocalBrowser.restartNotificationReader();
   } catch {
     return null;
   }

@@ -37,6 +37,8 @@ public class KastNotificationListener extends NotificationListenerService {
     @Override
     public void onNotificationPosted(StatusBarNotification sbn) {
         if (sbn == null) return;
+        connected = this;
+        markSeen(System.currentTimeMillis());
         if (isKast(sbn.getPackageName())) {
             handleKast(sbn);
         } else {
@@ -50,6 +52,7 @@ public class KastNotificationListener extends NotificationListenerService {
     @Override
     public void onListenerConnected() {
         connected = this;
+        rebindAskedAt = 0;
         keepActiveBankNotices(this);
         // 🏦 The permanent «يقرأ إشعارات البنوك» notification that keeps it running.
         BankWatchService.refresh(this);
@@ -81,14 +84,68 @@ public class KastNotificationListener extends NotificationListenerService {
         else ensureConnected(context);
     }
 
-    /** Asks Android to reconnect the reader when access is on but it isn't connected. */
+    /** When the reader last asked Android to reconnect (ms) - a second ask that finds it still down
+     * restarts it (forceRebind). */
+    private static volatile long rebindAskedAt;
+
+    /** Asks Android to reconnect the reader when access is on but it isn't connected; if an earlier
+     * ask (20 s+ ago) didn't bring it back, restarts it. */
     static void ensureConnected(Context context) {
         if (context == null || connected != null || Build.VERSION.SDK_INT < 24 || !isEnabled(context)) return;
+        long now = System.currentTimeMillis();
+        if (rebindAskedAt > 0 && now - rebindAskedAt > 20_000L) {
+            forceRebind(context);
+            return;
+        }
+        rebindAskedAt = now;
         try {
             requestRebind(new ComponentName(context.getApplicationContext(), KastNotificationListener.class));
         } catch (RuntimeException ignored) {
             // not allowed right now - the next check tries again
         }
+    }
+
+    /**
+     * 🔄 After an app update some phones (HONOR, Huawei…) never bind the reader again although
+     * «Notification access» still shows on - nothing was read from 15:21 on Oct 10 2026 (his
+     * report). Turning our own reader component off and on makes Android bind it afresh (the same
+     * as him switching access off and on), then it's asked to reconnect.
+     */
+    static void forceRebind(Context context) {
+        if (context == null || !isEnabled(context)) return;
+        Context app = context.getApplicationContext();
+        ComponentName me = new ComponentName(app, KastNotificationListener.class);
+        rebindAskedAt = System.currentTimeMillis();
+        try {
+            android.content.pm.PackageManager pm = app.getPackageManager();
+            pm.setComponentEnabledSetting(me, android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED, android.content.pm.PackageManager.DONT_KILL_APP);
+            pm.setComponentEnabledSetting(me, android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED, android.content.pm.PackageManager.DONT_KILL_APP);
+        } catch (RuntimeException ignored) {
+            // not allowed on this phone - the rebind below still tries
+        }
+        if (Build.VERSION.SDK_INT >= 24) {
+            try {
+                requestRebind(me);
+            } catch (RuntimeException ignored) {
+                // the next check tries again
+            }
+        }
+    }
+
+    /** Whether the reader is bound right now (access on is not enough - see forceRebind). */
+    static boolean isConnected() {
+        return connected != null;
+    }
+
+    private static final String SEEN_PREFS = "starnet_bank_reader";
+
+    /** When the reader last received any notification (ms, 0 = never) - shown in «حسابي». */
+    static long lastSeenAt(Context context) {
+        return context.getSharedPreferences(SEEN_PREFS, Context.MODE_PRIVATE).getLong("lastSeenAt", 0L);
+    }
+
+    private void markSeen(long at) {
+        getSharedPreferences(SEEN_PREFS, Context.MODE_PRIVATE).edit().putLong("lastSeenAt", at).apply();
     }
 
     /** {title, text} - the expanded text when the app gives one (a cut line ends with «…»). */

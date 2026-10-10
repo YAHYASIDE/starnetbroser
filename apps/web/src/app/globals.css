@@ -12773,6 +12773,23 @@ button.today-tile {
   width: 100%;
 }
 
+.bank-reader-down {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--red);
+  border-radius: 12px;
+  background: var(--red-bg);
+}
+
+.bank-reader-down strong {
+  color: var(--red);
+}
+
+.bank-reader-down small {
+  color: var(--text-muted);
+}
+
 .bank-inbox-neutral {
   color: var(--text);
 }
