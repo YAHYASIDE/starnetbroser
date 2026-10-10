@@ -11,6 +11,7 @@
 import { computeExpectedShipmentProfit, shipmentProfitDate } from "./accountingStore";
 import { computeBalanceByCurrency, LedgerByAccount, LedgerEntry } from "./ledgerStore";
 import { computeShipmentPaymentStatus, PaymentAllocation } from "./paymentAllocationStore";
+import { repProfitUsd } from "./repRates";
 
 export type ClientPayment = "paid" | "partial" | "unpaid";
 
@@ -67,8 +68,10 @@ export function buildProfitRows(
       const cost = entry.starlinkCost;
       const percent = entry.representativeCommissionPercent;
       const sharesLosses = entry.representativeSharesLosses === true;
+      // 💱 his share is of HIS profit - the cost at his own rate (repRates.ts)
+      const hisProfit = repProfitUsd(entry, p.profitUsd);
       const shareUsd =
-        entry.representativeId && percent !== undefined ? (p.profitUsd > 0 || sharesLosses ? (p.profitUsd * percent) / 100 : 0) : undefined;
+        entry.representativeId && percent !== undefined ? (hisProfit > 0 || sharesLosses ? (hisProfit * percent) / 100 : 0) : undefined;
       const profitMru = toMru(p.profitUsd);
       rows.push({
         entryId: entry.id,

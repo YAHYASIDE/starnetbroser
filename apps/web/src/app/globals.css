@@ -15095,3 +15095,21 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
 .money-period-row .report-period-btn {
   flex: 0 0 auto;
 }
+
+.rep-rates-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.rep-rates-grid .rep-form-field {
+  min-width: 0;
+}
+
+.rep-rates-example {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--surface-alt);
+  font-size: 0.85rem;
+}

@@ -151,7 +151,7 @@ export interface PayPreviousDebtInput {
   fromCard: boolean;
   profitRates: { MRU?: number; SIFA?: number };
   email?: string;
-  representative?: { id: string; commissionPercent: number; sharesLosses?: boolean };
+  representative?: { id: string; commissionPercent: number; sharesLosses?: boolean; ratePlan?: { since: string; MRU?: number; SIFA?: number } };
 }
 
 export type PayPreviousDebtResult = { ok: true; entry: LedgerEntry } | { ok: false; message: string };

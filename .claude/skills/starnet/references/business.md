@@ -979,6 +979,19 @@ is never pressed while a field is empty - it refills and saves on the next try (
   «Notification access» and tells him to switch STAR NET off and on. On reconnect the bank notices still in
   the tray are read.
 
+## 💱 «سعر المندوب» - a rep's own dollar rate (Oct 10 2026)
+
+- His ask: «أريد أن يكون هناك سعر للمندوب، يعني سعر الدولار مثلاً 430 ولكن أحسبه للمندوب بـ450 أو ما أريد».
+  His choices: «حساب ربحه ونصيبه»، «الدولار والسيفا»، «من تاريخ أختاره».
+- Rep card → ⚙️ إدارة → «💱 سعر المندوب»: 1 $ = ? أوقية and/or 1 $ = ? سيفا (empty = the real rate) + «يبدأ من»
+  (`Representative.usdRates` = `RepRatePlan`). Saving stamps `LedgerEntry.representativeRates` on every shipment of
+  his dated that day or later (`stampRepRates`); new shipments get it when recorded (`createLedgerEntry` with
+  `representative.ratePlan`). Older shipments keep what they had; «إزالة سعره» removes it from the chosen day.
+- Math (lib/repRates.ts): on a shipment sold in أوقية / سيفا his profit counts Starlink's cost × (his rate ÷ the
+  sale's locked rate). 30,000 أوقية, 50 $, real 430 → our profit 8,500; his 450 → his profit 7,500, his 50% = 3,750,
+  ours = 8,500 − 3,750. A dollar sale or no rate for the sale's currency = unchanged. Expected (D) shares too.
+  His statement rows show his view (cost at his rate, his profit); our reports keep the real profit.
+
 ## 🅳 «تجديد» never clears a D silently + ↩️ «أرجع D» (Oct 10 2026)
 
 - His report: «زبون أو اثنين كانت عليهم D، بعد أيام راحت عنهم D وصار دين فقط» (screenshots: a 94,000 أوقية

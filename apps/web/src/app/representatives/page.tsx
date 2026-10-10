@@ -10,7 +10,8 @@ import { getCurrency, loadCurrencyStore } from "@/lib/currencyStore";
 import { PdfButton } from "@/components/PdfButton";
 import { RepAppCodePanel } from "@/components/RepAppCodePanel";
 import { copyGaps, copyGapsText, loadRepCopySentDevices } from "@/lib/repCopy";
-import { setRepCustomersHidden } from "@/lib/repStore";
+import { setRepCustomersHidden, setRepRates } from "@/lib/repStore";
+import { stampRepRates, type RepRatePlan } from "@/lib/repRates";
 import { RepRequestsSection } from "@/components/RepRequestsSection";
 import { PrintableDocument } from "@/lib/pdfDocument";
 import { loadCashEntries, postRepSettlementToCash, removeLinkedCashEntries, saveCashEntries } from "@/lib/cashStore";
@@ -556,6 +557,15 @@ export default function RepresentativesPage() {
                     onShipmentShare={handleShipmentShare}
                     onReset={(resetFrom) => handleReset(rep.id, resetFrom)}
                     onSetCustomersHidden={(hidden) => saveReps(setRepCustomersHidden(representativeStore, rep.id, hidden))}
+                    onSetRates={(plan, since) => {
+                      saveReps(setRepRates(representativeStore, rep.id, plan));
+                      const stamped = stampRepRates(ledgerStore, rep.id, plan, since);
+                      if (stamped.count) {
+                        saveLedgerStore(stamped.ledger);
+                        setLedgerStore(stamped.ledger);
+                      }
+                      return stamped.count;
+                    }}
                     onDelete={() => handleDeleteRep(rep.id)}
                     onLedgerChange={setLedgerStore}
                     focusMonth={focus?.repId === rep.id ? focus.month : undefined}
@@ -600,11 +610,14 @@ interface RepCardProps {
   readOnly?: boolean;
   /** 🔒 «زبائنه عنده فقط» on/off (repSeparation.ts). */
   onSetCustomersHidden?: (hidden: boolean) => void;
+  /** 💱 «سعر المندوب» (repRates.ts): sets / removes his rates from a day - returns how many of his
+   * shipments changed. */
+  onSetRates?: (plan: RepRatePlan | null, since: string) => number;
 }
 
 type RepPanel = "statement" | "devices" | "clients" | null;
 type RepSheet =
-  | { kind: "settle" | "whatsapp" | "manage" | "reset" | "delete" | "appCode" }
+  | { kind: "settle" | "whatsapp" | "manage" | "reset" | "delete" | "appCode" | "rates" }
   | { kind: "settlement"; settlement: RepSettlement }
   | { kind: "shipment"; row: RepDeviceCommissionRow }
   | { kind: "customerOp"; op: RepCustomerOp }
@@ -637,6 +650,7 @@ function RepCard({
   focusMonth,
   readOnly = false,
   onSetCustomersHidden,
+  onSetRates,
 }: RepCardProps) {
   // 🔒 His customers stay with him: no customer list here, only what he owes.
   const customersHidden = Boolean(rep.customersHidden);
@@ -1314,6 +1328,15 @@ function RepCard({
                 </span>
               </button>
             )}
+            {onSetRates && (
+              <button type="button" className="party-sheet-option" onClick={() => setSheet({ kind: "rates" })}>
+                <span aria-hidden="true">💱</span>
+                <span>
+                  <strong>سعر المندوب</strong>
+                  <small>{rep.usdRates ? repRatesSummary(rep.usdRates) : "سعر دولار خاص له يُحسب به ربحه ونصيبه"}</small>
+                </span>
+              </button>
+            )}
             <button type="button" className="party-sheet-option" onClick={() => setSheet({ kind: "reset" })}>
               <span aria-hidden="true">🔄</span>
               <span>
@@ -1329,6 +1352,24 @@ function RepCard({
               </span>
             </button>
           </div>
+        </PartySheet>
+      )}
+
+      {sheet?.kind === "rates" && onSetRates && (
+        <PartySheet title={`💱 سعر المندوب - ${rep.name}`} onClose={() => setSheet(null)}>
+          <RepRatesForm
+            rep={rep}
+            onCancel={() => setSheet(null)}
+            onSave={(plan, since) => {
+              const count = onSetRates(plan, since);
+              setSheet(null);
+              window.alert(
+                plan
+                  ? `✓ سعر ${rep.name}: ${repRatesSummary(plan)}\n${count ? `أُعيد حساب نصيبه في ${count} شحنة.` : "لا شحنات له من ذلك اليوم بعد - يُطبَّق على الجديدة."}`
+                  : `✓ أُزيل سعره الخاص من ${since}${count ? ` (${count} شحنة رجعت للسعر الحقيقي)` : ""}.`,
+              );
+            }}
+          />
         </PartySheet>
       )}
 
@@ -1910,6 +1951,81 @@ function ShipmentShareForm({
 }
 
 /** "تصفير الحساب": a fresh start from a date - older records stay, in the archive. */
+/** «الدولار 450 أوقية · 650 سيفا - من 2026-10-01». */
+function repRatesSummary(plan: RepRatePlan): string {
+  const parts = [plan.MRU ? `${formatAmount(plan.MRU)} أوقية` : "", plan.SIFA ? `${formatAmount(plan.SIFA)} سيفا` : ""].filter(Boolean);
+  return `الدولار ${parts.join(" · ")} - من ${plan.since}`;
+}
+
+/** 💱 His own dollar rate (أوقية / سيفا) from a day he picks (lib/repRates.ts). */
+function RepRatesForm({ rep, onSave, onCancel }: { rep: Representative; onSave: (plan: RepRatePlan | null, since: string) => void; onCancel: () => void }) {
+  const today = todayDateInputValue();
+  const real = useMemo(() => {
+    const store = loadCurrencyStore();
+    return { MRU: getCurrency(store, "MRU")?.rateFromUsd, SIFA: getCurrency(store, "SIFA")?.rateFromUsd };
+  }, []);
+  const [mruText, setMruText] = useState(rep.usdRates?.MRU ? String(rep.usdRates.MRU) : "");
+  const [sifaText, setSifaText] = useState(rep.usdRates?.SIFA ? String(rep.usdRates.SIFA) : "");
+  const [since, setSince] = useState(rep.usdRates?.since ?? today);
+  const num = (t: string) => {
+    const v = Number(t.replace(/[\s,]/g, ""));
+    return t.trim() && Number.isFinite(v) && v > 0 ? v : undefined;
+  };
+  const mru = num(mruText);
+  const sifa = num(sifaText);
+  // His example: 30,000 أوقية sold, Starlink 50 $.
+  const example = mru && real.MRU ? { real: 30000 - 50 * real.MRU, his: 30000 - 50 * mru } : null;
+  return (
+    <div className="party-balance-form">
+      <p className="settings-hint">
+        ربحه ونصيبه يُحسبان بسعره: تكلفة ستارلينك بالدولار تُحوَّل بسعره بدل السعر الحقيقي، والفرق لك. ربحك أنت لا يتغيّر.
+      </p>
+      <div className="rep-rates-grid">
+        <label className="rep-form-field">
+          <span>
+            1 دولار = ؟ أوقية {real.MRU ? <small>(الحقيقي <bdi dir="ltr">{formatAmount(real.MRU)}</bdi>)</small> : null}
+          </span>
+          <input className="search-input" inputMode="decimal" dir="ltr" value={mruText} onChange={(e) => setMruText(e.target.value)} placeholder="450" />
+        </label>
+        <label className="rep-form-field">
+          <span>
+            1 دولار = ؟ سيفا {real.SIFA ? <small>(الحقيقي <bdi dir="ltr">{formatAmount(real.SIFA)}</bdi>)</small> : null}
+          </span>
+          <input className="search-input" inputMode="decimal" dir="ltr" value={sifaText} onChange={(e) => setSifaText(e.target.value)} placeholder="فارغ = الحقيقي" />
+        </label>
+      </div>
+      <label className="rep-form-field">
+        <span>يبدأ من (يُعاد حساب نصيبه في شحناته من هذا اليوم)</span>
+        <DateInput className="search-input" value={since} onChange={(e) => setSince(e.target.value)} />
+      </label>
+      {example && (
+        <p className="rep-rates-example">
+          مثال: شحنة <bdi dir="ltr">30,000</bdi> أوقية وتكلفتها <bdi dir="ltr">50 $</bdi> - الربح الحقيقي <bdi dir="ltr">{formatAmount(example.real)}</bdi>، وربحه بسعره <bdi dir="ltr">{formatAmount(example.his)}</bdi>.
+        </p>
+      )}
+      <div className="settings-actions">
+        <button type="button" className="dialog-primary" disabled={!since || (!mru && !sifa)} onClick={() => onSave({ since, ...(mru ? { MRU: mru } : {}), ...(sifa ? { SIFA: sifa } : {}) }, since)}>
+          💱 احفظ سعره
+        </button>
+        {rep.usdRates && (
+          <button
+            type="button"
+            className="text-action"
+            onClick={() => {
+              if (window.confirm(`إزالة سعر ${rep.name} الخاص؟ شحناته من ${since} ترجع للسعر الحقيقي.`)) onSave(null, since);
+            }}
+          >
+            إزالة سعره
+          </button>
+        )}
+        <button type="button" className="text-action" onClick={onCancel}>
+          إلغاء
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function RepResetForm({
   rep,
   balance,

@@ -124,6 +124,9 @@ export interface LedgerEntry {
   representativeCommissionPercent?: number;
   /** Locked with the percent: whether this rep also carries their percent of a loss. */
   representativeSharesLosses?: boolean;
+  /** 💱 «سعر المندوب» locked on this shipment (lib/repRates.ts): his own dollar rate in أوقية / سيفا -
+   * his profit counts Starlink's cost at it. Absent = the real rate. */
+  representativeRates?: { MRU?: number; SIFA?: number };
   /** Money a representative handed over for his own customers' devices (repClients.ts): this
    * payment settles HIS debt to us, whoever the device's customer belongs to by the time it's read. */
   heldByRepId?: string;
@@ -283,7 +286,16 @@ export interface CreateLedgerEntryInput {
   profitCurrencyRates?: { MRU?: number; SIFA?: number };
   /** Ignored for a "credit" entry - the device's current representative and their current rate,
    * locked onto the new shipment (see LedgerEntry.representativeId). */
-  representative?: { id: string; commissionPercent: number; sharesLosses?: boolean };
+  representative?: { id: string; commissionPercent: number; sharesLosses?: boolean; ratePlan?: { since: string; MRU?: number; SIFA?: number } };
+}
+
+/** 💱 The rep's own rates for a shipment on `date` (lib/repRates.ts repRatesFor - kept here too so the
+ * ledger store stays free of imports). */
+function lockedRepRates(plan: { since: string; MRU?: number; SIFA?: number } | undefined, date: string): { MRU?: number; SIFA?: number } | undefined {
+  if (!plan || date < plan.since) return undefined;
+  const ok = (v: number | undefined) => v !== undefined && Number.isFinite(v) && v > 0;
+  const rates = { ...(ok(plan.MRU) ? { MRU: plan.MRU } : {}), ...(ok(plan.SIFA) ? { SIFA: plan.SIFA } : {}) };
+  return Object.keys(rates).length ? rates : undefined;
 }
 
 export function createLedgerEntry(input: CreateLedgerEntryInput): LedgerEntry {
@@ -307,6 +319,10 @@ export function createLedgerEntry(input: CreateLedgerEntryInput): LedgerEntry {
     representativeId: isDebit ? input.representative?.id : undefined,
     representativeCommissionPercent: isDebit ? input.representative?.commissionPercent : undefined,
     representativeSharesLosses: isDebit && input.representative?.sharesLosses ? true : undefined,
+    ...(() => {
+      const rates = isDebit ? lockedRepRates(input.representative?.ratePlan, input.date) : undefined;
+      return rates ? { representativeRates: rates } : {};
+    })(),
   };
 }
 

@@ -368,14 +368,18 @@ export function setShipmentRepShare(
   if (patch.representativeId && (!Number.isFinite(patch.percent) || patch.percent < 0 || patch.percent > 100)) {
     return { ok: false, message: "النسبة يجب أن تكون بين 0 و 100" };
   }
+  // 💱 his own rates (repRates.ts) stay only while the shipment stays his
+  const { representativeRates: rates, ...base } = entry;
+  const keepRates = rates && patch.representativeId === entry.representativeId ? { representativeRates: rates } : {};
   const updated = patch.representativeId
     ? {
-        ...entry,
+        ...base,
+        ...keepRates,
         representativeId: patch.representativeId,
         representativeCommissionPercent: patch.percent,
         representativeSharesLosses: patch.sharesLosses || undefined,
       }
-    : { ...entry, representativeId: undefined, representativeCommissionPercent: undefined, representativeSharesLosses: undefined };
+    : { ...base, representativeId: undefined, representativeCommissionPercent: undefined, representativeSharesLosses: undefined };
   return { ok: true, ledgerStore: { ...ledgerStore, [accountId]: entries.map((e) => (e.id === entryId ? updated : e)) } };
 }
 
@@ -405,7 +409,8 @@ export function planRepDeletion(
     ledgerStore[accountId] = entries.map((entry) => {
       if (entry.representativeId !== repId) return entry;
       shipments += 1;
-      return { ...entry, representativeId: undefined, representativeCommissionPercent: undefined, representativeSharesLosses: undefined };
+      const { representativeRates: _rates, ...rest } = entry;
+      return { ...rest, representativeId: undefined, representativeCommissionPercent: undefined, representativeSharesLosses: undefined };
     });
   }
   let invoiceCount = 0;

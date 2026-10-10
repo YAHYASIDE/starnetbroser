@@ -12,6 +12,7 @@
 import { Invoice, invoiceTotal } from "./invoiceStore";
 import { LedgerByAccount, LedgerCurrency, LedgerEntry } from "./ledgerStore";
 import { computeExpectedShipmentProfit, computeShipmentProfit, shipmentProfitDate, ShipmentProfit } from "./accountingStore";
+import { repCostFactor, repCostUsd, repProfitUsd, type RepRatePlan } from "./repRates";
 
 export interface Representative {
   id: string;
@@ -41,6 +42,9 @@ export interface Representative {
   /** 🛂 «نسبة التوثيق»: his percent of each travel-registration price (his Oct 2026 choice - its own
    * percent, not the renewal one). Locked onto each price when saved (lib/travelBook.ts). */
   travelPercent?: number;
+  /** 💱 «سعر المندوب» (lib/repRates.ts): his own dollar rate in أوقية / سيفا from a day on - locked
+   * onto his shipments; his profit counts Starlink's cost at it. */
+  usdRates?: RepRatePlan;
   createdAt: string;
   updatedAt: string;
 }
@@ -161,6 +165,15 @@ export function setRepCustomersHidden(store: RepresentativeStore, id: string, hi
   if (!existing) return store;
   const { customersHidden: _was, ...rest } = existing;
   return { ...store, [id]: { ...rest, ...(hidden ? { customersHidden: true } : {}), updatedAt: new Date().toISOString() } };
+}
+
+/** 💱 Sets (or, with null, removes) his own rates. The shipments are stamped separately
+ * (repRates.stampRepRates). */
+export function setRepRates(store: RepresentativeStore, id: string, plan: RepRatePlan | null): RepresentativeStore {
+  const existing = store[id];
+  if (!existing) return store;
+  const { usdRates: _was, ...rest } = existing;
+  return { ...store, [id]: { ...rest, ...(plan ? { usdRates: plan } : {}), updatedAt: new Date().toISOString() } };
 }
 
 export function setRepresentativeReset(
@@ -445,13 +458,24 @@ export interface RepDeviceCommissionRow {
 function expectedDeviceShare(entry: LedgerEntry, percent: number, sharesLosses = false): number | undefined {
   const expected = computeExpectedShipmentProfit(entry);
   if (expected.status !== "expected" || expected.profitUsd === undefined) return undefined;
-  return expected.profitUsd > 0 || sharesLosses ? (expected.profitUsd * percent) / 100 : 0;
+  // 💱 his profit counts the cost at his own rate (repRates.ts)
+  const his = repProfitUsd(entry, expected.profitUsd);
+  return his > 0 || sharesLosses ? (his * percent) / 100 : 0;
 }
 
-function deviceShare(profit: ShipmentProfit, percent: number, sharesLosses = false): { repShareUsd?: number; ourShareUsd?: number } {
+/** His share of a settled shipment: his percent of HIS profit (cost at his rate, repRates.ts); ours is
+ * the real profit minus his share. */
+function deviceShare(profit: ShipmentProfit, percent: number, sharesLosses = false, entry?: LedgerEntry): { repShareUsd?: number; ourShareUsd?: number } {
   if (profit.status !== "computed" || profit.profitUsd === undefined) return {};
-  const repShareUsd = profit.profitUsd > 0 || sharesLosses ? (profit.profitUsd * percent) / 100 : 0;
+  const his = entry ? repProfitUsd(entry, profit.profitUsd) : profit.profitUsd;
+  const repShareUsd = his > 0 || sharesLosses ? (his * percent) / 100 : 0;
   return { repShareUsd, ourShareUsd: profit.profitUsd - repShareUsd };
+}
+
+/** The shipment's profit as HE sees it (cost at his rate) - for his statement. */
+function repProfitView(entry: LedgerEntry, profit: ShipmentProfit): ShipmentProfit {
+  if (profit.status !== "computed" || profit.profitUsd === undefined || profit.starlinkCostUsd === undefined || repCostFactor(entry) === 1) return profit;
+  return { ...profit, starlinkCostUsd: repCostUsd(entry, profit.starlinkCostUsd), profitUsd: repProfitUsd(entry, profit.profitUsd), profitMru: undefined };
 }
 
 /** Every shipment (debit entry) on any device that was linked to this representative when it was
@@ -467,9 +491,9 @@ export function listRepDeviceCommissions(representativeId: string, ledgerStore: 
       rows.push({
         accountId,
         entry,
-        profit,
+        profit: repProfitView(entry, profit),
         percent,
-        ...deviceShare(profit, percent, entry.representativeSharesLosses),
+        ...deviceShare(profit, percent, entry.representativeSharesLosses, entry),
         expectedRepShareUsd: expectedDeviceShare(entry, percent, entry.representativeSharesLosses),
       });
     }
@@ -520,7 +544,7 @@ export function totalRepDeviceCommissions(rows: RepDeviceCommissionRow[]): RepDe
  * it has no rep or its profit isn't computed yet. */
 export function shipmentRepShareUsd(entry: LedgerEntry): number | undefined {
   if (entry.kind !== "debit" || !entry.representativeId || entry.representativeCommissionPercent === undefined) return undefined;
-  return deviceShare(computeShipmentProfit(entry), entry.representativeCommissionPercent, entry.representativeSharesLosses).repShareUsd;
+  return deviceShare(computeShipmentProfit(entry), entry.representativeCommissionPercent, entry.representativeSharesLosses, entry).repShareUsd;
 }
 
 export function computeRepSharesUsd(entries: LedgerEntry[]): number {
@@ -531,6 +555,7 @@ export function computeRepSharesUsd(entries: LedgerEntry[]): number {
       computeShipmentProfit(entry),
       entry.representativeCommissionPercent,
       entry.representativeSharesLosses,
+      entry,
     ).repShareUsd;
     if (share) total += share;
   }
@@ -638,7 +663,7 @@ export function computeRepSharesMru(entries: LedgerEntry[], currentMruRate: numb
   let expected = 0;
   for (const entry of entries) {
     if (entry.kind !== "debit" || !entry.representativeId || entry.representativeCommissionPercent === undefined) continue;
-    const share = deviceShare(computeShipmentProfit(entry), entry.representativeCommissionPercent, entry.representativeSharesLosses).repShareUsd;
+    const share = deviceShare(computeShipmentProfit(entry), entry.representativeCommissionPercent, entry.representativeSharesLosses, entry).repShareUsd;
     if (share) confirmed += share * (entry.profitCurrencyRates?.MRU ?? currentMruRate);
     expected += (expectedDeviceShare(entry, entry.representativeCommissionPercent, entry.representativeSharesLosses) ?? 0) * currentMruRate;
   }

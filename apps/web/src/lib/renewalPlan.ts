@@ -33,7 +33,7 @@ export function buildRenewalShipment(
   options: {
     note?: string;
     email?: string;
-    representative?: { id: string; commissionPercent: number; sharesLosses?: boolean };
+    representative?: { id: string; commissionPercent: number; sharesLosses?: boolean; ratePlan?: { since: string; MRU?: number; SIFA?: number } };
     /** Record the Starlink cost as still unpaid (D) - defaults to the plan's own costPending. */
     costPending?: boolean;
   } = {},

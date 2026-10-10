@@ -86,7 +86,7 @@ export function recordRepActivation(
   const shipment = buildRenewalShipment(activationPlan({ amount: input.amount, currency: input.currency }, input.cost), loadCurrencyStore(), input.date, {
     note: `⚡ تفعيل ${request.plan ?? ""} عبر المندوب ${rep?.name ?? ""}`.trim(),
     email,
-    representative: rep ? { id: rep.id, commissionPercent: rep.commissionPercent, sharesLosses: rep.sharesLosses } : undefined,
+    representative: rep ? { id: rep.id, commissionPercent: rep.commissionPercent, sharesLosses: rep.sharesLosses, ratePlan: rep.usdRates } : undefined,
     costPending: true,
   });
   if (!shipment.ok) return shipment;

@@ -352,7 +352,7 @@ export default function StarlinkPage() {
       chargeRateFromUsd: rate,
       profitRates: { MRU: mruRate, SIFA: sifaRate },
       email: acc?.expectedEmail || acc?.starlinkAccountEmail || "",
-      representative: rep ? { id: rep.id, commissionPercent: rep.commissionPercent, sharesLosses: rep.sharesLosses } : undefined,
+      representative: rep ? { id: rep.id, commissionPercent: rep.commissionPercent, sharesLosses: rep.sharesLosses, ratePlan: rep.usdRates } : undefined,
     });
     if (!result.ok) return result.message;
     const next = { ...ledgerStore, [debt.accountId]: [...(ledgerStore[debt.accountId] ?? []), result.entry] };

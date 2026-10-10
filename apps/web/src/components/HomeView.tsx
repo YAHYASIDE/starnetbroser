@@ -1387,7 +1387,7 @@ export function HomeView({
       const rep = getRepresentative(representativeStore, account.representativeId);
       const result = buildRenewalShipment(account.renewalPlan, currencyStore, new Date().toISOString().slice(0, 10), {
         email: account.expectedEmail || account.starlinkAccountEmail || "",
-        representative: rep ? { id: rep.id, commissionPercent: rep.commissionPercent, sharesLosses: rep.sharesLosses } : undefined,
+        representative: rep ? { id: rep.id, commissionPercent: rep.commissionPercent, sharesLosses: rep.sharesLosses, ratePlan: rep.usdRates } : undefined,
         costPending,
       });
       if (result.ok) {
@@ -2448,7 +2448,7 @@ export function HomeView({
           clientPhone={messagePhoneOf(ledgerAccount)}
           representative={(() => {
             const rep = getRepresentative(representativeStore, ledgerAccount.representativeId);
-            return rep ? { id: rep.id, commissionPercent: rep.commissionPercent, sharesLosses: rep.sharesLosses } : undefined;
+            return rep ? { id: rep.id, commissionPercent: rep.commissionPercent, sharesLosses: rep.sharesLosses, ratePlan: rep.usdRates } : undefined;
           })()}
         />
       )}

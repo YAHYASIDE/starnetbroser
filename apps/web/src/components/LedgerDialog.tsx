@@ -95,7 +95,7 @@ interface Props {
   onChange: (entries: LedgerEntry[]) => void;
   /** The device's current representative (account.representativeId) - locked onto every new
    * shipment so their share of its profit is tracked (see LedgerEntry.representativeId). */
-  representative?: { id: string; commissionPercent: number; sharesLosses?: boolean };
+  representative?: { id: string; commissionPercent: number; sharesLosses?: boolean; ratePlan?: { since: string; MRU?: number; SIFA?: number } };
   /** The device's fixed monthly price, if set - only prefills a new shipment's amounts. */
   renewalPlan?: RenewalPlan;
   /** The linked client, shown on payment receipts (سند قبض). */
