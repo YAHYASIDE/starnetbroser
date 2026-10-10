@@ -10,9 +10,11 @@ import type { PrintableDocument } from "@/lib/pdfDocument";
 import { buildRemittanceReceipt, type ReceiptPlace } from "@/lib/remittanceReceipt";
 import type { MoneyAccount } from "@/lib/moneyAccounts";
 import { francToSifa, isFrancAccount, sifaToFranc } from "@/lib/payCurrency";
+import { CASH_CURRENCIES, cashCurrencyLabel } from "@/lib/cashCurrencies";
 import type { RatesFromUsd } from "@/lib/reportsView";
 import {
   CASH_ID,
+  lockRates,
   quoteFromRate,
   rateFromQuote,
   rateQuote,
@@ -27,9 +29,7 @@ import {
   type RemittanceInput,
 } from "@/lib/remittances";
 
-const CURRENCY_NAMES: Record<string, string> = { MRU: "أوقية", SIFA: "سيفا", USD: "دولار" };
-const cur = (code: string) => CURRENCY_NAMES[code] ?? code;
-const CASH_CURRENCIES = ["MRU", "SIFA", "USD"];
+const cur = cashCurrencyLabel;
 
 function today(): string {
   const d = new Date();
@@ -342,7 +342,8 @@ function RemittanceForm({ accounts, rates, onSave, onCancel, initial }: { accoun
       <bdi dir="ltr">{formatAmount(outFranc ? sifaToFranc(n) : n)}</bdi> {outUnit}
     </>
   );
-  const preview = amount > 0 && rate > 0 ? remittanceProfitMru({ owed: figures.owed, sent: figures.sent, inCurrency, outCurrency, rates } as Remittance) : undefined;
+  const locked = lockRates(inCurrency, outCurrency, rate, rates);
+  const preview = amount > 0 && rate > 0 ? remittanceProfitMru({ owed: figures.owed, sent: figures.sent, inCurrency, outCurrency, rates: locked.rates } as Remittance) : undefined;
 
   function submit() {
     setError(
@@ -467,6 +468,11 @@ function RemittanceForm({ accounts, rates, onSave, onCancel, initial }: { accoun
               · ربحك <bdi dir="ltr">{formatAmount(Math.round(preview))}</bdi> أوقية
             </>
           )}
+        </p>
+      )}
+      {locked.rateFromTransfer && (
+        <p className="settings-hint">
+          💡 سعر {cur(locked.rateFromTransfer)} غير مسجّل في «العملات»: ربح هذه الحوالة = العمولة فقط. سجّل سعره هناك ليُحسب فرق الصرف أيضاً.
         </p>
       )}
       <label className="form-field">

@@ -9,7 +9,7 @@ import { formatAmount } from "./formatAmount";
 import { ltr, type PrintableDocument } from "./pdfDocument";
 import { quoteFromRate, rateQuote, remittanceRemaining, type Remittance } from "./remittances";
 
-const NAMES: Record<string, string> = { MRU: "أوقية", SIFA: "سيفا", USD: "دولار" };
+const NAMES: Record<string, string> = { MRU: "أوقية", SIFA: "سيفا", USD: "دولار", DZD: "دينار جزائري" };
 const FRANC_PER_SIFA = 5;
 
 /** A place money was in or out: its name, and whether it's shown in فرانك (أورانج / نيتا). */

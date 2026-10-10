@@ -165,3 +165,30 @@ describe("the rate as he quotes it («10,000 سيفا بـ 3600» = 36,000 أو�
   });
 });
 
+
+describe("🇩🇿 the Algerian dinar (cash and transfers)", () => {
+  it("quoted like سيفا: the price of 1,000 دينار in أوقية", () => {
+    expect(rateQuote("DZD", "MRU")).toEqual({ foreign: "DZD", block: 1000 });
+    expect(rateFromQuote(2500, "DZD", "MRU")).toBeCloseTo(2.5, 10);
+    expect(rateFromQuote(2500, "MRU", "DZD")).toBeCloseTo(0.4, 10);
+  });
+
+  it("no dinar rate in «العملات»: taken from the transfer itself → profit = the commission", () => {
+    const r = createRemittance([], input({ inAccountId: "cash", inCurrency: "DZD", amount: 100000, commissionMode: "fixed", commissionValue: 2000, outAccountId: "bankily", outCurrency: "MRU", rate: 2.5 }), NOW);
+    if (!r.ok) throw new Error();
+    expect(r.remittance.sent).toBe(250000);
+    expect(r.remittance.rateFromTransfer).toBe("DZD");
+    expect(r.remittance.rates.DZD).toBeCloseTo(160, 6); // 400 أوقية per $ ÷ 2.5
+    // 2,000 دينار of commission = 5,000 أوقية
+    expect(remittanceProfitMru(r.remittance)).toBeCloseTo(5000, 2);
+    expect(remittanceCashEntries(r.remittance)).toEqual([expect.objectContaining({ kind: "in", amount: 102000, currencyCode: "DZD" })]);
+  });
+
+  it("with its rate in «العملات», the exchange difference counts too", () => {
+    const r = createRemittance([], input({ inAccountId: "cash", inCurrency: "DZD", amount: 100000, commissionMode: "fixed", commissionValue: 0, outAccountId: "bankily", outCurrency: "MRU", rate: 2.4, rates: { ...RATES, DZD: 160 } }), NOW);
+    if (!r.ok) throw new Error();
+    expect(r.remittance.rateFromTransfer).toBeUndefined();
+    // got 100,000 دينار (= 250,000 أوقية), sent 240,000 أوقية
+    expect(remittanceProfitMru(r.remittance)).toBeCloseTo(10000, 2);
+  });
+});

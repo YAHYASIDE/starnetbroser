@@ -68,5 +68,7 @@ export function buildPlaceLedger(place: PlaceInfo, movements: Movement[]): Place
   // Same figure as the balance everywhere else (placeBalance = accountBalance).
   const check = placeBalance(place, own, "9999-12-31");
   for (const c of currencies) if (check[c.currency] !== undefined) c.closing = check[c.currency]!;
-  return { place, from: place.from, currencies: currencies.filter((c) => c.currency === place.currency || c.rows.length > 0), before: own.length - counted.length };
+  // A currency with nothing in it is left out (الكاش held only in dinars shows no empty أوقية part).
+  const shown = currencies.filter((c) => c.rows.length > 0 || Math.abs(c.opening) >= 0.005);
+  return { place, from: place.from, currencies: shown.length ? shown : currencies.slice(0, 1), before: own.length - counted.length };
 }

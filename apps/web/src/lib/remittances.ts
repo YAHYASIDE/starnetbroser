@@ -70,6 +70,9 @@ export interface Remittance {
   payments: RemittancePayment[];
   /** Registry rates (per 1 USD) of the day - for the profit in أوقية, never re-read. */
   rates: Record<string, number>;
+  /** A currency the registry had no rate for (e.g. the dinar): its rate was taken from this
+   * transfer's own, so its profit is the commission alone (no exchange difference is known). */
+  rateFromTransfer?: string;
   note?: string;
 }
 
@@ -113,6 +116,27 @@ export function remittanceFigures(input: Pick<RemittanceInput, "amount" | "commi
   return { commission, owed, sent: round(base * rate) };
 }
 
+/** The day's registry rates locked on a transfer. A currency the registry has no rate for (e.g. the
+ * dinar before its rate is added) takes it from the transfer's own rate - its profit is then the
+ * commission alone. */
+export function lockRates(inCurrency: string, outCurrency: string, rate: number, registry: RatesFromUsd): { rates: Record<string, number>; rateFromTransfer?: string } {
+  const rates: Record<string, number> = {};
+  for (const code of new Set(["MRU", inCurrency, outCurrency])) {
+    const r = code === "USD" ? 1 : registry[code];
+    if (r) rates[code] = r;
+  }
+  if (!(rate > 0) || inCurrency === outCurrency) return { rates };
+  if (!rates[inCurrency] && rates[outCurrency]) {
+    rates[inCurrency] = rates[outCurrency]! / rate;
+    return { rates, rateFromTransfer: inCurrency };
+  }
+  if (!rates[outCurrency] && rates[inCurrency]) {
+    rates[outCurrency] = rates[inCurrency]! * rate;
+    return { rates, rateFromTransfer: outCurrency };
+  }
+  return { rates };
+}
+
 /** The rate offered: sent units per 1 received unit, from the registry (undefined if one is missing). */
 export function registryRate(inCurrency: string, outCurrency: string, rates: RatesFromUsd): number | undefined {
   if (inCurrency === outCurrency) return 1;
@@ -124,12 +148,16 @@ export function registryRate(inCurrency: string, outCurrency: string, rates: Rat
 }
 
 /** How he quotes a rate (his Oct 10 2026 example: «10,000 سيفا … بـ 3600» = 36,000 أوقية): the price
- * in أوقية of 1,000 سيفا, or of 1 dollar. Null when neither side is أوقية (then «1 X = ? Y»). */
+ * in أوقية of 1,000 سيفا (or 1,000 دينار جزائري - a small unit too), or of 1 dollar. Null when neither
+ * side is أوقية (then «1 X = ? Y»). */
+/** Quoted per 1,000 units: سيفا and the Algerian dinar. */
+const BLOCK_OF_1000 = new Set(["SIFA", "DZD"]);
+
 export function rateQuote(inCurrency: string, outCurrency: string): { foreign: string; block: number } | null {
   if (inCurrency === outCurrency) return null;
   const foreign = inCurrency === "MRU" ? outCurrency : outCurrency === "MRU" ? inCurrency : null;
   if (!foreign) return null;
-  return { foreign, block: foreign === "SIFA" ? 1000 : 1 };
+  return { foreign, block: BLOCK_OF_1000.has(foreign) ? 1000 : 1 };
 }
 
 /** His quote (أوقية per block of the other currency) → the transfer's rate (sent per 1 received). */
@@ -167,11 +195,7 @@ export function createRemittance(list: RemittanceList, input: RemittanceInput, n
   if (!(figures.sent > 0)) return { ok: false, message: "العمولة أكبر من المبلغ" };
   const paidNow = input.paidNow === undefined ? figures.owed : round(input.paidNow);
   if (paidNow < 0 || paidNow > figures.owed + 0.005) return { ok: false, message: "المدفوع أكبر مما عليه" };
-  const rates: Record<string, number> = {};
-  for (const code of new Set(["MRU", input.inCurrency, input.outCurrency])) {
-    const r = code === "USD" ? 1 : input.rates[code];
-    if (r) rates[code] = r;
-  }
+  const { rates, rateFromTransfer } = lockRates(input.inCurrency, input.outCurrency, input.rate, input.rates);
   const remittance: Remittance = {
     id: newId("rmt"),
     date: input.date,
@@ -195,6 +219,7 @@ export function createRemittance(list: RemittanceList, input: RemittanceInput, n
     paidNow,
     payments: [],
     rates,
+    ...(rateFromTransfer ? { rateFromTransfer } : {}),
     ...(input.note?.trim() ? { note: input.note.trim() } : {}),
   };
   return { ok: true, list: [...list, remittance], remittance };

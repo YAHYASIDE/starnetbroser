@@ -2,14 +2,14 @@
 
 import { useState } from "react";
 import { formatAmount } from "@/lib/formatAmount";
-import { LEDGER_CURRENCY_LABELS, type LedgerCurrency } from "@/lib/ledgerStore";
+import { cashCurrencyLabel } from "@/lib/cashCurrencies";
 import { accountDisplayUnit, toDisplayAmount, type MoneyAccount } from "@/lib/moneyAccounts";
 import type { PlaceLedger } from "@/lib/placeLedger";
 
 const PAGE = 60;
 
 function currencyLabel(code: string): string {
-  return LEDGER_CURRENCY_LABELS[code as LedgerCurrency] ?? code;
+  return cashCurrencyLabel(code);
 }
 
 /** 📄 «كشف حساب» of one bank / wallet / الكاش: every movement, newest first, with the balance right

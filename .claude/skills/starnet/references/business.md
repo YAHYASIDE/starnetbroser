@@ -922,3 +922,14 @@ is never pressed while a field is empty - it refills and saves on the next try (
   received / paid totals and the opening line. Its last balance = the balance shown (`placeBalance`).
   Orange / Nita in فرانك (×5, «= X سيفا» beside the total). Movements before the opening day are only
   counted («not in the balance - the typed balance includes them»). Nothing new is stored.
+
+## 🇩🇿 Algerian dinar in الكاش and «تحويل الأموال» (Oct 10 2026)
+
+- His request: «اضف لي دينار جزائري مع العملات لي تحويل الاموال وكاش». `lib/cashCurrencies.ts`:
+  `CASH_CURRENCIES` = أوقية / سيفا / دولار / **دينار جزائري (DZD)** - offered for الكاش in a transfer, the
+  cash register's movements and «حسابي»'s amount pickers. Device / customer ledgers keep their three.
+- Rate typed like سيفا: «سعر 1,000 دينار بالأوقية» (`rateQuote` block 1,000 - our assumption, a small
+  unit like سيفا; change it if he quotes otherwise).
+- No dinar rate in «العملات» yet (we never guess one): the transfer locks the dinar's rate from its own
+  typed rate (`lockRates`, `rateFromTransfer`), so its profit = the commission alone, and the form says
+  «سجّل سعره هناك ليُحسب فرق الصرف». Once he adds DZD in «العملات», new transfers count the exchange gain.

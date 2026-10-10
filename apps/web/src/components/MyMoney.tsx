@@ -6,7 +6,8 @@ import { PartySheet } from "@/components/AccountsSection";
 import { CategoryPicker } from "@/components/CategoryPicker";
 import { categoryPath, groupIdOf } from "@/lib/categoryTree";
 import { formatAmount } from "@/lib/formatAmount";
-import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, PAYMENT_METHOD_LABELS, type LedgerCurrency } from "@/lib/ledgerStore";
+import { CASH_CURRENCIES, cashCurrencyLabel } from "@/lib/cashCurrencies";
+import { PAYMENT_METHOD_LABELS } from "@/lib/ledgerStore";
 import { FrancHint, FrancUnit } from "./FrancHint";
 import { francBadge, francToSifa, isFrancAccount, sifaToFranc } from "@/lib/payCurrency";
 import { accountDisplayUnit, toAccountAmount, toDisplayAmount, type AccountInput, type AccountsBook, type MoneyAccount } from "@/lib/moneyAccounts";
@@ -35,7 +36,7 @@ export function today(): string {
 }
 
 function currencyLabel(code: string): string {
-  return LEDGER_CURRENCY_LABELS[code as LedgerCurrency] ?? code;
+  return cashCurrencyLabel(code);
 }
 
 export function money(byCurrency: Record<string, number>): string {
@@ -48,7 +49,7 @@ export function money(byCurrency: Record<string, number>): string {
 function CurrencySelect({ value, onChange }: { value: string; onChange: (code: string) => void }) {
   return (
     <select className="search-input" value={value} onChange={(e) => onChange(e.target.value)} aria-label="العملة">
-      {LEDGER_CURRENCIES.map((code) => (
+      {CASH_CURRENCIES.map((code) => (
         <option key={code} value={code}>
           {currencyLabel(code)}
         </option>

@@ -2,7 +2,7 @@
 
 import { DateInput } from "./DateInput";
 import { FormEvent, useMemo, useState } from "react";
-import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerCurrency } from "@/lib/ledgerStore";
+import { CASH_CURRENCIES, cashCurrencyLabel } from "@/lib/cashCurrencies";
 import {
   CashClosingList,
   CashEntry,
@@ -24,7 +24,7 @@ function todayDateInputValue(): string {
 }
 
 function currencyLabel(code: string): string {
-  return LEDGER_CURRENCY_LABELS[code as LedgerCurrency] ?? code;
+  return cashCurrencyLabel(code);
 }
 
 const SOURCE_LABELS: Record<CashSourceKind, string> = {
@@ -65,7 +65,7 @@ export function CashRegisterSection({ entries, onChange, closings, onChangeClosi
   const [showForm, setShowForm] = useState(false);
   const [kind, setKind] = useState<CashEntryKind>("in");
   const [amount, setAmount] = useState("");
-  const [currencyCode, setCurrencyCode] = useState<LedgerCurrency>("MRU");
+  const [currencyCode, setCurrencyCode] = useState<string>("MRU");
   const [date, setDate] = useState(todayDateInputValue());
   const [category, setCategory] = useState("");
   const [note, setNote] = useState("");
@@ -200,10 +200,10 @@ export function CashRegisterSection({ entries, onChange, closings, onChangeClosi
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                 />
-                <select className="search-input" value={currencyCode} onChange={(e) => setCurrencyCode(e.target.value as LedgerCurrency)}>
-                  {LEDGER_CURRENCIES.map((c) => (
+                <select className="search-input" value={currencyCode} onChange={(e) => setCurrencyCode(e.target.value)}>
+                  {CASH_CURRENCIES.map((c) => (
                     <option key={c} value={c}>
-                      {LEDGER_CURRENCY_LABELS[c]}
+                      {cashCurrencyLabel(c)}
                     </option>
                   ))}
                 </select>
