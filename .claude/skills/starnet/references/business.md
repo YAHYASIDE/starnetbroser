@@ -950,3 +950,14 @@ is never pressed while a field is empty - it refills and saves on the next try (
   so no amount matched and the notice was dropped as «ignore». `parseBankNotice` now removes those marks
   first (every app). And a notice nothing was read from is no longer remembered as seen: while it's still
   in the tray, the rescan on opening «حسابي» reads it again with the newer parser (so his missed ones come back).
+
+## 💵 «كل ما تملك»: cash one line per currency, أورانج / نيتا always in فرانك (Oct 10 2026)
+
+- His words: «كاش سيفا اجعله وحده وكاش العملة وحده. واجعل أورانج ونيتا يظهران بالفرانك أيضاً في الأمام».
+  His choices: «سطر لكل عملة» and «دائماً ظاهران بالفرانك».
+- `buildWealth`: «💵 كاش» = الكاش in أوقية only (key `cash`); «💵 كاش سيفا» always (key `cash:SIFA`) =
+  الكاش's سيفا + every cash wallet (`isCashWallet`, the «كاش سيفا» account), no longer under «البنوك»;
+  «كاش دولار», «كاش دينار جزائري»… (key `cash:<code>`) only when there is some. Totals unchanged.
+- أورانج / نيتا (`franc`) are always their own line in front, even at 0: the big figure in فرانك, «≈ X أوقية»
+  beside it; their detail in فرانك too.
+- Each line carries `places`: its sheet shows «📄 كشف حساب …» for الكاش and each account behind it.

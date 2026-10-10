@@ -684,14 +684,12 @@ export default function MoneyPage() {
           ) : (
             <WealthLineDetail line={shownLine} />
           )}
-          {shownLine.key === "cash" && (
-            <>
-              <button type="button" className="dialog-primary" onClick={() => setStatementOf(CASH_PLACE)}>
-                📄 كشف حساب الكاش
-              </button>
-              <p className="settings-hint">الكاش كما في صفحة «الكاش»، بدون دفعات الزبائن التي دخلت تطبيقاً بنكياً مربوطاً بطريقتها.</p>
-            </>
-          )}
+          {shownLine.places?.map((place) => (
+            <button key={place.id} type="button" className="dialog-primary" onClick={() => setStatementOf(place.id)}>
+              📄 كشف حساب {place.id === CASH_PLACE ? "الكاش" : place.name}
+            </button>
+          ))}
+          {shownLine.key.startsWith("cash") && <p className="settings-hint">الكاش كما في صفحة «الكاش»، بدون دفعات الزبائن التي دخلت تطبيقاً بنكياً مربوطاً بطريقتها.</p>}
           {shownLine.key === "starlink" && <p className="settings-hint">شحنات D والديون السابقة التي لم تُدفع لستارلينك بعد (بالدولار).</p>}
         </PartySheet>
       )}

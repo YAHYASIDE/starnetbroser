@@ -180,7 +180,7 @@ describe("the final figures", () => {
     const by = Object.fromEntries(wealth.lines.map((l) => [l.key, l.mru]));
     // XOF 6000 at 600/USD = 10 USD = 4000 MRU. (Personal people-debts moved to the clients page - no
     // «لك/عليك للناس» lines here anymore.)
-    expect(by).toMatchObject({ cash: 24000, banks: 8000, card: 40000, customers: 46000, repsOwe: 3000, starlink: 20000, suppliers: 5000, repsOwed: 2000 });
+    expect(by).toMatchObject({ cash: 20000, "cash:XOF": 4000, banks: 8000, card: 40000, customers: 46000, repsOwe: 3000, starlink: 20000, suppliers: 5000, repsOwed: 2000 });
     expect(Object.keys(by)).not.toContain("lent");
     expect(Object.keys(by)).not.toContain("borrowed");
     // have 72,000 − owe 27,000
@@ -213,6 +213,60 @@ describe("the final figures", () => {
     expect(orange.kind).toBe("have");
     expect(orange.native).toEqual({ XOF: 6000 });
     expect(orange.mru).toBe(4000); // 6000 XOF ÷ 600/USD × 400/USD
+  });
+
+  it("الكاش one line per currency: «كاش» (أوقية), «كاش سيفا» always (with the «كاش سيفا» wallet), «كاش دولار» when there is some", () => {
+    const wealth = buildWealth({
+      cash: { MRU: 20000, SIFA: 600, USD: 10 },
+      banks: [
+        { name: "بنكيلي", byCurrency: { MRU: 8000 }, id: "bk" },
+        { name: "💵 كاش سيفا", byCurrency: { SIFA: 1200 }, cashWallet: true, id: "cs" },
+      ],
+      cardUsd: 0,
+      customers: [],
+      repsMru: [],
+      debts: EMPTY_DEBT_BOOK,
+      suppliers: [],
+      starlink: [],
+      rates: { ...rates, SIFA: 600 },
+    });
+    const cash = wealth.lines.filter((l) => l.key.startsWith("cash"));
+    expect(cash.map((l) => [l.key, l.label, l.mru])).toEqual([
+      ["cash", "كاش", 20000],
+      ["cash:SIFA", "كاش سيفا", 1200], // (600 + 1,200) سيفا ÷ 600 × 400
+      ["cash:USD", "كاش دولار", 4000],
+    ]);
+    expect(cash[1]!.native).toEqual({ SIFA: 1800 });
+    expect(cash[1]!.places).toEqual([{ id: "cash", name: "💵 الكاش" }, { id: "cs", name: "💵 كاش سيفا" }]);
+    // the wallet is not under «البنوك» anymore
+    expect(wealth.lines.find((l) => l.key === "banks")!.items.map((i) => i.name)).toEqual(["بنكيلي"]);
+    expect(wealth.inHandMru).toBe(20000 + 1200 + 4000 + 8000);
+    // no سيفا at all: «كاش سيفا» still shown at 0; no dinar → no «كاش دينار» line
+    const empty = buildWealth({ cash: {}, banks: [], cardUsd: 0, customers: [], repsMru: [], debts: EMPTY_DEBT_BOOK, suppliers: [], starlink: [], rates });
+    expect(empty.lines.filter((l) => l.key.startsWith("cash")).map((l) => [l.key, l.mru])).toEqual([["cash", 0], ["cash:SIFA", 0]]);
+  });
+
+  it("أورانج / نيتا are always in front in فرانك, even at 0", () => {
+    const wealth = buildWealth({
+      cash: {},
+      banks: [
+        { name: "🟠 أورانج", byCurrency: { SIFA: 6000 }, franc: true, id: "or" },
+        { name: "🟡 نيتا", byCurrency: {}, franc: true, id: "ni" },
+        { name: "بنكيلي", byCurrency: { MRU: 8000 } },
+      ],
+      cardUsd: 0,
+      customers: [],
+      repsMru: [],
+      debts: EMPTY_DEBT_BOOK,
+      suppliers: [],
+      starlink: [],
+      rates: { ...rates, SIFA: 600 },
+    });
+    const orange = wealth.lines.find((l) => l.label === "🟠 أورانج")!;
+    const nita = wealth.lines.find((l) => l.label === "🟡 نيتا")!;
+    expect(orange).toMatchObject({ franc: true, native: { SIFA: 6000 }, mru: 4000, places: [{ id: "or", name: "🟠 أورانج" }] });
+    expect(nita).toMatchObject({ franc: true, native: { SIFA: 0 }, mru: 0 });
+    expect(wealth.lines.find((l) => l.key === "banks")!.items.map((i) => i.name)).toEqual(["بنكيلي"]);
   });
 
   it("«عليك لستارلينك (D)» shows the دولار beside the أوقية", () => {

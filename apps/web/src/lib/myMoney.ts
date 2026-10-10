@@ -14,6 +14,7 @@ import { addTreeNode, hideTreeNode, visibleCategories } from "./categoryTree";
 import { addPersonalExpense, type ExpenseCategory, type PersonalExpense } from "./personalExpenses";
 import type { AccountFlow } from "./moneyAccounts";
 import { sumToMru, type RatesFromUsd } from "./reportsView";
+import { cashCurrencyLabel } from "./cashCurrencies";
 
 function newId(prefix: string): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -503,6 +504,8 @@ export interface WealthLine {
   native?: Record<string, number>;
   /** 🟠 أورانج / نيتا: `native` سيفا is shown in فرانك. */
   franc?: boolean;
+  /** 📄 The money places behind it (an account id, or "cash" for الكاش): each has a «كشف حساب». */
+  places?: { id: string; name: string }[];
 }
 
 export interface Wealth {
@@ -519,6 +522,10 @@ export interface WealthGroup {
   byCurrency: Record<string, number>;
   /** 🟠 أورانج / نيتا: its سيفا is shown in فرانك (5 فرانك = 1 سيفا). */
   franc?: boolean;
+  /** 💵 A cash wallet («كاش سيفا»): shown with الكاش of its currency, not with the banks. */
+  cashWallet?: boolean;
+  /** Its account id (for its «كشف حساب»). */
+  id?: string;
 }
 
 export interface WealthInput {
@@ -567,17 +574,41 @@ export function buildWealth(input: WealthInput): Wealth {
 
   const mruItem = (name: string, mru: number): WealthItem => ({ name, byCurrency: { MRU: mru }, mru });
 
-  // أورانج موني / نيتا (سيفا) and بينانس (دولار) come out to the front, each its own line shown in its
-  // own currency + the أوقية; the أوقية apps (بنكيلي، مصرفي…) stay grouped under «البنوك».
-  const bankIsForeign = (b: WealthGroup) => Object.entries(b.byCurrency).some(([code, v]) => code !== "MRU" && Math.abs(v) > 0.0001);
-  const mruBanks = input.banks.filter((b) => !bankIsForeign(b));
-  const foreignBankLines = input.banks
-    .filter(bankIsForeign)
-    .map((b, i) => ({ ...line(`bank:${i}:${b.name}`, "", b.name, "have", [item(b.name, b.byCurrency)]), ...(b.franc ? { franc: true } : {}) }));
+  // 💵 الكاش one line per currency (his Oct 10 2026 choice «كاش سيفا وحده وكاش العملة وحده»): «كاش» =
+  // the أوقية, then «كاش سيفا» (always - with the «كاش سيفا» wallet), «كاش دولار», «كاش دينار جزائري»…
+  // when there is some.
+  const cashWallets = input.banks.filter((b) => b.cashWallet);
+  const cashCodes = ["MRU", "SIFA", ...new Set([...Object.keys(input.cash), ...cashWallets.flatMap((w) => Object.keys(w.byCurrency))].filter((c) => c !== "MRU" && c !== "SIFA"))];
+  const nonZero = (v: number | undefined) => v !== undefined && Math.abs(v) > 0.0001;
+  const cashLines = cashCodes.flatMap((code) => {
+    const items = [
+      ...(nonZero(input.cash[code]) || code === "MRU" ? [item("الكاش", { [code]: input.cash[code] ?? 0 })] : []),
+      ...cashWallets.filter((w) => nonZero(w.byCurrency[code])).map((w) => item(w.name, { [code]: w.byCurrency[code]! })),
+    ];
+    if (code !== "MRU" && code !== "SIFA" && items.length === 0) return [];
+    const places = [{ id: "cash", name: "💵 الكاش" }, ...cashWallets.filter((w) => w.id && (nonZero(w.byCurrency[code]) || code === "SIFA")).map((w) => ({ id: w.id!, name: w.name }))];
+    const built = line(code === "MRU" ? "cash" : `cash:${code}`, "💵", code === "MRU" ? "كاش" : `كاش ${cashCurrencyLabel(code)}`, "have", items);
+    return [{ ...built, ...(code === "SIFA" ? { native: { SIFA: built.native?.SIFA ?? 0 } } : {}), places }];
+  });
+
+  // أورانج موني / نيتا (always - his Oct 10 2026 choice «دائماً ظاهران بالفرانك»), and any other wallet
+  // holding سيفا / دولار (بينانس…), come out to the front, each its own line in its own currency + the
+  // أوقية; the أوقية apps (بنكيلي، مصرفي…) stay grouped under «البنوك».
+  const banks = input.banks.filter((b) => !b.cashWallet);
+  const bankIsForeign = (b: WealthGroup) => b.franc || Object.entries(b.byCurrency).some(([code, v]) => code !== "MRU" && Math.abs(v) > 0.0001);
+  const mruBanks = banks.filter((b) => !bankIsForeign(b));
+  const foreignBankLines = banks.filter(bankIsForeign).map((b, i) => {
+    const built = line(`bank:${i}:${b.name}`, "", b.name, "have", [item(b.name, b.byCurrency)]);
+    return {
+      ...built,
+      ...(b.franc ? { franc: true, native: { ...built.native, SIFA: b.byCurrency.SIFA ?? 0 } } : {}),
+      ...(b.id ? { places: [{ id: b.id, name: b.name }] } : {}),
+    };
+  });
 
   const lines: WealthLine[] = [
-    line("cash", "💵", "كاش", "have", [item("الكاش", input.cash)]),
-    line("banks", "🏦", "البنوك والمحافظ", "have", mruBanks.map((b) => item(b.name, b.byCurrency))),
+    ...cashLines,
+    { ...line("banks", "🏦", "البنوك والمحافظ", "have", mruBanks.map((b) => item(b.name, b.byCurrency))) },
     ...foreignBankLines,
     line("card", "💳", "محفظة KAST", "have", [item("KAST", { USD: input.cardUsd })]),
     line("customers", "👥", "لك عند الزبائن", "owed", input.customers.map((c) => item(c.name, c.byCurrency))),

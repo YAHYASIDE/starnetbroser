@@ -28,7 +28,7 @@ import { isDemoMode, isLoggedIn } from "./settingsStore";
 import { cardMovementFlows, currentCardBalanceUsd, loadCardTopUps } from "./starlinkDebt";
 import { loadStoreTransactions } from "./storeStore";
 import { computeSupplierStoreBalance } from "./invoiceStore";
-import { accountBalance, cashInHandEntries, devicePaymentFlows, partyFlows, type AccountFlow, type AccountsBook, type MoneyAccount } from "./moneyAccounts";
+import { accountBalance, cashInHandEntries, isCashWallet, devicePaymentFlows, partyFlows, type AccountFlow, type AccountsBook, type MoneyAccount } from "./moneyAccounts";
 import type { LedgerByAccount } from "./ledgerStore";
 import { personalFlows, type DebtBook, type IncomeList, type WealthInput } from "./myMoney";
 import type { PersonalExpense } from "./personalExpenses";
@@ -103,6 +103,8 @@ export function loadWealthInput(input: {
     name: `${account.icon} ${account.name}`,
     byCurrency: accountBalance(input.book, account, loadAccountFlows(ledger, account, flows, input.book.accounts)),
     ...(isFrancAccount(account) ? { franc: true } : {}),
+    ...(isCashWallet(account) ? { cashWallet: true } : {}),
+    id: account.id,
   }));
 
   const clients = listClients(loadClientStore());

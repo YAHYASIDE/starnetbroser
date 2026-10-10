@@ -776,14 +776,28 @@ export function WealthCard({ wealth, onOpen }: { wealth: Wealth; onOpen: (line: 
                       {l.label}
                       {l.items.length > 1 ? <small> ({l.items.length})</small> : null}
                     </span>
-                    {l.native ? (
-                      <small className="money-line-native">
-                        <bdi dir="ltr">{l.franc ? francMoney(l.native) : signedMoney(l.native)}</bdi>
-                      </small>
-                    ) : null}
-                    <bdi dir="ltr" className={l.mru === 0 ? undefined : l.kind === "owe" ? "money-out" : "money-in"}>
-                      {`${l.kind === "owe" && l.mru ? "-" : ""}${mruText(l.mru)}`}
-                    </bdi>
+                    {l.franc && l.native ? (
+                      <>
+                        {/* 🟠 أورانج / نيتا: the فرانك first, the أوقية under it */}
+                        <small className="money-line-native">
+                          <bdi dir="ltr">≈ {mruText(l.mru)}</bdi> أوقية
+                        </small>
+                        <bdi dir="ltr" className={l.mru === 0 ? undefined : "money-in"}>
+                          {Object.values(l.native).some((v) => Math.abs(v) > 0.0001) ? francMoney(l.native) : "0 فرانك"}
+                        </bdi>
+                      </>
+                    ) : (
+                      <>
+                        {l.native ? (
+                          <small className="money-line-native">
+                            <bdi dir="ltr">{signedMoney(l.native)}</bdi>
+                          </small>
+                        ) : null}
+                        <bdi dir="ltr" className={l.mru === 0 ? undefined : l.kind === "owe" ? "money-out" : "money-in"}>
+                          {`${l.kind === "owe" && l.mru ? "-" : ""}${mruText(l.mru)}`}
+                        </bdi>
+                      </>
+                    )}
                     <span className="money-line-go" aria-hidden="true">
                       ‹
                     </span>
@@ -805,7 +819,7 @@ export function WealthLineDetail({ line }: { line: WealthLine }) {
       {line.items.map((item, i) => (
         <li key={`${item.name}-${i}`}>
           <span>{item.name}</span>
-          <bdi dir="ltr">{signedMoney(item.byCurrency)}</bdi>
+          <bdi dir="ltr">{line.franc ? francMoney(item.byCurrency) : signedMoney(item.byCurrency)}</bdi>
         </li>
       ))}
     </ul>
