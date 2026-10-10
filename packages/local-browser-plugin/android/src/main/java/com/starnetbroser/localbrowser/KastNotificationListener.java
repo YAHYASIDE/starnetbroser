@@ -107,6 +107,18 @@ public class KastNotificationListener extends NotificationListenerService {
         if (lines != null) {
             for (CharSequence line : lines) if (line != null && line.length() > 0) body.append('\n').append(line);
         }
+        // MessagingStyle: the words are only in EXTRA_MESSAGES (each a Bundle with its "text").
+        if (body.length() == 0) {
+            android.os.Parcelable[] messages = extras.getParcelableArray("android.messages");
+            if (messages != null) {
+                for (android.os.Parcelable m : messages) {
+                    if (!(m instanceof Bundle)) continue;
+                    CharSequence line = ((Bundle) m).getCharSequence("text");
+                    if (line != null && line.length() > 0) body.append(body.length() > 0 ? "\n" : "").append(line);
+                }
+            }
+        }
+        if (title == null) title = extras.getCharSequence(Notification.EXTRA_TITLE_BIG);
         CharSequence sub = extras.getCharSequence(Notification.EXTRA_SUB_TEXT);
         if (sub != null && sub.length() > 0) body.append('\n').append(sub);
         return new String[] {title == null ? "" : title.toString(), body.toString()};

@@ -42,6 +42,25 @@ public class BankNoticeTest {
     }
 
     @Test
+    public void readsATitleWrappedInDirectionMarks() {
+        // Sedad (Oct 10 2026): the phone's title carried invisible bidi marks around «ENVOI».
+        assertEquals("sedad", BankNotice.appKey("com.unknown.wallet", "\u200eENVOI\u200f"));
+        assertEquals("sedad", BankNotice.keep("com.unknown.wallet", "\u202bENVOI\u202c", "وصلكم من DEMO ( \u200e40000000\u200f ) مبلغ \u200e500.0\u200f أوقية جديدة"));
+    }
+
+    @Test
+    public void anUnknownAppWithMoneyIsKeptWithItsPackage() {
+        assertEquals("other:mr.example.wallet", BankNotice.keep("mr.example.wallet", "Sedad", "أرسلتم مبلغ 3600.0 أوقية جديدة لصالح DEMO ( 40000000 )"));
+        assertEquals("other:mr.example.wallet", BankNotice.keep("mr.example.wallet", "Info", "Vous avez reçu 50.0 MRU"));
+        // a figure that isn't money, chat apps, and this app itself: never
+        assertNull(BankNotice.keep("mr.example.wallet", "Code", "Votre code est 123456"));
+        assertNull(BankNotice.keep("com.whatsapp", "DEMO", "أرسلت لك 3600 أوقية"));
+        assertNull(BankNotice.keep("org.telegram.messenger", "DEMO", "500 MRU"));
+        assertNull(BankNotice.keep("com.google.android.apps.messaging", "DEMO", "500 MRU"));
+        assertNull(BankNotice.keep("com.starnetbroser.app", "STAR NET", "500 أوقية"));
+    }
+
+    @Test
     public void oneIdPerPostedNotification() {
         String a = BankNotice.id("p", 1000L, "ENVOI", "200");
         assertEquals(a, BankNotice.id("p", 1000L, "ENVOI", "200"));

@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   accountForApp,
+  bankAppLabel,
   decideSuggestion,
+  forgetUnreadSeen,
   EMPTY_BANK_INBOX,
   ingestBankNotices,
   localNumber,
+  noticeApp,
   parseBankNotice,
   parseNoticeAmount,
   pendingSuggestions,
@@ -172,6 +175,34 @@ describe("ingestBankNotices", () => {
     const ok = ingestBankNotices(first, [raw("n2", "sedad", "ENVOI", "وصلكم من ديمو ( 40000008 ) مبلغ 100.0 أوقية جديدة")], OWN).inbox;
     expect(ok.seen).toEqual(["n2"]);
     expect(ingestBankNotices(ok, [raw("n2", "sedad", "ENVOI", "وصلكم من ديمو ( 40000008 ) مبلغ 100.0 أوقية جديدة")], OWN).added).toBe(0);
+  });
+
+  it("an unknown app writing Sedad's words is Sedad; anything else stays «📱 package»", () => {
+    const sent = raw("o1", "other:mr.example.wallet", "\u200eENVOI", "أرسلتم مبلغ \u200e3600.0\u200f أوقية جديدة لصالح ديمو ( \u200e40000005\u200f )");
+    expect(noticeApp(sent)).toBe("sedad");
+    const other = raw("o2", "other:mr.example.wallet", "Info", "Vous avez reçu 50.0 MRU");
+    expect(noticeApp(other)).toBe("other:mr.example.wallet");
+    const { inbox } = ingestBankNotices(EMPTY_BANK_INBOX, [sent, other], OWN);
+    expect(inbox.suggestions.map((s) => [s.app, s.kind, s.amount, s.party?.number])).toEqual([
+      ["sedad", "out", 36000, "40000005"],
+      ["other:mr.example.wallet", "unknown", 500, undefined],
+    ]);
+    expect(bankAppLabel("other:mr.example.wallet")).toBe("📱 mr.example.wallet");
+  });
+
+  it("once: forgets the recent seen ids no suggestion holds (old Sedad notices read again)", () => {
+    const now = 100 * 24 * 60 * MIN;
+    const recent = (n: number) => `mr.example.sedad|${now - n * MIN}|ab`;
+    const kept = ingestBankNotices(EMPTY_BANK_INBOX, [raw(recent(5), "sedad", "ENVOI", "وصلكم من ديمو ( 40000006 ) مبلغ 100.0 أوقية جديدة", now - 5 * MIN)], OWN).inbox;
+    const old = `mr.example.sedad|${now - 30 * 24 * 60 * MIN}|cd`;
+    const inbox = { ...kept, seen: [old, recent(9), ...kept.seen] };
+    const cleaned = forgetUnreadSeen(inbox, now);
+    expect(cleaned.seen).toEqual([old, recent(5)]);
+    expect(cleaned.seenCleaned).toBe(true);
+    // only once
+    expect(forgetUnreadSeen({ ...cleaned, seen: [recent(9)] }, now).seen).toEqual([recent(9)]);
+    // and ingest keeps the flag
+    expect(ingestBankNotices(cleaned, [], OWN).inbox.seenCleaned).toBe(true);
   });
 
   it("merges the two halves of one GIMTEL transfer", () => {

@@ -10,7 +10,7 @@ import { loadInvoices } from "./invoiceStore";
 import { loadLedgerStore } from "./ledgerStore";
 import { accountDisplayUnit, loadAccountsBook, toDisplayAmount, type AccountsBook } from "./moneyAccounts";
 import { buildMovements, moneyPlaces, placeBalance, type Movement } from "./moneyMovements";
-import { accountForApp, BANK_APP_LABELS, loadBankInbox, noticeDay, partyLabel, pendingSuggestions } from "./bankNotices";
+import { accountForApp, bankAppLabel, loadBankInbox, noticeDay, partyLabel, pendingSuggestions } from "./bankNotices";
 import { checkAlerts, loadBalanceAlerts, saveBalanceAlerts } from "./balanceAlerts";
 import type { PendingNotice } from "./balanceMatch";
 import { cashCurrencyLabel } from "./cashCurrencies";
@@ -70,7 +70,7 @@ export function pendingForPlace(placeId: string): PendingNotice[] {
   for (const s of pendingSuggestions(loadBankInbox())) {
     if (s.amount === undefined) continue;
     const date = noticeDay(s.at);
-    const label = `${BANK_APP_LABELS[s.app] ?? s.app} · ${partyLabel(s.party) || "عملية"}`;
+    const label = `${bankAppLabel(s.app)} · ${partyLabel(s.party) || "عملية"}`;
     const isHere = (app: string | undefined) => accountForApp(book.accounts, app)?.id === placeId;
     if (s.kind === "transfer") {
       if (isHere(s.fromApp)) out.push({ id: s.id, signed: -s.amount, label, date });

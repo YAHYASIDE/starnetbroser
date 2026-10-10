@@ -32,8 +32,23 @@ export const BANK_APP_LABELS: Record<string, string> = {
   binance: "بينانس",
 };
 
+/** "other:<package>": an app the phone didn't know as a bank, kept because it named an amount of
+ * money (BankNotice.java) - shown with its package so he can tell us which app it is. */
+export const OTHER_APP = "other:";
+
 export function bankAppLabel(app: string): string {
+  if (app.startsWith(OTHER_APP)) return `📱 ${app.slice(OTHER_APP.length)}`;
   return BANK_APP_LABELS[app] ?? app;
+}
+
+/** Sedad's own Arabic wording (sent / received / phone credit). */
+const SEDAD_WORDS = /أرسلتم\s+مبلغ|وصلكم\s+من|تلقيتم\s+رصيدا?\s+بمبلغ/;
+
+/** The app a notice is from: an unknown package writing Sedad's words is Sedad (his Sedad came
+ * under a package name the phone didn't know - Oct 10 2026). */
+export function noticeApp(raw: Pick<RawBankNotice, "app" | "title" | "text">): string {
+  if (!raw.app.startsWith(OTHER_APP)) return raw.app;
+  return SEDAD_WORDS.test(`${raw.title} ${raw.text}`.replace(BIDI_MARKS, "")) ? "sedad" : raw.app;
 }
 
 export interface NoticeParty {
@@ -291,6 +306,8 @@ export interface BankInbox {
   txIds: string[];
   /** The one-time ×10 of the amounts read before the «MRU = 10 أوقية» rule (bankOuguiya.ts). */
   ouguiyaFix?: OuguiyaFix;
+  /** `forgetUnreadSeen` ran once. */
+  seenCleaned?: boolean;
 }
 
 export const EMPTY_BANK_INBOX: BankInbox = { suggestions: [], seen: [], txIds: [] };
@@ -310,8 +327,9 @@ export function ingestBankNotices(inbox: BankInbox, raws: RawBankNotice[], ownNu
   const txOrder = [...inbox.txIds];
   let suggestions = [...inbox.suggestions];
   let added = 0;
-  for (const raw of [...raws].sort((a, b) => a.at - b.at)) {
-    if (!raw?.id || seen.has(raw.id)) continue;
+  for (const r of [...raws].sort((a, b) => a.at - b.at)) {
+    if (!r?.id || seen.has(r.id)) continue;
+    const raw = { ...r, app: noticeApp(r) };
     // The bank apps say MRU (new ouguiya); the app works in the old one: ×10 (bankOuguiya.ts).
     const parsed = toAppOuguiya(parseBankNotice(raw, ownNumbers));
     // Not marked seen when nothing was read: still in the tray, it's read again after an update
@@ -369,9 +387,30 @@ export function ingestBankNotices(inbox: BankInbox, raws: RawBankNotice[], ownNu
     added++;
   }
   return {
-    inbox: { suggestions: trimDecided(suggestions), seen: seenOrder.slice(-MAX_SEEN), txIds: txOrder.slice(-MAX_SEEN) },
+    inbox: { ...inbox, suggestions: trimDecided(suggestions), seen: seenOrder.slice(-MAX_SEEN), txIds: txOrder.slice(-MAX_SEEN) },
     added,
   };
+}
+
+/** How far back a notice forgotten by `forgetUnreadSeen` may be (older ones stay as they are). */
+const FORGET_UNREAD_MS = 14 * 24 * 60 * 60 * 1000;
+
+/**
+ * Once (Oct 10 2026): before, a notice nothing was read from was still remembered as seen - so
+ * Sedad's, lost to the direction marks, were never read again even after the fix. Every seen id of
+ * the last 14 days that no suggestion holds is forgotten: still in the tray, it's read again now.
+ * (A notice already suggested is in a suggestion, and one with a known transaction ID is still
+ * stopped by `txIds` - nothing comes twice.)
+ */
+export function forgetUnreadSeen(inbox: BankInbox, now = Date.now()): BankInbox {
+  if (inbox.seenCleaned) return inbox;
+  const held = new Set(inbox.suggestions.flatMap((s) => [s.id, ...s.notices.map((n) => n.id)]));
+  const seen = inbox.seen.filter((id) => {
+    if (held.has(id)) return true;
+    const at = Number(id.split("|")[1]);
+    return !(Number.isFinite(at) && now - at <= FORGET_UNREAD_MS);
+  });
+  return { ...inbox, seen, seenCleaned: true };
 }
 
 function trimDecided(list: BankSuggestion[]): BankSuggestion[] {
@@ -458,6 +497,7 @@ export function loadBankInbox(): BankInbox {
       seen: Array.isArray(parsed.seen) ? parsed.seen : [],
       txIds: Array.isArray(parsed.txIds) ? parsed.txIds : [],
       ...(parsed.ouguiyaFix ? { ouguiyaFix: parsed.ouguiyaFix } : {}),
+      ...(parsed.seenCleaned ? { seenCleaned: true } : {}),
     };
   } catch {
     return EMPTY_BANK_INBOX;

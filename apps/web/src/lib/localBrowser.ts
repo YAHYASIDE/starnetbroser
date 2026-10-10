@@ -18,7 +18,7 @@ import { CANCEL_SUBSCRIPTION_REASON } from "./subscriptionCancel";
 import { type CardDeposit, loadCardDeposits, loadPaymentCards, mergeCardDeposits, saveCardDeposits } from "./kastCards";
 import { fillItems, loadCardFillBook } from "./cardFill";
 import { isRepWorkspace } from "./repMode";
-import { ingestBankNotices, loadBankInbox, saveBankInbox, type BankInbox } from "./bankNotices";
+import { forgetUnreadSeen, ingestBankNotices, loadBankInbox, saveBankInbox, type BankInbox } from "./bankNotices";
 import { SessionsByAccount } from "./accountBackup";
 import { markInternalLeave } from "./appLock";
 
@@ -767,7 +767,7 @@ export async function drainBankNotices(ownNumbers: string[]): Promise<{ inbox: B
   try {
     const { notices } = await LocalBrowser.bankPendingNotices();
     if (!notices.length) return null;
-    const result = ingestBankNotices(loadBankInbox(), notices, ownNumbers);
+    const result = ingestBankNotices(forgetUnreadSeen(loadBankInbox()), notices, ownNumbers);
     saveBankInbox(result.inbox);
     await LocalBrowser.bankAckNotices({ ids: notices.map((n) => n.id) });
     return result;

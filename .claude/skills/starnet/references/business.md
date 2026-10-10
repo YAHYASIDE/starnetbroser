@@ -951,6 +951,19 @@ is never pressed while a field is empty - it refills and saves on the next try (
   first (every app). And a notice nothing was read from is no longer remembered as seen: while it's still
   in the tray, the rescan on opening «حسابي» reads it again with the newer parser (so his missed ones come back).
 
+## 🏦 Sedad still not read → caught on the phone itself (Oct 10 2026)
+
+- His report after the direction-marks fix: «مازال لا يقرأ رسايل تطبيق sedad».
+- Native `BankNotice`: the title is cleaned of the same invisible marks before matching («\u200eENVOI»
+  matched nothing). An app whose package we don't know is kept when its text names money
+  (`أوقية` / `MRU` / `F CFA` / `FCFA` with a figure) as `other:<package>` - never chat / SMS / mail apps,
+  never STAR NET itself. MessagingStyle notices: the words come from `android.messages`.
+- Web: an `other:` notice in Sedad's words («أرسلتم مبلغ» / «وصلكم من» / «تلقيتم رصيدا بمبلغ») becomes
+  سداد; anything else shows «لم يُفهم» with «📱 <package>» - his screenshot of it tells us the app.
+- Once (`forgetUnreadSeen`, flag `seenCleaned`): the seen ids of the last 14 days that no suggestion holds
+  are forgotten, so the Sedad notices remembered as seen before the fix (still in the tray) are read again.
+  Nothing comes twice: suggested ones are held by their suggestion, transaction IDs stay in `txIds`.
+
 ## 💵 «كل ما تملك»: cash one line per currency, أورانج / نيتا always in فرانك (Oct 10 2026)
 
 - His words: «كاش سيفا اجعله وحده وكاش العملة وحده. واجعل أورانج ونيتا يظهران بالفرانك أيضاً في الأمام».
