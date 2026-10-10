@@ -984,3 +984,12 @@ is never pressed while a field is empty - it refills and saves on the next try (
   (none in 30 days → the latest). A NEW transfer locks that cost as the currency's rate (`lockRates` costs →
   `costBasis` on the record), so its profit = what he received − what the sent currency really cost him.
   Older transfers keep their locked rates. Purchases paid in another currency don't count in the average.
+
+## 🧠 Bank-inbox rules + «⚡ تأكيد الكل الجاهز» (Oct 10 2026)
+
+- His choice «يُجهّز وتؤكد بضغطة»: lib/bankRules.ts (`starnet_bank_rules_v1`). Confirming a notification from
+  a number with «🧠 تذكّر» (on by default) keeps number + direction → account + choice (expense / income /
+  new debt / supplier / rep / customer device). Never learned: debt repayments, transfers between his apps,
+  الكاش deposits, notices without a number. The next waiting ones from that number show «⚡ جاهز: …»; nothing
+  is recorded until «⚡ تأكيد الكل الجاهز» (or «⚡ سجّل كما في القاعدة» inside one) - each saved exactly like a
+  manual confirm (`saveSuggestionChoice`). A «قد يكون مكررًا» one is never ready. Rules listed and deletable.

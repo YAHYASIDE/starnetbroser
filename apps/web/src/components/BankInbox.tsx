@@ -16,6 +16,7 @@ import {
   type BankSuggestion,
 } from "@/lib/bankNotices";
 import type { SuggestionChoice } from "@/lib/bankSuggestionSave";
+import type { BankRule } from "@/lib/bankRules";
 import { formatAmount } from "@/lib/formatAmount";
 import { deviceMatchesQuery } from "@/lib/homeInsights";
 import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, type LedgerCurrency } from "@/lib/ledgerStore";
@@ -90,15 +91,38 @@ export function BankInboxList({
   decided,
   onPick,
   onReopen,
+  ready = {},
+  onConfirmReady,
+  rules = [],
+  onDeleteRule,
 }: {
   pending: BankSuggestion[];
   decided: BankSuggestion[];
   onPick: (s: BankSuggestion) => void;
   onReopen: (s: BankSuggestion) => void;
+  /** 🧠 suggestion id → what its rule will record («👤 دفعة زبون: …»). */
+  ready?: Record<string, string>;
+  /** «⚡ تأكيد الكل الجاهز». */
+  onConfirmReady?: () => void;
+  rules?: BankRule[];
+  onDeleteRule?: (rule: BankRule) => void;
 }) {
   const [showDecided, setShowDecided] = useState(false);
+  const [showRules, setShowRules] = useState(false);
+  const readyCount = pending.filter((s) => ready[s.id]).length;
   return (
     <div className="bank-inbox">
+      {readyCount > 0 && onConfirmReady && (
+        <button
+          type="button"
+          className="dialog-primary bank-ready-all"
+          onClick={() => {
+            if (window.confirm(`تسجيل ${readyCount} عملية جاهزة كما في قواعدك؟`)) onConfirmReady();
+          }}
+        >
+          ⚡ تأكيد الكل الجاهز ({readyCount})
+        </button>
+      )}
       {pending.length === 0 ? (
         <p className="party-empty">لا عمليات بانتظار التأكيد. كل إشعار من بنكيلي أو سداد أو نيتا أو بينانس يظهر هنا لتؤكّده.</p>
       ) : (
@@ -115,6 +139,7 @@ export function BankInboxList({
                     {s.kind === "airtime" ? " · 📱 رصيد" : ""}
                     {s.maybeDuplicate ? " · ⚠️ قد يكون مكررًا" : ""}
                   </small>
+                  {ready[s.id] && <small className="bank-ready-chip">⚡ جاهز: {ready[s.id]}</small>}
                 </span>
                 <bdi dir="ltr" className={`expenses-row-amount${suggestionDirection(s) === "in" ? " money-in" : suggestionDirection(s) === "out" ? "" : " bank-inbox-neutral"}`}>
                   {amountText(s)}
@@ -123,6 +148,38 @@ export function BankInboxList({
             </li>
           ))}
         </ul>
+      )}
+      {rules.length > 0 && (
+        <>
+          <button type="button" className="btn-icon" onClick={() => setShowRules(!showRules)}>
+            {showRules ? "إخفاء القواعد" : `🧠 القواعد المحفوظة (${rules.length})`}
+          </button>
+          {showRules && (
+            <ul className="money-recurring-list">
+              {rules.map((r) => (
+                <li key={`${r.number}|${r.direction}`} className="money-account-row">
+                  <span>
+                    {r.direction === "in" ? "⬇️ من" : "⬆️ إلى"} {r.name ? `${r.name} · ` : ""}
+                    <bdi dir="ltr">{r.number}</bdi>
+                    <small> ← {r.label}</small>
+                  </span>
+                  {onDeleteRule && (
+                    <button
+                      type="button"
+                      className="btn-icon"
+                      aria-label="حذف القاعدة"
+                      onClick={() => {
+                        if (window.confirm("حذف هذه القاعدة؟ العمليات القادمة من هذا الرقم تُؤكَّد يدوياً.")) onDeleteRule(r);
+                      }}
+                    >
+                      🗑
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
       )}
       {decided.length > 0 && (
         <>
@@ -205,12 +262,19 @@ export function SuggestionConfirm({
   data,
   onSave,
   onReject,
+  rule,
+  onApplyRule,
 }: {
   suggestion: BankSuggestion;
   data: ConfirmData;
-  onSave: (input: ConfirmInput) => string | null;
+  /** `remember`: keep this choice for the next ones from this number (lib/bankRules.ts). */
+  onSave: (input: ConfirmInput, remember: boolean) => string | null;
   onReject: () => void;
+  /** 🧠 Its number already has a rule: record it the same way in one tap. */
+  rule?: BankRule;
+  onApplyRule?: () => string | null;
 }) {
+  const [remember, setRemember] = useState(true);
   const transfer = s.kind === "transfer";
   // A transfer is seen from the receiving account: «من حسابي» the sending one.
   const firstAccount = accountForApp(data.accounts, transfer ? s.toApp : s.app) ?? data.accounts[0];
@@ -298,7 +362,7 @@ export function SuggestionConfirm({
         break;
     }
     // 🟠 أورانج / نيتا: the amount is in فرانك, kept in سيفا ÷5.
-    setError(onSave({ account, direction, amount: franc ? francToSifa(value) : value, currencyCode: franc ? "SIFA" : currency, date, note, choice: picked }));
+    setError(onSave({ account, direction, amount: franc ? francToSifa(value) : value, currencyCode: franc ? "SIFA" : currency, date, note, choice: picked }, remember));
   }
 
   return (
@@ -318,6 +382,19 @@ export function SuggestionConfirm({
         )}
         {s.maybeDuplicate && <small className="bank-confirm-warn">⚠️ نفس الإشعار وصل قبل قليل - قد يكون مكررًا، أو عملية ثانية حقيقية.</small>}
       </div>
+
+      {rule && onApplyRule && (
+        <button
+          type="button"
+          className="dialog-primary bank-ready-all"
+          onClick={() => {
+            const message = onApplyRule();
+            if (message) setError(message);
+          }}
+        >
+          ⚡ سجّل كما في القاعدة: {rule.label}
+        </button>
+      )}
 
       <details className="bank-confirm-raw">
         <summary>نص الإشعار كاملًا</summary>
@@ -484,6 +561,11 @@ export function SuggestionConfirm({
       )}
 
       <input className="search-input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="ملاحظة" />
+      {s.party?.number && !transfer && ["income", "expense", "customer", "supplier", "rep", "new-debt"].includes(choice) && (
+        <label className="bank-remember">
+          <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} /> 🧠 تذكّر: عمليات <bdi dir="ltr">{s.party.number}</bdi> القادمة تُجهَّز بنفس الاختيار
+        </label>
+      )}
       {error && <div className="account-card-alert ledger-form-error">{error}</div>}
       <div className="expenses-amount-row">
         <button type="button" className="dialog-primary" onClick={save}>

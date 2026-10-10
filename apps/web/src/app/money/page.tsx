@@ -7,6 +7,7 @@ import { AccountsManager, IncomeTab, RecurringSection, today, WealthCard, Wealth
 import { BankInboxCard, BankInboxList, SuggestionConfirm, type ConfirmData, type ConfirmInput } from "@/components/BankInbox";
 import { decideSuggestion, decidedSuggestions, EMPTY_BANK_INBOX, loadBankInbox, pendingSuggestions, reopenSuggestion, saveBankInbox, type BankInbox, type BankSuggestion } from "@/lib/bankNotices";
 import { saveSuggestionChoice } from "@/lib/bankSuggestionSave";
+import { canLearn, deleteRule, learnRule, loadBankRules, readySuggestions, ruleFor, saveBankRules, type BankRules } from "@/lib/bankRules";
 import { RemittanceSection } from "@/components/RemittanceSection";
 import { ExchangeSection } from "@/components/ExchangeSection";
 import { averageCosts, createExchange, deleteExchange, exchangeCashEntries, loadExchanges, saveExchanges, updateExchange, type Exchange, type ExchangeList } from "@/lib/exchanges";
@@ -433,10 +434,47 @@ export default function MoneyPage() {
     setInbox(next);
   }
 
-  function confirmSuggestion(s: BankSuggestion, input: ConfirmInput): string | null {
+  // 🧠 Rules (lib/bankRules.ts): learned on confirm, they prepare the next ones from the same number.
+  const [bankRules, setBankRules] = useState<BankRules>([]);
+  useEffect(() => setBankRules(loadBankRules()), []);
+  const ready = useMemo(() => readySuggestions(pending, bankRules, book.accounts), [pending, bankRules, book.accounts]);
+  const readyLabels = useMemo(() => Object.fromEntries(ready.map((r) => [r.suggestion.id, r.rule.label])), [ready]);
+  function storeRules(next: BankRules) {
+    saveBankRules(next);
+    setBankRules(next);
+  }
+
+  /** Records every ready one as its rule says (each exactly like a manual confirm). */
+  function confirmAllReady() {
+    let next = inbox;
+    let failed = 0;
+    for (const r of ready) {
+      const result = saveSuggestionChoice(r.input);
+      if (!result.ok) {
+        failed += 1;
+        continue;
+      }
+      next = decideSuggestion(next, r.suggestion.id, "done", result.outcome);
+    }
+    storeInbox(next);
+    afterConfirm();
+    if (failed) window.alert(`${failed} عملية لم تُسجَّل - افتحها وأكّدها يدوياً.`);
+  }
+
+  function afterConfirm() {
+    setIncomes(loadIncome());
+    setExpenses(loadPersonalExpenses());
+    setDebts(loadDebtBook());
+    setBook(loadAccountsBook());
+    setInboxVersion((v) => v + 1);
+    setPicked(null);
+  }
+
+  function confirmSuggestion(s: BankSuggestion, input: ConfirmInput, remember = false): string | null {
     const result = saveSuggestionChoice(input);
     if (!result.ok) return result.message;
     storeInbox(decideSuggestion(inbox, s.id, "done", result.outcome));
+    if (remember && canLearn(s, input.choice)) storeRules(learnRule(bankRules, s, input, result.outcome));
     // The record went to its own store - read them again.
     setIncomes(loadIncome());
     setExpenses(loadPersonalExpenses());
@@ -834,7 +872,12 @@ export default function MoneyPage() {
                 key={picked.id}
                 suggestion={picked}
                 data={confirmData}
-                onSave={(input) => confirmSuggestion(picked, input)}
+                onSave={(input, remember) => confirmSuggestion(picked, input, remember)}
+                rule={ruleFor(bankRules, picked)}
+                onApplyRule={() => {
+                  const r = readySuggestions([picked], bankRules, book.accounts)[0];
+                  return r ? confirmSuggestion(picked, r.input) : "الحساب في القاعدة لم يعد موجوداً";
+                }}
                 onReject={() => {
                   storeInbox(decideSuggestion(inbox, picked.id, "rejected", undefined));
                   setPicked(null);
@@ -842,7 +885,16 @@ export default function MoneyPage() {
               />
             </>
           ) : (
-            <BankInboxList pending={pending} decided={decided} onPick={setPicked} onReopen={(s) => storeInbox(reopenSuggestion(inbox, s.id))} />
+            <BankInboxList
+              pending={pending}
+              decided={decided}
+              onPick={setPicked}
+              onReopen={(s) => storeInbox(reopenSuggestion(inbox, s.id))}
+              ready={readyLabels}
+              onConfirmReady={confirmAllReady}
+              rules={bankRules}
+              onDeleteRule={(r) => storeRules(deleteRule(bankRules, r.number, r.direction))}
+            />
           )}
         </PartySheet>
       )}

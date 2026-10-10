@@ -15011,3 +15011,22 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
 .place-match-list small {
   color: var(--text-muted);
 }
+
+/* 🧠 Bank-inbox rules: ready rows, «تأكيد الكل الجاهز», «تذكّر». */
+.bank-ready-all {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.bank-ready-chip {
+  color: var(--green) !important;
+  font-weight: 700;
+}
+
+.bank-remember {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
