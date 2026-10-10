@@ -1,0 +1,345 @@
+import { describe, expect, it } from "vitest";
+import { computeCashBalanceByCurrency, listStandaloneCashEntries } from "./cashStore";
+import type { PersonalExpense } from "./personalExpenses";
+import {
+  addDebt,
+  addDebtPayment,
+  addIncome,
+  addIncomeCategory,
+  addRecurringRule,
+  allIncomeCategories,
+  debtRemaining,
+  debtTotals,
+  deleteDebt,
+  dueRecurring,
+  EMPTY_DEBT_BOOK,
+  editIncome,
+  firstRecurringMonth,
+  monthLeft,
+  buildWealth,
+  personalFlows,
+  skipRecurringMonth,
+  syncDebtCash,
+  syncDebtPaymentCash,
+  syncIncomeCash,
+  seedIncomeTree,
+} from "./myMoney";
+
+const rates = { MRU: 400, XOF: 600 };
+const now = new Date("2026-10-04T10:00:00Z");
+
+describe("💵 الدخل", () => {
+  it("records income in its own currency and checks the input", () => {
+    const made = addIncome([], { categoryId: "salary", amount: 50000, currencyCode: "MRU", date: "2026-10-01", toCash: true }, now);
+    expect(made.ok && made.income).toMatchObject({ categoryId: "salary", amount: 50000, currencyCode: "MRU" });
+    expect(addIncome([], { categoryId: "salary", amount: 0, currencyCode: "MRU", date: "2026-10-01", toCash: true }).ok).toBe(false);
+    expect(addIncome([], { categoryId: "", amount: 5, currencyCode: "MRU", date: "2026-10-01", toCash: true }).ok).toBe(false);
+  });
+
+  it("goes into الكاش as a linked entry the business reports leave out", () => {
+    const made = addIncome([], { categoryId: "gift", amount: 3000, currencyCode: "MRU", date: "2026-10-02", toCash: true }, now);
+    if (!made.ok) throw new Error();
+    const cash = syncIncomeCash([], made.income, []);
+    expect(computeCashBalanceByCurrency(cash)).toEqual({ MRU: 3000 });
+    expect(listStandaloneCashEntries(cash)).toEqual([]);
+    expect(syncIncomeCash(cash, { ...made.income, toCash: false }, [])).toEqual([]);
+  });
+
+  it("an edit keeps the id and the 🔁 link", () => {
+    const made = addIncome([], { categoryId: "salary", amount: 100, currencyCode: "MRU", date: "2026-10-01", toCash: false }, now, "rule-1");
+    if (!made.ok) throw new Error();
+    const edited = editIncome(made.list, made.income.id, { categoryId: "salary", amount: 120, currencyCode: "MRU", date: "2026-10-01", toCash: false });
+    expect(edited.ok && edited.income).toMatchObject({ id: made.income.id, amount: 120, recurringId: "rule-1" });
+  });
+
+  it("adds the operator's own income sections, never twice", () => {
+    const made = addIncomeCategory([], " DEMO ", "🏷️");
+    expect(made.ok && made.list.map((c) => c.name).slice(-2)).toEqual(["DEMO", "أخرى"]);
+    if (!made.ok) throw new Error();
+    expect(addIncomeCategory(made.list, "DEMO").ok).toBe(false);
+    expect(addIncomeCategory([], "الراتب").ok).toBe(false);
+    // An expense section's name is fine for income.
+    expect(addIncomeCategory([], "أكل").ok).toBe(true);
+  });
+
+  it("keeps «أخرى» last after the operator's own sections", () => {
+    const names = allIncomeCategories(seedIncomeTree([{ id: "c1", icon: "🏷️", name: "DEMO" }])).map((c) => c.id);
+    expect(names.at(-1)).toBe("other");
+    expect(names.at(-2)).toBe("c1");
+  });
+});
+
+describe("🔁 شهري", () => {
+  const rule = () => {
+    const made = addRecurringRule([], { kind: "income", categoryId: "salary", amount: 50000, currencyCode: "MRU", day: 5, viaCash: true }, "2026-08-03", now);
+    if (!made.ok) throw new Error();
+    return made.rule;
+  };
+
+  it("records each month once its day has come, never twice", () => {
+    const r = rule();
+    const due = dueRecurring([r], [], [], "2026-10-04", now);
+    // Made on Aug 3 for the 5th: Aug and Sep are due, Oct 5 not yet.
+    expect(due.incomes.map((i) => i.date)).toEqual(["2026-08-05", "2026-09-05"]);
+    expect(due.incomes.every((i) => i.recurringId === r.id && i.toCash)).toBe(true);
+    expect(dueRecurring([r], due.incomes, [], "2026-10-04", now).incomes).toEqual([]);
+    expect(dueRecurring([r], due.incomes, [], "2026-10-05", now).incomes.map((i) => i.date)).toEqual(["2026-10-05"]);
+  });
+
+  it("a month whose record was deleted stays deleted", () => {
+    const r = rule();
+    const skipped = skipRecurringMonth([r], r.id, "2026-08");
+    expect(dueRecurring(skipped, [], [], "2026-09-30", now).incomes.map((i) => i.date)).toEqual(["2026-09-05"]);
+  });
+
+  it("an expense rule (the rent) records personal expenses", () => {
+    const made = addRecurringRule([], { kind: "expense", categoryId: "home", amount: 20000, currencyCode: "MRU", day: 1, viaCash: false }, "2026-09-30", now);
+    if (!made.ok) throw new Error();
+    // Added on the 30th for day 1: first recorded on 1 October.
+    expect(dueRecurring(made.list, [], [], "2026-09-30", now).expenses).toHaveLength(0);
+    const due = dueRecurring(made.list, [], [], "2026-10-01", now);
+    expect(due.expenses).toHaveLength(1);
+    expect(due.expenses[0]).toMatchObject({ categoryId: "home", date: "2026-10-01", fromCash: false, recurringId: made.rule.id });
+  });
+
+  it("starts on its first day after the day it was made", () => {
+    expect(firstRecurringMonth("2026-10-04", 5)).toBe("2026-10");
+    // Its day is today: not recorded on the day it's added - next month.
+    expect(firstRecurringMonth("2026-10-05", 5)).toBe("2026-11");
+    expect(firstRecurringMonth("2026-10-06", 5)).toBe("2026-11");
+    expect(firstRecurringMonth("2026-12-20", 1)).toBe("2027-01");
+  });
+
+  it("only days 1-28 (every month has them)", () => {
+    expect(addRecurringRule([], { kind: "income", categoryId: "salary", amount: 1, currencyCode: "MRU", day: 31, viaCash: false }, "2026-10-01").ok).toBe(false);
+  });
+});
+
+describe("🤝 الديون", () => {
+  it("what's left after repayments, and the cash both ways", () => {
+    const lent = addDebt(EMPTY_DEBT_BOOK, { kind: "lent", person: "DEMO NAME", amount: 10000, currencyCode: "MRU", date: "2026-10-01", viaCash: true }, now);
+    if (!lent.ok) throw new Error();
+    let cash = syncDebtCash([], lent.debt);
+    expect(computeCashBalanceByCurrency(cash)).toEqual({ MRU: -10000 });
+
+    const paid = addDebtPayment(lent.book, { debtId: lent.debt.id, amount: 4000, date: "2026-10-03", viaCash: true }, now);
+    if (!paid.ok) throw new Error();
+    cash = syncDebtPaymentCash(cash, paid.payment, lent.debt);
+    expect(computeCashBalanceByCurrency(cash)).toEqual({ MRU: -6000 });
+    expect(debtRemaining(paid.book, lent.debt.id)).toBe(6000);
+    expect(addDebtPayment(paid.book, { debtId: lent.debt.id, amount: 7000, date: "2026-10-03", viaCash: false }).ok).toBe(false);
+    expect(listStandaloneCashEntries(cash)).toEqual([]);
+
+    const removed = deleteDebt(paid.book, lent.debt.id);
+    expect(removed.book).toEqual(EMPTY_DEBT_BOOK);
+    expect(removed.removedIds).toEqual([lent.debt.id, paid.payment.id]);
+  });
+
+  it("totals what people owe me and what I owe, per currency", () => {
+    const a = addDebt(EMPTY_DEBT_BOOK, { kind: "lent", person: "A", amount: 100, currencyCode: "MRU", date: "2026-10-01", viaCash: false });
+    if (!a.ok) throw new Error();
+    const b = addDebt(a.book, { kind: "borrowed", person: "B", amount: 50, currencyCode: "USD", date: "2026-10-01", viaCash: false });
+    if (!b.ok) throw new Error();
+    expect(debtTotals(b.book)).toEqual({ lent: { MRU: 100 }, borrowed: { USD: 50 } });
+  });
+});
+
+describe("the final figures", () => {
+  it("«يبقى لك هذا الشهر» = business net + income − expenses (that month only)", () => {
+    const income = addIncome([], { categoryId: "salary", amount: 50000, currencyCode: "MRU", date: "2026-10-01", toCash: false }, now);
+    if (!income.ok) throw new Error();
+    const expenses = [
+      { id: "e1", categoryId: "food", amount: 6000, currencyCode: "MRU", date: "2026-10-02", fromCash: true, createdAt: "" },
+      { id: "e2", categoryId: "food", amount: 9999, currencyCode: "MRU", date: "2026-09-30", fromCash: true, createdAt: "" },
+    ] as PersonalExpense[];
+    const left = monthLeft({ month: "2026-10", businessNetMru: 120000, incomes: income.list, expenses, rates });
+    expect(left).toMatchObject({ businessMru: 120000, incomeMru: 50000, expenseMru: 6000, leftMru: 164000, missing: [] });
+  });
+
+  it("after «الأرباح والخسائر من 0», income and spending before that day don't count", () => {
+    const expenses = [
+      { id: "e1", categoryId: "food", amount: 6000, currencyCode: "MRU", date: "2026-10-02", fromCash: true, createdAt: "" },
+      { id: "e2", categoryId: "food", amount: 1000, currencyCode: "MRU", date: "2026-10-10", fromCash: true, createdAt: "" },
+    ] as PersonalExpense[];
+    const left = monthLeft({ month: "2026-10", businessNetMru: 0, incomes: [], expenses, rates, since: "2026-10-05" });
+    expect(left.expenseMru).toBe(1000);
+  });
+
+  it("«في يدك الآن» and «كل ما تملك»: have − owe, then + what's owed to me", () => {
+    const wealth = buildWealth({
+      cash: { MRU: 20000, XOF: 6000 },
+      banks: [{ name: "DEMO BANK", byCurrency: { MRU: 8000 } }],
+      cardUsd: 100,
+      customers: [{ name: "DEMO NAME", byCurrency: { MRU: 46000 } }],
+      repsMru: [{ name: "REP A", mru: 3000 }, { name: "REP B", mru: -2000 }],
+      debts: EMPTY_DEBT_BOOK,
+      suppliers: [{ name: "SUPPLIER", byCurrency: { MRU: 5000 } }],
+      starlink: [{ name: "demo-a", usd: 50 }],
+      rates,
+    });
+    const by = Object.fromEntries(wealth.lines.map((l) => [l.key, l.mru]));
+    // XOF 6000 at 600/USD = 10 USD = 4000 MRU. (Personal people-debts moved to the clients page - no
+    // «لك/عليك للناس» lines here anymore.)
+    expect(by).toMatchObject({ cash: 20000, "cash:XOF": 4000, banks: 8000, card: 40000, customers: 46000, repsOwe: 3000, starlink: 20000, suppliers: 5000, repsOwed: 2000 });
+    expect(Object.keys(by)).not.toContain("lent");
+    expect(Object.keys(by)).not.toContain("borrowed");
+    // have 72,000 − owe 27,000
+    expect(wealth.inHandMru).toBe(45000);
+    // + owed to me 49,000
+    expect(wealth.totalMru).toBe(94000);
+    expect(wealth.lines.find((l) => l.key === "customers")?.items[0]).toMatchObject({ name: "DEMO NAME", mru: 46000 });
+    expect(wealth.missing).toEqual([]);
+  });
+
+  it("a foreign wallet (أورانج/نيتا/بينانس) comes out to its own line with its own-currency amount; أوقية apps stay under «البنوك»", () => {
+    const wealth = buildWealth({
+      cash: {},
+      banks: [
+        { name: "بنكيلي", byCurrency: { MRU: 8000 } },
+        { name: "أورانج موني", byCurrency: { XOF: 6000 } },
+      ],
+      cardUsd: 0,
+      customers: [],
+      repsMru: [],
+      debts: EMPTY_DEBT_BOOK,
+      suppliers: [],
+      starlink: [],
+      rates,
+    });
+    const banks = wealth.lines.find((l) => l.key === "banks")!;
+    expect(banks.items.map((i) => i.name)).toEqual(["بنكيلي"]);
+    expect(banks.native).toBeUndefined();
+    const orange = wealth.lines.find((l) => l.label === "أورانج موني")!;
+    expect(orange.kind).toBe("have");
+    expect(orange.native).toEqual({ XOF: 6000 });
+    expect(orange.mru).toBe(4000); // 6000 XOF ÷ 600/USD × 400/USD
+  });
+
+  it("الكاش one line per currency: «كاش» (أوقية), «كاش سيفا» always (with the «كاش سيفا» wallet), «كاش دولار» when there is some", () => {
+    const wealth = buildWealth({
+      cash: { MRU: 20000, SIFA: 600, USD: 10 },
+      banks: [
+        { name: "بنكيلي", byCurrency: { MRU: 8000 }, id: "bk" },
+        { name: "💵 كاش سيفا", byCurrency: { SIFA: 1200 }, cashWallet: true, id: "cs" },
+      ],
+      cardUsd: 0,
+      customers: [],
+      repsMru: [],
+      debts: EMPTY_DEBT_BOOK,
+      suppliers: [],
+      starlink: [],
+      rates: { ...rates, SIFA: 600 },
+    });
+    const cash = wealth.lines.filter((l) => l.key.startsWith("cash"));
+    expect(cash.map((l) => [l.key, l.label, l.mru])).toEqual([
+      ["cash", "كاش", 20000],
+      ["cash:SIFA", "كاش سيفا", 1200], // (600 + 1,200) سيفا ÷ 600 × 400
+      ["cash:USD", "كاش دولار", 4000],
+    ]);
+    expect(cash[1]!.native).toEqual({ SIFA: 1800 });
+    expect(cash[1]!.places).toEqual([{ id: "cash", name: "💵 الكاش" }, { id: "cs", name: "💵 كاش سيفا" }]);
+    // the wallet is not under «البنوك» anymore
+    expect(wealth.lines.find((l) => l.key === "banks")!.items.map((i) => i.name)).toEqual(["بنكيلي"]);
+    expect(wealth.inHandMru).toBe(20000 + 1200 + 4000 + 8000);
+    // no سيفا at all: «كاش سيفا» still shown at 0; no dinar → no «كاش دينار» line
+    const empty = buildWealth({ cash: {}, banks: [], cardUsd: 0, customers: [], repsMru: [], debts: EMPTY_DEBT_BOOK, suppliers: [], starlink: [], rates });
+    expect(empty.lines.filter((l) => l.key.startsWith("cash")).map((l) => [l.key, l.mru])).toEqual([["cash", 0], ["cash:SIFA", 0]]);
+  });
+
+  it("أورانج / نيتا are always in front in فرانك, even at 0", () => {
+    const wealth = buildWealth({
+      cash: {},
+      banks: [
+        { name: "🟠 أورانج", byCurrency: { SIFA: 6000 }, franc: true, id: "or" },
+        { name: "🟡 نيتا", byCurrency: {}, franc: true, id: "ni" },
+        { name: "بنكيلي", byCurrency: { MRU: 8000 } },
+      ],
+      cardUsd: 0,
+      customers: [],
+      repsMru: [],
+      debts: EMPTY_DEBT_BOOK,
+      suppliers: [],
+      starlink: [],
+      rates: { ...rates, SIFA: 600 },
+    });
+    const orange = wealth.lines.find((l) => l.label === "🟠 أورانج")!;
+    const nita = wealth.lines.find((l) => l.label === "🟡 نيتا")!;
+    expect(orange).toMatchObject({ franc: true, native: { SIFA: 6000 }, mru: 4000, places: [{ id: "or", name: "🟠 أورانج" }] });
+    expect(nita).toMatchObject({ franc: true, native: { SIFA: 0 }, mru: 0 });
+    expect(wealth.lines.find((l) => l.key === "banks")!.items.map((i) => i.name)).toEqual(["بنكيلي"]);
+  });
+
+  it("«عليك لستارلينك (D)» shows the دولار beside the أوقية", () => {
+    const wealth = buildWealth({
+      cash: {},
+      banks: [],
+      cardUsd: 0,
+      customers: [],
+      repsMru: [],
+      debts: EMPTY_DEBT_BOOK,
+      suppliers: [],
+      starlink: [{ name: "a", usd: 30 }, { name: "b", usd: 20 }],
+      rates,
+    });
+    const starlink = wealth.lines.find((l) => l.key === "starlink")!;
+    expect(starlink.native).toEqual({ USD: 50 });
+    expect(starlink.mru).toBe(20000); // 50 USD × 400
+  });
+
+  it("a customer we owe (credit / «له رصيد») shows under «عليك للزبائن» and counts against في يدك", () => {
+    const wealth = buildWealth({
+      cash: { MRU: 10000 },
+      banks: [],
+      cardUsd: 0,
+      customers: [{ name: "يدين لنا", byCurrency: { MRU: 2000 } }],
+      customersOwe: [{ name: "له رصيد", byCurrency: { MRU: 1917900 } }],
+      repsMru: [],
+      debts: EMPTY_DEBT_BOOK,
+      suppliers: [],
+      starlink: [],
+      rates,
+    });
+    const owe = wealth.lines.find((l) => l.key === "customersOwe")!;
+    expect(owe.kind).toBe("owe");
+    expect(owe.mru).toBe(1917900);
+    expect(owe.items[0]).toMatchObject({ name: "له رصيد", mru: 1917900 });
+    // have 10,000 − owe 1,917,900
+    expect(wealth.inHandMru).toBe(10000 - 1917900);
+    // + owed to me 2,000
+    expect(wealth.totalMru).toBe(10000 - 1917900 + 2000);
+  });
+
+  it("the KAST card shows its دولار beside the أوقية", () => {
+    const wealth = buildWealth({
+      cash: {},
+      banks: [],
+      cardUsd: 100,
+      customers: [],
+      repsMru: [],
+      debts: EMPTY_DEBT_BOOK,
+      suppliers: [],
+      starlink: [],
+      rates,
+    });
+    const card = wealth.lines.find((l) => l.key === "card")!;
+    expect(card.native).toEqual({ USD: 100 });
+  });
+
+  it("says which currency had no rate instead of guessing", () => {
+    const wealth = buildWealth({ cash: { EUR: 10 }, banks: [], cardUsd: 0, customers: [], repsMru: [], debts: EMPTY_DEBT_BOOK, suppliers: [], starlink: [], rates });
+    expect(wealth.missing).toEqual(["EUR"]);
+    expect(wealth.totalMru).toBe(0);
+  });
+
+  it("records through a bank / wallet become its flows (+ in, − out), not الكاش", () => {
+    const inc = addIncome([], { categoryId: "salary", amount: 500, currencyCode: "MRU", date: "2026-10-01", toCash: true, accountId: "bank" }, now);
+    if (!inc.ok) throw new Error();
+    expect(inc.income.toCash).toBe(false);
+    const lent = addDebt(EMPTY_DEBT_BOOK, { kind: "lent", person: "A", amount: 200, currencyCode: "MRU", date: "2026-10-02", viaCash: true, accountId: "bank" });
+    if (!lent.ok) throw new Error();
+    const paid = addDebtPayment(lent.book, { debtId: lent.debt.id, amount: 50, date: "2026-10-03", viaCash: false, accountId: "bank" });
+    if (!paid.ok) throw new Error();
+    const expenses = [{ id: "e", categoryId: "food", amount: 30, currencyCode: "MRU", date: "2026-10-02", fromCash: false, accountId: "bank", createdAt: "" }] as PersonalExpense[];
+    expect(personalFlows(inc.list, expenses, paid.book).map((f) => f.amount)).toEqual([500, -30, -200, 50]);
+  });
+});

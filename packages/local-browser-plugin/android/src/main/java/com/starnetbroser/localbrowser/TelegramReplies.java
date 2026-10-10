@@ -1,0 +1,1624 @@
+package com.starnetbroser.localbrowser;
+
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
+/**
+ * What TelegramReplyService answers while the app is closed. The app prepares every answer
+ * (texts, and the command words it understands) from the phone's data each time it is open and
+ * hands them over as a Snapshot - so the wording and the rules stay in the app, and the service
+ * only picks the right prepared text. A rep only ever gets the texts prepared for HIS repId.
+ * Pure (no Android / org.json), unit-tested in TelegramRepliesTest.
+ */
+final class TelegramReplies {
+
+    /** Prepared by the app (LocalBrowserPlugin#telegramSetReplies). */
+    static final class Snapshot {
+        /** "27/09 16:40" - when the app prepared it; shown under every data answer. */
+        String at = "";
+        String ownerHelp = "";
+        String repHelp = "";
+        /** "لم أفهم «{text}»." - put before the help. */
+        String unknown = "";
+        /** Owner asked for a statement PDF - it needs the app. */
+        String statementLater = "";
+        /** To someone not linked yet: "{name}". */
+        String linkReply = "";
+        /** To the owner, about a new link request: "{name}". */
+        String linkNotice = "";
+        /** Owner answers by command kind (stopped, expiring, cash, summary). */
+        Map<String, String> owner = new HashMap<>();
+        /** Every rep's answers: repId -> kind -> text. */
+        Map<String, Map<String, String>> reps = new HashMap<>();
+        /** Command word -> kind, as the app parses them. */
+        Map<String, String> ownerWords = new HashMap<>();
+        Map<String, String> repWords = new HashMap<>();
+        /** The buttons kept at the bottom of a rep's chat (reply_markup JSON). */
+        String repKeyboard = "";
+        String searchHint = "";
+        String paymentHint = "";
+        String clientHint = "";
+        /** ➕ New customers are added from the app now - the redirect the bot answers with. */
+        String clientMoved = "";
+        String requestReceived = "";
+        String promiseHint = "";
+        String promiseReceived = "";
+        String promiseNotice = "";
+        /** "{rep}", "{text}". */
+        String requestNotice = "";
+        /** ⚡ تفعيل choices ("ROM", "Sis", "100G"). */
+        List<String> plans = new ArrayList<>();
+        String activationHint = "";
+        /** Every rep's own devices, for search: repId -> entries. */
+        Map<String, List<SearchEntry>> repSearch = new HashMap<>();
+        /** The reps' bots' @names ("" = not connected) - see repBots.ts. */
+        String devicesBot = "";
+        String moneyBot = "";
+        String alertsBot = "";
+        String moneyKeyboard = "";
+        String moneyHelp = "";
+        /** A money command typed in the devices bot once the money bot exists. */
+        String moneyRedirect = "";
+        String handoverHint = "";
+        String handoverReceived = "";
+        String alertsInfo = "";
+    }
+
+    /** One of a rep's devices: folded keys, its result card, and an optional WhatsApp button. */
+    static final class SearchEntry {
+        final String keys;
+        final String text;
+        final String buttonLabel;
+        final String buttonUrl;
+        /** Renewal date "yyyy-mm-dd" ("" when unknown), one-line form, renewal-reminder url. */
+        final String date;
+        final String line;
+        final String reminderUrl;
+        /** The device's id (its ⚡ تفعيل button), or "". */
+        final String id;
+        /** Reps only: the short header above the menu ("" = no menu, the old card), each menu
+         * button's prepared text ("r", "p", "d", "i", "f", "s") and the editable fields' values. */
+        final String header;
+        final Map<String, String> sections;
+        final Map<String, String> editValues;
+        /** The device still owes Starlink (an open D): the 🅳 mark on alerts. */
+        boolean hasD;
+        /** WhatsApp: the customer's "stopped" message, and his debt reminder (or null). */
+        String stoppedUrl;
+        String debtUrl;
+        /** Its customer ("" = none) - 💵 دفعة lists customers first, then their devices. */
+        String clientId = "";
+        String clientName = "";
+        /** "عليه 5,000 أوقية" / "له 20 دولار" / "لا شيء عليه ولا له": the device, and its customer
+         * (all his devices) - "" from an older app. */
+        String balance = "";
+        String clientBalance = "";
+        /** The rep's own customer (repClients.ts): a 💵 دفعة goes straight into his book, and
+         * ➕➖ له/عليه lists only these. */
+        boolean own;
+
+        SearchEntry(String keys, String text, String buttonLabel, String buttonUrl) {
+            this(keys, text, buttonLabel, buttonUrl, null, null, null, null);
+        }
+
+        SearchEntry(String keys, String text, String buttonLabel, String buttonUrl, String date, String line, String reminderUrl) {
+            this(keys, text, buttonLabel, buttonUrl, date, line, reminderUrl, null);
+        }
+
+        SearchEntry(String keys, String text, String buttonLabel, String buttonUrl, String date, String line, String reminderUrl, String id) {
+            this(keys, text, buttonLabel, buttonUrl, date, line, reminderUrl, id, null, null, null);
+        }
+
+        SearchEntry(String keys, String text, String buttonLabel, String buttonUrl, String date, String line, String reminderUrl, String id,
+                    String header, Map<String, String> sections, Map<String, String> editValues) {
+            this.header = header == null ? "" : header;
+            this.sections = sections == null ? new HashMap<>() : sections;
+            this.editValues = editValues == null ? new HashMap<>() : editValues;
+            this.keys = keys == null ? "" : keys;
+            this.text = text == null ? "" : text;
+            this.buttonLabel = buttonLabel;
+            this.buttonUrl = buttonUrl;
+            this.date = date == null ? "" : date;
+            this.line = line == null ? "" : line;
+            this.reminderUrl = reminderUrl;
+            this.id = id == null ? "" : id;
+        }
+
+        boolean hasMenu() {
+            return !header.isEmpty() && menuFits(id);
+        }
+
+        /** "📡 name" -> "name". */
+        String deviceName() {
+            String first = text.split("\n", 2)[0];
+            return first.startsWith("📡 ") ? first.substring(3) : first;
+        }
+    }
+
+    /** A typed day - mirrors DayQuery (telegramRepMessages.ts). */
+    static final class DayQuery {
+        final String date; // exact "yyyy-mm-dd", or null
+        final int month; // 0 = any
+        final int day;
+        final String label;
+
+        DayQuery(String date, int month, int day, String label) {
+            this.date = date;
+            this.month = month;
+            this.day = day;
+            this.label = label;
+        }
+
+        boolean matches(String entryDate) {
+            if (entryDate == null || entryDate.length() != 10) return false;
+            if (date != null) return date.equals(entryDate);
+            int d = Integer.parseInt(entryDate.substring(8));
+            int m = Integer.parseInt(entryDate.substring(5, 7));
+            return d == day && (month == 0 || m == month);
+        }
+    }
+
+    /** What to do with one message. */
+    static final class Reply {
+        /** Sent back to the same chat (null = nothing). */
+        final String text;
+        /** Also left for the app to finish when it opens (a PDF, recording a link request). */
+        final boolean toInbox;
+        /** To the owner's own chat as well (a new link request). */
+        final String ownerNotice;
+        /** Buttons for the reply (reply_markup JSON), or null. */
+        final String markup;
+
+        Reply(String text, boolean toInbox, String ownerNotice) {
+            this(text, toInbox, ownerNotice, null);
+        }
+
+        Reply(String text, boolean toInbox, String ownerNotice, String markup) {
+            this.text = text;
+            this.toInbox = toInbox;
+            this.ownerNotice = ownerNotice;
+            this.markup = markup == null || markup.isEmpty() ? null : markup;
+        }
+    }
+
+    static final String NOT_READY = "⏳ افتح تطبيق STAR NET مرة واحدة ليجهّز الردود، ثم أعد المحاولة.";
+
+    private TelegramReplies() {
+    }
+
+    /** The text without "/", a leading emoji (keyboard buttons send "📡 أجهزتي") or the bot's
+     * @name - only ever the one glued to a "/command" ("/start@my_bot"), never the "@gmail" of an
+     * email being searched. Mirrors cleanRepText (telegramRepMessages.ts). */
+    static String cleanText(String text) {
+        if (text == null) return "";
+        String cleaned = text.trim();
+        if (cleaned.startsWith("/")) cleaned = cleaned.substring(1).replaceFirst("^(\\S+?)@\\w+", "$1");
+        return cleaned.replaceFirst("^[^\\p{L}\\p{N}]+", "").trim();
+    }
+
+    /** "/Stopped@my_bot extra" -> "stopped": the first word of cleanText, lower case. */
+    static String commandWord(String text) {
+        String cleaned = cleanText(text);
+        if (cleaned.isEmpty()) return "";
+        return cleaned.split("\\s+", 2)[0].toLowerCase(Locale.ROOT);
+    }
+
+    /** What follows the command word ("بحث محمد" -> "محمد"). */
+    static String afterCommand(String text) {
+        String[] parts = cleanText(text).split("\\s+", 2);
+        return parts.length > 1 ? parts[1].trim() : "";
+    }
+
+    /** Folding for search - identical to normalizeSearch (telegramRepMessages.ts). */
+    static String normalize(String text) {
+        if (text == null) return "";
+        StringBuilder out = new StringBuilder();
+        for (char c : text.toLowerCase(Locale.ROOT).toCharArray()) {
+            if ((c >= '\u064B' && c <= '\u0652') || c == '\u0640') continue;
+            if (c == 'أ' || c == 'إ' || c == 'آ') c = 'ا';
+            else if (c == 'ة') c = 'ه';
+            else if (c == 'ى') c = 'ي';
+            else if (c >= '\u0660' && c <= '\u0669') c = (char) ('0' + (c - '\u0660'));
+            else if (c >= '\u06F0' && c <= '\u06F9') c = (char) ('0' + (c - '\u06F0'));
+            out.append(c);
+        }
+        return out.toString().replaceAll("\\s+", " ").trim();
+    }
+
+    static String jsonString(String value) {
+        StringBuilder out = new StringBuilder("\"");
+        for (char c : value.toCharArray()) {
+            switch (c) {
+                case '"': out.append("\\\""); break;
+                case '\\': out.append("\\\\"); break;
+                case '\n': out.append("\\n"); break;
+                case '\r': out.append("\\r"); break;
+                case '\t': out.append("\\t"); break;
+                default:
+                    if (c < 0x20) out.append(String.format(Locale.ROOT, "\\u%04x", (int) c));
+                    else out.append(c);
+            }
+        }
+        return out.append('"').toString();
+    }
+
+    /** {"inline_keyboard":[[{"text":..,"url":..}],..]} for the entries that have a button. */
+    static String whatsappMarkup(List<SearchEntry> entries) {
+        StringBuilder rows = new StringBuilder();
+        int count = 0;
+        for (SearchEntry e : entries) {
+            if (e.buttonUrl == null || e.buttonLabel == null || count >= 10) continue;
+            if (count++ > 0) rows.append(',');
+            rows.append("[{\"text\":").append(jsonString(e.buttonLabel)).append(",\"url\":").append(jsonString(e.buttonUrl)).append("}]");
+        }
+        return count == 0 ? null : "{\"inline_keyboard\":[" + rows + "]}";
+    }
+
+    private static String quote(String query) {
+        return query.length() > 40 ? query.substring(0, 40) : query;
+    }
+
+    /** Every word of the query must be in the device's keys - mirrors repSearchReply (TS). */
+    static Reply search(String repId, String query, boolean helpWhenNothing, Snapshot s) {
+        return search(repId, query, helpWhenNothing, s, Calendar.getInstance());
+    }
+
+    private static String pad2(int n) {
+        return n < 10 ? "0" + n : String.valueOf(n);
+    }
+
+    private static String iso(Calendar c) {
+        return c.get(Calendar.YEAR) + "-" + pad2(c.get(Calendar.MONTH) + 1) + "-" + pad2(c.get(Calendar.DAY_OF_MONTH));
+    }
+
+    /** "غداً", "يوم 30", "30/09", "2026/09/30"... or null - mirrors parseDayQuery (TS). */
+    static DayQuery parseDay(String query, Calendar today) {
+        String text = normalize(query);
+        int offset;
+        String name;
+        switch (text) {
+            case "اليوم": offset = 0; name = "اليوم"; break;
+            case "غدا": case "بكره": offset = 1; name = "غداً"; break;
+            case "بعد غد": case "بعد غدا": offset = 2; name = "بعد غد"; break;
+            case "امس": offset = -1; name = "أمس"; break;
+            default: offset = Integer.MIN_VALUE; name = null;
+        }
+        if (name != null) {
+            Calendar c = (Calendar) today.clone();
+            c.add(Calendar.DAY_OF_MONTH, offset);
+            return new DayQuery(iso(c), 0, 0, name + " " + c.get(Calendar.DAY_OF_MONTH) + "/" + pad2(c.get(Calendar.MONTH) + 1));
+        }
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("^يوم (\\d{1,2})$").matcher(text);
+        if (m.matches()) {
+            int day = Integer.parseInt(m.group(1));
+            if (day >= 1 && day <= 31) return new DayQuery(null, 0, day, "يوم " + day);
+        }
+        m = java.util.regex.Pattern.compile("^(\\d{4})[/-](\\d{1,2})[/-](\\d{1,2})$").matcher(text);
+        if (m.matches()) {
+            int month = Integer.parseInt(m.group(2));
+            int day = Integer.parseInt(m.group(3));
+            return new DayQuery(m.group(1) + "-" + pad2(month) + "-" + pad2(day), 0, 0, day + "/" + pad2(month) + "/" + m.group(1));
+        }
+        m = java.util.regex.Pattern.compile("^(\\d{1,2})[/-](\\d{1,2})$").matcher(text);
+        if (m.matches()) {
+            int day = Integer.parseInt(m.group(1));
+            int month = Integer.parseInt(m.group(2));
+            if (day >= 1 && day <= 31 && month >= 1 && month <= 12) return new DayQuery(null, month, day, day + "/" + pad2(month));
+        }
+        return null;
+    }
+
+    /** A tapped day button of 📆 الأيام ("dd:12") -> "يوم 12", or null - mirrors dayCallbackQuery (TS). */
+    static DayQuery dayCallback(String data) {
+        if (data == null || !data.startsWith("dd:")) return null;
+        try {
+            int day = Integer.parseInt(data.substring(3));
+            return day >= 1 && day <= 31 ? new DayQuery(null, 0, day, "يوم " + day) : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** That day's renewals among his devices - mirrors repDayReply (TS). */
+    static Reply dayReply(String repId, DayQuery q, Snapshot s) {
+        List<SearchEntry> entries = s.repSearch.get(repId);
+        List<SearchEntry> found = new ArrayList<>();
+        if (entries != null) for (SearchEntry e : entries) if (q.matches(e.date)) found.add(e);
+        if (found.isEmpty()) return new Reply("📆 لا تجديدات لأجهزتك " + q.label, false, null, s.repKeyboard);
+        Collections.sort(found, (a, b) -> a.date.compareTo(b.date));
+        StringBuilder text = new StringBuilder("📆 تجديدات " + q.label + " (" + found.size() + "):");
+        List<SearchEntry> buttons = new ArrayList<>();
+        for (int i = 0; i < found.size() && i < 60; i++) {
+            SearchEntry e = found.get(i);
+            text.append("\n").append(q.date != null ? e.line : e.line + " - " + e.date);
+            buttons.add(new SearchEntry("", "", e.buttonLabel, e.reminderUrl));
+        }
+        String markup = whatsappMarkup(buttons);
+        return new Reply(withTime(text.toString(), s), false, null, markup != null ? markup : s.repKeyboard);
+    }
+
+    static Reply search(String repId, String query, boolean helpWhenNothing, Snapshot s, Calendar today) {
+        DayQuery day = parseDay(query, today);
+        if (day != null) return dayReply(repId, day, s);
+        String keyboard = s.repKeyboard;
+        String folded = normalize(query);
+        if (folded.isEmpty()) return new Reply(s.searchHint, false, null, keyboard);
+        List<SearchEntry> found = matchEntries(repId, query, s);
+        if (found.isEmpty()) {
+            String text = "🔎 لم أجد «" + quote(query) + "» بين أجهزتك";
+            return new Reply(helpWhenNothing ? text + "\n\n" + s.repHelp : text, false, null, keyboard);
+        }
+        List<SearchEntry> shown = found.subList(0, Math.min(5, found.size()));
+        boolean menus = true;
+        for (SearchEntry e : shown) menus &= e.hasMenu();
+        if (menus) return menuSearch(query, found.size(), shown, s);
+        StringBuilder text = new StringBuilder("🔎 نتائج «" + quote(query) + "» (" + found.size() + "):");
+        for (SearchEntry e : shown) text.append("\n\n").append(e.text);
+        if (found.size() > 5) text.append("\n\n… و").append(found.size() - 5).append(" أخرى - اكتب اسمًا أدق");
+        String markup = actionsMarkup(shown);
+        return new Reply(withTime(text.toString(), s), false, null, markup != null ? markup : keyboard);
+    }
+
+    // ---- The device menu (mirrors repDeviceMenu.ts / repMenuReply in telegramRepMessages.ts) ----
+
+    static final String MENU_HINT = "اختر ما تريد معرفته 👇";
+
+    /** Code -> button, in menu order; and the editable fields (code -> label). */
+    static final String[][] EDIT_FIELDS = {
+        {"n", "🏷️ اسم الجهاز"}, {"c", "👤 اسم الزبون"}, {"t", "📞 هاتف الزبون"}, {"e", "📧 الإيميل"},
+        {"p", "🔑 كود الإيميل"}, {"w", "📶 كود الواي فاي"}, {"k", "🔢 رقم KIT"},
+    };
+
+    static String editFieldLabel(String code) {
+        for (String[] f : EDIT_FIELDS) if (f[0].equals(code)) return f[1];
+        return null;
+    }
+
+    /** "🏷️ اسم الجهاز" -> "اسم الجهاز". */
+    static String editFieldName(String code) {
+        String label = editFieldLabel(code);
+        return label == null ? "" : label.replaceFirst("^\\S+\\s", "");
+    }
+
+    static boolean menuFits(String accountId) {
+        return accountId != null && !accountId.isEmpty() && fitsCallback("ef:w:" + accountId);
+    }
+
+    private static String cb(String text, String data) {
+        return "{\"text\":" + jsonString(text) + ",\"callback_data\":" + jsonString(data) + "}";
+    }
+
+    static String menuMarkup(String id, String whatsappUrl) {
+        return menuMarkup(id, whatsappUrl, "");
+    }
+
+    /** "💰 المال" button: opens the money bot on this device (mirrors moneyDeepLink, repBots.ts). */
+    static String moneyDeepLink(String moneyBot, String accountId) {
+        if (moneyBot == null || moneyBot.isEmpty() || accountId == null || !accountId.matches("[A-Za-z0-9_-]{1,62}")) return null;
+        return "https://t.me/" + moneyBot + "?start=d_" + accountId;
+    }
+
+    /** Mirrors menuMarkup (repDeviceMenu.ts): with the money bot connected, 💰 الدين / 📊 كشف
+     * become one "💰 المال" link to it. */
+    static String menuMarkup(String id, String whatsappUrl, String moneyBot) {
+        StringBuilder rows = new StringBuilder("[");
+        if (moneyBot != null && !moneyBot.isEmpty()) {
+            String link = moneyDeepLink(moneyBot, id);
+            rows.append('[').append(cb("📶 الشبكة", "v:n:" + id)).append(',').append(cb("📅 التجديد", "v:r:" + id)).append(',').append(cb("🛰️ الاشتراك", "v:p:" + id)).append("],");
+            rows.append('[').append(cb("🔢 KIT/SN", "v:i:" + id)).append(',').append(cb("👤 المعلومات", "v:f:" + id)).append(',').append(cb("📝 ملاحظة", "nt:" + id)).append("],");
+            rows.append('[').append(cb("✏️ تعديل", "e:" + id));
+            if (link != null) rows.append(",{\"text\":\"💰 المال\",\"url\":").append(jsonString(link)).append('}');
+            rows.append(']');
+        } else {
+            rows.append('[').append(cb("📶 الشبكة", "v:n:" + id)).append(',').append(cb("📅 التجديد", "v:r:" + id)).append(',').append(cb("🛰️ الاشتراك", "v:p:" + id)).append("],");
+            rows.append('[').append(cb("💰 الدين", "v:d:" + id)).append(',').append(cb("🔢 KIT/SN", "v:i:" + id)).append(',').append(cb("👤 المعلومات", "v:f:" + id)).append("],");
+            rows.append('[').append(cb("✏️ تعديل", "e:" + id)).append(',').append(cb("📊 كشف", "v:s:" + id)).append(',').append(cb("📝 ملاحظة", "nt:" + id)).append(']');
+        }
+        StringBuilder last = new StringBuilder();
+        if (whatsappUrl != null) last.append("{\"text\":\"💬 واتساب\",\"url\":").append(jsonString(whatsappUrl)).append('}');
+        if (fitsCallback("a:" + id)) {
+            if (last.length() > 0) last.append(',');
+            last.append(cb("⚡ تفعيل", "a:" + id));
+        }
+        if (last.length() > 0) rows.append(",[").append(last).append(']');
+        return "{\"inline_keyboard\":" + rows.append(']') + "}";
+    }
+
+    static String editMarkup(String id) {
+        StringBuilder rows = new StringBuilder("[");
+        for (int i = 0; i < EDIT_FIELDS.length; i += 2) {
+            rows.append('[').append(cb(EDIT_FIELDS[i][1], "ef:" + EDIT_FIELDS[i][0] + ":" + id));
+            if (i + 1 < EDIT_FIELDS.length) rows.append(',').append(cb(EDIT_FIELDS[i + 1][1], "ef:" + EDIT_FIELDS[i + 1][0] + ":" + id));
+            rows.append("],");
+        }
+        rows.append('[').append(cb("↩️ رجوع", "v:h:" + id)).append("]]");
+        return "{\"inline_keyboard\":" + rows + "}";
+    }
+
+    static String menuMarkup(SearchEntry e, Snapshot s) {
+        return menuMarkup(e.id, e.buttonUrl, s == null ? "" : s.moneyBot);
+    }
+
+    /** One device -> its header and menu; several -> their headers and a button each. */
+    static Reply menuSearch(String query, int total, List<SearchEntry> shown, Snapshot s) {
+        String title = "🔎 نتائج «" + quote(query) + "» (" + total + "):";
+        String more = total > shown.size() ? "\n\n… و" + (total - shown.size()) + " أخرى - اكتب اسمًا أدق" : "";
+        if (shown.size() == 1) {
+            SearchEntry e = shown.get(0);
+            return new Reply(title + "\n\n" + e.header + "\n\n" + MENU_HINT + more, false, null, menuMarkup(e, s));
+        }
+        StringBuilder text = new StringBuilder(title);
+        StringBuilder rows = new StringBuilder();
+        for (int i = 0; i < shown.size(); i++) {
+            SearchEntry e = shown.get(i);
+            text.append("\n\n").append(i + 1).append(". ").append(e.header);
+            String label = "📡 " + e.deviceName();
+            if (label.length() > 40) label = label.substring(0, 40);
+            if (i > 0) rows.append(',');
+            rows.append('[').append(cb(label, "m:" + e.id)).append(']');
+        }
+        text.append(more).append("\n\nاضغط على الجهاز لتظهر قائمته 👇");
+        return new Reply(text.toString(), false, null, "{\"inline_keyboard\":[" + rows + "]}");
+    }
+
+    /** A tapped menu button: m: (open the menu), v:<code>: (a section / h = the menu itself /
+     * n = the network), e: (edit fields), ef:<field>: (edit this field), nt: (a note). */
+    static final class Tap {
+        final String kind;
+        final String code;
+        final String accountId;
+
+        Tap(String kind, String code, String accountId) {
+            this.kind = kind;
+            this.code = code;
+            this.accountId = accountId;
+        }
+    }
+
+    static Tap parseTap(String data) {
+        if (data == null) return null;
+        if (data.startsWith("m:") && data.length() > 2) return new Tap("menu", "", data.substring(2));
+        if (data.startsWith("nt:") && data.length() > 3) return new Tap("note", "", data.substring(3));
+        if (data.startsWith("ef:") && data.length() > 5 && data.charAt(4) == ':') {
+            String code = data.substring(3, 4);
+            return editFieldLabel(code) == null ? null : new Tap("field", code, data.substring(5));
+        }
+        if (data.startsWith("e:") && data.length() > 2) return new Tap("edit", "", data.substring(2));
+        if (data.startsWith("v:") && data.length() > 4 && data.charAt(3) == ':') return new Tap("view", data.substring(2, 3), data.substring(4));
+        return null;
+    }
+
+    static String menuText(SearchEntry e) {
+        return e.header + "\n\n" + MENU_HINT;
+    }
+
+    static String sectionText(SearchEntry e, String code, Snapshot s) {
+        String section = e.sections.get(code);
+        return withTime(e.header + "\n\n" + (section == null || section.isEmpty() ? "—" : section), s);
+    }
+
+    static String editText(SearchEntry e) {
+        return e.header + "\n\n✏️ اختر ما تريد تعديله - يصل التعديل إلى المسؤول ولا يُحفظ إلا بعد موافقته.";
+    }
+
+    static String fieldQuestion(SearchEntry e, String code) {
+        String current = e.editValues.get(code);
+        return "✏️ " + editFieldName(code) + " - " + e.deviceName() + "\nالحالي: " + (current == null || current.isEmpty() ? "—" : current)
+            + "\n\nاكتب القيمة الجديدة:";
+    }
+
+    static final String EDIT_REPLY = "{\"force_reply\":true,\"input_field_placeholder\":\"القيمة الجديدة\"}";
+    static final String NOTE_REPLY = "{\"force_reply\":true,\"input_field_placeholder\":\"الملاحظة\"}";
+    static final int MAX_FORM_CHARS = 300;
+
+    static String noteQuestion(SearchEntry e) {
+        return "📝 ملاحظة على " + e.deviceName() + "\nاكتب ملاحظتك وستصل إلى المسؤول وتُحفظ على الجهاز:";
+    }
+
+    static String editSent(SearchEntry e, String code, String value) {
+        return "✅ أُرسل تعديل " + editFieldName(code) + " لـ " + e.deviceName() + " إلى «" + value + "» - ينتظر موافقة المسؤول.";
+    }
+
+    static String editToOwner(String repName, SearchEntry e, String code, String value) {
+        String old = e.editValues.get(code);
+        return "✏️ طلب تعديل من المندوب " + repName + "\n" + e.header + "\n\n" + editFieldName(code) + ":\nالحالي: "
+            + (old == null || old.isEmpty() ? "—" : old) + "\nالجديد: " + value + "\n\nهل توافق؟";
+    }
+
+    static String editButtons(String editId) {
+        return "{\"inline_keyboard\":[[" + cb("✅ موافق", "ey:" + editId) + "," + cb("❌ رفض", "en:" + editId) + "]]}";
+    }
+
+    static String noteSent(SearchEntry e) {
+        return "✅ وصلت ملاحظتك على " + e.deviceName() + " إلى المسؤول.";
+    }
+
+    static String noteToOwner(String repName, SearchEntry e, String text) {
+        return "📝 ملاحظة من المندوب " + repName + "\n" + e.header + "\n\n" + text + "\n\n(حُفظت على الجهاز)";
+    }
+
+    // ---- 📶 the network, always read fresh from Starlink ----
+
+    static String dotWord(String status) {
+        if ("online".equals(status)) return "🟢 متصل";
+        if ("offline".equals(status)) return "🔴 غير متصل (غير موصول بالكهرباء أو مطفأ)";
+        if ("warning".equals(status)) return "🟡 تنبيه";
+        return "⚪ غير معروف";
+    }
+
+    static boolean dotRead(String status) {
+        return status != null && !status.isEmpty();
+    }
+
+    static String networkChecking(SearchEntry e) {
+        return e.header + "\n\n📶 جارٍ تحديث الجهاز من Starlink... انتظر حتى دقيقة ⏳";
+    }
+
+    /** Only a reading made just now - never an older one. */
+    static String networkResult(SearchEntry e, String dish, String wifi, String time) {
+        if (!dotRead(dish) && !dotRead(wifi)) return networkFailed(e);
+        return e.header + "\n\n📶 حالة الشبكة الآن (تحديث " + time + "):\n🛰️ الطبق: " + dotWord(dish) + "\n📶 الواي فاي: " + dotWord(wifi);
+    }
+
+    static String networkFailed(SearchEntry e) {
+        return e.header + "\n\n⚠️ تعذّر تحديث الجهاز من Starlink الآن - لا تُعرض حالة الشبكة إلا بعد تحديث ناجح. حاول بعد قليل.";
+    }
+
+    static String networkBusy(SearchEntry e) {
+        return e.header + "\n\n⏳ Starlink طلب التمهّل - حاول بعد 20 دقيقة تقريباً.";
+    }
+
+    static String networkNoLogin(SearchEntry e) {
+        return e.header + "\n\n⚠️ هذا الجهاز غير مسجّل الدخول في تطبيق المسؤول - لا يمكن تحديثه.";
+    }
+
+    /** His devices whose keys hold every word (as typed, or compacted: "000-111" finds "000111"). */
+    /** The owner's index in the snapshot (all devices) - kept beside the reps' ones. */
+    static final String OWNER_INDEX = "__owner";
+
+    /** The owner typed a name / phone / KIT: the matching devices with WhatsApp buttons (no ⚡ -
+     * that flow belongs to the reps bot). Null when nothing matches. */
+    static Reply ownerSearch(String query, Snapshot s) {
+        if (normalize(query).isEmpty()) return null;
+        List<SearchEntry> found = matchEntries(OWNER_INDEX, query, s);
+        if (found.isEmpty()) return null;
+        List<SearchEntry> shown = found.subList(0, Math.min(5, found.size()));
+        StringBuilder text = new StringBuilder("🔎 نتائج «" + quote(query) + "» (" + found.size() + "):");
+        for (SearchEntry e : shown) text.append("\n\n").append(e.text);
+        if (found.size() > 5) text.append("\n\n… و").append(found.size() - 5).append(" أخرى - اكتب اسمًا أدق");
+        return new Reply(withTime(text.toString(), s), false, null, whatsappMarkup(shown));
+    }
+
+    static List<SearchEntry> matchEntries(String repId, String query, Snapshot s) {
+        List<SearchEntry> found = new ArrayList<>();
+        String folded = normalize(query);
+        List<SearchEntry> entries = s.repSearch.get(repId);
+        if (folded.isEmpty() || entries == null) return found;
+        String[] words = folded.split(" ");
+        for (SearchEntry e : entries) {
+            boolean all = true;
+            for (String w : words) {
+                String compact = w.replaceAll("[^\\p{L}\\p{N}]", "");
+                if (!e.keys.contains(w) && (compact.isEmpty() || !e.keys.contains(compact))) {
+                    all = false;
+                    break;
+                }
+            }
+            if (all) found.add(e);
+        }
+        return found;
+    }
+
+    /** One row per device: 💬 WhatsApp and ⚡ تفعيل - mirrors deviceActionsMarkup (TS). */
+    static String actionsMarkup(List<SearchEntry> entries) {
+        StringBuilder rows = new StringBuilder();
+        int count = 0;
+        for (SearchEntry e : entries) {
+            if (count >= 10) break;
+            StringBuilder row = new StringBuilder();
+            if (e.buttonUrl != null && e.buttonLabel != null) {
+                row.append("{\"text\":").append(jsonString(e.buttonLabel)).append(",\"url\":").append(jsonString(e.buttonUrl)).append("}");
+            }
+            String callback = activateCallback(e.id);
+            if (callback != null) {
+                String label = row.length() > 0 ? "⚡ تفعيل" : "⚡ تفعيل " + e.deviceName();
+                if (label.length() > 40) label = label.substring(0, 40);
+                if (row.length() > 0) row.append(',');
+                row.append("{\"text\":").append(jsonString(label)).append(",\"callback_data\":").append(jsonString(callback)).append("}");
+            }
+            if (row.length() == 0) continue;
+            if (count++ > 0) rows.append(',');
+            rows.append('[').append(row).append(']');
+        }
+        return count == 0 ? null : "{\"inline_keyboard\":[" + rows + "]}";
+    }
+
+    // ---- ⚡ تفعيل: device -> plan -> the price the customer pays the rep -> the operator ----
+
+    private static boolean fitsCallback(String data) {
+        return data.getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 64;
+    }
+
+    static String activateCallback(String accountId) {
+        if (accountId == null || accountId.isEmpty()) return null;
+        String data = "a:" + accountId;
+        return fitsCallback(data) ? data : null;
+    }
+
+    static SearchEntry findEntry(String repId, String accountId, Snapshot s) {
+        List<SearchEntry> entries = s == null ? null : s.repSearch.get(repId);
+        if (entries == null || accountId == null) return null;
+        for (SearchEntry e : entries) if (accountId.equals(e.id)) return e;
+        return null;
+    }
+
+    /** "⚡ تفعيل X" with one button per plan (callback "p:<id>:<plan>"). */
+    static Reply pickPlan(SearchEntry entry, Snapshot s) {
+        StringBuilder row = new StringBuilder();
+        for (String plan : s.plans) {
+            String data = "p:" + entry.id + ":" + plan;
+            if (!fitsCallback(data)) continue;
+            if (row.length() > 0) row.append(',');
+            row.append("{\"text\":").append(jsonString(plan)).append(",\"callback_data\":").append(jsonString(data)).append("}");
+        }
+        return new Reply("⚡ تفعيل " + entry.deviceName() + "\n" + entry.line.replaceFirst("^• ", "") + "\n\nاختر الباقة:", false, null,
+            row.length() == 0 ? s.repKeyboard : "{\"inline_keyboard\":[[" + row + "]]}");
+    }
+
+    /** "تفعيل محمد": one device -> its plans; several -> the results with their ⚡ buttons. */
+    static Reply activate(String repId, String text, Snapshot s) {
+        String query = afterCommand(text);
+        if (query.isEmpty()) return new Reply(s.activationHint, false, null, s.repKeyboard);
+        List<SearchEntry> found = matchEntries(repId, query, s);
+        if (found.size() == 1 && !found.get(0).id.isEmpty()) return pickPlan(found.get(0), s);
+        return search(repId, query, false, s);
+    }
+
+    static String priceQuestion(String plan, SearchEntry entry) {
+        return "💰 كم سيدفع الزبون لتفعيل " + plan + " - " + entry.deviceName() + "؟\nاكتب المبلغ فقط، مثلاً 15000 أو 50 دولار";
+    }
+
+    static final String FORCE_REPLY = "{\"force_reply\":true,\"input_field_placeholder\":\"المبلغ\"}";
+
+    /** An amount and its currency (أوقية unless دولار / سيفا is written). */
+    static final class Price {
+        final double amount;
+        final String currency;
+
+        Price(double amount, String currency) {
+            this.amount = amount;
+            this.currency = currency;
+        }
+
+        String label() {
+            java.text.DecimalFormat format = new java.text.DecimalFormat("#,##0.##", java.text.DecimalFormatSymbols.getInstance(Locale.ROOT));
+            String name = "USD".equals(currency) ? "دولار" : "SIFA".equals(currency) ? "سيفا" : FRANC.equals(currency) ? "فرانك" : "أوقية";
+            return format.format(amount) + " " + name;
+        }
+    }
+
+    static Price parsePrice(String text) {
+        String folded = normalize(text).replace(",", "").replace("٬", "");
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(\\d+(?:\\.\\d+)?)").matcher(folded);
+        if (!m.find()) return null;
+        double amount = Double.parseDouble(m.group(1));
+        if (!(amount > 0)) return null;
+        String currency = folded.contains("دولار") || folded.contains("$") || folded.contains("usd") ? "USD"
+            : folded.contains("سيفا") || folded.contains("sifa") || folded.contains("فرنك") ? "SIFA" : "MRU";
+        return new Price(amount, currency);
+    }
+
+    /** After the price: did the customer already pay him? */
+    static String activationPaidQuestion(String plan, SearchEntry entry, Price price) {
+        return "⚡ " + plan + " - " + entry.deviceName() + " بسعر " + price.label() + francLine(price, true) + "\n\n💵 هل دفع الزبون هذا المبلغ؟";
+    }
+
+    /** ✅ دفع - كاش / 📲 each banking app of the currency / ⏳ لم يدفع بعد (callbacks "ap:<method>" / "ap:no"). */
+    static String activationPaidMarkup(String currency) {
+        StringBuilder rows = new StringBuilder();
+        // A fixed price in سيفا may still be paid through أورانج / نيتا (its فرانك value).
+        java.util.List<String[]> methods = new java.util.ArrayList<>(java.util.Arrays.asList(payMethods(currency)));
+        if ("SIFA".equals(currency)) methods.addAll(java.util.Arrays.asList(bankApps(FRANC)));
+        for (String[] m : methods) {
+            String label = CASH.equals(m[0]) ? "✅ دفع - كاش" : "✅ دفع - " + m[1] + ("SIFA".equals(currency) && isFrancApp(m[0]) ? " (بالفرانك)" : "");
+            rows.append('[').append(cb(label, "ap:" + m[0])).append("],");
+        }
+        return "{\"inline_keyboard\":[" + rows + "[" + cb("⏳ لم يدفع بعد", "ap:no") + "]]}";
+    }
+
+    /** "دفع للمندوب (كاش)" / "لم يدفع بعد - يبقى ديناً عليه". */
+    static String activationPaidLabel(String currency, String paid) {
+        String name = paid == null || paid.isEmpty() ? null : payMethodName(currency, paid);
+        return name == null ? "لم يدفع بعد - يبقى ديناً عليه" : "دفع للمندوب (" + name + ")";
+    }
+
+    static String activationSent(String plan, SearchEntry entry, Price price, String paid) {
+        return activationSent(plan, entry, price) + "\n💵 " + activationPaidLabel(price.currency, paid) + francLine(price, isFrancApp(paid));
+    }
+
+    static String activationToOwner(String repName, String plan, SearchEntry entry, Price price, String paid) {
+        String base = activationToOwner(repName, plan, entry, price);
+        int cut = base.lastIndexOf("\n\nهل توافق");
+        return base.substring(0, cut) + "\n💵 الزبون: " + activationPaidLabel(price.currency, paid) + francLine(price, isFrancApp(paid))
+            + "\n(عند موافقتك يُسجَّل تجديداً على الجهاز في التطبيق)" + base.substring(cut);
+    }
+
+    static String activationSent(String plan, SearchEntry entry, Price price) {
+        return "✅ أُرسل طلب تفعيل " + plan + " لـ " + entry.deviceName() + " بسعر " + price.label() + " إلى المسؤول - ينتظر موافقته.";
+    }
+
+    static String activationToOwner(String repName, String plan, SearchEntry entry, Price price) {
+        return "⚡ طلب تفعيل من المندوب " + repName + "\n" + entry.line.replaceFirst("^• ", "📡 ") + "\nالباقة: " + plan
+            + "\nيدفع الزبون للمندوب: " + price.label() + "\n\nهل توافق على السعر؟";
+    }
+
+    static String approvalButtons(String activationId) {
+        return "{\"inline_keyboard\":[[{\"text\":\"✅ موافق\",\"callback_data\":\"y:" + activationId
+            + "\"},{\"text\":\"❌ رفض\",\"callback_data\":\"n:" + activationId + "\"}]]}";
+    }
+
+    private static String withTime(String text, Snapshot s) {
+        return s.at == null || s.at.isEmpty() ? text : text + "\n\n🕒 حسب بيانات الهاتف عند " + s.at;
+    }
+
+    private static String unknown(String text, String help, Snapshot s) {
+        String quoted = text.length() > 40 ? text.substring(0, 40) : text;
+        return s.unknown.replace("{text}", quoted) + "\n\n" + help;
+    }
+
+    /** The operator's own bot. */
+    static Reply forOwner(String text, Snapshot s) {
+        String kind = s == null ? null : s.ownerWords.get(commandWord(text));
+        if ("statement".equals(kind) || (s == null && commandWord(text).equals("كشف"))) {
+            return new Reply(s == null ? NOT_READY : s.statementLater, true, null);
+        }
+        if (s == null) return new Reply(NOT_READY, false, null);
+        if (kind == null) {
+            Reply found = ownerSearch(cleanText(text), s);
+            return found != null ? found : new Reply(unknown(text.trim(), s.ownerHelp, s), false, null);
+        }
+        if ("help".equals(kind)) return new Reply(s.ownerHelp, false, null);
+        String answer = s.owner.get(kind);
+        return new Reply(answer == null ? NOT_READY : withTime(answer, s), false, null);
+    }
+
+    /** A linked rep (repId) - only his own prepared texts and his own devices for search. */
+    static Reply forRep(String repId, String text, Snapshot s) {
+        if (s == null) return new Reply(NOT_READY, false, null);
+        String kind = s.repWords.get(normalize(commandWord(text)));
+        if (kind != null && !s.moneyBot.isEmpty() && isMoneyKind(kind)) return new Reply(s.moneyRedirect, false, null, s.repKeyboard);
+        if (kind == null) return search(repId, cleanText(text), true, s); // "محمد", "22212345"
+        if ("search".equals(kind)) return search(repId, afterCommand(text), false, s);
+        if ("client".equals(kind)) return new Reply(s.clientMoved, false, null, s.repKeyboard);
+        if ("payment".equals(kind) || "promise".equals(kind) || "handover".equals(kind)) return request(repId, kind, text, s);
+        if ("activate".equals(kind)) return activate(repId, text, s);
+        if ("help".equals(kind)) return new Reply(s.repHelp, false, null, s.repKeyboard);
+        Map<String, String> mine = s.reps.get(repId);
+        String answer = mine == null ? null : mine.get(kind);
+        if (answer == null) return new Reply(NOT_READY, false, null, s.repKeyboard);
+        String markup = mine.get(kind + "#kb");
+        return new Reply(withTime(answer, s), false, null, markup != null ? markup : s.repKeyboard);
+    }
+
+    /** 💵 / ➕ with the app closed: he's told it arrived, the operator is told, and the app records
+     * it (for approval) when it opens. Without the details he gets the how-to instead. */
+    static Reply request(String repId, String kind, String text, Snapshot s) {
+        return request(repId, kind, text, s, s.repKeyboard);
+    }
+
+    static Reply request(String repId, String kind, String text, Snapshot s, String keyboard) {
+        String rest = afterCommand(text);
+        if ("handover".equals(kind) && normalize(rest).startsWith("المسؤول")) rest = rest.substring(Math.min(rest.length(), 7)).trim();
+        if ("client".equals(kind) && normalize(rest).startsWith("جديد")) rest = rest.substring(Math.min(rest.length(), 4)).trim();
+        boolean money = "payment".equals(kind) || "promise".equals(kind) || "handover".equals(kind);
+        boolean complete = money ? normalize(rest).matches(".*\\d.*") : !rest.isEmpty();
+        if (!complete) {
+            String hint = "payment".equals(kind) ? s.paymentHint : "promise".equals(kind) ? s.promiseHint
+                : "handover".equals(kind) ? s.handoverHint : s.clientHint;
+            return new Reply(hint, false, null, keyboard);
+        }
+        Map<String, String> mine = s.reps.get(repId);
+        String repName = mine != null && mine.get("name") != null ? mine.get("name") : "";
+        String quoted = cleanText(text);
+        if (quoted.length() > 120) quoted = quoted.substring(0, 120);
+        String template = "promise".equals(kind) && !s.promiseNotice.isEmpty() ? s.promiseNotice : s.requestNotice;
+        String notice = template.replace("{rep}", repName).replace("{text}", quoted);
+        String received = "promise".equals(kind) && !s.promiseReceived.isEmpty() ? s.promiseReceived
+            : "handover".equals(kind) && !s.handoverReceived.isEmpty() ? s.handoverReceived : s.requestReceived;
+        return new Reply(received, true, notice, keyboard);
+    }
+
+    // ---- 💵 دفعة, step by step: amount -> currency -> whose (a customer / his own account) -> ✅ ----
+
+    static final String PAY_ME = "me";
+    static final String PAY_AMOUNT_QUESTION = "💵 دفعة جديدة\n\nاكتب المبلغ الذي استلمته (أرقام فقط)، مثلاً 15000";
+    static final String PAY_AMOUNT_AGAIN = "اكتب المبلغ بالأرقام فقط، مثلاً 15000";
+    static final String PAY_EXPIRED = "انتهت المهلة - اضغط «💵 دفعة» من جديد";
+    static final String PAY_CANCELLED = "❌ أُلغيت الدفعة - لم يُرسل شيء.";
+
+    /** The currency written with the amount ("50 دولار"), or null when none is. */
+    static String explicitCurrency(String text) {
+        String folded = normalize(text);
+        if (folded.contains("دولار") || folded.contains("$") || folded.contains("usd")) return "USD";
+        if (folded.contains("سيفا") || folded.contains("sifa") || folded.contains("فرنك") || folded.contains("cfa")) return "SIFA";
+        if (folded.contains("اوقي") || folded.contains("mru") || folded.matches(".*\\bum\\b.*")) return "MRU";
+        return null;
+    }
+
+    /** "5000 سيفا محمد" -> "محمد": what's left once the amount and its currency are gone. */
+    static String payQuery(String text) {
+        String rest = normalize(text).replaceAll("[\\d.,٬]+", " ");
+        for (String word : new String[] {"دولار", "usd", "$", "سيفا", "sifa", "فرنك", "cfa", "اوقيه", "اوقيات", "اوقية", "mru", "um", "عن", "من", "ل"}) {
+            rest = (" " + rest + " ").replace(" " + word + " ", " ");
+        }
+        return rest.replace("$", " ").trim().replaceAll("\\s+", " ");
+    }
+
+    static String amountLabel(double amount) {
+        return new java.text.DecimalFormat("#,##0.##", java.text.DecimalFormatSymbols.getInstance(Locale.ROOT)).format(amount);
+    }
+
+    static String currencyQuestion(double amount) {
+        return "💵 المبلغ: " + amountLabel(amount) + "\n\nاختر العملة:";
+    }
+
+    static String currencyMarkup() {
+        return "{\"inline_keyboard\":[[" + cb("أوقية", "payc:MRU") + "," + cb("سيفا (كاش)", "payc:SIFA") + "," + cb("دولار", "payc:USD") + "],["
+            + cb("🟠 فرانك (أورانج / نيتا)", "payc:" + FRANC) + "],["
+            + cb("❌ إلغاء", "payx") + "]]}";
+    }
+
+    static boolean isPayCurrency(String code) {
+        return "MRU".equals(code) || "SIFA".equals(code) || "USD".equals(code);
+    }
+
+    /** 🟠 The 💵 دفعة steps also take فرانك - only until the app is chosen, then it is سيفا. */
+    static boolean isPayFlowCurrency(String code) {
+        return isPayCurrency(code) || FRANC.equals(code);
+    }
+
+    /** The currency written with a payment's amount: «فرنك/فرانك/cfa» is فرانك (أورانج / نيتا). */
+    static String explicitPayCurrency(String text) {
+        String folded = normalize(text);
+        if (folded.contains("فرنك") || folded.contains("فرانك") || folded.contains("cfa") || folded.contains("franc")) return FRANC;
+        return explicitCurrency(text);
+    }
+
+    /** "device - customer" (the customer's name only, no phone). */
+    static String payTargetLabel(SearchEntry e) {
+        if (!e.clientName.isEmpty()) return e.deviceName() + " - " + e.clientName;
+        String line = e.line.replaceFirst("^• ", "").trim();
+        return line.isEmpty() ? e.deviceName() : line;
+    }
+
+    /** "💰 عليه: 5,000 أوقية" from the device's card, or "". */
+    static String owedLine(SearchEntry e) {
+        for (String line : e.text.split("\n")) if (line.startsWith("💰 عليه:")) return line;
+        return "";
+    }
+
+    static boolean canPayFor(SearchEntry e) {
+        return !e.id.isEmpty() && fitsCallback("payt:" + e.id);
+    }
+
+    /** One customer and his devices (id "" = a device without a customer, shown on its own). */
+    static final class PayClient {
+        final String id;
+        final String name;
+        final List<SearchEntry> devices = new ArrayList<>();
+
+        PayClient(String id, String name) {
+            this.id = id;
+            this.name = name;
+        }
+
+        boolean owes() {
+            for (SearchEntry e : devices) if (e.balance.startsWith("عليه") || (e.balance.isEmpty() && !owedLine(e).isEmpty())) return true;
+            return false;
+        }
+
+        /** The customer's balance ("" when unknown or nothing either way). */
+        String balance() {
+            SearchEntry first = devices.get(0);
+            String b = grouped() && !first.clientBalance.isEmpty() ? first.clientBalance : first.balance;
+            return b.startsWith("لا شيء") ? "" : b;
+        }
+
+        boolean grouped() {
+            return !id.isEmpty() && fitsCallback("payl:" + id);
+        }
+
+        boolean own() {
+            for (SearchEntry e : devices) if (e.own) return true;
+            return false;
+        }
+    }
+
+    /** The rep's customers, each with his devices - those who owe first, then in the app's order. */
+    static List<PayClient> payClients(String repId, Snapshot s) {
+        List<PayClient> all = new ArrayList<>();
+        Map<String, PayClient> byId = new HashMap<>();
+        List<SearchEntry> entries = s.repSearch.get(repId);
+        if (entries != null) {
+            for (SearchEntry e : entries) {
+                if (!canPayFor(e)) continue;
+                PayClient c = e.clientId.isEmpty() ? null : byId.get(e.clientId);
+                if (c == null) {
+                    c = new PayClient(e.clientId, e.clientName.isEmpty() ? e.deviceName() : e.clientName);
+                    if (!c.grouped()) c = new PayClient("", e.deviceName());
+                    else byId.put(e.clientId, c);
+                    all.add(c);
+                }
+                c.devices.add(e);
+            }
+        }
+        List<PayClient> sorted = new ArrayList<>();
+        for (PayClient c : all) if (c.owes()) sorted.add(c);
+        for (PayClient c : all) if (!c.owes()) sorted.add(c);
+        return sorted;
+    }
+
+    static PayClient findPayClient(String repId, String clientId, Snapshot s) {
+        for (PayClient c : payClients(repId, s)) if (c.id.equals(clientId)) return c;
+        return null;
+    }
+
+    static final int PAY_BUTTONS = 8;
+
+    private static String cut(String label) {
+        return label.length() > 64 ? label.substring(0, 64) : label;
+    }
+
+    static String clientButton(PayClient c) {
+        return clientButton(c, "payl:", "payt:");
+    }
+
+    /** "👤 name (جهازان) · عليه ..." opening his devices (listPrefix + client id), or - a device
+     * without a customer - the device itself (devicePrefix + its id). */
+    static String clientButton(PayClient c, String listPrefix, String devicePrefix) {
+        String balance = c.balance().isEmpty() ? "" : " · " + c.balance();
+        if (!c.grouped()) return cb(cut("📡 " + c.name + balance), devicePrefix + c.devices.get(0).id);
+        int n = c.devices.size();
+        String count = n == 1 ? "" : n == 2 ? " (جهازان)" : " (" + n + " أجهزة)";
+        return cb(cut("👤 " + c.name + count + balance), listPrefix + c.id);
+    }
+
+    /** "💰 عليه 5,000 أوقية" for a device: its balance words, else the card's owed line. */
+    static String deviceBalanceLine(SearchEntry e) {
+        if (!e.balance.isEmpty()) return "💰 " + e.balance;
+        return owedLine(e);
+    }
+
+    /** The two search buttons, 💼 his own account and ❌ - under every list of the who step. */
+    private static String payFooter() {
+        return "[" + cb("🔎 بحث باسم الزبون", "payq:c") + "," + cb("🔎 بحث عن جهاز", "payq:d") + "],["
+            + cb("💼 في حسابي الشخصي", "payt:" + PAY_ME) + "],[" + cb("❌ إلغاء", "payx") + "]";
+    }
+
+    /** One page of customers (8 a page, ⬅️ المزيد / السابق ➡️), then the footer. */
+    static String clientsMarkup(List<PayClient> clients, int page) {
+        return "{\"inline_keyboard\":[" + clientRows(clients, page, "payl:", "payt:", "payp:") + payFooter() + "]}";
+    }
+
+    /** One page of customer buttons and its ⬅️ / ➡️ row, each row followed by a comma. */
+    private static String clientRows(List<PayClient> clients, int page, String listPrefix, String devicePrefix, String pagePrefix) {
+        int pages = Math.max(1, (clients.size() + PAY_BUTTONS - 1) / PAY_BUTTONS);
+        int p = Math.max(0, Math.min(page, pages - 1));
+        StringBuilder rows = new StringBuilder();
+        for (int i = p * PAY_BUTTONS; i < Math.min(clients.size(), (p + 1) * PAY_BUTTONS); i++) {
+            rows.append('[').append(clientButton(clients.get(i), listPrefix, devicePrefix)).append("],");
+        }
+        if (pages > 1) {
+            StringBuilder nav = new StringBuilder();
+            if (p > 0) nav.append(cb("➡️ السابق", pagePrefix + (p - 1)));
+            if (p < pages - 1) {
+                if (nav.length() > 0) nav.append(',');
+                nav.append(cb("المزيد ⬅️", pagePrefix + (p + 1)));
+            }
+            rows.append('[').append(nav).append("],");
+        }
+        return rows.toString();
+    }
+
+    // ---- 🔎 بحث in the money bot: the customers' names -> his devices -> the device's card ----
+
+    static String searchPageLabel(int clients, int page) {
+        int pages = Math.max(1, (clients + PAY_BUTTONS - 1) / PAY_BUTTONS);
+        return pages > 1 ? " (صفحة " + (Math.max(0, Math.min(page, pages - 1)) + 1) + " من " + pages + ")" : "";
+    }
+
+    /** 🔎 بحث pressed: his customers as buttons (their balance on each), and the two searches. */
+    static Reply moneySearchStart(String repId, int page, Snapshot s) {
+        List<PayClient> clients = payClients(repId, s);
+        String text = clients.isEmpty() ? "🔎 لا زبائن لك بعد."
+            : "🔎 ابحث عن زبون: اضغط اسمه لترى أجهزته ودينه وكشفه" + searchPageLabel(clients.size(), page)
+                + "\nأو اكتب اسمه / هاتفه / KIT / إيميله مباشرةً.";
+        String footer = "[" + cb("🔎 بحث باسم الزبون", "sq:c") + "," + cb("🔎 بحث عن جهاز", "sq:d") + "]";
+        return new Reply(text, false, null, "{\"inline_keyboard\":[" + clientRows(clients, page, "sl:", "md:", "sp:") + footer + "]}");
+    }
+
+    /** A customer tapped in 🔎 بحث: his devices, each opening its card (💰 الدين / 📊 كشف). */
+    static Reply searchClientDevices(PayClient c) {
+        StringBuilder text = new StringBuilder("👤 الزبون: ").append(c.name);
+        String total = c.devices.get(0).clientBalance;
+        if (!total.isEmpty()) text.append("\n💰 حسابه").append(c.devices.size() > 1 ? " (كل أجهزته)" : "").append(": ").append(total);
+        text.append("\n\nاختر الجهاز لترى دينه وكشفه:");
+        StringBuilder rows = new StringBuilder();
+        int count = 0;
+        for (SearchEntry e : c.devices) {
+            if (count++ >= PAY_BUTTONS) break;
+            String balance = e.balance.isEmpty() || e.balance.startsWith("لا شيء") ? "" : " · " + e.balance;
+            rows.append('[').append(cb(cut("📡 " + e.deviceName() + balance), "md:" + e.id)).append("],");
+        }
+        rows.append('[').append(cb("↩️ رجوع للزبائن", "sp:0")).append(']');
+        return new Reply(text.toString(), false, null, "{\"inline_keyboard\":[" + rows + "]}");
+    }
+
+    static String payHeader(Price price) {
+        return "💵 " + price.label() + "\n\n";
+    }
+
+    /** The who step: the customers' names (page), or what he searched for (mode "c" customers,
+     * "d" devices, "" both). */
+    static Reply payWho(String repId, Price price, String query, String mode, int page, Snapshot s) {
+        List<PayClient> clients = payClients(repId, s);
+        String folded = normalize(query);
+        if (folded.isEmpty()) {
+            int pages = Math.max(1, (clients.size() + PAY_BUTTONS - 1) / PAY_BUTTONS);
+            String text = payHeader(price) + (clients.isEmpty() ? "لا زبائن لك بعد - اختر «💼 في حسابي الشخصي» أو أخبر المسؤول."
+                : "عن أي زبون هذه الدفعة؟ اضغط اسمه لتظهر أجهزته" + (pages > 1 ? " (صفحة " + (Math.min(page, pages - 1) + 1) + " من " + pages + ")" : "") + ":");
+            return new Reply(text, false, null, clientsMarkup(clients, page));
+        }
+        if (!"d".equals(mode)) {
+            List<PayClient> found = new ArrayList<>();
+            for (PayClient c : clients) {
+                String name = normalize(c.name);
+                boolean all = true;
+                for (String w : folded.split(" ")) if (!name.contains(w)) { all = false; break; }
+                if (all) found.add(c);
+            }
+            if (!found.isEmpty() || "c".equals(mode)) {
+                String text = payHeader(price) + (found.isEmpty() ? "🔎 لا زبون باسم «" + quote(query) + "» - اكتب اسماً آخر أو اختر من القائمة:"
+                    : "🔎 الزبائن باسم «" + quote(query) + "» - اضغط اسمه:");
+                return new Reply(text, false, null, clientsMarkup(found.isEmpty() ? clients : found, 0));
+            }
+        }
+        List<SearchEntry> devices = new ArrayList<>();
+        for (SearchEntry e : matchEntries(repId, query, s)) if (canPayFor(e)) devices.add(e);
+        if (devices.isEmpty()) {
+            return new Reply(payHeader(price) + "🔎 لم أجد «" + quote(query) + "» بين أجهزتك - اكتب شيئاً آخر أو اختر الزبون:", false, null, clientsMarkup(clients, 0));
+        }
+        return new Reply(payHeader(price) + "🔎 الأجهزة المطابقة لـ «" + quote(query) + "» - اضغط الجهاز:", false, null, devicesMarkup(devices, true));
+    }
+
+    /** A device per row (with its customer when asked), then ↩️ back to the customers and ❌. */
+    static String devicesMarkup(List<SearchEntry> devices, boolean withClient) {
+        StringBuilder rows = new StringBuilder();
+        int count = 0;
+        for (SearchEntry e : devices) {
+            if (count++ >= PAY_BUTTONS) break;
+            String label = "📡 " + e.deviceName() + (withClient && !e.clientName.isEmpty() ? " · 👤 " + e.clientName : "");
+            rows.append('[').append(cb(cut(label), "payt:" + e.id)).append("],");
+        }
+        rows.append('[').append(cb("↩️ رجوع للزبائن", "payw")).append(',').append(cb("❌ إلغاء", "payx")).append(']');
+        return "{\"inline_keyboard\":[" + rows + "]}";
+    }
+
+    /** A customer tapped: his devices, each with what it owes, to pick the one paid for. */
+    static Reply payClientDevices(Price price, PayClient c) {
+        StringBuilder text = new StringBuilder(payHeader(price)).append("👤 الزبون: ").append(c.name);
+        String total = c.devices.get(0).clientBalance;
+        if (!total.isEmpty()) text.append("\n💰 حسابه").append(c.devices.size() > 1 ? " (كل أجهزته)" : "").append(": ").append(total);
+        text.append("\n");
+        for (SearchEntry e : c.devices) {
+            String owed = c.devices.size() > 1 || total.isEmpty() ? deviceBalanceLine(e) : "";
+            text.append("\n📡 ").append(e.deviceName()).append(owed.isEmpty() ? "" : "\n   " + owed);
+        }
+        text.append("\n\nعن أي جهاز من أجهزته هذه الدفعة؟");
+        return new Reply(text.toString(), false, null, devicesMarkup(c.devices, false));
+    }
+
+    static final String PAY_SEARCH_CLIENT = "🔎 اكتب اسم الزبون (أو جزءاً منه):";
+    static final String PAY_SEARCH_DEVICE = "🔎 اكتب اسم الجهاز أو إيميله أو KIT أو رقم الهاتف:";
+
+    static String forceReply(String placeholder) {
+        return "{\"force_reply\":true,\"input_field_placeholder\":" + jsonString(placeholder) + "}";
+    }
+
+    // How it was paid (💵 كاش or the currency's banking apps) and the payment photo.
+
+    static final String CASH = "cash";
+
+    /** 💵 كاش first, then the currency's banking apps (دولار / سيفا: cash only; فرانك: its apps only). */
+    static String[][] payMethods(String currency) {
+        String[][] apps = bankApps(currency);
+        if (FRANC.equals(currency)) return apps;
+        String[][] all = new String[apps.length + 1][];
+        all[0] = new String[] {CASH, "💵 كاش"};
+        System.arraycopy(apps, 0, all, 1, apps.length);
+        return all;
+    }
+
+    /** The method's name ("كاش", "بنكيلي"...), or null when it isn't one for that currency. */
+    static String payMethodName(String currency, String code) {
+        if (CASH.equals(code)) return FRANC.equals(currency) ? null : "كاش";
+        for (String[] app : bankApps(currency)) if (app[0].equals(code)) return app[1];
+        // A فرانك payment is سيفا once its app is chosen - the app stays valid.
+        if ("SIFA".equals(currency)) for (String[] app : bankApps(FRANC)) if (app[0].equals(code)) return app[1];
+        return null;
+    }
+
+    static String methodQuestion(Price price) {
+        return payHeader(price) + "كيف دفع الزبون؟ اختر كاش أو التطبيق البنكي:";
+    }
+
+    static String methodMarkup(String currency) {
+        StringBuilder rows = new StringBuilder();
+        for (String[] m : payMethods(currency)) {
+            String label = CASH.equals(m[0]) ? m[1] : "📲 " + m[1];
+            rows.append('[').append(cb(label, "paym:" + m[0])).append("],");
+        }
+        return "{\"inline_keyboard\":[" + rows + "[" + cb("❌ إلغاء", "payx") + "]]}";
+    }
+
+    static String photoQuestion(Price price, SearchEntry entry, boolean hasPhoto) {
+        String who = entry == null ? "💼 في حسابي الشخصي" : "📡 " + payTargetLabel(entry);
+        return payHeader(price) + who + "\n\n" + (hasPhoto
+            ? "📸 صورة الدفع مرفقة ✅ - أرسل صورة أخرى لتغييرها، أو تابع."
+            : "📸 أرسل صورة إثبات الدفع (لقطة شاشة التحويل أو صورة الوصل)، أو تابع بدونها.");
+    }
+
+    static String photoMarkup(boolean hasPhoto) {
+        return "{\"inline_keyboard\":[[" + cb(hasPhoto ? "⏭️ متابعة" : "⏭️ متابعة بدون صورة", "paynp") + "],[" + cb("❌ إلغاء", "payx") + "]]}";
+    }
+
+    private static String methodLine(String methodName, boolean hasPhoto) {
+        return (methodName == null || methodName.isEmpty() ? "" : "\n💳 طريقة الدفع: " + methodName) + "\n📸 صورة الدفع: " + (hasPhoto ? "مرفقة ✅" : "بدون صورة");
+    }
+
+    static String payConfirmText(Price price, SearchEntry entry, String methodName, boolean hasPhoto) {
+        String base = payConfirmText(price, entry);
+        int cut = base.lastIndexOf("\n\nهل المعلومات صحيحة؟");
+        return base.substring(0, cut) + "\n" + methodLine(methodName, hasPhoto) + base.substring(cut);
+    }
+
+    /** Everything he entered, before it's sent. entry == null: his own account. */
+    static String payConfirmText(Price price, SearchEntry entry) {
+        StringBuilder text = new StringBuilder("📋 راجع الدفعة قبل إرسالها:\n\n💵 المبلغ: ").append(price.label());
+        if (entry == null) {
+            text.append("\n💼 في: حسابي الشخصي (تُخصم مما عليّ للمسؤول)");
+        } else {
+            if (!entry.clientName.isEmpty()) text.append("\n👤 الزبون: ").append(entry.clientName);
+            text.append("\n📡 الجهاز: ").append(entry.deviceName());
+            if (!entry.balance.isEmpty()) {
+                text.append("\n\n💰 قبل هذه الدفعة:\n• الجهاز: ").append(entry.balance);
+                if (!entry.clientBalance.isEmpty() && !entry.clientBalance.equals(entry.balance)) {
+                    text.append("\n• حساب الزبون كله: ").append(entry.clientBalance);
+                }
+            } else {
+                String owed = owedLine(entry);
+                if (!owed.isEmpty()) text.append("\n").append(owed).append(" (قبل هذه الدفعة)");
+            }
+        }
+        return text.append("\n\nهل المعلومات صحيحة؟").toString();
+    }
+
+    static String payConfirmMarkup() {
+        return "{\"inline_keyboard\":[[" + cb("✅ موافق - أرسلها", "payok") + "],[" + cb("✏️ غيّر الزبون", "payw") + "," + cb("❌ إلغاء", "payx") + "]]}";
+    }
+
+    private static String payWhere(SearchEntry entry, boolean his) {
+        if (entry == null) return his ? "\n💼 في حسابه الشخصي" : "\n💼 في حسابي الشخصي";
+        return (entry.clientName.isEmpty() ? "" : "\n👤 الزبون: " + entry.clientName) + "\n📡 الجهاز: " + entry.deviceName();
+    }
+
+    static String paySent(Price price, SearchEntry entry) {
+        return paySent(price, entry, null, false);
+    }
+
+    static String paySent(Price price, SearchEntry entry, String methodName, boolean hasPhoto) {
+        return "✅ أُرسلت الدفعة إلى المسؤول - تُسجَّل بعد موافقته، وسيصلك تأكيد هنا.\n\n💵 " + price.label() + payWhere(entry, false)
+            + (methodName == null ? "" : methodLine(methodName, hasPhoto));
+    }
+
+    static String payToOwner(String repName, Price price, SearchEntry entry) {
+        return payToOwner(repName, price, entry, null, false);
+    }
+
+    static String payToOwner(String repName, Price price, SearchEntry entry, String methodName, boolean hasPhoto) {
+        return "💵 دفعة من المندوب " + repName + ": " + price.label() + payWhere(entry, true)
+            + (methodName == null ? "" : methodLine(methodName, hasPhoto))
+            + "\nوافق عليها من صفحة المندوبين في التطبيق" + (hasPhoto ? " (الصورة تظهر هناك)." : ".");
+    }
+
+    // ---- 🏦 دين (سلفة), step by step: amount -> currency -> banking app -> recipient's number -> ✅ ----
+
+    static final String LOAN_AMOUNT_QUESTION = "🏦 طلب دين (سلفة) من المسؤول\n\nاكتب المبلغ الذي تحتاجه (أرقام فقط)، مثلاً 20000";
+    static final String LOAN_CANCELLED = "❌ أُلغي طلب السلفة - لم يُرسل شيء.";
+    static final String LOAN_EXPIRED = "انتهت المهلة - اضغط «🏦 دين (سلفة)» من جديد";
+
+    /** The banking apps per currency: {code, name} - codes as PaymentMethod (ledgerStore.ts).
+     * أوقية: بنكيلي / مصرفي / سداد, سيفا: أورانج موني / نيتا. */
+    /** 🟠 أورانج موني / نيتا count in فرانك (his Oct 2026 rule: 5 فرانك = 1 سيفا); سيفا itself is
+     * paid in cash only («سيفا تدفع فقط كاش»). */
+    static final int FRANC_PER_SIFA = 5;
+    static final String FRANC = "FRANC";
+
+    static boolean isFrancApp(String method) {
+        return "orange".equals(method) || "nita".equals(method);
+    }
+
+    /** "\n🟠 أورانج / نيتا بالفرانك: 8,000 سيفا = 40,000 فرانك" for a سيفا amount through أورانج / نيتا, else "". */
+    static String francLine(Price price, boolean viaFrancApp) {
+        if (!viaFrancApp || !"SIFA".equals(price.currency)) return "";
+        java.text.DecimalFormat format = new java.text.DecimalFormat("#,##0.##", java.text.DecimalFormatSymbols.getInstance(Locale.ROOT));
+        return "\n🟠 أورانج / نيتا بالفرانك: " + price.label() + " = " + format.format(price.amount * FRANC_PER_SIFA) + " فرانك";
+    }
+
+    /** An app's name ("أورانج موني" / "نيتا") that counts in فرانك. */
+    static boolean isFrancAppName(String appName) {
+        return appName != null && (appName.contains("أورانج") || appName.contains("نيتا"));
+    }
+
+    /** What the rep typed in فرانك, as سيفا. */
+    static Price francToSifa(Price typed) {
+        return new Price(typed.amount / FRANC_PER_SIFA, "SIFA");
+    }
+
+    /** "10,000 فرانك = 2,000 سيفا" */
+    static String francNote(Price typed, Price sifa) {
+        java.text.DecimalFormat format = new java.text.DecimalFormat("#,##0.##", java.text.DecimalFormatSymbols.getInstance(Locale.ROOT));
+        return format.format(typed.amount) + " فرانك = " + sifa.label();
+    }
+
+    static String[][] bankApps(String currency) {
+        if ("MRU".equals(currency)) return new String[][] {{"bankily", "بنكيلي"}, {"masrvi", "مصرفي"}, {"sedad", "سداد"}};
+        if (FRANC.equals(currency)) return new String[][] {{"orange", "أورانج موني"}, {"nita", "نيتا"}};
+        return new String[0][];
+    }
+
+    /** A loan the operator sends: سيفا goes out through أورانج / نيتا too. */
+    static String[][] loanApps(String currency) {
+        return "SIFA".equals(currency) ? bankApps(FRANC) : bankApps(currency);
+    }
+
+    /** The app's name for its code in that currency, or null. */
+    static String loanAppName(String currency, String code) {
+        for (String[] app : loanApps(currency)) if (app[0].equals(code)) return app[1];
+        return null;
+    }
+
+    static String loanCurrencyQuestion(double amount) {
+        return "🏦 المبلغ: " + amountLabel(amount) + "\n\nاختر العملة:";
+    }
+
+    static String loanCurrencyMarkup() {
+        return "{\"inline_keyboard\":[[" + cb("أوقية", "lnc:MRU") + "," + cb("سيفا", "lnc:SIFA") + "],[" + cb("❌ إلغاء", "lnx") + "]]}";
+    }
+
+    static String loanAppQuestion(Price price) {
+        return "🏦 " + price.label() + "\n\nعبر أي تطبيق تريد استلامها؟";
+    }
+
+    static String loanAppMarkup(String currency) {
+        StringBuilder rows = new StringBuilder();
+        for (String[] app : loanApps(currency)) rows.append('[').append(cb("📲 " + app[1], "lna:" + app[0])).append("],");
+        return "{\"inline_keyboard\":[" + rows + "[" + cb("❌ إلغاء", "lnx") + "]]}";
+    }
+
+    static String loanNumberQuestion(Price price, String appName) {
+        return "🏦 " + price.label() + " عبر " + appName + francLine(price, isFrancAppName(appName)) + "\n\n📱 اكتب رقم المستلم في " + appName + " (أرقام فقط):";
+    }
+
+    static final String LOAN_NUMBER_AGAIN = "📱 اكتب رقم المستلم بالأرقام فقط (8 أرقام على الأقل)، مثلاً 22123456";
+
+    /** "+222 22 12 34 56" / "٢٢١٢٣٤٥٦" -> digits only, or null when it isn't a phone / account number. */
+    static String parseLoanNumber(String text) {
+        String folded = normalize(text);
+        if (!folded.matches("[+\\d\\s\\-]+")) return null;
+        String digits = folded.replaceAll("[^\\d]", "");
+        return digits.length() >= 8 && digits.length() <= 15 ? digits : null;
+    }
+
+    static String loanConfirmText(Price price, String appName, String number) {
+        return "📋 راجع طلب السلفة قبل إرساله:\n\n💵 المبلغ: " + price.label() + francLine(price, isFrancAppName(appName)) + "\n📲 التطبيق: " + appName + "\n📱 رقم المستلم: " + number
+            + "\n\nتُسجَّل عليك في حسابك بعد أن يرسلها المسؤول.\nهل المعلومات صحيحة؟";
+    }
+
+    static String loanConfirmMarkup() {
+        return "{\"inline_keyboard\":[[" + cb("✅ موافق - أرسل الطلب", "lnok") + "],[" + cb("❌ إلغاء", "lnx") + "]]}";
+    }
+
+    static String loanSent(Price price, String appName, String number) {
+        return "✅ أُرسل طلب السلفة إلى المسؤول - ينتظر موافقته، وسيصلك تأكيد هنا.\n\n💵 " + price.label() + francLine(price, isFrancAppName(appName)) + "\n📲 " + appName + "\n📱 " + number;
+    }
+
+    static String loanToOwner(String repName, Price price, String appName, String number) {
+        return "🏦 طلب سلفة من المندوب " + repName + ": " + price.label() + "\n📲 عبر: " + appName + "\n📱 إلى الرقم: " + number
+            + francLine(price, isFrancAppName(appName)) + "\nأرسلها ثم وافق عليها من صفحة المندوبين في التطبيق (تُسجَّل عليه).";
+    }
+
+    // ---- 💰 the money bot (mirrors repBots.ts) ----
+
+    static final String[] MONEY_KINDS = {"payment", "promise", "mypromises", "debts", "statement", "handover", "loan", "book"};
+
+    static boolean isMoneyKind(String kind) {
+        for (String k : MONEY_KINDS) if (k.equals(kind)) return true;
+        return false;
+    }
+
+    /** "/start d_<id>" from a device's "💰 المال" button -> that device's id, or null. */
+    static String startDevice(String text) {
+        String t = text == null ? "" : text.trim();
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("^/start(?:@\\w+)?\\s+d_([A-Za-z0-9_-]{1,62})$").matcher(t);
+        return m.matches() ? m.group(1) : null;
+    }
+
+    /** 📊 كشف · 💰 الدين · ⚡ تفعيل · 💬 debt reminder, for one device in the money bot. */
+    static String moneyCardMarkup(SearchEntry e) {
+        StringBuilder rows = new StringBuilder("[[").append(cb("💰 الدين", "v:d:" + e.id)).append(',').append(cb("📊 كشف", "v:s:" + e.id)).append(']');
+        if (fitsCallback("a:" + e.id)) rows.append(",[").append(cb("⚡ تفعيل", "a:" + e.id)).append(']');
+        if (e.debtUrl != null) rows.append(",[{\"text\":\"💬 تذكير الزبون بالدين\",\"url\":").append(jsonString(e.debtUrl)).append("}]");
+        return "{\"inline_keyboard\":" + rows.append(']') + "}";
+    }
+
+    static String moneyCardText(SearchEntry e, String code, Snapshot s) {
+        String section = e.sections.get(code);
+        return withTime(e.header + "\n\n" + (section == null || section.isEmpty() ? "—" : section), s);
+    }
+
+    static Reply moneyCard(SearchEntry e, Snapshot s) {
+        return new Reply(moneyCardText(e, "d", s), false, null, moneyCardMarkup(e));
+    }
+
+    /** A name / phone / KIT typed in the money bot: its debt and statement buttons. */
+    static Reply moneySearch(String repId, String query, Snapshot s) {
+        if (normalize(query).isEmpty()) return moneySearchStart(repId, 0, s);
+        List<SearchEntry> found = matchEntries(repId, query, s);
+        List<SearchEntry> usable = new ArrayList<>();
+        for (SearchEntry e : found) if (e.hasMenu()) usable.add(e);
+        if (usable.isEmpty()) return new Reply("🔎 لم أجد «" + quote(query) + "» بين أجهزتك", false, null, s.moneyKeyboard);
+        if (usable.size() == 1) return moneyCard(usable.get(0), s);
+        List<SearchEntry> shown = usable.subList(0, Math.min(5, usable.size()));
+        StringBuilder text = new StringBuilder("🔎 نتائج «" + quote(query) + "» (" + usable.size() + "):");
+        StringBuilder rows = new StringBuilder();
+        for (int i = 0; i < shown.size(); i++) {
+            SearchEntry e = shown.get(i);
+            String debt = e.sections.get("d");
+            String firstLine = debt == null ? "" : debt.replaceFirst("^[^\\n]*\\n", "").split("\\n", 2)[0];
+            text.append("\n\n").append(i + 1).append(". ").append(e.header).append(firstLine.isEmpty() ? "" : "\n" + firstLine);
+            String label = "💰 " + e.deviceName();
+            if (label.length() > 40) label = label.substring(0, 40);
+            if (i > 0) rows.append(',');
+            rows.append('[').append(cb(label, "md:" + e.id)).append(']');
+        }
+        return new Reply(withTime(text.toString(), s), false, null, "{\"inline_keyboard\":[" + rows + "]}");
+    }
+
+    /** A linked rep in the money bot. */
+    static Reply forMoney(String repId, String text, Snapshot s) {
+        if (s == null) return new Reply(NOT_READY, false, null);
+        String device = startDevice(text);
+        if (device != null) {
+            SearchEntry e = findEntry(repId, device, s);
+            return e != null && e.hasMenu() ? moneyCard(e, s) : new Reply(s.moneyHelp, false, null, s.moneyKeyboard);
+        }
+        String kind = s.repWords.get(normalize(commandWord(text)));
+        if (kind == null) return moneySearch(repId, cleanText(text), s);
+        if ("help".equals(kind)) return new Reply(s.moneyHelp, false, null, s.moneyKeyboard);
+        if ("search".equals(kind)) return moneySearch(repId, afterCommand(text), s);
+        if ("payment".equals(kind) || "promise".equals(kind) || "handover".equals(kind)) return request(repId, kind, text, s, s.moneyKeyboard);
+        if ("activate".equals(kind)) {
+            String query = afterCommand(text);
+            if (query.isEmpty()) return new Reply(s.activationHint, false, null, s.moneyKeyboard);
+            List<SearchEntry> found = matchEntries(repId, query, s);
+            if (found.size() == 1 && !found.get(0).id.isEmpty()) return pickPlan(found.get(0), s);
+            return moneySearch(repId, query, s);
+        }
+        if ("mypromises".equals(kind) || "debts".equals(kind) || "statement".equals(kind)) {
+            Map<String, String> mine = s.reps.get(repId);
+            String answer = mine == null ? null : mine.get(kind);
+            if (answer == null) return new Reply(NOT_READY, false, null, s.moneyKeyboard);
+            String markup = mine.get(kind + "#kb");
+            return new Reply(withTime(answer, s), false, null, markup != null ? markup : s.moneyKeyboard);
+        }
+        if ("client".equals(kind)) return new Reply(s.clientMoved, false, null, s.moneyKeyboard);
+        // Devices, renewals... belong to the devices bot.
+        return new Reply("📡 هذا في بوت الأجهزة" + (s.devicesBot.isEmpty() ? "" : ": @" + s.devicesBot), false, null, s.moneyKeyboard);
+    }
+
+    /** Someone not linked yet, in the money / alerts bot: never any data. */
+    static String notLinkedExtra(Snapshot s) {
+        return "👋 اربط حسابك أولاً من بوت الأجهزة" + (s == null || s.devicesBot.isEmpty() ? "" : " @" + s.devicesBot) + " - اضغط «ابدأ» هناك وانتظر موافقة المسؤول.";
+    }
+
+    static String approvedActivation(String what, String total, String count) {
+        return "✅ وافق المسؤول على تفعيل " + what + "\n\n💰 مجموع تفعيلاتك الموافق عليها هذا الشهر (" + count + "): " + total;
+    }
+
+    // ---- 🔔 the alerts bot ----
+
+    static String stoppedReason(String status) {
+        if ("canceled".equals(status)) return "الاشتراك ملغى";
+        return "موقوف بسبب الفوترة (لم يُدفع الاشتراك)";
+    }
+
+    static final String D_MARK_LINE = "🅳 علامة D: لم ندفع لـ Starlink بعد على هذا الجهاز";
+
+    /** "⛔ توقف جهاز" for one device, with its 🅳 mark (its header already carries it). */
+    static String stoppedAlert(SearchEntry e, String status) {
+        String header = e.header.isEmpty() ? "📡 " + e.deviceName() : e.header;
+        boolean markShown = header.contains(D_MARK_LINE);
+        return "⛔ توقف جهاز من أجهزتك\n\n" + header + (e.hasD && !markShown ? "\n" + D_MARK_LINE : "") + "\n\nالسبب: " + stoppedReason(status);
+    }
+
+    static String stoppedAlertMarkup(SearchEntry e) {
+        StringBuilder rows = new StringBuilder();
+        if (fitsCallback("pq:" + e.id)) rows.append('[').append(cb("📨 اطلب من المسؤول الدفع", "pq:" + e.id)).append(']');
+        if (e.stoppedUrl != null) {
+            if (rows.length() > 0) rows.append(',');
+            rows.append("[{\"text\":\"💬 أرسل للزبون\",\"url\":").append(jsonString(e.stoppedUrl)).append("}]");
+        }
+        return rows.length() == 0 ? null : "{\"inline_keyboard\":[" + rows + "]}";
+    }
+
+    /** The same alert with 📨 gone (asked already) - only the customer's button stays. */
+    static String afterPayRequestMarkup(SearchEntry e) {
+        return e.stoppedUrl == null ? null : "{\"inline_keyboard\":[[{\"text\":\"💬 أرسل للزبون\",\"url\":" + jsonString(e.stoppedUrl) + "}]]}";
+    }
+
+    static String payRequestToOwner(String repName, SearchEntry e) {
+        String header = e.header.isEmpty() ? "📡 " + e.deviceName() : e.header;
+        boolean markShown = header.contains(D_MARK_LINE);
+        return "📨 المندوب " + repName + " يطلب منك الدفع\n\n" + header + (e.hasD && !markShown ? "\n" + D_MARK_LINE : "")
+            + "\n\nالجهاز موقوف - ادفع اشتراك Starlink عنه لتعود الخدمة.";
+    }
+
+    static final String PAY_REQUEST_SENT = "\n\n✅ أُرسل طلب الدفع إلى المسؤول";
+
+    /** Every alert to a rep, copied to the operator's own bot. */
+    static String ownerCopy(String repName, String text) {
+        return "🔔 نسخة من تنبيه المندوب " + repName + ":\n\n" + text;
+    }
+
+    /** A file a rep's app shares: a device ("📤 إرسال للمسؤول", starnet-device-....json) or all
+     * his recordings ("📤 إرسال تسجيلاتي", starnet-changes-....json). */
+    static boolean isDeviceFile(String fileName) {
+        if (fileName == null) return false;
+        String name = fileName.toLowerCase(java.util.Locale.ROOT);
+        return name.startsWith("starnet-device-") || name.startsWith("starnet-changes-");
+    }
+
+    static boolean isChangesFile(String fileName) {
+        return fileName != null && fileName.toLowerCase(java.util.Locale.ROOT).startsWith("starnet-changes-");
+    }
+
+    static final String CHANGES_RECEIVED = "📥 وصلت تسجيلاتك - ⏳ بانتظار موافقة المسؤول، ثم تصلك نسخة جديدة.";
+
+    static final String DEVICE_RECEIVED = "📥 وصل ملف الجهاز - بانتظار موافقة المسؤول.\nاضغط «✅ وصل» في تطبيقك لحذف الجلسة من هاتفك.";
+
+    /** A rep's device file: he's told it arrived, the operator is told, the app records it. */
+    static Reply deviceFile(String repId, String fileName, Snapshot s) {
+        Map<String, String> mine = s != null ? s.reps.get(repId) : null;
+        String repName = mine != null && mine.get("name") != null ? mine.get("name") : "";
+        if (isChangesFile(fileName) && fileName.toLowerCase(java.util.Locale.ROOT).startsWith("starnet-changes-pairing-")) {
+            String pairing = "🔗 المندوب " + repName + " يطلب ربط هاتفه - يُربط عندما تفتح التطبيق.";
+            return new Reply("📥 وصل طلب ربط هاتفك - يُربط عندما يفتح المسؤول التطبيق، ثم تصلك نسختك.", true, pairing, s != null ? s.repKeyboard : null);
+        }
+        if (isChangesFile(fileName)) {
+            String changes = "📝 المندوب " + repName + " أرسل تسجيلاته (دفعات، أجهزة، زبائن) - راجعها ووافق عليها في التطبيق.";
+            return new Reply(CHANGES_RECEIVED, true, changes, s != null ? s.repKeyboard : null);
+        }
+        String notice = "📥 المندوب " + repName + " أرسل جهازاً جديداً مع دخوله إلى Starlink - وافق عليه من صفحة المندوبين في التطبيق.";
+        return new Reply(DEVICE_RECEIVED, true, notice, s != null ? s.repKeyboard : null);
+    }
+
+    /**
+     * Someone the operator hasn't linked yet: told his request arrived (once), the operator is
+     * told too, and the app records the request when it opens. Never any data.
+     */
+    static Reply forUnlinked(String name, boolean alreadyRequested, Snapshot s) {
+        if (alreadyRequested) return new Reply(null, false, null);
+        String who = name == null || name.trim().isEmpty() ? "" : name.trim();
+        if (s == null) return new Reply(null, true, null);
+        return new Reply(s.linkReply.replace("{name}", who), true, s.linkNotice.replace("{name}", who.isEmpty() ? "مستخدم" : who));
+    }
+    // ---- 📒 The rep's own book (repClients.ts): ➕➖ له/عليه, 💵 دفعة straight into it, ↩️ تراجع ----
+
+    static final String BOOK_NONE = "📒 لا زبائن لك في دفترك بعد.\nالمسؤول ينقل زبائنك إليك من التطبيق (صفحة المندوب ← زبائنه).";
+    static final String BOOK_AMOUNT_AGAIN = "لم أفهم المبلغ. اكتب رقماً مثل: 500 أوقية أو 20 دولار";
+    static final String BOOK_CANCELLED = "❌ أُلغي - لم يُسجَّل شيء.";
+    static final String BOOK_EXPIRED = "انتهت هذه العملية - ابدأ من جديد بـ ➕➖ له/عليه";
+    /** "↩️ تراجع" works this long after the entry. */
+    static final long BOOK_UNDO_MS = 24L * 60 * 60 * 1000;
+
+    /** Only his own customers (those the operator moved onto him). */
+    static List<PayClient> bookClients(String repId, Snapshot s) {
+        List<PayClient> own = new ArrayList<>();
+        for (PayClient c : payClients(repId, s)) if (c.grouped() && c.own()) own.add(c);
+        return own;
+    }
+
+    static PayClient findBookClient(String repId, String clientId, Snapshot s) {
+        for (PayClient c : bookClients(repId, s)) if (c.id.equals(clientId)) return c;
+        return null;
+    }
+
+    static Reply bookStart(String repId, int page, Snapshot s) {
+        List<PayClient> clients = bookClients(repId, s);
+        if (clients.isEmpty()) return new Reply(BOOK_NONE, false, null, null);
+        String text = "📒 له/عليه في دفترك: اختر الزبون" + searchPageLabel(clients.size(), page);
+        return new Reply(text, false, null, "{\"inline_keyboard\":[" + clientRows(clients, page, "bkl:", "bkl:", "bkp:") + "[" + cb("❌ إلغاء", "bkx") + "]]}");
+    }
+
+    static String bookKindQuestion(PayClient c) {
+        String balance = c.balance().isEmpty() ? "لا شيء عليه ولا له" : c.balance();
+        return "📒 " + c.name + "\nفي دفترك: " + balance + "\n\nماذا تسجّل؟";
+    }
+
+    static String bookKindMarkup() {
+        return "{\"inline_keyboard\":[[" + cb("➕ عليه (دين عليه)", "bkk:c") + "," + cb("➖ له (خصم/تصحيح)", "bkk:r") + "],[" + cb("❌ إلغاء", "bkx") + "]]}";
+    }
+
+    static String bookKindWord(String kind) {
+        return "c".equals(kind) ? "عليه" : "له";
+    }
+
+    static String bookAmountQuestion(String clientName, String kind) {
+        return "📒 " + clientName + " - " + bookKindWord(kind) + "\n\nاكتب المبلغ والعملة، مثلاً: 500 أوقية أو 20 دولار";
+    }
+
+    static String bookCurrencyMarkup() {
+        return "{\"inline_keyboard\":[[" + cb("أوقية", "bkc:MRU") + "," + cb("سيفا", "bkc:SIFA") + "," + cb("دولار", "bkc:USD") + "],[" + cb("❌ إلغاء", "bkx") + "]]}";
+    }
+
+    static String bookNoteQuestion() {
+        return "📝 اكتب ملاحظة (سبب المبلغ)، أو اضغط «بدون ملاحظة».";
+    }
+
+    static String bookNoteMarkup() {
+        return "{\"inline_keyboard\":[[" + cb("بدون ملاحظة", "bkn") + "],[" + cb("❌ إلغاء", "bkx") + "]]}";
+    }
+
+    static String bookConfirmText(String clientName, String kind, Price price, String note) {
+        return "📒 تأكيد:\n👤 " + clientName + "\n" + ("c".equals(kind) ? "➕ عليه " : "➖ له ") + price.label()
+            + (note == null || note.isEmpty() ? "" : "\n📝 " + note) + "\n\nيُسجَّل في دفترك مباشرة.";
+    }
+
+    static String bookConfirmMarkup() {
+        return "{\"inline_keyboard\":[[" + cb("✅ سجّل", "bkok") + "," + cb("❌ إلغاء", "bkx") + "]]}";
+    }
+
+    static String bookSaved(String clientName, String what, Price price, String note) {
+        return "✅ سُجّل في دفترك:\n👤 " + clientName + "\n" + what + " " + price.label()
+            + (note == null || note.isEmpty() ? "" : "\n📝 " + note) + "\n\n↩️ يمكنك التراجع خلال 24 ساعة.";
+    }
+
+    /** "bku:<id>:<minutes since epoch>" - the time lets the bot refuse after 24 hours by itself. */
+    static String bookUndoMarkup(String id, long atMillis) {
+        String data = "bku:" + id + ":" + (atMillis / 60000L);
+        return fitsCallback(data) ? "{\"inline_keyboard\":[[" + cb("↩️ تراجع", data) + "]]}" : null;
+    }
+
+    static String bookUndone(String text) {
+        return text.replace("✅ سُجّل في دفترك:", "↩️ أُلغي من دفترك:").replace("✅ سُجّلت في دفترك:", "↩️ أُلغيت من دفترك:")
+            .replaceAll("\n\n↩️ يمكنك التراجع خلال 24 ساعة\\.$", "");
+    }
+
+    /** 💵 دفعة for his own customer: straight into his book, no approval. */
+    static String payBooked(Price price, SearchEntry entry, String methodName, boolean hasPhoto) {
+        return "✅ سُجّلت في دفترك: دفعة " + price.label() + (entry.clientName.isEmpty() ? "" : "\n👤 " + entry.clientName)
+            + (methodName == null ? "" : methodLine(methodName, hasPhoto)) + "\n\n↩️ يمكنك التراجع خلال 24 ساعة.";
+    }
+
+    /** Collapses what the rep typed into one line - the waiting slot keeps it line by line. */
+    static String oneLine(String text) {
+        String t = text == null ? "" : text.replaceAll("\\s+", " ").trim();
+        return t.length() > 200 ? t.substring(0, 200) : t;
+    }
+}

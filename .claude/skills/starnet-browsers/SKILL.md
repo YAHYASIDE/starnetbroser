@@ -34,7 +34,11 @@ plus the rules learned from real misreads; keep it updated when you learn a new 
      overlay window** («الظهور فوق التطبيقات» permission) so Starlink's page really draws. SyncRunner is
      a copy of the device browser's walk - **any change to `syncFromStarlink`'s steps or waits must be
      made in SyncRunner too**. Progress notification with «إيقاف»; signed-out alert + per-device report
-     on the owner bot (`BackgroundSyncReport`).
+     on the owner bot (`BackgroundSyncReport`). 🛂 «كشف توثيق» runs there too (`travelCheck`): SyncRunner's
+     Home-only mode = the device browser's `EXTRA_AUTO_SYNC_HOME_ONLY` walk (reload Home, wait up to
+     30 s for `hasHomeRead`, reads marked `checkOnly`, page language kept) - keep the two in step. A
+     check is "ok" only when Home really answered; otherwise "nothing" = «لم يُفحص», never «لا يحتاج»
+     (both runners). Its own bot report: `TravelCheckReport`; each queued device keeps its mode.
    - `AutoSyncWorker.java` - background sync. A run over many devices reads Home only (pace +
      Starlink's 429 rate limit, `SyncPacing`), plus Billing once a week per device; a single device's
      own run does the deep walk (subscriptions, devices, billing, settings).
@@ -87,10 +91,19 @@ plus the rules learned from real misreads; keep it updated when you learn a new 
 - A gray dot is `unknown` only for a genuine dot candidate; balance is read near its label only
   (a whole-page scan once read the wrong amount); label lookahead skips buttons and other labels.
 - A limited (non-admin) email has no Billing icon: no balance or card can be read from it.
+- Balance currency SYMBOLS, not just ISO codes: «Balance Due ₱5,999.00» (Philippine peso) came back
+  as «not found» because only the code `PHP` was listed, never the ₱ symbol the page prints. `money.ts`
+  `CURRENCY_TOKEN` now also covers ₱/₹/₦ (and $/€/£). Add the symbol when a new market surfaces.
 - Dates: normalize digits (Arabic numerals) and never store a truncated date.
 - **The renewal (billing) day is always 1-28** - the operator's rule: Starlink never bills on the
   29th-31st, so such a date is a misread (a device once showed 2026/10/31). It is rejected in the
   extractor (`isPlausibleBillingDate`, `extractBillingDueDay`) and again in the web merge.
+- **📌 A locked renewal day wins over every read** (his Oct 2026 rule: the day never moves except
+  when the device moves country). `lockedRenewalDay` + `decideRenewalRead` (`lib/renewalDayLock.ts`)
+  in the web merge: a read on the locked day moves the month; another day keeps the saved date and
+  raises `renewalDayMismatch` (card «⚠️ قرأ يوم X بدل Y» → «اقبل» / «تجاهل»; an ignored read never
+  warns again). A wrong day on a locked device is a misread to fix in the extractor, not a reason
+  to unlock.
 - **Where the true day comes from, in order:** the **invoice list at the bottom of Billing: the
   latest row described «Subscription» / «اشتراك»** - never an «Order» / «طلب» row - wins over
   everything on the page; then a dated renewal line; then the cycle ("Payment due September 7").
@@ -109,6 +122,18 @@ plus the rules learned from real misreads; keep it updated when you learn a new 
 - Billing loads its «Billing Cycle» box (the renewal day) after the balance: the billing step waits
   for `renewalDate` (WANT_RENEWAL, up to BILLING_MAX_MS) - a read taken in between saved the
   balance (HNL 266.25) but no date, so the old placeholder 31 stayed (real, confirmed).
+- 🛂 «Complete Travel Registration by …» is a Home banner: only a Home read may clear
+  `travelRegistrationRequired`. A `checkOnly` read («كشف توثيق», Home only) must never change any
+  other field (`mergeSyncedFields` keeps only the travel fields).
+- 🛂 The «كشف توثيق» never switches the language (a rep's devices are in French): the banner is read
+  in English, French («Terminez l'inscription de voyage avant le 15 octobre») and Arabic. It waits
+  for Home to really load (`WANT_HOME`: the account line or the banner, up to 30 s) - a slow phone
+  showed Home's spinner and the old 8 s read gave «لم يتم العثور على بيانات».
+- **«will switch / transition to Standby Mode on …» («ستتحول خدمتك…») is NOT a cancellation**: the
+  device moves to Starlink's Standby plan (he sells it as «SIS») and keeps a service. It is read into
+  `pendingStandbyDate` (card chip «⏸️ SIS من …»); only «scheduled to end» / «تنتهي خدمتك» sets
+  `pendingCancellationDate` («ملغى»). Real, confirmed (Oct 10 2026): a device moving to SIS showed «ملغي».
+  The merge drops an older cancellation date equal to the standby date.
 - Never put real account data in tests or fixtures; fake values only.
 - 🔄 A hidden WebView (`AutoSyncWorker`, never attached to a window) often doesn't render Starlink's
   SPA - the card's «تحديث من Starlink» "did nothing" for the operator. So the card button and
@@ -129,6 +154,16 @@ plus the rules learned from real misreads; keep it updated when you learn a new 
   the microphone) while the visible page is Starlink; file inputs open Android's picker with the
   camera beside gallery/files (`CaptureFileProvider`, cache `starnet_capture/`). A file input's
   callback must always be answered once (null on cancel) or the page's button stops working.
+
+## Downloads from a device's browser
+
+A WebView drops every download unless the app takes it (his Oct 2026 report: Starlink's «Invoice PDF»
+did nothing). `PageDownloads.java` takes them: a `blob:` link (how Starlink builds the PDF) is read
+back by the page (`DownloadFiles.BLOB_HOOK` keeps each blob for 60 s even if the page revokes it at
+once, `readBlobScript` sends it as a data URL to the `StarnetDownload` bridge); an http(s) link is
+fetched with that device's own profile cookies. Saved in Downloads / STAR NET (Android 10+; older =
+the app cache via CaptureFileProvider) and opened. Only on AllowedUrl pages. Pure logic +
+JUnit: `DownloadFiles`.
 
 ## Testing the Java parts
 

@@ -1,0 +1,219 @@
+/**
+ * The answers the Telegram bots give while the app is closed. Each time the app is open it
+ * prepares every answer from the phone's data and hands them to TelegramReplyService (native),
+ * which only picks the prepared text for a command - so a rep can only ever receive the texts
+ * prepared under HIS id. Pure; the loading/pushing is in telegram.ts.
+ */
+
+import { REP_PROMISE_HINT, REP_PROMISE_RECEIVED, repOpenPromises, repPromisesText } from "./repPromises";
+import { cardText, forecastText, goalsText, healthText, lapsedText, planText, promisesText } from "./ownerInsightsText";
+import type { PartyAdjustmentList } from "./partyBalanceStore";
+import type { PaymentPromise } from "./paymentPromises";
+import type { MonthlyGoals } from "./goals";
+import type { StarlinkAccountSummary } from "@starnet/shared";
+import type { CashEntryList } from "./cashStore";
+import type { ClientStore } from "./clientStore";
+import { buildEveningSummary } from "./eveningSummary";
+import type { Invoice } from "./invoiceStore";
+import type { LedgerByAccount } from "./ledgerStore";
+import type { RepresentativeStore, RepSettlementList } from "./repStore";
+import {
+  REP_ACTIVATION_HINT,
+  REP_ACTIVATION_PLANS,
+  REP_CLIENT_HINT,
+  REP_CLIENT_MOVED,
+  REP_PAYMENT_HINT,
+  REP_REQUEST_RECEIVED,
+  REP_SEARCH_HINT,
+  REP_WORDS,
+  repAccounts,
+  repDaysReply,
+  repPositionDebtsReply,
+  repPositionText,
+  repDevicesText,
+  repExpiringReply,
+  repLinkRequestReply,
+  type RepReply,
+  type RepSearchEntry,
+  repSearchIndex,
+  repStoppedReply,
+  OWNER_SEARCH_KEY,
+} from "./telegramRepMessages";
+import { devicesHelp, devicesKeyboard, moneyRedirectText, REP_ALERTS_INFO, REP_HANDOVER_HINT, REP_MONEY_HELP, REP_MONEY_KEYBOARD, type RepBotNames } from "./repBots";
+import { answerCash, answerExpiring, answerStopped, buildEveningTelegram, TELEGRAM_HELP, WORDS } from "./telegramMessages";
+import { loadRepBook, type RepBookEntry } from "./repClients";
+import { loadRepDisplayCodes, repPosition } from "./repPosition";
+import { ledgerAfterRepReset, makeRepConverter } from "./repAccount";
+
+/** Mirrors TelegramReplies.Snapshot (Java). */
+export interface TelegramReplySnapshot {
+  at: string;
+  ownerHelp: string;
+  repHelp: string;
+  unknown: string;
+  statementLater: string;
+  linkReply: string;
+  linkNotice: string;
+  owner: Record<string, string>;
+  ownerWords: Record<string, string>;
+  repWords: Record<string, string>;
+  /** Per rep: kind -> text, and kind + "#kb" -> its buttons (reply_markup JSON). */
+  reps: Record<string, Record<string, string>>;
+  /** Per rep: his devices, for search with the app closed. */
+  repSearch: Record<string, RepSearchEntry[]>;
+  repKeyboard: string;
+  searchHint: string;
+  paymentHint: string;
+  clientHint: string;
+  /** ➕ New customers are added from the app now - the redirect the bot answers with. */
+  clientMoved: string;
+  requestReceived: string;
+  promiseHint: string;
+  promiseReceived: string;
+  promiseNotice: string;
+  /** To the operator when a rep sends a request with the app closed: "{rep}", "{text}". */
+  requestNotice: string;
+  /** ⚡ تفعيل choices. */
+  plans: string[];
+  activationHint: string;
+  /** The reps' bots (repBots.ts) - "" when not connected. */
+  devicesBot: string;
+  moneyBot: string;
+  alertsBot: string;
+  moneyKeyboard: string;
+  moneyHelp: string;
+  moneyRedirect: string;
+  handoverHint: string;
+  handoverReceived: string;
+  alertsInfo: string;
+}
+
+function pad(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+/** "27/09 16:40" - shown under every answer given with the app closed. */
+export function snapshotTime(now: Date): string {
+  return `${pad(now.getDate())}/${pad(now.getMonth() + 1)} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+}
+
+export function buildReplySnapshot(input: {
+  now: Date;
+  today: string;
+  accounts: StarlinkAccountSummary[];
+  clients: ClientStore;
+  cash: CashEntryList;
+  ledgerStore: LedgerByAccount;
+  representatives: RepresentativeStore;
+  /** Only the linked reps get answers prepared. */
+  linkedRepIds: string[];
+  invoices: Invoice[];
+  settlements: RepSettlementList;
+  rates: Record<string, number | undefined>;
+  promises?: PaymentPromise[];
+  goals?: MonthlyGoals;
+  adjustments?: PartyAdjustmentList;
+  cardBalanceUsd?: number;
+  openDebtsUsd?: number[];
+  /** Which of the reps' bots are connected. */
+  botNames?: RepBotNames;
+  /** The reps' books (repClients.ts) - read from the phone when not given. */
+  repBook?: RepBookEntry[];
+  /** The currencies the reps page shows (أوقية / سيفا) - read from the phone when not given. */
+  repDisplay?: string[];
+}): TelegramReplySnapshot {
+  const repBook = input.repBook ?? loadRepBook();
+  const bots = input.botNames ?? {};
+  const summary = buildEveningSummary({ day: input.today, accounts: input.accounts, ledgerStore: input.ledgerStore, cash: input.cash });
+  const reps: Record<string, Record<string, string>> = {};
+  const repSearch: Record<string, RepSearchEntry[]> = {};
+  for (const repId of input.linkedRepIds) {
+    const rep = input.representatives[repId];
+    if (!rep) continue;
+    const mine = repAccounts(input.accounts, repId);
+    // His own customers: their balance is the one in his book (repClients.ts).
+    // ⚖️ The same position as his card in the app, from his reset on (repPosition.ts).
+    const position = repPosition({ rep, clients: input.clients, accounts: input.accounts, ledgerStore: input.ledgerStore, book: repBook, invoices: input.invoices, settlements: input.settlements, convert: makeRepConverter(input.repDisplay ?? loadRepDisplayCodes(), input.rates) });
+    const ownBooks = new Map(position.customers.map((r) => [r.clientId, r.book]));
+    const deviceName = (accountId: string) => input.accounts.find((a) => a.id === accountId)?.name ?? "جهاز";
+    const replies: Record<string, RepReply> = {
+      devices: { text: repDevicesText(mine, input.clients, input.today) },
+      expiring: repExpiringReply(mine, input.clients, input.today),
+      stopped: repStoppedReply(mine, input.clients),
+      days: repDaysReply(mine, input.clients, input.today),
+      debts: repPositionDebtsReply(position, input.accounts, input.clients),
+      statement: { text: repPositionText(rep.name, position, deviceName) },
+      mypromises: { text: repPromisesText(repOpenPromises(repId, input.promises ?? [], new Set(mine.map((a) => a.clientId).filter((c): c is string => Boolean(c)))), input.today) },
+    };
+    reps[repId] = { name: rep.name };
+    for (const [kind, reply] of Object.entries(replies)) {
+      reps[repId]![kind] = reply.text;
+      if (reply.markup) reps[repId]![`${kind}#kb`] = reply.markup;
+    }
+    repSearch[repId] = repSearchIndex(mine, input.clients, ledgerAfterRepReset(rep.resetFrom, input.ledgerStore), input.today, true, ownBooks);
+  }
+  return {
+    at: snapshotTime(input.now),
+    ownerHelp: TELEGRAM_HELP,
+    repHelp: devicesHelp(bots),
+    unknown: "لم أفهم «{text}».",
+    statementLater: "📄 وصل طلب الكشف - يُرسل لك الملف عند فتح تطبيق STAR NET على الهاتف",
+    linkReply: repLinkRequestReply("{name}"),
+    linkNotice: "🤝 طلب ربط جديد ببوت المندوبين من {name} - اربطه بمندوبه من الإعدادات ← تيليغرام",
+    owner: {
+      stopped: answerStopped(input.accounts, input.clients),
+      expiring: answerExpiring(input.accounts, input.clients, input.today),
+      cash: answerCash(input.cash),
+      summary: summary ? buildEveningTelegram(summary) : "لا توجد بيانات بعد",
+      forecast: forecastText(input.accounts, input.now, input.cardBalanceUsd),
+      ...(input.cardBalanceUsd !== undefined ? { card: cardText(input.accounts, input.cardBalanceUsd, input.openDebtsUsd ?? [], input.now) } : {}),
+      promises: promisesText(input.promises ?? [], input.today),
+      lapsed: lapsedText(input.accounts, input.clients, input.now),
+      health: healthText(input.accounts, input.clients, input.now, input.ledgerStore),
+      goals: goalsText(input.goals ?? {}, input.today, input.ledgerStore, input.clients),
+      plan: planText({
+        accounts: input.accounts,
+        clients: input.clients,
+        promises: input.promises ?? [],
+        ledger: input.ledgerStore,
+        invoices: input.invoices,
+        adjustments: input.adjustments ?? [],
+        today: input.today,
+        now: input.now,
+      }),
+    },
+    ownerWords: { ...WORDS, "كشف": "statement", statement: "statement" },
+    repWords: { ...REP_WORDS },
+    reps,
+    repSearch: {
+      ...repSearch,
+      [OWNER_SEARCH_KEY]: repSearchIndex(
+        input.accounts.filter((a) => !a.deletedAt && !a.archivedAt),
+        input.clients,
+        input.ledgerStore,
+        input.today,
+      ),
+    },
+    repKeyboard: devicesKeyboard(bots),
+    searchHint: REP_SEARCH_HINT,
+    paymentHint: REP_PAYMENT_HINT,
+    clientHint: REP_CLIENT_HINT,
+    clientMoved: REP_CLIENT_MOVED,
+    requestReceived: REP_REQUEST_RECEIVED,
+    promiseHint: REP_PROMISE_HINT,
+    promiseReceived: REP_PROMISE_RECEIVED,
+    promiseNotice: "🤝 وعد دفع عبر المندوب {rep}: «{text}»\nيُسجَّل في «وعود الدفع» عند فتح التطبيق.",
+    requestNotice: "📥 طلب من المندوب {rep}: «{text}»\nوافق عليه من صفحة المندوبين في التطبيق.",
+    plans: REP_ACTIVATION_PLANS,
+    activationHint: REP_ACTIVATION_HINT,
+    devicesBot: bots.devices ?? "",
+    moneyBot: bots.money ?? "",
+    alertsBot: bots.alerts ?? "",
+    moneyKeyboard: REP_MONEY_KEYBOARD,
+    moneyHelp: REP_MONEY_HELP,
+    moneyRedirect: bots.money ? moneyRedirectText(bots.money) : "",
+    handoverHint: REP_HANDOVER_HINT,
+    handoverReceived: "✅ وصل تسليمك - يُسجَّل في حسابك بعد تأكيد المسؤول وتصلك رسالة بذلك.",
+    alertsInfo: [REP_ALERTS_INFO, ...(bots.devices ? [`📡 الأجهزة: @${bots.devices}`] : []), ...(bots.money ? [`💰 المال: @${bots.money}`] : [])].join("\n"),
+  };
+}

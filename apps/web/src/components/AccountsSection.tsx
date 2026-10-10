@@ -1,0 +1,1454 @@
+"use client";
+
+import { FrancHint } from "./FrancHint";
+import { askDeleteCode } from "@/components/DeleteCodePrompt";
+import { byLastActivity, clientLastActivity } from "@/lib/clientActivity";
+import { DuplicateWarning } from "./DuplicateWarning";
+import { duplicateQuestion, findClientDuplicates } from "@/lib/duplicates";
+import { ClientNotesPanel, clientNoteCount } from "./ClientNotesSheet";
+import { DateInput } from "./DateInput";
+import { ChangeEvent, CSSProperties, FormEvent, useEffect, useMemo, useState } from "react";
+import { StarlinkAccountSummary } from "@starnet/shared";
+import { Client, clientDeleteQuestion, CreateClientInput } from "@/lib/clientStore";
+import { clientRepNames, clientRepIds, matchesClientOwner, type ClientOwnerFilter } from "@/lib/repDebts";
+import { currentRepOfClient } from "@/lib/repClients";
+import type { RepresentativeStore } from "@/lib/repStore";
+import { CreateSupplierInput, Supplier } from "@/lib/supplierStore";
+import { loadAccountsBook } from "@/lib/moneyAccounts";
+import { fitPayMethod, isFrancAccount, methodLabel, PAY_CURRENCIES, PAY_CURRENCY_LABELS, payFormOf, payMethodsFor, toLedgerPayment, type PayCurrency } from "@/lib/payCurrency";
+import { getProof } from "@/lib/paymentProofStore";
+import { resizeImageToDataUrl } from "@/lib/imageUtils";
+import { renewalDateLabel } from "@/lib/date";
+import {
+  computeBalanceByCurrency,
+  getAccountEntries,
+  LEDGER_CURRENCY_LABELS,
+  PAYMENT_METHOD_LABELS,
+  PaymentMethod,
+  LedgerByAccount,
+  LedgerCurrency,
+} from "@/lib/ledgerStore";
+import {
+  buildPartyStatement,
+  computePartyStoreTotals,
+  InvoiceKind,
+  InvoiceList,
+  PartyStatementRow,
+  PartyStoreTotals,
+} from "@/lib/invoiceStore";
+import { PdfButton } from "./PdfButton";
+import { buildPartyStatementPdf, statementKindLabel } from "@/lib/partyStatementPdf";
+import { buildStatementData } from "@/lib/statementDocument";
+import { StatementImageButton } from "./StatementImageButton";
+import { combinePhoneNumber, PHONE_COUNTRY_CODES, splitPhoneNumber } from "@/lib/phoneCountryCodes";
+import { formatAmount } from "@/lib/formatAmount";
+import { partyHue, partyInitials } from "@/lib/partyColor";
+import { buildClientCombinedStatement, computeClientCombinedTotals } from "@/lib/clientAccount";
+import { buildStoreDebtReminderMessage, buildStoreStatementMessage, buildWhatsAppLink } from "@/lib/whatsapp";
+import { PartyAdjustment, partyAdjustmentCashKind, PartyAdjustmentDirection, PartyKind, RecordPartyAdjustmentInput } from "@/lib/partyBalanceStore";
+import { DefaultCurrencyField } from "./CurrencyGuard";
+import { autoCurrencyOf } from "@/lib/partyCurrency";
+import { loadPartyCurrencyContext } from "@/lib/partyCurrencyData";
+
+const EPSILON = 0.0001;
+
+function currencyLabel(code: string): string {
+  return LEDGER_CURRENCY_LABELS[code as LedgerCurrency] ?? code;
+}
+
+type PartyTab = "clients" | "suppliers";
+/** Second clients row: everyone / only those who owe us / only those with a credit on us. */
+type BalanceFilter = "all" | "owes" | "credit";
+const hasCredit = (totals: Record<string, { remaining: number }>) => Object.values(totals).some((t) => t.remaining < -EPSILON);
+
+interface Props {
+  clients: Client[];
+  suppliers: Supplier[];
+  invoices: InvoiceList;
+  /** Every Starlink device - a client card lists the ones linked to it (account.clientId). */
+  accounts: StarlinkAccountSummary[];
+  /** Per-device Starlink subscription ledger - shown on a client's devices panel, always kept
+   * visually separate from the store figures (a different business). */
+  ledgerStore: LedgerByAccount;
+  onCreateClient: (input: CreateClientInput) => void;
+  onUpdateClient: (clientId: string, input: CreateClientInput) => void;
+  onCreateSupplier: (input: CreateSupplierInput) => void;
+  onUpdateSupplier: (supplierId: string, input: CreateSupplierInput) => void;
+  /** Manual balance entries ("إضافة رصيد", partyBalanceStore.ts) for every client/supplier. */
+  adjustments: PartyAdjustment[];
+  /** Returns an error message to show, or null on success. `proofDataUrl` (optional) is a payment
+   * photo to save keyed by the new adjustment's id. */
+  onAddAdjustment: (input: RecordPartyAdjustmentInput, proofDataUrl?: string) => string | null;
+  onDeleteAdjustment: (adjustmentId: string) => void;
+  /** A client's payment for one of their devices ("الدفعة عن" in إضافة رصيد) - recorded in that
+   * device's own ledger. Returns an error message, or null on success. */
+  onAddDevicePayment?: (deviceId: string, input: Omit<BalanceFormInput, "deviceId">) => string | null;
+  /** Edits a balance entry. Returns an error message, or null on success. `proofDataUrl` replaces
+   * the saved photo when given. */
+  onUpdateAdjustment?: (adjustmentId: string, input: Omit<BalanceFormInput, "deviceId">, proofDataUrl?: string) => string | null;
+  /** Turns a general "له" balance entry into a payment on one of the client's devices. */
+  onMoveAdjustmentToDevice?: (adjustmentId: string, deviceId: string, input: Omit<BalanceFormInput, "deviceId">) => string | null;
+}
+
+/** حسابات الزبائن والموردين as a collapsible section of المتجر - the same PartyDirectory the
+ * dedicated /clients page shows. */
+export function AccountsSection(props: Props) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <section className="section">
+      <button type="button" className="report-collapse-toggle" onClick={() => setExpanded((v) => !v)} aria-expanded={expanded}>
+        حسابات الزبائن والموردين {expanded ? "▲" : "▼"}
+      </button>
+      {expanded && <PartyDirectory {...props} />}
+    </section>
+  );
+}
+
+interface PartyDirectoryProps extends Props {
+  /** When given, every client card also offers "بطاقة الزبون" (the full per-device accounting
+   * card, ClientDialog). */
+  onOpenClientCard?: (client: Client) => void;
+  /** When given, a client's edit form offers "حذف الزبون" (the page unlinks their devices). */
+  onDeleteClient?: (clientId: string) => void;
+  /** Representatives - a client whose devices belong to a rep shows that rep's name on the card. */
+  representatives?: RepresentativeStore;
+  /** 👥 «☑️ تحديد» on the clients tab: delete, zero the accounts of, or start the profit from zero
+   * for the chosen clients (one, several or all). The page asks before each. */
+  bulk?: {
+    onDelete: (ids: string[]) => void;
+    onZero: (ids: string[]) => void;
+    onProfitFresh: (ids: string[]) => void;
+    onProfitClear: (ids: string[]) => void;
+    /** Clients whose profit already starts from zero (clientBulk.ts). */
+    profitFreshIds: Set<string>;
+  };
+  /** 📡 A device tapped in a customer's «الأجهزة» opens its full card right there (his Oct 2026
+   * request). Absent = the list only. */
+  renderDevice?: (device: StarlinkAccountSummary) => React.ReactNode;
+  /** 🗑 Deletes a device operation from a customer's statement (his Oct 2026 request) - true once
+   * deleted (the caller asks first). */
+  onDeleteDeviceEntry?: (entryId: string) => boolean;
+  /** ✎ Edits a device operation from a customer's statement, in the device's own operation dialog. */
+  onEditDeviceEntry?: (entryId: string) => void;
+}
+
+/** Clients and suppliers on two separate tabs (never one mixed list), each party a colour-coded
+ * card with its own invoiced/paid/remaining totals, statement, and - for a client - every linked
+ * device. */
+export function PartyDirectory({
+  clients,
+  suppliers,
+  invoices,
+  accounts,
+  ledgerStore,
+  onCreateClient,
+  onUpdateClient,
+  onCreateSupplier,
+  onUpdateSupplier,
+  adjustments,
+  onAddAdjustment,
+  onDeleteAdjustment,
+  onAddDevicePayment,
+  onUpdateAdjustment,
+  onMoveAdjustmentToDevice,
+  onOpenClientCard,
+  onDeleteClient,
+  representatives,
+  bulk,
+  renderDevice,
+  onDeleteDeviceEntry,
+  onEditDeviceEntry,
+}: PartyDirectoryProps) {
+  const [tab, setTab] = useState<PartyTab>("clients");
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [query, setQuery] = useState("");
+  const [showAdd, setShowAdd] = useState(false);
+  const [editingPartyId, setEditingPartyId] = useState<string | null>(null);
+  // 👤 / 🤝 whose customers are shown (repDebts.ts) - clients tab only. «زبائني» first and default
+  // (his choice): he works with his own customers most, reps' customers are the exception.
+  const [owner, setOwner] = useState<ClientOwnerFilter>("mine");
+  // Second row: show everyone / only who owes us / only who has a credit on us («له رصيد»).
+  const [balance, setBalance] = useState<BalanceFilter>("all");
+
+  const isClients = tab === "clients";
+  const kind: InvoiceKind = isClients ? "sale" : "purchase";
+  const parties: (Client | Supplier)[] = isClients ? clients : suppliers;
+
+  const rows = useMemo(
+    () =>
+      parties.map((party) => {
+        // A client's totals include every operation on their linked devices, not just the store.
+        const totals = isClients
+          ? computeClientCombinedTotals(invoices, adjustments, party.id, accounts.filter((a) => a.clientId === party.id), ledgerStore)
+          : computePartyStoreTotals(invoices, kind, party.id, adjustments);
+        const due = Object.values(totals).some((t) => t.remaining > EPSILON);
+        const repIds = isClients ? clientRepIds(party.id, accounts, party as Client) : [];
+        // 🕒 His latest operation or edit - the customer on top is the last one worked on.
+        const activity = isClients
+          ? clientLastActivity({
+              client: party,
+              entries: accounts.filter((a) => a.clientId === party.id).flatMap((a) => ledgerStore[a.id] ?? []),
+              invoices: invoices.filter((i) => i.clientId === party.id),
+              adjustments: adjustments.filter((a) => a.partyKind === "client" && a.partyId === party.id),
+            })
+          : "";
+        return { party, totals, due, repIds, activity };
+      }),
+    [parties, invoices, kind, adjustments, isClients, accounts, ledgerStore],
+  );
+  const ownerRows = useMemo(() => (isClients ? rows.filter((r) => matchesClientOwner(r.repIds, owner)) : rows), [rows, owner, isClients]);
+  /** «🤝 فلان» chips: every rep with at least one customer, with how many. */
+  const repChips = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const r of rows) for (const id of r.repIds) counts.set(id, (counts.get(id) ?? 0) + 1);
+    return [...counts].map(([id, count]) => ({ id, count, name: representatives?.[id]?.name ?? "مندوب" }));
+  }, [rows, representatives]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    let matching = q
+      ? ownerRows.filter((r) => r.party.name.toLowerCase().includes(q) || (r.party.phone ?? "").includes(q))
+      : ownerRows;
+    // Second row (clients): only those who owe us, or only those with a credit on us («له رصيد»).
+    if (isClients && balance === "owes") matching = matching.filter((r) => r.due);
+    else if (isClients && balance === "credit") matching = matching.filter((r) => hasCredit(r.totals));
+    // Customers: the last one worked on first (his Oct 2026 choice). Suppliers: who still owe / are
+    // owed first, then alphabetical.
+    if (isClients) return [...matching].sort((a, b) => byLastActivity({ activity: a.activity, name: a.party.name }, { activity: b.activity, name: b.party.name }));
+    return [...matching].sort((a, b) => (a.due === b.due ? a.party.name.localeCompare(b.party.name, "ar") : a.due ? -1 : 1));
+  }, [ownerRows, query, isClients, balance]);
+
+  const outstandingByCurrency = useMemo(() => {
+    const sum: Record<string, number> = {};
+    for (const { totals } of ownerRows) {
+      for (const [c, t] of Object.entries(totals)) {
+        if (t.remaining > EPSILON) sum[c] = (sum[c] ?? 0) + t.remaining;
+      }
+    }
+    return sum;
+  }, [ownerRows]);
+
+  function switchTab(next: PartyTab) {
+    setTab(next);
+    setSelecting(false);
+    setSelected(new Set());
+    setShowAdd(false);
+    setEditingPartyId(null);
+    setQuery("");
+    setOwner("mine");
+    setBalance("all");
+  }
+
+  const partyWord = isClients ? "زبون" : "مورد";
+
+  return (
+    <div className={`party-section party-section-${tab}`}>
+      <div className="party-tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={isClients}
+          className={`party-tab party-tab-clients${isClients ? " party-tab-active" : ""}`}
+          onClick={() => switchTab("clients")}
+        >
+          👥 الزبائن <span className="party-tab-count">{clients.length}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={!isClients}
+          className={`party-tab party-tab-suppliers${!isClients ? " party-tab-active" : ""}`}
+          onClick={() => switchTab("suppliers")}
+        >
+          🏭 الموردون <span className="party-tab-count">{suppliers.length}</span>
+        </button>
+      </div>
+
+      {isClients && repChips.length > 0 && (
+        <div className="party-owner-chips" role="radiogroup" aria-label="زبائن من">
+          {[
+            { key: "mine", label: "👤 زبائني", count: rows.filter((r) => r.repIds.length === 0).length, value: "mine" as ClientOwnerFilter },
+            { key: "all", label: "الكل", count: rows.length, value: "all" as ClientOwnerFilter },
+            { key: "reps", label: "🤝 زبائن المندوبين", count: rows.filter((r) => r.repIds.length > 0).length, value: "reps" as ClientOwnerFilter },
+            ...(repChips.length > 1 ? repChips.map((c) => ({ key: `rep:${c.id}`, label: `🤝 ${c.name}`, count: c.count, value: { repId: c.id } as ClientOwnerFilter })) : []),
+          ].map((chip) => {
+            const active = typeof owner === "string" ? chip.value === owner : typeof chip.value !== "string" && chip.value.repId === owner.repId;
+            return (
+              <button
+                key={chip.key}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                className={`party-owner-chip${active ? " party-owner-chip-active" : ""}`}
+                onClick={() => {
+                  setOwner(chip.value);
+                  setSelected(new Set());
+                }}
+              >
+                {chip.label} <span className="party-tab-count">{chip.count}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {isClients && (
+        <div className="party-owner-chips party-balance-chips" role="radiogroup" aria-label="حسب الرصيد">
+          {[
+            { key: "all", label: "الكل", count: ownerRows.length, value: "all" as BalanceFilter },
+            { key: "owes", label: "🔴 مدينون لنا", count: ownerRows.filter((r) => r.due).length, value: "owes" as BalanceFilter },
+            { key: "credit", label: "🟢 لهم رصيد علينا", count: ownerRows.filter((r) => hasCredit(r.totals)).length, value: "credit" as BalanceFilter },
+          ].map((chip) => (
+            <button
+              key={chip.key}
+              type="button"
+              role="radio"
+              aria-checked={balance === chip.value}
+              className={`party-owner-chip${balance === chip.value ? " party-owner-chip-active" : ""}`}
+              onClick={() => {
+                setBalance(chip.value);
+                setSelected(new Set());
+              }}
+            >
+              {chip.label} <span className="party-tab-count">{chip.count}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="party-overview">
+        <span className="party-overview-label">
+          {!isClients ? "مجموع ما علينا للموردين" : owner === "mine" ? "مجموع ما لنا عند زبائني" : owner === "all" ? "مجموع ما لنا عند الزبائن" : "مجموع ما لنا عند زبائن المندوبين"}
+        </span>
+        <div className="party-overview-values">
+          {Object.keys(outstandingByCurrency).length === 0 ? (
+            <strong>لا يوجد مستحق ✓</strong>
+          ) : (
+            Object.entries(outstandingByCurrency).map(([c, v]) => (
+              <strong key={c} dir="ltr">
+                {formatAmount(v)} {currencyLabel(c)}
+              </strong>
+            ))
+          )}
+        </div>
+      </div>
+
+      <div className="party-toolbar">
+        <input
+          className="search-input"
+          placeholder={`ابحث عن ${partyWord} بالاسم أو الهاتف`}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <button type="button" className="btn-icon" onClick={() => setShowAdd((v) => !v)}>
+          {showAdd ? "إلغاء" : `+ ${partyWord}`}
+        </button>
+        {isClients && bulk && (
+          <button
+            type="button"
+            className={`btn-icon${selecting ? " is-active" : ""}`}
+            onClick={() => {
+              setSelecting((v) => !v);
+              setSelected(new Set());
+            }}
+          >
+            {selecting ? "إنهاء" : "☑️ تحديد"}
+          </button>
+        )}
+      </div>
+
+      {isClients && bulk && selecting && (() => {
+        const ids = [...selected];
+        const allShown = filtered.length > 0 && filtered.every((r) => selected.has(r.party.id));
+        const run = (fn: (ids: string[]) => void) => {
+          if (!ids.length) return;
+          fn(ids);
+          setSelected(new Set());
+        };
+        return (
+          <div className="party-bulk-bar">
+            <button
+              type="button"
+              className="text-action"
+              onClick={() => setSelected(allShown ? new Set() : new Set(filtered.map((r) => r.party.id)))}
+            >
+              {allShown ? "إلغاء الكل" : `تحديد الكل (${filtered.length})`}
+            </button>
+            <span className="party-bulk-count">المحدد: {ids.length}</span>
+            <div className="party-bulk-actions">
+              <button type="button" disabled={!ids.length} onClick={() => run(bulk.onZero)}>0️⃣ تصفير الحساب</button>
+              <button type="button" disabled={!ids.length} onClick={() => run(bulk.onProfitFresh)}>📈 الأرباح من 0</button>
+              <button type="button" disabled={!ids.length} onClick={() => run(bulk.onProfitClear)}>↩️ إرجاع الأرباح</button>
+              <button type="button" className="danger" disabled={!ids.length} onClick={() => run(bulk.onDelete)}>🗑️ حذف</button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {showAdd && (
+        <PartyForm
+          submitLabel={isClients ? "إضافة الزبون" : "إضافة المورد"}
+          existing={parties}
+          namePlaceholder={isClients ? "اسم الزبون *" : "اسم المورد *"}
+          showCreditLimit={isClients}
+          onSubmit={(input) => {
+            if (isClients) onCreateClient(input);
+            else onCreateSupplier(input);
+            setShowAdd(false);
+          }}
+          onCancel={() => setShowAdd(false)}
+        />
+      )}
+
+      {filtered.length === 0 ? (
+        <p className="empty-state">{query ? "لا توجد نتائج مطابقة." : isClients && owner !== "all" ? "لا زبائن في هذا الاختيار." : isClients ? "لا يوجد زبائن بعد." : "لا يوجد موردون بعد."}</p>
+      ) : isClients && bulk && selecting ? (
+        <ul className="party-select-list">
+          {filtered.map(({ party, totals }) => {
+            const owed = Object.entries(totals).filter(([, t]) => Math.abs(t.remaining) > EPSILON);
+            return (
+              <li key={party.id} className={`party-select-row${selected.has(party.id) ? " is-selected" : ""}`}>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={selected.has(party.id)}
+                    onChange={() =>
+                      setSelected((current) => {
+                        const next = new Set(current);
+                        if (next.has(party.id)) next.delete(party.id);
+                        else next.add(party.id);
+                        return next;
+                      })
+                    }
+                  />
+                  <span className="party-select-name">{party.name}</span>
+                  {bulk.profitFreshIds.has(party.id) && <span className="badge badge-gray">📈 من 0</span>}
+                  <span className="party-select-balance">
+                    {owed.length === 0
+                      ? "0"
+                      : owed.map(([c, t]) => (
+                          <bdi key={c} dir="ltr">
+                            {formatAmount(t.remaining)} {currencyLabel(c)}
+                          </bdi>
+                        ))}
+                  </span>
+                </label>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <ul className="party-card-list">
+          {filtered.map(({ party, totals }) =>
+            editingPartyId === party.id ? (
+              <li key={party.id} className="party-card">
+                <PartyForm
+                  initial={party}
+                  submitLabel="حفظ"
+                  existing={parties}
+                  selfId={party.id}
+                  namePlaceholder={isClients ? "اسم الزبون *" : "اسم المورد *"}
+                  showCreditLimit={isClients}
+                  onSubmit={(input) => {
+                    if (isClients) onUpdateClient(party.id, input);
+                    else onUpdateSupplier(party.id, input);
+                    setEditingPartyId(null);
+                  }}
+                  onCancel={() => setEditingPartyId(null)}
+                  onDelete={
+                    isClients && onDeleteClient
+                      ? async () => {
+                          const remaining = Object.fromEntries(Object.entries(totals).map(([c, t]) => [c, t.remaining]));
+                          const linked = accounts.filter((a) => a.clientId === party.id).length;
+                          if (!(await askDeleteCode(clientDeleteQuestion(party.name, linked, remaining, currencyLabel)))) return;
+                          onDeleteClient(party.id);
+                          setEditingPartyId(null);
+                        }
+                      : undefined
+                  }
+                />
+              </li>
+            ) : (
+              <PartyCard
+                key={party.id}
+                kind={kind}
+                party={party}
+                totals={totals}
+                invoices={invoices}
+                adjustments={adjustments}
+                onAddAdjustment={onAddAdjustment}
+                onDeleteAdjustment={onDeleteAdjustment}
+                onAddDevicePayment={onAddDevicePayment}
+                onUpdateAdjustment={onUpdateAdjustment}
+                onMoveAdjustmentToDevice={onMoveAdjustmentToDevice}
+                devices={isClients ? accounts.filter((a) => a.clientId === party.id && !a.deletedAt) : []}
+                ledgerStore={ledgerStore}
+                creditLimit={isClients ? (party as Client).creditLimit : undefined}
+                repNames={isClients && representatives ? clientRepNames(party.id, accounts, representatives, party as Client) : []}
+                onEdit={() => setEditingPartyId(party.id)}
+                onOpenCard={isClients && onOpenClientCard ? () => onOpenClientCard(party as Client) : undefined}
+                renderDevice={isClients ? renderDevice : undefined}
+                onDeleteDeviceEntry={isClients ? onDeleteDeviceEntry : undefined}
+                onEditDeviceEntry={isClients ? onEditDeviceEntry : undefined}
+              />
+            ),
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+interface PartyCardProps {
+  kind: InvoiceKind;
+  party: { id: string; name: string; phone?: string };
+  totals: Record<string, PartyStoreTotals>;
+  invoices: InvoiceList;
+  adjustments: PartyAdjustment[];
+  onAddAdjustment: Props["onAddAdjustment"];
+  onDeleteAdjustment: (adjustmentId: string) => void;
+  onAddDevicePayment?: Props["onAddDevicePayment"];
+  onUpdateAdjustment?: Props["onUpdateAdjustment"];
+  onMoveAdjustmentToDevice?: Props["onMoveAdjustmentToDevice"];
+  devices: StarlinkAccountSummary[];
+  ledgerStore: LedgerByAccount;
+  creditLimit?: number;
+  /** The reps of this client's devices - shown as a tag at the top of the card. */
+  repNames?: string[];
+  onEdit: () => void;
+  onOpenCard?: () => void;
+  renderDevice?: (device: StarlinkAccountSummary) => React.ReactNode;
+  onDeleteDeviceEntry?: (entryId: string) => boolean;
+  onEditDeviceEntry?: (entryId: string) => void;
+}
+
+type PartyPanel = "statement" | "devices" | null;
+type PartySheet = "balance" | "whatsapp" | "detail" | "edit" | "notes" | null;
+
+/** A card action: the icon over a tiny label (and a count badge) - one short row of buttons. */
+export function ActionFace({ icon, label, count }: { icon: string; label: string; count?: number }) {
+  return (
+    <>
+      <span className="party-action-icon" aria-hidden="true">
+        {icon}
+        {count ? <span className="party-action-count">{count}</span> : null}
+      </span>
+      <span className="party-action-label">{label}</span>
+    </>
+  );
+}
+
+function PartyCard({
+  kind,
+  party,
+  totals,
+  invoices,
+  adjustments,
+  onAddAdjustment,
+  onDeleteAdjustment,
+  onAddDevicePayment,
+  onUpdateAdjustment,
+  onMoveAdjustmentToDevice,
+  devices,
+  ledgerStore,
+  creditLimit,
+  repNames = [],
+  onEdit,
+  onOpenCard,
+  renderDevice,
+  onDeleteDeviceEntry,
+  onEditDeviceEntry,
+}: PartyCardProps) {
+  const [panel, setPanel] = useState<PartyPanel>(null);
+  // 📡 The device opened from «الأجهزة» (its card shows in place of the list).
+  const [openDeviceId, setOpenDeviceId] = useState<string | null>(null);
+  const openDevice = openDeviceId ? devices.find((d) => d.id === openDeviceId) : undefined;
+  const [sheet, setSheet] = useState<PartySheet>(null);
+  const [detailRowId, setDetailRowId] = useState<string | null>(null);
+  const isClient = kind === "sale";
+  const [noteCount, setNoteCount] = useState(0);
+  useEffect(() => {
+    if (isClient) setNoteCount(clientNoteCount(party.id));
+  }, [isClient, party.id]);
+  const partyKind: PartyKind = isClient ? "client" : "supplier";
+  const currencies = Object.keys(totals);
+  const remainingByCurrency = Object.fromEntries(Object.entries(totals).map(([c, t]) => [c, t.remaining]));
+  const hasDue = Object.values(totals).some((t) => t.remaining > EPSILON);
+  const hasCredit = !hasDue && Object.values(totals).some((t) => t.remaining < -EPSILON);
+  const overLimit =
+    creditLimit !== undefined && Object.values(totals).some((t) => t.remaining > creditLimit + EPSILON);
+
+  // A representative's own customer (repClients.ts) owes HIM - "settled" would be wrong here.
+  const ownedByRep = isClient && Boolean(currentRepOfClient(party as Client));
+  const status = hasDue
+    ? { className: "party-status-due", label: isClient ? "عليه دين" : "مستحق له" }
+    : hasCredit
+      ? { className: "party-status-credit", label: isClient ? "له رصيد" : "لنا رصيد عنده" }
+      : ownedByRep
+        ? { className: "party-status-credit", label: "🤝 عند المندوب" }
+        : { className: "party-status-clear", label: "مسدَّد ✓" };
+
+  const statement =
+    panel !== "statement"
+      ? []
+      : isClient
+        ? buildClientCombinedStatement(invoices, adjustments, party.id, devices, ledgerStore)
+        : buildPartyStatement(invoices, kind, party.id, adjustments);
+  const canWhatsApp = buildWhatsAppLink(party.phone) !== null;
+  const deviceNames = devices.map((d) => d.name.trim()).filter(Boolean);
+
+  const detailRow = detailRowId ? statement.find((r) => r.id === detailRowId) : undefined;
+  function confirmDeleteAdjustment(adjustment: PartyAdjustment) {
+    if (window.confirm(`حذف الرصيد ${formatAmount(adjustment.amount)} ${currencyLabel(adjustment.currencyCode)}؟`)) {
+      onDeleteAdjustment(adjustment.id);
+      setSheet(null);
+    }
+  }
+  function openDetail(rowId: string) {
+    setDetailRowId(rowId);
+    setSheet("detail");
+  }
+
+  function togglePanel(next: Exclude<PartyPanel, null>) {
+    setPanel((current) => (current === next ? null : next));
+  }
+
+  function openWhatsApp(message?: string) {
+    const link = buildWhatsAppLink(party.phone, message);
+    if (link) window.open(link, "_blank", "noopener,noreferrer");
+    setSheet(null);
+  }
+
+  return (
+    <li
+      className={`party-card party-card-${isClient ? "client" : "supplier"}`}
+      style={{ "--party-hue": partyHue(party.id) } as CSSProperties}
+    >
+      <div className="party-card-head">
+        <span className="party-avatar" aria-hidden="true">{partyInitials(party.name)}</span>
+        <div className="party-card-title">
+          <strong>{party.name}</strong>
+          <span className="party-card-sub">
+            <bdi dir="ltr">{party.phone || "بدون هاتف"}</bdi>
+            {isClient && devices.length > 0 && <span className="party-mini-chip">📡 {devices.length}</span>}
+            {repNames.length > 0 && (
+              <span className="party-rep-tag" title="مندوب أجهزة هذا الزبون">
+                🤝 {repNames.join("، ")}
+              </span>
+            )}
+          </span>
+        </div>
+        <span className={`party-status ${status.className}`}>{status.label}</span>
+      </div>
+
+      {currencies.length === 0 ? (
+        <p className="party-empty">لا توجد فواتير أو أرصدة بعد</p>
+      ) : (
+        currencies.map((c) => {
+          const t = totals[c];
+          return (
+            <div key={c} className="party-stats">
+              <span className="party-stats-currency">{currencyLabel(c)}</span>
+              <div className="party-stat">
+                <span>{isClient ? "المبيعات" : "المشتريات"}</span>
+                <strong dir="ltr">{formatAmount(t.total)}</strong>
+              </div>
+              <div className="party-stat party-stat-paid">
+                <span>{isClient ? "المدفوع" : "دفعنا"}</span>
+                <strong dir="ltr">{formatAmount(t.paid)}</strong>
+              </div>
+              {t.returned > EPSILON && (
+                <div className="party-stat party-stat-returned">
+                  <span>المرتجع</span>
+                  <strong dir="ltr">{formatAmount(t.returned)}</strong>
+                </div>
+              )}
+              {Math.abs(t.adjusted) > EPSILON && (
+                <div className="party-stat party-stat-adjusted">
+                  <span>رصيد يدوي</span>
+                  <strong dir="ltr">
+                    {t.adjusted > 0 ? "+" : "-"}
+                    {formatAmount(Math.abs(t.adjusted))}
+                  </strong>
+                </div>
+              )}
+              <div className={`party-stat ${t.remaining > EPSILON ? "party-stat-due" : "party-stat-clear"}`}>
+                <span>{t.remaining < -EPSILON ? (isClient ? "له" : "لنا") : isClient ? "عليه" : "له"}</span>
+                <strong dir="ltr">{formatAmount(Math.abs(t.remaining))}</strong>
+              </div>
+            </div>
+          );
+        })
+      )}
+
+      {creditLimit !== undefined && (
+        <div className="party-chips">
+          <span className={`party-chip${overLimit ? " party-chip-alert" : ""}`}>
+            {overLimit ? "⚠️ " : ""}سقف الدين: <bdi dir="ltr">{formatAmount(creditLimit)}</bdi>
+          </span>
+        </div>
+      )}
+
+      <div className="party-actions">
+        <button
+          type="button"
+          className={`party-action${panel === "statement" ? " party-action-active" : ""}`}
+          onClick={() => togglePanel("statement")}
+        >
+          <ActionFace icon="📄" label="الكشف" />
+        </button>
+        <button type="button" className="party-action party-action-balance" onClick={() => setSheet("balance")}>
+          <ActionFace icon="➕" label="رصيد" />
+        </button>
+        {canWhatsApp && (
+          <button type="button" className="party-action party-action-whatsapp" onClick={() => setSheet("whatsapp")}>
+            <ActionFace icon="💬" label="واتساب" />
+          </button>
+        )}
+        {isClient && (
+          <button
+            type="button"
+            className={`party-action${panel === "devices" ? " party-action-active" : ""}`}
+            onClick={() => togglePanel("devices")}
+          >
+            <ActionFace icon="📡" label="الأجهزة" count={devices.length} />
+          </button>
+        )}
+        {onOpenCard && (
+          <button type="button" className="party-action" onClick={onOpenCard}>
+            <ActionFace icon="💳" label="البطاقة" />
+          </button>
+        )}
+        {isClient && (
+          <button type="button" className="party-action" onClick={() => setSheet("notes")}>
+            <ActionFace icon="📝" label="ملاحظات" count={noteCount} />
+          </button>
+        )}
+        <button type="button" className="party-action" onClick={onEdit}>
+          <ActionFace icon="✎" label="تعديل" />
+        </button>
+      </div>
+
+      {panel === "statement" && (
+        <div className="party-panel">
+          <div className="party-panel-tools">
+            <StatementImageButton
+              build={() => buildStatementData(party, isClient, totals, statement, deviceNames)}
+            />
+            <PdfButton
+              className="party-action party-action-pdf"
+              label="📄 PDF"
+              build={() => buildPartyStatementPdf(party, isClient, totals, statement, deviceNames)}
+            />
+          </div>
+          {statement.length === 0 ? (
+            <p className="party-empty">لا توجد حركات في كشف الحساب</p>
+          ) : (
+            <ul className="party-statement">
+              {statement.map((row) => {
+                const adjustment = row.adjustment;
+                const kindLabel = statementKindLabel(row, isClient);
+                return (
+                  <li key={row.id} className={`party-statement-row party-statement-${row.type}`}>
+                    <button type="button" className="party-statement-open" onClick={() => openDetail(row.id)} aria-label={`تفاصيل: ${kindLabel}`}>
+                    <div className="party-statement-top">
+                      <span className="party-statement-kind">{kindLabel}</span>
+                      <span className="party-statement-date" dir="ltr">{row.date}</span>
+                    </div>
+                    {row.note && <span className="party-statement-note">{row.note}</span>}
+                    <div className="party-statement-figures" dir="ltr">
+                      <span className={row.delta < 0 ? "party-statement-clear" : undefined}>
+                        <bdi dir="ltr">
+                          {row.delta < 0 ? "-" : "+"}
+                          {formatAmount(row.amount)}
+                        </bdi>{" "}
+                        {currencyLabel(row.currencyCode)}
+                      </span>
+                      {row.type === "invoice" && <span className="party-statement-paid">مدفوع {formatAmount(row.paid)}</span>}
+                      <span className={row.balanceAfter > EPSILON ? "party-statement-due" : "party-statement-clear"}>
+                        الرصيد {formatAmount(row.balanceAfter)}
+                      </span>
+                      <span className="party-statement-before">قبلها {formatAmount(row.balanceAfter - row.delta)}</span>
+                      {adjustment && <span className="party-statement-editable">✎</span>}
+                    </div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {panel === "devices" && (
+        <div className="party-panel">
+          {openDevice && renderDevice ? (
+            <div className="party-device-open">
+              <button type="button" className="text-action party-device-back" onClick={() => setOpenDeviceId(null)}>
+                → كل أجهزته ({devices.length})
+              </button>
+              {renderDevice(openDevice)}
+            </div>
+          ) : (
+          <>
+          <p className="party-panel-note">اشتراكات Starlink - حساب منفصل عن فواتير المتجر{renderDevice && devices.length > 0 ? " · اضغط جهازًا لفتح بطاقته" : ""}</p>
+          {devices.length === 0 ? (
+            <p className="party-empty">لا يوجد جهاز مرتبط بهذا الزبون - يُربط من بطاقة الجهاز في الصفحة الرئيسية</p>
+          ) : (
+            <ul className="party-devices">
+              {devices.map((device) => {
+                const balance = computeBalanceByCurrency(getAccountEntries(ledgerStore, device.id));
+                const owed = Object.entries(balance).filter(([, v]) => v !== undefined && Math.abs(v) > EPSILON) as [
+                  LedgerCurrency,
+                  number,
+                ][];
+                return (
+                  <li
+                    key={device.id}
+                    className={`party-device${renderDevice ? " party-device-tappable" : ""}`}
+                    {...(renderDevice ? { role: "button", tabIndex: 0, onClick: () => setOpenDeviceId(device.id), onKeyDown: (e: React.KeyboardEvent) => e.key === "Enter" && setOpenDeviceId(device.id) } : {})}
+                  >
+                    <div className="party-device-top">
+                      <strong>{device.name}</strong>
+                      <span className="party-device-date" dir={device.rechargeDate?.trim() ? "ltr" : undefined}>📅 {renewalDateLabel(device.rechargeDate)}</span>
+                    </div>
+                    <div className="party-device-balances">
+                      {owed.length === 0 ? (
+                        <span className="badge badge-green">لا يوجد مستحق</span>
+                      ) : (
+                        owed.map(([c, v]) =>
+                          v > 0 ? (
+                            <span key={c} className="badge badge-red" dir="ltr">
+                              عليه {formatAmount(v)} {currencyLabel(c)}
+                            </span>
+                          ) : (
+                            <span key={c} className="badge badge-green" dir="ltr">
+                              له {formatAmount(-v)} {currencyLabel(c)}
+                            </span>
+                          ),
+                        )
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          </>
+          )}
+        </div>
+      )}
+
+      {sheet === "balance" && (
+        <PartySheet title={`إضافة رصيد - ${party.name}`} onClose={() => setSheet(null)}>
+          <BalanceForm
+            partyName={party.name}
+            partyKind={partyKind}
+            devices={
+              isClient && onAddDevicePayment
+                ? devices.map((d) => ({ id: d.id, name: d.name, email: d.expectedEmail || d.starlinkAccountEmail || undefined }))
+                : []
+            }
+            onCancel={() => setSheet(null)}
+            onSubmit={(input) => {
+              const { deviceId, proofDataUrl, ...rest } = input;
+              const error =
+                deviceId && onAddDevicePayment
+                  ? onAddDevicePayment(deviceId, rest)
+                  : onAddAdjustment({ ...rest, partyKind, partyId: party.id }, proofDataUrl);
+              if (!error) setSheet(null);
+              return error;
+            }}
+          />
+        </PartySheet>
+      )}
+
+      {(sheet === "detail" || sheet === "edit") && detailRow && (
+        <PartySheet
+          title={sheet === "edit" ? `تعديل الرصيد - ${party.name}` : `تفاصيل العملية - ${party.name}`}
+          onClose={() => setSheet(null)}
+        >
+          {sheet === "detail" ? (
+            <StatementRowDetail
+              row={detailRow}
+              kindLabel={statementKindLabel(detailRow, isClient)}
+              isClient={isClient}
+              onEdit={
+                detailRow.adjustment
+                  ? () => setSheet("edit")
+                  : onEditDeviceEntry && (detailRow.type === "device-charge" || detailRow.type === "device-payment")
+                    ? () => {
+                        onEditDeviceEntry(detailRow.id);
+                        setSheet(null);
+                        setDetailRowId(null);
+                      }
+                    : undefined
+              }
+              onDelete={
+                detailRow.adjustment
+                  ? () => confirmDeleteAdjustment(detailRow.adjustment!)
+                  : onDeleteDeviceEntry && (detailRow.type === "device-charge" || detailRow.type === "device-payment")
+                    ? () => {
+                        if (onDeleteDeviceEntry(detailRow.id)) {
+                          setSheet(null);
+                          setDetailRowId(null);
+                        }
+                      }
+                    : undefined
+              }
+            />
+          ) : (
+            <BalanceForm
+              partyName={party.name}
+              partyKind={partyKind}
+              devices={
+                isClient && onMoveAdjustmentToDevice
+                  ? devices.map((d) => ({ id: d.id, name: d.name, email: d.expectedEmail || d.starlinkAccountEmail || undefined }))
+                  : []
+              }
+              initial={{
+                direction: detailRow.adjustment!.direction,
+                amount: detailRow.adjustment!.amount,
+                currencyCode: detailRow.adjustment!.currencyCode,
+                date: detailRow.adjustment!.date,
+                note: detailRow.adjustment!.note,
+                cashMoved: detailRow.adjustment!.cashMoved,
+                paymentMethod: detailRow.adjustment!.paymentMethod,
+                accountId: detailRow.adjustment!.accountId,
+              }}
+              proofKey={detailRow.adjustment!.id}
+              submitLabel="حفظ التعديل"
+              onCancel={() => setSheet("detail")}
+              onSubmit={(input) => {
+                const { deviceId, proofDataUrl, ...rest } = input;
+                const id = detailRow.adjustment!.id;
+                const error =
+                  deviceId && onMoveAdjustmentToDevice ? onMoveAdjustmentToDevice(id, deviceId, rest) : onUpdateAdjustment?.(id, rest, proofDataUrl) ?? null;
+                if (!error) setSheet(null);
+                return error;
+              }}
+            />
+          )}
+        </PartySheet>
+      )}
+
+      {sheet === "notes" && (
+        <PartySheet title={`ملاحظات - ${party.name}`} onClose={() => setSheet(null)}>
+          <ClientNotesPanel clientId={party.id} onCountChange={setNoteCount} />
+        </PartySheet>
+      )}
+
+      {sheet === "whatsapp" && (
+        <PartySheet title={`واتساب - ${party.name}`} onClose={() => setSheet(null)}>
+          <div className="party-sheet-options">
+            <button type="button" className="party-sheet-option" onClick={() => openWhatsApp()}>
+              <span aria-hidden="true">💬</span>
+              <span>
+                <strong>مراسلة فقط</strong>
+                <small>فتح المحادثة بدون رسالة جاهزة</small>
+              </span>
+            </button>
+            {isClient && (
+              <button
+                type="button"
+                className="party-sheet-option"
+                onClick={() => openWhatsApp(buildStoreDebtReminderMessage(party.name, remainingByCurrency))}
+              >
+                <span aria-hidden="true">🔔</span>
+                <span>
+                  <strong>تذكير بالدين</strong>
+                  <small>{hasDue ? "رسالة بالمبلغ المتبقي وطرق الدفع" : "لا يوجد دين حاليًا - سيُرسل إشعار بعدم وجود مستحق"}</small>
+                </span>
+              </button>
+            )}
+            <button
+              type="button"
+              className="party-sheet-option"
+              onClick={() => openWhatsApp(buildStoreStatementMessage(party.name, totals, partyKind))}
+            >
+              <span aria-hidden="true">📄</span>
+              <span>
+                <strong>إرسال كشف الحساب</strong>
+                <small>الفواتير والمدفوع والمتبقي لكل عملة</small>
+              </span>
+            </button>
+          </div>
+        </PartySheet>
+      )}
+    </li>
+  );
+}
+
+/** A bottom sheet (fixed to the viewport, never inside the card) - so opening it never makes the
+ * card itself any taller. */
+export function PartySheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div className="party-sheet-backdrop" role="presentation" onClick={onClose}>
+      <div className="party-sheet" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
+        <div className="party-sheet-head">
+          <strong>{title}</strong>
+          <button type="button" className="dialog-close" onClick={onClose} aria-label="إغلاق">
+            ×
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function todayDateInputValue(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+interface BalanceFormProps {
+  partyName: string;
+  partyKind: PartyKind;
+  /** A client's devices - a payment ("له") can then be recorded against one of them. */
+  devices: { id: string; name: string; email?: string }[];
+  /** Editing an existing entry: its current values. */
+  initial?: Omit<BalanceFormInput, "deviceId">;
+  /** Editing: the adjustment id, so an already-saved 📷 إثبات can be shown/replaced. */
+  proofKey?: string;
+  submitLabel?: string;
+  onCancel: () => void;
+  /** Returns an error message, or null on success. */
+  onSubmit: (input: BalanceFormInput) => string | null;
+}
+
+export interface BalanceFormInput {
+  direction: PartyAdjustmentDirection;
+  amount: number;
+  currencyCode: string;
+  date: string;
+  note?: string;
+  cashMoved?: boolean;
+  /** Set when the payment is for one specific device - recorded in that device's ledger. */
+  deviceId?: string;
+  paymentMethod?: PaymentMethod;
+  /** The bank / wallet the money moved through («حسابي»); its balance follows. Mutually exclusive
+   * with cashMoved: money is cash, or one app, or didn't move. */
+  accountId?: string;
+  /** 📷 إثبات الدفع (a new/changed image) - saved by the page keyed by the new adjustment id
+   * (paymentProofStore). UI-only, never stored on the adjustment itself. */
+  proofDataUrl?: string;
+}
+
+/** The usual case is real cash: a client paying us ("له") or us paying a supplier ("عليه"). */
+function defaultCashMoved(partyKind: PartyKind, direction: PartyAdjustmentDirection): boolean {
+  return partyKind === "client" ? direction === "weOwe" : direction === "owesUs";
+}
+
+function cashMovedLabel(partyKind: PartyKind, direction: PartyAdjustmentDirection): string {
+  const kind = partyAdjustmentCashKind(partyKind, direction);
+  const who = partyKind === "client" ? "الزبون" : "المورد";
+  return kind === "in" ? `💵 استلمناها نقدًا من ${who} - تدخل الكاش` : `💵 دفعناها نقدًا إلى ${who} - تخرج من الكاش`;
+}
+
+function BalanceForm({ partyName, partyKind, devices, initial, proofKey, submitLabel = "حفظ الرصيد", onCancel, onSubmit }: BalanceFormProps) {
+  const [direction, setDirectionState] = useState<PartyAdjustmentDirection>(
+    initial?.direction ?? (partyKind === "client" && devices.length > 0 ? "weOwe" : "owesUs"),
+  );
+  // "" = a general balance entry (store); otherwise the device this payment is for.
+  const [deviceId, setDeviceId] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(initial?.paymentMethod ?? "cash");
+  // Where the money moved: "none" (a balance entry only), "cash" (الكاش), or a bank/wallet id from
+  // «حسابي» (its balance follows the payment, via partyFlows). His Oct 2026 choice.
+  const [moneyAccounts] = useState(() => loadAccountsBook().accounts);
+  const [source, setSource] = useState<string>(
+    initial?.accountId ? initial.accountId : initial ? (initial.cashMoved ? "cash" : "none") : defaultCashMoved(partyKind, direction) ? "cash" : "none",
+  );
+  function setDirection(next: PartyAdjustmentDirection) {
+    setDirectionState(next);
+    setSource(defaultCashMoved(partyKind, next) ? "cash" : "none");
+  }
+  // A payment: money from the client ("له") or to the supplier ("عليه") - it has a channel.
+  const isPayment = partyKind === "client" ? direction === "weOwe" : direction === "owesUs";
+  const canPickDevice = partyKind === "client" && direction === "weOwe" && devices.length > 0;
+  // 🟠 أوقية / سيفا (كاش) / دولار / فرانك (أورانج / نيتا) - فرانك is saved as سيفا ÷5, and a saved
+  // سيفا payment by أورانج / نيتا opens back in فرانك (payCurrency.ts).
+  const [initialPay] = useState(() =>
+    initial ? payFormOf({ currency: initial.currencyCode as LedgerCurrency, amount: initial.amount, paymentMethod: initial.paymentMethod }) : undefined,
+  );
+  const [amount, setAmount] = useState(initialPay ? String(initialPay.amount) : "");
+  const [payCurrency, setPayCurrency] = useState<PayCurrency>(initialPay?.currency ?? "MRU");
+  const currencyCode: LedgerCurrency = payCurrency === "FRANC" ? "SIFA" : payCurrency;
+  // An older payment keeps its own method listed - except a فرانك app, which only belongs to فرانك.
+  const keepMethod = initialPay?.currency === "FRANC" ? undefined : initial?.paymentMethod;
+  const method = fitPayMethod(payCurrency, paymentMethod, keepMethod);
+  const [date, setDate] = useState(initial?.date ?? todayDateInputValue());
+  const [note, setNote] = useState(initial?.note ?? "");
+  const [error, setError] = useState<string | null>(null);
+  // 📷 إثبات دفع (اختياري) - يظهر عند الدفع عبر تطبيق بنكي، يُحفظ بمفتاح معرّف العملية.
+  const [proofDraft, setProofDraft] = useState<string | null>(null);
+  const [savedProof, setSavedProof] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    let cancelled = false;
+    if (proofKey) void getProof(proofKey).then((d) => !cancelled && setSavedProof(d));
+    return () => {
+      cancelled = true;
+    };
+  }, [proofKey]);
+  // An app only holds its own currency (بنكيلي = أوقية فقط - his Oct 2026 rule): only apps in the
+  // chosen currency are offered; a picked app that no longer matches falls back to «لم يتحرك».
+  // 🟠 أورانج / نيتا hold فرانك: offered only with «فرانك», never with «سيفا (كاش)».
+  const currencyAccounts = moneyAccounts.filter((a) => a.currencyCode === currencyCode && isFrancAccount(a) === (payCurrency === "FRANC"));
+  const effectiveSource = source === "none" || source === "cash" || currencyAccounts.some((a) => a.id === source) ? source : "none";
+  const viaAccount = currencyAccounts.some((a) => a.id === effectiveSource);
+
+  async function pickProof(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    try {
+      setProofDraft(await resizeImageToDataUrl(file, 1280, 0.72));
+    } catch {
+      setError("تعذرت قراءة الصورة - جرّب صورة أخرى");
+    }
+  }
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    const stored = toLedgerPayment(payCurrency, Number(amount));
+    setError(
+      onSubmit({
+        direction,
+        amount: stored.amount,
+        currencyCode: stored.currency,
+        date,
+        note,
+        cashMoved: effectiveSource === "cash",
+        accountId: viaAccount ? effectiveSource : undefined,
+        deviceId: canPickDevice && deviceId ? deviceId : undefined,
+        paymentMethod: isPayment ? method : undefined,
+        proofDataUrl: viaAccount && proofDraft ? proofDraft : undefined,
+      }),
+    );
+  }
+
+  return (
+    <form className="party-balance-form" onSubmit={submit}>
+      <div className="party-direction">
+        <button
+          type="button"
+          className={`party-direction-btn party-direction-owes${direction === "owesUs" ? " party-direction-active" : ""}`}
+          onClick={() => setDirection("owesUs")}
+          aria-pressed={direction === "owesUs"}
+        >
+          <strong>عليه</strong>
+          <small>{partyName} مدين لنا</small>
+        </button>
+        <button
+          type="button"
+          className={`party-direction-btn party-direction-we${direction === "weOwe" ? " party-direction-active" : ""}`}
+          onClick={() => setDirection("weOwe")}
+          aria-pressed={direction === "weOwe"}
+        >
+          <strong>له</strong>
+          <small>دفعة منه أو مبلغ لصالحه</small>
+        </button>
+      </div>
+      {canPickDevice && (
+        <fieldset className="pay-target">
+          <legend>الدفعة عن</legend>
+          <div className="pay-target-options">
+            <button
+              type="button"
+              className={`pay-target-option${deviceId === "" ? " pay-target-active" : ""}`}
+              aria-pressed={deviceId === ""}
+              onClick={() => setDeviceId("")}
+            >
+              <strong>رصيد عام</strong>
+              <small>حساب المتجر</small>
+            </button>
+            {devices.map((device) => (
+              <button
+                key={device.id}
+                type="button"
+                className={`pay-target-option${deviceId === device.id ? " pay-target-active" : ""}`}
+                aria-pressed={deviceId === device.id}
+                onClick={() => setDeviceId(device.id)}
+              >
+                <strong>📡 {device.name}</strong>
+                {device.email && <small dir="ltr">{device.email}</small>}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+      )}
+      <div className="party-balance-row">
+        <input
+          className="search-input"
+          type="text" inputMode="decimal"
+          min="0"
+          step="0.01"
+          dir="ltr"
+          placeholder={payCurrency === "FRANC" ? "المبلغ بالفرانك" : "المبلغ"}
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          autoFocus
+        />
+        <select className="search-input" value={payCurrency} onChange={(e) => setPayCurrency(e.target.value as PayCurrency)}>
+          {PAY_CURRENCIES.map((c) => (
+            <option key={c} value={c}>
+              {PAY_CURRENCY_LABELS[c]}
+            </option>
+          ))}
+        </select>
+      </div>
+      {payCurrency === "FRANC" && <FrancHint amount={amount} />}
+      {isPayment && (
+        <fieldset className="pay-methods">
+          <legend>طريقة الدفع</legend>
+          <div className="pay-method-options">
+            {payMethodsFor(payCurrency, keepMethod).map((m) => (
+              <button
+                key={m}
+                type="button"
+                className={`pay-method pay-method-${m}${method === m ? " pay-method-active" : ""}`}
+                aria-pressed={method === m}
+                onClick={() => setPaymentMethod(m)}
+              >
+                {PAYMENT_METHOD_LABELS[m]}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+      )}
+      <DateInput className="search-input"  value={date} onChange={(e) => setDate(e.target.value)} />
+      <input className="search-input" placeholder="ملاحظة (اختياري) - مثال: رصيد افتتاحي" value={note} onChange={(e) => setNote(e.target.value)} />
+      <label className="form-field party-source-field">
+        <span>من أين تحرّك المال؟</span>
+        <select className="search-input" value={effectiveSource} onChange={(e) => setSource(e.target.value)}>
+          <option value="none">لم يتحرك المال (رصيد فقط)</option>
+          <option value="cash">{cashMovedLabel(partyKind, direction)}</option>
+          {currencyAccounts.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.icon ? `${a.icon} ` : ""}
+              {a.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      {viaAccount && (
+        <div className="ledger-proof-field">
+          {proofDraft || savedProof ? (
+            <>
+              <img src={proofDraft ?? savedProof} alt="صورة إثبات الدفع" className="ledger-proof-thumb" />
+              <span>📷 {proofDraft ? "صورة جديدة - تُحفظ مع العملية" : "إثبات محفوظ"}</span>
+              <label className="text-action">
+                تغيير
+                <input type="file" accept="image/*" hidden onChange={pickProof} />
+              </label>
+            </>
+          ) : (
+            <label className="ledger-proof-pick">
+              📷 إرفاق صورة إثبات الدفع (اختياري)
+              <input type="file" accept="image/*" hidden onChange={pickProof} />
+            </label>
+          )}
+        </div>
+      )}
+      {error && <div className="account-card-alert ledger-form-error">{error}</div>}
+      <div className="settings-actions">
+        <button className="dialog-primary" type="submit" disabled={!amount}>
+          {deviceId ? "حفظ كدفعة على الجهاز" : submitLabel}
+        </button>
+        <button type="button" className="text-action" onClick={onCancel}>
+          إلغاء
+        </button>
+      </div>
+    </form>
+  );
+}
+
+interface PartyFormProps {
+  initial?: { id?: string; name: string; phone?: string; creditLimit?: number; defaultCurrency?: LedgerCurrency };
+  submitLabel: string;
+  namePlaceholder: string;
+  /** Client-only (see Client.creditLimit's own doc) - a credit ceiling only ever applies to money a
+   * client can owe US. */
+  showCreditLimit?: boolean;
+  onSubmit: (input: CreateClientInput) => void;
+  onCancel: () => void;
+  onDelete?: () => void;
+  /** The same list (clients or suppliers) to warn about a repeated name or phone. */
+  existing?: { id: string; name: string; phone?: string }[];
+  selfId?: string;
+}
+
+function PartyForm({ initial, submitLabel, namePlaceholder, showCreditLimit, onSubmit, onCancel, onDelete, existing = [], selfId }: PartyFormProps) {
+  const [name, setName] = useState(initial?.name ?? "");
+  const [phoneDialCode, setPhoneDialCode] = useState(() => splitPhoneNumber(initial?.phone).dialCode);
+  const [phoneLocalNumber, setPhoneLocalNumber] = useState(() => splitPhoneNumber(initial?.phone).localNumber);
+  const [creditLimit, setCreditLimit] = useState(initial?.creditLimit ? String(initial.creditLimit) : "");
+  // 💱 A customer's currency (clients only): automatic, or fixed by him (partyCurrency.ts).
+  const [defaultCurrency, setDefaultCurrency] = useState<LedgerCurrency | undefined>(initial?.defaultCurrency);
+  const autoCurrency = useMemo(
+    () => (showCreditLimit && initial?.id ? autoCurrencyOf("client", initial.id, loadPartyCurrencyContext()) : undefined),
+    [showCreditLimit, initial?.id],
+  );
+
+  const duplicates = useMemo(
+    () => findClientDuplicates({ id: selfId, name, phone: combinePhoneNumber(phoneDialCode, phoneLocalNumber) }, existing),
+    [selfId, name, phoneDialCode, phoneLocalNumber, existing],
+  );
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!name.trim()) return;
+    if (duplicates.length > 0 && !window.confirm(duplicateQuestion(duplicates))) return;
+    onSubmit({
+      name,
+      phone: combinePhoneNumber(phoneDialCode, phoneLocalNumber) || undefined,
+      creditLimit: showCreditLimit && creditLimit ? Number(creditLimit) : undefined,
+      ...(showCreditLimit ? { defaultCurrency } : {}),
+    });
+  }
+
+  return (
+    <form className="auth-form store-item-form" onSubmit={submit}>
+      <input className="search-input" placeholder={namePlaceholder} value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+      <div className="phone-input-row">
+        <select
+          className="phone-country-select"
+          dir="ltr"
+          value={phoneDialCode}
+          onChange={(e) => setPhoneDialCode(e.target.value)}
+          aria-label="رمز الدولة"
+        >
+          {PHONE_COUNTRY_CODES.map((c) => (
+            <option key={c.dialCode} value={c.dialCode}>{c.country} {c.dialCode}</option>
+          ))}
+        </select>
+        <input
+          className="phone-local-input"
+          dir="ltr"
+          type="tel"
+          placeholder="رقم الهاتف (اختياري)"
+          value={phoneLocalNumber}
+          onChange={(e) => setPhoneLocalNumber(e.target.value)}
+        />
+      </div>
+      <DuplicateWarning hits={duplicates} />
+      {showCreditLimit && (
+        <input
+          className="search-input"
+          type="text" inputMode="decimal"
+          min="0"
+          step="0.01"
+          dir="ltr"
+          placeholder="سقف الدين (اختياري)"
+          value={creditLimit}
+          onChange={(e) => setCreditLimit(e.target.value)}
+        />
+      )}
+      {showCreditLimit && <DefaultCurrencyField value={defaultCurrency} auto={autoCurrency} onChange={setDefaultCurrency} />}
+      <div className="settings-actions">
+        <button className="dialog-primary" type="submit" disabled={!name.trim()}>
+          {submitLabel}
+        </button>
+        <button type="button" className="text-action" onClick={onCancel}>
+          إلغاء
+        </button>
+      </div>
+      {onDelete && (
+        <button type="button" className="dialog-danger party-delete" onClick={onDelete}>
+          🗑 حذف الزبون
+        </button>
+      )}
+    </form>
+  );
+}
+
+/** Full details of one statement line, with the balance before and after it. Only manual balance
+ * entries are edited here - invoices belong to the store, device operations to the device ledger. */
+function StatementRowDetail({
+  row,
+  kindLabel,
+  isClient,
+  onEdit,
+  onDelete,
+}: {
+  row: PartyStatementRow;
+  kindLabel: string;
+  isClient: boolean;
+  onEdit?: () => void;
+  onDelete?: () => void;
+}) {
+  const adj = row.adjustment;
+  const before = row.balanceAfter - row.delta;
+  const cur = currencyLabel(row.currencyCode);
+  const balanceWord = (v: number) => (v > EPSILON ? (isClient ? "عليه" : "له") : v < -EPSILON ? (isClient ? "له" : "لنا عنده") : "صفر");
+  const details: [string, string][] = [
+    ["النوع", kindLabel],
+    ["التاريخ", row.date],
+    ["المبلغ", `${formatAmount(row.amount)} ${cur}`],
+  ];
+  if (row.deviceName) details.push(["الجهاز", row.deviceName]);
+  if (adj?.paymentMethod) details.push(["طريقة الدفع", methodLabel(adj.paymentMethod, adj.currencyCode, adj.amount)]);
+  if (adj) details.push(["الكاش", adj.cashMoved ? "دخلت/خرجت من الكاش" : "لم تمر بالكاش"]);
+  if (row.type === "invoice") details.push(["المدفوع من الفاتورة", `${formatAmount(row.paid)} ${cur}`]);
+  if (row.note) details.push(["ملاحظة", row.note]);
+  if (adj) details.push(["سُجّلت في", adj.createdAt.slice(0, 16).replace("T", " ")]);
+
+  return (
+    <div className="statement-detail">
+      <div className="statement-balance-flow">
+        <div className="statement-balance-box">
+          <small>الرصيد قبل</small>
+          <strong>
+            <bdi dir="ltr">{formatAmount(Math.abs(before))}</bdi> {cur}
+          </strong>
+          <small>{balanceWord(before)}</small>
+        </div>
+        <div className={`statement-balance-delta ${row.delta < 0 ? "statement-delta-down" : "statement-delta-up"}`}>
+          <bdi dir="ltr">
+            {row.delta < 0 ? "-" : "+"}
+            {formatAmount(Math.abs(row.delta))}
+          </bdi>
+          <span aria-hidden="true">←</span>
+        </div>
+        <div className="statement-balance-box statement-balance-after">
+          <small>الرصيد بعد</small>
+          <strong>
+            <bdi dir="ltr">{formatAmount(Math.abs(row.balanceAfter))}</bdi> {cur}
+          </strong>
+          <small>{balanceWord(row.balanceAfter)}</small>
+        </div>
+      </div>
+      <dl className="statement-detail-list">
+        {details.map(([label, value]) => (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+      {!adj && (
+        <p className="settings-hint">
+          {row.type === "device-charge" || row.type === "device-payment"
+            ? onEdit
+              ? "هذه عملية على الجهاز - «تعديل» يفتحها في نافذة عمليات الجهاز نفسها."
+              : "هذه عملية على الجهاز - تُعدَّل من سجل الجهاز في الصفحة الرئيسية."
+            : "هذه فاتورة من المتجر - تُعدَّل أو تُرجَع من قسم الفواتير في المتجر."}
+        </p>
+      )}
+      {(onEdit || onDelete) && (
+        <div className="statement-detail-actions">
+          {onEdit && (
+            <button type="button" className="dialog-primary" onClick={onEdit}>
+              ✎ تعديل
+            </button>
+          )}
+          {onDelete && (
+            <button type="button" className="dialog-danger" onClick={onDelete}>
+              🗑 حذف العملية
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

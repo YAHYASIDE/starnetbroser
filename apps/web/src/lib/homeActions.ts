@@ -1,0 +1,46 @@
+/**
+ * The "المزيد" menu (BottomNav, rendered once in the layout) triggers actions that live on the
+ * home screen - add a device, sync now, the clients overview - and shows the reminders count the
+ * home screen computes. On "/" it talks to HomeView through window events; from any other page
+ * it navigates to "/?action=..." and HomeView runs the action once on arrival.
+ */
+
+export type HomeAction = "add-account" | "sync" | "clients";
+
+const HOME_ACTIONS: HomeAction[] = ["add-account", "sync", "clients"];
+
+/** "💵 دفعة من زبون" (the clients page): the home screen opens that device's ledger for a payment. */
+export function homePaymentHref(accountId: string): string {
+  return `/?pay=${encodeURIComponent(accountId)}`;
+}
+
+export function parseHomePayment(search: string): string | null {
+  const value = new URLSearchParams(search).get("pay");
+  return value?.trim() ? value.trim() : null;
+}
+
+export const HOME_ACTION_EVENT = "starnet:home-action";
+/** A notification or shortcut asked the open home screen to show a device ("?q=...") - same
+ * pathname, so no navigation happens; HomeView applies the search itself (detail: the query). */
+export const HOME_SEARCH_EVENT = "starnet:home-search";
+export const REMINDER_COUNT_EVENT = "starnet:reminder-count";
+
+export function homeActionHref(action: HomeAction): string {
+  return `/?action=${action}`;
+}
+
+/** The action carried by a "?action=..." query string, or null. */
+export function parseHomeAction(search: string): HomeAction | null {
+  const value = new URLSearchParams(search).get("action");
+  return HOME_ACTIONS.includes(value as HomeAction) ? (value as HomeAction) : null;
+}
+
+/** The home screen with its device search already filled in (links from الأدوات). */
+export function homeSearchHref(query: string): string {
+  return `/?q=${encodeURIComponent(query)}`;
+}
+
+export function parseHomeSearch(search: string): string | null {
+  const value = new URLSearchParams(search).get("q");
+  return value?.trim() ? value.trim() : null;
+}
