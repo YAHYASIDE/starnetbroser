@@ -73,6 +73,8 @@ export interface Remittance {
   /** A currency the registry had no rate for (e.g. the dinar): its rate was taken from this
    * transfer's own, so its profit is the commission alone (no exchange difference is known). */
   rateFromTransfer?: string;
+  /** 💱 The currencies whose locked rate is his average purchase cost. */
+  costBasis?: string[];
   note?: string;
 }
 
@@ -96,6 +98,9 @@ export interface RemittanceInput {
   /** Paid now; undefined = all of it. */
   paidNow?: number;
   rates: RatesFromUsd;
+  /** 💱 أوقية per 1 unit he paid for each currency (exchanges.ts `averageCosts`): the profit is
+   * measured against it instead of the registry rate (his choice «مقابل متوسط شرائي»). */
+  costs?: Record<string, number>;
   note?: string;
 }
 
@@ -119,22 +124,36 @@ export function remittanceFigures(input: Pick<RemittanceInput, "amount" | "commi
 /** The day's registry rates locked on a transfer. A currency the registry has no rate for (e.g. the
  * dinar before its rate is added) takes it from the transfer's own rate - its profit is then the
  * commission alone. */
-export function lockRates(inCurrency: string, outCurrency: string, rate: number, registry: RatesFromUsd): { rates: Record<string, number>; rateFromTransfer?: string } {
+export function lockRates(
+  inCurrency: string,
+  outCurrency: string,
+  rate: number,
+  registry: RatesFromUsd,
+  costs: Record<string, number> = {},
+): { rates: Record<string, number>; rateFromTransfer?: string; costBasis?: string[] } {
   const rates: Record<string, number> = {};
   for (const code of new Set(["MRU", inCurrency, outCurrency])) {
     const r = code === "USD" ? 1 : registry[code];
     if (r) rates[code] = r;
   }
-  if (!(rate > 0) || inCurrency === outCurrency) return { rates };
+  // 💱 What he really paid for the currency wins over the registry (1 unit = cost أوقية).
+  const costBasis: string[] = [];
+  for (const code of new Set([inCurrency, outCurrency]))
+    if (code !== "MRU" && costs[code]! > 0 && rates.MRU) {
+      rates[code] = rates.MRU / costs[code]!;
+      costBasis.push(code);
+    }
+  const withCost = <T extends object>(r: T) => (costBasis.length ? { ...r, costBasis } : r);
+  if (!(rate > 0) || inCurrency === outCurrency) return withCost({ rates });
   if (!rates[inCurrency] && rates[outCurrency]) {
     rates[inCurrency] = rates[outCurrency]! / rate;
-    return { rates, rateFromTransfer: inCurrency };
+    return withCost({ rates, rateFromTransfer: inCurrency });
   }
   if (!rates[outCurrency] && rates[inCurrency]) {
     rates[outCurrency] = rates[inCurrency]! * rate;
-    return { rates, rateFromTransfer: outCurrency };
+    return withCost({ rates, rateFromTransfer: outCurrency });
   }
-  return { rates };
+  return withCost({ rates });
 }
 
 /** The rate offered: sent units per 1 received unit, from the registry (undefined if one is missing). */
@@ -195,7 +214,7 @@ export function createRemittance(list: RemittanceList, input: RemittanceInput, n
   if (!(figures.sent > 0)) return { ok: false, message: "العمولة أكبر من المبلغ" };
   const paidNow = input.paidNow === undefined ? figures.owed : round(input.paidNow);
   if (paidNow < 0 || paidNow > figures.owed + 0.005) return { ok: false, message: "المدفوع أكبر مما عليه" };
-  const { rates, rateFromTransfer } = lockRates(input.inCurrency, input.outCurrency, input.rate, input.rates);
+  const { rates, rateFromTransfer, costBasis } = lockRates(input.inCurrency, input.outCurrency, input.rate, input.rates, input.costs);
   const remittance: Remittance = {
     id: newId("rmt"),
     date: input.date,
@@ -220,6 +239,7 @@ export function createRemittance(list: RemittanceList, input: RemittanceInput, n
     payments: [],
     rates,
     ...(rateFromTransfer ? { rateFromTransfer } : {}),
+    ...(costBasis ? { costBasis } : {}),
     ...(input.note?.trim() ? { note: input.note.trim() } : {}),
   };
   return { ok: true, list: [...list, remittance], remittance };

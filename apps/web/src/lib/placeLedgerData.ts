@@ -20,6 +20,7 @@ import { loadPartyAdjustments } from "./partyBalanceStore";
 import { loadPersonalExpenses } from "./personalExpenses";
 import { buildPlaceLedger, type PlaceLedger } from "./placeLedger";
 import { loadRemittances } from "./remittances";
+import { loadExchanges } from "./exchanges";
 import { loadRepresentativeStore, loadRepSettlements } from "./repStore";
 import { loadCardTopUps } from "./starlinkDebt";
 import { loadSupplierStore } from "./supplierStore";
@@ -41,6 +42,7 @@ function loadMovements(devices: StarlinkAccountSummary[], book: AccountsBook): M
     expenses: loadPersonalExpenses(),
     debts: loadDebtBook(),
     remittances: loadRemittances(),
+    exchanges: loadExchanges(),
     clientOf: (id) => devices.find((a) => a.id === id)?.clientId,
     deviceName: (id) => devices.find((a) => a.id === id)?.name,
     partyName: (kind, id) => (kind === "client" ? getClient(clients, id)?.name : kind === "supplier" ? suppliers[id]?.name : reps[id]?.name),

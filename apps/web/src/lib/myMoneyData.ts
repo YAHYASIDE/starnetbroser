@@ -7,6 +7,7 @@
 
 import { isFrancAccount } from "./payCurrency";
 import { loadRemittances, remittanceDebtors, remittanceFlows } from "./remittances";
+import { exchangeFlows, loadExchanges } from "./exchanges";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { listAccounts } from "./apiClient";
 import { computeCashBalanceByCurrency, loadCashEntries } from "./cashStore";
@@ -80,6 +81,8 @@ export function loadAccountFlows(ledger: LedgerByAccount, account: MoneyAccount,
     ...cardMovementFlows(loadCardTopUps()),
     // 💸 «تحويل الأموال»: money in from the customer, out to the beneficiary.
     ...remittanceFlows(loadRemittances()),
+    // 💱 «شراء عملة»: paid out of one, received into another.
+    ...exchangeFlows(loadExchanges()),
   ];
 }
 

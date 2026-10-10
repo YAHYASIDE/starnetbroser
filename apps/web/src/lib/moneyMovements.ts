@@ -25,6 +25,7 @@
  */
 
 import type { RemittanceList } from "./remittances";
+import { exchangeLabel, type ExchangeList } from "./exchanges";
 import type { CashEntryList } from "./cashStore";
 import { invoiceTotal, type InvoiceList } from "./invoiceStore";
 import { PAYMENT_METHOD_LABELS, type LedgerByAccount, type LedgerEntry, type PaymentMethod } from "./ledgerStore";
@@ -50,7 +51,8 @@ export type MovementKind =
   | "owner-in"
   | "other-in"
   | "correction"
-  | "remittance";
+  | "remittance"
+  | "exchange";
 
 export const MOVEMENT_KINDS: { kind: MovementKind; label: string; icon: string }[] = [
   { kind: "sale-paid", label: "إيراد مقبوض عند البيع", icon: "🛍️" },
@@ -67,6 +69,7 @@ export const MOVEMENT_KINDS: { kind: MovementKind; label: string; icon: string }
   { kind: "other-in", label: "قيد «داخل» يدوي", icon: "📥" },
   { kind: "correction", label: "تصحيح رصيد", icon: "✏️" },
   { kind: "remittance", label: "تحويل أموال (حوالة)", icon: "💸" },
+  { kind: "exchange", label: "شراء عملة (صرف)", icon: "💱" },
 ];
 
 export function movementKindLabel(kind: MovementKind): string {
@@ -117,6 +120,8 @@ export interface MovementInput {
   debts: DebtBook;
   /** 💸 «تحويل الأموال» (remittances.ts): money in from the customer, out to the beneficiary. */
   remittances?: RemittanceList;
+  /** 💱 «شراء عملة» (exchanges.ts): paid out of one place, received into another. */
+  exchanges?: ExchangeList;
   /** The customer a device belongs to (collections are judged against the customer's whole debt). */
   clientOf?: (accountId: string) => string | undefined;
   deviceName?: (accountId: string) => string | undefined;
@@ -286,6 +291,9 @@ export function buildMovements(input: MovementInput): Movement[] {
       case "remittance":
         out.push({ ...base, id, kind: "remittance", ref, label });
         break;
+      case "exchange":
+        out.push({ ...base, id, kind: "exchange", ref, label });
+        break;
       case "closing":
       case "cash-reset":
         out.push({ ...base, id, kind: "correction", ref, label });
@@ -339,6 +347,13 @@ export function buildMovements(input: MovementInput): Movement[] {
     if (r.outAccountId !== CASH_ACCOUNT_ID) out.push({ id: `${r.outAccountId}:remittance-out:${r.id}`, kind: "remittance", place: r.outAccountId, direction: "out", amount: r.sent, currency: r.outCurrency, date: r.date, createdAt: r.createdAt, ref, label });
     for (const p of r.payments)
       if (p.accountId !== CASH_ACCOUNT_ID) out.push({ id: `${p.accountId}:remittance-pay:${p.id}`, kind: "remittance", place: p.accountId, direction: "in", amount: p.amount, currency: r.inCurrency, date: p.date, createdAt: p.createdAt, ref, label: `💸 تسديد ${r.client}` });
+  }
+  // 💱 Currency purchases: the app sides (the الكاش sides are their cash entries, above).
+  for (const e of input.exchanges ?? []) {
+    const ref = { kind: "exchange", id: e.id };
+    const label = exchangeLabel(e);
+    if (e.fromAccountId !== CASH_ACCOUNT_ID) out.push({ id: `${e.fromAccountId}:exchange-out:${e.id}`, kind: "exchange", place: e.fromAccountId, direction: "out", amount: e.paid, currency: e.fromCurrency, date: e.date, createdAt: e.createdAt, ref, label });
+    if (e.toAccountId !== CASH_ACCOUNT_ID) out.push({ id: `${e.toAccountId}:exchange-in:${e.id}`, kind: "exchange", place: e.toAccountId, direction: "in", amount: e.received, currency: e.toCurrency, date: e.date, createdAt: e.createdAt, ref, label });
   }
   for (const t of input.book.transfers ?? []) {
     // The الكاش side is its cash entry (above); the app sides come from the transfer.

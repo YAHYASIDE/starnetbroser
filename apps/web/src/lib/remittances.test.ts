@@ -192,3 +192,19 @@ describe("🇩🇿 the Algerian dinar (cash and transfers)", () => {
     expect(remittanceProfitMru(r.remittance)).toBeCloseTo(10000, 2);
   });
 });
+
+describe("💱 profit against his average purchase cost", () => {
+  it("سيفا bought at 3,550 / 1,000, sold at 3,600: the exchange gain counts against the cost, not the registry", () => {
+    // He receives 36,000 أوقية, sends 10,000 سيفا (rate 1/3.6), no commission.
+    const base = input({ inCurrency: "MRU", amount: 36000, commissionMode: "fixed", commissionValue: 0, outAccountId: "orange", outCurrency: "SIFA", rate: 1 / 3.6 });
+    const vsRegistry = createRemittance([], base, NOW);
+    const vsCost = createRemittance([], { ...base, costs: { SIFA: 3.55 } }, NOW);
+    if (!vsRegistry.ok || !vsCost.ok) throw new Error();
+    // registry: 600 سيفا per $ & 400 أوقية per $ → 10,000 سيفا = 6,666.67 أوقية → profit 29,333.33
+    expect(remittanceProfitMru(vsRegistry.remittance)).toBeCloseTo(29333.33, 2);
+    // cost: 10,000 سيفا cost 35,500 أوقية → profit 500
+    expect(remittanceProfitMru(vsCost.remittance)).toBeCloseTo(500, 2);
+    expect(vsCost.remittance.costBasis).toEqual(["SIFA"]);
+    expect(vsRegistry.remittance.costBasis).toBeUndefined();
+  });
+});

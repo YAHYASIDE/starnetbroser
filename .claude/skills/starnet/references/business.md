@@ -974,3 +974,13 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - 🔔 «تنبيه الرصيد» per place + currency (lib/balanceAlerts.ts, `starnet_balance_alerts_v1`, floor kept in the
   place's currency - typed in فرانك for أورانج / نيتا): below it the phone is told once per crossing
   (`notifyPhone`, from «حسابي» and when the home screen loads the devices) and the line shows «⚠️ منخفض».
+
+## 💱 «شراء عملة» + profit against his average purchase cost (Oct 10 2026)
+
+- lib/exchanges.ts (`starnet_exchanges_v1`): «دفعت من» place + amount, «استلمت في» place + amount (أورانج /
+  نيتا typed in فرانك), seller, note. Both sides move (flows for apps, cash entries `sourceKind: "exchange"`
+  for الكاش; movement kind «شراء عملة (صرف)»); editable / deletable. Rate shown his way.
+- His choice «مقابل متوسط شرائي»: `averageCost` = purchases paid in أوقية over the last 30 days, weighted
+  (none in 30 days → the latest). A NEW transfer locks that cost as the currency's rate (`lockRates` costs →
+  `costBasis` on the record), so its profit = what he received − what the sent currency really cost him.
+  Older transfers keep their locked rates. Purchases paid in another currency don't count in the average.

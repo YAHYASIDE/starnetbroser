@@ -43,7 +43,7 @@ function parse(value: string): number {
 
 /** An amount as he reads it: فرانك for أورانج / نيتا, the currency's name otherwise (only the
  * number is isolated left-to-right, so the unit stays after it in Arabic). */
-function Money({ amount, currency, account }: { amount: number; currency: string; account?: MoneyAccount }) {
+export function Money({ amount, currency, account }: { amount: number; currency: string; account?: MoneyAccount }) {
   const franc = Boolean(account && isFrancAccount(account));
   return (
     <span className="money-text">
@@ -63,6 +63,8 @@ interface Props {
   onDelete: (id: string) => void;
   onEdit: (id: string, input: RemittanceInput) => string | null;
   onDeletePayment: (id: string, paymentId: string) => void;
+  /** 💱 أوقية per 1 unit he paid (his average purchase cost, exchanges.ts). */
+  costs?: Record<string, number>;
 }
 
 /** 💸 «تحويل الأموال» in «حسابي»: the month's profit and who still owes, a tap opens it all. */
@@ -94,7 +96,7 @@ export function RemittanceSection(props: Props) {
   );
 }
 
-function RemittanceBody({ list, accounts, rates, onSave, onPay, onDelete, onEdit, onDeletePayment }: Props) {
+function RemittanceBody({ list, accounts, rates, costs, onSave, onPay, onDelete, onEdit, onDeletePayment }: Props) {
   const [adding, setAdding] = useState(list.length === 0);
   const [openId, setOpenId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -110,6 +112,7 @@ function RemittanceBody({ list, accounts, rates, onSave, onPay, onDelete, onEdit
         <RemittanceForm
           accounts={accounts}
           rates={rates}
+          costs={costs}
           onCancel={list.length > 0 ? () => setAdding(false) : undefined}
           onSave={(input) => {
             const message = onSave(input);
@@ -205,6 +208,7 @@ function RemittanceBody({ list, accounts, rates, onSave, onPay, onDelete, onEdit
                       <RemittanceForm
                         accounts={accounts}
                         rates={rates}
+                        costs={costs}
                         initial={r}
                         onCancel={() => setEditingId(null)}
                         onSave={(input) => {
@@ -236,7 +240,7 @@ function RemittanceBody({ list, accounts, rates, onSave, onPay, onDelete, onEdit
 }
 
 /** One place money can be: الكاش (in any of its currencies) or a bank / wallet account. */
-function PlacePicker({ label, accounts, value, currency, onChange }: { label: string; accounts: MoneyAccount[]; value: string; currency: string; onChange: (id: string, currency: string) => void }) {
+export function PlacePicker({ label, accounts, value, currency, onChange }: { label: string; accounts: MoneyAccount[]; value: string; currency: string; onChange: (id: string, currency: string) => void }) {
   return (
     <div className="remittance-place">
       <label className="form-field">
@@ -272,7 +276,7 @@ function PlacePicker({ label, accounts, value, currency, onChange }: { label: st
   );
 }
 
-function RemittanceForm({ accounts, rates, onSave, onCancel, initial }: { accounts: MoneyAccount[]; rates: RatesFromUsd; onSave: (input: RemittanceInput) => string | null; onCancel?: () => void; initial?: Remittance }) {
+function RemittanceForm({ accounts, rates, costs, onSave, onCancel, initial }: { accounts: MoneyAccount[]; rates: RatesFromUsd; costs?: Record<string, number>; onSave: (input: RemittanceInput) => string | null; onCancel?: () => void; initial?: Remittance }) {
   // ✎ Editing: the transfer's own figures, in the units he typed them (فرانك for أورانج / نيتا).
   const typedIn = (n: number, id: string) => String(Math.round((isFrancAccount(accounts.find((a) => a.id === id)) ? sifaToFranc(n) : n) * 100) / 100);
   const [client, setClient] = useState(initial?.client ?? "");
@@ -342,7 +346,7 @@ function RemittanceForm({ accounts, rates, onSave, onCancel, initial }: { accoun
       <bdi dir="ltr">{formatAmount(outFranc ? sifaToFranc(n) : n)}</bdi> {outUnit}
     </>
   );
-  const locked = lockRates(inCurrency, outCurrency, rate, rates);
+  const locked = lockRates(inCurrency, outCurrency, rate, rates, costs);
   const preview = amount > 0 && rate > 0 ? remittanceProfitMru({ owed: figures.owed, sent: figures.sent, inCurrency, outCurrency, rates: locked.rates } as Remittance) : undefined;
 
   function submit() {
@@ -364,6 +368,7 @@ function RemittanceForm({ accounts, rates, onSave, onCancel, initial }: { accoun
         rate,
         ...(paidNow !== undefined ? { paidNow } : {}),
         rates,
+        ...(costs ? { costs } : {}),
         note,
       }),
     );
@@ -470,6 +475,15 @@ function RemittanceForm({ accounts, rates, onSave, onCancel, initial }: { accoun
           )}
         </p>
       )}
+      {locked.costBasis?.map((code) => {
+        const q = rateQuote(code, "MRU");
+        const shownCost = q ? costs![code]! * q.block : costs![code]!;
+        return (
+          <p key={code} className="settings-hint">
+            💱 الربح مقابل متوسط شرائك: <bdi dir="ltr">{formatAmount(q?.block ?? 1)}</bdi> {cur(code)} = <bdi dir="ltr">{formatAmount(Math.round(shownCost * 100) / 100)}</bdi> أوقية
+          </p>
+        );
+      })}
       {locked.rateFromTransfer && (
         <p className="settings-hint">
           💡 سعر {cur(locked.rateFromTransfer)} غير مسجّل في «العملات»: ربح هذه الحوالة = العمولة فقط. سجّل سعره هناك ليُحسب فرق الصرف أيضاً.

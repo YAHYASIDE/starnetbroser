@@ -1,6 +1,7 @@
 "use client";
 
 import { loadRemittances, type RemittanceList } from "@/lib/remittances";
+import { loadExchanges, type ExchangeList } from "@/lib/exchanges";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ADD_EXPENSE_ROUTE, parseAddExpense, SAME_PAGE_ROUTE_EVENT } from "@/lib/shortcuts";
@@ -106,12 +107,13 @@ export default function ReportsPage() {
   const [hiddenDays, setHiddenDays] = useState<HiddenProfitDays>({});
   const [allocations, setAllocations] = useState<AllocationsByAccount>({});
   // 💳 «حسابي»'s books for the dashboard's money sources / alerts (read only here).
-  const [moneyBooks, setMoneyBooks] = useState<{ book: AccountsBook; incomes: IncomeList; debts: DebtBook; promises: PaymentPromise[]; remittances: RemittanceList; ownerView: boolean }>({
+  const [moneyBooks, setMoneyBooks] = useState<{ book: AccountsBook; incomes: IncomeList; debts: DebtBook; promises: PaymentPromise[]; remittances: RemittanceList; exchanges: ExchangeList; ownerView: boolean }>({
     book: EMPTY_ACCOUNTS_BOOK,
     incomes: [],
     debts: EMPTY_DEBT_BOOK,
     promises: [],
     remittances: [],
+    exchanges: [],
     ownerView: true,
   });
   const [showExpected, setShowExpected] = useState(false);
@@ -167,7 +169,7 @@ export default function ReportsPage() {
     setProfitReset(loadProfitReset());
     setHiddenDays(loadHiddenProfitDays());
     setAllocations(loadAllocationStore());
-    setMoneyBooks({ book: loadAccountsBook(), incomes: loadIncome(), debts: loadDebtBook(), promises: loadPromises(), remittances: loadRemittances(), ownerView: !isRepWorkspace() });
+    setMoneyBooks({ book: loadAccountsBook(), incomes: loadIncome(), debts: loadDebtBook(), promises: loadPromises(), remittances: loadRemittances(), exchanges: loadExchanges(), ownerView: !isRepWorkspace() });
     // The groups first: setting them up once removes the old expenses (his choice).
     setExpenseCategories(loadExpenseTree());
     setPersonal(loadPersonalExpenses());
@@ -502,6 +504,7 @@ export default function ReportsPage() {
       allocations: allStoredAllocations(allocations),
       promises: moneyBooks.promises,
       remittances: moneyBooks.remittances,
+      exchanges: moneyBooks.exchanges,
       suppliers: listSuppliers(supplierStore).map((x) => ({ id: x.id, name: x.name })),
       previousDebts,
       debtors: computeDebtAging({ clients: listClients(clientStore), accounts, invoices, adjustments, ledgerStore, today, includeCredit: true }),

@@ -1,6 +1,7 @@
 "use client";
 
 import type { RemittanceList } from "@/lib/remittances";
+import type { ExchangeList } from "@/lib/exchanges";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { DateInput } from "./DateInput";
 import { formatAmount } from "@/lib/formatAmount";
@@ -84,6 +85,8 @@ export interface DashBooks {
   promises: PaymentPromise[];
   /** 💸 «تحويل الأموال» (remittances.ts). */
   remittances?: RemittanceList;
+  /** 💱 «شراء عملة» (exchanges.ts). */
+  exchanges?: ExchangeList;
   suppliers: { id: string; name: string }[];
   previousDebts: PreviousDebtList;
   /** Customers / devices owing (and with a credit) - computeDebtAging({ includeCredit: true }). */
@@ -421,6 +424,7 @@ export function FinanceDashboard({
         expenses: books.expenses,
         debts: books.debts,
         remittances: books.remittances,
+        exchanges: books.exchanges,
         clientOf: (id) => accounts.find((a) => a.id === id)?.clientId,
         deviceName,
         partyName: books.partyName,

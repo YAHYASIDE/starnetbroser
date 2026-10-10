@@ -8,6 +8,8 @@ import { BankInboxCard, BankInboxList, SuggestionConfirm, type ConfirmData, type
 import { decideSuggestion, decidedSuggestions, EMPTY_BANK_INBOX, loadBankInbox, pendingSuggestions, reopenSuggestion, saveBankInbox, type BankInbox, type BankSuggestion } from "@/lib/bankNotices";
 import { saveSuggestionChoice } from "@/lib/bankSuggestionSave";
 import { RemittanceSection } from "@/components/RemittanceSection";
+import { ExchangeSection } from "@/components/ExchangeSection";
+import { averageCosts, createExchange, deleteExchange, exchangeCashEntries, loadExchanges, saveExchanges, updateExchange, type Exchange, type ExchangeList } from "@/lib/exchanges";
 import { PlaceStatement } from "@/components/PlaceStatement";
 import { loadPlaceLedger, pendingForPlace, runBalanceAlerts } from "@/lib/placeLedgerData";
 import { CARD_PLACE, CASH_PLACE } from "@/lib/moneyMovements";
@@ -138,6 +140,8 @@ export default function MoneyPage() {
   // 🏦 bank / wallet notifications waiting for his confirmation (lib/bankNotices.ts).
   const [inbox, setInbox] = useState<BankInbox>(EMPTY_BANK_INBOX);
   const [remittances, setRemittances] = useState<RemittanceList>([]);
+  const [exchanges, setExchanges] = useState<ExchangeList>([]);
+  const exchangeCosts = useMemo(() => averageCosts(exchanges, today()), [exchanges]);
   const [inboxOpen, setInboxOpen] = useState(false);
   const [picked, setPicked] = useState<BankSuggestion | null>(null);
   const [notifEnabled, setNotifEnabled] = useState<boolean | null>(null);
@@ -202,6 +206,7 @@ export default function MoneyPage() {
     setRates(loadRates());
     setInbox(loadBankInbox());
     setRemittances(loadRemittances());
+    setExchanges(loadExchanges());
     setProfitReset(loadProfitReset());
     setWipeUndo(loadWipeUndo(window.localStorage));
     setCashResetOn(hasCashReset(loadCashEntries()));
@@ -260,7 +265,7 @@ export default function MoneyPage() {
     () => buildWealth(loadWealthInput({ accounts, rates, incomes, expenses, debts, book })),
     // الكاش changes (cashVersion) are read from storage.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [accounts, rates, incomes, expenses, debts, book, cashVersion, loaded, inboxVersion, remittances],
+    [accounts, rates, incomes, expenses, debts, book, cashVersion, loaded, inboxVersion, remittances, exchanges],
   );
   const accountBalances = useMemo(() => {
     const ledger = loadLedgerStore();
@@ -268,7 +273,7 @@ export default function MoneyPage() {
     return Object.fromEntries(book.accounts.map((a) => [a.id, accountBalance(book, a, loadAccountFlows(ledger, a, flows, book.accounts))]));
     // Supplier / rep payments from a bank notification are read from storage (inboxVersion).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [book, incomes, expenses, debts, inboxVersion, remittances]);
+  }, [book, incomes, expenses, debts, inboxVersion, remittances, exchanges]);
   const sources = book.accounts.map((a) => ({ id: a.id, name: a.name, icon: a.icon, currencyCode: a.currencyCode, method: a.method }));
   const missing = Array.from(new Set([...business.missing, ...left.missing, ...wealth.missing]));
   const shownLine = openLine ? wealth.lines.find((l) => l.key === openLine.key) ?? openLine : null;
@@ -276,7 +281,7 @@ export default function MoneyPage() {
     () => (statementOf && loaded ? loadPlaceLedger(statementOf, accounts) : null),
     // Read from storage: recomputed whenever a record here changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [statementOf, loaded, accounts, book, incomes, expenses, debts, cashVersion, inboxVersion, remittances],
+    [statementOf, loaded, accounts, book, incomes, expenses, debts, cashVersion, inboxVersion, remittances, exchanges],
   );
 
   // 🔔 Low-balance floors (lib/balanceAlerts.ts): checked whenever a record here changes; the phone is
@@ -289,7 +294,7 @@ export default function MoneyPage() {
     setLowNow(runBalanceAlerts(accounts, (text) => void notifyPhone(text, "/money")));
     setAlerts(loadBalanceAlerts());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded, accounts, book, incomes, expenses, debts, cashVersion, inboxVersion, remittances, alertsVersion]);
+  }, [loaded, accounts, book, incomes, expenses, debts, cashVersion, inboxVersion, remittances, alertsVersion, exchanges]);
   const statementPending = useMemo(
     () => (statementOf && loaded ? pendingForPlace(statementOf) : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -457,6 +462,23 @@ export default function MoneyPage() {
     saveCashEntries(cash);
     saveRemittances(next);
     setRemittances(next);
+    setCashVersion((v) => v + 1);
+  }
+
+  // ---- 💱 شراء عملة (lib/exchanges.ts): its الكاش sides are cash entries carrying its id ----
+  function storeExchanges(next: ExchangeList, changed: Exchange | null, removedId?: string) {
+    let cash = loadCashEntries();
+    const id = changed?.id ?? removedId;
+    if (id) cash = removeLinkedCashEntries(cash, id);
+    if (changed) {
+      for (const entry of exchangeCashEntries(changed)) {
+        const posted = recordCashEntry(cash, entry);
+        if (posted.ok) cash = posted.entries;
+      }
+    }
+    saveCashEntries(cash);
+    saveExchanges(next);
+    setExchanges(next);
     setCashVersion((v) => v + 1);
   }
 
@@ -629,7 +651,26 @@ export default function MoneyPage() {
 
       {hero}
 
+      <ExchangeSection
+        list={exchanges}
+        accounts={book.accounts}
+        onSave={(input) => {
+          const result = createExchange(exchanges, input);
+          if (!result.ok) return result.message;
+          storeExchanges(result.list, result.exchange);
+          return null;
+        }}
+        onEdit={(id, input) => {
+          const result = updateExchange(exchanges, id, input);
+          if (!result.ok) return result.message;
+          storeExchanges(result.list, result.exchange);
+          return null;
+        }}
+        onDelete={(id) => storeExchanges(deleteExchange(exchanges, id), null, id)}
+      />
+
       <RemittanceSection
+        costs={exchangeCosts}
         list={remittances}
         accounts={book.accounts}
         rates={rates}
