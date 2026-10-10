@@ -979,6 +979,20 @@ is never pressed while a field is empty - it refills and saves on the next try (
   «Notification access» and tells him to switch STAR NET off and on. On reconnect the bank notices still in
   the tray are read.
 
+## 🅳 «تجديد» never clears a D silently + ↩️ «أرجع D» (Oct 10 2026)
+
+- His report: «زبون أو اثنين كانت عليهم D، بعد أيام راحت عنهم D وصار دين فقط» (screenshots: a 94,000 أوقية
+  shipment of Oct 7 whose ALL 17,714 cost showed as paid, while Starlink still asked ALL 17,714 → «فرق 225.14 $
+  غير مسجّل»). Cause: «🔄 تجديد» on a device with an open D always meant «paid that D to Starlink today».
+- His choices: «يسألني كل مرة» and «نعم، أضفه».
+- RenewalConfirmDialog with an open D: no default - «✓ دفعت D لستارلينك الآن» (settles it, no new shipment) or
+  «📅 شهر جديد على الزبون» (the old D stays; the new month defaults to D). «دفعت» while the last Starlink read
+  still shows money due needs a second tick («نعم دفعت (القراءة قديمة)»). `onConfirmRenewal(..., payOpenD)`.
+- Card: `settledButStillDue` (lib/settledStillDue.ts) - D's settled in the last 60 days, BEFORE the last Starlink
+  read, whose value today equals the gap Starlink still asks (±max($2, 5%)) → red «⚠️ D سُدّد في … لكن ستارلينك ما
+  زال يطلب …» + «↩️ أرجع D» (`unsettleShipmentCost`: pending again, nothing new on the customer). While it shows,
+  the «فرق غير مسجّل / الدين» line is hidden (its «دين D عادي» would charge the customer twice).
+
 ## 💵 «كل ما تملك»: cash one line per currency, أورانج / نيتا always in فرانك (Oct 10 2026)
 
 - His words: «كاش سيفا اجعله وحده وكاش العملة وحده. واجعل أورانج ونيتا يظهران بالفرانك أيضاً في الأمام».

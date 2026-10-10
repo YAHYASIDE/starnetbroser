@@ -6966,6 +6966,20 @@ button.today-tile {
   color: var(--red);
 }
 
+.account-card-still-due {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border: 1px dashed var(--red);
+  border-radius: 12px;
+  background: var(--red-bg);
+  color: var(--red);
+  font-size: 0.85rem;
+}
+
 .account-card-unrecorded {
   display: flex;
   flex-wrap: wrap;

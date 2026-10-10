@@ -57,7 +57,7 @@ import { countNoClient, matchesNoClientGroup, type NoClientGroup } from "@/lib/n
 import { loadPaymentCards, type PaymentCard } from "@/lib/kastCards";
 import { cardNeed, computeRenewalForecast } from "@/lib/renewalForecast";
 import { computeDeviceMargins, WEAK_MARGIN_PERCENT } from "@/lib/deviceMargins";
-import { cardShortfallForSuspended, currentCardBalanceUsd, listOpenShipmentDebts, listSuspendedWithDebt, loadCardTopUps, settleShipmentCost } from "@/lib/starlinkDebt";
+import { cardShortfallForSuspended, currentCardBalanceUsd, listOpenShipmentDebts, listSuspendedWithDebt, loadCardTopUps, settleShipmentCost, unsettleShipmentCost } from "@/lib/starlinkDebt";
 import { loadPartyAdjustments } from "@/lib/partyBalanceStore";
 import { APK_DOWNLOAD_URL, checkForAppUpdate, shouldAutoCheck } from "@/lib/appUpdate";
 import { deviceMatchesQuery, searchEverything, SearchResult } from "@/lib/homeInsights";
@@ -1367,16 +1367,17 @@ export function HomeView({
     autoShipment = false,
     costPending = false,
     settleFromCard: boolean | null = null,
+    payOpenD = false,
   ) {
     patchAccount(account.id, { rechargeDate: newRechargeDate, lastUpdated: "الآن" });
     if (isPinned(deviceNotes, account.id)) setUnpinAsk(account.id);
     const today = new Date().toISOString().slice(0, 10);
     const entries = getAccountEntries(ledgerStore, account.id);
     const open = openDebtEntries(entries);
-    // The device still owes Starlink: renewing it is paying that D today - no new shipment.
-    if (open.length > 0 && settleFromCard !== null) {
+    // He said «دفعت D لستارلينك الآن»: that D is paid today - no new shipment. («📅 شهر جديد» keeps it.)
+    if (open.length > 0 && payOpenD) {
       const ids = new Set(open.map((e) => e.id));
-      const options = { date: today, profitRates: currentProfitRates(), fromCard: settleFromCard };
+      const options = { date: today, profitRates: currentProfitRates(), fromCard: settleFromCard ?? true };
       updateLedgerEntries(account.id, entries.map((e) => (ids.has(e.id) ? settleShipmentCost(e, options) : e)));
       const usd = open.reduce((sum, e) => sum + (starlinkCostUsd(e) ?? 0), 0);
       pushToast(`✓ تم تجديد "${account.name}" ودفع D (${formatAmount(usd)} $) لستارلينك - نزل الربح اليوم`);
@@ -1401,6 +1402,14 @@ export function HomeView({
       pushToast(`تعذر التسجيل التلقائي: ${result.message} - سجّل الشحنة يدويًا`);
     }
     setLedgerAccount({ ...account, rechargeDate: newRechargeDate });
+  }
+
+  /** ↩️ D's marked paid while Starlink still asks for them: back to D (nothing new on the customer). */
+  function handleRestoreD(account: StarlinkAccountSummary, entryIds: string[]) {
+    const ids = new Set(entryIds);
+    const entries = getAccountEntries(ledgerStore, account.id);
+    updateLedgerEntries(account.id, entries.map((e) => (ids.has(e.id) ? unsettleShipmentCost(e) : e)));
+    pushToast(`↩️ رجع D (${ids.size}) على "${account.name}" - ادفعه لستارلينك حين تدفع`);
   }
 
   /** Removes a permanently-deleted device's operations and everything posted from them. */
@@ -2312,6 +2321,7 @@ export function HomeView({
                 sessionNeedsLogin={viewMode === "active" && needsLoginIds.has(account.id)}
                 previousDebts={openPreviousDebts.filter((d) => d.accountId === account.id)}
                 onAddPreviousDebt={viewMode === "active" ? handleAddPreviousDebt : undefined}
+                onRestoreD={viewMode === "active" ? handleRestoreD : undefined}
                 deviceNote={deviceNotes[account.id]}
                 onSaveNote={(target, input) => commitDeviceNotes(saveDeviceNote(loadDeviceNotes(), target.id, input))}
                 onSetPinned={(target, pinned) => commitDeviceNotes(setDevicePinned(loadDeviceNotes(), target.id, pinned))}

@@ -45,6 +45,7 @@ import { PasteSessionSheet } from "./PasteSessionSheet";
 import { RenewalLockSheet } from "./RenewalLockSheet";
 import { RenewalConfirmDialog } from "./RenewalConfirmDialog";
 import { PreviousDebtDialog } from "./PreviousDebtDialog";
+import { settledButStillDue } from "@/lib/settledStillDue";
 
 /** Which list this card is currently shown in - changes which of the four circular actions apply.
  * "active" (the default, normal dashboard list) offers متعطل/أرشفة/تجديد/حذف; "archived" and
@@ -64,6 +65,8 @@ interface Props {
   previousDebts?: PreviousDebt[];
   /** Records a previous debt - returns an error message, or null once saved. */
   onAddPreviousDebt?: (account: StarlinkAccountSummary, input: { date: string; amountUsd: number; note: string }) => string | null;
+  /** ↩️ Puts D's marked paid (while Starlink still asks for them) back to D (lib/settledStillDue.ts). */
+  onRestoreD?: (account: StarlinkAccountSummary, entryIds: string[]) => void;
   /** The last "فحص جلسات الدخول" found this device signed out - shows a small "sign in" bubble
    * over the card's top edge that opens its browser. */
   sessionNeedsLogin?: boolean;
@@ -133,13 +136,15 @@ interface Props {
   repPending?: boolean;
   /** Applies the confirmed new renewal date, then opens the ledger dialog for this account so the
    * operator can record the actual shipment/payment. */
-  /** `settleFromCard` is set only when the device had open D's: the renewal pays them (from the card or not). */
+  /** `payOpenD`: he chose «دفعت D لستارلينك» on a device with open D's - they're settled (from the
+   * card when `settleFromCard`), no new shipment. Otherwise `settleFromCard` is for the new month's cost. */
   onConfirmRenewal: (
     account: StarlinkAccountSummary,
     newRechargeDate: string,
     autoShipment: boolean,
     costPending: boolean,
     settleFromCard: boolean | null,
+    payOpenD: boolean,
   ) => void;
 }
 
@@ -224,6 +229,7 @@ export function AccountCard({
   repPending = false,
   previousDebts = [],
   onAddPreviousDebt,
+  onRestoreD,
   repColor,
   heldByRepName,
   addedByRepName,
@@ -300,6 +306,17 @@ export function AccountCard({
         openDebtTodayUsd + previousDebtUsd + paidSinceLastSyncUsd(ledgerEntries, account.lastSuccessfulScanAt),
         openDebtTodayUsd,
       );
+  // ↩️ D's marked paid while a later Starlink read still asks for them.
+  const dueUsdNow = balanceIsZero ? undefined : isUsdBalance ? balanceNumeric : balanceUsdEquivalent;
+  const stillDueDs =
+    onRestoreD && dueUsdNow !== undefined && Number.isFinite(dueUsdNow)
+      ? settledButStillDue(ledgerEntries, {
+          gapUsd: dueUsdNow - (openDebtTodayUsd + previousDebtUsd),
+          billCurrency: account.currency,
+          billRateFromUsd: balanceRate,
+          lastScanAt: account.lastSuccessfulScanAt,
+        })
+      : [];
   const [previousDebtDialog, setPreviousDebtDialog] = useState<{ suggestedUsd?: number } | null>(null);
   const [renewalSheet, setRenewalSheet] = useState(false);
   // «الدين» on the unrecorded-difference line: choose an old (inherited) debt or a normal D charge.
@@ -771,7 +788,24 @@ export function AccountCard({
           )}
         </div>
       )}
-      {unrecordedUsd > 0 && onAddPreviousDebt && (
+      {stillDueDs.length > 0 && onRestoreD && (
+        <div className="account-card-still-due" role="alert">
+          <span>
+            ⚠️ D سُدّد في <bdi dir="ltr">{stillDueDs.map((e) => e.starlinkCost?.paidAt ?? "").filter(Boolean).join("، ")}</bdi> لكن ستارلينك ما زال يطلب{" "}
+            <bdi dir="ltr">{account.currency} {account.balanceDue}</bdi>
+          </span>
+          <button
+            type="button"
+            className="text-action"
+            onClick={() => {
+              if (window.confirm(`إرجاع D (${stillDueDs.length}) كما كان؟ لا يُسجَّل أي دين جديد على الزبون.`)) onRestoreD(account, stillDueDs.map((e) => e.id));
+            }}
+          >
+            ↩️ أرجع D
+          </button>
+        </div>
+      )}
+      {unrecordedUsd > 0 && onAddPreviousDebt && stillDueDs.length === 0 && (
         <div className="account-card-unrecorded">
           <span>
             فرق <bdi dir="ltr">{formatAmount(unrecordedUsd)} $</bdi> غير مسجّل
@@ -1198,7 +1232,8 @@ export function AccountCard({
           account={account}
           openDebtUsd={openDebtUsd}
           openDebtCount={openDebtEntries(ledgerEntries).length}
-          onConfirm={(newDate, autoShipment, costPending, settleFromCard) => { onConfirmRenewal(account, newDate, autoShipment, costPending, settleFromCard); setShowRenewalDialog(false); }}
+          starlinkDue={balanceIsZero ? null : `${account.currency} ${account.balanceDue}`}
+          onConfirm={(newDate, autoShipment, costPending, settleFromCard, payOpenD) => { onConfirmRenewal(account, newDate, autoShipment, costPending, settleFromCard, payOpenD); setShowRenewalDialog(false); }}
           onClose={() => setShowRenewalDialog(false)}
         />
       )}
