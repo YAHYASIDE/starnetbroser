@@ -14918,3 +14918,28 @@ button.today-tile {
   color: var(--text-muted);
   font-size: 0.76rem;
 }
+
+/* 🔒 While a sheet / dialog / menu is open, only it scrolls: the page behind stays still (his Oct 10
+   2026 report: «عندما أكون في شاشة وأحرّكها تتحرك الشاشة التي أسفلها»). The page is locked, and a
+   scroll that reaches a sheet's end never passes through to what is under it. */
+html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .shortcut-sheet-layer, .whatsapp-menu-backdrop, .more-menu-layer, .bottom-nav-sheet-backdrop, .app-lock-overlay, .ocean-alarm),
+html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .shortcut-sheet-layer, .whatsapp-menu-backdrop, .more-menu-layer, .bottom-nav-sheet-backdrop, .app-lock-overlay, .ocean-alarm) body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+.party-sheet-backdrop,
+.party-sheet-backdrop *,
+.dialog-backdrop,
+.dialog-backdrop *,
+.proof-viewer-backdrop,
+.shortcut-sheet-layer,
+.shortcut-sheet-layer *,
+.whatsapp-menu-backdrop,
+.whatsapp-menu-backdrop *,
+.more-menu-layer,
+.more-menu-layer *,
+.bottom-nav-sheet-backdrop,
+.bottom-nav-sheet-backdrop * {
+  overscroll-behavior: contain;
+}

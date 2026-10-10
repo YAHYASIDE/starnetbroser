@@ -933,3 +933,11 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - No dinar rate in «العملات» yet (we never guess one): the transfer locks the dinar's rate from its own
   typed rate (`lockRates`, `rateFromTransfer`), so its profit = the commission alone, and the form says
   «سجّل سعره هناك ليُحسب فرق الصرف». Once he adds DZD in «العملات», new transfers count the exchange gain.
+
+## 🔒 Only the open sheet scrolls (Oct 10 2026)
+
+- His report: «دايم عندما اكون في شاشة واحركها تتحرك شاشة التي اسفلها في الكثير من الاماكن». While any
+  sheet / dialog / menu / lock screen is open (`html:has(.party-sheet-backdrop, .dialog-backdrop, …)` in
+  globals.css) the page is `overflow: hidden`, and every scroller inside an overlay has
+  `overscroll-behavior: contain`, so a swipe never reaches the page underneath. A NEW full-screen overlay
+  class must be added to that list.
