@@ -1013,3 +1013,10 @@ is never pressed while a field is empty - it refills and saves on the next try (
   (`loadPlaceBalances`) in a context; `BalanceHint` («💰 الرصيد الآن: …», فرانك for أورانج / نيتا, الكاش in its
   chosen currency) sits under PlacePicker (transfer, purchase, transfers to people), SourceSelect (income,
   expense, debts) and the bank-confirm account choices.
+
+## 🧹 Top «المزيد» repeats nothing from the bottom (Oct 10 2026)
+
+- His words: «ايقونات المزيد فيهم أشياء مكررة مثل الإعدادات - أزل أي شيء في الفوق يكون في السفلي، اتركه».
+  `topMoreItems` (BottomNav.tsx, lib/moreMenu.ts `withoutBottomDuplicates`) drops a top item whose page is a
+  bottom-bar tab or in the bottom «المزيد» (owner: الإعدادات and ستارلينك والبطاقة left the top). A rep whose top
+  list ends up empty has no top «المزيد» button. Any new item: put it in one of the two lists only.

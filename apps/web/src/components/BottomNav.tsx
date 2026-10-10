@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { HOME_ACTION_EVENT, HomeAction, homeActionHref, REMINDER_COUNT_EVENT } from "@/lib/homeActions";
 import { isRunningInAndroidApp } from "@/lib/localBrowser";
 import { isRepWorkspace, REP_SENDER_EVENT } from "@/lib/repMode";
+import { withoutBottomDuplicates } from "@/lib/moreMenu";
 
 type MoreItem = { label: string; icon: IconName; color: string; tint: string } & ({ href: string } | { action: HomeAction } | { event: string });
 
@@ -46,23 +47,7 @@ export function BottomNav() {
   // nav bar over it would be intrusive and steal space from an already cramped viewer.
   if (pathname === "/session") return null;
 
-  const tabs: { href: string; label: string; icon: IconName }[] = rep
-    ? [
-        { href: "/", label: "الرئيسية", icon: "home" },
-        { href: "/clients", label: "الزبائن", icon: "people" },
-        { href: "/representatives", label: "تقاريري", icon: "chart" },
-        { href: "/reminders", label: "التذكيرات", icon: "bell" },
-        { href: "/tools", label: "الأدوات", icon: "tools" },
-      ]
-    : [
-        // His Oct 9 2026 order: «حسابي» where «التقارير» was, «التقارير» where «المتجر» was, and
-        // «المتجر» moved into «المزيد».
-        { href: "/", label: "الرئيسية", icon: "home" },
-        { href: "/clients", label: "الزبائن", icon: "people" },
-        { href: "/money", label: "حسابي", icon: "coins" },
-        { href: "/representatives", label: "المندوبون", icon: "handshake" },
-        { href: "/reports", label: "التقارير", icon: "chart" },
-      ];
+  const tabs = rep ? REP_TABS : OWNER_TABS;
 
   // "المزيد" (bottom): the everyday half, listed bottom (nearest the thumb) to top. The other half
   // is the home page's top "المزيد" (HeaderMore below).
@@ -105,6 +90,32 @@ export function BottomNav() {
       </nav>
     </>
   );
+}
+
+type Tab = { href: string; label: string; icon: IconName };
+
+const REP_TABS: Tab[] = [
+  { href: "/", label: "الرئيسية", icon: "home" },
+  { href: "/clients", label: "الزبائن", icon: "people" },
+  { href: "/representatives", label: "تقاريري", icon: "chart" },
+  { href: "/reminders", label: "التذكيرات", icon: "bell" },
+  { href: "/tools", label: "الأدوات", icon: "tools" },
+];
+
+// His Oct 9 2026 order: «حسابي» where «التقارير» was, «التقارير» where «المتجر» was, and «المتجر»
+// moved into «المزيد».
+const OWNER_TABS: Tab[] = [
+  { href: "/", label: "الرئيسية", icon: "home" },
+  { href: "/clients", label: "الزبائن", icon: "people" },
+  { href: "/money", label: "حسابي", icon: "coins" },
+  { href: "/representatives", label: "المندوبون", icon: "handshake" },
+  { href: "/reports", label: "التقارير", icon: "chart" },
+];
+
+/** The top «المزيد» without what the bottom already has (lib/moreMenu.ts). */
+function topMoreItems(rep: boolean): MoreItem[] {
+  const bottom = [...(rep ? REP_TABS : OWNER_TABS).map((t) => t.href), ...(rep ? repMoreItems(true) : bottomMoreItems(true)).flatMap((i) => ("href" in i ? [i.href] : []))];
+  return withoutBottomDuplicates(rep ? REP_TOP_MORE_ITEMS : TOP_MORE_ITEMS, bottom, (i) => ("href" in i ? i.href : undefined));
 }
 
 function bottomMoreItems(inApp: boolean): MoreItem[] {
@@ -228,13 +239,15 @@ export function HeaderMore() {
   const [open, setOpen] = useState(false);
   const [rep, setRep] = useState(false);
   useEffect(() => setRep(isRepWorkspace()), []);
+  const items = topMoreItems(rep);
+  if (items.length === 0) return null;
   return (
     <>
       <button type="button" className="header-more" aria-label="المزيد" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
         <NavIcon name={open ? "close" : "more"} />
         <span>المزيد</span>
       </button>
-      {open && <MoreMenu items={rep ? REP_TOP_MORE_ITEMS : TOP_MORE_ITEMS} onClose={() => setOpen(false)} top />}
+      {open && <MoreMenu items={items} onClose={() => setOpen(false)} top />}
     </>
   );
 }
