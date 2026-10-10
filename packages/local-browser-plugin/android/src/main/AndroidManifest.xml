@@ -122,6 +122,17 @@
             </intent-filter>
         </service>
 
+        <!-- 🏦 BankWatchService: the permanent «يقرأ إشعارات البنوك» notification - keeps the
+             notification reader above connected while «Notification access» is on. -->
+        <service
+            android:name="com.starnetbroser.localbrowser.BankWatchService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps reading the operator's own bank and wallet app notifications for his bookkeeping while the app is closed" />
+        </service>
+
         <!-- 🔄 «مزامنة الآن» fully in the background, one device after another. -->
         <service
             android:name="com.starnetbroser.localbrowser.BackgroundSyncService"

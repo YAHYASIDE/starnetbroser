@@ -3,6 +3,7 @@ package com.starnetbroser.localbrowser;
 import android.app.Notification;
 import android.content.ComponentName;
 import android.content.Context;
+import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.service.notification.NotificationListenerService;
@@ -25,6 +26,9 @@ public class KastNotificationListener extends NotificationListenerService {
 
     private static final ExecutorService WORK = Executors.newSingleThreadExecutor();
 
+    /** The connected listener (null while Android has it disconnected) - for rescan(). */
+    private static volatile KastNotificationListener connected;
+
     /** KAST's own app (its package name carries "kast"). */
     static boolean isKast(String packageName) {
         return packageName != null && packageName.toLowerCase(Locale.ROOT).contains("kast");
@@ -45,12 +49,45 @@ public class KastNotificationListener extends NotificationListenerService {
      * posted notification is never stored twice). */
     @Override
     public void onListenerConnected() {
+        connected = this;
+        keepActiveBankNotices(this);
+        // 🏦 The permanent «يقرأ إشعارات البنوك» notification that keeps it running.
+        BankWatchService.refresh(this);
+    }
+
+    /** Some phones (HONOR, Huawei…) drop the reader to save battery - ask Android to reconnect it. */
+    @Override
+    public void onListenerDisconnected() {
+        if (connected == this) connected = null;
+        ensureConnected(this);
+    }
+
+    private static void keepActiveBankNotices(KastNotificationListener listener) {
         try {
-            StatusBarNotification[] active = getActiveNotifications();
+            StatusBarNotification[] active = listener.getActiveNotifications();
             if (active == null) return;
-            for (StatusBarNotification sbn : active) if (sbn != null && !isKast(sbn.getPackageName())) keepBankNotice(sbn);
+            for (StatusBarNotification sbn : active) if (sbn != null && !isKast(sbn.getPackageName())) listener.keepBankNotice(sbn, true);
         } catch (RuntimeException ignored) {
             // not allowed right now - the next ones still arrive one by one
+        }
+    }
+
+    /** 🏦 Re-reads the bank notifications still on the screen (one missed while the reader was
+     * down is kept now; the same posted notification is never stored twice). Synchronous, so the
+     * app reading the store right after sees them. */
+    static void rescan(Context context) {
+        KastNotificationListener listener = connected;
+        if (listener != null) keepActiveBankNotices(listener);
+        else ensureConnected(context);
+    }
+
+    /** Asks Android to reconnect the reader when access is on but it isn't connected. */
+    static void ensureConnected(Context context) {
+        if (context == null || connected != null || Build.VERSION.SDK_INT < 24 || !isEnabled(context)) return;
+        try {
+            requestRebind(new ComponentName(context.getApplicationContext(), KastNotificationListener.class));
+        } catch (RuntimeException ignored) {
+            // not allowed right now - the next check tries again
         }
     }
 
@@ -84,6 +121,11 @@ public class KastNotificationListener extends NotificationListenerService {
     }
 
     private void keepBankNotice(StatusBarNotification sbn) {
+        keepBankNotice(sbn, false);
+    }
+
+    /** `now`: store on this thread (a rescan the app waits for) instead of the background one. */
+    private void keepBankNotice(StatusBarNotification sbn, boolean now) {
         final String[] tt = titleAndText(sbn);
         if (tt == null) return;
         final String app = BankNotice.keep(sbn.getPackageName(), tt[0], tt[1]);
@@ -91,7 +133,8 @@ public class KastNotificationListener extends NotificationListenerService {
         final Context context = getApplicationContext();
         final String pkg = sbn.getPackageName();
         final long at = sbn.getPostTime();
-        WORK.execute(() -> BankNoticeStore.add(context, app, pkg, tt[0], tt[1], at));
+        if (now) BankNoticeStore.add(context, app, pkg, tt[0], tt[1], at);
+        else WORK.execute(() -> BankNoticeStore.add(context, app, pkg, tt[0], tt[1], at));
     }
 
     private void handleKast(StatusBarNotification sbn) {

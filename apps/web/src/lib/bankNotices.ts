@@ -181,6 +181,22 @@ export function parseBankNotice(raw: Pick<RawBankNotice, "app" | "title" | "text
       const named = /^(.*?)\s*\(\s*(\+?\d[\d\s]*)\s*\)\s*$/.exec(rest);
       return { kind: "out", amount, currencyCode: "MRU", party: named ? party(named[1], named[2]) : party(rest), ...withTx };
     }
+    // Money received: «وصلكم من NAME ( NUMBER ) مبلغ 500.0 أوقية جديدة» (title ENVOI too) - or
+    // from my own number in another app «( 22227268 (BANKILY) )» = a transfer between my apps.
+    const received = new RegExp(`وصلكم\\s+من\\s+(.+?)\\s*مبلغ\\s+${AMOUNT}\\s*أوقية`).exec(text);
+    if (received) {
+      const amount = parseNoticeAmount(received[2]!);
+      if (!amount) return unknownOrIgnore(text, txId);
+      const from = received[1]!.trim();
+      const tagged = /(\+?\d[\d\s]*)\s*\(\s*([A-Za-z]+)\s*\)/.exec(from);
+      if (tagged) {
+        const number = localNumber(tagged[1]!);
+        const other = appFromTag(tagged[2]!);
+        if (own.has(number) && other) return { kind: "transfer", amount, currencyCode: "MRU", fromApp: other, toApp: "sedad", ...withTx };
+      }
+      const named = /^(.*?)\s*\(\s*(\+?\d[\d\s]*)\s*\)\s*$/.exec(from);
+      return { kind: "in", amount, currencyCode: "MRU", party: named ? party(named[1], named[2]) : party(from), ...withTx };
+    }
     // «PAIEMENT_CREDIT - تلقيتم رصيدا بمبلغ 10 أوقية جديدة من شنقيتل»: phone credit bought.
     const credit = new RegExp(`رصيدا?\\s+بمبلغ\\s+${AMOUNT}\\s*أوقية(?:\\s+جديدة)?(?:\\s+من\\s+(.+))?$`).exec(text);
     if (credit && /paiement_credit/i.test(title)) {

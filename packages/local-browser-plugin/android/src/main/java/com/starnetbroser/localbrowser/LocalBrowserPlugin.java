@@ -95,6 +95,8 @@ public class LocalBrowserPlugin extends Plugin {
         driveAuthorizer.register(getActivity());
         TelegramReplyService.appVisible = true;
         TelegramReplyService.refresh(getContext());
+        // 🏦 The app opened (a foreground start is allowed now): the permanent bank reader.
+        BankWatchService.refresh(getContext());
         rememberShortcutRoute(getActivity() != null ? getActivity().getIntent() : null);
     }
 
@@ -684,6 +686,7 @@ public class LocalBrowserPlugin extends Plugin {
     public void kastNotificationsStatus(PluginCall call) {
         JSObject ret = new JSObject();
         ret.put("enabled", KastNotificationListener.isEnabled(getContext()));
+        BankWatchService.refresh(getContext());
         call.resolve(ret);
     }
 
@@ -735,6 +738,10 @@ public class LocalBrowserPlugin extends Plugin {
     /** The bank / wallet notifications the app hasn't saved as suggestions yet, oldest first. */
     @PluginMethod
     public void bankPendingNotices(PluginCall call) {
+        // The app is open: make sure the reader is connected, pick up the bank notifications still
+        // on the screen, and keep the permanent «يقرأ إشعارات البنوك» notification running.
+        KastNotificationListener.rescan(getContext());
+        BankWatchService.refresh(getContext());
         JSObject ret = new JSObject();
         try {
             ret.put("notices", new com.getcapacitor.JSArray(BankNoticeStore.pending(getContext()).toString()));

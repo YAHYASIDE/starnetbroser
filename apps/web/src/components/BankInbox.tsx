@@ -70,7 +70,7 @@ export function BankInboxCard({
 }) {
   if (enabled === null && pending === 0) return null;
   return (
-    <div className="bank-inbox-card">
+    <div className="bank-inbox-card" data-tour="bank-inbox">
       <button type="button" className={`bank-inbox-open${pending > 0 ? " bank-inbox-has" : ""}`} onClick={onOpen}>
         <span>📩 عمليات البنوك</span>
         <strong>{pending > 0 ? `${pending} بانتظار التأكيد` : "لا جديد"}</strong>

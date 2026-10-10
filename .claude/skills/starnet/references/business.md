@@ -844,3 +844,18 @@ is never pressed while a field is empty - it refills and saves on the next try (
   the flag cleared forgets the dismissal, so a later real one shows again. Removing a fault still brings
   back any D he had dropped when marking it (as before).
 
+## 🏦 Bank notifications kept all the time (Oct 10 2026)
+
+- His report: Sedad's «ENVOI» transfers received were never read; his request: «نجعل استار نيت شي ك
+  اشعار ثابت يحدث كل الاشعارات ويقراه يكون دايما فاتح».
+- **Sedad money received** (real wording, title `ENVOI`): `وصلكم من <NAME> ( <number> ) مبلغ 500.0 أوقية
+  جديدة` → **money in** with the name and number; from his own number tagged `(BANKILY)` etc. → a
+  transfer between his apps.
+- **Permanent notification** «🏦 STAR NET يقرأ إشعارات البنوك» (`BankWatchService`, low importance)
+  while «Notification access» is on: keeps the app alive on HONOR/Huawei-type phones, reconnects the
+  notification reader every 5 minutes if the phone dropped it, and re-reads the bank notifications
+  still on the screen (also each time «حسابي» opens). A notification seen twice is still one
+  suggestion (same id). Turned off only by turning off «Notification access».
+- Bankily's folded (grouped) notifications are read fine - each one arrives on its own (checked
+  with his screenshots: 10 / 50 / 600 all present).
+

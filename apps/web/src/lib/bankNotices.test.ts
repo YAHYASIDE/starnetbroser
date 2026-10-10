@@ -93,6 +93,26 @@ describe("parseBankNotice", () => {
     });
   });
 
+  it("Sedad ENVOI «وصلكم من NAME ( NUMBER ) مبلغ …» is money in with the name and number (real wording, Oct 10)", () => {
+    expect(parseBankNotice(raw("x", "sedad", "ENVOI", "وصلكم من  ديمو ( 40000004 ) مبلغ 500.0 أوقية جديدة"), OWN)).toEqual({
+      kind: "in",
+      amount: 500,
+      currencyCode: "MRU",
+      party: { name: "ديمو", number: "40000004" },
+    });
+    expect(parseBankNotice(raw("x", "sedad", "ENVOI", "وصلكم من ديمو ثاني ( 40000005 ) مبلغ 5200.0 أوقية جديدة"), OWN)).toMatchObject({ kind: "in", amount: 5200 });
+  });
+
+  it("Sedad money received from my own number in another app is a transfer between my apps", () => {
+    expect(parseBankNotice(raw("x", "sedad", "ENVOI", "وصلكم من 22227268 (BANKILY) مبلغ 50.0 أوقية جديدة"), OWN)).toEqual({
+      kind: "transfer",
+      amount: 50,
+      currencyCode: "MRU",
+      fromApp: "bankily",
+      toApp: "sedad",
+    });
+  });
+
   it("Sedad PAIEMENT_CREDIT is phone credit bought", () => {
     expect(parseBankNotice(raw("x", "sedad", "PAIEMENT_CREDIT", "تلقيتم رصيدا بمبلغ 10 أوقية جديدة من شنقيتل"), OWN)).toEqual({
       kind: "airtime",
