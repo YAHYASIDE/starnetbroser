@@ -7,6 +7,7 @@ import { AccountsManager, IncomeTab, RecurringSection, today, WealthCard, Wealth
 import { BankInboxCard, BankInboxList, SuggestionConfirm, type ConfirmData, type ConfirmInput } from "@/components/BankInbox";
 import { decideSuggestion, decidedSuggestions, EMPTY_BANK_INBOX, loadBankInbox, pendingSuggestions, reopenSuggestion, saveBankInbox, type BankInbox, type BankSuggestion } from "@/lib/bankNotices";
 import { saveSuggestionChoice } from "@/lib/bankSuggestionSave";
+import { ouguiyaFixMessage, runOuguiyaFixOnce } from "@/lib/bankOuguiyaRun";
 import { askDeleteCode } from "@/components/DeleteCodePrompt";
 import { loadProfitReset, saveProfitReset, startProfitFresh, undoProfitFresh, type ProfitReset } from "@/lib/profitReset";
 import { loadRepresentativeStore as loadReps, saveRepresentativeStore } from "@/lib/repStore";
@@ -155,6 +156,10 @@ export default function MoneyPage() {
   const consumed = () => setNewRecord(false);
 
   useEffect(() => {
+    // 🏦 Once: the bank amounts read before the «MRU = 10 أوقية» rule ×10 (bankOuguiya.ts) - before
+    // anything below reads the stores.
+    const ouguiyaFix = runOuguiyaFixOnce();
+    if (ouguiyaFix) window.setTimeout(() => window.alert(ouguiyaFixMessage(ouguiyaFix)), 600);
     // First, the expense groups (set up once: the old أكل/شرب… expenses go, his choice).
     const expenseCustom = loadExpenseTree();
     const ruleList = loadRecurring();

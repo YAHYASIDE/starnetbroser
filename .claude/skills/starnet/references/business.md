@@ -859,3 +859,15 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - Bankily's folded (grouped) notifications are read fine - each one arrives on its own (checked
   with his screenshots: 10 / 50 / 600 all present).
 
+## 🏦 Bank amounts: MRU (new) → the app's أوقية (old) ×10 (Oct 10 2026)
+
+- **The whole app works in the OLD ouguiya** (MRO, his «أوقية», rate ≈430 per dollar - the code is
+  still `MRU`). The bank apps (بنكيلي، سداد «أوقية جديدة»، مصرفي…) write the NEW ouguiya. His rule:
+  «100 MRU تساوي 1000 MRO» → every MRU amount read from a bank notification is **×10** before it becomes
+  a suggestion (`toAppOuguiya` in bankNotices.ts; such a suggestion carries `appOuguiya: true`).
+- What was read before the rule was fixed **once, automatically** (his choice «صحّحها كلها تلقائياً ×10»,
+  `bankOuguiya.applyOuguiyaFix`, run when «حسابي» opens): waiting suggestions ×10; each confirmed one's
+  record ×10 when exactly one record matches its amount, currency, day and note (a debt repayment: amount
+  + day). A record he changed by hand, or two identical candidates, is left as it is and counted in the
+  message he sees once. The list of fixes is kept in the bank inbox (`ouguiyaFix`).
+

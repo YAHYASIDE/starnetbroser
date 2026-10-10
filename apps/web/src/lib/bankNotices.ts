@@ -9,6 +9,7 @@
  * «إشعار لم يُفهم», when it carries an amount.
  */
 
+import type { OuguiyaFix } from "./bankOuguiya";
 import type { MoneyAccount } from "./moneyAccounts";
 
 export interface RawBankNotice {
@@ -110,6 +111,15 @@ function party(name?: string, number?: string): NoticeParty | undefined {
   const cleanNumber = number ? localNumber(number) : undefined;
   if (!cleanName && !cleanNumber) return undefined;
   return { ...(cleanName ? { name: cleanName } : {}), ...(cleanNumber ? { number: cleanNumber } : {}) };
+}
+
+/** 1 MRU (new ouguiya, what the bank apps say) = 10 أوقية (old - what the whole app works in). */
+export const OLD_OUGUIYA_PER_MRU = 10;
+
+/** A notification's MRU amount in the app's أوقية (his Oct 10 2026 rule «100 MRU = 1000 MRO»). */
+export function toAppOuguiya<T extends Pick<ParsedNotice, "amount" | "currencyCode">>(parsed: T): T {
+  if (parsed.currencyCode !== "MRU" || parsed.amount === undefined) return parsed;
+  return { ...parsed, amount: Math.round(parsed.amount * OLD_OUGUIYA_PER_MRU * 100) / 100 };
 }
 
 function unknownOrIgnore(text: string, txId?: string): ParsedNotice {
@@ -261,6 +271,8 @@ export interface BankSuggestion {
   notices: NoticeCopy[];
   /** The same text came a little before - perhaps a repeat, perhaps a second real transfer. */
   maybeDuplicate?: boolean;
+  /** Read after the «MRU = 10 أوقية» rule: its amount is already in the app's أوقية. */
+  appOuguiya?: boolean;
   status: SuggestionStatus;
   /** What it became, in words («🧾 مصروف: أكل»). */
   outcome?: string;
@@ -273,6 +285,8 @@ export interface BankInbox {
   seen: string[];
   /** Transaction IDs already suggested - never twice. */
   txIds: string[];
+  /** The one-time ×10 of the amounts read before the «MRU = 10 أوقية» rule (bankOuguiya.ts). */
+  ouguiyaFix?: OuguiyaFix;
 }
 
 export const EMPTY_BANK_INBOX: BankInbox = { suggestions: [], seen: [], txIds: [] };
@@ -296,7 +310,8 @@ export function ingestBankNotices(inbox: BankInbox, raws: RawBankNotice[], ownNu
     if (!raw?.id || seen.has(raw.id)) continue;
     seen.add(raw.id);
     seenOrder.push(raw.id);
-    const parsed = parseBankNotice(raw, ownNumbers);
+    // The bank apps say MRU (new ouguiya); the app works in the old one: ×10 (bankOuguiya.ts).
+    const parsed = toAppOuguiya(parseBankNotice(raw, ownNumbers));
     if (parsed.kind === "ignore") continue;
     if (parsed.txId) {
       if (txIds.has(parsed.txId)) continue;
@@ -341,6 +356,7 @@ export function ingestBankNotices(inbox: BankInbox, raws: RawBankNotice[], ownNu
       ...(parsed.cashDeposit ? { cashDeposit: true } : {}),
       notices: [copy],
       ...(repeated ? { maybeDuplicate: true } : {}),
+      ...(parsed.currencyCode === "MRU" ? { appOuguiya: true } : {}),
       status: "pending",
     };
     suggestions.push(suggestion);
@@ -435,6 +451,7 @@ export function loadBankInbox(): BankInbox {
       suggestions: Array.isArray(parsed.suggestions) ? parsed.suggestions : [],
       seen: Array.isArray(parsed.seen) ? parsed.seen : [],
       txIds: Array.isArray(parsed.txIds) ? parsed.txIds : [],
+      ...(parsed.ouguiyaFix ? { ouguiyaFix: parsed.ouguiyaFix } : {}),
     };
   } catch {
     return EMPTY_BANK_INBOX;
