@@ -993,3 +993,11 @@ is never pressed while a field is empty - it refills and saves on the next try (
   الكاش deposits, notices without a number. The next waiting ones from that number show «⚡ جاهز: …»; nothing
   is recorded until «⚡ تأكيد الكل الجاهز» (or «⚡ سجّل كما في القاعدة» inside one) - each saved exactly like a
   manual confirm (`saveSuggestionChoice`). A «قد يكون مكررًا» one is never ready. Rules listed and deletable.
+
+## 🔁 Manual transfer button (Oct 10 2026)
+
+- His request: «احتاج زر تحويل بين التطبيقات أو الكاش» - before, a transfer was only created from a bank
+  notification. «🔁 تحويل بين حساباتي والكاش» card in «حسابي» (components/TransferSection.tsx): من / إلى (any
+  account or الكاش in a currency), amount (فرانك for أورانج / نيتا), date, note → `addAccountTransfer` + its
+  الكاش entry (`transferCashEntry`, removed with it). One currency only (`transferCurrencyError`); between two
+  currencies → «💱 شراء عملة». The last 15 transfers are listed with delete.

@@ -10,6 +10,7 @@ import { saveSuggestionChoice } from "@/lib/bankSuggestionSave";
 import { canLearn, deleteRule, learnRule, loadBankRules, readySuggestions, ruleFor, saveBankRules, type BankRules } from "@/lib/bankRules";
 import { RemittanceSection } from "@/components/RemittanceSection";
 import { ExchangeSection } from "@/components/ExchangeSection";
+import { TransferSection, type TransferInput } from "@/components/TransferSection";
 import { averageCosts, createExchange, deleteExchange, exchangeCashEntries, loadExchanges, saveExchanges, updateExchange, type Exchange, type ExchangeList } from "@/lib/exchanges";
 import { PlaceStatement } from "@/components/PlaceStatement";
 import { loadPlaceLedger, pendingForPlace, runBalanceAlerts } from "@/lib/placeLedgerData";
@@ -64,6 +65,8 @@ import {
   cashInHandEntries,
   correctBalance,
   deleteAccountTransfer,
+  addAccountTransfer,
+  transferCashEntry,
   deleteMoneyAccount,
   loadAccountsBook,
   saveAccountsBook,
@@ -503,6 +506,36 @@ export default function MoneyPage() {
     setCashVersion((v) => v + 1);
   }
 
+  // ---- 🔁 تحويل بين حساباتي والكاش: a الكاش side is a cash entry carrying the transfer's id ----
+  function saveTransfer(input: TransferInput): string | null {
+    const result = addAccountTransfer(book, input);
+    if (!result.ok) return result.message;
+    const other = book.accounts.find((a) => a.id === (input.toAccountId === CASH_PLACE ? input.fromAccountId : input.toAccountId));
+    const cashInput = transferCashEntry(result.transfer, other?.name ?? "");
+    if (cashInput) {
+      let error: string | null = null;
+      updateCash((cash) => {
+        const posted = recordCashEntry(cash, cashInput);
+        if (!posted.ok) {
+          error = posted.message;
+          return cash;
+        }
+        return posted.entries;
+      });
+      if (error) return error;
+    }
+    saveAccountsBook(result.book);
+    setBook(result.book);
+    return null;
+  }
+
+  function removeTransfer(id: string) {
+    updateCash((cash) => removeLinkedCashEntries(cash, id));
+    const next = deleteAccountTransfer(book, id);
+    saveAccountsBook(next);
+    setBook(next);
+  }
+
   // ---- 💱 شراء عملة (lib/exchanges.ts): its الكاش sides are cash entries carrying its id ----
   function storeExchanges(next: ExchangeList, changed: Exchange | null, removedId?: string) {
     let cash = loadCashEntries();
@@ -688,6 +721,13 @@ export default function MoneyPage() {
       />
 
       {hero}
+
+      <TransferSection
+        accounts={book.accounts}
+        transfers={book.transfers ?? []}
+        onSave={saveTransfer}
+        onDelete={removeTransfer}
+      />
 
       <ExchangeSection
         list={exchanges}

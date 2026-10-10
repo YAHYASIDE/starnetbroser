@@ -306,6 +306,11 @@ export function addAccountTransfer(
   return { ok: true, book: { ...book, transfers: [...(book.transfers ?? []), transfer] }, transfer };
 }
 
+/** 🔁 A transfer moves one currency: between two currencies it's a purchase («💱 شراء عملة»). */
+export function transferCurrencyError(fromCurrency: string, toCurrency: string): string | null {
+  return fromCurrency === toCurrency ? null : "العملتان مختلفتان - هذا «💱 شراء عملة» وليس تحويلاً";
+}
+
 /** The الكاش entry of a transfer with الكاش (none for a transfer between two accounts). */
 export function transferCashEntry(transfer: AccountTransfer, accountName: string): CreateCashEntryInput | null {
   const toCash = transfer.toAccountId === CASH_ACCOUNT_ID;

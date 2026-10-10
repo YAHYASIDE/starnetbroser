@@ -226,3 +226,11 @@ describe("an app holds only its own currency (بنكيلي = أوقية فقط)"
     expect(hasAccountsReset(restored)).toBe(false);
   });
 });
+
+describe("🔁 a transfer between my apps / الكاش", () => {
+  it("one currency only (two currencies = a purchase)", async () => {
+    const { transferCurrencyError } = await import("./moneyAccounts");
+    expect(transferCurrencyError("MRU", "MRU")).toBeNull();
+    expect(transferCurrencyError("MRU", "SIFA")).toContain("شراء عملة");
+  });
+});
