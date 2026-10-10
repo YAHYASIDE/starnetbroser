@@ -8,6 +8,9 @@ import { BankInboxCard, BankInboxList, SuggestionConfirm, type ConfirmData, type
 import { decideSuggestion, decidedSuggestions, EMPTY_BANK_INBOX, loadBankInbox, pendingSuggestions, reopenSuggestion, saveBankInbox, type BankInbox, type BankSuggestion } from "@/lib/bankNotices";
 import { saveSuggestionChoice } from "@/lib/bankSuggestionSave";
 import { RemittanceSection } from "@/components/RemittanceSection";
+import { PlaceStatement } from "@/components/PlaceStatement";
+import { loadPlaceLedger } from "@/lib/placeLedgerData";
+import { CASH_PLACE } from "@/lib/moneyMovements";
 import { addRemittancePayment, createRemittance, deleteRemittance, deleteRemittancePayment, loadRemittances, updateRemittance, remittanceCashEntries, remittanceMonth, saveRemittances, type Remittance, type RemittanceList } from "@/lib/remittances";
 import { ouguiyaFixMessage, runOuguiyaFixOnce } from "@/lib/bankOuguiyaRun";
 import { askDeleteCode } from "@/components/DeleteCodePrompt";
@@ -124,6 +127,8 @@ export default function MoneyPage() {
   const [debts, setDebts] = useState<DebtBook>({ debts: [], payments: [] });
   const [book, setBook] = useState<AccountsBook>({ accounts: [], adjustments: [] });
   const [openLine, setOpenLine] = useState<WealthLine | null>(null);
+  /** 📄 The place whose «كشف حساب» is open (an account id, or الكاش). */
+  const [statementOf, setStatementOf] = useState<string | null>(null);
   // Bumped whenever الكاش changes, so «كل ما تملك» is recomputed.
   const [cashVersion, setCashVersion] = useState(0);
   const [newRecord, setNewRecord] = useState(false);
@@ -265,6 +270,12 @@ export default function MoneyPage() {
   const sources = book.accounts.map((a) => ({ id: a.id, name: a.name, icon: a.icon, currencyCode: a.currencyCode, method: a.method }));
   const missing = Array.from(new Set([...business.missing, ...left.missing, ...wealth.missing]));
   const shownLine = openLine ? wealth.lines.find((l) => l.key === openLine.key) ?? openLine : null;
+  const statement = useMemo(
+    () => (statementOf && loaded ? loadPlaceLedger(statementOf, accounts) : null),
+    // Read from storage: recomputed whenever a record here changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [statementOf, loaded, accounts, book, incomes, expenses, debts, cashVersion, inboxVersion, remittances],
+  );
 
   function updateCash(change: (cash: ReturnType<typeof loadCashEntries>) => ReturnType<typeof loadCashEntries>) {
     saveCashEntries(change(loadCashEntries()));
@@ -633,6 +644,7 @@ export default function MoneyPage() {
             <AccountsManager
               book={book}
               balances={accountBalances}
+              onStatement={setStatementOf}
               onAdd={(input) => {
                 const result = addMoneyAccount(book, input);
                 if (!result.ok) return result.message;
@@ -672,8 +684,21 @@ export default function MoneyPage() {
           ) : (
             <WealthLineDetail line={shownLine} />
           )}
-          {shownLine.key === "cash" && <p className="settings-hint">الكاش كما في صفحة «الكاش»، بدون دفعات الزبائن التي دخلت تطبيقاً بنكياً مربوطاً بطريقتها.</p>}
+          {shownLine.key === "cash" && (
+            <>
+              <button type="button" className="dialog-primary" onClick={() => setStatementOf(CASH_PLACE)}>
+                📄 كشف حساب الكاش
+              </button>
+              <p className="settings-hint">الكاش كما في صفحة «الكاش»، بدون دفعات الزبائن التي دخلت تطبيقاً بنكياً مربوطاً بطريقتها.</p>
+            </>
+          )}
           {shownLine.key === "starlink" && <p className="settings-hint">شحنات D والديون السابقة التي لم تُدفع لستارلينك بعد (بالدولار).</p>}
+        </PartySheet>
+      )}
+
+      {statement && (
+        <PartySheet title={`📄 كشف حساب ${statement.place.icon} ${statement.place.name}`} onClose={() => setStatementOf(null)}>
+          <PlaceStatement ledger={statement} account={book.accounts.find((a) => a.id === statement.place.id)} />
         </PartySheet>
       )}
 

@@ -847,9 +847,12 @@ export function AccountsManager({
   onCorrect,
   onDelete,
   onDeleteTransfer,
+  onStatement,
 }: {
   book: AccountsBook;
   balances: Record<string, Record<string, number>>;
+  /** 📄 Tapping an account opens its «كشف حساب». */
+  onStatement?: (accountId: string) => void;
   onAdd: (input: AccountInput) => string | null;
   onCorrect: (account: MoneyAccount, actual: number) => string | null;
   onDelete: (account: MoneyAccount) => void;
@@ -865,7 +868,7 @@ export function AccountsManager({
         <ul className="money-recurring-list">
           {book.accounts.map((a) => (
             <li key={a.id} className="money-account-row">
-              <span>
+              <button type="button" className="money-account-name" onClick={() => onStatement?.(a.id)} aria-label={`كشف حساب ${a.name}`}>
                 {a.icon} {a.name}
                 {a.number ? (
                   <small>
@@ -875,7 +878,8 @@ export function AccountsManager({
                 ) : null}
                 {a.method ? <small> · دفعات «{PAYMENT_METHOD_LABELS[a.method]}» هنا</small> : null}
                 {isFrancAccount(a) ? <small className="franc-badge"> · 🟠 بالفرانك (5 فرانك = 1 سيفا)</small> : null}
-              </span>
+                {onStatement ? <small className="money-account-statement"> · 📄 كشف الحساب</small> : null}
+              </button>
               {a.balanceSet === false ? (
                 <>
                   {/* money routed here before its balance was typed (a SIFA payment → «كاش سيفا») */}

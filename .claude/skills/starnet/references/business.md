@@ -908,3 +908,17 @@ is never pressed while a field is empty - it refills and saves on the next try (
   recomputed, payments kept; refused below what's already paid, or changing the received currency while
   payments exist), and ✕ on a later payment entered by mistake.
 
+
+## 📄 كشف حساب of each bank / wallet and الكاش (Oct 10 2026)
+
+- His request: «اجعل لنا كشف حساب كل حساب بنكي وكشف حساب كاش فقط عندما اضغط علي المحفظة تأتيني كشف
+  حسابها». Asked together with «حوّل لي شخص 50000 فرانك (10000 سيفا) وكان عندي 52500 سيفا وصارت 88200
+  لماذا» - one 50,000 فرانك transfer adds exactly 10,000 سيفا (tested); the extra 35,700 is other records
+  on أورانج, which the statement lists so he can find and delete / fix them.
+- In «البنوك والمحافظ» tapping an account's name opens its statement; the «كاش» line has «📄 كشف حساب
+  الكاش». `lib/placeLedger.ts` (`buildPlaceLedger`, pure) + `placeLedgerData.ts` (reads the stores):
+  the place's movements from `moneyMovements.ts` (the same records the balance adds up), from the typed
+  opening day on, oldest→newest with the running balance; shown newest first, per currency, with
+  received / paid totals and the opening line. Its last balance = the balance shown (`placeBalance`).
+  Orange / Nita in فرانك (×5, «= X سيفا» beside the total). Movements before the opening day are only
+  counted («not in the balance - the typed balance includes them»). Nothing new is stored.

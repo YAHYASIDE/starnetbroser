@@ -14812,3 +14812,109 @@ button.today-tile {
   gap: 4px;
 }
 
+
+/* 📄 «كشف حساب» of a bank / wallet / الكاش (PlaceStatement). */
+.money-account-name {
+  display: block;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.money-account-statement {
+  color: var(--brand) !important;
+  font-weight: 700;
+}
+
+.place-ledger {
+  display: grid;
+  gap: 10px;
+}
+
+.place-ledger-currency {
+  display: grid;
+  gap: 8px;
+}
+
+.place-ledger-totals {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+  font-weight: 800;
+}
+
+.place-ledger-totals small {
+  color: var(--text-muted);
+  font-weight: 500;
+  font-size: 0.74rem;
+}
+
+.place-ledger-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.place-ledger-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-inline-start: 3px solid var(--green);
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+}
+
+.place-ledger-row.out {
+  border-inline-start-color: var(--red);
+}
+
+.place-ledger-what {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.place-ledger-what small,
+.place-ledger-figures small {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
+.place-ledger-figures {
+  display: grid;
+  gap: 2px;
+  flex-shrink: 0;
+  text-align: end;
+}
+
+.place-ledger-in {
+  color: var(--green);
+}
+
+.place-ledger-out {
+  color: var(--red);
+}
+
+.place-ledger-money {
+  white-space: nowrap;
+}
+
+.place-ledger-opening {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}
