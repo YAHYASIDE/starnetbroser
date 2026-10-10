@@ -14943,3 +14943,71 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
 .bottom-nav-sheet-backdrop * {
   overscroll-behavior: contain;
 }
+
+/* 🔍 مطابقة الرصيد / 🔔 تنبيه الرصيد (PlaceStatement). */
+.place-tools {
+  display: grid;
+  gap: 8px;
+}
+
+.place-tools-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.place-tools-buttons .is-active {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+.place-tools-buttons .place-low,
+.money-low-chip {
+  color: var(--red) !important;
+  font-weight: 800;
+}
+
+.money-line-button.is-low {
+  box-shadow: inset 3px 0 0 var(--red);
+}
+
+.place-match {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+}
+
+.place-match-diff {
+  margin: 0;
+  font-weight: 800;
+  color: var(--red);
+}
+
+.place-match-diff.is-ok {
+  color: var(--green);
+}
+
+.place-match-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.place-match-list li {
+  display: grid;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.place-match-list small {
+  color: var(--text-muted);
+}

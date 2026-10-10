@@ -9,8 +9,10 @@ import { decideSuggestion, decidedSuggestions, EMPTY_BANK_INBOX, loadBankInbox, 
 import { saveSuggestionChoice } from "@/lib/bankSuggestionSave";
 import { RemittanceSection } from "@/components/RemittanceSection";
 import { PlaceStatement } from "@/components/PlaceStatement";
-import { loadPlaceLedger } from "@/lib/placeLedgerData";
-import { CASH_PLACE } from "@/lib/moneyMovements";
+import { loadPlaceLedger, pendingForPlace, runBalanceAlerts } from "@/lib/placeLedgerData";
+import { CARD_PLACE, CASH_PLACE } from "@/lib/moneyMovements";
+import { alertKey, EMPTY_BALANCE_ALERTS, loadBalanceAlerts, saveBalanceAlerts, setThreshold, type BalanceAlerts } from "@/lib/balanceAlerts";
+import { notifyPhone } from "@/lib/appEvents";
 import { addRemittancePayment, createRemittance, deleteRemittance, deleteRemittancePayment, loadRemittances, updateRemittance, remittanceCashEntries, remittanceMonth, saveRemittances, type Remittance, type RemittanceList } from "@/lib/remittances";
 import { ouguiyaFixMessage, runOuguiyaFixOnce } from "@/lib/bankOuguiyaRun";
 import { askDeleteCode } from "@/components/DeleteCodePrompt";
@@ -277,6 +279,73 @@ export default function MoneyPage() {
     [statementOf, loaded, accounts, book, incomes, expenses, debts, cashVersion, inboxVersion, remittances],
   );
 
+  // 🔔 Low-balance floors (lib/balanceAlerts.ts): checked whenever a record here changes; the phone is
+  // told once per crossing, the line turns red while low.
+  const [alerts, setAlerts] = useState<BalanceAlerts>(EMPTY_BALANCE_ALERTS);
+  const [lowNow, setLowNow] = useState<string[]>([]);
+  const [alertsVersion, setAlertsVersion] = useState(0);
+  useEffect(() => {
+    if (!loaded) return;
+    setLowNow(runBalanceAlerts(accounts, (text) => void notifyPhone(text, "/money")));
+    setAlerts(loadBalanceAlerts());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, accounts, book, incomes, expenses, debts, cashVersion, inboxVersion, remittances, alertsVersion]);
+  const statementPending = useMemo(
+    () => (statementOf && loaded ? pendingForPlace(statementOf) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [statementOf, loaded, inboxVersion],
+  );
+  const statementThresholds = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const [key, v] of Object.entries(alerts.thresholds)) if (statementOf && key.startsWith(`${statementOf}|`)) out[key.slice(statementOf.length + 1)] = v;
+    return out;
+  }, [alerts, statementOf]);
+  const lineIsLow = (l: WealthLine) =>
+    (l.places ?? []).some((p) => lowNow.some((k) => (p.id === CASH_PLACE ? k === `${CASH_PLACE}|${l.key === "cash" ? "MRU" : l.key.slice(5)}` : k.startsWith(`${p.id}|`))));
+
+  function changeThreshold(placeId: string, currency: string, value: number | undefined) {
+    const next = setThreshold(loadBalanceAlerts(), alertKey(placeId, currency), value);
+    saveBalanceAlerts(next);
+    setAlerts(next);
+    setAlertsVersion((v) => v + 1);
+  }
+
+  /** 🔍 «سجّل الفرق تسوية»: the place's balance becomes `actual` (an account: a correction entry;
+   * الكاش: a cash entry «تسوية»). */
+  function correctPlace(placeId: string, currency: string, actual: number): string | null {
+    if (placeId === CASH_PLACE) {
+      const balance = loadPlaceLedger(CASH_PLACE, accounts)?.currencies.find((c) => c.currency === currency)?.closing ?? 0;
+      const diff = Math.round((actual - balance) * 100) / 100;
+      if (diff === 0) return null;
+      let error: string | null = null;
+      updateCash((cash) => {
+        const result = recordCashEntry(cash, { kind: diff > 0 ? "in" : "out", amount: Math.abs(diff), currencyCode: currency, date: today(), category: "تسوية", note: "مطابقة الرصيد" });
+        if (!result.ok) {
+          error = result.message;
+          return cash;
+        }
+        return result.entries;
+      });
+      return error;
+    }
+    const account = book.accounts.find((a) => a.id === placeId);
+    if (!account) return "الحساب غير موجود";
+    if (currency !== account.currencyCode) return "التسوية بعملة الحساب فقط";
+    if (account.balanceSet === false) {
+      const first = setOpeningBalance(book, account.id, actual, today());
+      if (!first.ok) return first.message;
+      saveAccountsBook(first.book);
+      setBook(first.book);
+      return null;
+    }
+    const flows = loadAccountFlows(loadLedgerStore(), account, personalFlows(incomes, expenses, debts), book.accounts);
+    const result = correctBalance(book, account, flows, actual, today());
+    if (!result.ok) return result.message;
+    saveAccountsBook(result.book);
+    setBook(result.book);
+    return null;
+  }
+
   function updateCash(change: (cash: ReturnType<typeof loadCashEntries>) => ReturnType<typeof loadCashEntries>) {
     saveCashEntries(change(loadCashEntries()));
     setCashVersion((v) => v + 1);
@@ -529,7 +598,7 @@ export default function MoneyPage() {
       </div>
 
       <div data-tour="money-wealth">
-        <WealthCard wealth={wealth} onOpen={setOpenLine} />
+        <WealthCard wealth={wealth} onOpen={setOpenLine} isLow={lineIsLow} />
       </div>
       {missing.length > 0 && (
         <p className="settings-hint">
@@ -696,7 +765,14 @@ export default function MoneyPage() {
 
       {statement && (
         <PartySheet title={`📄 كشف حساب ${statement.place.icon} ${statement.place.name}`} onClose={() => setStatementOf(null)}>
-          <PlaceStatement ledger={statement} account={book.accounts.find((a) => a.id === statement.place.id)} />
+          <PlaceStatement
+            ledger={statement}
+            account={book.accounts.find((a) => a.id === statement.place.id)}
+            pending={statementPending}
+            thresholds={statementThresholds}
+            onThreshold={(currency, value) => changeThreshold(statement.place.id, currency, value)}
+            onCorrect={statement.place.id === CARD_PLACE ? undefined : (currency, actual) => correctPlace(statement.place.id, currency, actual)}
+          />
         </PartySheet>
       )}
 

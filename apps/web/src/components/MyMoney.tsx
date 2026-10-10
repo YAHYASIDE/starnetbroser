@@ -743,7 +743,7 @@ const GROUPS: { kind: "have" | "owed" | "owe"; title: string }[] = [
   { kind: "owed", title: "لك عند الآخرين" },
 ];
 
-export function WealthCard({ wealth, onOpen }: { wealth: Wealth; onOpen: (line: WealthLine) => void }) {
+export function WealthCard({ wealth, onOpen, isLow }: { wealth: Wealth; onOpen: (line: WealthLine) => void; isLow?: (line: WealthLine) => boolean }) {
   return (
     <div className={`net-hero money-hero money-hero-worth${wealth.inHandMru < 0 ? " is-loss" : ""}`}>
       <div className="money-two">
@@ -770,10 +770,11 @@ export function WealthCard({ wealth, onOpen }: { wealth: Wealth; onOpen: (line: 
               .filter((l) => l.kind === group.kind)
               .map((l) => (
                 <li key={l.key}>
-                  <button type="button" className="money-line-button" onClick={() => onOpen(l)}>
+                  <button type="button" className={`money-line-button${isLow?.(l) ? " is-low" : ""}`} onClick={() => onOpen(l)}>
                     <span>
                       {l.icon ? `${l.icon} ` : ""}
                       {l.label}
+                      {isLow?.(l) ? <small className="money-low-chip"> ⚠️ منخفض</small> : null}
                       {l.items.length > 1 ? <small> ({l.items.length})</small> : null}
                     </span>
                     {l.franc && l.native ? (

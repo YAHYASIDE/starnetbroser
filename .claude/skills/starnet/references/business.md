@@ -961,3 +961,16 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - أورانج / نيتا (`franc`) are always their own line in front, even at 0: the big figure in فرانك, «≈ X أوقية»
   beside it; their detail in فرانك too.
 - Each line carries `places`: its sheet shows «📄 كشف حساب …» for الكاش and each account behind it.
+
+## 🔍 Balance matching + 🔔 low-balance alerts (Oct 10 2026)
+
+- His choice from the suggestions list: all four («مطابقة الرصيد»، «شراء عملة»، «تنبيه الرصيد»، «تأكيد سريع
+  + قواعد»), with: profit vs his average purchase cost, rules that prepare + one-tap confirm (never record
+  silently), alerts = phone notification + red mark.
+- 🔍 In every statement sheet (per currency): «مطابقة الرصيد» - he types the real balance; `explainDifference`
+  (lib/balanceMatch.ts) lists a waiting bank notification of that amount, a duplicate (same amount / day /
+  kind), one movement or two together equal to the difference, an أوقية amount 10× off. Nothing changes until
+  «✓ سجّل الفرق تسوية»: an account → `correctBalance` (or its first balance), الكاش → a cash entry «تسوية».
+- 🔔 «تنبيه الرصيد» per place + currency (lib/balanceAlerts.ts, `starnet_balance_alerts_v1`, floor kept in the
+  place's currency - typed in فرانك for أورانج / نيتا): below it the phone is told once per crossing
+  (`notifyPhone`, from «حسابي» and when the home screen loads the devices) and the line shows «⚠️ منخفض».

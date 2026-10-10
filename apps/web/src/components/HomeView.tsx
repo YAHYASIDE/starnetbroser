@@ -166,6 +166,7 @@ import {
   withSessionStatus,
 } from "@/lib/sessionCheck";
 import { createReadyGate } from "@/lib/readyGate";
+import { runBalanceAlerts } from "@/lib/placeLedgerData";
 import { PendingSyncLike, reapplyCachedSyncedFields, runSyncBatch } from "@/lib/starlinkSync";
 import { getCachedSyncedFields, saveSyncedFieldsCache } from "@/lib/syncedFieldsCache";
 import { resolveAccountDeletion } from "@starnet/local-browser-plugin";
@@ -976,6 +977,12 @@ export function HomeView({
       setAccounts(loaded);
       setDataState("loaded");
       accountsReadyGateRef.current.markReady();
+      // 🔔 A wallet / الكاش below the floor he set: the phone is told (once per crossing).
+      try {
+        runBalanceAlerts(loaded, (text) => void notifyPhone(text, "/money"));
+      } catch {
+        // never in the way of the home screen
+      }
     } catch (err) {
       setDataState("error");
       setErrorMessage(err instanceof ApiError ? err.message : "تعذّر تحميل الحسابات");
