@@ -18,7 +18,7 @@ export const SPECIAL_BUCKETS: { key: SpecialBucket; icon: string; label: string 
   { key: "burned", icon: "🔥", label: "معطّل: محروق" },
 ];
 
-type BucketInput = Pick<StarlinkAccountSummary, "rechargeDate" | "standbyDate" | "lastSuccessfulScanAt" | "deviceFault" | "noSubscription" | "serviceStatus" | "limitedAccess">;
+type BucketInput = Pick<StarlinkAccountSummary, "rechargeDate" | "standbyDate" | "lastSuccessfulScanAt" | "deviceFault" | "noSubscription" | "serviceStatus" | "limitedAccess" | "faultDismissed">;
 
 /** Every calendar place the device belongs to. */
 export function deviceDayKeys(account: BucketInput): DayKey[] {

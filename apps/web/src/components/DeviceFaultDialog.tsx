@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import type { DeviceFaultReason, StarlinkAccountSummary } from "@starnet/shared";
-import { FAULT_CATEGORIES, faultCategory } from "@/lib/deviceFault";
+import { FAULT_CATEGORIES, faultCategory, removeFaultQuestion } from "@/lib/deviceFault";
 
 /** "repair" = 🛠️ قيد الإصلاح: saved as account.underRepair, never as a fault. */
 type FaultReason = DeviceFaultReason | "repair";
@@ -30,6 +30,7 @@ interface Props {
 export function DeviceFaultDialog({ account, openDebtUsd, waivedCount, onSave, onClear, onSaveRepair, onClearRepair, onClose }: Props) {
   const existing = account.deviceFault;
   const repair = account.underRepair;
+  const inFaultList = faultCategory(account) !== null;
   // A device the app already put in a group (no subscription / secondary email) opens on it.
   const [reason, setReason] = useState<FaultReason>(existing?.reason ?? (repair ? "repair" : faultCategory(account) ?? "burned"));
   const [note, setNote] = useState(existing?.note ?? repair?.note ?? "");
@@ -46,11 +47,7 @@ export function DeviceFaultDialog({ account, openDebtUsd, waivedCount, onSave, o
   }
 
   function clear() {
-    const question =
-      waivedCount > 0
-        ? `تم إصلاح الجهاز؟ سيعود عليه D (${waivedCount}) لتدفعه لستارلينك، ويُلغى ربحه الذي حُسب يوم العطل.`
-        : "تم إصلاح الجهاز؟ سيعود إلى التذكيرات العادية.";
-    if (window.confirm(question)) onClear();
+    if (window.confirm(removeFaultQuestion(waivedCount))) onClear();
   }
 
   return (
@@ -110,8 +107,9 @@ export function DeviceFaultDialog({ account, openDebtUsd, waivedCount, onSave, o
           </p>
 
           <div className="dialog-actions form-wide">
-            {existing && reason !== "repair" && (
-              <button className="dialog-danger" type="button" onClick={clear}>إزالة شارة العطل (تم الإصلاح)</button>
+            {/* Also for a group the app found by itself (إيميل غير رئيسي / ملغي اشتراك). */}
+            {inFaultList && reason !== "repair" && (
+              <button className="dialog-danger" type="button" onClick={clear}>✓ إزالة العطل</button>
             )}
             {repair && reason === "repair" && (
               <button className="dialog-danger" type="button" onClick={() => window.confirm("انتهى الإصلاح؟ يخرج الجهاز من «قيد الإصلاح».") && onClearRepair()}>

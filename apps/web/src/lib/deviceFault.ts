@@ -23,16 +23,46 @@ export function faultLabel(reason: DeviceFaultReason): string {
   return category ? `${category.icon} ${category.label}` : "🔧 عطل";
 }
 
-type FaultInput = Pick<StarlinkAccountSummary, "deviceFault" | "noSubscription" | "serviceStatus" | "limitedAccess">;
+type FaultInput = Pick<StarlinkAccountSummary, "deviceFault" | "noSubscription" | "serviceStatus" | "limitedAccess" | "faultDismissed">;
+
+/** The groups Starlink's own flags put the device in (before any «إزالة العطل»). */
+function detectedFaults(account: FaultInput): DeviceFaultReason[] {
+  const found: DeviceFaultReason[] = [];
+  if (account.noSubscription === true || account.serviceStatus === "canceled") found.push("canceled");
+  if (account.limitedAccess === true) found.push("secondary");
+  return found;
+}
 
 /** Where the device belongs in «المعطلة», or null. A reason the operator chose always wins;
  * otherwise Starlink tells: no subscription on the email / a canceled service -> ملغي اشتراك,
- * an email without the full menu (no subscriptions / settings / billing) -> إيميل غير رئيسي. */
+ * an email without the full menu (no subscriptions / settings / billing) -> إيميل غير رئيسي -
+ * unless he removed that group with «إزالة العطل». */
 export function faultCategory(account: FaultInput): DeviceFaultReason | null {
   if (account.deviceFault) return account.deviceFault.reason;
-  if (account.noSubscription === true || account.serviceStatus === "canceled") return "canceled";
-  if (account.limitedAccess === true) return "secondary";
-  return null;
+  const dismissed = account.faultDismissed ?? [];
+  return detectedFaults(account).find((reason) => !dismissed.includes(reason)) ?? null;
+}
+
+/** «إزالة العطل»: the device leaves «المعطلة» whatever put it there - his own mark is cleared and
+ * every group the app found by itself is dismissed (Starlink's flags stay as read). */
+export function removeFaultPatch(account: FaultInput): Pick<StarlinkAccountSummary, "deviceFault" | "faultDismissed"> {
+  const dismissed = [...new Set([...(account.faultDismissed ?? []), ...detectedFaults(account)])];
+  return { deviceFault: null, faultDismissed: dismissed.length ? dismissed : null };
+}
+
+/** After a sync: a dismissed group whose flag Starlink now reads cleared is forgotten, so a later
+ * real one shows again. Returns the list to keep (null when empty). */
+export function pruneFaultDismissal(account: FaultInput): DeviceFaultReason[] | null {
+  const detected = detectedFaults(account);
+  const kept = (account.faultDismissed ?? []).filter((reason) => detected.includes(reason));
+  return kept.length ? kept : null;
+}
+
+/** The question before «إزالة العطل». */
+export function removeFaultQuestion(waivedCount: number): string {
+  return waivedCount > 0
+    ? `تم إصلاح الجهاز؟ سيعود عليه D (${waivedCount}) لتدفعه لستارلينك، ويُلغى ربحه الذي حُسب يوم العطل.`
+    : "إزالة العطل؟ يخرج الجهاز من «المعطلة» ويعود إلى التذكيرات العادية.";
 }
 
 /** Found by the app itself (not marked by hand). */

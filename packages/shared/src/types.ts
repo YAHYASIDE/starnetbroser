@@ -213,6 +213,10 @@ export interface StarlinkAccountSummary {
    * broken, or suspended AND fine). Cleared (back to undefined/null) once the operator marks it
    * fixed. */
   deviceFault?: { reason: DeviceFaultReason; note: string; reportedAt: string } | null;
+  /** Groups the app found by itself («ملغي اشتراك» / «إيميل غير رئيسي») that the operator removed
+   * with «إزالة العطل»: Starlink's own flags stay as read, the device just leaves «المعطلة». A sync
+   * that reads the flag cleared drops the dismissal, so a later real one shows again. */
+  faultDismissed?: DeviceFaultReason[] | null;
   /** 🛠️ "قيد الإصلاح": a technical problem we're following with Starlink support - separate from
    * deviceFault (the device stays in renewals and lists), shown in its own home list. */
   underRepair?: { note: string; since: string } | null;

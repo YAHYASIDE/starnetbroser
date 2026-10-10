@@ -3,6 +3,7 @@ import { DeviceStatus, StarlinkAccountSummary } from "@starnet/shared";
 import type { SyncedDeviceStatus, SyncedStarlinkFields } from "@starnet/local-browser-plugin";
 import { cleanPlanName } from "./status";
 import { loginEmailIsAdmin } from "./emailMatch";
+import { pruneFaultDismissal } from "./deviceFault";
 
 type Section = "devices" | "subscriptions" | "billing" | "identifiers";
 
@@ -363,6 +364,9 @@ export function mergeSyncedFields(
     note("adminEmails", next.limitedAccess !== !isAdmin);
     next.limitedAccess = !isAdmin;
   }
+
+  // «إزالة العطل» on an auto-found group lasts until Starlink reads that flag cleared.
+  if (next.faultDismissed?.length) next.faultDismissed = pruneFaultDismissal(next);
 
   const scanned = Object.keys(fields).length > 0;
 

@@ -99,7 +99,7 @@ import {
 import { buildTravelBook, lockRepTravelPercent, lockTravelPrice, matchesTravelGroup, travelStateOf, type TravelGroup } from "@/lib/travelBook";
 import { TravelBookPanel } from "@/components/TravelBookPanel";
 import { CurrencyStore, getCurrency, loadCurrencyStore, saveCurrencyStore, upsertCurrency, UpsertCurrencyInput } from "@/lib/currencyStore";
-import { countFaultCategories, FAULT_CATEGORIES, faultCategory, isFaulty, isUnderRepair, openDebtEntries, restoreWaivedDebts, waiveOpenDebts } from "@/lib/deviceFault";
+import { countFaultCategories, FAULT_CATEGORIES, faultCategory, isFaulty, isUnderRepair, openDebtEntries, removeFaultPatch, restoreWaivedDebts, waiveOpenDebts } from "@/lib/deviceFault";
 import type { DeviceFaultReason } from "@starnet/shared";
 import { listOpenPreviousDebts, loadPreviousDebts, recordPreviousDebt, savePreviousDebts, type PreviousDebtList } from "@/lib/previousDebt";
 import { confirmClosedMonthChange, ledgerEntryMonthDates } from "@/lib/monthClosing";
@@ -1299,7 +1299,8 @@ export function HomeView({
   // "متعطل": marking a fault can drop the device's open D (never paid to Starlink - the whole sale
   // becomes profit today); "تم الإصلاح" brings any dropped D back to be paid normally.
   function handleSetDeviceFault(account: StarlinkAccountSummary, fault: StarlinkAccountSummary["deviceFault"], waiveDebts: boolean) {
-    patchAccount(account.id, { deviceFault: fault });
+    // «إزالة العطل» also dismisses a group the app found by itself (else the device stays listed).
+    patchAccount(account.id, fault ? { deviceFault: fault } : removeFaultPatch(account));
     const entries = getAccountEntries(ledgerStore, account.id);
     if (fault && waiveDebts) {
       const today = new Date().toISOString().slice(0, 10);

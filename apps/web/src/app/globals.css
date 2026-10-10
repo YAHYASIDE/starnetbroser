@@ -1493,6 +1493,18 @@ button.overview-card:active {
   padding: 6px 10px;
   border-radius: var(--radius-sm);
 }
+.fault-remove-button {
+  float: left;
+  margin-inline-start: 8px;
+  background: #1a1208;
+  color: var(--yellow);
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.68rem;
+  padding: 2px 9px;
+  cursor: pointer;
+}
 
 .account-card-restricted-banner {
   background: var(--yellow);

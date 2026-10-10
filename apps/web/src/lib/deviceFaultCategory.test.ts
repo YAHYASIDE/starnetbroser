@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countFaultCategories, faultCategory, faultLabel, isAutoFault, isFaulty } from "./deviceFault";
+import { countFaultCategories, faultCategory, faultLabel, isAutoFault, isFaulty, pruneFaultDismissal, removeFaultPatch } from "./deviceFault";
 import { effectiveServiceStatus } from "./status";
 
 describe("«المعطلة» groups", () => {
@@ -38,5 +38,35 @@ describe("«المعطلة» groups", () => {
   it("no subscription shows as canceled even when the Home page read «active»", () => {
     expect(effectiveServiceStatus({ serviceStatus: "active", noSubscription: true })).toBe("canceled");
     expect(effectiveServiceStatus({ serviceStatus: "active", noSubscription: false })).toBe("active");
+  });
+});
+
+describe("«✓ إزالة العطل»", () => {
+  it("removes a group the app found by itself; Starlink's flag stays as read", () => {
+    const secondary = { limitedAccess: true };
+    const patch = removeFaultPatch(secondary);
+    expect(patch).toEqual({ deviceFault: null, faultDismissed: ["secondary"] });
+    expect(faultCategory({ ...secondary, ...patch })).toBeNull();
+    expect(isFaulty({ ...secondary, ...patch })).toBe(false);
+  });
+
+  it("his own mark on an email that is also secondary: the device really leaves «المعطلة»", () => {
+    const both = { deviceFault: { reason: "secondary" as const, note: "", reportedAt: "" }, limitedAccess: true, noSubscription: true };
+    const after = { ...both, ...removeFaultPatch(both) };
+    expect(after.deviceFault).toBeNull();
+    expect(after.faultDismissed).toEqual(["canceled", "secondary"]);
+    expect(faultCategory(after)).toBeNull();
+  });
+
+  it("a plain manual fault is just cleared", () => {
+    expect(removeFaultPatch({ deviceFault: { reason: "burned", note: "", reportedAt: "" } })).toEqual({ deviceFault: null, faultDismissed: null });
+  });
+
+  it("a dismissed group comes back only after Starlink read it cleared, then set again", () => {
+    const dismissed = { limitedAccess: true, faultDismissed: ["secondary" as const] };
+    expect(pruneFaultDismissal(dismissed)).toEqual(["secondary"]);
+    expect(pruneFaultDismissal({ ...dismissed, limitedAccess: false })).toBeNull();
+    // A different group the app finds later still shows.
+    expect(faultCategory({ ...dismissed, noSubscription: true })).toBe("canceled");
   });
 });

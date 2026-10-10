@@ -16,7 +16,7 @@ import { daysRemainingLabel, daysRemainingNumber, formatRelativeTime, renewalDat
 import { emailsMismatch } from "@/lib/emailMatch";
 import { computeBalanceByCurrency, LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerEntry } from "@/lib/ledgerStore";
 import { starlinkCostUsd, summarizeDeviceProfit } from "@/lib/accountingStore";
-import { faultCategory, faultLabel, isAutoFault, isWaivedCost, openDebtEntries } from "@/lib/deviceFault";
+import { faultCategory, faultLabel, isAutoFault, isWaivedCost, openDebtEntries, removeFaultQuestion } from "@/lib/deviceFault";
 import { openDebtUsdToday, paidSinceLastSyncUsd, totalPreviousDebtUsd, unrecordedGapUsd, type PreviousDebt } from "@/lib/previousDebt";
 import { computeDeviceMarks } from "@/lib/deviceMarks";
 import { CurrencyStore, getCurrency, toUsd } from "@/lib/currencyStore";
@@ -546,7 +546,16 @@ export function AccountCard({
         </div>
       )}
       {fault && (
-        <div className="account-card-fault-banner">
+        <div className="account-card-fault-banner" data-tour="fault-remove">
+          {context === "active" && (
+            <button
+              type="button"
+              className="fault-remove-button"
+              onClick={() => window.confirm(removeFaultQuestion(ledgerEntries.filter(isWaivedCost).length)) && onSetDeviceFault(account, null, false)}
+            >
+              ✓ إزالة العطل
+            </button>
+          )}
           {faultLabel(fault)}
           {isAutoFault(account)
             ? fault === "secondary"

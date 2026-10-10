@@ -833,3 +833,14 @@ is never pressed while a field is empty - it refills and saves on the next try (
   rate 430 in «سعر عملة البيع», so profit was wrong until he switched currencies back and forth): the
   rate now follows the currency the form opens in. **Old records saved with the wrong rate are left as
   they are** (his choice «اتركها كما هي»).
+
+## ✓ «إزالة العطل» (Oct 10 2026)
+
+- His request (screenshot of the «الأجهزة المعطلة» dialog): «اضف زر ازالة العطل». A «✓ إزالة العطل»
+  button sits on the yellow fault banner of the card (active list) and in the dialog, for EVERY group -
+  also the ones the app found by itself (إيميل غير رئيسي = limitedAccess, ملغي اشتراك = noSubscription /
+  canceled). Before, clearing his own mark left such a device in «المعطلة» with no button at all.
+- An auto group he removes is kept in `faultDismissed`; Starlink's flags stay as read. A sync that reads
+  the flag cleared forgets the dismissal, so a later real one shows again. Removing a fault still brings
+  back any D he had dropped when marking it (as before).
+

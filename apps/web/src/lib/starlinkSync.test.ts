@@ -79,6 +79,10 @@ describe("mergeSyncedFields - scanned vs. changed", () => {
     expect(flagged.updatedFields.map((f) => f.field)).toEqual(["limitedAccess"]);
     expect(mergeSyncedFields(flagged.account, { limitedAccess: false }).account.limitedAccess).toBe(false);
     expect(mergeSyncedFields(flagged.account, { planName: "x" }).account.limitedAccess).toBe(true);
+    // «إزالة العطل» on it lasts while the flag holds, and is forgotten once Starlink reads it cleared.
+    const dismissed = { ...flagged.account, faultDismissed: ["secondary" as const] };
+    expect(mergeSyncedFields(dismissed, { planName: "x" }).account.faultDismissed).toEqual(["secondary"]);
+    expect(mergeSyncedFields(dismissed, { limitedAccess: false }).account.faultDismissed).toBeNull();
   });
 
   it("clears a false-positive limitedAccess when the login email is Admin in Settings → Users", () => {
