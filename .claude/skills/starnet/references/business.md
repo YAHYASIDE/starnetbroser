@@ -941,3 +941,12 @@ is never pressed while a field is empty - it refills and saves on the next try (
   globals.css) the page is `overflow: hidden`, and every scroller inside an overlay has
   `overscroll-behavior: contain`, so a swipe never reaches the page underneath. A NEW full-screen overlay
   class must be added to that list.
+
+## 🏦 Sedad notices with invisible direction marks (Oct 10 2026)
+
+- His report (screenshots): Sedad «أرسلتم مبلغ 3600.0 أوقية جديدة لصالح NAME ( NUMBER )» and «وصلكم من NAME
+  ( NUMBER ) مبلغ 500.0 أوقية جديدة» never reached «عمليات البنوك». The wording was already understood;
+  the phone's text carries invisible bidi marks (U+200E/200F, U+202A-202E, U+2066-2069…) around the numbers,
+  so no amount matched and the notice was dropped as «ignore». `parseBankNotice` now removes those marks
+  first (every app). And a notice nothing was read from is no longer remembered as seen: while it's still
+  in the tray, the rescan on opening «حسابي» reads it again with the newer parser (so his missed ones come back).

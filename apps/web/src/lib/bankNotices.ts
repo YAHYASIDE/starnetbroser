@@ -89,6 +89,9 @@ function appFromTag(tag: string): string | undefined {
 
 const AMOUNT = "(\\d[\\d.,\\s\\u00a0]*?)";
 
+/** Invisible direction / joiner marks some apps put around numbers and names. */
+const BIDI_MARKS = /[\u200b-\u200f\u202a-\u202e\u2066-\u2069\u061c\ufeff]/g;
+
 function currencyOf(word: string): string | undefined {
   const w = word.toLowerCase().replace(/\s/g, "");
   if (w === "mru" || w.includes("أوقية")) return "MRU";
@@ -132,8 +135,9 @@ function unknownOrIgnore(text: string, txId?: string): ParsedNotice {
  * of my apps on my own number is a transfer, not income.
  */
 export function parseBankNotice(raw: Pick<RawBankNotice, "app" | "title" | "text">, ownNumbers: string[]): ParsedNotice {
-  // Phones write the apostrophe several ways («Transfert d’argent»).
-  const quotes = (s: string) => s.replace(/[’‘ʼ`´]/g, "'");
+  // Phones write the apostrophe several ways («Transfert d’argent»), and Sedad wraps its numbers in
+  // invisible direction marks («مبلغ \u200e3600.0\u200f أوقية» - his Oct 10 2026 screenshot): dropped.
+  const quotes = (s: string) => s.replace(BIDI_MARKS, "").replace(/[’‘ʼ`´]/g, "'");
   const rawText = quotes(raw.text);
   const title = quotes(raw.title).trim();
   const text = rawText.replace(/[\s ]+/g, " ").trim();
@@ -308,11 +312,13 @@ export function ingestBankNotices(inbox: BankInbox, raws: RawBankNotice[], ownNu
   let added = 0;
   for (const raw of [...raws].sort((a, b) => a.at - b.at)) {
     if (!raw?.id || seen.has(raw.id)) continue;
-    seen.add(raw.id);
-    seenOrder.push(raw.id);
     // The bank apps say MRU (new ouguiya); the app works in the old one: ×10 (bankOuguiya.ts).
     const parsed = toAppOuguiya(parseBankNotice(raw, ownNumbers));
+    // Not marked seen when nothing was read: still in the tray, it's read again after an update
+    // that understands it (Sedad's notices lost to the direction marks came back this way).
     if (parsed.kind === "ignore") continue;
+    seen.add(raw.id);
+    seenOrder.push(raw.id);
     if (parsed.txId) {
       if (txIds.has(parsed.txId)) continue;
       txIds.add(parsed.txId);

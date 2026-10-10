@@ -155,9 +155,25 @@ describe("parseBankNotice", () => {
     expect(parseBankNotice(raw("x", "bankily", "MERPASSCDE", "Votre demande … Montant : 1000 MRU B…"), OWN)).toEqual({ kind: "unknown", amount: 1000, currencyCode: "MRU" });
     expect(parseBankNotice(raw("y", "sedad", "Sedad", "عرض جديد 2026"), OWN).kind).toBe("ignore");
   });
+
+  it("Sedad with invisible direction marks around the numbers (his Oct 10 2026 screenshot) is still read", () => {
+    const sent = "\u200fأرسلتم مبلغ \u200e3600.0\u200f أوقية جديدة لصالح ديمو ( \u200e40000006\u200f )";
+    expect(parseBankNotice(raw("x", "sedad", "ENVOI", sent), OWN)).toEqual({ kind: "out", amount: 3600, currencyCode: "MRU", party: { name: "ديمو", number: "40000006" } });
+    const got = "\u202bوصلكم من ديمو ( \u2066\u200e40000007\u2069 ) مبلغ \u200e500.0\u200f أوقية جديدة\u202c";
+    expect(parseBankNotice(raw("x", "sedad", "ENVOI", got), OWN)).toEqual({ kind: "in", amount: 500, currencyCode: "MRU", party: { name: "ديمو", number: "40000007" } });
+  });
 });
 
 describe("ingestBankNotices", () => {
+  it("a notice not understood isn't marked seen: read again (still in the tray) after an update", () => {
+    const later = raw("n1", "sedad", "ENVOI", "رسالة بلا مبلغ 3");
+    const first = ingestBankNotices(EMPTY_BANK_INBOX, [later], OWN).inbox;
+    expect(first.seen).toEqual([]);
+    const ok = ingestBankNotices(first, [raw("n2", "sedad", "ENVOI", "وصلكم من ديمو ( 40000008 ) مبلغ 100.0 أوقية جديدة")], OWN).inbox;
+    expect(ok.seen).toEqual(["n2"]);
+    expect(ingestBankNotices(ok, [raw("n2", "sedad", "ENVOI", "وصلكم من ديمو ( 40000008 ) مبلغ 100.0 أوقية جديدة")], OWN).added).toBe(0);
+  });
+
   it("merges the two halves of one GIMTEL transfer", () => {
     const { inbox, added } = ingestBankNotices(EMPTY_BANK_INBOX, [GIMTEL_IN, GIMTEL_OUT], OWN);
     expect(added).toBe(1);
@@ -190,10 +206,11 @@ describe("ingestBankNotices", () => {
     expect(suggestionNote(s)).toBe("DEMO NAME · 40000004 - عبر بنكيلي");
   });
 
-  it("ignored ones (ads, Binance processing) are only remembered as seen", () => {
+  it("ignored ones (ads, Binance processing) add nothing and aren't kept as seen (a later update may read them)", () => {
     const { inbox, added } = ingestBankNotices(EMPTY_BANK_INBOX, [raw("p", "binance", "USDT Deposit Processing", "Your deposit of 10 USDT is processing")], OWN);
     expect(added).toBe(0);
-    expect(inbox.seen).toEqual(["p"]);
+    expect(inbox.suggestions).toEqual([]);
+    expect(inbox.seen).toEqual([]);
   });
 });
 
