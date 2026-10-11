@@ -69,6 +69,8 @@ interface Props {
   onRestoreD?: (account: StarlinkAccountSummary, entryIds: string[]) => void;
   /** ✓ «دفعته»: the D really was paid - Starlink's bill is a new month (settledStillDue.confirmPaidD). */
   onConfirmPaidD?: (account: StarlinkAccountSummary, entryIds: string[]) => void;
+  /** «✕» on «📱 أضافه …»: drop the mark (the device keeps its rep). */
+  onClearRepAdded?: (account: StarlinkAccountSummary) => void;
   /** The last "فحص جلسات الدخول" found this device signed out - shows a small "sign in" bubble
    * over the card's top edge that opens its browser. */
   sessionNeedsLogin?: boolean;
@@ -233,6 +235,7 @@ export function AccountCard({
   onAddPreviousDebt,
   onRestoreD,
   onConfirmPaidD,
+  onClearRepAdded,
   repColor,
   heldByRepName,
   addedByRepName,
@@ -715,6 +718,18 @@ export function AccountCard({
           <span className="rep-added-chip" title="أضافه المندوب من تطبيقه وثبّتّه أنت">
             📱 أضافه {addedByRepName}
             {account.addedByRepAt && <> · <bdi dir="ltr">{account.addedByRepAt.slice(0, 10)}</bdi></>}
+            {onClearRepAdded && (
+              <button
+                type="button"
+                className="rep-added-chip-clear"
+                aria-label={`إزالة «أضافه ${addedByRepName}»`}
+                onClick={() => {
+                  if (window.confirm(`إزالة «📱 أضافه ${addedByRepName}» عن «${account.name}»؟\n\nيبقى الجهاز عند مندوبه كما هو - تُزال العلامة فقط.`)) onClearRepAdded(account);
+                }}
+              >
+                ✕
+              </button>
+            )}
           </span>
         )}
         {twin && onMergeInto && (

@@ -171,6 +171,7 @@ import { PendingSyncLike, reapplyCachedSyncedFields, runSyncBatch } from "@/lib/
 import { getCachedSyncedFields, saveSyncedFieldsCache } from "@/lib/syncedFieldsCache";
 import { resolveAccountDeletion } from "@starnet/local-browser-plugin";
 import { confirmPaidD } from "@/lib/settledStillDue";
+import { clearRepAddedPatch } from "@/lib/repAddedMark";
 
 const NEAR_EXPIRY_THRESHOLD_DAYS = 3;
 
@@ -1414,6 +1415,13 @@ export function HomeView({
   }
 
   /** ✓ He really paid those D's - Starlink's bill after them is a new month. */
+  // «✕» on «📱 أضافه …»: one card, or every card in the «من المندوبين» filter at once.
+  function handleClearRepAdded(targets: StarlinkAccountSummary[]) {
+    for (const account of targets) patchAccount(account.id, clearRepAddedPatch(account));
+    if (statFilter === "fromRep" && targets.length >= fromRepCount) setStatFilter(null);
+    pushToast(targets.length === 1 ? `أُزيلت علامة المندوب عن "${targets[0].name}"` : `أُزيلت علامة المندوب عن ${targets.length} جهاز`);
+  }
+
   function handleConfirmPaidD(account: StarlinkAccountSummary, entryIds: string[]) {
     updateLedgerEntries(account.id, confirmPaidD(getAccountEntries(ledgerStore, account.id), new Set(entryIds)));
     pushToast(`✓ D مدفوع على "${account.name}" - سجّل الشهر الجديد بـ«🔄 تجديد» إن لم تسجّله`);
@@ -2221,7 +2229,19 @@ export function HomeView({
           </div>
           {viewMode === "active" && (
             statFilter ? (
-              <button className="text-action" onClick={() => setStatFilter(null)}>مسح التصفية</button>
+              <div className="section-header-actions">
+                {statFilter === "fromRep" && visible.length > 0 && (
+                  <button
+                    className="text-action"
+                    onClick={() => {
+                      if (window.confirm(`إزالة علامة «📱 أضافه المندوب» عن ${visible.length} جهاز؟\n\nتبقى الأجهزة عند مندوبيها كما هي - تُزال العلامة فقط.`)) handleClearRepAdded(visible);
+                    }}
+                  >
+                    ✕ إزالة العلامة عن الكل
+                  </button>
+                )}
+                <button className="text-action" onClick={() => setStatFilter(null)}>مسح التصفية</button>
+              </div>
             ) : (
               !query && selectedDay === null && (
                 <button className="text-action" onClick={() => setShowAll((v) => !v)}>
@@ -2330,6 +2350,7 @@ export function HomeView({
                 onAddPreviousDebt={viewMode === "active" ? handleAddPreviousDebt : undefined}
                 onRestoreD={viewMode === "active" ? handleRestoreD : undefined}
                 onConfirmPaidD={viewMode === "active" ? handleConfirmPaidD : undefined}
+                onClearRepAdded={viewMode === "active" ? (a) => handleClearRepAdded([a]) : undefined}
                 deviceNote={deviceNotes[account.id]}
                 onSaveNote={(target, input) => commitDeviceNotes(saveDeviceNote(loadDeviceNotes(), target.id, input))}
                 onSetPinned={(target, pinned) => commitDeviceNotes(setDevicePinned(loadDeviceNotes(), target.id, pinned))}

@@ -11845,6 +11845,24 @@ button.today-tile {
 }
 
 /* 📱 «أضافه المندوب» on a device card (approved from his «تسجيلاتي»). */
+.section-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px 10px;
+}
+
+.rep-added-chip-clear {
+  margin-inline-start: 6px;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  opacity: 0.75;
+  cursor: pointer;
+}
+
 .rep-added-chip {
   flex: none;
   padding: 2px 8px;

@@ -1127,3 +1127,11 @@ is never pressed while a field is empty - it refills and saves on the next try (
   `topMoreItems` (BottomNav.tsx, lib/moreMenu.ts `withoutBottomDuplicates`) drops a top item whose page is a
   bottom-bar tab or in the bottom «المزيد» (owner: الإعدادات and ستارلينك والبطاقة left the top). A rep whose top
   list ends up empty has no top «المزيد» button. Any new item: put it in one of the two lists only.
+
+## ✕ Removing «📱 أضافه المندوب» (Oct 11 2026)
+
+- His words (screenshot of the «أجهزة أضافها المندوبون» filter): «ازل عن هاذه اضافه الحسين». The chip has a ✕
+  (one card) and the «📱 من المندوبين» filter has «✕ إزالة العلامة عن الكل» (every card shown), both confirmed.
+  `clearRepAddedPatch` (lib/repAddedMark.ts) drops `addedByRepId` / `addedByRepAt` only - the device keeps its
+  rep (`representativeId`), and the day it was added moves to `addedAt` («أضفناها اليوم», duplicate proof).
+  A rep's later edits never bring the mark back (repChanges keeps it only when the owner's device has it).
