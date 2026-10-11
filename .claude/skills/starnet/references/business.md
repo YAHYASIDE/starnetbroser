@@ -1010,6 +1010,11 @@ is never pressed while a field is empty - it refills and saves on the next try (
   sale's locked rate). 30,000 أوقية, 50 $, real 430 → our profit 8,500; his 450 → his profit 7,500, his 50% = 3,750,
   ours = 8,500 − 3,750. A dollar sale or no rate for the sale's currency = unchanged. Expected (D) shares too.
   His statement rows show his view (cost at his rate, his profit); our reports keep the real profit.
+- Oct 11 2026, his report: «أضفت سعر له 460… لم يتغير شيء… وأضفت عملية الآن ولم تُحسب بـ460». His rep (الحسين) sells
+  in سيفا and only the أوقية rate was set → nothing applied. Now the plan keeps `base` (the real rates when saved; an
+  older plan gets today's once) and a rate in one currency is the same markup on the dollar for a sale in the other:
+  factor = 460 ÷ 435 on a سيفا sale. `applyRepRatePlans` runs when the reps page loads: every shipment of his from
+  «يبدأ من» that misses the plan (recorded before saving, on his phone…) gets it.
 
 ## 🅳 «تجديد» never clears a D silently + ↩️ «أرجع D» (Oct 10 2026)
 

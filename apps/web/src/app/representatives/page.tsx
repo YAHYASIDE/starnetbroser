@@ -11,7 +11,7 @@ import { PdfButton } from "@/components/PdfButton";
 import { RepAppCodePanel } from "@/components/RepAppCodePanel";
 import { copyGaps, copyGapsText, loadRepCopySentDevices } from "@/lib/repCopy";
 import { setRepCustomersHidden, setRepRates } from "@/lib/repStore";
-import { stampRepRates, type RepRatePlan } from "@/lib/repRates";
+import { applyRepRatePlans, stampRepRates, withBaseRates, type RepRatePlan } from "@/lib/repRates";
 import { RepRequestsSection } from "@/components/RepRequestsSection";
 import { PrintableDocument } from "@/lib/pdfDocument";
 import { loadCashEntries, postRepSettlementToCash, removeLinkedCashEntries, saveCashEntries } from "@/lib/cashStore";
@@ -246,11 +246,30 @@ export default function RepresentativesPage() {
   /** Everything this page shows, read again from the phone - after a request is approved, a
    * record from the bot, coming back to the app, or 🔄 تحديث. */
   const reloadAll = useCallback(() => {
-    setRepresentativeStore(loadRepresentativeStore());
+    let reps = loadRepresentativeStore();
+    if (!isRepWorkspace()) {
+      // 💱 A «سعر المندوب» saved before it kept the real rates: today's become its base (once).
+      const currencies = loadCurrencyStore();
+      const real = { MRU: getCurrency(currencies, "MRU")?.rateFromUsd, SIFA: getCurrency(currencies, "SIFA")?.rateFromUsd };
+      let changed = false;
+      for (const rep of Object.values(reps)) {
+        if (!rep.usdRates) continue;
+        const plan = withBaseRates(rep.usdRates, real);
+        if (plan !== rep.usdRates) {
+          reps = setRepRates(reps, rep.id, plan);
+          changed = true;
+        }
+      }
+      if (changed) saveRepresentativeStore(reps);
+    }
+    setRepresentativeStore(reps);
     setInvoices(loadInvoices());
     setSettlements(loadRepSettlements());
     setStoreItems(loadStoreItems());
-    setLedgerStore(loadLedgerStore());
+    // 💱 «سعر المندوب» onto his shipments that don't carry it yet (recorded on his phone…).
+    const planned = isRepWorkspace() ? { ledger: loadLedgerStore(), count: 0 } : applyRepRatePlans(loadLedgerStore(), Object.values(reps));
+    if (planned.count) saveLedgerStore(planned.ledger);
+    setLedgerStore(planned.ledger);
     setClientStore(loadClientStore());
     setRepBook(loadRepBook());
     const rep = isRepWorkspace();
@@ -2034,13 +2053,35 @@ function RepRatesForm({ rep, onSave, onCancel }: { rep: Representative; onSave: 
         <span>يبدأ من (يُعاد حساب نصيبه في شحناته من هذا اليوم)</span>
         <DateInput className="search-input" value={since} onChange={(e) => setSince(e.target.value)} />
       </label>
+      {mru && !sifa && real.MRU ? (
+        <p className="settings-hint">
+          شحناته بالسيفا تُحسب بنفس الفرق على الدولار: <bdi dir="ltr">{formatAmount(mru)} ÷ {formatAmount(real.MRU)}</bdi> (+
+          <bdi dir="ltr">{formatAmount(Math.round((mru / real.MRU - 1) * 1000) / 10)}%</bdi> على تكلفة ستارلينك).
+        </p>
+      ) : null}
       {example && (
         <p className="rep-rates-example">
           مثال: شحنة <bdi dir="ltr">30,000</bdi> أوقية وتكلفتها <bdi dir="ltr">50 $</bdi> - الربح الحقيقي <bdi dir="ltr">{formatAmount(example.real)}</bdi>، وربحه بسعره <bdi dir="ltr">{formatAmount(example.his)}</bdi>.
         </p>
       )}
       <div className="settings-actions">
-        <button type="button" className="dialog-primary" disabled={!since || (!mru && !sifa)} onClick={() => onSave({ since, ...(mru ? { MRU: mru } : {}), ...(sifa ? { SIFA: sifa } : {}) }, since)}>
+        <button
+          type="button"
+          className="dialog-primary"
+          disabled={!since || (!mru && !sifa)}
+          onClick={() =>
+            onSave(
+              {
+                since,
+                ...(mru ? { MRU: mru } : {}),
+                ...(sifa ? { SIFA: sifa } : {}),
+                // the real rates now: a rate of his in one currency is the same markup in the other
+                base: { ...(real.MRU ? { MRU: real.MRU } : {}), ...(real.SIFA ? { SIFA: real.SIFA } : {}) },
+              },
+              since,
+            )
+          }
+        >
           💱 احفظ سعره
         </button>
         {rep.usdRates && (

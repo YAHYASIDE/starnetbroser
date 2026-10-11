@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { LedgerByAccount, LedgerEntry } from "./ledgerStore";
 import { createLedgerEntry } from "./ledgerStore";
-import { repCostFactor, repProfitUsd, repRatesFor, stampRepRates } from "./repRates";
+import { applyRepRatePlans, repCostFactor, repProfitUsd, repRatesFor, stampRepRates, withBaseRates } from "./repRates";
 import { listRepDeviceCommissions, shipmentRepShareUsd } from "./repStore";
 
 // His example (Oct 10 2026): sold 30,000 أوقية at the real 430, Starlink cost 50 $, rep 50%.
@@ -74,5 +74,25 @@ describe("💱 سعر المندوب", () => {
     expect(created.representativeRates).toEqual({ MRU: 450 });
     const before = createLedgerEntry({ kind: "debit", amount: 30000, currency: "MRU", note: "", email: "", date: "2026-10-01", representative: { id: "r1", commissionPercent: 50, ratePlan: plan } });
     expect(before.representativeRates).toBeUndefined();
+  });
+
+  it("only an أوقية rate set (460, real 435) and a سيفا sale → the same markup on the dollar (his Oct 11 case)", () => {
+    const e = shipment({ currency: "SIFA", amount: 40000, saleRate: { rateFromUsd: 600, usdValue: 40000 / 600 }, representativeRates: { MRU: 460, base: { MRU: 435 } } });
+    expect(repCostFactor(e)).toBeCloseTo(460 / 435);
+    // real profit 16.67 $; his: cost 50 × 460/435 = 52.87 → 13.79 $
+    expect(repProfitUsd(e, 40000 / 600 - 50)).toBeCloseTo(40000 / 600 - 50 * (460 / 435), 4);
+    // without the base (an old plan) nothing can be known → unchanged
+    expect(repCostFactor(shipment({ currency: "SIFA", amount: 40000, saleRate: { rateFromUsd: 600, usdValue: 40000 / 600 }, representativeRates: { MRU: 460 } }))).toBe(1);
+  });
+
+  it("an old plan gets today's real rates as base; loading stamps his shipments that miss it", () => {
+    const plan = withBaseRates({ since: "2026-10-11", MRU: 460 }, { MRU: 435, SIFA: 120 });
+    expect(plan.base).toEqual({ MRU: 435, SIFA: 120 });
+    expect(withBaseRates(plan, { MRU: 500 })).toBe(plan);
+    const ledger: LedgerByAccount = { d1: [shipment({ id: "a", date: "2026-10-11" }), shipment({ id: "b", date: "2026-10-10" })] };
+    const { ledger: next, count } = applyRepRatePlans(ledger, [{ id: "r1", usdRates: plan }, { id: "r2" }]);
+    expect(count).toBe(1);
+    expect(next.d1!.map((e) => e.representativeRates)).toEqual([{ MRU: 460, base: { MRU: 435, SIFA: 120 } }, undefined]);
+    expect(applyRepRatePlans(next, [{ id: "r1", usdRates: plan }]).count).toBe(0);
   });
 });
