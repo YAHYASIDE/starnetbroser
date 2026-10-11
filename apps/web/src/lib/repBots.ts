@@ -82,7 +82,7 @@ export const REP_ALERTS_INFO = "🔔 هذا بوت التنبيهات - تصلك
 export const REP_HANDOVER_HINT = [
   "🤲 لتسجيل مبلغ سلّمته للمسؤول اكتب:",
   "سلمت المبلغ",
-  "مثال: سلمت 50000 · بالدولار: سلمت 100 دولار",
+  "مثال: سلمت 50000 · بالسيفا: سلمت 20000 سيفا",
 ].join("\n");
 
 export function repHandoverReceivedText(amountLabel: string): string {

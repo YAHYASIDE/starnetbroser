@@ -739,7 +739,7 @@ public class TelegramReplyService extends Service {
                 send(context, bot, token, chatId, TelegramReplies.BOOK_AMOUNT_AGAIN, TelegramReplies.forceReply("المبلغ والعملة"));
                 return true;
             }
-            String currency = TelegramReplies.explicitCurrency(text);
+            String currency = TelegramReplies.explicitMoneyCurrency(text);
             if (currency == null) {
                 TelegramStore.setPendingPayment(context, chatId, "book-currency", Double.toString(price.amount), "", client.id, pending[4], "");
                 send(context, bot, token, chatId, TelegramReplies.currencyQuestion(price.amount), TelegramReplies.bookCurrencyMarkup());
@@ -754,7 +754,7 @@ public class TelegramReplyService extends Service {
             return false;
         }
         if ("book-currency".equals(stage)) {
-            String currency = TelegramReplies.explicitCurrency(text);
+            String currency = TelegramReplies.explicitMoneyCurrency(text);
             if (currency == null) send(context, bot, token, chatId, TelegramReplies.currencyQuestion(price.amount), TelegramReplies.bookCurrencyMarkup());
             else askBookNote(context, bot, token, chatId, 0, client, pending[4], new TelegramReplies.Price(price.amount, currency));
             return true;

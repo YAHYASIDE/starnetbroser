@@ -7,7 +7,7 @@
  * different figure.
  */
 
-import type { CashEntryList, CreateCashEntryInput } from "./cashStore";
+import type { CashEntry, CashEntryList, CashSourceKind, CreateCashEntryInput } from "./cashStore";
 import type { LedgerByAccount, PaymentMethod } from "./ledgerStore";
 import type { PartyAdjustment } from "./partyBalanceStore";
 import type { RepSettlement } from "./repStore";
@@ -213,20 +213,31 @@ export function setOpeningBalance(book: AccountsBook, accountId: string, amount:
  * which is أوقية only) goes to that currency's cash wallet («💵 كاش سيفا» - his Oct 2026 choice).
  * null = الكاش (no linked app, or no cash wallet in that currency).
  */
-export function devicePaymentAccountId(entry: { paymentMethod?: PaymentMethod; currency: string; createdAt?: string }, accounts: MoneyAccount[]): string | null {
+export function devicePaymentAccountId(entry: { paymentMethod?: PaymentMethod; currency: string }, accounts: MoneyAccount[]): string | null {
   if (!entry.paymentMethod) return null;
-  if (entry.paymentMethod === "cash") return (entry.createdAt ?? new Date().toISOString()) >= CASH_WALLET_FROM ? cashWalletId(entry.currency, accounts) : null;
   const linked = accounts.find((a) => a.method === entry.paymentMethod);
   if (!linked) return null;
   if (linked.currencyCode === entry.currency) return linked.id;
   return accounts.find((a) => isCashWallet(a) && a.currencyCode === entry.currency)?.id ?? null;
 }
 
-/** 💵 From this moment every cash payment in a currency that has a cash wallet («كاش سيفا») lands
- * in that wallet, not in «الكاش» (his Oct 11 2026 choice «كل سيفا نقدًا لكاش سيفا»: a rep's 700
- * سيفا cash raised the «كاش سيفا» line but was missing from the wallet's statement). Older cash
- * stays where it was - history is never moved. */
+/** 💵 From this moment the cash a business record brings or takes («دفعة جهاز» نقدًا, a rep's handover
+ * or commission, a customer's / supplier's «إضافة رصيد», an invoice) in a currency that has a cash
+ * wallet («كاش سيفا») belongs to that wallet, not to «الكاش» (his Oct 11 2026 choice «كل سيفا نقدًا
+ * لكاش سيفا»: a rep's 700 سيفا cash raised the «كاش سيفا» line but was missing from the wallet's
+ * statement). It is still its الكاش entry (deleted with its record); only where it counts moves.
+ * Entries he aims at الكاش himself (transfers, purchases, remittances, his own income/expenses, a
+ * correction, one typed on the الكاش page) stay in الكاش, and older entries never move. */
 export const CASH_WALLET_FROM = "2026-10-11T00:00:00.000Z";
+
+const WALLET_CASH_SOURCES = new Set<CashSourceKind>(["device-payment", "rep-settlement", "party-balance"]);
+
+/** The cash wallet a الكاش entry counts in (see CASH_WALLET_FROM), or null = «الكاش». */
+export function cashEntryWalletId(entry: Pick<CashEntry, "currencyCode" | "createdAt" | "invoiceId" | "sourceKind">, accounts: MoneyAccount[]): string | null {
+  if (!(entry.createdAt >= CASH_WALLET_FROM)) return null;
+  if (!entry.invoiceId && !(entry.sourceKind && WALLET_CASH_SOURCES.has(entry.sourceKind))) return null;
+  return cashWalletId(entry.currencyCode, accounts);
+}
 
 /** The cash wallet holding cash in `currency` («كاش سيفا» for سيفا), or null = «الكاش». */
 export function cashWalletId(currency: string, accounts: MoneyAccount[]): string | null {
@@ -370,11 +381,28 @@ export function partyFlows(
  */
 export function cashInHandEntries(cash: CashEntryList, ledger: LedgerByAccount, book: AccountsBook): CashEntryList {
   if (!book.accounts.some((a) => a.method || isCashWallet(a))) return cash;
-  const bankPayments = new Set<string>();
-  for (const entries of Object.values(ledger)) {
-    for (const e of entries) if (e.kind === "credit" && devicePaymentAccountId(e, book.accounts) !== null) bankPayments.add(e.id);
+  const bankPayments = bankPaymentIds(ledger, book.accounts);
+  return cash.filter((c) => !(c.sourceKind === "device-payment" && c.sourceId && bankPayments.has(c.sourceId)) && !cashEntryWalletId(c, book.accounts));
+}
+
+/** Device payments whose money is in a bank / wallet of their method (their الكاش entry isn't cash). */
+function bankPaymentIds(ledger: LedgerByAccount, accounts: MoneyAccount[]): Set<string> {
+  const ids = new Set<string>();
+  for (const entries of Object.values(ledger)) for (const e of entries) if (e.kind === "credit" && devicePaymentAccountId(e, accounts) !== null) ids.add(e.id);
+  return ids;
+}
+
+/** 💵 The الكاش entries that count in a cash wallet (cashEntryWalletId) as that wallet's flows. */
+export function cashWalletFlows(cash: CashEntryList, ledger: LedgerByAccount, accounts: MoneyAccount[]): AccountFlow[] {
+  if (!accounts.some(isCashWallet)) return [];
+  const bankPayments = bankPaymentIds(ledger, accounts);
+  const flows: AccountFlow[] = [];
+  for (const c of cash) {
+    if (c.sourceKind === "device-payment" && c.sourceId && bankPayments.has(c.sourceId)) continue;
+    const accountId = cashEntryWalletId(c, accounts);
+    if (accountId) flows.push({ accountId, currencyCode: c.currencyCode, date: c.date, amount: c.kind === "in" ? c.amount : -c.amount });
   }
-  return cash.filter((c) => !(c.sourceKind === "device-payment" && c.sourceId && bankPayments.has(c.sourceId)));
+  return flows;
 }
 
 /**

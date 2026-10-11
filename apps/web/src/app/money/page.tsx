@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { routeSavedBotLoans } from "@/lib/repHandover";
 import Link from "next/link";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { AccountsManager, IncomeTab, RecurringSection, today, WealthCard, WealthLineDetail } from "@/components/MyMoney";
@@ -187,6 +188,8 @@ export default function MoneyPage() {
     // anything below reads the stores.
     const ouguiyaFix = runOuguiyaFixOnce();
     if (ouguiyaFix) window.setTimeout(() => window.alert(ouguiyaFixMessage(ouguiyaFix)), 600);
+    // 🏦 A rep's loan approved today before it lowered its app (أورانج…) now does.
+    routeSavedBotLoans();
     // First, the expense groups (set up once: the old أكل/شرب… expenses go, his choice).
     const expenseCustom = loadExpenseTree();
     const ruleList = loadRecurring();

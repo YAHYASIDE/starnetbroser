@@ -29,7 +29,7 @@ import { isDemoMode, isLoggedIn } from "./settingsStore";
 import { cardMovementFlows, currentCardBalanceUsd, loadCardTopUps } from "./starlinkDebt";
 import { loadStoreTransactions } from "./storeStore";
 import { computeSupplierStoreBalance } from "./invoiceStore";
-import { accountBalance, cashInHandEntries, isCashWallet, devicePaymentFlows, partyFlows, type AccountFlow, type AccountsBook, type MoneyAccount } from "./moneyAccounts";
+import { accountBalance, cashInHandEntries, cashWalletFlows, isCashWallet, devicePaymentFlows, partyFlows, type AccountFlow, type AccountsBook, type MoneyAccount } from "./moneyAccounts";
 import type { LedgerByAccount } from "./ledgerStore";
 import { personalFlows, type DebtBook, type IncomeList, type WealthInput } from "./myMoney";
 import type { PersonalExpense } from "./personalExpenses";
@@ -95,6 +95,8 @@ export function businessNetForPeriod(from: string, to: string, accounts: Starlin
 export function loadAccountFlows(ledger: LedgerByAccount, account: MoneyAccount, personal: AccountFlow[], accounts: MoneyAccount[]): AccountFlow[] {
   return [
     ...devicePaymentFlows(ledger, account, accounts),
+    // 💵 «كاش سيفا»: the سيفا cash of customers' / reps' payments (cashEntryWalletId).
+    ...cashWalletFlows(loadCashEntries(), ledger, accounts),
     ...personal,
     ...partyFlows(loadPartyAdjustments(), loadRepSettlements()),
     ...cardMovementFlows(loadCardTopUps()),

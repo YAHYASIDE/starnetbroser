@@ -29,7 +29,7 @@ import { exchangeLabel, type ExchangeList } from "./exchanges";
 import type { CashEntryList } from "./cashStore";
 import { invoiceTotal, type InvoiceList } from "./invoiceStore";
 import { PAYMENT_METHOD_LABELS, type LedgerByAccount, type LedgerEntry, type PaymentMethod } from "./ledgerStore";
-import { CASH_ACCOUNT_ID, countsFrom, devicePaymentAccountId, type AccountsBook, type MoneyAccount } from "./moneyAccounts";
+import { CASH_ACCOUNT_ID, cashEntryWalletId, countsFrom, devicePaymentAccountId, type AccountsBook, type MoneyAccount } from "./moneyAccounts";
 import type { DebtBook, IncomeList } from "./myMoney";
 import type { PartyAdjustmentList } from "./partyBalanceStore";
 import type { PersonalExpense } from "./personalExpenses";
@@ -246,8 +246,10 @@ export function buildMovements(input: MovementInput): Movement[] {
 
   // ---- الكاش: every cash entry is a movement of الكاش (its balance is their sum). ----
   for (const c of input.cash) {
-    const base = { place: CASH_PLACE, direction: c.kind, amount: c.amount, currency: c.currencyCode, date: c.date, createdAt: c.createdAt } as const;
-    const id = `${CASH_PLACE}:cash:${c.id}`;
+    // 💵 سيفا cash of customers' / reps' payments counts in «كاش سيفا» (cashEntryWalletId).
+    const place = cashEntryWalletId(c, accounts) ?? CASH_PLACE;
+    const base = { place, direction: c.kind, amount: c.amount, currency: c.currencyCode, date: c.date, createdAt: c.createdAt } as const;
+    const id = `${place}:cash:${c.id}`;
     const ref = { kind: c.sourceKind ?? (c.invoiceId ? "invoice" : "cash"), id: c.sourceId ?? c.invoiceId ?? c.id };
     const label = [c.category, c.note].filter(Boolean).join(" - ") || "قيد في الكاش";
     if (c.invoiceId) {
@@ -261,7 +263,7 @@ export function buildMovements(input: MovementInput): Movement[] {
         const found = c.sourceId ? ledgerById.get(c.sourceId) : undefined;
         if (found && devicePaymentAccountId(found.entry, accounts)) break; // its money is in the app (cashInHandEntries)
         if (found && c.kind === "in") {
-          out.push(...devicePayment(found.accountId, { ...found.entry, amount: c.amount, currency: c.currencyCode as LedgerEntry["currency"], date: c.date }, CASH_PLACE, id));
+          out.push(...devicePayment(found.accountId, { ...found.entry, amount: c.amount, currency: c.currencyCode as LedgerEntry["currency"], date: c.date }, place, id));
         } else out.push({ ...base, id, kind: c.kind === "in" ? "collection" : "client-out", ref, label });
         break;
       }

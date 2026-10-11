@@ -1142,11 +1142,32 @@ is never pressed while a field is empty - it refills and saves on the next try (
   الحساب فعلا ولاكن لا يظهر في كشف الحساب». The «💵 كاش سيفا» line = الكاش's سيفا + the «كاش سيفا» wallet;
   the 700 went to الكاش, so the line grew but the wallet's statement didn't have it. His choice: «كل سيفا
   نقدًا لكاش سيفا».
-- From `CASH_WALLET_FROM` (2026-10-11T00:00Z, by `createdAt`) a cash payment in a currency that has a cash
-  wallet lands in that wallet (`devicePaymentAccountId` with method `cash` → `cashWalletId`): device
-  payments, a rep's cash handover (`recordRepMoneyHandover`, settlement `accountId`, no cash entry), his
-  commission paid in cash (rep page), and a client's «إضافة رصيد» in «سيفا (كاش)» (BalanceForm: the
-  الكاش option is replaced by the wallet; an older entry kept in الكاش stays there when edited).
-  Older cash is never moved (move it with «🔁 تحويل»). الكاش keeps the أوقية.
-- `postRepSettlementToCash` never posts a settlement that has an `accountId` (an edited أورانج/نيتا/كاش
-  سيفا handover used to get a الكاش entry too).
+- Rule (`cashEntryWalletId`, lib/moneyAccounts.ts): a الكاش entry created from `CASH_WALLET_FROM`
+  (2026-10-11T00:00Z, by `createdAt`) by a business record - `device-payment`, `rep-settlement` (a rep's
+  handover or his commission), `party-balance` (a customer's / supplier's «إضافة رصيد»), an invoice - in a
+  currency that has a cash wallet counts in that wallet, not in الكاش: left out of `cashInHandEntries`,
+  added to the wallet by `cashWalletFlows` (in `loadAccountFlows`), and placed there in `buildMovements`.
+  The entry itself stays (deleted with its record); only where it counts moves. Only money really in hand
+  has a الكاش entry, so a payment «ما زال عند المندوب» never counts.
+- Entries he aims at الكاش himself stay there: transfers, purchases, remittances, card moves, his own
+  income/expenses/debts, closings / resets, one typed on the الكاش page. Older entries never move (he moves
+  them with «🔁 تحويل»). الكاش keeps the أوقية.
+- `postRepSettlementToCash` never posts a settlement that has an `accountId` (an edited أورانج/نيتا
+  handover used to get a الكاش entry too).
+
+## 🏦 A rep's loan comes out of its app + no دولار in the money bot (Oct 11 2026)
+
+- His report: the rep's «سلفة» 15,000 سيفا (= 75,000 فرانك) sent by أورانج موني was recorded on the rep but
+  أورانج didn't go down. `recordRepLoan` now puts the app's account on the advance (`loanAccountId`: the
+  bot's app name → its `PaymentMethod` → `devicePaymentAccountId` in the loan's currency), so it is a
+  money-out of أورانج / نيتا / بنكيلي… in «حسابي» and its statement. Loans approved from Oct 11 2026 before
+  the fix get their account once (`routeBotLoans` / `routeSavedBotLoans`, run on «حسابي» and the
+  representatives page, matching the bot's note «سلفة عبر X إلى N (بوت المال)»); older ones are untouched.
+- His words: «بوت المال ازل منه دولار لانه لا يتسلف ولا يدفع بدولار». The money bot offers أوقية / سيفا
+  (and فرانك for أورانج / نيتا) only: no دولار button in 💵 دفعة or 📒 دفتري, a typed «50 دولار» asks the
+  currency again (`explicitMoneyCurrency`, `isPayCurrency` without USD). The loan never had دولار. The
+  devices bot's ⚡ activation price still reads دولار.
+- His ask «تأكد من ربط كل الفروع»: every money flow and where it lands - a rep's handover (cash → الكاش /
+  كاش سيفا, app → that app), his loan (→ out of its app), his commission (cash → الكاش / كاش سيفا),
+  customer device payments (their method's app, else الكاش / كاش سيفا), «إضافة رصيد» (the chosen place),
+  transfers / purchases / remittances / card moves / personal records (their chosen places).

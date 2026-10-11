@@ -868,13 +868,15 @@ final class TelegramReplies {
     }
 
     static String currencyMarkup() {
-        return "{\"inline_keyboard\":[[" + cb("أوقية", "payc:MRU") + "," + cb("سيفا (كاش)", "payc:SIFA") + "," + cb("دولار", "payc:USD") + "],["
+        // 💵 No دولار in the money bot (his Oct 11 2026 rule: reps never pay or borrow in dollars).
+        return "{\"inline_keyboard\":[[" + cb("أوقية", "payc:MRU") + "," + cb("سيفا (كاش)", "payc:SIFA") + "],["
             + cb("🟠 فرانك (أورانج / نيتا)", "payc:" + FRANC) + "],["
             + cb("❌ إلغاء", "payx") + "]]}";
     }
 
+    /** The money bot's currencies: أوقية and سيفا - never دولار (his Oct 11 2026 rule). */
     static boolean isPayCurrency(String code) {
-        return "MRU".equals(code) || "SIFA".equals(code) || "USD".equals(code);
+        return "MRU".equals(code) || "SIFA".equals(code);
     }
 
     /** 🟠 The 💵 دفعة steps also take فرانك - only until the app is chosen, then it is سيفا. */
@@ -886,7 +888,13 @@ final class TelegramReplies {
     static String explicitPayCurrency(String text) {
         String folded = normalize(text);
         if (folded.contains("فرنك") || folded.contains("فرانك") || folded.contains("cfa") || folded.contains("franc")) return FRANC;
-        return explicitCurrency(text);
+        return explicitMoneyCurrency(text);
+    }
+
+    /** The currency written with an amount in the money bot - دولار isn't one there (asked again). */
+    static String explicitMoneyCurrency(String text) {
+        String currency = explicitCurrency(text);
+        return isPayCurrency(currency) ? currency : null;
     }
 
     /** "device - customer" (the customer's name only, no phone). */
@@ -1531,7 +1539,7 @@ final class TelegramReplies {
     // ---- 📒 The rep's own book (repClients.ts): ➕➖ له/عليه, 💵 دفعة straight into it, ↩️ تراجع ----
 
     static final String BOOK_NONE = "📒 لا زبائن لك في دفترك بعد.\nالمسؤول ينقل زبائنك إليك من التطبيق (صفحة المندوب ← زبائنه).";
-    static final String BOOK_AMOUNT_AGAIN = "لم أفهم المبلغ. اكتب رقماً مثل: 500 أوقية أو 20 دولار";
+    static final String BOOK_AMOUNT_AGAIN = "لم أفهم المبلغ. اكتب رقماً مثل: 500 أوقية أو 2000 سيفا";
     static final String BOOK_CANCELLED = "❌ أُلغي - لم يُسجَّل شيء.";
     static final String BOOK_EXPIRED = "انتهت هذه العملية - ابدأ من جديد بـ ➕➖ له/عليه";
     /** "↩️ تراجع" works this long after the entry. */
@@ -1570,11 +1578,11 @@ final class TelegramReplies {
     }
 
     static String bookAmountQuestion(String clientName, String kind) {
-        return "📒 " + clientName + " - " + bookKindWord(kind) + "\n\nاكتب المبلغ والعملة، مثلاً: 500 أوقية أو 20 دولار";
+        return "📒 " + clientName + " - " + bookKindWord(kind) + "\n\nاكتب المبلغ والعملة، مثلاً: 500 أوقية أو 2000 سيفا";
     }
 
     static String bookCurrencyMarkup() {
-        return "{\"inline_keyboard\":[[" + cb("أوقية", "bkc:MRU") + "," + cb("سيفا", "bkc:SIFA") + "," + cb("دولار", "bkc:USD") + "],[" + cb("❌ إلغاء", "bkx") + "]]}";
+        return "{\"inline_keyboard\":[[" + cb("أوقية", "bkc:MRU") + "," + cb("سيفا", "bkc:SIFA") + "],[" + cb("❌ إلغاء", "bkx") + "]]}";
     }
 
     static String bookNoteQuestion() {

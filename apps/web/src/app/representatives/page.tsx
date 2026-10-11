@@ -15,7 +15,7 @@ import { applyRepRatePlans, stampRepRates, withBaseRates, type RepRatePlan } fro
 import { RepRequestsSection } from "@/components/RepRequestsSection";
 import { PrintableDocument } from "@/lib/pdfDocument";
 import { loadCashEntries, postRepSettlementToCash, removeLinkedCashEntries, saveCashEntries } from "@/lib/cashStore";
-import { cashWalletId, loadAccountsBook } from "@/lib/moneyAccounts";
+import { routeSavedBotLoans } from "@/lib/repHandover";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import {
   buildRepDailyStatement,
@@ -262,6 +262,8 @@ export default function RepresentativesPage() {
         }
       }
       if (changed) saveRepresentativeStore(reps);
+      // 🏦 A loan approved today before it lowered its app (أورانج…) now does.
+      routeSavedBotLoans();
     }
     setRepresentativeStore(reps);
     setInvoices(loadInvoices());
@@ -399,9 +401,7 @@ export default function RepresentativesPage() {
       reloadAll();
       return null;
     }
-    // 💵 His commission paid in cash comes out of the cash wallet of its currency («كاش سيفا»).
-    const wallet = input.kind === "commissionPayout" ? cashWalletId(input.currencyCode, loadAccountsBook().accounts) : null;
-    const result = recordRepSettlement(settlements, { representativeId, ...input, rates: lockedRates(input.currencyCode), ...(wallet ? { accountId: wallet } : {}) });
+    const result = recordRepSettlement(settlements, { representativeId, ...input, rates: lockedRates(input.currencyCode) });
     if (!result.ok) return result.message;
     saveSettlementList(result.settlements);
     saveCashEntries(postRepSettlementToCash(loadCashEntries(), result.settlement, representativeStore[representativeId]?.name ?? ""));

@@ -503,7 +503,13 @@ public class TelegramRepliesTest {
         String currencies = TelegramReplies.currencyMarkup();
         assertTrue(currencies.contains("\"callback_data\":\"payc:MRU\""));
         assertTrue(currencies.contains("\"callback_data\":\"payc:SIFA\""));
-        assertTrue(currencies.contains("\"callback_data\":\"payc:USD\""));
+        // 💵 No دولار in the money bot (his Oct 11 2026 rule).
+        assertFalse(currencies.contains("payc:USD"));
+        assertFalse(TelegramReplies.bookCurrencyMarkup().contains("bkc:USD"));
+        assertFalse(TelegramReplies.isPayCurrency("USD"));
+        assertEquals(null, TelegramReplies.explicitMoneyCurrency("50 دولار"));
+        assertEquals(null, TelegramReplies.explicitPayCurrency("50 دولار"));
+        assertEquals("SIFA", TelegramReplies.explicitMoneyCurrency("2000 سيفا"));
         assertTrue(currencies.contains("\"callback_data\":\"payx\""));
         assertTrue(TelegramReplies.isPayCurrency("SIFA"));
         assertFalse(TelegramReplies.isPayCurrency("EUR"));

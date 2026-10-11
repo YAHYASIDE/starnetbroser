@@ -21,6 +21,8 @@ import {
   seedDefaultAccounts,
   setOpeningBalance,
   devicePaymentAccountId,
+  cashEntryWalletId,
+  cashWalletFlows,
   zeroAccountsBalances,
   undoAccountsReset,
   hasAccountsReset,
@@ -212,16 +214,23 @@ describe("an app holds only its own currency (بنكيلي = أوقية فقط)"
     expect(cashInHandEntries(cash, { a1: [sifaPayment] }, book())).toHaveLength(0);
   });
 
-  it("💵 cash in سيفا from Oct 11 2026 on lands in «كاش سيفا»; older cash and أوقية cash stay in الكاش", () => {
+  it("💵 from Oct 11 2026 the سيفا cash of payments counts in «كاش سيفا», not in الكاش", () => {
     const b = book();
     const wallet = b.accounts[1]!;
-    const cashSifa = { ...sifaPayment, id: "s2", paymentMethod: "cash", createdAt: "2026-10-11T21:50:00.000Z" } as LedgerEntry;
-    expect(devicePaymentAccountId(cashSifa, b.accounts)).toBe(wallet.id);
-    expect(devicePaymentAccountId({ ...cashSifa, createdAt: "2026-10-10T23:59:00.000Z" }, b.accounts)).toBeNull();
-    expect(devicePaymentAccountId({ ...cashSifa, currency: "MRU" }, b.accounts)).toBeNull();
-    expect(devicePaymentAccountId({ paymentMethod: "cash", currency: "SIFA" }, b.accounts)).toBe(wallet.id);
-    const cash = [{ id: "c2", kind: "in", amount: 700, currencyCode: "SIFA", date: "2026-10-11", sourceId: "s2", sourceKind: "device-payment", createdAt: "" }] as CashEntryList;
-    expect(cashInHandEntries(cash, { a1: [cashSifa] }, { ...b, accounts: [wallet] })).toHaveLength(0);
+    const entry = (id: string, over: Partial<CashEntryList[number]>) =>
+      ({ id, kind: "in", amount: 700, currencyCode: "SIFA", date: "2026-10-11", sourceId: `src-${id}`, sourceKind: "rep-settlement", createdAt: "2026-10-11T21:50:00.000Z", ...over }) as CashEntryList[number];
+    const cash: CashEntryList = [
+      entry("c1", {}), // a rep's cash handover today → wallet
+      entry("c2", { kind: "out", amount: 200, sourceKind: "device-payment" }), // a refund → out of the wallet
+      entry("c3", { createdAt: "2026-10-10T20:00:00.000Z" }), // older → stays in الكاش
+      entry("c4", { currencyCode: "MRU" }), // أوقية → الكاش
+      entry("c5", { sourceKind: "account-transfer" }), // aimed at الكاش by hand → الكاش
+    ];
+    expect(cash.map((c) => cashEntryWalletId(c, b.accounts))).toEqual([wallet.id, wallet.id, null, null, null]);
+    expect(cashInHandEntries(cash, {}, b).map((c) => c.id)).toEqual(["c3", "c4", "c5"]);
+    expect(accountBalance(b, wallet, cashWalletFlows(cash, {}, b.accounts))).toEqual({ SIFA: 500 });
+    // no cash wallet: everything stays in الكاش
+    expect(cashWalletFlows(cash, {}, bankily().book.accounts)).toEqual([]);
   });
 
   it("«🔄 البداية من جديد» brings every account to 0, and its undo restores it", () => {
