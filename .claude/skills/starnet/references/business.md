@@ -979,6 +979,12 @@ is never pressed while a field is empty - it refills and saves on the next try (
   «Notification access» and tells him to switch STAR NET off and on. On reconnect the bank notices still in
   the tray are read.
 
+## 📄 The rep's statement PDF shows his share only (Oct 11 2026)
+
+- His words (screenshot of the PDF): «لا أريد أن تظهر له حصتي، أريد أن تظهر فقط حصته». `buildRepStatementPdf`
+  no longer has the «حصتي» tile (ربح أجهزته / حصته / تجديدات / دُفع عنها / الرصيد stay). The bot and the rep's
+  own app already showed «حصتك» only; the operator's own screens keep «حصتي».
+
 ## 💱 «سعر المندوب» - a rep's own dollar rate (Oct 10 2026)
 
 - His ask: «أريد أن يكون هناك سعر للمندوب، يعني سعر الدولار مثلاً 430 ولكن أحسبه للمندوب بـ450 أو ما أريد».

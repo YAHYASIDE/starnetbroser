@@ -31,6 +31,19 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-11-rep-pdf-share",
+    date: "2026-10-11",
+    title: "📄 كشف المندوب: حصته فقط",
+    steps: [
+      {
+        path: "/representatives",
+        title: "📄 كشف حساب المندوب (PDF)",
+        before: "الكشف الذي يصل المندوب كان يُظهر «حصته» و«حصتي».",
+        after: "صار يُظهر حصته فقط - «حصتي» لا تظهر في الكشف ولا في الـPDF الذي ترسله له. في صفحتك أنت تبقى حصتك ظاهرة.",
+      },
+    ],
+  },
+  {
     id: "2026-10-11-new-month",
     date: "2026-10-11",
     title: "📅 فاتورة شهر جديد بعد دفع D",

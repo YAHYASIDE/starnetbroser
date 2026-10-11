@@ -2252,8 +2252,8 @@ function buildRepStatementPdf(
     summary: [
       ...(Object.keys(statement.opening).length > 0 ? [{ label: "رصيد أول الفترة", value: balanceText(statement.opening) }] : []),
       { label: "ربح أجهزته", value: fx.list(t.deviceProfit) },
+      // His Oct 11 2026 rule: the statement he gets shows HIS share only, never ours.
       { label: "حصته", value: fx.list(t.repShare), tone: "due" as const },
-      { label: "حصتي", value: fx.list(t.ourShare), tone: "clear" as const },
       ...(nonZero(t.customerCharges).length ? [{ label: "تجديدات أجهزته (عليه)", value: fx.list(t.customerCharges), tone: "due" as const }] : []),
       ...(nonZero(t.customerPaid).length ? [{ label: "دُفع عنها (له)", value: fx.list(t.customerPaid), tone: "clear" as const }] : []),
       { label: "الرصيد", value: balanceText(statement.closing), tone: "due" as const },
