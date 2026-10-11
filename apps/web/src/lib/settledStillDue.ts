@@ -4,7 +4,10 @@
  * used to mean «paid Starlink today», so a new month's renewal silently settled the old D; Starlink's
  * bill stayed due and the card showed «فرق غير مسجّل» (where «دين D عادي» would charge the customer a
  * second time). When a Starlink read taken AFTER the settlement still shows a gap equal to recently
- * settled D's, they are offered back («↩️ أرجع D»: pending again, nothing new on the customer). Pure.
+ * settled D's, they are offered back («↩️ أرجع D»: pending again, nothing new on the customer). The same
+ * bill can also be a NEW month (his Oct 11 2026 case: he paid the old D, then Starlink billed the next
+ * month on credit) - so the card asks: «📅 شهر جديد» (record it as a new D), «✓ دفعته» (`stillDueOk`,
+ * never asked again) or «↩️ لم أدفعه». Pure.
  */
 
 import { starlinkCostUsd } from "./accountingStore";
@@ -33,7 +36,7 @@ export function settledButStillDue(entries: LedgerEntry[], input: StillDueInput)
   const candidates = entries
     .filter((e) => {
       const cost = e.starlinkCost;
-      if (e.kind !== "debit" || cost?.status !== "settled" || cost.waived || e.previousDebtId || !cost.settledAt) return false;
+      if (e.kind !== "debit" || cost?.status !== "settled" || cost.waived || cost.stillDueOk || e.previousDebtId || !cost.settledAt) return false;
       const at = Date.parse(cost.settledAt);
       return Number.isFinite(at) && at < scan && now - at <= LOOKBACK_MS && (cost.amount ?? 0) > 0;
     })
@@ -52,4 +55,9 @@ export function settledButStillDue(entries: LedgerEntry[], input: StillDueInput)
     if (sum > input.gapUsd + tolerance) break;
   }
   return [];
+}
+
+/** ✓ «دفعته»: these D's were really paid - a later bill is something else. */
+export function confirmPaidD(entries: LedgerEntry[], ids: Set<string>): LedgerEntry[] {
+  return entries.map((e) => (ids.has(e.id) && e.starlinkCost?.status === "settled" ? { ...e, starlinkCost: { ...e.starlinkCost, stillDueOk: true } } : e));
 }

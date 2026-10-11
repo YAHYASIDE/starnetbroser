@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LedgerEntry } from "./ledgerStore";
-import { settledButStillDue } from "./settledStillDue";
+import { confirmPaidD, settledButStillDue } from "./settledStillDue";
 
 // Fake device - shaped like his Oct 10 2026 case: a month's D of ALL 17,714 settled by «تجديد» on
 // Oct 8 while Starlink, read on Oct 10, still asks ALL 17,714.
@@ -51,5 +51,13 @@ describe("↩️ a D settled while Starlink still asks for it", () => {
   it("a D in another currency counts at its locked dollars; the bill's currency at today's rate", () => {
     expect(settledButStillDue([shipment("u", { currencyCode: "USD", amount: 60, usd: 60 })], { ...base, gapUsd: 61 }).map((e) => e.id)).toEqual(["u"]);
     expect(settledButStillDue([shipment("s")], { ...base, billRateFromUsd: 80, gapUsd: 17714 / 80 }).map((e) => e.id)).toEqual(["s"]);
+  });
+});
+
+describe("✓ «دفعته» - the bill after it is a new month", () => {
+  it("never offered back again", () => {
+    const entries = confirmPaidD([shipment("s1")], new Set(["s1"]));
+    expect(entries[0]!.starlinkCost?.stillDueOk).toBe(true);
+    expect(settledButStillDue(entries, { ...base, gapUsd: 225.14 })).toEqual([]);
   });
 });

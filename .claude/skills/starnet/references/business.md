@@ -1005,6 +1005,11 @@ is never pressed while a field is empty - it refills and saves on the next try (
   read, whose value today equals the gap Starlink still asks (±max($2, 5%)) → red «⚠️ D سُدّد في … لكن ستارلينك ما
   زال يطلب …» + «↩️ أرجع D» (`unsettleShipmentCost`: pending again, nothing new on the customer). While it shows,
   the «فرق غير مسجّل / الدين» line is hidden (its «دين D عادي» would charge the customer twice).
+- Oct 11 2026, his case: he HAD paid the old D (ARS 7,201.88) and Starlink then billed the next month on credit -
+  same amount, so the card offered «أرجع D», which would have cancelled his real payment. His question: «هل عندما
+  أضغط إرجاع D لن تحسب العملية الأولى؟» - yes, it un-settles it. Now the box asks: «📅 شهر جديد» (opens «🔄 تجديد»
+  to record the new month as D), «✓ دفعته» (`starlinkCost.stillDueOk` - never offered again; the «فرق غير مسجّل»
+  line comes back for the new bill) or «↩️ لم أدفعه» (un-settle, with a confirm saying exactly that).
 
 ## 💵 «كل ما تملك»: cash one line per currency, أورانج / نيتا always in فرانك (Oct 10 2026)
 

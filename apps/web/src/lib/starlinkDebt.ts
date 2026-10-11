@@ -150,7 +150,7 @@ export function editSettlement(entry: LedgerEntry, edit: SettlementEdit): Settle
 export function unsettleShipmentCost(entry: LedgerEntry): LedgerEntry {
   const cost = entry.starlinkCost;
   if (entry.kind !== "debit" || cost?.status !== "settled" || cost.waived) return entry;
-  const { paidAt: _paidAt, paidVia: _paidVia, settledAt: _settledAt, ...rest } = cost;
+  const { paidAt: _paidAt, paidVia: _paidVia, settledAt: _settledAt, stillDueOk: _ok, ...rest } = cost;
   const { profitCurrencyRates: _rates, ...entryRest } = entry;
   return { ...entryRest, starlinkCost: { ...rest, status: "pending" } };
 }

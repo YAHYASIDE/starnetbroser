@@ -170,6 +170,7 @@ import { runBalanceAlerts } from "@/lib/placeLedgerData";
 import { PendingSyncLike, reapplyCachedSyncedFields, runSyncBatch } from "@/lib/starlinkSync";
 import { getCachedSyncedFields, saveSyncedFieldsCache } from "@/lib/syncedFieldsCache";
 import { resolveAccountDeletion } from "@starnet/local-browser-plugin";
+import { confirmPaidD } from "@/lib/settledStillDue";
 
 const NEAR_EXPIRY_THRESHOLD_DAYS = 3;
 
@@ -1412,6 +1413,12 @@ export function HomeView({
     pushToast(`↩️ رجع D (${ids.size}) على "${account.name}" - ادفعه لستارلينك حين تدفع`);
   }
 
+  /** ✓ He really paid those D's - Starlink's bill after them is a new month. */
+  function handleConfirmPaidD(account: StarlinkAccountSummary, entryIds: string[]) {
+    updateLedgerEntries(account.id, confirmPaidD(getAccountEntries(ledgerStore, account.id), new Set(entryIds)));
+    pushToast(`✓ D مدفوع على "${account.name}" - سجّل الشهر الجديد بـ«🔄 تجديد» إن لم تسجّله`);
+  }
+
   /** Removes a permanently-deleted device's operations and everything posted from them. */
   function removeAccountRecords(account: StarlinkAccountSummary) {
     const next = removeDeviceRecords(
@@ -2322,6 +2329,7 @@ export function HomeView({
                 previousDebts={openPreviousDebts.filter((d) => d.accountId === account.id)}
                 onAddPreviousDebt={viewMode === "active" ? handleAddPreviousDebt : undefined}
                 onRestoreD={viewMode === "active" ? handleRestoreD : undefined}
+                onConfirmPaidD={viewMode === "active" ? handleConfirmPaidD : undefined}
                 deviceNote={deviceNotes[account.id]}
                 onSaveNote={(target, input) => commitDeviceNotes(saveDeviceNote(loadDeviceNotes(), target.id, input))}
                 onSetPinned={(target, pinned) => commitDeviceNotes(setDevicePinned(loadDeviceNotes(), target.id, pinned))}

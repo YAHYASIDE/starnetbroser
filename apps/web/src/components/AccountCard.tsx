@@ -67,6 +67,8 @@ interface Props {
   onAddPreviousDebt?: (account: StarlinkAccountSummary, input: { date: string; amountUsd: number; note: string }) => string | null;
   /** ↩️ Puts D's marked paid (while Starlink still asks for them) back to D (lib/settledStillDue.ts). */
   onRestoreD?: (account: StarlinkAccountSummary, entryIds: string[]) => void;
+  /** ✓ «دفعته»: the D really was paid - Starlink's bill is a new month (settledStillDue.confirmPaidD). */
+  onConfirmPaidD?: (account: StarlinkAccountSummary, entryIds: string[]) => void;
   /** The last "فحص جلسات الدخول" found this device signed out - shows a small "sign in" bubble
    * over the card's top edge that opens its browser. */
   sessionNeedsLogin?: boolean;
@@ -230,6 +232,7 @@ export function AccountCard({
   previousDebts = [],
   onAddPreviousDebt,
   onRestoreD,
+  onConfirmPaidD,
   repColor,
   heldByRepName,
   addedByRepName,
@@ -791,18 +794,33 @@ export function AccountCard({
       {stillDueDs.length > 0 && onRestoreD && (
         <div className="account-card-still-due" role="alert">
           <span>
-            ⚠️ D سُدّد في <bdi dir="ltr">{stillDueDs.map((e) => e.starlinkCost?.paidAt ?? "").filter(Boolean).join("، ")}</bdi> لكن ستارلينك ما زال يطلب{" "}
-            <bdi dir="ltr">{account.currency} {account.balanceDue}</bdi>
+            ⚠️ D سُدّد في <bdi dir="ltr">{stillDueDs.map((e) => e.starlinkCost?.paidAt ?? "").filter(Boolean).join("، ")}</bdi> وستارلينك ما زال يطلب{" "}
+            <bdi dir="ltr">{account.currency} {account.balanceDue}</bdi> - فاتورة شهر جديد، أم لم تدفعه؟
           </span>
-          <button
-            type="button"
-            className="text-action"
-            onClick={() => {
-              if (window.confirm(`إرجاع D (${stillDueDs.length}) كما كان؟ لا يُسجَّل أي دين جديد على الزبون.`)) onRestoreD(account, stillDueDs.map((e) => e.id));
-            }}
-          >
-            ↩️ أرجع D
-          </button>
+          <span className="account-card-still-due-actions">
+            <button type="button" className="text-action" onClick={() => setShowRenewalDialog(true)}>
+              📅 شهر جديد
+            </button>
+            {onConfirmPaidD && (
+              <button type="button" className="text-action" onClick={() => onConfirmPaidD(account, stillDueDs.map((e) => e.id))}>
+                ✓ دفعته
+              </button>
+            )}
+            <button
+              type="button"
+              className="text-action"
+              onClick={() => {
+                if (
+                  window.confirm(
+                    `لم تدفع D القديم فعلاً؟\n\nسيُلغى تسجيل دفعه (${stillDueDs.map((e) => e.starlinkCost?.paidAt ?? "").join("، ")}) ويرجع D غير مدفوع - ولا يُسجَّل أي دين جديد على الزبون.\nإذا كنت دفعته وهذه فاتورة شهر جديد، اضغط «إلغاء» ثم «📅 شهر جديد».`,
+                  )
+                )
+                  onRestoreD(account, stillDueDs.map((e) => e.id));
+              }}
+            >
+              ↩️ لم أدفعه
+            </button>
+          </span>
         </div>
       )}
       {unrecordedUsd > 0 && onAddPreviousDebt && stillDueDs.length === 0 && (

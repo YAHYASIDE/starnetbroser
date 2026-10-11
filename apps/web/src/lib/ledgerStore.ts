@@ -66,6 +66,9 @@ export interface StarlinkCost {
    * paid, so the cost is recorded as settled at 0 on that day and the whole sale is profit. Keeps
    * the original cost so repairing the device can bring the D back. */
   waived?: { currencyCode?: string; amount?: number; rate?: RateSnapshot; at: string };
+  /** ✓ He confirmed he really paid this D although Starlink still showed a bill after it (a new
+   * month's bill, lib/settledStillDue.ts) - never offered back again. */
+  stillDueOk?: boolean;
   note?: string;
 }
 
