@@ -979,6 +979,19 @@ is never pressed while a field is empty - it refills and saves on the next try (
   «Notification access» and tells him to switch STAR NET off and on. On reconnect the bank notices still in
   the tray are read.
 
+## 📒 The rep statement: «ما عليه» and «ربحه» are two accounts (Oct 11 2026)
+
+- His words (screenshot of «ملخص الفترة», one balance 506,490 = owed − his share): «أريد أن تظهر ما عليه وحده، وإن
+  أضفت له رصيدًا يُزال منه، ولكن الربح يكون وحده لا يُخصم مما كان على المندوب… كل حساب مفترق».
+- `repRowSplit` / `repRowAccount` (lib/repAccount.ts): **ما عليه** = renewals on his devices (−), payments on them /
+  what he handed over (+), «استلمت منه نقدًا», the له / عليه amounts he adds by hand, cash collected on store sales;
+  **ربحه** = his share of each shipment, store commissions, minus «دفعت له نقدًا» (commissionPayout).
+  `buildRepPeriodStatement` returns `debt` / `profit` (opening, closing, after each row); the old single balance stays
+  as «⚖️ الصافي لو خُصم ربحه (للمعلومة)».
+- Screen summary: two boxes «📡 حساب ما عليه» / «📈 حساب ربحه (لم يُخصم مما عليه)» + the net; each statement row shows
+  its own account's balance («ما عليه: …» / «ربحه: …»). PDF: the same tiles (no «حصتي») and a «حسابه بعدها» column.
+- Not changed (yet): the rep card's «الصافي», the bot's «كشفي» - they still show the combined figure.
+
 ## 📄 The rep's statement PDF shows his share only (Oct 11 2026)
 
 - His words (screenshot of the PDF): «لا أريد أن تظهر له حصتي، أريد أن تظهر فقط حصته». `buildRepStatementPdf`

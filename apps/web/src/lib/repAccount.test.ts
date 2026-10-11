@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildRepPeriodStatement,
+  repRowAccount,
   isAfterRepReset,
   makeRepConverter,
   makeRepResetPoint,
@@ -149,6 +150,22 @@ describe("period statement", () => {
     expect(st.totals).toMatchObject({ deviceProfitUsd: 60, repShareUsd: 30, ourShareUsd: 30, deviceCount: 1 });
     expect(st.totals.commissions).toEqual({ MRU: 100 });
     expect(st.totals.cashCollected).toEqual({ MRU: 1000 });
+  });
+
+  it("📒 his two accounts apart: «ما عليه» and «ربحه» - their sum is the old single balance", () => {
+    const st = buildRepPeriodStatement(days(), {});
+    // debt: the 5 «عليه» he got + the 1,000 cash he collected on the store sale
+    expect(st.debt.closing).toEqual({ USD: -5, MRU: -1000 });
+    // profit: shares 20 + 30, minus the 15 paid to him in cash, + the 100 store commission
+    expect(st.profit.closing).toEqual({ USD: 35, MRU: 100 });
+    expect(st.closing).toEqual({ USD: 30, MRU: -900 });
+    const period = buildRepPeriodStatement(days(), { from: "2026-09-13", to: "2026-09-20" });
+    expect(period.profit.opening).toEqual({ USD: 5 }); // 20 − 15 paid
+    expect(period.debt.opening).toEqual({});
+    expect(period.profit.after["device-e2"]).toEqual({ USD: 35, MRU: 100 });
+    expect(period.debt.after["invoice-inv1"]).toEqual({ MRU: -1000 });
+    const rows = days().flatMap((d) => d.rows);
+    expect(Object.fromEntries(rows.map((r) => [r.id, repRowAccount(r)]))).toEqual({ e1: "profit", e2: "profit", s1: "profit", s2: "debt", inv1: "debt" });
   });
 
   it("the whole history ends on the full balance; an empty period still shows the carried balance", () => {

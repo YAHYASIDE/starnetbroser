@@ -138,6 +138,34 @@ export function repRowDelta(row: RepStatementRow, convert: RepConvert = keepCurr
   return convert(SETTLEMENT_SIGN[s.kind] * s.amount, s.currencyCode, s.rates);
 }
 
+/** 📒 His two accounts, kept apart (his Oct 11 2026 rule: «ربحه وحده لا يُخصم مما عليه»):
+ * - debt «ما عليه»: renewals on his devices (−), what was paid on them / he handed over (+), the
+ *   له / عليه amounts you add by hand, and the cash he collected on store sales;
+ * - profit «ربحه»: his share of each shipment, his store commissions, minus what you paid him in cash.
+ * debt + profit = the old single balance (`repRowDelta`), shown only as «الصافي». Positive = له. */
+export function repRowSplit(row: RepStatementRow, convert: RepConvert = keepCurrency): { debt: Record<string, number>; profit: Record<string, number> } {
+  if (row.type === "device") return { debt: {}, profit: repRowDelta(row, convert) };
+  if (row.type === "customer") return { debt: repRowDelta(row, convert), profit: {} };
+  if (row.type === "invoice") {
+    const code = row.row.invoice.currencyCode;
+    const commission = row.row.commissionAmount;
+    const paid = Math.max(0, row.row.invoice.paidAmount);
+    return {
+      debt: paid > EPSILON ? convert(-paid, code) : {},
+      profit: Math.abs(commission) > EPSILON ? convert(commission, code) : {},
+    };
+  }
+  const delta = repRowDelta(row, convert);
+  return row.settlement.kind === "commissionPayout" ? { debt: {}, profit: delta } : { debt: delta, profit: {} };
+}
+
+/** Which of his two accounts a row moves (an invoice moves both - shown under «ما عليه»). */
+export function repRowAccount(row: RepStatementRow): "debt" | "profit" {
+  if (row.type === "device") return "profit";
+  if (row.type === "settlement" && row.settlement.kind === "commissionPayout") return "profit";
+  return "debt";
+}
+
 export type RepPeriodKind = "all" | "day" | "month" | "custom";
 
 export interface RepPeriod {
@@ -184,6 +212,9 @@ export interface RepPeriodStatement {
   totals: RepPeriodTotals;
   /** Balance right after each row (newest-first lists read it top-down), keyed by row type+id. */
   balanceAfter: Record<string, Record<string, number>>;
+  /** 📒 The same, his two accounts apart (repRowSplit): «ما عليه» and «ربحه». */
+  debt: { opening: Record<string, number>; closing: Record<string, number>; after: Record<string, Record<string, number>> };
+  profit: { opening: Record<string, number>; closing: Record<string, number>; after: Record<string, Record<string, number>> };
 }
 
 function add(target: Record<string, number>, delta: Record<string, number>) {
@@ -205,6 +236,12 @@ export function buildRepPeriodStatement(
   const opening: Record<string, number> = {};
   const running: Record<string, number> = {};
   const balanceAfter: Record<string, Record<string, number>> = {};
+  const debtOpening: Record<string, number> = {};
+  const debtRunning: Record<string, number> = {};
+  const debtAfter: Record<string, Record<string, number>> = {};
+  const profitOpening: Record<string, number> = {};
+  const profitRunning: Record<string, number> = {};
+  const profitAfter: Record<string, Record<string, number>> = {};
   const totals: RepPeriodTotals = {
     deviceProfitUsd: 0,
     repShareUsd: 0,
@@ -227,13 +264,27 @@ export function buildRepPeriodStatement(
     if (period.to && day.date > period.to) continue;
     const rows = [...day.rows].reverse();
     if (period.from && day.date < period.from) {
-      for (const row of rows) add(opening, repRowDelta(row, convert));
+      for (const row of rows) {
+        add(opening, repRowDelta(row, convert));
+        const split = repRowSplit(row, convert);
+        add(debtOpening, split.debt);
+        add(profitOpening, split.profit);
+      }
       continue;
     }
-    if (days.length === 0) Object.assign(running, opening);
+    if (days.length === 0) {
+      Object.assign(running, opening);
+      Object.assign(debtRunning, debtOpening);
+      Object.assign(profitRunning, profitOpening);
+    }
     for (const row of rows) {
       add(running, repRowDelta(row, convert));
       balanceAfter[repRowKey(row)] = { ...running };
+      const split = repRowSplit(row, convert);
+      add(debtRunning, split.debt);
+      add(profitRunning, split.profit);
+      debtAfter[repRowKey(row)] = clean(debtRunning);
+      profitAfter[repRowKey(row)] = clean(profitRunning);
       if (row.type === "device") {
         totals.deviceCount += 1;
         if (row.row.repShareUsd !== undefined && row.row.ourShareUsd !== undefined) {
@@ -261,8 +312,20 @@ export function buildRepPeriodStatement(
     }
     days.push(day);
   }
-  if (days.length === 0) Object.assign(running, opening);
-  return { days: days.reverse(), opening: clean(opening), closing: clean(running), totals, balanceAfter };
+  if (days.length === 0) {
+    Object.assign(running, opening);
+    Object.assign(debtRunning, debtOpening);
+    Object.assign(profitRunning, profitOpening);
+  }
+  return {
+    days: days.reverse(),
+    opening: clean(opening),
+    closing: clean(running),
+    totals,
+    balanceAfter,
+    debt: { opening: clean(debtOpening), closing: clean(debtRunning), after: debtAfter },
+    profit: { opening: clean(profitOpening), closing: clean(profitRunning), after: profitAfter },
+  };
 }
 
 function clean(values: Record<string, number>): Record<string, number> {

@@ -15119,3 +15119,21 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   background: var(--surface-alt);
   font-size: 0.85rem;
 }
+
+/* 📒 The rep statement's two accounts apart: «ما عليه» and «ربحه» */
+.rep-summary-account {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.rep-summary-account-title {
+  font-size: 0.95rem;
+}
+
+.rep-summary-net {
+  opacity: 0.85;
+  font-size: 0.85rem;
+}

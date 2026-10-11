@@ -59,6 +59,7 @@ import {
   RepPeriodStatement,
   repRowDelta,
   repRowKey,
+  repRowAccount,
   setShipmentRepShare,
   ShipmentRepPatch,
   splitRepRecords, repNetPosition, ledgerAfterRepReset, bookAfterRepReset, isAfterRepReset, repProfitBreakdown, type RepProfitBreakdown, type RepProfitItem } from "@/lib/repAccount";
@@ -144,6 +145,12 @@ function balanceText(values: Record<string, number>): string {
   return balanceParts(values)
     .map((p) => p.text)
     .join(" · ");
+}
+
+/** 📒 The balance a statement row shows: the one of his two accounts it moves (repRowSplit). */
+function rowBalance(statement: RepPeriodStatement, row: RepStatementRow): { label: string; values: Record<string, number> } {
+  const account = repRowAccount(row);
+  return { label: account === "debt" ? "ما عليه" : "ربحه", values: statement[account].after[repRowKey(row)] ?? {} };
 }
 
 /** Everything on this page is shown in the currency the operator picked (أوقية, سيفا or both),
@@ -1024,7 +1031,8 @@ function RepCard({
                       <RepStatementLine
                         key={repRowKey(row)}
                         row={row}
-                        balanceAfter={statement.balanceAfter[repRowKey(row)]}
+                        balanceAfter={rowBalance(statement, row).values}
+                        balanceLabel={rowBalance(statement, row).label}
                         accountName={accountName}
                         clientNameFor={clientNameFor}
                         storeItems={storeItems}
@@ -1515,28 +1523,37 @@ function RepStatementSummary({
 }) {
   const fx = useFx();
   const t = statement.totals;
-  const lines: [string, string][] = [];
-  if (t.deviceCount > 0) {
-    lines.push(["ربح أجهزته", fx.list(t.deviceProfit)]);
-    lines.push(["حصته", fx.list(t.repShare)]);
-    if (!hideOurs) lines.push(["حصتي", fx.list(t.ourShare)]);
-    if (t.pendingCount > 0) lines.push(["شحنات بانتظار D", String(t.pendingCount)]);
-  }
   // Already converted to the display currency by buildRepPeriodStatement.
   const list = (values: Record<string, number>) => fx.list(Object.fromEntries(nonZero(values)));
-  if (nonZero(t.commissions).length) lines.push(["عمولات المتجر", list(t.commissions)]);
-  if (nonZero(t.cashCollected).length) lines.push(["نقد قبضه من الزبائن", list(t.cashCollected)]);
-  const sum = (a: Record<string, number>, b: Record<string, number>) => {
-    const r: Record<string, number> = { ...a };
-    for (const [c, v] of Object.entries(b)) r[c] = (r[c] ?? 0) + v;
-    return r;
-  };
-  const credits = sum(t.settled.cashHandover, t.settled.manualCredit);
-  const debits = sum(t.settled.commissionPayout, t.settled.manualDebit);
-  if (nonZero(t.customerCharges).length) lines.push(["📡 تجديدات أجهزته (عليه)", list(t.customerCharges)]);
-  if (nonZero(t.customerPaid).length) lines.push(["💵 دُفع عنها (له)", list(t.customerPaid)]);
-  if (nonZero(credits).length) lines.push(["له (أُضيف لرصيده)", list(credits)]);
-  if (nonZero(debits).length) lines.push(["عليه (خُصم من رصيده)", list(debits)]);
+  // 📒 His two accounts apart (his Oct 11 2026 rule: «ربحه وحده لا يُخصم مما عليه»).
+  const debtLines: [string, string][] = [];
+  if (nonZero(t.customerCharges).length) debtLines.push(["📡 تجديدات أجهزته (عليه)", list(t.customerCharges)]);
+  if (nonZero(t.customerPaid).length) debtLines.push(["💵 دُفع عنها / سلّمك (له)", list(t.customerPaid)]);
+  if (nonZero(t.settled.cashHandover).length) debtLines.push(["💵 استلمت منه نقدًا", list(t.settled.cashHandover)]);
+  if (nonZero(t.settled.manualCredit).length) debtLines.push(["➕ له (أُضيف لرصيده)", list(t.settled.manualCredit)]);
+  if (nonZero(t.settled.manualDebit).length) debtLines.push(["➖ عليه (خُصم من رصيده)", list(t.settled.manualDebit)]);
+  if (nonZero(t.cashCollected).length) debtLines.push(["🧾 نقد قبضه من مبيعات المتجر", list(t.cashCollected)]);
+  const profitLines: [string, string][] = [];
+  if (t.deviceCount > 0) {
+    profitLines.push(["ربح أجهزته", fx.list(t.deviceProfit)]);
+    profitLines.push(["حصته", fx.list(t.repShare)]);
+    if (!hideOurs) profitLines.push(["حصتي", fx.list(t.ourShare)]);
+    if (t.pendingCount > 0) profitLines.push(["شحنات بانتظار D", String(t.pendingCount)]);
+  }
+  if (nonZero(t.commissions).length) profitLines.push(["عمولات المتجر", list(t.commissions)]);
+  if (nonZero(t.settled.commissionPayout).length) profitLines.push(["💸 دفعت له من ربحه", list(t.settled.commissionPayout)]);
+  const closingLabel = period.to || period.from ? "آخر الفترة" : "الآن";
+  const lines = (items: [string, string][]) =>
+    items.length > 0 && (
+      <dl className="rep-summary-lines">
+        {items.map(([label, value]) => (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+    );
 
   return (
     <div className={`rep-summary${archive ? " rep-summary-archive" : ""}`}>
@@ -1544,24 +1561,36 @@ function RepStatementSummary({
         <strong>{archive ? "🗄 الأرشيف" : "📊 ملخص الفترة"}</strong>
         <span dir="auto">{periodLabel}</span>
       </div>
-      {period.from && (
-        <div className="rep-summary-balance">
-          <span>رصيد أول الفترة</span>
-          <BalanceValue values={statement.opening} />
+      <div className="rep-summary-account">
+        <strong className="rep-summary-account-title">📡 حساب ما عليه</strong>
+        {period.from && (
+          <div className="rep-summary-balance">
+            <span>أول الفترة</span>
+            <BalanceValue values={statement.debt.opening} />
+          </div>
+        )}
+        {lines(debtLines)}
+        <div className="rep-summary-balance rep-summary-closing">
+          <span>ما عليه {closingLabel}</span>
+          <BalanceValue values={statement.debt.closing} />
         </div>
-      )}
-      {lines.length > 0 && (
-        <dl className="rep-summary-lines">
-          {lines.map(([label, value]) => (
-            <div key={label}>
-              <dt>{label}</dt>
-              <dd>{value}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
-      <div className="rep-summary-balance rep-summary-closing">
-        <span>{period.to || period.from ? "رصيد آخر الفترة" : "الرصيد الحالي"}</span>
+      </div>
+      <div className="rep-summary-account">
+        <strong className="rep-summary-account-title">📈 حساب ربحه</strong>
+        {period.from && (
+          <div className="rep-summary-balance">
+            <span>أول الفترة</span>
+            <BalanceValue values={statement.profit.opening} />
+          </div>
+        )}
+        {lines(profitLines)}
+        <div className="rep-summary-balance rep-summary-closing">
+          <span>ربحه {closingLabel} (لم يُخصم مما عليه)</span>
+          <BalanceValue values={statement.profit.closing} />
+        </div>
+      </div>
+      <div className="rep-summary-balance rep-summary-net">
+        <span>⚖️ الصافي لو خُصم ربحه مما عليه (للمعلومة)</span>
         <BalanceValue values={statement.closing} />
       </div>
     </div>
@@ -1583,6 +1612,7 @@ function BalanceValue({ values }: { values: Record<string, number> }) {
 function RepStatementLine({
   row,
   balanceAfter,
+  balanceLabel,
   accountName,
   clientNameFor,
   storeItems,
@@ -1595,6 +1625,8 @@ function RepStatementLine({
   wrongCurrency?: Set<string>;
   row: RepStatementRow;
   balanceAfter?: Record<string, number>;
+  /** Which of his accounts that balance is («ما عليه» / «ربحه»). */
+  balanceLabel?: string;
   accountName: (accountId: string) => string;
   clientNameFor: (accountId: string) => string | undefined;
   storeItems: StoreItemRegistry;
@@ -1717,7 +1749,11 @@ function RepStatementLine({
           ))}
         </span>
       )}
-      {balanceAfter && <span className="rep-line-balance">الرصيد: {balanceText(balanceAfter)}</span>}
+      {balanceAfter && (
+        <span className="rep-line-balance">
+          {balanceLabel ?? "الرصيد"}: {balanceText(balanceAfter)}
+        </span>
+      )}
       {onOpen && <span className="rep-line-edit" aria-hidden="true">✎</span>}
     </div>
   );
@@ -2192,7 +2228,7 @@ function RepresentativeForm({
 
 function repRowCells(
   row: RepStatementRow,
-  balanceAfter: Record<string, number> | undefined,
+  after: { label: string; values: Record<string, number> } | undefined,
   accountName: (accountId: string) => string,
   clientNameFor: (accountId: string) => string | undefined,
   storeItems: StoreItemRegistry,
@@ -2201,7 +2237,7 @@ function repRowCells(
   const delta = nonZero(repRowDelta(row, fx.convert))
     .map(([code, v]) => `${v > 0 ? "+" : "-"}${formatAmount(Math.abs(v))} ${currencyLabel(code)}`)
     .join(" / ");
-  const balance = balanceAfter ? balanceText(balanceAfter) : "";
+  const balance = after ? `${after.label}: ${balanceText(after.values)}` : "";
   if (row.type === "device") {
     const { entry, profit, percent, repShareUsd, accountId } = row.row;
     const client = clientNameFor(accountId);
@@ -2241,27 +2277,32 @@ function buildRepStatementPdf(
   const rows = [...statement.days]
     .reverse()
     .flatMap((day) =>
-      [...day.rows].reverse().map((row) => repRowCells(row, statement.balanceAfter[repRowKey(row)], accountName, clientNameFor, storeItems, fx)),
+      [...day.rows].reverse().map((row) => repRowCells(row, rowBalance(statement, row), accountName, clientNameFor, storeItems, fx)),
     );
   const t = statement.totals;
+  const debt = statement.debt;
+  const profit = statement.profit;
   return {
     title: "كشف حساب مندوب",
     partyName: rep.name,
     partyPhone: rep.phone,
     subtitle: `${periodLabel} - نسبته ${rep.commissionPercent}%${rep.sharesLosses ? " - يتحمّل نسبته من الخسارة" : ""}`,
+    // 📒 His two accounts apart (his Oct 11 2026 rule): what he owes, and his profit - never ours.
     summary: [
-      ...(Object.keys(statement.opening).length > 0 ? [{ label: "رصيد أول الفترة", value: balanceText(statement.opening) }] : []),
-      { label: "ربح أجهزته", value: fx.list(t.deviceProfit) },
-      // His Oct 11 2026 rule: the statement he gets shows HIS share only, never ours.
-      { label: "حصته", value: fx.list(t.repShare), tone: "due" as const },
+      ...(Object.keys(debt.opening).length > 0 ? [{ label: "ما عليه أول الفترة", value: balanceText(debt.opening) }] : []),
       ...(nonZero(t.customerCharges).length ? [{ label: "تجديدات أجهزته (عليه)", value: fx.list(t.customerCharges), tone: "due" as const }] : []),
       ...(nonZero(t.customerPaid).length ? [{ label: "دُفع عنها (له)", value: fx.list(t.customerPaid), tone: "clear" as const }] : []),
-      { label: "الرصيد", value: balanceText(statement.closing), tone: "due" as const },
+      { label: "📡 ما عليه الآن", value: balanceText(debt.closing), tone: "due" as const },
+      ...(Object.keys(profit.opening).length > 0 ? [{ label: "ربحه أول الفترة", value: balanceText(profit.opening) }] : []),
+      { label: "حصته من أرباح أجهزته", value: fx.list(t.repShare), tone: "clear" as const },
+      ...(nonZero(t.settled.commissionPayout).length ? [{ label: "دفعت له من ربحه", value: fx.list(t.settled.commissionPayout) }] : []),
+      { label: "📈 ربحه الآن (لم يُخصم مما عليه)", value: balanceText(profit.closing), tone: "clear" as const },
+      { label: "⚖️ الصافي لو خُصم ربحه", value: balanceText(statement.closing) },
     ],
     ...(profits ? { sections: profitSections(profits, accountName, fx) } : {}),
-    columns: ["التاريخ", "العملية", "التفاصيل", "الحركة", "الرصيد بعدها"],
+    columns: ["التاريخ", "العملية", "التفاصيل", "الحركة", "حسابه بعدها"],
     rows,
-    footerNote: "«له» = مستحق للمندوب، «عليه» = مستحق عليه.",
+    footerNote: "«له» = مستحق للمندوب، «عليه» = مستحق عليه. حسابان منفصلان: «ما عليه» (التجديدات والدفعات) و«ربحه» (حصته من الأرباح) - ربحه لا يُخصم مما عليه إلا بتسوية.",
   };
 }
 
