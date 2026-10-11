@@ -15137,3 +15137,32 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   opacity: 0.85;
   font-size: 0.85rem;
 }
+
+/* ⚖️ «الصافي بعملته» under a customer's balances in several currencies */
+.party-net {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 8px;
+  align-items: center;
+  margin-top: 6px;
+  padding: 8px 10px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.party-net strong {
+  font-size: 1.05rem;
+}
+
+.party-net-due strong {
+  color: var(--red);
+}
+
+.party-net-clear strong {
+  color: var(--green);
+}
+
+.party-net small {
+  grid-column: 1 / -1;
+  color: var(--text-muted);
+}

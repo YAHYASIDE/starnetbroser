@@ -979,6 +979,16 @@ is never pressed while a field is empty - it refills and saves on the next try (
   «Notification access» and tells him to switch STAR NET off and on. On reconnect the bank notices still in
   the tray are read.
 
+## ⚖️ A customer's net in his own currency (Oct 11 2026)
+
+- His words: «أريد لكل زبون تُحسب له عملته الأساسية… له 60,000 سيفا وعليه 214,000 أوقية… سطر تحتهم بعملته: 60,000 سيفا
+  = 216,000 أوقية → 2,000 أوقية متبقي له، وإن كانت عملته سيفا 555.55».
+- Client card (clients page): when he has open balances in 2+ currencies, «⚖️ الصافي بعملته (X)» under them, in
+  his currency = `Client.defaultCurrency` («💱 عملته»), else the automatic one (`autoCurrencyOf`), else أوقية;
+  with each other currency's line «60,000 سيفا ≈ 216,000 أوقية بسعر اليوم». `partyNetIn` (lib/partyNet.ts), today's
+  registry rates (العملات). Display only - the balances stay per currency, nothing is converted in the records.
+  A currency without a rate → no line. Suppliers: in أوقية.
+
 ## 📒 The rep statement: «ما عليه» and «ربحه» are two accounts (Oct 11 2026)
 
 - His words (screenshot of «ملخص الفترة», one balance 506,490 = owed − his share): «أريد أن تظهر ما عليه وحده، وإن

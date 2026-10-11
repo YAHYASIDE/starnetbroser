@@ -48,6 +48,8 @@ import { buildStoreDebtReminderMessage, buildStoreStatementMessage, buildWhatsAp
 import { PartyAdjustment, partyAdjustmentCashKind, PartyAdjustmentDirection, PartyKind, RecordPartyAdjustmentInput } from "@/lib/partyBalanceStore";
 import { DefaultCurrencyField } from "./CurrencyGuard";
 import { autoCurrencyOf } from "@/lib/partyCurrency";
+import { partyNetIn, type PartyNet } from "@/lib/partyNet";
+import { getCurrency, loadCurrencyStore } from "@/lib/currencyStore";
 import { loadPartyCurrencyContext } from "@/lib/partyCurrencyData";
 
 const EPSILON = 0.0001;
@@ -174,6 +176,18 @@ export function PartyDirectory({
   const isClients = tab === "clients";
   const kind: InvoiceKind = isClients ? "sale" : "purchase";
   const parties: (Client | Supplier)[] = isClients ? clients : suppliers;
+  // ⚖️ «الصافي بعملته»: today's rates and each party's own currency (partyNet.ts), read once.
+  const netContext = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    const store = loadCurrencyStore();
+    return { rateOf: (code: string) => getCurrency(store, code)?.rateFromUsd, parties: loadPartyCurrencyContext() };
+  }, []);
+  const netFor = (party: Client | Supplier, totals: Record<string, PartyStoreTotals>): PartyNet | null => {
+    if (!netContext) return null;
+    const remaining = Object.fromEntries(Object.entries(totals).map(([c, t]) => [c, t.remaining]));
+    const base = isClients ? ((party as Client).defaultCurrency ?? autoCurrencyOf("client", party.id, netContext.parties) ?? "MRU") : "MRU";
+    return partyNetIn(remaining, base, netContext.rateOf);
+  };
 
   const rows = useMemo(
     () =>
@@ -475,6 +489,7 @@ export function PartyDirectory({
                 kind={kind}
                 party={party}
                 totals={totals}
+                net={netFor(party, totals)}
                 invoices={invoices}
                 adjustments={adjustments}
                 onAddAdjustment={onAddAdjustment}
@@ -504,6 +519,8 @@ interface PartyCardProps {
   kind: InvoiceKind;
   party: { id: string; name: string; phone?: string };
   totals: Record<string, PartyStoreTotals>;
+  /** ⚖️ His balances in several currencies as one figure in his own currency (partyNet.ts). */
+  net?: PartyNet | null;
   invoices: InvoiceList;
   adjustments: PartyAdjustment[];
   onAddAdjustment: Props["onAddAdjustment"];
@@ -543,6 +560,7 @@ function PartyCard({
   kind,
   party,
   totals,
+  net,
   invoices,
   adjustments,
   onAddAdjustment,
@@ -680,6 +698,24 @@ function PartyCard({
             </div>
           );
         })
+      )}
+
+      {net && (
+        <div className={`party-net ${net.amount > 0.005 ? "party-net-due" : "party-net-clear"}`}>
+          <span>⚖️ الصافي بعملته ({currencyLabel(net.currency)})</span>
+          <strong>
+            {Math.abs(net.amount) < 0.005 ? "متعادل" : `${net.amount > 0 ? (isClient ? "عليه" : "له") : isClient ? "له" : "لنا"} `}
+            {Math.abs(net.amount) >= 0.005 && <bdi dir="ltr">{formatAmount(Math.abs(net.amount))}</bdi>}
+          </strong>
+          <small>
+            {net.converted.map((c) => (
+              <span key={c.currency}>
+                <bdi dir="ltr">{formatAmount(Math.abs(c.amount))}</bdi> {currencyLabel(c.currency)} ≈ <bdi dir="ltr">{formatAmount(Math.abs(c.inBase))}</bdi> {currencyLabel(net.currency)}{" "}
+              </span>
+            ))}
+            بسعر اليوم
+          </small>
+        </div>
       )}
 
       {creditLimit !== undefined && (
