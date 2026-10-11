@@ -15166,3 +15166,20 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   grid-column: 1 / -1;
   color: var(--text-muted);
 }
+
+.party-net-rate {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+}
+
+.party-net-rate .search-input {
+  width: 6.5rem;
+  min-width: 0;
+  padding: 4px 8px;
+}
+
+.party-net-edit {
+  font-size: 0.85rem;
+}

@@ -684,6 +684,9 @@ function HandoverRequestCard({ request, rep, onDone }: { request: RepRequest; re
         <span>{timeLabel(request.createdAt)}</span>
       </div>
       <p className="rep-request-text">«{request.text}»</p>
+      {request.paymentMethod && request.paymentMethod !== "cash" && (
+        <p className="settings-hint">🏦 يدخل في حساب {PAYMENT_METHOD_LABELS[request.paymentMethod]} في «حسابي» (لا في الكاش)</p>
+      )}
       {proofPhoto}
       <div className="rep-request-row">
         <input className="search-input" dir="ltr" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="المبلغ" />

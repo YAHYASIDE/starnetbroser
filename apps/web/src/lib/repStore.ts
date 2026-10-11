@@ -245,6 +245,8 @@ export interface RecordRepSettlementInput {
   date: string;
   note?: string;
   rates?: Record<string, number>;
+  /** The bank / wallet of «حسابي» the money went through (that account's balance moves with it). */
+  accountId?: string;
 }
 
 export type RecordRepSettlementResult =
@@ -267,6 +269,7 @@ export function recordRepSettlement(
     date: input.date,
     note: input.note?.trim() || undefined,
     rates: input.rates,
+    ...(input.accountId ? { accountId: input.accountId } : {}),
     createdAt: new Date().toISOString(),
   };
   return { ok: true, settlements: [...settlements, settlement], settlement };

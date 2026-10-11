@@ -979,6 +979,16 @@ is never pressed while a field is empty - it refills and saves on the next try (
   «Notification access» and tells him to switch STAR NET off and on. On reconnect the bank notices still in
   the tray are read.
 
+## 🏦 A rep's «دفعة في حسابي الشخصي» through an app goes to that app (Oct 11 2026)
+
+- His report (bot screenshots: 26,000 سيفا by نيتا = 130,000 فرانك, 14,000 سيفا by أورانج = 70,000 فرانك, both approved):
+  «لم تُسجَّل في حساباتي شخصيًا». `recordRepMoneyHandover` always used «cash» + a الكاش entry.
+- Now `paymentMethod` from the request: the money account of that method (`devicePaymentAccountId` - the account
+  with that `method` in its currency, else a cash wallet of that currency) gets it: device payments of the handover
+  carry the method (routed, no cash entry), the remainder settlement carries `accountId` (no cash entry). Cash, or
+  no matching account → الكاش as before. The approval card says «🏦 يدخل في حساب X في «حسابي»».
+- The two already approved stay in الكاش: he moves them with «🔁 تحويل» (الكاش → أورانج / نيتا).
+
 ## ⚖️ A customer's net in his own currency (Oct 11 2026)
 
 - His words: «أريد لكل زبون تُحسب له عملته الأساسية… له 60,000 سيفا وعليه 214,000 أوقية… سطر تحتهم بعملته: 60,000 سيفا
@@ -988,6 +998,9 @@ is never pressed while a field is empty - it refills and saves on the next try (
   with each other currency's line «60,000 سيفا ≈ 216,000 أوقية بسعر اليوم». `partyNetIn` (lib/partyNet.ts), today's
   registry rates (العملات). Display only - the balances stay per currency, nothing is converted in the records.
   A currency without a rate → no line. Suppliers: in أوقية.
+- His follow-up: «60,000 سيفا مقابلها 214,000… سعرها كل 1,000 سيفا 3,600» (the registry gave 3,642 = 435 / 119.44).
+  The line shows the rate used («بسعر 1,000 سيفا = 3,642 أوقية ✎ غيّر»); typing 3,600 sets the registry's سيفا rate to
+  أوقية-rate × 1,000 ÷ 3,600 (`foreignRateFromQuote`, `setCurrencyRate` - from now on only, records keep their locks).
 
 ## 📒 The rep statement: «ما عليه» and «ربحه» are two accounts (Oct 11 2026)
 

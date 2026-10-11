@@ -10,6 +10,7 @@ import { getCurrency, loadCurrencyStore } from "./currencyStore";
 import { recordRepMoneyHandover } from "./repClientsSave";
 import { loadRepSettlements, recordRepSettlement, saveRepSettlements } from "./repStore";
 import type { RepRequest } from "./repRequests";
+import { PAYMENT_METHOD_LABELS } from "./ledgerStore";
 
 /** Rates (units per 1 USD) locked on the settlement, as the representatives page does. */
 function lockedRates(currencyCode: string): Record<string, number> {
@@ -24,7 +25,14 @@ function lockedRates(currencyCode: string): Record<string, number> {
 
 export function recordRepHandover(request: RepRequest, amount: number, currencyCode: string, date: string): { ok: true } | { ok: false; message: string } {
   // First what he owes us for his own customers' devices (repClients.ts), then a cash handover.
-  const result = recordRepMoneyHandover(request.repId, { amount, currencyCode, date, note: "سلّمها المندوب (بوت المال)", rates: lockedRates(currencyCode) });
+  const result = recordRepMoneyHandover(request.repId, {
+    amount,
+    currencyCode,
+    date,
+    note: `سلّمها المندوب (بوت المال)${request.paymentMethod && request.paymentMethod !== "cash" ? ` · ${PAYMENT_METHOD_LABELS[request.paymentMethod]}` : ""}`,
+    rates: lockedRates(currencyCode),
+    paymentMethod: request.paymentMethod,
+  });
   return result.ok ? { ok: true } : result;
 }
 

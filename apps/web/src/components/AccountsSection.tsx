@@ -48,8 +48,8 @@ import { buildStoreDebtReminderMessage, buildStoreStatementMessage, buildWhatsAp
 import { PartyAdjustment, partyAdjustmentCashKind, PartyAdjustmentDirection, PartyKind, RecordPartyAdjustmentInput } from "@/lib/partyBalanceStore";
 import { DefaultCurrencyField } from "./CurrencyGuard";
 import { autoCurrencyOf } from "@/lib/partyCurrency";
-import { partyNetIn, type PartyNet } from "@/lib/partyNet";
-import { getCurrency, loadCurrencyStore } from "@/lib/currencyStore";
+import { foreignRateFromQuote, partyNetIn, type PairQuote, type PartyNet } from "@/lib/partyNet";
+import { getCurrency, loadCurrencyStore, saveCurrencyStore, setCurrencyRate } from "@/lib/currencyStore";
 import { loadPartyCurrencyContext } from "@/lib/partyCurrencyData";
 
 const EPSILON = 0.0001;
@@ -177,11 +177,22 @@ export function PartyDirectory({
   const kind: InvoiceKind = isClients ? "sale" : "purchase";
   const parties: (Client | Supplier)[] = isClients ? clients : suppliers;
   // ⚖️ «الصافي بعملته»: today's rates and each party's own currency (partyNet.ts), read once.
+  const [ratesVersion, setRatesVersion] = useState(0);
   const netContext = useMemo(() => {
     if (typeof window === "undefined") return null;
     const store = loadCurrencyStore();
     return { rateOf: (code: string) => getCurrency(store, code)?.rateFromUsd, parties: loadPartyCurrencyContext() };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ratesVersion]);
+  /** ✎ His rate «1,000 سيفا = 3,600 أوقية» from the net line: the registry's rate of that currency, going
+   * forward only (records keep their locked rates). */
+  const setPairRate = (quote: PairQuote) => {
+    const store = loadCurrencyStore();
+    const mru = getCurrency(store, "MRU")?.rateFromUsd;
+    if (!mru || !(quote.mru > 0)) return;
+    saveCurrencyStore(setCurrencyRate(store, quote.foreign, foreignRateFromQuote(quote, mru)));
+    setRatesVersion((v) => v + 1);
+  };
   const netFor = (party: Client | Supplier, totals: Record<string, PartyStoreTotals>): PartyNet | null => {
     if (!netContext) return null;
     const remaining = Object.fromEntries(Object.entries(totals).map(([c, t]) => [c, t.remaining]));
@@ -490,6 +501,7 @@ export function PartyDirectory({
                 party={party}
                 totals={totals}
                 net={netFor(party, totals)}
+                onSetPairRate={setPairRate}
                 invoices={invoices}
                 adjustments={adjustments}
                 onAddAdjustment={onAddAdjustment}
@@ -521,6 +533,8 @@ interface PartyCardProps {
   totals: Record<string, PartyStoreTotals>;
   /** ⚖️ His balances in several currencies as one figure in his own currency (partyNet.ts). */
   net?: PartyNet | null;
+  /** ✎ Sets «1,000 سيفا = X أوقية» (the registry's rate, from now on). */
+  onSetPairRate?: (quote: PairQuote) => void;
   invoices: InvoiceList;
   adjustments: PartyAdjustment[];
   onAddAdjustment: Props["onAddAdjustment"];
@@ -561,6 +575,7 @@ function PartyCard({
   party,
   totals,
   net,
+  onSetPairRate,
   invoices,
   adjustments,
   onAddAdjustment,
@@ -707,14 +722,14 @@ function PartyCard({
             {Math.abs(net.amount) < 0.005 ? "متعادل" : `${net.amount > 0 ? (isClient ? "عليه" : "له") : isClient ? "له" : "لنا"} `}
             {Math.abs(net.amount) >= 0.005 && <bdi dir="ltr">{formatAmount(Math.abs(net.amount))}</bdi>}
           </strong>
-          <small>
-            {net.converted.map((c) => (
-              <span key={c.currency}>
-                <bdi dir="ltr">{formatAmount(Math.abs(c.amount))}</bdi> {currencyLabel(c.currency)} ≈ <bdi dir="ltr">{formatAmount(Math.abs(c.inBase))}</bdi> {currencyLabel(net.currency)}{" "}
-              </span>
-            ))}
-            بسعر اليوم
-          </small>
+          {net.converted.map((c) => (
+            <small key={c.currency}>
+              <bdi dir="ltr">{formatAmount(Math.abs(c.amount))}</bdi> {currencyLabel(c.currency)} ≈ <bdi dir="ltr">{formatAmount(Math.abs(c.inBase))}</bdi> {currencyLabel(net.currency)}
+              {c.quote && (
+                <PairRateEdit quote={c.quote} onSave={onSetPairRate} />
+              )}
+            </small>
+          ))}
         </div>
       )}
 
@@ -1018,6 +1033,47 @@ function PartyCard({
 
 /** A bottom sheet (fixed to the viewport, never inside the card) - so opening it never makes the
  * card itself any taller. */
+/** «بسعر 1,000 سيفا = 3,642 أوقية ✎» - tap to type his own rate (3,600). */
+function PairRateEdit({ quote, onSave }: { quote: PairQuote; onSave?: (quote: PairQuote) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(String(quote.mru));
+  const label = currencyLabel(quote.foreign);
+  if (!editing) {
+    return (
+      <>
+        {" "}· بسعر <bdi dir="ltr">{formatAmount(quote.block)}</bdi> {label} = <bdi dir="ltr">{formatAmount(quote.mru)}</bdi> أوقية{" "}
+        {onSave && (
+          <button type="button" className="text-action party-net-edit" onClick={() => (setText(String(quote.mru)), setEditing(true))}>
+            ✎ غيّر
+          </button>
+        )}
+      </>
+    );
+  }
+  const value = Number(text.replace(/[\s,]/g, ""));
+  return (
+    <span className="party-net-rate">
+      <bdi dir="ltr">{formatAmount(quote.block)}</bdi> {label} =
+      <input className="search-input" inputMode="decimal" dir="ltr" value={text} onChange={(e) => setText(e.target.value)} aria-label="السعر بالأوقية" />
+      أوقية
+      <button
+        type="button"
+        className="text-action"
+        disabled={!(value > 0)}
+        onClick={() => {
+          onSave?.({ ...quote, mru: value });
+          setEditing(false);
+        }}
+      >
+        ✓ حفظ
+      </button>
+      <button type="button" className="text-action" onClick={() => setEditing(false)}>
+        إلغاء
+      </button>
+    </span>
+  );
+}
+
 export function PartySheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
     <div className="party-sheet-backdrop" role="presentation" onClick={onClose}>

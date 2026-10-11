@@ -11,7 +11,8 @@ import { loadClientStore } from "./clientStore";
 import { saveClientDevicePayment } from "./clientDevicePaymentSave";
 import { loadDemoAccounts } from "./demoAccountStore";
 import { demoAccounts } from "./demoData";
-import { LEDGER_CURRENCIES, loadLedgerStore, type LedgerCurrency } from "./ledgerStore";
+import { LEDGER_CURRENCIES, loadLedgerStore, type LedgerCurrency, type PaymentMethod } from "./ledgerStore";
+import { devicePaymentAccountId, loadAccountsBook } from "./moneyAccounts";
 import { planRepHandover, replayRepClients, loadRepBook } from "./repClients";
 import { loadRepresentativeStore, loadRepSettlements, recordRepSettlement, saveRepSettlements } from "./repStore";
 import { isDemoMode } from "./settingsStore";
@@ -33,10 +34,14 @@ export interface RepHandoverOutcome {
  * is left is a cash handover on his account, exactly as before. */
 export function recordRepMoneyHandover(
   repId: string,
-  input: { amount: number; currencyCode: string; date: string; note?: string; rates?: Record<string, number> },
+  input: { amount: number; currencyCode: string; date: string; note?: string; rates?: Record<string, number>; paymentMethod?: PaymentMethod },
   accounts: StarlinkAccountSummary[] = loadStoredAccounts(),
 ): RepHandoverOutcome | { ok: false; message: string } {
   if (!Number.isFinite(input.amount) || input.amount <= 0) return { ok: false, message: "المبلغ يجب أن يكون أكبر من صفر" };
+  // 🏦 Sent through an app of «حسابي» (his Oct 11 2026 report: 70,000 فرانك on أورانج and 130,000 on نيتا
+  // from his rep landed in الكاش): the money goes to that account, not to الكاش.
+  const method = input.paymentMethod && input.paymentMethod !== "cash" ? input.paymentMethod : undefined;
+  const moneyAccountId = method ? devicePaymentAccountId({ paymentMethod: method, currency: input.currencyCode }, loadAccountsBook().accounts) : null;
   let ledger = loadLedgerStore();
   let toDevices = 0;
   let remainder = input.amount;
@@ -55,8 +60,8 @@ export function recordRepMoneyHandover(
         currencyCode: input.currencyCode,
         date: input.date,
         note: input.note || "سلّمها المندوب",
-        paymentMethod: "cash",
-        cashMoved: true,
+        paymentMethod: moneyAccountId ? method : "cash",
+        cashMoved: !moneyAccountId,
         heldByRepId: repId,
       });
       if (!result.ok) return result;
@@ -73,10 +78,11 @@ export function recordRepMoneyHandover(
       date: input.date,
       note: input.note,
       rates: input.rates,
+      ...(moneyAccountId ? { accountId: moneyAccountId } : {}),
     });
     if (!result.ok) return result;
     saveRepSettlements(result.settlements);
-    saveCashEntries(postRepSettlementToCash(loadCashEntries(), result.settlement, loadRepresentativeStore()[repId]?.name ?? ""));
+    if (!moneyAccountId) saveCashEntries(postRepSettlementToCash(loadCashEntries(), result.settlement, loadRepresentativeStore()[repId]?.name ?? ""));
   }
   return { ok: true, toDevices: Math.round(toDevices * 100) / 100, remainder: remainder > 0.005 ? Math.round(remainder * 100) / 100 : 0 };
 }
