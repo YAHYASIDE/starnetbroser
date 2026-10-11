@@ -1135,3 +1135,18 @@ is never pressed while a field is empty - it refills and saves on the next try (
   `clearRepAddedPatch` (lib/repAddedMark.ts) drops `addedByRepId` / `addedByRepAt` only - the device keeps its
   rep (`representativeId`), and the day it was added moves to `addedAt` («أضفناها اليوم», duplicate proof).
   A rep's later edits never bring the mark back (repChanges keeps it only when the owner's device has it).
+
+## 💵 Every سيفا in cash goes to «كاش سيفا» (Oct 11 2026)
+
+- His report (bot «أكّد المسؤول استلام 700 سيفا» + the «كاش سيفا» statement without it): «سيفا كاش يزيد
+  الحساب فعلا ولاكن لا يظهر في كشف الحساب». The «💵 كاش سيفا» line = الكاش's سيفا + the «كاش سيفا» wallet;
+  the 700 went to الكاش, so the line grew but the wallet's statement didn't have it. His choice: «كل سيفا
+  نقدًا لكاش سيفا».
+- From `CASH_WALLET_FROM` (2026-10-11T00:00Z, by `createdAt`) a cash payment in a currency that has a cash
+  wallet lands in that wallet (`devicePaymentAccountId` with method `cash` → `cashWalletId`): device
+  payments, a rep's cash handover (`recordRepMoneyHandover`, settlement `accountId`, no cash entry), his
+  commission paid in cash (rep page), and a client's «إضافة رصيد» in «سيفا (كاش)» (BalanceForm: the
+  الكاش option is replaced by the wallet; an older entry kept in الكاش stays there when edited).
+  Older cash is never moved (move it with «🔁 تحويل»). الكاش keeps the أوقية.
+- `postRepSettlementToCash` never posts a settlement that has an `accountId` (an edited أورانج/نيتا/كاش
+  سيفا handover used to get a الكاش entry too).

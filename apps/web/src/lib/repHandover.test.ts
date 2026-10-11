@@ -40,6 +40,14 @@ describe("🤲 a handover he sent through an app of «حسابي»", () => {
     expect(loadCashEntries()).toEqual([]);
   });
 
+  it("in cash سيفا goes to «💵 كاش سيفا» (his Oct 11 2026 choice), not to الكاش", () => {
+    const wallet = { id: "acc-cash-sifa", name: "كاش سيفا", icon: "💵", currencyCode: "SIFA", cashWallet: true, openingBalance: 0, openingDate: "2026-10-05", balanceSet: false };
+    window.localStorage.setItem("starnet_money_accounts_v1", JSON.stringify({ accounts: [orange, wallet], adjustments: [] }));
+    expect(recordRepHandover(handover("cash"), 700, "SIFA", "2026-10-11")).toEqual({ ok: true });
+    expect(loadRepSettlements()[0]).toMatchObject({ kind: "cashHandover", amount: 700, currencyCode: "SIFA", accountId: "acc-cash-sifa" });
+    expect(loadCashEntries()).toEqual([]);
+  });
+
   it("in cash, or an app with no account in «حسابي», stays in الكاش as before", () => {
     expect(recordRepHandover(handover("orange"), 14000, "SIFA", "2026-10-11")).toEqual({ ok: true });
     expect(loadRepSettlements()[0]!.accountId).toBeUndefined();

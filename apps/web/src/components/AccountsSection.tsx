@@ -14,7 +14,7 @@ import { clientRepNames, clientRepIds, matchesClientOwner, type ClientOwnerFilte
 import { currentRepOfClient } from "@/lib/repClients";
 import type { RepresentativeStore } from "@/lib/repStore";
 import { CreateSupplierInput, Supplier } from "@/lib/supplierStore";
-import { loadAccountsBook } from "@/lib/moneyAccounts";
+import { isCashWallet, loadAccountsBook } from "@/lib/moneyAccounts";
 import { fitPayMethod, isFrancAccount, methodLabel, PAY_CURRENCIES, PAY_CURRENCY_LABELS, payFormOf, payMethodsFor, toLedgerPayment, type PayCurrency } from "@/lib/payCurrency";
 import { getProof } from "@/lib/paymentProofStore";
 import { resizeImageToDataUrl } from "@/lib/imageUtils";
@@ -1186,7 +1186,10 @@ function BalanceForm({ partyName, partyKind, devices, initial, proofKey, submitL
   // chosen currency are offered; a picked app that no longer matches falls back to «لم يتحرك».
   // 🟠 أورانج / نيتا hold فرانك: offered only with «فرانك», never with «سيفا (كاش)».
   const currencyAccounts = moneyAccounts.filter((a) => a.currencyCode === currencyCode && isFrancAccount(a) === (payCurrency === "FRANC"));
-  const effectiveSource = source === "none" || source === "cash" || currencyAccounts.some((a) => a.id === source) ? source : "none";
+  // 💵 Cash in سيفا goes to «كاش سيفا» (his Oct 11 2026 choice) - an older entry kept in الكاش stays there.
+  const cashWallet = initial?.cashMoved ? undefined : currencyAccounts.find((a) => isCashWallet(a));
+  const pickedSource = source === "cash" && cashWallet ? cashWallet.id : source;
+  const effectiveSource = pickedSource === "none" || pickedSource === "cash" || currencyAccounts.some((a) => a.id === pickedSource) ? pickedSource : "none";
   const viaAccount = currencyAccounts.some((a) => a.id === effectiveSource);
 
   async function pickProof(event: ChangeEvent<HTMLInputElement>) {
@@ -1314,7 +1317,7 @@ function BalanceForm({ partyName, partyKind, devices, initial, proofKey, submitL
         <span>من أين تحرّك المال؟</span>
         <select className="search-input" value={effectiveSource} onChange={(e) => setSource(e.target.value)}>
           <option value="none">لم يتحرك المال (رصيد فقط)</option>
-          <option value="cash">{cashMovedLabel(partyKind, direction)}</option>
+          {!cashWallet && <option value="cash">{cashMovedLabel(partyKind, direction)}</option>}
           {currencyAccounts.map((a) => (
             <option key={a.id} value={a.id}>
               {a.icon ? `${a.icon} ` : ""}

@@ -213,12 +213,24 @@ export function setOpeningBalance(book: AccountsBook, accountId: string, amount:
  * which is أوقية only) goes to that currency's cash wallet («💵 كاش سيفا» - his Oct 2026 choice).
  * null = الكاش (no linked app, or no cash wallet in that currency).
  */
-export function devicePaymentAccountId(entry: { paymentMethod?: PaymentMethod; currency: string }, accounts: MoneyAccount[]): string | null {
+export function devicePaymentAccountId(entry: { paymentMethod?: PaymentMethod; currency: string; createdAt?: string }, accounts: MoneyAccount[]): string | null {
   if (!entry.paymentMethod) return null;
+  if (entry.paymentMethod === "cash") return (entry.createdAt ?? new Date().toISOString()) >= CASH_WALLET_FROM ? cashWalletId(entry.currency, accounts) : null;
   const linked = accounts.find((a) => a.method === entry.paymentMethod);
   if (!linked) return null;
   if (linked.currencyCode === entry.currency) return linked.id;
   return accounts.find((a) => isCashWallet(a) && a.currencyCode === entry.currency)?.id ?? null;
+}
+
+/** 💵 From this moment every cash payment in a currency that has a cash wallet («كاش سيفا») lands
+ * in that wallet, not in «الكاش» (his Oct 11 2026 choice «كل سيفا نقدًا لكاش سيفا»: a rep's 700
+ * سيفا cash raised the «كاش سيفا» line but was missing from the wallet's statement). Older cash
+ * stays where it was - history is never moved. */
+export const CASH_WALLET_FROM = "2026-10-11T00:00:00.000Z";
+
+/** The cash wallet holding cash in `currency` («كاش سيفا» for سيفا), or null = «الكاش». */
+export function cashWalletId(currency: string, accounts: MoneyAccount[]): string | null {
+  return accounts.find((a) => isCashWallet(a) && a.currencyCode === currency)?.id ?? null;
 }
 
 /** The first day whose records count in the account: its opening day - or every day while its
@@ -357,7 +369,7 @@ export function partyFlows(
  * linked bank/wallet (they're posted to the till as «دفعة جهاز», but the money is in the app).
  */
 export function cashInHandEntries(cash: CashEntryList, ledger: LedgerByAccount, book: AccountsBook): CashEntryList {
-  if (!book.accounts.some((a) => a.method)) return cash;
+  if (!book.accounts.some((a) => a.method || isCashWallet(a))) return cash;
   const bankPayments = new Set<string>();
   for (const entries of Object.values(ledger)) {
     for (const e of entries) if (e.kind === "credit" && devicePaymentAccountId(e, book.accounts) !== null) bankPayments.add(e.id);

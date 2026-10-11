@@ -212,6 +212,18 @@ describe("an app holds only its own currency (بنكيلي = أوقية فقط)"
     expect(cashInHandEntries(cash, { a1: [sifaPayment] }, book())).toHaveLength(0);
   });
 
+  it("💵 cash in سيفا from Oct 11 2026 on lands in «كاش سيفا»; older cash and أوقية cash stay in الكاش", () => {
+    const b = book();
+    const wallet = b.accounts[1]!;
+    const cashSifa = { ...sifaPayment, id: "s2", paymentMethod: "cash", createdAt: "2026-10-11T21:50:00.000Z" } as LedgerEntry;
+    expect(devicePaymentAccountId(cashSifa, b.accounts)).toBe(wallet.id);
+    expect(devicePaymentAccountId({ ...cashSifa, createdAt: "2026-10-10T23:59:00.000Z" }, b.accounts)).toBeNull();
+    expect(devicePaymentAccountId({ ...cashSifa, currency: "MRU" }, b.accounts)).toBeNull();
+    expect(devicePaymentAccountId({ paymentMethod: "cash", currency: "SIFA" }, b.accounts)).toBe(wallet.id);
+    const cash = [{ id: "c2", kind: "in", amount: 700, currencyCode: "SIFA", date: "2026-10-11", sourceId: "s2", sourceKind: "device-payment", createdAt: "" }] as CashEntryList;
+    expect(cashInHandEntries(cash, { a1: [cashSifa] }, { ...b, accounts: [wallet] })).toHaveLength(0);
+  });
+
   it("«🔄 البداية من جديد» brings every account to 0, and its undo restores it", () => {
     const b = book();
     const balances = Object.fromEntries(b.accounts.map((a) => [a.id, accountBalance(b, a, devicePaymentFlows(ledger, a, b.accounts))]));

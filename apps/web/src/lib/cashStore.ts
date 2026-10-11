@@ -238,6 +238,8 @@ export function postPartyAdjustmentToCash(cash: CashEntryList, adjustment: Party
  * bookkeeping corrections, not cash, so they never touch الكاش. */
 export function postRepSettlementToCash(cash: CashEntryList, settlement: RepSettlement, repName: string): CashEntryList {
   if (settlement.kind !== "cashHandover" && settlement.kind !== "commissionPayout") return cash;
+  // Its money is in a bank / wallet of «حسابي» (أورانج، نيتا، كاش سيفا…), not in الكاش.
+  if (settlement.accountId) return cash;
   const isHandover = settlement.kind === "cashHandover";
   const posted = recordCashEntry(cash, {
     kind: isHandover ? "in" : "out",

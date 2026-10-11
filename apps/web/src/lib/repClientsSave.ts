@@ -40,8 +40,9 @@ export function recordRepMoneyHandover(
   if (!Number.isFinite(input.amount) || input.amount <= 0) return { ok: false, message: "المبلغ يجب أن يكون أكبر من صفر" };
   // 🏦 Sent through an app of «حسابي» (his Oct 11 2026 report: 70,000 فرانك on أورانج and 130,000 on نيتا
   // from his rep landed in الكاش): the money goes to that account, not to الكاش.
-  const method = input.paymentMethod && input.paymentMethod !== "cash" ? input.paymentMethod : undefined;
-  const moneyAccountId = method ? devicePaymentAccountId({ paymentMethod: method, currency: input.currencyCode }, loadAccountsBook().accounts) : null;
+  // 💵 Cash in a currency with a cash wallet («كاش سيفا») lands there too (his Oct 11 2026 choice).
+  const method: PaymentMethod = input.paymentMethod ?? "cash";
+  const moneyAccountId = devicePaymentAccountId({ paymentMethod: method, currency: input.currencyCode }, loadAccountsBook().accounts);
   let ledger = loadLedgerStore();
   let toDevices = 0;
   let remainder = input.amount;
