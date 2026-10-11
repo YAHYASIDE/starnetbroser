@@ -753,6 +753,14 @@ export function WealthCard({ wealth, onOpen, isLow }: { wealth: Wealth; onOpen: 
   return (
     <div className={`net-hero money-hero money-hero-worth${wealth.inHandMru < 0 ? " is-loss" : ""}`}>
       <div className="money-two">
+        {/* 💰 his Oct 11 2026 ask: what he has today, cash + banks + wallets together, at the top */}
+        <div className="money-two-wide">
+          <span className="net-hero-label">💰 عندك اليوم</span>
+          <strong className={`net-hero-value${wealth.haveMru < 0 ? " money-out" : " money-in"}`}>
+            <bdi dir="ltr">{mruText(wealth.haveMru)}</bdi> <small>أوقية</small>
+          </strong>
+          <small className="money-two-hint">الكاش + البنوك + المحافظ (قبل ما عليك)</small>
+        </div>
         <div>
           <span className="net-hero-label">في يدك الآن</span>
           <strong className={`net-hero-value${wealth.inHandMru < 0 ? " money-out" : ""}`}>

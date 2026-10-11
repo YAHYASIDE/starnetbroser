@@ -183,6 +183,8 @@ describe("the final figures", () => {
     expect(by).toMatchObject({ cash: 20000, "cash:XOF": 4000, banks: 8000, card: 40000, customers: 46000, repsOwe: 3000, starlink: 20000, suppliers: 5000, repsOwed: 2000 });
     expect(Object.keys(by)).not.toContain("lent");
     expect(Object.keys(by)).not.toContain("borrowed");
+    // 💰 «عندك اليوم»: cash + banks + wallets + card = 72,000, before what I owe
+    expect(wealth.haveMru).toBe(72000);
     // have 72,000 − owe 27,000
     expect(wealth.inHandMru).toBe(45000);
     // + owed to me 49,000
@@ -304,6 +306,7 @@ describe("the final figures", () => {
     expect(owe.mru).toBe(1917900);
     expect(owe.items[0]).toMatchObject({ name: "له رصيد", mru: 1917900 });
     // have 10,000 − owe 1,917,900
+    expect(wealth.haveMru).toBe(10000);
     expect(wealth.inHandMru).toBe(10000 - 1917900);
     // + owed to me 2,000
     expect(wealth.totalMru).toBe(10000 - 1917900 + 2000);

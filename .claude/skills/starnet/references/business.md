@@ -1171,3 +1171,10 @@ is never pressed while a field is empty - it refills and saves on the next try (
   كاش سيفا, app → that app), his loan (→ out of its app), his commission (cash → الكاش / كاش سيفا),
   customer device payments (their method's app, else الكاش / كاش سيفا), «إضافة رصيد» (the chosen place),
   transfers / purchases / remittances / card moves / personal records (their chosen places).
+
+## 💰 «عندك اليوم» at the top of «حسابي» (Oct 11 2026)
+
+- His words: «اريد ان يظهر لي المبلغ المتواجد عندي اليوم … يجمع المحافظ والكاش … اجعله مع الايقونات الفوق
+  في يدك الان». `Wealth.haveMru` = the sum of the «عندك» lines (كاش، كاش سيفا، البنوك، أورانج، نيتا، بينانس،
+  KAST) in أوقية, before what he owes; shown as a full-width tile «💰 عندك اليوم» above «في يدك الآن» and
+  «كل ما تملك» (`money-two-wide`).

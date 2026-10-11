@@ -524,6 +524,8 @@ export interface WealthLine {
 
 export interface Wealth {
   lines: WealthLine[];
+  /** 💰 «عندك اليوم» = الكاش + البنوك + المحافظ + البطاقة (the «عندك» lines), before what I owe. */
+  haveMru: number;
   /** «في يدك الآن» = الكاش + البنوك + البطاقة − everything I owe. */
   inHandMru: number;
   /** «كل ما تملك» = in hand + everything owed to me (customers, reps, people). */
@@ -633,8 +635,9 @@ export function buildWealth(input: WealthInput): Wealth {
     line("repsOwed", "🧑‍💼", "عليك للمندوبين", "owe", input.repsMru.filter((r) => r.mru < 0).map((r) => mruItem(r.name, -r.mru))),
   ];
   const sum = (kind: WealthLine["kind"]) => lines.filter((l) => l.kind === kind).reduce((s, l) => s + l.mru, 0);
-  const inHandMru = sum("have") - sum("owe");
-  return { lines, inHandMru, totalMru: inHandMru + sum("owed"), missing: Array.from(missing) };
+  const haveMru = sum("have");
+  const inHandMru = haveMru - sum("owe");
+  return { lines, haveMru, inHandMru, totalMru: inHandMru + sum("owed"), missing: Array.from(missing) };
 }
 
 // ---- storage (business data: `starnet_` keys, so the full backup carries them) ----

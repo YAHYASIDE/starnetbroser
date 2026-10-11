@@ -12671,6 +12671,10 @@ button.today-tile {
   text-align: center;
 }
 
+.money-two > .money-two-wide {
+  grid-column: 1 / -1;
+}
+
 .money-two .net-hero-value {
   font-size: 1.3rem;
   overflow-wrap: anywhere;
