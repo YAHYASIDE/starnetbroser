@@ -85,8 +85,10 @@ describe("Drive backup file names", () => {
     const files = ["starnet-drive-2026-09-01-0900.starnetbackup", "starnet-drive-2026-09-03-0900.starnetbackup", "notes.txt", "starnet-drive-2026-09-02-0900.starnetbackup"].map(
       (name, i) => ({ id: String(i), name }),
     );
-    expect(driveFilesToPrune(files, 2).map((f) => f.name)).toEqual(["starnet-drive-2026-09-01-0900.starnetbackup"]);
+    expect(driveFilesToPrune(files, 2, 0).map((f) => f.name)).toEqual(["starnet-drive-2026-09-01-0900.starnetbackup"]);
     expect(driveFilesToPrune(files, 5)).toEqual([]);
+    // the last copy of each day is kept for the month
+    expect(driveFilesToPrune(files, 2)).toEqual([]);
   });
 });
 
@@ -99,17 +101,20 @@ describe("Drive REST client", () => {
     expect(drive.files.filter((f) => f.name === "STARNET")).toHaveLength(1);
   });
 
-  it("uploads, lists newest first, downloads the exact contents, and keeps only the newest 30", async () => {
+  it("uploads, lists newest first, downloads the exact contents; keeps 48 hourly copies + one a day for 30 days", async () => {
     const drive = fakeDrive();
-    for (let day = 1; day <= 31; day++) {
-      await uploadAndPrune(drive.http, "tok", `{"backup":${day}}`, new Date(2026, 7, day, 8, 0));
+    // ⏰ hourly: 3 days × 24 hours
+    for (let hour = 0; hour < 72; hour++) {
+      await uploadAndPrune(drive.http, "tok", `{"backup":${hour}}`, new Date(2026, 7, 1 + Math.floor(hour / 24), hour % 24, 0));
     }
     const folderId = await ensureDriveFolder(drive.http, "tok");
     const backups = await listDriveBackups(drive.http, "tok", folderId);
-    expect(backups).toHaveLength(30);
-    expect(backups[0].name).toBe("starnet-drive-2026-08-31-0800.starnetbackup");
-    expect(backups.at(-1)?.name).toBe("starnet-drive-2026-08-02-0800.starnetbackup");
-    expect(await downloadDriveBackup(drive.http, "tok", backups[0].id)).toBe('{"backup":31}');
+    // the newest 48 (Aug 2 00:00 → Aug 3 23:00) + Aug 1's last copy (23:00)
+    expect(backups).toHaveLength(49);
+    expect(backups[0].name).toBe("starnet-drive-2026-08-03-2300.starnetbackup");
+    expect(backups.at(-1)?.name).toBe("starnet-drive-2026-08-01-2300.starnetbackup");
+    expect(await downloadDriveBackup(drive.http, "tok", backups[0].id)).toBe('{"backup":71}');
+
     expect(await driveAccountEmail(drive.http, "tok")).toBe("me@gmail.com");
   });
 
@@ -146,11 +151,11 @@ describe("Drive link settings", () => {
 
 describe("isDriveUploadDue", () => {
   const now = new Date(2026, 8, 26, 15, 0);
-  it("is due until an upload succeeded today", () => {
+  it("⏰ is due an hour after the last successful upload", () => {
     expect(isDriveUploadDue(null, now)).toBe(true);
-    expect(isDriveUploadDue({ at: new Date(2026, 8, 26, 8, 0).toISOString(), ok: false }, now)).toBe(true);
-    expect(isDriveUploadDue({ at: new Date(2026, 8, 25, 23, 0).toISOString(), ok: true }, now)).toBe(true);
-    expect(isDriveUploadDue({ at: new Date(2026, 8, 26, 8, 0).toISOString(), ok: true }, now)).toBe(false);
+    expect(isDriveUploadDue({ at: new Date(2026, 8, 26, 14, 50).toISOString(), ok: false }, now)).toBe(true);
+    expect(isDriveUploadDue({ at: new Date(2026, 8, 26, 14, 0).toISOString(), ok: true }, now)).toBe(true);
+    expect(isDriveUploadDue({ at: new Date(2026, 8, 26, 14, 30).toISOString(), ok: true }, now)).toBe(false);
     expect(isDriveUploadDue({ at: "garbage", ok: true }, now)).toBe(true);
   });
 });

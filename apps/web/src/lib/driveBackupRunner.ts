@@ -109,7 +109,7 @@ export async function unlinkGoogleDrive(): Promise<void> {
 
 /**
  * Encrypts a full backup (same file as the daily auto-backup, same password) and uploads it.
- * Automatic runs (`force` false) happen at most once a day and never show a Google screen.
+ * Automatic runs (`force` false) happen at most once an hour and never show a Google screen.
  */
 export async function runDriveBackup(
   accounts: StarlinkAccountSummary[],

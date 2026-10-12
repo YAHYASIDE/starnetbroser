@@ -1068,7 +1068,7 @@ function DriveSection() {
     <section className="section" id="drive">
       <h2 className="section-title">☁️ نسخة في Google Drive</h2>
       <p className="settings-hint">
-        كل يوم تُرفع نسخة كاملة مشفّرة إلى مجلد STARNET في حسابك على Google Drive، ويُحتفظ بآخر 30 نسخة - حتى لو ضاع
+        كل ساعة (والتطبيق مفتوح) تُرفع نسخة كاملة مشفّرة إلى مجلد STARNET في حسابك على Google Drive. يُحتفظ بنسخ آخر 48 ساعة، ثم بآخر نسخة من كل يوم لمدة 30 يومًا - حتى لو ضاع
         الهاتف أو تعطّل تستعيد كل شيء على هاتف جديد. التطبيق يرى ملفاته فقط، لا شيء آخر في Drive.
       </p>
       {!android && <p className="settings-hint">⚠️ يعمل داخل تطبيق Android فقط.</p>}

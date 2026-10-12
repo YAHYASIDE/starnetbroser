@@ -1205,6 +1205,7 @@ export function HomeView({
     };
   }, [accounts, ledgerStore]);
 
+  const driveReadyRef = useRef(false);
   useEffect(() => {
     if (autoBackupStartedRef.current) return;
     autoBackupStartedRef.current = true;
@@ -1217,8 +1218,32 @@ export function HomeView({
       // The off-phone copy (Settings → Google Drive). Silent: a failure (offline) is retried on the
       // next app open and shown in Settings, never a toast every time.
       await runDriveBackup(accountsRef.current);
+      driveReadyRef.current = true;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ⏰ Google Drive every hour (his Oct 12 2026 ask «كل ساعة نسخة»): checked every 5 minutes while the
+  // app is open and when it comes back to the front; runDriveBackup uploads only once an hour is up.
+  useEffect(() => {
+    let busy = false;
+    const tick = () => {
+      // Only once the real list is loaded (after the first run above), never the placeholder list.
+      if (busy || !driveReadyRef.current) return;
+      busy = true;
+      void runDriveBackup(accountsRef.current).finally(() => {
+        busy = false;
+      });
+    };
+    const timer = window.setInterval(tick, 5 * 60 * 1000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
 
   useEffect(() => {

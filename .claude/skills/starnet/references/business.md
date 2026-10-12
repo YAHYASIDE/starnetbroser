@@ -1295,3 +1295,12 @@ is never pressed while a field is empty - it refills and saves on the next try (
   customers' devices first, the rest a cash handover) and an app payment (أورانج / بنكيلي …) goes to that
   account of «حسابي», cash to الكاش. Every confirmation he gets (payment, handover, loan) ends with
   «📂 حساباتك الآن:» (`repWalletsNow`).
+
+## ☁️ Google Drive backup every hour (Oct 12 2026)
+
+- His words: «اجعل النسخة الاحتياطية التي تُرسل إلى Google Drive كل ساعة نسخة». `isDriveUploadDue` = an hour
+  after the last successful upload (`DRIVE_UPLOAD_EVERY_MS`); HomeView checks every 5 minutes and when the app
+  comes back to the front (after the first run, once the real list is loaded). The upload is web-side, so it
+  runs while the app is open / in memory - a closed app uploads on its next open.
+- Pruning (`driveFilesToPrune`): the newest 48 copies (two days hour by hour) + the last copy of each of the newest
+  30 days. The phone's own daily file backup (autoBackup.ts, 7 kept) is unchanged.

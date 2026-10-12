@@ -11,7 +11,12 @@
  */
 
 export const DRIVE_FOLDER_NAME = "STARNET";
-export const DRIVE_KEEP = 30;
+/** ⏰ Hourly (his Oct 12 2026 ask «كل ساعة نسخة»): the last 48 hourly copies are kept, and older days
+ * keep their last copy for DRIVE_KEEP_DAYS - two days hour by hour, a month day by day. */
+export const DRIVE_KEEP = 48;
+export const DRIVE_KEEP_DAYS = 30;
+/** One automatic upload per hour at most. */
+export const DRIVE_UPLOAD_EVERY_MS = 60 * 60 * 1000;
 const FILE_PREFIX = "starnet-drive-";
 const FILE_SUFFIX = ".starnetbackup";
 const FOLDER_MIME = "application/vnd.google-apps.folder";
@@ -70,11 +75,23 @@ export function driveBackupLabel(name: string): string {
   return m ? `${m[1]} ${m[2]}:${m[3]}` : name;
 }
 
-/** Backups beyond the newest `keep` (by name = by time) - what to delete after an upload. Files
- * the app didn't name itself are never touched. */
-export function driveFilesToPrune(files: DriveFile[], keep = DRIVE_KEEP): DriveFile[] {
-  const ours = files.filter((f) => isDriveBackupName(f.name)).sort((a, b) => a.name.localeCompare(b.name));
-  return ours.slice(0, Math.max(0, ours.length - keep));
+/** What to delete after an upload: everything beyond the newest `keep` (by name = by time), except
+ * the last copy of each of the newest `keepDays` days. Files the app didn't name itself are never
+ * touched. */
+export function driveFilesToPrune(files: DriveFile[], keep = DRIVE_KEEP, keepDays = DRIVE_KEEP_DAYS): DriveFile[] {
+  const ours = files.filter((f) => isDriveBackupName(f.name)).sort((a, b) => b.name.localeCompare(a.name)); // newest first
+  const dayOf = (name: string) => name.slice(FILE_PREFIX.length, FILE_PREFIX.length + 10);
+  const daysKept = new Set<string>();
+  const kept = new Set<string>();
+  ours.forEach((f, i) => {
+    if (i < keep) kept.add(f.id);
+    const day = dayOf(f.name);
+    if (!daysKept.has(day) && daysKept.size < keepDays) {
+      daysKept.add(day);
+      kept.add(f.id); // the newest copy of that day
+    }
+  });
+  return ours.filter((f) => !kept.has(f.id)).reverse();
 }
 
 function headerValue(headers: Record<string, string>, name: string): string | undefined {
@@ -263,17 +280,12 @@ export function getDriveLastUpload(): DriveUploadStatus | null {
   }
 }
 
-function localDate(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-/** Once a day: due until an upload has succeeded today (a failed try - offline - retries on the
- * next app open instead of waiting for tomorrow). */
+/** ⏰ Hourly: due an hour after the last successful upload (a failed try - offline - retries at the
+ * next check instead of waiting an hour). */
 export function isDriveUploadDue(last: DriveUploadStatus | null, now: Date = new Date()): boolean {
   if (!last || !last.ok) return true;
   const at = new Date(last.at);
-  return Number.isNaN(at.getTime()) || localDate(at) !== localDate(now);
+  return Number.isNaN(at.getTime()) || now.getTime() - at.getTime() >= DRIVE_UPLOAD_EVERY_MS;
 }
 
 export function recordDriveUpload(status: DriveUploadStatus): void {

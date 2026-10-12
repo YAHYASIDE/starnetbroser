@@ -31,6 +31,19 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-12-drive-hourly",
+    date: "2026-10-12",
+    title: "☁️ نسخة Google Drive كل ساعة",
+    steps: [
+      {
+        path: "/settings",
+        title: "⏰ كل ساعة",
+        before: "كانت تُرفع نسخة واحدة في اليوم، ويُحتفظ بآخر 30.",
+        after: "تُرفع نسخة كل ساعة والتطبيق مفتوح (وفور فتحه إن مرّت ساعة). يُحتفظ بنسخ آخر 48 ساعة، ثم بآخر نسخة من كل يوم لمدة 30 يومًا.",
+      },
+    ],
+  },
+  {
     id: "2026-10-12-not-renewed",
     date: "2026-10-12",
     title: "⏰ دائرة «لم يُجدَّد»",
