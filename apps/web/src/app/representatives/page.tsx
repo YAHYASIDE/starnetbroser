@@ -11,6 +11,9 @@ import { PdfButton } from "@/components/PdfButton";
 import { RepAppCodePanel } from "@/components/RepAppCodePanel";
 import { copyGaps, copyGapsText, loadRepCopySentDevices } from "@/lib/repCopy";
 import { setRepCustomersHidden, setRepRates } from "@/lib/repStore";
+import { shipmentProfitMoment } from "@/lib/accountingStore";
+import { loadProfitReset } from "@/lib/profitReset";
+import { applyRepReset, inRepVersion, pickRepReset, repResetPoints, repVersions, seedRepResetHistory, undoRepReset, type RepVersion } from "@/lib/repResets";
 import { applyRepRatePlans, stampRepRates, withBaseRates, type RepRatePlan } from "@/lib/repRates";
 import { RepRequestsSection } from "@/components/RepRequestsSection";
 import { PrintableDocument } from "@/lib/pdfDocument";
@@ -31,7 +34,6 @@ import {
   RepDeviceCommissionRow,
   Representative,
   RepresentativeStore,
-  RepResetPoint,
   RepSettlement,
   RepSettlementKind,
   RepSettlementList,
@@ -40,7 +42,7 @@ import {
   type RepCustomerOp,
   saveRepresentativeStore,
   saveRepSettlements,
-  setRepresentativeReset,
+  setRepresentativeResets,
   totalRepDeviceCommissions,
   updateRepresentative,
   updateRepSettlement,
@@ -63,7 +65,7 @@ import {
   repRowAccount,
   setShipmentRepShare,
   ShipmentRepPatch,
-  splitRepRecords, repNetPosition, ledgerAfterRepReset, bookAfterRepReset, isAfterRepReset, repProfitBreakdown, type RepProfitBreakdown, type RepProfitItem } from "@/lib/repAccount";
+  splitRepRecords, repNetPosition, ledgerAfterRepReset, bookAfterRepReset, repProfitBreakdown, type RepProfitBreakdown, type RepProfitItem } from "@/lib/repAccount";
 import { isRepLinkedToBot, sendRepPdf } from "@/lib/telegram";
 import { InvoiceList, loadInvoices, saveInvoices } from "@/lib/invoiceStore";
 import {
@@ -260,6 +262,12 @@ export default function RepresentativesPage() {
           reps = setRepRates(reps, rep.id, plan);
           changed = true;
         }
+      }
+      // 🗄 The resets older versions overwrote come back as saved versions (once).
+      const seeded = seedRepResetHistory(reps, loadProfitReset());
+      if (seeded !== reps) {
+        reps = seeded;
+        changed = true;
       }
       if (changed) saveRepresentativeStore(reps);
       // 🏦 A loan approved today before it lowered its app (أورانج…) now does.
@@ -463,8 +471,8 @@ export default function RepresentativesPage() {
     void refreshTelegramReplies().catch(() => {});
   }
 
-  function handleReset(repId: string, resetFrom: RepResetPoint | undefined) {
-    saveReps(setRepresentativeReset(representativeStore, repId, resetFrom));
+  function handleReset(repId: string, resets: RepResets) {
+    saveReps(setRepresentativeResets(representativeStore, repId, resets));
   }
 
   // Deleting a rep removes his settlements (and their cash entries) and his share of every
@@ -584,7 +592,7 @@ export default function RepresentativesPage() {
                     onUpdateSettlement={handleUpdateSettlement}
                     onDeleteSettlement={handleDeleteSettlement}
                     onShipmentShare={handleShipmentShare}
-                    onReset={(resetFrom) => handleReset(rep.id, resetFrom)}
+                    onReset={(resets) => handleReset(rep.id, resets)}
                     onSetCustomersHidden={(hidden) => saveReps(setRepCustomersHidden(representativeStore, rep.id, hidden))}
                     onSetRates={(plan, since) => {
                       saveReps(setRepRates(representativeStore, rep.id, plan));
@@ -630,7 +638,7 @@ interface RepCardProps {
   onUpdateSettlement: (settlementId: string, input: UpdateRepSettlementInput) => string | null;
   onDeleteSettlement: (settlementId: string) => void;
   onShipmentShare: (accountId: string, entryId: string, patch: ShipmentRepPatch) => string | null;
-  onReset: (resetFrom: RepResetPoint | undefined) => void;
+  onReset: (resets: RepResets) => void;
   onDelete: () => void;
   onLedgerChange: (next: LedgerByAccount) => void;
   /** Open the statement on this month (yyyy-mm) and scroll to this card. */
@@ -701,7 +709,12 @@ function RepCard({
     setPeriodMonth(focusMonth);
     setTimeout(() => cardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 150);
   }, [focusMonth]);
-  const [showArchive, setShowArchive] = useState(false);
+  // 🗄 Which version of his account the statement shows: 0 = the current one, then each period
+  // between two earlier resets (lib/repResets.ts).
+  const [versionIndex, setVersionIndex] = useState(0);
+  const versions = useMemo(() => repVersions(rep), [rep]);
+  const version = versions[versionIndex] ?? versions[0]!;
+  const showArchive = versionIndex > 0 && versionIndex < versions.length;
 
   const fx = useFx();
   // 💱 His operations in another currency than his (partyCurrency.ts) - «⚠️ عملة مختلفة» on the line.
@@ -766,14 +779,20 @@ function RepCard({
 
   const allDays = useMemo(() => {
     if (panel !== "statement" && sheet?.kind !== "reset") return [];
-    const archive = showArchive && !!rep.resetFrom;
-    const source = archive ? splitRepRecords(rep, { deviceRows: allDeviceRows, invoices, settlements }, "archive") : active;
+    const archive = showArchive;
+    const source = archive
+      ? {
+          deviceRows: allDeviceRows.filter((row) => inRepVersion(version, shipmentProfitMoment(row.entry))),
+          invoices: invoices.filter((inv) => inv.representativeId !== rep.id || inRepVersion(version, inv)),
+          settlements: settlements.filter((s) => s.representativeId !== rep.id || inRepVersion(version, s)),
+        }
+      : active;
     // 📡 His customers' device operations (his debt to us) run in the same balance (his Oct 2026 choice).
     const customerOps = archive
-      ? repOperations(rep.id, allReplays, accounts, ledgerStore, { allHisDevices: customersHidden }).filter((op) => !isAfterRepReset(rep.resetFrom, { date: op.date, createdAt: op.at }))
+      ? repOperations(rep.id, allReplays, accounts, ledgerStore, { allHisDevices: customersHidden }).filter((op) => inRepVersion(version, { date: op.date, createdAt: op.at }))
       : operations;
     return buildRepDailyStatement(rep.id, source.deviceRows, source.invoices, source.settlements, customerOps);
-  }, [panel, sheet, showArchive, rep, allDeviceRows, invoices, settlements, active, operations, allReplays, accounts, ledgerStore, customersHidden]);
+  }, [panel, sheet, showArchive, version, rep, allDeviceRows, invoices, settlements, active, operations, allReplays, accounts, ledgerStore, customersHidden]);
   const period = periodKind === "month" ? monthRange(periodMonth) : repPeriod(periodKind, todayDateInputValue(), customPeriod);
   const statement = useMemo(() => buildRepPeriodStatement(allDays, period, fx.convert), [allDays, period.from, period.to, fx]); // eslint-disable-line react-hooks/exhaustive-deps
   // 📈 The period's shipments, one line each: confirmed and expected (D) apart.
@@ -816,7 +835,7 @@ function RepCard({
   }
 
   function statementDoc() {
-    return buildRepStatementPdf(rep, statement, periodLabel + (showArchive && rep.resetFrom ? " (أرشيف)" : ""), accountName, clientNameFor, storeItems, fx, profits);
+    return buildRepStatementPdf(rep, statement, periodLabel + (showArchive ? ` (نسخة ${versionLabel(version)})` : ""), accountName, clientNameFor, storeItems, fx, profits);
   }
 
   async function sendStatementToRep() {
@@ -996,16 +1015,20 @@ function RepCard({
               </label>
             </div>
           )}
-          {rep.resetFrom && (
-            <label className="ledger-d-toggle rep-archive-toggle">
-              <input type="checkbox" checked={showArchive} onChange={(e) => setShowArchive(e.target.checked)} />
-              <span>
-                عرض الأرشيف (العمليات قبل التصفير <bdi dir="ltr">{rep.resetFrom.date}</bdi>)
-              </span>
+          {versions.length > 1 && (
+            <label className="rep-form-field rep-version-pick">
+              <span>🗄 نسخة الحساب</span>
+              <select className="search-input" value={versionIndex} onChange={(e) => setVersionIndex(Number(e.target.value))}>
+                {versions.map((v, i) => (
+                  <option key={i} value={i}>
+                    {i === 0 ? `الحالية${v.from ? ` (منذ ${v.from.date})` : ""}` : `🗄 ${versionLabel(v)}`}
+                  </option>
+                ))}
+              </select>
             </label>
           )}
 
-          <RepStatementSummary statement={statement} period={period} periodLabel={periodLabel} archive={showArchive && !!rep.resetFrom} hideOurs={readOnly} />
+          <RepStatementSummary statement={statement} period={period} periodLabel={periodLabel} archive={showArchive} hideOurs={readOnly} />
 
           <div className="party-panel-tools">
             <PdfButton className="party-action party-action-pdf" label="🖨️ تصدير الكشف PDF" build={statementDoc} />
@@ -1409,9 +1432,9 @@ function RepCard({
             rep={rep}
             balance={balanceText(net)}
             onCancel={() => setSheet(null)}
-            onReset={(point) => {
-              onReset(point);
-              setShowArchive(false);
+            onReset={(resets) => {
+              onReset(resets);
+              setVersionIndex(0);
               setSheet(null);
             }}
           />
@@ -2106,6 +2129,15 @@ function RepRatesForm({ rep, onSave, onCancel }: { rep: Representative; onSave: 
   );
 }
 
+type RepResets = Pick<Representative, "resetFrom" | "resetHistory">;
+
+/** "2026-10-07 ← 2026-10-11" / "قبل 2026-10-07" - one saved version of his account. */
+function versionLabel(v: RepVersion): string {
+  if (v.from && v.to) return `${v.from.date} ← ${v.to.date}`;
+  if (v.to) return `قبل ${v.to.date}`;
+  return v.from ? `منذ ${v.from.date}` : "كل العمليات";
+}
+
 function RepResetForm({
   rep,
   balance,
@@ -2114,28 +2146,77 @@ function RepResetForm({
 }: {
   rep: Representative;
   balance: string;
-  onReset: (point: RepResetPoint | undefined) => void;
+  onReset: (resets: RepResets) => void;
   onCancel: () => void;
 }) {
   const today = todayDateInputValue();
   const [date, setDate] = useState(today);
+  const points = repResetPoints(rep);
+  const current = rep.resetFrom;
+  const index = current ? points.findIndex((p) => p.date === current.date && p.at === current.at) : -1;
+  const previous = index > 0 ? points[index - 1] : undefined;
 
   return (
     <div className="party-balance-form">
-      {rep.resetFrom && (
+      {current && (
         <div className="rep-reset-current">
           <span>
-            الحساب مُصفّر منذ <bdi dir="ltr">{rep.resetFrom.date}</bdi>
+            الحساب مُصفّر منذ <bdi dir="ltr" className="rep-reset-date">{current.date}</bdi>
           </span>
           <button
             type="button"
             className="text-action"
             onClick={() => {
-              if (window.confirm("إلغاء التصفير؟ تعود كل العمليات القديمة إلى الحساب والرصيد.")) onReset(undefined);
+              const what = previous ? `يرجع إلى التصفير السابق (${previous.date}): تعود فقط عمليات ${previous.date} ← ${current.date}.` : "تعود كل العمليات القديمة إلى الحساب.";
+              if (window.confirm(`إلغاء تصفير ${current.date}؟\n\n${what}\nيبقى تصفير ${current.date} محفوظًا كنسخة.`)) onReset(undoRepReset(rep));
             }}
           >
-            إلغاء التصفير
+            {previous ? (
+              <>
+                ↩️ رجوع إلى تصفير <bdi dir="ltr" className="rep-reset-date">{previous.date}</bdi>
+              </>
+            ) : (
+              "↩️ إلغاء التصفير"
+            )}
           </button>
+        </div>
+      )}
+      {points.length > 0 && (
+        <div className="rep-reset-versions">
+          <strong>🗄 التصفيرات المحفوظة</strong>
+          {points.map((p) => {
+            const isCurrent = !!current && p.date === current.date && p.at === current.at;
+            return (
+              <div key={`${p.date}|${p.at}`} className="rep-reset-version">
+                <span>
+                  🔄 <bdi dir="ltr">{p.date}</bdi>
+                  {isCurrent ? " · الحالي" : ""}
+                </span>
+                {!isCurrent && (
+                  <button
+                    type="button"
+                    className="text-action"
+                    onClick={() => {
+                      if (window.confirm(`يبدأ حسابه من تصفير ${p.date}؟ تبقى كل التصفيرات الأخرى محفوظة.`)) onReset(pickRepReset(rep, p));
+                    }}
+                  >
+                    اجعله الحالي
+                  </button>
+                )}
+              </div>
+            );
+          })}
+          {current && (
+            <button
+              type="button"
+              className="text-action"
+              onClick={() => {
+                if (window.confirm("بدون تصفير؟ تظهر كل عملياته من البداية، وتبقى التصفيرات محفوظة هنا.")) onReset(pickRepReset(rep, undefined));
+              }}
+            >
+              كل العمليات من البداية (بدون تصفير)
+            </button>
+          )}
         </div>
       )}
       <p className="rep-reset-balance">
@@ -2149,7 +2230,7 @@ function RepResetForm({
         {date === today
           ? "يبدأ من هذه اللحظة: كل العمليات المسجّلة حتى الآن تنتقل إلى الأرشيف ويبدأ كل شيء في بطاقته من 0: نصيبه، وما عليه عن أجهزته وزبائنه، وديون أجهزته، وعمليات زبائنه."
           : "العمليات قبل هذا التاريخ تنتقل إلى الأرشيف، وعمليات هذا اليوم وما بعده تبقى في حسابه."}{" "}
-        لا يُحذف شيء: يبقى الأرشيف ظاهرًا في الكشف، وكل عملية تبقى في كشف زبونها. سوِّ رصيده أولًا إن كان عليه أو له مبلغ.
+        لا يُحذف شيء: كل تصفير يُحفظ كنسخة تراها في «🗄 نسخة الحساب» بالكشف، وكل عملية تبقى في كشف زبونها. سوِّ رصيده أولًا إن كان عليه أو له مبلغ.
       </p>
       <div className="settings-actions">
         <button
@@ -2157,7 +2238,7 @@ function RepResetForm({
           className="dialog-primary"
           disabled={!date || date > today}
           onClick={() => {
-            if (window.confirm(`تصفير حساب "${rep.name}" وبدء حساب جديد من ${date}؟`)) onReset(makeRepResetPoint(date));
+            if (window.confirm(`تصفير حساب "${rep.name}" وبدء حساب جديد من ${date}؟`)) onReset(applyRepReset(rep, makeRepResetPoint(date)));
           }}
         >
           🔄 تصفير الحساب

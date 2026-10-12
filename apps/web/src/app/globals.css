@@ -15205,3 +15205,28 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
 .party-net-edit {
   font-size: 0.85rem;
 }
+
+/* 🗄 A rep's saved resets (lib/repResets.ts) */
+.rep-reset-versions {
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  font-size: 0.85rem;
+}
+
+.rep-reset-version {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rep-version-pick select {
+  width: 100%;
+}
+
+.rep-reset-date {
+  white-space: nowrap;
+}

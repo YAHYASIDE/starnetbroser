@@ -1185,3 +1185,18 @@ is never pressed while a field is empty - it refills and saves on the next try (
   في يدك الان». `Wealth.haveMru` = the sum of the «عندك» lines (كاش، كاش سيفا، البنوك، أورانج، نيتا، بينانس،
   KAST) in أوقية, before what he owes; shown as a full-width tile «💰 عندك اليوم» above «في يدك الآن» and
   «كل ما تملك» (`money-two-wide`).
+
+## 🗄 A rep's resets are saved versions (Oct 12 2026)
+
+- His words: «اريد ان يكون استرجاع تصفير الحساب ان يرد فقط ما كان قبل التصفير … كل تصفير تحفظ فقط من تصفير
+  الي تصفير سابقها وان لا تختفي ان تبقى هناك كنسخات … وحاول تطبقه على ما مضى» (his «إلغاء التصفير» had brought
+  back many old operations at once).
+- lib/repResets.ts: `Representative.resetHistory` keeps every earlier reset (oldest first) beside `resetFrom`.
+  A new reset (`applyRepReset`) keeps the old one; «↩️ رجوع إلى تصفير X» (`undoRepReset`) goes back to the
+  reset before the current one only (no reset only when it was the first) and keeps the undone one saved;
+  «🗄 التصفيرات المحفوظة» lists them all with «اجعله الحالي» (`pickRepReset`), plus «كل العمليات من البداية».
+- The statement's «🗄 نسخة الحساب» (`repVersions` / `inRepVersion`) shows the current account or any period
+  between two resets («2026-10-07 ← 2026-10-11», «قبل 2026-10-07») - replaces the single archive checkbox.
+- The past: `seedRepResetHistory` (reps page load) brings back the resets older versions overwrote, from the
+  profit fresh start's memory (`profitReset.previousRepResets` + its own point) - as saved points only, never
+  forced as the current one.

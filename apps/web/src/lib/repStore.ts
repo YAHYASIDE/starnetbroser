@@ -32,6 +32,9 @@ export interface Representative {
   /** "تصفير الحساب" - a fresh start: only records after this point count toward his balances and
    * statement; older ones stay untouched, shown in the archive (see repAccount.ts). */
   resetFrom?: RepResetPoint;
+  /** 🗄 His earlier resets, oldest first (lib/repResets.ts): each one closes a saved version of his
+   * account; «↩️» goes back to the one before the current reset, never further. */
+  resetHistory?: RepResetPoint[];
   /** 🔒 «زبائنه عنده فقط» (his Oct 2026 choice, lib/repSeparation.ts): this rep's customers are hidden
    * from every operator screen - his devices show under his name, the operator records only on
    * him. Hidden, never deleted; turning it off brings everything back. */
@@ -184,6 +187,21 @@ export function setRepresentativeReset(
   const existing = store[id];
   if (!existing) return store;
   return { ...store, [id]: { ...existing, resetFrom, updatedAt: new Date().toISOString() } };
+}
+
+/** 🗄 Sets his current reset and his saved earlier ones together (lib/repResets.ts). */
+export function setRepresentativeResets(
+  store: RepresentativeStore,
+  id: string,
+  resets: Pick<Representative, "resetFrom" | "resetHistory">,
+): RepresentativeStore {
+  const existing = store[id];
+  if (!existing) return store;
+  const { resetFrom: _f, resetHistory: _h, ...rest } = existing;
+  return {
+    ...store,
+    [id]: { ...rest, ...(resets.resetFrom ? { resetFrom: resets.resetFrom } : {}), ...(resets.resetHistory?.length ? { resetHistory: resets.resetHistory } : {}), updatedAt: new Date().toISOString() },
+  };
 }
 
 export function deleteRepresentative(store: RepresentativeStore, id: string): RepresentativeStore {
