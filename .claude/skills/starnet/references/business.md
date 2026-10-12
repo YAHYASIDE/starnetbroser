@@ -1366,7 +1366,7 @@ is never pressed while a field is empty - it refills and saves on the next try (
   (normal first) and the owner sees it in the approval and can change it (next step).
 - Built (step 1): lib/repLedgers.ts - its OWN store `starnet_rep_ledgers_v1` {ledgers, entries} (not settlements, so
   profit / normal accounts / paying his customers' devices / the bot / the rep copy can never read it). A ledger =
-  {repId, name (unique per rep), kind trust | loan | free, ONE currency fixed}; entries له (+) / عليه (−), «رصيد
+  {repId, name (unique per rep), kind trust | loan | free, its currencies (see «💱 … several currencies»)}; entries له (+) / عليه (−), «رصيد
   افتتاحي» (`opening`), all deletable; balance derived. «📂 حساباته» → «➕ حساب», each account: له / عليه / 🧹 تصفير /
   ✏️ الاسم / 🗑️ حذف (code). «حسابي» adds `repLedgerTotals` to the rep's له/عليه per currency.
 - Step 2 (built, his «ابدأ الخطوة الثانية»): the money bot's 💵 دفعة who step starts with «💼 في حسابي» (his normal
@@ -1380,6 +1380,26 @@ is never pressed while a field is empty - it refills and saves on the next try (
   the entry; its سيفا goes to «كاش سيفا» like a rep's handover), `botId` counted once. Never his profit, his normal
   account or his customers' devices. App deposits count in the app's balance (`repLedgerFlows` in loadAccountFlows)
   and statement (moneyMovements `repLedgers`).
+
+## 💱 A rep's named account in several currencies (Oct 12 2026)
+
+- His words: «هذه الحسابات اجعل يمكن أن أضيف لهم عملة، مثلًا هذا اورانج يجب أن يكون فيه سيفا و(أوقية)، وذاك MRO يعمل
+  فقط بالعملة». His choices: «أنت تختار عملات كل حساب» (not every account taking every currency); اورانج = سيفا +
+  أوقية; a currency may be removed from an account only when it has no entries (his MRO account was made in سيفا by
+  mistake, empty: add أوقية then remove سيفا).
+- Built: a ledger has `currencies: string[]` (≥ 1, his order) instead of one `currencyCode`; every entry carries its
+  `currencyCode` (one of them). Old saved accounts keep their one currency (`normalizeRepLedgerBook` on load). Balance,
+  statement «الرصيد بعدها», totals in «حسابي», app flows and الكاش entries are per the ENTRY's currency - never added or
+  converted. The new-account form has currency chips (one or more) and the opening balance picks one; the account has
+  «💱 العملات» (add one; ✕ إزالة only with no entries and never the last) and a currency choice beside the amount and
+  in «🧹 تصفير» (zeroes that currency). Tile/header: «له 5,000 سيفا · عليه 20,000 أوقية» when the sides differ.
+- Bot: one `ledgers` line per account AND currency (same id), so 💵 دفعة offers the account under each of its
+  currencies; `namedTarget(repId, target, currency, s)` shows the balance in the payment's currency; approval lists
+  accounts that HAVE the chosen currency.
+
+- Same day: «الحساب الذي مكتوب عليه سيفا اورانج عدّله ليكون اسم الحساب شخصي» - the rep's normal سيفا account
+  (repWallets id "SIFA") is now «🟠 حساب شخصي» (bot: «🟠 شخصي», button «💼 في حسابي: 🟠 شخصي»); name only, same
+  records. Profit / أوقية keep their names.
 
 ## 💳 Tap «D» to pay Starlink (Oct 12 2026)
 

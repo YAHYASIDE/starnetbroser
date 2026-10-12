@@ -337,7 +337,7 @@ export function buildMovements(input: MovementInput): Movement[] {
     const ledger = input.repLedgers!.ledgers.find((l) => l.id === e.ledgerId);
     if (!ledger) continue;
     const incoming = e.direction === "credit";
-    out.push({ id: `${e.placeId}:rep-ledger:${e.id}`, kind: incoming ? "collection" : "rep-payout", place: e.placeId, direction: incoming ? "in" : "out", amount: e.amount, currency: ledger.currencyCode, date: e.date, createdAt: e.createdAt, party: { kind: "rep", id: ledger.repId, name: input.partyName?.("rep", ledger.repId) }, ref: { kind: "rep-ledger", id: e.id }, label: e.note || `📒 ${ledger.name}` });
+    out.push({ id: `${e.placeId}:rep-ledger:${e.id}`, kind: incoming ? "collection" : "rep-payout", place: e.placeId, direction: incoming ? "in" : "out", amount: e.amount, currency: e.currencyCode, date: e.date, createdAt: e.createdAt, party: { kind: "rep", id: ledger.repId, name: input.partyName?.("rep", ledger.repId) }, ref: { kind: "rep-ledger", id: e.id }, label: e.note || `📒 ${ledger.name}` });
   }
   for (const i of input.incomes) {
     if (i.accountId) out.push({ id: `${i.accountId}:personal-income:${i.id}`, kind: "owner-in", place: i.accountId, direction: "in", amount: i.amount, currency: i.currencyCode, date: i.date, createdAt: i.createdAt, ref: { kind: "personal-income", id: i.id }, label: i.note || "دخل شخصي" });

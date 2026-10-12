@@ -683,7 +683,7 @@ function HandoverRequestCard({ request, rep, accounts, clientStore, onDone }: Mo
   // chose in the bot, changeable here (his Oct 12 2026 choice «المندوب يختار وأنا أعدّل»).
   const [ledgerId, setLedgerId] = useState(request.ledgerId ?? "");
   const ledgers = useMemo(() => repLedgersOf(loadRepLedgerBook(), request.repId), [request.repId]);
-  const choices = ledgers.filter((l) => l.currencyCode === currency);
+  const choices = ledgers.filter((l) => l.currencies.includes(currency));
   const chosen = choices.find((l) => l.id === ledgerId);
   const [error, setError] = useState<string | null>(null);
   const proofPhoto = request.proofFileId ? <RepProofPhoto fileId={request.proofFileId} bot={request.proofBot} /> : null;
@@ -691,7 +691,7 @@ function HandoverRequestCard({ request, rep, accounts, clientStore, onDone }: Mo
   async function approve() {
     const value = Number(amount);
     if (!(value > 0)) return setError("المبلغ غير صحيح");
-    if (ledgerId && !chosen) return setError("الحساب المختار ليس بهذه العملة - اختر حسابًا آخر");
+    if (ledgerId && !chosen) return setError("الحساب المختار ليس فيه هذه العملة - اختر حسابًا آخر");
     const date = localDay(new Date());
     const result = chosen
       ? recordRepLedgerDeposit({ ledgerId: chosen.id, amount: value, currencyCode: currency, date, method: request.paymentMethod, botId: request.botId, repName: rep?.name ?? "" })

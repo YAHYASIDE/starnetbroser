@@ -48,7 +48,7 @@ describe("buildReplySnapshot", () => {
     expect(snapshot.repSearch.r1![0]!.d).toBe("2026-09-28");
     expect(snapshot.repWords["بحث"]).toBe("search");
     // 📂 his accounts for the money bot's «💼 في حسابي»
-    expect(snapshot.reps.r1!.wallets).toBe("📂 حساباتك:\n🟠 السيفا وأورانج: متوازن ✓\n💰 الربح: متوازن ✓\n🟢 الأوقية: متوازن ✓");
+    expect(snapshot.reps.r1!.wallets).toBe("📂 حساباتك:\n🟠 شخصي: متوازن ✓\n💰 الربح: متوازن ✓\n🟢 الأوقية: متوازن ✓");
     expect(snapshot.reps.r1!["wallet:SIFA"]).toBe("متوازن ✓");
     expect(snapshot.reps.r1!["wallet:MRU"]).toBe("متوازن ✓");
   });
@@ -84,10 +84,10 @@ describe("📒 a rep's named accounts in the money bot snapshot (his Oct 12 2026
       rates: { MRU: 40 },
       repLedgers: {
         ledgers: [
-          { id: "lg1", repId: "r1", name: "تنزيل دبو", kind: "trust", currencyCode: "SIFA", createdAt: "2026-10-12T10:00:00.000Z" },
-          { id: "lg2", repId: "r2", name: "غيره", kind: "loan", currencyCode: "MRU", createdAt: "2026-10-12T10:00:00.000Z" },
+          { id: "lg1", repId: "r1", name: "تنزيل دبو", kind: "trust", currencies: ["SIFA"], createdAt: "2026-10-12T10:00:00.000Z" },
+          { id: "lg2", repId: "r2", name: "غيره", kind: "loan", currencies: ["MRU"], createdAt: "2026-10-12T10:00:00.000Z" },
         ],
-        entries: [{ id: "e1", ledgerId: "lg1", direction: "debit", amount: 880000, date: "2026-10-01", createdAt: "2026-10-12T10:00:00.000Z" }],
+        entries: [{ id: "e1", ledgerId: "lg1", direction: "debit", amount: 880000, currencyCode: "SIFA", date: "2026-10-01", createdAt: "2026-10-12T10:00:00.000Z" }],
       },
     });
     const mine = snapshot.reps.r1!;

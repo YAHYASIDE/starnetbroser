@@ -37,11 +37,11 @@ export function recordRepLedgerDeposit(input: {
   const book = loadRepLedgerBook();
   const ledger = book.ledgers.find((l) => l.id === input.ledgerId);
   if (!ledger) return { ok: false, message: "هذا الحساب لم يعد موجوداً" };
-  if (ledger.currencyCode !== input.currencyCode) return { ok: false, message: `حساب «${ledger.name}» بعملة أخرى - غيّر العملة أو الحساب` };
+  if (!ledger.currencies.includes(input.currencyCode)) return { ok: false, message: `حساب «${ledger.name}» ليس فيه هذه العملة - غيّر العملة أو الحساب` };
   // 🔒 The same bot message twice never makes two entries.
   if (hasBotEntry(book, input.botId)) return { ok: true };
   const placeId = ledgerDepositPlace(input.method, input.currencyCode, loadAccountsBook().accounts);
-  const added = addRepLedgerEntry(book, ledger.id, { direction: "credit", amount: input.amount, date: input.date, note: input.note ?? (input.method && input.method !== "cash" ? `عبر ${PAYMENT_METHOD_LABELS[input.method]}` : "نقدًا"), placeId, botId: input.botId });
+  const added = addRepLedgerEntry(book, ledger.id, { direction: "credit", amount: input.amount, currencyCode: input.currencyCode, date: input.date, note: input.note ?? (input.method && input.method !== "cash" ? `عبر ${PAYMENT_METHOD_LABELS[input.method]}` : "نقدًا"), placeId, botId: input.botId });
   if (!added.ok) return added;
   if (placeId === REP_LEDGER_CASH) {
     const cashInput = repLedgerCashEntry(added.entry, ledger, input.repName);

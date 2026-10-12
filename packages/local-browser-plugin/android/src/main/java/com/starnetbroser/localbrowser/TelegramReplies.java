@@ -1059,7 +1059,8 @@ final class TelegramReplies {
         return out;
     }
 
-    /** The ones a payment in `currency` can go into (each account has ONE currency; فرانك = سيفا). */
+    /** The ones a payment in `currency` can go into (one line per account AND currency - an account in
+     * سيفا + أوقية is two lines with the same id; فرانك = سيفا). */
     static List<NamedAccount> namedAccounts(String repId, String currency, Snapshot s) {
         String code = FRANC.equals(currency) ? "SIFA" : currency;
         List<NamedAccount> out = new ArrayList<>();
@@ -1084,6 +1085,14 @@ final class TelegramReplies {
         return null;
     }
 
+    /** The same, its line in the payment's currency (its balance in that currency). */
+    static NamedAccount namedTarget(String repId, String target, String currency, Snapshot s) {
+        NamedAccount any = namedTarget(repId, target, s);
+        if (any == null) return null;
+        for (NamedAccount n : namedAccounts(repId, currency, s)) if (n.id.equals(any.id)) return n;
+        return any;
+    }
+
     static String namedButton(NamedAccount n) {
         return "📒 في حسابي: " + n.label + (n.balance.isEmpty() ? "" : " · " + n.balance);
     }
@@ -1093,9 +1102,9 @@ final class TelegramReplies {
         return "📒 في " + (his ? "حسابه" : "حسابي") + " «" + n.label + "» (لا يدخل في الربح ولا يسدد الأجهزة)";
     }
 
-    // ---- 📂 His accounts (his Oct 12 2026 ask, repWallets.ts): 🟠 السيفا وأورانج · 💰 الربح · 🟢 الأوقية ----
+    // ---- 📂 His accounts (his Oct 12 2026 ask, repWallets.ts): 🟠 شخصي · 💰 الربح · 🟢 الأوقية ----
 
-    /** The account a payment «في حسابي الشخصي» lands in: its currency's (فرانك/سيفا -> السيفا وأورانج). */
+    /** The account a payment «في حسابي الشخصي» lands in: its currency's (فرانك/سيفا -> 🟠 شخصي). */
     static String personalWalletId(String currency) {
         return "MRU".equals(currency) || "USD".equals(currency) ? currency : "SIFA";
     }
@@ -1103,7 +1112,7 @@ final class TelegramReplies {
     static String walletName(String walletId) {
         if ("MRU".equals(walletId)) return "🟢 حساب الأوقية";
         if ("USD".equals(walletId)) return "💵 حساب الدولار";
-        return "profit".equals(walletId) ? "💰 حساب الربح" : "🟠 حساب السيفا وأورانج";
+        return "profit".equals(walletId) ? "💰 حساب الربح" : "🟠 حساب شخصي";
     }
 
     /** «عليك 44,000 سيفا» / «لك 6,000 أوقية» / «متوازن ✓» for one of his accounts, "" when unknown. */
@@ -1120,7 +1129,7 @@ final class TelegramReplies {
         return value == null || value.isEmpty() ? "" : value + "\n\n";
     }
 
-    /** «💼 في حسابي الشخصي - 🟠 حساب السيفا وأورانج» (his account in the payment's currency). */
+    /** «💼 في حسابي الشخصي - 🟠 حساب شخصي» (his account in the payment's currency). */
     static String personalTarget(String currency, boolean his) {
         return "💼 في " + (his ? "حسابه" : "حسابي") + " الشخصي - " + walletName(personalWalletId(currency));
     }

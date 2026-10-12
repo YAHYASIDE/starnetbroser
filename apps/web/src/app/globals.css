@@ -15552,6 +15552,11 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
 .rep-ledger .rep-accounts-lines li > div { flex: 1; }
 .rep-ledger-delete { flex: none; min-width: 36px; min-height: 36px; }
 .rep-ledger-remove { color: var(--red); justify-self: start; }
+/* «💱 العملات» alone on the last row under the four actions. */
+.rep-accounts-actions > :nth-child(5):last-child { grid-column: 1 / -1; }
+.rep-ledger-currencies { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.rep-ledger-currencies li { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--radius-md); background: var(--surface); }
+.rep-ledger-currencies small { color: var(--text-muted); flex: 1; }
 
 /* 💳 «D» on the card is a button: it opens «تسوية تكلفة Starlink» (his Oct 12 2026 ask). */
 .device-mark-button { font: inherit; font-size: 0.85rem; font-weight: 800; cursor: pointer; padding: 0; text-decoration: none; }

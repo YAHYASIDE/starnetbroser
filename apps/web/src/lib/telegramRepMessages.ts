@@ -168,7 +168,7 @@ const OPS_IN_STATEMENT = 10;
 /** 📂 One of his accounts' name in the bot (the app's «📂 حساباته»). */
 export function repWalletLabel(id: string): string {
   if (id === "profit") return "💰 الربح";
-  if (id === "SIFA") return "🟠 السيفا وأورانج";
+  if (id === "SIFA") return "🟠 شخصي";
   if (id === "MRU") return "🟢 الأوقية";
   if (id === "USD") return "💵 الدولار";
   return id;

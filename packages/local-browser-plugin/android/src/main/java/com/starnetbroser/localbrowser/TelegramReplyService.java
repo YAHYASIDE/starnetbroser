@@ -525,7 +525,7 @@ public class TelegramReplyService extends Service {
         if (entry == null) {
             String repId = TelegramStore.repIdForChat(context, chatId);
             TelegramReplies.Snapshot snapshot = loadSnapshot(context);
-            named = repId == null || pending == null ? null : TelegramReplies.namedTarget(repId, pending[3], snapshot);
+            named = repId == null || pending == null ? null : TelegramReplies.namedTarget(repId, pending[3], price.currency, snapshot);
             if (named != null) walletNow = named.balance;
             else if (repId != null) walletNow = TelegramReplies.walletBalance(repId, TelegramReplies.personalWalletId(price.currency), snapshot);
         }

@@ -3,7 +3,7 @@ import type { RepSettlementKind, RepStatementDay, RepStatementRow } from "./repS
 
 /**
  * 📂 «حساباته» (his Oct 12 2026 ask): a rep's money as separate accounts inside his account -
- *  - «🟠 حساب السيفا وأورانج»: everything between you in سيفا (his devices' renewals in سيفا, what he
+ *  - «🟠 حساب شخصي»: everything between you in سيفا (his devices' renewals in سيفا, what he
  *    deposits in سيفا / أورانج / نيتا, the سيفا loans);
  *  - «💰 حساب الربح»: his share, minus what left it (paid to him, moved into his account, written off);
  *  - «🟢 حساب الأوقية»: the same in أوقية.
@@ -82,7 +82,7 @@ export function repProfitZeroEntry(profit: number): { kind: "profitTransfer" | "
 
 export function repWalletTitle(id: string): string {
   if (id === "profit") return "💰 حساب الربح";
-  if (id === "SIFA") return "🟠 حساب السيفا وأورانج";
+  if (id === "SIFA") return "🟠 حساب شخصي";
   if (id === "MRU") return "🟢 حساب الأوقية";
   if (id === "USD") return "💵 حساب الدولار";
   return `حساب ${id}`;

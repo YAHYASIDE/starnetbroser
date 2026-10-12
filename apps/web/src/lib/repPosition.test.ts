@@ -78,7 +78,7 @@ describe("⚖️ the rep's position - one way for his card and his money bot", (
     expect(p.wallets[0]!.balance).toEqual({ SIFA: -20000 });
     expect(p.wallets[2]!.balance).toEqual({ MRU: -2000 });
     const text = repPositionText("حسين", p, (id) => `جهاز ${id}`);
-    expect(text).toContain("📂 حساباتك:\n🟠 السيفا وأورانج: عليك 20,000 سيفا\n💰 الربح: متوازن ✓\n🟢 الأوقية: عليك 2,000 أوقية");
+    expect(text).toContain("📂 حساباتك:\n🟠 شخصي: عليك 20,000 سيفا\n💰 الربح: متوازن ✓\n🟢 الأوقية: عليك 2,000 أوقية");
   });
 
   it("an account's balance as he reads it: + = لك, − = عليك", () => {

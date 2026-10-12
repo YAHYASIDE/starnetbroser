@@ -69,7 +69,7 @@ export interface RepPosition {
   expectedShare: Record<string, number>;
   /** ⚖️ owed − share balance, in the display currencies (+ = he owes us). */
   net: Record<string, number>;
-  /** 📂 His accounts (repWallets.ts): 🟠 السيفا وأورانج, 💰 الربح, 🟢 الأوقية - + = له, − = عليه. */
+  /** 📂 His accounts (repWallets.ts): 🟠 شخصي, 💰 الربح, 🟢 الأوقية - + = له, − = عليه. */
   wallets: RepWalletBalance[];
 }
 
