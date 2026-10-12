@@ -67,3 +67,32 @@ describe("buildReplySnapshot", () => {
     expect(snapshotTime(new Date(2026, 0, 3, 9, 7))).toBe("03/01 09:07");
   });
 });
+
+describe("📒 a rep's named accounts in the money bot snapshot (his Oct 12 2026 ask)", () => {
+  it("lists them after his normal accounts, with their balance as he reads it", () => {
+    const snapshot = buildReplySnapshot({
+      now: new Date(2026, 9, 12, 16, 5),
+      today: "2026-10-12",
+      accounts: [account("جهاز-سالم", "r1", "2026/10/28")],
+      clients: {},
+      cash: [],
+      ledgerStore: {},
+      representatives: { r1: rep("r1", "سالم") },
+      linkedRepIds: ["r1"],
+      invoices: [],
+      settlements: [],
+      rates: { MRU: 40 },
+      repLedgers: {
+        ledgers: [
+          { id: "lg1", repId: "r1", name: "تنزيل دبو", kind: "trust", currencyCode: "SIFA", createdAt: "2026-10-12T10:00:00.000Z" },
+          { id: "lg2", repId: "r2", name: "غيره", kind: "loan", currencyCode: "MRU", createdAt: "2026-10-12T10:00:00.000Z" },
+        ],
+        entries: [{ id: "e1", ledgerId: "lg1", direction: "debit", amount: 880000, date: "2026-10-01", createdAt: "2026-10-12T10:00:00.000Z" }],
+      },
+    });
+    const mine = snapshot.reps.r1!;
+    expect(mine.ledgers).toBe("lg1\t🔒 تنزيل دبو\tSIFA\tعليك 880,000 سيفا");
+    expect(mine.wallets!.split("\n").at(-1)).toBe("🔒 تنزيل دبو: عليك 880,000 سيفا");
+    expect(mine.statement).toContain("🔒 تنزيل دبو: عليك 880,000 سيفا");
+  });
+});

@@ -544,7 +544,9 @@ public class TelegramRepliesTest {
         assertEquals(2, clients.get(1).devices.size());
         TelegramReplies.Price price = new TelegramReplies.Price(5000, "SIFA");
         TelegramReplies.Reply who = TelegramReplies.payWho("r1", price, "", "", 0, s);
-        assertTrue(who.text.startsWith("💵 5,000 سيفا\n\nهل هي في حسابك الشخصي (💼 أسفل القائمة) أم عن زبون؟"));
+        assertTrue(who.text.startsWith("💵 5,000 سيفا\n\nهل هي في حسابك الشخصي (💼 أعلى القائمة) أم عن زبون؟"));
+        // 💼 his normal account is the first button (his Oct 12 2026 rule)
+        assertTrue(who.markup.startsWith("{\"inline_keyboard\":[[{\"text\":\"💼 في حسابي: 🟠 السيفا وأورانج\",\"callback_data\":\"payt:me\"}]"));
         assertTrue(who.markup.contains("{\"text\":\"👤 سالم\",\"callback_data\":\"payl:c2\"}"));
         assertTrue(who.markup.contains("{\"text\":\"👤 محمد لمين (جهازان)\",\"callback_data\":\"payl:c1\"}"));
         assertTrue(who.markup.contains("{\"text\":\"📡 loose@gmail.com\",\"callback_data\":\"payt:d4\"}")); // no customer: the device itself
@@ -731,6 +733,50 @@ public class TelegramRepliesTest {
         assertTrue(confirm.endsWith("هل المعلومات صحيحة؟"));
         assertTrue(TelegramReplies.paySent(new TelegramReplies.Price(10000, "SIFA"), null).contains("\n💼 في حسابي الشخصي - 🟠 حساب السيفا وأورانج"));
         assertEquals("", TelegramReplies.walletBalance("r2", "SIFA", s));
+    }
+
+    @Test
+    public void paymentIntoANamedAccountAfterTheNormalOne() {
+        TelegramReplies.Snapshot s = paySnapshot();
+        java.util.Map<String, String> mine = s.reps.get("r1");
+        if (mine == null) {
+            mine = new java.util.HashMap<>();
+            s.reps.put("r1", mine);
+        }
+        mine.put("wallet:SIFA", "عليك 44,000 سيفا");
+        mine.put("ledgers", "lg1\t🔒 تنزيل دبو\tSIFA\tعليك 880,000 سيفا\nlg2\t📒 شهر 10\tMRU\tعليك 207,025.65 أوقية");
+        TelegramReplies.Price sifa = new TelegramReplies.Price(10000, "SIFA");
+        TelegramReplies.Reply who = TelegramReplies.payWho("r1", sifa, "", "", 0, s);
+        assertTrue(who.text.contains("حسابك الشخصي (💼) أو أحد حساباتك (📒) - أعلى القائمة -"));
+        // 💼 first, then 📒 only the سيفا account, then the customers
+        int me = who.markup.indexOf("payt:me");
+        int named = who.markup.indexOf("{\"text\":\"📒 في حسابي: 🔒 تنزيل دبو · عليك 880,000 سيفا\",\"callback_data\":\"payt:L:lg1\"}");
+        int customer = who.markup.indexOf("payl:c2");
+        assertTrue(me > 0 && named > me && customer > named);
+        assertFalse(who.markup.contains("lg2"));
+        assertTrue(TelegramReplies.payWho("r1", new TelegramReplies.Price(3000, "MRU"), "", "", 0, s).markup.contains("payt:L:lg2"));
+        // فرانك (أورانج / نيتا) = سيفا
+        assertTrue(TelegramReplies.payWho("r1", new TelegramReplies.Price(50000, TelegramReplies.FRANC), "", "", 0, s).markup.contains("payt:L:lg1"));
+
+        assertTrue(TelegramReplies.isPersonalTarget("me"));
+        assertTrue(TelegramReplies.isPersonalTarget("L:lg1"));
+        assertFalse(TelegramReplies.isPersonalTarget("d1"));
+        TelegramReplies.NamedAccount account = TelegramReplies.namedTarget("r1", "L:lg1", s);
+        assertEquals("🔒 تنزيل دبو", account.label);
+        assertNull(TelegramReplies.namedTarget("r1", "L:gone", s));
+        assertNull(TelegramReplies.namedTarget("r1", "me", s));
+
+        assertTrue(TelegramReplies.photoQuestion(sifa, null, false, account).contains("📒 في حسابي «🔒 تنزيل دبو» (لا يدخل في الربح ولا يسدد الأجهزة)"));
+        String confirm = TelegramReplies.payConfirmText(sifa, null, "أورانج موني", false, account.balance, account);
+        assertTrue(confirm.contains("💵 المبلغ: 10,000 سيفا\n📒 في حسابي «🔒 تنزيل دبو»"));
+        assertTrue(confirm.contains("📂 قبل هذه الدفعة: عليك 880,000 سيفا"));
+        assertTrue(confirm.contains("💳 طريقة الدفع: أورانج موني"));
+        assertTrue(confirm.endsWith("هل المعلومات صحيحة؟"));
+        assertTrue(TelegramReplies.paySent(sifa, null, "كاش", false, account).contains("\n📒 في حسابي «🔒 تنزيل دبو»"));
+        assertTrue(TelegramReplies.payToOwner("علي", sifa, null, "كاش", false, account).contains("\n📒 في حسابه «🔒 تنزيل دبو»"));
+        // no named accounts: as before
+        mine.remove("ledgers");
+        assertTrue(TelegramReplies.namedAccounts("r1", s).isEmpty());
     }
 
     @Test

@@ -33,6 +33,8 @@ import { editFieldName, isRepEditField } from "@/lib/repDeviceMenu";
 import { ACCOUNTS_CHANGED_EVENT, decideRepActivation, decideRepEdit } from "@/lib/repMenuRecords";
 import { loadActivationCosts } from "@/lib/repActivation";
 import { recordRepHandover, recordRepLoan } from "@/lib/repHandover";
+import { loadRepLedgerBook, repLedgerKindMeta, repLedgersOf } from "@/lib/repLedgers";
+import { recordRepLedgerDeposit } from "@/lib/repLedgerDeposit";
 import { approveRepSession } from "@/lib/telegramSessionRunner";
 
 interface Props {
@@ -677,15 +679,26 @@ function LoanRequestCard({ request, rep, accounts, clientStore, onDone }: MoneyC
 function HandoverRequestCard({ request, rep, accounts, clientStore, onDone }: MoneyCardProps) {
   const [amount, setAmount] = useState(String(request.amount ?? ""));
   const [currency, setCurrency] = useState<LedgerCurrency>(request.currency ?? "MRU");
+  // 📒 Which of his accounts: "" = his normal one, else a named account (repLedgers.ts) - as he
+  // chose in the bot, changeable here (his Oct 12 2026 choice «المندوب يختار وأنا أعدّل»).
+  const [ledgerId, setLedgerId] = useState(request.ledgerId ?? "");
+  const ledgers = useMemo(() => repLedgersOf(loadRepLedgerBook(), request.repId), [request.repId]);
+  const choices = ledgers.filter((l) => l.currencyCode === currency);
+  const chosen = choices.find((l) => l.id === ledgerId);
   const [error, setError] = useState<string | null>(null);
   const proofPhoto = request.proofFileId ? <RepProofPhoto fileId={request.proofFileId} bot={request.proofBot} /> : null;
 
   async function approve() {
     const value = Number(amount);
     if (!(value > 0)) return setError("المبلغ غير صحيح");
-    const result = recordRepHandover(request, value, currency, localDay(new Date()));
+    if (ledgerId && !chosen) return setError("الحساب المختار ليس بهذه العملة - اختر حسابًا آخر");
+    const date = localDay(new Date());
+    const result = chosen
+      ? recordRepLedgerDeposit({ ledgerId: chosen.id, amount: value, currencyCode: currency, date, method: request.paymentMethod, botId: request.botId, repName: rep?.name ?? "" })
+      : recordRepHandover(request, value, currency, date);
     if (!result.ok) return setError(result.message);
-    const text = `✅ أكّد المسؤول استلام ${formatMoneyShort(value, currency)} منك - سُجّلت في حسابك ${repWalletLabel(currency === "MRU" ? "MRU" : "SIFA")}.`;
+    const where = chosen ? `«${repLedgerKindMeta(chosen.kind).icon} ${chosen.name}» (لا يدخل في ربحك)` : repWalletLabel(currency === "MRU" ? "MRU" : "SIFA");
+    const text = `✅ أكّد المسؤول استلام ${formatMoneyShort(value, currency)} منك - سُجّلت في حسابك ${where}.`;
     await sendRepText(request.repId, withRepWallets(text, repWalletsNow({ rep, accounts, clientStore, ledgerStore: loadLedgerStore() })), undefined, "money");
     onDone("approved");
   }
@@ -715,6 +728,21 @@ function HandoverRequestCard({ request, rep, accounts, clientStore, onDone }: Mo
           ))}
         </select>
       </div>
+      {(ledgers.length > 0 || request.ledgerId) && (
+        <label className="form-field rep-request-ledger">
+          <span>في أي حساب من حساباته؟</span>
+          <select className="search-input" value={chosen ? ledgerId : ""} onChange={(e) => setLedgerId(e.target.value)} aria-label="حساب المندوب">
+            <option value="">💼 حسابه العادي ({repWalletLabel(currency === "MRU" ? "MRU" : "SIFA")}) - يسدد أجهزة زبائنه أولًا</option>
+            {choices.map((l) => (
+              <option key={l.id} value={l.id}>
+                {repLedgerKindMeta(l.kind).icon} {l.name}
+              </option>
+            ))}
+          </select>
+          {request.ledgerId && !ledgers.some((l) => l.id === request.ledgerId) && <small className="settings-hint">اختار «{request.ledgerName}» لكنه لم يعد موجودًا.</small>}
+          {chosen && <small className="settings-hint">📒 لا يدخل في ربحه ولا يسدد أجهزة زبائنه، والمال يدخل {request.paymentMethod && request.paymentMethod !== "cash" ? PAYMENT_METHOD_LABELS[request.paymentMethod] : "الكاش"}.</small>}
+        </label>
+      )}
       {error && <p className="settings-hint telegram-stopped">{error}</p>}
       <div className="settings-actions">
         <button type="button" className="dialog-primary" onClick={() => void approve()}>

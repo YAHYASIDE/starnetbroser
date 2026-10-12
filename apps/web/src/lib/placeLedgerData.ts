@@ -21,6 +21,7 @@ import { loadPersonalExpenses } from "./personalExpenses";
 import { buildPlaceLedger, type PlaceLedger } from "./placeLedger";
 import { loadRemittances } from "./remittances";
 import { loadExchanges } from "./exchanges";
+import { loadRepLedgerBook } from "./repLedgers";
 import { loadRepresentativeStore, loadRepSettlements } from "./repStore";
 import { loadCardTopUps } from "./starlinkDebt";
 import { loadSupplierStore } from "./supplierStore";
@@ -43,6 +44,7 @@ function loadMovements(devices: StarlinkAccountSummary[], book: AccountsBook): M
     debts: loadDebtBook(),
     remittances: loadRemittances(),
     exchanges: loadExchanges(),
+    repLedgers: loadRepLedgerBook(),
     clientOf: (id) => devices.find((a) => a.id === id)?.clientId,
     deviceName: (id) => devices.find((a) => a.id === id)?.name,
     partyName: (kind, id) => (kind === "client" ? getClient(clients, id)?.name : kind === "supplier" ? suppliers[id]?.name : reps[id]?.name),

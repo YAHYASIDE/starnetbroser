@@ -11,6 +11,7 @@ import type { RepStatementDay, RepStatementRow, UpdateRepSettlementInput } from 
 import { repProfitIn, repProfitSigned, repProfitZeroEntry, repWallets, repWalletTitle, repZeroEntry, type RepWallet } from "@/lib/repWallets";
 import { cashCurrencyLabel, CASH_CURRENCIES } from "@/lib/cashCurrencies";
 import { askDeleteCode } from "@/components/DeleteCodePrompt";
+import { ledgerEntryIds, removeLedgerCash } from "@/lib/repLedgerDeposit";
 import {
   addRepLedgerEntry,
   createRepLedger,
@@ -571,6 +572,7 @@ function NamedLedger({ ledger, book, readOnly, onChange, onDeleted }: { ledger: 
 
   async function removeLedger() {
     if (!(await askDeleteCode(`حذف الحساب «${ledger.name}» وكل عملياته (${lines.length})؟`))) return;
+    removeLedgerCash(ledgerEntryIds(book, ledger.id));
     onDeleted(deleteRepLedger(book, ledger.id));
   }
 
@@ -647,7 +649,7 @@ function NamedLedger({ ledger, book, readOnly, onChange, onDeleted }: { ledger: 
           {lines.map((line) => (
             <li key={line.entry.id}>
               <div>
-                <span>{line.entry.opening ? "📥 رصيد افتتاحي" : line.amount > 0 ? "➕ له" : "➖ عليه"}{line.entry.note && !line.entry.opening ? ` · ${line.entry.note}` : ""}</span>
+                <span>{line.entry.opening ? "📥 رصيد افتتاحي" : line.entry.botId ? "🤖 إيداع من البوت" : line.amount > 0 ? "➕ له" : "➖ عليه"}{line.entry.note && !line.entry.opening ? ` · ${line.entry.note}` : ""}</span>
                 <small>
                   <bdi dir="ltr">{line.entry.date}</bdi> · الرصيد بعدها <Money values={{ [ledger.currencyCode]: line.after }} signed />
                 </small>
@@ -661,7 +663,9 @@ function NamedLedger({ ledger, book, readOnly, onChange, onDeleted }: { ledger: 
                   className="btn-icon rep-ledger-delete"
                   aria-label="حذف العملية"
                   onClick={() => {
-                    if (window.confirm("حذف هذه العملية؟")) onChange(deleteRepLedgerEntry(book, line.entry.id));
+                    if (!window.confirm(line.entry.placeId ? "حذف هذه العملية؟ يُحذف معها المال من الكاش / التطبيق الذي دخله." : "حذف هذه العملية؟")) return;
+                    removeLedgerCash([line.entry.id]);
+                    onChange(deleteRepLedgerEntry(book, line.entry.id));
                   }}
                 >
                   🗑

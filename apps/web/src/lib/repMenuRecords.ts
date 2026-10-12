@@ -130,6 +130,12 @@ export function repPaymentRequest(data: Record<string, unknown>): Omit<RepReques
     ...(photo ? { proofFileId: photo, proofBot: str(data.bot) === "money" ? ("money" as const) : ("reps" as const) } : {}),
   };
   const via = method ? ` (${PAYMENT_METHOD_LABELS[method]})` : "";
+  const ledgerId = str(data.ledgerId);
+  if (ledgerId) {
+    // 📒 Into one of his named accounts (his Oct 12 2026 ask) - never his profit or his customers' devices.
+    const ledgerName = str(data.ledgerName) || "حساب";
+    return { repId, kind: "handover", text: `📒 دفعة في حسابي «${ledgerName}»: ${label}${via}`, amount, currency: currency as LedgerCurrency, ledgerId, ledgerName, ...extra };
+  }
   if (data.personal === true) {
     // 📂 Into the account of its currency (🟠 السيفا وأورانج / 🟢 الأوقية) - his Oct 12 2026 ask.
     return { repId, kind: "handover", text: `💼 دفعة في حسابي الشخصي · ${repWalletLabel(currency)}: ${label}${via}`, amount, currency: currency as LedgerCurrency, ...extra };

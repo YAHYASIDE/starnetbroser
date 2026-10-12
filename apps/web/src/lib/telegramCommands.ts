@@ -5,6 +5,7 @@
  * the data as it is on this phone right now. Texts and parsing are in telegramMessages.ts.
  */
 
+import { loadRepLedgerBook, repLedgerSummaries } from "./repLedgers";
 import { currentCardBalanceUsd, listOpenShipmentDebts } from "./starlinkDebt";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { listAccounts } from "./apiClient";
@@ -435,7 +436,7 @@ async function repReplyFor(repId: string, rep: Representative, command: RepComma
       return found.text.startsWith("🔎 لم أجد") ? { text: `${found.text}\n\n${devicesHelp(repBotNames())}` } : found;
     }
     case "statement":
-      return { text: repPositionText(rep.name, position, (accountId) => all.find((a) => a.id === accountId)?.name ?? "جهاز") };
+      return { text: repPositionText(rep.name, position, (accountId) => all.find((a) => a.id === accountId)?.name ?? "جهاز", repLedgerSummaries(loadRepLedgerBook(), rep.id)) };
   }
 }
 

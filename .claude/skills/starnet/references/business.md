@@ -1369,5 +1369,14 @@ is never pressed while a field is empty - it refills and saves on the next try (
   {repId, name (unique per rep), kind trust | loan | free, ONE currency fixed}; entries له (+) / عليه (−), «رصيد
   افتتاحي» (`opening`), all deletable; balance derived. «📂 حساباته» → «➕ حساب», each account: له / عليه / 🧹 تصفير /
   ✏️ الاسم / 🗑️ حذف (code). «حسابي» adds `repLedgerTotals` to the rep's له/عليه per currency.
-- Next step (not built): the money bot lists his named accounts after the normal one; the request carries the chosen
-  account; the owner sees / changes it on approval; a deposit into a named account never pays his customers' devices.
+- Step 2 (built, his «ابدأ الخطوة الثانية»): the money bot's 💵 دفعة who step starts with «💼 في حسابي» (his normal
+  account - first, his rule) then «📒 في حسابي: <name> · <balance>» for each named account in the payment's currency
+  (فرانك = سيفا), then his customers. Snapshot: `reps[id].ledgers` = "id\tlabel\tcurrency\tbalance" per line; the
+  📂 حساباتك block, «📊 كشفي» and every confirmation list the named accounts too. Target "L:<id>"
+  (`isPersonalTarget`, `namedTarget`); the request carries `ledgerId` / `ledgerName` (personal = false) and becomes a
+  «handover» request. The approval card asks «في أي حساب من حساباته؟» (his choice preselected, changeable; only
+  accounts of the chosen currency). A named account: `recordRepLedgerDeposit` = a له entry with `placeId` = the
+  method's app in «حسابي» (devicePaymentAccountId) or الكاش (a linked cash entry, sourceKind "rep-ledger", removed with
+  the entry; its سيفا goes to «كاش سيفا» like a rep's handover), `botId` counted once. Never his profit, his normal
+  account or his customers' devices. App deposits count in the app's balance (`repLedgerFlows` in loadAccountFlows)
+  and statement (moneyMovements `repLedgers`).

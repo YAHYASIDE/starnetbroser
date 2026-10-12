@@ -31,6 +31,8 @@ import {
   repPositionDebtsReply,
   repPositionText,
   repWalletsText,
+  repLedgerLabel,
+  repLedgerWords,
   repWalletWords,
   repDevicesText,
   repExpiringReply,
@@ -44,6 +46,7 @@ import {
 import { devicesHelp, devicesKeyboard, moneyRedirectText, REP_ALERTS_INFO, REP_HANDOVER_HINT, REP_MONEY_HELP, REP_MONEY_KEYBOARD, type RepBotNames } from "./repBots";
 import { answerCash, answerExpiring, answerStopped, buildEveningTelegram, TELEGRAM_HELP, WORDS } from "./telegramMessages";
 import { loadRepBook, type RepBookEntry } from "./repClients";
+import { loadRepLedgerBook, repLedgerSummaries, type RepLedgerBook } from "./repLedgers";
 import { loadRepDisplayCodes, repPosition } from "./repPosition";
 import { ledgerAfterRepReset, makeRepConverter } from "./repAccount";
 
@@ -123,8 +126,11 @@ export function buildReplySnapshot(input: {
   repBook?: RepBookEntry[];
   /** The currencies the reps page shows (أوقية / سيفا) - read from the phone when not given. */
   repDisplay?: string[];
+  /** 📒 The reps' named accounts (repLedgers.ts) - read from the phone when not given. */
+  repLedgers?: RepLedgerBook;
 }): TelegramReplySnapshot {
   const repBook = input.repBook ?? loadRepBook();
+  const ledgerBook = input.repLedgers ?? loadRepLedgerBook();
   const bots = input.botNames ?? {};
   const summary = buildEveningSummary({ day: input.today, accounts: input.accounts, ledgerStore: input.ledgerStore, cash: input.cash });
   const reps: Record<string, Record<string, string>> = {};
@@ -138,19 +144,22 @@ export function buildReplySnapshot(input: {
     const position = repPosition({ rep, clients: input.clients, accounts: input.accounts, ledgerStore: input.ledgerStore, book: repBook, invoices: input.invoices, settlements: input.settlements, convert: makeRepConverter(input.repDisplay ?? loadRepDisplayCodes(), input.rates) });
     const ownBooks = new Map(position.customers.map((r) => [r.clientId, r.book]));
     const deviceName = (accountId: string) => input.accounts.find((a) => a.id === accountId)?.name ?? "جهاز";
+    const named = repLedgerSummaries(ledgerBook, repId);
     const replies: Record<string, RepReply> = {
       devices: { text: repDevicesText(mine, input.clients, input.today) },
       expiring: repExpiringReply(mine, input.clients, input.today),
       stopped: repStoppedReply(mine, input.clients),
       days: repDaysReply(mine, input.clients, input.today),
       debts: repPositionDebtsReply(position, input.accounts, input.clients),
-      statement: { text: repPositionText(rep.name, position, deviceName) },
+      statement: { text: repPositionText(rep.name, position, deviceName, named) },
       mypromises: { text: repPromisesText(repOpenPromises(repId, input.promises ?? [], new Set(mine.map((a) => a.clientId).filter((c): c is string => Boolean(c)))), input.today) },
     };
     reps[repId] = { name: rep.name };
     // 📂 His accounts for the money bot's 💵 دفعة («في حسابي» shows the account and what is on it).
-    reps[repId]!.wallets = repWalletsText(position.wallets);
+    reps[repId]!.wallets = repWalletsText(position.wallets, named);
     for (const w of position.wallets) reps[repId]![`wallet:${w.id}`] = repWalletWords(w.balance);
+    // 📒 His named accounts for the who step, after his normal one: "id\tlabel\tcurrency\tbalance" per line.
+    reps[repId]!.ledgers = named.map((l) => [l.id, repLedgerLabel(l), l.currencyCode, repLedgerWords(l)].map((v) => v.replace(/[\t\n]/g, " ")).join("\t")).join("\n");
     for (const [kind, reply] of Object.entries(replies)) {
       reps[repId]![kind] = reply.text;
       if (reply.markup) reps[repId]![`${kind}#kb`] = reply.markup;

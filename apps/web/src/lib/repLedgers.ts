@@ -47,6 +47,12 @@ export interface RepLedgerEntry {
   note?: string;
   /** The balance he brought from his old ledger app («رصيد افتتاحي»). */
   opening?: true;
+  /** 💵 Real money moved with it (a deposit the rep sent through the money bot): where it went in
+   * «حسابي» - "cash" (a linked الكاش entry carries this entry's id) or a bank / wallet id. Absent =
+   * bookkeeping only (له / عليه typed on the page, no money moves). */
+  placeId?: string;
+  /** 🔒 The bot's id for the deposit: the same message twice never makes two entries. */
+  botId?: string;
   createdAt: string;
 }
 
@@ -113,7 +119,7 @@ export type RepLedgerEntryResult = { ok: true; book: RepLedgerBook; entry: RepLe
 export function addRepLedgerEntry(
   book: RepLedgerBook,
   ledgerId: string,
-  input: { direction: "credit" | "debit"; amount: number; date: string; note?: string; opening?: boolean },
+  input: { direction: "credit" | "debit"; amount: number; date: string; note?: string; opening?: boolean; placeId?: string; botId?: string },
   now = new Date(),
 ): RepLedgerEntryResult {
   if (!book.ledgers.some((l) => l.id === ledgerId)) return { ok: false, message: "الحساب غير موجود" };
@@ -127,6 +133,8 @@ export function addRepLedgerEntry(
     date: input.date,
     ...(input.note?.trim() ? { note: input.note.trim() } : {}),
     ...(input.opening ? { opening: true as const } : {}),
+    ...(input.placeId ? { placeId: input.placeId } : {}),
+    ...(input.botId ? { botId: input.botId } : {}),
     createdAt: now.toISOString(),
   };
   return { ok: true, book: { ...book, entries: [...book.entries, entry] }, entry };
@@ -183,6 +191,53 @@ export function repLedgerTotals(book: RepLedgerBook, repId: string): Record<stri
 export function repLedgerZeroEntry(balance: number): { direction: "credit" | "debit"; amount: number } | null {
   if (Math.abs(balance) < EPS) return null;
   return { direction: balance < 0 ? "credit" : "debit", amount: Math.round(Math.abs(balance) * 100) / 100 };
+}
+
+// ---- 💵 the money that moved with an entry (a deposit from the money bot) ----
+
+export const REP_LEDGER_CASH = "cash";
+
+/** The banks / wallets of «حسابي» an entry's money went into (+ in for له, − out for عليه) - added to
+ * their balances like every other flow (myMoneyData.loadAccountFlows). الكاش is a linked cash entry. */
+export function repLedgerFlows(book: RepLedgerBook): { accountId: string; currencyCode: string; date: string; amount: number }[] {
+  const currency = new Map(book.ledgers.map((l) => [l.id, l.currencyCode]));
+  return book.entries
+    .filter((e) => e.placeId && e.placeId !== REP_LEDGER_CASH && currency.has(e.ledgerId))
+    .map((e) => ({ accountId: e.placeId!, currencyCode: currency.get(e.ledgerId)!, date: e.date, amount: e.direction === "credit" ? e.amount : -e.amount }));
+}
+
+/** The الكاش entry of an entry whose money went into الكاش (null otherwise). */
+export function repLedgerCashEntry(entry: RepLedgerEntry, ledger: RepLedger, repName: string) {
+  if (entry.placeId !== REP_LEDGER_CASH) return null;
+  return {
+    kind: entry.direction === "credit" ? ("in" as const) : ("out" as const),
+    amount: entry.amount,
+    currencyCode: ledger.currencyCode,
+    date: entry.date,
+    category: entry.direction === "credit" ? "إيداع مندوب" : "دفع لمندوب",
+    note: `${repName} · ${ledger.name}${entry.note ? ` - ${entry.note}` : ""}`,
+    sourceId: entry.id,
+    sourceKind: "rep-ledger" as const,
+  };
+}
+
+export function hasBotEntry(book: RepLedgerBook, botId: string | undefined): boolean {
+  return Boolean(botId) && book.entries.some((e) => e.botId === botId);
+}
+
+// ---- 🤖 the money bot: his named accounts after his normal one ----
+
+export interface RepLedgerSummary {
+  id: string;
+  name: string;
+  icon: string;
+  currencyCode: string;
+  /** + = له (we owe him). */
+  balance: number;
+}
+
+export function repLedgerSummaries(book: RepLedgerBook, repId: string): RepLedgerSummary[] {
+  return repLedgersOf(book, repId).map((l) => ({ id: l.id, name: l.name, icon: repLedgerKindMeta(l.kind).icon, currencyCode: l.currencyCode, balance: repLedgerBalance(book, l.id) }));
 }
 
 // ---- storage (business data: a `starnet_` key, so the full backup carries it) ----

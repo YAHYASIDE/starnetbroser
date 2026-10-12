@@ -34,6 +34,7 @@ import type { DebtBook, IncomeList } from "./myMoney";
 import type { PartyAdjustmentList } from "./partyBalanceStore";
 import type { PersonalExpense } from "./personalExpenses";
 import type { RepSettlementList } from "./repStore";
+import type { RepLedgerBook } from "./repLedgers";
 import { toMru, type RatesFromUsd } from "./reportsView";
 import { listCardPayments, type CardTopUpList } from "./starlinkDebt";
 
@@ -122,6 +123,8 @@ export interface MovementInput {
   remittances?: RemittanceList;
   /** 💱 «شراء عملة» (exchanges.ts): paid out of one place, received into another. */
   exchanges?: ExchangeList;
+  /** 📒 A rep's named accounts (repLedgers.ts): a deposit the rep sent to one of them, into a bank / wallet. */
+  repLedgers?: RepLedgerBook;
   /** The customer a device belongs to (collections are judged against the customer's whole debt). */
   clientOf?: (accountId: string) => string | undefined;
   deviceName?: (accountId: string) => string | undefined;
@@ -281,6 +284,12 @@ export function buildMovements(input: MovementInput): Movement[] {
         out.push({ ...base, id, kind: c.kind === "in" ? "collection" : "rep-payout", ref, label, party });
         break;
       }
+      case "rep-ledger": {
+        const entry = c.sourceId ? input.repLedgers?.entries.find((e) => e.id === c.sourceId) : undefined;
+        const repId = entry ? input.repLedgers?.ledgers.find((l) => l.id === entry.ledgerId)?.repId : undefined;
+        out.push({ ...base, id, kind: c.kind === "in" ? "collection" : "rep-payout", ref, label, ...(repId ? { party: { kind: "rep" as const, id: repId, name: input.partyName?.("rep", repId) } } : {}) });
+        break;
+      }
       case "card-topup":
       case "account-transfer":
         out.push({ ...base, id, kind: "transfer", ref, label, counterpart: c.sourceKind === "card-topup" ? CARD_PLACE : undefined });
@@ -322,6 +331,13 @@ export function buildMovements(input: MovementInput): Movement[] {
     if (!s.accountId) continue;
     const handover = s.kind === "cashHandover";
     out.push({ id: `${s.accountId}:rep-settlement:${s.id}`, kind: handover ? "collection" : "rep-payout", place: s.accountId, direction: handover ? "in" : "out", amount: s.amount, currency: s.currencyCode, date: s.date, createdAt: s.createdAt, party: { kind: "rep", id: s.representativeId, name: input.partyName?.("rep", s.representativeId) }, ref: { kind: "rep-settlement", id: s.id }, label: s.note || (handover ? "تسليم مندوب" : "دفع لمندوب") });
+  }
+  for (const e of input.repLedgers?.entries ?? []) {
+    if (!e.placeId || e.placeId === CASH_PLACE) continue;
+    const ledger = input.repLedgers!.ledgers.find((l) => l.id === e.ledgerId);
+    if (!ledger) continue;
+    const incoming = e.direction === "credit";
+    out.push({ id: `${e.placeId}:rep-ledger:${e.id}`, kind: incoming ? "collection" : "rep-payout", place: e.placeId, direction: incoming ? "in" : "out", amount: e.amount, currency: ledger.currencyCode, date: e.date, createdAt: e.createdAt, party: { kind: "rep", id: ledger.repId, name: input.partyName?.("rep", ledger.repId) }, ref: { kind: "rep-ledger", id: e.id }, label: e.note || `📒 ${ledger.name}` });
   }
   for (const i of input.incomes) {
     if (i.accountId) out.push({ id: `${i.accountId}:personal-income:${i.id}`, kind: "owner-in", place: i.accountId, direction: "in", amount: i.amount, currency: i.currencyCode, date: i.date, createdAt: i.createdAt, ref: { kind: "personal-income", id: i.id }, label: i.note || "دخل شخصي" });

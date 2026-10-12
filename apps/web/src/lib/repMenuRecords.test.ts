@@ -119,6 +119,12 @@ describe("rep menu records", () => {
     expect(repPaymentRequest({ amount: 10, currency: "MRU", personal: true })).toBeNull();
   });
 
+  it("📒 a payment into one of his named accounts waits as a handover that names the account", () => {
+    expect(repPaymentRequest({ repId: "r1", amount: 10000, currency: "SIFA", personal: false, accountId: "", ledgerId: "lg1", ledgerName: "🔒 تنزيل دبو", label: "10,000 سيفا", method: "orange", id: "b-1" })).toEqual({
+      repId: "r1", kind: "handover", text: "📒 دفعة في حسابي «🔒 تنزيل دبو»: 10,000 سيفا (أورانج موني)", amount: 10000, currency: "SIFA", ledgerId: "lg1", ledgerName: "🔒 تنزيل دبو", botId: "b-1", paymentMethod: "orange",
+    });
+  });
+
   it("🏦 a loan request waits for approval with its app and recipient's number", async () => {
     await handleRepMenuRecord({
       bot: "money", chatId: "9", name: "", username: "", text: "", replied: true, kind: "repLoan",

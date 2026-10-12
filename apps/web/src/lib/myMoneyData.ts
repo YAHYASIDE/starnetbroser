@@ -38,7 +38,7 @@ import { listRepresentatives, loadRepresentativeStore, loadRepSettlements } from
 import { keepCurrency } from "./repAccount";
 import { loadRepBook } from "./repClients";
 import { repPosition, repTotalByCurrency } from "./repPosition";
-import { loadRepLedgerBook, repLedgerTotals } from "./repLedgers";
+import { loadRepLedgerBook, repLedgerFlows, repLedgerTotals } from "./repLedgers";
 import { listOpenShipmentDebts } from "./starlinkDebt";
 import { listSuppliers, loadSupplierStore } from "./supplierStore";
 
@@ -107,6 +107,8 @@ export function loadAccountFlows(ledger: LedgerByAccount, account: MoneyAccount,
     ...remittanceFlows(loadRemittances()),
     // 💱 «شراء عملة»: paid out of one, received into another.
     ...exchangeFlows(loadExchanges()),
+    // 📒 a rep's deposit into one of his named accounts, received in this app.
+    ...repLedgerFlows(loadRepLedgerBook()),
   ];
 }
 

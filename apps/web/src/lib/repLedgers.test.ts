@@ -12,8 +12,13 @@ import {
   repLedgersOf,
   repLedgerTotals,
   repLedgerZeroEntry,
+  hasBotEntry,
+  repLedgerCashEntry,
+  repLedgerFlows,
+  repLedgerSummaries,
   type RepLedgerBook,
 } from "./repLedgers";
+import { ledgerDepositPlace } from "./repLedgerDeposit";
 import { buildRepDailyStatement, computeRepCommissionOwedByCurrency, type RepSettlement } from "./repStore";
 import { repWallets } from "./repWallets";
 
@@ -94,5 +99,37 @@ describe("📒 a rep's named accounts (his Oct 12 2026 ask - like his old ledger
     expect(after.money.map((w) => w.balance)).toEqual(before.money.map((w) => w.balance));
     expect(after.profit.balance).toEqual(before.profit.balance);
     expect(computeRepCommissionOwedByCurrency("r1", [], settlements)).toEqual({});
+  });
+});
+
+describe("🤖 a deposit from the money bot into a named account (step 2)", () => {
+  const accounts = [
+    { id: "orange", name: "أورانج", icon: "🟠", currencyCode: "SIFA", method: "orange" as const, openingBalance: 0, openingDate: "2026-10-01", createdAt: "" },
+    { id: "bankily", name: "بنكيلي", icon: "🟢", currencyCode: "MRU", method: "bankily" as const, openingBalance: 0, openingDate: "2026-10-01", createdAt: "" },
+  ];
+
+  it("the money lands where it arrived: the method's app, or الكاش", () => {
+    expect(ledgerDepositPlace("orange", "SIFA", accounts)).toBe("orange");
+    expect(ledgerDepositPlace("cash", "SIFA", accounts)).toBe("cash");
+    expect(ledgerDepositPlace(undefined, "MRU", accounts)).toBe("cash");
+    // an app in another currency, no cash wallet: الكاش
+    expect(ledgerDepositPlace("bankily", "SIFA", accounts)).toBe("cash");
+  });
+
+  it("an app deposit raises that app (a flow), a cash one is a linked الكاش entry; the bot id counts once", () => {
+    let { book, ledger } = made(EMPTY_REP_LEDGER_BOOK, "تنزيل دبو");
+    const app = addRepLedgerEntry(book, ledger.id, { direction: "credit", amount: 10000, date: "2026-10-12", placeId: "orange", botId: "b-1" }, now);
+    if (!app.ok) throw new Error(app.message);
+    const cash = addRepLedgerEntry(app.book, ledger.id, { direction: "credit", amount: 2000, date: "2026-10-12", placeId: "cash", botId: "b-2" }, now);
+    if (!cash.ok) throw new Error(cash.message);
+    book = cash.book;
+    expect(repLedgerFlows(book)).toEqual([{ accountId: "orange", currencyCode: "SIFA", date: "2026-10-12", amount: 10000 }]);
+    expect(repLedgerCashEntry(app.entry, ledger, "مندوب")).toBeNull();
+    expect(repLedgerCashEntry(cash.entry, ledger, "مندوب")).toMatchObject({ kind: "in", amount: 2000, currencyCode: "SIFA", sourceId: cash.entry.id, sourceKind: "rep-ledger" });
+    expect(hasBotEntry(book, "b-1")).toBe(true);
+    expect(hasBotEntry(book, "b-9")).toBe(false);
+    expect(hasBotEntry(book, undefined)).toBe(false);
+    expect(repLedgerBalance(book, ledger.id)).toBe(12000);
+    expect(repLedgerSummaries(book, "r1")).toEqual([{ id: ledger.id, name: "تنزيل دبو", icon: "🔒", currencyCode: "SIFA", balance: 12000 }]);
   });
 });

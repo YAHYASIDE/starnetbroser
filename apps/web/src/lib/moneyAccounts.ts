@@ -230,7 +230,7 @@ export function devicePaymentAccountId(entry: { paymentMethod?: PaymentMethod; c
  * correction, one typed on the الكاش page) stay in الكاش, and older entries never move. */
 export const CASH_WALLET_FROM = "2026-10-11T00:00:00.000Z";
 
-const WALLET_CASH_SOURCES = new Set<CashSourceKind>(["device-payment", "rep-settlement", "party-balance"]);
+const WALLET_CASH_SOURCES = new Set<CashSourceKind>(["device-payment", "rep-settlement", "party-balance", "rep-ledger"]);
 
 /** The cash wallet a الكاش entry counts in (see CASH_WALLET_FROM), or null = «الكاش». */
 export function cashEntryWalletId(entry: Pick<CashEntry, "currencyCode" | "createdAt" | "invoiceId" | "sourceKind">, accounts: MoneyAccount[]): string | null {

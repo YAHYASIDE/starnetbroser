@@ -5,6 +5,7 @@
  * Pure apart from reading his book / invoices / settlements from the phone.
  */
 
+import { loadRepLedgerBook, repLedgerSummaries } from "./repLedgers";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import type { ClientStore } from "./clientStore";
 import { loadInvoices } from "./invoiceStore";
@@ -68,7 +69,7 @@ export function repWalletsNow(input: { rep?: Representative; accounts: StarlinkA
   const store = loadCurrencyStore();
   const convert = makeRepConverter(loadRepDisplayCodes(), { MRU: getCurrency(store, "MRU")?.rateFromUsd, SIFA: getCurrency(store, "SIFA")?.rateFromUsd });
   const position = repPosition({ rep: input.rep, clients: input.clientStore, accounts: input.accounts, ledgerStore: input.ledgerStore, book: loadRepBook(), invoices: loadInvoices(), settlements: loadRepSettlements(), convert });
-  return repWalletsText(position.wallets).replace("📂 حساباتك:", "📂 حساباتك الآن:");
+  return repWalletsText(position.wallets, repLedgerSummaries(loadRepLedgerBook(), input.rep.id)).replace("📂 حساباتك:", "📂 حساباتك الآن:");
 }
 
 /** The confirmation text with his accounts under it. */

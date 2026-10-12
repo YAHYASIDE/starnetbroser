@@ -13,6 +13,7 @@ import { monthLabel, monthRange } from "./monthClosing";
 import { buildRepPeriodStatement, makeRepConverter, splitRepRecords } from "./repAccount";
 import { repDevicesDebt } from "./repDebts";
 import { buildRepDailyStatement, listRepDeviceCommissions, type Representative, type RepSettlementList } from "./repStore";
+import type { RepLedgerSummary } from "./repLedgers";
 import { daysUntilRenewal, isStoppedAccount, money, renewalGroups } from "./telegramMessages";
 import { buildWhatsAppLink, normalizePhoneForWhatsApp } from "./whatsapp";
 import { connectionLine } from "./deviceConnection";
@@ -182,16 +183,25 @@ export function repWalletWords(balance: Record<string, number>): string {
 }
 
 /** 📂 All his accounts with their balances (his Oct 12 2026 ask: «تظهر له في البوت كل حساباته ومبالغهم»). */
-export function repWalletsText(wallets: RepWalletBalance[]): string {
-  if (wallets.length === 0) return "";
-  return ["📂 حساباتك:", ...wallets.map((w) => `${repWalletLabel(w.id)}: ${repWalletWords(w.balance)}`)].join("\n");
+export function repWalletsText(wallets: RepWalletBalance[], named: RepLedgerSummary[] = []): string {
+  if (wallets.length === 0 && named.length === 0) return "";
+  return ["📂 حساباتك:", ...wallets.map((w) => `${repWalletLabel(w.id)}: ${repWalletWords(w.balance)}`), ...named.map((l) => `${repLedgerLabel(l)}: ${repLedgerWords(l)}`)].join("\n");
+}
+
+/** 📒 One of his named accounts (repLedgers.ts) as he reads it: «🔒 تنزيل دبو». */
+export function repLedgerLabel(l: Pick<RepLedgerSummary, "icon" | "name">): string {
+  return `${l.icon} ${l.name}`;
+}
+
+export function repLedgerWords(l: Pick<RepLedgerSummary, "currencyCode" | "balance">): string {
+  return repWalletWords({ [l.currencyCode]: l.balance });
 }
 
 /** 📊 «كشفي» - the same figures as his card in the app (his Oct 2026 choice «مثل بطاقته»). */
-export function repPositionText(repName: string, p: RepPosition, deviceName: (accountId: string) => string): string {
+export function repPositionText(repName: string, p: RepPosition, deviceName: (accountId: string) => string, named: RepLedgerSummary[] = []): string {
   const lines = [`📊 كشف حسابك يا ${repName}`];
   if (p.since) lines.push(`🔄 منذ ${p.since}`);
-  if (p.wallets.length > 0) lines.push("", repWalletsText(p.wallets));
+  if (p.wallets.length > 0 || named.length > 0) lines.push("", repWalletsText(p.wallets, named));
   lines.push("", `🧾 عليك عن أجهزتك: ${money(p.owed) || "لا شيء ✓"}`, `✓ حصتك المؤكدة: ${money(p.share) || "0"}`);
   const shareLeft = money(p.shareBalance);
   if (shareLeft && shareLeft !== money(p.share)) lines.push(`💵 الباقي لك من حصتك بعد التسويات: ${signedMoney(p.shareBalance, "لك", "عليك")}`);

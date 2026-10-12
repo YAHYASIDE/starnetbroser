@@ -70,6 +70,10 @@ export interface RepRequest {
   // session (📋 a Starlink session the rep pasted in the bot - telegramSessionRunner.ts): its
   // cookies per address until approved / rejected, then dropped.
   cookies?: Record<string, string>;
+  // 📒 a handover into one of the rep's named accounts (repLedgers.ts), as he chose in the bot - the
+  // owner can change it on approval (his Oct 12 2026 choice «المندوب يختار وأنا أعدّل»).
+  ledgerId?: string;
+  ledgerName?: string;
 }
 
 export type RepRequestList = RepRequest[];

@@ -40,6 +40,7 @@ const SOURCE_LABELS: Record<CashSourceKind, string> = {
   "cash-reset": "تصفير الكاش",
   remittance: "تحويل أموال",
   exchange: "شراء عملة",
+  "rep-ledger": "حساب مندوب",
 };
 
 function sourceBadge(entry: CashEntry): string | null {

@@ -1002,10 +1002,17 @@ final class TelegramReplies {
         return owedLine(e);
     }
 
-    /** The two search buttons, 💼 his own account and ❌ - under every list of the who step. */
-    private static String payFooter(String meLabel) {
-        return "[" + cb("🔎 بحث باسم الزبون", "payq:c") + "," + cb("🔎 بحث عن جهاز", "payq:d") + "],["
-            + cb(cut(meLabel), "payt:" + PAY_ME) + "],[" + cb("❌ إلغاء", "payx") + "]";
+    /** The two search buttons and ❌ - under every list of the who step. */
+    private static String payFooter() {
+        return "[" + cb("🔎 بحث باسم الزبون", "payq:c") + "," + cb("🔎 بحث عن جهاز", "payq:d") + "],[" + cb("❌ إلغاء", "payx") + "]";
+    }
+
+    /** 💼 his normal account first (his Oct 12 2026 rule «الحساب الطبيعي دائمًا الاقتراح الأول»), then
+     * 📒 his named accounts in the payment's currency - at the top of the who step. */
+    private static String personalRows(String meLabel, List<NamedAccount> named) {
+        StringBuilder rows = new StringBuilder("[").append(cb(cut(meLabel), "payt:" + PAY_ME)).append("],");
+        for (NamedAccount n : named) rows.append('[').append(cb(cut(namedButton(n)), "payt:" + LEDGER_PREFIX + n.id)).append("],");
+        return rows.toString();
     }
 
     /** One page of customers (8 a page, ⬅️ المزيد / السابق ➡️), then the footer. */
@@ -1014,7 +1021,76 @@ final class TelegramReplies {
     }
 
     static String clientsMarkup(List<PayClient> clients, int page, String meLabel) {
-        return "{\"inline_keyboard\":[" + clientRows(clients, page, "payl:", "payt:", "payp:") + payFooter(meLabel) + "]}";
+        return clientsMarkup(clients, page, meLabel, new ArrayList<>());
+    }
+
+    static String clientsMarkup(List<PayClient> clients, int page, String meLabel, List<NamedAccount> named) {
+        return "{\"inline_keyboard\":[" + personalRows(meLabel, named) + clientRows(clients, page, "payl:", "payt:", "payp:") + payFooter() + "]}";
+    }
+
+    // ---- 📒 His named accounts (repLedgers.ts - أمانة، سلفة، حسابات حرة), after his normal one ----
+
+    static final String LEDGER_PREFIX = "L:";
+
+    static final class NamedAccount {
+        final String id;
+        final String label;
+        final String currency;
+        final String balance;
+
+        NamedAccount(String id, String label, String currency, String balance) {
+            this.id = id;
+            this.label = label;
+            this.currency = currency;
+            this.balance = balance;
+        }
+    }
+
+    /** Every named account of his ("id\tlabel\tcurrency\tbalance" per line in the snapshot). */
+    static List<NamedAccount> namedAccounts(String repId, Snapshot s) {
+        List<NamedAccount> out = new ArrayList<>();
+        Map<String, String> mine = s == null ? null : s.reps.get(repId);
+        String raw = mine == null ? null : mine.get("ledgers");
+        if (raw == null || raw.isEmpty()) return out;
+        for (String line : raw.split("\n")) {
+            String[] parts = line.split("\t", -1);
+            if (parts.length >= 4 && !parts[0].isEmpty()) out.add(new NamedAccount(parts[0], parts[1], parts[2], parts[3]));
+        }
+        return out;
+    }
+
+    /** The ones a payment in `currency` can go into (each account has ONE currency; فرانك = سيفا). */
+    static List<NamedAccount> namedAccounts(String repId, String currency, Snapshot s) {
+        String code = FRANC.equals(currency) ? "SIFA" : currency;
+        List<NamedAccount> out = new ArrayList<>();
+        for (NamedAccount n : namedAccounts(repId, s)) if (n.currency.equals(code)) out.add(n);
+        return out;
+    }
+
+    static boolean isLedgerTarget(String target) {
+        return target != null && target.startsWith(LEDGER_PREFIX);
+    }
+
+    /** 💼 his normal account or 📒 one of his named ones - not a customer's device. */
+    static boolean isPersonalTarget(String target) {
+        return PAY_ME.equals(target) || isLedgerTarget(target);
+    }
+
+    /** The named account a target "L:<id>" points at, null when it isn't one (or is gone). */
+    static NamedAccount namedTarget(String repId, String target, Snapshot s) {
+        if (!isLedgerTarget(target)) return null;
+        String id = target.substring(LEDGER_PREFIX.length());
+        for (NamedAccount n : namedAccounts(repId, s)) if (n.id.equals(id)) return n;
+        return null;
+    }
+
+    static String namedButton(NamedAccount n) {
+        return "📒 في حسابي: " + n.label + (n.balance.isEmpty() ? "" : " · " + n.balance);
+    }
+
+    /** «📒 في حسابي «🔒 تنزيل دبو»» / «… حسابه …» for the owner. */
+    static String namedTargetLine(NamedAccount n, boolean his) {
+        return "📒 في " + (his ? "حسابه" : "حسابي") + " «" + n.label + "» (لا يدخل في الربح ولا يسدد الأجهزة)";
     }
 
     // ---- 📂 His accounts (his Oct 12 2026 ask, repWallets.ts): 🟠 السيفا وأورانج · 💰 الربح · 🟢 الأوقية ----
@@ -1120,11 +1196,13 @@ final class TelegramReplies {
         List<PayClient> clients = payClients(repId, s);
         String folded = normalize(query);
         String me = personalButton(repId, price.currency, s);
+        List<NamedAccount> named = namedAccounts(repId, price.currency, s);
+        String mine = named.isEmpty() ? "حسابك الشخصي (💼 أعلى القائمة)" : "حسابك الشخصي (💼) أو أحد حساباتك (📒) - أعلى القائمة -";
         if (folded.isEmpty()) {
             int pages = Math.max(1, (clients.size() + PAY_BUTTONS - 1) / PAY_BUTTONS);
-            String text = payHeader(price) + walletsBlock(repId, s) + (clients.isEmpty() ? "لا زبائن لك بعد - اختر «💼 في حسابي» أو أخبر المسؤول."
-                : "هل هي في حسابك الشخصي (💼 أسفل القائمة) أم عن زبون؟ اضغط اسم الزبون لتظهر أجهزته" + (pages > 1 ? " (صفحة " + (Math.min(page, pages - 1) + 1) + " من " + pages + ")" : "") + ":");
-            return new Reply(text, false, null, clientsMarkup(clients, page, me));
+            String text = payHeader(price) + walletsBlock(repId, s) + (clients.isEmpty() ? "لا زبائن لك بعد - اختر «💼 في حسابي» أو أحد حساباتك، أو أخبر المسؤول."
+                : "هل هي في " + mine + " أم عن زبون؟ اضغط اسم الزبون لتظهر أجهزته" + (pages > 1 ? " (صفحة " + (Math.min(page, pages - 1) + 1) + " من " + pages + ")" : "") + ":");
+            return new Reply(text, false, null, clientsMarkup(clients, page, me, named));
         }
         if (!"d".equals(mode)) {
             List<PayClient> found = new ArrayList<>();
@@ -1137,13 +1215,13 @@ final class TelegramReplies {
             if (!found.isEmpty() || "c".equals(mode)) {
                 String text = payHeader(price) + (found.isEmpty() ? "🔎 لا زبون باسم «" + quote(query) + "» - اكتب اسماً آخر أو اختر من القائمة:"
                     : "🔎 الزبائن باسم «" + quote(query) + "» - اضغط اسمه:");
-                return new Reply(text, false, null, clientsMarkup(found.isEmpty() ? clients : found, 0, me));
+                return new Reply(text, false, null, clientsMarkup(found.isEmpty() ? clients : found, 0, me, named));
             }
         }
         List<SearchEntry> devices = new ArrayList<>();
         for (SearchEntry e : matchEntries(repId, query, s)) if (canPayFor(e)) devices.add(e);
         if (devices.isEmpty()) {
-            return new Reply(payHeader(price) + "🔎 لم أجد «" + quote(query) + "» بين أجهزتك - اكتب شيئاً آخر أو اختر الزبون:", false, null, clientsMarkup(clients, 0, me));
+            return new Reply(payHeader(price) + "🔎 لم أجد «" + quote(query) + "» بين أجهزتك - اكتب شيئاً آخر أو اختر الزبون:", false, null, clientsMarkup(clients, 0, me, named));
         }
         return new Reply(payHeader(price) + "🔎 الأجهزة المطابقة لـ «" + quote(query) + "» - اضغط الجهاز:", false, null, devicesMarkup(devices, true));
     }
@@ -1219,7 +1297,11 @@ final class TelegramReplies {
     }
 
     static String photoQuestion(Price price, SearchEntry entry, boolean hasPhoto) {
-        String who = entry == null ? personalTarget(price.currency, false) : "📡 " + payTargetLabel(entry);
+        return photoQuestion(price, entry, hasPhoto, null);
+    }
+
+    static String photoQuestion(Price price, SearchEntry entry, boolean hasPhoto, NamedAccount named) {
+        String who = named != null ? namedTargetLine(named, false) : entry == null ? personalTarget(price.currency, false) : "📡 " + payTargetLabel(entry);
         return payHeader(price) + who + "\n\n" + (hasPhoto
             ? "📸 صورة الدفع مرفقة ✅ - أرسل صورة أخرى لتغييرها، أو تابع."
             : "📸 أرسل صورة إثبات الدفع (لقطة شاشة التحويل أو صورة الوصل)، أو تابع بدونها.");
@@ -1239,7 +1321,14 @@ final class TelegramReplies {
 
     /** walletNow: what is on his account now («عليك 44,000 سيفا») for a payment in his own account. */
     static String payConfirmText(Price price, SearchEntry entry, String methodName, boolean hasPhoto, String walletNow) {
-        String base = payConfirmText(price, entry);
+        return payConfirmText(price, entry, methodName, hasPhoto, walletNow, null);
+    }
+
+    /** named: 📒 one of his named accounts (walletNow = its balance). */
+    static String payConfirmText(Price price, SearchEntry entry, String methodName, boolean hasPhoto, String walletNow, NamedAccount named) {
+        String base = named != null
+            ? "📋 راجع الدفعة قبل إرسالها:\n\n💵 المبلغ: " + price.label() + "\n" + namedTargetLine(named, false) + "\n\nهل المعلومات صحيحة؟"
+            : payConfirmText(price, entry);
         if (entry == null && walletNow != null && !walletNow.isEmpty()) {
             base = base.replace("\n\nهل المعلومات صحيحة؟", "\n📂 قبل هذه الدفعة: " + walletNow + "\n\nهل المعلومات صحيحة؟");
         }
@@ -1272,7 +1361,8 @@ final class TelegramReplies {
         return "{\"inline_keyboard\":[[" + cb("✅ موافق - أرسلها", "payok") + "],[" + cb("✏️ غيّر الزبون", "payw") + "," + cb("❌ إلغاء", "payx") + "]]}";
     }
 
-    private static String payWhere(Price price, SearchEntry entry, boolean his) {
+    private static String payWhere(Price price, SearchEntry entry, boolean his, NamedAccount named) {
+        if (named != null) return "\n" + namedTargetLine(named, his);
         if (entry == null) return "\n" + personalTarget(price.currency, his);
         return (entry.clientName.isEmpty() ? "" : "\n👤 الزبون: " + entry.clientName) + "\n📡 الجهاز: " + entry.deviceName();
     }
@@ -1282,7 +1372,11 @@ final class TelegramReplies {
     }
 
     static String paySent(Price price, SearchEntry entry, String methodName, boolean hasPhoto) {
-        return "✅ أُرسلت الدفعة إلى المسؤول - تُسجَّل بعد موافقته، وسيصلك تأكيد هنا.\n\n💵 " + price.label() + payWhere(price, entry, false)
+        return paySent(price, entry, methodName, hasPhoto, null);
+    }
+
+    static String paySent(Price price, SearchEntry entry, String methodName, boolean hasPhoto, NamedAccount named) {
+        return "✅ أُرسلت الدفعة إلى المسؤول - تُسجَّل بعد موافقته، وسيصلك تأكيد هنا.\n\n💵 " + price.label() + payWhere(price, entry, false, named)
             + (methodName == null ? "" : methodLine(methodName, hasPhoto));
     }
 
@@ -1291,7 +1385,11 @@ final class TelegramReplies {
     }
 
     static String payToOwner(String repName, Price price, SearchEntry entry, String methodName, boolean hasPhoto) {
-        return "💵 دفعة من المندوب " + repName + ": " + price.label() + payWhere(price, entry, true)
+        return payToOwner(repName, price, entry, methodName, hasPhoto, null);
+    }
+
+    static String payToOwner(String repName, Price price, SearchEntry entry, String methodName, boolean hasPhoto, NamedAccount named) {
+        return "💵 دفعة من المندوب " + repName + ": " + price.label() + payWhere(price, entry, true, named)
             + (methodName == null ? "" : methodLine(methodName, hasPhoto))
             + "\nوافق عليها من صفحة المندوبين في التطبيق" + (hasPhoto ? " (الصورة تظهر هناك)." : ".");
     }

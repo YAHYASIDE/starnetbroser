@@ -7,6 +7,7 @@
  * with the app closed. What gets sent automatically is chosen in الإعدادات (TelegramPrefs).
  */
 
+import { loadRepLedgerBook, repLedgerSummaries } from "./repLedgers";
 import { loadPromises } from "./paymentPromises";
 import { repOpenPromises, repPromisesDueLines } from "./repPromises";
 import { nextWeeklyTime, weeklyText } from "./ownerInsightsText";
@@ -591,7 +592,7 @@ export async function sendRepMonthlyStatements(month: string, ledgerStore: Ledge
     // His month's share, then his whole position - the same as his card (repPosition.ts).
     const monthLine = repStatementText(rep.name, month, repMoney({ rep, month, ledgerStore, invoices, settlements, rates })).split("\n")[1] ?? "";
     const position = repPosition({ rep, clients: loadClientStore(), accounts, ledgerStore, book: loadRepBook(), invoices, settlements, convert: makeRepConverter(loadRepDisplayCodes(), rates) });
-    const text = [monthLine, repPositionText(rep.name, position, (id) => accounts.find((a) => a.id === id)?.name ?? "جهاز")].filter(Boolean).join("\n");
+    const text = [monthLine, repPositionText(rep.name, position, (id) => accounts.find((a) => a.id === id)?.name ?? "جهاز", repLedgerSummaries(loadRepLedgerBook(), repId))].filter(Boolean).join("\n");
     if (await sendRepText(repId, `🗓 تم إقفال شهر\n${text}`, undefined, "money")) sent += 1;
   }
   return sent;
