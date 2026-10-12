@@ -117,6 +117,7 @@ const SETTLEMENT_SIGN: Record<RepSettlementKind, 1 | -1> = {
   cashHandover: 1,
   manualCredit: 1,
   manualDebit: -1,
+  profitTransfer: -1,
 };
 
 /** What one statement row does to his balance, per currency (positive = we owe him more) - in
@@ -135,6 +136,8 @@ export function repRowDelta(row: RepStatementRow, convert: RepConvert = keepCurr
     return Math.abs(net) > EPSILON ? convert(net, row.row.invoice.currencyCode) : {};
   }
   const s = row.settlement;
+  // His profit moved into his own account changes nothing overall (only a write-off lowers it).
+  if (s.kind === "profitTransfer" && s.toDebt) return {};
   return convert(SETTLEMENT_SIGN[s.kind] * s.amount, s.currencyCode, s.rates);
 }
 
@@ -155,14 +158,17 @@ export function repRowSplit(row: RepStatementRow, convert: RepConvert = keepCurr
       profit: Math.abs(commission) > EPSILON ? convert(commission, code) : {},
     };
   }
+  const s = row.settlement;
+  // 💰 out of «ربحه» - into his account in that currency, or written off.
+  if (s.kind === "profitTransfer") return { profit: convert(-s.amount, s.currencyCode, s.rates), debt: s.toDebt ? convert(s.amount, s.currencyCode, s.rates) : {} };
   const delta = repRowDelta(row, convert);
-  return row.settlement.kind === "commissionPayout" ? { debt: {}, profit: delta } : { debt: delta, profit: {} };
+  return s.kind === "commissionPayout" ? { debt: {}, profit: delta } : { debt: delta, profit: {} };
 }
 
 /** Which of his two accounts a row moves (an invoice moves both - shown under «ما عليه»). */
 export function repRowAccount(row: RepStatementRow): "debt" | "profit" {
   if (row.type === "device") return "profit";
-  if (row.type === "settlement" && row.settlement.kind === "commissionPayout") return "profit";
+  if (row.type === "settlement" && (row.settlement.kind === "commissionPayout" || row.settlement.kind === "profitTransfer")) return "profit";
   return "debt";
 }
 
@@ -253,7 +259,7 @@ export function buildRepPeriodStatement(
     pendingCount: 0,
     commissions: {},
     cashCollected: {},
-    settled: { commissionPayout: {}, cashHandover: {}, manualCredit: {}, manualDebit: {} },
+    settled: { commissionPayout: {}, cashHandover: {}, manualCredit: {}, manualDebit: {}, profitTransfer: {} },
     customerCharges: {},
     customerPaid: {},
   };

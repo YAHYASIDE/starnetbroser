@@ -1209,3 +1209,20 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - «اجعل عندما اضغط على دفع من بنكيلي يظهر الاختيار بنكيلي» - in «إضافة رصيد» (BalanceForm) tapping a payment
   method sets «من أين تحرّك المال؟» to its account in that currency (`methodAccountId`), «نقدًا» to الكاش;
   he can still change it.
+
+## 📂 A rep's accounts page: سيفا وأورانج · الربح · الأوقية (Oct 12 2026)
+
+- His words: «اريد ان يكون هناك مكان لارباح المندوب مثل حساب ويمكنني تصفير ارباحه وارساله لحسابه او ازالته من
+  الذي عليه … وان يكون للمندوب عدة حسابات داخل حسابه: حساب للسيفا واورانج (يودع فيه سيفا واورانج ونتسلف عنده
+  سيفا)، وحسابه للربح، وحسابه للعملة». His choices: «3 حسابات منفصلة», all four profit actions, «صفحة كاملة».
+- «📂 حساباته» on the rep card opens components/RepAccountsPage.tsx (full screen): tiles «🟠 حساب السيفا وأورانج»,
+  «💰 حساب الربح», «🟢 حساب الأوقية» (another currency gets its own when it has records), each with its balance
+  (له / عليه) and its own operations + balance after each. lib/repWallets.ts: the money accounts are «ما عليه»
+  (repRowSplit's debt side) cut by each record's own currency - never converted; profit in his shown currencies.
+  It reads his current account (after his reset).
+- Profit actions (new settlement kind `profitTransfer`, `toDebt`): «↪️ إلى حساب السيفا / الأوقية» = out of his
+  profit into that account (total unchanged, `repRowDelta` 0); «🧹 تصفير الربح» = written off (profit −X, nothing
+  else); «💸 دفعت له من حسابي» = `commissionPayout` from الكاش or an app (`accountId`, no الكاش entry). The amount
+  defaults to all his profit in that currency (`repProfitIn`, today's rates). A profitTransfer opens a delete-only
+  sheet (the له/عليه form would change its kind). The store's own balances follow it
+  (`computeRepCommissionOwedByCurrency` −, `computeRepManualBalanceByCurrency` + when `toDebt`).

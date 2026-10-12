@@ -215,7 +215,10 @@ export function deleteRepresentative(store: RepresentativeStore, id: string): Re
  * (a bonus, an advance/سلفة, a correction) - "credit" adds to what the operator owes the rep,
  * "debit" adds to what the rep owes the operator, exactly like the other two settlement kinds'
  * own direction. */
-export type RepSettlementKind = "cashHandover" | "commissionPayout" | "manualCredit" | "manualDebit";
+/** «profitTransfer» (his Oct 12 2026 ask, lib/repWallets.ts): his profit leaves «ربحه» - into his
+ * account in that currency (`toDebt`: it lowers what he owes / is kept for him) or written off
+ * («تصفير الربح» without moving money). No money moves in «حسابي» either way. */
+export type RepSettlementKind = "cashHandover" | "commissionPayout" | "manualCredit" | "manualDebit" | "profitTransfer";
 
 export interface RepSettlement {
   id: string;
@@ -231,6 +234,8 @@ export interface RepSettlement {
   /** The bank / wallet of «حسابي» (moneyAccounts.ts) the money went through - set when it was
    * recorded from a bank notification; that account's balance moves with it. */
   accountId?: string;
+  /** profitTransfer only: true = put into his account in `currencyCode`; absent = written off. */
+  toDebt?: boolean;
   createdAt: string;
 }
 
@@ -265,6 +270,8 @@ export interface RecordRepSettlementInput {
   rates?: Record<string, number>;
   /** The bank / wallet of «حسابي» the money went through (that account's balance moves with it). */
   accountId?: string;
+  /** profitTransfer only (see RepSettlement.toDebt). */
+  toDebt?: boolean;
 }
 
 export type RecordRepSettlementResult =
@@ -288,6 +295,7 @@ export function recordRepSettlement(
     note: input.note?.trim() || undefined,
     rates: input.rates,
     ...(input.accountId ? { accountId: input.accountId } : {}),
+    ...(input.kind === "profitTransfer" && input.toDebt ? { toDebt: true } : {}),
     createdAt: new Date().toISOString(),
   };
   return { ok: true, settlements: [...settlements, settlement], settlement };
@@ -366,7 +374,7 @@ export function computeRepCommissionOwedByCurrency(
     result[inv.currencyCode] = (result[inv.currencyCode] ?? 0) + commission;
   }
   for (const s of settlements) {
-    if (s.representativeId !== representativeId || s.kind !== "commissionPayout") continue;
+    if (s.representativeId !== representativeId || (s.kind !== "commissionPayout" && s.kind !== "profitTransfer")) continue;
     result[s.currencyCode] = (result[s.currencyCode] ?? 0) - s.amount;
   }
   return result;
@@ -384,6 +392,8 @@ export function computeRepManualBalanceByCurrency(
     if (s.representativeId !== representativeId) continue;
     if (s.kind === "manualCredit") result[s.currencyCode] = (result[s.currencyCode] ?? 0) + s.amount;
     else if (s.kind === "manualDebit") result[s.currencyCode] = (result[s.currencyCode] ?? 0) - s.amount;
+    // His profit put into his account counts there like an amount added for him.
+    else if (s.kind === "profitTransfer" && s.toDebt) result[s.currencyCode] = (result[s.currencyCode] ?? 0) + s.amount;
   }
   return result;
 }

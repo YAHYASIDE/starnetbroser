@@ -113,6 +113,7 @@ import {
   type RepBookEntry,
 } from "@/lib/repClients";
 import { recordRepMoneyHandover } from "@/lib/repClientsSave";
+import { RepAccountsPage } from "@/components/RepAccountsPage";
 import { confirmClosedMonthChange, ledgerEntryMonthDates, monthLabel, monthRange, recentMonths } from "@/lib/monthClosing";
 
 const EPSILON = 0.0001;
@@ -199,7 +200,15 @@ const SETTLEMENT_LABELS: Record<RepSettlementKind, string> = {
   commissionPayout: "➖ عليه · دفعت له نقدًا",
   manualCredit: "➕ له",
   manualDebit: "➖ عليه",
+  profitTransfer: "↪️ من ربحه",
 };
+
+/** 📂 One line's wording on «حساباته» (components/RepAccountsPage.tsx). */
+function settlementText(s: RepSettlement): string {
+  if (s.kind === "profitTransfer") return s.toDebt ? `↪️ من ربحه إلى حساب ${currencyLabel(s.currencyCode)}` : "🧹 تصفير الربح";
+  if (s.kind === "commissionPayout") return "💸 دفعت له من ربحه";
+  return SETTLEMENT_LABELS[s.kind];
+}
 
 function settlementKind(direction: "credit" | "debit", cash: boolean): RepSettlementKind {
   if (direction === "credit") return cash ? "cashHandover" : "manualCredit";
@@ -693,6 +702,8 @@ function RepCard({
   const customersHidden = Boolean(rep.customersHidden);
   const [panel, setPanel] = useState<RepPanel>(null);
   const [sheet, setSheet] = useState<RepSheet>(null);
+  // 📂 «حساباته»: the full page of his accounts (his Oct 12 2026 ask).
+  const [accountsOpen, setAccountsOpen] = useState(false);
   const [periodKind, setPeriodKind] = useState<RepPeriodKind>("all");
   const [customPeriod, setCustomPeriod] = useState<RepPeriod>({ from: "", to: "" });
   const thisMonth = todayDateInputValue().slice(0, 7);
@@ -828,6 +839,19 @@ function RepCard({
     return accounts.find((a) => a.id === accountId)?.name ?? "جهاز محذوف";
   }
 
+  // 📂 «حساباته»: his current account (after his reset), the same rows as the statement.
+  const walletDays = useMemo(
+    () => (accountsOpen ? buildRepDailyStatement(rep.id, active.deviceRows, active.invoices, active.settlements, operations) : []),
+    [accountsOpen, rep.id, active, operations],
+  );
+
+  function describeRow(row: RepStatementRow): string {
+    if (row.type === "device") return `📈 حصته · ${accountName(row.row.accountId)}`;
+    if (row.type === "customer") return `${customerOpLabel(row.op)} · ${accountName(row.op.accountId)}`;
+    if (row.type === "invoice") return "🧾 فاتورة متجر";
+    return `${settlementText(row.settlement)}${row.settlement.note ? ` · ${row.settlement.note}` : ""}`;
+  }
+
   function clientNameFor(accountId: string): string | undefined {
     // 🔒 «زبائنه عنده فقط»: his customers' names stay out of his statement.
     if (customersHidden) return undefined;
@@ -950,6 +974,9 @@ function RepCard({
           onClick={() => setPanel((p) => (p === "statement" ? null : "statement"))}
         >
           <ActionFace icon="📄" label="الكشف" />
+        </button>
+        <button type="button" className="party-action party-action-accounts" onClick={() => setAccountsOpen(true)}>
+          <ActionFace icon="📂" label="حساباته" />
         </button>
         {!readOnly && <button type="button" className="party-action party-action-balance" onClick={() => setSheet({ kind: "settle" })}>
           <ActionFace icon="💵" label="تسوية" />
@@ -1231,6 +1258,18 @@ function RepCard({
         </PartySheet>
       )}
 
+      {accountsOpen && (
+        <RepAccountsPage
+          repName={rep.name}
+          days={walletDays}
+          profitConvert={fx.convert}
+          describe={describeRow}
+          readOnly={readOnly}
+          onSettle={onSettle}
+          onClose={() => setAccountsOpen(false)}
+        />
+      )}
+
       {sheet?.kind === "settle" && (
         <PartySheet title={`تسوية - ${rep.name}`} onClose={() => setSheet(null)}>
           <SettlementForm
@@ -1245,7 +1284,33 @@ function RepCard({
         </PartySheet>
       )}
 
-      {sheet?.kind === "settlement" && (
+      {sheet?.kind === "settlement" && sheet.settlement.kind === "profitTransfer" && (
+        <PartySheet title={`عملية من ربحه - ${rep.name}`} onClose={() => setSheet(null)}>
+          {/* ↪️ / 🧹 from «📂 حساباته»: shown and deleted here, recorded again there if needed. */}
+          <p className="settings-hint">
+            {settlementText(sheet.settlement)}: <bdi dir="ltr">{formatAmount(sheet.settlement.amount)}</bdi> {currencyLabel(sheet.settlement.currencyCode)} · <bdi dir="ltr">{sheet.settlement.date}</bdi>
+            {sheet.settlement.note ? ` · ${sheet.settlement.note}` : ""}
+          </p>
+          <div className="settings-actions">
+            <button
+              type="button"
+              className="dialog-danger"
+              onClick={() => {
+                if (!window.confirm("حذف هذه العملية؟ يرجع المبلغ إلى ربحه.")) return;
+                onDeleteSettlement(sheet.settlement.id);
+                setSheet(null);
+              }}
+            >
+              🗑 حذف
+            </button>
+            <button type="button" className="text-action" onClick={() => setSheet(null)}>
+              إغلاق
+            </button>
+          </div>
+        </PartySheet>
+      )}
+
+      {sheet?.kind === "settlement" && sheet.settlement.kind !== "profitTransfer" && (
         <PartySheet title={`تعديل عملية - ${rep.name}`} onClose={() => setSheet(null)}>
           <SettlementForm
             initial={sheet.settlement}
@@ -1587,6 +1652,7 @@ function RepStatementSummary({
   }
   if (nonZero(t.commissions).length) profitLines.push(["عمولات المتجر", list(t.commissions)]);
   if (nonZero(t.settled.commissionPayout).length) profitLines.push(["💸 دفعت له من ربحه", list(t.settled.commissionPayout)]);
+  if (nonZero(t.settled.profitTransfer).length) profitLines.push(["↪️ خرج من ربحه (إلى حسابه / تصفير)", list(t.settled.profitTransfer)]);
   const closingLabel = period.to || period.from ? "آخر الفترة" : "الآن";
   const lines = (items: [string, string][]) =>
     items.length > 0 && (
