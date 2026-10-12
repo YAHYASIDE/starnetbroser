@@ -73,3 +73,14 @@ export function repWalletTitle(id: string): string {
   if (id === "USD") return "💵 حساب الدولار";
   return `حساب ${id}`;
 }
+
+/**
+ * 🧹 «تصفير الحساب» for one of his money accounts (his Oct 12 2026 ask «اريد اصفّر حساباته، اضف في كل
+ * حساب له أو عليه»): the له / عليه amount that brings it back to 0 - a normal, deletable record.
+ * عليه 44,000 (−44,000) → «له» 44,000; له 6,000 → «عليه» 6,000; already 0 → null.
+ */
+export function repZeroEntry(balance: number): { kind: "manualCredit" | "manualDebit"; amount: number } | null {
+  if (Math.abs(balance) <= EPS) return null;
+  const amount = Math.round(Math.abs(balance) * 100) / 100;
+  return balance < 0 ? { kind: "manualCredit", amount } : { kind: "manualDebit", amount };
+}

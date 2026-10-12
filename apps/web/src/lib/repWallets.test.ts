@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { keepCurrency, makeRepConverter, repRowDelta } from "./repAccount";
 import { buildRepDailyStatement, computeRepCommissionOwedByCurrency, computeRepManualBalanceByCurrency, type RepCustomerOp, type RepSettlement } from "./repStore";
-import { repProfitIn, repWallets } from "./repWallets";
+import { repProfitIn, repWallets, repZeroEntry } from "./repWallets";
 
 const op = (id: string, amount: number, currency: string, date = "2026-10-05"): RepCustomerOp => ({ entryId: id, accountId: "a1", date, at: `${date}T10:00:00.000Z`, amount, currency, byRep: false });
 const st = (id: string, kind: RepSettlement["kind"], amount: number, currencyCode: string, extra: Partial<RepSettlement> = {}): RepSettlement => ({
@@ -44,5 +44,13 @@ describe("📂 a rep's accounts (his Oct 12 2026 ask)", () => {
     const days = buildRepDailyStatement("r1", [], [], [st("c", "commissionPayout", 10, "USD")]);
     // he was paid 10 $ more than his profit: nothing is due
     expect(repProfitIn(days, "SIFA", makeRepConverter(["SIFA"], { SIFA: 600 }))).toBe(0);
+  });
+});
+
+describe("🧹 تصفير one of his money accounts", () => {
+  it("adds the له / عليه that brings it to 0", () => {
+    expect(repZeroEntry(-44000)).toEqual({ kind: "manualCredit", amount: 44000 });
+    expect(repZeroEntry(6000.456)).toEqual({ kind: "manualDebit", amount: 6000.46 });
+    expect(repZeroEntry(0.001)).toBeNull();
   });
 });

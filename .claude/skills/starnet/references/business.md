@@ -1249,6 +1249,15 @@ is never pressed while a field is empty - it refills and saves on the next try (
   sheet (the له/عليه form would change its kind). The store's own balances follow it
   (`computeRepCommissionOwedByCurrency` −, `computeRepManualBalanceByCurrency` + when `toDebt`).
 
+## 📂 له / عليه / تصفير on each of a rep's accounts (Oct 12 2026)
+
+- His words: «عندي مشكلة في حسابات المندوب، فهو الآن عليه ديون وأريد أصفّر حساباته - أضف له في كل حساب له أو عليه،
+  لا عليه فقط». In «📂 حساباته» each money account (🟠 السيفا وأورانج, 🟢 الأوقية, any other currency) has
+  «➕ له» / «➖ عليه» (manualCredit / manualDebit in that account's currency, no money moves, no الكاش entry)
+  and «🧹 تصفير الحساب» = the له/عليه of its balance (`repZeroEntry`, note «🧹 تصفير الحساب») - one record,
+  deletable from the statement. It is not the rep's dated reset (versions) - that stays as it was.
+- The profit account keeps its own actions (↪️ / 💸 / 🧹 تصفير الربح).
+
 ## 💰 The money bot shows the rep's accounts; his payment says which account (Oct 12 2026)
 
 - His words: «المندوب اريد اذا دفع دفعة ان يسأل ان كان سيدفع عن حسابه الشخصي ام اي حساباته، وان تظهر له في البوت

@@ -15324,6 +15324,16 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   border-color: var(--brand);
 }
 
+/* «🧹 تصفير الحساب» alone on its row under «➕ له» / «➖ عليه». */
+.rep-accounts-actions > :nth-child(3):last-child {
+  grid-column: 1 / -1;
+}
+
+.rep-accounts-zero {
+  margin: 0;
+  font-weight: 600;
+}
+
 .rep-accounts-currency {
   display: flex;
   align-items: center;

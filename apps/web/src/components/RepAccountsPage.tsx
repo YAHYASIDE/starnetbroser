@@ -8,7 +8,7 @@ import { LEDGER_CURRENCY_LABELS, type LedgerCurrency } from "@/lib/ledgerStore";
 import { loadAccountsBook } from "@/lib/moneyAccounts";
 import { makeRepConverter, type RepConvert } from "@/lib/repAccount";
 import type { RepStatementDay, RepStatementRow, UpdateRepSettlementInput } from "@/lib/repStore";
-import { repProfitIn, repWallets, repWalletTitle, type RepWallet } from "@/lib/repWallets";
+import { repProfitIn, repWallets, repWalletTitle, repZeroEntry, type RepWallet } from "@/lib/repWallets";
 
 /**
  * 📂 «حساباته» (his Oct 12 2026 ask): a full page with the rep's accounts side by side - سيفا وأورانج,
@@ -56,6 +56,16 @@ function sideText(balance: Record<string, number>): { text: string; tone: "due" 
 
 type Action = "toSIFA" | "toMRU" | "pay" | "zero";
 
+type MoneyAction = "credit" | "debit" | "zero";
+
+/** ➕ له / ➖ عليه / 🧹 تصفير on a money account (his Oct 12 2026 ask «اضف في كل حساب له أو عليه، لا عليه
+ * فقط»): a له / عليه record in that account's currency - no money moves, deletable from the statement. */
+const MONEY_ACTIONS: { id: MoneyAction; text: string; hint: string }[] = [
+  { id: "credit", text: "➕ له", hint: "مبلغ لصالحه في هذا الحساب (يقلّ ما عليه) - لا يتحرك أي مال." },
+  { id: "debit", text: "➖ عليه", hint: "مبلغ عليه في هذا الحساب - لا يتحرك أي مال." },
+  { id: "zero", text: "🧹 تصفير الحساب", hint: "يضيف «له» أو «عليه» بقدر الرصيد ليصير الحساب 0 - يبقى سطرًا في الكشف ويمكن حذفه." },
+];
+
 const ACTIONS: { id: Action; text: string; hint: string }[] = [
   { id: "toSIFA", text: "↪️ إلى حساب السيفا", hint: "يخرج من ربحه ويدخل حساب السيفا وأورانج: يقلّ ما عليه، أو يبقى له عندك." },
   { id: "toMRU", text: "↪️ إلى حساب الأوقية", hint: "يخرج من ربحه ويدخل حساب الأوقية: يقلّ ما عليه، أو يبقى له عندك." },
@@ -81,6 +91,7 @@ export function RepAccountsPage({ repName, days, profitConvert, describe, readOn
   const [open, setOpen] = useState("SIFA");
   const shown = all.find((w) => w.id === open) ?? all[0]!;
   const [action, setAction] = useState<Action | null>(null);
+  const [moneyAction, setMoneyAction] = useState<MoneyAction | null>(null);
 
   return (
     <div className="rep-accounts-page" role="dialog" aria-label={`حسابات ${repName}`}>
@@ -103,6 +114,7 @@ export function RepAccountsPage({ repName, days, profitConvert, describe, readOn
               onClick={() => {
                 setOpen(w.id);
                 setAction(null);
+                setMoneyAction(null);
               }}
             >
               <span>{repWalletTitle(w.id)}</span>
@@ -133,6 +145,34 @@ export function RepAccountsPage({ repName, days, profitConvert, describe, readOn
             return error;
           }} />
         )}
+        {shown.id !== "profit" && !readOnly && (
+          <div className="rep-accounts-actions">
+            {MONEY_ACTIONS.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                className={`dialog-secondary${moneyAction === a.id ? " rep-accounts-action-on" : ""}`}
+                onClick={() => setMoneyAction(moneyAction === a.id ? null : a.id)}
+              >
+                {a.text}
+              </button>
+            ))}
+          </div>
+        )}
+        {shown.id !== "profit" && moneyAction && (
+          <MoneyActionForm
+            key={`${shown.id}-${moneyAction}`}
+            action={moneyAction}
+            currency={shown.id}
+            balance={shown.balance[shown.id] ?? 0}
+            onCancel={() => setMoneyAction(null)}
+            onSettle={(input) => {
+              const error = onSettle(input);
+              if (!error) setMoneyAction(null);
+              return error;
+            }}
+          />
+        )}
         {shown.lines.length === 0 ? (
           <p className="empty-state">لا عمليات في هذا الحساب بعد.</p>
         ) : (
@@ -161,6 +201,69 @@ export function RepAccountsPage({ repName, days, profitConvert, describe, readOn
 function today(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function MoneyActionForm({
+  action,
+  currency,
+  balance,
+  onCancel,
+  onSettle,
+}: {
+  action: MoneyAction;
+  currency: string;
+  balance: number;
+  onCancel: () => void;
+  onSettle: (input: UpdateRepSettlementInput) => string | null;
+}) {
+  const zero = action === "zero" ? repZeroEntry(balance) : null;
+  const [amount, setAmount] = useState("");
+  const [date, setDate] = useState(today());
+  const [note, setNote] = useState(action === "zero" ? "🧹 تصفير الحساب" : "");
+  const [error, setError] = useState<string | null>(null);
+  const hint = MONEY_ACTIONS.find((a) => a.id === action)!.hint;
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    if (action === "zero" && !zero) return setError("الحساب متوازن (0) - لا شيء لتصفيره");
+    const value = action === "zero" ? zero!.amount : Number(amount);
+    if (!(value > 0)) return setError("اكتب المبلغ");
+    const kind = action === "zero" ? zero!.kind : action === "credit" ? "manualCredit" : "manualDebit";
+    setError(onSettle({ kind, amount: value, currencyCode: currency, date, ...(note.trim() ? { note: note.trim() } : {}) }));
+  }
+
+  return (
+    <form className="party-balance-form rep-accounts-form" onSubmit={submit}>
+      <p className="settings-hint">{hint}</p>
+      {action === "zero" ? (
+        <p className="rep-accounts-zero">
+          {zero ? (
+            <>
+              يُضاف «{zero.kind === "manualCredit" ? "له" : "عليه"}» <bdi dir="ltr">{formatAmount(zero.amount)}</bdi> {label(currency)} فيصير الحساب 0.
+            </>
+          ) : (
+            "الحساب متوازن ✓"
+          )}
+        </p>
+      ) : (
+        <div className="party-balance-row">
+          <input className="search-input" inputMode="decimal" dir="ltr" placeholder="المبلغ" value={amount} onChange={(e) => setAmount(e.target.value)} aria-label="المبلغ" autoFocus />
+          <span className="search-input rep-accounts-currency">{label(currency)}</span>
+        </div>
+      )}
+      <DateInput className="search-input" value={date} onChange={(e) => setDate(e.target.value)} />
+      <input className="search-input" placeholder="ملاحظة (اختياري)" value={note} onChange={(e) => setNote(e.target.value)} />
+      {error && <div className="account-card-alert ledger-form-error">{error}</div>}
+      <div className="settings-actions">
+        <button type="submit" className="dialog-primary" disabled={action === "zero" && !zero}>
+          حفظ
+        </button>
+        <button type="button" className="text-action" onClick={onCancel}>
+          إلغاء
+        </button>
+      </div>
+    </form>
+  );
 }
 
 function ProfitActionForm({
