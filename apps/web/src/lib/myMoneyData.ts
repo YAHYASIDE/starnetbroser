@@ -38,6 +38,7 @@ import { listRepresentatives, loadRepresentativeStore, loadRepSettlements } from
 import { keepCurrency } from "./repAccount";
 import { loadRepBook } from "./repClients";
 import { repPosition, repTotalByCurrency } from "./repPosition";
+import { loadRepLedgerBook, repLedgerTotals } from "./repLedgers";
 import { listOpenShipmentDebts } from "./starlinkDebt";
 import { listSuppliers, loadSupplierStore } from "./supplierStore";
 
@@ -172,10 +173,13 @@ export function loadWealthInput(input: {
   const repBook = loadRepBook();
   const settlements = loadRepSettlements();
   const clientStore = loadClientStore();
+  // 📒 + his named accounts (lib/repLedgers.ts - أمانة، سلفة، حسابات حرة): his choice «داخل له/عليه كالباقي».
+  const ledgerBook = loadRepLedgerBook();
   const reps = listRepresentatives(loadRepresentativeStore())
     .map((rep) => {
       const position = repPosition({ rep, clients: clientStore, accounts: input.accounts, ledgerStore: ledger, book: repBook, invoices, settlements, convert: keepCurrency });
       const total = repTotalByCurrency(position.wallets);
+      for (const [code, v] of Object.entries(repLedgerTotals(ledgerBook, rep.id))) total[code] = (total[code] ?? 0) + v;
       return { name: rep.name, byCurrency: Object.fromEntries(Object.entries(total).map(([c, v]) => [c, -v])) };
     })
     .filter((r) => Object.keys(r.byCurrency).length > 0);

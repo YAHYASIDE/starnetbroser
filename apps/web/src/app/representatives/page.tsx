@@ -1258,6 +1258,7 @@ function RepCard({
 
       {accountsOpen && (
         <RepAccountsPage
+          repId={rep.id}
           repName={rep.name}
           days={walletDays}
           profitConvert={fx.convert}

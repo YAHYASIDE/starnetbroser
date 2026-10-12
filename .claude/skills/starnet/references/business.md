@@ -1350,3 +1350,24 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - 🔎 one search over wallets, currencies, customers / suppliers / reps (balance lines first), personal income /
   expenses, the business's own الكاش entries, transfers, currency purchases and remittances, by name / note /
   number / amount (Arabic spellings folded); each hit opens its record (line sheet, place statement, section, tab).
+
+## 📒 A rep's named accounts, like his old ledger app (Oct 12 2026 - council + his decisions)
+
+- His words: «الحسابات التي أضفتها للمندوب جيدة ولكن ليست هي التي نعمل عليها. أنا والمندوب كنا نعمل على تطبيق
+  مدونة حسابات وكل حساب وحده… حساب العملة وحده وهو الذي أسجل عليه من الأجهزة… أريد أن يمكنني إضافة رصيد لأي حساب له،
+  والأجهزة تحسب تلقائيًا في حسابه الطبيعي الذي يأخذ منه ربح، وتلك الحسابات الأخرى لا علاقة لها بربح، هي فقط حسابات
+  أمانة أو وديعة أو أنا أتدين من عند المندوب… وفي بوت المال تظهر له كل حساباته… والحساب الطبيعي دائمًا الاقتراح الأول».
+  His old app showed per rep free-named accounts («<rep> الأجهزة», «شحن الأجهزة», «شهر 10», «أرباح <rep>»,
+  «<rep> اورانج», «تنزيل دبو»…) and one total.
+- Council report (artifact «دفتر حسابات المندوب»): build named accounts on top of the records, the normal account
+  stays the only one tied to devices + profit, start with the rep only, bot in a second step.
+- His decisions: build the first step now; trust / loan accounts count in «حسابي» «داخل له/عليه كالباقي» (not apart);
+  «شهر 10» / «شحن الأجهزة» = free accounts like the others (not a monthly filter); in the bot the rep picks the account
+  (normal first) and the owner sees it in the approval and can change it (next step).
+- Built (step 1): lib/repLedgers.ts - its OWN store `starnet_rep_ledgers_v1` {ledgers, entries} (not settlements, so
+  profit / normal accounts / paying his customers' devices / the bot / the rep copy can never read it). A ledger =
+  {repId, name (unique per rep), kind trust | loan | free, ONE currency fixed}; entries له (+) / عليه (−), «رصيد
+  افتتاحي» (`opening`), all deletable; balance derived. «📂 حساباته» → «➕ حساب», each account: له / عليه / 🧹 تصفير /
+  ✏️ الاسم / 🗑️ حذف (code). «حسابي» adds `repLedgerTotals` to the rep's له/عليه per currency.
+- Next step (not built): the money bot lists his named accounts after the normal one; the request carries the chosen
+  account; the owner sees / changes it on approval; a deposit into a named account never pays his customers' devices.
