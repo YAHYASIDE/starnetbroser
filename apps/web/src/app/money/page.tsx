@@ -736,7 +736,12 @@ export default function MoneyPage() {
       </div>
 
       <div data-tour="money-wealth">
-        <WealthCard wealth={wealth} onOpen={setOpenLine} isLow={lineIsLow} />
+        <WealthCard
+          wealth={wealth}
+          onOpen={setOpenLine}
+          isLow={lineIsLow}
+          onManageAccounts={() => setOpenLine({ key: "banks", icon: "🏦", label: "البنوك والمحافظ", kind: "have", mru: 0, items: [], byCurrency: {} })}
+        />
       </div>
       {missing.length > 0 && (
         <p className="settings-hint">

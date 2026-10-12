@@ -4,7 +4,7 @@ import type { ClientStore } from "./clientStore";
 import type { LedgerByAccount, LedgerEntry } from "./ledgerStore";
 import { keepCurrency } from "./repAccount";
 import type { RepBookEntry } from "./repClients";
-import { repPosition } from "./repPosition";
+import { repPosition, repTotalByCurrency } from "./repPosition";
 import type { Representative } from "./repStore";
 import { repPositionDebtsReply, repPositionText, repWalletsText, repWalletWords } from "./telegramRepMessages";
 
@@ -86,5 +86,11 @@ describe("⚖️ the rep's position - one way for his card and his money bot", (
     expect(repWalletWords({ MRU: -1500 })).toBe("عليك 1,500 أوقية");
     expect(repWalletWords({ MRU: 0.001 })).toBe("متوازن ✓");
     expect(repWalletsText([])).toBe("");
+  });
+
+  it("🧾 «حسابي» counts his whole balance - his customers' renewals included - in its own currencies", () => {
+    const p = repPosition(input);
+    // owes 30,000 سيفا for his devices (the old figure left these out and showed 0)
+    expect(repTotalByCurrency(p.wallets)).toEqual({ SIFA: -30000 });
   });
 });

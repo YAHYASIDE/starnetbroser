@@ -518,6 +518,9 @@ export interface WealthLine {
   native?: Record<string, number>;
   /** 🟠 أورانج / نيتا: `native` سيفا is shown in فرانك. */
   franc?: boolean;
+  /** The line in all its own currencies (أوقية, سيفا, دولار… - his Oct 12 2026 ask «محسوب بعملاته
+   * الكاملة»), never converted - shown first; `mru` is the ≈ أوقية under it. */
+  byCurrency: Record<string, number>;
   /** 📄 The money places behind it (an account id, or "cash" for الكاش): each has a «كشف حساب». */
   places?: { id: string; name: string }[];
 }
@@ -553,8 +556,9 @@ export interface WealthInput {
   customers: WealthGroup[];
   /** Customers we owe (a credit / «له رصيد»), positive amounts - «عليك للزبائن». */
   customersOwe?: WealthGroup[];
-  /** Per rep: positive = he owes me, negative = I owe him (أوقية). */
-  repsMru: { name: string; mru: number }[];
+  /** Per rep, in his accounts' own currencies (📂 حساباته: سيفا وأورانج + أوقية + ربحه): positive = he
+   * owes me, negative = I owe him. */
+  reps: WealthGroup[];
   debts: DebtBook;
   /** What I still owe each supplier (positive only). */
   suppliers: WealthGroup[];
@@ -578,6 +582,11 @@ export function buildWealth(input: WealthInput): Wealth {
     for (const it of items) for (const [code, v] of Object.entries(it.byCurrency)) if (code !== "MRU" && Math.abs(v) > 0.0001) out[code] = (out[code] ?? 0) + v;
     return Object.keys(out).length ? out : undefined;
   };
+  const totalOf = (items: WealthItem[]): Record<string, number> => {
+    const out: Record<string, number> = {};
+    for (const it of items) for (const [code, v] of Object.entries(it.byCurrency)) if (Math.abs(v) > 0.0001) out[code] = (out[code] ?? 0) + v;
+    return out;
+  };
   const line = (key: string, icon: string, label: string, kind: WealthLine["kind"], items: WealthItem[]): WealthLine => ({
     key,
     icon,
@@ -586,9 +595,14 @@ export function buildWealth(input: WealthInput): Wealth {
     items: items.filter((i) => Object.values(i.byCurrency).some((v) => Math.abs(v) > 0.0001)).sort((a, b) => b.mru - a.mru),
     mru: items.reduce((sum, i) => sum + i.mru, 0),
     native: nativeOf(items),
+    byCurrency: totalOf(items),
   });
 
-  const mruItem = (name: string, mru: number): WealthItem => ({ name, byCurrency: { MRU: mru }, mru });
+  /** One side of each rep's balance, per currency: `sign` 1 = what he owes me, −1 = what I owe him. */
+  const repSide = (sign: 1 | -1): WealthItem[] =>
+    input.reps
+      .map((r) => item(r.name, Object.fromEntries(Object.entries(r.byCurrency).filter(([, v]) => v * sign > 0.0001).map(([c, v]) => [c, v * sign]))))
+      .filter((i) => Object.keys(i.byCurrency).length > 0);
 
   // 💵 الكاش one line per currency (his Oct 10 2026 choice «كاش سيفا وحده وكاش العملة وحده»): «كاش» =
   // the أوقية, then «كاش سيفا» (always - with the «كاش سيفا» wallet), «كاش دولار», «كاش دينار جزائري»…
@@ -607,13 +621,11 @@ export function buildWealth(input: WealthInput): Wealth {
     return [{ ...built, ...(code === "SIFA" ? { native: { SIFA: built.native?.SIFA ?? 0 } } : {}), places }];
   });
 
-  // أورانج موني / نيتا (always - his Oct 10 2026 choice «دائماً ظاهران بالفرانك»), and any other wallet
-  // holding سيفا / دولار (بينانس…), come out to the front, each its own line in its own currency + the
-  // أوقية; the أوقية apps (بنكيلي، مصرفي…) stay grouped under «البنوك».
+  // 🏦 Every app and wallet out to the front, each its own line in its own currency (his Oct 12 2026 ask
+  // «تطبيقات البنكية والكاش كل شيء خارج الأمام وواضح»; before, the أوقية apps were folded under «البنوك
+  // والمحافظ»). أورانج / نيتا stay in فرانك.
   const banks = input.banks.filter((b) => !b.cashWallet);
-  const bankIsForeign = (b: WealthGroup) => b.franc || Object.entries(b.byCurrency).some(([code, v]) => code !== "MRU" && Math.abs(v) > 0.0001);
-  const mruBanks = banks.filter((b) => !bankIsForeign(b));
-  const foreignBankLines = banks.filter(bankIsForeign).map((b, i) => {
+  const bankLines = banks.map((b, i) => {
     const built = line(`bank:${i}:${b.name}`, "", b.name, "have", [item(b.name, b.byCurrency)]);
     return {
       ...built,
@@ -624,15 +636,14 @@ export function buildWealth(input: WealthInput): Wealth {
 
   const lines: WealthLine[] = [
     ...cashLines,
-    { ...line("banks", "🏦", "البنوك والمحافظ", "have", mruBanks.map((b) => item(b.name, b.byCurrency))) },
-    ...foreignBankLines,
+    ...bankLines,
     line("card", "💳", "محفظة KAST", "have", [item("KAST", { USD: input.cardUsd })]),
     line("customers", "👥", "لك عند الزبائن", "owed", input.customers.map((c) => item(c.name, c.byCurrency))),
-    line("repsOwe", "🧑‍💼", "لك عند المندوبين", "owed", input.repsMru.filter((r) => r.mru > 0).map((r) => mruItem(r.name, r.mru))),
+    line("repsOwe", "🧑‍💼", "لك عند المندوبين", "owed", repSide(1)),
     line("starlink", "🛰️", "عليك لستارلينك (D)", "owe", input.starlink.map((s) => item(s.name, { USD: s.usd }))),
     line("customersOwe", "👥", "عليك للزبائن", "owe", (input.customersOwe ?? []).map((c) => item(c.name, c.byCurrency))),
     line("suppliers", "🏭", "عليك للموردين", "owe", input.suppliers.map((s) => item(s.name, s.byCurrency))),
-    line("repsOwed", "🧑‍💼", "عليك للمندوبين", "owe", input.repsMru.filter((r) => r.mru < 0).map((r) => mruItem(r.name, -r.mru))),
+    line("repsOwed", "🧑‍💼", "عليك للمندوبين", "owe", repSide(-1)),
   ];
   const sum = (kind: WealthLine["kind"]) => lines.filter((l) => l.kind === kind).reduce((s, l) => s + l.mru, 0);
   const haveMru = sum("have");

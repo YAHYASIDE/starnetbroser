@@ -117,3 +117,14 @@ export function loadRepDisplayCodes(): string[] {
     return ["MRU"];
   }
 }
+
+/** 🧾 His whole balance with me in each record's own currency - his three accounts (سيفا وأورانج,
+ * أوقية, ربحه) added per currency, never converted. + = له (I owe him), − = عليه. For «حسابي»
+ * (his Oct 12 2026 report: «لك عند المندوبين» stayed 0 while he owed - his customers' renewals were
+ * left out). Pass a position computed with `keepCurrency`. */
+export function repTotalByCurrency(wallets: RepWalletBalance[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const w of wallets) for (const [code, v] of Object.entries(w.balance)) out[code] = (out[code] ?? 0) + v;
+  for (const code of Object.keys(out)) if (Math.abs(out[code]!) < 0.005) delete out[code];
+  return out;
+}

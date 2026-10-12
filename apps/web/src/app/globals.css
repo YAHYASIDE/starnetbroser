@@ -15402,3 +15402,18 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
 .rep-accounts-minus {
   color: var(--red);
 }
+
+/* 💱 «حسابي»: a line's amount in its own currencies, the ≈ أوقية under it (his Oct 12 2026 ask). */
+.money-line-amount {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  min-width: 0;
+  text-align: end;
+}
+
+.money-manage-accounts {
+  display: block;
+  margin: 6px auto 0;
+}

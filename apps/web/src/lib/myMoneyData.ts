@@ -35,7 +35,9 @@ import { personalFlows, type DebtBook, type IncomeList, type WealthInput } from 
 import type { PersonalExpense } from "./personalExpenses";
 import { listOpenPreviousDebts, loadPreviousDebts } from "./previousDebt";
 import { listRepresentatives, loadRepresentativeStore, loadRepSettlements } from "./repStore";
-import { repBalancesMru } from "./reportsView";
+import { keepCurrency } from "./repAccount";
+import { loadRepBook } from "./repClients";
+import { repPosition, repTotalByCurrency } from "./repPosition";
 import { listOpenShipmentDebts } from "./starlinkDebt";
 import { listSuppliers, loadSupplierStore } from "./supplierStore";
 
@@ -165,11 +167,18 @@ export function loadWealthInput(input: {
   for (const d of listOpenShipmentDebts(ledger)) starlinkByDevice.set(d.accountId, (starlinkByDevice.get(d.accountId) ?? 0) + d.costUsd);
   for (const d of listOpenPreviousDebts(loadPreviousDebts(), ledger)) starlinkByDevice.set(d.accountId, (starlinkByDevice.get(d.accountId) ?? 0) + d.amountUsd);
 
-  // repBalancesMru: positive = we owe him; here positive = he owes me.
-  const repsMru = repBalancesMru(listRepresentatives(loadRepresentativeStore()), ledger, invoices, loadRepSettlements(), input.rates).map((r) => ({
-    name: r.rep.name,
-    mru: -r.balanceMru,
-  }));
+  // 📂 Each rep's three accounts (the same figures as «📂 حساباته» and his bot), in their own currencies;
+  // there + = له, here + = he owes me.
+  const repBook = loadRepBook();
+  const settlements = loadRepSettlements();
+  const clientStore = loadClientStore();
+  const reps = listRepresentatives(loadRepresentativeStore())
+    .map((rep) => {
+      const position = repPosition({ rep, clients: clientStore, accounts: input.accounts, ledgerStore: ledger, book: repBook, invoices, settlements, convert: keepCurrency });
+      const total = repTotalByCurrency(position.wallets);
+      return { name: rep.name, byCurrency: Object.fromEntries(Object.entries(total).map(([c, v]) => [c, -v])) };
+    })
+    .filter((r) => Object.keys(r.byCurrency).length > 0);
 
   return {
     cash: computeCashBalanceByCurrency(cashInHandEntries(loadCashEntries(), ledger, input.book)),
@@ -177,7 +186,7 @@ export function loadWealthInput(input: {
     cardUsd: currentCardBalanceUsd(ledger),
     customers,
     customersOwe,
-    repsMru,
+    reps,
     debts: input.debts,
     suppliers,
     starlink: Array.from(starlinkByDevice, ([id, usd]) => ({ name: deviceName(id), usd })),

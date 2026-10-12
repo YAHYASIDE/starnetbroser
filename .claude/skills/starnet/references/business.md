@@ -1304,3 +1304,14 @@ is never pressed while a field is empty - it refills and saves on the next try (
   runs while the app is open / in memory - a closed app uploads on its next open.
 - Pruning (`driveFilesToPrune`): the newest 48 copies (two days hour by hour) + the last copy of each of the newest
   30 days. The phone's own daily file backup (autoBackup.ts, 7 kept) is unchanged.
+
+## 💰 «حسابي»: every place in front, in its full currencies + what the reps really owe (Oct 12 2026)
+
+- His words (screenshot: «لك عند المندوبين 0» while his rep owed): «لا يظهر الذي على المندوب، كذلك أريد أن تكون
+  التطبيقات البنكية والكاش كل شيء خارج الأمام وواضح ومحسوب بعملاته الكاملة».
+- Reps: `WealthInput.reps` = each rep's three accounts added per currency (`repPosition` with `keepCurrency` →
+  `repTotalByCurrency`) - the old `repBalancesMru` left out his customers' renewals (his debt), so he showed as owed.
+  Each currency goes to its own side: what he owes → «لك عند المندوبين», what I owe him → «عليك للمندوبين».
+- Places: every app / wallet is its own line (no more «البنوك والمحافظ (N)» group); «🏦 إدارة البنوك والمحافظ»
+  under «عندك» opens the add / correct sheet. Every line shows `WealthLine.byCurrency` in full first (أورانج /
+  نيتا in فرانك) and «≈ … أوقية» under it when anything is in another currency; the totals stay in أوقية.

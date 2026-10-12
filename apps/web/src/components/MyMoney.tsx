@@ -749,7 +749,18 @@ const GROUPS: { kind: "have" | "owed" | "owe"; title: string }[] = [
   { kind: "owed", title: "لك عند الآخرين" },
 ];
 
-export function WealthCard({ wealth, onOpen, isLow }: { wealth: Wealth; onOpen: (line: WealthLine) => void; isLow?: (line: WealthLine) => boolean }) {
+export function WealthCard({
+  wealth,
+  onOpen,
+  isLow,
+  onManageAccounts,
+}: {
+  wealth: Wealth;
+  onOpen: (line: WealthLine) => void;
+  isLow?: (line: WealthLine) => boolean;
+  /** 🏦 add / correct the apps and wallets (their lines are each on their own now). */
+  onManageAccounts?: () => void;
+}) {
   return (
     <div className={`net-hero money-hero money-hero-worth${wealth.inHandMru < 0 ? " is-loss" : ""}`}>
       <div className="money-two">
@@ -791,28 +802,30 @@ export function WealthCard({ wealth, onOpen, isLow }: { wealth: Wealth; onOpen: 
                       {isLow?.(l) ? <small className="money-low-chip"> ⚠️ منخفض</small> : null}
                       {l.items.length > 1 ? <small> ({l.items.length})</small> : null}
                     </span>
-                    {l.franc && l.native ? (
-                      <>
-                        {/* 🟠 أورانج / نيتا: the فرانك first, the أوقية under it */}
-                        <small className="money-line-native">
-                          <bdi dir="ltr">≈ {mruText(l.mru)}</bdi> أوقية
-                        </small>
-                        <bdi dir="ltr" className={l.mru === 0 ? undefined : "money-in"}>
-                          {Object.values(l.native).some((v) => Math.abs(v) > 0.0001) ? francMoney(l.native) : "0 فرانك"}
-                        </bdi>
-                      </>
-                    ) : (
-                      <>
-                        {l.native ? (
-                          <small className="money-line-native">
-                            <bdi dir="ltr">{signedMoney(l.native)}</bdi>
-                          </small>
-                        ) : null}
-                        <bdi dir="ltr" className={l.mru === 0 ? undefined : l.kind === "owe" ? "money-out" : "money-in"}>
-                          {`${l.kind === "owe" && l.mru ? "-" : ""}${mruText(l.mru)}`}
-                        </bdi>
-                      </>
-                    )}
+                    {/* 💱 Its own currencies in full first (his Oct 12 2026 ask «محسوب بعملاته الكاملة»), the
+                        ≈ أوقية under it when anything is in another currency; أورانج / نيتا in فرانك. */}
+                    {(() => {
+                      const foreign = Object.keys(l.byCurrency).some((c) => c !== "MRU") || l.franc;
+                      const full = l.franc
+                        ? Object.values(l.byCurrency).some((v) => Math.abs(v) > 0.0001)
+                          ? francMoney(l.byCurrency)
+                          : "0 فرانك"
+                        : Object.keys(l.byCurrency).length
+                          ? signedMoney(l.byCurrency)
+                          : "0";
+                      return (
+                        <span className="money-line-amount">
+                          <bdi dir="ltr" className={l.mru === 0 ? undefined : l.kind === "owe" ? "money-out" : "money-in"}>
+                            {`${l.kind === "owe" && l.mru ? "-" : ""}${full}`}
+                          </bdi>
+                          {foreign && Math.abs(l.mru) > 0.0001 ? (
+                            <small className="money-line-native">
+                              <bdi dir="ltr">≈ {mruText(l.mru)}</bdi> أوقية
+                            </small>
+                          ) : null}
+                        </span>
+                      );
+                    })()}
                     <span className="money-line-go" aria-hidden="true">
                       ‹
                     </span>
@@ -820,6 +833,11 @@ export function WealthCard({ wealth, onOpen, isLow }: { wealth: Wealth; onOpen: 
                 </li>
               ))}
           </ul>
+          {group.kind === "have" && onManageAccounts ? (
+            <button type="button" className="text-action money-manage-accounts" onClick={onManageAccounts}>
+              🏦 إدارة البنوك والمحافظ (إضافة / تصحيح رصيد)
+            </button>
+          ) : null}
         </div>
       ))}
     </div>
