@@ -1218,6 +1218,20 @@ is never pressed while a field is empty - it refills and saves on the next try (
   method sets «من أين تحرّك المال؟» to its account in that currency (`methodAccountId`), «نقدًا» to الكاش;
   he can still change it.
 
+## 🔗 Money places always follow the method + Binance's 0.01 $ on KAST (Oct 12 2026)
+
+- His words: «اجعل دائما الخيارات متناسقة: عندما اضيف سيفا فرانك يجب ان تظهر في الاسفل تلقائيا اورانج او نيتا،
+  وكذلك ان وضعت بنكيلي يجب ان تظهر بنكيلي في الاسفل. هذا في كل مكان اضافة العملات». His screenshot: «فرانك» +
+  «أورانج موني» (picked by itself) still said «استلمناها نقدًا - تدخل الكاش» - the place followed only a TAP.
+  Now `BalanceForm` sets «من أين تحرّك المال؟» from `methodSource` on a tap, on a currency change (the method
+  that fits the new currency) and on «له/عليه» for a payment. Other payment forms (device payment, quick
+  payment, rep requests) have no separate place field - they route by the method (`devicePaymentAccountId`);
+  «حسابي» forms pick the place itself (أورانج/نيتا = فرانك).
+- «دائما في كاست عندما اضيف لها رصيد يضاف من بينانس وبالدولار … 50 دولار من بينانس تأتي لكاست 49.99 - دائما تخصم
+  0.01 لكل عملية». A top-up from «محفظة بينانس» (`isBinanceAccount`) links the two amounts: typing what left
+  بينانس sets the card to −0.01 (`cardFromBinance`), typing the card sets بينانس to +0.01 (`binanceForCard`,
+  `KAST_TOPUP_FEE_USD`). Withdrawals and other places are unchanged.
+
 ## 📂 A rep's accounts page: سيفا وأورانج · الربح · الأوقية (Oct 12 2026)
 
 - His words: «اريد ان يكون هناك مكان لارباح المندوب مثل حساب ويمكنني تصفير ارباحه وارساله لحسابه او ازالته من

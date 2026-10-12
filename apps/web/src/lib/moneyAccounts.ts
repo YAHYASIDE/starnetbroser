@@ -247,7 +247,11 @@ export function cashWalletId(currency: string, accounts: MoneyAccount[]): string
 /** 💳 Where a KAST top-up comes from by default (his Oct 12 2026 rule «شحن البطاقة دائما يكون من بينانس»):
  * the «محفظة بينانس» wallet, else null = الكاش. He can still pick another place. */
 export function defaultCardTopUpAccountId(accounts: MoneyAccount[]): string | null {
-  return accounts.find((a) => /بينانس|binance/i.test(a.name))?.id ?? null;
+  return accounts.find(isBinanceAccount)?.id ?? null;
+}
+
+export function isBinanceAccount(account: Pick<MoneyAccount, "name"> | undefined): boolean {
+  return /بينانس|binance/i.test(account?.name ?? "");
 }
 
 /** 🏦 The app a payment method lands in, in that currency («بنكيلي» → the بنكيلي account) - picked in
@@ -255,6 +259,29 @@ export function defaultCardTopUpAccountId(accounts: MoneyAccount[]): string | nu
 export function methodAccountId(method: PaymentMethod | undefined, currency: string, accounts: MoneyAccount[]): string | null {
   if (!method || method === "cash") return null;
   return accounts.find((a) => a.method === method && a.currencyCode === currency)?.id ?? null;
+}
+
+/** «من أين تحرّك المال؟» for a payment method - «نقدًا» → "cash", an app → its account in that currency
+ * (أورانج / نيتا with فرانك, بنكيلي with أوقية...), null = keep what is chosen. It follows the method
+ * ALSO when the method changes by itself (a فرانك payment starts on أورانج موني) - his Oct 12 2026 report:
+ * «فرانك + أورانج موني» still said «تدخل الكاش». */
+export function methodSource(method: PaymentMethod | undefined, currency: string, accounts: MoneyAccount[]): string | null {
+  if (method === "cash") return "cash";
+  return methodAccountId(method, currency, accounts);
+}
+
+/** 💳 Binance keeps 0.01 $ of every KAST top-up (his Oct 12 2026 rule: 50 $ from بينانس = 49.99 $ on
+ * the card). */
+export const KAST_TOPUP_FEE_USD = 0.01;
+
+/** What reaches the card for `paid` dollars sent from Binance. */
+export function cardFromBinance(paid: number): number {
+  return paid > KAST_TOPUP_FEE_USD ? Math.round((paid - KAST_TOPUP_FEE_USD) * 100) / 100 : 0;
+}
+
+/** What leaves Binance for `card` dollars on the card. */
+export function binanceForCard(card: number): number {
+  return card > 0 ? Math.round((card + KAST_TOPUP_FEE_USD) * 100) / 100 : 0;
 }
 
 /** The first day whose records count in the account: its opening day - or every day while its

@@ -25,7 +25,7 @@ import { deviceMatchesQuery } from "@/lib/homeInsights";
 import { loadCashEntries, saveCashEntries } from "@/lib/cashStore";
 import { deleteProof, getProof, putProof } from "@/lib/paymentProofStore";
 import { resizeImageToDataUrl } from "@/lib/imageUtils";
-import { defaultCardTopUpAccountId, loadAccountsBook, type MoneyAccount } from "@/lib/moneyAccounts";
+import { binanceForCard, cardFromBinance, defaultCardTopUpAccountId, isBinanceAccount, loadAccountsBook, type MoneyAccount } from "@/lib/moneyAccounts";
 import { ClientStore, getClient, loadClientStore } from "@/lib/clientStore";
 import { CurrencyStore, getCurrency, loadCurrencyStore, realRateFromUsd, saveCurrencyStore, setCurrencyRate } from "@/lib/currencyStore";
 import { demoAccounts } from "@/lib/demoData";
@@ -1284,7 +1284,14 @@ function MovementForm({
   const currency = viaAccount ? viaAccount.currencyCode : paidCurrency;
   const rate = currency === "USD" ? 1 : currency === "MRU" ? mruRate : getCurrency(currencyStore, currency)?.rateFromUsd;
   const franc = isFrancAccount(viaAccount);
-  const suggested = Number(amountUsd) > 0 && rate ? Math.round(Number(amountUsd) * rate * (franc ? sifaToFranc(1) : 1) * 100) / 100 : undefined;
+  // 💳 From بينانس, 0.01 $ stays there on every top-up (his Oct 12 2026 rule: 50 $ → 49.99 $ on the card).
+  const binanceFee = !isOut && currency === "USD" && isBinanceAccount(viaAccount);
+  const suggested =
+    Number(amountUsd) > 0 && rate
+      ? binanceFee
+        ? binanceForCard(Number(amountUsd))
+        : Math.round(Number(amountUsd) * rate * (franc ? sifaToFranc(1) : 1) * 100) / 100
+      : undefined;
   const shownPaid = paidTouched ? paidAmount : suggested !== undefined ? String(suggested) : "";
   const counterpartLabel = isLoss
     ? ""
@@ -1328,7 +1335,11 @@ function MovementForm({
           inputMode="decimal"
           placeholder="0"
           value={amountUsd}
-          onChange={(e) => setAmountUsd(e.target.value)}
+          onChange={(e) => {
+            setAmountUsd(e.target.value);
+            // 💳 From بينانس the two stay linked: what left بينانس = the card + 0.01 $.
+            if (binanceFee) setPaidTouched(false);
+          }}
           autoFocus={!initial}
         />
       </label>
@@ -1364,6 +1375,11 @@ function MovementForm({
               onChange={(e) => {
                 setPaidTouched(true);
                 setPaidAmount(e.target.value);
+                // 💳 Typed what left بينانس: the card gets it minus 0.01 $ (his Oct 12 2026 rule).
+                if (binanceFee) {
+                  const card = cardFromBinance(Number(e.target.value));
+                  setAmountUsd(card > 0 ? String(card) : "");
+                }
               }}
             />
             {franc ? (
@@ -1381,6 +1397,7 @@ function MovementForm({
             )}
           </div>
           {franc && <FrancHint amount={shownPaid} where={viaAccount?.name} />}
+          {binanceFee && <small className="settings-hint">💳 بينانس يأخذ <bdi dir="ltr">0.01 $</bdi> من كل شحن: يخرج منه مبلغ البطاقة + <bdi dir="ltr">0.01</bdi>.</small>}
         </label>
       )}
       <label className="rep-form-field">

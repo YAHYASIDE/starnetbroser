@@ -14,7 +14,7 @@ import { clientRepNames, clientRepIds, matchesClientOwner, type ClientOwnerFilte
 import { currentRepOfClient } from "@/lib/repClients";
 import type { RepresentativeStore } from "@/lib/repStore";
 import { CreateSupplierInput, Supplier } from "@/lib/supplierStore";
-import { loadAccountsBook, methodAccountId } from "@/lib/moneyAccounts";
+import { loadAccountsBook, methodSource } from "@/lib/moneyAccounts";
 import { fitPayMethod, isFrancAccount, methodLabel, PAY_CURRENCIES, PAY_CURRENCY_LABELS, payFormOf, payMethodsFor, toLedgerPayment, type PayCurrency } from "@/lib/payCurrency";
 import { getProof } from "@/lib/paymentProofStore";
 import { resizeImageToDataUrl } from "@/lib/imageUtils";
@@ -1154,6 +1154,9 @@ function BalanceForm({ partyName, partyKind, devices, initial, proofKey, submitL
   function setDirection(next: PartyAdjustmentDirection) {
     setDirectionState(next);
     setSource(defaultCashMoved(partyKind, next) ? "cash" : "none");
+    // A payment's money place follows its method (أورانج موني → أورانج, بنكيلي → بنكيلي).
+    const nowPayment = partyKind === "client" ? next === "weOwe" : next === "owesUs";
+    if (nowPayment) followMethod(method, payCurrency);
   }
   // A payment: money from the client ("له") or to the supplier ("عليه") - it has a channel.
   const isPayment = partyKind === "client" ? direction === "weOwe" : direction === "owesUs";
@@ -1186,6 +1189,17 @@ function BalanceForm({ partyName, partyKind, devices, initial, proofKey, submitL
   // chosen currency are offered; a picked app that no longer matches falls back to «لم يتحرك».
   // 🟠 أورانج / نيتا hold فرانك: offered only with «فرانك», never with «سيفا (كاش)».
   const currencyAccounts = moneyAccounts.filter((a) => a.currencyCode === currencyCode && isFrancAccount(a) === (payCurrency === "FRANC"));
+  /** 🏦 «من أين تحرّك المال؟» = the method's place in that currency (his Oct 12 2026 rule «دائمًا متناسقة»):
+   * also when the method changes by itself with the currency (فرانك starts on أورانج موني). */
+  function followMethod(m: PaymentMethod, cur: PayCurrency) {
+    const code: LedgerCurrency = cur === "FRANC" ? "SIFA" : cur;
+    const place = methodSource(m, code, moneyAccounts.filter((a) => a.currencyCode === code && isFrancAccount(a) === (cur === "FRANC")));
+    if (place) setSource(place);
+  }
+  function changeCurrency(next: PayCurrency) {
+    setPayCurrency(next);
+    if (isPayment) followMethod(fitPayMethod(next, paymentMethod, keepMethod), next);
+  }
   const effectiveSource = source === "none" || source === "cash" || currencyAccounts.some((a) => a.id === source) ? source : "none";
   const viaAccount = currencyAccounts.some((a) => a.id === effectiveSource);
 
@@ -1281,7 +1295,7 @@ function BalanceForm({ partyName, partyKind, devices, initial, proofKey, submitL
           onChange={(e) => setAmount(e.target.value)}
           autoFocus
         />
-        <select className="search-input" value={payCurrency} onChange={(e) => setPayCurrency(e.target.value as PayCurrency)}>
+        <select className="search-input" value={payCurrency} onChange={(e) => changeCurrency(e.target.value as PayCurrency)}>
           {PAY_CURRENCIES.map((c) => (
             <option key={c} value={c}>
               {PAY_CURRENCY_LABELS[c]}
@@ -1304,9 +1318,7 @@ function BalanceForm({ partyName, partyKind, devices, initial, proofKey, submitL
                   setPaymentMethod(m);
                   // 🏦 «من أين تحرّك المال؟» follows the method (his Oct 12 2026 ask): بنكيلي → the بنكيلي
                   // account, نقدًا → الكاش. He can still change it below.
-                  const app = methodAccountId(m, currencyCode, currencyAccounts);
-                  if (m === "cash") setSource("cash");
-                  else if (app) setSource(app);
+                  followMethod(m, payCurrency);
                 }}
               >
                 {PAYMENT_METHOD_LABELS[m]}

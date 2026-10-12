@@ -23,6 +23,9 @@ import {
   devicePaymentAccountId,
   defaultCardTopUpAccountId,
   methodAccountId,
+  methodSource,
+  cardFromBinance,
+  binanceForCard,
   cashEntryWalletId,
   cashWalletFlows,
   zeroAccountsBalances,
@@ -274,5 +277,20 @@ describe("default places (his Oct 12 2026 asks)", () => {
     expect(methodAccountId("bankily", "SIFA", accounts)).toBeNull();
     expect(methodAccountId("orange", "SIFA", accounts)).toBe("o");
     expect(methodAccountId("cash", "MRU", accounts)).toBeNull();
+  });
+
+  it("«من أين تحرّك المال؟» follows the method, also when it changes by itself (فرانك → أورانج)", () => {
+    expect(methodSource("orange", "SIFA", accounts)).toBe("o");
+    expect(methodSource("bankily", "MRU", accounts)).toBe("b");
+    expect(methodSource("cash", "SIFA", accounts)).toBe("cash");
+    expect(methodSource("nita", "SIFA", accounts)).toBeNull(); // no نيتا account: keep what is chosen
+  });
+
+  it("💳 Binance keeps 0.01 $ of every KAST top-up: 50 → 49.99, and back", () => {
+    expect(cardFromBinance(50)).toBe(49.99);
+    expect(binanceForCard(49.99)).toBe(50);
+    expect(binanceForCard(10.16)).toBe(10.17);
+    expect(cardFromBinance(0.01)).toBe(0);
+    expect(binanceForCard(0)).toBe(0);
   });
 });
