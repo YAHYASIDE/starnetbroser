@@ -1,7 +1,5 @@
 "use client";
 
-import { loadRemittances, type RemittanceList } from "@/lib/remittances";
-import { loadExchanges, type ExchangeList } from "@/lib/exchanges";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ADD_EXPENSE_ROUTE, parseAddExpense, SAME_PAGE_ROUTE_EVENT } from "@/lib/shortcuts";
@@ -50,15 +48,7 @@ import { loadPersonalExpenses, monthExpensesMru, type ExpenseCategory, type Pers
 import { PersonalExpensesTab } from "@/components/PersonalExpensesTab";
 import { monthLabel, recentMonths } from "@/lib/monthClosing";
 import { exportXlsx } from "@/lib/xlsxExport";
-import { DASH_SECTIONS, FinanceDashboard, type DashBooks, type DashSnapshot } from "@/components/FinanceDashboard";
-import { loadAccountsBook, EMPTY_ACCOUNTS_BOOK, type AccountsBook } from "@/lib/moneyAccounts";
-import { EMPTY_DEBT_BOOK, loadDebtBook, loadIncome, type DebtBook, type IncomeList } from "@/lib/myMoney";
-import { loadPromises, type PaymentPromise } from "@/lib/paymentPromises";
-import { allStoredAllocations } from "@/lib/paymentAllocationStore";
-import { isRepWorkspace } from "@/lib/repMode";
-import type { DashInput } from "@/lib/financeDashboard";
-import type { MoneyInput } from "@/lib/financeAnalysis";
-import { computeSupplierStoreBalance } from "@/lib/invoiceStore";
+import { DASH_SECTIONS } from "@/components/FinanceDashboard";
 import { REPORT_HIT_LABELS, searchReports, type ReportHit } from "@/lib/reportSearch";
 import { listSuppliers, loadSupplierStore, type SupplierStore } from "@/lib/supplierStore";
 import {
@@ -73,12 +63,14 @@ import {
   valueSeries,
 } from "@/lib/reportsView";
 
-type ReportTab = "dash" | "net" | "starlink" | "store" | "debts" | "expenses";
+type ReportTab = "net" | "starlink" | "store" | "debts" | "expenses";
 
-const TAB_LABELS: Record<ReportTab, string> = { dash: "📊 الملخص", net: "الصافي", starlink: "ستارلينك", store: "المتجر", debts: "الديون", expenses: "المصروفات" };
-// A new key (his Oct 9 2026 dashboard): «📊 الملخص» opens first once, then the phone remembers his tab.
+const TAB_LABELS: Record<ReportTab, string> = { net: "الصافي", starlink: "ستارلينك", store: "المتجر", debts: "الديون", expenses: "المصروفات" };
+// The phone remembers his tab. «📊 الملخص» moved into «💰 حسابي» (his Oct 12 2026 choice): a saved
+// "dash" is no longer a tab and falls back to «الصافي».
 const TAB_KEY = "starnet.reportsTab2";
 const TAB_IDS = Object.keys(TAB_LABELS) as ReportTab[];
+const MONEY_SECTIONS_KEY = "starnet.moneySections";
 
 function shipments(n: number): string {
   return `${n} ${n >= 3 && n <= 10 ? "شحنات" : "شحنة"}`;
@@ -106,19 +98,9 @@ export default function ReportsPage() {
   const [profitReset, setProfitReset] = useState<ProfitReset | null>(null);
   const [hiddenDays, setHiddenDays] = useState<HiddenProfitDays>({});
   const [allocations, setAllocations] = useState<AllocationsByAccount>({});
-  // 💳 «حسابي»'s books for the dashboard's money sources / alerts (read only here).
-  const [moneyBooks, setMoneyBooks] = useState<{ book: AccountsBook; incomes: IncomeList; debts: DebtBook; promises: PaymentPromise[]; remittances: RemittanceList; exchanges: ExchangeList; ownerView: boolean }>({
-    book: EMPTY_ACCOUNTS_BOOK,
-    incomes: [],
-    debts: EMPTY_DEBT_BOOK,
-    promises: [],
-    remittances: [],
-    exchanges: [],
-    ownerView: true,
-  });
   const [showExpected, setShowExpected] = useState(false);
   const [period, setPeriod] = useState<ReportPeriod>("month");
-  const [tab, setTab] = useState<ReportTab>("dash");
+  const [tab, setTab] = useState<ReportTab>("net");
   const [supplierStore, setSupplierStore] = useState<SupplierStore>({});
   // 🔎 «ابحث عن أي شيء في STAR NET...»: typed text, and the debounced query actually searched.
   const [searchText, setSearchText] = useState("");
@@ -169,7 +151,6 @@ export default function ReportsPage() {
     setProfitReset(loadProfitReset());
     setHiddenDays(loadHiddenProfitDays());
     setAllocations(loadAllocationStore());
-    setMoneyBooks({ book: loadAccountsBook(), incomes: loadIncome(), debts: loadDebtBook(), promises: loadPromises(), remittances: loadRemittances(), exchanges: loadExchanges(), ownerView: !isRepWorkspace() });
     // The groups first: setting them up once removes the old expenses (his choice).
     setExpenseCategories(loadExpenseTree());
     setPersonal(loadPersonalExpenses());
@@ -438,89 +419,12 @@ export default function ReportsPage() {
   }
   const usdToMru = (usd: number) => (mruRate ? usd * mruRate : undefined);
 
-  // ---- 📊 الملخص (lib/financeDashboard.ts): the same records and the same «الصافي» calculation ----
-  const today = new Date().toISOString().slice(0, 10);
-  const dashInput = useMemo<DashInput>(
-    () => ({
-      ledgerStore: visibleLedger,
-      activityLedger: ledgerStore,
-      invoices,
-      transactions: storeTransactions,
-      cash: cashEntries,
-      rates,
-      cardTopUps: topUps,
-      profitReset,
-      profitResetByAccount: resetByAccount,
-      clientOf: (id) => accounts.find((a) => a.id === id)?.clientId,
-    }),
-    [visibleLedger, ledgerStore, invoices, storeTransactions, cashEntries, rates, topUps, profitReset, resetByAccount, accounts],
-  );
-  // 🏭 What I owe suppliers now (the same figure «حسابي» shows), in أوقية ≈.
-  const suppliersOwed = useMemo(() => {
-    let mru = 0;
-    let count = 0;
-    let known = true;
-    for (const supplier of listSuppliers(supplierStore)) {
-      const owed: Record<string, number> = {};
-      for (const [code, v] of Object.entries(computeSupplierStoreBalance(invoices, supplier.id, adjustments))) if (v > 0.0001) owed[code] = v;
-      if (Object.keys(owed).length === 0) continue;
-      count += 1;
-      const sum = sumToMru(owed, rates);
-      if (sum.missing.length) known = false;
-      mru += sum.mru;
-    }
-    return { suppliersMru: known && (mruRate || count === 0) ? mru : undefined, suppliersCount: count };
-  }, [supplierStore, invoices, adjustments, rates, mruRate]);
-  const dashSnapshot = useMemo<DashSnapshot>(
-    () => ({
-      debtorsMru: mruRate ? debtorsTotal : undefined,
-      debtorsCount: debtors.length,
-      owedStarlinkMru: usdToMru(ownDUsd + previousUsd),
-      activeDevices: activeAccounts.length,
-      activeClients: new Set(activeAccounts.map((a) => a.clientId).filter(Boolean)).size,
-      ...suppliersOwed,
-    }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [mruRate, debtorsTotal, debtors.length, ownDUsd, previousUsd, activeAccounts, suppliersOwed],
-  );
-  const dashMoney = useMemo<MoneyInput>(
-    () => ({ ledger: ledgerStore, invoices, adjustments, settlements, cash: cashEntries, rates }),
-    [ledgerStore, invoices, adjustments, settlements, cashEntries, rates],
-  );
-  const dashClientName = useMemo(() => (id: string) => getClient(clientStore, id)?.name, [clientStore]);
-  const dashBooks = useMemo<DashBooks>(() => {
-    const month = today.slice(0, 7);
-    const used = new Set<string>();
-    for (const entries of Object.values(ledgerStore)) for (const e of entries) used.add(e.currency);
-    for (const c of cashEntries) used.add(c.currencyCode);
-    for (const inv of invoices) used.add(inv.currencyCode);
-    for (const a of adjustments) used.add(a.currencyCode);
-    return {
-      book: moneyBooks.book,
-      cardTopUps: topUps,
-      incomes: moneyBooks.incomes,
-      expenses: personal,
-      debts: moneyBooks.debts,
-      allocations: allStoredAllocations(allocations),
-      promises: moneyBooks.promises,
-      remittances: moneyBooks.remittances,
-      exchanges: moneyBooks.exchanges,
-      suppliers: listSuppliers(supplierStore).map((x) => ({ id: x.id, name: x.name })),
-      previousDebts,
-      debtors: computeDebtAging({ clients: listClients(clientStore), accounts, invoices, adjustments, ledgerStore, today, includeCredit: true }),
-      newClientsThisMonth: listClients(clientStore).filter((c) => c.createdAt?.startsWith(month)).length,
-      cardBalanceUsd: cardUsd,
-      usedCurrencies: [...used],
-      partyName: (kind, id) => (kind === "client" ? getClient(clientStore, id)?.name : kind === "supplier" ? supplierStore[id]?.name : repStore[id]?.name),
-      ownerView: moneyBooks.ownerView,
-    };
-  }, [today, ledgerStore, cashEntries, invoices, adjustments, moneyBooks, topUps, personal, allocations, supplierStore, previousDebts, clientStore, accounts, cardUsd, repStore]);
   const searchHits = useMemo(
     () =>
       searchReports(searchQuery, {
         sections: [
           ...DASH_SECTIONS.map((s) => ({ id: s.id, title: s.title, keywords: s.keywords })),
-          ...TAB_IDS.filter((t) => t !== "dash").map((t) => ({ id: `tab-${t}`, title: TAB_LABELS[t], tab: t })),
+          ...TAB_IDS.map((t) => ({ id: `tab-${t}`, title: TAB_LABELS[t], tab: t })),
         ],
         accounts,
         clients: listClients(clientStore),
@@ -537,8 +441,15 @@ export default function ReportsPage() {
     setSearchQuery("");
     if (hit.tab) chooseTab(hit.tab as ReportTab);
     else if (hit.section) {
-      chooseTab("dash");
-      window.setTimeout(() => document.getElementById(`dash-${hit.section}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+      // The dashboard's sections live in «💰 حسابي» now: open its «📊 التحليل المالي» there.
+      try {
+        const open = JSON.parse(window.localStorage.getItem(MONEY_SECTIONS_KEY) ?? "null");
+        const list: string[] = Array.isArray(open) ? open : ["alerts", "period"];
+        if (!list.includes("analysis")) window.localStorage.setItem(MONEY_SECTIONS_KEY, JSON.stringify([...list, "analysis"]));
+      } catch {
+        // per-phone convenience only
+      }
+      window.location.assign("/money/");
     }
   }
 
@@ -657,18 +568,9 @@ export default function ReportsPage() {
         </p>
       )}
 
-      {tab === "dash" && (
-        <FinanceDashboard
-          input={dashInput}
-          money={dashMoney}
-          accounts={accounts}
-          clientName={dashClientName}
-          snapshot={dashSnapshot}
-          books={dashBooks}
-          today={today}
-          onOpenTab={(t) => (t === "money" ? window.location.assign("/money/") : chooseTab(t as ReportTab))}
-        />
-      )}
+      <Link href="/money/" className="report-moved-note">
+        📊 الملخص والتحليل المالي والمقارنات صارت في «💰 حسابي» ←
+      </Link>
 
       {tab === "starlink" && (
         <section className="section report-tab-panel">

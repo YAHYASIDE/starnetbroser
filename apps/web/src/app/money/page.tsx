@@ -4,7 +4,33 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { routeSavedBotLoans } from "@/lib/repHandover";
 import Link from "next/link";
 import type { StarlinkAccountSummary } from "@starnet/shared";
-import { AccountsManager, IncomeTab, RecurringSection, today, WealthCard, WealthLineDetail } from "@/components/MyMoney";
+import { AccountsManager, IncomeTab, RecurringSection, today, WealthLineDetail, WealthLineList } from "@/components/MyMoney";
+import { CurrenciesBody, MoneyAlertsList, MoneySearchBox, MoneySection, QuickCompareBody, SummaryCards } from "@/components/MoneyDashboard";
+import { FinanceDashboard } from "@/components/FinanceDashboard";
+import { assembleFinanceDashboard, loadFinanceStores } from "@/lib/financeDashboardData";
+import { buildCustomerDebts, FINE_BUCKET_LABELS } from "@/lib/financeDebts";
+import { categoryOf } from "@/lib/personalExpenses";
+import { homeSearchHref } from "@/lib/homeActions";
+import {
+  ALL_SECTION_IDS,
+  buildCurrencyHoldings,
+  buildMoneyAlerts,
+  buildMoneySearchIndex,
+  buildMoneySummary,
+  DEFAULT_OPEN_SECTIONS,
+  openSection,
+  parseOpenSections,
+  quickComparisons,
+  searchMoney,
+  sectionLines,
+  sectionOfLine,
+  toggleSection,
+  type MoneySearchItem,
+  type MoneySectionId,
+  type MoneyTarget,
+  type MonthCompareMode,
+  type SummaryKey,
+} from "@/lib/moneyDashboard";
 import { BankInboxCard, BankInboxList, SuggestionConfirm, type ConfirmData, type ConfirmInput } from "@/components/BankInbox";
 import { decideSuggestion, decidedSuggestions, EMPTY_BANK_INBOX, loadBankInbox, pendingSuggestions, reopenSuggestion, saveBankInbox, type BankInbox, type BankSuggestion } from "@/lib/bankNotices";
 import { saveSuggestionChoice } from "@/lib/bankSuggestionSave";
@@ -31,7 +57,7 @@ import { listRepresentatives, loadRepresentativeStore } from "@/lib/repStore";
 import { listSuppliers, loadSupplierStore } from "@/lib/supplierStore";
 import { PartySheet } from "@/components/AccountsSection";
 import { PersonalExpensesTab } from "@/components/PersonalExpensesTab";
-import { computeCashBalanceByCurrency, hasCashReset, loadCashEntries, recordCashEntry, removeLinkedCashEntries, resetCashToZero, saveCashEntries, undoCashReset } from "@/lib/cashStore";
+import { computeCashBalanceByCurrency, hasCashReset, listStandaloneCashEntries, loadCashEntries, recordCashEntry, removeLinkedCashEntries, resetCashToZero, saveCashEntries, undoCashReset } from "@/lib/cashStore";
 import { formatAmount } from "@/lib/formatAmount";
 import { dayPeriod, monthPeriod, periodChoices, samePeriod, type MoneyPeriod } from "@/lib/moneyPeriod";
 import { DateInput } from "@/components/DateInput";
@@ -56,6 +82,7 @@ import {
   syncIncomeCash,
   addIncomeCategory,
   removeIncomeCategory,
+  incomeCategoryOf,
   type DebtBook,
   type IncomeList,
   type RecurringList,
@@ -99,6 +126,12 @@ const TABS: { id: MoneyTab; label: string }[] = [
   { id: "expense", label: "المصروف" },
 ];
 const TAB_KEY = "starnet.moneyTab";
+/** Which sections of the page are open (a per-phone convenience, not backed up). */
+const SECTIONS_KEY = "starnet.moneySections";
+const COMPARE_KEY = "starnet.moneyCompare";
+/** The reports page's remembered tab (the dashboard's «التفاصيل ←» opens it there). */
+const REPORTS_TAB_KEY = "starnet.reportsTab2";
+const REPORT_TABS = ["net", "starlink", "store", "debts", "expenses"];
 /** His public numbers (business.md) - money between his own apps on them is a transfer. */
 const OWN_NUMBERS = ["22227268", "74646158"];
 
@@ -167,6 +200,48 @@ export default function MoneyPage() {
   const [cashResetOn, setCashResetOn] = useState(false);
   // 💳 KAST brought to 0 by «🔄 البداية من جديد» (its correction movement exists).
   const [cardResetOn, setCardResetOn] = useState(false);
+  // 📂 The page's sections (lib/moneyDashboard.ts): his choice - the summary and the alerts open, the rest folded.
+  const [openSections, setOpenSections] = useState<MoneySectionId[]>(DEFAULT_OPEN_SECTIONS);
+  const [foldSignal, setFoldSignal] = useState({ open: false, n: 0 });
+  const [compareMode, setCompareMode] = useState<MonthCompareMode>("same");
+  const [searchText, setSearchText] = useState("");
+  const [alertsHost, setAlertsHost] = useState<HTMLElement | null>(null);
+  const [centerCount, setCenterCount] = useState(0);
+  useEffect(() => {
+    try {
+      setOpenSections(parseOpenSections(window.localStorage.getItem(SECTIONS_KEY)));
+      if (window.localStorage.getItem(COMPARE_KEY) === "full") setCompareMode("full");
+    } catch {
+      // per-phone convenience only
+    }
+  }, []);
+  function storeSections(next: MoneySectionId[]) {
+    setOpenSections(next);
+    try {
+      window.localStorage.setItem(SECTIONS_KEY, JSON.stringify(next));
+    } catch {
+      // ignored
+    }
+  }
+  const isOpen = (id: MoneySectionId) => openSections.includes(id);
+  const toggle = (id: MoneySectionId) => storeSections(toggleSection(openSections, id));
+  /** Opens a section (and scrolls to it): from a summary card, an alert or a search hit. */
+  function reveal(...ids: MoneySectionId[]) {
+    storeSections(ids.reduce(openSection, openSections));
+    window.setTimeout(() => document.getElementById(`money-${ids[0]}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+  }
+  function foldAll(open: boolean) {
+    storeSections(open ? ALL_SECTION_IDS : []);
+    setFoldSignal((s) => ({ open, n: s.n + 1 }));
+  }
+  function chooseCompare(mode: MonthCompareMode) {
+    setCompareMode(mode);
+    try {
+      window.localStorage.setItem(COMPARE_KEY, mode);
+    } catch {
+      // ignored
+    }
+  }
 
   function chooseTab(next: MoneyTab) {
     setTab(next);
@@ -685,6 +760,108 @@ export default function MoneyPage() {
     window.location.reload();
   }
 
+  // ---- 📊 the dashboard (lib/moneyDashboard.ts + the finance dashboard moved from the reports) ----
+  const dashData = useMemo(
+    () => (loaded ? assembleFinanceDashboard(loadFinanceStores(), accounts, today()) : null),
+    // Read from storage: recomputed whenever a record here changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [loaded, accounts, rates, book, incomes, expenses, debts, cashVersion, inboxVersion, remittances, exchanges],
+  );
+  const summary = useMemo(() => buildMoneySummary(wealth), [wealth]);
+  const holdings = useMemo(() => buildCurrencyHoldings(wealth, rates), [wealth, rates]);
+  const customerDebts = useMemo(() => (dashData ? buildCustomerDebts(dashData.books.debtors, dashData.books.promises, rates, today()) : null), [dashData, rates]);
+  const comparisons = useMemo(
+    () => (dashData && isOpen("compare") ? quickComparisons(dashData.input, today(), compareMode) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [dashData, compareMode, openSections],
+  );
+  const placeName = (id: string) => (id === CASH_PLACE ? "💵 الكاش" : id === CARD_PLACE ? "💳 KAST" : (() => {
+    const a = book.accounts.find((x) => x.id === id);
+    return a ? `${a.icon} ${a.name}` : id;
+  })());
+  const moneyAlerts = useMemo(() => {
+    const day = today();
+    const soon = new Date(Date.parse(`${day}T00:00:00Z`) + 3 * 86_400_000).toISOString().slice(0, 10);
+    return buildMoneyAlerts({
+      wealth,
+      lowLines: wealth.lines.filter(lineIsLow).map((l) => l.key),
+      placeBalances,
+      placeName,
+      unsetPlaces: book.accounts.filter((a) => a.balanceSet === false).map((a) => ({ id: a.id, name: `${a.icon} ${a.name}` })),
+      pendingNotices: pending.length,
+      missingRates: summary.missing,
+      dueSoon: (customerDebts?.rows ?? []).filter((r) => r.upcoming > 0 && r.nextDue && r.nextDue >= day && r.nextDue <= soon).map((r) => ({ name: r.name, amount: r.upcoming, currency: r.currency, date: r.nextDue! })),
+      today: day,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wealth, lowNow, placeBalances, book, pending, summary, customerDebts]);
+  const searchIndex = useMemo(() => {
+    if (!searchText.trim()) return [];
+    const placeLabel = (id: string) => (id === CASH_PLACE ? "الكاش" : book.accounts.find((a) => a.id === id)?.name ?? "حساب");
+    return buildMoneySearchIndex({
+      wealth,
+      holdings,
+      accounts: book.accounts,
+      incomes: incomes.map((r) => ({ ...r, category: incomeCategoryOf(r.categoryId, incomeCats).name })),
+      expenses: expenses.map((r) => ({ id: r.id, amount: r.amount, currencyCode: r.currencyCode, date: r.date, note: r.note, category: categoryOf(r.categoryId, expenseCats).name })),
+      transfers: (book.transfers ?? []).map((t) => ({ ...t, from: placeLabel(t.fromAccountId), to: placeLabel(t.toAccountId) })),
+      cash: listStandaloneCashEntries(loadCashEntries()).filter((c) => c.kind === "in" || c.kind === "out").map((c) => ({ id: c.id, kind: c.kind as "in" | "out", amount: c.amount, currencyCode: c.currencyCode, date: c.date, category: c.category, note: c.note })),
+      exchanges,
+      remittances: remittances.map((r) => ({ id: r.id, client: r.client, beneficiary: r.beneficiary, amount: r.amount, currency: r.inCurrency, date: r.date, note: r.note })),
+      clients: listClients(loadClientStore()),
+      suppliers: listSuppliers(loadSupplierStore()),
+      reps: listRepresentatives(loadRepresentativeStore()),
+      homeHref: homeSearchHref,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchText === "", wealth, holdings, book, incomes, expenses, exchanges, remittances, incomeCats, expenseCats, cashVersion]);
+  const searchHits = useMemo(() => searchMoney(searchIndex, searchText), [searchIndex, searchText]);
+
+  /** Opens what an alert / a search hit / a card is about. */
+  function openTarget(target: MoneyTarget | { kind: "inbox" }) {
+    if (target.kind === "line") {
+      const line = wealth.lines.find((l) => l.key === target.key);
+      if (line) setOpenLine(line);
+      else reveal(sectionOfLine(target.key));
+    } else if (target.kind === "place") setStatementOf(target.id);
+    else if (target.kind === "section") reveal(target.id);
+    else if (target.kind === "tab") {
+      chooseTab(target.tab);
+      reveal("records");
+    } else if (target.kind === "href") window.location.assign(target.href);
+    else setInboxOpen(true);
+  }
+  function pickHit(hit: MoneySearchItem) {
+    setSearchText("");
+    openTarget(hit.target);
+  }
+  function openSummary(key: SummaryKey) {
+    if (key === "available") reveal("wallets");
+    else if (key === "receivables") reveal("receivables", "customers", "reps");
+    else if (key === "obligations") reveal("starlink", "customers", "suppliers", "reps");
+    else reveal("currencies");
+  }
+  /** The dashboard's «التفاصيل ←»: a report tab opens on the reports page (it remembers the tab). */
+  function openReportTab(tab: string) {
+    if (tab === "money") return reveal("wallets");
+    if (tab === "rates") return window.location.assign("/currencies");
+    try {
+      if (REPORT_TABS.includes(tab)) window.localStorage.setItem(REPORTS_TAB_KEY, tab);
+    } catch {
+      // ignored
+    }
+    window.location.assign("/reports/");
+  }
+  const openLineSheet = (line: WealthLine) => setOpenLine(line);
+  const manageAccounts = () => setOpenLine({ key: "banks", icon: "🏦", label: "البنوك والمحافظ", kind: "have", mru: 0, items: [], byCurrency: {} });
+  const sectionTotal = (id: MoneySectionId) => {
+    const lines = sectionLines(wealth, id);
+    if (lines.length === 0) return undefined;
+    const total = lines.reduce((sum, l) => sum + (l.kind === "owe" ? -l.mru : l.mru), 0);
+    return Math.abs(total) < 0.5 ? undefined : `${total < 0 ? "-" : ""}≈ ${formatAmount(Math.round(Math.abs(total)))}`;
+  };
+  const alertCount = moneyAlerts.length + centerCount;
+
   const hero = (
     <>
       <div className="report-period-row money-period-row">
@@ -735,19 +912,6 @@ export default function MoneyPage() {
         </ul>
       </div>
 
-      <div data-tour="money-wealth">
-        <WealthCard
-          wealth={wealth}
-          onOpen={setOpenLine}
-          isLow={lineIsLow}
-          onManageAccounts={() => setOpenLine({ key: "banks", icon: "🏦", label: "البنوك والمحافظ", kind: "have", mru: 0, items: [], byCurrency: {} })}
-        />
-      </div>
-      {missing.length > 0 && (
-        <p className="settings-hint">
-          لم تُحتسب مبالغ بعملات بلا سعر: {missing.join("، ")} - <Link href="/currencies">سجّل أسعارها</Link>.
-        </p>
-      )}
     </>
   );
 
@@ -761,138 +925,268 @@ export default function MoneyPage() {
         </Link>
       </div>
 
-      <BankInboxCard
-        pending={pending.length}
-        enabled={notifEnabled}
-        onOpen={() => setInboxOpen(true)}
-        onEnable={() => {
-          void openKastNotificationAccess();
-          window.setTimeout(() => void notificationReaderStatus().then(setReader), 4000);
-        }}
-        down={readerProblem(reader) === "down"}
-        lastSeen={reader ? lastSeenText(reader.lastSeenAt) : undefined}
-        restartNote={readerNote}
-        onRestart={() => {
-          setReaderNote("⏳ يعيد التشغيل…");
-          void restartNotificationReader().then((status) => {
-            setReader(status);
-            if (readerProblem(status) !== "down") {
-              setReaderNote(null);
-              void drainBankNotices(ownNumbersRef.current).then((result) => result && setInbox(result.inbox));
-              return;
-            }
-            setReaderNote("لم يرجع. في الشاشة التي ستفتح: أطفئ STAR NET ثم شغّله من جديد، ثم ارجع هنا.");
-            void openKastNotificationAccess();
-          });
-        }}
-      />
+      <MoneySearchBox text={searchText} onText={setSearchText} hits={searchHits} onPick={pickHit} />
 
-      {hero}
+      <SummaryCards summary={summary} onOpenSection={openSummary} />
+      {missing.length > 0 && (
+        <p className="settings-hint">
+          لم تُحتسب مبالغ بعملات بلا سعر: {missing.join("، ")} - <Link href="/currencies">سجّل أسعارها</Link>.
+        </p>
+      )}
 
-      <TransferSection
-        accounts={book.accounts}
-        transfers={book.transfers ?? []}
-        onSave={saveTransfer}
-        onDelete={removeTransfer}
-      />
-
-      <ExchangeSection
-        list={exchanges}
-        accounts={book.accounts}
-        onSave={(input) => {
-          const result = createExchange(exchanges, input);
-          if (!result.ok) return result.message;
-          storeExchanges(result.list, result.exchange);
-          return null;
-        }}
-        onEdit={(id, input) => {
-          const result = updateExchange(exchanges, id, input);
-          if (!result.ok) return result.message;
-          storeExchanges(result.list, result.exchange);
-          return null;
-        }}
-        onDelete={(id) => storeExchanges(deleteExchange(exchanges, id), null, id)}
-      />
-
-      <RemittanceSection
-        costs={exchangeCosts}
-        list={remittances}
-        accounts={book.accounts}
-        rates={rates}
-        month={month}
-        since={profitReset?.date}
-        onSave={addRemittance}
-        onPay={payRemittance}
-        onDelete={removeRemittance}
-        onEdit={editRemittance}
-        onDeletePayment={removeRemittancePayment}
-      />
-
-      <div className="report-tabs" role="tablist" aria-label="حسابي">
-        {TABS.map((t) => (
-          <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} className={`report-tab${tab === t.id ? " report-tab-active" : ""}`} onClick={() => chooseTab(t.id)}>
-            {t.label}
-          </button>
-        ))}
+      <div className="dash-toolbar money-fold-bar" role="toolbar" aria-label="الأقسام">
+        <button type="button" className="dash-tool" onClick={() => foldAll(false)}>
+          ⊟ طي جميع الأقسام
+        </button>
+        <button type="button" className="dash-tool" onClick={() => foldAll(true)}>
+          ⊞ فتح جميع الأقسام
+        </button>
       </div>
 
-      {tab === "income" && (
-        <>
-          <IncomeTab
-            accounts={sources}
-            month={month}
-            period={period}
-            incomes={incomes}
-            custom={incomeCats}
-            rates={rates}
-            openNew={newRecord}
-            onOpened={consumed}
-            onSave={saveIncomeRecord}
-            onDelete={removeIncome}
-            onAddCategory={(name, icon, parentId) => {
-              const result = addIncomeCategory(incomeCats, name, icon, parentId);
-              if (!result.ok) return result.message;
-              saveIncomeCategories(result.list);
-              setIncomeCats(result.list);
-              return null;
-            }}
-            onRemoveCategory={(id) => {
-              const next = removeIncomeCategory(incomeCats, id);
-              saveIncomeCategories(next);
-              setIncomeCats(next);
-            }}
-          />
-          <RecurringSection accounts={sources} kind="income" rules={rules} incomeCustom={incomeCats} expenseCustom={expenseCats} onAdd={addRule} onDelete={removeRule} />
-        </>
-      )}
+      <MoneySection id="alerts" open={isOpen("alerts")} onToggle={() => toggle("alerts")} badge={alertCount || undefined} tone={moneyAlerts.some((a) => a.severity === "critical") ? "bad" : alertCount ? "warn" : undefined}>
+        <MoneyAlertsList alerts={moneyAlerts} onOpen={(a) => openTarget(a.target)} />
+        {/* 📈 the business alert center (debts due / overdue, Starlink, data checks) renders here */}
+        <div ref={setAlertsHost} />
+      </MoneySection>
 
-      {tab === "expense" && (
-        <>
-          <PersonalExpensesTab
-            accounts={sources}
-            openNew={newRecord}
-            onOpened={consumed}
-            expenses={expenses}
-            custom={expenseCats}
-            rates={rates}
-            onChange={(list, custom) => {
-              // A 🔁 expense deleted: that month stays without it.
-              let nextRules = rules;
-              for (const old of expenses) {
-                if (old.recurringId && !list.some((e) => e.id === old.id)) nextRules = skipRecurringMonth(nextRules, old.recurringId, old.date.slice(0, 7));
-              }
-              if (nextRules !== rules) {
-                saveRecurring(nextRules);
-                setRules(nextRules);
-              }
-              setExpenses(list);
-              setExpenseCats(custom);
-              setCashVersion((v) => v + 1);
+      <MoneySection id="period" open={isOpen("period")} onToggle={() => toggle("period")} badge={`${left.leftMru < 0 ? "-" : ""}${formatAmount(Math.round(Math.abs(left.leftMru)))}`} tone={left.leftMru < 0 ? "bad" : "good"}>
+        {hero}
+      </MoneySection>
+
+      <MoneySection id="wallets" open={isOpen("wallets")} onToggle={() => toggle("wallets")} badge={sectionTotal("wallets")} tour="money-wealth">
+          <BankInboxCard
+            pending={pending.length}
+            enabled={notifEnabled}
+            onOpen={() => setInboxOpen(true)}
+            onEnable={() => {
+              void openKastNotificationAccess();
+              window.setTimeout(() => void notificationReaderStatus().then(setReader), 4000);
+            }}
+            down={readerProblem(reader) === "down"}
+            lastSeen={reader ? lastSeenText(reader.lastSeenAt) : undefined}
+            restartNote={readerNote}
+            onRestart={() => {
+              setReaderNote("⏳ يعيد التشغيل…");
+              void restartNotificationReader().then((status) => {
+                setReader(status);
+                if (readerProblem(status) !== "down") {
+                  setReaderNote(null);
+                  void drainBankNotices(ownNumbersRef.current).then((result) => result && setInbox(result.inbox));
+                  return;
+                }
+                setReaderNote("لم يرجع. في الشاشة التي ستفتح: أطفئ STAR NET ثم شغّله من جديد، ثم ارجع هنا.");
+                void openKastNotificationAccess();
+              });
             }}
           />
-          <RecurringSection accounts={sources} kind="expense" rules={rules} incomeCustom={incomeCats} expenseCustom={expenseCats} onAdd={addRule} onDelete={removeRule} />
-        </>
-      )}
+        <WealthLineList lines={sectionLines(wealth, "wallets")} onOpen={openLineSheet} isLow={lineIsLow} />
+        <button type="button" className="text-action money-manage-accounts" onClick={manageAccounts}>
+          🏦 إدارة البنوك والمحافظ (إضافة / تصحيح رصيد)
+        </button>
+      </MoneySection>
+
+      <MoneySection id="currencies" open={isOpen("currencies")} onToggle={() => toggle("currencies")} badge={holdings.length ? `${holdings.length}` : undefined}>
+        <CurrenciesBody holdings={holdings} onRates={() => window.location.assign("/currencies")} />
+      </MoneySection>
+
+      <MoneySection id="starlink" open={isOpen("starlink")} onToggle={() => toggle("starlink")} badge={sectionTotal("starlink")} tone="warn">
+        <WealthLineList lines={sectionLines(wealth, "starlink")} onOpen={openLineSheet} empty="لا ديون لستارلينك الآن." />
+        <Link href="/starlink" className="text-action">
+          🛰️ ستارلينك والبطاقة (سداد D) ←
+        </Link>
+      </MoneySection>
+
+      <MoneySection id="customers" open={isOpen("customers")} onToggle={() => toggle("customers")} badge={sectionTotal("customers")}>
+        <WealthLineList lines={sectionLines(wealth, "customers")} onOpen={openLineSheet} empty="لا ديون مع الزبائن الآن." />
+        <Link href="/clients" className="text-action">
+          👥 صفحة الزبائن ←
+        </Link>
+      </MoneySection>
+
+      <MoneySection id="suppliers" open={isOpen("suppliers")} onToggle={() => toggle("suppliers")} badge={sectionTotal("suppliers")} tone="warn">
+        <WealthLineList lines={sectionLines(wealth, "suppliers")} onOpen={openLineSheet} empty="لا شيء عليك للموردين الآن." />
+        <Link href="/clients" className="text-action">
+          🏭 صفحة الموردين ←
+        </Link>
+      </MoneySection>
+
+      <MoneySection id="reps" open={isOpen("reps")} onToggle={() => toggle("reps")} badge={sectionTotal("reps")}>
+        <WealthLineList lines={sectionLines(wealth, "reps")} onOpen={openLineSheet} empty="لا أرصدة مع المندوبين الآن." />
+        <Link href="/representatives" className="text-action">
+          🧑‍💼 صفحة المندوبين ←
+        </Link>
+      </MoneySection>
+
+      <MoneySection id="receivables" open={isOpen("receivables")} onToggle={() => toggle("receivables")} badge={sectionTotal("receivables")} tone="good">
+        <WealthLineList lines={sectionLines(wealth, "receivables")} onOpen={openLineSheet} empty="لا شيء لك عند أحد الآن." />
+        {customerDebts && customerDebts.totalMru > 0.5 && (
+          <div className="money-aging">
+            <strong>ديون الزبائن حسب عمرها</strong>
+            <ul className="money-aging-list">
+              {FINE_BUCKET_LABELS.map((b) => {
+                const value = customerDebts.bucketsMru[b.key];
+                const pct = customerDebts.totalMru > 0 ? Math.max(0, (value / customerDebts.totalMru) * 100) : 0;
+                return (
+                  <li key={b.key} className={`money-aging-${b.key}`}>
+                    <span>{b.label}</span>
+                    <span className="money-aging-bar" aria-hidden="true">
+                      <i style={{ width: `${pct}%` }} />
+                    </span>
+                    <bdi dir="ltr">≈ {formatAmount(Math.round(value))}</bdi>
+                  </li>
+                );
+              })}
+            </ul>
+            {(customerDebts.overdueMru > 0.5 || customerDebts.upcomingMru > 0.5) && (
+              <p className="settings-hint">
+                {customerDebts.overdueMru > 0.5 && (
+                  <>
+                    ⏰ متأخر عن موعده: <bdi dir="ltr">≈ {formatAmount(Math.round(customerDebts.overdueMru))}</bdi> أوقية.{" "}
+                  </>
+                )}
+                {customerDebts.upcomingMru > 0.5 && (
+                  <>
+                    📆 بموعد قادم: <bdi dir="ltr">≈ {formatAmount(Math.round(customerDebts.upcomingMru))}</bdi> أوقية.
+                  </>
+                )}
+              </p>
+            )}
+          </div>
+        )}
+      </MoneySection>
+
+      <MoneySection id="transfers" open={isOpen("transfers")} onToggle={() => toggle("transfers")} badge={(book.transfers?.length ?? 0) + exchanges.length + remittances.length || undefined}>
+        <p className="settings-hint">التحويل بين حساباتك ينقل المال من مكان إلى آخر - ليس دخلًا ولا مصروفًا، ولا يغيّر «المال المتاح».</p>
+        <TransferSection
+          accounts={book.accounts}
+          transfers={book.transfers ?? []}
+          onSave={saveTransfer}
+          onDelete={removeTransfer}
+        />
+
+        <ExchangeSection
+          list={exchanges}
+          accounts={book.accounts}
+          onSave={(input) => {
+            const result = createExchange(exchanges, input);
+            if (!result.ok) return result.message;
+            storeExchanges(result.list, result.exchange);
+            return null;
+          }}
+          onEdit={(id, input) => {
+            const result = updateExchange(exchanges, id, input);
+            if (!result.ok) return result.message;
+            storeExchanges(result.list, result.exchange);
+            return null;
+          }}
+          onDelete={(id) => storeExchanges(deleteExchange(exchanges, id), null, id)}
+        />
+
+        <RemittanceSection
+          costs={exchangeCosts}
+          list={remittances}
+          accounts={book.accounts}
+          rates={rates}
+          month={month}
+          since={profitReset?.date}
+          onSave={addRemittance}
+          onPay={payRemittance}
+          onDelete={removeRemittance}
+          onEdit={editRemittance}
+          onDeletePayment={removeRemittancePayment}
+        />
+      </MoneySection>
+
+      <MoneySection id="compare" open={isOpen("compare")} onToggle={() => toggle("compare")}>
+        <QuickCompareBody comparisons={comparisons} mode={compareMode} onMode={chooseCompare} />
+      </MoneySection>
+
+      <MoneySection id="analysis" open={isOpen("analysis")} onToggle={() => toggle("analysis")}>
+        {dashData && (
+          <FinanceDashboard
+            input={dashData.input}
+            money={dashData.money}
+            accounts={accounts}
+            clientName={dashData.clientName}
+            snapshot={dashData.snapshot}
+            books={dashData.books}
+            today={today()}
+            onOpenTab={openReportTab}
+            alertsHost={alertsHost}
+            foldSignal={foldSignal}
+            onReveal={() => storeSections(openSection(openSections, "analysis"))}
+            onAlertCount={setCenterCount}
+          />
+        )}
+      </MoneySection>
+
+      <MoneySection id="records" open={isOpen("records")} onToggle={() => toggle("records")}>
+        <div className="report-tabs" role="tablist" aria-label="حسابي">
+          {TABS.map((t) => (
+            <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} className={`report-tab${tab === t.id ? " report-tab-active" : ""}`} onClick={() => chooseTab(t.id)}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {tab === "income" && (
+          <>
+            <IncomeTab
+              accounts={sources}
+              month={month}
+              period={period}
+              incomes={incomes}
+              custom={incomeCats}
+              rates={rates}
+              openNew={newRecord}
+              onOpened={consumed}
+              onSave={saveIncomeRecord}
+              onDelete={removeIncome}
+              onAddCategory={(name, icon, parentId) => {
+                const result = addIncomeCategory(incomeCats, name, icon, parentId);
+                if (!result.ok) return result.message;
+                saveIncomeCategories(result.list);
+                setIncomeCats(result.list);
+                return null;
+              }}
+              onRemoveCategory={(id) => {
+                const next = removeIncomeCategory(incomeCats, id);
+                saveIncomeCategories(next);
+                setIncomeCats(next);
+              }}
+            />
+            <RecurringSection accounts={sources} kind="income" rules={rules} incomeCustom={incomeCats} expenseCustom={expenseCats} onAdd={addRule} onDelete={removeRule} />
+          </>
+        )}
+
+        {tab === "expense" && (
+          <>
+            <PersonalExpensesTab
+              accounts={sources}
+              openNew={newRecord}
+              onOpened={consumed}
+              expenses={expenses}
+              custom={expenseCats}
+              rates={rates}
+              onChange={(list, custom) => {
+                // A 🔁 expense deleted: that month stays without it.
+                let nextRules = rules;
+                for (const old of expenses) {
+                  if (old.recurringId && !list.some((e) => e.id === old.id)) nextRules = skipRecurringMonth(nextRules, old.recurringId, old.date.slice(0, 7));
+                }
+                if (nextRules !== rules) {
+                  saveRecurring(nextRules);
+                  setRules(nextRules);
+                }
+                setExpenses(list);
+                setExpenseCats(custom);
+                setCashVersion((v) => v + 1);
+              }}
+            />
+            <RecurringSection accounts={sources} kind="expense" rules={rules} incomeCustom={incomeCats} expenseCustom={expenseCats} onAdd={addRule} onDelete={removeRule} />
+          </>
+        )}
+      </MoneySection>
 
       {shownLine && (
         <PartySheet title={`${shownLine.icon} ${shownLine.label}`} onClose={() => setOpenLine(null)}>
@@ -1007,35 +1301,34 @@ export default function MoneyPage() {
         </PartySheet>
       )}
 
-      <section className="report-card money-danger" data-tour="money-fresh-start">
-        <div className="report-card-head">
-          <h3>⚙️ البداية من جديد</h3>
+      <MoneySection id="reset" open={isOpen("reset")} onToggle={() => toggle("reset")} tour="money-fresh-start">
+        <div className="money-danger">
+          {profitReset && (
+            <p className="settings-hint">
+              آخر بداية: <bdi dir="ltr">{profitReset.date}</bdi> - الأرباح والخسائر تُحسب منها.
+            </p>
+          )}
+          <button type="button" className="dialog-secondary" onClick={() => void resetProfits()}>
+            🔄 تصفير الكاش والبنوك والمحافظ إلى 0 (لا يمس المندوبين ولا الأجهزة ولا D)
+          </button>
+          <button type="button" className="dialog-secondary" onClick={() => void resetCash()}>
+            💵 إرجاع الكاش إلى 0 فقط
+          </button>
+          {(cashResetOn || cardResetOn || hasAccountsReset(book)) && (
+            <button type="button" className="dialog-secondary" onClick={() => void undoResetProfits()}>
+              ↩️ إرجاع الكاش والبنوك كما كانت (قبل التصفير)
+            </button>
+          )}
+          <button type="button" className="dialog-danger" onClick={() => void wipeEverything()}>
+            🗑️ حذف كل المعاملات وتصفير كل الحسابات
+          </button>
+          {wipeUndo && (
+            <button type="button" className="dialog-secondary" onClick={() => void restoreWiped()}>
+              ↩️ استرجاع ما حُذف يوم <bdi dir="ltr">{wipeUndo.at.slice(0, 10)}</bdi>
+            </button>
+          )}
         </div>
-        {profitReset && (
-          <p className="settings-hint">
-            آخر بداية: <bdi dir="ltr">{profitReset.date}</bdi> - الأرباح والخسائر تُحسب منها.
-          </p>
-        )}
-        <button type="button" className="dialog-secondary" onClick={() => void resetProfits()}>
-          🔄 تصفير الكاش والبنوك والمحافظ إلى 0 (لا يمس المندوبين ولا الأجهزة ولا D)
-        </button>
-        <button type="button" className="dialog-secondary" onClick={() => void resetCash()}>
-          💵 إرجاع الكاش إلى 0 فقط
-        </button>
-        {(cashResetOn || cardResetOn || hasAccountsReset(book)) && (
-          <button type="button" className="dialog-secondary" onClick={() => void undoResetProfits()}>
-            ↩️ إرجاع الكاش والبنوك كما كانت (قبل التصفير)
-          </button>
-        )}
-        <button type="button" className="dialog-danger" onClick={() => void wipeEverything()}>
-          🗑️ حذف كل المعاملات وتصفير كل الحسابات
-        </button>
-        {wipeUndo && (
-          <button type="button" className="dialog-secondary" onClick={() => void restoreWiped()}>
-            ↩️ استرجاع ما حُذف يوم <bdi dir="ltr">{wipeUndo.at.slice(0, 10)}</bdi>
-          </button>
-        )}
-      </section>
+      </MoneySection>
 
       {/* ➕ like the home screen's: a new income / expense / debt for the open tab (long-press pins it). */}
       <div className="home-fab">

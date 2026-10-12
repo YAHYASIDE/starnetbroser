@@ -1326,3 +1326,27 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - Places: every app / wallet is its own line (no more «البنوك والمحافظ (N)» group); «🏦 إدارة البنوك والمحافظ»
   under «عندك» opens the add / correct sheet. Every line shows `WealthLine.byCurrency` in full first (أورانج /
   نيتا in فرانك) and «≈ … أوقية» under it when anything is in another currency; the totals stay in أوقية.
+
+## 💰 «حسابي» as a financial dashboard; the reports' «📊 الملخص» moved into it (Oct 12 2026)
+
+- His request (six parts): summary cards, collapsible sections, comparisons, one search, alerts, a
+  professional design - keeping every existing feature, no demo data in the real accounts, no change to how
+  records or debts are computed. His answers: comparisons = «الأرباح والدخل والتحصيل» from the records (past
+  balances are not kept, so never compared); the reports' dashboard moves entirely into «حسابي» (reports keep
+  الصافي / ستارلينك / المتجر / الديون / المصروفات; a saved "dash" tab falls back to «الصافي»); the summary and the
+  alerts open, the rest folded and remembered on the phone (`starnet.moneySections`, not backed up).
+- Logic: `lib/moneyDashboard.ts` (pure, tested) on top of `buildWealth` - nothing recomputed another way:
+  المال المتاح = the «عندك» lines; الالتزامات = «عليك»; المستحقات = «لك»; صافي المركز = المتاح + المستحقات −
+  الالتزامات (= «كل ما تملك»). Big figure ≈ أوقية at the registered rates, the real amounts per currency under it.
+  A transfer between his places never changes a total; a rep's customers' debt is counted once (inside the rep's
+  line - ourDebtLedger).
+- The finance dashboard's data now comes from `lib/financeDashboardData.ts` (same figures the reports page used).
+  In «حسابي» its alert center renders inside «🔔 التنبيهات» (portal, `alertsHost`), with the money alerts:
+  low balance, a negative place balance (= a missing or doubled record → open its statement), an account with no
+  opening balance, bank notices waiting, currencies without a rate, promised payments due within 3 days.
+- ⚖️ مقارنات سريعة: today vs the same day last month (clamped at month end); this month vs the same days of last
+  month, or the whole last month on request - flagged «غير مكتمل» (no ▲/▼) because a running month vs a finished
+  one is misleading; no comparison before the first record, «ناقص» when records start inside the earlier period.
+- 🔎 one search over wallets, currencies, customers / suppliers / reps (balance lines first), personal income /
+  expenses, the business's own الكاش entries, transfers, currency purchases and remittances, by name / note /
+  number / amount (Arabic spellings folded); each hit opens its record (line sheet, place statement, section, tab).

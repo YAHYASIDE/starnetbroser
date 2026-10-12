@@ -3,6 +3,7 @@
 import type { RemittanceList } from "@/lib/remittances";
 import type { ExchangeList } from "@/lib/exchanges";
 import { ReactNode, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { DateInput } from "./DateInput";
 import { formatAmount } from "@/lib/formatAmount";
 import {
@@ -351,6 +352,10 @@ export function FinanceDashboard({
   books,
   today,
   onOpenTab,
+  alertsHost,
+  foldSignal,
+  onReveal,
+  onAlertCount,
 }: {
   input: DashInput;
   /** Every money record (phase 2: sources, debts). */
@@ -361,6 +366,15 @@ export function FinanceDashboard({
   snapshot: DashSnapshot;
   today: string;
   onOpenTab: (tab: string) => void;
+  /** «💰 حسابي» shows the alert center in its own «🔔 التنبيهات» section, at the top of the page:
+   * the alerts are rendered there (a portal), not inside the dashboard. */
+  alertsHost?: HTMLElement | null;
+  /** «طي / فتح جميع الأقسام» of the page: every press folds or opens all the dashboard's sections too. */
+  foldSignal?: { open: boolean; n: number };
+  /** An alert opened one of the dashboard's sections: the page unfolds the dashboard first. */
+  onReveal?: () => void;
+  /** The alerts still to look at (new + reviewed), for the page's badge. */
+  onAlertCount?: (count: number) => void;
 }) {
   const [prefs, setPrefs] = useState<DashPrefs>({ period: "month", collapsed: ["sources"], metrics: ["net"] });
   useEffect(() => setPrefs(loadPrefs()), []);
@@ -550,12 +564,20 @@ export function FinanceDashboard({
     if (ref.kind === "tab") onOpenTab(ref.id);
     else if (ref.kind === "section") {
       const id = ref.id as DashSectionId;
+      onReveal?.();
       if (!isOpen(id)) toggle(id);
-      window.setTimeout(() => document.getElementById(`dash-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 30);
+      window.setTimeout(() => document.getElementById(`dash-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
     } else window.location.assign(homeSearchHref(ref.label ?? ref.id));
   }
   const activeAlertCount = centerAlerts.filter((a) => ["new", "reviewed"].includes(alertStates[a.key]?.status ?? "new")).length;
   const newAlertCount = centerAlerts.filter((a) => (alertStates[a.key]?.status ?? "new") === "new").length;
+  useEffect(() => onAlertCount?.(activeAlertCount), [activeAlertCount, onAlertCount]);
+  // «طي / فتح جميع الأقسام» on the page (a new `n` each press; 0 = nothing pressed yet).
+  useEffect(() => {
+    if (!foldSignal?.n) return;
+    update({ collapsed: foldSignal.open ? [] : DASH_SECTIONS.map((s) => s.id) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [foldSignal?.n]);
 
   const alerts = useMemo(
     () =>
@@ -649,7 +671,7 @@ export function FinanceDashboard({
         </div>
       )}
       <nav className="dash-jump" aria-label="الانتقال إلى قسم">
-        {DASH_SECTIONS.map((s) => (
+        {DASH_SECTIONS.filter((s) => !(alertsHost && s.id === "alerts")).map((s) => (
           <button
             key={s.id}
             type="button"
@@ -667,26 +689,48 @@ export function FinanceDashboard({
         {current.missingCurrencies.length > 0 && ` · لم تُحتسب عملات بلا سعر: ${current.missingCurrencies.join("، ")}`}
       </p>
 
-      <DashSection
-        id="alerts"
-        open={isOpen("alerts")}
-        onToggle={() => toggle("alerts")}
-        badge={activeAlertCount ? `${activeAlertCount}${newAlertCount ? ` · ${newAlertCount} جديد` : ""}` : undefined}
-        extra={
-          <button type="button" className="dash-tool" onClick={() => setRulesOpen(true)}>
-            ⚙️ القواعد
-          </button>
-        }
-      >
-        <AlertCenterBody
-          alerts={centerAlerts}
-          states={alertStates}
-          periodAlerts={alerts}
-          onReview={(key) => updateStates(markAlertReviewed(alertStates, key, new Date().toISOString()))}
-          onAck={(a) => updateStates(acknowledgeAlert(alertStates, a, new Date().toISOString()))}
-          onOpen={openAlert}
-        />
-      </DashSection>
+      {alertsHost
+        ? createPortal(
+            <div className="dash-hosted-alerts">
+              <div className="dash-hosted-alerts-head">
+                <strong>📈 تنبيهات العمل والديون وستارلينك</strong>
+                <button type="button" className="dash-tool" onClick={() => setRulesOpen(true)}>
+                  ⚙️ القواعد
+                </button>
+              </div>
+              <AlertCenterBody
+                alerts={centerAlerts}
+                states={alertStates}
+                periodAlerts={alerts}
+                onReview={(key) => updateStates(markAlertReviewed(alertStates, key, new Date().toISOString()))}
+                onAck={(a) => updateStates(acknowledgeAlert(alertStates, a, new Date().toISOString()))}
+                onOpen={openAlert}
+              />
+            </div>,
+            alertsHost,
+          )
+        : (
+        <DashSection
+          id="alerts"
+          open={isOpen("alerts")}
+          onToggle={() => toggle("alerts")}
+          badge={activeAlertCount ? `${activeAlertCount}${newAlertCount ? ` · ${newAlertCount} جديد` : ""}` : undefined}
+          extra={
+            <button type="button" className="dash-tool" onClick={() => setRulesOpen(true)}>
+              ⚙️ القواعد
+            </button>
+          }
+        >
+          <AlertCenterBody
+            alerts={centerAlerts}
+            states={alertStates}
+            periodAlerts={alerts}
+            onReview={(key) => updateStates(markAlertReviewed(alertStates, key, new Date().toISOString()))}
+            onAck={(a) => updateStates(acknowledgeAlert(alertStates, a, new Date().toISOString()))}
+            onOpen={openAlert}
+          />
+        </DashSection>
+        )}
 
       <DashSection id="kpis" open={isOpen("kpis")} onToggle={() => toggle("kpis")}>
         <div className="dash-kpis">
@@ -967,29 +1011,36 @@ export function FinanceDashboard({
         <SupplierDebtsBody debts={supplierDebts} onDrill={setDrill} />
       </DashSection>
 
-      {goalsOpen && (
-        <GoalsEditSheet
-          goals={goals}
-          currencies={["MRU", ...Object.keys(input.rates).filter((c) => c !== "MRU" && input.rates[c])]}
-          onSave={(next) => {
-            saveAllGoals(next);
-            setGoalsOpen(false);
-          }}
-          onClose={() => setGoalsOpen(false)}
-        />
-      )}
-      {rulesOpen && (
-        <AlertRulesSheet
-          rules={rules}
-          onSave={(next) => {
-            saveAlertRules(next);
-            setRules(next);
-            setRulesOpen(false);
-          }}
-          onClose={() => setRulesOpen(false)}
-        />
-      )}
-      {drill && <DrillSheet drill={drill} onClose={() => setDrill(null)} />}
+      {/* The sheets go to <body>: «حسابي» may have the dashboard folded (hidden) while its alerts are shown. */}
+      {typeof document !== "undefined" &&
+        createPortal(
+          <>
+            {goalsOpen && (
+              <GoalsEditSheet
+                goals={goals}
+                currencies={["MRU", ...Object.keys(input.rates).filter((c) => c !== "MRU" && input.rates[c])]}
+                onSave={(next) => {
+                  saveAllGoals(next);
+                  setGoalsOpen(false);
+                }}
+                onClose={() => setGoalsOpen(false)}
+              />
+            )}
+            {rulesOpen && (
+              <AlertRulesSheet
+                rules={rules}
+                onSave={(next) => {
+                  saveAlertRules(next);
+                  setRules(next);
+                  setRulesOpen(false);
+                }}
+                onClose={() => setRulesOpen(false)}
+              />
+            )}
+            {drill && <DrillSheet drill={drill} onClose={() => setDrill(null)} />}
+          </>,
+          document.body,
+        )}
     </div>
   );
 }

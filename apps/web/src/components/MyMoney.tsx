@@ -790,49 +790,7 @@ export function WealthCard({
       {GROUPS.map((group) => (
         <div key={group.kind} className="money-group">
           <span className="money-group-title">{group.title}</span>
-          <ul className="money-lines">
-            {wealth.lines
-              .filter((l) => l.kind === group.kind)
-              .map((l) => (
-                <li key={l.key}>
-                  <button type="button" className={`money-line-button${isLow?.(l) ? " is-low" : ""}`} onClick={() => onOpen(l)}>
-                    <span>
-                      {l.icon ? `${l.icon} ` : ""}
-                      {l.label}
-                      {isLow?.(l) ? <small className="money-low-chip"> ⚠️ منخفض</small> : null}
-                      {l.items.length > 1 ? <small> ({l.items.length})</small> : null}
-                    </span>
-                    {/* 💱 Its own currencies in full first (his Oct 12 2026 ask «محسوب بعملاته الكاملة»), the
-                        ≈ أوقية under it when anything is in another currency; أورانج / نيتا in فرانك. */}
-                    {(() => {
-                      const foreign = Object.keys(l.byCurrency).some((c) => c !== "MRU") || l.franc;
-                      const full = l.franc
-                        ? Object.values(l.byCurrency).some((v) => Math.abs(v) > 0.0001)
-                          ? francMoney(l.byCurrency)
-                          : "0 فرانك"
-                        : Object.keys(l.byCurrency).length
-                          ? signedMoney(l.byCurrency)
-                          : "0";
-                      return (
-                        <span className="money-line-amount">
-                          <bdi dir="ltr" className={l.mru === 0 ? undefined : l.kind === "owe" ? "money-out" : "money-in"}>
-                            {`${l.kind === "owe" && l.mru ? "-" : ""}${full}`}
-                          </bdi>
-                          {foreign && Math.abs(l.mru) > 0.0001 ? (
-                            <small className="money-line-native">
-                              <bdi dir="ltr">≈ {mruText(l.mru)}</bdi> أوقية
-                            </small>
-                          ) : null}
-                        </span>
-                      );
-                    })()}
-                    <span className="money-line-go" aria-hidden="true">
-                      ‹
-                    </span>
-                  </button>
-                </li>
-              ))}
-          </ul>
+          <WealthLineList lines={wealth.lines.filter((l) => l.kind === group.kind)} onOpen={onOpen} isLow={isLow} />
           {group.kind === "have" && onManageAccounts ? (
             <button type="button" className="text-action money-manage-accounts" onClick={onManageAccounts}>
               🏦 إدارة البنوك والمحافظ (إضافة / تصحيح رصيد)
@@ -842,6 +800,60 @@ export function WealthCard({
       ))}
     </div>
   );
+}
+
+/** The wealth lines as tappable rows - in each currency in full, ≈ أوقية under (a section of «حسابي»
+ * lists its own lines with it). */
+export function WealthLineList({ lines, onOpen, isLow, empty }: { lines: WealthLine[]; onOpen: (line: WealthLine) => void; isLow?: (line: WealthLine) => boolean; empty?: string }) {
+  if (lines.length === 0) return <p className="party-empty">{empty ?? "لا شيء هنا الآن."}</p>;
+  return (
+    <ul className="money-lines">
+      {lines.map((l) => (
+        <li key={l.key}>
+          <button type="button" className={`money-line-button${isLow?.(l) ? " is-low" : ""}`} onClick={() => onOpen(l)}>
+            <span>
+              {l.icon ? `${l.icon} ` : ""}
+              {l.label}
+              {isLow?.(l) ? <small className="money-low-chip"> ⚠️ منخفض</small> : null}
+              {l.items.length > 1 ? <small> ({l.items.length})</small> : null}
+            </span>
+            {/* 💱 Its own currencies in full first (his Oct 12 2026 ask «محسوب بعملاته الكاملة»), the
+                ≈ أوقية under it when anything is in another currency; أورانج / نيتا in فرانك. */}
+            {(() => {
+              const foreign = Object.keys(l.byCurrency).some((c) => c !== "MRU") || l.franc;
+              const full = l.franc
+                ? Object.values(l.byCurrency).some((v) => Math.abs(v) > 0.0001)
+                  ? francMoney(l.byCurrency)
+                  : "0 فرانك"
+                : Object.keys(l.byCurrency).length
+                  ? signedMoney(l.byCurrency)
+                  : "0";
+              return (
+                <span className="money-line-amount">
+                  <bdi dir="ltr" className={l.mru === 0 ? undefined : l.kind === "owe" ? "money-out" : "money-in"}>
+                    {`${l.kind === "owe" && l.mru ? "-" : ""}${full}`}
+                  </bdi>
+                  {foreign && Math.abs(l.mru) > 0.0001 ? (
+                    <small className="money-line-native">
+                      <bdi dir="ltr">≈ {mruText(l.mru)}</bdi> أوقية
+                    </small>
+                  ) : null}
+                </span>
+              );
+            })()}
+            <span className="money-line-go" aria-hidden="true">
+              ‹
+            </span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** «1,000 أوقية + 50 سيفا»; أورانج / نيتا in فرانك. */
+export function moneyText(byCurrency: Record<string, number>, franc = false): string {
+  return franc ? francMoney(byCurrency) : signedMoney(byCurrency);
 }
 
 /** A line's detail: who / which account, how much, in its own currencies. */
