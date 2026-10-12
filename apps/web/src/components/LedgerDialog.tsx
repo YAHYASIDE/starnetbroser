@@ -47,6 +47,7 @@ import {
   planFifoAllocation,
 } from "@/lib/paymentAllocationStore";
 import { StarlinkSettlementDialog } from "./StarlinkSettlementDialog";
+import { openDebtEntries } from "@/lib/deviceFault";
 import { AllocationDeviceOption, AllocationShipmentRow, PaymentAllocationDialog } from "./PaymentAllocationDialog";
 import { LegacyEntryCompletionDialog } from "./LegacyEntryCompletionDialog";
 import { PaymentRateCompletionDialog } from "./PaymentRateCompletionDialog";
@@ -64,6 +65,11 @@ export interface SiblingDevice {
   accountId: string;
   accountName: string;
   entries: LedgerEntry[];
+}
+
+/** The oldest shipment whose Starlink cost is still owed («D»), or null. */
+function oldestOpenDebt(entries: LedgerEntry[]): LedgerEntry | null {
+  return openDebtEntries(entries).sort((a, b) => a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt))[0] ?? null;
 }
 
 interface Props {
@@ -105,6 +111,9 @@ interface Props {
   initialKind?: LedgerEntryKind;
   /** What Starlink sync read about this device - picks the Starlink cost's country/currency/amount. */
   starlinkInfo?: { serviceCountry?: string; currency?: string; balanceDue?: string };
+  /** 💳 Opened from the card's «D» (his Oct 12 2026 ask): straight to paying its oldest unpaid
+   * Starlink cost («تسوية تكلفة Starlink»); closing that closes this too. */
+  openSettlement?: boolean;
 }
 
 /** Builds one device's own allocation-dialog data: its eligible (same-currency, not-yet-fully-
@@ -154,6 +163,7 @@ export function LedgerDialog({
   clientPhone,
   initialKind = "debit",
   starlinkInfo,
+  openSettlement = false,
 }: Props) {
   const [kind, setKind] = useState<LedgerEntryKind>(initialKind);
   // أوقية (MRU) is the actual day-to-day currency this business sells in - USD is only the
@@ -224,7 +234,7 @@ export function LedgerDialog({
   const [costPendingName, setCostPendingName] = useState<string | undefined>(costDefaults.country?.name);
   const [costPendingSymbol, setCostPendingSymbol] = useState<string | undefined>(costDefaults.country?.symbol);
 
-  const [settlingEntry, setSettlingEntry] = useState<LedgerEntry | null>(null);
+  const [settlingEntry, setSettlingEntry] = useState<LedgerEntry | null>(() => (openSettlement ? oldestOpenDebt(entries) : null));
   // 🔄 «هل هذا تجديد؟» before an «عليه» is saved (renewals.ts - his choice «سؤال قبل الحفظ»).
   const [renewalAsk, setRenewalAsk] = useState<((renewal: boolean) => void) | null>(null);
   const [pendingPayment, setPendingPayment] = useState<LedgerEntry | null>(null);
@@ -979,7 +989,10 @@ export function LedgerDialog({
           currencyStore={currencyStore}
           defaultCurrencyCode={settlingEntry.starlinkCost?.currencyCode ?? lastUsedCostCurrency(entries)}
           onUpsertCurrency={onUpsertCurrency}
-          onClose={() => setSettlingEntry(null)}
+          onClose={() => {
+            setSettlingEntry(null);
+            if (openSettlement) onClose();
+          }}
           onSettle={(cost) => {
             // Locked now, at the moment this shipment's profit first becomes computable - never
             // re-derived later even if MRU/SIFA's registry rate changes afterward (rule VI).
@@ -991,6 +1004,7 @@ export function LedgerDialog({
               updateEntry(entries, settlingEntry.id, { starlinkCost: { ...cost, settledAt: new Date().toISOString() }, profitCurrencyRates }),
             );
             setSettlingEntry(null);
+            if (openSettlement) onClose();
           }}
         />
       )}

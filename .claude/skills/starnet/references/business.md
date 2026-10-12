@@ -1380,3 +1380,10 @@ is never pressed while a field is empty - it refills and saves on the next try (
   the entry; its سيفا goes to «كاش سيفا» like a rep's handover), `botId` counted once. Never his profit, his normal
   account or his customers' devices. App deposits count in the app's balance (`repLedgerFlows` in loadAccountFlows)
   and statement (moneyMovements `repLedgers`).
+
+## 💳 Tap «D» to pay Starlink (Oct 12 2026)
+
+- His words: «اجعل عندما أضغط على D تظهر لي مكان تسديد الفاتورة». The card's red «D» is a button: it opens the
+  device's ledger with `openSettlement` = straight to «تسوية تكلفة Starlink» of its OLDEST unpaid shipment
+  (`openDebtEntries`); settling or closing it closes the ledger too. The orange «D» (a previous owner's debt) opens
+  /starlink (where previous debts are paid). No open D entry behind a red D → /starlink as well.

@@ -84,6 +84,8 @@ interface Props {
    * never anything Starlink-cost or profit related, which stays strictly internal. */
   allocations: PaymentAllocation[];
   onLedger: (account: StarlinkAccountSummary) => void;
+  /** 💳 «D» tapped: pay this device's unpaid Starlink cost (his Oct 12 2026 ask). */
+  onSettleD?: (account: StarlinkAccountSummary) => void;
   onDeviceStatement: (account: StarlinkAccountSummary) => void;
   /** The Client this device is linked to (via account.clientId) - undefined for a card never
    * linked to a customer yet ("الزبون غير محدد"). Resolved by the caller from clientStore, never
@@ -228,7 +230,7 @@ function IconUndo() {
 }
 
 export function AccountCard({
-  account, onEdit, ledgerEntries, allocations, onLedger, onDeviceStatement, client, onOpenClient, currencyStore,
+  account, onEdit, ledgerEntries, allocations, onLedger, onSettleD, onDeviceStatement, client, onOpenClient, currencyStore,
   context = "active", onSetDeviceFault, onSetRepair, onPatch, onTravelPrice, unregisteredCard = false, onFinishCreation, allAccounts = [], mailSignedIn = false, onArchive, onSoftDelete, onRestore, onPermanentDelete, onConfirmRenewal,
   sessionNeedsLogin = false,
   repPending = false,
@@ -702,8 +704,27 @@ export function AccountCard({
         </div>
         {(marks.d || marks.p || previousDebts.length > 0) && (
           <span className="device-marks" aria-label="حالة الدفع">
-            {marks.d === "pending" && <span className="device-mark device-mark-d" title="تكلفة Starlink لم تُدفع بعد">D</span>}
-            {previousDebts.length > 0 && <span className="device-mark device-mark-d-previous" title="دين سابق على Starlink لم يُدفع">D</span>}
+            {/* 💳 his Oct 12 2026 ask «عندما أضغط على D تظهر لي مكان تسديد الفاتورة» */}
+            {marks.d === "pending" && (
+              <button
+                type="button"
+                className="device-mark device-mark-d device-mark-button"
+                title="تكلفة Starlink لم تُدفع بعد - اضغط للتسديد"
+                aria-label="تسديد تكلفة Starlink"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (openDebtEntries(ledgerEntries).length && onSettleD) onSettleD(account);
+                  else window.location.assign("/starlink");
+                }}
+              >
+                D
+              </button>
+            )}
+            {previousDebts.length > 0 && (
+              <Link href="/starlink" className="device-mark device-mark-d-previous device-mark-button" title="دين سابق على Starlink لم يُدفع - اضغط للتسديد" aria-label="تسديد الدين السابق" onClick={(e) => e.stopPropagation()}>
+                D
+              </Link>
+            )}
             {marks.d === "settled" && <span className="device-mark device-mark-ok" title="تكلفة Starlink مدفوعة">✓</span>}
             {marks.p && (
               <span

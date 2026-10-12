@@ -401,6 +401,8 @@ export function HomeView({
   const [remindersBadgeEnabled, setRemindersBadgeEnabled] = useState(true);
   useEffect(() => setRemindersBadgeEnabled(isRemindersBadgeEnabled()), []);
   const [ledgerAccount, setLedgerAccount] = useState<StarlinkAccountSummary | null>(null);
+  // 💳 opened from the card's «D»: straight to «تسوية تكلفة Starlink».
+  const [ledgerSettle, setLedgerSettle] = useState(false);
   // True when the ledger was opened from the floating "+" → دفعة من زبون (starts on "له").
   const [ledgerForPayment, setLedgerForPayment] = useState(false);
   const [statementAccount, setStatementAccount] = useState<StarlinkAccountSummary | null>(null);
@@ -2429,6 +2431,10 @@ export function HomeView({
                 ledgerEntries={getAccountEntries(ledgerStore, account.id)}
                 allocations={allAllocations}
                 onLedger={(selected) => setLedgerAccount(selected)}
+                onSettleD={(selected) => {
+                  setLedgerSettle(true);
+                  setLedgerAccount(selected);
+                }}
                 onDeviceStatement={(selected) => setStatementAccount(selected)}
                 client={visibleClientOf(account)}
                 heldByRepName={isHiddenRepDevice(account, hiddenReps) ? repContact(account, representativeStore)?.name : undefined}
@@ -2573,7 +2579,9 @@ export function HomeView({
           onClose={() => {
             setLedgerAccount(null);
             setLedgerForPayment(false);
+            setLedgerSettle(false);
           }}
+          openSettlement={ledgerSettle}
           initialKind={ledgerForPayment ? "credit" : "debit"}
           onChange={(entries) => updateLedgerEntries(ledgerAccount.id, entries)}
           renewalPlan={ledgerAccount.renewalPlan}

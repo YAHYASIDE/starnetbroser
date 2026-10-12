@@ -31,6 +31,19 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-12-tap-d-to-pay",
+    date: "2026-10-12",
+    title: "💳 اضغط «D» لتسديد تكلفة Starlink",
+    steps: [
+      {
+        path: "/",
+        title: "💳 «D» على بطاقة الجهاز صار زرًا",
+        before: "«D» علامة فقط - التسديد من داخل عمليات الجهاز.",
+        after: "اضغط «D» فتفتح «تسوية تكلفة Starlink» لأقدم شحنة غير مدفوعة مباشرة. «D» البرتقالي (دين سابق) يفتح صفحة ستارلينك والبطاقة.",
+      },
+    ],
+  },
+  {
     id: "2026-10-12-rep-bot-named-accounts",
     date: "2026-10-12",
     title: "🤖 حسابات المندوب المسمّاة في بوت المال",
