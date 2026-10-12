@@ -55,6 +55,7 @@ const FIELD_INFO: Record<keyof SyncedStarlinkFields, { label: string; section: S
   travelRegistrationRequired: { label: "🛂 توثيق السفر مطلوب", section: "subscriptions" },
   travelRegistrationDue: { label: "موعد توثيق السفر", section: "subscriptions" },
   checkOnly: { label: "كشف توثيق", section: "subscriptions" },
+  pinRequest: { label: "📌 تثبيت", section: "subscriptions" },
 };
 
 /** 🛂 A «كشف توثيق» read (checkOnly): only the travel-registration notice is taken from it. */

@@ -202,6 +202,9 @@ export interface SyncedStarlinkFields {
   /** Set by the native side on a «🛂 كشف توثيق» read: the app takes only the travel-registration
    * fields from it and changes nothing else on the device. */
   checkOnly?: boolean;
+  /** 📌 Not a read: the device browser's «تثبيت - لم يُسجَّل الشحن بعد» tab (PinRequest.java). The app
+   * pins the device with this note (lib/deviceNotes.ts `applyBrowserPins`) and changes nothing else. */
+  pinRequest?: { note?: string; at?: number };
   /** The password the operator typed in Starlink's sign-in form after the saved one was refused,
    * once it got in - becomes the device's starlinkPassword. Never logged. */
   loginPassword?: string;

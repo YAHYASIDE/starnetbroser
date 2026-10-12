@@ -30,6 +30,19 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
 
+        <!-- 📌 «تثبيت - لم يُسجَّل الشحن بعد»: a small tab on the right edge, half-way down. -->
+        <TextView
+            android:id="@+id/starnet_pin_handle"
+            android:layout_width="34dp"
+            android:layout_height="46dp"
+            android:layout_gravity="right|center_vertical"
+            android:background="@drawable/starnet_pin_handle"
+            android:contentDescription="تثبيت الجهاز"
+            android:elevation="6dp"
+            android:gravity="center"
+            android:text="📌"
+            android:textSize="17sp" />
+
         <LinearLayout
             android:id="@+id/starnet_error_overlay"
             android:layout_width="match_parent"

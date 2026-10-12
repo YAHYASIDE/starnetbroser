@@ -119,7 +119,7 @@ import {
 import { ApiError, listAccounts } from "@/lib/apiClient";
 import { getLastBackupAt, isDemoMode, isLoggedIn, isRemindersBadgeEnabled } from "@/lib/settingsStore";
 import { commitDemoAccounts, loadDemoAccounts } from "@/lib/demoAccountStore";
-import { isPinned, loadDeviceNotes, mergeDeviceNotes, noteMatchesQuery, pinnedDevices, saveDeviceNote, saveDeviceNotes, setDevicePinned, shouldAskUnpin, unpinAll, type DeviceNotesStore } from "@/lib/deviceNotes";
+import { applyBrowserPins, isBrowserPin, isPinned, loadDeviceNotes, mergeDeviceNotes, noteMatchesQuery, pinnedDevices, saveDeviceNote, saveDeviceNotes, setDevicePinned, shouldAskUnpin, unpinAll, type DeviceNotesStore } from "@/lib/deviceNotes";
 import { ACCOUNTS_CHANGED_EVENT } from "@/lib/repMenuRecords";
 import { loadRepRequests, pendingRepRequests } from "@/lib/repRequests";
 import {
@@ -1050,8 +1050,37 @@ export function HomeView({
       // already merged/messaged, never re-applied, just not yet confirmed discarded natively.
     }
 
-    async function applyBatch(syncs: PendingSyncLike[]) {
+    async function applyBatch(batch: PendingSyncLike[]) {
       await accountsReadyGateRef.current.whenReady();
+
+      // 📌 The device browser's «تثبيت - لم يُسجَّل الشحن بعد» tab: a pin + note, never a Starlink read.
+      const pins = batch.filter((sync) => isBrowserPin(sync) && !processedSyncIds.has(sync.syncId));
+      if (pins.length > 0) {
+        const live = new Set(accountsRef.current.filter((a) => !a.deletedAt).map((a) => a.id));
+        const result = applyBrowserPins(loadDeviceNotes(), pins, live);
+        let savedPins = true;
+        try {
+          saveDeviceNotes(result.store);
+        } catch {
+          savedPins = false; // left pending: the next drain tries again
+        }
+        if (savedPins) {
+          setDeviceNotes(result.store);
+          for (const id of result.syncIds) {
+            processedSyncIds.add(id);
+            unackedSyncIds.add(id);
+          }
+          for (const id of result.pinned) {
+            const name = accountsRef.current.find((a) => a.id === id)?.name ?? "الجهاز";
+            pushToast(`📌 ثُبّت ${name}: لم يُسجَّل الشحن بعد - سجّله مع D حين تنزل الفاتورة`);
+          }
+        }
+      }
+      const syncs = batch.filter((sync) => !isBrowserPin(sync));
+      if (syncs.length === 0) {
+        await retryAcks();
+        return;
+      }
 
       const signedIn = markSignedInFromSync(sessionResultsRef.current, syncs.map((sync) => sync.accountId));
       if (signedIn !== sessionResultsRef.current) updateSessionResults(signedIn);

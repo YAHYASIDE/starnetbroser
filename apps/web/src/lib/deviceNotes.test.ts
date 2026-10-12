@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { duePins, isPinned, mergeDeviceNotes, noteMatchesQuery, pinAgeText, pinnedDevices, saveDeviceNote, setDevicePinned, shouldAskUnpin, unpinAll, type DeviceNotesStore } from "./deviceNotes";
+import { applyBrowserPins, BROWSER_PIN_NOTE, duePins, isBrowserPin, isPinned, mergeDeviceNotes, noteMatchesQuery, pinAgeText, pinnedDevices, saveDeviceNote, setDevicePinned, shouldAskUnpin, unpinAll, type DeviceNotesStore } from "./deviceNotes";
 
 const NOW = new Date(2026, 9, 8, 12, 0, 0);
 
@@ -112,5 +112,31 @@ describe("🧹 / 🔍", () => {
     expect(shouldAskUnpin(store, "a", [{ id: "1" }], [{ id: "1" }, { id: "2" }])).toBe(true);
     expect(shouldAskUnpin(store, "a", [{ id: "1" }], [{ id: "1" }])).toBe(false);
     expect(shouldAskUnpin(store, "b", [], [{ id: "2" }])).toBe(false);
+  });
+});
+
+describe("📌 a pin from the device's browser «لم يُسجَّل الشحن بعد»", () => {
+  const at = Date.UTC(2026, 9, 12, 12, 54);
+  const pin = (syncId: string, accountId: string, note?: string) => ({ syncId, accountId, fields: { pinRequest: { at, ...(note ? { note } : {}) } } });
+
+  it("pins the device with its note, dated when he tapped it", () => {
+    const { store, syncIds, pinned } = applyBrowserPins({}, [pin("s1", "d1", BROWSER_PIN_NOTE)], new Set(["d1"]));
+    expect(syncIds).toEqual(["s1"]);
+    expect(pinned).toEqual(["d1"]);
+    expect(store.d1).toMatchObject({ text: BROWSER_PIN_NOTE, pinnedAt: new Date(at).toISOString(), noteAt: new Date(at).toISOString() });
+    expect(isPinned(store, "d1")).toBe(true);
+  });
+
+  it("keeps an older note in the log, skips a deleted device but still acknowledges it, ignores real reads", () => {
+    const before = saveDeviceNote({}, "d1", { text: "طبق جديد", pin: false }, new Date(Date.UTC(2026, 9, 1)));
+    const read = { syncId: "r1", accountId: "d1", fields: {} }; // a real Starlink read (no pinRequest)
+    const { store, syncIds, pinned } = applyBrowserPins(before, [read, pin("s1", "d1"), pin("s2", "gone")], new Set(["d1"]));
+    expect(syncIds).toEqual(["s1", "s2"]);
+    expect(pinned).toEqual(["d1"]);
+    expect(store.d1?.text).toBe(BROWSER_PIN_NOTE); // no note sent -> the standard one
+    expect(store.d1?.history?.[0]?.text).toBe("طبق جديد");
+    expect(store.gone).toBeUndefined();
+    expect(isBrowserPin(read)).toBe(false);
+    expect(isBrowserPin(pin("s3", "d1"))).toBe(true);
   });
 });

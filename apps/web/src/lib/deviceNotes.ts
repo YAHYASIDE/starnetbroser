@@ -189,3 +189,43 @@ export function shouldAskUnpin(store: DeviceNotesStore, id: string, before: { id
   const known = new Set(before.map((e) => e.id));
   return after.some((e) => !known.has(e.id));
 }
+
+/** 📌 The note of the device browser's «تثبيت - لم يُسجَّل الشحن بعد» tab (same text as PinRequest.java). */
+export const BROWSER_PIN_NOTE = "⏳ لم يُسجَّل الشحن بعد - الفوترة 0 حتى تنزل الفاتورة؛ سجّل المبلغ مع D";
+
+interface BrowserPinLike {
+  syncId: string;
+  accountId: string;
+  fields: { pinRequest?: { note?: string; at?: number } };
+}
+
+export function isBrowserPin(sync: BrowserPinLike): boolean {
+  return Boolean(sync.fields?.pinRequest);
+}
+
+/**
+ * 📌 Pins from a device's browser (his Oct 12 2026 ask: the debt was cleared and a new service started,
+ * Billing shows 0 until the invoice comes down minutes later): each pins its device with the note, so
+ * the charge gets recorded with D. A device that's gone is skipped. `syncIds` = every pin handled
+ * (to acknowledge), `pinned` = the devices actually pinned.
+ */
+export function applyBrowserPins(
+  store: DeviceNotesStore,
+  syncs: BrowserPinLike[],
+  liveIds: ReadonlySet<string>,
+  now: Date = new Date(),
+): { store: DeviceNotesStore; syncIds: string[]; pinned: string[] } {
+  let next = store;
+  const syncIds: string[] = [];
+  const pinned: string[] = [];
+  for (const sync of syncs) {
+    const pin = sync.fields?.pinRequest;
+    if (!pin) continue;
+    syncIds.push(sync.syncId);
+    if (!liveIds.has(sync.accountId)) continue;
+    const at = typeof pin.at === "number" && pin.at > 0 ? new Date(pin.at) : now;
+    next = saveDeviceNote(next, sync.accountId, { text: pin.note?.trim() || BROWSER_PIN_NOTE, pin: true }, at);
+    if (!pinned.includes(sync.accountId)) pinned.push(sync.accountId);
+  }
+  return { store: next, syncIds, pinned };
+}

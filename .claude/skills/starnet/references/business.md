@@ -732,6 +732,14 @@ council (skill 5; report https://claude.ai/artifact/PpqKVH5ZecHYiM7H5Bfn91); his
   - 🧹 «إلغاء كل التثبيتات» inside «📌 المثبتة» (≥ 2 pinned), notes kept (`unpinAll`);
   - 📜 a replaced or deleted note moves to the device's dated log (≤ 30, newest first), shown in the
     note editor; merging duplicates joins both logs.
+- **📌 From a device's browser (his Oct 12 2026 ask)**: «اريد تثبيت الجهاز الذي يكون على البطاقة … زر
+  صغير في المنتصف اليميني … يظهر لي تثبيت لم يتم تسجيل بعد … لأن الفوترة 00: ازلنا الدين السابق وفعلنا خدمة
+  جديدة ولكن الفاتورة تنتظر عدة دقائق لكي تنزل فنسجلها المبلغ مع D». A purple «📌» tab on the right edge,
+  half-way down (`starnet_pin_handle`) → «📌 تثبيت: لم يُسجَّل الشحن بعد» → «📌 ثبّت». It is staged like a
+  sync read (`PendingSyncStore`, field `pinRequest`, `PinRequest.java`) so it reaches the app even while
+  closed; the app pins the device with the note «⏳ لم يُسجَّل الشحن بعد - الفوترة 0 حتى تنزل الفاتورة؛ سجّل
+  المبلغ مع D» (`applyBrowserPins`, the older note goes to the log) and never treats it as a Starlink read.
+  Recording the charge then asks «إزالة التثبيت؟» as for any pin.
 
 ## ⬇️ Downloads in a device's browser
 

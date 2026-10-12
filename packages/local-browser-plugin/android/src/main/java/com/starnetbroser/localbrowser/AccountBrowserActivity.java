@@ -369,6 +369,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
 
         BrowserBar.setUp(this, this::goBackInWebView, this::reload, "⇣", getString(R.string.starnet_action_sync), this::syncFromStarlink);
         ((Button) findViewById(R.id.starnet_error_retry)).setOnClickListener(v -> reload());
+        findViewById(R.id.starnet_pin_handle).setOnClickListener(v -> askPinUnrecorded());
 
         // 💳 Before the first page: the card-fill script must run at the start of every frame.
         cardFill.setUp(webView);
@@ -1202,6 +1203,35 @@ public class AccountBrowserActivity extends AppCompatActivity {
     }
 
     /** Durably saves one page's read (and remembers it as "the page we were on"). */
+    /**
+     * 📌 The right-edge tab (his Oct 12 2026 ask): after paying off a device's old debt and starting
+     * a new service, Billing shows 0 for a few minutes until the invoice comes down - pin the device
+     * in the app with a note so the charge is recorded (with D) once it does. Saved like a sync read
+     * (PendingSyncStore, `pinRequest`) so it reaches the app even while it is stopped.
+     */
+    private void askPinUnrecorded() {
+        if (accountId == null) return;
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("📌 تثبيت: لم يُسجَّل الشحن بعد")
+            .setMessage("يُثبَّت هذا الجهاز في التطبيق مع ملاحظة:\n«" + PinRequest.NOTE + "»\n\nسجّل المبلغ مع D عندما تنزل الفاتورة.")
+            .setPositiveButton("📌 ثبّت", (dialog, which) -> {
+                JSObject pin = new JSObject();
+                pin.put("note", PinRequest.NOTE);
+                pin.put("at", System.currentTimeMillis());
+                JSObject fields = new JSObject();
+                fields.put(PinRequest.FIELD, pin);
+                String syncId = PendingSyncStore.save(getApplicationContext(), accountId, fields);
+                if (syncId == null) {
+                    Toast.makeText(this, "تعذّر حفظ التثبيت - حاول مرة أخرى", Toast.LENGTH_LONG).show();
+                    return;
+                }
+                LocalBrowserPlugin.emitAccountDataSynced(syncId, accountId, fields);
+                Toast.makeText(this, "📌 ثُبّت الجهاز - لم يُسجَّل الشحن بعد", Toast.LENGTH_SHORT).show();
+            })
+            .setNegativeButton("إلغاء", null)
+            .show();
+    }
+
     private void saveSyncRead(JSObject fields) {
         if (fields == null || fields.length() == 0) return;
         lastSavedPageKey = StarlinkExtractorSupport.settleKey(fields);
