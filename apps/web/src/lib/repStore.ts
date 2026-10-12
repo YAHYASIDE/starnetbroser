@@ -218,7 +218,9 @@ export function deleteRepresentative(store: RepresentativeStore, id: string): Re
 /** «profitTransfer» (his Oct 12 2026 ask, lib/repWallets.ts): his profit leaves «ربحه» - into his
  * account in that currency (`toDebt`: it lowers what he owes / is kept for him) or written off
  * («تصفير الربح» without moving money). No money moves in «حسابي» either way. */
-export type RepSettlementKind = "cashHandover" | "commissionPayout" | "manualCredit" | "manualDebit" | "profitTransfer";
+/** «profitCredit» (his Oct 12 2026 report «حساب الربح لا يمكن تصفيره»): له in «ربحه» - added to his profit,
+ * no money moves (the way to bring a profit that went below 0 back to 0). */
+export type RepSettlementKind = "cashHandover" | "commissionPayout" | "manualCredit" | "manualDebit" | "profitTransfer" | "profitCredit";
 
 export interface RepSettlement {
   id: string;
@@ -374,8 +376,9 @@ export function computeRepCommissionOwedByCurrency(
     result[inv.currencyCode] = (result[inv.currencyCode] ?? 0) + commission;
   }
   for (const s of settlements) {
-    if (s.representativeId !== representativeId || (s.kind !== "commissionPayout" && s.kind !== "profitTransfer")) continue;
-    result[s.currencyCode] = (result[s.currencyCode] ?? 0) - s.amount;
+    if (s.representativeId !== representativeId) continue;
+    if (s.kind === "commissionPayout" || s.kind === "profitTransfer") result[s.currencyCode] = (result[s.currencyCode] ?? 0) - s.amount;
+    else if (s.kind === "profitCredit") result[s.currencyCode] = (result[s.currencyCode] ?? 0) + s.amount;
   }
   return result;
 }

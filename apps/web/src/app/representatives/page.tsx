@@ -201,12 +201,14 @@ const SETTLEMENT_LABELS: Record<RepSettlementKind, string> = {
   manualCredit: "➕ له",
   manualDebit: "➖ عليه",
   profitTransfer: "↪️ من ربحه",
+  profitCredit: "➕ له في ربحه",
 };
 
 /** 📂 One line's wording on «حساباته» (components/RepAccountsPage.tsx). */
 function settlementText(s: RepSettlement): string {
   if (s.kind === "profitTransfer") return s.toDebt ? `↪️ من ربحه إلى حساب ${currencyLabel(s.currencyCode)}` : "🧹 تصفير الربح";
   if (s.kind === "commissionPayout") return "💸 دفعت له من ربحه";
+  if (s.kind === "profitCredit") return s.note?.startsWith("🧹") ? "🧹 تصفير الربح" : "➕ له في ربحه";
   return SETTLEMENT_LABELS[s.kind];
 }
 
@@ -1284,7 +1286,7 @@ function RepCard({
         </PartySheet>
       )}
 
-      {sheet?.kind === "settlement" && sheet.settlement.kind === "profitTransfer" && (
+      {sheet?.kind === "settlement" && (sheet.settlement.kind === "profitTransfer" || sheet.settlement.kind === "profitCredit") && (
         <PartySheet title={`عملية من ربحه - ${rep.name}`} onClose={() => setSheet(null)}>
           {/* ↪️ / 🧹 from «📂 حساباته»: shown and deleted here, recorded again there if needed. */}
           <p className="settings-hint">
@@ -1296,7 +1298,7 @@ function RepCard({
               type="button"
               className="dialog-danger"
               onClick={() => {
-                if (!window.confirm("حذف هذه العملية؟ يرجع المبلغ إلى ربحه.")) return;
+                if (!window.confirm("حذف هذه العملية؟ يرجع ربحه كما كان قبلها.")) return;
                 onDeleteSettlement(sheet.settlement.id);
                 setSheet(null);
               }}
@@ -1310,7 +1312,7 @@ function RepCard({
         </PartySheet>
       )}
 
-      {sheet?.kind === "settlement" && sheet.settlement.kind !== "profitTransfer" && (
+      {sheet?.kind === "settlement" && sheet.settlement.kind !== "profitTransfer" && sheet.settlement.kind !== "profitCredit" && (
         <PartySheet title={`تعديل عملية - ${rep.name}`} onClose={() => setSheet(null)}>
           <SettlementForm
             initial={sheet.settlement}
@@ -1653,6 +1655,7 @@ function RepStatementSummary({
   if (nonZero(t.commissions).length) profitLines.push(["عمولات المتجر", list(t.commissions)]);
   if (nonZero(t.settled.commissionPayout).length) profitLines.push(["💸 دفعت له من ربحه", list(t.settled.commissionPayout)]);
   if (nonZero(t.settled.profitTransfer).length) profitLines.push(["↪️ خرج من ربحه (إلى حسابه / تصفير)", list(t.settled.profitTransfer)]);
+  if (nonZero(t.settled.profitCredit).length) profitLines.push(["➕ له في ربحه (تصحيح / تصفير)", list(t.settled.profitCredit)]);
   const closingLabel = period.to || period.from ? "آخر الفترة" : "الآن";
   const lines = (items: [string, string][]) =>
     items.length > 0 && (

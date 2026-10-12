@@ -1268,7 +1268,12 @@ is never pressed while a field is empty - it refills and saves on the next try (
   «➕ له» / «➖ عليه» (manualCredit / manualDebit in that account's currency, no money moves, no الكاش entry)
   and «🧹 تصفير الحساب» = the له/عليه of its balance (`repZeroEntry`, note «🧹 تصفير الحساب») - one record,
   deletable from the statement. It is not the rep's dated reset (versions) - that stays as it was.
-- The profit account keeps its own actions (↪️ / 💸 / 🧹 تصفير الربح).
+- The profit account keeps its own actions (↪️ / 💸) and has «➕ له» / «➖ عليه» too.
+- His follow-up «حساب الربح لا يمكن تصفيره كالحسابات الأخرى وهذا خطأ» (a rep's profit stood at «عليه 336,025.91
+  سيفا» - more profit had been moved into his سيفا account than he had): new settlement kind `profitCredit` = له in
+  «ربحه» (profit +X, no money, no الكاش entry; counted by `computeRepCommissionOwedByCurrency`). «🧹 تصفير الربح»
+  reads his profit now (`repProfitSigned`) and goes either way (`repProfitZeroEntry`): له → written off
+  (profitTransfer), عليه → profitCredit; note «🧹 تصفير الربح». Both open the delete-only sheet on the statement.
 
 ## 💰 The money bot shows the rep's accounts; his payment says which account (Oct 12 2026)
 

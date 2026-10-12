@@ -8,7 +8,7 @@ import { LEDGER_CURRENCY_LABELS, type LedgerCurrency } from "@/lib/ledgerStore";
 import { loadAccountsBook } from "@/lib/moneyAccounts";
 import { makeRepConverter, type RepConvert } from "@/lib/repAccount";
 import type { RepStatementDay, RepStatementRow, UpdateRepSettlementInput } from "@/lib/repStore";
-import { repProfitIn, repWallets, repWalletTitle, repZeroEntry, type RepWallet } from "@/lib/repWallets";
+import { repProfitIn, repProfitSigned, repProfitZeroEntry, repWallets, repWalletTitle, repZeroEntry, type RepWallet } from "@/lib/repWallets";
 
 /**
  * 📂 «حساباته» (his Oct 12 2026 ask): a full page with the rep's accounts side by side - سيفا وأورانج,
@@ -54,7 +54,7 @@ function sideText(balance: Record<string, number>): { text: string; tone: "due" 
   return total > 0 ? { text: `له ${money(abs)}`, tone: "clear" } : { text: `عليه ${money(abs)}`, tone: "due" };
 }
 
-type Action = "toSIFA" | "toMRU" | "pay" | "zero";
+type Action = "toSIFA" | "toMRU" | "pay" | "zero" | "credit" | "debit";
 
 type MoneyAction = "credit" | "debit" | "zero";
 
@@ -70,7 +70,9 @@ const ACTIONS: { id: Action; text: string; hint: string }[] = [
   { id: "toSIFA", text: "↪️ إلى حساب السيفا", hint: "يخرج من ربحه ويدخل حساب السيفا وأورانج: يقلّ ما عليه، أو يبقى له عندك." },
   { id: "toMRU", text: "↪️ إلى حساب الأوقية", hint: "يخرج من ربحه ويدخل حساب الأوقية: يقلّ ما عليه، أو يبقى له عندك." },
   { id: "pay", text: "💸 دفعت له من حسابي", hint: "دفعت له ربحه من الكاش أو من أحد تطبيقاتك - يخرج من «حسابي»." },
-  { id: "zero", text: "🧹 تصفير الربح", hint: "يصير ربحه 0 دون أن يتحرك أي مال (مثلاً سوّيتماه خارج التطبيق)." },
+  { id: "credit", text: "➕ له", hint: "مبلغ يُضاف إلى ربحه - لا يتحرك أي مال." },
+  { id: "debit", text: "➖ عليه", hint: "مبلغ يُخصم من ربحه - لا يتحرك أي مال." },
+  { id: "zero", text: "🧹 تصفير الربح", hint: "يصير ربحه 0 دون أن يتحرك أي مال - له أو عليه (يُضاف أو يُخصم بقدره)." },
 ];
 
 interface Props {
@@ -284,6 +286,10 @@ function ProfitActionForm({
     return { MRU: getCurrency(store, "MRU")?.rateFromUsd, SIFA: getCurrency(store, "SIFA")?.rateFromUsd };
   }, []);
   const suggested = useMemo(() => repProfitIn(days, currency, makeRepConverter([currency], rates)), [days, currency, rates]);
+  // 🧹 the profit as it is now (له or عليه) - zeroing goes either way.
+  const signed = useMemo(() => repProfitSigned(days, currency, makeRepConverter([currency], rates)), [days, currency, rates]);
+  const zero = action === "zero" ? repProfitZeroEntry(signed) : null;
+  const typed = action === "credit" || action === "debit";
   const [amount, setAmount] = useState("");
   const [place, setPlace] = useState("cash");
   const [date, setDate] = useState(today());
@@ -294,24 +300,40 @@ function ProfitActionForm({
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    const value = Number(amount || suggested);
+    if (action === "zero" && !zero) return setError("ربحه 0 - لا شيء لتصفيره");
+    const value = action === "zero" ? zero!.amount : Number(amount || (typed ? "" : suggested));
     if (!(value > 0)) return setError("اكتب المبلغ");
-    const base = { amount: value, currencyCode: currency, date, ...(note.trim() ? { note: note.trim() } : {}) };
+    const text = note.trim() || (action === "zero" ? "🧹 تصفير الربح" : "");
+    const base = { amount: value, currencyCode: currency, date, ...(text ? { note: text } : {}) };
     const input: UpdateRepSettlementInput =
       action === "pay"
         ? { ...base, kind: "commissionPayout", ...(place !== "cash" ? { accountId: place } : {}) }
-        : { ...base, kind: "profitTransfer", ...(action === "zero" ? {} : { toDebt: true }) };
+        : action === "credit" || (action === "zero" && zero!.kind === "profitCredit")
+          ? { ...base, kind: "profitCredit" }
+          : { ...base, kind: "profitTransfer", ...(action === "zero" || action === "debit" ? {} : { toDebt: true }) };
     setError(onSettle(input));
   }
 
   return (
     <form className="party-balance-form rep-accounts-form" onSubmit={submit}>
       <p className="settings-hint">{hint}</p>
+      {action === "zero" && (
+        <p className="rep-accounts-zero">
+          {zero ? (
+            <>
+              ربحه الآن {signed > 0 ? "له" : "عليه"} <bdi dir="ltr">{formatAmount(Math.abs(signed))}</bdi> {label(currency)} - يُ{zero.kind === "profitCredit" ? "ضاف" : "خصم"} بقدره فيصير 0.
+            </>
+          ) : (
+            "ربحه 0 ✓"
+          )}
+        </p>
+      )}
       <div className="party-balance-row">
         <input
           className="search-input"
           inputMode="decimal"
-          placeholder={suggested > 0 ? String(suggested) : "المبلغ"}
+          disabled={action === "zero"}
+          placeholder={action === "zero" ? (zero ? String(zero.amount) : "0") : !typed && suggested > 0 ? String(suggested) : "المبلغ"}
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           aria-label="المبلغ"
@@ -325,7 +347,7 @@ function ProfitActionForm({
           </select>
         )}
       </div>
-      {suggested > 0 && <small className="settings-hint">ربحه الآن ≈ {formatAmount(suggested)} {label(currency)} - اتركه فارغًا لأخذه كله.</small>}
+      {!typed && action !== "zero" && suggested > 0 && <small className="settings-hint">ربحه الآن ≈ {formatAmount(suggested)} {label(currency)} - اتركه فارغًا لأخذه كله.</small>}
       {action === "pay" && (
         <label className="form-field party-source-field">
           <span>من أين دفعت له؟</span>

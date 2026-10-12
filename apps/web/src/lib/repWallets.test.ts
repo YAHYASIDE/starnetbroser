@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { keepCurrency, makeRepConverter, repRowDelta } from "./repAccount";
 import { buildRepDailyStatement, computeRepCommissionOwedByCurrency, computeRepManualBalanceByCurrency, type RepCustomerOp, type RepSettlement } from "./repStore";
-import { repProfitIn, repWallets, repZeroEntry } from "./repWallets";
+import { repProfitIn, repProfitSigned, repProfitZeroEntry, repWallets, repZeroEntry } from "./repWallets";
 
 const op = (id: string, amount: number, currency: string, date = "2026-10-05"): RepCustomerOp => ({ entryId: id, accountId: "a1", date, at: `${date}T10:00:00.000Z`, amount, currency, byRep: false });
 const st = (id: string, kind: RepSettlement["kind"], amount: number, currencyCode: string, extra: Partial<RepSettlement> = {}): RepSettlement => ({
@@ -52,5 +52,27 @@ describe("🧹 تصفير one of his money accounts", () => {
     expect(repZeroEntry(-44000)).toEqual({ kind: "manualCredit", amount: 44000 });
     expect(repZeroEntry(6000.456)).toEqual({ kind: "manualDebit", amount: 6000.46 });
     expect(repZeroEntry(0.001)).toBeNull();
+  });
+});
+
+describe("🧹 تصفير الربح either way (his Oct 12 2026 report: «عليه 336,025 سيفا» could not be zeroed)", () => {
+  it("a profit below 0 is brought back by «له في ربحه» (profitCredit) - his money accounts don't move", () => {
+    // more of his profit moved into his سيفا account than he had
+    const moved = st("t", "profitTransfer", 336025.91, "SIFA", { toDebt: true });
+    const before = buildRepDailyStatement("r1", [], [], [moved]);
+    const signed = repProfitSigned(before, "SIFA", keepCurrency);
+    expect(signed).toBe(-336025.91);
+    const zero = repProfitZeroEntry(signed)!;
+    expect(zero).toEqual({ kind: "profitCredit", amount: 336025.91 });
+    const after = buildRepDailyStatement("r1", [], [], [moved, st("z", zero.kind, zero.amount, "SIFA")]);
+    const { money, profit } = repWallets(after, keepCurrency);
+    expect(Math.abs(profit.balance.SIFA ?? 0)).toBeLessThan(0.01);
+    expect(money[0]!.balance).toEqual({ SIFA: 336025.91 });
+    expect(computeRepCommissionOwedByCurrency("r1", [], [moved, st("z", "profitCredit", 336025.91, "SIFA")])).toEqual({ SIFA: 0 });
+  });
+
+  it("a profit above 0 is written off, 0 needs nothing", () => {
+    expect(repProfitZeroEntry(6000)).toEqual({ kind: "profitTransfer", amount: 6000 });
+    expect(repProfitZeroEntry(0)).toBeNull();
   });
 });

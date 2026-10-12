@@ -66,6 +66,20 @@ export function repProfitIn(allDays: RepStatementDay[], code: string, convert: R
   return value > EPS ? Math.round(value * 100) / 100 : 0;
 }
 
+/** His profit now in one currency, signed (+ = له, − = عليه) - what «🧹 تصفير الربح» brings to 0. */
+export function repProfitSigned(allDays: RepStatementDay[], code: string, convert: RepConvert): number {
+  const value = buildRepPeriodStatement(allDays, {}, convert).profit.closing[code] ?? 0;
+  return Math.abs(value) > EPS ? Math.round(value * 100) / 100 : 0;
+}
+
+/** 🧹 «تصفير الربح» either way (his Oct 12 2026 report: a profit at «عليه 336,025 سيفا» could not be
+ * zeroed): له → written off (profitTransfer), عليه → added back (profitCredit); 0 → null. */
+export function repProfitZeroEntry(profit: number): { kind: "profitTransfer" | "profitCredit"; amount: number } | null {
+  if (Math.abs(profit) <= EPS) return null;
+  const amount = Math.round(Math.abs(profit) * 100) / 100;
+  return profit > 0 ? { kind: "profitTransfer", amount } : { kind: "profitCredit", amount };
+}
+
 export function repWalletTitle(id: string): string {
   if (id === "profit") return "💰 حساب الربح";
   if (id === "SIFA") return "🟠 حساب السيفا وأورانج";
