@@ -119,6 +119,7 @@ import {
 import { ApiError, listAccounts } from "@/lib/apiClient";
 import { getLastBackupAt, isDemoMode, isLoggedIn, isRemindersBadgeEnabled } from "@/lib/settingsStore";
 import { commitDemoAccounts, loadDemoAccounts } from "@/lib/demoAccountStore";
+import { loadRecentLog, markDeviceTouched, RECENT_EVENT, recentDevices, touchedOn, type RecentLog } from "@/lib/recentDevices";
 import { applyBrowserPins, isBrowserPin, isPinned, loadDeviceNotes, mergeDeviceNotes, noteMatchesQuery, pinnedDevices, saveDeviceNote, saveDeviceNotes, setDevicePinned, shouldAskUnpin, unpinAll, type DeviceNotesStore } from "@/lib/deviceNotes";
 import { ACCOUNTS_CHANGED_EVENT } from "@/lib/repMenuRecords";
 import { loadRepRequests, pendingRepRequests } from "@/lib/repRequests";
@@ -184,7 +185,7 @@ type DialogState = { mode: AccountDialogMode; account?: StarlinkAccountSummary; 
  * ways of narrowing the SAME list, and combining them silently would be confusing rather than
  * useful. `total` never appears as a value: tapping "كل الحسابات" is just `showAll`, not a real
  * per-account filter. */
-type StatFilterKind = "online" | "expiringSoon" | "expired" | "suspended" | "faulty" | "repair" | "fromRep" | "noClient" | "travel" | "travelDone" | "pinned";
+type StatFilterKind = "online" | "expiringSoon" | "expired" | "suspended" | "faulty" | "repair" | "fromRep" | "noClient" | "travel" | "travelDone" | "pinned" | "recent";
 
 const STAT_FILTER_TITLES: Record<StatFilterKind, string> = {
   online: "الحسابات المتصلة الآن",
@@ -198,6 +199,7 @@ const STAT_FILTER_TITLES: Record<StatFilterKind, string> = {
   travel: "🛂 الأجهزة التي تحتاج توثيق",
   travelDone: "✅ الأجهزة التي تم توثيقها",
   pinned: "📌 الأجهزة المثبتة",
+  recent: "🕘 آخر الأجهزة (الأحدث أولًا)",
 };
 
 function matchesStatFilter(account: StarlinkAccountSummary, kind: StatFilterKind): boolean {
@@ -218,6 +220,7 @@ function matchesStatFilter(account: StarlinkAccountSummary, kind: StatFilterKind
       return isTravelVerified(account);
     case "noClient":
     case "pinned":
+    case "recent":
       // Needs another store - narrowed in `filtered` (client list / 📌 device notes).
       return true;
     case "expiringSoon": {
@@ -273,6 +276,14 @@ export function HomeView({
   // 📌 His private pins + purple notes per device (lib/deviceNotes.ts) - never sent to a rep.
   const [deviceNotes, setDeviceNotes] = useState<DeviceNotesStore>({});
   useEffect(() => setDeviceNotes(loadDeviceNotes()), []);
+  // 🕘 «آخر جهاز»: opened / edited on this phone (lib/recentDevices.ts) - syncs and له/عليه are derived.
+  const [recentLog, setRecentLog] = useState<RecentLog>({});
+  useEffect(() => {
+    const reload = () => setRecentLog(loadRecentLog());
+    reload();
+    window.addEventListener(RECENT_EVENT, reload);
+    return () => window.removeEventListener(RECENT_EVENT, reload);
+  }, []);
   function commitDeviceNotes(next: DeviceNotesStore) {
     saveDeviceNotes(next);
     setDeviceNotes(next);
@@ -393,6 +404,7 @@ export function HomeView({
   const [editingStatementEntry, setEditingStatementEntry] = useState<LedgerEntry | null>(null);
 
   function updateLedgerEntries(accountId: string, entries: LedgerEntry[]) {
+    markDeviceTouched(accountId); // 🕘 a balance added, edited or removed
     // Every device payment also moves money into الكاش - computed from the current (pre-edit)
     // entries, outside the state updater so it runs exactly once.
     if (shouldAskUnpin(deviceNotes, accountId, getAccountEntries(ledgerStore, accountId), entries)) setUnpinAsk(accountId);
@@ -1252,6 +1264,7 @@ export function HomeView({
   }, []);
 
   function saveAccount(account: StarlinkAccountSummary) {
+    markDeviceTouched(account.id); // 🕘 edited
     const repRequestId = repDeviceRequestRef.current;
     repDeviceRequestRef.current = null;
     if (repRequestId && !accounts.some((item) => item.id === account.id)) {
@@ -1709,6 +1722,7 @@ export function HomeView({
       if (statFilter === "faulty" && faultFilter) list = list.filter((a) => faultCategory(a) === faultFilter);
       if (statFilter === "noClient") list = list.filter((a) => matchesNoClientGroup(a, clientStore, noClientGroup));
       if (statFilter === "pinned") list = pinnedDevices(deviceNotes, list);
+      if (statFilter === "recent") list = recentDevices(list, ledgerStore, recentLog);
       if (statFilter === "travelDone" && travelGroup !== "all") list = list.filter((a) => matchesTravelGroup(travelStateOf(a, ledgerStore, allAllocations), travelGroup));
     }
     if (query.trim()) {
@@ -1721,12 +1735,14 @@ export function HomeView({
       );
     }
     return list;
-  }, [activeAccounts, selectedDay, statFilter, faultFilter, noClientGroup, travelGroup, ledgerStore, allAllocations, query, clientStore, representativeStore, deviceNotes]);
+  }, [activeAccounts, selectedDay, statFilter, faultFilter, noClientGroup, travelGroup, ledgerStore, allAllocations, query, clientStore, representativeStore, deviceNotes, recentLog]);
 
   const faultCounts = useMemo(() => countFaultCategories(activeAccounts), [activeAccounts]);
   const repairCount = useMemo(() => activeAccounts.filter(isUnderRepair).length, [activeAccounts]);
   const fromRepCount = useMemo(() => activeAccounts.filter((a) => a.addedByRepId).length, [activeAccounts]);
   const pinnedCount = useMemo(() => pinnedDevices(deviceNotes, activeAccounts).length, [deviceNotes, activeAccounts]);
+  // 🕘 «آخر جهاز»: how many devices were touched today (the list itself is newest first).
+  const recentToday = useMemo(() => touchedOn(activeAccounts, ledgerStore, recentLog), [activeAccounts, ledgerStore, recentLog]);
   const travelCount = useMemo(() => activeAccounts.filter(needsTravelRegistration).length, [activeAccounts]);
   const travelDone = useMemo(() => travelEarnings(activeAccounts), [activeAccounts]);
   const travelBook = useMemo(
@@ -2149,18 +2165,92 @@ export function HomeView({
             />
           </section>
 
-          <div className="status-chips">
-            {(pinnedCount > 0 || statFilter === "pinned") && (
-              <button
-                type="button"
-                data-tour="pinned-chip"
-                className={`faulty-chip pinned-chip${statFilter === "pinned" ? " faulty-chip-active" : ""}`}
-                onClick={() => { toggleStatFilter("pinned"); setSelectedDay(null); }}
-              >
-                📌 المثبتة ({pinnedCount})
-              </button>
+          {/* 🕘 آخر جهاز, 📌 المثبتة, المعطلة… - round like the rings above, in the same grid (his Oct 12 2026 ask). */}
+          <section className="status-rings status-rings-more" aria-label="قوائم الأجهزة">
+            <StatusRing
+              tone="recent"
+              value={recentToday}
+              total={overview.total}
+              label="آخر جهاز"
+              icon={<IconClock />}
+              active={statFilter === "recent"}
+              onClick={() => { toggleStatFilter("recent"); setSelectedDay(null); }}
+            />
+            <StatusRing
+              tone="pinned"
+              tour="pinned-chip"
+              value={pinnedCount}
+              total={overview.total}
+              label="المثبتة"
+              icon={<IconGrid />}
+              active={statFilter === "pinned"}
+              onClick={() => { toggleStatFilter("pinned"); setSelectedDay(null); }}
+            />
+            <StatusRing
+              tone="faulty"
+              value={overview.faulty}
+              total={overview.total}
+              label="المعطلة"
+              icon={<IconAlert />}
+              active={statFilter === "faulty"}
+              onClick={() => { toggleStatFilter("faulty"); setFaultFilter(null); setSelectedDay(null); }}
+            />
+            <StatusRing
+              tone="repair"
+              value={repairCount}
+              total={overview.total}
+              label="قيد الإصلاح"
+              icon={<IconPause />}
+              active={statFilter === "repair"}
+              onClick={() => { toggleStatFilter("repair"); setSelectedDay(null); }}
+            />
+            <StatusRing
+              tone="travel"
+              tour="travel-list"
+              value={travelCount}
+              total={overview.total}
+              label="تحتاج توثيق"
+              icon={<IconAlert />}
+              active={statFilter === "travel"}
+              onClick={() => { toggleStatFilter("travel"); setSelectedDay(null); }}
+            />
+            <StatusRing
+              tone="travelDone"
+              tour="travel-done"
+              value={travelDone.count}
+              total={overview.total}
+              label="تم توثيقها"
+              icon={<IconSignal />}
+              active={statFilter === "travelDone"}
+              onClick={() => { toggleStatFilter("travelDone"); setSelectedDay(null); }}
+            />
+            {fromRepCount > 0 && (
+              <StatusRing
+                tone="fromRep"
+                value={fromRepCount}
+                total={overview.total}
+                label="من المندوبين"
+                icon={<IconGrid />}
+                active={statFilter === "fromRep"}
+                onClick={() => { toggleStatFilter("fromRep"); setSelectedDay(null); }}
+              />
             )}
-            {statFilter === "pinned" && pinnedCount > 1 && (
+            {noClient.total > 0 && (
+              <StatusRing
+                tone="noClient"
+                tour="no-client"
+                value={noClient.total}
+                total={overview.total}
+                label="بدون زبون"
+                icon={<IconGrid />}
+                active={statFilter === "noClient"}
+                onClick={() => { toggleStatFilter("noClient"); setNoClientGroup("all"); setSelectedDay(null); }}
+              />
+            )}
+          </section>
+
+          {statFilter === "pinned" && pinnedCount > 1 && (
+            <div className="status-chips">
               <button
                 type="button"
                 className="faulty-chip pinned-clear-chip"
@@ -2172,57 +2262,8 @@ export function HomeView({
               >
                 🧹 إلغاء كل التثبيتات
               </button>
-            )}
-            <button
-              type="button"
-              className={`faulty-chip${statFilter === "faulty" ? " faulty-chip-active" : ""}`}
-              onClick={() => { toggleStatFilter("faulty"); setFaultFilter(null); setSelectedDay(null); }}
-            >
-              🔧 المعطلة ({overview.faulty})
-            </button>
-            <button
-              type="button"
-              className={`faulty-chip repair-chip${statFilter === "repair" ? " faulty-chip-active" : ""}`}
-              onClick={() => { toggleStatFilter("repair"); setSelectedDay(null); }}
-            >
-              🛠️ قيد الإصلاح ({repairCount})
-            </button>
-            {fromRepCount > 0 && (
-              <button
-                type="button"
-                className={`faulty-chip from-rep-chip${statFilter === "fromRep" ? " faulty-chip-active" : ""}`}
-                onClick={() => { toggleStatFilter("fromRep"); setSelectedDay(null); }}
-              >
-                📱 من المندوبين ({fromRepCount})
-              </button>
-            )}
-            <button
-              type="button"
-              data-tour="travel-list"
-              className={`faulty-chip travel-chip${statFilter === "travel" ? " faulty-chip-active" : ""}`}
-              onClick={() => { toggleStatFilter("travel"); setSelectedDay(null); }}
-            >
-              🛂 تحتاج توثيق ({travelCount})
-            </button>
-            <button
-              type="button"
-              data-tour="travel-done"
-              className={`faulty-chip travel-done-chip${statFilter === "travelDone" ? " faulty-chip-active" : ""}`}
-              onClick={() => { toggleStatFilter("travelDone"); setSelectedDay(null); }}
-            >
-              ✅ تم توثيقها ({travelDone.count})
-            </button>
-            {noClient.total > 0 && (
-              <button
-                type="button"
-                data-tour="no-client"
-                className={`faulty-chip no-client-chip${statFilter === "noClient" ? " faulty-chip-active" : ""}`}
-                onClick={() => { toggleStatFilter("noClient"); setNoClientGroup("all"); setSelectedDay(null); }}
-              >
-                👤 بدون زبون ({noClient.total})
-              </button>
-            )}
-          </div>
+            </div>
+          )}
 
           <section className="section dashboard-section">
             <div className="section-heading">
@@ -2606,7 +2647,7 @@ function SearchResultRow({ result, onOpenClient }: { result: SearchResult; onOpe
   );
 }
 
-type StatusTone = "total" | "online" | "warning" | "expired" | "suspended";
+type StatusTone = "total" | "online" | "warning" | "expired" | "suspended" | "recent" | "pinned" | "faulty" | "repair" | "travel" | "travelDone" | "fromRep" | "noClient";
 
 /** One circular status counter: a ring filled by this status's share of all devices, its icon and
  * count inside, the label underneath. Tapping filters the list (or shows all, for the total). */
@@ -2617,6 +2658,7 @@ function StatusRing({
   label,
   icon,
   active = false,
+  tour,
   onClick,
 }: {
   tone: StatusTone;
@@ -2625,6 +2667,8 @@ function StatusRing({
   label: string;
   icon: ReactNode;
   active?: boolean;
+  /** «ما الجديد» points at it (data-tour). */
+  tour?: string;
   onClick: () => void;
 }) {
   const share = total > 0 ? Math.min(1, value / total) : 0;
@@ -2634,6 +2678,7 @@ function StatusRing({
       className={`status-ring status-ring-${tone}${active ? " status-ring-active" : ""}`}
       aria-pressed={tone === "total" ? undefined : active}
       aria-label={`${label}: ${value}`}
+      data-tour={tour}
       onClick={onClick}
     >
       <span className="status-ring-dial" style={{ "--share": share } as CSSProperties}>

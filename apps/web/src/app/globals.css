@@ -14019,6 +14019,21 @@ button.today-tile {
 /* 🛂 «✅ تم توثيقها» as circles (TravelBookPanel). */
 .status-ring-violet { --tone: var(--violet); }
 
+/* 🕘 آخر جهاز · 📌 المثبتة · المعطلة… - a second grid of rings under the first (his Oct 12 2026 ask). */
+.status-ring-recent { --tone: var(--mint); }
+.status-ring-pinned { --tone: var(--violet); }
+.status-ring-faulty { --tone: var(--red); }
+.status-ring-repair { --tone: var(--orange); }
+.status-ring-travel { --tone: var(--yellow); }
+.status-ring-travelDone { --tone: var(--green); }
+.status-ring-fromRep { --tone: var(--brand); }
+.status-ring-noClient { --tone: var(--gray); }
+
+.status-rings-more {
+  margin-top: 8px;
+  row-gap: 8px;
+}
+
 .travel-book {
   display: flex;
   flex-direction: column;

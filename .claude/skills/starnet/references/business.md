@@ -1218,6 +1218,18 @@ is never pressed while a field is empty - it refills and saves on the next try (
   method sets «من أين تحرّك المال؟» to its account in that currency (`methodAccountId`), «نقدًا» to الكاش;
   he can still change it.
 
+## 🕘 «آخر جهاز» + every home list as a ring (Oct 12 2026)
+
+- His words: «أضف لي أيقونة آخر جهاز، وهي آخر جهاز دخلناه وحدثناه أو عدلنا عليه شيء، أضفنا له رصيدًا أو أزلنا عنه
+  رصيدًا - ديره مع الأيقونات الدائرية مثل كل الأجهزة. واجعل المثبت والمعطل وكل تلك الأيقونات دائرية وموازية لأيقونات
+  كل الأجهزة ومتصل الآن».
+- `lib/recentDevices.ts`: a device's last touch = the newest of its browser opened / card saved / ledger changed
+  on this phone (`starnet.recentDevices`, not backed up - a convenience), its `lastSuccessfulScanAt` and its newest
+  ledger entry. The ring's number = devices touched today; tapping lists the last 30, newest first.
+- Under the five status rings, a second grid of rings (`status-rings-more`): 🕘 آخر جهاز, المثبتة (always shown
+  now, even at 0), المعطلة, قيد الإصلاح, تحتاج توثيق, تم توثيقها, من المندوبين / بدون زبون (when any). Only
+  «🧹 إلغاء كل التثبيتات» stays a chip (inside «المثبتة»).
+
 ## 🔗 Money places always follow the method + Binance's 0.01 $ on KAST (Oct 12 2026)
 
 - His words: «اجعل دائما الخيارات متناسقة: عندما اضيف سيفا فرانك يجب ان تظهر في الاسفل تلقائيا اورانج او نيتا،

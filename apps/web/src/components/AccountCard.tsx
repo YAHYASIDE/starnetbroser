@@ -24,6 +24,7 @@ import { formatAmount } from "@/lib/formatAmount";
 import { PaymentAllocation } from "@/lib/paymentAllocationStore";
 import { Client } from "@/lib/clientStore";
 import { isGmail } from "@/lib/mailboxes";
+import { markDeviceTouched } from "@/lib/recentDevices";
 import { isRunningInAndroidApp, mailExtrasFor, mailLoginFor, openAccountCreation, openCancelSubscription, openIsolatedAccountBrowser, isBackgroundSyncEnabled, openAutoSync, openIsolatedMailbox, startBackgroundSync, starlinkLoginFor } from "@/lib/localBrowser";
 import { cancelConfirmQuestion, cancellationState, cancelledMessage } from "@/lib/subscriptionCancel";
 import {
@@ -339,6 +340,7 @@ export function AccountCard({
   async function handleOpen() {
     if (opening) return;
     setOpening(true);
+    markDeviceTouched(account.id); // 🕘 «آخر جهاز»
     try {
       const result = await openIsolatedAccountBrowser(account.id, account.name || "حساب Starlink", {
         ...starlinkLoginFor(account),
