@@ -265,7 +265,7 @@ export default function ReportsPage() {
   }
 
   async function handleResetAll() {
-    const message = "تصفير كل الأرباح من الآن؟\n\n• التقارير تحسب الأرباح من اليوم فقط.\n• كل المندوبين يبدأون حسابًا جديدًا.\n• لا يُحذف شيء، و«↩️ إرجاع الأرباح» يعيدها.";
+    const message = "تصفير كل الأرباح من الآن؟\n\n• التقارير تحسب الأرباح من اليوم فقط.\n• لا يمس المندوبين ولا الأجهزة ولا D.\n• لا يُحذف شيء، و«↩️ إرجاع الأرباح» يعيدها.";
     if (!(await askDeleteCode(message))) return;
     const { reset: next, repStore: nextReps } = startProfitFresh(repStore);
     const merged = profitReset ? { ...next, previousRepResets: { ...next.previousRepResets, ...profitReset.previousRepResets } } : next;

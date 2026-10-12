@@ -290,6 +290,13 @@ mind). Exact texts and numbers live in the code - this file says where.
   exists in that currency. An account whose balance was never typed counts every routed payment
   (`countsFrom`). The forms only offer apps in the chosen currency («إضافة رصيد»), and a card
   charge/withdraw through an app is in that app's currency.
+- **Oct 12 2026 - his rule wins over everything below:** «زر تصفير الارباح لا يمس من المندوب ابدا ولا
+  علاقة له بالأجهزة وخاصة الأجهزة التي عليها D … هو فقط يصفر البنوك والكاش». The «حسابي» button is now
+  «🔄 تصفير الكاش والبنوك والمحافظ إلى 0»: الكاش, every bank/wallet and KAST to 0 - it no longer starts the
+  profits, and its «↩️ إرجاع الكاش والبنوك كما كانت» undoes only those corrections. `startProfitFresh`
+  (الإعدادات «بداية جديدة للأرباح», التقارير) never touches the representatives any more: no rep reset,
+  `previousRepResets` empty (undoing an older reset that did restart them still restores them). A rep's
+  own «تصفير» stays on the representatives page. Devices and D are never touched by any of them.
 - **«🔄 البداية من جديد» is ONE permanent button** (his Oct 2026 rule - it used to vanish after one
   press): every press starts profits & losses from today **and** brings الكاش, every bank/wallet
   (`zeroAccountsBalances`, adjustments tagged `fromReset`) and **the KAST card** (`zeroCardBalance`,

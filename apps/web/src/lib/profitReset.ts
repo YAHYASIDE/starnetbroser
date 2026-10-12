@@ -1,9 +1,9 @@
 /**
  * "بداية جديدة للأرباح" (الإعدادات): the operator starts counting profit from zero on a day.
  * Nothing is deleted - shipments, client balances and settlements stay exactly as they are - the
- * reports simply count only profit that became real (Starlink paid) after that point, and every
- * representative's account restarts from the same point (repAccount.ts's reset, older records in
- * his archive). Undoing it restores each representative's previous reset.
+ * reports simply count only profit that became real (Starlink paid) after that point. The
+ * representatives are never touched (Oct 12 2026); undoing an older one that did restart them still
+ * restores each representative's previous reset.
  */
 
 import { shipmentProfitMoment } from "./accountingStore";
@@ -46,17 +46,13 @@ export function entriesAfterProfitReset(entries: LedgerEntry[], reset: RepResetP
   );
 }
 
-/** Starts profit from zero today: the reset point plus every representative restarted from it. */
+/** Starts profit from zero today - the reports only. The representatives are never touched (his
+ * Oct 12 2026 rule «لا يمس من المندوب ابدا ولا علاقة له بالأجهزة»): their accounts, devices and open
+ * D's stay exactly as they are; a rep's own «تصفير» is on the representatives page. */
 export function startProfitFresh(repStore: RepresentativeStore, now: Date = new Date()): { reset: ProfitReset; repStore: RepresentativeStore } {
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   const point = makeRepResetPoint(today, now);
-  const previousRepResets: Record<string, RepResetPoint | null> = {};
-  let next = repStore;
-  for (const rep of Object.values(repStore)) {
-    previousRepResets[rep.id] = rep.resetFrom ?? null;
-    next = setRepresentativeReset(next, rep.id, point);
-  }
-  return { reset: { ...point, previousRepResets, createdAt: now.toISOString() }, repStore: next };
+  return { reset: { ...point, previousRepResets: {}, createdAt: now.toISOString() }, repStore };
 }
 
 /** Brings the old profit back: representatives get their previous reset (or none) again. */

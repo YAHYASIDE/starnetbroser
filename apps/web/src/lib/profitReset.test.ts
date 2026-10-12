@@ -28,14 +28,19 @@ const reps: RepresentativeStore = {
 describe("fresh start for profit", () => {
   const now = new Date(2026, 8, 26, 12, 0, 0);
 
-  it("resets every representative to the same point and remembers their old reset", () => {
+  it("starts profit from today without touching the representatives", () => {
     const { reset, repStore } = startProfitFresh(reps, now);
     expect(reset.date).toBe("2026-09-26");
-    expect(repStore.r1.resetFrom).toEqual({ date: "2026-09-26", at: now.toISOString() });
-    expect(repStore.r2.resetFrom).toEqual({ date: "2026-09-26", at: now.toISOString() });
-    const undone = undoProfitFresh(reset, repStore);
-    expect(undone.r1.resetFrom).toBeUndefined();
-    expect(undone.r2.resetFrom).toEqual({ date: "2026-08-01", at: "" });
+    // 🤝 never touches the representatives (his Oct 12 2026 rule)
+    expect(repStore).toBe(reps);
+    expect(reset.previousRepResets).toEqual({});
+    expect(undoProfitFresh(reset, repStore)).toBe(reps);
+    // an older reset that did restart them still undoes them
+    const older = { ...reset, previousRepResets: { r1: null, r2: { date: "2026-08-01", at: "" } } };
+    const restarted = { r1: { ...reps.r1!, resetFrom: { date: "2026-09-26", at: "" } }, r2: { ...reps.r2!, resetFrom: { date: "2026-09-26", at: "" } } };
+    const undone = undoProfitFresh(older, restarted);
+    expect(undone.r1!.resetFrom).toBeUndefined();
+    expect(undone.r2!.resetFrom).toEqual({ date: "2026-08-01", at: "" });
   });
 
   it("counts only profit that became real after it - a D paid later the same day counts", () => {

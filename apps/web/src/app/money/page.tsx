@@ -22,8 +22,7 @@ import { notifyPhone } from "@/lib/appEvents";
 import { addRemittancePayment, createRemittance, deleteRemittance, deleteRemittancePayment, loadRemittances, updateRemittance, remittanceCashEntries, remittancePeriod, saveRemittances, type Remittance, type RemittanceList } from "@/lib/remittances";
 import { ouguiyaFixMessage, runOuguiyaFixOnce } from "@/lib/bankOuguiyaRun";
 import { askDeleteCode } from "@/components/DeleteCodePrompt";
-import { loadProfitReset, saveProfitReset, startProfitFresh, undoProfitFresh, type ProfitReset } from "@/lib/profitReset";
-import { loadRepresentativeStore as loadReps, saveRepresentativeStore } from "@/lib/repStore";
+import { loadProfitReset, type ProfitReset } from "@/lib/profitReset";
 import { loadWipeUndo, undoWipe, wipeAllTransactions, type WipeUndo } from "@/lib/wipeTransactions";
 import { listClients, loadClientStore } from "@/lib/clientStore";
 import { drainBankNotices, notificationReaderStatus, openKastNotificationAccess, restartNotificationReader } from "@/lib/localBrowser";
@@ -610,21 +609,15 @@ export default function MoneyPage() {
   }
 
   // ---- 🔄 البداية من جديد / 🗑️ حذف الكل ----
-  // His Oct 2026 rule: one permanent button. Each press starts profits & losses from today AND brings
-  // الكاش, every bank/wallet and the KAST card to 0 (one correction each - nothing is deleted). The
-  // debts stay: customers, suppliers, D (Starlink), representatives. «↩️» undoes every press at once.
+  // One permanent button (Oct 2026), one correction per place - nothing is deleted; «↩️» undoes every
+  // press at once. 🔄 his Oct 12 2026 rule: this button zeroes الكاش, the banks / wallets and KAST - nothing else.
+  // Profits, the representatives, the devices and their D's are never touched by it.
   async function resetProfits() {
     const ok = await askDeleteCode(
-      "البداية من جديد اليوم؟\n\n• الأرباح والخسائر (الصافي، الدخل، المصروف) تُحسب من اليوم، وكل المندوبين يبدأون حسابًا جديدًا.\n• الكاش وكل البنوك والمحافظ وبطاقة KAST تصير 0 (قيد تصحيح، ليس مصروفًا).\n• تبقى الديون: الزبائن، الموردون، D لستارلينك، المندوبون.\n• «↩️ إرجاع كل شيء كما كان» يعيده.",
+      "تصفير الكاش والبنوك والمحافظ إلى 0 اليوم؟\n\n• الكاش وكل البنوك والمحافظ وبطاقة KAST تصير 0 (قيد تصحيح، ليس مصروفًا).\n• لا يمس المندوبين ولا الأجهزة ولا D ولا الديون ولا الأرباح.\n• «↩️ إرجاع كل شيء كما كان» يعيده.",
     );
     if (!ok) return;
     const day = today();
-    const reps = loadReps();
-    const { reset: next, repStore: nextReps } = startProfitFresh(reps);
-    const merged = profitReset ? { ...next, previousRepResets: { ...next.previousRepResets, ...profitReset.previousRepResets } } : next;
-    saveRepresentativeStore(nextReps);
-    saveProfitReset(merged);
-    setProfitReset(merged);
     // الكاش → 0
     const ledger = loadLedgerStore();
     const cashBalance = computeCashBalanceByCurrency(cashInHandEntries(loadCashEntries(), ledger, book));
@@ -641,11 +634,10 @@ export default function MoneyPage() {
     setCashVersion((v) => v + 1);
   }
 
+  // ↩️ Undoes the cash / banks / wallets / KAST corrections only - never the representatives (his Oct 12
+  // 2026 rule); the profits' start day is managed in الإعدادات / التقارير.
   async function undoResetProfits() {
-    if (!(await askDeleteCode("إرجاع كل شيء كما كان؟\n\nالأرباح والخسائر القديمة، حسابات المندوبين، ورصيد الكاش والبنوك والمحافظ وبطاقة KAST قبل التصفير."))) return;
-    if (profitReset) saveRepresentativeStore(undoProfitFresh(profitReset, loadReps()));
-    saveProfitReset(null);
-    setProfitReset(null);
+    if (!(await askDeleteCode("إرجاع الكاش والبنوك والمحافظ كما كانت قبل التصفير؟\n\nلا يمس المندوبين ولا الأجهزة ولا D."))) return;
     saveCashEntries(undoCashReset(loadCashEntries()));
     setCashResetOn(false);
     const restoredBook = undoAccountsReset(book);
@@ -1020,14 +1012,14 @@ export default function MoneyPage() {
           </p>
         )}
         <button type="button" className="dialog-secondary" onClick={() => void resetProfits()}>
-          🔄 البداية من جديد: الأرباح والكاش والبنوك من 0 (الديون تبقى)
+          🔄 تصفير الكاش والبنوك والمحافظ إلى 0 (لا يمس المندوبين ولا الأجهزة ولا D)
         </button>
         <button type="button" className="dialog-secondary" onClick={() => void resetCash()}>
           💵 إرجاع الكاش إلى 0 فقط
         </button>
-        {(profitReset || cashResetOn || cardResetOn || hasAccountsReset(book)) && (
+        {(cashResetOn || cardResetOn || hasAccountsReset(book)) && (
           <button type="button" className="dialog-secondary" onClick={() => void undoResetProfits()}>
-            ↩️ إرجاع كل شيء كما كان (قبل التصفير)
+            ↩️ إرجاع الكاش والبنوك كما كانت (قبل التصفير)
           </button>
         )}
         <button type="button" className="dialog-danger" onClick={() => void wipeEverything()}>

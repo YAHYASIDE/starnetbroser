@@ -2140,7 +2140,7 @@ function ProfitResetSection() {
   async function start() {
     const message = reset
       ? "بدء الأرباح من الصفر مرة أخرى من الآن؟"
-      : "بدء الأرباح من الصفر من الآن؟\n\n• التقارير تحسب الأرباح من اليوم فقط.\n• كل المندوبين يبدأون حسابًا جديدًا (القديم في الأرشيف).\n• لا يُحذف أي شيء من حسابات الزبائن، ويمكن التراجع.";
+      : "بدء الأرباح من الصفر من الآن؟\n\n• التقارير تحسب الأرباح من اليوم فقط.\n• لا يمس المندوبين ولا الأجهزة ولا D.\n• لا يُحذف أي شيء من حسابات الزبائن، ويمكن التراجع.";
     if (!(await askDeleteCode(message))) return;
     const { reset: next, repStore } = startProfitFresh(loadRepresentativeStore());
     // Starting again keeps the representatives' resets from before the FIRST fresh start.
@@ -2162,8 +2162,8 @@ function ProfitResetSection() {
     <section className="section">
       <h2 className="section-title">بداية جديدة للأرباح</h2>
       <p className="settings-hint">
-        يبدأ حساب الأرباح من الصفر: التقارير لا تحسب إلا الأرباح التي تتأكد من الآن (بعد الدفع لستارلينك)، وكل المندوبين يبدأون حسابًا
-        جديدًا ويبقى القديم في أرشيفهم. لا يُحذف أي شيء: الشحنات وديون الزبائن والدفعات تبقى كما هي، ويمكنك التراجع.
+        يبدأ حساب الأرباح من الصفر: التقارير لا تحسب إلا الأرباح التي تتأكد من الآن (بعد الدفع لستارلينك). لا يمس المندوبين ولا
+        الأجهزة ولا D. لا يُحذف أي شيء: الشحنات وديون الزبائن والدفعات تبقى كما هي، ويمكنك التراجع.
       </p>
       {reset && (
         <p className="profit-reset-active">
