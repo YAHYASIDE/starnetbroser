@@ -27,7 +27,7 @@ import { confirmAndDeleteLedgerEntry, LedgerEntryEditor } from "./LedgerEntryEdi
 import { DeviceStatementDialog } from "./DeviceStatementDialog";
 import { ToastMessage, ToastStack } from "./ToastStack";
 import { HelpHint } from "./HelpHint";
-import { daysRemainingNumber } from "@/lib/date";
+import { daysRemainingNumber, stoppedTodayNotRenewed } from "@/lib/date";
 import { computeDeviceDebtReminders, computeRenewalReminders, computeRestrictedDeviceReminders, isBackupOverdue } from "@/lib/reminders";
 import { formatAmount } from "@/lib/formatAmount";
 import { applyLedgerPaymentsToCash, loadCashEntries, saveCashEntries } from "@/lib/cashStore";
@@ -185,7 +185,7 @@ type DialogState = { mode: AccountDialogMode; account?: StarlinkAccountSummary; 
  * ways of narrowing the SAME list, and combining them silently would be confusing rather than
  * useful. `total` never appears as a value: tapping "كل الحسابات" is just `showAll`, not a real
  * per-account filter. */
-type StatFilterKind = "online" | "expiringSoon" | "expired" | "suspended" | "faulty" | "repair" | "fromRep" | "noClient" | "travel" | "travelDone" | "pinned" | "recent";
+type StatFilterKind = "online" | "expiringSoon" | "expired" | "suspended" | "faulty" | "repair" | "fromRep" | "noClient" | "travel" | "travelDone" | "pinned" | "recent" | "notRenewed";
 
 const STAT_FILTER_TITLES: Record<StatFilterKind, string> = {
   online: "الحسابات المتصلة الآن",
@@ -200,6 +200,7 @@ const STAT_FILTER_TITLES: Record<StatFilterKind, string> = {
   travelDone: "✅ الأجهزة التي تم توثيقها",
   pinned: "📌 الأجهزة المثبتة",
   recent: "🕘 آخر الأجهزة (الأحدث أولًا)",
+  notRenewed: "⏰ لم تُجدَّد منذ بداية اليوم",
 };
 
 function matchesStatFilter(account: StarlinkAccountSummary, kind: StatFilterKind): boolean {
@@ -218,6 +219,8 @@ function matchesStatFilter(account: StarlinkAccountSummary, kind: StatFilterKind
       return needsTravelRegistration(account);
     case "travelDone":
       return isTravelVerified(account);
+    case "notRenewed":
+      return !isFaulty(account) && stoppedTodayNotRenewed(account.rechargeDate || account.standbyDate);
     case "noClient":
     case "pinned":
     case "recent":
@@ -1742,6 +1745,8 @@ export function HomeView({
   const fromRepCount = useMemo(() => activeAccounts.filter((a) => a.addedByRepId).length, [activeAccounts]);
   const pinnedCount = useMemo(() => pinnedDevices(deviceNotes, activeAccounts).length, [deviceNotes, activeAccounts]);
   // 🕘 «آخر جهاز»: how many devices were touched today (the list itself is newest first).
+  // ⏰ «لم يُجدَّد»: stopped at the start of today and still not renewed.
+  const notRenewedCount = useMemo(() => activeAccounts.filter((a) => matchesStatFilter(a, "notRenewed")).length, [activeAccounts]);
   const recentToday = useMemo(() => touchedOn(activeAccounts, ledgerStore, recentLog), [activeAccounts, ledgerStore, recentLog]);
   const travelCount = useMemo(() => activeAccounts.filter(needsTravelRegistration).length, [activeAccounts]);
   const travelDone = useMemo(() => travelEarnings(activeAccounts), [activeAccounts]);
@@ -2175,6 +2180,15 @@ export function HomeView({
               icon={<IconClock />}
               active={statFilter === "recent"}
               onClick={() => { toggleStatFilter("recent"); setSelectedDay(null); }}
+            />
+            <StatusRing
+              tone="notRenewed"
+              value={notRenewedCount}
+              total={overview.total}
+              label="لم يُجدَّد"
+              icon={<IconClock />}
+              active={statFilter === "notRenewed"}
+              onClick={() => { toggleStatFilter("notRenewed"); setSelectedDay(null); }}
             />
             <StatusRing
               tone="pinned"
@@ -2647,7 +2661,7 @@ function SearchResultRow({ result, onOpenClient }: { result: SearchResult; onOpe
   );
 }
 
-type StatusTone = "total" | "online" | "warning" | "expired" | "suspended" | "recent" | "pinned" | "faulty" | "repair" | "travel" | "travelDone" | "fromRep" | "noClient";
+type StatusTone = "total" | "online" | "warning" | "expired" | "suspended" | "recent" | "notRenewed" | "pinned" | "faulty" | "repair" | "travel" | "travelDone" | "fromRep" | "noClient";
 
 /** One circular status counter: a ring filled by this status's share of all devices, its icon and
  * count inside, the label underneath. Tapping filters the list (or shows all, for the total). */

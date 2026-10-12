@@ -14021,6 +14021,7 @@ button.today-tile {
 
 /* 🕘 آخر جهاز · 📌 المثبتة · المعطلة… - a second grid of rings under the first (his Oct 12 2026 ask). */
 .status-ring-recent { --tone: var(--mint); }
+.status-ring-notRenewed { --tone: var(--orange); }
 .status-ring-pinned { --tone: var(--violet); }
 .status-ring-faulty { --tone: var(--red); }
 .status-ring-repair { --tone: var(--orange); }

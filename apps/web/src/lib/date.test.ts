@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { daysRemainingLabel, daysRemainingNumber, formatRelativeTime, RENEWAL_DATE_UNREAD, renewalDateLabel } from "./date";
+import { daysRemainingLabel, daysRemainingNumber, formatRelativeTime, RENEWAL_DATE_UNREAD, renewalDateLabel, stoppedTodayNotRenewed } from "./date";
 
 /** A "YYYY/MM/DD" renewal date `offset` days from today. */
 function dateInDays(offset: number): string {
@@ -99,5 +99,14 @@ describe("renewalDateLabel", () => {
     expect(renewalDateLabel("")).toBe(RENEWAL_DATE_UNREAD);
     expect(renewalDateLabel("  ")).toBe(RENEWAL_DATE_UNREAD);
     expect(renewalDateLabel(undefined)).toBe(RENEWAL_DATE_UNREAD);
+  });
+});
+
+describe("⏰ لم يُجدَّد (stopped at the start of today, still not renewed)", () => {
+  it("only a renewal day of today", () => {
+    expect(stoppedTodayNotRenewed(dateInDays(0))).toBe(true);
+    expect(stoppedTodayNotRenewed(dateInDays(-1))).toBe(false); // older: «منتهية»
+    expect(stoppedTodayNotRenewed(dateInDays(1))).toBe(false); // renewed / tomorrow
+    expect(stoppedTodayNotRenewed("")).toBe(false);
   });
 });

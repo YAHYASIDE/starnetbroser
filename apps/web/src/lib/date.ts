@@ -13,6 +13,13 @@ export function daysRemainingNumber(dateStr: string): number | null {
   return Math.round((parsed.getTime() - today.getTime()) / 86_400_000);
 }
 
+/** ⏰ «لم يُجدَّد» (his Oct 12 2026 ask «الأجهزة التي لم تُجدَّد منذ بداية اليوم»): its renewal day is
+ * today - it stopped at the start of the day (renewal date = stop at midnight) and is still not
+ * renewed (a renewal moves the date on, so it leaves the list by itself). */
+export function stoppedTodayNotRenewed(dateStr: string): boolean {
+  return daysRemainingNumber(dateStr) === 0;
+}
+
 /** Shown instead of a renewal date that hasn't been read from Starlink yet (a new device starts
  * with an empty date - never a made-up placeholder that looks like a real one). */
 export const RENEWAL_DATE_UNREAD = "لم يُقرأ بعد";

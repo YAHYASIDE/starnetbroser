@@ -1229,6 +1229,10 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - Under the five status rings, a second grid of rings (`status-rings-more`): 🕘 آخر جهاز, المثبتة (always shown
   now, even at 0), المعطلة, قيد الإصلاح, تحتاج توثيق, تم توثيقها, من المندوبين / بدون زبون (when any). Only
   «🧹 إلغاء كل التثبيتات» stays a chip (inside «المثبتة»).
+- «⏰ لم يُجدَّد» (his words «أضف إلى الأزرار لم يتم تجديد، وهي الأجهزة التي لم تُجدَّد منذ بداية اليوم»), second
+  in that grid: live, not faulty devices whose renewal day is today (`stoppedTodayNotRenewed` = days 0 - they
+  stopped at midnight). A renewal moves the date on, so the device leaves the list by itself; older dates stay
+  in «منتهية».
 
 ## 🔗 Money places always follow the method + Binance's 0.01 $ on KAST (Oct 12 2026)
 

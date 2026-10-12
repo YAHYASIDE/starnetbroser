@@ -31,6 +31,18 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-12-not-renewed",
+    date: "2026-10-12",
+    title: "⏰ دائرة «لم يُجدَّد»",
+    steps: [
+      {
+        path: "/",
+        title: "⏰ لم يُجدَّد",
+        after: "دائرة جديدة بجانب «آخر جهاز»: الأجهزة التي يومُ تجديدها اليوم فتوقفت منذ بداية اليوم ولم تُجدَّد بعد. حين تجدّد جهازًا يخرج منها وحده.",
+      },
+    ],
+  },
+  {
     id: "2026-10-12-profit-zero",
     date: "2026-10-12",
     title: "💰 حساب الربح يُصفَّر مثل باقي الحسابات",
