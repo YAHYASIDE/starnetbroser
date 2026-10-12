@@ -518,7 +518,13 @@ public class TelegramReplyService extends Service {
                                        TelegramReplies.SearchEntry entry, String[] pending) {
         String methodName = pending == null ? null : TelegramReplies.payMethodName(price.currency, pending[4]);
         boolean hasPhoto = pending != null && !pending[5].isEmpty();
-        String text = TelegramReplies.payConfirmText(price, entry, methodName, hasPhoto);
+        // 📂 A payment in his own account shows what is on that account before it.
+        String walletNow = "";
+        if (entry == null) {
+            String repId = TelegramStore.repIdForChat(context, chatId);
+            if (repId != null) walletNow = TelegramReplies.walletBalance(repId, TelegramReplies.personalWalletId(price.currency), loadSnapshot(context));
+        }
+        String text = TelegramReplies.payConfirmText(price, entry, methodName, hasPhoto, walletNow);
         if (messageId > 0) editOrSend(context, bot, token, chatId, messageId, text, TelegramReplies.payConfirmMarkup());
         else send(context, bot, token, chatId, text, TelegramReplies.payConfirmMarkup());
     }

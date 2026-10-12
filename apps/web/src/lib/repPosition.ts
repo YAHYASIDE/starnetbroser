@@ -37,6 +37,7 @@ import {
   type Representative,
   type RepSettlementList,
 } from "./repStore";
+import { repWallets } from "./repWallets";
 
 export interface RepPositionInput {
   rep: Representative;
@@ -68,6 +69,14 @@ export interface RepPosition {
   expectedShare: Record<string, number>;
   /** ⚖️ owed − share balance, in the display currencies (+ = he owes us). */
   net: Record<string, number>;
+  /** 📂 His accounts (repWallets.ts): 🟠 السيفا وأورانج, 💰 الربح, 🟢 الأوقية - + = له, − = عليه. */
+  wallets: RepWalletBalance[];
+}
+
+export interface RepWalletBalance {
+  /** "SIFA" / "MRU" (another currency when it has records) or "profit". */
+  id: string;
+  balance: Record<string, number>;
 }
 
 export function repPosition(input: RepPositionInput): RepPosition {
@@ -82,6 +91,7 @@ export function repPosition(input: RepPositionInput): RepPosition {
   const active = splitRepRecords(rep, { deviceRows: listRepDeviceCommissions(rep.id, input.ledgerStore), invoices: input.invoices, settlements: input.settlements }, "active");
   const account = buildRepPeriodStatement(buildRepDailyStatement(rep.id, active.deviceRows, active.invoices, active.settlements), {}, convert);
   const totals = totalRepDeviceCommissions(active.deviceRows);
+  const wallets = repWallets(buildRepDailyStatement(rep.id, active.deviceRows, active.invoices, active.settlements, operations), convert);
   return {
     ...(rep.resetFrom ? { since: rep.resetFrom.date } : {}),
     customers: rows.filter((r) => r.current),
@@ -93,6 +103,8 @@ export function repPosition(input: RepPositionInput): RepPosition {
     expectedCount: totals.pendingCount,
     expectedShare: totals.expectedRepShareUsd ? convert(totals.expectedRepShareUsd, "USD") : {},
     net: repNetPosition(owed, account.closing, convert),
+    // سيفا وأورانج first, then the profit, then أوقية (the order of «📂 حساباته» in the app).
+    wallets: [...wallets.money.filter((w) => w.id === "SIFA"), wallets.profit, ...wallets.money.filter((w) => w.id !== "SIFA")].map((w) => ({ id: w.id, balance: w.balance })),
   };
 }
 

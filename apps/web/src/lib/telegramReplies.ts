@@ -30,6 +30,8 @@ import {
   repDaysReply,
   repPositionDebtsReply,
   repPositionText,
+  repWalletsText,
+  repWalletWords,
   repDevicesText,
   repExpiringReply,
   repLinkRequestReply,
@@ -146,6 +148,9 @@ export function buildReplySnapshot(input: {
       mypromises: { text: repPromisesText(repOpenPromises(repId, input.promises ?? [], new Set(mine.map((a) => a.clientId).filter((c): c is string => Boolean(c)))), input.today) },
     };
     reps[repId] = { name: rep.name };
+    // 📂 His accounts for the money bot's 💵 دفعة («في حسابي» shows the account and what is on it).
+    reps[repId]!.wallets = repWalletsText(position.wallets);
+    for (const w of position.wallets) reps[repId]![`wallet:${w.id}`] = repWalletWords(w.balance);
     for (const [kind, reply] of Object.entries(replies)) {
       reps[repId]![kind] = reply.text;
       if (reply.markup) reps[repId]![`${kind}#kb`] = reply.markup;

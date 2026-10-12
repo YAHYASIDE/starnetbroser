@@ -21,7 +21,7 @@ import { addRepBookEntry, currentRepOfClient, loadRepBook, saveRepBook, undoRepB
 import { loadRepresentativeStore } from "./repStore";
 import { isDemoMode } from "./settingsStore";
 import { sendRepText } from "./telegram";
-import { formatMoneyShort } from "./telegramRepMessages";
+import { formatMoneyShort, repWalletLabel } from "./telegramRepMessages";
 
 /** Fired after a device / customer changed outside the page showing them (HomeView and the
  * representatives page reload them). */
@@ -131,7 +131,8 @@ export function repPaymentRequest(data: Record<string, unknown>): Omit<RepReques
   };
   const via = method ? ` (${PAYMENT_METHOD_LABELS[method]})` : "";
   if (data.personal === true) {
-    return { repId, kind: "handover", text: `💼 دفعة في حسابي الشخصي: ${label}${via}`, amount, currency: currency as LedgerCurrency, ...extra };
+    // 📂 Into the account of its currency (🟠 السيفا وأورانج / 🟢 الأوقية) - his Oct 12 2026 ask.
+    return { repId, kind: "handover", text: `💼 دفعة في حسابي الشخصي · ${repWalletLabel(currency)}: ${label}${via}`, amount, currency: currency as LedgerCurrency, ...extra };
   }
   const accountId = str(data.accountId);
   if (!accountId) return null;

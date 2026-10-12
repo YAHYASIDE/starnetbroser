@@ -9,11 +9,12 @@ import type { StarlinkAccountSummary } from "@starnet/shared";
 import type { ClientStore } from "./clientStore";
 import { loadInvoices } from "./invoiceStore";
 import type { LedgerByAccount } from "./ledgerStore";
-import { keepCurrency } from "./repAccount";
+import { getCurrency, loadCurrencyStore } from "./currencyStore";
+import { keepCurrency, makeRepConverter } from "./repAccount";
 import { loadRepBook } from "./repClients";
-import { repPosition } from "./repPosition";
+import { loadRepDisplayCodes, repPosition } from "./repPosition";
 import { loadRepSettlements, type Representative } from "./repStore";
-import { formatMoneyShort } from "./telegramRepMessages";
+import { formatMoneyShort, repWalletsText } from "./telegramRepMessages";
 
 export function repPaymentConfirmationText(input: {
   value: number;
@@ -56,4 +57,21 @@ export function repPaymentConfirmation(input: {
     balanceAfter: input.balanceAfter,
     ...(repOwes ? { repOwes } : {}),
   });
+}
+
+/**
+ * 📂 «حساباتك الآن» under every confirmation the rep gets (his Oct 12 2026 ask: what he sends lands in
+ * his accounts and he sees them) - his accounts right after the operator recorded it. "" when none.
+ */
+export function repWalletsNow(input: { rep?: Representative; accounts: StarlinkAccountSummary[]; clientStore: ClientStore; ledgerStore: LedgerByAccount }): string {
+  if (!input.rep) return "";
+  const store = loadCurrencyStore();
+  const convert = makeRepConverter(loadRepDisplayCodes(), { MRU: getCurrency(store, "MRU")?.rateFromUsd, SIFA: getCurrency(store, "SIFA")?.rateFromUsd });
+  const position = repPosition({ rep: input.rep, clients: input.clientStore, accounts: input.accounts, ledgerStore: input.ledgerStore, book: loadRepBook(), invoices: loadInvoices(), settlements: loadRepSettlements(), convert });
+  return repWalletsText(position.wallets).replace("📂 حساباتك:", "📂 حساباتك الآن:");
+}
+
+/** The confirmation text with his accounts under it. */
+export function withRepWallets(text: string, wallets: string): string {
+  return wallets ? `${text}\n\n${wallets}` : text;
 }

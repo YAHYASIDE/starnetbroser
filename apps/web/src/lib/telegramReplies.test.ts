@@ -47,6 +47,10 @@ describe("buildReplySnapshot", () => {
     expect(snapshot.reps.r1!["days#kb"]).toContain("dd:28");
     expect(snapshot.repSearch.r1![0]!.d).toBe("2026-09-28");
     expect(snapshot.repWords["بحث"]).toBe("search");
+    // 📂 his accounts for the money bot's «💼 في حسابي»
+    expect(snapshot.reps.r1!.wallets).toBe("📂 حساباتك:\n🟠 السيفا وأورانج: متوازن ✓\n💰 الربح: متوازن ✓\n🟢 الأوقية: متوازن ✓");
+    expect(snapshot.reps.r1!["wallet:SIFA"]).toBe("متوازن ✓");
+    expect(snapshot.reps.r1!["wallet:MRU"]).toBe("متوازن ✓");
   });
 
   it("owner answers, command words and templates", () => {

@@ -17,7 +17,7 @@ import { daysUntilRenewal, isStoppedAccount, money, renewalGroups } from "./tele
 import { buildWhatsAppLink, normalizePhoneForWhatsApp } from "./whatsapp";
 import { connectionLine } from "./deviceConnection";
 import { openDebtEntries } from "./deviceFault";
-import type { RepPosition } from "./repPosition";
+import type { RepPosition, RepWalletBalance } from "./repPosition";
 import { deviceHeader, deviceSections, MENU_HINT, menuFits, menuMarkup, pickDeviceMarkup, repEditValues, type RepEditField, type RepSectionCode } from "./repDeviceMenu";
 
 const MAX_LINES = 60;
@@ -164,10 +164,34 @@ function signedMoney(values: Record<string, number>, owes: string, owed: string)
 
 const OPS_IN_STATEMENT = 10;
 
+/** 📂 One of his accounts' name in the bot (the app's «📂 حساباته»). */
+export function repWalletLabel(id: string): string {
+  if (id === "profit") return "💰 الربح";
+  if (id === "SIFA") return "🟠 السيفا وأورانج";
+  if (id === "MRU") return "🟢 الأوقية";
+  if (id === "USD") return "💵 الدولار";
+  return id;
+}
+
+/** «عليك 44,000 سيفا» / «لك 6,000 أوقية» / «متوازن ✓» - an account's balance as HE reads it
+ * (+ = له = لك). */
+export function repWalletWords(balance: Record<string, number>): string {
+  const v = Object.values(balance).find((x) => Math.abs(x) > 0.005) ?? 0;
+  if (Math.abs(v) <= 0.005) return "متوازن ✓";
+  return signedMoney(balance, "لك", "عليك");
+}
+
+/** 📂 All his accounts with their balances (his Oct 12 2026 ask: «تظهر له في البوت كل حساباته ومبالغهم»). */
+export function repWalletsText(wallets: RepWalletBalance[]): string {
+  if (wallets.length === 0) return "";
+  return ["📂 حساباتك:", ...wallets.map((w) => `${repWalletLabel(w.id)}: ${repWalletWords(w.balance)}`)].join("\n");
+}
+
 /** 📊 «كشفي» - the same figures as his card in the app (his Oct 2026 choice «مثل بطاقته»). */
 export function repPositionText(repName: string, p: RepPosition, deviceName: (accountId: string) => string): string {
   const lines = [`📊 كشف حسابك يا ${repName}`];
   if (p.since) lines.push(`🔄 منذ ${p.since}`);
+  if (p.wallets.length > 0) lines.push("", repWalletsText(p.wallets));
   lines.push("", `🧾 عليك عن أجهزتك: ${money(p.owed) || "لا شيء ✓"}`, `✓ حصتك المؤكدة: ${money(p.share) || "0"}`);
   const shareLeft = money(p.shareBalance);
   if (shareLeft && shareLeft !== money(p.share)) lines.push(`💵 الباقي لك من حصتك بعد التسويات: ${signedMoney(p.shareBalance, "لك", "عليك")}`);

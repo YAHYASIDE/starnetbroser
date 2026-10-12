@@ -23,12 +23,12 @@ import {
   PaymentMethod,
 } from "@/lib/ledgerStore";
 import { claimRepRequest, loadRepRequests, pendingRepRequests, releaseRepRequest, RepRequest, resolveRepRequest, saveRepRequests } from "@/lib/repRequests";
-import { repPaymentConfirmation } from "@/lib/repPaymentConfirm";
+import { repPaymentConfirmation, repWalletsNow, withRepWallets } from "@/lib/repPaymentConfirm";
 import type { Representative } from "@/lib/repStore";
 import { downloadRepImage, notifyPaymentTelegram, sendRepPhoto, sendRepText } from "@/lib/telegram";
 import { resizeImageToDataUrl } from "@/lib/imageUtils";
 import { putProof } from "@/lib/paymentProofStore";
-import { formatMoneyShort, matchRepDevices } from "@/lib/telegramRepMessages";
+import { formatMoneyShort, matchRepDevices, repWalletLabel } from "@/lib/telegramRepMessages";
 import { editFieldName, isRepEditField } from "@/lib/repDeviceMenu";
 import { ACCOUNTS_CHANGED_EVENT, decideRepActivation, decideRepEdit } from "@/lib/repMenuRecords";
 import { loadActivationCosts } from "@/lib/repActivation";
@@ -96,6 +96,8 @@ export function RepRequestsSection({ representatives, accounts, clientStore, onC
               key={request.id}
               request={request}
               rep={repById.get(request.repId)}
+              accounts={accounts}
+              clientStore={clientStore}
               onDone={(status) => {
                 resolve(request, status);
                 onChanged();
@@ -116,6 +118,8 @@ export function RepRequestsSection({ representatives, accounts, clientStore, onC
               key={request.id}
               request={request}
               rep={repById.get(request.repId)}
+              accounts={accounts}
+              clientStore={clientStore}
               onDone={(status) => {
                 resolve(request, status);
                 onChanged();
@@ -244,7 +248,10 @@ function PaymentRequestCard({
     notifyPaymentTelegram({ deviceName: device.name, clientName, amount: value, currency, method: methodLabel(method, currency, value), balanceAfter, date });
     await sendRepText(
       request.repId,
-      repPaymentConfirmation({ rep, value, currency, device, clientName, balanceAfter, accounts, clientStore, ledgerStore: result.ledgerStore }),
+      withRepWallets(
+        repPaymentConfirmation({ rep, value, currency, device, clientName, balanceAfter, accounts, clientStore, ledgerStore: result.ledgerStore }),
+        repWalletsNow({ rep, accounts, clientStore, ledgerStore: result.ledgerStore }),
+      ),
       undefined,
       "money",
     );
@@ -559,7 +566,15 @@ function RepProofPhoto({ fileId, bot, onLoaded }: { fileId: string; bot?: "reps"
 
 /** 🏦 A loan (سلفة) the rep asked for in the money bot: the operator sends it through the banking
  * app to the number he gave, then records it here as an advance the rep owes. */
-function LoanRequestCard({ request, rep, onDone }: { request: RepRequest; rep?: Representative; onDone: (status: "approved" | "rejected") => void }) {
+type MoneyCardProps = {
+  request: RepRequest;
+  rep?: Representative;
+  accounts: StarlinkAccountSummary[];
+  clientStore: ClientStore;
+  onDone: (status: "approved" | "rejected") => void;
+};
+
+function LoanRequestCard({ request, rep, accounts, clientStore, onDone }: MoneyCardProps) {
   const [amount, setAmount] = useState(String(request.amount ?? ""));
   const [currency, setCurrency] = useState<LedgerCurrency>(request.currency ?? "MRU");
   // 🟠 A loan sent by أورانج / نيتا leaves the app in فرانك (5 فرانك = 1 سيفا).
@@ -588,7 +603,10 @@ function LoanRequestCard({ request, rep, onDone }: { request: RepRequest; rep?: 
       return setError(result.message);
     }
     const viaFranc = francLoanApp && currency === "SIFA" ? ` (= ${formatAmount(sifaToFranc(value))} فرانك)` : "";
-    const text = `✅ وافق المسؤول على سلفتك ${formatMoneyShort(value, currency)}${viaFranc} - أُرسلت عبر ${request.loanApp ?? "التطبيق"} إلى ${request.loanNumber ?? "رقمك"}.\nسُجّلت عليك في حسابك.`;
+    const text = withRepWallets(
+      `✅ وافق المسؤول على سلفتك ${formatMoneyShort(value, currency)}${viaFranc} - أُرسلت عبر ${request.loanApp ?? "التطبيق"} إلى ${request.loanNumber ?? "رقمك"}.\nسُجّلت عليك في حسابك.`,
+      repWalletsNow({ rep, accounts, clientStore, ledgerStore: loadLedgerStore() }),
+    );
     // With the screenshot: one photo message captioned with the confirmation; else the text.
     const sentPhoto = photo ? await sendRepPhoto(request.repId, photo, `📸 صورة التحويل\n${text}`) : false;
     if (!sentPhoto) await sendRepText(request.repId, text, undefined, "money");
@@ -656,7 +674,7 @@ function LoanRequestCard({ request, rep, onDone }: { request: RepRequest; rep?: 
 
 /** 🤲 Money the rep says he handed over (money bot) - confirmed here, it's recorded as a cash
  * handover with its cash-register entry. */
-function HandoverRequestCard({ request, rep, onDone }: { request: RepRequest; rep?: Representative; onDone: (status: "approved" | "rejected") => void }) {
+function HandoverRequestCard({ request, rep, accounts, clientStore, onDone }: MoneyCardProps) {
   const [amount, setAmount] = useState(String(request.amount ?? ""));
   const [currency, setCurrency] = useState<LedgerCurrency>(request.currency ?? "MRU");
   const [error, setError] = useState<string | null>(null);
@@ -667,7 +685,8 @@ function HandoverRequestCard({ request, rep, onDone }: { request: RepRequest; re
     if (!(value > 0)) return setError("المبلغ غير صحيح");
     const result = recordRepHandover(request, value, currency, localDay(new Date()));
     if (!result.ok) return setError(result.message);
-    await sendRepText(request.repId, `✅ أكّد المسؤول استلام ${formatMoneyShort(value, currency)} منك - سُجّلت في حسابك.`, undefined, "money");
+    const text = `✅ أكّد المسؤول استلام ${formatMoneyShort(value, currency)} منك - سُجّلت في حسابك ${repWalletLabel(currency === "MRU" ? "MRU" : "SIFA")}.`;
+    await sendRepText(request.repId, withRepWallets(text, repWalletsNow({ rep, accounts, clientStore, ledgerStore: loadLedgerStore() })), undefined, "money");
     onDone("approved");
   }
 

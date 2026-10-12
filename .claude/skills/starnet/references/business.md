@@ -1226,3 +1226,20 @@ is never pressed while a field is empty - it refills and saves on the next try (
   defaults to all his profit in that currency (`repProfitIn`, today's rates). A profitTransfer opens a delete-only
   sheet (the له/عليه form would change its kind). The store's own balances follow it
   (`computeRepCommissionOwedByCurrency` −, `computeRepManualBalanceByCurrency` + when `toDebt`).
+
+## 💰 The money bot shows the rep's accounts; his payment says which account (Oct 12 2026)
+
+- His words: «المندوب اريد اذا دفع دفعة ان يسأل ان كان سيدفع عن حسابه الشخصي ام اي حساباته، وان تظهر له في البوت
+  كل حساباته ومبالغهم، واي عملية ارسلها تدخل في الحسابات التي عندي وايضا تظهر له كما في السابق».
+- `RepPosition.wallets` (repPosition.ts → repWallets): the same three accounts as «📂 حساباته» - one computation
+  for the app and the bot. «📊 كشفي» starts with «📂 حساباتك:» (`repWalletsText`, he reads + as «لك», − as «عليك»).
+  The snapshot carries `reps[id].wallets` and `wallet:<SIFA|MRU|profit>` for the Java bot.
+- 💵 دفعة (amount → currency → who): the who step shows «📂 حساباتك» and asks «في حسابك الشخصي أم عن زبون؟»; the 💼
+  button names the account of the payment's currency and its balance («💼 في حسابي: 🟠 السيفا وأورانج · عليك
+  44,000 سيفا»; فرانك (أورانج/نيتا) = السيفا وأورانج, أوقية = الأوقية). A payment can only land in its own
+  currency's account - never converted, so there is no choice of another currency's account. The summary adds
+  «📂 قبل هذه الدفعة», the request in the app reads «💼 دفعة في حسابي الشخصي · 🟠 السيفا وأورانج: …».
+- Nothing changed in where the money lands: on approval a personal payment is `recordRepMoneyHandover` (his
+  customers' devices first, the rest a cash handover) and an app payment (أورانج / بنكيلي …) goes to that
+  account of «حسابي», cash to الكاش. Every confirmation he gets (payment, handover, loan) ends with
+  «📂 حساباتك الآن:» (`repWalletsNow`).

@@ -111,7 +111,7 @@ describe("rep menu records", () => {
 
   it("💼 his own account becomes a handover request; broken records are dropped", () => {
     expect(repPaymentRequest({ repId: "r1", amount: 50, currency: "USD", personal: true, label: "50 دولار" })).toEqual({
-      repId: "r1", kind: "handover", text: "💼 دفعة في حسابي الشخصي: 50 دولار", amount: 50, currency: "USD",
+      repId: "r1", kind: "handover", text: "💼 دفعة في حسابي الشخصي · 💵 الدولار: 50 دولار", amount: 50, currency: "USD",
     });
     expect(repPaymentRequest({ repId: "r1", amount: 0, currency: "USD", personal: true })).toBeNull();
     expect(repPaymentRequest({ repId: "r1", amount: 10, currency: "EUR", personal: true })).toBeNull();
@@ -135,7 +135,7 @@ describe("rep menu records", () => {
       kind: "payment", paymentMethod: "nita", proofFileId: "FILE1", proofBot: "money", text: "💵 دفعة 5,000 سيفا (نيتا) عن مقهى",
     });
     const cash = repPaymentRequest({ repId: "r1", amount: 50, currency: "USD", personal: true, label: "50 دولار", method: "cash" });
-    expect(cash).toMatchObject({ kind: "handover", paymentMethod: "cash", text: "💼 دفعة في حسابي الشخصي: 50 دولار (نقدًا)" });
+    expect(cash).toMatchObject({ kind: "handover", paymentMethod: "cash", text: "💼 دفعة في حسابي الشخصي · 💵 الدولار: 50 دولار (نقدًا)" });
     expect(cash).not.toHaveProperty("proofFileId");
     expect(repPaymentRequest({ repId: "r1", amount: 5, currency: "MRU", accountId: "acc-1", method: "paypal" })).not.toHaveProperty("paymentMethod");
   });

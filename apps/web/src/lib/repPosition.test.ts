@@ -6,7 +6,7 @@ import { keepCurrency } from "./repAccount";
 import type { RepBookEntry } from "./repClients";
 import { repPosition } from "./repPosition";
 import type { Representative } from "./repStore";
-import { repPositionDebtsReply, repPositionText } from "./telegramRepMessages";
+import { repPositionDebtsReply, repPositionText, repWalletsText, repWalletWords } from "./telegramRepMessages";
 
 // Fake data only.
 const device = (id: string, clientId: string, representativeId = "r1") => ({ id, name: `جهاز ${id}`, clientId, representativeId }) as StarlinkAccountSummary;
@@ -67,5 +67,24 @@ describe("⚖️ the rep's position - one way for his card and his money bot", (
     expect(text).toContain("🧾 عليك لنا عن أجهزتك: 30,000 سيفا");
     expect(text).toContain("• جهاز d2: 10,500 سيفا");
     expect(text).not.toContain("99,000");
+  });
+
+  it("📂 his accounts: سيفا وأورانج, الربح, الأوقية - each in its own currency, shown in «📊 كشفي»", () => {
+    const handover = { id: "s1", representativeId: "r1", kind: "cashHandover" as const, amount: 10000, currencyCode: "SIFA", date: "2026-10-09", createdAt: "2026-10-09T10:00:00.000Z" };
+    const mru = { id: "s2", representativeId: "r1", kind: "manualDebit" as const, amount: 2000, currencyCode: "MRU", date: "2026-10-09", createdAt: "2026-10-09T11:00:00.000Z" };
+    const p = repPosition({ ...input, settlements: [handover, mru] });
+    expect(p.wallets.map((w) => w.id)).toEqual(["SIFA", "profit", "MRU"]);
+    // what he owes for his devices (30,000) less his 10,000 handover; the أوقية loan stays apart
+    expect(p.wallets[0]!.balance).toEqual({ SIFA: -20000 });
+    expect(p.wallets[2]!.balance).toEqual({ MRU: -2000 });
+    const text = repPositionText("حسين", p, (id) => `جهاز ${id}`);
+    expect(text).toContain("📂 حساباتك:\n🟠 السيفا وأورانج: عليك 20,000 سيفا\n💰 الربح: متوازن ✓\n🟢 الأوقية: عليك 2,000 أوقية");
+  });
+
+  it("an account's balance as he reads it: + = لك, − = عليك", () => {
+    expect(repWalletWords({ SIFA: 6000 })).toBe("لك 6,000 سيفا");
+    expect(repWalletWords({ MRU: -1500 })).toBe("عليك 1,500 أوقية");
+    expect(repWalletWords({ MRU: 0.001 })).toBe("متوازن ✓");
+    expect(repWalletsText([])).toBe("");
   });
 });
