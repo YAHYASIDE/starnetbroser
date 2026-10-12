@@ -21,12 +21,15 @@ import {
   seedDefaultAccounts,
   setOpeningBalance,
   devicePaymentAccountId,
+  defaultCardTopUpAccountId,
+  methodAccountId,
   cashEntryWalletId,
   cashWalletFlows,
   zeroAccountsBalances,
   undoAccountsReset,
   hasAccountsReset,
   type AccountsBook,
+  type MoneyAccount,
 } from "./moneyAccounts";
 
 const bankily = () => {
@@ -253,5 +256,23 @@ describe("🔁 a transfer between my apps / الكاش", () => {
     const { transferCurrencyError } = await import("./moneyAccounts");
     expect(transferCurrencyError("MRU", "MRU")).toBeNull();
     expect(transferCurrencyError("MRU", "SIFA")).toContain("شراء عملة");
+  });
+});
+
+describe("default places (his Oct 12 2026 asks)", () => {
+  const acc = (id: string, name: string, currencyCode: string, method?: MoneyAccount["method"]) =>
+    ({ id, name, icon: "", currencyCode, openingBalance: 0, openingDate: "2026-10-01", ...(method ? { method } : {}) }) as MoneyAccount;
+  const accounts = [acc("b", "بنكيلي", "MRU", "bankily"), acc("o", "أورانج موني (مالي)", "SIFA", "orange"), acc("x", "محفظة بينانس", "USD")];
+
+  it("a KAST top-up comes from بينانس by default", () => {
+    expect(defaultCardTopUpAccountId(accounts)).toBe("x");
+    expect(defaultCardTopUpAccountId(accounts.slice(0, 2))).toBeNull();
+  });
+
+  it("choosing بنكيلي picks the بنكيلي account, in its own currency only", () => {
+    expect(methodAccountId("bankily", "MRU", accounts)).toBe("b");
+    expect(methodAccountId("bankily", "SIFA", accounts)).toBeNull();
+    expect(methodAccountId("orange", "SIFA", accounts)).toBe("o");
+    expect(methodAccountId("cash", "MRU", accounts)).toBeNull();
   });
 });

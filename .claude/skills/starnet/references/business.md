@@ -1200,3 +1200,12 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - The past: `seedRepResetHistory` (reps page load) brings back the resets older versions overwrote, from the
   profit fresh start's memory (`profitReset.previousRepResets` + its own point) - as saved points only, never
   forced as the current one.
+
+## 💳 KAST top-ups from بينانس by default + 🏦 the method picks its account (Oct 12 2026)
+
+- His words: «شحن البطاقة دائما يكون من بينانس اجعله افتراضي ويمكن تغيره» - a new KAST top-up's «من أين جاء
+  المال؟» starts on «محفظة بينانس» (`defaultCardTopUpAccountId`, by name), else الكاش. Withdrawals and edits
+  are unchanged.
+- «اجعل عندما اضغط على دفع من بنكيلي يظهر الاختيار بنكيلي» - in «إضافة رصيد» (BalanceForm) tapping a payment
+  method sets «من أين تحرّك المال؟» to its account in that currency (`methodAccountId`), «نقدًا» to الكاش;
+  he can still change it.

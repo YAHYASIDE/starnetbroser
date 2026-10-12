@@ -244,6 +244,19 @@ export function cashWalletId(currency: string, accounts: MoneyAccount[]): string
   return accounts.find((a) => isCashWallet(a) && a.currencyCode === currency)?.id ?? null;
 }
 
+/** 💳 Where a KAST top-up comes from by default (his Oct 12 2026 rule «شحن البطاقة دائما يكون من بينانس»):
+ * the «محفظة بينانس» wallet, else null = الكاش. He can still pick another place. */
+export function defaultCardTopUpAccountId(accounts: MoneyAccount[]): string | null {
+  return accounts.find((a) => /بينانس|binance/i.test(a.name))?.id ?? null;
+}
+
+/** 🏦 The app a payment method lands in, in that currency («بنكيلي» → the بنكيلي account) - picked in
+ * «من أين تحرّك المال؟» as soon as the method is chosen (his Oct 12 2026 ask). null = none. */
+export function methodAccountId(method: PaymentMethod | undefined, currency: string, accounts: MoneyAccount[]): string | null {
+  if (!method || method === "cash") return null;
+  return accounts.find((a) => a.method === method && a.currencyCode === currency)?.id ?? null;
+}
+
 /** The first day whose records count in the account: its opening day - or every day while its
  * real balance was never typed (a ready-made account like «كاش سيفا», opening 0 on the day it was
  * added, which would otherwise drop the payments routed to it before that day). */

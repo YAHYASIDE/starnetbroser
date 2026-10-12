@@ -25,7 +25,7 @@ import { deviceMatchesQuery } from "@/lib/homeInsights";
 import { loadCashEntries, saveCashEntries } from "@/lib/cashStore";
 import { deleteProof, getProof, putProof } from "@/lib/paymentProofStore";
 import { resizeImageToDataUrl } from "@/lib/imageUtils";
-import { loadAccountsBook, type MoneyAccount } from "@/lib/moneyAccounts";
+import { defaultCardTopUpAccountId, loadAccountsBook, type MoneyAccount } from "@/lib/moneyAccounts";
 import { ClientStore, getClient, loadClientStore } from "@/lib/clientStore";
 import { CurrencyStore, getCurrency, loadCurrencyStore, realRateFromUsd, saveCurrencyStore, setCurrencyRate } from "@/lib/currencyStore";
 import { demoAccounts } from "@/lib/demoData";
@@ -1238,7 +1238,10 @@ function MovementForm({
   const isOut = direction === "out";
   const [amountUsd, setAmountUsd] = useState(initial ? String(initial.amountUsd) : prefill ? String(prefill.amountUsd) : "");
   // Where the counterpart money moves: "cash" (الكاش), a bank/wallet id, or "loss" (withdrawal only).
-  const initialVia = initial ? (initial.via === "account" ? (initial.accountId ?? "cash") : initial.via === "loss" ? "loss" : "cash") : "cash";
+  // 💳 A new top-up comes from «محفظة بينانس» by default (his Oct 12 2026 rule) - he can change it.
+  const initialVia = initial
+    ? initial.via === "account" ? (initial.accountId ?? "cash") : initial.via === "loss" ? "loss" : "cash"
+    : (!isOut && defaultCardTopUpAccountId(moneyAccounts)) || "cash";
   const [via, setVia] = useState<string>(initialVia);
   const isLoss = via === "loss";
   const viaAccount = moneyAccounts.find((a) => a.id === via);

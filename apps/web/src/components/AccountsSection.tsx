@@ -14,7 +14,7 @@ import { clientRepNames, clientRepIds, matchesClientOwner, type ClientOwnerFilte
 import { currentRepOfClient } from "@/lib/repClients";
 import type { RepresentativeStore } from "@/lib/repStore";
 import { CreateSupplierInput, Supplier } from "@/lib/supplierStore";
-import { loadAccountsBook } from "@/lib/moneyAccounts";
+import { loadAccountsBook, methodAccountId } from "@/lib/moneyAccounts";
 import { fitPayMethod, isFrancAccount, methodLabel, PAY_CURRENCIES, PAY_CURRENCY_LABELS, payFormOf, payMethodsFor, toLedgerPayment, type PayCurrency } from "@/lib/payCurrency";
 import { getProof } from "@/lib/paymentProofStore";
 import { resizeImageToDataUrl } from "@/lib/imageUtils";
@@ -1300,7 +1300,14 @@ function BalanceForm({ partyName, partyKind, devices, initial, proofKey, submitL
                 type="button"
                 className={`pay-method pay-method-${m}${method === m ? " pay-method-active" : ""}`}
                 aria-pressed={method === m}
-                onClick={() => setPaymentMethod(m)}
+                onClick={() => {
+                  setPaymentMethod(m);
+                  // 🏦 «من أين تحرّك المال؟» follows the method (his Oct 12 2026 ask): بنكيلي → the بنكيلي
+                  // account, نقدًا → الكاش. He can still change it below.
+                  const app = methodAccountId(m, currencyCode, currencyAccounts);
+                  if (m === "cash") setSource("cash");
+                  else if (app) setSource(app);
+                }}
               >
                 {PAYMENT_METHOD_LABELS[m]}
               </button>
