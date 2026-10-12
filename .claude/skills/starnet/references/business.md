@@ -1279,6 +1279,17 @@ is never pressed while a field is empty - it refills and saves on the next try (
   reads his profit now (`repProfitSigned`) and goes either way (`repProfitZeroEntry`): له → written off
   (profitTransfer), عليه → profitCredit; note «🧹 تصفير الربح». Both open the delete-only sheet on the statement.
 
+## 💵 «تسوية» on a rep's card: «عليه» is always what he owes (Oct 12 2026)
+
+- His words: «المندوب عندما ضغطت على تسوية وأضفت أن عليه 50000 سيفا ظهر في ربحه، لماذا لا تظهر عليه». The form's
+  cash box was ticked by default, and «عليه» + «نقدًا» was saved as `commissionPayout` («💸 دفعت له من ربحه»):
+  it lowered his profit and took 50,000 out of الكاش instead of adding to what he owes.
+- Now «عليه» is always `manualDebit` in its currency's account (`settleFormKind`), no money moves, his profit and
+  الكاش untouched; the cash box is shown for «له» only («استلمتها منه نقدًا»). Paying him his profit stays in
+  «📂 حساباته ← 💸 دفعت له من حسابي». An old «دفعت له من ربحه» opened for editing stays one.
+- The wrong record already saved is fixed by deleting it from his statement (its الكاش entry goes with it) and
+  adding «عليه» again.
+
 ## 💰 The money bot shows the rep's accounts; his payment says which account (Oct 12 2026)
 
 - His words: «المندوب اريد اذا دفع دفعة ان يسأل ان كان سيدفع عن حسابه الشخصي ام اي حساباته، وان تظهر له في البوت

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { keepCurrency, makeRepConverter, repRowDelta } from "./repAccount";
 import { buildRepDailyStatement, computeRepCommissionOwedByCurrency, computeRepManualBalanceByCurrency, type RepCustomerOp, type RepSettlement } from "./repStore";
-import { repProfitIn, repProfitSigned, repProfitZeroEntry, repWallets, repZeroEntry } from "./repWallets";
+import { repProfitIn, repProfitSigned, repProfitZeroEntry, repWallets, repZeroEntry, settleFormKind } from "./repWallets";
 
 const op = (id: string, amount: number, currency: string, date = "2026-10-05"): RepCustomerOp => ({ entryId: id, accountId: "a1", date, at: `${date}T10:00:00.000Z`, amount, currency, byRep: false });
 const st = (id: string, kind: RepSettlement["kind"], amount: number, currencyCode: string, extra: Partial<RepSettlement> = {}): RepSettlement => ({
@@ -74,5 +74,23 @@ describe("🧹 تصفير الربح either way (his Oct 12 2026 report: «عل�
   it("a profit above 0 is written off, 0 needs nothing", () => {
     expect(repProfitZeroEntry(6000)).toEqual({ kind: "profitTransfer", amount: 6000 });
     expect(repProfitZeroEntry(0)).toBeNull();
+  });
+});
+
+describe("💵 «تسوية» on his card (his Oct 12 2026 report: «عليه 50,000 سيفا» showed in his profit)", () => {
+  it("«عليه» always goes to what he owes - never his profit, never الكاش", () => {
+    expect(settleFormKind("debit", true)).toBe("manualDebit");
+    expect(settleFormKind("debit", false)).toBe("manualDebit");
+    const days = buildRepDailyStatement("r1", [], [], [st("d", settleFormKind("debit", true), 50000, "SIFA")]);
+    const { money, profit } = repWallets(days, keepCurrency);
+    expect(money[0]!.balance).toEqual({ SIFA: -50000 });
+    expect(profit.balance.SIFA ?? 0).toBe(0);
+  });
+
+  it("«له» keeps the cash choice; an old «دفعت له من ربحه» edited stays one", () => {
+    expect(settleFormKind("credit", true)).toBe("cashHandover");
+    expect(settleFormKind("credit", false)).toBe("manualCredit");
+    expect(settleFormKind("debit", true, "commissionPayout")).toBe("commissionPayout");
+    expect(settleFormKind("debit", false, "manualDebit")).toBe("manualDebit");
   });
 });

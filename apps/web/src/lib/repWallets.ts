@@ -1,5 +1,5 @@
 import { buildRepPeriodStatement, keepCurrency, repRowKey, repRowSplit, type RepConvert } from "./repAccount";
-import type { RepStatementDay, RepStatementRow } from "./repStore";
+import type { RepSettlementKind, RepStatementDay, RepStatementRow } from "./repStore";
 
 /**
  * 📂 «حساباته» (his Oct 12 2026 ask): a rep's money as separate accounts inside his account -
@@ -97,4 +97,16 @@ export function repZeroEntry(balance: number): { kind: "manualCredit" | "manualD
   if (Math.abs(balance) <= EPS) return null;
   const amount = Math.round(Math.abs(balance) * 100) / 100;
   return balance < 0 ? { kind: "manualCredit", amount } : { kind: "manualDebit", amount };
+}
+
+/**
+ * 💵 «تسوية» on his card: «له» (ticked «استلمت منه نقدًا» = the cash came into الكاش) or «عليه».
+ * «عليه» always lands on what he owes, never on his profit (his Oct 12 2026 report: «عليه 50,000 سيفا»
+ * with the cash box left ticked was saved as «دفعت له من ربحه» - it lowered his profit and took the
+ * money out of الكاش). Paying him his profit is «📂 حساباته ← 💸 دفعت له من حسابي»; an old
+ * «دفعت له من ربحه» edited here stays one.
+ */
+export function settleFormKind(direction: "credit" | "debit", viaCash: boolean, editing?: RepSettlementKind): RepSettlementKind {
+  if (direction === "credit") return viaCash ? "cashHandover" : "manualCredit";
+  return editing === "commissionPayout" ? "commissionPayout" : "manualDebit";
 }

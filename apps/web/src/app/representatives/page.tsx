@@ -83,6 +83,7 @@ import { loadPartyCurrencyContext } from "@/lib/partyCurrencyData";
 import { ClientStore, commitClientStore, createClient, getClient, loadClientStore } from "@/lib/clientStore";
 import { combinePhoneNumber, PHONE_COUNTRY_CODES, splitPhoneNumber } from "@/lib/phoneCountryCodes";
 import { formatAmount } from "@/lib/formatAmount";
+import { settleFormKind } from "@/lib/repWallets";
 import { getStoreItem, loadStoreItems, StoreItemRegistry } from "@/lib/storeStore";
 import { demoAccounts } from "@/lib/demoData";
 import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
@@ -210,11 +211,6 @@ function settlementText(s: RepSettlement): string {
   if (s.kind === "commissionPayout") return "💸 دفعت له من ربحه";
   if (s.kind === "profitCredit") return s.note?.startsWith("🧹") ? "🧹 تصفير الربح" : "➕ له في ربحه";
   return SETTLEMENT_LABELS[s.kind];
-}
-
-function settlementKind(direction: "credit" | "debit", cash: boolean): RepSettlementKind {
-  if (direction === "credit") return cash ? "cashHandover" : "manualCredit";
-  return cash ? "commissionPayout" : "manualDebit";
 }
 
 const PERIOD_LABELS: Record<RepPeriodKind, string> = {
@@ -1916,7 +1912,7 @@ function SettlementForm({
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    setError(onSubmit({ kind: settlementKind(direction, viaCash), amount: Number(amount), currencyCode: currency, date, note }));
+    setError(onSubmit({ kind: settleFormKind(direction, viaCash, initial?.kind), amount: Number(amount), currencyCode: currency, date, note }));
   }
 
   return (
@@ -1966,10 +1962,16 @@ function SettlementForm({
         <span>التاريخ</span>
         <DateInput className="search-input"  value={date} onChange={(e) => setDate(e.target.value)} required />
       </label>
-      <label className="ledger-d-toggle party-cash-toggle">
-        <input type="checkbox" checked={viaCash} onChange={(e) => setViaCash(e.target.checked)} />
-        <span>{direction === "debit" ? "دفعتها له نقدًا (تخرج من الكاش)" : "استلمتها منه نقدًا (تدخل الكاش)"}</span>
-      </label>
+      {direction === "credit" ? (
+        <label className="ledger-d-toggle party-cash-toggle">
+          <input type="checkbox" checked={viaCash} onChange={(e) => setViaCash(e.target.checked)} />
+          <span>استلمتها منه نقدًا (تدخل الكاش)</span>
+        </label>
+      ) : initial?.kind === "commissionPayout" ? (
+        <p className="settings-hint">💸 دفعة من ربحه خرجت من الكاش - تبقى كذلك عند التعديل.</p>
+      ) : (
+        <p className="settings-hint">يُضاف إلى ما عليه في حسابه بهذه العملة، ولا يمس ربحه ولا الكاش. لدفع ربحه له: «📂 حساباته» ← «💸 دفعت له من حسابي».</p>
+      )}
       <input className="search-input" placeholder="ملاحظة (اختياري)" value={note} onChange={(e) => setNote(e.target.value)} />
       {error && <div className="account-card-alert ledger-form-error">{error}</div>}
       <div className="settings-actions">
