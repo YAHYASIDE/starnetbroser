@@ -98,6 +98,9 @@ interface Props {
   heldByRepName?: string;
   /** 📱 The rep who added this device from his app (approved) - a lasting badge. */
   addedByRepName?: string;
+  /** 👤 The rep's own customer on this device, as his «تسجيلاتي» said - for information only
+   * (his Oct 13 2026 choice): not one of the operator's customers, no debt. */
+  repClientName?: string;
   /** 🔗 The same device registered again (same email or KIT) - merge this one into it. */
   twin?: StarlinkAccountSummary;
   onMergeInto?: (drop: StarlinkAccountSummary, keep: StarlinkAccountSummary) => void;
@@ -242,6 +245,7 @@ export function AccountCard({
   repColor,
   heldByRepName,
   addedByRepName,
+  repClientName,
   twin,
   onMergeInto,
   onTravelDone,
@@ -699,6 +703,11 @@ export function AccountCard({
           ) : (
             <div className="account-card-client-missing">
               <span className="badge badge-gray">الزبون غير محدد</span>
+            </div>
+          )}
+          {repClientName && (
+            <div className="account-card-rep-client" title="زبون المندوب على هذا الجهاز - للعلم فقط">
+              👤 زبون المندوب: {repClientName}
             </div>
           )}
         </div>

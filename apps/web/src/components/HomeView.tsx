@@ -2079,7 +2079,7 @@ export function HomeView({
             <small>
               {repSent
                 ? `أُرسلت ${repSent.at.slice(0, 16).replace("T", " ")} - بانتظار موافقة المسؤول، ثم تصلك نسخة جديدة`
-                : "دفعاتك وأجهزتك وزبائنك الجدد - اختر تيليغرام ثم بوت المندوبين"}
+                : "أجهزتك الجديدة وأسماء أجهزتك وزبائنها - عملياتك وديونك تبقى عندك. اختر تيليغرام ثم بوت المندوبين"}
             </small>
           </span>
         </button>
@@ -2440,6 +2440,7 @@ export function HomeView({
                 heldByRepName={isHiddenRepDevice(account, hiddenReps) ? repContact(account, representativeStore)?.name : undefined}
                 repColor={getRepresentative(representativeStore, account.representativeId)?.color}
                 addedByRepName={account.addedByRepId ? getRepresentative(representativeStore, account.addedByRepId)?.name ?? "مندوب" : undefined}
+                repClientName={ownerView && account.representativeId ? account.repClientName : undefined}
                 twin={viewMode === "active" ? deviceTwinMap.get(account.id) : undefined}
                 onMergeInto={viewMode === "active" && !isRepWorkspace() ? handleMergeDevices : undefined}
                 mailSignedIn={mailSignedIds.has(account.id)}

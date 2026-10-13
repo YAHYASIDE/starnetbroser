@@ -195,7 +195,22 @@ mind). Exact texts and numbers live in the code - this file says where.
   name, then what he owes us per device; the old «ديون زبائن أجهزتك» section is gone); «دفتري»
   balances and the bot search read the post-reset ledger/book too. Amounts in the reps page's display
   currency (`starnet.repDisplayCurrency`). The month-closing message uses the same text.
-- **📱 The rep's copy carries devices only - no customers either way** (Oct 2026: «النسخ التي أرسلها
+- **💼 Each one keeps his own debts - the copy and «تسجيلاتي» carry no money** (Oct 13 2026: «أريد نسخة التي يرسلها لي
+  المندوب ألا تكون فيها إلا تعديلات الاسم أو الزبون… الجهاز عليه D أو دين الزبون أو العملات لا أريده أن يظهر عندي، وديون
+  زبائنه لا تتغير عنده ولا عندي، كلٌّ له عنده ديونه»). His choices: «الاسم + الأجهزة الجديدة»، «اسم زبونه على الجهاز
+  للعلم»، «الأجهزة فقط، ديونه لا تُمس». **From the rep** (`buildRepChangeSet` / `limitRepChangeSet` /
+  `limitDeviceChanges`): only a device he added (with its session, without `renewalPlan` / `travelRegistrationPrice`), and
+  on his other devices only `name` and `repClientName` (his customer's name, from his phone's customers -
+  `withRepClientNames`); renewals, D, payments, debts, currencies, promises, customers never - the operator's side drops
+  them too (an older rep app), the review lists only «📡 جهاز جديد» / «✏️ تعديل الجهاز» (detail: «✏️ الاسم: A ← B · 👤
+  زبونه: X»). `repPending` counts only those. The operator's card shows «👤 زبون المندوب: X» (`repClientName`, owner view
+  only, information - not his customer, no debt). **From the operator** (`repStoreSlice`, `COPY_STORES`): devices + rates,
+  templates, business profile, the rep himself - no ledger, allocations, previous debts, store invoices, settlements, rep
+  book or past ledger (and `buildRepCopy` gets an empty ledger); `rebaseWorkspace` writes only COPY_STORES, so the rep's
+  operations and his customers' debts on his phone are never touched. What the rep owes the operator stays the operator's
+  (his statement, the money bot's «📊 كشفي»).
+- **📱 The rep's copy carries devices only - no customers either way** (*operations / debts too since Oct 13 2026 - see
+  «💼 Each one keeps his own debts»*) (Oct 2026: «النسخ التي أرسلها
   للمندوب فيها الأجهزة فقط… تتوقف نسختي ونسخته من الزبائن… إذا عدّل المندوب على أجهزته تظهر له… لا
   يمكنه حذفها»; his choices: «الأجهزة + عملياتها»، «عنده تبقى ولا تُمسح»، «الحذف فقط»).
   `repStoreSlice` sends his devices (without `clientId`), their ledger/allocations/previous debts and

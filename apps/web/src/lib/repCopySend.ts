@@ -4,7 +4,6 @@ import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { loadCurrencyStore } from "./currencyStore";
-import { loadLedgerStore } from "./ledgerStore";
 import { exportAccountSessions, isRunningInAndroidApp } from "./localBrowser";
 import { buildRepCopy, buildRepCopyFile, copySnapshot, markRepCopySent, markRepCopySentDevices, repCopyFileName } from "./repCopy";
 import { ensureRepDeviceCode, repPhoneKey } from "./repDeviceTransfer";
@@ -33,7 +32,8 @@ export async function sendRepCopy(rep: Representative, accounts: StarlinkAccount
     repName: rep.name,
     commissionPercent: rep.commissionPercent,
     accounts,
-    ledger: loadLedgerStore(),
+    // 💼 Each one keeps his own debts (his Oct 13 2026 rule): no operation of mine travels.
+    ledger: {},
     // 👥 Devices only - never the operator's customers (his Oct 2026 rule).
     clients: {},
     rates,

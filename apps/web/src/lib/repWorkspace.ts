@@ -83,11 +83,63 @@ const isRec = (v: unknown): v is Rec => Boolean(v) && typeof v === "object" && !
 const asList = (v: unknown): Rec[] => (Array.isArray(v) ? v.filter(isRec) : []);
 const asMap = (v: unknown): Record<string, unknown> => (isRec(v) ? v : {});
 
+/**
+ * 💼 Each one keeps his own debts (his Oct 13 2026 rule: «ديون زبائنه لا تتغير عنده ولا عندي، كل له عنده
+ * ديونه»). A copy carries his devices and the shared settings only - never an operation, a debt, a D,
+ * a store sale, a settlement or his book: what is on the rep's phone stays as he recorded it.
+ */
+export const COPY_STORES = new Set([ACCOUNTS_KEY, CURRENCIES_KEY, TEMPLATES_KEY, PROFILE_KEY, REPS_KEY]);
+
+/**
+ * 📤 What a rep's «تسجيلاتي» may change on the operator's phone (same rule, his choices «الاسم +
+ * الأجهزة الجديدة» and «اسم زبونه على الجهاز للعلم»): a device he added, and on his other devices
+ * only their name and his customer's name (`repClientName`). Renewals, D, payments, debts, prices and
+ * currencies never travel. `reference` = the devices the rep's version is compared with (the
+ * operator's, or the rep's last copy).
+ */
+export const REP_SENT_FIELDS = ["name", "repClientName"];
+
+const MONEY_DEVICE_FIELDS = ["renewalPlan", "travelRegistrationPrice"];
+
+export function limitDeviceChanges(changes: StoreChanges, reference: unknown): StoreChanges {
+  const ref = flatten(reference, "list");
+  const out: StoreChanges = { set: new Map(), removed: new Set() };
+  for (const [id, mine] of changes.set) {
+    const theirs = ref.get(id);
+    if (!theirs) {
+      const device: Rec = { ...mine };
+      for (const f of MONEY_DEVICE_FIELDS) delete device[f];
+      out.set.set(id, device);
+      continue;
+    }
+    const next: Rec = { ...theirs };
+    for (const f of REP_SENT_FIELDS) {
+      if (mine[f] === undefined || mine[f] === "") delete next[f];
+      else next[f] = mine[f];
+    }
+    if (!same(next, theirs)) out.set.set(id, next);
+  }
+  return out;
+}
+
+/** His devices with his own customer's name on each (from his phone's customers). */
+export function withRepClientNames(accounts: unknown, clients: unknown): Rec[] {
+  const byId = asMap(clients);
+  return asList(accounts).map((a) => {
+    const client = typeof a.clientId === "string" ? byId[a.clientId] : undefined;
+    const name = isRec(client) && typeof client.name === "string" ? client.name.trim() : "";
+    const out: Rec = { ...a };
+    if (name) out.repClientName = name;
+    else delete out.repClientName;
+    return out;
+  });
+}
+
 // ---- operator side: the rep's slice ----
 
-/** Only what belongs to the rep: his devices (without the operator's customer on them) and their
- * operations, and the operator's shared settings (rates, templates, business name, the rep
- * himself). No customers - see CUSTOMER_STORES. */
+/** Only what belongs to the rep: his devices (without the operator's customer on them) and the
+ * operator's shared settings (rates, templates, business name, the rep himself). No customers (see
+ * CUSTOMER_STORES) and no operations or debts (see COPY_STORES). */
 export function repStoreSlice(stores: StoreValues, repId: string): StoreValues {
   const accounts = asList(stores[ACCOUNTS_KEY])
     .filter((a) => a.representativeId === repId && !a.deletedAt && !a.archivedAt)
@@ -96,41 +148,19 @@ export function repStoreSlice(stores: StoreValues, repId: string): StoreValues {
       for (const f of LOCAL_FIELDS) delete device[f];
       return device;
     }) as unknown as StarlinkAccountSummary[];
-  const accountIds = new Set(accounts.map((a) => a.id));
-  const pick = (v: unknown, keep: Set<string>) => Object.fromEntries(Object.entries(asMap(v)).filter(([k]) => keep.has(k)));
   const reps = asMap(stores[REPS_KEY]);
   return {
     [ACCOUNTS_KEY]: accounts,
-    [LEDGER_KEY]: pick(stores[LEDGER_KEY], accountIds),
-    [ALLOCATIONS_KEY]: pick(stores[ALLOCATIONS_KEY], accountIds),
-    [PREVIOUS_DEBTS_KEY]: asList(stores[PREVIOUS_DEBTS_KEY]).filter((d) => accountIds.has(String(d.accountId))),
     [CURRENCIES_KEY]: stores[CURRENCIES_KEY] ?? {},
     [TEMPLATES_KEY]: stores[TEMPLATES_KEY] ?? null,
     [PROFILE_KEY]: stores[PROFILE_KEY] ?? null,
     [REPS_KEY]: reps[repId] ? { [repId]: reps[repId] } : {},
-    [INVOICES_KEY]: asList(stores[INVOICES_KEY]).filter((i) => i.representativeId === repId),
-    [SETTLEMENTS_KEY]: asList(stores[SETTLEMENTS_KEY]).filter((x) => x.representativeId === repId),
-    [REP_BOOK_KEY]: asList(stores[REP_BOOK_KEY]).filter((x) => x.repId === repId),
-    [PAST_LEDGER_KEY]: pastLedger(stores, accountIds, repId),
   };
 }
 
 export interface PastLedger {
   ledger: Record<string, Rec[]>;
   names: Record<string, string>;
-}
-
-function pastLedger(stores: StoreValues, current: Set<string>, repId: string): PastLedger {
-  const names = new Map(asList(stores[ACCOUNTS_KEY]).map((a) => [String(a.id), String(a.name ?? "")]));
-  const out: PastLedger = { ledger: {}, names: {} };
-  for (const [accountId, list] of Object.entries(asMap(stores[LEDGER_KEY]))) {
-    if (current.has(accountId)) continue;
-    const mine = asList(list).filter((e) => e.representativeId === repId);
-    if (mine.length === 0) continue;
-    out.ledger[accountId] = mine;
-    out.names[accountId] = names.get(accountId) || "جهاز سابق";
-  }
-  return out;
 }
 
 /** A short fingerprint of a record (or "removed") - an operator's decision on a rep's change holds
@@ -296,7 +326,8 @@ export function rebaseWorkspace(
 ): StoreValues {
   const result: StoreValues = {};
   for (const { key, shape } of REP_STORES) {
-    if (!(key in nextBase)) continue;
+    // 💼 Only what a copy carries (COPY_STORES); an older operator app may still send operations.
+    if (!(key in nextBase) || !COPY_STORES.has(key)) continue;
     if (key === PROFILE_KEY && keepOwnProfile && current[PROFILE_KEY] != null) {
       result[key] = current[PROFILE_KEY];
       continue;
@@ -354,13 +385,6 @@ export function rebaseWorkspace(
     result[key] = rebaseStore(changes, nextBase[key], shape, ignoreSync);
     if (key === ACCOUNTS_KEY) result[key] = keepLocalFields(keepFreshestReads(result[key], current[key]), current[key]);
   }
-  // Operations of devices no longer on the phone go with them.
-  if (oldBase && Array.isArray(result[ACCOUNTS_KEY])) {
-    const ids = new Set(asList(result[ACCOUNTS_KEY]).map((a) => String(a.id)));
-    for (const key of [LEDGER_KEY, ALLOCATIONS_KEY]) {
-      if (isRec(result[key])) result[key] = Object.fromEntries(Object.entries(result[key] as Rec).filter(([id]) => ids.has(id)));
-    }
-  }
   return result;
 }
 
@@ -377,15 +401,11 @@ export interface RepPending {
 export function repPending(current: StoreValues, base: StoreValues | null): RepPending {
   const pending: RepPending = { accountIds: new Set(), clientIds: new Set(), entryPaths: new Set(), count: 0 };
   if (!base) return pending;
-  const accounts = diffStore(current[ACCOUNTS_KEY], base[ACCOUNTS_KEY], "list", true);
+  // 💼 Only what he sends is waiting (a new device, a name, his customer's name): his operations and
+  // his customers' debts are his own, never sent, never pending (COPY_STORES, limitDeviceChanges).
+  const accounts = limitDeviceChanges(diffStore(withRepClientNames(current[ACCOUNTS_KEY], current[CLIENTS_KEY]), base[ACCOUNTS_KEY], "list", true), base[ACCOUNTS_KEY]);
   for (const id of accounts.set.keys()) pending.accountIds.add(id);
-  const ledger = diffStore(current[LEDGER_KEY], base[LEDGER_KEY], "groups");
-  for (const path of [...ledger.set.keys(), ...ledger.removed]) {
-    pending.entryPaths.add(path);
-    pending.accountIds.add(path.slice(0, path.lastIndexOf("/")));
-  }
-  // His customers are his own (CUSTOMER_STORES): never pending, never sent.
-  pending.count = accounts.set.size + accounts.removed.size + ledger.set.size + ledger.removed.size;
+  pending.count = accounts.set.size;
   return pending;
 }
 

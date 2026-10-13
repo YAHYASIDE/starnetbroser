@@ -22,6 +22,7 @@ import {
   CUSTOMER_STORES,
   diffStore,
   LEDGER_KEY,
+  limitDeviceChanges,
   NOTES_KEY,
   PREVIOUS_DEBTS_KEY,
   PROMISES_KEY,
@@ -32,6 +33,7 @@ import {
   type Shape,
   type StoreChanges,
   type StoreValues,
+  withRepClientNames,
 } from "./repWorkspace";
 
 type Rec = Record<string, unknown>;
@@ -46,9 +48,25 @@ export interface StoreChangeSet {
 /** storeKey -> its changes (only stores that changed). */
 export type RepChangeSet = Record<string, StoreChangeSet>;
 
-/** The business stores a rep may change (the operator's own values - rates, templates… - never;
- * his customers neither: they are his alone, CUSTOMER_STORES). */
-const CHANGE_STORES = REP_STORES.filter((s) => s.shape !== "value" && !CUSTOMER_STORES.has(s.key));
+/** The business stores a rep may change: his devices only (his Oct 13 2026 rule «كل له عنده ديونه» -
+ * operations, D, debts, currencies never travel; his customers neither: CUSTOMER_STORES). */
+const CHANGE_STORES = REP_STORES.filter((s) => s.key === ACCOUNTS_KEY);
+
+/** Only what a rep may send (repWorkspace.limitDeviceChanges): his new devices, and the name / his
+ * customer's name on his other devices - compared with `reference` (the operator's stores, or his
+ * last copy). Anything else in the file (an older rep app) is dropped; `dropped` counts it. */
+export function limitRepChangeSet(changes: RepChangeSet, reference: StoreValues): { changes: RepChangeSet; dropped: number } {
+  let dropped = 0;
+  for (const [key, change] of Object.entries(changes)) {
+    if (key === ACCOUNTS_KEY) dropped += change.removed.length;
+    else dropped += Object.keys(change.set).length + change.removed.length;
+  }
+  const devices = changes[ACCOUNTS_KEY];
+  if (!devices) return { changes: {}, dropped };
+  const limited = limitDeviceChanges({ set: new Map(Object.entries(devices.set)), removed: new Set() }, reference[ACCOUNTS_KEY]);
+  dropped += Object.keys(devices.set).length - limited.set.size;
+  return { changes: limited.set.size ? { [ACCOUNTS_KEY]: { set: Object.fromEntries(limited.set), removed: [] } } : {}, dropped };
+}
 
 function shapeOf(key: string): Shape | undefined {
   return CHANGE_STORES.find((s) => s.key === key)?.shape;
@@ -63,9 +81,11 @@ export function buildRepChangeSet(current: StoreValues, base: StoreValues | null
   const out: RepChangeSet = {};
   if (!base) return out;
   for (const { key, shape } of CHANGE_STORES) {
-    const changes = diffStore(current[key], base[key], shape, key === ACCOUNTS_KEY);
-    if (changes.set.size === 0 && changes.removed.size === 0) continue;
-    out[key] = { set: Object.fromEntries(changes.set), removed: [...changes.removed] };
+    const now = key === ACCOUNTS_KEY ? withRepClientNames(current[key], current[CLIENTS_KEY]) : current[key];
+    const changes = diffStore(now, base[key], shape, key === ACCOUNTS_KEY);
+    const limited = key === ACCOUNTS_KEY ? limitDeviceChanges(changes, base[key]) : changes;
+    if (limited.set.size === 0 && limited.removed.size === 0) continue;
+    out[key] = { set: Object.fromEntries(limited.set), removed: [...limited.removed] };
   }
   return out;
 }
@@ -129,9 +149,12 @@ function records(value: unknown, shape: Shape): Map<string, Rec> {
  *   as held by the rep (the money is with him - nothing goes into الكاش).
  * - customers: new ones, or customers of his devices; notes / adjustments / promises of those.
  */
-export function applyRepChangeSet(owner: StoreValues, changes: RepChangeSet, repId: string, now: Date = new Date()): ApplyRepChangesResult {
+export function applyRepChangeSet(owner: StoreValues, sent: RepChangeSet, repId: string, now: Date = new Date()): ApplyRepChangesResult {
   const summary = emptySummary();
   const stores: StoreValues = {};
+  // 💼 Only his new devices and the names on his devices are taken (limitRepChangeSet).
+  const { changes, dropped } = limitRepChangeSet(sent, owner);
+  summary.refused += dropped;
 
   // 1. Devices first - the scope of everything else.
   const ownerAccounts = records(owner[ACCOUNTS_KEY], "list");
@@ -345,8 +368,9 @@ const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0
 /** Everything in a rep's file, as items to review. Removing a device or a customer is never
  * offered (never accepted anyway). */
 export function listRepChangeItems(all: RepChangeSet, owner: StoreValues): RepChangeItem[] {
-  // 👥 His customers are his alone - never offered (an older rep app may still send them).
-  const changes: RepChangeSet = Object.fromEntries(Object.entries(all).filter(([key]) => !CUSTOMER_STORES.has(key)));
+  // 💼 Only his new devices and the names on his devices are offered (his Oct 13 2026 rule) - an older
+  // rep app's operations, debts and customers never are.
+  const { changes } = limitRepChangeSet(all, owner);
   const items: RepChangeItem[] = [];
   const used = new Set<string>();
   const take = (store: string, path: string, record: Rec | undefined): RepItemPart => {
@@ -372,7 +396,11 @@ export function listRepChangeItems(all: RepChangeSet, owner: StoreValues): RepCh
   for (const [id, account] of Object.entries(newAccounts)) {
     const theirs = ownerAccounts.get(id);
     if (theirs) {
-      items.push({ key: `edit:${id}`, kind: "deviceEdit", title: `✏️ تعديل الجهاز ${deviceName(id)}`, accountId: id, parts: [take(ACCOUNTS_KEY, id, account)] });
+      const what = [
+        str(account.name) !== str(theirs.name) ? `✏️ الاسم: ${str(theirs.name) || "-"} ← ${str(account.name) || "-"}` : "",
+        str(account.repClientName) !== str(theirs.repClientName) ? `👤 زبونه: ${str(account.repClientName) || "بلا زبون"}` : "",
+      ].filter(Boolean);
+      items.push({ key: `edit:${id}`, kind: "deviceEdit", title: `✏️ تعديل الجهاز ${str(theirs.name) || "جهاز"}`, ...(what.length ? { detail: what.join(" · ") } : {}), accountId: id, parts: [take(ACCOUNTS_KEY, id, account)] });
       continue;
     }
     const parts = [take(ACCOUNTS_KEY, id, account)];
@@ -387,7 +415,7 @@ export function listRepChangeItems(all: RepChangeSet, owner: StoreValues): RepCh
     for (const [path, debt] of Object.entries(changes[PREVIOUS_DEBTS_KEY]?.set ?? {})) {
       if (String(debt.accountId) === id) parts.push(take(PREVIOUS_DEBTS_KEY, path, debt));
     }
-    const name = clientName(account.clientId);
+    const name = str(account.repClientName) || clientName(account.clientId);
     const same = sameDeviceAs({ ...(account as unknown as StarlinkAccountSummary), id }, [...ownerAccounts.values()] as unknown as StarlinkAccountSummary[]);
     items.push({
       key: `dev:${id}`,

@@ -15561,3 +15561,6 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
 /* 💳 «D» on the card is a button: it opens «تسوية تكلفة Starlink» (his Oct 12 2026 ask). */
 .device-mark-button { font: inherit; font-size: 0.85rem; font-weight: 800; cursor: pointer; padding: 0; text-decoration: none; }
 .device-mark-button:active { transform: scale(0.94); }
+
+/* 👤 The rep's own customer on his device - information only (his Oct 13 2026 choice). */
+.account-card-rep-client { font-size: 0.75rem; color: var(--text-muted); overflow-wrap: anywhere; }

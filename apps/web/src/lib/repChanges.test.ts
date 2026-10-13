@@ -5,7 +5,6 @@ import {
   describeItems,
   isItemDecided,
   listRepChangeItems,
-  recordHash,
   rejectedVersions,
   withDecision,
   buildRepChangeSet,
@@ -35,27 +34,33 @@ function base() {
 }
 
 describe("rep changes (rep side)", () => {
-  it("collects what the rep recorded since his copy - not the device's own Starlink reads", () => {
+  it("💼 only a new device, a name and his customer's name - never his operations, D, debts or Starlink reads (his Oct 13 2026 rule)", () => {
     const b = base();
+    // the copy he got: his device carries his customer's name (the operator took it in before)
+    b[ACCOUNTS_KEY][0] = { ...b[ACCOUNTS_KEY][0]!, repClientName: "Client One" } as (typeof b)[typeof ACCOUNTS_KEY][number];
     const current = {
       ...b,
       [ACCOUNTS_KEY]: [
-        { ...b[ACCOUNTS_KEY][0]!, lastSuccessfulScanAt: "2026-10-02T08:00:00Z", serviceStatus: "suspended" },
-        { id: "a2", name: "Dish 2", representativeId: "r1", clientId: "c2" },
+        { ...b[ACCOUNTS_KEY][0]!, lastSuccessfulScanAt: "2026-10-02T08:00:00Z", serviceStatus: "suspended", renewalDate: "2026-11-01", renewalPlan: { saleAmount: 1 } },
+        { id: "a2", name: "Dish 2", representativeId: "r1", clientId: "c2", renewalPlan: { saleAmount: 9 } },
       ],
-      [LEDGER_KEY]: { a1: [entry("e1", "debit", 12000), entry("p1", "credit", 5000)] },
+      [LEDGER_KEY]: { a1: [entry("e1", "debit", 12000), entry("p1", "credit", 5000), entry("s1", "debit", 13000)] },
       [CLIENTS_KEY]: { ...b[CLIENTS_KEY], c2: { id: "c2", name: "Client Two" } },
     };
     const changes = buildRepChangeSet(current, b);
+    expect(Object.keys(changes)).toEqual([ACCOUNTS_KEY]);
     expect(Object.keys(changes[ACCOUNTS_KEY]!.set)).toEqual(["a2"]);
-    expect(Object.keys(changes[LEDGER_KEY]!.set)).toEqual(["a1/p1"]);
-    // 👥 his customers stay on his phone - never sent
-    expect(changes[CLIENTS_KEY]).toBeUndefined();
-    expect(countRepChanges(changes)).toBe(2);
-    // linking his own customer to a device is not a change either
-    const linked = { ...b, [ACCOUNTS_KEY]: [{ ...b[ACCOUNTS_KEY][0]!, clientId: "his" }] };
-    expect(buildRepChangeSet(linked, b)).toEqual({});
+    // a new device comes with his customer's name, never its price
+    expect(changes[ACCOUNTS_KEY]!.set.a2).toMatchObject({ name: "Dish 2", repClientName: "Client Two" });
+    expect(changes[ACCOUNTS_KEY]!.set.a2!.renewalPlan).toBeUndefined();
+    expect(countRepChanges(changes)).toBe(1);
     expect(newDeviceIds(changes, b)).toEqual(["a2"]);
+    // a new name: only the name travels (his renewal date / price stay on his phone)
+    const renamed = { ...current, [ACCOUNTS_KEY]: [{ ...current[ACCOUNTS_KEY][0]!, name: "Roof" }] };
+    expect(buildRepChangeSet(renamed, b)[ACCOUNTS_KEY]!.set.a1).toEqual({ ...b[ACCOUNTS_KEY][0], name: "Roof" });
+    // another customer of his on the device: his customer's name, for information
+    const linked = { ...b, [ACCOUNTS_KEY]: [{ ...b[ACCOUNTS_KEY][0]!, clientId: "his" }], [CLIENTS_KEY]: { his: { id: "his", name: "Zaid" } } };
+    expect(buildRepChangeSet(linked, b)[ACCOUNTS_KEY]!.set.a1).toEqual({ ...b[ACCOUNTS_KEY][0], repClientName: "Zaid" });
     expect(buildRepChangeSet(b, b)).toEqual({});
   });
 });
@@ -74,25 +79,24 @@ describe("rep changes (operator side, applied directly)", () => {
     };
   }
 
-  it("adds his new device and payment - never his customer; a payment is held by the rep, never in the till", () => {
+  it("adds his new device - never its operations, his customer, his price (an older rep app may still send them)", () => {
     const changes = {
-      [ACCOUNTS_KEY]: { set: { a2: { id: "a2", name: "Dish 2", clientId: "c2" } }, removed: [] },
+      [ACCOUNTS_KEY]: { set: { a2: { id: "a2", name: "Dish 2", clientId: "c2", repClientName: "Client Two", renewalPlan: { saleAmount: 9 } } }, removed: [] },
       [CLIENTS_KEY]: { set: { c2: { id: "c2", name: "Client Two" } }, removed: [] },
       [LEDGER_KEY]: { set: { "a1/p1": entry("p1", "credit", 5000), "a2/s1": entry("s1", "debit", 12000) }, removed: [] },
     };
     const { stores, summary, newDeviceIds: created } = applyRepChangeSet(ownerStores(), changes, "r1");
     const accounts = stores[ACCOUNTS_KEY] as Array<Record<string, unknown>>;
-    expect(accounts.find((a) => a.id === "a2")).toMatchObject({ representativeId: "r1" });
+    expect(accounts.find((a) => a.id === "a2")).toMatchObject({ representativeId: "r1", repClientName: "Client Two" });
     expect(accounts.find((a) => a.id === "a2")!.clientId).toBeUndefined();
+    expect(accounts.find((a) => a.id === "a2")!.renewalPlan).toBeUndefined();
     expect(accounts).toHaveLength(4);
-    const ledger = stores[LEDGER_KEY] as Record<string, Array<Record<string, unknown>>>;
-    expect(ledger.a1!.find((e) => e.id === "p1")).toMatchObject({ heldByRepId: "r1" });
-    expect(ledger.a2!.map((e) => e.id)).toEqual(["s1"]);
-    expect(ledger.x1).toHaveLength(1);
+    // 💼 no D, no payment, no debt reaches the operator
+    expect(stores[LEDGER_KEY]).toBeUndefined();
     expect(stores[CLIENTS_KEY]).toBeUndefined();
     expect(created).toEqual(["a2"]);
-    expect(summary).toMatchObject({ newDevices: 1, payments: 1, shipments: 1, newClients: 0, refused: 1 });
-    expect(describeRepChanges(summary)).toContain("💵 1 دفعة");
+    expect(summary).toMatchObject({ newDevices: 1, payments: 0, shipments: 0, newClients: 0, refused: 3 });
+    expect(describeRepChanges(summary)).toBe("📡 1 جهاز جديد");
   });
 
   it("keeps the operator's fresher Starlink read on a device the rep edited", () => {
@@ -110,7 +114,11 @@ describe("rep changes (operator side, applied directly)", () => {
   it("never touches anything outside his scope, and never deletes a device or a customer", () => {
     const changes = {
       [ACCOUNTS_KEY]: {
-        set: { x1: { id: "x1", name: "Hijacked" }, o1: { id: "o1", name: "Hijacked", representativeId: "r1" }, a1: { id: "a1", name: "Dish 1", representativeId: "r2", deletedAt: "2026-10-02" } },
+        set: {
+          x1: { id: "x1", name: "Hijacked" },
+          o1: { id: "o1", name: "Hijacked", representativeId: "r1" },
+          a1: { id: "a1", name: "Dish 1 (roof)", representativeId: "r2", deletedAt: "2026-10-02", renewalDate: "2027-01-01" },
+        },
         removed: ["a1"],
       },
       [LEDGER_KEY]: { set: { "x1/z1": entry("z1", "credit", 1) }, removed: ["x1/m1", "a1/e1"] },
@@ -121,15 +129,14 @@ describe("rep changes (operator side, applied directly)", () => {
     const accounts = stores[ACCOUNTS_KEY] as Array<Record<string, unknown>>;
     expect(accounts.find((a) => a.id === "x1")!.name).toBe("Mine");
     expect(accounts.find((a) => a.id === "o1")!.representativeId).toBe("r2");
-    // He can't hand his device to someone else or delete it from here.
-    expect(accounts.find((a) => a.id === "a1")).toMatchObject({ representativeId: "r1" });
+    // only his device's name: he can't hand it to someone else, delete it, or move its date from here
+    expect(accounts.find((a) => a.id === "a1")).toMatchObject({ name: "Dish 1 (roof)", representativeId: "r1" });
     expect(accounts.find((a) => a.id === "a1")!.deletedAt).toBeUndefined();
-    const ledger = stores[LEDGER_KEY] as Record<string, unknown[]>;
-    expect(ledger.x1).toHaveLength(1);
-    expect(ledger.a1).toHaveLength(0); // his own operation, deleted by him
+    expect(accounts.find((a) => a.id === "a1")!.renewalDate).toBeUndefined();
+    expect(stores[LEDGER_KEY]).toBeUndefined();
     expect(stores[CLIENTS_KEY]).toBeUndefined();
-    expect(summary.refused).toBe(7);
-    expect(summary.removedEntries).toBe(1);
+    expect(summary.refused).toBe(8);
+    expect(summary.removedEntries).toBe(0);
   });
 
   it("his customers' promises stay with him (never applied here)", () => {
@@ -174,31 +181,28 @@ describe("reviewing a rep's recordings item by item", () => {
     [PROMISES_KEY]: { set: { pr1: { id: "pr1", clientId: "c1", amount: 3000, currency: "MRU" } }, removed: [] },
   };
 
-  it("a new device carries its operations; the rest are their own items - his customers never offered", () => {
+  it("💼 only the new device is offered - its operations, other operations, his customers and promises never", () => {
     const items = listRepChangeItems(changes, owner());
-    expect(items.map((i) => i.kind)).toEqual(["newDevice", "payment", "entryRemove"]);
-    const device = items[0]!;
-    expect(device.parts.map((p) => `${p.store}|${p.path}`)).toEqual([`${ACCOUNTS_KEY}|a2`, `${LEDGER_KEY}|a2/s1`]);
-    expect(items[1]).toMatchObject({ title: "💵 دفعة · Dish 1", amount: { value: 5000, currency: "MRU" } });
-  });
-
-  it("applies only the approved items, and remembers each decision for that exact version", () => {
-    const items = listRepChangeItems(changes, owner());
-    const approved = items.filter((i) => i.kind === "newDevice" || i.kind === "payment");
-    const subset = changeSetOf(changes, approved);
-    expect(Object.keys(subset[LEDGER_KEY]!.set).sort()).toEqual(["a1/p1", "a2/s1"]);
-    expect(subset[LEDGER_KEY]!.removed).toEqual([]);
+    expect(items.map((i) => i.kind)).toEqual(["newDevice"]);
+    expect(items[0]!.parts.map((p) => `${p.store}|${p.path}`)).toEqual([`${ACCOUNTS_KEY}|a2`]);
+    const subset = changeSetOf(changes, items);
+    expect(Object.keys(subset)).toEqual([ACCOUNTS_KEY]);
     const { stores } = applyRepChangeSet(owner(), subset, "r1", new Date("2026-10-02T10:00:00Z"));
     const a2 = (stores[ACCOUNTS_KEY] as Array<Record<string, unknown>>).find((a) => a.id === "a2");
     expect(a2).toMatchObject({ addedByRepId: "r1", addedByRepAt: "2026-10-02T10:00:00.000Z" });
-    expect((stores[LEDGER_KEY] as Record<string, unknown[]>).a1).toHaveLength(2); // e1 kept: its removal wasn't approved
-
-    let decisions = withDecision({}, approved, "approved");
-    const removal = items.filter((i) => i.kind === "entryRemove");
-    decisions = withDecision(decisions, removal, "rejected");
+    expect(stores[LEDGER_KEY]).toBeUndefined();
+    const decisions = withDecision({}, items, "rejected");
     expect(items.filter((i) => !isItemDecided(i, decisions))).toEqual([]);
-    expect(rejectedVersions(decisions)).toEqual({ [`${LEDGER_KEY}|a1/e1`]: recordHash(undefined) });
-    expect(describeItems(approved)).toBe("📡 جهاز جديد 1 · 💵 دفعة 1");
+    expect(rejectedVersions(decisions)).toEqual({ [`${ACCOUNTS_KEY}|a2`]: items[0]!.parts[0]!.hash });
+    expect(describeItems(items)).toBe("📡 جهاز جديد 1");
+  });
+
+  it("a device edit says what changed: its name and / or his customer's name", () => {
+    const edit = { [ACCOUNTS_KEY]: { set: { a1: { id: "a1", name: "Roof", representativeId: "r1", repClientName: "Zaid", renewalDate: "2027-01-01" } }, removed: [] } };
+    const [item] = listRepChangeItems(edit, owner());
+    expect(item).toMatchObject({ kind: "deviceEdit", title: "✏️ تعديل الجهاز Dish 1", detail: "✏️ الاسم: Dish 1 ← Roof · 👤 زبونه: Zaid" });
+    // nothing that can travel changed: nothing offered
+    expect(listRepChangeItems({ [ACCOUNTS_KEY]: { set: { a1: { id: "a1", name: "Dish 1", renewalDate: "2027-01-01" } }, removed: [] } }, owner())).toEqual([]);
   });
 });
 
@@ -209,14 +213,11 @@ describe("rep's own customers: everything on the rep", () => {
     [CLIENTS_KEY]: { c1: { id: "c1", name: "Client One", repSegments: [{ repId: "r1", from: "2026-09-01T00:00:00.000Z", carry: true }] } },
   });
 
-  it("a payment he took from his own customer goes into his book - never less on his debt to us", () => {
+  it("a payment he took from his own customer stays with him - nothing reaches the operator", () => {
     const changes = { [LEDGER_KEY]: { set: { "a1/p1": { ...entry("p1", "credit", 5000), createdAt: "2026-10-02T09:00:00.000Z" } }, removed: [] } };
     const { stores, summary } = applyRepChangeSet(owner(), changes, "r1");
-    expect(stores[LEDGER_KEY]).toBeUndefined();
-    expect(stores.starnet_rep_book_v1).toEqual([
-      { id: "p1", repId: "r1", clientId: "c1", kind: "payment", amount: 5000, currency: "MRU", date: "2026-10-01", createdAt: "2026-10-02T09:00:00.000Z" },
-    ]);
-    expect(summary.payments).toBe(1);
+    expect(stores).toEqual({});
+    expect(summary).toMatchObject({ payments: 0, refused: 1 });
   });
 
   it("his new device arrives without his customer - his customers stay on his phone", () => {

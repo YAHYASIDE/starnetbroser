@@ -208,6 +208,9 @@ export interface StarlinkAccountSummary {
   addedByRepId?: string;
   /** When the operator approved it (ISO). */
   addedByRepAt?: string;
+  /** 👤 The rep's own customer on this device, by name - sent with his «تسجيلاتي» for information
+   * only (his Oct 13 2026 choice): never one of the operator's customers, never a debt. */
+  repClientName?: string;
   /** When the device was added in the app (ISO) - for «مزامنة الآن» → «أضفناها اليوم». Absent on
    * devices added before this existed. */
   addedAt?: string;
