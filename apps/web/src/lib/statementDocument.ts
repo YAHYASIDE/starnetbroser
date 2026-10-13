@@ -13,8 +13,22 @@ import { BusinessProfile, DEFAULT_PAYMENT_INSTRUCTIONS, escapeHtml } from "./pdf
 
 const EPSILON = 0.0001;
 
-/** How many operations the image shows (newest first); the PDF shows all of them. */
-export const IMAGE_STATEMENT_ROWS = 15;
+/** How many operations the image shows (newest first); the PDF shows all of them. 8 (was 15) since
+ * Oct 13 2026: WhatsApp shrinks a tall picture until its text blurs (his «الصورة ليست واضحة دائمًا»),
+ * so the picture stays short. */
+export const IMAGE_STATEMENT_ROWS = 8;
+
+/** Text size in the picture vs the PDF - bigger, so it stays readable after WhatsApp shrinks it. */
+export const IMAGE_FONT_SCALE = 1.3;
+
+/** The statement page made for a picture sent on WhatsApp: every text bigger and the grey text darker
+ * (light thin grey is the first thing WhatsApp's compression washes out). */
+export function sharpenForImage(html: string, scale = IMAGE_FONT_SCALE): string {
+  return html
+    .replace(/font-size:(\d+(?:\.\d+)?)px/g, (_, px: string) => `font-size:${Math.round(Number(px) * scale)}px`)
+    .replaceAll("#8a94a3", "#3a4250")
+    .replaceAll("#5b6472", "#3a4250");
+}
 
 export interface StatementRowView {
   date: string;

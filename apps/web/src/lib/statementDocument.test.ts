@@ -8,6 +8,7 @@ import {
   contactBlockHtml,
   IMAGE_STATEMENT_ROWS,
   qrSvg,
+  sharpenForImage,
   whatsappContacts,
 } from "./statementDocument";
 
@@ -104,6 +105,19 @@ describe("buildStatementHtml", () => {
     expect(html).toContain("46,000");
     expect(html).toContain("demo@example.com");
     expect(html).toContain('width:600px');
+  });
+
+  it("📱 the WhatsApp picture: short (8 operations), every text bigger, grey text darker - the PDF unchanged", () => {
+    expect(IMAGE_STATEMENT_ROWS).toBe(8);
+    const data = buildStatementData({ name: "DEMO NAME" }, true, totals, rows);
+    const html = buildStatementHtml(data, business, "2026-10-04 12:00", { width: 600, maxRows: IMAGE_STATEMENT_ROWS });
+    const sharp = sharpenForImage(html);
+    expect(html).toContain("font-size:12px");
+    expect(sharp).not.toContain("font-size:12px");
+    expect(sharp).toContain("font-size:16px"); // 12 × 1.3
+    expect(sharp).not.toMatch(/#8a94a3|#5b6472/);
+    expect(sharp).toContain("width:600px");
+    expect(sharpenForImage('<p style="font-size:11px">', 2)).toBe('<p style="font-size:22px">');
   });
 
   it("the PDF shows every operation", () => {

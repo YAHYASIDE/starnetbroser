@@ -479,7 +479,11 @@ mind). Exact texts and numbers live in the code - this file says where.
 - Debt reminder on WhatsApp: his exact wording - `debtReminderText` in `lib/whatsapp.ts` (السلام
   عليكم… amount with currency… payment lines… ⭐ STAR NET.OM). Payment lines come from settings
   (`paymentInstructions`) or `DEFAULT_PAYMENT_INSTRUCTIONS` (BANKILY - NITA / ORANGE MONEY).
-- Client statement: invoice-style image (last 15 operations) + PDF (all), with payment methods,
+- 📱 Oct 13 2026, his «الصورة التي أرسلها للزبون ليست واضحة دائمًا»: WhatsApp shrinks a tall picture (longest side
+  ≈1600px), so 15 operations blurred the text. His choice «صورة واحدة أقصر»: the image shows the last 8 operations
+  (`IMAGE_STATEMENT_ROWS`), every text ×1.3 and grey text darker (`sharpenForImage`, image only - the PDF is unchanged
+  and still has every operation).
+- Client statement: invoice-style image (last 8 operations) + PDF (all), with payment methods,
   small WhatsApp QR codes for both numbers and his email - `lib/statementDocument.ts`; contact
   defaults `DEFAULT_CONTACT` in `lib/pdfDocument.ts`, editable in settings «بيانات النشاط».
 - **🟠 The فرانك line for customers** (his «نعم أضف سطر الفرانك في رسائل الزبائن», Oct 2026): a customer

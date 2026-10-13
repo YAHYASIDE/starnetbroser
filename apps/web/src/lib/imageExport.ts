@@ -5,7 +5,7 @@ import { Share } from "@capacitor/share";
 import { isRunningInAndroidApp } from "./localBrowser";
 import { buildPrintableHtml, loadBusinessProfile, type PrintableDocument } from "./pdfDocument";
 import type { PdfResult } from "./pdfExport";
-import { buildStatementHtml, IMAGE_STATEMENT_ROWS, StatementData } from "./statementDocument";
+import { buildStatementHtml, IMAGE_STATEMENT_ROWS, sharpenForImage, StatementData } from "./statementDocument";
 
 /** Phone-shaped page width; drawn at 3x so the picture stays sharp when zoomed in WhatsApp. */
 const IMAGE_WIDTH_PX = 600;
@@ -23,10 +23,12 @@ export async function exportStatementImage(data: StatementData): Promise<PdfResu
     const now = new Date();
     const generatedAt = `${now.toISOString().slice(0, 10)} ${now.toTimeString().slice(0, 5)}`;
     host.style.cssText = "position:fixed;left:-10000px;top:0;z-index:-1;background:#fff";
-    host.innerHTML = buildStatementHtml(data, loadBusinessProfile(), generatedAt, {
-      width: IMAGE_WIDTH_PX,
-      maxRows: IMAGE_STATEMENT_ROWS,
-    });
+    host.innerHTML = sharpenForImage(
+      buildStatementHtml(data, loadBusinessProfile(), generatedAt, {
+        width: IMAGE_WIDTH_PX,
+        maxRows: IMAGE_STATEMENT_ROWS,
+      }),
+    );
     document.body.appendChild(host);
     const canvas = await toCanvas(host.firstElementChild as HTMLElement, { pixelRatio: IMAGE_PIXEL_RATIO, backgroundColor: "#ffffff" });
     const dataUrl = canvas.toDataURL("image/png");

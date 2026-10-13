@@ -31,6 +31,19 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-13-clear-statement-image",
+    date: "2026-10-13",
+    title: "📱 صورة كشف الزبون أوضح",
+    steps: [
+      {
+        path: "/clients",
+        title: "📱 صورة الكشف على واتساب صارت أوضح",
+        before: "الصورة طويلة (آخر 15 عملية) فيصغّرها واتساب ويصير الخط صغيرًا وباهتًا.",
+        after: "الصورة أقصر (آخر 8 عمليات) والخط أكبر وأغمق، فتبقى واضحة بعد أن يرسلها واتساب. ملف PDF يبقى فيه كل العمليات.",
+      },
+    ],
+  },
+  {
     id: "2026-10-12-rep-ledger-currencies",
     date: "2026-10-12",
     title: "💱 حسابات المندوب بأكثر من عملة + «حساب شخصي»",
