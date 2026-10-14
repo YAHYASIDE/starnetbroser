@@ -1,0 +1,141 @@
+/**
+ * 📋 «لصق جلسة»: a Starlink session copied out of another browser (e.g. a Firefox clone made with
+ * Infinite Clone, using the free «Cookie-Editor» add-on → Export) and pasted onto a device, so its
+ * STAR NET browser opens already signed in. Accepts Cookie-Editor's JSON, a Netscape cookies.txt,
+ * or a plain "name=value; name2=value2" header. Only starlink.com cookies are kept - anything else
+ * pasted by mistake is ignored. Output: the same per-address cookie strings the encrypted backup
+ * restores (importSessionCookies). Pure.
+ */
+
+export type PastedSessionResult = { ok: true; cookiesByUrl: Record<string, string>; count: number } | { ok: false; message: string };
+
+const APEX = "starlink.com";
+
+interface RawCookie {
+  domain: string;
+  path: string;
+  name: string;
+  value: string;
+}
+
+function isStarlinkHost(host: string): boolean {
+  const h = host.replace(/^\./, "").toLowerCase();
+  return h === APEX || h.endsWith(`.${APEX}`);
+}
+
+function fromJson(text: string): RawCookie[] | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  const list = Array.isArray(parsed) ? parsed : parsed && typeof parsed === "object" && Array.isArray((parsed as { cookies?: unknown }).cookies) ? (parsed as { cookies: unknown[] }).cookies : null;
+  if (!list) return null;
+  return list
+    .filter((c): c is Record<string, unknown> => !!c && typeof c === "object")
+    .map((c) => ({
+      domain: String(c.domain ?? c.host ?? APEX),
+      path: String(c.path ?? "/"),
+      name: String(c.name ?? ""),
+      value: String(c.value ?? ""),
+    }));
+}
+
+function fromNetscape(text: string): RawCookie[] | null {
+  const rows = text
+    .split(/\r?\n/)
+    .map((l) => l.replace(/^#HttpOnly_/, ""))
+    .filter((l) => l.trim() && !l.startsWith("#"))
+    .map((l) => l.split("\t"));
+  if (rows.length === 0 || rows.some((r) => r.length < 7)) return null;
+  return rows.map((r) => ({ domain: r[0]!, path: r[2] || "/", name: r[5]!, value: r[6]! }));
+}
+
+function fromHeader(text: string): RawCookie[] {
+  return text
+    .replace(/^cookie:\s*/i, "")
+    .split(";")
+    .map((part) => part.trim())
+    .filter((part) => part.includes("="))
+    .map((part) => {
+      const i = part.indexOf("=");
+      return { domain: APEX, path: "/", name: part.slice(0, i).trim(), value: part.slice(i + 1).trim() };
+    });
+}
+
+export function parsePastedSession(input: string): PastedSessionResult {
+  const text = input.trim();
+  if (!text) return { ok: false, message: "الصق الجلسة أولاً" };
+  const raw = (text.startsWith("[") || text.startsWith("{") ? fromJson(text) : null) ?? (text.includes("\t") ? fromNetscape(text) : null) ?? fromHeader(text);
+  const cookies = raw.filter((c) => c.name && /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/.test(c.name) && !/[;\r\n]/.test(c.value) && isStarlinkHost(c.domain));
+  if (cookies.length === 0) {
+    return { ok: false, message: raw.length ? "لا توجد كوكيز لـ starlink.com في المنسوخ - صدّرها وأنت على صفحة Starlink" : "لم أفهم المنسوخ - استعمل Export ثم JSON في Cookie-Editor" };
+  }
+  const byUrl = new Map<string, string[]>();
+  for (const c of cookies) {
+    const host = c.domain.replace(/^\./, "").toLowerCase();
+    const path = c.path.startsWith("/") ? c.path : "/";
+    const url = `https://${host}${path}`;
+    const pairs = byUrl.get(url) ?? [];
+    pairs.push(`${c.name}=${c.value}`);
+    byUrl.set(url, pairs);
+  }
+  return { ok: true, cookiesByUrl: Object.fromEntries(Array.from(byUrl, ([url, pairs]) => [url, pairs.join("; ")])), count: cookies.length };
+}
+
+/**
+ * 📤 «نسخ الجلسة» (his Oct 14 2026 ask «كيف أصدّر الجلسة من جهاز في التطبيق إلى متصفح آخر، كروم مثلاً»): the
+ * reverse - a device's browser session (per-address cookie strings, as exportSessionCookies gives it) as
+ * Cookie-Editor's JSON, to Import in Chrome / Kiwi / Firefox. Only starlink.com cookies; each a year long
+ * (the phone keeps no expiry with them), secure. Pure.
+ *
+ * Laid out like the phone-to-phone restore (CookieStringUtil.buildRestoreCookies): a cookie read at
+ * starlink.com is ONE cookie for the whole site (.starlink.com), and its copies under www/api/auth are
+ * dropped. Why (Oct 14 2026, the likely cause of his report): the first version wrote a host-only copy
+ * per address; once Starlink renewed its sign-in cookie in Chrome (site-wide), the stale copies were
+ * still sent beside it, and the account was signed out everywhere - the app's device too - while a
+ * transfer between his phones (restored this way) keeps both signed in.
+ */
+export function toCookieEditorJson(cookiesByUrl: Record<string, string>, now: Date = new Date()): { json: string; count: number } {
+  const expirationDate = Math.floor(now.getTime() / 1000) + 365 * 24 * 60 * 60;
+  const byHost = new Map<string, { name: string; value: string }[]>();
+  for (const [url, header] of Object.entries(cookiesByUrl)) {
+    let host = "";
+    try {
+      host = new URL(url).hostname.toLowerCase();
+    } catch {
+      continue;
+    }
+    if (!isStarlinkHost(host)) continue;
+    const list = byHost.get(host) ?? [];
+    list.push(...fromHeader(header).filter((c) => c.name && !/[;\r\n]/.test(c.value)));
+    byHost.set(host, list);
+  }
+  const apexPairs = new Set((byHost.get(APEX) ?? []).filter((c) => !c.name.startsWith("__Host-")).map((c) => `${c.name}=${c.value}`));
+  const seen = new Map<string, Record<string, unknown>>();
+  const add = (domain: string, hostOnly: boolean, c: { name: string; value: string }) => {
+    const key = `${domain}|${c.name}`;
+    if (seen.has(key)) return;
+    seen.set(key, {
+      domain,
+      hostOnly,
+      httpOnly: false,
+      name: c.name,
+      path: "/",
+      sameSite: "no_restriction",
+      secure: true,
+      session: false,
+      expirationDate,
+      storeId: null,
+      value: c.value,
+    });
+  };
+  for (const c of byHost.get(APEX) ?? []) add(c.name.startsWith("__Host-") ? APEX : `.${APEX}`, c.name.startsWith("__Host-"), c);
+  for (const [host, list] of byHost) {
+    if (host === APEX) continue;
+    for (const c of list) if (c.name.startsWith("__Host-") || !apexPairs.has(`${c.name}=${c.value}`)) add(host, true, c);
+  }
+  const list = [...seen.values()];
+  return { json: JSON.stringify(list, null, 2), count: list.length };
+}

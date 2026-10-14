@@ -1,0 +1,304 @@
+/**
+ * The store/inventory module: items (المواد) plus a running log of buy/sell transactions against
+ * them. This is a REAL inventory - the remaining quantity for each item is always derived from
+ * its own transaction history (sum of buys minus sum of sells), never stored as a separate
+ * mutable counter, so it can never drift out of sync with the log that produced it. A "sell"
+ * transaction may optionally link a Client (clientStore.ts) - the same explicit-link-only
+ * philosophy as StarlinkAccountSummary.clientId, never inferred from a name.
+ */
+
+export interface StoreItem {
+  id: string;
+  name: string;
+  /** Free-text unit label, e.g. "قطعة" or "علبة" - defaults to "قطعة" when not given. */
+  unit: string;
+  /** Optional SKU/product code, entered manually for now (camera/barcode lookup is a later
+   * addition) - shown on the item card and searchable, but never required. */
+  code?: string;
+  /** A small pre-resized JPEG data URL (see imageUtils.ts) - stored directly on the item record
+   * since this app has no image-upload backend of its own. */
+  imageDataUrl?: string;
+  /** Suggested starting price/currency for a NEW buy or sell transaction on this item - purely a
+   * form-prefill convenience, copied in but always editable. Never itself read for accounting:
+   * every recorded transaction keeps its own locked price regardless of this default. */
+  defaultPurchasePrice?: number;
+  defaultPurchaseCurrencyCode?: string;
+  defaultSalePrice?: number;
+  defaultSaleCurrencyCode?: string;
+  /** Suggested wholesale (جملة) unit price, same currency as defaultSaleCurrencyCode above -
+   * undefined means no wholesale price is configured, so the invoice form falls back to the
+   * regular retail default. Just a form-prefill convenience like the other defaults, never itself
+   * read for accounting. */
+  defaultWholesalePrice?: number;
+  /** Remaining quantity at or below this number triggers the "low stock" badge - undefined means
+   * no alert is configured for this item (never a guessed default). */
+  lowStockThreshold?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** itemId -> StoreItem. */
+export type StoreItemRegistry = Record<string, StoreItem>;
+
+export type StoreTransactionKind = "buy" | "sell";
+
+export interface StoreTransaction {
+  id: string;
+  itemId: string;
+  kind: StoreTransactionKind;
+  /** Always positive - direction comes from `kind`, never from the sign of this field. */
+  quantity: number;
+  unitPrice: number;
+  /** currencyStore.ts registry code (e.g. "USD", "MRU"). */
+  currencyCode: string;
+  /** Only meaningful for a "sell" - which customer this sale is linked to, if any. Never set for
+   * a "buy" (buying is from a supplier, not a customer). */
+  clientId?: string;
+  note?: string;
+  /** yyyy-mm-dd, the operator-chosen transaction date (defaults to today in the UI). */
+  date: string;
+  /** Set when this transaction was created as one line of an invoice (invoiceStore.ts) - lets a
+   * transaction in an item's own history be traced back to the invoice it belongs to. Undefined
+   * for a plain buy/sell recorded directly against the item, outside any invoice. */
+  invoiceId?: string;
+  createdAt: string;
+}
+
+export type StoreTransactionList = StoreTransaction[];
+
+const ITEMS_KEY = "starnet_store_items_v1";
+const TRANSACTIONS_KEY = "starnet_store_transactions_v1";
+const DEFAULT_UNIT = "قطعة";
+
+function nowIso(): string {
+  return new Date().toISOString();
+}
+
+function newId(prefix: string): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+  return `${prefix}-${Date.now()}-${Math.random()}`;
+}
+
+export function loadStoreItems(): StoreItemRegistry {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(ITEMS_KEY);
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {};
+    return parsed as StoreItemRegistry;
+  } catch {
+    return {};
+  }
+}
+
+export function saveStoreItems(items: StoreItemRegistry): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(ITEMS_KEY, JSON.stringify(items));
+}
+
+export function loadStoreTransactions(): StoreTransactionList {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(TRANSACTIONS_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as StoreTransactionList) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveStoreTransactions(transactions: StoreTransactionList): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(transactions));
+}
+
+// ---- Pure logic below - independent of localStorage, so this is what is actually unit-tested. ----
+
+export function getStoreItem(items: StoreItemRegistry, itemId: string | undefined): StoreItem | undefined {
+  if (!itemId) return undefined;
+  return items[itemId];
+}
+
+/** Every item, sorted by name (Arabic-aware) for a stable, predictable list. */
+export function listStoreItems(items: StoreItemRegistry): StoreItem[] {
+  return Object.values(items).sort((a, b) => a.name.localeCompare(b.name, "ar"));
+}
+
+export interface CreateStoreItemInput {
+  name: string;
+  unit?: string;
+  code?: string;
+  imageDataUrl?: string;
+  defaultPurchasePrice?: number;
+  defaultPurchaseCurrencyCode?: string;
+  defaultSalePrice?: number;
+  defaultSaleCurrencyCode?: string;
+  defaultWholesalePrice?: number;
+  lowStockThreshold?: number;
+}
+
+function buildItemFields(input: CreateStoreItemInput): Omit<StoreItem, "id" | "createdAt" | "updatedAt"> {
+  return {
+    name: input.name.trim(),
+    unit: input.unit?.trim() || DEFAULT_UNIT,
+    code: input.code?.trim() || undefined,
+    imageDataUrl: input.imageDataUrl || undefined,
+    defaultPurchasePrice: input.defaultPurchasePrice,
+    defaultPurchaseCurrencyCode: input.defaultPurchaseCurrencyCode,
+    defaultSalePrice: input.defaultSalePrice,
+    defaultSaleCurrencyCode: input.defaultSaleCurrencyCode,
+    defaultWholesalePrice: input.defaultWholesalePrice,
+    lowStockThreshold: input.lowStockThreshold,
+  };
+}
+
+export function createStoreItem(
+  items: StoreItemRegistry,
+  input: CreateStoreItemInput,
+): { items: StoreItemRegistry; item: StoreItem } {
+  const id = newId("store-item");
+  const now = nowIso();
+  const item: StoreItem = { id, createdAt: now, updatedAt: now, ...buildItemFields(input) };
+  return { items: { ...items, [id]: item }, item };
+}
+
+/** Edits an existing item's own fields (name, code, image, default prices, low-stock threshold) -
+ * never touches its transaction history, so stock/value stay computed exactly as before. */
+export function updateStoreItem(
+  items: StoreItemRegistry,
+  itemId: string,
+  patch: CreateStoreItemInput,
+): StoreItemRegistry {
+  const existing = items[itemId];
+  if (!existing) return items;
+  const updated: StoreItem = { ...existing, ...buildItemFields(patch), updatedAt: nowIso() };
+  return { ...items, [itemId]: updated };
+}
+
+export function deleteStoreItem(items: StoreItemRegistry, itemId: string): StoreItemRegistry {
+  const { [itemId]: _removed, ...rest } = items;
+  return rest;
+}
+
+/** True once remaining stock has dropped to or below the item's own configured threshold - always
+ * false when no threshold was set (never a guessed default like "warn under 5"). */
+export function isLowStock(item: StoreItem, stock: number): boolean {
+  return item.lowStockThreshold !== undefined && stock <= item.lowStockThreshold;
+}
+
+/** Current remaining quantity for one item - sum of every "buy" minus sum of every "sell"
+ * recorded against it. Never stored directly, always derived so it can't drift from the log. */
+export function computeStock(transactions: StoreTransactionList, itemId: string): number {
+  return transactions.reduce((total, t) => {
+    if (t.itemId !== itemId) return total;
+    return total + (t.kind === "buy" ? t.quantity : -t.quantity);
+  }, 0);
+}
+
+/** computeStock for every known item at once, for a list view. */
+export function computeStockByItem(
+  items: StoreItemRegistry,
+  transactions: StoreTransactionList,
+): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const item of Object.values(items)) result[item.id] = computeStock(transactions, item.id);
+  return result;
+}
+
+export interface CreateStoreTransactionInput {
+  itemId: string;
+  kind: StoreTransactionKind;
+  quantity: number;
+  unitPrice: number;
+  currencyCode: string;
+  clientId?: string;
+  note?: string;
+  date: string;
+  invoiceId?: string;
+}
+
+export type RecordStoreTransactionResult =
+  | { ok: true; transactions: StoreTransactionList; transaction: StoreTransaction }
+  | { ok: false; message: string };
+
+/** The only way a transaction is ever added - validates quantity/price, and for a "sell" refuses
+ * to let stock go negative (a real inventory can't sell what it doesn't have) rather than silently
+ * allowing it. */
+export function recordStoreTransaction(
+  transactions: StoreTransactionList,
+  input: CreateStoreTransactionInput,
+): RecordStoreTransactionResult {
+  if (!Number.isFinite(input.quantity) || input.quantity <= 0) {
+    return { ok: false, message: "أدخل كمية صحيحة أكبر من صفر" };
+  }
+  if (!Number.isFinite(input.unitPrice) || input.unitPrice <= 0) {
+    return { ok: false, message: "أدخل سعرًا صحيحًا أكبر من صفر" };
+  }
+  if (input.kind === "sell") {
+    const currentStock = computeStock(transactions, input.itemId);
+    if (input.quantity > currentStock) {
+      return { ok: false, message: `الكمية المطلوبة أكبر من المخزون المتاح (${currentStock})` };
+    }
+  }
+
+  const transaction: StoreTransaction = {
+    id: newId("store-txn"),
+    itemId: input.itemId,
+    kind: input.kind,
+    quantity: input.quantity,
+    unitPrice: input.unitPrice,
+    currencyCode: input.currencyCode,
+    clientId: input.kind === "sell" ? input.clientId : undefined,
+    note: input.note?.trim() || undefined,
+    date: input.date,
+    invoiceId: input.invoiceId,
+    createdAt: nowIso(),
+  };
+  return { ok: true, transactions: [...transactions, transaction], transaction };
+}
+
+export function deleteStoreTransaction(transactions: StoreTransactionList, transactionId: string): StoreTransactionList {
+  return transactions.filter((t) => t.id !== transactionId);
+}
+
+/** Every transaction for one item, newest first - the item's own كشف حركة. */
+export function listTransactionsForItem(transactions: StoreTransactionList, itemId: string): StoreTransactionList {
+  return transactions.filter((t) => t.itemId === itemId).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.createdAt < b.createdAt ? 1 : -1));
+}
+
+/** The most recent transaction recorded for one item (buy or sell), or undefined if it has none
+ * yet - used to show a "last price" on the item row without opening its panel. */
+export function lastTransactionForItem(transactions: StoreTransactionList, itemId: string): StoreTransaction | undefined {
+  return listTransactionsForItem(transactions, itemId)[0];
+}
+
+/** Rough current worth of the stock on hand, grouped by currency: for each item still in stock,
+ * its last recorded unit price (buy or sell, whichever is most recent) times its current
+ * quantity. Deliberately approximate (no cross-currency conversion, no cost-basis accounting) -
+ * just enough for a store owner to see "what's sitting on the shelf is worth about X" at a
+ * glance, never used for profit/loss (that stays accountingStore.ts's job). */
+export function computeInventoryValueByCurrency(
+  items: StoreItemRegistry,
+  transactions: StoreTransactionList,
+): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const item of Object.values(items)) {
+    const stock = computeStock(transactions, item.id);
+    if (stock <= 0) continue;
+    const last = lastTransactionForItem(transactions, item.id);
+    if (!last) continue;
+    result[last.currencyCode] = (result[last.currencyCode] ?? 0) + stock * last.unitPrice;
+  }
+  return result;
+}
+
+/** Every SELL transaction linked to one client, newest first - "أرباحنا من كل زبون"'s store
+ * counterpart: what this customer specifically bought from the store, clearly separate from any
+ * other client's purchases. */
+export function listTransactionsForClient(transactions: StoreTransactionList, clientId: string): StoreTransactionList {
+  return transactions
+    .filter((t) => t.kind === "sell" && t.clientId === clientId)
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.createdAt < b.createdAt ? 1 : -1));
+}

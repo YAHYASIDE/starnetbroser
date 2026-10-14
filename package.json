@@ -13,12 +13,17 @@
   },
   "scripts": {
     "build:shared": "npm run build --workspace=@starnet/shared",
-    "build": "npm run build:shared && npm run build --workspaces --if-present",
-    "test": "npm run build:shared && npm run test --workspaces --if-present",
+    "build:native-plugins": "npm run build --workspace=@starnet/local-browser-plugin",
+    "build:packages": "npm run build:shared && npm run build:native-plugins",
+    "build": "npm run build:packages && npm run build --workspaces --if-present",
+    "test": "npm run build:packages && npm run test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
-    "typecheck": "npm run build:shared && npm run typecheck --workspaces --if-present"
+    "typecheck": "npm run build:packages && npm run typecheck --workspaces --if-present"
   },
   "devDependencies": {
     "typescript": "5.7.2"
+  },
+  "overrides": {
+    "jsdom": "^27.0.1"
   }
 }

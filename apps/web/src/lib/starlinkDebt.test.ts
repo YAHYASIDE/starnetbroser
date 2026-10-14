@@ -1,0 +1,301 @@
+import { describe, expect, it } from "vitest";
+import {
+  buildCardStatement,
+  cardMovementFlows,
+  cardMoveDeltaUsd,
+  costAtActual,
+  settleShipmentCost,
+  editCardTopUp,
+  editSettlement,
+  replaceCardTopUpCash,
+  unsettleShipmentCost,
+  cardShortfallForSuspended,
+  listCardPayments,
+  listOpenShipmentDebts,
+  listSuspendedWithDebt,
+  postCardTopUpToCash,
+  recordCardTopUp,
+  settleShipments,
+  totalOpenDebtUsd,
+  zeroCardBalance,
+  undoCardReset,
+  hasCardReset,
+} from "./starlinkDebt";
+import { computeShipmentProfit, shipmentProfitDate } from "./accountingStore";
+import { filterEntriesByProfitDate } from "./reportPeriod";
+import { computeDeviceMarks } from "./deviceMarks";
+import type { LedgerEntry } from "./ledgerStore";
+import type { StarlinkAccountSummary } from "@starnet/shared";
+
+function shipment(overrides: Partial<LedgerEntry>): LedgerEntry {
+  return {
+    id: "s",
+    kind: "debit",
+    amount: 45000,
+    currency: "MRU",
+    note: "",
+    email: "",
+    date: "2026-09-20",
+    createdAt: "2026-09-20T10:00:00.000Z",
+    saleRate: { rateFromUsd: 40, usdValue: 1125 },
+    starlinkCost: { status: "pending", currencyCode: "USD", amount: 107.5 },
+    ...overrides,
+  };
+}
+
+const ledger = {
+  d1: [shipment({ id: "a" }), shipment({ id: "old", date: "2026-08-20", starlinkCost: { status: "settled", currencyCode: "USD", amount: 100, paidAt: "2026-09-04", paidVia: "card" } })],
+  d2: [shipment({ id: "b", date: "2026-09-22", starlinkCost: { status: "pending", currencyCode: "USD", amount: 60 } })],
+  d3: [shipment({ id: "c", starlinkCost: { status: "pending" } })], // D without an amount: nothing owed yet
+};
+
+describe("open D's (what we owe Starlink)", () => {
+  it("lists every D with a real cost, oldest first, and totals it", () => {
+    const debts = listOpenShipmentDebts(ledger);
+    expect(debts.map((d) => [d.entry.id, d.costUsd])).toEqual([["a", 107.5], ["b", 60]]);
+    expect(totalOpenDebtUsd(debts)).toBe(167.5);
+    expect(debts[0].expectedProfitUsd).toBeCloseTo(1017.5);
+  });
+
+  it("the D mark shows only where money is owed to Starlink", () => {
+    expect(computeDeviceMarks(ledger.d1, []).d).toBe("pending");
+    expect(computeDeviceMarks(ledger.d3, []).d).toBeNull();
+  });
+
+  it("flags devices Starlink suspended while their D is open", () => {
+    const accounts = [
+      { id: "d1", serviceStatus: "suspended" },
+      { id: "d2", serviceStatus: "active" },
+    ] as StarlinkAccountSummary[];
+    const flagged = listSuspendedWithDebt(accounts, listOpenShipmentDebts(ledger));
+    expect(flagged.map((f) => [f.account.id, f.costUsd])).toEqual([["d1", 107.5]]);
+  });
+});
+
+describe("paying Starlink", () => {
+  it("settles one or several D's on the payment day - the day the profit lands", () => {
+    const next = settleShipments(ledger, [{ accountId: "d1", entryId: "a" }, { accountId: "d2", entryId: "b" }], {
+      date: "2026-10-04",
+      profitRates: { MRU: 40, SIFA: 600 },
+      fromCard: true,
+    });
+    const a = next.d1.find((e) => e.id === "a")!;
+    expect(a.starlinkCost).toMatchObject({ status: "settled", amount: 107.5, paidAt: "2026-10-04", paidVia: "card" });
+    expect(a.profitCurrencyRates).toEqual({ MRU: 40, SIFA: 600 });
+    expect(computeShipmentProfit(a).profitUsd).toBeCloseTo(1017.5);
+    expect(shipmentProfitDate(a)).toBe("2026-10-04");
+    expect(listOpenShipmentDebts(next)).toHaveLength(0);
+    // Sold in September, paid in October: the profit is October's.
+    const oct4 = new Date(2026, 9, 4, 12);
+    expect(filterEntriesByProfitDate(next.d1, "today", oct4).map((e) => e.id)).toEqual(["a"]);
+  });
+});
+
+describe("the كاش card", () => {
+  it("balance = top-ups − costs paid from it, with a running statement", () => {
+    const top = recordCardTopUp([], { amountUsd: 200, paidAmount: 8000, paidCurrency: "MRU", date: "2026-09-01" });
+    if (!top.ok) throw new Error(top.message);
+    const paid = settleShipments(ledger, [{ accountId: "d1", entryId: "a" }], { date: "2026-10-04", profitRates: {}, fromCard: true });
+    const statement = buildCardStatement(top.list, listCardPayments(paid));
+    expect(statement.balanceUsd).toBeCloseTo(200 - 100 - 107.5);
+    expect(statement.rows.map((r) => [r.type, r.amountUsd, r.balanceAfter])).toEqual([
+      ["payment", -107.5, -7.5],
+      ["payment", -100, 100],
+      ["topup", 200, 200],
+    ]);
+    expect(recordCardTopUp([], { amountUsd: 0, paidAmount: 1, paidCurrency: "MRU", date: "x" }).ok).toBe(false);
+  });
+
+  it("a top-up takes its money out of الكاش, linked to it", () => {
+    const top = recordCardTopUp([], { amountUsd: 200, paidAmount: 8000, paidCurrency: "MRU", date: "2026-09-01" });
+    if (!top.ok) throw new Error(top.message);
+    const cash = postCardTopUpToCash([], top.topUp);
+    expect(cash).toHaveLength(1);
+    expect(cash[0]).toMatchObject({ kind: "out", amount: 8000, currencyCode: "MRU", sourceId: top.topUp.id, sourceKind: "card-topup" });
+  });
+});
+
+describe("card movements - charge via an app, and withdrawals (سحب رصيد)", () => {
+  it("cardMoveDeltaUsd: a top-up adds to the card, a withdrawal subtracts", () => {
+    const base = { id: "x", amountUsd: 50, paidAmount: 0, paidCurrency: "USD", date: "2026-10-01", createdAt: "2026-10-01T00:00:00.000Z" } as const;
+    expect(cardMoveDeltaUsd({ ...base })).toBe(50);
+    expect(cardMoveDeltaUsd({ ...base, direction: "out" })).toBe(-50);
+  });
+
+  it("a charge from a bank app keeps no cash entry but moves the app's balance (−)", () => {
+    const top = recordCardTopUp([], { amountUsd: 100, paidAmount: 4000, paidCurrency: "MRU", date: "2026-10-01", via: "account", accountId: "bankily" });
+    if (!top.ok) throw new Error(top.message);
+    expect(top.topUp).toMatchObject({ via: "account", accountId: "bankily" });
+    expect(postCardTopUpToCash([], top.topUp)).toHaveLength(0); // not الكاش → no cash entry
+    expect(cardMovementFlows(top.list)).toEqual([{ accountId: "bankily", currencyCode: "MRU", date: "2026-10-01", amount: -4000 }]);
+  });
+
+  it("a withdrawal to الكاش brings money IN to الكاش and lowers the card balance", () => {
+    const top = recordCardTopUp([], { amountUsd: 30, paidAmount: 1200, paidCurrency: "MRU", date: "2026-10-02", direction: "out", via: "cash" });
+    if (!top.ok) throw new Error(top.message);
+    const cash = postCardTopUpToCash([], top.topUp);
+    expect(cash).toHaveLength(1);
+    expect(cash[0]).toMatchObject({ kind: "in", amount: 1200, currencyCode: "MRU", sourceId: top.topUp.id, sourceKind: "card-topup" });
+    const statement = buildCardStatement(top.list, []);
+    expect(statement.balanceUsd).toBe(-30);
+  });
+
+  it("a withdrawal to a bank app moves the app's balance IN (+), no cash entry", () => {
+    const top = recordCardTopUp([], { amountUsd: 30, paidAmount: 1200, paidCurrency: "MRU", date: "2026-10-02", direction: "out", via: "account", accountId: "masrvi" });
+    if (!top.ok) throw new Error(top.message);
+    expect(postCardTopUpToCash([], top.topUp)).toHaveLength(0);
+    expect(cardMovementFlows(top.list)).toEqual([{ accountId: "masrvi", currencyCode: "MRU", date: "2026-10-02", amount: 1200 }]);
+  });
+
+  it("a withdrawal to «خسارة» needs no counterpart, keeps paidAmount 0, and moves no app/cash", () => {
+    const top = recordCardTopUp([], { amountUsd: 25, paidAmount: 0, paidCurrency: "USD", date: "2026-10-03", direction: "out", via: "loss" });
+    if (!top.ok) throw new Error(top.message);
+    expect(top.topUp).toMatchObject({ via: "loss", direction: "out", paidAmount: 0 });
+    expect(postCardTopUpToCash([], top.topUp)).toHaveLength(0);
+    expect(cardMovementFlows(top.list)).toEqual([]);
+    expect(buildCardStatement(top.list, []).balanceUsd).toBe(-25);
+  });
+
+  it("rejects a bank-app movement with no account chosen, and a non-loss with no counterpart amount", () => {
+    expect(recordCardTopUp([], { amountUsd: 10, paidAmount: 0, paidCurrency: "MRU", date: "x", via: "account" }).ok).toBe(false);
+    expect(recordCardTopUp([], { amountUsd: 10, paidAmount: 0, paidCurrency: "MRU", date: "x", direction: "out", via: "cash" }).ok).toBe(false);
+  });
+});
+
+describe("cardShortfallForSuspended", () => {
+  const suspended = (costUsd: number) => ({ account: { id: "a" } as never, debts: [], previousDebts: [], costUsd });
+  it("is what the card lacks to pay every suspended device's D", () => {
+    expect(cardShortfallForSuspended([suspended(60), suspended(40)], 70)).toBe(30);
+  });
+  it("is zero when the card covers them, and a negative balance counts as empty", () => {
+    expect(cardShortfallForSuspended([suspended(60)], 100)).toBe(0);
+    expect(cardShortfallForSuspended([suspended(60)], -20)).toBe(60);
+    expect(cardShortfallForSuspended([], 0)).toBe(0);
+  });
+});
+
+describe("suspended devices with an earlier owner's debt", () => {
+  it("flags a suspended device whose only debt is a previous one, counting it in", () => {
+    const accounts = [{ id: "a", name: "x", serviceStatus: "suspended" } as never];
+    const prev = [{ id: "p1", accountId: "a", date: "2026-09-01", amountUsd: 97, createdAt: "2026-09-01T00:00:00.000Z" }];
+    const flagged = listSuspendedWithDebt(accounts, [], prev);
+    expect(flagged).toHaveLength(1);
+    expect(flagged[0]).toMatchObject({ costUsd: 97, debts: [], previousDebts: prev });
+  });
+});
+
+describe("settling at what the card really paid", () => {
+  it("a USD D takes the dollars; a peso D keeps (or takes) its pesos and locks the real rate", () => {
+    const usdD = shipment({ id: "u", starlinkCost: { status: "pending", currencyCode: "USD", amount: 75 } });
+    const paidUsd = settleShipmentCost(usdD, { date: "2026-10-01", profitRates: {}, fromCard: true, actual: { usd: 76.46 } });
+    expect(paidUsd.starlinkCost).toMatchObject({ status: "settled", amount: 76.46, paidVia: "card" });
+
+    const arsD = shipment({ id: "a", starlinkCost: { status: "pending", currencyCode: "ARS", amount: 112000, rate: { rateFromUsd: 1400, usdValue: 80 } } });
+    const paidArs = settleShipmentCost(arsD, { date: "2026-10-01", profitRates: {}, fromCard: true, actual: { usd: 76.46 } });
+    expect(paidArs.starlinkCost).toMatchObject({ status: "settled", amount: 112000, rate: { usdValue: 76.46, rateFromUsd: 1464.8182 } });
+    expect(costAtActual(arsD.starlinkCost!, { usd: 80, amount: 115000 })).toMatchObject({ ok: true, cost: { amount: 115000, rate: { rateFromUsd: 1437.5, usdValue: 80 } } });
+    expect(costAtActual(arsD.starlinkCost!, { usd: 0 }).ok).toBe(false);
+
+    // Several at once: no single real amount - each keeps its own cost.
+    const both = settleShipments({ x: [usdD, arsD] }, [{ accountId: "x", entryId: "u" }, { accountId: "x", entryId: "a" }], {
+      date: "2026-10-01",
+      profitRates: {},
+      fromCard: true,
+      actual: { usd: 10 },
+    });
+    expect(both.x!.map((e) => e.starlinkCost?.amount)).toEqual([75, 112000]);
+  });
+});
+
+describe("editing past card operations", () => {
+  const paid = shipment({
+    id: "p",
+    starlinkCost: { status: "settled", currencyCode: "USD", amount: 96.8, paidAt: "2026-09-26", paidVia: "card", settledAt: "2026-09-26T12:00:00.000Z" },
+    profitCurrencyRates: { MRU: 40 },
+  });
+
+  it("changes a settlement's day, source and USD amount, keeping its locked rates", () => {
+    const result = editSettlement(paid, { date: "2026-09-25", fromCard: false, amountUsd: 90 });
+    if (!result.ok) throw new Error(result.message);
+    expect(result.entry.starlinkCost).toMatchObject({ status: "settled", amount: 90, paidAt: "2026-09-25", paidVia: undefined });
+    expect(result.entry.profitCurrencyRates).toEqual({ MRU: 40 });
+    expect(shipmentProfitDate(result.entry)).toBe("2026-09-25");
+  });
+
+  it("refuses a bad amount or an unpaid shipment; a peso cost re-locks its real rate", () => {
+    expect(editSettlement(paid, { date: "2026-09-25", fromCard: true, amountUsd: 0 }).ok).toBe(false);
+    const ars = shipment({ starlinkCost: { status: "settled", currencyCode: "ARS", amount: 112000, rate: { rateFromUsd: 1400, usdValue: 80 }, paidAt: "2026-09-26" } });
+    const edited = editSettlement(ars, { date: "2026-09-25", fromCard: true, amountUsd: 76.46, amount: 112000 });
+    if (!edited.ok) throw new Error(edited.message);
+    expect(edited.entry.starlinkCost).toMatchObject({ currencyCode: "ARS", amount: 112000, rate: { rateFromUsd: 1464.8182, usdValue: 76.46 } });
+    expect(editSettlement(ars, { date: "2026-09-25", fromCard: true }).ok).toBe(true);
+    expect(editSettlement(ars, { date: "2026-09-25", fromCard: true, amountUsd: 76.46, amount: 0 }).ok).toBe(false);
+    expect(editSettlement(shipment({}), { date: "2026-09-25", fromCard: true }).ok).toBe(false);
+  });
+
+  it("undoing a settlement brings the D back and takes it off the card", () => {
+    const back = unsettleShipmentCost(paid);
+    expect(back.starlinkCost).toEqual({ status: "pending", currencyCode: "USD", amount: 96.8 });
+    expect(back.profitCurrencyRates).toBeUndefined();
+    expect(listOpenShipmentDebts({ d: [back] })).toHaveLength(1);
+    expect(listCardPayments({ d: [back] })).toHaveLength(0);
+  });
+
+  it("edits a top-up in place and re-posts its cash entry", () => {
+    const first = recordCardTopUp([], { amountUsd: 500, paidAmount: 215000, paidCurrency: "MRU", date: "2026-09-26" });
+    if (!first.ok) throw new Error("record failed");
+    const cash = postCardTopUpToCash([], first.topUp);
+    const edited = editCardTopUp(first.list, first.topUp.id, { amountUsd: 400, paidAmount: 172000, paidCurrency: "MRU", date: "2026-09-25", note: "تصحيح" });
+    if (!edited.ok) throw new Error(edited.message);
+    expect(edited.list).toHaveLength(1);
+    expect(edited.topUp).toMatchObject({ id: first.topUp.id, amountUsd: 400, date: "2026-09-25", createdAt: first.topUp.createdAt });
+    const nextCash = replaceCardTopUpCash(cash, edited.topUp);
+    expect(nextCash).toHaveLength(1);
+    expect(nextCash[0]).toMatchObject({ amount: 172000, date: "2026-09-25", sourceId: first.topUp.id });
+    expect(editCardTopUp(first.list, "missing", { amountUsd: 1, paidAmount: 1, paidCurrency: "USD", date: "2026-09-25" }).ok).toBe(false);
+    expect(editCardTopUp(first.list, first.topUp.id, { amountUsd: 0, paidAmount: 1, paidCurrency: "USD", date: "2026-09-25" }).ok).toBe(false);
+  });
+
+  it("orders a same-day payment after a top-up made before it", () => {
+    const topUp = { id: "t", amountUsd: 500, paidAmount: 500, paidCurrency: "USD", date: "2026-09-26", createdAt: "2026-09-26T10:00:00.000Z" };
+    const statement = buildCardStatement([topUp], listCardPayments({ d: [paid] }));
+    // Newest first: the 12:00 payment, then the 10:00 top-up - the balance never dips below zero.
+    expect(statement.rows.map((r) => r.balanceAfter)).toEqual([403.2, 500]);
+  });
+});
+
+describe("debtMatchesQuery", () => {
+  it("finds a D row by name, customer (Arabic letters folded) or amount", async () => {
+    const { debtMatchesQuery } = await import("./starlinkDebt");
+    const texts = ["medoumar280@gmail.com", "فضيلي", "مندوب أحمد"];
+    expect(debtMatchesQuery("", texts, 83.33)).toBe(true);
+    expect(debtMatchesQuery("MEDOU", texts, 83.33)).toBe(true);
+    expect(debtMatchesQuery("فضيلي", texts, 83.33)).toBe(true);
+    expect(debtMatchesQuery("احمد", texts, 83.33)).toBe(true);
+    expect(debtMatchesQuery("83", texts, 83.33)).toBe(true);
+    expect(debtMatchesQuery("٨٣٫٣", texts, 83.33)).toBe(true);
+    expect(debtMatchesQuery("91", texts, 83.33)).toBe(false);
+    expect(debtMatchesQuery("غير موجود", texts, 83.33)).toBe(false);
+  });
+});
+
+describe("«🔄 البداية من جديد» on the KAST card", () => {
+  it("one reset correction brings the card to 0 - no cash, no app, no loss - and its undo removes it", () => {
+    const top = recordCardTopUp([], { amountUsd: 141.16, paidAmount: 6000, paidCurrency: "MRU", date: "2026-10-01" });
+    if (!top.ok) throw new Error(top.message);
+    const zeroed = zeroCardBalance(top.list, 141.16, "2026-10-05");
+    expect(buildCardStatement(zeroed, []).balanceUsd).toBeCloseTo(0);
+    const reset = zeroed.find((t) => t.via === "reset")!;
+    expect(reset).toMatchObject({ direction: "out", amountUsd: 141.16, paidAmount: 0 });
+    expect(postCardTopUpToCash([], reset)).toHaveLength(0);
+    expect(cardMovementFlows([reset])).toEqual([]);
+    expect(hasCardReset(zeroed)).toBe(true);
+    expect(undoCardReset(zeroed)).toEqual(top.list);
+    // a negative card is brought up to 0 the same way; an empty one needs nothing
+    const up = zeroCardBalance([], -20, "2026-10-05");
+    expect(up).toHaveLength(1);
+    expect(up[0]!.direction).toBeUndefined(); // adds 20 $ to a card at −20 $
+    expect(cardMoveDeltaUsd(up[0]!)).toBe(20);
+    expect(zeroCardBalance(top.list, 0, "2026-10-05")).toBe(top.list);
+  });
+});

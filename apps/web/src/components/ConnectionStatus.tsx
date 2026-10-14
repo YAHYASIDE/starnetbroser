@@ -26,7 +26,7 @@ export function ConnectionStatus() {
   }, []);
 
   if (status === "demo") {
-    return <span className="conn-badge conn-demo">وضع العرض التجريبي</span>;
+    return null;
   }
   if (status === "checking") {
     return <span className="conn-badge conn-checking">جارِ التحقق من الاتصال…</span>;

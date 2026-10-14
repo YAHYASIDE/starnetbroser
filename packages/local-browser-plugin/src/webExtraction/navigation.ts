@@ -1,0 +1,302 @@
+import { isDangerousControl } from "./oceanMode";
+/**
+ * Stage 2 of on-device Starlink sync: the real account page only shows the Devices' own colored
+ * status dots and the Subscription/Billing sections' fields once the operator has actually
+ * navigated there themselves - a single "تحديث من Starlink" tap used to only ever read whichever
+ * one page happened to be open (see extractStarlinkFields.ts), which is exactly the real,
+ * confirmed complaint this module fixes: reading "الفوترة"/"الاشتراك" required leaving STAR NET's
+ * sync button alone and manually clicking into each section first.
+ *
+ * This module never knows a single fixed URL for "الاشتراك"/"الفوترة" (the real account portal is
+ * a client-rendered SPA that was never confirmed to expose stable per-section URLs) - it instead
+ * drives the SAME taps a human operator already does, confirmed against real screenshots of the
+ * account portal's own right-edge icon rail (home/edit/briefcase/receipt/gift/envelope/gear, top
+ * to bottom) and the "الاشتراك" list -> "الاشتراك" detail -> "الأجهزة" (Devices, confirmed always
+ * collapsed by default) drill-down. Every function here degrades to a plain `false`/no-op on a
+ * page whose structure doesn't match what was confirmed - never throws, never corrupts a click
+ * into some unrelated element by guessing past what's actually confirmed.
+ */
+
+function directText(el: Element): string {
+  let text = "";
+  for (const node of Array.from(el.childNodes)) {
+    if (node.nodeType === 3 /* TEXT_NODE */) {
+      text += node.textContent ?? "";
+    }
+  }
+  return text.trim();
+}
+
+/** The first element (in document order) whose OWN text - never a descendant's - equals `label`
+ * exactly. Mirrors extractStarlinkFields.ts's own label-matching discipline: a label is a leaf's
+ * direct text, never a substring match that could land on some unrelated, longer sentence. */
+function findExactTextElement(root: Element, label: string | string[]): Element | null {
+  // Case-insensitive so the English page's "Subscription"/"SUBSCRIPTION" matches too - sync switches
+  // Starlink to English first (language.ts), the Arabic labels stay for a page it couldn't switch.
+  const wanted = (Array.isArray(label) ? label : [label]).map((l) => l.toLowerCase());
+  const all = Array.from(root.querySelectorAll("*"));
+  for (const el of all) {
+    if (wanted.includes(directText(el).toLowerCase())) return el;
+  }
+  return null;
+}
+
+const SUBSCRIPTION_COLUMN_LABELS = ["الاشتراك", "subscription"];
+const ADD_SUBSCRIPTION_LABELS = ["إضافة اشتراك", "add subscription"];
+const DEVICES_SECTION_LABELS = ["الأجهزة", "devices"];
+
+/** The next element after `el` in document order - a plain TreeWalker over `document.body`, used
+ * to search forward from a confirmed label (e.g. "الأجهزة") for the real clickable control near
+ * it, since the label itself is only ever a heading/text, never the tappable element. */
+function nextElementInDocumentOrder(el: Element): Element | null {
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
+  walker.currentNode = el;
+  return walker.nextNode() as Element | null;
+}
+
+/** True for an element a real tap would actually land on - a real `<button>`/`<a>`/`[role=button]`
+ * first (the strongest signal), falling back to a `cursor: pointer` computed style only when none
+ * of those tags/roles is present, since a real production page just as often makes an entire
+ * clickable row a plain styled `<div>`. */
+function isClickable(el: Element): boolean {
+  const tag = el.tagName;
+  if (tag === "BUTTON" || tag === "A") return true;
+  if (el.getAttribute("role") === "button") return true;
+  if (el.hasAttribute("onclick")) return true;
+  try {
+    return getComputedStyle(el).cursor === "pointer";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The real account portal's right-edge icon rail (confirmed via screenshot: home, a pencil/edit
+ * icon opening "الاشتراكات", a briefcase, a receipt icon opening "فوترة", a gift, an envelope,
+ * then a gear opening "الإعدادات" - in that fixed top-to-bottom order) carries no visible text or
+ * confirmed aria-label at all, so it can't be found by label the way every other target in this
+ * module is. Found instead by geometry alone, the same class of signal deviceStatus.ts already
+ * uses for an unlabeled colored dot: every icon-sized clickable element (never a full-width row)
+ * hugging the viewport's own trailing edge, sorted top to bottom to match real tap order.
+ */
+function findIconRailItems(): HTMLElement[] {
+  const candidates = Array.from(document.querySelectorAll<HTMLElement>("button, a, [role='button']"));
+  const railWidth = 60; // generous upper bound for a single icon button, never a text row
+  const edgeSlack = 40; // how close to the viewport's own edge counts as "the rail", not "nearby"
+  const sized = candidates
+    .map((el) => ({ el, rect: el.getBoundingClientRect() }))
+    .filter(({ rect }) => rect.width > 0 && rect.height > 0 && rect.width <= railWidth && rect.height <= railWidth);
+  // The rail hugs ONE side edge - which side isn't fixed: the real account portal renders it on the
+  // LEFT in the RTL/Arabic layout (confirmed screenshot) and on the RIGHT in others. Pick whichever
+  // side actually holds the vertical stack of icons; the opposite side's top bar (the cart + the ☰
+  // menu) is only ever a couple of items, so the side with MORE icons is the true rail. Ties keep
+  // the right, the layout this module was first confirmed against. Reading the ☰ menu as "the rail"
+  // is exactly the real, confirmed miss this fixes: it opened the account menu (email only) instead
+  // of the subscription/billing/settings sections, so a whole sync read nothing about the device.
+  const nearLeft = sized.filter(({ rect }) => rect.left <= edgeSlack);
+  const nearRight = sized.filter(({ rect }) => window.innerWidth - rect.right <= edgeSlack);
+  const rail = nearLeft.length > nearRight.length ? nearLeft : nearRight;
+  return rail.sort((a, b) => a.rect.top - b.rect.top).map(({ el }) => el);
+}
+
+/** A full-access (owner) account's rail has 7 icons (home, subscriptions, briefcase, billing,
+ * gift, envelope, settings). An email added to someone else's account with limited permissions
+ * (real, confirmed screenshot) gets only 4 - home, subscriptions, gift, settings: no billing at
+ * all, so its 4th icon is "الإعدادات", not "الفوترة". */
+const FULL_ACCESS_MIN_RAIL_ITEMS = 6;
+
+/** How many icons the right-edge rail has right now (0 when none were found at all). */
+export function countIconRailItems(): number {
+  try {
+    return findIconRailItems().length;
+  } catch {
+    return 0;
+  }
+}
+
+/** true = a full-access account, false = limited (no billing icon), undefined = no rail found. */
+export function railShowsFullAccess(count: number): boolean | undefined {
+  if (count <= 0) return undefined;
+  return count >= FULL_ACCESS_MIN_RAIL_ITEMS;
+}
+
+/**
+ * The rail's own icons carry a stable, confirmed `aria-label` ("Home"/"Subscriptions"/"Billing"/
+ * "Settings", plus the Arabic equivalents) - a far more reliable target than geometry, which broke
+ * on the RTL layout (rail on the left, a ☰ menu on the right). Clicks the first labeled control
+ * that matches; the big Home-page cards carry the same words as plain TEXT, never an aria-label,
+ * so they're never hit by mistake. Returns false when no such labeled control exists (then the
+ * caller falls back to geometry).
+ */
+function clickRailItemByAriaLabel(labels: string[]): boolean {
+  const wanted = labels.map((l) => l.trim().toLowerCase());
+  const candidates = Array.from(
+    document.querySelectorAll<HTMLElement>("a[aria-label], button[aria-label], [role='link'][aria-label], [role='button'][aria-label]"),
+  );
+  for (const el of candidates) {
+    const label = (el.getAttribute("aria-label") ?? "").trim().toLowerCase();
+    if (wanted.includes(label) && !isDangerousControl(el)) {
+      el.click();
+      return true;
+    }
+  }
+  return false;
+}
+
+const SUBSCRIPTIONS_RAIL_LABELS = ["subscriptions", "الاشتراكات", "الاشتراك"];
+const BILLING_RAIL_LABELS = ["billing", "الفوترة", "فوترة"];
+const SETTINGS_RAIL_LABELS = ["settings", "الإعدادات", "الاعدادات"];
+
+/** Opens "الاشتراكات" - by the rail icon's own aria-label first, then geometry (index 1). */
+export function clickSubscriptionsRailItem(): boolean {
+  if (clickRailItemByAriaLabel(SUBSCRIPTIONS_RAIL_LABELS)) return true;
+  return clickIconRailItem(1);
+}
+
+/** Opens "الفوترة" - by the rail icon's own aria-label first. Falls back to geometry (index 3) only
+ * on a full-access rail; on a limited account that index is "الإعدادات", never billing. */
+export function clickBillingRailItem(): boolean {
+  if (clickRailItemByAriaLabel(BILLING_RAIL_LABELS)) return true;
+  const items = findIconRailItems();
+  if (railShowsFullAccess(items.length) !== true) return false;
+  if (isDangerousControl(items[3]!)) return false;
+  items[3]!.click();
+  return true;
+}
+
+/** Clicks the `index`th icon (0-based, top to bottom) in the confirmed right-edge icon rail -
+ * e.g. index 1 is the pencil/edit icon ("الاشتراكات"), index 3 is the receipt icon ("فوترة").
+ * Returns false (never throws) when fewer than `index + 1` rail-shaped elements are found at all,
+ * so a page whose chrome doesn't match what was confirmed is simply skipped by the caller. */
+export function clickIconRailItem(index: number): boolean {
+  const target = findIconRailItems()[index];
+  if (!target || isDangerousControl(target)) return false;
+  target.click();
+  return true;
+}
+
+/** Opens "الإعدادات" - always the LAST icon in the rail, whether the account is full-access (7
+ * icons: the gear is index 6) or a limited user (4 icons: the gear is index 3). The Settings page
+ * carries the Users table (Admin role) the operator confirmed is how a "primary" email is known. */
+export function clickSettingsRailItem(): boolean {
+  if (clickRailItemByAriaLabel(SETTINGS_RAIL_LABELS)) return true;
+  const items = findIconRailItems();
+  const target = items[items.length - 1];
+  if (!target || isDangerousControl(target)) return false;
+  target.click();
+  return true;
+}
+
+/** On the confirmed "الاشتراكات" list page (reached via clickIconRailItem(1)): clicks the first
+ * real row under the "الاشتراك" column - the account's own (usually only) subscription - to open
+ * its own "الاشتراك" detail page. Deliberately skips the page's own "إضافة اشتراك" button, which
+ * sits right next to that same column header and would otherwise be the first clickable element
+ * found after it. */
+export function clickFirstSubscriptionRow(): boolean {
+  const row = findFirstSubscriptionRow();
+  if (!row) return false;
+  (row as HTMLElement).click();
+  return true;
+}
+
+/** The first real row under the "الاشتراك" column (see clickFirstSubscriptionRow), not clicked. */
+function findFirstSubscriptionRow(): Element | null {
+  const header = findExactTextElement(document.body, SUBSCRIPTION_COLUMN_LABELS);
+  if (!header) return null;
+
+  let node: Element | null = header;
+  for (let hop = 0; hop < 80 && node; hop++) {
+    node = nextElementInDocumentOrder(node);
+    if (!node) break;
+    const text = directText(node);
+    if (!text || ADD_SUBSCRIPTION_LABELS.includes(text.toLowerCase())) continue;
+    if (isClickable(node) && !isDangerousControl(node)) return node;
+  }
+  return null;
+}
+
+/** Every subscription row on the "الاشتراكات" list: the first row (findFirstSubscriptionRow) and
+ * the rows built the same way (same tag and class) after it - a device can carry two subscriptions
+ * (real, confirmed). Never the "إضافة اشتراك" button. */
+function findSubscriptionRows(): Element[] {
+  const first = findFirstSubscriptionRow();
+  if (!first) return [];
+  const rows = Array.from(document.querySelectorAll(first.tagName)).filter((el) => {
+    if (el.className !== first.className) return false;
+    if (first.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_PRECEDING) return false;
+    const text = (el.textContent ?? "").trim().toLowerCase();
+    return !ADD_SUBSCRIPTION_LABELS.includes(text) && !isDangerousControl(el);
+  });
+  return rows.length ? rows : [first];
+}
+
+/** How many subscription rows the "الاشتراكات" list shows (0 when it isn't that page). */
+export function subscriptionRowCount(): number {
+  return findSubscriptionRows().length;
+}
+
+/** Opens the `index`th (0-based) subscription row of the "الاشتراكات" list. */
+export function clickSubscriptionRow(index: number): boolean {
+  const row = findSubscriptionRows()[index];
+  if (!row) return false;
+  (row as HTMLElement).click();
+  return true;
+}
+
+/** On the confirmed "الاشتراك" detail page: expands the "الأجهزة" accordion (confirmed ALWAYS
+ * collapsed by default) so its dish/Wi-Fi status dots actually render into the DOM for
+ * extractStarlinkFields.ts's own extractDeviceStatus to find - without this, a sync run on this
+ * page can only ever see the plan/identifiers fields around it, never the device status. The
+ * "الأجهزة" heading itself is only ever a section title, never the tappable control, so this
+ * searches forward from it for the real toggle (confirmed to show the dish's own product name,
+ * e.g. "STARLINK", with a collapse/expand caret). */
+export function expandDevicesSection(): boolean {
+  const header = findExactTextElement(document.body, DEVICES_SECTION_LABELS);
+  if (!header) return false;
+  // Real, confirmed miss: Starlink remembers the section open, and tapping its toggle then CLOSED
+  // it - the dots vanished right before the read. Already open (its Wi-Fi row is there, or the
+  // toggle says aria-expanded="true") means leave it alone.
+  if (devicesSectionIsOpen(header)) return true;
+
+  // The section's own toggle is the row that names the dish ("STARLINK") - real, confirmed miss:
+  // a small text-less icon button sits right after the heading, and tapping "the first clickable"
+  // hit it instead, so the section never opened. Only if no such row exists, the first clickable.
+  const following: Element[] = [];
+  let node: Element | null = header;
+  for (let hop = 0; hop < 60 && node; hop++) {
+    node = nextElementInDocumentOrder(node);
+    if (!node) break;
+    if (isClickable(node) && !isDangerousControl(node)) following.push(node);
+  }
+  const namesDish = (el: Element) => /starlink/i.test(el.textContent ?? "");
+  const isRealButton = (el: Element) => el.tagName === "BUTTON" || el.getAttribute("role") === "button";
+  const target =
+    following.find((el) => isRealButton(el) && namesDish(el)) ??
+    following.find(namesDish) ??
+    following.find((el) => (el.textContent ?? "").trim().length > 1);
+  if (!target) return false;
+  (target as HTMLElement).click();
+  return true;
+}
+
+function devicesSectionIsOpen(header: Element): boolean {
+  // Starlink keeps the device rows in the page even while the section is CLOSED (only hidden) -
+  // real, confirmed regression: "the Wi-Fi row is there" read a closed section as open, so it was
+  // never tapped and the hidden dots had no colors yet. The section's own state decides instead.
+  const hasLayout = document.body.getBoundingClientRect().height > 0;
+  let node: Element | null = header;
+  for (let hop = 0; hop < 80 && node; hop++) {
+    node = nextElementInDocumentOrder(node);
+    if (!node) break;
+    const expanded = node.getAttribute("aria-expanded");
+    if (expanded !== null) return expanded === "true";
+    const cls = node.getAttribute("class") ?? "";
+    // MUI's collapsible (confirmed on the real page): "MuiCollapse-entered" only while open.
+    if (/\bMuiCollapse-root\b/.test(cls)) return /\bMuiCollapse-entered\b/.test(cls);
+    if (/^wi-?fi\b/i.test(directText(node))) {
+      // A real screen: open only if the row actually shows. No layout (tests): take it as open.
+      return !hasLayout || node.getBoundingClientRect().height > 0;
+    }
+  }
+  return false;
+}

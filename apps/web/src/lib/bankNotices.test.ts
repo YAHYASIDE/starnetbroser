@@ -1,0 +1,273 @@
+import { describe, expect, it } from "vitest";
+import {
+  accountForApp,
+  bankAppLabel,
+  decideSuggestion,
+  forgetUnreadSeen,
+  EMPTY_BANK_INBOX,
+  ingestBankNotices,
+  localNumber,
+  noticeApp,
+  parseBankNotice,
+  parseNoticeAmount,
+  pendingSuggestions,
+  reopenSuggestion,
+  suggestionNote,
+  type RawBankNotice,
+} from "./bankNotices";
+import { addMoneyAccount, DEFAULT_ACCOUNTS, EMPTY_ACCOUNTS_BOOK, type AccountsBook } from "./moneyAccounts";
+
+// Shaped like the operator's real notifications (business.md) - fake names and numbers only.
+const OWN = ["22227268", "74646158"];
+const MIN = 60 * 1000;
+
+function raw(id: string, app: string, title: string, text: string, at = 1_000_000): RawBankNotice {
+  return { id, app, title, text, at };
+}
+
+const GIMTEL_IN = raw(
+  "b1",
+  "bankily",
+  "Gimtel envoie de l'argent",
+  "Vous avez reçu 50.0 MRU du bénéficiaire : +22222227268 (SEDAD). ID de transaction : 1111222233334444",
+  1_000_000,
+);
+const GIMTEL_OUT = raw("s1", "sedad", "ENVOI", "أرسلتم مبلغ 50.0 أوقية جديدة لصالح 22227268 (BANKILY)", 1_000_000 - 20 * 1000);
+
+describe("parseNoticeAmount / localNumber", () => {
+  it("reads the amounts as written", () => {
+    expect(parseNoticeAmount("50.0")).toBe(50);
+    expect(parseNoticeAmount("4600")).toBe(4600);
+    expect(parseNoticeAmount("10000.0")).toBe(10000);
+    expect(parseNoticeAmount("1 000")).toBe(1000);
+    expect(parseNoticeAmount("1,000.50")).toBe(1000.5);
+    expect(parseNoticeAmount("0")).toBeUndefined();
+  });
+
+  it("keeps the 8 local digits", () => {
+    expect(localNumber("+22222227268")).toBe("22227268");
+    expect(localNumber("22227268")).toBe("22227268");
+  });
+});
+
+describe("parseBankNotice", () => {
+  it("GIMTEL into Bankily from my own Sedad is a transfer", () => {
+    expect(parseBankNotice(GIMTEL_IN, OWN)).toEqual({ kind: "transfer", amount: 50, currencyCode: "MRU", fromApp: "sedad", toApp: "bankily", txId: "1111222233334444" });
+  });
+
+  it("GIMTEL from my Sedad to my Bankily, seen from Sedad, is the same transfer", () => {
+    expect(parseBankNotice(GIMTEL_OUT, OWN)).toEqual({ kind: "transfer", amount: 50, currencyCode: "MRU", fromApp: "sedad", toApp: "bankily" });
+  });
+
+  it("GIMTEL from someone else's number is money in", () => {
+    const other = { ...GIMTEL_IN, text: GIMTEL_IN.text.replace("+22222227268", "+22240000000") };
+    expect(parseBankNotice(other, OWN)).toMatchObject({ kind: "in", amount: 50, party: { number: "40000000" } });
+  });
+
+  it("Bankily «Transfert d'argent»: Beneficiaire is out, Expediteur is in", () => {
+    expect(parseBankNotice(raw("x", "bankily", "Transfert d'argent", "Montant : 4600 MRU\nBeneficiaire : DEMO NAME ONE,40000001…"), OWN)).toEqual({
+      kind: "out",
+      amount: 4600,
+      currencyCode: "MRU",
+      party: { name: "DEMO NAME ONE", number: "40000001" },
+    });
+    expect(parseBankNotice(raw("y", "bankily", "Transfert d'argent", "Montant : 250 MRU\nExpediteur : DEMO NAME TWO,20000002"), OWN)).toEqual({
+      kind: "in",
+      amount: 250,
+      currencyCode: "MRU",
+      party: { name: "DEMO NAME TWO", number: "20000002" },
+    });
+  });
+
+  it("a cut name without its number still reads", () => {
+    expect(parseBankNotice(raw("x", "bankily", "Transfert d'argent", "Montant : 10 MRU\nBeneficiaire : DEMO NAME TH…"), OWN)).toMatchObject({
+      kind: "out",
+      amount: 10,
+      party: { name: "DEMO NAME TH" },
+    });
+  });
+
+  it("Sedad ENVOI to a person is money out with the name and number", () => {
+    expect(parseBankNotice(raw("x", "sedad", "ENVOI", "أرسلتم مبلغ 200.0 أوقية جديدة لصالح ديمو ( 40000003 )"), OWN)).toEqual({
+      kind: "out",
+      amount: 200,
+      currencyCode: "MRU",
+      party: { name: "ديمو", number: "40000003" },
+    });
+  });
+
+  it("Sedad ENVOI «وصلكم من NAME ( NUMBER ) مبلغ …» is money in with the name and number (real wording, Oct 10)", () => {
+    expect(parseBankNotice(raw("x", "sedad", "ENVOI", "وصلكم من  ديمو ( 40000004 ) مبلغ 500.0 أوقية جديدة"), OWN)).toEqual({
+      kind: "in",
+      amount: 500,
+      currencyCode: "MRU",
+      party: { name: "ديمو", number: "40000004" },
+    });
+    expect(parseBankNotice(raw("x", "sedad", "ENVOI", "وصلكم من ديمو ثاني ( 40000005 ) مبلغ 5200.0 أوقية جديدة"), OWN)).toMatchObject({ kind: "in", amount: 5200 });
+  });
+
+  it("Sedad money received from my own number in another app is a transfer between my apps", () => {
+    expect(parseBankNotice(raw("x", "sedad", "ENVOI", "وصلكم من 22227268 (BANKILY) مبلغ 50.0 أوقية جديدة"), OWN)).toEqual({
+      kind: "transfer",
+      amount: 50,
+      currencyCode: "MRU",
+      fromApp: "bankily",
+      toApp: "sedad",
+    });
+  });
+
+  it("Sedad PAIEMENT_CREDIT is phone credit bought", () => {
+    expect(parseBankNotice(raw("x", "sedad", "PAIEMENT_CREDIT", "تلقيتم رصيدا بمبلغ 10 أوقية جديدة من شنقيتل"), OWN)).toEqual({
+      kind: "airtime",
+      amount: 10,
+      currencyCode: "MRU",
+      party: { name: "شنقيتل" },
+    });
+  });
+
+  it("Nita «Compte à Compte» is money in, in SIFA", () => {
+    expect(parseBankNotice(raw("x", "nita", "Compte à Compte", "Demo Sender vient de transferer un montant de 5000.0 F CFA vers votre compte"), OWN)).toEqual({
+      kind: "in",
+      amount: 5000,
+      currencyCode: "SIFA",
+      party: { name: "Demo Sender" },
+    });
+  });
+
+  it("Binance: only «Deposit Successful» counts, USDT = dollars", () => {
+    const ok = raw("x", "binance", "USDT Deposit Successful", "You have successfully deposited 10 USDT at 2026-05-20 22:48:40 (UTC). If you do not recognize this activity…");
+    expect(parseBankNotice(ok, OWN)).toEqual({ kind: "in", amount: 10, currencyCode: "USD", deposit: true });
+    expect(parseBankNotice(raw("y", "binance", "USDT Deposit Processing", "Your deposit of 10 USDT is currently processing."), OWN).kind).toBe("ignore");
+    expect(parseBankNotice(raw("z", "binance", "BTC is up 5%", "Bitcoin 65000 USDT"), OWN).kind).toBe("ignore");
+  });
+
+  it("reads «Transfert d’argent» with a typographic apostrophe", () => {
+    expect(parseBankNotice(raw("x", "bankily", "Transfert d’argent", "Montant : 1370 MRU\nExpediteur : DEMO NAME,20000009…"), OWN)).toMatchObject({
+      kind: "in",
+      amount: 1370,
+      party: { name: "DEMO NAME", number: "20000009" },
+    });
+  });
+
+  it("Bankily «Versement espèces» is cash deposited into the account (from الكاش)", () => {
+    const n = raw("x", "bankily", "Versement espèces", "Votre compte a ete credite de 11800.0 MRU suite a votre versement espece.ID Trs: 0626100000000001");
+    expect(parseBankNotice(n, OWN)).toEqual({ kind: "in", amount: 11800, currencyCode: "MRU", cashDeposit: true, txId: "0626100000000001" });
+  });
+
+  it("a notification not understood yet shows when it carries an amount", () => {
+    expect(parseBankNotice(raw("x", "bankily", "MERPASSCDE", "Votre demande … Montant : 1000 MRU B…"), OWN)).toEqual({ kind: "unknown", amount: 1000, currencyCode: "MRU" });
+    expect(parseBankNotice(raw("y", "sedad", "Sedad", "عرض جديد 2026"), OWN).kind).toBe("ignore");
+  });
+
+  it("Sedad with invisible direction marks around the numbers (his Oct 10 2026 screenshot) is still read", () => {
+    const sent = "\u200fأرسلتم مبلغ \u200e3600.0\u200f أوقية جديدة لصالح ديمو ( \u200e40000006\u200f )";
+    expect(parseBankNotice(raw("x", "sedad", "ENVOI", sent), OWN)).toEqual({ kind: "out", amount: 3600, currencyCode: "MRU", party: { name: "ديمو", number: "40000006" } });
+    const got = "\u202bوصلكم من ديمو ( \u2066\u200e40000007\u2069 ) مبلغ \u200e500.0\u200f أوقية جديدة\u202c";
+    expect(parseBankNotice(raw("x", "sedad", "ENVOI", got), OWN)).toEqual({ kind: "in", amount: 500, currencyCode: "MRU", party: { name: "ديمو", number: "40000007" } });
+  });
+});
+
+describe("ingestBankNotices", () => {
+  it("a notice not understood isn't marked seen: read again (still in the tray) after an update", () => {
+    const later = raw("n1", "sedad", "ENVOI", "رسالة بلا مبلغ 3");
+    const first = ingestBankNotices(EMPTY_BANK_INBOX, [later], OWN).inbox;
+    expect(first.seen).toEqual([]);
+    const ok = ingestBankNotices(first, [raw("n2", "sedad", "ENVOI", "وصلكم من ديمو ( 40000008 ) مبلغ 100.0 أوقية جديدة")], OWN).inbox;
+    expect(ok.seen).toEqual(["n2"]);
+    expect(ingestBankNotices(ok, [raw("n2", "sedad", "ENVOI", "وصلكم من ديمو ( 40000008 ) مبلغ 100.0 أوقية جديدة")], OWN).added).toBe(0);
+  });
+
+  it("an unknown app writing Sedad's words is Sedad; anything else stays «📱 package»", () => {
+    const sent = raw("o1", "other:mr.example.wallet", "\u200eENVOI", "أرسلتم مبلغ \u200e3600.0\u200f أوقية جديدة لصالح ديمو ( \u200e40000005\u200f )");
+    expect(noticeApp(sent)).toBe("sedad");
+    const other = raw("o2", "other:mr.example.wallet", "Info", "Vous avez reçu 50.0 MRU");
+    expect(noticeApp(other)).toBe("other:mr.example.wallet");
+    const { inbox } = ingestBankNotices(EMPTY_BANK_INBOX, [sent, other], OWN);
+    expect(inbox.suggestions.map((s) => [s.app, s.kind, s.amount, s.party?.number])).toEqual([
+      ["sedad", "out", 36000, "40000005"],
+      ["other:mr.example.wallet", "unknown", 500, undefined],
+    ]);
+    expect(bankAppLabel("other:mr.example.wallet")).toBe("📱 mr.example.wallet");
+  });
+
+  it("once: forgets the recent seen ids no suggestion holds (old Sedad notices read again)", () => {
+    const now = 100 * 24 * 60 * MIN;
+    const recent = (n: number) => `mr.example.sedad|${now - n * MIN}|ab`;
+    const kept = ingestBankNotices(EMPTY_BANK_INBOX, [raw(recent(5), "sedad", "ENVOI", "وصلكم من ديمو ( 40000006 ) مبلغ 100.0 أوقية جديدة", now - 5 * MIN)], OWN).inbox;
+    const old = `mr.example.sedad|${now - 30 * 24 * 60 * MIN}|cd`;
+    const inbox = { ...kept, seen: [old, recent(9), ...kept.seen] };
+    const cleaned = forgetUnreadSeen(inbox, now);
+    expect(cleaned.seen).toEqual([old, recent(5)]);
+    expect(cleaned.seenCleaned).toBe(true);
+    // only once
+    expect(forgetUnreadSeen({ ...cleaned, seen: [recent(9)] }, now).seen).toEqual([recent(9)]);
+    // and ingest keeps the flag
+    expect(ingestBankNotices(cleaned, [], OWN).inbox.seenCleaned).toBe(true);
+  });
+
+  it("merges the two halves of one GIMTEL transfer", () => {
+    const { inbox, added } = ingestBankNotices(EMPTY_BANK_INBOX, [GIMTEL_IN, GIMTEL_OUT], OWN);
+    expect(added).toBe(1);
+    expect(inbox.suggestions).toHaveLength(1);
+    const s = inbox.suggestions[0]!;
+    expect(s.kind).toBe("transfer");
+    expect(s.notices.map((n) => n.id)).toEqual(["s1", "b1"]);
+    expect(s.txId).toBe("1111222233334444");
+    expect(suggestionNote(s)).toBe("جيمتل من سداد إلى بنكيلي - عملية 1111222233334444");
+  });
+
+  it("never takes the same notification or transaction ID twice", () => {
+    const first = ingestBankNotices(EMPTY_BANK_INBOX, [GIMTEL_IN], OWN).inbox;
+    const again = ingestBankNotices(first, [GIMTEL_IN, { ...GIMTEL_IN, id: "b2", at: GIMTEL_IN.at + 60 * MIN }], OWN);
+    expect(again.added).toBe(0);
+    expect(again.inbox.suggestions).toHaveLength(1);
+  });
+
+  it("the same text a little later is its own suggestion, flagged «قد يكون مكررًا»", () => {
+    const text = "أرسلتم مبلغ 200.0 أوقية جديدة لصالح ديمو ( 40000003 )";
+    const { inbox } = ingestBankNotices(EMPTY_BANK_INBOX, [raw("a", "sedad", "ENVOI", text, 0), raw("b", "sedad", "ENVOI", text, 6 * MIN)], OWN);
+    expect(inbox.suggestions).toHaveLength(2);
+    expect(inbox.suggestions.map((s) => Boolean(s.maybeDuplicate))).toEqual([false, true]);
+  });
+
+  it("keeps everything the notification showed", () => {
+    const n = raw("x", "bankily", "Transfert d'argent", "Montant : 40 MRU\nBeneficiaire : DEMO NAME,40000004", 5);
+    const s = ingestBankNotices(EMPTY_BANK_INBOX, [n], OWN).inbox.suggestions[0]!;
+    expect(s.notices).toEqual([{ id: "x", app: "bankily", title: n.title, text: n.text, at: 5 }]);
+    expect(suggestionNote(s)).toBe("DEMO NAME · 40000004 - عبر بنكيلي");
+  });
+
+  it("ignored ones (ads, Binance processing) add nothing and aren't kept as seen (a later update may read them)", () => {
+    const { inbox, added } = ingestBankNotices(EMPTY_BANK_INBOX, [raw("p", "binance", "USDT Deposit Processing", "Your deposit of 10 USDT is processing")], OWN);
+    expect(added).toBe(0);
+    expect(inbox.suggestions).toEqual([]);
+    expect(inbox.seen).toEqual([]);
+  });
+});
+
+describe("deciding", () => {
+  it("done / rejected leave the waiting list; a rejected one can come back", () => {
+    let inbox = ingestBankNotices(EMPTY_BANK_INBOX, [GIMTEL_IN, raw("n", "nita", "Compte à Compte", "Demo vient de transferer un montant de 100 F CFA vers votre", 2_000_000)], OWN).inbox;
+    expect(pendingSuggestions(inbox).map((s) => s.id)).toEqual(["n", "b1"]);
+    inbox = decideSuggestion(inbox, "b1", "done", "🔁 تحويل");
+    inbox = decideSuggestion(inbox, "n", "rejected", undefined);
+    expect(pendingSuggestions(inbox)).toEqual([]);
+    inbox = reopenSuggestion(inbox, "n");
+    expect(pendingSuggestions(inbox).map((s) => s.id)).toEqual(["n"]);
+    expect(inbox.suggestions.find((s) => s.id === "b1")?.outcome).toBe("🔁 تحويل");
+  });
+});
+
+describe("accountForApp", () => {
+  it("finds my account by its method, else by its name", () => {
+    let book: AccountsBook = EMPTY_ACCOUNTS_BOOK;
+    for (const preset of DEFAULT_ACCOUNTS) {
+      const r = addMoneyAccount(book, { ...preset, openingBalance: 0, openingDate: "2026-01-01" });
+      if (r.ok) book = r.book;
+    }
+    expect(accountForApp(book.accounts, "bankily")?.name).toBe("بنكيلي");
+    expect(accountForApp(book.accounts, "nita")?.name).toBe("نيتا (النيجر)");
+    expect(accountForApp(book.accounts, "binance")?.name).toBe("محفظة بينانس");
+    expect(accountForApp(book.accounts, "unknown")).toBeUndefined();
+  });
+});

@@ -1,0 +1,193 @@
+// @vitest-environment jsdom
+import { describe, expect, it } from "vitest";
+import { extractDeviceStatus } from "./deviceStatus";
+
+// Fake/dummy fixtures only - no real Starlink account markup or data appears anywhere in this
+// file, matching the rest of this project's "no real account data" rule.
+const DISH_LABELS = ["starlink dish", "dish", "الطبق"];
+const WIFI_LABELS = ["wi-fi", "wifi", "واي فاي"];
+
+function setBody(html: string) {
+  document.body.innerHTML = html;
+}
+
+describe("extractDeviceStatus", () => {
+  it("prefers aria-label over the dot's computed color, even when they disagree", () => {
+    setBody(`
+      <div class="row">
+        <span>Starlink Dish</span>
+        <span aria-label="Online" style="background-color: rgb(239, 68, 68);">●</span>
+      </div>
+    `);
+    expect(extractDeviceStatus(document, DISH_LABELS)).toBe("online");
+  });
+
+  it("falls back to the title attribute when there is no aria-label", () => {
+    setBody(`
+      <div class="row">
+        <span>Wi-Fi</span>
+        <span title="Offline" style="background-color: rgb(34, 197, 94);">●</span>
+      </div>
+    `);
+    expect(extractDeviceStatus(document, WIFI_LABELS)).toBe("offline");
+  });
+
+  it("falls back to the computed color of a plain dot when there is no aria-label or title at all", () => {
+    setBody(`
+      <div class="row">
+        <span>Starlink Dish</span>
+        <span class="dot" style="background-color: rgb(34, 197, 94);"></span>
+      </div>
+    `);
+    expect(extractDeviceStatus(document, DISH_LABELS)).toBe("online");
+  });
+
+  it("works with an Arabic label and an Arabic aria-label", () => {
+    setBody(`
+      <div class="row">
+        <span>الطبق</span>
+        <span aria-label="متصل"></span>
+      </div>
+    `);
+    expect(extractDeviceStatus(document, DISH_LABELS)).toBe("online");
+  });
+
+  it("recognizes an Arabic offline aria-label", () => {
+    setBody(`
+      <div class="row">
+        <span>واي فاي</span>
+        <span aria-label="غير متصل"></span>
+      </div>
+    `);
+    expect(extractDeviceStatus(document, WIFI_LABELS)).toBe("offline");
+  });
+
+  it("returns undefined when the device section isn't on the page at all", () => {
+    setBody(`<div>Some unrelated content</div>`);
+    expect(extractDeviceStatus(document, DISH_LABELS)).toBeUndefined();
+  });
+
+  it("classifies an amber dot as warning via computed color", () => {
+    setBody(`
+      <div class="row">
+        <span>Dish</span>
+        <span class="dot" style="background-color: rgb(245, 158, 11);"></span>
+      </div>
+    `);
+    expect(extractDeviceStatus(document, DISH_LABELS)).toBe("warning");
+  });
+
+  it("reports a genuinely gray status dot as 'unknown' - not as nothing-found (round 6 regression)", () => {
+    setBody(`
+      <div class="row">
+        <span>Starlink Dish</span>
+        <span class="dot" style="background-color: rgb(150, 150, 150);"></span>
+      </div>
+    `);
+    expect(extractDeviceStatus(document, DISH_LABELS)).toBe("unknown");
+  });
+
+  it("never treats ordinary gray-colored text as a status dot, even when no real dot is present", () => {
+    setBody(`
+      <div class="row">
+        <span>Starlink Dish</span>
+        <span style="color: rgb(150, 150, 150);">تفاصيل إضافية</span>
+      </div>
+    `);
+    expect(extractDeviceStatus(document, DISH_LABELS)).toBeUndefined();
+  });
+
+  it("never treats an unstyled empty leaf as a status dot", () => {
+    setBody(`
+      <div class="row">
+        <span>Starlink Dish</span>
+        <span></span>
+      </div>
+    `);
+    expect(extractDeviceStatus(document, DISH_LABELS)).toBeUndefined();
+  });
+
+  it("finds a dot colored via a CSS class, not just an inline style (real bug: came back 'no data')", () => {
+    // jsdom doesn't apply real stylesheets, so the class-colored dot's computed color has to be
+    // set via a matching inline style too here purely to make the *test* work - the point being
+    // verified is that the class attribute alone is what makes it a *candidate* at all (see the
+    // next test for a class-only dot with no inline style whatsoever).
+    setBody(`
+      <div class="row">
+        <span>Starlink Dish</span>
+        <span class="status-dot status-dot-green" style="background-color: rgb(34, 197, 94);"></span>
+      </div>
+    `);
+    expect(extractDeviceStatus(document, DISH_LABELS)).toBe("online");
+  });
+
+  it("an empty element with no color at all is not evidence (icons/spacers on the real page)", () => {
+    setBody(`
+      <div class="row">
+        <span>Wi-Fi</span>
+        <span class="status-dot-green"></span>
+      </div>
+    `);
+    // Real page (snapshot): uncolored class-styled leaves are icon paths and spacers - only a
+    // colored background (a real dot) or a gray one (a real "unknown" dot) is an answer.
+    expect(extractDeviceStatus(document, WIFI_LABELS)).toBeUndefined();
+  });
+
+  it("keeps checking later candidates when an earlier one in the same scope doesn't classify", () => {
+    setBody(`
+      <div class="row">
+        <span>Starlink Dish</span>
+        <span class="icon-spacer"></span>
+        <span class="status-dot" style="background-color: rgb(34, 197, 94);"></span>
+      </div>
+    `);
+    expect(extractDeviceStatus(document, DISH_LABELS)).toBe("online");
+  });
+});
+
+describe("extractDeviceStatus - real Devices page layout (section header before the rows)", () => {
+  const PAGE = (dish: string, wifi: string) => `
+    <div class="devices">
+      <div class="section-header"><span>STARLINK</span><svg class="chevron"><path class="p" d="M0 0"></path></svg></div>
+      <div class="list">
+        <div class="row"><svg class="icon"><path class="p" d="M0 0"></path></svg><span>STARLINK</span>${dish}</div>
+        <div class="row"><span>WIFI 13B981C</span><svg class="icon"><path class="p" d="M0 0"></path></svg>${wifi}</div>
+      </div>
+    </div>`;
+  const LABELS = ["starlink"];
+
+  it("skips the header's uncolored chevron and reads the red dish dot", () => {
+    setBody(PAGE(`<span class="dot" style="background-color: rgb(235, 87, 72);"></span>`, `<span class="dot" style="background-color: rgb(34, 197, 94);"></span>`));
+    expect(extractDeviceStatus(document, LABELS)).toBe("offline");
+    expect(extractDeviceStatus(document, WIFI_LABELS)).toBe("online");
+  });
+
+  it("reads a dot drawn as an SVG circle with a fill attribute", () => {
+    setBody(PAGE(`<svg><circle cx="4" cy="4" r="4" fill="#22c55e"></circle></svg>`, `<svg><circle cx="4" cy="4" r="4" fill="#eb5748"></circle></svg>`));
+    expect(extractDeviceStatus(document, LABELS)).toBe("online");
+    expect(extractDeviceStatus(document, WIFI_LABELS)).toBe("offline");
+  });
+
+  it("never borrows the Wi-Fi dot for a dish whose own dot is gray", () => {
+    setBody(PAGE(`<span class="dot" style="background-color: rgb(120, 120, 120);"></span>`, `<span class="dot" style="background-color: rgb(34, 197, 94);"></span>`));
+    expect(extractDeviceStatus(document, LABELS)).toBe("unknown");
+  });
+
+  it("still reports unknown when no dot anywhere has a real color", () => {
+    setBody(PAGE(`<span class="dot" style="background-color: rgb(120, 120, 120);"></span>`, ``));
+    expect(extractDeviceStatus(document, LABELS)).toBe("unknown");
+  });
+});
+
+describe("extractDeviceStatus - dot colored only by the page's stylesheet", () => {
+  it("reads a bare span colored through a parent selector (coral red)", () => {
+    setBody(`
+      <style>.row > span:last-child { background-color: rgb(235, 100, 85); }</style>
+      <div class="list">
+        <div class="row"><span>STARLINK</span><span></span></div>
+        <div class="row"><span>WIFI 1AB310E</span><span></span></div>
+      </div>`);
+    expect(extractDeviceStatus(document, ["starlink"])).toBe("offline");
+    expect(extractDeviceStatus(document, WIFI_LABELS)).toBe("offline");
+  });
+});

@@ -24,6 +24,9 @@ export const demoAccounts: StarlinkAccountSummary[] = [
     lastUpdated: "منذ 5 دقائق",
     lastSuccessfulScanAt: new Date().toISOString(),
     planName: "Priority 40GB",
+    accountNumber: "ACC-DEMO-0001",
+    starlinkId: "UNIT-DEMO-0001",
+    serviceStatus: "active",
   },
   {
     id: "demo-2",
@@ -42,6 +45,7 @@ export const demoAccounts: StarlinkAccountSummary[] = [
     lastUpdated: "منذ ساعة",
     lastSuccessfulScanAt: new Date().toISOString(),
     planName: "Residential",
+    serviceStatus: "standby",
   },
   {
     id: "demo-3",
@@ -78,6 +82,7 @@ export const demoAccounts: StarlinkAccountSummary[] = [
     lastUpdated: "منذ 6 أيام",
     lastSuccessfulScanAt: null,
     planName: "Business",
+    serviceStatus: "suspended",
   },
   {
     id: "demo-5",

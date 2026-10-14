@@ -76,6 +76,13 @@ normal, run it as its own command).
 
 ## 4. Ship
 
+- **🆕 Every update the operator will see gets a tour entry** (his Oct 2026 rule): add a release at the
+  TOP of `WHATS_NEW` in `apps/web/src/lib/whatsNew.ts` (new unique id, date, Arabic title) with one
+  step per visible change - `path` (the page), `target` (put `data-tour="<name>"` on the changed
+  element), `title`, `before` («كان») and `after` («الآن»), in his words. The app plays it once after
+  he installs the update; Settings → «🆕 ما الجديد» replays it. Several commits before one APK can
+  share one release (extend its steps). Check it with Playwright like any screen.
+
 - Commit on the working branch (`git branch --show-current`; at the time of writing
   `claude/local-isolated-browser`, PR #3). Message: an emoji + Arabic title line, then short Arabic
   bullets of what the operator will see; end with the attribution trailer lines the session gives.
