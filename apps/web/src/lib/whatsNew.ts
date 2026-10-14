@@ -31,6 +31,19 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-14-copy-session",
+    date: "2026-10-14",
+    title: "📤 نسخ جلسة جهاز إلى كروم",
+    steps: [
+      {
+        path: "/",
+        title: "📤 «نسخ الجلسة (لمتصفح آخر)» في «⋯» البطاقة",
+        before: "كانت الجلسة تدخل التطبيق فقط («📋 لصق جلسة»).",
+        after: "تنسخ جلسة الجهاز بصيغة Cookie-Editor، ثم في كروم: Cookie-Editor ← Import ← الصق ← حدّث الصفحة، فتكون داخل الحساب.",
+      },
+    ],
+  },
+  {
     id: "2026-10-14-d-card-form-notices",
     date: "2026-10-14",
     title: "💳 «D» بنموذج البطاقة + 🔔 إشعار كل تعديل",

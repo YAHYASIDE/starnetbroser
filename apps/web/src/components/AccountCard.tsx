@@ -42,6 +42,7 @@ import { pinAgeText, type DeviceNote } from "@/lib/deviceNotes";
 import { isTravelPending, isTravelVerified, needsTravelRegistration, setTravelPrice, travelDueArabic, travelWhatsAppLink, undoTravelDone } from "@/lib/travelRegistration";
 import { TravelPriceSheet } from "./TravelPriceSheet";
 import { describeDishAlerts } from "@/lib/dishAlerts";
+import { CopySessionSheet } from "./CopySessionSheet";
 import { PasteSessionSheet } from "./PasteSessionSheet";
 import { RenewalLockSheet } from "./RenewalLockSheet";
 import { RenewalConfirmDialog } from "./RenewalConfirmDialog";
@@ -441,6 +442,7 @@ export function AccountCard({
   const [showMore, setShowMore] = useState(false);
   const [showDishAlerts, setShowDishAlerts] = useState(false);
   const [showPasteSession, setShowPasteSession] = useState(false);
+  const [showCopySession, setShowCopySession] = useState(false);
   const dishAlerts = describeDishAlerts(account.dishAlerts);
   // No "التفاصيل" button: one tap (or holding) opens the details, two taps a payment, 3 edit.
   const [noteSheet, setNoteSheet] = useState<DeviceNoteSheetMode | null>(null);
@@ -1150,6 +1152,7 @@ export function AccountCard({
       {showPasteSession && (
         <PasteSessionSheet accountId={account.id} accountName={account.name || "الجهاز"} onOpen={() => void handleOpen()} onClose={() => setShowPasteSession(false)} />
       )}
+      {showCopySession && <CopySessionSheet accountId={account.id} accountName={account.name || "الجهاز"} onClose={() => setShowCopySession(false)} />}
 
       {showDishAlerts && (
         <div className="party-sheet-backdrop" role="presentation" onClick={() => setShowDishAlerts(false)}>
@@ -1200,6 +1203,7 @@ export function AccountCard({
                 { icon: "📋", label: expanded ? "إخفاء التفاصيل" : "التفاصيل", run: () => setExpanded((v) => !v) },
                 { icon: client ? "✎" : "🔗", label: client ? "تعديل البيانات" : "ربط بزبون", run: () => onEdit(account) },
                 { icon: "📋", label: "لصق جلسة (من متصفح آخر)", run: () => setShowPasteSession(true) },
+                { icon: "📤", label: "نسخ الجلسة (لمتصفح آخر)", run: () => setShowCopySession(true) },
                 { icon: "🔧", label: "متعطل", run: () => setShowFaultDialog(true) },
                 { icon: "🤝", label: "وعد دفع", run: () => setShowPromise(true) },
                 ...(!account.creation

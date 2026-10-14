@@ -473,6 +473,15 @@ mind). Exact texts and numbers live in the code - this file says where.
   `CardFillController.awaitCode`, plugin `linkCardGmail`, `CardGmailSection`. Read-only Gmail scope;
   the code is never logged.
 
+## 📤 «نسخ الجلسة»: a device's session out to Chrome (Oct 14 2026)
+
+- His ask «كيف أصدّر الجلسة من جهاز في التطبيق إلى متصفح آخر، كروم مثلاً»; his choice «زر 📤 نسخ الجلسة». The card's
+  «⋯» → «📤 نسخ الجلسة (لمتصفح آخر)» (`CopySessionSheet`): reads that device's cookies (`exportAccountSessions`),
+  turns them into Cookie-Editor JSON (`toCookieEditorJson` - starlink.com only, a year long, secure) and copies it
+  (fallback: a read-only box to copy by hand). In Chrome on a computer (or Kiwi / Firefox on a phone - Chrome on
+  Android has no add-ons): Cookie-Editor → Import → paste → refresh. Never logged or stored; a warning says whoever
+  has it is inside the account.
+
 ## 📋 A Starlink session sent to a bot → a new device
 
 - He (or a linked rep) pastes the Firefox session («Cookie-Editor» → Export → JSON) in the bot.

@@ -83,3 +83,43 @@ export function parsePastedSession(input: string): PastedSessionResult {
   }
   return { ok: true, cookiesByUrl: Object.fromEntries(Array.from(byUrl, ([url, pairs]) => [url, pairs.join("; ")])), count: cookies.length };
 }
+
+/**
+ * 📤 «نسخ الجلسة» (his Oct 14 2026 ask «كيف أصدّر الجلسة من جهاز في التطبيق إلى متصفح آخر، كروم مثلاً»): the
+ * reverse - a device's browser session (per-address cookie strings, as exportSessionCookies gives it) as
+ * Cookie-Editor's JSON, to Import in Chrome / Kiwi / Firefox. Only starlink.com cookies; each a year long
+ * (the phone keeps no expiry with them), secure, for the whole site. Pure.
+ */
+export function toCookieEditorJson(cookiesByUrl: Record<string, string>, now: Date = new Date()): { json: string; count: number } {
+  const expirationDate = Math.floor(now.getTime() / 1000) + 365 * 24 * 60 * 60;
+  const seen = new Map<string, Record<string, unknown>>();
+  for (const [url, header] of Object.entries(cookiesByUrl)) {
+    let host = "";
+    try {
+      host = new URL(url).hostname.toLowerCase();
+    } catch {
+      continue;
+    }
+    if (!isStarlinkHost(host)) continue;
+    for (const c of fromHeader(header)) {
+      if (!c.name || /[;\r\n]/.test(c.value)) continue;
+      const key = `${host}|${c.name}`;
+      if (seen.has(key)) continue;
+      seen.set(key, {
+        domain: host,
+        hostOnly: true,
+        httpOnly: false,
+        name: c.name,
+        path: "/",
+        sameSite: "no_restriction",
+        secure: true,
+        session: false,
+        expirationDate,
+        storeId: null,
+        value: c.value,
+      });
+    }
+  }
+  const list = [...seen.values()];
+  return { json: JSON.stringify(list, null, 2), count: list.length };
+}
