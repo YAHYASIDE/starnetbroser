@@ -1420,6 +1420,18 @@ is never pressed while a field is empty - it refills and saves on the next try (
   (repWallets id "SIFA") is now «🟠 حساب شخصي» (bot: «🟠 شخصي», button «💼 في حسابي: 🟠 شخصي»); name only, same
   records. Profit / أوقية keep their names.
 
+## 🤝 A previous debt paid on a rep's customer's device carries his share (Oct 14 2026)
+
+- His report: a rep's customer's device had a previous Starlink debt of 94.64 $; they agreed to charge 13,500 سيفا
+  (both shares of profit inside). After paying it (/starlink «سدّد» the previous debt) the 13,500 showed in the rep's
+  statement as «📡 تجديد عليه» but not in «📈 أرباح أجهزته جهازًا جهازًا» and with no «حصته / حصتي» on that day.
+- Cause: the paid shipment took the rep only from the DEVICE (`representativeId`); when the device belongs to the rep
+  through its customer only (`repSegments`), the entry had no rep → no commission row (it still counts as his debt
+  through `repOperations`). Fix: `shipmentRepId(device, client)` = the device's rep, else the customer's current
+  rep - used by the previous-debt payment (/starlink `payPrevious`), the home one-tap renewal and the device ledger's
+  `representative`. Repair for what's already recorded: the operation's sheet on the rep's statement offers «🤝 احسب
+  حصته من ربح هذه الشحنة (N%)» when a Starlink shipment has no rep (`setShipmentRepShare`, his current percent).
+
 ## 💳 Tap «D» to pay Starlink (Oct 12 2026)
 
 - His words: «اجعل عندما أضغط على D تظهر لي مكان تسديد الفاتورة». The card's red «D» is a button: it opens the

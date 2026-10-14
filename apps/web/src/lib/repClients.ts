@@ -37,6 +37,16 @@ export function currentRepOfClient(client: Pick<Client, "repSegments"> | undefin
   return segments[segments.length - 1]!.repId || undefined;
 }
 
+/** 🤝 The rep a new shipment on this device belongs to: the device's own rep, else its customer's current
+ * rep. A previous Starlink debt paid on a rep's customer's device (his Oct 14 2026 report: 13,500 سيفا
+ * charged, no share in «أرباح أجهزته») lost the rep when only the customer was his. */
+export function shipmentRepId(
+  device: { representativeId?: string | null } | undefined,
+  client: Pick<Client, "repSegments"> | undefined,
+): string | undefined {
+  return device?.representativeId || currentRepOfClient(client) || undefined;
+}
+
 /** Hands the customer to `repId` (undefined = back to us) from `at` on. No-op when he already
  * belongs to that owner. `carry` = his balance so far goes with him. */
 export function moveClientToOwner(client: Client, repId: string | undefined, carry: boolean, at: string): Client {

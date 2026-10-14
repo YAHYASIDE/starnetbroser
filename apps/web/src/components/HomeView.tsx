@@ -22,7 +22,7 @@ import { buildAutoSyncList } from "@/lib/autoSyncList";
 import { LedgerDialog } from "./LedgerDialog";
 import { ClientDialog } from "./ClientDialog";
 import { ClientsOverviewDialog } from "./ClientsOverviewDialog";
-import { ourDebtLedgerForClients, autoMoveClientToRep } from "@/lib/repClients";
+import { ourDebtLedgerForClients, autoMoveClientToRep, shipmentRepId } from "@/lib/repClients";
 import { confirmAndDeleteLedgerEntry, LedgerEntryEditor } from "./LedgerEntryEditor";
 import { DeviceStatementDialog } from "./DeviceStatementDialog";
 import { ToastMessage, ToastStack } from "./ToastStack";
@@ -1458,7 +1458,7 @@ export function HomeView({
       return;
     }
     if (autoShipment && account.renewalPlan) {
-      const rep = getRepresentative(representativeStore, account.representativeId);
+      const rep = getRepresentative(representativeStore, shipmentRepId(account, getClient(clientStore, account.clientId)));
       const result = buildRenewalShipment(account.renewalPlan, currencyStore, new Date().toISOString().slice(0, 10), {
         email: account.expectedEmail || account.starlinkAccountEmail || "",
         representative: rep ? { id: rep.id, commissionPercent: rep.commissionPercent, sharesLosses: rep.sharesLosses, ratePlan: rep.usdRates } : undefined,
@@ -2594,7 +2594,7 @@ export function HomeView({
           clientName={visibleClientOf(ledgerAccount)?.name ?? (isHiddenRepDevice(ledgerAccount, hiddenReps) ? repContact(ledgerAccount, representativeStore)?.name : undefined)}
           clientPhone={messagePhoneOf(ledgerAccount)}
           representative={(() => {
-            const rep = getRepresentative(representativeStore, ledgerAccount.representativeId);
+            const rep = getRepresentative(representativeStore, shipmentRepId(ledgerAccount, getClient(clientStore, ledgerAccount.clientId)));
             return rep ? { id: rep.id, commissionPercent: rep.commissionPercent, sharesLosses: rep.sharesLosses, ratePlan: rep.usdRates } : undefined;
           })()}
         />

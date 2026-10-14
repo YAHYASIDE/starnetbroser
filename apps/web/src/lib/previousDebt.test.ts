@@ -102,3 +102,23 @@ describe("💱 a D in the bill's own currency is not a «فرق غير مسجّ�
   });
 });
 
+
+describe("🤝 a previous debt paid on a rep's customer's device (his Oct 14 2026 report)", () => {
+  it("the shipment carries the rep - from the device, else from its customer - so its profit is split", async () => {
+    const { shipmentRepId } = await import("./repClients");
+    const { listRepDeviceCommissions } = await import("./repStore");
+    const hisCustomer = { repSegments: [{ repId: "r1", from: "2026-09-01T00:00:00.000Z", carry: true }] };
+    expect(shipmentRepId({ representativeId: "r2" }, hisCustomer)).toBe("r2");
+    expect(shipmentRepId({}, hisCustomer)).toBe("r1");
+    expect(shipmentRepId({ representativeId: "" }, undefined)).toBeUndefined();
+    const debt = { id: "pd1", accountId: "a1", date: "2026-10-01", amountUsd: 94.64, createdAt: "x" };
+    const paid = buildPreviousDebtPayment(debt, {
+      date: "2026-10-14", paidUsd: 94.64, chargeAmount: 13500, chargeCurrency: "SIFA", chargeRateFromUsd: 120, fromCard: true,
+      profitRates: { MRU: 400, SIFA: 120 }, representative: { id: shipmentRepId({}, hisCustomer)!, commissionPercent: 50 },
+    });
+    if (!paid.ok) throw new Error(paid.message);
+    const [row] = listRepDeviceCommissions("r1", { a1: [paid.entry] });
+    expect(row!.profit.profitUsd).toBeCloseTo(17.86, 2);
+    expect(row!.repShareUsd).toBeCloseTo(8.93, 2);
+  });
+});

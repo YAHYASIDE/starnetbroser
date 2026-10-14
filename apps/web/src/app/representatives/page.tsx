@@ -1365,6 +1365,25 @@ function RepCard({
                 <p className="party-empty">لم تعد هذه العملية موجودة على الجهاز.</p>
               ) : (
                 <div className="party-sheet-options">
+                  {/* 🤝 A shipment of his recorded without his share (his Oct 14 2026 report: a previous
+                      Starlink debt paid on his customer's device) - its profit split, in one tap. */}
+                  {entry.kind === "debit" && entry.starlinkCost && !entry.representativeId && (
+                    <button
+                      type="button"
+                      className="party-sheet-option"
+                      onClick={() => {
+                        const error = onShipmentShare(op.accountId, entry.id, { representativeId: rep.id, percent: rep.commissionPercent, sharesLosses: Boolean(rep.sharesLosses) });
+                        if (error) window.alert(error);
+                        else setSheet(null);
+                      }}
+                    >
+                      <span aria-hidden="true">🤝</span>
+                      <span>
+                        <strong>احسب حصته من ربح هذه الشحنة ({rep.commissionPercent}%)</strong>
+                        <small>سُجّلت عليه بلا حصة - تظهر في «أرباح أجهزته» ويُقسم ربحها بينكما</small>
+                      </span>
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="party-sheet-option"

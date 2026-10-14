@@ -27,6 +27,7 @@ import { deleteProof, getProof, putProof } from "@/lib/paymentProofStore";
 import { resizeImageToDataUrl } from "@/lib/imageUtils";
 import { binanceForCard, cardFromBinance, defaultCardTopUpAccountId, isBinanceAccount, loadAccountsBook, type MoneyAccount } from "@/lib/moneyAccounts";
 import { ClientStore, getClient, loadClientStore } from "@/lib/clientStore";
+import { shipmentRepId } from "@/lib/repClients";
 import { CurrencyStore, getCurrency, loadCurrencyStore, realRateFromUsd, saveCurrencyStore, setCurrencyRate } from "@/lib/currencyStore";
 import { demoAccounts } from "@/lib/demoData";
 import { loadDemoAccounts } from "@/lib/demoAccountStore";
@@ -345,7 +346,8 @@ export default function StarlinkPage() {
   function payPrevious(debt: PreviousDebt, input: PreviousPayInput): string | null {
     if (!confirmClosedMonthChange([input.date])) return "لم يُحفظ (الشهر مُقفل)";
     const acc = account(debt.accountId);
-    const rep = getRepresentative(repStore, acc?.representativeId);
+    // 🤝 the device's rep, or its customer's (shipmentRepId) - his share of this debt's profit
+    const rep = getRepresentative(repStore, shipmentRepId(acc, getClient(clientStore, acc?.clientId)));
     const rate = input.chargeCurrency === "USD" ? 1 : getCurrency(currencyStore, input.chargeCurrency)?.rateFromUsd;
     const result = buildPreviousDebtPayment(debt, {
       ...input,
