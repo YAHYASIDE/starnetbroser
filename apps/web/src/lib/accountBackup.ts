@@ -6,6 +6,24 @@ import { decryptBackup, encryptBackup, WrongPasswordError } from "./backupCrypto
  * importSessionCookies use on the native side. */
 export type SessionsByAccount = Record<string, Record<string, string>>;
 
+/** The key a device's 📧 mailbox (Outlook inside the app) is kept under, beside its Starlink session -
+ * the native side's MAIL_SESSION_PREFIX. Backups carry both (his Oct 14 2026 ask «أضف جلسة البريد
+ * للنسخة الاحتياطية»), so a restored phone has the mailbox signed in too. */
+export const MAIL_SESSION_PREFIX = "mail:";
+
+/** How many Starlink sessions and how many mailboxes a backup's sessions hold. */
+export function countSessions(sessions: SessionsByAccount): { starlink: number; mail: number } {
+  const keys = Object.keys(sessions);
+  const mail = keys.filter((k) => k.startsWith(MAIL_SESSION_PREFIX)).length;
+  return { starlink: keys.length - mail, mail };
+}
+
+/** «… جلسة دخول» (+ «، … بريد» when any) for the backup messages. */
+export function sessionCountWords(sessions: SessionsByAccount): string {
+  const { starlink, mail } = countSessions(sessions);
+  return `${starlink} جلسة دخول${mail ? `، ${mail} بريد` : ""}`;
+}
+
 /** Every app-data localStorage key (clients, suppliers, ledger, invoices, store, cash,
  * representatives, currencies, balances, ...) - all share this prefix, so a backup automatically
  * covers stores added later too. Settings/tokens/PIN use "starnet." and are never included. */

@@ -124,7 +124,7 @@ export async function runDriveBackup(
     return { status: "skipped" };
   }
   try {
-    const sessions = await exportAccountSessions(accounts.map((a) => a.id));
+    const sessions = await exportAccountSessions(accounts.map((a) => a.id), true);
     const created = await createEncryptedBackupFile(accounts, sessions, password, await withProofs(collectAppData(window.localStorage)));
     if (!created.ok) throw new Error(created.message);
     const file = await withDrive(force, (token) => uploadAndPrune(nativeHttp, token, created.fileContents));

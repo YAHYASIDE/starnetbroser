@@ -494,6 +494,21 @@ mind). Exact texts and numbers live in the code - this file says where.
   number of chunks, site-wide), stale per-host chunks mix with the new ones and the ticket no longer reads. The sheet says: Cookie-Editor «Delete All» before Import, never re-paste an old copy,
   never «Sign out» in the other browser (one session - it signs the app out too).
 
+## 📧 Backups carry each device's mailbox session too (Oct 14 2026)
+
+- He asked «هل في الجلسة كودات الإيميل أو الواي فاي؟» (no: a Starlink session is cookies only - the sign-in
+  ticket, the account number, language, analytics; the Starlink/mail/Wi-Fi passwords live in the device record,
+  which the full backup carries). I told him the backup kept the Starlink session but not the device's
+  📧 mailbox (Outlook inside the app); his choice «نعم أضف جلسة البريد للنسخة الاحتياطية».
+- Every backup (settings export, the daily automatic one, Drive) now calls `exportAccountSessions(ids, true)`:
+  the mailbox goes in under `mail:<deviceId>` (the native MAIL_SESSION_PREFIX), and the restore already puts it
+  back in the device's mail profile and marks it signed in. Messages count both: «N جلسة دخول، M بريد»
+  (`countSessions` / `sessionCountWords` in `accountBackup.ts`); the "devices without a session" warning counts
+  Starlink sessions only.
+- A restored session is only as fresh as the backup: an old backup's sessions may already be dead at Starlink
+  (his Oct 13 backup restored on another phone came back signed out) - after a restore, sign in where needed and
+  make a new backup.
+
 ## 📋 A Starlink session sent to a bot → a new device
 
 - He (or a linked rep) pastes the Firefox session («Cookie-Editor» → Export → JSON) in the bot.

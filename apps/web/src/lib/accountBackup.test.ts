@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   buildBackupEnvelope,
   collectAppData,
+  countSessions,
   restoreAppData,
+  sessionCountWords,
   createEncryptedBackupFile,
   isBackupEnvelope,
   mergeImportedAccounts,
@@ -198,5 +200,23 @@ describe("full app-data backup", () => {
     const read = await readEncryptedBackupFile(created.fileContents, "my-strong-password");
     if (!read.ok) throw new Error("read failed");
     expect(read.data).toEqual(data);
+  });
+});
+
+describe("📧 the device's mailbox session rides in the backup too (his Oct 14 2026 ask)", () => {
+  it("counts Starlink sessions and mailboxes apart, and an encrypted backup keeps both", async () => {
+    const sessions = {
+      "acc-1": { "https://starlink.com": "demo_auth=A" },
+      "mail:acc-1": { "https://login.live.com": "demo_mail=M" },
+      "acc-2": { "https://starlink.com": "demo_auth=B" },
+    };
+    expect(countSessions(sessions)).toEqual({ starlink: 2, mail: 1 });
+    expect(sessionCountWords(sessions)).toBe("2 جلسة دخول، 1 بريد");
+    expect(sessionCountWords({ "acc-1": sessions["acc-1"] })).toBe("1 جلسة دخول");
+    const created = await createEncryptedBackupFile([baseAccount()], sessions, "demo-password-1", {});
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const read = await readEncryptedBackupFile(created.fileContents, "demo-password-1");
+    expect(read.ok && read.sessions["mail:acc-1"]).toEqual({ "https://login.live.com": "demo_mail=M" });
   });
 });

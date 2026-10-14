@@ -41,7 +41,7 @@ import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerCurrency } from "@/lib
 import { loadDemoAccounts, saveDemoAccounts } from "@/lib/demoAccountStore";
 import { lockAllRenewalDays, renewalDayOf } from "@/lib/renewalDayLock";
 import { STORAGE_BUDGET_CHARS, StorageUsage, formatChars, isQuotaError, measureStorage, storageKeyLabel } from "@/lib/storageGuard";
-import { collectAppData, createEncryptedBackupFile, mergeImportedAccounts, readEncryptedBackupFile, restoreAppData } from "@/lib/accountBackup";
+import { collectAppData, countSessions, createEncryptedBackupFile, mergeImportedAccounts, readEncryptedBackupFile, restoreAppData, sessionCountWords } from "@/lib/accountBackup";
 import { restoreProofsFromBackup, withProofs } from "@/lib/paymentProofStore";
 import { repChatPhones } from "@/lib/repChatLinks";
 import {
@@ -818,7 +818,7 @@ function BackupSection() {
         return;
       }
 
-      const sessions = await exportAccountSessions(accounts.map((a) => a.id));
+      const sessions = await exportAccountSessions(accounts.map((a) => a.id), true);
       const created = await createEncryptedBackupFile(accounts, sessions, exportPassword, data);
       if (!created.ok) {
         setExportMessage(created.message);
@@ -828,11 +828,11 @@ function BackupSection() {
       const saved = await saveAndShareBackupFile(created.fileContents);
       setExportMessage(
         saved.ok
-          ? `تم إنشاء نسخة كاملة (${accounts.length} جهاز، ${Object.keys(sessions).length} جلسة دخول، ${Object.keys(data).length} سجل بيانات: الزبائن والحسابات والمتجر والمندوبين والكاش) - اختر أين تحفظها`
+          ? `تم إنشاء نسخة كاملة (${accounts.length} جهاز، ${sessionCountWords(sessions)}، ${Object.keys(data).length} سجل بيانات: الزبائن والحسابات والمتجر والمندوبين والكاش) - اختر أين تحفظها`
           : saved.message,
       );
       if (saved.ok) {
-        setExportWarning(sessionExportWarning(accounts.length, Object.keys(sessions).length, isRunningInAndroidApp()));
+        setExportWarning(sessionExportWarning(accounts.length, countSessions(sessions).starlink, isRunningInAndroidApp()));
         recordBackupExported();
         setExportPassword("");
         setExportPasswordConfirm("");
@@ -895,15 +895,15 @@ function BackupSection() {
       // Every earlier check was about the sessions this phone had before the restore.
       clearSessionCheckResults();
       const sessionNote =
-        Object.keys(result.sessions).length > 0
+        countSessions(result.sessions).starlink > 0
           ? sessionResult.ok
             ? " افحص جلسات الدخول من القسم التالي لتعرف أي جهاز يحتاج تسجيل دخول من جديد."
             : " تعذرت استعادة جلسات الدخول على هذا الهاتف - ستحتاج تسجيل الدخول في كل جهاز."
           : "";
       setImportMessage(
         (dataKeys > 0
-          ? `تمت استعادة كل البيانات (${result.accounts.length} جهاز، ${sessionResult.importedCount} جلسة دخول).`
-          : `تم استيراد ${result.accounts.length} حساب و ${sessionResult.importedCount} جلسة دخول.`) + sessionNote,
+          ? `تمت استعادة كل البيانات (${result.accounts.length} جهاز، ${sessionResult.ok ? sessionCountWords(result.sessions) : "0 جلسة دخول"}).`
+          : `تم استيراد ${result.accounts.length} حساب و ${sessionResult.ok ? sessionCountWords(result.sessions) : "0 جلسة دخول"}.`) + sessionNote,
       );
       setImportPassword("");
       setImportFile(null);
@@ -920,7 +920,7 @@ function BackupSection() {
       <h2 className="section-title">نسخة احتياطية كاملة محمية</h2>
       <p className="settings-hint">
         نسخة كاملة لكل بيانات التطبيق: الأجهزة، الزبائن والموردون، الديون والدفعات، فواتير المتجر
-        والبضاعة، المندوبون، الكاش والعملات - مع جلسات الدخول (إن وُجدت) - في ملف واحد مشفّر بكلمة
+        والبضاعة، المندوبون، الكاش والعملات - مع جلسات الدخول وبريد كل جهاز (إن وُجدت) - في ملف واحد مشفّر بكلمة
         المرور التي تختارها، لا يمكن فتحه بدونها. أرسل الملف إلى نفسك على واتساب أو احفظه في Google Drive. جلسات الدخول تُقرأ فقط من الحسابات التي فتحتها مرة واحدة على الأقل
         بزر &quot;فتح&quot;؛ حساب لم يُفتح بعد يُصدَّر بدون جلسة دخول. احتفظ بكلمة المرور في مكان
         آمن - لا توجد طريقة لاسترجاع النسخة الاحتياطية بدونها.
