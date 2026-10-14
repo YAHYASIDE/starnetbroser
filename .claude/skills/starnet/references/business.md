@@ -481,6 +481,9 @@ mind). Exact texts and numbers live in the code - this file says where.
   (fallback: a read-only box to copy by hand). In Chrome on a computer (or Kiwi / Firefox on a phone - Chrome on
   Android has no add-ons): Cookie-Editor → Import → paste → refresh. Never logged or stored; a warning says whoever
   has it is inside the account.
+- Real, confirmed (his test the same day): the first copy worked in the other browser; used in both places, Starlink
+  revoked the session - the device in the app was signed out too (refresh-token rotation). The sheet now warns in red:
+  one place only; for both, sign in separately in the other browser.
 
 ## 📋 A Starlink session sent to a bot → a new device
 
