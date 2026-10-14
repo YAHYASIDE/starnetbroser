@@ -488,7 +488,10 @@ mind). Exact texts and numbers live in the code - this file says where.
   www, api, auth); Starlink's renewed sign-in cookie is site-wide, so the stale copies kept being sent beside it and
   the account was signed out everywhere. Now `toCookieEditorJson` lays cookies out like the phone-to-phone restore
   (`CookieStringUtil.buildRestoreCookies`): a cookie read at starlink.com is one `.starlink.com` cookie, its copies on
-  sub-addresses are dropped. The sheet says: Cookie-Editor «Delete All» before Import, never re-paste an old copy,
+  sub-addresses are dropped. His pasted copy (old build) confirmed the shape: the sign-in is ASP.NET cookies -
+  `Starlink.Com.Sso` + `Starlink.Com.Access.V1` = "chunks-N" with the ticket split into `…V1C1`, `…V1C2` - each
+  repeated host-only on starlink.com, www, api and auth. When Starlink re-issues the ticket (possibly in a different
+  number of chunks, site-wide), stale per-host chunks mix with the new ones and the ticket no longer reads. The sheet says: Cookie-Editor «Delete All» before Import, never re-paste an old copy,
   never «Sign out» in the other browser (one session - it signs the app out too).
 
 ## 📋 A Starlink session sent to a bot → a new device
