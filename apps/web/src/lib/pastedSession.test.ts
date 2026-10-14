@@ -48,4 +48,23 @@ describe("📤 toCookieEditorJson - a device's session out to Chrome / Kiwi / Fi
     expect(back.ok && back.count).toBe(3);
     expect(toCookieEditorJson({}).count).toBe(0);
   });
+
+  it("a cookie read at starlink.com is ONE site-wide cookie - no stale per-address copies (real: they signed the account out everywhere)", () => {
+    // What the phone's export really gives: the site-wide sign-in cookie shows up at every address.
+    const session = {
+      "https://starlink.com": "demo_auth=T1; __Host-demo=h",
+      "https://www.starlink.com": "demo_auth=T1; demo_www=w",
+      "https://api.starlink.com": "demo_auth=T1",
+      "https://auth.starlink.com": "demo_auth=T1",
+    };
+    const list = JSON.parse(toCookieEditorJson(session).json) as { domain: string; hostOnly: boolean; name: string }[];
+    expect(list.map((c) => [c.domain, c.hostOnly, c.name])).toEqual([
+      [".starlink.com", false, "demo_auth"],
+      ["starlink.com", true, "__Host-demo"],
+      ["www.starlink.com", true, "demo_www"],
+    ]);
+    // a different value on a sub-address is its own cookie there
+    const own = JSON.parse(toCookieEditorJson({ "https://starlink.com": "a=1", "https://api.starlink.com": "a=2" }).json) as { domain: string }[];
+    expect(own.map((c) => c.domain)).toEqual([".starlink.com", "api.starlink.com"]);
+  });
 });

@@ -46,7 +46,7 @@ export function CopySessionSheet({ accountId, accountName, onClose }: { accountI
         <ol className="paste-session-steps">
           <li>اضغط «📤 نسخ الجلسة» هنا.</li>
           <li>في كروم على الكمبيوتر (أو Kiwi / Firefox على الهاتف): ثبّت إضافة «Cookie-Editor» وافتح starlink.com.</li>
-          <li>من الإضافة: Import ← الصق ← Import، ثم حدّث الصفحة فتكون داخل الحساب.</li>
+          <li>من الإضافة: Delete All (لحذف القديمة) ← Import ← الصق ← Import، ثم حدّث الصفحة فتكون داخل الحساب.</li>
         </ol>
         {json && <textarea className="search-input paste-session-input" dir="ltr" rows={5} readOnly value={json} onFocus={(e) => e.target.select()} aria-label="الجلسة" />}
         {message && <p className={copied ? "settings-hint" : "account-card-alert ledger-form-error"}>{message}</p>}
@@ -59,8 +59,8 @@ export function CopySessionSheet({ accountId, accountName, onClose }: { accountI
           </button>
         </div>
         <p className="account-card-alert">
-          ⚠️ ستارلينك تُخرج الحساب من المكانين إذا استُعملت الجلسة نفسها في التطبيق والمتصفح الآخر معًا. انقلها لتعمل هناك فقط - وإن
-          أردت الاثنين، سجّل الدخول في المتصفح الآخر بالإيميل وكلمة السر.
+          ⚠️ هي جلسة واحدة في المكانين: لا تضغط «Sign out» في المتصفح الآخر (يخرج الجهاز هنا أيضًا)، ولا تلصق نسخة قديمة - انسخها
+          من جديد في كل مرة.
         </p>
         <p className="settings-hint">من يملك هذه الجلسة يدخل الحساب دون كلمة سر. لا ترسلها لأحد، وامسحها من الحافظة بعد اللصق.</p>
       </div>

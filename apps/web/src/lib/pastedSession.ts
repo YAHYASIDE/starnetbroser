@@ -88,11 +88,18 @@ export function parsePastedSession(input: string): PastedSessionResult {
  * 📤 «نسخ الجلسة» (his Oct 14 2026 ask «كيف أصدّر الجلسة من جهاز في التطبيق إلى متصفح آخر، كروم مثلاً»): the
  * reverse - a device's browser session (per-address cookie strings, as exportSessionCookies gives it) as
  * Cookie-Editor's JSON, to Import in Chrome / Kiwi / Firefox. Only starlink.com cookies; each a year long
- * (the phone keeps no expiry with them), secure, for the whole site. Pure.
+ * (the phone keeps no expiry with them), secure. Pure.
+ *
+ * Laid out like the phone-to-phone restore (CookieStringUtil.buildRestoreCookies): a cookie read at
+ * starlink.com is ONE cookie for the whole site (.starlink.com), and its copies under www/api/auth are
+ * dropped. Why (Oct 14 2026, the likely cause of his report): the first version wrote a host-only copy
+ * per address; once Starlink renewed its sign-in cookie in Chrome (site-wide), the stale copies were
+ * still sent beside it, and the account was signed out everywhere - the app's device too - while a
+ * transfer between his phones (restored this way) keeps both signed in.
  */
 export function toCookieEditorJson(cookiesByUrl: Record<string, string>, now: Date = new Date()): { json: string; count: number } {
   const expirationDate = Math.floor(now.getTime() / 1000) + 365 * 24 * 60 * 60;
-  const seen = new Map<string, Record<string, unknown>>();
+  const byHost = new Map<string, { name: string; value: string }[]>();
   for (const [url, header] of Object.entries(cookiesByUrl)) {
     let host = "";
     try {
@@ -101,24 +108,33 @@ export function toCookieEditorJson(cookiesByUrl: Record<string, string>, now: Da
       continue;
     }
     if (!isStarlinkHost(host)) continue;
-    for (const c of fromHeader(header)) {
-      if (!c.name || /[;\r\n]/.test(c.value)) continue;
-      const key = `${host}|${c.name}`;
-      if (seen.has(key)) continue;
-      seen.set(key, {
-        domain: host,
-        hostOnly: true,
-        httpOnly: false,
-        name: c.name,
-        path: "/",
-        sameSite: "no_restriction",
-        secure: true,
-        session: false,
-        expirationDate,
-        storeId: null,
-        value: c.value,
-      });
-    }
+    const list = byHost.get(host) ?? [];
+    list.push(...fromHeader(header).filter((c) => c.name && !/[;\r\n]/.test(c.value)));
+    byHost.set(host, list);
+  }
+  const apexPairs = new Set((byHost.get(APEX) ?? []).filter((c) => !c.name.startsWith("__Host-")).map((c) => `${c.name}=${c.value}`));
+  const seen = new Map<string, Record<string, unknown>>();
+  const add = (domain: string, hostOnly: boolean, c: { name: string; value: string }) => {
+    const key = `${domain}|${c.name}`;
+    if (seen.has(key)) return;
+    seen.set(key, {
+      domain,
+      hostOnly,
+      httpOnly: false,
+      name: c.name,
+      path: "/",
+      sameSite: "no_restriction",
+      secure: true,
+      session: false,
+      expirationDate,
+      storeId: null,
+      value: c.value,
+    });
+  };
+  for (const c of byHost.get(APEX) ?? []) add(c.name.startsWith("__Host-") ? APEX : `.${APEX}`, c.name.startsWith("__Host-"), c);
+  for (const [host, list] of byHost) {
+    if (host === APEX) continue;
+    for (const c of list) if (c.name.startsWith("__Host-") || !apexPairs.has(`${c.name}=${c.value}`)) add(host, true, c);
   }
   const list = [...seen.values()];
   return { json: JSON.stringify(list, null, 2), count: list.length };
