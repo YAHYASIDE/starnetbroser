@@ -1,3 +1,4 @@
+import { noteChanges, storedBefore } from "./changeLogStore";
 /**
  * A separate, purely local bookkeeping ledger: what a CUSTOMER owes the operator, or has paid in
  * credit toward - not to be confused with account.balanceDue, which is the Starlink SUBSCRIPTION's
@@ -215,7 +216,10 @@ export function loadLedgerStore(): LedgerByAccount {
 
 export function saveLedgerStore(store: LedgerByAccount): void {
   if (typeof window === "undefined") return;
+  const before = storedBefore(STORAGE_KEY);
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+  // 🔔 a deleted / edited operation is a notice (his Oct 14 2026 ask)
+  noteChanges("ledger", before, store);
 }
 
 // ---- Pure logic below - independent of localStorage, so this is what is actually unit-tested. ----

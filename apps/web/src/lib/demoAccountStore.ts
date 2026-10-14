@@ -1,4 +1,5 @@
 import { StarlinkAccountSummary } from "@starnet/shared";
+import { noteChanges, storedBefore } from "./changeLogStore";
 import { mergeList, removedLinks } from "./storeMerge";
 
 const STORAGE_KEY = "starnet_demo_accounts_v1";
@@ -25,7 +26,9 @@ export function loadDemoAccounts(fallback: StarlinkAccountSummary[]): StarlinkAc
 
 export function saveDemoAccounts(accounts: StarlinkAccountSummary[]): void {
   if (typeof window === "undefined") return;
+  const before = storedBefore(STORAGE_KEY);
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
+  noteChanges("devices", before, accounts);
 }
 
 
@@ -54,6 +57,7 @@ export function commitDemoAccounts(
   }
   const merged = fresh ? mergeList(fresh, base, next) : next;
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+  if (fresh) noteChanges("devices", fresh, merged);
   if (fresh && !options.unlink) {
     const lost = removedLinks(fresh, merged);
     if (lost.length) window.dispatchEvent(new CustomEvent(LINK_REMOVED_EVENT, { detail: { source, devices: lost } }));

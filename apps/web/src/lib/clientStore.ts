@@ -9,6 +9,7 @@
 import { formatAmount } from "./formatAmount";
 import { mergeMap } from "./storeMerge";
 import type { LedgerCurrency } from "./ledgerStore";
+import { noteChanges, storedBefore } from "./changeLogStore";
 
 /** From `from` on, this customer belongs to `repId` (absent = back to us). `carry` = the balance
  * so far moved over to the new owner at that moment; otherwise it stays with the previous one. */
@@ -59,15 +60,20 @@ export function loadClientStore(): ClientStore {
 
 export function saveClientStore(store: ClientStore): void {
   if (typeof window === "undefined") return;
+  const before = storedBefore(STORAGE_KEY);
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+  noteChanges("clients", before, store);
 }
 
 /** 🔗 Saves what a screen changed in the customers (`base` → `next`) onto the latest stored ones,
  * so an older in-memory copy never drops a customer added meanwhile (lib/storeMerge.ts). */
 export function commitClientStore(base: ClientStore, next: ClientStore): ClientStore {
   if (typeof window === "undefined") return next;
-  const merged = mergeMap(loadClientStore(), base, next);
+  const stored = loadClientStore();
+  const merged = mergeMap(stored, base, next);
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+  // 🔔 a customer edited / deleted is a notice (his Oct 14 2026 ask)
+  noteChanges("clients", stored, merged);
   return merged;
 }
 

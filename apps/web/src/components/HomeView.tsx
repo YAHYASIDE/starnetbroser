@@ -99,7 +99,7 @@ import {
 import { buildTravelBook, lockRepTravelPercent, lockTravelPrice, matchesTravelGroup, travelStateOf, type TravelGroup } from "@/lib/travelBook";
 import { TravelBookPanel } from "@/components/TravelBookPanel";
 import { CurrencyStore, getCurrency, loadCurrencyStore, saveCurrencyStore, upsertCurrency, UpsertCurrencyInput } from "@/lib/currencyStore";
-import { countFaultCategories, FAULT_CATEGORIES, faultCategory, isFaulty, isUnderRepair, openDebtEntries, removeFaultPatch, restoreWaivedDebts, waiveOpenDebts } from "@/lib/deviceFault";
+import { countFaultCategories, FAULT_CATEGORIES, faultCategory, isFaulty, isUnderRepair, oldestOpenDebt, openDebtEntries, removeFaultPatch, restoreWaivedDebts, waiveOpenDebts } from "@/lib/deviceFault";
 import type { DeviceFaultReason } from "@starnet/shared";
 import { listOpenPreviousDebts, loadPreviousDebts, recordPreviousDebt, savePreviousDebts, type PreviousDebtList } from "@/lib/previousDebt";
 import { confirmClosedMonthChange, ledgerEntryMonthDates } from "@/lib/monthClosing";
@@ -401,8 +401,6 @@ export function HomeView({
   const [remindersBadgeEnabled, setRemindersBadgeEnabled] = useState(true);
   useEffect(() => setRemindersBadgeEnabled(isRemindersBadgeEnabled()), []);
   const [ledgerAccount, setLedgerAccount] = useState<StarlinkAccountSummary | null>(null);
-  // 💳 opened from the card's «D»: straight to «تسوية تكلفة Starlink».
-  const [ledgerSettle, setLedgerSettle] = useState(false);
   // True when the ledger was opened from the floating "+" → دفعة من زبون (starts on "له").
   const [ledgerForPayment, setLedgerForPayment] = useState(false);
   const [statementAccount, setStatementAccount] = useState<StarlinkAccountSummary | null>(null);
@@ -2432,8 +2430,10 @@ export function HomeView({
                 allocations={allAllocations}
                 onLedger={(selected) => setLedgerAccount(selected)}
                 onSettleD={(selected) => {
-                  setLedgerSettle(true);
-                  setLedgerAccount(selected);
+                  // 💳 the card page's own payment form for its oldest D (his Oct 14 2026 ask: «ما خرج
+                  // من البطاقة», the real rate) - and back here once paid.
+                  const open = oldestOpenDebt(getAccountEntries(ledgerStore, selected.id));
+                  window.location.assign(open ? `/starlink?pay=${encodeURIComponent(open.id)}` : "/starlink");
                 }}
                 onDeviceStatement={(selected) => setStatementAccount(selected)}
                 client={visibleClientOf(account)}
@@ -2580,9 +2580,7 @@ export function HomeView({
           onClose={() => {
             setLedgerAccount(null);
             setLedgerForPayment(false);
-            setLedgerSettle(false);
           }}
-          openSettlement={ledgerSettle}
           initialKind={ledgerForPayment ? "credit" : "debit"}
           onChange={(entries) => updateLedgerEntries(ledgerAccount.id, entries)}
           renewalPlan={ledgerAccount.renewalPlan}

@@ -94,6 +94,11 @@ export function openDebtEntries(entries: LedgerEntry[]): LedgerEntry[] {
   return entries.filter((e) => e.kind === "debit" && e.starlinkCost?.status === "pending" && (e.starlinkCost.amount ?? 0) > 0);
 }
 
+/** The oldest shipment whose Starlink cost is still owed («D»), or null. */
+export function oldestOpenDebt(entries: LedgerEntry[]): LedgerEntry | null {
+  return openDebtEntries(entries).sort((a, b) => a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt))[0] ?? null;
+}
+
 export function isWaivedCost(entry: LedgerEntry): boolean {
   return Boolean(entry.starlinkCost?.waived);
 }

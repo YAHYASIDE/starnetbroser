@@ -7,6 +7,8 @@
  * later edit here must never retroactively change an already-recorded transaction.
  */
 
+import { noteChanges, storedBefore } from "./changeLogStore";
+
 export interface Currency {
   /** International code, uppercase - the registry's key (e.g. "USD", "MRU", "ARS"). */
   code: string;
@@ -92,7 +94,10 @@ export function loadCurrencyStore(): CurrencyStore {
 
 export function saveCurrencyStore(store: CurrencyStore): void {
   if (typeof window === "undefined") return;
+  const before = storedBefore(STORAGE_KEY);
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+  // 🔔 «تم تغيير سعر العملة» (his Oct 14 2026 ask)
+  noteChanges("rates", before, store);
 }
 
 // ---- Pure logic below - independent of localStorage, so this is what is actually unit-tested. ----

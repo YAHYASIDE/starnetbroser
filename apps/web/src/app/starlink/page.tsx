@@ -2,7 +2,7 @@
 
 import { FrancHint, FrancUnit } from "@/components/FrancHint";
 import { francBadge, francToSifa, isFrancAccount, sifaToFranc } from "@/lib/payCurrency";
-import { ChangeEvent, FormEvent, Fragment, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, Fragment, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { confirmClosedMonthChange, ledgerEntryMonthDates } from "@/lib/monthClosing";
 import { loadAllocationStore, removeAllocationsForEntryFromStore, saveAllocationStore } from "@/lib/paymentAllocationStore";
@@ -188,6 +188,27 @@ export default function StarlinkPage() {
   const mruRate = getCurrency(currencyStore, "MRU")?.rateFromUsd;
   const sifaRate = getCurrency(currencyStore, "SIFA")?.rateFromUsd;
   const debts = useMemo(() => listOpenShipmentDebts(ledgerStore), [ledgerStore]);
+  // 💳 From a device card's red «D» (his Oct 14 2026 ask «تظهر نفس التي أدفعها عبر مكان البطاقة»):
+  // `?pay=<entryId>` opens this very payment form for that D; once paid or closed he goes back.
+  const deepPay = useRef<string | null>(null);
+  const fromCardD = useRef(false);
+  useEffect(() => {
+    deepPay.current = new URLSearchParams(window.location.search).get("pay");
+  }, []);
+  useEffect(() => {
+    const id = deepPay.current;
+    const d = id ? debts.find((x) => x.entry.id === id) : undefined;
+    if (!d) return;
+    deepPay.current = null;
+    fromCardD.current = true;
+    openPay([d]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debts]);
+  function backToCard(delayMs = 0) {
+    if (!fromCardD.current) return;
+    fromCardD.current = false;
+    window.setTimeout(() => window.history.back(), delayMs);
+  }
   // 🔍 search the list by device, customer, rep, email or amount.
   const [debtQuery, setDebtQuery] = useState("");
   // An earlier owner's unpaid debts (previousDebt.ts) - their own records, shown with an orange D.
@@ -331,11 +352,15 @@ export default function StarlinkPage() {
     setSpendToRecord(null);
     setSheet(null);
     const paidUsd = actual && payItems.length === 1 ? actual.usd : totalOpenDebtUsd(payItems);
-    const costCode = payItems.length === 1 ? payItems[0]!.entry.starlinkCost?.currencyCode : undefined;
-    const newRate = actual && payItems.length === 1 ? recordRealRate(costCode, actual.amount, actual.usd) : null;
+    const single = payItems.length === 1 ? payItems[0]! : undefined;
+    const costCode = single?.entry.starlinkCost?.currencyCode;
+    // 💱 what left the card against the foreign amount is the currency's new rate (his rule); kept
+    // as recorded = nothing new learned (and an old D must not pull today's rate back).
+    const newRate = single && actual ? recordRealRate(costCode, actual.amount, actual.usd) : null;
     setToast(
       `✓ تم تسديد ${payItems.length} جهاز بـ ${usd(paidUsd)} - الربح وحصص المندوبين نزلت بتاريخ ${date}${newRate !== null && costCode ? ` · حُدّث سعر ${costCode} الحالي إلى ${formatAmount(newRate)}` : ""}`,
     );
+    backToCard(1500);
   }
 
   function openPreviousPay(debt: PreviousDebt) {
@@ -362,10 +387,9 @@ export default function StarlinkPage() {
     saveLedgerStore(next);
     setSheet(null);
     setPrevPay(null);
-    const newRate = recordRealRate(input.chargeCurrency, input.chargeAmount, input.paidUsd);
-    setToast(
-      `✓ تم تسديد الدين السابق على ${acc?.name ?? "الجهاز"} (${usd(input.paidUsd)}) وسُجّل على الزبون ${formatAmount(input.chargeAmount)} ${LEDGER_CURRENCY_LABELS[input.chargeCurrency]}${newRate !== null ? ` · حُدّث سعر ${LEDGER_CURRENCY_LABELS[input.chargeCurrency]} الحالي إلى ${formatAmount(newRate)}` : ""}`,
-    );
+    // What goes onto the customer is a price (with the profit in it), never an exchange rate - it
+    // must not move the currency's rate (it did, Oct 2026: 13,500 سيفا for 94.64 $ → «1$ = 142.6»).
+    setToast(`✓ تم تسديد الدين السابق على ${acc?.name ?? "الجهاز"} (${usd(input.paidUsd)}) وسُجّل على الزبون ${formatAmount(input.chargeAmount)} ${LEDGER_CURRENCY_LABELS[input.chargeCurrency]}`);
     return null;
   }
 
@@ -894,6 +918,7 @@ export default function StarlinkPage() {
           onClose={() => {
             setSpendToRecord(null);
             setSheet(null);
+            backToCard();
           }}
         >
           <PayForm
@@ -906,6 +931,7 @@ export default function StarlinkPage() {
             onCancel={() => {
               setSpendToRecord(null);
               setSheet(null);
+              backToCard();
             }}
           />
         </PartySheet>

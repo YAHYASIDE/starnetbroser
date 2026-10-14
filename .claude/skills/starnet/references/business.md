@@ -1432,6 +1432,27 @@ is never pressed while a field is empty - it refills and saves on the next try (
   `representative`. Repair for what's already recorded: the operation's sheet on the rep's statement offers «🤝 احسب
   حصته من ربح هذه الشحنة (N%)» when a Starlink shipment has no rep (`setShipmentRepShare`, his current percent).
 
+## 💳 «D» opens the card page's payment form + 🔔 notices of every edit (Oct 14 2026)
+
+- His words: «اجعل عندما أضغط على D تظهر نفس هذه التي أدفعها عبر مكان البطاقة، تظهر سعر ما خرج من البطاقة… وإن لم
+  تكن الميزة مفعّلة فعّلها: عندما أضيف ما خرج من البطاقة أن يحسب كأنه سعر جديد مقابل العملة… وأن يظهر لي إشعاره
+  في الإشعارات… وأيضًا أي تعديل تم على الأجهزة أو الزبائن أو حذف لمعاملة أن يأتي إشعارها في الإشعارات».
+- The card's red «D» now opens `/starlink?pay=<entryId>` (its oldest open D, `oldestOpenDebt`): the card page's own
+  «تسديد D لستارلينك» form (amount in the cost's currency, «ما خرج فعلاً (دولار)», «السعر الحقيقي», card balance
+  after); paid or closed → back to where he was (`history.back`). Supersedes Oct 12's LedgerDialog `openSettlement`
+  (removed). The rate rule was already on: a changed «ما خرج» locks the real rate and sets the currency's current
+  rate (`recordRealRate`); untouched amounts teach nothing (an old D never pulls today's rate back).
+- Fixed: paying a previous debt used to set the CHARGE currency's rate from charge ÷ paid (13,500 سيفا for 94.64 $ →
+  «1$ = 142.6 سيفا») - a price with profit in it, not a rate. Removed. (His سيفا rate may have moved on Oct 14 - check
+  «العملات».)
+- 🔔 Notices (`lib/changeLog.ts` pure + `changeLogStore.ts`, hooked into `saveDemoAccounts` / `commitDemoAccounts`,
+  `saveClientStore` / `commitClientStore`, `saveLedgerStore`, `saveCurrencyStore`; the stored value before vs after
+  each save → `addLocalEvent`): 💱 a currency's rate changed (`1$ = old ← new`); ✏️ a device edited (name, customer,
+  rep, renewal date, monthly price, email, phone, KIT, notes, card - never Starlink-read fields), 🗑 trashed / gone,
+  📦 archived; ✏️ a customer edited (name, phone, credit limit, rep, currency) / 🗑 deleted; 🗑 an operation deleted,
+  ✏️ an operation's amount / currency / date / kind edited. Additions and a D being paid are no notice. More than 8 in
+  one save (restore, merge…) = one summary notice. In the 🔔 list only (not the phone bar).
+
 ## 💳 Tap «D» to pay Starlink (Oct 12 2026)
 
 - His words: «اجعل عندما أضغط على D تظهر لي مكان تسديد الفاتورة». The card's red «D» is a button: it opens the
