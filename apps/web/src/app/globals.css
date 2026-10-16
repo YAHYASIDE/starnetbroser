@@ -14531,7 +14531,7 @@ button.today-tile {
 .dash-section-customers, .dash-section-debts { border-color: color-mix(in srgb, var(--red) 35%, var(--border)); }
 
 /* Six report tabs since «📊 الملخص»: two rows of three, every label whole at 360px. */
-.report-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.report-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .report-tabs .report-tab { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* 📊 Dashboard phase 2b - the alert center, goals, money places, Starlink, debts, drill-down. */
@@ -15564,3 +15564,25 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
 
 /* 👤 The rep's own customer on his device - information only (his Oct 13 2026 choice). */
 .account-card-rep-client { font-size: 0.75rem; color: var(--text-muted); overflow-wrap: anywhere; }
+
+/* «ربح الشهر» (Oct 16 2026): the month's details folded under the figure. */
+.report-fold > summary {
+  cursor: pointer;
+  list-style: none;
+  font-weight: 700;
+  color: var(--text);
+}
+.report-fold > summary::-webkit-details-marker {
+  display: none;
+}
+.report-fold > summary::after {
+  content: " ▼";
+  font-size: 0.75em;
+  color: var(--text-muted);
+}
+.report-fold[open] > summary::after {
+  content: " ▲";
+}
+.report-fold[open] > summary {
+  margin-bottom: 10px;
+}

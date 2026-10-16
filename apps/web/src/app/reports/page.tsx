@@ -9,18 +9,15 @@ import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
 import { loadDemoAccounts } from "@/lib/demoAccountStore";
 import { listAccounts } from "@/lib/apiClient";
 import { LedgerByAccount, loadLedgerStore } from "@/lib/ledgerStore";
-import { filterEntriesByPeriod, filterEntriesByProfitDate, REPORT_PERIOD_LABELS, REPORT_PERIODS, ReportPeriod } from "@/lib/reportPeriod";
+import { filterEntriesByProfitDate, REPORT_PERIOD_LABELS, REPORT_PERIODS, ReportPeriod } from "@/lib/reportPeriod";
 import { ClientStore, getClient, listClients, loadClientStore } from "@/lib/clientStore";
 import { formatAmount } from "@/lib/formatAmount";
 import { InvoiceList, loadInvoices } from "@/lib/invoiceStore";
-import { getStoreItem, listStoreItems, loadStoreItems, loadStoreTransactions, StoreItemRegistry, StoreTransactionList } from "@/lib/storeStore";
-import { computeClientSalesTotals, computeItemSalesTotals, computeStoreSalesSummary } from "@/lib/storeReports";
-import { CashEntryList, loadCashEntries, listStandaloneCashEntries } from "@/lib/cashStore";
+import { listStoreItems, loadStoreItems, loadStoreTransactions, StoreItemRegistry, StoreTransactionList } from "@/lib/storeStore";
+import { CashEntryList, loadCashEntries } from "@/lib/cashStore";
 import { computeRepSharesMru, listRepresentatives, loadRepresentativeStore, loadRepSettlements, RepresentativeStore, RepSettlementList, saveRepresentativeStore } from "@/lib/repStore";
 import { sumProfitMru } from "@/lib/profitMru";
 import { CurrencyStore, loadCurrencyStore } from "@/lib/currencyStore";
-import { daysRemainingNumber } from "@/lib/date";
-import { TodayPanel } from "@/components/TodayPanel";
 import { MonthClosingSection } from "@/components/MonthClosingSection";
 import { entriesAfterProfitReset, loadProfitReset, ProfitReset, saveProfitReset, startProfitFresh, undoProfitFresh } from "@/lib/profitReset";
 import { loadAllocationStore, AllocationsByAccount } from "@/lib/paymentAllocationStore";
@@ -59,13 +56,14 @@ import {
   repBalancesMru,
   SeriesPoint,
   sumToMru,
-  toMru,
-  valueSeries,
 } from "@/lib/reportsView";
 
-type ReportTab = "net" | "starlink" | "store" | "debts" | "expenses";
+type ReportTab = "net" | "starlink" | "debts" | "expenses";
 
-const TAB_LABELS: Record<ReportTab, string> = { net: "الصافي", starlink: "ستارلينك", store: "المتجر", debts: "الديون", expenses: "المصروفات" };
+// Oct 16 2026 (his «التقارير صارت أسوأ، فيها الكثير ومختلطة»): «ربح الشهر» first and opened by default,
+// then ستارلينك · الديون · المصروفات. «المتجر» left (its own report is in the store page) and «اليوم» too
+// (it's on the home page / «خطة اليوم»).
+const TAB_LABELS: Record<ReportTab, string> = { net: "💰 ربح الشهر", starlink: "ستارلينك", debts: "الديون", expenses: "المصروفات" };
 // The phone remembers his tab. «📊 الملخص» moved into «💰 حسابي» (his Oct 12 2026 choice): a saved
 // "dash" is no longer a tab and falls back to «الصافي».
 const TAB_KEY = "starnet.reportsTab2";
@@ -185,7 +183,6 @@ export default function ReportsPage() {
     return result;
   }, [currencyStore]);
   const mruRate = rates.MRU;
-  const activeAccounts = useMemo(() => accounts.filter((a) => !a.archivedAt && !a.deletedAt), [accounts]);
   const accountName = (id: string) => accounts.find((a) => a.id === id)?.name ?? "جهاز محذوف";
 
   // ---- ستارلينك: profit counted on the day Starlink was paid, after any "fresh start" ----
@@ -295,55 +292,6 @@ export default function ReportsPage() {
     [netByMonth],
   );
 
-  // ---- المتجر ----
-  const periodInvoices = useMemo(() => filterEntriesByPeriod(invoices, period), [invoices, period]);
-  const storeSummary = useMemo(() => computeStoreSalesSummary(storeTransactions, invoices, periodInvoices), [storeTransactions, invoices, periodInvoices]);
-  const periodExpenses = useMemo(
-    () => filterEntriesByPeriod(listStandaloneCashEntries(cashEntries), period).filter((e) => e.kind === "out"),
-    [cashEntries, period],
-  );
-  const store = useMemo(() => {
-    const expensesByCurrency: Record<string, number> = {};
-    for (const e of periodExpenses) expensesByCurrency[e.currencyCode] = (expensesByCurrency[e.currencyCode] ?? 0) + e.amount;
-    const sales = sumToMru(storeSummary.salesByCurrency, rates);
-    const cogs = sumToMru(storeSummary.cogsByCurrency, rates);
-    const shipping = sumToMru(storeSummary.shippingCostByCurrency, rates);
-    const expenses = sumToMru(expensesByCurrency, rates);
-    const missing = Array.from(new Set([...sales.missing, ...cogs.missing, ...shipping.missing, ...expenses.missing]));
-    return { sales: sales.mru, cogs: cogs.mru, costs: shipping.mru + expenses.mru, net: sales.mru - cogs.mru - shipping.mru - expenses.mru, missing };
-  }, [storeSummary, periodExpenses, rates]);
-  const storeChart = useMemo(() => {
-    const byDate = new Map<string, InvoiceList>();
-    for (const inv of periodInvoices) byDate.set(inv.date, [...(byDate.get(inv.date) ?? []), inv]);
-    const items: { date: string; value: number }[] = [];
-    for (const [date, dayInvoices] of byDate) {
-      const s = computeStoreSalesSummary(storeTransactions, invoices, dayInvoices);
-      items.push({
-        date,
-        value: sumToMru(s.salesByCurrency, rates).mru - sumToMru(s.cogsByCurrency, rates).mru - sumToMru(s.shippingCostByCurrency, rates).mru,
-      });
-    }
-    for (const e of periodExpenses) items.push({ date: e.date, value: -(toMru(e.amount, e.currencyCode, rates) ?? 0) });
-    return valueSeries(items, period);
-  }, [periodInvoices, periodExpenses, storeTransactions, invoices, rates, period]);
-  const topItems = useMemo(
-    () =>
-      computeItemSalesTotals(periodInvoices)
-        .map((row) => ({ row, mru: sumToMru(row.totalByCurrency, rates).mru }))
-        .filter((r) => r.mru > 0.5)
-        .sort((a, b) => b.mru - a.mru)
-        .slice(0, 5),
-    [periodInvoices, rates],
-  );
-  const topStoreClients = useMemo(
-    () =>
-      computeClientSalesTotals(periodInvoices)
-        .map((row) => ({ row, mru: sumToMru(row.totalByCurrency, rates).mru }))
-        .filter((r) => r.mru > 0.5)
-        .sort((a, b) => b.mru - a.mru)
-        .slice(0, 5),
-    [periodInvoices, rates],
-  );
 
   // ---- الديون: running balances, whatever the period ----
   const debtors = useMemo(() => {
@@ -469,6 +417,9 @@ export default function ReportsPage() {
             </div>
           );
 
+  // «ربح الشهر»: that month's confirmed shipments (folded under the figure).
+  const monthRows = net ? allConfirmedRows.filter((row) => row.date.slice(0, 7) === net.month) : [];
+
   const periodChips = (
     <div className="report-period-row">
       {REPORT_PERIODS.map((p) => (
@@ -545,12 +496,6 @@ export default function ReportsPage() {
         )}
       </div>
 
-      <TodayPanel
-        ledgerStore={ledgerStore}
-        cashEntries={cashEntries}
-        renewalsToday={activeAccounts.filter((a) => daysRemainingNumber(a.rechargeDate || a.standbyDate) === 1).map((a) => ({ id: a.id, name: a.name }))}
-        names={statementNames}
-      />
 
       <div className="report-tabs" role="tablist" aria-label="أقسام التقارير">
         {(Object.keys(TAB_LABELS) as ReportTab[]).map((t) => (
@@ -567,10 +512,6 @@ export default function ReportsPage() {
           سجّل سعر الأوقية في <Link href="/currencies" className="btn-link">صفحة العملات</Link> لتظهر الأرقام بالأوقية.
         </p>
       )}
-
-      <Link href="/money/" className="report-moved-note">
-        📊 الملخص والتحليل المالي والمقارنات صارت في «💰 حسابي» ←
-      </Link>
 
       {tab === "starlink" && (
         <section className="section report-tab-panel">
@@ -674,42 +615,6 @@ export default function ReportsPage() {
         </section>
       )}
 
-      {tab === "store" && (
-        <section className="section report-tab-panel">
-          {periodChips}
-          <div className="report-kpis">
-            <Kpi label="صافي ربح المتجر" value={`≈ ${mru(store.net)}`} sub="أوقية" tone={store.net < 0 ? "bad" : "good"} info="المبيعات ناقص تكلفة البضاعة والشحن والمصروفات - كل عملة محوّلة للأوقية بسعر اليوم." />
-            <Kpi label="المبيعات" value={`≈ ${mru(store.sales)}`} sub={`أوقية · ${periodInvoices.filter((i) => i.kind === "sale").length} فاتورة`} />
-            <Kpi label="تكلفة البضاعة" value={`≈ ${mru(store.cogs)}`} sub="أوقية" />
-            <Kpi label="الشحن والمصروفات" value={`≈ ${mru(store.costs)}`} sub="أوقية" tone="bad" />
-          </div>
-          {store.missing.length > 0 && <p className="settings-hint">لم تُحتسب مبالغ بعملات بلا سعر مسجّل: {store.missing.join("، ")}</p>}
-
-          <ChartCard title={isLongPeriod(period) ? "ربح المتجر شهرًا بشهر" : "ربح المتجر يومًا بيوم"} note={REPORT_PERIOD_LABELS[period]} points={storeChart} />
-
-          <RankCard
-            title="أكثر المواد مبيعًا"
-            empty="لا توجد مبيعات لهذه الفترة."
-            rows={topItems.map(({ row, mru: value }) => {
-              const item = getStoreItem(storeItems, row.itemId);
-              return { key: row.itemId, title: item?.name ?? "مادة محذوفة", subtitle: `${formatAmount(row.quantity)} ${item?.unit ?? ""}`, value };
-            })}
-          />
-          <RankCard
-            title="أفضل الزبائن (المتجر)"
-            empty="لا توجد مبيعات لهذه الفترة."
-            rows={topStoreClients.map(({ row, mru: value }) => ({
-              key: row.clientId ?? "none",
-              title: getClient(clientStore, row.clientId)?.name ?? "بدون زبون",
-              value,
-            }))}
-          />
-          <Link href="/store" className="btn-link report-more-link">
-            التفاصيل الكاملة في المتجر ←
-          </Link>
-        </section>
-      )}
-
       {tab === "net" && net && (
         <section className="section report-tab-panel">
           <div className="report-period-row">
@@ -727,19 +632,6 @@ export default function ReportsPage() {
             </strong>
             {previousNet && <NetChange current={net.netMru} previous={previousNet.netMru} previousLabel={monthLabel(previousNet.month)} />}
           </div>
-
-          <div className="report-card-head profit-section-head">
-            <h3>📒 شحنات ستارلينك في {monthLabel(net.month)}</h3>
-            <span className="report-card-note">اضغط أي شحنة للتفاصيل</span>
-          </div>
-          <ProfitStatement
-            days={groupProfitDays(allConfirmedRows.filter((row) => row.date.slice(0, 7) === net.month))}
-            names={statementNames}
-            emptyText="لا توجد شحنات دُفعت لستارلينك في هذا الشهر."
-            onHideDay={handleHideDay}
-          />
-
-          {expectedBlock}
 
           <div className="report-card">
             <div className="report-card-head">
@@ -765,6 +657,23 @@ export default function ReportsPage() {
             </ul>
           </div>
 
+          {/* The details, folded - the month's figure and where it came from stay on top. */}
+          <details className="report-card report-fold">
+            <summary>
+              📒 شحنات ستارلينك في {monthLabel(net.month)} ({monthRows.length})
+            </summary>
+            <ProfitStatement
+              days={groupProfitDays(monthRows)}
+              names={statementNames}
+              emptyText="لا توجد شحنات دُفعت لستارلينك في هذا الشهر."
+              onHideDay={handleHideDay}
+            />
+          </details>
+
+          {expectedBlock}
+
+          <details className="report-card report-fold">
+            <summary>🧾 المصاريف حسب النوع ({net.expenses.length})</summary>
           <RankCard
             title="المصاريف حسب النوع"
             tone="bad"
@@ -772,6 +681,8 @@ export default function ReportsPage() {
             empty="لا توجد مصاريف مسجّلة هذا الشهر. سجّلها في الكاش كـ«خارج» مع تصنيف (إيجار، نقل، إنترنت…) لتظهر هنا."
             rows={net.expenses.map((e) => ({ key: e.category, title: e.category, subtitle: `${e.count} ${e.count === 1 ? "قيد" : "قيود"}`, value: -e.mru }))}
           />
+
+          </details>
 
           <ChartCard title="الصافي شهرًا بشهر" note="آخر 6 أشهر" points={netTrend} />
 

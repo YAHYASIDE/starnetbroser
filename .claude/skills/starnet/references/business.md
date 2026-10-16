@@ -494,6 +494,16 @@ mind). Exact texts and numbers live in the code - this file says where.
   number of chunks, site-wide), stale per-host chunks mix with the new ones and the ticket no longer reads. The sheet says: Cookie-Editor «Delete All» before Import, never re-paste an old copy,
   never «Sign out» in the other browser (one session - it signs the app out too).
 
+## 📊 The reports page, simpler (Oct 16 2026)
+
+- His words: «مكان التقارير صار أسوأ، وفيه الكثير ومختلط جدًا». His choices: first thing = «ربحي هذا الشهر»; keep
+  «الصافي + ستارلينك»، «الديون»، «المصروفات» (not «المتجر»); «اليوم» out of the reports.
+- Tabs now: «💰 ربح الشهر» (default) · ستارلينك · الديون · المصروفات. ربح الشهر = month chips, the big figure, «من
+  أين جاء الصافي» right under it, then folded (`report-fold`): the month's Starlink shipments (N), ⏳ D expected,
+  the expenses by type (N); then the 6-month chart. The «المتجر» tab is gone (the store page has its own
+  StoreReportsSection; store profit still counts in ربح الشهر); a saved «store» tab falls back to ربح الشهر.
+  TodayPanel and the «الملخص صار في حسابي» note were removed from the reports.
+
 ## 💳 The card's «D» navigates in place (Oct 16 2026)
 
 - His report: «D عندما أضغطها لا تعمل، فقط يخرجني من التطبيق». The D (Oct 14) opened `/starlink?pay=<id>` with
