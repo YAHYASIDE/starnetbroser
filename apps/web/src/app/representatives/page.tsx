@@ -77,6 +77,7 @@ import {
   loadLedgerStore,
   saveLedgerStore,
 } from "@/lib/ledgerStore";
+import { markDeviceTouched } from "@/lib/recentDevices";
 import { DefaultCurrencyField } from "@/components/CurrencyGuard";
 import { autoCurrencyOf, mismatchedEntryIds } from "@/lib/partyCurrency";
 import { loadPartyCurrencyContext } from "@/lib/partyCurrencyData";
@@ -448,6 +449,7 @@ export default function RepresentativesPage() {
     if (!result.ok) return result.message;
     setLedgerStore(result.ledgerStore);
     saveLedgerStore(result.ledgerStore);
+    markDeviceTouched(accountId); // 🕘
     return null;
   }
 

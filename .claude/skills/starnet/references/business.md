@@ -1290,8 +1290,14 @@ is never pressed while a field is empty - it refills and saves on the next try (
   رصيدًا - ديره مع الأيقونات الدائرية مثل كل الأجهزة. واجعل المثبت والمعطل وكل تلك الأيقونات دائرية وموازية لأيقونات
   كل الأجهزة ومتصل الآن».
 - `lib/recentDevices.ts`: a device's last touch = the newest of its browser opened / card saved / ledger changed
-  on this phone (`starnet.recentDevices`, not backed up - a convenience), its `lastSuccessfulScanAt` and its newest
-  ledger entry. The ring's number = devices touched today; tapping lists the last 30, newest first.
+  on this phone (`starnet.recentDevices`, not backed up - a convenience). The ring's number = devices touched
+  today; tapping lists the last 30, newest first.
+- **Oct 16 2026, his report «آخر جهاز لا تعمل جيدًا، تظهر أجهزة قديمة وأنا لم أفتحها - اجعل آخر جهاز دائمًا هو
+  الأول»**: the background / batch syncs (`lastSuccessfulScanAt`) and entries the app or a rep wrote (ledger
+  `createdAt`) pushed old devices to the top. Now ONLY his own taps count, all through the log: the card's «فتح»,
+  its edit, its own sync button, and every hand edit of operations (home ledger, LedgerEntryEditor, /starlink pay
+  D and previous debt, the rep page's share button, `saveClientDevicePayment`; `markLedgerTouched` marks every
+  device a save changed). Automatic writes (sync merges, travel-fee batch, rep rate stamping) never mark.
 - Under the five status rings, a second grid of rings (`status-rings-more`): 🕘 آخر جهاز, المثبتة (always shown
   now, even at 0), المعطلة, قيد الإصلاح, تحتاج توثيق, تم توثيقها, من المندوبين / بدون زبون (when any). Only
   «🧹 إلغاء كل التثبيتات» stays a chip (inside «المثبتة»).

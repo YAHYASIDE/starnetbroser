@@ -41,6 +41,7 @@ import {
   loadLedgerStore,
   saveLedgerStore,
 } from "@/lib/ledgerStore";
+import { markDeviceTouched, markLedgerTouched } from "@/lib/recentDevices";
 import { listAccounts } from "@/lib/apiClient";
 import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
 import {
@@ -347,6 +348,7 @@ export default function StarlinkPage() {
     );
     setLedgerStore(next);
     saveLedgerStore(next);
+    markLedgerTouched(ledgerStore, next); // 🕘
     setSelected(new Set());
     if (spendToRecord) updateDeposit(spendToRecord.id, "recorded");
     setSpendToRecord(null);
@@ -385,6 +387,7 @@ export default function StarlinkPage() {
     const next = { ...ledgerStore, [debt.accountId]: [...(ledgerStore[debt.accountId] ?? []), result.entry] };
     setLedgerStore(next);
     saveLedgerStore(next);
+    markLedgerTouched(ledgerStore, next); // 🕘
     setSheet(null);
     setPrevPay(null);
     // What goes onto the customer is a price (with the profit in it), never an exchange rate - it
@@ -499,6 +502,7 @@ export default function StarlinkPage() {
     const store = { ...ledgerStore, [accountId]: updated };
     setLedgerStore(store);
     saveLedgerStore(store);
+    markDeviceTouched(accountId); // 🕘
   }
 
   function savePaymentEdit(payment: CardPayment, edit: SettlementEdit): string | null {

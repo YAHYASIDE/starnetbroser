@@ -31,6 +31,19 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-16-recent-own-touches",
+    date: "2026-10-16",
+    title: "🕘 «آخر جهاز» يعرض ما لمسته أنت فقط",
+    steps: [
+      {
+        path: "/",
+        title: "🕘 آخر جهاز",
+        before: "كانت المزامنة في الخلفية تضع فيه أجهزة قديمة لم تفتحها.",
+        after: "يعرض فقط ما فتحته، أو عدّلته، أو زامنته بزرّه، أو أضفت له رصيدًا أو أزلته - وآخر جهاز لمسته يظهر أولًا دائمًا.",
+      },
+    ],
+  },
+  {
     id: "2026-10-16-rate-in-mru",
     date: "2026-10-16",
     title: "💱 سعر السيفا بالأوقية مباشرة",

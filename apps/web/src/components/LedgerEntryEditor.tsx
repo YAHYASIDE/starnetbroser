@@ -7,6 +7,7 @@ import { loadCurrencyStore, saveCurrencyStore, upsertCurrency, UpsertCurrencyInp
 import { applyLedgerEntryDelete, applyLedgerEntryEdit } from "@/lib/ledgerEntryEdit";
 import { confirmClosedMonthChange, ledgerEditMonthDates, ledgerEntryMonthDates } from "@/lib/monthClosing";
 import { LedgerByAccount, LedgerEntry, saveLedgerStore } from "@/lib/ledgerStore";
+import { markDeviceTouched } from "@/lib/recentDevices";
 import { deleteProof } from "@/lib/paymentProofStore";
 import { loadExpectedCurrency } from "@/lib/partyCurrencyData";
 import {
@@ -31,6 +32,7 @@ export function confirmAndDeleteLedgerEntry(
   if (!window.confirm(`حذف ${what} نهائيًا؟ تُحذف معها حركتها في الكاش وربطها بالدفعات. لا يمكن التراجع.`)) return null;
   const result = applyLedgerEntryDelete(ledgerStore, loadCashEntries(), loadAllocationStore(), accountId, entry.id, deviceName);
   saveLedgerStore(result.ledgerStore);
+  markDeviceTouched(accountId); // 🕘
   saveCashEntries(result.cash);
   saveAllocationStore(result.allocations);
   void deleteProof(entry.id);
@@ -79,6 +81,7 @@ export function LedgerEntryEditor({
         if (!confirmClosedMonthChange(ledgerEditMonthDates(entry, patch))) return;
         const result = applyLedgerEntryEdit(ledgerStore, loadCashEntries(), accountId, entry.id, patch, deviceName);
         saveLedgerStore(result.ledgerStore);
+        markDeviceTouched(accountId); // 🕘
         saveCashEntries(result.cash);
         onSaved(result.ledgerStore);
         onClose();

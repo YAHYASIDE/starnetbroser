@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LedgerByAccount, LedgerEntry } from "./ledgerStore";
-import { lastTouched, recentDevices, touchDevice, touchedOn } from "./recentDevices";
+import { changedLedgerDevices, lastTouched, recentDevices, touchDevice, touchedOn } from "./recentDevices";
 
 // Fake data only.
 const dev = (id: string, lastSuccessfulScanAt: string | null = null) => ({ id, lastSuccessfulScanAt });
@@ -11,17 +11,26 @@ describe("🕘 آخر جهاز", () => {
   const log = touchDevice({}, "c", new Date("2026-10-12T11:00:00.000Z"));
   const accounts = [dev("a", "2026-10-12T10:00:00.000Z"), dev("b"), dev("c"), dev("never")];
 
-  it("opened / edited, synced and a له/عليه all count - the latest wins", () => {
-    expect(lastTouched(accounts[0]!, ledger, log)).toBe("2026-10-12T10:00:00.000Z");
-    expect(lastTouched(accounts[1]!, ledger, log)).toBe("2026-10-12T09:00:00.000Z");
-    expect(lastTouched(accounts[3]!, ledger, log)).toBe("");
-    // a sync after the opening moves it on
-    expect(lastTouched(dev("c", "2026-10-12T12:00:00.000Z"), ledger, log)).toBe("2026-10-12T12:00:00.000Z");
+  it("only his own touches count - a background sync or an entry the app / a rep wrote never does (his Oct 16 2026 report)", () => {
+    // «a» was only read by a background sync, «b» only got an entry he didn't write: neither is «آخر جهاز».
+    expect(lastTouched(accounts[0]!, ledger, log)).toBe("");
+    expect(lastTouched(accounts[1]!, ledger, log)).toBe("");
+    expect(lastTouched(accounts[2]!, ledger, log)).toBe("2026-10-12T11:00:00.000Z");
+    expect(lastTouched(dev("c", "2026-10-12T12:00:00.000Z"), ledger, log)).toBe("2026-10-12T11:00:00.000Z");
   });
 
-  it("lists the touched devices newest first, never the untouched", () => {
-    expect(recentDevices(accounts, ledger, log).map((a) => a.id)).toEqual(["c", "a", "b"]);
-    expect(recentDevices(accounts, ledger, log, 1).map((a) => a.id)).toEqual(["c"]);
+  it("the one he opened last is always first, never an untouched one", () => {
+    const later = touchDevice(log, "a", new Date("2026-10-12T13:00:00.000Z"));
+    expect(recentDevices(accounts, ledger, later).map((a) => a.id)).toEqual(["a", "c"]);
+    expect(recentDevices(accounts, ledger, log).map((a) => a.id)).toEqual(["c"]);
+    expect(recentDevices(accounts, ledger, later, 1).map((a) => a.id)).toEqual(["a"]);
+  });
+
+  it("a hand edit of operations marks every device it changed, and only those", () => {
+    const before: LedgerByAccount = { a: [entry("2026-10-12T09:00:00.000Z")], b: [entry("2026-10-12T09:00:00.000Z")] };
+    const after: LedgerByAccount = { a: [{ ...entry("2026-10-12T09:00:00.000Z"), amount: 2 }], b: before.b!, c: [entry("2026-10-12T10:00:00.000Z")] };
+    expect(changedLedgerDevices(before, after).sort()).toEqual(["a", "c"]);
+    expect(changedLedgerDevices(before, before)).toEqual([]);
   });
 
   it("counts the devices touched on a day", () => {

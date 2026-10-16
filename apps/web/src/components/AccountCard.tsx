@@ -415,6 +415,7 @@ export function AccountCard({
       // 🌙 In the background when the operator chose it (settings) - a notification shows it; else
       // (or without the permission) the device's browser opens and syncs by itself.
       if (isBackgroundSyncEnabled() && (await startBackgroundSync([{ id: account.id, name: account.name }], account.name || ""))) return;
+      markDeviceTouched(account.id); // 🕘 synced by hand
       const result = await openAutoSync(account);
       if (!result.ok) {
         window.alert(result.message);

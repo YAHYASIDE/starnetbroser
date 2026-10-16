@@ -4,6 +4,7 @@ import { applyLedgerPaymentsToCash, loadCashEntries, saveCashEntries } from "./c
 import { buildClientDevicePayment } from "./clientDevicePayment";
 import { loadCurrencyStore } from "./currencyStore";
 import { getAccountEntries, LedgerByAccount, LedgerCurrency, PaymentMethod, saveLedgerStore, withAccountEntries } from "./ledgerStore";
+import { markDeviceTouched } from "./recentDevices";
 import { getAccountAllocations, loadAllocationStore, saveAllocationStore, withAccountAllocations } from "./paymentAllocationStore";
 
 export type SaveClientDevicePaymentResult =
@@ -36,6 +37,7 @@ export function saveClientDevicePayment(
   const nextEntries = [...entries, result.entry];
   const nextLedger = withAccountEntries(ledgerStore, device.id, nextEntries);
   saveLedgerStore(nextLedger);
+  markDeviceTouched(device.id); // 🕘 «آخر جهاز»
   if (result.allocations.length > 0) {
     const current = getAccountAllocations(allocationStore, device.id);
     saveAllocationStore(withAccountAllocations(allocationStore, device.id, [...current, ...result.allocations]));
