@@ -33,6 +33,14 @@ export function foreignRateFromQuote(quote: PairQuote, mruRateFromUsd: number): 
   return (mruRateFromUsd * quote.block) / quote.mru;
 }
 
+/** Today's rate of a currency the way he says it: أوقية per block of it («1,000 سيفا = 3,600 أوقية»).
+ * Null for أوقية / الدولار themselves or a missing rate. */
+export function mruQuoteFor(code: string, rateFromUsd: number | undefined, mruRateFromUsd: number | undefined): PairQuote | null {
+  if (code === "MRU" || code === "USD" || !rateFromUsd || !(rateFromUsd > 0) || !mruRateFromUsd || !(mruRateFromUsd > 0)) return null;
+  const block = BLOCK_OF_1000.has(code) ? 1000 : 1;
+  return { foreign: code, block, mru: Math.round((mruRateFromUsd / rateFromUsd) * block * 100) / 100 };
+}
+
 const EPSILON = 0.005;
 
 /** Null unless he has balances in at least two currencies and every one of them has a rate. */
@@ -54,10 +62,7 @@ export function partyNetIn(remaining: Record<string, number>, base: string, rate
     const inBase = (value / r) * baseRate;
     amount += inBase;
     const foreign = base === "MRU" ? code : code === "MRU" ? base : null;
-    const mruRate = rate("MRU");
-    const foreignRate = foreign ? rate(foreign) : undefined;
-    const block = foreign && BLOCK_OF_1000.has(foreign) ? 1000 : 1;
-    const quote = foreign && mruRate && foreignRate ? { foreign, block, mru: Math.round((mruRate / foreignRate) * block * 100) / 100 } : undefined;
+    const quote = foreign ? (mruQuoteFor(foreign, rate(foreign), rate("MRU")) ?? undefined) : undefined;
     converted.push({ currency: code, amount: value, inBase: Math.round(inBase * 100) / 100, ...(quote ? { quote } : {}) });
   }
   return { currency: base, amount: Math.round(amount * 100) / 100, converted };

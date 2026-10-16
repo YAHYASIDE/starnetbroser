@@ -1072,6 +1072,17 @@ is never pressed while a field is empty - it refills and saves on the next try (
   The line shows the rate used («بسعر 1,000 سيفا = 3,642 أوقية ✎ غيّر»); typing 3,600 sets the registry's سيفا rate to
   أوقية-rate × 1,000 ÷ 3,600 (`foreignRateFromQuote`, `setCurrencyRate` - from now on only, records keep their locks).
 
+## 💱 «سعر 1,000 سيفا بالأوقية» in العملات (Oct 16 2026)
+
+- His report (rep page screenshots): «المندوب عليه 14,000 سيفا وهي مقابلها بـ 3.6… أين أجد مكان تعديل السعر بين
+  الأوقية والسيفا». The page showed 50,393.05 أوقية: the registry keeps rates per dollar only, and 435 ÷ 120.85 gave
+  3.5995, not his 3.6. His choice: «نعم أضف خانة سعر 1000 سيفا بالأوقية».
+- العملات → a currency → «تعديل السعر»: a field «سعر 1,000 سيفا بالأوقية» (1,000 for سيفا / دينار, else 1 unit) above
+  the dollar one; typing it sets that currency's rate = أوقية rate × block ÷ typed (`foreignRateFromQuote`), the أوقية
+  rate kept; the dollar fields are disabled while it's filled. Each row also shows its rate in أوقية
+  (`mruQuoteFor`, lib/partyNet.ts). As every rate change: from now on only - records keep their locked rates; the rep
+  page's «ما عليه» lines on his customers' renewals follow today's rate, so they move at once.
+
 ## 📒 The rep statement: «ما عليه» and «ربحه» are two accounts (Oct 11 2026)
 
 - His words (screenshot of «ملخص الفترة», one balance 506,490 = owed − his share): «أريد أن تظهر ما عليه وحده، وإن

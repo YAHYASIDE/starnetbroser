@@ -20,6 +20,7 @@ import {
 } from "@/lib/currencyStore";
 import { COUNTRY_CURRENCIES } from "@/lib/countryCurrencies";
 import { formatAmount } from "@/lib/formatAmount";
+import { foreignRateFromQuote, mruQuoteFor } from "@/lib/partyNet";
 import { useToolsData } from "@/components/tools/useToolsData";
 
 function formatRate(currency: Currency): string {
@@ -99,29 +100,68 @@ function CurrencyPickerField({
   );
 }
 
-/** «تعديل السعر»: «100000 ARS = 70 USD» → 1 USD = 1428.57 ARS, shown before saving. */
-function RateEditor({ code, oldRate, amount, usd, onAmount, onUsd, onSave, onCancel }: {
+/** The new rate from the editor: by dollars («100000 ARS = 70 USD»), or - when he typed it - by أوقية
+ * («1,000 سيفا = 3,600 أوقية», his Oct 16 2026 ask), the أوقية rate kept as it is. */
+function editedRate(code: string, amount: string, usd: string, mru: string, mruRate: number | undefined): number | null {
+  if (mru.trim() && mruRate) {
+    const quote = mruQuoteFor(code, 1, mruRate);
+    const typed = parseTypedAmount(mru);
+    return quote && Number.isFinite(typed) && typed > 0 ? foreignRateFromQuote({ ...quote, mru: typed }, mruRate) : null;
+  }
+  return rateFromAmounts(parseTypedAmount(amount), parseTypedAmount(usd));
+}
+
+/** «تعديل السعر»: «100000 ARS = 70 USD» → 1 USD = 1428.57 ARS, shown before saving - or «سعر 1,000 سيفا
+ * بالأوقية» for any currency but أوقية itself. */
+function RateEditor({ code, name, oldRate, mruRate, amount, usd, mru, onAmount, onUsd, onMru, onSave, onCancel }: {
   code: string;
+  name: string;
   oldRate: number;
+  /** Today's أوقية rate (per dollar); undefined hides the أوقية field. */
+  mruRate: number | undefined;
   amount: string;
   usd: string;
+  mru: string;
   onAmount: (v: string) => void;
   onUsd: (v: string) => void;
+  onMru: (v: string) => void;
   onSave: () => void;
   onCancel: () => void;
 }) {
-  const rate = rateFromAmounts(parseTypedAmount(amount), parseTypedAmount(usd));
+  const rate = editedRate(code, amount, usd, mru, mruRate);
+  const nowQuote = mruQuoteFor(code, oldRate, mruRate);
+  const newQuote = rate !== null ? mruQuoteFor(code, rate, mruRate) : null;
   return (
     <div className="currency-rate-editor">
+      {nowQuote && (
+        <label className="form-field">
+          <span>
+            سعر <bdi dir="ltr">{formatAmount(nowQuote.block)}</bdi> {name} بالأوقية
+          </span>
+          <input
+            className="search-input"
+            type="text"
+            inputMode="decimal"
+            dir="ltr"
+            placeholder={String(nowQuote.mru)}
+            value={mru}
+            onChange={(e) => onMru(e.target.value)}
+          />
+          <small className="settings-hint">
+            الآن: <bdi dir="ltr">{formatAmount(nowQuote.block)}</bdi> {name} = <bdi dir="ltr">{formatAmount(nowQuote.mru)}</bdi> أوقية - أو اكتب سعره
+            بالدولار تحت.
+          </small>
+        </label>
+      )}
       <div className="currency-rate-fields">
         <label className="form-field">
           <span>المبلغ بـ {code}</span>
-          <input className="search-input" type="text" inputMode="decimal" dir="ltr" placeholder="100000" value={amount} onChange={(e) => onAmount(e.target.value)} />
+          <input className="search-input" type="text" inputMode="decimal" dir="ltr" placeholder="100000" value={amount} disabled={Boolean(mru.trim())} onChange={(e) => onAmount(e.target.value)} />
         </label>
         <span className="currency-rate-equals" aria-hidden="true">=</span>
         <label className="form-field">
           <span>بالدولار USD</span>
-          <input className="search-input" type="text" inputMode="decimal" dir="ltr" placeholder="70" value={usd} onChange={(e) => onUsd(e.target.value)} />
+          <input className="search-input" type="text" inputMode="decimal" dir="ltr" placeholder="70" value={usd} disabled={Boolean(mru.trim())} onChange={(e) => onUsd(e.target.value)} />
         </label>
       </div>
       <p className="currency-rate-preview">
@@ -131,6 +171,12 @@ function RateEditor({ code, oldRate, amount, usd, onAmount, onUsd, onSave, onCan
             <small>
               {" "}(كان <bdi dir="ltr">{formatAmount(oldRate)}</bdi>)
             </small>
+            {newQuote && (
+              <>
+                <br />
+                <bdi dir="ltr">{formatAmount(newQuote.block)}</bdi> {name} = <bdi dir="ltr">{formatAmount(newQuote.mru)}</bdi> أوقية
+              </>
+            )}
           </>
         ) : (
           "أدخل المبلغين (أكبر من صفر)"
@@ -152,6 +198,8 @@ export default function CurrenciesPage() {
   // «تعديل السعر»: an amount of the currency and what it is worth in dollars (100000 ARS = 70 USD).
   const [editAmount, setEditAmount] = useState("");
   const [editUsd, setEditUsd] = useState("1");
+  // …or «سعر 1,000 سيفا بالأوقية» (empty = by dollars).
+  const [editMru, setEditMru] = useState("");
   const [savedNote, setSavedNote] = useState<{ code: string; text: string } | null>(null);
   const { accounts } = useToolsData();
   // 📱 the rep sees the operator's rates only - they come with every copy.
@@ -186,11 +234,12 @@ export default function CurrenciesPage() {
     setEditingCode(currency.code);
     setEditAmount(String(Math.round(currency.rateFromUsd * 10000) / 10000));
     setEditUsd("1");
+    setEditMru("");
     setSavedNote(null);
   }
 
   function saveEditRate(code: string) {
-    const rate = rateFromAmounts(parseTypedAmount(editAmount), parseTypedAmount(editUsd));
+    const rate = editedRate(code, editAmount, editUsd, editMru, store.MRU?.rateFromUsd);
     if (rate === null) return;
     persist(setCurrencyRate(store, code, rate));
     setEditingCode(null);
@@ -399,17 +448,29 @@ export default function CurrenciesPage() {
               {editingCode === currency.code ? (
                 <RateEditor
                   code={currency.code}
+                  name={currency.name}
                   oldRate={currency.rateFromUsd}
+                  mruRate={store.MRU?.rateFromUsd}
                   amount={editAmount}
                   usd={editUsd}
+                  mru={editMru}
                   onAmount={setEditAmount}
                   onUsd={setEditUsd}
+                  onMru={setEditMru}
                   onSave={() => saveEditRate(currency.code)}
                   onCancel={() => setEditingCode(null)}
                 />
               ) : (
                 <div className="currency-row-info">
                   <span dir="ltr">{formatRate(currency)}</span>
+                  {(() => {
+                    const q = mruQuoteFor(currency.code, currency.rateFromUsd, store.MRU?.rateFromUsd);
+                    return q ? (
+                      <span className="currency-row-updated">
+                        <bdi dir="ltr">{formatAmount(q.block)}</bdi> {currency.name} = <bdi dir="ltr">{formatAmount(q.mru)}</bdi> أوقية
+                      </span>
+                    ) : null;
+                  })()}
                   <span className="currency-row-updated">آخر تحديث: {formatUpdatedAt(currency.updatedAt)}</span>
                   {savedNote?.code === currency.code && <span className="currency-rate-saved">{savedNote.text}</span>}
                 </div>

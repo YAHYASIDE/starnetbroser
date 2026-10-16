@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { foreignRateFromQuote, partyNetIn } from "./partyNet";
+import { foreignRateFromQuote, mruQuoteFor, partyNetIn } from "./partyNet";
 
 // His example: له 60,000 سيفا, عليه 214,000 أوقية, at 1,000 سيفا = 3,600 أوقية (USD = 432 أوقية = 120 سيفا).
 const rates: Record<string, number> = { MRU: 432, SIFA: 120 };
@@ -29,5 +29,18 @@ describe("✎ his rate on that line", () => {
     expect(foreignRateFromQuote({ foreign: "SIFA", block: 1000, mru: 3600 }, 435)).toBeCloseTo(120.833, 3);
     const net = partyNetIn({ MRU: 214000, SIFA: -60000 }, "MRU", (c) => ({ MRU: 435, SIFA: 435000 / 3600 })[c])!;
     expect(net.amount).toBeCloseTo(-2000, 6);
+  });
+});
+
+describe("💱 «سعر 1,000 سيفا بالأوقية» in العملات (his Oct 16 2026 ask)", () => {
+  it("shows today's rate his way and typing 3,600 gives exactly 3.6 أوقية per سيفا", () => {
+    // His real case: 14,000 سيفا showed as 50,393.05 أوقية (3.5995 each) instead of 50,400.
+    expect(mruQuoteFor("SIFA", 120.85, 435)).toEqual({ foreign: "SIFA", block: 1000, mru: 3599.5 });
+    const sifa = foreignRateFromQuote({ foreign: "SIFA", block: 1000, mru: 3600 }, 435);
+    expect((14000 / sifa) * 435).toBeCloseTo(50400, 6);
+    expect(mruQuoteFor("EUR", 0.9, 435)).toEqual({ foreign: "EUR", block: 1, mru: 483.33 });
+    expect(mruQuoteFor("MRU", 435, 435)).toBeNull();
+    expect(mruQuoteFor("USD", 1, 435)).toBeNull();
+    expect(mruQuoteFor("SIFA", 120, undefined)).toBeNull();
   });
 });
