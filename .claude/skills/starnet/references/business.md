@@ -494,6 +494,15 @@ mind). Exact texts and numbers live in the code - this file says where.
   number of chunks, site-wide), stale per-host chunks mix with the new ones and the ticket no longer reads. The sheet says: Cookie-Editor «Delete All» before Import, never re-paste an old copy,
   never «Sign out» in the other browser (one session - it signs the app out too).
 
+## 💳 The card's «D» navigates in place (Oct 16 2026)
+
+- His report: «D عندما أضغطها لا تعمل، فقط يخرجني من التطبيق». The D (Oct 14) opened `/starlink?pay=<id>` with
+  `window.location.assign` - a full page load, the only one to that page (every other way is a Next `Link`). In the
+  Capacitor app that threw him out. Now `router.push("/starlink")` and the D to pay is handed over in sessionStorage
+  (`lib/payDeepLink.ts`: `rememberPayTarget` / `takePayTarget`, read once; `?pay=` still honoured). The card's
+  fallback (no open D) uses the router too. Rule: inside the app never navigate with `location.assign` / `href =` to
+  an app page - use `Link` / `router.push`.
+
 ## 📧 Backups carry each device's mailbox session too (Oct 14 2026)
 
 - He asked «هل في الجلسة كودات الإيميل أو الواي فاي؟» (no: a Starlink session is cookies only - the sign-in

@@ -31,6 +31,19 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-16-d-in-place",
+    date: "2026-10-16",
+    title: "💳 زر D يعمل داخل التطبيق",
+    steps: [
+      {
+        path: "/",
+        title: "🅳 الضغط على D في البطاقة",
+        before: "كان الضغط على D يُخرجك من التطبيق بدل أن يفتح الدفع.",
+        after: "يفتح نموذج «تسديد D لستارلينك» لذلك الجهاز داخل التطبيق، وعند الإغلاق أو الدفع يرجعك إلى الصفحة الرئيسية.",
+      },
+    ],
+  },
+  {
     id: "2026-10-16-recent-own-touches",
     date: "2026-10-16",
     title: "🕘 «آخر جهاز» يعرض ما لمسته أنت فقط",

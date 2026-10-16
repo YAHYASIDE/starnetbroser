@@ -3,6 +3,7 @@
 import { askDeleteCode } from "@/components/DeleteCodePrompt";
 import type React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { showsRestriction } from "@/lib/reminders";
 import { PromiseQuickSheet } from "./PromiseQuickSheet";
@@ -256,6 +257,7 @@ export function AccountCard({
   onSaveNote,
   onSetPinned,
 }: Props) {
+  const router = useRouter();
   const [travelPriceOpen, setTravelPriceOpen] = useState(false);
   const travelPending = isTravelPending(account);
   const ledgerBalances = computeBalanceByCurrency(ledgerEntries);
@@ -726,7 +728,7 @@ export function AccountCard({
                 onClick={(e) => {
                   e.stopPropagation();
                   if (openDebtEntries(ledgerEntries).length && onSettleD) onSettleD(account);
-                  else window.location.assign("/starlink");
+                  else router.push("/starlink");
                 }}
               >
                 D

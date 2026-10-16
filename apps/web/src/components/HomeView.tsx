@@ -8,6 +8,8 @@ import { loadRepChangesSent, shareRepChanges, type RepChangesSent } from "@/lib/
 import { REP_INBOX_EVENT, repInboxCount } from "@/lib/repInbox";
 import { CSSProperties, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { rememberPayTarget } from "@/lib/payDeepLink";
 import { App } from "@capacitor/app";
 import type { PluginListenerHandle } from "@capacitor/core";
 import { DeviceStatus, StarlinkAccountSummary } from "@starnet/shared";
@@ -254,6 +256,7 @@ export function HomeView({
    * devices only). */
   viewMode?: AccountCardContext;
 }) {
+  const router = useRouter();
   // 📧 Devices whose mailbox is signed in on this phone - their «البريد» button turns mint green.
   const [mailSignedIds, setMailSignedIds] = useState<Set<string>>(() => new Set());
   useEffect(() => {
@@ -2432,8 +2435,10 @@ export function HomeView({
                 onSettleD={(selected) => {
                   // 💳 the card page's own payment form for its oldest D (his Oct 14 2026 ask: «ما خرج
                   // من البطاقة», the real rate) - and back here once paid.
+                  // In place (router), never a full page load - that threw him out of the app (Oct 16 2026).
                   const open = oldestOpenDebt(getAccountEntries(ledgerStore, selected.id));
-                  window.location.assign(open ? `/starlink?pay=${encodeURIComponent(open.id)}` : "/starlink");
+                  rememberPayTarget(open?.id ?? null);
+                  router.push("/starlink");
                 }}
                 onDeviceStatement={(selected) => setStatementAccount(selected)}
                 client={visibleClientOf(account)}

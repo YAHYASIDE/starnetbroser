@@ -4,6 +4,7 @@ import { FrancHint, FrancUnit } from "@/components/FrancHint";
 import { francBadge, francToSifa, isFrancAccount, sifaToFranc } from "@/lib/payCurrency";
 import { ChangeEvent, FormEvent, Fragment, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { takePayTarget } from "@/lib/payDeepLink";
 import { confirmClosedMonthChange, ledgerEntryMonthDates } from "@/lib/monthClosing";
 import { loadAllocationStore, removeAllocationsForEntryFromStore, saveAllocationStore } from "@/lib/paymentAllocationStore";
 import {
@@ -194,7 +195,8 @@ export default function StarlinkPage() {
   const deepPay = useRef<string | null>(null);
   const fromCardD = useRef(false);
   useEffect(() => {
-    deepPay.current = new URLSearchParams(window.location.search).get("pay");
+    // Read once: the hand-off is cleared on reading, and React may run this effect twice.
+    if (deepPay.current === null) deepPay.current = takePayTarget(window.location.search);
   }, []);
   useEffect(() => {
     const id = deepPay.current;
