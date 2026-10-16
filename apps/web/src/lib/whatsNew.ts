@@ -31,6 +31,19 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-16-activation-code",
+    date: "2026-10-16",
+    title: "🔐 التطبيق يحتاج كود التفعيل",
+    steps: [
+      {
+        path: "/",
+        title: "🔐 تفعيل STAR NET",
+        before: "أي أحد يأخذ نسخة من التطبيق كان يستطيع تشغيلها.",
+        after: "أول مرة يُفتح فيها التطبيق على أي هاتف (أو بعد مسح بياناته) يطلب كود التفعيل. هاتف المندوب: اكتب الكود بنفسك. التحديثات لا تطلبه من جديد.",
+      },
+    ],
+  },
+  {
     id: "2026-10-16-reports-simple",
     date: "2026-10-16",
     title: "📊 التقارير أبسط: ربح الشهر أولًا",

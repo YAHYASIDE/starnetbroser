@@ -494,6 +494,21 @@ mind). Exact texts and numbers live in the code - this file says where.
   number of chunks, site-wide), stale per-host chunks mix with the new ones and the ticket no longer reads. The sheet says: Cookie-Editor «Delete All» before Import, never re-paste an old copy,
   never «Sign out» in the other browser (one session - it signs the app out too).
 
+## 🔐 «تفعيل التطبيق»: every installed copy needs his code once (Oct 16 2026)
+
+- His ask: «أي نسخة من التطبيق تنزل تكون محمية بكود ولا يمكن اختراقه، لكي عندما يأخذ أحد نسخة من التطبيق لا يمكنه
+  تشغيله». His choices: asked **once after installing** (or after the app's data is cleared; updates don't ask);
+  on a **rep's phone he types the code himself** (the rep never learns it). The code is HIS - never write it in the
+  repo, a test, a commit or a log.
+- `ActivationGate` wraps the whole layout (even TelegramBridge / shortcuts) on the phone app only (the web demo has
+  demo data). `lib/appActivation.ts` holds only a random salt + SHA-256(PBKDF2-SHA256(code, salt, 210,000)); typing
+  the right code keeps the PBKDF2 proof on the phone (`starnet.activation`, not in backups → a restored / copied
+  phone asks again) and each open re-checks it, so the flag can't be set by hand without the code. 5 wrong guesses
+  → 30 s, 1 m, 2 m … 30 m wait. To change the code: derive a new salt/check (node crypto, the code only in an env
+  var) and replace `ACTIVATION` - every phone then asks once.
+- Told him honestly: this stops anyone who installs a copy; an expert who takes the APK apart could still remove a
+  check that lives in the app (no protection inside an app is unbreakable).
+
 ## 📊 The reports page, simpler (Oct 16 2026)
 
 - His words: «مكان التقارير صار أسوأ، وفيه الكثير ومختلط جدًا». His choices: first thing = «ربحي هذا الشهر»; keep

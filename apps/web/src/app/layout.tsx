@@ -6,6 +6,7 @@ import "@fontsource/ibm-plex-sans-arabic/700.css";
 import "./globals.css";
 import { BottomNav } from "@/components/BottomNav";
 import { AppLockGate } from "@/components/AppLockGate";
+import { ActivationGate } from "@/components/ActivationGate";
 import { RepModeGate } from "@/components/RepModeGate";
 import { StorageFullBanner } from "@/components/StorageFullBanner";
 import { TelegramBridge } from "@/components/TelegramBridge";
@@ -41,6 +42,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ar" dir="rtl" suppressHydrationWarning>
       <body>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {/* 🔐 nothing runs on a phone that wasn't activated with his code - not even the bridges below. */}
+        <ActivationGate>
         <AppLockGate>
           <RepModeGate>
             {children}
@@ -55,6 +58,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <StorageFullBanner />
         <DeleteCodeHost />
         <LatinDigitInputs />
+        </ActivationGate>
       </body>
     </html>
   );
