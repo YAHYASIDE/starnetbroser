@@ -176,6 +176,19 @@ import { getCachedSyncedFields, saveSyncedFieldsCache } from "@/lib/syncedFields
 import { resolveAccountDeletion } from "@starnet/local-browser-plugin";
 import { confirmPaidD } from "@/lib/settledStillDue";
 import { clearRepAddedPatch } from "@/lib/repAddedMark";
+import {
+  absorbRingResults,
+  duplicatePairs,
+  isCanceledDevice,
+  loadRingCheck,
+  planRing,
+  renewedOn,
+  ringCheckReport,
+  saveRingCheck,
+  type RingCheckRun,
+  type RingQuestion,
+} from "@/lib/deviceRings";
+import { RingActionsSheet } from "@/components/RingActionsSheet";
 
 const NEAR_EXPIRY_THRESHOLD_DAYS = 3;
 
@@ -188,7 +201,10 @@ type DialogState = { mode: AccountDialogMode; account?: StarlinkAccountSummary; 
  * ways of narrowing the SAME list, and combining them silently would be confusing rather than
  * useful. `total` never appears as a value: tapping "كل الحسابات" is just `showAll`, not a real
  * per-account filter. */
-type StatFilterKind = "online" | "expiringSoon" | "expired" | "suspended" | "faulty" | "repair" | "fromRep" | "noClient" | "travel" | "travelDone" | "pinned" | "recent" | "notRenewed";
+type StatFilterKind =
+  | "online" | "expiringSoon" | "expired" | "suspended" | "faulty" | "repair" | "fromRep" | "noClient" | "travel" | "travelDone" | "pinned" | "recent" | "notRenewed"
+  // 🔵 his Oct 17 2026 circles (lib/deviceRings.ts); "rep" = one rep's devices (repRingId).
+  | "notCanceled" | "canceled" | "renewed" | "sis" | "rom" | "g100" | "duplicate" | "rep";
 
 const STAT_FILTER_TITLES: Record<StatFilterKind, string> = {
   online: "الحسابات المتصلة الآن",
@@ -204,7 +220,38 @@ const STAT_FILTER_TITLES: Record<StatFilterKind, string> = {
   pinned: "📌 الأجهزة المثبتة",
   recent: "🕘 آخر الأجهزة (الأحدث أولًا)",
   notRenewed: "⏰ لم تُجدَّد منذ بداية اليوم",
+  notCanceled: "✅ الأجهزة غير الملغاة",
+  canceled: "🚫 الأجهزة الملغاة",
+  renewed: "🔄 جُدِّدت اليوم",
+  sis: "⏸️ أجهزة SIS",
+  rom: "🌍 أجهزة ROM",
+  g100: "📦 أجهزة 100G",
+  duplicate: "🔗 الأجهزة المكررة",
+  rep: "🤝 أجهزة المندوب",
 };
+
+/** 🔍 A circle's check (long press): what it answers, in his words. Circles the sync can't change
+ * (pinned, a rep's…) just report which devices were read. */
+const RING_WORDS: Partial<Record<StatFilterKind, { question: string; yes: string; no: string }>> = {
+  online: { question: "هل الجهاز متصل الآن؟ (الطبق والواي فاي)", yes: "متصل الآن", no: "غير متصل" },
+  expiringSoon: { question: "هل ينتهي قريبًا؟ (تاريخ التجديد)", yes: "ينتهي قريبًا", no: "ليس قريبًا من الانتهاء" },
+  expired: { question: "هل انتهى؟ (تاريخ التجديد)", yes: "منتهٍ", no: "لم يعد منتهيًا" },
+  suspended: { question: "هل أوقفته ستارلينك بسبب الفوترة؟", yes: "موقوف", no: "لم يعد موقوفًا" },
+  faulty: { question: "هل ما زال معطلًا؟", yes: "معطل", no: "لم يعد معطلًا" },
+  notRenewed: { question: "هل جُدِّد بعد توقفه اليوم؟", yes: "لم يُجدَّد", no: "جُدِّد" },
+  canceled: { question: "هل الجهاز ملغي فعلًا؟ (الاشتراك وموعد انتهائه)", yes: "ملغي فعلًا", no: "غير ملغي" },
+  notCanceled: { question: "هل ما زال غير ملغي؟", yes: "غير ملغي", no: "صار ملغيًا" },
+  sis: { question: "هل باقته SIS (وضع الاستعداد)؟", yes: "على SIS", no: "ليس SIS" },
+  rom: { question: "هل باقته ROM (تجوال غير محدود)؟", yes: "على ROM", no: "ليس ROM" },
+  g100: { question: "هل باقته 100G؟", yes: "على 100G", no: "ليس 100G" },
+  travelDone: { question: "هل ما زال موثّقًا؟", yes: "موثّق", no: "غير موثّق" },
+};
+
+function ringQuestion(kind: string, label: string): RingQuestion & { question: string } {
+  const words = RING_WORDS[kind as StatFilterKind];
+  if (!words) return { label, question: "تحديث هذه الأجهزة من Starlink", test: () => true, yes: "تمت قراءته", no: "-" };
+  return { label, question: words.question, yes: words.yes, no: words.no, test: (a) => matchesStatFilter(a, kind as StatFilterKind) };
+}
 
 function matchesStatFilter(account: StarlinkAccountSummary, kind: StatFilterKind): boolean {
   switch (kind) {
@@ -224,6 +271,19 @@ function matchesStatFilter(account: StarlinkAccountSummary, kind: StatFilterKind
       return isTravelVerified(account);
     case "notRenewed":
       return !isFaulty(account) && stoppedTodayNotRenewed(account.rechargeDate || account.standbyDate);
+    case "canceled":
+      return isCanceledDevice(account);
+    case "notCanceled":
+      return !isCanceledDevice(account);
+    case "sis":
+      return planRing(account) === "SIS";
+    case "rom":
+      return planRing(account) === "ROM";
+    case "g100":
+      return planRing(account) === "100G";
+    case "renewed":
+    case "duplicate":
+    case "rep":
     case "noClient":
     case "pinned":
     case "recent":
@@ -280,6 +340,8 @@ export function HomeView({
   const [query, setQuery] = useState("");
   const [selectedDay, setSelectedDay] = useState<DayKey | null>(null);
   const [statFilter, setStatFilter] = useState<StatFilterKind | null>(null);
+  // 🤝 Which rep's circle is open (statFilter "rep").
+  const [repRingId, setRepRingId] = useState<string | null>(null);
   // 📌 His private pins + purple notes per device (lib/deviceNotes.ts) - never sent to a rep.
   const [deviceNotes, setDeviceNotes] = useState<DeviceNotesStore>({});
   useEffect(() => setDeviceNotes(loadDeviceNotes()), []);
@@ -562,7 +624,15 @@ export function HomeView({
   async function refreshSyncQueue() {
     // How the devices' auto-syncs ended since last time (signed out, stuck, done...).
     // 🛂 A «كشف توثيق» in the background takes its own devices' outcomes first.
-    const absorbed = absorbTravelResults(loadTravelBgRun(), await takeAutoSyncResults());
+    const taken = await takeAutoSyncResults();
+    // 🔍 A circle's check sees every outcome of its devices (they also go on to the queue below).
+    const ringRun = loadRingCheck();
+    if (ringRun) {
+      const ring = absorbRingResults(ringRun, taken, Date.now());
+      saveRingCheck(ring.run);
+      if (ring.finished) finishRingCheck(ring.finished);
+    }
+    const absorbed = absorbTravelResults(loadTravelBgRun(), taken);
     saveTravelBgRun(absorbed.run);
     if (absorbed.finished) showTravelBgResult(absorbed.finished);
     const records = absorbed.rest;
@@ -587,6 +657,7 @@ export function HomeView({
       // queue.index = the devices already opened (it moves on before each one opens).
       if (queue.travelCheck) finishTravelCheck(queue, queue.ids.slice(0, Math.min(queue.index, queue.ids.length)));
       else reportSync(buildSyncReport(queue, accountsRef.current, true));
+      flushRingCheck();
       pushToast(RATE_LIMIT_NOTE);
       // 🔁 «إكمال بعد 429»: the rest syncs by itself in the background once the 20 minutes are over.
       const left = devicesLeftAfterRateLimit(queue)
@@ -606,6 +677,8 @@ export function HomeView({
       setQueueStep(null);
       if (queue.travelCheck) finishTravelCheck(queue, queue.ids);
       else reportSync(buildSyncReport({ ...queue, index: queue.ids.length }, accountsRef.current));
+      // A device deleted meanwhile never gets an outcome - the circle reports without it.
+      flushRingCheck();
       return;
     }
     setQueueStep({ label: queue.label, progress: queueProgressLabel(queue, next.index), name: next.account.name, secondsLeft: QUEUE_COUNTDOWN_S });
@@ -634,8 +707,9 @@ export function HomeView({
 
   /** 🌙 The operator chose the background sync (settings): the devices are read without opening
    * their pages. Returns false when it can't run (permission missing) - the visible run is used. */
-  async function trySyncInBackground(ids: string[], label: string, travelCheck = false): Promise<boolean> {
-    if (!isBackgroundSyncEnabled()) return false;
+  async function trySyncInBackground(ids: string[], label: string, travelCheck = false, force = false): Promise<boolean> {
+    // `force`: a circle's «🌙 فحص في الخلفية» - background whatever the setting.
+    if (!force && !isBackgroundSyncEnabled()) return false;
     const list = ids
       .map((id) => accountsRef.current.find((a) => a.id === id))
       .filter((a): a is StarlinkAccountSummary => Boolean(a))
@@ -684,6 +758,105 @@ export function HomeView({
   const [longPressDay, setLongPressDay] = useState<number | null>(null);
   /** 🛂 The last «كشف توثيق» result, shown in the app (and sent to the bot when connected). */
   const [travelResult, setTravelResult] = useState<{ label: string; ids: string[]; skipped: number; checked?: boolean } | null>(null);
+
+  // 🔍 Long press on a home circle: its check (RingActionsSheet, lib/deviceRings.ts).
+  const [ringMenu, setRingMenu] = useState<{ kind: StatFilterKind | "all"; label: string; repId?: string } | null>(null);
+
+  function ringMembers(kind: StatFilterKind | "all", repId?: string): StarlinkAccountSummary[] {
+    const list = activeAccountsRef.current;
+    if (kind === "all") return list;
+    const out = list.filter((a) => matchesStatFilter(a, kind));
+    switch (kind) {
+      case "noClient":
+        return out.filter((a) => matchesNoClientGroup(a, clientStore, "all"));
+      case "pinned":
+        return pinnedDevices(loadDeviceNotes(), out);
+      case "recent":
+        return recentDevices(out, ledgerStore, recentLog);
+      case "renewed":
+        return out.filter((a) => renewedToday.has(a.id));
+      case "duplicate":
+        return out.filter((a) => deviceTwinMap.has(a.id));
+      case "rep":
+        return out.filter((a) => a.representativeId === repId);
+      default:
+        return out;
+    }
+  }
+
+  async function runRingCheck(kind: StatFilterKind | "all", label: string, repId: string | undefined, background: boolean) {
+    setRingMenu(null);
+    // A faulty device or a limited email syncs only from its own choice - here, the «المعطلة» circle.
+    const members = ringMembers(kind, repId).filter((a) => kind === "faulty" || !syncedOnlyByCommand(a));
+    if (members.length === 0) {
+      pushToast("لا أجهزة للفحص هنا (المعطلة والإيميل غير الرئيسي بأمرهما فقط)");
+      return;
+    }
+    const ids = members.map((a) => a.id);
+    const runLabel = `🔍 ${label}`;
+    // 🛂 «تحتاج توثيق»: the travel check itself (Home only) - it has its own report.
+    const travel = kind === "travel";
+    if (!travel) {
+      const question = ringQuestion(kind, label);
+      saveRingCheck({ kind, label, ids, before: Object.fromEntries(members.map((a) => [a.id, question.test(a)])), results: {}, startedAt: Date.now() });
+    }
+    if (background && (await trySyncInBackground(ids, runLabel, travel, true))) return;
+    const queue = syncQueueFor(ids, runLabel, travel);
+    if (queue) startVisibleRun(queue);
+  }
+
+  /** 🔍 A circle's check ended: its own report (bot, notification, toast), then its list. */
+  function finishRingCheck(run: RingCheckRun) {
+    window.setTimeout(() => {
+      const question = ringQuestion(run.kind, run.label);
+      const report = ringCheckReport(question, run.ids, run.before, accountsRef.current, run.results);
+      if (isTelegramConnected()) void sendTelegramText(report.text);
+      void notifyPhone(report.text.split("\n").slice(0, 3).join(" · "), HOME_ROUTE);
+      pushToast(report.text.split("\n").slice(0, 2).join(" · "));
+    }, 2500);
+  }
+
+  /** The visible run stopped early (by hand, 429): its circle reports what it has. */
+  function flushRingCheck() {
+    const run = loadRingCheck();
+    if (!run) return;
+    saveRingCheck(null);
+    if (Object.keys(run.results).length > 0) finishRingCheck(run);
+  }
+
+  /** 🔗 «مكرر» → «دمج كل المكرر»: each pair merged into the device kept (lib/deviceRings.ts). */
+  function mergeAllDuplicates() {
+    setRingMenu(null);
+    const pairs = duplicatePairs(deviceTwinMap, activeAccounts, ledgerStore);
+    if (pairs.length === 0) return;
+    const lines = pairs.slice(0, 15).map((p) => `• «${p.drop.name}» ← في «${p.keep.name}»`).join("\n");
+    if (!window.confirm(`دمج ${pairs.length} جهاز مكرر؟\n\n${lines}${pairs.length > 15 ? "\n…" : ""}\n\nكل عمليات المكرر تنتقل للجهاز الباقي، والمكرر يذهب للسلة (يمكن استرجاعه).`)) return;
+    // One at a time, each on the store the previous one left.
+    let ledger = ledgerStore;
+    let allocations = allocationStore;
+    let debts = previousDebts;
+    let notes = loadDeviceNotes();
+    let moved = 0;
+    for (const { keep, drop } of pairs) {
+      const result = mergeDevices({ keep, drop, ledger, allocations, previousDebts: debts });
+      ledger = result.ledger;
+      allocations = result.allocations;
+      debts = result.previousDebts;
+      moved += result.movedEntries;
+      if (Object.keys(result.keepPatch).length > 0) patchAccount(keep.id, result.keepPatch);
+      patchAccount(drop.id, { deletedAt: new Date().toISOString() });
+      notes = mergeDeviceNotes(notes, drop.id, keep.id);
+    }
+    saveLedgerStore(ledger);
+    setLedgerStore(ledger);
+    saveAllocationStore(allocations);
+    setAllocationStore(allocations);
+    savePreviousDebts(debts);
+    setPreviousDebts(debts);
+    commitDeviceNotes(notes);
+    if (statFilter === "duplicate") setStatFilter(null);
+    pushToast(`🔗 دُمج ${pairs.length} جهاز مكرر${moved ? ` - انتقلت ${moved} عملية` : ""}، والمكررات في السلة`);
+  }
 
   function syncDay(day: number, owner: DayOwner = "all", ownerLabel = "") {
     setLongPressDay(null);
@@ -826,6 +999,7 @@ export function HomeView({
     const queue = loadSyncQueue();
     saveSyncQueue(null);
     setQueueStep(null);
+    flushRingCheck();
     if (queue?.travelCheck) {
       if (queue.index > 0) finishTravelCheck(queue, queue.ids.slice(0, queue.index));
       else pushToast("⏹ أُوقف كشف التوثيق");
@@ -1594,6 +1768,8 @@ export function HomeView({
   const trashAccounts = useMemo(() => accounts.filter((a) => a.deletedAt), [accounts]);
   // 🔗 Devices registered twice (same email or KIT) → their twin, for «⚠️ مكرّر · دمج».
   const deviceTwinMap = useMemo(() => deviceTwins(accounts), [accounts]);
+  // 🔄 «تم تجديد»: a renewal recorded today.
+  const renewedToday = useMemo(() => renewedOn(ledgerStore, localToday()), [ledgerStore]);
   const needsLoginIds = useMemo(
     () => new Set(accountIdsNeedingLogin(sessionResults, activeAccounts.map((a) => a.id))),
     [sessionResults, activeAccounts],
@@ -1777,6 +1953,9 @@ export function HomeView({
       if (statFilter === "pinned") list = pinnedDevices(deviceNotes, list);
       if (statFilter === "recent") list = recentDevices(list, ledgerStore, recentLog);
       if (statFilter === "travelDone" && travelGroup !== "all") list = list.filter((a) => matchesTravelGroup(travelStateOf(a, ledgerStore, allAllocations), travelGroup));
+      if (statFilter === "renewed") list = list.filter((a) => renewedToday.has(a.id));
+      if (statFilter === "duplicate") list = list.filter((a) => deviceTwinMap.has(a.id));
+      if (statFilter === "rep") list = list.filter((a) => a.representativeId === repRingId);
     }
     if (query.trim()) {
       // A rep's name shows his devices too.
@@ -1788,11 +1967,32 @@ export function HomeView({
       );
     }
     return list;
-  }, [activeAccounts, selectedDay, statFilter, faultFilter, noClientGroup, travelGroup, ledgerStore, allAllocations, query, clientStore, representativeStore, deviceNotes, recentLog]);
+  }, [activeAccounts, selectedDay, statFilter, faultFilter, noClientGroup, travelGroup, ledgerStore, allAllocations, query, clientStore, representativeStore, deviceNotes, recentLog, renewedToday, deviceTwinMap, repRingId]);
 
   const faultCounts = useMemo(() => countFaultCategories(activeAccounts), [activeAccounts]);
   const repairCount = useMemo(() => activeAccounts.filter(isUnderRepair).length, [activeAccounts]);
   const fromRepCount = useMemo(() => activeAccounts.filter((a) => a.addedByRepId).length, [activeAccounts]);
+  // 🔵 His Oct 17 2026 circles.
+  const ringCounts = useMemo(() => {
+    const count = (kind: StatFilterKind) => activeAccounts.filter((a) => matchesStatFilter(a, kind)).length;
+    return {
+      canceled: count("canceled"),
+      notCanceled: count("notCanceled"),
+      sis: count("sis"),
+      rom: count("rom"),
+      g100: count("g100"),
+      renewed: activeAccounts.filter((a) => renewedToday.has(a.id)).length,
+      duplicate: activeAccounts.filter((a) => deviceTwinMap.has(a.id)).length,
+    };
+  }, [activeAccounts, renewedToday, deviceTwinMap]);
+  // 🤝 One circle per rep with devices, in the rep's own color.
+  const repRings = useMemo(
+    () =>
+      listRepresentatives(representativeStore)
+        .map((rep) => ({ rep, count: activeAccounts.filter((a) => a.representativeId === rep.id).length }))
+        .filter((r) => r.count > 0),
+    [representativeStore, activeAccounts],
+  );
   const pinnedCount = useMemo(() => pinnedDevices(deviceNotes, activeAccounts).length, [deviceNotes, activeAccounts]);
   // 🕘 «آخر جهاز»: how many devices were touched today (the list itself is newest first).
   // ⏰ «لم يُجدَّد»: stopped at the start of today and still not renewed.
@@ -1826,6 +2026,35 @@ export function HomeView({
   return (
     <main className="home app-shell">
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
+      {ringMenu && (
+        <RingActionsSheet
+          title={ringMenu.kind === "all" ? "كل الأجهزة" : ringMenu.kind === "rep" ? `🤝 ${ringMenu.label}` : ringMenu.label}
+          count={ringMembers(ringMenu.kind, ringMenu.repId).length}
+          question={ringMenu.kind === "travel" ? "هل يحتاج توثيق السفر؟ (الصفحة الرئيسية فقط)" : ringQuestion(ringMenu.kind, ringMenu.label).question}
+          onCheck={() => void runRingCheck(ringMenu.kind, ringMenu.label, ringMenu.repId, false)}
+          onBackground={() => void runRingCheck(ringMenu.kind, ringMenu.label, ringMenu.repId, true)}
+          onClose={() => setRingMenu(null)}
+        >
+          {ringMenu.kind === "duplicate" && !isRepWorkspace() && (
+            <button type="button" className="card-more-item" onClick={mergeAllDuplicates}>
+              <span aria-hidden="true">🔗</span> دمج كل المكرر <small>المكرر يذهب للسلة</small>
+            </button>
+          )}
+          {ringMenu.kind === "fromRep" && (
+            <button
+              type="button"
+              className="card-more-item"
+              onClick={() => {
+                setRingMenu(null);
+                const targets = ringMembers("fromRep");
+                if (window.confirm(`إزالة علامة «📱 أضافه المندوب» عن ${targets.length} جهاز؟`)) handleClearRepAdded(targets);
+              }}
+            >
+              <span aria-hidden="true">✕</span> إزالة علامة المندوب عن الكل
+            </button>
+          )}
+        </RingActionsSheet>
+      )}
       {longPressDay !== null && (
         <DayActionsSheet
           day={longPressDay}
@@ -2180,6 +2409,7 @@ export function HomeView({
               total={overview.total}
               label="كل الأجهزة"
               icon={<IconGrid />}
+              onLongPress={() => setRingMenu({ kind: "all", label: "كل الأجهزة" })}
               onClick={() => { setShowAll(true); setSelectedDay(null); setStatFilter(null); }}
             />
             <StatusRing
@@ -2189,6 +2419,7 @@ export function HomeView({
               label="متصلة الآن"
               icon={<IconSignal />}
               active={statFilter === "online"}
+              onLongPress={() => setRingMenu({ kind: "online", label: "متصلة الآن" })}
               onClick={() => toggleStatFilter("online")}
             />
             <StatusRing
@@ -2198,6 +2429,7 @@ export function HomeView({
               label="تنتهي قريبًا"
               icon={<IconClock />}
               active={statFilter === "expiringSoon"}
+              onLongPress={() => setRingMenu({ kind: "expiringSoon", label: "تنتهي قريبًا" })}
               onClick={() => toggleStatFilter("expiringSoon")}
             />
             <StatusRing
@@ -2207,6 +2439,7 @@ export function HomeView({
               label="منتهية"
               icon={<IconAlert />}
               active={statFilter === "expired"}
+              onLongPress={() => setRingMenu({ kind: "expired", label: "منتهية" })}
               onClick={() => toggleStatFilter("expired")}
             />
             <StatusRing
@@ -2216,8 +2449,61 @@ export function HomeView({
               label="موقوفة"
               icon={<IconPause />}
               active={statFilter === "suspended"}
+              onLongPress={() => setRingMenu({ kind: "suspended", label: "موقوفة" })}
               onClick={() => toggleStatFilter("suspended")}
             />
+            {/* 🔵 His Oct 17 2026 circles - each one filters, and a long press checks it. */}
+            {([
+              ["notCanceled", "غير ملغي", ringCounts.notCanceled, <IconSignal key="i" />],
+              ["canceled", "ملغي", ringCounts.canceled, <IconAlert key="i" />],
+              ["renewed", "تم تجديد", ringCounts.renewed, <IconClock key="i" />],
+              ["sis", "SIS", ringCounts.sis, <IconPause key="i" />],
+              ["rom", "ROM", ringCounts.rom, <IconSignal key="i" />],
+              ["g100", "100G", ringCounts.g100, <IconGrid key="i" />],
+            ] as const).map(([kind, label, value, icon]) => (
+              <StatusRing
+                key={kind}
+                tone={kind}
+                value={value}
+                total={overview.total}
+                label={label}
+                icon={icon}
+                active={statFilter === kind}
+                onLongPress={() => setRingMenu({ kind, label })}
+                onClick={() => toggleStatFilter(kind)}
+              />
+            ))}
+            {repRings.map(({ rep, count }) => (
+              <StatusRing
+                key={rep.id}
+                tone="rep"
+                color={rep.color}
+                value={count}
+                total={overview.total}
+                label={rep.name}
+                icon={<IconGrid />}
+                active={statFilter === "rep" && repRingId === rep.id}
+                onLongPress={() => setRingMenu({ kind: "rep", label: rep.name, repId: rep.id })}
+                onClick={() => {
+                  const on = statFilter === "rep" && repRingId === rep.id;
+                  setRepRingId(on ? null : rep.id);
+                  setStatFilter(on ? null : "rep");
+                  setSelectedDay(null);
+                }}
+              />
+            ))}
+            {ringCounts.duplicate > 0 && (
+              <StatusRing
+                tone="duplicate"
+                value={ringCounts.duplicate}
+                total={overview.total}
+                label="مكرر"
+                icon={<IconAlert />}
+                active={statFilter === "duplicate"}
+                onLongPress={() => setRingMenu({ kind: "duplicate", label: "مكرر" })}
+                onClick={() => toggleStatFilter("duplicate")}
+              />
+            )}
           </section>
 
           {/* 🕘 آخر جهاز, 📌 المثبتة, المعطلة… - round like the rings above, in the same grid (his Oct 12 2026 ask). */}
@@ -2229,6 +2515,7 @@ export function HomeView({
               label="آخر جهاز"
               icon={<IconClock />}
               active={statFilter === "recent"}
+              onLongPress={() => setRingMenu({ kind: "recent", label: "آخر جهاز" })}
               onClick={() => { toggleStatFilter("recent"); setSelectedDay(null); }}
             />
             <StatusRing
@@ -2238,6 +2525,7 @@ export function HomeView({
               label="لم يُجدَّد"
               icon={<IconClock />}
               active={statFilter === "notRenewed"}
+              onLongPress={() => setRingMenu({ kind: "notRenewed", label: "لم يُجدَّد" })}
               onClick={() => { toggleStatFilter("notRenewed"); setSelectedDay(null); }}
             />
             <StatusRing
@@ -2248,6 +2536,7 @@ export function HomeView({
               label="المثبتة"
               icon={<IconGrid />}
               active={statFilter === "pinned"}
+              onLongPress={() => setRingMenu({ kind: "pinned", label: "المثبتة" })}
               onClick={() => { toggleStatFilter("pinned"); setSelectedDay(null); }}
             />
             <StatusRing
@@ -2257,6 +2546,7 @@ export function HomeView({
               label="المعطلة"
               icon={<IconAlert />}
               active={statFilter === "faulty"}
+              onLongPress={() => setRingMenu({ kind: "faulty", label: "المعطلة" })}
               onClick={() => { toggleStatFilter("faulty"); setFaultFilter(null); setSelectedDay(null); }}
             />
             <StatusRing
@@ -2266,6 +2556,7 @@ export function HomeView({
               label="قيد الإصلاح"
               icon={<IconPause />}
               active={statFilter === "repair"}
+              onLongPress={() => setRingMenu({ kind: "repair", label: "قيد الإصلاح" })}
               onClick={() => { toggleStatFilter("repair"); setSelectedDay(null); }}
             />
             <StatusRing
@@ -2276,6 +2567,7 @@ export function HomeView({
               label="تحتاج توثيق"
               icon={<IconAlert />}
               active={statFilter === "travel"}
+              onLongPress={() => setRingMenu({ kind: "travel", label: "تحتاج توثيق" })}
               onClick={() => { toggleStatFilter("travel"); setSelectedDay(null); }}
             />
             <StatusRing
@@ -2286,6 +2578,7 @@ export function HomeView({
               label="تم توثيقها"
               icon={<IconSignal />}
               active={statFilter === "travelDone"}
+              onLongPress={() => setRingMenu({ kind: "travelDone", label: "تم توثيقها" })}
               onClick={() => { toggleStatFilter("travelDone"); setSelectedDay(null); }}
             />
             {fromRepCount > 0 && (
@@ -2296,6 +2589,7 @@ export function HomeView({
                 label="من المندوبين"
                 icon={<IconGrid />}
                 active={statFilter === "fromRep"}
+                onLongPress={() => setRingMenu({ kind: "fromRep", label: "من المندوبين" })}
                 onClick={() => { toggleStatFilter("fromRep"); setSelectedDay(null); }}
               />
             )}
@@ -2308,6 +2602,7 @@ export function HomeView({
                 label="بدون زبون"
                 icon={<IconGrid />}
                 active={statFilter === "noClient"}
+                onLongPress={() => setRingMenu({ kind: "noClient", label: "بدون زبون" })}
                 onClick={() => { toggleStatFilter("noClient"); setNoClientGroup("all"); setSelectedDay(null); }}
               />
             )}
@@ -2356,7 +2651,7 @@ export function HomeView({
               {viewMode === "archived" ? "الأرشيف"
                 : viewMode === "trash" ? "سلة المحذوفات"
                 : statFilter
-                  ? STAT_FILTER_TITLES[statFilter]
+                  ? statFilter === "rep" ? `🤝 أجهزة ${getRepresentative(representativeStore, repRingId ?? undefined)?.name ?? "المندوب"}` : STAT_FILTER_TITLES[statFilter]
                   : showAll || query || selectedDay !== null ? "الحسابات" : "تحتاج إلى متابعة"}
             </h2>
             <p className="section-caption">{visible.length} حساب</p>
@@ -2372,6 +2667,11 @@ export function HomeView({
                     }}
                   >
                     ✕ إزالة العلامة عن الكل
+                  </button>
+                )}
+                {statFilter === "duplicate" && visible.length > 0 && !isRepWorkspace() && (
+                  <button className="text-action" onClick={mergeAllDuplicates}>
+                    🔗 دمج كل المكرر
                   </button>
                 )}
                 <button className="text-action" onClick={() => setStatFilter(null)}>مسح التصفية</button>
@@ -2720,7 +3020,11 @@ function SearchResultRow({ result, onOpenClient }: { result: SearchResult; onOpe
   );
 }
 
-type StatusTone = "total" | "online" | "warning" | "expired" | "suspended" | "recent" | "notRenewed" | "pinned" | "faulty" | "repair" | "travel" | "travelDone" | "fromRep" | "noClient";
+type StatusTone =
+  | "total" | "online" | "warning" | "expired" | "suspended" | "recent" | "notRenewed" | "pinned" | "faulty" | "repair" | "travel" | "travelDone" | "fromRep" | "noClient"
+  | "notCanceled" | "canceled" | "renewed" | "sis" | "rom" | "g100" | "duplicate" | "rep";
+
+const RING_LONG_PRESS_MS = 550;
 
 /** One circular status counter: a ring filled by this status's share of all devices, its icon and
  * count inside, the label underneath. Tapping filters the list (or shows all, for the total). */
@@ -2732,7 +3036,9 @@ function StatusRing({
   icon,
   active = false,
   tour,
+  color,
   onClick,
+  onLongPress,
 }: {
   tone: StatusTone;
   value: number;
@@ -2742,17 +3048,48 @@ function StatusRing({
   active?: boolean;
   /** «ما الجديد» points at it (data-tour). */
   tour?: string;
+  /** 🤝 A rep's own color (his circle). */
+  color?: string;
   onClick: () => void;
+  /** 🔍 Long press: the circle's check (RingActionsSheet). */
+  onLongPress?: () => void;
 }) {
   const share = total > 0 ? Math.min(1, value / total) : 0;
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The click that ends a long press must not also filter.
+  const longPressed = useRef(false);
+  const cancelPress = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  };
   return (
     <button
       type="button"
       className={`status-ring status-ring-${tone}${active ? " status-ring-active" : ""}`}
+      style={color ? ({ "--tone": color } as CSSProperties) : undefined}
       aria-pressed={tone === "total" ? undefined : active}
       aria-label={`${label}: ${value}`}
       data-tour={tour}
-      onClick={onClick}
+      onPointerDown={() => {
+        longPressed.current = false;
+        if (!onLongPress) return;
+        cancelPress();
+        timer.current = setTimeout(() => {
+          longPressed.current = true;
+          onLongPress();
+        }, RING_LONG_PRESS_MS);
+      }}
+      onPointerUp={cancelPress}
+      onPointerLeave={cancelPress}
+      onPointerCancel={cancelPress}
+      onContextMenu={(e) => e.preventDefault()}
+      onClick={() => {
+        if (longPressed.current) {
+          longPressed.current = false;
+          return;
+        }
+        onClick();
+      }}
     >
       <span className="status-ring-dial" style={{ "--share": share } as CSSProperties}>
         <span className="status-ring-core">

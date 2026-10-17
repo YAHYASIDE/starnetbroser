@@ -14042,6 +14042,15 @@ button.today-tile {
 .status-ring-travelDone { --tone: var(--green); }
 .status-ring-fromRep { --tone: var(--brand); }
 .status-ring-noClient { --tone: var(--gray); }
+/* 🔵 His Oct 17 2026 circles (a rep's circle takes the rep's own color inline). */
+.status-ring-notCanceled { --tone: var(--green); }
+.status-ring-canceled { --tone: var(--gray); }
+.status-ring-renewed { --tone: var(--mint); }
+.status-ring-sis { --tone: var(--yellow); }
+.status-ring-rom { --tone: var(--brand); }
+.status-ring-g100 { --tone: var(--violet); }
+.status-ring-duplicate { --tone: var(--red); }
+.status-ring-rep { --tone: var(--brand); }
 
 .status-rings-more {
   margin-top: 8px;

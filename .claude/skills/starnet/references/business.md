@@ -534,6 +534,24 @@ mind). Exact texts and numbers live in the code - this file says where.
   sent by hand; a failed send waits 30 minutes. Runs while the app is open (`RepCopyAutoRunner`, `lib/repCopyAuto.ts`);
   he hears «📤 أُرسلت نسخة X وحدها». The «⚠️ نسخته قديمة» warning and the manual «📤 إرسال نسخته» stay.
 
+## 🔵 More home circles + 🔍 a check on every circle (Oct 17 2026, «سأنام… طبّق فقط»)
+
+- His list: «غير ملغي، ملغي، تم تجديد، SIS، ROM، 100G، المندوب كل مندوب أيقونة خاص به» next to «الأجهزة / متصلة
+  الآن». Added in the first row of circles (`lib/deviceRings.ts`): ملغي = an end date set or the service ended
+  (`isCanceledDevice`; SIS is not ملغي), غير ملغي = the rest, تم تجديد = **a renewal recorded today**
+  (`renewedOn`, lib/renewals.ts's rule), SIS / ROM / 100G = the card's plan pill (`planRing`; 50G is not 100G), one
+  circle per rep who has devices, in his color; «مكرر» when a device is registered twice.
+- «كل الأزرار حتى السابقة فيها الفحص… الضغط المطوّل: 1 فحص، 2 فحص في الخلفية»: **every** home circle has a long
+  press (`RingActionsSheet`): 🔍 فحص (the visible chain) / 🌙 فحص في الخلفية (BackgroundSyncService, whatever the
+  background switch). «فحص فقط إن كان الجهاز ملغي»: the sync walk is the same, the **report** answers only that
+  circle's question (`ringCheckReport`: yes now, changed since the start, not checked) on the bot + notification.
+  «تحتاج توثيق» runs the travel check (Home only) with its own report. Faulty / limited emails stay out, except in
+  the «المعطلة» circle itself.
+- «مكان لإزالة المكرر مثل إزالة مضاف من قبل المندوب»: «مكرر» → «🔗 دمج كل المكرر» (header button + long press):
+  each pair merged (lib/deviceMerge.ts) into the device kept - his own over a rep's, then more operations, then
+  the older; the duplicate goes to the trash (restorable). The «من المندوبين» long press also has «✕ إزالة علامة
+  المندوب عن الكل».
+
 ## 📝 The rep can paste his copy's text (Oct 17 2026)
 
 - His ask «اجعل للمندوب مكان يضيف فيه نسخه». Until now the rep's «📋 أجهزتي» only opened a copy file (from Telegram
