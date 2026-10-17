@@ -27,7 +27,7 @@ describe("إنشاء حساب جديد", () => {
 
   it("asks for the KIT, the email and an 8-character password", () => {
     expect(creationProblem(input)).toBeNull();
-    expect(creationProblem({ ...input, fullName: "" })).toBe("اختر الزبون أولاً");
+    expect(creationProblem({ ...input, fullName: "" })).toBe("اكتب اسم الحساب الكامل");
     expect(creationProblem({ ...input, kit: "12" })).toContain("KIT");
     expect(creationProblem({ ...input, email: "" })).toContain("البريد");
     expect(creationProblem({ ...input, password: "short" })).toContain("8");
@@ -45,6 +45,9 @@ describe("إنشاء حساب جديد", () => {
       creation: { firstName: "أحمد", lastName: "ولد سالم", startedAt: "2026-10-01T10:00:00.000Z" },
     });
     expect(buildCreatedAccount(base, { ...input, kit: "2demo0000sn" }).serialNumber).toBe("2DEMO0000SN");
+    // 📶 the Wi-Fi code typed in the form is kept (his Oct 17 2026 order)
+    expect(buildCreatedAccount(base, { ...input, wifiPassword: " DemoWifi-1 " }).wifiPassword).toBe("DemoWifi-1");
+    expect(buildCreatedAccount(base, input).wifiPassword).toBeUndefined();
   });
 
   it("fills Microsoft's signup and Starlink's activation from the device", () => {

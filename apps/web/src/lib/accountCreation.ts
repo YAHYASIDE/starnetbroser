@@ -9,7 +9,8 @@ import type { StarlinkAccountSummary } from "@starnet/shared";
 import { splitPhoneNumber } from "./phoneCountryCodes";
 
 export interface CreationInput {
-  /** The customer's full name (Starlink wants it as first + family name). */
+  /** The account's full name, typed first (his Oct 17 2026 order) - Starlink wants it as first +
+   * family name. The customer is optional: picking one only links the device to him. */
   fullName: string;
   /** Digits with the country code, the shape `account.phone` is stored in. */
   phone?: string;
@@ -18,6 +19,8 @@ export interface CreationInput {
   /** The new Outlook address; a bare name gets "@outlook.com". */
   email: string;
   password: string;
+  /** 📶 The Wi-Fi code to set on the dish (kept on the device). */
+  wifiPassword?: string;
 }
 
 /** «أحمد ولد سالم» -> first «أحمد», family «ولد سالم». One word: it is both. */
@@ -42,7 +45,7 @@ export function normalizeKit(kit: string): string {
 
 /** The first problem with the form, in Arabic, or null when it can start. */
 export function creationProblem(input: CreationInput): string | null {
-  if (!input.fullName.trim()) return "اختر الزبون أولاً";
+  if (!input.fullName.trim()) return "اكتب اسم الحساب الكامل";
   if (normalizeKit(input.kit).length < 6) return "اكتب رقم KIT أو SN كما على الكاش";
   const email = normalizeNewEmail(input.email);
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return "اكتب البريد الجديد (مثال: name@outlook.com)";
@@ -65,6 +68,7 @@ export function buildCreatedAccount(
     phone: input.phone?.trim() || base.phone || undefined,
     expectedEmail: normalizeNewEmail(input.email),
     expectedEmailPassword: input.password,
+    ...(input.wifiPassword?.trim() ? { wifiPassword: input.wifiPassword.trim() } : {}),
     kitNumber: isKit ? kit : base.kitNumber,
     serialNumber: isKit ? base.serialNumber : kit,
     creation: { ...splitFullName(input.fullName), startedAt: now.toISOString() },

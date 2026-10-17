@@ -140,6 +140,8 @@ export function AccountDialog({
   // adding a device that already has one.
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  // 1️⃣ The account's full name, typed first (the customer below is optional).
+  const [creationName, setCreationName] = useState("");
 
   // A customer added right here isn't in `clients` until the parent re-renders.
   const createdClient = useRef<Client | null>(null);
@@ -154,6 +156,9 @@ export function AccountDialog({
 
   function pickCreationClient(clientId: string | undefined) {
     update("clientId", clientId);
+    // His name, unless one was already typed.
+    const name = findClient(clientId)?.name;
+    if (name && !creationName.trim()) setCreationName(name);
     // The customer's phone, unless one was already typed.
     const phone = findClient(clientId)?.phone;
     if (phone && !phoneLocalNumber) {
@@ -167,11 +172,12 @@ export function AccountDialog({
   function submitCreation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const input = {
-      fullName: findClient(draft.clientId)?.name ?? "",
+      fullName: creationName,
       phone: draft.phone,
       kit: draft.kitNumber,
       email: draft.expectedEmail ?? "",
       password: draft.expectedEmailPassword ?? "",
+      wifiPassword: draft.wifiPassword ?? "",
     };
     const problem = creationProblem(input);
     setCreateError(problem);
@@ -411,13 +417,14 @@ export function AccountDialog({
           // to make - then Microsoft's signup and «تفعيل Starlink» open, already filled in.
           <form className="account-form add-device-form" onSubmit={submitCreation}>
             <CreationToggle creating onChange={setCreating} />
-            <div className="form-field add-field add-field-client">
-              <span className="add-field-label"><b aria-hidden="true">👤</b> الزبون (الاسم الكامل) *</span>
-              <ClientPicker clients={clients} selectedClientId={draft.clientId} onSelect={pickCreationClient} onCreateClient={createCreationClient} />
-            </div>
+            {/* His Oct 17 2026 order: name · phone · KIT/SN · Wi-Fi · email + its code · customer (optional) · rep. */}
+            <label className="form-field add-field add-field-name">
+              <span className="add-field-label"><b aria-hidden="true">1️⃣</b> اسم الحساب الكامل *</span>
+              <input value={creationName} onChange={(e) => setCreationName(e.target.value)} placeholder="الاسم والعائلة" autoComplete="off" />
+            </label>
 
             <div className="form-field add-field add-field-phone">
-              <span className="add-field-label"><b aria-hidden="true">📞</b> رقم الهاتف</span>
+              <span className="add-field-label"><b aria-hidden="true">2️⃣</b> رقم الهاتف</span>
               <div className="phone-input-row">
                 <select className="phone-country-select" dir="ltr" value={phoneDialCode} onChange={(e) => updatePhoneDialCode(e.target.value)} aria-label="رمز الدولة">
                   {PHONE_COUNTRY_CODES.map((c) => (
@@ -430,25 +437,36 @@ export function AccountDialog({
             </div>
 
             <label className="form-field add-field add-field-kit">
-              <span className="add-field-label"><b aria-hidden="true">🔢</b> رقم KIT أو SN *</span>
+              <span className="add-field-label"><b aria-hidden="true">3️⃣</b> رقم KIT أو SN *</span>
               <input dir="ltr" value={draft.kitNumber} onChange={(e) => update("kitNumber", e.target.value)} placeholder="KIT…" autoCapitalize="characters" />
               <FieldDuplicate hits={duplicates} field="kit" />
             </label>
 
+            <label className="form-field add-field add-field-wifi">
+              <span className="add-field-label"><b aria-hidden="true">4️⃣</b> كود الواي فاي</span>
+              <input dir="ltr" value={draft.wifiPassword ?? ""} onChange={(e) => update("wifiPassword", e.target.value)} placeholder="اختياري" />
+              <PasswordChips values={passwordSuggestions} current={draft.wifiPassword} onPick={(v) => update("wifiPassword", v)} />
+            </label>
+
             <label className="form-field add-field add-field-email">
-              <span className="add-field-label"><b aria-hidden="true">📧</b> البريد الجديد (أوتلوك) *</span>
+              <span className="add-field-label"><b aria-hidden="true">5️⃣</b> البريد الجديد (أوتلوك) *</span>
               <input dir="ltr" value={draft.expectedEmail ?? ""} onChange={(e) => update("expectedEmail", e.target.value)} placeholder="name@outlook.com" autoCapitalize="none" />
               <FieldDuplicate hits={duplicates} field="email" />
             </label>
 
             <label className="form-field add-field add-field-code">
-              <span className="add-field-label"><b aria-hidden="true">🔑</b> كلمة مرور البريد * (8 أحرف أو أكثر)</span>
+              <span className="add-field-label"><b aria-hidden="true">6️⃣</b> كود البريد * (8 أحرف أو أكثر)</span>
               <input dir="ltr" value={draft.expectedEmailPassword ?? ""} onChange={(e) => update("expectedEmailPassword", e.target.value)} placeholder="كلمة المرور" />
               <PasswordChips values={passwordSuggestions} current={draft.expectedEmailPassword} onPick={(v) => update("expectedEmailPassword", v)} />
             </label>
 
+            <div className="form-field add-field add-field-client">
+              <span className="add-field-label"><b aria-hidden="true">7️⃣</b> الزبون (اختياري - يُسجَّل عليه الجهاز)</span>
+              <ClientPicker clients={clients} selectedClientId={draft.clientId} onSelect={pickCreationClient} onCreateClient={createCreationClient} />
+            </div>
+
             <div className="form-field add-field add-field-rep">
-              <span className="add-field-label"><b aria-hidden="true">🤝</b> المندوب</span>
+              <span className="add-field-label"><b aria-hidden="true">8️⃣</b> المندوب</span>
               <RepresentativePicker
                 representatives={representatives}
                 selectedRepresentativeId={draft.representativeId}

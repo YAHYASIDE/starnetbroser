@@ -31,6 +31,18 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-17-create-account-order",
+    date: "2026-10-17",
+    title: "🆕 إنشاء حساب جديد بترتيب جديد",
+    steps: [
+      {
+        title: "🆕 إضافة حساب ← إنشاء حساب جديد",
+        before: "كان أول خانة الزبون (إجباري)، ولا خانة للواي فاي.",
+        after: "الترتيب: 1 اسم الحساب الكامل · 2 الهاتف · 3 KIT أو SN · 4 كود الواي فاي · 5 البريد · 6 كود البريد · 7 الزبون (اختياري) · 8 المندوب.",
+      },
+    ],
+  },
+  {
     id: "2026-10-17-card-polish",
     date: "2026-10-17",
     title: "✨ بطاقة الجهاز أنظف",

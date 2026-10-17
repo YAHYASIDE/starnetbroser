@@ -581,6 +581,13 @@ mind). Exact texts and numbers live in the code - this file says where.
   both remember it (`notDuplicateOf`, backed up) and the pair is never a twin again; the «مكرر» circle and its
   list header also have «✕ إزالة العلامة عن الكل». Nothing is merged or deleted.
 
+## 🆕 «إنشاء حساب جديد» - his field order (Oct 17 2026)
+
+- His order: 1 اسم الحساب الكامل (typed - required; Starlink's first + family name) · 2 رقم الهاتف · 3 KIT أو SN ·
+  4 كود الواي فاي (new here, kept as `wifiPassword`) · 5 البريد الجديد · 6 كود البريد · 7 الزبون - **optional** («غير
+  مهم، فقط إن أضفناه يُسجَّل عليه الجهاز»; picking him fills an empty name and phone) · 8 المندوب. His list skipped 6:
+  the new email's address sits there, next to its code. Next step he announced: «طريقة إنشاء الإيميل».
+
 ## ✨ Card polish he chose (Oct 17 2026, «ماذا تقترح لتجميل البطاقة»)
 
 - Picked: the date + days in one pill («📌 2026/11/07 · 20 يومًا»); the email once (a device named by its email
