@@ -1,5 +1,6 @@
 "use client";
 
+import { emailBaseFor, suggestEmail, suggestPassword } from "@/lib/emailSuggest";
 import { askDeleteCode } from "@/components/DeleteCodePrompt";
 import { cardLabel, loadPaymentCards } from "@/lib/kastCards";
 import { shareText } from "@/lib/shareText";
@@ -142,6 +143,40 @@ export function AccountDialog({
   const [createError, setCreateError] = useState<string | null>(null);
   // 1️⃣ The account's full name, typed first (the customer below is optional).
   const [creationName, setCreationName] = useState("");
+  // ✉️ The email and its code written by themselves from the name (lib/emailSuggest.ts) - while the
+  // field is empty or still holds the last suggestion, so what he typed himself is never replaced.
+  const suggestedEmail = useRef("");
+  const suggestedCode = useRef("");
+
+  function changeCreationName(name: string) {
+    setCreationName(name);
+    const current = (draft.expectedEmail ?? "").trim();
+    if (!current || current === suggestedEmail.current) {
+      const base = emailBaseFor(name);
+      // Same name base → keep the digits already shown (no flicker while typing a space).
+      const keep = suggestedEmail.current && /^\d{3}@outlook\.com$/.test(suggestedEmail.current.slice(base.length)) && suggestedEmail.current.startsWith(base) ? suggestedEmail.current : "";
+      const next = base ? keep || suggestEmail(name) : "";
+      suggestedEmail.current = next;
+      update("expectedEmail", next);
+    }
+    const code = draft.expectedEmailPassword ?? "";
+    if (name.trim() && (!code || code === suggestedCode.current) && !suggestedCode.current) {
+      suggestedCode.current = suggestPassword();
+      update("expectedEmailPassword", suggestedCode.current);
+    }
+  }
+
+  function anotherEmail() {
+    const next = suggestEmail(creationName);
+    if (!next) return;
+    suggestedEmail.current = next;
+    update("expectedEmail", next);
+  }
+
+  function anotherCode() {
+    suggestedCode.current = suggestPassword();
+    update("expectedEmailPassword", suggestedCode.current);
+  }
 
   // A customer added right here isn't in `clients` until the parent re-renders.
   const createdClient = useRef<Client | null>(null);
@@ -158,7 +193,7 @@ export function AccountDialog({
     update("clientId", clientId);
     // His name, unless one was already typed.
     const name = findClient(clientId)?.name;
-    if (name && !creationName.trim()) setCreationName(name);
+    if (name && !creationName.trim()) changeCreationName(name);
     // The customer's phone, unless one was already typed.
     const phone = findClient(clientId)?.phone;
     if (phone && !phoneLocalNumber) {
@@ -420,7 +455,7 @@ export function AccountDialog({
             {/* His Oct 17 2026 order: name · phone · KIT/SN · Wi-Fi · email + its code · customer (optional) · rep. */}
             <label className="form-field add-field add-field-name">
               <span className="add-field-label"><b aria-hidden="true">1️⃣</b> اسم الحساب الكامل *</span>
-              <input value={creationName} onChange={(e) => setCreationName(e.target.value)} placeholder="الاسم والعائلة" autoComplete="off" />
+              <input value={creationName} onChange={(e) => changeCreationName(e.target.value)} placeholder="الاسم والعائلة" autoComplete="off" />
             </label>
 
             <div className="form-field add-field add-field-phone">
@@ -450,13 +485,19 @@ export function AccountDialog({
 
             <label className="form-field add-field add-field-email">
               <span className="add-field-label"><b aria-hidden="true">5️⃣</b> البريد الجديد (أوتلوك) *</span>
-              <input dir="ltr" value={draft.expectedEmail ?? ""} onChange={(e) => update("expectedEmail", e.target.value)} placeholder="name@outlook.com" autoCapitalize="none" />
+              <div className="suggest-input-row">
+                <input dir="ltr" value={draft.expectedEmail ?? ""} onChange={(e) => update("expectedEmail", e.target.value)} placeholder="name@outlook.com" autoCapitalize="none" />
+                <button type="button" className="suggest-again" onClick={anotherEmail} disabled={!emailBaseFor(creationName)} title="اقتراح آخر من الاسم">🔄 اقتراح آخر</button>
+              </div>
               <FieldDuplicate hits={duplicates} field="email" />
             </label>
 
             <label className="form-field add-field add-field-code">
               <span className="add-field-label"><b aria-hidden="true">6️⃣</b> كود البريد * (8 أحرف أو أكثر)</span>
-              <input dir="ltr" value={draft.expectedEmailPassword ?? ""} onChange={(e) => update("expectedEmailPassword", e.target.value)} placeholder="كلمة المرور" />
+              <div className="suggest-input-row">
+                <input dir="ltr" value={draft.expectedEmailPassword ?? ""} onChange={(e) => update("expectedEmailPassword", e.target.value)} placeholder="كلمة المرور" />
+                <button type="button" className="suggest-again" onClick={anotherCode} title="كود آخر">🔄</button>
+              </div>
               <PasswordChips values={passwordSuggestions} current={draft.expectedEmailPassword} onPick={(v) => update("expectedEmailPassword", v)} />
             </label>
 

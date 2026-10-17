@@ -587,6 +587,11 @@ mind). Exact texts and numbers live in the code - this file says where.
   4 كود الواي فاي (new here, kept as `wifiPassword`) · 5 البريد الجديد · 6 كود البريد · 7 الزبون - **optional** («غير
   مهم، فقط إن أضفناه يُسجَّل عليه الجهاز»; picking him fills an empty name and phone) · 8 المندوب. His list skipped 6:
   the new email's address sits there, next to its code. Next step he announced: «طريقة إنشاء الإيميل».
+- ✉️ The new email from the name (his choices): **«ahmed.salem» + 3 digits @outlook.com** - first and last name in
+  Latin (common names written his market's way: محمد→mohamed, الشيخ→cheikh, ولد/بنت dropped; others letter by
+  letter), filled by itself while the field is empty or still holds the last suggestion, «🔄 اقتراح آخر» for
+  new digits; the code is suggested too (10 characters: capital, lower, 3 digits, a symbol; no look-alikes),
+  «🔄» for another. What he types himself is never replaced. `lib/emailSuggest.ts`.
 
 ## ✨ Card polish he chose (Oct 17 2026, «ماذا تقترح لتجميل البطاقة»)
 

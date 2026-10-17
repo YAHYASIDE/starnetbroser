@@ -15813,3 +15813,34 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
 .account-card-one-row .card-action-primary { flex: 1.4 1 0; }
 .account-card-one-row .card-daily-action { flex: 1 1 0; padding-inline: 6px; }
 .account-card-one-row .card-daily-more { flex: 0 0 40px; }
+
+/* ✉️ «🔄 اقتراح آخر» beside the suggested email / code (إنشاء حساب جديد). */
+.suggest-input-row {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+
+.suggest-input-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.suggest-again {
+  flex: none;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--brand);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.suggest-again:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
