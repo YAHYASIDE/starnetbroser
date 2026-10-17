@@ -16,7 +16,8 @@ export function ServiceBubbles({ bubbles }: { bubbles: Bubbles }) {
         {bubbles.billing ? `${bubbles.now} - FACTUR` : bubbles.now}
       </span>
       <span className="svc-arrow" aria-hidden="true">←</span>
-      <span className={`svc-bubble ${CLASS[bubbles.next]}`}>
+      {/* Faded when nothing changes after the month (his Oct 17 2026 choice). */}
+      <span className={`svc-bubble ${CLASS[bubbles.next]}${bubbles.next === bubbles.now && !bubbles.nextDate ? " svc-same" : ""}`}>
         {bubbles.next}
         {bubbles.nextDate && <bdi dir="ltr" className="svc-date">{bubbles.nextDate.slice(5)}</bdi>}
       </span>

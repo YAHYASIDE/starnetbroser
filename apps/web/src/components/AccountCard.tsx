@@ -307,6 +307,9 @@ export function AccountCard({
   const openDebtUsd = openDebtEntries(ledgerEntries).reduce((sum, e) => sum + (starlinkCostUsd(e) ?? 0), 0);
   const previousDebtUsd = totalPreviousDebtUsd(previousDebts);
   const unpaidStarlinkUsd = openDebtUsd + previousDebtUsd;
+  // 💲 Starlink's bill and what's unpaid to Starlink are the same amount: one line (his Oct 17 2026 choice).
+  const balanceUsd = isUsdBalance ? (Number.isFinite(balanceNumeric) ? balanceNumeric : undefined) : balanceUsdEquivalent;
+  const unpaidIsBalance = unpaidStarlinkUsd > 0 && balanceUsd !== undefined && Math.abs(balanceUsd - unpaidStarlinkUsd) < 0.01;
   // What Starlink shows as due beyond everything recorded - offered as a previous debt. A D in
   // the bill's own currency is compared at today's rate (only the rate moved), and a small drift
   // over an open D is part of that D (previousDebt.ts unrecordedGapUsd).
@@ -462,6 +465,8 @@ export function AccountCard({
   const [showPromise, setShowPromise] = useState(false);
   const identityEmail = account.expectedEmail || account.starlinkAccountEmail;
   const [emailCopied, setEmailCopied] = useState(false);
+  // ✉️ The device is named by its email: shown once (his Oct 17 2026 choice) - the name copies it.
+  const nameIsEmail = Boolean(identityEmail && account.name.trim().toLowerCase() === identityEmail.trim().toLowerCase());
 
   async function copyToClipboard(value: string) {
     try {
@@ -541,7 +546,7 @@ export function AccountCard({
   return (
     <>
     <article
-      className={`account-card${isSuspended ? " account-card-suspended" : ""}${sessionNeedsLogin ? " account-card-has-bubble" : ""}${repColor ? " account-card-rep-tint" : ""}${expanded ? " account-card-expanded" : ""}`}
+      className={`account-card${bubbles ? ` account-card-svc-${bubbles.billing ? "billing" : bubbles.now.toLowerCase()}` : ""}${isSuspended ? " account-card-suspended" : ""}${sessionNeedsLogin ? " account-card-has-bubble" : ""}${repColor ? " account-card-rep-tint" : ""}${expanded ? " account-card-expanded" : ""}`}
       style={repColor ? ({ "--rep-tint": repColor } as React.CSSProperties) : undefined}
       {...gestures}
     >
@@ -695,7 +700,23 @@ export function AccountCard({
 
       <div className="account-card-top-row">
         <div className="account-card-title-block">
-          <h3 className="account-card-name">{account.name}</h3>
+          {nameIsEmail ? (
+            <button
+              type="button"
+              className="account-card-name account-card-name-copy"
+              dir="ltr"
+              aria-label="نسخ البريد"
+              onClick={() => {
+                void copyToClipboard(identityEmail ?? "");
+                setEmailCopied(true);
+                window.setTimeout(() => setEmailCopied(false), 1500);
+              }}
+            >
+              {emailCopied ? "✓ نُسخ" : account.name}
+            </button>
+          ) : (
+            <h3 className="account-card-name">{account.name}</h3>
+          )}
           {client ? (
             <button type="button" className="account-card-client-name" onClick={() => onOpenClient(client)} title="فتح بطاقة الزبون">
               {client.name}
@@ -842,11 +863,12 @@ export function AccountCard({
               <span className="stat-tile-value-usd">≈ {formatAmount(balanceUsdEquivalent)} USD · </span>
             )}
             <strong>{account.currency} {account.balanceDue || "0"}</strong>
+            {unpaidIsBalance && <span className="account-card-unpaid-tag"> · غير مدفوع</span>}
           </span>
         )}
       </div>
 
-      {unpaidStarlinkUsd > 0 && (
+      {unpaidStarlinkUsd > 0 && !unpaidIsBalance && (
         <div className="account-card-unpaid-starlink">
           <span>غير مدفوع لستارلينك:</span>
           <strong dir="ltr">{formatAmount(unpaidStarlinkUsd)} $</strong>
@@ -925,10 +947,12 @@ export function AccountCard({
               onClick={() => setRenewalSheet(true)}
             >
               <span aria-hidden="true">{account.lockedRenewalDay ? "📌" : "📅"}</span> {account.rechargeDate || account.standbyDate}
+              {remaining && <span className={`account-card-days ${urgencyClass}`} dir="rtl"> · {remaining}</span>}
             </button>
           ) : (
             <span className="account-card-recharge-pill" dir="ltr">
               <span aria-hidden="true">{account.lockedRenewalDay ? "📌" : "📅"}</span> {account.rechargeDate || account.standbyDate}
+              {remaining && <span className={`account-card-days ${urgencyClass}`} dir="rtl"> · {remaining}</span>}
             </span>
           )
         ) : (
@@ -949,7 +973,7 @@ export function AccountCard({
         {renewalSheet && onPatch && (
           <RenewalLockSheet account={account} onPatch={(patch) => onPatch(account, patch)} onClose={() => setRenewalSheet(false)} />
         )}
-        {identityEmail && (
+        {identityEmail && !nameIsEmail && (
           <button
             type="button"
             className="account-card-recharge-pill account-card-email-copy"
@@ -968,7 +992,7 @@ export function AccountCard({
       </div>
 
       <div className="account-card-mini-row">
-        <span className="device-dots" title={`الطبق (STARLINK): ${dishDot.word} · الواي فاي: ${wifiDot.word}`}>
+        <span className="device-dots device-dots-compact" title={`الطبق (STARLINK): ${dishDot.word} · الواي فاي: ${wifiDot.word}`}>
           <button
             type="button"
             className={`device-dot device-dot-${dishDot.tone} device-dot-button`}
@@ -996,7 +1020,6 @@ export function AccountCard({
             {priorityState?.usedGb !== undefined && <> ⚠️ <bdi dir="ltr">{priorityState.usedGb}GB</bdi></>}
           </span>
         )}
-        {remaining && <span className={`date-status ${urgencyClass}`}>{remaining}</span>}
         {deviceCountry && (
           <span className="mini-status account-card-country" title={`دولة الجهاز: ${deviceCountry.country} (${deviceCountry.code})`}>
             {countryFlag(account.serviceCountry)} {deviceCountry.country}
@@ -1004,7 +1027,8 @@ export function AccountCard({
         )}
       </div>
 
-      <div className="account-card-main-actions">
+      {/* One row (his Oct 17 2026 choice): فتح الحساب · دفعة · تجديد · ⋯ - the mailbox is in ⋯. */}
+      <div className="account-card-main-actions account-card-one-row">
         {whatsAppButton}
         <button
           className="card-action card-action-primary"
@@ -1015,35 +1039,22 @@ export function AccountCard({
         >
           <span aria-hidden="true">↗</span> {opening ? "جارِ الفتح…" : "فتح الحساب"}
         </button>
-        {isGmail(mailLoginFor(account).email) && isAndroidApp && <DeviceGmailButton email={mailLoginFor(account).email ?? ""} disabled={opening} />}
-        {!isGmail(mailLoginFor(account).email) && (
-          <button
-            className={`card-action card-action-mail${mailSignedIn ? " card-action-mail-on" : ""}`}
-            type="button"
-            onClick={handleOpenMail}
-            disabled={opening}
-            title={!isAndroidApp ? "متاح فقط داخل تطبيق STAR NET لنظام Android" : mailSignedIn ? "البريد مسجّل - يفتح مباشرة" : "البريد غير مسجّل بعد - سجّل الدخول مرة واحدة"}
-            aria-label="بريد الجهاز"
-          >
-            <span aria-hidden="true">📧</span> البريد
-          </button>
+        {context === "active" && (
+          <>
+            <button type="button" className="card-action card-daily-action" onClick={() => onLedger(account)}>
+              <span aria-hidden="true">💵</span> دفعة
+            </button>
+            <button type="button" className="card-action card-daily-action" onClick={() => setShowRenewalDialog(true)}>
+              <span aria-hidden="true">🔄</span> تجديد
+            </button>
+            <button type="button" className="card-action card-daily-action card-daily-more" onClick={() => setShowMore(true)} aria-label="المزيد">
+              ⋯
+            </button>
+          </>
         )}
       </div>
 
-      {context === "active" ? (
-        // The everyday buttons stay on the card; everything else is under «⋯» (the card doesn't grow).
-        <div className="account-card-daily-actions">
-          <button type="button" className="card-action card-daily-action" onClick={() => onLedger(account)}>
-            <span aria-hidden="true">💵</span> دفعة
-          </button>
-          <button type="button" className="card-action card-daily-action" onClick={() => setShowRenewalDialog(true)}>
-            <span aria-hidden="true">🔄</span> تجديد
-          </button>
-          <button type="button" className="card-action card-daily-action card-daily-more" onClick={() => setShowMore(true)} aria-label="المزيد">
-            ⋯
-          </button>
-        </div>
-      ) : (
+      {context === "active" ? null : (
         <div className="account-card-quick-actions">
           <button type="button" className="quick-action" onClick={() => onRestore(account)}>
             <span className="quick-action-icon quick-action-renew" aria-hidden="true"><IconUndo /></span>
@@ -1221,7 +1232,12 @@ export function AccountCard({
               </button>
             </div>
             <div className="card-more-list">
+              {/* 📧 The device's mailbox moved here from the card (one row of buttons). */}
+              {isGmail(mailLoginFor(account).email) && isAndroidApp && <DeviceGmailButton email={mailLoginFor(account).email ?? ""} disabled={opening} />}
               {[
+                ...(!isGmail(mailLoginFor(account).email)
+                  ? [{ icon: "📧", label: mailSignedIn ? "البريد (مسجّل)" : "البريد", run: () => void handleOpenMail() }]
+                  : []),
                 { icon: "📋", label: expanded ? "إخفاء التفاصيل" : "التفاصيل", run: () => setExpanded((v) => !v) },
                 { icon: client ? "✎" : "🔗", label: client ? "تعديل البيانات" : "ربط بزبون", run: () => onEdit(account) },
                 { icon: "📋", label: "لصق جلسة (من متصفح آخر)", run: () => setShowPasteSession(true) },

@@ -189,6 +189,7 @@ import {
 } from "@/lib/deviceRings";
 import { RingActionsSheet } from "@/components/RingActionsSheet";
 import { changesTo, serviceBubbles } from "@/lib/serviceBubbles";
+import { placeholderRename } from "@/lib/placeholderName";
 
 const NEAR_EXPIRY_THRESHOLD_DAYS = 3;
 
@@ -1455,6 +1456,15 @@ export function HomeView({
     // Each device's renewal date/status goes along - the phone uses them to check the important
     // ones (7/3/1 days, just expired, stopped) automatically; see autoSyncList.ts.
     void syncAutoSyncAccountList(buildAutoSyncList(accounts));
+  }, [accounts]);
+
+  // ✉️ Devices still named by the time they were added take their email as their name.
+  useEffect(() => {
+    for (const account of accounts) {
+      const renamed = placeholderRename(account);
+      if (renamed) patchAccount(account.id, { name: renamed });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accounts]);
 
   // ⏰ «مزامنات مجدولة»: his choices reach the phone on every start (a reinstalled app forgets them).

@@ -1,4 +1,5 @@
 import { decideRenewalRead } from "./renewalDayLock";
+import { placeholderRename } from "./placeholderName";
 import { DeviceStatus, StarlinkAccountSummary } from "@starnet/shared";
 import type { SyncedDeviceStatus, SyncedStarlinkFields } from "@starnet/local-browser-plugin";
 import { cleanPlanName } from "./status";
@@ -212,6 +213,9 @@ export function mergeSyncedFields(
   if (accountEmail) {
     note("accountEmail", next.starlinkAccountEmail !== accountEmail);
     next.starlinkAccountEmail = accountEmail;
+    // ✉️ Still named by the time it was added: its email becomes its name.
+    const renamed = placeholderRename(next);
+    if (renamed) next.name = renamed;
   }
 
   // Unlike every other field here, `phone` is also a manually-editable operator field (the

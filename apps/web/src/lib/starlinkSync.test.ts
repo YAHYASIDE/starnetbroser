@@ -594,3 +594,9 @@ describe("⏸️ moving to Standby (SIS) is not «ملغي»", () => {
   });
 });
 
+describe("✉️ a device named by the time takes the email the sync read", () => {
+  it("renames «📋 جهاز جديد 13:11», keeps a typed name", () => {
+    expect(mergeSyncedFields({ ...baseAccount(), name: "📋 جهاز جديد 13:11" }, { accountEmail: "read@example.com" }).account.name).toBe("read@example.com");
+    expect(mergeSyncedFields({ ...baseAccount(), name: "مقهى" }, { accountEmail: "read@example.com" }).account.name).toBe("مقهى");
+  });
+});

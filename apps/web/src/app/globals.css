@@ -15758,3 +15758,58 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
 .account-card-top-row > .account-card-title-block {
   flex: 1 1 130px;
 }
+
+/* ✨ Card polish (his Oct 17 2026 choices). */
+/* A colored edge by the service NOW: ROM blue, 100G violet, SIS yellow, STOP red, FACTUR orange. */
+.account-card.account-card-svc-rom { border-inline-start: 4px solid var(--brand); }
+.account-card.account-card-svc-100g { border-inline-start: 4px solid var(--violet); }
+.account-card.account-card-svc-sis { border-inline-start: 4px solid var(--yellow); }
+.account-card.account-card-svc-stop { border-inline-start: 4px solid var(--red); }
+.account-card.account-card-svc-billing { border-inline-start: 4px solid var(--orange); }
+
+/* The second bubble, faded when nothing changes after the month. */
+.svc-bubble.svc-same { opacity: 0.45; border-style: dashed; }
+
+/* The name IS the email: one line, tap to copy. */
+.account-card-name-copy {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-align: start;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  cursor: pointer;
+}
+
+/* Starlink's bill = what's unpaid to Starlink: one line. */
+.account-card-unpaid-tag { color: var(--red); font-weight: 800; }
+
+/* The date and the days left in one pill. */
+.account-card-days { font-weight: 800; }
+.account-card-days.date-expired { color: var(--red); }
+.account-card-days.date-warning { color: var(--orange); }
+.account-card-days.date-ok, .account-card-days.date-safe { color: var(--green); }
+
+/* Dish and Wi-Fi: small, side by side. */
+.device-dots.device-dots-compact { gap: 6px; }
+.device-dots.device-dots-compact .device-dot {
+  flex: 0 1 auto;
+  padding: 2px 8px;
+  font-size: 0.62rem;
+}
+
+/* One row of buttons: فتح الحساب · دفعة · تجديد · ⋯ */
+.account-card-one-row { gap: 5px; }
+.account-card-one-row .card-action {
+  min-width: 0;
+  white-space: nowrap;
+}
+.account-card-one-row .card-action-primary { flex: 1.4 1 0; }
+.account-card-one-row .card-daily-action { flex: 1 1 0; padding-inline: 6px; }
+.account-card-one-row .card-daily-more { flex: 0 0 40px; }

@@ -581,6 +581,16 @@ mind). Exact texts and numbers live in the code - this file says where.
   both remember it (`notDuplicateOf`, backed up) and the pair is never a twin again; the «مكرر» circle and its
   list header also have «✕ إزالة العلامة عن الكل». Nothing is merged or deleted.
 
+## ✨ Card polish he chose (Oct 17 2026, «ماذا تقترح لتجميل البطاقة»)
+
+- Picked: the date + days in one pill («📌 2026/11/07 · 20 يومًا»); the email once (a device named by its email
+  has no email pill - tapping the name copies it); Starlink's bill once when it equals what's unpaid to
+  Starlink («USD 5.77 · غير مدفوع»); small dish / Wi-Fi pills side by side; **one row of buttons** (فتح الحساب ·
+  دفعة · تجديد · ⋯) with «📧 البريد» / Gmail moved into ⋯; the second bubble faded (dashed) when nothing
+  changes; a colored edge by the service now (ROM blue, 100G violet, SIS yellow, STOP red, FACTUR orange).
+- His own addition: devices named by the time («📋 جهاز جديد 13:11» - a pasted session) take their email as
+  their name once it's known (`lib/placeholderName.ts`, on load and in the sync merge); a typed name never changes.
+
 ## 🔑 A rep's permissions, chosen before each copy (Oct 17 2026)
 
 - His ask: «أي مندوب سأرسل له نسخة، قبل الإرسال تأتيني قائمة بالصلاحيات… ما عنده الآن كلها عليها صح والأخرى لا… زر
