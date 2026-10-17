@@ -31,8 +31,9 @@ describe("إنشاء حساب جديد", () => {
     expect(creationProblem({ ...input, kit: "12" })).toContain("KIT");
     expect(creationProblem({ ...input, email: "" })).toContain("البريد");
     expect(creationProblem({ ...input, password: "short" })).toContain("8");
-    // 📮 a forwarded domain address needs no mailbox code
-    expect(creationProblem({ ...input, email: "demo@demo-shop.com", password: "", forwarded: true })).toBeNull();
+    // 📮 a forwarded domain address has no mailbox - the code is still Starlink's
+    expect(creationProblem({ ...input, email: "demo@demo-shop.com", password: "", forwarded: true })).toContain("Starlink");
+    expect(creationProblem({ ...input, email: "demo@demo-shop.com", password: "StarNetOm#4827", forwarded: true })).toBeNull();
   });
 
   it("saves the device right away, marked as being created", () => {
@@ -42,6 +43,7 @@ describe("إنشاء حساب جديد", () => {
       phone: "22212345678",
       expectedEmail: "demo.ahmed@outlook.com",
       expectedEmailPassword: "demo-pass-1",
+      starlinkPassword: "demo-pass-1",
       kitNumber: "KIT00000DEMO1",
       serialNumber: "",
       creation: { firstName: "أحمد", lastName: "ولد سالم", startedAt: "2026-10-01T10:00:00.000Z" },

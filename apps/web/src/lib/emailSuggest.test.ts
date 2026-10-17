@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { emailBaseFor, latinWord, suggestEmail, suggestPassword } from "./emailSuggest";
+import { emailBaseFor, latinWord, suggestEmail, suggestPassword, WIFI_PASSWORD } from "./emailSuggest";
 
 const fixed = (value: number) => () => value;
 
@@ -25,14 +25,19 @@ describe("✉️ the new email from the account's name (his Oct 17 2026 choice: 
     expect(suggestEmail("", fixed(0.5))).toBe("");
   });
 
-  it("a strong 10-character code Microsoft accepts", () => {
+  it("the account code in his pattern: StarNetOm# + 4 digits no other device has", () => {
     let seed = 7;
     const random = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-    for (let i = 0; i < 20; i++) {
-      const code = suggestPassword(random);
-      expect(code).toHaveLength(10);
-      expect(code).toMatch(/^[A-Z][a-z]{5}\d{3}[#@!$]$/);
-      expect(code).not.toMatch(/[O0l1I]/);
-    }
+    for (let i = 0; i < 20; i++) expect(suggestPassword(random)).toMatch(/^StarNetOm#\d{4}$/);
+    expect(suggestPassword(fixed(0.5))).toBe("StarNetOm#5500");
+    // taken by another device → other digits
+    let n = 0;
+    const steps = () => [0.5, 0.1][n++] ?? 0.9;
+    expect(suggestPassword(steps, ["StarNetOm#5500"])).toBe("StarNetOm#1900");
+  });
+
+  it("one Wi-Fi code for every dish, long enough for it", () => {
+    expect(WIFI_PASSWORD).toBe("starnetom");
+    expect(WIFI_PASSWORD.length).toBeGreaterThanOrEqual(8);
   });
 });

@@ -605,6 +605,12 @@ mind). Exact texts and numbers live in the code - this file says where.
   Email Routing + catch-all to **starnet.om@gmail.com** - a test message arrived. The Gmail «Never send to Spam»
   filter was too hard for him on the phone, so instead the app's Starlink-code search also looks in Spam
   (`includeSpamTrash=true` on `GmailCodes.starlinkListUrl*`; Microsoft/payment searches unchanged).
+- 🔑 **Password patterns** (his Oct 17 2026 choice, «اجعل كل كلمات مرور حساباتي على نوع واحد … مثل star net om»):
+  the account's code = **«StarNetOm#» + 4 digits of its own** (warned: the addresses are guessable, so one code
+  for all would let a customer open others' accounts - he took the per-device digits); the **Wi-Fi code is the
+  same on every dish: «starnetom»** (his choice). New accounts only - existing devices keep theirs. In «إنشاء حساب
+  جديد» both are filled by themselves (editable); the code is saved as the device's Starlink password
+  (`starlinkPassword`) too, and on his domain the field reads «كلمة مرور Starlink» (required, 8+).
 
 ## ✨ Card polish he chose (Oct 17 2026, «ماذا تقترح لتجميل البطاقة»)
 

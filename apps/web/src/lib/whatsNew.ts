@@ -31,6 +31,22 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-17-password-patterns",
+    date: "2026-10-17",
+    title: "🔑 كلمات مرور على نمطك",
+    steps: [
+      {
+        title: "🆕 إنشاء حساب جديد ← 6️⃣ كلمة المرور",
+        before: "كود عشوائي لا يُحفظ في الذاكرة، وعلى النطاق لا خانة لكلمة مرور Starlink.",
+        after: "تُقترح «StarNetOm#» + 4 أرقام لا يملكها جهاز آخر (🔄 لغيرها) - للبريد ولـ Starlink معًا، وتُحفظ على الجهاز.",
+      },
+      {
+        title: "📶 كود الواي فاي",
+        after: "يُكتب «starnetom» وحده - نفسه لكل الأجهزة، ويمكنك تغييره.",
+      },
+    ],
+  },
+  {
     id: "2026-10-17-mail-domain",
     date: "2026-10-17",
     title: "📮 بريد على نطاقك بدل أوتلوك",

@@ -3,7 +3,7 @@
  * Oct 17 2026 choices): «ahmed.salem» + 3 digits @outlook.com - the first name and the last one in
  * Latin letters, the digits so Microsoft doesn't say it's taken - written by itself as he types the
  * name (while the field is empty or still holds the last suggestion), «🔄 اقتراح آخر» for other
- * digits; and a strong 10-character code. Pure (the randomness is passed in).
+ * digits; and the account's code in his own pattern. Pure (the randomness is passed in).
  */
 
 /** Common names, the way they are written in Latin in his market (French-style, like «cheikh»). */
@@ -68,17 +68,21 @@ export function suggestEmail(fullName: string, random: () => number = Math.rando
   return `${base}${digits}@${domain}`;
 }
 
-const UPPER = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-const LOWER = "abcdefghijkmnpqrstuvwxyz";
-const DIGITS = "23456789";
-const SYMBOLS = "#@!$";
+/** 🔑 His Oct 17 2026 pattern for every account (Starlink / its email): «StarNetOm#» + 4 digits of
+ * its own - he knows it at a glance, yet one customer's code never opens another's account (the
+ * addresses are guessable: name + 3 digits). Microsoft and Starlink both accept it. */
+export const ACCOUNT_PASSWORD_PREFIX = "StarNetOm#";
 
-/** A strong 10-character code Microsoft accepts: capital + lower letters + digits + one symbol
- * (no look-alike letters such as O/0, l/1). */
-export function suggestPassword(random: () => number = Math.random): string {
-  const pick = (set: string) => set[Math.floor(random() * set.length)]!;
-  let code = pick(UPPER);
-  for (let i = 0; i < 5; i++) code += pick(LOWER);
-  for (let i = 0; i < 3; i++) code += pick(DIGITS);
-  return code + pick(SYMBOLS);
+/** 📶 His Wi-Fi code: the same on every dish (his choice - it only works next to the dish). */
+export const WIFI_PASSWORD = "starnetom";
+
+/** «StarNetOm#4827» - digits no other device has (`taken`), when possible. */
+export function suggestPassword(random: () => number = Math.random, taken: Iterable<string> = []): string {
+  const used = new Set(taken);
+  let code = "";
+  for (let i = 0; i < 30; i++) {
+    code = ACCOUNT_PASSWORD_PREFIX + (1000 + Math.floor(random() * 9000));
+    if (!used.has(code)) break;
+  }
+  return code;
 }

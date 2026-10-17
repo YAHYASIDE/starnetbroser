@@ -18,10 +18,11 @@ export interface CreationInput {
   kit: string;
   /** The new Outlook address; a bare name gets "@outlook.com". */
   email: string;
+  /** 🔑 The account's code (his «StarNetOm#» + 4 digits): the Outlook mailbox's and Starlink's. */
   password: string;
   /** 📶 The Wi-Fi code to set on the dish (kept on the device). */
   wifiPassword?: string;
-  /** 📮 An address on his forwarded domain: no mailbox to make, so no mailbox code. */
+  /** 📮 An address on his forwarded domain: no mailbox to make - the code is Starlink's only. */
   forwarded?: boolean;
 }
 
@@ -51,8 +52,8 @@ export function creationProblem(input: CreationInput): string | null {
   if (normalizeKit(input.kit).length < 6) return "اكتب رقم KIT أو SN كما على الكاش";
   const email = normalizeNewEmail(input.email);
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return "اكتب البريد الجديد (مثال: name@outlook.com)";
-  // Microsoft refuses a shorter one (a forwarded domain address has no mailbox of its own).
-  if (!input.forwarded && input.password.length < 8) return "كلمة مرور البريد 8 أحرف على الأقل";
+  // Microsoft and Starlink both refuse a shorter one.
+  if (input.password.trim().length < 8) return input.forwarded ? "كلمة مرور Starlink 8 أحرف على الأقل" : "كلمة مرور البريد 8 أحرف على الأقل";
   return null;
 }
 
@@ -70,6 +71,8 @@ export function buildCreatedAccount(
     phone: input.phone?.trim() || base.phone || undefined,
     expectedEmail: normalizeNewEmail(input.email),
     expectedEmailPassword: input.password,
+    // 🔑 Starlink's sign-in uses it too - never the Wi-Fi code, now the same on every dish.
+    ...(input.password.trim() ? { starlinkPassword: input.password.trim() } : {}),
     ...(input.wifiPassword?.trim() ? { wifiPassword: input.wifiPassword.trim() } : {}),
     kitNumber: isKit ? kit : base.kitNumber,
     serialNumber: isKit ? base.serialNumber : kit,

@@ -1,6 +1,6 @@
 "use client";
 
-import { emailBaseFor, suggestEmail, suggestPassword } from "@/lib/emailSuggest";
+import { emailBaseFor, suggestEmail, suggestPassword, WIFI_PASSWORD } from "@/lib/emailSuggest";
 import { isOnMailDomain, loadMailDomain } from "@/lib/mailDomain";
 import { askDeleteCode } from "@/components/DeleteCodePrompt";
 import { cardLabel, loadPaymentCards } from "@/lib/kastCards";
@@ -164,11 +164,18 @@ export function AccountDialog({
       suggestedEmail.current = next;
       update("expectedEmail", next);
     }
+    // 🔑 His Oct 17 2026 patterns: the account's code «StarNetOm#» + its own 4 digits, and the one
+    // Wi-Fi code of every dish - both still editable.
     const code = draft.expectedEmailPassword ?? "";
-    if (!(onDomain && mailDomain) && name.trim() && (!code || code === suggestedCode.current) && !suggestedCode.current) {
-      suggestedCode.current = suggestPassword();
+    if (name.trim() && (!code || code === suggestedCode.current) && !suggestedCode.current) {
+      suggestedCode.current = suggestPassword(Math.random, takenCodes());
       update("expectedEmailPassword", suggestedCode.current);
     }
+    if (name.trim() && !draft.wifiPassword) update("wifiPassword", WIFI_PASSWORD);
+  }
+
+  function takenCodes(): string[] {
+    return (existingAccounts ?? []).flatMap((a) => [a.starlinkPassword, a.expectedEmailPassword]).filter((v): v is string => Boolean(v));
   }
 
   /** 📮 / 📧 switch: the suggestion moves to the other domain (a typed address stays). */
@@ -189,7 +196,7 @@ export function AccountDialog({
   }
 
   function anotherCode() {
-    suggestedCode.current = suggestPassword();
+    suggestedCode.current = suggestPassword(Math.random, takenCodes());
     update("expectedEmailPassword", suggestedCode.current);
   }
 
@@ -514,16 +521,14 @@ export function AccountDialog({
               <FieldDuplicate hits={duplicates} field="email" />
             </label>
 
-            {!(onDomain && mailDomain) && (
             <label className="form-field add-field add-field-code">
-              <span className="add-field-label"><b aria-hidden="true">6️⃣</b> كود البريد * (8 أحرف أو أكثر)</span>
+              <span className="add-field-label"><b aria-hidden="true">6️⃣</b> {onDomain && mailDomain ? "كلمة مرور Starlink *" : "كود البريد وStarlink *"} (8 أحرف أو أكثر)</span>
               <div className="suggest-input-row">
                 <input dir="ltr" value={draft.expectedEmailPassword ?? ""} onChange={(e) => update("expectedEmailPassword", e.target.value)} placeholder="كلمة المرور" />
                 <button type="button" className="suggest-again" onClick={anotherCode} title="كود آخر">🔄</button>
               </div>
               <PasswordChips values={passwordSuggestions} current={draft.expectedEmailPassword} onPick={(v) => update("expectedEmailPassword", v)} />
             </label>
-            )}
 
             <div className="form-field add-field add-field-client">
               <span className="add-field-label"><b aria-hidden="true">7️⃣</b> الزبون (اختياري - يُسجَّل عليه الجهاز)</span>
