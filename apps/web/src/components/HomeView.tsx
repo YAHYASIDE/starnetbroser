@@ -2,7 +2,7 @@
 
 import { isRepDevice } from "@/lib/repSeparation";
 import { isRepWorkspace, repCan } from "@/lib/repMode";
-import { deviceTwins, mergeDevices } from "@/lib/deviceMerge";
+import { deviceTwins, mergeDevices, notDuplicatePatches } from "@/lib/deviceMerge";
 import { currentRepPending } from "@/lib/repWorkspace";
 import { loadRepChangesSent, shareRepChanges, type RepChangesSent } from "@/lib/repChangesSend";
 import { REP_INBOX_EVENT, repInboxCount } from "@/lib/repInbox";
@@ -1629,6 +1629,23 @@ export function HomeView({
     pushToast(`🔗 دُمج «${drop.name}» في «${keep.name}»${result.movedEntries ? ` - انتقلت ${result.movedEntries} عملية` : ""}، والمكرّر في السلة`);
   }
 
+  /** 🔗 «✕» on «⚠️ مكرّر» - two different devices: the mark goes from both, for good. */
+  function handleNotDuplicate(account: StarlinkAccountSummary, twin: StarlinkAccountSummary) {
+    for (const { id, patch } of notDuplicatePatches(account, twin)) patchAccount(id, patch);
+    pushToast(`✓ «${account.name}» و«${twin.name}» ليسا مكرّرين`);
+  }
+
+  /** 🔗 Every «⚠️ مكرّر» mark away at once (the «مكرر» circle). */
+  function clearAllDuplicates() {
+    setRingMenu(null);
+    const pairs = duplicatePairs(deviceTwinMap, activeAccounts, ledgerStore);
+    if (pairs.length === 0) return;
+    if (!window.confirm(`إزالة علامة «مكرّر» عن ${pairs.length * 2} جهاز؟\n\nلا يُحذف ولا يُدمج شيء - تُزال العلامة فقط ولا تعود لهذه الأزواج.`)) return;
+    for (const { keep, drop } of pairs) for (const { id, patch } of notDuplicatePatches(keep, drop)) patchAccount(id, patch);
+    if (statFilter === "duplicate") setStatFilter(null);
+    pushToast(`✓ أُزيلت علامة «مكرّر» عن ${pairs.length * 2} جهاز`);
+  }
+
   function handleSoftDelete(account: StarlinkAccountSummary) {
     patchAccount(account.id, { deletedAt: new Date().toISOString() });
   }
@@ -2051,6 +2068,11 @@ export function HomeView({
           {ringMenu.kind === "duplicate" && !isRepWorkspace() && (
             <button type="button" className="card-more-item" onClick={mergeAllDuplicates}>
               <span aria-hidden="true">🔗</span> دمج كل المكرر <small>المكرر يذهب للسلة</small>
+            </button>
+          )}
+          {ringMenu.kind === "duplicate" && !isRepWorkspace() && (
+            <button type="button" className="card-more-item" onClick={clearAllDuplicates}>
+              <span aria-hidden="true">✕</span> إزالة علامة «مكرّر» عن الكل <small>ليست أجهزة مكررة</small>
             </button>
           )}
           {ringMenu.kind === "fromRep" && (
@@ -2685,9 +2707,14 @@ export function HomeView({
                   </button>
                 )}
                 {statFilter === "duplicate" && visible.length > 0 && !isRepWorkspace() && (
-                  <button className="text-action" onClick={mergeAllDuplicates}>
-                    🔗 دمج كل المكرر
-                  </button>
+                  <>
+                    <button className="text-action" onClick={mergeAllDuplicates}>
+                      🔗 دمج كل المكرر
+                    </button>
+                    <button className="text-action" onClick={clearAllDuplicates}>
+                      ✕ إزالة العلامة عن الكل
+                    </button>
+                  </>
                 )}
                 <button className="text-action" onClick={() => setStatFilter(null)}>مسح التصفية</button>
               </div>
@@ -2785,6 +2812,7 @@ export function HomeView({
                 repClientName={ownerView && account.representativeId ? account.repClientName : undefined}
                 twin={viewMode === "active" ? deviceTwinMap.get(account.id) : undefined}
                 onMergeInto={viewMode === "active" && !isRepWorkspace() ? handleMergeDevices : undefined}
+                onNotDuplicate={viewMode === "active" && !isRepWorkspace() ? handleNotDuplicate : undefined}
                 mailSignedIn={mailSignedIds.has(account.id)}
                 onOpenClient={(selectedClient) => setOpenClientId(selectedClient.id)}
                 currencyStore={currencyStore}

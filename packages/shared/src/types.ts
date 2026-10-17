@@ -208,6 +208,9 @@ export interface StarlinkAccountSummary {
   addedByRepId?: string;
   /** When the operator approved it (ISO). */
   addedByRepAt?: string;
+  /** 🔗 Devices the operator said are NOT the same as this one (his Oct 17 2026 ask «تكرار الأجهزة يمكن
+   * إزالته») - their «⚠️ مكرّر» mark is gone for good, on both cards. */
+  notDuplicateOf?: string[];
   /** 👤 The rep's own customer on this device, by name - sent with his «تسجيلاتي» for information
    * only (his Oct 13 2026 choice): never one of the operator's customers, never a debt. */
   repClientName?: string;

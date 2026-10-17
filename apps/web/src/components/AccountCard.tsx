@@ -109,6 +109,8 @@ interface Props {
   /** 🔗 The same device registered again (same email or KIT) - merge this one into it. */
   twin?: StarlinkAccountSummary;
   onMergeInto?: (drop: StarlinkAccountSummary, keep: StarlinkAccountSummary) => void;
+  /** 🔗 «✕» on «⚠️ مكرّر»: they are two different devices - the mark goes from both. */
+  onNotDuplicate?: (account: StarlinkAccountSummary, twin: StarlinkAccountSummary) => void;
   /** 🛂 «✅ تم التوثيق» (tells its rep). */
   onTravelDone?: (account: StarlinkAccountSummary) => void;
   /** 🛂 «🔄 تحقق الآن»: reads this device's Home only. */
@@ -161,15 +163,6 @@ interface Props {
     settleFromCard: boolean | null,
     payOpenD: boolean,
   ) => void;
-}
-
-/** First letter of the first two words (e.g. "محمد لمين" -> "م ل") - never more than that, so a
- * long name never overflows the small avatar circle. */
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "؟";
-  if (parts.length === 1) return parts[0].slice(0, 1);
-  return `${parts[0].slice(0, 1)} ${parts[1].slice(0, 1)}`;
 }
 
 function IconDish() {
@@ -253,6 +246,7 @@ export function AccountCard({
   repClientName,
   twin,
   onMergeInto,
+  onNotDuplicate,
   onTravelDone,
   onTravelCheck,
   showTravelVerified = false,
@@ -700,7 +694,6 @@ export function AccountCard({
       )}
 
       <div className="account-card-top-row">
-        <div className="account-card-avatar" aria-hidden="true">{initials(account.name)}</div>
         <div className="account-card-title-block">
           <h3 className="account-card-name">{account.name}</h3>
           {client ? (
@@ -792,6 +785,19 @@ export function AccountCard({
             }}
           >
             ⚠️ مكرّر · دمج
+          </button>
+        )}
+        {twin && onNotDuplicate && (
+          <button
+            type="button"
+            className="duplicate-chip-clear"
+            aria-label={`ليس مكرّرًا مع «${twin.name}»`}
+            title="ليسا نفس الجهاز - أزل علامة التكرار"
+            onClick={() => {
+              if (window.confirm(`«${account.name}» و«${twin.name}» جهازان مختلفان؟\n\nتُزال علامة «مكرّر» عن الاثنين ولا تعود. لا يُحذف ولا يُدمج شيء.`)) onNotDuplicate(account, twin);
+            }}
+          >
+            ✕
           </button>
         )}
         {repPending && (

@@ -36,7 +36,7 @@ describe("🫧 the two service bubbles - his screenshots, one by one (Oct 17 202
   });
 
   it("suspended for billing keeps his plan; an unknown plan shows nothing", () => {
-    expect(serviceBubbles({ planName: roam, serviceStatus: "suspended" }, TODAY)).toEqual({ now: "ROM", next: "ROM" });
+    expect(serviceBubbles({ planName: roam, serviceStatus: "suspended" }, TODAY)).toEqual({ now: "ROM", next: "ROM", billing: true });
     expect(serviceBubbles({ planName: "Residential", serviceStatus: "active" }, TODAY)).toBeNull();
     expect(serviceBubbles({}, TODAY)).toBeNull();
   });

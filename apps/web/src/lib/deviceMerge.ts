@@ -35,10 +35,23 @@ export function deviceTwins(accounts: StarlinkAccountSummary[]): Map<string, Sta
   const active = accounts.filter((a) => !a.deletedAt && !a.archivedAt);
   const out = new Map<string, StarlinkAccountSummary>();
   for (const a of active) {
-    const twin = sameDeviceAs(a, active);
+    // A pair he marked «ليس مكرّرًا» is never a twin again (either card's list counts).
+    const others = active.filter((o) => !isMarkedNotDuplicate(a, o));
+    const twin = sameDeviceAs(a, others);
     if (twin) out.set(a.id, twin.account);
   }
   return out;
+}
+
+/** 🔗 He said these two are different devices (`notDuplicateOf` on either one). */
+export function isMarkedNotDuplicate(a: StarlinkAccountSummary, b: StarlinkAccountSummary): boolean {
+  return Boolean(a.notDuplicateOf?.includes(b.id) || b.notDuplicateOf?.includes(a.id));
+}
+
+/** «✕» on «⚠️ مكرّر»: the patch for each of the two devices (each remembers the other). */
+export function notDuplicatePatches(a: StarlinkAccountSummary, b: StarlinkAccountSummary): { id: string; patch: Pick<StarlinkAccountSummary, "notDuplicateOf"> }[] {
+  const add = (self: StarlinkAccountSummary, other: string) => ({ id: self.id, patch: { notDuplicateOf: [...new Set([...(self.notDuplicateOf ?? []), other])] } });
+  return [add(a, b.id), add(b, a.id)];
 }
 
 export interface MergeResult {

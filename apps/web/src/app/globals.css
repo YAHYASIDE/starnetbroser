@@ -15724,6 +15724,37 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
 .svc-100g { color: var(--violet); background: var(--violet-bg); }
 .svc-sis { color: var(--yellow); background: var(--yellow-bg); }
 .svc-stop { color: var(--red); background: var(--red-bg); }
+/* 🧾 «ROM - FACTUR»: his plan, stopped by an unpaid bill. */
+.svc-billing { color: var(--orange); background: var(--orange-bg); }
 
 .status-ring-toSis { --tone: var(--yellow); }
 .status-ring-toStop { --tone: var(--red); }
+
+/* 🔗 «✕» beside «⚠️ مكرّر · دمج»: not the same device - the mark goes. */
+.duplicate-chip-clear {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-inline-start: -4px;
+  padding: 0;
+  border: 1px solid var(--orange);
+  border-radius: 999px;
+  background: var(--orange-bg);
+  color: var(--orange);
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* 🫧 With the service bubbles the top row can carry several chips: the name keeps its room and the
+ * chips go to a second line instead of squeezing it away (360px). */
+.account-card-top-row {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+.account-card-top-row > .account-card-title-block {
+  flex: 1 1 130px;
+}

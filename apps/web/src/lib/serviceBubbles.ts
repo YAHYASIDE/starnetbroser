@@ -10,7 +10,8 @@
  *   Standby Mode + Standby Mode              → SIS  → SIS
  *   Standby Mode + Ending                    → SIS  → STOP (date)
  *   Inactive (after the end)                 → STOP → STOP
- *   suspended for billing                    → his plan (the red «موقوف» stays beside it)
+ *   suspended for billing                    → «ROM - FACTUR» (his plan, stopped by the bill - his
+ *                                              Oct 17 2026 ask; the red «موقوف» stays beside it)
  * A SIS device never goes back to ROM or 100G. Pure.
  */
 
@@ -24,6 +25,8 @@ export interface ServiceBubbles {
   next: ServiceKind;
   /** When `next` starts, "YYYY/MM/DD" - only when it differs from `now`. */
   nextDate?: string;
+  /** 🧾 Stopped by an unpaid bill right now: the first bubble reads «ROM - FACTUR». */
+  billing?: boolean;
 }
 
 type Device = Partial<Pick<StarlinkAccountSummary, "planName" | "serviceStatus" | "noSubscription" | "pendingCancellationDate" | "pendingStandbyDate">>;
@@ -54,9 +57,10 @@ export function serviceBubbles(device: Device, today: string): ServiceBubbles | 
   if (!plan) return null;
   // The standby switch has come: SIS now.
   const now: ServiceKind = plan !== "SIS" && standbyDay && standbyDay <= today ? "SIS" : plan;
-  if (endDay) return { now, next: "STOP", nextDate: device.pendingCancellationDate };
-  if (now !== "SIS" && standbyDay) return { now, next: "SIS", nextDate: device.pendingStandbyDate };
-  return { now, next: now };
+  const billing = effectiveServiceStatus(device) === "suspended" ? { billing: true } : {};
+  if (endDay) return { now, next: "STOP", nextDate: device.pendingCancellationDate, ...billing };
+  if (now !== "SIS" && standbyDay) return { now, next: "SIS", nextDate: device.pendingStandbyDate, ...billing };
+  return { now, next: now, ...billing };
 }
 
 /** «→ SIS» / «→ STOP» circles: what changes after this month. */

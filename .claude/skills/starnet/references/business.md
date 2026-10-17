@@ -573,6 +573,13 @@ mind). Exact texts and numbers live in the code - this file says where.
   shows such a stored «plan» (`cleanPlanName`); the bubbles appear after that device's next sync.
 - «ملغى لماذا هنا»: the red «ملغى» chip is hidden when the bubbles show (STOP + date says it); «🛑 إلغاء الاشتراك» stays
   in the card's ⋯ menu.
+- «موقوف بسبب الفاتورة … يظهر مفعّل بـ Rom- factur»: a device suspended for billing shows «ROM - FACTUR» (or
+  «100G - FACTUR») in orange as its first bubble; the second bubble and the red «موقوف» stay.
+- «أزل أيقونة صورة الشخص (ش ح)»: the initials circle at the top of every card is gone; the top row now wraps
+  so the name never gets squeezed by the chips.
+- «تكرار الأجهزة يمكن إزالته - إزالة كلمة تكرار»: «✕» beside «⚠️ مكرّر · دمج» = two different devices -
+  both remember it (`notDuplicateOf`, backed up) and the pair is never a twin again; the «مكرر» circle and its
+  list header also have «✕ إزالة العلامة عن الكل». Nothing is merged or deleted.
 
 ## 🔑 A rep's permissions, chosen before each copy (Oct 17 2026)
 

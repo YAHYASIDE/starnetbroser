@@ -10,9 +10,11 @@ export function ServiceBubbles({ bubbles }: { bubbles: Bubbles }) {
     <span
       className="svc-bubbles"
       data-tour="service-bubbles"
-      title={`الآن: ${SERVICE_LABELS[bubbles.now]} · بعد انتهاء الشهر: ${SERVICE_LABELS[bubbles.next]}${bubbles.nextDate ? ` (${bubbles.nextDate})` : ""}`}
+      title={`الآن: ${SERVICE_LABELS[bubbles.now]}${bubbles.billing ? " - موقوف بسبب الفاتورة" : ""} · بعد انتهاء الشهر: ${SERVICE_LABELS[bubbles.next]}${bubbles.nextDate ? ` (${bubbles.nextDate})` : ""}`}
     >
-      <span className={`svc-bubble ${CLASS[bubbles.now]}`}>{bubbles.now}</span>
+      <span className={`svc-bubble ${bubbles.billing ? "svc-billing" : CLASS[bubbles.now]}`}>
+        {bubbles.billing ? `${bubbles.now} - FACTUR` : bubbles.now}
+      </span>
       <span className="svc-arrow" aria-hidden="true">←</span>
       <span className={`svc-bubble ${CLASS[bubbles.next]}`}>
         {bubbles.next}
