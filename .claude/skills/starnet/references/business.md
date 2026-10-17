@@ -601,6 +601,10 @@ mind). Exact texts and numbers live in the code - this file says where.
   code for such a device is read from «بريد الرموز» with `to:<its address>` (never another device's code). Warned:
   renew the domain for years - if it lapses every device's mail stops; the addresses receive only. Try one
   device first (Starlink accepting a custom domain wasn't tested here).
+- His setup (Oct 17 2026): domain **starnet-om.com** bought on Cloudflare (registrant email starnet.om@gmail.com),
+  Email Routing + catch-all to **starnet.om@gmail.com** - a test message arrived. The Gmail «Never send to Spam»
+  filter was too hard for him on the phone, so instead the app's Starlink-code search also looks in Spam
+  (`includeSpamTrash=true` on `GmailCodes.starlinkListUrl*`; Microsoft/payment searches unchanged).
 
 ## ✨ Card polish he chose (Oct 17 2026, «ماذا تقترح لتجميل البطاقة»)
 

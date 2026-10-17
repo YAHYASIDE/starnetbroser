@@ -43,11 +43,15 @@ final class GmailCodes {
     /** Starlink's own messages of the last day (its codes come from starlink.com / spacex.com). */
     static final String STARLINK_QUERY = "newer_than:1d (from:starlink.com OR from:spacex.com)";
 
+    /** 🗑️ Spam too (his Oct 17 2026 ask): Gmail often files a forwarded domain's Starlink mail as
+     * spam, and the API skips spam unless asked - so the code was never found. */
+    private static final String STARLINK_LIST = MESSAGES_URL + "?maxResults=5&includeSpamTrash=true";
+
     static String starlinkListUrl() {
         try {
-            return MESSAGES_URL + "?maxResults=5&q=" + URLEncoder.encode(STARLINK_QUERY, StandardCharsets.UTF_8.name());
+            return STARLINK_LIST + "&q=" + URLEncoder.encode(STARLINK_QUERY, StandardCharsets.UTF_8.name());
         } catch (java.io.UnsupportedEncodingException e) {
-            return MESSAGES_URL + "?maxResults=5";
+            return STARLINK_LIST;
         }
     }
 
@@ -55,9 +59,9 @@ final class GmailCodes {
     static String starlinkListUrlTo(String recipient) {
         String query = STARLINK_QUERY + " to:" + recipient.trim().toLowerCase(Locale.ROOT);
         try {
-            return MESSAGES_URL + "?maxResults=5&q=" + URLEncoder.encode(query, StandardCharsets.UTF_8.name());
+            return STARLINK_LIST + "&q=" + URLEncoder.encode(query, StandardCharsets.UTF_8.name());
         } catch (java.io.UnsupportedEncodingException e) {
-            return MESSAGES_URL + "?maxResults=5";
+            return STARLINK_LIST;
         }
     }
 

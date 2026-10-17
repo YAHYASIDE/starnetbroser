@@ -62,6 +62,10 @@ public class GmailCodesTest {
         assertTrue(GmailCodes.isStarlinkSender("SpaceX <noreply@spacex.com>"));
         assertFalse(GmailCodes.isStarlinkSender("alerts@demo-bank.example"));
         assertTrue(GmailCodes.starlinkListUrl().contains("starlink.com"));
+        // 🗑️ Spam too - a forwarded domain's Starlink mail often lands there.
+        assertTrue(GmailCodes.starlinkListUrl().contains("includeSpamTrash=true"));
+        assertTrue(GmailCodes.starlinkListUrlTo("ahmed.salem427@starnet-om.com").contains("includeSpamTrash=true"));
+        assertFalse(GmailCodes.listUrl().contains("includeSpamTrash"));
     }
 
     @Test
