@@ -97,8 +97,21 @@ describe("🫧 plan states for the service bubbles - his Oct 17 2026 screenshots
       <div><p>Service Plan</p><div>Ending 2026/11/17</div><div><button>Manage</button></div><div>Standby Mode</div></div>
     `);
     expect(fields.pendingCancellationDate).toBe("2026/11/17");
+    expect(fields.planName).toBe("Standby Mode");
     expect(fields.pendingStandbyDate).toBeUndefined();
     expect(fields.serviceStatus).toBe("active");
+  });
+
+  it("the «Ending ٢٠٢٦/١١/١١» badge is never the plan name (real, confirmed - his screenshot)", () => {
+    const fields = read(`
+      <div><div>Your service is scheduled to end on 11/11/2026.</div><button>Resume</button></div>
+      <div><div>Nickname</div><div>Roam - 100GB</div><div><button>Edit</button></div></div>
+      <div><div>Service Plan</div><div>Ending ٢٠٢٦/١١/١١</div><div><button>Manage</button></div><div>Roam - 100GB</div></div>
+    `);
+    expect(fields.planName).toBe("Roam - 100GB");
+    expect(fields.pendingCancellationDate).toBe("2026/11/11");
+    const sameLine = read(`<div>Service Plan Ending ٢٠٢٦/١١/١١</div><div><button>Manage</button></div><div>Roam - Unlimited</div>`);
+    expect(sameLine.planName).toBe("Roam - Unlimited");
   });
 
   it("a SIS plan running: no end, no switch", () => {

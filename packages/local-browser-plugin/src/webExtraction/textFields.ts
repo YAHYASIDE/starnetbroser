@@ -541,6 +541,13 @@ export function isStandbyModePlan(planName: string | undefined): boolean {
   return /وضع الاستعداد|standby mode/i.test(stripArabicDiacritics(planName ?? "").trim()) && !/قيد التعليق|pending/i.test(planName ?? "");
 }
 
+/** 🫧 The plan card's own badge, never a plan name: «Ending ٢٠٢٦/١١/١١» / «Ends 9/28/2026» /
+ * «النهاية ٢٠٢٦/٩/٢٨» (real, confirmed: «Ending ٢٠٢٦/١١/١١» was saved as the plan of a «Roam - 100GB»
+ * device, so its service bubbles never showed). */
+export function isPlanDateBadge(text: string): boolean {
+  return /^(ending|ends?|النهاية|ينتهي|تنتهي)\s*[\d\u0660-\u0669]/i.test(stripArabicDiacritics(text).trim());
+}
+
 export function extractPlanName(lines: string[]): string | undefined {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -553,7 +560,7 @@ export function extractPlanName(lines: string[]): string | undefined {
       // used» was saved as the plan name ("'s travel allowance is used.").
       if (idx > 0 && !label.includes(" ")) continue;
       const afterLabel = stripLeadingSeparator(line.slice(idx + label.length)).trim();
-      if (afterLabel && !normalizeServiceStatus(afterLabel) && !looksLikeAddress(afterLabel)) return afterLabel;
+      if (afterLabel && !normalizeServiceStatus(afterLabel) && !isPlanDateBadge(afterLabel) && !looksLikeAddress(afterLabel)) return afterLabel;
       let skippedBadge = false;
       for (let j = i + 1; j < lines.length; j++) {
         const next = lines[j].trim();
@@ -561,7 +568,7 @@ export function extractPlanName(lines: string[]): string | undefined {
         // Real, confirmed SIS device: badge "وضع الاستعداد" then the plan name "وضع الاستعداد" -
         // the second one is the plan itself (Starlink's Standby Mode plan), not another badge.
         if (skippedBadge && isStandbyModePlan(next)) return next;
-        if (normalizeServiceStatus(next)) {
+        if (normalizeServiceStatus(next) || isPlanDateBadge(next)) {
           skippedBadge = true;
           continue;
         }

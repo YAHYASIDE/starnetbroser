@@ -15,7 +15,7 @@
  */
 
 import type { StarlinkAccountSummary } from "@starnet/shared";
-import { effectiveServiceStatus, planBadgeLabel } from "./status";
+import { cleanPlanName, effectiveServiceStatus, planBadgeLabel } from "./status";
 
 export type ServiceKind = "ROM" | "100G" | "SIS" | "STOP";
 
@@ -36,7 +36,7 @@ function dayKey(date: string | undefined): string | undefined {
 
 /** The plan as one of the services, from Starlink's plan name. */
 function planKind(planName: string | undefined): ServiceKind | undefined {
-  const label = planBadgeLabel(planName);
+  const label = planBadgeLabel(cleanPlanName(planName));
   return label === "ROM" || label === "100G" || label === "SIS" ? label : undefined;
 }
 

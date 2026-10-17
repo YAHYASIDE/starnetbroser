@@ -14,6 +14,14 @@ describe("presentServiceStatus", () => {
   });
 });
 
+describe("cleanPlanName - the plan card's badge is not a plan", () => {
+  it("drops «Ending ٢٠٢٦/١١/١١» saved by an older read (real, confirmed)", () => {
+    expect(cleanPlanName("Ending ٢٠٢٦/١١/١١")).toBeUndefined();
+    expect(cleanPlanName("Ends 9/28/2026")).toBeUndefined();
+    expect(cleanPlanName("Roam - 100GB")).toBe("Roam - 100GB");
+  });
+});
+
 describe("planBadgeLabel", () => {
   it("reads Starlink's real names «Roam - Unlimited» / «Roam - 100GB» (his Oct 17 2026 screenshots)", () => {
     expect(planBadgeLabel("Roam - Unlimited")).toBe("ROM");

@@ -568,6 +568,9 @@ mind). Exact texts and numbers live in the code - this file says where.
   STOP); «Roam - Unlimited» wasn't recognized as ROM (only «Roaming»); the travel banner «…your plan's travel
   allowance…» was saved as the plan name. A plain plan card (Active / Standby Mode, no banner) now clears an
   older end / switch date (`planChangePending: false`) - «Keep Current Service» / «Resume» pressed.
+- His first try («غير جيد لم تظهرهم»): an «Ending» device still showed «نشط» + «Ending ٢٠٢٦/١١/١١» as its plan -
+  the reader had taken the badge for the plan name. Fixed in the reader (`isPlanDateBadge`) and the app never
+  shows such a stored «plan» (`cleanPlanName`); the bubbles appear after that device's next sync.
 
 ## 🔑 A rep's permissions, chosen before each copy (Oct 17 2026)
 

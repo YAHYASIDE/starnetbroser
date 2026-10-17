@@ -142,7 +142,9 @@ plus the rules learned from real misreads; keep it updated when you learn a new 
 - 🫧 Plan states (his Oct 17 2026 screenshots): the badge «**Inactive**» contains «active» - it is checked
   first and means the service ended (`canceled` = STOP); Starlink prints «**Roam - Unlimited**» (not only
   «Roaming») = ROM; a bare «plan» label counts only at the start of a line (the travel banner «…your
-  plan's travel allowance…» was once read as the plan name). A plain plan badge with no end / switch
+  plan's travel allowance…» was once read as the plan name); the plan card's own badge «Ending ٢٠٢٦/١١/١١»
+  / «Ends …» / «النهاية …» is skipped like a status badge (`isPlanDateBadge`) - it was saved as the plan of a
+  «Roam - 100GB» device, so the bubbles never showed (real, confirmed). A plain plan badge with no end / switch
   banner sets `planChangePending: false`, which clears an older end / switch date in the merge.
 - Never put real account data in tests or fixtures; fake values only.
 - 🔄 A hidden WebView (`AutoSyncWorker`, never attached to a window) often doesn't render Starlink's

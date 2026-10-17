@@ -41,6 +41,9 @@ export interface BadgePresentation {
  * ("... Kyiv Oblast 08720, UA" - a plan name never has commas). */
 export function cleanPlanName(planName: string | undefined): string | undefined {
   const trimmed = planName?.trim();
+  // An older read saved the plan card's badge «Ending ٢٠٢٦/١١/١١» as the plan (fixed in the reader) -
+  // never shown as a plan; the next sync reads the real one.
+  if (trimmed && /^(ending|ends?|النهاية|ينتهي|تنتهي)\s*[\d\u0660-\u0669]/i.test(trimmed)) return undefined;
   return trimmed && !/[,،]/.test(trimmed) ? trimmed : undefined;
 }
 
