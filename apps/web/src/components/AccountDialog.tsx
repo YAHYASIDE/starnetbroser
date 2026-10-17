@@ -477,12 +477,12 @@ export function AccountDialog({
             <CreationToggle creating onChange={setCreating} />
             {/* His Oct 17 2026 order: name · phone · KIT/SN · Wi-Fi · email + its code · customer (optional) · rep. */}
             <label className="form-field add-field add-field-name">
-              <span className="add-field-label"><b aria-hidden="true">1️⃣</b> اسم الحساب الكامل *</span>
+              <span className="add-field-label"><b className="add-field-num" aria-hidden="true">1</b> اسم الحساب الكامل *</span>
               <input value={creationName} onChange={(e) => changeCreationName(e.target.value)} placeholder="الاسم والعائلة" autoComplete="off" />
             </label>
 
             <div className="form-field add-field add-field-phone">
-              <span className="add-field-label"><b aria-hidden="true">2️⃣</b> رقم الهاتف</span>
+              <span className="add-field-label"><b className="add-field-num" aria-hidden="true">2</b> رقم الهاتف</span>
               <div className="phone-input-row">
                 <select className="phone-country-select" dir="ltr" value={phoneDialCode} onChange={(e) => updatePhoneDialCode(e.target.value)} aria-label="رمز الدولة">
                   {PHONE_COUNTRY_CODES.map((c) => (
@@ -495,19 +495,19 @@ export function AccountDialog({
             </div>
 
             <label className="form-field add-field add-field-kit">
-              <span className="add-field-label"><b aria-hidden="true">3️⃣</b> رقم KIT أو SN *</span>
+              <span className="add-field-label"><b className="add-field-num" aria-hidden="true">3</b> رقم KIT أو SN *</span>
               <input dir="ltr" value={draft.kitNumber} onChange={(e) => update("kitNumber", e.target.value)} placeholder="KIT…" autoCapitalize="characters" />
               <FieldDuplicate hits={duplicates} field="kit" />
             </label>
 
             <label className="form-field add-field add-field-wifi">
-              <span className="add-field-label"><b aria-hidden="true">4️⃣</b> كود الواي فاي</span>
+              <span className="add-field-label"><b className="add-field-num" aria-hidden="true">4</b> كود الواي فاي</span>
               <input dir="ltr" value={draft.wifiPassword ?? ""} onChange={(e) => update("wifiPassword", e.target.value)} placeholder="اختياري" />
               <PasswordChips values={passwordSuggestions} current={draft.wifiPassword} onPick={(v) => update("wifiPassword", v)} />
             </label>
 
             <label className="form-field add-field add-field-email">
-              <span className="add-field-label"><b aria-hidden="true">5️⃣</b> {onDomain && mailDomain ? "البريد على نطاقك (يصل إلى Gmail) *" : "البريد الجديد (أوتلوك) *"}</span>
+              <span className="add-field-label"><b className="add-field-num" aria-hidden="true">5</b> {onDomain && mailDomain ? "البريد على نطاقك (يصل إلى Gmail) *" : "البريد الجديد (أوتلوك) *"}</span>
               {mailDomain && (
                 <span className="mail-domain-switch" role="radiogroup" aria-label="نوع البريد">
                   <button type="button" role="radio" aria-checked={onDomain} className={onDomain ? "active" : ""} onClick={() => switchDomain(true)}>📮 @{mailDomain}</button>
@@ -522,7 +522,10 @@ export function AccountDialog({
             </label>
 
             <label className="form-field add-field add-field-code">
-              <span className="add-field-label"><b aria-hidden="true">6️⃣</b> {onDomain && mailDomain ? "كلمة مرور Starlink *" : "كود البريد وStarlink *"} (8 أحرف أو أكثر)</span>
+              <span className="add-field-label"><b className="add-field-num" aria-hidden="true">6</b> {onDomain && mailDomain ? "🔑 كلمة مرور Starlink *" : "كود البريد وStarlink * (8 أحرف أو أكثر)"}</span>
+              {onDomain && mailDomain && (
+                <small className="add-field-note">لحساب Starlink فقط (8 أحرف أو أكثر) - اكتبها عند رسالة «تعيين كلمة مرور». البريد على نطاقك لا كلمة مرور له.</small>
+              )}
               <div className="suggest-input-row">
                 <input dir="ltr" value={draft.expectedEmailPassword ?? ""} onChange={(e) => update("expectedEmailPassword", e.target.value)} placeholder="كلمة المرور" />
                 <button type="button" className="suggest-again" onClick={anotherCode} title="كود آخر">🔄</button>
@@ -531,12 +534,12 @@ export function AccountDialog({
             </label>
 
             <div className="form-field add-field add-field-client">
-              <span className="add-field-label"><b aria-hidden="true">7️⃣</b> الزبون (اختياري - يُسجَّل عليه الجهاز)</span>
+              <span className="add-field-label"><b className="add-field-num" aria-hidden="true">7</b> الزبون (اختياري - يُسجَّل عليه الجهاز)</span>
               <ClientPicker clients={clients} selectedClientId={draft.clientId} onSelect={pickCreationClient} onCreateClient={createCreationClient} />
             </div>
 
             <div className="form-field add-field add-field-rep">
-              <span className="add-field-label"><b aria-hidden="true">8️⃣</b> المندوب</span>
+              <span className="add-field-label"><b className="add-field-num" aria-hidden="true">8</b> المندوب</span>
               <RepresentativePicker
                 representatives={representatives}
                 selectedRepresentativeId={draft.representativeId}

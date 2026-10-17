@@ -8961,6 +8961,25 @@ button.today-tile {
 }
 
 .add-field-label b { font-weight: normal; }
+/* Plain digits in a ring: some Android web views draw the 1️⃣ keycap emojis as «1□». */
+.add-field-label .add-field-num {
+  display: inline-grid;
+  place-items: center;
+  width: 1.45em;
+  height: 1.45em;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  font-size: 0.85em;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.add-field-note {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
 
 .add-field input:focus,
 .add-field textarea:focus {

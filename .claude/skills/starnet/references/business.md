@@ -611,6 +611,8 @@ mind). Exact texts and numbers live in the code - this file says where.
   same on every dish: «starnetom»** (his choice). New accounts only - existing devices keep theirs. In «إنشاء حساب
   جديد» both are filled by themselves (editable); the code is saved as the device's Starlink password
   (`starlinkPassword`) too, and on his domain the field reads «كلمة مرور Starlink» (required, 8+).
+  He asked «كود الإيميل ما فائدته والإيميل لا يعمل أساسًا»: on his domain the email has no password at all - the
+  field is only Starlink's account password (a note under it says so).
 
 ## ✨ Card polish he chose (Oct 17 2026, «ماذا تقترح لتجميل البطاقة»)
 
