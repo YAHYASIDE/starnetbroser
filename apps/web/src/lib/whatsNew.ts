@@ -31,6 +31,19 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-17-rep-paste-copy",
+    date: "2026-10-17",
+    title: "📝 المندوب يلصق نسخته هنا",
+    steps: [
+      {
+        path: "/",
+        title: "📋 أجهزتي ← 📝 أو الصق نص النسخة هنا",
+        before: "كانت النسخة تُفتح من ملف فقط.",
+        after: "يمكن لصق نص النسخة مباشرة وإضافتها بزر «➕ أضف النسخة»، بنفس التحقق والحماية كالملف.",
+      },
+    ],
+  },
+  {
     id: "2026-10-16-activation-code",
     date: "2026-10-16",
     title: "🔐 التطبيق يحتاج كود التفعيل",

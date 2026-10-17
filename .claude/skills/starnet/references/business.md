@@ -494,6 +494,13 @@ mind). Exact texts and numbers live in the code - this file says where.
   number of chunks, site-wide), stale per-host chunks mix with the new ones and the ticket no longer reads. The sheet says: Cookie-Editor «Delete All» before Import, never re-paste an old copy,
   never «Sign out» in the other browser (one session - it signs the app out too).
 
+## 📝 The rep can paste his copy's text (Oct 17 2026)
+
+- His ask «اجعل للمندوب مكان يضيف فيه نسخه». Until now the rep's «📋 أجهزتي» only opened a copy file (from Telegram
+  or picked). Now «📝 أو الصق نص النسخة هنا» (`RepCopyView`): a text box + «➕ أضف النسخة» → the same
+  `applyRepCopyText` (format check, the rep's code, «أقدم من التي عندك» refusal, sessions) as a file. Nothing new is
+  stored or sent; the paste only replaces the file pick.
+
 ## 🔐 «تفعيل التطبيق»: every installed copy needs his code once (Oct 16 2026)
 
 - His ask: «أي نسخة من التطبيق تنزل تكون محمية بكود ولا يمكن اختراقه، لكي عندما يأخذ أحد نسخة من التطبيق لا يمكنه

@@ -26,6 +26,9 @@ export function RepCopyView({ code }: { code: string }) {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState<RepCopyDevice | null>(null);
+  // 📝 A place to paste the copy's text (his Oct 17 2026 ask «اجعل للمندوب مكان يضيف فيه نسخه»): when the
+  // file can't be opened from Telegram or the phone, he pastes what he received - the same check as a file.
+  const [pasted, setPasted] = useState("");
   const [query, setQuery] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -97,6 +100,29 @@ export function RepCopyView({ code }: { code: string }) {
         {busy ? "⏳ جارِ الفتح…" : "📥 فتح ملف نسخة"}
       </button>
       <input ref={fileInput} type="file" accept=".json,application/json,text/plain" hidden onChange={(e) => void pickFile(e.target.files?.[0])} />
+      <details className="rep-copy-paste" open>
+        <summary>📝 أو الصق نص النسخة هنا</summary>
+        <textarea
+          className="search-input paste-session-input"
+          dir="ltr"
+          rows={4}
+          value={pasted}
+          onChange={(e) => setPasted(e.target.value)}
+          placeholder="الصق نص النسخة كما وصلتك"
+          aria-label="نص النسخة"
+        />
+        <button
+          type="button"
+          className="dialog-primary"
+          disabled={busy || !pasted.trim()}
+          onClick={async () => {
+            await apply(pasted);
+            setPasted("");
+          }}
+        >
+          ➕ أضف النسخة
+        </button>
+      </details>
       {message && <p className="settings-hint rep-mode-message">{message}</p>}
 
       {copy && copy.devices.length > 0 && (
