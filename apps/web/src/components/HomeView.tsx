@@ -158,7 +158,7 @@ import { hiddenRepIds, isHiddenRepDevice, repContact } from "@/lib/repSeparation
 import { absorbTravelResults, applyTravelFee, buildTravelCheckReport, isTravelVerified, loadTravelBgRun, markTravelDone, needsTravelRegistration, saveTravelBgRun, setTravelPrice, travelDoneRepMessage, travelEarnings, travelUncheckedCount, type TravelBgRun } from "@/lib/travelRegistration";
 import { buildAccountStatementMessage, buildWhatsAppLink } from "@/lib/whatsapp";
 import { accountsForDay, accountsOfOwner, type DayOwner } from "@/lib/dayActions";
-import { applyOutcomes, buildSyncReport, outcomeLabel, signedOutAlert } from "@/lib/syncReport";
+import { applyOutcomes, buildSyncReport, outcomeLabel, signedOutAlert, QUEUE_GAP_SECONDS, RATE_LIMIT_NOTE } from "@/lib/syncReport";
 import { depositLabel, kastDevicesSnapshot } from "@/lib/kastCards";
 import {
   accountIdsNeedingLogin,
@@ -545,7 +545,7 @@ export function HomeView({
   // shows the next device with a short countdown and «إيقاف».
   const [syncChoiceOpen, setSyncChoiceOpen] = useState(false);
   const [queueStep, setQueueStep] = useState<{ label: string; progress: string; name: string; secondsLeft: number } | null>(null);
-  const QUEUE_COUNTDOWN_S = 1;
+  const QUEUE_COUNTDOWN_S = QUEUE_GAP_SECONDS;
 
   function handleSyncNow() {
     setSyncChoiceOpen(true);
@@ -579,6 +579,16 @@ export function HomeView({
     const applied = applyOutcomes(queue, records);
     queue = applied.queue;
     saveSyncQueue(queue);
+    // ⏸ Starlink said «429 Too many requests»: the run stops here - opening more would only extend it.
+    if (applied.rateLimited) {
+      saveSyncQueue(null);
+      setQueueStep(null);
+      // queue.index = the devices already opened (it moves on before each one opens).
+      if (queue.travelCheck) finishTravelCheck(queue, queue.ids.slice(0, Math.min(queue.index, queue.ids.length)));
+      else reportSync(buildSyncReport(queue, accountsRef.current, true));
+      pushToast(RATE_LIMIT_NOTE);
+      return;
+    }
     for (const id of applied.newlySignedOut) {
       const account = accountsRef.current.find((a) => a.id === id);
       reportSync(signedOutAlert(account), deviceRoute(account?.name ?? ""));

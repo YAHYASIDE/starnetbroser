@@ -11,7 +11,10 @@ import java.util.Random;
  *  - a run stops starting new accounts once it has used its time budget (SyncPriority decides
  *    which devices go first, so the most urgent ones are never the ones left out);
  *  - a 429 anywhere (background run or the visible browser) pauses all background syncing for
- *    COOLDOWN_MS (inCooldown).
+ *    COOLDOWN_MS (inCooldown);
+ *  - 🌙 the background «مزامنة الآن» (BackgroundSyncService) and the visible chain of device browsers
+ *    also pause between devices (chainGapMs) and stop at once on a 429 (his Oct 17 2026 report: the
+ *    raw «Error 429 Too many requests» page on a device after a run over several devices).
  * The decisions are pure static methods (unit-tested); the two small persisted values live in
  * SharedPreferences.
  */
@@ -34,6 +37,22 @@ final class SyncPacing {
     /** Pause before the next account: 15-25 seconds, so the loads never line up in a burst. */
     static long gapMs(Random random) {
         return GAP_BASE_MS + (long) (random.nextDouble() * GAP_JITTER_MS);
+    }
+
+    static final long CHAIN_GAP_BASE_MS = 10_000;
+    static final long CHAIN_GAP_JITTER_MS = 6_000;
+
+    /** Pause between two devices of a run the operator started (10-16 s): shorter than the
+     * background worker's, he is waiting for it - but never a burst. */
+    static long chainGapMs(Random random) {
+        return CHAIN_GAP_BASE_MS + (long) (random.nextDouble() * CHAIN_GAP_JITTER_MS);
+    }
+
+    /** Whole minutes until the cooldown ends (at least 1 while it lasts), 0 when not in one. */
+    static int cooldownMinutesLeft(long rateLimitedAt, long now) {
+        if (!inCooldown(rateLimitedAt, now)) return 0;
+        long left = COOLDOWN_MS - (now - rateLimitedAt);
+        return (int) Math.max(1, (left + 59_999) / 60_000);
     }
 
     static boolean inCooldown(long rateLimitedAt, long now) {

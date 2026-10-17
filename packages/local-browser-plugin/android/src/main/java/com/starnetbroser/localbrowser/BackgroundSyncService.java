@@ -18,6 +18,7 @@ import android.os.PowerManager;
 import android.provider.Settings;
 import android.view.WindowManager;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -27,6 +28,7 @@ import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 /**
  * 🔄 «مزامنة الآن» fully in the background (the operator's choice): one device after another, each
@@ -54,6 +56,7 @@ public class BackgroundSyncService extends Service {
     private static final String CHANNEL_ID = "starnet_bg_sync_v1";
     private static final int NOTIFICATION_ID = 4417;
     private static final long GAP_MS = 1000;
+    private final Random random = new Random();
     private static final long MAX_HOLD_MS = 3L * 60 * 60 * 1000;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -151,6 +154,11 @@ public class BackgroundSyncService extends Service {
             finishRun(false);
             return;
         }
+        // ⏸ Starlink asked to slow down (a 429 here or in a device browser): stop, don't add to it.
+        if (SyncPacing.inCooldown(SyncPacing.rateLimitedAt(this), System.currentTimeMillis())) {
+            stopRateLimited();
+            return;
+        }
         String accountId = ids.get(index);
         String name = names.get(index);
         boolean travelCheck = travelModes.get(index);
@@ -187,6 +195,16 @@ public class BackgroundSyncService extends Service {
             public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest request) {
                 String scheme = request.getUrl().getScheme();
                 return scheme == null || (!scheme.equals("http") && !scheme.equals("https"));
+            }
+
+            /** Starlink's «429 Too many requests»: this device ends and the run stops (runNext). */
+            @Override
+            public void onReceivedHttpError(WebView v, WebResourceRequest request, WebResourceResponse response) {
+                super.onReceivedHttpError(v, request, response);
+                if (request.isForMainFrame() && response != null && response.getStatusCode() == 429) {
+                    SyncPacing.recordRateLimited(BackgroundSyncService.this, System.currentTimeMillis());
+                    if (runner != null) runner.rateLimited();
+                }
             }
         });
         view.setKeepVisible(true);
@@ -248,7 +266,20 @@ public class BackgroundSyncService extends Service {
         AutoSyncResults.record(this, accountId, outcome);
         removeWebView();
         index++;
-        handler.postDelayed(this::runNext, GAP_MS);
+        handler.postDelayed(this::runNext, "rateLimited".equals(outcome) ? GAP_MS : SyncPacing.chainGapMs(random));
+    }
+
+    /** Every device not yet tried ends as "rateLimited" (the app and the report say why), then the
+     * run finishes. */
+    private void stopRateLimited() {
+        for (int i = index; i < ids.size(); i++) {
+            outcomes.add("rateLimited");
+            travelResults.add(travelModes.get(i) ? TravelCheckReport.result("rateLimited", null) : null);
+            travelDues.add(travelModes.get(i) ? "" : null);
+            AutoSyncResults.record(this, ids.get(i), "rateLimited");
+        }
+        index = ids.size();
+        finishRun(false);
     }
 
     private void finishRun(boolean stopped) {

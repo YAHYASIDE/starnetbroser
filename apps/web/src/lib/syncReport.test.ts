@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { StarlinkAccountSummary } from "@starnet/shared";
-import { applyOutcomes, buildSyncReport, outcomeLabel, signedOutAlert } from "./syncReport";
+import { applyOutcomes, buildSyncReport, outcomeLabel, QUEUE_GAP_SECONDS, RATE_LIMIT_NOTE, signedOutAlert } from "./syncReport";
 
 const accounts = ["a", "b", "c", "d"].map((id) => ({ id, name: `جهاز ${id}` }) as StarlinkAccountSummary);
 const queue = { ids: ["a", "b", "c", "d"], index: 0, label: "3 أيام" };
@@ -42,5 +42,21 @@ describe("buildSyncReport", () => {
   it("labels and the sign-in alert", () => {
     expect(outcomeLabel("closed")).toBe("✋ أُغلقت باليد");
     expect(signedOutAlert(accounts[0])).toContain("«جهاز a» غير مسجّل في Starlink");
+  });
+});
+
+describe("⏸ Starlink's «429 Too many requests» stops the run (his Oct 17 2026 report)", () => {
+  it("a 429 on one device flags the run to stop, and the report says why", () => {
+    const applied = applyOutcomes({ ...queue, index: 2 }, [{ accountId: "a", outcome: "ok" }, { accountId: "b", outcome: "rateLimited" }]);
+    expect(applied.rateLimited).toBe(true);
+    expect(applyOutcomes(queue, [{ accountId: "a", outcome: "ok" }]).rateLimited).toBe(false);
+    expect(buildSyncReport(applied.queue, accounts, true)).toBe(
+      ["⏹ أُوقفت المزامنة (3 أيام): تمت 1 من 2", "✅ تمت · جهاز a", "⏸ ستارلينك طلبت التمهّل (429) · جهاز b", RATE_LIMIT_NOTE].join("\n"),
+    );
+    expect(outcomeLabel("rateLimited")).toBe("⏸ ستارلينك طلبت التمهّل (429)");
+  });
+
+  it("a visible run waits between devices - never a burst of page loads", () => {
+    expect(QUEUE_GAP_SECONDS).toBeGreaterThanOrEqual(8);
   });
 });

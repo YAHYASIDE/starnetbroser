@@ -410,6 +410,12 @@ public class AccountBrowserActivity extends AppCompatActivity {
         syncHomeOnly = homeOnly;
         autoSyncSignedInPolls = 0;
         autoSyncSignedOutPolls = 0;
+        // ⏸ Starlink asked to slow down a moment ago: don't add to it - skip at once.
+        if (SyncPacing.inCooldown(SyncPacing.rateLimitedAt(this), System.currentTimeMillis())) {
+            int minutes = SyncPacing.cooldownMinutesLeft(SyncPacing.rateLimitedAt(this), System.currentTimeMillis());
+            autoSyncGiveUp("rateLimited", "⏸ ستارلينك طلبت التمهّل - أعد المحاولة بعد " + minutes + " دقيقة");
+            return;
+        }
         // The phone mustn't sleep in the middle of a run over several devices.
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         String suffix = label != null && !label.trim().isEmpty() ? " (" + label.trim() + ")" : "";
@@ -1533,7 +1539,9 @@ public class AccountBrowserActivity extends AppCompatActivity {
             super.onReceivedHttpError(view, request, response);
             if (request.isForMainFrame() && response != null && response.getStatusCode() == 429) {
                 SyncPacing.recordRateLimited(AccountBrowserActivity.this, System.currentTimeMillis());
-                Toast.makeText(AccountBrowserActivity.this, R.string.starnet_rate_limited, Toast.LENGTH_LONG).show();
+                // In a run over several devices: this one ends as "rateLimited" and the app stops the run.
+                if (autoSyncThenClose) autoSyncGiveUp("rateLimited", getString(R.string.starnet_rate_limited));
+                else Toast.makeText(AccountBrowserActivity.this, R.string.starnet_rate_limited, Toast.LENGTH_LONG).show();
             }
         }
     }

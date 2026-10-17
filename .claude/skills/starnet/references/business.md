@@ -494,6 +494,18 @@ mind). Exact texts and numbers live in the code - this file says where.
   number of chunks, site-wide), stale per-host chunks mix with the new ones and the ticket no longer reads. The sheet says: Cookie-Editor «Delete All» before Import, never re-paste an old copy,
   never «Sign out» in the other browser (one session - it signs the app out too).
 
+## ⏸ Starlink's 429 + every sync in «المزامنة التلقائية» (Oct 17 2026)
+
+- His report: a device browser showed Starlink's raw «Error 429 Too many requests» (Varnish). I found the 🌙 background
+  run (BackgroundSyncService/SyncRunner) and the visible «مزامنة الآن» chain had no pacing (1 s gaps) and kept going
+  after a 429. His «اوك اجعلها»: both now pause between devices (10-16 s / 10 s) and stop at the first 429 for the
+  20-minute cooldown (`SyncPacing`), the rest reported «⏸ ستارلينك طلبت التمهّل (429)» + `RATE_LIMIT_NOTE`; an
+  auto-sync started during the cooldown is skipped at once. The manual browser's toast now says 15-20 minutes.
+- His ask «كل أنواع المزامنة في الإعدادات في مكان اسمه المزامنة التلقائية»: a settings group «🔄 المزامنة التلقائية»
+  (`sync`): تحديث الأجهزة من Starlink (+ the 429 protection text), 🌙 المزامنة في الخلفية (its own fold now), ☁️ الربط
+  الحيّ مع المندوبين (moved from البوتات). «الأجهزة» keeps the sessions check and the renewal-day lock.
+- «أضف فيها أكثر من المزامنات التي عندنا - فقط اقترح وأنا أقرر»: proposals only, nothing built until he picks.
+
 ## 📝 The rep can paste his copy's text (Oct 17 2026)
 
 - His ask «اجعل للمندوب مكان يضيف فيه نسخه». Until now the rep's «📋 أجهزتي» only opened a copy file (from Telegram

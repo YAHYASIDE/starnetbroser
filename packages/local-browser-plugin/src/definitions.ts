@@ -48,7 +48,8 @@ export interface OpenAccountBrowserOptions {
 
 /** 🔄 How one device's auto-sync ended: read and saved, nothing read, the save failed, not signed in
  * to Starlink (skipped at once), no end within the time limit (skipped), or closed by hand. */
-export type AutoSyncOutcome = "ok" | "nothing" | "saveFailed" | "signedOut" | "stuck" | "closed";
+/** "rateLimited": Starlink answered «429 Too many requests» - the run stops (Oct 17 2026). */
+export type AutoSyncOutcome = "ok" | "nothing" | "saveFailed" | "signedOut" | "stuck" | "closed" | "rateLimited";
 
 export interface AutoSyncResult {
   accountId: string;

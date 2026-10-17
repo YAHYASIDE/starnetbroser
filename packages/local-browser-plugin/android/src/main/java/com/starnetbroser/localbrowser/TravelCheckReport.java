@@ -26,6 +26,7 @@ final class TravelCheckReport {
             case "stuck": return "⏳ تعلّق - تُخطّي";
             case "closed": return "⏹ لم يُفحص (أُوقف)";
             case "saveFailed": return "❌ تعذّر الحفظ";
+            case "rateLimited": return "⏸ ستارلينك طلبت التمهّل (429) - لم يُفحص";
             default: return "⚠️ لم تظهر الصفحة الرئيسية - لم يُفحص";
         }
     }

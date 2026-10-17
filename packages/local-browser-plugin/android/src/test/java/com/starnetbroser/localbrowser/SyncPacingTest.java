@@ -1,5 +1,6 @@
 package com.starnetbroser.localbrowser;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -26,6 +27,25 @@ public class SyncPacingTest {
         assertFalse(SyncPacing.inCooldown(at, at + 20 * 60_000));
         // A clock that went backwards never locks syncing forever.
         assertFalse(SyncPacing.inCooldown(at, at - 5_000));
+    }
+
+    @Test
+    public void aRunTheOperatorStartedPausesTenToSixteenSecondsBetweenDevices() {
+        Random random = new Random(7);
+        for (int i = 0; i < 200; i++) {
+            long gap = SyncPacing.chainGapMs(random);
+            assertTrue(gap >= 10_000 && gap < 16_000);
+        }
+    }
+
+    @Test
+    public void minutesLeftOfTheCooldown() {
+        long at = 1_000_000L;
+        assertEquals(20, SyncPacing.cooldownMinutesLeft(at, at));
+        assertEquals(19, SyncPacing.cooldownMinutesLeft(at, at + 61_000));
+        assertEquals(1, SyncPacing.cooldownMinutesLeft(at, at + 20 * 60_000 - 1_000));
+        assertEquals(0, SyncPacing.cooldownMinutesLeft(at, at + 20 * 60_000));
+        assertEquals(0, SyncPacing.cooldownMinutesLeft(0, at));
     }
 
     @Test

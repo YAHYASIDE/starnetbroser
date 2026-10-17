@@ -85,7 +85,7 @@ export interface SyncQueue {
   /** What the operator chose, e.g. "7 أيام". */
   label: string;
   /** How each device's auto-sync ended (syncReport.ts). */
-  results?: Record<string, "ok" | "nothing" | "saveFailed" | "signedOut" | "stuck" | "closed">;
+  results?: Record<string, "ok" | "nothing" | "saveFailed" | "signedOut" | "stuck" | "closed" | "rateLimited">;
   /** 🛂 «كشف توثيق»: each browser reads Home only and changes nothing (travelRegistration.ts). */
   travelCheck?: boolean;
 }

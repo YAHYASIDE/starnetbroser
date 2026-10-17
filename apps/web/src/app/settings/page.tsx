@@ -418,19 +418,34 @@ export default function SettingsPage() {
           </>
         )}
 
-        {group === "devices" && (
+        {group === "sync" && (
           <>
             <SettingsFold id="auto-sync">
               {isAndroidApp ? (
                 <section className="section">
                   <h2 className="section-title">🔄 تحديث الأجهزة من Starlink</h2>
                   <AutoSyncSettings />
-                  <BackgroundSyncSettings />
                 </section>
               ) : (
                 <p className="settings-hint">المزامنة التلقائية تعمل داخل تطبيق أندرويد فقط.</p>
               )}
             </SettingsFold>
+            <SettingsFold id="background-sync">
+              {isAndroidApp ? (
+                <section className="section">
+                  <h2 className="section-title">🌙 المزامنة في الخلفية</h2>
+                  <BackgroundSyncSettings />
+                </section>
+              ) : (
+                <p className="settings-hint">المزامنة في الخلفية تعمل داخل تطبيق أندرويد فقط.</p>
+              )}
+            </SettingsFold>
+            <SettingsFold id="live-sync"><LiveSyncSection /></SettingsFold>
+          </>
+        )}
+
+        {group === "devices" && (
+          <>
             <SettingsFold id="sessions"><SessionCheckSection /></SettingsFold>
             <SettingsFold id="renewal-lock"><RenewalLockAllSection /></SettingsFold>
           </>
@@ -440,7 +455,6 @@ export default function SettingsPage() {
           <>
             <SettingsFold id="telegram"><TelegramSection /></SettingsFold>
             <SettingsFold id="rep-bots"><TelegramRepsSection /></SettingsFold>
-            <SettingsFold id="live-sync"><LiveSyncSection /></SettingsFold>
             <SettingsFold id="activation-costs"><ActivationCostsSection /></SettingsFold>
             <SettingsFold id="instant-replies"><TelegramInstantSection /></SettingsFold>
           </>
@@ -1969,8 +1983,11 @@ function AutoSyncSettings() {
         <li>بقية الأجهزة: يدوياً فقط بزر «تحديث» في البطاقة</li>
       </ul>
       <p className="settings-hint">
-        عندما يكتشف التطبيق أن Starlink أوقف جهازاً يصلك إشعار واحد بكل الأجهزة التي توقفت. الأجهزة
-        تُحدَّث واحداً بعد واحد مع استراحة حتى لا يوقفك Starlink بخطأ 429.
+        عندما يكتشف التطبيق أن Starlink أوقف جهازاً يصلك إشعار واحد بكل الأجهزة التي توقفت.
+      </p>
+      <p className="settings-hint">
+        ⏸ الحماية من خطأ 429: كل مزامنة لعدة أجهزة تترك استراحة بين جهاز وآخر، وإذا قالت ستارلينك «طلبات
+        كثيرة» تتوقف كل المزامنة 20 دقيقة وتخبرك - التلقائية، وفي الخلفية، و«مزامنة الآن».
       </p>
     </div>
   );

@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { groupForHash, isSettingsGroupId, SETTINGS_GROUPS } from "./settingsGroups";
 
 describe("settings groups", () => {
-  it("has six groups, each with its own anchor", () => {
-    expect(SETTINGS_GROUPS.map((g) => g.id)).toEqual(["general", "alerts", "devices", "bots", "backup", "security"]);
+  it("has seven groups, each with its own anchor - every sync in «المزامنة التلقائية» (Oct 17 2026)", () => {
+    expect(SETTINGS_GROUPS.map((g) => g.id)).toEqual(["general", "alerts", "sync", "devices", "bots", "backup", "security"]);
+    expect(groupForHash("#auto-sync")).toBe("sync");
+    expect(groupForHash("#live-sync")).toBe("sync");
     const anchors = SETTINGS_GROUPS.flatMap((g) => g.anchors);
     expect(new Set(anchors).size).toBe(anchors.length);
   });

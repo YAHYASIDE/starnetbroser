@@ -238,7 +238,7 @@ export async function startBackgroundSync(accounts: { id: string; name: string }
 }
 
 /** 🔄 How each auto-sync ended since the last call - and forgets them ([] on web). */
-export async function takeAutoSyncResults(): Promise<{ accountId: string; outcome: "ok" | "nothing" | "saveFailed" | "signedOut" | "stuck" | "closed" }[]> {
+export async function takeAutoSyncResults(): Promise<{ accountId: string; outcome: "ok" | "nothing" | "saveFailed" | "signedOut" | "stuck" | "closed" | "rateLimited" }[]> {
   if (!isRunningInAndroidApp()) return [];
   try {
     const { results } = await LocalBrowser.takeAutoSyncResults();

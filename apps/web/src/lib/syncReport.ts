@@ -7,7 +7,7 @@
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import type { SyncQueue } from "./syncQueue";
 
-export type SyncOutcome = "ok" | "nothing" | "saveFailed" | "signedOut" | "stuck" | "closed";
+export type SyncOutcome = "ok" | "nothing" | "saveFailed" | "signedOut" | "stuck" | "closed" | "rateLimited";
 
 export interface OutcomeRecord {
   accountId: string;
@@ -21,6 +21,7 @@ const LABELS: Record<SyncOutcome | "unknown", string> = {
   signedOut: "🔒 غير مسجّل في Starlink",
   stuck: "⏳ تعلّقت - تُخطّيت",
   closed: "✋ أُغلقت باليد",
+  rateLimited: "⏸ ستارلينك طلبت التمهّل (429)",
   unknown: "❔ بلا نتيجة",
 };
 
@@ -28,17 +29,27 @@ export function outcomeLabel(outcome: SyncOutcome | undefined): string {
   return LABELS[outcome ?? "unknown"];
 }
 
-/** Records the outcomes of the queue's own devices (the latest one wins); returns the new queue and
- * the devices just found not signed in (to alert at once). */
-export function applyOutcomes(queue: SyncQueue, records: OutcomeRecord[]): { queue: SyncQueue; newlySignedOut: string[] } {
+/** Why a run stopped early on Starlink's «429 Too many requests» (his Oct 17 2026 report) - the same
+ * words as the background run's report (BackgroundSyncReport.java). */
+export const RATE_LIMIT_NOTE = "⏸ ستارلينك طلبت التوقف لكثرة الطلبات - أوقفت المزامنة 20 دقيقة. أعد المحاولة بعدها.";
+
+/** Pause between two devices of a visible run (seconds) - never a burst of page loads. */
+export const QUEUE_GAP_SECONDS = 10;
+
+/** Records the outcomes of the queue's own devices (the latest one wins); returns the new queue,
+ * the devices just found not signed in (to alert at once) and whether Starlink asked to slow down
+ * (the run then stops). */
+export function applyOutcomes(queue: SyncQueue, records: OutcomeRecord[]): { queue: SyncQueue; newlySignedOut: string[]; rateLimited: boolean } {
   const results = { ...(queue.results ?? {}) };
   const newlySignedOut: string[] = [];
+  let rateLimited = false;
   for (const record of records) {
     if (!queue.ids.includes(record.accountId)) continue;
     if (record.outcome === "signedOut" && results[record.accountId] !== "signedOut") newlySignedOut.push(record.accountId);
+    if (record.outcome === "rateLimited") rateLimited = true;
     results[record.accountId] = record.outcome;
   }
-  return { queue: { ...queue, results }, newlySignedOut };
+  return { queue: { ...queue, results }, newlySignedOut, rateLimited };
 }
 
 export function signedOutAlert(account: StarlinkAccountSummary | undefined): string {
@@ -55,5 +66,6 @@ export function buildSyncReport(queue: SyncQueue, accounts: StarlinkAccountSumma
     const name = accounts.find((a) => a.id === id)?.name || "جهاز محذوف";
     return `${outcomeLabel(results[id])} · ${name}`;
   });
-  return [head, ...lines].join("\n");
+  const note = tried.some((id) => results[id] === "rateLimited") ? [RATE_LIMIT_NOTE] : [];
+  return [head, ...lines, ...note].join("\n");
 }

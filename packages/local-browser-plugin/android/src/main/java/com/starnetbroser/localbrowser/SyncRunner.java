@@ -18,7 +18,8 @@ import java.util.Deque;
  * read each page until it has settled - subscriptions, the subscription, «الأجهزة» (waits for a
  * colored dot), Billing (waits for the renewal day), Settings, Home. Every read is saved
  * (PendingSyncStore) before it's announced. Ends once with an outcome: "ok", "nothing",
- * "saveFailed", "signedOut" or "stuck" (no end within MAX_MS). Main thread only.
+ * "saveFailed", "signedOut", "stuck" (no end within MAX_MS) or "rateLimited" (Starlink's 429 - the
+ * service stops the whole run). Main thread only.
  *
  * 🛂 Home-only mode («كشف توثيق» in the background, the same as the device browser's auto-sync with
  * EXTRA_AUTO_SYNC_HOME_ONLY - keep the two in step): after sign-in it only reloads Home and waits
@@ -100,6 +101,11 @@ final class SyncRunner {
     void start() {
         handler.postDelayed(this::signInTick, POLL_MS);
         handler.postDelayed(() -> end("stuck"), MAX_MS);
+    }
+
+    /** Starlink answered «429 Too many requests» on the page itself: this device ends as "rateLimited". */
+    void rateLimited() {
+        end("rateLimited");
     }
 
     /** Stops without reporting (the run was cancelled). */

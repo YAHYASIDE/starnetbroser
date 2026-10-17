@@ -18,9 +18,13 @@ final class BackgroundSyncReport {
             case "saveFailed": return "❌ تعذّر الحفظ";
             case "signedOut": return "🔒 غير مسجّل في Starlink";
             case "stuck": return "⏳ تعلّقت - تُخطّيت";
+            case "rateLimited": return "⏸ ستارلينك طلبت التمهّل (429)";
             default: return "❔ بلا نتيجة";
         }
     }
+
+    /** Why a run stopped early on Starlink's «429 Too many requests» - same words as syncReport.ts. */
+    static final String RATE_LIMIT_NOTE = "⏸ ستارلينك طلبت التوقف لكثرة الطلبات - أوقفت المزامنة 20 دقيقة. أعد المحاولة بعدها.";
 
     static String signedOutAlert(String name) {
         return "⚠️ الجهاز «" + (name == null || name.isEmpty() ? "؟" : name) + "» غير مسجّل في Starlink - تخطّيته في المزامنة. افتحه وسجّل الدخول.";
@@ -34,10 +38,13 @@ final class BackgroundSyncReport {
         text.append(stopped ? "⏹ أُوقفت" : "🔄 انتهت").append(" المزامنة في الخلفية");
         if (runLabel != null && !runLabel.isEmpty()) text.append(" (").append(runLabel).append(")");
         text.append(": تمت ").append(done).append(" من ").append(outcomes.size());
+        boolean rateLimited = false;
         for (int i = 0; i < outcomes.size(); i++) {
             String name = i < names.size() && names.get(i) != null && !names.get(i).isEmpty() ? names.get(i) : "جهاز";
             text.append("\n").append(label(outcomes.get(i))).append(" · ").append(name);
+            if ("rateLimited".equals(outcomes.get(i))) rateLimited = true;
         }
+        if (rateLimited) text.append("\n").append(RATE_LIMIT_NOTE);
         return text.toString();
     }
 

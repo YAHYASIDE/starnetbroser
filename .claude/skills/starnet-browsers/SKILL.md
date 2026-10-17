@@ -147,6 +147,13 @@ plus the rules learned from real misreads; keep it updated when you learn a new 
   saveFailed / **signedOut** (the sign-in page 5 polls of 0.7 s in a row - skipped, no sign-in attempt)
   / **stuck** (2-minute watchdog) / closed. The app alerts a signed-out device on the owner's bot at
   once and sends every device's status at the end of the run (`apps/web/src/lib/syncReport.ts`).
+- ⏸ **429 «Too many requests»** (Starlink's CDN, all devices share the phone's IP): every multi-device
+  run paces itself and stops on the first 429 (his Oct 17 2026 report - the raw error page after a
+  run). AutoSyncWorker: 15-25 s gaps (`SyncPacing.gapMs`); 🌙 BackgroundSyncService and the visible
+  «مزامنة الآن» chain: 10-16 s / 10 s (`SyncPacing.chainGapMs`, `QUEUE_GAP_SECONDS`). A 429 anywhere
+  records `SyncPacing.recordRateLimited` (20-minute cooldown): the device ends as `"rateLimited"`,
+  the run stops, the rest are reported «⏸ ستارلينك طلبت التمهّل (429)» with `RATE_LIMIT_NOTE`, and a
+  device-browser auto-sync started during the cooldown is skipped at once. Never retry through it.
 - 🔔 Every finished sync rings once (`AlertSound`, the phone's notification tone; silent mode stays
   silent): the device browser's «مزامنة» and every `AutoSyncWorker` run - unless its «تم التحديث»
   notification already made the sound.

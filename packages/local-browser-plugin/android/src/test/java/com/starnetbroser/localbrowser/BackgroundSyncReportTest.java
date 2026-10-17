@@ -22,6 +22,15 @@ public class BackgroundSyncReportTest {
     }
 
     @Test
+    public void aRunStoppedByStarlinksRateLimitSaysWhy() {
+        String text = BackgroundSyncReport.report("اليوم", Arrays.asList("demo-a", "demo-b", "demo-c"), Arrays.asList("ok", "rateLimited", "rateLimited"), false);
+        assertEquals("🔄 انتهت المزامنة في الخلفية (اليوم): تمت 1 من 3\n✅ تمت · demo-a\n⏸ ستارلينك طلبت التمهّل (429) · demo-b\n⏸ ستارلينك طلبت التمهّل (429) · demo-c\n"
+            + BackgroundSyncReport.RATE_LIMIT_NOTE, text);
+        // No 429, no note.
+        assertTrue(!BackgroundSyncReport.report("", Collections.singletonList("demo-a"), Collections.singletonList("ok"), false).contains("⏸"));
+    }
+
+    @Test
     public void alertAndProgress() {
         assertTrue(BackgroundSyncReport.signedOutAlert("demo-a").contains("«demo-a» غير مسجّل في Starlink"));
         assertEquals("3 / 10 · demo-a", BackgroundSyncReport.progress(2, 10, "demo-a"));
