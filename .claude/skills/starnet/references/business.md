@@ -552,6 +552,23 @@ mind). Exact texts and numbers live in the code - this file says where.
   the older; the duplicate goes to the trash (restorable). The «من المندوبين» long press also has «✕ إزالة علامة
   المندوب عن الكل».
 
+## 🫧 The service NOW ← AFTER this month, instead of «✅ نشط» (Oct 17 2026)
+
+- He explained it screenshot by screenshot, I wrote the table back and he approved («نعم، ابدأ»).
+  Services: **ROM** = «Roam - Unlimited» (تجوال غير محدود), **100G** = «Roam - 100GB», **SIS** = «Standby Mode»
+  (وضع الاستعداد، إنترنت ضعيف), **STOP** = stopped. Badge + banner → [now] ← [after the month]:
+  Active → X ← X; «Standby Mode Pending» + «will switch to Standby Mode on …» → X ← SIS (date); «Ending …» /
+  «scheduled to end on …» → X ← STOP (date); SIS + Standby Mode → SIS ← SIS; SIS + Ending → SIS ← STOP;
+  «Inactive» (after the end) → STOP ← STOP. **A SIS device never goes back to ROM or 100G.** Suspended for
+  billing keeps its plan in the bubble and the red «موقوف» stays. The second bubble always shows.
+- His choices: English words in colors (ROM blue, 100G violet, SIS yellow, STOP red); the bubbles replace
+  «✅ نشط» and the old plan pill (a priority-data warning pill stays); new home circles «← SIS» / «← STOP»
+  (with the long-press check). The SIS/ROM/100G circles count the service NOW. `lib/serviceBubbles.ts`.
+- Real misreads found from his screenshots: «Inactive» contains «active» and was read as active (now
+  STOP); «Roam - Unlimited» wasn't recognized as ROM (only «Roaming»); the travel banner «…your plan's travel
+  allowance…» was saved as the plan name. A plain plan card (Active / Standby Mode, no banner) now clears an
+  older end / switch date (`planChangePending: false`) - «Keep Current Service» / «Resume» pressed.
+
 ## 🔑 A rep's permissions, chosen before each copy (Oct 17 2026)
 
 - His ask: «أي مندوب سأرسل له نسخة، قبل الإرسال تأتيني قائمة بالصلاحيات… ما عنده الآن كلها عليها صح والأخرى لا… زر

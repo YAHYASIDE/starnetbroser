@@ -27,6 +27,7 @@ const FIELD_INFO: Record<keyof SyncedStarlinkFields, { label: string; section: S
   renewalDate: { label: "تاريخ التجديد", section: "subscriptions" },
   pendingCancellationDate: { label: "موعد إيقاف الاشتراك", section: "subscriptions" },
   pendingStandbyDate: { label: "موعد الانتقال إلى SIS (وضع الاستعداد)", section: "subscriptions" },
+  planChangePending: { label: "تغيير الخدمة بعد الشهر", section: "subscriptions" },
   accountHolderName: { label: "اسم صاحب الحساب (Starlink)", section: "identifiers" },
   accountEmail: { label: "البريد الإلكتروني (Starlink)", section: "identifiers" },
   phone: { label: "رقم الهاتف", section: "identifiers" },
@@ -190,6 +191,15 @@ export function mergeSyncedFields(
     note("pendingStandbyDate", next.pendingStandbyDate !== pendingStandbyDate);
     next.pendingStandbyDate = pendingStandbyDate;
     if (next.pendingCancellationDate === pendingStandbyDate) delete next.pendingCancellationDate;
+  }
+
+  // 🫧 The plan card says nothing changes after this month («Keep Current Service» / «Resume»
+  // pressed): an older end or switch date goes, so the card's second bubble is right again.
+  if (fields.planChangePending === false && (next.pendingCancellationDate || next.pendingStandbyDate)) {
+    if (next.pendingCancellationDate) note("pendingCancellationDate", true);
+    if (next.pendingStandbyDate) note("pendingStandbyDate", true);
+    delete next.pendingCancellationDate;
+    delete next.pendingStandbyDate;
   }
 
   const accountHolderName = fields.accountHolderName?.trim();

@@ -15,6 +15,12 @@ describe("presentServiceStatus", () => {
 });
 
 describe("planBadgeLabel", () => {
+  it("reads Starlink's real names «Roam - Unlimited» / «Roam - 100GB» (his Oct 17 2026 screenshots)", () => {
+    expect(planBadgeLabel("Roam - Unlimited")).toBe("ROM");
+    expect(planBadgeLabel("Roam - 100GB")).toBe("100G");
+    expect(planBadgeLabel("Standby Mode")).toBe("SIS");
+  });
+
   it("shortens a numbered roaming plan to its data amount + G", () => {
     expect(planBadgeLabel("التجوال - 100 غيغابايت")).toBe("100G");
     expect(planBadgeLabel("Roaming 40GB")).toBe("40G");

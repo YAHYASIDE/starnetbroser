@@ -11,6 +11,9 @@ import { useEffect, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { priorityDataLine, priorityDataState } from "@/lib/priorityData";
 import { presentServiceStatus, effectiveServiceStatus, isBalanceDueZero, planBadgeLabel, cleanPlanName } from "@/lib/status";
+import { serviceBubbles } from "@/lib/serviceBubbles";
+import { localToday } from "@/lib/syncQueue";
+import { ServiceBubbles } from "./ServiceBubbles";
 import { countryFlag, countryFromIso2 } from "@/lib/countryCurrencies";
 import { connectionDot, connectionMessage } from "@/lib/deviceConnection";
 import { daysRemainingLabel, daysRemainingNumber, formatRelativeTime, renewalDateLabel } from "@/lib/date";
@@ -261,13 +264,16 @@ export function AccountCard({
   const [travelPriceOpen, setTravelPriceOpen] = useState(false);
   const travelPending = isTravelPending(account);
   const ledgerBalances = computeBalanceByCurrency(ledgerEntries);
-  const serviceStatus = presentServiceStatus(effectiveServiceStatus(account));
+  // 🫧 [الآن] ← [بعد الشهر] replaces «✅ نشط» (his Oct 17 2026 choice); «موقوف» / «بانتظار التفعيل» stay.
+  const bubbles = serviceBubbles(account, localToday());
+  const rawStatus = presentServiceStatus(effectiveServiceStatus(account));
+  const serviceStatus = bubbles && (rawStatus?.label === "نشط" || effectiveServiceStatus(account) === "canceled") ? null : rawStatus;
   const cancellation = cancellationState(account);
   const deviceCountry = countryFromIso2(account.serviceCountry);
   const dishDot = connectionDot(account.dishStatus);
   const wifiDot = connectionDot(account.wifiStatus);
   const planName = cleanPlanName(account.planName);
-  const planBadge = planName && !account.noSubscription ? (planBadgeLabel(planName) ?? planName) : undefined;
+  const planBadge = planName && !account.noSubscription && !bubbles ? (planBadgeLabel(planName) ?? planName) : undefined;
   const priorityState = priorityDataState(account);
   const fault = faultCategory(account);
   const lastSynced = formatRelativeTime(account.lastSuccessfulScanAt);
@@ -750,6 +756,7 @@ export function AccountCard({
             )}
           </span>
         )}
+        {bubbles && <ServiceBubbles bubbles={bubbles} />}
         {serviceStatus && <span className={`badge ${serviceStatus.className} account-card-status-badge`}>{serviceStatus.label}</span>}
         {addedByRepName && (
           <span className="rep-added-chip" title="أضافه المندوب من تطبيقه وثبّتّه أنت">
@@ -792,8 +799,8 @@ export function AccountCard({
             ⏳ بانتظار المسؤول
           </span>
         )}
-        {/* ⏸️ Moving to the Standby plan (SIS) - still a service, not «ملغي». */}
-        {account.pendingStandbyDate && !cancellation.cancelled && (
+        {/* ⏸️ Moving to the Standby plan (SIS) - still a service, not «ملغي» (the bubbles show it when known). */}
+        {account.pendingStandbyDate && !cancellation.cancelled && !bubbles && (
           <span className="standby-pending-chip" title={`ينتقل إلى وضع الاستعداد (SIS) في ${account.pendingStandbyDate}`}>
             ⏸️ SIS من <bdi dir="ltr">{account.pendingStandbyDate}</bdi>
           </span>
@@ -968,6 +975,11 @@ export function AccountCard({
             <i aria-hidden="true" /> <IconWifi /> واي فاي: {wifiDot.word}
           </span>
         </span>
+        {bubbles && priorityState && (priorityState.kind === "exhausted" || priorityState.kind === "near") && (
+          <span className={`badge ${priorityState.kind === "exhausted" ? "badge-red" : "badge-yellow"} account-card-plan-badge`} title={`${planName ?? ""} - ${priorityDataLine(priorityState)}`}>
+            ⚠️ {priorityState.usedGb !== undefined ? <bdi dir="ltr">{priorityState.usedGb}GB</bdi> : "البيانات"}
+          </span>
+        )}
         {planBadge && (
           <span
             className={`badge ${priorityState?.kind === "exhausted" ? "badge-red" : priorityState?.kind === "near" ? "badge-yellow" : "badge-mint"} account-card-plan-badge`}

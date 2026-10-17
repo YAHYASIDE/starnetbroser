@@ -67,7 +67,8 @@ export function effectiveServiceStatus(account: { serviceStatus?: string; planNa
 export function planBadgeLabel(planName: string | undefined): string | undefined {
   if (!planName) return undefined;
   if (isSisPlan(planName)) return "SIS";
-  if (/تجوال|roaming/i.test(planName) && /غير محدود|unlimited/i.test(planName)) return "ROM";
+  // Starlink prints «Roam - Unlimited» (his Oct 17 2026 screenshots) - not only «Roaming».
+  if (/تجوال|\broam/i.test(planName) && /غير محدود|unlimited|illimit/i.test(planName)) return "ROM";
   const dataAmount = planName.match(/(\d+)\s*(غيغابايت|جيجابايت|جيجا|gb)/i);
   return dataAmount ? `${dataAmount[1]}G` : undefined;
 }

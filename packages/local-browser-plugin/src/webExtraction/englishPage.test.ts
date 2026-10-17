@@ -78,6 +78,66 @@ describe("English Home page", () => {
   });
 });
 
+describe("🫧 plan states for the service bubbles - his Oct 17 2026 screenshots (fake names)", () => {
+  it("«Inactive» after the end is a stopped service, never «active»", () => {
+    const fields = read(`
+      <div>Your Starlink is outside its home country. Service will be restricted if it remains there after your plan's travel allowance is used.</div>
+      <div><div>Nickname</div><div>Roam - Unlimited</div><button>Edit</button></div>
+      <div><div>Service Plan</div><div>Inactive</div><div><button>Manage</button></div><div>Roam - Unlimited</div></div>
+    `);
+    expect(fields.serviceStatus).toBe("canceled");
+    expect(fields.planName).toBe("Roam - Unlimited");
+  });
+
+  it("a SIS plan scheduled to end: the end date, never a standby switch", () => {
+    const fields = read(`
+      <div>DEMO NAME • ACC-0000-0000-DEMO</div>
+      <div><div>Your service is scheduled to end on 11/17/2026.</div><button>Resume</button></div>
+      <div><div>Your service is currently on Standby Mode.</div><button>Resume Service</button></div>
+      <div><p>Service Plan</p><div>Ending 2026/11/17</div><div><button>Manage</button></div><div>Standby Mode</div></div>
+    `);
+    expect(fields.pendingCancellationDate).toBe("2026/11/17");
+    expect(fields.pendingStandbyDate).toBeUndefined();
+    expect(fields.serviceStatus).toBe("active");
+  });
+
+  it("a SIS plan running: no end, no switch", () => {
+    const fields = read(`
+      <div>DEMO NAME • ACC-0000-0000-DEMO</div>
+      <div><div>Your service is currently on Standby Mode.</div><button>Resume Service</button></div>
+      <div><p>Service Plan</p><div>Standby Mode</div><div><button>Manage</button></div><div>Standby Mode</div></div>
+    `);
+    expect(fields.pendingCancellationDate).toBeUndefined();
+    expect(fields.pendingStandbyDate).toBeUndefined();
+    expect(fields.serviceStatus).toBe("active");
+  });
+
+  it("a plain «Active» plan card says nothing changes; a pending or ending one doesn't", () => {
+    const plain = read(`
+      <div><div>Service Plan</div><div>Active</div><div><button>Manage</button></div><div>Roam - Unlimited</div></div>
+    `);
+    expect(plain.planChangePending).toBe(false);
+    const ending = read(`
+      <div><div>Your service is scheduled to end on 10/28/2026.</div><button>Resume</button></div>
+      <div><div>Service Plan</div><div>Ending 2026/10/28</div><div><button>Manage</button></div><div>Roam - Unlimited</div></div>
+    `);
+    expect(ending.planChangePending).toBeUndefined();
+    const home = read(`<div>DEMO NAME • ACC-0000-0000-DEMO</div><h1>Home</h1>`);
+    expect(home.planChangePending).toBeUndefined();
+  });
+
+  it("100GB switching to Standby Mode", () => {
+    const fields = read(`
+      <div>DEMO NAME • ACC-0000-0000-DEMO</div>
+      <div><div>Your current service will switch to Standby Mode on 11/11/2026.</div><button>Keep Current Service</button></div>
+      <div><p>Service Plan</p><div>Standby Mode Pending</div><div><button>Manage</button></div><div>Roam - 100GB</div></div>
+    `);
+    expect(fields.pendingStandbyDate).toBe("2026/11/11");
+    expect(fields.planName).toBe("Roam - 100GB");
+    expect(fields.serviceStatus).toBe("active");
+  });
+});
+
 describe("English Home page - real, confirmed wording (fake name/number)", () => {
   it("reads restricted + the scheduled end date together", () => {
     const fields = read(`

@@ -24,6 +24,7 @@ import {
   extractRenewalBadgeDate,
   extractServiceCountry,
   isStandbyModePlan,
+  hasPlainPlanBadge,
   hasServiceEndBanner,
   hasStandbyTransitionBanner,
   extractSubscriptionId,
@@ -197,6 +198,10 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
   const bannerDate = labeledRenewalDate ?? resolvedRenewalDate;
   if (bannerDate && hasServiceEndBanner(lines)) fields.pendingCancellationDate = bannerDate;
   else if (bannerDate && hasStandbyTransitionBanner(lines)) fields.pendingStandbyDate = bannerDate;
+  // 🫧 The plan card with a plain badge and no banner: no change is coming after this month.
+  if (planName && !hasServiceEndBanner(lines) && !hasStandbyTransitionBanner(lines) && hasPlainPlanBadge(lines)) {
+    fields.planChangePending = false;
+  }
 
   const balance = extractBalance(lines);
   if (balance) {

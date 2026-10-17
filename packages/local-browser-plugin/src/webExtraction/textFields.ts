@@ -199,6 +199,22 @@ export function isOnAccountHomePage(lines: string[]): boolean {
  * the same class of risk a bare "نشط"/"النهاية" match would have anywhere else), reusing
  * normalizeServiceStatus's own word lists rather than a second, separately-maintained set.
  */
+/** 🫧 The «Service Plan» card's badge says «Active» / «Standby Mode» - not «… Pending», «Ending …»,
+ * «Inactive». Only the badge right by the card's title is looked at. */
+export function hasPlainPlanBadge(lines: string[]): boolean {
+  for (let i = 0; i < lines.length; i++) {
+    if (!lines[i].includes("خطة الخدمة") && !/^service plan\b/i.test(lines[i].trim())) continue;
+    for (let j = i; j < Math.min(i + 3, lines.length); j++) {
+      const status = normalizeServiceStatus(lines[j]);
+      if (!status) continue;
+      if (/pending|ending|ends?\b|inactive|inactif|النهاية|قيد|غير/i.test(stripArabicDiacritics(lines[j]))) return false;
+      return status === "active" || status === "standby";
+    }
+    return false;
+  }
+  return false;
+}
+
 export function extractPlanBadgeStatus(lines: string[]): NormalizedServiceStatus | undefined {
   for (let i = 0; i < lines.length; i++) {
     if (!lines[i].includes("خطة الخدمة") && !/^service plan\b/i.test(lines[i].trim())) continue;
@@ -423,6 +439,9 @@ const ACTION_WORDS = [
 ];
 
 const ACTIVE_WORDS = ["active", "نشط"];
+/** «Inactive» (the plan after its end date - his Oct 17 2026 screenshot) contains «active»: it is
+ * checked first and means the service ended (STOP). */
+const INACTIVE_WORDS = ["inactive", "inactif", "غير نشط", "غير مفعل"];
 const STANDBY_WORDS = ["standby", "في الانتظار", "وضع الانتظار", "وضع الاستعداد"];
 const CANCELED_WORDS = ["canceled", "cancelled", "ملغى", "ملغي"];
 const SUSPENDED_WORDS = ["suspended", "موقوف", "معلق"];
@@ -446,6 +465,7 @@ function stripArabicDiacritics(text: string): string {
 export function normalizeServiceStatus(raw: string | undefined): NormalizedServiceStatus | undefined {
   if (!raw) return undefined;
   const lower = stripArabicDiacritics(raw).toLowerCase();
+  if (INACTIVE_WORDS.some((word) => lower.includes(word))) return "canceled";
   if (CANCELED_WORDS.some((word) => lower.includes(word))) return "canceled";
   if (SUSPENDED_WORDS.some((word) => lower.includes(word))) return "suspended";
   if (STANDBY_WORDS.some((word) => lower.includes(word))) return "standby";
@@ -528,6 +548,10 @@ export function extractPlanName(lines: string[]): string | undefined {
     for (const label of PLAN_LABELS) {
       const idx = lower.indexOf(label.toLowerCase());
       if (idx < 0) continue;
+      // A bare «plan» / «الخطة» counts only where the line starts with it: real, confirmed misread
+      // (his Oct 17 2026 screenshot) - the travel banner «…after your plan's travel allowance is
+      // used» was saved as the plan name ("'s travel allowance is used.").
+      if (idx > 0 && !label.includes(" ")) continue;
       const afterLabel = stripLeadingSeparator(line.slice(idx + label.length)).trim();
       if (afterLabel && !normalizeServiceStatus(afterLabel) && !looksLikeAddress(afterLabel)) return afterLabel;
       let skippedBadge = false;

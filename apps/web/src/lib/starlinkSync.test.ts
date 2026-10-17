@@ -578,6 +578,15 @@ describe("⏸️ moving to Standby (SIS) is not «ملغي»", () => {
     expect(account.pendingCancellationDate).toBeUndefined();
   });
 
+  it("🫧 a plain plan card (nothing changes after the month) clears an older end or switch date", () => {
+    const old = { ...baseAccount(), pendingCancellationDate: "2026/11/02", pendingStandbyDate: "2026/10/24" };
+    const { account } = mergeSyncedFields(old, { planChangePending: false });
+    expect(account.pendingCancellationDate).toBeUndefined();
+    expect(account.pendingStandbyDate).toBeUndefined();
+    // A page that didn't show the plan card says nothing.
+    expect(mergeSyncedFields(old, {}).account.pendingCancellationDate).toBe("2026/11/02");
+  });
+
   it("a real cancellation on another date stays", () => {
     const old = { ...baseAccount(), pendingCancellationDate: "2026/11/02" };
     const { account } = mergeSyncedFields(old, { pendingStandbyDate: "2026/10/24" });

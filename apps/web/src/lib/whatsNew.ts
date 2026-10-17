@@ -31,6 +31,25 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-17-service-bubbles",
+    date: "2026-10-17",
+    title: "🫧 الخدمة الآن ← الخدمة بعد الشهر",
+    steps: [
+      {
+        path: "/",
+        target: "service-bubbles",
+        title: "🫧 فقاعتان مكان «✅ نشط»",
+        before: "كانت البطاقة تكتب «✅ نشط» وفقاعة الخطة.",
+        after: "الآن فقاعتان: الخدمة الآن ← الخدمة بعد انتهاء الشهر - ROM أزرق، 100G بنفسجي، SIS أصفر، STOP أحمر، مع التاريخ عند التغيير.",
+      },
+      {
+        path: "/",
+        title: "← SIS و ← STOP في الرئيسية",
+        after: "أيقونتان جديدتان: الأجهزة التي ستتحول إلى SIS، والتي ستتوقف بعد انتهاء الشهر - وفيهما الفحص بالضغط المطوّل.",
+      },
+    ],
+  },
+  {
     id: "2026-10-17-rep-permissions",
     date: "2026-10-17",
     title: "🔑 صلاحيات المندوب قبل إرسال نسخته",

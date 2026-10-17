@@ -161,6 +161,11 @@ export interface SyncedStarlinkFields {
   /** «Your current service will switch/transition to Standby Mode on …» («ستتحول خدمتك…»): the
    * device moves to the Standby plan (SIS) that day - it keeps a service, it is NOT cancelled. */
   pendingStandbyDate?: string;
+  /** 🫧 Explicit false only when the «Service Plan» card is on screen with a plain badge (Active /
+   * Standby Mode) and no «scheduled to end» / «will switch» banner: nothing changes after this month,
+   * so an older end / switch date goes (e.g. he pressed «Keep Current Service» / «Resume»).
+   * Absent = not known from this page. */
+  planChangePending?: boolean;
   /** The Starlink account holder's own name, as Starlink reports it - written to its own separate
    * field, never onto the account's `name` (see this interface's own doc comment). */
   accountHolderName?: string;

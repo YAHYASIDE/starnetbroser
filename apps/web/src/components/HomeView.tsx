@@ -181,7 +181,6 @@ import {
   duplicatePairs,
   isCanceledDevice,
   loadRingCheck,
-  planRing,
   renewedOn,
   ringCheckReport,
   saveRingCheck,
@@ -189,6 +188,7 @@ import {
   type RingQuestion,
 } from "@/lib/deviceRings";
 import { RingActionsSheet } from "@/components/RingActionsSheet";
+import { changesTo, serviceBubbles } from "@/lib/serviceBubbles";
 
 const NEAR_EXPIRY_THRESHOLD_DAYS = 3;
 
@@ -204,7 +204,7 @@ type DialogState = { mode: AccountDialogMode; account?: StarlinkAccountSummary; 
 type StatFilterKind =
   | "online" | "expiringSoon" | "expired" | "suspended" | "faulty" | "repair" | "fromRep" | "noClient" | "travel" | "travelDone" | "pinned" | "recent" | "notRenewed"
   // 🔵 his Oct 17 2026 circles (lib/deviceRings.ts); "rep" = one rep's devices (repRingId).
-  | "notCanceled" | "canceled" | "renewed" | "sis" | "rom" | "g100" | "duplicate" | "rep";
+  | "notCanceled" | "canceled" | "renewed" | "sis" | "rom" | "g100" | "duplicate" | "rep" | "toSis" | "toStop";
 
 const STAT_FILTER_TITLES: Record<StatFilterKind, string> = {
   online: "الحسابات المتصلة الآن",
@@ -226,6 +226,8 @@ const STAT_FILTER_TITLES: Record<StatFilterKind, string> = {
   sis: "⏸️ أجهزة SIS",
   rom: "🌍 أجهزة ROM",
   g100: "📦 أجهزة 100G",
+  toSis: "← SIS بعد انتهاء الشهر",
+  toStop: "← STOP بعد انتهاء الشهر",
   duplicate: "🔗 الأجهزة المكررة",
   rep: "🤝 أجهزة المندوب",
 };
@@ -244,6 +246,8 @@ const RING_WORDS: Partial<Record<StatFilterKind, { question: string; yes: string
   sis: { question: "هل باقته SIS (وضع الاستعداد)؟", yes: "على SIS", no: "ليس SIS" },
   rom: { question: "هل باقته ROM (تجوال غير محدود)؟", yes: "على ROM", no: "ليس ROM" },
   g100: { question: "هل باقته 100G؟", yes: "على 100G", no: "ليس 100G" },
+  toSis: { question: "هل سيتحوّل إلى SIS بعد انتهاء الشهر؟", yes: "سيتحوّل إلى SIS", no: "لن يتحوّل" },
+  toStop: { question: "هل سيتوقف بعد انتهاء الشهر؟", yes: "سيتوقف", no: "لن يتوقف" },
   travelDone: { question: "هل ما زال موثّقًا؟", yes: "موثّق", no: "غير موثّق" },
 };
 
@@ -275,12 +279,17 @@ function matchesStatFilter(account: StarlinkAccountSummary, kind: StatFilterKind
       return isCanceledDevice(account);
     case "notCanceled":
       return !isCanceledDevice(account);
+    // 🫧 The service NOW, as the card's first bubble shows it.
     case "sis":
-      return planRing(account) === "SIS";
+      return serviceBubbles(account, localToday())?.now === "SIS";
     case "rom":
-      return planRing(account) === "ROM";
+      return serviceBubbles(account, localToday())?.now === "ROM";
     case "g100":
-      return planRing(account) === "100G";
+      return serviceBubbles(account, localToday())?.now === "100G";
+    case "toSis":
+      return changesTo(account, localToday(), "SIS");
+    case "toStop":
+      return changesTo(account, localToday(), "STOP");
     case "renewed":
     case "duplicate":
     case "rep":
@@ -1983,6 +1992,8 @@ export function HomeView({
       sis: count("sis"),
       rom: count("rom"),
       g100: count("g100"),
+      toSis: count("toSis"),
+      toStop: count("toStop"),
       renewed: activeAccounts.filter((a) => renewedToday.has(a.id)).length,
       duplicate: activeAccounts.filter((a) => deviceTwinMap.has(a.id)).length,
     };
@@ -2462,6 +2473,8 @@ export function HomeView({
               ["sis", "SIS", ringCounts.sis, <IconPause key="i" />],
               ["rom", "ROM", ringCounts.rom, <IconSignal key="i" />],
               ["g100", "100G", ringCounts.g100, <IconGrid key="i" />],
+              ["toSis", "← SIS", ringCounts.toSis, <IconClock key="i" />],
+              ["toStop", "← STOP", ringCounts.toStop, <IconAlert key="i" />],
             ] as const).map(([kind, label, value, icon]) => (
               <StatusRing
                 key={kind}
@@ -3024,7 +3037,7 @@ function SearchResultRow({ result, onOpenClient }: { result: SearchResult; onOpe
 
 type StatusTone =
   | "total" | "online" | "warning" | "expired" | "suspended" | "recent" | "notRenewed" | "pinned" | "faulty" | "repair" | "travel" | "travelDone" | "fromRep" | "noClient"
-  | "notCanceled" | "canceled" | "renewed" | "sis" | "rom" | "g100" | "duplicate" | "rep";
+  | "notCanceled" | "canceled" | "renewed" | "sis" | "rom" | "g100" | "duplicate" | "rep" | "toSis" | "toStop";
 
 const RING_LONG_PRESS_MS = 550;
 

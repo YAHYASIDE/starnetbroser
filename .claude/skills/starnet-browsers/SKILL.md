@@ -139,6 +139,11 @@ plus the rules learned from real misreads; keep it updated when you learn a new 
   `pendingStandbyDate` (card chip «⏸️ SIS من …»); only «scheduled to end» / «تنتهي خدمتك» sets
   `pendingCancellationDate` («ملغى»). Real, confirmed (Oct 10 2026): a device moving to SIS showed «ملغي».
   The merge drops an older cancellation date equal to the standby date.
+- 🫧 Plan states (his Oct 17 2026 screenshots): the badge «**Inactive**» contains «active» - it is checked
+  first and means the service ended (`canceled` = STOP); Starlink prints «**Roam - Unlimited**» (not only
+  «Roaming») = ROM; a bare «plan» label counts only at the start of a line (the travel banner «…your
+  plan's travel allowance…» was once read as the plan name). A plain plan badge with no end / switch
+  banner sets `planChangePending: false`, which clears an older end / switch date in the merge.
 - Never put real account data in tests or fixtures; fake values only.
 - 🔄 A hidden WebView (`AutoSyncWorker`, never attached to a window) often doesn't render Starlink's
   SPA - the card's «تحديث من Starlink» "did nothing" for the operator. So the card button and

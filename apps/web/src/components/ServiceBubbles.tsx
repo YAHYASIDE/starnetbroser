@@ -1,0 +1,23 @@
+"use client";
+
+import { SERVICE_LABELS, type ServiceBubbles as Bubbles, type ServiceKind } from "@/lib/serviceBubbles";
+
+const CLASS: Record<ServiceKind, string> = { ROM: "svc-rom", "100G": "svc-100g", SIS: "svc-sis", STOP: "svc-stop" };
+
+/** 🫧 [الخدمة الآن] ← [بعد انتهاء الشهر] (lib/serviceBubbles.ts). */
+export function ServiceBubbles({ bubbles }: { bubbles: Bubbles }) {
+  return (
+    <span
+      className="svc-bubbles"
+      data-tour="service-bubbles"
+      title={`الآن: ${SERVICE_LABELS[bubbles.now]} · بعد انتهاء الشهر: ${SERVICE_LABELS[bubbles.next]}${bubbles.nextDate ? ` (${bubbles.nextDate})` : ""}`}
+    >
+      <span className={`svc-bubble ${CLASS[bubbles.now]}`}>{bubbles.now}</span>
+      <span className="svc-arrow" aria-hidden="true">←</span>
+      <span className={`svc-bubble ${CLASS[bubbles.next]}`}>
+        {bubbles.next}
+        {bubbles.nextDate && <bdi dir="ltr" className="svc-date">{bubbles.nextDate.slice(5)}</bdi>}
+      </span>
+    </span>
+  );
+}

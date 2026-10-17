@@ -15686,3 +15686,44 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   height: auto;
   min-height: 0;
 }
+
+/* 🫧 [الآن] ← [بعد الشهر] on the card (ServiceBubbles): ROM blue, 100G violet, SIS yellow, STOP red. */
+.svc-bubbles {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+}
+
+.svc-bubble {
+  direction: ltr;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+}
+
+.svc-date {
+  font-weight: 600;
+  font-size: 0.66rem;
+  opacity: 0.85;
+}
+
+.svc-arrow {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
+.svc-rom { color: var(--brand); background: color-mix(in srgb, var(--brand) 14%, transparent); }
+.svc-100g { color: var(--violet); background: var(--violet-bg); }
+.svc-sis { color: var(--yellow); background: var(--yellow-bg); }
+.svc-stop { color: var(--red); background: var(--red-bg); }
+
+.status-ring-toSis { --tone: var(--yellow); }
+.status-ring-toStop { --tone: var(--red); }
