@@ -5041,6 +5041,19 @@ button.today-tile {
   margin-top: 12px;
 }
 
+/* ⏰ «مزامنات مجدولة»: one column - each switch, its hour and its line under it. */
+.scheduled-syncs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  min-width: 0;
+}
+
+.scheduled-syncs > .settings-hint {
+  margin: 0 0 6px;
+}
+
 
 /* =====================================================================================
    Orbit - the unified look (dark satellite by default, see the tokens at the top). This layer

@@ -21,6 +21,7 @@ import { HomeFab } from "./HomeFab";
 import { HeaderMore } from "./BottomNav";
 import { pruneOrphanProofs } from "@/lib/paymentProofStore";
 import { buildAutoSyncList } from "@/lib/autoSyncList";
+import { pushScheduledSyncs, scheduleSyncRetry } from "@/lib/scheduledSyncs";
 import { LedgerDialog } from "./LedgerDialog";
 import { ClientDialog } from "./ClientDialog";
 import { ClientsOverviewDialog } from "./ClientsOverviewDialog";
@@ -150,7 +151,7 @@ import {
   triggerImmediateSync,
 } from "@/lib/localBrowser";
 import { SyncChoiceSheet, SyncQueueBar } from "./SyncNowSheet";
-import { loadSyncQueue, localToday, nextQueuedAccount, pickSyncAccounts, queueProgressLabel, saveSyncQueue, startSyncQueue, syncedOnlyByCommand, syncQueueFor, type SyncWindow } from "@/lib/syncQueue";
+import { devicesLeftAfterRateLimit, loadSyncQueue, localToday, nextQueuedAccount, pickSyncAccounts, queueProgressLabel, saveSyncQueue, startSyncQueue, syncedOnlyByCommand, syncQueueFor, type SyncWindow } from "@/lib/syncQueue";
 import { DayActionsSheet } from "./DayActionsSheet";
 import { TravelCheckSheet } from "./TravelCheckSheet";
 import { NotificationsBell } from "./NotificationsBell";
@@ -587,6 +588,12 @@ export function HomeView({
       if (queue.travelCheck) finishTravelCheck(queue, queue.ids.slice(0, Math.min(queue.index, queue.ids.length)));
       else reportSync(buildSyncReport(queue, accountsRef.current, true));
       pushToast(RATE_LIMIT_NOTE);
+      // 🔁 «إكمال بعد 429»: the rest syncs by itself in the background once the 20 minutes are over.
+      const left = devicesLeftAfterRateLimit(queue)
+        .map((id) => accountsRef.current.find((a) => a.id === id))
+        .filter((a): a is StarlinkAccountSummary => Boolean(a));
+      const minutes = await scheduleSyncRetry(left, queue.label, queue.travelCheck === true);
+      if (minutes > 0) pushToast(`🔁 سأكمل ${left.length} جهاز وحدي بعد ${minutes} دقيقة (في الخلفية)`);
       return;
     }
     for (const id of applied.newlySignedOut) {
@@ -1264,6 +1271,11 @@ export function HomeView({
     // ones (7/3/1 days, just expired, stopped) automatically; see autoSyncList.ts.
     void syncAutoSyncAccountList(buildAutoSyncList(accounts));
   }, [accounts]);
+
+  // ⏰ «مزامنات مجدولة»: his choices reach the phone on every start (a reinstalled app forgets them).
+  useEffect(() => {
+    void pushScheduledSyncs();
+  }, []);
 
   // 💳 KAST card mail: each device's expected Starlink dollars and card go to the phone (it guesses
   // the device of a refused payment for the Telegram alert); never the demo devices.

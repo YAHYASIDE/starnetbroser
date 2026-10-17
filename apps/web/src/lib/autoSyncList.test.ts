@@ -27,4 +27,10 @@ describe("buildAutoSyncList", () => {
     expect(list.map((a) => a.id)).toEqual(["nodate"]);
     expect(list.every((a) => a.renewalDate === undefined)).toBe(true);
   });
+
+  it("⏰ marks a limited (non-main) email so a scheduled run never takes it", () => {
+    const [limited, main] = buildAutoSyncList([account("l", { limitedAccess: true }), account("m", { limitedAccess: false })]);
+    expect(limited.limited).toBe(true);
+    expect(main).not.toHaveProperty("limited");
+  });
 });

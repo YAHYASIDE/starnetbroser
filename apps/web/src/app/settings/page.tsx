@@ -16,6 +16,7 @@ import { BiometricUnlockToggle } from "@/components/BiometricUnlockToggle";
 import { openSettingsFold, SettingsFold } from "@/components/SettingsFold";
 import { WhatsNewSection } from "@/components/WhatsNewSection";
 import { LiveSyncSection } from "@/components/LiveSyncSection";
+import { ScheduledSyncsSection } from "@/components/ScheduledSyncsSection";
 import { SettingsSearch } from "@/components/SettingsSearch";
 import { useEffect, useRef, useState } from "react";
 import { checkHealth, listAccounts, login, register } from "@/lib/apiClient";
@@ -420,6 +421,7 @@ export default function SettingsPage() {
 
         {group === "sync" && (
           <>
+            <SettingsFold id="scheduled-syncs"><ScheduledSyncsSection /></SettingsFold>
             <SettingsFold id="auto-sync">
               {isAndroidApp ? (
                 <section className="section">

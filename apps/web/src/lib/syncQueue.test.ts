@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { StarlinkAccountSummary } from "@starnet/shared";
-import { localToday, nextQueuedAccount, pickSyncAccounts, queueProgressLabel, startSyncQueue, syncQueueFor, type SyncWindow } from "./syncQueue";
+import { devicesLeftAfterRateLimit, localToday, nextQueuedAccount, pickSyncAccounts, queueProgressLabel, startSyncQueue, syncQueueFor, type SyncWindow } from "./syncQueue";
 
 const TODAY = "2026-10-03";
 const FAULT = { reason: "burned", note: "", reportedAt: "2026-09-01" } as StarlinkAccountSummary["deviceFault"];
@@ -84,5 +84,12 @@ describe("🛂 «كشف توثيق» queue", () => {
   it("marks the run as a travel check only when asked", () => {
     expect(syncQueueFor(["a"], "يوم 1", true)).toEqual({ ids: ["a"], index: 0, label: "يوم 1", travelCheck: true });
     expect(syncQueueFor(["a"], "يوم 1")).toEqual({ ids: ["a"], index: 0, label: "يوم 1" });
+  });
+});
+
+describe("🔁 after a 429", () => {
+  it("leaves the refused device and every one not opened yet for the retry", () => {
+    expect(devicesLeftAfterRateLimit({ ids: ["a", "b", "c", "d"], index: 2, label: "", results: { a: "ok", b: "rateLimited" } })).toEqual(["b", "c", "d"]);
+    expect(devicesLeftAfterRateLimit({ ids: ["a"], index: 1, label: "", results: { a: "ok" } })).toEqual([]);
   });
 });

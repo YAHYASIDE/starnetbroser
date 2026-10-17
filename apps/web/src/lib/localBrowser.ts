@@ -30,6 +30,8 @@ export interface AutoSyncAccountRef {
   renewalDate?: string;
   serviceStatus?: string;
   representativeId?: string;
+  /** A limited (non-main) email - never in a ⏰ scheduled run. */
+  limited?: boolean;
 }
 
 /**
@@ -558,6 +560,7 @@ export async function syncAutoSyncAccountList(accounts: AutoSyncAccountRef[]): P
         renewalDate: account.renewalDate,
         serviceStatus: account.serviceStatus,
         representativeId: account.representativeId,
+        ...(account.limited ? { limited: true } : {}),
       })),
     });
     return saved;

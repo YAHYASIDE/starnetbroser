@@ -6,6 +6,7 @@ describe("settings groups", () => {
     expect(SETTINGS_GROUPS.map((g) => g.id)).toEqual(["general", "alerts", "sync", "devices", "bots", "backup", "security"]);
     expect(groupForHash("#auto-sync")).toBe("sync");
     expect(groupForHash("#live-sync")).toBe("sync");
+    expect(groupForHash("#scheduled-syncs")).toBe("sync");
     const anchors = SETTINGS_GROUPS.flatMap((g) => g.anchors);
     expect(new Set(anchors).size).toBe(anchors.length);
   });

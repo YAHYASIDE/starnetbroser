@@ -39,6 +39,11 @@ plus the rules learned from real misreads; keep it updated when you learn a new 
      30 s for `hasHomeRead`, reads marked `checkOnly`, page language kept) - keep the two in step. A
      check is "ok" only when Home really answered; otherwise "nothing" = «لم يُفحص», never «لا يحتاج»
      (both runners). Its own bot report: `TravelCheckReport`; each queued device keeps its mode.
+   - `ScheduledSyncWorker.java` - ⏰ «مزامنات مجدولة»: 🌅 8:00 today's + tomorrow's renewals, 💳 yesterday's
+     renewals (paid? `ScheduledSyncText.paymentResult`: stopped or balance due = not paid), 🔁 the devices a 429 left
+     (after 21 min, 2 retries max), 🌙 the night summary from today's log (`AutoSyncResults.record` feeds it). It
+     hands devices to BackgroundSyncService (`startFromBackground`: a 1-px overlay first, Android 15); the plan and
+     texts are pure (`ScheduledSyncPlan`, `ScheduledSyncText` + JUnit).
    - `AutoSyncWorker.java` - background sync. A run over many devices reads Home only (pace +
      Starlink's 429 rate limit, `SyncPacing`), plus Billing once a week per device; a single device's
      own run does the deep walk (subscriptions, devices, billing, settings).

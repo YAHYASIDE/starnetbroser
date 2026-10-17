@@ -15,6 +15,7 @@ import { DeleteCodeHost } from "@/components/DeleteCodePrompt";
 import { LatinDigitInputs } from "@/components/LatinDigitInputs";
 import { WhatsNewTour } from "@/components/WhatsNewTour";
 import { LiveSyncRunner } from "@/components/LiveSyncRunner";
+import { RepCopyAutoRunner } from "@/components/RepCopyAutoRunner";
 import { LinkGuardListener } from "@/components/LinkGuardListener";
 
 export const metadata: Metadata = {
@@ -50,6 +51,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <BottomNav />
             <WhatsNewTour />
             <LiveSyncRunner />
+            <RepCopyAutoRunner />
             <LinkGuardListener />
           </RepModeGate>
         </AppLockGate>

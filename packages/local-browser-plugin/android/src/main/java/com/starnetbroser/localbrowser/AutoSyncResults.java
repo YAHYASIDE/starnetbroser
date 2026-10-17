@@ -23,6 +23,8 @@ final class AutoSyncResults {
 
     static synchronized void record(Context context, String accountId, String outcome) {
         if (accountId == null) return;
+        // 🌙 Also today's log for the night summary.
+        ScheduledSyncStore.log(context, accountId, outcome);
         SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         JSONArray list = parse(prefs.getString(KEY, "[]"));
         try {

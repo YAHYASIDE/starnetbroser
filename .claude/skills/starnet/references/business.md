@@ -276,7 +276,8 @@ mind). Exact texts and numbers live in the code - this file says where.
   (`previousDebt.openDebtUsdToday`); while a D is open, a gap counts only when it's a new bill (over
   25% of the open D and at least $5, `unrecordedGapUsd`) - a smaller drift is part of that D and is
   paid at its real amount when the D is settled (the settle dialog takes what was actually paid).
-- **📋 The rep's copy is sent by hand** (his choice «لا، أرسلها بيدي» - no automatic copy). Devices he
+- **📋 The rep's copy was sent by hand** (his choice «لا، أرسلها بيدي»; since Oct 17 2026 it also goes out by itself
+  10 minutes after the last change - see «⏰ مزامنات مجدولة»). Devices he
   gives a rep (or links) reach the rep's phone only with the next «📤 إرسال نسخته». Each sent copy
   records which devices / customers it held (`starnet.repCopySentDevices`); the rep card then shows
   «⚠️ نسخته قديمة: X جهاز لم يصله · Y تغيّر زبونه · Z لم يعد له» (`repCopy.copyGaps`), a tap opens the
@@ -505,6 +506,33 @@ mind). Exact texts and numbers live in the code - this file says where.
   (`sync`): تحديث الأجهزة من Starlink (+ the 429 protection text), 🌙 المزامنة في الخلفية (its own fold now), ☁️ الربط
   الحيّ مع المندوبين (moved from البوتات). «الأجهزة» keeps the sessions check and the renewal-day lock.
 - «أضف فيها أكثر من المزامنات التي عندنا - فقط اقترح وأنا أقرر»: proposals only, nothing built until he picks.
+
+## ⏰ «مزامنات مجدولة» - what he picked (Oct 17 2026)
+
+- He picked 5 of my proposals: 🌅 صباح أجهزة اليوم، 💳 فحص الدفع بعد التجديد، 🔁 إعادة المحاولة بعد 429، 📤 نسخة
+  المندوب تلقائيًا، 🌙 ملخص آخر الليل (not: weekly travel check, weekly rep statement). All **on by default**, each with
+  its own switch in settings → 🔄 المزامنة التلقائية → «⏰ مزامنات مجدولة» (`starnet.scheduledSyncs`, not backed up;
+  `lib/scheduledSyncs.ts` pushes it to the phone on every start). Native: `ScheduledSyncWorker` (WorkManager, re-arms
+  itself daily), `ScheduledSyncPlan` / `ScheduledSyncText` (pure, JUnit), `ScheduledSyncStore`.
+- 🌅 **His hour: 8:00** («8:00 صباحًا», choice 5-10). The devices renewing today and tomorrow (full date, the later of the
+  app's date and the last read). A faulty device or a limited (non-main) email is never scheduled (`limited` in the
+  auto-sync list). Runs in the 🌙 background sync (BackgroundSyncService) whatever the «المزامنة في الخلفية» switch -
+  it's the only way the page draws with no screen; it needs «الظهور فوق التطبيقات» (a scheduled start shows a
+  1-pixel overlay for Android 15). Without the permission: a notification + bot line, nothing lost.
+- 💳 In the same 8:00 run, first: yesterday's renewals (date = yesterday, or already next month on the same day). A full
+  sync; its own bot report «💳 فحص الدفع بعد التجديد»: ⛔ لم يُدفع (stopped, or Billing's balance due > 0) first, ❔ not
+  known, ✓ تمّ الدفع (active, nothing due).
+- 🔁 After a 429 (background run, morning run or the visible «مزامنة الآن» chain), the refused device and every one
+  not opened yet sync by themselves in the background after 21 minutes (cooldown + 1); at most 2 retries in a row,
+  then «أعد مزامنة الآن لاحقًا»; a run Starlink lets through resets the count. The report says «🔁 سأكمل … بعد 21 دقيقة».
+- 🌙 **A separate message** (his choice, not inside «🌙 ملخص اليوم»), default 11:00 ليلًا: today's syncs by each
+  device's last try (✓ count, 🔑 signed out, ⚠️ not read, ⏸ 429) + the devices stopped now. Log: every
+  `AutoSyncResults.record` also goes to today's log. No bot → a phone notification.
+- 📤 **The rep's copy now goes out by itself** - this replaces his earlier «لا، أرسلها بيدي». His timing: **10 minutes
+  after the last change** to that rep's devices (a new device, a customer changed, one taken back = `copyGaps`), one
+  file, only through the reps bot to a rep whose phone is linked (never the share sheet), only after a first copy was
+  sent by hand; a failed send waits 30 minutes. Runs while the app is open (`RepCopyAutoRunner`, `lib/repCopyAuto.ts`);
+  he hears «📤 أُرسلت نسخة X وحدها». The «⚠️ نسخته قديمة» warning and the manual «📤 إرسال نسخته» stay.
 
 ## 📝 The rep can paste his copy's text (Oct 17 2026)
 

@@ -102,6 +102,12 @@ export function syncQueueFor(ids: string[], label: string, travelCheck = false):
   return travelCheck ? { ids: [...ids], index: 0, label, travelCheck: true } : { ids: [...ids], index: 0, label };
 }
 
+/** 🔁 After a 429: the device Starlink refused and every one not opened yet, in order - what the
+ * background retry takes (scheduledSyncs.ts). */
+export function devicesLeftAfterRateLimit(queue: SyncQueue): string[] {
+  return queue.ids.filter((id, i) => queue.results?.[id] === "rateLimited" || (i >= queue.index && !queue.results?.[id]));
+}
+
 /** The next device still on the phone (one deleted meanwhile is skipped), or null when finished. */
 export function nextQueuedAccount(queue: SyncQueue, accounts: StarlinkAccountSummary[]): { account: StarlinkAccountSummary; index: number } | null {
   for (let i = queue.index; i < queue.ids.length; i++) {

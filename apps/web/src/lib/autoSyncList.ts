@@ -18,5 +18,7 @@ export function buildAutoSyncList(accounts: StarlinkAccountSummary[]): AutoSyncA
       renewalDate: account.rechargeDate?.trim() || undefined,
       serviceStatus: account.serviceStatus || undefined,
       representativeId: account.representativeId || undefined,
+      // ⏰ A limited (non-main) email syncs only from its own choice - never on a schedule.
+      ...(account.limitedAccess === true ? { limited: true } : {}),
     }));
 }

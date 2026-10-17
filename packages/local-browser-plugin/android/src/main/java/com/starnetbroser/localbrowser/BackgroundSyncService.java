@@ -52,6 +52,8 @@ public class BackgroundSyncService extends Service {
     static final String EXTRA_NAMES = "names";
     static final String EXTRA_LABEL = "label";
     static final String EXTRA_TRAVEL_CHECK = "travelCheck";
+    /** 💳 «فحص الدفع بعد التجديد»: a full sync whose report says, per device, whether it was paid. */
+    static final String EXTRA_PAYMENT_CHECK = "paymentCheck";
 
     private static final String CHANNEL_ID = "starnet_bg_sync_v1";
     private static final int NOTIFICATION_ID = 4417;
@@ -65,6 +67,9 @@ public class BackgroundSyncService extends Service {
     private final List<String> outcomes = new ArrayList<>();
     /** 🛂 Per device: queued as a «كشف توثيق» (Home only), and its label. */
     private final List<Boolean> travelModes = new ArrayList<>();
+    /** 💳 Per device: queued as a payment check (ScheduledSyncWorker), and its result once done. */
+    private final List<Boolean> paymentModes = new ArrayList<>();
+    private final List<String> paymentResults = new ArrayList<>();
     private final List<String> labels = new ArrayList<>();
     /** 🛂 Per finished device of a check: needs / clear / why unchecked, and the deadline. */
     private final List<String> travelResults = new ArrayList<>();
@@ -81,11 +86,69 @@ public class BackgroundSyncService extends Service {
     }
 
     static void start(Context context, String[] accountIds, String[] accountNames, String runLabel, boolean travelCheck) {
+        start(context, accountIds, accountNames, runLabel, travelCheck ? ScheduledSyncStore.MODE_TRAVEL : ScheduledSyncStore.MODE_SYNC);
+    }
+
+    /** `mode`: ScheduledSyncStore.MODE_SYNC / MODE_TRAVEL / MODE_PAYMENT. */
+    static void start(Context context, String[] accountIds, String[] accountNames, String runLabel, String mode) {
         Intent intent = new Intent(context, BackgroundSyncService.class).setAction(ACTION_START)
             .putExtra(EXTRA_IDS, accountIds).putExtra(EXTRA_NAMES, accountNames).putExtra(EXTRA_LABEL, runLabel)
-            .putExtra(EXTRA_TRAVEL_CHECK, travelCheck);
+            .putExtra(EXTRA_TRAVEL_CHECK, ScheduledSyncStore.MODE_TRAVEL.equals(mode))
+            .putExtra(EXTRA_PAYMENT_CHECK, ScheduledSyncStore.MODE_PAYMENT.equals(mode));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent);
         else context.startService(intent);
+    }
+
+    /**
+     * ⏰ A scheduled run (ScheduledSyncWorker) starts the service while the app is in the background.
+     * Android lets an app with «الظهور فوق التطبيقات» do that - and from Android 15 only while one of
+     * its overlay windows is on screen - so a 1-pixel invisible one is shown around the start. False
+     * when Android refused anyway.
+     */
+    static boolean startFromBackground(Context context, String[] accountIds, String[] accountNames, String runLabel, String mode) {
+        Context app = context.getApplicationContext();
+        boolean[] started = {false};
+        java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+        new Handler(Looper.getMainLooper()).post(() -> {
+            WindowManager windows = (WindowManager) app.getSystemService(Context.WINDOW_SERVICE);
+            android.view.View marker = null;
+            try {
+                marker = new android.view.View(app);
+                int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                    ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                    : WindowManager.LayoutParams.TYPE_PHONE;
+                WindowManager.LayoutParams params = new WindowManager.LayoutParams(1, 1, type,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                    PixelFormat.TRANSLUCENT);
+                params.alpha = 0.01f;
+                windows.addView(marker, params);
+            } catch (RuntimeException noWindow) {
+                marker = null;
+            }
+            try {
+                start(app, accountIds, accountNames, runLabel, mode);
+                started[0] = true;
+            } catch (RuntimeException refused) {
+                started[0] = false;
+            }
+            android.view.View shown = marker;
+            if (shown != null) {
+                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                    try {
+                        windows.removeView(shown);
+                    } catch (RuntimeException ignored) {
+                        // already gone
+                    }
+                }, 3000);
+            }
+            latch.countDown();
+        });
+        try {
+            latch.await(10, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        return started[0];
     }
 
     @Override
@@ -111,16 +174,18 @@ public class BackgroundSyncService extends Service {
         String[] newIds = intent != null ? intent.getStringArrayExtra(EXTRA_IDS) : null;
         String[] newNames = intent != null ? intent.getStringArrayExtra(EXTRA_NAMES) : null;
         boolean travelCheck = intent != null && intent.getBooleanExtra(EXTRA_TRAVEL_CHECK, false);
+        boolean paymentCheck = !travelCheck && intent != null && intent.getBooleanExtra(EXTRA_PAYMENT_CHECK, false);
         String newLabel = intent != null ? intent.getStringExtra(EXTRA_LABEL) : null;
         if (newIds != null) {
             for (int i = 0; i < newIds.length; i++) {
                 if (newIds[i] == null) continue;
                 // Already waiting in the same mode: once is enough. Already done, or in the other
                 // mode: queued again (a check after a sync is a different read).
-                if (isQueued(newIds[i], travelCheck)) continue;
+                if (isQueued(newIds[i], travelCheck, paymentCheck)) continue;
                 ids.add(newIds[i]);
                 names.add(newNames != null && i < newNames.length && newNames[i] != null ? newNames[i] : "");
                 travelModes.add(travelCheck);
+                paymentModes.add(paymentCheck);
                 labels.add(newLabel != null ? newLabel : "");
             }
         }
@@ -132,9 +197,9 @@ public class BackgroundSyncService extends Service {
         return START_NOT_STICKY;
     }
 
-    private boolean isQueued(String accountId, boolean travelCheck) {
+    private boolean isQueued(String accountId, boolean travelCheck, boolean paymentCheck) {
         for (int i = index; i < ids.size(); i++) {
-            if (ids.get(i).equals(accountId) && travelModes.get(i) == travelCheck) return true;
+            if (ids.get(i).equals(accountId) && travelModes.get(i) == travelCheck && paymentModes.get(i) == paymentCheck) return true;
         }
         return false;
     }
@@ -164,7 +229,7 @@ public class BackgroundSyncService extends Service {
         boolean travelCheck = travelModes.get(index);
         updateProgress(travelCheck
             ? TravelCheckReport.progress(index, ids.size(), name)
-            : "🔄 مزامنة في الخلفية · " + BackgroundSyncReport.progress(index, ids.size(), name));
+            : (paymentModes.get(index) ? "💳 فحص الدفع · " : "🔄 مزامنة في الخلفية · ") + BackgroundSyncReport.progress(index, ids.size(), name));
         String profileName;
         try {
             profileName = ProfileNaming.profileNameFor(accountId);
@@ -257,6 +322,10 @@ public class BackgroundSyncService extends Service {
             travelResults.add(null);
             travelDues.add(null);
         }
+        SyncRunner read = runner;
+        paymentResults.add(paymentModes.get(index) && read != null
+            ? ScheduledSyncText.paymentResult(outcome, read.sawStopped(), read.sawActive(), read.balanceDue())
+            : paymentModes.get(index) ? ScheduledSyncText.UNKNOWN : null);
         if ("signedOut".equals(outcome)) {
             String alert = BackgroundSyncReport.signedOutAlert(name);
             TelegramSendWorker.enqueue(this, alert);
@@ -276,10 +345,31 @@ public class BackgroundSyncService extends Service {
             outcomes.add("rateLimited");
             travelResults.add(travelModes.get(i) ? TravelCheckReport.result("rateLimited", null) : null);
             travelDues.add(travelModes.get(i) ? "" : null);
+            paymentResults.add(paymentModes.get(i) ? ScheduledSyncText.UNKNOWN : null);
             AutoSyncResults.record(this, ids.get(i), "rateLimited");
         }
         index = ids.size();
         finishRun(false);
+    }
+
+    /** 🔁 «إكمال بعد 429»: every device Starlink stopped is tried again by itself after the
+     * cooldown (ScheduledSyncWorker). The note for the report, or null when it isn't retried. */
+    private String scheduleRetry() {
+        List<ScheduledSyncStore.Pending> left = new ArrayList<>();
+        for (int i = 0; i < outcomes.size(); i++) {
+            if (!"rateLimited".equals(outcomes.get(i))) continue;
+            String mode = travelModes.get(i) ? ScheduledSyncStore.MODE_TRAVEL
+                : paymentModes.get(i) ? ScheduledSyncStore.MODE_PAYMENT : ScheduledSyncStore.MODE_SYNC;
+            left.add(new ScheduledSyncStore.Pending(ids.get(i), names.get(i), mode, labels.get(i)));
+        }
+        if (left.isEmpty()) {
+            // A run Starlink let through: the next 429 gets its retries again.
+            ScheduledSyncStore.setRetries(this, 0);
+            return null;
+        }
+        if (!ScheduledSyncStore.retry(this)) return null;
+        long delay = ScheduledSyncWorker.scheduleRetry(this, left);
+        return delay < 0 ? ScheduledSyncText.RETRIES_USED : ScheduledSyncText.retryNote(left.size(), delay);
     }
 
     private void finishRun(boolean stopped) {
@@ -294,6 +384,9 @@ public class BackgroundSyncService extends Service {
             }
             List<String> syncNames = new ArrayList<>();
             List<String> syncOutcomes = new ArrayList<>();
+            List<String> payNames = new ArrayList<>();
+            List<String> payOutcomes = new ArrayList<>();
+            List<String> payResults = new ArrayList<>();
             List<String> travelNames = new ArrayList<>();
             List<String> checks = new ArrayList<>();
             List<String> dues = new ArrayList<>();
@@ -305,14 +398,23 @@ public class BackgroundSyncService extends Service {
                     travelNames.add(names.get(i));
                     checks.add(travelResults.get(i));
                     dues.add(travelDues.get(i));
+                } else if (paymentModes.get(i)) {
+                    payNames.add(names.get(i));
+                    payOutcomes.add(outcomes.get(i));
+                    payResults.add(paymentResults.get(i));
                 } else {
                     if (syncLabel == null) syncLabel = labels.get(i);
                     syncNames.add(names.get(i));
                     syncOutcomes.add(outcomes.get(i));
                 }
             }
-            if (!syncOutcomes.isEmpty()) announce(BackgroundSyncReport.report(syncLabel, syncNames, syncOutcomes, stopped));
-            if (!checks.isEmpty()) announce(TravelCheckReport.report(travelLabel, travelNames, checks, dues, stopped));
+            String retryNote = stopped ? null : scheduleRetry();
+            String retryLine = retryNote != null ? "\n" + retryNote : "";
+            if (!payOutcomes.isEmpty()) {
+                announce(ScheduledSyncText.paymentReport(payNames, payResults, payOutcomes) + (syncOutcomes.isEmpty() && checks.isEmpty() ? retryLine : ""));
+            }
+            if (!syncOutcomes.isEmpty()) announce(BackgroundSyncReport.report(syncLabel, syncNames, syncOutcomes, stopped) + (checks.isEmpty() ? retryLine : ""));
+            if (!checks.isEmpty()) announce(TravelCheckReport.report(travelLabel, travelNames, checks, dues, stopped) + retryLine);
             if (!outcomes.isEmpty()) AlertSound.play(this);
         }
         stopSelfNow();

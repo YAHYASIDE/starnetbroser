@@ -40,6 +40,8 @@ final class AutoSyncAccountStore {
         @Nullable final String serviceStatus;
         /** The device's representative - his linked Telegram chat hears when it stops. */
         @Nullable final String representativeId;
+        /** A limited (non-main) email: never taken by a ⏰ scheduled run (only from its own choice). */
+        final boolean limited;
 
         Entry(@NonNull String accountId, @Nullable String accountName, @NonNull String url) {
             this(accountId, accountName, url, null, null, null);
@@ -53,6 +55,19 @@ final class AutoSyncAccountStore {
             @Nullable String serviceStatus,
             @Nullable String representativeId
         ) {
+            this(accountId, accountName, url, renewalDate, serviceStatus, representativeId, false);
+        }
+
+        Entry(
+            @NonNull String accountId,
+            @Nullable String accountName,
+            @NonNull String url,
+            @Nullable String renewalDate,
+            @Nullable String serviceStatus,
+            @Nullable String representativeId,
+            boolean limited
+        ) {
+            this.limited = limited;
             this.accountId = accountId;
             this.accountName = accountName != null ? accountName : accountId;
             this.url = url;
@@ -75,6 +90,7 @@ final class AutoSyncAccountStore {
             if (entry.renewalDate != null) obj.put("renewalDate", entry.renewalDate);
             if (entry.serviceStatus != null) obj.put("serviceStatus", entry.serviceStatus);
             if (entry.representativeId != null) obj.put("representativeId", entry.representativeId);
+            if (entry.limited) obj.put("limited", true);
             array.put(obj);
         }
         return array.toString();
@@ -108,7 +124,8 @@ final class AutoSyncAccountStore {
                 url != null ? url : LocalBrowserPlugin.DEFAULT_URL,
                 obj.optString("renewalDate", null),
                 obj.optString("serviceStatus", null),
-                obj.optString("representativeId", null)
+                obj.optString("representativeId", null),
+                obj.optBoolean("limited", false)
             ));
         }
         return entries;

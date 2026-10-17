@@ -297,6 +297,24 @@ export interface AutoSyncAccountEntry {
   serviceStatus?: string;
   /** The device's representative - his linked Telegram chat (reps bot) hears when it stops. */
   representativeId?: string;
+  /** A limited (non-main) email: never taken by a ⏰ scheduled run (synced only from its own choice). */
+  limited?: boolean;
+}
+
+/** ⏰ «مزامنات مجدولة» (settings → المزامنة التلقائية): what runs by itself, and when. */
+export interface ScheduledSyncsOptions {
+  /** 🌅 Every morning: the devices renewing today and tomorrow. */
+  morning: boolean;
+  /** 0-23 (default 8). */
+  morningHour: number;
+  /** 💳 In the same morning run: yesterday's renewals - paid, or stopped? */
+  payment: boolean;
+  /** 🔁 After a 429, the devices left are synced by themselves once the cooldown is over. */
+  retry: boolean;
+  /** 🌙 A separate bot message at night: what synced today and what didn't. */
+  night: boolean;
+  /** 0-23 (default 23). */
+  nightHour: number;
 }
 
 export interface SetAutoSyncAccountIdsOptions {
@@ -525,6 +543,11 @@ export interface LocalBrowserPlugin {
     travelCheck?: boolean;
   }): Promise<{ started: boolean }>;
   stopBackgroundSync(): Promise<void>;
+  /** ⏰ Saves his scheduled-sync choices on the phone and (re)schedules them. No-op on web. */
+  setScheduledSyncs(options: ScheduledSyncsOptions): Promise<void>;
+  /** 🔁 The visible chain stopped on a 429: these devices sync by themselves in the background once
+   * the cooldown is over. `minutes` = when, 0 = not retried (off, or its 2 retries used). */
+  scheduleSyncRetry(options: { accounts: { accountId: string; accountName: string }[]; label?: string; travelCheck?: boolean }): Promise<{ minutes: number }>;
 
   /**
    * Discards the given syncIds so listPendingAccountSyncs stops returning them. Only call this

@@ -22,7 +22,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
   { id: "general", icon: "🎨", title: "عام", short: "عام", subtitle: "المظهر، العملة، بيانات النشاط", tone: "brand", anchors: ["general"] },
   { id: "alerts", icon: "🔔", title: "التذكيرات", short: "التذكيرات", subtitle: "الصباح، المساء، الإشعارات", tone: "yellow", anchors: ["alerts"] },
   // 🔄 Every kind of sync in one place (his Oct 17 2026 ask «كل أنواع المزامنة في الإعدادات في مكان اسمه المزامنة التلقائية»).
-  { id: "sync", icon: "🔄", title: "المزامنة التلقائية", short: "المزامنة", subtitle: "ستارلينك، الخلفية، المندوبون", tone: "brand", anchors: ["sync", "auto-sync", "background-sync", "live-sync"] },
+  { id: "sync", icon: "🔄", title: "المزامنة التلقائية", short: "المزامنة", subtitle: "ستارلينك، الخلفية، المندوبون", tone: "brand", anchors: ["sync", "scheduled-syncs", "auto-sync", "background-sync", "live-sync"] },
   { id: "devices", icon: "🛰️", title: "الأجهزة", short: "الأجهزة", subtitle: "الجلسات، تثبيت يوم التجديد", tone: "mint", anchors: ["devices", "sessions"] },
   { id: "bots", icon: "✈️", title: "البوتات", short: "البوتات", subtitle: "بوتك، بوتات المندوبين", tone: "violet", anchors: ["bots", "telegram"] },
   { id: "backup", icon: "💾", title: "النسخ الاحتياطي", short: "النسخ", subtitle: "نسخة كاملة، يومية، Google Drive", tone: "green", anchors: ["backup", "drive"] },
@@ -64,7 +64,7 @@ export function rememberGroup(id: SettingsGroupId): void {
 export type SettingsItemId =
   | "whats-new" | "shortcuts" | "passwords" | "gmail-codes" | "card-gmail" | "theme" | "help" | "invoice-currency" | "business" | "profit-reset"
   | "reminders"
-  | "auto-sync" | "background-sync" | "sessions" | "renewal-lock"
+  | "scheduled-syncs" | "auto-sync" | "background-sync" | "sessions" | "renewal-lock"
   | "telegram" | "rep-bots" | "live-sync" | "activation-costs" | "instant-replies"
   | "backup-full" | "backup-daily" | "drive"
   | "lock" | "update" | "rep-mode" | "storage" | "server";
@@ -92,6 +92,7 @@ export const SETTINGS_ITEMS: SettingsItem[] = [
   { id: "business", group: "general", icon: "🏪", title: "بيانات النشاط", summary: "الاسم والهاتف في الكشوفات و PDF", keywords: ["نشاط", "pdf", "كشف", "شعار", "هاتف"] },
   { id: "profit-reset", group: "general", icon: "🔁", title: "بداية جديدة للأرباح", summary: "تصفير الأرباح من تاريخ", keywords: ["ارباح", "أرباح", "تصفير", "بداية"] },
   { id: "reminders", group: "alerts", icon: "🔔", title: "التذكيرات والإشعارات", summary: "عدد التذكيرات، ملخص الصباح والمساء", keywords: ["تذكير", "اشعار", "إشعار", "صباح", "مساء", "ملخص"] },
+  { id: "scheduled-syncs", group: "sync", icon: "⏰", title: "مزامنات مجدولة", summary: "صباح أجهزة اليوم، فحص الدفع، بعد 429، ملخص الليل، نسخة المندوب", keywords: ["مجدولة", "صباح", "الصباح", "دفع", "فحص الدفع", "429", "ليل", "ملخص", "نسخة المندوب", "تلقائي"] },
   { id: "auto-sync", group: "sync", icon: "🔄", title: "تحديث الأجهزة من Starlink", summary: "المزامنة التلقائية ووقتها، والحماية من خطأ 429", keywords: ["مزامنة", "تحديث", "ستارلينك", "starlink", "تلقائي", "429"] },
   { id: "background-sync", group: "sync", icon: "🌙", title: "المزامنة في الخلفية", summary: "«مزامنة الآن» دون فتح الصفحات", keywords: ["خلفية", "مزامنة", "الظهور فوق التطبيقات", "مزامنة الآن"] },
   { id: "renewal-lock", group: "devices", icon: "📌", title: "تثبيت يوم التجديد", summary: "يوم التجديد لا يتغيّر مع المزامنة", keywords: ["تثبيت", "يوم التجديد", "تاريخ", "تجديد", "مثبت"] },

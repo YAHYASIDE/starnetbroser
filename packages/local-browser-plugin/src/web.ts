@@ -27,6 +27,7 @@ import type {
   OpenMailBrowserOptions,
   ListMailSessionsResult,
   SetAutoSyncAccountIdsOptions,
+  ScheduledSyncsOptions,
   SetAutoSyncAccountIdsResult,
   SetAutoSyncEnabledOptions,
   SetAutoSyncEnabledResult,
@@ -89,6 +90,14 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
 
   async stopBackgroundSync(): Promise<void> {
     return;
+  }
+
+  async setScheduledSyncs(_options: ScheduledSyncsOptions): Promise<void> {
+    return;
+  }
+
+  async scheduleSyncRetry(_options: { accounts: { accountId: string; accountName: string }[]; label?: string; travelCheck?: boolean }): Promise<{ minutes: number }> {
+    return { minutes: 0 };
   }
 
   async ackPendingAccountSyncs(_options: AckPendingAccountSyncsOptions): Promise<AckPendingAccountSyncsResult> {

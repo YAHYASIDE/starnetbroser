@@ -79,6 +79,9 @@ final class SyncRunner {
     /** 🛂 What Home said (null until it said it) and Starlink's deadline as printed. */
     private Boolean travelRequired;
     private String travelDue = "";
+    /** 💳 What this run read for the payment check: an active status, and Billing's balance due. */
+    private boolean sawActive;
+    private String balanceDue;
 
     private interface ScriptLoader {
         String load(Context context) throws IOException;
@@ -164,6 +167,20 @@ final class SyncRunner {
 
     String travelDue() {
         return travelDue;
+    }
+
+    /** 💳 The run read a stopped status (suspended / canceled) - kept even if a later page didn't. */
+    boolean sawStopped() {
+        return sawStopped;
+    }
+
+    boolean sawActive() {
+        return sawActive;
+    }
+
+    /** Billing's «Balance Due» as read ("0.00", "HNL 266.25"), null when not read. */
+    String balanceDue() {
+        return balanceDue;
     }
 
     private void startSteps() {
@@ -329,6 +346,9 @@ final class SyncRunner {
                 travelDue = travelRequired ? fields.optString("travelRegistrationDue", "") : "";
             }
         }
+        String status = fields.optString("serviceStatus", "");
+        if ("active".equals(status)) sawActive = true;
+        if (fields.has("balanceDue")) balanceDue = fields.optString("balanceDue", balanceDue);
         sawStopped = StarlinkExtractorSupport.keepStoppedWithinRun(fields, sawStopped);
         sawRestricted = StarlinkExtractorSupport.keepRestrictedWithinRun(fields, sawRestricted);
         String syncId = PendingSyncStore.save(context, accountId, fields);

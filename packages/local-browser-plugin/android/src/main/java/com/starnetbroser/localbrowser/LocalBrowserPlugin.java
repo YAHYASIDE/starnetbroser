@@ -899,6 +899,43 @@ public class LocalBrowserPlugin extends Plugin {
         call.resolve(ret);
     }
 
+    /** ⏰ «مزامنات مجدولة»: his choices from the settings; (re)schedules the morning and night runs. */
+    @PluginMethod
+    public void setScheduledSyncs(PluginCall call) {
+        ScheduledSyncStore.save(
+            getContext(),
+            Boolean.TRUE.equals(call.getBoolean("morning", false)),
+            call.getInt("morningHour", ScheduledSyncStore.DEFAULT_MORNING_HOUR),
+            Boolean.TRUE.equals(call.getBoolean("payment", false)),
+            Boolean.TRUE.equals(call.getBoolean("retry", false)),
+            Boolean.TRUE.equals(call.getBoolean("night", false)),
+            call.getInt("nightHour", ScheduledSyncStore.DEFAULT_NIGHT_HOUR)
+        );
+        ScheduledSyncWorker.apply(getContext());
+        call.resolve();
+    }
+
+    /** 🔁 The visible chain stopped on a 429: these devices are tried again by themselves after the
+     * cooldown (in the background). `minutes` = when, or 0 when it isn't retried. */
+    @PluginMethod
+    public void scheduleSyncRetry(PluginCall call) {
+        JSArray accounts = call.getArray("accounts");
+        String label = call.getString("label", "");
+        String mode = Boolean.TRUE.equals(call.getBoolean("travelCheck", false)) ? ScheduledSyncStore.MODE_TRAVEL : ScheduledSyncStore.MODE_SYNC;
+        List<ScheduledSyncStore.Pending> left = new ArrayList<>();
+        if (accounts != null) {
+            for (int i = 0; i < accounts.length(); i++) {
+                JSONObject account = accounts.optJSONObject(i);
+                String id = account != null ? account.optString("accountId", "") : "";
+                if (!id.isEmpty()) left.add(new ScheduledSyncStore.Pending(id, account.optString("accountName", ""), mode, label));
+            }
+        }
+        long delay = ScheduledSyncWorker.scheduleRetry(getContext(), left);
+        JSObject ret = new JSObject();
+        ret.put("minutes", delay < 0 ? 0 : (int) ((delay + 59_999) / 60_000));
+        call.resolve(ret);
+    }
+
     @PluginMethod
     public void stopBackgroundSync(PluginCall call) {
         Intent intent = new Intent(getContext(), BackgroundSyncService.class).setAction(BackgroundSyncService.ACTION_STOP);
@@ -986,7 +1023,8 @@ public class LocalBrowserPlugin extends Plugin {
                     url,
                     obj.optString("renewalDate", null),
                     obj.optString("serviceStatus", null),
-                    obj.optString("representativeId", null)
+                    obj.optString("representativeId", null),
+                    obj.optBoolean("limited", false)
                 ));
             }
         }
