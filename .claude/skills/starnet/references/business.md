@@ -571,6 +571,8 @@ mind). Exact texts and numbers live in the code - this file says where.
 - His first try («غير جيد لم تظهرهم»): an «Ending» device still showed «نشط» + «Ending ٢٠٢٦/١١/١١» as its plan -
   the reader had taken the badge for the plan name. Fixed in the reader (`isPlanDateBadge`) and the app never
   shows such a stored «plan» (`cleanPlanName`); the bubbles appear after that device's next sync.
+- «ملغى لماذا هنا»: the red «ملغى» chip is hidden when the bubbles show (STOP + date says it); «🛑 إلغاء الاشتراك» stays
+  in the card's ⋯ menu.
 
 ## 🔑 A rep's permissions, chosen before each copy (Oct 17 2026)
 

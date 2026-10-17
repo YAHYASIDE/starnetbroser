@@ -805,7 +805,8 @@ export function AccountCard({
             ⏸️ SIS من <bdi dir="ltr">{account.pendingStandbyDate}</bdi>
           </span>
         )}
-        {context === "active" && !account.creation && cancellation.cancelled && (
+        {/* 🫧 The STOP bubble already says it (his Oct 17 2026 ask «ملغى لماذا هنا»). */}
+        {context === "active" && !account.creation && cancellation.cancelled && !bubbles && (
           <button type="button" className="cancel-subscription-button is-cancelled" onClick={() => void handleCancelSubscription()} title={cancelledMessage(cancellation)}>
             ملغى
           </button>
