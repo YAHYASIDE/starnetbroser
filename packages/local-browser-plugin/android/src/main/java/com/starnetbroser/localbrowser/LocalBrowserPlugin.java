@@ -899,6 +899,15 @@ public class LocalBrowserPlugin extends Plugin {
         call.resolve(ret);
     }
 
+    /** 📮 «بريد على نطاقي»: the domain whose addresses are forwarded to «بريد الرموز» ("" = none). */
+    @PluginMethod
+    public void setMailDomain(PluginCall call) {
+        ForwardedMail.setDomain(getContext(), call.getString("domain", ""));
+        JSObject ret = new JSObject();
+        ret.put("domain", ForwardedMail.domain(getContext()));
+        call.resolve(ret);
+    }
+
     /** ⏰ «مزامنات مجدولة»: his choices from the settings; (re)schedules the morning and night runs. */
     @PluginMethod
     public void setScheduledSyncs(PluginCall call) {

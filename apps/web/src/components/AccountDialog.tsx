@@ -1,6 +1,7 @@
 "use client";
 
 import { emailBaseFor, suggestEmail, suggestPassword } from "@/lib/emailSuggest";
+import { isOnMailDomain, loadMailDomain } from "@/lib/mailDomain";
 import { askDeleteCode } from "@/components/DeleteCodePrompt";
 import { cardLabel, loadPaymentCards } from "@/lib/kastCards";
 import { shareText } from "@/lib/shareText";
@@ -147,6 +148,10 @@ export function AccountDialog({
   // field is empty or still holds the last suggestion, so what he typed himself is never replaced.
   const suggestedEmail = useRef("");
   const suggestedCode = useRef("");
+  // 📮 His own domain (lib/mailDomain.ts): the address is just a name on it - no Outlook signup.
+  const [mailDomain] = useState(() => loadMailDomain());
+  const [onDomain, setOnDomain] = useState(() => Boolean(loadMailDomain()));
+  const emailDomain = onDomain && mailDomain ? mailDomain : "outlook.com";
 
   function changeCreationName(name: string) {
     setCreationName(name);
@@ -154,20 +159,30 @@ export function AccountDialog({
     if (!current || current === suggestedEmail.current) {
       const base = emailBaseFor(name);
       // Same name base → keep the digits already shown (no flicker while typing a space).
-      const keep = suggestedEmail.current && /^\d{3}@outlook\.com$/.test(suggestedEmail.current.slice(base.length)) && suggestedEmail.current.startsWith(base) ? suggestedEmail.current : "";
-      const next = base ? keep || suggestEmail(name) : "";
+      const keep = suggestedEmail.current && suggestedEmail.current.slice(base.length).replace(/^\d{3}@/, "") === emailDomain && /^\d{3}@/.test(suggestedEmail.current.slice(base.length)) && suggestedEmail.current.startsWith(base) ? suggestedEmail.current : "";
+      const next = base ? keep || suggestEmail(name, Math.random, emailDomain) : "";
       suggestedEmail.current = next;
       update("expectedEmail", next);
     }
     const code = draft.expectedEmailPassword ?? "";
-    if (name.trim() && (!code || code === suggestedCode.current) && !suggestedCode.current) {
+    if (!(onDomain && mailDomain) && name.trim() && (!code || code === suggestedCode.current) && !suggestedCode.current) {
       suggestedCode.current = suggestPassword();
       update("expectedEmailPassword", suggestedCode.current);
     }
   }
 
+  /** 📮 / 📧 switch: the suggestion moves to the other domain (a typed address stays). */
+  function switchDomain(domainMode: boolean) {
+    setOnDomain(domainMode);
+    const current = (draft.expectedEmail ?? "").trim();
+    if (current && current !== suggestedEmail.current) return;
+    const next = emailBaseFor(creationName) ? suggestEmail(creationName, Math.random, domainMode && mailDomain ? mailDomain : "outlook.com") : "";
+    suggestedEmail.current = next;
+    update("expectedEmail", next);
+  }
+
   function anotherEmail() {
-    const next = suggestEmail(creationName);
+    const next = suggestEmail(creationName, Math.random, emailDomain);
     if (!next) return;
     suggestedEmail.current = next;
     update("expectedEmail", next);
@@ -213,6 +228,7 @@ export function AccountDialog({
       email: draft.expectedEmail ?? "",
       password: draft.expectedEmailPassword ?? "",
       wifiPassword: draft.wifiPassword ?? "",
+      forwarded: isOnMailDomain(draft.expectedEmail, mailDomain),
     };
     const problem = creationProblem(input);
     setCreateError(problem);
@@ -484,7 +500,13 @@ export function AccountDialog({
             </label>
 
             <label className="form-field add-field add-field-email">
-              <span className="add-field-label"><b aria-hidden="true">5️⃣</b> البريد الجديد (أوتلوك) *</span>
+              <span className="add-field-label"><b aria-hidden="true">5️⃣</b> {onDomain && mailDomain ? "البريد على نطاقك (يصل إلى Gmail) *" : "البريد الجديد (أوتلوك) *"}</span>
+              {mailDomain && (
+                <span className="mail-domain-switch" role="radiogroup" aria-label="نوع البريد">
+                  <button type="button" role="radio" aria-checked={onDomain} className={onDomain ? "active" : ""} onClick={() => switchDomain(true)}>📮 @{mailDomain}</button>
+                  <button type="button" role="radio" aria-checked={!onDomain} className={onDomain ? "" : "active"} onClick={() => switchDomain(false)}>📧 أوتلوك</button>
+                </span>
+              )}
               <div className="suggest-input-row">
                 <input dir="ltr" value={draft.expectedEmail ?? ""} onChange={(e) => update("expectedEmail", e.target.value)} placeholder="name@outlook.com" autoCapitalize="none" />
                 <button type="button" className="suggest-again" onClick={anotherEmail} disabled={!emailBaseFor(creationName)} title="اقتراح آخر من الاسم">🔄 اقتراح آخر</button>
@@ -492,6 +514,7 @@ export function AccountDialog({
               <FieldDuplicate hits={duplicates} field="email" />
             </label>
 
+            {!(onDomain && mailDomain) && (
             <label className="form-field add-field add-field-code">
               <span className="add-field-label"><b aria-hidden="true">6️⃣</b> كود البريد * (8 أحرف أو أكثر)</span>
               <div className="suggest-input-row">
@@ -500,6 +523,7 @@ export function AccountDialog({
               </div>
               <PasswordChips values={passwordSuggestions} current={draft.expectedEmailPassword} onPick={(v) => update("expectedEmailPassword", v)} />
             </label>
+            )}
 
             <div className="form-field add-field add-field-client">
               <span className="add-field-label"><b aria-hidden="true">7️⃣</b> الزبون (اختياري - يُسجَّل عليه الجهاز)</span>
@@ -516,10 +540,17 @@ export function AccountDialog({
               />
             </div>
 
-            <p className="creation-steps">
-              بعد «إنشاء»: ١- تُفتح صفحة إنشاء بريد أوتلوك مكتوبة - أكمل التحقق بيدك. ٢- بعد فتح البريد
-              ننتقل إلى «تفعيل Starlink»: يُكتب KIT ويُضغط «متابعة»، ثم الاسم والبريد والهاتف - وتكمل أنت يدوياً.
-            </p>
+            {onDomain && mailDomain ? (
+              <p className="creation-steps">
+                📮 بعد «إنشاء» يُفتح «تفعيل Starlink» مباشرة - لا بريد يُنشأ: كل ما يصل إلى هذا العنوان يصلك في Gmail
+                «بريد الرموز»، ورمز ستارلينك يُكتب منه وحده.
+              </p>
+            ) : (
+              <p className="creation-steps">
+                بعد «إنشاء»: ١- تُفتح صفحة إنشاء بريد أوتلوك مكتوبة - أكمل التحقق بيدك. ٢- بعد فتح البريد
+                ننتقل إلى «تفعيل Starlink»: يُكتب KIT ويُضغط «متابعة»، ثم الاسم والبريد والهاتف - وتكمل أنت يدوياً.
+              </p>
+            )}
 
             <DuplicateWarning hits={duplicates} inline={["phone", "kit", "email"]} />
             {createError && <span className="account-card-alert ledger-form-error" role="alert">{createError}</span>}

@@ -21,6 +21,8 @@ export interface CreationInput {
   password: string;
   /** 📶 The Wi-Fi code to set on the dish (kept on the device). */
   wifiPassword?: string;
+  /** 📮 An address on his forwarded domain: no mailbox to make, so no mailbox code. */
+  forwarded?: boolean;
 }
 
 /** «أحمد ولد سالم» -> first «أحمد», family «ولد سالم». One word: it is both. */
@@ -49,8 +51,8 @@ export function creationProblem(input: CreationInput): string | null {
   if (normalizeKit(input.kit).length < 6) return "اكتب رقم KIT أو SN كما على الكاش";
   const email = normalizeNewEmail(input.email);
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return "اكتب البريد الجديد (مثال: name@outlook.com)";
-  // Microsoft refuses a shorter one.
-  if (input.password.length < 8) return "كلمة مرور البريد 8 أحرف على الأقل";
+  // Microsoft refuses a shorter one (a forwarded domain address has no mailbox of its own).
+  if (!input.forwarded && input.password.length < 8) return "كلمة مرور البريد 8 أحرف على الأقل";
   return null;
 }
 

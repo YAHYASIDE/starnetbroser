@@ -92,6 +92,10 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
     return;
   }
 
+  async setMailDomain(options: { domain: string }): Promise<{ domain: string }> {
+    return { domain: options.domain };
+  }
+
   async setScheduledSyncs(_options: ScheduledSyncsOptions): Promise<void> {
     return;
   }

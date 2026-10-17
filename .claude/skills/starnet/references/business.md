@@ -592,6 +592,15 @@ mind). Exact texts and numbers live in the code - this file says where.
   letter), filled by itself while the field is empty or still holds the last suggestion, «🔄 اقتراح آخر» for
   new digits; the code is suggested too (10 characters: capital, lower, 3 digits, a symbol; no look-alikes),
   «🔄» for another. What he types himself is never replaced. `lib/emailSuggest.ts`.
+- Automating Microsoft's signup page by page (pressing its buttons, its «Press and hold» human check) was declined:
+  it is automated account creation that Microsoft forbids. Filling the fields stays; he presses the buttons.
+- 📮 **«بريد على نطاقي»** (his choice instead): his own domain with catch-all forwarding (e.g. Cloudflare Email
+  Routing) to the «بريد الرموز» Gmail. Settings → عام → «📮 بريد على نطاقي» (`starnet.mailDomain`, pushed to the
+  phone: `ForwardedMail.java`). «إنشاء حساب جديد» then offers «📮 @domain» / «📧 أوتلوك» (domain by default): the
+  address is suggested on the domain, no mailbox code, and «إنشاء» opens «تفعيل Starlink» at once. A Starlink
+  code for such a device is read from «بريد الرموز» with `to:<its address>` (never another device's code). Warned:
+  renew the domain for years - if it lapses every device's mail stops; the addresses receive only. Try one
+  device first (Starlink accepting a custom domain wasn't tested here).
 
 ## ✨ Card polish he chose (Oct 17 2026, «ماذا تقترح لتجميل البطاقة»)
 

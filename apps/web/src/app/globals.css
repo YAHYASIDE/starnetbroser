@@ -15844,3 +15844,35 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   opacity: 0.45;
   cursor: default;
 }
+
+/* 📮 «@نطاقي» / «📧 أوتلوك» in «إنشاء حساب جديد». */
+.mail-domain-switch {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.mail-domain-switch button {
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  direction: ltr;
+}
+
+.mail-domain-switch button.active {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+.mail-domain-steps {
+  margin: 0;
+  padding-inline-start: 18px;
+  display: grid;
+  gap: 4px;
+}

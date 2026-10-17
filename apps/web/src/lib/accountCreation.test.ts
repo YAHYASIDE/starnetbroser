@@ -31,6 +31,8 @@ describe("إنشاء حساب جديد", () => {
     expect(creationProblem({ ...input, kit: "12" })).toContain("KIT");
     expect(creationProblem({ ...input, email: "" })).toContain("البريد");
     expect(creationProblem({ ...input, password: "short" })).toContain("8");
+    // 📮 a forwarded domain address needs no mailbox code
+    expect(creationProblem({ ...input, email: "demo@demo-shop.com", password: "", forwarded: true })).toBeNull();
   });
 
   it("saves the device right away, marked as being created", () => {

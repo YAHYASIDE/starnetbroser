@@ -62,7 +62,7 @@ export function rememberGroup(id: SettingsGroupId): void {
 // ---- every setting as one folded line (and what the settings search finds) ----
 
 export type SettingsItemId =
-  | "whats-new" | "shortcuts" | "passwords" | "gmail-codes" | "card-gmail" | "theme" | "help" | "invoice-currency" | "business" | "profit-reset"
+  | "whats-new" | "shortcuts" | "passwords" | "gmail-codes" | "mail-domain" | "card-gmail" | "theme" | "help" | "invoice-currency" | "business" | "profit-reset"
   | "reminders"
   | "scheduled-syncs" | "auto-sync" | "background-sync" | "sessions" | "renewal-lock"
   | "telegram" | "rep-bots" | "live-sync" | "activation-costs" | "instant-replies"
@@ -85,6 +85,7 @@ export const SETTINGS_ITEMS: SettingsItem[] = [
   { id: "shortcuts", group: "general", icon: "📌", title: "اختصارات على شاشة الهاتف", summary: "ثبّت أي صفحة على الشاشة الرئيسية", keywords: ["اختصار", "تثبيت", "شاشة"] },
   { id: "passwords", group: "general", icon: "🔑", title: "كلمات المرور المستعملة", summary: "كل كلمات مرور الأجهزة مع النسخ", keywords: ["كلمة سر", "كلمات السر", "باسورد", "password", "مرور"] },
   { id: "gmail-codes", group: "general", icon: "📨", title: "بريد الرموز (Gmail)", summary: "رموز مايكروسوفت تُكتب وحدها", keywords: ["gmail", "جيميل", "رمز", "كود", "outlook", "مايكروسوفت"] },
+  { id: "mail-domain", group: "general", icon: "📮", title: "بريد على نطاقي", summary: "عناوين الأجهزة على نطاقك تصل إلى Gmail", keywords: ["نطاق", "دومين", "domain", "بريد", "إيميل", "اوتلوك", "إنشاء حساب"] },
   { id: "card-gmail", group: "general", icon: "💳", title: "بريد رمز البطاقة (Gmail)", summary: "رمز تأكيد البطاقة يُكتب وحده", keywords: ["gmail", "جيميل", "بطاقة", "رمز", "card", "payment", "no-reply", "starlink"] },
   { id: "theme", group: "general", icon: "🌓", title: "المظهر", summary: "داكن، فاتح، حسب الجهاز", keywords: ["داكن", "فاتح", "ليلي", "ثيم", "الوان", "ألوان"] },
   { id: "help", group: "general", icon: "💡", title: "المساعدة الذكية", summary: "تلميحات تشرح الشاشات", keywords: ["مساعدة", "شرح", "تلميحات"] },

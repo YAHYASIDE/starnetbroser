@@ -784,8 +784,15 @@ public class AccountBrowserActivity extends AppCompatActivity {
 
     private void startCodeFetch() {
         String mailEmail = getIntent().getStringExtra(EXTRA_LOGIN_EMAIL);
-        final boolean gmail = MailUrl.providerFor(mailEmail) == MailUrl.Provider.GMAIL;
-        if (gmail && !GmailCodeFetcher.isDeviceLinked(this, mailEmail)) {
+        // 📮 An address on his forwarded domain: its codes arrive in «بريد الرموز» (Gmail).
+        final boolean forwarded = ForwardedMail.isForwarded(this, mailEmail);
+        final boolean gmail = forwarded || MailUrl.providerFor(mailEmail) == MailUrl.Provider.GMAIL;
+        if (forwarded && GmailCodeFetcher.linkedEmail(this) == null) {
+            autoCodeOff = true;
+            Toast.makeText(this, "📮 اربط «بريد الرموز» (Gmail) في الإعدادات ليُدخل التطبيق رموز بريد نطاقك تلقائياً", Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (!forwarded && gmail && !GmailCodeFetcher.isDeviceLinked(this, mailEmail)) {
             // Gmail can't be opened inside the app: read through Google once it's linked («📧 Gmail»).
             autoCodeOff = true;
             Toast.makeText(this, "📧 اربط Gmail هذا الجهاز من زر «📧 Gmail» في البطاقة ليُدخل التطبيق الرمز تلقائياً", Toast.LENGTH_LONG).show();
@@ -834,7 +841,9 @@ public class AccountBrowserActivity extends AppCompatActivity {
                     AlertSound.play(AccountBrowserActivity.this);
                 }
             };
-            codeFetcher = gmail
+            codeFetcher = forwarded
+                ? GmailCodeFetcher.forForwarded(this, mailEmail, System.currentTimeMillis() - 10L * 60 * 1000, prefs.getString(accountId, ""), listener)
+                : gmail
                 // Codes of the last 10 minutes only - an older one is long expired.
                 ? new GmailCodeFetcher(this, mailEmail, System.currentTimeMillis() - 10L * 60 * 1000, prefs.getString(accountId, ""), listener)
                 : new MailCodeFetcher(this, accountId, mailEmail, prefs.getString(accountId, ""), listener);

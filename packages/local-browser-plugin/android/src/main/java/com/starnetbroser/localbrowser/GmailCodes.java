@@ -51,6 +51,16 @@ final class GmailCodes {
         }
     }
 
+    /** 📮 The same, only the messages sent to one forwarded address (ForwardedMail). */
+    static String starlinkListUrlTo(String recipient) {
+        String query = STARLINK_QUERY + " to:" + recipient.trim().toLowerCase(Locale.ROOT);
+        try {
+            return MESSAGES_URL + "?maxResults=5&q=" + URLEncoder.encode(query, StandardCharsets.UTF_8.name());
+        } catch (java.io.UnsupportedEncodingException e) {
+            return MESSAGES_URL + "?maxResults=5";
+        }
+    }
+
     static boolean isStarlinkSender(String from) {
         if (from == null) return false;
         String lower = from.toLowerCase(Locale.ROOT);

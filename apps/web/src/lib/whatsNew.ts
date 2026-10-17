@@ -31,6 +31,23 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-17-mail-domain",
+    date: "2026-10-17",
+    title: "📮 بريد على نطاقك بدل أوتلوك",
+    steps: [
+      {
+        path: "/settings#mail-domain",
+        title: "📮 الإعدادات ← عام ← بريد على نطاقي",
+        before: "كل جهاز جديد يحتاج بريد أوتلوك يُنشأ صفحة بصفحة.",
+        after: "اكتب نطاقك (بعد تفعيل تحويل بريده إلى Gmail «بريد الرموز»): كل عنوان عليه يعمل فورًا.",
+      },
+      {
+        title: "🆕 إنشاء حساب جديد ← 📮 @نطاقك",
+        after: "البريد يُقترح على نطاقك ولا كود بريد، و«إنشاء» يفتح «تفعيل Starlink» مباشرة - ورمز ستارلينك يُكتب من Gmail بعنوان الجهاز نفسه.",
+      },
+    ],
+  },
+  {
     id: "2026-10-17-create-account-order",
     date: "2026-10-17",
     title: "🆕 إنشاء حساب جديد بترتيب جديد",

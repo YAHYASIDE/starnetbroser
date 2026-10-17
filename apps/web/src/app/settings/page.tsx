@@ -17,6 +17,7 @@ import { openSettingsFold, SettingsFold } from "@/components/SettingsFold";
 import { WhatsNewSection } from "@/components/WhatsNewSection";
 import { LiveSyncSection } from "@/components/LiveSyncSection";
 import { ScheduledSyncsSection } from "@/components/ScheduledSyncsSection";
+import { MailDomainSection } from "@/components/MailDomainSection";
 import { SettingsSearch } from "@/components/SettingsSearch";
 import { useEffect, useRef, useState } from "react";
 import { checkHealth, listAccounts, login, register } from "@/lib/apiClient";
@@ -328,6 +329,7 @@ export default function SettingsPage() {
       <SettingsFold id="shortcuts"><PhoneShortcutsSection /></SettingsFold>
       <UsedPasswordsSection />
       <SettingsFold id="gmail-codes"><GmailCodesSection /></SettingsFold>
+      <SettingsFold id="mail-domain"><MailDomainSection /></SettingsFold>
       <SettingsFold id="card-gmail"><CardGmailSection /></SettingsFold>
       <SettingsFold id="theme">
       <section className="section">

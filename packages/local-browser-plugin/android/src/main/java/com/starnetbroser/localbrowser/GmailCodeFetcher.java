@@ -93,7 +93,13 @@ final class GmailCodeFetcher implements CodeSource {
     /** The newest Starlink code at or after `sinceMs` in this token's mailbox - null when there is
      * none, or when the newest was already tried on the device (wait for a fresh one). Blocking. */
     static String newestStarlinkCode(String token, long sinceMs, String tried) throws IOException {
-        for (String id : GmailCodes.parseIds(get(GmailCodes.starlinkListUrl(), token))) {
+        return newestStarlinkCode(token, sinceMs, tried, null);
+    }
+
+    /** `forwardedTo`: 📮 only the messages sent to that address (a forwarded domain email). */
+    static String newestStarlinkCode(String token, long sinceMs, String tried, String forwardedTo) throws IOException {
+        String list = forwardedTo != null ? GmailCodes.starlinkListUrlTo(forwardedTo) : GmailCodes.starlinkListUrl();
+        for (String id : GmailCodes.parseIds(get(list, token))) {
             String code = GmailCodes.starlinkCodeIn(get(GmailCodes.messageUrl(id), token), sinceMs);
             if (code != null) return tried == null || StarlinkTwoStep.isNew(code, tried) ? code : null;
         }
@@ -155,6 +161,8 @@ final class GmailCodeFetcher implements CodeSource {
     /** 💳 true: the card's billing Gmail (the card company's STARLINK payment code). */
     private final boolean cardPayment;
     private final String cardEmail;
+    /** 📮 A forwarded domain email (ForwardedMail): its Starlink codes, read from «بريد الرموز». */
+    private String forwardedTo;
 
     GmailCodeFetcher(Activity activity, long sinceMs, Listener listener) {
         this(activity, null, sinceMs, null, listener);
@@ -186,8 +194,16 @@ final class GmailCodeFetcher implements CodeSource {
         this.listener = listener;
     }
 
+    /** 📮 A device whose email is on his forwarded domain: its Starlink codes from «بريد الرموز». */
+    static GmailCodeFetcher forForwarded(Activity activity, String deviceEmail, long sinceMs, String tried, Listener listener) {
+        GmailCodeFetcher fetcher = new GmailCodeFetcher(activity, deviceEmail, sinceMs, tried, listener);
+        fetcher.forwardedTo = fetcher.deviceEmail;
+        return fetcher;
+    }
+
     private String account() {
         if (cardPayment) return cardEmail;
+        if (forwardedTo != null) return linkedEmail(activity);
         return deviceEmail != null ? deviceEmail : linkedEmail(activity);
     }
 
@@ -236,7 +252,7 @@ final class GmailCodeFetcher implements CodeSource {
                 checkedAccount = true;
             }
             if (!wrongAccount) code = cardPayment ? newestPaymentCode(token, sinceMs)
-                : deviceEmail != null ? newestStarlinkCode(token, sinceMs, tried) : newestCode(token, sinceMs);
+                : deviceEmail != null ? newestStarlinkCode(token, sinceMs, tried, forwardedTo) : newestCode(token, sinceMs);
         } catch (IOException ignored) {
             // a network hiccup or a stale token: the next poll tries again
         }

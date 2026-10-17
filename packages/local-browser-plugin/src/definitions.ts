@@ -548,6 +548,9 @@ export interface LocalBrowserPlugin {
     travelCheck?: boolean;
   }): Promise<{ started: boolean }>;
   stopBackgroundSync(): Promise<void>;
+  /** 📮 «بريد على نطاقي»: the domain whose addresses are forwarded to «بريد الرموز» ("" = none) - a
+   * device on it gets its Starlink codes from that Gmail, by its own address. */
+  setMailDomain(options: { domain: string }): Promise<{ domain: string }>;
   /** ⏰ Saves his scheduled-sync choices on the phone and (re)schedules them. No-op on web. */
   setScheduledSyncs(options: ScheduledSyncsOptions): Promise<void>;
   /** 🔁 The visible chain stopped on a 429: these devices sync by themselves in the background once

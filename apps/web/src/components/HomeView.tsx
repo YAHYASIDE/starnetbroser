@@ -190,6 +190,7 @@ import {
 import { RingActionsSheet } from "@/components/RingActionsSheet";
 import { changesTo, serviceBubbles } from "@/lib/serviceBubbles";
 import { placeholderRename } from "@/lib/placeholderName";
+import { isOnMailDomain, loadMailDomain, pushMailDomain } from "@/lib/mailDomain";
 
 const NEAR_EXPIRY_THRESHOLD_DAYS = 3;
 
@@ -1470,6 +1471,8 @@ export function HomeView({
   // ⏰ «مزامنات مجدولة»: his choices reach the phone on every start (a reinstalled app forgets them).
   useEffect(() => {
     void pushScheduledSyncs();
+    // 📮 «بريد على نطاقي» too.
+    void pushMailDomain();
   }, []);
 
   // 💳 KAST card mail: each device's expected Starlink dollars and card go to the phone (it guesses
@@ -1550,8 +1553,9 @@ export function HomeView({
     // signed in by itself, then its Starlink browser, signed in by itself (the code from the mailbox).
     const isNew = !accounts.some((item) => item.id === account.id);
     if (isNew && account.creation && isRunningInAndroidApp()) {
-      // 🆕 «إنشاء حساب جديد»: the new email's signup first, then «تفعيل Starlink».
-      void openAccountCreation(account, "mail").then((result) => {
+      // 🆕 «إنشاء حساب جديد»: the new email's signup first, then «تفعيل Starlink» - 📮 an address on
+      // his forwarded domain has no mailbox to make: «تفعيل Starlink» at once.
+      void openAccountCreation(account, isOnMailDomain(account.expectedEmail, loadMailDomain()) ? "starlink" : "mail").then((result) => {
         if (!result.ok) pushToast(result.message);
       });
     } else if (isNew && !repRequestId && isRunningInAndroidApp() && account.expectedEmail?.trim()) {

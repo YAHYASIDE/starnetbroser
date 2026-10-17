@@ -59,12 +59,13 @@ export function emailBaseFor(fullName: string): string {
   return parts.map((p) => p.replace(/[^a-z0-9]/g, "")).filter(Boolean).join(".");
 }
 
-/** The suggested address: "ahmed.salem427@outlook.com" (3 digits, 100-999); "" without a name. */
-export function suggestEmail(fullName: string, random: () => number = Math.random): string {
+/** The suggested address: "ahmed.salem427@outlook.com" (3 digits, 100-999) - or on his own domain
+ * (📮 lib/mailDomain.ts); "" without a name. */
+export function suggestEmail(fullName: string, random: () => number = Math.random, domain = "outlook.com"): string {
   const base = emailBaseFor(fullName);
   if (!base) return "";
   const digits = 100 + Math.floor(random() * 900);
-  return `${base}${digits}@outlook.com`;
+  return `${base}${digits}@${domain}`;
 }
 
 const UPPER = "ABCDEFGHJKLMNPQRSTUVWXYZ";
