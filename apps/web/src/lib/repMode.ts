@@ -3,13 +3,18 @@
 import { loadRepMode, saveRepMode } from "./repDeviceTransfer";
 import { saveRepCopy } from "./repCopy";
 import { clearRepWorkspace, hasRepWorkspace } from "./repWorkspace";
+import { allowedPaths, pathAllowed, repPermissions } from "./repPermissions";
 
-/** Pages the rep's full app shows (the operator's choice): everything else goes back home. */
-export const REP_ALLOWED_PATHS = ["/", "/clients", "/currencies", "/reminders", "/mailboxes", "/tools", "/settings", "/representatives", "/reports"];
-
+/** Pages the rep's full app shows: the ones the operator gave him (🔑 lib/repPermissions.ts - by
+ * default home, clients, تقاريري, reminders, tools, reports, currencies, mailboxes, settings);
+ * everything else goes back home. */
 export function isRepAllowedPath(pathname: string): boolean {
-  const path = pathname.replace(/\/+$/, "") || "/";
-  return REP_ALLOWED_PATHS.some((p) => (p === "/" ? path === "/" : path === p || path.startsWith(`${p}/`)));
+  return pathAllowed(pathname, allowedPaths(repPermissions()));
+}
+
+/** 🔑 On the rep's phone: whether the operator gave him this feature. Always true on the operator's own. */
+export function repCan(featureId: string): boolean {
+  return !isRepWorkspace() || repPermissions().has(featureId);
 }
 
 /** The rep's phone runs the full app on his copy (📱 وضع المندوب + a copy with stores applied). */

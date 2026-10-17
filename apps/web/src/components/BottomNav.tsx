@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { HOME_ACTION_EVENT, HomeAction, homeActionHref, REMINDER_COUNT_EVENT } from "@/lib/homeActions";
 import { isRunningInAndroidApp } from "@/lib/localBrowser";
-import { isRepWorkspace, REP_SENDER_EVENT } from "@/lib/repMode";
+import { isRepAllowedPath, isRepWorkspace, repCan, REP_SENDER_EVENT } from "@/lib/repMode";
 import { withoutBottomDuplicates } from "@/lib/moreMenu";
 
 type MoreItem = { label: string; icon: IconName; color: string; tint: string } & ({ href: string } | { action: HomeAction } | { event: string });
@@ -47,7 +47,7 @@ export function BottomNav() {
   // nav bar over it would be intrusive and steal space from an already cramped viewer.
   if (pathname === "/session") return null;
 
-  const tabs = rep ? REP_TABS : OWNER_TABS;
+  const tabs = rep ? repTabs() : OWNER_TABS;
 
   // "المزيد" (bottom): the everyday half, listed bottom (nearest the thumb) to top. The other half
   // is the home page's top "المزيد" (HeaderMore below).
@@ -114,8 +114,8 @@ const OWNER_TABS: Tab[] = [
 
 /** The top «المزيد» without what the bottom already has (lib/moreMenu.ts). */
 function topMoreItems(rep: boolean): MoreItem[] {
-  const bottom = [...(rep ? REP_TABS : OWNER_TABS).map((t) => t.href), ...(rep ? repMoreItems(true) : bottomMoreItems(true)).flatMap((i) => ("href" in i ? [i.href] : []))];
-  return withoutBottomDuplicates(rep ? REP_TOP_MORE_ITEMS : TOP_MORE_ITEMS, bottom, (i) => ("href" in i ? i.href : undefined));
+  const bottom = [...(rep ? repTabs() : OWNER_TABS).map((t) => t.href), ...(rep ? repMoreItems(true) : bottomMoreItems(true)).flatMap((i) => ("href" in i ? [i.href] : []))];
+  return withoutBottomDuplicates(rep ? allowedForRep([...REP_TOP_MORE_ITEMS, ...REP_EXTRA_PAGES]) : TOP_MORE_ITEMS, bottom, (i) => ("href" in i ? i.href : undefined));
 }
 
 function bottomMoreItems(inApp: boolean): MoreItem[] {
@@ -131,9 +131,34 @@ function bottomMoreItems(inApp: boolean): MoreItem[] {
   ];
 }
 
+/** 🔑 The rep's tabs: only the pages the operator gave him (lib/repPermissions.ts). */
+function repTabs(): Tab[] {
+  return REP_TABS.filter((t) => isRepAllowedPath(t.href));
+}
+
+/** 🔑 What the operator gave this rep: a page by its path, an action by its feature. */
+function allowedForRep(items: MoreItem[]): MoreItem[] {
+  return items.filter((item) => {
+    if ("href" in item) return isRepAllowedPath(item.href.split("#")[0]);
+    if ("event" in item) return item.event !== REP_SENDER_EVENT || repCan("act:send-devices");
+    if (item.action === "add-account") return repCan("act:add-device");
+    if (item.action === "sync") return repCan("sync:now");
+    return true;
+  });
+}
+
+/** 🔑 Pages a rep has only when the operator ticks them. */
+const REP_EXTRA_PAGES: MoreItem[] = [
+  { label: "🛍️ المتجر", icon: "bag", color: "#7c3aed", tint: "#efe7ff", href: "/store" },
+  { label: "💳 ستارلينك والبطاقة", icon: "card", color: "#1668e3", tint: "#d6e3fb", href: "/starlink" },
+  { label: "💰 حسابي", icon: "coins", color: "#0e9f6e", tint: "#dcf5ea", href: "/money" },
+  { label: "الأرشيف", icon: "archive", color: "#64748b", tint: "#e2e8f0", href: "/archive" },
+  { label: "سلة المحذوفات", icon: "trash", color: "#e0294a", tint: "#ffd6de", href: "/trash" },
+];
+
 /** 📱 The rep's «المزيد»: the allowed pages and actions, plus sending new devices to the operator. */
 function repMoreItems(inApp: boolean): MoreItem[] {
-  return [
+  return allowedForRep([
     { label: "إضافة حساب", icon: "plus", color: "#2f80ff", tint: "#d6e6ff", action: "add-account" },
     ...(inApp ? [{ label: "مزامنة الآن", icon: "sync" as const, color: "#10b8cc", tint: "#d2f4f8", action: "sync" as const }] : []),
     { label: "دفعة سريعة", icon: "coins", color: "#0e9f6e", tint: "#dcf5ea", href: "/tools#pay" },
@@ -144,7 +169,7 @@ function repMoreItems(inApp: boolean): MoreItem[] {
     { label: "البريد المسجّل", icon: "mail", color: "#0891b2", tint: "#dbf3f9", href: "/mailboxes" },
     { label: "📱 أجهزة للإرسال", icon: "handshake", color: "#f97316", tint: "#ffe4cc", event: REP_SENDER_EVENT },
     { label: "الإعدادات", icon: "settings", color: "#f5a524", tint: "#ffecc7", href: "/settings" },
-  ];
+  ]);
 }
 
 /** The rep's top «المزيد». */

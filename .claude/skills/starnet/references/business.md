@@ -552,6 +552,21 @@ mind). Exact texts and numbers live in the code - this file says where.
   the older; the duplicate goes to the trash (restorable). The «من المندوبين» long press also has «✕ إزالة علامة
   المندوب عن الكل».
 
+## 🔑 A rep's permissions, chosen before each copy (Oct 17 2026)
+
+- His ask: «أي مندوب سأرسل له نسخة، قبل الإرسال تأتيني قائمة بالصلاحيات… ما عنده الآن كلها عليها صح والأخرى لا… زر
+  البحث عن أي ميزة، والميزات مفروزة». «📤 إرسال نسخته» now opens `RepPermissionsSheet`: features by group (📄 الصفحات،
+  🛰️ الأجهزة، 🔄 المزامنة، 🔔 الإشعارات، 💾 البيانات والأمان), A-Z inside each, a search (Arabic folded), ➕/➖ what
+  changes, then «📤 أرسل نسخته بهذه الصلاحيات». Saved on the rep (`Representative.permissions`, kept by
+  `saveRepresentativeStore` against older screens) and carried in the copy (`RepCopy.permissions`).
+- A rep with no list = the base list = exactly what every rep had (home, clients, تقاريري, reminders, tools,
+  reports, currencies, mailboxes, settings, add device, send devices, sync now, background sync, scheduled syncs,
+  summaries, business profile, lock). Extra, off until ticked: 🛍️ المتجر، 💳 ستارلينك والبطاقة، 💰 حسابي (on his data
+  only), الأرشيف، السلة، 💾 النسخ الاحتياطي on his phone. Home, settings and the app lock are always on.
+- On his phone (`repCan`, `isRepAllowedPath`): the page guard, the bottom tabs and both «المزيد» menus, the rep
+  settings sections, the background sync and the scheduled syncs follow the list. Automatic copies carry the
+  last list chosen.
+
 ## 📝 The rep can paste his copy's text (Oct 17 2026)
 
 - His ask «اجعل للمندوب مكان يضيف فيه نسخه». Until now the rep's «📋 أجهزتي» only opened a copy file (from Telegram

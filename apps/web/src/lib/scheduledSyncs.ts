@@ -11,6 +11,7 @@
 
 import { LocalBrowser } from "@starnet/local-browser-plugin";
 import { isRunningInAndroidApp } from "./localBrowser";
+import { repCan } from "./repMode";
 
 export interface ScheduledSyncs {
   morning: boolean;
@@ -82,8 +83,17 @@ export async function pushScheduledSyncs(value: ScheduledSyncs = loadScheduledSy
   if (!isRunningInAndroidApp()) return;
   try {
     // 📤 repCopy is the app's own (repCopyAuto.ts) - the phone doesn't need it.
-    const { morning, morningHour, payment, retry, night, nightHour } = value;
-    await LocalBrowser.setScheduledSyncs({ morning, morningHour, payment, retry, night, nightHour });
+    const { morningHour, nightHour } = value;
+    // 🔑 A rep's phone runs them only when the operator gave him «مزامنات مجدولة».
+    const on = repCan("sync:scheduled");
+    await LocalBrowser.setScheduledSyncs({
+      morning: on && value.morning,
+      morningHour,
+      payment: on && value.payment,
+      retry: on && value.retry,
+      night: on && value.night,
+      nightHour,
+    });
   } catch {
     // tried again on the next app start
   }

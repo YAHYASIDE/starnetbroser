@@ -1,7 +1,7 @@
 "use client";
 
 import { isRepDevice } from "@/lib/repSeparation";
-import { isRepWorkspace } from "@/lib/repMode";
+import { isRepWorkspace, repCan } from "@/lib/repMode";
 import { deviceTwins, mergeDevices } from "@/lib/deviceMerge";
 import { currentRepPending } from "@/lib/repWorkspace";
 import { loadRepChangesSent, shareRepChanges, type RepChangesSent } from "@/lib/repChangesSend";
@@ -710,6 +710,8 @@ export function HomeView({
   async function trySyncInBackground(ids: string[], label: string, travelCheck = false, force = false): Promise<boolean> {
     // `force`: a circle's «🌙 فحص في الخلفية» - background whatever the setting.
     if (!force && !isBackgroundSyncEnabled()) return false;
+    // 🔑 A rep's phone syncs in the background only when the operator gave him that.
+    if (!repCan("sync:background")) return false;
     const list = ids
       .map((id) => accountsRef.current.find((a) => a.id === id))
       .filter((a): a is StarlinkAccountSummary => Boolean(a))

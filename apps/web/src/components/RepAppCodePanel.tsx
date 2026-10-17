@@ -5,7 +5,8 @@ import type { StarlinkAccountSummary } from "@starnet/shared";
 import { copyGaps, copyGapsText, loadRepCopySentAt, loadRepCopySentDevices, repCopyAccounts } from "@/lib/repCopy";
 import { sendRepCopy } from "@/lib/repCopySend";
 import { ensureRepDeviceCode, repDeviceCode, repPhoneKey } from "@/lib/repDeviceTransfer";
-import type { Representative } from "@/lib/repStore";
+import { loadRepresentativeStore, saveRepresentativeStore, setRepPermissions, type Representative } from "@/lib/repStore";
+import { RepPermissionsSheet } from "./RepPermissionsSheet";
 import { loadRepChats, sendRepText } from "@/lib/telegram";
 
 /** 📱 The code a rep types into «وضع المندوب» on his phone - his device files open with it only. */
@@ -20,18 +21,19 @@ export function RepAppCodePanel({ rep, accounts }: { rep: Representative; accoun
   const gaps = sentAt ? copyGaps(loadRepCopySentDevices()[rep.id], accounts, rep.id) : null;
   // 🔗 His copies open on his own phone only, once it's linked (repDeviceTransfer.ts).
   const [phoneBound, setPhoneBound] = useState(() => Boolean(repPhoneKey(rep.id)));
+  // 🔑 The features his phone opens - chosen in RepPermissionsSheet before each copy.
+  const [permissions, setPermissions] = useState(rep.permissions);
+  const [choosing, setChoosing] = useState(false);
 
-  async function sendCopy() {
-    const question =
-      `إرسال نسخة أجهزة ${rep.name} (${deviceCount} جهاز) إلى تطبيقه؟\n\n` +
-      "• يرى كل أجهزته وأرقامها (البيع، التكلفة، الربح) وزبائنها.\n" +
-      "• يستطيع فتح حساب Starlink لكل جهاز منها (إلغاء، تغيير البطاقة…).\n" +
-      "• أي جهاز ليس له في النسخة يُحذف من هاتفه.";
-    if (!window.confirm(question)) return;
+  async function sendCopy(chosen: string[]) {
+    // Saved on him first: the automatic copies (RepCopyAutoRunner) carry the same list.
+    saveRepresentativeStore(setRepPermissions(loadRepresentativeStore(), rep.id, chosen));
+    setPermissions([...chosen].sort());
     setCopyBusy(true);
     setCopyStatus(null);
-    const result = await sendRepCopy(rep, accounts);
+    const result = await sendRepCopy({ ...rep, permissions: chosen }, accounts);
     setCopyBusy(false);
+    setChoosing(false);
     if (!result.ok) return setCopyStatus(result.message);
     setSentAt(new Date().toISOString());
     setCopyStatus(result.via === "bot" ? `✓ أُرسلت النسخة (${result.devices} جهاز) في البوت - يفتحها بـ STAR NET` : `✓ جاهزة (${result.devices} جهاز) - أرسلها له`);
@@ -89,7 +91,7 @@ export function RepAppCodePanel({ rep, accounts }: { rep: Representative; accoun
             ? "🔗 مربوط بهاتفه ✓ - نسخه لا تُفتح على أي هاتف آخر، حتى مع الملف والرمز."
             : "⚠️ هاتفه غير مربوط بعد: يضغط في تطبيقه «🔗 ربط هاتفي» ويرسل الملف إلى بوت المندوبين - بعدها تُرسل نسخته تلقائياً."}
         </p>
-        <button type="button" className="dialog-primary" disabled={copyBusy || !phoneBound} onClick={() => void sendCopy()}>
+        <button type="button" className="dialog-primary" disabled={copyBusy || !phoneBound} onClick={() => setChoosing(true)}>
           {copyBusy ? "⏳ جارِ التجهيز…" : `📤 إرسال نسخته (${deviceCount} جهاز)`}
         </button>
         {sentAt && (
@@ -100,6 +102,15 @@ export function RepAppCodePanel({ rep, accounts }: { rep: Representative; accoun
         {gaps && !copyStatus && <p className="rep-copy-stale">{copyGapsText(gaps)}</p>}
         {copyStatus && <p className="settings-hint">{copyStatus}</p>}
       </div>
+      {choosing && (
+        <RepPermissionsSheet
+          rep={{ ...rep, permissions }}
+          deviceCount={deviceCount}
+          busy={copyBusy}
+          onSend={(chosen) => void sendCopy(chosen)}
+          onClose={() => setChoosing(false)}
+        />
+      )}
       <p className="settings-hint">🔒 الملف مشفّر برمزه وبمفتاح هاتفه معاً: لا يفتحه إلا هاتف هذا المندوب. لا تعطِ الرمز لغيره.</p>
     </div>
   );

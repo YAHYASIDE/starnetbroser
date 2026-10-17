@@ -48,6 +48,9 @@ export interface Representative {
   /** 💱 «سعر المندوب» (lib/repRates.ts): his own dollar rate in أوقية / سيفا from a day on - locked
    * onto his shipments; his profit counts Starlink's cost at it. */
   usdRates?: RepRatePlan;
+  /** 🔑 «صلاحياته» (lib/repPermissions.ts): the features his phone opens, chosen before each copy.
+   * Absent = what every rep had before (the base list). */
+  permissions?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -78,7 +81,18 @@ export function loadRepresentativeStore(): RepresentativeStore {
 
 export function saveRepresentativeStore(store: RepresentativeStore): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(REPS_KEY, JSON.stringify(store));
+  window.localStorage.setItem(REPS_KEY, JSON.stringify(keepPermissions(store, loadRepresentativeStore())));
+}
+
+/** 🔑 A screen holding an older copy of the reps never drops the permissions chosen meanwhile
+ * (RepPermissionsSheet saves them on its own) - a list, once set, is only ever replaced by another. */
+export function keepPermissions(next: RepresentativeStore, saved: RepresentativeStore): RepresentativeStore {
+  let out = next;
+  for (const [id, rep] of Object.entries(next)) {
+    const kept = saved[id]?.permissions;
+    if (rep.permissions === undefined && kept) out = { ...out, [id]: { ...rep, permissions: kept } };
+  }
+  return out;
 }
 
 // ---- Pure logic below - independent of localStorage, so this is what is actually unit-tested. ----
@@ -151,6 +165,13 @@ export function updateRepresentative(
     updatedAt: new Date().toISOString(),
   };
   return { ...store, [id]: updated };
+}
+
+/** 🔑 Saves the features he chose for this rep (lib/repPermissions.ts). */
+export function setRepPermissions(store: RepresentativeStore, id: string, permissions: string[]): RepresentativeStore {
+  const existing = store[id];
+  if (!existing) return store;
+  return { ...store, [id]: { ...existing, permissions: [...permissions].sort(), updatedAt: new Date().toISOString() } };
 }
 
 /** 🛂 Sets (or clears, with undefined) a rep's travel-registration percent. */

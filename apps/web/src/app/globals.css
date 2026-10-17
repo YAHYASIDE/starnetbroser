@@ -15608,3 +15608,81 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
 .report-fold[open] > summary {
   margin-bottom: 10px;
 }
+
+/* 🔑 «صلاحيات المندوب» before his copy goes out (RepPermissionsSheet). */
+.rep-perms-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rep-perms-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 52vh;
+  overflow-y: auto;
+  min-width: 0;
+}
+
+.rep-perms-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rep-perms-title {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--text-muted);
+}
+
+.rep-perms-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  cursor: pointer;
+  min-width: 0;
+}
+
+.rep-perms-row.is-on {
+  border-color: var(--brand);
+}
+
+.rep-perms-row.is-locked {
+  opacity: 0.75;
+  cursor: default;
+}
+
+.rep-perms-row input {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  accent-color: var(--brand);
+}
+
+.rep-perms-icon {
+  flex: none;
+  font-size: 1.1rem;
+}
+
+.rep-perms-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.rep-perms-text small {
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.rep-perms-sheet > .search-input {
+  flex: none;
+  height: auto;
+  min-height: 0;
+}

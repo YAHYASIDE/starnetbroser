@@ -1,6 +1,6 @@
 "use client";
 
-import { exitRepMode, isRepWorkspace } from "@/lib/repMode";
+import { exitRepMode, isRepWorkspace, repCan } from "@/lib/repMode";
 import { hasOwnRepProfile, setOwnRepProfile } from "@/lib/repWorkspace";
 import { askDeleteCode } from "@/components/DeleteCodePrompt";
 import { groupForHash, loadRememberedGroup, rememberGroup, SETTINGS_GROUPS, type SettingsGroupId } from "@/lib/settingsGroups";
@@ -238,23 +238,35 @@ export default function SettingsPage() {
           </div>
         </section>
         <AppLockSection />
-        <section className="section">
-          <h2 className="section-title">🔄 المزامنة</h2>
-          <BackgroundSyncSettings />
-        </section>
-        <section className="section">
-          <h2 className="section-title">🔔 الإشعارات</h2>
-          <MorningDigestSettings />
-          <EveningSummarySettings />
-          {isAndroidApp && (
-            <div className="settings-actions" style={{ marginTop: "12px" }}>
-              <button className="btn-icon" onClick={() => openNotificationSettings()}>
-                إعدادات إشعارات التطبيق (النظام)
-              </button>
-            </div>
-          )}
-        </section>
-        <BusinessProfileSection rep />
+        {/* 🔑 Only what the operator gave this rep (lib/repPermissions.ts). */}
+        {repCan("sync:background") && (
+          <section className="section">
+            <h2 className="section-title">🔄 المزامنة</h2>
+            <BackgroundSyncSettings />
+          </section>
+        )}
+        {repCan("sync:scheduled") && <ScheduledSyncsSection />}
+        {repCan("alerts:summaries") && (
+          <section className="section">
+            <h2 className="section-title">🔔 الإشعارات</h2>
+            <MorningDigestSettings />
+            <EveningSummarySettings />
+            {isAndroidApp && (
+              <div className="settings-actions" style={{ marginTop: "12px" }}>
+                <button className="btn-icon" onClick={() => openNotificationSettings()}>
+                  إعدادات إشعارات التطبيق (النظام)
+                </button>
+              </div>
+            )}
+          </section>
+        )}
+        {repCan("data:business") && <BusinessProfileSection rep />}
+        {repCan("data:backup") && (
+          <>
+            <BackupSection />
+            <AutoBackupSection />
+          </>
+        )}
         <AppUpdateSection />
         <section className="section">
           <h2 className="section-title">📱 وضع المندوب</h2>

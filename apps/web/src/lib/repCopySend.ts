@@ -12,6 +12,7 @@ import { rejectedVersions } from "./repChanges";
 import { repDecisions } from "./repInbox";
 import type { Representative } from "./repStore";
 import { loadRepChats, sendRepDocument } from "./telegram";
+import { permissionsOf } from "./repPermissions";
 
 export type SendCopyResult = { ok: true; devices: number; via: "bot" | "share" } | { ok: false; message: string };
 
@@ -44,7 +45,9 @@ export async function sendRepCopy(rep: Representative, accounts: StarlinkAccount
   // ❌ What the operator rejected leaves his phone (repChangesApply.ts).
   const rejected = rejectedVersions(repDecisions(rep.id));
   // ☁️ No live link any more: it only carried customers, which now stay on each phone.
-  const text = await buildRepCopyFile({ ...copy, stores, rejected, sessions }, ensureRepDeviceCode(rep.id), phoneKey);
+  // 🔑 What his phone may open (chosen before sending - RepPermissionsSheet).
+  const permissions = [...permissionsOf(rep)].sort();
+  const text = await buildRepCopyFile({ ...copy, stores, rejected, sessions, permissions }, ensureRepDeviceCode(rep.id), phoneKey);
   const fileName = repCopyFileName(rep.id);
   const caption = `📋 نسختك من الأجهزة (${copy.devices.length} جهاز)\nاضغط الملف ← «فتح بـ STAR NET»، أو اضغطه مطولاً ← مشاركة ← STAR NET.`;
 

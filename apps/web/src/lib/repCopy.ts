@@ -47,6 +47,8 @@ export interface RepCopy {
   known?: KnownDevices;
   /** ☁️ The operator's Firebase for the live link (liveSyncConfig.ts) - his phone joins it. */
   liveSync?: LiveSyncShare;
+  /** 🔑 The features the operator gave him (lib/repPermissions.ts); absent in an older copy = the base list. */
+  permissions?: string[];
 }
 
 export interface RepCopyPayload extends RepCopy {
