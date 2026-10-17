@@ -608,7 +608,8 @@ mind). Exact texts and numbers live in the code - this file says where.
 - 🔑 **Password patterns** (his Oct 17 2026 choice, «اجعل كل كلمات مرور حساباتي على نوع واحد … مثل star net om»):
   the account's code = **«StarNetOm#» + 4 digits of its own** (warned: the addresses are guessable, so one code
   for all would let a customer open others' accounts - he took the per-device digits); the **Wi-Fi code is the
-  same on every dish: «starnetom»** (his choice). New accounts only - existing devices keep theirs. In «إنشاء حساب
+  same on every dish** (his choice; he then fixed his own code). The repo is public, so the code is **never in
+  the source**: he types it once and taps «📌 اجعله ثابتًا» (`starnet.wifiDefault`, phone-only, lib/wifiDefault.ts). New accounts only - existing devices keep theirs. In «إنشاء حساب
   جديد» both are filled by themselves (editable); the code is saved as the device's Starlink password
   (`starlinkPassword`) too, and on his domain the field reads «كلمة مرور Starlink» (required, 8+).
   He asked «كود الإيميل ما فائدته والإيميل لا يعمل أساسًا»: on his domain the email has no password at all - the

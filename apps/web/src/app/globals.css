@@ -8974,6 +8974,11 @@ button.today-tile {
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
+.suggest-input-row .suggest-again.is-pinned {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-muted);
+}
 .add-field-note {
   display: block;
   color: var(--text-muted);

@@ -73,9 +73,6 @@ export function suggestEmail(fullName: string, random: () => number = Math.rando
  * addresses are guessable: name + 3 digits). Microsoft and Starlink both accept it. */
 export const ACCOUNT_PASSWORD_PREFIX = "StarNetOm#";
 
-/** 📶 His Wi-Fi code: the same on every dish (his choice - it only works next to the dish). */
-export const WIFI_PASSWORD = "starnetom";
-
 /** «StarNetOm#4827» - digits no other device has (`taken`), when possible. */
 export function suggestPassword(random: () => number = Math.random, taken: Iterable<string> = []): string {
   const used = new Set(taken);

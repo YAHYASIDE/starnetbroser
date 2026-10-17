@@ -1,6 +1,7 @@
 "use client";
 
-import { emailBaseFor, suggestEmail, suggestPassword, WIFI_PASSWORD } from "@/lib/emailSuggest";
+import { emailBaseFor, suggestEmail, suggestPassword } from "@/lib/emailSuggest";
+import { isValidWifiCode, loadWifiDefault, saveWifiDefault } from "@/lib/wifiDefault";
 import { isOnMailDomain, loadMailDomain } from "@/lib/mailDomain";
 import { askDeleteCode } from "@/components/DeleteCodePrompt";
 import { cardLabel, loadPaymentCards } from "@/lib/kastCards";
@@ -148,6 +149,21 @@ export function AccountDialog({
   // field is empty or still holds the last suggestion, so what he typed himself is never replaced.
   const suggestedEmail = useRef("");
   const suggestedCode = useRef("");
+  // 📶 «📌 ثابت»: the Wi-Fi code every new dish starts with.
+  const [wifiDefault, setWifiDefault] = useState(() => loadWifiDefault());
+  const [wifiNote, setWifiNote] = useState("");
+
+  function pinWifiDefault() {
+    const code = (draft.wifiPassword ?? "").trim();
+    if (!isValidWifiCode(code)) {
+      setWifiNote("اكتب كود الواي فاي أولًا (8 أحرف أو أكثر)");
+      return;
+    }
+    if (saveWifiDefault(code)) {
+      setWifiDefault(code);
+      setWifiNote("✓ صار ثابتًا: يُكتب وحده في كل حساب جديد");
+    }
+  }
   // 📮 His own domain (lib/mailDomain.ts): the address is just a name on it - no Outlook signup.
   const [mailDomain] = useState(() => loadMailDomain());
   const [onDomain, setOnDomain] = useState(() => Boolean(loadMailDomain()));
@@ -164,14 +180,14 @@ export function AccountDialog({
       suggestedEmail.current = next;
       update("expectedEmail", next);
     }
-    // 🔑 His Oct 17 2026 patterns: the account's code «StarNetOm#» + its own 4 digits, and the one
-    // Wi-Fi code of every dish - both still editable.
+    // 🔑 His Oct 17 2026 patterns: the account's code «StarNetOm#» + its own 4 digits, and his one
+    // fixed Wi-Fi code (saved on this phone, lib/wifiDefault.ts) - both still editable.
     const code = draft.expectedEmailPassword ?? "";
     if (name.trim() && (!code || code === suggestedCode.current) && !suggestedCode.current) {
       suggestedCode.current = suggestPassword(Math.random, takenCodes());
       update("expectedEmailPassword", suggestedCode.current);
     }
-    if (name.trim() && !draft.wifiPassword) update("wifiPassword", WIFI_PASSWORD);
+    if (name.trim() && !draft.wifiPassword && wifiDefault) update("wifiPassword", wifiDefault);
   }
 
   function takenCodes(): string[] {
@@ -502,7 +518,15 @@ export function AccountDialog({
 
             <label className="form-field add-field add-field-wifi">
               <span className="add-field-label"><b className="add-field-num" aria-hidden="true">4</b> كود الواي فاي</span>
-              <input dir="ltr" value={draft.wifiPassword ?? ""} onChange={(e) => update("wifiPassword", e.target.value)} placeholder="اختياري" />
+              <div className="suggest-input-row">
+                <input dir="ltr" value={draft.wifiPassword ?? ""} onChange={(e) => { update("wifiPassword", e.target.value); setWifiNote(""); }} placeholder="اختياري" />
+                {wifiDefault && (draft.wifiPassword ?? "").trim() === wifiDefault ? (
+                  <span className="suggest-again is-pinned" title="الكود الثابت">📌 ثابت</span>
+                ) : (
+                  <button type="button" className="suggest-again" onClick={pinWifiDefault} title="اجعله يُكتب وحده في كل حساب جديد">📌 اجعله ثابتًا</button>
+                )}
+              </div>
+              {wifiNote && <small className="add-field-note">{wifiNote}</small>}
               <PasswordChips values={passwordSuggestions} current={draft.wifiPassword} onPick={(v) => update("wifiPassword", v)} />
             </label>
 

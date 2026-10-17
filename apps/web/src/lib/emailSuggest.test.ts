@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { emailBaseFor, latinWord, suggestEmail, suggestPassword, WIFI_PASSWORD } from "./emailSuggest";
+import { emailBaseFor, latinWord, suggestEmail, suggestPassword } from "./emailSuggest";
 
 const fixed = (value: number) => () => value;
 
@@ -34,10 +34,5 @@ describe("✉️ the new email from the account's name (his Oct 17 2026 choice: 
     let n = 0;
     const steps = () => [0.5, 0.1][n++] ?? 0.9;
     expect(suggestPassword(steps, ["StarNetOm#5500"])).toBe("StarNetOm#1900");
-  });
-
-  it("one Wi-Fi code for every dish, long enough for it", () => {
-    expect(WIFI_PASSWORD).toBe("starnetom");
-    expect(WIFI_PASSWORD.length).toBeGreaterThanOrEqual(8);
   });
 });
