@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeTodaySummary, deviceMatchesQuery, listTodayLines, normalizeSearchText, searchEverything } from "./homeInsights";
+import { computeTodaySummary, deviceMatchesQuery, editDistance, listTodayLines, normalizeSearchText, searchEverything, searchTermOf } from "./homeInsights";
 import type { LedgerEntry } from "./ledgerStore";
 import type { CashEntry } from "./cashStore";
 
@@ -92,5 +92,45 @@ describe("listTodayLines", () => {
     expect(lines.collected.map((l) => [l.id, l.accountId, l.amount])).toEqual([["p1", "a1", 5000]]);
     expect(lines.charged.map((l) => [l.id, l.pendingD])).toEqual([["s1", true]]);
     expect(lines.cash.map((l) => [l.id, l.label, l.kind])).toEqual([["c2", "إيداع", "in"], ["c1", "نقل", "out"]]);
+  });
+});
+
+describe("🔍 his Oct 18 2026 search: any part of the name, typos, a pasted email", () => {
+  const device = { name: "أحمد ولد سالم", kitNumber: "KIT304012345", serialNumber: "", expectedEmail: "salehstarlink@outlook.com" };
+
+  it("words in any order, any part of the name", () => {
+    expect(deviceMatchesQuery("سالم أحمد", device)).toBe(true);
+    expect(deviceMatchesQuery("ولد", device)).toBe(true);
+    expect(deviceMatchesQuery("سالم 3040", device)).toBe(true);
+    expect(deviceMatchesQuery("سالم محمد", device)).toBe(false);
+    expect(deviceMatchesQuery("أَحْمَد", device)).toBe(true); // diacritics
+  });
+
+  it("typos are found only when asked (the fallback), never in numbers", () => {
+    expect(deviceMatchesQuery("احمض", device)).toBe(false);
+    expect(deviceMatchesQuery("احمض", device, undefined, true)).toBe(true);
+    expect(deviceMatchesQuery("سلام", device, undefined, true)).toBe(true); // swapped letters
+    expect(deviceMatchesQuery("salehstarlnk", device, undefined, true)).toBe(true);
+    expect(deviceMatchesQuery("salehst", device, undefined, true)).toBe(true); // still typing
+    expect(deviceMatchesQuery("زيد", device, undefined, true)).toBe(false); // too short to guess
+    expect(deviceMatchesQuery("304099", device, undefined, true)).toBe(false);
+    expect(deviceMatchesQuery("خالد", device, undefined, true)).toBe(false);
+    // the first letter must be right
+    expect(deviceMatchesQuery("سلام", { name: "سوبر ماركت الأمل", kitNumber: "", serialNumber: "" }, undefined, true)).toBe(false);
+    expect(deviceMatchesQuery("محمض", { name: "احمد", kitNumber: "", serialNumber: "" }, undefined, true)).toBe(false);
+  });
+
+  it("a pasted line with an email searches the email alone", () => {
+    expect(searchTermOf("salehstarlink@outlook.com يحتاج كذا")).toBe("salehstarlink@outlook.com");
+    expect(searchTermOf("الإيميل: SalehStarlink@Outlook.com، شكرًا")).toBe("salehstarlink@outlook.com");
+    expect(searchTermOf("salehstarlink@outlook.com")).toBe("salehstarlink@outlook.com");
+    expect(searchTermOf("أحمد سالم")).toBe("أحمد سالم");
+    expect(searchTermOf("saleh@")).toBe("saleh@");
+  });
+
+  it("edit distance counts a swap as one", () => {
+    expect(editDistance("سالم", "سلام")).toBe(1);
+    expect(editDistance("محمد", "مخمد")).toBe(1);
+    expect(editDistance("abc", "xyz", 2)).toBe(3);
   });
 });

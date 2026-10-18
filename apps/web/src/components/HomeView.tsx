@@ -63,7 +63,8 @@ import { computeDeviceMargins, WEAK_MARGIN_PERCENT } from "@/lib/deviceMargins";
 import { cardShortfallForSuspended, currentCardBalanceUsd, listOpenShipmentDebts, listSuspendedWithDebt, loadCardTopUps, settleShipmentCost, unsettleShipmentCost } from "@/lib/starlinkDebt";
 import { loadPartyAdjustments } from "@/lib/partyBalanceStore";
 import { APK_DOWNLOAD_URL, checkForAppUpdate, shouldAutoCheck } from "@/lib/appUpdate";
-import { deviceMatchesQuery, searchEverything, SearchResult } from "@/lib/homeInsights";
+import { deviceMatchesQuery, searchEverything, searchTermOf, SearchResult } from "@/lib/homeInsights";
+import { addSearch, loadSearchHistory, removeSearch, saveSearchHistory } from "@/lib/searchHistory";
 import { listSuppliers, loadSupplierStore, SupplierStore } from "@/lib/supplierStore";
 import { listStoreItems, loadStoreItems, StoreItemRegistry } from "@/lib/storeStore";
 import {
@@ -349,6 +350,9 @@ export function HomeView({
     };
   }, []);
   const [query, setQuery] = useState("");
+  // 🕘 His Oct 18 2026 ask: every search is kept (lib/searchHistory.ts), shown under the empty bar.
+  const [searchHistory, setSearchHistory] = useState<string[]>([]);
+  const [searchFocused, setSearchFocused] = useState(false);
   const [selectedDay, setSelectedDay] = useState<DayKey | null>(null);
   const [statFilter, setStatFilter] = useState<StatFilterKind | null>(null);
   // 🤝 Which rep's circle is open (statFilter "rep").
@@ -1983,7 +1987,7 @@ export function HomeView({
   }, [activeAccounts]);
 
 
-  const filtered = useMemo(() => {
+  const { list: filtered, fuzzy: fuzzySearch } = useMemo(() => {
     let list = activeAccounts;
     if (selectedDay !== null) {
       list = list.filter((a) => deviceDayKeys(a).includes(selectedDay));
@@ -2001,14 +2005,19 @@ export function HomeView({
     }
     if (query.trim()) {
       // A rep's name shows his devices too.
-      list = list.filter(
-        (a) =>
-          deviceMatchesQuery(query, a, visibleClientOf(a)) ||
-          noteMatchesQuery(deviceNotes[a.id], query) ||
-          deviceMatchesQuery(query, { name: getRepresentative(representativeStore, a.representativeId)?.name ?? "", kitNumber: "", serialNumber: "" }),
-      );
+      const found = (fuzzy: boolean) =>
+        list.filter(
+          (a) =>
+            deviceMatchesQuery(query, a, visibleClientOf(a), fuzzy) ||
+            (!fuzzy && noteMatchesQuery(deviceNotes[a.id], query)) ||
+            deviceMatchesQuery(query, { name: getRepresentative(representativeStore, a.representativeId)?.name ?? "", kitNumber: "", serialNumber: "" }, undefined, fuzzy),
+        );
+      const exact = found(false);
+      // 🔤 Nothing exact: the devices one typo away («مخمد» → «محمد»), marked as such.
+      if (exact.length > 0) return { list: exact, fuzzy: false };
+      return { list: found(true), fuzzy: true };
     }
-    return list;
+    return { list, fuzzy: false };
   }, [activeAccounts, selectedDay, statFilter, faultFilter, noClientGroup, travelGroup, ledgerStore, allAllocations, query, clientStore, representativeStore, deviceNotes, recentLog, renewedToday, deviceTwinMap, repRingId]);
 
   const faultCounts = useMemo(() => countFaultCategories(activeAccounts), [activeAccounts]);
@@ -2049,6 +2058,42 @@ export function HomeView({
     [activeAccounts, representativeStore, ledgerStore, allAllocations],
   );
   const noClient = useMemo(() => countNoClient(activeAccounts, clientStore, representativeStore), [activeAccounts, clientStore, representativeStore]);
+
+  useEffect(() => setSearchHistory(loadSearchHistory()), []);
+  // A search counts once he stops typing for a moment.
+  useEffect(() => {
+    if (query.trim().length < 2) return;
+    const timer = window.setTimeout(() => rememberSearch(query), 1500);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
+  function rememberSearch(term: string) {
+    setSearchHistory((current) => {
+      const next = addSearch(current, term);
+      if (next !== current) saveSearchHistory(next);
+      return next;
+    });
+  }
+
+  function forgetSearch(term: string) {
+    setSearchHistory((current) => {
+      const next = removeSearch(current, term);
+      saveSearchHistory(next);
+      return next;
+    });
+  }
+
+  function startSearch(value: string) {
+    // Typing searches ALL devices: starting a search clears the active chip/day so results
+    // aren't confined to it; he can then tap a chip to narrow (his request).
+    if (value.trim() && !query.trim()) {
+      setStatFilter(null);
+      setSelectedDay(null);
+      setFaultFilter(null);
+    }
+    // ✉️ A pasted line holding an email searches the email alone (lib/homeInsights.ts).
+    setQuery(searchTermOf(value));
+  }
 
   const searchResults = useMemo(
     () =>
@@ -2404,20 +2449,48 @@ export function HomeView({
           inputMode="search"
           placeholder="ابحث: جهاز، Kit، اشتراك، زبون، هاتف، مندوب…"
           value={query}
-          onChange={(e) => {
-            const value = e.target.value;
-            // Typing searches ALL devices: starting a search clears the active chip/day so results
-            // aren't confined to it; he can then tap a chip to narrow (his request).
-            if (value.trim() && !query.trim()) {
-              setStatFilter(null);
-              setSelectedDay(null);
-              setFaultFilter(null);
+          onChange={(e) => startSearch(e.target.value)}
+          onFocus={() => setSearchFocused(true)}
+          // Later, so a tap on a past search lands before the list closes.
+          onBlur={() => window.setTimeout(() => setSearchFocused(false), 200)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              rememberSearch(query);
+              (e.target as HTMLInputElement).blur();
             }
-            setQuery(value);
           }}
           aria-label="بحث"
         />
       </section>
+
+      {searchFocused && !query.trim() && searchHistory.length > 0 && (
+        <section className="search-history" aria-label="عمليات البحث السابقة">
+          <div className="search-history-head">
+            <span>🕘 بحثت عن</span>
+            <button type="button" className="btn-link" onMouseDown={(e) => e.preventDefault()} onClick={() => { setSearchHistory([]); saveSearchHistory([]); }}>
+              مسح الكل
+            </button>
+          </div>
+          <ul>
+            {searchHistory.map((term) => (
+              <li key={term}>
+                <button type="button" className="search-history-term" dir="auto" onMouseDown={(e) => e.preventDefault()} onClick={() => { startSearch(term); rememberSearch(term); }}>
+                  {term}
+                </button>
+                <button type="button" className="search-history-drop" aria-label={`إزالة ${term}`} onMouseDown={(e) => e.preventDefault()} onClick={() => forgetSearch(term)}>
+                  ✕
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {query.trim() && fuzzySearch && (
+        <p className="search-fuzzy-note" role="status">
+          {filtered.length > 0 ? <>🔤 لا شيء يطابق «<bdi>{query.trim()}</bdi>» تمامًا - هذه أقرب النتائج (ربما خطأ في الكتابة)</> : <>لا نتيجة لـ «<bdi>{query.trim()}</bdi>»</>}
+        </p>
+      )}
 
       {searchResults.length > 0 && (
         <section className="global-search-results" aria-label="نتائج أخرى">

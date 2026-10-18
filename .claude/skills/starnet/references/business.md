@@ -1699,3 +1699,13 @@ is never pressed while a field is empty - it refills and saves on the next try (
   device's ledger with `openSettlement` = straight to «تسوية تكلفة Starlink» of its OLDEST unpaid shipment
   (`openDebtEntries`); settling or closing it closes the ledger too. The orange «D» (a previous owner's debt) opens
   /starlink (where previous debts are paid). No open D entry behind a red D → /starlink as well.
+
+## 🔍 Home search (Oct 18 2026, «اجعل البحث احترافي»)
+
+- 🕘 Every search is kept (`starnet.searchHistory`, phone-only, last 15): it counts after a 1.5 s pause or Enter;
+  shown under the empty bar when tapped - tap to search again, ✕ / «مسح الكل» to drop. Typing letter by letter
+  leaves one entry («سال» → «سالم»).
+- ✉️ A pasted line holding an email («salehstarlink@outlook.com يحتاج كذا») keeps the email alone in the bar.
+- Any part of the name, words in any order («سالم أحمد» → «أحمد ولد سالم»); Arabic diacritics/digits folded.
+- 🔤 Typos only as a fallback when nothing matches exactly, marked with a note: 1 typo up to 6 letters, 2 from 7,
+  none under 4; the first letter must be right; numbers (KIT, phone) are never guessed.

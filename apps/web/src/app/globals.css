@@ -4696,6 +4696,67 @@ button.today-tile {
   cursor: pointer;
 }
 
+/* 🕘 Past searches under the empty search bar (his Oct 18 2026 ask). */
+.search-history {
+  margin: -4px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+}
+.search-history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+.search-history ul {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.search-history li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-top: 1px solid var(--border);
+}
+.search-history li:first-child { border-top: 0; }
+.search-history-term {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 2px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.search-history-drop {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+}
+.search-fuzzy-note {
+  margin: -4px 0 10px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
 .global-search-results {
   margin: -4px 0 12px;
   display: grid;

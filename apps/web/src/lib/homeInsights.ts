@@ -100,23 +100,92 @@ export interface SearchSources {
 export function normalizeSearchText(value: string): string {
   return value
     .toLowerCase()
-    .replace(/[أإآ]/g, "ا")
+    .replace(/[\u064B-\u0652\u0640]/g, "") // diacritics and «ـ»
+    .replace(/[أإآٱ]/g, "ا")
     .replace(/ى/g, "ي")
     .replace(/ة/g, "ه")
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
     .replace(/\s+/g, " ")
     .trim();
 }
 
-/** A forgiving match of `query` in any of the fields (also used by the reports search). */
+/** One word of the query in one field: inside it, or (digits only) inside its digits. */
+function wordIn(word: string, field: string, fieldDigits: string): boolean {
+  if (field.includes(word)) return true;
+  return word.length >= 3 && /^\d+$/.test(word) && fieldDigits.includes(word);
+}
+
+/**
+ * A forgiving match of `query` in any of the fields (also used by the reports search): the whole
+ * query inside one field, or - his Oct 18 2026 ask, «يبحث في أي مقطع من الاسم» - every word of it
+ * somewhere, in any order («سالم أحمد» finds «أحمد ولد سالم»).
+ */
 export function matches(query: string, ...fields: (string | undefined)[]): boolean {
   const q = normalizeSearchText(query);
   if (!q) return false;
+  const texts = fields.filter((f): f is string => Boolean(f)).map((f) => ({ text: normalizeSearchText(f), digits: f.replace(/\D/g, "") }));
   const digits = q.replace(/\D/g, "");
-  return fields.some((field) => {
-    if (!field) return false;
-    if (normalizeSearchText(field).includes(q)) return true;
-    return digits.length >= 3 && digits === q.replace(/\s/g, "") && field.replace(/\D/g, "").includes(digits);
+  const whole = texts.some((t) => t.text.includes(q) || (digits.length >= 3 && digits === q.replace(/\s/g, "") && t.digits.includes(digits)));
+  if (whole) return true;
+  const words = q.split(" ");
+  return words.length > 1 && words.every((w) => texts.some((t) => wordIn(w, t.text, t.digits)));
+}
+
+/** How far apart two words are (letters added, dropped, changed or swapped). Stops counting past `max`. */
+export function editDistance(a: string, b: string, max = 2): number {
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  let prev2: number[] = [];
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    let rowMin = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      let v = Math.min(prev[j]! + 1, cur[j - 1]! + 1, prev[j - 1]! + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) v = Math.min(v, prev2[j - 2]! + 1);
+      cur.push(v);
+      rowMin = Math.min(rowMin, v);
+    }
+    if (rowMin > max) return max + 1;
+    prev2 = prev;
+    prev = cur;
+  }
+  return prev[b.length]!;
+}
+
+/** The typos one word may carry: none under 4 letters, 1 up to 6, 2 from 7. */
+function allowedTypos(word: string): number {
+  return word.length < 4 ? 0 : word.length < 7 ? 1 : 2;
+}
+
+/**
+ * 🔤 «يكتشف الأخطاء» (his Oct 18 2026 ask): every word of the query close to a word of a field -
+ * «مخمد» finds «محمد», «salehstarlnk» finds «salehstarlink@…» - or to its start, for a word still
+ * being typed. Only used when nothing matches exactly; numbers (KIT, phone) are never guessed.
+ */
+export function fuzzyMatches(query: string, ...fields: (string | undefined)[]): boolean {
+  const words = normalizeSearchText(query).split(" ").filter(Boolean);
+  if (words.length === 0 || words.some((w) => /\d/.test(w) && !/[^\d]/.test(w))) return false;
+  const fieldWords = fields
+    .filter((f): f is string => Boolean(f))
+    .flatMap((f) => normalizeSearchText(f).split(/[\s@._\-+,/()]+/))
+    .filter(Boolean);
+  // The first letter must be right: a guess from the second letter on («سلام» is «سالم», never «الأمل»).
+  const close = (w: string, fw: string, max: number) =>
+    fw[0] === w[0] && (editDistance(w, fw, max) <= max || (fw.length > w.length && editDistance(w, fw.slice(0, w.length), max) <= max));
+  return words.every((w) => {
+    const max = allowedTypos(w);
+    return fieldWords.some((fw) => fw.includes(w) || (max > 0 && close(w, fw, max)));
   });
+}
+
+/**
+ * ✉️ What the search really looks for (his Oct 18 2026 ask): a pasted line holding an email
+ * («salehstarlink@outlook.com يحتاج كذا») searches the email alone - the rest is dropped.
+ */
+export function searchTermOf(raw: string): string {
+  const email = raw.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i)?.[0];
+  return email && email.length < raw.trim().length ? email.toLowerCase() : raw;
 }
 
 /** Everything other than devices that matches the query - devices are already filtered in place
@@ -167,9 +236,12 @@ export function deviceMatchesQuery(
     subscriptionId?: string;
   },
   client?: { name: string; phone?: string },
+  fuzzy = false,
 ): boolean {
   const ids = [device.kitNumber, device.serialNumber, device.starlinkId, device.accountNumber, device.subscriptionId];
-  if (matches(query, device.name, ...ids, device.expectedEmail, device.starlinkAccountEmail, client?.name, client?.phone)) return true;
+  const fields = [device.name, ...ids, device.expectedEmail, device.starlinkAccountEmail, client?.name, client?.phone];
+  if (fuzzy) return fuzzyMatches(query, ...fields);
+  if (matches(query, ...fields)) return true;
   const q = compactId(query);
   return q.length >= 4 && ids.some((id) => id !== undefined && compactId(id).includes(q));
 }
