@@ -456,6 +456,18 @@ describe("runSyncBatch - save must gate everything (round 8: no message/ack befo
     expect(deps.alerts[0]).not.toContain("تعذر حفظ");
   });
 
+  it("🟩 a sync run's line takes its own devices' bubble (lib/syncRun.ts) - a save failure still shows", () => {
+    const sync = [{ syncId: "sync-1", accountId: "acc-1", fields: { planName: "التجوال - غير محدود" } }];
+    const seen: string[] = [];
+    const deps = fakeDeps({ absorbMessages: (messages) => (seen.push(...messages.map((m) => m.accountId)), true) });
+    expect(runSyncBatch([baseAccount({ planName: "" })], sync, new Set(), deps).status).toBe("applied");
+    expect(seen).toEqual(["acc-1"]);
+    expect(deps.alerts).toHaveLength(0);
+    const failing = fakeDeps({ absorbMessages: () => true, saveDemoAccounts: () => { throw new Error("full"); } });
+    runSyncBatch([baseAccount({ planName: "" })], sync, new Set(), failing);
+    expect(failing.alerts[0]).toContain("تعذر حفظ");
+  });
+
   it("routes the save through saveSyncedFieldsCache (never saveDemoAccounts) when not in demo mode", () => {
     const accounts = [baseAccount({ planName: "" })];
     const demoCalls: unknown[] = [];

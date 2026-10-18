@@ -1713,3 +1713,14 @@ is never pressed while a field is empty - it refills and saves on the next try (
   devices · ⛔ only the expired ones (the home list narrowed to him, «✕ كل الأجهزة» to leave) · 🔄 update them one
   by one in their browsers · 🌙 in the background · 🗂️ his file (the old tap). Faulty devices and limited
   emails are left out of the updates, as everywhere.
+
+## 🟩 Sync run line (Oct 18 2026, «بدل هذه الإشعارات اجعله خطًا أخضر…»)
+
+- A run (visible chain or 🌙 background) no longer shows one bubble per device: a see-through green line at
+  the middle of the right edge fills as its devices finish, the device being read beside it (lib/syncRun.ts,
+  components/SyncRunLine.tsx, `starnet.syncRun` phone-only). It stays until the run is over (full line, ❌ count
+  if any), then hides after 3 minutes or with «إخفاء الخط». A background run's outcomes are fetched every 8 s
+  while the app is open; one gone quiet 10 minutes (stopped from its notification) counts as over.
+- Tapped: ❌ failed (with the problem in plain words) · ⏳ not finished · ⚠️ no data · ✅ done (fields changed);
+  each device → «📍 إظهار الجهاز» / «🔄 إعادة»; «🔁 إعادة غير المكتملة» retries the run's same way.
+- A save failure still shows its bubble; single-card syncs keep their bubble too.

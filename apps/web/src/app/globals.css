@@ -15961,3 +15961,182 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   display: grid;
   gap: 4px;
 }
+
+/* 🟩 The sync run's live line (his Oct 18 2026 ask): see-through, middle of the right edge, fills
+   as the run's devices finish (components/SyncRunLine.tsx). */
+.sync-line {
+  position: fixed;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 95;
+  width: 26px;
+  height: 36vh;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.sync-line-track {
+  position: absolute;
+  right: 4px;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--green) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--green) 22%, transparent);
+  overflow: hidden;
+}
+.sync-line-fill {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: var(--fill, 0%);
+  min-height: 6px;
+  border-radius: inherit;
+  background: linear-gradient(to top, color-mix(in srgb, var(--green) 55%, transparent), var(--green));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--green) 60%, transparent);
+  transition: height 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  overflow: hidden;
+}
+/* Alive: a light runs up the line while it works. */
+.sync-line.is-live .sync-line-fill::after,
+.sync-line.is-live .sync-line-track::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  height: 40%;
+  bottom: -40%;
+  background: linear-gradient(to top, transparent, rgb(255 255 255 / 0.55), transparent);
+  animation: sync-line-run 1.8s ease-in-out infinite;
+}
+.sync-line.is-live .sync-line-track::after {
+  background: linear-gradient(to top, transparent, color-mix(in srgb, var(--green) 35%, transparent), transparent);
+  animation-duration: 2.6s;
+}
+@keyframes sync-line-run {
+  to { bottom: 110%; }
+}
+.sync-line-tag {
+  position: absolute;
+  right: 14px;
+  bottom: clamp(0px, calc(var(--fill, 0%) - 13px), calc(100% - 26px));
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: min(58vw, 240px);
+  padding: 4px 10px 4px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 62%, transparent);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid color-mix(in srgb, var(--green) 35%, transparent);
+  color: var(--text);
+  font-size: 0.74rem;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0.88;
+  transition: bottom 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.sync-line-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+  font-variant-numeric: tabular-nums;
+}
+.sync-line-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+}
+.sync-line.is-live .sync-line-dot { animation: sync-line-pulse 1.2s ease-in-out infinite; }
+@keyframes sync-line-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 55%, transparent); }
+  50% { box-shadow: 0 0 0 5px transparent; }
+}
+.sync-line.is-over .sync-line-fill { animation: sync-line-done 0.9s ease-out 1; }
+@keyframes sync-line-done {
+  50% { box-shadow: 0 0 18px var(--green); }
+}
+.sync-line.has-failed .sync-line-tag { border-color: color-mix(in srgb, var(--red) 45%, transparent); }
+@media (prefers-reduced-motion: reduce) {
+  .sync-line *, .sync-line *::after { animation: none !important; transition: none !important; }
+}
+
+.sync-run-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.sync-run-chip {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  background: var(--surface-alt);
+}
+.sync-run-chip.is-ok { background: var(--green-bg); color: var(--green); }
+.sync-run-chip.is-pending { background: var(--gray-bg); color: var(--text-muted); }
+.sync-run-chip.is-nothing { background: var(--yellow-bg); color: var(--yellow); }
+.sync-run-chip.is-failed { background: var(--red-bg); color: var(--red); }
+.sync-run-list {
+  display: grid;
+  gap: 10px;
+  max-height: 55vh;
+  overflow-y: auto;
+}
+.sync-run-title {
+  margin: 0 0 4px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.sync-run-row {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  border-inline-start: 3px solid var(--border);
+  margin-bottom: 6px;
+  background: var(--surface);
+}
+.sync-run-row.is-ok { border-inline-start-color: var(--green); }
+.sync-run-row.is-failed { border-inline-start-color: var(--red); }
+.sync-run-row.is-nothing { border-inline-start-color: var(--yellow); }
+.sync-run-row.is-current { border-inline-start-color: var(--brand); }
+.sync-run-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+}
+.sync-run-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.sync-run-row-head small {
+  flex: none;
+  color: var(--text-muted);
+}
+.sync-run-row-body {
+  padding: 0 10px 10px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.sync-run-row-body p { margin: 0 0 8px; line-height: 1.6; }
+.sync-run-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

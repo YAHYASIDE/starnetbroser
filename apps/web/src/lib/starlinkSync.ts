@@ -494,6 +494,8 @@ export interface SyncBatchDeps {
   /** Same contract - the "storage used" for a non-demo account (see syncedFieldsCache.ts). */
   saveSyncedFieldsCache: (accountId: string, fields: SyncedStarlinkFields) => void;
   showAlert: (message: string) => void;
+  /** 🟩 A sync run's live line takes its own devices' reads (lib/syncRun.ts): true = no bubble. */
+  absorbMessages?: (messages: SyncOutcomeMessage[]) => boolean;
 }
 
 export type SyncBatchOutcome =
@@ -546,7 +548,7 @@ export function runSyncBatch(
   }
 
   const summary = summarizeSyncMessages(result.messages);
-  if (summary) deps.showAlert(summary);
+  if (summary && !deps.absorbMessages?.(result.messages)) deps.showAlert(summary);
   return { status: "applied", accounts: result.accounts, appliedSyncIds: result.ackSyncIds };
 }
 

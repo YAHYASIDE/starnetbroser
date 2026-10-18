@@ -190,6 +190,8 @@ import {
 } from "@/lib/deviceRings";
 import { RingActionsSheet } from "@/components/RingActionsSheet";
 import { ClientSearchSheet } from "@/components/ClientSearchSheet";
+import { SyncRunLine } from "@/components/SyncRunLine";
+import { endRun, isRunOver, loadSyncRun, saveSyncRun, startRun, withChanges, withCurrent, withOutcomes, type SyncRun } from "@/lib/syncRun";
 import { changesTo, serviceBubbles } from "@/lib/serviceBubbles";
 import { placeholderRename } from "@/lib/placeholderName";
 import { isOnMailDomain, loadMailDomain, pushMailDomain } from "@/lib/mailDomain";
@@ -627,6 +629,27 @@ export function HomeView({
   // shows the next device with a short countdown and «إيقاف».
   const [syncChoiceOpen, setSyncChoiceOpen] = useState(false);
   const [queueStep, setQueueStep] = useState<{ label: string; progress: string; name: string; secondsLeft: number } | null>(null);
+  // 🟩 The run's live line on the right edge (lib/syncRun.ts) - instead of one bubble per device.
+  const [syncRun, setSyncRun] = useState<SyncRun | null>(null);
+  const syncRunRef = useRef<SyncRun | null>(null);
+  const [runNow, setRunNow] = useState(() => Date.now());
+
+  function commitRun(next: SyncRun | null) {
+    syncRunRef.current = next;
+    saveSyncRun(next);
+    setSyncRun(next);
+  }
+
+  /** The run on the phone, changed by `change` (nothing when there is none). */
+  function updateRun(change: (run: SyncRun) => SyncRun) {
+    const run = syncRunRef.current ?? loadSyncRun();
+    if (run) commitRun(change(run));
+  }
+
+  function beginRun(ids: string[], label: string, mode: SyncRun["mode"]) {
+    const devices = ids.map((id) => ({ id, name: accountsRef.current.find((a) => a.id === id)?.name ?? "جهاز" }));
+    commitRun(startRun(devices, label, mode));
+  }
   const QUEUE_COUNTDOWN_S = QUEUE_GAP_SECONDS;
 
   function handleSyncNow() {
@@ -644,6 +667,7 @@ export function HomeView({
     // How the devices' auto-syncs ended since last time (signed out, stuck, done...).
     // 🛂 A «كشف توثيق» in the background takes its own devices' outcomes first.
     const taken = await takeAutoSyncResults();
+    if (taken.length > 0) updateRun((run) => withOutcomes(run, taken));
     // 🔍 A circle's check sees every outcome of its devices (they also go on to the queue below).
     const ringRun = loadRingCheck();
     if (ringRun) {
@@ -659,8 +683,11 @@ export function HomeView({
     if (!queue) {
       setQueueStep(null);
       // A single card's «تحديث من Starlink» that couldn't sync: say why.
+      const run = syncRunRef.current;
       for (const record of records) {
         if (record.outcome === "ok") continue;
+        // 🟩 A tracked run's device: its line shows it.
+        if (run && run.ids.includes(record.accountId)) continue;
         const name = accountsRef.current.find((a) => a.id === record.accountId)?.name ?? "";
         pushToast(`${name}: ${outcomeLabel(record.outcome)}`);
       }
@@ -673,6 +700,7 @@ export function HomeView({
     if (applied.rateLimited) {
       saveSyncQueue(null);
       setQueueStep(null);
+      updateRun((run) => endRun(run));
       // queue.index = the devices already opened (it moves on before each one opens).
       if (queue.travelCheck) finishTravelCheck(queue, queue.ids.slice(0, Math.min(queue.index, queue.ids.length)));
       else reportSync(buildSyncReport(queue, accountsRef.current, true));
@@ -694,6 +722,7 @@ export function HomeView({
     if (!next) {
       saveSyncQueue(null);
       setQueueStep(null);
+      updateRun((run) => endRun(run));
       if (queue.travelCheck) finishTravelCheck(queue, queue.ids);
       else reportSync(buildSyncReport({ ...queue, index: queue.ids.length }, accountsRef.current));
       // A device deleted meanwhile never gets an outcome - the circle reports without it.
@@ -717,9 +746,11 @@ export function HomeView({
     // Moved on before opening, so coming back (done or closed by hand) continues with the next one.
     saveSyncQueue({ ...queue, index: next.index + 1 });
     setQueueStep(null);
+    updateRun((run) => withCurrent(run, next.account.id));
     const result = await openAutoSync(next.account, `${queue.label} · ${queueProgressLabel(queue, next.index)}`, queue.travelCheck === true);
     if (!result.ok) {
       saveSyncQueue(null);
+      updateRun((run) => endRun(run));
       pushToast(result.message);
     }
   }
@@ -736,6 +767,7 @@ export function HomeView({
       .filter((a): a is StarlinkAccountSummary => Boolean(a))
       .map((a) => ({ id: a.id, name: a.name }));
     if (await startBackgroundSync(list, label, travelCheck)) {
+      beginRun(list.map((a) => a.id), label, "background");
       if (travelCheck) {
         // Remembered so the app shows the result (with the WhatsApp buttons) when it comes back.
         const earlier = loadTravelBgRun();
@@ -747,7 +779,7 @@ export function HomeView({
         );
         pushToast(`🌙 بدأ «🛂 كشف التوثيق» في الخلفية (${list.length} جهاز) - تابعه في الإشعار، والنتيجة في البوت وهنا`);
       } else {
-        pushToast(`🌙 بدأت المزامنة في الخلفية (${list.length} جهاز) - تابعها في الإشعار، والنتيجة في البوت`);
+        pushToast(`🌙 بدأت المزامنة في الخلفية (${list.length} جهاز) - تابعها على الخط الأخضر يمين الشاشة`);
       }
       return true;
     }
@@ -769,6 +801,7 @@ export function HomeView({
 
   function startVisibleRun(queue: NonNullable<ReturnType<typeof loadSyncQueue>>) {
     // Results of earlier single syncs aren't this run's.
+    beginRun(queue.ids, queue.label, "visible");
     void takeAutoSyncResults().then(() => {
       saveSyncQueue(queue);
       void runNextQueued();
@@ -1360,6 +1393,14 @@ export function HomeView({
         },
         saveSyncedFieldsCache,
         showAlert: pushToast,
+        // 🟩 A running sync's own devices go on its line, not in a bubble each.
+        absorbMessages: (messages) => {
+          const run = syncRunRef.current;
+          if (!run || isRunOver(run)) return false;
+          const taken = withChanges(run, messages);
+          if (taken.absorbed) commitRun(taken.run);
+          return taken.absorbed;
+        },
       });
 
       if (outcome.status !== "applied") return;
@@ -2095,6 +2136,51 @@ export function HomeView({
   const noClient = useMemo(() => countNoClient(activeAccounts, clientStore, representativeStore), [activeAccounts, clientStore, representativeStore]);
 
   useEffect(() => setSearchHistory(loadSearchHistory()), []);
+
+  // 🟩 The run's line: back from the phone's storage, a clock for its «quiet = over», and - for a
+  // 🌙 background run - its devices' outcomes fetched while the app is open.
+  useEffect(() => {
+    const run = loadSyncRun();
+    syncRunRef.current = run;
+    setSyncRun(run);
+  }, []);
+  const runActive = Boolean(syncRun && !isRunOver(syncRun, runNow));
+  const runBackground = syncRun?.mode === "background";
+  useEffect(() => {
+    if (!syncRun) return;
+    const timer = window.setInterval(() => setRunNow(Date.now()), runActive ? 5000 : 30000);
+    return () => window.clearInterval(timer);
+  }, [syncRun, runActive]);
+  useEffect(() => {
+    if (!runActive || !runBackground) return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void refreshSyncQueue();
+    }, 8000);
+    return () => window.clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runActive, runBackground]);
+
+  /** 🟩 «🔄 إعادة» from the line's details: the same way the run went (background or one by one). */
+  async function retryRun(ids: string[]) {
+    const run = syncRunRef.current;
+    const live = ids.filter((id) => activeAccountsRef.current.some((a) => a.id === id));
+    if (live.length === 0) {
+      pushToast("الأجهزة لم تعد موجودة");
+      return;
+    }
+    const label = `${run?.label ?? "المزامنة"} · إعادة`;
+    if (run?.mode === "background" && (await trySyncInBackground(live, label, false, true))) return;
+    const queue = syncQueueFor(live, label);
+    if (queue) startVisibleRun(queue);
+  }
+
+  /** 🟩 «📍 إظهار الجهاز»: the home list searched for it. */
+  function showRunDevice(id: string) {
+    const device = accountsRef.current.find((a) => a.id === id);
+    if (!device) return;
+    startSearch(device.expectedEmail?.trim() || device.name);
+    window.setTimeout(() => document.querySelector(".accounts-section")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+  }
   // A search counts once he stops typing for a moment.
   useEffect(() => {
     if (query.trim().length < 2) return;
@@ -3130,6 +3216,10 @@ export function HomeView({
           onSaved={setLedgerStore}
           onClose={() => setEditingStatementEntry(null)}
         />
+      )}
+
+      {syncRun && (runActive || runNow - (syncRun.endedAt ?? syncRun.lastActivityAt) < 3 * 60_000) && (
+        <SyncRunLine run={syncRun} now={runNow} onRetry={(ids) => void retryRun(ids)} onShowDevice={showRunDevice} onDismiss={() => commitRun(null)} />
       )}
 
       {clientMenuId && getClient(clientStore, clientMenuId) && (() => {
