@@ -1709,3 +1709,7 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - Any part of the name, words in any order («سالم أحمد» → «أحمد ولد سالم»); Arabic diacritics/digits folded.
 - 🔤 Typos only as a fallback when nothing matches exactly, marked with a note: 1 typo up to 6 letters, 2 from 7,
   none under 4; the first letter must be right; numbers (KIT, phone) are never guessed.
+- 👤 A customer tapped in the home search opens his options (`ClientSearchSheet`, his Oct 18 2026 ask): 📋 his
+  devices · ⛔ only the expired ones (the home list narrowed to him, «✕ كل الأجهزة» to leave) · 🔄 update them one
+  by one in their browsers · 🌙 in the background · 🗂️ his file (the old tap). Faulty devices and limited
+  emails are left out of the updates, as everywhere.

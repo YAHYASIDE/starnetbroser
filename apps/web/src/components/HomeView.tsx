@@ -189,6 +189,7 @@ import {
   type RingQuestion,
 } from "@/lib/deviceRings";
 import { RingActionsSheet } from "@/components/RingActionsSheet";
+import { ClientSearchSheet } from "@/components/ClientSearchSheet";
 import { changesTo, serviceBubbles } from "@/lib/serviceBubbles";
 import { placeholderRename } from "@/lib/placeholderName";
 import { isOnMailDomain, loadMailDomain, pushMailDomain } from "@/lib/mailDomain";
@@ -514,6 +515,9 @@ export function HomeView({
   useEffect(() => setClientStore(loadClientStore()), []);
   const clients = useMemo(() => listClients(clientStore), [clientStore]);
   const [openClientId, setOpenClientId] = useState<string | null>(null);
+  // 👤 A customer tapped in the search: his options (ClientSearchSheet), and the list narrowed to him.
+  const [clientMenuId, setClientMenuId] = useState<string | null>(null);
+  const [clientFocus, setClientFocus] = useState<string | null>(null);
   const [showClientsOverview, setShowClientsOverview] = useState(false);
 
   function handleCreateClient(input: CreateClientInput): Client {
@@ -819,6 +823,36 @@ export function HomeView({
     }
     if (background && (await trySyncInBackground(ids, runLabel, travel, true))) return;
     const queue = syncQueueFor(ids, runLabel, travel);
+    if (queue) startVisibleRun(queue);
+  }
+
+  /** 👤 The customer's devices, as the home list keeps them. */
+  function clientDevices(clientId: string): StarlinkAccountSummary[] {
+    return activeAccountsRef.current.filter((a) => a.clientId === clientId);
+  }
+
+  /** 👤 «عرض أجهزته» / «المنتهية فقط»: the list narrowed to him (the search is cleared). */
+  function focusClient(clientId: string, expiredOnly: boolean) {
+    setClientMenuId(null);
+    setQuery("");
+    setSelectedDay(null);
+    setFaultFilter(null);
+    setStatFilter(expiredOnly ? "expired" : null);
+    setClientFocus(clientId);
+    window.setTimeout(() => document.querySelector(".accounts-section")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+  }
+
+  /** 👤 «تحديث أجهزته»: his devices one by one in their browsers, or in the background. */
+  async function syncClient(clientId: string, background: boolean) {
+    setClientMenuId(null);
+    const ids = clientDevices(clientId).filter((a) => !syncedOnlyByCommand(a)).map((a) => a.id);
+    if (ids.length === 0) {
+      pushToast("لا أجهزة لتحديثها (المعطّلة والإيميل غير الرئيسي بأمرهما فقط)");
+      return;
+    }
+    const label = `👤 ${getClient(clientStore, clientId)?.name ?? "زبون"}`;
+    if (background && (await trySyncInBackground(ids, label, false, true))) return;
+    const queue = syncQueueFor(ids, label);
     if (queue) startVisibleRun(queue);
   }
 
@@ -1989,6 +2023,7 @@ export function HomeView({
 
   const { list: filtered, fuzzy: fuzzySearch } = useMemo(() => {
     let list = activeAccounts;
+    if (clientFocus) list = list.filter((a) => a.clientId === clientFocus);
     if (selectedDay !== null) {
       list = list.filter((a) => deviceDayKeys(a).includes(selectedDay));
     }
@@ -2018,7 +2053,7 @@ export function HomeView({
       return { list: found(true), fuzzy: true };
     }
     return { list, fuzzy: false };
-  }, [activeAccounts, selectedDay, statFilter, faultFilter, noClientGroup, travelGroup, ledgerStore, allAllocations, query, clientStore, representativeStore, deviceNotes, recentLog, renewedToday, deviceTwinMap, repRingId]);
+  }, [activeAccounts, clientFocus, selectedDay, statFilter, faultFilter, noClientGroup, travelGroup, ledgerStore, allAllocations, query, clientStore, representativeStore, deviceNotes, recentLog, renewedToday, deviceTwinMap, repRingId]);
 
   const faultCounts = useMemo(() => countFaultCategories(activeAccounts), [activeAccounts]);
   const repairCount = useMemo(() => activeAccounts.filter(isUnderRepair).length, [activeAccounts]);
@@ -2091,6 +2126,7 @@ export function HomeView({
       setSelectedDay(null);
       setFaultFilter(null);
     }
+    if (value.trim() && !query.trim()) setClientFocus(null);
     // ✉️ A pasted line holding an email searches the email alone (lib/homeInsights.ts).
     setQuery(searchTermOf(value));
   }
@@ -2110,7 +2146,7 @@ export function HomeView({
   const visible =
     viewMode === "archived" ? archivedAccounts
     : viewMode === "trash" ? trashAccounts
-    : showAll || query || selectedDay !== null || statFilter !== null ? filtered : expiredOrNearExpiry;
+    : showAll || query || clientFocus !== null || selectedDay !== null || statFilter !== null ? filtered : expiredOrNearExpiry;
 
   return (
     <main className="home app-shell">
@@ -2495,7 +2531,7 @@ export function HomeView({
       {searchResults.length > 0 && (
         <section className="global-search-results" aria-label="نتائج أخرى">
           {searchResults.map((result) => (
-            <SearchResultRow key={`${result.kind}-${result.id}`} result={result} onOpenClient={(id) => setOpenClientId(id)} />
+            <SearchResultRow key={`${result.kind}-${result.id}`} result={result} onOpenClient={(id) => setClientMenuId(id)} />
           ))}
         </section>
       )}
@@ -2774,11 +2810,23 @@ export function HomeView({
             <h2 className="section-title">
               {viewMode === "archived" ? "الأرشيف"
                 : viewMode === "trash" ? "سلة المحذوفات"
+                : clientFocus
+                  ? `👤 أجهزة ${getClient(clientStore, clientFocus)?.name ?? "الزبون"}${statFilter ? ` · ${STAT_FILTER_TITLES[statFilter]}` : ""}`
                 : statFilter
                   ? statFilter === "rep" ? `🤝 أجهزة ${getRepresentative(representativeStore, repRingId ?? undefined)?.name ?? "المندوب"}` : STAT_FILTER_TITLES[statFilter]
                   : showAll || query || selectedDay !== null ? "الحسابات" : "تحتاج إلى متابعة"}
             </h2>
-            <p className="section-caption">{visible.length} حساب</p>
+            <p className="section-caption">
+              {visible.length} حساب
+              {clientFocus && viewMode === "active" && (
+                <>
+                  {" · "}
+                  <button type="button" className="btn-link" onClick={() => { setClientFocus(null); setStatFilter(null); }}>
+                    ✕ كل الأجهزة
+                  </button>
+                </>
+              )}
+            </p>
           </div>
           {viewMode === "active" && (
             statFilter ? (
@@ -3083,6 +3131,24 @@ export function HomeView({
           onClose={() => setEditingStatementEntry(null)}
         />
       )}
+
+      {clientMenuId && getClient(clientStore, clientMenuId) && (() => {
+        const mine = activeAccounts.filter((a) => a.clientId === clientMenuId);
+        return (
+          <ClientSearchSheet
+            name={getClient(clientStore, clientMenuId)!.name}
+            deviceCount={mine.length}
+            expiredCount={mine.filter((a) => matchesStatFilter(a, "expired")).length}
+            syncCount={mine.filter((a) => !syncedOnlyByCommand(a)).length}
+            onShowDevices={() => focusClient(clientMenuId, false)}
+            onShowExpired={() => focusClient(clientMenuId, true)}
+            onSync={() => void syncClient(clientMenuId, false)}
+            onSyncBackground={() => void syncClient(clientMenuId, true)}
+            onOpenFile={() => { setOpenClientId(clientMenuId); setClientMenuId(null); }}
+            onClose={() => setClientMenuId(null)}
+          />
+        );
+      })()}
 
       {openClientId && getClient(clientStore, openClientId) && (
         <ClientDialog
