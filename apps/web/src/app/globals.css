@@ -16140,3 +16140,104 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   flex-wrap: wrap;
   gap: 8px;
 }
+
+/* 📐 The card's fixed lines (his Oct 18 2026 order «كل شيء مكانه ثابت لا يتحرك»):
+   1 name + email · 2 bubbles, D, ✓ · 3 Starlink's bill + the gap · 4 dish, Wi-Fi, country · buttons.
+   Each line keeps one height and never wraps, so nothing jumps from card to card. */
+.account-card .account-card-head { flex-wrap: nowrap; }
+.account-card .account-card-head > .account-card-title-block { flex: 1 1 auto; min-width: 0; }
+.account-card .account-card-head .account-card-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.account-card-head-email {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 600;
+  text-align: start;
+  align-self: flex-start;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.account-card-head-email svg { flex: none; width: 13px; height: 13px; }
+
+.account-card-status-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  min-height: 26px;
+  overflow: hidden;
+}
+.account-card-status-row > * { flex: none; }
+.account-card-status-row .svc-bubble { min-height: 24px; padding-block: 0; }
+.account-card-status-row .device-marks { gap: 4px; }
+.account-card-status-row .device-mark { width: 24px; height: 24px; border-radius: 8px; font-size: 0.78rem; }
+.account-card-status-row .badge { white-space: nowrap; }
+.account-card-flags-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.account-card .account-card-money-row {
+  flex-wrap: nowrap;
+  min-height: 26px;
+  white-space: nowrap;
+}
+.account-card-money-row > span:not(.account-card-label) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.account-card-gap-chip {
+  flex: none;
+  margin-inline-start: auto;
+  padding: 3px 9px;
+  border: 1px dashed var(--orange);
+  border-radius: 999px;
+  background: var(--orange-bg);
+  color: var(--orange);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.account-card .account-card-device-row { flex-wrap: nowrap; min-height: 26px; }
+.account-card-device-row .device-dots { flex: 0 1 auto; min-width: 0; flex-wrap: nowrap; }
+.account-card-device-row .device-dot { white-space: nowrap; }
+.account-card-device-row > :not(.device-dots) { flex: none; }
+@media (max-width: 400px) {
+  /* The icons say which is which; the words «الطبق:» / «واي فاي:» make room for the country. */
+  .account-card-device-row .device-dot-label { display: none; }
+}
+
+/* 🎨 One button row: same height, same icon size, each icon its own color. */
+.account-card-one-row .card-action,
+.account-card-one-row .whatsapp-menu-wrapper { min-height: 38px; }
+.account-card-one-row .card-act-icon { flex: none; width: 17px; height: 17px; }
+.account-card-one-row .card-act-pay .card-act-icon { color: var(--green); }
+.account-card-one-row .card-act-sync .card-act-icon { color: var(--violet); }
+.account-card-one-row .card-act-more .card-act-icon { color: var(--text-muted); }
+.account-card-one-row .card-action-primary .card-act-icon { color: var(--brand-contrast); }
+.account-card-one-row .whatsapp-menu-wrapper { flex: 0 0 38px; display: grid; }
+.account-card .account-card-one-row .whatsapp-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+}
+.account-card .account-card-one-row .whatsapp-btn svg { width: 17px; height: 17px; }

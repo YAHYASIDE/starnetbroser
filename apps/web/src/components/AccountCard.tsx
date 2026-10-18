@@ -195,6 +195,27 @@ function IconClock() {
   );
 }
 
+/* 🎨 The card's buttons: one icon set, one size (his Oct 18 2026 ask «متناسقة وملوّنة وحجمها واحد»). */
+function ActionIcon({ children }: { children: React.ReactNode }) {
+  return (
+    <svg className="card-act-icon" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {children}
+    </svg>
+  );
+}
+function IconOpen() {
+  return <ActionIcon><path d="M7 17 17 7" /><path d="M9 7h8v8" /></ActionIcon>;
+}
+function IconCash() {
+  return <ActionIcon><rect x="3" y="6" width="18" height="12" rx="2.5" /><circle cx="12" cy="12" r="2.6" /><path d="M6.5 9.5v5M17.5 9.5v5" /></ActionIcon>;
+}
+function IconMoonSync() {
+  return <ActionIcon><path d="M20 12a8 8 0 1 1-8-8" /><path d="M20 4v5h-5" /><path d="M14.5 13.2A3 3 0 0 1 11 9.6a3.2 3.2 0 1 0 3.5 3.6Z" fill="currentColor" stroke="none" /></ActionIcon>;
+}
+function IconMore() {
+  return <ActionIcon><circle cx="5" cy="12" r="1.3" fill="currentColor" /><circle cx="12" cy="12" r="1.3" fill="currentColor" /><circle cx="19" cy="12" r="1.3" fill="currentColor" /></ActionIcon>;
+}
+
 function IconEnvelope() {
   return (
     <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -425,6 +446,21 @@ export function AccountCard({
       if (!result.ok) {
         window.alert(result.message);
       }
+    } finally {
+      setSyncingCard(false);
+    }
+  }
+
+  /** 🌙 The card's «تحديث»: this device read in the background (his Oct 18 2026 ask) - its browser
+   * opens and syncs by itself when the background can't run (no «الظهور فوق التطبيقات»). */
+  async function handleBackgroundSync() {
+    if (syncingCard) return;
+    setSyncingCard(true);
+    try {
+      markDeviceTouched(account.id);
+      if (await startBackgroundSync([{ id: account.id, name: account.name }], account.name || "")) return;
+      const result = await openAutoSync(account);
+      if (!result.ok) window.alert(result.message);
     } finally {
       setSyncingCard(false);
     }
@@ -698,7 +734,7 @@ export function AccountCard({
         </div>
       )}
 
-      <div className="account-card-top-row">
+      <div className="account-card-top-row account-card-head">
         <div className="account-card-title-block">
           {nameIsEmail ? (
             <button
@@ -716,6 +752,23 @@ export function AccountCard({
             </button>
           ) : (
             <h3 className="account-card-name">{account.name}</h3>
+          )}
+          {/* ✉️ His Oct 18 2026 order: the name and the email on top, always in the same place. */}
+          {identityEmail && !nameIsEmail && (
+            <button
+              type="button"
+              className="account-card-head-email"
+              dir="ltr"
+              data-tour="email-copy"
+              aria-label="نسخ البريد"
+              onClick={() => {
+                void copyToClipboard(identityEmail);
+                setEmailCopied(true);
+                window.setTimeout(() => setEmailCopied(false), 1500);
+              }}
+            >
+              <IconEnvelope /> {emailCopied ? "✓ نُسخ" : identityEmail}
+            </button>
           )}
           {client ? (
             <button type="button" className="account-card-client-name" onClick={() => onOpenClient(client)} title="فتح بطاقة الزبون">
@@ -736,6 +789,23 @@ export function AccountCard({
             </div>
           )}
         </div>
+      </div>
+
+      {/* 🫧 One fixed line (his Oct 18 2026 order): the two service bubbles, D and ✓ - never moving. */}
+      <div className="account-card-status-row">
+        {bubbles && <ServiceBubbles bubbles={bubbles} />}
+        {/* ⏸️ Moving to the Standby plan (SIS) - still a service, not «ملغي» (the bubbles show it when known). */}
+        {account.pendingStandbyDate && !cancellation.cancelled && !bubbles && (
+          <span className="standby-pending-chip" title={`ينتقل إلى وضع الاستعداد (SIS) في ${account.pendingStandbyDate}`}>
+            ⏸️ SIS من <bdi dir="ltr">{account.pendingStandbyDate}</bdi>
+          </span>
+        )}
+        {/* 🫧 The STOP bubble already says it (his Oct 17 2026 ask «ملغى لماذا هنا»). */}
+        {context === "active" && !account.creation && cancellation.cancelled && !bubbles && (
+          <button type="button" className="cancel-subscription-button is-cancelled" onClick={() => void handleCancelSubscription()} title={cancelledMessage(cancellation)}>
+            ملغى
+          </button>
+        )}
         {(marks.d || marks.p || previousDebts.length > 0) && (
           <span className="device-marks" aria-label="حالة الدفع">
             {/* 💳 his Oct 12 2026 ask «عندما أضغط على D تظهر لي مكان تسديد الفاتورة» */}
@@ -770,78 +840,71 @@ export function AccountCard({
             )}
           </span>
         )}
-        {bubbles && <ServiceBubbles bubbles={bubbles} />}
         {serviceStatus && <span className={`badge ${serviceStatus.className} account-card-status-badge`}>{serviceStatus.label}</span>}
-        {addedByRepName && (
-          <span className="rep-added-chip" title="أضافه المندوب من تطبيقه وثبّتّه أنت">
-            📱 أضافه {addedByRepName}
-            {account.addedByRepAt && <> · <bdi dir="ltr">{account.addedByRepAt.slice(0, 10)}</bdi></>}
-            {onClearRepAdded && (
-              <button
-                type="button"
-                className="rep-added-chip-clear"
-                aria-label={`إزالة «أضافه ${addedByRepName}»`}
-                onClick={() => {
-                  if (window.confirm(`إزالة «📱 أضافه ${addedByRepName}» عن «${account.name}»؟\n\nيبقى الجهاز عند مندوبه كما هو - تُزال العلامة فقط.`)) onClearRepAdded(account);
-                }}
-              >
-                ✕
-              </button>
-            )}
-          </span>
-        )}
-        {twin && onMergeInto && (
-          <button
-            type="button"
-            className="duplicate-chip"
-            title="نفس الجهاز مسجّل مرتين"
-            onClick={() => {
-              const same = (twin.expectedEmail ?? "").trim().toLowerCase() && (twin.expectedEmail ?? "").trim().toLowerCase() === (account.expectedEmail ?? "").trim().toLowerCase();
-              if (
-                window.confirm(
-                  `⚠️ هذا الجهاز مكرّر مع «${twin.name}» (${same ? "نفس الإيميل" : "نفس رقم KIT"}).\n\nدمج «${account.name}» في «${twin.name}»؟\n• تنتقل شحناته ودفعاته وديونه السابقة إلى «${twin.name}»\n• وما ينقص «${twin.name}» (الزبون، المندوب، الهاتف، الكلمات…) يؤخذ منه\n• ثم يُنقل «${account.name}» إلى سلة المحذوفات\n\nلتبقي هذا بدل الآخر: اضغط «مكرّر» على البطاقة الأخرى.`,
-                )
-              )
-                onMergeInto(account, twin);
-            }}
-          >
-            ⚠️ مكرّر · دمج
-          </button>
-        )}
-        {twin && onNotDuplicate && (
-          <button
-            type="button"
-            className="duplicate-chip-clear"
-            aria-label={`ليس مكرّرًا مع «${twin.name}»`}
-            title="ليسا نفس الجهاز - أزل علامة التكرار"
-            onClick={() => {
-              if (window.confirm(`«${account.name}» و«${twin.name}» جهازان مختلفان؟\n\nتُزال علامة «مكرّر» عن الاثنين ولا تعود. لا يُحذف ولا يُدمج شيء.`)) onNotDuplicate(account, twin);
-            }}
-          >
-            ✕
-          </button>
-        )}
-        {repPending && (
-          <span className="rep-pending-chip" title="سجّلته أنت - ينتظر تثبيت المسؤول">
-            ⏳ بانتظار المسؤول
-          </span>
-        )}
-        {/* ⏸️ Moving to the Standby plan (SIS) - still a service, not «ملغي» (the bubbles show it when known). */}
-        {account.pendingStandbyDate && !cancellation.cancelled && !bubbles && (
-          <span className="standby-pending-chip" title={`ينتقل إلى وضع الاستعداد (SIS) في ${account.pendingStandbyDate}`}>
-            ⏸️ SIS من <bdi dir="ltr">{account.pendingStandbyDate}</bdi>
-          </span>
-        )}
-        {/* 🫧 The STOP bubble already says it (his Oct 17 2026 ask «ملغى لماذا هنا»). */}
-        {context === "active" && !account.creation && cancellation.cancelled && !bubbles && (
-          <button type="button" className="cancel-subscription-button is-cancelled" onClick={() => void handleCancelSubscription()} title={cancelledMessage(cancellation)}>
-            ملغى
-          </button>
-        )}
       </div>
 
-      <div className="account-card-starlink-balance-row">
-        <span className="account-card-label">مستحق Starlink:</span>
+      {(addedByRepName || twin || repPending) && (
+        <div className="account-card-flags-row">
+          {addedByRepName && (
+            <span className="rep-added-chip" title="أضافه المندوب من تطبيقه وثبّتّه أنت">
+              📱 أضافه {addedByRepName}
+              {account.addedByRepAt && <> · <bdi dir="ltr">{account.addedByRepAt.slice(0, 10)}</bdi></>}
+              {onClearRepAdded && (
+                <button
+                  type="button"
+                  className="rep-added-chip-clear"
+                  aria-label={`إزالة «أضافه ${addedByRepName}»`}
+                  onClick={() => {
+                    if (window.confirm(`إزالة «📱 أضافه ${addedByRepName}» عن «${account.name}»؟\n\nيبقى الجهاز عند مندوبه كما هو - تُزال العلامة فقط.`)) onClearRepAdded(account);
+                  }}
+                >
+                  ✕
+                </button>
+              )}
+            </span>
+          )}
+          {twin && onMergeInto && (
+            <button
+              type="button"
+              className="duplicate-chip"
+              title="نفس الجهاز مسجّل مرتين"
+              onClick={() => {
+                const same = (twin.expectedEmail ?? "").trim().toLowerCase() && (twin.expectedEmail ?? "").trim().toLowerCase() === (account.expectedEmail ?? "").trim().toLowerCase();
+                if (
+                  window.confirm(
+                    `⚠️ هذا الجهاز مكرّر مع «${twin.name}» (${same ? "نفس الإيميل" : "نفس رقم KIT"}).\n\nدمج «${account.name}» في «${twin.name}»؟\n• تنتقل شحناته ودفعاته وديونه السابقة إلى «${twin.name}»\n• وما ينقص «${twin.name}» (الزبون، المندوب، الهاتف، الكلمات…) يؤخذ منه\n• ثم يُنقل «${account.name}» إلى سلة المحذوفات\n\nلتبقي هذا بدل الآخر: اضغط «مكرّر» على البطاقة الأخرى.`,
+                  )
+                )
+                  onMergeInto(account, twin);
+              }}
+            >
+              ⚠️ مكرّر · دمج
+            </button>
+          )}
+          {twin && onNotDuplicate && (
+            <button
+              type="button"
+              className="duplicate-chip-clear"
+              aria-label={`ليس مكرّرًا مع «${twin.name}»`}
+              title="ليسا نفس الجهاز - أزل علامة التكرار"
+              onClick={() => {
+                if (window.confirm(`«${account.name}» و«${twin.name}» جهازان مختلفان؟\n\nتُزال علامة «مكرّر» عن الاثنين ولا تعود. لا يُحذف ولا يُدمج شيء.`)) onNotDuplicate(account, twin);
+              }}
+            >
+              ✕
+            </button>
+          )}
+          {repPending && (
+            <span className="rep-pending-chip" title="سجّلته أنت - ينتظر تثبيت المسؤول">
+              ⏳ بانتظار المسؤول
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* 💲 Starlink's bill and the unrecorded gap side by side (his Oct 18 2026 order). */}
+      <div className="account-card-starlink-balance-row account-card-money-row">
+        <span className="account-card-label" title="مستحق Starlink">Starlink:</span>
         {account.limitedAccess ? (
           <span className="account-card-limited-note" title="الإيميل ليس صاحب الحساب - لا تظهر له الفوترة؛ تحقق من الحساب الرئيسي">
             👤 إيميل غير رئيسي - الفوترة لا تظهر
@@ -859,12 +922,18 @@ export function AccountCard({
           )
         ) : (
           <span dir="ltr">
-            {balanceUsdEquivalent !== undefined && (
-              <span className="stat-tile-value-usd">≈ {formatAmount(balanceUsdEquivalent)} USD · </span>
-            )}
+            {/* The bill itself first - on a narrow line only the ≈ USD part may be cut. */}
             <strong>{account.currency} {account.balanceDue || "0"}</strong>
             {unpaidIsBalance && <span className="account-card-unpaid-tag"> · غير مدفوع</span>}
+            {balanceUsdEquivalent !== undefined && (
+              <span className="stat-tile-value-usd"> ≈ {formatAmount(balanceUsdEquivalent)} USD</span>
+            )}
           </span>
+        )}
+        {unrecordedUsd > 0 && onAddPreviousDebt && stillDueDs.length === 0 && (
+          <button type="button" className="account-card-gap-chip" onClick={() => setDebtChoiceUsd(unrecordedUsd)} title={`فرق ${formatAmount(unrecordedUsd)} $ غير مسجّل - اضغط لتسجيله`}>
+            فرق <bdi dir="ltr">{formatAmount(unrecordedUsd)} $</bdi> · الدين
+          </button>
         )}
       </div>
 
@@ -909,16 +978,6 @@ export function AccountCard({
               ↩️ لم أدفعه
             </button>
           </span>
-        </div>
-      )}
-      {unrecordedUsd > 0 && onAddPreviousDebt && stillDueDs.length === 0 && (
-        <div className="account-card-unrecorded">
-          <span>
-            فرق <bdi dir="ltr">{formatAmount(unrecordedUsd)} $</bdi> غير مسجّل
-          </span>
-          <button type="button" className="text-action" onClick={() => setDebtChoiceUsd(unrecordedUsd)}>
-            الدين
-          </button>
         </div>
       )}
 
@@ -973,25 +1032,10 @@ export function AccountCard({
         {renewalSheet && onPatch && (
           <RenewalLockSheet account={account} onPatch={(patch) => onPatch(account, patch)} onClose={() => setRenewalSheet(false)} />
         )}
-        {identityEmail && !nameIsEmail && (
-          <button
-            type="button"
-            className="account-card-recharge-pill account-card-email-copy"
-            dir="ltr"
-            data-tour="email-copy"
-            aria-label="نسخ البريد"
-            onClick={() => {
-              void copyToClipboard(identityEmail);
-              setEmailCopied(true);
-              window.setTimeout(() => setEmailCopied(false), 1500);
-            }}
-          >
-            <IconEnvelope /> {emailCopied ? "✓ نُسخ" : identityEmail}
-          </button>
-        )}
       </div>
 
-      <div className="account-card-mini-row">
+      {/* 🛰️ Dish · Wi-Fi · country on one line (his Oct 18 2026 order). */}
+      <div className="account-card-mini-row account-card-device-row">
         <span className="device-dots device-dots-compact" title={`الطبق (STARLINK): ${dishDot.word} · الواي فاي: ${wifiDot.word}`}>
           <button
             type="button"
@@ -999,11 +1043,11 @@ export function AccountCard({
             onClick={() => setShowDishAlerts(true)}
             aria-label="تنبيهات الطبق"
           >
-            <i aria-hidden="true" /> <IconDish /> الطبق: {dishDot.word}
+            <i aria-hidden="true" /> <IconDish /> <span className="device-dot-label">الطبق: </span>{dishDot.word}
             {dishAlerts.length > 0 && <span className="device-dot-count">⚠️{dishAlerts.length}</span>}
           </button>
           <span className={`device-dot device-dot-${wifiDot.tone}`}>
-            <i aria-hidden="true" /> <IconWifi /> واي فاي: {wifiDot.word}
+            <i aria-hidden="true" /> <IconWifi /> <span className="device-dot-label">واي فاي: </span>{wifiDot.word}
           </span>
         </span>
         {bubbles && priorityState && (priorityState.kind === "exhausted" || priorityState.kind === "near") && (
@@ -1027,7 +1071,7 @@ export function AccountCard({
         )}
       </div>
 
-      {/* One row (his Oct 17 2026 choice): فتح الحساب · دفعة · تجديد · ⋯ - the mailbox is in ⋯. */}
+      {/* One row: فتح الحساب · دفعة · 🌙 تحديث · ⋯ - the mailbox and «تجديد» are in ⋯. */}
       <div className="account-card-main-actions account-card-one-row">
         {whatsAppButton}
         <button
@@ -1037,18 +1081,19 @@ export function AccountCard({
           disabled={opening}
           title={isAndroidApp ? "فتح متصفح مستقل لهذا الحساب" : "متاح فقط داخل تطبيق STAR NET لنظام Android"}
         >
-          <span aria-hidden="true">↗</span> {opening ? "جارِ الفتح…" : "فتح الحساب"}
+          <IconOpen /> {opening ? "جارِ الفتح…" : "فتح الحساب"}
         </button>
         {context === "active" && (
           <>
-            <button type="button" className="card-action card-daily-action" onClick={() => onLedger(account)}>
-              <span aria-hidden="true">💵</span> دفعة
+            <button type="button" className="card-action card-daily-action card-act-pay" onClick={() => onLedger(account)}>
+              <IconCash /> دفعة
             </button>
-            <button type="button" className="card-action card-daily-action" onClick={() => setShowRenewalDialog(true)}>
-              <span aria-hidden="true">🔄</span> تجديد
+            {/* 🌙 His Oct 18 2026 ask: «تحديث في الخلفية» where «تجديد» was (التجديد in ⋯). */}
+            <button type="button" className="card-action card-daily-action card-act-sync" onClick={() => void handleBackgroundSync()} disabled={syncingCard} title="تحديث هذا الجهاز من Starlink في الخلفية">
+              <IconMoonSync /> {syncingCard ? "جارٍ…" : "تحديث"}
             </button>
-            <button type="button" className="card-action card-daily-action card-daily-more" onClick={() => setShowMore(true)} aria-label="المزيد">
-              ⋯
+            <button type="button" className="card-action card-daily-action card-daily-more card-act-more" onClick={() => setShowMore(true)} aria-label="المزيد">
+              <IconMore />
             </button>
           </>
         )}
@@ -1238,6 +1283,7 @@ export function AccountCard({
                 ...(!isGmail(mailLoginFor(account).email)
                   ? [{ icon: "📧", label: mailSignedIn ? "البريد (مسجّل)" : "البريد", run: () => void handleOpenMail() }]
                   : []),
+                { icon: "📅", label: "تجديد", run: () => setShowRenewalDialog(true) },
                 { icon: "📋", label: expanded ? "إخفاء التفاصيل" : "التفاصيل", run: () => setExpanded((v) => !v) },
                 { icon: client ? "✎" : "🔗", label: client ? "تعديل البيانات" : "ربط بزبون", run: () => onEdit(account) },
                 { icon: "📋", label: "لصق جلسة (من متصفح آخر)", run: () => setShowPasteSession(true) },

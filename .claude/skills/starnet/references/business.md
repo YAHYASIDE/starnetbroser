@@ -1724,3 +1724,12 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - Tapped: ❌ failed (with the problem in plain words) · ⏳ not finished · ⚠️ no data · ✅ done (fields changed);
   each device → «📍 إظهار الجهاز» / «🔄 إعادة»; «🔁 إعادة غير المكتملة» retries the run's same way.
 - A save failure still shows its bubble; single-card syncs keep their bubble too.
+
+## 📐 Card fixed lines (Oct 18 2026, «كل شيء مكانه ثابت لا يتحرك»)
+
+- His order, each line one height and never wrapping: 1 the name + the email under it (tap = copy) · 2 the
+  service bubbles (SIS ← STOP), D, ✓, P and the status badge · 3 «Starlink:» bill (its own currency first, ≈ USD
+  after) + «فرق X $ · الدين» chip · 4 dish · Wi-Fi · country (the words «الطبق:/واي فاي:» drop under 400px).
+  Rare extras (أضافه المندوب، مكرّر، بانتظار المسؤول) get their own line under 2.
+- Buttons: WhatsApp · فتح الحساب · دفعة · 🌙 «تحديث» (this device in the background; its browser when the
+  background can't run) · ⋯ - «تجديد» moved into ⋯. One SVG icon set, same size, each its own color.
