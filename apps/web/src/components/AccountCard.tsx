@@ -209,8 +209,8 @@ function IconOpen() {
 function IconCash() {
   return <ActionIcon><rect x="3" y="6" width="18" height="12" rx="2.5" /><circle cx="12" cy="12" r="2.6" /><path d="M6.5 9.5v5M17.5 9.5v5" /></ActionIcon>;
 }
-function IconMoonSync() {
-  return <ActionIcon><path d="M20 12a8 8 0 1 1-8-8" /><path d="M20 4v5h-5" /><path d="M14.5 13.2A3 3 0 0 1 11 9.6a3.2 3.2 0 1 0 3.5 3.6Z" fill="currentColor" stroke="none" /></ActionIcon>;
+function IconSync() {
+  return <ActionIcon><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8" /><path d="M4 4v4h4" /><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16" /><path d="M20 20v-4h-4" /></ActionIcon>;
 }
 function IconMore() {
   return <ActionIcon><circle cx="5" cy="12" r="1.3" fill="currentColor" /><circle cx="12" cy="12" r="1.3" fill="currentColor" /><circle cx="19" cy="12" r="1.3" fill="currentColor" /></ActionIcon>;
@@ -451,14 +451,13 @@ export function AccountCard({
     }
   }
 
-  /** 🌙 The card's «تحديث»: this device read in the background (his Oct 18 2026 ask) - its browser
-   * opens and syncs by itself when the background can't run (no «الظهور فوق التطبيقات»). */
-  async function handleBackgroundSync() {
+  /** 🔄 The card's «تحديث» (his Oct 18 2026 choice, after the background read fell short): the
+   * normal sync - the device's browser opens, syncs by itself and closes back here. */
+  async function handleQuickSync() {
     if (syncingCard) return;
     setSyncingCard(true);
     try {
       markDeviceTouched(account.id);
-      if (await startBackgroundSync([{ id: account.id, name: account.name }], account.name || "")) return;
       const result = await openAutoSync(account);
       if (!result.ok) window.alert(result.message);
     } finally {
@@ -1071,7 +1070,7 @@ export function AccountCard({
         )}
       </div>
 
-      {/* One row: فتح الحساب · دفعة · 🌙 تحديث · ⋯ - the mailbox and «تجديد» are in ⋯. */}
+      {/* One row: فتح الحساب · دفعة · 🔄 تحديث · ⋯ - the mailbox and «تجديد» are in ⋯. */}
       <div className="account-card-main-actions account-card-one-row">
         {whatsAppButton}
         <button
@@ -1088,9 +1087,9 @@ export function AccountCard({
             <button type="button" className="card-action card-daily-action card-act-pay" onClick={() => onLedger(account)}>
               <IconCash /> دفعة
             </button>
-            {/* 🌙 His Oct 18 2026 ask: «تحديث في الخلفية» where «تجديد» was (التجديد in ⋯). */}
-            <button type="button" className="card-action card-daily-action card-act-sync" onClick={() => void handleBackgroundSync()} disabled={syncingCard} title="تحديث هذا الجهاز من Starlink في الخلفية">
-              <IconMoonSync /> {syncingCard ? "جارٍ…" : "تحديث"}
+            {/* 🔄 «تحديث» where «تجديد» was (التجديد in ⋯) - the normal sync, his Oct 18 2026 choice. */}
+            <button type="button" className="card-action card-daily-action card-act-sync" onClick={() => void handleQuickSync()} disabled={syncingCard} title="تحديث هذا الجهاز من Starlink">
+              <IconSync /> {syncingCard ? "جارٍ…" : "تحديث"}
             </button>
             <button type="button" className="card-action card-daily-action card-daily-more card-act-more" onClick={() => setShowMore(true)} aria-label="المزيد">
               <IconMore />

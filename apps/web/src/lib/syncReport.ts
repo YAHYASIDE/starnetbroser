@@ -12,6 +12,8 @@ export type SyncOutcome = "ok" | "nothing" | "saveFailed" | "signedOut" | "stuck
 export interface OutcomeRecord {
   accountId: string;
   outcome: SyncOutcome;
+  /** 🧭 What each page gave in a background run (lib/syncRun.ts shows it). */
+  trace?: string;
 }
 
 const LABELS: Record<SyncOutcome | "unknown", string> = {

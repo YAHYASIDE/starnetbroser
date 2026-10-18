@@ -56,6 +56,9 @@ export interface AutoSyncResult {
   outcome: AutoSyncOutcome;
   /** ms since epoch */
   at: number;
+  /** 🧭 A 🌙 background run's device: what each page gave (SyncTrace.java), e.g.
+   * «⏳ دخول 4ث · الاشتراكات ✓ 1.2ث · الأجهزة ⚪ 7ث · الفوترة ✗ 9ث». */
+  trace?: string;
 }
 
 export interface StarlinkActivationFill {

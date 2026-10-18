@@ -1731,5 +1731,11 @@ is never pressed while a field is empty - it refills and saves on the next try (
   service bubbles (SIS ← STOP), D, ✓, P and the status badge · 3 «Starlink:» bill (its own currency first, ≈ USD
   after) + «فرق X $ · الدين» chip · 4 dish · Wi-Fi · country (the words «الطبق:/واي فاي:» drop under 400px).
   Rare extras (أضافه المندوب، مكرّر، بانتظار المسؤول) get their own line under 2.
-- Buttons: WhatsApp · فتح الحساب · دفعة · 🌙 «تحديث» (this device in the background; its browser when the
-  background can't run) · ⋯ - «تجديد» moved into ⋯. One SVG icon set, same size, each its own color.
+- Buttons: WhatsApp · فتح الحساب · دفعة · 🔄 «تحديث» · ⋯ - «تجديد» moved into ⋯. One SVG icon set, same
+  size, each its own color. «تحديث» first read in the background; he reported (Oct 18 2026) «التحديث في الخلفية
+  غير جيد ولا يحدث نفس التحديث الطبيعي» - nothing changes, slow/stuck, dish and Wi-Fi gray - and chose the
+  normal sync for the card (the device's browser opens, syncs by itself, closes).
+- 🧭 To fix the background read on real data (the walk in SyncRunner is the same as the device browser's; the
+  hidden overlay window is the suspect), every background device now records what each page gave
+  (`SyncTrace.java` → `AutoSyncResults.trace` → the sync line's details «🧭 ما قُرئ»: ✓ complete · ⚪ partial ·
+  ✗ nothing, with the seconds). Ask him for that line of 2-3 devices before changing the background walk.

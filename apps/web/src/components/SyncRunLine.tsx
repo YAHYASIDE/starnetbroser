@@ -130,6 +130,13 @@ function SyncRunSheet({
                     {picked === row.id && (
                       <div className="sync-run-row-body">
                         {row.problem && <p>{row.problem}</p>}
+                        {row.trace && (
+                          <p className="sync-run-trace">
+                            🧭 ما قُرئ: <bdi>{row.trace}</bdi>
+                            <br />
+                            <small>✓ قُرئت كاملة · ⚪ قُرئت ناقصة · ✗ لم يُقرأ شيء</small>
+                          </p>
+                        )}
                         <div className="sync-run-row-actions">
                           <button type="button" className="dialog-secondary" onClick={() => onShowDevice(row.id)}>
                             📍 إظهار الجهاز

@@ -44,6 +44,11 @@ plus the rules learned from real misreads; keep it updated when you learn a new 
      (after 21 min, 2 retries max), 🌙 the night summary from today's log (`AutoSyncResults.record` feeds it). It
      hands devices to BackgroundSyncService (`startFromBackground`: a 1-px overlay first, Android 15); the plan and
      texts are pure (`ScheduledSyncPlan`, `ScheduledSyncText` + JUnit).
+   - 🧭 `SyncTrace.java` (pure, JUnit): SyncRunner records what each page gave («الاشتراكات ✓ 1.2ث · الأجهزة ⚪
+     7ث · الفوترة ✗ 9ث» - ✓ complete, ⚪ read but what it waited for never came, ✗ nothing) into
+     `AutoSyncResults` (`trace`); the app shows it in the sync line's details. The operator reported (Oct 18
+     2026) the background read giving «لا يتغير شيء، بطيء، الطبق رمادي» while the visible walk is fine -
+     read his traces before changing the background walk or its window.
    - `AutoSyncWorker.java` - background sync. A run over many devices reads Home only (pace +
      Starlink's 429 rate limit, `SyncPacing`), plus Billing once a week per device; a single device's
      own run does the deep walk (subscriptions, devices, billing, settings).

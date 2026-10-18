@@ -16241,3 +16241,11 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   border-radius: 10px;
 }
 .account-card .account-card-one-row .whatsapp-btn svg { width: 17px; height: 17px; }
+.sync-run-trace {
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  color: var(--text);
+  font-size: 0.78rem;
+}
+.sync-run-trace small { color: var(--text-muted); }

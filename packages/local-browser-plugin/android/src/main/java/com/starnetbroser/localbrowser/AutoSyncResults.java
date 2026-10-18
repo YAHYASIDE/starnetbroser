@@ -22,6 +22,11 @@ final class AutoSyncResults {
     private AutoSyncResults() {}
 
     static synchronized void record(Context context, String accountId, String outcome) {
+        record(context, accountId, outcome, null);
+    }
+
+    /** 🧭 With what each page gave (SyncTrace) - a background run's devices. */
+    static synchronized void record(Context context, String accountId, String outcome, String trace) {
         if (accountId == null) return;
         // 🌙 Also today's log for the night summary.
         ScheduledSyncStore.log(context, accountId, outcome);
@@ -32,6 +37,7 @@ final class AutoSyncResults {
             entry.put("accountId", accountId);
             entry.put("outcome", outcome);
             entry.put("at", System.currentTimeMillis());
+            if (trace != null && !trace.isEmpty()) entry.put("trace", trace);
             list.put(entry);
         } catch (JSONException e) {
             return;

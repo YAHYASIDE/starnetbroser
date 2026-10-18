@@ -82,6 +82,9 @@ final class SyncRunner {
     /** 💳 What this run read for the payment check: an active status, and Billing's balance due. */
     private boolean sawActive;
     private String balanceDue;
+    /** 🧭 What each page gave (SyncTrace) - shown in the app for a background run. */
+    private final SyncTrace trace = new SyncTrace();
+    private long startedAt;
 
     private interface ScriptLoader {
         String load(Context context) throws IOException;
@@ -102,8 +105,17 @@ final class SyncRunner {
 
     /** Call once the page has started loading. */
     void start() {
+        startedAt = SystemClock.elapsedRealtime();
         handler.postDelayed(this::signInTick, POLL_MS);
-        handler.postDelayed(() -> end("stuck"), MAX_MS);
+        handler.postDelayed(() -> {
+            if (!done) trace.stopped("تعلّقت بعد دقيقتين");
+            end("stuck");
+        }, MAX_MS);
+    }
+
+    /** 🧭 «⏳ دخول 4ث · الاشتراكات ✓ 1.2ث · الأجهزة ⚪ 7ث …» */
+    String trace() {
+        return trace.text();
     }
 
     /** Starlink answered «429 Too many requests» on the page itself: this device ends as "rateLimited". */
@@ -127,7 +139,9 @@ final class SyncRunner {
     }
 
     private boolean guardOk() {
-        return !done && AllowedUrl.isAllowed(webView.getUrl());
+        boolean ok = !done && AllowedUrl.isAllowed(webView.getUrl());
+        if (!ok && !done) trace.stopped("خرجت الصفحة من Starlink");
+        return ok;
     }
 
     // ---- signed in? ----
@@ -145,6 +159,7 @@ final class SyncRunner {
                 && !state.hasEmailField && !state.hasPasswordField;
             boolean signInPage = state != null && (state.hasEmailField || state.hasPasswordField);
             if (signedIn && ++signedInPolls >= 2) {
+                trace.signedIn(SystemClock.elapsedRealtime() - startedAt);
                 startSteps();
                 return;
             }
@@ -188,25 +203,25 @@ final class SyncRunner {
         if (homeOnly) {
             // 🛂 Only Home's banner matters; the page keeps its language (English, French or Arabic).
             steps.add(this::stepReturnHome);
-            steps.add(() -> stepReadSettled(HOME_CHECK_MIN_MS, HOME_CHECK_MAX_MS, 3, false, WANT_HOME));
+            steps.add(() -> stepReadSettled("الرئيسية", HOME_CHECK_MIN_MS, HOME_CHECK_MAX_MS, 3, false, WANT_HOME));
             steps.add(() -> end(saveFailed ? "saveFailed" : travelRequired != null ? "ok" : "nothing"));
             advance();
             return;
         }
         steps.add(this::stepEnsureEnglish);
-        steps.add(() -> stepReadSettled(0, CURRENT_PAGE_MAX_MS, 2, false, WANT_ANY));
+        steps.add(() -> stepReadSettled("الصفحة", 0, CURRENT_PAGE_MAX_MS, 2, false, WANT_ANY));
         steps.add(() -> stepClick(StarlinkExtractorSupport::loadClickSubscriptionsRailItemScript));
-        steps.add(() -> stepReadSettled(AFTER_TAP_MIN_MS, AFTER_TAP_MAX_MS, 2, true, WANT_ANY));
+        steps.add(() -> stepReadSettled("الاشتراكات", AFTER_TAP_MIN_MS, AFTER_TAP_MAX_MS, 2, true, WANT_ANY));
         steps.add(() -> stepClick(StarlinkExtractorSupport::loadClickFirstSubscriptionRowScript));
-        steps.add(() -> stepReadSettled(AFTER_TAP_MIN_MS, AFTER_TAP_MAX_MS, 2, true, WANT_ANY));
+        steps.add(() -> stepReadSettled("الاشتراك", AFTER_TAP_MIN_MS, AFTER_TAP_MAX_MS, 2, true, WANT_ANY));
         steps.add(() -> stepClick(StarlinkExtractorSupport::loadExpandDevicesSectionScript));
-        steps.add(() -> stepReadSettled(AFTER_TAP_MIN_MS, DEVICES_MAX_MS, 2, false, WANT_DOTS));
+        steps.add(() -> stepReadSettled("الأجهزة", AFTER_TAP_MIN_MS, DEVICES_MAX_MS, 2, false, WANT_DOTS));
         steps.add(() -> stepClick(StarlinkExtractorSupport::loadClickBillingRailItemScript));
-        steps.add(() -> stepReadSettled(AFTER_TAP_MIN_MS, BILLING_MAX_MS, 2, true, WANT_RENEWAL));
+        steps.add(() -> stepReadSettled("الفوترة", AFTER_TAP_MIN_MS, BILLING_MAX_MS, 2, true, WANT_RENEWAL));
         steps.add(() -> stepClick(StarlinkExtractorSupport::loadClickSettingsRailItemScript));
-        steps.add(() -> stepReadSettled(AFTER_TAP_MIN_MS, AFTER_TAP_MAX_MS, 2, true, WANT_ANY));
+        steps.add(() -> stepReadSettled("المستخدمون", AFTER_TAP_MIN_MS, AFTER_TAP_MAX_MS, 2, true, WANT_ANY));
         steps.add(this::stepReturnHome);
-        steps.add(() -> stepReadSettled(HOME_MIN_MS, HOME_MAX_MS, 3, false, WANT_ANY));
+        steps.add(() -> stepReadSettled("الرئيسية", HOME_MIN_MS, HOME_MAX_MS, 3, false, WANT_ANY));
         steps.add(() -> end(saveFailed ? "saveFailed" : foundAnything ? "ok" : "nothing"));
         advance();
     }
@@ -290,7 +305,7 @@ final class SyncRunner {
         handler.postDelayed(this::advance, AFTER_TAP_ADVANCE_MS);
     }
 
-    private void stepReadSettled(long minMs, long maxMs, int stableReads, boolean mustChange, int want) {
+    private void stepReadSettled(String label, long minMs, long maxMs, int stableReads, boolean mustChange, int want) {
         if (!guardOk()) {
             end(foundAnything ? "ok" : "nothing");
             return;
@@ -305,10 +320,10 @@ final class SyncRunner {
         SettleTracker tracker = new SettleTracker(minMs, maxMs, stableReads);
         long started = SystemClock.elapsedRealtime();
         JSObject[] latest = new JSObject[1];
-        readSettledPoll(script, tracker, started, latest, mustChange ? lastSavedPageKey : null, want);
+        readSettledPoll(label, script, tracker, started, latest, mustChange ? lastSavedPageKey : null, want);
     }
 
-    private void readSettledPoll(String script, SettleTracker tracker, long started, JSObject[] latest, String previousPage, int want) {
+    private void readSettledPoll(String label, String script, SettleTracker tracker, long started, JSObject[] latest, String previousPage, int want) {
         if (done || steps == null) return;
         if (!guardOk()) {
             end(foundAnything ? "ok" : "nothing");
@@ -326,11 +341,12 @@ final class SyncRunner {
                 && (want != WANT_HOME || StarlinkExtractorSupport.hasHomeRead(fields));
             long elapsed = SystemClock.elapsedRealtime() - started;
             if (tracker.offer(stillOldPage ? "" : key, good, elapsed)) {
+                trace.page(label, latest[0] != null && latest[0].length() > 0, good, elapsed);
                 save(latest[0]);
                 advance();
                 return;
             }
-            handler.postDelayed(() -> readSettledPoll(script, tracker, started, latest, previousPage, want), READ_POLL_MS);
+            handler.postDelayed(() -> readSettledPoll(label, script, tracker, started, latest, previousPage, want), READ_POLL_MS);
         });
     }
 

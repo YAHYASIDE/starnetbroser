@@ -332,7 +332,7 @@ public class BackgroundSyncService extends Service {
             AppEventNotifier.post(this, alert, AppEventText.deviceRoute(name));
         }
         // Kept for the app too: it shows why a device wasn't synced when it comes back.
-        AutoSyncResults.record(this, accountId, outcome);
+        AutoSyncResults.record(this, accountId, outcome, read != null ? read.trace() : null);
         removeWebView();
         index++;
         handler.postDelayed(this::runNext, "rateLimited".equals(outcome) ? GAP_MS : SyncPacing.chainGapMs(random));

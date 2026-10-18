@@ -39,6 +39,13 @@ describe("🟩 the sync run's live line", () => {
     expect(retryIds(run)).toEqual(["b", "c"]);
   });
 
+  it("🧭 a background run keeps what each page gave, per device", () => {
+    let run = startRun(devices, "اليوم", "background", 0);
+    run = withOutcomes(run, [{ accountId: "a", outcome: "nothing", trace: "⏳ دخول 4ث · الأجهزة ⚪ 7ث" }], 1);
+    expect(runRows(run).find((r) => r.id === "a")!.trace).toBe("⏳ دخول 4ث · الأجهزة ⚪ 7ث");
+    expect(runRows(run).find((r) => r.id === "b")!.trace).toBeUndefined();
+  });
+
   it("a read's bubble is absorbed only when all its devices are this run's", () => {
     const run = startRun(devices, "اليوم", "background", 0);
     expect(withChanges(run, [{ accountId: "a", updatedCount: 0 }]).absorbed).toBe(true);

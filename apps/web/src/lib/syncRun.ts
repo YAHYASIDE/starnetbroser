@@ -18,6 +18,8 @@ export interface SyncRun {
   results: Record<string, SyncOutcome>;
   /** Fields a read changed, per device (from the applied sync). */
   changes: Record<string, number>;
+  /** 🧭 What each page gave, per device (background runs - SyncTrace.java). */
+  traces?: Record<string, string>;
   /** The device being read now (visible runs). */
   current?: string;
   /** The last time anything happened - a background run stopped by hand just goes quiet. */
@@ -35,6 +37,8 @@ export interface RunRow {
   status: string;
   /** What went wrong, in plain words - failed rows only. */
   problem?: string;
+  /** 🧭 «⏳ دخول 4ث · الاشتراكات ✓ 1.2ث · الأجهزة ⚪ 7ث …» - a background run's page by page. */
+  trace?: string;
 }
 
 /** A background run with no news for this long is over (stopped from its notification). */
@@ -69,8 +73,12 @@ export function withOutcomes(run: SyncRun, records: OutcomeRecord[], now = Date.
   const mine = records.filter((r) => run.ids.includes(r.accountId));
   if (mine.length === 0) return run;
   const results = { ...run.results };
-  for (const r of mine) results[r.accountId] = r.outcome;
-  const next: SyncRun = { ...run, results, lastActivityAt: now };
+  const traces = { ...(run.traces ?? {}) };
+  for (const r of mine) {
+    results[r.accountId] = r.outcome;
+    if (r.trace) traces[r.accountId] = r.trace;
+  }
+  const next: SyncRun = { ...run, results, lastActivityAt: now, ...(Object.keys(traces).length ? { traces } : {}) };
   if (next.current && results[next.current]) delete next.current;
   return run.ids.every((id) => results[id]) ? { ...next, endedAt: run.endedAt ?? now } : next;
 }
@@ -137,7 +145,8 @@ export function runRows(run: SyncRun): RunRow[] {
           : state === "pending" ? (run.endedAt ? "⏹ لم يُحدَّث" : "⏳ في الانتظار")
           : outcomeLabel(outcome);
       const problem = state === "failed" || state === "nothing" ? PROBLEMS[outcome!] : state === "pending" && run.endedAt ? "توقّفت المزامنة قبل أن يصل دوره." : undefined;
-      return { id, name: run.names[id] ?? "جهاز", state, status, ...(problem ? { problem } : {}) };
+      const trace = run.traces?.[id];
+      return { id, name: run.names[id] ?? "جهاز", state, status, ...(problem ? { problem } : {}), ...(trace ? { trace } : {}) };
     })
     .sort((a, b) => order[a.state] - order[b.state]);
 }
