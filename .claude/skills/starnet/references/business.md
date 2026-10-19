@@ -1810,3 +1810,14 @@ is never pressed while a field is empty - it refills and saves on the next try (
   account or one of his 📒 named accounts, never a customer or a device (no customer pages, no 🔎 by customer /
   device; a typed name shows the same choice); «✏️ غيّر الحساب». «🔎 بحث» and any typed word search his money
   operations only (no customer list). Old buttons of messages already sent still answer.
+
+## 📡 The rep statement PDF = what he owes only; profit is its own PDF (Oct 19 2026)
+
+- His words (on الحسين's PDF with 7 cards and mixed rows): «لا أريد للمندوب هذا الكشف، أريد أن يكون لكل عمليات الأرباح
+  والأرباح المنتظرة كشفها وحده، وكشف الحساب يضيف فقط الذي على المندوب من عمليات ستارلينك… الفوق فيه كثير من البطاقات،
+  أضف فقط بطاقة المبلغ المتبقي عليه»; also «أين العملية الأخيرة لم أرها».
+- «🖨️ تصدير الكشف PDF» / «📤 أرسل له الكشف» (`buildRepStatementPdf`): ONE card «📡 المبلغ المتبقي عليه» (debt.closing)
+  and only the «ما عليه» rows (`repRowAccount === "debt"`), **newest first** (the last operation on top), column
+  «ما عليه بعدها». New «📈 كشف الأرباح PDF» / «📤 أرسل له كشف الأرباح» (`buildRepProfitPdf`): حصته المؤكدة · المتوقعة
+  (D) · دفعت له من ربحه · ربحه الآن, the confirmed / expected profit tables, and the «ربحه» rows, newest first.
+- A bot payment shows in the statement only once approved in «طلبات المندوب» (then `recordRepMoneyHandover`).

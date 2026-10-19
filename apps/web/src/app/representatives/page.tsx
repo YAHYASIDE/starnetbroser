@@ -836,14 +836,24 @@ function RepCard({
     return getClient(clientStore, accounts.find((a) => a.id === accountId)?.clientId)?.name;
   }
 
+  const docPeriod = () => periodLabel + (showArchive ? ` (نسخة ${versionLabel(version)})` : "");
+
   function statementDoc() {
-    return buildRepStatementPdf(rep, statement, periodLabel + (showArchive ? ` (نسخة ${versionLabel(version)})` : ""), accountName, clientNameFor, storeItems, fx, profits);
+    return buildRepStatementPdf(rep, statement, docPeriod(), accountName, clientNameFor, storeItems, fx);
   }
 
-  async function sendStatementToRep() {
+  function profitDoc() {
+    return buildRepProfitPdf(rep, statement, docPeriod(), accountName, clientNameFor, storeItems, fx, profits);
+  }
+
+  async function sendStatementToRep(which: "debt" | "profit" = "debt") {
     setSendState({ busy: true });
-    const result = await sendRepPdf(rep.id, statementDoc(), `📄 كشف حسابك - ${periodLabel}`);
-    setSendState(result.ok ? { busy: false, ok: true, message: `✓ أُرسل الكشف إلى ${rep.name} في تيليغرام` } : { busy: false, ok: false, message: result.message });
+    const result =
+      which === "debt"
+        ? await sendRepPdf(rep.id, statementDoc(), `📄 كشف حسابك (ما عليك) - ${periodLabel}`)
+        : await sendRepPdf(rep.id, profitDoc(), `📈 كشف أرباحك - ${periodLabel}`);
+    const what = which === "debt" ? "الكشف" : "كشف الأرباح";
+    setSendState(result.ok ? { busy: false, ok: true, message: `✓ أُرسل ${what} إلى ${rep.name} في تيليغرام` } : { busy: false, ok: false, message: result.message });
   }
 
   function openRow(row: RepStatementRow) {
@@ -1037,6 +1047,7 @@ function RepCard({
 
           <div className="party-panel-tools">
             <PdfButton className="party-action party-action-pdf" label="🖨️ تصدير الكشف PDF" build={statementDoc} />
+            <PdfButton className="party-action party-action-pdf" label="📈 كشف الأرباح PDF" build={profitDoc} />
             {!readOnly && (
               <button
                 type="button"
@@ -1052,6 +1063,22 @@ function RepCard({
                 }}
               >
                 {sendState.busy ? "⏳ جارِ الإرسال…" : "📤 أرسل له الكشف"}
+              </button>
+            )}
+            {!readOnly && (
+              <button
+                type="button"
+                className="party-action party-action-pdf"
+                disabled={sendState.busy}
+                onClick={() => {
+                  if (!isRepLinkedToBot(rep.id)) {
+                    setSendState({ busy: false, ok: false, message: "المندوب غير مربوط ببوت المندوبين بعد - صدّر الملف بـ«📈 كشف الأرباح PDF» وأرسله له واتساب." });
+                    return;
+                  }
+                  void sendStatementToRep("profit");
+                }}
+              >
+                📤 أرسل له كشف الأرباح
               </button>
             )}
           </div>
@@ -2459,6 +2486,12 @@ function repRowCells(
   return [row.date, SETTLEMENT_LABELS[s.kind], s.note ?? "", delta, balance];
 }
 
+/**
+ * 📡 «كشف حساب مندوب» = what he owes only (his Oct 19 2026 ask: «كشف الحساب يضيف فقط الذي على المندوب من عمليات
+ * ستارلينك… الفوق فيه كثير من البطاقات، أضف فقط بطاقة المبلغ المتبقي عليه»): one card - what is left on him - and
+ * only the rows of «ما عليه» (renewals on his devices, payments, what he handed over), newest first so the last
+ * operation is on top. His profit is its own statement (buildRepProfitPdf).
+ */
 function buildRepStatementPdf(
   rep: Representative,
   statement: RepPeriodStatement,
@@ -2467,38 +2500,53 @@ function buildRepStatementPdf(
   clientNameFor: (accountId: string) => string | undefined,
   storeItems: StoreItemRegistry,
   fx: Fx,
-  profits?: RepProfitBreakdown,
 ): PrintableDocument {
-  // Oldest first on paper, so the running balance reads top-down.
-  const rows = [...statement.days]
-    .reverse()
-    .flatMap((day) =>
-      [...day.rows].reverse().map((row) => repRowCells(row, rowBalance(statement, row), accountName, clientNameFor, storeItems, fx)),
-    );
-  const t = statement.totals;
-  const debt = statement.debt;
-  const profit = statement.profit;
+  const rows = statement.days.flatMap((day) =>
+    day.rows.filter((row) => repRowAccount(row) === "debt").map((row) => repRowCells(row, rowBalance(statement, row), accountName, clientNameFor, storeItems, fx)),
+  );
   return {
     title: "كشف حساب مندوب",
     partyName: rep.name,
     partyPhone: rep.phone,
-    subtitle: `${periodLabel} - نسبته ${rep.commissionPercent}%${rep.sharesLosses ? " - يتحمّل نسبته من الخسارة" : ""}`,
-    // 📒 His two accounts apart (his Oct 11 2026 rule): what he owes, and his profit - never ours.
-    summary: [
-      ...(Object.keys(debt.opening).length > 0 ? [{ label: "ما عليه أول الفترة", value: balanceText(debt.opening) }] : []),
-      ...(nonZero(t.customerCharges).length ? [{ label: "تجديدات أجهزته (عليه)", value: fx.list(t.customerCharges), tone: "due" as const }] : []),
-      ...(nonZero(t.customerPaid).length ? [{ label: "دُفع عنها (له)", value: fx.list(t.customerPaid), tone: "clear" as const }] : []),
-      { label: "📡 ما عليه الآن", value: balanceText(debt.closing), tone: "due" as const },
-      ...(Object.keys(profit.opening).length > 0 ? [{ label: "ربحه أول الفترة", value: balanceText(profit.opening) }] : []),
-      { label: "حصته من أرباح أجهزته", value: fx.list(t.repShare), tone: "clear" as const },
-      ...(nonZero(t.settled.commissionPayout).length ? [{ label: "دفعت له من ربحه", value: fx.list(t.settled.commissionPayout) }] : []),
-      { label: "📈 ربحه الآن (لم يُخصم مما عليه)", value: balanceText(profit.closing), tone: "clear" as const },
-      { label: "⚖️ الصافي لو خُصم ربحه", value: balanceText(statement.closing) },
-    ],
-    ...(profits ? { sections: profitSections(profits, accountName, fx) } : {}),
-    columns: ["التاريخ", "العملية", "التفاصيل", "الحركة", "حسابه بعدها"],
+    subtitle: periodLabel,
+    summary: [{ label: "📡 المبلغ المتبقي عليه", value: balanceText(statement.debt.closing) || "لا شيء ✓", tone: "due" as const }],
+    columns: ["التاريخ", "العملية", "التفاصيل", "الحركة", "ما عليه بعدها"],
     rows,
-    footerNote: "«له» = مستحق للمندوب، «عليه» = مستحق عليه. حسابان منفصلان: «ما عليه» (التجديدات والدفعات) و«ربحه» (حصته من الأرباح) - ربحه لا يُخصم مما عليه إلا بتسوية.",
+    footerNote: "الأحدث أولًا. «عليه» = مستحق عليه، «له» = مستحق له. أرباحه في «كشف الأرباح» وحده - لا تُخصم من هذا الكشف.",
+  };
+}
+
+/** 📈 «كشف أرباح مندوب» - his profit alone (his Oct 19 2026 ask): his share confirmed and expected (D), what you paid
+ * him from it, and the rows of «ربحه», newest first. */
+function buildRepProfitPdf(
+  rep: Representative,
+  statement: RepPeriodStatement,
+  periodLabel: string,
+  accountName: (accountId: string) => string,
+  clientNameFor: (accountId: string) => string | undefined,
+  storeItems: StoreItemRegistry,
+  fx: Fx,
+  profits: RepProfitBreakdown,
+): PrintableDocument {
+  const t = statement.totals;
+  const rows = statement.days.flatMap((day) =>
+    day.rows.filter((row) => repRowAccount(row) === "profit").map((row) => repRowCells(row, rowBalance(statement, row), accountName, clientNameFor, storeItems, fx)),
+  );
+  return {
+    title: "كشف أرباح مندوب",
+    partyName: rep.name,
+    partyPhone: rep.phone,
+    subtitle: `${periodLabel} - نسبته ${rep.commissionPercent}%${rep.sharesLosses ? " - يتحمّل نسبته من الخسارة" : ""}`,
+    summary: [
+      { label: "📈 حصته المؤكدة", value: fx.list(profits.confirmedShare), tone: "clear" as const },
+      { label: "⏳ حصته المتوقعة (بانتظار D)", value: fx.list(profits.expectedShare) },
+      ...(nonZero(t.settled.commissionPayout).length ? [{ label: "دفعت له من ربحه", value: fx.list(t.settled.commissionPayout) }] : []),
+      { label: "💰 ربحه الآن", value: balanceText(statement.profit.closing) || "0", tone: "clear" as const },
+    ],
+    sections: profitSections(profits, accountName, fx),
+    columns: ["التاريخ", "العملية", "التفاصيل", "الحركة", "ربحه بعدها"],
+    rows,
+    footerNote: "الأحدث أولًا. ربحه حساب وحده - لا يُخصم مما عليه إلا بتسوية.",
   };
 }
 
