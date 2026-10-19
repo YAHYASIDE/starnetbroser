@@ -456,6 +456,9 @@ public class TelegramRepliesTest {
         assertEquals("HANDOVER HINT", TelegramReplies.forMoney("r1", "🤲 سلّمت المسؤول", s).text);
         assertTrue(TelegramReplies.forMoney("r1", "كشفي", s).text.startsWith("R1 STATEMENT"));
         assertTrue(TelegramReplies.forMoney("r1", "اجهزتي", s).text.contains("@d_bot"));
+        // 💰 money only: an activation request goes to the devices bot, and the device card has no ⚡ button
+        assertTrue(TelegramReplies.forMoney("r1", "تفعيل مقهى", s).text.contains("@d_bot"));
+        assertFalse(card.markup.contains("\"callback_data\":\"a:acc-1\""));
         assertEquals("acc-1", TelegramReplies.startDevice("/start d_acc-1"));
         assertNull(TelegramReplies.startDevice("/start"));
     }

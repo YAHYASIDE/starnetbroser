@@ -1,7 +1,8 @@
 /**
  * The reps get up to three bots: 📡 the devices bot (the original reps bot - devices, search,
  * edits, notes, ⚡ تفعيل), 💰 the money bot (payments, promises, customers' debts, his share /
- * profit / balance, handing money over, ⚡ تفعيل with its price and the month's total) and 🔔 the
+ * profit / balance, handing money over, an approved ⚡ تفعيل's price and the month's total - money
+ * only: asking for an activation is the devices bot's, his Oct 19 2026 choice) and 🔔 the
  * alerts bot (one-way alerts with buttons). The money and alerts bots are optional: until the
  * operator connects them, everything stays in the devices bot exactly as before. A rep is linked
  * once (in the devices bot) - a private chat's id is his Telegram id, the same in every bot.
@@ -72,7 +73,7 @@ export const REP_MONEY_HELP = [
   "🔎 بحث - ابحث في عملياتك المالية: اكتب مبلغًا (5000) أو تاريخًا (17/10) أو كلمة (دفعة، دين، سلفة)",
   "🔔 كل عملية جديدة في حساباتك تصلك هنا",
   "🏦 دين (سلفة) - اطلب مبلغاً من المسؤول: المبلغ ← العملة ← التطبيق البنكي ← رقم المستلم ← ✅ موافق",
-  "⚡ تفعيل - يظهر هنا مبلغه بعد موافقة المسؤول مع مجموع الشهر",
+  "⚡ التفعيل - تطلبه من بوت الأجهزة، ويظهر هنا مبلغه بعد موافقة المسؤول مع مجموع الشهر",
 ].join("\n");
 
 export const REP_ALERTS_INFO = "🔔 هذا بوت التنبيهات - تصلك هنا تنبيهات أجهزتك فقط (توقف، تجديدات...) مع أزرارها.";

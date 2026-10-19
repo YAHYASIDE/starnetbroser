@@ -1539,8 +1539,8 @@ final class TelegramReplies {
 
     /** 📊 كشف · 💰 الدين · ⚡ تفعيل · 💬 debt reminder, for one device in the money bot. */
     static String moneyCardMarkup(SearchEntry e) {
+        // No ⚡ تفعيل here (money only) - it's in the devices bot's device menu.
         StringBuilder rows = new StringBuilder("[[").append(cb("💰 الدين", "v:d:" + e.id)).append(',').append(cb("📊 كشف", "v:s:" + e.id)).append(']');
-        if (fitsCallback("a:" + e.id)) rows.append(",[").append(cb("⚡ تفعيل", "a:" + e.id)).append(']');
         if (e.debtUrl != null) rows.append(",[{\"text\":\"💬 تذكير الزبون بالدين\",\"url\":").append(jsonString(e.debtUrl)).append("}]");
         return "{\"inline_keyboard\":" + rows.append(']') + "}";
     }
@@ -1597,12 +1597,11 @@ final class TelegramReplies {
             return ops != null ? ops : moneySearch(repId, afterCommand(text), s);
         }
         if ("payment".equals(kind) || "promise".equals(kind) || "handover".equals(kind)) return request(repId, kind, text, s, s.moneyKeyboard);
+        // 💰 Money only (his Oct 19 2026 choice): asking for an ⚡ activation is a device action - the devices
+        // bot. Its amount, once approved, still comes here with the month's total.
         if ("activate".equals(kind)) {
-            String query = afterCommand(text);
-            if (query.isEmpty()) return new Reply(s.activationHint, false, null, s.moneyKeyboard);
-            List<SearchEntry> found = matchEntries(repId, query, s);
-            if (found.size() == 1 && !found.get(0).id.isEmpty()) return pickPlan(found.get(0), s);
-            return moneySearch(repId, query, s);
+            return new Reply("⚡ طلب التفعيل في بوت الأجهزة" + (s.devicesBot.isEmpty() ? "" : ": @" + s.devicesBot)
+                + "\nوهنا يصلك مبلغه بعد موافقة المسؤول مع مجموع الشهر.", false, null, s.moneyKeyboard);
         }
         if ("mypromises".equals(kind) || "debts".equals(kind) || "statement".equals(kind)) {
             Map<String, String> mine = s.reps.get(repId);

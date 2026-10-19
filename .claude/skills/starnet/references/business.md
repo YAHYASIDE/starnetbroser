@@ -1794,3 +1794,6 @@ is never pressed while a field is empty - it refills and saves on the next try (
   waits for (its pending stage), so `TelegramReplyService.send` swaps any force-reply markup for that bot's own kept
   buttons (devices bot `repKeyboard`, money bot `moneyKeyboard`; `TelegramReplies.keepKeyboard`, JUnit). The alerts
   bot keeps no buttons. «❌ أُلغيت الدفعة» only ever comes from the «❌ إلغاء» button (`payx`).
+- 💰 **The money bot is money only** (Oct 19 2026, «أي شيء لا يخص المال أزله من البوت»): his choice «طلب ⚡ تفعيل فقط» -
+  the «تفعيل» command answers «⚡ طلب التفعيل في بوت الأجهزة: @…» and the device money card lost its ⚡ button; an
+  approved activation's amount + the month's total still arrive in the money bot. Keyboard unchanged (no preference).
