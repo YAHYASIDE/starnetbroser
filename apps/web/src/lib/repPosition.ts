@@ -37,7 +37,7 @@ import {
   type Representative,
   type RepSettlementList,
 } from "./repStore";
-import { repWallets } from "./repWallets";
+import { repWallets, type RepWallet } from "./repWallets";
 
 export interface RepPositionInput {
   rep: Representative;
@@ -71,6 +71,8 @@ export interface RepPosition {
   net: Record<string, number>;
   /** 📂 His accounts (repWallets.ts): 🟠 شخصي, 💰 الربح, 🟢 الأوقية - + = له, − = عليه. */
   wallets: RepWalletBalance[];
+  /** 📊 The same accounts with their operations (the money bot's «كشفي» pages). */
+  walletLines: RepWallet[];
 }
 
 export interface RepWalletBalance {
@@ -105,6 +107,7 @@ export function repPosition(input: RepPositionInput): RepPosition {
     net: repNetPosition(owed, account.closing, convert),
     // سيفا وأورانج first, then the profit, then أوقية (the order of «📂 حساباته» in the app).
     wallets: [...wallets.money.filter((w) => w.id === "SIFA"), wallets.profit, ...wallets.money.filter((w) => w.id !== "SIFA")].map((w) => ({ id: w.id, balance: w.balance })),
+    walletLines: [...wallets.money.filter((w) => w.id === "SIFA"), wallets.profit, ...wallets.money.filter((w) => w.id !== "SIFA")],
   };
 }
 

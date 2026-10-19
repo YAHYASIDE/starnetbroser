@@ -28,6 +28,7 @@ import {
   recordRepRequest,
   repIdForChat,
   replyToChat,
+  sendRepPdf,
   sendRepText,
   sendTelegramPdf,
   sendTelegramText,
@@ -36,6 +37,8 @@ import {
 import { PROMISES_ROUTE, TELEGRAM_SETTINGS_ROUTE, tellOwner } from "./appEvents";
 import { devicesHelp, devicesKeyboard, isMoneyKind, moneyRedirectText, REP_BOOK_HINT, REP_HANDOVER_HINT, repHandoverReceivedText, REP_LOAN_HINT, type RepBot } from "./repBots";
 import { buildReplySnapshot } from "./telegramReplies";
+import { botOperationIds, newBotOperations, newOperationsText, repBotAccountPdf, repBotAccounts, type BotAccount } from "./repBotStatement";
+import { repRowText } from "./repRowText";
 import { deviceDisplayName, readRepDeviceFile, repDeviceCode } from "./repDeviceTransfer";
 import { isRepChangesFileName } from "./repChanges";
 import { receiveRepChanges } from "./repChangesApply";
@@ -443,6 +446,7 @@ async function repReplyFor(repId: string, rep: Representative, command: RepComma
 /** Prepares every answer from the data right now for when the app is closed (TelegramReplyService). */
 export async function refreshTelegramReplies(): Promise<void> {
   const now = new Date();
+  const repAccountsNow = new Map<string, BotAccount[]>();
   const currencies = loadCurrencyStore();
   const snapshot = buildReplySnapshot({
     now,
@@ -462,6 +466,71 @@ export async function refreshTelegramReplies(): Promise<void> {
     cardBalanceUsd: currentCardBalanceUsd(loadLedgerStore()),
     openDebtsUsd: listOpenShipmentDebts(loadLedgerStore()).map((d) => d.costUsd),
     botNames: repBotNames(),
+    onRepAccounts: (repId, accounts) => repAccountsNow.set(repId, accounts),
   });
   await pushTelegramReplies(snapshot);
+  await notifyNewRepOperations(repAccountsNow);
+}
+
+// ---- 📊 «كشفي» in the money bot (repBotStatement.ts) ----
+
+const SEEN_OPS_KEY = "starnet.repBotSeenOps";
+
+function loadSeenOps(): Record<string, string[]> {
+  try {
+    const parsed: unknown = JSON.parse(window.localStorage.getItem(SEEN_OPS_KEY) ?? "{}");
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, string[]>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** 🔔 His Oct 19 2026 choice: every new operation in a rep's accounts is sent to him once (the
+ * first time only remembers what is already there). Sent before it's marked seen; a failed send is
+ * tried again next time. */
+async function notifyNewRepOperations(byRep: Map<string, BotAccount[]>): Promise<void> {
+  if (!byRep.size) return;
+  const seen = loadSeenOps();
+  let changed = false;
+  for (const [repId, accounts] of byRep) {
+    const fresh = newBotOperations(accounts, seen[repId] ?? null);
+    if (fresh.length && !(await sendRepText(repId, newOperationsText(fresh), undefined, "money"))) continue;
+    seen[repId] = botOperationIds(accounts);
+    changed = true;
+  }
+  if (changed) {
+    try {
+      window.localStorage.setItem(SEEN_OPS_KEY, JSON.stringify(seen));
+    } catch {
+      // tried again next time
+    }
+  }
+}
+
+/** His accounts with their operations right now, as «كشفي» shows them. */
+async function repBotAccountsNow(repId: string): Promise<{ rep: Representative; since?: string; accounts: BotAccount[] } | null> {
+  const rep = loadRepresentativeStore()[repId];
+  if (!rep) return null;
+  const all = await loadAccounts();
+  const currencies = loadCurrencyStore();
+  const rates = { MRU: getCurrency(currencies, "MRU")?.rateFromUsd, SIFA: getCurrency(currencies, "SIFA")?.rateFromUsd };
+  const position = repPosition({ rep, clients: loadClientStore(), accounts: all, ledgerStore: loadLedgerStore(), book: loadRepBook(), invoices: loadInvoices(), settlements: loadRepSettlements(), convert: makeRepConverter(loadRepDisplayCodes(), rates) });
+  const name = (accountId: string) => all.find((a) => a.id === accountId)?.name ?? "جهاز";
+  return { rep, ...(position.since ? { since: position.since } : {}), accounts: repBotAccounts(position.walletLines, loadRepLedgerBook(), repId, (row) => repRowText(row, name)) };
+}
+
+/** 📄 «كشف PDF» tapped under one of his accounts in «كشفي» (the service queued it): made now and
+ * sent to him in the money bot. */
+export async function answerRepStatementPdf(data: string | undefined): Promise<void> {
+  let parsed: { repId?: unknown; account?: unknown };
+  try {
+    parsed = JSON.parse(data ?? "{}");
+  } catch {
+    return;
+  }
+  if (typeof parsed.repId !== "string" || typeof parsed.account !== "string") return;
+  const found = await repBotAccountsNow(parsed.repId);
+  const account = found?.accounts.find((a) => a.key === parsed.account);
+  if (!found || !account) return;
+  await sendRepPdf(parsed.repId, repBotAccountPdf(found.rep.name, account, found.since), `📄 كشف ${account.title}`, "money");
 }

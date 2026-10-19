@@ -27,7 +27,13 @@ import {
   repLedgersOf,
   repLedgerZeroEntry,
   removeRepLedgerCurrency,
+  FRANC_CODE,
+  FRANC_NAME_RE,
   REP_LEDGER_KINDS,
+  repLedgerShown,
+  repLedgerShownCode,
+  repLedgerTyped,
+  setRepLedgerFranc,
   saveRepLedgerBook,
   type RepLedger,
   type RepLedgerBook,
@@ -43,6 +49,7 @@ import {
 const EPS = 0.005;
 
 function label(code: string): string {
+  if (code === FRANC_CODE) return "فرنك FCFA 🟠";
   return LEDGER_CURRENCY_LABELS[code as LedgerCurrency] ?? cashCurrencyLabel(code);
 }
 
@@ -171,7 +178,7 @@ export function RepAccountsPage({ repId, repName, days, profitConvert, describe,
           );
         })}
         {ledgers.map((l) => {
-          const side = ledgerSide(repLedgerBalances(book, l.id));
+          const side = ledgerSide(repLedgerShown(l, repLedgerBalances(book, l.id)));
           const active = open === `ledger:${l.id}`;
           return (
             <button
@@ -548,13 +555,13 @@ function NewLedgerForm({ repId, book, onCancel, onSaved }: { repId: string; book
 type LedgerAction = "credit" | "debit" | "zero" | "rename" | "currencies";
 
 /** The currency beside an amount: fixed text for one, a choice for several. */
-function CurrencyPick({ currencies, value, onChange }: { currencies: string[]; value: string; onChange: (code: string) => void }) {
-  if (currencies.length <= 1) return <span className="search-input rep-accounts-currency">{label(currencies[0] ?? value)}</span>;
+function CurrencyPick({ currencies, value, onChange, labelOf = label }: { currencies: string[]; value: string; onChange: (code: string) => void; labelOf?: (code: string) => string }) {
+  if (currencies.length <= 1) return <span className="search-input rep-accounts-currency">{labelOf(currencies[0] ?? value)}</span>;
   return (
     <select className="search-input rep-accounts-currency" value={value} onChange={(e) => onChange(e.target.value)} aria-label="العملة">
       {currencies.map((c) => (
         <option key={c} value={c}>
-          {label(c)}
+          {labelOf(c)}
         </option>
       ))}
     </select>
@@ -576,7 +583,12 @@ function NamedLedger({ ledger, book, readOnly, onChange, onDeleted }: { ledger: 
   const others = CASH_CURRENCIES.filter((c) => !ledger.currencies.includes(c));
   const [adding, setAdding] = useState("");
   const zero = repLedgerZeroEntry(repLedgerBalance(book, ledger.id, currency));
-  const side = ledgerSide(repLedgerBalances(book, ledger.id));
+  const side = ledgerSide(repLedgerShown(ledger, repLedgerBalances(book, ledger.id)));
+  const shownLabel = (code: string) => label(repLedgerShownCode(ledger, code));
+  const shownAmount = (code: string, v: number) => repLedgerShown(ledger, { [code]: v })[repLedgerShownCode(ledger, code)]!;
+  const travel = ledger.kind === "travel";
+  // 🟠 An أورانج / نيتا account never asked yet: are its amounts in فرنك? (his Oct 19 2026 ask)
+  const askFranc = !readOnly && ledger.franc === undefined && ledger.currencies.includes("SIFA") && FRANC_NAME_RE.test(ledger.name);
 
   function choose(next: LedgerAction) {
     setAction(action === next ? null : next);
@@ -603,7 +615,7 @@ function NamedLedger({ ledger, book, readOnly, onChange, onDeleted }: { ledger: 
       return onChange(result.book);
     }
     if (action === "zero" && !zero) return setError("الحساب متوازن (0)");
-    const entry = action === "zero" ? zero! : { direction: action as "credit" | "debit", amount: Number(amount) };
+    const entry = action === "zero" ? zero! : { direction: action as "credit" | "debit", amount: repLedgerTyped(ledger, currency, Number(amount)) };
     const result = addRepLedgerEntry(book, ledger.id, { ...entry, currencyCode: currency, date, note });
     if (!result.ok) return setError(result.message);
     onChange(result.book);
@@ -633,9 +645,26 @@ function NamedLedger({ ledger, book, readOnly, onChange, onDeleted }: { ledger: 
           <bdi dir="ltr">{side.text}</bdi>
         </strong>
         <small>
-          {meta.label} · {ledger.currencies.map(label).join(" + ")} · لا علاقة له بالربح ولا بالأجهزة
+          {meta.label} · {ledger.currencies.map(shownLabel).join(" + ")} · {travel ? "يمتلئ من «💰 سعر التوثيق» لأجهزته" : "لا علاقة له بالربح ولا بالأجهزة"}
         </small>
       </p>
+      {askFranc && (
+        <div className="rep-ledger-franc">
+          <p>🟠 هذا حساب أورانج: هل المبالغ التي كتبتها فيه بالفرنك (كما تظهر في تطبيق أورانج)؟</p>
+          <div className="rep-accounts-actions">
+            <button type="button" className="dialog-secondary" onClick={() => onChange(setRepLedgerFranc(book, ledger.id, true, true))}>
+              نعم، بالفرنك
+            </button>
+            <button type="button" className="dialog-secondary" onClick={() => onChange(setRepLedgerFranc(book, ledger.id, true, false))}>
+              لا، كانت بالسيفا
+            </button>
+            <button type="button" className="text-action" onClick={() => onChange(setRepLedgerFranc(book, ledger.id, false))}>
+              اتركه بالسيفا
+            </button>
+          </div>
+          <small className="settings-hint">بالفرنك: يظهر الحساب ويُكتب بالفرنك FCFA (5 فرنك = 1 سيفا)، ويُحسب في «حسابي» بالسيفا كأورانج موني.</small>
+        </div>
+      )}
       {!readOnly && (
         <div className="rep-accounts-actions">
           {(
@@ -664,7 +693,7 @@ function NamedLedger({ ledger, book, readOnly, onChange, onDeleted }: { ledger: 
                   const used = lines.some((l) => l.entry.currencyCode === c);
                   return (
                     <li key={c}>
-                      <strong>{label(c)}</strong>
+                      <strong>{shownLabel(c)}</strong>
                       <small>{used ? `${lines.filter((l) => l.entry.currencyCode === c).length} عملية` : "لا عمليات"}</small>
                       {!used && ledger.currencies.length > 1 && (
                         <button type="button" className="text-action rep-ledger-remove" onClick={() => removeCurrency(c)}>
@@ -684,25 +713,30 @@ function NamedLedger({ ledger, book, readOnly, onChange, onDeleted }: { ledger: 
                   ))}
                 </select>
               )}
+              {ledger.currencies.includes("SIFA") && (
+                <button type="button" className="dialog-secondary" onClick={() => onChange(setRepLedgerFranc(book, ledger.id, !ledger.franc))}>
+                  {ledger.franc ? "🟠 يظهر بالفرنك - اجعله بالسيفا" : "🟠 اجعل السيفا تظهر بالفرنك (أورانج / نيتا)"}
+                </button>
+              )}
               <small className="settings-hint">لكل عملة رصيدها وحدها - لا تُجمع ولا تُحوَّل. تُزال عملة فقط إذا لم تكن فيها عمليات.</small>
             </>
           ) : action === "zero" ? (
             <>
-              {ledger.currencies.length > 1 && <CurrencyPick currencies={ledger.currencies} value={currency} onChange={setPicked} />}
+              {ledger.currencies.length > 1 && <CurrencyPick currencies={ledger.currencies} value={currency} onChange={setPicked} labelOf={shownLabel} />}
               <p className="rep-accounts-zero">
                 {zero ? (
                   <>
-                    يُضاف «{zero.direction === "credit" ? "له" : "عليه"}» <bdi dir="ltr">{formatAmount(zero.amount)}</bdi> {label(currency)} فيصير رصيد {label(currency)} 0.
+                    يُضاف «{zero.direction === "credit" ? "له" : "عليه"}» <bdi dir="ltr">{formatAmount(shownAmount(currency, zero.amount))}</bdi> {shownLabel(currency)} فيصير رصيد {shownLabel(currency)} 0.
                   </>
                 ) : (
-                  `رصيد ${label(currency)} متوازن ✓`
+                  `رصيد ${shownLabel(currency)} متوازن ✓`
                 )}
               </p>
             </>
           ) : (
             <div className="party-balance-row">
               <input className="search-input" inputMode="decimal" dir="ltr" placeholder="المبلغ" value={amount} onChange={(e) => setAmount(e.target.value)} aria-label="المبلغ" autoFocus />
-              <CurrencyPick currencies={ledger.currencies} value={currency} onChange={setPicked} />
+              <CurrencyPick currencies={ledger.currencies} value={currency} onChange={setPicked} labelOf={shownLabel} />
             </div>
           )}
           {action !== "rename" && action !== "currencies" && (
@@ -731,15 +765,15 @@ function NamedLedger({ ledger, book, readOnly, onChange, onDeleted }: { ledger: 
           {lines.map((line) => (
             <li key={line.entry.id}>
               <div>
-                <span>{line.entry.opening ? "📥 رصيد افتتاحي" : line.entry.botId ? "🤖 إيداع من البوت" : line.amount > 0 ? "➕ له" : "➖ عليه"}{line.entry.note && !line.entry.opening ? ` · ${line.entry.note}` : ""}</span>
+                <span>{line.entry.travelFor ? "🛂 توثيق" : line.entry.opening ? "📥 رصيد افتتاحي" : line.entry.botId ? "🤖 إيداع من البوت" : line.amount > 0 ? "➕ له" : "➖ عليه"}{line.entry.note && !line.entry.opening ? ` · ${line.entry.note}` : ""}</span>
                 <small>
-                  <bdi dir="ltr">{line.entry.date}</bdi> · الرصيد بعدها <Money values={{ [line.entry.currencyCode]: line.after }} signed />
+                  <bdi dir="ltr">{line.entry.date}</bdi> · الرصيد بعدها <Money values={repLedgerShown(ledger, { [line.entry.currencyCode]: line.after })} signed />
                 </small>
               </div>
               <strong className={line.amount >= 0 ? "rep-accounts-plus" : "rep-accounts-minus"}>
-                <Money values={{ [line.entry.currencyCode]: line.amount }} signed />
+                <Money values={repLedgerShown(ledger, { [line.entry.currencyCode]: line.amount })} signed />
               </strong>
-              {!readOnly && (
+              {!readOnly && !line.entry.travelFor && (
                 <button
                   type="button"
                   className="btn-icon rep-ledger-delete"
@@ -762,6 +796,7 @@ function NamedLedger({ ledger, book, readOnly, onChange, onDeleted }: { ledger: 
           🗑️ حذف هذا الحساب
         </button>
       )}
+      {travel && <p className="settings-hint">🛂 كل جهاز له تضع له «💰 سعر التوثيق» (في «✅ تم توثيقها») يدخل هنا «عليه» باسمه بدل حسابه العادي، ويتغير ويُحذف مع السعر.</p>}
       <p className="settings-hint">«+» = له (لصالحه)، «-» = عليه. هذا الحساب وحده: لا يدخل ربحه، ولا يسدد أجهزة زبائنه، ولا يمس حسابه العادي. يُحسب في «حسابي» مع ما له وما عليه.</p>
     </section>
   );

@@ -13,7 +13,7 @@ import {
   takeTelegramInbox,
   telegramConnection,
 } from "@/lib/telegram";
-import { answerRepMessage, answerTelegramCommand, refreshTelegramReplies } from "@/lib/telegramCommands";
+import { answerRepMessage, answerRepStatementPdf, answerTelegramCommand, refreshTelegramReplies } from "@/lib/telegramCommands";
 import { handleRepMenuRecord } from "@/lib/repMenuRecords";
 
 const INBOX_EVERY_MS = 3000;
@@ -48,6 +48,11 @@ export function TelegramBridge() {
         // reads the bots itself while open - never nobody answering.
         const inbox = isTelegramInstant() ? await takeTelegramInbox() : { messages: [], running: false };
         for (const message of inbox.messages) {
+          // 📄 «كشف PDF» under an account of «كشفي» (money bot): made and sent now.
+          if (message.kind === "repStatementPdf") {
+            await answerRepStatementPdf(message.data);
+            continue;
+          }
           if (await handleRepMenuRecord(message)) continue;
           if (message.bot === "reps") await answerRepMessage(message, message.replied);
           // 💰 The money bot is always answered by the service - here it's only recorded.

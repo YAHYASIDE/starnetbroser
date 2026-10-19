@@ -185,3 +185,25 @@ describe("💱 an account in several currencies (his Oct 12 2026 ask: «اورا
     expect(normalizeRepLedgerBook(null)).toEqual(EMPTY_REP_LEDGER_BOOK);
   });
 });
+
+describe("🟠 an account in فرنك (أورانج موني)", () => {
+  it("shows سيفا as فرنك ×5, stores what is typed ÷5, and converts what he typed in فرنك before", async () => {
+    const { setRepLedgerFranc, repLedgerShown, repLedgerTyped, FRANC_CODE } = await import("./repLedgers");
+    const made = createRepLedger(EMPTY_REP_LEDGER_BOOK, { repId: "r1", name: "ORANJ MONEY", kind: "free", currencies: ["SIFA"] }, now);
+    if (!made.ok) throw new Error(made.message);
+    expect(made.ledger.franc).toBe(true);
+    const old: RepLedgerBook = { ledgers: [{ ...made.ledger, franc: undefined }], entries: [] };
+    const typed = addRepLedgerEntry(old, made.ledger.id, { direction: "debit", amount: 6652, date: "2026-10-19" }, now);
+    if (!typed.ok) throw new Error(typed.message);
+    const bot = addRepLedgerEntry(typed.book, made.ledger.id, { direction: "credit", amount: 1000, date: "2026-10-19", botId: "b1", placeId: "cash" }, now);
+    if (!bot.ok) throw new Error(bot.message);
+    const franc = setRepLedgerFranc(bot.book, made.ledger.id, true, true);
+    const ledger = franc.ledgers[0]!;
+    expect(repLedgerBalance(franc, ledger.id, "SIFA")).toBe(-330.4);
+    expect(repLedgerShown(ledger, { SIFA: -1330.4, MRU: 10 })).toEqual({ [FRANC_CODE]: -6652, MRU: 10 });
+    expect(repLedgerTyped(ledger, "SIFA", 6652)).toBe(1330.4);
+    expect(repLedgerTyped(ledger, "MRU", 100)).toBe(100);
+    // Shown only (amounts were real سيفا): nothing changes.
+    expect(setRepLedgerFranc(bot.book, made.ledger.id, true, false).entries).toEqual(bot.book.entries);
+  });
+});

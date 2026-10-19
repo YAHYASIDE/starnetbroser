@@ -35,7 +35,6 @@ import {
   Representative,
   RepresentativeStore,
   RepSettlement,
-  RepSettlementKind,
   RepSettlementList,
   RepStatementDay,
   RepStatementRow,
@@ -116,6 +115,7 @@ import {
 } from "@/lib/repClients";
 import { recordRepMoneyHandover } from "@/lib/repClientsSave";
 import { RepAccountsPage } from "@/components/RepAccountsPage";
+import { customerOpLabel, repRowText, SETTLEMENT_LABELS, settlementText } from "@/lib/repRowText";
 import { confirmClosedMonthChange, ledgerEntryMonthDates, monthLabel, monthRange, recentMonths } from "@/lib/monthClosing";
 
 const EPSILON = 0.0001;
@@ -193,25 +193,6 @@ const FxContext = createContext<Fx>(makeFx(keepCurrency));
 
 function useFx(): Fx {
   return useContext(FxContext);
-}
-
-/** The operator only ever picks "له" or "عليه" (plus whether cash went through الكاش); the
- * stored kind keeps both facts so the till entry and older records stay exact. */
-const SETTLEMENT_LABELS: Record<RepSettlementKind, string> = {
-  cashHandover: "➕ له · استلمت منه نقدًا",
-  commissionPayout: "➖ عليه · دفعت له نقدًا",
-  manualCredit: "➕ له",
-  manualDebit: "➖ عليه",
-  profitTransfer: "↪️ من ربحه",
-  profitCredit: "➕ له في ربحه",
-};
-
-/** 📂 One line's wording on «حساباته» (components/RepAccountsPage.tsx). */
-function settlementText(s: RepSettlement): string {
-  if (s.kind === "profitTransfer") return s.toDebt ? `↪️ من ربحه إلى حساب ${currencyLabel(s.currencyCode)}` : "🧹 تصفير الربح";
-  if (s.kind === "commissionPayout") return "💸 دفعت له من ربحه";
-  if (s.kind === "profitCredit") return s.note?.startsWith("🧹") ? "🧹 تصفير الربح" : "➕ له في ربحه";
-  return SETTLEMENT_LABELS[s.kind];
 }
 
 const PERIOD_LABELS: Record<RepPeriodKind, string> = {
@@ -846,10 +827,7 @@ function RepCard({
   );
 
   function describeRow(row: RepStatementRow): string {
-    if (row.type === "device") return `📈 حصته · ${accountName(row.row.accountId)}`;
-    if (row.type === "customer") return `${customerOpLabel(row.op)} · ${accountName(row.op.accountId)}`;
-    if (row.type === "invoice") return "🧾 فاتورة متجر";
-    return `${settlementText(row.settlement)}${row.settlement.note ? ` · ${row.settlement.note}` : ""}`;
+    return repRowText(row, accountName);
   }
 
   function clientNameFor(accountId: string): string | undefined {
@@ -2522,11 +2500,6 @@ function buildRepStatementPdf(
     rows,
     footerNote: "«له» = مستحق للمندوب، «عليه» = مستحق عليه. حسابان منفصلان: «ما عليه» (التجديدات والدفعات) و«ربحه» (حصته من الأرباح) - ربحه لا يُخصم مما عليه إلا بتسوية.",
   };
-}
-
-function customerOpLabel(op: { amount: number; byRep: boolean }): string {
-  if (op.amount > 0) return "📡 تجديد عليه";
-  return op.byRep ? "💵 سلّمك" : "💵 دفع زبونه لك";
 }
 
 /** 📈 The PDF's two profit tables: confirmed, then expected (D). */

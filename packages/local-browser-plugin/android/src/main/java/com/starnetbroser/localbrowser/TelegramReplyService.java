@@ -1048,6 +1048,22 @@ public class TelegramReplyService extends Service {
         String repId = TelegramStore.repIdForChat(context, chatId);
         TelegramReplies.Snapshot snapshot = loadSnapshot(context);
         if (repId == null || snapshot == null) return "افتح تطبيق المسؤول مرة ثم أعد المحاولة";
+        if (data.startsWith("ks:")) {
+            // 📊 «كشفي»: his accounts, one account's operations, a search type - prepared by the app.
+            TelegramReplies.Reply page = TelegramReplies.preparedPage(repId, data.substring(3), snapshot);
+            if (page == null) return "افتح تطبيق المسؤول مرة ثم أعد المحاولة";
+            editOrSend(context, TelegramStore.MONEY, token, chatId, messageId, page.text, page.markup);
+            return null;
+        }
+        if (data.startsWith("kp:")) {
+            // 📄 One account's statement as a PDF: the app makes it and sends it when it's open.
+            JSONObject record = new JSONObject();
+            record.put("repId", repId);
+            record.put("account", data.substring(3));
+            record.put("at", System.currentTimeMillis());
+            addToInbox(context, TelegramStore.MONEY, chatId, "", "", "", true, null, null, "repStatementPdf", record.toString());
+            return "📄 يصلك الملف عند فتح تطبيق المسؤول";
+        }
         if (data.startsWith("pay")) return paymentCallback(context, TelegramStore.MONEY, token, chatId, messageId, repId, snapshot, data);
         if (data.startsWith("ln")) return loanCallback(context, TelegramStore.MONEY, token, chatId, messageId, repId, snapshot, data);
         if (data.startsWith("sp:")) {

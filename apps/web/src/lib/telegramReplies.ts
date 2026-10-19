@@ -5,6 +5,8 @@
  * prepared under HIS id. Pure; the loading/pushing is in telegram.ts.
  */
 
+import { repBotAccounts, repBotPages, type BotAccount } from "./repBotStatement";
+import { repRowText } from "./repRowText";
 import { REP_PROMISE_HINT, REP_PROMISE_RECEIVED, repOpenPromises, repPromisesText } from "./repPromises";
 import { cardText, forecastText, goalsText, healthText, lapsedText, planText, promisesText } from "./ownerInsightsText";
 import type { PartyAdjustmentList } from "./partyBalanceStore";
@@ -128,6 +130,9 @@ export function buildReplySnapshot(input: {
   repDisplay?: string[];
   /** 📒 The reps' named accounts (repLedgers.ts) - read from the phone when not given. */
   repLedgers?: RepLedgerBook;
+  /** 🔔 Each linked rep's accounts as «كشفي» shows them (money bot connected only) - for the
+   * «عملية جديدة» messages. */
+  onRepAccounts?: (repId: string, accounts: BotAccount[]) => void;
 }): TelegramReplySnapshot {
   const repBook = input.repBook ?? loadRepBook();
   const ledgerBook = input.repLedgers ?? loadRepLedgerBook();
@@ -145,13 +150,17 @@ export function buildReplySnapshot(input: {
     const ownBooks = new Map(position.customers.map((r) => [r.clientId, r.book]));
     const deviceName = (accountId: string) => input.accounts.find((a) => a.id === accountId)?.name ?? "جهاز";
     const named = repLedgerSummaries(ledgerBook, repId);
+    // 📊 «كشفي» in the money bot: summary + a button per account, its pages, 🔎 his operations.
+    const botAccounts = bots.money ? repBotAccounts(position.walletLines, ledgerBook, repId, (row) => repRowText(row, deviceName)) : null;
+    if (botAccounts) input.onRepAccounts?.(repId, botAccounts);
+    const botPages = botAccounts ? repBotPages(rep.name, botAccounts, position.since) : null;
     const replies: Record<string, RepReply> = {
       devices: { text: repDevicesText(mine, input.clients, input.today) },
       expiring: repExpiringReply(mine, input.clients, input.today),
       stopped: repStoppedReply(mine, input.clients),
       days: repDaysReply(mine, input.clients, input.today),
       debts: repPositionDebtsReply(position, input.accounts, input.clients),
-      statement: { text: repPositionText(rep.name, position, deviceName, named) },
+      statement: botPages ? { text: botPages.summary, markup: botPages.summaryKb } : { text: repPositionText(rep.name, position, deviceName, named) },
       mypromises: { text: repPromisesText(repOpenPromises(repId, input.promises ?? [], new Set(mine.map((a) => a.clientId).filter((c): c is string => Boolean(c)))), input.today) },
     };
     reps[repId] = { name: rep.name };
@@ -164,6 +173,7 @@ export function buildReplySnapshot(input: {
       reps[repId]![kind] = reply.text;
       if (reply.markup) reps[repId]![`${kind}#kb`] = reply.markup;
     }
+    if (botPages) Object.assign(reps[repId]!, botPages.pages, { ops: botPages.ops });
     repSearch[repId] = repSearchIndex(mine, input.clients, ledgerAfterRepReset(rep.resetFrom, input.ledgerStore), input.today, true, ownBooks);
   }
   return {

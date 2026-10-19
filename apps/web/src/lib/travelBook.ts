@@ -81,15 +81,18 @@ export interface TravelState {
   noDebt: boolean;
 }
 
-export function travelStateOf(account: StarlinkAccountSummary, ledger: LedgerByAccount, allocations: PaymentAllocation[]): TravelState {
+/** `inRepLedger`: registrations whose debt is a line in a rep's «🛂 توثيق الأجهزة» account
+ * (lib/repTravelLedger.ts travelLedgerKeys) - they have their debt, just not on the device. */
+export function travelStateOf(account: StarlinkAccountSummary, ledger: LedgerByAccount, allocations: PaymentAllocation[], inRepLedger?: Set<string>): TravelState {
   const price = account.travelRegistrationPrice;
   const priced = Boolean(price && price.amount > 0);
   const entry = priced ? travelFeeEntryOf(account, ledger) : undefined;
+  const inLedger = Boolean(inRepLedger?.has(`${account.id}|${travelFeeKey(account)}`));
   return {
     repId: travelRepOf(account),
     priced,
     unpaid: Boolean(entry) && computeShipmentPaymentStatus(entry!, allocations) !== "paid",
-    noDebt: priced && !entry,
+    noDebt: priced && !entry && !inLedger,
   };
 }
 
@@ -153,12 +156,13 @@ export function buildTravelBook(
   reps: RepresentativeStore,
   ledger: LedgerByAccount,
   allocations: PaymentAllocation[],
+  inRepLedger?: Set<string>,
 ): TravelBook {
   const book: TravelBook = { all: 0, mine: 0, reps: 0, unpriced: 0, unpaid: 0, noDebt: 0, collected: {}, myProfit: {}, repShares: {}, noPercent: 0, byRep: [] };
   const rows = new Map<string, TravelRepRow>();
   for (const account of accounts) {
     if (!isTravelVerified(account)) continue;
-    const state = travelStateOf(account, ledger, allocations);
+    const state = travelStateOf(account, ledger, allocations, inRepLedger);
     book.all += 1;
     if (!state.priced) book.unpriced += 1;
     if (state.unpaid) book.unpaid += 1;

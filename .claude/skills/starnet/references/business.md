@@ -427,7 +427,9 @@ mind). Exact texts and numbers live in the code - this file says where.
   (check digit + must end with its last 4), name on card, MM/YY, security code, postal code,
   address, and **DNI / RTN / Passport** (a tax id some countries' Starlink payment form requires -
   the «taxId» card field, filled when the form shows a DNI/RTN/Passport box; his own id, kept per
-  card on the phone). **His choices:** kept on the phone **and in the encrypted backup** (`starnet_card_fill_v1`),
+  card on the phone). **His rule: the DNI/CUIT box always gets «madrid02» instead of a passport**
+  (`DEFAULT_TAX_ID`; prefilled in the form, used when a card has no value; a value typed on a card
+  wins). He insisted after being told DNI is a national id, not a city. **His choices:** kept on the phone **and in the encrypted backup** (`starnet_card_fill_v1`),
   the code is filled too, **no fingerprint**; never in the rep's copy (`pushFillCards` sends [] in
   rep mode), never to the assistant. Logic `lib/cardFill.ts`.
 - In a device's browser: tapping a card field of the payment form (or the top-bar «💳») lists the
@@ -1639,6 +1641,20 @@ is never pressed while a field is empty - it refills and saves on the next try (
   the entry; its سيفا goes to «كاش سيفا» like a rep's handover), `botId` counted once. Never his profit, his normal
   account or his customers' devices. App deposits count in the app's balance (`repLedgerFlows` in loadAccountFlows)
   and statement (moneyMovements `repLedgers`).
+- **🟠 أورانج account in فرنك (Oct 19 2026, his choice «نعم، هو فرنك»):** a named account can show
+  its سيفا as **«فرنك FCFA 🟠»** (`RepLedger.franc`): shown and typed in فرنك, stored in سيفا ÷5 like
+  every أورانج amount, so «حسابي» still adds it in سيفا. A new account named أورانج/ORANJ/نيتا starts
+  in فرنك; an existing one asks once on opening «هل المبالغ التي كتبتها فيه بالفرنك؟» (نعم → the typed
+  amounts ÷5, e.g. his 6,652 → 1,330.4 سيفا shown as 6,652 فرنك; لا → shown only; اتركه بالسيفا).
+  «💱 العملات» toggles it later (display only). Bot deposits are real سيفا and never converted.
+- **🛂 «توثيق الأجهزة» account (Oct 19 2026, his choice «يمتلئ تلقائيًا»):** kind `travel`, one per rep;
+  his existing account named «توثيق الأجهزه» became it (any account named توثيق, `normalizeRepLedgerBook`).
+  Every «💰 سعر التوثيق» on that rep's verified devices is a «عليه» line there named by the device
+  (`lib/repTravelLedger.ts`), **instead of** the debt in his normal account: the device-ledger debt
+  is moved in (also old ones), the line follows the price (changed / removed with it, no 🗑 on it).
+  A debt a payment was already allocated to stays where it was paid. His travel percent/share is
+  unchanged. Known effects: the rep's own app no longer shows these debts (named accounts aren't in
+  his copy); deleting the account deletes its lines (the prices stay - «سجّل الدين عليهم» re-posts).
 
 ## 💱 A rep's named account in several currencies (Oct 12 2026)
 
@@ -1739,3 +1755,26 @@ is never pressed while a field is empty - it refills and saves on the next try (
   hidden overlay window is the suspect), every background device now records what each page gave
   (`SyncTrace.java` → `AutoSyncResults.trace` → the sync line's details «🧭 ما قُرئ»: ✓ complete · ⚪ partial ·
   ✗ nothing, with the seconds). Ask him for that line of 2-3 devices before changing the background walk.
+
+## 📊 The money bot's «كشفي», 🔎 بحث and 🔔 new operations (Oct 19 2026 - his choices)
+
+- His ask: «عندما يضغط كشفي تظهر له حساباته في مربعات… وعندما يضغط على أحدها يظهر له كشف حسابه… والمتبقي
+  له بعد خصم كل شيء أو بعد خصم ربحه فقط، ولا تظهر له تلك الأجهزة». His picks: **summary + a button
+  per account** (the squares of «📂 حساباته»: شخصي، الربح، الأوقية, then the named accounts - an empty
+  other currency left out), **both** «⚖️ الباقي بعد خصم ربحك فقط» (money accounts + profit) and «⚖️ الباقي
+  بعد خصم كل شيء» (+ named accounts, stored سيفا), each currency alone; **no device list** in كشفي.
+- A button → that account's operations, 10 per page (⬅️ أقدم / أحدث ➡️, up to 10 pages), «📄 كشف PDF»
+  (the service queues `repStatementPdf`; the app makes it and sends it in the money bot when open) and
+  «↩️ كل الحسابات». Pages are prepared in the snapshot as `ks:<key>` (+`#kb`); the service shows them
+  (`TelegramReplies.preparedPage`). Logic `lib/repBotStatement.ts`, wording `lib/repRowText.ts`.
+- **«💰 ديون زبائني» and «📒 دفتري (له/عليه)» removed** from the money bot's keyboard and help (his ask
+  «ازل ديون زبائني… ازل دفتري»); typing their words still works.
+- **🔎 بحث = his money operations** («اجعله يمكن البحث عن عملية مالية معينة مثل دين أو دفع»): a typed
+  amount (5000 / 5,000 / ٥٠٠٠), date (17/10) or word (دفعة، دين، سلفة، توثيق، an account's name) searches
+  every operation of every account (`ops`, keys folded like the Java `normalize`, every word must
+  match, 20 shown); buttons «➕ ما لك» / «➖ ما عليك» / «📋 آخر العمليات» (15 each). Any free text in the
+  money bot is this search (the payment / loan / book flows take their text first).
+- **🔔 Every new operation** in his accounts is sent to him once in the money bot (his extra pick):
+  found by comparing operation ids at each snapshot refresh (`starnet.repBotSeenOps`, phone-only);
+  the first time only remembers; up to 5 shown, then «… و N أخرى».
+- Only when the money bot is connected; without it the devices bot keeps the old text statement.
