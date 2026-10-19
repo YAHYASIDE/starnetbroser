@@ -96,6 +96,8 @@ import {
   saveRepresentativeStore,
   setRepTravelPercent,
 } from "@/lib/repStore";
+import { loadRepLedgerBook, saveRepLedgerBook } from "@/lib/repLedgers";
+import { syncRepTravelLedgers, travelLedgerKeys } from "@/lib/repTravelLedger";
 import { buildTravelBook, lockRepTravelPercent, lockTravelPrice, matchesTravelGroup, travelStateOf, type TravelGroup } from "@/lib/travelBook";
 import { TravelBookPanel } from "@/components/TravelBookPanel";
 import { CurrencyStore, getCurrency, loadCurrencyStore, saveCurrencyStore, upsertCurrency, UpsertCurrencyInput } from "@/lib/currencyStore";
@@ -520,6 +522,11 @@ export function HomeView({
   // paymentAllocationStore.ts's allStoredAllocations doc comment).
   const allAllocations = useMemo(() => allStoredAllocations(allocationStore), [allocationStore]);
 
+  /** 🛂 His Oct 19 2026 ask: a rep's «توثيق الأجهزة» account carries his devices' «سعر التوثيق»
+   * (lib/repTravelLedger.ts). Kept in step whenever devices or operations change - read fresh from
+   * storage so a half-loaded screen never moves anything. */
+  const [travelInRepLedger, setTravelInRepLedger] = useState<Set<string>>(() => new Set());
+
   function addAllocationsToAccount(accountId: string, newOnes: PaymentAllocation[]) {
     setAllocationStore((current) => {
       const updated = withAccountAllocations(current, accountId, addAllocations(getAccountAllocations(current, accountId), newOnes));
@@ -734,7 +741,7 @@ export function HomeView({
     let next = ledgerStore;
     let count = 0;
     for (const account of accountsRef.current) {
-      if (!isTravelVerified(account) || !travelStateOf(account, next, allAllocations).noDebt) continue;
+      if (!isTravelVerified(account) || !travelStateOf(account, next, allAllocations, travelInRepLedger).noDebt) continue;
       const result = applyTravelFee(getAccountEntries(next, account.id), account, today);
       if (result.change !== "added") continue;
       next = withAccountEntries(next, account.id, result.entries);
@@ -888,6 +895,17 @@ export function HomeView({
     });
   }, [accounts]);
   const [dataState, setDataState] = useState<DataState>("demo");
+  useEffect(() => {
+    if (dataState !== "loaded") return;
+    const book = loadRepLedgerBook();
+    const synced = syncRepTravelLedgers(accounts, loadLedgerStore(), book, allStoredAllocations(loadAllocationStore()), localToday());
+    if (synced.changed) {
+      saveRepLedgerBook(synced.book);
+      saveLedgerStore(synced.ledger);
+      setLedgerStore(synced.ledger);
+    }
+    setTravelInRepLedger(travelLedgerKeys(synced.book));
+  }, [accounts, ledgerStore, allocationStore, dataState]);
   const [errorMessage, setErrorMessage] = useState("");
 
   // Kept current for the Starlink-sync listener below, which is registered once on mount and
@@ -1751,7 +1769,7 @@ export function HomeView({
       if (statFilter === "noClient") list = list.filter((a) => matchesNoClientGroup(a, clientStore, noClientGroup));
       if (statFilter === "pinned") list = pinnedDevices(deviceNotes, list);
       if (statFilter === "recent") list = recentDevices(list, ledgerStore, recentLog);
-      if (statFilter === "travelDone" && travelGroup !== "all") list = list.filter((a) => matchesTravelGroup(travelStateOf(a, ledgerStore, allAllocations), travelGroup));
+      if (statFilter === "travelDone" && travelGroup !== "all") list = list.filter((a) => matchesTravelGroup(travelStateOf(a, ledgerStore, allAllocations, travelInRepLedger), travelGroup));
     }
     if (query.trim()) {
       // A rep's name shows his devices too.
@@ -1776,7 +1794,7 @@ export function HomeView({
   const travelCount = useMemo(() => activeAccounts.filter(needsTravelRegistration).length, [activeAccounts]);
   const travelDone = useMemo(() => travelEarnings(activeAccounts), [activeAccounts]);
   const travelBook = useMemo(
-    () => buildTravelBook(activeAccounts, representativeStore, ledgerStore, allAllocations),
+    () => buildTravelBook(activeAccounts, representativeStore, ledgerStore, allAllocations, travelInRepLedger),
     [activeAccounts, representativeStore, ledgerStore, allAllocations],
   );
   const noClient = useMemo(() => countNoClient(activeAccounts, clientStore, representativeStore), [activeAccounts, clientStore, representativeStore]);

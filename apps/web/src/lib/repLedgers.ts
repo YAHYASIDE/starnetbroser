@@ -16,12 +16,15 @@
  * − = عليه), never stored and never converted. Every entry is deletable. Pure, except load/save.
  */
 
-export type RepLedgerKind = "trust" | "loan" | "free";
+import { FRANC_PER_SIFA } from "./moneyAccounts";
+
+export type RepLedgerKind = "trust" | "loan" | "free" | "travel";
 
 export const REP_LEDGER_KINDS: { kind: RepLedgerKind; icon: string; label: string; hint: string }[] = [
   { kind: "trust", icon: "🔒", label: "أمانة / وديعة", hint: "مال أحدكما عند الآخر للحفظ - لا علاقة له بالربح." },
   { kind: "loan", icon: "🤝", label: "سلفة / دين", hint: "تتسلف منه أو يتسلف منك - لا علاقة له بالربح." },
   { kind: "free", icon: "📒", label: "حساب حر", hint: "أي حساب باسمك (شهر 10، شحن الأجهزة…) - لا علاقة له بالربح." },
+  { kind: "travel", icon: "🛂", label: "توثيق الأجهزة", hint: "يمتلئ وحده: كل جهاز له تضع له «💰 سعر التوثيق» يدخل هنا «عليه» بدل حسابه العادي." },
 ];
 
 export function repLedgerKindMeta(kind: RepLedgerKind) {
@@ -35,6 +38,9 @@ export interface RepLedger {
   kind: RepLedgerKind;
   /** Its currencies (at least one), in the order he chose - an entry is always in one of them. */
   currencies: string[];
+  /** 🟠 Its سيفا is shown and typed in فرنك FCFA (أورانج موني / نيتا, 5 فرنك = 1 سيفا) - still stored
+   * in سيفا like every أورانج amount (lib/payCurrency.ts). Undefined = never chosen. */
+  franc?: boolean;
   createdAt: string;
 }
 
@@ -57,6 +63,9 @@ export interface RepLedgerEntry {
   placeId?: string;
   /** 🔒 The bot's id for the deposit: the same message twice never makes two entries. */
   botId?: string;
+  /** 🛂 A «توثيق الأجهزة» line: the device's registration it comes from (`<deviceId>|<travelFeeKey>`),
+   * kept in step with its «💰 سعر التوثيق» (lib/repTravelLedger.ts). */
+  travelFor?: string;
   createdAt: string;
 }
 
@@ -99,7 +108,9 @@ export function createRepLedger(book: RepLedgerBook, input: NewRepLedgerInput, n
   const currencies = cleanCurrencies(input.currencies);
   if (!currencies.length) return { ok: false, message: "اختر عملة واحدة على الأقل" };
   if (book.ledgers.some((l) => l.repId === input.repId && sameName(l.name, name))) return { ok: false, message: `يوجد حساب بنفس الاسم «${name}»` };
-  const ledger: RepLedger = { id: newId("rl"), repId: input.repId, name, kind: input.kind, currencies, createdAt: now.toISOString() };
+  if (input.kind === "travel" && repTravelLedgerOf(book, input.repId)) return { ok: false, message: "له حساب «🛂 توثيق الأجهزة» من قبل - حساب واحد يكفي" };
+  const franc = currencies.includes("SIFA") && FRANC_NAME_RE.test(name);
+  const ledger: RepLedger = { id: newId("rl"), repId: input.repId, name, kind: input.kind, currencies, ...(franc ? { franc: true } : {}), createdAt: now.toISOString() };
   let next: RepLedgerBook = { ...book, ledgers: [...book.ledgers, ledger] };
   if (input.opening && input.opening.amount > 0) {
     const added = addRepLedgerEntry(next, ledger.id, { ...input.opening, note: "رصيد افتتاحي", opening: true }, now);
@@ -117,6 +128,48 @@ export function renameRepLedger(book: RepLedgerBook, id: string, name: string): 
   if (book.ledgers.some((l) => l.id !== id && l.repId === ledger.repId && sameName(l.name, clean))) return { ok: false, message: `يوجد حساب بنفس الاسم «${clean}»` };
   const renamed = { ...ledger, name: clean };
   return { ok: true, book: { ...book, ledgers: book.ledgers.map((l) => (l.id === id ? renamed : l)) }, ledger: renamed };
+}
+
+/** 🟠 A name that says أورانج موني / نيتا - such an account starts in فرنك. */
+export const FRANC_NAME_RE = /orange|oranj|اورانج|أورانج|أورنج|اورنج|نيتا|nita/i;
+
+/** 🟠 فرنك on / off. `typedInFranc`: the amounts already typed in its سيفا were really فرنك (his
+ * «ORANJ MONEY» - 6,652 typed from the Orange app) → they become سيفا ÷5; otherwise they stay as
+ * they are (only how they show changes). Deposits from the bot are real سيفا and never change. */
+export function setRepLedgerFranc(book: RepLedgerBook, id: string, on: boolean, typedInFranc = false): RepLedgerBook {
+  const ledger = book.ledgers.find((l) => l.id === id);
+  if (!ledger) return book;
+  const convert = on && typedInFranc && !ledger.franc;
+  return {
+    ledgers: book.ledgers.map((l) => (l.id === id ? { ...l, franc: on } : l)),
+    entries: convert
+      ? book.entries.map((e) => (e.ledgerId === id && e.currencyCode === "SIFA" && !e.botId && !e.placeId && !e.travelFor ? { ...e, amount: Math.round((e.amount / FRANC_PER_SIFA) * 100) / 100 } : e))
+      : book.entries,
+  };
+}
+
+/** The key an amount shows under: «FRANC» for سيفا in a فرنك account, else its own currency. */
+export const FRANC_CODE = "FRANC";
+
+export function repLedgerShownCode(ledger: Pick<RepLedger, "franc">, code: string): string {
+  return ledger.franc && code === "SIFA" ? FRANC_CODE : code;
+}
+
+/** Stored amounts as they show: a فرنك account's سيفا ×5 under «FRANC». */
+export function repLedgerShown(ledger: Pick<RepLedger, "franc">, values: Record<string, number>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [code, v] of Object.entries(values)) out[repLedgerShownCode(ledger, code)] = ledger.franc && code === "SIFA" ? Math.round(v * FRANC_PER_SIFA * 100) / 100 : v;
+  return out;
+}
+
+/** What is stored for an amount typed in the account: فرنك → سيفا ÷5. */
+export function repLedgerTyped(ledger: Pick<RepLedger, "franc">, code: string, typed: number): number {
+  return ledger.franc && code === "SIFA" ? Math.round((typed / FRANC_PER_SIFA) * 100) / 100 : typed;
+}
+
+/** 🛂 His «توثيق الأجهزة» account (one per rep), if he has one. */
+export function repTravelLedgerOf(book: RepLedgerBook, repId: string): RepLedger | undefined {
+  return book.ledgers.find((l) => l.repId === repId && l.kind === "travel");
 }
 
 /** 💱 One more currency in the account (its balance in it starts at 0). */
@@ -307,6 +360,14 @@ export function normalizeRepLedgerBook(raw: { ledgers?: unknown; entries?: unkno
     const list = Array.isArray(currencies) ? cleanCurrencies(currencies.filter((c): c is string => typeof c === "string")) : [];
     return { ...rest, currencies: list.length ? list : [currencyCode || "SIFA"] };
   });
+  // 🛂 His Oct 19 2026 ask: the account he named «توثيق الأجهزه» belongs to the rep's verified
+  // devices - an account named توثيق becomes the rep's «توثيق الأجهزة» (one per rep).
+  const travelReps = new Set(ledgers.filter((l) => l.kind === "travel").map((l) => l.repId));
+  for (const l of ledgers) {
+    if (l.kind === "travel" || travelReps.has(l.repId) || !/توثيق/.test(l.name)) continue;
+    l.kind = "travel";
+    travelReps.add(l.repId);
+  }
   const first = new Map(ledgers.map((l) => [l.id, l.currencies[0]!]));
   const entries = (Array.isArray(raw.entries) ? (raw.entries as StoredEntry[]) : []).map((e) => ({ ...e, currencyCode: e.currencyCode || first.get(e.ledgerId) || "SIFA" }));
   return { ledgers, entries };

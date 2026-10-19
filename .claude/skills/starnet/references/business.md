@@ -1437,6 +1437,20 @@ is never pressed while a field is empty - it refills and saves on the next try (
   the entry; its سيفا goes to «كاش سيفا» like a rep's handover), `botId` counted once. Never his profit, his normal
   account or his customers' devices. App deposits count in the app's balance (`repLedgerFlows` in loadAccountFlows)
   and statement (moneyMovements `repLedgers`).
+- **🟠 أورانج account in فرنك (Oct 19 2026, his choice «نعم، هو فرنك»):** a named account can show
+  its سيفا as **«فرنك FCFA 🟠»** (`RepLedger.franc`): shown and typed in فرنك, stored in سيفا ÷5 like
+  every أورانج amount, so «حسابي» still adds it in سيفا. A new account named أورانج/ORANJ/نيتا starts
+  in فرنك; an existing one asks once on opening «هل المبالغ التي كتبتها فيه بالفرنك؟» (نعم → the typed
+  amounts ÷5, e.g. his 6,652 → 1,330.4 سيفا shown as 6,652 فرنك; لا → shown only; اتركه بالسيفا).
+  «💱 العملات» toggles it later (display only). Bot deposits are real سيفا and never converted.
+- **🛂 «توثيق الأجهزة» account (Oct 19 2026, his choice «يمتلئ تلقائيًا»):** kind `travel`, one per rep;
+  his existing account named «توثيق الأجهزه» became it (any account named توثيق, `normalizeRepLedgerBook`).
+  Every «💰 سعر التوثيق» on that rep's verified devices is a «عليه» line there named by the device
+  (`lib/repTravelLedger.ts`), **instead of** the debt in his normal account: the device-ledger debt
+  is moved in (also old ones), the line follows the price (changed / removed with it, no 🗑 on it).
+  A debt a payment was already allocated to stays where it was paid. His travel percent/share is
+  unchanged. Known effects: the rep's own app no longer shows these debts (named accounts aren't in
+  his copy); deleting the account deletes its lines (the prices stay - «سجّل الدين عليهم» re-posts).
 
 ## 💱 A rep's named account in several currencies (Oct 12 2026)
 
