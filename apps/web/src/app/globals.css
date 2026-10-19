@@ -16347,3 +16347,204 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
 .party-move-profit { color: var(--text-muted); font-size: 0.64rem; opacity: 0.85; }
 .party-export-options { display: grid; gap: 8px; }
 .party-export-options .party-action { min-height: 40px; font-size: 0.85rem; }
+
+/* 🏷️ The clients page as his Oct 19 2026 design: «＋ إضافة زبون», search + ☰, categories, filters. */
+.party-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.party-add-button {
+  flex: 1 1 auto;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--brand);
+  color: var(--brand-contrast);
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.party-head-actions .clients-pay-button {
+  min-height: 44px;
+}
+
+.party-filter-btn.is-active {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+.party-category-chips {
+  display: flex;
+  gap: 6px;
+  margin: 8px 0 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.party-category-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.party-category-chip {
+  --chip: var(--brand);
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 34px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.party-category-chip.is-active {
+  border-color: var(--chip);
+  background: var(--chip);
+  color: #fff;
+}
+
+.party-category-chip.is-active .party-tab-count {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
+.party-category-add {
+  border-style: dashed;
+  color: var(--text-muted);
+}
+
+.party-filter-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 4px 0 8px;
+}
+
+.party-filter-row .search-input {
+  margin: 0;
+  min-width: 0;
+  font-size: 0.8rem;
+  padding-inline: 8px;
+}
+
+.party-overview-count {
+  width: 100%;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.party-category-tag {
+  --chip: var(--brand);
+  flex-shrink: 0;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid var(--chip);
+  color: var(--chip);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.party-form-categories {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.party-form-categories input {
+  margin: 0;
+  accent-color: var(--chip);
+}
+
+.party-form-label {
+  width: 100%;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.party-form-categories .settings-hint {
+  width: 100%;
+  margin: 0;
+}
+
+.party-save-device {
+  background: var(--brand);
+}
+
+.category-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.category-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.category-list li > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+}
+
+.category-list small {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
+.category-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.category-colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.category-swatch {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+}
+
+.category-swatch.is-active {
+  border-color: var(--text);
+  box-shadow: 0 0 0 2px var(--surface) inset;
+}
+
+.clients-more-menu {
+  margin: 4px 0 8px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}

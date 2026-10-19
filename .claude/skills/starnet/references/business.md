@@ -1832,3 +1832,16 @@ is never pressed while a field is empty - it refills and saves on the next try (
   `starnet.statementShowProfit`); filters الكل / الشحن / التسديد / التعديلات + 🔍 by email or device; PDF and image in
   one «⬇️ تصدير» sheet; the summary says «المتبقي عليه» and «رصيد يدوي» is «تسوية رصيد» (tap = its movements).
 - Logic `lib/partyMovements.ts` (movementView, filterMovements, arabicDate); rows now carry `accountId`.
+
+## 🏷️ The clients page by category, his own design (Oct 19 2026)
+
+- Top: «الزبائن والموردون» + ⋮ (holds «📥 استيراد زبائن»), then a big «＋ إضافة زبون» (with «💵 دفعة من زبون» beside
+  it), the search with ☰ «تصفية», the category row «الكل | 📡 ستارلينك | 👤 عام | his own | ＋ تصنيف» with counts,
+  the filters (زبائني / الكل / زبائن المندوبين / each rep · الحالة: مدينون لنا / لهم رصيد / حساب متوازن), then
+  «إجمالي ما لنا في الاختيار المحدد» - it follows the category and the filters - then the cards.
+- 📡 ستارلينك = has devices (or was added inside «ستارلينك» before his first device); 👤 عام = no device, or store
+  sales, or tagged «عام». **One account per customer** in any number of categories - categories never split his
+  debts. His own categories (name + one of 8 colors) are business data `starnet_client_categories_v1` (backed
+  up); deleting one only removes the tag. Logic `lib/clientCategories.ts`; tags on `Client.categories`.
+- Add form: name, phone, 🏷️ categories, 🤝 rep (optional). Inside «ستارلينك» the category is ticked and
+  «📡 حفظ وإضافة جهاز» opens the add-device form for him.

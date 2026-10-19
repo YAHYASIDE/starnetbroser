@@ -51,7 +51,8 @@ import {
   updatePartyAdjustment,
   savePartyAdjustments,
 } from "@/lib/partyBalanceStore";
-import { PartyDirectory } from "@/components/AccountsSection";
+import { PartyDirectory, type NewClientInput } from "@/components/AccountsSection";
+import { buildNewDeviceHref } from "@/lib/deviceFromSale";
 import { ClientDeviceCard } from "@/components/ClientDeviceCard";
 import { hiddenRepIds, visibleClients } from "@/lib/repSeparation";
 import { confirmAndDeleteLedgerEntry, LedgerEntryEditor } from "@/components/LedgerEntryEditor";
@@ -81,6 +82,8 @@ export default function ClientsPage() {
   const [openClientId, setOpenClientId] = useState<string | null>(null);
   const [representatives, setRepresentatives] = useState<RepresentativeStore>({});
   const [picking, setPicking] = useState(false);
+  // ⋮ «استيراد الزبائن» and the rarely used tools, out of the way (his Oct 19 2026 design).
+  const [moreOpen, setMoreOpen] = useState(false);
   const [profitResets, setProfitResets] = useState<ClientProfitResets>({});
   // ✎ A device operation opened for editing from a customer's statement (same dialog as the device's).
   const [editingEntry, setEditingEntry] = useState<{ accountId: string; entry: LedgerEntry; deviceName: string; ledger: LedgerByAccount } | null>(null);
@@ -121,8 +124,12 @@ export default function ClientsPage() {
   const suppliers = useMemo(() => listSuppliers(supplierStore), [supplierStore]);
   const openClient = getClient(clientStore, openClientId ?? undefined);
 
-  function handleCreateClient(input: CreateClientInput) {
-    setClientStore(commitClientStore(clientStore, createClient(clientStore, input).store));
+  /** 🏷️ A new customer: his categories, his rep if any, and «حفظ وإضافة جهاز» → the add-device form for him. */
+  function handleCreateClient({ repId, addDevice, ...input }: NewClientInput) {
+    const created = createClient(clientStore, input);
+    const client = repId ? moveClientToOwner(created.client, repId, false, new Date().toISOString()) : created.client;
+    setClientStore(commitClientStore(clientStore, { ...created.store, [client.id]: client }));
+    if (addDevice) router.push(buildNewDeviceHref({ clientId: client.id, representativeId: repId }));
   }
 
   function handleUpdateClient(clientId: string, input: CreateClientInput) {
@@ -325,22 +332,26 @@ export default function ClientsPage() {
     <main className="home">
       <div className="clients-title-row">
         <h1 className="section-title">الزبائن والموردون</h1>
-        <button type="button" className="clients-pay-button" onClick={() => setPicking(true)}>
-          💵 دفعة من زبون
+        <button type="button" className={`btn-icon clients-more-button${moreOpen ? " is-active" : ""}`} aria-label="المزيد" aria-expanded={moreOpen} onClick={() => setMoreOpen((v) => !v)}>
+          ⋮
         </button>
       </div>
-      <ClientImport
-        clientStore={clientStore}
-        adjustments={partyAdjustments}
-        devices={accounts}
-        invoices={invoices}
-        onSaved={(store, adjustments, message) => {
-          setClientStore(commitClientStore(clientStore, store));
-          setPartyAdjustments(adjustments);
-          savePartyAdjustments(adjustments);
-          window.alert(message);
-        }}
-      />
+      {moreOpen && (
+        <div className="clients-more-menu">
+          <ClientImport
+            clientStore={clientStore}
+            adjustments={partyAdjustments}
+            devices={accounts}
+            invoices={invoices}
+            onSaved={(store, adjustments, message) => {
+              setClientStore(commitClientStore(clientStore, store));
+              setPartyAdjustments(adjustments);
+              savePartyAdjustments(adjustments);
+              window.alert(message);
+            }}
+          />
+        </div>
+      )}
       {picking && (
         <PaymentPickerSheet
           accounts={accounts.filter((a) => !a.deletedAt)}
@@ -380,6 +391,11 @@ export default function ClientsPage() {
           onUpdateAdjustment={handleUpdateAdjustment}
           onMoveAdjustmentToDevice={handleMoveAdjustmentToDevice}
           onCreateClient={handleCreateClient}
+          headerAction={
+            <button type="button" className="clients-pay-button" onClick={() => setPicking(true)}>
+              💵 دفعة من زبون
+            </button>
+          }
           onUpdateClient={handleUpdateClient}
           onCreateSupplier={handleCreateSupplier}
           onUpdateSupplier={handleUpdateSupplier}

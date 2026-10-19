@@ -36,6 +36,9 @@ export interface Client {
   /** 💱 «عملته»: the currency we deal with him in (lib/partyCurrency.ts). Absent = automatic, from
    * most of his devices' operations. */
   defaultCurrency?: LedgerCurrency;
+  /** 🏷️ Categories given by hand (lib/clientCategories.ts: «عام» and his own) - 📡 ستارلينك comes from his
+   * devices. One account whatever they are. */
+  categories?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -108,6 +111,8 @@ export interface CreateClientInput {
   creditLimit?: number;
   /** Left out = keep his current one; `undefined` given = back to automatic. */
   defaultCurrency?: LedgerCurrency;
+  /** 🏷️ Left out = keep his current ones. */
+  categories?: string[];
 }
 
 function normalizeCreditLimit(value: number | undefined): number | undefined {
@@ -124,6 +129,7 @@ export function createClient(store: ClientStore, input: CreateClientInput): { st
     phone: input.phone?.trim() || undefined,
     creditLimit: normalizeCreditLimit(input.creditLimit),
     defaultCurrency: input.defaultCurrency,
+    ...(input.categories?.length ? { categories: [...new Set(input.categories)] } : {}),
     createdAt: now,
     updatedAt: now,
   };
@@ -139,6 +145,7 @@ export function updateClient(store: ClientStore, clientId: string, patch: Create
     phone: patch.phone?.trim() || undefined,
     creditLimit: normalizeCreditLimit(patch.creditLimit),
     defaultCurrency: "defaultCurrency" in patch ? patch.defaultCurrency : existing.defaultCurrency,
+    categories: "categories" in patch ? (patch.categories?.length ? [...new Set(patch.categories)] : undefined) : existing.categories,
     updatedAt: new Date().toISOString(),
   };
   return { ...store, [clientId]: updated };

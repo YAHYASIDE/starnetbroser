@@ -41,6 +41,22 @@ import { buildPartyStatementPdf, statementKindLabel } from "@/lib/partyStatement
 import { buildStatementData, statementNetView } from "@/lib/statementDocument";
 import { StatementImageButton } from "./StatementImageButton";
 import { filterMovements, MOVEMENT_FILTERS, movementView, type MovementFilter } from "@/lib/partyMovements";
+import {
+  addCategory,
+  BUILT_IN_CATEGORIES,
+  CATEGORY_COLORS,
+  categoriesOf,
+  categoryCounts,
+  loadClientCategories,
+  matchesStanding,
+  removeCategory,
+  saveClientCategories,
+  STANDING_FILTERS,
+  STARLINK,
+  type ClientCategory,
+  type StandingFilter,
+} from "@/lib/clientCategories";
+
 import { combinePhoneNumber, PHONE_COUNTRY_CODES, splitPhoneNumber } from "@/lib/phoneCountryCodes";
 import { formatAmount } from "@/lib/formatAmount";
 import { partyHue, partyInitials } from "@/lib/partyColor";
@@ -54,15 +70,14 @@ import { getCurrency, loadCurrencyStore, saveCurrencyStore, setCurrencyRate } fr
 import { loadPartyCurrencyContext } from "@/lib/partyCurrencyData";
 
 const EPSILON = 0.0001;
+/** 🏷️ A new customer as his Oct 19 2026 form gives it: his categories, his rep, and «حفظ وإضافة جهاز». */
+export type NewClientInput = CreateClientInput & { repId?: string; addDevice?: boolean };
 
 function currencyLabel(code: string): string {
   return LEDGER_CURRENCY_LABELS[code as LedgerCurrency] ?? code;
 }
 
 type PartyTab = "clients" | "suppliers";
-/** Second clients row: everyone / only those who owe us / only those with a credit on us. */
-type BalanceFilter = "all" | "owes" | "credit";
-const hasCredit = (totals: Record<string, { remaining: number }>) => Object.values(totals).some((t) => t.remaining < -EPSILON);
 
 interface Props {
   clients: Client[];
@@ -73,7 +88,7 @@ interface Props {
   /** Per-device Starlink subscription ledger - shown on a client's devices panel, always kept
    * visually separate from the store figures (a different business). */
   ledgerStore: LedgerByAccount;
-  onCreateClient: (input: CreateClientInput) => void;
+  onCreateClient: (input: NewClientInput) => void;
   onUpdateClient: (clientId: string, input: CreateClientInput) => void;
   onCreateSupplier: (input: CreateSupplierInput) => void;
   onUpdateSupplier: (supplierId: string, input: CreateSupplierInput) => void;
@@ -133,6 +148,8 @@ interface PartyDirectoryProps extends Props {
   onDeleteDeviceEntry?: (entryId: string) => boolean;
   /** ✎ Edits a device operation from a customer's statement, in the device's own operation dialog. */
   onEditDeviceEntry?: (entryId: string) => void;
+  /** 💵 The page's «دفعة من زبون», shown beside «＋ إضافة زبون». */
+  headerAction?: React.ReactNode;
 }
 
 /** Clients and suppliers on two separate tabs (never one mixed list), each party a colour-coded
@@ -161,6 +178,7 @@ export function PartyDirectory({
   renderDevice,
   onDeleteDeviceEntry,
   onEditDeviceEntry,
+  headerAction,
 }: PartyDirectoryProps) {
   const [tab, setTab] = useState<PartyTab>("clients");
   const [selecting, setSelecting] = useState(false);
@@ -171,8 +189,17 @@ export function PartyDirectory({
   // 👤 / 🤝 whose customers are shown (repDebts.ts) - clients tab only. «زبائني» first and default
   // (his choice): he works with his own customers most, reps' customers are the exception.
   const [owner, setOwner] = useState<ClientOwnerFilter>("mine");
-  // Second row: show everyone / only who owes us / only who has a credit on us («له رصيد»).
-  const [balance, setBalance] = useState<BalanceFilter>("all");
+  // 🏷️ His Oct 19 2026 design: a category row (الكل / ستارلينك / عام / his own) and «تصفية» (whose · standing).
+  const [balance, setBalance] = useState<StandingFilter>("all");
+  const [category, setCategory] = useState<string>("all");
+  const [showFilters, setShowFilters] = useState(true);
+  const [categoryList, setCategoryList] = useState<ClientCategory[]>([]);
+  const [categorySheet, setCategorySheet] = useState(false);
+  useEffect(() => setCategoryList(loadClientCategories()), []);
+  function commitCategories(next: ClientCategory[]) {
+    setCategoryList(next);
+    saveClientCategories(next);
+  }
 
   const isClients = tab === "clients";
   const kind: InvoiceKind = isClients ? "sale" : "purchase";
@@ -209,7 +236,18 @@ export function PartyDirectory({
           ? computeClientCombinedTotals(invoices, adjustments, party.id, accounts.filter((a) => a.clientId === party.id), ledgerStore)
           : computePartyStoreTotals(invoices, kind, party.id, adjustments);
         // ⚖️ «عليهم دين» follows the net in his currency when he has 2+ currencies.
-        const due = partyStanding(Object.fromEntries(Object.entries(totals).map(([c, t]) => [c, t.remaining])), netFor(party, totals)) === "due";
+        const standing = partyStanding(Object.fromEntries(Object.entries(totals).map(([c, t]) => [c, t.remaining])), netFor(party, totals));
+        const due = standing === "due";
+        const categories = isClients
+          ? categoriesOf(
+              {
+                deviceCount: accounts.filter((a) => a.clientId === party.id && !a.deletedAt).length,
+                hasStoreRecords: invoices.some((i) => i.clientId === party.id),
+                tags: (party as Client).categories,
+              },
+              categoryList,
+            )
+          : [];
         const repIds = isClients ? clientRepIds(party.id, accounts, party as Client) : [];
         // 🕒 His latest operation or edit - the customer on top is the last one worked on.
         const activity = isClients
@@ -220,10 +258,10 @@ export function PartyDirectory({
               adjustments: adjustments.filter((a) => a.partyKind === "client" && a.partyId === party.id),
             })
           : "";
-        return { party, totals, due, repIds, activity };
+        return { party, totals, due, standing, categories, repIds, activity };
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [parties, invoices, kind, adjustments, isClients, accounts, ledgerStore, netContext],
+    [parties, invoices, kind, adjustments, isClients, accounts, ledgerStore, netContext, categoryList],
   );
   const ownerRows = useMemo(() => (isClients ? rows.filter((r) => matchesClientOwner(r.repIds, owner)) : rows), [rows, owner, isClients]);
   /** «🤝 فلان» chips: every rep with at least one customer, with how many. */
@@ -238,24 +276,26 @@ export function PartyDirectory({
     let matching = q
       ? ownerRows.filter((r) => r.party.name.toLowerCase().includes(q) || (r.party.phone ?? "").includes(q))
       : ownerRows;
-    // Second row (clients): only those who owe us, or only those with a credit on us («له رصيد»).
-    if (isClients && balance === "owes") matching = matching.filter((r) => r.due);
-    else if (isClients && balance === "credit") matching = matching.filter((r) => hasCredit(r.totals));
+    // 🏷️ The category, then the standing (مدينون لنا / لهم رصيد / حساب متوازن).
+    if (isClients && category !== "all") matching = matching.filter((r) => r.categories.includes(category));
+    if (isClients) matching = matching.filter((r) => matchesStanding(r.standing, balance));
     // Customers: the last one worked on first (his Oct 2026 choice). Suppliers: who still owe / are
     // owed first, then alphabetical.
     if (isClients) return [...matching].sort((a, b) => byLastActivity({ activity: a.activity, name: a.party.name }, { activity: b.activity, name: b.party.name }));
     return [...matching].sort((a, b) => (a.due === b.due ? a.party.name.localeCompare(b.party.name, "ar") : a.due ? -1 : 1));
-  }, [ownerRows, query, isClients, balance]);
+  }, [ownerRows, query, isClients, balance, category]);
+  const counts = useMemo(() => categoryCounts(ownerRows), [ownerRows]);
 
+  // The summary follows the category and the filters chosen (his design).
   const outstandingByCurrency = useMemo(() => {
     const sum: Record<string, number> = {};
-    for (const { totals } of ownerRows) {
+    for (const { totals } of isClients ? filtered : ownerRows) {
       for (const [c, t] of Object.entries(totals)) {
         if (t.remaining > EPSILON) sum[c] = (sum[c] ?? 0) + t.remaining;
       }
     }
     return sum;
-  }, [ownerRows]);
+  }, [ownerRows, filtered, isClients]);
 
   function switchTab(next: PartyTab) {
     setTab(next);
@@ -266,6 +306,7 @@ export function PartyDirectory({
     setQuery("");
     setOwner("mine");
     setBalance("all");
+    setCategory("all");
   }
 
   const partyWord = isClients ? "زبون" : "مورد";
@@ -293,61 +334,104 @@ export function PartyDirectory({
         </button>
       </div>
 
-      {isClients && repChips.length > 0 && (
-        <div className="party-owner-chips" role="radiogroup" aria-label="زبائن من">
-          {[
-            { key: "mine", label: "👤 زبائني", count: rows.filter((r) => r.repIds.length === 0).length, value: "mine" as ClientOwnerFilter },
-            { key: "all", label: "الكل", count: rows.length, value: "all" as ClientOwnerFilter },
-            { key: "reps", label: "🤝 زبائن المندوبين", count: rows.filter((r) => r.repIds.length > 0).length, value: "reps" as ClientOwnerFilter },
-            ...(repChips.length > 1 ? repChips.map((c) => ({ key: `rep:${c.id}`, label: `🤝 ${c.name}`, count: c.count, value: { repId: c.id } as ClientOwnerFilter })) : []),
-          ].map((chip) => {
-            const active = typeof owner === "string" ? chip.value === owner : typeof chip.value !== "string" && chip.value.repId === owner.repId;
-            return (
-              <button
-                key={chip.key}
-                type="button"
-                role="radio"
-                aria-checked={active}
-                className={`party-owner-chip${active ? " party-owner-chip-active" : ""}`}
-                onClick={() => {
-                  setOwner(chip.value);
-                  setSelected(new Set());
-                }}
-              >
-                {chip.label} <span className="party-tab-count">{chip.count}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
+      <div className="party-head-actions">
+        <button type="button" className="party-add-button" onClick={() => setShowAdd((v) => !v)}>
+          {showAdd ? "✕ إلغاء" : isClients ? "＋ إضافة زبون" : "＋ إضافة مورد"}
+        </button>
+        {isClients && headerAction}
+      </div>
+
+      <div className="party-toolbar">
+        <input
+          className="search-input"
+          type="search"
+          placeholder={`🔍 ابحث عن ${partyWord} بالاسم أو الهاتف`}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        {isClients && (
+          <button type="button" className={`btn-icon party-filter-btn${showFilters ? " is-active" : ""}`} onClick={() => setShowFilters((v) => !v)} aria-label="تصفية" title="تصفية">
+            ☰
+          </button>
+        )}
+        {isClients && bulk && (
+          <button
+            type="button"
+            className={`btn-icon${selecting ? " is-active" : ""}`}
+            onClick={() => {
+              setSelecting((v) => !v);
+              setSelected(new Set());
+            }}
+            title="تحديد"
+          >
+            {selecting ? "إنهاء" : "☑️"}
+          </button>
+        )}
+      </div>
 
       {isClients && (
-        <div className="party-owner-chips party-balance-chips" role="radiogroup" aria-label="حسب الرصيد">
+        <div className="party-category-chips" role="radiogroup" aria-label="التصنيف">
           {[
-            { key: "all", label: "الكل", count: ownerRows.length, value: "all" as BalanceFilter },
-            { key: "owes", label: "🔴 مدينون لنا", count: ownerRows.filter((r) => r.due).length, value: "owes" as BalanceFilter },
-            { key: "credit", label: "🟢 لهم رصيد علينا", count: ownerRows.filter((r) => hasCredit(r.totals)).length, value: "credit" as BalanceFilter },
+            { id: "all", label: "الكل", icon: "", color: "" },
+            ...BUILT_IN_CATEGORIES.map((c) => ({ id: c.id, label: c.name, icon: c.icon, color: c.color })),
+            ...categoryList.map((c) => ({ id: c.id, label: c.name, icon: "🏷️", color: c.color })),
           ].map((chip) => (
             <button
-              key={chip.key}
+              key={chip.id}
               type="button"
               role="radio"
-              aria-checked={balance === chip.value}
-              className={`party-owner-chip${balance === chip.value ? " party-owner-chip-active" : ""}`}
+              aria-checked={category === chip.id}
+              className={`party-category-chip${category === chip.id ? " is-active" : ""}`}
+              style={chip.color ? ({ "--chip": chip.color } as CSSProperties) : undefined}
               onClick={() => {
-                setBalance(chip.value);
+                setCategory(chip.id);
                 setSelected(new Set());
               }}
             >
-              {chip.label} <span className="party-tab-count">{chip.count}</span>
+              {chip.icon && <span aria-hidden="true">{chip.icon} </span>}
+              {chip.label} <span className="party-tab-count">{counts[chip.id] ?? 0}</span>
             </button>
           ))}
+          <button type="button" className="party-category-chip party-category-add" onClick={() => setCategorySheet(true)}>
+            ＋ تصنيف
+          </button>
+        </div>
+      )}
+
+      {isClients && showFilters && (
+        <div className="party-filter-row">
+          <select
+            className="search-input"
+            aria-label="زبائن من"
+            value={typeof owner === "string" ? owner : `rep:${owner.repId}`}
+            onChange={(e) => {
+              const v = e.target.value;
+              setOwner(v.startsWith("rep:") ? { repId: v.slice(4) } : (v as ClientOwnerFilter));
+              setSelected(new Set());
+            }}
+          >
+            <option value="mine">👤 زبائني ({rows.filter((r) => r.repIds.length === 0).length})</option>
+            <option value="all">الكل ({rows.length})</option>
+            {repChips.length > 0 && <option value="reps">🤝 زبائن المندوبين ({rows.filter((r) => r.repIds.length > 0).length})</option>}
+            {repChips.map((c) => (
+              <option key={c.id} value={`rep:${c.id}`}>
+                🤝 {c.name} ({c.count})
+              </option>
+            ))}
+          </select>
+          <select className="search-input" aria-label="الحالة" value={balance} onChange={(e) => setBalance(e.target.value as StandingFilter)}>
+            {STANDING_FILTERS.map((f) => (
+              <option key={f.id} value={f.id}>
+                الحالة: {f.label}
+              </option>
+            ))}
+          </select>
         </div>
       )}
 
       <div className="party-overview">
         <span className="party-overview-label">
-          {!isClients ? "مجموع ما علينا للموردين" : owner === "mine" ? "مجموع ما لنا عند زبائني" : owner === "all" ? "مجموع ما لنا عند الزبائن" : "مجموع ما لنا عند زبائن المندوبين"}
+          {!isClients ? "مجموع ما علينا للموردين" : "إجمالي ما لنا في الاختيار المحدد"}
         </span>
         <div className="party-overview-values">
           {Object.keys(outstandingByCurrency).length === 0 ? (
@@ -360,31 +444,26 @@ export function PartyDirectory({
             ))
           )}
         </div>
+        {isClients && <span className="party-overview-count">عرض {filtered.length} زبون</span>}
       </div>
 
-      <div className="party-toolbar">
-        <input
-          className="search-input"
-          placeholder={`ابحث عن ${partyWord} بالاسم أو الهاتف`}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
+      {categorySheet && (
+        <CategorySheet
+          list={categoryList}
+          onAdd={(name, color) => {
+            const result = addCategory(categoryList, name, color);
+            if (!result.ok) return result.message;
+            commitCategories(result.list);
+            return null;
+          }}
+          onRemove={(id) => {
+            if (!window.confirm("حذف هذا التصنيف؟ لا يُحذف أي زبون ولا أي حساب - يُزال التصنيف فقط.")) return;
+            commitCategories(removeCategory(categoryList, id));
+            if (category === id) setCategory("all");
+          }}
+          onClose={() => setCategorySheet(false)}
         />
-        <button type="button" className="btn-icon" onClick={() => setShowAdd((v) => !v)}>
-          {showAdd ? "إلغاء" : `+ ${partyWord}`}
-        </button>
-        {isClients && bulk && (
-          <button
-            type="button"
-            className={`btn-icon${selecting ? " is-active" : ""}`}
-            onClick={() => {
-              setSelecting((v) => !v);
-              setSelected(new Set());
-            }}
-          >
-            {selecting ? "إنهاء" : "☑️ تحديد"}
-          </button>
-        )}
-      </div>
+      )}
 
       {isClients && bulk && selecting && (() => {
         const ids = [...selected];
@@ -420,6 +499,10 @@ export function PartyDirectory({
           existing={parties}
           namePlaceholder={isClients ? "اسم الزبون *" : "اسم المورد *"}
           showCreditLimit={isClients}
+          categories={isClients ? categoryList : undefined}
+          initialCategories={category !== "all" && category !== STARLINK ? [category] : []}
+          starlinkMode={isClients && category === STARLINK}
+          reps={isClients && representatives ? Object.values(representatives).map((r) => ({ id: r.id, name: r.name })) : undefined}
           onSubmit={(input) => {
             if (isClients) onCreateClient(input);
             else onCreateSupplier(input);
@@ -478,6 +561,8 @@ export function PartyDirectory({
                   selfId={party.id}
                   namePlaceholder={isClients ? "اسم الزبون *" : "اسم المورد *"}
                   showCreditLimit={isClients}
+                  categories={isClients ? categoryList : undefined}
+                  initialCategories={isClients ? ((party as Client).categories ?? []) : []}
                   onSubmit={(input) => {
                     if (isClients) onUpdateClient(party.id, input);
                     else onUpdateSupplier(party.id, input);
@@ -516,6 +601,14 @@ export function PartyDirectory({
                 ledgerStore={ledgerStore}
                 creditLimit={isClients ? (party as Client).creditLimit : undefined}
                 repNames={isClients && representatives ? clientRepNames(party.id, accounts, representatives, party as Client) : []}
+                categoryChips={
+                  isClients
+                    ? (rows.find((r) => r.party.id === party.id)?.categories ?? [])
+                        .filter((id) => id !== STARLINK)
+                        .map((id) => [...BUILT_IN_CATEGORIES, ...categoryList].find((c) => c.id === id))
+                        .filter((c): c is ClientCategory => Boolean(c))
+                    : []
+                }
                 onEdit={() => setEditingPartyId(party.id)}
                 onOpenCard={isClients && onOpenClientCard ? () => onOpenClientCard(party as Client) : undefined}
                 renderDevice={isClients ? renderDevice : undefined}
@@ -550,6 +643,8 @@ interface PartyCardProps {
   creditLimit?: number;
   /** The reps of this client's devices - shown as a tag at the top of the card. */
   repNames?: string[];
+  /** 🏷️ His categories besides 📡 (that one is the device count chip). */
+  categoryChips?: ClientCategory[];
   onEdit: () => void;
   onOpenCard?: () => void;
   renderDevice?: (device: StarlinkAccountSummary) => React.ReactNode;
@@ -592,6 +687,7 @@ function PartyCard({
   ledgerStore,
   creditLimit,
   repNames = [],
+  categoryChips = [],
   onEdit,
   onOpenCard,
   renderDevice,
@@ -710,6 +806,11 @@ function PartyCard({
           <span className="party-card-sub">
             <bdi dir="ltr">{party.phone || "بدون هاتف"}</bdi>
             {isClient && devices.length > 0 && <span className="party-mini-chip">📡 {devices.length}</span>}
+            {categoryChips.map((c) => (
+              <span key={c.id} className="party-category-tag" style={{ "--chip": c.color } as CSSProperties}>
+                {c.name}
+              </span>
+            ))}
             {repNames.length > 0 && (
               <span className="party-rep-tag" title="مندوب أجهزة هذا الزبون">
                 🤝 {repNames.join("، ")}
@@ -1475,6 +1576,74 @@ function BalanceForm({ partyName, partyKind, devices, initial, proofKey, submitL
   );
 }
 
+/** 🏷️ «＋ تصنيف»: his own categories - a name and a color; removing one never touches a customer's account. */
+function CategorySheet({
+  list,
+  onAdd,
+  onRemove,
+  onClose,
+}: {
+  list: ClientCategory[];
+  onAdd: (name: string, color: string) => string | null;
+  onRemove: (id: string) => void;
+  onClose: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [color, setColor] = useState(CATEGORY_COLORS[1]!);
+  const [error, setError] = useState<string | null>(null);
+  function add(event: FormEvent) {
+    event.preventDefault();
+    const message = onAdd(name, color);
+    setError(message);
+    if (!message) setName("");
+  }
+  return (
+    <PartySheet title="🏷️ التصنيفات" onClose={onClose}>
+      <ul className="category-list">
+        {BUILT_IN_CATEGORIES.map((c) => (
+          <li key={c.id}>
+            <span className="category-dot" style={{ background: c.color }} aria-hidden="true" />
+            <span>
+              {c.icon} {c.name}
+            </span>
+            <small>{c.id === STARLINK ? "تلقائي: له أجهزة" : "تلقائي: بدون أجهزة أو له مبيعات"}</small>
+          </li>
+        ))}
+        {list.map((c) => (
+          <li key={c.id}>
+            <span className="category-dot" style={{ background: c.color }} aria-hidden="true" />
+            <span>{c.name}</span>
+            <button type="button" className="btn-icon" aria-label={`حذف ${c.name}`} onClick={() => onRemove(c.id)}>
+              🗑
+            </button>
+          </li>
+        ))}
+      </ul>
+      <form className="auth-form" onSubmit={add}>
+        <input className="search-input" placeholder="اسم التصنيف (مثل: المحل، الجملة)" value={name} onChange={(e) => setName(e.target.value)} maxLength={24} />
+        <div className="category-colors" role="radiogroup" aria-label="اللون">
+          {CATEGORY_COLORS.map((c) => (
+            <button
+              key={c}
+              type="button"
+              role="radio"
+              aria-checked={color === c}
+              aria-label={c}
+              className={`category-swatch${color === c ? " is-active" : ""}`}
+              style={{ background: c }}
+              onClick={() => setColor(c)}
+            />
+          ))}
+        </div>
+        {error && <p className="ledger-form-error">{error}</p>}
+        <button type="submit" className="dialog-primary" disabled={!name.trim()}>
+          ＋ إضافة التصنيف
+        </button>
+      </form>
+    </PartySheet>
+  );
+}
+
 interface PartyFormProps {
   initial?: { id?: string; name: string; phone?: string; creditLimit?: number; defaultCurrency?: LedgerCurrency };
   submitLabel: string;
@@ -1482,21 +1651,45 @@ interface PartyFormProps {
   /** Client-only (see Client.creditLimit's own doc) - a credit ceiling only ever applies to money a
    * client can owe US. */
   showCreditLimit?: boolean;
-  onSubmit: (input: CreateClientInput) => void;
+  onSubmit: (input: NewClientInput) => void;
   onCancel: () => void;
   onDelete?: () => void;
   /** The same list (clients or suppliers) to warn about a repeated name or phone. */
   existing?: { id: string; name: string; phone?: string }[];
   selfId?: string;
+  /** 🏷️ Clients: his own categories to tick (with «عام»), and the ones ticked at first. */
+  categories?: ClientCategory[];
+  initialCategories?: string[];
+  /** 📡 Opened inside «ستارلينك»: the customer is a Starlink one, with «حفظ وإضافة جهاز». */
+  starlinkMode?: boolean;
+  /** 🤝 A new customer can be given to a rep. */
+  reps?: { id: string; name: string }[];
 }
 
-function PartyForm({ initial, submitLabel, namePlaceholder, showCreditLimit, onSubmit, onCancel, onDelete, existing = [], selfId }: PartyFormProps) {
+function PartyForm({
+  initial,
+  submitLabel,
+  namePlaceholder,
+  showCreditLimit,
+  onSubmit,
+  onCancel,
+  onDelete,
+  existing = [],
+  selfId,
+  categories,
+  initialCategories = [],
+  starlinkMode,
+  reps,
+}: PartyFormProps) {
   const [name, setName] = useState(initial?.name ?? "");
   const [phoneDialCode, setPhoneDialCode] = useState(() => splitPhoneNumber(initial?.phone).dialCode);
   const [phoneLocalNumber, setPhoneLocalNumber] = useState(() => splitPhoneNumber(initial?.phone).localNumber);
   const [creditLimit, setCreditLimit] = useState(initial?.creditLimit ? String(initial.creditLimit) : "");
   // 💱 A customer's currency (clients only): automatic, or fixed by him (partyCurrency.ts).
   const [defaultCurrency, setDefaultCurrency] = useState<LedgerCurrency | undefined>(initial?.defaultCurrency);
+  const [tags, setTags] = useState<string[]>(() => (starlinkMode ? [STARLINK, ...initialCategories] : initialCategories));
+  const [repId, setRepId] = useState("");
+  const toggleTag = (id: string) => setTags((t) => (t.includes(id) ? t.filter((x) => x !== id) : [...t, id]));
   const autoCurrency = useMemo(
     () => (showCreditLimit && initial?.id ? autoCurrencyOf("client", initial.id, loadPartyCurrencyContext()) : undefined),
     [showCreditLimit, initial?.id],
@@ -1507,16 +1700,20 @@ function PartyForm({ initial, submitLabel, namePlaceholder, showCreditLimit, onS
     [selfId, name, phoneDialCode, phoneLocalNumber, existing],
   );
 
-  function submit(event: FormEvent) {
+  function submit(event: FormEvent, addDevice = false) {
     event.preventDefault();
     if (!name.trim()) return;
     if (duplicates.length > 0 && !window.confirm(duplicateQuestion(duplicates))) return;
-    onSubmit({
+    const input: NewClientInput = {
       name,
       phone: combinePhoneNumber(phoneDialCode, phoneLocalNumber) || undefined,
       creditLimit: showCreditLimit && creditLimit ? Number(creditLimit) : undefined,
       ...(showCreditLimit ? { defaultCurrency } : {}),
-    });
+      ...(categories ? { categories: tags } : {}),
+      ...(repId ? { repId } : {}),
+      ...(addDevice ? { addDevice } : {}),
+    };
+    onSubmit(input);
   }
 
   return (
@@ -1557,10 +1754,40 @@ function PartyForm({ initial, submitLabel, namePlaceholder, showCreditLimit, onS
         />
       )}
       {showCreditLimit && <DefaultCurrencyField value={defaultCurrency} auto={autoCurrency} onChange={setDefaultCurrency} />}
+      {categories && (
+        <div className="party-form-categories" role="group" aria-label="التصنيف">
+          <span className="party-form-label">🏷️ التصنيف</span>
+          {[
+            ...BUILT_IN_CATEGORIES.map((c) => ({ id: c.id, name: `${c.icon} ${c.name}`, color: c.color })),
+            ...categories,
+          ].map((c) => (
+            <label key={c.id} className={`party-category-chip${tags.includes(c.id) ? " is-active" : ""}`} style={{ "--chip": c.color } as CSSProperties}>
+              <input type="checkbox" checked={tags.includes(c.id)} onChange={() => toggleTag(c.id)} />
+              {c.name}
+            </label>
+          ))}
+          <small className="settings-hint">حساب واحد للزبون مهما تعدّدت تصنيفاته. 📡 يُضاف تلقائيًا عندما يكون له جهاز.</small>
+        </div>
+      )}
+      {reps && reps.length > 0 && (
+        <select className="search-input" aria-label="المندوب" value={repId} onChange={(e) => setRepId(e.target.value)}>
+          <option value="">🤝 المندوب: بدون (زبوني)</option>
+          {reps.map((r) => (
+            <option key={r.id} value={r.id}>
+              🤝 {r.name}
+            </option>
+          ))}
+        </select>
+      )}
       <div className="settings-actions">
         <button className="dialog-primary" type="submit" disabled={!name.trim()}>
           {submitLabel}
         </button>
+        {starlinkMode && (
+          <button className="dialog-primary party-save-device" type="button" disabled={!name.trim()} onClick={(e) => submit(e, true)}>
+            📡 حفظ وإضافة جهاز
+          </button>
+        )}
         <button type="button" className="text-action" onClick={onCancel}>
           إلغاء
         </button>
