@@ -151,6 +151,23 @@ final class TelegramStore {
         return TelegramText.keysFor(chatReps(context), repId);
     }
 
+    // ---- 📌 the rep's bottom buttons, given back once (his Oct 19 2026 «لا توجد أي أيقونات») ----
+
+    private static final String KEY_KEYBOARD_BACK = "kbback2_";
+
+    /** True the first time only, per bot and chat: the buttons a «force reply» hid are sent again once. */
+    static boolean takeKeyboardRestore(Context context, String bot, String chatId) {
+        String key = KEY_KEYBOARD_BACK + bot + "_" + chatId;
+        if (prefs(context).getBoolean(key, false)) return false;
+        prefs(context).edit().putBoolean(key, true).apply();
+        return true;
+    }
+
+    /** A reply that carried the buttons itself: nothing more to give back. */
+    static void keyboardRestored(Context context, String bot, String chatId) {
+        prefs(context).edit().putBoolean(KEY_KEYBOARD_BACK + bot + "_" + chatId, true).apply();
+    }
+
     static boolean isLinkedRepChat(Context context, String chatId) {
         return chatId != null && chatReps(context).containsKey(chatId);
     }

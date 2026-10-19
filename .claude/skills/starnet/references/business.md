@@ -1798,6 +1798,10 @@ is never pressed while a field is empty - it refills and saves on the next try (
   (most replies carry inline buttons or none). Now every plain reply (no markup) of the devices / money bot to a
   linked rep carries that bot's kept buttons again (`keepKeyboard(null, kb)` → kb); inline-button replies leave the
   bottom ones as they are. The app's own sends already default to the bot's buttons (`sendRepText` → defaultKeyboard).
+- Then «لا توجد أي أيقونات» on a «كشفي» page: a reply with its own (inline) buttons can't carry the bottom ones, so
+  buttons hidden earlier never came back there. Once per bot and chat (`TelegramStore.takeKeyboardRestore`), a short
+  «📌 أزرارك أسفل المحادثة 👇» with the bot's buttons goes before such a reply; a plain reply that carried them marks
+  it done. (His install of the previous build had failed - the bot answers from HIS phone, so it must be updated.)
 - 💰 **The money bot is money only** (Oct 19 2026, «أي شيء لا يخص المال أزله من البوت»): his choice «طلب ⚡ تفعيل فقط» -
   the «تفعيل» command answers «⚡ طلب التفعيل في بوت الأجهزة: @…» and the device money card lost its ⚡ button; an
   approved activation's amount + the month's total still arrive in the money bot. Keyboard unchanged (no preference).

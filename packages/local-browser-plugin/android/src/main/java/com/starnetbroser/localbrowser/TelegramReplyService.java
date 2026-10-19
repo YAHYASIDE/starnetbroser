@@ -1459,10 +1459,20 @@ public class TelegramReplyService extends Service {
         // 📌 The rep's bottom buttons stay: a «force reply» question would hide them, and a plain reply
         // brings them back (keepKeyboard) - linked reps only, never a stranger's chat.
         boolean keptBot = (TelegramStore.REPS.equals(bot) || TelegramStore.MONEY.equals(bot)) && TelegramStore.isLinkedRepChat(context, chatId);
-        if (keptBot && (markup == null || markup.contains("\"force_reply\""))) {
+        if (keptBot) {
             TelegramReplies.Snapshot snapshot = loadSnapshot(context);
             String kept = snapshot == null ? "" : TelegramStore.MONEY.equals(bot) ? snapshot.moneyKeyboard : TelegramStore.REPS.equals(bot) ? snapshot.repKeyboard : "";
-            markup = TelegramReplies.keepKeyboard(markup, kept);
+            if (markup == null || markup.contains("\"force_reply\"")) {
+                markup = TelegramReplies.keepKeyboard(markup, kept);
+                if (!kept.isEmpty()) TelegramStore.keyboardRestored(context, bot, chatId);
+            } else if (!kept.isEmpty() && TelegramStore.takeKeyboardRestore(context, bot, chatId)) {
+                // A reply with its own buttons (كشفي pages…) can't carry the bottom ones: once, a short line does.
+                try {
+                    TelegramClient.sendMessage(token, chatId, TelegramReplies.KEYBOARD_BACK, kept);
+                } catch (IOException | TelegramClient.TelegramError ignored) {
+                    // the reply itself still goes
+                }
+            }
         }
         try {
             TelegramClient.sendMessage(token, chatId, text, markup);
