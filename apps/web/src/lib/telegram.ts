@@ -461,7 +461,7 @@ export function isRepLinkedToBot(repId: string): boolean {
   return isRepsBotConnected() && targetChatIds(loadRepChats()[repId]).length > 0;
 }
 
-export async function sendRepPdf(repId: string, doc: PrintableDocument, caption: string): Promise<{ ok: true } | { ok: false; message: string }> {
+export async function sendRepPdf(repId: string, doc: PrintableDocument, caption: string, bot: RepBot = "reps"): Promise<{ ok: true } | { ok: false; message: string }> {
   const chatIds = targetChatIds(loadRepChats()[repId]);
   if (!chatIds.length || !isRepsBotConnected()) return { ok: false, message: "المندوب غير مربوط ببوت المندوبين" };
   let rendered: { fileName: string; base64: string };
@@ -474,7 +474,7 @@ export async function sendRepPdf(repId: string, doc: PrintableDocument, caption:
   let sent = false;
   for (const chatId of chatIds) {
     try {
-      await LocalBrowser.telegramSendDocument({ fileName: rendered.fileName, base64: rendered.base64, caption, bot: "reps", chatId, contentType: "application/pdf" });
+      await LocalBrowser.telegramSendDocument({ fileName: rendered.fileName, base64: rendered.base64, caption, bot, chatId, contentType: "application/pdf" });
       sent = true;
     } catch (err) {
       failure = err instanceof Error && err.message ? err.message : "تعذّر الإرسال - تأكد من الإنترنت";

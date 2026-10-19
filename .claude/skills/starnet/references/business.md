@@ -1511,3 +1511,26 @@ is never pressed while a field is empty - it refills and saves on the next try (
   device's ledger with `openSettlement` = straight to «تسوية تكلفة Starlink» of its OLDEST unpaid shipment
   (`openDebtEntries`); settling or closing it closes the ledger too. The orange «D» (a previous owner's debt) opens
   /starlink (where previous debts are paid). No open D entry behind a red D → /starlink as well.
+
+## 📊 The money bot's «كشفي», 🔎 بحث and 🔔 new operations (Oct 19 2026 - his choices)
+
+- His ask: «عندما يضغط كشفي تظهر له حساباته في مربعات… وعندما يضغط على أحدها يظهر له كشف حسابه… والمتبقي
+  له بعد خصم كل شيء أو بعد خصم ربحه فقط، ولا تظهر له تلك الأجهزة». His picks: **summary + a button
+  per account** (the squares of «📂 حساباته»: شخصي، الربح، الأوقية, then the named accounts - an empty
+  other currency left out), **both** «⚖️ الباقي بعد خصم ربحك فقط» (money accounts + profit) and «⚖️ الباقي
+  بعد خصم كل شيء» (+ named accounts, stored سيفا), each currency alone; **no device list** in كشفي.
+- A button → that account's operations, 10 per page (⬅️ أقدم / أحدث ➡️, up to 10 pages), «📄 كشف PDF»
+  (the service queues `repStatementPdf`; the app makes it and sends it in the money bot when open) and
+  «↩️ كل الحسابات». Pages are prepared in the snapshot as `ks:<key>` (+`#kb`); the service shows them
+  (`TelegramReplies.preparedPage`). Logic `lib/repBotStatement.ts`, wording `lib/repRowText.ts`.
+- **«💰 ديون زبائني» and «📒 دفتري (له/عليه)» removed** from the money bot's keyboard and help (his ask
+  «ازل ديون زبائني… ازل دفتري»); typing their words still works.
+- **🔎 بحث = his money operations** («اجعله يمكن البحث عن عملية مالية معينة مثل دين أو دفع»): a typed
+  amount (5000 / 5,000 / ٥٠٠٠), date (17/10) or word (دفعة، دين، سلفة، توثيق، an account's name) searches
+  every operation of every account (`ops`, keys folded like the Java `normalize`, every word must
+  match, 20 shown); buttons «➕ ما لك» / «➖ ما عليك» / «📋 آخر العمليات» (15 each). Any free text in the
+  money bot is this search (the payment / loan / book flows take their text first).
+- **🔔 Every new operation** in his accounts is sent to him once in the money bot (his extra pick):
+  found by comparing operation ids at each snapshot refresh (`starnet.repBotSeenOps`, phone-only);
+  the first time only remembers; up to 5 shown, then «… و N أخرى».
+- Only when the money bot is connected; without it the devices bot keeps the old text statement.

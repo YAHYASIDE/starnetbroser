@@ -937,4 +937,28 @@ public class TelegramRepliesTest {
         assertTrue(TelegramReplies.loanToOwner("علي", sifa, "نيتا", "22227268").contains("= 40,000 فرانك"));
         assertTrue(TelegramReplies.activationPaidMarkup("SIFA").contains("✅ دفع - أورانج موني (بالفرانك)"));
     }
+
+    @Test
+    public void moneyBotStatementPagesAndOperationSearch() {
+        TelegramReplies.Snapshot s = moneySnapshot();
+        // Not prepared yet: the old device search still answers.
+        assertNull(TelegramReplies.opSearch("r1", "5000", s));
+        assertNull(TelegramReplies.preparedPage("r1", "a0:0", s));
+        Map<String, String> r1 = s.reps.get("r1");
+        r1.put("ks:a0:0", "PERSONAL PAGE");
+        r1.put("ks:a0:0#kb", "{\"inline_keyboard\":[]}");
+        r1.put("ks:s", "SEARCH START");
+        r1.put("ks:s#kb", "SEARCH KB");
+        r1.put("ops", "دفعه 5000 سيفا 2026-10-17 17/10\t• 17/10 💵 دفعة 5,000 سيفا\nدين 3000 اوقيه 2026-10-16 16/10\t• 16/10 🧾 عليك 3,000 أوقية");
+        TelegramReplies.Reply page = TelegramReplies.preparedPage("r1", "a0:0", s);
+        assertTrue(page.text.startsWith("PERSONAL PAGE"));
+        assertEquals("{\"inline_keyboard\":[]}", page.markup);
+        assertNull(TelegramReplies.preparedPage("r2", "a0:0", s));
+        TelegramReplies.Reply found = TelegramReplies.forMoney("r1", "5,000", s);
+        assertTrue(found.text.contains("💵 دفعة 5,000 سيفا"));
+        assertFalse(found.text.contains("أوقية"));
+        assertEquals("SEARCH KB", found.markup);
+        assertTrue(TelegramReplies.forMoney("r1", "دين ١٦/١٠", s).text.contains("عليك 3,000 أوقية"));
+        assertTrue(TelegramReplies.forMoney("r1", "سلفة", s).text.startsWith("🔎 لم أجد"));
+    }
 }

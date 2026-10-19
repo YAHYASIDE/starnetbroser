@@ -1576,9 +1576,15 @@ final class TelegramReplies {
             return e != null && e.hasMenu() ? moneyCard(e, s) : new Reply(s.moneyHelp, false, null, s.moneyKeyboard);
         }
         String kind = s.repWords.get(normalize(commandWord(text)));
-        if (kind == null) return moneySearch(repId, cleanText(text), s);
+        if (kind == null) {
+            Reply ops = opSearch(repId, cleanText(text), s);
+            return ops != null ? ops : moneySearch(repId, cleanText(text), s);
+        }
         if ("help".equals(kind)) return new Reply(s.moneyHelp, false, null, s.moneyKeyboard);
-        if ("search".equals(kind)) return moneySearch(repId, afterCommand(text), s);
+        if ("search".equals(kind)) {
+            Reply ops = opSearch(repId, afterCommand(text), s);
+            return ops != null ? ops : moneySearch(repId, afterCommand(text), s);
+        }
         if ("payment".equals(kind) || "promise".equals(kind) || "handover".equals(kind)) return request(repId, kind, text, s, s.moneyKeyboard);
         if ("activate".equals(kind)) {
             String query = afterCommand(text);
@@ -1597,6 +1603,44 @@ final class TelegramReplies {
         if ("client".equals(kind)) return new Reply(s.clientMoved, false, null, s.moneyKeyboard);
         // Devices, renewals... belong to the devices bot.
         return new Reply("📡 هذا في بوت الأجهزة" + (s.devicesBot.isEmpty() ? "" : ": @" + s.devicesBot), false, null, s.moneyKeyboard);
+    }
+
+    /** 📊 A «كشفي» page the app prepared for him ("ks:<key>": his accounts, one account's page, a
+     * search type) - made by repStatementPages (TS). Null when not prepared. */
+    static Reply preparedPage(String repId, String key, Snapshot s) {
+        Map<String, String> mine = s == null ? null : s.reps.get(repId);
+        String text = mine == null ? null : mine.get("ks:" + key);
+        if (text == null) return null;
+        return new Reply(withTime(text, s), false, null, mine.get("ks:" + key + "#kb"));
+    }
+
+    static final int OPS_SHOWN = 20;
+
+    /** 🔎 His money operations ("ops": one "searchKey\tline" per line, newest first): every word of
+     * the query must be in the key (amount without commas, dates, account, wording) - keys made by
+     * repOpSearch (TS). Null when the app hasn't prepared them (older data: the old search). */
+    static Reply opSearch(String repId, String query, Snapshot s) {
+        Map<String, String> mine = s == null ? null : s.reps.get(repId);
+        String ops = mine == null ? null : mine.get("ops");
+        if (ops == null) return null;
+        String q = normalize(query).replace(",", "").replace("،", "");
+        if (q.isEmpty()) return preparedPage(repId, "s", s);
+        String[] words = q.split(" ");
+        List<String> found = new ArrayList<>();
+        for (String row : ops.split("\n")) {
+            int tab = row.indexOf('\t');
+            if (tab < 0) continue;
+            String key = row.substring(0, tab);
+            boolean all = true;
+            for (String w : words) if (!key.contains(w)) { all = false; break; }
+            if (all) found.add(row.substring(tab + 1));
+        }
+        String markup = mine.get("ks:s#kb");
+        if (found.isEmpty()) return new Reply("🔎 لم أجد «" + quote(query) + "» في عملياتك", false, null, markup);
+        StringBuilder text = new StringBuilder("🔎 «" + quote(query) + "» - " + found.size() + " عملية:");
+        for (int i = 0; i < found.size() && i < OPS_SHOWN; i++) text.append("\n").append(found.get(i));
+        if (found.size() > OPS_SHOWN) text.append("\n… ").append(found.size() - OPS_SHOWN).append(" أقدم - اكتب كلمة أدق (مبلغ أو تاريخ)");
+        return new Reply(withTime(text.toString(), s), false, null, markup);
     }
 
     /** Someone not linked yet, in the money / alerts bot: never any data. */
