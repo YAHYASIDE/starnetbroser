@@ -22,6 +22,9 @@ export interface CardFillData {
   updatedAt: string;
 }
 
+/** His choice: the DNI/CUIT box gets «madrid02» unless a card has its own value. */
+export const DEFAULT_TAX_ID = "madrid02";
+
 /** By the card's id (kastCards.PaymentCard). */
 export type CardFillBook = Record<string, CardFillData>;
 
@@ -119,7 +122,7 @@ export function fillItems(cards: PaymentCard[], book: CardFillBook): { label: st
       const [expMonth, expYear] = d.expiry.split("/");
       return {
         label: `${c.name} ${maskedNumber(d.number)} · ${d.expiry}`,
-        payload: JSON.stringify({ number: d.number, name: d.holderName, expMonth, expYear, cvc: d.cvc, postal: d.postalCode ?? "", address: d.address ?? "", taxId: d.taxId ?? "" }),
+        payload: JSON.stringify({ number: d.number, name: d.holderName, expMonth, expYear, cvc: d.cvc, postal: d.postalCode ?? "", address: d.address ?? "", taxId: d.taxId || DEFAULT_TAX_ID }),
       };
     });
 }

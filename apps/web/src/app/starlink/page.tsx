@@ -61,7 +61,7 @@ import {
   setDepositStatus,
 } from "@/lib/kastCards";
 import { drainKastDeposits, kastNotificationsEnabled, openKastNotificationAccess, pushFillCards } from "@/lib/localBrowser";
-import { loadCardFillBook, maskedNumber, removeCardFill, saveCardFillBook, setCardFill, validateCardFill, type CardFillBook, type CardFillData, type CardFillInput } from "@/lib/cardFill";
+import { DEFAULT_TAX_ID, loadCardFillBook, maskedNumber, removeCardFill, saveCardFillBook, setCardFill, validateCardFill, type CardFillBook, type CardFillData, type CardFillInput } from "@/lib/cardFill";
 import { getRepresentative, loadRepresentativeStore, RepresentativeStore } from "@/lib/repStore";
 import {
   buildCardStatement,
@@ -1906,7 +1906,7 @@ function CardDetailsForm({ existing, onSave, onRemove }: { existing?: CardFillDa
   const [cvc, setCvc] = useState(existing?.cvc ?? "");
   const [postalCode, setPostalCode] = useState(existing?.postalCode ?? "");
   const [address, setAddress] = useState(existing?.address ?? "");
-  const [taxId, setTaxId] = useState(existing?.taxId ?? "");
+  const [taxId, setTaxId] = useState(existing?.taxId ?? DEFAULT_TAX_ID);
   const [error, setError] = useState<string | null>(null);
   return (
     <form
