@@ -895,10 +895,10 @@ export function dayCallbackQuery(data: string): DayQuery | null {
 // ---- Requests to the operator (recorded only once he approves them in the app) ----
 
 export const REP_PAYMENT_HINT = [
-  "💵 لتسجيل دفعة استلمتها اكتب: المبلغ وعملته ثم اسم الزبون أو الجهاز",
-  "بالأوقية (الأصل): دفعة 5000 محمد",
-  "بالسيفا: دفعة 5000 سيفا محمد",
-  "بالدولار: دفعة 50 دولار محمد",
+  "💵 لتسجيل دفعة في حسابك اكتب: المبلغ وعملته",
+  "بالأوقية (الأصل): دفعة 5000",
+  "بالسيفا: دفعة 5000 سيفا",
+  "بالدولار: دفعة 50 دولار",
 ].join("\n");
 
 /** ➕ New customers are added from the app now, never from the bot. */

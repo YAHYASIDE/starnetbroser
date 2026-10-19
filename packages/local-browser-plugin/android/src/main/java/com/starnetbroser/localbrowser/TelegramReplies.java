@@ -1218,38 +1218,17 @@ final class TelegramReplies {
 
     /** The who step: the customers' names (page), or what he searched for (mode "c" customers,
      * "d" devices, "" both). */
+    /**
+     * 💵 Whose payment: HIS accounts only - 💼 his own and his 📒 named ones (his Oct 19 2026 rule «أزل عني زبائنه، فأنا
+     * لدي فقط كشوف حساباته، وزبائنه يدفعهم عنده أو يتركهم»): his customers and their devices are his business, never
+     * listed here. Whatever he types at this step shows the same choice again.
+     */
     static Reply payWho(String repId, Price price, String query, String mode, int page, Snapshot s) {
-        List<PayClient> clients = payClients(repId, s);
-        String folded = normalize(query);
         String me = personalButton(repId, price.currency, s);
         List<NamedAccount> named = namedAccounts(repId, price.currency, s);
-        String mine = named.isEmpty() ? "حسابك الشخصي (💼 أعلى القائمة)" : "حسابك الشخصي (💼) أو أحد حساباتك (📒) - أعلى القائمة -";
-        if (folded.isEmpty()) {
-            int pages = Math.max(1, (clients.size() + PAY_BUTTONS - 1) / PAY_BUTTONS);
-            String text = payHeader(price) + walletsBlock(repId, s) + (clients.isEmpty() ? "لا زبائن لك بعد - اختر «💼 في حسابي» أو أحد حساباتك، أو أخبر المسؤول."
-                : "هل هي في " + mine + " أم عن زبون؟ اضغط اسم الزبون لتظهر أجهزته" + (pages > 1 ? " (صفحة " + (Math.min(page, pages - 1) + 1) + " من " + pages + ")" : "") + ":");
-            return new Reply(text, false, null, clientsMarkup(clients, page, me, named));
-        }
-        if (!"d".equals(mode)) {
-            List<PayClient> found = new ArrayList<>();
-            for (PayClient c : clients) {
-                String name = normalize(c.name);
-                boolean all = true;
-                for (String w : folded.split(" ")) if (!name.contains(w)) { all = false; break; }
-                if (all) found.add(c);
-            }
-            if (!found.isEmpty() || "c".equals(mode)) {
-                String text = payHeader(price) + (found.isEmpty() ? "🔎 لا زبون باسم «" + quote(query) + "» - اكتب اسماً آخر أو اختر من القائمة:"
-                    : "🔎 الزبائن باسم «" + quote(query) + "» - اضغط اسمه:");
-                return new Reply(text, false, null, clientsMarkup(found.isEmpty() ? clients : found, 0, me, named));
-            }
-        }
-        List<SearchEntry> devices = new ArrayList<>();
-        for (SearchEntry e : matchEntries(repId, query, s)) if (canPayFor(e)) devices.add(e);
-        if (devices.isEmpty()) {
-            return new Reply(payHeader(price) + "🔎 لم أجد «" + quote(query) + "» بين أجهزتك - اكتب شيئاً آخر أو اختر الزبون:", false, null, clientsMarkup(clients, 0, me, named));
-        }
-        return new Reply(payHeader(price) + "🔎 الأجهزة المطابقة لـ «" + quote(query) + "» - اضغط الجهاز:", false, null, devicesMarkup(devices, true));
+        String text = payHeader(price) + walletsBlock(repId, s)
+            + (named.isEmpty() ? "تُسجَّل في حسابك 💼 - اضغط لتتابع:" : "في أي حساب؟ 💼 حسابك الشخصي أو أحد حساباتك 📒:");
+        return new Reply(text, false, null, "{\"inline_keyboard\":[" + personalRows(me, named) + "[" + cb("❌ إلغاء", "payx") + "]]}");
     }
 
     /** A device per row (with its customer when asked), then ↩️ back to the customers and ❌. */
@@ -1384,7 +1363,7 @@ final class TelegramReplies {
     }
 
     static String payConfirmMarkup() {
-        return "{\"inline_keyboard\":[[" + cb("✅ موافق - أرسلها", "payok") + "],[" + cb("✏️ غيّر الزبون", "payw") + "," + cb("❌ إلغاء", "payx") + "]]}";
+        return "{\"inline_keyboard\":[[" + cb("✅ موافق - أرسلها", "payok") + "],[" + cb("✏️ غيّر الحساب", "payw") + "," + cb("❌ إلغاء", "payx") + "]]}";
     }
 
     private static String payWhere(Price price, SearchEntry entry, boolean his, NamedAccount named) {
@@ -1593,14 +1572,15 @@ final class TelegramReplies {
             return e != null && e.hasMenu() ? moneyCard(e, s) : new Reply(s.moneyHelp, false, null, s.moneyKeyboard);
         }
         String kind = s.repWords.get(normalize(commandWord(text)));
+        // 🔎 His money operations only (his Oct 19 2026 choice) - no list of his customers or their devices.
         if (kind == null) {
             Reply ops = opSearch(repId, cleanText(text), s);
-            return ops != null ? ops : moneySearch(repId, cleanText(text), s);
+            return ops != null ? ops : new Reply(OPS_SEARCH_HINT, false, null, s.moneyKeyboard);
         }
         if ("help".equals(kind)) return new Reply(s.moneyHelp, false, null, s.moneyKeyboard);
         if ("search".equals(kind)) {
             Reply ops = opSearch(repId, afterCommand(text), s);
-            return ops != null ? ops : moneySearch(repId, afterCommand(text), s);
+            return ops != null ? ops : new Reply(OPS_SEARCH_HINT, false, null, s.moneyKeyboard);
         }
         if ("payment".equals(kind) || "promise".equals(kind) || "handover".equals(kind)) return request(repId, kind, text, s, s.moneyKeyboard);
         // 💰 Money only (his Oct 19 2026 choice): asking for an ⚡ activation is a device action - the devices
@@ -1631,6 +1611,8 @@ final class TelegramReplies {
     }
 
     static final int OPS_SHOWN = 20;
+
+    static final String OPS_SEARCH_HINT = "🔎 ابحث في عملياتك المالية: اكتب مبلغًا (5000) أو تاريخًا (17/10) أو كلمة (دفعة، دين، سلفة).";
 
     /** 🔎 His money operations ("ops": one "searchKey\tline" per line, newest first): every word of
      * the query must be in the key (amount without commas, dates, account, wording) - keys made by

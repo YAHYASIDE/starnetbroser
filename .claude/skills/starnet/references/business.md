@@ -1805,3 +1805,8 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - 💰 **The money bot is money only** (Oct 19 2026, «أي شيء لا يخص المال أزله من البوت»): his choice «طلب ⚡ تفعيل فقط» -
   the «تفعيل» command answers «⚡ طلب التفعيل في بوت الأجهزة: @…» and the device money card lost its ⚡ button; an
   approved activation's amount + the month's total still arrive in the money bot. Keyboard unchanged (no preference).
+- 💼 **The money bot asks only for his accounts** (Oct 19 2026: «أزل عني زبائنه، فأنا لدي فقط كشوف حساباته، وزبائنه
+  يدفعهم عنده أو يتركهم»; his choices «كل المناديب» + «عملياته المالية فقط»): «💵 دفعة» → whose = 💼 his personal
+  account or one of his 📒 named accounts, never a customer or a device (no customer pages, no 🔎 by customer /
+  device; a typed name shows the same choice); «✏️ غيّر الحساب». «🔎 بحث» and any typed word search his money
+  operations only (no customer list). Old buttons of messages already sent still answer.
