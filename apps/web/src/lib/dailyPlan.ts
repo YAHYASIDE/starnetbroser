@@ -16,7 +16,7 @@ import { buildExpiryReminderMessage, buildStoreDebtReminderMessage } from "./wha
 import { buildWinBackMessage, listLapsedDevices } from "./winBack";
 import { buildPromiseReminder } from "./paymentPromises";
 
-export type PlanTaskKind = "renewal" | "promise" | "debt" | "winback" | "data" | "pin";
+export type PlanTaskKind = "renewal" | "promise" | "debt" | "winback" | "data" | "pin" | "bill";
 
 export interface PlanTask {
   /** Stable for the day, so a ticked task stays ticked. */
@@ -49,6 +49,8 @@ export interface DailyPlanInput {
   maxWinBack?: number;
   /** ⏰ His pins whose «حتى تاريخ» has come (lib/deviceNotes.ts duePins). */
   pins?: DuePin[];
+  /** ⏳ Charges whose Starlink invoice hasn't come down after a day (lib/awaitingBill.ts lateAwaitingBills). */
+  bills?: { accountId: string; entryId: string; since: string }[];
 }
 
 function localDate(iso: string): Date {
@@ -70,6 +72,19 @@ export function buildDailyPlan(input: DailyPlanInput): PlanTask[] {
       detail: `${pin.text ? `${pin.text} · ` : ""}${pin.pinUntil === input.today ? "موعده اليوم" : `موعده كان ${pin.pinUntil}`}`,
       search: pin.name,
       accountId: pin.accountId,
+      priority: 3,
+    });
+  }
+
+  for (const bill of input.bills ?? []) {
+    const name = input.accounts.find((a) => a.id === bill.accountId)?.name ?? "جهاز";
+    tasks.push({
+      id: `bill:${bill.entryId}`,
+      kind: "bill",
+      title: `⏳ ${name}: فاتورة الشحن لم تنزل`,
+      detail: `منذ ${bill.since.slice(0, 10)} - افتح Billing في متصفح الجهاز، أو اكتب D بنفسك في الحركة`,
+      search: name,
+      accountId: bill.accountId,
       priority: 3,
     });
   }

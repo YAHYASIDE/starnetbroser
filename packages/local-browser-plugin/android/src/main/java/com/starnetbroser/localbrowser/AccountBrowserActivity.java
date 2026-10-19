@@ -1220,31 +1220,79 @@ public class AccountBrowserActivity extends AppCompatActivity {
     /** Durably saves one page's read (and remembers it as "the page we were on"). */
     /**
      * 📌 The right-edge tab (his Oct 12 2026 ask): after paying off a device's old debt and starting
-     * a new service, Billing shows 0 for a few minutes until the invoice comes down - pin the device
-     * in the app with a note so the charge is recorded (with D) once it does. Saved like a sync read
+     * a new service, Billing shows 0 for minutes or hours until the invoice comes down.
+     * ⏳ His Oct 19 2026 ask: he types the customer's price here - the app records the charge at once
+     * with a D that fills itself from the invoice (web lib/awaitingBill.ts, background checks after
+     * 15 min / 1 h / 3 h). «📌 ثبّت فقط» keeps the old pin with its note. Saved like a sync read
      * (PendingSyncStore, `pinRequest`) so it reaches the app even while it is stopped.
      */
     private void askPinUnrecorded() {
         if (accountId == null) return;
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("📌 تثبيت: لم يُسجَّل الشحن بعد")
-            .setMessage("يُثبَّت هذا الجهاز في التطبيق مع ملاحظة:\n«" + PinRequest.NOTE + "»\n\nسجّل المبلغ مع D عندما تنزل الفاتورة.")
-            .setPositiveButton("📌 ثبّت", (dialog, which) -> {
-                JSObject pin = new JSObject();
-                pin.put("note", PinRequest.NOTE);
-                pin.put("at", System.currentTimeMillis());
-                JSObject fields = new JSObject();
-                fields.put(PinRequest.FIELD, pin);
-                String syncId = PendingSyncStore.save(getApplicationContext(), accountId, fields);
-                if (syncId == null) {
-                    Toast.makeText(this, "تعذّر حفظ التثبيت - حاول مرة أخرى", Toast.LENGTH_LONG).show();
-                    return;
-                }
-                LocalBrowserPlugin.emitAccountDataSynced(syncId, accountId, fields);
-                Toast.makeText(this, "📌 ثُبّت الجهاز - لم يُسجَّل الشحن بعد", Toast.LENGTH_SHORT).show();
-            })
+        SharedPreferences prefs = getSharedPreferences("starnet_pin_charge", MODE_PRIVATE);
+        int pad = (int) (20 * getResources().getDisplayMetrics().density);
+        android.widget.LinearLayout box = new android.widget.LinearLayout(this);
+        box.setOrientation(android.widget.LinearLayout.VERTICAL);
+        box.setPadding(pad, pad / 2, pad, 0);
+        android.widget.EditText amountInput = new android.widget.EditText(this);
+        amountInput.setHint("سعر الزبون");
+        amountInput.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        box.addView(amountInput);
+        android.widget.RadioGroup currencies = new android.widget.RadioGroup(this);
+        currencies.setOrientation(android.widget.RadioGroup.HORIZONTAL);
+        int chosen = PinRequest.currencyIndex(prefs.getString("currency", null));
+        for (int i = 0; i < PinRequest.CURRENCIES.length; i++) {
+            android.widget.RadioButton option = new android.widget.RadioButton(this);
+            option.setId(View.generateViewId());
+            option.setText(PinRequest.CURRENCY_NAMES[i]);
+            option.setTag(PinRequest.CURRENCIES[i]);
+            currencies.addView(option);
+            if (i == chosen) option.setChecked(true);
+        }
+        box.addView(currencies);
+
+        androidx.appcompat.app.AlertDialog dialog = new androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("⏳ شحن بانتظار الفاتورة")
+            .setMessage("اكتب سعر الزبون فقط: يُسجَّل الشحن عليه الآن، ويُملأ D وحده حين تنزل فاتورة Starlink.")
+            .setView(box)
+            .setPositiveButton("⏳ سجّل الشحن", null)
+            .setNeutralButton("📌 ثبّت فقط", (d, which) -> stagePin(null, null))
             .setNegativeButton("إلغاء", null)
-            .show();
+            .create();
+        dialog.setOnShowListener(d -> dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            double amount = PinRequest.parseAmount(amountInput.getText().toString());
+            if (amount <= 0) {
+                amountInput.setError("اكتب سعر الزبون");
+                return;
+            }
+            View picked = currencies.findViewById(currencies.getCheckedRadioButtonId());
+            String currency = picked != null && picked.getTag() != null ? picked.getTag().toString() : PinRequest.CURRENCIES[0];
+            prefs.edit().putString("currency", currency).apply();
+            if (stagePin(amount, currency)) dialog.dismiss();
+        }));
+        dialog.show();
+    }
+
+    /** Stages the pin (and the charge when `amount` is set); false when it couldn't be saved. */
+    private boolean stagePin(Double amount, String currency) {
+        JSObject pin = new JSObject();
+        pin.put("note", PinRequest.NOTE);
+        pin.put("at", System.currentTimeMillis());
+        if (amount != null) {
+            JSObject charge = new JSObject();
+            charge.put("amount", amount);
+            charge.put("currency", currency);
+            pin.put("charge", charge);
+        }
+        JSObject fields = new JSObject();
+        fields.put(PinRequest.FIELD, pin);
+        String syncId = PendingSyncStore.save(getApplicationContext(), accountId, fields);
+        if (syncId == null) {
+            Toast.makeText(this, "تعذّر الحفظ - حاول مرة أخرى", Toast.LENGTH_LONG).show();
+            return false;
+        }
+        LocalBrowserPlugin.emitAccountDataSynced(syncId, accountId, fields);
+        Toast.makeText(this, amount != null ? "⏳ سُجّل الشحن - D ينتظر الفاتورة" : "📌 ثُبّت الجهاز - لم يُسجَّل الشحن بعد", Toast.LENGTH_SHORT).show();
+        return true;
     }
 
     private void saveSyncRead(JSObject fields) {

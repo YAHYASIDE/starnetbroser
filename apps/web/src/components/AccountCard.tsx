@@ -20,6 +20,7 @@ import { daysRemainingLabel, daysRemainingNumber, formatRelativeTime, renewalDat
 import { emailsMismatch } from "@/lib/emailMatch";
 import { computeBalanceByCurrency, LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerEntry } from "@/lib/ledgerStore";
 import { starlinkCostUsd, summarizeDeviceProfit } from "@/lib/accountingStore";
+import { awaitingEntries } from "@/lib/awaitingBill";
 import { faultCategory, faultLabel, isAutoFault, isWaivedCost, openDebtEntries, removeFaultQuestion } from "@/lib/deviceFault";
 import { openDebtUsdToday, paidSinceLastSyncUsd, totalPreviousDebtUsd, unrecordedGapUsd, type PreviousDebt } from "@/lib/previousDebt";
 import { computeDeviceMarks } from "@/lib/deviceMarks";
@@ -322,6 +323,7 @@ export function AccountCard({
         : "date-safe";
 
   const marks = computeDeviceMarks(ledgerEntries, allocations);
+  const awaitingBills = awaitingEntries(ledgerEntries).length;
   const profit = summarizeDeviceProfit(ledgerEntries);
   // An expected (still-D) profit has no locked MRU rate yet - today's registered rate, marked ≈.
   const currentMruRate = getCurrency(currencyStore, "MRU")?.rateFromUsd;
@@ -805,8 +807,14 @@ export function AccountCard({
             ملغى
           </button>
         )}
-        {(marks.d || marks.p || previousDebts.length > 0) && (
+        {(marks.d || marks.p || previousDebts.length > 0 || awaitingBills > 0) && (
           <span className="device-marks" aria-label="حالة الدفع">
+            {/* ⏳ a charge whose Starlink invoice hasn't come down yet (lib/awaitingBill.ts) */}
+            {awaitingBills > 0 && (
+              <span className="device-mark device-mark-awaiting" dir="ltr" title="شحن ينتظر فاتورة Starlink - يُملأ D وحده حين تنزل">
+                ⏳D
+              </span>
+            )}
             {/* 💳 his Oct 12 2026 ask «عندما أضغط على D تظهر لي مكان تسديد الفاتورة» */}
             {marks.d === "pending" && (
               <button

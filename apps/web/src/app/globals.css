@@ -16666,3 +16666,50 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   width: 100%;
   min-height: 46px;
 }
+
+/* ⏳ A charge waiting for its Starlink invoice (lib/awaitingBill.ts). */
+.device-mark-awaiting {
+  background: color-mix(in srgb, var(--brand) 16%, var(--surface));
+  border-color: var(--brand);
+  border-style: dashed;
+  color: var(--brand);
+  white-space: nowrap;
+}
+
+/* ⏳ «الفاتورة لم تنزل بعد» in the charge form. */
+.ledger-await-bill {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+  cursor: pointer;
+}
+
+.ledger-await-bill input {
+  margin-top: 3px;
+}
+
+.ledger-await-bill span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ledger-await-bill small {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.ledger-await-bill.is-suggested,
+.ledger-await-bill.is-on {
+  border-color: var(--brand);
+  border-style: solid;
+}
+
+.ledger-await-bill.is-on {
+  background: color-mix(in srgb, var(--brand) 10%, var(--surface));
+}

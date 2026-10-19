@@ -73,3 +73,19 @@ describe("⏰ pins in the plan", () => {
     ]);
   });
 });
+
+describe("⏳ a charge whose invoice didn't come down after a day", () => {
+  it("is a task on that device", () => {
+    const plan = buildDailyPlan({
+      accounts: [acc({ id: "a", name: "الدي عروته" })],
+      clients,
+      promises: [],
+      debtors: [],
+      issues: [],
+      today: "2026-10-20",
+      currencyLabel: (c) => c,
+      bills: [{ accountId: "a", entryId: "e1", since: "2026-10-19T09:00:00Z" }],
+    });
+    expect(plan.find((t) => t.id === "bill:e1")).toMatchObject({ kind: "bill", title: "⏳ الدي عروته: فاتورة الشحن لم تنزل", accountId: "a" });
+  });
+});

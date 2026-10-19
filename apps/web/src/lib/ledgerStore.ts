@@ -70,6 +70,9 @@ export interface StarlinkCost {
   /** ✓ He confirmed he really paid this D although Starlink still showed a bill after it (a new
    * month's bill, lib/settledStillDue.ts) - never offered back again. */
   stillDueOk?: boolean;
+  /** ⏳ Recorded right after a new service while Starlink still showed 0 (lib/awaitingBill.ts): the
+   * amount stays empty until a sync reads the invoice, which then fills it in. */
+  awaitingBill?: { since: string };
   note?: string;
 }
 

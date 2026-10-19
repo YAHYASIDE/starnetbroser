@@ -104,6 +104,14 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
     return { minutes: 0 };
   }
 
+  async scheduleBillCheck(_options: { accountId: string; accountName: string; delaysMs: number[] }): Promise<void> {
+    return;
+  }
+
+  async cancelBillCheck(_options: { accountId: string }): Promise<void> {
+    return;
+  }
+
   async ackPendingAccountSyncs(_options: AckPendingAccountSyncsOptions): Promise<AckPendingAccountSyncsResult> {
     return { acked: true };
   }

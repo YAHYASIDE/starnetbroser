@@ -33,6 +33,9 @@ import { HelpHint } from "./HelpHint";
 import { daysRemainingNumber, stoppedTodayNotRenewed } from "@/lib/date";
 import { computeDeviceDebtReminders, computeRenewalReminders, computeRestrictedDeviceReminders, isBackupOverdue } from "@/lib/reminders";
 import { formatAmount } from "@/lib/formatAmount";
+import { buildAwaitingCharge, fillAwaitingBills } from "@/lib/awaitingBill";
+import { syncBillChecks } from "@/lib/billChecks";
+import { addLocalEvent } from "@/lib/eventLog";
 import { applyLedgerPaymentsToCash, loadCashEntries, saveCashEntries } from "@/lib/cashStore";
 import { parseNewDevicePrefill } from "@/lib/deviceFromSale";
 import { adoptRepDevice, repDeviceSecrets } from "@/lib/repDeviceAdopt";
@@ -1189,6 +1192,10 @@ export function HomeView({
   // Kept current for the Starlink-sync listener below, which is registered once on mount and
   // must never act on a stale snapshot of either value from that first render.
   const accountsRef = useRef(accounts);
+  // ⏳ Each charge waiting for its invoice gets its background checks (from storage, never the empty first state).
+  useEffect(() => {
+    void syncBillChecks(loadLedgerStore(), accountsRef.current);
+  }, [ledgerStore]);
   useEffect(() => {
     accountsRef.current = accounts;
   }, [accounts]);
@@ -1365,7 +1372,63 @@ export function HomeView({
       await accountsReadyGateRef.current.whenReady();
 
       // 📌 The device browser's «تثبيت - لم يُسجَّل الشحن بعد» tab: a pin + note, never a Starlink read.
-      const pins = batch.filter((sync) => isBrowserPin(sync) && !processedSyncIds.has(sync.syncId));
+      const browserPins = batch.filter((sync) => isBrowserPin(sync) && !processedSyncIds.has(sync.syncId));
+      // ⏳ «شحن بانتظار الفاتورة»: the customer's price typed there - the charge is recorded with its D
+      // waiting for the invoice (lib/awaitingBill.ts); pinned instead only when it can't be.
+      const pins = browserPins.filter((sync) => !sync.fields.pinRequest?.charge);
+      const charges = browserPins.filter((sync) => sync.fields.pinRequest?.charge);
+      if (charges.length > 0) {
+        let ledger = loadLedgerStore();
+        const currencies = loadCurrencyStore();
+        const done: string[] = [];
+        const messages: string[] = [];
+        for (const sync of charges) {
+          const request = sync.fields.pinRequest!;
+          const account = accountsRef.current.find((a) => a.id === sync.accountId && !a.deletedAt);
+          if (!account) {
+            done.push(sync.syncId);
+            continue;
+          }
+          // Same id for the same staged charge: a drain after a restart never records it twice.
+          const entryId = `browser-charge-${sync.syncId}`;
+          if (getAccountEntries(ledger, account.id).some((e) => e.id === entryId)) {
+            done.push(sync.syncId);
+            continue;
+          }
+          const rep = getRepresentative(representativeStoreRef.current, shipmentRepId(account, getClient(clientStoreRef.current, account.clientId)));
+          const built = buildAwaitingCharge({
+            amount: Number(request.charge!.amount),
+            currency: request.charge!.currency,
+            at: typeof request.at === "number" && request.at > 0 ? new Date(request.at) : new Date(),
+            billCurrency: account.currency,
+            currencyStore: currencies,
+            email: account.expectedEmail ?? "",
+            representative: rep ? { id: rep.id, commissionPercent: rep.commissionPercent, sharesLosses: rep.sharesLosses, ratePlan: rep.usdRates } : undefined,
+          });
+          if (!built.ok) {
+            pins.push(sync);
+            messages.push(`⚠️ ${account.name}: ${built.message} - ثُبّت الجهاز لتسجّل الشحن بنفسك`);
+            continue;
+          }
+          ledger = withAccountEntries(ledger, account.id, [...getAccountEntries(ledger, account.id), { ...built.entry, id: entryId }]);
+          done.push(sync.syncId);
+          messages.push(`⏳ سُجّل شحن ${account.name}: ${formatAmount(built.entry.amount)} ${LEDGER_CURRENCY_LABELS[built.entry.currency]} - D ينتظر فاتورة Starlink`);
+        }
+        let saved = true;
+        try {
+          saveLedgerStore(ledger);
+        } catch {
+          saved = false; // left pending: the next drain tries again
+        }
+        if (saved) {
+          setLedgerStore(ledger);
+          for (const id of done) {
+            processedSyncIds.add(id);
+            unackedSyncIds.add(id);
+          }
+          for (const m of messages) pushToast(m);
+        }
+      }
       if (pins.length > 0) {
         const live = new Set(accountsRef.current.filter((a) => !a.deletedAt).map((a) => a.id));
         const result = applyBrowserPins(loadDeviceNotes(), pins, live);
@@ -1429,6 +1492,37 @@ export function HomeView({
       }
       const applied = committed.list ?? outcome.accounts;
       setAccounts(applied);
+      // ⏳ A read of a new bill fills the D of a charge recorded before it came down (his choice «وحده مع إشعار»).
+      const billReads = syncs
+        .filter((sync) => sync.fields.balanceDue !== undefined && !sync.fields.checkOnly && outcome.appliedSyncIds.includes(sync.syncId))
+        .map((sync) => ({
+          accountId: sync.accountId,
+          balanceDue: sync.fields.balanceDue ?? "",
+          currency: sync.fields.currency || applied.find((a) => a.id === sync.accountId)?.currency || "",
+          at: sync.recordedAt ?? Date.now(),
+        }));
+      if (billReads.length > 0) {
+        const currencies = loadCurrencyStore();
+        const fill = fillAwaitingBills(loadLedgerStore(), billReads, (code) => getCurrency(currencies, code)?.rateFromUsd);
+        if (fill.filled.length > 0) {
+          try {
+            saveLedgerStore(fill.ledger);
+            setLedgerStore(fill.ledger);
+            for (const f of fill.filled) {
+              const name = applied.find((a) => a.id === f.accountId)?.name ?? "الجهاز";
+              const text = `⏳ نزلت فاتورة ${name}: ${formatAmount(f.amount)} ${f.currencyCode} ← سُجّلت D`;
+              pushToast(text);
+              addLocalEvent(text, "/");
+            }
+          } catch {
+            // storage full: the next read fills it
+          }
+        }
+        for (const miss of fill.noRate) {
+          const name = applied.find((a) => a.id === miss.accountId)?.name ?? "الجهاز";
+          pushToast(`⏳ نزلت فاتورة ${name} بعملة ${miss.currencyCode} - أضف سعرها في «العملات» لتُسجَّل D`);
+        }
+      }
       // Keep this listener's own view of "current accounts" correct for the very next sync
       // without waiting for React's render -> effect cycle to catch up: a live event and a
       // resume-time drain (or two quick live events) can arrive back-to-back faster than that.

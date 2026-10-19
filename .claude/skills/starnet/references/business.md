@@ -1850,3 +1850,23 @@ is never pressed while a field is empty - it refills and saves on the next try (
   bottom sheet (not inline between the summary and the cards): الاسم، الهاتف، two big «📡 ستارلينك / 👤 عام» buttons
   (the open category ticked, «الكل» ticks none) + his own categories, the rep, then «⚙️ خيارات أخرى» (سقف الدين،
   العملة) folded; «📡 حفظ وإضافة جهاز» shows whenever ستارلينك is ticked.
+
+## ⏳ A charge before its invoice comes down (Oct 19 2026)
+
+- His problem: «عندما أدفع عن الجهاز دينًا وأريد أن أشحنه شحنة جديدة أو أفعّل له ROM… لا تنزل الفاتورة في نفس
+  الوقت، فأضطر إلى تثبيته إلى أن تنزل ثم أضيف المبلغ». His choices: «تسجيل فوري + تأكيد تلقائي»; he always knows
+  **the customer's price only** (Starlink's cost comes from the invoice); the check = «إعادة فحص الجهاز تلقائيًا»;
+  the invoice goes into D **by itself with a notice**; it starts from **both** the charge form and the browser's 📌.
+- Charge form (LedgerDialog, «عليه»): «⏳ الفاتورة لم تنزل بعد» (highlighted when Starlink's bill reads 0) hides
+  the cost fields; the charge is saved with an empty D `starlinkCost.awaitingBill = { since }` (status pending,
+  amount empty - so it is not an open D in any sum, and its profit is «غير محسوب» until filled).
+- Device browser's 📌 tab = «⏳ شحن بانتظار الفاتورة»: the customer's price + أوقية / سيفا / دولار (the last one
+  remembered) → «⏳ سجّل الشحن» (staged like a read, `pinRequest.charge`; the app records it with today's rate
+  and the device's rep terms, id `browser-charge-<syncId>` so a re-drain never doubles it); «📌 ثبّت فقط» keeps the
+  old pin. No rate for the currency → the old pin + a message.
+- The device is synced in the 🌙 background 15 min, 1 h and 3 h after the charge (`ScheduledSyncWorker` KIND_BILL,
+  `lib/billChecks.ts`, phone-only `starnet.billChecks`); any read after the charge whose bill exceeds the D's
+  already open fills the oldest waiting D (bill currency, today's rate locked) → toast + 🔔 «⏳ نزلت فاتورة X: …
+  ← سُجّلت D»; its remaining checks are dropped. A bill currency without a rate stays waiting with a message.
+- The card shows «⏳D» (dashed blue) while waiting; still empty after 24 h → a «⏳ … فاتورة الشحن لم تنزل» task in
+  «خطة اليوم». Logic `lib/awaitingBill.ts`.

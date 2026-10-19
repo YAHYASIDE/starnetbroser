@@ -212,8 +212,10 @@ export interface SyncedStarlinkFields {
    * fields from it and changes nothing else on the device. */
   checkOnly?: boolean;
   /** 📌 Not a read: the device browser's «تثبيت - لم يُسجَّل الشحن بعد» tab (PinRequest.java). The app
-   * pins the device with this note (lib/deviceNotes.ts `applyBrowserPins`) and changes nothing else. */
-  pinRequest?: { note?: string; at?: number };
+   * pins the device with this note (lib/deviceNotes.ts `applyBrowserPins`) and changes nothing else.
+   * ⏳ With `charge` (the customer's price typed there) the app records the charge instead, its D
+   * waiting for the invoice (apps/web lib/awaitingBill.ts). */
+  pinRequest?: { note?: string; at?: number; charge?: { amount: number; currency: string } };
   /** The password the operator typed in Starlink's sign-in form after the saved one was refused,
    * once it got in - becomes the device's starlinkPassword. Never logged. */
   loginPassword?: string;
@@ -559,6 +561,11 @@ export interface LocalBrowserPlugin {
   /** 🔁 The visible chain stopped on a 429: these devices sync by themselves in the background once
    * the cooldown is over. `minutes` = when, 0 = not retried (off, or its 2 retries used). */
   scheduleSyncRetry(options: { accounts: { accountId: string; accountName: string }[]; label?: string; travelCheck?: boolean }): Promise<{ minutes: number }>;
+  /** ⏳ A charge recorded before its invoice came down: the device syncs in the background after each
+   * delay (ms, at most 3) so the app can fill its D. Replaces the device's earlier checks. */
+  scheduleBillCheck(options: { accountId: string; accountName: string; delaysMs: number[] }): Promise<void>;
+  /** ⏳ The invoice came (or the charge is gone): drops the device's remaining checks. */
+  cancelBillCheck(options: { accountId: string }): Promise<void>;
 
   /**
    * Discards the given syncIds so listPendingAccountSyncs stops returning them. Only call this

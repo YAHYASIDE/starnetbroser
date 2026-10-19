@@ -945,6 +945,29 @@ public class LocalBrowserPlugin extends Plugin {
         call.resolve(ret);
     }
 
+    /** ⏳ A charge recorded before its invoice came down: the device is synced in the background
+     * after each delay (ms) until the app fills its D (web lib/awaitingBill.ts). */
+    @PluginMethod
+    public void scheduleBillCheck(PluginCall call) {
+        String id = call.getString("accountId", "");
+        JSArray delays = call.getArray("delaysMs");
+        if (id == null || id.isEmpty() || delays == null) {
+            call.reject("accountId and delaysMs are required");
+            return;
+        }
+        long[] ms = new long[delays.length()];
+        for (int i = 0; i < ms.length; i++) ms[i] = delays.optLong(i, 0);
+        ScheduledSyncWorker.scheduleBillChecks(getContext(), id, call.getString("accountName", ""), ms);
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void cancelBillCheck(PluginCall call) {
+        String id = call.getString("accountId", "");
+        if (id != null && !id.isEmpty()) ScheduledSyncWorker.cancelBillChecks(getContext(), id);
+        call.resolve();
+    }
+
     @PluginMethod
     public void stopBackgroundSync(PluginCall call) {
         Intent intent = new Intent(getContext(), BackgroundSyncService.class).setAction(BackgroundSyncService.ACTION_STOP);

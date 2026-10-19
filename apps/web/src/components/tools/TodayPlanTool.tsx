@@ -7,6 +7,7 @@ import type { StarlinkAccountSummary } from "@starnet/shared";
 import { PartySheet } from "@/components/AccountsSection";
 import { buildDailyPlan, type PlanTask } from "@/lib/dailyPlan";
 import { duePins, loadDeviceNotes } from "@/lib/deviceNotes";
+import { lateAwaitingBills } from "@/lib/awaitingBill";
 import { checkDataHealth, type HealthIssue, type HealthIssueKind } from "@/lib/dataHealth";
 import { deviceSearchKey, duplicateGroups, isDuplicateKind } from "@/lib/duplicateProof";
 import { computeBalanceByCurrency } from "@/lib/ledgerStore";
@@ -37,6 +38,7 @@ const KIND_LABEL: Record<PlanTask["kind"], string> = {
   winback: "استرجاع",
   data: "بيانات",
   pin: "مثبت",
+  bill: "فاتورة",
 };
 
 /** ✅ Today's checklist - ticks are remembered for the day on this phone only. */
@@ -76,6 +78,7 @@ export function TodayPlanTool({ data }: { data: ToolsData }) {
       today,
       currencyLabel: currencyLabelFor(data.currencies),
       pins: duePins(loadDeviceNotes(), data.accounts, today),
+      bills: lateAwaitingBills(data.ledger),
     });
   }, [data, own, issues, today]);
 

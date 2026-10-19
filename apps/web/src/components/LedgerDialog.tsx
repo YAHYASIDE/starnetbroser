@@ -54,6 +54,7 @@ import { EditLedgerEntryDialog } from "./EditLedgerEntryDialog";
 import { confirmClosedMonthChange, ledgerEditMonthDates, ledgerEntryMonthDates } from "@/lib/monthClosing";
 import { HelpHint } from "./HelpHint";
 import { loadExpectedCurrency } from "@/lib/partyCurrencyData";
+import { awaitingCost, parseBillAmount } from "@/lib/awaitingBill";
 import { CurrencyBadge, CurrencyBanner, useCurrencyGuard } from "./CurrencyGuard";
 import { fitPayMethod, methodLabel, PAY_CURRENCIES, PAY_CURRENCY_LABELS, payMethodsFor, toLedgerPayment, type PayCurrency } from "@/lib/payCurrency";
 
@@ -184,6 +185,9 @@ export function LedgerDialog({
 
   // Only relevant while kind === "debit" - a shipment charge, never a plain payment.
   const [markD, setMarkD] = useState(true);
+  // ⏳ «الفاتورة لم تنزل بعد» (lib/awaitingBill.ts): the customer's price now, D filled from the invoice later.
+  const billIsZero = starlinkInfo?.balanceDue !== undefined && !(parseBillAmount(starlinkInfo.balanceDue) > 0);
+  const [awaitBill, setAwaitBill] = useState(false);
   // The locked rate snapshot input, shared by both directions: a "debit" entry locks it as
   // saleRate, a "credit" entry as paymentRate (rule XIII's "cash actually collected" in USD).
   // Starts empty (not e.g. "1") whenever the currency's rate isn't already known, so a forgotten
@@ -396,7 +400,9 @@ export function LedgerDialog({
 
     let starlinkCostInput: StarlinkCost | undefined;
     let profitCurrencyRates: { MRU?: number; SIFA?: number } | undefined;
-    if (kind === "debit") {
+    if (kind === "debit" && awaitBill) {
+      starlinkCostInput = awaitingCost(costCurrencyCode || starlinkInfo?.currency);
+    } else if (kind === "debit") {
       if (!costCurrencyCode) {
         setFormError("اختر عملة دفع Starlink");
         return;
@@ -471,6 +477,7 @@ export function LedgerDialog({
       setEmail(accountEmail ?? "");
       setMarkD(false);
       setCostAmount("");
+      setAwaitBill(false);
 
       if (kind === "credit") {
         // A payment is never added directly - it first goes through the allocation dialog below
@@ -652,6 +659,20 @@ export function LedgerDialog({
                 <span>أدخل تكلفة اشتراك Starlink بعملة الدفع للجهاز</span>
               </div>
 
+              <label className={`ledger-await-bill${awaitBill ? " is-on" : ""}${billIsZero ? " is-suggested" : ""}`}>
+                <input type="checkbox" checked={awaitBill} onChange={(e) => setAwaitBill(e.target.checked)} />
+                <span>
+                  <strong>⏳ الفاتورة لم تنزل بعد</strong>
+                  <small>
+                    {awaitBill
+                      ? "يُسجَّل سعر الزبون الآن، ويُملأ D وحده من فاتورة Starlink حين تنزل - يُفحص الجهاز في الخلفية بعد 15 دقيقة ثم ساعة ثم 3 ساعات."
+                      : billIsZero
+                        ? "فاتورة Starlink الآن 0 - إن فعّلت خدمة جديدة للتو، اختر هذا واكتب سعر الزبون فقط."
+                        : "لخدمة فُعّلت للتو ولم تظهر فاتورتها في Starlink."}
+                  </small>
+                </span>
+              </label>
+
               <div className="form-field form-wide">
                 <span>عملة الدفع للجهاز</span>
                 {costCurrencyCode ? (
@@ -693,6 +714,8 @@ export function LedgerDialog({
                 )}
               </div>
 
+              {!awaitBill && (
+              <>
               <div className="ledger-cost-row">
                 <label className="form-field ledger-cost-field ledger-cost-field-amount">
                   <span>💳 المبلغ {costCurrencyCode ? <bdi dir="ltr">({costCurrencyCode})</bdi> : ""}</span>
@@ -798,6 +821,8 @@ export function LedgerDialog({
                   <strong>ربح العملية</strong>
                   <span>أكمل بيانات المبلغ والتكلفة أعلاه لحساب الربح</span>
                 </div>
+              )}
+              </>
               )}
             </div>
           )}

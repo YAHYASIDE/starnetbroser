@@ -414,6 +414,8 @@ export interface PendingSyncLike {
   syncId: string;
   accountId: string;
   fields: SyncedStarlinkFields;
+  /** When the native side saved it (a drained result; absent on a live event = now). */
+  recordedAt?: number;
 }
 
 export interface SyncOutcomeMessage {

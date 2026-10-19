@@ -30,6 +30,13 @@ public class ScheduledSyncWorker extends Worker {
     static final String KIND_MORNING = "morning";
     static final String KIND_NIGHT = "night";
     static final String KIND_RETRY = "retry";
+    /** ⏳ A charge recorded before its invoice came down (web lib/awaitingBill.ts): that device alone. */
+    static final String KIND_BILL = "bill";
+    static final String INPUT_ACCOUNT_ID = "accountId";
+    static final String INPUT_ACCOUNT_NAME = "accountName";
+    static final String BILL_LABEL = "⏳ فحص الفاتورة بعد الشحن";
+    /** The most checks one charge schedules (15 min, 1 h, 3 h). */
+    static final int BILL_CHECKS_MAX = 3;
     private static final String WORK_PREFIX = "starnet_scheduled_";
 
     static final String MORNING_LABEL = "🌅 مزامنة الصباح - أجهزة اليوم وغدًا";
@@ -69,6 +76,32 @@ public class ScheduledSyncWorker extends Worker {
         return ScheduledSyncPlan.RETRY_DELAY_MS;
     }
 
+    /** ⏳ (Re)schedules a device's invoice checks - one background sync of it after each delay. */
+    static void scheduleBillChecks(Context context, String accountId, String accountName, long[] delaysMs) {
+        cancelBillChecks(context, accountId);
+        int n = Math.min(delaysMs.length, BILL_CHECKS_MAX);
+        for (int i = 0; i < n; i++) {
+            OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(ScheduledSyncWorker.class)
+                .setInitialDelay(Math.max(0, delaysMs[i]), TimeUnit.MILLISECONDS)
+                .setInputData(new Data.Builder()
+                    .putString(INPUT_KIND, KIND_BILL)
+                    .putString(INPUT_ACCOUNT_ID, accountId)
+                    .putString(INPUT_ACCOUNT_NAME, accountName != null ? accountName : "")
+                    .build())
+                .build();
+            WorkManager.getInstance(context).enqueueUniqueWork(billWorkName(accountId, i), ExistingWorkPolicy.REPLACE, request);
+        }
+    }
+
+    /** The invoice came (or the charge is gone): its remaining checks are dropped. */
+    static void cancelBillChecks(Context context, String accountId) {
+        for (int i = 0; i < BILL_CHECKS_MAX; i++) WorkManager.getInstance(context).cancelUniqueWork(billWorkName(accountId, i));
+    }
+
+    private static String billWorkName(String accountId, int i) {
+        return WORK_PREFIX + KIND_BILL + "_" + accountId + "_" + i;
+    }
+
     private static void enqueue(Context context, String kind, long delayMs) {
         OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(ScheduledSyncWorker.class)
             .setInitialDelay(Math.max(0, delayMs), TimeUnit.MILLISECONDS)
@@ -88,9 +121,10 @@ public class ScheduledSyncWorker extends Worker {
             if (KIND_MORNING.equals(kind)) morning(context);
             else if (KIND_NIGHT.equals(kind)) night(context);
             else if (KIND_RETRY.equals(kind)) retry(context);
+            else if (KIND_BILL.equals(kind)) bill(context);
         } finally {
-            // The next day's run (a retry is one-off).
-            if (!KIND_RETRY.equals(kind)) apply(context);
+            // The next day's run (a retry or an invoice check is one-off).
+            if (KIND_MORNING.equals(kind) || KIND_NIGHT.equals(kind)) apply(context);
         }
         return Result.success();
     }
@@ -131,6 +165,17 @@ public class ScheduledSyncWorker extends Worker {
         }
         ScheduledSyncStore.setRetries(context, 0);
         startAll(context, all, "🌅");
+    }
+
+    /** ⏳ One device's invoice check; skipped while Starlink asks to slow down (the next check comes). */
+    private void bill(Context context) {
+        String id = getInputData().getString(INPUT_ACCOUNT_ID);
+        if (id == null || id.isEmpty()) return;
+        if (SyncPacing.inCooldown(SyncPacing.rateLimitedAt(context), System.currentTimeMillis())) return;
+        List<ScheduledSyncStore.Pending> one = new ArrayList<>();
+        String name = getInputData().getString(INPUT_ACCOUNT_NAME);
+        one.add(new ScheduledSyncStore.Pending(id, name != null ? name : "", ScheduledSyncStore.MODE_SYNC, BILL_LABEL));
+        startAll(context, one, "⏳");
     }
 
     private void retry(Context context) {
