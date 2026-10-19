@@ -40,6 +40,7 @@ import { PdfButton } from "./PdfButton";
 import { buildPartyStatementPdf, statementKindLabel } from "@/lib/partyStatementPdf";
 import { buildStatementData, statementNetView } from "@/lib/statementDocument";
 import { StatementImageButton } from "./StatementImageButton";
+import { filterMovements, MOVEMENT_FILTERS, movementView, type MovementFilter } from "@/lib/partyMovements";
 import { combinePhoneNumber, PHONE_COUNTRY_CODES, splitPhoneNumber } from "@/lib/phoneCountryCodes";
 import { formatAmount } from "@/lib/formatAmount";
 import { partyHue, partyInitials } from "@/lib/partyColor";
@@ -557,7 +558,9 @@ interface PartyCardProps {
 }
 
 type PartyPanel = "statement" | "devices" | null;
-type PartySheet = "balance" | "whatsapp" | "detail" | "edit" | "notes" | null;
+type PartySheet = "balance" | "whatsapp" | "detail" | "edit" | "notes" | "export" | null;
+
+const PROFIT_KEY = "starnet.statementShowProfit";
 
 /** A card action: the icon over a tiny label (and a count badge) - one short row of buttons. */
 export function ActionFace({ icon, label, count }: { icon: string; label: string; count?: number }) {
@@ -626,12 +629,50 @@ function PartyCard({
         ? { className: "party-status-credit", label: "🤝 عند المندوب" }
         : { className: "party-status-clear", label: "مسدَّد ✓" };
 
-  const statement =
-    panel !== "statement"
-      ? []
-      : isClient
-        ? buildClientCombinedStatement(invoices, adjustments, party.id, devices, ledgerStore)
-        : buildPartyStatement(invoices, kind, party.id, adjustments);
+  const fullStatement = () =>
+    isClient ? buildClientCombinedStatement(invoices, adjustments, party.id, devices, ledgerStore) : buildPartyStatement(invoices, kind, party.id, adjustments);
+  const statement = panel !== "statement" ? [] : fullStatement();
+  // 📄 His Oct 19 2026 design: each movement in three fixed columns, filtered and searchable (lib/partyMovements.ts).
+  const [moveFilter, setMoveFilter] = useState<MovementFilter>("all");
+  const [moveQuery, setMoveQuery] = useState("");
+  const [moveSearch, setMoveSearch] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showProfit, setShowProfit] = useState(() => {
+    try {
+      return window.localStorage.getItem(PROFIT_KEY) !== "0";
+    } catch {
+      return true;
+    }
+  });
+  function toggleProfit() {
+    setShowProfit((v) => {
+      try {
+        window.localStorage.setItem(PROFIT_KEY, v ? "0" : "1");
+      } catch {
+        // per-viewer convenience only
+      }
+      return !v;
+    });
+  }
+  const movements = filterMovements(
+    statement.map((row) =>
+      movementView(row, {
+        isClient,
+        emailOf: (id) => {
+          const d = devices.find((x) => x.id === id);
+          return d?.expectedEmail || d?.starlinkAccountEmail || undefined;
+        },
+        entryOf: (id, entryId) => getAccountEntries(ledgerStore, id).find((e) => e.id === entryId),
+      }),
+    ),
+    moveFilter,
+    moveQuery,
+  );
+  function copyEmail(id: string, email: string) {
+    void navigator.clipboard?.writeText(email).catch(() => undefined);
+    setCopiedId(id);
+    window.setTimeout(() => setCopiedId((c) => (c === id ? null : c)), 1500);
+  }
   const canWhatsApp = buildWhatsAppLink(party.phone) !== null;
   const deviceNames = devices.map((d) => d.name.trim()).filter(Boolean);
 
@@ -702,16 +743,24 @@ function PartyCard({
                 </div>
               )}
               {Math.abs(t.adjusted) > EPSILON && (
-                <div className="party-stat party-stat-adjusted">
-                  <span>رصيد يدوي</span>
+                <button
+                  type="button"
+                  className="party-stat party-stat-adjusted party-stat-button"
+                  title="أرصدة سُجّلت يدويًا (رصيد سابق، تصحيح…) - اضغط لتراها"
+                  onClick={() => {
+                    setPanel("statement");
+                    setMoveFilter("adjust");
+                  }}
+                >
+                  <span>تسوية رصيد</span>
                   <strong dir="ltr">
                     {t.adjusted > 0 ? "+" : "-"}
                     {formatAmount(Math.abs(t.adjusted))}
                   </strong>
-                </div>
+                </button>
               )}
               <div className={`party-stat ${t.remaining > EPSILON ? "party-stat-due" : "party-stat-clear"}`}>
-                <span>{t.remaining < -EPSILON ? (isClient ? "له" : "لنا") : isClient ? "عليه" : "له"}</span>
+                <span>{t.remaining < -EPSILON ? (isClient ? "المتبقي له" : "المتبقي لنا") : isClient ? "المتبقي عليه" : "المتبقي له"}</span>
                 <strong dir="ltr">{formatAmount(Math.abs(t.remaining))}</strong>
               </div>
             </div>
@@ -783,57 +832,104 @@ function PartyCard({
         <button type="button" className="party-action" onClick={onEdit}>
           <ActionFace icon="✎" label="تعديل" />
         </button>
+        <button type="button" className="party-action party-action-export" onClick={() => setSheet("export")}>
+          <ActionFace icon="⬇️" label="تصدير" />
+        </button>
       </div>
 
       {panel === "statement" && (
         <div className="party-panel">
-          <div className="party-panel-tools">
-            <StatementImageButton
-              build={() => buildStatementData(party, isClient, totals, statement, deviceNames, net)}
-            />
-            <PdfButton
-              className="party-action party-action-pdf"
-              label="📄 PDF"
-              build={() => buildPartyStatementPdf(party, isClient, totals, statement, deviceNames, net)}
-            />
+          <div className="party-move-tools">
+            <div className="party-move-filters" role="radiogroup" aria-label="نوع الحركات">
+              {MOVEMENT_FILTERS.map((f) => (
+                <button key={f.id} type="button" role="radio" aria-checked={moveFilter === f.id} className={moveFilter === f.id ? "active" : ""} onClick={() => setMoveFilter(f.id)}>
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            <button type="button" className={`party-move-search-btn${moveSearch || moveQuery ? " active" : ""}`} aria-label="بحث بالبريد أو الجهاز" onClick={() => setMoveSearch((v) => !v)}>
+              🔍
+            </button>
           </div>
+          {(moveSearch || moveQuery) && (
+            <input className="search-input party-move-search" type="search" placeholder="ابحث بالبريد أو الجهاز…" value={moveQuery} onChange={(e) => setMoveQuery(e.target.value)} autoFocus />
+          )}
           {statement.length === 0 ? (
             <p className="party-empty">لا توجد حركات في كشف الحساب</p>
+          ) : movements.length === 0 ? (
+            <p className="party-empty">لا حركات بهذا الاختيار</p>
           ) : (
-            <ul className="party-statement">
-              {statement.map((row) => {
-                const adjustment = row.adjustment;
-                const kindLabel = statementKindLabel(row, isClient);
-                return (
-                  <li key={row.id} className={`party-statement-row party-statement-${row.type}`}>
-                    <button type="button" className="party-statement-open" onClick={() => openDetail(row.id)} aria-label={`تفاصيل: ${kindLabel}`}>
-                    <div className="party-statement-top">
-                      <span className="party-statement-kind">{kindLabel}</span>
-                      <span className="party-statement-date" dir="ltr">{row.date}</span>
-                    </div>
-                    {row.note && <span className="party-statement-note">{row.note}</span>}
-                    <div className="party-statement-figures" dir="ltr">
-                      <span className={row.delta < 0 ? "party-statement-clear" : undefined}>
-                        <bdi dir="ltr">
-                          {row.delta < 0 ? "-" : "+"}
-                          {formatAmount(row.amount)}
-                        </bdi>{" "}
-                        {currencyLabel(row.currencyCode)}
-                      </span>
-                      {row.type === "invoice" && <span className="party-statement-paid">مدفوع {formatAmount(row.paid)}</span>}
-                      <span className={row.balanceAfter > EPSILON ? "party-statement-due" : "party-statement-clear"}>
-                        الرصيد {formatAmount(row.balanceAfter)}
-                      </span>
-                      <span className="party-statement-before">قبلها {formatAmount(row.balanceAfter - row.delta)}</span>
-                      {adjustment && <span className="party-statement-editable">✎</span>}
-                    </div>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+            <>
+              <button type="button" className="party-move-profit-toggle" onClick={toggleProfit}>
+                {showProfit ? "🙈 إخفاء الربح" : "👁 إظهار الربح"}
+              </button>
+              <ul className="party-moves">
+                {movements.map((m) => {
+                  const row = statement.find((r) => r.id === m.id)!;
+                  const cur = currencyLabel(row.currencyCode);
+                  return (
+                    <li key={m.id} className={`party-move party-move-${m.tone}`}>
+                      <div className="party-move-head">
+                        <button type="button" className="party-move-title" onClick={() => openDetail(m.id)}>
+                          <span aria-hidden="true">{m.icon}</span> {m.title}
+                          {m.device && <span className="party-move-device"> · {m.device}</span>}
+                          {row.adjustment && <span className="party-statement-editable"> ✎</span>}
+                        </button>
+                        <span className="party-move-date">
+                          {m.dateLabel}
+                          {m.time && <small> {m.time}</small>}
+                        </span>
+                      </div>
+                      {m.email && (
+                        <div className="party-move-email">
+                          <bdi dir="ltr">{m.email}</bdi>
+                          <button type="button" onClick={() => copyEmail(m.id, m.email!)} aria-label="نسخ البريد">
+                            {copiedId === m.id ? "✓" : "⧉"}
+                          </button>
+                        </div>
+                      )}
+                      {m.note && <div className="party-move-note">{m.note}</div>}
+                      <div className="party-move-cols">
+                        <div>
+                          <span>الرصيد قبل</span>
+                          <strong dir="ltr">{formatAmount(m.before)}</strong>
+                        </div>
+                        <div className="party-move-mid">
+                          <span>{m.middleLabel}</span>
+                          <strong dir="ltr">
+                            {m.tone === "debt" ? "+" : ""}
+                            {formatAmount(m.middle)}
+                          </strong>
+                        </div>
+                        <div className={`party-move-after ${m.after > EPSILON ? "is-due" : "is-clear"}`}>
+                          <span>الرصيد بعد</span>
+                          <strong dir="ltr">{formatAmount(m.after)}</strong>
+                        </div>
+                      </div>
+                      <div className="party-move-foot">
+                        <span className="party-move-cur">{cur}</span>
+                        {showProfit && m.profit && (
+                          <span className="party-move-profit">
+                            {m.profit === "uncomputed" ? "الربح غير محسوب" : <>الربح: <bdi dir="ltr">{formatAmount(m.profit.amount)}</bdi> {cur}</>}
+                          </span>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
           )}
         </div>
+      )}
+
+      {sheet === "export" && (
+        <PartySheet title={`تصدير كشف ${party.name}`} onClose={() => setSheet(null)}>
+          <div className="party-export-options">
+            <StatementImageButton build={() => buildStatementData(party, isClient, totals, fullStatement(), deviceNames, net)} />
+            <PdfButton className="party-action party-action-pdf" label="📄 PDF" build={() => buildPartyStatementPdf(party, isClient, totals, fullStatement(), deviceNames, net)} />
+          </div>
+        </PartySheet>
       )}
 
       {panel === "devices" && (

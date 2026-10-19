@@ -16251,3 +16251,99 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   font-size: 0.78rem;
 }
 .sync-run-trace small { color: var(--text-muted); }
+
+/* 📄 The customer's statement, his Oct 19 2026 design: title 13-14, numbers 14, details / date 11-12; three
+   fixed columns (قبل · المضاف / المسدَّد · بعد), «بعد» the clearest, red for debt and green for payments. */
+.party-stat-button { font: inherit; color: inherit; cursor: pointer; }
+.party-move-tools { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.party-move-filters { display: flex; flex: 1; gap: 4px; min-width: 0; overflow-x: auto; }
+.party-move-filters button,
+.party-move-search-btn {
+  flex: none;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+.party-move-filters button.active,
+.party-move-search-btn.active { border-color: var(--brand); color: var(--brand); background: color-mix(in srgb, var(--brand) 10%, var(--surface)); }
+.party-move-search { margin-bottom: 6px; font-size: 0.8rem; }
+.party-move-profit-toggle {
+  display: block;
+  margin: 0 0 4px auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.68rem;
+}
+.party-moves { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.party-move {
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-inline-start: 3px solid var(--red);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.party-move-pay { border-inline-start-color: var(--green); }
+.party-move-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.party-move-title {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.84rem; /* 13.5px */
+  font-weight: 800;
+  text-align: start;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.party-move-pay .party-move-title { color: var(--green); }
+.party-move-device { color: var(--text-muted); font-weight: 600; }
+.party-move-date { flex: none; color: var(--text-muted); font-size: 0.72rem; white-space: nowrap; }
+.party-move-date small { font-size: 0.64rem; opacity: 0.8; }
+.party-move-email { display: flex; align-items: center; gap: 6px; min-width: 0; margin-top: 1px; color: var(--text-muted); font-size: 0.72rem; }
+.party-move-email bdi { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.party-move-email button {
+  flex: none;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+.party-move-note { margin-top: 1px; color: var(--text-muted); font-size: 0.7rem; }
+.party-move-cols {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 5px;
+  padding: 4px 0;
+  border-radius: 8px;
+  background: var(--surface-alt);
+  text-align: center;
+}
+.party-move-cols > div { display: grid; gap: 0; min-width: 0; padding: 0 4px; }
+.party-move-cols > div + div { border-inline-start: 1px solid var(--border); }
+.party-move-cols span { color: var(--text-muted); font-size: 0.68rem; }
+.party-move-cols strong { color: var(--text-muted); font-size: 0.875rem; font-weight: 700; font-variant-numeric: tabular-nums; } /* 14px */
+.party-move-debt .party-move-mid strong { color: var(--red); }
+.party-move-pay .party-move-mid strong { color: var(--green); }
+.party-move-after strong { font-size: 0.95rem; font-weight: 800; }
+.party-move-after.is-due strong { color: var(--red); }
+.party-move-after.is-clear strong { color: var(--green); }
+.party-move-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 3px; }
+.party-move-cur { color: var(--text-muted); font-size: 0.66rem; }
+.party-move-profit { color: var(--text-muted); font-size: 0.64rem; opacity: 0.85; }
+.party-export-options { display: grid; gap: 8px; }
+.party-export-options .party-action { min-height: 40px; font-size: 0.85rem; }

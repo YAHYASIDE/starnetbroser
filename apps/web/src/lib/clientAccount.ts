@@ -63,6 +63,7 @@ export function buildClientCombinedStatement(
         createdAt: entry.createdAt,
         currencyCode: entry.currency,
         deviceName: device.name,
+        accountId: device.id,
         note: entry.note || undefined,
         amount: entry.amount,
         paid: entry.kind === "credit" ? entry.amount : 0,

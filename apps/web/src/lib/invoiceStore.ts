@@ -387,6 +387,8 @@ export interface PartyStatementRow {
   adjustment?: PartyAdjustment;
   /** Set for "device-*" rows (see clientAccount.ts). */
   deviceName?: string;
+  /** The device of a "device-*" row (its email, its shipment's profit - lib/partyMovements.ts). */
+  accountId?: string;
   note?: string;
   amount: number;
   paid: number;

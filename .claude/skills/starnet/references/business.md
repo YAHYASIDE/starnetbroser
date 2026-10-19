@@ -1821,3 +1821,14 @@ is never pressed while a field is empty - it refills and saves on the next try (
   «ما عليه بعدها». New «📈 كشف الأرباح PDF» / «📤 أرسل له كشف الأرباح» (`buildRepProfitPdf`): حصته المؤكدة · المتوقعة
   (D) · دفعت له من ربحه · ربحه الآن, the confirmed / expected profit tables, and the «ربحه» rows, newest first.
 - A bot payment shows in the statement only once approved in «طلبات المندوب» (then `recordRepMoneyHandover`).
+
+## 📄 The customer's statement, his own design (Oct 19 2026)
+
+- He sent a mockup + spec (مولاي زويرا): smaller type (title 13-14, numbers 14, details / date 11-12); kind + device /
+  email on top, the email on its own line with a copy button; «19 أكتوبر 2026» on one line, the time smaller; three
+  equal fixed columns الرصيد قبل · المضاف للدين (red, +) / المسدَّد (green, payments) / المخصوم (adjust) · الرصيد بعد (the
+  clearest number, red when owed, green when not), the others gray; the currency once per movement; «الربح: X» tiny
+  and muted under a shipment («الربح غير محسوب» while its cost isn't settled), hideable («🙈 إخفاء الربح»,
+  `starnet.statementShowProfit`); filters الكل / الشحن / التسديد / التعديلات + 🔍 by email or device; PDF and image in
+  one «⬇️ تصدير» sheet; the summary says «المتبقي عليه» and «رصيد يدوي» is «تسوية رصيد» (tap = its movements).
+- Logic `lib/partyMovements.ts` (movementView, filterMovements, arabicDate); rows now carry `accountId`.
