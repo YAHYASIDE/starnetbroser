@@ -692,7 +692,10 @@ final class TelegramReplies {
      * `botKeyboard` = that bot's kept buttons (repKeyboard / moneyKeyboard); none → unchanged.
      */
     static String keepKeyboard(String markup, String botKeyboard) {
-        if (markup == null || botKeyboard == null || botKeyboard.isEmpty()) return markup;
+        if (botKeyboard == null || botKeyboard.isEmpty()) return markup;
+        // A plain reply carries the buttons again too (his report «مرات لا أجدها»): once hidden they come back at
+        // the next answer. A reply with its own buttons under it (inline) keeps them - the bottom ones stay set.
+        if (markup == null) return botKeyboard;
         return markup.contains("\"force_reply\"") ? botKeyboard : markup;
     }
 

@@ -973,6 +973,8 @@ public class TelegramRepliesTest {
         String inline = "{\"inline_keyboard\":[]}";
         assertEquals(inline, TelegramReplies.keepKeyboard(inline, kept));
         assertEquals(TelegramReplies.FORCE_REPLY, TelegramReplies.keepKeyboard(TelegramReplies.FORCE_REPLY, ""));
-        assertEquals(null, TelegramReplies.keepKeyboard(null, kept));
+        // a plain reply brings the buttons back
+        assertEquals(kept, TelegramReplies.keepKeyboard(null, kept));
+        assertEquals(null, TelegramReplies.keepKeyboard(null, ""));
     }
 }
