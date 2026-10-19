@@ -685,6 +685,17 @@ final class TelegramReplies {
 
     static final String FORCE_REPLY = "{\"force_reply\":true,\"input_field_placeholder\":\"المبلغ\"}";
 
+    /**
+     * 📌 «اجعل الأيقونات ثابتة» (his Oct 19 2026 ask): a «force reply» question hides the buttons kept at the
+     * bottom of a rep's chat, and they never come back by themselves. Every flow already knows what it waits
+     * for (its pending stage), so the question is sent with the bot's own buttons instead - they stay.
+     * `botKeyboard` = that bot's kept buttons (repKeyboard / moneyKeyboard); none → unchanged.
+     */
+    static String keepKeyboard(String markup, String botKeyboard) {
+        if (markup == null || botKeyboard == null || botKeyboard.isEmpty()) return markup;
+        return markup.contains("\"force_reply\"") ? botKeyboard : markup;
+    }
+
     /** An amount and its currency (أوقية unless دولار / سيفا is written). */
     static final class Price {
         final double amount;

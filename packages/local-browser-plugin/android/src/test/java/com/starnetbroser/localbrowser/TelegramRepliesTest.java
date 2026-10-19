@@ -961,4 +961,15 @@ public class TelegramRepliesTest {
         assertTrue(TelegramReplies.forMoney("r1", "دين ١٦/١٠", s).text.contains("عليك 3,000 أوقية"));
         assertTrue(TelegramReplies.forMoney("r1", "سلفة", s).text.startsWith("🔎 لم أجد"));
     }
+
+    @Test
+    public void aQuestionKeepsTheRepsBottomButtons() {
+        String kept = "{\"keyboard\":[[{\"text\":\"💵 دفعة\"}]],\"is_persistent\":true}";
+        assertEquals(kept, TelegramReplies.keepKeyboard(TelegramReplies.FORCE_REPLY, kept));
+        assertEquals(kept, TelegramReplies.keepKeyboard(TelegramReplies.NOTE_REPLY, kept));
+        String inline = "{\"inline_keyboard\":[]}";
+        assertEquals(inline, TelegramReplies.keepKeyboard(inline, kept));
+        assertEquals(TelegramReplies.FORCE_REPLY, TelegramReplies.keepKeyboard(TelegramReplies.FORCE_REPLY, ""));
+        assertEquals(null, TelegramReplies.keepKeyboard(null, kept));
+    }
 }

@@ -1786,3 +1786,11 @@ is never pressed while a field is empty - it refills and saves on the next try (
   found by comparing operation ids at each snapshot refresh (`starnet.repBotSeenOps`, phone-only);
   the first time only remembers; up to 5 shown, then «… و N أخرى».
 - Only when the money bot is connected; without it the devices bot keeps the old text statement.
+
+## 📌 The reps' bots keep their bottom buttons (Oct 19 2026, «اجعل الأيقونات ثابتة»)
+
+- His screenshot (money bot, «💵 دفعة جديدة - اكتب المبلغ»): the question was sent as a Telegram «force reply», which
+  hides the buttons kept at the bottom of the chat, and nothing brought them back. Every flow already knows what it
+  waits for (its pending stage), so `TelegramReplyService.send` swaps any force-reply markup for that bot's own kept
+  buttons (devices bot `repKeyboard`, money bot `moneyKeyboard`; `TelegramReplies.keepKeyboard`, JUnit). The alerts
+  bot keeps no buttons. «❌ أُلغيت الدفعة» only ever comes from the «❌ إلغاء» button (`payx`).

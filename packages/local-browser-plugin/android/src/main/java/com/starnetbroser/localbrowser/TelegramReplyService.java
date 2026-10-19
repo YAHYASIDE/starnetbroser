@@ -1456,6 +1456,12 @@ public class TelegramReplyService extends Service {
 
     /** Right away; if the network drops, queued through TelegramSendWorker (linked chats only). */
     private static void send(Context context, String bot, String token, String chatId, String text, String markup) {
+        // 📌 The rep's bottom buttons stay: a «force reply» question would hide them (keepKeyboard).
+        if (markup != null && markup.contains("\"force_reply\"") && TelegramStore.isRepBot(bot)) {
+            TelegramReplies.Snapshot snapshot = loadSnapshot(context);
+            String kept = snapshot == null ? "" : TelegramStore.MONEY.equals(bot) ? snapshot.moneyKeyboard : TelegramStore.REPS.equals(bot) ? snapshot.repKeyboard : "";
+            markup = TelegramReplies.keepKeyboard(markup, kept);
+        }
         try {
             TelegramClient.sendMessage(token, chatId, text, markup);
             TelegramStore.diag(context, "replyAt", now());
