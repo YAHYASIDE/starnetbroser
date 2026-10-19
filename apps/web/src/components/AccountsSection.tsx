@@ -192,7 +192,8 @@ export function PartyDirectory({
   // 🏷️ His Oct 19 2026 design: a category row (الكل / ستارلينك / عام / his own) and «تصفية» (whose · standing).
   const [balance, setBalance] = useState<StandingFilter>("all");
   const [category, setCategory] = useState<string>("all");
-  const [showFilters, setShowFilters] = useState(true);
+  // Hidden on opening (his choice); ☰ shows a count when a filter differs from the default.
+  const [showFilters, setShowFilters] = useState(false);
   const [categoryList, setCategoryList] = useState<ClientCategory[]>([]);
   const [categorySheet, setCategorySheet] = useState(false);
   useEffect(() => setCategoryList(loadClientCategories()), []);
@@ -310,6 +311,7 @@ export function PartyDirectory({
   }
 
   const partyWord = isClients ? "زبون" : "مورد";
+  const activeFilters = isClients ? (owner !== "mine" ? 1 : 0) + (balance !== "all" ? 1 : 0) : 0;
 
   return (
     <div className={`party-section party-section-${tab}`}>
@@ -335,8 +337,8 @@ export function PartyDirectory({
       </div>
 
       <div className="party-head-actions">
-        <button type="button" className="party-add-button" onClick={() => setShowAdd((v) => !v)}>
-          {showAdd ? "✕ إلغاء" : isClients ? "＋ إضافة زبون" : "＋ إضافة مورد"}
+        <button type="button" className="party-add-button" onClick={() => setShowAdd(true)}>
+          {isClients ? "＋ إضافة زبون" : "＋ إضافة مورد"}
         </button>
         {isClients && headerAction}
       </div>
@@ -350,8 +352,16 @@ export function PartyDirectory({
           onChange={(e) => setQuery(e.target.value)}
         />
         {isClients && (
-          <button type="button" className={`btn-icon party-filter-btn${showFilters ? " is-active" : ""}`} onClick={() => setShowFilters((v) => !v)} aria-label="تصفية" title="تصفية">
-            ☰
+          <button
+            type="button"
+            className={`btn-icon party-filter-btn${showFilters ? " is-active" : ""}${activeFilters ? " has-filters" : ""}`}
+            onClick={() => setShowFilters((v) => !v)}
+            aria-label={activeFilters ? `تصفية (${activeFilters} مفعّلة)` : "تصفية"}
+            aria-expanded={showFilters}
+            title="تصفية"
+          >
+            ☰ تصفية
+            {activeFilters > 0 && <span className="party-filter-badge">{activeFilters}</span>}
           </button>
         )}
         {isClients && bulk && (
@@ -426,6 +436,19 @@ export function PartyDirectory({
               </option>
             ))}
           </select>
+          {activeFilters > 0 && (
+            <button
+              type="button"
+              className="text-action party-filter-clear"
+              onClick={() => {
+                setOwner("mine");
+                setBalance("all");
+                setSelected(new Set());
+              }}
+            >
+              ↺ مسح التصفية
+            </button>
+          )}
         </div>
       )}
 
@@ -494,22 +517,25 @@ export function PartyDirectory({
       })()}
 
       {showAdd && (
-        <PartyForm
-          submitLabel={isClients ? "إضافة الزبون" : "إضافة المورد"}
-          existing={parties}
-          namePlaceholder={isClients ? "اسم الزبون *" : "اسم المورد *"}
-          showCreditLimit={isClients}
-          categories={isClients ? categoryList : undefined}
-          initialCategories={category !== "all" && category !== STARLINK ? [category] : []}
-          starlinkMode={isClients && category === STARLINK}
-          reps={isClients && representatives ? Object.values(representatives).map((r) => ({ id: r.id, name: r.name })) : undefined}
-          onSubmit={(input) => {
-            if (isClients) onCreateClient(input);
-            else onCreateSupplier(input);
-            setShowAdd(false);
-          }}
-          onCancel={() => setShowAdd(false)}
-        />
+        <PartySheet title={isClients ? "＋ زبون جديد" : "＋ مورد جديد"} onClose={() => setShowAdd(false)}>
+          <PartyForm
+            inSheet
+            submitLabel={isClients ? "حفظ الزبون" : "حفظ المورد"}
+            existing={parties}
+            namePlaceholder={isClients ? "اسم الزبون *" : "اسم المورد *"}
+            showCreditLimit={isClients}
+            categories={isClients ? categoryList : undefined}
+            // The category open now is ticked (his choice); «الكل» ticks none.
+            initialCategories={isClients && category !== "all" ? [category] : []}
+            reps={isClients && representatives ? Object.values(representatives).map((r) => ({ id: r.id, name: r.name })) : undefined}
+            onSubmit={(input) => {
+              if (isClients) onCreateClient(input);
+              else onCreateSupplier(input);
+              setShowAdd(false);
+            }}
+            onCancel={() => setShowAdd(false)}
+          />
+        </PartySheet>
       )}
 
       {filtered.length === 0 ? (
@@ -1660,8 +1686,8 @@ interface PartyFormProps {
   /** 🏷️ Clients: his own categories to tick (with «عام»), and the ones ticked at first. */
   categories?: ClientCategory[];
   initialCategories?: string[];
-  /** 📡 Opened inside «ستارلينك»: the customer is a Starlink one, with «حفظ وإضافة جهاز». */
-  starlinkMode?: boolean;
+  /** ＋ A new customer in his own sheet: the rarely used fields fold under «خيارات أخرى». */
+  inSheet?: boolean;
   /** 🤝 A new customer can be given to a rep. */
   reps?: { id: string; name: string }[];
 }
@@ -1678,7 +1704,7 @@ function PartyForm({
   selfId,
   categories,
   initialCategories = [],
-  starlinkMode,
+  inSheet,
   reps,
 }: PartyFormProps) {
   const [name, setName] = useState(initial?.name ?? "");
@@ -1687,7 +1713,9 @@ function PartyForm({
   const [creditLimit, setCreditLimit] = useState(initial?.creditLimit ? String(initial.creditLimit) : "");
   // 💱 A customer's currency (clients only): automatic, or fixed by him (partyCurrency.ts).
   const [defaultCurrency, setDefaultCurrency] = useState<LedgerCurrency | undefined>(initial?.defaultCurrency);
-  const [tags, setTags] = useState<string[]>(() => (starlinkMode ? [STARLINK, ...initialCategories] : initialCategories));
+  const [tags, setTags] = useState<string[]>(initialCategories);
+  // 📡 «حفظ وإضافة جهاز» for a new Starlink customer.
+  const canAddDevice = !initial && tags.includes(STARLINK);
   const [repId, setRepId] = useState("");
   const toggleTag = (id: string) => setTags((t) => (t.includes(id) ? t.filter((x) => x !== id) : [...t, id]));
   const autoCurrency = useMemo(
@@ -1717,8 +1745,10 @@ function PartyForm({
   }
 
   return (
-    <form className="auth-form store-item-form" onSubmit={submit}>
+    <form className={`auth-form store-item-form${inSheet ? " party-add-form" : ""}`} onSubmit={submit}>
+      {inSheet && <span className="party-form-label">الاسم</span>}
       <input className="search-input" placeholder={namePlaceholder} value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+      {inSheet && <span className="party-form-label">الهاتف</span>}
       <div className="phone-input-row">
         <select
           className="phone-country-select"
@@ -1741,26 +1771,19 @@ function PartyForm({
         />
       </div>
       <DuplicateWarning hits={duplicates} />
-      {showCreditLimit && (
-        <input
-          className="search-input"
-          type="text" inputMode="decimal"
-          min="0"
-          step="0.01"
-          dir="ltr"
-          placeholder="سقف الدين (اختياري)"
-          value={creditLimit}
-          onChange={(e) => setCreditLimit(e.target.value)}
-        />
-      )}
-      {showCreditLimit && <DefaultCurrencyField value={defaultCurrency} auto={autoCurrency} onChange={setDefaultCurrency} />}
       {categories && (
         <div className="party-form-categories" role="group" aria-label="التصنيف">
           <span className="party-form-label">🏷️ التصنيف</span>
-          {[
-            ...BUILT_IN_CATEGORIES.map((c) => ({ id: c.id, name: `${c.icon} ${c.name}`, color: c.color })),
-            ...categories,
-          ].map((c) => (
+          <div className="party-form-main-categories">
+            {BUILT_IN_CATEGORIES.map((c) => (
+              <label key={c.id} className={`party-category-option${tags.includes(c.id) ? " is-active" : ""}`} style={{ "--chip": c.color } as CSSProperties}>
+                <input type="checkbox" checked={tags.includes(c.id)} onChange={() => toggleTag(c.id)} />
+                <span aria-hidden="true">{c.icon}</span>
+                {c.name}
+              </label>
+            ))}
+          </div>
+          {categories.map((c) => (
             <label key={c.id} className={`party-category-chip${tags.includes(c.id) ? " is-active" : ""}`} style={{ "--chip": c.color } as CSSProperties}>
               <input type="checkbox" checked={tags.includes(c.id)} onChange={() => toggleTag(c.id)} />
               {c.name}
@@ -1779,11 +1802,37 @@ function PartyForm({
           ))}
         </select>
       )}
-      <div className="settings-actions">
+      {showCreditLimit &&
+        (() => {
+          const more = (
+            <>
+              <input
+                className="search-input"
+                type="text" inputMode="decimal"
+                min="0"
+                step="0.01"
+                dir="ltr"
+                placeholder="سقف الدين (اختياري)"
+                value={creditLimit}
+                onChange={(e) => setCreditLimit(e.target.value)}
+              />
+              <DefaultCurrencyField value={defaultCurrency} auto={autoCurrency} onChange={setDefaultCurrency} />
+            </>
+          );
+          return inSheet ? (
+            <details className="party-form-more">
+              <summary>⚙️ خيارات أخرى (سقف الدين، العملة)</summary>
+              {more}
+            </details>
+          ) : (
+            more
+          );
+        })()}
+      <div className={inSheet ? "party-add-actions" : "settings-actions"}>
         <button className="dialog-primary" type="submit" disabled={!name.trim()}>
           {submitLabel}
         </button>
-        {starlinkMode && (
+        {canAddDevice && (
           <button className="dialog-primary party-save-device" type="button" disabled={!name.trim()} onClick={(e) => submit(e, true)}>
             📡 حفظ وإضافة جهاز
           </button>

@@ -1845,3 +1845,8 @@ is never pressed while a field is empty - it refills and saves on the next try (
   up); deleting one only removes the tag. Logic `lib/clientCategories.ts`; tags on `Client.categories`.
 - Add form: name, phone, 🏷️ categories, 🤝 rep (optional). Inside «ستارلينك» the category is ticked and
   «📡 حفظ وإضافة جهاز» opens the add-device form for him.
+- His follow-up (same day): the filters are **hidden on opening**, «☰ تصفية» shows/hides them and carries a
+  count when a filter differs from the default (زبائني · الكل), with «↺ مسح التصفية». «＋ إضافة زبون» opens its own
+  bottom sheet (not inline between the summary and the cards): الاسم، الهاتف، two big «📡 ستارلينك / 👤 عام» buttons
+  (the open category ticked, «الكل» ticks none) + his own categories, the rep, then «⚙️ خيارات أخرى» (سقف الدين،
+  العملة) folded; «📡 حفظ وإضافة جهاز» shows whenever ستارلينك is ticked.

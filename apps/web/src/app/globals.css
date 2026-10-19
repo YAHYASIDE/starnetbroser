@@ -16548,3 +16548,118 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   border-radius: var(--radius-md);
   background: var(--surface);
 }
+
+/* ☰ تصفية: hidden on opening, a count when a filter is on. */
+.party-filter-btn {
+  position: relative;
+  min-height: 40px;
+  white-space: nowrap;
+}
+
+.party-filter-btn.has-filters {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+.party-filter-badge {
+  position: absolute;
+  top: -6px;
+  inset-inline-start: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--brand);
+  color: var(--brand-contrast);
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+}
+
+.party-filter-clear {
+  grid-column: 1 / -1;
+  justify-self: start;
+  font-size: 0.78rem;
+}
+
+/* ＋ A new customer in his own sheet. */
+.party-add-form {
+  gap: 8px;
+}
+
+.party-add-form .party-form-label {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.party-form-main-categories {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+}
+
+.party-category-option {
+  --chip: var(--brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 46px;
+  padding: 6px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+  color: var(--text);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.party-category-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.party-category-option.is-active {
+  border-color: var(--chip);
+  background: color-mix(in srgb, var(--chip) 16%, var(--surface));
+  color: var(--chip);
+}
+
+.party-category-option.is-active::after {
+  content: "✓";
+}
+
+.party-form-more {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
+}
+
+.party-form-more[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.party-form-more summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.party-add-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.party-add-actions .dialog-primary {
+  width: 100%;
+  min-height: 46px;
+}
