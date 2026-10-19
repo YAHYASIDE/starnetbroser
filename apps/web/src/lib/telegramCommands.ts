@@ -49,6 +49,9 @@ import { loadGoals } from "./goals";
 import { handleOwnerSessionText, handleRepSessionText } from "./telegramSessionRunner";
 import type { TelegramPollMessage } from "@starnet/local-browser-plugin";
 import { getCurrency, loadCurrencyStore } from "./currencyStore";
+import { partyNetIn, type PartyNet } from "./partyNet";
+import { autoCurrencyOf } from "./partyCurrency";
+import { loadPartyCurrencyContext } from "./partyCurrencyData";
 import { loadRepresentativeStore, loadRepSettlements, type Representative } from "./repStore";
 import {
   parseRepCommand,
@@ -188,27 +191,34 @@ async function answerStatement(query: string): Promise<void> {
   const adjustments = loadPartyAdjustments();
   let doc;
   let remaining: Record<string, number>;
+  let net: PartyNet | null = null;
   if (match.kind === "client") {
     const party = clientStore[match.id]!;
     const ledgerStore = loadLedgerStore();
-    const devices = (await loadAccounts()).filter((a) => a.clientId === match.id && !a.deletedAt);
+    const allDevices = await loadAccounts();
+    const devices = allDevices.filter((a) => a.clientId === match.id && !a.deletedAt);
     const totals = computeClientCombinedTotals(invoices, adjustments, match.id, devices, ledgerStore);
+    remaining = Object.fromEntries(Object.entries(totals).map(([c, t]) => [c, t.remaining]));
+    // ⚖️ 2+ currencies: the net in his currency, as on his card (lib/partyNet.ts).
+    const rates = loadCurrencyStore();
+    const base = party.defaultCurrency ?? autoCurrencyOf("client", match.id, loadPartyCurrencyContext(allDevices)) ?? "MRU";
+    net = partyNetIn(remaining, base, (code) => getCurrency(rates, code)?.rateFromUsd);
     doc = buildPartyStatementPdf(
       party,
       true,
       totals,
       buildClientCombinedStatement(invoices, adjustments, match.id, devices, ledgerStore),
       devices.map((d) => d.name.trim()).filter(Boolean),
+      net,
     );
-    remaining = Object.fromEntries(Object.entries(totals).map(([c, t]) => [c, t.remaining]));
   } else {
     const party = supplierStore[match.id]!;
     const totals = computePartyStoreTotals(invoices, "purchase", match.id, adjustments);
     doc = buildPartyStatementPdf(party, false, totals, buildPartyStatement(invoices, "purchase", match.id, adjustments));
     remaining = Object.fromEntries(Object.entries(totals).map(([c, t]) => [c, t.remaining]));
   }
-  const owed = money(remaining);
-  const caption = `${doc.title} - ${match.name}\n${owed ? `${match.kind === "client" ? "المتبقي عليه" : "المتبقي له"}: ${owed}` : "✓ الحساب مسدَّد"}`;
+  const owed = net ? (net.amount > 0.005 ? money({ [net.currency]: net.amount }) : "") : money(remaining);
+  const caption = `${doc.title} - ${match.name}\n${owed ? `${match.kind === "client" ? "المتبقي عليه" : "المتبقي له"}: ${owed}` : net && net.amount < -0.005 ? `رصيد له: ${money({ [net.currency]: -net.amount })}` : "✓ الحساب مسدَّد"}`;
   const sent = await sendTelegramPdf(doc, caption);
   if (!sent.ok) await sendTelegramText(`تعذر إرسال كشف ${match.name}: ${sent.message}`);
 }

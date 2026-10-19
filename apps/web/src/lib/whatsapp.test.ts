@@ -500,3 +500,20 @@ describe("debt reminder wording", () => {
     expect(buildAccountStatementMessage("زبون تجريبي", entries)).toContain("• عليه 10,000 سيفا (🟠 بأورانج / نيتا: 50,000 فرانك)");
   });
 });
+
+describe("⚖️ the statement message with a net in his currency (his Oct 19 2026 report)", () => {
+  it("settled across currencies: says «متعادل», not «عليكم 32,000 سيفا» alone", () => {
+    const msg = buildStoreStatementMessage(
+      "DEMO NAME",
+      { MRU: { total: 0, paid: 0, returned: 0, adjusted: -118400, remaining: -118400 }, SIFA: { total: 0, paid: 0, returned: 0, adjusted: 32000, remaining: 32000 } },
+      "client",
+      { currency: "أوقية", amount: 0, lines: ["32,000 سيفا عليك ≈ 118,400 أوقية · بسعر 1,000 سيفا = 3,700 أوقية"] },
+    );
+    expect(msg).toContain("الحساب متعادل ✓ - لا شيء عليكم");
+    expect(msg).toContain("بسعر 1,000 سيفا = 3,700 أوقية");
+  });
+
+  it("the reminder with the net: nothing owed → the «no balance» message", () => {
+    expect(buildStoreDebtReminderMessage("DEMO NAME", { MRU: 0 })).toContain("لا يوجد لديك أي رصيد مستحق");
+  });
+});

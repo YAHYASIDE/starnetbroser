@@ -67,3 +67,15 @@ export function partyNetIn(remaining: Record<string, number>, base: string, rate
   }
   return { currency: base, amount: Math.round(amount * 100) / 100, converted };
 }
+
+/**
+ * Where his account stands (his Oct 19 2026 report: «دفع كل شيء عليه وحسابه 0، وأنت تُظهر سيفا»): with balances
+ * in 2+ currencies the net in his currency decides - 32,000 سيفا عليه against 118,400 أوقية له at 3,700 is
+ * «متعادل», never «عليه دين»; with one currency (or no rate) each currency as before.
+ */
+export function partyStanding(remaining: Record<string, number>, net: PartyNet | null): "due" | "credit" | "clear" {
+  if (net) return net.amount > EPSILON ? "due" : net.amount < -EPSILON ? "credit" : "clear";
+  const values = Object.values(remaining);
+  if (values.some((v) => v > EPSILON)) return "due";
+  return values.some((v) => v < -EPSILON) ? "credit" : "clear";
+}

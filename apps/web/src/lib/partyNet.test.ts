@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { foreignRateFromQuote, mruQuoteFor, partyNetIn } from "./partyNet";
+import { foreignRateFromQuote, mruQuoteFor, partyNetIn, partyStanding } from "./partyNet";
 
 // His example: له 60,000 سيفا, عليه 214,000 أوقية, at 1,000 سيفا = 3,600 أوقية (USD = 432 أوقية = 120 سيفا).
 const rates: Record<string, number> = { MRU: 432, SIFA: 120 };
@@ -42,5 +42,25 @@ describe("💱 «سعر 1,000 سيفا بالأوقية» in العملات (his
     expect(mruQuoteFor("MRU", 435, 435)).toBeNull();
     expect(mruQuoteFor("USD", 1, 435)).toBeNull();
     expect(mruQuoteFor("SIFA", 120, undefined)).toBeNull();
+  });
+});
+
+describe("⚖️ where his account stands (his Oct 19 2026 report «دفع كل شيء وحسابه 0»)", () => {
+  // 1,000 سيفا = 3,700 أوقية (USD = 444 أوقية = 120 سيفا).
+  const rate = (c: string) => ({ MRU: 444, SIFA: 120 })[c];
+
+  it("32,000 سيفا عليه against 118,400 أوقية له is «متعادل», never «عليه دين»", () => {
+    const remaining = { MRU: -118400, SIFA: 32000 };
+    const net = partyNetIn(remaining, "MRU", rate)!;
+    expect(net.amount).toBe(0);
+    expect(partyStanding(remaining, net)).toBe("clear");
+  });
+
+  it("the net decides the side; one currency as before", () => {
+    expect(partyStanding({ MRU: -100000, SIFA: 32000 }, partyNetIn({ MRU: -100000, SIFA: 32000 }, "MRU", rate))).toBe("due");
+    expect(partyStanding({ MRU: -120000, SIFA: 32000 }, partyNetIn({ MRU: -120000, SIFA: 32000 }, "MRU", rate))).toBe("credit");
+    expect(partyStanding({ MRU: 500 }, null)).toBe("due");
+    expect(partyStanding({ MRU: -500 }, null)).toBe("credit");
+    expect(partyStanding({ MRU: 0 }, null)).toBe("clear");
   });
 });

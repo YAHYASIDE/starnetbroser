@@ -2,6 +2,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { PartyStatementRow, PartyStoreTotals } from "./invoiceStore";
 import { DEFAULT_CONTACT, loadBusinessProfile, saveBusinessProfile } from "./pdfDocument";
+import { partyNetIn } from "./partyNet";
 import {
   buildStatementData,
   buildStatementHtml,
@@ -138,6 +139,38 @@ describe("buildStatementHtml", () => {
     const html = buildStatementHtml(buildStatementData({ name: "<img src=x>" }, true, totals, []), business, "", { width: 600 });
     expect(html).not.toContain("<img src=x>");
     expect(html).toContain("&lt;img src=x&gt;");
+  });
+});
+
+describe("⚖️ a statement in 2+ currencies says the net in his currency (his Oct 19 2026 report)", () => {
+  // His real case: 32,000 سيفا عليه (+32,000 رصيد عليه), 118,400 أوقية له - at 1,000 سيفا = 3,700 أوقية, settled.
+  const mixed: Record<string, PartyStoreTotals> = {
+    MRU: { total: 0, paid: 0, returned: 0, adjusted: -118400, remaining: -118400 },
+    SIFA: { total: 0, paid: 0, returned: 0, adjusted: 32000, remaining: 32000 },
+  };
+  const net = partyNetIn({ MRU: -118400, SIFA: 32000 }, "MRU", (c) => ({ MRU: 444, SIFA: 120 })[c])!;
+
+  it("settled: no «المبلغ المستحق عليك 32,000 سيفا», no «رصيد لك», no franc line - «متعادل» with the rate", () => {
+    const data = buildStatementData({ name: "DEMO NAME" }, true, mixed, [row(1, 0)], [], net);
+    const html = buildStatementHtml(data, business, "2026-10-19 10:49", { width: 600 });
+    expect(html).not.toContain("المبلغ المستحق عليك");
+    expect(html).not.toContain("رصيد لك");
+    expect(html).not.toContain("فرانك");
+    expect(html).toContain("الحساب متعادل");
+    expect(html).toContain("32,000 سيفا عليك ≈ 118,400 أوقية · بسعر 1,000 سيفا = 3,700 أوقية");
+  });
+
+  it("still owing: the net amount in his currency is what is due", () => {
+    const owing = partyNetIn({ MRU: -100000, SIFA: 32000 }, "MRU", (c) => ({ MRU: 444, SIFA: 120 })[c])!;
+    const html = buildStatementHtml(buildStatementData({ name: "DEMO NAME" }, true, mixed, [row(1, 0)], [], owing), business, "x", { width: 600 });
+    expect(html).toContain("المبلغ المستحق عليك");
+    expect(html).toContain("18,400");
+  });
+
+  it("without a net (one currency) nothing changes", () => {
+    const html = buildStatementHtml(buildStatementData({ name: "DEMO NAME" }, true, totals, [row(1, 46000)]), business, "x", { width: 600 });
+    expect(html).toContain("المبلغ المستحق عليك");
+    expect(html).not.toContain("الحساب بعملتك");
   });
 });
 

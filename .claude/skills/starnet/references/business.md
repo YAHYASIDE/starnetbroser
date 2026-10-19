@@ -1257,6 +1257,14 @@ is never pressed while a field is empty - it refills and saves on the next try (
   with each other currency's line «60,000 سيفا ≈ 216,000 أوقية بسعر اليوم». `partyNetIn` (lib/partyNet.ts), today's
   registry rates (العملات). Display only - the balances stay per currency, nothing is converted in the records.
   A currency without a rate → no line. Suppliers: in أوقية.
+- **The net decides what he owes everywhere he is told** (Oct 19 2026, his angry report on نافع دبو: «دفع كل شيء
+  عليه وحسابه 0 وأنت تُظهر سيفا» - +32,000 سيفا رصيد عليه, 118,400 أوقية له at 1,000 سيفا = 3,700 → the card said
+  «متعادل» but its badge said «عليه دين» and the statement image/PDF said «المبلغ المستحق عليك 32,000 سيفا · رصيد لك
+  118,400 أوقية» with the franc line). With balances in 2+ currencies (`partyNetIn` not null): the card badge and the
+  «عليهم دين» list (`partyStanding`), the statement image/PDF headline (`StatementData.net`: the net in his currency,
+  «✓ لا يوجد مبلغ مستحق - الحساب متعادل» + «⚖️ الحساب بعملتك» lines with the rate; the franc line only for a net in
+  سيفا), the WhatsApp «تذكير بالدين» and «إرسال كشف الحساب», and the bot's «كشف …» all use the net. The per-currency
+  table stays as the detail; records are never converted.
 - His follow-up: «60,000 سيفا مقابلها 214,000… سعرها كل 1,000 سيفا 3,600» (the registry gave 3,642 = 435 / 119.44).
   The line shows the rate used («بسعر 1,000 سيفا = 3,642 أوقية ✎ غيّر»); typing 3,600 sets the registry's سيفا rate to
   أوقية-rate × 1,000 ÷ 3,600 (`foreignRateFromQuote`, `setCurrencyRate` - from now on only, records keep their locks).

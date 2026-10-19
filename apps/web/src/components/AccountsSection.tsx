@@ -38,7 +38,7 @@ import {
 } from "@/lib/invoiceStore";
 import { PdfButton } from "./PdfButton";
 import { buildPartyStatementPdf, statementKindLabel } from "@/lib/partyStatementPdf";
-import { buildStatementData } from "@/lib/statementDocument";
+import { buildStatementData, statementNetView } from "@/lib/statementDocument";
 import { StatementImageButton } from "./StatementImageButton";
 import { combinePhoneNumber, PHONE_COUNTRY_CODES, splitPhoneNumber } from "@/lib/phoneCountryCodes";
 import { formatAmount } from "@/lib/formatAmount";
@@ -48,7 +48,7 @@ import { buildStoreDebtReminderMessage, buildStoreStatementMessage, buildWhatsAp
 import { PartyAdjustment, partyAdjustmentCashKind, PartyAdjustmentDirection, PartyKind, RecordPartyAdjustmentInput } from "@/lib/partyBalanceStore";
 import { DefaultCurrencyField } from "./CurrencyGuard";
 import { autoCurrencyOf } from "@/lib/partyCurrency";
-import { foreignRateFromQuote, partyNetIn, type PairQuote, type PartyNet } from "@/lib/partyNet";
+import { foreignRateFromQuote, partyNetIn, partyStanding, type PairQuote, type PartyNet } from "@/lib/partyNet";
 import { getCurrency, loadCurrencyStore, saveCurrencyStore, setCurrencyRate } from "@/lib/currencyStore";
 import { loadPartyCurrencyContext } from "@/lib/partyCurrencyData";
 
@@ -207,7 +207,8 @@ export function PartyDirectory({
         const totals = isClients
           ? computeClientCombinedTotals(invoices, adjustments, party.id, accounts.filter((a) => a.clientId === party.id), ledgerStore)
           : computePartyStoreTotals(invoices, kind, party.id, adjustments);
-        const due = Object.values(totals).some((t) => t.remaining > EPSILON);
+        // ⚖️ «عليهم دين» follows the net in his currency when he has 2+ currencies.
+        const due = partyStanding(Object.fromEntries(Object.entries(totals).map(([c, t]) => [c, t.remaining])), netFor(party, totals)) === "due";
         const repIds = isClients ? clientRepIds(party.id, accounts, party as Client) : [];
         // 🕒 His latest operation or edit - the customer on top is the last one worked on.
         const activity = isClients
@@ -220,7 +221,8 @@ export function PartyDirectory({
           : "";
         return { party, totals, due, repIds, activity };
       }),
-    [parties, invoices, kind, adjustments, isClients, accounts, ledgerStore],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [parties, invoices, kind, adjustments, isClients, accounts, ledgerStore, netContext],
   );
   const ownerRows = useMemo(() => (isClients ? rows.filter((r) => matchesClientOwner(r.repIds, owner)) : rows), [rows, owner, isClients]);
   /** «🤝 فلان» chips: every rep with at least one customer, with how many. */
@@ -607,8 +609,10 @@ function PartyCard({
   const partyKind: PartyKind = isClient ? "client" : "supplier";
   const currencies = Object.keys(totals);
   const remainingByCurrency = Object.fromEntries(Object.entries(totals).map(([c, t]) => [c, t.remaining]));
-  const hasDue = Object.values(totals).some((t) => t.remaining > EPSILON);
-  const hasCredit = !hasDue && Object.values(totals).some((t) => t.remaining < -EPSILON);
+  // ⚖️ 2+ currencies: the net in his currency decides (32,000 سيفا عليه ↔ 118,400 أوقية له = متعادل).
+  const standing = partyStanding(remainingByCurrency, net ?? null);
+  const hasDue = standing === "due";
+  const hasCredit = standing === "credit";
   const overLimit =
     creditLimit !== undefined && Object.values(totals).some((t) => t.remaining > creditLimit + EPSILON);
 
@@ -785,12 +789,12 @@ function PartyCard({
         <div className="party-panel">
           <div className="party-panel-tools">
             <StatementImageButton
-              build={() => buildStatementData(party, isClient, totals, statement, deviceNames)}
+              build={() => buildStatementData(party, isClient, totals, statement, deviceNames, net)}
             />
             <PdfButton
               className="party-action party-action-pdf"
               label="📄 PDF"
-              build={() => buildPartyStatementPdf(party, isClient, totals, statement, deviceNames)}
+              build={() => buildPartyStatementPdf(party, isClient, totals, statement, deviceNames, net)}
             />
           </div>
           {statement.length === 0 ? (
@@ -1004,7 +1008,8 @@ function PartyCard({
               <button
                 type="button"
                 className="party-sheet-option"
-                onClick={() => openWhatsApp(buildStoreDebtReminderMessage(party.name, remainingByCurrency))}
+                // ⚖️ With a net, the reminder asks for the net in his currency only (nothing when متعادل).
+                onClick={() => openWhatsApp(buildStoreDebtReminderMessage(party.name, net ? { [net.currency]: net.amount } : remainingByCurrency))}
               >
                 <span aria-hidden="true">🔔</span>
                 <span>
@@ -1016,7 +1021,7 @@ function PartyCard({
             <button
               type="button"
               className="party-sheet-option"
-              onClick={() => openWhatsApp(buildStoreStatementMessage(party.name, totals, partyKind))}
+              onClick={() => openWhatsApp(buildStoreStatementMessage(party.name, totals, partyKind, net ? statementNetView(net, isClient) : undefined))}
             >
               <span aria-hidden="true">📄</span>
               <span>

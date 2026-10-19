@@ -7,6 +7,7 @@ import { formatAmount } from "./formatAmount";
 import type { PartyStatementRow, PartyStoreTotals } from "./invoiceStore";
 import { LEDGER_CURRENCY_LABELS, LedgerCurrency } from "./ledgerStore";
 import type { PrintableDocument } from "./pdfDocument";
+import type { PartyNet } from "./partyNet";
 import { buildStatementData, statementKindLabel } from "./statementDocument";
 
 export { statementKindLabel };
@@ -23,6 +24,8 @@ export function buildPartyStatementPdf(
   totals: Record<string, PartyStoreTotals>,
   statement: PartyStatementRow[],
   devices: string[] = [],
+  /** ⚖️ The net in his currency when he has balances in 2+ currencies (lib/partyNet.ts). */
+  net: PartyNet | null = null,
 ): PrintableDocument {
   const summary = Object.entries(totals).flatMap(([code, t]) => [
     { label: `الإجمالي (${currencyLabel(code)})`, value: formatAmount(t.total) },
@@ -50,6 +53,6 @@ export function buildPartyStatementPdf(
     footerNote: isClient ? "يشمل فواتير المتجر وعمليات أجهزة Starlink المرتبطة بالزبون." : undefined,
     // Rendered with the invoice-style statement (statementDocument.ts) - the fields above stay as
     // the plain-table fallback.
-    statement: buildStatementData(party, isClient, totals, statement, devices),
+    statement: buildStatementData(party, isClient, totals, statement, devices, net),
   };
 }

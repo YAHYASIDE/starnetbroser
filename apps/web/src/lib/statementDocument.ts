@@ -8,6 +8,7 @@ import { francPayLine } from "./payCurrency";
 import qrcode from "qrcode-generator";
 import { formatAmount } from "./formatAmount";
 import type { PartyStatementRow, PartyStoreTotals } from "./invoiceStore";
+import type { PartyNet } from "./partyNet";
 import { LEDGER_CURRENCY_LABELS, LedgerCurrency } from "./ledgerStore";
 import { BusinessProfile, DEFAULT_PAYMENT_INSTRUCTIONS, escapeHtml } from "./pdfDocument";
 
@@ -52,8 +53,19 @@ export interface StatementTotalsView {
 
 /** Everything the statement shows, already in display form (plain data - safe to keep on a
  * PrintableDocument and render later). */
+/** ⚖️ His balances in several currencies as one figure in his own currency (lib/partyNet.ts). */
+export interface StatementNetView {
+  currency: string;
+  /** + he owes, − we owe him. */
+  amount: number;
+  /** «32,000 سيفا عليك ≈ 118,400 أوقية · بسعر 1,000 سيفا = 3,700 أوقية» - one per other currency. */
+  lines: string[];
+}
+
 export interface StatementData {
   isClient: boolean;
+  /** ⚖️ With balances in 2+ currencies: the net in his currency decides what he owes. */
+  net?: StatementNetView;
   partyName: string;
   partyPhone?: string;
   /** The client's devices (names), shown under the name. */
@@ -90,9 +102,11 @@ export function buildStatementData(
   totals: Record<string, PartyStoreTotals>,
   statement: PartyStatementRow[],
   devices: string[] = [],
+  net: PartyNet | null = null,
 ): StatementData {
   return {
     isClient,
+    ...(net ? { net: statementNetView(net, isClient) } : {}),
     partyName: party.name,
     partyPhone: party.phone?.trim() || undefined,
     devices: devices.length > 0 ? devices : undefined,
@@ -112,6 +126,19 @@ export function buildStatementData(
       balance: `${formatAmount(row.balanceAfter)} ${currencyLabel(row.currencyCode)}`,
       due: row.balanceAfter > EPSILON,
     })),
+  };
+}
+
+/** The net as the statement says it: each other currency, which side it is on, and the rate used. */
+export function statementNetView(net: PartyNet, isClient: boolean): StatementNetView {
+  const side = (v: number) => (v > 0 ? (isClient ? "عليك" : "لك") : isClient ? "لك" : "لنا");
+  return {
+    currency: currencyLabel(net.currency),
+    amount: net.amount,
+    lines: net.converted.map((c) => {
+      const rate = c.quote ? ` · بسعر ${formatAmount(c.quote.block)} ${currencyLabel(c.quote.foreign)} = ${formatAmount(c.quote.mru)} ${currencyLabel("MRU")}` : "";
+      return `${formatAmount(Math.abs(c.amount))} ${currencyLabel(c.currency)} ${side(c.amount)} ≈ ${formatAmount(Math.abs(c.inBase))} ${currencyLabel(net.currency)}${rate}`;
+    }),
   };
 }
 
@@ -238,8 +265,20 @@ export function buildStatementHtml(
   const e = escapeHtml;
   const title = data.isClient ? "كشف حساب زبون" : "كشف حساب مورد";
   const dueWord = data.isClient ? "المبلغ المستحق عليك" : "المبلغ المستحق لك";
-  const owed = data.totals.filter((t) => t.remaining > EPSILON);
-  const credit = data.totals.filter((t) => t.remaining < -EPSILON);
+  // ⚖️ 2+ currencies: the net in his currency is what he owes (or is owed) - never one currency alone.
+  const net = data.net;
+  const owed = net
+    ? net.amount > EPSILON ? [{ currency: net.currency, remaining: net.amount }] : []
+    : data.totals.filter((t) => t.remaining > EPSILON);
+  const credit = net
+    ? net.amount < -EPSILON ? [{ currency: net.currency, remaining: net.amount }] : []
+    : data.totals.filter((t) => t.remaining < -EPSILON);
+  const netNote = net
+    ? `<div style="margin:-6px 0 12px;padding:8px 10px;border-radius:10px;background:${C.soft};font-size:12px;color:${C.muted}">` +
+      `<div style="font-weight:700;color:${C.ink}">⚖️ الحساب بعملتك (${e(net.currency)})${Math.abs(net.amount) <= EPSILON ? " - متعادل" : ""}</div>` +
+      net.lines.map((l) => `<div>${e(l)}</div>`).join("") +
+      `</div>`
+    : "";
 
   const dueBox =
     owed.length > 0
@@ -254,7 +293,7 @@ export function buildStatementHtml(
           )
           .join("") +
         `</div>`
-      : `<div style="margin:14px 0;padding:14px 16px;border-radius:14px;background:${C.clearSoft};border:2px solid ${C.clear};font-size:17px;font-weight:800;color:${C.clear};text-align:center">✓ لا يوجد مبلغ مستحق</div>`;
+      : `<div style="margin:14px 0;padding:14px 16px;border-radius:14px;background:${C.clearSoft};border:2px solid ${C.clear};font-size:17px;font-weight:800;color:${C.clear};text-align:center">✓ لا يوجد مبلغ مستحق${net && Math.abs(net.amount) <= EPSILON ? " - الحساب متعادل" : ""}</div>`;
   const creditLine = credit
     .map(
       (t) =>
@@ -331,9 +370,17 @@ export function buildStatementHtml(
     `</div>` +
     dueBox +
     creditLine +
+    netNote +
     totalsTable +
     operations +
-    contactBlockHtml(business, 64, data.totals.find((t) => t.currency === LEDGER_CURRENCY_LABELS.SIFA)?.remaining ?? 0) +
+    // 🟠 The franc line only for سيفا he really owes (with a net: only when the net itself is in سيفا).
+    contactBlockHtml(
+      business,
+      64,
+      data.net
+        ? data.net.currency === LEDGER_CURRENCY_LABELS.SIFA ? Math.max(0, data.net.amount) : 0
+        : (data.totals.find((t) => t.currency === LEDGER_CURRENCY_LABELS.SIFA)?.remaining ?? 0),
+    ) +
     `<p style="font-size:11px;color:#8a94a3;margin-top:14px;text-align:center">${e(business.name)} - شكراً لتعاملكم معنا</p>` +
     `</div>`
   );

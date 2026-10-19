@@ -110,6 +110,8 @@ export function buildStoreStatementMessage(
   partyName: string,
   totalsByCurrency: Record<string, { total: number; paid: number; returned: number; adjusted: number; remaining: number }>,
   partyKind: "client" | "supplier",
+  /** ⚖️ 2+ currencies: the net in his currency, said once at the end (statementDocument.ts view). */
+  net?: { currency: string; amount: number; lines: string[] },
 ): string {
   const label = (currency: string) => LEDGER_CURRENCY_LABELS[currency as keyof typeof LEDGER_CURRENCY_LABELS] ?? currency;
   const blocks = Object.entries(totalsByCurrency).map(([currency, t]) => {
@@ -138,6 +140,11 @@ export function buildStoreStatementMessage(
     `مرحبًا ${partyName} 👋\n\n` +
     `كشف حسابكم لدى متجر STAR NET:\n\n` +
     (blocks.length > 0 ? blocks.join("\n\n") : "لا توجد حركات مسجلة بعد.") +
+    (net
+      ? `\n\n⚖️ الحساب بعملتكم (${net.currency}):\n` +
+        net.lines.map((l) => `• ${l}`).join("\n") +
+        `\n• ${Math.abs(net.amount) <= 0.005 ? "الحساب متعادل ✓ - لا شيء عليكم" : net.amount > 0 ? `${partyKind === "client" ? "المتبقي عليكم" : "المتبقي لكم"}: ${formatAmount(net.amount)} ${net.currency}` : `${partyKind === "client" ? "رصيدكم لدينا" : "رصيدنا لديكم"}: ${formatAmount(-net.amount)} ${net.currency}`}`
+      : "") +
     `\n\nشكرًا لتعاملكم معنا 🙏\n- STAR NET`
   );
 }
