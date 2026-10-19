@@ -16282,8 +16282,11 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   font: inherit;
   font-size: 0.68rem;
 }
-.party-moves { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+/* One column that never grows: a long word in one movement (a note, a transfer reference) widened
+   them all and pushed «الرصيد بعد» off the screen (his Oct 19 2026 screenshot). */
+.party-moves { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; margin: 0; padding: 0; list-style: none; }
 .party-move {
+  min-width: 0;
   padding: 7px 9px;
   border: 1px solid var(--border);
   border-inline-start: 3px solid var(--red);
@@ -16323,7 +16326,7 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   font-size: 0.7rem;
   line-height: 1.5;
 }
-.party-move-note { margin-top: 1px; color: var(--text-muted); font-size: 0.7rem; }
+.party-move-note { margin-top: 1px; color: var(--text-muted); font-size: 0.7rem; overflow-wrap: anywhere; }
 .party-move-cols {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
