@@ -1889,3 +1889,14 @@ is never pressed while a field is empty - it refills and saves on the next try (
   clients page (the store page's own lists are unchanged).
 - His addition: **a D shipment shows its expected profit** in the statement - «الربح المتوقع (D): ≈ X» at the sale's
   locked rate (`computeExpectedShipmentProfit`); an awaiting-invoice D stays «الربح غير محسوب».
+
+## 💳 The card's code: fresh and fast (Oct 20 2026)
+
+- His report (Payment Method → «Enter the code we sent to your email»): «لا يجلب الكود إلا بعد كثير من الوقت ودائمًا
+  يجلب كودات قديمة أقدم من الوقت المطلوب». Causes found: (1) the code was accepted from the moment the card run
+  started, so an earlier attempt's code (or the one before «Resend») counted; (2) Gmail re-posts an old mail's
+  notification with a fresh post time; (3) Gmail's search (`q=`) lags a minute or more behind a new mail.
+- Now: only a code mailed at most 90 s before the code screen showed (`CardAddFlow.codeSince`); a code already
+  typed in this run is never typed again; the code screen still there 15 s after a code → it waits for a newer
+  one (refused / «Resend»); the notification's own mail time (`when`) decides its age; the card Gmail is read
+  from its plain newest-messages list (spam included, no search lag), every 2.5 s, reading only new mail.

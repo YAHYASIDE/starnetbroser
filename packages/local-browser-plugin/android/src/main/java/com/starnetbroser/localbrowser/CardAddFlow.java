@@ -16,6 +16,12 @@ final class CardAddFlow {
     static final long MAX_MS = 10 * 60_000L;
     /** No result this long after Save → tell him to look at Billing himself. */
     static final long NO_RESULT_MS = 120_000L;
+    /** 💳 A code mailed up to this long before the code screen showed is still this one (the mail
+     * goes out as «Email» is chosen); anything older is an earlier attempt's (his Oct 20 2026 report). */
+    static final long CODE_GRACE_MS = 90_000L; // also covers a phone clock a little off Gmail's
+    /** The code screen still there this long after a code was sent: it was refused or he tapped
+     * «Resend» - wait for a newer code. */
+    static final long CODE_RETRY_MS = 15_000L;
 
     enum Action { NONE, OPEN_FORM, SAVE, EMAIL, AWAIT_CODE, SAVED, NEEDS_VERIFICATION, DECLINED }
 
@@ -61,6 +67,8 @@ final class CardAddFlow {
     private boolean emailAsked;
     private boolean awaitingCode;
     private boolean codeSent;
+    private long codeAskedAt;
+    private long codeSentAt;
     private boolean finished;
     private boolean toldNoResult;
     private Object saveFrame;
@@ -116,6 +124,7 @@ final class CardAddFlow {
             saveClickedAt = now;
         } else if ("code".equals(what)) {
             codeSent = true;
+            codeSentAt = now;
             awaitingCode = false;
         }
     }
@@ -147,9 +156,22 @@ final class CardAddFlow {
         }
         if (s.otp && filled && !awaitingCode && !codeSent) {
             awaitingCode = true;
+            codeAskedAt = now;
+            return Action.AWAIT_CODE;
+        }
+        // Still on the code screen well after a code went in: refused, or «Resend» - a newer one.
+        if (s.otp && filled && codeSent && now - codeSentAt > CODE_RETRY_MS) {
+            codeSent = false;
+            awaitingCode = true;
+            codeAskedAt = now;
             return Action.AWAIT_CODE;
         }
         return Action.NONE;
+    }
+
+    /** 💳 The awaited code was mailed at or after this (never before the run itself). */
+    long codeSince() {
+        return Math.max(startedAt, codeAskedAt - CODE_GRACE_MS);
     }
 
     /** True once, when Save was tapped long ago and nothing came back. */

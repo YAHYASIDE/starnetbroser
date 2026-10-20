@@ -26,6 +26,9 @@ final class GmailCodeFetcher implements CodeSource {
     private static final String KEY_EMAIL = "email";
     private static final long POLL_MS = 5000;
     private static final int MAX_POLLS = 36; // 3 minutes
+    /** 💳 The card's code is typed within minutes: asked faster, for the same 3 minutes. */
+    private static final long CARD_POLL_MS = 2500;
+    private static final int CARD_MAX_POLLS = 72;
     private static final int TIMEOUT_MS = 15_000;
 
     /** The linked Gmail address, or null when «بريد الرموز» was never linked. */
@@ -81,11 +84,18 @@ final class GmailCodeFetcher implements CodeSource {
         editor.apply();
     }
 
-    /** The newest card-payment code at or after `sinceMs` in this token's mailbox, or null. Blocking. */
-    static String newestPaymentCode(String token, long sinceMs) throws IOException {
-        for (String id : GmailCodes.parseIds(get(GmailCodes.paymentListUrl(), token))) {
-            String code = GmailCodes.paymentCodeIn(get(GmailCodes.messageUrl(id), token), sinceMs);
-            if (code != null) return code;
+    /** The newest card-payment code at or after `sinceMs` in this token's mailbox (never one of
+     * `alreadySent`), or null. Newest messages first, stopping at the first one older than
+     * `sinceMs`; `seen` remembers the ones without a code so a poll only reads new mail. Blocking. */
+    static String newestPaymentCode(String token, long sinceMs, java.util.Set<String> alreadySent, java.util.Set<String> seen) throws IOException {
+        for (String id : GmailCodes.parseIds(get(GmailCodes.paymentRecentUrl(), token))) {
+            if (seen.contains(id)) continue;
+            String message = get(GmailCodes.messageUrl(id), token);
+            long at = GmailCodes.internalDate(message);
+            if (at > 0 && at < sinceMs) break;
+            String code = GmailCodes.paymentCodeIn(message, sinceMs);
+            if (code != null && !alreadySent.contains(code)) return code;
+            seen.add(id);
         }
         return null;
     }
@@ -163,14 +173,20 @@ final class GmailCodeFetcher implements CodeSource {
     private final String cardEmail;
     /** 📮 A forwarded domain email (ForwardedMail): its Starlink codes, read from «بريد الرموز». */
     private String forwardedTo;
+    /** 💳 Codes already typed in this run, and mail already read without a code. */
+    private final java.util.Set<String> alreadySent = new java.util.HashSet<>();
+    private final java.util.Set<String> seenIds = java.util.Collections.synchronizedSet(new java.util.HashSet<>());
 
     GmailCodeFetcher(Activity activity, long sinceMs, Listener listener) {
         this(activity, null, sinceMs, null, listener);
     }
 
-    /** 💳 The card's billing Gmail: its newest STARLINK payment code (for «أضف البطاقة»). */
-    static GmailCodeFetcher forCardPayment(Activity activity, long sinceMs, Listener listener) {
-        return new GmailCodeFetcher(activity, sinceMs, cardCodeEmail(activity), listener);
+    /** 💳 The card's billing Gmail: its newest STARLINK payment code (for «أضف البطاقة»), never one
+     * already typed in this run. */
+    static GmailCodeFetcher forCardPayment(Activity activity, long sinceMs, java.util.Set<String> alreadySent, Listener listener) {
+        GmailCodeFetcher fetcher = new GmailCodeFetcher(activity, sinceMs, cardCodeEmail(activity), listener);
+        fetcher.alreadySent.addAll(alreadySent);
+        return fetcher;
     }
 
     private GmailCodeFetcher(Activity activity, long sinceMs, String cardEmail, Listener listener) {
@@ -221,7 +237,7 @@ final class GmailCodeFetcher implements CodeSource {
 
     private void poll() {
         if (stopped) return;
-        if (++polls > MAX_POLLS) {
+        if (++polls > (cardPayment ? CARD_MAX_POLLS : MAX_POLLS)) {
             stop();
             listener.onGiveUp();
             return;
@@ -251,7 +267,7 @@ final class GmailCodeFetcher implements CodeSource {
                 wrongAccount = linked != null && !linked.equals(GmailCodes.profileEmail(get(GmailCodes.PROFILE_URL, token)));
                 checkedAccount = true;
             }
-            if (!wrongAccount) code = cardPayment ? newestPaymentCode(token, sinceMs)
+            if (!wrongAccount) code = cardPayment ? newestPaymentCode(token, sinceMs, alreadySent, seenIds)
                 : deviceEmail != null ? newestStarlinkCode(token, sinceMs, tried, forwardedTo) : newestCode(token, sinceMs);
         } catch (IOException ignored) {
             // a network hiccup or a stale token: the next poll tries again
@@ -267,7 +283,7 @@ final class GmailCodeFetcher implements CodeSource {
                 stop();
                 listener.onCode(found);
             } else {
-                main.postDelayed(poll, POLL_MS);
+                main.postDelayed(poll, cardPayment ? CARD_POLL_MS : POLL_MS);
             }
         });
     }

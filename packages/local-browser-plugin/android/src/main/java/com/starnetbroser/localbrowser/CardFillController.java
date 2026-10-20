@@ -65,6 +65,8 @@ final class CardFillController {
     private String lastOnFile;
     private JavaScriptReplyProxy paymentEditFrame;
     private JavaScriptReplyProxy otpFrame;
+    /** 💳 The codes typed in this run - never typed again (a refused or replaced one). */
+    private final java.util.Set<String> sentCodes = new java.util.HashSet<>();
     /** What was on the clipboard when the code field showed - an old copy is never the code. */
     private String clipAtOtp;
     /** 💳 Reads the card company's code from the card's billing Gmail, when linked. */
@@ -292,12 +294,15 @@ final class CardFillController {
 
     private void awaitCode() {
         clipAtOtp = readClipboard();
-        PaymentCodeInbox.await(flow.startedAt, codeListener);
+        stopGmail();
+        // Only a code mailed for THIS code screen (his Oct 20 2026 report: old codes came back).
+        long since = flow.codeSince();
+        PaymentCodeInbox.await(since, sentCodes, codeListener);
         // 📧 The surest path: read the code straight from the card's billing Gmail (if linked),
         // since Gmail's notification often hides it inside the mail body.
         boolean gmail = GmailCodeFetcher.cardCodeEmail(activity) != null;
         if (gmail) {
-            codeFromGmail = GmailCodeFetcher.forCardPayment(activity, flow.startedAt, new CodeSource.Listener() {
+            codeFromGmail = GmailCodeFetcher.forCardPayment(activity, since, sentCodes, new CodeSource.Listener() {
                 @Override
                 public void onCode(String code) {
                     new Handler(Looper.getMainLooper()).post(() -> sendCode(code));
@@ -329,9 +334,12 @@ final class CardFillController {
 
     private void sendCode(String code) {
         if (!flowRunning() || !flow.awaitingCode() || otpFrame == null) return;
+        String digits = code.replaceAll("\\D", "");
+        if (sentCodes.contains(digits)) return;
         PaymentCodeInbox.stop(codeListener);
         stopGmail();
-        send(otpFrame, "{\"cmd\":\"code\",\"code\":\"" + code.replaceAll("\\D", "") + "\"}");
+        sentCodes.add(digits);
+        send(otpFrame, "{\"cmd\":\"code\",\"code\":\"" + digits + "\"}");
     }
 
     private final Runnable tick = new Runnable() {
@@ -355,6 +363,7 @@ final class CardFillController {
         flowPayload = null;
         otpFrame = null;
         clipAtOtp = null;
+        sentCodes.clear();
         PaymentCodeInbox.stop(codeListener);
         stopGmail();
         handler.removeCallbacks(tick);

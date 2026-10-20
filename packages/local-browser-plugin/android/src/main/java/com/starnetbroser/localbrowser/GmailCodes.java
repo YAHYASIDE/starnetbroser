@@ -105,6 +105,21 @@ final class GmailCodes {
      * content (the payment processor's sender varies), of the last hour only. */
     static final String PAYMENT_QUERY = "newer_than:1h (\"STARLINK INTERNET\" OR \"confirm your payment\" OR \"confirm the following payment\")";
 
+    /** 💳 The newest messages as they arrive (spam too) - Gmail's search («q=») can lag a minute or
+     * more behind a new mail, the plain list doesn't (his Oct 20 2026 report «يجلب الكود بعد وقت طويل»). */
+    static String paymentRecentUrl() {
+        return MESSAGES_URL + "?maxResults=8&includeSpamTrash=true";
+    }
+
+    /** When Gmail received this message (format=full / metadata), 0 when unknown. */
+    static long internalDate(String messageJson) {
+        try {
+            return new JSONObject(messageJson).optLong("internalDate", 0);
+        } catch (JSONException e) {
+            return 0;
+        }
+    }
+
     static String paymentListUrl() {
         try {
             return MESSAGES_URL + "?maxResults=5&q=" + URLEncoder.encode(PAYMENT_QUERY, StandardCharsets.UTF_8.name());

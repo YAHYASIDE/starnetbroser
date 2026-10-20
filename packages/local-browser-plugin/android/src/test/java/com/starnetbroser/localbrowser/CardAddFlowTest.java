@@ -107,4 +107,33 @@ public class CardAddFlowTest {
         assertEquals("1111", s.onFile);
         assertNull(s.error);
     }
+
+    @Test
+    public void onlyACodeMailedForThisCodeScreenAndANewerOneAfterARefusal() {
+        Object form = new Object();
+        Object verify = new Object();
+        CardAddFlow flow = new CardAddFlow("1111", 0, "9999");
+        flow.onSight(form, sight("\"save\":true"), 1);
+        flow.filled(5);
+        flow.clicked("save", 2);
+        flow.onSight(verify, sight("\"verifyChoice\":true"), 3);
+        long asked = 10 * 60_000L;
+        assertEquals(CardAddFlow.Action.AWAIT_CODE, flow.onSight(verify, sight("\"otp\":true"), asked));
+        // An earlier attempt's mail (more than a minute before the screen) is not this code.
+        assertEquals(asked - CardAddFlow.CODE_GRACE_MS, flow.codeSince());
+        flow.clicked("code", asked + 1000);
+        // The screen still there right after the code: nothing yet.
+        assertEquals(CardAddFlow.Action.NONE, flow.onSight(verify, sight("\"otp\":true"), asked + 5000));
+        // Still there 15 s later: refused or «Resend» - wait again for a newer code.
+        long again = asked + 1000 + CardAddFlow.CODE_RETRY_MS + 1;
+        assertEquals(CardAddFlow.Action.AWAIT_CODE, flow.onSight(verify, sight("\"otp\":true"), again));
+        assertTrue(flow.awaitingCode());
+        assertEquals(again - CardAddFlow.CODE_GRACE_MS, flow.codeSince());
+    }
+
+    @Test
+    public void theCodeSinceIsNeverBeforeTheRun() {
+        CardAddFlow flow = new CardAddFlow("1111", 50_000, null);
+        assertEquals(50_000, flow.codeSince());
+    }
 }

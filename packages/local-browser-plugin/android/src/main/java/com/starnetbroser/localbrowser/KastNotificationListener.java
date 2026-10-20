@@ -186,7 +186,11 @@ public class KastNotificationListener extends NotificationListenerService {
     private void offerPaymentCode(StatusBarNotification sbn) {
         if (!PaymentCodeInbox.isWaiting()) return;
         String[] tt = titleAndText(sbn);
-        if (tt != null) PaymentCodeInbox.offer(tt[0], tt[1], sbn.getPostTime());
+        // Gmail re-posts an old mail's notification (a new one in the same group) with a fresh post
+        // time: the mail's own time (`when`) says how old the code really is.
+        long when = sbn.getNotification() != null ? sbn.getNotification().when : 0;
+        long at = when > 0 ? Math.min(when, sbn.getPostTime()) : sbn.getPostTime();
+        if (tt != null) PaymentCodeInbox.offer(tt[0], tt[1], at);
     }
 
     private void keepBankNotice(StatusBarNotification sbn) {

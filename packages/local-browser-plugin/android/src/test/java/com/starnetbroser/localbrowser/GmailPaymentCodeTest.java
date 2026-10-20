@@ -34,4 +34,12 @@ public class GmailPaymentCodeTest {
         assertNull("too old", GmailCodes.paymentCodeIn(message(500, "STARLINK INTERNET", body), 1000));
         assertNull("kast is not this code", GmailCodes.paymentCodeIn(message(5000, "Your KAST verification code", "KAST code 999999"), 1000));
     }
+
+    @Test
+    public void theMailTimeAndTheUnsearchedList() {
+        assertEquals(5000, GmailCodes.internalDate(message(5000, "STARLINK INTERNET", "x")));
+        assertEquals(0, GmailCodes.internalDate("not json"));
+        assertEquals(true, GmailCodes.paymentRecentUrl().contains("includeSpamTrash=true"));
+        assertEquals(false, GmailCodes.paymentRecentUrl().contains("q="));
+    }
 }

@@ -16,10 +16,17 @@ final class PaymentCodeInbox {
 
     private static Listener listener;
     private static long since;
+    private static java.util.Set<String> used = java.util.Collections.emptySet();
 
     /** Wait for a code posted at/after {@code sinceMillis}. Replaces any earlier wait. */
     static synchronized void await(long sinceMillis, Listener l) {
+        await(sinceMillis, java.util.Collections.emptySet(), l);
+    }
+
+    /** …never one of {@code alreadySent} (a code already typed in this run was refused / replaced). */
+    static synchronized void await(long sinceMillis, java.util.Set<String> alreadySent, Listener l) {
         since = sinceMillis;
+        used = new java.util.HashSet<>(alreadySent);
         listener = l;
     }
 
@@ -41,7 +48,7 @@ final class PaymentCodeInbox {
         String code = PaymentCode.fromNotification(title, text);
         if (code == null) return false;
         synchronized (PaymentCodeInbox.class) {
-            if (listener != l) return false;
+            if (listener != l || used.contains(code)) return false;
             listener = null;
         }
         l.onCode(code);
