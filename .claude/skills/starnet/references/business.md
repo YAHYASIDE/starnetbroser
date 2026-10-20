@@ -1875,3 +1875,17 @@ is never pressed while a field is empty - it refills and saves on the next try (
   and 12 h** after the charge (his own schedule, «فقط»; was 15 min / 1 h / 3 h).
 - The card shows «⏳D» (dashed blue) while waiting; still empty after 24 h → a «⏳ … فاتورة الشحن لم تنزل» task in
   «خطة اليوم». Logic `lib/awaitingBill.ts`.
+
+## ✎ Editing operations from a customer's statement (Oct 20 2026)
+
+- His ask «أضف إمكانية تعديل العمليات» (screenshot: three «فاتورة بيع (المتجر)» rows that couldn't be edited).
+  His choices: everything on a sale invoice - **الكمية والسعر والخصم · المدفوع · التاريخ والملاحظة · حذف الفاتورة**;
+  opened from **a «✎ تعديل» button on every movement** (adjustment → its edit sheet + «🗑 حذف العملية»; device
+  operation → the device's operation dialog; invoice / return → `InvoiceEditSheet`).
+- `lib/invoiceEdit.ts`: an edit rebuilds the invoice through `createInvoice` with the same id and creation time
+  (its stock movements re-made, stock can't go negative), the cash it brought follows its paid amount
+  (`syncInvoiceCash`); delete removes the invoice, its stock movements and its cash. An invoice with a return
+  filed against it is locked («عليها مرتجع - احذف المرتجع أولًا»); a return can only be deleted. Wired on the
+  clients page (the store page's own lists are unchanged).
+- His addition: **a D shipment shows its expected profit** in the statement - «الربح المتوقع (D): ≈ X» at the sale's
+  locked rate (`computeExpectedShipmentProfit`); an awaiting-invoice D stays «الربح غير محسوب».

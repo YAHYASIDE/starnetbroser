@@ -37,6 +37,8 @@ import {
   PartyStoreTotals,
 } from "@/lib/invoiceStore";
 import { PdfButton } from "./PdfButton";
+import { InvoiceEditSheet } from "./InvoiceEditSheet";
+import { invoiceLockReason, type InvoiceEditInput } from "@/lib/invoiceEdit";
 import { buildPartyStatementPdf, statementKindLabel } from "@/lib/partyStatementPdf";
 import { buildStatementData, statementNetView } from "@/lib/statementDocument";
 import { StatementImageButton } from "./StatementImageButton";
@@ -148,6 +150,9 @@ interface PartyDirectoryProps extends Props {
   onDeleteDeviceEntry?: (entryId: string) => boolean;
   /** ✎ Edits a device operation from a customer's statement, in the device's own operation dialog. */
   onEditDeviceEntry?: (entryId: string) => void;
+  /** ✎ / 🗑 A store invoice from a customer's statement (lib/invoiceEdit.ts) - an error, or null once saved. */
+  onEditInvoice?: (invoiceId: string, input: InvoiceEditInput) => string | null;
+  onDeleteInvoice?: (invoiceId: string) => string | null;
   /** 💵 The page's «دفعة من زبون», shown beside «＋ إضافة زبون». */
   headerAction?: React.ReactNode;
 }
@@ -178,6 +183,8 @@ export function PartyDirectory({
   renderDevice,
   onDeleteDeviceEntry,
   onEditDeviceEntry,
+  onEditInvoice,
+  onDeleteInvoice,
   headerAction,
 }: PartyDirectoryProps) {
   const [tab, setTab] = useState<PartyTab>("clients");
@@ -640,6 +647,8 @@ export function PartyDirectory({
                 renderDevice={isClients ? renderDevice : undefined}
                 onDeleteDeviceEntry={isClients ? onDeleteDeviceEntry : undefined}
                 onEditDeviceEntry={isClients ? onEditDeviceEntry : undefined}
+                onEditInvoice={onEditInvoice}
+                onDeleteInvoice={onDeleteInvoice}
               />
             ),
           )}
@@ -676,10 +685,12 @@ interface PartyCardProps {
   renderDevice?: (device: StarlinkAccountSummary) => React.ReactNode;
   onDeleteDeviceEntry?: (entryId: string) => boolean;
   onEditDeviceEntry?: (entryId: string) => void;
+  onEditInvoice?: PartyDirectoryProps["onEditInvoice"];
+  onDeleteInvoice?: PartyDirectoryProps["onDeleteInvoice"];
 }
 
 type PartyPanel = "statement" | "devices" | null;
-type PartySheet = "balance" | "whatsapp" | "detail" | "edit" | "notes" | "export" | null;
+type PartySheet = "balance" | "whatsapp" | "detail" | "edit" | "notes" | "export" | "invoice" | null;
 
 const PROFIT_KEY = "starnet.statementShowProfit";
 
@@ -719,6 +730,8 @@ function PartyCard({
   renderDevice,
   onDeleteDeviceEntry,
   onEditDeviceEntry,
+  onEditInvoice,
+  onDeleteInvoice,
 }: PartyCardProps) {
   const [panel, setPanel] = useState<PartyPanel>(null);
   // 📡 The device opened from «الأجهزة» (its card shows in place of the list).
@@ -808,6 +821,13 @@ function PartyCard({
   function openDetail(rowId: string) {
     setDetailRowId(rowId);
     setSheet("detail");
+  }
+  /** ✎ on a movement (his Oct 20 2026 choice): straight to its edit - and delete - of whatever kind it is. */
+  function editAction(row: PartyStatementRow): (() => void) | undefined {
+    if (row.adjustment) return () => (setDetailRowId(row.id), setSheet("edit"));
+    if ((row.type === "device-charge" || row.type === "device-payment") && onEditDeviceEntry) return () => onEditDeviceEntry(row.id);
+    if ((row.type === "invoice" || row.type === "return") && row.invoice && onEditInvoice && onDeleteInvoice) return () => (setDetailRowId(row.id), setSheet("invoice"));
+    return undefined;
   }
 
   function togglePanel(next: Exclude<PartyPanel, null>) {
@@ -1035,9 +1055,23 @@ function PartyCard({
                       </div>
                       <div className="party-move-foot">
                         <span className="party-move-cur">{cur}</span>
+                        {(() => {
+                          const edit = editAction(row);
+                          return edit ? (
+                            <button type="button" className="party-move-edit" onClick={edit} aria-label="تعديل العملية">
+                              ✎ تعديل
+                            </button>
+                          ) : null;
+                        })()}
                         {showProfit && m.profit && (
                           <span className="party-move-profit">
-                            {m.profit === "uncomputed" ? "الربح غير محسوب" : <>الربح: <bdi dir="ltr">{formatAmount(m.profit.amount)}</bdi> {cur}</>}
+                            {m.profit === "uncomputed" ? (
+                              "الربح غير محسوب"
+                            ) : m.profit.expected ? (
+                              <>الربح المتوقع (D): <bdi dir="ltr">≈ {formatAmount(m.profit.amount)}</bdi> {cur}</>
+                            ) : (
+                              <>الربح: <bdi dir="ltr">{formatAmount(m.profit.amount)}</bdi> {cur}</>
+                            )}
                           </span>
                         )}
                       </div>
@@ -1161,7 +1195,9 @@ function PartyCard({
                         setSheet(null);
                         setDetailRowId(null);
                       }
-                    : undefined
+                    : detailRow.invoice && onEditInvoice && onDeleteInvoice
+                      ? () => setSheet("invoice")
+                      : undefined
               }
               onDelete={
                 detailRow.adjustment
@@ -1208,6 +1244,38 @@ function PartyCard({
               }}
             />
           )}
+          {sheet === "edit" && (
+            <button type="button" className="dialog-danger" onClick={() => confirmDeleteAdjustment(detailRow.adjustment!)}>
+              🗑 حذف العملية
+            </button>
+          )}
+        </PartySheet>
+      )}
+
+      {sheet === "invoice" && detailRow?.invoice && onEditInvoice && onDeleteInvoice && (
+        <PartySheet
+          title={`${detailRow.type === "return" ? "مرتجع" : "تعديل الفاتورة"} - ${party.name}`}
+          onClose={() => setSheet(null)}
+        >
+          <InvoiceEditSheet
+            invoice={detailRow.invoice}
+            currencyLabel={currencyLabel(detailRow.invoice.currencyCode)}
+            lock={invoiceLockReason(invoices, detailRow.invoice.id)}
+            onSave={(input) => {
+              const error = onEditInvoice(detailRow.invoice!.id, input);
+              if (!error) setSheet(null);
+              return error;
+            }}
+            onDelete={() => {
+              const error = onDeleteInvoice(detailRow.invoice!.id);
+              if (!error) {
+                setSheet(null);
+                setDetailRowId(null);
+              }
+              return error;
+            }}
+            onCancel={() => setSheet(null)}
+          />
         </PartySheet>
       )}
 
@@ -1920,7 +1988,9 @@ function StatementRowDetail({
             ? onEdit
               ? "هذه عملية على الجهاز - «تعديل» يفتحها في نافذة عمليات الجهاز نفسها."
               : "هذه عملية على الجهاز - تُعدَّل من سجل الجهاز في الصفحة الرئيسية."
-            : "هذه فاتورة من المتجر - تُعدَّل أو تُرجَع من قسم الفواتير في المتجر."}
+            : onEdit
+              ? "هذه فاتورة من المتجر - «تعديل» يفتحها: الكمية والسعر والخصم والمدفوع، أو حذفها."
+              : "هذه فاتورة من المتجر - تُعدَّل أو تُرجَع من قسم الفواتير في المتجر."}
         </p>
       )}
       {(onEdit || onDelete) && (

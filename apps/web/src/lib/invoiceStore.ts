@@ -157,6 +157,8 @@ export function createInvoice(
   invoices: InvoiceList,
   transactions: StoreTransactionList,
   input: CreateInvoiceInput,
+  /** ✎ An edited invoice keeps its own id and creation time (lib/invoiceEdit.ts). */
+  keep?: { id: string; createdAt: string },
 ): CreateInvoiceResult {
   if (input.lines.length === 0) {
     return { ok: false, message: "أضف مادة واحدة على الأقل للفاتورة" };
@@ -166,7 +168,7 @@ export function createInvoice(
   const normalTxnKind: StoreTransactionKind = input.kind === "sale" ? "sell" : "buy";
   const txnKind: StoreTransactionKind = isReturn ? (normalTxnKind === "sell" ? "buy" : "sell") : normalTxnKind;
 
-  const invoiceId = newId("invoice");
+  const invoiceId = keep?.id ?? newId("invoice");
   let workingTransactions = transactions;
   const lines: InvoiceLine[] = [];
 
@@ -233,7 +235,7 @@ export function createInvoice(
       input.kind === "sale" && !isReturn && input.representativeId ? input.representativeCommissionPercent : undefined,
     note: input.note?.trim() || undefined,
     returnOfInvoiceId: input.returnOfInvoiceId,
-    createdAt: nowIso(),
+    createdAt: keep?.createdAt ?? nowIso(),
   };
 
   return { ok: true, invoices: [...invoices, invoice], transactions: workingTransactions, invoice };

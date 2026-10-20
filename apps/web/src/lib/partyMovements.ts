@@ -8,7 +8,7 @@
 
 import type { LedgerEntry } from "./ledgerStore";
 import type { PartyStatementRow } from "./invoiceStore";
-import { computeShipmentProfit } from "./accountingStore";
+import { computeExpectedShipmentProfit, computeShipmentProfit } from "./accountingStore";
 
 export type MovementFilter = "all" | "charge" | "payment" | "adjust";
 
@@ -40,8 +40,9 @@ export interface MovementView {
   /** debt = red (adds to what he owes), pay = green. */
   tone: "debt" | "pay";
   after: number;
-  /** A shipment's profit: computed, not computable yet, or none (not a shipment). */
-  profit?: { amount: number } | "uncomputed";
+  /** A shipment's profit: computed, expected (its D still unpaid - his Oct 20 2026 ask), not computable
+   * yet, or none (not a shipment). */
+  profit?: { amount: number; expected?: boolean } | "uncomputed";
 }
 
 const MONTHS = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
@@ -76,7 +77,13 @@ export interface MovementContext {
 
 function profitIn(entry: LedgerEntry, currency: string): MovementView["profit"] {
   const p = computeShipmentProfit(entry);
-  if (p.status !== "computed" || p.profitUsd === undefined) return "uncomputed";
+  if (p.status !== "computed" || p.profitUsd === undefined) {
+    // 🅳 D not paid yet: the expected profit at the sale's own locked rate (≈ until the D is settled).
+    const e = computeExpectedShipmentProfit(entry);
+    if (e.status !== "expected" || e.profitUsd === undefined) return "uncomputed";
+    const rate = currency === "USD" ? 1 : entry.currency === currency ? entry.saleRate?.rateFromUsd : undefined;
+    return rate && rate > 0 ? { amount: Math.round(e.profitUsd * rate * 100) / 100, expected: true } : "uncomputed";
+  }
   const amount = currency === "USD" ? p.profitUsd : currency === "MRU" ? p.profitMru : currency === "SIFA" ? p.profitSifa : undefined;
   return amount === undefined ? "uncomputed" : { amount: Math.round(amount * 100) / 100 };
 }

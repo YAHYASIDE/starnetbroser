@@ -34,7 +34,9 @@ import {
   SupplierStore,
   updateSupplier,
 } from "@/lib/supplierStore";
-import { InvoiceList, loadInvoices } from "@/lib/invoiceStore";
+import { InvoiceList, loadInvoices, saveInvoices } from "@/lib/invoiceStore";
+import { deleteInvoice, updateInvoice, type InvoiceEditInput, type InvoiceEditResult } from "@/lib/invoiceEdit";
+import { loadStoreTransactions, saveStoreTransactions } from "@/lib/storeStore";
 import { computeBalanceByCurrency, LedgerByAccount, LedgerCurrency, type LedgerEntry, loadLedgerStore } from "@/lib/ledgerStore";
 import { AllocationsByAccount, loadAllocationStore } from "@/lib/paymentAllocationStore";
 import { demoAccounts } from "@/lib/demoData";
@@ -130,6 +132,22 @@ export default function ClientsPage() {
     const client = repId ? moveClientToOwner(created.client, repId, false, new Date().toISOString()) : created.client;
     setClientStore(commitClientStore(clientStore, { ...created.store, [client.id]: client }));
     if (addDevice) router.push(buildNewDeviceHref({ clientId: client.id, representativeId: repId }));
+  }
+
+  /** ✎ / 🗑 A store invoice from the statement: the invoice, its stock movements and its cash saved together. */
+  function commitInvoiceEdit(result: InvoiceEditResult): string | null {
+    if (!result.ok) return result.message;
+    saveInvoices(result.invoices);
+    saveStoreTransactions(result.transactions);
+    saveCashEntries(result.cash);
+    setInvoices(result.invoices);
+    return null;
+  }
+  function handleEditInvoice(invoiceId: string, input: InvoiceEditInput): string | null {
+    return commitInvoiceEdit(updateInvoice(loadInvoices(), loadStoreTransactions(), loadCashEntries(), invoiceId, input));
+  }
+  function handleDeleteInvoice(invoiceId: string): string | null {
+    return commitInvoiceEdit(deleteInvoice(loadInvoices(), loadStoreTransactions(), loadCashEntries(), invoiceId));
   }
 
   function handleUpdateClient(clientId: string, input: CreateClientInput) {
@@ -408,6 +426,8 @@ export default function ClientsPage() {
             const entry = accountId ? full[accountId]!.find((e) => e.id === entryId) : undefined;
             if (accountId && entry) setEditingEntry({ accountId, entry, deviceName: accounts.find((a) => a.id === accountId)?.name ?? "", ledger: full });
           }}
+          onEditInvoice={handleEditInvoice}
+          onDeleteInvoice={handleDeleteInvoice}
           onDeleteDeviceEntry={(entryId) => {
             // The full ledger (not the debt view above): find the device holding this operation.
             const full = loadLedgerStore();

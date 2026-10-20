@@ -50,6 +50,17 @@ describe("📄 a statement movement as he designed it (Oct 19 2026)", () => {
     expect(v.profit).toEqual({ amount: 2500 });
   });
 
+  it("🅳 a D not paid yet: the expected profit at the sale's locked rate; an invoice not yet down: not computed", () => {
+    const entry = {
+      id: "e1", kind: "debit", amount: 25000, currency: "MRU", date: "2026-10-19", createdAt: "",
+      saleRate: { rateFromUsd: 400, usdValue: 62.5 },
+      starlinkCost: { status: "pending", currencyCode: "USD", amount: 50 },
+    } as unknown as LedgerEntry;
+    expect(movementView(row({}), { isClient: true, entryOf: () => entry }).profit).toEqual({ amount: 5000, expected: true });
+    const waiting = { ...entry, starlinkCost: { status: "pending", currencyCode: "USD", awaitingBill: { since: "" } } } as unknown as LedgerEntry;
+    expect(movementView(row({}), { isClient: true, entryOf: () => waiting }).profit).toBe("uncomputed");
+  });
+
   it("a balance adjustment is «تسوية رصيد», and the filters / search", () => {
     const adj = movementView(row({ type: "adjustment", deviceName: undefined, accountId: undefined, delta: -50000, balanceAfter: 0 }), { isClient: true });
     expect(adj).toMatchObject({ filter: "adjust", title: "تسوية رصيد · له", middleLabel: "المخصوم", tone: "pay" });
