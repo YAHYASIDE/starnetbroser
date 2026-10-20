@@ -1900,3 +1900,16 @@ is never pressed while a field is empty - it refills and saves on the next try (
   typed in this run is never typed again; the code screen still there 15 s after a code → it waits for a newer
   one (refused / «Resend»); the notification's own mail time (`when`) decides its age; the card Gmail is read
   from its plain newest-messages list (spam included, no search lag), every 2.5 s, reading only new mail.
+
+## 📱 Weak phone / weak internet: no jump to «ستارلينك والبطاقة», no sample devices, no white screen (Oct 20 2026)
+
+- His report: «عندما يضعف الإنترنت يأتي على هذا الشكل (5 أجهزة، لم تحفظ نسخة احتياطية)، ومرات تظهر لافتة بيضاء،
+  وعندما أزيل دينًا أو أبحث عن جهاز يخرجني إلى مكان البطاقات».
+- Cause 1: a notification's launch intent carries its page (`EXTRA_ROUTE`); Android rebuilds a killed app from the
+  intent it was opened with, so a KAST / D notice tapped earlier reopened «/starlink» in the middle of his work.
+  Now every notification intent has its own id (`RouteOnce`): its page opens once, never on a rebuild or from the
+  recents list; a tap while the app runs always opens it (`starnet_route_once`, last 40 ids).
+- Cause 2: the home screen started with the 5 sample devices until his own loaded - now it starts empty with
+  «جارِ تحميل البيانات…». The WebView's ground is dark (`backgroundColor` in capacitor.config) instead of white.
+- A banner that just appeared (⚠️ «توقفت وعليها D», 🆕 update) ignores taps for 1.2 s - a tap meant for what was
+  under the finger before it pushed the screen down.

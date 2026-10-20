@@ -11,6 +11,8 @@ const config: CapacitorConfig = {
   server: {
     androidScheme: "https",
   },
+  // 🌑 The app's own dark ground while the page starts - not a white screen (his Oct 20 2026 report).
+  backgroundColor: "#060A14",
 };
 
 export default config;

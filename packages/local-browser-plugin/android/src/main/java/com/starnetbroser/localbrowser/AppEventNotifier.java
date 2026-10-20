@@ -50,6 +50,8 @@ final class AppEventNotifier {
         if (launch != null) {
             launch.setAction(Intent.ACTION_MAIN);
             launch.putExtra(PhoneShortcuts.EXTRA_ROUTE, AppEventText.safeRoute(route));
+            // 🔔 Its own id: the page opens once, never again when Android rebuilds the app from it.
+            launch.putExtra(RouteOnce.EXTRA_ID, "n" + id + "-" + System.currentTimeMillis());
             launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
             int flags = PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0);
             // Its own request code: every notification keeps its own page.

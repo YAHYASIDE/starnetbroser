@@ -97,14 +97,14 @@ public class LocalBrowserPlugin extends Plugin {
         TelegramReplyService.refresh(getContext());
         // 🏦 The app opened (a foreground start is allowed now): the permanent bank reader.
         BankWatchService.refresh(getContext());
-        rememberShortcutRoute(getActivity() != null ? getActivity().getIntent() : null);
+        rememberShortcutRoute(getContext(), getActivity() != null ? getActivity().getIntent() : null, false);
     }
 
     /** Opened from a 📌 shortcut while the app was running: go there now. */
     @Override
     protected void handleOnNewIntent(Intent intent) {
         super.handleOnNewIntent(intent);
-        String route = rememberShortcutRoute(intent);
+        String route = rememberShortcutRoute(getContext(), intent, true);
         if (route != null) {
             JSObject data = new JSObject();
             data.put("route", route);
@@ -112,11 +112,21 @@ public class LocalBrowserPlugin extends Plugin {
         }
     }
 
-    private static String rememberShortcutRoute(Intent intent) {
+    /** `tapped`: a new intent while the app runs - always a real tap (the same notification tapped
+     * again opens its page again); at launch it may be Android rebuilding the app from an old one. */
+    private static String rememberShortcutRoute(Context context, Intent intent, boolean tapped) {
         if (intent == null) return null;
         String route = intent.getStringExtra(PhoneShortcuts.EXTRA_ROUTE);
+        String id = intent.getStringExtra(RouteOnce.EXTRA_ID);
         intent.removeExtra(PhoneShortcuts.EXTRA_ROUTE); // not again on a rotation / recreate
         if (!PhoneShortcuts.isRoute(route)) return null;
+        // 🔔 Android rebuilds a killed app from the intent it was opened with: a notification's page
+        // must not open again then (RouteOnce), nor from the recents list.
+        boolean fromHistory = (intent.getFlags() & Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0;
+        android.content.SharedPreferences prefs = context.getSharedPreferences("starnet_route_once", Context.MODE_PRIVATE);
+        java.util.List<String> opened = RouteOnce.decode(prefs.getString("opened", null));
+        if (!RouteOnce.shouldOpen(route, tapped ? null : id, fromHistory && !tapped, opened)) return null;
+        if (id != null) prefs.edit().putString("opened", RouteOnce.encode(RouteOnce.remember(opened, id))).commit();
         pendingShortcutRoute = route;
         return route;
     }

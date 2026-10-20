@@ -6,7 +6,7 @@ import { deviceTwins, mergeDevices, notDuplicatePatches } from "@/lib/deviceMerg
 import { currentRepPending } from "@/lib/repWorkspace";
 import { loadRepChangesSent, shareRepChanges, type RepChangesSent } from "@/lib/repChangesSend";
 import { REP_INBOX_EVENT, repInboxCount } from "@/lib/repInbox";
-import { CSSProperties, ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { rememberPayTarget } from "@/lib/payDeepLink";
@@ -324,6 +324,9 @@ function matchesStatFilter(account: StarlinkAccountSummary, kind: StatFilterKind
     }
   }
 }
+
+/** 👆 How long a newly shown banner ignores taps. */
+const FRESH_BANNER_MS = 1200;
 
 export function HomeView({
   accounts: demoAccounts,
@@ -1133,10 +1136,18 @@ export function HomeView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Starts identical to the server-rendered output (demo data, demo
-  // state) so there's no hydration mismatch; real data replaces it after
-  // mount, never leaving the screen blank in between.
-  const [accounts, setAccounts] = useState(demoAccounts);
+  // Starts empty (the server-rendered output too, so no hydration mismatch) until his devices load
+  // right after mount - never the 5 sample devices, which showed on a slow phone as if his data
+  // were gone (his Oct 20 2026 report), and could be tapped by mistake.
+  const [accounts, setAccounts] = useState<StarlinkAccountSummary[]>([]);
+  const [accountsLoaded, setAccountsLoaded] = useState(false);
+  // 👆 A banner that has just appeared pushes the screen down under his finger: a tap in its first
+  // moment was meant for what was there before (his Oct 20 2026 report - a search / «إزالة الدين»
+  // tap on a slow phone opened «ستارلينك والبطاقة»).
+  const bannerShownAt = useRef<Record<string, number>>({});
+  const ignoreFreshTap = (id: string) => (event: ReactMouseEvent) => {
+    if (Date.now() - (bannerShownAt.current[id] ?? 0) < FRESH_BANNER_MS) event.preventDefault();
+  };
   useEffect(() => {
     const rep = isRepWorkspace();
     setRepWorkspace(rep);
@@ -1296,6 +1307,7 @@ export function HomeView({
       dataStateRef.current = "loaded";
       setAccounts(loaded);
       setDataState("loaded");
+      setAccountsLoaded(true);
       accountsReadyGateRef.current.markReady();
       // 🔔 A wallet / الكاش below the floor he set: the phone is told (once per crossing).
       try {
@@ -1320,6 +1332,7 @@ export function HomeView({
       dataStateRef.current = "demo";
       setAccounts(loaded);
       setDataState("demo");
+      setAccountsLoaded(true);
       accountsReadyGateRef.current.markReady();
       return;
     }
@@ -2024,6 +2037,14 @@ export function HomeView({
     () => (suspendedWithDebt.length > 0 ? cardShortfallForSuspended(suspendedWithDebt, currentCardBalanceUsd(ledgerStore)) : 0),
     [suspendedWithDebt, ledgerStore],
   );
+  // 👆 When each top banner appeared (ignoreFreshTap).
+  const dAlertShown = suspendedWithDebt.length > 0;
+  useEffect(() => {
+    if (dAlertShown) bannerShownAt.current["d-alert"] = Date.now();
+  }, [dAlertShown]);
+  useEffect(() => {
+    if (updateAvailable) bannerShownAt.current.update = Date.now();
+  }, [updateAvailable]);
   // 🔻 / 💳 The council's money alerts (Oct 2026): losing or weak devices at today's rates, and
   // what the KAST card must cover for the next 7 days' renewals. Owner only (Starlink costs).
   const [ownerView, setOwnerView] = useState(false);
@@ -2456,7 +2477,7 @@ export function HomeView({
       </nav>
 
       {updateAvailable && (
-        <a href={APK_DOWNLOAD_URL} target="_blank" rel="noreferrer" className="backup-banner update-banner">
+        <a href={APK_DOWNLOAD_URL} target="_blank" rel="noreferrer" className="backup-banner update-banner" onClick={ignoreFreshTap("update")}>
           <span aria-hidden="true">🆕</span>
           <span>
             <strong>تحديث جديد للتطبيق متوفر</strong>
@@ -2466,7 +2487,7 @@ export function HomeView({
       )}
 
       {suspendedWithDebt.length > 0 && (
-        <Link href="/starlink" className="backup-banner d-alert-banner">
+        <Link href="/starlink" className="backup-banner d-alert-banner" onClick={ignoreFreshTap("d-alert")}>
           <span aria-hidden="true">⚠️</span>
           <span>
             <strong>
@@ -2736,7 +2757,7 @@ export function HomeView({
 
       <div className="conn-row">
         <ConnectionStatus />
-        {dataState === "loading" && <span className="conn-badge conn-checking">جارِ تحميل البيانات…</span>}
+        {(dataState === "loading" || (dataState === "demo" && !accountsLoaded)) && <span className="conn-badge conn-checking">جارِ تحميل البيانات…</span>}
         {dataState === "error" && (
           <div className="account-card-alert conn-error-row">
             {errorMessage}
