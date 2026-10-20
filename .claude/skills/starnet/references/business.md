@@ -1864,9 +1864,14 @@ is never pressed while a field is empty - it refills and saves on the next try (
   remembered) → «⏳ سجّل الشحن» (staged like a read, `pinRequest.charge`; the app records it with today's rate
   and the device's rep terms, id `browser-charge-<syncId>` so a re-drain never doubles it); «📌 ثبّت فقط» keeps the
   old pin. No rate for the currency → the old pin + a message.
-- The device is synced in the 🌙 background 15 min, 1 h and 3 h after the charge (`ScheduledSyncWorker` KIND_BILL,
-  `lib/billChecks.ts`, phone-only `starnet.billChecks`); any read after the charge whose bill exceeds the D's
+- The device is synced in the 🌙 background after the charge (times below) (`ScheduledSyncWorker` KIND_BILL,
+  `lib/billChecks.ts`, phone-only `starnet.billChecks2`); any read after the charge whose bill exceeds the D's
   already open fills the oldest waiting D (bill currency, today's rate locked) → toast + 🔔 «⏳ نزلت فاتورة X: …
   ← سُجّلت D»; its remaining checks are dropped. A bill currency without a rate stays waiting with a message.
+- **His Oct 20 2026 follow-up** (the invoice really hadn't come, but each check said «✅ تمت»): a check's
+  notification / bot message says **only the result** (`BillCheckText`): «⏳ «X»: الفاتورة لم تنزل بعد - الفحص
+  التالي بعد ساعة», «⏳ نزلت فاتورة «X»: 70.50 - افتح STAR NET لتُسجَّل D» (its remaining checks dropped at once), or
+  «لم يُفحص (…)»; after the last one «انتهت الفحوص؛ يُملأ D في أي مزامنة عادية». **Checks at 30 min, 1 h, 2 h, 6 h
+  and 12 h** after the charge (his own schedule, «فقط»; was 15 min / 1 h / 3 h).
 - The card shows «⏳D» (dashed blue) while waiting; still empty after 24 h → a «⏳ … فاتورة الشحن لم تنزل» task in
   «خطة اليوم». Logic `lib/awaitingBill.ts`.

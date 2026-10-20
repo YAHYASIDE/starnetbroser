@@ -74,6 +74,8 @@ public class BackgroundSyncService extends Service {
     /** 🛂 Per finished device of a check: needs / clear / why unchecked, and the deadline. */
     private final List<String> travelResults = new ArrayList<>();
     private final List<String> travelDues = new ArrayList<>();
+    /** ⏳ Per finished device of an invoice check (BillCheckText): Starlink's balance as read, else null. */
+    private final List<String> billDues = new ArrayList<>();
     private int index;
     private boolean running;
     private WebView webView;
@@ -323,6 +325,11 @@ public class BackgroundSyncService extends Service {
             travelDues.add(null);
         }
         SyncRunner read = runner;
+        boolean billCheck = !travelModes.get(index) && !paymentModes.get(index) && BillCheckText.isBillLabel(labels.get(index));
+        String due = billCheck && read != null ? read.balanceDue() : null;
+        billDues.add(due);
+        // The invoice came: no more checks of it (the app fills its D when opened).
+        if (billCheck && BillCheckText.billCame(outcome, due)) ScheduledSyncWorker.cancelBillChecks(this, accountId);
         paymentResults.add(paymentModes.get(index) && read != null
             ? ScheduledSyncText.paymentResult(outcome, read.sawStopped(), read.sawActive(), read.balanceDue())
             : paymentModes.get(index) ? ScheduledSyncText.UNKNOWN : null);
@@ -345,6 +352,7 @@ public class BackgroundSyncService extends Service {
             outcomes.add("rateLimited");
             travelResults.add(travelModes.get(i) ? TravelCheckReport.result("rateLimited", null) : null);
             travelDues.add(travelModes.get(i) ? "" : null);
+            billDues.add(null);
             paymentResults.add(paymentModes.get(i) ? ScheduledSyncText.UNKNOWN : null);
             AutoSyncResults.record(this, ids.get(i), "rateLimited");
         }
@@ -390,6 +398,7 @@ public class BackgroundSyncService extends Service {
             List<String> travelNames = new ArrayList<>();
             List<String> checks = new ArrayList<>();
             List<String> dues = new ArrayList<>();
+            List<String> billLines = new ArrayList<>();
             String syncLabel = null;
             String travelLabel = null;
             for (int i = 0; i < outcomes.size(); i++) {
@@ -402,6 +411,8 @@ public class BackgroundSyncService extends Service {
                     payNames.add(names.get(i));
                     payOutcomes.add(outcomes.get(i));
                     payResults.add(paymentResults.get(i));
+                } else if (BillCheckText.isBillLabel(labels.get(i))) {
+                    billLines.add(BillCheckText.line(names.get(i), outcomes.get(i), i < billDues.size() ? billDues.get(i) : null, BillCheckText.nextMs(labels.get(i))));
                 } else {
                     if (syncLabel == null) syncLabel = labels.get(i);
                     syncNames.add(names.get(i));
@@ -413,6 +424,8 @@ public class BackgroundSyncService extends Service {
             if (!payOutcomes.isEmpty()) {
                 announce(ScheduledSyncText.paymentReport(payNames, payResults, payOutcomes) + (syncOutcomes.isEmpty() && checks.isEmpty() ? retryLine : ""));
             }
+            // ⏳ Only the result of each invoice check (his Oct 20 2026 choice), never «✅ تمت».
+            if (!billLines.isEmpty()) announce(String.join("\n", billLines) + (syncOutcomes.isEmpty() && checks.isEmpty() && payOutcomes.isEmpty() ? retryLine : ""));
             if (!syncOutcomes.isEmpty()) announce(BackgroundSyncReport.report(syncLabel, syncNames, syncOutcomes, stopped) + (checks.isEmpty() ? retryLine : ""));
             if (!checks.isEmpty()) announce(TravelCheckReport.report(travelLabel, travelNames, checks, dues, stopped) + retryLine);
             if (!outcomes.isEmpty()) AlertSound.play(this);

@@ -1223,7 +1223,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
      * a new service, Billing shows 0 for minutes or hours until the invoice comes down.
      * ⏳ His Oct 19 2026 ask: he types the customer's price here - the app records the charge at once
      * with a D that fills itself from the invoice (web lib/awaitingBill.ts, background checks after
-     * 15 min / 1 h / 3 h). «📌 ثبّت فقط» keeps the old pin with its note. Saved like a sync read
+     * 30 min / 1 h / 2 h / 6 h / 12 h). «📌 ثبّت فقط» keeps the old pin with its note. Saved like a sync read
      * (PendingSyncStore, `pinRequest`) so it reaches the app even while it is stopped.
      */
     private void askPinUnrecorded() {

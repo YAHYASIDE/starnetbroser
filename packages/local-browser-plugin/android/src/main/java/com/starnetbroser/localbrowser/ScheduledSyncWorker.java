@@ -34,9 +34,9 @@ public class ScheduledSyncWorker extends Worker {
     static final String KIND_BILL = "bill";
     static final String INPUT_ACCOUNT_ID = "accountId";
     static final String INPUT_ACCOUNT_NAME = "accountName";
-    static final String BILL_LABEL = "⏳ فحص الفاتورة بعد الشحن";
-    /** The most checks one charge schedules (15 min, 1 h, 3 h). */
-    static final int BILL_CHECKS_MAX = 3;
+    static final String INPUT_NEXT_MS = "nextMs";
+    /** The most checks one charge schedules (30 min, 1 h, 2 h, 6 h, 12 h - his Oct 20 2026 choice). */
+    static final int BILL_CHECKS_MAX = 5;
     private static final String WORK_PREFIX = "starnet_scheduled_";
 
     static final String MORNING_LABEL = "🌅 مزامنة الصباح - أجهزة اليوم وغدًا";
@@ -87,6 +87,7 @@ public class ScheduledSyncWorker extends Worker {
                     .putString(INPUT_KIND, KIND_BILL)
                     .putString(INPUT_ACCOUNT_ID, accountId)
                     .putString(INPUT_ACCOUNT_NAME, accountName != null ? accountName : "")
+                    .putLong(INPUT_NEXT_MS, i + 1 < n ? delaysMs[i + 1] - delaysMs[i] : -1)
                     .build())
                 .build();
             WorkManager.getInstance(context).enqueueUniqueWork(billWorkName(accountId, i), ExistingWorkPolicy.REPLACE, request);
@@ -174,7 +175,8 @@ public class ScheduledSyncWorker extends Worker {
         if (SyncPacing.inCooldown(SyncPacing.rateLimitedAt(context), System.currentTimeMillis())) return;
         List<ScheduledSyncStore.Pending> one = new ArrayList<>();
         String name = getInputData().getString(INPUT_ACCOUNT_NAME);
-        one.add(new ScheduledSyncStore.Pending(id, name != null ? name : "", ScheduledSyncStore.MODE_SYNC, BILL_LABEL));
+        String label = BillCheckText.label(getInputData().getLong(INPUT_NEXT_MS, -1));
+        one.add(new ScheduledSyncStore.Pending(id, name != null ? name : "", ScheduledSyncStore.MODE_SYNC, label));
         startAll(context, one, "⏳");
     }
 

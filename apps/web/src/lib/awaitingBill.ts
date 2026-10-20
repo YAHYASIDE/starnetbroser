@@ -2,7 +2,7 @@
  * ⏳ «الفاتورة لم تنزل بعد» (his Oct 19 2026 ask): he pays a device's old debt, starts a new service
  * (charge, ROM…) and Starlink shows 0 for minutes or hours until the invoice comes down. He knows the
  * customer's price, not Starlink's: the charge is recorded at once with an empty D marked
- * `awaitingBill`, the device is checked again in the background (15 min, 1 h, 3 h), and the first
+ * `awaitingBill`, the device is checked again in the background (30 min, 1 h, 2 h, 6 h, 12 h), and the first
  * read of a new bill fills the D by itself (his choice «وحده مع إشعار»). Still empty after a day → a
  * task in «خطة اليوم».
  */
@@ -12,8 +12,8 @@ import { starlinkCostUsd } from "./accountingStore";
 import { getCurrency, type CurrencyStore } from "./currencyStore";
 import { createLedgerEntry, LEDGER_CURRENCIES, type LedgerByAccount, type LedgerCurrency, type LedgerEntry } from "./ledgerStore";
 
-/** When the device is checked again after the charge. */
-export const BILL_CHECK_DELAYS_MS = [15 * 60_000, 60 * 60_000, 3 * 60 * 60_000];
+/** When the device is checked again after the charge (his Oct 20 2026 choice: 30 min, 1 h, 2 h, 6 h, 12 h). */
+export const BILL_CHECK_DELAYS_MS = [30 * 60_000, 60 * 60_000, 2 * 60 * 60_000, 6 * 60 * 60_000, 12 * 60 * 60_000];
 /** After this long without an invoice he is told to look himself. */
 export const AWAITING_LATE_MS = 24 * 60 * 60_000;
 

@@ -1,8 +1,8 @@
 /**
  * ⏳ The background checks of charges waiting for their invoice (lib/awaitingBill.ts): each waiting
- * charge schedules its device's checks once (15 min, 1 h, 3 h after it was recorded); a device whose
+ * charge schedules its device's checks once (30 min, 1 h, 2 h, 6 h, 12 h after it was recorded); a device whose
  * charges are all filled has its remaining checks dropped. Which charges were scheduled is kept on
- * this phone only (`starnet.billChecks`), like the other native schedules.
+ * this phone only (`starnet.billChecks2`), like the other native schedules.
  */
 
 import { LocalBrowser } from "@starnet/local-browser-plugin";
@@ -11,7 +11,8 @@ import { awaitingEntries, billCheckDelays } from "./awaitingBill";
 import type { LedgerByAccount } from "./ledgerStore";
 import { isRunningInAndroidApp } from "./localBrowser";
 
-const KEY = "starnet.billChecks";
+// v2 (Oct 20 2026, the new times): charges still waiting get the checks still ahead of them again.
+const KEY = "starnet.billChecks2";
 
 /** entryId → its device. */
 type Scheduled = Record<string, string>;

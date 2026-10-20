@@ -61,10 +61,11 @@ describe("⏳ the invoice that comes down later (his Oct 19 2026 ask)", () => {
     expect(buildAwaitingCharge({ amount: 0, currency: "USD", at: T0, currencyStore: store }).ok).toBe(false);
   });
 
-  it("the background checks still ahead: 15 min, 1 h, 3 h after the charge", () => {
-    expect(billCheckDelays(T0.toISOString(), T0)).toEqual([15 * 60_000, 60 * 60_000, 180 * 60_000]);
-    expect(billCheckDelays(T0.toISOString(), new Date(at(30)))).toEqual([30 * 60_000, 150 * 60_000]);
-    expect(billCheckDelays(T0.toISOString(), new Date(at(200)))).toEqual([]);
+  it("the background checks still ahead: 30 min, 1 h, 2 h, 6 h, 12 h after the charge", () => {
+    const h = 60 * 60_000;
+    expect(billCheckDelays(T0.toISOString(), T0)).toEqual([h / 2, h, 2 * h, 6 * h, 12 * h]);
+    expect(billCheckDelays(T0.toISOString(), new Date(at(90)))).toEqual([h / 2, 4.5 * h, 10.5 * h]);
+    expect(billCheckDelays(T0.toISOString(), new Date(at(13 * 60)))).toEqual([]);
   });
 
   it("reads Starlink's amounts", () => {
