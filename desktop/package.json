@@ -28,6 +28,7 @@
       "devices.js",
       "sessions.js",
       "autofill.js",
+      "zoom.js",
       "package.json"
     ],
     "extraResources": [

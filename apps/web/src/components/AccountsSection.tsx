@@ -37,6 +37,7 @@ import {
   PartyStoreTotals,
 } from "@/lib/invoiceStore";
 import { PdfButton } from "./PdfButton";
+import { useDeskWide } from "./useDeskWide";
 import { InvoiceEditSheet } from "./InvoiceEditSheet";
 import { invoiceLockReason, type InvoiceEditInput } from "@/lib/invoiceEdit";
 import { buildPartyStatementPdf, statementKindLabel } from "@/lib/partyStatementPdf";
@@ -293,6 +294,9 @@ export function PartyDirectory({
     return [...matching].sort((a, b) => (a.due === b.due ? a.party.name.localeCompare(b.party.name, "ar") : a.due ? -1 : 1));
   }, [ownerRows, query, isClients, balance, category]);
   const counts = useMemo(() => categoryCounts(ownerRows), [ownerRows]);
+  const deskWide = useDeskWide();
+  const [pickedId, setPickedId] = useState<string | null>(null);
+  const picked = filtered.find((r) => r.party.id === pickedId) ?? filtered[0];
 
   // The summary follows the category and the filters chosen (his design).
   const outstandingByCurrency = useMemo(() => {
@@ -319,6 +323,77 @@ export function PartyDirectory({
 
   const partyWord = isClients ? "زبون" : "مورد";
   const activeFilters = isClients ? (owner !== "mine" ? 1 : 0) + (balance !== "all" ? 1 : 0) : 0;
+
+  // 🖥️ The Windows app (his Oct 21 2026 choice): the list on the right, the open customer's card with
+  // its statement beside it on the left.
+  const renderParty = ({ party, totals }: (typeof filtered)[number], pane = false) =>
+    editingPartyId === party.id ? (
+      <li key={party.id} className="party-card">
+        <PartyForm
+          initial={party}
+          submitLabel="حفظ"
+          existing={parties}
+          selfId={party.id}
+          namePlaceholder={isClients ? "اسم الزبون *" : "اسم المورد *"}
+          showCreditLimit={isClients}
+          categories={isClients ? categoryList : undefined}
+          initialCategories={isClients ? ((party as Client).categories ?? []) : []}
+          onSubmit={(input) => {
+            if (isClients) onUpdateClient(party.id, input);
+            else onUpdateSupplier(party.id, input);
+            setEditingPartyId(null);
+          }}
+          onCancel={() => setEditingPartyId(null)}
+          onDelete={
+            isClients && onDeleteClient
+              ? async () => {
+                  const remaining = Object.fromEntries(Object.entries(totals).map(([c, t]) => [c, t.remaining]));
+                  const linked = accounts.filter((a) => a.clientId === party.id).length;
+                  if (!(await askDeleteCode(clientDeleteQuestion(party.name, linked, remaining, currencyLabel)))) return;
+                  onDeleteClient(party.id);
+                  setEditingPartyId(null);
+                }
+              : undefined
+          }
+        />
+      </li>
+    ) : (
+      <PartyCard
+        key={party.id}
+        initialPanel={pane ? "statement" : undefined}
+        kind={kind}
+        party={party}
+        totals={totals}
+        net={netFor(party, totals)}
+        onSetPairRate={setPairRate}
+        invoices={invoices}
+        adjustments={adjustments}
+        onAddAdjustment={onAddAdjustment}
+        onDeleteAdjustment={onDeleteAdjustment}
+        onAddDevicePayment={onAddDevicePayment}
+        onUpdateAdjustment={onUpdateAdjustment}
+        onMoveAdjustmentToDevice={onMoveAdjustmentToDevice}
+        devices={isClients ? accounts.filter((a) => a.clientId === party.id && !a.deletedAt) : []}
+        ledgerStore={ledgerStore}
+        creditLimit={isClients ? (party as Client).creditLimit : undefined}
+        repNames={isClients && representatives ? clientRepNames(party.id, accounts, representatives, party as Client) : []}
+        categoryChips={
+          isClients
+            ? (rows.find((r) => r.party.id === party.id)?.categories ?? [])
+                .filter((id) => id !== STARLINK)
+                .map((id) => [...BUILT_IN_CATEGORIES, ...categoryList].find((c) => c.id === id))
+                .filter((c): c is ClientCategory => Boolean(c))
+            : []
+        }
+        onEdit={() => setEditingPartyId(party.id)}
+        onOpenCard={isClients && onOpenClientCard ? () => onOpenClientCard(party as Client) : undefined}
+        renderDevice={isClients ? renderDevice : undefined}
+        onDeleteDeviceEntry={isClients ? onDeleteDeviceEntry : undefined}
+        onEditDeviceEntry={isClients ? onEditDeviceEntry : undefined}
+        onEditInvoice={onEditInvoice}
+        onDeleteInvoice={onDeleteInvoice}
+      />
+    );
 
   return (
     <div className={`party-section party-section-${tab}`}>
@@ -582,77 +657,44 @@ export function PartyDirectory({
             );
           })}
         </ul>
+      ) : deskWide ? (
+        <div className="party-split">
+          <ul className="party-pick-list" aria-label={isClients ? "الزبائن" : "الموردون"}>
+            {filtered.map(({ party, totals, standing }) => {
+              const owed = Object.entries(totals).filter(([, t]) => Math.abs(t.remaining) > EPSILON);
+              const active = picked?.party.id === party.id;
+              return (
+                <li key={party.id}>
+                  <button
+                    type="button"
+                    className={`party-pick${active ? " active" : ""}`}
+                    aria-current={active ? "true" : undefined}
+                    style={{ "--party-hue": partyHue(party.id) } as CSSProperties}
+                    onClick={() => setPickedId(party.id)}
+                  >
+                    <span className="party-avatar" aria-hidden="true">{partyInitials(party.name)}</span>
+                    <span className="party-pick-main">
+                      <strong>{party.name}</strong>
+                      <bdi dir="ltr">{party.phone || "بدون هاتف"}</bdi>
+                    </span>
+                    <span className={`party-pick-balance party-pick-${standing}`}>
+                      {owed.length === 0
+                        ? "✓"
+                        : owed.map(([c, t]) => (
+                            <bdi key={c} dir="ltr">
+                              {formatAmount(Math.abs(t.remaining))} {currencyLabel(c)}
+                            </bdi>
+                          ))}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="party-split-pane">{picked && <ul className="party-card-list">{renderParty(picked, true)}</ul>}</div>
+        </div>
       ) : (
-        <ul className="party-card-list">
-          {filtered.map(({ party, totals }) =>
-            editingPartyId === party.id ? (
-              <li key={party.id} className="party-card">
-                <PartyForm
-                  initial={party}
-                  submitLabel="حفظ"
-                  existing={parties}
-                  selfId={party.id}
-                  namePlaceholder={isClients ? "اسم الزبون *" : "اسم المورد *"}
-                  showCreditLimit={isClients}
-                  categories={isClients ? categoryList : undefined}
-                  initialCategories={isClients ? ((party as Client).categories ?? []) : []}
-                  onSubmit={(input) => {
-                    if (isClients) onUpdateClient(party.id, input);
-                    else onUpdateSupplier(party.id, input);
-                    setEditingPartyId(null);
-                  }}
-                  onCancel={() => setEditingPartyId(null)}
-                  onDelete={
-                    isClients && onDeleteClient
-                      ? async () => {
-                          const remaining = Object.fromEntries(Object.entries(totals).map(([c, t]) => [c, t.remaining]));
-                          const linked = accounts.filter((a) => a.clientId === party.id).length;
-                          if (!(await askDeleteCode(clientDeleteQuestion(party.name, linked, remaining, currencyLabel)))) return;
-                          onDeleteClient(party.id);
-                          setEditingPartyId(null);
-                        }
-                      : undefined
-                  }
-                />
-              </li>
-            ) : (
-              <PartyCard
-                key={party.id}
-                kind={kind}
-                party={party}
-                totals={totals}
-                net={netFor(party, totals)}
-                onSetPairRate={setPairRate}
-                invoices={invoices}
-                adjustments={adjustments}
-                onAddAdjustment={onAddAdjustment}
-                onDeleteAdjustment={onDeleteAdjustment}
-                onAddDevicePayment={onAddDevicePayment}
-                onUpdateAdjustment={onUpdateAdjustment}
-                onMoveAdjustmentToDevice={onMoveAdjustmentToDevice}
-                devices={isClients ? accounts.filter((a) => a.clientId === party.id && !a.deletedAt) : []}
-                ledgerStore={ledgerStore}
-                creditLimit={isClients ? (party as Client).creditLimit : undefined}
-                repNames={isClients && representatives ? clientRepNames(party.id, accounts, representatives, party as Client) : []}
-                categoryChips={
-                  isClients
-                    ? (rows.find((r) => r.party.id === party.id)?.categories ?? [])
-                        .filter((id) => id !== STARLINK)
-                        .map((id) => [...BUILT_IN_CATEGORIES, ...categoryList].find((c) => c.id === id))
-                        .filter((c): c is ClientCategory => Boolean(c))
-                    : []
-                }
-                onEdit={() => setEditingPartyId(party.id)}
-                onOpenCard={isClients && onOpenClientCard ? () => onOpenClientCard(party as Client) : undefined}
-                renderDevice={isClients ? renderDevice : undefined}
-                onDeleteDeviceEntry={isClients ? onDeleteDeviceEntry : undefined}
-                onEditDeviceEntry={isClients ? onEditDeviceEntry : undefined}
-                onEditInvoice={onEditInvoice}
-                onDeleteInvoice={onDeleteInvoice}
-              />
-            ),
-          )}
-        </ul>
+        <ul className="party-card-list">{filtered.map((row) => renderParty(row))}</ul>
       )}
     </div>
   );
@@ -687,6 +729,8 @@ interface PartyCardProps {
   onEditDeviceEntry?: (entryId: string) => void;
   onEditInvoice?: PartyDirectoryProps["onEditInvoice"];
   onDeleteInvoice?: PartyDirectoryProps["onDeleteInvoice"];
+  /** 🖥️ Opened beside the list on the Windows app: the statement shows at once. */
+  initialPanel?: "statement";
 }
 
 type PartyPanel = "statement" | "devices" | null;
@@ -732,8 +776,9 @@ function PartyCard({
   onEditDeviceEntry,
   onEditInvoice,
   onDeleteInvoice,
+  initialPanel,
 }: PartyCardProps) {
-  const [panel, setPanel] = useState<PartyPanel>(null);
+  const [panel, setPanel] = useState<PartyPanel>(initialPanel ?? null);
   // 📡 The device opened from «الأجهزة» (its card shows in place of the list).
   const [openDeviceId, setOpenDeviceId] = useState<string | null>(null);
   const openDevice = openDeviceId ? devices.find((d) => d.id === openDeviceId) : undefined;

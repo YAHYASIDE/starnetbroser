@@ -16907,3 +16907,290 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
 .desktop-welcome small {
   color: var(--text-muted);
 }
+
+/* 🖥️ Windows layout (his Oct 21 2026 choices: «أكبر وأن يوازي الويندوز، ليس كالهاتف») - only in the
+   Windows app (html.desk, set before first paint in layout.tsx) on a window at least 900px wide; a
+   narrow window keeps the phone layout. A right sidebar in place of the bottom bar, wide pages,
+   3-4 device cards a row, the phone's bottom sheets as centered windows (Esc closes), and the
+   clients page as a list with the open statement beside it (AccountsSection). */
+.desk-sidebar {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  html.desk {
+    --desk-side: 236px;
+    --bottom-nav-height: 0px;
+  }
+
+  html.desk body {
+    padding-right: var(--desk-side);
+    padding-bottom: 0;
+  }
+
+  html.desk .bottom-nav,
+  html.desk .header-more {
+    display: none;
+  }
+
+  html.desk .home,
+  html.desk .app-shell {
+    max-width: 1480px;
+    padding: 24px 28px 48px;
+  }
+
+  html.desk .account-grid {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+  }
+
+  html.desk .desk-sidebar {
+    position: fixed;
+    z-index: 95;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: var(--desk-side);
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 20px 14px 16px;
+    overflow-y: auto;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+  }
+
+  .desk-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 2px 8px 6px;
+    color: var(--text);
+    font-size: 1.12rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-decoration: none;
+  }
+
+  .desk-brand-mark {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    background: var(--brand);
+    color: var(--brand-contrast);
+  }
+
+  .desk-nav-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .desk-nav-title {
+    padding: 0 10px 6px;
+    color: var(--text-muted);
+    font-size: 0.74rem;
+    letter-spacing: 0.04em;
+  }
+
+  .desk-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 10px;
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    font-weight: 500;
+    text-decoration: none;
+  }
+
+  .desk-nav-item:hover {
+    background: var(--surface-alt);
+    color: var(--text);
+  }
+
+  .desk-nav-item.active {
+    background: color-mix(in srgb, var(--brand) 15%, transparent);
+    color: var(--brand);
+    font-weight: 700;
+  }
+
+  .desk-nav-item:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 1px;
+  }
+
+  .desk-nav-icon {
+    display: inline-flex;
+  }
+
+  .desk-nav-icon svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .desk-nav-badge {
+    margin-inline-start: auto;
+    min-width: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--red);
+    color: #fff;
+    font-size: 0.72rem;
+    line-height: 20px;
+    text-align: center;
+  }
+
+  .desk-zoom-hint {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: auto;
+    white-space: pre;
+    padding: 0 10px;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+  }
+
+  /* The phone's bottom sheets: a window in the middle of the screen. */
+  html.desk .party-sheet-backdrop,
+  html.desk .bottom-nav-sheet-backdrop,
+  html.desk .shortcut-sheet-layer {
+    align-items: center;
+    padding: 24px;
+  }
+
+  html.desk .party-sheet {
+    max-width: 620px;
+    max-height: min(86vh, 920px);
+    padding: 20px 22px;
+    border-radius: var(--radius-lg);
+    box-shadow: 0 24px 64px rgb(0 0 0 / 0.35);
+  }
+
+  html.desk .bottom-nav-sheet,
+  html.desk .shortcut-sheet {
+    border-radius: var(--radius-lg);
+  }
+
+  html.desk .home-fab {
+    bottom: 24px;
+    left: 24px;
+  }
+
+  /* Clients / suppliers: the list on the right, the open one's card + statement on the left. */
+  html.desk .party-split {
+    display: grid;
+    grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+  }
+
+  .party-pick-list {
+    position: sticky;
+    top: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: calc(100vh - 32px);
+    margin: 0;
+    padding: 6px;
+    overflow-y: auto;
+    list-style: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+  }
+
+  .party-pick {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 9px 10px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--text);
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+  }
+
+  .party-pick:hover {
+    background: var(--surface-alt);
+  }
+
+  .party-pick.active {
+    background: color-mix(in srgb, var(--brand) 15%, transparent);
+  }
+
+  .party-pick:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: -2px;
+  }
+
+  .party-pick .party-avatar {
+    flex: none;
+    width: 36px;
+    height: 36px;
+    font-size: 0.78rem;
+  }
+
+  .party-pick-main {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .party-pick-main strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .party-pick-main bdi {
+    align-self: flex-start;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+  }
+
+  .party-pick-balance {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    font-size: 0.82rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .party-pick-due {
+    color: var(--red);
+  }
+
+  .party-pick-credit {
+    color: var(--green);
+  }
+
+  .party-pick-clear {
+    color: var(--text-muted);
+  }
+
+  .party-split-pane {
+    min-width: 0;
+  }
+
+  .party-split-pane .party-card-list {
+    margin: 0;
+  }
+}

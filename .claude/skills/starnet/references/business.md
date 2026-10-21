@@ -1966,3 +1966,9 @@ is never pressed while a field is empty - it refills and saves on the next try (
   (`localBrowser.ts` → `desktopBridge()`); the phone's mailbox («mail:») sessions are left out. The Starlink read
   (sync), the mailbox and the bots stay on the phone for now («المزامنة من Starlink تعمل من الهاتف حاليًا»).
   The data folder stays `%APPDATA%/starnet-desktop` while the shown name became «STAR NET» (dialog titles).
+- **The Windows layout - his Oct 21 2026 ask «أكبر وأن يوازي الويندوز، ليس كالهاتف»**, his 5 answers: a **right
+  sidebar** with every page by name (`DeskSidebar`, `lib/deskNav.ts`) instead of the bottom bar; device cards **3-4 a
+  row**; clients as **a list on the right + the open one's card and statement on the left** (`AccountsSection`
+  `party-split`); the phone's bottom sheets as **windows in the middle of the screen** (Esc closes, `DeskKeys`);
+  **normal size + Ctrl +/−/0 and Ctrl + wheel**, remembered (`desktop/zoom.js`, `window.json`). Only in the Windows
+  app (`html.desk`) on a window ≥ 900px; a narrow window and the phone keep the phone layout.

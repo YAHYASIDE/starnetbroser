@@ -277,12 +277,12 @@ export function HeaderMore() {
   );
 }
 
-type IconName =
+export type IconName =
   | "home" | "people" | "chart" | "handshake" | "bag" | "more" | "bell" | "coins" | "trash" | "archive" | "card"
   | "plus" | "sync" | "settings" | "close" | "tools" | "mail";
 
 /** Line icons shared by the bottom bar and its "المزيد" sheet (stroke = currentColor). */
-function NavIcon({ name }: { name: IconName }) {
+export function NavIcon({ name }: { name: IconName }) {
   const paths: Record<IconName, JSX.Element> = {
     home: <path d="M4 11 12 4l8 7v9H4z" />,
     people: (

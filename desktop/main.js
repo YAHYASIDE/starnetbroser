@@ -10,6 +10,7 @@ const fs = require("fs");
 const { pathToFileURL } = require("url");
 const { resolveFile } = require("./paths");
 const devices = require("./devices");
+const { attachZoom, readZoom } = require("./zoom");
 
 const ORIGIN = "app://starnet";
 const WEB_ROOT = app.isPackaged ? path.join(process.resourcesPath, "web") : path.join(__dirname, "..", "apps", "web", "out");
@@ -25,6 +26,31 @@ app.setPath("userData", path.join(app.getPath("appData"), "starnet-desktop"));
 if (!app.requestSingleInstanceLock()) app.quit();
 
 let win = null;
+
+// 🔍 One zoom level for every window of the program (Ctrl + / - / 0), kept in window.json.
+const settingsFile = () => path.join(app.getPath("userData"), "window.json");
+let zoomLevel = null;
+const zoom = {
+  get() {
+    if (zoomLevel === null) {
+      try {
+        zoomLevel = readZoom(fs.readFileSync(settingsFile(), "utf8"));
+      } catch {
+        zoomLevel = 0;
+      }
+    }
+    return zoomLevel;
+  },
+  set(level) {
+    zoomLevel = level;
+    for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.setZoomLevel(level);
+    try {
+      fs.writeFileSync(settingsFile(), JSON.stringify({ zoom: level }));
+    } catch {
+      // Not saved - it still applies until the program closes.
+    }
+  },
+};
 
 function createWindow() {
   win = new BrowserWindow({
@@ -42,6 +68,7 @@ function createWindow() {
       spellcheck: false,
     },
   });
+  attachZoom(win.webContents, zoom);
   win.loadURL(`${ORIGIN}/`);
   // Another site: the normal browser, never inside the app's window.
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -68,7 +95,7 @@ app.whenReady().then(() => {
     if (!file) return new Response("Not found", { status: 404 });
     return net.fetch(pathToFileURL(file).toString());
   });
-  devices.register(ipcMain, () => win);
+  devices.register(ipcMain, () => win, zoom);
   createWindow();
 });
 

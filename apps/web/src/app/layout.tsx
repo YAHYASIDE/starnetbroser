@@ -17,6 +17,7 @@ import { WhatsNewTour } from "@/components/WhatsNewTour";
 import { LiveSyncRunner } from "@/components/LiveSyncRunner";
 import { RepCopyAutoRunner } from "@/components/RepCopyAutoRunner";
 import { LinkGuardListener } from "@/components/LinkGuardListener";
+import { DeskSidebar, DeskKeys } from "@/components/DeskSidebar";
 
 export const metadata: Metadata = {
   title: "STAR NET",
@@ -34,7 +35,9 @@ export const viewport: Viewport = {
 // paint, so there's no flash of the wrong theme while React hydrates - kept in sync with
 // applyThemePreference's own logic, duplicated here only because this must run as plain JS
 // before any module import.
-const THEME_INIT_SCRIPT = `try{var t=localStorage.getItem("starnet.theme");document.documentElement.setAttribute("data-theme",t==="light"||t==="system"?t:"dark");}catch(e){document.documentElement.setAttribute("data-theme","dark");}`;
+// 🖥️ The Windows app (its preload's bridge is there before any page script) gets the laptop
+// layout - html.desk, see "Windows layout" in globals.css - before first paint too.
+const THEME_INIT_SCRIPT = `try{var t=localStorage.getItem("starnet.theme");document.documentElement.setAttribute("data-theme",t==="light"||t==="system"?t:"dark");}catch(e){document.documentElement.setAttribute("data-theme","dark");}try{if(window.starnetDesktop)document.documentElement.classList.add("desk");}catch(e){}`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -49,6 +52,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <RepModeGate>
             {children}
             <BottomNav />
+            <DeskSidebar />
+            <DeskKeys />
             <WhatsNewTour />
             <LiveSyncRunner />
             <RepCopyAutoRunner />

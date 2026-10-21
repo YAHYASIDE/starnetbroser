@@ -5,9 +5,11 @@
 const { BrowserWindow, Menu, session, shell, app } = require("electron");
 const { SESSION_COOKIE_URLS, isStarlinkUrl, partitionFor, starlinkRestorePlan, combineCookies } = require("./sessions");
 const { loginScript } = require("./autofill");
+const { attachZoom } = require("./zoom");
 
 const HOME_URL = "https://starlink.com/account/home";
 const open = new Map();
+let zoomStore = null;
 
 /** Starlink sees a normal Chrome, not «Electron/…» or the program's own name. */
 function chromeUserAgent(ses) {
@@ -64,6 +66,7 @@ function openDevice(opts) {
     event.preventDefault();
   });
   const wc = view.webContents;
+  if (zoomStore) attachZoom(wc, zoomStore);
   wc.setWindowOpenHandler(({ url }) => {
     if (isStarlinkUrl(url)) {
       void wc.loadURL(url);
@@ -138,7 +141,8 @@ async function deleteSession(accountId) {
 }
 
 /** Only the app's own window may ask (never a Starlink page). */
-function register(ipcMain, mainWindow) {
+function register(ipcMain, mainWindow, zoom) {
+  zoomStore = zoom || null;
   const fromApp = (event) => {
     const win = mainWindow();
     return Boolean(win && !win.isDestroyed() && event.sender === win.webContents);
