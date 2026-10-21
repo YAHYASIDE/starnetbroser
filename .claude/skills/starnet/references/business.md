@@ -1913,3 +1913,14 @@ is never pressed while a field is empty - it refills and saves on the next try (
   «جارِ تحميل البيانات…». The WebView's ground is dark (`backgroundColor` in capacitor.config) instead of white.
 - A banner that just appeared (⚠️ «توقفت وعليها D», 🆕 update) ignores taps for 1.2 s - a tap meant for what was
   under the finger before it pushed the screen down.
+
+## 🔑 Passkeys in a device's browser - experimental (Oct 21 2026)
+
+- His ask «اجعل المتصفحات يدعمون مفاتيح المرور مثل المتصفحات الأخرى» (for protection, not because Starlink demands it).
+  He insisted after I explained the limit; built as an experiment: the visible device browser turns on WebView's
+  WebAuthn «browser» mode (`WEB_AUTHENTICATION_SUPPORT_FOR_BROWSER`, Android 14+, permission
+  `CREDENTIAL_MANAGER_SET_ORIGIN`; «app» mode below 14), never during an automatic sync. androidx.webkit pinned
+  to 1.12.1 in the plugin. It works only if the phone's password manager trusts STAR NET as a browser - Google
+  Password Manager keeps its own fixed list of browsers (likely refuses); some managers (Bitwarden, KeePassDX…)
+  let the user trust an app. The password always stays - the app signs in with it.
+- Replies to him: **Arabic only, never any other language** (his Oct 21 2026 rule, after two English answers).

@@ -324,6 +324,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
         // 📷 Starlink's identity check shows the live camera in a <video> the page starts by itself;
         // WebView's default blocks that until a tap, so the camera stayed a gray ▶ (his Oct 2026 report).
         settings.setMediaPlaybackRequiresUserGesture(false);
+        enablePasskeys(settings);
 
         // ⬇️ Starlink's «Invoice PDF» and any other file the page hands out (PageDownloads).
         pageDownloads = new PageDownloads(this, webView, profileName);
@@ -1215,6 +1216,25 @@ public class AccountBrowserActivity extends AppCompatActivity {
             }
             syncHandler.postDelayed(() -> readSettledPoll(script, tracker, started, latest, previousPage, want), READ_POLL_MS);
         });
+    }
+
+    /**
+     * 🔑 Passkeys on Starlink's site (his Oct 21 2026 ask «اجعل المتصفحات تدعم مفاتيح المرور مثل
+     * المتصفحات الأخرى»): WebView's «browser» WebAuthn mode (Android 14+) hands the page's own origin to
+     * the phone's password manager - which answers only if it trusts this app as a browser (Google's
+     * own manager keeps a fixed list; some managers let him add it). Never during an automatic sync:
+     * a passkey sheet must not pop up over a sign-in the app does by itself.
+     */
+    private void enablePasskeys(WebSettings settings) {
+        if (getIntent().getBooleanExtra(EXTRA_AUTO_SYNC, false)) return;
+        try {
+            if (!androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.WEB_AUTHENTICATION)) return;
+            androidx.webkit.WebSettingsCompat.setWebAuthenticationSupport(settings, Build.VERSION.SDK_INT >= 34
+                ? androidx.webkit.WebSettingsCompat.WEB_AUTHENTICATION_SUPPORT_FOR_BROWSER
+                : androidx.webkit.WebSettingsCompat.WEB_AUTHENTICATION_SUPPORT_FOR_APP);
+        } catch (RuntimeException unsupported) {
+            // an older WebView: the page says «لا يدعم مفاتيح المرور» as before
+        }
     }
 
     /** Durably saves one page's read (and remembers it as "the page we were on"). */
