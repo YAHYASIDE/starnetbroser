@@ -37,7 +37,7 @@ export const viewport: Viewport = {
 // before any module import.
 // 🖥️ The Windows app (its preload's bridge is there before any page script) gets the laptop
 // layout - html.desk, see "Windows layout" in globals.css - before first paint too.
-const THEME_INIT_SCRIPT = `try{var t=localStorage.getItem("starnet.theme");document.documentElement.setAttribute("data-theme",t==="light"||t==="system"?t:"dark");}catch(e){document.documentElement.setAttribute("data-theme","dark");}try{if(window.starnetDesktop)document.documentElement.classList.add("desk");}catch(e){}`;
+const THEME_INIT_SCRIPT = `try{var t=localStorage.getItem("starnet.theme");document.documentElement.setAttribute("data-theme",t==="light"||t==="system"?t:"dark");}catch(e){document.documentElement.setAttribute("data-theme","dark");}try{if(window.starnetDesktop){document.documentElement.classList.add("desk");if(localStorage.getItem("starnet.deskSidebar")==="collapsed")document.documentElement.classList.add("desk-collapsed");}}catch(e){}`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

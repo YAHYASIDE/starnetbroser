@@ -279,7 +279,7 @@ export function HeaderMore() {
 
 export type IconName =
   | "home" | "people" | "chart" | "handshake" | "bag" | "more" | "bell" | "coins" | "trash" | "archive" | "card"
-  | "plus" | "sync" | "settings" | "close" | "tools" | "mail";
+  | "plus" | "sync" | "settings" | "close" | "tools" | "mail" | "dish" | "chevron";
 
 /** Line icons shared by the bottom bar and its "المزيد" sheet (stroke = currentColor). */
 export function NavIcon({ name }: { name: IconName }) {
@@ -332,6 +332,14 @@ export function NavIcon({ name }: { name: IconName }) {
       </>
     ),
     plus: <path d="M12 5v14M5 12h14" />,
+    dish: (
+      <>
+        <path d="M4.5 13.5a7.5 7.5 0 0 0 9-9z" />
+        <path d="M9 9l5.5-5.5M15.5 6.5a3 3 0 0 1 2 2" />
+        <path d="M9 19.5h7M12.5 15.5v4" />
+      </>
+    ),
+    chevron: <path d="m15 6-6 6 6 6" />,
     tools: <path d="M14.5 6.5a4 4 0 0 0 5 5l-8.5 8.5a2.1 2.1 0 0 1-3-3zM6 3l3 3-1 2-2 1-3-3" />,
     close: <path d="M6 6l12 12M18 6 6 18" />,
     sync: <path d="M20 11a8 8 0 0 0-14.3-4.9L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.9L20 16M20 20v-4h-4" />,

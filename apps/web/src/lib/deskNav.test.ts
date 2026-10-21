@@ -2,18 +2,18 @@ import { describe, expect, it } from "vitest";
 import { deskNavGroups, isDeskNavActive } from "./deskNav";
 
 describe("deskNavGroups", () => {
-  it("lists every owner page once: the daily tabs first, then the rest", () => {
+  it("groups every owner page once by what it is for", () => {
     const groups = deskNavGroups(false);
-    expect(groups.map((g) => g.title)).toEqual(["اليومي", "المزيد"]);
-    expect(groups[0].items.map((i) => i.href)).toEqual(["/", "/clients", "/money", "/representatives", "/reports"]);
+    expect(groups.map((g) => g.title)).toEqual(["العمل", "المال", "أدوات", "النظام"]);
+    expect(groups[0].items.map((i) => i.href)).toEqual(["/", "/devices", "/clients", "/representatives", "/reminders"]);
     const all = groups.flatMap((g) => g.items.map((i) => i.href));
     expect(new Set(all).size).toBe(all.length);
-    expect(all).toContain("/settings");
+    expect(all).toEqual(expect.arrayContaining(["/money", "/reports", "/store", "/starlink", "/currencies", "/tools", "/mailboxes", "/archive", "/trash", "/settings"]));
   });
 
-  it("a rep sees only the pages he was given", () => {
+  it("a rep sees only the pages he was given («الأجهزة» with «الرئيسية»)", () => {
     const groups = deskNavGroups(true, (p) => ["/", "/clients", "/settings"].includes(p));
-    expect(groups.flatMap((g) => g.items.map((i) => i.href))).toEqual(["/", "/clients", "/settings"]);
+    expect(groups.flatMap((g) => g.items.map((i) => i.href))).toEqual(["/", "/devices", "/clients", "/settings"]);
     expect(deskNavGroups(true, () => false)).toEqual([]);
   });
 });

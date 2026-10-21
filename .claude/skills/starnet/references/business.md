@@ -1976,3 +1976,15 @@ is never pressed while a field is empty - it refills and saves on the next try (
   edge to edge - banners, searches, tabs and summaries are a centered column (≤ 820px), a page of several boxes shows
   them two by two (التذكيرات، المتجر، حسابي، التقارير)، the settings rows in two columns, the clients' tabs + «إضافة» on
   one row and search + categories on the next (globals.css «Balanced, nothing stretched»).
+- **The Windows redesign with the «Interface Design» skill (his Oct 21 2026 brief, github.com/Dammyjay93/interface-design,
+  installed in `.claude/skills/interface-design`; the decisions in `.interface-design/system.md`).** Preview = the
+  home page and the devices page only; **the other pages wait for his approval of the screenshots** before they get
+  the same system. Built: a sidebar folding to icons (groups العمل / المال / أدوات / النظام, «الأجهزة» added) ·
+  a top bar (title, search with Ctrl K, bell, «＋ إضافة جهاز» instead of the floating +) · «/devices»: a table
+  (sort, filters الحالة / ينتهي / الزبون / الباقة / التصنيف, columns to show/hide - saved, sticky header, dish
+  and Wi-Fi separate as sign + word, old reads marked «قديمة», passwords hidden) or compact cards, and a
+  details panel with tabs (الملخص، الجهاز، المالية، التجديد، الملاحظات، كل الإجراءات = the phone card with every
+  action; delete stays there behind its confirm) · the home: 6 figures → «/devices?f=…», المتابعة (الليلة / غدًا /
+  توقفت), «تحتاج إجراءً», the money per currency (no conversion), a Saturday-first month calendar (29-31 «لا
+  فوترة») with the picked day's devices, and every phone list folded under «كل قوائم الأجهزة». No data,
+  storage key or money logic changed; the phone layout is untouched.

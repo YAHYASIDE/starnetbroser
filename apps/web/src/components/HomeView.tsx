@@ -18,6 +18,13 @@ import { DayCircles } from "./DayCircles";
 import { ConnectionStatus } from "./ConnectionStatus";
 import { AccountDialog, AccountDialogMode } from "./AccountDialog";
 import { HomeFab } from "./HomeFab";
+import { useDeskWide } from "./useDeskWide";
+import { DeskTopBar } from "./desk/DeskTopBar";
+import { DeskDevices } from "./desk/DeskDevices";
+import { DeskDashboard, type DeskKpi } from "./desk/DeskDashboard";
+import { followUp } from "@/lib/deskDashboard";
+import { EXPIRY_FILTERS, type ExpiryFilter } from "@/lib/deskTable";
+import { loadClientCategories } from "@/lib/clientCategories";
 import { HeaderMore } from "./BottomNav";
 import { pruneOrphanProofs } from "@/lib/paymentProofStore";
 import { buildAutoSyncList } from "@/lib/autoSyncList";
@@ -341,6 +348,7 @@ const FRESH_BANNER_MS = 1200;
 export function HomeView({
   accounts: demoAccounts,
   viewMode = "active",
+  deskPage = "home",
 }: {
   accounts: StarlinkAccountSummary[];
   /** Which of the three device lists this page shows - set once per route ("/" -> "active",
@@ -349,8 +357,16 @@ export function HomeView({
    * into the normal dashboard list/filters/stat tiles below (those always operate on "active"
    * devices only). */
   viewMode?: AccountCardContext;
+  /** 🖥️ The Windows app only: «/» is the dashboard, «/devices» the devices table (same data, same
+   * dialogs). Ignored on the phone. */
+  deskPage?: "home" | "devices";
 }) {
   const router = useRouter();
+  // 🖥️ The Windows app's own layout (his Oct 21 2026 brief) - the phone's stays exactly as it is.
+  const deskWide = useDeskWide();
+  const desk = deskWide && viewMode === "active";
+  // «/devices?f=expired&day=5&exp=today&id=…&q=…» - what the dashboard's figures, follow-up and calendar open.
+  const [deskInit, setDeskInit] = useState<{ id?: string; exp?: ExpiryFilter }>({});
   // 📧 Devices whose mailbox is signed in on this phone - their «البريد» button turns mint green.
   const [mailSignedIds, setMailSignedIds] = useState<Set<string>>(() => new Set());
   useEffect(() => {
@@ -409,6 +425,22 @@ export function HomeView({
     setSelectedDay(null);
   }
   const [showAll, setShowAll] = useState(false);
+  useEffect(() => {
+    if (deskPage !== "devices") return;
+    setShowAll(true);
+    const params = new URLSearchParams(window.location.search);
+    const f = params.get("f");
+    if (f && f in STAT_FILTER_TITLES && f !== "rep") setStatFilter(f as StatFilterKind);
+    const day = Number(params.get("day"));
+    if (Number.isInteger(day) && day >= 1 && day <= 28) setSelectedDay(day);
+    const q = params.get("q");
+    if (q) setQuery(q);
+    const exp = params.get("exp");
+    setDeskInit({
+      ...(params.get("id") ? { id: params.get("id") ?? undefined } : {}),
+      ...(exp && EXPIRY_FILTERS.some((e) => e.id === exp) ? { exp: exp as ExpiryFilter } : {}),
+    });
+  }, [deskPage]);
   const [dialog, setDialog] = useState<DialogState>(null);
   // 📱 The add-device dialog was opened for a device a rep sent from his app (repDeviceAdopt.ts).
   const repDeviceRequestRef = useRef<string | null>(null);
@@ -2390,6 +2422,574 @@ export function HomeView({
     : viewMode === "trash" ? trashAccounts
     : showAll || query || clientFocus !== null || selectedDay !== null || statFilter !== null ? filtered : expiredOrNearExpiry;
 
+  const renderCard = (account: StarlinkAccountSummary) => (
+    <AccountCard
+      key={account.id}
+      account={account}
+      repPending={repPendingIds.has(account.id)}
+      context={viewMode}
+      onEdit={(selected) => setDialog({ mode: "edit", account: selected })}
+      ledgerEntries={getAccountEntries(ledgerStore, account.id)}
+      allocations={allAllocations}
+      onLedger={(selected) => setLedgerAccount(selected)}
+      onSettleD={(selected) => {
+        // 💳 the card page's own payment form for its oldest D (his Oct 14 2026 ask: «ما خرج
+        // من البطاقة», the real rate) - and back here once paid.
+        // In place (router), never a full page load - that threw him out of the app (Oct 16 2026).
+        const open = oldestOpenDebt(getAccountEntries(ledgerStore, selected.id));
+        rememberPayTarget(open?.id ?? null);
+        router.push("/starlink");
+      }}
+      onDeviceStatement={(selected) => setStatementAccount(selected)}
+      client={visibleClientOf(account)}
+      heldByRepName={isHiddenRepDevice(account, hiddenReps) ? repContact(account, representativeStore)?.name : undefined}
+      repColor={getRepresentative(representativeStore, account.representativeId)?.color}
+      addedByRepName={account.addedByRepId ? getRepresentative(representativeStore, account.addedByRepId)?.name ?? "مندوب" : undefined}
+      repClientName={ownerView && account.representativeId ? account.repClientName : undefined}
+      twin={viewMode === "active" ? deviceTwinMap.get(account.id) : undefined}
+      onMergeInto={viewMode === "active" && !isRepWorkspace() ? handleMergeDevices : undefined}
+      onNotDuplicate={viewMode === "active" && !isRepWorkspace() ? handleNotDuplicate : undefined}
+      mailSignedIn={mailSignedIds.has(account.id)}
+      onOpenClient={(selectedClient) => setOpenClientId(selectedClient.id)}
+      currencyStore={currencyStore}
+      onSetDeviceFault={handleSetDeviceFault}
+      onSetRepair={(target, repair) => patchAccount(target.id, { underRepair: repair })}
+      onPatch={viewMode === "active" ? (target, patch) => patchAccount(target.id, patch) : undefined}
+      onTravelPrice={viewMode === "active" ? handleTravelPrice : undefined}
+      onTravelDone={viewMode === "active" ? handleTravelDone : undefined}
+      onTravelCheck={viewMode === "active" ? (target) => travelCheckIds([target.id], target.name) : undefined}
+      showTravelVerified={statFilter === "travelDone"}
+      unregisteredCard={viewMode === "active" && isUnregisteredCard(account, paymentCards)}
+      onFinishCreation={(target) => patchAccount(target.id, { creation: null })}
+      allAccounts={accounts}
+      onArchive={handleArchive}
+      onSoftDelete={ownerView ? handleSoftDelete : undefined}
+      onRestore={handleRestore}
+      onPermanentDelete={viewMode === "trash" && ownerView ? deleteAccount : undefined}
+      onConfirmRenewal={handleConfirmRenewal}
+      sessionNeedsLogin={viewMode === "active" && needsLoginIds.has(account.id)}
+      previousDebts={openPreviousDebts.filter((d) => d.accountId === account.id)}
+      onAddPreviousDebt={viewMode === "active" ? handleAddPreviousDebt : undefined}
+      onRestoreD={viewMode === "active" ? handleRestoreD : undefined}
+      onConfirmPaidD={viewMode === "active" ? handleConfirmPaidD : undefined}
+      onClearRepAdded={viewMode === "active" ? (a) => handleClearRepAdded([a]) : undefined}
+      deviceNote={deviceNotes[account.id]}
+      onSaveNote={(target, input) => commitDeviceNotes(saveDeviceNote(loadDeviceNotes(), target.id, input))}
+      onSetPinned={(target, pinned) => commitDeviceNotes(setDevicePinned(loadDeviceNotes(), target.id, pinned))}
+    />
+  );
+
+  const ringsNode = (
+    <>
+      <section className="status-rings" aria-label="ملخص الحسابات">
+        <StatusRing
+          tone="total"
+          value={overview.total}
+          total={overview.total}
+          label="كل الأجهزة"
+          icon={<IconGrid />}
+          onLongPress={() => setRingMenu({ kind: "all", label: "كل الأجهزة" })}
+          onClick={() => { setShowAll(true); setSelectedDay(null); setStatFilter(null); }}
+        />
+        <StatusRing
+          tone="online"
+          value={overview.online}
+          total={overview.total}
+          label="متصلة الآن"
+          icon={<IconSignal />}
+          active={statFilter === "online"}
+          onLongPress={() => setRingMenu({ kind: "online", label: "متصلة الآن" })}
+          onClick={() => toggleStatFilter("online")}
+        />
+        <StatusRing
+          tone="warning"
+          value={overview.expiringSoon}
+          total={overview.total}
+          label="تنتهي قريبًا"
+          icon={<IconClock />}
+          active={statFilter === "expiringSoon"}
+          onLongPress={() => setRingMenu({ kind: "expiringSoon", label: "تنتهي قريبًا" })}
+          onClick={() => toggleStatFilter("expiringSoon")}
+        />
+        <StatusRing
+          tone="expired"
+          value={overview.expired}
+          total={overview.total}
+          label="منتهية"
+          icon={<IconAlert />}
+          active={statFilter === "expired"}
+          onLongPress={() => setRingMenu({ kind: "expired", label: "منتهية" })}
+          onClick={() => toggleStatFilter("expired")}
+        />
+        <StatusRing
+          tone="suspended"
+          value={overview.suspended}
+          total={overview.total}
+          label="موقوفة"
+          icon={<IconPause />}
+          active={statFilter === "suspended"}
+          onLongPress={() => setRingMenu({ kind: "suspended", label: "موقوفة" })}
+          onClick={() => toggleStatFilter("suspended")}
+        />
+        {/* 🔵 His Oct 17 2026 circles - each one filters, and a long press checks it. */}
+        {([
+          ["notCanceled", "غير ملغي", ringCounts.notCanceled, <IconSignal key="i" />],
+          ["canceled", "ملغي", ringCounts.canceled, <IconAlert key="i" />],
+          ["renewed", "تم تجديد", ringCounts.renewed, <IconClock key="i" />],
+          ["sis", "SIS", ringCounts.sis, <IconPause key="i" />],
+          ["rom", "ROM", ringCounts.rom, <IconSignal key="i" />],
+          ["g100", "100G", ringCounts.g100, <IconGrid key="i" />],
+          ["toSis", "← SIS", ringCounts.toSis, <IconClock key="i" />],
+          ["toStop", "← STOP", ringCounts.toStop, <IconAlert key="i" />],
+        ] as const).map(([kind, label, value, icon]) => (
+          <StatusRing
+            key={kind}
+            tone={kind}
+            value={value}
+            total={overview.total}
+            label={label}
+            icon={icon}
+            active={statFilter === kind}
+            onLongPress={() => setRingMenu({ kind, label })}
+            onClick={() => toggleStatFilter(kind)}
+          />
+        ))}
+        {repRings.map(({ rep, count }) => (
+          <StatusRing
+            key={rep.id}
+            tone="rep"
+            color={rep.color}
+            value={count}
+            total={overview.total}
+            label={rep.name}
+            icon={<IconGrid />}
+            active={statFilter === "rep" && repRingId === rep.id}
+            onLongPress={() => setRingMenu({ kind: "rep", label: rep.name, repId: rep.id })}
+            onClick={() => {
+              const on = statFilter === "rep" && repRingId === rep.id;
+              setRepRingId(on ? null : rep.id);
+              setStatFilter(on ? null : "rep");
+              setSelectedDay(null);
+            }}
+          />
+        ))}
+        {ringCounts.duplicate > 0 && (
+          <StatusRing
+            tone="duplicate"
+            value={ringCounts.duplicate}
+            total={overview.total}
+            label="مكرر"
+            icon={<IconAlert />}
+            active={statFilter === "duplicate"}
+            onLongPress={() => setRingMenu({ kind: "duplicate", label: "مكرر" })}
+            onClick={() => toggleStatFilter("duplicate")}
+          />
+        )}
+      </section>
+
+      {/* 🕘 آخر جهاز, 📌 المثبتة, المعطلة… - round like the rings above, in the same grid (his Oct 12 2026 ask). */}
+      <section className="status-rings status-rings-more" aria-label="قوائم الأجهزة">
+        <StatusRing
+          tone="recent"
+          value={recentToday}
+          total={overview.total}
+          label="آخر جهاز"
+          icon={<IconClock />}
+          active={statFilter === "recent"}
+          onLongPress={() => setRingMenu({ kind: "recent", label: "آخر جهاز" })}
+          onClick={() => { toggleStatFilter("recent"); setSelectedDay(null); }}
+        />
+        <StatusRing
+          tone="notRenewed"
+          value={notRenewedCount}
+          total={overview.total}
+          label="لم يُجدَّد"
+          icon={<IconClock />}
+          active={statFilter === "notRenewed"}
+          onLongPress={() => setRingMenu({ kind: "notRenewed", label: "لم يُجدَّد" })}
+          onClick={() => { toggleStatFilter("notRenewed"); setSelectedDay(null); }}
+        />
+        <StatusRing
+          tone="pinned"
+          tour="pinned-chip"
+          value={pinnedCount}
+          total={overview.total}
+          label="المثبتة"
+          icon={<IconGrid />}
+          active={statFilter === "pinned"}
+          onLongPress={() => setRingMenu({ kind: "pinned", label: "المثبتة" })}
+          onClick={() => { toggleStatFilter("pinned"); setSelectedDay(null); }}
+        />
+        <StatusRing
+          tone="faulty"
+          value={overview.faulty}
+          total={overview.total}
+          label="المعطلة"
+          icon={<IconAlert />}
+          active={statFilter === "faulty"}
+          onLongPress={() => setRingMenu({ kind: "faulty", label: "المعطلة" })}
+          onClick={() => { toggleStatFilter("faulty"); setFaultFilter(null); setSelectedDay(null); }}
+        />
+        <StatusRing
+          tone="repair"
+          value={repairCount}
+          total={overview.total}
+          label="قيد الإصلاح"
+          icon={<IconPause />}
+          active={statFilter === "repair"}
+          onLongPress={() => setRingMenu({ kind: "repair", label: "قيد الإصلاح" })}
+          onClick={() => { toggleStatFilter("repair"); setSelectedDay(null); }}
+        />
+        <StatusRing
+          tone="travel"
+          tour="travel-list"
+          value={travelCount}
+          total={overview.total}
+          label="تحتاج توثيق"
+          icon={<IconAlert />}
+          active={statFilter === "travel"}
+          onLongPress={() => setRingMenu({ kind: "travel", label: "تحتاج توثيق" })}
+          onClick={() => { toggleStatFilter("travel"); setSelectedDay(null); }}
+        />
+        <StatusRing
+          tone="travelDone"
+          tour="travel-done"
+          value={travelDone.count}
+          total={overview.total}
+          label="تم توثيقها"
+          icon={<IconSignal />}
+          active={statFilter === "travelDone"}
+          onLongPress={() => setRingMenu({ kind: "travelDone", label: "تم توثيقها" })}
+          onClick={() => { toggleStatFilter("travelDone"); setSelectedDay(null); }}
+        />
+        <StatusRing
+          tone="outsideHome"
+          tour="outside-home"
+          value={outsideHomeCount}
+          total={overview.total}
+          label="خارج البلد"
+          icon={<IconAlert />}
+          active={statFilter === "outsideHome"}
+          onLongPress={() => setRingMenu({ kind: "outsideHome", label: "خارج البلد" })}
+          onClick={() => { toggleStatFilter("outsideHome"); setSelectedDay(null); }}
+        />
+        {fromRepCount > 0 && (
+          <StatusRing
+            tone="fromRep"
+            value={fromRepCount}
+            total={overview.total}
+            label="من المندوبين"
+            icon={<IconGrid />}
+            active={statFilter === "fromRep"}
+            onLongPress={() => setRingMenu({ kind: "fromRep", label: "من المندوبين" })}
+            onClick={() => { toggleStatFilter("fromRep"); setSelectedDay(null); }}
+          />
+        )}
+        {noClient.total > 0 && (
+          <StatusRing
+            tone="noClient"
+            tour="no-client"
+            value={noClient.total}
+            total={overview.total}
+            label="بدون زبون"
+            icon={<IconGrid />}
+            active={statFilter === "noClient"}
+            onLongPress={() => setRingMenu({ kind: "noClient", label: "بدون زبون" })}
+            onClick={() => { toggleStatFilter("noClient"); setNoClientGroup("all"); setSelectedDay(null); }}
+          />
+        )}
+      </section>
+
+      {statFilter === "pinned" && pinnedCount > 1 && (
+        <div className="status-chips">
+          <button
+            type="button"
+            className="faulty-chip pinned-clear-chip"
+            onClick={() => {
+              if (!window.confirm(`إلغاء تثبيت كل الأجهزة (${pinnedCount})؟ تبقى الملاحظات كما هي.`)) return;
+              commitDeviceNotes(unpinAll(loadDeviceNotes()));
+              setStatFilter(null);
+            }}
+          >
+            🧹 إلغاء كل التثبيتات
+          </button>
+        </div>
+      )}
+    </>
+  );
+
+  const noticesNode = (
+    <>
+    {desktop && viewMode === "active" && <DesktopWelcome empty={accountsLoaded && accounts.length === 0} />}
+
+    {updateAvailable && (
+      <a href={updateDownloadUrl()} target="_blank" rel="noreferrer" className="backup-banner update-banner" onClick={ignoreFreshTap("update")}>
+        <span aria-hidden="true">🆕</span>
+        <span>
+          <strong>تحديث جديد للتطبيق متوفر</strong>
+          <small>اضغط لتنزيل النسخة الأحدث ثم ثبّتها - بياناتك تبقى كما هي</small>
+        </span>
+      </a>
+    )}
+
+    {suspendedWithDebt.length > 0 && (
+      <Link href="/starlink" className="backup-banner d-alert-banner" onClick={ignoreFreshTap("d-alert")}>
+        <span aria-hidden="true">⚠️</span>
+        <span>
+          <strong>
+            {suspendedWithDebt.length === 1
+              ? `${suspendedWithDebt[0]!.account.name} توقف وعليه D`
+              : `${suspendedWithDebt.length} أجهزة توقفت وعليها D`}
+          </strong>
+          <small>
+            ادفع لستارلينك <bdi dir="ltr">{formatAmount(suspendedWithDebt.reduce((sum, s) => sum + s.costUsd, 0))} $</bdi> ثم اضغط «سدّدت»
+          </small>
+          {suspendedCardShortfall > 0 && (
+            <small className="d-alert-card-short">
+              💳 رصيد البطاقة لا يكفي - ينقصها <bdi dir="ltr">{formatAmount(suspendedCardShortfall)} $</bdi>
+            </small>
+          )}
+        </span>
+      </Link>
+    )}
+
+    {showMoneyAlerts && (
+      <button type="button" className="backup-banner money-alert-banner" data-tour="money-alerts" onClick={() => setMoneyAlertsOpen(true)}>
+        <span aria-hidden="true">{weekCardNeed && weekCardNeed.shortUsd > 0 ? "💳" : "🔻"}</span>
+        <span>
+          {weekCardNeed && weekCardNeed.shortUsd > 0 && (
+            <strong>
+              تحتاج <bdi dir="ltr">{formatAmount(weekCardNeed.needUsd)} $</bdi> للتجديدات خلال 7 أيام · رصيد KAST <bdi dir="ltr">{formatAmount(weekCardNeed.balanceUsd)} $</bdi>
+            </strong>
+          )}
+          {moneyAlertCount > 0 && deviceMargins && (
+            <strong>
+              {deviceMargins.losing.length > 0 && `🔻 ${deviceMargins.losing.length} ${deviceMargins.losing.length === 1 ? "جهاز خاسر" : "أجهزة خاسرة"}`}
+              {deviceMargins.losing.length > 0 && deviceMargins.weak.length > 0 && " · "}
+              {deviceMargins.weak.length > 0 && `🟡 ${deviceMargins.weak.length} ضعيفة الربح`}
+            </strong>
+          )}
+          <small>اضغط لترى التفاصيل</small>
+        </span>
+      </button>
+    )}
+
+    {moneyAlertsOpen && deviceMargins && weekCardNeed && (
+      <PartySheet title="💰 تنبيهات المال" onClose={() => setMoneyAlertsOpen(false)}>
+        <div className="money-alerts">
+          <section>
+            <strong>💳 بطاقة KAST والأيام السبعة القادمة</strong>
+            <p>
+              {weekCardNeed.devices} {weekCardNeed.devices === 1 ? "جهاز يتجدد" : "أجهزة تتجدد"} وتكلفتها <bdi dir="ltr">{formatAmount(weekCardNeed.needUsd)} $</bdi> · رصيد البطاقة <bdi dir="ltr">{formatAmount(weekCardNeed.balanceUsd)} $</bdi>
+            </p>
+            {weekCardNeed.shortUsd > 0 ? (
+              <p className="money-alerts-bad">
+                ينقصها <bdi dir="ltr">{formatAmount(weekCardNeed.shortUsd)} $</bdi> - <Link href="/starlink">اشحن البطاقة</Link>
+              </p>
+            ) : (
+              <p className="money-alerts-good">✓ الرصيد يكفي</p>
+            )}
+          </section>
+          {(["losing", "weak"] as const).map((kind) =>
+            deviceMargins[kind].length > 0 ? (
+              <section key={kind}>
+                <strong>{kind === "losing" ? "🔻 أجهزة خاسرة (تدفع لستارلينك أكثر مما تأخذ)" : `🟡 ربحها أقل من ${WEAK_MARGIN_PERCENT}% من سعر البيع`}</strong>
+                <ul>
+                  {deviceMargins[kind].map((d) => (
+                    <li key={d.id}>
+                      <button type="button" className="money-alerts-row" aria-expanded={marginOpen === d.id} onClick={() => setMarginOpen(marginOpen === d.id ? null : d.id)}>
+                        <span>
+                          {d.name}
+                          {visibleClientOf(d) ? <small> · {visibleClientOf(d)!.name}</small> : null}
+                        </span>
+                        <small>
+                          ربح{" "}
+                          <bdi dir="ltr" className={d.profitUsd < 0 ? "money-alerts-bad" : undefined}>
+                            {formatAmount(d.profitUsd)} $
+                          </bdi>{" "}
+                          في الشهر {marginOpen === d.id ? "▴" : "▾"}
+                        </small>
+                      </button>
+                      {marginOpen === d.id && (
+                        <div className="money-alerts-detail">
+                          <p>
+                            💵 يدفع لك الزبون شهريًا: <bdi dir="ltr">{formatAmount(d.sale.amount)}</bdi> {currencyLabel(d.sale.currency)}
+                            {d.sale.currency !== "USD" && (
+                              <>
+                                {" "}
+                                ÷ <bdi dir="ltr">{formatAmount(d.sale.rateFromUsd)}</bdi> (سعر الدولار اليوم) = <bdi dir="ltr">{formatAmount(d.saleUsd)} $</bdi>
+                              </>
+                            )}
+                          </p>
+                          <p>
+                            🛰️ تدفع لستارلينك شهريًا: <bdi dir="ltr">{formatAmount(d.cost.amount)}</bdi> {currencyLabel(d.cost.currency)}
+                            {d.cost.currency !== "USD" && (
+                              <>
+                                {" "}
+                                ÷ <bdi dir="ltr">{formatAmount(d.cost.rateFromUsd)}</bdi> = <bdi dir="ltr">{formatAmount(d.costUsd)} $</bdi>
+                              </>
+                            )}
+                          </p>
+                          <p>
+                            {d.profitUsd < 0 ? "🔻 خسارة" : "🟡 ربح"}: <bdi dir="ltr">{formatAmount(d.saleUsd)} $</bdi> − <bdi dir="ltr">{formatAmount(d.costUsd)} $</bdi> ={" "}
+                            <bdi dir="ltr" className={d.profitUsd < 0 ? "money-alerts-bad" : undefined}>
+                              {formatAmount(d.profitUsd)} $
+                            </bdi>{" "}
+                            في الشهر{d.suspicious ? "" : ` (${Math.round(d.percent)}% من سعر البيع)`}
+                          </p>
+                          {d.suspicious && (
+                            <p className="money-alerts-bad">
+                              ⚠️ هذه الأرقام غير منطقية: غالبًا السعر الشهري مكتوب خطأ (العملة أو المبلغ) في بطاقة الجهاز. صحّحه من «✏️ عدّل السعر الشهري».
+                            </p>
+                          )}
+                          <div className="settings-actions">
+                            <button
+                              type="button"
+                              className="dialog-primary"
+                              onClick={() => {
+                                const target = accounts.find((a) => a.id === d.id);
+                                setMoneyAlertsOpen(false);
+                                if (target) setDialog({ mode: "edit", account: target });
+                              }}
+                            >
+                              ✏️ عدّل السعر الشهري
+                            </button>
+                            <button
+                              type="button"
+                              className="text-action"
+                              onClick={() => {
+                                setMoneyAlertsOpen(false);
+                                setSelectedDay(null);
+                                setStatFilter(null);
+                                setQuery(d.name);
+                                window.setTimeout(() => document.querySelector(".accounts-section")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+                              }}
+                            >
+                              📡 افتح بطاقة الجهاز
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null,
+          )}
+          {(deviceMargins.unpriced > 0 || deviceMargins.noRate > 0) && (
+            <p className="settings-hint">
+              {deviceMargins.unpriced > 0 && `${deviceMargins.unpriced} ${deviceMargins.unpriced === 1 ? "جهاز" : "أجهزة"} بلا سعر شهري أو تكلفة ستارلينك - لا يُحكم عليها حتى تكتبه في بطاقة الجهاز. `}
+              {deviceMargins.noRate > 0 && `${deviceMargins.noRate} بعملة ليس لها سعر صرف مسجّل - سجّله في العملات.`}
+            </p>
+          )}
+          <p className="settings-hint">الربح محسوب بأسعار الصرف المسجّلة اليوم: إذا ارتفع الدولار أو سعر ستارلينك يظهر هنا دون أن تغيّر شيئًا.</p>
+        </div>
+      </PartySheet>
+    )}
+
+    {repInboxPending > 0 && (
+      <Link href="/representatives#rep-inbox" className="backup-banner">
+        <span aria-hidden="true">📝</span>
+        <span>
+          <strong>{repInboxPending} تسجيلاً من المندوبين بانتظار موافقتك</strong>
+          <small>أجهزة ودفعات وزبائن من تطبيق المندوب - لا يدخل شيء قبل أن تثبّته</small>
+        </span>
+      </Link>
+    )}
+
+    {pendingRepRequestCount > 0 && (
+      <Link href="/representatives" className="backup-banner">
+        <span aria-hidden="true">📥</span>
+        <span>
+          <strong>{pendingRepRequestCount === 1 ? "طلب من مندوب بانتظار موافقتك" : `${pendingRepRequestCount} طلبات من المندوبين بانتظار موافقتك`}</strong>
+          <small>دفعات أو زبائن جدد أرسلوها من تيليغرام - اضغط للمراجعة</small>
+        </span>
+      </Link>
+    )}
+
+    {repWorkspace && repPendingCount > 0 && (
+      <button
+        type="button"
+        className="rep-send-banner"
+        disabled={repSending}
+        onClick={async () => {
+          setRepSending(true);
+          const result = await shareRepChanges();
+          setRepSending(false);
+          if (result.ok) setRepSent(loadRepChangesSent());
+          else pushToast(result.message);
+        }}
+      >
+        <span aria-hidden="true">📤</span>
+        <span>
+          <strong>{repSending ? "⏳ جارِ التجهيز…" : `إرسال تسجيلاتي للمسؤول (${repPendingCount})`}</strong>
+          <small>
+            {repSent
+              ? `أُرسلت ${repSent.at.slice(0, 16).replace("T", " ")} - بانتظار موافقة المسؤول، ثم تصلك نسخة جديدة`
+              : "أجهزتك الجديدة وأسماء أجهزتك وزبائنها - عملياتك وديونك تبقى عندك. اختر تيليغرام ثم بوت المندوبين"}
+          </small>
+        </span>
+      </button>
+    )}
+
+    {!repWorkspace && isBackupOverdue(lastBackupAt, 2) && (
+      <Link href="/settings#backup" className="backup-banner backup-banner-slim" title="كل بياناتك موجودة على هذا الهاتف فقط - اضغط لحفظ نسخة كاملة الآن">
+        <span aria-hidden="true">🛡️</span>
+        <strong>{lastBackupAt ? "لا نسخة احتياطية منذ أيام" : "لم تحفظ نسخة احتياطية بعد"}</strong>
+        <span className="backup-banner-go">احفظ ‹</span>
+      </Link>
+    )}
+    </>
+  );
+
+  // 🖥️ The Windows app: what its dashboard and devices table read (the same lists as the phone's).
+  const deskFollow = useMemo(() => followUp(activeAccounts, needsLoginIds), [activeAccounts, needsLoginIds]);
+  const deskKpis: DeskKpi[] = [
+    { filter: "", label: "كل الأجهزة", value: overview.total, tone: "calm" },
+    { filter: "online", label: "متصلة الآن", value: overview.online, tone: "ok" },
+    { filter: "expiringSoon", label: "تنتهي قريبًا", value: overview.expiringSoon, tone: "soon" },
+    { filter: "expired", label: "منتهية", value: overview.expired, tone: "down" },
+    { filter: "suspended", label: "موقوفة", value: overview.suspended, tone: "down" },
+    { filter: "faulty", label: "معطلة", value: overview.faulty, tone: "calm" },
+  ];
+  const deskStatusOptions = (Object.keys(STAT_FILTER_TITLES) as StatFilterKind[]).filter((k) => k !== "rep").map((k) => ({ id: k, label: STAT_FILTER_TITLES[k] }));
+  const deskClientOptions = clients.map((c) => ({ id: c.id, name: c.name })).sort((a, b) => a.name.localeCompare(b.name, "ar"));
+  const deskCategories = useMemo(() => loadClientCategories().map((c) => ({ id: c.id, name: c.name })), []);
+  const deskShowDevices = desk && (deskPage === "devices" || query.trim() !== "");
+  function deskOpen(account: StarlinkAccountSummary) {
+    void openIsolatedAccountBrowser(account.id, account.name || "حساب Starlink", { ...starlinkLoginFor(account), ...mailExtrasFor(account, accounts) }).then((result) => {
+      if (!result.ok) window.alert(result.message);
+    });
+  }
+  function deskClearAll() {
+    setStatFilter(null);
+    setSelectedDay(null);
+    setClientFocus(null);
+    setFaultFilter(null);
+    setQuery("");
+    setShowAll(true);
+  }
+  const deskTopBar = desk && (
+    <DeskTopBar
+      title={deskShowDevices ? "الأجهزة" : "الرئيسية"}
+      subtitle={
+        deskShowDevices ? (
+          <>
+            <bdi className="desk-num">{activeAccounts.length}</bdi> جهاز نشط
+          </>
+        ) : (
+          new Date().toLocaleDateString("ar", { weekday: "long", day: "numeric", month: "long" })
+        )
+      }
+      search={query}
+      onSearch={startSearch}
+      action={
+        <button type="button" className="desk-btn desk-btn-primary" onClick={() => setDialog({ mode: "add" })}>
+          ＋ إضافة جهاز
+        </button>
+      }
+    />
+  );
   return (
     <main className="home app-shell">
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
@@ -2470,6 +3070,10 @@ export function HomeView({
           onDismiss={() => setOceanDismissed(oceanDevices.map((a) => a.id))}
         />
       )}
+      {deskTopBar}
+
+      {!desk && (
+      <>
       <header className="app-header app-header-compact">
         <HeaderMore />
         <NotificationsBell />
@@ -2498,227 +3102,13 @@ export function HomeView({
           الأدوات
         </Link>
       </nav>
-
-      {desktop && viewMode === "active" && <DesktopWelcome empty={accountsLoaded && accounts.length === 0} />}
-
-      {updateAvailable && (
-        <a href={updateDownloadUrl()} target="_blank" rel="noreferrer" className="backup-banner update-banner" onClick={ignoreFreshTap("update")}>
-          <span aria-hidden="true">🆕</span>
-          <span>
-            <strong>تحديث جديد للتطبيق متوفر</strong>
-            <small>اضغط لتنزيل النسخة الأحدث ثم ثبّتها - بياناتك تبقى كما هي</small>
-          </span>
-        </a>
+      </>
       )}
 
-      {suspendedWithDebt.length > 0 && (
-        <Link href="/starlink" className="backup-banner d-alert-banner" onClick={ignoreFreshTap("d-alert")}>
-          <span aria-hidden="true">⚠️</span>
-          <span>
-            <strong>
-              {suspendedWithDebt.length === 1
-                ? `${suspendedWithDebt[0]!.account.name} توقف وعليه D`
-                : `${suspendedWithDebt.length} أجهزة توقفت وعليها D`}
-            </strong>
-            <small>
-              ادفع لستارلينك <bdi dir="ltr">{formatAmount(suspendedWithDebt.reduce((sum, s) => sum + s.costUsd, 0))} $</bdi> ثم اضغط «سدّدت»
-            </small>
-            {suspendedCardShortfall > 0 && (
-              <small className="d-alert-card-short">
-                💳 رصيد البطاقة لا يكفي - ينقصها <bdi dir="ltr">{formatAmount(suspendedCardShortfall)} $</bdi>
-              </small>
-            )}
-          </span>
-        </Link>
-      )}
+      {!desk && noticesNode}
 
-      {showMoneyAlerts && (
-        <button type="button" className="backup-banner money-alert-banner" data-tour="money-alerts" onClick={() => setMoneyAlertsOpen(true)}>
-          <span aria-hidden="true">{weekCardNeed && weekCardNeed.shortUsd > 0 ? "💳" : "🔻"}</span>
-          <span>
-            {weekCardNeed && weekCardNeed.shortUsd > 0 && (
-              <strong>
-                تحتاج <bdi dir="ltr">{formatAmount(weekCardNeed.needUsd)} $</bdi> للتجديدات خلال 7 أيام · رصيد KAST <bdi dir="ltr">{formatAmount(weekCardNeed.balanceUsd)} $</bdi>
-              </strong>
-            )}
-            {moneyAlertCount > 0 && deviceMargins && (
-              <strong>
-                {deviceMargins.losing.length > 0 && `🔻 ${deviceMargins.losing.length} ${deviceMargins.losing.length === 1 ? "جهاز خاسر" : "أجهزة خاسرة"}`}
-                {deviceMargins.losing.length > 0 && deviceMargins.weak.length > 0 && " · "}
-                {deviceMargins.weak.length > 0 && `🟡 ${deviceMargins.weak.length} ضعيفة الربح`}
-              </strong>
-            )}
-            <small>اضغط لترى التفاصيل</small>
-          </span>
-        </button>
-      )}
-
-      {moneyAlertsOpen && deviceMargins && weekCardNeed && (
-        <PartySheet title="💰 تنبيهات المال" onClose={() => setMoneyAlertsOpen(false)}>
-          <div className="money-alerts">
-            <section>
-              <strong>💳 بطاقة KAST والأيام السبعة القادمة</strong>
-              <p>
-                {weekCardNeed.devices} {weekCardNeed.devices === 1 ? "جهاز يتجدد" : "أجهزة تتجدد"} وتكلفتها <bdi dir="ltr">{formatAmount(weekCardNeed.needUsd)} $</bdi> · رصيد البطاقة <bdi dir="ltr">{formatAmount(weekCardNeed.balanceUsd)} $</bdi>
-              </p>
-              {weekCardNeed.shortUsd > 0 ? (
-                <p className="money-alerts-bad">
-                  ينقصها <bdi dir="ltr">{formatAmount(weekCardNeed.shortUsd)} $</bdi> - <Link href="/starlink">اشحن البطاقة</Link>
-                </p>
-              ) : (
-                <p className="money-alerts-good">✓ الرصيد يكفي</p>
-              )}
-            </section>
-            {(["losing", "weak"] as const).map((kind) =>
-              deviceMargins[kind].length > 0 ? (
-                <section key={kind}>
-                  <strong>{kind === "losing" ? "🔻 أجهزة خاسرة (تدفع لستارلينك أكثر مما تأخذ)" : `🟡 ربحها أقل من ${WEAK_MARGIN_PERCENT}% من سعر البيع`}</strong>
-                  <ul>
-                    {deviceMargins[kind].map((d) => (
-                      <li key={d.id}>
-                        <button type="button" className="money-alerts-row" aria-expanded={marginOpen === d.id} onClick={() => setMarginOpen(marginOpen === d.id ? null : d.id)}>
-                          <span>
-                            {d.name}
-                            {visibleClientOf(d) ? <small> · {visibleClientOf(d)!.name}</small> : null}
-                          </span>
-                          <small>
-                            ربح{" "}
-                            <bdi dir="ltr" className={d.profitUsd < 0 ? "money-alerts-bad" : undefined}>
-                              {formatAmount(d.profitUsd)} $
-                            </bdi>{" "}
-                            في الشهر {marginOpen === d.id ? "▴" : "▾"}
-                          </small>
-                        </button>
-                        {marginOpen === d.id && (
-                          <div className="money-alerts-detail">
-                            <p>
-                              💵 يدفع لك الزبون شهريًا: <bdi dir="ltr">{formatAmount(d.sale.amount)}</bdi> {currencyLabel(d.sale.currency)}
-                              {d.sale.currency !== "USD" && (
-                                <>
-                                  {" "}
-                                  ÷ <bdi dir="ltr">{formatAmount(d.sale.rateFromUsd)}</bdi> (سعر الدولار اليوم) = <bdi dir="ltr">{formatAmount(d.saleUsd)} $</bdi>
-                                </>
-                              )}
-                            </p>
-                            <p>
-                              🛰️ تدفع لستارلينك شهريًا: <bdi dir="ltr">{formatAmount(d.cost.amount)}</bdi> {currencyLabel(d.cost.currency)}
-                              {d.cost.currency !== "USD" && (
-                                <>
-                                  {" "}
-                                  ÷ <bdi dir="ltr">{formatAmount(d.cost.rateFromUsd)}</bdi> = <bdi dir="ltr">{formatAmount(d.costUsd)} $</bdi>
-                                </>
-                              )}
-                            </p>
-                            <p>
-                              {d.profitUsd < 0 ? "🔻 خسارة" : "🟡 ربح"}: <bdi dir="ltr">{formatAmount(d.saleUsd)} $</bdi> − <bdi dir="ltr">{formatAmount(d.costUsd)} $</bdi> ={" "}
-                              <bdi dir="ltr" className={d.profitUsd < 0 ? "money-alerts-bad" : undefined}>
-                                {formatAmount(d.profitUsd)} $
-                              </bdi>{" "}
-                              في الشهر{d.suspicious ? "" : ` (${Math.round(d.percent)}% من سعر البيع)`}
-                            </p>
-                            {d.suspicious && (
-                              <p className="money-alerts-bad">
-                                ⚠️ هذه الأرقام غير منطقية: غالبًا السعر الشهري مكتوب خطأ (العملة أو المبلغ) في بطاقة الجهاز. صحّحه من «✏️ عدّل السعر الشهري».
-                              </p>
-                            )}
-                            <div className="settings-actions">
-                              <button
-                                type="button"
-                                className="dialog-primary"
-                                onClick={() => {
-                                  const target = accounts.find((a) => a.id === d.id);
-                                  setMoneyAlertsOpen(false);
-                                  if (target) setDialog({ mode: "edit", account: target });
-                                }}
-                              >
-                                ✏️ عدّل السعر الشهري
-                              </button>
-                              <button
-                                type="button"
-                                className="text-action"
-                                onClick={() => {
-                                  setMoneyAlertsOpen(false);
-                                  setSelectedDay(null);
-                                  setStatFilter(null);
-                                  setQuery(d.name);
-                                  window.setTimeout(() => document.querySelector(".accounts-section")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
-                                }}
-                              >
-                                📡 افتح بطاقة الجهاز
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              ) : null,
-            )}
-            {(deviceMargins.unpriced > 0 || deviceMargins.noRate > 0) && (
-              <p className="settings-hint">
-                {deviceMargins.unpriced > 0 && `${deviceMargins.unpriced} ${deviceMargins.unpriced === 1 ? "جهاز" : "أجهزة"} بلا سعر شهري أو تكلفة ستارلينك - لا يُحكم عليها حتى تكتبه في بطاقة الجهاز. `}
-                {deviceMargins.noRate > 0 && `${deviceMargins.noRate} بعملة ليس لها سعر صرف مسجّل - سجّله في العملات.`}
-              </p>
-            )}
-            <p className="settings-hint">الربح محسوب بأسعار الصرف المسجّلة اليوم: إذا ارتفع الدولار أو سعر ستارلينك يظهر هنا دون أن تغيّر شيئًا.</p>
-          </div>
-        </PartySheet>
-      )}
-
-      {repInboxPending > 0 && (
-        <Link href="/representatives#rep-inbox" className="backup-banner">
-          <span aria-hidden="true">📝</span>
-          <span>
-            <strong>{repInboxPending} تسجيلاً من المندوبين بانتظار موافقتك</strong>
-            <small>أجهزة ودفعات وزبائن من تطبيق المندوب - لا يدخل شيء قبل أن تثبّته</small>
-          </span>
-        </Link>
-      )}
-
-      {pendingRepRequestCount > 0 && (
-        <Link href="/representatives" className="backup-banner">
-          <span aria-hidden="true">📥</span>
-          <span>
-            <strong>{pendingRepRequestCount === 1 ? "طلب من مندوب بانتظار موافقتك" : `${pendingRepRequestCount} طلبات من المندوبين بانتظار موافقتك`}</strong>
-            <small>دفعات أو زبائن جدد أرسلوها من تيليغرام - اضغط للمراجعة</small>
-          </span>
-        </Link>
-      )}
-
-      {repWorkspace && repPendingCount > 0 && (
-        <button
-          type="button"
-          className="rep-send-banner"
-          disabled={repSending}
-          onClick={async () => {
-            setRepSending(true);
-            const result = await shareRepChanges();
-            setRepSending(false);
-            if (result.ok) setRepSent(loadRepChangesSent());
-            else pushToast(result.message);
-          }}
-        >
-          <span aria-hidden="true">📤</span>
-          <span>
-            <strong>{repSending ? "⏳ جارِ التجهيز…" : `إرسال تسجيلاتي للمسؤول (${repPendingCount})`}</strong>
-            <small>
-              {repSent
-                ? `أُرسلت ${repSent.at.slice(0, 16).replace("T", " ")} - بانتظار موافقة المسؤول، ثم تصلك نسخة جديدة`
-                : "أجهزتك الجديدة وأسماء أجهزتك وزبائنها - عملياتك وديونك تبقى عندك. اختر تيليغرام ثم بوت المندوبين"}
-            </small>
-          </span>
-        </button>
-      )}
-
-      {!repWorkspace && isBackupOverdue(lastBackupAt, 2) && (
-        <Link href="/settings#backup" className="backup-banner backup-banner-slim" title="كل بياناتك موجودة على هذا الهاتف فقط - اضغط لحفظ نسخة كاملة الآن">
-          <span aria-hidden="true">🛡️</span>
-          <strong>{lastBackupAt ? "لا نسخة احتياطية منذ أيام" : "لم تحفظ نسخة احتياطية بعد"}</strong>
-          <span className="backup-banner-go">احفظ ‹</span>
-        </Link>
-      )}
-
+      {!desk && (
+      <>
       <section className="search-panel" aria-label="البحث في الحسابات">
         <span className="search-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>
@@ -2766,6 +3156,9 @@ export function HomeView({
         </section>
       )}
 
+      </>
+      )}
+
       {query.trim() && fuzzySearch && (
         <p className="search-fuzzy-note" role="status">
           {filtered.length > 0 ? <>🔤 لا شيء يطابق «<bdi>{query.trim()}</bdi>» تمامًا - هذه أقرب النتائج (ربما خطأ في الكتابة)</> : <>لا نتيجة لـ «<bdi>{query.trim()}</bdi>»</>}
@@ -2793,6 +3186,7 @@ export function HomeView({
         )}
       </div>
 
+      {!desk && (
       <HelpHint
         title="الصفحة الرئيسية"
         steps={[
@@ -2801,243 +3195,26 @@ export function HomeView({
           "استخدم زر + في الأسفل للوصول إلى العملات وسلة المحذوفات والأرشيف.",
         ]}
       />
+      )}
 
-      {viewMode === "active" && (
+      {desk && !deskShowDevices && (
+        <DeskDashboard
+          kpis={deskKpis}
+          total={overview.total}
+          follow={deskFollow}
+          dayCounts={dayCounts}
+          devicesOnDay={(day) => activeAccounts.filter((a) => deviceDayKeys(a).includes(day))}
+          clientName={(a) => visibleClientOf(a)?.name ?? ""}
+          customersOwe={totalOwedAcrossAccounts(ledgerStore)}
+          stoppedWithD={suspendedWithDebt.length}
+          allLists={ringsNode}
+          notices={noticesNode}
+        />
+      )}
+
+      {viewMode === "active" && !desk && (
         <>
-          <section className="status-rings" aria-label="ملخص الحسابات">
-            <StatusRing
-              tone="total"
-              value={overview.total}
-              total={overview.total}
-              label="كل الأجهزة"
-              icon={<IconGrid />}
-              onLongPress={() => setRingMenu({ kind: "all", label: "كل الأجهزة" })}
-              onClick={() => { setShowAll(true); setSelectedDay(null); setStatFilter(null); }}
-            />
-            <StatusRing
-              tone="online"
-              value={overview.online}
-              total={overview.total}
-              label="متصلة الآن"
-              icon={<IconSignal />}
-              active={statFilter === "online"}
-              onLongPress={() => setRingMenu({ kind: "online", label: "متصلة الآن" })}
-              onClick={() => toggleStatFilter("online")}
-            />
-            <StatusRing
-              tone="warning"
-              value={overview.expiringSoon}
-              total={overview.total}
-              label="تنتهي قريبًا"
-              icon={<IconClock />}
-              active={statFilter === "expiringSoon"}
-              onLongPress={() => setRingMenu({ kind: "expiringSoon", label: "تنتهي قريبًا" })}
-              onClick={() => toggleStatFilter("expiringSoon")}
-            />
-            <StatusRing
-              tone="expired"
-              value={overview.expired}
-              total={overview.total}
-              label="منتهية"
-              icon={<IconAlert />}
-              active={statFilter === "expired"}
-              onLongPress={() => setRingMenu({ kind: "expired", label: "منتهية" })}
-              onClick={() => toggleStatFilter("expired")}
-            />
-            <StatusRing
-              tone="suspended"
-              value={overview.suspended}
-              total={overview.total}
-              label="موقوفة"
-              icon={<IconPause />}
-              active={statFilter === "suspended"}
-              onLongPress={() => setRingMenu({ kind: "suspended", label: "موقوفة" })}
-              onClick={() => toggleStatFilter("suspended")}
-            />
-            {/* 🔵 His Oct 17 2026 circles - each one filters, and a long press checks it. */}
-            {([
-              ["notCanceled", "غير ملغي", ringCounts.notCanceled, <IconSignal key="i" />],
-              ["canceled", "ملغي", ringCounts.canceled, <IconAlert key="i" />],
-              ["renewed", "تم تجديد", ringCounts.renewed, <IconClock key="i" />],
-              ["sis", "SIS", ringCounts.sis, <IconPause key="i" />],
-              ["rom", "ROM", ringCounts.rom, <IconSignal key="i" />],
-              ["g100", "100G", ringCounts.g100, <IconGrid key="i" />],
-              ["toSis", "← SIS", ringCounts.toSis, <IconClock key="i" />],
-              ["toStop", "← STOP", ringCounts.toStop, <IconAlert key="i" />],
-            ] as const).map(([kind, label, value, icon]) => (
-              <StatusRing
-                key={kind}
-                tone={kind}
-                value={value}
-                total={overview.total}
-                label={label}
-                icon={icon}
-                active={statFilter === kind}
-                onLongPress={() => setRingMenu({ kind, label })}
-                onClick={() => toggleStatFilter(kind)}
-              />
-            ))}
-            {repRings.map(({ rep, count }) => (
-              <StatusRing
-                key={rep.id}
-                tone="rep"
-                color={rep.color}
-                value={count}
-                total={overview.total}
-                label={rep.name}
-                icon={<IconGrid />}
-                active={statFilter === "rep" && repRingId === rep.id}
-                onLongPress={() => setRingMenu({ kind: "rep", label: rep.name, repId: rep.id })}
-                onClick={() => {
-                  const on = statFilter === "rep" && repRingId === rep.id;
-                  setRepRingId(on ? null : rep.id);
-                  setStatFilter(on ? null : "rep");
-                  setSelectedDay(null);
-                }}
-              />
-            ))}
-            {ringCounts.duplicate > 0 && (
-              <StatusRing
-                tone="duplicate"
-                value={ringCounts.duplicate}
-                total={overview.total}
-                label="مكرر"
-                icon={<IconAlert />}
-                active={statFilter === "duplicate"}
-                onLongPress={() => setRingMenu({ kind: "duplicate", label: "مكرر" })}
-                onClick={() => toggleStatFilter("duplicate")}
-              />
-            )}
-          </section>
-
-          {/* 🕘 آخر جهاز, 📌 المثبتة, المعطلة… - round like the rings above, in the same grid (his Oct 12 2026 ask). */}
-          <section className="status-rings status-rings-more" aria-label="قوائم الأجهزة">
-            <StatusRing
-              tone="recent"
-              value={recentToday}
-              total={overview.total}
-              label="آخر جهاز"
-              icon={<IconClock />}
-              active={statFilter === "recent"}
-              onLongPress={() => setRingMenu({ kind: "recent", label: "آخر جهاز" })}
-              onClick={() => { toggleStatFilter("recent"); setSelectedDay(null); }}
-            />
-            <StatusRing
-              tone="notRenewed"
-              value={notRenewedCount}
-              total={overview.total}
-              label="لم يُجدَّد"
-              icon={<IconClock />}
-              active={statFilter === "notRenewed"}
-              onLongPress={() => setRingMenu({ kind: "notRenewed", label: "لم يُجدَّد" })}
-              onClick={() => { toggleStatFilter("notRenewed"); setSelectedDay(null); }}
-            />
-            <StatusRing
-              tone="pinned"
-              tour="pinned-chip"
-              value={pinnedCount}
-              total={overview.total}
-              label="المثبتة"
-              icon={<IconGrid />}
-              active={statFilter === "pinned"}
-              onLongPress={() => setRingMenu({ kind: "pinned", label: "المثبتة" })}
-              onClick={() => { toggleStatFilter("pinned"); setSelectedDay(null); }}
-            />
-            <StatusRing
-              tone="faulty"
-              value={overview.faulty}
-              total={overview.total}
-              label="المعطلة"
-              icon={<IconAlert />}
-              active={statFilter === "faulty"}
-              onLongPress={() => setRingMenu({ kind: "faulty", label: "المعطلة" })}
-              onClick={() => { toggleStatFilter("faulty"); setFaultFilter(null); setSelectedDay(null); }}
-            />
-            <StatusRing
-              tone="repair"
-              value={repairCount}
-              total={overview.total}
-              label="قيد الإصلاح"
-              icon={<IconPause />}
-              active={statFilter === "repair"}
-              onLongPress={() => setRingMenu({ kind: "repair", label: "قيد الإصلاح" })}
-              onClick={() => { toggleStatFilter("repair"); setSelectedDay(null); }}
-            />
-            <StatusRing
-              tone="travel"
-              tour="travel-list"
-              value={travelCount}
-              total={overview.total}
-              label="تحتاج توثيق"
-              icon={<IconAlert />}
-              active={statFilter === "travel"}
-              onLongPress={() => setRingMenu({ kind: "travel", label: "تحتاج توثيق" })}
-              onClick={() => { toggleStatFilter("travel"); setSelectedDay(null); }}
-            />
-            <StatusRing
-              tone="travelDone"
-              tour="travel-done"
-              value={travelDone.count}
-              total={overview.total}
-              label="تم توثيقها"
-              icon={<IconSignal />}
-              active={statFilter === "travelDone"}
-              onLongPress={() => setRingMenu({ kind: "travelDone", label: "تم توثيقها" })}
-              onClick={() => { toggleStatFilter("travelDone"); setSelectedDay(null); }}
-            />
-            <StatusRing
-              tone="outsideHome"
-              tour="outside-home"
-              value={outsideHomeCount}
-              total={overview.total}
-              label="خارج البلد"
-              icon={<IconAlert />}
-              active={statFilter === "outsideHome"}
-              onLongPress={() => setRingMenu({ kind: "outsideHome", label: "خارج البلد" })}
-              onClick={() => { toggleStatFilter("outsideHome"); setSelectedDay(null); }}
-            />
-            {fromRepCount > 0 && (
-              <StatusRing
-                tone="fromRep"
-                value={fromRepCount}
-                total={overview.total}
-                label="من المندوبين"
-                icon={<IconGrid />}
-                active={statFilter === "fromRep"}
-                onLongPress={() => setRingMenu({ kind: "fromRep", label: "من المندوبين" })}
-                onClick={() => { toggleStatFilter("fromRep"); setSelectedDay(null); }}
-              />
-            )}
-            {noClient.total > 0 && (
-              <StatusRing
-                tone="noClient"
-                tour="no-client"
-                value={noClient.total}
-                total={overview.total}
-                label="بدون زبون"
-                icon={<IconGrid />}
-                active={statFilter === "noClient"}
-                onLongPress={() => setRingMenu({ kind: "noClient", label: "بدون زبون" })}
-                onClick={() => { toggleStatFilter("noClient"); setNoClientGroup("all"); setSelectedDay(null); }}
-              />
-            )}
-          </section>
-
-          {statFilter === "pinned" && pinnedCount > 1 && (
-            <div className="status-chips">
-              <button
-                type="button"
-                className="faulty-chip pinned-clear-chip"
-                onClick={() => {
-                  if (!window.confirm(`إلغاء تثبيت كل الأجهزة (${pinnedCount})؟ تبقى الملاحظات كما هي.`)) return;
-                  commitDeviceNotes(unpinAll(loadDeviceNotes()));
-                  setStatFilter(null);
-                }}
-              >
-                🧹 إلغاء كل التثبيتات
-              </button>
-            </div>
-          )}
+          {ringsNode}
 
           <section className="section dashboard-section">
             <div className="section-heading">
@@ -3059,6 +3236,7 @@ export function HomeView({
         </>
       )}
 
+      {(!desk || deskShowDevices) && (
       <section className="section dashboard-section accounts-section">
         <div className="section-header-row">
           <div>
@@ -3183,66 +3361,44 @@ export function HomeView({
               : "لا توجد حسابات مطابقة."}
           </p>
         ) : (
+          desk ? (
+            <DeskDevices
+              devices={visible}
+              clientName={(a) => visibleClientOf(a)?.name ?? ""}
+              clientCategories={(a) => visibleClientOf(a)?.categories ?? []}
+              categories={deskCategories}
+              entries={(a) => getAccountEntries(ledgerStore, a.id)}
+              note={(a) => deviceNotes[a.id]}
+              renderCard={renderCard}
+              onOpen={deskOpen}
+              onPay={(a) => {
+                setLedgerForPayment(true);
+                setLedgerAccount(a);
+              }}
+              onEdit={(a) => setDialog({ mode: "edit", account: a })}
+              onStatement={(a) => setStatementAccount(a)}
+              status={statFilter ?? ""}
+              statusOptions={deskStatusOptions}
+              onStatus={(id) => {
+                setStatFilter(id ? (id as StatFilterKind) : null);
+                setSelectedDay(null);
+                setShowAll(true);
+              }}
+              clientId={clientFocus ?? ""}
+              clientOptions={deskClientOptions}
+              onClient={(id) => setClientFocus(id || null)}
+              onClearAll={deskClearAll}
+              initialSelectedId={deskInit.id ?? null}
+              initialExpiry={deskInit.exp}
+            />
+          ) : (
           <div className="account-grid">
-            {visible.map((account) => (
-              <AccountCard
-                key={account.id}
-                account={account}
-                repPending={repPendingIds.has(account.id)}
-                context={viewMode}
-                onEdit={(selected) => setDialog({ mode: "edit", account: selected })}
-                ledgerEntries={getAccountEntries(ledgerStore, account.id)}
-                allocations={allAllocations}
-                onLedger={(selected) => setLedgerAccount(selected)}
-                onSettleD={(selected) => {
-                  // 💳 the card page's own payment form for its oldest D (his Oct 14 2026 ask: «ما خرج
-                  // من البطاقة», the real rate) - and back here once paid.
-                  // In place (router), never a full page load - that threw him out of the app (Oct 16 2026).
-                  const open = oldestOpenDebt(getAccountEntries(ledgerStore, selected.id));
-                  rememberPayTarget(open?.id ?? null);
-                  router.push("/starlink");
-                }}
-                onDeviceStatement={(selected) => setStatementAccount(selected)}
-                client={visibleClientOf(account)}
-                heldByRepName={isHiddenRepDevice(account, hiddenReps) ? repContact(account, representativeStore)?.name : undefined}
-                repColor={getRepresentative(representativeStore, account.representativeId)?.color}
-                addedByRepName={account.addedByRepId ? getRepresentative(representativeStore, account.addedByRepId)?.name ?? "مندوب" : undefined}
-                repClientName={ownerView && account.representativeId ? account.repClientName : undefined}
-                twin={viewMode === "active" ? deviceTwinMap.get(account.id) : undefined}
-                onMergeInto={viewMode === "active" && !isRepWorkspace() ? handleMergeDevices : undefined}
-                onNotDuplicate={viewMode === "active" && !isRepWorkspace() ? handleNotDuplicate : undefined}
-                mailSignedIn={mailSignedIds.has(account.id)}
-                onOpenClient={(selectedClient) => setOpenClientId(selectedClient.id)}
-                currencyStore={currencyStore}
-                onSetDeviceFault={handleSetDeviceFault}
-                onSetRepair={(target, repair) => patchAccount(target.id, { underRepair: repair })}
-                onPatch={viewMode === "active" ? (target, patch) => patchAccount(target.id, patch) : undefined}
-                onTravelPrice={viewMode === "active" ? handleTravelPrice : undefined}
-                onTravelDone={viewMode === "active" ? handleTravelDone : undefined}
-                onTravelCheck={viewMode === "active" ? (target) => travelCheckIds([target.id], target.name) : undefined}
-                showTravelVerified={statFilter === "travelDone"}
-                unregisteredCard={viewMode === "active" && isUnregisteredCard(account, paymentCards)}
-                onFinishCreation={(target) => patchAccount(target.id, { creation: null })}
-                allAccounts={accounts}
-                onArchive={handleArchive}
-                onSoftDelete={ownerView ? handleSoftDelete : undefined}
-                onRestore={handleRestore}
-                onPermanentDelete={viewMode === "trash" && ownerView ? deleteAccount : undefined}
-                onConfirmRenewal={handleConfirmRenewal}
-                sessionNeedsLogin={viewMode === "active" && needsLoginIds.has(account.id)}
-                previousDebts={openPreviousDebts.filter((d) => d.accountId === account.id)}
-                onAddPreviousDebt={viewMode === "active" ? handleAddPreviousDebt : undefined}
-                onRestoreD={viewMode === "active" ? handleRestoreD : undefined}
-                onConfirmPaidD={viewMode === "active" ? handleConfirmPaidD : undefined}
-                onClearRepAdded={viewMode === "active" ? (a) => handleClearRepAdded([a]) : undefined}
-                deviceNote={deviceNotes[account.id]}
-                onSaveNote={(target, input) => commitDeviceNotes(saveDeviceNote(loadDeviceNotes(), target.id, input))}
-                onSetPinned={(target, pinned) => commitDeviceNotes(setDevicePinned(loadDeviceNotes(), target.id, pinned))}
-              />
-            ))}
+            {visible.map((account) => renderCard(account))}
           </div>
+          )
         )}
       </section>
+      )}
 
       {travelFeeSent && (() => {
         const device = accounts.find((a) => a.id === travelFeeSent.accountId);
@@ -3304,7 +3460,7 @@ export function HomeView({
         );
       })()}
 
-      {viewMode === "active" && !dialog && !ledgerAccount && (
+      {viewMode === "active" && !dialog && !ledgerAccount && !desk && (
         <HomeFab onAddDevice={() => setDialog({ mode: "add" })} />
       )}
 
