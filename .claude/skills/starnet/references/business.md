@@ -1972,3 +1972,7 @@ is never pressed while a field is empty - it refills and saves on the next try (
   `party-split`); the phone's bottom sheets as **windows in the middle of the screen** (Esc closes, `DeskKeys`);
   **normal size + Ctrl +/−/0 and Ctrl + wheel**, remembered (`desktop/zoom.js`, `window.json`). Only in the Windows
   app (`html.desk`) on a window ≥ 900px; a narrow window and the phone keep the phone layout.
+  Then his follow-up «لا تجعل الديون والكتابات تبدأ من اليمين حتى الشمال، صغّرها، كل شيء يكون متوازن»: nothing runs
+  edge to edge - banners, searches, tabs and summaries are a centered column (≤ 820px), a page of several boxes shows
+  them two by two (التذكيرات، المتجر، حسابي، التقارير)، the settings rows in two columns, the clients' tabs + «إضافة» on
+  one row and search + categories on the next (globals.css «Balanced, nothing stretched»).

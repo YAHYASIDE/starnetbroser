@@ -16935,7 +16935,7 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
 
   html.desk .home,
   html.desk .app-shell {
-    max-width: 1480px;
+    max-width: 1240px;
     padding: 24px 28px 48px;
   }
 
@@ -17192,5 +17192,160 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
 
   .party-split-pane .party-card-list {
     margin: 0;
+  }
+}
+
+/* 🖥️ Balanced, nothing stretched (his Oct 21 2026 follow-up: «لا تجعل الديون والكتابات تبدأ من اليمين حتى
+   الشمال، صغّرها، كل شيء يكون متوازن»): banners and searches are a short centered column, pages of several
+   boxes put them two by two, and each page's long lists run in two columns. */
+@media (min-width: 900px) {
+  html.desk .home-shortcuts,
+  html.desk .desktop-welcome,
+  html.desk .backup-banner,
+  html.desk .search-panel,
+  html.desk .conn-row,
+  html.desk .home > .account-card-alert,
+  html.desk .reports-search,
+  html.desk .money-search,
+  html.desk .report-tabs,
+  html.desk .report-period-row,
+  html.desk .net-hero,
+  html.desk .dash-toolbar,
+  html.desk .tools-head,
+  html.desk .sl-summary,
+  html.desk .sl-tabs,
+  html.desk .rep-display,
+  html.desk .rep-overview,
+  html.desk .settings-hub {
+    width: 100%;
+    max-width: 820px;
+    margin-inline: auto;
+  }
+
+  html.desk .settings-search {
+    max-width: 820px;
+    margin-inline: auto;
+  }
+
+  /* A page of several boxes (التذكيرات، المتجر، حسابي، …): two by two; titles and bars stay full. */
+  html.desk main.home:not(.app-shell):has(> section.section ~ section.section),
+  html.desk main.home:not(.app-shell):has(> section.dash-section ~ section.dash-section) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    align-content: start;
+    align-items: start;
+  }
+
+  html.desk main.home:not(.app-shell):has(> section.section ~ section.section) > *,
+  html.desk main.home:not(.app-shell):has(> section.dash-section ~ section.dash-section) > * {
+    grid-column: 1 / -1;
+    margin-block: 0;
+  }
+
+  html.desk main.home:not(.app-shell):has(> section.section ~ section.section) > section.section,
+  html.desk main.home:not(.app-shell):has(> section.dash-section ~ section.dash-section) > section.dash-section {
+    grid-column: auto;
+    min-width: 0;
+  }
+
+  /* التقارير: its boxes two by two under the month and the net. */
+  html.desk .report-tab-panel {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    align-items: start;
+  }
+
+  html.desk .report-tab-panel > * {
+    grid-column: 1 / -1;
+    margin-block: 0;
+  }
+
+  html.desk .report-tab-panel > .report-card {
+    grid-column: auto;
+    min-width: 0;
+  }
+
+  /* الإعدادات: its rows in two columns; an opened one takes the whole width. */
+  html.desk .settings-group {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 16px;
+    align-items: start;
+  }
+
+  html.desk .settings-group > * {
+    grid-column: 1 / -1;
+    margin-block: 0;
+  }
+
+  html.desk .settings-group > .settings-fold,
+  html.desk .settings-group > .settings-fold-row {
+    grid-column: auto;
+    min-width: 0;
+  }
+
+  html.desk .settings-group > .settings-fold[open] {
+    grid-column: 1 / -1;
+  }
+
+  html.desk .settings-hub {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+
+  html.desk .tools-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
+
+  html.desk .tools-panel,
+  html.desk .tools-grid,
+  html.desk .currency-converter {
+    width: 100%;
+    max-width: 900px;
+    margin-inline: auto;
+  }
+
+  /* الزبائن: the tabs and «إضافة» on one row, the search and the categories on the next. */
+  html.desk .party-section-clients,
+  html.desk .party-section-suppliers {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 20px;
+    align-items: center;
+  }
+
+  html.desk .party-section-clients > *,
+  html.desk .party-section-suppliers > * {
+    grid-column: 1 / -1;
+    margin-block: 0;
+  }
+
+  html.desk .party-section-clients > .party-tabs,
+  html.desk .party-section-suppliers > .party-tabs,
+  html.desk .party-section-clients > .party-toolbar,
+  html.desk .party-section-suppliers > .party-toolbar {
+    grid-column: 1;
+  }
+
+  html.desk .party-section-clients > .party-head-actions,
+  html.desk .party-section-suppliers > .party-head-actions,
+  html.desk .party-section-clients > .party-category-chips,
+  html.desk .party-section-suppliers > .party-category-chips {
+    grid-column: 2;
+  }
+
+  html.desk .party-section-clients > .party-overview,
+  html.desk .party-section-suppliers > .party-overview {
+    justify-self: start;
+    width: 100%;
+    max-width: 560px;
+  }
+
+  /* المندوبون: their cards two by two. */
+  html.desk .party-section-reps .party-card-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+    gap: 16px;
   }
 }
