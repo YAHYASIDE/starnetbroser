@@ -100,7 +100,7 @@ import {
 } from "@/lib/sessionCheck";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { saveAndShareBackupFile } from "@/lib/backupFile";
-import { APK_DOWNLOAD_URL, checkForAppUpdate, CURRENT_COMMIT, UpdateCheckResult } from "@/lib/appUpdate";
+import { checkForAppUpdate, updateDownloadUrl, CURRENT_COMMIT, UpdateCheckResult } from "@/lib/appUpdate";
 import {
   EVENING_HOURS,
   getEveningSummaryHour,
@@ -1424,7 +1424,7 @@ function AppUpdateSection() {
       {result?.status === "current" && <p className="settings-hint">✓ لديك أحدث نسخة</p>}
       {result?.status === "unknown" && <p className="settings-hint">{result.message}</p>}
       {result?.status === "update" && (
-        <a href={APK_DOWNLOAD_URL} target="_blank" rel="noreferrer" className="backup-banner update-banner">
+        <a href={updateDownloadUrl()} target="_blank" rel="noreferrer" className="backup-banner update-banner">
           <span aria-hidden="true">🆕</span>
           <span>
             <strong>نسخة أحدث متوفرة (<bdi dir="ltr">{result.releaseCommit.slice(0, 7)}</bdi>)</strong>

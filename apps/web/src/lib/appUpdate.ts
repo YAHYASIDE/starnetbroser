@@ -5,10 +5,17 @@
  * whether a newer APK exists - no server of our own, no account, nothing sent but a plain GET.
  */
 
+import { DESKTOP_DOWNLOAD_URL, isDesktopApp } from "./desktop";
+
 export const RELEASE_API_URL = "https://api.github.com/repos/YAHYASIDE/starnetbroser/releases/tags/staging-latest";
 export const APK_DOWNLOAD_URL = "https://github.com/YAHYASIDE/starnetbroser/releases/download/staging-latest/STAR-NET-Browser-debug.apk";
 
 export const CURRENT_COMMIT = process.env.NEXT_PUBLIC_COMMIT_SHA || "dev";
+
+/** 🖥️ The Windows app updates from its own installer in the same release. */
+export function updateDownloadUrl(): string {
+  return isDesktopApp() ? DESKTOP_DOWNLOAD_URL : APK_DOWNLOAD_URL;
+}
 
 /** The full or short commit SHA named in the release body, or null. */
 export function parseReleaseCommit(body: string | null | undefined): string | null {

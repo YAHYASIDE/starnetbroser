@@ -1,0 +1,31 @@
+{
+  "name": "starnet-desktop",
+  "private": true,
+  "version": "1.0.0",
+  "description": "STAR NET for Windows - the same app as the phone, in its own window",
+  "main": "main.js",
+  "scripts": {
+    "test": "node --test",
+    "start": "electron .",
+    "dist:win": "electron-builder --win nsis --publish never"
+  },
+  "devDependencies": {
+    "electron": "33.2.1",
+    "electron-builder": "25.1.8"
+  },
+  "build": {
+    "appId": "com.starnetbroser.desktop",
+    "productName": "STAR NET",
+    "copyright": "STAR NET",
+    "directories": { "output": "dist" },
+    "files": ["main.js", "preload.js", "paths.js", "package.json"],
+    "extraResources": [{ "from": "../apps/web/out", "to": "web" }],
+    "win": { "target": [{ "target": "nsis", "arch": ["x64"] }] },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "artifactName": "STAR-NET-Setup.${ext}",
+      "shortcutName": "STAR NET"
+    }
+  }
+}

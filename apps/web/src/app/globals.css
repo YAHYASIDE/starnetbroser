@@ -16880,3 +16880,30 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   color: var(--red);
   font-weight: 800;
 }
+
+/* 🖥️ First run of the Windows app (DesktopWelcome). */
+.desktop-welcome {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--brand);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--brand) 10%, var(--surface));
+  font-size: 0.88rem;
+}
+
+.desktop-welcome ol {
+  margin: 0;
+  padding-inline-start: 1.2em;
+  display: grid;
+  gap: 4px;
+}
+
+.desktop-welcome p {
+  margin: 0;
+}
+
+.desktop-welcome small {
+  color: var(--text-muted);
+}

@@ -1938,3 +1938,22 @@ is never pressed while a field is empty - it refills and saves on the next try (
   the last (empty days stay, his «الأيام متتالية»), devices already over first, a device tap scrolls to its card;
   the cards below sorted soonest first. Each card: «🌍 خارج بلده - بعد 9 أيام (30 أكتوبر 2026) · فعّل التجوال
   العالمي», red at 2 days or less. Logic `lib/outsideHome.ts`.
+
+## 🖥️ STAR NET for Windows - the council, then his choice «الكل» (Oct 21 2026)
+
+- His ask: a laptop version («ولو تفتح على Chrome») with everything - customers/debts/statements, opening the
+  devices' Starlink accounts, the bots and notifications - and the data «متصلة مع الهاتف دائمًا». Council report:
+  https://claude.ai/artifact/Ex3AXxNU3PMDZ3U1RvdHe3 - verdict: the phone stays the only writer, the laptop a
+  window (scrcpy + Telegram Desktop today, a read mirror later), no two-way money sync.
+- **He rejected that first step: «لا، أريد الكل كما طلبت».** His follow-up choices: the live link over **his own
+  Firebase** (for him only - not the reps' link he refused), an **unsigned** Windows installer (SmartScreen «مزيد
+  من المعلومات ← تشغيل على أي حال»), and **phase 1 first: the program + moving the data**.
+- The plan agreed: (1) `desktop/` - Electron, the same static export served from `app://starnet/` (own storage on
+  the laptop), app lock, data in by a backup file; (2) live two-way link as an **operations journal** (every change
+  a record with its own id → applied once, deletes as tombstones, both-changed → newest wins + a «تعارضات» list),
+  encrypted with a key only his phone and laptop share; (3) one isolated browser per device in the Windows app
+  (each signs in once with its code); (4) the bots keep answering from the phone - the laptop shows and approves.
+- Phase 1 built: `desktop/` (main.js, preload.js exposes `window.starnetDesktop`, paths.js + node tests), CI job
+  `build-windows-desktop` on windows-latest → `STAR-NET-Setup.exe` in the staging-latest release; the web app: no
+  sample devices on a fresh Windows app (`loadDemoAccounts`), `DesktopWelcome` (backup steps + set a PIN), the update
+  banner points to the .exe there (`updateDownloadUrl`).

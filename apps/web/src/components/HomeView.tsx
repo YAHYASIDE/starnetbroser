@@ -35,6 +35,8 @@ import { computeDeviceDebtReminders, computeRenewalReminders, computeRestrictedD
 import { formatAmount } from "@/lib/formatAmount";
 import { isOutsideHome, outsideHomeDaysLeft, outsideHomeSchedule } from "@/lib/outsideHome";
 import { OutsideHomePanel } from "./OutsideHomePanel";
+import { DesktopWelcome } from "./DesktopWelcome";
+import { isDesktopApp } from "@/lib/desktop";
 import { buildAwaitingCharge, fillAwaitingBills } from "@/lib/awaitingBill";
 import { syncBillChecks } from "@/lib/billChecks";
 import { addLocalEvent } from "@/lib/eventLog";
@@ -67,7 +69,7 @@ import { cardNeed, computeRenewalForecast } from "@/lib/renewalForecast";
 import { computeDeviceMargins, WEAK_MARGIN_PERCENT } from "@/lib/deviceMargins";
 import { cardShortfallForSuspended, currentCardBalanceUsd, listOpenShipmentDebts, listSuspendedWithDebt, loadCardTopUps, settleShipmentCost, unsettleShipmentCost } from "@/lib/starlinkDebt";
 import { loadPartyAdjustments } from "@/lib/partyBalanceStore";
-import { APK_DOWNLOAD_URL, checkForAppUpdate, shouldAutoCheck } from "@/lib/appUpdate";
+import { checkForAppUpdate, updateDownloadUrl, shouldAutoCheck } from "@/lib/appUpdate";
 import { deviceMatchesQuery, searchEverything, searchTermOf, SearchResult } from "@/lib/homeInsights";
 import { addSearch, loadSearchHistory, removeSearch, saveSearchHistory } from "@/lib/searchHistory";
 import { listSuppliers, loadSupplierStore, SupplierStore } from "@/lib/supplierStore";
@@ -1149,6 +1151,9 @@ export function HomeView({
   // were gone (his Oct 20 2026 report), and could be tapped by mistake.
   const [accounts, setAccounts] = useState<StarlinkAccountSummary[]>([]);
   const [accountsLoaded, setAccountsLoaded] = useState(false);
+  // 🖥️ The Windows app (desktop/): its first-run card.
+  const [desktop, setDesktop] = useState(false);
+  useEffect(() => setDesktop(isDesktopApp()), []);
   // 👆 A banner that has just appeared pushes the screen down under his finger: a tap in its first
   // moment was meant for what was there before (his Oct 20 2026 report - a search / «إزالة الدين»
   // tap on a slow phone opened «ستارلينك والبطاقة»).
@@ -2494,8 +2499,10 @@ export function HomeView({
         </Link>
       </nav>
 
+      {desktop && viewMode === "active" && <DesktopWelcome empty={accountsLoaded && accounts.length === 0} />}
+
       {updateAvailable && (
-        <a href={APK_DOWNLOAD_URL} target="_blank" rel="noreferrer" className="backup-banner update-banner" onClick={ignoreFreshTap("update")}>
+        <a href={updateDownloadUrl()} target="_blank" rel="noreferrer" className="backup-banner update-banner" onClick={ignoreFreshTap("update")}>
           <span aria-hidden="true">🆕</span>
           <span>
             <strong>تحديث جديد للتطبيق متوفر</strong>

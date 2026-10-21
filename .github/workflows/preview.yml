@@ -306,3 +306,59 @@ jobs:
           artifacts: STAR-NET-Browser-debug.apk
           artifactContentType: application/vnd.android.package-archive
           token: ${{ secrets.GITHUB_TOKEN }}
+
+  # 🖥️ STAR NET for Windows (desktop/): the same web export in its own window, published beside the
+  # APK in the same staging-latest release as STAR-NET-Setup.exe (unsigned - Windows asks once).
+  build-windows-desktop:
+    name: Build & publish STAR NET for Windows
+    needs: test
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build packages/shared + local-browser-plugin
+        run: npm run build:packages
+
+      - name: Build apps/web as a static export for the Windows app
+        working-directory: apps/web
+        shell: bash
+        env:
+          STATIC_EXPORT: "true"
+          NEXT_PUBLIC_DATA_SOURCE: demo
+          NEXT_PUBLIC_COMMIT_SHA: ${{ github.sha }}
+        run: |
+          export NEXT_PUBLIC_BUILD_TIME="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          npx next build
+
+      - name: Test + build the Windows installer
+        working-directory: desktop
+        shell: bash
+        run: |
+          npm install --no-audit --no-fund
+          npm test
+          npx electron-builder --win nsis --publish never
+
+      - name: Publish the installer to the staging-latest pre-release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: staging-latest
+          allowUpdates: true
+          omitBodyDuringUpdate: true
+          omitNameDuringUpdate: true
+          omitPrereleaseDuringUpdate: true
+          replacesArtifacts: true
+          removeArtifacts: false
+          artifacts: desktop/dist/STAR-NET-Setup.exe
+          artifactContentType: application/octet-stream
+          token: ${{ secrets.GITHUB_TOKEN }}

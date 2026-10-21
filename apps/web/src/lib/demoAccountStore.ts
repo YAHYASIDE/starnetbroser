@@ -1,4 +1,5 @@
 import { StarlinkAccountSummary } from "@starnet/shared";
+import { isDesktopApp } from "./desktop";
 import { noteChanges, storedBefore } from "./changeLogStore";
 import { mergeList, removedLinks } from "./storeMerge";
 
@@ -15,7 +16,8 @@ export function loadDemoAccounts(fallback: StarlinkAccountSummary[]): StarlinkAc
 
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return fallback;
+    // 🖥️ A new Windows app starts empty (his data comes from the phone), never with the samples.
+    if (!raw) return isDesktopApp() ? [] : fallback;
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return fallback;
     return parsed as StarlinkAccountSummary[];
