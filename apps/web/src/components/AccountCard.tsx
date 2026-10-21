@@ -32,6 +32,7 @@ import { PaymentAllocation } from "@/lib/paymentAllocationStore";
 import { Client } from "@/lib/clientStore";
 import { isGmail } from "@/lib/mailboxes";
 import { markDeviceTouched } from "@/lib/recentDevices";
+import { isDesktopApp } from "@/lib/desktop";
 import { isRunningInAndroidApp, mailExtrasFor, mailLoginFor, openAccountCreation, openCancelSubscription, openIsolatedAccountBrowser, isBackgroundSyncEnabled, openAutoSync, openIsolatedMailbox, startBackgroundSync, starlinkLoginFor } from "@/lib/localBrowser";
 import { cancelConfirmQuestion, cancellationState, cancelledMessage } from "@/lib/subscriptionCancel";
 import {
@@ -1098,7 +1099,7 @@ export function AccountCard({
           type="button"
           onClick={handleOpen}
           disabled={opening}
-          title={isAndroidApp ? "فتح متصفح مستقل لهذا الحساب" : "متاح فقط داخل تطبيق STAR NET لنظام Android"}
+          title={isAndroidApp || isDesktopApp() ? "فتح متصفح مستقل لهذا الحساب" : "متاح فقط داخل تطبيق STAR NET لنظام Android"}
         >
           <IconOpen /> {opening ? "جارِ الفتح…" : "فتح الحساب"}
         </button>

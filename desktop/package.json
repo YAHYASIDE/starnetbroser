@@ -1,5 +1,6 @@
 {
   "name": "starnet-desktop",
+  "productName": "STAR NET",
   "private": true,
   "version": "1.0.0",
   "description": "STAR NET for Windows - the same app as the phone, in its own window",
@@ -17,10 +18,34 @@
     "appId": "com.starnetbroser.desktop",
     "productName": "STAR NET",
     "copyright": "STAR NET",
-    "directories": { "output": "dist" },
-    "files": ["main.js", "preload.js", "paths.js", "package.json"],
-    "extraResources": [{ "from": "../apps/web/out", "to": "web" }],
-    "win": { "target": [{ "target": "nsis", "arch": ["x64"] }] },
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "paths.js",
+      "devices.js",
+      "sessions.js",
+      "autofill.js",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../apps/web/out",
+        "to": "web"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
     "nsis": {
       "oneClick": true,
       "perMachine": false,

@@ -1957,3 +1957,12 @@ is never pressed while a field is empty - it refills and saves on the next try (
   `build-windows-desktop` on windows-latest → `STAR-NET-Setup.exe` in the staging-latest release; the web app: no
   sample devices on a fresh Windows app (`loadDemoAccounts`), `DesktopWelcome` (backup steps + set a PIN), the update
   banner points to the .exe there (`updateDownloadUrl`).
+- **Phase 3 next - his choice «فتح حسابات Starlink أولًا»** (after installing phase 1, restoring a backup: devices
+  showed, «فتح الحساب» said Android-only, no sessions restored). Built: `desktop/devices.js` - each device its own
+  window with its own storage (`persist:device-<sha256(id)>`, `sessions.js`), only starlink.com pages (other sites →
+  the normal browser), a plain-Chrome browser identity, an Arabic menu (رجوع/تقدّم/تحديث/الرئيسية/إغلاق), the saved
+  email + password typed into the sign-in (`autofill.js`, the phone's LoginAutofill, never submits). A backup's
+  sessions (the phone's format) restore into those windows and a laptop backup carries them back
+  (`localBrowser.ts` → `desktopBridge()`); the phone's mailbox («mail:») sessions are left out. The Starlink read
+  (sync), the mailbox and the bots stay on the phone for now («المزامنة من Starlink تعمل من الهاتف حاليًا»).
+  The data folder stays `%APPDATA%/starnet-desktop` while the shown name became «STAR NET» (dialog titles).

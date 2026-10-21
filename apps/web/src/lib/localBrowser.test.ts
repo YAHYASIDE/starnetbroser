@@ -55,3 +55,33 @@ describe("autoSignInOptionsFor", () => {
     });
   });
 });
+
+describe("🖥️ on the Windows app", () => {
+  it("opens the device's own window with its login, and restores/exports sessions through it", async () => {
+    const { openIsolatedAccountBrowser, importAccountSessions, exportAccountSessions, openAutoSync } = await import("./localBrowser");
+    const calls: unknown[] = [];
+    const g = globalThis as unknown as { window?: unknown };
+    const hadWindow = "window" in g;
+    const previous = g.window;
+    g.window = {
+      starnetDesktop: {
+        platform: "windows",
+        version: "2",
+        openDevice: async (opts: unknown) => (calls.push(opts), { ok: true }),
+        importSessions: async () => ({ importedCount: 2 }),
+        exportSessions: async (ids: string[]) => ({ [ids[0]]: { "https://starlink.com": "a=1" } }),
+      },
+    };
+    try {
+      expect(await openIsolatedAccountBrowser("d1", "جهاز", { loginEmail: "fake@example.com", loginPassword: "x", mailPassword: "m" })).toEqual({ ok: true });
+      expect(calls).toEqual([{ accountId: "d1", accountName: "جهاز", loginEmail: "fake@example.com", loginPassword: "x" }]);
+      expect(await importAccountSessions({ d1: { "https://starlink.com": "a=1" } })).toEqual({ ok: true, importedCount: 2 });
+      expect(await exportAccountSessions(["d1"])).toEqual({ d1: { "https://starlink.com": "a=1" } });
+      const sync = await openAutoSync({ id: "d1", name: "جهاز" } as StarlinkAccountSummary);
+      expect(sync.ok).toBe(false);
+    } finally {
+      if (hadWindow) g.window = previous;
+      else delete g.window;
+    }
+  });
+});

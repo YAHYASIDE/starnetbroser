@@ -1,6 +1,7 @@
 "use client";
 
 import { exitRepMode, isRepWorkspace, repCan } from "@/lib/repMode";
+import { isDesktopApp } from "@/lib/desktop";
 import { hasOwnRepProfile, setOwnRepProfile } from "@/lib/repWorkspace";
 import { askDeleteCode } from "@/components/DeleteCodePrompt";
 import { groupForHash, loadRememberedGroup, rememberGroup, SETTINGS_GROUPS, type SettingsGroupId } from "@/lib/settingsGroups";
@@ -862,7 +863,7 @@ function BackupSection() {
           : saved.message,
       );
       if (saved.ok) {
-        setExportWarning(sessionExportWarning(accounts.length, countSessions(sessions).starlink, isRunningInAndroidApp()));
+        setExportWarning(sessionExportWarning(accounts.length, countSessions(sessions).starlink, isRunningInAndroidApp() || isDesktopApp()));
         recordBackupExported();
         setExportPassword("");
         setExportPasswordConfirm("");
@@ -928,7 +929,7 @@ function BackupSection() {
         countSessions(result.sessions).starlink > 0
           ? sessionResult.ok
             ? " افحص جلسات الدخول من القسم التالي لتعرف أي جهاز يحتاج تسجيل دخول من جديد."
-            : " تعذرت استعادة جلسات الدخول على هذا الهاتف - ستحتاج تسجيل الدخول في كل جهاز."
+            : " تعذرت استعادة جلسات الدخول هنا - ستحتاج تسجيل الدخول في كل جهاز."
           : "";
       setImportMessage(
         (dataKeys > 0

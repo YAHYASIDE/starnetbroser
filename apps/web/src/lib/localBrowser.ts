@@ -22,6 +22,7 @@ import { isRepWorkspace } from "./repMode";
 import { forgetUnreadSeen, ingestBankNotices, loadBankInbox, saveBankInbox, type BankInbox } from "./bankNotices";
 import { SessionsByAccount } from "./accountBackup";
 import { markInternalLeave } from "./appLock";
+import { DESKTOP_SYNC_LATER_MESSAGE, desktopBridge } from "./desktop";
 
 export interface AutoSyncAccountRef {
   id: string;
@@ -140,6 +141,22 @@ export async function openIsolatedMailbox(accountId: string, accountName: string
 }
 
 export async function openIsolatedAccountBrowser(accountId: string, accountName: string, login: StarlinkLogin = {}): Promise<OpenResult> {
+  const desktop = desktopBridge();
+  if (desktop) {
+    // 🖥️ The Windows app: the device's own Starlink window (desktop/devices.js).
+    if (!desktop.openDevice) return { ok: false, message: "حدّث برنامج STAR NET على اللابتوب لفتح الأجهزة" };
+    try {
+      const result = await desktop.openDevice({
+        accountId,
+        accountName,
+        ...(login.loginEmail ? { loginEmail: login.loginEmail } : {}),
+        ...(login.loginPassword ? { loginPassword: login.loginPassword } : {}),
+      });
+      return result.ok ? { ok: true } : { ok: false, message: result.message || "تعذر فتح الجهاز" };
+    } catch {
+      return { ok: false, message: "تعذر فتح الجهاز" };
+    }
+  }
   if (!isRunningInAndroidApp()) {
     return { ok: false, message: ANDROID_ONLY_MESSAGE };
   }
@@ -163,6 +180,7 @@ export async function openIsolatedAccountBrowser(accountId: string, accountName:
  * read as the button) and closes back to the app. A device not signed in to Starlink is skipped at
  * once (the operator's choice - no sign-in attempt) and reported (takeAutoSyncResults). */
 export async function openAutoSync(account: StarlinkAccountSummary, label?: string, homeOnly = false): Promise<OpenResult> {
+  if (desktopBridge()) return { ok: false, message: DESKTOP_SYNC_LATER_MESSAGE };
   if (!isRunningInAndroidApp()) return { ok: false, message: ANDROID_ONLY_MESSAGE };
   try {
     const { supported } = await LocalBrowser.isSupported();
@@ -491,6 +509,14 @@ export async function latestGmailCode(): Promise<{ ok: true; code: string | null
 
 /** Only call after the user separately confirms deleting the local session - never automatic. */
 export async function deleteIsolatedAccountSession(accountId: string): Promise<boolean> {
+  const desktop = desktopBridge();
+  if (desktop?.deleteSession) {
+    try {
+      return await desktop.deleteSession(accountId);
+    } catch {
+      return false;
+    }
+  }
   if (!isRunningInAndroidApp()) return false;
   try {
     const { deleted } = await LocalBrowser.deleteAccountSession({ accountId });
@@ -625,6 +651,14 @@ export async function triggerImmediateSync(accountId?: string): Promise<OpenResu
  * disk. Empty on web/failure, never throws: an empty export is safe, just not useful.
  */
 export async function exportAccountSessions(accountIds: string[], includeMailbox = false): Promise<SessionsByAccount> {
+  const desktop = desktopBridge();
+  if (desktop?.exportSessions) {
+    try {
+      return await desktop.exportSessions(accountIds);
+    } catch {
+      return {};
+    }
+  }
   if (!isRunningInAndroidApp()) return {};
   try {
     const { sessions } = await LocalBrowser.exportSessionCookies({ accountIds, ...(includeMailbox ? { mailbox: true } : {}) });
@@ -641,6 +675,16 @@ export async function exportAccountSessions(accountIds: string[], includeMailbox
  * from and does no validation beyond what the native side already does.
  */
 export async function importAccountSessions(sessions: SessionsByAccount): Promise<{ ok: boolean; importedCount: number }> {
+  const desktop = desktopBridge();
+  if (desktop?.importSessions) {
+    // 🖥️ Into each device's own window on the laptop (the phone's mailbox sessions stay out).
+    try {
+      const { importedCount } = await desktop.importSessions(sessions);
+      return { ok: true, importedCount };
+    } catch {
+      return { ok: false, importedCount: 0 };
+    }
+  }
   if (!isRunningInAndroidApp()) return { ok: false, importedCount: 0 };
   try {
     const { importedCount } = await LocalBrowser.importSessionCookies({ sessions });
