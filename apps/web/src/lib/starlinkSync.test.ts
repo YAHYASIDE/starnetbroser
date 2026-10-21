@@ -612,3 +612,16 @@ describe("✉️ a device named by the time takes the email the sync read", () =
     expect(mergeSyncedFields({ ...baseAccount(), name: "مقهى" }, { accountEmail: "read@example.com" }).account.name).toBe("مقهى");
   });
 });
+
+describe("🌍 outside the home country (his Oct 21 2026 ask)", () => {
+  it("keeps the days left with the read time; the subscription page without the banner clears it", () => {
+    const first = mergeSyncedFields(baseAccount(), { outsideHomeDaysRemaining: 9, outsideHomeAllowanceDays: 30 });
+    expect(first.account.outsideHome).toMatchObject({ daysRemaining: 9, allowanceDays: 30 });
+    expect(typeof first.account.outsideHome?.readAt).toBe("string");
+    const later = mergeSyncedFields(first.account, { outsideHomeDaysRemaining: 7 });
+    expect(later.account.outsideHome).toMatchObject({ daysRemaining: 7, allowanceDays: 30 });
+    expect(mergeSyncedFields(later.account, { outsideHomeDaysRemaining: null }).account.outsideHome).toBeNull();
+    // a page that doesn't show the subscription says nothing
+    expect(mergeSyncedFields(later.account, { balanceDue: "0.00" }).account.outsideHome?.daysRemaining).toBe(7);
+  });
+});

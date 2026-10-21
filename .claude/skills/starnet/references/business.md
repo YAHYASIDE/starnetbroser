@@ -1924,3 +1924,17 @@ is never pressed while a field is empty - it refills and saves on the next try (
   Password Manager keeps its own fixed list of browsers (likely refuses); some managers (Bitwarden, KeePassDX…)
   let the user trust an app. The password always stays - the app signs in with it.
 - Replies to him: **Arabic only, never any other language** (his Oct 21 2026 rule, after two English answers).
+
+## 🌍 Devices outside their home country, day by day (Oct 21 2026)
+
+- His screenshot (a Subscription page): «Your Starlink is outside its home country. Service will be restricted if
+  it remains there after your plan's travel allowance is used. Days remaining: 9. Travel allowance: 30.» His fix is
+  to switch the device to **global roaming** in time. His ask: a filter like the travel-registration one, with the
+  days one after another, each day listing the devices that stop then.
+- Read by the sync (`extractOutsideHomeDays`, English for sure; French / Spanish / Arabic wordings guessed until a
+  «🧪 لقطة تشخيص» shows them) into `outsideHome = { daysRemaining, allowanceDays, readAt }`; only a page showing
+  the subscription (its SL-… id or plan) clears it (null). The day it runs out = read day + days left (derived).
+- Home: a «🌍 خارج البلد» circle beside «تم توثيقها»; tapping it shows `OutsideHomePanel` - every day from today to
+  the last (empty days stay, his «الأيام متتالية»), devices already over first, a device tap scrolls to its card;
+  the cards below sorted soonest first. Each card: «🌍 خارج بلده - بعد 9 أيام (30 أكتوبر 2026) · فعّل التجوال
+  العالمي», red at 2 days or less. Logic `lib/outsideHome.ts`.

@@ -208,6 +208,11 @@ export interface SyncedStarlinkFields {
   travelRegistrationRequired?: boolean;
   /** The deadline as Starlink prints it, e.g. "October 15". */
   travelRegistrationDue?: string;
+  /** 🌍 «Your Starlink is outside its home country … Days remaining: 9» - the days left before the
+   * service is restricted (his fix: global roaming); null = the subscription page shows no such banner. */
+  outsideHomeDaysRemaining?: number | null;
+  /** 🌍 «Travel allowance: 30» (days), when printed. */
+  outsideHomeAllowanceDays?: number;
   /** Set by the native side on a «🛂 كشف توثيق» read: the app takes only the travel-registration
    * fields from it and changes nothing else on the device. */
   checkOnly?: boolean;

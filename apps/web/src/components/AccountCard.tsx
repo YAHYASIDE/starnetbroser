@@ -21,6 +21,8 @@ import { emailsMismatch } from "@/lib/emailMatch";
 import { computeBalanceByCurrency, LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerEntry } from "@/lib/ledgerStore";
 import { starlinkCostUsd, summarizeDeviceProfit } from "@/lib/accountingStore";
 import { awaitingEntries } from "@/lib/awaitingBill";
+import { daysLeftLabel, outsideHomeDaysLeft, outsideHomeEnd } from "@/lib/outsideHome";
+import { arabicDate } from "@/lib/partyMovements";
 import { faultCategory, faultLabel, isAutoFault, isWaivedCost, openDebtEntries, removeFaultQuestion } from "@/lib/deviceFault";
 import { openDebtUsdToday, paidSinceLastSyncUsd, totalPreviousDebtUsd, unrecordedGapUsd, type PreviousDebt } from "@/lib/previousDebt";
 import { computeDeviceMarks } from "@/lib/deviceMarks";
@@ -585,6 +587,7 @@ export function AccountCard({
     <article
       className={`account-card${bubbles ? ` account-card-svc-${bubbles.billing ? "billing" : bubbles.now.toLowerCase()}` : ""}${isSuspended ? " account-card-suspended" : ""}${sessionNeedsLogin ? " account-card-has-bubble" : ""}${repColor ? " account-card-rep-tint" : ""}${expanded ? " account-card-expanded" : ""}`}
       style={repColor ? ({ "--rep-tint": repColor } as React.CSSProperties) : undefined}
+      data-account-id={account.id}
       {...gestures}
     >
       {(deviceNote?.text || notePinned) && (
@@ -665,6 +668,15 @@ export function AccountCard({
       {account.movingRestricted && account.serviceStatus !== "canceled" && (
         <div className="account-card-moving-banner">🚗 متوقف بسبب الحركة - يعمل عند توقف الجهاز (باقة المنازل)</div>
       )}
+      {(() => {
+        // 🌍 Outside its home country: the days left before Starlink restricts it (lib/outsideHome.ts).
+        const left = account.serviceStatus !== "canceled" ? outsideHomeDaysLeft(account, localToday()) : null;
+        return left === null ? null : (
+          <div className={`account-card-moving-banner account-card-outside-banner${left <= 2 ? " is-urgent" : ""}`}>
+            🌍 خارج بلده - {daysLeftLabel(left)} ({arabicDate(outsideHomeEnd(account)!)}) · فعّل التجوال العالمي
+          </div>
+        );
+      })()}
       {needsTravelRegistration(account) && account.serviceStatus !== "canceled" && (
         <div className={`account-card-travel-banner${travelPending ? " account-card-travel-pending" : ""}`} data-tour="travel-badge">
           <span>

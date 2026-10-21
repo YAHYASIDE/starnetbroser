@@ -56,6 +56,8 @@ const FIELD_INFO: Record<keyof SyncedStarlinkFields, { label: string; section: S
   subscriptionNames: { label: "الاشتراكات", section: "subscriptions" },
   travelRegistrationRequired: { label: "🛂 توثيق السفر مطلوب", section: "subscriptions" },
   travelRegistrationDue: { label: "موعد توثيق السفر", section: "subscriptions" },
+  outsideHomeDaysRemaining: { label: "🌍 الأيام المتبقية خارج البلد", section: "subscriptions" },
+  outsideHomeAllowanceDays: { label: "🌍 أيام السفر المسموحة", section: "subscriptions" },
   checkOnly: { label: "كشف توثيق", section: "subscriptions" },
   pinRequest: { label: "📌 تثبيت", section: "subscriptions" },
 };
@@ -312,6 +314,23 @@ export function mergeSyncedFields(
     next.travelRegistrationRequired = fields.travelRegistrationRequired;
     if (due) next.travelRegistrationDue = due;
     else delete next.travelRegistrationDue;
+  }
+
+  // 🌍 Days left outside the home country: a number from the banner, null = its subscription page
+  // without it (back home, or already on global roaming) - the date it runs out is derived from readAt.
+  if (fields.outsideHomeDaysRemaining !== undefined) {
+    const before = next.outsideHome ?? null;
+    if (fields.outsideHomeDaysRemaining === null) {
+      note("outsideHomeDaysRemaining", before !== null);
+      next.outsideHome = null;
+    } else {
+      note("outsideHomeDaysRemaining", before?.daysRemaining !== fields.outsideHomeDaysRemaining);
+      next.outsideHome = {
+        daysRemaining: fields.outsideHomeDaysRemaining,
+        ...(fields.outsideHomeAllowanceDays !== undefined ? { allowanceDays: fields.outsideHomeAllowanceDays } : before?.allowanceDays !== undefined ? { allowanceDays: before.allowanceDays } : {}),
+        readAt: new Date().toISOString(),
+      };
+    }
   }
 
   // Explicit true/false: the Devices section without the banner clears it (he stopped).

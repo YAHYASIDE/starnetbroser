@@ -42,6 +42,7 @@ import {
   normalizeDateLike,
   normalizeServiceStatus,
   extractTravelRegistrationDue,
+  extractOutsideHomeDays,
 } from "./textFields";
 import { readOceanMode } from "./oceanMode";
 import { toLines, toVisibleText } from "./visibleText";
@@ -148,6 +149,14 @@ export function extractStarlinkFields(doc: Document): SyncedStarlinkFields {
     fields.travelRegistrationRequired = true;
     if (travelDue) fields.travelRegistrationDue = travelDue;
   } else if (isOnAccountHomePage(lines)) fields.travelRegistrationRequired = false;
+
+  // 🌍 «outside its home country … Days remaining: 9»: printed on the subscription's page - only a page
+  // showing that subscription (its SL-… id or plan) may clear it (null = read, no banner).
+  const outsideHome = extractOutsideHomeDays(lines);
+  if (outsideHome) {
+    fields.outsideHomeDaysRemaining = outsideHome.daysRemaining;
+    if (outsideHome.allowanceDays !== undefined) fields.outsideHomeAllowanceDays = outsideHome.allowanceDays;
+  } else if (extractSubscriptionId(text) || planName) fields.outsideHomeDaysRemaining = null;
 
   // 🚗 Stopped for moving too fast: the banner sits under the subscription's Devices, so only a
   // page showing Devices may clear it (never Home, which never prints it).

@@ -147,6 +147,10 @@ export interface StarlinkAccountSummary {
   travelRegistrationRequired?: boolean;
   /** Its deadline as Starlink prints it ("October 15"). */
   travelRegistrationDue?: string;
+  /** 🌍 «Your Starlink is outside its home country … Days remaining: 9. Travel allowance: 30» (Oct
+   * 2026): the days left when read (`readAt`) - the service is restricted when they run out unless
+   * the device moves to global roaming. null = its subscription page shows no such banner. */
+  outsideHome?: { daysRemaining: number; allowanceDays?: number; readAt: string } | null;
   /** ✅ «اكتمل التوثيق» pressed (his Oct 2026 request): the deadline it was done for - the device
    * leaves «الأجهزة التي تحتاج توثيق» until Starlink asks again with another date. */
   travelRegistrationDoneFor?: string | null;

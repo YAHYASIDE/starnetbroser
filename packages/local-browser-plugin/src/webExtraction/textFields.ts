@@ -97,6 +97,32 @@ export function hasBillingSuspensionBanner(lines: string[]): boolean {
  * - the sentence can be split across text nodes. */
 const TRAVEL_REGISTRATION_WORDS = ["travel registration", "inscription de voyage", "تسجيل السفر"];
 
+/** 🌍 «Your Starlink is outside its home country. Service will be restricted if it remains there after
+ * your plan's travel allowance is used. Days remaining: 9. Travel allowance: 30.» (real, confirmed
+ * screenshot on a Subscription page, Oct 2026 - his fix: switch the device to global roaming before the
+ * days run out). The French / Spanish / Arabic wordings are best guesses until a «🧪 لقطة تشخيص» shows
+ * them. Returns the days left (and the allowance), or undefined when the banner isn't on the page. */
+const OUTSIDE_HOME_WORDS = ["outside its home country", "outside of its home country", "hors de son pays", "fuera de su país", "خارج بلده", "خارج بلدها", "خارج البلد الأصلي", "خارج دولته"];
+const DAYS_REMAINING = /(?:days remaining|jours restants|días restantes|الأيام المتبقية|أيام متبقية|الأيام المتبقيه)\s*[:：]?\s*(\d{1,3})/i;
+const TRAVEL_ALLOWANCE = /(?:travel allowance|allocation de voyage|franquicia de viaje|رصيد السفر|بدل السفر|مدة السفر)\s*[:：]?\s*(\d{1,3})/i;
+
+export function extractOutsideHomeDays(lines: string[]): { daysRemaining: number; allowanceDays?: number } | undefined {
+  for (let i = 0; i < lines.length; i++) {
+    if (!containsAny(lines[i], OUTSIDE_HOME_WORDS)) continue;
+    // The sentence can be split across text nodes: the banner's next few lines together.
+    const text = latinDigits(lines.slice(i, i + 4).join(" "));
+    const days = DAYS_REMAINING.exec(text);
+    if (!days) continue;
+    const allowance = TRAVEL_ALLOWANCE.exec(text);
+    return { daysRemaining: Number(days[1]), ...(allowance ? { allowanceDays: Number(allowance[1]) } : {}) };
+  }
+  return undefined;
+}
+
+function latinDigits(text: string): string {
+  return text.replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660)).replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06f0));
+}
+
 export function extractTravelRegistrationDue(lines: string[]): string | undefined {
   for (let i = 0; i < lines.length; i++) {
     const text = `${lines[i]} ${lines[i + 1] ?? ""}`;

@@ -33,6 +33,8 @@ import { HelpHint } from "./HelpHint";
 import { daysRemainingNumber, stoppedTodayNotRenewed } from "@/lib/date";
 import { computeDeviceDebtReminders, computeRenewalReminders, computeRestrictedDeviceReminders, isBackupOverdue } from "@/lib/reminders";
 import { formatAmount } from "@/lib/formatAmount";
+import { isOutsideHome, outsideHomeDaysLeft, outsideHomeSchedule } from "@/lib/outsideHome";
+import { OutsideHomePanel } from "./OutsideHomePanel";
 import { buildAwaitingCharge, fillAwaitingBills } from "@/lib/awaitingBill";
 import { syncBillChecks } from "@/lib/billChecks";
 import { addLocalEvent } from "@/lib/eventLog";
@@ -215,7 +217,9 @@ type DialogState = { mode: AccountDialogMode; account?: StarlinkAccountSummary; 
 type StatFilterKind =
   | "online" | "expiringSoon" | "expired" | "suspended" | "faulty" | "repair" | "fromRep" | "noClient" | "travel" | "travelDone" | "pinned" | "recent" | "notRenewed"
   // 🔵 his Oct 17 2026 circles (lib/deviceRings.ts); "rep" = one rep's devices (repRingId).
-  | "notCanceled" | "canceled" | "renewed" | "sis" | "rom" | "g100" | "duplicate" | "rep" | "toSis" | "toStop";
+  | "notCanceled" | "canceled" | "renewed" | "sis" | "rom" | "g100" | "duplicate" | "rep" | "toSis" | "toStop"
+  // 🌍 his Oct 21 2026 ask: outside the home country, day by day (lib/outsideHome.ts).
+  | "outsideHome";
 
 const STAT_FILTER_TITLES: Record<StatFilterKind, string> = {
   online: "الحسابات المتصلة الآن",
@@ -241,6 +245,7 @@ const STAT_FILTER_TITLES: Record<StatFilterKind, string> = {
   toStop: "← STOP بعد انتهاء الشهر",
   duplicate: "🔗 الأجهزة المكررة",
   rep: "🤝 أجهزة المندوب",
+  outsideHome: "🌍 خارج البلد - فعّل التجوال العالمي قبل يومها",
 };
 
 /** 🔍 A circle's check (long press): what it answers, in his words. Circles the sync can't change
@@ -260,6 +265,7 @@ const RING_WORDS: Partial<Record<StatFilterKind, { question: string; yes: string
   toSis: { question: "هل سيتحوّل إلى SIS بعد انتهاء الشهر؟", yes: "سيتحوّل إلى SIS", no: "لن يتحوّل" },
   toStop: { question: "هل سيتوقف بعد انتهاء الشهر؟", yes: "سيتوقف", no: "لن يتوقف" },
   travelDone: { question: "هل ما زال موثّقًا؟", yes: "موثّق", no: "غير موثّق" },
+  outsideHome: { question: "هل ما زال خارج بلده؟ (صفحة الاشتراك)", yes: "خارج بلده", no: "لم يعد خارج بلده" },
 };
 
 function ringQuestion(kind: string, label: string): RingQuestion & { question: string } {
@@ -284,6 +290,8 @@ function matchesStatFilter(account: StarlinkAccountSummary, kind: StatFilterKind
       return needsTravelRegistration(account);
     case "travelDone":
       return isTravelVerified(account);
+    case "outsideHome":
+      return isOutsideHome(account) && account.serviceStatus !== "canceled";
     case "notRenewed":
       return !isFaulty(account) && stoppedTodayNotRenewed(account.rechargeDate || account.standbyDate);
     case "canceled":
@@ -2211,6 +2219,11 @@ export function HomeView({
       if (statFilter === "renewed") list = list.filter((a) => renewedToday.has(a.id));
       if (statFilter === "duplicate") list = list.filter((a) => deviceTwinMap.has(a.id));
       if (statFilter === "rep") list = list.filter((a) => a.representativeId === repRingId);
+      // 🌍 the soonest to run out first - the same order as the days above
+      if (statFilter === "outsideHome") {
+        const today = localToday();
+        list = [...list].sort((a, b) => (outsideHomeDaysLeft(a, today) ?? 0) - (outsideHomeDaysLeft(b, today) ?? 0));
+      }
     }
     if (query.trim()) {
       // A rep's name shows his devices too.
@@ -2261,6 +2274,11 @@ export function HomeView({
   const notRenewedCount = useMemo(() => activeAccounts.filter((a) => matchesStatFilter(a, "notRenewed")).length, [activeAccounts]);
   const recentToday = useMemo(() => touchedOn(activeAccounts, ledgerStore, recentLog), [activeAccounts, ledgerStore, recentLog]);
   const travelCount = useMemo(() => activeAccounts.filter(needsTravelRegistration).length, [activeAccounts]);
+  const outsideHomeDays = useMemo(
+    () => outsideHomeSchedule(activeAccounts.filter((a) => matchesStatFilter(a, "outsideHome")), localToday()),
+    [activeAccounts],
+  );
+  const outsideHomeCount = useMemo(() => outsideHomeDays.reduce((n, d) => n + d.accounts.length, 0), [outsideHomeDays]);
   const travelDone = useMemo(() => travelEarnings(activeAccounts), [activeAccounts]);
   const travelBook = useMemo(
     () => buildTravelBook(activeAccounts, representativeStore, ledgerStore, allAllocations, travelInRepLedger),
@@ -2960,6 +2978,17 @@ export function HomeView({
               onLongPress={() => setRingMenu({ kind: "travelDone", label: "تم توثيقها" })}
               onClick={() => { toggleStatFilter("travelDone"); setSelectedDay(null); }}
             />
+            <StatusRing
+              tone="outsideHome"
+              tour="outside-home"
+              value={outsideHomeCount}
+              total={overview.total}
+              label="خارج البلد"
+              icon={<IconAlert />}
+              active={statFilter === "outsideHome"}
+              onLongPress={() => setRingMenu({ kind: "outsideHome", label: "خارج البلد" })}
+              onClick={() => { toggleStatFilter("outsideHome"); setSelectedDay(null); }}
+            />
             {fromRepCount > 0 && (
               <StatusRing
                 tone="fromRep"
@@ -3098,6 +3127,14 @@ export function HomeView({
               </button>
             ))}
           </div>
+        )}
+
+        {viewMode === "active" && statFilter === "outsideHome" && (
+          <OutsideHomePanel
+            days={outsideHomeDays}
+            repName={(a) => getRepresentative(representativeStore, a.representativeId)?.name}
+            onPick={(a) => document.querySelector(`[data-account-id="${a.id}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" })}
+          />
         )}
 
         {viewMode === "active" && statFilter === "travelDone" && (
@@ -3441,7 +3478,7 @@ function SearchResultRow({ result, onOpenClient }: { result: SearchResult; onOpe
 
 type StatusTone =
   | "total" | "online" | "warning" | "expired" | "suspended" | "recent" | "notRenewed" | "pinned" | "faulty" | "repair" | "travel" | "travelDone" | "fromRep" | "noClient"
-  | "notCanceled" | "canceled" | "renewed" | "sis" | "rom" | "g100" | "duplicate" | "rep" | "toSis" | "toStop";
+  | "notCanceled" | "canceled" | "renewed" | "sis" | "rom" | "g100" | "duplicate" | "rep" | "toSis" | "toStop" | "outsideHome";
 
 const RING_LONG_PRESS_MS = 550;
 

@@ -16785,3 +16785,98 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   font-weight: 700;
   cursor: pointer;
 }
+
+/* 🌍 «خارج البلد»: the days one after another (OutsideHomePanel). */
+.status-ring-outsideHome { --tone: var(--orange); }
+
+.outside-home-days {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 12px;
+}
+
+.outside-home-day {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-inline-start: 3px solid var(--orange);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.outside-home-day.is-urgent {
+  border-inline-start-color: var(--red);
+}
+
+.outside-home-day.is-empty {
+  padding-block: 4px;
+  border-inline-start-color: var(--border);
+  opacity: 0.6;
+}
+
+.outside-home-day-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+}
+
+.outside-home-day-head span {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.outside-home-day.is-urgent .outside-home-day-head span {
+  color: var(--red);
+  font-weight: 700;
+}
+
+.outside-home-count {
+  margin-inline-start: auto;
+  min-width: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--orange);
+  color: #fff !important;
+  font-weight: 800;
+  text-align: center;
+}
+
+.outside-home-device {
+  display: grid;
+  gap: 1px;
+  width: 100%;
+  margin-top: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-alt);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-align: start;
+  cursor: pointer;
+}
+
+.outside-home-device span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.outside-home-device small {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 400;
+}
+
+.account-card-outside-banner {
+  border-color: var(--orange);
+  color: var(--orange);
+}
+
+.account-card-outside-banner.is-urgent {
+  border-color: var(--red);
+  color: var(--red);
+  font-weight: 800;
+}
