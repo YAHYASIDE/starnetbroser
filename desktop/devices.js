@@ -8,6 +8,7 @@ const { loginScript } = require("./autofill");
 const { attachZoom } = require("./zoom");
 const mail = require("./mail");
 const codes = require("./codes");
+const sync = require("./sync");
 
 const HOME_URL = "https://starlink.com/account/home";
 const open = new Map();
@@ -48,7 +49,7 @@ function openDevice(opts) {
   if (existing && !existing.isDestroyed()) {
     if (existing.isMinimized()) existing.restore();
     existing.focus();
-    return { ok: true };
+    return { ok: true, view: existing };
   }
   const name = text(opts.accountName, 120).trim() || "حساب Starlink";
   const script = loginScript(text(opts.loginEmail, 320), text(opts.loginPassword, 500));
@@ -99,7 +100,7 @@ function openDevice(opts) {
     codes.watch(view, accountId, (show) => mail.openMailbox({ accountId, accountName: name, email: mailEmail, password: mailPassword }, { show }));
   }
   view.loadURL(HOME_URL).catch(() => {});
-  return { ok: true };
+  return { ok: true, view };
 }
 
 async function importSessions(sessions) {
@@ -158,7 +159,24 @@ function register(ipcMain, mainWindow, zoom) {
     const win = mainWindow();
     return Boolean(win && !win.isDestroyed() && event.sender === win.webContents);
   };
-  ipcMain.handle("starnet:open-device", (event, opts) => (fromApp(event) ? openDevice(opts || {}) : { ok: false, message: "غير مسموح" }));
+  ipcMain.handle("starnet:open-device", (event, opts) => {
+    if (!fromApp(event)) return { ok: false, message: "غير مسموح" };
+    const result = openDevice(opts || {});
+    return { ok: result.ok, ...(result.message ? { message: result.message } : {}) };
+  });
+  // 🔄 «تحديث من Starlink» on the laptop: the device's window walks its pages (sync.js).
+  ipcMain.handle("starnet:sync-device", async (event, opts) => {
+    if (!fromApp(event)) return { ok: false, message: "غير مسموح" };
+    const opened = openDevice(opts || {});
+    if (!opened.ok || !opened.view) return { ok: false, message: opened.message || "تعذر فتح الجهاز" };
+    const accountId = text(opts.accountId, 200).trim();
+    return sync.syncDevice(opened.view, accountId, (entry) => {
+      const win = mainWindow();
+      if (win && !win.isDestroyed()) win.webContents.send("starnet:synced", entry);
+    });
+  });
+  ipcMain.handle("starnet:list-pending-syncs", (event) => (fromApp(event) ? sync.listPending() : []));
+  ipcMain.handle("starnet:ack-syncs", (event, ids) => (fromApp(event) ? sync.ackPending(ids) : false));
   ipcMain.handle("starnet:import-sessions", (event, sessions) => (fromApp(event) ? importSessions(sessions) : { importedCount: 0 }));
   ipcMain.handle("starnet:export-sessions", (event, ids, includeMailbox) => (fromApp(event) ? exportSessions(ids, includeMailbox === true) : {}));
   ipcMain.handle("starnet:delete-session", (event, id) => (fromApp(event) ? deleteSession(id) : false));

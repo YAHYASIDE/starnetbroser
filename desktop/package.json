@@ -29,6 +29,8 @@
       "mail.js",
       "codes.js",
       "twostep.js",
+      "sync.js",
+      "syncplan.js",
       "sessions.js",
       "autofill.js",
       "zoom.js",
@@ -38,6 +40,10 @@
       {
         "from": "../apps/web/out",
         "to": "web"
+      },
+      {
+        "from": "../packages/local-browser-plugin/android/src/main/assets/starlinkExtractor.js",
+        "to": "starlinkExtractor.js"
       }
     ],
     "win": {

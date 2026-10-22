@@ -27,6 +27,11 @@ export interface DesktopBridge {
   /** 🔑 the codes read on this laptop (desktop/codes.js), newest first. */
   listVerificationCodes?: () => Promise<{ at: number; accountId: string; kind: "starlink" | "mail" | "card"; code: string }[]>;
   clearVerificationCodes?: () => Promise<void>;
+  /** 🔄 «تحديث من Starlink» in the device's window (desktop/sync.js) - resolves when the run ends. */
+  syncDevice?: (opts: { accountId: string; accountName: string; loginEmail?: string; loginPassword?: string; mailPassword?: string }) => Promise<{ ok: boolean; outcome?: string; message?: string }>;
+  listPendingSyncs?: () => Promise<{ syncId: string; accountId: string; fields: Record<string, unknown>; recordedAt: number }[]>;
+  ackSyncs?: (syncIds: string[]) => Promise<boolean>;
+  onSynced?: (handler: (entry: { syncId: string; accountId: string; fields: Record<string, unknown>; recordedAt: number }) => void) => () => void;
   deleteSession?: (accountId: string) => Promise<boolean>;
 }
 
@@ -36,5 +41,5 @@ export function desktopBridge(): DesktopBridge | null {
   return (window as unknown as { starnetDesktop: DesktopBridge }).starnetDesktop;
 }
 
-/** On the laptop the Starlink read (sync) is still the phone's - said instead of «Android only». */
-export const DESKTOP_SYNC_LATER_MESSAGE = "المزامنة من Starlink تعمل من الهاتف حاليًا - على اللابتوب افتح الجهاز بزر «فتح».";
+/** On the laptop each device is read from its own card («تحديث»); the runs over many devices stay the phone's. */
+export const DESKTOP_SYNC_LATER_MESSAGE = "المزامنة الجماعية من الهاتف حاليًا - على اللابتوب حدّث كل جهاز بزر «تحديث» في بطاقته.";

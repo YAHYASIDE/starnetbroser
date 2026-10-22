@@ -206,7 +206,23 @@ export async function openIsolatedAccountBrowser(accountId: string, accountName:
  * read as the button) and closes back to the app. A device not signed in to Starlink is skipped at
  * once (the operator's choice - no sign-in attempt) and reported (takeAutoSyncResults). */
 export async function openAutoSync(account: StarlinkAccountSummary, label?: string, homeOnly = false): Promise<OpenResult> {
-  if (desktopBridge()) return { ok: false, message: DESKTOP_SYNC_LATER_MESSAGE };
+  const desktop = desktopBridge();
+  if (desktop) {
+    // 🖥️ One device from its card: its window reads Starlink's pages (desktop/sync.js). A run over
+    // many devices (`label`) or a travel check stays the phone's.
+    if (label || homeOnly || !desktop.syncDevice) return { ok: false, message: desktop.syncDevice ? DESKTOP_SYNC_LATER_MESSAGE : "حدّث برنامج STAR NET على اللابتوب ليعمل «تحديث»" };
+    try {
+      const result = await desktop.syncDevice({
+        accountId: account.id,
+        accountName: account.name || "حساب Starlink",
+        ...starlinkLoginFor(account),
+        ...(account.expectedEmailPassword?.trim() ? { mailPassword: account.expectedEmailPassword.trim() } : {}),
+      });
+      return result.ok ? { ok: true } : { ok: false, message: result.message || "تعذر التحديث من Starlink" };
+    } catch {
+      return { ok: false, message: "تعذر التحديث من Starlink" };
+    }
+  }
   if (!isRunningInAndroidApp()) return { ok: false, message: ANDROID_ONLY_MESSAGE };
   try {
     const { supported } = await LocalBrowser.isSupported();
@@ -560,6 +576,12 @@ export async function deleteIsolatedAccountSession(accountId: string): Promise<b
 export function onAccountDataSynced(
   handler: (event: AccountDataSyncedEvent) => void,
 ): Promise<PluginListenerHandle> {
+  const desktop = desktopBridge();
+  if (desktop?.onSynced) {
+    // 🖥️ a read saved by the laptop's «تحديث» (desktop/sync.js).
+    const remove = desktop.onSynced((entry) => handler(entry as unknown as AccountDataSyncedEvent));
+    return Promise.resolve({ remove: async () => remove() });
+  }
   return LocalBrowser.addListener("accountDataSynced", handler);
 }
 
@@ -603,6 +625,14 @@ export async function clearVerificationCodes(): Promise<void> {
 }
 
 export async function listPendingAccountSyncs(): Promise<PendingAccountSync[]> {
+  const desktop = desktopBridge();
+  if (desktop?.listPendingSyncs) {
+    try {
+      return (await desktop.listPendingSyncs()) as unknown as PendingAccountSync[];
+    } catch {
+      return [];
+    }
+  }
   if (!isRunningInAndroidApp()) return [];
   try {
     const { syncs } = await LocalBrowser.listPendingAccountSyncs();
@@ -619,6 +649,15 @@ export async function listPendingAccountSyncs(): Promise<PendingAccountSync[]> {
  * to retry the ack later, without merging or messaging them again (they are already applied).
  */
 export async function ackPendingAccountSyncs(syncIds: string[]): Promise<boolean> {
+  const desktop = desktopBridge();
+  if (desktop?.ackSyncs) {
+    if (syncIds.length === 0) return true;
+    try {
+      return await desktop.ackSyncs(syncIds);
+    } catch {
+      return false;
+    }
+  }
   if (!isRunningInAndroidApp() || syncIds.length === 0) return true;
   try {
     const { acked } = await LocalBrowser.ackPendingAccountSyncs({ syncIds });

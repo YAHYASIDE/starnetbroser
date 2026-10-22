@@ -84,4 +84,42 @@ describe("🖥️ on the Windows app", () => {
       else delete g.window;
     }
   });
+
+  it("🔄 «تحديث» on the laptop: the device's window reads Starlink and the app gets the reads", async () => {
+    const { openAutoSync, listPendingAccountSyncs, ackPendingAccountSyncs, onAccountDataSynced } = await import("./localBrowser");
+    const calls: unknown[] = [];
+    const acked: string[][] = [];
+    let push: ((entry: unknown) => void) | null = null;
+    const g = globalThis as unknown as { window?: unknown };
+    const hadWindow = "window" in g;
+    const previous = g.window;
+    g.window = {
+      starnetDesktop: {
+        platform: "windows",
+        version: "3",
+        syncDevice: async (opts: unknown) => (calls.push(opts), { ok: true, outcome: "ok" }),
+        listPendingSyncs: async () => [{ syncId: "s1", accountId: "d1", fields: { balance: "1" }, recordedAt: 1 }],
+        ackSyncs: async (ids: string[]) => (acked.push(ids), true),
+        onSynced: (handler: (entry: unknown) => void) => ((push = handler), () => (push = null)),
+      },
+    };
+    try {
+      expect(await openAutoSync({ id: "d1", name: "جهاز", expectedEmail: "fake@example.com", expectedEmailPassword: "m" } as StarlinkAccountSummary)).toEqual({ ok: true });
+      expect(calls).toEqual([{ accountId: "d1", accountName: "جهاز", loginEmail: "fake@example.com", loginPassword: "m", mailPassword: "m" }]);
+      // a run over many devices stays the phone's
+      expect((await openAutoSync({ id: "d1", name: "جهاز" } as StarlinkAccountSummary, "اليوم · 1/3")).ok).toBe(false);
+      expect((await listPendingAccountSyncs()).map((p) => p.syncId)).toEqual(["s1"]);
+      expect(await ackPendingAccountSyncs(["s1"])).toBe(true);
+      expect(acked).toEqual([["s1"]]);
+      const got: unknown[] = [];
+      const handle = await onAccountDataSynced((e) => got.push(e.syncId));
+      push!({ syncId: "s2", accountId: "d1", fields: {}, recordedAt: 2 });
+      expect(got).toEqual(["s2"]);
+      await handle.remove();
+      expect(push).toBeNull();
+    } finally {
+      if (hadWindow) g.window = previous;
+      else delete g.window;
+    }
+  });
 });

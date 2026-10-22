@@ -2132,3 +2132,12 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - 🔑 `desktop/codes.js` + pure `twostep.js` (port of StarlinkTwoStep / MailCode / CodeLog, node tests): a device window
   showing «التحقق بخطوتين» opens its mailbox hidden, reads the newest new code (Other tab, reload every 20 s, 2 min),
   types it, notifies; a signed-out mailbox is shown for one sign-in. Codes → `codes.json` → «🔑 الأكواد» on the laptop.
+- 🔄 **«تحديث من Starlink» on the laptop** (`desktop/sync.js` + pure `syncplan.js`, port of the phone's
+  syncFromStarlink / SettleTracker / StarlinkExtractorSupport): the card's «تحديث» opens the device's window and walks
+  English → Subscriptions → first subscription → «الأجهزة» (waits for a colored dot) → Billing (waits for the renewal
+  date) → Settings → Home, each page read with the phone's own extractor bundle (shipped beside the program,
+  `extraResources` starlinkExtractor.js) until settled; stopped/restricted kept within the run. Every read goes to
+  `pending-syncs.json` first, then `starnet:synced` → the app merges (`onAccountDataSynced` / `listPendingAccountSyncs`
+  / `ackPendingAccountSyncs` desktop branches). Not signed in → a notice, nothing read. Runs over many devices
+  («مزامنة الآن»، الدوائر، كشف توثيق) stay the phone's (`DESKTOP_SYNC_LATER_MESSAGE`).
+

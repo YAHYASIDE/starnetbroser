@@ -16,6 +16,17 @@ contextBridge.exposeInMainWorld("starnetDesktop", {
   listMailSessions: () => ipcRenderer.invoke("starnet:list-mail-sessions"),
   /** 🔑 The codes read here: [{at, accountId, kind, code}], newest first. */
   listVerificationCodes: () => ipcRenderer.invoke("starnet:list-codes"),
+  /** 🔄 «تحديث من Starlink» in the device's window -> {ok, outcome?, message?} when the run ends. */
+  syncDevice: (opts) => ipcRenderer.invoke("starnet:sync-device", opts),
+  /** Reads not yet merged by the app ([{syncId, accountId, fields, recordedAt}]), and their ack. */
+  listPendingSyncs: () => ipcRenderer.invoke("starnet:list-pending-syncs"),
+  ackSyncs: (ids) => ipcRenderer.invoke("starnet:ack-syncs", ids),
+  /** A read saved just now - the app merges it at once. Returns the unsubscribe. */
+  onSynced: (handler) => {
+    const listener = (_event, entry) => handler(entry);
+    ipcRenderer.on("starnet:synced", listener);
+    return () => ipcRenderer.removeListener("starnet:synced", listener);
+  },
   clearVerificationCodes: () => ipcRenderer.invoke("starnet:clear-codes"),
   /** Signs one device's window out (its storage cleared). */
   deleteSession: (accountId) => ipcRenderer.invoke("starnet:delete-session", accountId),

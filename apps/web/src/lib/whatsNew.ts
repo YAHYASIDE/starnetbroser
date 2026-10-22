@@ -31,6 +31,19 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-22-desktop-sync",
+    date: "2026-10-22",
+    title: "🖥️ اللابتوب: «تحديث» من Starlink",
+    steps: [
+      {
+        path: "/devices",
+        title: "🔄 تحديث جهاز من اللابتوب",
+        before: "على اللابتوب: «المزامنة من Starlink تعمل من الهاتف حاليًا».",
+        after: "«تحديث» في بطاقة الجهاز يفتح نافذته ويقرأ صفحات Starlink مثل الهاتف (الاشتراك، الأجهزة، الفاتورة، الإعدادات، الرئيسية) ويحفظ النتيجة. المزامنة الجماعية (اليوم، كل الأجهزة) تبقى من الهاتف.",
+      },
+    ],
+  },
+  {
     id: "2026-10-22-desktop-mail",
     date: "2026-10-22",
     title: "🖥️ اللابتوب: البريد ورمز التحقق",
