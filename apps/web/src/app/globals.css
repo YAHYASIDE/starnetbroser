@@ -18856,3 +18856,27 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
     gap: 16px;
   }
 }
+
+/* 🤲 One sum the rep handed over = one line (his Oct 22 2026 ask), its parts folded under it. */
+.rep-handover-split {
+  display: block;
+}
+
+.rep-handover-toggle {
+  margin-inline-start: auto;
+  font-size: 0.78rem;
+}
+
+.rep-handover-parts {
+  margin: 8px 0 0;
+  padding-inline-start: 10px;
+  border-inline-start: 2px solid var(--border);
+}
+
+/* 💱 «ما عليه» in each currency; the all-converted figure is a quiet line under it. */
+.rep-summary-approx {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  text-align: end;
+}

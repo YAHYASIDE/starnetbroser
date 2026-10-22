@@ -1988,3 +1988,19 @@ is never pressed while a field is empty - it refills and saves on the next try (
   توقفت), «تحتاج إجراءً», the money per currency (no conversion), a Saturday-first month calendar (29-31 «لا
   فوترة») with the picked day's devices, and every phone list folded under «كل قوائم الأجهزة». No data,
   storage key or money logic changed; the phone layout is untouched.
+
+## 🤲 A rep's handed-over sum = one line, and «ما عليه» each currency alone (Oct 22 2026)
+
+- His report: his rep sent 50,000 فرانك (= 10,000 سيفا) by the money bot; the statement showed «2,619.63» and
+  «7,380.37» and he read it as 10,000 becoming 7,380. Nothing was lost: `recordRepMoneyHandover` pays first his
+  customers' devices that still carry his debt in that currency, the rest goes to his account. **His choice: «اجعل
+  الدفعة سطرًا واحدًا»** - every part now carries one `handoverId` (LedgerEntry / RepSettlement) and the rep's
+  statement shows «🤲 استلمت منه 10,000 سيفا» + «توزّعت: … على جهاز X · … في حسابه», its parts (each still
+  editable) under «التفاصيل» (`lib/repHandoverGroups.ts`; older sums recognised by being written together: same
+  day, currency and note, ≤ 10 s apart).
+- Second report: the bot's «🟠 شخصي» (586,861.47) ≠ the app's «ما عليه الآن» (587,000): the app converted every
+  currency into the display one (his أوقية operations, balanced in أوقية, gave 138.53 سيفا at different rates).
+  **His choice: «كل عملة وحدها»** - the rep's «حساب ما عليه» (its lines, «ما عليه الآن», each row's «ما عليه»
+  and its movement, the account-statement PDF) is in each record's own currency, never converted - the same
+  figures as his bot; the all-converted figure is only a quiet «≈ … بسعر اليوم (للمعلومة)» line when one
+  display currency is chosen. His profit account stays as before (it comes from USD).

@@ -371,6 +371,7 @@ export interface RepOperation {
   /** He handed it to us himself (heldByRepId), rather than his customer paying us directly. */
   byRep: boolean;
   note?: string;
+  handoverId?: string;
   /** What he owes us in that currency once this operation is counted. */
   balanceAfter: number;
 }
@@ -409,6 +410,7 @@ export function repOperations(
         entryId: entry.id, accountId, clientId: clientId ?? "", date: entry.date, at: entry.createdAt,
         amount: signedLedger(entry), currency: entry.currency, byRep: entry.heldByRepId === repId,
         ...(entry.note ? { note: entry.note } : {}),
+        ...(entry.handoverId ? { handoverId: entry.handoverId } : {}),
       });
     }
   }

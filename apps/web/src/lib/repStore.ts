@@ -259,6 +259,8 @@ export interface RepSettlement {
   accountId?: string;
   /** profitTransfer only: true = put into his account in `currencyCode`; absent = written off. */
   toDebt?: boolean;
+  /** 🤲 The rest of a sum he handed over (see LedgerEntry.handoverId). */
+  handoverId?: string;
   createdAt: string;
 }
 
@@ -295,6 +297,7 @@ export interface RecordRepSettlementInput {
   accountId?: string;
   /** profitTransfer only (see RepSettlement.toDebt). */
   toDebt?: boolean;
+  handoverId?: string;
 }
 
 export type RecordRepSettlementResult =
@@ -319,6 +322,7 @@ export function recordRepSettlement(
     rates: input.rates,
     ...(input.accountId ? { accountId: input.accountId } : {}),
     ...(input.kind === "profitTransfer" && input.toDebt ? { toDebt: true } : {}),
+    ...(input.handoverId ? { handoverId: input.handoverId } : {}),
     createdAt: new Date().toISOString(),
   };
   return { ok: true, settlements: [...settlements, settlement], settlement };
@@ -629,6 +633,7 @@ export interface RepCustomerOp {
   /** He handed it to us himself, rather than his customer paying us directly. */
   byRep: boolean;
   note?: string;
+  handoverId?: string;
 }
 
 export type RepStatementRow =

@@ -5,7 +5,8 @@ import { LIVE_SYNC_EVENT } from "@/lib/liveSync";
 import { createContext, CSSProperties, FormEvent, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { confirmAndDeleteLedgerEntry, LedgerEntryEditor } from "@/components/LedgerEntryEditor";
-import { methodLabel } from "@/lib/payCurrency";
+import { methodLabel, sifaToFranc } from "@/lib/payCurrency";
+import { groupHandovers, type RepRowItem } from "@/lib/repHandoverGroups";
 import { getCurrency, loadCurrencyStore } from "@/lib/currencyStore";
 import { PdfButton } from "@/components/PdfButton";
 import { RepAppCodePanel } from "@/components/RepAppCodePanel";
@@ -154,9 +155,11 @@ function balanceText(values: Record<string, number>): string {
 }
 
 /** 📒 The balance a statement row shows: the one of his two accounts it moves (repRowSplit). */
-function rowBalance(statement: RepPeriodStatement, row: RepStatementRow): { label: string; values: Record<string, number> } {
+function rowBalance(statement: RepPeriodStatement, row: RepStatementRow, native?: RepPeriodStatement): { label: string; values: Record<string, number> } {
   const account = repRowAccount(row);
-  return { label: account === "debt" ? "ما عليه" : "ربحه", values: statement[account].after[repRowKey(row)] ?? {} };
+  // «ما عليه» in each record's own currency when given (his Oct 22 2026 choice «كل عملة وحدها»).
+  const source = account === "debt" && native ? native : statement;
+  return { label: account === "debt" ? "ما عليه" : "ربحه", values: source[account].after[repRowKey(row)] ?? {} };
 }
 
 /** Everything on this page is shown in the currency the operator picked (أوقية, سيفا or both),
@@ -787,6 +790,8 @@ function RepCard({
   }, [panel, sheet, showArchive, version, rep, allDeviceRows, invoices, settlements, active, operations, allReplays, accounts, ledgerStore, customersHidden]);
   const period = periodKind === "month" ? monthRange(periodMonth) : repPeriod(periodKind, todayDateInputValue(), customPeriod);
   const statement = useMemo(() => buildRepPeriodStatement(allDays, period, fx.convert), [allDays, period.from, period.to, fx]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 💱 The same period in each record's own currency - «ما عليه» shows every currency on its own line (his Oct 22 2026 choice).
+  const nativeStatement = useMemo(() => buildRepPeriodStatement(allDays, period, keepCurrency), [allDays, period.from, period.to]); // eslint-disable-line react-hooks/exhaustive-deps
   // 📈 The period's shipments, one line each: confirmed and expected (D) apart.
   const profits = useMemo(
     () => repProfitBreakdown(statement.days.flatMap((day) => day.rows.flatMap((row) => (row.type === "device" ? [row.row] : []))), fx.convert),
@@ -839,7 +844,7 @@ function RepCard({
   const docPeriod = () => periodLabel + (showArchive ? ` (نسخة ${versionLabel(version)})` : "");
 
   function statementDoc() {
-    return buildRepStatementPdf(rep, statement, docPeriod(), accountName, clientNameFor, storeItems, fx);
+    return buildRepStatementPdf(rep, statement, docPeriod(), accountName, clientNameFor, storeItems, fx, nativeStatement);
   }
 
   function profitDoc() {
@@ -1043,7 +1048,7 @@ function RepCard({
             </label>
           )}
 
-          <RepStatementSummary statement={statement} period={period} periodLabel={periodLabel} archive={showArchive} hideOurs={readOnly} />
+          <RepStatementSummary statement={statement} native={nativeStatement} period={period} periodLabel={periodLabel} archive={showArchive} hideOurs={readOnly} />
 
           <div className="party-panel-tools">
             <PdfButton className="party-action party-action-pdf" label="🖨️ تصدير الكشف PDF" build={statementDoc} />
@@ -1104,20 +1109,29 @@ function RepCard({
                     )}
                   </div>
                   <ul className="party-statement">
-                    {day.rows.map((row) => (
-                      <RepStatementLine
-                        key={repRowKey(row)}
-                        row={row}
-                        balanceAfter={rowBalance(statement, row).values}
-                        balanceLabel={rowBalance(statement, row).label}
-                        accountName={accountName}
-                        clientNameFor={clientNameFor}
-                        storeItems={storeItems}
-                        wrongCurrency={wrongCurrency}
-                        onOpen={row.type === "invoice" || readOnly ? undefined : () => openRow(row)}
-                        hideOurs={readOnly}
-                      />
-                    ))}
+                    {groupHandovers(day.rows).map((item) => {
+                      const line = (row: RepStatementRow) => (
+                        <RepStatementLine
+                          key={repRowKey(row)}
+                          row={row}
+                          balanceAfter={rowBalance(statement, row, nativeStatement).values}
+                          balanceLabel={rowBalance(statement, row, nativeStatement).label}
+                          accountName={accountName}
+                          clientNameFor={clientNameFor}
+                          storeItems={storeItems}
+                          wrongCurrency={wrongCurrency}
+                          onOpen={row.type === "invoice" || readOnly ? undefined : () => openRow(row)}
+                          hideOurs={readOnly}
+                        />
+                      );
+                      return item.kind === "row" ? (
+                        line(item.row)
+                      ) : (
+                        <RepHandoverLine key={item.key} item={item} balanceAfter={rowBalance(statement, item.rows[0], nativeStatement).values} accountName={accountName} clientNameFor={clientNameFor}>
+                          {item.rows.map(line)}
+                        </RepHandoverLine>
+                      );
+                    })}
                   </ul>
                 </div>
               ))}
@@ -1645,12 +1659,15 @@ function StatValues({ values, absolute = false }: { values: Record<string, numbe
  * balance - per currency, "له" = we owe him, "عليه" = he owes us. */
 function RepStatementSummary({
   statement,
+  native,
   period,
   periodLabel,
   archive,
   hideOurs = false,
 }: {
   statement: RepPeriodStatement;
+  /** The same period with every amount in its own currency (never converted) - «ما عليه» and its lines. */
+  native: RepPeriodStatement;
   period: RepPeriod;
   periodLabel: string;
   archive: boolean;
@@ -1658,16 +1675,31 @@ function RepStatementSummary({
 }) {
   const fx = useFx();
   const t = statement.totals;
-  // Already converted to the display currency by buildRepPeriodStatement.
+  // «ما عليه» in each record's own currency, never converted (his Oct 22 2026 choice «كل عملة وحدها»):
+  // سيفا alone, أوقية alone - the same figures as his bot. Profit stays as before (it comes from USD).
+  const nt = native.totals;
   const list = (values: Record<string, number>) => fx.list(Object.fromEntries(nonZero(values)));
   // 📒 His two accounts apart (his Oct 11 2026 rule: «ربحه وحده لا يُخصم مما عليه»).
   const debtLines: [string, string][] = [];
-  if (nonZero(t.customerCharges).length) debtLines.push(["📡 تجديدات أجهزته (عليه)", list(t.customerCharges)]);
-  if (nonZero(t.customerPaid).length) debtLines.push(["💵 دُفع عنها / سلّمك (له)", list(t.customerPaid)]);
-  if (nonZero(t.settled.cashHandover).length) debtLines.push(["💵 استلمت منه نقدًا", list(t.settled.cashHandover)]);
-  if (nonZero(t.settled.manualCredit).length) debtLines.push(["➕ له (أُضيف لرصيده)", list(t.settled.manualCredit)]);
-  if (nonZero(t.settled.manualDebit).length) debtLines.push(["➖ عليه (خُصم من رصيده)", list(t.settled.manualDebit)]);
-  if (nonZero(t.cashCollected).length) debtLines.push(["🧾 نقد قبضه من مبيعات المتجر", list(t.cashCollected)]);
+  if (nonZero(nt.customerCharges).length) debtLines.push(["📡 تجديدات أجهزته (عليه)", list(nt.customerCharges)]);
+  if (nonZero(nt.customerPaid).length) debtLines.push(["💵 دُفع عنها / سلّمك (له)", list(nt.customerPaid)]);
+  if (nonZero(nt.settled.cashHandover).length) debtLines.push(["💵 استلمت منه نقدًا", list(nt.settled.cashHandover)]);
+  if (nonZero(nt.settled.manualCredit).length) debtLines.push(["➕ له (أُضيف لرصيده)", list(nt.settled.manualCredit)]);
+  if (nonZero(nt.settled.manualDebit).length) debtLines.push(["➖ عليه (خُصم من رصيده)", list(nt.settled.manualDebit)]);
+  if (nonZero(nt.cashCollected).length) debtLines.push(["🧾 نقد قبضه من مبيعات المتجر", list(nt.cashCollected)]);
+  const debtClosing = Object.fromEntries(nonZero(native.debt.closing));
+  // ⚖️ The net per currency: his debt in each currency, his profit added to its own currency.
+  const netByCurrency: Record<string, number> = { ...debtClosing };
+  for (const [code, v] of nonZero(statement.profit.closing)) netByCurrency[code] = (netByCurrency[code] ?? 0) + v;
+  const approx = (own: Record<string, number>, converted: Record<string, number>) => {
+    const a = nonZero(own);
+    const b = nonZero(converted);
+    const same = a.length === b.length && a.every(([c, v]) => Math.abs((converted[c] ?? 0) - v) < 0.5);
+    // Only when the page shows ONE currency: «الاثنين» converts every record into both, a total that reads wrong here.
+    return same || b.length !== 1 ? null : `≈ ${balanceText(converted)} - كل العملات محوّلة بسعر اليوم (للمعلومة)`;
+  };
+  const debtApprox = approx(debtClosing, statement.debt.closing);
+  const netApprox = approx(netByCurrency, statement.closing);
   const profitLines: [string, string][] = [];
   if (t.deviceCount > 0) {
     profitLines.push(["ربح أجهزته", fx.list(t.deviceProfit)]);
@@ -1703,14 +1735,15 @@ function RepStatementSummary({
         {period.from && (
           <div className="rep-summary-balance">
             <span>أول الفترة</span>
-            <BalanceValue values={statement.debt.opening} />
+            <BalanceValue values={native.debt.opening} />
           </div>
         )}
         {lines(debtLines)}
         <div className="rep-summary-balance rep-summary-closing">
           <span>ما عليه {closingLabel}</span>
-          <BalanceValue values={statement.debt.closing} />
+          <BalanceValue values={native.debt.closing} />
         </div>
+        {debtApprox && <p className="rep-summary-approx">{debtApprox}</p>}
       </div>
       <div className="rep-summary-account">
         <strong className="rep-summary-account-title">📈 حساب ربحه</strong>
@@ -1728,8 +1761,9 @@ function RepStatementSummary({
       </div>
       <div className="rep-summary-balance rep-summary-net">
         <span>⚖️ الصافي لو خُصم ربحه مما عليه (للمعلومة)</span>
-        <BalanceValue values={statement.closing} />
+        <BalanceValue values={netByCurrency} />
       </div>
+      {netApprox && <p className="rep-summary-approx">{netApprox}</p>}
     </div>
   );
 }
@@ -1743,6 +1777,80 @@ function BalanceValue({ values }: { values: Record<string, number> }) {
         </span>
       ))}
     </strong>
+  );
+}
+
+/** 🤲 One sum the rep handed over, as ONE line (his Oct 22 2026 ask «اجعل الدفعة سطرًا واحدًا»): the
+ * total, then where the app put it (his customers' devices first, the rest in his account); its parts
+ * - each editable as before - open under «التفاصيل». */
+function RepHandoverLine({
+  item,
+  balanceAfter,
+  accountName,
+  clientNameFor,
+  children,
+}: {
+  item: Extract<RepRowItem, { kind: "handover" }>;
+  balanceAfter?: Record<string, number>;
+  accountName: (accountId: string) => string;
+  clientNameFor: (accountId: string) => string | undefined;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const cur = currencyLabel(item.currency);
+  const viaFranc = item.currency === "SIFA" && /أورانج|نيتا|اورانج/.test(item.note ?? "");
+  // The whole sum in its own currency (each part's converted figure stays on the part itself).
+  const delta: [string, number][] = [[item.currency, item.total]];
+  return (
+    <li className="party-statement-row rep-line-settlement rep-line-handover">
+      <div className="rep-line-open rep-handover-body">
+        <div className="party-statement-top">
+          <span className="party-statement-kind">🤲 استلمت منه</span>
+          <strong dir="ltr">
+            {formatAmount(item.total)} {cur}
+          </strong>
+        </div>
+        {viaFranc && <span className="party-statement-note">🟠 = {formatAmount(sifaToFranc(item.total))} فرانك</span>}
+        {item.note && <span className="party-statement-note">{item.note}</span>}
+        <span className="party-statement-note rep-handover-split">
+          توزّعت:{" "}
+          {item.toDevices.map((d, i) => {
+            const client = clientNameFor(d.accountId);
+            return (
+              <span key={`${d.accountId}-${i}`}>
+                <bdi dir="ltr">{formatAmount(d.amount)}</bdi> {cur} على {accountName(d.accountId)}
+                {client ? ` (${client})` : ""}
+                {" · "}
+              </span>
+            );
+          })}
+          {item.toAccount > 0 ? (
+            <span>
+              <bdi dir="ltr">{formatAmount(item.toAccount)}</bdi> {cur} في حسابه
+            </span>
+          ) : (
+            <span>كلها على أجهزة زبائنه</span>
+          )}
+        </span>
+        <div className="rep-line-foot">
+          {delta.length > 0 && (
+            <span className="rep-line-delta">
+              {delta.map(([code, v]) => (
+                <bdi key={code} dir="ltr" className={v > 0 ? "rep-balance-due" : "rep-balance-clear"}>
+                  {v > 0 ? "+" : "-"}
+                  {formatAmount(Math.abs(v))} {currencyLabel(code)}
+                </bdi>
+              ))}
+            </span>
+          )}
+          {balanceAfter && <span className="rep-line-balance">ما عليه: {balanceText(balanceAfter)}</span>}
+          <button type="button" className="btn-link rep-handover-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+            {open ? "إخفاء التفاصيل ▴" : `التفاصيل (${item.rows.length}) ▾`}
+          </button>
+        </div>
+      </div>
+      {open && <ul className="party-statement rep-handover-parts">{children}</ul>}
+    </li>
   );
 }
 
@@ -1770,7 +1878,9 @@ function RepStatementLine({
   onOpen?: () => void;
 }) {
   const fx = useFx();
-  const delta = nonZero(repRowDelta(row, fx.convert));
+  // «ما عليه» rows move his account in their own currency (his Oct 22 2026 choice «كل عملة وحدها»);
+  // his profit rows stay in the display currency, as his profit account is.
+  const delta = nonZero(repRowDelta(row, repRowAccount(row) === "debt" ? keepCurrency : fx.convert));
   let body: ReactNode;
   let className = "";
   if (row.type === "device") {
@@ -2500,16 +2610,17 @@ function buildRepStatementPdf(
   clientNameFor: (accountId: string) => string | undefined,
   storeItems: StoreItemRegistry,
   fx: Fx,
+  native?: RepPeriodStatement,
 ): PrintableDocument {
   const rows = statement.days.flatMap((day) =>
-    day.rows.filter((row) => repRowAccount(row) === "debt").map((row) => repRowCells(row, rowBalance(statement, row), accountName, clientNameFor, storeItems, fx)),
+    day.rows.filter((row) => repRowAccount(row) === "debt").map((row) => repRowCells(row, rowBalance(statement, row, native), accountName, clientNameFor, storeItems, fx)),
   );
   return {
     title: "كشف حساب مندوب",
     partyName: rep.name,
     partyPhone: rep.phone,
     subtitle: periodLabel,
-    summary: [{ label: "📡 المبلغ المتبقي عليه", value: balanceText(statement.debt.closing) || "لا شيء ✓", tone: "due" as const }],
+    summary: [{ label: "📡 المبلغ المتبقي عليه", value: balanceText((native ?? statement).debt.closing) || "لا شيء ✓", tone: "due" as const }],
     columns: ["التاريخ", "العملية", "التفاصيل", "الحركة", "ما عليه بعدها"],
     rows,
     footerNote: "الأحدث أولًا. «عليه» = مستحق عليه، «له» = مستحق له. أرباحه في «كشف الأرباح» وحده - لا تُخصم من هذا الكشف.",

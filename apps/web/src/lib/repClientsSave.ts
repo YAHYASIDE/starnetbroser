@@ -43,6 +43,8 @@ export function recordRepMoneyHandover(
   const method = input.paymentMethod && input.paymentMethod !== "cash" ? input.paymentMethod : undefined;
   const moneyAccountId = method ? devicePaymentAccountId({ paymentMethod: method, currency: input.currencyCode }, loadAccountsBook().accounts) : null;
   let ledger = loadLedgerStore();
+  // 🤲 Every part of this one sum shares an id - the statement shows it as one line (his Oct 22 2026 ask).
+  const handoverId = `ho-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   let toDevices = 0;
   let remainder = input.amount;
   if (LEDGER_CURRENCIES.includes(input.currencyCode as LedgerCurrency)) {
@@ -63,6 +65,7 @@ export function recordRepMoneyHandover(
         paymentMethod: moneyAccountId ? method : "cash",
         cashMoved: !moneyAccountId,
         heldByRepId: repId,
+        handoverId,
       });
       if (!result.ok) return result;
       ledger = result.ledgerStore;
@@ -78,6 +81,7 @@ export function recordRepMoneyHandover(
       date: input.date,
       note: input.note,
       rates: input.rates,
+      handoverId,
       ...(moneyAccountId ? { accountId: moneyAccountId } : {}),
     });
     if (!result.ok) return result;

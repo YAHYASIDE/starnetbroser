@@ -137,6 +137,9 @@ export interface LedgerEntry {
   /** Money a representative handed over for his own customers' devices (repClients.ts): this
    * payment settles HIS debt to us, whoever the device's customer belongs to by the time it's read. */
   heldByRepId?: string;
+  /** 🤲 One sum a rep handed over, split by the app over his customers' devices and his account
+   * (repClientsSave.ts): every part carries the same id, so the statement shows it as ONE line. */
+  handoverId?: string;
   /** 💱 He confirmed in the warning window that this operation really is in another currency than
    * its rep's / customer's (partyCurrency.ts) - never flagged as «⚠️ عملة مختلفة» again. */
   currencyConfirmed?: boolean;
