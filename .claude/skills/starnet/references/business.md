@@ -2020,3 +2020,18 @@ is never pressed while a field is empty - it refills and saves on the next try (
   and «💱 من دفعة» into the account he chose (+toAmount; a named account gets a ledger entry). One line in his
   statement («🤲 استلمت منه 3,600 أوقية · 💱 حُوّلت إلى 🟠 شخصي: 1,000 سيفا (…)»); deleting any of the three deletes
   all three (`linkedSettlementIds`). Nothing is converted silently - each record keeps its currency.
+
+## 🏦 A rep's loan comes only from الأوقية / أورانج موني / نيتا / الربح (Oct 22 2026)
+
+- His words: «اجعله يمكنه تسلف من الحسابات فقط الاوقية او اورانج موني او نيتا وحساب الربح فقط». His choices: **the
+  loan is recorded in the account the rep chose; 🟠 شخصي is never offered; from الربح he may borrow beyond his
+  profit - the rest becomes «عليه»**.
+- Bot: amount → «📂 من أي حساب تتسلف؟» [🟢 الأوقية] [🟠 أورانج موني] [🟠 نيتا] [💰 الربح] (`lnw:MRU|orange|nita|profit`,
+  kept in the pending slot's method field) → الأوقية: بنكيلي / مصرفي / سداد; أورانج / نيتا: that app itself (سيفا, shown
+  in فرانك); الربح: the currency, then the app → number → ✅. The record carries `account` (`RepRequest.loanAccount`).
+- Approval (`recordRepLoan`, all leave the app in «حسابي», never الكاش):
+  🟢 الأوقية → an advance in أوقية (manualDebit, as before); 🟠 أورانج موني / نيتا → «عليه» in his named account of
+  that name (`loanLedgerFor`: his «ORANJ…»/«نيتا» account, the currency added if missing, or a new «سلفة / دين»
+  account «أورانج موني» / «نيتا» in فرنك), with `placeId` = the app, counted once (`botId`); 💰 الربح → a
+  `commissionPayout` (his profit may go below zero). The card fixes the currency except for الربح; older requests
+  (no account) behave as before.

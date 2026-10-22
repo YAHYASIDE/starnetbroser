@@ -16,7 +16,7 @@ import { localDay } from "./eveningSummary";
 import { LEDGER_CURRENCIES, PAYMENT_METHOD_LABELS, PAYMENT_METHODS, type LedgerCurrency, type PaymentMethod } from "./ledgerStore";
 import { isPaymentMethod, loadActivationCosts, recordRepActivation as recordActivationOnDevice, type ActivationCost } from "./repActivation";
 import { appendRepNote, editFieldName, isRepEditField, repEditPatch } from "./repDeviceMenu";
-import { addRepRequest, hasBotRequest, loadRepRequests, resolveRepRequest, saveRepRequests, type RepRequest } from "./repRequests";
+import { addRepRequest, hasBotRequest, loadRepRequests, REP_LOAN_ACCOUNTS, resolveRepRequest, saveRepRequests, type RepLoanAccount, type RepRequest } from "./repRequests";
 import { addRepBookEntry, currentRepOfClient, loadRepBook, saveRepBook, undoRepBookEntry } from "./repClients";
 import { loadRepresentativeStore } from "./repStore";
 import { isDemoMode } from "./settingsStore";
@@ -220,11 +220,14 @@ export function repLoanRequest(data: Record<string, unknown>): Omit<RepRequest, 
   const number = str(data.number).trim();
   if (!repId || !(amount > 0) || !LEDGER_CURRENCIES.includes(currency as LedgerCurrency) || !app || !number) return null;
   const label = str(data.label) || formatMoneyShort(amount, currency);
+  const account = str(data.account) as RepLoanAccount;
+  const loanAccount = account in REP_LOAN_ACCOUNTS ? account : undefined;
   return {
     ...(str(data.id) ? { botId: str(data.id) } : {}),
     repId,
     kind: "loan",
-    text: `🏦 سلفة ${label} عبر ${app} إلى ${number}`,
+    text: `🏦 سلفة ${label}${loanAccount ? ` من حساب ${REP_LOAN_ACCOUNTS[loanAccount]}` : ""} عبر ${app} إلى ${number}`,
+    ...(loanAccount ? { loanAccount } : {}),
     amount,
     currency: currency as LedgerCurrency,
     loanApp: app,

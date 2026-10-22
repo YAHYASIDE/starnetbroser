@@ -936,8 +936,9 @@ public class TelegramReplyService extends Service {
         return null;
     }
 
-    // ---- 🏦 دين (سلفة): amount -> currency -> banking app -> recipient's number -> ✅, then the operator ----
-    // Kept in the same waiting slot as 💵 دفعة (stages "loan-..."), target "appCode|number".
+    // ---- 🏦 دين (سلفة): amount -> 📂 account -> (الربح: currency) -> banking app -> number -> ✅, then the operator ----
+    // Kept in the same waiting slot as 💵 دفعة (stages "loan-..."), target "appCode|number", the account
+    // (TelegramReplies.LOAN_ACCOUNTS) in the method slot.
 
     /** A rep's text that belongs to 🏦 دين: the command itself, or what the bot is waiting for. */
     private static boolean handleLoanText(Context context, String bot, String token, String chatId, String text) throws JSONException {
@@ -972,10 +973,15 @@ public class TelegramReplyService extends Service {
             TelegramStore.clearPendingPayment(context, chatId);
             return false;
         }
+        if ("loan-account".equals(stage)) {
+            send(context, bot, token, chatId, TelegramReplies.loanAccountQuestion(price.amount), TelegramReplies.loanAccountMarkup());
+            return true;
+        }
         if ("loan-currency".equals(stage)) {
             send(context, bot, token, chatId, TelegramReplies.loanCurrencyQuestion(price.amount), TelegramReplies.loanCurrencyMarkup());
             return true;
         }
+        String account = pending[4];
         String[] target = pending[3].split("\\|", -1);
         String appName = TelegramReplies.loanAppName(price.currency, target[0]);
         if ("loan-app".equals(stage) || appName == null) {
@@ -989,26 +995,26 @@ public class TelegramReplyService extends Service {
                 return true;
             }
             TelegramStore.setPendingPayment(context, chatId, "loan-confirm", pending[1], price.currency, target[0] + "|" + number);
-            send(context, bot, token, chatId, TelegramReplies.loanConfirmText(price, appName, number), TelegramReplies.loanConfirmMarkup());
+            send(context, bot, token, chatId, TelegramReplies.loanConfirmText(price, appName, number, account), TelegramReplies.loanConfirmMarkup());
             return true;
         }
         // "loan-confirm": he typed instead of tapping - show the summary again.
-        send(context, bot, token, chatId, TelegramReplies.loanConfirmText(price, appName, target.length > 1 ? target[1] : ""), TelegramReplies.loanConfirmMarkup());
+        send(context, bot, token, chatId, TelegramReplies.loanConfirmText(price, appName, target.length > 1 ? target[1] : "", account), TelegramReplies.loanConfirmMarkup());
         return true;
     }
 
-    /** No amount yet -> ask for it; an amount -> the currency buttons. */
+    /** No amount yet -> ask for it; an amount -> «من أي حساب؟». */
     private static void startLoan(Context context, String bot, String token, String chatId, TelegramReplies.Price price) {
         if (price == null) {
             TelegramStore.setPendingPayment(context, chatId, "loan-amount", "", "", "", "", "");
             send(context, bot, token, chatId, TelegramReplies.LOAN_AMOUNT_QUESTION, TelegramReplies.FORCE_REPLY);
             return;
         }
-        TelegramStore.setPendingPayment(context, chatId, "loan-currency", Double.toString(price.amount), "", "", "", "");
-        send(context, bot, token, chatId, TelegramReplies.loanCurrencyQuestion(price.amount), TelegramReplies.loanCurrencyMarkup());
+        TelegramStore.setPendingPayment(context, chatId, "loan-account", Double.toString(price.amount), "", "", "", "");
+        send(context, bot, token, chatId, TelegramReplies.loanAccountQuestion(price.amount), TelegramReplies.loanAccountMarkup());
     }
 
-    /** lnc:<currency> · lna:<app> · lnok · lnx. */
+    /** lnw:<account> · lnc:<currency> (الربح) · lna:<app> · lnok · lnx. */
     private static String loanCallback(Context context, String bot, String token, String chatId, long messageId, String repId,
                                        TelegramReplies.Snapshot snapshot, String data) throws JSONException {
         String[] pending = TelegramStore.pendingPayment(context, chatId);
@@ -1019,12 +1025,36 @@ public class TelegramReplyService extends Service {
         }
         TelegramReplies.Price price = pending == null || !pending[0].startsWith("loan-") ? null : pendingPrice(pending);
         if (price == null) return TelegramReplies.LOAN_EXPIRED;
+        if (data.startsWith("lnw:")) {
+            String account = data.substring(4);
+            String label = TelegramReplies.loanAccountLabel(account);
+            if (label == null) return "اختيار غير صالح";
+            String currency = TelegramReplies.loanAccountCurrency(account);
+            if (currency == null) { // 💰 الربح: he picks the currency
+                TelegramStore.setPendingPayment(context, chatId, "loan-currency", pending[1], "", "", account, "");
+                editOrSend(context, bot, token, chatId, messageId, TelegramReplies.loanCurrencyQuestion(price.amount) + "\n📂 من حساب: " + label, TelegramReplies.loanCurrencyMarkup());
+                return label;
+            }
+            TelegramReplies.Price chosen = new TelegramReplies.Price(price.amount, currency);
+            if (!"MRU".equals(account)) { // 🟠 أورانج موني / نيتا: the app is the account itself
+                String appName = TelegramReplies.loanAppName(currency, account);
+                TelegramStore.setPendingPayment(context, chatId, "loan-number", pending[1], currency, account + "|", account, "");
+                editOrSend(context, bot, token, chatId, messageId, TelegramReplies.loanAppQuestion(chosen) + "\n\n📂 " + label, null);
+                send(context, bot, token, chatId, TelegramReplies.loanNumberQuestion(chosen, appName), TelegramReplies.forceReply("رقم المستلم"));
+                return label;
+            }
+            TelegramStore.setPendingPayment(context, chatId, "loan-app", pending[1], currency, "", account, "");
+            editOrSend(context, bot, token, chatId, messageId, TelegramReplies.loanAppQuestion(chosen) + "\n📂 من حساب: " + label, TelegramReplies.loanAppMarkup(currency));
+            return label;
+        }
         if (data.startsWith("lnc:")) {
             String currency = data.substring(4);
             if (TelegramReplies.loanApps(currency).length == 0) return "اختيار غير صالح";
+            // Only 💰 الربح picks a currency (an older request still waiting here had no account).
+            if (!pending[4].isEmpty() && !"profit".equals(pending[4])) return "اختر الحساب أولاً";
             TelegramReplies.Price chosen = new TelegramReplies.Price(price.amount, currency);
             TelegramStore.setPendingPayment(context, chatId, "loan-app", pending[1], currency, "");
-            editOrSend(context, bot, token, chatId, messageId, TelegramReplies.loanAppQuestion(chosen), TelegramReplies.loanAppMarkup(currency));
+            editOrSend(context, bot, token, chatId, messageId, TelegramReplies.loanAppQuestion(chosen) + TelegramReplies.loanAccountLine(pending[4]), TelegramReplies.loanAppMarkup(currency));
             return null;
         }
         if (data.startsWith("lna:")) {
@@ -1040,6 +1070,7 @@ public class TelegramReplyService extends Service {
             String[] target = pending[3].split("\\|", -1);
             String appName = TelegramReplies.loanAppName(price.currency, target[0]);
             if (!"loan-confirm".equals(pending[0]) || appName == null || target.length < 2 || target[1].isEmpty()) return "أكمل الخطوات أولاً";
+            String account = pending[4];
             TelegramStore.clearPendingPayment(context, chatId);
             JSONObject record = new JSONObject();
             record.put("repId", repId);
@@ -1048,12 +1079,13 @@ public class TelegramReplyService extends Service {
             record.put("app", appName);
             record.put("number", target[1]);
             record.put("label", price.label());
+            if (TelegramReplies.loanAccountLabel(account) != null) record.put("account", account);
             record.put("at", System.currentTimeMillis());
             addToInbox(context, bot, chatId, "", "", "", true, null, null, "repLoan", record.toString());
             Map<String, String> mine = snapshot.reps.get(repId);
             String repName = mine != null && mine.get("name") != null ? mine.get("name") : "";
-            tellOwner(context, TelegramReplies.loanToOwner(repName, price, appName, target[1]), null);
-            editOrSend(context, bot, token, chatId, messageId, TelegramReplies.loanSent(price, appName, target[1]), null);
+            tellOwner(context, TelegramReplies.loanToOwner(repName, price, appName, target[1], account), null);
+            editOrSend(context, bot, token, chatId, messageId, TelegramReplies.loanSent(price, appName, target[1], account), null);
             return "✅ أُرسل";
         }
         return null;

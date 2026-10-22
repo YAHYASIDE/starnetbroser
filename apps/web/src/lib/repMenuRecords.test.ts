@@ -136,6 +136,13 @@ describe("rep menu records", () => {
     expect(repLoanRequest({ repId: "r1", amount: 0, currency: "SIFA", app: "نيتا", number: "1" })).toBeNull();
   });
 
+  it("📂 a loan names the account he borrows from (an unknown one is dropped)", () => {
+    expect(repLoanRequest({ repId: "r1", amount: 5000, currency: "SIFA", app: "نيتا", number: "22227268", label: "5,000 سيفا", account: "nita" })).toMatchObject({
+      loanAccount: "nita", text: "🏦 سلفة 5,000 سيفا من حساب 🟠 نيتا عبر نيتا إلى 22227268",
+    });
+    expect(repLoanRequest({ repId: "r1", amount: 5000, currency: "SIFA", app: "نيتا", number: "22227268", account: "SIFA" })?.loanAccount).toBeUndefined();
+  });
+
   it("💳 the payment's method and 📸 photo come with it", () => {
     expect(repPaymentRequest({ repId: "r1", amount: 5000, currency: "SIFA", accountId: "acc-1", target: "مقهى", label: "5,000 سيفا", method: "nita", photo: "FILE1", bot: "money" })).toMatchObject({
       kind: "payment", paymentMethod: "nita", proofFileId: "FILE1", proofBot: "money", text: "💵 دفعة 5,000 سيفا (نيتا) عن مقهى",

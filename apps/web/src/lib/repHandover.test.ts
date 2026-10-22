@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from "vitest";
 import { loadCashEntries } from "./cashStore";
-import { loanAccountId, recordRepHandover, recordRepLoan, routeBotLoans } from "./repHandover";
+import { loanAccountId, loanLedgerFor, recordRepHandover, recordRepLoan, routeBotLoans } from "./repHandover";
+import { createRepLedger, EMPTY_REP_LEDGER_BOOK, loadRepLedgerBook, repLedgerBalances, repLedgerFlows } from "./repLedgers";
+
 import { cashWalletFlows, partyFlows, type MoneyAccount } from "./moneyAccounts";
 import type { RepRequest } from "./repRequests";
 import { computeRepManualBalanceByCurrency, loadRepSettlements, type RepSettlement } from "./repStore";
@@ -15,7 +17,7 @@ beforeEach(() => window.localStorage.clear());
 
 describe("🏦 an approved loan", () => {
   it("is recorded as an advance the rep owes, without a cash-register entry", () => {
-    expect(recordRepLoan(loan, 20000, "MRU", "2026-09-30")).toEqual({ ok: true });
+    expect(recordRepLoan(loan, 20000, "MRU", "2026-09-30")).toEqual({ ok: true, target: "🟢 الأوقية" });
     const [settlement] = loadRepSettlements();
     expect(settlement).toMatchObject({ representativeId: "r1", kind: "manualDebit", amount: 20000, currencyCode: "MRU", date: "2026-09-30" });
     expect(settlement!.note).toContain("بنكيلي");
@@ -64,7 +66,7 @@ describe("🏦 an approved loan sent through an app of «حسابي»", () => {
 
   it("comes out of that account", () => {
     window.localStorage.setItem("starnet_money_accounts_v1", JSON.stringify({ accounts: [orange], adjustments: [] }));
-    expect(recordRepLoan(viaOrange, 15000, "SIFA", "2026-10-11")).toEqual({ ok: true });
+    expect(recordRepLoan(viaOrange, 15000, "SIFA", "2026-10-11")).toEqual({ ok: true, target: "حسابك" });
     const [settlement] = loadRepSettlements();
     expect(settlement).toMatchObject({ kind: "manualDebit", amount: 15000, currencyCode: "SIFA", accountId: "acc-orange" });
     expect(partyFlows([], loadRepSettlements())).toEqual([{ accountId: "acc-orange", currencyCode: "SIFA", date: "2026-10-11", amount: -15000 }]);
@@ -78,5 +80,51 @@ describe("🏦 an approved loan sent through an app of «حسابي»", () => {
     expect(next.map((s) => s.accountId)).toEqual([undefined, "acc-orange", undefined]);
     expect(routeBotLoans(next, [orange])).toBe(next);
     expect(loanAccountId("بنكيلي", "SIFA", [orange])).toBeNull();
+  });
+});
+
+describe("📂 a loan from the account he chose (his Oct 22 2026 rule)", () => {
+  const orange = { id: "acc-orange", name: "أورانج موني (مالي)", icon: "🟠", currencyCode: "SIFA", method: "orange", openingBalance: 0, openingDate: "2026-01-01" } as MoneyAccount;
+  const viaOrange: RepRequest = { ...loan, botId: "b1", amount: 15000, currency: "SIFA", loanApp: "أورانج موني", loanNumber: "70000000", loanAccount: "orange" };
+
+  it("🟢 الأوقية: an advance in أوقية, as before", () => {
+    expect(recordRepLoan({ ...loan, loanAccount: "MRU" }, 20000, "MRU", "2026-10-22")).toEqual({ ok: true, target: "🟢 الأوقية" });
+    expect(loadRepSettlements()[0]).toMatchObject({ kind: "manualDebit", currencyCode: "MRU" });
+  });
+
+  it("🟠 أورانج موني: «عليه» in his أورانج account (made when missing), out of أورانج in «حسابي», once", () => {
+    window.localStorage.setItem("starnet_money_accounts_v1", JSON.stringify({ accounts: [orange], adjustments: [] }));
+    expect(recordRepLoan(viaOrange, 15000, "SIFA", "2026-10-22")).toEqual({ ok: true, target: "«أورانج موني»" });
+    expect(recordRepLoan(viaOrange, 15000, "SIFA", "2026-10-22").ok).toBe(true); // the same bot message again
+    const book = loadRepLedgerBook();
+    expect(book.ledgers).toHaveLength(1);
+    expect(book.ledgers[0]).toMatchObject({ repId: "r1", name: "أورانج موني", kind: "loan", currencies: ["SIFA"], franc: true });
+    expect(repLedgerBalances(book, book.ledgers[0]!.id)).toEqual({ SIFA: -15000 });
+    expect(repLedgerFlows(book)).toEqual([{ accountId: "acc-orange", currencyCode: "SIFA", date: "2026-10-22", amount: -15000 }]);
+    expect(loadRepSettlements()).toEqual([]); // never his 🟠 شخصي
+    expect(loadCashEntries()).toEqual([]);
+  });
+
+  it("uses his own account of that name (ORANJ, نيتا…), adding the currency when it lacks it", () => {
+    const made = createRepLedger(EMPTY_REP_LEDGER_BOOK, { repId: "r1", name: "ORANJ MONEY", kind: "free", currencies: ["MRU"] });
+    if (!made.ok) throw new Error(made.message);
+    const found = loanLedgerFor(made.book, "r1", "orange", "SIFA");
+    if ("ok" in found) throw new Error(found.message);
+    expect(found.ledger.id).toBe(made.ledger.id);
+    expect(found.ledger.currencies).toEqual(["MRU", "SIFA"]);
+    const nita = loanLedgerFor(made.book, "r1", "nita", "SIFA");
+    if ("ok" in nita) throw new Error(nita.message);
+    expect(nita.ledger.name).toBe("نيتا");
+    expect(loanLedgerFor(made.book, "r2", "orange", "SIFA")).toMatchObject({ ledger: { name: "أورانج موني", repId: "r2" } });
+  });
+
+  it("💰 الربح: paid out of his profit (may go beyond it), out of the app, never in الكاش", () => {
+    window.localStorage.setItem("starnet_money_accounts_v1", JSON.stringify({ accounts: [orange], adjustments: [] }));
+    expect(recordRepLoan({ ...viaOrange, loanAccount: "profit" }, 15000, "SIFA", "2026-10-22")).toEqual({ ok: true, target: "💰 الربح" });
+    const [settlement] = loadRepSettlements();
+    expect(settlement).toMatchObject({ kind: "commissionPayout", amount: 15000, currencyCode: "SIFA", accountId: "acc-orange" });
+    expect(settlement!.note).toContain("من ربحه");
+    expect(partyFlows([], loadRepSettlements())).toEqual([{ accountId: "acc-orange", currencyCode: "SIFA", date: "2026-10-22", amount: -15000 }]);
+    expect(loadCashEntries()).toEqual([]);
   });
 });

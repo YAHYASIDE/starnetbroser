@@ -1590,6 +1590,42 @@ final class TelegramReplies {
         return null;
     }
 
+    // 📂 «من أي حساب؟» (his Oct 22 2026 rule): a loan comes only from 🟢 الأوقية, 🟠 أورانج موني, 🟠 نيتا or
+    // 💰 الربح - never 🟠 شخصي - and is recorded in that account. Codes: MRU / orange / nita / profit.
+    static final String[][] LOAN_ACCOUNTS = {{"MRU", "🟢 الأوقية"}, {"orange", "🟠 أورانج موني"}, {"nita", "🟠 نيتا"}, {"profit", "💰 الربح"}};
+
+    static String loanAccountLabel(String code) {
+        for (String[] a : LOAN_ACCOUNTS) if (a[0].equals(code)) return a[1];
+        return null;
+    }
+
+    static String loanAccountQuestion(double amount) {
+        return "🏦 المبلغ: " + amountLabel(amount) + "\n\n📂 من أي حساب تتسلف؟\n(من الربح: إن تجاوزت ربحك صار الباقي عليك)";
+    }
+
+    static String loanAccountMarkup() {
+        StringBuilder rows = new StringBuilder();
+        for (int i = 0; i < LOAN_ACCOUNTS.length; i += 2) {
+            rows.append('[').append(cb(LOAN_ACCOUNTS[i][1], "lnw:" + LOAN_ACCOUNTS[i][0]));
+            if (i + 1 < LOAN_ACCOUNTS.length) rows.append(',').append(cb(LOAN_ACCOUNTS[i + 1][1], "lnw:" + LOAN_ACCOUNTS[i + 1][0]));
+            rows.append("],");
+        }
+        return "{\"inline_keyboard\":[" + rows + "[" + cb("❌ إلغاء", "lnx") + "]]}";
+    }
+
+    /** The currency an account's loan is in (null = he picks it: الربح). */
+    static String loanAccountCurrency(String code) {
+        if ("MRU".equals(code)) return "MRU";
+        if ("orange".equals(code) || "nita".equals(code)) return "SIFA";
+        return null;
+    }
+
+    /** "\n📂 من حساب: 🟠 أورانج موني", or "" for an older request without one. */
+    static String loanAccountLine(String code) {
+        String label = loanAccountLabel(code);
+        return label == null ? "" : "\n📂 من حساب: " + label;
+    }
+
     static String loanCurrencyQuestion(double amount) {
         return "🏦 المبلغ: " + amountLabel(amount) + "\n\nاختر العملة:";
     }
@@ -1622,21 +1658,21 @@ final class TelegramReplies {
         return digits.length() >= 8 && digits.length() <= 15 ? digits : null;
     }
 
-    static String loanConfirmText(Price price, String appName, String number) {
-        return "📋 راجع طلب السلفة قبل إرساله:\n\n💵 المبلغ: " + price.label() + francLine(price, isFrancAppName(appName)) + "\n📲 التطبيق: " + appName + "\n📱 رقم المستلم: " + number
-            + "\n\nتُسجَّل عليك في حسابك بعد أن يرسلها المسؤول.\nهل المعلومات صحيحة؟";
+    static String loanConfirmText(Price price, String appName, String number, String account) {
+        return "📋 راجع طلب السلفة قبل إرساله:\n\n💵 المبلغ: " + price.label() + francLine(price, isFrancAppName(appName)) + loanAccountLine(account) + "\n📲 التطبيق: " + appName + "\n📱 رقم المستلم: " + number
+            + "\n\nتُسجَّل عليك في " + (loanAccountLabel(account) == null ? "حسابك" : "حساب " + loanAccountLabel(account)) + " بعد أن يرسلها المسؤول.\nهل المعلومات صحيحة؟";
     }
 
     static String loanConfirmMarkup() {
         return "{\"inline_keyboard\":[[" + cb("✅ موافق - أرسل الطلب", "lnok") + "],[" + cb("❌ إلغاء", "lnx") + "]]}";
     }
 
-    static String loanSent(Price price, String appName, String number) {
-        return "✅ أُرسل طلب السلفة إلى المسؤول - ينتظر موافقته، وسيصلك تأكيد هنا.\n\n💵 " + price.label() + francLine(price, isFrancAppName(appName)) + "\n📲 " + appName + "\n📱 " + number;
+    static String loanSent(Price price, String appName, String number, String account) {
+        return "✅ أُرسل طلب السلفة إلى المسؤول - ينتظر موافقته، وسيصلك تأكيد هنا.\n\n💵 " + price.label() + francLine(price, isFrancAppName(appName)) + loanAccountLine(account) + "\n📲 " + appName + "\n📱 " + number;
     }
 
-    static String loanToOwner(String repName, Price price, String appName, String number) {
-        return "🏦 طلب سلفة من المندوب " + repName + ": " + price.label() + "\n📲 عبر: " + appName + "\n📱 إلى الرقم: " + number
+    static String loanToOwner(String repName, Price price, String appName, String number, String account) {
+        return "🏦 طلب سلفة من المندوب " + repName + ": " + price.label() + loanAccountLine(account) + "\n📲 عبر: " + appName + "\n📱 إلى الرقم: " + number
             + francLine(price, isFrancAppName(appName)) + "\nأرسلها ثم وافق عليها من صفحة المندوبين في التطبيق (تُسجَّل عليه).";
     }
 

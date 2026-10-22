@@ -3,14 +3,26 @@
 /**
  * 🤲 "سلّمت المسؤول" from the reps' money bot: once the operator confirms it on the
  * representatives page it becomes a normal cash-handover settlement (with its cash-register entry),
- * exactly like one typed by hand there - never before. A 🏦 loan (سلفة) becomes an advance he owes.
+ * exactly like one typed by hand there - never before. A 🏦 loan (سلفة) is recorded in the account he
+ * borrowed from (recordRepLoan).
  */
 
 import { getCurrency, loadCurrencyStore } from "./currencyStore";
 import { recordRepMoneyHandover } from "./repClientsSave";
 import { CASH_WALLET_FROM, devicePaymentAccountId, loadAccountsBook, type MoneyAccount } from "./moneyAccounts";
 import { loadRepSettlements, recordRepSettlement, saveRepSettlements, type RepSettlement } from "./repStore";
-import type { RepRequest } from "./repRequests";
+import { REP_LOAN_ACCOUNTS, type RepRequest } from "./repRequests";
+import {
+  addRepLedgerCurrency,
+  addRepLedgerEntry,
+  createRepLedger,
+  hasBotEntry,
+  loadRepLedgerBook,
+  repLedgersOf,
+  saveRepLedgerBook,
+  type RepLedger,
+  type RepLedgerBook,
+} from "./repLedgers";
 import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "./ledgerStore";
 
 /** Rates (units per 1 USD) locked on the settlement, as the representatives page does. */
@@ -75,22 +87,59 @@ export function routeSavedBotLoans(): void {
   if (next !== settlements) saveRepSettlements(next);
 }
 
-/** 🏦 A loan (سلفة) the operator sent the rep through a banking app: recorded as an advance he
- * owes (a manual debit on his account) and taken out of that app in «حسابي» - no cash-register
- * entry, the money left through the bank. */
-export function recordRepLoan(request: RepRequest, amount: number, currencyCode: string, date: string): { ok: true } | { ok: false; message: string } {
+/** 🏦 The rep's 🟠 أورانج موني / نيتا account (repLedgers.ts) a loan from it goes into - his own account of
+ * that name, or a new «سلفة / دين» one when he has none yet; with `currencyCode` added if missing. */
+export function loanLedgerFor(book: RepLedgerBook, repId: string, account: "orange" | "nita", currencyCode: string, now = new Date()): { book: RepLedgerBook; ledger: RepLedger } | { ok: false; message: string } {
+  const name = account === "orange" ? /orange|oranj|اورانج|أورانج|أورنج|اورنج/i : /نيتا|nita/i;
+  const mine = repLedgersOf(book, repId).filter((l) => l.kind !== "travel" && name.test(l.name));
+  const found = mine.find((l) => l.currencies.includes(currencyCode)) ?? mine[0];
+  if (found) {
+    if (found.currencies.includes(currencyCode)) return { book, ledger: found };
+    const added = addRepLedgerCurrency(book, found.id, currencyCode);
+    return added.ok ? { book: added.book, ledger: added.ledger } : added;
+  }
+  const created = createRepLedger(book, { repId, name: account === "orange" ? "أورانج موني" : "نيتا", kind: "loan", currencies: [currencyCode] }, now);
+  return created.ok ? { book: created.book, ledger: created.ledger } : created;
+}
+
+/** 🏦 A loan (سلفة) the operator sent the rep through a banking app, taken out of that app in «حسابي»
+ * (no cash-register entry - the money left through the bank) and recorded in the account he borrowed
+ * from (his Oct 22 2026 rule «تسلف من الحسابات فقط الاوقية او اورانج موني او نيتا وحساب الربح»):
+ * - 🟢 الأوقية (and an older request without an account): an advance he owes in that currency;
+ * - 🟠 أورانج موني / نيتا: «عليه» in his account of that name (made when he has none);
+ * - 💰 الربح: paid out of his profit - beyond it, his profit becomes «عليه» (his choice). */
+export function recordRepLoan(
+  request: RepRequest,
+  amount: number,
+  currencyCode: string,
+  date: string,
+): { ok: true; target: string } | { ok: false; message: string } {
   const accountId = loanAccountId(request.loanApp, currencyCode, loadAccountsBook().accounts);
+  const note = `سلفة عبر ${request.loanApp ?? "تطبيق بنكي"} إلى ${request.loanNumber ?? "—"} (بوت المال)`;
+  const account = request.loanAccount;
+  if (account === "orange" || account === "nita") {
+    let book = loadRepLedgerBook();
+    if (hasBotEntry(book, request.botId)) return { ok: true, target: REP_LOAN_ACCOUNTS[account] };
+    const place = loanLedgerFor(book, request.repId, account, currencyCode);
+    if ("ok" in place) return place;
+    const added = addRepLedgerEntry(place.book, place.ledger.id, { direction: "debit", amount, currencyCode, date, note, botId: request.botId, ...(accountId ? { placeId: accountId } : {}) });
+    if (!added.ok) return added;
+    book = added.book;
+    saveRepLedgerBook(book);
+    return { ok: true, target: `«${place.ledger.name}»` };
+  }
+  const fromProfit = account === "profit";
   const result = recordRepSettlement(loadRepSettlements(), {
     representativeId: request.repId,
-    kind: "manualDebit",
+    kind: fromProfit ? "commissionPayout" : "manualDebit",
     amount,
     currencyCode,
     date,
-    note: `سلفة عبر ${request.loanApp ?? "تطبيق بنكي"} إلى ${request.loanNumber ?? "—"} (بوت المال)`,
+    note: fromProfit ? `💰 من ربحه - ${note}` : note,
     rates: lockedRates(currencyCode),
     ...(accountId ? { accountId } : {}),
   });
   if (!result.ok) return result;
   saveRepSettlements(result.settlements);
-  return { ok: true };
+  return { ok: true, target: fromProfit ? REP_LOAN_ACCOUNTS.profit : currencyCode === "MRU" ? REP_LOAN_ACCOUNTS.MRU : "حسابك" };
 }

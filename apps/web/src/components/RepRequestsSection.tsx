@@ -22,7 +22,7 @@ import {
   PAYMENT_METHODS,
   PaymentMethod,
 } from "@/lib/ledgerStore";
-import { claimRepRequest, loadRepRequests, pendingRepRequests, releaseRepRequest, RepRequest, resolveRepRequest, saveRepRequests } from "@/lib/repRequests";
+import { claimRepRequest, loadRepRequests, pendingRepRequests, releaseRepRequest, REP_LOAN_ACCOUNTS, RepRequest, resolveRepRequest, saveRepRequests } from "@/lib/repRequests";
 import { repPaymentConfirmation, repWalletsNow, withRepWallets } from "@/lib/repPaymentConfirm";
 import type { Representative } from "@/lib/repStore";
 import { downloadRepImage, notifyPaymentTelegram, sendRepPhoto, sendRepText } from "@/lib/telegram";
@@ -580,6 +580,10 @@ type MoneyCardProps = {
 function LoanRequestCard({ request, rep, accounts, clientStore, onDone }: MoneyCardProps) {
   const [amount, setAmount] = useState(String(request.amount ?? ""));
   const [currency, setCurrency] = useState<LedgerCurrency>(request.currency ?? "MRU");
+  // 📂 The account he borrows from fixes the currency (🟢 الأوقية = أوقية, 🟠 أورانج / نيتا = سيفا); only
+  // 💰 الربح (and an older request) can change it.
+  const loanAccount = request.loanAccount;
+  const currencyFixed = loanAccount !== undefined && loanAccount !== "profit";
   // 🟠 A loan sent by أورانج / نيتا leaves the app in فرانك (5 فرانك = 1 سيفا).
   const francLoanApp = /أورانج|اورانج|نيتا|orange|nita/i.test(request.loanApp ?? "");
   const [error, setError] = useState<string | null>(null);
@@ -607,7 +611,7 @@ function LoanRequestCard({ request, rep, accounts, clientStore, onDone }: MoneyC
     }
     const viaFranc = francLoanApp && currency === "SIFA" ? ` (= ${formatAmount(sifaToFranc(value))} فرانك)` : "";
     const text = withRepWallets(
-      `✅ وافق المسؤول على سلفتك ${formatMoneyShort(value, currency)}${viaFranc} - أُرسلت عبر ${request.loanApp ?? "التطبيق"} إلى ${request.loanNumber ?? "رقمك"}.\nسُجّلت عليك في حسابك.`,
+      `✅ وافق المسؤول على سلفتك ${formatMoneyShort(value, currency)}${viaFranc} - أُرسلت عبر ${request.loanApp ?? "التطبيق"} إلى ${request.loanNumber ?? "رقمك"}.\nسُجّلت عليك في ${result.target === "حسابك" ? "حسابك" : `حساب ${result.target}`}.`,
       repWalletsNow({ rep, accounts, clientStore, ledgerStore: loadLedgerStore() }),
     );
     // With the screenshot: one photo message captioned with the confirmation; else the text.
@@ -631,18 +635,26 @@ function LoanRequestCard({ request, rep, accounts, clientStore, onDone }: MoneyC
         <span>{timeLabel(request.createdAt)}</span>
       </div>
       <p className="rep-edit-values">
+        {loanAccount && <span>📂 من حساب: <strong>{REP_LOAN_ACCOUNTS[loanAccount]}</strong></span>}
         <span>التطبيق: <strong>{request.loanApp ?? "—"}</strong></span>
         <span>رقم المستلم: <strong><bdi dir="ltr">{request.loanNumber ?? "—"}</bdi></strong></span>
       </p>
       <div className="rep-request-row">
         <input className="search-input" dir="ltr" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="المبلغ" />
-        <select className="search-input" value={currency} onChange={(e) => setCurrency(e.target.value as LedgerCurrency)}>
+        <select className="search-input" value={currency} disabled={currencyFixed} onChange={(e) => setCurrency(e.target.value as LedgerCurrency)}>
           {LEDGER_CURRENCIES.map((c) => (
             <option key={c} value={c}>{LEDGER_CURRENCY_LABELS[c]}</option>
           ))}
         </select>
       </div>
-      <p className="settings-hint">أرسل المبلغ من التطبيق البنكي ثم اضغط «أرسلتها» - تُسجَّل سلفةً عليه في حسابه.</p>
+      <p className="settings-hint">
+        أرسل المبلغ من التطبيق البنكي ثم اضغط «أرسلتها» -{" "}
+        {loanAccount === "profit"
+          ? "تُخصم من ربحه (إن تجاوزت ربحه صار الباقي عليه)."
+          : loanAccount === "orange" || loanAccount === "nita"
+            ? `تُسجَّل عليه في حسابه «${loanAccount === "orange" ? "أورانج موني" : "نيتا"}» (يُنشأ إن لم يكن له).`
+            : "تُسجَّل سلفةً عليه في حسابه."}
+      </p>
       {francLoanApp && currency === "SIFA" && (
         <p className="settings-hint franc-hint">
           🟠 {request.loanApp} بالفرانك:{" "}

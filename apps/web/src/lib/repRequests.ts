@@ -13,6 +13,10 @@ import type { LedgerCurrency, PaymentMethod } from "./ledgerStore";
 export type RepRequestKind = "payment" | "client" | "device" | "edit" | "handover" | "loan" | "activation" | "session";
 export type RepRequestStatus = "pending" | "approved" | "rejected";
 
+/** 📂 Where a rep's loan is recorded: 🟢 الأوقية, his 🟠 أورانج موني / نيتا account, or 💰 الربح. */
+export type RepLoanAccount = "MRU" | "orange" | "nita" | "profit";
+export const REP_LOAN_ACCOUNTS: Record<RepLoanAccount, string> = { MRU: "🟢 الأوقية", orange: "🟠 أورانج موني", nita: "🟠 نيتا", profit: "💰 الربح" };
+
 export interface RepRequest {
   id: string;
   repId: string;
@@ -60,6 +64,9 @@ export interface RepRequest {
   loanApp?: string;
   /** The recipient's number in that app. */
   loanNumber?: string;
+  /** 📂 The rep's account he borrows from (his Oct 22 2026 rule - never 🟠 شخصي); absent = an older
+   * request (his account of that currency, as before). */
+  loanAccount?: RepLoanAccount;
   // activation (⚡ from the bot: `accountId`, `deviceName`, `amount` + `currency` the customer
   // pays, `paymentMethod` when he already paid the rep)
   plan?: string;
