@@ -1,14 +1,14 @@
 "use client";
 
 import { DateInput } from "./DateInput";
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { PartyAdjustment } from "@/lib/partyBalanceStore";
 import { Client, ClientStore, CreateClientInput, getClient } from "@/lib/clientStore";
 import { CreateSupplierInput, getSupplier, Supplier, SupplierStore } from "@/lib/supplierStore";
 import { CreateRepresentativeInput, getRepresentative, Representative, RepresentativeStore, repFromClientDevice } from "@/lib/repStore";
 import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerCurrency } from "@/lib/ledgerStore";
-import { saleLooksLikeDevice } from "@/lib/deviceFromSale";
+import { cleanKit, findKitClashes, isStarlinkItem, kitClashMessage, resizeUnits } from "@/lib/saleDevices";
 import { itemRepPrice, listStoreItems, StoreItemRegistry, StoreTransactionList } from "@/lib/storeStore";
 import {
   computeClientStoreBalance,
@@ -19,6 +19,7 @@ import {
   InvoiceKind,
   InvoiceList,
   listInvoices,
+  type SaleUnit,
   returnedQuantityForLine,
 } from "@/lib/invoiceStore";
 import { buildInvoiceMessage, buildWhatsAppLink } from "@/lib/whatsapp";
@@ -60,6 +61,8 @@ interface DraftLine {
   shippingCharge?: string;
   /** Set only in return mode - caps how much of this line can still be returned. */
   maxReturnable?: number;
+  /** 🛰️ A Starlink device line: KIT / name per piece (lib/saleDevices.ts). */
+  units?: SaleUnit[];
 }
 
 interface Props {
@@ -78,8 +81,9 @@ interface Props {
   onCreateClient: (input: CreateClientInput) => Client;
   onCreateSupplier: (input: CreateSupplierInput) => Supplier;
   onCreateRepresentative: (input: CreateRepresentativeInput) => Representative;
-  /** `createDevice`: «🛰️ أنشئ له حساب Starlink» was ticked on a kit's sale. */
-  onChange: (result: { invoices: InvoiceList; transactions: StoreTransactionList; invoice: Invoice; createDevice?: boolean }) => void;
+  /** Saves the new invoice with its devices - an error message (nothing saved), or null. `chargeNow`:
+   * «⚡ شحن الاشتراك الآن» was chosen for its one device. */
+  onChange: (result: { invoices: InvoiceList; transactions: StoreTransactionList; invoice: Invoice; chargeNow?: boolean }) => string | null;
   /** ✎ / 🗑 a past invoice (lib/invoiceEdit.ts) - an error message, or null when saved. */
   onEditInvoice?: (invoiceId: string, input: InvoiceEditInput) => string | null;
   onDeleteInvoice?: (invoiceId: string) => string | null;
@@ -148,9 +152,10 @@ export function InvoiceSection({
     setReturningInvoice(null);
   }
 
-  function submit(result: { invoices: InvoiceList; transactions: StoreTransactionList; invoice: Invoice; createDevice?: boolean }) {
-    onChange(result);
-    closeForms();
+  function submit(result: { invoices: InvoiceList; transactions: StoreTransactionList; invoice: Invoice; chargeNow?: boolean }): string | null {
+    const error = onChange(result);
+    if (!error) closeForms();
+    return error;
   }
 
   return (
@@ -188,10 +193,11 @@ export function InvoiceSection({
               onCreateSupplier={onCreateSupplier}
               onCreateRepresentative={onCreateRepresentative}
               onCancel={closeForms}
-              onSubmit={({ createDevice, ...input }) => {
+              onSubmit={({ chargeNow, ...input }) => {
                 const result = createInvoice(invoices, transactions, input);
-                if (result.ok) submit({ invoices: result.invoices, transactions: result.transactions, invoice: result.invoice, createDevice });
-                return result;
+                if (!result.ok) return result;
+                const error = submit({ invoices: result.invoices, transactions: result.transactions, invoice: result.invoice, chargeNow });
+                return error ? { ok: false, message: error } : result;
               }}
             />
           )}
@@ -204,8 +210,9 @@ export function InvoiceSection({
               onCancel={closeForms}
               onSubmit={(input) => {
                 const result = createInvoice(invoices, transactions, input);
-                if (result.ok) submit({ invoices: result.invoices, transactions: result.transactions, invoice: result.invoice });
-                return result;
+                if (!result.ok) return result;
+                const error = submit({ invoices: result.invoices, transactions: result.transactions, invoice: result.invoice });
+                return error ? { ok: false, message: error } : result;
               }}
             />
           )}
@@ -358,9 +365,38 @@ interface InvoiceFormProps {
   onCreateSupplier: (input: CreateSupplierInput) => Supplier;
   onCreateRepresentative: (input: CreateRepresentativeInput) => Representative;
   onCancel: () => void;
-  onSubmit: (input: Parameters<typeof createInvoice>[2] & { createDevice?: boolean }) => ReturnType<typeof createInvoice>;
+  onSubmit: (input: Parameters<typeof createInvoice>[2] & { chargeNow?: boolean }) => ReturnType<typeof createInvoice>;
   /** A sale invoice started from an item's «بيع» button: that item, quantity 1, its sale price. */
   initialItemId?: string;
+}
+
+const newUnitId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `unit-${Date.now()}-${Math.random()}`);
+
+/** One titled block of the form (his Oct 22 2026 ask: «الزبون · الجهاز · السعر والدفع · الشحن والتفعيل»). */
+function FormSection({ step, title, hint, children }: { step: string; title: string; hint?: string; children: ReactNode }) {
+  return (
+    <section className="sale-section">
+      <header className="sale-section-head">
+        <span className="sale-section-step" aria-hidden="true">
+          {step}
+        </span>
+        <div>
+          <h3>{title}</h3>
+          {hint && <small>{hint}</small>}
+        </div>
+      </header>
+      <div className="sale-section-body">{children}</div>
+    </section>
+  );
+}
+
+function Field({ label, children, wide }: { label: string; children: ReactNode; wide?: boolean }) {
+  return (
+    <label className={`sale-field${wide ? " sale-field-wide" : ""}`}>
+      <span>{label}</span>
+      {children}
+    </label>
+  );
 }
 
 function InvoiceForm({
@@ -387,30 +423,38 @@ function InvoiceForm({
       ? (saleCurrency as LedgerCurrency)
       : defaultInvoiceCurrency();
   });
+  // 🛰️ a device line keeps exactly one unit (KIT / name) per piece in its state, so each keeps its id.
+  const withUnits = (line: DraftLine, sale: boolean): DraftLine =>
+    sale && isStarlinkItem(items.find((i) => i.id === line.itemId))
+      ? { ...line, units: resizeUnits(line.units, Number(line.quantity), newUnitId) }
+      : { ...line, units: undefined };
   const [lines, setLines] = useState<DraftLine[]>(() => {
     const item = initialItemId ? items.find((i) => i.id === initialItemId) : undefined;
-    if (!item) return [{ itemId: "", quantity: "", unitPrice: "" }];
-    return [{ itemId: item.id, quantity: "1", unitPrice: item.defaultSalePrice !== undefined ? String(item.defaultSalePrice) : "" }];
+    if (!item) return [{ itemId: "", quantity: "1", unitPrice: "" }];
+    return [withUnits({ itemId: item.id, quantity: "1", unitPrice: item.defaultSalePrice !== undefined ? String(item.defaultSalePrice) : "" }, true)];
   });
   const [discount, setDiscount] = useState("");
   const [paidAmount, setPaidAmount] = useState("");
   const [note, setNote] = useState("");
-  const [linkClient, setLinkClient] = useState(false);
   const [clientId, setClientId] = useState<string | undefined>(undefined);
-  const [linkSupplier, setLinkSupplier] = useState(false);
   const [supplierId, setSupplierId] = useState<string | undefined>(undefined);
   const [linkRepresentative, setLinkRepresentative] = useState(false);
   const [representativeId, setRepresentativeId] = useState<string | undefined>(undefined);
+  // ⚡ «شحن الاشتراك الآن» (his choice: الشحن = the Starlink subscription): after saving, the device's
+  // «شحن / تفعيل» opens on the home page. Off = the device waits as «غير مفعّل».
+  const [chargeNow, setChargeNow] = useState(false);
+  const saving = useRef(false);
   // Tracks whether the CURRENT representativeId came from repFromClientDevice (the selected
   // client's own linked device) rather than a direct operator pick in RepresentativePicker -
   // undefined means "no auto-fill in effect", so a manual pick is never silently overwritten by a
   // later client change, and an auto-filled value IS refreshed/cleared when the client changes
   // again (see handleClientSelect below).
   const [repAutoFilledForClientId, setRepAutoFilledForClientId] = useState<string | undefined>(undefined);
+  const isSale = kind === "sale";
 
   function handleClientSelect(nextClientId: string | undefined) {
     setClientId(nextClientId);
-    if (kind !== "sale") return;
+    if (!isSale) return;
     if (representativeId !== undefined && repAutoFilledForClientId === undefined) return; // manual pick - never override
     const autoRepId = repFromClientDevice(accounts, nextClientId);
     if (autoRepId) {
@@ -430,27 +474,37 @@ function InvoiceForm({
 
   const [formError, setFormError] = useState<string | null>(null);
   // 🤝 his fixed price for an item (StoreItem.repPrices), in this invoice's currency - locked on the line.
-  const activeRepId = kind === "sale" && linkRepresentative ? representativeId : undefined;
-  // 🛰️ his Oct 22 2026 ask: a Starlink kit sold by invoice → create its account right after, linked to it.
-  const soldDevice = kind === "sale" && saleLooksLikeDevice(lines.filter((l) => l.itemId).map((l) => items.find((i) => i.id === l.itemId)?.name ?? ""));
-  const [createDevice, setCreateDevice] = useState(true);
+  const activeRepId = isSale && linkRepresentative ? representativeId : undefined;
   const lineRepPrice = (itemId: string) => itemRepPrice(items.find((i) => i.id === itemId), activeRepId, currencyCode);
+  // 🛰️ a Starlink device line (the item's own flag): one KIT / name per piece → one device each.
+  const isDeviceLine = (line: DraftLine) => isSale && isStarlinkItem(items.find((i) => i.id === line.itemId));
+  const unitsFor = (line: DraftLine) => (isDeviceLine(line) ? line.units ?? [] : []);
+  const allUnits = lines.flatMap(unitsFor);
+  const clashes = findKitClashes(allUnits, accounts);
+  const clashFor = (kit: string | undefined) => {
+    const clean = cleanKit(kit);
+    return clean ? clashes.find((c) => c.kit === clean) : undefined;
+  };
+  const clientNameOf = (id: string) => clients.find((c) => c.id === id)?.name;
 
   function updateLine(index: number, patch: Partial<DraftLine>) {
-    setLines((current) => current.map((line, i) => (i === index ? { ...line, ...patch } : line)));
+    setLines((current) => current.map((line, i) => (i === index ? withUnits({ ...line, ...patch }, isSale) : line)));
+  }
+
+  function updateUnit(index: number, unitIndex: number, patch: Partial<SaleUnit>) {
+    setLines((current) =>
+      current.map((line, i) => (i === index ? { ...line, units: (line.units ?? []).map((u, k) => (k === unitIndex ? { ...u, ...patch } : u)) } : line)),
+    );
   }
 
   function selectItemForLine(index: number, itemId: string) {
     const item = items.find((i) => i.id === itemId);
-    const defaultPrice =
-      kind === "sale"
-        ? (priceTier === "wholesale" ? item?.defaultWholesalePrice : undefined) ?? item?.defaultSalePrice
-        : item?.defaultPurchasePrice;
+    const defaultPrice = isSale ? (priceTier === "wholesale" ? item?.defaultWholesalePrice : undefined) ?? item?.defaultSalePrice : item?.defaultPurchasePrice;
     updateLine(index, { itemId, unitPrice: defaultPrice !== undefined ? String(defaultPrice) : "" });
   }
 
   function addLine() {
-    setLines((current) => [...current, { itemId: "", quantity: "", unitPrice: "" }]);
+    setLines((current) => [...current, { itemId: "", quantity: "1", unitPrice: "" }]);
   }
 
   function removeLine(index: number) {
@@ -458,35 +512,48 @@ function InvoiceForm({
   }
 
   const subtotal = lines.reduce(
-    (sum, l) =>
-      sum + (Number(l.quantity) || 0) * (Number(l.unitPrice) || 0) + (kind === "sale" && l.shipping ? Number(l.shippingCharge) || 0 : 0),
+    (sum, l) => sum + (Number(l.quantity) || 0) * (Number(l.unitPrice) || 0) + (isSale && l.shipping ? Number(l.shippingCharge) || 0 : 0),
     0,
   );
   const parsedDiscount = Number(discount) || 0;
   const total = Math.max(0, subtotal - parsedDiscount);
+  const paid = Number(paidAmount) || 0;
+  const remaining = total - paid;
+  const cur = currencyLabel(currencyCode);
 
   // Warns (never blocks) when a credit sale would push this client's own store balance, in THIS
   // invoice's own currency only (never summed/converted across currencies, same rule as every
   // other balance in this app), past their optional Client.creditLimit.
-  const selectedClient = kind === "sale" && linkClient ? clients.find((c) => c.id === clientId) : undefined;
+  const selectedClient = isSale ? clients.find((c) => c.id === clientId) : undefined;
   const creditLimitWarning = useMemo(() => {
     if (!selectedClient?.creditLimit) return null;
     const existingBalance = computeClientStoreBalance(invoices, selectedClient.id, partyAdjustments)[currencyCode] ?? 0;
-    const thisInvoiceUnpaid = Math.max(0, total - (Number(paidAmount) || 0));
+    const thisInvoiceUnpaid = Math.max(0, total - paid);
     const projected = existingBalance + thisInvoiceUnpaid;
     if (projected <= selectedClient.creditLimit) return null;
     return { projected, limit: selectedClient.creditLimit };
-  }, [selectedClient, invoices, partyAdjustments, currencyCode, total, paidAmount]);
+  }, [selectedClient, invoices, partyAdjustments, currencyCode, total, paid]);
 
   function submit(event: FormEvent) {
     event.preventDefault();
+    if (saving.current) return; // a second tap while saving never makes a second invoice
     const validLines = lines.filter((l) => l.itemId && Number(l.quantity) > 0);
     if (validLines.length === 0) {
-      setFormError("أضف مادة واحدة على الأقل بكمية صحيحة");
+      setFormError("أضف صنفًا واحدًا على الأقل بكمية صحيحة");
       return;
     }
+    if (validLines.some((l) => isDeviceLine(l) && !Number.isInteger(Number(l.quantity)))) {
+      setFormError("عدد الأجهزة يجب أن يكون رقمًا صحيحًا (جهاز لكل KIT)");
+      return;
+    }
+    if (clashes.length > 0) {
+      setFormError(kitClashMessage(clashes[0]!, clientNameOf));
+      return;
+    }
+    if (allUnits.length > 0 && !clientId && !window.confirm("لم تختر الزبون - تُحفظ الأجهزة بلا زبون. متابعة؟")) return;
+    saving.current = true;
     const result = onSubmit({
-      createDevice: soldDevice && createDevice && linkClient && Boolean(clientId),
+      chargeNow: chargeNow && allUnits.length === 1,
       kind,
       date,
       currencyCode,
@@ -494,21 +561,21 @@ function InvoiceForm({
         itemId: l.itemId,
         quantity: Number(l.quantity),
         unitPrice: Number(l.unitPrice),
-        shippingCost: kind === "sale" && l.shipping && l.shippingCost ? Number(l.shippingCost) : undefined,
-        shippingCharge: kind === "sale" && l.shipping && l.shippingCharge ? Number(l.shippingCharge) : undefined,
+        shippingCost: isSale && l.shipping && l.shippingCost ? Number(l.shippingCost) : undefined,
+        shippingCharge: isSale && l.shipping && l.shippingCharge ? Number(l.shippingCharge) : undefined,
         repUnitPrice: lineRepPrice(l.itemId),
+        ...(isDeviceLine(l) ? { units: unitsFor(l).map((u) => ({ ...u, kit: cleanKit(u.kit) || undefined })) } : {}),
       })),
       discount: parsedDiscount,
-      paidAmount: Number(paidAmount) || 0,
-      clientId: kind === "sale" && linkClient ? clientId : undefined,
-      supplierId: kind === "purchase" && linkSupplier ? supplierId : undefined,
-      representativeId: kind === "sale" && linkRepresentative ? representativeId : undefined,
+      paidAmount: paid,
+      clientId: isSale ? clientId : undefined,
+      supplierId: !isSale ? supplierId : undefined,
+      representativeId: isSale && linkRepresentative ? representativeId : undefined,
       representativeCommissionPercent:
-        kind === "sale" && linkRepresentative && representativeId
-          ? representatives.find((r) => r.id === representativeId)?.commissionPercent
-          : undefined,
+        isSale && linkRepresentative && representativeId ? representatives.find((r) => r.id === representativeId)?.commissionPercent : undefined,
       note,
     });
+    saving.current = false;
     if (!result.ok) {
       setFormError(result.message);
       return;
@@ -517,236 +584,292 @@ function InvoiceForm({
   }
 
   return (
-    <form className="auth-form store-item-form" onSubmit={submit}>
-      <div className="store-item-form-row">
-        <select
-          className="search-input"
-          value={kind}
-          onChange={(e) => {
-            setKind(e.target.value as InvoiceKind);
-            setLinkClient(false);
-            setLinkSupplier(false);
-          }}
-        >
-          <option value="sale">فاتورة بيع</option>
-          <option value="purchase">فاتورة شراء</option>
-        </select>
-        <DateInput className="search-input"  value={date} onChange={(e) => setDate(e.target.value)} />
+    <form className="sale-form" onSubmit={submit}>
+      <div className="sale-form-top">
+        <div className="sale-kind-tabs" role="tablist" aria-label="نوع الفاتورة">
+          {(["sale", "purchase"] as const).map((k) => (
+            <button
+              key={k}
+              type="button"
+              role="tab"
+              aria-selected={kind === k}
+              className={kind === k ? "active" : ""}
+              onClick={() => {
+                setKind(k);
+                setClientId(undefined);
+                setSupplierId(undefined);
+                setLines((current) => current.map((line) => withUnits(line, k === "sale")));
+              }}
+            >
+              {k === "sale" ? "🧾 بيع" : "📥 شراء"}
+            </button>
+          ))}
+        </div>
+        <Field label="التاريخ">
+          <DateInput className="search-input" value={date} onChange={(e) => setDate(e.target.value)} />
+        </Field>
       </div>
 
-      <select className="search-input" value={currencyCode} onChange={(e) => setCurrencyCode(e.target.value as LedgerCurrency)}>
-        {LEDGER_CURRENCIES.map((c) => (
-          <option key={c} value={c}>
-            {LEDGER_CURRENCY_LABELS[c]}
-          </option>
-        ))}
-      </select>
+      <FormSection step="1" title={isSale ? "👤 بيانات الزبون" : "🏭 المورّد"} hint={isSale ? "ابحث بالاسم أو الهاتف، أو أضف زبونًا جديدًا" : undefined}>
+        {isSale ? (
+          <>
+            <ClientPicker clients={clients} selectedClientId={clientId} onSelect={handleClientSelect} onCreateClient={onCreateClient} />
+            {creditLimitWarning && (
+              <div className="account-card-alert ledger-form-error">
+                ⚠️ سيتجاوز دين هذا الزبون سقفه ({formatAmount(creditLimitWarning.limit)} {cur}) - المتوقع بعد هذه الفاتورة:{" "}
+                {formatAmount(creditLimitWarning.projected)} {cur}
+              </div>
+            )}
+            <label className="sale-check">
+              <input type="checkbox" checked={linkRepresentative} onChange={(e) => setLinkRepresentative(e.target.checked)} />
+              <span>🤝 البيع عبر مندوب</span>
+            </label>
+            {linkRepresentative && (
+              <RepresentativePicker
+                representatives={representatives}
+                selectedRepresentativeId={representativeId}
+                onSelect={handleRepresentativeSelect}
+                onCreateRepresentative={onCreateRepresentative}
+              />
+            )}
+          </>
+        ) : (
+          <SupplierPicker suppliers={suppliers} selectedSupplierId={supplierId} onSelect={setSupplierId} onCreateSupplier={onCreateSupplier} />
+        )}
+      </FormSection>
 
-      {kind === "sale" && (
-        <select
-          className="search-input"
-          value={priceTier}
-          onChange={(e) => setPriceTier(e.target.value as "retail" | "wholesale")}
-        >
-          <option value="retail">سعر التجزئة</option>
-          <option value="wholesale">سعر الجملة</option>
-        </select>
-      )}
-
-      {lines.map((line, index) => (
-        <div key={index} className="invoice-line-group">
-          <div className="invoice-line-row">
-            <select className="search-input" value={line.itemId} onChange={(e) => selectItemForLine(index, e.target.value)}>
-              <option value="">اختر مادة</option>
-              {items.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
+      <FormSection step="2" title={isSale ? "🛰️ بيانات الجهاز" : "📦 الأصناف"} hint={isSale ? "جهاز Starlink: رقم KIT لكل جهاز، ويُضاف إلى الأجهزة «غير مفعّل»" : undefined}>
+        <div className="sale-grid-2">
+          <Field label="العملة">
+            <select className="search-input" value={currencyCode} onChange={(e) => setCurrencyCode(e.target.value as LedgerCurrency)}>
+              {LEDGER_CURRENCIES.map((c) => (
+                <option key={c} value={c}>
+                  {LEDGER_CURRENCY_LABELS[c]}
                 </option>
               ))}
             </select>
-            <input
-              className="search-input"
-              type="text" inputMode="decimal"
-              min="0"
-              step="0.01"
-              dir="ltr"
-              placeholder="الكمية"
-              value={line.quantity}
-              onChange={(e) => updateLine(index, { quantity: e.target.value })}
-            />
-            <input
-              className="search-input"
-              type="text" inputMode="decimal"
-              min="0"
-              step="0.01"
-              dir="ltr"
-              placeholder="السعر"
-              value={line.unitPrice}
-              onChange={(e) => updateLine(index, { unitPrice: e.target.value })}
-            />
-            {lines.length > 1 && (
-              <button type="button" className="ledger-entry-delete" onClick={() => removeLine(index)} aria-label="حذف السطر">
-                ×
-              </button>
-            )}
+          </Field>
+          {isSale && (
+            <Field label="نوع السعر">
+              <select className="search-input" value={priceTier} onChange={(e) => setPriceTier(e.target.value as "retail" | "wholesale")}>
+                <option value="retail">تجزئة</option>
+                <option value="wholesale">جملة</option>
+              </select>
+            </Field>
+          )}
+        </div>
+
+        {lines.map((line, index) => {
+          const units = unitsFor(line);
+          const repPrice = isSale && line.itemId ? lineRepPrice(line.itemId) : undefined;
+          return (
+            <div key={index} className="sale-line">
+              <div className="sale-line-head">
+                <Field label={lines.length > 1 ? `الصنف ${index + 1}` : "الصنف (النوع)"} wide>
+                  <select className="search-input" value={line.itemId} onChange={(e) => selectItemForLine(index, e.target.value)}>
+                    <option value="">اختر صنفًا</option>
+                    {items.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                {lines.length > 1 && (
+                  <button type="button" className="sale-line-remove" onClick={() => removeLine(index)} aria-label="حذف الصنف">
+                    ×
+                  </button>
+                )}
+              </div>
+              <div className="sale-grid-2">
+                <Field label={isDeviceLine(line) ? "عدد الأجهزة" : "الكمية"}>
+                  <input
+                    className="search-input"
+                    type="text"
+                    inputMode="decimal"
+                    dir="ltr"
+                    placeholder="1"
+                    value={line.quantity}
+                    onChange={(e) => updateLine(index, { quantity: e.target.value })}
+                  />
+                </Field>
+                <Field label={`سعر الواحد (${cur})`}>
+                  <input
+                    className="search-input"
+                    type="text"
+                    inputMode="decimal"
+                    dir="ltr"
+                    placeholder="0"
+                    value={line.unitPrice}
+                    onChange={(e) => updateLine(index, { unitPrice: e.target.value })}
+                  />
+                </Field>
+              </div>
+              {repPrice !== undefined && (
+                <span className="invoice-line-rep">
+                  🤝 سعر {representatives.find((r) => r.id === activeRepId)?.name}: <bdi dir="ltr">{formatAmount(repPrice)}</bdi> - ربحه{" "}
+                  <bdi dir="ltr">{formatAmount(((Number(line.unitPrice) || 0) - repPrice) * (Number(line.quantity) || 0))}</bdi> (بلا نسبة)
+                </span>
+              )}
+
+              {units.length > 0 && (
+                <div className="sale-units">
+                  {units.map((unit, k) => {
+                    const clash = clashFor(unit.kit);
+                    return (
+                      <div key={unit.id} className="sale-unit">
+                        <span className="sale-unit-badge" aria-hidden="true">
+                          📡 {units.length > 1 ? k + 1 : ""}
+                        </span>
+                        <div className="sale-grid-2">
+                          <Field label={units.length > 1 ? `رقم KIT للجهاز ${k + 1}` : "رقم KIT للجهاز"}>
+                            <input
+                              className={`search-input${clash ? " is-invalid" : ""}`}
+                              dir="ltr"
+                              autoCapitalize="characters"
+                              placeholder="KIT… (اختياري)"
+                              value={unit.kit ?? ""}
+                              onChange={(e) => updateUnit(index, k, { kit: e.target.value })}
+                            />
+                          </Field>
+                          <Field label="اسم الجهاز (اختياري)">
+                            <input
+                              className="search-input"
+                              placeholder={[selectedClient?.name, items.find((i) => i.id === line.itemId)?.name].filter(Boolean).join(" - ")}
+                              value={unit.name ?? ""}
+                              onChange={(e) => updateUnit(index, k, { name: e.target.value })}
+                            />
+                          </Field>
+                        </div>
+                        {clash && <p className="sale-unit-clash">⚠️ {kitClashMessage(clash, clientNameOf)}</p>}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {isSale && (
+                <label className="sale-check">
+                  <input
+                    type="checkbox"
+                    checked={line.shipping ?? false}
+                    onChange={(e) => updateLine(index, e.target.checked ? { shipping: true } : { shipping: false, shippingCost: "", shippingCharge: "" })}
+                  />
+                  <span>🚚 توصيل هذا الصنف (نقل)</span>
+                </label>
+              )}
+              {isSale && line.shipping && (
+                <div className="sale-grid-2">
+                  <Field label="تكلفة التوصيل علينا">
+                    <input
+                      className="search-input"
+                      type="text"
+                      inputMode="decimal"
+                      dir="ltr"
+                      placeholder="0"
+                      value={line.shippingCost ?? ""}
+                      onChange={(e) => updateLine(index, { shippingCost: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="سعره للزبون">
+                    <input
+                      className="search-input"
+                      type="text"
+                      inputMode="decimal"
+                      dir="ltr"
+                      placeholder="0"
+                      value={line.shippingCharge ?? ""}
+                      onChange={(e) => updateLine(index, { shippingCharge: e.target.value })}
+                    />
+                  </Field>
+                </div>
+              )}
+            </div>
+          );
+        })}
+        <button type="button" className="sale-add-line" onClick={addLine}>
+          + إضافة صنف آخر
+        </button>
+      </FormSection>
+
+      <FormSection step="3" title="💰 السعر والدفع">
+        <div className="sale-grid-2">
+          <Field label={`الخصم (${cur})`}>
+            <input className="search-input" type="text" inputMode="decimal" dir="ltr" placeholder="0" value={discount} onChange={(e) => setDiscount(e.target.value)} />
+          </Field>
+          <Field label={`المدفوع الآن (${cur})`}>
+            <input className="search-input" type="text" inputMode="decimal" dir="ltr" placeholder="0" value={paidAmount} onChange={(e) => setPaidAmount(e.target.value)} />
+          </Field>
+        </div>
+        <div className="sale-pay-quick">
+          <button type="button" className={paid === total && total > 0 ? "active" : ""} onClick={() => setPaidAmount(String(total))}>
+            💵 دفع كامل
+          </button>
+          <button type="button" className={paid === 0 ? "active" : ""} onClick={() => setPaidAmount("")}>
+            📒 دين كامل
+          </button>
+        </div>
+        <dl className="sale-summary">
+          <div>
+            <dt>المجموع</dt>
+            <dd>
+              <bdi dir="ltr">{formatAmount(subtotal)}</bdi> {cur}
+            </dd>
           </div>
-          {kind === "sale" && line.itemId && lineRepPrice(line.itemId) !== undefined && (
-            <span className="invoice-line-rep">
-              🤝 سعر {representatives.find((r) => r.id === activeRepId)?.name}: <bdi dir="ltr">{formatAmount(lineRepPrice(line.itemId)!)}</bdi> - ربحه{" "}
-              <bdi dir="ltr">{formatAmount(((Number(line.unitPrice) || 0) - lineRepPrice(line.itemId)!) * (Number(line.quantity) || 0))}</bdi> (بلا نسبة)
-            </span>
+          {parsedDiscount > 0 && (
+            <div>
+              <dt>الخصم</dt>
+              <dd>
+                <bdi dir="ltr">-{formatAmount(parsedDiscount)}</bdi> {cur}
+              </dd>
+            </div>
           )}
-          {kind === "sale" && (
-            <label className="ledger-d-toggle invoice-line-shipping-toggle">
-              <input
-                type="checkbox"
-                checked={line.shipping ?? false}
-                onChange={(e) =>
-                  updateLine(index, e.target.checked ? { shipping: true } : { shipping: false, shippingCost: "", shippingCharge: "" })
-                }
-              />
-              🚚 شحن هذه المادة
+          <div className="sale-summary-total">
+            <dt>الإجمالي</dt>
+            <dd>
+              <bdi dir="ltr">{formatAmount(total)}</bdi> {cur}
+            </dd>
+          </div>
+          <div className={remaining > 0.0001 ? "is-due" : "is-clear"}>
+            <dt>{remaining >= 0 ? (isSale ? "الباقي عليه" : "الباقي علينا") : isSale ? "الزائد له" : "الزائد لنا"}</dt>
+            <dd>
+              <bdi dir="ltr">{formatAmount(Math.abs(remaining))}</bdi> {cur}
+            </dd>
+          </div>
+        </dl>
+      </FormSection>
+
+      {allUnits.length > 0 && (
+        <FormSection step="4" title="⚡ الشحن والتفعيل" hint="البيع غير التفعيل: الجهاز يُحفظ «غير مفعّل» حتى تشحن اشتراكه">
+          <div className="sale-choices" role="radiogroup" aria-label="التفعيل">
+            <label className={`sale-choice${!chargeNow ? " active" : ""}`}>
+              <input type="radio" name="activation" checked={!chargeNow} onChange={() => setChargeNow(false)} />
+              <span>
+                <strong>⏳ لم يُفعَّل بعد</strong>
+                <small>يُضاف إلى الأجهزة «غير مفعّل» - تشحنه لاحقًا من بطاقته</small>
+              </span>
             </label>
-          )}
-          {kind === "sale" && line.shipping && (
-            <div className="invoice-line-row">
-              <input
-                className="search-input"
-                type="text" inputMode="decimal"
-                min="0"
-                step="0.01"
-                dir="ltr"
-                placeholder="تكلفة الشحن الفعلية"
-                value={line.shippingCost ?? ""}
-                onChange={(e) => updateLine(index, { shippingCost: e.target.value })}
-              />
-              <input
-                className="search-input"
-                type="text" inputMode="decimal"
-                min="0"
-                step="0.01"
-                dir="ltr"
-                placeholder="سعر الشحن للزبون"
-                value={line.shippingCharge ?? ""}
-                onChange={(e) => updateLine(index, { shippingCharge: e.target.value })}
-              />
-            </div>
-          )}
-        </div>
-      ))}
-      <button type="button" className="text-action" onClick={addLine}>
-        + إضافة سطر
-      </button>
-
-      <div className="store-item-form-row">
-        <input
-          className="search-input"
-          type="text" inputMode="decimal"
-          min="0"
-          step="0.01"
-          dir="ltr"
-          placeholder="الخصم (اختياري)"
-          value={discount}
-          onChange={(e) => setDiscount(e.target.value)}
-        />
-        <input
-          className="search-input"
-          type="text" inputMode="decimal"
-          min="0"
-          step="0.01"
-          dir="ltr"
-          placeholder="المبلغ المدفوع الآن"
-          value={paidAmount}
-          onChange={(e) => setPaidAmount(e.target.value)}
-        />
-      </div>
-
-      {kind === "sale" && (
-        <div className="form-field form-wide">
-          <label className="ledger-d-toggle">
-            <input type="checkbox" checked={linkClient} onChange={(e) => setLinkClient(e.target.checked)} />
-            ربط الفاتورة بزبون
-          </label>
-          {linkClient && (
-            <ClientPicker clients={clients} selectedClientId={clientId} onSelect={handleClientSelect} onCreateClient={onCreateClient} />
-          )}
-          {creditLimitWarning && (
-            <div className="account-card-alert ledger-form-error">
-              ⚠️ سيتجاوز دين هذا الزبون سقفه المحدد ({formatAmount(creditLimitWarning.limit)} {currencyLabel(currencyCode)}) - الدين
-              المتوقع بعد هذه الفاتورة: {formatAmount(creditLimitWarning.projected)} {currencyLabel(currencyCode)}
-            </div>
-          )}
-        </div>
-      )}
-      {kind === "sale" && (
-        <div className="form-field form-wide">
-          <label className="ledger-d-toggle">
-            <input
-              type="checkbox"
-              checked={linkRepresentative}
-              onChange={(e) => setLinkRepresentative(e.target.checked)}
-            />
-            ربط الفاتورة بمندوب
-          </label>
-          {linkRepresentative && (
-            <RepresentativePicker
-              representatives={representatives}
-              selectedRepresentativeId={representativeId}
-              onSelect={handleRepresentativeSelect}
-              onCreateRepresentative={onCreateRepresentative}
-            />
-          )}
-        </div>
-      )}
-      {kind === "purchase" && (
-        <div className="form-field form-wide">
-          <label className="ledger-d-toggle">
-            <input type="checkbox" checked={linkSupplier} onChange={(e) => setLinkSupplier(e.target.checked)} />
-            ربط الفاتورة بمورّد
-          </label>
-          {linkSupplier && (
-            <SupplierPicker
-              suppliers={suppliers}
-              selectedSupplierId={supplierId}
-              onSelect={setSupplierId}
-              onCreateSupplier={onCreateSupplier}
-            />
-          )}
-        </div>
+            <label className={`sale-choice${chargeNow ? " active" : ""}${allUnits.length > 1 ? " is-disabled" : ""}`}>
+              <input type="radio" name="activation" checked={chargeNow} disabled={allUnits.length > 1} onChange={() => setChargeNow(true)} />
+              <span>
+                <strong>⚡ شحن الاشتراك الآن</strong>
+                <small>{allUnits.length > 1 ? "عدة أجهزة: اشحن كل جهاز من بطاقته" : "بعد الحفظ يفتح «شحن / تفعيل»: الحساب ثم الشحن"}</small>
+              </span>
+            </label>
+          </div>
+        </FormSection>
       )}
 
-      <input
-        className="search-input ledger-note-input"
-        type="text"
-        placeholder="ملاحظة (اختياري)"
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-      />
-
-      <div className="settings-hint" dir="ltr">
-        الإجمالي: {formatAmount(total)} {currencyLabel(currencyCode)}
-        {paidAmount &&
-          (() => {
-            const remaining = total - (Number(paidAmount) || 0);
-            return remaining >= 0
-              ? ` - المتبقي عليه: ${formatAmount(remaining)} ${currencyLabel(currencyCode)}`
-              : ` - الباقي له: ${formatAmount(-remaining)} ${currencyLabel(currencyCode)}`;
-          })()}
-      </div>
-
-      {soldDevice && (
-        <label className="ledger-d-toggle invoice-device-toggle" data-tour="invoice-device">
-          <input type="checkbox" checked={createDevice} onChange={(e) => setCreateDevice(e.target.checked)} />
-          🛰️ أنشئ له حساب Starlink بعد الحفظ{linkClient && clientId ? "" : " (اختر الزبون أولًا)"}
-        </label>
-      )}
+      <Field label="ملاحظة (اختياري)" wide>
+        <input className="search-input" type="text" value={note} onChange={(e) => setNote(e.target.value)} />
+      </Field>
 
       {formError && <div className="account-card-alert ledger-form-error">{formError}</div>}
-      <div className="settings-actions">
+      <div className="sale-actions">
         <button className="dialog-primary" type="submit">
-          حفظ الفاتورة
+          حفظ الفاتورة{allUnits.length > 0 ? ` و${allUnits.length === 1 ? "الجهاز" : `${allUnits.length} أجهزة`}` : ""}
         </button>
-        <button type="button" className="text-action" onClick={onCancel}>
+        <button type="button" className="dialog-secondary" onClick={onCancel}>
           إلغاء
         </button>
       </div>

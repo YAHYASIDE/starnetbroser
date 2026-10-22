@@ -37,6 +37,13 @@ describe("«مزامنة الآن» choices", () => {
     expect(ids({ kind: "days", days: 7 })).toEqual(["d3", "d4", "d5", "d6"]);
   });
 
+  it("a «غير مفعّل» device (sold, no Starlink account yet) is never in a sync run", () => {
+    const pending = device("sold", "", { pendingActivation: { soldAt: TODAY }, addedAt: `${TODAY}T08:00:00` });
+    for (const window of [{ kind: "all" }, { kind: "addedToday" }, { kind: "days", days: 30 }] as SyncWindow[]) {
+      expect(pickSyncAccounts([pending], window, TODAY)).toEqual([]);
+    }
+  });
+
   it("stopped for billing only, never a limited email", () => {
     expect(ids({ kind: "suspended" })).toEqual(["stopped"]);
   });

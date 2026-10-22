@@ -37,6 +37,9 @@ export interface StoreItem {
    * through that rep locks it on the invoice line (`repUnitPrice`) - he owes that price, what he sells
    * above it is his, and he takes no percent of our profit or loss on it. */
   repPrices?: Record<string, { price: number; currencyCode: string; updatedAt: string }>;
+  /** 🛰️ «هذا جهاز Starlink» (his Oct 22 2026 choice): a sale asks a KIT per piece and makes a «غير مفعّل»
+   * device for each. Unset = guessed from the name (lib/saleDevices.ts `isStarlinkItem`). */
+  isStarlinkDevice?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -141,6 +144,7 @@ export interface CreateStoreItemInput {
   defaultSaleCurrencyCode?: string;
   defaultWholesalePrice?: number;
   lowStockThreshold?: number;
+  isStarlinkDevice?: boolean;
 }
 
 function buildItemFields(input: CreateStoreItemInput): Omit<StoreItem, "id" | "createdAt" | "updatedAt"> {
@@ -155,6 +159,7 @@ function buildItemFields(input: CreateStoreItemInput): Omit<StoreItem, "id" | "c
     defaultSaleCurrencyCode: input.defaultSaleCurrencyCode,
     defaultWholesalePrice: input.defaultWholesalePrice,
     lowStockThreshold: input.lowStockThreshold,
+    ...(input.isStarlinkDevice !== undefined ? { isStarlinkDevice: input.isStarlinkDevice } : {}),
   };
 }
 

@@ -31,6 +31,24 @@ describe("✎ editing a store invoice from the statement (his Oct 20 2026 ask)",
     expect(unpaid.ok && unpaid.cash).toEqual([]);
   });
 
+  it("📦 a device line keeps its pieces (KIT / name) through an edit - fitted to the new quantity, ids kept", () => {
+    const bought = recordStoreTransaction([], { itemId: "v4", kind: "buy", quantity: 5, unitPrice: 150000, currencyCode: "MRU", date: "2026-10-01" });
+    if (!bought.ok) throw new Error("buy");
+    const units = [{ id: "u1", kit: "KIT0001" }, { id: "u2", kit: "KIT0002", name: "البيت" }];
+    const sale = createInvoice([], bought.transactions, { kind: "sale", date: "2026-10-22", currencyCode: "MRU", lines: [{ itemId: "v4", quantity: 2, unitPrice: 180000, units }], clientId: "c1" });
+    if (!sale.ok) throw new Error("sale");
+    expect(sale.invoice.lines[0]!.units).toEqual(units);
+    const kept = updateInvoice(sale.invoices, sale.transactions, [], sale.invoice.id, { date: "2026-10-22", lines: [{ quantity: 1, unitPrice: 180000 }], discount: 0, paidAmount: 0 });
+    expect(kept.ok && kept.invoice!.lines[0]!.units).toEqual([{ id: "u1", kit: "KIT0001" }]);
+    const edited = updateInvoice(sale.invoices, sale.transactions, [], sale.invoice.id, {
+      date: "2026-10-22",
+      lines: [{ quantity: 2, unitPrice: 180000, units: [{ id: "u1", kit: "KIT0009" }, { id: "u2", kit: "KIT0002" }] }],
+      discount: 0,
+      paidAmount: 0,
+    });
+    expect(edited.ok && edited.invoice!.lines[0]!.units!.map((u) => u.kit)).toEqual(["KIT0009", "KIT0002"]);
+  });
+
   it("more than the stock is refused, nothing changed", () => {
     const s = setup();
     const r = updateInvoice(s.invoices, s.transactions, s.cash, s.id, { date: "2026-10-20", lines: [{ quantity: 11, unitPrice: 60000 }], discount: 0, paidAmount: 0 });

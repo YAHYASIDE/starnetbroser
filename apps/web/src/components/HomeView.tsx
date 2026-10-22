@@ -49,9 +49,11 @@ import { syncBillChecks } from "@/lib/billChecks";
 import { addLocalEvent } from "@/lib/eventLog";
 import { applyLedgerPaymentsToCash, loadCashEntries, saveCashEntries } from "@/lib/cashStore";
 import { parseNewDevicePrefill } from "@/lib/deviceFromSale";
+import { isPendingActivation, markActivated } from "@/lib/saleDevices";
+import { PendingDeviceCard } from "@/components/PendingDeviceCard";
 import { adoptRepDevice, repDeviceSecrets } from "@/lib/repDeviceAdopt";
 import { bucketPromises, loadPromises } from "@/lib/paymentPromises";
-import { HOME_ACTION_EVENT, HOME_SEARCH_EVENT, HomeAction, parseHomeAction, parseHomePayment, REMINDER_COUNT_EVENT, parseHomeSearch } from "@/lib/homeActions";
+import { HOME_ACTION_EVENT, HOME_SEARCH_EVENT, HomeAction, parseHomeAction, parseHomePayment, parseActivateDevice, REMINDER_COUNT_EVENT, parseHomeSearch } from "@/lib/homeActions";
 import { deviceRoute, HOME_ROUTE, KAST_ROUTE, notifyPhone } from "@/lib/appEvents";
 import { buildRenewalShipment } from "@/lib/renewalPlan";
 import { runAutoBackup } from "@/lib/autoBackupRunner";
@@ -219,7 +221,14 @@ import { isOnMailDomain, loadMailDomain, pushMailDomain } from "@/lib/mailDomain
 const NEAR_EXPIRY_THRESHOLD_DAYS = 3;
 
 type DataState = "demo" | "loading" | "loaded" | "error";
-type DialogState = { mode: AccountDialogMode; account?: StarlinkAccountSummary; prefill?: Partial<StarlinkAccountSummary>; startCreating?: boolean } | null;
+type DialogState = {
+  mode: AccountDialogMode;
+  account?: StarlinkAccountSummary;
+  prefill?: Partial<StarlinkAccountSummary>;
+  startCreating?: boolean;
+  /** ⚡ «شحن / تفعيل» of a «غير مفعّل» device: its account (new or existing), then its first charge. */
+  activating?: boolean;
+} | null;
 
 /** Which dashboard summary card (see the "ملخص الحسابات" section) the account list is currently
  * narrowed to - tapping a card sets this, tapping it again (or "مسح التصفية") clears it. Mutually
@@ -232,7 +241,9 @@ type StatFilterKind =
   // 🔵 his Oct 17 2026 circles (lib/deviceRings.ts); "rep" = one rep's devices (repRingId).
   | "notCanceled" | "canceled" | "renewed" | "sis" | "rom" | "g100" | "duplicate" | "rep" | "toSis" | "toStop"
   // 🌍 his Oct 21 2026 ask: outside the home country, day by day (lib/outsideHome.ts).
-  | "outsideHome";
+  | "outsideHome"
+  // ⏳ sold by invoice, not activated yet (lib/saleDevices.ts).
+  | "pending";
 
 const STAT_FILTER_TITLES: Record<StatFilterKind, string> = {
   online: "الحسابات المتصلة الآن",
@@ -259,6 +270,7 @@ const STAT_FILTER_TITLES: Record<StatFilterKind, string> = {
   duplicate: "🔗 الأجهزة المكررة",
   rep: "🤝 أجهزة المندوب",
   outsideHome: "🌍 خارج البلد - فعّل التجوال العالمي قبل يومها",
+  pending: "⏳ أجهزة بيعت ولم تُفعَّل بعد",
 };
 
 /** 🔍 A circle's check (long press): what it answers, in his words. Circles the sync can't change
@@ -305,6 +317,8 @@ function matchesStatFilter(account: StarlinkAccountSummary, kind: StatFilterKind
       return isTravelVerified(account);
     case "outsideHome":
       return isOutsideHome(account) && account.serviceStatus !== "canceled";
+    case "pending":
+      return isPendingActivation(account);
     case "notRenewed":
       return !isFaulty(account) && stoppedTodayNotRenewed(account.rechargeDate || account.standbyDate);
     case "canceled":
@@ -552,6 +566,11 @@ export function HomeView({
     // entries, outside the state updater so it runs exactly once.
     if (shouldAskUnpin(deviceNotes, accountId, getAccountEntries(ledgerStore, accountId), entries)) setUnpinAsk(accountId);
     const deviceName = accounts.find((a) => a.id === accountId)?.name ?? "";
+    // ⚡ a «غير مفعّل» device's first charge (عليه) makes it active.
+    const target = accounts.find((a) => a.id === accountId);
+    if (target?.pendingActivation && entries.filter((e) => e.kind === "debit").length > getAccountEntries(ledgerStore, accountId).filter((e) => e.kind === "debit").length) {
+      patchAccount(accountId, markActivated(target, new Date().toISOString()));
+    }
     const nextCash = applyLedgerPaymentsToCash(loadCashEntries(), getAccountEntries(ledgerStore, accountId), entries, deviceName);
     saveCashEntries(nextCash);
     setLedgerStore((current) => {
@@ -1774,7 +1793,14 @@ export function HomeView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function saveAccount(account: StarlinkAccountSummary) {
+  function saveAccount(saved: StarlinkAccountSummary) {
+    // ⚡ «شحن / تفعيل»: the same device becomes active (no new device, no new customer), then its first charge.
+    const activating = Boolean(dialog?.activating && saved.pendingActivation);
+    const account = activating ? markActivated(saved, new Date().toISOString()) : saved;
+    if (activating) window.setTimeout(() => {
+      setLedgerForPayment(false);
+      setLedgerAccount(account);
+    }, 50);
     markDeviceTouched(account.id); // 🕘 edited
     const repRequestId = repDeviceRequestRef.current;
     repDeviceRequestRef.current = null;
@@ -1812,13 +1838,13 @@ export function HomeView({
     // A brand-new device (not a rep's, whose login is already transferred): 🤖 its mailbox first,
     // signed in by itself, then its Starlink browser, signed in by itself (the code from the mailbox).
     const isNew = !accounts.some((item) => item.id === account.id);
-    if (isNew && account.creation && isRunningInAndroidApp()) {
+    if ((isNew || activating) && account.creation && isRunningInAndroidApp()) {
       // 🆕 «إنشاء حساب جديد»: the new email's signup first, then «تفعيل Starlink» - 📮 an address on
       // his forwarded domain has no mailbox to make: «تفعيل Starlink» at once.
       void openAccountCreation(account, isOnMailDomain(account.expectedEmail, loadMailDomain()) ? "starlink" : "mail").then((result) => {
         if (!result.ok) pushToast(result.message);
       });
-    } else if (isNew && !repRequestId && isRunningInAndroidApp() && account.expectedEmail?.trim()) {
+    } else if ((isNew || activating) && !repRequestId && isRunningInAndroidApp() && account.expectedEmail?.trim()) {
       void openAutoSignIn(account, accounts).then((result) => {
         if (!result.ok) pushToast(result.message);
       });
@@ -2158,6 +2184,15 @@ export function HomeView({
   });
   // A "?pay=" device that wasn't loaded yet when the page opened - opened once it is.
   const pendingPaymentRef = useRef<string | null>(null);
+  const pendingActivateRef = useRef<string | null>(null);
+  useEffect(() => {
+    const id = pendingActivateRef.current;
+    if (!id) return;
+    const target = accounts.find((a) => a.id === id);
+    if (!target) return;
+    pendingActivateRef.current = null;
+    setDialog({ mode: "edit", account: target, activating: Boolean(target.pendingActivation) });
+  }, [accounts]);
   useEffect(() => {
     const id = pendingPaymentRef.current;
     if (!id) return;
@@ -2195,6 +2230,20 @@ export function HomeView({
       setShowAll(true);
     }
     // "💵 دفعة من زبون" chosen on the clients page: that device's ledger, ready for a payment.
+    // ⚡ the store's «شحن / تفعيل» for a device just sold, and «عرض الأجهزة غير المفعّلة».
+    const activateFromUrl = parseActivateDevice(window.location.search);
+    if (activateFromUrl) {
+      window.history.replaceState(null, "", window.location.pathname);
+      const target = accountsRef.current.find((a) => a.id === activateFromUrl);
+      if (target) setDialog({ mode: "edit", account: target, activating: Boolean(target.pendingActivation) });
+      else pendingActivateRef.current = activateFromUrl;
+    }
+    if (new URLSearchParams(window.location.search).get("pending") === "1") {
+      window.history.replaceState(null, "", window.location.pathname);
+      setShowAll(true);
+      setSelectedDay(null);
+      setStatFilter("pending");
+    }
     const payFromUrl = parseHomePayment(window.location.search);
     if (payFromUrl) {
       window.history.replaceState(null, "", window.location.pathname);
@@ -2357,6 +2406,8 @@ export function HomeView({
     [activeAccounts, representativeStore, ledgerStore, allAllocations],
   );
   const noClient = useMemo(() => countNoClient(activeAccounts, clientStore, representativeStore), [activeAccounts, clientStore, representativeStore]);
+  // ⏳ «غير مفعّل»: sold by invoice, not activated yet (lib/saleDevices.ts).
+  const pendingCount = useMemo(() => activeAccounts.filter(isPendingActivation).length, [activeAccounts]);
 
   useEffect(() => setSearchHistory(loadSearchHistory()), []);
 
@@ -2457,7 +2508,16 @@ export function HomeView({
     : viewMode === "trash" ? trashAccounts
     : showAll || query || clientFocus !== null || selectedDay !== null || statFilter !== null ? filtered : expiredOrNearExpiry;
 
-  const renderCard = (account: StarlinkAccountSummary) => (
+  const renderCard = (account: StarlinkAccountSummary) =>
+    viewMode === "active" && isPendingActivation(account) ? (
+      <PendingDeviceCard
+        key={account.id}
+        account={account}
+        clientName={visibleClientOf(account)?.name}
+        onActivate={(target) => setDialog({ mode: "edit", account: target, activating: true })}
+        onEdit={(target) => setDialog({ mode: "edit", account: target })}
+      />
+    ) : (
     <AccountCard
       key={account.id}
       account={account}
@@ -2514,7 +2574,7 @@ export function HomeView({
       onSaveNote={(target, input) => commitDeviceNotes(saveDeviceNote(loadDeviceNotes(), target.id, input))}
       onSetPinned={(target, pinned) => commitDeviceNotes(setDevicePinned(loadDeviceNotes(), target.id, pinned))}
     />
-  );
+    );
 
   const ringsNode = (
     <>
@@ -2720,6 +2780,18 @@ export function HomeView({
             active={statFilter === "fromRep"}
             onLongPress={() => setRingMenu({ kind: "fromRep", label: "من المندوبين" })}
             onClick={() => { toggleStatFilter("fromRep"); setSelectedDay(null); }}
+          />
+        )}
+        {pendingCount > 0 && (
+          <StatusRing
+            tone="pending"
+            value={pendingCount}
+            total={overview.total}
+            label="غير مفعّل"
+            icon={<span aria-hidden="true">⏳</span>}
+            active={statFilter === "pending"}
+            onLongPress={() => toggleStatFilter("pending")}
+            onClick={() => toggleStatFilter("pending")}
           />
         )}
         {noClient.total > 0 && (
@@ -3501,6 +3573,7 @@ export function HomeView({
           account={dialog.account}
           prefill={dialog.prefill}
           startCreating={dialog.startCreating}
+          activating={dialog.activating}
           clients={clients}
           onCreateClient={handleCreateClient}
           representatives={representatives}
@@ -3673,7 +3746,7 @@ function SearchResultRow({ result, onOpenClient }: { result: SearchResult; onOpe
 
 type StatusTone =
   | "total" | "online" | "warning" | "expired" | "suspended" | "recent" | "notRenewed" | "pinned" | "faulty" | "repair" | "travel" | "travelDone" | "fromRep" | "noClient"
-  | "notCanceled" | "canceled" | "renewed" | "sis" | "rom" | "g100" | "duplicate" | "rep" | "toSis" | "toStop" | "outsideHome";
+  | "notCanceled" | "canceled" | "renewed" | "sis" | "rom" | "g100" | "duplicate" | "rep" | "toSis" | "toStop" | "outsideHome" | "pending";
 
 const RING_LONG_PRESS_MS = 550;
 

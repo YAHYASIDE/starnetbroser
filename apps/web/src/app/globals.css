@@ -19091,3 +19091,71 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
 .activation-missing { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 8px; padding: 8px 10px; border-radius: 10px; background: var(--yellow-bg); font-size: 0.84rem; }
 .activation-preview { margin: 0 0 10px; padding: 10px; max-height: 50vh; overflow: auto; white-space: pre-wrap; word-break: break-word; font-family: inherit; font-size: 0.86rem; line-height: 1.6; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
 .activation-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+/* 🧾 The sale / purchase form in sections (his Oct 22 2026 ask: «الزبون · الجهاز · السعر والدفع · الشحن والتفعيل»). */
+.sale-form { display: flex; flex-direction: column; gap: 12px; margin-block: 10px; }
+.sale-form-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: end; }
+.sale-kind-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: var(--radius-md); background: var(--surface-alt); border: 1px solid var(--border); }
+.sale-kind-tabs button { min-height: 40px; border: 0; border-radius: calc(var(--radius-md) - 3px); background: transparent; color: var(--text-muted); font: inherit; font-weight: 700; cursor: pointer; }
+.sale-kind-tabs button.active { background: var(--brand); color: var(--brand-contrast); }
+.sale-section { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); overflow: hidden; }
+.sale-section-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface-alt); border-bottom: 1px solid var(--border); }
+.sale-section-head h3 { margin: 0; font-size: 0.98rem; }
+.sale-section-head small { display: block; color: var(--text-muted); font-size: 0.78rem; line-height: 1.4; }
+.sale-section-step { flex: none; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--brand); color: var(--brand-contrast); font-weight: 800; font-size: 0.85rem; }
+.sale-section-body { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
+.sale-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.sale-field > span { font-size: 0.8rem; font-weight: 700; color: var(--text-muted); }
+.sale-field .search-input { width: 100%; flex: none; min-height: 44px; }
+.sale-field-wide { grid-column: 1 / -1; }
+.sale-grid-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+.sale-line { display: flex; flex-direction: column; gap: 10px; padding: 10px; border: 1px dashed var(--border); border-radius: 12px; }
+.sale-line-head { display: flex; align-items: flex-end; gap: 8px; }
+.sale-line-head .sale-field { flex: 1; }
+.sale-line-remove { flex: none; width: 44px; height: 44px; border-radius: var(--radius-md); border: 1px solid var(--border); background: var(--red-bg); color: var(--red); font-size: 1.2rem; cursor: pointer; }
+.sale-units { display: flex; flex-direction: column; gap: 8px; }
+.sale-unit { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: 12px; background: var(--surface-alt); border-inline-start: 3px solid var(--brand); }
+.sale-unit-badge { font-size: 0.78rem; font-weight: 800; color: var(--brand); }
+.sale-unit-clash { margin: 0; font-size: 0.8rem; color: var(--red); line-height: 1.5; }
+.search-input.is-invalid { border-color: var(--red); background: var(--red-bg); }
+.sale-check { display: flex; align-items: center; gap: 10px; min-height: 40px; font-size: 0.9rem; cursor: pointer; }
+.sale-check input { flex: none; width: 20px; height: 20px; margin: 0; accent-color: var(--brand); }
+.sale-add-line { min-height: 44px; border: 1px dashed var(--brand); border-radius: 12px; background: transparent; color: var(--brand); font: inherit; font-weight: 700; cursor: pointer; }
+.sale-pay-quick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.sale-pay-quick button { min-height: 40px; border-radius: var(--radius-md); border: 1px solid var(--border); background: var(--surface-alt); color: var(--text); font: inherit; font-size: 0.88rem; cursor: pointer; }
+.sale-pay-quick button.active { border-color: var(--brand); color: var(--brand); font-weight: 700; }
+.sale-summary { margin: 0; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 12px; background: var(--surface-alt); font-variant-numeric: tabular-nums; }
+.sale-summary > div { display: flex; justify-content: space-between; gap: 10px; font-size: 0.9rem; }
+.sale-summary dt { color: var(--text-muted); }
+.sale-summary dd { margin: 0; font-weight: 700; }
+.sale-summary .sale-summary-total { padding-top: 6px; border-top: 1px solid var(--border); font-size: 1.05rem; }
+.sale-summary .sale-summary-total dt { color: var(--text); font-weight: 800; }
+.sale-summary .is-due dd { color: var(--red); }
+.sale-summary .is-clear dd { color: var(--green); }
+.sale-choices { display: flex; flex-direction: column; gap: 8px; }
+.sale-choice { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; cursor: pointer; }
+.sale-choice input { flex: none; width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--brand); }
+.sale-choice span { display: flex; flex-direction: column; gap: 2px; }
+.sale-choice small { color: var(--text-muted); font-size: 0.8rem; line-height: 1.45; }
+.sale-choice.active { border-color: var(--brand); background: var(--surface-alt); }
+.sale-choice.is-disabled { opacity: 0.55; cursor: not-allowed; }
+.sale-actions { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; position: sticky; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); padding: 8px 0; background: var(--bg); z-index: 2; }
+.sale-actions button { min-height: 48px; }
+.invoice-edit-units { display: flex; flex-direction: column; gap: 6px; }
+
+/* ⏳ «غير مفعّل» - a device sold by invoice, not activated yet (Oct 22 2026). */
+.pending-device-card { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 16px; background: var(--surface); border: 1px solid var(--violet); box-shadow: inset 4px 0 0 var(--violet); }
+.pending-device-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.pending-device-icon { position: relative; flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--surface-alt); font-size: 1.25rem; }
+.pending-device-icon small { position: absolute; bottom: -4px; inset-inline-start: -4px; font-size: 0.85rem; }
+.pending-device-title { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.pending-device-title strong { overflow-wrap: anywhere; }
+.pending-device-title span { color: var(--text-muted); font-size: 0.82rem; }
+.pending-device-badge { flex: none; padding: 4px 10px; border-radius: 999px; background: var(--violet-bg); color: var(--violet); border: 1px solid var(--violet); font-size: 0.78rem; font-weight: 800; white-space: nowrap; }
+.pending-device-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 0.84rem; color: var(--text-muted); }
+.pending-device-kit { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 4px 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-alt); color: var(--text); font: inherit; font-weight: 700; letter-spacing: 0.03em; cursor: pointer; }
+.pending-device-kit.is-missing { border-style: dashed; color: var(--yellow); background: var(--yellow-bg); cursor: default; }
+.pending-device-actions { display: grid; grid-template-columns: 2fr 1fr; gap: 8px; }
+.pending-device-actions button { min-height: 44px; }
+.status-ring-pending { --tone: var(--violet); }
+@media (min-width: 900px) { .sale-form { width: 100%; max-width: 820px; margin-inline: auto; } }

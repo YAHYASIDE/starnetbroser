@@ -34,9 +34,10 @@ import {
   SupplierStore,
   updateSupplier,
 } from "@/lib/supplierStore";
-import { InvoiceList, loadInvoices, saveInvoices } from "@/lib/invoiceStore";
+import { InvoiceList, loadInvoices } from "@/lib/invoiceStore";
 import { deleteInvoice, updateInvoice, type InvoiceEditInput, type InvoiceEditResult } from "@/lib/invoiceEdit";
-import { loadStoreTransactions, saveStoreTransactions } from "@/lib/storeStore";
+import { commitInvoiceWithDevices } from "@/lib/saleDevicesStore";
+import { loadStoreTransactions } from "@/lib/storeStore";
 import { computeBalanceByCurrency, LedgerByAccount, LedgerCurrency, type LedgerEntry, loadLedgerStore } from "@/lib/ledgerStore";
 import { AllocationsByAccount, loadAllocationStore } from "@/lib/paymentAllocationStore";
 import { demoAccounts } from "@/lib/demoData";
@@ -135,19 +136,20 @@ export default function ClientsPage() {
   }
 
   /** ✎ / 🗑 A store invoice from the statement: the invoice, its stock movements and its cash saved together. */
-  function commitInvoiceEdit(result: InvoiceEditResult): string | null {
+  // 📦 its devices follow (KIT / customer) - all saved as one (lib/saleDevicesStore.ts).
+  function commitInvoiceEdit(result: InvoiceEditResult, invoiceId: string): string | null {
     if (!result.ok) return result.message;
-    saveInvoices(result.invoices);
-    saveStoreTransactions(result.transactions);
-    saveCashEntries(result.cash);
+    const saved = commitInvoiceWithDevices(result, result.invoice, invoiceId);
+    if (!saved.ok) return saved.message;
     setInvoices(result.invoices);
+    if (saved.devices && (saved.devices.updated.length || saved.devices.released.length || saved.devices.created.length)) setAccounts(loadDemoAccounts([]));
     return null;
   }
   function handleEditInvoice(invoiceId: string, input: InvoiceEditInput): string | null {
-    return commitInvoiceEdit(updateInvoice(loadInvoices(), loadStoreTransactions(), loadCashEntries(), invoiceId, input));
+    return commitInvoiceEdit(updateInvoice(loadInvoices(), loadStoreTransactions(), loadCashEntries(), invoiceId, input), invoiceId);
   }
   function handleDeleteInvoice(invoiceId: string): string | null {
-    return commitInvoiceEdit(deleteInvoice(loadInvoices(), loadStoreTransactions(), loadCashEntries(), invoiceId));
+    return commitInvoiceEdit(deleteInvoice(loadInvoices(), loadStoreTransactions(), loadCashEntries(), invoiceId), invoiceId);
   }
 
   function handleUpdateClient(clientId: string, input: CreateClientInput) {

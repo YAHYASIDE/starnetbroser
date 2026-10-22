@@ -7,14 +7,15 @@
  */
 
 import { recordCashEntry, type CashEntryList } from "./cashStore";
-import { createInvoice, type Invoice, type InvoiceList } from "./invoiceStore";
+import { createInvoice, type Invoice, type InvoiceList, type SaleUnit } from "./invoiceStore";
+import { resizeUnits } from "./saleDevices";
 import type { StoreTransactionList } from "./storeStore";
 
 export interface InvoiceEditInput {
   date: string;
   /** Per line, in the invoice's order. A line's shipping (sale): given = its new cost / charge,
    * `shipping: false` = none any more, absent = kept as it was. */
-  lines: { quantity: number; unitPrice: number; shipping?: false | { cost?: number; charge?: number } }[];
+  lines: { quantity: number; unitPrice: number; shipping?: false | { cost?: number; charge?: number }; units?: SaleUnit[] }[];
   /** Sale: the customer (from the store's invoice list, his Oct 22 2026 «تعديل كل شيء»). Absent = kept. */
   clientId?: string;
   /** Purchase: the supplier. Absent = kept. */
@@ -85,6 +86,8 @@ export function updateInvoice(
           ...(shipping.cost !== undefined ? { shippingCost: shipping.cost } : {}),
           ...(shipping.charge !== undefined ? { shippingCharge: shipping.charge } : {}),
           ...(l.repUnitPrice !== undefined ? { repUnitPrice: l.repUnitPrice } : {}),
+          // 📦 its devices (KIT / name per piece): as edited, else kept and fitted to the new quantity.
+          ...(edit.units || l.units ? { units: edit.units ?? resizeUnits(l.units, edit.quantity, () => `${invoiceId}-u${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`) } : {}),
         };
       }),
       discount: input.discount,

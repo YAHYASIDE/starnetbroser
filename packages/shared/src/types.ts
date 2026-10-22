@@ -247,6 +247,16 @@ export interface StarlinkAccountSummary {
   /** 🛰️ The store sale invoice this device was sold with (his Oct 22 2026 ask: sell a Mini by invoice and
    * create its account from there) - its price and shipping show in «معلومات الحساب». */
   storeInvoiceId?: string;
+  /** 📦 The sale invoice's unit (one per device on a line) this device was made from - saving the
+   * invoice again finds it instead of making a second device. */
+  storeSaleUnitId?: string;
+  /** The store item it was sold as («V4», «Mini»). */
+  deviceModel?: string;
+  /** ⏳ «غير مفعّل» (his Oct 22 2026 ask): sold by invoice, no Starlink account / subscription yet - no
+   * renewal, no sync, no expiry alert. Cleared by «شحن / تفعيل» (the account saved, or a first charge). */
+  pendingActivation?: { soldAt: string } | null;
+  /** When «شحن / تفعيل» made a sold device active. */
+  activatedAt?: string;
   /** ISO timestamp set only by an explicit "أرشفة" action - an archived device is hidden from the
    * main list (see HomeView's "الأرشيف" view) but keeps every ledger entry, allocation and
    * exchange-rate link exactly as-is; null/undefined again once restored. Never implies deleted. */

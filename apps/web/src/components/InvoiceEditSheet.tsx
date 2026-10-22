@@ -6,6 +6,10 @@ import { formatAmount } from "@/lib/formatAmount";
 import { invoiceTotal, type Invoice } from "@/lib/invoiceStore";
 import type { InvoiceEditInput } from "@/lib/invoiceEdit";
 import { loadStoreItems } from "@/lib/storeStore";
+import type { SaleUnit } from "@/lib/invoiceStore";
+import { isStarlinkItem, resizeUnits } from "@/lib/saleDevices";
+
+const unitId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `unit-${Date.now()}-${Math.random()}`);
 
 /**
  * ✎ A store invoice edited from a customer's statement (lib/invoiceEdit.ts): each line's quantity and
@@ -44,6 +48,13 @@ export function InvoiceEditSheet({
       shippingCharge: l.shippingCharge !== undefined ? String(l.shippingCharge) : "",
     })),
   );
+  // 📦 a device line's KIT / name per piece - the linked devices follow (lib/saleDevices.ts).
+  const deviceLine = (i: number) => isSale && !isReturn && (Boolean(invoice.lines[i]!.units) || isStarlinkItem(items[invoice.lines[i]!.itemId]));
+  const [units, setUnits] = useState<SaleUnit[][]>(() => invoice.lines.map((l) => l.units ?? []));
+  const unitsFor = (i: number) => resizeUnits(units[i], num(lines[i]!.quantity), unitId);
+  function setUnit(i: number, k: number, patch: Partial<SaleUnit>) {
+    setUnits((all) => all.map((list, j) => (j === i ? unitsFor(i).map((u, m) => (m === k ? { ...u, ...patch } : u)) : list)));
+  }
   const [partyId, setPartyId] = useState((isSale ? invoice.clientId : invoice.supplierId) ?? "");
   const [discount, setDiscount] = useState(invoice.discount ? String(invoice.discount) : "");
   const [paid, setPaid] = useState(invoice.paidAmount ? String(invoice.paidAmount) : "");
@@ -60,7 +71,8 @@ export function InvoiceEditSheet({
     event.preventDefault();
     const message = onSave({
       date,
-      lines: lines.map((l) => ({
+      lines: lines.map((l, i) => ({
+        ...(deviceLine(i) ? { units: unitsFor(i) } : {}),
         quantity: num(l.quantity),
         unitPrice: num(l.unitPrice),
         ...(isSale
@@ -160,6 +172,22 @@ export function InvoiceEditSheet({
                     onChange={(e) => setLines((ls) => ls.map((l, j) => (j === i ? { ...l, shippingCharge: e.target.value } : l)))}
                   />
                 </label>
+              </div>
+            )}
+            {deviceLine(i) && unitsFor(i).length > 0 && (
+              <div className="invoice-edit-units">
+                {unitsFor(i).map((unit, k) => (
+                  <div key={unit.id} className="invoice-edit-pair">
+                    <label className="form-field">
+                      <span>رقم KIT {unitsFor(i).length > 1 ? `(${k + 1})` : ""}</span>
+                      <input className="search-input" dir="ltr" value={unit.kit ?? ""} disabled={!editable} placeholder="KIT…" onChange={(e) => setUnit(i, k, { kit: e.target.value })} />
+                    </label>
+                    <label className="form-field">
+                      <span>اسم الجهاز</span>
+                      <input className="search-input" value={unit.name ?? ""} disabled={!editable} placeholder="اختياري" onChange={(e) => setUnit(i, k, { name: e.target.value })} />
+                    </label>
+                  </div>
+                ))}
               </div>
             )}
           </div>

@@ -44,3 +44,16 @@ export function parseHomeSearch(search: string): string | null {
   const value = new URLSearchParams(search).get("q");
   return value?.trim() ? value.trim() : null;
 }
+
+/** ⚡ «شحن / تفعيل» of a «غير مفعّل» device (lib/saleDevices.ts) - the store's sale opens it on the home page. */
+export function activateDeviceHref(accountId: string): string {
+  return `/?activate=${encodeURIComponent(accountId)}`;
+}
+
+export function parseActivateDevice(search: string): string | null {
+  const value = new URLSearchParams(search).get("activate");
+  return value?.trim() ? value.trim() : null;
+}
+
+/** ⏳ The home page narrowed to the «غير مفعّل» devices. */
+export const PENDING_DEVICES_HREF = "/?pending=1";

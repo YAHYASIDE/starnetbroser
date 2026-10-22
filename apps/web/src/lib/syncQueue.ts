@@ -36,7 +36,8 @@ export const SYNC_WINDOWS: { window: SyncWindow; label: string }[] = [
 ];
 
 function isLive(account: StarlinkAccountSummary): boolean {
-  return !account.archivedAt && !account.deletedAt;
+  // ⏳ «غير مفعّل» (sold, no Starlink account yet): nothing to read until «شحن / تفعيل».
+  return !account.archivedAt && !account.deletedAt && !account.pendingActivation;
 }
 
 /** Synced only from its own choice: faulty, or a limited (non-main) email. */

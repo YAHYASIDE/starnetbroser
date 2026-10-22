@@ -2171,3 +2171,27 @@ is never pressed while a field is empty - it refills and saves on the next try (
   «[ارسل صورة …]»; **his text word for word** (`lib/activationMessage.ts`, `ActivationMessageSheet`).
 - Date = the day the message is made. Name = the linked customer, else the Starlink holder name, else the device
   name. KIT falls back to the serial. A Wi-Fi / mail password he never entered leaves its line out.
+
+## 🛰️ Selling a Starlink device by invoice → «⏳ غير مفعّل» (Oct 22 2026)
+
+- His ask (screenshot of the old sale form, «أهم شيء غيّر هذه الواجهة»): a clear sale form in sections, the device saved
+  by itself in «الأجهزة» with its customer and KIT, «غير مفعّل» until he charges it, all without double money.
+- His choices: **«⚡ شحن / تفعيل» = the account (🆕 new / ➕ has one) then the first charge, on the same device**; **KIT
+  optional** (a device without one shows «KIT ناقص»; a typed KIT already on a device is refused, naming that device);
+  **a «🛰️ هذا جهاز Starlink» flag on the item** (unset = guessed from the name: V4 / Mini / Starlink yes, cable /
+  router / mount no - `isStarlinkItem`); **«الشحن» in the sale = the Starlink subscription charge** (the 🚚 line
+  option is now named «توصيل (نقل)»).
+- The form (`InvoiceSection` `InvoiceForm`): 1 👤 customer (search name/phone, ➕ new; 🤝 «البيع عبر مندوب»), 2 🛰️ items
+  (a device line asks «رقم KIT للجهاز» + «اسم الجهاز (اختياري)» **per piece**), 3 💰 discount / paid now («💵 دفع كامل»,
+  «📒 دين كامل») + summary, 4 ⚡ «⏳ لم يُفعَّل بعد» (default) or «⚡ شحن الاشتراك الآن» (one device only → after saving,
+  `/?activate=id` opens its «شحن / تفعيل»). Purchase uses the same layout with the supplier.
+- Saving (`lib/saleDevices.ts` + `saleDevicesStore.ts`): each piece is an invoice-line `units[]` entry {id, kit,
+  name}; the device keeps `storeSaleUnitId` (saving again never doubles it), `storeInvoiceId`, `deviceModel`,
+  `pendingActivation {soldAt}`. The invoice, stock, cash and devices are written together (`saveTogether`, all or
+  nothing); a second tap is ignored. The devices carry **no money** - the amount, profit and debt stay the invoice's.
+- Editing the invoice (store list or the customer's statement) moves KIT / name / customer onto the same devices
+  (an automatic name «الزبون - V4» follows the customer while pending); a piece removed or the invoice deleted → a
+  pending device goes to the trash, an activated one only loses its unit link. A return makes no device.
+- «⏳ غير مفعّل» (`PendingDeviceCard`, violet): customer, type + name, KIT with 📋, sale date, «⚡ شحن / تفعيل»,
+  «✎ تعديل»; ring «غير مفعّل» (`/?pending=1`); no days left / expiry (no renewal date), never in a sync run
+  (`syncQueue` `isLive`). Activated by saving the activation dialog or by its first charge (عليه) - `activatedAt`.

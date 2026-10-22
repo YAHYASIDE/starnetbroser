@@ -7,7 +7,9 @@ import { AccountCard } from "./AccountCard";
 import { allStoredAllocations, type AllocationsByAccount } from "@/lib/paymentAllocationStore";
 import type { ClientStore } from "@/lib/clientStore";
 import { loadCurrencyStore } from "@/lib/currencyStore";
-import { homeSearchHref } from "@/lib/homeActions";
+import { activateDeviceHref, homeSearchHref } from "@/lib/homeActions";
+import { isPendingActivation } from "@/lib/saleDevices";
+import { PendingDeviceCard } from "./PendingDeviceCard";
 import { getAccountEntries, type LedgerByAccount } from "@/lib/ledgerStore";
 import { getRepresentative, type RepresentativeStore } from "@/lib/repStore";
 
@@ -39,6 +41,16 @@ export function ClientDeviceCard({
   const allocations = useMemo(() => allStoredAllocations(allocationStore), [allocationStore]);
   const onHome = () => router.push(homeSearchHref(device.expectedEmail?.trim() || device.name));
   const rep = getRepresentative(representatives, device.representativeId);
+  // ⏳ sold, not activated yet: its own card - «شحن / تفعيل» opens on the home page.
+  if (isPendingActivation(device)) {
+    return (
+      <PendingDeviceCard
+        account={device}
+        clientName={device.clientId ? clientStore[device.clientId]?.name : undefined}
+        onActivate={(target) => router.push(activateDeviceHref(target.id))}
+      />
+    );
+  }
   return (
     <AccountCard
       account={device}

@@ -39,6 +39,16 @@ export interface InvoiceLineInput {
   /** Sale through a rep only: his fixed price for this item (StoreItem.repPrices), LOCKED here when
    * the invoice is made - he owes it, the rest of the line is his, no percent (invoiceRepCommission). */
   repUnitPrice?: number;
+  /** 📦 Sale of a Starlink device item only: one entry per device sold on this line (KIT, optional name) -
+   * each becomes its own «غير مفعّل» device (lib/saleDevices.ts). Kept only when it matches the quantity. */
+  units?: SaleUnit[];
+}
+
+/** One device sold on an invoice line. `id` stays the same through edits - it links the device. */
+export interface SaleUnit {
+  id: string;
+  kit?: string;
+  name?: string;
 }
 
 export interface InvoiceLine extends InvoiceLineInput {
@@ -219,6 +229,9 @@ export function createInvoice(
       shippingCost,
       shippingCharge,
       ...(input.kind === "sale" && !isReturn && input.representativeId && line.repUnitPrice !== undefined && line.repUnitPrice >= 0 ? { repUnitPrice: line.repUnitPrice } : {}),
+      ...(input.kind === "sale" && !isReturn && line.units && line.units.length > 0 && line.units.length === line.quantity
+        ? { units: line.units.map((u) => ({ id: u.id, ...(u.kit?.trim() ? { kit: u.kit.trim() } : {}), ...(u.name?.trim() ? { name: u.name.trim() } : {}) })) }
+        : {}),
       transactionId: result.transaction.id,
     });
   }

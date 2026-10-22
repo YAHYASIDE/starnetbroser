@@ -44,6 +44,9 @@ interface Props {
   prefill?: Partial<StarlinkAccountSummary>;
   /** 🛰️ Opens on «🆕 إنشاء حساب جديد» (a device sold from the store, deviceFromSale.ts). */
   startCreating?: boolean;
+  /** ⚡ «شحن / تفعيل» of a «غير مفعّل» device (lib/saleDevices.ts): the add forms («جهاز له حساب» /
+   * «🆕 إنشاء حساب جديد») on this same device - its customer and KIT already there. */
+  activating?: boolean;
   clients: Client[];
   onCreateClient: (input: CreateClientInput) => Client;
   representatives: Representative[];
@@ -104,6 +107,7 @@ export function AccountDialog({
   account,
   prefill,
   startCreating = false,
+  activating = false,
   clients,
   onCreateClient,
   representatives,
@@ -150,7 +154,9 @@ export function AccountDialog({
     const items = loadStoreItems();
     return deviceInvoiceLines(invoice, (id) => items[id]?.name, (code) => LEDGER_CURRENCY_LABELS[code as LedgerCurrency] ?? code);
   }, [isView, draft.storeInvoiceId]);
-  const title = mode === "add" ? "إضافة حساب جديد" : mode === "edit" ? "تعديل الحساب" : "معلومات الحساب";
+  const title = activating ? "⚡ شحن / تفعيل" : mode === "add" ? "إضافة حساب جديد" : mode === "edit" ? "تعديل الحساب" : "معلومات الحساب";
+  // ⚡ activating a sold device shows the add forms, saved onto this same device.
+  const formMode: AccountDialogMode = activating ? "add" : mode;
   const clientName = (clientId?: string) => clients.find((c) => c.id === clientId)?.name;
   const [sendNote, setSendNote] = useState<string | null>(null);
   // 🆕 «إنشاء حساب جديد»: a brand-new Starlink account (new email + «تفعيل Starlink»), instead of
@@ -158,7 +164,7 @@ export function AccountDialog({
   const [creating, setCreating] = useState(startCreating);
   const [createError, setCreateError] = useState<string | null>(null);
   // 1️⃣ The account's full name, typed first (the customer below is optional).
-  const [creationName, setCreationName] = useState("");
+  const [creationName, setCreationName] = useState(() => (activating ? clients.find((c) => c.id === account?.clientId)?.name ?? "" : ""));
   // ✉️ The email and its code written by themselves from the name (lib/emailSuggest.ts) - while the
   // field is empty or still holds the last suggestion, so what he typed himself is never replaced.
   const suggestedEmail = useRef("");
@@ -510,7 +516,7 @@ export function AccountDialog({
             )}
             <div className="info-wide"><span>التنبيه</span><strong>{displayValue(draft.alertReason)}</strong></div>
           </div>
-        ) : mode === "add" && creating ? (
+        ) : formMode === "add" && creating ? (
           // 🆕 A brand-new account: the customer, the KIT/SN on the box, and the new Outlook email
           // to make - then Microsoft's signup and «تفعيل Starlink» open, already filled in.
           <form className="account-form add-device-form" onSubmit={submitCreation}>
@@ -616,7 +622,7 @@ export function AccountDialog({
               <button className="dialog-primary" type="submit">🆕 إنشاء</button>
             </div>
           </form>
-        ) : mode === "add" ? (
+        ) : formMode === "add" ? (
           // A new device needs only what Starlink can't tell us - the rest (KIT, plan, renewal,
           // phone...) comes from the first Starlink sync, or from "تعديل" later.
           <form className="account-form add-device-form" onSubmit={submit}>

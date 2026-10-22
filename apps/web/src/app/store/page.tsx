@@ -40,15 +40,17 @@ import { formatAmount } from "@/lib/formatAmount";
 import { InvoiceSection } from "@/components/InvoiceSection";
 import { CashRegisterSection } from "@/components/CashRegisterSection";
 import { StoreReportsSection } from "@/components/StoreReportsSection";
-import { Invoice, InvoiceList, loadInvoices, saveInvoices } from "@/lib/invoiceStore";
+import { InvoiceList, loadInvoices } from "@/lib/invoiceStore";
 import { deleteInvoice, updateInvoice, type InvoiceEditResult } from "@/lib/invoiceEdit";
-import { buildNewDeviceHref, NewDevicePrefill, saleLooksLikeDevice } from "@/lib/deviceFromSale";
+import { commitInvoiceWithDevices } from "@/lib/saleDevicesStore";
+import { isStarlinkItem } from "@/lib/saleDevices";
+import { activateDeviceHref, PENDING_DEVICES_HREF } from "@/lib/homeActions";
+import { syncInvoiceCash } from "@/lib/invoiceEdit";
 import {
   CashClosingList,
   CashEntryList,
   loadCashClosings,
   loadCashEntries,
-  recordCashEntry,
   saveCashClosings,
   saveCashEntries,
 } from "@/lib/cashStore";
@@ -97,7 +99,7 @@ export default function StorePage() {
   const [representativeStore, setRepresentativeStore] = useState<RepresentativeStore>({});
   const [cashEntries, setCashEntries] = useState<CashEntryList>([]);
   const [cashClosings, setCashClosings] = useState<CashClosingList>([]);
-  const [deviceOffer, setDeviceOffer] = useState<NewDevicePrefill | null>(null);
+  const [soldDevices, setSoldDevices] = useState<StarlinkAccountSummary[] | null>(null);
   const [accounts, setAccounts] = useState<StarlinkAccountSummary[]>(demoAccounts);
   const [partyAdjustments, setPartyAdjustments] = useState<PartyAdjustmentList>([]);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
@@ -138,14 +140,15 @@ export default function StorePage() {
   const representatives = useMemo(() => listRepresentatives(representativeStore), [representativeStore]);
 
   /** ✎ / 🗑 a past invoice from the list: the invoice, its stock and its cash together. */
-  function commitInvoiceEdit(result: InvoiceEditResult): string | null {
+  function commitInvoiceEdit(result: InvoiceEditResult, invoiceId: string): string | null {
     if (!result.ok) return result.message;
-    saveInvoices(result.invoices);
-    saveStoreTransactions(result.transactions);
-    saveCashEntries(result.cash);
+    // 📦 its devices follow the KIT / customer change (or go to the trash with a deleted sale).
+    const saved = commitInvoiceWithDevices(result, result.invoice, invoiceId);
+    if (!saved.ok) return saved.message;
     setInvoices(result.invoices);
     setTransactions(result.transactions);
     setCashEntries(result.cash);
+    if (saved.devices && (saved.devices.updated.length || saved.devices.released.length || saved.devices.created.length)) setAccounts(loadDemoAccounts([]));
     return null;
   }
 
@@ -397,42 +400,47 @@ export default function StorePage() {
         onCreateClient={handleCreateClient}
         onCreateRepresentative={handleCreateRepresentative}
         onCreateSupplier={handleCreateSupplier}
-        onEditInvoice={(id, input) => commitInvoiceEdit(updateInvoice(loadInvoices(), loadStoreTransactions(), loadCashEntries(), id, input))}
-        onDeleteInvoice={(id) => commitInvoiceEdit(deleteInvoice(loadInvoices(), loadStoreTransactions(), loadCashEntries(), id))}
+        onEditInvoice={(id, input) => commitInvoiceEdit(updateInvoice(loadInvoices(), loadStoreTransactions(), loadCashEntries(), id, input), id)}
+        onDeleteInvoice={(id) => commitInvoiceEdit(deleteInvoice(loadInvoices(), loadStoreTransactions(), loadCashEntries(), id), id)}
         onChange={(result) => {
+          // 📦 the invoice, its stock, its cash and its devices - saved as one, or nothing (saleDevicesStore.ts).
+          const cash = syncInvoiceCash(loadCashEntries(), result.invoice, result.invoice.id);
+          const saved = commitInvoiceWithDevices({ invoices: result.invoices, transactions: result.transactions, cash }, result.invoice, result.invoice.id);
+          if (!saved.ok) return saved.message;
           setInvoices(result.invoices);
-          saveInvoices(result.invoices);
           setTransactions(result.transactions);
-          saveStoreTransactions(result.transactions);
-          postInvoiceCashEntry(result.invoice);
-          const sold = result.invoice.lines.map((line) => items[line.itemId]?.name ?? "");
-          if (result.invoice.kind === "sale" && result.invoice.clientId && saleLooksLikeDevice(sold)) {
-            const offer = {
-              clientId: result.invoice.clientId,
-              representativeId: result.invoice.representativeId,
-              name: clientStore[result.invoice.clientId]?.name,
-              invoiceId: result.invoice.id,
-              create: true,
-            };
-            // 🛰️ ticked in the invoice: straight to «🆕 إنشاء حساب جديد», linked to this sale.
-            if (result.createDevice) window.location.assign(buildNewDeviceHref(offer));
-            else setDeviceOffer(offer);
+          setCashEntries(cash);
+          const made = [...(saved.devices?.created ?? []), ...(saved.devices?.updated ?? [])];
+          if (made.length > 0) setAccounts(loadDemoAccounts([]));
+          // ⚡ «شحن الاشتراك الآن»: the device's «شحن / تفعيل» on the home page.
+          if (result.chargeNow && made.length === 1) {
+            window.location.assign(activateDeviceHref(made[0]!.id));
+            return null;
           }
+          if (made.length > 0) setSoldDevices(made);
+          return null;
         }}
       />
 
-      {deviceOffer && (
+      {soldDevices && (
         <div className="device-offer" role="status">
           <span aria-hidden="true">📡</span>
           <div>
-            <strong>بعت جهاز Starlink لـ {deviceOffer.name ?? "الزبون"}؟</strong>
-            <small>أنشئ حساب الجهاز الآن مربوطًا بالزبون{deviceOffer.representativeId ? " والمندوب" : ""} لمتابعة التجديد والديون.</small>
+            <strong>
+              ✅ {soldDevices.length === 1 ? `أُضيف «${soldDevices[0]!.name}»` : `أُضيف ${soldDevices.length} أجهزة`} إلى الأجهزة - «⏳ غير مفعّل»
+            </strong>
+            <small>تجده في الرئيسية تحت «⏳ غير مفعّل» - اشحنه وفعّله من بطاقته متى شئت.</small>
             <div className="device-offer-actions">
-              <Link href={buildNewDeviceHref(deviceOffer)} className="dialog-primary">
-                إنشاء حساب الجهاز
-              </Link>
-              <button type="button" className="text-action" onClick={() => setDeviceOffer(null)}>
-                لاحقًا
+              {soldDevices.length === 1 && (
+                <a href={activateDeviceHref(soldDevices[0]!.id)} className="dialog-primary">
+                  ⚡ شحن / تفعيل الآن
+                </a>
+              )}
+              <a href={PENDING_DEVICES_HREF} className="text-action">
+                عرض الأجهزة غير المفعّلة
+              </a>
+              <button type="button" className="text-action" onClick={() => setSoldDevices(null)}>
+                إغلاق
               </button>
             </div>
           </div>
@@ -462,20 +470,7 @@ export default function StorePage() {
    * الكاش automatically (invoiceId set, so it's never double-counted as a standalone expense -
    * see cashStore.ts's listStandaloneCashEntries) rather than making the operator re-enter the
    * same amount by hand in two places. */
-  function postInvoiceCashEntry(invoice: Invoice) {
-    if (invoice.paidAmount <= 0) return;
-    const result = recordCashEntry(cashEntries, {
-      kind: invoice.kind === "sale" ? "in" : "out",
-      amount: invoice.paidAmount,
-      currencyCode: invoice.currencyCode,
-      date: invoice.date,
-      category: invoice.kind === "sale" ? "فاتورة بيع" : "فاتورة شراء",
-      invoiceId: invoice.id,
-    });
-    if (!result.ok) return;
-    setCashEntries(result.entries);
-    saveCashEntries(result.entries);
-  }
+
 }
 
 interface ItemFormProps {
@@ -512,6 +507,9 @@ function ItemForm({ initial, onSubmit, onCancel }: ItemFormProps) {
   const [threshold, setThreshold] = useState(
     initial?.lowStockThreshold !== undefined ? String(initial.lowStockThreshold) : "",
   );
+  // 🛰️ «هذا جهاز Starlink»: unset follows the name (V4, Mini…) until he ticks it himself.
+  const [deviceFlag, setDeviceFlag] = useState<boolean | undefined>(initial?.isStarlinkDevice);
+  const isDevice = deviceFlag ?? isStarlinkItem({ name });
 
   async function handleImagePick(file: File | undefined) {
     if (!file) return;
@@ -540,6 +538,7 @@ function ItemForm({ initial, onSubmit, onCancel }: ItemFormProps) {
       defaultSaleCurrencyCode: salePrice ? saleCurrency : undefined,
       defaultWholesalePrice: wholesalePrice ? Number(wholesalePrice) : undefined,
       lowStockThreshold: threshold ? Number(threshold) : undefined,
+      ...(deviceFlag !== undefined ? { isStarlinkDevice: deviceFlag } : {}),
     });
   }
 
@@ -652,6 +651,11 @@ function ItemForm({ initial, onSubmit, onCancel }: ItemFormProps) {
         value={threshold}
         onChange={(e) => setThreshold(e.target.value)}
       />
+
+      <label className="sale-check">
+        <input type="checkbox" checked={isDevice} onChange={(e) => setDeviceFlag(e.target.checked)} />
+        <span>🛰️ هذا جهاز Starlink - عند البيع: رقم KIT لكل قطعة، ويُضاف كل جهاز إلى الأجهزة «غير مفعّل»</span>
+      </label>
 
       <div className="settings-actions">
         <button className="btn-icon" type="submit" disabled={!name.trim() || imageBusy}>
