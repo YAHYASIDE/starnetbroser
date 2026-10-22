@@ -147,8 +147,6 @@ export type MoneySectionId =
   | "reps"
   | "receivables"
   | "transfers"
-  | "compare"
-  | "analysis"
   | "records"
   | "reset";
 
@@ -163,8 +161,6 @@ export const MONEY_SECTIONS: { id: MoneySectionId; icon: string; title: string; 
   { id: "reps", icon: "🧑‍💼", title: "المندوبون", keywords: "مندوب مندوبين عمولة ربح" },
   { id: "receivables", icon: "📥", title: "المستحقات", keywords: "مستحق لك تحصيل موعد وعد" },
   { id: "transfers", icon: "🔁", title: "التحويلات", keywords: "تحويل نقل شراء عملة صرف تحويل الاموال" },
-  { id: "compare", icon: "⚖️", title: "مقارنات سريعة", keywords: "مقارنة الشهر الماضي نفس اليوم تحسن تراجع" },
-  { id: "analysis", icon: "📊", title: "التحليل المالي", keywords: "مؤشرات اهداف مخطط شهري هامش مصادر تحليل" },
   { id: "records", icon: "💵", title: "الدخل والمصروفات", keywords: "دخل مصروف راتب ايجار شهري" },
   { id: "reset", icon: "⚙️", title: "البداية من جديد", keywords: "تصفير حذف استرجاع" },
 ];
@@ -192,8 +188,13 @@ export function sectionOfLine(key: string): MoneySectionId {
   return "wallets";
 }
 
-/** His choice: the summary (always shown) and the alerts open, «يبقى لك» open; the rest folded. */
-export const DEFAULT_OPEN_SECTIONS: MoneySectionId[] = ["alerts", "period"];
+/** His Oct 22 2026 choice («اترك الفوق فقط… تحويل حساب إلى حساب، تحويل الأموال، البنوك والمحافظ والكاش، العملات،
+ * الزبائن»): those open on top; the rest folded under «المزيد» (`MORE_SECTIONS`). «مقارنات» and «التحليل
+ * المالي» left the page (they're in the reports). */
+export const DEFAULT_OPEN_SECTIONS: MoneySectionId[] = ["wallets", "transfers", "currencies", "customers"];
+
+/** The sections under «⋯ المزيد» at the bottom of «حسابي». */
+export const MORE_SECTIONS: MoneySectionId[] = ["alerts", "period", "starlink", "suppliers", "reps", "receivables", "records", "reset"];
 
 export function parseOpenSections(raw: string | null): MoneySectionId[] {
   if (!raw) return [...DEFAULT_OPEN_SECTIONS];

@@ -2056,3 +2056,16 @@ is never pressed while a field is empty - it refills and saves on the next try (
   buys converted at today's rates (display-only), else «unknown» and the report warns (`computeAveragePurchaseCost`
   with a currency, `unknownCostLines`). Not changed: a returned sale's rep commission still counts (as everywhere in
   the rep accounts).
+
+## 💰 «حسابي» simpler (Oct 22 2026)
+
+- His words: «لا أستطيع فهمه، فيه الكثير ويتكرر… احذف الكثير، وخاصة إشعارات البطاقة وعملياتها… اجعل غير المهم مطويًا…
+  اترك فوق فقط مثل القديم: تحويل حساب إلى حساب، تحويل الأموال، البنوك والمحافظ والكاش، العملات، صفحة الزبائن». His
+  choices: **the four summary cards stay, smaller and equal** (2×2, a tap opens its details - no expanding card, the
+  long note shortened to «في يدك الآن»); **«📩 عمليات البنوك» = a small button at the very bottom**; **«مقارنات
+  سريعة» and «التحليل المالي» removed** (the reports have them; the reports' search no longer points to them).
+- Order: cards → 💼 المحافظ والكاش → 🔁 التحويلات (between my accounts, buying currency, 💸 تحويل الأموال) → 💱 العملات →
+  👥 ديون الزبائن (open by default, `DEFAULT_OPEN_SECTIONS`), then «⋯ المزيد» folded (`MORE_SECTIONS`: التنبيهات، يبقى
+  لك، ديون ستارلينك، الموردون، المندوبون، المستحقات، الدخل والمصروف، البداية من جديد) - a card / alert / search hit into
+  one of them opens «المزيد». The «طي / فتح جميع الأقسام» bar is gone; the saved open sections restart
+  (`starnet.moneySections2`).

@@ -52,7 +52,6 @@ import { loadExpenseTree } from "@/lib/expenseTreeStore";
 import { loadPersonalExpenses, summarizeExpenses, type ExpenseCategory, type PersonalExpenseList } from "@/lib/personalExpenses";
 import { PersonalExpensesTab } from "@/components/PersonalExpensesTab";
 import { exportXlsx } from "@/lib/xlsxExport";
-import { DASH_SECTIONS } from "@/components/FinanceDashboard";
 import { REPORT_HIT_LABELS, searchReports, type ReportHit } from "@/lib/reportSearch";
 import { listSuppliers, loadSupplierStore, type SupplierStore } from "@/lib/supplierStore";
 import {
@@ -79,7 +78,6 @@ const SPAN_KEY = "starnet.reportsSpan";
 // "dash" is no longer a tab and falls back to «الصافي».
 const TAB_KEY = "starnet.reportsTab2";
 const TAB_IDS = Object.keys(TAB_LABELS) as ReportTab[];
-const MONEY_SECTIONS_KEY = "starnet.moneySections";
 
 function shipments(n: number): string {
   return `${n} ${n >= 3 && n <= 10 ? "شحنات" : "شحنة"}`;
@@ -427,7 +425,6 @@ export default function ReportsPage() {
     () =>
       searchReports(searchQuery, {
         sections: [
-          ...DASH_SECTIONS.map((s) => ({ id: s.id, title: s.title, keywords: s.keywords })),
           ...TAB_IDS.map((t) => ({ id: `tab-${t}`, title: TAB_LABELS[t], tab: t })),
         ],
         accounts,
@@ -444,17 +441,8 @@ export default function ReportsPage() {
     setSearchText("");
     setSearchQuery("");
     if (hit.tab) chooseTab(hit.tab as ReportTab);
-    else if (hit.section) {
-      // The dashboard's sections live in «💰 حسابي» now: open its «📊 التحليل المالي» there.
-      try {
-        const open = JSON.parse(window.localStorage.getItem(MONEY_SECTIONS_KEY) ?? "null");
-        const list: string[] = Array.isArray(open) ? open : ["alerts", "period"];
-        if (!list.includes("analysis")) window.localStorage.setItem(MONEY_SECTIONS_KEY, JSON.stringify([...list, "analysis"]));
-      } catch {
-        // per-phone convenience only
-      }
-      window.location.assign("/money/");
-    }
+    // «📊 التحليل المالي» left «حسابي» (his Oct 22 2026 choice): a section hit opens «حسابي».
+    else if (hit.section) window.location.assign("/money/");
   }
 
   // ⏳ D shipments: their expected profit, listed with the same details (both tabs).

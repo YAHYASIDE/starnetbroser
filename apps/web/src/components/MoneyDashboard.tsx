@@ -6,7 +6,7 @@
  * search results. The page wires them to its records and sheets.
  */
 
-import { ReactNode, useState } from "react";
+import { ReactNode } from "react";
 import { formatAmount } from "@/lib/formatAmount";
 import { cashCurrencyLabel } from "@/lib/cashCurrencies";
 import {
@@ -93,16 +93,15 @@ const SUMMARY_TONES: Record<SummaryKey, string> = { available: "money-card-have"
 
 /** أولًا: four big cards - ≈ أوقية big, each real currency under it; a tap shows how it's counted. */
 export function SummaryCards({ summary, onOpenSection }: { summary: MoneySummary; onOpenSection: (key: SummaryKey) => void }) {
-  const [openKey, setOpenKey] = useState<SummaryKey | null>(null);
+  // His Oct 22 2026 «اجعلها أصغر وحجمها متساوٍ»: four equal tiles; a tap opens its details below.
   return (
     <div className="money-summary" data-tour="money-summary">
       <div className="money-cards">
         {summary.figures.map((f) => {
           const currencies = Object.entries(f.byCurrency).filter(([, v]) => Math.abs(v) > 0.005);
-          const isOpen = openKey === f.key;
           return (
-            <div key={f.key} className={`money-card ${SUMMARY_TONES[f.key]}${f.key === "net" && f.mru < 0 ? " is-loss" : ""}${isOpen ? " money-card-open" : ""}`}>
-              <button type="button" className="money-card-main" aria-expanded={isOpen} onClick={() => setOpenKey(isOpen ? null : f.key)}>
+            <div key={f.key} className={`money-card ${SUMMARY_TONES[f.key]}${f.key === "net" && f.mru < 0 ? " is-loss" : ""}`}>
+              <button type="button" className="money-card-main" title={f.how} onClick={() => onOpenSection(f.key)}>
                 <span className="money-card-label">
                   <span aria-hidden="true">{f.icon}</span> {f.label}
                 </span>
@@ -119,20 +118,12 @@ export function SummaryCards({ summary, onOpenSection }: { summary: MoneySummary
                   </span>
                 )}
               </button>
-              {isOpen && (
-                <div className="money-card-how">
-                  <p>{f.how}</p>
-                  <button type="button" className="text-action" onClick={() => onOpenSection(f.key)}>
-                    التفاصيل ←
-                  </button>
-                </div>
-              )}
             </div>
           );
         })}
       </div>
       <p className="money-summary-note">
-        في يدك الآن (المتاح − الالتزامات): <bdi dir="ltr">≈ {mru(summary.inHandMru)}</bdi> أوقية · الأرقام الكبيرة تقريبية بأسعار الصرف المسجلة، وتحتها المبالغ الحقيقية بعملاتها.
+        في يدك الآن (المتاح − الالتزامات): <bdi dir="ltr">≈ {mru(summary.inHandMru)}</bdi> أوقية
       </p>
     </div>
   );

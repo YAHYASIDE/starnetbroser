@@ -19007,3 +19007,32 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
 }
 .report-subhead { margin: 14px 2px 8px; font-size: 0.95rem; }
 .report-warn-note { margin-top: 8px; color: var(--orange, var(--text-muted)); }
+
+/* 💰 «حسابي» simpler (his Oct 22 2026 ask): four small equal tiles, the rest folded under «⋯ المزيد». */
+.money-cards { grid-auto-rows: 1fr; gap: 6px; }
+.money-card-main { min-height: 0; height: 100%; gap: 2px; padding: 8px 9px; justify-content: flex-start; }
+.money-card-label { font-size: 0.7rem; }
+.money-card-value { font-size: 1rem; }
+.money-card-value small { font-size: 0.6rem; }
+.money-card-currencies { font-size: 0.66rem; color: var(--text-muted); }
+.money-more {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.money-more > summary {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  cursor: pointer;
+  font-weight: 800;
+}
+.money-more > summary::-webkit-details-marker { display: none; }
+.money-more > summary small { font-weight: 500; font-size: 0.7rem; color: var(--text-muted); }
+.money-more[open] > summary { border-bottom: 1px solid var(--border); }
+.money-more[open] { padding-bottom: 8px; }
+.money-more > .money-section { margin-inline: 8px; }
+.money-bank-bottom .bank-inbox-card { padding: 0; border: 0; background: none; box-shadow: none; }
+.money-bank-bottom .bank-inbox-open { min-height: 38px; padding: 6px 12px; font-size: 0.8rem; }
