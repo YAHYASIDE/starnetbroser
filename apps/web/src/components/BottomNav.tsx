@@ -188,6 +188,7 @@ const TOP_MORE_ITEMS: MoreItem[] = [
   { label: "ستارلينك والبطاقة", icon: "card", color: "#1668e3", tint: "#d6e3fb", href: "/starlink" },
   { label: "العملات", icon: "coins", color: "#22c55e", tint: "#d4f7e1", href: "/currencies" },
   { label: "البريد المسجّل", icon: "mail", color: "#0891b2", tint: "#dbf3f9", href: "/mailboxes" },
+  { label: "🔑 الأكواد", icon: "mail", color: "#7c3aed", tint: "#efe7ff", href: "/mailboxes#codes" },
   { label: "الأرشيف", icon: "archive", color: "#64748b", tint: "#e2e8f0", href: "/archive" },
   { label: "سلة المحذوفات", icon: "trash", color: "#e0294a", tint: "#ffd6de", href: "/trash" },
   { label: "الإعدادات", icon: "settings", color: "#f5a524", tint: "#ffecc7", href: "/settings" },

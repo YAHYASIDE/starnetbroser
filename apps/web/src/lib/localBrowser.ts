@@ -543,6 +543,26 @@ export function onAccountDataSynced(
  * live accountDataSynced event alone is not enough, since it is silently dropped whenever the
  * app's Bridge/WebView wasn't attached and resumed at the moment AccountBrowserActivity fired it.
  */
+/** 🔑 «الأكواد»: the verification codes the app read from mailboxes, newest first (phone only). */
+export async function listVerificationCodes(): Promise<{ at: number; accountId: string; kind: "starlink" | "mail" | "card"; code: string }[]> {
+  if (!isRunningInAndroidApp()) return [];
+  try {
+    const { codes } = await LocalBrowser.listVerificationCodes();
+    return codes;
+  } catch {
+    return [];
+  }
+}
+
+export async function clearVerificationCodes(): Promise<void> {
+  if (!isRunningInAndroidApp()) return;
+  try {
+    await LocalBrowser.clearVerificationCodes();
+  } catch {
+    // older app: nothing kept
+  }
+}
+
 export async function listPendingAccountSyncs(): Promise<PendingAccountSync[]> {
   if (!isRunningInAndroidApp()) return [];
   try {

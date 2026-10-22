@@ -10,6 +10,7 @@ import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
 import { ClientStore, loadClientStore } from "@/lib/clientStore";
 import { isRunningInAndroidApp, listMailSessions, mailLoginFor, openIsolatedMailbox } from "@/lib/localBrowser";
 import { buildMailboxRows, gmailCount, MailboxFilter, MailboxSession, signedInCount } from "@/lib/mailboxes";
+import { CodesSection } from "@/components/CodesSection";
 
 function formatSince(ms?: number): string {
   if (!ms) return "";
@@ -73,6 +74,8 @@ export default function MailboxesPage() {
         </Link>
         <h1 className="section-title">📧 البريد المسجّل</h1>
       </div>
+
+      <CodesSection accounts={accounts} />
 
       <section className="section">
         <p className="mailbox-summary">

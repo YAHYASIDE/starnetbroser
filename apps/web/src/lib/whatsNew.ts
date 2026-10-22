@@ -31,6 +31,20 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-22-codes",
+    date: "2026-10-22",
+    title: "🔑 الأكواد محفوظة في التطبيق",
+    steps: [
+      {
+        path: "/mailboxes",
+        target: "codes",
+        title: "🔑 الأكواد",
+        before: "رمز التحقق يُكتب في الصفحة ثم يضيع.",
+        after: "كل رمز يقرؤه التطبيق من البريد (دخول Starlink، دخول البريد، دفع البطاقة) يُحفظ هنا 30 يومًا مع الجهاز والوقت - اضغطه لتنسخه. من «المزيد» ← «🔑 الأكواد». وتحته خطوات حفظ مفاتيح المرور في حساب Google.",
+      },
+    ],
+  },
+  {
     id: "2026-10-22-money-simple",
     date: "2026-10-22",
     title: "💰 «حسابي» أبسط",

@@ -2069,3 +2069,18 @@ is never pressed while a field is empty - it refills and saves on the next try (
   لك، ديون ستارلينك، الموردون، المندوبون، المستحقات، الدخل والمصروف، البداية من جديد) - a card / alert / search hit into
   one of them opens «المزيد». The «طي / فتح جميع الأقسام» bar is gone; the saved open sections restart
   (`starnet.moneySections2`).
+
+## 🔑 «الأكواد» - verification codes kept in the app (Oct 22 2026)
+
+- His question on Starlink's Passkeys page («Microsoft Password Manager · Never used»): «أين تُحفظ أكواد التحقق، في
+  أي بريد؟ أريدها تُحفظ في التطبيق». Answer: that passkey is in Microsoft's password manager on his phone (his
+  Microsoft account), not in a mail; the app always signs in with the password. Asked what to keep, **he chose all
+  three**: (1) passkeys in his Google account (steps only - no code), (2) passkeys inside STAR NET (big, experimental,
+  next), (3) **a log of the codes inside the app** («خاصة أن يُحفظ في البريد وداخل التطبيق»).
+- Built (3): every code the app reads from a mailbox - Starlink two-step (`AccountBrowserActivity`), the mailbox's
+  own sign-in code (`MailBrowserActivity`), the card's payment code (`CardFillController`) - goes to
+  `CodeLogStore` (pure `CodeLog`: 30 days, 200 codes, one per device+code; app-private prefs, not backed up, never
+  logged). Plugin `listVerificationCodes` / `clearVerificationCodes`. Shown at the top of «📧 البريد المسجّل»
+  (`components/CodesSection.tsx`, `lib/verificationCodes.ts`): device, what for, how long ago, tap to copy,
+  «🗑 مسح»; «المزيد» → «🔑 الأكواد» opens `/mailboxes#codes`. (1) is a fold there with the phone steps
+  (Settings → passwords/passkeys → preferred service Google → re-add the passkey in Starlink).

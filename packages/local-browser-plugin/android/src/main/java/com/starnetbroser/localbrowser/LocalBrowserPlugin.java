@@ -998,6 +998,20 @@ public class LocalBrowserPlugin extends Plugin {
         call.resolve(ret);
     }
 
+    /** 🔑 «الأكواد»: the verification codes the app read from mailboxes, newest first (CodeLogStore). */
+    @PluginMethod
+    public void listVerificationCodes(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("codes", CodeLogStore.list(getContext()));
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void clearVerificationCodes(PluginCall call) {
+        CodeLogStore.clear(getContext());
+        call.resolve();
+    }
+
     @PluginMethod
     public void listPendingAccountSyncs(PluginCall call) {
         JSONArray pending = PendingSyncStore.listPending(getContext());

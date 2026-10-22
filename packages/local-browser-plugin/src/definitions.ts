@@ -279,6 +279,15 @@ export interface PendingAccountSync extends AccountDataSyncedEvent {
   recordedAt: number;
 }
 
+export interface VerificationCode {
+  /** ms since epoch. */
+  at: number;
+  /** The device it was read for ("" = the card's payment code). */
+  accountId: string;
+  kind: "starlink" | "mail" | "card";
+  code: string;
+}
+
 export interface ListPendingAccountSyncsResult {
   syncs: PendingAccountSync[];
 }
@@ -541,6 +550,12 @@ export interface LocalBrowserPlugin {
    * however long the app stayed backgrounded after "تحديث من Starlink" was tapped.
    */
   listPendingAccountSyncs(): Promise<ListPendingAccountSyncsResult>;
+
+  /** 🔑 «الأكواد»: the verification codes the app read from mailboxes (Starlink two-step, the
+   * mailbox's own sign-in code, the card's payment code), newest first - 30 days, 200 at most.
+   * Always empty on web. */
+  listVerificationCodes(): Promise<{ codes: VerificationCode[] }>;
+  clearVerificationCodes(): Promise<void>;
 
   /** 🔄 How each auto-sync ended since the last call («تحديث من Starlink» / «مزامنة الآن») - and
    * forgets them. Empty on web. */

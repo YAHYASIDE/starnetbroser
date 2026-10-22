@@ -21,6 +21,7 @@ import type {
   ImportSessionCookiesResult,
   IsSupportedResult,
   ListPendingAccountSyncsResult,
+  VerificationCode,
   AutoSyncResult,
   LocalBrowserPlugin,
   OpenAccountBrowserOptions,
@@ -71,6 +72,12 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
   async listPendingAccountSyncs(): Promise<ListPendingAccountSyncsResult> {
     return { syncs: [] };
   }
+
+  async listVerificationCodes(): Promise<{ codes: VerificationCode[] }> {
+    return { codes: [] };
+  }
+
+  async clearVerificationCodes(): Promise<void> {}
 
   async takeAutoSyncResults(): Promise<{ results: AutoSyncResult[] }> {
     return { results: [] };

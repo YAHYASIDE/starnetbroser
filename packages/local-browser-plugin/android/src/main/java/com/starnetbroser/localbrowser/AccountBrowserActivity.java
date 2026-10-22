@@ -812,6 +812,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
                 public void onCode(String code) {
                     codeFetcher = null;
                     prefs.edit().putString(accountId, StarlinkTwoStep.remember(prefs.getString(accountId, ""), code)).apply();
+                    CodeLogStore.record(AccountBrowserActivity.this, accountId, "starlink", code);
                     lastFillAt = System.currentTimeMillis();
                     autoFills++;
                     if (webView != null && AllowedUrl.isAllowed(webView.getUrl())) {

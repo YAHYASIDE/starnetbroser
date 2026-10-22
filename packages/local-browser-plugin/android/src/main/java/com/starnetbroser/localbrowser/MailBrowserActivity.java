@@ -313,6 +313,7 @@ public class MailBrowserActivity extends AppCompatActivity {
                     gmailFetcher = null;
                     codeWaitDone = true;
                     lastCodeAt = System.currentTimeMillis();
+                    CodeLogStore.record(MailBrowserActivity.this, accountId, "mail", code);
                     if (webView != null) webView.evaluateJavascript(GmailCodes.fillScript(code), null);
                     ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
                     if (clipboard != null) clipboard.setPrimaryClip(ClipData.newPlainText("code", code));

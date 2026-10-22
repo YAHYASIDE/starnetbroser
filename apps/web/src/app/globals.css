@@ -19036,3 +19036,40 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
 .money-more > .money-section { margin-inline: 8px; }
 .money-bank-bottom .bank-inbox-card { padding: 0; border: 0; background: none; box-shadow: none; }
 .money-bank-bottom .bank-inbox-open { min-height: 38px; padding: 6px 12px; font-size: 0.8rem; }
+
+/* 🔑 «الأكواد» on the mailboxes page (Oct 22 2026). */
+.codes-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.codes-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.codes-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 10px);
+  background: var(--surface);
+}
+.codes-row.is-fresh { border-color: color-mix(in srgb, var(--green) 55%, var(--border)); }
+.codes-main { display: flex; flex-direction: column; gap: 1px; flex: 1 1 auto; min-width: 0; }
+.codes-main small { color: var(--text-muted); font-size: 0.74rem; }
+.codes-email { font-size: 0.72rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.codes-code {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 10px);
+  background: var(--surface-alt, var(--surface));
+  color: var(--text);
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+}
+.codes-help { margin-top: 10px; }
+.codes-help summary { cursor: pointer; font-weight: 700; font-size: 0.86rem; }
+.codes-help ol { margin: 8px 0; padding-inline-start: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 0.84rem; }

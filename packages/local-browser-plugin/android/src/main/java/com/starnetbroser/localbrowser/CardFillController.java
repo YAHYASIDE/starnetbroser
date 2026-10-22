@@ -336,6 +336,7 @@ final class CardFillController {
         if (!flowRunning() || !flow.awaitingCode() || otpFrame == null) return;
         String digits = code.replaceAll("\\D", "");
         if (sentCodes.contains(digits)) return;
+        CodeLogStore.record(activity, "", "card", digits);
         PaymentCodeInbox.stop(codeListener);
         stopGmail();
         sentCodes.add(digits);
