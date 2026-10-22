@@ -10,6 +10,7 @@ const fs = require("fs");
 const { pathToFileURL } = require("url");
 const { resolveFile } = require("./paths");
 const devices = require("./devices");
+const mail = require("./mail");
 const { attachZoom, readZoom } = require("./zoom");
 
 const ORIGIN = "app://starnet";
@@ -96,6 +97,7 @@ app.whenReady().then(() => {
     return net.fetch(pathToFileURL(file).toString());
   });
   devices.register(ipcMain, () => win, zoom);
+  mail.register(ipcMain, () => win, zoom);
   createWindow();
 });
 

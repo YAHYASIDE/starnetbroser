@@ -11,6 +11,7 @@ import { ClientStore, loadClientStore } from "@/lib/clientStore";
 import { isRunningInAndroidApp, listMailSessions, mailLoginFor, openIsolatedMailbox } from "@/lib/localBrowser";
 import { buildMailboxRows, gmailCount, MailboxFilter, MailboxSession, signedInCount } from "@/lib/mailboxes";
 import { CodesSection } from "@/components/CodesSection";
+import { isDesktopApp } from "@/lib/desktop";
 
 function formatSince(ms?: number): string {
   if (!ms) return "";
@@ -29,7 +30,7 @@ export default function MailboxesPage() {
   const [opening, setOpening] = useState<string | null>(null);
 
   useEffect(() => {
-    setInApp(isRunningInAndroidApp());
+    setInApp(isRunningInAndroidApp() || isDesktopApp());
     setClientStore(loadClientStore());
     if (isDemoMode()) setAccounts(loadDemoAccounts(demoAccounts));
     else if (isLoggedIn()) listAccounts().then(setAccounts).catch(() => {});
@@ -86,7 +87,7 @@ export default function MailboxesPage() {
             من <bdi dir="ltr">{total}</bdi> إيميل
           </span>
         </p>
-        {!inApp && <p className="settings-hint">حالة التسجيل وفتح البريد متاحان داخل تطبيق Android فقط.</p>}
+        {!inApp && <p className="settings-hint">حالة التسجيل وفتح البريد متاحان في تطبيق Android وبرنامج الويندوس فقط.</p>}
         {gmailCount(accounts) > 0 && (
           <p className="settings-hint">
             إيميلات Gmail (<bdi dir="ltr">{gmailCount(accounts)}</bdi>) غير معروضة: Google تمنع فتحها داخل التطبيق.

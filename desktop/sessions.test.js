@@ -60,3 +60,34 @@ test("allowed urls and export string", () => {
   assert.ok(!isStarlinkUrl("https://notstarlink.com"));
   assert.equal(combineCookies([{ name: "a", value: "1" }, { name: "b", value: "" }, { name: "" }]), "a=1; b=");
 });
+
+const { isMailUrl, inboxUrlFor, mailSessionState, mailPartitionFor, mailRestorePlan, isGmail } = require("./sessions");
+
+test("📧 a mailbox window opens only Outlook / Microsoft sign-in (and Gmail) over https", () => {
+  assert.equal(isMailUrl("https://outlook.live.com/mail/0/"), true);
+  assert.equal(isMailUrl("https://login.live.com/oauth"), true);
+  assert.equal(isMailUrl("https://login.microsoftonline.com/x"), true);
+  assert.equal(isMailUrl("http://outlook.live.com/"), false);
+  assert.equal(isMailUrl("https://evil-live.com/"), false);
+  assert.equal(isMailUrl("https://starlink.com/"), false);
+  assert.equal(inboxUrlFor("demo@outlook.com"), "https://outlook.live.com/mail/0/?login_hint=demo%40outlook.com");
+  assert.equal(inboxUrlFor(""), "https://outlook.live.com/mail/0/");
+  assert.equal(isGmail("x@gmail.com"), true);
+  assert.equal(isGmail("x@outlook.com"), false);
+});
+
+test("📧 the inbox = signed in, Microsoft's login = signed out", () => {
+  assert.equal(mailSessionState("https://outlook.live.com/mail/0/inbox"), "signedIn");
+  assert.equal(mailSessionState("https://login.live.com/login.srf"), "signedOut");
+  assert.equal(mailSessionState("https://account.microsoft.com/"), "unknown");
+  assert.equal(mailSessionState("https://starlink.com/"), "unknown");
+});
+
+test("📧 the phone's «mail:<id>» sessions restore into the device's own mailbox storage", () => {
+  assert.notEqual(mailPartitionFor("d1"), partitionFor("d1"));
+  const plan = mailRestorePlan({ "mail:d1": { "https://live.com": "a=1", "https://evil.com": "x=1" }, d1: { "https://starlink.com": "s=1" } }, NOW);
+  assert.equal(plan.length, 1);
+  assert.equal(plan[0].accountId, "d1");
+  assert.deepEqual(plan[0].cookies.map((c) => [c.name, c.domain]), [["a", "live.com"]]);
+  assert.equal(starlinkRestorePlan({ "mail:d1": { "https://live.com": "a=1" } }, NOW).length, 0);
+});

@@ -2118,3 +2118,17 @@ is never pressed while a field is empty - it refills and saves on the next try (
     gap at today's rate, the plan's sale currency or أوقية) → a client party adjustment «عليه» with the note
     «رصيد سابق - فرق Starlink X $ (device)». It doesn't touch Starlink's D, so the gap chip stays until Starlink is
     paid or recorded.
+
+## 🖥️ The laptop works with the devices' mailboxes and codes (Oct 22 2026)
+
+- His ask «اجعل نسخة اللابتوب تعمل بالأجهزة المسجّلة والبريدات». His choices (all suggested): **a window per mailbox with
+  its session**, **the Starlink code read and typed by itself**, **«تحديث» from Starlink on the laptop** (built after).
+- 📧 `desktop/mail.js`: each device's Outlook in its own storage (`persist:mail-<sha256>`, apart from its Starlink
+  window), only Outlook / Microsoft sign-in pages (`isMailUrl`), the saved email + code typed (autofill.js, never
+  submits), a Gmail address opens in the normal browser (Google refuses embedded sign-in). The phone backup's
+  «mail:<id>» sessions restore into it (`mailRestorePlan`, apex live.com) and a laptop backup carries them
+  (`exportSessions(ids, includeMailbox)`); signed-in marks in `mail-sessions.json` → «البريد المسجّل» and the green
+  «📧 البريد» (`listMailSessions`).
+- 🔑 `desktop/codes.js` + pure `twostep.js` (port of StarlinkTwoStep / MailCode / CodeLog, node tests): a device window
+  showing «التحقق بخطوتين» opens its mailbox hidden, reads the newest new code (Other tab, reload every 20 s, 2 min),
+  types it, notifies; a signed-out mailbox is shown for one sign-in. Codes → `codes.json` → «🔑 الأكواد» on the laptop.

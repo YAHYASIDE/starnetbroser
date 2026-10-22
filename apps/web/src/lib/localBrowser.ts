@@ -113,6 +113,14 @@ export function mailLoginFor(
 
 /** The devices whose mailbox is signed in on this phone (the green «📧 البريد»). Empty off-app. */
 export async function listMailSessions(): Promise<{ accountId: string; email: string; signedInAt: number }[]> {
+  const desktop = desktopBridge();
+  if (desktop?.listMailSessions) {
+    try {
+      return await desktop.listMailSessions();
+    } catch {
+      return [];
+    }
+  }
   if (!isRunningInAndroidApp()) return [];
   try {
     const { sessions } = await LocalBrowser.listMailSessions();
@@ -124,6 +132,22 @@ export async function listMailSessions(): Promise<{ accountId: string; email: st
 
 /** Opens the device's Outlook mailbox inside the app, in its own isolated profile. */
 export async function openIsolatedMailbox(accountId: string, accountName: string, login: MailLogin = {}): Promise<OpenResult> {
+  const desktop = desktopBridge();
+  if (desktop) {
+    // 🖥️ The Windows app: the device's own mailbox window (desktop/mail.js).
+    if (!desktop.openMailbox) return { ok: false, message: "حدّث برنامج STAR NET على اللابتوب لفتح البريد" };
+    try {
+      const result = await desktop.openMailbox({
+        accountId,
+        accountName,
+        ...(login.email ? { email: login.email } : {}),
+        ...(login.password ? { password: login.password } : {}),
+      });
+      return result.ok ? { ok: true } : { ok: false, message: result.message || "تعذر فتح البريد" };
+    } catch {
+      return { ok: false, message: "تعذر فتح البريد" };
+    }
+  }
   if (!isRunningInAndroidApp()) {
     return { ok: false, message: ANDROID_ONLY_MESSAGE };
   }
@@ -151,6 +175,8 @@ export async function openIsolatedAccountBrowser(accountId: string, accountName:
         accountName,
         ...(login.loginEmail ? { loginEmail: login.loginEmail } : {}),
         ...(login.loginPassword ? { loginPassword: login.loginPassword } : {}),
+        // 🔑 its mailbox's code: the two-step code is read from it and typed (desktop/codes.js).
+        ...(login.mailPassword ? { mailPassword: login.mailPassword } : {}),
       });
       return result.ok ? { ok: true } : { ok: false, message: result.message || "تعذر فتح الجهاز" };
     } catch {
@@ -545,6 +571,14 @@ export function onAccountDataSynced(
  */
 /** 🔑 «الأكواد»: the verification codes the app read from mailboxes, newest first (phone only). */
 export async function listVerificationCodes(): Promise<{ at: number; accountId: string; kind: "starlink" | "mail" | "card"; code: string }[]> {
+  const desktop = desktopBridge();
+  if (desktop?.listVerificationCodes) {
+    try {
+      return await desktop.listVerificationCodes();
+    } catch {
+      return [];
+    }
+  }
   if (!isRunningInAndroidApp()) return [];
   try {
     const { codes } = await LocalBrowser.listVerificationCodes();
@@ -555,6 +589,11 @@ export async function listVerificationCodes(): Promise<{ at: number; accountId: 
 }
 
 export async function clearVerificationCodes(): Promise<void> {
+  const desktop = desktopBridge();
+  if (desktop?.clearVerificationCodes) {
+    await desktop.clearVerificationCodes().catch(() => {});
+    return;
+  }
   if (!isRunningInAndroidApp()) return;
   try {
     await LocalBrowser.clearVerificationCodes();
@@ -674,7 +713,7 @@ export async function exportAccountSessions(accountIds: string[], includeMailbox
   const desktop = desktopBridge();
   if (desktop?.exportSessions) {
     try {
-      return await desktop.exportSessions(accountIds);
+      return await desktop.exportSessions(accountIds, includeMailbox);
     } catch {
       return {};
     }
@@ -697,7 +736,7 @@ export async function exportAccountSessions(accountIds: string[], includeMailbox
 export async function importAccountSessions(sessions: SessionsByAccount): Promise<{ ok: boolean; importedCount: number }> {
   const desktop = desktopBridge();
   if (desktop?.importSessions) {
-    // 🖥️ Into each device's own window on the laptop (the phone's mailbox sessions stay out).
+    // 🖥️ Into each device's own windows on the laptop (Starlink and 📧 its mailbox).
     try {
       const { importedCount } = await desktop.importSessions(sessions);
       return { ok: true, importedCount };

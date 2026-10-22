@@ -6,6 +6,8 @@ const { BrowserWindow, Menu, session, shell, app } = require("electron");
 const { SESSION_COOKIE_URLS, isStarlinkUrl, partitionFor, starlinkRestorePlan, combineCookies } = require("./sessions");
 const { loginScript } = require("./autofill");
 const { attachZoom } = require("./zoom");
+const mail = require("./mail");
+const codes = require("./codes");
 
 const HOME_URL = "https://starlink.com/account/home";
 const open = new Map();
@@ -90,6 +92,12 @@ function openDevice(opts) {
     wc.on("did-finish-load", fill);
     wc.on("did-navigate-in-page", fill);
   }
+  // 🔑 «التحقق بخطوتين»: the code from this device's mailbox, typed by itself.
+  const mailEmail = text(opts.mailEmail, 320) || text(opts.loginEmail, 320);
+  const mailPassword = text(opts.mailPassword, 500) || text(opts.loginPassword, 500);
+  if (mailEmail) {
+    codes.watch(view, accountId, (show) => mail.openMailbox({ accountId, accountName: name, email: mailEmail, password: mailPassword }, { show }));
+  }
   view.loadURL(HOME_URL).catch(() => {});
   return { ok: true };
 }
@@ -112,10 +120,12 @@ async function importSessions(sessions) {
       importedCount++;
     }
   }
+  // 📧 the phone's «mail:<id>» mailboxes into each device's mailbox window.
+  importedCount += await mail.importMailSessions(sessions);
   return { importedCount };
 }
 
-async function exportSessions(accountIds) {
+async function exportSessions(accountIds, includeMailbox) {
   const out = {};
   for (const raw of Array.isArray(accountIds) ? accountIds : []) {
     const accountId = text(raw, 200).trim();
@@ -128,6 +138,7 @@ async function exportSessions(accountIds) {
     }
     if (Object.keys(byUrl).length) out[accountId] = byUrl;
   }
+  if (includeMailbox) Object.assign(out, await mail.exportMailSessions(accountIds));
   return out;
 }
 
@@ -149,8 +160,10 @@ function register(ipcMain, mainWindow, zoom) {
   };
   ipcMain.handle("starnet:open-device", (event, opts) => (fromApp(event) ? openDevice(opts || {}) : { ok: false, message: "غير مسموح" }));
   ipcMain.handle("starnet:import-sessions", (event, sessions) => (fromApp(event) ? importSessions(sessions) : { importedCount: 0 }));
-  ipcMain.handle("starnet:export-sessions", (event, ids) => (fromApp(event) ? exportSessions(ids) : {}));
+  ipcMain.handle("starnet:export-sessions", (event, ids, includeMailbox) => (fromApp(event) ? exportSessions(ids, includeMailbox === true) : {}));
   ipcMain.handle("starnet:delete-session", (event, id) => (fromApp(event) ? deleteSession(id) : false));
+  ipcMain.handle("starnet:list-codes", (event) => (fromApp(event) ? codes.listCodes() : []));
+  ipcMain.handle("starnet:clear-codes", (event) => (fromApp(event) ? codes.clearCodes() : undefined));
   app.on("before-quit", () => {
     for (const view of open.values()) if (!view.isDestroyed()) view.destroy();
   });

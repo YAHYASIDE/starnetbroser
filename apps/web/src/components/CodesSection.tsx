@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { clearVerificationCodes, isRunningInAndroidApp, listVerificationCodes } from "@/lib/localBrowser";
 import { buildCodeRows, type StoredCode } from "@/lib/verificationCodes";
+import { isDesktopApp } from "@/lib/desktop";
 
 /** 🔑 «الأكواد» (his Oct 22 2026 ask): every verification code the app read from a mailbox, kept 30 days
  * on this phone; tap 📋 to copy. With the steps to keep passkeys in his Google account. */
@@ -12,7 +13,7 @@ export function CodesSection({ accounts }: { accounts: StarlinkAccountSummary[] 
   const [query, setQuery] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
-  const inApp = isRunningInAndroidApp();
+  const inApp = isRunningInAndroidApp() || isDesktopApp();
 
   useEffect(() => {
     let alive = true;
@@ -66,7 +67,7 @@ export function CodesSection({ accounts }: { accounts: StarlinkAccountSummary[] 
         فقط بعد وصوله.
       </p>
       {!inApp ? (
-        <p className="settings-hint">الأكواد تُحفظ داخل تطبيق Android فقط.</p>
+        <p className="settings-hint">الأكواد تُحفظ في تطبيق Android وبرنامج الويندوس فقط.</p>
       ) : codes.length === 0 ? (
         <p className="empty-state">لا أكواد بعد - تظهر هنا عندما يقرأ التطبيق رمزًا من بريد جهاز.</p>
       ) : (

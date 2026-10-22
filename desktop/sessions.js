@@ -124,6 +124,73 @@ function starlinkRestorePlan(sessions, nowSeconds) {
   return plan;
 }
 
+// ---- 📧 the device's mailbox (his Oct 22 2026 choice «نافذة لكل بريد بجلسته») - the phone's MailUrl ----
+
+const MAIL_COOKIE_APEX = "live.com";
+/** The Outlook hosts whose cookies keep a mailbox signed in (the phone's MailUrl.MAIL_COOKIE_URLS). */
+const MAIL_COOKIE_URLS = ["https://live.com", "https://login.live.com", "https://outlook.live.com", "https://account.microsoft.com"];
+const MAIL_HOSTS = ["outlook.live.com", "outlook.com", "live.com", "hotmail.com", "microsoft.com", "microsoftonline.com", "office.com", "mail.google.com", "accounts.google.com"];
+const INBOX_URL = "https://outlook.live.com/mail/0/";
+
+/** Only https pages of Outlook / Microsoft sign-in (and Gmail's) - never an arbitrary site. */
+function isMailUrl(url) {
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return false;
+  }
+  if (u.protocol !== "https:") return false;
+  const host = u.hostname.toLowerCase();
+  return MAIL_HOSTS.some((h) => host === h || host.endsWith(`.${h}`));
+}
+
+function isGmail(email) {
+  return /@(gmail|googlemail)\.com$/i.test(String(email || "").trim());
+}
+
+/** The inbox, with the email as Microsoft's sign-in hint. */
+function inboxUrlFor(email) {
+  const e = String(email || "").trim();
+  return e ? `${INBOX_URL}?login_hint=${encodeURIComponent(e)}` : INBOX_URL;
+}
+
+/** What a loaded mailbox page says about its sign-in. */
+function mailSessionState(url) {
+  if (!isMailUrl(url)) return "unknown";
+  const u = new URL(url);
+  const host = u.hostname.toLowerCase();
+  const path = u.pathname.toLowerCase();
+  if ((host === "outlook.live.com" || host === "mail.google.com") && path.startsWith("/mail/")) return "signedIn";
+  if (host.startsWith("login.") || host === "accounts.google.com") return "signedOut";
+  return "unknown";
+}
+
+/** Each device's mailbox storage - apart from its Starlink window and from every other device. */
+function mailPartitionFor(accountId) {
+  const id = String(accountId || "").trim();
+  if (!id) throw new Error("accountId must not be blank");
+  return `persist:mail-${crypto.createHash("sha256").update(id).digest("hex")}`;
+}
+
+/** The mailboxes of a backup's sessions («mail:<id>» on the phone): [{accountId, cookies}]. */
+function mailRestorePlan(sessions, nowSeconds) {
+  const plan = [];
+  if (!sessions || typeof sessions !== "object") return plan;
+  for (const [key, byUrl] of Object.entries(sessions)) {
+    if (!key.startsWith(MAIL_PREFIX)) continue;
+    const accountId = key.slice(MAIL_PREFIX.length).trim();
+    if (!accountId || !byUrl || typeof byUrl !== "object") continue;
+    const allowed = {};
+    for (const [url, combined] of Object.entries(byUrl)) {
+      if (isMailUrl(url) && typeof combined === "string") allowed[url] = combined;
+    }
+    const cookies = buildRestoreCookies(allowed, MAIL_COOKIE_APEX, nowSeconds);
+    if (cookies.length) plan.push({ accountId, cookies });
+  }
+  return plan;
+}
+
 /** Electron's cookies of one url back into the phone's "name=value; ..." string ("" when none). */
 function combineCookies(cookies) {
   return (cookies || [])
@@ -133,6 +200,14 @@ function combineCookies(cookies) {
 }
 
 module.exports = {
+  MAIL_PREFIX,
+  MAIL_COOKIE_URLS,
+  isMailUrl,
+  isGmail,
+  inboxUrlFor,
+  mailSessionState,
+  mailPartitionFor,
+  mailRestorePlan,
   SESSION_COOKIE_URLS,
   STARLINK_APEX,
   RESTORED_MAX_AGE_SECONDS,

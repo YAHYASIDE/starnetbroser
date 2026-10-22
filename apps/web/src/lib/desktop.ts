@@ -18,9 +18,15 @@ export function isDesktopApp(): boolean {
 export interface DesktopBridge {
   platform: string;
   version: string;
-  openDevice?: (opts: { accountId: string; accountName: string; loginEmail?: string; loginPassword?: string }) => Promise<{ ok: boolean; message?: string }>;
+  openDevice?: (opts: { accountId: string; accountName: string; loginEmail?: string; loginPassword?: string; mailPassword?: string }) => Promise<{ ok: boolean; message?: string }>;
   importSessions?: (sessions: Record<string, Record<string, string>>) => Promise<{ importedCount: number }>;
-  exportSessions?: (accountIds: string[]) => Promise<Record<string, Record<string, string>>>;
+  exportSessions?: (accountIds: string[], includeMailbox?: boolean) => Promise<Record<string, Record<string, string>>>;
+  /** 📧 The device's own mailbox window (desktop/mail.js). */
+  openMailbox?: (opts: { accountId: string; accountName: string; email?: string; password?: string }) => Promise<{ ok: boolean; message?: string }>;
+  listMailSessions?: () => Promise<{ accountId: string; email: string; signedInAt: number }[]>;
+  /** 🔑 the codes read on this laptop (desktop/codes.js), newest first. */
+  listVerificationCodes?: () => Promise<{ at: number; accountId: string; kind: "starlink" | "mail" | "card"; code: string }[]>;
+  clearVerificationCodes?: () => Promise<void>;
   deleteSession?: (accountId: string) => Promise<boolean>;
 }
 
