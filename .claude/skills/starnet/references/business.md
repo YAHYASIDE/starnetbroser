@@ -2084,6 +2084,10 @@ is never pressed while a field is empty - it refills and saves on the next try (
   (`components/CodesSection.tsx`, `lib/verificationCodes.ts`): device, what for, how long ago, tap to copy,
   «🗑 مسح»; «المزيد» → «🔑 الأكواد» opens `/mailboxes#codes`. (1) is a fold there with the phone steps
   (Settings → passwords/passkeys → preferred service Google → re-add the passkey in Starlink).
+- **(2) dropped - his final choice «لا تبنِ الخزنة، سأحفظها في حساب Google»** (after I explained a passkey lives in
+  the Google account's password manager, not in a mail, can't be read by STAR NET, and Google gives it only to known
+  browsers - the app keeps signing in with the password + the mail code). Passkeys go in his Google account (the
+  «بريد الرموز» Gmail suggested); no in-app passkey store / credential provider.
 
 ## 🛍️ Store: edit past invoices, a rep's fixed price, selling a device (Oct 22 2026)
 
