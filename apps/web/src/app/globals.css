@@ -18880,3 +18880,37 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   font-size: 0.74rem;
   text-align: end;
 }
+
+/* 💱 «سعر البديل» on a rep's payment card (his Oct 22 2026 ask). */
+.rep-swap {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+}
+
+.rep-swap-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.rep-swap-rate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+}
+
+.rep-swap-rate .search-input {
+  width: 96px;
+}
+
+.rep-swap-result {
+  flex-basis: 100%;
+  color: var(--green);
+}

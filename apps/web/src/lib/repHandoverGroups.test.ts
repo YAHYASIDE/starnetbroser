@@ -50,4 +50,26 @@ describe("groupHandovers", () => {
     ];
     expect(groupHandovers(rows).every((i) => i.kind === "row")).toBe(true);
   });
+
+  it("folds a 💱 swap (the money + its «حُوّلت» records) into one line with the swap on it", () => {
+    const swap = { toAmount: 1000, toCurrency: "SIFA", rate: 3600 };
+    const rows = [
+      settlement("in", "2026-10-21T20:30:00.020Z", 1000, { kind: "manualCredit", handoverId: "h9" }),
+      settlement("out", "2026-10-21T20:30:00.010Z", 3600, { kind: "manualDebit", currencyCode: "MRU", handoverId: "h9" }),
+      settlement("money", "2026-10-21T20:30:00.000Z", 3600, { currencyCode: "MRU", handoverId: "h9", swap }),
+    ];
+    const items = groupHandovers(rows);
+    expect(items).toHaveLength(1);
+    const g = items[0];
+    if (g.kind !== "handover") throw new Error("not a group");
+    expect(g.rows).toHaveLength(3);
+    expect(g.total).toBe(3600);
+    expect(g.currency).toBe("MRU");
+    expect(g.swap).toEqual(swap);
+  });
+
+  it("leaves records that only share an id (no money part) as rows", () => {
+    const rows = [settlement("a", "2026-10-21T20:30:00.000Z", 5, { kind: "manualDebit", handoverId: "x" }), settlement("b", "2026-10-21T20:30:00.000Z", 5, { kind: "manualCredit", handoverId: "x" })];
+    expect(groupHandovers(rows).map((i) => i.kind)).toEqual(["row", "row"]);
+  });
 });

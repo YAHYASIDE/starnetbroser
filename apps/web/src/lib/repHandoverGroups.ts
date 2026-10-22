@@ -24,6 +24,9 @@ export type RepRowItem =
       toDevices: { accountId: string; amount: number }[];
       toAccount: number;
       note?: string;
+      /** 💱 «سعر البديل»: the sum went, at this rate, into his account of the other currency
+       * (repSwap.ts - its «حُوّلت» records are parts of this line). */
+      swap?: { toAmount: number; toCurrency: string; rate: number; toLedgerName?: string };
     };
 
 /** A part of a handover: a payment he brought for a device, or the rest put in his account. */
@@ -45,10 +48,10 @@ export function groupHandovers(rows: RepStatementRow[]): RepRowItem[] {
     groupOf.set(row, key);
     members.set(key, [...(members.get(key) ?? []), row]);
   };
-  // 1. The parts that carry their id.
+  // 1. The parts that carry their id (with a swap's «💱 حُوّلت» records, which carry it too).
   for (const row of rows) {
-    const p = part(row);
-    if (p?.id) add(`id:${p.id}`, row);
+    const id = part(row)?.id ?? (row.type === "settlement" ? row.settlement.handoverId : undefined);
+    if (id) add(`id:${id}`, row);
   }
   // 2. Older parts: chained by time (oldest first), same currency and note.
   const loose = rows
@@ -79,7 +82,15 @@ export function groupHandovers(rows: RepStatementRow[]): RepRowItem[] {
     if (placed.has(key)) continue;
     placed.add(key);
     const ordered = rows.filter((r) => groupOf.get(r) === key);
-    const parts = ordered.map((r) => ({ r, p: part(r)! }));
+    const parts = ordered.flatMap((r) => {
+      const p = part(r);
+      return p ? [{ r, p }] : [];
+    });
+    if (parts.length === 0) {
+      for (const r of ordered) out.push({ kind: "row", row: r });
+      continue;
+    }
+    const swap = ordered.map((r) => (r.type === "settlement" ? r.settlement.swap : undefined)).find(Boolean);
     const toDevices = parts.filter(({ r }) => r.type === "customer").map(({ r, p }) => ({ accountId: r.type === "customer" ? r.op.accountId : "", amount: p.amount }));
     const toAccount = parts.filter(({ r }) => r.type === "settlement").reduce((s, { p }) => s + p.amount, 0);
     const total = parts.reduce((s, { p }) => s + p.amount, 0);
@@ -93,6 +104,7 @@ export function groupHandovers(rows: RepStatementRow[]): RepRowItem[] {
       toDevices,
       toAccount: Math.round(toAccount * 100) / 100,
       ...(note ? { note } : {}),
+      ...(swap ? { swap } : {}),
     });
   }
   return out;

@@ -549,7 +549,8 @@ public class TelegramRepliesTest {
         TelegramReplies.Reply who = TelegramReplies.payWho("r1", price, "", "", 0, s);
         assertTrue(who.text.startsWith("💵 5,000 سيفا\n\n"));
         assertTrue(who.text.endsWith("تُسجَّل في حسابك 💼 - اضغط لتتابع:"));
-        assertEquals("{\"inline_keyboard\":[[{\"text\":\"💼 في حسابي: 🟠 شخصي\",\"callback_data\":\"payt:me\"}],[{\"text\":\"❌ إلغاء\",\"callback_data\":\"payx\"}]]}", who.markup);
+        assertEquals("{\"inline_keyboard\":[[{\"text\":\"💼 في حسابي: 🟠 شخصي\",\"callback_data\":\"payt:me\"}],"
+            + "[{\"text\":\"💱 سعر البديل - حساباتك بالأوقية\",\"callback_data\":\"payv\"}],[{\"text\":\"❌ إلغاء\",\"callback_data\":\"payx\"}]]}", who.markup);
         assertFalse(who.markup.contains("payl:") || who.markup.contains("payq:") || who.markup.contains("payt:d"));
 
         TelegramReplies.Reply devices = TelegramReplies.payClientDevices(price, TelegramReplies.findPayClient("r1", "c1", s));
@@ -941,5 +942,75 @@ public class TelegramRepliesTest {
         // a plain reply brings the buttons back
         assertEquals(kept, TelegramReplies.keepKeyboard(null, kept));
         assertEquals(null, TelegramReplies.keepKeyboard(null, ""));
+    }
+
+    // ---- 💱 «سعر البديل» ----
+
+    private static TelegramReplies.Snapshot swapSnapshot() {
+        TelegramReplies.Snapshot s = snapshot();
+        Map<String, String> rep = new HashMap<>();
+        rep.put("name", "حسين");
+        rep.put("pairRate", "3600");
+        rep.put("wallet:SIFA", "عليك 536,861.47 سيفا");
+        rep.put("wallet:MRU", "متوازن ✓");
+        rep.put("ledgers", "L1\t🟠 ORANJ MONEY\tSIFA\tعليك 1,330.4 سيفا\nL2\t📒 MRO\tMRU\tمتوازن ✓");
+        s.reps.put("r1", rep);
+        return s;
+    }
+
+    @Test
+    public void swapConvertsAtTheRateHeSays() {
+        assertEquals(1000.0, TelegramReplies.convertByRate(3600, "MRU", 3600), 0.001);
+        assertEquals(3600.0, TelegramReplies.convertByRate(1000, "SIFA", 3600), 0.001);
+        assertEquals("SIFA", TelegramReplies.otherCurrency("MRU"));
+        assertNull(TelegramReplies.otherCurrency("USD"));
+        assertEquals(3600.0, TelegramReplies.pairRate("r1", swapSnapshot()), 0.001);
+        assertEquals(3642.5, TelegramReplies.parseRate("3,642.5"), 0.001);
+    }
+
+    @Test
+    public void swapTargetRoundTripsAndStaysHisAccount() {
+        String t = TelegramReplies.swapTarget("SIFA", 3600, TelegramReplies.PAY_ME);
+        assertEquals("~SIFA~3600~me", t);
+        TelegramReplies.Swap swap = TelegramReplies.parseSwap(t);
+        assertNotNull(swap);
+        assertEquals("SIFA", swap.to);
+        assertEquals(TelegramReplies.PAY_ME, swap.inner);
+        assertTrue(TelegramReplies.isPersonalTarget(t));
+        assertFalse(TelegramReplies.isLedgerTarget(t));
+        String named = TelegramReplies.swapTarget("SIFA", 3642.5, "L:L1");
+        assertTrue(TelegramReplies.isLedgerTarget(named));
+        assertEquals("L1", TelegramReplies.namedTarget("r1", named, "SIFA", swapSnapshot()).id);
+        assertNull(TelegramReplies.parseSwap("~USD~1~me"));
+        assertNull(TelegramReplies.parseSwap("~SIFA~0~me"));
+        assertNull(TelegramReplies.parseSwap("me"));
+    }
+
+    @Test
+    public void accountPriceCarriesWhatWasPaid() {
+        TelegramReplies.Price paid = new TelegramReplies.Price(3600, "MRU");
+        TelegramReplies.Price into = TelegramReplies.accountPrice(paid, "~SIFA~3600~me");
+        assertEquals(1000.0, into.amount, 0.001);
+        assertEquals("SIFA", into.currency);
+        assertEquals("3,600 أوقية", into.money().label());
+        assertTrue(into.label().contains("3,600 أوقية ← 1,000 سيفا"));
+        assertTrue(into.label().contains("1,000 سيفا = 3,600 أوقية"));
+        assertTrue(TelegramReplies.accountPrice(paid, "me") == paid);
+    }
+
+    @Test
+    public void whoStepOffersTheSwapAndItsAccounts() {
+        TelegramReplies.Snapshot s = swapSnapshot();
+        TelegramReplies.Price paid = new TelegramReplies.Price(3600, "MRU");
+        TelegramReplies.Reply who = TelegramReplies.payWho("r1", paid, "", "", 0, s);
+        assertTrue(who.markup.contains("payv"));
+        assertTrue(who.markup.contains("سعر البديل"));
+        TelegramReplies.Reply swap = TelegramReplies.paySwapWho("r1", paid, 3600, s);
+        assertTrue(swap.text.contains("3,600 أوقية = 1,000 سيفا"));
+        assertTrue(swap.markup.contains("payt:~SIFA~3600~me"));
+        assertTrue(swap.markup.contains("payt:~SIFA~3600~L:L1"));
+        assertFalse(swap.markup.contains("L:L2"));
+        assertTrue(swap.markup.contains("payve"));
+        assertFalse(TelegramReplies.payWho("r1", new TelegramReplies.Price(50, "USD"), "", "", 0, s).markup.contains("payv"));
     }
 }

@@ -5,6 +5,7 @@
  * prepared under HIS id. Pure; the loading/pushing is in telegram.ts.
  */
 
+import { mruQuoteFor } from "./partyNet";
 import { repBotAccounts, repBotPages, type BotAccount } from "./repBotStatement";
 import { repRowText } from "./repRowText";
 import { REP_PROMISE_HINT, REP_PROMISE_RECEIVED, repOpenPromises, repPromisesText } from "./repPromises";
@@ -167,6 +168,9 @@ export function buildReplySnapshot(input: {
     // 📂 His accounts for the money bot's 💵 دفعة («في حسابي» shows the account and what is on it).
     reps[repId]!.wallets = repWalletsText(position.wallets, named);
     for (const w of position.wallets) reps[repId]![`wallet:${w.id}`] = repWalletWords(w.balance);
+    // 💱 «سعر البديل» in the money bot (his Oct 22 2026 ask): today's «1,000 سيفا = X أوقية», X only.
+    const pair = mruQuoteFor("SIFA", input.rates.SIFA, input.rates.MRU);
+    if (pair) reps[repId]!.pairRate = String(pair.mru);
     // 📒 His named accounts for the who step, after his normal one: "id\tlabel\tcurrency\tbalance" per line.
     reps[repId]!.ledgers = named.map((l) => [l.id, repLedgerLabel(l), l.currencyCode, repLedgerWords(l)].map((v) => v.replace(/[\t\n]/g, " ")).join("\t")).join("\n");
     for (const [kind, reply] of Object.entries(replies)) {

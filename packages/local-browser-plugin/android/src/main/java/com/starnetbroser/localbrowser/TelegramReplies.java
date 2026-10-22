@@ -706,17 +706,149 @@ final class TelegramReplies {
     static final class Price {
         final double amount;
         final String currency;
+        /** 💱 «سعر البديل»: what he really paid, when this price is that payment in another account's
+         * currency (amount/currency = what goes into the account); null otherwise. */
+        final Price paid;
+        /** أوقية per 1,000 سيفا, with `paid`. */
+        final double rate;
 
         Price(double amount, String currency) {
-            this.amount = amount;
-            this.currency = currency;
+            this(amount, currency, null, 0);
         }
 
-        String label() {
+        Price(double amount, String currency, Price paid, double rate) {
+            this.amount = amount;
+            this.currency = currency;
+            this.paid = paid;
+            this.rate = rate;
+        }
+
+        /** The amount in its own currency only («1,000 سيفا»). */
+        String own() {
             java.text.DecimalFormat format = new java.text.DecimalFormat("#,##0.##", java.text.DecimalFormatSymbols.getInstance(Locale.ROOT));
             String name = "USD".equals(currency) ? "دولار" : "SIFA".equals(currency) ? "سيفا" : FRANC.equals(currency) ? "فرانك" : "أوقية";
             return format.format(amount) + " " + name;
         }
+
+        /** «3,600 أوقية» - or with «سعر البديل»: «3,600 أوقية ← 1,000 سيفا (💱 1,000 سيفا = 3,600 أوقية)». */
+        String label() {
+            return paid == null ? own() : paid.own() + " ← " + own() + " (💱 " + rateLabel(rate) + ")";
+        }
+
+        /** The money that really changes hands. */
+        Price money() {
+            return paid == null ? this : paid;
+        }
+    }
+
+    // ---- 💱 «سعر البديل» (his Oct 22 2026 ask): a payment in أوقية into one of his سيفا accounts (or back),
+    // at «1,000 سيفا = X أوقية» - today's rate, which he can change (and the owner too, on approval) ----
+
+    static final String SWAP_PREFIX = "~";
+
+    static final class Swap {
+        final String to;
+        final double rate;
+        final String inner;
+
+        Swap(String to, double rate, String inner) {
+            this.to = to;
+            this.rate = rate;
+            this.inner = inner;
+        }
+    }
+
+    static String plainNumber(double value) {
+        java.text.DecimalFormat format = new java.text.DecimalFormat("0.##", java.text.DecimalFormatSymbols.getInstance(Locale.ROOT));
+        return format.format(value);
+    }
+
+    /** "~SIFA~3600~me": his account `inner` in currency `to`, at that rate. */
+    static String swapTarget(String to, double rate, String inner) {
+        return SWAP_PREFIX + to + SWAP_PREFIX + plainNumber(rate) + SWAP_PREFIX + inner;
+    }
+
+    static Swap parseSwap(String target) {
+        if (target == null || !target.startsWith(SWAP_PREFIX)) return null;
+        String[] p = target.substring(1).split(SWAP_PREFIX, 3);
+        if (p.length < 3 || !("MRU".equals(p[0]) || "SIFA".equals(p[0])) || p[2].isEmpty() || p[2].startsWith(SWAP_PREFIX)) return null;
+        try {
+            double rate = Double.parseDouble(p[1]);
+            return rate > 0 ? new Swap(p[0], rate, p[2]) : null;
+        } catch (NumberFormatException broken) {
+            return null;
+        }
+    }
+
+    /** The account a target points at, without its «سعر البديل». */
+    static String innerTarget(String target) {
+        Swap swap = parseSwap(target);
+        return swap == null ? target : swap.inner;
+    }
+
+    /** أوقية ↔ سيفا; null for any other currency. */
+    static String otherCurrency(String currency) {
+        if ("MRU".equals(currency)) return "SIFA";
+        if ("SIFA".equals(currency)) return "MRU";
+        return null;
+    }
+
+    /** At «1,000 سيفا = rate أوقية», to the cent. */
+    static double convertByRate(double amount, String from, double rate) {
+        double value = "MRU".equals(from) ? amount * 1000 / rate : amount * rate / 1000;
+        return Math.round(value * 100) / 100.0;
+    }
+
+    /** What goes into the account: the paid price itself, or (💱) its other currency at the target's rate. */
+    static Price accountPrice(Price paid, String target) {
+        Swap swap = parseSwap(target);
+        if (paid == null || swap == null || !swap.to.equals(otherCurrency(paid.currency))) return paid;
+        return new Price(convertByRate(paid.amount, paid.currency, swap.rate), swap.to, paid, swap.rate);
+    }
+
+    static String rateLabel(double rate) {
+        java.text.DecimalFormat format = new java.text.DecimalFormat("#,##0.##", java.text.DecimalFormatSymbols.getInstance(Locale.ROOT));
+        return "1,000 سيفا = " + format.format(rate) + " أوقية";
+    }
+
+    /** Today's «1,000 سيفا = X أوقية» the app sent for him, 0 when unknown. */
+    static double pairRate(String repId, Snapshot s) {
+        Map<String, String> mine = s == null ? null : s.reps.get(repId);
+        String raw = mine == null ? null : mine.get("pairRate");
+        try {
+            return raw == null ? 0 : Double.parseDouble(raw);
+        } catch (NumberFormatException broken) {
+            return 0;
+        }
+    }
+
+    /** A typed rate («3600», «3,600», «٣٦٠٠»), or 0 when it isn't one. */
+    static double parseRate(String text) {
+        Price price = parsePrice(text);
+        return price == null ? 0 : price.amount;
+    }
+
+    static final String SWAP_RATE_QUESTION = "💱 اكتب سعر 1,000 سيفا بالأوقية (أرقام فقط)، مثلاً 3600";
+
+    static String swapButton(String paidCurrency) {
+        return "💱 سعر البديل - حساباتك " + ("MRU".equals(paidCurrency) ? "بالسيفا" : "بالأوقية");
+    }
+
+    /** 💱 pressed: his accounts in the other currency, the payment converted at `rate`, and ✏️ to change it. */
+    static Reply paySwapWho(String repId, Price paid, double rate, Snapshot s) {
+        String to = otherCurrency(paid.currency);
+        if (to == null) return new Reply(payHeader(paid) + "💱 سعر البديل للأوقية والسيفا فقط.", false, null, null);
+        Price into = new Price(convertByRate(paid.amount, paid.currency, rate), to);
+        String text = payHeader(paid) + "💱 سعر البديل: " + rateLabel(rate) + "\n" + paid.own() + " = " + into.own()
+            + "\n\nفي أي حساب تُسجَّل؟ (✏️ لتغيير السعر)";
+        StringBuilder rows = new StringBuilder();
+        rows.append('[').append(cb(cut(personalButton(repId, to, s)), "payt:" + swapTarget(to, rate, PAY_ME))).append("],");
+        for (NamedAccount n : namedAccounts(repId, to, s)) {
+            rows.append('[').append(cb(cut(namedButton(n)), "payt:" + swapTarget(to, rate, LEDGER_PREFIX + n.id))).append("],");
+        }
+        rows.append('[').append(cb("✏️ غيّر السعر", "payve")).append("],");
+        rows.append('[').append(cb("↩️ رجوع", "payw")).append(',').append(cb("❌ إلغاء", "payx")).append(']');
+        return new Reply(text, false, null, "{\"inline_keyboard\":[" + rows + "]}");
     }
 
     static Price parsePrice(String text) {
@@ -1086,18 +1218,19 @@ final class TelegramReplies {
     }
 
     static boolean isLedgerTarget(String target) {
-        return target != null && target.startsWith(LEDGER_PREFIX);
+        String inner = innerTarget(target);
+        return inner != null && inner.startsWith(LEDGER_PREFIX);
     }
 
-    /** 💼 his normal account or 📒 one of his named ones - not a customer's device. */
+    /** 💼 his normal account or 📒 one of his named ones (💱 with «سعر البديل» too) - not a customer's device. */
     static boolean isPersonalTarget(String target) {
-        return PAY_ME.equals(target) || isLedgerTarget(target);
+        return PAY_ME.equals(innerTarget(target)) || isLedgerTarget(target);
     }
 
     /** The named account a target "L:<id>" points at, null when it isn't one (or is gone). */
     static NamedAccount namedTarget(String repId, String target, Snapshot s) {
         if (!isLedgerTarget(target)) return null;
-        String id = target.substring(LEDGER_PREFIX.length());
+        String id = innerTarget(target).substring(LEDGER_PREFIX.length());
         for (NamedAccount n : namedAccounts(repId, s)) if (n.id.equals(id)) return n;
         return null;
     }
@@ -1228,7 +1361,8 @@ final class TelegramReplies {
         List<NamedAccount> named = namedAccounts(repId, price.currency, s);
         String text = payHeader(price) + walletsBlock(repId, s)
             + (named.isEmpty() ? "تُسجَّل في حسابك 💼 - اضغط لتتابع:" : "في أي حساب؟ 💼 حسابك الشخصي أو أحد حساباتك 📒:");
-        return new Reply(text, false, null, "{\"inline_keyboard\":[" + personalRows(me, named) + "[" + cb("❌ إلغاء", "payx") + "]]}");
+        String swap = otherCurrency(price.currency) == null ? "" : "[" + cb(swapButton(price.currency), "payv") + "],";
+        return new Reply(text, false, null, "{\"inline_keyboard\":[" + personalRows(me, named) + swap + "[" + cb("❌ إلغاء", "payx") + "]]}");
     }
 
     /** A device per row (with its customer when asked), then ↩️ back to the customers and ❌. */

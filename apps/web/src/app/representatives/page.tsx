@@ -27,6 +27,7 @@ import {
   CreateRepresentativeInput,
   deleteRepresentative,
   deleteRepSettlement,
+  linkedSettlementIds,
   listRepDeviceCommissions,
   listRepresentatives,
   loadRepresentativeStore,
@@ -422,8 +423,9 @@ export default function RepresentativesPage() {
 
   function handleDeleteSettlement(settlementId: string) {
     if (!confirmClosedMonthChange([settlements.find((s) => s.id === settlementId)?.date])) return;
-    saveSettlementList(deleteRepSettlement(settlements, settlementId));
-    saveCashEntries(removeLinkedCashEntries(loadCashEntries(), settlementId));
+    const ids = linkedSettlementIds(settlements, settlementId);
+    saveSettlementList(ids.reduce((list, id) => deleteRepSettlement(list, id), settlements));
+    saveCashEntries(ids.reduce((cash, id) => removeLinkedCashEntries(cash, id), loadCashEntries()));
   }
 
   function handleShipmentShare(accountId: string, entryId: string, patch: ShipmentRepPatch): string | null {
@@ -1799,8 +1801,10 @@ function RepHandoverLine({
   const [open, setOpen] = useState(false);
   const cur = currencyLabel(item.currency);
   const viaFranc = item.currency === "SIFA" && /أورانج|نيتا|اورانج/.test(item.note ?? "");
-  // The whole sum in its own currency (each part's converted figure stays on the part itself).
-  const delta: [string, number][] = [[item.currency, item.total]];
+  // The whole sum in its own currency (each part's converted figure stays on the part itself); a 💱
+  // swap changes only the account it went into (+toAmount there; nothing here for a named account).
+  const swap = item.swap;
+  const delta: [string, number][] = swap ? (swap.toLedgerName ? [] : [[swap.toCurrency, swap.toAmount]]) : [[item.currency, item.total]];
   return (
     <li className="party-statement-row rep-line-settlement rep-line-handover">
       <div className="rep-line-open rep-handover-body">
@@ -1812,6 +1816,12 @@ function RepHandoverLine({
         </div>
         {viaFranc && <span className="party-statement-note">🟠 = {formatAmount(sifaToFranc(item.total))} فرانك</span>}
         {item.note && <span className="party-statement-note">{item.note}</span>}
+        {swap ? (
+          <span className="party-statement-note rep-handover-split">
+            💱 حُوّلت إلى {swap.toLedgerName ? `«${swap.toLedgerName}»` : swap.toCurrency === "SIFA" ? "🟠 شخصي" : "🟢 الأوقية"}:{" "}
+            <bdi dir="ltr">{formatAmount(swap.toAmount)}</bdi> {currencyLabel(swap.toCurrency)} (1,000 سيفا = <bdi dir="ltr">{formatAmount(swap.rate)}</bdi> أوقية)
+          </span>
+        ) : (
         <span className="party-statement-note rep-handover-split">
           توزّعت:{" "}
           {item.toDevices.map((d, i) => {
@@ -1832,6 +1842,7 @@ function RepHandoverLine({
             <span>كلها على أجهزة زبائنه</span>
           )}
         </span>
+        )}
         <div className="rep-line-foot">
           {delta.length > 0 && (
             <span className="rep-line-delta">

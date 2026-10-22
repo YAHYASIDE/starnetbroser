@@ -74,6 +74,9 @@ export interface RepRequest {
   // owner can change it on approval (his Oct 12 2026 choice «المندوب يختار وأنا أعدّل»).
   ledgerId?: string;
   ledgerName?: string;
+  /** 💱 «سعر البديل» (his Oct 22 2026 ask): paid `amount currency`, into his account of `toCurrency` at
+   * «1,000 سيفا = rate أوقية» - as he chose in the bot, the rate changeable on approval. */
+  swap?: { toCurrency: LedgerCurrency; toAmount: number; rate: number };
 }
 
 export type RepRequestList = RepRequest[];

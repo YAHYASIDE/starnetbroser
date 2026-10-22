@@ -2004,3 +2004,19 @@ is never pressed while a field is empty - it refills and saves on the next try (
   and its movement, the account-statement PDF) is in each record's own currency, never converted - the same
   figures as his bot; the all-converted figure is only a quiet «≈ … بسعر اليوم (للمعلومة)» line when one
   display currency is chosen. His profit account stays as before (it comes from USD).
+
+## 💱 «سعر البديل» in the money bot (Oct 22 2026)
+
+- His ask: the rep may pay in أوقية into his سيفا account (and the other way) - like the operator's own «تبديل العملة»
+  when paying for a customer in another currency. **His choices:** 3,600 أوقية → **1,000 سيفا** into «🟠 شخصي» at
+  «1,000 سيفا = 3,600 أوقية» (the rate = today's «سعر 1,000 سيفا بالأوقية», sent to the bot as `reps[id].pairRate`),
+  locked on the records; **the rep can change it in the bot («✏️ غيّر السعر») and the operator on approval**.
+- Bot: after an أوقية / سيفا amount, «من أي حساب؟» has a «💱 سعر البديل» button → his accounts of the OTHER currency
+  (his normal one + named ones) with the converted figure; the target travels as `~SIFA~3600~me` /
+  `~SIFA~3600~L:<ledgerId>` (`TelegramReplies.swapTarget`). The record carries `toCurrency / toAmount / rate`.
+- App: the request card shows «💱 سعر البديل - في حسابه بالسيفا» (checkbox + editable rate + the result).
+  Approving writes three records with one `handoverId` (`lib/repSwap.ts`): the money as paid (cash handover in its
+  currency → الكاش or its app in «حسابي»), «💱 حُوّلت» out of his account of that currency (so it stays as it was),
+  and «💱 من دفعة» into the account he chose (+toAmount; a named account gets a ledger entry). One line in his
+  statement («🤲 استلمت منه 3,600 أوقية · 💱 حُوّلت إلى 🟠 شخصي: 1,000 سيفا (…)»); deleting any of the three deletes
+  all three (`linkedSettlementIds`). Nothing is converted silently - each record keeps its currency.

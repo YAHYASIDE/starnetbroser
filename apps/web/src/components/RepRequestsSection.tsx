@@ -35,6 +35,7 @@ import { loadActivationCosts } from "@/lib/repActivation";
 import { recordRepHandover, recordRepLoan } from "@/lib/repHandover";
 import { loadRepLedgerBook, repLedgerKindMeta, repLedgersOf } from "@/lib/repLedgers";
 import { recordRepLedgerDeposit } from "@/lib/repLedgerDeposit";
+import { recordRepSwapHandover, swapAmount, swapOther, swapRateLabel } from "@/lib/repSwap";
 import { approveRepSession } from "@/lib/telegramSessionRunner";
 
 interface Props {
@@ -682,8 +683,15 @@ function HandoverRequestCard({ request, rep, accounts, clientStore, onDone }: Mo
   // 📒 Which of his accounts: "" = his normal one, else a named account (repLedgers.ts) - as he
   // chose in the bot, changeable here (his Oct 12 2026 choice «المندوب يختار وأنا أعدّل»).
   const [ledgerId, setLedgerId] = useState(request.ledgerId ?? "");
+  // 💱 «سعر البديل» (his Oct 22 2026 ask): into his account of the other currency at «1,000 سيفا = X أوقية» -
+  // the rate he chose in the bot, changeable here.
+  const [swapOn, setSwapOn] = useState(Boolean(request.swap));
+  const [rate, setRate] = useState(request.swap ? String(request.swap.rate) : "");
+  const toCurrency = swapOn ? swapOther(currency) : null;
+  const accountCurrency = toCurrency ?? currency;
+  const toAmount = toCurrency ? swapAmount(Number(amount), currency, Number(rate)) : 0;
   const ledgers = useMemo(() => repLedgersOf(loadRepLedgerBook(), request.repId), [request.repId]);
-  const choices = ledgers.filter((l) => l.currencies.includes(currency));
+  const choices = ledgers.filter((l) => l.currencies.includes(accountCurrency));
   const chosen = choices.find((l) => l.id === ledgerId);
   const [error, setError] = useState<string | null>(null);
   const proofPhoto = request.proofFileId ? <RepProofPhoto fileId={request.proofFileId} bot={request.proofBot} /> : null;
@@ -693,6 +701,15 @@ function HandoverRequestCard({ request, rep, accounts, clientStore, onDone }: Mo
     if (!(value > 0)) return setError("المبلغ غير صحيح");
     if (ledgerId && !chosen) return setError("الحساب المختار ليس فيه هذه العملة - اختر حسابًا آخر");
     const date = localDay(new Date());
+    if (toCurrency) {
+      if (!(Number(rate) > 0)) return setError("اكتب سعر البديل");
+      const swapped = recordRepSwapHandover({ repId: request.repId, repName: rep?.name ?? "", amount: value, currency, rate: Number(rate), date, method: request.paymentMethod, ...(chosen ? { ledgerId: chosen.id } : {}), botId: request.botId });
+      if (!swapped.ok) return setError(swapped.message);
+      const text = `✅ أكّد المسؤول استلام ${formatMoneyShort(value, currency)} منك - سُجّلت في حسابك ${swapped.target}: ${formatMoneyShort(swapped.toAmount, swapped.toCurrency)} (💱 ${swapRateLabel(Number(rate))}).`;
+      await sendRepText(request.repId, withRepWallets(text, repWalletsNow({ rep, accounts, clientStore, ledgerStore: loadLedgerStore() })), undefined, "money");
+      onDone("approved");
+      return;
+    }
     const result = chosen
       ? recordRepLedgerDeposit({ ledgerId: chosen.id, amount: value, currencyCode: currency, date, method: request.paymentMethod, botId: request.botId, repName: rep?.name ?? "" })
       : recordRepHandover(request, value, currency, date);
@@ -728,11 +745,31 @@ function HandoverRequestCard({ request, rep, accounts, clientStore, onDone }: Mo
           ))}
         </select>
       </div>
+      {swapOther(currency) && (
+        <div className="rep-swap">
+          <label className="rep-swap-toggle">
+            <input type="checkbox" checked={swapOn} onChange={(e) => setSwapOn(e.target.checked)} />
+            💱 سعر البديل - في حسابه {swapOther(currency) === "SIFA" ? "بالسيفا" : "بالأوقية"}
+          </label>
+          {swapOn && (
+            <div className="rep-swap-rate">
+              <span>1,000 سيفا =</span>
+              <input className="search-input" dir="ltr" inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value)} placeholder="3600" aria-label="سعر 1,000 سيفا بالأوقية" />
+              <span>أوقية</span>
+              {toAmount > 0 && (
+                <strong className="rep-swap-result">
+                  → يُسجَّل في حسابه <bdi dir="ltr">{formatMoneyShort(toAmount, toCurrency ?? "")}</bdi>
+                </strong>
+              )}
+            </div>
+          )}
+        </div>
+      )}
       {(ledgers.length > 0 || request.ledgerId) && (
         <label className="form-field rep-request-ledger">
           <span>في أي حساب من حساباته؟</span>
           <select className="search-input" value={chosen ? ledgerId : ""} onChange={(e) => setLedgerId(e.target.value)} aria-label="حساب المندوب">
-            <option value="">💼 حسابه العادي ({repWalletLabel(currency === "MRU" ? "MRU" : "SIFA")}) - يسدد أجهزة زبائنه أولًا</option>
+            <option value="">💼 حسابه العادي ({repWalletLabel(accountCurrency === "MRU" ? "MRU" : "SIFA")}){toCurrency ? "" : " - يسدد أجهزة زبائنه أولًا"}</option>
             {choices.map((l) => (
               <option key={l.id} value={l.id}>
                 {repLedgerKindMeta(l.kind).icon} {l.name}

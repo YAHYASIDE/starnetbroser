@@ -261,6 +261,9 @@ export interface RepSettlement {
   toDebt?: boolean;
   /** 🤲 The rest of a sum he handed over (see LedgerEntry.handoverId). */
   handoverId?: string;
+  /** 💱 «سعر البديل» (his Oct 22 2026 ask): this money went into his account of another currency -
+   * `toAmount toCurrency` at «1,000 سيفا = rate أوقية» (locked; see repSwap.ts). */
+  swap?: { toAmount: number; toCurrency: string; rate: number; toLedgerName?: string };
   createdAt: string;
 }
 
@@ -298,6 +301,7 @@ export interface RecordRepSettlementInput {
   /** profitTransfer only (see RepSettlement.toDebt). */
   toDebt?: boolean;
   handoverId?: string;
+  swap?: RepSettlement["swap"];
 }
 
 export type RecordRepSettlementResult =
@@ -323,6 +327,7 @@ export function recordRepSettlement(
     ...(input.accountId ? { accountId: input.accountId } : {}),
     ...(input.kind === "profitTransfer" && input.toDebt ? { toDebt: true } : {}),
     ...(input.handoverId ? { handoverId: input.handoverId } : {}),
+    ...(input.swap ? { swap: input.swap } : {}),
     createdAt: new Date().toISOString(),
   };
   return { ok: true, settlements: [...settlements, settlement], settlement };
@@ -357,6 +362,15 @@ export function updateRepSettlement(
 
 export function deleteRepSettlement(settlements: RepSettlementList, id: string): RepSettlementList {
   return settlements.filter((s) => s.id !== id);
+}
+
+/** The records deleted together with `id`: a 💱 «سعر البديل» payment (repSwap.ts) is one record
+ * in three (the money and its «حُوّلت» out/into) - deleting any of them deletes all three. */
+export function linkedSettlementIds(settlements: RepSettlementList, id: string): string[] {
+  const handoverId = settlements.find((s) => s.id === id)?.handoverId;
+  if (!handoverId) return [id];
+  const group = settlements.filter((s) => s.handoverId === handoverId);
+  return group.some((s) => s.swap) ? group.map((s) => s.id) : [id];
 }
 
 /** Cash the representative has personally collected from customers on sale invoices attributed to

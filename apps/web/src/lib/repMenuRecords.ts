@@ -130,15 +130,24 @@ export function repPaymentRequest(data: Record<string, unknown>): Omit<RepReques
     ...(photo ? { proofFileId: photo, proofBot: str(data.bot) === "money" ? ("money" as const) : ("reps" as const) } : {}),
   };
   const via = method ? ` (${PAYMENT_METHOD_LABELS[method]})` : "";
+  // 💱 «سعر البديل»: paid in one currency, into his account of the other (his Oct 22 2026 ask).
+  const toCurrency = str(data.toCurrency);
+  const rate = typeof data.rate === "number" ? data.rate : Number(data.rate);
+  const toAmount = typeof data.toAmount === "number" ? data.toAmount : Number(data.toAmount);
+  const swap =
+    (toCurrency === "SIFA" || toCurrency === "MRU") && toCurrency !== currency && rate > 0 && toAmount > 0
+      ? { swap: { toCurrency: toCurrency as LedgerCurrency, toAmount, rate } }
+      : {};
+  const accountCurrency = "swap" in swap ? toCurrency : currency;
   const ledgerId = str(data.ledgerId);
   if (ledgerId) {
     // 📒 Into one of his named accounts (his Oct 12 2026 ask) - never his profit or his customers' devices.
     const ledgerName = str(data.ledgerName) || "حساب";
-    return { repId, kind: "handover", text: `📒 دفعة في حسابي «${ledgerName}»: ${label}${via}`, amount, currency: currency as LedgerCurrency, ledgerId, ledgerName, ...extra };
+    return { repId, kind: "handover", text: `📒 دفعة في حسابي «${ledgerName}»: ${label}${via}`, amount, currency: currency as LedgerCurrency, ledgerId, ledgerName, ...extra, ...swap };
   }
   if (data.personal === true) {
-    // 📂 Into the account of its currency (🟠 شخصي / 🟢 الأوقية) - his Oct 12 2026 ask.
-    return { repId, kind: "handover", text: `💼 دفعة في حسابي الشخصي · ${repWalletLabel(currency)}: ${label}${via}`, amount, currency: currency as LedgerCurrency, ...extra };
+    // 📂 Into the account of its currency (🟠 شخصي / 🟢 الأوقية) - his Oct 12 2026 ask; 💱 or of the other one.
+    return { repId, kind: "handover", text: `💼 دفعة في حسابي الشخصي · ${repWalletLabel(accountCurrency)}: ${label}${via}`, amount, currency: currency as LedgerCurrency, ...extra, ...swap };
   }
   const accountId = str(data.accountId);
   if (!accountId) return null;
