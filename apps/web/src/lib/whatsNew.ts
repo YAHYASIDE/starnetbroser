@@ -31,6 +31,19 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-22-update-in-app",
+    date: "2026-10-22",
+    title: "🆕 التحديث يُنزَّل داخل التطبيق",
+    steps: [
+      {
+        path: "/settings",
+        title: "🆕 تحديث التطبيق بلا متصفح",
+        before: "زر التحديث يفتح المتصفح (Edge) والتنزيل لا يكتمل.",
+        after: "التطبيق ينزّل النسخة الجديدة بنفسه مع النسبة %، ثم تفتح نافذة «تثبيت» مباشرة. أول مرة يطلب أندرويد «السماح من هذا المصدر» لـ STAR NET: فعّله، ارجع واضغط التحديث مرة أخرى.",
+      },
+    ],
+  },
+  {
     id: "2026-10-22-codes-bot",
     date: "2026-10-22",
     title: "🤖 بوت الأكواد",

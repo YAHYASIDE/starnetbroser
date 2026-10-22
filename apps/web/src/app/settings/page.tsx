@@ -101,7 +101,8 @@ import {
 } from "@/lib/sessionCheck";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { saveAndShareBackupFile } from "@/lib/backupFile";
-import { checkForAppUpdate, updateDownloadUrl, CURRENT_COMMIT, UpdateCheckResult } from "@/lib/appUpdate";
+import { checkForAppUpdate, CURRENT_COMMIT, UpdateCheckResult } from "@/lib/appUpdate";
+import { UpdateBanner } from "@/components/UpdateBanner";
 import {
   EVENING_HOURS,
   getEveningSummaryHour,
@@ -1425,13 +1426,14 @@ function AppUpdateSection() {
       {result?.status === "current" && <p className="settings-hint">✓ لديك أحدث نسخة</p>}
       {result?.status === "unknown" && <p className="settings-hint">{result.message}</p>}
       {result?.status === "update" && (
-        <a href={updateDownloadUrl()} target="_blank" rel="noreferrer" className="backup-banner update-banner">
-          <span aria-hidden="true">🆕</span>
-          <span>
-            <strong>نسخة أحدث متوفرة (<bdi dir="ltr">{result.releaseCommit.slice(0, 7)}</bdi>)</strong>
-            <small>اضغط للتنزيل ثم ثبّت فوق النسخة الحالية - بياناتك تبقى كما هي</small>
-          </span>
-        </a>
+        <UpdateBanner
+          title={
+            <>
+              نسخة أحدث متوفرة (<bdi dir="ltr">{result.releaseCommit.slice(0, 7)}</bdi>)
+            </>
+          }
+          hint="اضغط للتنزيل ثم ثبّت فوق النسخة الحالية - بياناتك تبقى كما هي"
+        />
       )}
     </section>
   );

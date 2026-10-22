@@ -951,3 +951,22 @@ export async function drainBankNotices(ownNumbers: string[]): Promise<{ inbox: B
     return null;
   }
 }
+
+/** 🆕 Downloads the update APK inside the Android app and opens the installer (no browser - his
+ * Oct 22 2026 report: the link opened in Edge and never downloaded). `onPercent` gets 0-100, or -1
+ * when the size is unknown. */
+export async function downloadAppUpdate(
+  url: string,
+  onPercent: (percent: number) => void,
+): Promise<{ ok: true; status: "installing" | "needsPermission" } | { ok: false; message: string }> {
+  if (!isRunningInAndroidApp()) return { ok: false, message: "التنزيل داخل التطبيق يعمل في أندرويد فقط" };
+  const handle = await LocalBrowser.addListener("appUpdateProgress", (event) => onPercent(event.percent));
+  try {
+    const result = await LocalBrowser.downloadAppUpdate({ url });
+    return { ok: true, status: result.status };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : "تعذّر تنزيل التحديث" };
+  } finally {
+    void handle.remove();
+  }
+}

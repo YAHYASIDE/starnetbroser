@@ -215,6 +215,10 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
     return { pinned: false, unsupported: true };
   }
 
+  async downloadAppUpdate(): Promise<{ status: "installing" | "needsPermission" }> {
+    throw this.unavailable("Downloading the app update requires the native Android app.");
+  }
+
   async takeShortcutRoute(): Promise<{ route: string | null }> {
     return { route: null };
   }

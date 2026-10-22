@@ -532,6 +532,11 @@ export interface LocalBrowserPlugin {
    * takeShortcutRoute on open / resume). */
   addListener(eventName: "shortcutOpened", listenerFunc: (event: { route: string }) => void): Promise<PluginListenerHandle>;
 
+  /** 🆕 Downloads the update APK inside the app and opens Android's installer ("needsPermission":
+   * Android's «السماح من هذا المصدر» page was opened - tap again after allowing). */
+  downloadAppUpdate(options: { url: string }): Promise<{ status: "installing" | "needsPermission" }>;
+  addListener(eventName: "appUpdateProgress", listenerFunc: (event: { percent: number }) => void): Promise<PluginListenerHandle>;
+
   /** 📌 Pins a page of the app ("/tools#pay") to the phone's home screen; the phone asks to confirm. */
   pinShortcut(options: { id: string; label: string; route: string; emoji?: string; color?: string }): Promise<{ pinned: boolean; unsupported: boolean }>;
   /** The page a 📌 shortcut opened the app on (once), or null. */

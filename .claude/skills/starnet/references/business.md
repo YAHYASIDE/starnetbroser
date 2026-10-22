@@ -2151,3 +2151,12 @@ is never pressed while a field is empty - it refills and saves on the next try (
   / `ackPendingAccountSyncs` desktop branches). Not signed in → a notice, nothing read. Runs over many devices
   («مزامنة الآن»، الدوائر، كشف توثيق) stay the phone's (`DESKTOP_SYNC_LATER_MESSAGE`).
 
+
+## 🆕 The app update downloads inside the app (Oct 22 2026)
+
+- His report: «تحديث ينزل في Edge ولا ينزل» - the update banner was a plain link, opened in his default browser
+  (Edge), which never finished the APK. Now on the phone the banner (`components/UpdateBanner.tsx`, home + settings)
+  calls `downloadAppUpdate`: `AppUpdateInstaller` downloads the APK into the app cache (progress %, GitHub redirects
+  followed, only `github.com/YAHYASIDE/starnetbroser/releases/download/*.apk`) and opens Android's installer
+  (`REQUEST_INSTALL_PACKAGES`). First time Android asks «السماح من هذا المصدر»; the finished file is kept 30 min so
+  the second tap installs at once. The laptop and the web keep the plain link.

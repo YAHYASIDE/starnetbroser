@@ -226,6 +226,35 @@ public class LocalBrowserPlugin extends Plugin {
         call.resolve();
     }
 
+    /** 🆕 Only STAR NET's own release files may be downloaded and installed. */
+    private static final String UPDATE_URL_PREFIX = "https://github.com/YAHYASIDE/starnetbroser/releases/download/";
+
+    /** 🆕 Downloads the update APK inside the app (progress: "appUpdateProgress" {percent}) and opens
+     * Android's installer - resolves {status: "installing" | "needsPermission"}. */
+    @PluginMethod
+    public void downloadAppUpdate(PluginCall call) {
+        String url = call.getString("url", "");
+        if (url == null || !url.startsWith(UPDATE_URL_PREFIX) || !url.endsWith(".apk")) {
+            call.reject("رابط التحديث غير معروف");
+            return;
+        }
+        Context context = getContext().getApplicationContext();
+        new Thread(() -> {
+            try {
+                String status = AppUpdateInstaller.downloadAndInstall(context, url, (percent) -> {
+                    JSObject event = new JSObject();
+                    event.put("percent", percent);
+                    notifyListeners("appUpdateProgress", event);
+                });
+                JSObject ret = new JSObject();
+                ret.put("status", status);
+                call.resolve(ret);
+            } catch (Exception e) {
+                call.reject("تعذّر تنزيل التحديث - تحقق من الإنترنت وحاول مرة أخرى");
+            }
+        }, "starnet-app-update").start();
+    }
+
     /** The page a 📌 shortcut opened the app on (once), or null. */
     @PluginMethod
     public void takeShortcutRoute(PluginCall call) {

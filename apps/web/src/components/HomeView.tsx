@@ -76,7 +76,8 @@ import { cardNeed, computeRenewalForecast } from "@/lib/renewalForecast";
 import { computeDeviceMargins, WEAK_MARGIN_PERCENT } from "@/lib/deviceMargins";
 import { cardShortfallForSuspended, currentCardBalanceUsd, listOpenShipmentDebts, listSuspendedWithDebt, loadCardTopUps, settleShipmentCost, unsettleShipmentCost } from "@/lib/starlinkDebt";
 import { loadPartyAdjustments, recordPartyAdjustment, savePartyAdjustments } from "@/lib/partyBalanceStore";
-import { checkForAppUpdate, updateDownloadUrl, shouldAutoCheck } from "@/lib/appUpdate";
+import { checkForAppUpdate, shouldAutoCheck } from "@/lib/appUpdate";
+import { UpdateBanner } from "@/components/UpdateBanner";
 import { deviceMatchesQuery, searchEverything, searchTermOf, SearchResult } from "@/lib/homeInsights";
 import { addSearch, loadSearchHistory, removeSearch, saveSearchHistory } from "@/lib/searchHistory";
 import { listSuppliers, loadSupplierStore, SupplierStore } from "@/lib/supplierStore";
@@ -2759,13 +2760,7 @@ export function HomeView({
     {desktop && viewMode === "active" && <DesktopWelcome empty={accountsLoaded && accounts.length === 0} />}
 
     {updateAvailable && (
-      <a href={updateDownloadUrl()} target="_blank" rel="noreferrer" className="backup-banner update-banner" onClick={ignoreFreshTap("update")}>
-        <span aria-hidden="true">🆕</span>
-        <span>
-          <strong>تحديث جديد للتطبيق متوفر</strong>
-          <small>اضغط لتنزيل النسخة الأحدث ثم ثبّتها - بياناتك تبقى كما هي</small>
-        </span>
-      </a>
+      <UpdateBanner title="تحديث جديد للتطبيق متوفر" hint="اضغط لتنزيل النسخة الأحدث ثم ثبّتها - بياناتك تبقى كما هي" onTap={ignoreFreshTap("update")} />
     )}
 
     {suspendedWithDebt.length > 0 && (

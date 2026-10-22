@@ -4,4 +4,6 @@
     <cache-path name="starnet_capture" path="starnet_capture/" />
     <!-- ⬇️ PageDownloads on Android 9 and older: a downloaded file opened in its viewer. -->
     <cache-path name="starnet_downloads" path="starnet_downloads/" />
+    <!-- 🆕 AppUpdateInstaller: the downloaded update APK handed to the installer. -->
+    <cache-path name="starnet_update" path="starnet_update/" />
 </paths>
