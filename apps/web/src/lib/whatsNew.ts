@@ -31,6 +31,19 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-22-finger-always",
+    date: "2026-10-22",
+    title: "🖐 البصمة تظهر دائمًا",
+    steps: [
+      {
+        path: "/settings",
+        title: "🖐 البصمة عند الرجوع للتطبيق",
+        before: "عند الرجوع للتطبيق كانت البصمة لا تظهر وحدها أحيانًا، والقفل بعد دقيقة.",
+        after: "نافذة البصمة تنتظر حتى يرجع التطبيق للشاشة ثم تظهر، وتُعاد وحدها إن لم تظهر. والقفل صار بعد 30 ثانية خارج التطبيق.",
+      },
+    ],
+  },
+  {
     id: "2026-10-22-buy-by-invoice",
     date: "2026-10-22",
     title: "📥 الشراء بنفس فاتورة البيع + KIT في المخزون",

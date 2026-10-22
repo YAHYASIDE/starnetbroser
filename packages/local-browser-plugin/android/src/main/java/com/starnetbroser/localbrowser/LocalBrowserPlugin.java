@@ -179,21 +179,44 @@ public class LocalBrowserPlugin extends Plugin {
             call.resolve(ret);
             return;
         }
-        getActivity().runOnUiThread(() -> {
-            try {
-                BiometricUnlock.authenticate(getActivity(), title, subtitle, cancel, (ok, error) -> {
-                    JSObject ret = new JSObject();
-                    ret.put("ok", ok);
-                    if (error != null) ret.put("error", error);
-                    call.resolve(ret);
-                });
-            } catch (RuntimeException e) {
+        getActivity().runOnUiThread(() -> showBiometricWhenReady(call, title, subtitle, cancel, BIOMETRIC_READY_TRIES));
+    }
+
+    /** 🖐 How long (×150 ms) the prompt waits for the app to be really back on screen. */
+    private static final int BIOMETRIC_READY_TRIES = 20;
+
+    /**
+     * His Oct 22 2026 report: coming back to the app, the fingerprint prompt often never showed - it was
+     * asked while the Activity was still resuming, and Android drops a prompt shown then. It now waits
+     * until the app is resumed and has the window focus (up to 3 s), then shows.
+     */
+    private void showBiometricWhenReady(PluginCall call, String title, String subtitle, String cancel, int triesLeft) {
+        androidx.appcompat.app.AppCompatActivity activity = getActivity();
+        if (activity == null || activity.isFinishing()) {
+            JSObject ret = new JSObject();
+            ret.put("ok", false);
+            ret.put("error", "no activity");
+            call.resolve(ret);
+            return;
+        }
+        boolean ready = activity.getLifecycle().getCurrentState().isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED) && activity.hasWindowFocus();
+        if (!ready && triesLeft > 0) {
+            new Handler(Looper.getMainLooper()).postDelayed(() -> showBiometricWhenReady(call, title, subtitle, cancel, triesLeft - 1), 150);
+            return;
+        }
+        try {
+            BiometricUnlock.authenticate(activity, title, subtitle, cancel, (ok, error) -> {
                 JSObject ret = new JSObject();
-                ret.put("ok", false);
-                ret.put("error", "unavailable");
+                ret.put("ok", ok);
+                if (error != null) ret.put("error", error);
                 call.resolve(ret);
-            }
-        });
+            });
+        } catch (RuntimeException e) {
+            JSObject ret = new JSObject();
+            ret.put("ok", false);
+            ret.put("error", "unavailable");
+            call.resolve(ret);
+        }
     }
 
     /** An app event in the phone's notification bar; tapping it opens `route` (AppEventNotifier). */

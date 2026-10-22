@@ -14,11 +14,11 @@ import {
   shouldRelock,
   verifyAppPin,
 } from "@/lib/appLock";
-import { isRunningInAndroidApp, unlockWithBiometric } from "@/lib/localBrowser";
+import { askBiometric, isRunningInAndroidApp } from "@/lib/localBrowser";
 
 /**
  * Gates every page/BottomNav behind an optional PIN (الإعدادات → "قفل التطبيق"). Asked on every
- * real app open, and again when the app comes back after more than a minute in the background
+ * real app open, and again when the app comes back after more than 30 seconds in the background
  * (never after the app's own device-browser hand-off). A re-lock only covers the pages - they stay
  * mounted underneath, so a half-filled form is still there after unlocking. Five wrong PINs in a
  * row start a growing wait (30s, 1m, 2m, ... up to 15m) that survives closing the app.
@@ -70,12 +70,18 @@ export function AppLockGate({ children }: { children: React.ReactNode }) {
     setEverUnlocked(true);
   }
 
-  async function askFinger() {
+  const lockedRef = useRef(false);
+  lockedRef.current = unlocked === false;
+
+  // 🖐 his Oct 22 2026 ask «البصمة دائمًا»: a prompt Android dropped (the app was still coming back)
+  // is asked again by itself, twice; only his own «استخدم الرمز» stops it.
+  async function askFinger(retries = 2) {
     if (asking.current) return;
     asking.current = true;
-    const ok = await unlockWithBiometric();
+    const answer = await askBiometric();
     asking.current = false;
-    if (ok) unlock();
+    if (answer.ok) return unlock();
+    if (!answer.canceled && retries > 0 && lockedRef.current) window.setTimeout(() => void askFinger(retries - 1), 700);
   }
 
   // Each time the lock screen appears: the fingerprint prompt first.

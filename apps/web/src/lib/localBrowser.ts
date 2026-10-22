@@ -471,12 +471,17 @@ export async function biometricAvailable(): Promise<boolean> {
 
 /** Android's fingerprint prompt: true only when the finger was accepted (cancel = use the PIN). */
 export async function unlockWithBiometric(subtitle?: string): Promise<boolean> {
-  if (!isRunningInAndroidApp()) return false;
+  return (await askBiometric(subtitle)).ok;
+}
+
+/** The fingerprint prompt's answer - `canceled` when he chose «استخدم الرمز» (never asked again by itself). */
+export async function askBiometric(subtitle?: string): Promise<{ ok: boolean; canceled: boolean }> {
+  if (!isRunningInAndroidApp()) return { ok: false, canceled: true };
   try {
     const result = await LocalBrowser.authenticateBiometric({ title: "فتح STAR NET", ...(subtitle ? { subtitle } : {}), cancel: "استخدم الرمز" });
-    return result.ok;
+    return { ok: result.ok, canceled: result.error === "canceled" };
   } catch {
-    return false;
+    return { ok: false, canceled: false };
   }
 }
 

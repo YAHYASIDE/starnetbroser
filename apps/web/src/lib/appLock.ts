@@ -106,8 +106,9 @@ export function setBiometricUnlockEnabled(enabled: boolean): void {
   safeSet(BIOMETRIC_KEY, enabled ? "1" : null);
 }
 
-/** Leaving the app for longer than this (home button, another app) locks it again on return. */
-export const RELOCK_AFTER_MS = 60_000;
+/** Leaving the app for longer than this (home button, another app) locks it again on return - his
+ * Oct 22 2026 choice: 30 seconds. */
+export const RELOCK_AFTER_MS = 30_000;
 /** Opening a device's Starlink browser also sends STAR NET to the background (it's a separate
  * Android Activity) - that's the app's own flow, so a hide starting this soon after it never
  * re-locks. */

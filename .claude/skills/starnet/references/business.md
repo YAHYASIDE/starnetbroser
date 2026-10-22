@@ -2207,3 +2207,10 @@ is never pressed while a field is empty - it refills and saves on the next try (
   selling**: a purchase line of a Starlink item keeps `units[]` (KIT per piece, no device made); `stockKits` = bought
   KITs not on a sale yet (oldest first), shown as «📦 من المخزون» chips under an empty KIT field of the sale and as
   «📦 أرقام KIT في المخزون» on the item. A purchase refuses a KIT typed twice or already in stock.
+
+## 🖐 The fingerprint always shows; re-lock after 30 s (Oct 22 2026)
+
+- His report (lock screen screenshot): «زر البصمة دائمًا لا تظهر البصمة… اجعله ثابتًا واجعله لا يأتي إلا بعد 30 ثانية».
+  The prompt was asked while the Activity was still resuming and Android dropped it. Now the native
+  `authenticateBiometric` waits (up to 3 s) until the Activity is RESUMED with window focus, and `AppLockGate` asks
+  again by itself (twice, 700 ms apart) unless he pressed «استخدم الرمز». `RELOCK_AFTER_MS` = **30 s** (was 60 s).
