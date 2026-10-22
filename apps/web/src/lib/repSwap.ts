@@ -64,8 +64,9 @@ export function recordRepSwapHandover(input: {
   const ledger = input.ledgerId ? book.ledgers.find((l) => l.id === input.ledgerId && l.repId === input.repId) : undefined;
   if (input.ledgerId && !ledger) return { ok: false, message: "هذا الحساب لم يعد موجوداً" };
   if (ledger && !ledger.currencies.includes(toCurrency)) return { ok: false, message: `حساب «${ledger.name}» ليس فيه هذه العملة` };
-  if (ledger && hasBotEntry(book, input.botId)) return { ok: true, toAmount, toCurrency, target: `«${ledger.name}»` };
   const target = ledger ? `«${ledger.name}»` : toCurrency === "SIFA" ? "🟠 شخصي" : "🟢 الأوقية";
+  // 🔒 This bot message is already recorded (into a named account or his normal one): nothing again.
+  if (input.botId && (hasBotEntry(book, input.botId) || loadRepSettlements().some((s) => s.botId === input.botId))) return { ok: true, toAmount, toCurrency, target };
   const notes = swapNotes({ amount: input.amount, currency: input.currency, toAmount, toCurrency, rate: input.rate, target, method: input.method });
   const handoverId = `ho-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   const accountId = input.method && input.method !== "cash" ? devicePaymentAccountId({ paymentMethod: input.method, currency: input.currency }, loadAccountsBook().accounts) : null;
@@ -82,6 +83,7 @@ export function recordRepSwapHandover(input: {
     rates: input.rates,
     handoverId,
     swap,
+    ...(input.botId ? { botId: input.botId } : {}),
     ...(accountId ? { accountId } : {}),
   });
   if (!money.ok) return money;

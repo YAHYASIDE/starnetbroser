@@ -99,6 +99,7 @@ import { listAccounts } from "@/lib/apiClient";
 import { partyHue, partyInitials } from "@/lib/partyColor";
 import { buildRepSummaryMessage, buildWhatsAppLink } from "@/lib/whatsapp";
 import { ActionFace, PartySheet } from "@/components/AccountsSection";
+import { RepAuditSheet } from "@/components/RepAuditSheet";
 import { repDevicesDebt } from "@/lib/repDebts";
 import {
   listRepClients,
@@ -690,6 +691,7 @@ function RepCard({
   const [sheet, setSheet] = useState<RepSheet>(null);
   // 📂 «حساباته»: the full page of his accounts (his Oct 12 2026 ask).
   const [accountsOpen, setAccountsOpen] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
   const [periodKind, setPeriodKind] = useState<RepPeriodKind>("all");
   const [customPeriod, setCustomPeriod] = useState<RepPeriod>({ from: "", to: "" });
   const thisMonth = todayDateInputValue().slice(0, 7);
@@ -962,6 +964,9 @@ function RepCard({
         </div>
       )}
 
+      {auditOpen && (
+        <RepAuditSheet repId={rep.id} repName={rep.name} settlements={settlements} ledgerStore={ledgerStore} accounts={accounts} onClose={() => setAuditOpen(false)} />
+      )}
       <div className="party-actions">
         <button
           type="button"
@@ -972,6 +977,10 @@ function RepCard({
         </button>
         <button type="button" className="party-action party-action-accounts" onClick={() => setAccountsOpen(true)}>
           <ActionFace icon="📂" label="حساباته" />
+        </button>
+        {/* 🔍 the council's first step (his Oct 22 2026 choice): what looks wrong in his records, read only. */}
+        <button type="button" className="party-action" onClick={() => setAuditOpen(true)} data-tour="rep-audit">
+          <ActionFace icon="🔍" label="فحص" />
         </button>
         {!readOnly && <button type="button" className="party-action party-action-balance" onClick={() => setSheet({ kind: "settle" })}>
           <ActionFace icon="💵" label="تسوية" />

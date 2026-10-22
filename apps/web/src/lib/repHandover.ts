@@ -45,6 +45,7 @@ export function recordRepHandover(request: RepRequest, amount: number, currencyC
     note: `سلّمها المندوب (بوت المال)${request.paymentMethod && request.paymentMethod !== "cash" ? ` · ${PAYMENT_METHOD_LABELS[request.paymentMethod]}` : ""}`,
     rates: lockedRates(currencyCode),
     paymentMethod: request.paymentMethod,
+    ...(request.botId ? { botId: request.botId } : {}),
   });
   return result.ok ? { ok: true } : result;
 }

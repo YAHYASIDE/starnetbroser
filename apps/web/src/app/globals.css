@@ -19166,3 +19166,14 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
 .sale-rep-price small { font-size: 0.8rem; line-height: 1.5; }
 .store-stock-kits { display: flex; flex-direction: column; gap: 6px; }
 .store-stock-kit { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface-alt); color: var(--text); font-weight: 700; font-size: 0.8rem; }
+
+/* 🔍 «فحص حساب المندوب» (Oct 22 2026). */
+.rep-audit { display: flex; flex-direction: column; gap: 10px; }
+.rep-audit-summary { margin: 0; padding: 10px 12px; border-radius: 12px; font-weight: 700; }
+.rep-audit-summary.is-clean { background: var(--green-bg); color: var(--green); }
+.rep-audit-summary.is-bad { background: var(--red-bg); color: var(--red); }
+.rep-audit-summary.is-warn { background: var(--yellow-bg); color: var(--yellow); }
+.rep-audit-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.rep-audit-item { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; padding: 10px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-alt); }
+.rep-audit-item.is-error { border-color: var(--red); }
+.rep-audit-item p { margin: 0 0 4px; font-size: 0.88rem; line-height: 1.6; overflow-wrap: anywhere; }

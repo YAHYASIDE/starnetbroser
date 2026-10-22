@@ -601,11 +601,17 @@ function LoanRequestCard({ request, rep, accounts, clientStore, onDone }: MoneyC
   }
 
   async function approve() {
+    if (busy) return;
     const value = Number(amount);
     if (!(value > 0)) return setError("المبلغ غير صحيح");
+    // 🔒 Taken before recording - a second tap or a retry after a cut records nothing again.
+    const claimed = claimRepRequest(loadRepRequests(), request.id);
+    if (!claimed) return onDone("approved");
+    saveRepRequests(claimed);
     setBusy(true);
     const result = recordRepLoan(request, value, currency, localDay(new Date()));
     if (!result.ok) {
+      saveRepRequests(releaseRepRequest(loadRepRequests(), request.id));
       setBusy(false);
       return setError(result.message);
     }
@@ -706,17 +712,30 @@ function HandoverRequestCard({ request, rep, accounts, clientStore, onDone }: Mo
   const choices = ledgers.filter((l) => l.currencies.includes(accountCurrency));
   const chosen = choices.find((l) => l.id === ledgerId);
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const proofPhoto = request.proofFileId ? <RepProofPhoto fileId={request.proofFileId} bot={request.proofBot} /> : null;
 
   async function approve() {
+    if (busy) return;
     const value = Number(amount);
     if (!(value > 0)) return setError("المبلغ غير صحيح");
     if (ledgerId && !chosen) return setError("الحساب المختار ليس فيه هذه العملة - اختر حسابًا آخر");
+    if (toCurrency && !(Number(rate) > 0)) return setError("اكتب سعر البديل");
+    // 🔒 The council's Oct 22 2026 finding: this card had no lock - a second tap, or a cut while the
+    // rep's confirmation was being sent, recorded the same sum twice. Taken before anything slow.
+    const claimed = claimRepRequest(loadRepRequests(), request.id);
+    if (!claimed) return onDone("approved");
+    saveRepRequests(claimed);
+    setBusy(true);
+    const failed = (message: string) => {
+      saveRepRequests(releaseRepRequest(loadRepRequests(), request.id));
+      setBusy(false);
+      setError(message);
+    };
     const date = localDay(new Date());
     if (toCurrency) {
-      if (!(Number(rate) > 0)) return setError("اكتب سعر البديل");
       const swapped = recordRepSwapHandover({ repId: request.repId, repName: rep?.name ?? "", amount: value, currency, rate: Number(rate), date, method: request.paymentMethod, ...(chosen ? { ledgerId: chosen.id } : {}), botId: request.botId });
-      if (!swapped.ok) return setError(swapped.message);
+      if (!swapped.ok) return failed(swapped.message);
       const text = `✅ أكّد المسؤول استلام ${formatMoneyShort(value, currency)} منك - سُجّلت في حسابك ${swapped.target}: ${formatMoneyShort(swapped.toAmount, swapped.toCurrency)} (💱 ${swapRateLabel(Number(rate))}).`;
       await sendRepText(request.repId, withRepWallets(text, repWalletsNow({ rep, accounts, clientStore, ledgerStore: loadLedgerStore() })), undefined, "money");
       onDone("approved");
@@ -725,7 +744,7 @@ function HandoverRequestCard({ request, rep, accounts, clientStore, onDone }: Mo
     const result = chosen
       ? recordRepLedgerDeposit({ ledgerId: chosen.id, amount: value, currencyCode: currency, date, method: request.paymentMethod, botId: request.botId, repName: rep?.name ?? "" })
       : recordRepHandover(request, value, currency, date);
-    if (!result.ok) return setError(result.message);
+    if (!result.ok) return failed(result.message);
     const where = chosen ? `«${repLedgerKindMeta(chosen.kind).icon} ${chosen.name}» (لا يدخل في ربحك)` : repWalletLabel(currency === "MRU" ? "MRU" : "SIFA");
     const text = `✅ أكّد المسؤول استلام ${formatMoneyShort(value, currency)} منك - سُجّلت في حسابك ${where}.`;
     await sendRepText(request.repId, withRepWallets(text, repWalletsNow({ rep, accounts, clientStore, ledgerStore: loadLedgerStore() })), undefined, "money");
@@ -794,7 +813,7 @@ function HandoverRequestCard({ request, rep, accounts, clientStore, onDone }: Mo
       )}
       {error && <p className="settings-hint telegram-stopped">{error}</p>}
       <div className="settings-actions">
-        <button type="button" className="dialog-primary" onClick={() => void approve()}>
+        <button type="button" className="dialog-primary" onClick={() => void approve()} disabled={busy}>
           ✅ استلمته - سجّله
         </button>
         <button type="button" className="text-action" onClick={() => void reject()}>

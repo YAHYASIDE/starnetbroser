@@ -14,7 +14,13 @@ import { demoAccounts } from "./demoData";
 import { LEDGER_CURRENCIES, loadLedgerStore, type LedgerCurrency, type PaymentMethod } from "./ledgerStore";
 import { devicePaymentAccountId, loadAccountsBook } from "./moneyAccounts";
 import { planRepHandover, replayRepClients, loadRepBook } from "./repClients";
-import { loadRepresentativeStore, loadRepSettlements, recordRepSettlement, saveRepSettlements } from "./repStore";
+import { loadRepresentativeStore, loadRepSettlements, recordRepSettlement, saveRepSettlements, type RepSettlementList } from "./repStore";
+import type { LedgerByAccount } from "./ledgerStore";
+
+/** 🔒 A money-bot message (RepRequest.botId) already has a record - on a device or on the rep. */
+export function isBotMessageRecorded(botId: string, ledger: LedgerByAccount, settlements: RepSettlementList): boolean {
+  return settlements.some((s) => s.botId === botId) || Object.values(ledger).some((entries) => entries.some((e) => e.botId === botId));
+}
 import { isDemoMode } from "./settingsStore";
 
 export function loadStoredAccounts(): StarlinkAccountSummary[] {
@@ -23,6 +29,8 @@ export function loadStoredAccounts(): StarlinkAccountSummary[] {
 
 export interface RepHandoverOutcome {
   ok: true;
+  /** 🔒 This bot message was already recorded - nothing was added. */
+  alreadyRecorded?: boolean;
   /** Paid onto his customers' devices (his debt to us for them). */
   toDevices: number;
   /** The rest, recorded as before: a cash handover on his account. */
@@ -34,10 +42,13 @@ export interface RepHandoverOutcome {
  * is left is a cash handover on his account, exactly as before. */
 export function recordRepMoneyHandover(
   repId: string,
-  input: { amount: number; currencyCode: string; date: string; note?: string; rates?: Record<string, number>; paymentMethod?: PaymentMethod },
+  input: { amount: number; currencyCode: string; date: string; note?: string; rates?: Record<string, number>; paymentMethod?: PaymentMethod; botId?: string },
   accounts: StarlinkAccountSummary[] = loadStoredAccounts(),
 ): RepHandoverOutcome | { ok: false; message: string } {
   if (!Number.isFinite(input.amount) || input.amount <= 0) return { ok: false, message: "المبلغ يجب أن يكون أكبر من صفر" };
+  // 🔒 The council's Oct 22 2026 finding: one bot message approved twice was recorded twice. Its parts
+  // carry the message's botId - a second approval finds them and records nothing.
+  if (input.botId && isBotMessageRecorded(input.botId, loadLedgerStore(), loadRepSettlements())) return { ok: true, toDevices: 0, remainder: 0, alreadyRecorded: true };
   // 🏦 Sent through an app of «حسابي» (his Oct 11 2026 report: 70,000 فرانك on أورانج and 130,000 on نيتا
   // from his rep landed in الكاش): the money goes to that account, not to الكاش.
   const method = input.paymentMethod && input.paymentMethod !== "cash" ? input.paymentMethod : undefined;
@@ -66,6 +77,7 @@ export function recordRepMoneyHandover(
         cashMoved: !moneyAccountId,
         heldByRepId: repId,
         handoverId,
+        ...(input.botId ? { botId: input.botId } : {}),
       });
       if (!result.ok) return result;
       ledger = result.ledgerStore;
@@ -82,6 +94,7 @@ export function recordRepMoneyHandover(
       note: input.note,
       rates: input.rates,
       handoverId,
+      ...(input.botId ? { botId: input.botId } : {}),
       ...(moneyAccountId ? { accountId: moneyAccountId } : {}),
     });
     if (!result.ok) return result;

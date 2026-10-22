@@ -264,6 +264,8 @@ export interface RepSettlement {
   /** 💱 «سعر البديل» (his Oct 22 2026 ask): this money went into his account of another currency -
    * `toAmount toCurrency` at «1,000 سيفا = rate أوقية» (locked; see repSwap.ts). */
   swap?: { toAmount: number; toCurrency: string; rate: number; toLedgerName?: string };
+  /** 🔒 The money-bot message it came from (RepRequest.botId) - one bot message is recorded once. */
+  botId?: string;
   createdAt: string;
 }
 
@@ -302,6 +304,7 @@ export interface RecordRepSettlementInput {
   toDebt?: boolean;
   handoverId?: string;
   swap?: RepSettlement["swap"];
+  botId?: string;
 }
 
 export type RecordRepSettlementResult =
@@ -328,6 +331,7 @@ export function recordRepSettlement(
     ...(input.kind === "profitTransfer" && input.toDebt ? { toDebt: true } : {}),
     ...(input.handoverId ? { handoverId: input.handoverId } : {}),
     ...(input.swap ? { swap: input.swap } : {}),
+    ...(input.botId ? { botId: input.botId } : {}),
     createdAt: new Date().toISOString(),
   };
   return { ok: true, settlements: [...settlements, settlement], settlement };

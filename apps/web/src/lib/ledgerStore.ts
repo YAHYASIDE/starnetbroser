@@ -140,6 +140,8 @@ export interface LedgerEntry {
   /** 🤲 One sum a rep handed over, split by the app over his customers' devices and his account
    * (repClientsSave.ts): every part carries the same id, so the statement shows it as ONE line. */
   handoverId?: string;
+  /** 🔒 The money-bot message this payment came from (RepRequest.botId) - recorded once. */
+  botId?: string;
   /** 💱 He confirmed in the warning window that this operation really is in another currency than
    * its rep's / customer's (partyCurrency.ts) - never flagged as «⚠️ عملة مختلفة» again. */
   currencyConfirmed?: boolean;

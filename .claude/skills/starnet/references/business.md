@@ -2214,3 +2214,23 @@ is never pressed while a field is empty - it refills and saves on the next try (
   The prompt was asked while the Activity was still resuming and Android dropped it. Now the native
   `authenticateBiometric` waits (up to 3 s) until the Activity is RESUMED with window focus, and `AppLockGate` asks
   again by itself (twice, 700 ms apart) unless he pressed «استخدم الرمز». `RELOCK_AFTER_MS` = **30 s** (was 60 s).
+
+## 🔍 The rep's numbers: council + «فحص حساب المندوب» (Oct 22 2026)
+
+- His words: «أظن أن المندوب فيه الكثير من الأخطاء، وخاصة العمليات التي تُسجَّل عليه وله… ربما تزيد وتنقص» - no
+  example; he chose «اعرضها على المجلس». Council report (artifact «مجلس حساب المندوب»): real write bugs + numbers
+  that move by themselves; don't guess-fix on data we can't see; no auto-repair; corrections are new له/عليه records.
+  Found in code: (confirmed) the «🤲 سلّمت المسؤول» card had no lock - a 2nd tap / a cut while answering the rep
+  recorded it twice; deleting one part of a split handover leaves the others (linked delete only for 💱); editing a 💱
+  record changes one of its three; «ما عليه» follows the device's CURRENT rep / trash, not the record (moving or
+  trashing a device moves its debt silently); the card's «الصافي» converts at today's rate. Not bugs (checked): franc
+  ÷5 twice; rep-rate re-stamping (only when he changes the plan «من تاريخ»).
+- **His choice «الفحص + إغلاق التكرار»** (built): the handover and loan cards claim the request first
+  (`claimRepRequest`, released on failure, button disabled); every handover / 💱 record carries the bot message's
+  `botId` (RepSettlement.botId, LedgerEntry.botId) and `recordRepMoneyHandover` / `recordRepSwapHandover` record
+  nothing when it already exists (`isBotMessageRecorded`). «🔍 فحص» on the rep card (`RepAuditSheet`,
+  `lib/repAudit.ts`, read only): duplicateBot, maybeDuplicate (same kind/amount/currency/date within 3 min),
+  handoverMismatch (approved bot handover ≠ its parts - new records only), swapIncomplete, orphanCash / missingCash,
+  movedDevice / deletedDevice (his debt left «ما عليه»). «📋 نسخ التقرير» = no customer / device / rep names. Next
+  (after his report): lock the debt's owner on the record, linked delete/edit of a whole handover, notify the rep of
+  edits/deletes.
