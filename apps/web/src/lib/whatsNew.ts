@@ -31,6 +31,19 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-22-activation-message",
+    date: "2026-10-22",
+    title: "📨 رسالة التفعيل للزبون",
+    steps: [
+      {
+        path: "/",
+        title: "📨 رسالة التفعيل",
+        before: "كنت تكتب رسالة «تم تفعيل جهاز Starlink بنجاح» بيدك لكل زبون.",
+        after: "في ⋯ البطاقة: «📨 رسالة التفعيل» - رسالتك نفسها ممتلئة (الاسم، البريد وكلمته، الواي فاي، KIT، الاشتراك، ACC). إن نقص KIT أو الاشتراك أو ACC يحدّث الجهاز من Starlink أولًا. ثم «💬 واتساب الزبون» أو «📋 نسخ».",
+      },
+    ],
+  },
+  {
     id: "2026-10-22-update-in-app",
     date: "2026-10-22",
     title: "🆕 التحديث يُنزَّل داخل التطبيق",

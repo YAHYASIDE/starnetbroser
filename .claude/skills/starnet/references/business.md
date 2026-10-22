@@ -2160,3 +2160,14 @@ is never pressed while a field is empty - it refills and saves on the next try (
   followed, only `github.com/YAHYASIDE/starnetbroser/releases/download/*.apk`) and opens Android's installer
   (`REQUEST_INSTALL_PACKAGES`). First time Android asks «السماح من هذا المصدر»; the finished file is kept 30 min so
   the second tap installs at once. The laptop and the web keep the plain link.
+
+## 📨 «رسالة التفعيل» - his message to a customer after activating a device (Oct 22 2026)
+
+- His ask: «عندما أنهي تفعيل جهاز لشخص أرسل له معلومات الجهاز» with the exact message he used to send by hand
+  (*⭐ STAR NET* / «تم تفعيل جهاز Starlink بنجاح بتاريخ: d / m / yyyy» / بيانات الحساب / support WhatsApp
+  22374646158 and starnet.om@gmail.com). His choices: **a button in the card only** (⋯ → «📨 رسالة التفعيل», nothing
+  automatic on «✅ انتهى»); **WhatsApp to the customer + 📋 copy**; **sync first** - when KIT / subscription / ACC
+  are missing the sheet runs the card's «تحديث» once and refills when the read lands, what is still unknown keeps his
+  «[ارسل صورة …]»; **his text word for word** (`lib/activationMessage.ts`, `ActivationMessageSheet`).
+- Date = the day the message is made. Name = the linked customer, else the Starlink holder name, else the device
+  name. KIT falls back to the serial. A Wi-Fi / mail password he never entered leaves its line out.

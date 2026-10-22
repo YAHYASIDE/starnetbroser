@@ -1,5 +1,6 @@
 "use client";
 
+import { ActivationMessageSheet } from "@/components/ActivationMessageSheet";
 import { askDeleteCode } from "@/components/DeleteCodePrompt";
 import type React from "react";
 import Link from "next/link";
@@ -516,6 +517,7 @@ export function AccountCard({
   const [showFaultDialog, setShowFaultDialog] = useState(false);
   const [showRenewalDialog, setShowRenewalDialog] = useState(false);
   const [showPromise, setShowPromise] = useState(false);
+  const [showActivation, setShowActivation] = useState(false);
   const identityEmail = account.expectedEmail || account.starlinkAccountEmail;
   const [emailCopied, setEmailCopied] = useState(false);
   // ✉️ The device is named by its email: shown once (his Oct 17 2026 choice) - the name copies it.
@@ -1300,6 +1302,18 @@ export function AccountCard({
         </div>
       )}
 
+      {showActivation && (
+        <ActivationMessageSheet
+          account={account}
+          clientName={client?.name}
+          phone={client?.phone || account.phone}
+          canSync={isAndroidApp || isDesktopApp()}
+          syncing={syncingCard}
+          onSync={handleQuickSync}
+          onClose={() => setShowActivation(false)}
+        />
+      )}
+
       {showMore && (
         <div className="party-sheet-backdrop" role="presentation" onClick={() => setShowMore(false)}>
           <div className="party-sheet" role="dialog" aria-modal="true" aria-label={account.name} onClick={(e) => e.stopPropagation()}>
@@ -1317,6 +1331,7 @@ export function AccountCard({
                   ? [{ icon: "📧", label: mailSignedIn ? "البريد (مسجّل)" : "البريد", run: () => void handleOpenMail() }]
                   : []),
                 { icon: "📅", label: "تجديد", run: () => setShowRenewalDialog(true) },
+                { icon: "📨", label: "رسالة التفعيل", run: () => setShowActivation(true) },
                 { icon: "📋", label: expanded ? "إخفاء التفاصيل" : "التفاصيل", run: () => setExpanded((v) => !v) },
                 { icon: client ? "✎" : "🔗", label: client ? "تعديل البيانات" : "ربط بزبون", run: () => onEdit(account) },
                 { icon: "📋", label: "لصق جلسة (من متصفح آخر)", run: () => setShowPasteSession(true) },
