@@ -97,6 +97,12 @@ public class TelegramSendWorker extends Worker {
         WorkManager.getInstance(context).enqueue(request(text, TelegramStore.OWNER, null, null).build());
     }
 
+    /** 🔑 To the operator through «بوت الأكواد» (nothing when it isn't connected). */
+    static void enqueueCode(Context context, String text) {
+        if (TelegramStore.extraToken(context, TelegramStore.CODES) == null || TelegramStore.chatId(context) == null) return;
+        WorkManager.getInstance(context).enqueue(request(text, TelegramStore.CODES, null, null).build());
+    }
+
     /** To one linked rep through the reps bot. */
     static void enqueueToRep(Context context, String chatId, String text) {
         enqueueToRep(context, chatId, text, null);

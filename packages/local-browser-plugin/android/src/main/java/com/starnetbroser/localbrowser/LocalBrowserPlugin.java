@@ -998,6 +998,14 @@ public class LocalBrowserPlugin extends Plugin {
         call.resolve(ret);
     }
 
+    /** 🔑 The devices' details «بوت الأكواد» sends with each code: {devices: {accountId: {name, client, email, kit}}}. */
+    @PluginMethod
+    public void setCodeDevices(PluginCall call) {
+        JSObject devices = call.getObject("devices");
+        TelegramStore.setCodeDevices(getContext(), devices == null ? "{}" : devices.toString());
+        call.resolve();
+    }
+
     /** 🔑 «الأكواد»: the verification codes the app read from mailboxes, newest first (CodeLogStore). */
     @PluginMethod
     public void listVerificationCodes(PluginCall call) {
@@ -1164,9 +1172,23 @@ public class LocalBrowserPlugin extends Plugin {
                         call.reject("هذا المفتاح مستعمل لبوت آخر - أنشئ بوتاً جديداً من @BotFather");
                         return;
                     }
+                    if (TelegramStore.CODES.equals(extra) && TelegramStore.chatId(getContext()) == null) {
+                        call.reject("اربط بوتك الشخصي أولاً - رموز الأكواد تصل إلى محادثتك أنت");
+                        return;
+                    }
                     if (!TelegramStore.saveExtraBot(getContext(), extra, token, botName)) {
                         call.reject("تعذر حفظ الربط على الهاتف");
                         return;
+                    }
+                    if (TelegramStore.CODES.equals(extra)) {
+                        // 🔑 It writes to him: he must have pressed «ابدأ» in this bot first.
+                        try {
+                            TelegramClient.sendMessage(token, TelegramStore.chatId(getContext()), CodeBotText.CONNECTED);
+                        } catch (TelegramClient.TelegramError notStarted) {
+                            TelegramStore.clearExtraBot(getContext(), extra);
+                            call.reject("افتح البوت @" + botName + " في تيليغرام واضغط «ابدأ»، ثم اضغط «ربط» مرة أخرى");
+                            return;
+                        }
                     }
                     TelegramReplyService.refresh(getContext());
                     JSObject ret = new JSObject();
@@ -1253,6 +1275,8 @@ public class LocalBrowserPlugin extends Plugin {
         ret.put("moneyBotName", TelegramStore.extraBotName(getContext(), TelegramStore.MONEY));
         ret.put("alertsConfigured", TelegramStore.extraToken(getContext(), TelegramStore.ALERTS) != null);
         ret.put("alertsBotName", TelegramStore.extraBotName(getContext(), TelegramStore.ALERTS));
+        ret.put("codesConfigured", TelegramStore.extraToken(getContext(), TelegramStore.CODES) != null);
+        ret.put("codesBotName", TelegramStore.extraBotName(getContext(), TelegramStore.CODES));
         ret.put("instant", TelegramStore.isInstantEnabled(getContext()));
         ret.put("instantRunning", TelegramReplyService.isPolling());
         ret.put("batteryUnrestricted", isIgnoringBatteryOptimizations());

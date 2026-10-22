@@ -591,6 +591,16 @@ export function onAccountDataSynced(
  * live accountDataSynced event alone is not enough, since it is silently dropped whenever the
  * app's Bridge/WebView wasn't attached and resumed at the moment AccountBrowserActivity fired it.
  */
+/** 🔑 The devices' details «بوت الأكواد» sends with each code (phone only, never throws). */
+export async function setCodeDevices(devices: Record<string, { name?: string; client?: string; email?: string; kit?: string }>): Promise<void> {
+  if (!isRunningInAndroidApp()) return;
+  try {
+    await LocalBrowser.setCodeDevices({ devices });
+  } catch {
+    // an older app - codes still go to «الأكواد»
+  }
+}
+
 /** 🔑 «الأكواد»: the verification codes the app read from mailboxes, newest first (phone only). */
 export async function listVerificationCodes(): Promise<{ at: number; accountId: string; kind: "starlink" | "mail" | "card"; code: string }[]> {
   const desktop = desktopBridge();

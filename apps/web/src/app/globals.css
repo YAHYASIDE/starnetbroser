@@ -19073,6 +19073,8 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
 .codes-help { margin-top: 10px; }
 .codes-help summary { cursor: pointer; font-weight: 700; font-size: 0.86rem; }
 .codes-help ol { margin: 8px 0; padding-inline-start: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 0.84rem; }
+.codes-bot { margin-bottom: 10px; }
+.codes-bot-steps { margin: 4px 0 8px; padding-inline-start: 20px; display: flex; flex-direction: column; gap: 3px; font-size: 0.82rem; }
 
 /* 🤝 a rep's fixed price on a store item (Oct 22 2026). */
 .store-rep-price { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); }

@@ -108,6 +108,7 @@ export async function telegramConnection(): Promise<TelegramConnection> {
     safeSet(REPS_BOT_NAME_KEY, status.repsConfigured ? status.repsBotName ?? null : null);
     safeSet(MONEY_BOT_KEY, status.moneyConfigured ? status.moneyBotName || "money" : null);
     safeSet(ALERTS_BOT_KEY, status.alertsConfigured ? status.alertsBotName || "alerts" : null);
+    safeSet(CODES_BOT_KEY, status.codesConfigured ? status.codesBotName || "codes" : null);
     return {
       configured: status.configured,
       botName: status.botName ?? undefined,
@@ -231,6 +232,36 @@ const REPS_CONNECTED_KEY = "starnet.telegramRepsConnected";
 const MONEY_BOT_KEY = "starnet.telegramMoneyBot";
 const ALERTS_BOT_KEY = "starnet.telegramAlertsBot";
 const REPS_BOT_NAME_KEY = "starnet.telegramRepsBotName";
+/** 🔑 «بوت الأكواد»'s @name while connected. */
+const CODES_BOT_KEY = "starnet.telegramCodesBot";
+
+export function codesBotName(): string | undefined {
+  return isRunningInAndroidApp() ? safeGet(CODES_BOT_KEY) ?? undefined : undefined;
+}
+
+/** 🔑 Connects «بوت الأكواد» (a new bot from @BotFather; he presses «ابدأ» in it first). */
+export async function connectCodesBot(token: string): Promise<{ ok: true; botName: string } | { ok: false; message: string }> {
+  if (!isRunningInAndroidApp()) return { ok: false, message: "الربط يعمل داخل تطبيق أندرويد فقط" };
+  const clean = cleanBotToken(token);
+  if (!clean) return { ok: false, message: TOKEN_FORMAT_HELP };
+  try {
+    const result = await LocalBrowser.telegramConnect({ token: clean, bot: "codes" });
+    safeSet(CODES_BOT_KEY, result.botName || "codes");
+    return { ok: true, botName: result.botName };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : "تعذر الربط" };
+  }
+}
+
+export async function disconnectCodesBot(): Promise<void> {
+  safeSet(CODES_BOT_KEY, null);
+  if (!isRunningInAndroidApp()) return;
+  try {
+    await LocalBrowser.telegramDisconnect({ bot: "codes" });
+  } catch {
+    // nothing stored natively
+  }
+}
 
 /** Which of the reps' bots are connected, by @name. */
 export function repBotNames(): RepBotNames {

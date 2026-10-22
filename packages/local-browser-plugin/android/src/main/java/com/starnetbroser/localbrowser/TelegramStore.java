@@ -22,6 +22,9 @@ final class TelegramStore {
      * id, the same in every bot, so REPS' links answer for all three. */
     static final String MONEY = "money";
     static final String ALERTS = "alerts";
+    /** 🔑 The operator's «بوت الأكواد» (his Oct 22 2026 ask): every code the app reads, with its device,
+     * sent to his own chat (the owner bot's chat id - a private chat's id is the person himself). */
+    static final String CODES = "codes";
 
     private static final String PREFS = "starnet_telegram";
     private static final String KEY_TOKEN = "token";
@@ -196,7 +199,7 @@ final class TelegramStore {
     }
 
     static boolean isExtraBot(String bot) {
-        return MONEY.equals(bot) || ALERTS.equals(bot);
+        return MONEY.equals(bot) || ALERTS.equals(bot) || CODES.equals(bot);
     }
 
     static boolean saveExtraBot(Context context, String bot, String token, String botName) {
@@ -228,13 +231,24 @@ final class TelegramStore {
     /** Every token in use (to refuse connecting the same bot twice). */
     static java.util.List<String> allTokens(Context context) {
         java.util.List<String> out = new java.util.ArrayList<>();
-        for (String t : new String[] {token(context), repsToken(context), extraToken(context, MONEY), extraToken(context, ALERTS)}) {
+        for (String t : new String[] {token(context), repsToken(context), extraToken(context, MONEY), extraToken(context, ALERTS), extraToken(context, CODES)}) {
             if (t != null) out.add(t);
         }
         return out;
     }
 
-    /** The token to send with ("owner", "reps", "money" or "alerts"). */
+    // ---- 🔑 the device details a code is sent with (pushed by the app: accountId -> name, client, email, KIT) ----
+    private static final String KEY_CODE_DEVICES = "codeDevices";
+
+    static void setCodeDevices(Context context, String json) {
+        prefs(context).edit().putString(KEY_CODE_DEVICES, json == null ? "{}" : json).apply();
+    }
+
+    static String codeDevices(Context context) {
+        return prefs(context).getString(KEY_CODE_DEVICES, "{}");
+    }
+
+    /** The token to send with ("owner", "reps", "money", "alerts" or "codes"). */
     static String tokenFor(Context context, String bot) {
         if (isExtraBot(bot)) return extraToken(context, bot);
         return REPS.equals(bot) ? repsToken(context) : token(context);

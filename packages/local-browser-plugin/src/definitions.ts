@@ -349,7 +349,7 @@ export interface SetAutoSyncAccountIdsOptions {
 /** "owner" = the operator's own bot (default); "reps" = the representatives' bot. */
 /** "reps" = the reps' 📡 devices bot; "money" / "alerts" = their optional 💰 and 🔔 bots (sending to
  * one that isn't connected goes through the devices bot instead). */
-export type TelegramBot = "owner" | "reps" | "money" | "alerts";
+export type TelegramBot = "owner" | "reps" | "money" | "alerts" | "codes";
 
 export interface TelegramStatus {
   configured: boolean;
@@ -363,6 +363,9 @@ export interface TelegramStatus {
   moneyBotName?: string | null;
   alertsConfigured?: boolean;
   alertsBotName?: string | null;
+  /** 🔑 «بوت الأكواد» (the operator's codes bot). */
+  codesConfigured?: boolean;
+  codesBotName?: string | null;
   /** Bots keep answering with the app closed (TelegramReplyService). */
   instant?: boolean;
   /** ...and its service is actually running right now. */
@@ -556,6 +559,8 @@ export interface LocalBrowserPlugin {
    * Always empty on web. */
   listVerificationCodes(): Promise<{ codes: VerificationCode[] }>;
   clearVerificationCodes(): Promise<void>;
+  /** 🔑 The details «بوت الأكواد» sends with each code: accountId -> {name, client, email, kit}. */
+  setCodeDevices(options: { devices: Record<string, { name?: string; client?: string; email?: string; kit?: string }> }): Promise<void>;
 
   /** 🔄 How each auto-sync ended since the last call («تحديث من Starlink» / «مزامنة الآن») - and
    * forgets them. Empty on web. */

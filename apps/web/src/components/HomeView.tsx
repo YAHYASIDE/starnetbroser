@@ -123,6 +123,7 @@ import { countFaultCategories, FAULT_CATEGORIES, faultCategory, isFaulty, isUnde
 import type { DeviceFaultReason } from "@starnet/shared";
 import { addToPreviousDebt, listOpenPreviousDebts, loadPreviousDebts, recordPreviousDebt, savePreviousDebts, type PreviousDebtList } from "@/lib/previousDebt";
 import { dayKey as localDayKey } from "@/lib/financeDashboard";
+import { buildCodeDevices } from "@/lib/codeDevices";
 import { confirmClosedMonthChange, ledgerEntryMonthDates } from "@/lib/monthClosing";
 import { deviceRecordsQuestion, deviceRecordsSummary, removeDeviceRecords } from "@/lib/deviceRemoval";
 import { starlinkCostUsd } from "@/lib/accountingStore";
@@ -158,6 +159,7 @@ import {
   openIsolatedAccountBrowser,
   starlinkLoginFor,
   syncAutoSyncAccountList,
+  setCodeDevices,
   pushFillCards,
   pushKastDevices,
   kastCheckNow,
@@ -1710,6 +1712,11 @@ export function HomeView({
     // ones (7/3/1 days, just expired, stopped) automatically; see autoSyncList.ts.
     void syncAutoSyncAccountList(buildAutoSyncList(accounts));
   }, [accounts]);
+
+  // 🔑 «بوت الأكواد» sends each code with its device's name, customer, email and KIT.
+  useEffect(() => {
+    void setCodeDevices(buildCodeDevices(accounts, clientStore));
+  }, [accounts, clientStore]);
 
   // ✉️ Devices still named by the time they were added take their email as their name.
   useEffect(() => {

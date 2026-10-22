@@ -2088,6 +2088,16 @@ is never pressed while a field is empty - it refills and saves on the next try (
   the Google account's password manager, not in a mail, can't be read by STAR NET, and Google gives it only to known
   browsers - the app keeps signing in with the password + the mail code). Passkeys go in his Google account (the
   «بريد الرموز» Gmail suggested); no in-app passkey store / credential provider.
+- **Passkeys go in the Google account `starnet.om@gmail.com`** - his words «أريد أن يكون starnet.om@gmail.com هو الذي
+  تُحفظ فيه المفاتيح». The help fold in «🔑 الأكواد» names it (preferred service Google → that account; on the laptop
+  sign Chrome in with it). No code touches the account - steps only.
+- **🤖 «بوت الأكواد»** - his ask «أرسل كل رمز إلى بوت التيليغرام معه تفاصيل الجهاز، وأضفه بوتًا جديدًا سمّه كما تريد».
+  A 5th bot (`TelegramStore.CODES`, send-only, never polled), connected in «🔑 الأكواد» with its @BotFather token; it
+  needs his personal bot linked (it sends to the owner chat) and a test message proves he pressed «ابدأ». Every code
+  the **phone** reads (`CodeLogStore.record`) is queued to it (`TelegramSendWorker.enqueueCode`) as `CodeBotText`:
+  kind + code, device name, customer, email, KIT, time, «⏳ الرمز يعمل دقائق فقط». The device details come from the
+  app (`buildCodeDevices` → `setCodeDevices`, pushed whenever devices/clients change). Laptop codes are not sent (the
+  bots live on the phone).
 
 ## 🛍️ Store: edit past invoices, a rep's fixed price, selling a device (Oct 22 2026)
 

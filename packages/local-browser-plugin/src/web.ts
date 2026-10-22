@@ -79,6 +79,8 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
 
   async clearVerificationCodes(): Promise<void> {}
 
+  async setCodeDevices(): Promise<void> {}
+
   async takeAutoSyncResults(): Promise<{ results: AutoSyncResult[] }> {
     return { results: [] };
   }

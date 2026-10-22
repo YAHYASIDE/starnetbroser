@@ -31,6 +31,20 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-22-codes-bot",
+    date: "2026-10-22",
+    title: "🤖 بوت الأكواد",
+    steps: [
+      {
+        path: "/mailboxes",
+        target: "codes",
+        title: "🤖 كل رمز يصلك في تيليغرام",
+        before: "الأكواد تُحفظ في التطبيق فقط.",
+        after: "اربط «بوت الأكواد» (بوت جديد من @BotFather) في «🔑 الأكواد»: كل رمز يقرؤه الهاتف يصلك فورًا مع اسم الجهاز والزبون والإيميل ورقم KIT. ومفاتيح المرور تُحفظ في حساب Google starnet.om@gmail.com.",
+      },
+    ],
+  },
+  {
     id: "2026-10-22-desktop-sync",
     date: "2026-10-22",
     title: "🖥️ اللابتوب: «تحديث» من Starlink",

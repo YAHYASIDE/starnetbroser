@@ -5,6 +5,7 @@ import type { StarlinkAccountSummary } from "@starnet/shared";
 import { clearVerificationCodes, isRunningInAndroidApp, listVerificationCodes } from "@/lib/localBrowser";
 import { buildCodeRows, type StoredCode } from "@/lib/verificationCodes";
 import { isDesktopApp } from "@/lib/desktop";
+import { CodesBotConnect } from "@/components/CodesBotConnect";
 
 /** 🔑 «الأكواد» (his Oct 22 2026 ask): every verification code the app read from a mailbox, kept 30 days
  * on this phone; tap 📋 to copy. With the steps to keep passkeys in his Google account. */
@@ -66,6 +67,7 @@ export function CodesSection({ accounts }: { accounts: StarlinkAccountSummary[] 
         كل رمز تحقق يقرؤه التطبيق من البريد (دخول Starlink، دخول البريد، دفع البطاقة) يُحفظ هنا 30 يومًا على هذا الهاتف. الرمز يعمل دقائق
         فقط بعد وصوله.
       </p>
+      {isRunningInAndroidApp() && <CodesBotConnect />}
       {!inApp ? (
         <p className="settings-hint">الأكواد تُحفظ في تطبيق Android وبرنامج الويندوس فقط.</p>
       ) : codes.length === 0 ? (
@@ -101,15 +103,20 @@ export function CodesSection({ accounts }: { accounts: StarlinkAccountSummary[] 
       )}
 
       <details className="codes-help">
-        <summary>🔐 احفظ مفاتيح المرور (Passkeys) في حساب Google بدل مايكروسوفت</summary>
+        <summary>
+          🔐 احفظ مفاتيح المرور (Passkeys) في حساب Google <bdi dir="ltr">starnet.om@gmail.com</bdi>
+        </summary>
         <ol>
           <li>افتح إعدادات الهاتف ← «كلمات المرور ومفاتيح المرور والحسابات» (في بعض الهواتف: «Google» ← «الملء التلقائي»).</li>
-          <li>في «الخدمة المفضّلة» اختر <strong>Google</strong> (حساب Gmail الذي تريد الحفظ فيه).</li>
+          <li>
+            في «الخدمة المفضّلة» اختر <strong>Google</strong> ثم الحساب <bdi dir="ltr">starnet.om@gmail.com</bdi> (أضِفه للهاتف من «الحسابات» إن لم يكن
+            موجودًا).
+          </li>
           <li>أوقف «Microsoft Authenticator / Edge» من الخدمات الإضافية إن أردت ألا يُحفظ فيه شيء.</li>
-          <li>في Starlink: Settings ← Privacy &amp; Security ← Passkeys ← «Add passkey» - يُحفظ الآن في حساب Google (تراه في passwords.google.com).</li>
+          <li>في Starlink: Settings ← Privacy &amp; Security ← Passkeys ← «Add passkey» - يُحفظ الآن في <bdi dir="ltr">starnet.om@gmail.com</bdi> (تراه في passwords.google.com وأنت داخل به).</li>
           <li>المفتاح القديم «Microsoft Password Manager»: احذفه من ⋯ ← Delete إن لم تعد تحتاجه.</li>
         </ol>
-        <p className="settings-hint">المفتاح يُحفظ في حساب Google وليس في رسالة بريد. كلمة المرور تبقى، ويدخل بها التطبيق دائمًا.</p>
+        <p className="settings-hint">على اللابتوب: سجّل دخول Chrome بنفس الحساب ليظهر المفتاح هناك. المفتاح يُحفظ في الحساب وليس في رسالة بريد. كلمة المرور تبقى، ويدخل بها التطبيق دائمًا.</p>
       </details>
     </section>
   );
