@@ -8,12 +8,19 @@ import { demoAccounts } from "@/lib/demoData";
 import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
 import { loadDemoAccounts } from "@/lib/demoAccountStore";
 import { listAccounts } from "@/lib/apiClient";
-import { LedgerByAccount, loadLedgerStore } from "@/lib/ledgerStore";
-import { filterEntriesByProfitDate, REPORT_PERIOD_LABELS, REPORT_PERIODS, ReportPeriod } from "@/lib/reportPeriod";
+import { LEDGER_CURRENCY_LABELS, LedgerByAccount, LedgerCurrency, loadLedgerStore } from "@/lib/ledgerStore";
+import { inWindow, previousWindow, rangeLabel, rangeWindow, windowSeries, type RangeSpan, type ReportRange } from "@/lib/reportRange";
+import { ReportRangeBar } from "@/components/ReportRangeBar";
+import { shipmentProfitDate } from "@/lib/accountingStore";
+import { debtFlowsIn } from "@/lib/debtFlows";
+import { buildReportsPdf } from "@/lib/reportsPdf";
+import { exportPrintablePdf } from "@/lib/pdfExport";
+import { computeItemSalesTotals, computeTotalReceivablesByCurrency } from "@/lib/storeReports";
+import { invoiceTotal } from "@/lib/invoiceStore";
 import { ClientStore, getClient, listClients, loadClientStore } from "@/lib/clientStore";
 import { formatAmount } from "@/lib/formatAmount";
 import { InvoiceList, loadInvoices } from "@/lib/invoiceStore";
-import { listStoreItems, loadStoreItems, loadStoreTransactions, StoreItemRegistry, StoreTransactionList } from "@/lib/storeStore";
+import { getStoreItem, listStoreItems, loadStoreItems, loadStoreTransactions, StoreItemRegistry, StoreTransactionList } from "@/lib/storeStore";
 import { CashEntryList, loadCashEntries } from "@/lib/cashStore";
 import { computeRepSharesMru, listRepresentatives, loadRepresentativeStore, loadRepSettlements, RepresentativeStore, RepSettlementList, saveRepresentativeStore } from "@/lib/repStore";
 import { sumProfitMru } from "@/lib/profitMru";
@@ -39,18 +46,18 @@ import { loadPartyAdjustments, PartyAdjustmentList } from "@/lib/partyBalanceSto
 import { buildCardStatement, listCardPayments, listOpenShipmentDebts, loadCardTopUps, totalOpenDebtUsd, CardTopUpList } from "@/lib/starlinkDebt";
 import { listOpenPreviousDebts, loadPreviousDebts, PreviousDebtList, totalPreviousDebtUsd } from "@/lib/previousDebt";
 import { buildBusinessWorkbook, xlsxFileName } from "@/lib/excelExport";
-import { buildMonthNet, monthChange } from "@/lib/netProfit";
+import { buildPeriodNet, monthChange } from "@/lib/netProfit";
+import { dayKey as localDayKey } from "@/lib/financeDashboard";
 import { loadExpenseTree } from "@/lib/expenseTreeStore";
-import { loadPersonalExpenses, monthExpensesMru, type ExpenseCategory, type PersonalExpenseList } from "@/lib/personalExpenses";
+import { loadPersonalExpenses, summarizeExpenses, type ExpenseCategory, type PersonalExpenseList } from "@/lib/personalExpenses";
 import { PersonalExpensesTab } from "@/components/PersonalExpensesTab";
-import { monthLabel, recentMonths } from "@/lib/monthClosing";
 import { exportXlsx } from "@/lib/xlsxExport";
 import { DASH_SECTIONS } from "@/components/FinanceDashboard";
 import { REPORT_HIT_LABELS, searchReports, type ReportHit } from "@/lib/reportSearch";
 import { listSuppliers, loadSupplierStore, type SupplierStore } from "@/lib/supplierStore";
 import {
-  profitSeries,
   RatesFromUsd,
+  shipmentProfitMru,
   rankClientProfits,
   rankDeviceProfits,
   repBalancesMru,
@@ -58,12 +65,16 @@ import {
   sumToMru,
 } from "@/lib/reportsView";
 
-type ReportTab = "net" | "starlink" | "debts" | "expenses";
+type ReportTab = "net" | "starlink" | "store" | "expenses" | "debts";
 
 // Oct 16 2026 (his «التقارير صارت أسوأ، فيها الكثير ومختلطة»): «ربح الشهر» first and opened by default,
 // then ستارلينك · الديون · المصروفات. «المتجر» left (its own report is in the store page) and «اليوم» too
 // (it's on the home page / «خطة اليوم»).
-const TAB_LABELS: Record<ReportTab, string> = { net: "💰 ربح الشهر", starlink: "ستارلينك", debts: "الديون", expenses: "المصروفات" };
+// Oct 22 2026 (his «اجعل ربح الشهر الكل… أضف المتجر معهم»): «💰 الإجمالي» (ستارلينك → المتجر → المصروفات →
+// الصافي) and «المتجر» back, every tab on the one period bar on top (lib/reportRange.ts).
+const TAB_LABELS: Record<ReportTab, string> = { net: "الإجمالي", starlink: "ستارلينك", store: "المتجر", expenses: "المصروفات", debts: "الديون" };
+// The bar's length (يوم / أسبوع / شهر) is remembered on the phone; the days always start from today.
+const SPAN_KEY = "starnet.reportsSpan";
 // The phone remembers his tab. «📊 الملخص» moved into «💰 حسابي» (his Oct 12 2026 choice): a saved
 // "dash" is no longer a tab and falls back to «الصافي».
 const TAB_KEY = "starnet.reportsTab2";
@@ -97,7 +108,16 @@ export default function ReportsPage() {
   const [hiddenDays, setHiddenDays] = useState<HiddenProfitDays>({});
   const [allocations, setAllocations] = useState<AllocationsByAccount>({});
   const [showExpected, setShowExpected] = useState(false);
-  const [period, setPeriod] = useState<ReportPeriod>("month");
+  const today = localDayKey(new Date());
+  const [range, setRange] = useState<ReportRange>(() => ({ span: "month", end: today }));
+  function changeRange(next: ReportRange) {
+    setRange(next);
+    try {
+      window.localStorage.setItem(SPAN_KEY, next.span);
+    } catch {
+      // A per-phone convenience only.
+    }
+  }
   const [tab, setTab] = useState<ReportTab>("net");
   const [supplierStore, setSupplierStore] = useState<SupplierStore>({});
   // 🔎 «ابحث عن أي شيء في STAR NET...»: typed text, and the debounced query actually searched.
@@ -107,7 +127,6 @@ export default function ReportsPage() {
     const timer = window.setTimeout(() => setSearchQuery(searchText), 200);
     return () => window.clearTimeout(timer);
   }, [searchText]);
-  const [netMonth, setNetMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [personal, setPersonal] = useState<PersonalExpenseList>([]);
   const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([]);
   // 🧾 bumped by the floating button / the home-screen shortcut: opens a new expense.
@@ -156,6 +175,8 @@ export default function ReportsPage() {
     try {
       const saved = window.localStorage.getItem(TAB_KEY);
       if (TAB_IDS.includes(saved as ReportTab)) setTab(saved as ReportTab);
+      const span = window.localStorage.getItem(SPAN_KEY);
+      if (span === "day" || span === "week" || span === "month") setRange((r) => ({ ...r, span: span as RangeSpan }));
     } catch {
       // A per-phone convenience only.
     }
@@ -183,6 +204,8 @@ export default function ReportsPage() {
     return result;
   }, [currencyStore]);
   const mruRate = rates.MRU;
+  const days = useMemo(() => rangeWindow(range), [range]);
+  const periodLabel = rangeLabel(range, today);
   const accountName = (id: string) => accounts.find((a) => a.id === id)?.name ?? "جهاز محذوف";
 
   // ---- ستارلينك: profit counted on the day Starlink was paid, after any "fresh start" ----
@@ -194,10 +217,10 @@ export default function ReportsPage() {
     const result: Record<string, LedgerByAccount[string]> = {};
     for (const [accountId, entries] of Object.entries(visibleLedger)) {
       const reset = accountId in resetByAccount ? resetByAccount[accountId] : profitReset;
-      result[accountId] = entriesAfterProfitReset(filterEntriesByProfitDate(entries, period), reset ?? null);
+      result[accountId] = entriesAfterProfitReset(entries.filter((e) => inWindow(shipmentProfitDate(e), days)), reset ?? null);
     }
     return result;
-  }, [visibleLedger, period, profitReset, resetByAccount]);
+  }, [visibleLedger, days, profitReset, resetByAccount]);
   const profitEntries = useMemo(() => Object.values(profitByAccount).flat(), [profitByAccount]);
   const openEntries = useMemo(
     () => Object.values(ledgerStore).flat().filter((e) => e.kind === "debit" && e.starlinkCost?.status === "pending"),
@@ -206,20 +229,18 @@ export default function ReportsPage() {
   const profit = useMemo(() => (mruRate ? sumProfitMru(profitEntries, mruRate) : undefined), [profitEntries, mruRate]);
   const expected = useMemo(() => (mruRate ? sumProfitMru(openEntries, mruRate) : undefined), [openEntries, mruRate]);
   const repShares = useMemo(() => (mruRate ? computeRepSharesMru(profitEntries, mruRate).confirmed : undefined), [profitEntries, mruRate]);
-  const profitChart = useMemo(() => (mruRate ? profitSeries(profitEntries, period, mruRate) : []), [profitEntries, period, mruRate]);
+  const profitChart = useMemo(() => {
+    if (!mruRate) return [];
+    const items: { date: string; value: number }[] = [];
+    for (const entry of profitEntries) {
+      const value = entry.kind === "debit" ? shipmentProfitMru(entry, mruRate) : undefined;
+      if (value !== undefined) items.push({ date: shipmentProfitDate(entry), value });
+    }
+    return windowSeries(items, days);
+  }, [profitEntries, days, mruRate]);
   // 📒 The statement: the period's paid shipments day by day, and every open D as expected profit.
   const statementDays = useMemo(() => groupProfitDays(buildProfitRows(profitByAccount, allocations, mruRate, "confirmed")), [profitByAccount, allocations, mruRate]);
   const expectedDays = useMemo(() => groupProfitDays(buildProfitRows(ledgerStore, allocations, mruRate, "expected")), [ledgerStore, allocations, mruRate]);
-  // «الصافي» shows the chosen month's shipments the same way (every period, after resets/hidden days).
-  const allTimeProfitLedger = useMemo(() => {
-    const result: LedgerByAccount = {};
-    for (const [accountId, entries] of Object.entries(visibleLedger)) {
-      const reset = accountId in resetByAccount ? resetByAccount[accountId] : profitReset;
-      result[accountId] = entriesAfterProfitReset(entries, reset ?? null);
-    }
-    return result;
-  }, [visibleLedger, profitReset, resetByAccount]);
-  const allConfirmedRows = useMemo(() => buildProfitRows(allTimeProfitLedger, allocations, mruRate, "confirmed"), [allTimeProfitLedger, allocations, mruRate]);
   const statementNames = useMemo(
     () => ({
       device: (id: string) => accounts.find((a) => a.id === id)?.name ?? "جهاز محذوف",
@@ -269,29 +290,39 @@ export default function ReportsPage() {
     [deviceRanks, accounts],
   );
 
-  // ---- الصافي: the whole business, one calendar month at a time ----
-  const netMonths = useMemo(() => recentMonths(new Date().toISOString().slice(0, 10), 12), []);
-  const netByMonth = useMemo(
-    () =>
-      netMonths.map((month) =>
-        buildMonthNet({ month, ledgerStore: visibleLedger, invoices, transactions: storeTransactions, cash: cashEntries, rates, profitReset, profitResetByAccount: resetByAccount, cardTopUps: topUps }),
-      ),
-    [netMonths, visibleLedger, invoices, storeTransactions, cashEntries, rates, profitReset, resetByAccount, topUps],
+  // ---- الإجمالي: the whole business over the bar's days (the same calculation as «حسابي») ----
+  const netInput = { ledgerStore: visibleLedger, invoices, transactions: storeTransactions, cash: cashEntries, rates, profitReset, profitResetByAccount: resetByAccount, cardTopUps: topUps };
+  const net = useMemo(
+    () => buildPeriodNet({ ...netInput, from: days.from, to: days.to }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [days, visibleLedger, invoices, storeTransactions, cashEntries, rates, profitReset, resetByAccount, topUps],
   );
-  const netIndex = Math.max(0, netMonths.indexOf(netMonth));
-  const net = netByMonth[netIndex];
+  const previous = useMemo(() => previousWindow(range), [range]);
+  const previousNet = useMemo(
+    () => buildPeriodNet({ ...netInput, from: previous.from, to: previous.to }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [previous, visibleLedger, invoices, storeTransactions, cashEntries, rates, profitReset, resetByAccount, topUps],
+  );
   // 🧾 the operator's own spending (تبويب «المصروفات») - not a business expense: only «يبقى لك».
-  const personalMonth = net ? monthExpensesMru(personal, net.month, rates) : { mru: 0, missing: [] };
-  const previousNet = netByMonth[netIndex + 1];
-  const netTrend = useMemo(
+  const personalMru = useMemo(() => sumToMru(summarizeExpenses(personal, days.from, days.to, rates).byCurrency, rates).mru, [personal, days, rates]);
+  // 🛒 the store's sale invoices in those days.
+  const periodSales = useMemo(() => invoices.filter((inv) => inv.kind === "sale" && inWindow(inv.date, days)), [invoices, days]);
+  const itemRanks = useMemo(
     () =>
-      netByMonth
-        .slice(0, 6)
-        .reverse()
-        .map((m) => ({ key: m.month, label: monthLabel(m.month).split(" ")[0], value: m.netMru })),
-    [netByMonth],
+      computeItemSalesTotals(periodSales)
+        .map((t) => ({ ...t, mru: sumToMru(t.totalByCurrency, rates).mru }))
+        .filter((t) => Math.abs(t.mru) > 0.5)
+        .sort((a, b) => b.mru - a.mru),
+    [periodSales, rates],
   );
-
+  const unpaidSales = periodSales.filter((inv) => !inv.returnOfInvoiceId && invoiceTotal(inv) - inv.paidAmount > 0.0001);
+  const unpaidSalesMru = sumToMru(
+    unpaidSales.reduce<Record<string, number>>((acc, inv) => ({ ...acc, [inv.currencyCode]: (acc[inv.currencyCode] ?? 0) + invoiceTotal(inv) - inv.paidAmount }), {}),
+    rates,
+  ).mru;
+  const storeOwedNowMru = useMemo(() => sumToMru(computeTotalReceivablesByCurrency(invoices), rates).mru, [invoices, rates]);
+  // 📒 the debts that changed in those days (the open balances below stay as they are today).
+  const debtFlows = useMemo(() => debtFlowsIn(days, { ledgerStore, invoices, adjustments, settlements }), [days, ledgerStore, invoices, adjustments, settlements]);
 
   // ---- الديون: running balances, whatever the period ----
   const debtors = useMemo(() => {
@@ -339,7 +370,7 @@ export default function ReportsPage() {
     for (const d of openPrevious) previous[d.accountId] = (previous[d.accountId] ?? 0) + d.amountUsd;
     const now = new Date();
     const sheets = buildBusinessWorkbook({
-      periodLabel: REPORT_PERIOD_LABELS[period],
+      periodLabel: periodLabel,
       exportedAt: now,
       accounts,
       clientName: (id) => getClient(clientStore, id)?.name,
@@ -366,6 +397,31 @@ export default function ReportsPage() {
     if (!result.ok) setExportError(result.message);
   }
   const usdToMru = (usd: number) => (mruRate ? usd * mruRate : undefined);
+
+  // 📄 «كشف حساب PDF» of the bar's days (his choice: PDF to share + the Excel in ⋯).
+  const [pdfBusy, setPdfBusy] = useState(false);
+  async function handleExportPdf() {
+    setPdfBusy(true);
+    setExportError(null);
+    const doc = buildReportsPdf({
+      label: periodLabel === "اليوم" || periodLabel === "أمس" ? `${periodLabel} ${days.to}` : periodLabel,
+      window: days,
+      net,
+      personalMru,
+      shipments: statementDays.flatMap((d) => d.rows),
+      invoices: periodSales,
+      debts: debtFlows,
+      names: {
+        device: statementNames.device,
+        client: statementNames.client,
+        clientById: (id) => getClient(clientStore, id)?.name,
+        item: (id) => getStoreItem(storeItems, id)?.name,
+      },
+    });
+    const result = await exportPrintablePdf(doc);
+    setPdfBusy(false);
+    if (!result.ok) setExportError(result.message);
+  }
 
   const searchHits = useMemo(
     () =>
@@ -417,19 +473,6 @@ export default function ReportsPage() {
             </div>
           );
 
-  // «ربح الشهر»: that month's confirmed shipments (folded under the figure).
-  const monthRows = net ? allConfirmedRows.filter((row) => row.date.slice(0, 7) === net.month) : [];
-
-  const periodChips = (
-    <div className="report-period-row">
-      {REPORT_PERIODS.map((p) => (
-        <button key={p} type="button" className={`report-period-btn${period === p ? " report-period-btn-active" : ""}`} onClick={() => setPeriod(p)}>
-          {REPORT_PERIOD_LABELS[p]}
-        </button>
-      ))}
-    </div>
-  );
-
   return (
     <main className="home">
       <div className="reports-topbar">
@@ -439,7 +482,10 @@ export default function ReportsPage() {
             <summary aria-label="المزيد">⋯</summary>
             <div className="reports-more-menu">
               <button type="button" onClick={handleExportExcel} disabled={exporting}>
-                {exporting ? "⏳ جارِ التجهيز…" : `📊 تصدير Excel (${REPORT_PERIOD_LABELS[period]})`}
+                {exporting ? "⏳ جارِ التجهيز…" : `📊 تصدير Excel (${periodLabel})`}
+              </button>
+              <button type="button" onClick={handleExportPdf} disabled={pdfBusy}>
+                {pdfBusy ? "⏳ جارِ التجهيز…" : `📄 كشف حساب PDF (${periodLabel})`}
               </button>
               <button type="button" onClick={() => window.location.reload()}>
                 ↻ تحديث البيانات
@@ -464,6 +510,7 @@ export default function ReportsPage() {
             </button>
           )}
         </div>
+        <ReportRangeBar range={range} today={today} onChange={changeRange} />
         {searchQuery.trim() && (
           <div className="reports-search-results" role="listbox" aria-label="نتائج البحث">
             {searchHits.length === 0 ? (
@@ -497,7 +544,7 @@ export default function ReportsPage() {
       </div>
 
 
-      <div className="report-tabs" role="tablist" aria-label="أقسام التقارير">
+      <div className="report-tabs report-tabs-5" role="tablist" aria-label="أقسام التقارير">
         {(Object.keys(TAB_LABELS) as ReportTab[]).map((t) => (
           <button key={t} type="button" role="tab" aria-selected={tab === t} className={`report-tab${tab === t ? " report-tab-active" : ""}`} onClick={() => chooseTab(t)}>
             {TAB_LABELS[t]}
@@ -515,14 +562,13 @@ export default function ReportsPage() {
 
       {tab === "starlink" && (
         <section className="section report-tab-panel">
-          {periodChips}
           {profitReset && (
             <p className="settings-hint report-fresh-note">
               🔄 من بداية جديدة يوم <bdi dir="ltr">{profitReset.date}</bdi>
             </p>
           )}
           <div className={`profit-hero${profit && profit.confirmedMru < 0 ? " is-loss" : ""}`}>
-            <span className="profit-hero-label">صافي ربحك · {REPORT_PERIOD_LABELS[period]}</span>
+            <span className="profit-hero-label">صافي ربحك · {periodLabel}</span>
             <strong className="profit-hero-value">
               <bdi dir="ltr">{profit && repShares !== undefined ? `${profit.confirmedExact ? "" : "≈ "}${mru(profit.confirmedMru - repShares)}` : "—"}</bdi>
               <small>أوقية</small>
@@ -573,7 +619,7 @@ export default function ReportsPage() {
             )}
           </div>
 
-          <ChartCard title={isLongPeriod(period) ? "الربح شهرًا بشهر" : "الربح يومًا بيوم"} note={REPORT_PERIOD_LABELS[period]} points={profitChart} />
+          {range.span !== "day" && <ChartCard title="الربح يومًا بيوم" note={periodLabel} points={profitChart} />}
 
           <RankCard
             title="أكثر الأجهزة ربحًا"
@@ -615,22 +661,14 @@ export default function ReportsPage() {
         </section>
       )}
 
-      {tab === "net" && net && (
+      {tab === "net" && (
         <section className="section report-tab-panel">
-          <div className="report-period-row">
-            {netMonths.slice(0, 6).map((m) => (
-              <button key={m} type="button" className={`report-period-btn${m === net.month ? " report-period-btn-active" : ""}`} onClick={() => setNetMonth(m)}>
-                {monthLabel(m)}
-              </button>
-            ))}
-          </div>
-
           <div className={`net-hero${net.netMru < 0 ? " is-loss" : ""}`}>
-            <span className="net-hero-label">صافي ربح {monthLabel(net.month)}</span>
+            <span className="net-hero-label">الصافي · {periodLabel}</span>
             <strong className="net-hero-value">
               <bdi dir="ltr">{`${net.exact ? "" : "≈ "}${mru(net.netMru)}`}</bdi> <small>أوقية</small>
             </strong>
-            {previousNet && <NetChange current={net.netMru} previous={previousNet.netMru} previousLabel={monthLabel(previousNet.month)} />}
+            <NetChange current={net.netMru} previous={previousNet.netMru} previousLabel="الفترة السابقة" />
           </div>
 
           <div className="report-card">
@@ -639,59 +677,93 @@ export default function ReportsPage() {
               <span className="report-card-note">أوقية</span>
             </div>
             <ul className="net-lines">
-              <NetLine label="ربح ستارلينك" hint="يوم الدفع لستارلينك" value={net.starlinkProfitMru} />
-              <NetLine label="حصص المندوبين (ستارلينك)" value={-net.starlinkRepSharesMru} />
+              <NetLine label="ربح ستارلينك" hint={`${shipments(net.starlinkShipments)} · يوم الدفع لستارلينك`} value={net.starlinkProfitMru} onOpen={() => chooseTab("starlink")} />
+              {net.starlinkRepSharesMru !== 0 && <NetLine label="حصص المندوبين" value={-net.starlinkRepSharesMru} />}
               <NetLine
                 label="ربح المتجر"
-                hint={net.storeSalesMru === 0 && net.storeCogsMru === 0 ? "لا مبيعات هذا الشهر" : `مبيعات ${mru(net.storeSalesMru)} − بضاعة ${mru(net.storeCogsMru)} − شحن ${mru(net.storeShippingMru)}${net.storeRepCommissionMru ? ` − عمولات ${mru(net.storeRepCommissionMru)}` : ""}`}
+                hint={net.storeSalesMru === 0 && net.storeCogsMru === 0 ? "لا مبيعات في هذه الفترة" : `مبيعات ${mru(net.storeSalesMru)} − تكلفة ${mru(net.storeCogsMru + net.storeShippingMru + net.storeRepCommissionMru)}`}
                 value={net.storeNetMru}
+                onOpen={() => chooseTab("store")}
               />
-              <NetLine label="المصاريف" hint="قيود «خارج» في الكاش" value={-net.expensesMru} />
+              <NetLine label="المصروفات" hint={net.expenses.length ? `${net.expenses.length} نوع · قيود «خارج» في الكاش` : "لا مصروفات"} value={-net.expensesMru} />
               <NetLine label="الصافي" value={net.netMru} total />
-              {personalMonth.mru > 0 && (
+              {personalMru > 0 && (
                 <>
-                  <NetLine label="مصروفاتك الشخصية" hint="تبويب «المصروفات»" value={-personalMonth.mru} />
-                  <NetLine label="يبقى لك" value={net.netMru - personalMonth.mru} total />
+                  <NetLine label="مصروفاتك الشخصية" value={-personalMru} onOpen={() => chooseTab("expenses")} />
+                  <NetLine label="يبقى لك" value={net.netMru - personalMru} total />
                 </>
               )}
             </ul>
           </div>
 
-          {/* The details, folded - the month's figure and where it came from stay on top. */}
-          <details className="report-card report-fold">
-            <summary>
-              📒 شحنات ستارلينك في {monthLabel(net.month)} ({monthRows.length})
-            </summary>
-            <ProfitStatement
-              days={groupProfitDays(monthRows)}
-              names={statementNames}
-              emptyText="لا توجد شحنات دُفعت لستارلينك في هذا الشهر."
-              onHideDay={handleHideDay}
-            />
-          </details>
+          {net.expenses.length > 0 && (
+            <details className="report-card report-fold">
+              <summary>🧾 المصروفات حسب النوع ({net.expenses.length})</summary>
+              <RankCard
+                title="المصروفات حسب النوع"
+                tone="bad"
+                barTone="bad"
+                rows={net.expenses.map((e) => ({ key: e.category, title: e.category, subtitle: `${e.count} ${e.count === 1 ? "قيد" : "قيود"}`, value: -e.mru }))}
+              />
+            </details>
+          )}
 
-          {expectedBlock}
-
-          <details className="report-card report-fold">
-            <summary>🧾 المصاريف حسب النوع ({net.expenses.length})</summary>
-          <RankCard
-            title="المصاريف حسب النوع"
-            tone="bad"
-            barTone="bad"
-            empty="لا توجد مصاريف مسجّلة هذا الشهر. سجّلها في الكاش كـ«خارج» مع تصنيف (إيجار، نقل، إنترنت…) لتظهر هنا."
-            rows={net.expenses.map((e) => ({ key: e.category, title: e.category, subtitle: `${e.count} ${e.count === 1 ? "قيد" : "قيود"}`, value: -e.mru }))}
-          />
-
-          </details>
-
-          <ChartCard title="الصافي شهرًا بشهر" note="آخر 6 أشهر" points={netTrend} />
+          <button type="button" className="report-pdf-btn" onClick={handleExportPdf} disabled={pdfBusy} data-tour="report-pdf">
+            {pdfBusy ? "⏳ جارِ التجهيز…" : `📄 كشف حساب PDF · ${periodLabel}`}
+          </button>
 
           {net.missingCurrencies.length > 0 && (
             <p className="settings-hint">لم تُحتسب مبالغ بعملات بلا سعر مسجّل: {net.missingCurrencies.join("، ")} - سجّل أسعارها في صفحة العملات.</p>
           )}
           <p className="settings-hint">
-            المتجر والمصاريف بغير الأوقية محوّلة بسعر اليوم (للعرض فقط). الإيداعات وشحن البطاقة ودفعات المندوبين ليست مصاريف ولا تدخل هنا.
+            المتجر والمصروفات بغير الأوقية محوّلة بسعر اليوم (للعرض فقط). الإيداعات وشحن البطاقة ودفعات المندوبين ليست مصروفات.
           </p>
+        </section>
+      )}
+
+      {tab === "store" && (
+        <section className="section report-tab-panel">
+          <div className={`net-hero${net.storeNetMru < 0 ? " is-loss" : ""}`}>
+            <span className="net-hero-label">ربح المتجر · {periodLabel}</span>
+            <strong className="net-hero-value">
+              <bdi dir="ltr">{mru(net.storeNetMru)}</bdi> <small>أوقية</small>
+            </strong>
+            <NetChange current={net.storeNetMru} previous={previousNet.storeNetMru} previousLabel="الفترة السابقة" />
+          </div>
+          <div className="report-card">
+            <div className="report-card-head">
+              <h3>حساب الربح</h3>
+              <span className="report-card-note">أوقية</span>
+            </div>
+            <ul className="net-lines">
+              <NetLine label="المبيعات" hint={`${periodSales.filter((i) => !i.returnOfInvoiceId).length} فاتورة${periodSales.some((i) => i.returnOfInvoiceId) ? " (بعد المرتجعات)" : ""} · مع رسوم الشحن`} value={net.storeSalesMru} />
+              <NetLine label="تكلفة البضاعة" hint="متوسط سعر الشراء لكل صنف" value={-net.storeCogsMru} />
+              {net.storeShippingMru !== 0 && <NetLine label="تكلفة الشحن" value={-net.storeShippingMru} />}
+              {net.storeRepCommissionMru !== 0 && <NetLine label="عمولات المندوبين" value={-net.storeRepCommissionMru} />}
+              <NetLine label="ربح المتجر" value={net.storeNetMru} total />
+            </ul>
+            {net.storeUnknownCostLines > 0 && (
+              <p className="settings-hint report-warn-note">
+                ⚠️ {net.storeUnknownCostLines} صنف مبيع بلا سعر شراء مسجّل - تكلفته غير محسوبة، فالربح أعلى من الحقيقي. سجّل شراءه في المتجر.
+              </p>
+            )}
+          </div>
+          <RankCard
+            title="أكثر الأصناف مبيعًا"
+            empty="لا مبيعات في هذه الفترة."
+            barTone="good"
+            rows={itemRanks.slice(0, 5).map((t) => ({ key: t.itemId, title: getStoreItem(storeItems, t.itemId)?.name ?? "صنف محذوف", subtitle: `${formatAmount(t.quantity)} قطعة`, value: t.mru }))}
+          />
+          <div className="report-card">
+            <div className="report-card-head">
+              <h3>الديون على الزبائن</h3>
+              <Link href="/store" className="btn-link">المتجر ←</Link>
+            </div>
+            <ul className="net-lines">
+              <NetLine label="غير مدفوع من فواتير الفترة" hint={`${unpaidSales.length} فاتورة`} value={unpaidSalesMru} />
+              <NetLine label="كل ما على الزبائن للمتجر الآن" value={storeOwedNowMru} total />
+            </ul>
+          </div>
         </section>
       )}
 
@@ -712,6 +784,19 @@ export default function ReportsPage() {
 
       {tab === "debts" && (
         <section className="section report-tab-panel">
+          <div className="report-card">
+            <div className="report-card-head">
+              <h3>ما تغيّر · {periodLabel}</h3>
+            </div>
+            <ul className="report-rank debt-flow-list">
+              <DebtFlowRow label="زاد على الزبائن" hint="تجديدات وفواتير وعليه" value={moneyText(debtFlows.customers.added)} tone="warn" />
+              <DebtFlowRow label="دفع الزبائن" value={moneyText(debtFlows.customers.paid)} tone="good" />
+              <DebtFlowRow label="D جديد لستارلينك" hint={`${debtFlows.starlink.addedCount} شحنة`} value={`${formatAmount(debtFlows.starlink.addedUsd)}$`} tone="bad" />
+              <DebtFlowRow label="سدّدت لستارلينك" hint={`${debtFlows.starlink.paidCount} شحنة`} value={`${formatAmount(debtFlows.starlink.paidUsd)}$`} tone="good" />
+              <DebtFlowRow label="سلّمه المندوبون" value={moneyText(debtFlows.reps.handedOver)} tone="good" />
+            </ul>
+          </div>
+          <h3 className="report-subhead">الأرصدة الآن</h3>
           <div className="report-kpis">
             <Kpi label="على الزبائن لي" value={`≈ ${mru(debtorsTotal)}`} sub={`أوقية · ${debtors.length} ${debtors.length === 1 ? "زبون" : "زبائن"}`} tone="good" />
             <Kpi label="عليّ لستارلينك" value={`≈ ${mru(usdToMru(ownDUsd + previousUsd))}`} sub={`أوقية · ${formatAmount(ownDUsd + previousUsd)}$`} tone="bad" />
@@ -815,10 +900,6 @@ export default function ReportsPage() {
   );
 }
 
-function isLongPeriod(period: ReportPeriod): boolean {
-  return period === "quarter" || period === "halfYear" || period === "year";
-}
-
 type Tone = "good" | "bad" | "warn" | "orange";
 
 function Kpi({ label, value, sub, tone, info }: { label: string; value: string; sub?: string; tone?: Tone; info?: string }) {
@@ -842,18 +923,40 @@ function Kpi({ label, value, sub, tone, info }: { label: string; value: string; 
   );
 }
 
-function NetLine({ label, hint, value, total }: { label: string; hint?: string; value: number; total?: boolean }) {
+function NetLine({ label, hint, value, total, onOpen }: { label: string; hint?: string; value: number; total?: boolean; onOpen?: () => void }) {
   const sign = value < 0 ? "−" : total ? "=" : "+";
   return (
-    <li className={`net-line${total ? " net-line-total" : ""}`}>
+    <li className={`net-line${total ? " net-line-total" : ""}${onOpen ? " net-line-open" : ""}`} onClick={onOpen} role={onOpen ? "button" : undefined} tabIndex={onOpen ? 0 : undefined}>
       <div className="net-line-main">
-        <span>{label}</span>
+        <span>
+          {label}
+          {onOpen && <span className="net-line-go" aria-hidden="true"> ‹</span>}
+        </span>
         {hint && <small>{hint}</small>}
       </div>
       <strong className={value < 0 ? "report-bad" : total ? "report-good" : undefined}>
         <bdi dir="ltr">
           {sign} {mru(Math.abs(value))}
         </bdi>
+      </strong>
+    </li>
+  );
+}
+
+function moneyText(byCurrency: Record<string, number>): string {
+  const parts = Object.entries(byCurrency).filter(([, v]) => Math.abs(v) > 0.005);
+  return parts.length ? parts.map(([c, v]) => `${formatAmount(v)} ${LEDGER_CURRENCY_LABELS[c as LedgerCurrency] ?? c}`).join(" + ") : "0";
+}
+
+function DebtFlowRow({ label, hint, value, tone }: { label: string; hint?: string; value: string; tone: Tone }) {
+  return (
+    <li className="report-rank-row">
+      <div className="report-rank-main">
+        <strong>{label}</strong>
+        {hint && <small>{hint}</small>}
+      </div>
+      <strong className={value === "0" || value === "0$" ? undefined : `report-${tone}`}>
+        <bdi dir="ltr">{value}</bdi>
       </strong>
     </li>
   );

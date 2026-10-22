@@ -60,6 +60,8 @@ export interface MonthNet {
   storeRepCommissionMru: number;
   /** Sales − goods − shipping − rep commission. */
   storeNetMru: number;
+  /** Sold store lines with no known cost (left out of storeCogsMru). */
+  storeUnknownCostLines: number;
   expensesMru: number;
   expenses: ExpenseGroup[];
   netMru: number;
@@ -112,7 +114,7 @@ function buildNet(input: MonthNetInput, label: string, inPeriod: (date: string) 
 
   // Store - sale invoices dated in the month (returns count negative, as in the store report).
   const monthInvoices = input.invoices.filter((inv) => inPeriod(inv.date) && onOrAfterReset(inv.date));
-  const summary = computeStoreSalesSummary(input.transactions, input.invoices, monthInvoices);
+  const summary = computeStoreSalesSummary(input.transactions, input.invoices, monthInvoices, rates);
   const commission: Record<string, number> = {};
   for (const inv of monthInvoices) {
     if (inv.kind !== "sale" || inv.returnOfInvoiceId || !inv.representativeId || inv.representativeCommissionPercent === undefined) continue;
@@ -166,6 +168,7 @@ function buildNet(input: MonthNetInput, label: string, inPeriod: (date: string) 
     storeShippingMru,
     storeRepCommissionMru,
     storeNetMru,
+    storeUnknownCostLines: summary.unknownCostLines,
     expensesMru,
     expenses,
     netMru: starlinkProfitMru - starlinkRepSharesMru + storeNetMru - expensesMru,

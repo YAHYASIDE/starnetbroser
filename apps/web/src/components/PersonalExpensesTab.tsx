@@ -53,7 +53,10 @@ export function PersonalExpensesTab({
   custom,
   rates,
   onChange,
+  period,
 }: {
+  /** 📅 The reports' period bar (lib/reportRange.ts): its days replace the month chips. */
+  period?: { from: string; to: string; label: string };
   /** My banks / wallets (moneyAccounts.ts) - an expense can be paid from one instead of الكاش. */
   accounts?: { id: string; name: string; icon: string; currencyCode?: string; method?: string }[];
   /** Set by a floating «+» / a shortcut: opens a new expense right away, once (then onOpened). */
@@ -80,14 +83,17 @@ export function PersonalExpensesTab({
 
   const day = summarizeExpenses(expenses, today(), today(), rates);
   // The month by group (فواتير = الكهرباء + الغاز + …).
+  const from = period?.from ?? `${month}-01`;
+  const to = period?.to ?? `${month}-31`;
+  const periodLabel = period?.label ?? monthLabel(month);
   const monthSummary = summarizeExpenses(
     expenses.map((e) => ({ ...e, categoryId: groupIdOf(custom, e.categoryId) })),
-    `${month}-01`,
-    `${month}-31`,
+    from,
+    to,
     rates,
   );
   const recent = expenses
-    .filter((e) => e.date.slice(0, 7) === month)
+    .filter((e) => e.date >= from && e.date <= to)
     .sort((a, b) => (b.date !== a.date ? (b.date < a.date ? -1 : 1) : b.createdAt < a.createdAt ? -1 : 1));
   const maxMru = Math.max(1, ...monthSummary.byCategory.map((c) => c.mru ?? 0));
 
@@ -111,7 +117,7 @@ export function PersonalExpensesTab({
           </strong>
         </div>
         <div>
-          <small>{monthLabel(month)}</small>
+          <small>{periodLabel}</small>
           <strong>
             <bdi dir="ltr">{money(monthSummary.byCurrency)}</bdi>
           </strong>
@@ -136,6 +142,7 @@ export function PersonalExpensesTab({
         }}
       />
 
+      {!period && (
       <div className="report-period-row">
         {months.map((m) => (
           <button key={m} type="button" className={`report-period-btn${m === month ? " report-period-btn-active" : ""}`} onClick={() => setMonth(m)}>
@@ -143,6 +150,7 @@ export function PersonalExpensesTab({
           </button>
         ))}
       </div>
+      )}
 
       {monthSummary.byCategory.length > 0 && (
         <ul className="expenses-bars">
@@ -162,7 +170,7 @@ export function PersonalExpensesTab({
       )}
 
       {recent.length === 0 ? (
-        <p className="party-empty">لا مصروفات في {monthLabel(month)}. المس فئة لتسجّل.</p>
+        <p className="party-empty">لا مصروفات في {periodLabel}. المس فئة لتسجّل.</p>
       ) : (
         <ul className="expenses-list">
           {recent.map((e) => {

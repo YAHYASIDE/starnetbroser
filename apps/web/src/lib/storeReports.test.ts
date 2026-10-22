@@ -234,3 +234,23 @@ describe("largestCurrencyValue", () => {
     expect(largestCurrencyValue({})).toBe(0);
   });
 });
+
+describe("🧾 the cost in the sale's currency (his Oct 22 2026 «تأكد من حساباته»)", () => {
+  const boughtInUsd: StoreTransactionList = [{ id: "1", itemId: "a", kind: "buy", quantity: 2, unitPrice: 50, currencyCode: "USD", date: "2026-09-01", createdAt: "t1" }];
+  const rates = { USD: 1, MRU: 40 };
+
+  it("a dollar cost is never counted as أوقية: converted at today's rate, or unknown without one", () => {
+    expect(computeAveragePurchaseCost(boughtInUsd, [], "a", "MRU", rates)).toBe(2000);
+    expect(computeAveragePurchaseCost(boughtInUsd, [], "a", "MRU")).toBeUndefined();
+    expect(computeAveragePurchaseCost(boughtInUsd, [], "a", "USD")).toBe(50);
+  });
+
+  it("the sale's own currency buys win; the summary counts lines with no cost", () => {
+    const mixed: StoreTransactionList = [...boughtInUsd, { id: "2", itemId: "a", kind: "buy", quantity: 1, unitPrice: 1500, currencyCode: "MRU", date: "2026-09-02", createdAt: "t2" }];
+    expect(computeAveragePurchaseCost(mixed, [], "a", "MRU", rates)).toBe(1500);
+    const sale = invoice({ lines: [{ itemId: "a", quantity: 2, unitPrice: 3000, transactionId: "s1" }, { itemId: "b", quantity: 1, unitPrice: 500, transactionId: "s2" }] });
+    const summary = computeStoreSalesSummary(boughtInUsd, [sale], [sale], rates);
+    expect(summary.cogsByCurrency).toEqual({ MRU: 4000 });
+    expect(summary.unknownCostLines).toBe(1);
+  });
+});

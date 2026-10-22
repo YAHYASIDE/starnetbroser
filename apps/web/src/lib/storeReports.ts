@@ -9,15 +9,22 @@
 
 import { StoreTransactionList } from "./storeStore";
 import { Invoice, InvoiceList, invoiceTotal } from "./invoiceStore";
+import type { RatesFromUsd } from "./reportsView";
 
 /** Weighted-average cost per unit for one item, from every "buy" transaction ever recorded for
  * it - EXCLUDING a buy that was actually a sale-return (its unitPrice is the sale price the
  * customer was charged, not what the item cost us, which would corrupt the average). Undefined
- * when the item has no real purchase history yet. */
+ * when the item has no real purchase history yet.
+ * With `currencyCode` (his Oct 22 2026 «تأكد من حساباته»: an item bought in دولار and sold in أوقية
+ * had its dollar cost counted as أوقية): only the buys in that currency; when there are none, every
+ * buy converted at today's `rates` (display-only, like the rest of the reports) - undefined when a
+ * rate is missing, never a guessed figure. */
 export function computeAveragePurchaseCost(
   transactions: StoreTransactionList,
   invoices: InvoiceList,
   itemId: string,
+  currencyCode?: string,
+  rates?: RatesFromUsd,
 ): number | undefined {
   const saleReturnInvoiceIds = new Set(
     invoices.filter((inv) => inv.kind === "sale" && inv.returnOfInvoiceId !== undefined).map((inv) => inv.id),
@@ -25,10 +32,26 @@ export function computeAveragePurchaseCost(
   const realBuys = transactions.filter(
     (t) => t.itemId === itemId && t.kind === "buy" && !(t.invoiceId && saleReturnInvoiceIds.has(t.invoiceId)),
   );
-  const totalQty = realBuys.reduce((sum, t) => sum + t.quantity, 0);
+  if (currencyCode !== undefined) {
+    const same = realBuys.filter((t) => t.currencyCode === currencyCode);
+    if (same.length > 0) return average(same.map((t) => ({ quantity: t.quantity, unitPrice: t.unitPrice })));
+    if (!rates || realBuys.length === 0) return undefined;
+    const to = currencyCode === "USD" ? 1 : rates[currencyCode];
+    const converted: { quantity: number; unitPrice: number }[] = [];
+    for (const t of realBuys) {
+      const from = t.currencyCode === "USD" ? 1 : rates[t.currencyCode];
+      if (!from || !to) return undefined;
+      converted.push({ quantity: t.quantity, unitPrice: (t.unitPrice / from) * to });
+    }
+    return average(converted);
+  }
+  return average(realBuys);
+}
+
+function average(buys: { quantity: number; unitPrice: number }[]): number | undefined {
+  const totalQty = buys.reduce((sum, t) => sum + t.quantity, 0);
   if (totalQty === 0) return undefined;
-  const totalValue = realBuys.reduce((sum, t) => sum + t.quantity * t.unitPrice, 0);
-  return totalValue / totalQty;
+  return buys.reduce((sum, t) => sum + t.quantity * t.unitPrice, 0) / totalQty;
 }
 
 export interface StoreSalesSummary {
@@ -48,6 +71,9 @@ export interface StoreSalesSummary {
    * line/invoice (never averaged like an item's own purchase cost, since the price genuinely
    * varies shipment to shipment). */
   shippingCostByCurrency: Record<string, number>;
+  /** Sold lines whose item has no known cost (never bought, or no rate to convert) - their cost is
+   * left out, so the profit is too high by it: the report says so. */
+  unknownCostLines: number;
 }
 
 /** Builds a sales+COGS summary from a caller-supplied set of sale-kind invoices (both normal
@@ -57,11 +83,19 @@ export function computeStoreSalesSummary(
   transactions: StoreTransactionList,
   invoices: InvoiceList,
   periodSaleInvoices: Invoice[],
+  rates?: RatesFromUsd,
 ): StoreSalesSummary {
   const salesByCurrency: Record<string, number> = {};
   const cogsByCurrency: Record<string, number> = {};
   const shippingChargeByCurrency: Record<string, number> = {};
   const shippingCostByCurrency: Record<string, number> = {};
+  let unknownCostLines = 0;
+  const costs = new Map<string, number | undefined>();
+  const costOf = (itemId: string, currencyCode: string) => {
+    const key = `${itemId}|${currencyCode}`;
+    if (!costs.has(key)) costs.set(key, computeAveragePurchaseCost(transactions, invoices, itemId, currencyCode, rates));
+    return costs.get(key);
+  };
 
   for (const inv of periodSaleInvoices) {
     if (inv.kind !== "sale") continue;
@@ -69,10 +103,10 @@ export function computeStoreSalesSummary(
     salesByCurrency[inv.currencyCode] = (salesByCurrency[inv.currencyCode] ?? 0) + sign * invoiceTotal(inv);
 
     for (const line of inv.lines) {
-      const avgCost = computeAveragePurchaseCost(transactions, invoices, line.itemId);
+      const avgCost = costOf(line.itemId, inv.currencyCode);
       if (avgCost !== undefined) {
         cogsByCurrency[inv.currencyCode] = (cogsByCurrency[inv.currencyCode] ?? 0) + sign * line.quantity * avgCost;
-      }
+      } else if (!inv.returnOfInvoiceId) unknownCostLines += 1;
       if (line.shippingCharge) {
         shippingChargeByCurrency[inv.currencyCode] = (shippingChargeByCurrency[inv.currencyCode] ?? 0) + sign * line.shippingCharge;
       }
@@ -82,7 +116,7 @@ export function computeStoreSalesSummary(
     }
   }
 
-  return { salesByCurrency, cogsByCurrency, shippingChargeByCurrency, shippingCostByCurrency };
+  return { salesByCurrency, cogsByCurrency, shippingChargeByCurrency, shippingCostByCurrency, unknownCostLines };
 }
 
 /** Total value of every sale invoice still (fully or partially) unpaid, grouped by currency - the

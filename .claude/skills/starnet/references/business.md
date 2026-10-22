@@ -2035,3 +2035,24 @@ is never pressed while a field is empty - it refills and saves on the next try (
   account «أورانج موني» / «نيتا» in فرنك), with `placeId` = the app, counted once (`botId`); 💰 الربح → a
   `commissionPayout` (his profit may go below zero). The card fixes the currency except for الربح; older requests
   (no account) behave as before.
+
+## 📊 The reports: one period bar, «الإجمالي», «المتجر», a PDF statement (Oct 22 2026)
+
+- His words: «عندما اضغط اليوم يظهر سهم امس… وسهم يوم قبل وبعد وعنصر البحث بيوم معين وعنصر شهر وأسبوع فقط ويكون
+  الأزرار ثابت فوق… وتبحث في ستارلينك الديون المصروفات… أضف المتجر… ربح الشهر اجعله الكل: أرباح المتجر وستارلينك
+  وبعدها المصروفات والإجمالي… وفيه تصدير كشف حساب». His choices: **«آخر 7 / 30 يومًا»** (week = the 7 days ending on
+  the day, month = 30; not calendar), **«الإجمالي» مرتّب**, **PDF للمشاركة + Excel**, **الديون: ما تغيّر في الفترة +
+  الرصيد الآن**.
+- One bar in the sticky top (`components/ReportRangeBar.tsx`, `lib/reportRange.ts`): يوم / أسبوع / شهر, › back a whole
+  window (يوم → أمس), ‹ forward (never past today), 📅 a chosen day. The length is remembered (`starnet.reportsSpan`),
+  the days restart from today. «3 / 6 أشهر / سنة» are gone from the reports.
+- Tabs: الإجمالي · ستارلينك · المتجر · المصروفات · الديون - all on the bar's days. الإجمالي = `buildPeriodNet` (the same
+  as «حسابي»): ربح ستارلينك (− حصص المندوبين) + ربح المتجر − المصروفات = الصافي (+ «مصروفاتك الشخصية» → «يبقى لك»),
+  compared with the same length before; ستارلينك / المتجر lines open their tab. المتجر: sales − goods − shipping −
+  rep commissions, top items, unpaid in the period, all owed to the store now. الديون: `lib/debtFlows.ts` (customers
+  added/paid, D added/paid in $, reps handed over) then the balances now. 📄 `lib/reportsPdf.ts`.
+- **Store cost fix** (his «تأكد من حساباته»): an item's average purchase cost was taken in any currency and counted as
+  the sale's - bought at 20 دولار, sold in أوقية → a cost of «20 أوقية». Now only buys in the sale's currency, else all
+  buys converted at today's rates (display-only), else «unknown» and the report warns (`computeAveragePurchaseCost`
+  with a currency, `unknownCostLines`). Not changed: a returned sale's rep commission still counts (as everywhere in
+  the rep accounts).

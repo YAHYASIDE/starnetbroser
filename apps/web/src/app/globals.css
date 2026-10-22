@@ -18914,3 +18914,96 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   flex-basis: 100%;
   color: var(--green);
 }
+
+/* 📅 The reports' period bar (Oct 22 2026): sticky with the top bar, one row - spans, ‹ label ›, 📅. */
+.report-range {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.report-range-spans {
+  display: flex;
+  flex: 0 0 auto;
+  padding: 3px;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+}
+.report-range-span {
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.report-range-span.is-active {
+  background: var(--brand);
+  color: var(--brand-contrast);
+}
+.report-range-nav {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 2px;
+}
+.report-range-arrow,
+.report-range-pick {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1.15rem;
+  line-height: 1;
+}
+.report-range-arrow:disabled { opacity: 0.35; }
+.report-range-pick {
+  position: relative;
+  overflow: hidden;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+.report-range-pick input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.report-range-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 800;
+  line-height: 1.25;
+  color: var(--text);
+}
+.report-tabs.report-tabs-5 { display: flex; overflow-x: auto; scrollbar-width: none; }
+.report-tabs.report-tabs-5::-webkit-scrollbar { display: none; }
+.report-tabs-5 .report-tab { flex: 1 0 auto; padding-inline: 9px; overflow: visible; text-overflow: clip; }
+.net-line-open { cursor: pointer; }
+.net-line-go { color: var(--brand); font-weight: 800; }
+.report-pdf-btn {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 4px;
+  border: 1px solid color-mix(in srgb, var(--brand) 45%, var(--border));
+  border-radius: var(--radius-sm, 10px);
+  background: color-mix(in srgb, var(--brand) 12%, var(--surface));
+  color: var(--text);
+  font: inherit;
+  font-weight: 800;
+}
+.report-subhead { margin: 14px 2px 8px; font-size: 0.95rem; }
+.report-warn-note { margin-top: 8px; color: var(--orange, var(--text-muted)); }

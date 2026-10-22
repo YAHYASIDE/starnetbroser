@@ -8,6 +8,7 @@ import { StoreTransactionList } from "@/lib/storeStore";
 import { computeStoreSalesSummary, computeTotalPayablesByCurrency, computeTotalReceivablesByCurrency } from "@/lib/storeReports";
 import { isThisCalendarMonth } from "@/lib/reportPeriod";
 import { formatAmount } from "@/lib/formatAmount";
+import { loadCurrencyStore } from "@/lib/currencyStore";
 
 function currencyLabel(code: string): string {
   return LEDGER_CURRENCY_LABELS[code as LedgerCurrency] ?? code;
@@ -68,8 +69,10 @@ export function StoreReportsSection({ transactions, invoices, cashEntries }: Pro
     [invoices],
   );
 
-  const todaySummary = useMemo(() => computeStoreSalesSummary(transactions, invoices, todayInvoices), [transactions, invoices, todayInvoices]);
-  const monthSummary = useMemo(() => computeStoreSalesSummary(transactions, invoices, monthInvoices), [transactions, invoices, monthInvoices]);
+  // A cost bought in another currency is converted at today's rates (storeReports.ts), never mixed.
+  const rates = useMemo(() => Object.fromEntries(Object.entries(loadCurrencyStore()).map(([code, c]) => [code, c.rateFromUsd])), []);
+  const todaySummary = useMemo(() => computeStoreSalesSummary(transactions, invoices, todayInvoices, rates), [transactions, invoices, todayInvoices, rates]);
+  const monthSummary = useMemo(() => computeStoreSalesSummary(transactions, invoices, monthInvoices, rates), [transactions, invoices, monthInvoices, rates]);
 
   const monthExpenses = useMemo(() => {
     const standalone = listStandaloneCashEntries(cashEntries).filter((e) => e.kind === "out" && isThisCalendarMonth(e.date));
