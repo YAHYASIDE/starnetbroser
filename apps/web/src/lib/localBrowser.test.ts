@@ -74,7 +74,7 @@ describe("🖥️ on the Windows app", () => {
     };
     try {
       expect(await openIsolatedAccountBrowser("d1", "جهاز", { loginEmail: "fake@example.com", loginPassword: "x", mailPassword: "m" })).toEqual({ ok: true });
-      expect(calls).toEqual([{ accountId: "d1", accountName: "جهاز", loginEmail: "fake@example.com", loginPassword: "x" }]);
+      expect(calls).toEqual([{ accountId: "d1", accountName: "جهاز", loginEmail: "fake@example.com", loginPassword: "x", mailPassword: "m" }]);
       expect(await importAccountSessions({ d1: { "https://starlink.com": "a=1" } })).toEqual({ ok: true, importedCount: 2 });
       expect(await exportAccountSessions(["d1"])).toEqual({ d1: { "https://starlink.com": "a=1" } });
       const sync = await openAutoSync({ id: "d1", name: "جهاز" } as StarlinkAccountSummary);
