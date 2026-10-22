@@ -8,7 +8,7 @@ import { Client, ClientStore, CreateClientInput, getClient } from "@/lib/clientS
 import { CreateSupplierInput, getSupplier, Supplier, SupplierStore } from "@/lib/supplierStore";
 import { CreateRepresentativeInput, getRepresentative, Representative, RepresentativeStore, repFromClientDevice } from "@/lib/repStore";
 import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerCurrency } from "@/lib/ledgerStore";
-import { cleanKit, findKitClashes, isStarlinkItem, kitClashMessage, resizeUnits } from "@/lib/saleDevices";
+import { cleanKit, findKitClashes, findPurchaseKitClashes, isStarlinkItem, kitClashMessage, resizeUnits, stockKits } from "@/lib/saleDevices";
 import { itemRepPrice, listStoreItems, StoreItemRegistry, StoreTransactionList } from "@/lib/storeStore";
 import {
   computeClientStoreBalance,
@@ -63,6 +63,8 @@ interface DraftLine {
   maxReturnable?: number;
   /** 🛰️ A Starlink device line: KIT / name per piece (lib/saleDevices.ts). */
   units?: SaleUnit[];
+  /** 🤝 The rep's price for this line as typed (undefined = the item's saved one). */
+  repPrice?: string;
 }
 
 interface Props {
@@ -87,8 +89,10 @@ interface Props {
   /** ✎ / 🗑 a past invoice (lib/invoiceEdit.ts) - an error message, or null when saved. */
   onEditInvoice?: (invoiceId: string, input: InvoiceEditInput) => string | null;
   onDeleteInvoice?: (invoiceId: string) => string | null;
-  /** «بيع» on an item: opens a new sale invoice with that item already on its first line. */
-  saleRequest?: { itemId: string; nonce: number } | null;
+  /** «بيع» / «📥 شراء» on an item: opens a new sale (or purchase) invoice with that item on its first line. */
+  saleRequest?: { itemId: string; nonce: number; kind?: InvoiceKind } | null;
+  /** 🤝 A rep's price for an item typed in a sale invoice - kept on the item for his next sale. */
+  onRepPrice?: (itemId: string, repId: string, value: { price: number; currencyCode: string }) => void;
 }
 
 /** بطاقة المنتج والفواتير's own "الفواتير" half - sale/purchase invoices built on top of
@@ -113,6 +117,7 @@ export function InvoiceSection({
   saleRequest,
   onEditInvoice,
   onDeleteInvoice,
+  onRepPrice,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -182,6 +187,8 @@ export function InvoiceSection({
             <InvoiceForm
               key={`${formItemId ?? "new"}-${saleRequest?.nonce ?? 0}`}
               initialItemId={formItemId}
+              initialKind={formItemId ? saleRequest?.kind : undefined}
+              onRepPrice={onRepPrice}
               items={itemList}
               invoices={invoices}
               clients={clients}
@@ -368,6 +375,9 @@ interface InvoiceFormProps {
   onSubmit: (input: Parameters<typeof createInvoice>[2] & { chargeNow?: boolean }) => ReturnType<typeof createInvoice>;
   /** A sale invoice started from an item's «بيع» button: that item, quantity 1, its sale price. */
   initialItemId?: string;
+  /** «📥 شراء» on an item opens a purchase invoice. */
+  initialKind?: InvoiceKind;
+  onRepPrice?: (itemId: string, repId: string, value: { price: number; currencyCode: string }) => void;
 }
 
 const newUnitId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `unit-${Date.now()}-${Math.random()}`);
@@ -413,25 +423,30 @@ function InvoiceForm({
   onCancel,
   onSubmit,
   initialItemId,
+  initialKind,
+  onRepPrice,
 }: InvoiceFormProps) {
-  const [kind, setKind] = useState<InvoiceKind>("sale");
+  const [kind, setKind] = useState<InvoiceKind>(initialKind ?? "sale");
   const [priceTier, setPriceTier] = useState<"retail" | "wholesale">("retail");
   const [date, setDate] = useState(todayDateInputValue());
   const [currencyCode, setCurrencyCode] = useState<LedgerCurrency>(() => {
-    const saleCurrency = initialItemId ? items.find((i) => i.id === initialItemId)?.defaultSaleCurrencyCode : undefined;
+    const initial = initialItemId ? items.find((i) => i.id === initialItemId) : undefined;
+    const saleCurrency = initialKind === "purchase" ? initial?.defaultPurchaseCurrencyCode : initial?.defaultSaleCurrencyCode;
     return saleCurrency && (LEDGER_CURRENCIES as readonly string[]).includes(saleCurrency)
       ? (saleCurrency as LedgerCurrency)
       : defaultInvoiceCurrency();
   });
   // 🛰️ a device line keeps exactly one unit (KIT / name) per piece in its state, so each keeps its id.
-  const withUnits = (line: DraftLine, sale: boolean): DraftLine =>
-    sale && isStarlinkItem(items.find((i) => i.id === line.itemId))
+  // 📥 a purchase too: the KITs bought go into stock (picked when selling - lib/saleDevices.ts stockKits).
+  const withUnits = (line: DraftLine): DraftLine =>
+    isStarlinkItem(items.find((i) => i.id === line.itemId))
       ? { ...line, units: resizeUnits(line.units, Number(line.quantity), newUnitId) }
       : { ...line, units: undefined };
   const [lines, setLines] = useState<DraftLine[]>(() => {
     const item = initialItemId ? items.find((i) => i.id === initialItemId) : undefined;
     if (!item) return [{ itemId: "", quantity: "1", unitPrice: "" }];
-    return [withUnits({ itemId: item.id, quantity: "1", unitPrice: item.defaultSalePrice !== undefined ? String(item.defaultSalePrice) : "" }, true)];
+    const price = initialKind === "purchase" ? item.defaultPurchasePrice : item.defaultSalePrice;
+    return [withUnits({ itemId: item.id, quantity: "1", unitPrice: price !== undefined ? String(price) : "" })];
   });
   const [discount, setDiscount] = useState("");
   const [paidAmount, setPaidAmount] = useState("");
@@ -476,11 +491,22 @@ function InvoiceForm({
   // 🤝 his fixed price for an item (StoreItem.repPrices), in this invoice's currency - locked on the line.
   const activeRepId = isSale && linkRepresentative ? representativeId : undefined;
   const lineRepPrice = (itemId: string) => itemRepPrice(items.find((i) => i.id === itemId), activeRepId, currencyCode);
+  // 🤝 his choice: the rep's fixed price is typed right here (prefilled from the item), saved for next time.
+  const lineRepValue = (line: DraftLine): number | undefined => {
+    const typed = line.repPrice;
+    const value = typed !== undefined ? Number(typed.replace(/,/g, "")) : lineRepPrice(line.itemId);
+    return value !== undefined && Number.isFinite(value) && value > 0 ? value : undefined;
+  };
   // 🛰️ a Starlink device line (the item's own flag): one KIT / name per piece → one device each.
-  const isDeviceLine = (line: DraftLine) => isSale && isStarlinkItem(items.find((i) => i.id === line.itemId));
+  const isDeviceLine = (line: DraftLine) => isStarlinkItem(items.find((i) => i.id === line.itemId));
   const unitsFor = (line: DraftLine) => (isDeviceLine(line) ? line.units ?? [] : []);
   const allUnits = lines.flatMap(unitsFor);
-  const clashes = findKitClashes(allUnits, accounts);
+  const clashes = isSale
+    ? findKitClashes(allUnits, accounts)
+    : lines.flatMap((l) => (isDeviceLine(l) ? findPurchaseKitClashes(unitsFor(l), invoices, l.itemId) : []));
+  // 📦 the KITs of each item still in stock, not already typed in this invoice.
+  const typedKits = new Set(allUnits.map((u) => cleanKit(u.kit)).filter(Boolean));
+  const kitsInStock = (itemId: string) => stockKits(invoices, itemId).filter((k) => !typedKits.has(k));
   const clashFor = (kit: string | undefined) => {
     const clean = cleanKit(kit);
     return clean ? clashes.find((c) => c.kit === clean) : undefined;
@@ -488,7 +514,7 @@ function InvoiceForm({
   const clientNameOf = (id: string) => clients.find((c) => c.id === id)?.name;
 
   function updateLine(index: number, patch: Partial<DraftLine>) {
-    setLines((current) => current.map((line, i) => (i === index ? withUnits({ ...line, ...patch }, isSale) : line)));
+    setLines((current) => current.map((line, i) => (i === index ? withUnits({ ...line, ...patch }) : line)));
   }
 
   function updateUnit(index: number, unitIndex: number, patch: Partial<SaleUnit>) {
@@ -550,10 +576,10 @@ function InvoiceForm({
       setFormError(kitClashMessage(clashes[0]!, clientNameOf));
       return;
     }
-    if (allUnits.length > 0 && !clientId && !window.confirm("لم تختر الزبون - تُحفظ الأجهزة بلا زبون. متابعة؟")) return;
+    if (isSale && allUnits.length > 0 && !clientId && !window.confirm("لم تختر الزبون - تُحفظ الأجهزة بلا زبون. متابعة؟")) return;
     saving.current = true;
     const result = onSubmit({
-      chargeNow: chargeNow && allUnits.length === 1,
+      chargeNow: isSale && chargeNow && allUnits.length === 1,
       kind,
       date,
       currencyCode,
@@ -563,7 +589,7 @@ function InvoiceForm({
         unitPrice: Number(l.unitPrice),
         shippingCost: isSale && l.shipping && l.shippingCost ? Number(l.shippingCost) : undefined,
         shippingCharge: isSale && l.shipping && l.shippingCharge ? Number(l.shippingCharge) : undefined,
-        repUnitPrice: lineRepPrice(l.itemId),
+        repUnitPrice: activeRepId ? lineRepValue(l) : undefined,
         ...(isDeviceLine(l) ? { units: unitsFor(l).map((u) => ({ ...u, kit: cleanKit(u.kit) || undefined })) } : {}),
       })),
       discount: parsedDiscount,
@@ -581,6 +607,13 @@ function InvoiceForm({
       return;
     }
     setFormError(null);
+    // 🤝 a price typed for the rep stays on the item for his next sale.
+    if (activeRepId && onRepPrice) {
+      for (const l of validLines) {
+        const value = lineRepValue(l);
+        if (value !== undefined && value !== lineRepPrice(l.itemId)) onRepPrice(l.itemId, activeRepId, { price: value, currencyCode });
+      }
+    }
   }
 
   return (
@@ -598,7 +631,6 @@ function InvoiceForm({
                 setKind(k);
                 setClientId(undefined);
                 setSupplierId(undefined);
-                setLines((current) => current.map((line) => withUnits(line, k === "sale")));
               }}
             >
               {k === "sale" ? "🧾 بيع" : "📥 شراء"}
@@ -638,7 +670,11 @@ function InvoiceForm({
         )}
       </FormSection>
 
-      <FormSection step="2" title={isSale ? "🛰️ بيانات الجهاز" : "📦 الأصناف"} hint={isSale ? "جهاز Starlink: رقم KIT لكل جهاز، ويُضاف إلى الأجهزة «غير مفعّل»" : undefined}>
+      <FormSection
+        step="2"
+        title={isSale ? "🛰️ بيانات الجهاز" : "📦 الأصناف"}
+        hint={isSale ? "جهاز Starlink: رقم KIT لكل جهاز، ويُضاف إلى الأجهزة «غير مفعّل»" : "جهاز Starlink: رقم KIT لكل جهاز يدخل المخزون - تختاره عند البيع"}
+      >
         <div className="sale-grid-2">
           <Field label="العملة">
             <select className="search-input" value={currencyCode} onChange={(e) => setCurrencyCode(e.target.value as LedgerCurrency)}>
@@ -705,11 +741,27 @@ function InvoiceForm({
                   />
                 </Field>
               </div>
-              {repPrice !== undefined && (
-                <span className="invoice-line-rep">
-                  🤝 سعر {representatives.find((r) => r.id === activeRepId)?.name}: <bdi dir="ltr">{formatAmount(repPrice)}</bdi> - ربحه{" "}
-                  <bdi dir="ltr">{formatAmount(((Number(line.unitPrice) || 0) - repPrice) * (Number(line.quantity) || 0))}</bdi> (بلا نسبة)
-                </span>
+              {activeRepId && line.itemId && (
+                <div className="sale-rep-price">
+                  <Field label={`🤝 سعر ${representatives.find((r) => r.id === activeRepId)?.name ?? "المندوب"} للواحد (${cur})`}>
+                    <input
+                      className="search-input"
+                      type="text"
+                      inputMode="decimal"
+                      dir="ltr"
+                      placeholder="بلا سعر ثابت = نسبته"
+                      value={line.repPrice ?? (repPrice !== undefined ? String(repPrice) : "")}
+                      onChange={(e) => updateLine(index, { repPrice: e.target.value })}
+                    />
+                  </Field>
+                  {lineRepValue(line) !== undefined && (
+                    <small>
+                      يدفع لك <bdi dir="ltr">{formatAmount(lineRepValue(line)! * (Number(line.quantity) || 0))}</bdi> - ربحه{" "}
+                      <bdi dir="ltr">{formatAmount(((Number(line.unitPrice) || 0) - lineRepValue(line)!) * (Number(line.quantity) || 0))}</bdi> (بلا نسبة) ·
+                      يُحفظ لبيعه القادم
+                    </small>
+                  )}
+                </div>
               )}
 
               {units.length > 0 && (
@@ -721,7 +773,7 @@ function InvoiceForm({
                         <span className="sale-unit-badge" aria-hidden="true">
                           📡 {units.length > 1 ? k + 1 : ""}
                         </span>
-                        <div className="sale-grid-2">
+                        <div className={isSale ? "sale-grid-2" : "sale-grid-1"}>
                           <Field label={units.length > 1 ? `رقم KIT للجهاز ${k + 1}` : "رقم KIT للجهاز"}>
                             <input
                               className={`search-input${clash ? " is-invalid" : ""}`}
@@ -732,15 +784,27 @@ function InvoiceForm({
                               onChange={(e) => updateUnit(index, k, { kit: e.target.value })}
                             />
                           </Field>
-                          <Field label="اسم الجهاز (اختياري)">
-                            <input
-                              className="search-input"
-                              placeholder={[selectedClient?.name, items.find((i) => i.id === line.itemId)?.name].filter(Boolean).join(" - ")}
-                              value={unit.name ?? ""}
-                              onChange={(e) => updateUnit(index, k, { name: e.target.value })}
-                            />
-                          </Field>
+                          {isSale && (
+                            <Field label="اسم الجهاز (اختياري)">
+                              <input
+                                className="search-input"
+                                placeholder={[selectedClient?.name, items.find((i) => i.id === line.itemId)?.name].filter(Boolean).join(" - ")}
+                                value={unit.name ?? ""}
+                                onChange={(e) => updateUnit(index, k, { name: e.target.value })}
+                              />
+                            </Field>
+                          )}
                         </div>
+                        {isSale && !cleanKit(unit.kit) && kitsInStock(line.itemId).length > 0 && (
+                          <div className="sale-kit-picks" aria-label="من المخزون">
+                            <span>📦 من المخزون:</span>
+                            {kitsInStock(line.itemId).slice(0, 8).map((kit) => (
+                              <button key={kit} type="button" onClick={() => updateUnit(index, k, { kit })}>
+                                <bdi dir="ltr">{kit}</bdi>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                         {clash && <p className="sale-unit-clash">⚠️ {kitClashMessage(clash, clientNameOf)}</p>}
                       </div>
                     );
@@ -839,7 +903,7 @@ function InvoiceForm({
         </dl>
       </FormSection>
 
-      {allUnits.length > 0 && (
+      {isSale && allUnits.length > 0 && (
         <FormSection step="4" title="⚡ الشحن والتفعيل" hint="البيع غير التفعيل: الجهاز يُحفظ «غير مفعّل» حتى تشحن اشتراكه">
           <div className="sale-choices" role="radiogroup" aria-label="التفعيل">
             <label className={`sale-choice${!chargeNow ? " active" : ""}`}>
@@ -867,7 +931,7 @@ function InvoiceForm({
       {formError && <div className="account-card-alert ledger-form-error">{formError}</div>}
       <div className="sale-actions">
         <button className="dialog-primary" type="submit">
-          حفظ الفاتورة{allUnits.length > 0 ? ` و${allUnits.length === 1 ? "الجهاز" : `${allUnits.length} أجهزة`}` : ""}
+          حفظ الفاتورة{isSale && allUnits.length > 0 ? ` و${allUnits.length === 1 ? "الجهاز" : `${allUnits.length} أجهزة`}` : ""}
         </button>
         <button type="button" className="dialog-secondary" onClick={onCancel}>
           إلغاء

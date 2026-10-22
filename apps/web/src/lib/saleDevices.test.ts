@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import type { Invoice } from "./invoiceStore";
-import { findKitClashes, isStarlinkItem, markActivated, releaseSaleDevices, resizeUnits, syncSaleDevices } from "./saleDevices";
+import { findKitClashes, findPurchaseKitClashes, isStarlinkItem, markActivated, releaseSaleDevices, resizeUnits, stockKits, syncSaleDevices } from "./saleDevices";
 
 let n = 0;
 const newId = () => `id-${++n}`;
@@ -121,5 +121,19 @@ describe("markActivated", () => {
     expect(markActivated(pending, NOW)).toMatchObject({ pendingActivation: null, activatedAt: NOW });
     const active = markActivated(pending, NOW);
     expect(markActivated(active, "later")).toBe(active);
+  });
+});
+
+describe("stockKits", () => {
+  const buy = (id: string, kits: string[], date = "2026-10-01"): Invoice => ({
+    id, kind: "purchase", date, currencyCode: "MRU", discount: 0, paidAmount: 0, createdAt: NOW,
+    lines: [{ itemId: "v4", quantity: kits.length, unitPrice: 150000, transactionId: "t", units: kits.map((k, i) => ({ id: `${id}-${i}`, kit: k })) }],
+  });
+  it("lists bought KITs not sold yet, oldest first, and refuses buying one twice", () => {
+    const sold = invoice([v4([{ id: "s1", kit: "kit0002" }])]);
+    const invoices = [buy("b2", ["KIT0003"], "2026-10-05"), buy("b1", ["KIT0001", "KIT0002"]), sold];
+    expect(stockKits(invoices, "v4")).toEqual(["KIT0001", "KIT0003"]);
+    expect(stockKits(invoices, "other")).toEqual([]);
+    expect(findPurchaseKitClashes([{ id: "x", kit: "kit 0001" }, { id: "y", kit: "KIT0002" }], invoices, "v4")).toEqual([{ kit: "KIT0001", inStock: true }]);
   });
 });

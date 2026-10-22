@@ -19159,3 +19159,10 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
 .pending-device-actions button { min-height: 44px; }
 .status-ring-pending { --tone: var(--violet); }
 @media (min-width: 900px) { .sale-form { width: 100%; max-width: 820px; margin-inline: auto; } }
+.sale-grid-1 { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.sale-kit-picks { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--text-muted); }
+.sale-kit-picks button { min-height: 34px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--brand); background: transparent; color: var(--brand); font: inherit; font-weight: 700; letter-spacing: 0.03em; cursor: pointer; }
+.sale-rep-price { display: flex; flex-direction: column; gap: 4px; padding: 10px; border-radius: 12px; background: var(--yellow-bg); }
+.sale-rep-price small { font-size: 0.8rem; line-height: 1.5; }
+.store-stock-kits { display: flex; flex-direction: column; gap: 6px; }
+.store-stock-kit { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface-alt); color: var(--text); font-weight: 700; font-size: 0.8rem; }

@@ -2195,3 +2195,15 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - «⏳ غير مفعّل» (`PendingDeviceCard`, violet): customer, type + name, KIT with 📋, sale date, «⚡ شحن / تفعيل»,
   «✎ تعديل»; ring «غير مفعّل» (`/?pending=1`); no days left / expiry (no renewal date), never in a sync run
   (`syncQueue` `isLive`). Activated by saving the activation dialog or by its first charge (عليه) - `activatedAt`.
+
+## 📥 Buying by the same invoice form; KITs in stock (Oct 22 2026)
+
+- His ask (screenshots of the item's old «📥 شراء» panel and the new sale form): «أزل زر شراء هذا هنا واجعل زر البيع
+  والشراء واحدًا مثل هذا، واجعل في الشراء أيضًا إضافة KIT». The item's «📥 شراء» opens the invoice form on «شراء»
+  (a new item too); the old inline buy form is gone. Tapping the item / «✏️ تعديل» shows the item form + its history.
+- His choices: **the rep's fixed price is typed in the sale invoice** («🤝 سعر حسين للواحد» per line when «البيع عبر
+  مندوب», prefilled from the item, locked on the line as `repUnitPrice`, and saved back to `StoreItem.repPrices` for
+  his next sale - the item panel only lists / removes them); **purchase KITs stay in stock and are picked when
+  selling**: a purchase line of a Starlink item keeps `units[]` (KIT per piece, no device made); `stockKits` = bought
+  KITs not on a sale yet (oldest first), shown as «📦 من المخزون» chips under an empty KIT field of the sale and as
+  «📦 أرقام KIT في المخزون» on the item. A purchase refuses a KIT typed twice or already in stock.

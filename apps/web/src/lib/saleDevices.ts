@@ -37,6 +37,8 @@ export interface KitClash {
   kit: string;
   /** Typed twice in this same invoice. */
   sameInvoice?: boolean;
+  /** A purchase of a KIT already in stock. */
+  inStock?: boolean;
   /** Already on a device (not one of this invoice's own). */
   accountId?: string;
   accountName?: string;
@@ -74,6 +76,7 @@ export function findKitClashes(units: SaleUnit[], accounts: StarlinkAccountSumma
 /** The Arabic message for the first clash, naming the device that has the KIT. */
 export function kitClashMessage(clash: KitClash, clientName?: (id: string) => string | undefined): string {
   if (clash.sameInvoice) return `رقم KIT ${clash.kit} مكتوب لجهازين في هذه الفاتورة`;
+  if (clash.inStock) return `رقم KIT ${clash.kit} موجود في المخزون من شراء سابق`;
   const owner = clash.clientId ? clientName?.(clash.clientId) : undefined;
   return `رقم KIT ${clash.kit} مسجّل مسبقًا للجهاز «${clash.accountName ?? ""}»${owner ? ` (${owner})` : ""} - افتحه من الأجهزة بدل إنشاء نسخة ثانية`;
 }
@@ -209,4 +212,44 @@ export function isPendingActivation(account: Pick<StarlinkAccountSummary, "pendi
 /** The pieces still missing a KIT (shown on the card as «KIT ناقص»). */
 export function missingKit(account: Pick<StarlinkAccountSummary, "kitNumber" | "serialNumber">): boolean {
   return !cleanKit(account.kitNumber) && !cleanKit(account.serialNumber);
+}
+
+/** 📦 The KITs of an item still in stock (his Oct 22 2026 choice): typed on purchase invoices, not yet
+ * on a sale invoice - offered as one-tap picks when selling. Oldest bought first. */
+export function stockKits(invoices: Invoice[], itemId: string): string[] {
+  const sold = new Set<string>();
+  for (const invoice of invoices) {
+    if (invoice.kind !== "sale" || invoice.returnOfInvoiceId) continue;
+    for (const line of invoice.lines) if (line.itemId === itemId) for (const u of line.units ?? []) if (cleanKit(u.kit)) sold.add(cleanKit(u.kit));
+  }
+  const out: string[] = [];
+  for (const invoice of [...invoices].sort((a, b) => (a.date + a.createdAt).localeCompare(b.date + b.createdAt))) {
+    if (invoice.kind !== "purchase" || invoice.returnOfInvoiceId) continue;
+    for (const line of invoice.lines) {
+      if (line.itemId !== itemId) continue;
+      for (const u of line.units ?? []) {
+        const kit = cleanKit(u.kit);
+        if (kit && !sold.has(kit) && !out.includes(kit)) out.push(kit);
+      }
+    }
+  }
+  return out;
+}
+
+/** A purchase can't bring in a KIT typed twice, or one already in stock (bought and not sold). */
+export function findPurchaseKitClashes(units: SaleUnit[], invoices: Invoice[], itemId: string, invoiceId?: string): KitClash[] {
+  const out: KitClash[] = [];
+  const seen = new Set<string>();
+  const inStock = new Set(stockKits(invoices.filter((i) => i.id !== invoiceId), itemId));
+  for (const unit of units) {
+    const kit = cleanKit(unit.kit);
+    if (!kit) continue;
+    if (seen.has(kit)) {
+      if (!out.some((c) => c.kit === kit)) out.push({ kit, sameInvoice: true });
+      continue;
+    }
+    seen.add(kit);
+    if (inStock.has(kit)) out.push({ kit, inStock: true });
+  }
+  return out;
 }

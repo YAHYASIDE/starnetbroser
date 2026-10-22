@@ -1,6 +1,5 @@
 "use client";
 
-import { DateInput } from "@/components/DateInput";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
@@ -26,7 +25,6 @@ import {
   listTransactionsForItem,
   loadStoreItems,
   loadStoreTransactions,
-  recordStoreTransaction,
   saveStoreItems,
   setItemRepPrice,
   saveStoreTransactions,
@@ -43,7 +41,7 @@ import { StoreReportsSection } from "@/components/StoreReportsSection";
 import { InvoiceList, loadInvoices } from "@/lib/invoiceStore";
 import { deleteInvoice, updateInvoice, type InvoiceEditResult } from "@/lib/invoiceEdit";
 import { commitInvoiceWithDevices } from "@/lib/saleDevicesStore";
-import { isStarlinkItem } from "@/lib/saleDevices";
+import { isStarlinkItem, stockKits } from "@/lib/saleDevices";
 import { activateDeviceHref, PENDING_DEVICES_HREF } from "@/lib/homeActions";
 import { syncInvoiceCash } from "@/lib/invoiceEdit";
 import {
@@ -82,10 +80,6 @@ import {
   PartyAdjustmentList,
 } from "@/lib/partyBalanceStore";
 
-function todayDateInputValue(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function currencyLabel(code: string): string {
   return LEDGER_CURRENCY_LABELS[code as LedgerCurrency] ?? code;
 }
@@ -106,7 +100,7 @@ export default function StorePage() {
   const [showAddItem, setShowAddItem] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   /** «بيع» on an item opens a new sale invoice with that item - selling goes through invoices only. */
-  const [saleRequest, setSaleRequest] = useState<{ itemId: string; nonce: number } | null>(null);
+  const [saleRequest, setSaleRequest] = useState<{ itemId: string; nonce: number; kind?: "sale" | "purchase" } | null>(null);
 
   useEffect(() => {
     setItems(loadStoreItems());
@@ -188,18 +182,11 @@ export default function StorePage() {
     setEditingItemId(null);
   }
 
-  /** Opens one item's purchase panel (stock in) - selling goes through a sale invoice. */
+  /** A new item: its purchase invoice opens (stock in, with KITs) - buying and selling both go by invoice. */
   function openItem(itemId: string) {
     setEditingItemId(null);
-    setSelectedItemId(itemId);
-  }
-
-  function toggleItem(itemId: string) {
-    if (selectedItemId === itemId) {
-      setSelectedItemId(null);
-      return;
-    }
-    openItem(itemId);
+    setSelectedItemId(null);
+    setSaleRequest({ itemId, nonce: Date.now(), kind: "purchase" });
   }
 
   return (
@@ -277,8 +264,11 @@ export default function StorePage() {
                   <button
                     type="button"
                     className="store-item-row"
-                    onClick={() => toggleItem(item.id)}
-                    aria-expanded={isOpen}
+                    onClick={() => {
+                      setSelectedItemId(null);
+                      setEditingItemId(isEditing ? null : item.id);
+                    }}
+                    aria-expanded={isEditing}
                   >
                     {item.imageDataUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -323,7 +313,12 @@ export default function StorePage() {
                     <button
                       type="button"
                       className="store-quick-btn store-quick-buy"
-                      onClick={() => openItem(item.id)}
+                      onClick={() => {
+                        // 📥 his Oct 22 2026 ask: buying goes through the same invoice form as selling (with KITs).
+                        setSelectedItemId(null);
+                        setEditingItemId(null);
+                        setSaleRequest({ itemId: item.id, nonce: Date.now(), kind: "purchase" });
+                      }}
                     >
                       📥 شراء
                     </button>
@@ -356,26 +351,25 @@ export default function StorePage() {
                         onSubmit={(input) => submitEditItem(item.id, input)}
                         onCancel={() => setEditingItemId(null)}
                       />
+                      <StoreItemPanel
+                        key={item.id}
+                        item={item}
+                        stock={stock}
+                        transactions={transactions}
+                        invoices={invoices}
+                        clientStore={clientStore}
+                        representatives={representatives}
+                        onChange={(next) => {
+                          setTransactions(next);
+                          saveStoreTransactions(next);
+                        }}
+                        onRepPrice={(repId, value) => {
+                          const next = setItemRepPrice(items, item.id, repId, value);
+                          setItems(next);
+                          saveStoreItems(next);
+                        }}
+                      />
                     </div>
-                  )}
-                  {isOpen && (
-                    <StoreItemPanel
-                      key={item.id}
-                      item={item}
-                      stock={stock}
-                      transactions={transactions}
-                      clientStore={clientStore}
-                      representatives={representatives}
-                      onChange={(next) => {
-                        setTransactions(next);
-                        saveStoreTransactions(next);
-                      }}
-                      onRepPrice={(repId, value) => {
-                        const next = setItemRepPrice(items, item.id, repId, value);
-                        setItems(next);
-                        saveStoreItems(next);
-                      }}
-                    />
                   )}
                 </div>
               </li>
@@ -386,6 +380,11 @@ export default function StorePage() {
 
       <InvoiceSection
         saleRequest={saleRequest}
+        onRepPrice={(itemId, repId, value) => {
+          const next = setItemRepPrice(loadStoreItems(), itemId, repId, value);
+          setItems(next);
+          saveStoreItems(next);
+        }}
         items={items}
         transactions={transactions}
         invoices={invoices}
@@ -675,6 +674,7 @@ interface PanelProps {
   transactions: StoreTransactionList;
   clientStore: ClientStore;
   representatives: Representative[];
+  invoices: InvoiceList;
   onChange: (transactions: StoreTransactionList) => void;
   /** 🤝 Sets / removes (null) a rep's fixed price for this item. */
   onRepPrice: (repId: string, value: { price: number; currencyCode: string } | null) => void;
@@ -683,61 +683,11 @@ interface PanelProps {
 /** One item's own buy/sell form plus its transaction history - shown inline under the item row
  * once expanded, never as a separate navigation (a real inventory's whole point is seeing the
  * item, its current stock, and what to do next all in one place). */
-function StoreItemPanel({ item, stock, transactions, clientStore, representatives, onChange, onRepPrice }: PanelProps) {
-  // Pre-filled from the item's own default buy/sell price when it has one - still a plain form
-  // field the operator can freely change before saving; the transaction never reads the item's
-  // default again once submitted.
-  const [quantity, setQuantity] = useState("");
-  const [unitPrice, setUnitPrice] = useState(() => {
-    const def = item.defaultPurchasePrice;
-    return def !== undefined ? String(def) : "";
-  });
-  const [currencyCode, setCurrencyCode] = useState<LedgerCurrency>(() => {
-    const def = item.defaultPurchaseCurrencyCode;
-    return (def as LedgerCurrency | undefined) ?? "MRU";
-  });
-  const [date, setDate] = useState(todayDateInputValue());
-  const [note, setNote] = useState("");
-  const [formError, setFormError] = useState<string | null>(null);
-  // 🤝 his Oct 22 2026 ask: a rep's fixed price for this item («لكي تحفظ له سعرها») - no percent for him on it.
-  const [repId, setRepId] = useState("");
-  const [repPrice, setRepPrice] = useState("");
-  const [repCurrency, setRepCurrency] = useState<LedgerCurrency>(() => (item.defaultSaleCurrencyCode as LedgerCurrency | undefined) ?? "MRU");
-  const [repError, setRepError] = useState<string | null>(null);
+function StoreItemPanel({ item, stock, transactions, invoices, clientStore, representatives, onChange, onRepPrice }: PanelProps) {
   const repPrices = Object.entries(item.repPrices ?? {}).filter(([id]) => representatives.some((r) => r.id === id));
-
-  function saveRepPrice() {
-    const price = Number(repPrice.replace(/,/g, ""));
-    if (!repId) return setRepError("اختر المندوب");
-    if (!(price > 0)) return setRepError("اكتب سعره");
-    setRepError(null);
-    onRepPrice(repId, { price, currencyCode: repCurrency });
-    setRepPrice("");
-  }
-
+  // 📦 the KITs bought and not sold yet (lib/saleDevices.ts) - picked in the sale invoice.
+  const kits = isStarlinkItem(item) ? stockKits(invoices, item.id) : [];
   const itemTransactions = listTransactionsForItem(transactions, item.id);
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    const result = recordStoreTransaction(transactions, {
-      itemId: item.id,
-      kind: "buy",
-      quantity: Number(quantity),
-      unitPrice: Number(unitPrice),
-      currencyCode,
-      note,
-      date,
-    });
-    if (!result.ok) {
-      setFormError(result.message);
-      return;
-    }
-    setFormError(null);
-    onChange(result.transactions);
-    setQuantity("");
-    setUnitPrice("");
-    setNote("");
-  }
 
   function deleteTransaction(transactionId: string) {
     if (!window.confirm("هل تريد حذف هذه الحركة؟ لا يمكن التراجع عن هذا الإجراء.")) return;
@@ -746,100 +696,35 @@ function StoreItemPanel({ item, stock, transactions, clientStore, representative
 
   return (
     <div className="store-item-panel">
-      <form className="ledger-entry-form" onSubmit={submit}>
-        <p className="store-panel-kind">📥 شراء - وارد للمخزون · البيع يكون بفاتورة بيع 🧾</p>
-        <input
-          className="search-input"
-          type="text" inputMode="decimal"
-          min="0"
-          step="0.01"
-          dir="ltr"
-          placeholder={`الكمية (${item.unit})`}
-          value={quantity}
-          onChange={(e) => setQuantity(e.target.value)}
-        />
-        <input
-          className="search-input"
-          type="text" inputMode="decimal"
-          min="0"
-          step="0.01"
-          dir="ltr"
-          placeholder="سعر الوحدة"
-          value={unitPrice}
-          onChange={(e) => setUnitPrice(e.target.value)}
-        />
-        <select className="search-input" value={currencyCode} onChange={(e) => setCurrencyCode(e.target.value as LedgerCurrency)}>
-          {LEDGER_CURRENCIES.map((c) => (
-            <option key={c} value={c}>
-              {LEDGER_CURRENCY_LABELS[c]}
-            </option>
-          ))}
-        </select>
-        <DateInput className="search-input"  value={date} onChange={(e) => setDate(e.target.value)} />
-
-        <input
-          className="search-input ledger-note-input"
-          type="text"
-          placeholder="ملاحظة (اختياري)"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-        />
-
-        {formError && <div className="account-card-alert ledger-form-error">{formError}</div>}
-        <button className="dialog-primary" type="submit">
-          حفظ الشراء
-        </button>
-      </form>
-
-      {representatives.length > 0 && (
+      {repPrices.length > 0 && (
         <div className="store-rep-price" data-tour="store-rep-price">
-          <p className="store-panel-kind">🤝 سعر المندوب - يُحسب عليه هذا السعر فقط، وما يبيع فوقه له، بلا نسبة من ربحك أو خسارتك</p>
-          {repPrices.length > 0 && (
-            <ul className="store-rep-price-list">
-              {repPrices.map(([id, p]) => (
-                <li key={id}>
-                  <span>{representatives.find((r) => r.id === id)?.name}</span>
-                  <bdi dir="ltr">
-                    {formatAmount(p.price)} {LEDGER_CURRENCY_LABELS[p.currencyCode as LedgerCurrency] ?? p.currencyCode}
-                  </bdi>
-                  <button type="button" className="ledger-entry-delete" aria-label="حذف سعر المندوب" onClick={() => onRepPrice(id, null)}>
-                    ×
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className="store-item-form-row">
-            <select className="search-input" value={repId} onChange={(e) => {
-              setRepId(e.target.value);
-              const saved = item.repPrices?.[e.target.value];
-              if (saved) {
-                setRepPrice(String(saved.price));
-                setRepCurrency(saved.currencyCode as LedgerCurrency);
-              }
-            }}>
-              <option value="">المندوب…</option>
-              {representatives.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
-            <input className="search-input" type="text" inputMode="decimal" dir="ltr" placeholder="سعره" value={repPrice} onChange={(e) => setRepPrice(e.target.value)} />
+          <p className="store-panel-kind">🤝 أسعار المندوبين - تُكتب وتُعدَّل في فاتورة البيع عند «البيع عبر مندوب»</p>
+          <ul className="store-rep-price-list">
+            {repPrices.map(([id, p]) => (
+              <li key={id}>
+                <span>{representatives.find((r) => r.id === id)?.name}</span>
+                <bdi dir="ltr">
+                  {formatAmount(p.price)} {LEDGER_CURRENCY_LABELS[p.currencyCode as LedgerCurrency] ?? p.currencyCode}
+                </bdi>
+                <button type="button" className="ledger-entry-delete" aria-label="حذف سعر المندوب" onClick={() => onRepPrice(id, null)}>
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {kits.length > 0 && (
+        <div className="store-stock-kits">
+          <p className="store-panel-kind">📦 أرقام KIT في المخزون ({kits.length})</p>
+          <div className="sale-kit-picks">
+            {kits.map((kit) => (
+              <span key={kit} className="store-stock-kit">
+                <bdi dir="ltr">{kit}</bdi>
+              </span>
+            ))}
           </div>
-          <div className="store-item-form-row">
-            <select className="search-input" value={repCurrency} onChange={(e) => setRepCurrency(e.target.value as LedgerCurrency)}>
-              {LEDGER_CURRENCIES.map((c) => (
-                <option key={c} value={c}>
-                  {LEDGER_CURRENCY_LABELS[c]}
-                </option>
-              ))}
-            </select>
-            <button type="button" className="btn-icon" onClick={saveRepPrice}>
-              حفظ سعر المندوب
-            </button>
-          </div>
-          {repError && <div className="account-card-alert ledger-form-error">{repError}</div>}
         </div>
       )}
 

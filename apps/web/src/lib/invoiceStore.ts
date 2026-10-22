@@ -39,8 +39,9 @@ export interface InvoiceLineInput {
   /** Sale through a rep only: his fixed price for this item (StoreItem.repPrices), LOCKED here when
    * the invoice is made - he owes it, the rest of the line is his, no percent (invoiceRepCommission). */
   repUnitPrice?: number;
-  /** 📦 Sale of a Starlink device item only: one entry per device sold on this line (KIT, optional name) -
-   * each becomes its own «غير مفعّل» device (lib/saleDevices.ts). Kept only when it matches the quantity. */
+  /** 📦 A Starlink device item only: one entry per device on this line (KIT, optional name). Sold → each
+   * becomes its own «غير مفعّل» device; bought → its KIT is in stock to pick when selling (lib/saleDevices.ts).
+   * Kept only when it matches the quantity. */
   units?: SaleUnit[];
 }
 
@@ -229,7 +230,8 @@ export function createInvoice(
       shippingCost,
       shippingCharge,
       ...(input.kind === "sale" && !isReturn && input.representativeId && line.repUnitPrice !== undefined && line.repUnitPrice >= 0 ? { repUnitPrice: line.repUnitPrice } : {}),
-      ...(input.kind === "sale" && !isReturn && line.units && line.units.length > 0 && line.units.length === line.quantity
+      // 📦 one KIT per device piece - a sale makes a device of each, a purchase puts them in stock.
+      ...(!isReturn && line.units && line.units.length > 0 && line.units.length === line.quantity
         ? { units: line.units.map((u) => ({ id: u.id, ...(u.kit?.trim() ? { kit: u.kit.trim() } : {}), ...(u.name?.trim() ? { name: u.name.trim() } : {}) })) }
         : {}),
       transactionId: result.transaction.id,

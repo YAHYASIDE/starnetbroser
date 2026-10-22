@@ -49,7 +49,7 @@ export function InvoiceEditSheet({
     })),
   );
   // 📦 a device line's KIT / name per piece - the linked devices follow (lib/saleDevices.ts).
-  const deviceLine = (i: number) => isSale && !isReturn && (Boolean(invoice.lines[i]!.units) || isStarlinkItem(items[invoice.lines[i]!.itemId]));
+  const deviceLine = (i: number) => !isReturn && (Boolean(invoice.lines[i]!.units) || isStarlinkItem(items[invoice.lines[i]!.itemId]));
   const [units, setUnits] = useState<SaleUnit[][]>(() => invoice.lines.map((l) => l.units ?? []));
   const unitsFor = (i: number) => resizeUnits(units[i], num(lines[i]!.quantity), unitId);
   function setUnit(i: number, k: number, patch: Partial<SaleUnit>) {
