@@ -19073,3 +19073,13 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
 .codes-help { margin-top: 10px; }
 .codes-help summary { cursor: pointer; font-weight: 700; font-size: 0.86rem; }
 .codes-help ol { margin: 8px 0; padding-inline-start: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 0.84rem; }
+
+/* 🤝 a rep's fixed price on a store item (Oct 22 2026). */
+.store-rep-price { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); }
+.store-rep-price-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.store-rep-price-list li { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; }
+.store-rep-price-list li span { flex: 1 1 auto; min-width: 0; }
+.invoice-line-rep { font-size: 0.78rem; color: var(--text-muted); }
+.account-info-wide { grid-column: 1 / -1; }
+.account-info-invoice { display: flex; flex-direction: column; gap: 2px; font-weight: 600; }
+.invoice-device-toggle { font-weight: 700; }

@@ -12,8 +12,13 @@ import type { StoreTransactionList } from "./storeStore";
 
 export interface InvoiceEditInput {
   date: string;
-  /** Per line, in the invoice's order. */
-  lines: { quantity: number; unitPrice: number }[];
+  /** Per line, in the invoice's order. A line's shipping (sale): given = its new cost / charge,
+   * `shipping: false` = none any more, absent = kept as it was. */
+  lines: { quantity: number; unitPrice: number; shipping?: false | { cost?: number; charge?: number } }[];
+  /** Sale: the customer (from the store's invoice list, his Oct 22 2026 «تعديل كل شيء»). Absent = kept. */
+  clientId?: string;
+  /** Purchase: the supplier. Absent = kept. */
+  supplierId?: string;
   discount: number;
   paidAmount: number;
   note?: string;
@@ -70,17 +75,22 @@ export function updateInvoice(
       kind: original.kind,
       date: input.date,
       currencyCode: original.currencyCode,
-      lines: original.lines.map((l, i) => ({
-        itemId: l.itemId,
-        quantity: input.lines[i]!.quantity,
-        unitPrice: input.lines[i]!.unitPrice,
-        shippingCost: l.shippingCost,
-        shippingCharge: l.shippingCharge,
-      })),
+      lines: original.lines.map((l, i) => {
+        const edit = input.lines[i]!;
+        const shipping = edit.shipping === undefined ? { cost: l.shippingCost, charge: l.shippingCharge } : edit.shipping === false ? {} : edit.shipping;
+        return {
+          itemId: l.itemId,
+          quantity: edit.quantity,
+          unitPrice: edit.unitPrice,
+          ...(shipping.cost !== undefined ? { shippingCost: shipping.cost } : {}),
+          ...(shipping.charge !== undefined ? { shippingCharge: shipping.charge } : {}),
+          ...(l.repUnitPrice !== undefined ? { repUnitPrice: l.repUnitPrice } : {}),
+        };
+      }),
       discount: input.discount,
       paidAmount: input.paidAmount,
-      clientId: original.clientId,
-      supplierId: original.supplierId,
+      clientId: "clientId" in input ? input.clientId || undefined : original.clientId,
+      supplierId: "supplierId" in input ? input.supplierId || undefined : original.supplierId,
       representativeId: original.representativeId,
       representativeCommissionPercent: original.representativeCommissionPercent,
       note: input.note,

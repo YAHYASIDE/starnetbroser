@@ -8,7 +8,8 @@ import { Client, ClientStore, CreateClientInput, getClient } from "@/lib/clientS
 import { CreateSupplierInput, getSupplier, Supplier, SupplierStore } from "@/lib/supplierStore";
 import { CreateRepresentativeInput, getRepresentative, Representative, RepresentativeStore, repFromClientDevice } from "@/lib/repStore";
 import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerCurrency } from "@/lib/ledgerStore";
-import { listStoreItems, StoreItemRegistry, StoreTransactionList } from "@/lib/storeStore";
+import { saleLooksLikeDevice } from "@/lib/deviceFromSale";
+import { itemRepPrice, listStoreItems, StoreItemRegistry, StoreTransactionList } from "@/lib/storeStore";
 import {
   computeClientStoreBalance,
   createInvoice,
@@ -22,6 +23,9 @@ import {
 } from "@/lib/invoiceStore";
 import { buildInvoiceMessage, buildWhatsAppLink } from "@/lib/whatsapp";
 import { PdfButton } from "./PdfButton";
+import { PartySheet } from "./AccountsSection";
+import { InvoiceEditSheet } from "./InvoiceEditSheet";
+import { invoiceLockReason, type InvoiceEditInput } from "@/lib/invoiceEdit";
 import { ltr, PrintableDocument } from "@/lib/pdfDocument";
 import { formatAmount } from "@/lib/formatAmount";
 import { getDefaultInvoiceCurrency } from "@/lib/settingsStore";
@@ -74,7 +78,11 @@ interface Props {
   onCreateClient: (input: CreateClientInput) => Client;
   onCreateSupplier: (input: CreateSupplierInput) => Supplier;
   onCreateRepresentative: (input: CreateRepresentativeInput) => Representative;
-  onChange: (result: { invoices: InvoiceList; transactions: StoreTransactionList; invoice: Invoice }) => void;
+  /** `createDevice`: «🛰️ أنشئ له حساب Starlink» was ticked on a kit's sale. */
+  onChange: (result: { invoices: InvoiceList; transactions: StoreTransactionList; invoice: Invoice; createDevice?: boolean }) => void;
+  /** ✎ / 🗑 a past invoice (lib/invoiceEdit.ts) - an error message, or null when saved. */
+  onEditInvoice?: (invoiceId: string, input: InvoiceEditInput) => string | null;
+  onDeleteInvoice?: (invoiceId: string) => string | null;
   /** «بيع» on an item: opens a new sale invoice with that item already on its first line. */
   saleRequest?: { itemId: string; nonce: number } | null;
 }
@@ -99,6 +107,8 @@ export function InvoiceSection({
   onCreateRepresentative,
   onChange,
   saleRequest,
+  onEditInvoice,
+  onDeleteInvoice,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -115,6 +125,9 @@ export function InvoiceSection({
   }, [saleRequest]);
   const [returningInvoice, setReturningInvoice] = useState<Invoice | null>(null);
   const [expandedInvoiceId, setExpandedInvoiceId] = useState<string | null>(null);
+  // ✎ a past invoice edited from the list (his Oct 22 2026 ask «زر تعديل الفاتورة الماضية»).
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const editing = editingId ? invoices.find((i) => i.id === editingId) : undefined;
 
   const itemList = useMemo(() => listStoreItems(items), [items]);
   const sortedInvoices = useMemo(() => listInvoices(invoices), [invoices]);
@@ -135,7 +148,7 @@ export function InvoiceSection({
     setReturningInvoice(null);
   }
 
-  function submit(result: { invoices: InvoiceList; transactions: StoreTransactionList; invoice: Invoice }) {
+  function submit(result: { invoices: InvoiceList; transactions: StoreTransactionList; invoice: Invoice; createDevice?: boolean }) {
     onChange(result);
     closeForms();
   }
@@ -175,9 +188,9 @@ export function InvoiceSection({
               onCreateSupplier={onCreateSupplier}
               onCreateRepresentative={onCreateRepresentative}
               onCancel={closeForms}
-              onSubmit={(input) => {
+              onSubmit={({ createDevice, ...input }) => {
                 const result = createInvoice(invoices, transactions, input);
-                if (result.ok) submit({ invoices: result.invoices, transactions: result.transactions, invoice: result.invoice });
+                if (result.ok) submit({ invoices: result.invoices, transactions: result.transactions, invoice: result.invoice, createDevice });
                 return result;
               }}
             />
@@ -239,6 +252,9 @@ export function InvoiceSection({
                     >
                       {status === "paid" ? "مدفوعة" : status === "partial" ? "جزئيًا" : "دين"}
                     </span>
+                    <button type="button" className="text-action" onClick={() => setEditingId(invoice.id)}>
+                      ✎ تعديل
+                    </button>
                     {!invoice.returnOfInvoiceId && (
                       <button type="button" className="text-action" onClick={() => openReturnForm(invoice)}>
                         إرجاع
@@ -304,6 +320,28 @@ export function InvoiceSection({
           </ul>
         </>
       )}
+
+      {editing && onEditInvoice && onDeleteInvoice && (
+        <PartySheet title={editing.returnOfInvoiceId ? "مرتجع" : `✎ تعديل فاتورة ${editing.kind === "sale" ? "البيع" : "الشراء"}`} onClose={() => setEditingId(null)}>
+          <InvoiceEditSheet
+            invoice={editing}
+            currencyLabel={currencyLabel(editing.currencyCode)}
+            lock={invoiceLockReason(invoices, editing.id)}
+            parties={(editing.kind === "sale" ? clients : suppliers).map((p) => ({ id: p.id, name: p.name }))}
+            onSave={(input) => {
+              const error = onEditInvoice(editing.id, input);
+              if (!error) setEditingId(null);
+              return error;
+            }}
+            onDelete={() => {
+              const error = onDeleteInvoice(editing.id);
+              if (!error) setEditingId(null);
+              return error;
+            }}
+            onCancel={() => setEditingId(null)}
+          />
+        </PartySheet>
+      )}
     </section>
   );
 }
@@ -320,7 +358,7 @@ interface InvoiceFormProps {
   onCreateSupplier: (input: CreateSupplierInput) => Supplier;
   onCreateRepresentative: (input: CreateRepresentativeInput) => Representative;
   onCancel: () => void;
-  onSubmit: (input: Parameters<typeof createInvoice>[2]) => ReturnType<typeof createInvoice>;
+  onSubmit: (input: Parameters<typeof createInvoice>[2] & { createDevice?: boolean }) => ReturnType<typeof createInvoice>;
   /** A sale invoice started from an item's «بيع» button: that item, quantity 1, its sale price. */
   initialItemId?: string;
 }
@@ -391,6 +429,12 @@ function InvoiceForm({
   }
 
   const [formError, setFormError] = useState<string | null>(null);
+  // 🤝 his fixed price for an item (StoreItem.repPrices), in this invoice's currency - locked on the line.
+  const activeRepId = kind === "sale" && linkRepresentative ? representativeId : undefined;
+  // 🛰️ his Oct 22 2026 ask: a Starlink kit sold by invoice → create its account right after, linked to it.
+  const soldDevice = kind === "sale" && saleLooksLikeDevice(lines.filter((l) => l.itemId).map((l) => items.find((i) => i.id === l.itemId)?.name ?? ""));
+  const [createDevice, setCreateDevice] = useState(true);
+  const lineRepPrice = (itemId: string) => itemRepPrice(items.find((i) => i.id === itemId), activeRepId, currencyCode);
 
   function updateLine(index: number, patch: Partial<DraftLine>) {
     setLines((current) => current.map((line, i) => (i === index ? { ...line, ...patch } : line)));
@@ -442,6 +486,7 @@ function InvoiceForm({
       return;
     }
     const result = onSubmit({
+      createDevice: soldDevice && createDevice && linkClient && Boolean(clientId),
       kind,
       date,
       currencyCode,
@@ -451,6 +496,7 @@ function InvoiceForm({
         unitPrice: Number(l.unitPrice),
         shippingCost: kind === "sale" && l.shipping && l.shippingCost ? Number(l.shippingCost) : undefined,
         shippingCharge: kind === "sale" && l.shipping && l.shippingCharge ? Number(l.shippingCharge) : undefined,
+        repUnitPrice: lineRepPrice(l.itemId),
       })),
       discount: parsedDiscount,
       paidAmount: Number(paidAmount) || 0,
@@ -544,6 +590,12 @@ function InvoiceForm({
               </button>
             )}
           </div>
+          {kind === "sale" && line.itemId && lineRepPrice(line.itemId) !== undefined && (
+            <span className="invoice-line-rep">
+              🤝 سعر {representatives.find((r) => r.id === activeRepId)?.name}: <bdi dir="ltr">{formatAmount(lineRepPrice(line.itemId)!)}</bdi> - ربحه{" "}
+              <bdi dir="ltr">{formatAmount(((Number(line.unitPrice) || 0) - lineRepPrice(line.itemId)!) * (Number(line.quantity) || 0))}</bdi> (بلا نسبة)
+            </span>
+          )}
           {kind === "sale" && (
             <label className="ledger-d-toggle invoice-line-shipping-toggle">
               <input
@@ -681,6 +733,13 @@ function InvoiceForm({
               : ` - الباقي له: ${formatAmount(-remaining)} ${currencyLabel(currencyCode)}`;
           })()}
       </div>
+
+      {soldDevice && (
+        <label className="ledger-d-toggle invoice-device-toggle" data-tour="invoice-device">
+          <input type="checkbox" checked={createDevice} onChange={(e) => setCreateDevice(e.target.checked)} />
+          🛰️ أنشئ له حساب Starlink بعد الحفظ{linkClient && clientId ? "" : " (اختر الزبون أولًا)"}
+        </label>
+      )}
 
       {formError && <div className="account-card-alert ledger-form-error">{formError}</div>}
       <div className="settings-actions">

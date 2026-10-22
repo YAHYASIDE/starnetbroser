@@ -9,7 +9,8 @@ import { loadStoreItems } from "@/lib/storeStore";
 
 /**
  * ✎ A store invoice edited from a customer's statement (lib/invoiceEdit.ts): each line's quantity and
- * price, the discount, what was paid, the date and the note - and 🗑 delete. A return can only be
+ * price and shipping, the discount, what was paid, the date, the note and (from the store's list) the
+ * customer / supplier - and 🗑 delete. A return can only be
  * deleted; an invoice with a return is locked (`lock` says why).
  */
 export function InvoiceEditSheet({
@@ -19,7 +20,10 @@ export function InvoiceEditSheet({
   onSave,
   onDelete,
   onCancel,
+  parties,
 }: {
+  /** The store's list (his Oct 22 2026 «كل شيء»): the customer (sale) / supplier (purchase) can change. */
+  parties?: { id: string; name: string }[];
   invoice: Invoice;
   currencyLabel: string;
   lock: string | null;
@@ -30,14 +34,24 @@ export function InvoiceEditSheet({
   const items = useMemo(() => loadStoreItems(), []);
   const isReturn = invoice.returnOfInvoiceId !== undefined;
   const [date, setDate] = useState(invoice.date);
-  const [lines, setLines] = useState(invoice.lines.map((l) => ({ quantity: String(l.quantity), unitPrice: String(l.unitPrice) })));
+  const isSale = invoice.kind === "sale";
+  const [lines, setLines] = useState(
+    invoice.lines.map((l) => ({
+      quantity: String(l.quantity),
+      unitPrice: String(l.unitPrice),
+      shipping: l.shippingCharge !== undefined || l.shippingCost !== undefined,
+      shippingCost: l.shippingCost !== undefined ? String(l.shippingCost) : "",
+      shippingCharge: l.shippingCharge !== undefined ? String(l.shippingCharge) : "",
+    })),
+  );
+  const [partyId, setPartyId] = useState((isSale ? invoice.clientId : invoice.supplierId) ?? "");
   const [discount, setDiscount] = useState(invoice.discount ? String(invoice.discount) : "");
   const [paid, setPaid] = useState(invoice.paidAmount ? String(invoice.paidAmount) : "");
   const [note, setNote] = useState(invoice.note ?? "");
   const [error, setError] = useState<string | null>(null);
 
   const num = (v: string) => Number(v.replace(/,/g, "").trim() || "0");
-  const subtotal = lines.reduce((sum, l) => sum + num(l.quantity) * num(l.unitPrice), 0);
+  const subtotal = lines.reduce((sum, l) => sum + num(l.quantity) * num(l.unitPrice) + (isSale && l.shipping ? num(l.shippingCharge) : 0), 0);
   const total = subtotal - num(discount);
   const remaining = total - num(paid);
   const editable = !lock && !isReturn;
@@ -46,7 +60,18 @@ export function InvoiceEditSheet({
     event.preventDefault();
     const message = onSave({
       date,
-      lines: lines.map((l) => ({ quantity: num(l.quantity), unitPrice: num(l.unitPrice) })),
+      lines: lines.map((l) => ({
+        quantity: num(l.quantity),
+        unitPrice: num(l.unitPrice),
+        ...(isSale
+          ? {
+              shipping: l.shipping
+                ? { ...(l.shippingCost.trim() ? { cost: num(l.shippingCost) } : {}), ...(l.shippingCharge.trim() ? { charge: num(l.shippingCharge) } : {}) }
+                : (false as const),
+            }
+          : {}),
+      })),
+      ...(parties ? (isSale ? { clientId: partyId } : { supplierId: partyId }) : {}),
       discount: num(discount),
       paidAmount: num(paid),
       note,
@@ -96,9 +121,63 @@ export function InvoiceEditSheet({
                 onChange={(e) => setLines((ls) => ls.map((l, j) => (j === i ? { ...l, unitPrice: e.target.value } : l)))}
               />
             </label>
+            {isSale && (
+              <label className="ledger-d-toggle invoice-edit-ship-toggle">
+                <input
+                  type="checkbox"
+                  checked={lines[i]!.shipping}
+                  disabled={!editable}
+                  onChange={(e) => setLines((ls) => ls.map((l, j) => (j === i ? { ...l, shipping: e.target.checked } : l)))}
+                />
+                🚚 شحن
+              </label>
+            )}
+            {isSale && lines[i]!.shipping && (
+              <div className="invoice-edit-pair invoice-edit-ship">
+                <label className="form-field">
+                  <span>تكلفة الشحن</span>
+                  <input
+                    className="search-input"
+                    type="text"
+                    inputMode="decimal"
+                    dir="ltr"
+                    placeholder="0"
+                    value={lines[i]!.shippingCost}
+                    disabled={!editable}
+                    onChange={(e) => setLines((ls) => ls.map((l, j) => (j === i ? { ...l, shippingCost: e.target.value } : l)))}
+                  />
+                </label>
+                <label className="form-field">
+                  <span>سعره للزبون</span>
+                  <input
+                    className="search-input"
+                    type="text"
+                    inputMode="decimal"
+                    dir="ltr"
+                    placeholder="0"
+                    value={lines[i]!.shippingCharge}
+                    disabled={!editable}
+                    onChange={(e) => setLines((ls) => ls.map((l, j) => (j === i ? { ...l, shippingCharge: e.target.value } : l)))}
+                  />
+                </label>
+              </div>
+            )}
           </div>
         ))}
       </div>
+      {parties && (
+        <label className="form-field">
+          <span>{isSale ? "الزبون" : "المورد"}</span>
+          <select className="search-input" value={partyId} disabled={!editable} onChange={(e) => setPartyId(e.target.value)}>
+            <option value="">{isSale ? "بدون زبون" : "بدون مورد"}</option>
+            {parties.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <div className="invoice-edit-pair">
         <label className="form-field">
           <span>الخصم</span>

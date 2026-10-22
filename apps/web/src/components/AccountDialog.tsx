@@ -25,7 +25,10 @@ import { duplicateQuestion, findDeviceDuplicates } from "@/lib/duplicates";
 import { loadRepCopy } from "@/lib/repCopy";
 import { isRepWorkspace } from "@/lib/repMode";
 import { RepresentativePicker } from "./RepresentativePicker";
-import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS } from "@/lib/ledgerStore";
+import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, type LedgerCurrency } from "@/lib/ledgerStore";
+import { loadInvoices } from "@/lib/invoiceStore";
+import { loadStoreItems } from "@/lib/storeStore";
+import { deviceInvoiceLines } from "@/lib/deviceFromSale";
 import { validateRenewalPlan } from "@/lib/renewalPlan";
 import { loadExpectedCurrency } from "@/lib/partyCurrencyData";
 import { CurrencyBanner, useCurrencyGuard } from "./CurrencyGuard";
@@ -39,6 +42,8 @@ interface Props {
   account?: StarlinkAccountSummary;
   /** Add mode only: fields to start the blank account with (e.g. the client a store sale was to). */
   prefill?: Partial<StarlinkAccountSummary>;
+  /** 🛰️ Opens on «🆕 إنشاء حساب جديد» (a device sold from the store, deviceFromSale.ts). */
+  startCreating?: boolean;
   clients: Client[];
   onCreateClient: (input: CreateClientInput) => Client;
   representatives: Representative[];
@@ -98,6 +103,7 @@ export function AccountDialog({
   mode,
   account,
   prefill,
+  startCreating = false,
   clients,
   onCreateClient,
   representatives,
@@ -136,12 +142,20 @@ export function AccountDialog({
   }, [currencyStore, planCostCurrency]);
   const costCurrency = getCurrency(currencyStore, planCostCurrency);
   const isView = mode === "view";
+  // 🛰️ The store sale this device came with (his Oct 22 2026 ask) - its price and shipping.
+  const storeInvoiceLines = useMemo(() => {
+    if (!isView || !draft.storeInvoiceId) return null;
+    const invoice = loadInvoices().find((i) => i.id === draft.storeInvoiceId);
+    if (!invoice) return null;
+    const items = loadStoreItems();
+    return deviceInvoiceLines(invoice, (id) => items[id]?.name, (code) => LEDGER_CURRENCY_LABELS[code as LedgerCurrency] ?? code);
+  }, [isView, draft.storeInvoiceId]);
   const title = mode === "add" ? "إضافة حساب جديد" : mode === "edit" ? "تعديل الحساب" : "معلومات الحساب";
   const clientName = (clientId?: string) => clients.find((c) => c.id === clientId)?.name;
   const [sendNote, setSendNote] = useState<string | null>(null);
   // 🆕 «إنشاء حساب جديد»: a brand-new Starlink account (new email + «تفعيل Starlink»), instead of
   // adding a device that already has one.
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(startCreating);
   const [createError, setCreateError] = useState<string | null>(null);
   // 1️⃣ The account's full name, typed first (the customer below is optional).
   const [creationName, setCreationName] = useState("");
@@ -426,6 +440,16 @@ export function AccountDialog({
               <div><span>الاسم من Starlink</span><strong>{draft.starlinkAccountHolderName}</strong></div>
             )}
             <div><span>رقم الهاتف</span><strong dir="ltr">{draft.phone ? `+${draft.phone}` : "—"}</strong></div>
+            {storeInvoiceLines && (
+              <div className="account-info-wide">
+                <span>🧾 بيع من المتجر</span>
+                <strong className="account-info-invoice">
+                  {storeInvoiceLines.map((line) => (
+                    <span key={line}>{line}</span>
+                  ))}
+                </strong>
+              </div>
+            )}
             <div>
               <span>الخطة</span>
               <strong>

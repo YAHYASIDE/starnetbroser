@@ -33,6 +33,10 @@ export interface StoreItem {
   /** Remaining quantity at or below this number triggers the "low stock" badge - undefined means
    * no alert is configured for this item (never a guessed default). */
   lowStockThreshold?: number;
+  /** 🤝 A rep's fixed price for this item (his Oct 22 2026 ask, set from «📥 شراء»): repId → price. A sale
+   * through that rep locks it on the invoice line (`repUnitPrice`) - he owes that price, what he sells
+   * above it is his, and he takes no percent of our profit or loss on it. */
+  repPrices?: Record<string, { price: number; currencyCode: string; updatedAt: string }>;
   createdAt: string;
   updatedAt: string;
 }
@@ -175,6 +179,31 @@ export function updateStoreItem(
   if (!existing) return items;
   const updated: StoreItem = { ...existing, ...buildItemFields(patch), updatedAt: nowIso() };
   return { ...items, [itemId]: updated };
+}
+
+/** 🤝 Sets (price > 0) or removes (null) a rep's fixed price on an item. */
+export function setItemRepPrice(
+  items: StoreItemRegistry,
+  itemId: string,
+  repId: string,
+  value: { price: number; currencyCode: string } | null,
+  now: Date = new Date(),
+): StoreItemRegistry {
+  const item = items[itemId];
+  if (!item || !repId) return items;
+  const repPrices = { ...(item.repPrices ?? {}) };
+  if (value && Number.isFinite(value.price) && value.price > 0) repPrices[repId] = { price: value.price, currencyCode: value.currencyCode, updatedAt: now.toISOString() };
+  else delete repPrices[repId];
+  const next: StoreItem = { ...item, updatedAt: now.toISOString() };
+  if (Object.keys(repPrices).length) next.repPrices = repPrices;
+  else delete next.repPrices;
+  return { ...items, [itemId]: next };
+}
+
+/** The rep's fixed price for an item in that currency (never converted), or undefined. */
+export function itemRepPrice(item: StoreItem | undefined, repId: string | undefined, currencyCode: string): number | undefined {
+  const entry = repId ? item?.repPrices?.[repId] : undefined;
+  return entry && entry.currencyCode === currencyCode ? entry.price : undefined;
 }
 
 export function deleteStoreItem(items: StoreItemRegistry, itemId: string): StoreItemRegistry {

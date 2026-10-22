@@ -2084,3 +2084,22 @@ is never pressed while a field is empty - it refills and saves on the next try (
   (`components/CodesSection.tsx`, `lib/verificationCodes.ts`): device, what for, how long ago, tap to copy,
   «🗑 مسح»; «المزيد» → «🔑 الأكواد» opens `/mailboxes#codes`. (1) is a fold there with the phone steps
   (Settings → passwords/passkeys → preferred service Google → re-add the passkey in Starlink).
+
+## 🛍️ Store: edit past invoices, a rep's fixed price, selling a device (Oct 22 2026)
+
+- His asks (screenshots of the store): «اجعل زر تعديل الفاتورة الماضية»، «في الشراء أضف مكان المندوب لكي تحفظ له سعرها»
+  (then «لا يربح المندوب نسبته من ربح أو الخسارة»)، and «عندما نبيع لزبون جهاز Mini… نضيف له إيميل وننشئ له حساب
+  ونضيف تكلفة شحن… لا تنفذ شيئًا قبل أن تسألني». His choices (all the suggested ones):
+- **✎ every invoice in the store list** (`InvoiceSection` → `InvoiceEditSheet` with `parties`): quantity, price,
+  **shipping (cost + charge)**, discount, paid, date, **customer / supplier**, note, 🗑 - `updateInvoice` rebuilds its
+  stock and الكاش (a line's `shipping`: absent = kept, false = removed; a rep price stays locked).
+- **🤝 «سعر ثابت للمندوب»**: `StoreItem.repPrices[repId] = {price, currencyCode}` set under «📥 شراء» in the item
+  panel (✕ removes). A sale invoice linked to that rep in the same currency locks `repUnitPrice` on the line; his
+  earning = (sale − his price) × qty − discount (a loss counts), **no percent**; other lines keep the percent
+  (`invoiceRepCommission` - used by the rep accounts and «الإجمالي»/store profit). The form shows «🤝 سعر حسين:
+  185,000 - ربحه 15,000 (بلا نسبة)».
+- **🛰️ selling a kit by invoice** (`saleLooksLikeDevice`): «🛰️ أنشئ له حساب Starlink بعد الحفظ» (on by default, needs
+  the customer) → after saving, the home page opens «🆕 إنشاء حساب جديد» (`create=1`) with the customer/rep, and the
+  new device keeps `storeInvoiceId`; «معلومات الحساب» shows «🧾 بيع من المتجر» (each item, 🚚 shipping with its cost,
+  paid / left - `deviceInvoiceLines`). Shipping stays in the invoice (store profit). Unticked → the old banner, now
+  also opening the create tab linked to the invoice.

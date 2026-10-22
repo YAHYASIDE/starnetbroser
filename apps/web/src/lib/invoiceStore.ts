@@ -36,6 +36,9 @@ export interface InvoiceLineInput {
    * unitPrice into the invoice's own subtotal/total (see invoiceSubtotal), so payment status and
    * the WhatsApp message always reflect one single "amount owed" figure. */
   shippingCharge?: number;
+  /** Sale through a rep only: his fixed price for this item (StoreItem.repPrices), LOCKED here when
+   * the invoice is made - he owes it, the rest of the line is his, no percent (invoiceRepCommission). */
+  repUnitPrice?: number;
 }
 
 export interface InvoiceLine extends InvoiceLineInput {
@@ -113,6 +116,20 @@ export function invoiceSubtotal(invoice: Invoice): number {
 
 export function invoiceTotal(invoice: Invoice): number {
   return Math.max(0, invoiceSubtotal(invoice) - invoice.discount);
+}
+
+/** 🤝 What the rep earns on a sale invoice attributed to him, in its currency (undefined = nothing to
+ * him). Lines with his fixed price (`repUnitPrice`): (sale price − his price) × quantity, a loss counts
+ * too (he owes his price), minus the invoice discount; other lines: his locked percent of their value
+ * (with their shipping charge), as before. */
+export function invoiceRepCommission(invoice: Invoice): number | undefined {
+  if (invoice.kind !== "sale" || invoice.returnOfInvoiceId || !invoice.representativeId) return undefined;
+  const fixed = invoice.lines.filter((l) => l.repUnitPrice !== undefined);
+  const percent = invoice.representativeCommissionPercent;
+  if (fixed.length === 0) return percent === undefined ? undefined : (percent / 100) * invoiceTotal(invoice);
+  const own = fixed.reduce((sum, l) => sum + (l.unitPrice - l.repUnitPrice!) * l.quantity, 0);
+  const others = invoice.lines.filter((l) => l.repUnitPrice === undefined).reduce((sum, l) => sum + l.quantity * l.unitPrice + (l.shippingCharge ?? 0), 0);
+  return Math.round((own - invoice.discount + (percent !== undefined ? (percent / 100) * others : 0)) * 100) / 100;
 }
 
 export function invoiceBalanceDue(invoice: Invoice): number {
@@ -201,6 +218,7 @@ export function createInvoice(
       unitPrice: line.unitPrice,
       shippingCost,
       shippingCharge,
+      ...(input.kind === "sale" && !isReturn && input.representativeId && line.repUnitPrice !== undefined && line.repUnitPrice >= 0 ? { repUnitPrice: line.repUnitPrice } : {}),
       transactionId: result.transaction.id,
     });
   }

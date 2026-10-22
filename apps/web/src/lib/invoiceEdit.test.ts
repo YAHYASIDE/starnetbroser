@@ -54,4 +54,21 @@ describe("✎ editing a store invoice from the statement (his Oct 20 2026 ask)",
     // the return itself can go
     expect(deleteInvoice(ret.invoices, ret.transactions, s.cash, ret.invoice.id).ok).toBe(true);
   });
+
+  it("from the store's list: the shipping and the customer too (his Oct 22 2026 «كل شيء مع الشحن»)", () => {
+    const s = setup();
+    const withShip = updateInvoice(s.invoices, s.transactions, s.cash, s.id, { date: "2026-10-20", lines: [{ quantity: 3, unitPrice: 60000, shipping: { cost: 2000, charge: 5000 } }], discount: 0, paidAmount: 50000, clientId: "c2" });
+    expect(withShip.ok).toBe(true);
+    if (!withShip.ok) return;
+    expect(withShip.invoice!.lines[0]).toMatchObject({ shippingCost: 2000, shippingCharge: 5000 });
+    expect(withShip.invoice!.clientId).toBe("c2");
+    expect(invoiceTotal(withShip.invoice!)).toBe(185000);
+    // absent = kept; false = removed
+    const kept = updateInvoice(withShip.invoices, withShip.transactions, withShip.cash, s.id, { date: "2026-10-20", lines: [{ quantity: 3, unitPrice: 60000 }], discount: 0, paidAmount: 0 });
+    expect(kept.ok && kept.invoice!.lines[0]!.shippingCharge).toBe(5000);
+    expect(kept.ok && kept.invoice!.clientId).toBe("c2");
+    if (!kept.ok) return;
+    const removed = updateInvoice(kept.invoices, kept.transactions, kept.cash, s.id, { date: "2026-10-20", lines: [{ quantity: 3, unitPrice: 60000, shipping: false }], discount: 0, paidAmount: 0 });
+    expect(removed.ok && removed.invoice!.lines[0]!.shippingCharge).toBeUndefined();
+  });
 });

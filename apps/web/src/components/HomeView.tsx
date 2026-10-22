@@ -215,7 +215,7 @@ import { isOnMailDomain, loadMailDomain, pushMailDomain } from "@/lib/mailDomain
 const NEAR_EXPIRY_THRESHOLD_DAYS = 3;
 
 type DataState = "demo" | "loading" | "loaded" | "error";
-type DialogState = { mode: AccountDialogMode; account?: StarlinkAccountSummary; prefill?: Partial<StarlinkAccountSummary> } | null;
+type DialogState = { mode: AccountDialogMode; account?: StarlinkAccountSummary; prefill?: Partial<StarlinkAccountSummary>; startCreating?: boolean } | null;
 
 /** Which dashboard summary card (see the "ملخص الحسابات" section) the account list is currently
  * narrowed to - tapping a card sets this, tapping it again (or "مسح التصفية") clears it. Mutually
@@ -454,7 +454,9 @@ export function HomeView({
     const open = (secrets: { emailPassword?: string; wifiPassword?: string } = {}) =>
       setDialog({
         mode: "add",
+        ...(prefill.create ? { startCreating: true } : {}),
         prefill: {
+          ...(prefill.invoiceId ? { storeInvoiceId: prefill.invoiceId } : {}),
           clientId: prefill.clientId,
           representativeId: prefill.representativeId,
           name: prefill.name ?? "",
@@ -3469,6 +3471,7 @@ export function HomeView({
           mode={dialog.mode}
           account={dialog.account}
           prefill={dialog.prefill}
+          startCreating={dialog.startCreating}
           clients={clients}
           onCreateClient={handleCreateClient}
           representatives={representatives}

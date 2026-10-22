@@ -244,6 +244,9 @@ export interface StarlinkAccountSummary {
    * Outlook email, then «تفعيل Starlink» with the KIT). The names typed into both forms are kept
    * here until the operator marks it done, or the first sync reads the new account. */
   creation?: { firstName: string; lastName: string; startedAt: string } | null;
+  /** 🛰️ The store sale invoice this device was sold with (his Oct 22 2026 ask: sell a Mini by invoice and
+   * create its account from there) - its price and shipping show in «معلومات الحساب». */
+  storeInvoiceId?: string;
   /** ISO timestamp set only by an explicit "أرشفة" action - an archived device is hidden from the
    * main list (see HomeView's "الأرشيف" view) but keeps every ledger entry, allocation and
    * exchange-rate link exactly as-is; null/undefined again once restored. Never implies deleted. */

@@ -28,6 +28,7 @@ import {
   loadStoreTransactions,
   recordStoreTransaction,
   saveStoreItems,
+  setItemRepPrice,
   saveStoreTransactions,
   StoreItem,
   StoreItemRegistry,
@@ -40,6 +41,7 @@ import { InvoiceSection } from "@/components/InvoiceSection";
 import { CashRegisterSection } from "@/components/CashRegisterSection";
 import { StoreReportsSection } from "@/components/StoreReportsSection";
 import { Invoice, InvoiceList, loadInvoices, saveInvoices } from "@/lib/invoiceStore";
+import { deleteInvoice, updateInvoice, type InvoiceEditResult } from "@/lib/invoiceEdit";
 import { buildNewDeviceHref, NewDevicePrefill, saleLooksLikeDevice } from "@/lib/deviceFromSale";
 import {
   CashClosingList,
@@ -134,6 +136,18 @@ export default function StorePage() {
 
   const suppliers = useMemo(() => listSuppliers(supplierStore), [supplierStore]);
   const representatives = useMemo(() => listRepresentatives(representativeStore), [representativeStore]);
+
+  /** ✎ / 🗑 a past invoice from the list: the invoice, its stock and its cash together. */
+  function commitInvoiceEdit(result: InvoiceEditResult): string | null {
+    if (!result.ok) return result.message;
+    saveInvoices(result.invoices);
+    saveStoreTransactions(result.transactions);
+    saveCashEntries(result.cash);
+    setInvoices(result.invoices);
+    setTransactions(result.transactions);
+    setCashEntries(result.cash);
+    return null;
+  }
 
   function handleCreateClient(input: CreateClientInput): Client {
     const result = createClient(clientStore, input);
@@ -348,9 +362,15 @@ export default function StorePage() {
                       stock={stock}
                       transactions={transactions}
                       clientStore={clientStore}
+                      representatives={representatives}
                       onChange={(next) => {
                         setTransactions(next);
                         saveStoreTransactions(next);
+                      }}
+                      onRepPrice={(repId, value) => {
+                        const next = setItemRepPrice(items, item.id, repId, value);
+                        setItems(next);
+                        saveStoreItems(next);
                       }}
                     />
                   )}
@@ -377,6 +397,8 @@ export default function StorePage() {
         onCreateClient={handleCreateClient}
         onCreateRepresentative={handleCreateRepresentative}
         onCreateSupplier={handleCreateSupplier}
+        onEditInvoice={(id, input) => commitInvoiceEdit(updateInvoice(loadInvoices(), loadStoreTransactions(), loadCashEntries(), id, input))}
+        onDeleteInvoice={(id) => commitInvoiceEdit(deleteInvoice(loadInvoices(), loadStoreTransactions(), loadCashEntries(), id))}
         onChange={(result) => {
           setInvoices(result.invoices);
           saveInvoices(result.invoices);
@@ -385,11 +407,16 @@ export default function StorePage() {
           postInvoiceCashEntry(result.invoice);
           const sold = result.invoice.lines.map((line) => items[line.itemId]?.name ?? "");
           if (result.invoice.kind === "sale" && result.invoice.clientId && saleLooksLikeDevice(sold)) {
-            setDeviceOffer({
+            const offer = {
               clientId: result.invoice.clientId,
               representativeId: result.invoice.representativeId,
               name: clientStore[result.invoice.clientId]?.name,
-            });
+              invoiceId: result.invoice.id,
+              create: true,
+            };
+            // 🛰️ ticked in the invoice: straight to «🆕 إنشاء حساب جديد», linked to this sale.
+            if (result.createDevice) window.location.assign(buildNewDeviceHref(offer));
+            else setDeviceOffer(offer);
           }
         }}
       />
@@ -643,13 +670,16 @@ interface PanelProps {
   stock: number;
   transactions: StoreTransactionList;
   clientStore: ClientStore;
+  representatives: Representative[];
   onChange: (transactions: StoreTransactionList) => void;
+  /** 🤝 Sets / removes (null) a rep's fixed price for this item. */
+  onRepPrice: (repId: string, value: { price: number; currencyCode: string } | null) => void;
 }
 
 /** One item's own buy/sell form plus its transaction history - shown inline under the item row
  * once expanded, never as a separate navigation (a real inventory's whole point is seeing the
  * item, its current stock, and what to do next all in one place). */
-function StoreItemPanel({ item, stock, transactions, clientStore, onChange }: PanelProps) {
+function StoreItemPanel({ item, stock, transactions, clientStore, representatives, onChange, onRepPrice }: PanelProps) {
   // Pre-filled from the item's own default buy/sell price when it has one - still a plain form
   // field the operator can freely change before saving; the transaction never reads the item's
   // default again once submitted.
@@ -665,6 +695,21 @@ function StoreItemPanel({ item, stock, transactions, clientStore, onChange }: Pa
   const [date, setDate] = useState(todayDateInputValue());
   const [note, setNote] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+  // 🤝 his Oct 22 2026 ask: a rep's fixed price for this item («لكي تحفظ له سعرها») - no percent for him on it.
+  const [repId, setRepId] = useState("");
+  const [repPrice, setRepPrice] = useState("");
+  const [repCurrency, setRepCurrency] = useState<LedgerCurrency>(() => (item.defaultSaleCurrencyCode as LedgerCurrency | undefined) ?? "MRU");
+  const [repError, setRepError] = useState<string | null>(null);
+  const repPrices = Object.entries(item.repPrices ?? {}).filter(([id]) => representatives.some((r) => r.id === id));
+
+  function saveRepPrice() {
+    const price = Number(repPrice.replace(/,/g, ""));
+    if (!repId) return setRepError("اختر المندوب");
+    if (!(price > 0)) return setRepError("اكتب سعره");
+    setRepError(null);
+    onRepPrice(repId, { price, currencyCode: repCurrency });
+    setRepPrice("");
+  }
 
   const itemTransactions = listTransactionsForItem(transactions, item.id);
 
@@ -741,6 +786,58 @@ function StoreItemPanel({ item, stock, transactions, clientStore, onChange }: Pa
           حفظ الشراء
         </button>
       </form>
+
+      {representatives.length > 0 && (
+        <div className="store-rep-price" data-tour="store-rep-price">
+          <p className="store-panel-kind">🤝 سعر المندوب - يُحسب عليه هذا السعر فقط، وما يبيع فوقه له، بلا نسبة من ربحك أو خسارتك</p>
+          {repPrices.length > 0 && (
+            <ul className="store-rep-price-list">
+              {repPrices.map(([id, p]) => (
+                <li key={id}>
+                  <span>{representatives.find((r) => r.id === id)?.name}</span>
+                  <bdi dir="ltr">
+                    {formatAmount(p.price)} {LEDGER_CURRENCY_LABELS[p.currencyCode as LedgerCurrency] ?? p.currencyCode}
+                  </bdi>
+                  <button type="button" className="ledger-entry-delete" aria-label="حذف سعر المندوب" onClick={() => onRepPrice(id, null)}>
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="store-item-form-row">
+            <select className="search-input" value={repId} onChange={(e) => {
+              setRepId(e.target.value);
+              const saved = item.repPrices?.[e.target.value];
+              if (saved) {
+                setRepPrice(String(saved.price));
+                setRepCurrency(saved.currencyCode as LedgerCurrency);
+              }
+            }}>
+              <option value="">المندوب…</option>
+              {representatives.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+            <input className="search-input" type="text" inputMode="decimal" dir="ltr" placeholder="سعره" value={repPrice} onChange={(e) => setRepPrice(e.target.value)} />
+          </div>
+          <div className="store-item-form-row">
+            <select className="search-input" value={repCurrency} onChange={(e) => setRepCurrency(e.target.value as LedgerCurrency)}>
+              {LEDGER_CURRENCIES.map((c) => (
+                <option key={c} value={c}>
+                  {LEDGER_CURRENCY_LABELS[c]}
+                </option>
+              ))}
+            </select>
+            <button type="button" className="btn-icon" onClick={saveRepPrice}>
+              حفظ سعر المندوب
+            </button>
+          </div>
+          {repError && <div className="account-card-alert ledger-form-error">{repError}</div>}
+        </div>
+      )}
 
       <p className="settings-hint" dir="ltr">
         المخزون الحالي: {formatAmount(stock)} {item.unit}

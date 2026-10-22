@@ -9,7 +9,7 @@
  * mutating a running total directly, so every settlement stays a reviewable, deletable record.
  */
 
-import { Invoice, invoiceTotal } from "./invoiceStore";
+import { Invoice, invoiceRepCommission } from "./invoiceStore";
 import { LedgerByAccount, LedgerCurrency, LedgerEntry } from "./ledgerStore";
 import { computeExpectedShipmentProfit, computeShipmentProfit, shipmentProfitDate, ShipmentProfit } from "./accountingStore";
 import { repCostFactor, repCostUsd, repProfitUsd, type RepRatePlan } from "./repRates";
@@ -409,9 +409,8 @@ export function computeRepCommissionOwedByCurrency(
   addDeviceShares(result, deviceCommissions);
   for (const inv of invoices) {
     if (inv.kind !== "sale" || inv.returnOfInvoiceId || inv.representativeId !== representativeId) continue;
-    if (inv.representativeCommissionPercent === undefined) continue;
-    const commission = (inv.representativeCommissionPercent / 100) * invoiceTotal(inv);
-    if (commission <= 0) continue;
+    const commission = invoiceRepCommission(inv);
+    if (commission === undefined || Math.abs(commission) < 0.000001) continue;
     result[inv.currencyCode] = (result[inv.currencyCode] ?? 0) + commission;
   }
   for (const s of settlements) {
@@ -452,9 +451,8 @@ export function computeRepCommissionEarnedByCurrency(
   addDeviceShares(result, deviceCommissions);
   for (const inv of invoices) {
     if (inv.kind !== "sale" || inv.returnOfInvoiceId || inv.representativeId !== representativeId) continue;
-    if (inv.representativeCommissionPercent === undefined) continue;
-    const commission = (inv.representativeCommissionPercent / 100) * invoiceTotal(inv);
-    if (commission <= 0) continue;
+    const commission = invoiceRepCommission(inv);
+    if (commission === undefined || Math.abs(commission) < 0.000001) continue;
     result[inv.currencyCode] = (result[inv.currencyCode] ?? 0) + commission;
   }
   return result;
@@ -501,9 +499,9 @@ export function listRepInvoiceCommissions(representativeId: string, invoices: In
         inv.kind === "sale" &&
         !inv.returnOfInvoiceId &&
         inv.representativeId === representativeId &&
-        inv.representativeCommissionPercent !== undefined,
+        invoiceRepCommission(inv) !== undefined,
     )
-    .map((inv) => ({ invoice: inv, commissionAmount: (inv.representativeCommissionPercent! / 100) * invoiceTotal(inv) }))
+    .map((inv) => ({ invoice: inv, commissionAmount: invoiceRepCommission(inv)! }))
     .sort((a, b) => (a.invoice.date < b.invoice.date ? 1 : a.invoice.date > b.invoice.date ? -1 : 0));
 }
 

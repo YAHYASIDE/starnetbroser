@@ -10,7 +10,7 @@
  */
 
 import { CashEntryList, listStandaloneCashEntries } from "./cashStore";
-import { InvoiceList, invoiceTotal } from "./invoiceStore";
+import { InvoiceList, invoiceRepCommission } from "./invoiceStore";
 import { LedgerByAccount } from "./ledgerStore";
 import { buildPeriodReport, monthOf } from "./monthClosing";
 import { entriesAfterProfitReset, ProfitReset } from "./profitReset";
@@ -117,8 +117,9 @@ function buildNet(input: MonthNetInput, label: string, inPeriod: (date: string) 
   const summary = computeStoreSalesSummary(input.transactions, input.invoices, monthInvoices, rates);
   const commission: Record<string, number> = {};
   for (const inv of monthInvoices) {
-    if (inv.kind !== "sale" || inv.returnOfInvoiceId || !inv.representativeId || inv.representativeCommissionPercent === undefined) continue;
-    addTo(commission, inv.currencyCode, (inv.representativeCommissionPercent / 100) * invoiceTotal(inv));
+    const earned = invoiceRepCommission(inv);
+    if (earned === undefined) continue;
+    addTo(commission, inv.currencyCode, earned);
   }
   const storeSalesMru = take(summary.salesByCurrency);
   const storeCogsMru = take(summary.cogsByCurrency);
