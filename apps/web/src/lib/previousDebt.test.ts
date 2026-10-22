@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { computeShipmentProfit, shipmentProfitDate } from "./accountingStore";
 import type { LedgerEntry } from "./ledgerStore";
 import {
+  addToPreviousDebt,
   buildPreviousDebtPayment,
   deletePreviousDebt,
   listOpenPreviousDebts,
@@ -120,5 +121,20 @@ describe("🤝 a previous debt paid on a rep's customer's device (his Oct 14 202
     const [row] = listRepDeviceCommissions("r1", { a1: [paid.entry] });
     expect(row!.profit.profitUsd).toBeCloseTo(17.86, 2);
     expect(row!.repShareUsd).toBeCloseTo(8.93, 2);
+  });
+});
+
+describe("➕ a gap added onto the open previous debt (his Oct 22 2026 ask)", () => {
+  it("the same debt grows and keeps what was added", () => {
+    const made = recordPreviousDebt([], { accountId: "d1", date: "2026-10-01", amountUsd: 45.4 });
+    if (!made.ok) throw new Error(made.message);
+    const added = addToPreviousDebt(made.list, made.debt.id, 28.48, "2026-10-22");
+    expect(added.ok).toBe(true);
+    if (!added.ok) return;
+    expect(added.list).toHaveLength(1);
+    expect(added.debt.amountUsd).toBe(73.88);
+    expect(added.debt.additions).toEqual([{ amountUsd: 28.48, date: "2026-10-22", createdAt: expect.any(String) }]);
+    expect(addToPreviousDebt(made.list, "nope", 5, "2026-10-22").ok).toBe(false);
+    expect(addToPreviousDebt(made.list, made.debt.id, 0, "2026-10-22").ok).toBe(false);
   });
 });

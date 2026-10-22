@@ -75,6 +75,10 @@ interface Props {
   previousDebts?: PreviousDebt[];
   /** Records a previous debt - returns an error message, or null once saved. */
   onAddPreviousDebt?: (account: StarlinkAccountSummary, input: { date: string; amountUsd: number; note: string }) => string | null;
+  /** ➕ The gap added onto this device's open previous debt (it grows). */
+  onAddToPreviousDebt?: (account: StarlinkAccountSummary, debtId: string, amountUsd: number) => string | null;
+  /** 👤 The gap recorded on the device's customer as «رصيد سابق» (عليه). */
+  onCustomerPreviousBalance?: (account: StarlinkAccountSummary, input: { amount: number; currencyCode: string; note: string }) => string | null;
   /** ↩️ Puts D's marked paid (while Starlink still asks for them) back to D (lib/settledStillDue.ts). */
   onRestoreD?: (account: StarlinkAccountSummary, entryIds: string[]) => void;
   /** ✓ «دفعته»: the D really was paid - Starlink's bill is a new month (settledStillDue.confirmPaidD). */
@@ -262,6 +266,8 @@ export function AccountCard({
   repPending = false,
   previousDebts = [],
   onAddPreviousDebt,
+  onAddToPreviousDebt,
+  onCustomerPreviousBalance,
   onRestoreD,
   onConfirmPaidD,
   onClearRepAdded,
@@ -366,6 +372,13 @@ export function AccountCard({
   const [renewalSheet, setRenewalSheet] = useState(false);
   // «الدين» on the unrecorded-difference line: choose an old (inherited) debt or a normal D charge.
   const [debtChoiceUsd, setDebtChoiceUsd] = useState<number | null>(null);
+  // 👤 «على الزبون رصيد سابق»: the amount in his currency, typed before saving.
+  const [customerGap, setCustomerGap] = useState<{ amount: string; currency: string; error?: string } | null>(null);
+  function openCustomerGap(usd: number) {
+    const currency = account.renewalPlan?.saleCurrency ?? "MRU";
+    const rate = currency === "USD" ? 1 : getCurrency(currencyStore, currency)?.rateFromUsd;
+    setCustomerGap({ amount: rate ? String(Math.round(usd * rate)) : "", currency });
+  }
   const expectedMru = currentMruRate !== undefined ? profit.expectedUsd * currentMruRate : undefined;
 
   // Defaults to "not the Android app" (matches server render, which never
@@ -1335,13 +1348,13 @@ export function AccountCard({
       )}
 
       {debtChoiceUsd !== null && (
-        <div className="party-sheet-backdrop" role="presentation" onClick={() => setDebtChoiceUsd(null)}>
+        <div className="party-sheet-backdrop" role="presentation" onClick={() => (setDebtChoiceUsd(null), setCustomerGap(null))}>
           <div className="party-sheet" role="dialog" aria-modal="true" aria-label="الدين" onClick={(e) => e.stopPropagation()}>
             <div className="party-sheet-head">
               <strong>
                 الدين · <bdi dir="ltr">{formatAmount(debtChoiceUsd)} $</bdi>
               </strong>
-              <button type="button" className="dialog-close" onClick={() => setDebtChoiceUsd(null)} aria-label="إغلاق">
+              <button type="button" className="dialog-close" onClick={() => (setDebtChoiceUsd(null), setCustomerGap(null))} aria-label="إغلاق">
                 ×
               </button>
             </div>
@@ -1367,7 +1380,71 @@ export function AccountCard({
               >
                 <span aria-hidden="true">🅳</span> دين D عادي <small>نحن سجّلناه عليه</small>
               </button>
+              {onAddToPreviousDebt && previousDebts.length > 0 && (
+                <button
+                  type="button"
+                  className="card-more-item"
+                  onClick={() => {
+                    const debt = previousDebts[previousDebts.length - 1]!;
+                    const error = onAddToPreviousDebt(account, debt.id, debtChoiceUsd);
+                    if (error) window.alert(error);
+                    else setDebtChoiceUsd(null);
+                  }}
+                >
+                  <span aria-hidden="true">➕</span> أضفه إلى الدين السابق{" "}
+                  <small>
+                    يصير <bdi dir="ltr">{formatAmount(previousDebts[previousDebts.length - 1]!.amountUsd + debtChoiceUsd)} $</bdi>
+                  </small>
+                </button>
+              )}
+              {onCustomerPreviousBalance && (
+                <button type="button" className="card-more-item" disabled={!account.clientId} onClick={() => openCustomerGap(debtChoiceUsd)}>
+                  <span aria-hidden="true">👤</span> على الزبون رصيد سابق{" "}
+                  <small>{account.clientId ? "يُسجَّل عليه في حسابه" : "اربط الجهاز بزبون أولًا"}</small>
+                </button>
+              )}
             </div>
+            {customerGap && (
+              <div className="card-gap-customer">
+                <div className="store-item-form-row">
+                  <input
+                    className="search-input"
+                    type="text"
+                    inputMode="decimal"
+                    dir="ltr"
+                    placeholder="المبلغ"
+                    value={customerGap.amount}
+                    onChange={(e) => setCustomerGap({ ...customerGap, amount: e.target.value, error: undefined })}
+                  />
+                  <select className="search-input" value={customerGap.currency} onChange={(e) => setCustomerGap({ ...customerGap, currency: e.target.value, error: undefined })}>
+                    {LEDGER_CURRENCIES.map((c) => (
+                      <option key={c} value={c}>
+                        {LEDGER_CURRENCY_LABELS[c]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {customerGap.error && <p className="ledger-form-error">{customerGap.error}</p>}
+                <button
+                  type="button"
+                  className="dialog-primary"
+                  onClick={() => {
+                    const amount = Number(customerGap.amount.replace(/,/g, ""));
+                    if (!(amount > 0)) return setCustomerGap({ ...customerGap, error: "اكتب المبلغ" });
+                    const error = onCustomerPreviousBalance!(account, {
+                      amount,
+                      currencyCode: customerGap.currency,
+                      note: `رصيد سابق - فرق Starlink ${formatAmount(debtChoiceUsd)} $ (${account.name})`,
+                    });
+                    if (error) return setCustomerGap({ ...customerGap, error });
+                    setCustomerGap(null);
+                    setDebtChoiceUsd(null);
+                  }}
+                >
+                  👤 سجّله على الزبون
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

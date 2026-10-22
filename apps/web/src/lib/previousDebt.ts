@@ -16,6 +16,9 @@ export interface PreviousDebt {
   date: string;
   amountUsd: number;
   note?: string;
+  /** ➕ Gaps added onto it later (his Oct 22 2026 ask «أضف الفرق إلى الدين السابق») - `amountUsd`
+   * already includes them; kept so the increase stays visible. */
+  additions?: { amountUsd: number; date: string; createdAt: string }[];
   createdAt: string;
 }
 
@@ -58,6 +61,19 @@ export function recordPreviousDebt(
     createdAt: now.toISOString(),
   };
   return { ok: true, list: [...list, debt], debt };
+}
+
+/** ➕ Adds a gap onto an open previous debt (the same debt grows instead of a second one). */
+export function addToPreviousDebt(list: PreviousDebtList, id: string, amountUsd: number, date: string, now: Date = new Date()): PreviousDebtResult {
+  const debt = list.find((d) => d.id === id);
+  if (!debt) return { ok: false, message: "الدين السابق غير موجود" };
+  if (!Number.isFinite(amountUsd) || amountUsd <= 0) return { ok: false, message: "أدخل المبلغ بالدولار" };
+  const next: PreviousDebt = {
+    ...debt,
+    amountUsd: Math.round((debt.amountUsd + amountUsd) * 100) / 100,
+    additions: [...(debt.additions ?? []), { amountUsd: Math.round(amountUsd * 100) / 100, date, createdAt: now.toISOString() }],
+  };
+  return { ok: true, list: list.map((d) => (d.id === id ? next : d)), debt: next };
 }
 
 /** Only an unpaid debt can be removed (one recorded by mistake); a paid one goes with its shipment. */

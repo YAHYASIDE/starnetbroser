@@ -2107,3 +2107,14 @@ is never pressed while a field is empty - it refills and saves on the next try (
   new device keeps `storeInvoiceId`; «معلومات الحساب» shows «🧾 بيع من المتجر» (each item, 🚚 shipping with its cost,
   paid / left - `deviceInvoiceLines`). Shipping stays in the invoice (store profit). Unticked → the old banner, now
   also opening the create tab linked to the invoice.
+
+## ➕ «فرق … · الدين»: add it to the previous debt, or on the customer (Oct 22 2026)
+
+- His ask (a card with «فرق 28.48 $ · الدين»): «عندما أضغط على فرق الدين أن يظهر أيضًا زر إضافة الرصيد إلى رصيد سابق».
+  Asked which, **he chose both**. The sheet now has, after «📜 دين سابق» / «🅳 دين D عادي»:
+  - **«➕ أضفه إلى الدين السابق»** (only when the device has an open previous debt): the newest open one grows by the
+    gap (`addToPreviousDebt` - `amountUsd` updated, the increase kept in `additions` with its date);
+  - **«👤 على الزبون رصيد سابق»** (needs the device's customer): type the amount in his currency (prefilled from the
+    gap at today's rate, the plan's sale currency or أوقية) → a client party adjustment «عليه» with the note
+    «رصيد سابق - فرق Starlink X $ (device)». It doesn't touch Starlink's D, so the gap chip stays until Starlink is
+    paid or recorded.

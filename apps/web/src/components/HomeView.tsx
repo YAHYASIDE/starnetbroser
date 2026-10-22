@@ -75,7 +75,7 @@ import { loadPaymentCards, type PaymentCard } from "@/lib/kastCards";
 import { cardNeed, computeRenewalForecast } from "@/lib/renewalForecast";
 import { computeDeviceMargins, WEAK_MARGIN_PERCENT } from "@/lib/deviceMargins";
 import { cardShortfallForSuspended, currentCardBalanceUsd, listOpenShipmentDebts, listSuspendedWithDebt, loadCardTopUps, settleShipmentCost, unsettleShipmentCost } from "@/lib/starlinkDebt";
-import { loadPartyAdjustments } from "@/lib/partyBalanceStore";
+import { loadPartyAdjustments, recordPartyAdjustment, savePartyAdjustments } from "@/lib/partyBalanceStore";
 import { checkForAppUpdate, updateDownloadUrl, shouldAutoCheck } from "@/lib/appUpdate";
 import { deviceMatchesQuery, searchEverything, searchTermOf, SearchResult } from "@/lib/homeInsights";
 import { addSearch, loadSearchHistory, removeSearch, saveSearchHistory } from "@/lib/searchHistory";
@@ -121,7 +121,8 @@ import { TravelBookPanel } from "@/components/TravelBookPanel";
 import { CurrencyStore, getCurrency, loadCurrencyStore, saveCurrencyStore, upsertCurrency, UpsertCurrencyInput } from "@/lib/currencyStore";
 import { countFaultCategories, FAULT_CATEGORIES, faultCategory, isFaulty, isUnderRepair, oldestOpenDebt, openDebtEntries, removeFaultPatch, restoreWaivedDebts, waiveOpenDebts } from "@/lib/deviceFault";
 import type { DeviceFaultReason } from "@starnet/shared";
-import { listOpenPreviousDebts, loadPreviousDebts, recordPreviousDebt, savePreviousDebts, type PreviousDebtList } from "@/lib/previousDebt";
+import { addToPreviousDebt, listOpenPreviousDebts, loadPreviousDebts, recordPreviousDebt, savePreviousDebts, type PreviousDebtList } from "@/lib/previousDebt";
+import { dayKey as localDayKey } from "@/lib/financeDashboard";
 import { confirmClosedMonthChange, ledgerEntryMonthDates } from "@/lib/monthClosing";
 import { deviceRecordsQuestion, deviceRecordsSummary, removeDeviceRecords } from "@/lib/deviceRemoval";
 import { starlinkCostUsd } from "@/lib/accountingStore";
@@ -1846,6 +1847,30 @@ export function HomeView({
     return null;
   }
 
+  // ➕ «أضفه إلى الدين السابق» (his Oct 22 2026 ask): the gap grows the device's open previous debt.
+  function handleAddToPreviousDebt(account: StarlinkAccountSummary, debtId: string, amountUsd: number): string | null {
+    const day = localDayKey(new Date());
+    if (!confirmClosedMonthChange([day])) return "لم يُحفظ (الشهر مُقفل)";
+    const result = addToPreviousDebt(loadPreviousDebts(), debtId, amountUsd, day);
+    if (!result.ok) return result.message;
+    savePreviousDebts(result.list);
+    setPreviousDebts(result.list);
+    pushToast(`أُضيف ${formatAmount(amountUsd)} $ إلى الدين السابق على "${account.name}" - صار ${formatAmount(result.debt.amountUsd)} $`);
+    return null;
+  }
+
+  // 👤 «على الزبون رصيد سابق»: the gap recorded on the device's customer (عليه), in his currency.
+  function handleCustomerPreviousBalance(account: StarlinkAccountSummary, input: { amount: number; currencyCode: string; note: string }): string | null {
+    if (!account.clientId) return "اربط الجهاز بزبون أولًا";
+    const day = localDayKey(new Date());
+    if (!confirmClosedMonthChange([day])) return "لم يُحفظ (الشهر مُقفل)";
+    const result = recordPartyAdjustment(loadPartyAdjustments(), { partyKind: "client", partyId: account.clientId, direction: "owesUs", amount: input.amount, currencyCode: input.currencyCode, date: day, note: input.note });
+    if (!result.ok) return result.message;
+    savePartyAdjustments(result.list);
+    pushToast(`سُجّل على ${clients.find((c) => c.id === account.clientId)?.name ?? "الزبون"} رصيد سابق ${formatAmount(input.amount)} ${input.currencyCode}`);
+    return null;
+  }
+
   function currentProfitRates() {
     return { MRU: getCurrency(currencyStore, "MRU")?.rateFromUsd, SIFA: getCurrency(currencyStore, "SIFA")?.rateFromUsd };
   }
@@ -2472,6 +2497,8 @@ export function HomeView({
       sessionNeedsLogin={viewMode === "active" && needsLoginIds.has(account.id)}
       previousDebts={openPreviousDebts.filter((d) => d.accountId === account.id)}
       onAddPreviousDebt={viewMode === "active" ? handleAddPreviousDebt : undefined}
+      onAddToPreviousDebt={viewMode === "active" ? handleAddToPreviousDebt : undefined}
+      onCustomerPreviousBalance={viewMode === "active" ? handleCustomerPreviousBalance : undefined}
       onRestoreD={viewMode === "active" ? handleRestoreD : undefined}
       onConfirmPaidD={viewMode === "active" ? handleConfirmPaidD : undefined}
       onClearRepAdded={viewMode === "active" ? (a) => handleClearRepAdded([a]) : undefined}
