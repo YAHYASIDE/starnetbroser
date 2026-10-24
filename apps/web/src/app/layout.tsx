@@ -15,6 +15,7 @@ import { DeleteCodeHost } from "@/components/DeleteCodePrompt";
 import { LatinDigitInputs } from "@/components/LatinDigitInputs";
 import { WhatsNewTour } from "@/components/WhatsNewTour";
 import { LiveSyncRunner } from "@/components/LiveSyncRunner";
+import { DeviceLinkRunner } from "@/components/DeviceLinkRunner";
 import { RepCopyAutoRunner } from "@/components/RepCopyAutoRunner";
 import { LinkGuardListener } from "@/components/LinkGuardListener";
 import { DeskSidebar, DeskKeys } from "@/components/DeskSidebar";
@@ -56,6 +57,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <DeskKeys />
             <WhatsNewTour />
             <LiveSyncRunner />
+            <DeviceLinkRunner />
             <RepCopyAutoRunner />
             <LinkGuardListener />
           </RepModeGate>

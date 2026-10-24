@@ -2238,3 +2238,23 @@ is never pressed while a field is empty - it refills and saves on the next try (
   explanation (his share is lower than ours with «💱 سعر المندوب», D-pending shares count only once paid) and the
   proposals (a «من أين جاء ربحه» breakdown, a «رصيد قديم متفق عليه» له entry, profit checks in «🔍 فحص») he said
   «لا، اتركنا من حساب المندوب فهو صالح» - nothing more to build on the rep's account unless he brings it back.
+
+## 🔗 Phone ↔ laptop link over his Firebase (Oct 24 2026 - phase 2 of the Windows plan)
+
+- His ask «كيف نربط اللابتوب بالهاتف - البيانات»; told the backup file is the only way today (laptop = a copy, its
+  changes never go back). His choices: **«اتجاهان مباشرة»** (not one-way first) and **«لا، اشرح لي الخطوات»** (no
+  Firebase project yet; made with starnet.om@gmail.com).
+- Built: `lib/deviceSync.ts` (pure) cuts every `starnet_*` store (what a backup carries) into records - array items by
+  `id`, object entries by key, object-of-arrays (the ledger) by key + item id - as canonical JSON (sorted keys, so a
+  record re-saved in another key order is no change); `diff` vs the last agreed baseline, `merge` the other side's
+  ops: the same record changed on both → the later wins, the loser kept in «⚖️ تعارضات». A mass deletion (≥ 20 and
+  > 30 % of a store) is held until he taps «نعم حذفتها». `lib/deviceLink.ts`: role phone / laptop, the phone makes
+  the link (apiKey + projectId tested, new space + random AES key) → «📋 رمز الربط» (`STARNET-LINK-…`, secret);
+  the laptop pastes it and **its own data is replaced by the phone's** (confirmed); Firestore
+  `starnet/{space}/link/{side}` head + `/batches/{seq}` (≤ 550 KB each, AES-256-GCM, `deviceSyncCrypto.ts`).
+  `DeviceLinkRunner`: a round every 20 s while the app is open, idle (no sheet / dialog / focused field) and in
+  front; changes received → the page reloads (a screen holding the old list must not write it back). Settings →
+  النسخ الاحتياطي → «🔗 ربط اللابتوب والهاتف» (steps, the rules to paste, status, «مزامنة الآن», held deletions,
+  conflicts, on/off, «فك الربط»). Head written only when it moved (free daily writes).
+- Known limits told to him: both apps must be open to exchange (the phone sends when opened); the bots, the Starlink
+  browsers' sessions and the phone's settings (`starnet.*`) are not carried.

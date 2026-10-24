@@ -17,6 +17,7 @@ import { BiometricUnlockToggle } from "@/components/BiometricUnlockToggle";
 import { openSettingsFold, SettingsFold } from "@/components/SettingsFold";
 import { WhatsNewSection } from "@/components/WhatsNewSection";
 import { LiveSyncSection } from "@/components/LiveSyncSection";
+import { DeviceLinkSection } from "@/components/DeviceLinkSection";
 import { ScheduledSyncsSection } from "@/components/ScheduledSyncsSection";
 import { MailDomainSection } from "@/components/MailDomainSection";
 import { SettingsSearch } from "@/components/SettingsSearch";
@@ -480,6 +481,7 @@ export default function SettingsPage() {
 
         {group === "backup" && (
           <>
+            <SettingsFold id="device-link"><DeviceLinkSection /></SettingsFold>
             <SettingsFold id="backup-full"><BackupSection /></SettingsFold>
             <SettingsFold id="backup-daily"><AutoBackupSection /></SettingsFold>
             <SettingsFold id="drive"><DriveSection /></SettingsFold>
