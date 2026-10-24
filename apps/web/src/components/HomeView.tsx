@@ -1218,6 +1218,40 @@ export function HomeView({
   const ignoreFreshTap = (id: string) => (event: ReactMouseEvent) => {
     if (Date.now() - (bannerShownAt.current[id] ?? 0) < FRESH_BANNER_MS) event.preventDefault();
   };
+  async function sendRepChanges() {
+    setRepSending(true);
+    const result = await shareRepChanges();
+    setRepSending(false);
+    if (result.ok) setRepSent(loadRepChangesSent());
+    else pushToast(result.message);
+  }
+  // 📤 «تلقائي بضغطة واحدة» (his Oct 24 2026 choice for a rep's copy): a device the rep has just added
+  // and is signing into - back in the app and signed in, the send to the reps bot opens by itself.
+  const repAwaitingLogin = useRef(new Set<string>());
+  const sendRepChangesRef = useRef(sendRepChanges);
+  sendRepChangesRef.current = sendRepChanges;
+  useEffect(() => {
+    if (!repWorkspace) return;
+    async function sendWhenSignedIn() {
+      for (const id of [...repAwaitingLogin.current]) {
+        if ((await checkAccountSession(id)) !== "loggedIn") continue;
+        repAwaitingLogin.current.clear();
+        pushToast("✓ دخلت إلى Starlink - اختر بوت المندوبين في تيليغرام واضغط «إرسال»");
+        await sendRepChangesRef.current();
+        return;
+      }
+    }
+    let handle: { remove: () => void } | undefined;
+    let cancelled = false;
+    App.addListener("resume", () => void sendWhenSignedIn()).then((h) => {
+      if (cancelled) h.remove();
+      else handle = h;
+    });
+    return () => {
+      cancelled = true;
+      handle?.remove();
+    };
+  }, [repWorkspace]);
   useEffect(() => {
     const rep = isRepWorkspace();
     setRepWorkspace(rep);
@@ -1845,6 +1879,8 @@ export function HomeView({
         if (!result.ok) pushToast(result.message);
       });
     } else if ((isNew || activating) && !repRequestId && isRunningInAndroidApp() && account.expectedEmail?.trim()) {
+      // 📤 A rep's new device: once he is back signed in, his send opens by itself (one tap).
+      if (isNew && repWorkspace) repAwaitingLogin.current.add(account.id);
       void openAutoSignIn(account, accounts).then((result) => {
         if (!result.ok) pushToast(result.message);
       });
@@ -3015,13 +3051,7 @@ export function HomeView({
         type="button"
         className="rep-send-banner"
         disabled={repSending}
-        onClick={async () => {
-          setRepSending(true);
-          const result = await shareRepChanges();
-          setRepSending(false);
-          if (result.ok) setRepSent(loadRepChangesSent());
-          else pushToast(result.message);
-        }}
+        onClick={() => void sendRepChanges()}
       >
         <span aria-hidden="true">📤</span>
         <span>

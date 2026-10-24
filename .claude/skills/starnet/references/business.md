@@ -2258,3 +2258,14 @@ is never pressed while a field is empty - it refills and saves on the next try (
   conflicts, on/off, «فك الربط»). Head written only when it moved (free daily writes).
 - Known limits told to him: both apps must be open to exchange (the phone sends when opened); the bots, the Starlink
   browsers' sessions and the phone's settings (`starnet.*`) are not carried.
+
+## 📤 A login-only copy for the rep «الحافظ» + auto session send (Oct 24 2026)
+
+- His words: «اريد ان اجهز نسخة لي المندوب الحافظ… فقط لوحة تسجيل دخول» → «يمكنه تسجيل دخول ويرسل لي الجلسة بعد
+  دخول تلقائي ويرى زبائنه، ويمكنه إضافة الاسم والرقم، ويرى زبائنه وأجهزته وديونه معهم فقط».
+- His choices: **«تلقائي بضغطة واحدة»** - after the rep signs into Starlink and comes back to the app, the send
+  opens by itself (the share sheet; he picks the reps bot and taps «إرسال»): in the sender mode
+  (`RepModeView`, a new unsent device) and in the rep workspace (a device he just added → `shareRepChanges`).
+  **«أختار بنفسي من القائمة»** - no preset: he unticks the permissions himself in «📤 إرسال نسخته»
+  (keep الرئيسية, الزبائن, إضافة جهاز; untick the rest).
+

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { SessionStatus } from "@starnet/local-browser-plugin";
 import { checkAccountSession, deleteIsolatedAccountSession, openIsolatedAccountBrowser, openIsolatedMailbox } from "@/lib/localBrowser";
 import { isGmail } from "@/lib/mailboxes";
@@ -34,9 +34,20 @@ export function RepModeView({ settings, onExit, onBack }: { settings: RepModeSet
   // 📋 the copy of his devices from the operator, or ➕ the devices he is adding.
   const [tab, setTab] = useState<"mine" | "new">("mine");
 
+  // 📤 his Oct 24 2026 choice «تلقائي بضغطة واحدة»: back from a Starlink sign-in that worked, the
+  // device's file opens to send by itself (he only taps «إرسال» in Telegram) - once per sign-in.
+  const awaitingLogin = useRef(new Set<string>());
+  const sendRef = useRef<(device: RepModeDevice) => Promise<void>>(async () => {});
+
   const refreshSessions = useCallback(async (list: RepModeDevice[]) => {
     const entries = await Promise.all(list.map(async (d) => [d.id, await checkAccountSession(d.id)] as const));
     setSessions(Object.fromEntries(entries));
+    const signedIn = list.find((d) => awaitingLogin.current.has(d.id) && !d.sentAt && entries.some(([id, s]) => id === d.id && s === "loggedIn"));
+    if (signedIn) {
+      awaitingLogin.current.delete(signedIn.id);
+      setMessage("✓ دخلت إلى Starlink - اختر بوت المندوبين في تيليغرام واضغط «إرسال»");
+      void sendRef.current(signedIn);
+    }
   }, []);
 
   useEffect(() => {
@@ -69,6 +80,7 @@ export function RepModeView({ settings, onExit, onBack }: { settings: RepModeSet
   async function login(device: RepModeDevice) {
     // Same as the operator's app: the Starlink form is filled with the email and the Wi-Fi code
     // (else the email's code), and «📧 البريد» inside it opens the device's own mailbox.
+    if (!device.sentAt) awaitingLogin.current.add(device.id);
     const loginPassword = device.wifiPassword || device.emailPassword;
     const result = await openIsolatedAccountBrowser(device.id, deviceDisplayName(device), {
       ...(device.email ? { loginEmail: device.email } : {}),
@@ -95,6 +107,8 @@ export function RepModeView({ settings, onExit, onBack }: { settings: RepModeSet
     update(loadRepModeDevices().map((d) => (d.id === device.id ? { ...d, sentAt: new Date().toISOString() } : d)));
     setMessage("📤 بعد أن يرد البوت «📥 وصل ملف الجهاز» اضغط «✅ وصل» لحذف الجلسة من هاتفك.");
   }
+
+  sendRef.current = send;
 
   async function remove(device: RepModeDevice, arrived: boolean) {
     const question = arrived
