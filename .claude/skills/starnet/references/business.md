@@ -2234,3 +2234,7 @@ is never pressed while a field is empty - it refills and saves on the next try (
   movedDevice / deletedDevice (his debt left «ما عليه»). «📋 نسخ التقرير» = no customer / device / rep names. Next
   (after his report): lock the debt's owner on the record, linked delete/edit of a whole handover, notify the rep of
   edits/deletes.
+- **Oct 24 2026, his final word on the rep's profit («ربحه لا ينزل كاملًا… عنده 3000 منذ القدم»):** after the
+  explanation (his share is lower than ours with «💱 سعر المندوب», D-pending shares count only once paid) and the
+  proposals (a «من أين جاء ربحه» breakdown, a «رصيد قديم متفق عليه» له entry, profit checks in «🔍 فحص») he said
+  «لا، اتركنا من حساب المندوب فهو صالح» - nothing more to build on the rep's account unless he brings it back.
