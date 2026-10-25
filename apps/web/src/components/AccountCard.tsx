@@ -19,13 +19,14 @@ import { countryFlag, countryFromIso2 } from "@/lib/countryCurrencies";
 import { connectionDot, connectionMessage } from "@/lib/deviceConnection";
 import { daysRemainingLabel, daysRemainingNumber, formatRelativeTime, renewalDateLabel } from "@/lib/date";
 import { emailsMismatch } from "@/lib/emailMatch";
-import { computeBalanceByCurrency, LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerEntry } from "@/lib/ledgerStore";
+import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, LedgerEntry } from "@/lib/ledgerStore";
 import { starlinkCostUsd, summarizeDeviceProfit } from "@/lib/accountingStore";
 import { awaitingEntries } from "@/lib/awaitingBill";
 import { daysLeftLabel, outsideHomeDaysLeft, outsideHomeEnd } from "@/lib/outsideHome";
 import { arabicDate } from "@/lib/partyMovements";
 import { faultCategory, faultLabel, isAutoFault, isWaivedCost, openDebtEntries, removeFaultQuestion } from "@/lib/deviceFault";
 import { planGrowOpenD } from "@/lib/growOpenD";
+import { cardDueByCurrency } from "@/lib/cardDue";
 import { openDebtUsdToday, paidSinceLastSyncUsd, totalPreviousDebtUsd, unrecordedGapUsd, type PreviousDebt } from "@/lib/previousDebt";
 import { computeDeviceMarks } from "@/lib/deviceMarks";
 import { CurrencyStore, getCurrency, toUsd } from "@/lib/currencyStore";
@@ -293,7 +294,8 @@ export function AccountCard({
   const router = useRouter();
   const [travelPriceOpen, setTravelPriceOpen] = useState(false);
   const travelPending = isTravelPending(account);
-  const ledgerBalances = computeBalanceByCurrency(ledgerEntries);
+  // 🧾 Only the last charge on the card (lib/cardDue.ts) - the statement keeps every operation.
+  const ledgerBalances = cardDueByCurrency(ledgerEntries);
   // 🫧 [الآن] ← [بعد الشهر] replaces «✅ نشط» (his Oct 17 2026 choice); «موقوف» / «بانتظار التفعيل» stay.
   const bubbles = serviceBubbles(account, localToday());
   const rawStatus = presentServiceStatus(effectiveServiceStatus(account));

@@ -2287,3 +2287,12 @@ is never pressed while a field is empty - it refills and saves on the next try (
   scaled the same, and every growth kept in `grownBy` (at, usd, cost, amount). Same entry - no second operation;
   the rep's locked percent applies to it as before. The sheet shows «D يصير X $ · الزبون يصير Y» before the tap.
 
+## 🧾 The device card shows the last charge only (Oct 25 2026)
+
+- His ask: «أزل كل عملية في بطاقة الجهاز قديمة، أضف فقط آخر عملية - مثلًا كانت عليه 13000 وأضفنا بعد تجديد عملية بـ
+  6000، أضف فقط الأخير». His choice: **«آخر عملية فقط: 6,000»** (not the total, not «الكل» beside it).
+- `lib/cardDue.ts` `cardDueByCurrency` (AccountCard's red badge only): per currency the newest «عليه» amount, capped at
+  what is really still owed (a partly paid one shows what's left; fully paid → «لا يوجد مستحق»); a credit («للزبون»)
+  shows as before. Display only - every operation stays, and the customer's statement, his devices list in the
+  customer page, the laptop's devices table and the money pages still count everything.
+
