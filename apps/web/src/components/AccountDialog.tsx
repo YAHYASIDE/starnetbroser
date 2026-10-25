@@ -23,7 +23,7 @@ import { buildCreatedAccount, creationProblem } from "@/lib/accountCreation";
 import { DuplicateWarning, FieldDuplicate } from "./DuplicateWarning";
 import { duplicateQuestion, findDeviceDuplicates } from "@/lib/duplicates";
 import { loadRepCopy } from "@/lib/repCopy";
-import { isRepWorkspace } from "@/lib/repMode";
+import { isRepWorkspace, simpleAddRepId } from "@/lib/repMode";
 import { RepresentativePicker } from "./RepresentativePicker";
 import { LEDGER_CURRENCIES, LEDGER_CURRENCY_LABELS, type LedgerCurrency } from "@/lib/ledgerStore";
 import { loadInvoices } from "@/lib/invoiceStore";
@@ -117,8 +117,10 @@ export function AccountDialog({
   onDelete,
   existingAccounts = [],
 }: Props) {
+  // ✂️ «إضافة جهاز مبسّطة» on a rep's phone: no «إنشاء حساب», customer or note, and he is the rep.
+  const [simpleRep] = useState(() => simpleAddRepId());
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const initial = useMemo(() => account ?? { ...createBlankAccount(), ...prefill }, [account]);
+  const initial = useMemo(() => account ?? { ...createBlankAccount(), ...prefill, ...(simpleRep ? { representativeId: simpleRep } : {}) }, [account]);
   const [draft, setDraft] = useState(initial);
   const [paymentCards] = useState(() => loadPaymentCards());
   // The passwords used most on the other devices - one tap to fill a field.
@@ -161,7 +163,7 @@ export function AccountDialog({
   const [sendNote, setSendNote] = useState<string | null>(null);
   // 🆕 «إنشاء حساب جديد»: a brand-new Starlink account (new email + «تفعيل Starlink»), instead of
   // adding a device that already has one.
-  const [creating, setCreating] = useState(startCreating);
+  const [creating, setCreating] = useState(startCreating && !simpleRep);
   const [createError, setCreateError] = useState<string | null>(null);
   // 1️⃣ The account's full name, typed first (the customer below is optional).
   const [creationName, setCreationName] = useState(() => (activating ? clients.find((c) => c.id === account?.clientId)?.name ?? "" : ""));
@@ -626,7 +628,7 @@ export function AccountDialog({
           // A new device needs only what Starlink can't tell us - the rest (KIT, plan, renewal,
           // phone...) comes from the first Starlink sync, or from "تعديل" later.
           <form className="account-form add-device-form" onSubmit={submit}>
-            <CreationToggle creating={false} onChange={setCreating} />
+            {!simpleRep && <CreationToggle creating={false} onChange={setCreating} />}
             <label className="form-field add-field add-field-email">
               <span className="add-field-label"><b aria-hidden="true">📧</b> البريد الإلكتروني الرئيسي للجهاز</span>
               <input dir="ltr" type="email" value={draft.expectedEmail ?? ""} onChange={(e) => update("expectedEmail", e.target.value)} placeholder="name@example.com" />
@@ -645,25 +647,29 @@ export function AccountDialog({
               <PasswordChips values={passwordSuggestions} current={draft.wifiPassword} onPick={(v) => update("wifiPassword", v)} />
             </label>
 
-            <div className="form-field add-field add-field-client">
-              <span className="add-field-label"><b aria-hidden="true">👤</b> الزبون</span>
-              <ClientPicker
-                clients={clients}
-                selectedClientId={draft.clientId}
-                onSelect={(clientId) => update("clientId", clientId)}
-                onCreateClient={onCreateClient}
-              />
-            </div>
+            {!simpleRep && (
+              <>
+              <div className="form-field add-field add-field-client">
+                <span className="add-field-label"><b aria-hidden="true">👤</b> الزبون</span>
+                <ClientPicker
+                  clients={clients}
+                  selectedClientId={draft.clientId}
+                  onSelect={(clientId) => update("clientId", clientId)}
+                  onCreateClient={onCreateClient}
+                />
+              </div>
 
-            <div className="form-field add-field add-field-rep">
-              <span className="add-field-label"><b aria-hidden="true">🤝</b> المندوب</span>
-              <RepresentativePicker
-                representatives={representatives}
-                selectedRepresentativeId={draft.representativeId}
-                onSelect={(representativeId) => update("representativeId", representativeId)}
-                onCreateRepresentative={onCreateRepresentative}
-              />
-            </div>
+              <div className="form-field add-field add-field-rep">
+                <span className="add-field-label"><b aria-hidden="true">🤝</b> المندوب</span>
+                <RepresentativePicker
+                  representatives={representatives}
+                  selectedRepresentativeId={draft.representativeId}
+                  onSelect={(representativeId) => update("representativeId", representativeId)}
+                  onCreateRepresentative={onCreateRepresentative}
+                />
+              </div>
+              </>
+            )}
 
             <label className="form-field add-field add-field-name">
               <span className="add-field-label"><b aria-hidden="true">🏷️</b> اسم الحساب / البطاقة *</span>
@@ -671,10 +677,12 @@ export function AccountDialog({
               <FieldDuplicate hits={duplicates} field="name" />
             </label>
 
-            <label className="form-field add-field add-field-note">
-              <span className="add-field-label"><b aria-hidden="true">📝</b> ملاحظة</span>
-              <textarea rows={2} value={draft.alertReason} onChange={(e) => update("alertReason", e.target.value)} placeholder="اختياري" />
-            </label>
+            {!simpleRep && (
+              <label className="form-field add-field add-field-note">
+                <span className="add-field-label"><b aria-hidden="true">📝</b> ملاحظة</span>
+                <textarea rows={2} value={draft.alertReason} onChange={(e) => update("alertReason", e.target.value)} placeholder="اختياري" />
+              </label>
+            )}
 
             <DuplicateWarning hits={duplicates} inline={["email", "name"]} />
 
@@ -711,25 +719,29 @@ export function AccountDialog({
               <PasswordChips values={passwordSuggestions} current={draft.starlinkPassword} onPick={(v) => update("starlinkPassword", v)} />
             </label>
 
-            <div className="form-field add-field add-field-client">
-              <span className="add-field-label"><b aria-hidden="true">👤</b> الزبون</span>
-              <ClientPicker
-                clients={clients}
-                selectedClientId={draft.clientId}
-                onSelect={(clientId) => update("clientId", clientId)}
-                onCreateClient={onCreateClient}
-              />
-            </div>
+            {!simpleRep && (
+              <>
+              <div className="form-field add-field add-field-client">
+                <span className="add-field-label"><b aria-hidden="true">👤</b> الزبون</span>
+                <ClientPicker
+                  clients={clients}
+                  selectedClientId={draft.clientId}
+                  onSelect={(clientId) => update("clientId", clientId)}
+                  onCreateClient={onCreateClient}
+                />
+              </div>
 
-            <div className="form-field add-field add-field-rep">
-              <span className="add-field-label"><b aria-hidden="true">🤝</b> المندوب</span>
-              <RepresentativePicker
-                representatives={representatives}
-                selectedRepresentativeId={draft.representativeId}
-                onSelect={(representativeId) => update("representativeId", representativeId)}
-                onCreateRepresentative={onCreateRepresentative}
-              />
-            </div>
+              <div className="form-field add-field add-field-rep">
+                <span className="add-field-label"><b aria-hidden="true">🤝</b> المندوب</span>
+                <RepresentativePicker
+                  representatives={representatives}
+                  selectedRepresentativeId={draft.representativeId}
+                  onSelect={(representativeId) => update("representativeId", representativeId)}
+                  onCreateRepresentative={onCreateRepresentative}
+                />
+              </div>
+              </>
+            )}
 
             <label className="form-field add-field add-field-name">
               <span className="add-field-label"><b aria-hidden="true">🏷️</b> اسم الحساب / البطاقة *</span>

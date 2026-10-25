@@ -33,6 +33,9 @@ export interface RepFeature {
   keywords?: string[];
 }
 
+/** ✂️ «إضافة جهاز مبسّطة» (a restriction, ticked = fewer fields). */
+export const SIMPLE_ADD_DEVICE = "act:add-device-simple";
+
 export const REP_FEATURES: RepFeature[] = [
   // 📄 pages
   { id: "page:home", group: "pages", icon: "🏠", label: "الرئيسية", hint: "أجهزته وبطاقاتها", path: "/", base: true, locked: true },
@@ -51,6 +54,9 @@ export const REP_FEATURES: RepFeature[] = [
   { id: "page:trash", group: "pages", icon: "🗑️", label: "سلة المحذوفات", hint: "أجهزته المحذوفة", path: "/trash", base: false, keywords: ["حذف", "استرجاع"] },
   // 🛰️ devices
   { id: "act:add-device", group: "devices", icon: "➕", label: "إضافة جهاز", hint: "«إضافة حساب» في المزيد", base: true, keywords: ["حساب", "جديد"] },
+  // ✂️ His Oct 25 2026 ask for «الحافظ» only: the add form without «إنشاء حساب», the customer and the
+  // note, and the rep fixed on himself. A restriction, so off by default (every other rep keeps it all).
+  { id: SIMPLE_ADD_DEVICE, group: "devices", icon: "✂️", label: "إضافة جهاز مبسّطة", hint: "بلا إنشاء حساب ولا زبون ولا ملاحظة - المندوب ثابت عليه", base: false, keywords: ["مبسط", "زبون", "ملاحظة", "انشاء"] },
   { id: "act:send-devices", group: "devices", icon: "📱", label: "أجهزة للإرسال", hint: "يرسل لك أجهزة جديدة", base: true, keywords: ["إرسال", "جديد"] },
   // 🔄 sync
   { id: "sync:now", group: "sync", icon: "🔄", label: "مزامنة الآن", hint: "من المزيد", base: true, keywords: ["تحديث", "ستارلينك"] },

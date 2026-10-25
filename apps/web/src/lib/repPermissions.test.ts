@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allowedPaths, basePermissions, featureSections, foldArabic, pathAllowed, permissionChanges, permissionsOf, REP_FEATURES } from "./repPermissions";
+import { allowedPaths, basePermissions, featureSections, foldArabic, pathAllowed, permissionChanges, permissionsOf, REP_FEATURES, SIMPLE_ADD_DEVICE } from "./repPermissions";
 import { keepPermissions, type Representative } from "./repStore";
 
 describe("🔑 صلاحيات المندوب (his Oct 17 2026 ask)", () => {
@@ -8,6 +8,14 @@ describe("🔑 صلاحيات المندوب (his Oct 17 2026 ask)", () => {
     expect(allowedPaths(perms).sort()).toEqual(["/", "/clients", "/currencies", "/mailboxes", "/reminders", "/reports", "/representatives", "/settings", "/tools"]);
     for (const no of ["/store", "/starlink", "/archive", "/trash", "/money"]) expect(perms.has(`page:${no.slice(1)}`)).toBe(false);
     expect(perms.has("data:backup")).toBe(false);
+  });
+
+  it("✂️ «إضافة جهاز مبسّطة» is a restriction: off for every rep until he ticks it (his Oct 25 2026 ask for الحافظ)", () => {
+    expect(basePermissions()).not.toContain(SIMPLE_ADD_DEVICE);
+    expect(permissionsOf({}).has(SIMPLE_ADD_DEVICE)).toBe(false);
+    expect(permissionsOf({ permissions: ["page:clients"] }).has(SIMPLE_ADD_DEVICE)).toBe(false);
+    expect(permissionsOf({ permissions: [SIMPLE_ADD_DEVICE] }).has(SIMPLE_ADD_DEVICE)).toBe(true);
+    expect(featureSections("مبسطه").flatMap((s) => s.features.map((f) => f.id))).toEqual([SIMPLE_ADD_DEVICE]);
   });
 
   it("ticking a page opens it, the always-on ones can't be removed", () => {

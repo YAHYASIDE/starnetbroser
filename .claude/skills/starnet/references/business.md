@@ -2268,4 +2268,10 @@ is never pressed while a field is empty - it refills and saves on the next try (
   (`RepModeView`, a new unsent device) and in the rep workspace (a device he just added → `shareRepChanges`).
   **«أختار بنفسي من القائمة»** - no preset: he unticks the permissions himself in «📤 إرسال نسخته»
   (keep الرئيسية, الزبائن, إضافة جهاز; untick the rest).
+- **Oct 25 2026, the add form for الحافظ** (screenshot of his phone's «إضافة حساب جديد»): «أزل عن المندوب… إنشاء
+  حساب، اسم الزبون، المندوب اجعلها ثابتة عليه لأن كل مندوب يجب أن يكون ثابتًا على أنه مندوب». His answers:
+  **«الحافظ فقط»**, the customer field **«أزلها»** (he links the customer himself later), and **«أزل ملاحظة
+  أيضًا»**. Built as a permission he ticks himself: «✂️ إضافة جهاز مبسّطة» (`act:add-device-simple`, a
+  restriction, off by default so no other rep changes): no «🆕 إنشاء حساب جديد», no 👤 الزبون, no 🤝 المندوب
+  (a new device is fixed on that rep, `simpleAddRepId`), no 📝 ملاحظة - email, its code, Wi-Fi code and the name.
 
