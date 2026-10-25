@@ -152,6 +152,10 @@ export interface LedgerEntry {
   /** 🔄 His answer when saving it (Oct 2026: «سؤال قبل الحفظ»): true = a monthly renewal, false =
    * another charge (more on the same month, a fix…). Absent = decided by the rule in renewals.ts. */
   renewal?: boolean;
+  /** 🔗 «أضفه إلى D المفتوح» (lib/growOpenD.ts): each Starlink gap added onto this open D - at its own
+   * locked rate, the customer's amount raised at the same price per dollar. Kept so the growth is
+   * reviewable and can be taken back. */
+  grownBy?: { at: string; usd: number; cost: number; amount: number }[];
 }
 
 /** 🛂 The travel-registration debt (LedgerEntry.travelFeeFor) - not a Starlink renewal. */

@@ -2275,3 +2275,15 @@ is never pressed while a field is empty - it refills and saves on the next try (
   restriction, off by default so no other rep changes): no «🆕 إنشاء حساب جديد», no 👤 الزبون, no 🤝 المندوب
   (a new device is fixed on that rep, `simpleAddRepId`), no 📝 ملاحظة - email, its code, Wi-Fi code and the name.
 
+## 🔗 «فرق … · الدين» → «أضفه إلى D المفتوح» (Oct 25 2026)
+
+- His ask (a card: D 45.03 $ sold 27,000 سيفا, Starlink 65.95 $ → «فرق 20.92 $ · الدين»): «إذا أضفت دينًا جديدًا على
+  الجديد يكون هناك خيار إضافة الدين الجديد على القديم، يخلطو، يعني بنفس تكلفة القديم… وتأكد أنه يحسب».
+- His choices: the customer's amount **«يزيد بنفس سعر القديم»** (same price per dollar as the old D) and the gap at
+  **«سعر العملية القديمة»** (the D's own locked rate, not today's).
+- Built: `lib/growOpenD.ts` - the newest open D with a known cost (never settled / ⏳ awaiting-bill / legacy, and
+  its sale rate known) grows: cost + gap (in its currency × its locked rate, `rate.usdValue` + gap), the
+  customer's `amount` × (new cost / old cost) rounded (أوقية / سيفا whole, $ to the cent), `saleRate.usdValue`
+  scaled the same, and every growth kept in `grownBy` (at, usd, cost, amount). Same entry - no second operation;
+  the rep's locked percent applies to it as before. The sheet shows «D يصير X $ · الزبون يصير Y» before the tap.
+

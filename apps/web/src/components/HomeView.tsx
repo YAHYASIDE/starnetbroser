@@ -124,6 +124,7 @@ import { TravelBookPanel } from "@/components/TravelBookPanel";
 import { CurrencyStore, getCurrency, loadCurrencyStore, saveCurrencyStore, upsertCurrency, UpsertCurrencyInput } from "@/lib/currencyStore";
 import { countFaultCategories, FAULT_CATEGORIES, faultCategory, isFaulty, isUnderRepair, oldestOpenDebt, openDebtEntries, removeFaultPatch, restoreWaivedDebts, waiveOpenDebts } from "@/lib/deviceFault";
 import type { DeviceFaultReason } from "@starnet/shared";
+import { growOpenD, planGrowOpenD } from "@/lib/growOpenD";
 import { addToPreviousDebt, listOpenPreviousDebts, loadPreviousDebts, recordPreviousDebt, savePreviousDebts, type PreviousDebtList } from "@/lib/previousDebt";
 import { dayKey as localDayKey } from "@/lib/financeDashboard";
 import { buildCodeDevices } from "@/lib/codeDevices";
@@ -1929,6 +1930,19 @@ export function HomeView({
     return null;
   }
 
+  // 🔗 «أضفه إلى D المفتوح» (his Oct 25 2026 ask): the gap joins the newest open D - its own locked rate,
+  // the customer's amount raised at the same price per dollar (lib/growOpenD.ts).
+  function handleGrowOpenD(account: StarlinkAccountSummary, gapUsd: number): string | null {
+    const entries = getAccountEntries(ledgerStore, account.id);
+    const plan = planGrowOpenD(entries, gapUsd);
+    if (!plan) return "لا يوجد D مفتوح بتكلفة معروفة على هذا الجهاز";
+    if (!confirmClosedMonthChange([plan.entry.date])) return "لم يُحفظ (الشهر مُقفل)";
+    const grown = growOpenD(plan, new Date().toISOString());
+    updateLedgerEntries(account.id, entries.map((e) => (e.id === grown.id ? grown : e)));
+    pushToast(`🔗 أُضيف ${formatAmount(gapUsd)} $ إلى D على "${account.name}" - D صار ${formatAmount(plan.costUsdAfter)} $ والزبون ${formatAmount(plan.amountAfter)} ${LEDGER_CURRENCY_LABELS[grown.currency]}`);
+    return null;
+  }
+
   // 👤 «على الزبون رصيد سابق»: the gap recorded on the device's customer (عليه), in his currency.
   function handleCustomerPreviousBalance(account: StarlinkAccountSummary, input: { amount: number; currencyCode: string; note: string }): string | null {
     if (!account.clientId) return "اربط الجهاز بزبون أولًا";
@@ -2602,6 +2616,7 @@ export function HomeView({
       previousDebts={openPreviousDebts.filter((d) => d.accountId === account.id)}
       onAddPreviousDebt={viewMode === "active" ? handleAddPreviousDebt : undefined}
       onAddToPreviousDebt={viewMode === "active" ? handleAddToPreviousDebt : undefined}
+      onGrowOpenD={viewMode === "active" ? handleGrowOpenD : undefined}
       onCustomerPreviousBalance={viewMode === "active" ? handleCustomerPreviousBalance : undefined}
       onRestoreD={viewMode === "active" ? handleRestoreD : undefined}
       onConfirmPaidD={viewMode === "active" ? handleConfirmPaidD : undefined}
