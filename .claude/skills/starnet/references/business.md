@@ -2296,3 +2296,11 @@ is never pressed while a field is empty - it refills and saves on the next try (
   shows as before. Display only - every operation stays, and the customer's statement, his devices list in the
   customer page, the laptop's devices table and the money pages still count everything.
 
+## 📜 A rep's «دين سابق» under «🤝 المناديب» (Oct 26 2026)
+
+- His report (screenshots: «📋 أجهزتي المتسلَّف عليها» listing «اخمدو و» - دين سابق 109.03 $ - a device whose card says
+  «🔒 زبون الحسين»): «لماذا هذا جهاز الحسين ويظهر في أجهزتي». Cause: only D's were split by rep
+  (`splitDebtsByRep`); every open previous debt was listed in «أجهزتي». Now `splitPreviousByRep` puts a previous debt
+  where its device is (the device's CURRENT rep, like D's): no rep → «أجهزتي», else under that rep in «المناديب»
+  (with his D's, counted in the tab and the rep's total); a deleted device stays in «أجهزتي». A bug fix - no question.
+

@@ -31,6 +31,20 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-26-previous-debt-rep-tab",
+    date: "2026-10-26",
+    title: "📜 الدين السابق لجهاز مندوب في «المناديب»",
+    steps: [
+      {
+        path: "/starlink",
+        target: "starlink-tabs",
+        title: "📜 «دين سابق» يتبع مندوب الجهاز",
+        before: "كل «دين سابق» كان يظهر في «📋 أجهزتي» حتى لو كان الجهاز لمندوب.",
+        after: "«دين سابق» على جهاز مندوب يظهر الآن في «🤝 المناديب» تحت اسم المندوب مع أجهزته، و«📋 أجهزتي» فيها أجهزتك أنت فقط.",
+      },
+    ],
+  },
+  {
     id: "2026-10-25-card-last-charge",
     date: "2026-10-25",
     title: "🧾 البطاقة تُظهر آخر عملية فقط",

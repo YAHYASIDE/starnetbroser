@@ -19,7 +19,7 @@ import {
 } from "@/lib/previousDebt";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { buildCardStatementFor, cardDeviceRows, groupDevicesByCard, type CardDeviceGroups, type CardStatement } from "@/lib/cardDevices";
-import { debtRepId, isStarlinkTab, splitDebtsByRep, STARLINK_TABS, type StarlinkTab } from "@/lib/starlinkTabs";
+import { debtRepId, isStarlinkTab, splitDebtsByRep, splitPreviousByRep, STARLINK_TABS, type StarlinkTab } from "@/lib/starlinkTabs";
 import { DateInput } from "@/components/DateInput";
 import { PartySheet } from "@/components/AccountsSection";
 import { deviceMatchesQuery } from "@/lib/homeInsights";
@@ -241,10 +241,56 @@ export default function StarlinkPage() {
   // 📋 his own D's / 🤝 each rep's D's - the shown (searched) ones and all of them (for the counts).
   const shownSplit = splitDebtsByRep(shownDebts, account, repName);
   const allSplit = splitDebtsByRep(debts, account, repName);
+  // 📜 previous debts follow their device too: his own here, a rep's under «🤝 المناديب».
+  const shownPrevSplit = splitPreviousByRep(shownPrevious, account);
+  const allPrevSplit = splitPreviousByRep(openPrevious, account);
+  const allPrevRepCount = openPrevious.length - allPrevSplit.mine.length;
+  // Each rep with a D or a previous debt, by name (searched / all).
+  const repGroups = (split: typeof shownSplit, prev: typeof shownPrevSplit) => {
+    const ids = [...new Set([...split.reps.map((g) => g.repId), ...prev.byRep.keys()])].sort((a, b) => repName(a).localeCompare(repName(b)));
+    return ids.map((repId) => {
+      const group = split.reps.find((g) => g.repId === repId);
+      const previous = prev.byRep.get(repId) ?? [];
+      return { repId, debts: group?.debts ?? [], previous, totalUsd: (group?.totalUsd ?? 0) + totalPreviousDebtUsd(previous) };
+    });
+  };
+  const shownRepGroups = repGroups(shownSplit, shownPrevSplit);
+  // 📜 An earlier owner's debt - in «أجهزتي» or under its device's rep.
+  const previousRow = (d: (typeof openPrevious)[number]) => {
+    const acc = account(d.accountId);
+    return (
+      <li key={d.id} className="sl-row sl-row-previous">
+        <div className="sl-row-main">
+          <strong>
+            <span className="sl-d sl-d-previous">D</span> {acc?.name ?? "جهاز محذوف"}
+            <span className="sl-previous-tag">دين سابق</span>
+            {acc?.serviceStatus === "suspended" && <span className="sl-stopped">متوقف</span>}
+          </strong>
+          <span>
+            {getClient(clientStore, acc?.clientId)?.name ?? "بدون زبون"}
+            {d.note ? ` · ${d.note}` : ""}
+          </span>
+          <span className="sl-meta">
+            منذ <bdi dir="ltr">{d.date}</bdi> ({daysSince(d.date)} يوم) · يُسجَّل على الزبون عند التسديد
+          </span>
+        </div>
+        <div className="sl-row-side">
+          <strong dir="ltr">{usd(d.amountUsd)}</strong>
+          <button type="button" className="text-action" onClick={() => openPreviousPay(d)}>
+            سدّدت
+          </button>
+          <button type="button" className="text-action sl-delete" onClick={() => removePrevious(d)}>
+            حذف
+          </button>
+        </div>
+      </li>
+    );
+  };
+
   const pendingNotices = pendingCardSpends(deposits).length + pendingCardDeposits(deposits).length;
   const tabCount: Record<StarlinkTab, number> = {
-    devices: allSplit.mine.length + openPrevious.length,
-    reps: debts.length - allSplit.mine.length,
+    devices: allSplit.mine.length + allPrevSplit.mine.length,
+    reps: debts.length - allSplit.mine.length + allPrevRepCount,
     cards: paymentCards.length,
     notices: pendingNotices,
   };
@@ -630,51 +676,18 @@ export default function StarlinkPage() {
             </button>
           )}
         </div>
-        {allSplit.mine.length + openPrevious.length > 0 && searchBox}
-        {debtQuery.trim() && shownSplit.mine.length === 0 && shownPrevious.length === 0 && (
+        {allSplit.mine.length + allPrevSplit.mine.length > 0 && searchBox}
+        {debtQuery.trim() && shownSplit.mine.length === 0 && shownPrevSplit.mine.length === 0 && (
           <p className="empty-state">لا توجد نتيجة لـ «{debtQuery.trim()}».</p>
         )}
-        {allSplit.mine.length === 0 && openPrevious.length === 0 ? (
-          <p className="empty-state">لا يوجد جهاز لك عليه D{allSplit.reps.length ? " - أجهزة المناديب في «🤝 المناديب»." : " - لا شيء عليك لستارلينك الآن."}</p>
+        {allSplit.mine.length === 0 && allPrevSplit.mine.length === 0 ? (
+          <p className="empty-state">لا يوجد جهاز لك عليه D{allSplit.reps.length || allPrevRepCount ? " - أجهزة المناديب في «🤝 المناديب»." : " - لا شيء عليك لستارلينك الآن."}</p>
         ) : (
           <ul className="sl-list">
             {shownSplit.mine.map((d) => debtRow(d))}
           </ul>
         )}
-        {shownPrevious.length > 0 && (
-          <ul className="sl-list sl-list-previous">
-            {shownPrevious.map((d) => {
-              const acc = account(d.accountId);
-              return (
-                <li key={d.id} className="sl-row sl-row-previous">
-                  <div className="sl-row-main">
-                    <strong>
-                      <span className="sl-d sl-d-previous">D</span> {acc?.name ?? "جهاز محذوف"}
-                      <span className="sl-previous-tag">دين سابق</span>
-                      {acc?.serviceStatus === "suspended" && <span className="sl-stopped">متوقف</span>}
-                    </strong>
-                    <span>
-                      {getClient(clientStore, acc?.clientId)?.name ?? "بدون زبون"}
-                      {d.note ? ` · ${d.note}` : ""}
-                    </span>
-                    <span className="sl-meta">
-                      منذ <bdi dir="ltr">{d.date}</bdi> ({daysSince(d.date)} يوم) · يُسجَّل على الزبون عند التسديد
-                    </span>
-                  </div>
-                  <div className="sl-row-side">
-                    <strong dir="ltr">{usd(d.amountUsd)}</strong>
-                    <button type="button" className="text-action" onClick={() => openPreviousPay(d)}>
-                      سدّدت
-                    </button>
-                    <button type="button" className="text-action sl-delete" onClick={() => removePrevious(d)}>
-                      حذف
-                    </button>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        {shownPrevSplit.mine.length > 0 && <ul className="sl-list sl-list-previous">{shownPrevSplit.mine.map((d) => previousRow(d))}</ul>}
       </section>
       )}
 
@@ -683,24 +696,27 @@ export default function StarlinkPage() {
           <div className="sl-head">
             <h2 className="sl-title">🤝 أجهزة المناديب المتسلَّف عليها</h2>
           </div>
-          {allSplit.reps.length > 0 && searchBox}
-          {allSplit.reps.length === 0 ? (
+          {allSplit.reps.length + allPrevRepCount > 0 && searchBox}
+          {allSplit.reps.length + allPrevRepCount === 0 ? (
             <p className="empty-state">لا يوجد جهاز مندوب عليه D الآن.</p>
-          ) : shownSplit.reps.length === 0 ? (
+          ) : shownRepGroups.length === 0 ? (
             <p className="empty-state">لا توجد نتيجة لـ «{debtQuery.trim()}».</p>
           ) : (
-            shownSplit.reps.map((group) => (
+            shownRepGroups.map((group) => (
               <div key={group.repId} className="sl-rep-group">
                 <div className="sl-rep-head">
                   <strong>🤝 {repName(group.repId)}</strong>
                   <span>
-                    {group.debts.length} جهاز · <bdi dir="ltr">{usd(group.totalUsd)}</bdi>
+                    {group.debts.length + group.previous.length} جهاز · <bdi dir="ltr">{usd(group.totalUsd)}</bdi>
                   </span>
-                  <button type="button" className="text-action" onClick={() => toggleAll(group.debts)}>
-                    {group.debts.every((d) => selected.has(debtKey(d))) ? "إلغاء التحديد" : "تحديد أجهزته"}
-                  </button>
+                  {group.debts.length > 0 && (
+                    <button type="button" className="text-action" onClick={() => toggleAll(group.debts)}>
+                      {group.debts.every((d) => selected.has(debtKey(d))) ? "إلغاء التحديد" : "تحديد أجهزته"}
+                    </button>
+                  )}
                 </div>
-                <ul className="sl-list">{group.debts.map((d) => debtRow(d))}</ul>
+                {group.debts.length > 0 && <ul className="sl-list">{group.debts.map((d) => debtRow(d))}</ul>}
+                {group.previous.length > 0 && <ul className="sl-list sl-list-previous">{group.previous.map((d) => previousRow(d))}</ul>}
               </div>
             ))
           )}

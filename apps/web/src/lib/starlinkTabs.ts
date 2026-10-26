@@ -51,3 +51,19 @@ export function splitDebtsByRep(
     .sort((a, b) => repName(a.repId).localeCompare(repName(b.repId)));
   return { mine, reps };
 }
+
+/** 📜 An earlier owner's debts («دين سابق») go where their device goes (his Oct 26 2026 report: a rep's device
+ * listed in «أجهزتي»): no rep → his own list, else under that rep. A device that's gone stays his. */
+export function splitPreviousByRep<T extends { accountId: string }>(
+  previous: T[],
+  accountOf: (id: string) => Pick<StarlinkAccountSummary, "representativeId"> | undefined,
+): { mine: T[]; byRep: Map<string, T[]> } {
+  const mine: T[] = [];
+  const byRep = new Map<string, T[]>();
+  for (const d of previous) {
+    const repId = accountOf(d.accountId)?.representativeId;
+    if (!repId) mine.push(d);
+    else byRep.set(repId, [...(byRep.get(repId) ?? []), d]);
+  }
+  return { mine, byRep };
+}

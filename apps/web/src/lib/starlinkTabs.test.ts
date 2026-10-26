@@ -3,7 +3,7 @@ import type { StarlinkAccountSummary } from "@starnet/shared";
 import { cardDeviceRows } from "./cardDevices";
 import type { LedgerEntry } from "./ledgerStore";
 import type { OpenShipmentDebt } from "./starlinkDebt";
-import { debtRepId, isStarlinkTab, splitDebtsByRep } from "./starlinkTabs";
+import { debtRepId, isStarlinkTab, splitDebtsByRep, splitPreviousByRep } from "./starlinkTabs";
 
 const debt = (id: string, accountId: string, costUsd: number, representativeId?: string): OpenShipmentDebt => ({
   accountId,
@@ -31,6 +31,18 @@ describe("starlinkTabs", () => {
     expect(debtRepId(debt("5", "a", 1, "r1"), { representativeId: "r2" })).toBe("r2"); // the device's current rep wins
     expect(debtRepId(debt("6", "a", 1, "r1"), {})).toBeUndefined();
     expect(debtRepId(debt("7", "gone", 1, "r1"), undefined)).toBe("r1"); // device gone: the shipment's rep
+  });
+});
+
+describe("splitPreviousByRep (his Oct 26 2026 report: a rep's «دين سابق» listed in «أجهزتي»)", () => {
+  it("a previous debt goes where its device goes; a device that's gone stays his", () => {
+    const accounts: Record<string, { representativeId?: string }> = { mine: {}, hus: { representativeId: "r1" } };
+    const { mine, byRep } = splitPreviousByRep(
+      [{ id: "p1", accountId: "hus" }, { id: "p2", accountId: "mine" }, { id: "p3", accountId: "gone" }],
+      (id) => accounts[id],
+    );
+    expect(mine.map((d) => d.id)).toEqual(["p2", "p3"]);
+    expect([...byRep.entries()].map(([r, l]) => [r, l.map((d) => d.id)])).toEqual([["r1", ["p1"]]]);
   });
 });
 
