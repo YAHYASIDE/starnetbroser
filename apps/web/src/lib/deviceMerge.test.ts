@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { StarlinkAccountSummary } from "@starnet/shared";
-import { deviceTwins, mergeDevices } from "./deviceMerge";
+import { deviceTwins, mergeDevices, replaceWithNew } from "./deviceMerge";
 import { deviceFingerprint, findDeviceDuplicates, knownDevicesOf } from "./duplicates";
 import type { LedgerEntry } from "./ledgerStore";
 
@@ -56,5 +56,38 @@ describe("the rep's app knows the operator's devices by fingerprint only", () =>
     expect(hits).toEqual([{ field: "email", owner: "المسؤول", kind: "owner" }]);
     expect(findDeviceDuplicates({ name: "X", kitNumber: "kit-1111-2222" }, [], known).map((h) => h.field)).toEqual(["kit"]);
     expect(findDeviceDuplicates({ name: "X", expectedEmail: "new@example.com" }, [], known)).toEqual([]);
+  });
+});
+
+describe("replaceWithNew (his Oct 26 2026 ask «اجعل الربط يضيف الجديد بدل القديم»)", () => {
+  it("the rep's new device stays with the old one's records and customer; the old goes to the trash", () => {
+    const old = dev("old", { expectedEmail: "demo@example.com", clientId: "c1", wifiPassword: "w" });
+    const fresh = dev("new", { expectedEmail: "demo@example.com", representativeId: "r9", name: "DEMO rep name" });
+    const other = dev("other");
+    const result = replaceWithNew({
+      accounts: [old, fresh, other],
+      newId: "new",
+      oldId: "old",
+      repId: "r1",
+      ledger: { old: [entry("o1"), entry("o2")], new: [entry("n1")] },
+      allocations: {},
+      previousDebts: [{ id: "p1", accountId: "old", date: "2026-10-01", amountUsd: 10, createdAt: "x" }],
+      at: "2026-10-26T10:00:00.000Z",
+    })!;
+    const byId = Object.fromEntries(result.accounts.map((a) => [a.id, a]));
+    expect(byId.new).toMatchObject({ name: "DEMO rep name", clientId: "c1", wifiPassword: "w", representativeId: "r1" });
+    expect(byId.new!.deletedAt).toBeUndefined();
+    expect(byId.old!.deletedAt).toBe("2026-10-26T10:00:00.000Z");
+    expect(byId.other).toBe(other);
+    expect(result.ledger.new!.map((x) => x.id)).toEqual(["n1", "o1", "o2"]);
+    expect(result.ledger.old).toBeUndefined();
+    expect(result.previousDebts[0]!.accountId).toBe("new");
+    expect(result.movedEntries).toBe(2);
+  });
+
+  it("nothing when a device is missing or both are the same", () => {
+    const base = { ledger: {}, allocations: {}, previousDebts: [], repId: "r1", at: "x" };
+    expect(replaceWithNew({ ...base, accounts: [dev("a")], newId: "a", oldId: "gone" })).toBeNull();
+    expect(replaceWithNew({ ...base, accounts: [dev("a")], newId: "a", oldId: "a" })).toBeNull();
   });
 });

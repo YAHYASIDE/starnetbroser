@@ -94,7 +94,7 @@ function RepInboxCard({ view, busy, onDecide }: { view: RepInboxView; busy: bool
                   {item.detail && <small>{item.detail}</small>}
                   {item.duplicateOf && (
                     <small className="rep-inbox-dup-note">
-                      ⚠️ مسجّل عندك من قبل: «{item.duplicateOf.name}» ({item.duplicateOf.field === "email" ? "نفس الإيميل" : "نفس رقم KIT"}) - لا يُضاف مرة ثانية
+                      ⚠️ مسجّل عندك من قبل: «{item.duplicateOf.name}» ({item.duplicateOf.field === "email" ? "نفس الإيميل" : "نفس رقم KIT"}) - 🔗 يثبّت جهاز المندوب مكانه
                     </small>
                   )}
                 </span>
@@ -111,11 +111,11 @@ function RepInboxCard({ view, busy, onDecide }: { view: RepInboxView; busy: bool
                       disabled={busy}
                       onClick={() =>
                         confirmThen(
-                          `ربط جهازك «${item.duplicateOf!.name}» بالمندوب ${view.repName}؟\nلا يُضاف جهاز جديد، وما سجّله المندوب على هذا المكرر لا يُنقل.`,
+                          `تثبيت جهاز المندوب ${view.repName} مكان جهازك «${item.duplicateOf!.name}»؟\nيُثبَّت جهازه بجلسته وما سجّله عليه، وتنتقل إليه كل عمليات وديون جهازك القديم وزبونه، والقديم يذهب إلى السلة.`,
                           () => onDecide([], [], [item.key]),
                         )
                       }
-                      aria-label="ربط بالجهاز الموجود"
+                      aria-label="تثبيت مكان الجهاز القديم"
                     >
                       🔗
                     </button>

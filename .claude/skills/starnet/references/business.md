@@ -2304,3 +2304,14 @@ is never pressed while a field is empty - it refills and saves on the next try (
   where its device is (the device's CURRENT rep, like D's): no rep → «أجهزتي», else under that rep in «المناديب»
   (with his D's, counted in the tab and the rep's total); a deleted device stays in «أجهزتي». A bug fix - no question.
 
+## 🔗 A rep's device already on his list: the new one replaces the old (Oct 26 2026)
+
+- His ask (screenshot: «تسجيلات المندوبين» - «📡 جهاز جديد: خمزة 45 … ⚠️ مسجّل عندك من قبل (نفس الإيميل)» and the old
+  confirm «ربط جهازك … لا يُضاف جهاز جديد، وما سجّله المندوب على هذا المكرر لا يُنقل»): «اجعل الربط يضيف الجديد بدل
+  القديم».
+- Now 🔗 installs the rep's device (its Starlink / mailbox session and what he recorded on it) and
+  `replaceWithNew` (lib/deviceMerge.ts) moves the old device's operations, allocations, previous debts, notes and
+  what the new one lacks (customer, codes, KIT…) onto it, sets it to that rep, and sends the old one to the trash
+  (restorable). The rep's bot message: «🔗 ثبّت المسؤول جهازك مكان المسجّل عنده من قبل». ✅/batch install still
+  never installs a duplicate by itself - only 🔗 does, after the confirm.
+

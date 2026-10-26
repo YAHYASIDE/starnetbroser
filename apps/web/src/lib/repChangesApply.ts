@@ -3,7 +3,12 @@
 import { WrongPasswordError } from "./backupCrypto";
 import { loadDemoAccounts, saveDemoAccounts } from "./demoAccountStore";
 import { demoAccounts } from "./demoData";
+import { replaceWithNew } from "./deviceMerge";
+import { loadDeviceNotes, mergeDeviceNotes, saveDeviceNotes } from "./deviceNotes";
+import { loadLedgerStore, saveLedgerStore } from "./ledgerStore";
 import { importAccountSessions } from "./localBrowser";
+import { loadAllocationStore, saveAllocationStore } from "./paymentAllocationStore";
+import { loadPreviousDebts, savePreviousDebts } from "./previousDebt";
 import {
   applyRepChangeSet,
   changeSetOf,
@@ -145,18 +150,15 @@ export async function decideRepItems(repId: string, approveKeys: string[], rejec
   const items = waiting(payload, decisions);
   // A device the operator already has is never installed a second time.
   const approved = items.filter((i) => approveKeys.includes(i.key) && !i.duplicateOf);
-  // «🔗 ربط»: the operator's own device goes to this rep; the duplicate itself is dropped.
-  const linked = items.filter((i) => linkKeys.includes(i.key) && i.duplicateOf && !approveKeys.includes(i.key));
-  const rejected = items.filter((i) => (rejectKeys.includes(i.key) || linked.includes(i)) && !approved.includes(i));
-  if (approved.length === 0 && rejected.length === 0) return { ok: false, message: "اختر تسجيلاً أولاً" };
+  // «🔗 ربط» (his Oct 26 2026 ask «اجعل الربط يضيف الجديد بدل القديم»): the rep's device is installed in
+  // place of the operator's old one - the old one's records move onto it and it goes to the trash.
+  const linked = items.filter((i) => linkKeys.includes(i.key) && i.duplicateOf && i.accountId && !approveKeys.includes(i.key));
+  const rejected = items.filter((i) => rejectKeys.includes(i.key) && !approved.includes(i) && !linked.includes(i));
+  if (approved.length === 0 && rejected.length === 0 && linked.length === 0) return { ok: false, message: "اختر تسجيلاً أولاً" };
 
-  if (linked.length > 0) {
-    const ids = new Set(linked.map((i) => i.duplicateOf!.accountId));
-    saveDemoAccounts(loadDemoAccounts(demoAccounts).map((a) => (ids.has(a.id) ? { ...a, representativeId: repId } : a)));
-  }
-
-  if (approved.length > 0) {
-    const result = applyRepChangeSet(readStores(), changeSetOf(payload.changes, approved), repId);
+  const installed = [...approved, ...linked];
+  if (installed.length > 0) {
+    const result = applyRepChangeSet(readStores(), changeSetOf(payload.changes, installed), repId);
     try {
       for (const [key, value] of Object.entries(result.stores)) window.localStorage.setItem(key, JSON.stringify(value));
     } catch {
@@ -170,9 +172,29 @@ export async function decideRepItems(repId: string, approveKeys: string[], rejec
     if (Object.keys(sessions).length > 0) await importAccountSessions(sessions);
   }
 
-  let nextDecisions = withDecision(decisions, approved, "approved");
+  if (linked.length > 0) {
+    let accounts = loadDemoAccounts(demoAccounts);
+    let ledger = loadLedgerStore();
+    let allocations = loadAllocationStore();
+    let previousDebts = loadPreviousDebts();
+    let notes = loadDeviceNotes();
+    const at = new Date().toISOString();
+    for (const item of linked) {
+      const done = replaceWithNew({ accounts, newId: item.accountId!, oldId: item.duplicateOf!.accountId, repId, ledger, allocations, previousDebts, at });
+      if (!done) continue;
+      ({ accounts, ledger, allocations, previousDebts } = done);
+      notes = mergeDeviceNotes(notes, item.duplicateOf!.accountId, item.accountId!);
+    }
+    saveDemoAccounts(accounts);
+    saveLedgerStore(ledger);
+    saveAllocationStore(allocations);
+    savePreviousDebts(previousDebts);
+    saveDeviceNotes(notes);
+  }
+
+  let nextDecisions = withDecision(decisions, installed, "approved");
   nextDecisions = withDecision(nextDecisions, rejected, "rejected");
-  const left = items.length - approved.length - rejected.length;
+  const left = items.length - installed.length - rejected.length;
   const files = left > 0 ? inbox.files.map((f) => (f.repId === repId ? { ...f, pendingCount: left } : f)) : inbox.files.filter((f) => f.repId !== repId);
   saveRepInbox({ files, decisions: { ...inbox.decisions, [repId]: nextDecisions } });
   window.dispatchEvent(new Event(ACCOUNTS_CHANGED_EVENT));
@@ -181,18 +203,12 @@ export async function decideRepItems(repId: string, approveKeys: string[], rejec
   const copy = await sendRepCopy(rep, loadDemoAccounts(demoAccounts));
   const lines = [
     approved.length ? `✅ ثبّت المسؤول: ${describeItems(approved)}` : "",
-    linked.length ? `🔗 الجهاز مسجّل عند المسؤول من قبل، وأصبح في قائمتك: ${linked.map((i) => i.duplicateOf!.name).join("، ")}` : "",
-    rejected.filter((i) => !linked.includes(i)).length
-      ? `❌ رفض: ${rejected
-          .filter((i) => !linked.includes(i))
-          .map((i) => (i.duplicateOf ? `${i.title} (مسجّل عند المسؤول من قبل)` : i.title))
-          .join("، ")}`
-      : "",
+    linked.length ? `🔗 ثبّت المسؤول جهازك مكان المسجّل عنده من قبل: ${describeItems(linked)}` : "",
+    rejected.length ? `❌ رفض: ${rejected.map((i) => (i.duplicateOf ? `${i.title} (مسجّل عند المسؤول من قبل)` : i.title)).join("، ")}` : "",
     left ? `⏳ ما زال ${left} بانتظار المسؤول` : "",
     copy.ok ? "📋 وصلتك نسخة جديدة - افتحها." : "",
   ].filter(Boolean);
   await sendRepText(repId, lines.join("\n"));
-  const notLinked = rejected.length - linked.length;
-  const parts = [approved.length ? `✓ ثُبّت ${approved.length}` : "", linked.length ? `🔗 رُبط ${linked.length}` : "", notLinked ? `رُفض ${notLinked}` : "", left ? `بقي ${left}` : ""].filter(Boolean);
+  const parts = [approved.length ? `✓ ثُبّت ${approved.length}` : "", linked.length ? `🔗 حلّ محل القديم ${linked.length}` : "", rejected.length ? `رُفض ${rejected.length}` : "", left ? `بقي ${left}` : ""].filter(Boolean);
   return { ok: true, message: `${parts.join(" · ")}${copy.ok ? "" : ` - لم تُرسل له نسخة جديدة: ${copy.message}`}` };
 }

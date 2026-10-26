@@ -86,3 +86,28 @@ export function mergeDevices(input: {
   const previousDebts = input.previousDebts.map((d) => (d.accountId === drop.id ? { ...d, accountId: keep.id } : d));
   return { keepPatch, ledger, allocations, previousDebts, movedEntries: moved.length };
 }
+
+/**
+ * 🔗 «ربط» a rep's new device that the operator already has (his Oct 26 2026 ask «اجعل الربط يضيف الجديد بدل
+ * القديم»): the rep's device (with its fresh session) stays, the old one's records and what the new one
+ * lacks move onto it (`mergeDevices`), it is the rep's, and the old one goes to the trash.
+ */
+export function replaceWithNew(input: {
+  accounts: StarlinkAccountSummary[];
+  newId: string;
+  oldId: string;
+  repId: string;
+  ledger: LedgerByAccount;
+  allocations: AllocationsByAccount;
+  previousDebts: PreviousDebtList;
+  at: string;
+}): (MergeResult & { accounts: StarlinkAccountSummary[] }) | null {
+  const keep = input.accounts.find((a) => a.id === input.newId);
+  const drop = input.accounts.find((a) => a.id === input.oldId);
+  if (!keep || !drop || keep.id === drop.id) return null;
+  const merged = mergeDevices({ keep, drop, ledger: input.ledger, allocations: input.allocations, previousDebts: input.previousDebts });
+  const accounts = input.accounts.map((a) =>
+    a.id === keep.id ? { ...a, ...merged.keepPatch, representativeId: input.repId } : a.id === drop.id ? { ...a, deletedAt: input.at } : a,
+  );
+  return { ...merged, accounts };
+}
