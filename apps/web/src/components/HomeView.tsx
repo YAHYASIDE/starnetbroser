@@ -32,7 +32,7 @@ import { pushScheduledSyncs, scheduleSyncRetry } from "@/lib/scheduledSyncs";
 import { LedgerDialog } from "./LedgerDialog";
 import { ClientDialog } from "./ClientDialog";
 import { ClientsOverviewDialog } from "./ClientsOverviewDialog";
-import { ourDebtLedgerForClients, autoMoveClientToRep, shipmentRepId } from "@/lib/repClients";
+import { ourDebtLedgerForClients, autoMoveClientToRep, clientsBackToUs, moveClientToOwner, shipmentRepId } from "@/lib/repClients";
 import { confirmAndDeleteLedgerEntry, LedgerEntryEditor } from "./LedgerEntryEditor";
 import { DeviceStatementDialog } from "./DeviceStatementDialog";
 import { ToastMessage, ToastStack } from "./ToastStack";
@@ -1859,7 +1859,7 @@ export function HomeView({
     if (account.representativeId && account.clientId) {
       const exists = accounts.some((item) => item.id === account.id);
       const nextAccounts = exists ? accounts.map((item) => (item.id === account.id ? account : item)) : [account, ...accounts];
-      const moved = autoMoveClientToRep(clientStore[account.clientId], nextAccounts, new Date().toISOString());
+      const moved = autoMoveClientToRep(clientStore[account.clientId], nextAccounts, new Date().toISOString(), (id) => Boolean(representativeStore[id]?.customersStay));
       if (moved) {
         setClientStore(commitClientStore(clientStore, { ...clientStore, [moved.id]: moved }));
         const repName = getRepresentative(representativeStore, account.representativeId)?.name ?? "المندوب";
@@ -1941,6 +1941,21 @@ export function HomeView({
     updateLedgerEntries(account.id, entries.map((e) => (e.id === grown.id ? grown : e)));
     pushToast(`🔗 أُضيف ${formatAmount(gapUsd)} $ إلى D على "${account.name}" - D صار ${formatAmount(plan.costUsdAfter)} $ والزبون ${formatAmount(plan.amountAfter)} ${LEDGER_CURRENCY_LABELS[grown.currency]}`);
     return null;
+  }
+
+  // ↩️ A rep's customer whose devices are no rep's any more (lib/repClients.ts clientsBackToUs): back to his
+  // own customers - what he owed so far on the customer («carry») or left on the rep - or his devices back to the rep.
+  const backToUs = useMemo(() => (repWorkspace ? [] : clientsBackToUs(Object.values(clientStore), accounts)), [repWorkspace, clientStore, accounts]);
+  function resolveBackToUs(item: (typeof backToUs)[number], choice: "client" | "rep" | "devices") {
+    const repName = getRepresentative(representativeStore, item.repId)?.name ?? "المندوب";
+    if (choice === "devices") {
+      for (const id of item.deviceIds) patchAccount(id, { representativeId: item.repId });
+      pushToast(`🤝 رجعت أجهزة ${item.client.name} إلى ${repName}`);
+      return;
+    }
+    const moved = moveClientToOwner(item.client, undefined, choice === "client", new Date().toISOString());
+    setClientStore(commitClientStore(clientStore, { ...clientStore, [moved.id]: moved }));
+    pushToast(choice === "client" ? `↩️ ${item.client.name} صار زبونك - ما عليه انتقل معه` : `↩️ ${item.client.name} صار زبونك - ما سبق يبقى على ${repName}`);
   }
 
   // 👤 «على الزبون رصيد سابق»: the gap recorded on the device's customer (عليه), in his currency.
@@ -3060,6 +3075,28 @@ export function HomeView({
         </span>
       </Link>
     )}
+
+    {backToUs.slice(0, 3).map((item) => {
+      const repName = getRepresentative(representativeStore, item.repId)?.name ?? "المندوب";
+      return (
+        <div key={item.client.id} className="back-to-us-banner" role="group" aria-label={`رجوع ${item.client.name}`}>
+          <p>
+            ↩️ <strong>{item.client.name}</strong>: لم تعد أجهزته عند {repName} - يرجع إلى زبائنك. ما عليه حتى الآن؟
+          </p>
+          <div className="back-to-us-actions">
+            <button type="button" className="dialog-primary" onClick={() => resolveBackToUs(item, "client")}>
+              على الزبون (ينتقل معه)
+            </button>
+            <button type="button" className="dialog-secondary" onClick={() => resolveBackToUs(item, "rep")}>
+              يبقى على {repName}
+            </button>
+            <button type="button" className="text-action" onClick={() => resolveBackToUs(item, "devices")}>
+              🤝 أرجع أجهزته إلى {repName}
+            </button>
+          </div>
+        </div>
+      );
+    })}
 
     {repWorkspace && repPendingCount > 0 && (
       <button

@@ -7,6 +7,7 @@ import { repDevicesDebt } from "./repDebts";
 import {
   addRepBookEntry,
   autoMoveClientToRep,
+  clientsBackToUs,
   planRepUntangle,
   repOperations,
   operationsBalance,
@@ -210,6 +211,8 @@ describe("🔁 untangling a rep's customers (all his debt on him)", () => {
     expect(currentRepOfClient(moved!)).toBe("r1");
     expect(moved!.repSegments).toEqual([{ repId: "r1", from: T3, carry: true }]);
     expect(autoMoveClientToRep(clients.c2, accounts, T3)).toBeNull(); // mixed
+    // 👥 «زبائنه يبقون عندي»: never moved to that rep
+    expect(autoMoveClientToRep(clients.c1, accounts, T3, () => true)).toBeNull();
     expect(autoMoveClientToRep(moved!, accounts, T4)).toBeNull(); // already his
     const otherRep = { ...clients.c3!, repSegments: [{ repId: "r9", from: T2, carry: true }] };
     expect(autoMoveClientToRep(otherRep, accounts, T3)).toBeNull(); // rep to rep: the card asks
@@ -289,5 +292,29 @@ describe("🔒 «زبائنه عنده فقط»: every operation on his devices 
     expect(operationsBalance(ops)).toEqual({ MRU: 13500 + 6000 - 1000 + 3000 });
     expect(operationsByDevice(ops)).toEqual(new Map([["d1", { MRU: 13500 }], ["d2", { MRU: 8000 }]]));
     expect(ops[0]!.balanceAfter).toBe(21500);
+  });
+});
+
+describe("↩️ clientsBackToUs (his Oct 27 2026 report: the rep taken off the device, the customer stayed the rep's)", () => {
+  it("a rep's customer whose live devices have no rep any more - not one with a rep's device, nor ours, nor deviceless", () => {
+    const rep = (id: string, repId?: string) => ({ id, name: id, repSegments: repId ? [{ repId, from: "2026-10-01T00:00:00.000Z", carry: true }] : undefined }) as Client;
+    const dev = (id: string, clientId: string, representativeId?: string, deletedAt?: string) => ({ id, name: id, clientId, representativeId, deletedAt }) as StarlinkAccountSummary;
+    const clients = [rep("back", "r1"), rep("still", "r1"), rep("ours"), rep("empty", "r1")];
+    const accounts = [dev("d1", "back"), dev("d2", "back", "r1", "2026-10-02"), dev("d3", "still", "r1"), dev("d4", "ours")];
+    expect(clientsBackToUs(clients, accounts).map((x) => [x.client.id, x.repId, x.deviceIds])).toEqual([["back", "r1", ["d1"]]]);
+  });
+});
+
+describe("👥 setRepCustomersStay", () => {
+  it("on clears «زبائنه عنده فقط»; off keeps it as it was", async () => {
+    const { setRepCustomersStay } = await import("./repStore");
+    const store = { r1: { id: "r1", name: "r", customersHidden: true } } as unknown as Parameters<typeof setRepCustomersStay>[0];
+    const on = setRepCustomersStay(store, "r1", true);
+    expect(on.r1).toMatchObject({ customersStay: true });
+    expect(on.r1!.customersHidden).toBeUndefined();
+    const off = setRepCustomersStay(store, "r1", false);
+    expect(off.r1!.customersStay).toBeUndefined();
+    expect(off.r1!.customersHidden).toBe(true);
+    expect(setRepCustomersStay(store, "missing", true)).toBe(store);
   });
 });

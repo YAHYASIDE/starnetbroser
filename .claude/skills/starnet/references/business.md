@@ -2315,3 +2315,18 @@ is never pressed while a field is empty - it refills and saves on the next try (
   (restorable). The rep's bot message: «🔗 ثبّت المسؤول جهازك مكان المسجّل عنده من قبل». ✅/batch install still
   never installs a duplicate by itself - only 🔗 does, after the confirm.
 
+## ↩️ A rep's customer back to the operator + 👥 «زبائنه يبقون عندي» (Oct 27 2026)
+
+- His report (card «Sidi» / customer «سيد امو»): «هذا الزبون أضفته للمندوب ولكن أزلته من عند المندوب وحذفت العملية ولكن ما
+  زال لا يظهر ضمن زبائني… اجعل للمندوبين الذين لا أضيف زبائنهم عندهم تظهر زبائنهم ضمن زبائني، والديون يكون الخيار لي
+  إن كانت تتبع للمندوب أم تتبع للزبون». Cause: `autoMoveClientToRep` moves a customer to the rep once all his devices
+  are the rep's, but nothing moved him back when the rep was taken off - he stayed the rep's (hidden by «زبائنه عنده فقط»).
+- His choices: **«تسألني كل مرة»** - a home banner per such customer (`clientsBackToUs`: current rep set, live devices
+  none with a rep): «على الزبون (ينتقل معه)» (carry = true), «يبقى على المندوب» (carry = false) - both make him ours from
+  now (`moveClientToOwner(…, undefined, carry)`) - or «🤝 أرجع أجهزته إلى المندوب». And **«أختار لكل مندوب»** - a rep
+  option «👥 زبائنه يبقون عندي» (`Representative.customersStay`, `setRepCustomersStay`; turning it on also turns
+  «زبائنه عنده فقط» off): his devices' customers are never moved to him (home save and the rep's own changes), so the
+  renewals are the customer's debt and the rep keeps his percent (the old model); off = as before (the customer becomes
+  the rep's, the debt his). Customers already his stay his (moved one by one from the customer card); the rep card's
+  «🔁 كل زبائنه عليه» suggestion is hidden for such a rep.
+

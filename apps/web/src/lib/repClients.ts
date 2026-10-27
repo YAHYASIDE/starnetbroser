@@ -536,15 +536,39 @@ export function planRepUntangle(repId: string, clients: ClientStore, accounts: S
 
 /** When a device is given to a rep: our customer becomes the rep's (his balance with him) as soon
  * as all his live devices are that rep's. Null = nothing to do (mixed, already a rep's, or ours). */
-export function autoMoveClientToRep(client: Client | undefined, accounts: StarlinkAccountSummary[], at: string): Client | null {
+export function autoMoveClientToRep(
+  client: Client | undefined,
+  accounts: StarlinkAccountSummary[],
+  at: string,
+  /** 👥 «زبائنه يبقون عندي»: this rep's customers are never moved to him. */
+  customersStay: (repId: string) => boolean = () => false,
+): Client | null {
   if (!client) return null;
   const devices = liveDevicesOf(client.id, accounts);
   const reps = new Set(devices.map((d) => d.representativeId ?? OURS));
   if (devices.length === 0 || reps.size !== 1) return null;
   const repId = [...reps][0]!;
+  if (repId !== OURS && customersStay(repId)) return null;
   // Only a customer who is ours now - from one rep to another, the client card asks about his balance.
   if (repId === OURS || currentRepOfClient(client) !== undefined) return null;
   return moveClientToOwner(client, repId, true, at);
+}
+
+/**
+ * ↩️ A rep's customer none of whose devices is a rep's any more (his Oct 27 2026 report: the rep taken off
+ * «سيد امو»'s device, yet the customer stayed the rep's and hidden from his customers). Each one is offered
+ * back - who carries what he owed so far is his choice every time («تسألني كل مرة»).
+ */
+export function clientsBackToUs(clients: Iterable<Client>, accounts: StarlinkAccountSummary[]): { client: Client; repId: string; deviceIds: string[] }[] {
+  const out: { client: Client; repId: string; deviceIds: string[] }[] = [];
+  for (const client of clients) {
+    const repId = currentRepOfClient(client);
+    if (!repId) continue;
+    const devices = liveDevicesOf(client.id, accounts);
+    if (devices.length === 0 || devices.some((d) => d.representativeId)) continue;
+    out.push({ client, repId, deviceIds: devices.map((d) => d.id) });
+  }
+  return out;
 }
 
 /** The button itself: each customer now belongs to the rep, his balance moving with him. */

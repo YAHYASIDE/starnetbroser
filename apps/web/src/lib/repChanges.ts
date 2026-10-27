@@ -149,6 +149,9 @@ function records(value: unknown, shape: Shape): Map<string, Rec> {
  *   as held by the rep (the money is with him - nothing goes into الكاش).
  * - customers: new ones, or customers of his devices; notes / adjustments / promises of those.
  */
+/** 👥 The reps store, for «زبائنه يبقون عندي». */
+const REPS_STORE_KEY = "starnet_representatives_v1";
+
 export function applyRepChangeSet(owner: StoreValues, sent: RepChangeSet, repId: string, now: Date = new Date()): ApplyRepChangesResult {
   const summary = emptySummary();
   const stores: StoreValues = {};
@@ -214,7 +217,10 @@ export function applyRepChangeSet(owner: StoreValues, sent: RepChangeSet, repId:
   for (const id of created) {
     const clientId = accounts.get(id)?.clientId;
     if (typeof clientId !== "string" || movedClients.has(clientId)) continue;
-    const moved = autoMoveClientToRep(clientRecord(clientId) as unknown as Client | undefined, liveAccounts, at);
+    const moved = autoMoveClientToRep(clientRecord(clientId) as unknown as Client | undefined, liveAccounts, at, (id) => {
+      const reps = owner[REPS_STORE_KEY];
+      return isRec(reps) && isRec(reps[id]) && reps[id]!.customersStay === true;
+    });
     if (moved) movedClients.set(clientId, moved as unknown as Rec);
   }
   /** The customer is the rep's own now: what he pays the rep goes into the rep's book. */

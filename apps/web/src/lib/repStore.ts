@@ -39,6 +39,10 @@ export interface Representative {
    * from every operator screen - his devices show under his name, the operator records only on
    * him. Hidden, never deleted; turning it off brings everything back. */
   customersHidden?: boolean;
+  /** 👥 «زبائنه يبقون عندي» (his Oct 27 2026 choice): the customers of his devices stay the operator's -
+   * never moved to him by themselves - so the renewals on them are the customer's debt (the rep keeps his
+   * percent of the profit). Off = his devices' customers become his, the debt his (repClients.ts). */
+  customersStay?: boolean;
   /** 💱 «عملته»: the currency we deal with him in (lib/partyCurrency.ts). Absent = automatic, from
    * most of his devices' operations. */
   defaultCurrency?: LedgerCurrency;
@@ -189,6 +193,18 @@ export function setRepCustomersHidden(store: RepresentativeStore, id: string, hi
   if (!existing) return store;
   const { customersHidden: _was, ...rest } = existing;
   return { ...store, [id]: { ...rest, ...(hidden ? { customersHidden: true } : {}), updatedAt: new Date().toISOString() } };
+}
+
+/** Turns «👥 زبائنه يبقون عندي» on or off for one rep - on also shows his customers again (they are the
+ * operator's, nothing to hide). */
+export function setRepCustomersStay(store: RepresentativeStore, id: string, stay: boolean): RepresentativeStore {
+  const existing = store[id];
+  if (!existing) return store;
+  const { customersStay: _was, customersHidden: hidden, ...rest } = existing;
+  return {
+    ...store,
+    [id]: { ...rest, ...(stay ? { customersStay: true } : hidden ? { customersHidden: true } : {}), updatedAt: new Date().toISOString() },
+  };
 }
 
 /** 💱 Sets (or, with null, removes) his own rates. The shipments are stamped separately

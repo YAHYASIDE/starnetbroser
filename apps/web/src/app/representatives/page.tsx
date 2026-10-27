@@ -11,7 +11,7 @@ import { getCurrency, loadCurrencyStore } from "@/lib/currencyStore";
 import { PdfButton } from "@/components/PdfButton";
 import { RepAppCodePanel } from "@/components/RepAppCodePanel";
 import { copyGaps, copyGapsText, loadRepCopySentDevices } from "@/lib/repCopy";
-import { setRepCustomersHidden, setRepRates } from "@/lib/repStore";
+import { setRepCustomersHidden, setRepCustomersStay, setRepRates } from "@/lib/repStore";
 import { shipmentProfitMoment } from "@/lib/accountingStore";
 import { loadProfitReset } from "@/lib/profitReset";
 import { applyRepReset, inRepVersion, pickRepReset, repResetPoints, repVersions, seedRepResetHistory, undoRepReset, type RepVersion } from "@/lib/repResets";
@@ -590,6 +590,7 @@ export default function RepresentativesPage() {
                     onShipmentShare={handleShipmentShare}
                     onReset={(resets) => handleReset(rep.id, resets)}
                     onSetCustomersHidden={(hidden) => saveReps(setRepCustomersHidden(representativeStore, rep.id, hidden))}
+                    onSetCustomersStay={(stay) => saveReps(setRepCustomersStay(representativeStore, rep.id, stay))}
                     onSetRates={(plan, since) => {
                       saveReps(setRepRates(representativeStore, rep.id, plan));
                       const stamped = stampRepRates(ledgerStore, rep.id, plan, since);
@@ -643,6 +644,8 @@ interface RepCardProps {
   readOnly?: boolean;
   /** 🔒 «زبائنه عنده فقط» on/off (repSeparation.ts). */
   onSetCustomersHidden?: (hidden: boolean) => void;
+  /** 👥 «زبائنه يبقون عندي» on/off (repStore.customersStay). */
+  onSetCustomersStay?: (stay: boolean) => void;
   /** 💱 «سعر المندوب» (repRates.ts): sets / removes his rates from a day - returns how many of his
    * shipments changed. */
   onSetRates?: (plan: RepRatePlan | null, since: string) => number;
@@ -683,6 +686,7 @@ function RepCard({
   focusMonth,
   readOnly = false,
   onSetCustomersHidden,
+  onSetCustomersStay,
   onSetRates,
 }: RepCardProps) {
   // 🔒 His customers stay with him: no customer list here, only what he owes.
@@ -1153,7 +1157,7 @@ function RepCard({
 
       {panel === "clients" && !customersHidden && (
         <div className="party-panel rep-clients">
-          {untangleCount > 0 && !readOnly && (
+          {untangleCount > 0 && !readOnly && !rep.customersStay && (
             <button type="button" className="btn-secondary rep-transfer-btn" onClick={() => setSheet({ kind: "transfer" })}>
               🔁 كل زبائنه عليه ({untangleCount})
             </button>
@@ -1475,7 +1479,28 @@ function RepCard({
                 <small>يضيف أجهزته ويسجّل دخولها من هاتفه، وتصلك جاهزة</small>
               </span>
             </button>
-            {onSetCustomersHidden && (
+            {onSetCustomersStay && (
+              <button
+                type="button"
+                className="party-sheet-option"
+                onClick={() => {
+                  const next = !rep.customersStay;
+                  const question = next
+                    ? `👥 زبائن أجهزة ${rep.name} يبقون عندك؟\n\n• زبون جهاز تعطيه له يبقى في زبائنك ولا ينتقل إليه.\n• التجديد على أجهزته دين على الزبون، ونسبته من الربح تبقى كما هي.\n• زبائنه الذين صاروا له من قبل يبقون له - تنقل أيًّا منهم من بطاقة الزبون.${rep.customersHidden ? "\n• «زبائنه عنده فقط» يُطفأ: زبائنك ظاهرون." : ""}`
+                    : `زبائن أجهزة ${rep.name} الجديدة يصيرون له من جديد (الدين عليه)؟`;
+                  if (!window.confirm(question)) return;
+                  onSetCustomersStay(next);
+                  setSheet(null);
+                }}
+              >
+                <span aria-hidden="true">👥</span>
+                <span>
+                  <strong>{rep.customersStay ? "زبائنه يصيرون له (الدين عليه)" : "زبائنه يبقون عندي"}</strong>
+                  <small>{rep.customersStay ? "الآن: زبائن أجهزته عندك والدين على الزبون" : "الآن: زبون جهازه يصير له والدين على المندوب"}</small>
+                </span>
+              </button>
+            )}
+            {onSetCustomersHidden && !rep.customersStay && (
               <button
                 type="button"
                 className="party-sheet-option"

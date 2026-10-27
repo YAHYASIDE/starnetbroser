@@ -19191,3 +19191,32 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
 .device-link-conflicts ul { margin: 6px 0; padding-inline-start: 18px; font-size: 0.82rem; display: flex; flex-direction: column; gap: 4px; }
 .device-link-unlink { align-self: flex-start; color: var(--red); }
 .device-link-path { display: inline-block; max-width: 100%; margin-top: 2px; padding: 2px 6px; border-radius: 6px; background: var(--surface-alt); font-size: 0.78rem; overflow-wrap: anywhere; }
+
+/* ↩️ A rep's customer whose devices are no rep's any more (HomeView, repClients.clientsBackToUs). */
+.back-to-us-banner {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--orange);
+  border-radius: var(--radius-md);
+  background: var(--orange-bg);
+  color: var(--text);
+}
+
+.back-to-us-banner p {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.back-to-us-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.back-to-us-actions > button {
+  flex: 1 1 auto;
+  min-width: 0;
+}
