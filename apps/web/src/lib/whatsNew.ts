@@ -31,6 +31,18 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-29-statement-image-short",
+    date: "2026-10-29",
+    title: "🖼️ صورة كشف الزبون أقصر",
+    steps: [
+      {
+        title: "🖼️ صورة الكشف بلا قائمة الأجهزة",
+        before: "صورة الكشف فيها كل أجهزة الزبون تحت اسمه، فتصير طويلة جدًّا.",
+        after: "الصورة بلا قائمة الأجهزة وأعرض قليلًا - بمقاس صورة عادية. ملف PDF يبقى كما هو.",
+      },
+    ],
+  },
+  {
     id: "2026-10-29-rep-customers-mine",
     date: "2026-10-29",
     title: "👥 زبائن «زبائنه يبقون عندي» في «زبائني»",

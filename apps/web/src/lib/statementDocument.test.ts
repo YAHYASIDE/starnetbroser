@@ -108,6 +108,12 @@ describe("buildStatementHtml", () => {
     expect(html).toContain('width:600px');
   });
 
+  it("the picture can leave out the device list under the name (his Oct 29 2026 ask)", () => {
+    const data = buildStatementData({ name: "DEMO NAME" }, true, totals, rows, ["demo-device-a"]);
+    expect(buildStatementHtml(data, business, "", { width: 720 })).toContain("demo-device-a");
+    expect(buildStatementHtml(data, business, "", { width: 720, hideDevices: true })).not.toContain("demo-device-a");
+  });
+
   it("📱 the WhatsApp picture: short (8 operations), every text bigger, grey text darker - the PDF unchanged", () => {
     expect(IMAGE_STATEMENT_ROWS).toBe(8);
     const data = buildStatementData({ name: "DEMO NAME" }, true, totals, rows);

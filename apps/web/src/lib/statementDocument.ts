@@ -253,6 +253,8 @@ export interface StatementHtmlOptions {
   width: number;
   /** Show at most this many operations (newest first); undefined = all. */
   maxRows?: number;
+  /** 🖼️ The picture (his Oct 29 2026 ask «أزل الأجهزة… صورة طبيعية ليست طويلة»): no device list under the name. */
+  hideDevices?: boolean;
 }
 
 /** The invoice-style statement page. */
@@ -346,7 +348,7 @@ export function buildStatementHtml(
         th("التاريخ") + th("البيان") + th("المبلغ") + th("الرصيد") +
         `</tr></thead><tbody>${rowsHtml}</tbody></table>`;
 
-  const devices = data.devices?.length
+  const devices = data.devices?.length && !options.hideDevices
     ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">` +
       data.devices
         .map((d) => `<span dir="ltr" style="font-size:11px;padding:3px 9px;border-radius:999px;background:${C.soft};border:1px solid ${C.line};color:${C.ink}">📡 ${e(d)}</span>`)

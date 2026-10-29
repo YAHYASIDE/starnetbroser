@@ -2336,3 +2336,9 @@ is never pressed while a field is empty - it refills and saves on the next try (
   sheet item «↩️ رجّع زبائنه الحاليين إليّ (N)» while it's on - asks for all of them at once: «على الزبائن (ينتقل
   معهم)» (carry), «يبقى على المندوب» (no carry) or «يبقون زبائنه» (`handleReturnClients` → `moveClientToOwner`).
 
+## 🖼️ The customer statement picture: no device list, normal proportions (Oct 29 2026)
+
+- His ask (a «كشف حساب زبون» picture with ~20 device chips under the name, a long strip): «أريد أن تُزال الأجهزة التي في
+  كشف الصورة فوق، وأن تكون الصورة كصورة طبيعية ليست طويلة». The picture (`exportStatementImage`) passes `hideDevices`
+  and is 720 px wide (was 600): measured with 8 rows ≈ 1 : 1.6 instead of ≈ 1 : 2.5. The PDF keeps the devices.
+

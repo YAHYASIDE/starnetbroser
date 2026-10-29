@@ -8,7 +8,8 @@ import type { PdfResult } from "./pdfExport";
 import { buildStatementHtml, IMAGE_STATEMENT_ROWS, sharpenForImage, StatementData } from "./statementDocument";
 
 /** Phone-shaped page width; drawn at 3x so the picture stays sharp when zoomed in WhatsApp. */
-const IMAGE_WIDTH_PX = 600;
+// 720 (was 600) - with the device list gone, a picture of normal proportions, not a long strip (his Oct 29 2026 ask).
+const IMAGE_WIDTH_PX = 720;
 const IMAGE_PIXEL_RATIO = 3;
 
 /**
@@ -27,6 +28,7 @@ export async function exportStatementImage(data: StatementData): Promise<PdfResu
       buildStatementHtml(data, loadBusinessProfile(), generatedAt, {
         width: IMAGE_WIDTH_PX,
         maxRows: IMAGE_STATEMENT_ROWS,
+        hideDevices: true,
       }),
     );
     document.body.appendChild(host);
