@@ -56,6 +56,7 @@ import { HelpHint } from "./HelpHint";
 import { loadExpectedCurrency } from "@/lib/partyCurrencyData";
 import { awaitingCost, parseBillAmount } from "@/lib/awaitingBill";
 import { CurrencyBadge, CurrencyBanner, useCurrencyGuard } from "./CurrencyGuard";
+import { clientRecordNote, isPlainAdjustment, LEDGER_MODES, modeKind, noCost, showsCost, type LedgerMode, type LedgerTarget } from "@/lib/ledgerModes";
 import { fitPayMethod, methodLabel, PAY_CURRENCIES, PAY_CURRENCY_LABELS, payMethodsFor, toLedgerPayment, type PayCurrency } from "@/lib/payCurrency";
 
 /** One other device linked to the same customer - siblings, never the account currently open in
@@ -106,6 +107,9 @@ interface Props {
   initialKind?: LedgerEntryKind;
   /** What Starlink sync read about this device - picks the Starlink cost's country/currency/amount. */
   starlinkInfo?: { serviceCountry?: string; currency?: string; balanceDue?: string };
+  /** «على الزبون» (lib/ledgerModes.ts): records a «توثيق» / «إضافة» in the customer's own account instead of the
+   * device's - absent when the device has no customer. Returns an error, or null. */
+  onAddClientRecord?: (input: { kind: LedgerEntryKind; amount: number; currency: LedgerCurrency; date: string; note: string }) => string | null;
 }
 
 /** Builds one device's own allocation-dialog data: its eligible (same-currency, not-yet-fully-
@@ -155,8 +159,20 @@ export function LedgerDialog({
   clientPhone,
   initialKind = "debit",
   starlinkInfo,
+  onAddClientRecord,
 }: Props) {
-  const [kind, setKind] = useState<LedgerEntryKind>(initialKind);
+  // 🧾 Three tabs on top (lib/ledgerModes.ts, his Oct 29 2026 ask): 🛂 توثيق · ➕ إضافة · 💵 دفعة.
+  const [mode, setMode] = useState<LedgerMode>(initialKind === "credit" ? "pay" : "add");
+  const [addKind, setAddKind] = useState<LedgerEntryKind>(initialKind);
+  const kind = modeKind(mode, addKind);
+  // ➕ «مع تكلفة Starlink» (a renewal / service, profit counted) - off = a plain balance. 🛂 «له تكلفة».
+  const [addWithCost, setAddWithCost] = useState(true);
+  const [travelWithCost, setTravelWithCost] = useState(false);
+  const [target, setTarget] = useState<LedgerTarget>("device");
+  const effectiveTarget: LedgerTarget = mode === "pay" || !onAddClientRecord ? "device" : target;
+  const withCost = mode === "travel" ? travelWithCost : addWithCost;
+  const costShown = showsCost(mode, kind, withCost, effectiveTarget);
+  const plain = effectiveTarget === "device" && isPlainAdjustment(mode, kind, addWithCost);
   // أوقية (MRU) is the actual day-to-day currency this business sells in - USD is only the
   // internal reference currency, never what a new entry should default to.
   const planSaleCurrency =
@@ -349,7 +365,7 @@ export function LedgerDialog({
   // so it can never drift out of sync with what's actually about to be saved. undefined at any
   // stage (unfilled/invalid input, or MRU/SIFA not yet registered) just means "not shown yet",
   // never a guessed placeholder number.
-  const isDebitForm = kind === "debit";
+  const isDebitForm = kind === "debit" && costShown;
   const costIsUsd = costCurrencyCode === "USD";
   const parsedCostAmount = Number(costAmount);
   const parsedCostRate = Number(costRate);
@@ -391,6 +407,20 @@ export function LedgerDialog({
     }
 
     const stored = kind === "credit" ? toLedgerPayment(payCurrency, parsedAmount) : { currency, amount: parsedAmount };
+    // 👤 «على الزبون»: one record in his own account - no rate, cost or profit (those live on the device).
+    if (effectiveTarget === "client" && onAddClientRecord) {
+      if (!confirmClosedMonthChange([date])) return;
+      const error = onAddClientRecord({ kind, amount: stored.amount, currency: stored.currency, date, note: clientRecordNote(mode, accountName, note) });
+      if (error) {
+        setFormError(error);
+        return;
+      }
+      setFormError(null);
+      setAmount("");
+      setNote("");
+      onClose();
+      return;
+    }
     const needsRate = currency !== "USD";
     const parsedRate = Number(rateInput);
     if (needsRate && (!Number.isFinite(parsedRate) || parsedRate <= 0)) {
@@ -400,7 +430,13 @@ export function LedgerDialog({
 
     let starlinkCostInput: StarlinkCost | undefined;
     let profitCurrencyRates: { MRU?: number; SIFA?: number } | undefined;
-    if (kind === "debit" && awaitBill) {
+    if (kind === "debit" && mode === "travel" && !costShown) {
+      // 🛂 no cost: the whole price is profit, counted today.
+      starlinkCostInput = noCost(date);
+      profitCurrencyRates = { MRU: mruRateKnown, SIFA: sifaRateKnown };
+    } else if (kind === "debit" && !costShown) {
+      starlinkCostInput = undefined; // ➕ a plain balance
+    } else if (kind === "debit" && awaitBill) {
       starlinkCostInput = awaitingCost(costCurrencyCode || starlinkInfo?.currency);
     } else if (kind === "debit") {
       if (!costCurrencyCode) {
@@ -432,7 +468,9 @@ export function LedgerDialog({
         : { status: "settled", currencyCode: costCurrencyCode, amount: parsedCostAmount, rate: costRateSnapshot, paidAt: date };
       profitCurrencyRates = markD ? undefined : { MRU: mruRateKnown, SIFA: sifaRateKnown };
     }
-    guard.ask(stored.currency, stored.amount, (confirmed) => (kind === "debit" ? setRenewalAsk(() => (renewal: boolean) => finishSubmit(confirmed, renewal)) : finishSubmit(confirmed)), (next) => {
+    // 🔄 «هل هذا تجديد؟» only for a charge with a Starlink cost (➕ إضافة) - a 🛂 توثيق / plain balance is never one.
+    const asksRenewal = kind === "debit" && mode === "add" && costShown;
+    guard.ask(stored.currency, stored.amount, (confirmed) => (asksRenewal ? setRenewalAsk(() => (renewal: boolean) => finishSubmit(confirmed, renewal)) : finishSubmit(confirmed, kind === "debit" ? false : undefined)), (next) => {
       setFrancPay(false);
       selectCurrency(next);
     });
@@ -459,18 +497,23 @@ export function LedgerDialog({
         kind,
         amount: stored.amount,
         currency: stored.currency,
-        note,
+        note: mode === "travel" && !note.trim() ? "🛂 توثيق" : note,
         email,
-        paymentMethod: kind === "credit" ? method : undefined,
+        paymentMethod: kind === "credit" && !plain ? method : undefined,
         date,
         saleRate: kind === "debit" ? rateSnapshot : undefined,
-        paymentRate: kind === "credit" ? rateSnapshot : undefined,
+        paymentRate: kind === "credit" && !plain ? rateSnapshot : undefined,
         starlinkCost: starlinkCostInput,
         profitCurrencyRates,
         representative,
       });
       if (currencyConfirmed) entry.currencyConfirmed = true;
       if (renewal !== undefined) entry.renewal = renewal;
+      if (plain) {
+        entry.adjustment = true;
+        delete entry.starlinkCost;
+      }
+      if (mode === "travel") entry.purpose = "travel";
 
       setAmount("");
       setNote("");
@@ -479,7 +522,7 @@ export function LedgerDialog({
       setCostAmount("");
       setAwaitBill(false);
 
-      if (kind === "credit") {
+      if (kind === "credit" && !plain) {
         // A payment is never added directly - it first goes through the allocation dialog below
         // (rule 3: "يعرض النظام الشحنة التي ستُخصص لها الدفعة قبل الحفظ"), which is what actually
         // adds it (along with whatever allocation records the operator confirms).
@@ -554,6 +597,8 @@ export function LedgerDialog({
             "اختر 'عليه' لتسجيل شحنة/مبلغ جديد على الزبون، أو 'له' لتسجيل دفعة استلمتها منه.",
             "عند تسجيل شحنة، أدخل تكلفة Starlink الحقيقية ليُحسب الربح تلقائيًا - أو فعّل 'D' إن لم تُسدَّد بعد.",
             "الدفعة (له) تُخصَّص تلقائيًا لأقدم شحنة غير مدفوعة، ويمكنك تغيير الجهاز أو الشحنة يدويًا قبل الحفظ.",
+            "«🛂 توثيق»: مبلغ التوثيق على الزبون، بتكلفة (مثل Starlink) أو بدونها - ويُحسب ربحه. «➕ إضافة»: له أو عليه، مع تكلفة Starlink أو رصيد فقط. «على الزبون» يسجّلها في حساب الزبون نفسه.",
+            "«النقد المحصّل فعليًا» رقم منفصل عن الربح - يظهر فور استلام دفعة، حتى لو كانت الشحنة D.",
           ]}
         />
 
@@ -588,18 +633,44 @@ export function LedgerDialog({
             </div>
           )}
         </div>
-        {accountingSummary.shipmentCount > 0 && (
-          <p className="settings-hint">
-            هذا رقم منفصل تمامًا عن الربح - يظهر فور استلام دفعة من الزبون، حتى لو كانت شحنته لا تزال
-            بحالة D (تكلفة Starlink غير مسددة بعد).
-          </p>
-        )}
 
         <form className="ledger-entry-form" onSubmit={submit}>
-          <select className="search-input" value={kind} onChange={(e) => setKind(e.target.value as LedgerEntryKind)}>
-            <option value="debit">عليه</option>
-            <option value="credit">له</option>
-          </select>
+          <div className="ledger-modes" role="tablist" aria-label="نوع العملية">
+            {LEDGER_MODES.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                role="tab"
+                aria-selected={mode === m.id}
+                className={`ledger-mode${mode === m.id ? " is-active" : ""}`}
+                onClick={() => {
+                  setMode(m.id);
+                  setFormError(null);
+                }}
+              >
+                <span aria-hidden="true">{m.icon}</span>
+                <strong>{m.label}</strong>
+              </button>
+            ))}
+          </div>
+          <p className="ledger-mode-hint">{LEDGER_MODES.find((m) => m.id === mode)?.hint}</p>
+          {mode !== "pay" && onAddClientRecord && (
+            <div className="ledger-target" role="radiogroup" aria-label="على">
+              <span>على:</span>
+              {(["device", "client"] as LedgerTarget[]).map((t) => (
+                <button key={t} type="button" role="radio" aria-checked={target === t} className={`ledger-target-chip${target === t ? " is-active" : ""}`} onClick={() => setTarget(t)}>
+                  {t === "device" ? "📡 الجهاز" : `👤 الزبون${clientName ? ` (${clientName})` : ""}`}
+                </button>
+              ))}
+            </div>
+          )}
+          {effectiveTarget === "client" && <p className="settings-hint">👤 تُسجَّل في حساب الزبون نفسه (كشفه) - بلا تكلفة ولا ربح. للربح اختر «📡 الجهاز».</p>}
+          {mode === "add" && (
+            <select className="search-input" value={addKind} onChange={(e) => setAddKind(e.target.value as LedgerEntryKind)} aria-label="له أو عليه">
+              <option value="debit">عليه</option>
+              <option value="credit">له</option>
+            </select>
+          )}
           {kind === "credit" ? (
             <select
               className="search-input"
@@ -638,7 +709,7 @@ export function LedgerDialog({
             value={date}
             onChange={(e) => setDate(e.target.value)}
           />
-          {currency !== "USD" && (
+          {currency !== "USD" && effectiveTarget === "device" && (
             <label className="form-field">
               <span>سعر عملة {kind === "debit" ? "البيع" : "الدفعة"} (1 USD = ؟ {currency})</span>
               <input
@@ -652,7 +723,19 @@ export function LedgerDialog({
               />
             </label>
           )}
-          {kind === "debit" && (
+          {kind === "debit" && mode !== "pay" && effectiveTarget === "device" && (
+            <label className="ledger-d-toggle ledger-with-cost">
+              <input
+                type="checkbox"
+                checked={withCost}
+                onChange={(e) => (mode === "travel" ? setTravelWithCost(e.target.checked) : setAddWithCost(e.target.checked))}
+              />
+              {mode === "travel" ? "له تكلفة (مثل تكلفة Starlink)" : "مع تكلفة Starlink (شحن / خدمة - يُحسب ربحه)"}
+            </label>
+          )}
+          {kind === "debit" && mode === "travel" && !costShown && effectiveTarget === "device" && <p className="settings-hint">🛂 بلا تكلفة: المبلغ كله ربح.</p>}
+          {plain && <p className="settings-hint">➕ رصيد فقط: يدخل في حساب الجهاز - لا تجديد ولا D ولا ربح{kind === "credit" ? "، ولا يدخل الكاش" : ""}.</p>}
+          {costShown && (
             <div className="ledger-cost-section">
               <div className="ledger-cost-section-title">
                 <strong>تكلفة اشتراك Starlink</strong>
@@ -826,7 +909,7 @@ export function LedgerDialog({
               )}
             </div>
           )}
-          {kind === "credit" && (
+          {kind === "credit" && !plain && (
             <select
               className="search-input ledger-payment-method-input"
               value={method}
@@ -837,7 +920,7 @@ export function LedgerDialog({
               ))}
             </select>
           )}
-          {kind === "credit" && (
+          {kind === "credit" && !plain && (
             <div className="ledger-proof-field">
               {proofDraft ? (
                 <>
@@ -871,7 +954,7 @@ export function LedgerDialog({
             onChange={(e) => setEmail(e.target.value)}
           />
           {formError && <div className="account-card-alert ledger-form-error">{formError}</div>}
-          <button className="dialog-primary" type="submit">إضافة حركة</button>
+          <button className="dialog-primary" type="submit">{mode === "travel" ? "🛂 سجّل التوثيق" : mode === "pay" ? "💵 سجّل الدفعة" : "➕ أضف"}</button>
         </form>
         {guard.modal}
         {renewalAsk && <RenewalQuestion openDs={openDsNow(entries)} onAnswer={(renewal) => { const go = renewalAsk; setRenewalAsk(null); go(renewal); }} onBack={() => setRenewalAsk(null)} />}

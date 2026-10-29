@@ -2376,3 +2376,17 @@ is never pressed while a field is empty - it refills and saves on the next try (
   says it's edited from the store. «📜 كل العمليات حسب الفترة» (folded) keeps the period chips, the version picker,
   both tables for the period and «أرباح أجهزته جهازًا جهازًا». The «📊 ملخص الفترة» summary and the day cards are gone.
 
+## 🧾 The device «دفعة» window: 🛂 توثيق · ➕ إضافة · 💵 دفعة (Oct 29 2026)
+
+- His ask (the «حساب الزبون» window): «زر دفعة في بطاقة الزبون اجعل عندما أضغطه يظهر فوق: 1 توثيق 2 إضافة 3 دفعة… التوثيق
+  إضافة رصيد بنفس الدفعة لكن باسم توثيق، وتُضاف على الجهاز أو الزبون، ويمكن أن تكون بتكلفة أو بدون تكلفة ويُحسب ربحها.
+  الإضافة: له أو عليه، ويمكن أن يكون هناك مستحق أو بدونه… ونظّم البطاقة». His choices: the travel cost **like Starlink's**,
+  «إضافة» **with an optional Starlink cost**, and **on the device or the customer** (a choice in the window).
+- Built (`lib/ledgerModes.ts`, LedgerDialog): tabs on top (the card's «دفعة» opens on «💵 دفعة», a charge on «➕ إضافة»).
+  🛂 توثيق = «عليه» `purpose: "travel"`, note «🛂 توثيق», never a renewal; «له تكلفة» shows the Starlink-cost section
+  (settled or D); none = cost settled at 0 that day (the whole price is profit). ➕ إضافة = «عليه / له»; «مع تكلفة
+  Starlink» = the old charge (asks «هل هذا تجديد؟»); without it, or any «له», = a plain balance (`adjustment: true`:
+  not a shipment, no D / profit / renewal, a «له» posts no cash and skips the allocation). «على: 👤 الزبون» (when the
+  device has a visible customer) records a client adjustment «عليه / له» with the note «🛂 توثيق · device · note» -
+  no cost or profit there. 💵 دفعة unchanged. The long «النقد المحصّل» explanation moved into the help hint.
+

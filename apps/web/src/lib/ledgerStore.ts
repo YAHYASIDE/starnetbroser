@@ -156,6 +156,12 @@ export interface LedgerEntry {
    * locked rate, the customer's amount raised at the same price per dollar. Kept so the growth is
    * reviewable and can be taken back. */
   grownBy?: { at: string; usd: number; cost: number; amount: number }[];
+  /** ➕ «إضافة» without a Starlink cost (lib/ledgerModes.ts, his Oct 29 2026 ask): a plain «له / عليه» on the
+   * device - in its balance, but no renewal, no D, no profit, and (a «له») no cash and no allocation. */
+  adjustment?: boolean;
+  /** 🛂 «توثيق» (lib/ledgerModes.ts): a travel registration sold like a charge, its cost optional (like
+   * Starlink's: settled or D) and its profit counted - never a renewal. */
+  purpose?: "travel";
 }
 
 /** 🛂 The travel-registration debt (LedgerEntry.travelFeeFor) - not a Starlink renewal. */
@@ -164,8 +170,8 @@ export function isTravelFeeEntry(entry: Pick<LedgerEntry, "travelFeeFor">): bool
 }
 
 /** A "عليه" that is a real renewal (a shipment) - every debit except the travel-registration debt. */
-export function isShipmentEntry(entry: Pick<LedgerEntry, "kind" | "travelFeeFor">): boolean {
-  return entry.kind === "debit" && !isTravelFeeEntry(entry);
+export function isShipmentEntry(entry: Pick<LedgerEntry, "kind" | "travelFeeFor" | "adjustment">): boolean {
+  return entry.kind === "debit" && !isTravelFeeEntry(entry) && !entry.adjustment;
 }
 
 /** A "debit" entry with no starlinkCost info at all predates this feature - its profit can never
@@ -182,7 +188,7 @@ export function isLegacyShipmentEntry(entry: LedgerEntry): boolean {
  * as incomplete (see DeviceAccountingSummary.hasIncompletePaymentRates). Resolved only by
  * capturing the missing rate explicitly (see PaymentRateCompletionDialog), never guessed. */
 export function isIncompletePaymentRateEntry(entry: LedgerEntry): boolean {
-  return entry.kind === "credit" && entry.currency !== "USD" && !entry.paymentRate;
+  return entry.kind === "credit" && entry.currency !== "USD" && !entry.paymentRate && !entry.adjustment;
 }
 
 /** The currency code most recently used to settle a Starlink cost on THIS device (by `paidAt`,

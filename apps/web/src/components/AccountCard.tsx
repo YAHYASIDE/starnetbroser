@@ -101,7 +101,8 @@ interface Props {
    * each shipment's own payment status (unpaid/partial/paid) in the WhatsApp statement message;
    * never anything Starlink-cost or profit related, which stays strictly internal. */
   allocations: PaymentAllocation[];
-  onLedger: (account: StarlinkAccountSummary) => void;
+  /** `payment`: opened from «دفعة» - the window starts on its «💵 دفعة» tab. */
+  onLedger: (account: StarlinkAccountSummary, payment?: boolean) => void;
   /** 💳 «D» tapped: pay this device's unpaid Starlink cost (his Oct 12 2026 ask). */
   onSettleD?: (account: StarlinkAccountSummary) => void;
   onDeviceStatement: (account: StarlinkAccountSummary) => void;
@@ -517,7 +518,7 @@ export function AccountCard({
       if (onSaveNote && onSetPinned) setNoteSheet("menu");
       else setExpanded((v) => !v);
     } else if (gesture === "details") setExpanded((v) => !v);
-    else if (gesture === "payment") onLedger(account);
+    else if (gesture === "payment") onLedger(account, true);
     else if (context === "active") onEdit(account);
   });
   const [showFaultDialog, setShowFaultDialog] = useState(false);
@@ -1126,7 +1127,7 @@ export function AccountCard({
         </button>
         {context === "active" && (
           <>
-            <button type="button" className="card-action card-daily-action card-act-pay" onClick={() => onLedger(account)}>
+            <button type="button" className="card-action card-daily-action card-act-pay" onClick={() => onLedger(account, true)}>
               <IconCash /> دفعة
             </button>
             {/* 🔄 «تحديث» where «تجديد» was (التجديد in ⋯) - the normal sync, his Oct 18 2026 choice. */}
@@ -1250,7 +1251,7 @@ export function AccountCard({
           {account.alertReason && <div className="account-card-alert">{account.alertReason}</div>}
 
           <div className="account-card-expanded-grid">
-            <button className="card-action" type="button" onClick={() => onLedger(account)}>إضافة دفعة</button>
+            <button className="card-action" type="button" onClick={() => onLedger(account, true)}>إضافة دفعة</button>
             <button className="card-action" type="button" disabled={!client} onClick={() => client && onOpenClient(client)}>كشف حساب الزبون</button>
             <button className="card-action" type="button" onClick={() => onDeviceStatement(account)}>كشف حساب الجهاز</button>
             <button className="card-action" type="button" onClick={() => onDeviceStatement(account)}>سجل التجديدات</button>

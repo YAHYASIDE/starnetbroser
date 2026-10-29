@@ -193,7 +193,8 @@ export function applyLedgerPaymentsToCash(
     if (!nextIds.has(prev.id)) result = removeLinkedCashEntries(result, prev.id);
   }
   for (const entry of nextEntries) {
-    if (entry.kind !== "credit") continue;
+    // ➕ a plain «له» (LedgerEntry.adjustment) is a balance, not money received.
+    if (entry.kind !== "credit" || entry.adjustment) continue;
     const prev = prevById.get(entry.id);
     if (!prev) {
       const posted = recordCashEntry(result, {

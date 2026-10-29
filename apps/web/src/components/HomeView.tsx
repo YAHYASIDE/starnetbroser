@@ -2591,7 +2591,10 @@ export function HomeView({
       onEdit={(selected) => setDialog({ mode: "edit", account: selected })}
       ledgerEntries={getAccountEntries(ledgerStore, account.id)}
       allocations={allAllocations}
-      onLedger={(selected) => setLedgerAccount(selected)}
+      onLedger={(selected, payment) => {
+        setLedgerForPayment(Boolean(payment));
+        setLedgerAccount(selected);
+      }}
       onSettleD={(selected) => {
         // 💳 the card page's own payment form for its oldest D (his Oct 14 2026 ask: «ما خرج
         // من البطاقة», the real rate) - and back here once paid.
@@ -3693,6 +3696,25 @@ export function HomeView({
             setLedgerForPayment(false);
           }}
           initialKind={ledgerForPayment ? "credit" : "debit"}
+          onAddClientRecord={
+            ledgerAccount.clientId && visibleClientOf(ledgerAccount)
+              ? (input) => {
+                  const result = recordPartyAdjustment(loadPartyAdjustments(), {
+                    partyKind: "client",
+                    partyId: ledgerAccount.clientId!,
+                    direction: input.kind === "debit" ? "owesUs" : "weOwe",
+                    amount: input.amount,
+                    currencyCode: input.currency,
+                    date: input.date,
+                    note: input.note,
+                  });
+                  if (!result.ok) return result.message;
+                  savePartyAdjustments(result.list);
+                  pushToast(`👤 سُجّل في حساب ${visibleClientOf(ledgerAccount)?.name ?? "الزبون"}: ${input.kind === "debit" ? "عليه" : "له"} ${formatAmount(input.amount)} ${LEDGER_CURRENCY_LABELS[input.currency]}`);
+                  return null;
+                }
+              : undefined
+          }
           onChange={(entries) => updateLedgerEntries(ledgerAccount.id, entries)}
           renewalPlan={ledgerAccount.renewalPlan}
           starlinkInfo={{
