@@ -11,7 +11,7 @@ import { getCurrency, loadCurrencyStore } from "@/lib/currencyStore";
 import { PdfButton } from "@/components/PdfButton";
 import { RepAppCodePanel } from "@/components/RepAppCodePanel";
 import { copyGaps, copyGapsText, loadRepCopySentDevices } from "@/lib/repCopy";
-import { setRepCustomersHidden, setRepCustomersStay, setRepRates } from "@/lib/repStore";
+import { setRepAutoStatement, setRepCustomersHidden, setRepCustomersStay, setRepRates } from "@/lib/repStore";
 import { shipmentProfitMoment } from "@/lib/accountingStore";
 import { loadProfitReset } from "@/lib/profitReset";
 import { applyRepReset, inRepVersion, pickRepReset, repResetPoints, repVersions, seedRepResetHistory, undoRepReset, type RepVersion } from "@/lib/repResets";
@@ -122,6 +122,7 @@ import { recordRepMoneyHandover } from "@/lib/repClientsSave";
 import { RepAccountsPage } from "@/components/RepAccountsPage";
 import { customerOpLabel, repRowText, SETTLEMENT_LABELS, settlementText } from "@/lib/repRowText";
 import { confirmClosedMonthChange, ledgerEntryMonthDates, monthLabel, monthRange, recentMonths } from "@/lib/monthClosing";
+import { balanceParts, balanceText, buildRepStatementPdf, makeFx, nonZero, repRowCells, rowBalance, type Fx } from "@/lib/repStatementDoc";
 
 const EPSILON = 0.0001;
 
@@ -139,32 +140,7 @@ function ltrText(value: string): string {
   return `\u2066${value}\u2069`;
 }
 
-function nonZero(values: Record<string, number>): [string, number][] {
-  return Object.entries(values).filter(([, v]) => Math.abs(v) > EPSILON);
-}
 
-/** His running balance in words: "له" = we owe him, "عليه" = he owes us. */
-function balanceParts(values: Record<string, number>): { text: string; tone: "due" | "clear" | "zero" }[] {
-  const parts = nonZero(values).map(([code, v]) => ({
-    text: `${v > 0 ? "له" : "عليه"} ${formatAmount(Math.abs(v))} ${currencyLabel(code)}`,
-    tone: (v > 0 ? "due" : "clear") as "due" | "clear",
-  }));
-  return parts.length > 0 ? parts : [{ text: "صفر - الحساب متوازن", tone: "zero" }];
-}
-
-function balanceText(values: Record<string, number>): string {
-  return balanceParts(values)
-    .map((p) => p.text)
-    .join(" · ");
-}
-
-/** 📒 The balance a statement row shows: the one of his two accounts it moves (repRowSplit). */
-function rowBalance(statement: RepPeriodStatement, row: RepStatementRow, native?: RepPeriodStatement): { label: string; values: Record<string, number> } {
-  const account = repRowAccount(row);
-  // «ما عليه» in each record's own currency when given (his Oct 22 2026 choice «كل عملة وحدها»).
-  const source = account === "debt" && native ? native : statement;
-  return { label: account === "debt" ? "ما عليه" : "ربحه", values: source[account].after[repRowKey(row)] ?? {} };
-}
 
 /** Everything on this page is shown in the currency the operator picked (أوقية, سيفا or both),
  * converted at each record's own locked rates (repAccount.ts's makeRepConverter). */
@@ -173,28 +149,6 @@ type RepDisplay = "MRU" | "SIFA" | "both";
 const DISPLAY_KEY = "starnet.repDisplayCurrency";
 const DISPLAY_LABELS: Record<RepDisplay, string> = { MRU: "أوقية", SIFA: "سيفا", both: "الاثنين" };
 
-interface Fx {
-  convert: RepConvert;
-  /** A USD figure (profit/share) in the display currencies, at the shipment's locked rates. */
-  usd: (usd: number, entry?: LedgerEntry) => string;
-  /** Converted values joined, e.g. "1,000 أوقية · 15,000 سيفا". */
-  list: (values: Record<string, number>) => string;
-  /** One amount in its own currency, converted. */
-  amount: (amount: number, code: string, locked?: Record<string, number>) => string;
-}
-
-function makeFx(convert: RepConvert): Fx {
-  const list = (values: Record<string, number>) => {
-    const parts = Object.entries(values).map(([c, v]) => `${v < -EPSILON ? "-" : ""}${formatAmount(Math.abs(v))} ${currencyLabel(c)}`);
-    return parts.length > 0 ? parts.join(" · ") : "0";
-  };
-  return {
-    convert,
-    usd: (usd, entry) => list(convert(usd, "USD", entry?.profitCurrencyRates)),
-    list,
-    amount: (amount, code, locked) => list(convert(amount, code, locked)),
-  };
-}
 
 const FxContext = createContext<Fx>(makeFx(keepCurrency));
 
@@ -610,6 +564,7 @@ export default function RepresentativesPage() {
                       const ids = stay ? Object.values(clientStore).filter((c) => currentRepOfClient(c) === rep.id).map((c) => c.id) : [];
                       if (ids.length > 0) setReturnAsk({ repId: rep.id, ids });
                     }}
+                    onSetAutoStatement={(on) => saveReps(setRepAutoStatement(representativeStore, rep.id, on))}
                     ownClientIds={rep.customersStay ? Object.values(clientStore).filter((c) => currentRepOfClient(c) === rep.id).map((c) => c.id) : []}
                     onAskReturnClients={(ids) => setReturnAsk({ repId: rep.id, ids })}
                     onSetRates={(plan, since) => {
@@ -702,6 +657,8 @@ interface RepCardProps {
   onSetCustomersHidden?: (hidden: boolean) => void;
   /** 👥 «زبائنه يبقون عندي» on/off (repStore.customersStay). */
   onSetCustomersStay?: (stay: boolean) => void;
+  /** 📄 «كشف بعد كل عملية» on/off (repStore.autoStatement). */
+  onSetAutoStatement?: (on: boolean) => void;
   /** 👥 With «زبائنه يبقون عندي» on: the customers still his, to offer them back. */
   ownClientIds?: string[];
   onAskReturnClients?: (ids: string[]) => void;
@@ -746,6 +703,7 @@ function RepCard({
   readOnly = false,
   onSetCustomersHidden,
   onSetCustomersStay,
+  onSetAutoStatement,
   ownClientIds = [],
   onAskReturnClients,
   onSetRates,
@@ -1558,6 +1516,31 @@ function RepCard({
                 <span>
                   <strong>{rep.customersStay ? "زبائنه يصيرون له (الدين عليه)" : "زبائنه يبقون عندي"}</strong>
                   <small>{rep.customersStay ? "الآن: زبائن أجهزته عندك والدين على الزبون" : "الآن: زبون جهازه يصير له والدين على المندوب"}</small>
+                </span>
+              </button>
+            )}
+            {onSetAutoStatement && (
+              <button
+                type="button"
+                className="party-sheet-option"
+                onClick={() => {
+                  const next = !rep.autoStatement;
+                  if (next && !isRepLinkedToBot(rep.id)) {
+                    window.alert(`${rep.name} غير مربوط ببوت المندوبين - اربطه أولًا من الإعدادات ← بوت المندوبين.`);
+                    return;
+                  }
+                  const question = next
+                    ? `📄 كشف بعد كل عملية لـ${rep.name}؟\n\nكل عملية جديدة عليه (تجديد، دفعة، تسليم…) يصله بعدها كشف حسابه PDF في بوت المندوبين: «المبلغ المتبقي عليه» وآخر 10 عمليات. يعمل والتطبيق مفتوح. العمليات القديمة لا تُرسل.`
+                    : `إيقاف «كشف بعد كل عملية» لـ${rep.name}؟`;
+                  if (!window.confirm(question)) return;
+                  onSetAutoStatement(next);
+                  setSheet(null);
+                }}
+              >
+                <span aria-hidden="true">📄</span>
+                <span>
+                  <strong>{rep.autoStatement ? "إيقاف الكشف بعد كل عملية" : "كشف بعد كل عملية"}</strong>
+                  <small>{rep.autoStatement ? "الآن: يصله كشف (آخر 10 عمليات) بعد كل عملية" : "يصله كشف حسابه PDF بآخر 10 عمليات بعد كل عملية"}</small>
                 </span>
               </button>
             )}
@@ -2681,73 +2664,7 @@ function RepresentativeForm({
   );
 }
 
-function repRowCells(
-  row: RepStatementRow,
-  after: { label: string; values: Record<string, number> } | undefined,
-  accountName: (accountId: string) => string,
-  clientNameFor: (accountId: string) => string | undefined,
-  storeItems: StoreItemRegistry,
-  fx: Fx,
-): string[] {
-  const delta = nonZero(repRowDelta(row, fx.convert))
-    .map(([code, v]) => `${v > 0 ? "+" : "-"}${formatAmount(Math.abs(v))} ${currencyLabel(code)}`)
-    .join(" / ");
-  const balance = after ? `${after.label}: ${balanceText(after.values)}` : "";
-  if (row.type === "device") {
-    const { entry, profit, percent, repShareUsd, accountId } = row.row;
-    const client = clientNameFor(accountId);
-    const title = `📡 ${accountName(accountId)}${client ? ` · ${client}` : ""} (${formatAmount(entry.amount)} ${currencyLabel(entry.currency)})`;
-    if (profit.status !== "computed") {
-      const expected = row.row.expectedRepShareUsd;
-      return [row.date, title, `⏳ D - حصته المتوقعة ${expected !== undefined ? fx.usd(expected) : ""} (${percent}%)`, delta, balance];
-    }
-    return [row.date, title, `ربح ${fx.usd(profit.profitUsd ?? 0, entry)} · حصته ${fx.usd(repShareUsd ?? 0, entry)} (${percent}%)`, delta, balance];
-  }
-  if (row.type === "customer") {
-    const { op } = row;
-    const client = clientNameFor(op.accountId);
-    return [row.date, `${customerOpLabel(op)} · ${accountName(op.accountId)}${client ? ` · ${client}` : ""}`, `${formatAmount(Math.abs(op.amount))} ${currencyLabel(op.currency)}${op.note ? ` · ${op.note}` : ""}`, delta, balance];
-  }
-  if (row.type === "invoice") {
-    const { invoice, commissionAmount } = row.row;
-    const names = invoice.lines.map((l) => getStoreItem(storeItems, l.itemId)?.name).filter(Boolean).join("، ");
-    const paid = invoice.paidAmount > 0 ? ` · قبض ${formatAmount(invoice.paidAmount)}` : "";
-    return [row.date, `🧾 فاتورة متجر${names ? ` · ${names}` : ""}`, `عمولته ${formatAmount(commissionAmount)} ${currencyLabel(invoice.currencyCode)}${paid}`, delta, balance];
-  }
-  const s = row.settlement;
-  return [row.date, SETTLEMENT_LABELS[s.kind], s.note ?? "", delta, balance];
-}
 
-/**
- * 📡 «كشف حساب مندوب» = what he owes only (his Oct 19 2026 ask: «كشف الحساب يضيف فقط الذي على المندوب من عمليات
- * ستارلينك… الفوق فيه كثير من البطاقات، أضف فقط بطاقة المبلغ المتبقي عليه»): one card - what is left on him - and
- * only the rows of «ما عليه» (renewals on his devices, payments, what he handed over), newest first so the last
- * operation is on top. His profit is its own statement (buildRepProfitPdf).
- */
-function buildRepStatementPdf(
-  rep: Representative,
-  statement: RepPeriodStatement,
-  periodLabel: string,
-  accountName: (accountId: string) => string,
-  clientNameFor: (accountId: string) => string | undefined,
-  storeItems: StoreItemRegistry,
-  fx: Fx,
-  native?: RepPeriodStatement,
-): PrintableDocument {
-  const rows = statement.days.flatMap((day) =>
-    day.rows.filter((row) => repRowAccount(row) === "debt").map((row) => repRowCells(row, rowBalance(statement, row, native), accountName, clientNameFor, storeItems, fx)),
-  );
-  return {
-    title: "كشف حساب مندوب",
-    partyName: rep.name,
-    partyPhone: rep.phone,
-    subtitle: periodLabel,
-    summary: [{ label: "📡 المبلغ المتبقي عليه", value: balanceText((native ?? statement).debt.closing) || "لا شيء ✓", tone: "due" as const }],
-    columns: ["التاريخ", "العملية", "التفاصيل", "الحركة", "ما عليه بعدها"],
-    rows,
-    footerNote: "الأحدث أولًا. «عليه» = مستحق عليه، «له» = مستحق له. أرباحه في «كشف الأرباح» وحده - لا تُخصم من هذا الكشف.",
-  };
-}
 
 /** 📈 «كشف أرباح مندوب» - his profit alone (his Oct 19 2026 ask): his share confirmed and expected (D), what you paid
  * him from it, and the rows of «ربحه», newest first. */

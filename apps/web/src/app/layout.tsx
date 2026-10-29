@@ -17,6 +17,7 @@ import { WhatsNewTour } from "@/components/WhatsNewTour";
 import { LiveSyncRunner } from "@/components/LiveSyncRunner";
 import { DeviceLinkRunner } from "@/components/DeviceLinkRunner";
 import { RepCopyAutoRunner } from "@/components/RepCopyAutoRunner";
+import { RepAutoStatementRunner } from "@/components/RepAutoStatementRunner";
 import { LinkGuardListener } from "@/components/LinkGuardListener";
 import { DeskSidebar, DeskKeys } from "@/components/DeskSidebar";
 
@@ -59,6 +60,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <LiveSyncRunner />
             <DeviceLinkRunner />
             <RepCopyAutoRunner />
+            <RepAutoStatementRunner />
             <LinkGuardListener />
           </RepModeGate>
         </AppLockGate>

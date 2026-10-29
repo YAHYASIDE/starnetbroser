@@ -43,6 +43,9 @@ export interface Representative {
    * never moved to him by themselves - so the renewals on them are the customer's debt (the rep keeps his
    * percent of the profit). Off = his devices' customers become his, the debt his (repClients.ts). */
   customersStay?: boolean;
+  /** 📄 «كشف بعد كل عملية» (his Oct 29 2026 choice, per rep): every new operation on what he owes sends him his
+   * statement with the last 10 operations as a PDF in the reps bot (RepAutoStatementRunner). */
+  autoStatement?: boolean;
   /** 💱 «عملته»: the currency we deal with him in (lib/partyCurrency.ts). Absent = automatic, from
    * most of his devices' operations. */
   defaultCurrency?: LedgerCurrency;
@@ -205,6 +208,14 @@ export function setRepCustomersStay(store: RepresentativeStore, id: string, stay
     ...store,
     [id]: { ...rest, ...(stay ? { customersStay: true } : hidden ? { customersHidden: true } : {}), updatedAt: new Date().toISOString() },
   };
+}
+
+/** Turns «📄 كشف بعد كل عملية» on or off for one rep. */
+export function setRepAutoStatement(store: RepresentativeStore, id: string, on: boolean): RepresentativeStore {
+  const existing = store[id];
+  if (!existing) return store;
+  const { autoStatement: _was, ...rest } = existing;
+  return { ...store, [id]: { ...rest, ...(on ? { autoStatement: true } : {}), updatedAt: new Date().toISOString() } };
 }
 
 /** 💱 Sets (or, with null, removes) his own rates. The shipments are stamped separately

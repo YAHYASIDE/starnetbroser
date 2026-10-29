@@ -31,6 +31,19 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-29-rep-auto-statement",
+    date: "2026-10-29",
+    title: "📄 كشف المندوب بعد كل عملية",
+    steps: [
+      {
+        path: "/representatives",
+        title: "📄 «كشف بعد كل عملية» في إدارة المندوب",
+        before: "كشف حساب المندوب يُرسل بيدك من صفحة المندوب فقط.",
+        after: "لكل مندوب تختار «📄 كشف بعد كل عملية»: كل عملية جديدة عليه يصله بعدها كشفه PDF في بوت المندوبين - «المبلغ المتبقي عليه» وآخر 10 عمليات. يعمل والتطبيق مفتوح، والعمليات القديمة لا تُرسل.",
+      },
+    ],
+  },
+  {
     id: "2026-10-29-statement-image-short",
     date: "2026-10-29",
     title: "🖼️ صورة كشف الزبون أقصر",

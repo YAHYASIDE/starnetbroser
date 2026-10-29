@@ -2342,3 +2342,16 @@ is never pressed while a field is empty - it refills and saves on the next try (
   كشف الصورة فوق، وأن تكون الصورة كصورة طبيعية ليست طويلة». The picture (`exportStatementImage`) passes `hideDevices`
   and is 720 px wide (was 600): measured with 8 rows ≈ 1 : 1.6 instead of ≈ 1 : 2.5. The PDF keeps the devices.
 
+## 📄 The rep's statement after every operation (Oct 29 2026)
+
+- His ask (a «كشف حساب مندوب» PDF of الحسين): «أريد هذا الكشف: كل عملية تُضاف للمندوب أن يُرسل له هذا الكشف بآخر 10
+  عمليات». His choices: **«فور كل عملية»** (not batched after 5 minutes) and **«PDF، أختار المندوبين»**.
+- Built: a rep option «📄 كشف بعد كل عملية» (`Representative.autoStatement`, `setRepAutoStatement`; needs the rep linked
+  to the reps bot). `RepAutoStatementRunner` (layout, Android app, not on a rep's phone) checks every 20 s and after an
+  accounts change: the rows of «ما عليه» of his current account (`repCurrentStatement` - the reps page's «الكل»,
+  after his reset) - a row key not in the last sent list → `sendRepPdf` of `buildRepAutoStatementPdf` (the same
+  «كشف حساب مندوب», «المبلغ المتبقي عليه» + the last 10 operations, «آخر 10 عمليات من أصل N»). Turning it on
+  records the current rows without sending (no whole history); a removed operation sends nothing. Sent keys per rep
+  in `starnet.repAutoStatementSent` (phone setting). Operations recorded in the same 20 s go in one statement.
+  The statement builder moved from the reps page to `lib/repStatementDoc.ts` (same output).
+
