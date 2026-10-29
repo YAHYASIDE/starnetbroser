@@ -19449,3 +19449,17 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
 .ledger-with-cost {
   grid-column: 1 / -1;
 }
+
+.rep-table td.rep-fill-due {
+  background: var(--red-bg);
+}
+
+.rep-table td.rep-fill-clear {
+  background: var(--green-bg);
+}
+
+.rep-table td.rep-fill-due,
+.rep-table td.rep-fill-clear {
+  font-weight: 700;
+  text-align: center;
+}

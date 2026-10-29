@@ -2389,4 +2389,10 @@ is never pressed while a field is empty - it refills and saves on the next try (
   not a shipment, no D / profit / renewal, a «له» posts no cash and skips the allocation). «على: 👤 الزبون» (when the
   device has a visible customer) records a client adjustment «عليه / له» with the note «🛂 توثيق · device · note» -
   no cost or profit there. 💵 دفعة unchanged. The long «النقد المحصّل» explanation moved into the help hint.
+- **Oct 29 2026, the PDF like his reference** («كشف الحساب ليس بجيدًا جدًا… اجعله مشابهًا لها: دفعات ملونة، له خضراء، عليه
+  حمراء، والأرباح ليست هنا، هي فقط في كشف الأرباح», with a ledger app's «شحن الأجهزة» screenshot): `buildRepStatementPdf`
+  = التاريخ (+ the time it was recorded) · المبلغ (each record's own currency - the old «الحركة» was converted to أوقية,
+  e.g. 20,500 سيفا showed −78,041.38 أوقية) · التفاصيل (operation · its note) · الرصيد; the amount and balance cells are
+  filled red «عليه» / green «له» (`PrintableDocument.cellTones`). No profit figure in it. The in-app tables fill the same
+  two cells.
 

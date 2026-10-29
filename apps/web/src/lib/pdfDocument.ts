@@ -104,6 +104,9 @@ export interface PrintableDocument {
   rows: string[][];
   /** Optional per-row tone (same length as rows) - colours that row's last cell. */
   rowTones?: PrintableTone[];
+  /** Optional per-cell tone: that cell gets a filled background (red «عليه» / green «له») - the rep's statement
+   * (his Oct 29 2026 reference: a ledger app's coloured amount and balance cells). */
+  cellTones?: (PrintableTone | undefined)[][];
   footerNote?: string;
   /** Set for a client/supplier statement: rendered with the invoice-style statement layout
    * (statementDocument.ts) instead of the generic table above. */
@@ -127,6 +130,7 @@ export function escapeHtml(value: string): string {
 }
 
 const TONE_COLORS: Record<PrintableTone, string> = { due: "#d0332f", clear: "#1a9e5c", neutral: "#14181f" };
+const TONE_FILLS: Record<PrintableTone, string> = { due: "#f2b8b0", clear: "#b9e4b2", neutral: "#eef1f4" };
 
 /** A fixed-width (A4 at 96dpi = 794px) RTL page with inline styles only, so it renders the same
  * wherever it's captured, independent of the app's own theme (dark mode included). */
@@ -148,7 +152,12 @@ export function buildPrintableHtml(doc: PrintableDocument, business: BusinessPro
       const tone = doc.rowTones?.[index];
       const cells = row
         .map((cell, cellIndex) => {
-          const color = tone && cellIndex === row.length - 1 ? `color:${TONE_COLORS[tone]};font-weight:700;` : "";
+          const fill = doc.cellTones?.[index]?.[cellIndex];
+          const color = fill
+            ? `background:${TONE_FILLS[fill]};color:#14181f;font-weight:700;text-align:center;border-left:3px solid #ffffff;`
+            : tone && cellIndex === row.length - 1
+              ? `color:${TONE_COLORS[tone]};font-weight:700;`
+              : "";
           return `<td style="padding:7px 6px;border-bottom:1px solid #e1e5ea;font-size:12px;${color}"><bdi>${e(cell)}</bdi></td>`;
         })
         .join("");

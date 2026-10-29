@@ -2614,6 +2614,12 @@ function signedList(values: Record<string, number>): string {
   return parts.length ? parts.join(" / ") : "0";
 }
 
+/** 🟥 / 🟩 The filled cell of his reference ledger: red «عليه», green «له». */
+function fillOf(values: Record<string, number>): string {
+  const v = nonZero(values)[0]?.[1];
+  return v === undefined ? "" : v < 0 ? "rep-fill-due" : "rep-fill-clear";
+}
+
 /** One balance in a table cell: «عليه» red, «له» green, each currency on its own line. */
 function BalanceCell({ values }: { values: Record<string, number> }) {
   const parts = nonZero(values);
@@ -2665,7 +2671,7 @@ function RepStatementTable({
                 {describe(line.row)}
               </td>
               <td><BalanceCell values={line.before} /></td>
-              <td className="rep-table-move">
+              <td className={`rep-table-move ${fillOf(line.delta)}`}>
                 {nonZero(line.delta).map(([code, v]) => (
                   <span key={code}>
                     <bdi dir="ltr">{`${v > 0 ? "+" : "-"}${formatAmount(Math.abs(v))}`}</bdi>
@@ -2673,7 +2679,7 @@ function RepStatementTable({
                   </span>
                 ))}
               </td>
-              <td><BalanceCell values={line.after} /></td>
+              <td className={fillOf(line.after)}><BalanceCell values={line.after} /></td>
             </tr>
           ))}
         </tbody>

@@ -121,11 +121,38 @@ export function repRowCells(
   return [row.date, SETTLEMENT_LABELS[s.kind], s.note ?? "", delta, balance];
 }
 
+/** «20,500 سيفا» - an amount (or several currencies) without its sign. */
+function plainList(values: Record<string, number>): string {
+  const parts = nonZero(values).map(([code, v]) => `${formatAmount(Math.abs(v))} ${currencyLabel(code)}`);
+  return parts.length ? parts.join(" / ") : "0";
+}
+
+/** «عليه» red / «له» green, from the first currency that isn't zero. */
+function toneOf(values: Record<string, number>): "due" | "clear" | undefined {
+  const v = nonZero(values)[0]?.[1];
+  return v === undefined ? undefined : v < 0 ? "due" : "clear";
+}
+
+/** The note an operation carries, for «التفاصيل». */
+function rowNote(row: RepStatementRow): string {
+  if (row.type === "customer") return row.op.note ?? "";
+  if (row.type === "settlement") return row.settlement.note ?? "";
+  return "";
+}
+
+/** «2026-10-29 15:53» - the day, and the time it was recorded when that's the same day. */
+function dateTime(row: RepStatementRow): string {
+  const at = new Date(row.createdAt);
+  if (Number.isNaN(at.getTime())) return row.date;
+  const local = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}-${String(at.getDate()).padStart(2, "0")}`;
+  return local === row.date ? `${row.date} ${String(at.getHours()).padStart(2, "0")}:${String(at.getMinutes()).padStart(2, "0")}` : row.date;
+}
+
 /**
- * 📡 «كشف حساب مندوب» = what he owes only (his Oct 19 2026 ask: «كشف الحساب يضيف فقط الذي على المندوب من عمليات
- * ستارلينك… الفوق فيه كثير من البطاقات، أضف فقط بطاقة المبلغ المتبقي عليه»): one card - what is left on him - and
- * only the rows of «ما عليه» (renewals on his devices, payments, what he handed over), newest first so the last
- * operation is on top. His profit is its own statement (buildRepProfitPdf).
+ * 📡 «كشف حساب مندوب» = what he owes only (his Oct 19 2026 ask: «كشف الحساب يضيف فقط الذي على المندوب»), newest first.
+ * Since his Oct 29 2026 reference (a ledger app's «شحن الأجهزة»): التاريخ · المبلغ · التفاصيل · الرصيد, each amount in
+ * its own currency, the amount and the balance cells filled red («عليه») / green («له») - no profit figures at all
+ * (his profit is its own statement, buildRepProfitPdf).
  */
 export function buildRepStatementPdf(
   rep: Representative,
@@ -137,18 +164,25 @@ export function buildRepStatementPdf(
   fx: Fx,
   native?: RepPeriodStatement,
 ): PrintableDocument {
-  const rows = statement.days.flatMap((day) =>
-    day.rows.filter((row) => repRowAccount(row) === "debt").map((row) => repRowCells(row, rowBalance(statement, row, native), accountName, clientNameFor, storeItems, fx)),
-  );
+  const lines = repStatementTable(statement, native ?? statement, "debt", fx.convert);
+  const rows: string[][] = [];
+  const cellTones: ("due" | "clear" | undefined)[][] = [];
+  for (const line of lines) {
+    const title = repRowCells(line.row, undefined, accountName, clientNameFor, storeItems, fx)[1] ?? "";
+    const note = rowNote(line.row);
+    rows.push([dateTime(line.row), plainList(line.delta), note ? `${title} · ${note}` : title, plainList(line.after)]);
+    cellTones.push([undefined, toneOf(line.delta), undefined, toneOf(line.after)]);
+  }
   return {
     title: "كشف حساب مندوب",
     partyName: rep.name,
     partyPhone: rep.phone,
     subtitle: periodLabel,
     summary: [{ label: "📡 المبلغ المتبقي عليه", value: balanceText((native ?? statement).debt.closing) || "لا شيء ✓", tone: "due" as const }],
-    columns: ["التاريخ", "العملية", "التفاصيل", "الحركة", "ما عليه بعدها"],
+    columns: ["التاريخ", "المبلغ", "التفاصيل", "الرصيد"],
     rows,
-    footerNote: "الأحدث أولًا. «عليه» = مستحق عليه، «له» = مستحق له. أرباحه في «كشف الأرباح» وحده - لا تُخصم من هذا الكشف.",
+    cellTones,
+    footerNote: "الأحدث أولًا. 🟥 أحمر = عليه · 🟩 أخضر = له. أرباحه في «كشف الأرباح» وحده - لا تُخصم من هذا الكشف.",
   };
 }
 
@@ -195,7 +229,12 @@ export function buildRepAutoStatementPdf(
   const clientNameFor = (id: string) => (rep.customersHidden ? undefined : src.clients[src.accounts.find((a) => a.id === id)?.clientId ?? ""]?.name);
   const doc = buildRepStatementPdf(rep, statement, "", accountName, clientNameFor, storeItems, makeFx(convert), native);
   const total = doc.rows.length;
-  return { ...doc, subtitle: total > AUTO_STATEMENT_ROWS ? `آخر ${AUTO_STATEMENT_ROWS} عمليات من أصل ${total}` : `كل العمليات (${total})`, rows: doc.rows.slice(0, AUTO_STATEMENT_ROWS) };
+  return {
+    ...doc,
+    subtitle: total > AUTO_STATEMENT_ROWS ? `آخر ${AUTO_STATEMENT_ROWS} عمليات من أصل ${total}` : `كل العمليات (${total})`,
+    rows: doc.rows.slice(0, AUTO_STATEMENT_ROWS),
+    cellTones: doc.cellTones?.slice(0, AUTO_STATEMENT_ROWS),
+  };
 }
 
 /** The operations he hasn't been sent yet (`sent` = the keys of the last statement sent). First time: none -

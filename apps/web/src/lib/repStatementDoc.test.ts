@@ -36,7 +36,12 @@ describe("📄 «كشف بعد كل عملية» (his Oct 29 2026 ask)", () => {
     expect(doc.title).toBe("كشف حساب مندوب");
     expect(doc.rows).toHaveLength(AUTO_STATEMENT_ROWS);
     expect(doc.subtitle).toBe(`آخر ${AUTO_STATEMENT_ROWS} عمليات من أصل 14`);
-    expect(doc.rows[0]![0]).toBe("2026-10-14");
+    expect(doc.rows[0]![0]).toContain("2026-10-14");
+    // his Oct 29 2026 reference: date · amount (its own currency) · details · balance, coloured cells
+    expect(doc.columns).toEqual(["التاريخ", "المبلغ", "التفاصيل", "الرصيد"]);
+    expect(doc.rows[0]![1]).toBe("1,014 سيفا");
+    expect(doc.cellTones?.[0]).toEqual([undefined, "due", undefined, "due"]);
+    expect(doc.cellTones).toHaveLength(AUTO_STATEMENT_ROWS);
     expect(doc.summary?.[0]?.label).toContain("المبلغ المتبقي عليه");
   });
 
