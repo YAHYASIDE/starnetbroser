@@ -18,6 +18,7 @@ import {
   repRowAccount,
   repRowDelta,
   repRowKey,
+  repRowSplit,
   splitRepRecords,
   type RepConvert,
   type RepPeriodStatement,
@@ -203,4 +204,47 @@ export function newDebtRows(current: string[], sent: string[] | undefined): stri
   if (!sent) return [];
   const seen = new Set(sent);
   return current.filter((k) => !seen.has(k));
+}
+
+/** 🧾 One line of the in-app statement (his Oct 29 2026 ask: «مثل كشف حسابه PDF… رصيد قبل العملية، الآن، رصيد بعد»). */
+export interface RepTableLine {
+  key: string;
+  row: RepStatementRow;
+  before: Record<string, number>;
+  delta: Record<string, number>;
+  after: Record<string, number>;
+}
+
+/** The rows that move one of his two accounts, newest first, each with the balance before and after it -
+ * «ما عليه» in each record's own currency (`native`), «ربحه» in the display currency. `since` (ISO): only
+ * operations recorded from then on (his «عمليات 24 ساعة الماضية»). */
+export function repStatementTable(
+  statement: RepPeriodStatement,
+  native: RepPeriodStatement,
+  account: "debt" | "profit",
+  convert: RepConvert,
+  since?: string,
+): RepTableLine[] {
+  const source = account === "debt" ? native : statement;
+  const lines: RepTableLine[] = [];
+  for (const day of statement.days) {
+    for (const row of day.rows) {
+      if (since && row.createdAt < since) continue;
+      const delta = Object.fromEntries(
+        Object.entries(repRowSplit(row, account === "debt" ? keepCurrency : convert)[account]).filter(([, v]) => Math.abs(v) > EPSILON),
+      );
+      if (Object.keys(delta).length === 0) continue;
+      const key = repRowKey(row);
+      const after = source[account].after[key] ?? {};
+      const before: Record<string, number> = { ...after };
+      for (const [code, v] of Object.entries(delta)) before[code] = (before[code] ?? 0) - v;
+      lines.push({ key, row, before, delta, after });
+    }
+  }
+  return lines;
+}
+
+/** 24 hours before `now`, as ISO. */
+export function last24h(now: Date = new Date()): string {
+  return new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
 }

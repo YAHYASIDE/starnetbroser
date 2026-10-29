@@ -19244,3 +19244,135 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
 .rep-request-balance .is-clear {
   color: var(--green);
 }
+
+/* 🧾 The rep's statement in the app (reps page «الكشف», his Oct 29 2026 design): now + last 24 h tables. */
+.rep-now {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--tile-bg);
+}
+
+.rep-now-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.rep-now-value {
+  font-size: 1.05rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--red);
+}
+
+.rep-now-profit .rep-now-value {
+  color: var(--orange);
+}
+
+.rep-now-sub {
+  color: var(--text-muted, var(--muted));
+}
+
+.rep-table-wrap {
+  overflow-x: auto;
+  border-radius: 10px;
+}
+
+.rep-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.rep-table thead th {
+  padding: 6px 4px;
+  background: var(--brand);
+  color: var(--brand-contrast, #fff);
+  font-weight: 700;
+  text-align: start;
+  white-space: nowrap;
+}
+
+.rep-table td {
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.rep-table td:not(:first-child) {
+  white-space: nowrap;
+}
+
+.rep-table td > span {
+  display: block;
+}
+
+.rep-table td > span > small {
+  display: block;
+  font-size: 0.68rem;
+  opacity: 0.85;
+}
+
+.rep-table td:first-child {
+  min-width: 0;
+  width: 46%;
+}
+
+.rep-table tr.is-tappable {
+  cursor: pointer;
+}
+
+.rep-table-date {
+  color: var(--text-muted, var(--muted));
+  font-size: 0.72rem;
+}
+
+.rep-table-due {
+  color: var(--red);
+}
+
+.rep-table-clear {
+  color: var(--green);
+}
+
+.rep-table-wrong {
+  color: var(--orange);
+}
+
+.rep-older {
+  margin-top: 8px;
+}
+
+.rep-older > summary {
+  cursor: pointer;
+  padding: 8px 0;
+  font-weight: 700;
+}
+
+.rep-older-title {
+  margin: 10px 0 6px;
+  font-size: 0.9rem;
+}
+
+.rep-row-info {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.rep-row-info > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.rep-row-info span {
+  color: var(--text-muted, var(--muted));
+}

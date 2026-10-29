@@ -2,11 +2,10 @@
 
 import { DateInput } from "@/components/DateInput";
 import { LIVE_SYNC_EVENT } from "@/lib/liveSync";
-import { createContext, CSSProperties, FormEvent, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, CSSProperties, FormEvent, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { confirmAndDeleteLedgerEntry, LedgerEntryEditor } from "@/components/LedgerEntryEditor";
-import { methodLabel, sifaToFranc } from "@/lib/payCurrency";
-import { groupHandovers, type RepRowItem } from "@/lib/repHandoverGroups";
+import { methodLabel } from "@/lib/payCurrency";
 import { getCurrency, loadCurrencyStore } from "@/lib/currencyStore";
 import { PdfButton } from "@/components/PdfButton";
 import { RepAppCodePanel } from "@/components/RepAppCodePanel";
@@ -38,7 +37,6 @@ import {
   RepresentativeStore,
   RepSettlement,
   RepSettlementList,
-  RepStatementDay,
   RepStatementRow,
   type RepCustomerOp,
   saveRepresentativeStore,
@@ -55,14 +53,11 @@ import {
   keepCurrency,
   makeRepConverter,
   makeRepResetPoint,
-  RepConvert,
   planRepDeletion,
   repPeriod,
   RepPeriod,
   RepPeriodKind,
   RepPeriodStatement,
-  repRowDelta,
-  repRowKey,
   repRowAccount,
   setShipmentRepShare,
   ShipmentRepPatch,
@@ -86,7 +81,7 @@ import { ClientStore, commitClientStore, createClient, getClient, loadClientStor
 import { combinePhoneNumber, PHONE_COUNTRY_CODES, splitPhoneNumber } from "@/lib/phoneCountryCodes";
 import { formatAmount } from "@/lib/formatAmount";
 import { settleFormKind } from "@/lib/repWallets";
-import { getStoreItem, loadStoreItems, StoreItemRegistry } from "@/lib/storeStore";
+import { loadStoreItems, StoreItemRegistry } from "@/lib/storeStore";
 import { demoAccounts } from "@/lib/demoData";
 import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
 import { commitDemoAccounts, loadDemoAccounts } from "@/lib/demoAccountStore";
@@ -120,9 +115,9 @@ import {
 } from "@/lib/repClients";
 import { recordRepMoneyHandover } from "@/lib/repClientsSave";
 import { RepAccountsPage } from "@/components/RepAccountsPage";
-import { customerOpLabel, repRowText, SETTLEMENT_LABELS, settlementText } from "@/lib/repRowText";
+import { repRowText, settlementText } from "@/lib/repRowText";
 import { confirmClosedMonthChange, ledgerEntryMonthDates, monthLabel, monthRange, recentMonths } from "@/lib/monthClosing";
-import { balanceParts, balanceText, buildRepStatementPdf, makeFx, nonZero, repRowCells, rowBalance, type Fx } from "@/lib/repStatementDoc";
+import { balanceText, buildRepStatementPdf, last24h, makeFx, nonZero, repRowCells, repStatementTable, rowBalance, type Fx, type RepTableLine } from "@/lib/repStatementDoc";
 
 const EPSILON = 0.0001;
 
@@ -817,6 +812,14 @@ function RepCard({
   }, [panel, sheet, showArchive, version, rep, allDeviceRows, invoices, settlements, active, operations, allReplays, accounts, ledgerStore, customersHidden]);
   const period = periodKind === "month" ? monthRange(periodMonth) : repPeriod(periodKind, todayDateInputValue(), customPeriod);
   const statement = useMemo(() => buildRepPeriodStatement(allDays, period, fx.convert), [allDays, period.from, period.to, fx]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 🧾 «الآن»: his whole current account, whatever the period below; the last 24 hours under it.
+  const nowStatement = useMemo(() => buildRepPeriodStatement(allDays, {}, fx.convert), [allDays, fx]);
+  const nowNative = useMemo(() => buildRepPeriodStatement(allDays, {}, keepCurrency), [allDays]);
+  const since = useMemo(() => last24h(), [allDays]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [rowSheet, setRowSheet] = useState<RepTableLine | null>(null);
+  // 💱 «⚠️ عملة مختلفة» on a line whose operation is in another currency than his.
+  const wrongRow = (row: RepStatementRow) =>
+    row.type === "customer" ? wrongCurrency.has(row.op.entryId) : row.type === "device" ? wrongCurrency.has(row.row.entry.id) : false;
   // 💱 The same period in each record's own currency - «ما عليه» shows every currency on its own line (his Oct 22 2026 choice).
   const nativeStatement = useMemo(() => buildRepPeriodStatement(allDays, period, keepCurrency), [allDays, period.from, period.to]); // eslint-disable-line react-hooks/exhaustive-deps
   // 📈 The period's shipments, one line each: confirmed and expected (D) apart.
@@ -1034,56 +1037,25 @@ function RepCard({
 
       {panel === "statement" && (
         <div className="party-panel rep-statement">
-          <div className="rep-period-chips" role="tablist" aria-label="فترة الكشف">
-            {(["day", "month", "custom", "all"] as RepPeriodKind[]).map((kind) => (
-              <button
-                key={kind}
-                type="button"
-                role="tab"
-                aria-selected={periodKind === kind}
-                className={`rep-period-chip${periodKind === kind ? " rep-period-chip-active" : ""}`}
-                onClick={() => setPeriodKind(kind)}
-              >
-                {PERIOD_LABELS[kind]}
-              </button>
-            ))}
-          </div>
-          {periodKind === "month" && (
-            <select className="month-closing-select rep-period-month" value={periodMonth} onChange={(e) => setPeriodMonth(e.target.value)} aria-label="الشهر">
-              {monthChoices.map((m) => (
-                <option key={m} value={m}>
-                  {monthLabel(m)}
-                </option>
-              ))}
-            </select>
-          )}
-          {periodKind === "custom" && (
-            <div className="rep-period-range">
-              <label>
-                <span>من</span>
-                <DateInput  value={customPeriod.from ?? ""} onChange={(e) => setCustomPeriod((p) => ({ ...p, from: e.target.value }))} />
-              </label>
-              <label>
-                <span>إلى</span>
-                <DateInput  value={customPeriod.to ?? ""} onChange={(e) => setCustomPeriod((p) => ({ ...p, to: e.target.value }))} />
-              </label>
-            </div>
-          )}
-          {versions.length > 1 && (
-            <label className="rep-form-field rep-version-pick">
-              <span>🗄 نسخة الحساب</span>
-              <select className="search-input" value={versionIndex} onChange={(e) => setVersionIndex(Number(e.target.value))}>
-                {versions.map((v, i) => (
-                  <option key={i} value={i}>
-                    {i === 0 ? `الحالية${v.from ? ` (منذ ${v.from.date})` : ""}` : `🗄 ${versionLabel(v)}`}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-
-          <RepStatementSummary statement={statement} native={nativeStatement} period={period} periodLabel={periodLabel} archive={showArchive} hideOurs={readOnly} />
-
+          {/* 🧾 His Oct 29 2026 design: only what's on him / his profit now, each with the last 24 hours as a
+              small statement (before · movement · after); older periods folded below. */}
+          <RepNowBlock
+            title="📡 ما عليه الآن"
+            values={nowNative.debt.closing}
+            lines={repStatementTable(nowStatement, nowNative, "debt", fx.convert, since)}
+            describe={describeRow} wrong={wrongRow}
+            onOpen={readOnly ? undefined : (line) => setRowSheet(line)}
+            empty="لا عمليات على حسابه في آخر 24 ساعة."
+          />
+          <RepNowBlock
+            title="📈 ربحه الآن"
+            values={nowStatement.profit.closing}
+            lines={repStatementTable(nowStatement, nowNative, "profit", fx.convert, since)}
+            describe={describeRow} wrong={wrongRow}
+            onOpen={readOnly ? undefined : (line) => setRowSheet(line)}
+            empty="لا عمليات على ربحه في آخر 24 ساعة."
+            tone="profit"
+          />
           <div className="party-panel-tools">
             <PdfButton className="party-action party-action-pdf" label="🖨️ تصدير الكشف PDF" build={statementDoc} />
             <PdfButton className="party-action party-action-pdf" label="📈 كشف الأرباح PDF" build={profitDoc} />
@@ -1122,56 +1094,102 @@ function RepCard({
             )}
           </div>
           {sendState.message && <p className={sendState.ok ? "pdf-sent-note" : "account-card-alert ledger-form-error"}>{sendState.message}</p>}
-          <RepProfitList breakdown={profits} accountName={accountName} />
-          {statement.days.length === 0 ? (
-            <p className="party-empty">
-              {allDays.length === 0
-                ? "لا توجد عمليات بعد. تُحتسب حصته من كل عملية جديدة على أجهزته بعد تسديد تكلفة Starlink."
-                : "لا توجد عمليات في هذه الفترة."}
-            </p>
-          ) : (
-            <div className="rep-days">
-              {statement.days.map((day) => (
-                <div key={day.date} className="rep-day">
-                  <div className="rep-day-head">
-                    <strong dir="ltr">📅 {day.date}</strong>
-                    {(Math.abs(day.repShareUsd) > EPSILON || Math.abs(day.ourShareUsd) > EPSILON) && (
-                      <div className="rep-day-split">
-                        <span className="rep-split-rep">حصته {fx.list(dayShares(day, "rep", fx.convert))}</span>
-                        {!readOnly && <span className="rep-split-ours">حصتي {fx.list(dayShares(day, "ours", fx.convert))}</span>}
-                      </div>
-                    )}
-                  </div>
-                  <ul className="party-statement">
-                    {groupHandovers(day.rows).map((item) => {
-                      const line = (row: RepStatementRow) => (
-                        <RepStatementLine
-                          key={repRowKey(row)}
-                          row={row}
-                          balanceAfter={rowBalance(statement, row, nativeStatement).values}
-                          balanceLabel={rowBalance(statement, row, nativeStatement).label}
-                          accountName={accountName}
-                          clientNameFor={clientNameFor}
-                          storeItems={storeItems}
-                          wrongCurrency={wrongCurrency}
-                          onOpen={row.type === "invoice" || readOnly ? undefined : () => openRow(row)}
-                          hideOurs={readOnly}
-                        />
-                      );
-                      return item.kind === "row" ? (
-                        line(item.row)
-                      ) : (
-                        <RepHandoverLine key={item.key} item={item} balanceAfter={rowBalance(statement, item.rows[0], nativeStatement).values} accountName={accountName} clientNameFor={clientNameFor}>
-                          {item.rows.map(line)}
-                        </RepHandoverLine>
-                      );
-                    })}
-                  </ul>
-                </div>
+          <details className="rep-older">
+            <summary>📜 كل العمليات حسب الفترة</summary>
+            <div className="rep-period-chips" role="tablist" aria-label="فترة الكشف">
+              {(["day", "month", "custom", "all"] as RepPeriodKind[]).map((kind) => (
+                <button
+                  key={kind}
+                  type="button"
+                  role="tab"
+                  aria-selected={periodKind === kind}
+                  className={`rep-period-chip${periodKind === kind ? " rep-period-chip-active" : ""}`}
+                  onClick={() => setPeriodKind(kind)}
+                >
+                  {PERIOD_LABELS[kind]}
+                </button>
               ))}
             </div>
-          )}
+            {periodKind === "month" && (
+              <select className="month-closing-select rep-period-month" value={periodMonth} onChange={(e) => setPeriodMonth(e.target.value)} aria-label="الشهر">
+                {monthChoices.map((m) => (
+                  <option key={m} value={m}>
+                    {monthLabel(m)}
+                  </option>
+                ))}
+              </select>
+            )}
+            {periodKind === "custom" && (
+              <div className="rep-period-range">
+                <label>
+                  <span>من</span>
+                  <DateInput  value={customPeriod.from ?? ""} onChange={(e) => setCustomPeriod((p) => ({ ...p, from: e.target.value }))} />
+                </label>
+                <label>
+                  <span>إلى</span>
+                  <DateInput  value={customPeriod.to ?? ""} onChange={(e) => setCustomPeriod((p) => ({ ...p, to: e.target.value }))} />
+                </label>
+              </div>
+            )}
+            {versions.length > 1 && (
+              <label className="rep-form-field rep-version-pick">
+                <span>🗄 نسخة الحساب</span>
+                <select className="search-input" value={versionIndex} onChange={(e) => setVersionIndex(Number(e.target.value))}>
+                  {versions.map((v, i) => (
+                    <option key={i} value={i}>
+                      {i === 0 ? `الحالية${v.from ? ` (منذ ${v.from.date})` : ""}` : `🗄 ${versionLabel(v)}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            {statement.days.length === 0 ? (
+              <p className="party-empty">{allDays.length === 0 ? "لا توجد عمليات بعد." : "لا توجد عمليات في هذه الفترة."}</p>
+            ) : (
+              <>
+                <h4 className="rep-older-title">📡 ما عليه</h4>
+                <RepStatementTable lines={repStatementTable(statement, nativeStatement, "debt", fx.convert)} describe={describeRow} wrong={wrongRow} onOpen={readOnly ? undefined : (line) => setRowSheet(line)} />
+                <h4 className="rep-older-title">📈 ربحه</h4>
+                <RepStatementTable lines={repStatementTable(statement, nativeStatement, "profit", fx.convert)} describe={describeRow} wrong={wrongRow} onOpen={readOnly ? undefined : (line) => setRowSheet(line)} />
+              </>
+            )}
+            <RepProfitList breakdown={profits} accountName={accountName} />
+          </details>
         </div>
+      )}
+
+      {rowSheet && (
+        <PartySheet title="العملية" onClose={() => setRowSheet(null)}>
+          <div className="rep-row-info">
+            <div><span>التاريخ</span><strong dir="ltr">{rowSheet.row.date}</strong></div>
+            <div><span>العملية</span><strong>{describeRow(rowSheet.row)}</strong></div>
+            <div><span>قبل العملية</span><strong>{balanceText(rowSheet.before)}</strong></div>
+            <div><span>الحركة</span><strong><bdi dir="ltr">{signedList(rowSheet.delta)}</bdi></strong></div>
+            <div><span>بعد العملية</span><strong>{balanceText(rowSheet.after)}</strong></div>
+          </div>
+          {rowSheet.row.type === "invoice" ? (
+            <p className="settings-hint">🧾 فاتورة متجر - تُعدّل أو تُحذف من المتجر.</p>
+          ) : (
+            <div className="party-sheet-options">
+              <button
+                type="button"
+                className="party-sheet-option"
+                onClick={() => {
+                  const row = rowSheet.row;
+                  setRowSheet(null);
+                  openRow(row);
+                }}
+              >
+                <span aria-hidden="true">✎</span>
+                <span>
+                  <strong>تعديل العملية أو حذفها</strong>
+                  <small>المبلغ والتاريخ والحصة - والحذف من نفس النافذة</small>
+                </span>
+              </button>
+            </div>
+          )}
+        </PartySheet>
       )}
 
       {panel === "clients" && !customersHidden && (
@@ -1724,17 +1742,6 @@ function RepCard({
   );
 }
 
-/** A day's device-profit split in the display currency, each shipment at its own locked rates. */
-function dayShares(day: RepStatementDay, side: "rep" | "ours", convert: RepConvert): Record<string, number> {
-  const result: Record<string, number> = {};
-  for (const row of day.rows) {
-    if (row.type !== "device") continue;
-    const usd = side === "rep" ? row.row.repShareUsd : row.row.ourShareUsd;
-    if (usd === undefined) continue;
-    for (const [c, v] of Object.entries(convert(usd, "USD", row.row.entry.profitCurrencyRates))) result[c] = (result[c] ?? 0) + v;
-  }
-  return result;
-}
 
 /** Stacked figures for a stat tile - one line per display currency. */
 function StatValues({ values, absolute = false }: { values: Record<string, number>; absolute?: boolean }) {
@@ -1751,380 +1758,9 @@ function StatValues({ values, absolute = false }: { values: Record<string, numbe
   );
 }
 
-/** The statement's header: balance brought forward, the period's own figures, and the closing
- * balance - per currency, "له" = we owe him, "عليه" = he owes us. */
-function RepStatementSummary({
-  statement,
-  native,
-  period,
-  periodLabel,
-  archive,
-  hideOurs = false,
-}: {
-  statement: RepPeriodStatement;
-  /** The same period with every amount in its own currency (never converted) - «ما عليه» and its lines. */
-  native: RepPeriodStatement;
-  period: RepPeriod;
-  periodLabel: string;
-  archive: boolean;
-  hideOurs?: boolean;
-}) {
-  const fx = useFx();
-  const t = statement.totals;
-  // «ما عليه» in each record's own currency, never converted (his Oct 22 2026 choice «كل عملة وحدها»):
-  // سيفا alone, أوقية alone - the same figures as his bot. Profit stays as before (it comes from USD).
-  const nt = native.totals;
-  const list = (values: Record<string, number>) => fx.list(Object.fromEntries(nonZero(values)));
-  // 📒 His two accounts apart (his Oct 11 2026 rule: «ربحه وحده لا يُخصم مما عليه»).
-  const debtLines: [string, string][] = [];
-  if (nonZero(nt.customerCharges).length) debtLines.push(["📡 تجديدات أجهزته (عليه)", list(nt.customerCharges)]);
-  if (nonZero(nt.customerPaid).length) debtLines.push(["💵 دُفع عنها / سلّمك (له)", list(nt.customerPaid)]);
-  if (nonZero(nt.settled.cashHandover).length) debtLines.push(["💵 استلمت منه نقدًا", list(nt.settled.cashHandover)]);
-  if (nonZero(nt.settled.manualCredit).length) debtLines.push(["➕ له (أُضيف لرصيده)", list(nt.settled.manualCredit)]);
-  if (nonZero(nt.settled.manualDebit).length) debtLines.push(["➖ عليه (خُصم من رصيده)", list(nt.settled.manualDebit)]);
-  if (nonZero(nt.cashCollected).length) debtLines.push(["🧾 نقد قبضه من مبيعات المتجر", list(nt.cashCollected)]);
-  const debtClosing = Object.fromEntries(nonZero(native.debt.closing));
-  // ⚖️ The net per currency: his debt in each currency, his profit added to its own currency.
-  const netByCurrency: Record<string, number> = { ...debtClosing };
-  for (const [code, v] of nonZero(statement.profit.closing)) netByCurrency[code] = (netByCurrency[code] ?? 0) + v;
-  const approx = (own: Record<string, number>, converted: Record<string, number>) => {
-    const a = nonZero(own);
-    const b = nonZero(converted);
-    const same = a.length === b.length && a.every(([c, v]) => Math.abs((converted[c] ?? 0) - v) < 0.5);
-    // Only when the page shows ONE currency: «الاثنين» converts every record into both, a total that reads wrong here.
-    return same || b.length !== 1 ? null : `≈ ${balanceText(converted)} - كل العملات محوّلة بسعر اليوم (للمعلومة)`;
-  };
-  const debtApprox = approx(debtClosing, statement.debt.closing);
-  const netApprox = approx(netByCurrency, statement.closing);
-  const profitLines: [string, string][] = [];
-  if (t.deviceCount > 0) {
-    profitLines.push(["ربح أجهزته", fx.list(t.deviceProfit)]);
-    profitLines.push(["حصته", fx.list(t.repShare)]);
-    if (!hideOurs) profitLines.push(["حصتي", fx.list(t.ourShare)]);
-    if (t.pendingCount > 0) profitLines.push(["شحنات بانتظار D", String(t.pendingCount)]);
-  }
-  if (nonZero(t.commissions).length) profitLines.push(["عمولات المتجر", list(t.commissions)]);
-  if (nonZero(t.settled.commissionPayout).length) profitLines.push(["💸 دفعت له من ربحه", list(t.settled.commissionPayout)]);
-  if (nonZero(t.settled.profitTransfer).length) profitLines.push(["↪️ خرج من ربحه (إلى حسابه / تصفير)", list(t.settled.profitTransfer)]);
-  if (nonZero(t.settled.profitCredit).length) profitLines.push(["➕ له في ربحه (تصحيح / تصفير)", list(t.settled.profitCredit)]);
-  const closingLabel = period.to || period.from ? "آخر الفترة" : "الآن";
-  const lines = (items: [string, string][]) =>
-    items.length > 0 && (
-      <dl className="rep-summary-lines">
-        {items.map(([label, value]) => (
-          <div key={label}>
-            <dt>{label}</dt>
-            <dd>{value}</dd>
-          </div>
-        ))}
-      </dl>
-    );
 
-  return (
-    <div className={`rep-summary${archive ? " rep-summary-archive" : ""}`}>
-      <div className="rep-summary-head">
-        <strong>{archive ? "🗄 الأرشيف" : "📊 ملخص الفترة"}</strong>
-        <span dir="auto">{periodLabel}</span>
-      </div>
-      <div className="rep-summary-account">
-        <strong className="rep-summary-account-title">📡 حساب ما عليه</strong>
-        {period.from && (
-          <div className="rep-summary-balance">
-            <span>أول الفترة</span>
-            <BalanceValue values={native.debt.opening} />
-          </div>
-        )}
-        {lines(debtLines)}
-        <div className="rep-summary-balance rep-summary-closing">
-          <span>ما عليه {closingLabel}</span>
-          <BalanceValue values={native.debt.closing} />
-        </div>
-        {debtApprox && <p className="rep-summary-approx">{debtApprox}</p>}
-      </div>
-      <div className="rep-summary-account">
-        <strong className="rep-summary-account-title">📈 حساب ربحه</strong>
-        {period.from && (
-          <div className="rep-summary-balance">
-            <span>أول الفترة</span>
-            <BalanceValue values={statement.profit.opening} />
-          </div>
-        )}
-        {lines(profitLines)}
-        <div className="rep-summary-balance rep-summary-closing">
-          <span>ربحه {closingLabel} (لم يُخصم مما عليه)</span>
-          <BalanceValue values={statement.profit.closing} />
-        </div>
-      </div>
-      <div className="rep-summary-balance rep-summary-net">
-        <span>⚖️ الصافي لو خُصم ربحه مما عليه (للمعلومة)</span>
-        <BalanceValue values={netByCurrency} />
-      </div>
-      {netApprox && <p className="rep-summary-approx">{netApprox}</p>}
-    </div>
-  );
-}
 
-function BalanceValue({ values }: { values: Record<string, number> }) {
-  return (
-    <strong className="rep-balance-value">
-      {balanceParts(values).map((part) => (
-        <span key={part.text} className={`rep-balance-${part.tone}`}>
-          {part.text}
-        </span>
-      ))}
-    </strong>
-  );
-}
 
-/** 🤲 One sum the rep handed over, as ONE line (his Oct 22 2026 ask «اجعل الدفعة سطرًا واحدًا»): the
- * total, then where the app put it (his customers' devices first, the rest in his account); its parts
- * - each editable as before - open under «التفاصيل». */
-function RepHandoverLine({
-  item,
-  balanceAfter,
-  accountName,
-  clientNameFor,
-  children,
-}: {
-  item: Extract<RepRowItem, { kind: "handover" }>;
-  balanceAfter?: Record<string, number>;
-  accountName: (accountId: string) => string;
-  clientNameFor: (accountId: string) => string | undefined;
-  children: ReactNode;
-}) {
-  const [open, setOpen] = useState(false);
-  const cur = currencyLabel(item.currency);
-  const viaFranc = item.currency === "SIFA" && /أورانج|نيتا|اورانج/.test(item.note ?? "");
-  // The whole sum in its own currency (each part's converted figure stays on the part itself); a 💱
-  // swap changes only the account it went into (+toAmount there; nothing here for a named account).
-  const swap = item.swap;
-  const delta: [string, number][] = swap ? (swap.toLedgerName ? [] : [[swap.toCurrency, swap.toAmount]]) : [[item.currency, item.total]];
-  return (
-    <li className="party-statement-row rep-line-settlement rep-line-handover">
-      <div className="rep-line-open rep-handover-body">
-        <div className="party-statement-top">
-          <span className="party-statement-kind">🤲 استلمت منه</span>
-          <strong dir="ltr">
-            {formatAmount(item.total)} {cur}
-          </strong>
-        </div>
-        {viaFranc && <span className="party-statement-note">🟠 = {formatAmount(sifaToFranc(item.total))} فرانك</span>}
-        {item.note && <span className="party-statement-note">{item.note}</span>}
-        {swap ? (
-          <span className="party-statement-note rep-handover-split">
-            💱 حُوّلت إلى {swap.toLedgerName ? `«${swap.toLedgerName}»` : swap.toCurrency === "SIFA" ? "🟠 شخصي" : "🟢 الأوقية"}:{" "}
-            <bdi dir="ltr">{formatAmount(swap.toAmount)}</bdi> {currencyLabel(swap.toCurrency)} (1,000 سيفا = <bdi dir="ltr">{formatAmount(swap.rate)}</bdi> أوقية)
-          </span>
-        ) : (
-        <span className="party-statement-note rep-handover-split">
-          توزّعت:{" "}
-          {item.toDevices.map((d, i) => {
-            const client = clientNameFor(d.accountId);
-            return (
-              <span key={`${d.accountId}-${i}`}>
-                <bdi dir="ltr">{formatAmount(d.amount)}</bdi> {cur} على {accountName(d.accountId)}
-                {client ? ` (${client})` : ""}
-                {" · "}
-              </span>
-            );
-          })}
-          {item.toAccount > 0 ? (
-            <span>
-              <bdi dir="ltr">{formatAmount(item.toAccount)}</bdi> {cur} في حسابه
-            </span>
-          ) : (
-            <span>كلها على أجهزة زبائنه</span>
-          )}
-        </span>
-        )}
-        <div className="rep-line-foot">
-          {delta.length > 0 && (
-            <span className="rep-line-delta">
-              {delta.map(([code, v]) => (
-                <bdi key={code} dir="ltr" className={v > 0 ? "rep-balance-due" : "rep-balance-clear"}>
-                  {v > 0 ? "+" : "-"}
-                  {formatAmount(Math.abs(v))} {currencyLabel(code)}
-                </bdi>
-              ))}
-            </span>
-          )}
-          {balanceAfter && <span className="rep-line-balance">ما عليه: {balanceText(balanceAfter)}</span>}
-          <button type="button" className="btn-link rep-handover-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-            {open ? "إخفاء التفاصيل ▴" : `التفاصيل (${item.rows.length}) ▾`}
-          </button>
-        </div>
-      </div>
-      {open && <ul className="party-statement rep-handover-parts">{children}</ul>}
-    </li>
-  );
-}
-
-function RepStatementLine({
-  row,
-  balanceAfter,
-  balanceLabel,
-  accountName,
-  clientNameFor,
-  storeItems,
-  onOpen,
-  hideOurs = false,
-  wrongCurrency,
-}: {
-  hideOurs?: boolean;
-  /** 💱 Operations in another currency than his - marked «⚠️ عملة مختلفة». */
-  wrongCurrency?: Set<string>;
-  row: RepStatementRow;
-  balanceAfter?: Record<string, number>;
-  /** Which of his accounts that balance is («ما عليه» / «ربحه»). */
-  balanceLabel?: string;
-  accountName: (accountId: string) => string;
-  clientNameFor: (accountId: string) => string | undefined;
-  storeItems: StoreItemRegistry;
-  onOpen?: () => void;
-}) {
-  const fx = useFx();
-  // «ما عليه» rows move his account in their own currency (his Oct 22 2026 choice «كل عملة وحدها»);
-  // his profit rows stay in the display currency, as his profit account is.
-  const delta = nonZero(repRowDelta(row, repRowAccount(row) === "debt" ? keepCurrency : fx.convert));
-  let body: ReactNode;
-  let className = "";
-  if (row.type === "device") {
-    const { entry, profit, percent, repShareUsd, ourShareUsd, accountId } = row.row;
-    const client = clientNameFor(accountId);
-    className = "rep-line-device";
-    body = (
-      <>
-        <div className="party-statement-top">
-          <span className="party-statement-kind">
-            📡 {accountName(accountId)}
-            {client ? ` · ${client}` : ""}
-            {wrongCurrency?.has(entry.id) && <span className="cur-badge">⚠️ عملة مختلفة</span>}
-          </span>
-          <span className="party-statement-date" dir="ltr">
-            {formatAmount(entry.amount)} {currencyLabel(entry.currency)}
-          </span>
-        </div>
-        {profit.status === "computed" ? (
-          <>
-            <div className="rep-line-calc">
-              <span>بيع {fx.usd(profit.saleValueUsd ?? 0, entry)}</span>
-              <span>− تكلفة {fx.usd(profit.starlinkCostUsd ?? 0, entry)}</span>
-              <span className={(profit.profitUsd ?? 0) >= 0 ? "party-statement-clear" : "party-statement-due"}>
-                = ربح {fx.usd(profit.profitUsd ?? 0, entry)}
-              </span>
-            </div>
-            <div className="rep-day-split">
-              <span className="rep-split-rep">
-                حصته ({percent}%) {fx.usd(repShareUsd ?? 0, entry)}
-              </span>
-              {!hideOurs && <span className="rep-split-ours">حصتي {fx.usd(ourShareUsd ?? 0, entry)}</span>}
-            </div>
-          </>
-        ) : (
-          <span className="party-statement-note">
-            ⏳ بانتظار تسديد تكلفة Starlink (D)
-            {row.row.expectedRepShareUsd !== undefined ? (
-              <>
-                {" "}- حصته المتوقعة ({percent}%) {fx.usd(row.row.expectedRepShareUsd)}، تتأكد بعد التسديد
-              </>
-            ) : (
-              ` - تُحتسب حصته (${percent}%) بعد التسديد`
-            )}
-          </span>
-        )}
-      </>
-    );
-  } else if (row.type === "customer") {
-    const { op } = row;
-    const client = clientNameFor(op.accountId);
-    className = "rep-line-customer";
-    body = (
-      <>
-        <div className="party-statement-top">
-          <span className="party-statement-kind">
-            {customerOpLabel(op)} · {accountName(op.accountId)}
-            {client ? ` · ${client}` : ""}
-            {op.entryId && wrongCurrency?.has(op.entryId) && <span className="cur-badge">⚠️ عملة مختلفة</span>}
-          </span>
-          <strong dir="ltr">
-            {formatAmount(Math.abs(op.amount))} {currencyLabel(op.currency)}
-          </strong>
-        </div>
-        {op.note && <span className="party-statement-note">{op.note}</span>}
-      </>
-    );
-  } else if (row.type === "invoice") {
-    const { invoice, commissionAmount } = row.row;
-    const names = invoice.lines.map((l) => getStoreItem(storeItems, l.itemId)?.name).filter(Boolean).join("، ");
-    className = "rep-line-invoice";
-    body = (
-      <>
-        <div className="party-statement-top">
-          <span className="party-statement-kind">🧾 فاتورة متجر{names ? ` · ${names}` : ""}</span>
-        </div>
-        <div className="rep-day-split">
-          <span className="rep-split-rep">
-            عمولته <bdi dir="ltr">{formatAmount(commissionAmount)}</bdi> {currencyLabel(invoice.currencyCode)}
-          </span>
-          {invoice.paidAmount > 0 && (
-            <span className="rep-split-ours">
-              قبض <bdi dir="ltr">{formatAmount(invoice.paidAmount)}</bdi> {currencyLabel(invoice.currencyCode)}
-            </span>
-          )}
-        </div>
-      </>
-    );
-  } else {
-    const s = row.settlement;
-    className = "rep-line-settlement";
-    body = (
-      <>
-        <div className="party-statement-top">
-          <span className="party-statement-kind">{SETTLEMENT_LABELS[s.kind]}</span>
-          <strong dir="ltr">
-            {formatAmount(s.amount)} {currencyLabel(s.currencyCode)}
-          </strong>
-        </div>
-        {s.note && <span className="party-statement-note">{s.note}</span>}
-      </>
-    );
-  }
-  const footer = (
-    <div className="rep-line-foot">
-      {delta.length > 0 && (
-        <span className="rep-line-delta">
-          {delta.map(([code, v]) => (
-            <bdi key={code} dir="ltr" className={v > 0 ? "rep-balance-due" : "rep-balance-clear"}>
-              {v > 0 ? "+" : "-"}
-              {formatAmount(Math.abs(v))} {currencyLabel(code)}
-            </bdi>
-          ))}
-        </span>
-      )}
-      {balanceAfter && (
-        <span className="rep-line-balance">
-          {balanceLabel ?? "الرصيد"}: {balanceText(balanceAfter)}
-        </span>
-      )}
-      {onOpen && <span className="rep-line-edit" aria-hidden="true">✎</span>}
-    </div>
-  );
-  return (
-    <li className={`party-statement-row ${className}`}>
-      {onOpen ? (
-        <button type="button" className="rep-line-open" onClick={onOpen}>
-          {body}
-          {footer}
-        </button>
-      ) : (
-        <>
-          {body}
-          {footer}
-        </>
-      )}
-    </li>
-  );
-}
 
 function SettlementForm({
   initial,
@@ -2971,3 +2607,110 @@ function RepTransferForm({
     </div>
   );
 }
+
+/** «+2,000 سيفا / -500 أوقية» - a movement, each currency signed (+ = له). */
+function signedList(values: Record<string, number>): string {
+  const parts = nonZero(values).map(([code, v]) => `${v > 0 ? "+" : "-"}${formatAmount(Math.abs(v))} ${currencyLabel(code)}`);
+  return parts.length ? parts.join(" / ") : "0";
+}
+
+/** One balance in a table cell: «عليه» red, «له» green, each currency on its own line. */
+function BalanceCell({ values }: { values: Record<string, number> }) {
+  const parts = nonZero(values);
+  if (parts.length === 0) return <span className="rep-table-zero">0</span>;
+  return (
+    <>
+      {parts.map(([code, v]) => (
+        <span key={code} className={v < 0 ? "rep-table-due" : "rep-table-clear"}>
+          <bdi dir="ltr">{formatAmount(Math.abs(v))}</bdi>
+          <small>{v > 0 ? "له · " : ""}{currencyLabel(code)}</small>
+        </span>
+      ))}
+    </>
+  );
+}
+
+/** 🧾 The statement as a small table like his PDF: operation · before · movement · after, newest first. */
+function RepStatementTable({
+  lines,
+  describe,
+  onOpen,
+  empty,
+  wrong,
+}: {
+  lines: RepTableLine[];
+  describe: (row: RepStatementRow) => string;
+  onOpen?: (line: RepTableLine) => void;
+  empty?: string;
+  wrong?: (row: RepStatementRow) => boolean;
+}) {
+  if (lines.length === 0) return <p className="party-empty">{empty ?? "لا توجد عمليات."}</p>;
+  return (
+    <div className="rep-table-wrap">
+      <table className="rep-table">
+        <thead>
+          <tr>
+            <th>العملية</th>
+            <th>قبل</th>
+            <th>الحركة</th>
+            <th>بعد</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lines.map((line) => (
+            <tr key={line.key} className={onOpen ? "is-tappable" : undefined} onClick={onOpen ? () => onOpen(line) : undefined}>
+              <td>
+                <span className="rep-table-date" dir="ltr">{line.row.date}</span>
+                {wrong?.(line.row) && <span className="rep-table-wrong">⚠️ عملة مختلفة · </span>}
+                {describe(line.row)}
+              </td>
+              <td><BalanceCell values={line.before} /></td>
+              <td className="rep-table-move">
+                {nonZero(line.delta).map(([code, v]) => (
+                  <span key={code}>
+                    <bdi dir="ltr">{`${v > 0 ? "+" : "-"}${formatAmount(Math.abs(v))}`}</bdi>
+                    <small>{currencyLabel(code)}</small>
+                  </span>
+                ))}
+              </td>
+              <td><BalanceCell values={line.after} /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** «ما عليه الآن» / «ربحه الآن» with the last 24 hours under it. */
+function RepNowBlock({
+  title,
+  values,
+  lines,
+  describe,
+  onOpen,
+  empty,
+  wrong,
+  tone = "debt",
+}: {
+  title: string;
+  values: Record<string, number>;
+  lines: RepTableLine[];
+  describe: (row: RepStatementRow) => string;
+  onOpen?: (line: RepTableLine) => void;
+  empty: string;
+  wrong?: (row: RepStatementRow) => boolean;
+  tone?: "debt" | "profit";
+}) {
+  return (
+    <section className={`rep-now rep-now-${tone}`}>
+      <div className="rep-now-head">
+        <strong>{title}</strong>
+        <span className="rep-now-value">{balanceText(values)}</span>
+      </div>
+      <small className="rep-now-sub">🕒 عمليات آخر 24 ساعة ({lines.length})</small>
+      <RepStatementTable lines={lines} describe={describe} onOpen={onOpen} empty={empty} wrong={wrong} />
+    </section>
+  );
+}
+

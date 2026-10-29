@@ -49,3 +49,18 @@ describe("📄 «كشف بعد كل عملية» (his Oct 29 2026 ask)", () => {
     expect(newDebtRows(after, undefined)).toEqual([]);
   });
 });
+
+describe("🧾 the in-app statement table (his Oct 29 2026 ask: before / movement / after, last 24 hours)", () => {
+  it("each line carries the balance before and after; `since` keeps only what was recorded from then on", async () => {
+    const { repStatementTable, last24h } = await import("./repStatementDoc");
+    const { statement, native } = repCurrentStatement(rep, sources(3), keepCurrency);
+    const lines = repStatementTable(statement, native, "debt", keepCurrency);
+    expect(lines).toHaveLength(3);
+    const [newest, middle] = lines;
+    expect(newest!.row.createdAt > middle!.row.createdAt).toBe(true);
+    for (const l of lines) for (const code of Object.keys(l.delta)) expect(l.before[code]! + l.delta[code]!).toBeCloseTo(l.after[code]!);
+    expect(newest!.before).toEqual(middle!.after);
+    expect(repStatementTable(statement, native, "debt", keepCurrency, "2026-10-02T12:00:00.000Z")).toHaveLength(1);
+    expect(last24h(new Date("2026-10-29T12:00:00.000Z"))).toBe("2026-10-28T12:00:00.000Z");
+  });
+});

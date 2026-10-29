@@ -2362,3 +2362,17 @@ is never pressed while a field is empty - it refills and saves on the next try (
   in their own currency - or the named account) «الآن: عليه X» and «بعد العملية: عليه Y» (the sum, or with «سعر
   البديل» the swapped amount, is «له»). `repBalancesNow` / `ownerBalanceWords` (lib/repPaymentConfirm.ts).
 
+## 🧾 The rep's statement in the app like his PDF (Oct 29 2026)
+
+- His asks: «اجعل كشف حساب المندوب في التطبيق يظهر مثل كشف حسابه PDF، واجعل فيه رصيد قبل العملية، الآن، رصيد بعد،
+  وفيها المعلومات وتعديل العملية أو حذفها» then «أزل هذه الملخصات الكثيرة، أضف فقط ما عليه أو له الآن، وتحته عمليات 24
+  ساعة الماضية فقط ككشف حساب صغير وجيد، وتحت حساب ربحه أيضًا: ربحه الآن وعمليات 24 ساعة». His choices: the two
+  accounts apart («ما عليه» / «أرباحه», shown one under the other as his second message says) and **a tap = a sheet with
+  its information + edit / delete**.
+- The reps page «الكشف» panel: «📡 ما عليه الآن» (his whole current account in each currency) + a table of the
+  operations recorded in the last 24 hours (`repStatementTable(…, since = last24h())`: العملية · قبل · الحركة · بعد,
+  newest first, red = عليه, green = له), then «📈 ربحه الآن» the same. A row → «العملية» sheet (date, operation,
+  before, movement, after) → «✎ تعديل العملية أو حذفها» opens its existing edit sheet (with delete); a store invoice
+  says it's edited from the store. «📜 كل العمليات حسب الفترة» (folded) keeps the period chips, the version picker,
+  both tables for the period and «أرباح أجهزته جهازًا جهازًا». The «📊 ملخص الفترة» summary and the day cards are gone.
+
