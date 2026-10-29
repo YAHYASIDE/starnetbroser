@@ -23,7 +23,7 @@ import {
   PaymentMethod,
 } from "@/lib/ledgerStore";
 import { claimRepRequest, loadRepRequests, pendingRepRequests, releaseRepRequest, REP_LOAN_ACCOUNTS, RepRequest, resolveRepRequest, saveRepRequests } from "@/lib/repRequests";
-import { repPaymentConfirmation, repWalletsNow, withRepWallets } from "@/lib/repPaymentConfirm";
+import { ownerBalanceWords, repBalancesNow, repPaymentConfirmation, repWalletsNow, withRepWallets } from "@/lib/repPaymentConfirm";
 import type { Representative } from "@/lib/repStore";
 import { downloadRepImage, notifyPaymentTelegram, sendRepPhoto, sendRepText } from "@/lib/telegram";
 import { resizeImageToDataUrl } from "@/lib/imageUtils";
@@ -714,6 +714,11 @@ function HandoverRequestCard({ request, rep, accounts, clientStore, onDone }: Mo
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const proofPhoto = request.proofFileId ? <RepProofPhoto fileId={request.proofFileId} bot={request.proofBot} /> : null;
+  // 👀 His Oct 29 2026 ask «اجعل هنا يظهر لي ما على المندوب وما سيتبقى عليه بعد العملية»: the chosen account now
+  // and after this sum (what he hands over is «له» - it brings down what he owes).
+  const balances = useMemo(() => repBalancesNow({ rep, accounts, clientStore, ledgerStore: loadLedgerStore() }), [rep, accounts, clientStore]);
+  const nowValue = chosen ? balances.named[`${chosen.id}|${accountCurrency}`] ?? 0 : balances.wallets[accountCurrency] ?? 0;
+  const added = toCurrency ? toAmount : Number(amount) || 0;
 
   async function approve() {
     if (busy) return;
@@ -810,6 +815,17 @@ function HandoverRequestCard({ request, rep, accounts, clientStore, onDone }: Mo
           {request.ledgerId && !ledgers.some((l) => l.id === request.ledgerId) && <small className="settings-hint">اختار «{request.ledgerName}» لكنه لم يعد موجودًا.</small>}
           {chosen && <small className="settings-hint">📒 لا يدخل في ربحه ولا يسدد أجهزة زبائنه، والمال يدخل {request.paymentMethod && request.paymentMethod !== "cash" ? PAYMENT_METHOD_LABELS[request.paymentMethod] : "الكاش"}.</small>}
         </label>
+      )}
+      {rep && (
+        <div className="rep-request-balance" aria-label="حساب المندوب قبل وبعد">
+          <span>
+            {chosen ? `${repLedgerKindMeta(chosen.kind).icon} ${chosen.name}` : `💼 ${repWalletLabel(accountCurrency === "MRU" ? "MRU" : accountCurrency === "SIFA" ? "SIFA" : accountCurrency)}`} الآن:{" "}
+            <strong className={nowValue < -0.005 ? "is-due" : ""}>{ownerBalanceWords(nowValue, accountCurrency)}</strong>
+          </span>
+          <span>
+            بعد العملية: <strong className={nowValue + added < -0.005 ? "is-due" : "is-clear"}>{ownerBalanceWords(nowValue + added, accountCurrency)}</strong>
+          </span>
+        </div>
       )}
       {error && <p className="settings-hint telegram-stopped">{error}</p>}
       <div className="settings-actions">

@@ -2355,3 +2355,10 @@ is never pressed while a field is empty - it refills and saves on the next try (
   in `starnet.repAutoStatementSent` (phone setting). Operations recorded in the same 20 s go in one statement.
   The statement builder moved from the reps page to `lib/repStatementDoc.ts` (same output).
 
+## 👀 The rep's payment card shows his account before and after (Oct 29 2026)
+
+- His ask (a «🤲 الحسين · 💼 دفعة في حسابي الشخصي 2,000 سيفا» card): «اجعل هنا يظهر لي ما على المندوب وما سيتبقى عليه بعد
+  العملية». `HandoverRequestCard` shows the chosen account (his normal one in that currency - from `repPosition` wallets
+  in their own currency - or the named account) «الآن: عليه X» and «بعد العملية: عليه Y» (the sum, or with «سعر
+  البديل» the swapped amount, is «له»). `repBalancesNow` / `ownerBalanceWords` (lib/repPaymentConfirm.ts).
+

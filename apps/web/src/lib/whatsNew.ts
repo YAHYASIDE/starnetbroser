@@ -31,6 +31,19 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-29-rep-request-balance",
+    date: "2026-10-29",
+    title: "👀 ما على المندوب قبل الدفعة وبعدها",
+    steps: [
+      {
+        path: "/representatives",
+        title: "👀 في طلب دفعة من المندوب",
+        before: "بطاقة الدفعة فيها المبلغ والحساب فقط.",
+        after: "تحت الحساب: «الآن: عليه X» و«بعد العملية: عليه Y» - للحساب الذي تختاره (العادي أو حساب باسم)، ومع «سعر البديل» بالعملة التي يُسجَّل بها.",
+      },
+    ],
+  },
+  {
     id: "2026-10-29-rep-auto-statement",
     date: "2026-10-29",
     title: "📄 كشف المندوب بعد كل عملية",

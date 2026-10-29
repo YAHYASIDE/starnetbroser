@@ -37,3 +37,15 @@ describe("✅ the confirmation the rep reads", () => {
     expect(repPaymentConfirmationText({ value: 500, currency: "MRU", deviceName: "جهاز 1", clientName: "زبون", balanceAfter: 0 })).toContain("لم يبقَ على الزبون شيء");
   });
 });
+
+import { ownerBalanceWords } from "./repPaymentConfirm";
+
+describe("👀 ownerBalanceWords (his Oct 29 2026 ask: the rep's account before / after on the payment card)", () => {
+  it("reads as the operator does: عليه / له / متوازن", () => {
+    expect(ownerBalanceWords(-44000, "SIFA")).toContain("عليه");
+    expect(ownerBalanceWords(-44000, "SIFA")).toContain("44,000");
+    expect(ownerBalanceWords(-44000 + 2000, "SIFA")).toContain("42,000");
+    expect(ownerBalanceWords(6000, "MRU")).toContain("له");
+    expect(ownerBalanceWords(0.001, "MRU")).toBe("متوازن ✓");
+  });
+});

@@ -72,6 +72,27 @@ export function repWalletsNow(input: { rep?: Representative; accounts: StarlinkA
   return repWalletsText(position.wallets, repLedgerSummaries(loadRepLedgerBook(), input.rep.id)).replace("📂 حساباتك:", "📂 حساباتك الآن:");
 }
 
+/** 👀 His account balances right now (+ = له, − = عليه, each in its own currency): the normal accounts by
+ * currency, and each named account by id + currency. */
+export function repBalancesNow(input: { rep?: Representative; accounts: StarlinkAccountSummary[]; clientStore: ClientStore; ledgerStore: LedgerByAccount }): {
+  wallets: Record<string, number>;
+  named: Record<string, number>;
+} {
+  if (!input.rep) return { wallets: {}, named: {} };
+  const position = repPosition({ rep: input.rep, clients: input.clientStore, accounts: input.accounts, ledgerStore: input.ledgerStore, book: loadRepBook(), invoices: loadInvoices(), settlements: loadRepSettlements(), convert: keepCurrency });
+  const wallets: Record<string, number> = {};
+  for (const w of position.wallets) if (w.id !== "profit") wallets[w.id] = w.balance[w.id] ?? 0;
+  const named: Record<string, number> = {};
+  for (const l of repLedgerSummaries(loadRepLedgerBook(), input.rep.id)) named[`${l.id}|${l.currencyCode}`] = l.balance;
+  return { wallets, named };
+}
+
+/** 👀 What the rep owes in one account, as the operator reads it: «عليه 44,000 سيفا» / «له 6,000 أوقية» / «متوازن ✓». */
+export function ownerBalanceWords(value: number, currency: string): string {
+  if (Math.abs(value) < 0.005) return "متوازن ✓";
+  return `${value < 0 ? "عليه" : "له"} ${formatMoneyShort(Math.abs(value), currency)}`;
+}
+
 /** The confirmation text with his accounts under it. */
 export function withRepWallets(text: string, wallets: string): string {
   return wallets ? `${text}\n\n${wallets}` : text;
