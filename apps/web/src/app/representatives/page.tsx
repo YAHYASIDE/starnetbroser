@@ -112,6 +112,8 @@ import {
   type RepUntanglePlan,
   sumBalances,
   transferClientsToRep,
+  currentRepOfClient,
+  moveClientToOwner,
   type BookLine,
   type ClientReplay,
   type RepBookEntry,
@@ -440,6 +442,18 @@ export default function RepresentativesPage() {
     return null;
   }
 
+  // 👥 «زبائنه يبقون عندي» turned on (his Oct 29 2026 report «سحبت زبائن المندوب حافظ لا يظهرون عندي»): the
+  // customers already his come back to his own customers - their debt so far on them (carry) or left on the rep.
+  const [returnAsk, setReturnAsk] = useState<{ repId: string; ids: string[] } | null>(null);
+  function handleReturnClients(ids: string[], carry: boolean) {
+    const at = new Date().toISOString();
+    const next = { ...clientStore };
+    for (const id of ids) if (next[id]) next[id] = moveClientToOwner(next[id]!, undefined, carry, at);
+    setClientStore(commitClientStore(clientStore, next));
+    setReturnAsk(null);
+    void refreshTelegramReplies().catch(() => {});
+  }
+
   // "نقل ديون زبائنه عليه": each customer (with all his devices) becomes the rep's, his balance too.
   function handleTransferClients(repId: string, clientIds: string[]) {
     setClientStore(commitClientStore(clientStore, transferClientsToRep(clientStore, repId, clientIds, new Date().toISOString())));
@@ -590,7 +604,14 @@ export default function RepresentativesPage() {
                     onShipmentShare={handleShipmentShare}
                     onReset={(resets) => handleReset(rep.id, resets)}
                     onSetCustomersHidden={(hidden) => saveReps(setRepCustomersHidden(representativeStore, rep.id, hidden))}
-                    onSetCustomersStay={(stay) => saveReps(setRepCustomersStay(representativeStore, rep.id, stay))}
+                    onSetCustomersStay={(stay) => {
+                      saveReps(setRepCustomersStay(representativeStore, rep.id, stay));
+                      // 👥 the customers already his: bring them back too? (who carries their debt - his choice)
+                      const ids = stay ? Object.values(clientStore).filter((c) => currentRepOfClient(c) === rep.id).map((c) => c.id) : [];
+                      if (ids.length > 0) setReturnAsk({ repId: rep.id, ids });
+                    }}
+                    ownClientIds={rep.customersStay ? Object.values(clientStore).filter((c) => currentRepOfClient(c) === rep.id).map((c) => c.id) : []}
+                    onAskReturnClients={(ids) => setReturnAsk({ repId: rep.id, ids })}
                     onSetRates={(plan, since) => {
                       saveReps(setRepRates(representativeStore, rep.id, plan));
                       const stamped = stampRepRates(ledgerStore, rep.id, plan, since);
@@ -611,6 +632,41 @@ export default function RepresentativesPage() {
           )}
         </div>
       </section>
+      {returnAsk && (() => {
+        const repName = representativeStore[returnAsk.repId]?.name ?? "المندوب";
+        const names = returnAsk.ids.map((id) => clientStore[id]?.name).filter(Boolean);
+        return (
+          <PartySheet title={`👥 زبائن ${repName} يرجعون إليك؟`} onClose={() => setReturnAsk(null)}>
+            <p className="settings-hint">
+              {returnAsk.ids.length} زبون صاروا لـ{repName} من قبل: {names.slice(0, 8).join("، ")}
+              {names.length > 8 ? ` و${names.length - 8} آخرين` : ""}. يرجعون إلى زبائنك - ما عليهم حتى الآن؟
+            </p>
+            <div className="party-sheet-options">
+              <button type="button" className="party-sheet-option" onClick={() => handleReturnClients(returnAsk.ids, true)}>
+                <span aria-hidden="true">👤</span>
+                <span>
+                  <strong>على الزبائن (ينتقل معهم)</strong>
+                  <small>يرجعون إلى زبائنك، وما عليهم يصير عليهم</small>
+                </span>
+              </button>
+              <button type="button" className="party-sheet-option" onClick={() => handleReturnClients(returnAsk.ids, false)}>
+                <span aria-hidden="true">🤝</span>
+                <span>
+                  <strong>يبقى على {repName}</strong>
+                  <small>يرجعون إلى زبائنك من اليوم، وما سبق يبقى دينًا على {repName}</small>
+                </span>
+              </button>
+              <button type="button" className="party-sheet-option" onClick={() => setReturnAsk(null)}>
+                <span aria-hidden="true">✋</span>
+                <span>
+                  <strong>يبقون زبائنه</strong>
+                  <small>فقط زبائن أجهزته الجديدة يبقون عندك</small>
+                </span>
+              </button>
+            </div>
+          </PartySheet>
+        );
+      })()}
     </main>
     </FxContext.Provider>
   );
@@ -646,6 +702,9 @@ interface RepCardProps {
   onSetCustomersHidden?: (hidden: boolean) => void;
   /** 👥 «زبائنه يبقون عندي» on/off (repStore.customersStay). */
   onSetCustomersStay?: (stay: boolean) => void;
+  /** 👥 With «زبائنه يبقون عندي» on: the customers still his, to offer them back. */
+  ownClientIds?: string[];
+  onAskReturnClients?: (ids: string[]) => void;
   /** 💱 «سعر المندوب» (repRates.ts): sets / removes his rates from a day - returns how many of his
    * shipments changed. */
   onSetRates?: (plan: RepRatePlan | null, since: string) => number;
@@ -687,6 +746,8 @@ function RepCard({
   readOnly = false,
   onSetCustomersHidden,
   onSetCustomersStay,
+  ownClientIds = [],
+  onAskReturnClients,
   onSetRates,
 }: RepCardProps) {
   // 🔒 His customers stay with him: no customer list here, only what he owes.
@@ -1486,7 +1547,7 @@ function RepCard({
                 onClick={() => {
                   const next = !rep.customersStay;
                   const question = next
-                    ? `👥 زبائن أجهزة ${rep.name} يبقون عندك؟\n\n• زبون جهاز تعطيه له يبقى في زبائنك ولا ينتقل إليه.\n• التجديد على أجهزته دين على الزبون، ونسبته من الربح تبقى كما هي.\n• زبائنه الذين صاروا له من قبل يبقون له - تنقل أيًّا منهم من بطاقة الزبون.${rep.customersHidden ? "\n• «زبائنه عنده فقط» يُطفأ: زبائنك ظاهرون." : ""}`
+                    ? `👥 زبائن أجهزة ${rep.name} يبقون عندك؟\n\n• زبون جهاز تعطيه له يبقى في زبائنك ولا ينتقل إليه.\n• التجديد على أجهزته دين على الزبون، ونسبته من الربح تبقى كما هي.\n• زبائنه الذين صاروا له من قبل: تُسأل بعدها هل يرجعون إليك، وعلى من ما عليهم.${rep.customersHidden ? "\n• «زبائنه عنده فقط» يُطفأ: زبائنك ظاهرون." : ""}`
                     : `زبائن أجهزة ${rep.name} الجديدة يصيرون له من جديد (الدين عليه)؟`;
                   if (!window.confirm(question)) return;
                   onSetCustomersStay(next);
@@ -1497,6 +1558,22 @@ function RepCard({
                 <span>
                   <strong>{rep.customersStay ? "زبائنه يصيرون له (الدين عليه)" : "زبائنه يبقون عندي"}</strong>
                   <small>{rep.customersStay ? "الآن: زبائن أجهزته عندك والدين على الزبون" : "الآن: زبون جهازه يصير له والدين على المندوب"}</small>
+                </span>
+              </button>
+            )}
+            {onAskReturnClients && ownClientIds.length > 0 && (
+              <button
+                type="button"
+                className="party-sheet-option"
+                onClick={() => {
+                  setSheet(null);
+                  onAskReturnClients(ownClientIds);
+                }}
+              >
+                <span aria-hidden="true">↩️</span>
+                <span>
+                  <strong>رجّع زبائنه الحاليين إليّ ({ownClientIds.length})</strong>
+                  <small>صاروا له قبل «زبائنه يبقون عندي» - تختار على من ما عليهم</small>
                 </span>
               </button>
             )}

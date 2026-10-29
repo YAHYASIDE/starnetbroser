@@ -257,7 +257,7 @@ export function PartyDirectory({
               categoryList,
             )
           : [];
-        const repIds = isClients ? clientRepIds(party.id, accounts, party as Client) : [];
+        const repIds = isClients ? clientRepIds(party.id, accounts, party as Client, (id) => Boolean(representatives?.[id]?.customersStay)) : [];
         // 🕒 His latest operation or edit - the customer on top is the last one worked on.
         const activity = isClients
           ? clientLastActivity({
@@ -270,7 +270,7 @@ export function PartyDirectory({
         return { party, totals, due, standing, categories, repIds, activity };
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [parties, invoices, kind, adjustments, isClients, accounts, ledgerStore, netContext, categoryList],
+    [parties, invoices, kind, adjustments, isClients, accounts, ledgerStore, netContext, categoryList, representatives],
   );
   const ownerRows = useMemo(() => (isClients ? rows.filter((r) => matchesClientOwner(r.repIds, owner)) : rows), [rows, owner, isClients]);
   /** «🤝 فلان» chips: every rep with at least one customer, with how many. */

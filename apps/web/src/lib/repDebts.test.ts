@@ -58,6 +58,8 @@ describe("clients page: my customers / the reps' customers", () => {
     expect(clientRepIds("c1", devices)).toEqual(["r1", "r2"]);
     expect(clientRepIds("c2", devices)).toEqual([]);
     expect(clientRepIds("c3", devices)).toEqual([]); // only a deleted device of r1
+    // 👥 «زبائنه يبقون عندي» for r1: his device no longer makes c1 his
+    expect(clientRepIds("c1", devices, undefined, (id) => id === "r1")).toEqual(["r2"]);
     expect(matchesClientOwner([], "mine")).toBe(true);
     expect(matchesClientOwner(["r1"], "mine")).toBe(false);
     expect(matchesClientOwner(["r1"], "reps")).toBe(true);

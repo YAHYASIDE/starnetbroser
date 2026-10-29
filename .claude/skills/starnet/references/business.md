@@ -2329,4 +2329,10 @@ is never pressed while a field is empty - it refills and saves on the next try (
   renewals are the customer's debt and the rep keeps his percent (the old model); off = as before (the customer becomes
   the rep's, the debt his). Customers already his stay his (moved one by one from the customer card); the rep card's
   «🔁 كل زبائنه عليه» suggestion is hidden for such a rep.
+- **Oct 29 2026 follow-up** («عندما سحبت زبائن المندوب حافظ لا يظهرون عندي في الزبائن», screenshots: the clients page
+  «الكل 101» of 126, devices with Hafiz's color): two causes. (1) The clients list's default «زبائني» counted a customer
+  as the rep's whenever one of his devices had that rep (`clientRepIds`, old model) - now a «زبائنه يبقون عندي» rep's
+  device doesn't. (2) The customers already his (rep segments) stayed his. Now turning the option on - and a manage-
+  sheet item «↩️ رجّع زبائنه الحاليين إليّ (N)» while it's on - asks for all of them at once: «على الزبائن (ينتقل
+  معهم)» (carry), «يبقى على المندوب» (no carry) or «يبقون زبائنه» (`handleReturnClients` → `moveClientToOwner`).
 

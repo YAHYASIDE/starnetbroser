@@ -38,7 +38,13 @@ export function clientRepNames(
 
 /** The reps a client belongs to (same rule as clientRepNames), by id - for the «زبائني / زبائن
  * المندوبين» filter on the clients page. Empty = the operator's own customer. */
-export function clientRepIds(clientId: string, accounts: StarlinkAccountSummary[], client?: Pick<Client, "repSegments">): string[] {
+export function clientRepIds(
+  clientId: string,
+  accounts: StarlinkAccountSummary[],
+  client?: Pick<Client, "repSegments">,
+  /** 👥 «زبائنه يبقون عندي»: a device of this rep doesn't make its customer his (his Oct 29 2026 report). */
+  customersStay: (repId: string) => boolean = () => false,
+): string[] {
   if (client?.repSegments?.length) {
     const repId = currentRepOfClient(client);
     return repId ? [repId] : [];
@@ -46,6 +52,7 @@ export function clientRepIds(clientId: string, accounts: StarlinkAccountSummary[
   const ids: string[] = [];
   for (const account of accounts) {
     if (account.clientId !== clientId || account.deletedAt || !account.representativeId) continue;
+    if (customersStay(account.representativeId)) continue;
     if (!ids.includes(account.representativeId)) ids.push(account.representativeId);
   }
   return ids;
