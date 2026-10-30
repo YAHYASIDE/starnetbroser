@@ -43,6 +43,20 @@
             android:text="📌"
             android:textSize="17sp" />
 
+        <!-- ⏰ «تذكير» (his Oct 30 2026 ask): the same kind of tab, just under 📌. -->
+        <TextView
+            android:id="@+id/starnet_remind_handle"
+            android:layout_width="34dp"
+            android:layout_height="46dp"
+            android:layout_gravity="right|center_vertical"
+            android:layout_marginTop="56dp"
+            android:background="@drawable/starnet_remind_handle"
+            android:contentDescription="تذكير بالجهاز"
+            android:elevation="6dp"
+            android:gravity="center"
+            android:text="⏰"
+            android:textSize="17sp" />
+
         <LinearLayout
             android:id="@+id/starnet_error_overlay"
             android:layout_width="match_parent"

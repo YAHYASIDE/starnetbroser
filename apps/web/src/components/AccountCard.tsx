@@ -50,6 +50,7 @@ import { DeviceGmailButton } from "./DeviceGmailButton";
 import { useCardGestures } from "./useCardGestures";
 import { DeviceNoteSheet, type DeviceNoteSheetMode } from "./DeviceNoteSheet";
 import { pinAgeText, type DeviceNote } from "@/lib/deviceNotes";
+import { reminderWhenLabel, type DeviceReminder } from "@/lib/deviceReminders";
 import { isTravelPending, isTravelVerified, needsTravelRegistration, setTravelPrice, travelDueArabic, travelWhatsAppLink, undoTravelDone } from "@/lib/travelRegistration";
 import { TravelPriceSheet } from "./TravelPriceSheet";
 import { describeDishAlerts } from "@/lib/dishAlerts";
@@ -72,6 +73,9 @@ interface Props {
   /** 📌 His private pin / purple note on this device (lib/deviceNotes.ts). With `onSaveNote` a
    * long-press opens «تثبيت · ملاحظة · التفاصيل»; without it a long-press opens the details. */
   deviceNote?: DeviceNote;
+  /** ⏰ His next reminder on this device (set in its browser, lib/deviceReminders.ts) - with «✓» to end it. */
+  reminder?: DeviceReminder;
+  onDoneReminder?: (id: string) => void;
   onSaveNote?: (account: StarlinkAccountSummary, input: { text: string; pin: boolean; until?: string }) => void;
   onSetPinned?: (account: StarlinkAccountSummary, pinned: boolean) => void;
   /** Earlier owners' unpaid Starlink debts on this device (previousDebt.ts). */
@@ -289,6 +293,8 @@ export function AccountCard({
   onTravelCheck,
   showTravelVerified = false,
   deviceNote,
+  reminder,
+  onDoneReminder,
   onSaveNote,
   onSetPinned,
 }: Props) {
@@ -632,6 +638,19 @@ export function AccountCard({
             </span>
           )}
         </button>
+      )}
+      {reminder && (
+        <div className={`device-reminder-line${reminder.fired || reminder.at <= Date.now() ? " device-reminder-due" : ""}`}>
+          <span dir="auto">
+            ⏰ {reminderWhenLabel(reminder, Date.now())}
+            {reminder.note ? ` · ${reminder.note}` : ""}
+          </span>
+          {onDoneReminder && (
+            <button type="button" className="device-reminder-done" onClick={() => onDoneReminder(reminder.id)} aria-label="تم">
+              ✓ تم
+            </button>
+          )}
+        </div>
       )}
       {sessionNeedsLogin && (
         <button type="button" className="session-bubble" onClick={handleOpen} disabled={opening} title="الجلسة خرجت - افتح وسجّل الدخول">

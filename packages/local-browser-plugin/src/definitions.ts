@@ -756,6 +756,12 @@ export interface LocalBrowserPlugin {
    */
   linkCardGmail(options: { email: string }): Promise<{ email: string }>;
 
+  /** ⏰ The reminders set in devices' browsers (⏰ under 📌), not done yet. */
+  listDeviceReminders(): Promise<{ reminders: DeviceReminder[] }>;
+
+  /** ⏰ «تم»: the reminder is over. */
+  doneDeviceReminder(options: { id: string }): Promise<void>;
+
   /** The linked card-code Gmail (no `email` when none). */
   cardGmailStatus(): Promise<{ email?: string }>;
 
@@ -891,4 +897,17 @@ export interface NotificationReaderStatus {
   connected?: boolean;
   /** When the reader last received any notification (ms, 0 = never). */
   lastSeenAt?: number;
+}
+
+/** ⏰ A reminder set in a device's browser (his Oct 30 2026 ask). */
+export interface DeviceReminder {
+  id: string;
+  accountId: string;
+  /** The device's name when it was set. */
+  device: string;
+  /** When it rings (ms). */
+  at: number;
+  note: string;
+  /** Its notification already went out. */
+  fired: boolean;
 }

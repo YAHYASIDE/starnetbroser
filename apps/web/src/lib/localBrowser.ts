@@ -12,6 +12,7 @@ import {
   STARLINK_ACTIVATE_URL,
   SessionStatus,
 } from "@starnet/local-browser-plugin";
+import type { DeviceReminder } from "@starnet/local-browser-plugin";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { SIGNUP_RECOVERY_EMAIL, outlookSignupFor, starlinkActivationFor } from "./accountCreation";
 import { passwordSuggestionsFor } from "./usedPasswords";
@@ -442,6 +443,21 @@ export async function linkCardGmail(email: string): Promise<{ ok: true; email: s
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : "تعذر ربط Gmail" };
   }
+}
+
+/** ⏰ The reminders set in devices' browsers (not done). Empty outside the Android app. */
+export async function listDeviceReminders(): Promise<DeviceReminder[]> {
+  if (!isRunningInAndroidApp()) return [];
+  try {
+    return (await LocalBrowser.listDeviceReminders()).reminders ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/** ⏰ «تم». */
+export async function doneDeviceReminder(id: string): Promise<void> {
+  if (isRunningInAndroidApp()) await LocalBrowser.doneDeviceReminder({ id }).catch(() => undefined);
 }
 
 export async function cardGmailEmail(): Promise<string | null> {

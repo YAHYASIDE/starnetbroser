@@ -19689,3 +19689,47 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
 .business-split {
   margin: 0;
 }
+
+/* ⏰ A reminder set in the device's browser (his Oct 30 2026 ask): one small amber line on its card. */
+.device-reminder-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  margin: 0 0 8px;
+  padding: 4px 10px;
+  border: 1px solid color-mix(in srgb, var(--yellow) 40%, transparent);
+  border-radius: var(--radius-sm);
+  color: var(--yellow);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.device-reminder-line > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-reminder-due {
+  background: color-mix(in srgb, var(--yellow) 14%, transparent);
+}
+
+.device-reminder-done {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.device-reminder-actions {
+  display: inline-flex;
+  gap: 10px;
+}

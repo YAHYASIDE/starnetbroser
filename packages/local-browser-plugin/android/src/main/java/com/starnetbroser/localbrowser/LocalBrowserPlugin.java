@@ -435,6 +435,35 @@ public class LocalBrowserPlugin extends Plugin {
         });
     }
 
+    /** ⏰ The reminders set in devices' browsers (DeviceReminderStore), not done yet - for «⏰ تذكيراتي» and the cards. */
+    @PluginMethod
+    public void listDeviceReminders(PluginCall call) {
+        com.getcapacitor.JSArray list = new com.getcapacitor.JSArray();
+        for (org.json.JSONObject r : DeviceReminderStore.list(getContext())) {
+            if (r.optLong("done", 0) > 0) continue;
+            JSObject item = new JSObject();
+            item.put("id", r.optString("id"));
+            item.put("accountId", r.optString("accountId"));
+            item.put("device", r.optString("device"));
+            item.put("at", r.optLong("at", 0));
+            item.put("note", r.optString("note"));
+            item.put("fired", r.optLong("fired", 0) > 0);
+            list.put(item);
+        }
+        JSObject ret = new JSObject();
+        ret.put("reminders", list);
+        call.resolve(ret);
+    }
+
+    /** ⏰ «تم»: the reminder is over (its alarm cancelled if it hasn't rung). */
+    @PluginMethod
+    public void doneDeviceReminder(PluginCall call) {
+        String id = call.getString("id", "");
+        DeviceReminderReceiver.cancel(getContext(), id);
+        DeviceReminderStore.mark(getContext(), id, "done");
+        call.resolve();
+    }
+
     @PluginMethod
     public void cardGmailStatus(PluginCall call) {
         JSObject ret = new JSObject();

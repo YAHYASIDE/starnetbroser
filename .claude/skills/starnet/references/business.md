@@ -2503,3 +2503,16 @@ is never pressed while a field is empty - it refills and saves on the next try (
   remade on edit and removed with the expense; his statement reads «📉 نصيبه من مصروف»; on the reps page it can't be
   deleted alone («يُعدَّل أو يُحذف من حسابي»). **Only my share** is a business expense in «الصافي» (`netProfit`
   `businessExpenses`, category «📉 <kind>») - the reps' shares already lower what I owe them.
+
+## ⏰ A reminder button in a device's browser (Oct 30 2026)
+
+- His ask (a Billing screenshot): «أريد إضافة زر تذكير هنا مثل تثبيت ذاك». His choices: **quick times + a time he
+  picks** (بعد ساعة · بعد 3 ساعات · غدًا 9 صباحًا · بعد يومين · «📅 وقت أختاره» = date then time); **a phone
+  notification with sound** that opens the app's home searched on the device, **and** it shows on the reminders page
+  («⏰ تذكيراتي», due first) and on the device's card (one amber line) **until «✓ تم»**; **a note + ready ones** (ادفع
+  الفاتورة · تأكد من الدفع · تابع الزبون · زامن الجهاز).
+- Native: the amber ⏰ tab under 📌 (`starnet_remind_handle`), `DeviceReminderTime` (pure, JUnit), `DeviceReminderStore`
+  (app prefs `starnet_device_reminders`, a phone convenience like the codes log - not in the backup; done ones kept 7
+  days), `DeviceReminderReceiver` (AlarmManager exact when allowed, else inexact; rung through `AppEventNotifier`;
+  re-set after a restart / update by `TelegramBootReceiver`). Plugin `listDeviceReminders` / `doneDeviceReminder`.
+  Web: `lib/deviceReminders.ts` (+test), the reminders page section, `AccountCard` `reminder`.

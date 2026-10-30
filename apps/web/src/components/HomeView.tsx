@@ -54,6 +54,8 @@ import { PendingDeviceCard } from "@/components/PendingDeviceCard";
 import { adoptRepDevice, repDeviceSecrets } from "@/lib/repDeviceAdopt";
 import { bucketPromises, loadPromises } from "@/lib/paymentPromises";
 import { clientPickerInfo } from "@/lib/clientPicker";
+import { remindersByAccount, type DeviceReminder } from "@/lib/deviceReminders";
+import { doneDeviceReminder, listDeviceReminders } from "@/lib/localBrowser";
 import { HOME_ACTION_EVENT, HOME_RESET_EVENT, HOME_SEARCH_EVENT, HomeAction, parseHomeAction, parseHomePayment, parseActivateDevice, REMINDER_COUNT_EVENT, parseHomeSearch } from "@/lib/homeActions";
 import { deviceRoute, HOME_ROUTE, KAST_ROUTE, notifyPhone } from "@/lib/appEvents";
 import { buildRenewalShipment } from "@/lib/renewalPlan";
@@ -420,6 +422,16 @@ export function HomeView({
   const [repRingId, setRepRingId] = useState<string | null>(null);
   // 📌 His private pins + purple notes per device (lib/deviceNotes.ts) - never sent to a rep.
   const [deviceNotes, setDeviceNotes] = useState<DeviceNotesStore>({});
+  // ⏰ the reminders set in devices' browsers (his Oct 30 2026 ask), re-read when the app comes back.
+  const [reminders, setReminders] = useState<DeviceReminder[]>([]);
+  useEffect(() => {
+    const read = () => void listDeviceReminders().then(setReminders);
+    read();
+    const onVisible = () => document.visibilityState === "visible" && read();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+  const reminderOf = useMemo(() => remindersByAccount(reminders, Date.now()), [reminders]);
   useEffect(() => setDeviceNotes(loadDeviceNotes()), []);
   // 🕘 «آخر جهاز»: opened / edited on this phone (lib/recentDevices.ts) - syncs and له/عليه are derived.
   const [recentLog, setRecentLog] = useState<RecentLog>({});
@@ -2709,6 +2721,8 @@ export function HomeView({
       onConfirmPaidD={viewMode === "active" ? handleConfirmPaidD : undefined}
       onClearRepAdded={viewMode === "active" ? (a) => handleClearRepAdded([a]) : undefined}
       deviceNote={deviceNotes[account.id]}
+      reminder={reminderOf[account.id]}
+      onDoneReminder={(id) => void doneDeviceReminder(id).then(() => setReminders((list) => list.filter((r) => r.id !== id)))}
       onSaveNote={(target, input) => commitDeviceNotes(saveDeviceNote(loadDeviceNotes(), target.id, input))}
       onSetPinned={(target, pinned) => commitDeviceNotes(setDevicePinned(loadDeviceNotes(), target.id, pinned))}
     />

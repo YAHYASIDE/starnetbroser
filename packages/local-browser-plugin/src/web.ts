@@ -1,6 +1,7 @@
 import { WebPlugin } from "@capacitor/core";
 import type {
   NotificationReaderStatus,
+  DeviceReminder,
   AppEventRaw,
   BankNoticeRaw,
   FillCardItem,
@@ -298,6 +299,14 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
 
   async linkCardGmail(_options: { email: string }): Promise<{ email: string }> {
     throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
+  }
+
+  async listDeviceReminders(): Promise<{ reminders: DeviceReminder[] }> {
+    return { reminders: [] };
+  }
+
+  async doneDeviceReminder(_options: { id: string }): Promise<void> {
+    return;
   }
 
   async cardGmailStatus(): Promise<{ email?: string }> {

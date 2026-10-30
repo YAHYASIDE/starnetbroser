@@ -373,6 +373,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
         BrowserBar.setUp(this, this::goBackInWebView, this::reload, "⇣", getString(R.string.starnet_action_sync), this::syncFromStarlink);
         ((Button) findViewById(R.id.starnet_error_retry)).setOnClickListener(v -> reload());
         findViewById(R.id.starnet_pin_handle).setOnClickListener(v -> askPinUnrecorded());
+        findViewById(R.id.starnet_remind_handle).setOnClickListener(v -> askReminder());
 
         // 💳 Before the first page: the card-fill script must run at the start of every frame.
         cardFill.setUp(webView);
@@ -1274,6 +1275,89 @@ public class AccountBrowserActivity extends AppCompatActivity {
             if (stagePin(amount, currency)) dialog.dismiss();
         }));
         dialog.show();
+    }
+
+    /**
+     * ⏰ «تذكير» (his Oct 30 2026 ask): a note (typed or one of his ready ones) and when - a quick time or a date and
+     * time he picks. It rings as a notification with sound (DeviceReminderReceiver) and shows in the app («⏰
+     * تذكيراتي», the device's card) until he taps «تم».
+     */
+    private void askReminder() {
+        if (accountId == null) return;
+        float density = getResources().getDisplayMetrics().density;
+        int pad = (int) (20 * density);
+        android.widget.LinearLayout box = new android.widget.LinearLayout(this);
+        box.setOrientation(android.widget.LinearLayout.VERTICAL);
+        box.setPadding(pad, pad / 2, pad, 0);
+        android.widget.EditText noteInput = new android.widget.EditText(this);
+        noteInput.setHint("ملاحظة (اختياري)");
+        box.addView(noteInput);
+        android.widget.HorizontalScrollView readyScroll = new android.widget.HorizontalScrollView(this);
+        android.widget.LinearLayout ready = new android.widget.LinearLayout(this);
+        for (String text : DeviceReminderTime.READY_NOTES) {
+            android.widget.Button chip = new android.widget.Button(this, null, android.R.attr.buttonStyleSmall);
+            chip.setText(text);
+            chip.setAllCaps(false);
+            chip.setOnClickListener(v -> noteInput.setText(text));
+            ready.addView(chip);
+        }
+        readyScroll.addView(ready);
+        box.addView(readyScroll);
+        android.widget.TextView when = new android.widget.TextView(this);
+        when.setText("متى أذكّرك؟");
+        when.setPadding(0, pad / 2, 0, pad / 4);
+        box.addView(when);
+        androidx.appcompat.app.AlertDialog[] holder = new androidx.appcompat.app.AlertDialog[1];
+        java.util.TimeZone zone = java.util.TimeZone.getDefault();
+        for (int i = 0; i < DeviceReminderTime.QUICK_LABELS.length; i++) {
+            int index = i;
+            android.widget.Button quick = new android.widget.Button(this);
+            quick.setText("⏰ " + DeviceReminderTime.QUICK_LABELS[i]);
+            quick.setAllCaps(false);
+            quick.setOnClickListener(v -> {
+                if (saveReminder(DeviceReminderTime.quick(index, System.currentTimeMillis(), zone), noteInput.getText().toString())) holder[0].dismiss();
+            });
+            box.addView(quick);
+        }
+        android.widget.Button pick = new android.widget.Button(this);
+        pick.setText("📅 وقت أختاره");
+        pick.setAllCaps(false);
+        pick.setOnClickListener(v -> pickReminderTime(noteInput.getText().toString(), holder[0]));
+        box.addView(pick);
+        android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+        scroll.addView(box);
+        holder[0] = new androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("⏰ تذكير - " + (deviceLabel.isEmpty() ? "هذا الجهاز" : deviceLabel))
+            .setView(scroll)
+            .setNegativeButton("إلغاء", null)
+            .create();
+        holder[0].show();
+    }
+
+    private void pickReminderTime(String note, androidx.appcompat.app.AlertDialog parent) {
+        java.util.Calendar now = java.util.Calendar.getInstance();
+        new android.app.DatePickerDialog(this, (dateView, year, month, day) ->
+            new android.app.TimePickerDialog(this, (timeView, hour, minute) -> {
+                Long at = DeviceReminderTime.picked(System.currentTimeMillis(), java.util.TimeZone.getDefault(), year, month, day, hour, minute);
+                if (at == null) {
+                    Toast.makeText(this, "اختر وقتًا بعد الآن", Toast.LENGTH_LONG).show();
+                    return;
+                }
+                if (saveReminder(at, note) && parent != null) parent.dismiss();
+            }, 9, 0, true).show(),
+            now.get(java.util.Calendar.YEAR), now.get(java.util.Calendar.MONTH), now.get(java.util.Calendar.DAY_OF_MONTH)).show();
+    }
+
+    private boolean saveReminder(long at, String note) {
+        org.json.JSONObject r = DeviceReminderStore.add(getApplicationContext(), accountId, deviceLabel, at, note);
+        if (r == null) {
+            Toast.makeText(this, "تعذّر حفظ التذكير - حاول مرة أخرى", Toast.LENGTH_LONG).show();
+            return false;
+        }
+        DeviceReminderReceiver.schedule(getApplicationContext(), r.optString("id"), at);
+        String time = new java.text.SimpleDateFormat("yyyy/MM/dd HH:mm", java.util.Locale.US).format(new java.util.Date(at));
+        Toast.makeText(this, "⏰ سيذكّرك " + time, Toast.LENGTH_LONG).show();
+        return true;
     }
 
     /** Stages the pin (and the charge when `amount` is set); false when it couldn't be saved. */

@@ -5,6 +5,9 @@ import { listOpenPreviousDebts, loadPreviousDebts } from "@/lib/previousDebt";
 import { cardShortfallForSuspended, currentCardBalanceUsd, listOpenShipmentDebts, listSuspendedWithDebt } from "@/lib/starlinkDebt";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { doneDeviceReminder, listDeviceReminders } from "@/lib/localBrowser";
+import { reminderWhenLabel, sortReminders, type DeviceReminder } from "@/lib/deviceReminders";
+import { homeSearchHref } from "@/lib/homeActions";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { demoAccounts } from "@/lib/demoData";
 import { getLastBackupAt, isDemoMode, isLoggedIn } from "@/lib/settingsStore";
@@ -60,6 +63,15 @@ export default function RemindersPage() {
   const [storeItems, setStoreItems] = useState<StoreItemRegistry>({});
   const [storeTransactions, setStoreTransactions] = useState<StoreTransactionList>([]);
   const [lastBackupAt, setLastBackupAt] = useState<string | null>(null);
+  // ⏰ the reminders he set in devices' browsers (his Oct 30 2026 ask)
+  const [deviceReminders, setDeviceReminders] = useState<DeviceReminder[]>([]);
+  useEffect(() => {
+    const read = () => void listDeviceReminders().then(setDeviceReminders);
+    read();
+    const onVisible = () => document.visibilityState === "visible" && read();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
 
   useEffect(() => {
     setLastBackupAt(getLastBackupAt());
@@ -140,6 +152,37 @@ export default function RemindersPage() {
         </Link>
         <h1 className="section-title">التذكيرات</h1>
       </div>
+
+      {deviceReminders.length > 0 && (
+        <section className="section" data-tour="device-reminders">
+          <h2 className="report-section-title">⏰ تذكيراتي ({deviceReminders.length})</h2>
+          <ul className="ledger-entry-list">
+            {sortReminders(deviceReminders, Date.now()).map((r) => (
+              <li key={r.id} className={`ledger-entry-row${r.fired || r.at <= Date.now() ? " device-reminder-due" : ""}`}>
+                <div className="ledger-entry-row-top">
+                  <span className="store-item-name">{r.device || "جهاز"}</span>
+                  <span className="settings-hint">{reminderWhenLabel(r, Date.now())}</span>
+                </div>
+                <div className="ledger-entry-row-bottom">
+                  <span>{r.note || "تذكير بهذا الجهاز"}</span>
+                  <span className="device-reminder-actions">
+                    <Link href={homeSearchHref(r.device)} className="text-action">
+                      فتح
+                    </Link>
+                    <button
+                      type="button"
+                      className="text-action"
+                      onClick={() => void doneDeviceReminder(r.id).then(() => setDeviceReminders((list) => list.filter((x) => x.id !== r.id)))}
+                    >
+                      ✓ تم
+                    </button>
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {duePromises.length > 0 && (
         <section className="section">
