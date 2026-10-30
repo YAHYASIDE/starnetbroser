@@ -13,15 +13,18 @@ import { loadRepBook } from "@/lib/repClients";
 import { isRepWorkspace } from "@/lib/repMode";
 import { ACCOUNTS_CHANGED_EVENT } from "@/lib/repMenuRecords";
 import { applyRepRatePlans } from "@/lib/repRates";
-import { buildRepAutoStatementPdf, newDebtRows, repCurrentStatement, repDebtRows, type RepStatementSources } from "@/lib/repStatementDoc";
+import { buildRepAutoStatementPdf, repChangesCaption, repCurrentStatement, repSentRows, repStatementChanges, type RepStatementSources } from "@/lib/repStatementDoc";
 import { tellOwner } from "@/lib/appEvents";
 import { listRepresentatives, loadRepresentativeStore, loadRepSettlements } from "@/lib/repStore";
 import { loadStoreItems } from "@/lib/storeStore";
 import { isRepLinkedToBot, sendRepPdf } from "@/lib/telegram";
 
 const EVERY_MS = 20_000;
-/** Per rep, the operations (row keys) of the last statement sent - a phone setting, not business data. */
+/** Per rep, the operations (stamped rows, lib/repStatementDoc.ts repSentRows) of the last statement sent - a phone
+ * setting, not business data. */
 const SENT_KEY = "starnet.repAutoStatementSent";
+/** Per rep, the account reset the last statement was taken after: a new «تصفير» drops rows without deleting them. */
+const RESET_KEY = "starnet.repAutoStatementReset";
 /** Per rep, how the last automatic statement went (shown on his card). */
 export const STATUS_KEY = "starnet.repAutoStatementStatus";
 /** The reps page's display currency (أوقية / سيفا / both). */
@@ -38,7 +41,8 @@ function readJson<T>(key: string, fallback: T): T {
 
 /**
  * 📄 «كشف بعد كل عملية» (lib/repStatementDoc.ts): while the app is open, a rep who has it on gets his
- * statement (last 10 operations, what he owes) in the reps bot as soon as a new operation is on him.
+ * statement (last 10 operations, what he owes) in the reps bot as soon as an operation on him is added, edited or
+ * deleted (his Oct 30 2026 ask).
  */
 export function RepAutoStatementRunner() {
   useEffect(() => {
@@ -68,13 +72,18 @@ export function RepAutoStatementRunner() {
         };
         const sent = readJson<Record<string, string[]>>(SENT_KEY, {});
         const next = { ...sent };
+        const resets = readJson<Record<string, string>>(RESET_KEY, {});
         const status = readJson<Record<string, { at: string; ok: boolean; message?: string }>>(STATUS_KEY, {});
         for (const rep of reps) {
-          const rows = repDebtRows(repCurrentStatement(rep, src, convert).statement);
-          const keys = rows.map((r) => r.key);
-          const fresh = newDebtRows(rows, sent[rep.id], rep.autoStatementSince);
-          if (fresh.length > 0) {
-            const result = await sendRepPdf(rep.id, buildRepAutoStatementPdf(rep, src, convert, loadStoreItems()), `📄 كشف حسابك - ${fresh.length === 1 ? "عملية جديدة" : `${fresh.length} عمليات جديدة`}`);
+          const rows = repSentRows(repCurrentStatement(rep, src, convert).native);
+          const stamps = rows.map((r) => r.stamp).slice(0, 600);
+          const reset = JSON.stringify(rep.resetFrom ?? null);
+          // a new «تصفير»: his old rows leave the statement without being deleted - start again silently
+          const resetMoved = sent[rep.id] !== undefined && (resets[rep.id] ?? "null") !== reset;
+          resets[rep.id] = reset;
+          const changes = resetMoved ? [] : repStatementChanges(rows, sent[rep.id], rep.autoStatementSince);
+          if (changes.length > 0) {
+            const result = await sendRepPdf(rep.id, buildRepAutoStatementPdf(rep, src, convert, loadStoreItems()), repChangesCaption(changes));
             if (!result.ok) {
               // tried again on the next round - and he's told once why it didn't go
               if (status[rep.id]?.ok !== false) await tellOwner(`⚠️ لم يُرسل كشف ${rep.name} التلقائي: ${result.message}`);
@@ -82,10 +91,14 @@ export function RepAutoStatementRunner() {
               continue;
             }
             status[rep.id] = { at: new Date().toISOString(), ok: true };
-            next[rep.id] = keys.slice(0, 300);
-          } else if (!sent[rep.id] || keys.length !== sent[rep.id]!.length) {
-            next[rep.id] = keys.slice(0, 300); // first round / an operation removed: nothing to send
           }
+          // first round, a reset, or nothing he needs to hear about (old keys upgraded to stamps)
+          next[rep.id] = stamps;
+        }
+        try {
+          window.localStorage.setItem(RESET_KEY, JSON.stringify(resets));
+        } catch {
+          // a phone setting only
         }
         try {
           window.localStorage.setItem(STATUS_KEY, JSON.stringify(status));

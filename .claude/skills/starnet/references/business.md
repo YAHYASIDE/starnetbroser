@@ -2444,3 +2444,14 @@ is never pressed while a field is empty - it refills and saves on the next try (
   customer and each rep gets an automatic chip «🤝 <name>» (filters over all customers, mine and the reps').
   The «زبائني / زبائن المندوبين» owner filter is unchanged (`clientRepIds`).
 - Category chips: very small, **two rows, five to a row** on screen; more slide sideways (`--chip-cols`).
+
+## 📄 The rep's automatic statement goes on ANY change (Oct 30 2026)
+
+- His report: «ما زالت عمليات المندوب لا تظهر - اجعل أي تعديل على أي عملية أو حذفها أو إضافتها تُرسل للمندوب». The
+  automatic statement only compared row keys, so an edit (e.g. «زيادة على الدين القديم», a changed amount or note)
+  or a deletion sent nothing.
+- Now `repSentRows` stamps every «ما عليه» row (key, date, amount in its own currency, device / note) and
+  `repStatementChanges` tells added / edited / removed against the last statement sent; any of them sends the PDF
+  with a caption «📄 كشف حسابك - ➕ … · ✏️ عُدّلت عملية · 🗑️ حُذفت عملية» plus the date and amount of each edited /
+  deleted row. A rate change is never an edit (amounts in their own currency). A new «تصفير» of his account starts
+  again silently (`starnet.repAutoStatementReset`). Still only for reps with «📄 كشف بعد كل عملية» on and linked to the bot.

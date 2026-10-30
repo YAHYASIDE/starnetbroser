@@ -31,6 +31,19 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-30-rep-statement-on-any-change",
+    date: "2026-10-30",
+    title: "📄 كشف المندوب بعد أي تعديل أو حذف",
+    steps: [
+      {
+        path: "/representatives",
+        title: "📄 «كشف بعد كل عملية» يُرسل عند أي تغيير",
+        before: "كان الكشف يُرسل للمندوب فقط عند إضافة عملية جديدة؛ تعديل عملية أو حذفها لا يُرسل شيئًا.",
+        after: "أي إضافة أو تعديل (المبلغ، التاريخ، الملاحظة) أو حذف لعملية عليه يُرسل له الكشف فورًا، ومعه سطر يقول ما تغيّر: «✏️ عُدّلت عملية» / «🗑️ حُذفت عملية».",
+      },
+    ],
+  },
+  {
     id: "2026-10-30-recent-first-rep-categories",
     date: "2026-10-30",
     title: "🕘 آخر جهاز أولًا + 🤝 تصنيف لكل مندوب",

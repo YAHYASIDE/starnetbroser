@@ -60,6 +60,45 @@ describe("📄 «كشف بعد كل عملية» (his Oct 29 2026 ask)", () => {
   });
 });
 
+describe("📄 any change to an operation on him goes to him (his Oct 30 2026 ask: added, edited or deleted)", () => {
+  it("tells an added, an edited and a deleted operation, and nothing when nothing changed", async () => {
+    const { repSentRows, repStatementChanges, repChangesCaption } = await import("./repStatementDoc");
+    const rowsOf = (src: RepStatementSources) => repSentRows(repCurrentStatement(rep, src, keepCurrency).native);
+    const base = sources(3);
+    const sent = rowsOf(base).map((r) => r.stamp);
+    expect(repStatementChanges(rowsOf(base), sent)).toEqual([]);
+
+    const edited = sources(3);
+    edited.ledger.d1![1] = { ...edited.ledger.d1![1]!, amount: 6000 };
+    const edit = repStatementChanges(rowsOf(edited), sent);
+    expect(edit).toEqual([{ kind: "edited", key: expect.any(String), date: "2026-10-02", amount: "-6000 SIFA" }]);
+
+    const noted = sources(3);
+    noted.ledger.d1![0] = { ...noted.ledger.d1![0]!, note: "DEMO NOTE" };
+    expect(repStatementChanges(rowsOf(noted), sent).map((c) => c.kind)).toEqual(["edited"]);
+
+    const removed = sources(3);
+    removed.ledger.d1 = removed.ledger.d1!.filter((e) => e.id !== "e2");
+    const gone = repStatementChanges(rowsOf(removed), sent);
+    expect(gone).toEqual([{ kind: "removed", key: expect.any(String), date: "2026-10-02", amount: "-1002 SIFA" }]);
+    expect(repChangesCaption(gone)).toBe("📄 كشف حسابك - 🗑️ حُذفت عملية\n🗑️ 2026-10-02 · 1,002 سيفا");
+
+    const added = repStatementChanges(rowsOf(sources(4)), sent);
+    expect(added.map((c) => c.kind)).toEqual(["added"]);
+    expect(repChangesCaption([...added, ...edit])).toBe("📄 كشف حسابك - ➕ عملية جديدة · ✏️ عُدّلت عملية\n✏️ 2026-10-02 · 6,000 سيفا");
+  });
+
+  it("a rate change is never an edit; bare keys from before (no stamps) tell only new operations", async () => {
+    const { repSentRows, repStatementChanges } = await import("./repStatementDoc");
+    const rows = repSentRows(repCurrentStatement(rep, sources(3), keepCurrency).native);
+    const legacy = rows.map((r) => r.key);
+    expect(repStatementChanges(rows, legacy)).toEqual([]);
+    expect(repStatementChanges(rows.slice(1), legacy)).toEqual([]);
+    expect(repStatementChanges(repSentRows(repCurrentStatement(rep, sources(4), keepCurrency).native), legacy)).toHaveLength(1);
+    expect(repStatementChanges(rows, undefined)).toEqual([]);
+  });
+});
+
 describe("🧾 the in-app statement table (his Oct 29 2026 ask: before / movement / after, last 24 hours)", () => {
   it("each line carries the balance before and after; `since` keeps only what was recorded from then on", async () => {
     const { repStatementTable, last24h } = await import("./repStatementDoc");

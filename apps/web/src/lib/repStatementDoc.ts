@@ -252,6 +252,105 @@ export function newDebtRows(current: string[] | { key: string; at: string }[], s
   return rows.filter((r) => !seen.has(r.key) && (!since || !r.at || r.at >= since)).map((r) => r.key);
 }
 
+/** One «ما عليه» row as it was sent: its key and a stamp of what it says (date, amount in its own currency,
+ * device, note) - a change to any of them is an edit (his Oct 30 2026 ask: «أي تعديل على أي عملية أو حذفها أو
+ * إضافتها تُرسل للمندوب»). Kept as "key\tdate\tamount\tdetails" so a deleted row can still be described. */
+export interface RepSentRow {
+  key: string;
+  at: string;
+  stamp: string;
+}
+
+function rowStampDetails(row: RepStatementRow): string {
+  if (row.type === "customer") return `${row.op.accountId} ${row.op.note ?? ""} ${row.op.byRep ? "byRep" : ""}`.trim();
+  if (row.type === "settlement") return `${row.settlement.kind} ${row.settlement.note ?? ""}`.trim();
+  if (row.type === "invoice") return row.row.invoice.id;
+  return "";
+}
+
+/** The «ما عليه» rows of `native` (each record in its own currency - a rate change is never an edit), stamped. */
+export function repSentRows(native: RepPeriodStatement): RepSentRow[] {
+  return native.days.flatMap((day) =>
+    day.rows
+      .filter((row) => repRowAccount(row) === "debt")
+      .map((row) => {
+        const amount = Object.entries(repRowSplit(row, keepCurrency).debt)
+          .filter(([, v]) => Math.abs(v) > 0.000001)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([code, v]) => `${Math.round(v * 100) / 100} ${code}`)
+          .join(" + ");
+        const key = repRowKey(row);
+        return { key, at: row.createdAt, stamp: [key, row.date, amount, rowStampDetails(row).replace(/[\t\n]/g, " ")].join("\t") };
+      }),
+  );
+}
+
+export interface RepStatementChange {
+  kind: "added" | "edited" | "removed";
+  key: string;
+  /** The row's date and amount (for «removed»: as it was sent). */
+  date: string;
+  amount: string;
+}
+
+/** What changed in «ما عليه» since the last statement sent (`sent`: stamps, or bare keys from before stamps were
+ * kept - those only tell new rows). Nothing sent yet and no `since`: none, it never sends his whole history. */
+export function repStatementChanges(current: RepSentRow[], sent: string[] | undefined, since?: string): RepStatementChange[] {
+  if (!sent && !since) return [];
+  const parts = (stamp: string) => stamp.split("\t");
+  const before = new Map<string, string | undefined>();
+  for (const item of sent ?? []) {
+    const [key] = parts(item);
+    before.set(key!, item.includes("\t") ? item : undefined);
+  }
+  const changes: RepStatementChange[] = [];
+  const now = new Set<string>();
+  for (const row of current) {
+    now.add(row.key);
+    const [, date = "", amount = ""] = parts(row.stamp);
+    if (!before.has(row.key)) {
+      if (!since || !row.at || row.at >= since) changes.push({ kind: "added", key: row.key, date, amount });
+    } else {
+      const old = before.get(row.key);
+      if (old !== undefined && old !== row.stamp) changes.push({ kind: "edited", key: row.key, date, amount });
+    }
+  }
+  for (const [key, old] of before) {
+    if (now.has(key) || old === undefined) continue;
+    const [, date = "", amount = ""] = parts(old);
+    changes.push({ kind: "removed", key, date, amount });
+  }
+  return changes;
+}
+
+/** "5000 MRU + 10 SIFA" → "5,000 أوقية + 10 سيفا". */
+function readableAmount(amount: string): string {
+  return amount
+    .split(" + ")
+    .map((part) => {
+      const [value, code = ""] = part.split(" ");
+      return `${formatAmount(Math.abs(Number(value)))} ${LEDGER_CURRENCY_LABELS[code as LedgerCurrency] ?? code}`;
+    })
+    .join(" + ");
+}
+
+/** The bot message's caption for those changes. */
+export function repChangesCaption(changes: RepStatementChange[]): string {
+  const count = (kind: RepStatementChange["kind"]) => changes.filter((c) => c.kind === kind).length;
+  const words: string[] = [];
+  const added = count("added");
+  const edited = count("edited");
+  const removed = count("removed");
+  if (added) words.push(added === 1 ? "➕ عملية جديدة" : `➕ ${added} عمليات جديدة`);
+  if (edited) words.push(edited === 1 ? "✏️ عُدّلت عملية" : `✏️ عُدّلت ${edited} عمليات`);
+  if (removed) words.push(removed === 1 ? "🗑️ حُذفت عملية" : `🗑️ حُذفت ${removed} عمليات`);
+  const lines = changes
+    .filter((c) => c.kind !== "added")
+    .slice(0, 5)
+    .map((c) => `${c.kind === "edited" ? "✏️" : "🗑️"} ${c.date}${c.amount ? ` · ${readableAmount(c.amount)}` : ""}`);
+  return [`📄 كشف حسابك - ${words.join(" · ")}`, ...lines].join("\n");
+}
+
 /** 🧾 One line of the in-app statement (his Oct 29 2026 ask: «مثل كشف حسابه PDF… رصيد قبل العملية، الآن، رصيد بعد»). */
 export interface RepTableLine {
   key: string;
