@@ -46,6 +46,9 @@ export interface Representative {
   /** 📄 «كشف بعد كل عملية» (his Oct 29 2026 choice, per rep): every new operation on what he owes sends him his
    * statement with the last 10 operations as a PDF in the reps bot (RepAutoStatementRunner). */
   autoStatement?: boolean;
+  /** ISO time «📄 كشف بعد كل عملية» was turned on - every operation recorded from then on is sent (Oct 30 2026: an
+   * operation right after turning it on was taken as «already there» and never sent). */
+  autoStatementSince?: string;
   /** 💱 «عملته»: the currency we deal with him in (lib/partyCurrency.ts). Absent = automatic, from
    * most of his devices' operations. */
   defaultCurrency?: LedgerCurrency;
@@ -214,8 +217,9 @@ export function setRepCustomersStay(store: RepresentativeStore, id: string, stay
 export function setRepAutoStatement(store: RepresentativeStore, id: string, on: boolean): RepresentativeStore {
   const existing = store[id];
   if (!existing) return store;
-  const { autoStatement: _was, ...rest } = existing;
-  return { ...store, [id]: { ...rest, ...(on ? { autoStatement: true } : {}), updatedAt: new Date().toISOString() } };
+  const { autoStatement: _was, autoStatementSince: _since, ...rest } = existing;
+  const now = new Date().toISOString();
+  return { ...store, [id]: { ...rest, ...(on ? { autoStatement: true, autoStatementSince: now } : {}), updatedAt: now } };
 }
 
 /** 💱 Sets (or, with null, removes) his own rates. The shipments are stamped separately

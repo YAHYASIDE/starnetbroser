@@ -63,6 +63,7 @@ import {
   ShipmentRepPatch,
   splitRepRecords, repNetPosition, ledgerAfterRepReset, bookAfterRepReset, repProfitBreakdown, type RepProfitBreakdown, type RepProfitItem } from "@/lib/repAccount";
 import { isRepLinkedToBot, sendRepPdf } from "@/lib/telegram";
+import { STATUS_KEY as AUTO_STATEMENT_STATUS_KEY } from "@/components/RepAutoStatementRunner";
 import { InvoiceList, loadInvoices, saveInvoices } from "@/lib/invoiceStore";
 import {
   LEDGER_CURRENCIES,
@@ -968,9 +969,10 @@ function RepCard({
         </div>
       )}
 
-      {customersHidden && (
+      {(customersHidden || rep.autoStatement) && (
         <div className="party-chips">
-          <span className="party-chip rep-chip-hidden">🔒 زبائنه عنده فقط</span>
+          {customersHidden && <span className="party-chip rep-chip-hidden">🔒 زبائنه عنده فقط</span>}
+          {rep.autoStatement && <AutoStatementChip repId={rep.id} />}
         </div>
       )}
 
@@ -2717,6 +2719,24 @@ function RepNowBlock({
       <small className="rep-now-sub">🕒 عمليات آخر 24 ساعة ({lines.length})</small>
       <RepStatementTable lines={lines} describe={describe} onOpen={onOpen} empty={empty} wrong={wrong} />
     </section>
+  );
+}
+
+/** 📄 «كشف بعد كل عملية» is on - and how its last statement went (RepAutoStatementRunner's status). */
+function AutoStatementChip({ repId }: { repId: string }) {
+  const [status, setStatus] = useState<{ at: string; ok: boolean; message?: string } | undefined>(undefined);
+  useEffect(() => {
+    try {
+      setStatus((JSON.parse(window.localStorage.getItem(AUTO_STATEMENT_STATUS_KEY) ?? "{}") as Record<string, { at: string; ok: boolean; message?: string }>)[repId]);
+    } catch {
+      setStatus(undefined);
+    }
+  }, [repId]);
+  const when = status ? status.at.slice(0, 16).replace("T", " ") : "";
+  return (
+    <span className={`party-chip${status && !status.ok ? " rep-chip-hidden" : ""}`} title={status?.message}>
+      📄 كشف تلقائي{status ? (status.ok ? ` · آخر إرسال ${when}` : ` · ⚠️ لم يُرسل (${when})`) : " · لم يُرسل بعد"}
+    </span>
   );
 }
 

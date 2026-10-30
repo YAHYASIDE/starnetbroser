@@ -2408,4 +2408,12 @@ is never pressed while a field is empty - it refills and saves on the next try (
   مكان». An empty cost amount = «⏳ الفاتورة لم تنزل بعد» (`awaitingCost`: an empty D the next read fills) in
   LedgerDialog and EditLedgerEntryDialog. Not changed: paying a D (the amount paid is the record), completing an old
   entry (its point is the cost), a rep's activation (its package cost is set once in the settings).
+- **Oct 30 2026 follow-up** («لماذا بعد العملية لم يُرسل تلقائيًا PDF إلى البوت» - الحسين's 6,000 «تجديد عليه · Ismail»,
+  only his manual «كل العمليات» PDF in the bot): the runner took the rows it saw on its first round as already sent, so
+  an operation recorded right after turning the option on (before that first round) was never sent; and nothing told
+  him whether it was on or had failed. Now turning it on keeps `autoStatementSince`: every row recorded from then on
+  and not in the last statement sent goes (`newDebtRows(rows, sent, since)`); a failed send tells him once
+  («⚠️ لم يُرسل كشف X التلقائي: …», retried each round); the rep card shows «📄 كشف تلقائي · آخر إرسال …» /
+  «⚠️ لم يُرسل» / «لم يُرسل بعد» (`starnet.repAutoStatementStatus`). A rep turned on before this keeps the old
+  start - turning it off and on again starts it now.
 

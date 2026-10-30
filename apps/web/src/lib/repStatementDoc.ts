@@ -237,12 +237,19 @@ export function buildRepAutoStatementPdf(
   };
 }
 
-/** The operations he hasn't been sent yet (`sent` = the keys of the last statement sent). First time: none -
- * turning it on never sends his whole history. */
-export function newDebtRows(current: string[], sent: string[] | undefined): string[] {
-  if (!sent) return [];
-  const seen = new Set(sent);
-  return current.filter((k) => !seen.has(k));
+/** The rows of «ما عليه» with the time each was recorded. */
+export function repDebtRows(statement: RepPeriodStatement): { key: string; at: string }[] {
+  return statement.days.flatMap((day) => day.rows.filter((row) => repRowAccount(row) === "debt").map((row) => ({ key: repRowKey(row), at: row.createdAt })));
+}
+
+/** The operations he hasn't been sent yet: recorded since the option was turned on (`since`) and not in the last
+ * statement sent (`sent`). Without `since` (turned on before it was kept) and nothing sent yet: none - it never
+ * sends his whole history. */
+export function newDebtRows(current: string[] | { key: string; at: string }[], sent: string[] | undefined, since?: string): string[] {
+  const rows = current.map((r) => (typeof r === "string" ? { key: r, at: "" } : r));
+  if (!sent && !since) return [];
+  const seen = new Set(sent ?? []);
+  return rows.filter((r) => !seen.has(r.key) && (!since || !r.at || r.at >= since)).map((r) => r.key);
 }
 
 /** 🧾 One line of the in-app statement (his Oct 29 2026 ask: «مثل كشف حسابه PDF… رصيد قبل العملية، الآن، رصيد بعد»). */

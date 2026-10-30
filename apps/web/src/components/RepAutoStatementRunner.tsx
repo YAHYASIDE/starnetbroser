@@ -13,7 +13,8 @@ import { loadRepBook } from "@/lib/repClients";
 import { isRepWorkspace } from "@/lib/repMode";
 import { ACCOUNTS_CHANGED_EVENT } from "@/lib/repMenuRecords";
 import { applyRepRatePlans } from "@/lib/repRates";
-import { buildRepAutoStatementPdf, newDebtRows, repCurrentStatement, repDebtRowKeys, type RepStatementSources } from "@/lib/repStatementDoc";
+import { buildRepAutoStatementPdf, newDebtRows, repCurrentStatement, repDebtRows, type RepStatementSources } from "@/lib/repStatementDoc";
+import { tellOwner } from "@/lib/appEvents";
 import { listRepresentatives, loadRepresentativeStore, loadRepSettlements } from "@/lib/repStore";
 import { loadStoreItems } from "@/lib/storeStore";
 import { isRepLinkedToBot, sendRepPdf } from "@/lib/telegram";
@@ -21,6 +22,8 @@ import { isRepLinkedToBot, sendRepPdf } from "@/lib/telegram";
 const EVERY_MS = 20_000;
 /** Per rep, the operations (row keys) of the last statement sent - a phone setting, not business data. */
 const SENT_KEY = "starnet.repAutoStatementSent";
+/** Per rep, how the last automatic statement went (shown on his card). */
+export const STATUS_KEY = "starnet.repAutoStatementStatus";
 /** The reps page's display currency (أوقية / سيفا / both). */
 const DISPLAY_KEY = "starnet.repDisplayCurrency";
 
@@ -65,18 +68,29 @@ export function RepAutoStatementRunner() {
         };
         const sent = readJson<Record<string, string[]>>(SENT_KEY, {});
         const next = { ...sent };
+        const status = readJson<Record<string, { at: string; ok: boolean; message?: string }>>(STATUS_KEY, {});
         for (const rep of reps) {
-          const keys = repDebtRowKeys(repCurrentStatement(rep, src, convert).statement);
-          const fresh = newDebtRows(keys, sent[rep.id]);
-          if (!sent[rep.id] || fresh.length > 0) {
-            if (sent[rep.id]) {
-              const result = await sendRepPdf(rep.id, buildRepAutoStatementPdf(rep, src, convert, loadStoreItems()), `📄 كشف حسابك - ${fresh.length === 1 ? "عملية جديدة" : `${fresh.length} عمليات جديدة`}`);
-              if (!result.ok) continue; // tried again on the next round
+          const rows = repDebtRows(repCurrentStatement(rep, src, convert).statement);
+          const keys = rows.map((r) => r.key);
+          const fresh = newDebtRows(rows, sent[rep.id], rep.autoStatementSince);
+          if (fresh.length > 0) {
+            const result = await sendRepPdf(rep.id, buildRepAutoStatementPdf(rep, src, convert, loadStoreItems()), `📄 كشف حسابك - ${fresh.length === 1 ? "عملية جديدة" : `${fresh.length} عمليات جديدة`}`);
+            if (!result.ok) {
+              // tried again on the next round - and he's told once why it didn't go
+              if (status[rep.id]?.ok !== false) await tellOwner(`⚠️ لم يُرسل كشف ${rep.name} التلقائي: ${result.message}`);
+              status[rep.id] = { at: new Date().toISOString(), ok: false, message: result.message };
+              continue;
             }
+            status[rep.id] = { at: new Date().toISOString(), ok: true };
             next[rep.id] = keys.slice(0, 300);
-          } else if (keys.length !== sent[rep.id]!.length) {
-            next[rep.id] = keys.slice(0, 300); // an operation removed: nothing to send
+          } else if (!sent[rep.id] || keys.length !== sent[rep.id]!.length) {
+            next[rep.id] = keys.slice(0, 300); // first round / an operation removed: nothing to send
           }
+        }
+        try {
+          window.localStorage.setItem(STATUS_KEY, JSON.stringify(status));
+        } catch {
+          // a phone setting only
         }
         try {
           window.localStorage.setItem(SENT_KEY, JSON.stringify(next));

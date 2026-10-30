@@ -45,13 +45,18 @@ describe("📄 «كشف بعد كل عملية» (his Oct 29 2026 ask)", () => {
     expect(doc.summary?.[0]?.label).toContain("المبلغ المتبقي عليه");
   });
 
-  it("a new operation is told by its key; the first time nothing is sent (no whole history)", () => {
+  it("a new operation is told by its key; the first time nothing is sent (no whole history)", async () => {
     const before = repDebtRowKeys(repCurrentStatement(rep, sources(3), keepCurrency).statement);
     const after = repDebtRowKeys(repCurrentStatement(rep, sources(4), keepCurrency).statement);
     expect(before).toHaveLength(3);
     expect(newDebtRows(after, before)).toHaveLength(1);
     expect(newDebtRows(after, after)).toEqual([]);
     expect(newDebtRows(after, undefined)).toEqual([]);
+    // turned on at a time: everything recorded from then on goes, even before the first round (Oct 30 2026)
+    const { repDebtRows } = await import("./repStatementDoc");
+    const rows = repDebtRows(repCurrentStatement(rep, sources(4), keepCurrency).statement);
+    expect(newDebtRows(rows, undefined, "2026-10-03T12:00:00.000Z")).toHaveLength(1);
+    expect(newDebtRows(rows, rows.map((r) => r.key), "2026-10-03T12:00:00.000Z")).toEqual([]);
   });
 });
 
