@@ -475,6 +475,13 @@ mind). Exact texts and numbers live in the code - this file says where.
   as fallback). Code: `GmailCodes.PAYMENT_QUERY`/`paymentCodeIn`, `GmailCodeFetcher.forCardPayment`,
   `CardFillController.awaitCode`, plugin `linkCardGmail`, `CardGmailSection`. Read-only Gmail scope;
   the code is never logged.
+- **Oct 30 2026 report «هذا لا يجلب رمز التحقق إلا عندما أفتح أنا الإيميل وأنسخ الكود»** (the code page said «sent to
+  yahy…@…com»). The Gmail reader failed **silently**: an expired Google permission or one network error stopped it
+  for good, a refused token (401/403) waited out all polls, and the card flow ignored both. Now: network failures retry
+  each poll; 3 refusals in a row or consent needed → a toast in the card flow («انتهى إذن Google… إعادة الربط»); no
+  code in time → a toast («هل يصل إلى بريد آخر؟»). Settings → «💳 بريد رمز البطاقة» gets **«🔍 فحص»** (plugin
+  `checkCardGmail`: silent permission + the account + when the last card-code mail of the week arrived - never a
+  code) and **«إعادة الربط»**. The code must go to the linked Gmail: Starlink names it on the code page.
 
 ## 📤 «نسخ الجلسة»: a device's session out to Chrome (Oct 14 2026)
 

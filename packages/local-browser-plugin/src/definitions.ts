@@ -761,6 +761,10 @@ export interface LocalBrowserPlugin {
 
   unlinkCardGmail(): Promise<void>;
 
+  /** 🔍 Can the app still read the card Gmail without asking (rejects with why not), and when the last card-code
+   * mail of the week arrived there (ms; absent when none). Never returns a code. */
+  checkCardGmail(): Promise<{ email: string; lastCodeMailAt?: number }>;
+
   /** The newest code of the last day in the linked Gmail (no `code` when none) - «🔍 جرّب». */
   latestGmailCode(): Promise<{ code?: string }>;
 

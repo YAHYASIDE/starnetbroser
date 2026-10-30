@@ -120,6 +120,15 @@ final class GmailCodes {
         }
     }
 
+    /** 🔍 «فحص» in Settings: the card's code mails of the last week (his Oct 30 2026 report «لا يجلب الرمز إلا عندما أنسخه»). */
+    static String paymentCheckUrl() {
+        try {
+            return MESSAGES_URL + "?maxResults=1&includeSpamTrash=true&q=" + URLEncoder.encode(PAYMENT_QUERY.replace("newer_than:1h", "newer_than:7d"), StandardCharsets.UTF_8.name());
+        } catch (java.io.UnsupportedEncodingException e) {
+            return MESSAGES_URL + "?maxResults=1";
+        }
+    }
+
     static String paymentListUrl() {
         try {
             return MESSAGES_URL + "?maxResults=5&q=" + URLEncoder.encode(PAYMENT_QUERY, StandardCharsets.UTF_8.name());

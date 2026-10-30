@@ -252,11 +252,19 @@ final class GmailCodeFetcher implements CodeSource {
             @Override
             public void onError(String message, String code) {
                 if (stopped) return;
+                // Google couldn't be reached: try again on the next poll (it used to stop for good, silently)
+                if (!DriveAuthorizer.ERROR_CONSENT_REQUIRED.equals(code)) {
+                    main.postDelayed(poll, cardPayment ? CARD_POLL_MS : POLL_MS);
+                    return;
+                }
                 stop();
                 listener.onSignedOut(); // not linked (or no longer allowed): Settings → «بريد الرموز»
             }
         });
     }
+
+    /** Gmail refusing the token in a row (401 / 403). */
+    private int refused;
 
     private void check(String token) {
         String code = null;
@@ -269,11 +277,15 @@ final class GmailCodeFetcher implements CodeSource {
             }
             if (!wrongAccount) code = cardPayment ? newestPaymentCode(token, sinceMs, alreadySent, seenIds)
                 : deviceEmail != null ? newestStarlinkCode(token, sinceMs, tried, forwardedTo) : newestCode(token, sinceMs);
+            refused = 0;
+        } catch (HttpError error) {
+            // 401 / 403 three times in a row: the permission is gone - say so instead of waiting out the polls
+            if (error.status == 401 || error.status == 403) refused++;
         } catch (IOException ignored) {
             // a network hiccup or a stale token: the next poll tries again
         }
         final String found = code;
-        final boolean wrong = wrongAccount;
+        final boolean wrong = wrongAccount || refused >= 3;
         main.post(() -> {
             if (stopped) return;
             if (wrong) {

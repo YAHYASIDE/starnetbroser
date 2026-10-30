@@ -308,6 +308,10 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
     return;
   }
 
+  async checkCardGmail(): Promise<{ email: string; lastCodeMailAt?: number }> {
+    throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
+  }
+
   async latestGmailCode(): Promise<{ code?: string }> {
     throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
   }

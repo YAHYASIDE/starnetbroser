@@ -443,6 +443,48 @@ public class LocalBrowserPlugin extends Plugin {
         call.resolve(ret);
     }
 
+    /** 🔍 «فحص» (his Oct 30 2026 report): can the app still read the card's Gmail without asking, and when did the
+     * last card-code mail arrive there (this week). Never returns or logs a code. */
+    @PluginMethod
+    public void checkCardGmail(PluginCall call) {
+        String email = GmailCodeFetcher.cardCodeEmail(getContext());
+        if (email == null) {
+            call.reject("لا بريد بطاقة مربوط - اكتب البريد واضغط «ربط Gmail»");
+            return;
+        }
+        DriveAuthorizer.authorizeSilently(getActivity(), GmailCodes.SCOPE, email, new DriveAuthorizer.TokenCallback() {
+            @Override
+            public void onToken(String token) {
+                telegramExecutor.execute(() -> {
+                    try {
+                        String account = GmailCodes.profileEmail(GmailCodeFetcher.get(GmailCodes.PROFILE_URL, token));
+                        if (!email.equals(account)) {
+                            call.reject("الإذن لحساب آخر (" + account + ") - اضغط «إعادة الربط» واختر " + email);
+                            return;
+                        }
+                        JSObject ret = new JSObject();
+                        ret.put("email", email);
+                        java.util.List<String> ids = GmailCodes.parseIds(GmailCodeFetcher.get(GmailCodes.paymentCheckUrl(), token));
+                        if (!ids.isEmpty()) {
+                            long at = GmailCodes.internalDate(GmailCodeFetcher.get(GmailCodes.messageUrl(ids.get(0)), token));
+                            if (at > 0) ret.put("lastCodeMailAt", at);
+                        }
+                        call.resolve(ret);
+                    } catch (java.io.IOException ex) {
+                        call.reject(gmailError(ex));
+                    }
+                });
+            }
+
+            @Override
+            public void onError(String message, String code) {
+                call.reject(DriveAuthorizer.ERROR_CONSENT_REQUIRED.equals(code)
+                    ? "انتهى إذن Google لهذا البريد - اضغط «إعادة الربط» ووافق على «قراءة البريد»"
+                    : message, code);
+            }
+        });
+    }
+
     @PluginMethod
     public void unlinkCardGmail(PluginCall call) {
         GmailCodeFetcher.setCardCodeEmail(getContext(), null);

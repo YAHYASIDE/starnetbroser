@@ -308,11 +308,22 @@ final class CardFillController {
                     new Handler(Looper.getMainLooper()).post(() -> sendCode(code));
                 }
 
+                // 💳 never silent (his Oct 30 2026 report «لا يجلب الرمز إلا عندما أفتح البريد وأنسخه»)
                 @Override
-                public void onSignedOut() {}
+                public void onSignedOut() {
+                    new Handler(Looper.getMainLooper()).post(() -> {
+                        if (!flowRunning() || !flow.awaitingCode()) return;
+                        Toast.makeText(activity, "⚠️ لا يستطيع التطبيق قراءة بريد البطاقة - انتهى إذن Google. الآن: انسخ الرمز وارجع. للمرة القادمة: الإعدادات ← «💳 بريد رمز البطاقة» ← «إعادة الربط»", Toast.LENGTH_LONG).show();
+                    });
+                }
 
                 @Override
-                public void onGiveUp() {}
+                public void onGiveUp() {
+                    new Handler(Looper.getMainLooper()).post(() -> {
+                        if (!flowRunning() || !flow.awaitingCode()) return;
+                        Toast.makeText(activity, "⌛ لم يصل رمز no-reply إلى بريد البطاقة المربوط - هل يصل إلى بريد آخر؟ انسخ الرمز وارجع، ثم افحص الربط من الإعدادات", Toast.LENGTH_LONG).show();
+                    });
+                }
             });
             codeFromGmail.start();
         }

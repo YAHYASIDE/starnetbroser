@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { cardGmailEmail, isRunningInAndroidApp, linkCardGmail, unlinkCardGmail } from "@/lib/localBrowser";
+import { cardGmailEmail, checkCardGmail, isRunningInAndroidApp, linkCardGmail, unlinkCardGmail } from "@/lib/localBrowser";
+import { agoLabel } from "@/lib/verificationCodes";
 
 /**
  * 💳 «بريد رمز البطاقة»: the Gmail that receives the card company's STARLINK payment code (the
@@ -22,10 +23,10 @@ export function CardGmailSection() {
     void cardGmailEmail().then(setLinked);
   }, []);
 
-  async function link() {
+  async function link(address = email) {
     setBusy(true);
     setMessage(null);
-    const result = await linkCardGmail(email);
+    const result = await linkCardGmail(address);
     setBusy(false);
     if (!result.ok) {
       setMessage(result.message);
@@ -33,6 +34,24 @@ export function CardGmailSection() {
     }
     setLinked(result.email);
     setMessage("✓ تم الربط - يقرأ التطبيق رمز البطاقة من هذا البريد وحده عند «أضف البطاقة»");
+  }
+
+  // 🔍 his Oct 30 2026 report «لا يجلب الرمز إلا عندما أفتح البريد وأنسخه»: is the permission still there, and does the
+  // card's code mail really come to this address?
+  async function check() {
+    setBusy(true);
+    setMessage(null);
+    const result = await checkCardGmail();
+    setBusy(false);
+    if (!result.ok) {
+      setMessage(`⚠️ ${result.message}`);
+      return;
+    }
+    setMessage(
+      result.lastCodeMailAt
+        ? `✓ يعمل - آخر رسالة رمز بطاقة وصلت لهذا البريد ${agoLabel(result.lastCodeMailAt, Date.now())}`
+        : "✓ الإذن يعمل - لكن لا رسالة رمز بطاقة في هذا البريد خلال 7 أيام: انظر في صفحة الرمز أي بريد يذكره Starlink («Enter the code we sent to …»)",
+    );
   }
 
   async function unlink() {
@@ -43,7 +62,7 @@ export function CardGmailSection() {
   }
 
   return (
-    <section className="section" id="card-gmail">
+    <section className="section" id="card-gmail" data-tour="card-gmail">
       <h2 className="section-title">💳 بريد رمز البطاقة (Gmail)</h2>
       <p className="settings-hint">
         البريد الذي تصله رموز تأكيد البطاقة من no-reply («STARLINK INTERNET … confirm your payment … code»). بعد الربط،
@@ -56,6 +75,12 @@ export function CardGmailSection() {
             ✓ مربوط بـ <bdi dir="ltr">{linked}</bdi>
           </p>
           <div className="settings-actions">
+            <button type="button" className="dialog-primary" disabled={busy || !android} onClick={check}>
+              {busy ? "جارِ…" : "🔍 فحص"}
+            </button>
+            <button type="button" className="text-action" disabled={busy || !android} onClick={() => void link(linked)}>
+              إعادة الربط
+            </button>
             <button type="button" className="text-action" disabled={busy} onClick={unlink}>
               فصل
             </button>
@@ -68,7 +93,7 @@ export function CardGmailSection() {
             <input dir="ltr" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoCapitalize="none" placeholder="yourname@gmail.com" />
           </label>
           <div className="settings-actions">
-            <button type="button" className="dialog-primary" disabled={busy || !android || !email.trim()} onClick={link}>
+            <button type="button" className="dialog-primary" disabled={busy || !android || !email.trim()} onClick={() => void link()}>
               {busy ? "جارِ الربط…" : "ربط Gmail"}
             </button>
           </div>

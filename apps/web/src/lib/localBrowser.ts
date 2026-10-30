@@ -453,6 +453,17 @@ export async function cardGmailEmail(): Promise<string | null> {
   }
 }
 
+/** 🔍 «فحص» the card Gmail: still readable without asking, and when its last card-code mail came. */
+export async function checkCardGmail(): Promise<{ ok: true; email: string; lastCodeMailAt?: number } | { ok: false; message: string }> {
+  if (!isRunningInAndroidApp()) return { ok: false, message: ANDROID_ONLY_MESSAGE };
+  try {
+    const result = await LocalBrowser.checkCardGmail();
+    return { ok: true, email: result.email, lastCodeMailAt: result.lastCodeMailAt };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : "تعذر فحص Gmail" };
+  }
+}
+
 export async function unlinkCardGmail(): Promise<void> {
   if (isRunningInAndroidApp()) await LocalBrowser.unlinkCardGmail().catch(() => undefined);
 }
