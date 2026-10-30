@@ -2396,3 +2396,16 @@ is never pressed while a field is empty - it refills and saves on the next try (
   filled red «عليه» / green «له» (`PrintableDocument.cellTones`). No profit figure in it. The in-app tables fill the same
   two cells.
 
+## 🌌 The opening screen + ⏭️ the Starlink cost can be skipped (Oct 30 2026)
+
+- His report (a white screen at every start): «أريد أن تظهر سوداء فيها رسوم 8K ومتحركة». Two parts: the native launch
+  screen (Capacitor's white `@drawable/splash`) is made #060A14 by `apps/android/scripts/dark-launch.py`, run in CI after
+  `npx cap add android` (`android:background`, `windowBackground`, Android 12 `windowSplashScreenBackground`); then the
+  page's first HTML has `LaunchSplash` (components/LaunchSplash.tsx): black, CSS/vector star field, Earth's glow, a
+  satellite on its orbit, «★ STAR NET» shimmering, a loading line - at least 1.2 s, fades out, once per app start
+  (`starnet.splashShown` in sessionStorage skips it on a reload).
+- His ask (the cost section with «أدخل مبلغ تكلفة Starlink أكبر من صفر»): «اجعله يمكن تخطي بدون إضافة مبلغ في كل
+  مكان». An empty cost amount = «⏳ الفاتورة لم تنزل بعد» (`awaitingCost`: an empty D the next read fills) in
+  LedgerDialog and EditLedgerEntryDialog. Not changed: paying a D (the amount paid is the record), completing an old
+  entry (its point is the cost), a rep's activation (its package cost is set once in the settings).
+

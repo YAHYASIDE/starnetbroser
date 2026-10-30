@@ -20,6 +20,7 @@ import { RepCopyAutoRunner } from "@/components/RepCopyAutoRunner";
 import { RepAutoStatementRunner } from "@/components/RepAutoStatementRunner";
 import { LinkGuardListener } from "@/components/LinkGuardListener";
 import { DeskSidebar, DeskKeys } from "@/components/DeskSidebar";
+import { LaunchSplash } from "@/components/LaunchSplash";
 
 export const metadata: Metadata = {
   title: "STAR NET",
@@ -48,6 +49,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ar" dir="rtl" suppressHydrationWarning>
       <body>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {/* 🌌 the opening screen - first in the page, dark from the very first frame */}
+        <LaunchSplash />
         {/* 🔐 nothing runs on a phone that wasn't activated with his code - not even the bridges below. */}
         <ActivationGate>
         <AppLockGate>

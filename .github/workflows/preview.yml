@@ -230,6 +230,10 @@ jobs:
         working-directory: apps/android
         run: npx cap add android
 
+      - name: Dark launch screen (not Capacitor's white splash)
+        working-directory: apps/android
+        run: python3 scripts/dark-launch.py
+
       - name: Sync web assets + plugins into the Android project
         working-directory: apps/android
         # This is what wires packages/local-browser-plugin into the freshly

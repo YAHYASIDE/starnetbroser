@@ -163,7 +163,7 @@ export function LedgerDialog({
 }: Props) {
   // 🧾 Three tabs on top (lib/ledgerModes.ts, his Oct 29 2026 ask): 🛂 توثيق · ➕ إضافة · 💵 دفعة.
   const [mode, setMode] = useState<LedgerMode>(initialKind === "credit" ? "pay" : "add");
-  const [addKind, setAddKind] = useState<LedgerEntryKind>(initialKind);
+  const [addKind, setAddKind] = useState<LedgerEntryKind>("debit");
   const kind = modeKind(mode, addKind);
   // ➕ «مع تكلفة Starlink» (a renewal / service, profit counted) - off = a plain balance. 🛂 «له تكلفة».
   const [addWithCost, setAddWithCost] = useState(true);
@@ -436,7 +436,9 @@ export function LedgerDialog({
       profitCurrencyRates = { MRU: mruRateKnown, SIFA: sifaRateKnown };
     } else if (kind === "debit" && !costShown) {
       starlinkCostInput = undefined; // ➕ a plain balance
-    } else if (kind === "debit" && awaitBill) {
+    } else if (kind === "debit" && (awaitBill || !costAmount.trim())) {
+      // ⏭️ His Oct 30 2026 ask «اجعله يمكن تخطي بدون إضافة مبلغ في كل مكان»: no cost typed = «⏳ الفاتورة لم تنزل
+      // بعد» - an empty D, filled from Starlink's invoice by the next read.
       starlinkCostInput = awaitingCost(costCurrencyCode || starlinkInfo?.currency);
     } else if (kind === "debit") {
       if (!costCurrencyCode) {
@@ -840,6 +842,7 @@ export function LedgerDialog({
                 </div>
               )}
 
+              {!costAmount.trim() && <p className="settings-hint">⏭️ تتركه فارغًا؟ يُحفظ «⏳ بانتظار الفاتورة» ويُملأ D من فاتورة Starlink في المزامنة.</p>}
               {costUsdValue !== undefined && (
                 <div className="ledger-cost-convert">
                   <div className="ledger-cost-convert-usd">

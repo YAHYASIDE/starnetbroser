@@ -1,5 +1,6 @@
 "use client";
 
+import { awaitingCost } from "@/lib/awaitingBill";
 import { FrancHint } from "./FrancHint";
 import { DateInput } from "./DateInput";
 import { FormEvent, useState } from "react";
@@ -175,7 +176,11 @@ export function EditLedgerEntryDialog({ entry, currencyStore, hasAllocations, on
     // Recomputed fresh from the CURRENT registry rates, same as a deliberate settlement - this is
     // an explicit correction the operator is making now, never a silent background recompute.
     let profitCurrencyRates: { MRU?: number; SIFA?: number } | undefined = entry.profitCurrencyRates;
-    if (isDebit) {
+    if (isDebit && !costAmount.trim()) {
+      // ⏭️ no cost typed (his Oct 30 2026 «تخطي بدون إضافة مبلغ»): waiting for Starlink's invoice, filled by a read.
+      starlinkCostPatch = entry.starlinkCost?.awaitingBill ? entry.starlinkCost : awaitingCost(costCurrencyCode || undefined);
+      profitCurrencyRates = undefined;
+    } else if (isDebit) {
       if (!costCurrencyCode) {
         setFormError("اختر عملة دفع Starlink");
         return;
