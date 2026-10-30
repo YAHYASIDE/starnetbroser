@@ -9,6 +9,7 @@
  * their own currency), and a currency with no known rate is listed, never guessed.
  */
 
+import { myShare, type BusinessExpenseList } from "./businessExpenses";
 import { CashEntryList, listStandaloneCashEntries } from "./cashStore";
 import { InvoiceList, invoiceRepCommission } from "./invoiceStore";
 import { LedgerByAccount } from "./ledgerStore";
@@ -37,6 +38,8 @@ export interface MonthNetInput {
   profitResetByAccount?: Record<string, RepResetPoint | null>;
   /** Card movements - a withdrawal to «خسارة» is counted as a business expense this month. */
   cardTopUps?: CardTopUpList;
+  /** 📉 «خسائر ومصاريف العمل» - only my share counts (the reps' shares come off their profit). */
+  businessExpenses?: BusinessExpenseList;
 }
 
 export interface ExpenseGroup {
@@ -147,6 +150,16 @@ function buildNet(input: MonthNetInput, label: string, inPeriod: (date: string) 
     addTo(bucket, "USD", t.amountUsd);
     byCategory.set(CARD_LOSS_CATEGORY, bucket);
     counts.set(CARD_LOSS_CATEGORY, (counts.get(CARD_LOSS_CATEGORY) ?? 0) + 1);
+  }
+  for (const e of input.businessExpenses ?? []) {
+    if (!inPeriod(e.date) || !onOrAfterReset(e.date)) continue;
+    const mine = myShare(e);
+    if (mine <= 0) continue;
+    const category = `📉 ${e.categoryName}`;
+    const bucket = byCategory.get(category) ?? {};
+    addTo(bucket, e.currencyCode, mine);
+    byCategory.set(category, bucket);
+    counts.set(category, (counts.get(category) ?? 0) + 1);
   }
   const expenses: ExpenseGroup[] = Array.from(byCategory.entries())
     .map(([category, bucket]) => ({ category, mru: take(bucket), count: counts.get(category) ?? 0 }))

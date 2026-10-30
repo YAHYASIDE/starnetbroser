@@ -2480,3 +2480,20 @@ is never pressed while a field is empty - it refills and saves on the next try (
   **each customer's devices and balance in the list** (`clientPickerInfo`: his live devices' ledger per currency).
   He did not pick «استعمل اسم Starlink». Code: `lib/clientPicker.ts` (+test), `ClientPicker.tsx`, AccountDialog /
   HomeView wiring. A customer «بلا اسم» never fills the device's name.
+
+## 📉 «خسائر ومصاريف العمل» (Oct 30 2026)
+
+- His ask: «أريد إضافة شيء اسمه الخسائر أو المصاريف - خسائر الأجهزة أو مصاريف تخص العمل - أي مصروف أسجله مثلًا من
+  أرباحي، أو أجمع المندوبين، أو أضيف مندوبين مخصصين من المصروفات مثل الإعلانات». His 5 answers: **inside «حسابي»** (a
+  3rd tab «📉 خسائر العمل» beside الدخل / المصروف); a shared expense is split **equally** between me (optional) and the
+  reps ticked («كل المندوبين» ticks all; the cents stay with me, or the last rep when I'm out); a rep's share is
+  **taken off his profit** («ربحه»); **a ready list + his own kinds** (خسائر: جهاز ضائع، جهاز معطّل، خسارة بطاقة،
+  غرامة · مصاريف: إعلانات، نقل وشحن، رصيد الهاتف، أدوات ومعدات; long press adds / removes, tree
+  `starnet_business_expense_tree_v1`); **where the money left - his choice each time**: الكاش (a linked cash-out of the
+  whole amount, `sourceKind: "business-expense"`), a bank / wallet of «حسابي» (`businessExpenseFlows`), or nothing (a
+  loss only).
+- Model: `lib/businessExpenses.ts` (+test), `starnet_business_expenses_v1`. Shares locked on the record. Each rep's
+  share = a `profitTransfer` write-off with `expenseId` (id `<expense>:<rep>`, note «📉 نصيبك من …», rates locked),
+  remade on edit and removed with the expense; his statement reads «📉 نصيبه من مصروف»; on the reps page it can't be
+  deleted alone («يُعدَّل أو يُحذف من حسابي»). **Only my share** is a business expense in «الصافي» (`netProfit`
+  `businessExpenses`, category «📉 <kind>») - the reps' shares already lower what I owe them.

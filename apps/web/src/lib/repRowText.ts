@@ -22,6 +22,7 @@ export const SETTLEMENT_LABELS: Record<RepSettlementKind, string> = {
 };
 
 export function settlementText(s: RepSettlement): string {
+  if (s.expenseId) return "📉 نصيبه من مصروف";
   if (s.kind === "profitTransfer") return s.toDebt ? `↪️ من ربحه إلى حساب ${currencyLabel(s.currencyCode)}` : "🧹 تصفير الربح";
   if (s.kind === "commissionPayout") return "💸 دفعت له من ربحه";
   if (s.kind === "profitCredit") return s.note?.startsWith("🧹") ? "🧹 تصفير الربح" : "➕ له في ربحه";

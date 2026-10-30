@@ -19623,3 +19623,69 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   border-radius: 14px;
   background: var(--surface);
 }
+
+/* 📉 «خسائر ومصاريف العمل» (his Oct 30 2026 ask): who carries it, and the reps' shares this month. */
+.business-rep-shares {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+  font-size: 0.78rem;
+}
+
+.business-rep-shares li {
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+.business-rep-shares small {
+  color: var(--text-muted);
+}
+
+.business-who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.business-who legend {
+  padding: 0 4px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.business-who-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.business-who-chip:has(input:checked) {
+  border-color: var(--brand);
+  color: var(--brand);
+  font-weight: 700;
+}
+
+.business-who-chip input {
+  margin: 0;
+}
+
+.business-split {
+  margin: 0;
+}

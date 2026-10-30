@@ -297,6 +297,8 @@ export interface RepSettlement {
   swap?: { toAmount: number; toCurrency: string; rate: number; toLedgerName?: string };
   /** 🔒 The money-bot message it came from (RepRequest.botId) - one bot message is recorded once. */
   botId?: string;
+  /** 📉 His share of a business loss / expense (businessExpenses.ts) - removed with it. */
+  expenseId?: string;
   createdAt: string;
 }
 

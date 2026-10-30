@@ -118,7 +118,7 @@ export function repRowCells(
     return [row.date, `🧾 فاتورة متجر${names ? ` · ${names}` : ""}`, `عمولته ${formatAmount(commissionAmount)} ${currencyLabel(invoice.currencyCode)}${paid}`, delta, balance];
   }
   const s = row.settlement;
-  return [row.date, SETTLEMENT_LABELS[s.kind], s.note ?? "", delta, balance];
+  return [row.date, s.expenseId ? "📉 نصيبه من مصروف" : SETTLEMENT_LABELS[s.kind], s.note ?? "", delta, balance];
 }
 
 /** «20,500 سيفا» - an amount (or several currencies) without its sign. */

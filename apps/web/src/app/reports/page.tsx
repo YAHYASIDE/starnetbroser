@@ -47,6 +47,7 @@ import { buildCardStatement, listCardPayments, listOpenShipmentDebts, loadCardTo
 import { listOpenPreviousDebts, loadPreviousDebts, PreviousDebtList, totalPreviousDebtUsd } from "@/lib/previousDebt";
 import { buildBusinessWorkbook, xlsxFileName } from "@/lib/excelExport";
 import { buildPeriodNet, monthChange } from "@/lib/netProfit";
+import { loadBusinessExpenses } from "@/lib/businessExpenses";
 import { dayKey as localDayKey } from "@/lib/financeDashboard";
 import { loadExpenseTree } from "@/lib/expenseTreeStore";
 import { loadPersonalExpenses, summarizeExpenses, type ExpenseCategory, type PersonalExpenseList } from "@/lib/personalExpenses";
@@ -289,7 +290,7 @@ export default function ReportsPage() {
   );
 
   // ---- الإجمالي: the whole business over the bar's days (the same calculation as «حسابي») ----
-  const netInput = { ledgerStore: visibleLedger, invoices, transactions: storeTransactions, cash: cashEntries, rates, profitReset, profitResetByAccount: resetByAccount, cardTopUps: topUps };
+  const netInput = { ledgerStore: visibleLedger, invoices, transactions: storeTransactions, cash: cashEntries, rates, profitReset, profitResetByAccount: resetByAccount, cardTopUps: topUps, businessExpenses: loadBusinessExpenses() };
   const net = useMemo(
     () => buildPeriodNet({ ...netInput, from: days.from, to: days.to }),
     // eslint-disable-next-line react-hooks/exhaustive-deps

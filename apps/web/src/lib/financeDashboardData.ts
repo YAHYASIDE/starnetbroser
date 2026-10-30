@@ -5,6 +5,7 @@
  * differently: `loadFinanceStores` reads storage, `assembleFinanceDashboard` is pure.
  */
 
+import { loadBusinessExpenses, type BusinessExpenseList } from "./businessExpenses";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import type { DashBooks, DashSnapshot } from "@/components/FinanceDashboard";
 import { loadCashEntries, type CashEntryList } from "./cashStore";
@@ -46,6 +47,7 @@ export interface FinanceStores {
   settlements: RepSettlementList;
   adjustments: PartyAdjustmentList;
   cardTopUps: CardTopUpList;
+  businessExpenses: BusinessExpenseList;
   previousDebts: PreviousDebtList;
   profitReset: ProfitReset | null;
   clientResets: ReturnType<typeof loadClientProfitResets>;
@@ -76,6 +78,7 @@ export function loadFinanceStores(): FinanceStores {
     settlements: loadRepSettlements(),
     adjustments: loadPartyAdjustments(),
     cardTopUps: loadCardTopUps(),
+    businessExpenses: loadBusinessExpenses(),
     previousDebts: loadPreviousDebts(),
     profitReset: loadProfitReset(),
     clientResets: loadClientProfitResets(),
@@ -112,6 +115,7 @@ export function assembleFinanceDashboard(s: FinanceStores, accounts: StarlinkAcc
     cash: s.cash,
     rates: s.rates,
     cardTopUps: s.cardTopUps,
+    businessExpenses: s.businessExpenses,
     profitReset: s.profitReset,
     profitResetByAccount: resetByAccount,
     clientOf: (id) => accounts.find((a) => a.id === id)?.clientId,

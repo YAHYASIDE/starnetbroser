@@ -1365,7 +1365,10 @@ function RepCard({
             {settlementText(sheet.settlement)}: <bdi dir="ltr">{formatAmount(sheet.settlement.amount)}</bdi> {currencyLabel(sheet.settlement.currencyCode)} · <bdi dir="ltr">{sheet.settlement.date}</bdi>
             {sheet.settlement.note ? ` · ${sheet.settlement.note}` : ""}
           </p>
+          {/* 📉 his share of a business expense: changed or deleted with the expense itself, in «حسابي». */}
+          {sheet.settlement.expenseId && <p className="settings-hint">📉 نصيبه من مصروف عمل - يُعدَّل أو يُحذف من «حسابي» ← «📉 خسائر العمل».</p>}
           <div className="settings-actions">
+            {!sheet.settlement.expenseId && (
             <button
               type="button"
               className="dialog-danger"
@@ -1377,6 +1380,7 @@ function RepCard({
             >
               🗑 حذف
             </button>
+            )}
             <button type="button" className="text-action" onClick={() => setSheet(null)}>
               إغلاق
             </button>

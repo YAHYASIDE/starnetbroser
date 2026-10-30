@@ -20,6 +20,7 @@ import { loadDemoAccounts } from "./demoAccountStore";
 import { loadInvoices } from "./invoiceStore";
 import { loadLedgerStore } from "./ledgerStore";
 import { buildMonthNet, buildPeriodNet } from "./netProfit";
+import { businessExpenseFlows, loadBusinessExpenses } from "./businessExpenses";
 import { loadPartyAdjustments } from "./partyBalanceStore";
 import { loadHiddenProfitDays, withoutHiddenProfitDays } from "./profitStatement";
 import { loadProfitReset } from "./profitReset";
@@ -68,6 +69,7 @@ export function businessNetForMonth(month: string, accounts: StarlinkAccountSumm
     profitReset,
     profitResetByAccount: profitResetByAccount(accounts, loadClientProfitResets(), profitReset),
     cardTopUps: loadCardTopUps(),
+    businessExpenses: loadBusinessExpenses(),
   });
   return { netMru: net.netMru, missing: net.missingCurrencies };
 }
@@ -87,6 +89,7 @@ export function businessNetForPeriod(from: string, to: string, accounts: Starlin
     profitReset,
     profitResetByAccount: profitResetByAccount(accounts, loadClientProfitResets(), profitReset),
     cardTopUps: loadCardTopUps(),
+    businessExpenses: loadBusinessExpenses(),
   });
   return { netMru: net.netMru, missing: net.missingCurrencies };
 }
@@ -109,6 +112,8 @@ export function loadAccountFlows(ledger: LedgerByAccount, account: MoneyAccount,
     ...exchangeFlows(loadExchanges()),
     // 📒 a rep's deposit into one of his named accounts, received in this app.
     ...repLedgerFlows(loadRepLedgerBook()),
+    // 📉 a business loss / expense paid from it.
+    ...businessExpenseFlows(loadBusinessExpenses()),
   ];
 }
 

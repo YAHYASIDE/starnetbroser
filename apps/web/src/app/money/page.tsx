@@ -107,6 +107,8 @@ import {
 import { currentCardBalanceUsd, hasCardReset, loadCardTopUps, saveCardTopUps, undoCardReset, zeroCardBalance } from "@/lib/starlinkDebt";
 import { loadLedgerStore } from "@/lib/ledgerStore";
 import { loadExpenseTree } from "@/lib/expenseTreeStore";
+import { loadBusinessExpenses, loadBusinessTree, type BusinessExpenseList } from "@/lib/businessExpenses";
+import { BusinessExpensesTab } from "@/components/BusinessExpensesTab";
 import {
   loadPersonalExpenses,
   savePersonalExpenses,
@@ -117,10 +119,12 @@ import {
 import type { RatesFromUsd } from "@/lib/reportsView";
 import { ADD_MONEY_ROUTE, parseAddMoney, SAME_PAGE_ROUTE_EVENT } from "@/lib/shortcuts";
 
-type MoneyTab = "income" | "expense";
+type MoneyTab = "income" | "expense" | "business";
 const TABS: { id: MoneyTab; label: string }[] = [
   { id: "income", label: "الدخل" },
   { id: "expense", label: "المصروف" },
+  // 📉 his Oct 30 2026 ask: business losses / expenses, carried by me and / or the reps
+  { id: "business", label: "📉 خسائر العمل" },
 ];
 const TAB_KEY = "starnet.moneyTab";
 /** Which sections of the page are open (a per-phone convenience, not backed up). */
@@ -164,6 +168,8 @@ export default function MoneyPage() {
   const [incomeCats, setIncomeCats] = useState<ExpenseCategory[]>([]);
   const [expenses, setExpenses] = useState<PersonalExpenseList>([]);
   const [expenseCats, setExpenseCats] = useState<ExpenseCategory[]>([]);
+  const [businessList, setBusinessList] = useState<BusinessExpenseList>([]);
+  const [businessTree, setBusinessTree] = useState<ExpenseCategory[]>([]);
   const [rules, setRules] = useState<RecurringList>([]);
   const [debts, setDebts] = useState<DebtBook>({ debts: [], payments: [] });
   const [book, setBook] = useState<AccountsBook>({ accounts: [], adjustments: [] });
@@ -247,6 +253,8 @@ export default function MoneyPage() {
     routeSavedBotLoans();
     // First, the expense groups (set up once: the old أكل/شرب… expenses go, his choice).
     const expenseCustom = loadExpenseTree();
+    setBusinessList(loadBusinessExpenses());
+    setBusinessTree(loadBusinessTree());
     const ruleList = loadRecurring();
     let incomeList = loadIncome();
     let expenseList = loadPersonalExpenses();
@@ -298,7 +306,7 @@ export default function MoneyPage() {
     document.addEventListener("visibilitychange", onVisible);
     try {
       const saved = window.localStorage.getItem(TAB_KEY);
-      if (saved === "income" || saved === "expense") setTab(saved);
+      if (saved === "income" || saved === "expense" || saved === "business") setTab(saved);
     } catch {
       // ignored
     }
@@ -351,7 +359,7 @@ export default function MoneyPage() {
     return Object.fromEntries(book.accounts.map((a) => [a.id, accountBalance(book, a, loadAccountFlows(ledger, a, flows, book.accounts))]));
     // Supplier / rep payments from a bank notification are read from storage (inboxVersion).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [book, incomes, expenses, debts, inboxVersion, remittances, exchanges]);
+  }, [book, incomes, expenses, debts, inboxVersion, remittances, exchanges, businessList]);
   const sources = book.accounts.map((a) => ({ id: a.id, name: a.name, icon: a.icon, currencyCode: a.currencyCode, method: a.method }));
   const missing = Array.from(new Set([...business.missing, ...left.missing, ...wealth.missing]));
   const shownLine = openLine ? wealth.lines.find((l) => l.key === openLine.key) ?? openLine : null;
@@ -1212,6 +1220,20 @@ export default function MoneyPage() {
             />
             <RecurringSection accounts={sources} kind="expense" rules={rules} incomeCustom={incomeCats} expenseCustom={expenseCats} onAdd={addRule} onDelete={removeRule} />
           </>
+        )}
+        {tab === "business" && (
+          <BusinessExpensesTab
+            accounts={sources}
+            reps={listRepresentatives(loadRepresentativeStore())}
+            rates={rates}
+            expenses={businessList}
+            tree={businessTree}
+            onChange={(list, tree) => {
+              setBusinessList(list);
+              setBusinessTree(tree);
+              setCashVersion((v) => v + 1);
+            }}
+          />
         )}
       </MoneySection>
 

@@ -21,6 +21,7 @@ import type { CashEntryList } from "./cashStore";
 import type { InvoiceList } from "./invoiceStore";
 import { isShipmentEntry, PAYMENT_METHOD_LABELS, type LedgerByAccount, type PaymentMethod } from "./ledgerStore";
 import { buildPeriodNet, type MonthNet } from "./netProfit";
+import type { BusinessExpenseList } from "./businessExpenses";
 import type { ProfitReset } from "./profitReset";
 import type { RepResetPoint } from "./repStore";
 import { toMru, type RatesFromUsd } from "./reportsView";
@@ -148,6 +149,8 @@ export interface DashInput {
   cash: CashEntryList;
   rates: RatesFromUsd;
   cardTopUps?: CardTopUpList;
+  /** 📉 «خسائر ومصاريف العمل» (my share in «الصافي»). */
+  businessExpenses?: BusinessExpenseList;
   profitReset?: ProfitReset | null;
   profitResetByAccount?: Record<string, RepResetPoint | null>;
   /** The customer a device belongs to («عدد العملاء الذين جددوا»); none = the device counts alone. */

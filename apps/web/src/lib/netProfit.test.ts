@@ -65,6 +65,14 @@ describe("buildMonthNet", () => {
     expect(net.missingCurrencies).toEqual(["EUR"]);
   });
 
+  it("📉 a business loss / expense: only my share is in «الصافي» (his Oct 30 2026 ask)", () => {
+    const expense = { id: "b1", categoryId: "cost-ads", categoryName: "إعلانات", amount: 900, currencyCode: "MRU", date: "2026-09-10", fromCash: true, includeMe: true, shares: [{ repId: "r1", amount: 300 }, { repId: "r2", amount: 300 }], createdAt: "" };
+    const repsOnly = { ...expense, id: "b2", includeMe: false, shares: [{ repId: "r1", amount: 900 }] };
+    const net = buildMonthNet({ month: "2026-09", ledgerStore: {}, invoices: [], transactions: [], cash: [], rates, businessExpenses: [expense, repsOnly, { ...expense, id: "b3", date: "2026-08-30" }] });
+    expect(net.expenses).toEqual([{ category: "📉 إعلانات", mru: 300, count: 1 }]);
+    expect(net.netMru).toBe(-300);
+  });
+
   it("respects a fresh start (profit reset) inside the month", () => {
     const net = buildMonthNet({
       month: "2026-09",
