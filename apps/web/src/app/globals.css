@@ -19463,3 +19463,85 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   font-weight: 700;
   text-align: center;
 }
+
+/* 🔎 Home search: suggestions while typing + 📷 search by a picture (lib/searchSuggest.ts). */
+.search-photo-btn {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 8px;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--accent-bg);
+  font-size: 1.15rem;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+.search-panel .dashboard-search {
+  padding-left: 56px;
+}
+
+.search-suggest {
+  display: grid;
+  gap: 2px;
+  margin: -4px 0 12px;
+  padding: 6px;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+}
+
+.search-photo-result .search-suggest {
+  margin: 8px 0 0;
+  box-shadow: none;
+}
+
+.search-suggest button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.search-suggest button:active,
+.search-suggest button:hover {
+  background: var(--accent-bg);
+}
+
+.search-suggest-text {
+  display: grid;
+  min-width: 0;
+}
+
+.search-suggest-text strong,
+.search-suggest-text small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-suggest-text small {
+  color: var(--text-muted);
+}
+
+.search-photo-result {
+  margin: -4px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}

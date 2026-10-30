@@ -78,6 +78,8 @@ dependencies {
     // 🖐 App lock by fingerprint (BiometricPrompt, with the PIN as the fallback).
     implementation "androidx.biometric:biometric:1.1.0"
     implementation "com.google.android.gms:play-services-auth:$playServicesAuthVersion"
+    // 📷 «البحث بصورة»: reads the text of a picture on the phone itself (bundled model, no internet).
+    implementation "com.google.mlkit:text-recognition:16.0.1"
     testImplementation "junit:junit:$junitVersion"
     // PendingSyncStoreTest exercises org.json.JSONObject/JSONArray directly. Android's compile-time
     // android.jar (also what testDebugUnitTest runs against by default) stubs every org.json.*

@@ -278,6 +278,44 @@ public class LocalBrowserPlugin extends Plugin {
         }, "starnet-app-update").start();
     }
 
+    /** 📷 «البحث بصورة» (his Oct 30 2026 ask): the text of a picture (a data URL), read on the phone with ML Kit's
+     * bundled Latin model - resolves {text}. */
+    @PluginMethod
+    public void readImageText(PluginCall call) {
+        String data = call.getString("dataUrl", "");
+        if (data == null || data.isEmpty()) {
+            call.reject("لا توجد صورة");
+            return;
+        }
+        int comma = data.indexOf(',');
+        byte[] bytes;
+        try {
+            bytes = android.util.Base64.decode(comma >= 0 ? data.substring(comma + 1) : data, android.util.Base64.DEFAULT);
+        } catch (IllegalArgumentException e) {
+            call.reject("الصورة غير صالحة");
+            return;
+        }
+        android.graphics.Bitmap bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+        if (bitmap == null) {
+            call.reject("تعذّرت قراءة الصورة");
+            return;
+        }
+        com.google.mlkit.vision.text.TextRecognizer recognizer =
+            com.google.mlkit.vision.text.TextRecognition.getClient(com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS);
+        recognizer
+            .process(com.google.mlkit.vision.common.InputImage.fromBitmap(bitmap, 0))
+            .addOnSuccessListener(result -> {
+                JSObject ret = new JSObject();
+                ret.put("text", result.getText());
+                call.resolve(ret);
+                recognizer.close();
+            })
+            .addOnFailureListener(e -> {
+                call.reject("تعذّرت قراءة النص من الصورة");
+                recognizer.close();
+            });
+    }
+
     /** The page a 📌 shortcut opened the app on (once), or null. */
     @PluginMethod
     public void takeShortcutRoute(PluginCall call) {

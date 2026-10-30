@@ -957,6 +957,17 @@ export async function drainBankNotices(ownNumbers: string[]): Promise<{ inbox: B
   }
 }
 
+/** 📷 «البحث بصورة»: the text of a picture, read on the phone (Android only). */
+export async function readImageText(dataUrl: string): Promise<{ ok: true; text: string } | { ok: false; message: string }> {
+  if (!isRunningInAndroidApp()) return { ok: false, message: "البحث بصورة يعمل في تطبيق الهاتف" };
+  try {
+    const result = await LocalBrowser.readImageText({ dataUrl });
+    return { ok: true, text: result.text ?? "" };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : "تعذّرت قراءة الصورة" };
+  }
+}
+
 /** 🆕 Downloads the update APK inside the Android app and opens the installer (no browser - his
  * Oct 22 2026 report: the link opened in Edge and never downloaded). `onPercent` gets 0-100, or -1
  * when the size is unknown. */

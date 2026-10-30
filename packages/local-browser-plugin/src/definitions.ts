@@ -532,6 +532,9 @@ export interface LocalBrowserPlugin {
    * takeShortcutRoute on open / resume). */
   addListener(eventName: "shortcutOpened", listenerFunc: (event: { route: string }) => void): Promise<PluginListenerHandle>;
 
+  /** 📷 «البحث بصورة»: the text of a picture (data URL), read on the phone (ML Kit, offline). */
+  readImageText(options: { dataUrl: string }): Promise<{ text: string }>;
+
   /** 🆕 Downloads the update APK inside the app and opens Android's installer ("needsPermission":
    * Android's «السماح من هذا المصدر» page was opened - tap again after allowing). */
   downloadAppUpdate(options: { url: string }): Promise<{ status: "installing" | "needsPermission" }>;

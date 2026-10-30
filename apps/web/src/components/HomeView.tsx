@@ -125,6 +125,8 @@ import { CurrencyStore, getCurrency, loadCurrencyStore, saveCurrencyStore, upser
 import { countFaultCategories, FAULT_CATEGORIES, faultCategory, isFaulty, isUnderRepair, oldestOpenDebt, openDebtEntries, removeFaultPatch, restoreWaivedDebts, waiveOpenDebts } from "@/lib/deviceFault";
 import type { DeviceFaultReason } from "@starnet/shared";
 import { growOpenD, planGrowOpenD } from "@/lib/growOpenD";
+import { imageQueries, suggestSearch, type Suggestion, type SuggestSource } from "@/lib/searchSuggest";
+import { resizeImageToDataUrl } from "@/lib/imageUtils";
 import { addToPreviousDebt, listOpenPreviousDebts, loadPreviousDebts, recordPreviousDebt, savePreviousDebts, type PreviousDebtList } from "@/lib/previousDebt";
 import { dayKey as localDayKey } from "@/lib/financeDashboard";
 import { buildCodeDevices } from "@/lib/codeDevices";
@@ -173,13 +175,14 @@ import {
   isBackgroundSyncEnabled,
   startBackgroundSync,
   triggerImmediateSync,
+  readImageText,
 } from "@/lib/localBrowser";
 import { SyncChoiceSheet, SyncQueueBar } from "./SyncNowSheet";
 import { devicesLeftAfterRateLimit, loadSyncQueue, localToday, nextQueuedAccount, pickSyncAccounts, queueProgressLabel, saveSyncQueue, startSyncQueue, syncedOnlyByCommand, syncQueueFor, type SyncWindow } from "@/lib/syncQueue";
 import { DayActionsSheet } from "./DayActionsSheet";
 import { TravelCheckSheet } from "./TravelCheckSheet";
 import { NotificationsBell } from "./NotificationsBell";
-import { hiddenRepIds, isHiddenRepDevice, repContact } from "@/lib/repSeparation";
+import { hiddenRepIds, isHiddenRepDevice, repContact, visibleClients } from "@/lib/repSeparation";
 import { absorbTravelResults, applyTravelFee, buildTravelCheckReport, isTravelVerified, loadTravelBgRun, markTravelDone, needsTravelRegistration, saveTravelBgRun, setTravelPrice, travelDoneRepMessage, travelEarnings, travelUncheckedCount, type TravelBgRun } from "@/lib/travelRegistration";
 import { buildAccountStatementMessage, buildWhatsAppLink } from "@/lib/whatsapp";
 import { accountsForDay, accountsOfOwner, type DayOwner } from "@/lib/dayActions";
@@ -2543,6 +2546,58 @@ export function HomeView({
     });
   }
 
+  // 🔎 Suggestions while typing + 📷 search by a picture (lib/searchSuggest.ts, his Oct 30 2026 ask).
+  const suggestSources = useMemo<SuggestSource[]>(
+    () => [
+      ...accounts
+        .filter((a) => !a.deletedAt)
+        .map((a) => ({
+          kind: "device" as const,
+          id: a.id,
+          title: a.name || a.expectedEmail || "جهاز",
+          fields: [a.expectedEmail, a.starlinkAccountEmail, a.kitNumber, visibleClientOf(a)?.name, visibleClientOf(a)?.phone, a.serialNumber],
+        })),
+      ...visibleClients(Object.values(clientStore), hiddenReps).map((c) => ({ kind: "client" as const, id: c.id, title: c.name, fields: [c.phone] })),
+      ...Object.values(representativeStore).map((r) => ({ kind: "rep" as const, id: r.id, title: r.name, fields: [r.phone] })),
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [accounts, clientStore, representativeStore, hiddenReps],
+  );
+  const suggestions = useMemo(() => (searchFocused && query.trim() ? suggestSearch(query, suggestSources) : []), [searchFocused, query, suggestSources]);
+  const [photoSearch, setPhotoSearch] = useState<{ busy: boolean; text?: string; hits: Suggestion[]; error?: string } | null>(null);
+  const photoInput = useRef<HTMLInputElement>(null);
+  function pickSuggestion(s: Suggestion) {
+    setPhotoSearch(null);
+    if (s.kind === "client") {
+      setClientMenuId(s.id);
+      return;
+    }
+    const device = s.kind === "device" ? accounts.find((a) => a.id === s.id) : undefined;
+    const term = device ? device.expectedEmail || device.starlinkAccountEmail || device.name : s.title;
+    startSearch(term);
+    rememberSearch(term);
+  }
+  async function searchByPhoto(file: File | undefined) {
+    if (!file) return;
+    setPhotoSearch({ busy: true, hits: [] });
+    try {
+      const dataUrl = await resizeImageToDataUrl(file, 1600, 0.85);
+      const read = await readImageText(dataUrl);
+      if (!read.ok) return setPhotoSearch({ busy: false, hits: [], error: read.message });
+      const best = new Map<string, Suggestion>();
+      for (const q of imageQueries(read.text)) {
+        for (const hit of suggestSearch(q, suggestSources, 5)) {
+          const key = `${hit.kind}:${hit.id}`;
+          if ((best.get(key)?.score ?? 0) < hit.score) best.set(key, hit);
+        }
+      }
+      const hits = [...best.values()].sort((a, b) => b.score - a.score).slice(0, 8);
+      setPhotoSearch({ busy: false, text: read.text.trim().slice(0, 160), hits });
+    } catch {
+      setPhotoSearch({ busy: false, hits: [], error: "تعذّرت قراءة الصورة" });
+    }
+  }
+
   function startSearch(value: string) {
     // Typing searches ALL devices: starting a search clears the active chip/day so results
     // aren't confined to it; he can then tap a chip to narrow (his request).
@@ -3319,7 +3374,55 @@ export function HomeView({
           }}
           aria-label="بحث"
         />
+        <button type="button" className="search-photo-btn" aria-label="بحث بصورة" title="بحث بصورة (KIT، إيميل، وصل)" onClick={() => photoInput.current?.click()}>
+          📷
+        </button>
+        <input ref={photoInput} type="file" accept="image/*" hidden onChange={(e) => { void searchByPhoto(e.target.files?.[0]); e.target.value = ""; }} />
       </section>
+
+      {suggestions.length > 0 && (
+        <ul className="search-suggest" aria-label="اقتراحات">
+          {suggestions.map((s) => (
+            <li key={`${s.kind}-${s.id}`}>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pickSuggestion(s)}>
+                <span aria-hidden="true">{s.kind === "device" ? "📡" : s.kind === "client" ? "👤" : "🤝"}</span>
+                <span className="search-suggest-text">
+                  <strong dir="auto">{s.title}</strong>
+                  {s.hit && <small dir="auto">{s.hit}</small>}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {photoSearch && (
+        <section className="search-photo-result" aria-label="نتيجة البحث بالصورة">
+          <div className="search-history-head">
+            <span>{photoSearch.busy ? "📷 جارِ قراءة الصورة…" : "📷 من الصورة"}</span>
+            <button type="button" className="btn-link" onClick={() => setPhotoSearch(null)}>إغلاق</button>
+          </div>
+          {photoSearch.error && <p className="settings-hint">{photoSearch.error}</p>}
+          {!photoSearch.busy && !photoSearch.error && photoSearch.hits.length === 0 && (
+            <p className="settings-hint">لم أجد جهازًا أو زبونًا يطابق النص المقروء{photoSearch.text ? `: «${photoSearch.text}»` : ""}.</p>
+          )}
+          {photoSearch.hits.length > 0 && (
+            <ul className="search-suggest">
+              {photoSearch.hits.map((s) => (
+                <li key={`${s.kind}-${s.id}`}>
+                  <button type="button" onClick={() => pickSuggestion(s)}>
+                    <span aria-hidden="true">{s.kind === "device" ? "📡" : s.kind === "client" ? "👤" : "🤝"}</span>
+                    <span className="search-suggest-text">
+                      <strong dir="auto">{s.title}</strong>
+                      {s.hit && <small dir="auto">{s.hit}</small>}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       {searchFocused && !query.trim() && searchHistory.length > 0 && (
         <section className="search-history" aria-label="عمليات البحث السابقة">

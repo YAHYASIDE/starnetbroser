@@ -2417,3 +2417,17 @@ is never pressed while a field is empty - it refills and saves on the next try (
   «⚠️ لم يُرسل» / «لم يُرسل بعد» (`starnet.repAutoStatementStatus`). A rep turned on before this keeps the old
   start - turning it off and on again starts it now.
 
+## 🔎 Search suggestions + 📷 search by a picture (Oct 30 2026)
+
+- His ask: «اجعل عنصر البحث يُظهر الاقتراحات… مثلًا عندما تضيف wifi lehsen يظهر لك كل شيء مشابه لكتابتك، وهل يمكن أن تكون
+  فيه ميزة البحث بصورة». His choices: suggestions of **devices + customers + reps**; pictures of **a KIT label, a screenshot
+  with an email or a name, a payment receipt**.
+- `lib/searchSuggest.ts` `suggestSearch`: under the home search while focused, up to 8, closest first - a field that
+  starts with the query, holds it, holds it with the spaces taken out, holds every word in any order, else one or two
+  typos away (`fuzzyMatches`); the matching field shown under the name; hidden reps' customers left out. A device opens
+  the home search on its email, a customer his menu, a rep the search on his name.
+- 📷 in the search field: the picture (resized to 1600 px) → `readImageText` (plugin `readImageText`: ML Kit text
+  recognition, bundled Latin model, on the phone, no internet) → `imageQueries` (emails, KIT / serial numbers, phone
+  numbers' last 8 digits, then the lines) → the best suggestions of all of them. Android app only (ML Kit reads Latin
+  letters and digits - Arabic names in a picture are not read; their phone numbers / emails are).
+

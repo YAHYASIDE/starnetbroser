@@ -215,6 +215,10 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
     return { pinned: false, unsupported: true };
   }
 
+  async readImageText(): Promise<{ text: string }> {
+    throw this.unavailable("Reading a picture's text requires the native Android app.");
+  }
+
   async downloadAppUpdate(): Promise<{ status: "installing" | "needsPermission" }> {
     throw this.unavailable("Downloading the app update requires the native Android app.");
   }
