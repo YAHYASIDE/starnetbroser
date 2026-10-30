@@ -2431,3 +2431,16 @@ is never pressed while a field is empty - it refills and saves on the next try (
   numbers' last 8 digits, then the lines) → the best suggestions of all of them. Android app only (ML Kit reads Latin
   letters and digits - Arabic names in a picture are not read; their phone numbers / emails are).
 
+
+## 🕘 Home opens on «آخر جهاز» + 🤝 a category for every rep (Oct 30 2026)
+
+- His ask: «اجعل عندما أضغط على الرئيسية تظهر آخر جهاز دائمًا، اجعل آخر جهاز هو الخيار الأول». The home starts with
+  `statFilter = "recent"` (the desk's devices page still shows all); tapping «الرئيسية» while home
+  (`HOME_RESET_EVENT`) clears the search / day / customer and goes back to «آخر جهاز». A search reaches every device,
+  not only the recent ones. Tapping the ring again still turns it off (the expired / near-expiry view).
+- His ask: «لكل زبائن مندوب - حتى لو لم يكونوا عنده، هم عندي الآن، لكن في الأصل للمندوب - أن يظهر اسمه فوقهم، وأن
+  يظهر تصنيفهم: لكل مندوب تصنيف يُجهَّز تلقائيًا». `clientRepOrigins` (lib/repDebts.ts): the current rep, the reps of
+  his live devices and the reps of his past segments, newest first. On the clients page the rep name(s) show over the
+  customer and each rep gets an automatic chip «🤝 <name>» (filters over all customers, mine and the reps').
+  The «زبائني / زبائن المندوبين» owner filter is unchanged (`clientRepIds`).
+- Category chips: very small, **two rows, five to a row** on screen; more slide sideways (`--chip-cols`).

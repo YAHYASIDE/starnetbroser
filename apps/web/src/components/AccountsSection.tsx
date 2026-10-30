@@ -10,7 +10,7 @@ import { DateInput } from "./DateInput";
 import { ChangeEvent, CSSProperties, FormEvent, useEffect, useMemo, useState } from "react";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { Client, clientDeleteQuestion, CreateClientInput } from "@/lib/clientStore";
-import { clientRepNames, clientRepIds, matchesClientOwner, type ClientOwnerFilter } from "@/lib/repDebts";
+import { clientRepIds, clientRepOrigins, matchesClientOwner, type ClientOwnerFilter } from "@/lib/repDebts";
 import { currentRepOfClient } from "@/lib/repClients";
 import type { RepresentativeStore } from "@/lib/repStore";
 import { CreateSupplierInput, Supplier } from "@/lib/supplierStore";
@@ -258,6 +258,8 @@ export function PartyDirectory({
             )
           : [];
         const repIds = isClients ? clientRepIds(party.id, accounts, party as Client, (id) => Boolean(representatives?.[id]?.customersStay)) : [];
+        // 🤝 each rep is a category of its own, with every customer linked to him (now or before).
+        if (isClients) for (const id of clientRepOrigins(party.id, accounts, party as Client)) if (representatives?.[id]) categories.push(`rep:${id}`);
         // 🕒 His latest operation or edit - the customer on top is the last one worked on.
         const activity = isClients
           ? clientLastActivity({
@@ -282,9 +284,11 @@ export function PartyDirectory({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
+    // 🤝 a rep's category holds all his customers, whoever they belong to now.
+    const base = category.startsWith("rep:") ? rows : ownerRows;
     let matching = q
-      ? ownerRows.filter((r) => r.party.name.toLowerCase().includes(q) || (r.party.phone ?? "").includes(q))
-      : ownerRows;
+      ? base.filter((r) => r.party.name.toLowerCase().includes(q) || (r.party.phone ?? "").includes(q))
+      : base;
     // 🏷️ The category, then the standing (مدينون لنا / لهم رصيد / حساب متوازن).
     if (isClients && category !== "all") matching = matching.filter((r) => r.categories.includes(category));
     if (isClients) matching = matching.filter((r) => matchesStanding(r.standing, balance));
@@ -292,8 +296,28 @@ export function PartyDirectory({
     // owed first, then alphabetical.
     if (isClients) return [...matching].sort((a, b) => byLastActivity({ activity: a.activity, name: a.party.name }, { activity: b.activity, name: b.party.name }));
     return [...matching].sort((a, b) => (a.due === b.due ? a.party.name.localeCompare(b.party.name, "ar") : a.due ? -1 : 1));
-  }, [ownerRows, query, isClients, balance, category]);
-  const counts = useMemo(() => categoryCounts(ownerRows), [ownerRows]);
+  }, [rows, ownerRows, query, isClients, balance, category]);
+  const counts = useMemo(() => {
+    const c = categoryCounts(ownerRows);
+    const all = categoryCounts(rows);
+    for (const [k, v] of Object.entries(all)) if (k.startsWith("rep:")) c[k] = v;
+    return c;
+  }, [rows, ownerRows]);
+  // 🤝 one category per rep who has customers (his Oct 30 2026 ask), by name.
+  const repCategories = useMemo(
+    () =>
+      Object.keys(counts)
+        .filter((k) => k.startsWith("rep:") && representatives?.[k.slice(4)])
+        .map((k) => ({ id: k, label: representatives![k.slice(4)]!.name, icon: "🤝", color: "" }))
+        .sort((a, b) => a.label.localeCompare(b.label, "ar")),
+    [counts, representatives],
+  );
+  const categoryChips = [
+    { id: "all", label: "الكل", icon: "", color: "" },
+    ...BUILT_IN_CATEGORIES.map((c) => ({ id: c.id, label: c.name, icon: c.icon, color: c.color })),
+    ...categoryList.map((c) => ({ id: c.id, label: c.name, icon: "🏷️", color: c.color })),
+    ...repCategories,
+  ];
   const deskWide = useDeskWide();
   const [pickedId, setPickedId] = useState<string | null>(null);
   const picked = filtered.find((r) => r.party.id === pickedId) ?? filtered[0];
@@ -376,7 +400,7 @@ export function PartyDirectory({
         devices={isClients ? accounts.filter((a) => a.clientId === party.id && !a.deletedAt) : []}
         ledgerStore={ledgerStore}
         creditLimit={isClients ? (party as Client).creditLimit : undefined}
-        repNames={isClients && representatives ? clientRepNames(party.id, accounts, representatives, party as Client) : []}
+        repNames={isClients && representatives ? clientRepOrigins(party.id, accounts, party as Client).map((id) => representatives[id]?.name).filter((n): n is string => Boolean(n)) : []}
         categoryChips={
           isClients
             ? (rows.find((r) => r.party.id === party.id)?.categories ?? [])
@@ -462,12 +486,15 @@ export function PartyDirectory({
       </div>
 
       {isClients && (
-        <div className="party-category-chips" role="radiogroup" aria-label="التصنيف">
-          {[
-            { id: "all", label: "الكل", icon: "", color: "" },
-            ...BUILT_IN_CATEGORIES.map((c) => ({ id: c.id, label: c.name, icon: c.icon, color: c.color })),
-            ...categoryList.map((c) => ({ id: c.id, label: c.name, icon: "🏷️", color: c.color })),
-          ].map((chip) => (
+        <div
+          className="party-category-chips"
+          data-tour="client-categories"
+          role="radiogroup"
+          aria-label="التصنيف"
+          // Two small rows, five to a row on screen; more slide sideways (his Oct 2026 choice).
+          style={{ "--chip-cols": Math.max(5, Math.ceil((categoryChips.length + 1) / 2)) } as CSSProperties}
+        >
+          {categoryChips.map((chip) => (
             <button
               key={chip.id}
               type="button"
@@ -480,8 +507,9 @@ export function PartyDirectory({
                 setSelected(new Set());
               }}
             >
-              {chip.icon && <span aria-hidden="true">{chip.icon} </span>}
-              {chip.label} <span className="party-tab-count">{counts[chip.id] ?? 0}</span>
+                  {chip.icon && <span aria-hidden="true">{chip.icon}</span>}
+              <span className="party-category-name">{chip.label}</span>
+              <span className="party-tab-count">{counts[chip.id] ?? 0}</span>
             </button>
           ))}
           <button type="button" className="party-category-chip party-category-add" onClick={() => setCategorySheet(true)}>

@@ -23,6 +23,8 @@ export const HOME_ACTION_EVENT = "starnet:home-action";
 /** A notification or shortcut asked the open home screen to show a device ("?q=...") - same
  * pathname, so no navigation happens; HomeView applies the search itself (detail: the query). */
 export const HOME_SEARCH_EVENT = "starnet:home-search";
+/** 🏠 الرئيسية tapped while already home: back to its first view («آخر جهاز»). */
+export const HOME_RESET_EVENT = "starnet:home-reset";
 export const REMINDER_COUNT_EVENT = "starnet:reminder-count";
 
 export function homeActionHref(action: HomeAction): string {

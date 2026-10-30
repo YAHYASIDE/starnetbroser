@@ -3,7 +3,7 @@
 import { CSSProperties, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { HOME_ACTION_EVENT, HomeAction, homeActionHref, REMINDER_COUNT_EVENT } from "@/lib/homeActions";
+import { HOME_ACTION_EVENT, HOME_RESET_EVENT, HomeAction, homeActionHref, REMINDER_COUNT_EVENT } from "@/lib/homeActions";
 import { isRunningInAndroidApp } from "@/lib/localBrowser";
 import { isRepAllowedPath, isRepWorkspace, repCan, REP_SENDER_EVENT } from "@/lib/repMode";
 import { withoutBottomDuplicates } from "@/lib/moreMenu";
@@ -69,6 +69,9 @@ export function BottomNav() {
             key={tab.href}
             href={tab.href}
             className={`bottom-nav-item${pathname === tab.href ? " bottom-nav-item-active" : ""}`}
+            onClick={() => {
+              if (tab.href === "/" && pathname === "/") window.dispatchEvent(new Event(HOME_RESET_EVENT));
+            }}
           >
             <span className="bottom-nav-icon" aria-hidden="true"><NavIcon name={tab.icon} /></span>
             <span className="bottom-nav-label">{tab.label}</span>

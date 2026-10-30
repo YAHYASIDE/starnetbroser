@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { StarlinkAccountSummary } from "@starnet/shared";
-import { clientRepIds, clientRepNames, matchesClientOwner, repDevicesDebt } from "./repDebts";
+import { clientRepIds, clientRepNames, clientRepOrigins, matchesClientOwner, repDevicesDebt } from "./repDebts";
 import type { LedgerEntry } from "./ledgerStore";
 
 const acc = (o: Partial<StarlinkAccountSummary>) => ({ id: "x", name: "x", ...o }) as StarlinkAccountSummary;
@@ -66,5 +66,22 @@ describe("clients page: my customers / the reps' customers", () => {
     expect(matchesClientOwner(["r1", "r2"], { repId: "r2" })).toBe(true);
     expect(matchesClientOwner([], { repId: "r2" })).toBe(false);
     expect(matchesClientOwner([], "all")).toBe(true);
+  });
+});
+
+describe("clientRepOrigins: every rep a customer belongs to, even after moving back to us", () => {
+  it("lists the current rep, the live devices' reps and past reps, newest first, each once", () => {
+    const client = { repSegments: [{ repId: "r1", from: "2026-09-01", carry: false }, { repId: "r2", from: "2026-10-01", carry: false }, { from: "2026-10-20", carry: true }] };
+    const accounts = [acc({ id: "a", clientId: "c", representativeId: "r3" }), acc({ id: "b", clientId: "c", representativeId: "r9", deletedAt: "2026-10-02" }), acc({ id: "d", clientId: "other", representativeId: "r8" })];
+    expect(clientRepOrigins("c", accounts, client)).toEqual(["r3", "r2", "r1"]);
+  });
+
+  it("is empty for the operator's own customer", () => {
+    expect(clientRepOrigins("c", [acc({ clientId: "c" })], {})).toEqual([]);
+  });
+
+  it("puts the current rep first", () => {
+    const client = { repSegments: [{ repId: "r1", from: "2026-09-01", carry: false }, { repId: "r2", from: "2026-10-01", carry: false }] };
+    expect(clientRepOrigins("c", [acc({ clientId: "c", representativeId: "r1" })], client)).toEqual(["r2", "r1"]);
   });
 });

@@ -36,6 +36,22 @@ export function clientRepNames(
   return names;
 }
 
+/**
+ * 🤝 Every rep a customer is linked to (his Oct 30 2026 ask: «لكل زبائن مندوب - حتى لو لم يكونوا عنده، هم عندي الآن، لكن
+ * في الأصل للمندوب - أن يظهر اسمه فوقهم وأن يكون لكل مندوب تصنيف»): the reps of his live devices, his current rep, and
+ * the reps he belonged to before (his rep segments) - newest first, each once.
+ */
+export function clientRepOrigins(clientId: string, accounts: StarlinkAccountSummary[], client?: Pick<Client, "repSegments">): string[] {
+  const ids: string[] = [];
+  const add = (id: string | undefined | null) => {
+    if (id && !ids.includes(id)) ids.push(id);
+  };
+  add(currentRepOfClient(client));
+  for (const account of accounts) if (account.clientId === clientId && !account.deletedAt) add(account.representativeId);
+  for (const seg of [...(client?.repSegments ?? [])].reverse()) add(seg.repId);
+  return ids;
+}
+
 /** The reps a client belongs to (same rule as clientRepNames), by id - for the «زبائني / زبائن
  * المندوبين» filter on the clients page. Empty = the operator's own customer. */
 export function clientRepIds(

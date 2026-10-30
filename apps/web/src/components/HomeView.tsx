@@ -53,7 +53,7 @@ import { isPendingActivation, markActivated } from "@/lib/saleDevices";
 import { PendingDeviceCard } from "@/components/PendingDeviceCard";
 import { adoptRepDevice, repDeviceSecrets } from "@/lib/repDeviceAdopt";
 import { bucketPromises, loadPromises } from "@/lib/paymentPromises";
-import { HOME_ACTION_EVENT, HOME_SEARCH_EVENT, HomeAction, parseHomeAction, parseHomePayment, parseActivateDevice, REMINDER_COUNT_EVENT, parseHomeSearch } from "@/lib/homeActions";
+import { HOME_ACTION_EVENT, HOME_RESET_EVENT, HOME_SEARCH_EVENT, HomeAction, parseHomeAction, parseHomePayment, parseActivateDevice, REMINDER_COUNT_EVENT, parseHomeSearch } from "@/lib/homeActions";
 import { deviceRoute, HOME_ROUTE, KAST_ROUTE, notifyPhone } from "@/lib/appEvents";
 import { buildRenewalShipment } from "@/lib/renewalPlan";
 import { runAutoBackup } from "@/lib/autoBackupRunner";
@@ -413,7 +413,8 @@ export function HomeView({
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [searchFocused, setSearchFocused] = useState(false);
   const [selectedDay, setSelectedDay] = useState<DayKey | null>(null);
-  const [statFilter, setStatFilter] = useState<StatFilterKind | null>(null);
+  // 🕘 The home opens on «آخر جهاز» (his Oct 2026 choice); the desk's devices page shows all.
+  const [statFilter, setStatFilter] = useState<StatFilterKind | null>(deskPage === "devices" ? null : "recent");
   // 🤝 Which rep's circle is open (statFilter "rep").
   const [repRingId, setRepRingId] = useState<string | null>(null);
   // 📌 His private pins + purple notes per device (lib/deviceNotes.ts) - never sent to a rep.
@@ -2291,6 +2292,16 @@ export function HomeView({
       setFaultFilter(null);
     };
     window.addEventListener(HOME_SEARCH_EVENT, onSearch);
+    // 🏠 الرئيسية tapped again: «آخر جهاز», nothing typed, back to the top.
+    const onReset = () => {
+      setQuery("");
+      setSelectedDay(null);
+      setClientFocus(null);
+      setFaultFilter(null);
+      setStatFilter("recent");
+      window.scrollTo({ top: 0 });
+    };
+    window.addEventListener(HOME_RESET_EVENT, onReset);
     const searchFromUrl = parseHomeSearch(window.location.search);
     if (searchFromUrl) {
       window.history.replaceState(null, "", window.location.pathname);
@@ -2331,6 +2342,7 @@ export function HomeView({
     return () => {
       window.removeEventListener(HOME_ACTION_EVENT, onAction);
       window.removeEventListener(HOME_SEARCH_EVENT, onSearch);
+      window.removeEventListener(HOME_RESET_EVENT, onReset);
     };
   }, [viewMode]);
 
@@ -2403,7 +2415,8 @@ export function HomeView({
       if (statFilter === "faulty" && faultFilter) list = list.filter((a) => faultCategory(a) === faultFilter);
       if (statFilter === "noClient") list = list.filter((a) => matchesNoClientGroup(a, clientStore, noClientGroup));
       if (statFilter === "pinned") list = pinnedDevices(deviceNotes, list);
-      if (statFilter === "recent") list = recentDevices(list, ledgerStore, recentLog);
+      // A search reaches every device, not only the last ones (the home opens on «آخر جهاز»).
+      if (statFilter === "recent" && !query.trim()) list = recentDevices(list, ledgerStore, recentLog);
       if (statFilter === "travelDone" && travelGroup !== "all") list = list.filter((a) => matchesTravelGroup(travelStateOf(a, ledgerStore, allAllocations, travelInRepLedger), travelGroup));
       if (statFilter === "renewed") list = list.filter((a) => renewedToday.has(a.id));
       if (statFilter === "duplicate") list = list.filter((a) => deviceTwinMap.has(a.id));
@@ -2812,6 +2825,7 @@ export function HomeView({
       <section className="status-rings status-rings-more" aria-label="قوائم الأجهزة">
         <StatusRing
           tone="recent"
+          tour="recent-ring"
           value={recentToday}
           total={overview.total}
           label="آخر جهاز"
