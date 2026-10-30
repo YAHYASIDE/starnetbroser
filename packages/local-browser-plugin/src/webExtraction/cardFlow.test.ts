@@ -55,6 +55,14 @@ describe("«أضف البطاقة» page detectors", () => {
     expect((document.getElementById("code") as HTMLInputElement).value).toBe("123456");
   });
 
+  it("a payment's code screen (not adding a card) is found too - his Oct 30 2026 $83.33 screenshot", () => {
+    page(`<p>STARLINK INTERNET</p><p>Oct-30-2026</p><p>$ 83.33</p><p>Card • 2222</p>
+      <p>Enter the code we sent to your email demo*****@*****com</p>
+      <label for="c2">Code *</label><input id="c2" placeholder="Code *"><button id="s2" disabled>Submit</button><button>Resend</button>`);
+    expect(findOtpField(document)?.input.id).toBe("c2");
+    expect(cardSight(document).otp).toBe(true);
+  });
+
   it("Starlink's own sign-in code page is not the payment's", () => {
     page(`<h1>Two-step verification</h1><p>Enter the code we sent to your email</p><input placeholder="Code"><button>Submit</button>`);
     expect(findOtpField(document)).toBeNull();

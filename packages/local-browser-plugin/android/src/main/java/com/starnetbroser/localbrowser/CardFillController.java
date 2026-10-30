@@ -49,6 +49,8 @@ final class CardFillController {
     private static final long FILL_DEBOUNCE_MS = 800;
     private static final long SAVE_DELAY_MS = 1500;
     private static final long TICK_MS = 5000;
+    /** A loose payment-code screen is read once per this long. */
+    private static final long LOOSE_MS = 3 * 60_000L;
 
     private final Activity activity;
     private final Host host;
@@ -72,6 +74,11 @@ final class CardFillController {
     /** 💳 Reads the card company's code from the card's billing Gmail, when linked. */
     private GmailCodeFetcher codeFromGmail;
     private final PaymentCodeInbox.Listener codeListener = code -> new Handler(Looper.getMainLooper()).post(() -> sendCode(code));
+    /** 🔑 A payment's code screen outside «أضف البطاقة» (his Oct 30 2026 report: a $83.33 payment's code was never
+     * read): its frame, and when it showed (0 = none waiting). */
+    private JavaScriptReplyProxy looseOtpFrame;
+    private long looseSince;
+    private final PaymentCodeInbox.Listener looseListener = code -> new Handler(Looper.getMainLooper()).post(() -> sendLooseCode(code));
 
     CardFillController(Activity activity, Host host) {
         this.activity = activity;
@@ -80,7 +87,7 @@ final class CardFillController {
 
     /** Before the first page loads. False when there are no cards or this WebView can't. */
     boolean setUp(WebView webView) {
-        if (CardFillStore.cards(activity).isEmpty()) return false;
+        // (no saved card is fine: a payment's code screen is read too - his Oct 30 2026 report)
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER) || !WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) return false;
         String script = loadScript();
         if (script == null) return false;
@@ -105,16 +112,25 @@ final class CardFillController {
         cardFrames.clear();
         paymentEditFrame = null;
         otpFrame = null;
+        // a waiting payment code keeps waiting; its screen tells its new frame again
+        looseOtpFrame = null;
     }
 
     /** The screen is gone. */
     void release() {
+        endLoose();
         endFlow();
         handler.removeCallbacksAndMessages(null);
     }
 
     /** Back from the mail app: the code he copied («نسخ الرمز»). */
     void onWindowFocus(boolean hasFocus) {
+        if (hasFocus && !flowRunning() && looseSince > 0) {
+            String clip = readClipboard();
+            String code = PaymentCode.fromClipboard(clip);
+            if (code != null && !clip.equals(clipAtOtp)) sendLooseCode(code);
+            return;
+        }
         if (!hasFocus || !flowRunning() || !flow.awaitingCode()) return;
         String clip = readClipboard();
         String code = PaymentCode.fromClipboard(clip);
@@ -141,7 +157,7 @@ final class CardFillController {
                 break;
             case "focus":
                 if (!cardFrames.contains(frame)) cardFrames.add(frame);
-                if (!flowRunning() && now - filledAt > QUIET_AFTER_FILL_MS) showPicker();
+                if (!flowRunning() && now - filledAt > QUIET_AFTER_FILL_MS && !CardFillStore.cards(activity).isEmpty()) showPicker();
                 break;
             case "filled":
                 onFilled(CardFillMessage.count(data));
@@ -177,7 +193,10 @@ final class CardFillController {
             paymentEditFrame = frame;
             if (s.onFile != null) lastOnFile = s.onFile;
         }
-        if (!flowRunning()) return;
+        if (!flowRunning()) {
+            if (s.otp) awaitLooseCode(frame, now);
+            return;
+        }
         switch (flow.onSight(frame, s, now)) {
             case OPEN_FORM:
                 send(frame, "{\"cmd\":\"open-form\"}");
@@ -254,6 +273,7 @@ final class CardFillController {
     }
 
     private void startFlow(String payload) {
+        endLoose();
         endFlow();
         long now = System.currentTimeMillis();
         flow = new CardAddFlow(PaymentCode.last4OfPayload(payload), now, lastOnFile);
@@ -368,6 +388,69 @@ final class CardFillController {
             handler.postDelayed(this, TICK_MS);
         }
     };
+
+    /** 🔑 Any payment's code screen: the code read from the card's Gmail (when linked) or the mail notification, then
+     * typed and submitted - or the one he copies. Once per screen; a new screen 3 minutes later is read again. */
+    private void awaitLooseCode(JavaScriptReplyProxy frame, long now) {
+        looseOtpFrame = frame;
+        if (looseSince > 0 && now - looseSince < LOOSE_MS) return;
+        looseSince = now;
+        clipAtOtp = readClipboard();
+        long since = now - CardAddFlow.CODE_GRACE_MS;
+        PaymentCodeInbox.await(since, sentCodes, looseListener);
+        stopGmail();
+        if (GmailCodeFetcher.cardCodeEmail(activity) != null) {
+            codeFromGmail = GmailCodeFetcher.forCardPayment(activity, since, sentCodes, new CodeSource.Listener() {
+                @Override
+                public void onCode(String code) {
+                    new Handler(Looper.getMainLooper()).post(() -> sendLooseCode(code));
+                }
+
+                @Override
+                public void onSignedOut() {
+                    new Handler(Looper.getMainLooper()).post(() -> {
+                        if (looseSince == 0) return;
+                        Toast.makeText(activity, "⚠️ لا يستطيع التطبيق قراءة بريد البطاقة - انتهى إذن Google. انسخ الرمز وارجع، ثم الإعدادات ← «💳 بريد رمز البطاقة» ← «إعادة الربط»", Toast.LENGTH_LONG).show();
+                    });
+                }
+
+                @Override
+                public void onGiveUp() {
+                    new Handler(Looper.getMainLooper()).post(() -> {
+                        if (looseSince == 0) return;
+                        Toast.makeText(activity, "⌛ لم يصل رمز الدفع إلى بريد البطاقة المربوط - انسخه وارجع", Toast.LENGTH_LONG).show();
+                    });
+                }
+            });
+            codeFromGmail.start();
+            Toast.makeText(activity, "🔑 صفحة رمز الدفع - يقرأ التطبيق الرمز من بريد البطاقة ويكتبه", Toast.LENGTH_LONG).show();
+        } else {
+            Toast.makeText(activity, "🔑 صفحة رمز الدفع - انسخ الرمز من البريد وارجع، يكتبه التطبيق (أو اربط بريد البطاقة في الإعدادات ليقرأه وحده)", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void sendLooseCode(String code) {
+        if (looseSince == 0 || flowRunning()) return;
+        String digits = code.replaceAll("\\D", "");
+        if (digits.isEmpty() || sentCodes.contains(digits)) return;
+        CodeLogStore.record(activity, "", "card", digits);
+        sentCodes.add(digits);
+        JavaScriptReplyProxy frame = looseOtpFrame;
+        endLoose();
+        if (frame != null) {
+            send(frame, "{\"cmd\":\"code\",\"code\":\"" + digits + "\"}");
+            Toast.makeText(activity, "✅ كُتب رمز الدفع " + digits + " وضُغط Submit", Toast.LENGTH_LONG).show();
+        } else {
+            Toast.makeText(activity, "🔑 رمز الدفع: " + digits + " - اكتبه في الصفحة", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void endLoose() {
+        looseSince = 0;
+        looseOtpFrame = null;
+        PaymentCodeInbox.stop(looseListener);
+        stopGmail();
+    }
 
     private void endFlow() {
         if (flow != null) flow.finish();

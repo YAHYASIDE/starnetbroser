@@ -475,6 +475,12 @@ mind). Exact texts and numbers live in the code - this file says where.
   as fallback). Code: `GmailCodes.PAYMENT_QUERY`/`paymentCodeIn`, `GmailCodeFetcher.forCardPayment`,
   `CardFillController.awaitCode`, plugin `linkCardGmail`, `CardGmailSection`. Read-only Gmail scope;
   the code is never logged.
+- **Any payment's code screen, not only «أضف البطاقة»** (his Oct 30 2026 screenshot: a $83.33 payment, «Enter the code
+  we sent to your email yahy…», nothing read). The card script already saw the screen (`otp`), but the controller
+  only acted inside the card flow. Now `CardFillController.awaitLooseCode`: outside a flow, an `otp` sight reads the
+  code (card Gmail when linked + the mail notification, mailed from 90 s before the screen; once per screen, 3 min),
+  types it and taps Submit, or takes what he copies on coming back; a toast says which. The controller is set up even
+  with no saved card (the card picker then never pops up by itself).
 - **Oct 30 2026 report «هذا لا يجلب رمز التحقق إلا عندما أفتح أنا الإيميل وأنسخ الكود»** (the code page said «sent to
   yahy…@…com»). The Gmail reader failed **silently**: an expired Google permission or one network error stopped it
   for good, a refused token (401/403) waited out all polls, and the card flow ignored both. Now: network failures retry

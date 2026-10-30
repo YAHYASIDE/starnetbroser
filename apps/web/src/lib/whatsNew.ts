@@ -31,6 +31,18 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-30-payment-code-anywhere",
+    date: "2026-10-30",
+    title: "🔑 رمز الدفع يُقرأ في أي دفعة",
+    steps: [
+      {
+        title: "🔑 صفحة «Enter the code we sent to your email»",
+        before: "كان التطبيق يقرأ رمز البطاقة فقط عند «💳 أضف البطاقة» - في دفعة عادية (مثل 83.33$) لا يجلب الرمز.",
+        after: "أي صفحة رمز دفع في متصفح الجهاز: يقرأ التطبيق الرمز من بريد البطاقة المربوط (أو إشعار البريد) ويكتبه ويضغط Submit. وإن لم يُربط البريد: انسخ الرمز وارجع، يكتبه هو.",
+      },
+    ],
+  },
+  {
     id: "2026-10-30-business-expenses",
     date: "2026-10-30",
     title: "📉 خسائر ومصاريف العمل",
