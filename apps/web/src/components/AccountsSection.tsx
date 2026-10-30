@@ -260,6 +260,8 @@ export function PartyDirectory({
         const repIds = isClients ? clientRepIds(party.id, accounts, party as Client, (id) => Boolean(representatives?.[id]?.customersStay)) : [];
         // 🤝 each rep is a category of its own, with every customer linked to him (now or before).
         if (isClients) for (const id of clientRepOrigins(party.id, accounts, party as Client)) if (representatives?.[id]) categories.push(`rep:${id}`);
+        // ❔ added with his number only - to give him a name later (his Oct 30 2026 ask)
+        if (isClients && (party as Client).noName) categories.push("noName");
         // 🕒 His latest operation or edit - the customer on top is the last one worked on.
         const activity = isClients
           ? clientLastActivity({
@@ -317,6 +319,7 @@ export function PartyDirectory({
     ...BUILT_IN_CATEGORIES.map((c) => ({ id: c.id, label: c.name, icon: c.icon, color: c.color })),
     ...categoryList.map((c) => ({ id: c.id, label: c.name, icon: "🏷️", color: c.color })),
     ...repCategories,
+    ...(counts.noName ? [{ id: "noName", label: "بلا اسم", icon: "❔", color: "" }] : []),
   ];
   const deskWide = useDeskWide();
   const [pickedId, setPickedId] = useState<string | null>(null);

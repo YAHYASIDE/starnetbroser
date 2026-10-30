@@ -39,6 +39,8 @@ export interface Client {
   /** 🏷️ Categories given by hand (lib/clientCategories.ts: «عام» and his own) - 📡 ستارلينك comes from his
    * devices. One account whatever they are. */
   categories?: string[];
+  /** ❔ Added with his number only (his Oct 30 2026 ask): `name` holds the number until a real name is typed. */
+  noName?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -113,6 +115,8 @@ export interface CreateClientInput {
   defaultCurrency?: LedgerCurrency;
   /** 🏷️ Left out = keep his current ones. */
   categories?: string[];
+  /** ❔ Left out = kept while the name stays the same (a new name clears it). */
+  noName?: boolean;
 }
 
 function normalizeCreditLimit(value: number | undefined): number | undefined {
@@ -130,6 +134,7 @@ export function createClient(store: ClientStore, input: CreateClientInput): { st
     creditLimit: normalizeCreditLimit(input.creditLimit),
     defaultCurrency: input.defaultCurrency,
     ...(input.categories?.length ? { categories: [...new Set(input.categories)] } : {}),
+    ...(input.noName ? { noName: true } : {}),
     createdAt: now,
     updatedAt: now,
   };
@@ -146,6 +151,7 @@ export function updateClient(store: ClientStore, clientId: string, patch: Create
     creditLimit: normalizeCreditLimit(patch.creditLimit),
     defaultCurrency: "defaultCurrency" in patch ? patch.defaultCurrency : existing.defaultCurrency,
     categories: "categories" in patch ? (patch.categories?.length ? [...new Set(patch.categories)] : undefined) : existing.categories,
+    noName: "noName" in patch ? patch.noName || undefined : patch.name.trim() === existing.name ? existing.noName : undefined,
     updatedAt: new Date().toISOString(),
   };
   return { ...store, [clientId]: updated };

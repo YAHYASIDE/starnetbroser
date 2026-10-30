@@ -2024,6 +2024,46 @@ button.overview-card:active {
   font-size: 0.78rem;
 }
 
+/* 👤 his Oct 30 2026 asks: «بلا اسم», each customer's devices and balance, a searched number added in one tap. */
+.client-picker-option-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.client-picker-option-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.client-picker-due {
+  color: var(--red);
+  font-weight: 700;
+}
+
+.client-picker-credit {
+  color: var(--green);
+  font-weight: 700;
+}
+
+.client-picker-noname {
+  margin-inline-start: 6px;
+  padding: 0 6px;
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.client-picker-add-number {
+  align-self: stretch;
+}
+
 .client-picker-empty {
   color: var(--text-muted);
   font-size: 0.82rem;

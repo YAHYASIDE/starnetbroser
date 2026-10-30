@@ -53,6 +53,7 @@ import { isPendingActivation, markActivated } from "@/lib/saleDevices";
 import { PendingDeviceCard } from "@/components/PendingDeviceCard";
 import { adoptRepDevice, repDeviceSecrets } from "@/lib/repDeviceAdopt";
 import { bucketPromises, loadPromises } from "@/lib/paymentPromises";
+import { clientPickerInfo } from "@/lib/clientPicker";
 import { HOME_ACTION_EVENT, HOME_RESET_EVENT, HOME_SEARCH_EVENT, HomeAction, parseHomeAction, parseHomePayment, parseActivateDevice, REMINDER_COUNT_EVENT, parseHomeSearch } from "@/lib/homeActions";
 import { deviceRoute, HOME_ROUTE, KAST_ROUTE, notifyPhone } from "@/lib/appEvents";
 import { buildRenewalShipment } from "@/lib/renewalPlan";
@@ -3778,6 +3779,8 @@ export function HomeView({
           activating={dialog.activating}
           clients={clients}
           onCreateClient={handleCreateClient}
+          onUpdateClient={handleUpdateClient}
+          clientInfo={(clientId) => clientPickerInfo(clientId, accounts, ledgerStore)}
           representatives={representatives}
           onCreateRepresentative={handleCreateRepresentative}
           onClose={() => {

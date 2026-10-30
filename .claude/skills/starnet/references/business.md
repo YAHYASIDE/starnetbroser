@@ -2467,3 +2467,16 @@ is never pressed while a field is empty - it refills and saves on the next try (
   with a caption «📄 كشف حسابك - ➕ … · ✏️ عُدّلت عملية · 🗑️ حُذفت عملية» plus the date and amount of each edited /
   deleted row. A rate change is never an edit (amounts in their own currency). A new «تصفير» of his account starts
   again silently (`starnet.repAutoStatementReset`). Still only for reps with «📄 كشف بعد كل عملية» on and linked to the bot.
+
+## 👤 The device's customer field: edit, a number without a name (Oct 30 2026)
+
+- His ask (a screenshot of the device dialog's «👤 الزبون»): «أضف خيار تعديل زبون من هنا، وأضف يمكن إضافة رقم زبون بدون
+  اسمه». His choices: **«✎ تعديل» beside the chosen customer** (name + phone in place; his limit / currency / categories
+  stay); **a customer with only his number** shows the number as his name with a small «بلا اسم» (`Client.noName`,
+  `name` holds the digits until a real name is typed - a new name clears it), plus a «❔ بلا اسم» category on the
+  clients page (only while there are any). From my suggestions he took: **«➕ أضف هذا الرقم كزبون»** when a searched
+  number has no customer; **the country code picked by itself** from a number typed with its code (`detectPhone`: «+» /
+  «00», or 10+ digits starting with a known code; a short local number such as a Mauritanian 8-digit one stays local);
+  **each customer's devices and balance in the list** (`clientPickerInfo`: his live devices' ledger per currency).
+  He did not pick «استعمل اسم Starlink». Code: `lib/clientPicker.ts` (+test), `ClientPicker.tsx`, AccountDialog /
+  HomeView wiring. A customer «بلا اسم» never fills the device's name.

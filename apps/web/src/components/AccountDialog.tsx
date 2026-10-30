@@ -18,6 +18,7 @@ import { Client, CreateClientInput } from "@/lib/clientStore";
 import { CreateRepresentativeInput, Representative } from "@/lib/repStore";
 import { combinePhoneNumber, PHONE_COUNTRY_CODES, splitPhoneNumber } from "@/lib/phoneCountryCodes";
 import { ClientPicker } from "./ClientPicker";
+import type { ClientPickerInfo } from "@/lib/clientPicker";
 import { usedPasswords } from "@/lib/usedPasswords";
 import { buildCreatedAccount, creationProblem } from "@/lib/accountCreation";
 import { DuplicateWarning, FieldDuplicate } from "./DuplicateWarning";
@@ -49,6 +50,10 @@ interface Props {
   activating?: boolean;
   clients: Client[];
   onCreateClient: (input: CreateClientInput) => Client;
+  /** ✎ Edit the chosen customer from the customer field (his Oct 30 2026 ask). */
+  onUpdateClient?: (clientId: string, input: CreateClientInput) => void;
+  /** 📊 A customer's devices and balance, for the customer list. */
+  clientInfo?: (clientId: string) => ClientPickerInfo;
   representatives: Representative[];
   onCreateRepresentative: (input: CreateRepresentativeInput) => Representative;
   onClose: () => void;
@@ -110,6 +115,8 @@ export function AccountDialog({
   activating = false,
   clients,
   onCreateClient,
+  onUpdateClient,
+  clientInfo,
   representatives,
   onCreateRepresentative,
   onClose,
@@ -251,8 +258,9 @@ export function AccountDialog({
 
   function pickCreationClient(clientId: string | undefined) {
     update("clientId", clientId);
-    // His name, unless one was already typed.
-    const name = findClient(clientId)?.name;
+    // His name, unless one was already typed (a customer «بلا اسم» has only his number).
+    const picked = findClient(clientId);
+    const name = picked?.noName ? undefined : picked?.name;
     if (name && !creationName.trim()) changeCreationName(name);
     // The customer's phone, unless one was already typed.
     const phone = findClient(clientId)?.phone;
@@ -591,7 +599,7 @@ export function AccountDialog({
 
             <div className="form-field add-field add-field-client">
               <span className="add-field-label"><b className="add-field-num" aria-hidden="true">7</b> الزبون (اختياري - يُسجَّل عليه الجهاز)</span>
-              <ClientPicker clients={clients} selectedClientId={draft.clientId} onSelect={pickCreationClient} onCreateClient={createCreationClient} />
+              <ClientPicker clients={clients} selectedClientId={draft.clientId} onSelect={pickCreationClient} onCreateClient={createCreationClient} onUpdateClient={onUpdateClient} clientInfo={clientInfo} />
             </div>
 
             <div className="form-field add-field add-field-rep">
@@ -656,6 +664,8 @@ export function AccountDialog({
                   selectedClientId={draft.clientId}
                   onSelect={(clientId) => update("clientId", clientId)}
                   onCreateClient={onCreateClient}
+                  onUpdateClient={onUpdateClient}
+                  clientInfo={clientInfo}
                 />
               </div>
 
@@ -728,6 +738,8 @@ export function AccountDialog({
                   selectedClientId={draft.clientId}
                   onSelect={(clientId) => update("clientId", clientId)}
                   onCreateClient={onCreateClient}
+                  onUpdateClient={onUpdateClient}
+                  clientInfo={clientInfo}
                 />
               </div>
 
