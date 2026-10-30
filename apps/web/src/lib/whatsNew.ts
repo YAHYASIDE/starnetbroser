@@ -31,6 +31,18 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-30-passkey-to-password",
+    date: "2026-10-30",
+    title: "🔑 تسجيل الدخول لا يعلق على مفتاح المرور",
+    steps: [
+      {
+        title: "🔑 من مفتاح المرور إلى كلمة المرور تلقائيًا",
+        before: "في متصفح الجهاز كان Starlink يعلق على «Signing in with passkey…».",
+        after: "أُوقفت تجربة مفاتيح المرور في المتصفح (مدير كلمات Google لا يقبلها إلا من متصفحات معروفة). Starlink يذهب لكلمة المرور مباشرة، وإن حاول المفتاح يضغط التطبيق «Continue with Password» ويكتب كلمة المرور المحفوظة.",
+      },
+    ],
+  },
+  {
     id: "2026-10-30-rep-statement-on-any-change",
     date: "2026-10-30",
     title: "📄 كشف المندوب بعد أي تعديل أو حذف",

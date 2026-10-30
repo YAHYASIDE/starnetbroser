@@ -57,7 +57,14 @@ final class LoginAutofill {
             // ANOTHER address - the device's own email must never go there (real screenshot).
             + "function recov(){var h=document.querySelectorAll('h1,h2,[role=heading]'),t='';for(var i=0;i<h.length;i++)t+=' '+h[i].textContent;"
             + "return " + GmailCodes.RECOVERY_HEADINGS + ".test(t)||/\\*{2,}@/.test((document.body&&document.body.innerText)||'');}"
-            + "function tick(){if(!isLogin())return;"
+            // 🔑 Starlink trying a passkey («Signing in with passkey…») hangs in this browser (his Oct 30 2026
+            // screenshot): with a saved password, «Continue with Password» is tapped after ~2 s, at most twice.
+            + "var pkSeen=0,pkTaps=0;function skipPasskey(){if(!p||pkTaps>=2)return;"
+            + "if(!/passkey|\\u0645\\u0641\\u062a\\u0627\\u062d \\u0627\\u0644\\u0645\\u0631\\u0648\\u0631|cl\\u00e9 d.acc\\u00e8s/i.test((document.body&&document.body.innerText)||'')){pkSeen=0;return;}"
+            + "var f=document.querySelectorAll('input[type=password]');for(var j=0;j<f.length;j++)if(vis(f[j]))return;"
+            + "if(++pkSeen<3)return;var b=document.querySelectorAll('button,a,[role=button]');for(var i=0;i<b.length;i++){var x=(b[i].textContent||'').trim();"
+            + "if(vis(b[i])&&/continue with password|use (your )?password|\\u0643\\u0644\\u0645\\u0629 \\u0627\\u0644\\u0645\\u0631\\u0648\\u0631|mot de passe/i.test(x)&&!/forgot|reset|\\u0646\\u0633\\u064a\\u062a|oubli/i.test(x)){b[i].click();pkTaps++;pkSeen=0;return;}}}"
+            + "function tick(){if(!isLogin())return;skipPasskey();"
             + "if(e&&!recov())each('input[type=email],input[autocomplete=username],input[name*=mail i],input[id*=mail i],input[name=loginfmt]',function(m){put(m,e);m.__starnet=1;});"
             + "if(p&&!wrong())each('input[type=password]',function(w){put(w,p);w.__starnet=1;});}"
             + "tick();var n=0;var t=setInterval(function(){tick();if(++n>300)clearInterval(t);},600);"

@@ -1923,6 +1923,11 @@ is never pressed while a field is empty - it refills and saves on the next try (
   to 1.12.1 in the plugin. It works only if the phone's password manager trusts STAR NET as a browser - Google
   Password Manager keeps its own fixed list of browsers (likely refuses); some managers (Bitwarden, KeePassDX…)
   let the user trust an app. The password always stays - the app signs in with it.
+- **Turned off Oct 30 2026** (his screenshot «أظن أن passkey لا يعمل»: Starlink stuck on «Signing in with passkey…»
+  in a device's browser, as feared - Google's manager doesn't answer this app). `enablePasskeys` and the
+  `CREDENTIAL_MANAGER_SET_ORIGIN` permission are gone, so Starlink goes to the password as before; and
+  `LoginAutofill` taps «Continue with Password» (never «Forgot password») when a page about a passkey lingers ~2 s
+  with no password field, at most twice, only when a password is saved. Passkeys stay in his Google account.
 - Replies to him: **Arabic only, never any other language** (his Oct 21 2026 rule, after two English answers).
 
 ## 🌍 Devices outside their home country, day by day (Oct 21 2026)

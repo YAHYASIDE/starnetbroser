@@ -25,4 +25,12 @@ public class LoginAutofillTest {
     public void emailOnlyStillFills() {
         assertTrue(LoginAutofill.script("a@b.com", null).endsWith("(\"a@b.com\",\"\");"));
     }
+
+    @Test
+    public void aHangingPasskeyIsSkippedForThePasswordNeverForgotPassword() {
+        String script = LoginAutofill.script("a@b.com", "x");
+        assertTrue(script.contains("skipPasskey()"));
+        assertTrue(script.contains("continue with password"));
+        assertTrue(script.contains("forgot|reset"));
+    }
 }

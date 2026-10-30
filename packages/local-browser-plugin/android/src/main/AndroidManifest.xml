@@ -22,9 +22,6 @@
     <!-- 🔄 Background sync: each device's page is drawn in an invisible, untouchable window
          (BackgroundSyncService) - the operator grants «الظهور فوق التطبيقات» once. -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <!-- 🔑 Passkeys for Starlink's site in a device's browser (WebView «browser» WebAuthn mode,
-         Android 14+): the page's own origin is handed to the phone's password manager. -->
-    <uses-permission android:name="android.permission.CREDENTIAL_MANAGER_SET_ORIGIN" />
     <!-- 🆕 «تحديث جديد»: the app downloads its own APK and opens Android's installer
          (AppUpdateInstaller) - the phone still asks him to confirm the install. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
