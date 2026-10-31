@@ -19805,3 +19805,11 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   line-height: 1;
   cursor: pointer;
 }
+
+/* 🔗 «أضفه إلى D ويزيد على الزبون» - the second, quieter choice (his Oct 31 2026 ask: dollars only comes first). */
+.card-more-item.card-more-item-quiet {
+  padding-block: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+}

@@ -2607,3 +2607,11 @@ is never pressed while a field is empty - it refills and saves on the next try (
   «＋X $ إلى D» chip), a very small line: the gap × today's registered rate (أوقية, سيفا - `gapInLocalCurrencies`, whole
   units, a currency with no rate left out) and a 👁 / 🙈 button. Shown or hidden on every card at once, remembered on the
   phone (`starnet.gapPricesHidden`, not backed up). Display only - nothing is recorded or locked.
+
+## 🔗 A gap onto the open D: dollars only first (Oct 31 2026)
+
+- His screenshot (a زبون الحسين device, «الدين · 12.5 $» sheet, «D يصير 35.05 $ · الزبون يصير 12,435 سيفا»): «أريد أن يأتي
+  دين على دين سابق بدون زيادة المبلغ، فقط دولار على دولار». The sheet's first 🔗 choice is now «أضفه إلى D المفتوح - دولار
+  على دولار»: Starlink's cost on the open D grows by the gap, the customer's amount and sale rate stay
+  (`planGrowOpenD(entries, gap, false)`, `grownBy.amount` 0 - the profit takes the gap). His Oct 25 way (the customer raised
+  at the same price) stays as a quieter second choice «أضفه إلى D ويزيد على الزبون».

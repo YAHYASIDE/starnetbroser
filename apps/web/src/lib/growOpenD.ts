@@ -4,6 +4,10 @@
  * operation, the newest open D grows by the gap - his choices: **the old D's own locked rate** («سعر العملية
  * القديمة») and the customer's amount **raised at the same price per dollar** («يزيد بنفس سعر القديم»), so
  * the profit keeps its proportion. Pure.
+ *
+ * His Oct 31 2026 ask («أريد أن يأتي دين على دين سابق بدون زيادة المبلغ، فقط دولار على دولار»): the first choice
+ * now adds dollars only - Starlink's cost grows, the customer's amount stays (`raiseCustomer: false`); raising
+ * him at the same price is the second, smaller choice.
  */
 
 import { openDebtEntries } from "./deviceFault";
@@ -37,13 +41,13 @@ export function growableD(entries: LedgerEntry[]): LedgerEntry | null {
 }
 
 /** What the open D becomes with `gapUsd` added - or null when there is none to grow. */
-export function planGrowOpenD(entries: LedgerEntry[], gapUsd: number): GrowPlan | null {
+export function planGrowOpenD(entries: LedgerEntry[], gapUsd: number, raiseCustomer = true): GrowPlan | null {
   if (!(gapUsd > 0)) return null;
   const entry = growableD(entries);
   const before = entry ? costUsd(entry) : undefined;
   if (!entry || !before) return null;
   const after = round2(before + gapUsd);
-  return { entry, costUsdBefore: before, costUsdAfter: after, amountBefore: entry.amount, amountAfter: roundIn(entry.currency, (entry.amount * after) / before) };
+  return { entry, costUsdBefore: before, costUsdAfter: after, amountBefore: entry.amount, amountAfter: raiseCustomer ? roundIn(entry.currency, (entry.amount * after) / before) : entry.amount };
 }
 
 /** The grown entry: cost + gap (in the cost's currency at its locked rate), the sale scaled the same. */

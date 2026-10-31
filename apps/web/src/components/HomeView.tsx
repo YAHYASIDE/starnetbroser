@@ -1961,14 +1961,14 @@ export function HomeView({
 
   // 🔗 «أضفه إلى D المفتوح» (his Oct 25 2026 ask): the gap joins the newest open D - its own locked rate,
   // the customer's amount raised at the same price per dollar (lib/growOpenD.ts).
-  function handleGrowOpenD(account: StarlinkAccountSummary, gapUsd: number): string | null {
+  function handleGrowOpenD(account: StarlinkAccountSummary, gapUsd: number, raiseCustomer: boolean): string | null {
     const entries = getAccountEntries(ledgerStore, account.id);
-    const plan = planGrowOpenD(entries, gapUsd);
+    const plan = planGrowOpenD(entries, gapUsd, raiseCustomer);
     if (!plan) return "لا يوجد D مفتوح بتكلفة معروفة على هذا الجهاز";
     if (!confirmClosedMonthChange([plan.entry.date])) return "لم يُحفظ (الشهر مُقفل)";
     const grown = growOpenD(plan, new Date().toISOString());
     updateLedgerEntries(account.id, entries.map((e) => (e.id === grown.id ? grown : e)));
-    pushToast(`🔗 أُضيف ${formatAmount(gapUsd)} $ إلى D على "${account.name}" - D صار ${formatAmount(plan.costUsdAfter)} $ والزبون ${formatAmount(plan.amountAfter)} ${LEDGER_CURRENCY_LABELS[grown.currency]}`);
+    pushToast(`🔗 أُضيف ${formatAmount(gapUsd)} $ إلى D على "${account.name}" - D صار ${formatAmount(plan.costUsdAfter)} $ والزبون ${raiseCustomer ? "صار" : "بقي"} ${formatAmount(plan.amountAfter)} ${LEDGER_CURRENCY_LABELS[grown.currency]}`);
     return null;
   }
 

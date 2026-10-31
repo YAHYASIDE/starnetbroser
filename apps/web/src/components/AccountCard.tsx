@@ -89,7 +89,7 @@ interface Props {
   /** ➕ The gap added onto this device's open previous debt (it grows). */
   onAddToPreviousDebt?: (account: StarlinkAccountSummary, debtId: string, amountUsd: number) => string | null;
   /** 🔗 «أضفه إلى D المفتوح»: the gap joins the newest open D (lib/growOpenD.ts). */
-  onGrowOpenD?: (account: StarlinkAccountSummary, gapUsd: number) => string | null;
+  onGrowOpenD?: (account: StarlinkAccountSummary, gapUsd: number, raiseCustomer: boolean) => string | null;
   /** 👤 The gap recorded on the device's customer as «رصيد سابق» (عليه). */
   onCustomerPreviousBalance?: (account: StarlinkAccountSummary, input: { amount: number; currencyCode: string; note: string }) => string | null;
   /** ↩️ Puts D's marked paid (while Starlink still asks for them) back to D (lib/settledStillDue.ts). */
@@ -1478,24 +1478,33 @@ export function AccountCard({
               </button>
               {onGrowOpenD &&
                 (() => {
-                  const plan = planGrowOpenD(ledgerEntries, debtChoiceUsd);
-                  if (!plan) return null;
+                  // 🔗 dollars only first - the customer's amount stays (his Oct 31 2026 ask); raising him is the second choice
+                  const plan = planGrowOpenD(ledgerEntries, debtChoiceUsd, false);
+                  const raised = planGrowOpenD(ledgerEntries, debtChoiceUsd, true);
+                  if (!plan || !raised) return null;
                   const currency = LEDGER_CURRENCY_LABELS[plan.entry.currency];
+                  const grow = (raise: boolean) => {
+                    const error = onGrowOpenD(account, debtChoiceUsd, raise);
+                    if (error) window.alert(error);
+                    else setDebtChoiceUsd(null);
+                  };
                   return (
-                    <button
-                      type="button"
-                      className="card-more-item"
-                      onClick={() => {
-                        const error = onGrowOpenD(account, debtChoiceUsd);
-                        if (error) window.alert(error);
-                        else setDebtChoiceUsd(null);
-                      }}
-                    >
-                      <span aria-hidden="true">🔗</span> أضفه إلى D المفتوح{" "}
-                      <small>
-                        D يصير <bdi dir="ltr">{formatAmount(plan.costUsdAfter)} $</bdi> · الزبون يصير <bdi dir="ltr">{formatAmount(plan.amountAfter)}</bdi> {currency} (بنفس سعر القديم)
-                      </small>
-                    </button>
+                    <>
+                      <button type="button" className="card-more-item" data-tour="grow-d-usd" onClick={() => grow(false)}>
+                        <span aria-hidden="true">🔗</span> أضفه إلى D المفتوح - دولار على دولار{" "}
+                        <small>
+                          D يصير <bdi dir="ltr">{formatAmount(plan.costUsdAfter)} $</bdi> · الزبون يبقى <bdi dir="ltr">{formatAmount(plan.amountBefore)}</bdi> {currency}
+                        </small>
+                      </button>
+                      {raised.amountAfter !== raised.amountBefore && (
+                        <button type="button" className="card-more-item card-more-item-quiet" onClick={() => grow(true)}>
+                          <span aria-hidden="true">🔗</span> أضفه إلى D ويزيد على الزبون{" "}
+                          <small>
+                            الزبون يصير <bdi dir="ltr">{formatAmount(raised.amountAfter)}</bdi> {currency} (بنفس سعر القديم)
+                          </small>
+                        </button>
+                      )}
+                    </>
                   );
                 })()}
               {onAddToPreviousDebt && previousDebts.length > 0 && (

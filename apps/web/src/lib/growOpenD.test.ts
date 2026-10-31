@@ -21,6 +21,19 @@ function shipment(over: Partial<LedgerEntry> = {}): LedgerEntry {
   };
 }
 
+describe("🔗 dollars only - the customer's amount stays (his Oct 31 2026 ask)", () => {
+  it("D 45.03 $ → 65.95 $, the customer stays 27,000 سيفا and his sale rate is untouched", () => {
+    const plan = planGrowOpenD([shipment()], 20.92, false)!;
+    expect(plan.costUsdAfter).toBe(65.95);
+    expect(plan.amountAfter).toBe(plan.amountBefore);
+    const grown = growOpenD(plan, AT);
+    expect(grown.starlinkCost).toMatchObject({ currencyCode: "USD", amount: 65.95 });
+    expect(grown.amount).toBe(shipment().amount);
+    expect(grown.saleRate).toEqual(shipment().saleRate);
+    expect(grown.grownBy).toEqual([{ at: AT, usd: 20.92, cost: 20.92, amount: 0 }]);
+  });
+});
+
 describe("🔗 «أضفه إلى D المفتوح» (his Oct 25 2026 ask)", () => {
   it("his card: D 45.03 $ sold 27,000 سيفا, Starlink asks 65.95 $ → D 65.95 $, the customer ≈ 39,544 سيفا", () => {
     const plan = planGrowOpenD([shipment()], 20.92)!;
