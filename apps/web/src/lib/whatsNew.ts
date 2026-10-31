@@ -31,6 +31,19 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-31-small-gap-to-d",
+    date: "2026-10-31",
+    title: "🔗 فرق صغير يُضاف إلى D",
+    steps: [
+      {
+        path: "/",
+        title: "＋ الفرق إلى D",
+        before: "إذا كان Starlink يطلب أكثر من D بقليل (مثل 45.3 $ ← 51.73 $) لا يظهر «فرق … · الدين»، فلا طريقة لإضافة الفرق.",
+        after: "يظهر بجانب مبلغ Starlink زر صغير «＋6.43 $ إلى D»: يفتح نفس الخيارات، ومنها «🔗 أضفه إلى D المفتوح» - D يصير 51.73 $ والزبون يزيد بنفس سعر القديم.",
+      },
+    ],
+  },
+  {
     id: "2026-10-31-rep-one-currency",
     date: "2026-10-31",
     title: "💱 كل مندوب بعملته الواحدة",

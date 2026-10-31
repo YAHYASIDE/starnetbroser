@@ -2574,3 +2574,11 @@ is never pressed while a field is empty - it refills and saves on the next try (
   default), `RepAccountsPage` fixes the profit form to it and hides the other money account while it has no records
   (`visibleWallets`, and its «↪️ إلى …» action), and `RepAutoStatementRunner` sends his statement in it. «ما عليه»
   stays in each record's own currency (never converted).
+
+## 🔗 A small gap onto the open D (Oct 31 2026)
+
+- His report (a card: «غير مدفوع لستارلينك: 45.3 $», Starlink ARS 76,125.01 ≈ 51.73 USD): «45.3 كان دينًا قديمًا وصارت
+  الآن 51.73 - أريد إضافة الفرق ليصبحا 51.73». The «فرق … · الدين» chip only shows a gap over max(5 $, 25 % of the open D)
+  (a rate move otherwise) - 6.43 $ on 45.3 $ stayed hidden. Now `smallGapToGrowUsd` (lib/previousDebt.ts, tested): with
+  an open D and the big chip not shown, a gap ≥ 1 $ gives a quiet chip «＋6.43 $ إلى D» (only when `planGrowOpenD` can
+  grow one) that opens the same sheet - «🔗 أضفه إلى D المفتوح» (old D's rate, customer raised at the same price).

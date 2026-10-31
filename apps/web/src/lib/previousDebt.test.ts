@@ -138,3 +138,13 @@ describe("➕ a gap added onto the open previous debt (his Oct 22 2026 ask)", ()
     expect(addToPreviousDebt(made.list, made.debt.id, 0, "2026-10-22").ok).toBe(false);
   });
 });
+
+describe("🔗 a small gap onto the open D (his Oct 31 2026 report)", () => {
+  it("offers the gap the big chip hides, only with an open D", async () => {
+    const { smallGapToGrowUsd } = await import("./previousDebt");
+    expect(smallGapToGrowUsd(51.73, 45.3, 45.3)).toBe(6.43);
+    expect(smallGapToGrowUsd(80, 45.3, 45.3)).toBe(0); // the big «فرق» chip shows that one
+    expect(smallGapToGrowUsd(51.73, 0, 0)).toBe(0); // no open D
+    expect(smallGapToGrowUsd(45.8, 45.3, 45.3)).toBe(0); // under 1 $
+  });
+});

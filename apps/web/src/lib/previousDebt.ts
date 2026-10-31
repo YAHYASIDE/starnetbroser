@@ -139,6 +139,16 @@ export function unrecordedGapUsd(starlinkDueUsd: number | undefined, recordedUnp
   return gap > Math.max(5, openDebtUsd * 0.25) ? gap : 0;
 }
 
+/**
+ * 🔗 A gap too small for «فرق … · الدين» (≤ 25 % of the open D - a rate move as often as not) that he still wants to
+ * add onto the open D (his Oct 31 2026 report: «45.3 كان دينًا قديمًا وصارت الآن 51.73 - أريد إضافة الفرق ليصبحا
+ * 51.73»): the gap (≥ 1 $) when there is an open D and the big chip is not shown, else 0.
+ */
+export function smallGapToGrowUsd(starlinkDueUsd: number | undefined, recordedUnpaidUsd: number, openDebtUsd: number): number {
+  if (openDebtUsd <= 0 || unrecordedGapUsd(starlinkDueUsd, recordedUnpaidUsd, openDebtUsd) > 0) return 0;
+  return unrecordedStarlinkBalanceUsd(starlinkDueUsd, recordedUnpaidUsd);
+}
+
 /** Starlink costs paid (USD) after Starlink's balance was last read - Starlink still shows them
  * as due until the next sync, so they must not look "unrecorded". With no sync time known, the
  * last 30 days' payments count. */

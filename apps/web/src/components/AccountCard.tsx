@@ -27,7 +27,7 @@ import { arabicDate } from "@/lib/partyMovements";
 import { faultCategory, faultLabel, isAutoFault, isWaivedCost, openDebtEntries, removeFaultQuestion } from "@/lib/deviceFault";
 import { planGrowOpenD } from "@/lib/growOpenD";
 import { cardDueByCurrency } from "@/lib/cardDue";
-import { openDebtUsdToday, paidSinceLastSyncUsd, totalPreviousDebtUsd, unrecordedGapUsd, type PreviousDebt } from "@/lib/previousDebt";
+import { openDebtUsdToday, paidSinceLastSyncUsd, smallGapToGrowUsd, totalPreviousDebtUsd, unrecordedGapUsd, type PreviousDebt } from "@/lib/previousDebt";
 import { computeDeviceMarks } from "@/lib/deviceMarks";
 import { CurrencyStore, getCurrency, toUsd } from "@/lib/currencyStore";
 import { formatAmount } from "@/lib/formatAmount";
@@ -371,6 +371,14 @@ export function AccountCard({
   const unrecordedUsd = balanceIsZero
     ? 0
     : unrecordedGapUsd(
+        isUsdBalance ? balanceNumeric : balanceUsdEquivalent,
+        openDebtTodayUsd + previousDebtUsd + paidSinceLastSyncUsd(ledgerEntries, account.lastSuccessfulScanAt),
+        openDebtTodayUsd,
+      );
+  // 🔗 a gap under the «فرق» chip's bar - still offered onto the open D (his Oct 31 2026 report)
+  const smallGapUsd = balanceIsZero
+    ? 0
+    : smallGapToGrowUsd(
         isUsdBalance ? balanceNumeric : balanceUsdEquivalent,
         openDebtTodayUsd + previousDebtUsd + paidSinceLastSyncUsd(ledgerEntries, account.lastSuccessfulScanAt),
         openDebtTodayUsd,
@@ -1003,6 +1011,11 @@ export function AccountCard({
         {unrecordedUsd > 0 && onAddPreviousDebt && stillDueDs.length === 0 && (
           <button type="button" className="account-card-gap-chip" onClick={() => setDebtChoiceUsd(unrecordedUsd)} title={`فرق ${formatAmount(unrecordedUsd)} $ غير مسجّل - اضغط لتسجيله`}>
             فرق <bdi dir="ltr">{formatAmount(unrecordedUsd)} $</bdi> · الدين
+          </button>
+        )}
+        {smallGapUsd > 0 && onGrowOpenD && stillDueDs.length === 0 && planGrowOpenD(ledgerEntries, smallGapUsd) && (
+          <button type="button" className="account-card-gap-chip account-card-gap-chip-small" onClick={() => setDebtChoiceUsd(smallGapUsd)} title={`Starlink أكثر من D بـ ${formatAmount(smallGapUsd)} $ - اضغط لإضافته إلى D`}>
+            ＋<bdi dir="ltr">{formatAmount(smallGapUsd)} $</bdi> إلى D
           </button>
         )}
       </div>

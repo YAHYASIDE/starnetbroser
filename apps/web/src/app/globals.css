@@ -19769,3 +19769,10 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   font-size: 0.78rem;
   font-weight: 700;
 }
+
+/* 🔗 a small gap onto the open D (his Oct 31 2026 report): quieter than «فرق … · الدين». */
+.account-card-gap-chip-small {
+  border-color: var(--border);
+  background: transparent;
+  color: var(--text-muted);
+}
