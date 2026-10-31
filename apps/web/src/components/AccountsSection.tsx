@@ -271,7 +271,7 @@ export function PartyDirectory({
         const activity = isClients
           ? clientLastActivity({
               client: party,
-              entries: accounts.filter((a) => a.clientId === party.id).flatMap((a) => ledgerStore[a.id] ?? []),
+              entries: accounts.filter((a) => a.clientId === party.id && !a.deletedAt).flatMap((a) => ledgerStore[a.id] ?? []),
               invoices: invoices.filter((i) => i.clientId === party.id),
               adjustments: adjustments.filter((a) => a.partyKind === "client" && a.partyId === party.id),
             })

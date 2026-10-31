@@ -2590,3 +2590,12 @@ is never pressed while a field is empty - it refills and saves on the next try (
   watching 10 min): a visible text / tel / number field described as a code (code, otp, passcode, verification, رمز -
   never كلمة / بريد / password / email) gets `inputmode=numeric` + `autocomplete=one-time-code`, refocused if it held
   the keyboard. The automatic code reading from the mail is unchanged.
+
+## 🗑 A trashed device's debt leaves the customer's balance (Oct 31 2026)
+
+- His screenshot (the customer with the duplicate device, «المبيعات 87,700 · المتبقي عليه 45,000», his statement showing only
+  the 42,700 charge and its 42,700 «تسوية · له»): «هذا الذي كان عليه حسابان واختلط، وحذفت أحد الأجهزة وبقي هنا». The clients
+  page passed every device, the trashed one too, into `computeClientCombinedTotals`, while the statement only listed live
+  devices - so the deleted duplicate's 45,000 stayed in the totals with no row to explain it. Now `lib/clientAccount.ts`
+  leaves out a device with `deletedAt` (totals and statement, every caller: card, «تصفير الحساب», «حسابي» debts) - a
+  device restored from the trash brings its operations back (tested).

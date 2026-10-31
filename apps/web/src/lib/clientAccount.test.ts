@@ -44,6 +44,15 @@ describe("computeClientCombinedTotals", () => {
     expect(totals.MRU).toEqual({ total: 1500, paid: 600, returned: 0, adjusted: 0, remaining: 900 });
     expect(totals.USD).toEqual({ total: 70, paid: 0, returned: 0, adjusted: 0, remaining: 70 });
   });
+
+  it("leaves out a device in the trash - its debt goes with it, and comes back with it", () => {
+    const ledgerStore = { d1: [entry()], d2: [entry({ id: "dup", amount: 45000 })] };
+    const both = [...devices, { id: "d2", name: "مكرر", deletedAt: "2026-10-31T12:00:00.000Z" }];
+    expect(computeClientCombinedTotals([], [], "c1", both, ledgerStore).MRU?.remaining).toBe(500);
+    expect(buildClientCombinedStatement([], [], "c1", both, ledgerStore).filter((r) => r.accountId === "d2")).toEqual([]);
+    const restored = [...devices, { id: "d2", name: "مكرر", deletedAt: null }];
+    expect(computeClientCombinedTotals([], [], "c1", restored, ledgerStore).MRU?.remaining).toBe(45500);
+  });
 });
 
 describe("buildClientCombinedStatement", () => {
