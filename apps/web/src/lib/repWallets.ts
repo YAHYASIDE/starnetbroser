@@ -110,3 +110,19 @@ export function settleFormKind(direction: "credit" | "debit", viaCash: boolean, 
   if (direction === "credit") return viaCash ? "cashHandover" : "manualCredit";
   return editing === "commissionPayout" ? "commissionPayout" : "manualDebit";
 }
+
+/**
+ * 💱 His one currency (his Oct 31 2026 rule «لكل حساب عملته - هذا يعرف فقط الأوقية، لا تغيّر إلى سيفا ولا تظهرها له»): the
+ * «عملته» set on him, else the one most of his operations are in. Null = none known (the page's toggle then decides).
+ * His profit, statements and forms show only it - the page's أوقية / سيفا toggle never changes it.
+ */
+export function repCurrencyOf(rep: { defaultCurrency?: string }, auto?: string): "MRU" | "SIFA" | null {
+  const pick = rep.defaultCurrency ?? auto;
+  return pick === "MRU" || pick === "SIFA" ? pick : null;
+}
+
+/** The accounts he sees: with his one currency, the other money account only when it has records. */
+export function visibleWallets(wallets: RepWallet[], currency: "MRU" | "SIFA" | null): RepWallet[] {
+  if (!currency) return wallets;
+  return wallets.filter((w) => w.id === "profit" || w.id === currency || w.lines.length > 0 || Math.abs(w.balance[w.id] ?? 0) > EPS);
+}

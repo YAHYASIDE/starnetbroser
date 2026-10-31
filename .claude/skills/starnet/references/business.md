@@ -2562,3 +2562,15 @@ is never pressed while a field is empty - it refills and saves on the next try (
   `fullLedgerStore` on the clients page). Moving it onto the customer = taking the device off the rep (unchanged rule).
 - `kitDuplicateBlock` (lib/duplicates.ts, tested): a KIT already on another device of mine stops the add / edit save
   with «🚫 هذا الـ KIT مسجّل على الجهاز «X»…»; the other duplicates (email, name, phone) still only ask.
+
+## 💱 Every rep in his one currency (Oct 31 2026)
+
+- His report («📂 حسابات الحافظ»: حساب الأوقية 45,000 · حساب الربح 36,120.76 سيفا, and the profit form offering سيفا /
+  أوقية): «لا تجعل للمندوبين تظهر عملات مختلفة، لكل حساب عملته الخاصة، وحتى لو ضغطت أنا سيفا لا تتغير هنا عنده - تجعل
+  عملته ثابتة، مثلًا هذا يعرف فقط الأوقية، لا تغيّر إلى سيفا ولا تظهرها له».
+- `repCurrencyOf` (lib/repWallets.ts, tested): his «عملته» (`defaultCurrency`, set in his edit form), else the one most
+  of his operations are in (`autoCurrencyOf("rep")`); null = none known → the page's أوقية / سيفا toggle as before.
+  The reps page gives each rep card its own `FxContext` in that currency (profit, statements, PDFs, the settle form's
+  default), `RepAccountsPage` fixes the profit form to it and hides the other money account while it has no records
+  (`visibleWallets`, and its «↪️ إلى …» action), and `RepAutoStatementRunner` sends his statement in it. «ما عليه»
+  stays in each record's own currency (never converted).

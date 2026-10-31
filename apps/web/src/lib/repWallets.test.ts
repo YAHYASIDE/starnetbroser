@@ -94,3 +94,22 @@ describe("💵 «تسوية» on his card (his Oct 12 2026 report: «عليه 50
     expect(settleFormKind("debit", false, "manualDebit")).toBe("manualDebit");
   });
 });
+
+describe("💱 a rep's one currency (his Oct 31 2026 rule)", () => {
+  it("«عملته» first, else his usual one; only أوقية / سيفا", async () => {
+    const { repCurrencyOf } = await import("./repWallets");
+    expect(repCurrencyOf({ defaultCurrency: "MRU" }, "SIFA")).toBe("MRU");
+    expect(repCurrencyOf({}, "SIFA")).toBe("SIFA");
+    expect(repCurrencyOf({}, "USD")).toBeNull();
+    expect(repCurrencyOf({})).toBeNull();
+  });
+
+  it("hides the other money account while it is empty", async () => {
+    const { visibleWallets } = await import("./repWallets");
+    const w = (id: string, lines = 0, balance = 0) => ({ id, balance: { [id]: balance }, lines: Array.from({ length: lines }) as never[] });
+    const all = [w("SIFA"), w("MRU", 7, 45000), w("profit", 3, 10)];
+    expect(visibleWallets(all, "MRU").map((x) => x.id)).toEqual(["MRU", "profit"]);
+    expect(visibleWallets([w("SIFA", 1, 5), w("MRU"), w("profit")], "MRU").map((x) => x.id)).toEqual(["SIFA", "MRU", "profit"]);
+    expect(visibleWallets(all, null)).toHaveLength(3);
+  });
+});

@@ -8,7 +8,7 @@ import { LEDGER_CURRENCY_LABELS, type LedgerCurrency } from "@/lib/ledgerStore";
 import { loadAccountsBook } from "@/lib/moneyAccounts";
 import { makeRepConverter, type RepConvert } from "@/lib/repAccount";
 import type { RepStatementDay, RepStatementRow, UpdateRepSettlementInput } from "@/lib/repStore";
-import { repProfitIn, repProfitSigned, repProfitZeroEntry, repWallets, repWalletTitle, repZeroEntry, type RepWallet } from "@/lib/repWallets";
+import { repProfitIn, repProfitSigned, repProfitZeroEntry, repWallets, repWalletTitle, repZeroEntry, visibleWallets, type RepWallet } from "@/lib/repWallets";
 import { cashCurrencyLabel, CASH_CURRENCIES } from "@/lib/cashCurrencies";
 import { askDeleteCode } from "@/components/DeleteCodePrompt";
 import { ledgerEntryIds, removeLedgerCash } from "@/lib/repLedgerDeposit";
@@ -124,14 +124,21 @@ interface Props {
   profitConvert: RepConvert;
   describe: (row: RepStatementRow) => string;
   readOnly?: boolean;
+  /** 💱 His one currency (lib/repWallets.ts repCurrencyOf): his profit form is fixed to it and the other money account
+   * is hidden while empty. Null = both, as before. */
+  currency?: "MRU" | "SIFA" | null;
   onSettle: (input: UpdateRepSettlementInput) => string | null;
   onClose: () => void;
 }
 
-export function RepAccountsPage({ repId, repName, days, profitConvert, describe, readOnly = false, onSettle, onClose }: Props) {
+export function RepAccountsPage({ repId, repName, days, profitConvert, describe, readOnly = false, currency = null, onSettle, onClose }: Props) {
   const { money: wallets, profit } = useMemo(() => repWallets(days, profitConvert), [days, profitConvert]);
-  const all = useMemo(() => [wallets.find((w) => w.id === "SIFA"), profit, ...wallets.filter((w) => w.id !== "SIFA")].filter(Boolean) as RepWallet[], [wallets, profit]);
-  const [open, setOpen] = useState("SIFA");
+  const all = useMemo(
+    () => visibleWallets([wallets.find((w) => w.id === "SIFA"), profit, ...wallets.filter((w) => w.id !== "SIFA")].filter(Boolean) as RepWallet[], currency),
+    [wallets, profit, currency],
+  );
+  const home: string = currency ?? "SIFA";
+  const [open, setOpen] = useState<string>(home);
   // 📒 his named accounts (his Oct 12 2026 ask): their own store, never part of his profit.
   const [book, setBook] = useState<RepLedgerBook>(() => loadRepLedgerBook());
   const ledgers = useMemo(() => repLedgersOf(book, repId), [book, repId]);
@@ -211,7 +218,7 @@ export function RepAccountsPage({ repId, repName, days, profitConvert, describe,
         <NewLedgerForm
           repId={repId}
           book={book}
-          onCancel={() => setOpen("SIFA")}
+          onCancel={() => setOpen(home)}
           onSaved={(next, ledger) => {
             storeBook(next);
             setOpen(`ledger:${ledger.id}`);
@@ -226,7 +233,7 @@ export function RepAccountsPage({ repId, repName, days, profitConvert, describe,
           onChange={storeBook}
           onDeleted={(next) => {
             storeBook(next);
-            setOpen("SIFA");
+            setOpen(home);
           }}
         />
       ) : (
@@ -234,7 +241,7 @@ export function RepAccountsPage({ repId, repName, days, profitConvert, describe,
         <h3>{repWalletTitle(shown.id)}</h3>
         {shown.id === "profit" && !readOnly && (
           <div className="rep-accounts-actions">
-            {ACTIONS.map((a) => (
+            {ACTIONS.filter((a) => (a.id === "toSIFA" ? all.some((w) => w.id === "SIFA") : a.id === "toMRU" ? all.some((w) => w.id === "MRU") : true)).map((a) => (
               <button key={a.id} type="button" className={`dialog-secondary${action === a.id ? " rep-accounts-action-on" : ""}`} onClick={() => setAction(action === a.id ? null : a.id)}>
                 {a.text}
               </button>
@@ -242,7 +249,7 @@ export function RepAccountsPage({ repId, repName, days, profitConvert, describe,
           </div>
         )}
         {shown.id === "profit" && action && (
-          <ProfitActionForm key={action} action={action} days={days} onCancel={() => setAction(null)} onSettle={(input) => {
+          <ProfitActionForm key={action} action={action} days={days} repCurrency={currency} onCancel={() => setAction(null)} onSettle={(input) => {
             const error = onSettle(input);
             if (!error) setAction(null);
             return error;
@@ -373,15 +380,18 @@ function MoneyActionForm({
 function ProfitActionForm({
   action,
   days,
+  repCurrency = null,
   onCancel,
   onSettle,
 }: {
   action: Action;
   days: RepStatementDay[];
+  /** 💱 His one currency: no choice of another. */
+  repCurrency?: "MRU" | "SIFA" | null;
   onCancel: () => void;
   onSettle: (input: UpdateRepSettlementInput) => string | null;
 }) {
-  const fixed = action === "toSIFA" ? "SIFA" : action === "toMRU" ? "MRU" : null;
+  const fixed = action === "toSIFA" ? "SIFA" : action === "toMRU" ? "MRU" : repCurrency;
   const [currency, setCurrency] = useState<string>(fixed ?? "SIFA");
   const rates = useMemo(() => {
     const store = loadCurrencyStore();

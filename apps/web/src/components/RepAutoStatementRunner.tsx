@@ -13,6 +13,9 @@ import { loadRepBook } from "@/lib/repClients";
 import { isRepWorkspace } from "@/lib/repMode";
 import { ACCOUNTS_CHANGED_EVENT } from "@/lib/repMenuRecords";
 import { applyRepRatePlans } from "@/lib/repRates";
+import { autoCurrencyOf } from "@/lib/partyCurrency";
+import { loadPartyCurrencyContext } from "@/lib/partyCurrencyData";
+import { repCurrencyOf } from "@/lib/repWallets";
 import { buildRepAutoStatementPdf, repChangesCaption, repCurrentStatement, repSentRows, repStatementChanges, type RepStatementSources } from "@/lib/repStatementDoc";
 import { tellOwner } from "@/lib/appEvents";
 import { listRepresentatives, loadRepresentativeStore, loadRepSettlements } from "@/lib/repStore";
@@ -61,7 +64,13 @@ export function RepAutoStatementRunner() {
         rates.MRU = getCurrency(currencies, "MRU")?.rateFromUsd;
         rates.SIFA = getCurrency(currencies, "SIFA")?.rateFromUsd;
         const display = readJson<string>(DISPLAY_KEY, "MRU");
-        const convert = makeRepConverter(display === "both" ? ["MRU", "SIFA"] : [display === "SIFA" ? "SIFA" : "MRU"], rates);
+        const pageConvert = makeRepConverter(display === "both" ? ["MRU", "SIFA"] : [display === "SIFA" ? "SIFA" : "MRU"], rates);
+        // 💱 each rep's statement in his own one currency (his Oct 31 2026 rule), never the page's toggle
+        const currencyCtx = loadPartyCurrencyContext();
+        const convertFor = (rep: (typeof reps)[number]) => {
+          const c = repCurrencyOf(rep, autoCurrencyOf("rep", rep.id, currencyCtx));
+          return c ? makeRepConverter([c], rates) : pageConvert;
+        };
         const src: RepStatementSources = {
           accounts: loadDemoAccounts(demoAccounts),
           ledger: applyRepRatePlans(loadLedgerStore(), allReps).ledger,
@@ -75,6 +84,7 @@ export function RepAutoStatementRunner() {
         const resets = readJson<Record<string, string>>(RESET_KEY, {});
         const status = readJson<Record<string, { at: string; ok: boolean; message?: string }>>(STATUS_KEY, {});
         for (const rep of reps) {
+          const convert = convertFor(rep);
           const rows = repSentRows(repCurrentStatement(rep, src, convert).native);
           const stamps = rows.map((r) => r.stamp).slice(0, 600);
           const reset = JSON.stringify(rep.resetFrom ?? null);

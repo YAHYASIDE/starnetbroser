@@ -81,7 +81,7 @@ import { loadPartyCurrencyContext } from "@/lib/partyCurrencyData";
 import { ClientStore, commitClientStore, createClient, getClient, loadClientStore } from "@/lib/clientStore";
 import { combinePhoneNumber, PHONE_COUNTRY_CODES, splitPhoneNumber } from "@/lib/phoneCountryCodes";
 import { formatAmount } from "@/lib/formatAmount";
-import { settleFormKind } from "@/lib/repWallets";
+import { repCurrencyOf, settleFormKind } from "@/lib/repWallets";
 import { loadStoreItems, StoreItemRegistry } from "@/lib/storeStore";
 import { demoAccounts } from "@/lib/demoData";
 import { isDemoMode, isLoggedIn } from "@/lib/settingsStore";
@@ -301,6 +301,13 @@ export default function RepresentativesPage() {
     }
   }
   const fx = useMemo(() => makeFx(makeRepConverter(display === "both" ? ["MRU", "SIFA"] : [display], rates)), [display, rates]);
+  // 💱 each rep in his own one currency (his Oct 31 2026 rule) - the toggle above only for a rep with none known
+  const currencyCtx = useMemo(() => (typeof window === "undefined" ? null : loadPartyCurrencyContext()), [ledgerStore, settlements]);
+  const repCurrency = (rep: Representative) => repCurrencyOf(rep, currencyCtx ? autoCurrencyOf("rep", rep.id, currencyCtx) : undefined);
+  const repFxOf = (rep: Representative) => {
+    const c = repCurrency(rep);
+    return c ? makeFx(makeRepConverter([c], rates)) : fx;
+  };
 
   /** Today's rates, locked onto a new settlement so it always converts the same way. */
   function lockedRates(currencyCode: string): Record<string, number> {
@@ -532,9 +539,10 @@ export default function RepresentativesPage() {
                     />
                   </li>
                 ) : (
+                  <FxContext.Provider key={rep.id} value={repFxOf(rep)}>
                   <RepCard
-                    key={rep.id}
                     representative={rep}
+                    currency={repCurrency(rep)}
                     representatives={representatives}
                     invoices={invoices}
                     settlements={settlements}
@@ -577,6 +585,7 @@ export default function RepresentativesPage() {
                     focusMonth={focus?.repId === rep.id ? focus.month : undefined}
                     readOnly={repView}
                   />
+                  </FxContext.Provider>
                 ),
               )}
             </ul>
@@ -624,6 +633,8 @@ export default function RepresentativesPage() {
 }
 
 interface RepCardProps {
+  /** 💱 His one currency (repCurrencyOf) - null = the page toggle. */
+  currency?: "MRU" | "SIFA" | null;
   representative: Representative;
   representatives: Representative[];
   invoices: InvoiceList;
@@ -674,6 +685,7 @@ type RepSheet =
   | null;
 
 function RepCard({
+  currency = null,
   representative: rep,
   representatives,
   invoices,
@@ -1339,6 +1351,7 @@ function RepCard({
           profitConvert={fx.convert}
           describe={describeRow}
           readOnly={readOnly}
+          currency={currency}
           onSettle={onSettle}
           onClose={() => setAccountsOpen(false)}
         />
