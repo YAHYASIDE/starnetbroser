@@ -38,3 +38,15 @@ describe("🧾 the «دفعة» window's three tabs (his Oct 29 2026 ask)", () =
     expect(applyLedgerPaymentsToCash([], [], [entry({ id: "z", kind: "credit" })], "DEMO")).toHaveLength(1);
   });
 });
+
+describe("🚫 a debt needs a customer (his Oct 31 2026 rule)", () => {
+  it("only a device with a customer, or of a rep whose customers stay with him, takes «عليه»", async () => {
+    const { debtNeedsClient } = await import("./ledgerModes");
+    const reps = { hussein: { customersHidden: true }, other: {} };
+    expect(debtNeedsClient({ clientId: "c1" }, reps)).toBe(false);
+    expect(debtNeedsClient({}, reps)).toBe(true);
+    expect(debtNeedsClient({ representativeId: "hussein" }, reps)).toBe(false);
+    expect(debtNeedsClient({ representativeId: "other" }, reps)).toBe(true);
+    expect(debtNeedsClient({ representativeId: "gone" }, reps)).toBe(true);
+  });
+});

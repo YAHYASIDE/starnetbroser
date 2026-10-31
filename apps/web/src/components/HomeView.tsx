@@ -54,6 +54,7 @@ import { PendingDeviceCard } from "@/components/PendingDeviceCard";
 import { adoptRepDevice, repDeviceSecrets } from "@/lib/repDeviceAdopt";
 import { bucketPromises, loadPromises } from "@/lib/paymentPromises";
 import { clientPickerInfo } from "@/lib/clientPicker";
+import { debtNeedsClient } from "@/lib/ledgerModes";
 import { remindersByAccount, type DeviceReminder } from "@/lib/deviceReminders";
 import { deviceOrigin, type Origin } from "@/lib/teamActivity";
 import { browserLinkStorage, loadOrigins } from "@/lib/deviceLink";
@@ -1533,6 +1534,12 @@ export function HomeView({
           const entryId = `browser-charge-${sync.syncId}`;
           if (getAccountEntries(ledger, account.id).some((e) => e.id === entryId)) {
             done.push(sync.syncId);
+            continue;
+          }
+          // 🚫 no customer: no debt (his Oct 31 2026 rule) - pinned instead, to link one and record it
+          if (debtNeedsClient(account, representativeStoreRef.current)) {
+            pins.push(sync);
+            messages.push(`⚠️ ${account.name} بلا زبون - ثُبّت الجهاز: اربطه بزبون ثم سجّل الشحن`);
             continue;
           }
           const rep = getRepresentative(representativeStoreRef.current, shipmentRepId(account, getClient(clientStoreRef.current, account.clientId)));
@@ -3836,25 +3843,15 @@ export function HomeView({
             setLedgerForPayment(false);
           }}
           initialKind={ledgerForPayment ? "credit" : "debit"}
-          onAddClientRecord={
-            ledgerAccount.clientId && visibleClientOf(ledgerAccount)
-              ? (input) => {
-                  const result = recordPartyAdjustment(loadPartyAdjustments(), {
-                    partyKind: "client",
-                    partyId: ledgerAccount.clientId!,
-                    direction: input.kind === "debit" ? "owesUs" : "weOwe",
-                    amount: input.amount,
-                    currencyCode: input.currency,
-                    date: input.date,
-                    note: input.note,
-                  });
-                  if (!result.ok) return result.message;
-                  savePartyAdjustments(result.list);
-                  pushToast(`👤 سُجّل في حساب ${visibleClientOf(ledgerAccount)?.name ?? "الزبون"}: ${input.kind === "debit" ? "عليه" : "له"} ${formatAmount(input.amount)} ${LEDGER_CURRENCY_LABELS[input.currency]}`);
-                  return null;
-                }
-              : undefined
-          }
+          // 🚫 a debt is a customer's: a device with none (and not a rep's who keeps his customers) links one first
+          needsClient={debtNeedsClient(ledgerAccount, representativeStore)}
+          clients={clients}
+          onCreateClient={handleCreateClient}
+          onLinkClient={(clientId) => {
+            patchAccount(ledgerAccount.id, { clientId });
+            setLedgerAccount({ ...ledgerAccount, clientId });
+            pushToast(`👤 رُبط الجهاز بـ ${getClient(clientStore, clientId)?.name ?? "الزبون"}`);
+          }}
           onChange={(entries) => updateLedgerEntries(ledgerAccount.id, entries)}
           renewalPlan={ledgerAccount.renewalPlan}
           starlinkInfo={{

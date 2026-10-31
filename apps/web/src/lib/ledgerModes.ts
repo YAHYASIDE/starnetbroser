@@ -39,3 +39,16 @@ export function noCost(date: string): StarlinkCost {
 export function clientRecordNote(mode: LedgerMode, deviceName: string, note: string): string {
   return [mode === "travel" ? "🛂 توثيق" : "➕ إضافة", deviceName, note.trim()].filter(Boolean).join(" · ");
 }
+
+/**
+ * 🚫 A debt («عليه») is always a customer's (his Oct 31 2026 rule): a device with no customer can't take one - he links
+ * a customer first - except a device of a rep whose customers stay with him («🔒 زبائنه عنده فقط», like الحسين): its
+ * debts are the rep's.
+ */
+export function debtNeedsClient(
+  account: { clientId?: string; representativeId?: string },
+  reps: Record<string, { customersHidden?: boolean } | undefined>,
+): boolean {
+  if (account.clientId) return false;
+  return !(account.representativeId && reps[account.representativeId]?.customersHidden);
+}

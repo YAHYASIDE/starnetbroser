@@ -19745,3 +19745,16 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   font-size: 0.7rem;
   font-weight: 700;
 }
+
+/* 🚫 a debt needs a customer (his Oct 31 2026 rule): the picker right in the account window. */
+.ledger-needs-client {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.ledger-needs-client .account-card-alert {
+  margin: 0;
+}

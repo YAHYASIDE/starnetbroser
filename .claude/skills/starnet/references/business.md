@@ -2537,3 +2537,15 @@ is never pressed while a field is empty - it refills and saves on the next try (
   its last send; per member an index (device → when) and one doc per device, sealed; taken by itself only where this
   phone has no session for that device (a working one is never written over); «📥 خذ جلسات الفريق» takes every newer
   one; what came in is not sent back. Bots and the phone's own settings (`starnet.*`) still stay on each phone.
+
+## 🚫 A debt is always a customer's (Oct 31 2026)
+
+- His report (the «إضافة» tab with «على: 📡 الجهاز / 👤 الزبون»): «لماذا هذا تسجيل دين على الجهاز… هو تسجيل الدين فقط
+  على زبون، وإن كان الجهاز بدون زبون لا يمكن تسجيل دين عليه أبدًا، إلا في حالة المندوب الحسين لأن زبناءه عنده… ولكن
+  الجهاز بدون زبون كيف سنتبعه». His choices: **a device with no customer can't take «عليه» - the account window says
+  so and offers the customer picker right there** (pick / add → the device is linked → record); «له» stays allowed;
+  **the exception: every rep with «🔒 زبائنه عنده فقط»** (like الحسين) - his devices take debts without a customer
+  (they are his); **the «على: الجهاز / الزبون» choice is removed - always on the device** (it shows in its customer's
+  account; this replaces his Oct 2026 choice «اختيار الجهاز / الزبون»).
+- `debtNeedsClient` (lib/ledgerModes.ts, tested); LedgerDialog `needsClient` + ClientPicker; the browser's «⏳ سجّل
+  الشحن» on such a device pins it instead («بلا زبون - اربطه بزبون ثم سجّل الشحن»).

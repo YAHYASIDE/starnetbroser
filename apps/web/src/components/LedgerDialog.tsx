@@ -1,5 +1,7 @@
 "use client";
 
+import { ClientPicker } from "./ClientPicker";
+import type { Client, CreateClientInput } from "@/lib/clientStore";
 import { browserLinkStorage, loadOrigins } from "@/lib/deviceLink";
 import { entryOrigin, type Origin } from "@/lib/teamActivity";
 import { FrancHint } from "./FrancHint";
@@ -58,7 +60,7 @@ import { HelpHint } from "./HelpHint";
 import { loadExpectedCurrency } from "@/lib/partyCurrencyData";
 import { awaitingCost, parseBillAmount } from "@/lib/awaitingBill";
 import { CurrencyBadge, CurrencyBanner, useCurrencyGuard } from "./CurrencyGuard";
-import { clientRecordNote, isPlainAdjustment, LEDGER_MODES, modeKind, noCost, showsCost, type LedgerMode, type LedgerTarget } from "@/lib/ledgerModes";
+import { isPlainAdjustment, LEDGER_MODES, modeKind, noCost, showsCost, type LedgerMode, type LedgerTarget } from "@/lib/ledgerModes";
 import { fitPayMethod, methodLabel, PAY_CURRENCIES, PAY_CURRENCY_LABELS, payMethodsFor, toLedgerPayment, type PayCurrency } from "@/lib/payCurrency";
 
 /** One other device linked to the same customer - siblings, never the account currently open in
@@ -109,9 +111,13 @@ interface Props {
   initialKind?: LedgerEntryKind;
   /** What Starlink sync read about this device - picks the Starlink cost's country/currency/amount. */
   starlinkInfo?: { serviceCountry?: string; currency?: string; balanceDue?: string };
-  /** «على الزبون» (lib/ledgerModes.ts): records a «توثيق» / «إضافة» in the customer's own account instead of the
-   * device's - absent when the device has no customer. Returns an error, or null. */
-  onAddClientRecord?: (input: { kind: LedgerEntryKind; amount: number; currency: LedgerCurrency; date: string; note: string }) => string | null;
+  /** 🚫 This device has no customer (and isn't a rep's who keeps his customers): no «عليه» until one is linked (his
+   * Oct 31 2026 rule - lib/ledgerModes.ts debtNeedsClient). */
+  needsClient?: boolean;
+  /** The customers to link it to, right here. */
+  clients?: Client[];
+  onLinkClient?: (clientId: string) => void;
+  onCreateClient?: (input: CreateClientInput) => Client;
 }
 
 /** Builds one device's own allocation-dialog data: its eligible (same-currency, not-yet-fully-
@@ -161,7 +167,10 @@ export function LedgerDialog({
   clientPhone,
   initialKind = "debit",
   starlinkInfo,
-  onAddClientRecord,
+  needsClient = false,
+  clients = [],
+  onLinkClient,
+  onCreateClient,
 }: Props) {
   // 🔗 «سجّله <name>»: an operation another member of the link team added / changed.
   const [linkOrigins] = useState<Record<string, Origin>>(() => (typeof window === "undefined" ? {} : loadOrigins(browserLinkStorage())));
@@ -172,8 +181,9 @@ export function LedgerDialog({
   // ➕ «مع تكلفة Starlink» (a renewal / service, profit counted) - off = a plain balance. 🛂 «له تكلفة».
   const [addWithCost, setAddWithCost] = useState(true);
   const [travelWithCost, setTravelWithCost] = useState(false);
-  const [target, setTarget] = useState<LedgerTarget>("device");
-  const effectiveTarget: LedgerTarget = mode === "pay" || !onAddClientRecord ? "device" : target;
+  // His Oct 31 2026 choice: every record here is on the device (its customer's account shows it) - no «على الزبون».
+  const effectiveTarget: LedgerTarget = "device";
+  const blockedDebt = kind === "debit" && needsClient;
   const withCost = mode === "travel" ? travelWithCost : addWithCost;
   const costShown = showsCost(mode, kind, withCost, effectiveTarget);
   const plain = effectiveTarget === "device" && isPlainAdjustment(mode, kind, addWithCost);
@@ -411,18 +421,8 @@ export function LedgerDialog({
     }
 
     const stored = kind === "credit" ? toLedgerPayment(payCurrency, parsedAmount) : { currency, amount: parsedAmount };
-    // 👤 «على الزبون»: one record in his own account - no rate, cost or profit (those live on the device).
-    if (effectiveTarget === "client" && onAddClientRecord) {
-      if (!confirmClosedMonthChange([date])) return;
-      const error = onAddClientRecord({ kind, amount: stored.amount, currency: stored.currency, date, note: clientRecordNote(mode, accountName, note) });
-      if (error) {
-        setFormError(error);
-        return;
-      }
-      setFormError(null);
-      setAmount("");
-      setNote("");
-      onClose();
+    if (blockedDebt) {
+      setFormError("هذا الجهاز بلا زبون - اربطه بزبون أولًا (في الأعلى)، ثم سجّل الدين");
       return;
     }
     const needsRate = currency !== "USD";
@@ -660,17 +660,12 @@ export function LedgerDialog({
             ))}
           </div>
           <p className="ledger-mode-hint">{LEDGER_MODES.find((m) => m.id === mode)?.hint}</p>
-          {mode !== "pay" && onAddClientRecord && (
-            <div className="ledger-target" role="radiogroup" aria-label="على">
-              <span>على:</span>
-              {(["device", "client"] as LedgerTarget[]).map((t) => (
-                <button key={t} type="button" role="radio" aria-checked={target === t} className={`ledger-target-chip${target === t ? " is-active" : ""}`} onClick={() => setTarget(t)}>
-                  {t === "device" ? "📡 الجهاز" : `👤 الزبون${clientName ? ` (${clientName})` : ""}`}
-                </button>
-              ))}
+          {blockedDebt && (
+            <div className="ledger-needs-client" data-tour="ledger-needs-client">
+              <p className="account-card-alert">🚫 هذا الجهاز بلا زبون - الدين يُسجَّل على زبون. اختر زبونه أو أضفه:</p>
+              {onLinkClient && onCreateClient && <ClientPicker clients={clients} onSelect={(id) => id && onLinkClient(id)} onCreateClient={onCreateClient} />}
             </div>
           )}
-          {effectiveTarget === "client" && <p className="settings-hint">👤 تُسجَّل في حساب الزبون نفسه (كشفه) - بلا تكلفة ولا ربح. للربح اختر «📡 الجهاز».</p>}
           {mode === "add" && (
             <select className="search-input" value={addKind} onChange={(e) => setAddKind(e.target.value as LedgerEntryKind)} aria-label="له أو عليه">
               <option value="debit">عليه</option>
