@@ -1,5 +1,7 @@
 "use client";
 
+import { browserLinkStorage, loadOrigins } from "@/lib/deviceLink";
+import { entryOrigin, type Origin } from "@/lib/teamActivity";
 import { FrancHint } from "./FrancHint";
 import { DateInput } from "./DateInput";
 import type { RenewalPlan } from "@starnet/shared";
@@ -161,6 +163,8 @@ export function LedgerDialog({
   starlinkInfo,
   onAddClientRecord,
 }: Props) {
+  // 🔗 «سجّله <name>»: an operation another member of the link team added / changed.
+  const [linkOrigins] = useState<Record<string, Origin>>(() => (typeof window === "undefined" ? {} : loadOrigins(browserLinkStorage())));
   // 🧾 Three tabs on top (lib/ledgerModes.ts, his Oct 29 2026 ask): 🛂 توثيق · ➕ إضافة · 💵 دفعة.
   const [mode, setMode] = useState<LedgerMode>(initialKind === "credit" ? "pay" : "add");
   const [addKind, setAddKind] = useState<LedgerEntryKind>("debit");
@@ -998,6 +1002,9 @@ export function LedgerDialog({
                 <span className="ledger-entry-amount" dir="ltr">{formatMoney(entry.amount, entry.currency)}</span>
                 <CurrencyBadge expected={expectedCurrency} entry={entry} />
                 <span className="ledger-entry-date" dir="ltr">{entry.date}</span>
+                {entryOrigin(linkOrigins, accountId, entry.id) && (
+                  <span className="link-origin-badge">🔗 {entryOrigin(linkOrigins, accountId, entry.id)!.by}</span>
+                )}
                 <button
                   className="text-action"
                   type="button"

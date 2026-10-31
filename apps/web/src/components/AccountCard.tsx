@@ -51,6 +51,7 @@ import { useCardGestures } from "./useCardGestures";
 import { DeviceNoteSheet, type DeviceNoteSheetMode } from "./DeviceNoteSheet";
 import { pinAgeText, type DeviceNote } from "@/lib/deviceNotes";
 import { reminderWhenLabel, type DeviceReminder } from "@/lib/deviceReminders";
+import type { Origin } from "@/lib/teamActivity";
 import { isTravelPending, isTravelVerified, needsTravelRegistration, setTravelPrice, travelDueArabic, travelWhatsAppLink, undoTravelDone } from "@/lib/travelRegistration";
 import { TravelPriceSheet } from "./TravelPriceSheet";
 import { describeDishAlerts } from "@/lib/dishAlerts";
@@ -76,6 +77,8 @@ interface Props {
   /** ⏰ His next reminder on this device (set in its browser, lib/deviceReminders.ts) - with «✓» to end it. */
   reminder?: DeviceReminder;
   onDoneReminder?: (id: string) => void;
+  /** 🔗 Added / last changed by another member of the link team (lib/teamActivity.ts) - «سجّله <name>». */
+  linkOrigin?: Origin;
   onSaveNote?: (account: StarlinkAccountSummary, input: { text: string; pin: boolean; until?: string }) => void;
   onSetPinned?: (account: StarlinkAccountSummary, pinned: boolean) => void;
   /** Earlier owners' unpaid Starlink debts on this device (previousDebt.ts). */
@@ -295,6 +298,7 @@ export function AccountCard({
   deviceNote,
   reminder,
   onDoneReminder,
+  linkOrigin,
   onSaveNote,
   onSetPinned,
 }: Props) {
@@ -807,6 +811,11 @@ export function AccountCard({
             </button>
           ) : (
             <h3 className="account-card-name">{account.name}</h3>
+          )}
+          {linkOrigin && (
+            <span className="link-origin-badge" title={`آخر تعديل ${linkOrigin.at.slice(0, 10)}`}>
+              🔗 سجّله {linkOrigin.by}
+            </span>
           )}
           {/* ✉️ His Oct 18 2026 order: the name and the email on top, always in the same place. */}
           {identityEmail && !nameIsEmail && (

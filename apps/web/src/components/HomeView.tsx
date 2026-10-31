@@ -55,6 +55,8 @@ import { adoptRepDevice, repDeviceSecrets } from "@/lib/repDeviceAdopt";
 import { bucketPromises, loadPromises } from "@/lib/paymentPromises";
 import { clientPickerInfo } from "@/lib/clientPicker";
 import { remindersByAccount, type DeviceReminder } from "@/lib/deviceReminders";
+import { deviceOrigin, type Origin } from "@/lib/teamActivity";
+import { browserLinkStorage, loadOrigins } from "@/lib/deviceLink";
 import { doneDeviceReminder, listDeviceReminders } from "@/lib/localBrowser";
 import { HOME_ACTION_EVENT, HOME_RESET_EVENT, HOME_SEARCH_EVENT, HomeAction, parseHomeAction, parseHomePayment, parseActivateDevice, REMINDER_COUNT_EVENT, parseHomeSearch } from "@/lib/homeActions";
 import { deviceRoute, HOME_ROUTE, KAST_ROUTE, notifyPhone } from "@/lib/appEvents";
@@ -432,6 +434,9 @@ export function HomeView({
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, []);
   const reminderOf = useMemo(() => remindersByAccount(reminders, Date.now()), [reminders]);
+  // 🔗 what another member of the link team added / changed (the page reloads when their changes land)
+  const [linkOrigins, setLinkOrigins] = useState<Record<string, Origin>>({});
+  useEffect(() => setLinkOrigins(loadOrigins(browserLinkStorage())), []);
   useEffect(() => setDeviceNotes(loadDeviceNotes()), []);
   // 🕘 «آخر جهاز»: opened / edited on this phone (lib/recentDevices.ts) - syncs and له/عليه are derived.
   const [recentLog, setRecentLog] = useState<RecentLog>({});
@@ -2722,6 +2727,7 @@ export function HomeView({
       onClearRepAdded={viewMode === "active" ? (a) => handleClearRepAdded([a]) : undefined}
       deviceNote={deviceNotes[account.id]}
       reminder={reminderOf[account.id]}
+      linkOrigin={deviceOrigin(linkOrigins, account.id)}
       onDoneReminder={(id) => void doneDeviceReminder(id).then(() => setReminders((list) => list.filter((r) => r.id !== id)))}
       onSaveNote={(target, input) => commitDeviceNotes(saveDeviceNote(loadDeviceNotes(), target.id, input))}
       onSetPinned={(target, pinned) => commitDeviceNotes(setDevicePinned(loadDeviceNotes(), target.id, pinned))}

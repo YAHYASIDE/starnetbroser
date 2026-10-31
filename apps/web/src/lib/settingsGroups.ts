@@ -103,7 +103,7 @@ export const SETTINGS_ITEMS: SettingsItem[] = [
   { id: "live-sync", group: "sync", icon: "☁️", title: "الربط الحيّ مع المندوبين", summary: "زبائن المندوب عندك وعنده تلقائيًا (Firebase)", keywords: ["فايربيس", "firebase", "ربط", "مزامنة", "مندوب", "زبائن", "حي"] },
   { id: "activation-costs", group: "bots", icon: "⚡", title: "تكلفة باقات التفعيل", summary: "أسعار التفعيل في البوت", keywords: ["تفعيل", "باقة", "تكلفة"] },
   { id: "instant-replies", group: "bots", icon: "⚡", title: "رد البوت والتطبيق مغلق", summary: "خدمة الرد في الخلفية", keywords: ["رد", "مغلق", "خلفية"] },
-  { id: "device-link", group: "backup", icon: "🔗", title: "ربط اللابتوب والهاتف", summary: "البيانات نفسها على الجهازين تلقائيًا (Firebase)", keywords: ["لابتوب", "ويندوز", "كمبيوتر", "ربط", "مزامنة", "فايربيس", "firebase", "هاتف", "laptop"] },
+  { id: "device-link", group: "backup", icon: "🔗", title: "ربط الأجهزة (الفريق)", summary: "هاتفك واللابتوب والمسؤول 2: البيانات نفسها تلقائيًا (Firebase)", keywords: ["لابتوب", "ويندوز", "كمبيوتر", "ربط", "مزامنة", "فايربيس", "firebase", "هاتف", "laptop", "مسؤول", "فريق", "المسؤول 2"] },
   { id: "backup-full", group: "backup", icon: "🔒", title: "نسخة احتياطية كاملة محمية", summary: "تصدير واستيراد بكلمة سر", keywords: ["نسخة", "احتياطي", "استيراد", "تصدير", "استرجاع", "backup"] },
   { id: "backup-daily", group: "backup", icon: "🗓️", title: "نسخ احتياطي تلقائي يومي", summary: "نسخة كل يوم في ملفات الهاتف", keywords: ["يومي", "تلقائي", "نسخة"] },
   { id: "drive", group: "backup", icon: "☁️", title: "نسخة في Google Drive", summary: "رفع تلقائي إلى درايف", keywords: ["درايف", "drive", "جوجل", "google"] },

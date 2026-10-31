@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chunkOps, joinAsLaptop, linkCode, loadConflicts, newPhoneLink, readLinkCode, runLinkRound, startAsPhone, type LinkStorage } from "./deviceLink";
+import { chunkOps, joinAsLaptop, joinAsMember, linkCode, loadActivityLog, loadConflicts, loadLinkConfig, loadLinkState, loadOrigins, loadTeam, newPhoneLink, readLinkCode, runLinkRound, startAsPhone, type LinkStorage } from "./deviceLink";
 import type { FetchFn } from "./firestoreRest";
 
 /** Firestore + anonymous sign-in, in memory - only what firestoreRest.ts calls. */
@@ -47,7 +47,8 @@ describe("the phone ↔ laptop link", () => {
     const code = linkCode(made.config);
     const read = readLinkCode(code);
     if (!read.ok) throw new Error(read.message);
-    expect(read.config).toMatchObject({ role: "laptop", spaceId: made.config.spaceId, key: made.config.key });
+    expect(read.config).toMatchObject({ spaceId: made.config.spaceId, key: made.config.key });
+    expect(read.config.memberId).toMatch(/^m[0-9a-f]{12}$/);
     joinAsLaptop(laptop, read.config);
     expect(laptop.data.has("starnet_old_v1")).toBe(false);
 
@@ -78,6 +79,61 @@ describe("the phone ↔ laptop link", () => {
     expect(JSON.parse(laptop.data.get("starnet_clients_v1")!).c1.name).toBe("من اللابتوب");
     expect(loadConflicts(laptop)).toHaveLength(1);
     expect(loadConflicts(laptop)[0]).toMatchObject({ kept: "local", k: "starnet_clients_v1", r: "c1" });
+  });
+
+  it("👥 a team of three (his Oct 31 2026 «المسؤول 2»): every change reaches every member", async () => {
+    const firebase = fakeFirebase();
+    const phone = memory({ starnet_demo_accounts_v1: ledger([{ id: "a1", name: "DEMO 1" }]) });
+    const laptop = memory();
+    const admin2 = memory({ starnet_mine_v1: "[]" });
+    const made = newPhoneLink(API, "my-project-123");
+    if (!made.ok) throw new Error(made.message);
+    startAsPhone(phone, made.config);
+    const code = linkCode(made.config);
+    const forLaptop = readLinkCode(code);
+    const forAdmin = readLinkCode(code);
+    if (!forLaptop.ok || !forAdmin.ok) throw new Error();
+    expect(forLaptop.config.memberId).not.toBe(forAdmin.config.memberId);
+    joinAsMember(laptop, forLaptop.config, "اللابتوب");
+    joinAsMember(admin2, forAdmin.config, "المسؤول 2");
+    expect(admin2.data.has("starnet_mine_v1")).toBe(false);
+
+    const t = (m: number) => new Date(Date.UTC(2026, 9, 31, 10, m));
+    await runLinkRound(phone, firebase, t(0));
+    await runLinkRound(laptop, firebase, t(1));
+    await runLinkRound(admin2, firebase, t(2));
+    expect(JSON.parse(admin2.data.get("starnet_demo_accounts_v1")!)).toEqual([{ id: "a1", name: "DEMO 1" }]);
+    expect(loadTeam(admin2).map((m) => m.name).sort()).toEqual(["اللابتوب", "المسؤول 2", "هاتفي"].sort());
+
+    // «المسؤول 2» records a device: the phone and the laptop both get it (the team list is re-read after 5 minutes)
+    admin2.write("starnet_demo_accounts_v1", ledger([{ id: "a1", name: "DEMO 1" }, { id: "a2", name: "DEMO 2" }]));
+    await runLinkRound(admin2, firebase, t(3));
+    await runLinkRound(phone, firebase, t(10));
+    await runLinkRound(laptop, firebase, t(11));
+    expect(JSON.parse(phone.data.get("starnet_demo_accounts_v1")!).map((a: { id: string }) => a.id)).toEqual(["a1", "a2"]);
+    expect(JSON.parse(laptop.data.get("starnet_demo_accounts_v1")!).map((a: { id: string }) => a.id)).toEqual(["a1", "a2"]);
+    // the phone knows who added it, and logged it
+    expect(loadOrigins(phone)["starnet_demo_accounts_v1|a2"]?.by).toBe("المسؤول 2");
+    expect(loadActivityLog(phone)[0]).toMatchObject({ by: "المسؤول 2", kind: "add", label: "📡 جهاز DEMO 2", notable: true });
+
+    // the phone renames it, the laptop removes a1: «المسؤول 2» ends with both, nothing echoes back
+    phone.write("starnet_demo_accounts_v1", ledger([{ id: "a1", name: "DEMO 1" }, { id: "a2", name: "DEMO 2B" }]));
+    await runLinkRound(phone, firebase, t(12));
+    laptop.write("starnet_demo_accounts_v1", ledger([{ id: "a2", name: "DEMO 2" }]));
+    await runLinkRound(laptop, firebase, t(13));
+    await runLinkRound(admin2, firebase, t(14));
+    expect(JSON.parse(admin2.data.get("starnet_demo_accounts_v1")!)).toEqual([{ id: "a2", name: "DEMO 2B" }]);
+    const quiet = await runLinkRound(admin2, firebase, t(15));
+    expect(quiet.sent).toBe(0);
+  });
+
+  it("an older phone ↔ laptop link still reads: its role is its member id, its one cursor the other side's", () => {
+    const laptop = memory({
+      "starnet.deviceLink": JSON.stringify({ apiKey: API, projectId: "my-project-123", spaceId: "a".repeat(24), key: "b".repeat(64), role: "laptop", enabled: true }),
+      "starnet.deviceLinkState": JSON.stringify({ seq: 2, cursor: 5, confirmed: [], held: [] }),
+    });
+    expect(loadLinkConfig(laptop)).toMatchObject({ memberId: "laptop", name: "اللابتوب" });
+    expect(loadLinkState(laptop).cursors).toEqual({ phone: 5 });
   });
 
   it("refuses a wrong code and a wrong key", async () => {

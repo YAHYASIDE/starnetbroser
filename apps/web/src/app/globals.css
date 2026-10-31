@@ -19733,3 +19733,15 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   display: inline-flex;
   gap: 10px;
 }
+
+/* 🔗 Added / changed by another member of the link team (his Oct 31 2026 «المسؤول 2»). */
+.link-origin-badge {
+  display: inline-block;
+  align-self: flex-start;
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+}

@@ -2516,3 +2516,24 @@ is never pressed while a field is empty - it refills and saves on the next try (
   days), `DeviceReminderReceiver` (AlarmManager exact when allowed, else inexact; rung through `AppEventNotifier`;
   re-set after a restart / update by `TelegramBootReceiver`). Plugin `listDeviceReminders` / `doneDeviceReminder`.
   Web: `lib/deviceReminders.ts` (+test), the reminders page section, `AccountCard` `reminder`.
+
+## 👥 The link becomes a team: «المسؤول 2» (Oct 31 2026)
+
+- His ask: «أريد تعديل التطبيق لي المسؤول 2 أن يمكنه أن يسجّل الأجهزة، ونسخته نفس نسختي، ويرسلها لي، وأن أسجّل الأجهزة
+  وأرسلها له مثل المزامنة». His choices: **everything like me** (a full copy - devices, customers, debts, reps, store,
+  «حسابي», profits); **a team of several devices** (his phone + the laptop + المسؤول 2's phone, more later) - not the
+  laptop's place; **Starlink sessions carried, encrypted**; **all three**: the mark «🔗 سجّله <name>», a notification for
+  every new device or money operation, and the log «📜 ماذا وصل من الفريق».
+- `lib/deviceLink.ts`: members (`memberId` + his `name`) instead of phone / laptop; an older link reads as members
+  «phone» / «laptop» (their old paths) and its one cursor becomes `cursors[other]`. Team list sealed at
+  `starnet/{space}/team/members` (each member adds itself; re-read every 5 min, every round while alone); each member
+  reads every other's head + batches; the remote ops of several members are sorted by time (the later change of one
+  record wins). Any member gives «📋 رمز الربط»; a joiner (`joinAsMember`, his name for it) has its data replaced by the
+  team's (every member's history is replayed). Firebase free reads: ~1 head read per other member per 20 s round.
+- `lib/teamActivity.ts`: what the applied ops were (devices, customers, reps by name; ledger / settlements / الكاش /
+  invoices / balances / business expenses by amount), the marks (`starnet.deviceLinkOrigins`, on the device card and
+  each ledger entry), the log (`starnet.deviceLinkLog`, 300), one phone notification per round (`notifyPhone`).
+- `lib/teamSessions.ts` (in `DeviceLinkRunner`, every 30 min): a device's cookies sent when new, or changed and 6 h after
+  its last send; per member an index (device → when) and one doc per device, sealed; taken by itself only where this
+  phone has no session for that device (a working one is never written over); «📥 خذ جلسات الفريق» takes every newer
+  one; what came in is not sent back. Bots and the phone's own settings (`starnet.*`) still stay on each phone.

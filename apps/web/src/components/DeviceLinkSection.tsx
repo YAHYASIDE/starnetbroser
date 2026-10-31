@@ -1,25 +1,30 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { DEVICE_LINK_EVENT, DEVICE_LINK_NOW_EVENT } from "@/components/DeviceLinkRunner";
+import { DEVICE_LINK_EVENT, DEVICE_LINK_NOW_EVENT, TEAM_SESSIONS_EVENT, TEAM_SESSIONS_NOW_EVENT } from "@/components/DeviceLinkRunner";
+import { activityLine, type TeamActivity } from "@/lib/teamActivity";
 import { isDesktopApp } from "@/lib/desktop";
 import {
   browserLinkStorage,
   clearConflicts,
   confirmHeldDeletion,
-  joinAsLaptop,
+  joinAsMember,
   linkCode,
+  loadActivityLog,
   loadConflicts,
+  loadTeam,
   loadLinkConfig,
   loadLinkState,
   newPhoneLink,
   readLinkCode,
+  renameMember,
   resetLink,
   saveLinkConfig,
   startAsPhone,
   type LinkConfig,
   type LinkState,
   type StoredConflict,
+  type TeamMember,
 } from "@/lib/deviceLink";
 import { readDocument, writeDocument } from "@/lib/firestoreRest";
 import { loadLiveSyncConfig } from "@/lib/liveSyncConfig";
@@ -55,9 +60,10 @@ async function testConnection(config: LinkConfig): Promise<{ ok: true } | { ok: 
 }
 
 /**
- * 🔗 Settings → «ربط اللابتوب والهاتف» (his Oct 24 2026 choice «اتجاهان مباشرة», his own Firebase):
- * on the phone, the Firebase steps + apiKey / projectId → «📋 رمز الربط»; on the laptop, paste that code
- * (its data is replaced by the phone's). Then the status, «مزامنة الآن», held mass deletions and conflicts.
+ * 🔗 Settings → «ربط الأجهزة (الفريق)» (his Oct 24 2026 choice «اتجاهان مباشرة», his own Firebase; since Oct 31 2026 a
+ * team - his phone, the laptop, «المسؤول 2»'s phone): on his phone, the Firebase steps + apiKey / projectId → «📋 رمز
+ * الربط»; on another phone or the laptop, a name and that code (its data is replaced by the team's). Then the team,
+ * the status, «مزامنة الآن», «📥 خذ جلسات الفريق», what came from the others, held mass deletions and conflicts.
  */
 export function DeviceLinkSection() {
   const desktop = isDesktopApp();
@@ -70,12 +76,19 @@ export function DeviceLinkSection() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [team, setTeam] = useState<TeamMember[]>([]);
+  const [log, setLog] = useState<TeamActivity[]>([]);
+  const [joining, setJoining] = useState(false);
+  const [memberName, setMemberName] = useState("");
+  const [sessionsNote, setSessionsNote] = useState<string | null>(null);
 
   function refresh() {
     const s = browserLinkStorage();
     setConfig(loadLinkConfig(s));
     setState(loadLinkState(s));
     setConflicts(loadConflicts(s));
+    setTeam(loadTeam(s));
+    setLog(loadActivityLog(s));
   }
 
   useEffect(() => {
@@ -86,10 +99,17 @@ export function DeviceLinkSection() {
       setApiKey(old.apiKey);
       setProjectId(old.projectId);
     }
+    setMemberName(desktop ? "اللابتوب" : "المسؤول 2");
+    const onSessions = (e: Event) => {
+      const r = (e as CustomEvent<{ ok: boolean; sent: number; taken: number; message: string }>).detail;
+      setSessionsNote(r.ok ? `🔐 أُرسلت ${r.sent} جلسة · أُخذت ${r.taken}` : `⚠️ الجلسات: ${r.message}`);
+    };
+    window.addEventListener(TEAM_SESSIONS_EVENT, onSessions);
     window.addEventListener(DEVICE_LINK_EVENT, refresh);
     const timer = window.setInterval(refresh, 5000);
     return () => {
       window.removeEventListener(DEVICE_LINK_EVENT, refresh);
+      window.removeEventListener(TEAM_SESSIONS_EVENT, onSessions);
       window.clearInterval(timer);
     };
   }, []);
@@ -121,16 +141,17 @@ export function DeviceLinkSection() {
   async function linkLaptop() {
     const read = readLinkCode(code);
     if (!read.ok) return setMessage({ ok: false, text: read.message });
-    if (!window.confirm("ربط هذا اللابتوب بالهاتف؟\n\nكل البيانات الموجودة الآن على هذا اللابتوب تُستبدل ببيانات الهاتف، ثم يبقى الجهازان متزامنين.")) return;
+    if (!memberName.trim()) return setMessage({ ok: false, text: "اكتب اسمًا لهذا الجهاز (مثلًا: المسؤول 2)" });
+    if (!window.confirm(`الانضمام إلى الفريق باسم «${memberName.trim()}»؟\n\nكل البيانات الموجودة الآن على هذا الجهاز تُستبدل ببيانات الفريق، ثم يبقى متزامنًا معهم.`)) return;
     setBusy(true);
     setMessage({ ok: true, text: "⏳ أجرّب الاتصال…" });
     const tested = await testConnection(read.config);
     setBusy(false);
     if (!tested.ok) return setMessage({ ok: false, text: `✗ ${tested.message}` });
-    joinAsLaptop(browserLinkStorage(), read.config);
+    joinAsMember(browserLinkStorage(), read.config, memberName);
     setCode("");
     refresh();
-    setMessage({ ok: true, text: "✓ رُبط - تصل بيانات الهاتف خلال دقيقة (والهاتف مفتوح على التطبيق)." });
+    setMessage({ ok: true, text: "✓ انضم - تصل بيانات الفريق خلال دقيقة (وأحدهم مفتوح على التطبيق)." });
     window.dispatchEvent(new Event(DEVICE_LINK_NOW_EVENT));
   }
 
@@ -142,7 +163,7 @@ export function DeviceLinkSection() {
   }
 
   function unlink() {
-    if (!window.confirm("فك الربط؟ تبقى البيانات على هذا الجهاز كما هي، ولا تصله تغييرات الجهاز الآخر بعد الآن.")) return;
+    if (!window.confirm("فك الربط؟ تبقى البيانات على هذا الجهاز كما هي، ولا تصله تغييرات الفريق بعد الآن.")) return;
     resetLink(browserLinkStorage());
     refresh();
     setMessage(null);
@@ -159,11 +180,22 @@ export function DeviceLinkSection() {
   return (
     <section className="section device-link">
       <p className="settings-hint">
-        البيانات نفسها على الهاتف واللابتوب: ما تسجّله في أحدهما يظهر في الآخر خلال دقيقة تقريبًا، والتطبيق مفتوح على الجهازين. عبر Firebase الخاص بك،
-        والبيانات مشفّرة قبل أن تخرج من الجهاز.
+        البيانات نفسها على كل أجهزة الفريق (هاتفك، اللابتوب، هاتف «المسؤول 2»…): ما يسجّله أحدهم يظهر عند الكل خلال دقيقة تقريبًا،
+        والتطبيق مفتوح. عبر Firebase الخاص بك، والبيانات مشفّرة قبل أن تخرج من الجهاز.
       </p>
 
       {!config && !desktop && (
+        <div className="report-period-row" role="tablist" aria-label="الربط">
+          <button type="button" className={`report-period-btn${!joining ? " report-period-btn-active" : ""}`} onClick={() => setJoining(false)}>
+            🆕 أنشئ الربط (هاتفي)
+          </button>
+          <button type="button" className={`report-period-btn${joining ? " report-period-btn-active" : ""}`} onClick={() => setJoining(true)}>
+            🔗 انضم برمز (المسؤول 2)
+          </button>
+        </div>
+      )}
+
+      {!config && !desktop && !joining && (
         <>
           <details className="device-link-steps" open={!apiKey}>
             <summary>📋 خطوات Firebase (مرة واحدة، مجانًا)</summary>
@@ -206,13 +238,17 @@ export function DeviceLinkSection() {
         </>
       )}
 
-      {!config && desktop && (
+      {!config && (desktop || joining) && (
         <>
           <ol className="settings-hint device-link-steps-list">
-            <li>في الهاتف: الإعدادات ← النسخ الاحتياطي ← «🔗 ربط اللابتوب والهاتف» ← أكمل خطوات Firebase.</li>
-            <li>اضغط في الهاتف «📋 نسخ رمز الربط» وأرسله لنفسك (تيليغرام / واتساب ويب).</li>
-            <li>الصقه هنا واضغط «🔗 اربط».</li>
+            <li>في هاتفك الرئيسي: الإعدادات ← النسخ الاحتياطي ← «🔗 ربط الأجهزة» (بعد خطوات Firebase مرة واحدة).</li>
+            <li>اضغط هناك «📋 نسخ رمز الربط» وأرسله لهذا الجهاز (تيليغرام / واتساب) - الرمز سرّي.</li>
+            <li>اكتب اسمًا لهذا الجهاز، الصق الرمز واضغط «🔗 اربط».</li>
           </ol>
+          <label className="tool-field">
+            <span>اسم هذا الجهاز (يظهر على ما يسجّله)</span>
+            <input className="search-input" value={memberName} onChange={(e) => setMemberName(e.target.value)} placeholder="المسؤول 2" />
+          </label>
           <textarea className="search-input device-link-code" dir="ltr" rows={3} value={code} onChange={(e) => setCode(e.target.value)} placeholder="STARNET-LINK-…" />
           <button type="button" className="dialog-primary" disabled={busy || !code.trim()} onClick={() => void linkLaptop()}>
             🔗 اربط
@@ -222,15 +258,33 @@ export function DeviceLinkSection() {
 
       {config && (
         <>
-          <p className="device-link-linked">✅ مربوط - هذا {config.role === "phone" ? "📱 الهاتف" : "💻 اللابتوب"}</p>
-          {config.role === "phone" && (
-            <div className="device-link-code-box">
-              <span>رمز الربط للابتوب (سرّي - لا ترسله لأحد):</span>
-              <button type="button" className="dialog-secondary" onClick={() => void copy(linkCode(config), "code")}>
-                {copied === "code" ? "✓ نُسخ" : "📋 نسخ رمز الربط"}
-              </button>
-            </div>
+          <p className="device-link-linked">
+            ✅ مربوط - هذا الجهاز: «{config.name}»{" "}
+            <button
+              type="button"
+              className="text-action"
+              onClick={() => {
+                const name = window.prompt("اسم هذا الجهاز في الفريق:", config.name);
+                if (!name?.trim()) return;
+                renameMember(browserLinkStorage(), name);
+                refresh();
+                window.dispatchEvent(new Event(DEVICE_LINK_NOW_EVENT));
+              }}
+            >
+              ✎ الاسم
+            </button>
+          </p>
+          {team.length > 0 && (
+            <p className="settings-hint device-link-team">
+              👥 الفريق: {team.map((m) => (m.id === config.memberId ? `${m.name} (هذا)` : m.name)).join(" · ")}
+            </p>
           )}
+          <div className="device-link-code-box">
+            <span>لإضافة عضو (اللابتوب، المسؤول 2…): انسخ رمز الربط وأرسله له - سرّي، من يملكه يرى كل شيء.</span>
+            <button type="button" className="dialog-secondary" onClick={() => void copy(linkCode(config), "code")}>
+              {copied === "code" ? "✓ نُسخ" : "📋 نسخ رمز الربط"}
+            </button>
+          </div>
           <label className="toggle-switch-row">
             <span>تشغيل الربط</span>
             <span className={`toggle-switch${config.enabled ? " toggle-switch-on" : ""}`}>
@@ -245,10 +299,40 @@ export function DeviceLinkSection() {
             </button>
           </div>
 
+          {team.length > 1 && (
+            <div className="live-sync-status">
+              <span>{sessionsNote ?? "🔐 جلسات Starlink تُنقل كل 30 دقيقة (للأجهزة غير المسجّلة هنا)"}</span>
+              <button
+                type="button"
+                className="text-action"
+                onClick={() => {
+                  if (!window.confirm("أخذ أحدث جلسات Starlink من الفريق لكل الأجهزة؟ تُستبدل الجلسات الموجودة هنا بالأحدث.")) return;
+                  setSessionsNote("⏳ يأخذ الجلسات…");
+                  window.dispatchEvent(new Event(TEAM_SESSIONS_NOW_EVENT));
+                }}
+              >
+                📥 خذ جلسات الفريق
+              </button>
+            </div>
+          )}
+
+          {log.length > 0 && (
+            <details className="device-link-conflicts device-link-log">
+              <summary>📜 ماذا وصل من الفريق ({log.length})</summary>
+              <ul>
+                {log.slice(0, 80).map((a, i) => (
+                  <li key={i}>
+                    <b>{a.by}</b>: {activityLine(a)} · <bdi dir="ltr">{new Date(a.at).toLocaleString("en-GB")}</bdi>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+
           {(state?.held ?? []).map((h) => (
             <div key={h.k} className="account-card-alert device-link-held">
               <span>
-                ⚠️ حُذف {h.count} من {h.total} في «{storeName(h.k)}» دفعة واحدة - لم يُرسل للجهاز الآخر حتى تؤكد أنك حذفتها فعلًا.
+                ⚠️ حُذف {h.count} من {h.total} في «{storeName(h.k)}» دفعة واحدة - لم يُرسل للفريق حتى تؤكد أنك حذفتها فعلًا.
               </span>
               <button
                 type="button"
@@ -266,12 +350,12 @@ export function DeviceLinkSection() {
 
           {conflicts.length > 0 && (
             <details className="device-link-conflicts">
-              <summary>⚖️ تعارضات ({conflicts.length}) - نفس الشيء عُدّل في الجهازين</summary>
+              <summary>⚖️ تعارضات ({conflicts.length}) - نفس الشيء عُدّل في جهازين</summary>
               <p className="settings-hint">بقي التعديل الأحدث. هذه القائمة للمراجعة: إن كان القديم هو الصحيح فعدّله من مكانه.</p>
               <ul>
                 {conflicts.slice(0, 50).map((c, i) => (
                   <li key={i}>
-                    «{storeName(c.k)}» · <bdi dir="ltr">{c.r.split("\u001f").pop()?.slice(-8)}</bdi> · بقي تعديل {c.kept === "local" ? "هذا الجهاز" : "الجهاز الآخر"} ·{" "}
+                    «{storeName(c.k)}» · <bdi dir="ltr">{c.r.split("\u001f").pop()?.slice(-8)}</bdi> · بقي تعديل {c.kept === "local" ? "هذا الجهاز" : "عضو آخر"} ·{" "}
                     <bdi dir="ltr">{new Date(c.seenAt).toLocaleString("en-GB")}</bdi>
                   </li>
                 ))}

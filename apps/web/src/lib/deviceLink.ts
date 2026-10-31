@@ -1,16 +1,19 @@
 /**
- * 🔗 The phone ↔ laptop link over HIS Firebase (his Oct 24 2026 choice: two ways, his own project): the
- * pairing code, what each side remembers, and one round (`runLinkRound`) - send what changed here,
- * apply what changed there (lib/deviceSync.ts), all encrypted (lib/deviceSyncCrypto.ts).
+ * 🔗 The link over HIS Firebase (his Oct 24 2026 choice: two ways, his own project) - since Oct 31 2026 a **team**
+ * («المسؤول 2»: his phone, the laptop and a second admin's phone, each a full copy, each change reaching all): the
+ * pairing code, what each member remembers, and one round (`runLinkRound`) - send what changed here, apply what every
+ * other member changed (lib/deviceSync.ts), all encrypted (lib/deviceSyncCrypto.ts).
  *
- * Firestore: starnet/{space}/link/{phone|laptop} → { seq, ack, at } (that side's head) and
- * starnet/{space}/link/{side}/batches/{seq} → { iv, data } (its changes, in order).
- * Settings live in `starnet.*` (never in a backup, never in the repo).
+ * Firestore: starnet/{space}/link/{member} → { seq, ack, at } (that member's head),
+ * starnet/{space}/link/{member}/batches/{seq} → { iv, data } (its changes, in order) and
+ * starnet/{space}/team/members → { iv, data } (who is in the team, sealed). The first two members of an older link
+ * are «phone» and «laptop» (their old paths). Settings live in `starnet.*` (never in a backup, never in the repo).
  */
 
 import { baselineOf, diff, flattenAll, flattenKey, merge, nextBaseline, unflattenKey, type Baseline, type HeldDeletion, type SyncConflict, type SyncOp } from "./deviceSync";
 import { isLinkKey, newLinkKey, openText, sealText } from "./deviceSyncCrypto";
 import { readDocument, writeDocument, type FetchFn } from "./firestoreRest";
+import { describeOp, nextOrigins, type Origin, type TeamActivity } from "./teamActivity";
 import { checkConfigInput, newSpaceId } from "./liveSyncConfig";
 
 export type LinkRole = "phone" | "laptop";
@@ -20,15 +23,29 @@ export interface LinkConfig {
   projectId: string;
   spaceId: string;
   key: string;
-  role: LinkRole;
+  /** This member's id - «phone» / «laptop» for the two of an older link, random for the others. */
+  memberId: string;
+  /** His name for it («هاتفي»، «اللابتوب»، «المسؤول 2») - shown on what it recorded. */
+  name: string;
+  /** The older link's role (kept so an older config still reads). */
+  role?: LinkRole;
   enabled: boolean;
+}
+
+export interface TeamMember {
+  id: string;
+  name: string;
+  /** When it joined (ISO). */
+  at: string;
 }
 
 export interface LinkState {
   /** My last batch number. */
   seq: number;
-  /** The other side's last batch I applied. */
+  /** The older link: the other side's last batch I applied (read into `cursors`). */
   cursor: number;
+  /** Each other member's last batch I applied. */
+  cursors: Record<string, number>;
   /** Stores whose mass deletion he confirmed (sent on the next round, then forgotten). */
   confirmed: string[];
   held: HeldDeletion[];
@@ -55,14 +72,32 @@ const CONFIG = "starnet.deviceLink";
 const STATE = "starnet.deviceLinkState";
 const BASE = "starnet.deviceLinkBase";
 const CONFLICTS = "starnet.deviceLinkConflicts";
+const TEAM = "starnet.deviceLinkTeam";
+const ORIGINS = "starnet.deviceLinkOrigins";
+const LOG = "starnet.deviceLinkLog";
+const LOG_SIZE = 300;
+/** The team list is read again this often (Firebase's free reads are counted per day). */
+const TEAM_EVERY_MS = 5 * 60_000;
 const CODE_PREFIX = "STARNET-LINK-";
 /** Firestore's document limit is 1 MiB - a batch's JSON stays well under it (base64 adds a third). */
 const BATCH_CHARS = 550_000;
 const MAX_BATCHES_PER_ROUND = 25;
 
-const other = (role: LinkRole): LinkRole => (role === "phone" ? "laptop" : "phone");
-const headPath = (c: LinkConfig, role: LinkRole) => `starnet/${c.spaceId}/link/${role}`;
-const batchPath = (c: LinkConfig, role: LinkRole, seq: number) => `starnet/${c.spaceId}/link/${role}/batches/${seq}`;
+const headPath = (c: LinkConfig, member: string) => `starnet/${c.spaceId}/link/${member}`;
+const batchPath = (c: LinkConfig, member: string, seq: number) => `starnet/${c.spaceId}/link/${member}/batches/${seq}`;
+const teamPath = (c: LinkConfig) => `starnet/${c.spaceId}/team/members`;
+/** An older link's two members, before anyone wrote the team list. */
+const LEGACY_TEAM: TeamMember[] = [
+  { id: "phone", name: "الهاتف", at: "" },
+  { id: "laptop", name: "اللابتوب", at: "" },
+];
+
+/** A new member's id. */
+function newMemberId(): string {
+  const bytes = new Uint8Array(6);
+  crypto.getRandomValues(bytes);
+  return "m" + Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
 
 function parse<T>(text: string | null, fallback: T): T {
   try {
@@ -74,7 +109,12 @@ function parse<T>(text: string | null, fallback: T): T {
 
 export function loadLinkConfig(s: LinkStorage): LinkConfig | null {
   const c = parse<Partial<LinkConfig> | null>(s.getSetting(CONFIG), null);
-  return c && c.apiKey && c.projectId && c.spaceId && c.key && (c.role === "phone" || c.role === "laptop") ? { ...(c as LinkConfig), enabled: c.enabled !== false } : null;
+  if (!c || !c.apiKey || !c.projectId || !c.spaceId || !c.key) return null;
+  // an older phone / laptop config: its role is its member id
+  const memberId = c.memberId || (c.role === "phone" || c.role === "laptop" ? c.role : "");
+  if (!memberId) return null;
+  const name = c.name || (memberId === "phone" ? "الهاتف" : memberId === "laptop" ? "اللابتوب" : "عضو");
+  return { ...(c as LinkConfig), memberId, name, enabled: c.enabled !== false };
 }
 
 export function saveLinkConfig(s: LinkStorage, config: LinkConfig | null): void {
@@ -82,7 +122,29 @@ export function saveLinkConfig(s: LinkStorage, config: LinkConfig | null): void 
 }
 
 export function loadLinkState(s: LinkStorage): LinkState {
-  return { seq: 0, cursor: 0, confirmed: [], held: [], ...parse<Partial<LinkState>>(s.getSetting(STATE), {}) };
+  const st: LinkState = { seq: 0, cursor: 0, cursors: {}, confirmed: [], held: [], ...parse<Partial<LinkState>>(s.getSetting(STATE), {}) };
+  // the older link kept one cursor, for the other side
+  if (st.cursor > 0 && Object.keys(st.cursors).length === 0) {
+    const config = loadLinkConfig(s);
+    const theirs = config?.memberId === "phone" ? "laptop" : config?.memberId === "laptop" ? "phone" : null;
+    if (theirs) st.cursors = { [theirs]: st.cursor };
+  }
+  return st;
+}
+
+/** 🔗 «سجّله <name>»: what another member added or changed, by record (`<key>|<record id>`). */
+export function loadOrigins(s: LinkStorage): Record<string, Origin> {
+  return parse<Record<string, Origin>>(s.getSetting(ORIGINS), {});
+}
+
+/** «ماذا وصل منه»: the latest changes from the other members, newest first. */
+export function loadActivityLog(s: LinkStorage): TeamActivity[] {
+  return parse<TeamActivity[]>(s.getSetting(LOG), []);
+}
+
+/** The team as last read (this phone's copy). */
+export function loadTeam(s: LinkStorage): TeamMember[] {
+  return parse<{ members?: TeamMember[] }>(s.getSetting(TEAM), {}).members ?? [];
 }
 
 function saveLinkState(s: LinkStorage, state: LinkState): void {
@@ -99,17 +161,17 @@ export function clearConflicts(s: LinkStorage): void {
 
 /** Forget everything the link knew (unlink, or before a new pairing). */
 export function resetLink(s: LinkStorage): void {
-  for (const key of [CONFIG, STATE, BASE, CONFLICTS]) s.setSetting(key, null);
+  for (const key of [CONFIG, STATE, BASE, CONFLICTS, TEAM, ORIGINS, LOG]) s.setSetting(key, null);
 }
 
 /** The phone makes the link (his Firebase + a new space + a new key). */
 export function newPhoneLink(apiKey: string, projectId: string): { ok: true; config: LinkConfig } | { ok: false; message: string } {
   const checked = checkConfigInput(apiKey, projectId);
   if (!checked.ok) return checked;
-  return { ok: true, config: { apiKey: checked.apiKey, projectId: checked.projectId, spaceId: newSpaceId(), key: newLinkKey(), role: "phone", enabled: true } };
+  return { ok: true, config: { apiKey: checked.apiKey, projectId: checked.projectId, spaceId: newSpaceId(), key: newLinkKey(), memberId: "phone", name: "هاتفي", enabled: true } };
 }
 
-/** «📋 رمز الربط»: everything the laptop needs, in one line to paste. */
+/** «📋 رمز الربط»: everything a new member (the laptop, «المسؤول 2»…) needs, in one line to paste. Any member can give it. */
 export function linkCode(config: LinkConfig): string {
   const json = JSON.stringify({ a: config.apiKey, p: config.projectId, s: config.spaceId, k: config.key });
   return CODE_PREFIX + btoa(json).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -123,7 +185,7 @@ export function readLinkCode(code: string): { ok: true; config: LinkConfig } | {
     const v = JSON.parse(atob(b64 + "===".slice((b64.length + 3) % 4))) as { a?: string; p?: string; s?: string; k?: string };
     const checked = checkConfigInput(v.a ?? "", v.p ?? "");
     if (!checked.ok || !v.s || !/^[0-9a-f]{24}$/.test(v.s) || !isLinkKey(v.k ?? "")) return { ok: false, message: "رمز الربط ناقص - انسخه كاملًا من الهاتف" };
-    return { ok: true, config: { apiKey: checked.apiKey, projectId: checked.projectId, spaceId: v.s, key: v.k!, role: "laptop", enabled: true } };
+    return { ok: true, config: { apiKey: checked.apiKey, projectId: checked.projectId, spaceId: v.s, key: v.k!, memberId: newMemberId(), name: "عضو جديد", enabled: true } };
   } catch {
     return { ok: false, message: "رمز الربط ناقص - انسخه كاملًا من الهاتف" };
   }
@@ -157,12 +219,14 @@ export interface RoundResult {
   changedKeys: string[];
   conflicts: number;
   held: HeldDeletion[];
+  /** 👥 What the other members' changes were (a notification for the notable ones). */
+  incoming: TeamActivity[];
 }
 
 /** One round of the link. Never throws: a network / Firebase problem is the round's message. */
 export async function runLinkRound(s: LinkStorage, fetchFn: FetchFn = fetch, now: Date = new Date()): Promise<RoundResult> {
   const config = loadLinkConfig(s);
-  const fail = (message: string): RoundResult => ({ ok: false, message, sent: 0, applied: 0, changedKeys: [], conflicts: 0, held: [] });
+  const fail = (message: string): RoundResult => ({ ok: false, message, sent: 0, applied: 0, changedKeys: [], conflicts: 0, held: [], incoming: [] });
   if (!config || !config.enabled) return fail("الربط غير مفعّل");
   const state = loadLinkState(s);
   const at = now.toISOString();
@@ -172,30 +236,43 @@ export async function runLinkRound(s: LinkStorage, fetchFn: FetchFn = fetch, now
   const confirmed = new Set(state.confirmed);
   const { ops: localOps, held } = diff(baseline, flat, at, confirmed);
 
-  // 1. What the other side sent since last time.
-  const theirs = other(config.role);
-  const head = await readDocument(config, headPath(config, theirs), fetchFn);
-  if (!head.ok) return finish(fail(head.message));
-  const theirSeq = Number(head.value?.seq ?? 0);
-  const remoteOps: SyncOp[] = [];
-  let cursor = state.cursor;
-  // A side that started over (a new link) restarts its numbering.
-  if (theirSeq < cursor) cursor = 0;
-  const startCursor = cursor;
-  while (cursor < theirSeq && cursor - startCursor < MAX_BATCHES_PER_ROUND) {
-    const doc = await readDocument(config, batchPath(config, theirs, cursor + 1), fetchFn);
-    if (!doc.ok) break;
-    if (!doc.value) {
+  // 0. The team (read again every few minutes; I add myself once).
+  const team = await readTeam(s, config, fetchFn, now);
+  if (!team.ok) return finish(fail(team.message));
+  const others = team.members.filter((m) => m.id !== config.memberId);
+
+  // 1. What every other member sent since last time.
+  const cursors: Record<string, number> = { ...state.cursors };
+  const remoteOps: (SyncOp & { by: string })[] = [];
+  let behind = false;
+  for (const member of others) {
+    const head = await readDocument(config, headPath(config, member.id), fetchFn);
+    if (!head.ok) return finish(fail(head.message));
+    const theirSeq = Number(head.value?.seq ?? 0);
+    let cursor = cursors[member.id] ?? 0;
+    // A member that started over (a new link) restarts its numbering.
+    if (theirSeq < cursor) cursor = 0;
+    const startCursor = cursor;
+    while (cursor < theirSeq && cursor - startCursor < MAX_BATCHES_PER_ROUND) {
+      const doc = await readDocument(config, batchPath(config, member.id, cursor + 1), fetchFn);
+      if (!doc.ok) break;
+      if (!doc.value) {
+        cursor += 1;
+        continue;
+      }
+      try {
+        const ops = JSON.parse(await openText({ iv: doc.value.iv ?? "", data: doc.value.data ?? "" }, config.key)) as SyncOp[];
+        for (const op of ops) remoteOps.push({ ...op, by: member.id });
+      } catch {
+        return finish(fail("تعذّر فك تشفير بيانات عضو آخر - أعد الربط برمز جديد"));
+      }
       cursor += 1;
-      continue;
     }
-    try {
-      remoteOps.push(...(JSON.parse(await openText({ iv: doc.value.iv ?? "", data: doc.value.data ?? "" }, config.key)) as SyncOp[]));
-    } catch {
-      return finish(fail("تعذّر فك تشفير بيانات الطرف الآخر - أعد الربط برمز جديد من الهاتف"));
-    }
-    cursor += 1;
+    if (cursor < theirSeq) behind = true;
+    cursors[member.id] = cursor;
   }
+  // Several members' changes: the later change of one record wins (each member's own order kept).
+  remoteOps.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
 
   // 2. Theirs onto ours, ours kept when later.
   const merged = merge(flat, localOps, remoteOps);
@@ -220,7 +297,7 @@ export async function runLinkRound(s: LinkStorage, fetchFn: FetchFn = fetch, now
       continue;
     }
     const sealed = await sealText(JSON.stringify(batch), config.key);
-    const written = await writeDocument(config, batchPath(config, config.role, seq + 1), { iv: sealed.iv, data: sealed.data, at }, fetchFn);
+    const written = await writeDocument(config, batchPath(config, config.memberId, seq + 1), { iv: sealed.iv, data: sealed.data, at }, fetchFn);
     if (!written.ok) {
       sendError = written.message;
       unsent.push(...batch);
@@ -230,8 +307,9 @@ export async function runLinkRound(s: LinkStorage, fetchFn: FetchFn = fetch, now
     sentOps += batch.length;
   }
   // The head only when something moved (Firebase's free writes are counted per day).
-  if (seq !== state.seq || cursor !== state.cursor || !state.lastAt) {
-    const headWritten = await writeDocument(config, headPath(config, config.role), { seq: String(seq), ack: String(cursor), at }, fetchFn);
+  const cursorsMoved = Object.entries(cursors).some(([id, c]) => (state.cursors[id] ?? 0) !== c);
+  if (seq !== state.seq || cursorsMoved || !state.lastAt) {
+    const headWritten = await writeDocument(config, headPath(config, config.memberId), { seq: String(seq), ack: JSON.stringify(cursors), at }, fetchFn);
     if (!headWritten.ok && !sendError) sendError = headWritten.message;
   }
 
@@ -249,17 +327,31 @@ export async function runLinkRound(s: LinkStorage, fetchFn: FetchFn = fetch, now
     const all = [...merged.conflicts.map((c) => ({ ...c, seenAt: at })), ...loadConflicts(s)].slice(0, 200);
     s.setSetting(CONFLICTS, JSON.stringify(all));
   }
-  const nextState: LinkState = { seq, cursor, confirmed: state.confirmed.filter((k) => held.some((h) => h.k === k)), held, lastAt: at };
+  // 👥 Who did what: marks on what they added / changed, and the log (a lost change of theirs is not theirs here).
+  const lost = new Set(merged.conflicts.filter((c) => c.kept === "local").map((c) => `${c.k}|${c.r}|${c.at}`));
+  const nameOf = (id: string) => team.members.find((m) => m.id === id)?.name ?? "عضو";
+  const incoming: TeamActivity[] = [];
+  for (const op of remoteOps) {
+    if (lost.has(`${op.k}|${op.r}|${op.at}`)) continue;
+    const a = describeOp(op, flat[op.k]?.records[op.r], nameOf(op.by));
+    if (a) incoming.push(a);
+  }
+  if (incoming.length > 0) {
+    s.setSetting(ORIGINS, JSON.stringify(nextOrigins(loadOrigins(s), incoming)));
+    s.setSetting(LOG, JSON.stringify([...[...incoming].reverse(), ...loadActivityLog(s)].slice(0, LOG_SIZE)));
+  }
+  const nextState: LinkState = { seq, cursor: 0, cursors, confirmed: state.confirmed.filter((k) => held.some((h) => h.k === k)), held, lastAt: at };
   saveLinkState(s, nextState);
   const applied = remoteOps.length - merged.conflicts.filter((c) => c.kept === "local").length;
   const result: RoundResult = {
     ok: !sendError,
-    message: sendError ?? (cursor < theirSeq ? "⏳ يستلم البيانات على دفعات…" : "✓ متزامن"),
+    message: sendError ?? (behind ? "⏳ يستلم البيانات على دفعات…" : "✓ متزامن"),
     sent: sentOps,
     applied: Math.max(0, applied),
     changedKeys: merged.changedKeys,
     conflicts: merged.conflicts.length,
     held,
+    incoming,
   };
   return finish(result);
 
@@ -270,13 +362,61 @@ export async function runLinkRound(s: LinkStorage, fetchFn: FetchFn = fetch, now
   }
 }
 
+/** The team list: cached a few minutes; I am added (with my name) when missing or renamed. */
+async function readTeam(s: LinkStorage, config: LinkConfig, fetchFn: FetchFn, now: Date): Promise<{ ok: true; members: TeamMember[] } | { ok: false; message: string }> {
+  const cached = parse<{ members?: TeamMember[]; readAt?: number }>(s.getSetting(TEAM), {});
+  const me = cached.members?.find((m) => m.id === config.memberId);
+  // alone in the team: read it every round (the one pairing with it shows up at once)
+  const alone = (cached.members?.length ?? 0) < 2;
+  if (cached.members && me && me.name === config.name && !alone && now.getTime() - (cached.readAt ?? 0) < TEAM_EVERY_MS) return { ok: true, members: cached.members };
+  const doc = await readDocument(config, teamPath(config), fetchFn);
+  if (!doc.ok) return doc;
+  let members: TeamMember[] = [];
+  if (!doc.value?.iv) {
+    // an older two-sided link: the other side counts only if it ever wrote its head
+    for (const legacy of LEGACY_TEAM) {
+      if (legacy.id === config.memberId) continue;
+      const head = await readDocument(config, headPath(config, legacy.id), fetchFn);
+      if (head.ok && head.value) members.push(legacy);
+    }
+  } else {
+    try {
+      members = JSON.parse(await openText({ iv: doc.value.iv, data: doc.value.data ?? "" }, config.key)) as TeamMember[];
+    } catch {
+      return { ok: false, message: "تعذّر فك تشفير قائمة الفريق - أعد الربط برمز جديد" };
+    }
+  }
+  const mine = members.find((m) => m.id === config.memberId);
+  if (!mine || mine.name !== config.name || !doc.value?.iv) {
+    members = [...members.filter((m) => m.id !== config.memberId), { id: config.memberId, name: config.name, at: mine?.at || now.toISOString() }];
+    const sealed = await sealText(JSON.stringify(members), config.key);
+    const written = await writeDocument(config, teamPath(config), { iv: sealed.iv, data: sealed.data }, fetchFn);
+    if (!written.ok) return written;
+  }
+  s.setSetting(TEAM, JSON.stringify({ members, readAt: now.getTime() }));
+  return { ok: true, members };
+}
+
+/** His name for this member (shown on what it records); the team list is updated on the next round. */
+export function renameMember(s: LinkStorage, name: string): void {
+  const config = loadLinkConfig(s);
+  if (!config || !name.trim()) return;
+  saveLinkConfig(s, { ...config, name: name.trim().slice(0, 40) });
+}
+
 /** He confirmed a store's mass deletion: it goes out on the next round. */
 export function confirmHeldDeletion(s: LinkStorage, key: string): void {
   const st = loadLinkState(s);
   saveLinkState(s, { ...st, confirmed: [...new Set([...st.confirmed, key])] });
 }
 
-/** The laptop joins: its own business data is replaced by the phone's (he confirmed). */
+/** A new member joins (the laptop, «المسؤول 2»…) under his name for it: its own business data is replaced by the
+ * team's (he confirmed). */
+export function joinAsMember(s: LinkStorage, config: LinkConfig, name: string): void {
+  joinAsLaptop(s, { ...config, name: name.trim().slice(0, 40) || config.name });
+}
+
+/** A member joins: its own business data is replaced by the team's (he confirmed). */
 export function joinAsLaptop(s: LinkStorage, config: LinkConfig): void {
   resetLink(s);
   for (const key of Object.keys(s.readAll())) s.write(key, null);
