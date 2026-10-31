@@ -31,6 +31,20 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-31-gap-prices",
+    date: "2026-10-31",
+    title: "💱 سعر «فرق … · الدين» بالأوقية والسيفا",
+    steps: [
+      {
+        path: "/",
+        target: "gap-prices",
+        title: "💱 فوق شارة «فرق … · الدين»",
+        before: "الشارة تُظهر الفرق بالدولار فقط.",
+        after: "فوقها بخط صغير جدًا سعره بالأوقية والسيفا بسعر اليوم. زر 👁 يخفيهما أو يظهرهما في كل البطاقات معًا.",
+      },
+    ],
+  },
+  {
     id: "2026-10-31-trash-debt",
     date: "2026-10-31",
     title: "🗑 دين الجهاز المحذوف يخرج من رصيد الزبون",

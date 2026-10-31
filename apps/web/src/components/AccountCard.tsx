@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { showsRestriction } from "@/lib/reminders";
 import { PromiseQuickSheet } from "./PromiseQuickSheet";
 import { useEffect, useState } from "react";
+import { currencyLabel } from "@/lib/telegramMessages";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { priorityDataLine, priorityDataState } from "@/lib/priorityData";
 import { presentServiceStatus, effectiveServiceStatus, isBalanceDueZero, planBadgeLabel, cleanPlanName } from "@/lib/status";
@@ -27,7 +28,7 @@ import { arabicDate } from "@/lib/partyMovements";
 import { faultCategory, faultLabel, isAutoFault, isWaivedCost, openDebtEntries, removeFaultQuestion } from "@/lib/deviceFault";
 import { planGrowOpenD } from "@/lib/growOpenD";
 import { cardDueByCurrency } from "@/lib/cardDue";
-import { openDebtUsdToday, paidSinceLastSyncUsd, smallGapToGrowUsd, totalPreviousDebtUsd, unrecordedGapUsd, type PreviousDebt } from "@/lib/previousDebt";
+import { GAP_PRICES_EVENT, gapInLocalCurrencies, loadGapPricesHidden, openDebtUsdToday, paidSinceLastSyncUsd, saveGapPricesHidden, smallGapToGrowUsd, totalPreviousDebtUsd, unrecordedGapUsd, type PreviousDebt } from "@/lib/previousDebt";
 import { computeDeviceMarks } from "@/lib/deviceMarks";
 import { CurrencyStore, getCurrency, toUsd } from "@/lib/currencyStore";
 import { formatAmount } from "@/lib/formatAmount";
@@ -398,6 +399,32 @@ export function AccountCard({
   const [renewalSheet, setRenewalSheet] = useState(false);
   // «الدين» on the unrecorded-difference line: choose an old (inherited) debt or a normal D charge.
   const [debtChoiceUsd, setDebtChoiceUsd] = useState<number | null>(null);
+  // 💱 the «فرق» chip's price in أوقية / سيفا, 👁 shown or hidden on every card at once (his Oct 31 2026 ask)
+  const [gapPricesHidden, setGapPricesHidden] = useState(false);
+  useEffect(() => {
+    const sync = () => setGapPricesHidden(loadGapPricesHidden());
+    sync();
+    window.addEventListener(GAP_PRICES_EVENT, sync);
+    return () => window.removeEventListener(GAP_PRICES_EVENT, sync);
+  }, []);
+  const gapPrices = (usd: number) => (
+    <span className="account-card-gap-prices" data-tour="gap-prices">
+      <button
+        type="button"
+        className="account-card-gap-eye"
+        aria-label={gapPricesHidden ? "إظهار السعر بالأوقية والسيفا" : "إخفاء السعر بالأوقية والسيفا"}
+        onClick={() => saveGapPricesHidden(!gapPricesHidden)}
+      >
+        {gapPricesHidden ? "🙈" : "👁"}
+      </button>
+      {!gapPricesHidden &&
+        gapInLocalCurrencies(usd, { MRU: currentMruRate, SIFA: getCurrency(currencyStore, "SIFA")?.rateFromUsd }).map((p) => (
+          <span key={p.currency}>
+            <bdi dir="ltr">{formatAmount(p.amount)}</bdi> {currencyLabel(p.currency)}
+          </span>
+        ))}
+    </span>
+  );
   // 👤 «على الزبون رصيد سابق»: the amount in his currency, typed before saving.
   const [customerGap, setCustomerGap] = useState<{ amount: string; currency: string; error?: string } | null>(null);
   function openCustomerGap(usd: number) {
@@ -1009,14 +1036,20 @@ export function AccountCard({
           </span>
         )}
         {unrecordedUsd > 0 && onAddPreviousDebt && stillDueDs.length === 0 && (
-          <button type="button" className="account-card-gap-chip" onClick={() => setDebtChoiceUsd(unrecordedUsd)} title={`فرق ${formatAmount(unrecordedUsd)} $ غير مسجّل - اضغط لتسجيله`}>
-            فرق <bdi dir="ltr">{formatAmount(unrecordedUsd)} $</bdi> · الدين
-          </button>
+          <span className="account-card-gap-stack">
+            {gapPrices(unrecordedUsd)}
+            <button type="button" className="account-card-gap-chip" onClick={() => setDebtChoiceUsd(unrecordedUsd)} title={`فرق ${formatAmount(unrecordedUsd)} $ غير مسجّل - اضغط لتسجيله`}>
+              فرق <bdi dir="ltr">{formatAmount(unrecordedUsd)} $</bdi> · الدين
+            </button>
+          </span>
         )}
         {smallGapUsd > 0 && onGrowOpenD && stillDueDs.length === 0 && planGrowOpenD(ledgerEntries, smallGapUsd) && (
-          <button type="button" className="account-card-gap-chip account-card-gap-chip-small" onClick={() => setDebtChoiceUsd(smallGapUsd)} title={`Starlink أكثر من D بـ ${formatAmount(smallGapUsd)} $ - اضغط لإضافته إلى D`}>
-            ＋<bdi dir="ltr">{formatAmount(smallGapUsd)} $</bdi> إلى D
-          </button>
+          <span className="account-card-gap-stack">
+            {gapPrices(smallGapUsd)}
+            <button type="button" className="account-card-gap-chip account-card-gap-chip-small" onClick={() => setDebtChoiceUsd(smallGapUsd)} title={`Starlink أكثر من D بـ ${formatAmount(smallGapUsd)} $ - اضغط لإضافته إلى D`}>
+              ＋<bdi dir="ltr">{formatAmount(smallGapUsd)} $</bdi> إلى D
+            </button>
+          </span>
         )}
       </div>
 

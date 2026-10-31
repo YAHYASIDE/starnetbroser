@@ -211,3 +211,38 @@ export function buildPreviousDebtPayment(debt: PreviousDebt, input: PayPreviousD
   });
   return { ok: true, entry: { ...entry, previousDebtId: debt.id } };
 }
+
+/** 💱 A gap's price in أوقية and سيفا at today's registered rates, shown very small above the «فرق» chip (his Oct
+ * 31 2026 ask). A currency without a rate is left out; whole units. */
+export function gapInLocalCurrencies(usd: number, rates: { MRU?: number; SIFA?: number }): { currency: LedgerCurrency; amount: number }[] {
+  if (!(usd > 0)) return [];
+  return (["MRU", "SIFA"] as const)
+    .filter((c) => (rates[c] ?? 0) > 0)
+    .map((currency) => ({ currency, amount: Math.round(usd * rates[currency]!) }));
+}
+
+/** 👁 Shown or hidden for every card at once - a phone setting (`starnet.`, not backed up). */
+const GAP_PRICES_HIDDEN = "starnet.gapPricesHidden";
+export const GAP_PRICES_EVENT = "starnet:gap-prices";
+
+export function loadGapPricesHidden(): boolean {
+  try {
+    return window.localStorage.getItem(GAP_PRICES_HIDDEN) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function saveGapPricesHidden(hidden: boolean): void {
+  try {
+    if (hidden) window.localStorage.setItem(GAP_PRICES_HIDDEN, "1");
+    else window.localStorage.removeItem(GAP_PRICES_HIDDEN);
+  } catch {
+    // private mode - this session only
+  }
+  try {
+    window.dispatchEvent(new Event(GAP_PRICES_EVENT));
+  } catch {
+    // no window (tests)
+  }
+}

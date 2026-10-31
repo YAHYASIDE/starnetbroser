@@ -2599,3 +2599,11 @@ is never pressed while a field is empty - it refills and saves on the next try (
   devices - so the deleted duplicate's 45,000 stayed in the totals with no row to explain it. Now `lib/clientAccount.ts`
   leaves out a device with `deletedAt` (totals and statement, every caller: card, «تصفير الحساب», «حسابي» debts) - a
   device restored from the trash brings its operations back (tested).
+
+## 💱 The «فرق» chip's price in أوقية and سيفا (Oct 31 2026)
+
+- His screenshot (a card with «فرق 4.97 $ · الدين»): «اجعل البطاقة تُظهر الدين فرق 4.97 مثلًا، تظهر فوقها بسعره بالأوقية
+  والسيفا، ويكون هناك زر عين تخفيهم أو تظهرهم، ويكونان صغيرين جدًا جدًا». Above the «فرق … · الدين» chip (and the small
+  «＋X $ إلى D» chip), a very small line: the gap × today's registered rate (أوقية, سيفا - `gapInLocalCurrencies`, whole
+  units, a currency with no rate left out) and a 👁 / 🙈 button. Shown or hidden on every card at once, remembered on the
+  phone (`starnet.gapPricesHidden`, not backed up). Display only - nothing is recorded or locked.

@@ -148,3 +148,15 @@ describe("🔗 a small gap onto the open D (his Oct 31 2026 report)", () => {
     expect(smallGapToGrowUsd(45.8, 45.3, 45.3)).toBe(0); // under 1 $
   });
 });
+
+describe("💱 the «فرق» chip's price in أوقية and سيفا (his Oct 31 2026 ask)", () => {
+  it("converts at today's rates, whole units, leaving out a currency with no rate", async () => {
+    const { gapInLocalCurrencies } = await import("./previousDebt");
+    expect(gapInLocalCurrencies(4.97, { MRU: 430, SIFA: 600 })).toEqual([
+      { currency: "MRU", amount: 2137 },
+      { currency: "SIFA", amount: 2982 },
+    ]);
+    expect(gapInLocalCurrencies(4.97, { MRU: 430 })).toEqual([{ currency: "MRU", amount: 2137 }]);
+    expect(gapInLocalCurrencies(0, { MRU: 430, SIFA: 600 })).toEqual([]);
+  });
+});

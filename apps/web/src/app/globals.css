@@ -19776,3 +19776,32 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   background: transparent;
   color: var(--text-muted);
 }
+
+/* 💱 the «فرق» chip's price in أوقية / سيفا, very small above it, 👁 hides / shows (his Oct 31 2026 ask). */
+.account-card-gap-stack {
+  flex: none;
+  margin-inline-start: auto;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+.account-card-gap-stack .account-card-gap-chip { margin-inline-start: 0; }
+.account-card-gap-prices {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.56rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.account-card-gap-eye {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 0.62rem;
+  line-height: 1;
+  cursor: pointer;
+}
