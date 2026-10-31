@@ -33,4 +33,10 @@ public class LoginAutofillTest {
         assertTrue(script.contains("continue with password"));
         assertTrue(script.contains("forgot|reset"));
     }
+
+    @Test
+    public void aCodeFieldOpensTheNumberPadNeverAPasswordField() {
+        assertTrue(LoginAutofill.NUMPAD_SCRIPT.contains("setAttribute('inputmode','numeric')"));
+        assertTrue(LoginAutofill.NUMPAD_SCRIPT.contains("['text','tel','number','']"));
+    }
 }

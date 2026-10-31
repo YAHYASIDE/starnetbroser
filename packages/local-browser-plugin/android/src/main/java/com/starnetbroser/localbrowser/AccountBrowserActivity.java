@@ -1663,6 +1663,8 @@ public class AccountBrowserActivity extends AppCompatActivity {
         public void onPageFinished(WebView view, String url) {
             super.onPageFinished(view, url);
             if (autofillScript != null && AllowedUrl.isAllowed(url)) view.evaluateJavascript(autofillScript, null);
+            // 🔢 a code field opens the number pad (his Oct 30 2026 ask)
+            if (AllowedUrl.isAllowed(url)) view.evaluateJavascript(LoginAutofill.NUMPAD_SCRIPT, null);
             if (autoLogin && AllowedUrl.isAllowed(url)) view.evaluateJavascript(StarlinkLoginWatch.AUTO_SCRIPT, null);
             if (activationScript != null && AllowedUrl.isAllowed(url)) view.evaluateJavascript(activationScript, null);
             if (pageDownloads != null) pageDownloads.hookPage();

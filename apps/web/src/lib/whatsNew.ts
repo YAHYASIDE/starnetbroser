@@ -31,6 +31,18 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-10-31-code-numpad",
+    date: "2026-10-31",
+    title: "🔢 خانة الرمز تفتح لوحة الأرقام",
+    steps: [
+      {
+        title: "🔢 «رمز المرور» في متصفح الجهاز",
+        before: "خانة رمز التحقق في Starlink كانت تفتح لوحة المفاتيح كاملة.",
+        after: "تفتح لوحة الأرقام الكبيرة فقط (التحقق بخطوتين، ورمز الدفع)، ولا تمس خانة البريد أو كلمة المرور.",
+      },
+    ],
+  },
+  {
     id: "2026-10-31-small-gap-to-d",
     date: "2026-10-31",
     title: "🔗 فرق صغير يُضاف إلى D",

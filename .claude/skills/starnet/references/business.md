@@ -2582,3 +2582,11 @@ is never pressed while a field is empty - it refills and saves on the next try (
   (a rate move otherwise) - 6.43 $ on 45.3 $ stayed hidden. Now `smallGapToGrowUsd` (lib/previousDebt.ts, tested): with
   an open D and the big chip not shown, a gap ≥ 1 $ gives a quiet chip «＋6.43 $ إلى D» (only when `planGrowOpenD` can
   grow one) that opens the same sheet - «🔗 أضفه إلى D المفتوح» (old D's rate, customer raised at the same price).
+
+## 🔢 A code field opens the number pad (Oct 31 2026)
+
+- His screenshot (Starlink «التحقق بخطوتين», the full keyboard up for «رمز المرور»): «أريد هذا المكان أن تظهر فيه فقط أرقام
+  كبيرة لأضيفها بدون كتابة». `LoginAutofill.NUMPAD_SCRIPT` (every page of the real Starlink site in a device's browser,
+  watching 10 min): a visible text / tel / number field described as a code (code, otp, passcode, verification, رمز -
+  never كلمة / بريد / password / email) gets `inputmode=numeric` + `autocomplete=one-time-code`, refocused if it held
+  the keyboard. The automatic code reading from the mail is unchanged.
