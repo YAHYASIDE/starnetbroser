@@ -19758,3 +19758,14 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
 .ledger-needs-client .account-card-alert {
   margin: 0;
 }
+
+/* 🤝 his devices' debts that are on the rep (his Oct 31 2026 report): said on the card, never hidden. */
+.party-rep-held {
+  margin: 6px 0 0;
+  padding: 5px 10px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}

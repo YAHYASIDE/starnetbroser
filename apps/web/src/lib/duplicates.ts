@@ -165,3 +165,10 @@ export function duplicateLine(hit: DuplicateHit): string {
 export function duplicateQuestion(hits: DuplicateHit[]): string {
   return ["⚠️ انتبه - قد يكون هذا تسجيلاً مكرراً:", ...hits.slice(0, 6).map((h) => `• ${duplicateLine(h)}`), "", "هل تريد الحفظ رغم ذلك؟"].join("\n");
 }
+
+/** 🚫 A KIT already on another device of mine stops the save (his Oct 31 2026 choice «امنع حفظ جهاز بـ KIT مكرر» - two
+ * records of one dish split its debts). The message, or null. */
+export function kitDuplicateBlock(hits: DuplicateHit[]): string | null {
+  const hit = hits.find((h) => h.field === "kit" && h.kind === "device");
+  return hit ? `🚫 هذا الـ KIT مسجّل على الجهاز «${hit.owner}» - لا يُحفظ جهاز ثانٍ بنفس الـ KIT. افتح «${hit.owner}» وعدّله، أو احذف أحدهما.` : null;
+}

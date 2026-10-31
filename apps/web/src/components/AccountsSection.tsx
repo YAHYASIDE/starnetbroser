@@ -11,6 +11,7 @@ import { ChangeEvent, CSSProperties, FormEvent, useEffect, useMemo, useState } f
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { Client, clientDeleteQuestion, CreateClientInput } from "@/lib/clientStore";
 import { clientRepIds, clientRepOrigins, matchesClientOwner, type ClientOwnerFilter } from "@/lib/repDebts";
+import { repHeldBalance } from "@/lib/repClients";
 import { currentRepOfClient } from "@/lib/repClients";
 import type { RepresentativeStore } from "@/lib/repStore";
 import { CreateSupplierInput, Supplier } from "@/lib/supplierStore";
@@ -91,6 +92,9 @@ interface Props {
   /** Per-device Starlink subscription ledger - shown on a client's devices panel, always kept
    * visually separate from the store figures (a different business). */
   ledgerStore: LedgerByAccount;
+  /** 🤝 Every device operation, the reps' included (`ledgerStore` keeps only what customers owe us) - the rep's part
+   * is shown on the customer's card instead of vanishing (his Oct 31 2026 report). */
+  fullLedgerStore?: LedgerByAccount;
   onCreateClient: (input: NewClientInput) => void;
   onUpdateClient: (clientId: string, input: CreateClientInput) => void;
   onCreateSupplier: (input: CreateSupplierInput) => void;
@@ -167,6 +171,7 @@ export function PartyDirectory({
   invoices,
   accounts,
   ledgerStore,
+  fullLedgerStore,
   onCreateClient,
   onUpdateClient,
   onCreateSupplier,
@@ -404,6 +409,7 @@ export function PartyDirectory({
         ledgerStore={ledgerStore}
         creditLimit={isClients ? (party as Client).creditLimit : undefined}
         repNames={isClients && representatives ? clientRepOrigins(party.id, accounts, party as Client).map((id) => representatives[id]?.name).filter((n): n is string => Boolean(n)) : []}
+        repHeld={isClients && fullLedgerStore ? repHeldBalance(accounts.filter((a) => a.clientId === party.id && !a.deletedAt).map((a) => a.id), fullLedgerStore, ledgerStore) : undefined}
         categoryChips={
           isClients
             ? (rows.find((r) => r.party.id === party.id)?.categories ?? [])
@@ -751,6 +757,8 @@ interface PartyCardProps {
   creditLimit?: number;
   /** The reps of this client's devices - shown as a tag at the top of the card. */
   repNames?: string[];
+  /** 🤝 What his devices' operations add up to on the rep's side (repHeldBalance), + = owed. */
+  repHeld?: Record<string, number>;
   /** 🏷️ His categories besides 📡 (that one is the device count chip). */
   categoryChips?: ClientCategory[];
   onEdit: () => void;
@@ -799,6 +807,7 @@ function PartyCard({
   ledgerStore,
   creditLimit,
   repNames = [],
+  repHeld = {},
   categoryChips = [],
   onEdit,
   onOpenCard,
@@ -942,6 +951,18 @@ function PartyCard({
         </div>
         <span className={`party-status ${status.className}`}>{status.label}</span>
       </div>
+      {Object.keys(repHeld).length > 0 && (
+        <p className="party-rep-held" data-tour="party-rep-held">
+          🤝 على أجهزته عند المندوب{repNames.length ? ` (${repNames.join("، ")})` : ""}:{" "}
+          {Object.entries(repHeld).map(([c, v], i) => (
+            <span key={c}>
+              {i > 0 ? " + " : ""}
+              {v > 0 ? "عليه" : "له"} <bdi dir="ltr">{formatAmount(Math.abs(v))}</bdi> {currencyLabel(c)}
+            </span>
+          ))}{" "}
+          - في حساب المندوب، لا في رصيده هنا
+        </p>
+      )}
 
       {currencies.length === 0 ? (
         <p className="party-empty">لا توجد فواتير أو أرصدة بعد</p>

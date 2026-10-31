@@ -22,7 +22,7 @@ import type { ClientPickerInfo } from "@/lib/clientPicker";
 import { usedPasswords } from "@/lib/usedPasswords";
 import { buildCreatedAccount, creationProblem } from "@/lib/accountCreation";
 import { DuplicateWarning, FieldDuplicate } from "./DuplicateWarning";
-import { duplicateQuestion, findDeviceDuplicates } from "@/lib/duplicates";
+import { duplicateQuestion, kitDuplicateBlock, findDeviceDuplicates } from "@/lib/duplicates";
 import { loadRepCopy } from "@/lib/repCopy";
 import { isRepWorkspace, simpleAddRepId } from "@/lib/repMode";
 import { RepresentativePicker } from "./RepresentativePicker";
@@ -145,6 +145,8 @@ export function AccountDialog({
   );
   const currencyGuard = useCurrencyGuard(expectedCurrency);
   const [planError, setPlanError] = useState<string | null>(null);
+  // 🚫 a KIT already on another device: no save (his Oct 31 2026 choice)
+  const [saveError, setSaveError] = useState<string | null>(null);
   // Every registered currency can be Starlink's cost currency; a hidden one stays listed only
   // when this device's plan already uses it.
   const [currencyStore] = useState(loadCurrencyStore);
@@ -381,6 +383,9 @@ export function AccountDialog({
       if (!window.confirm(`هل تريد نقل هذا الجهاز من المندوب "${fromName}" إلى "${toName}"؟`)) return;
     }
 
+    const kitBlock = kitDuplicateBlock(duplicates);
+    setSaveError(kitBlock);
+    if (kitBlock) return;
     if (duplicates.length > 0 && !window.confirm(duplicateQuestion(duplicates))) return;
 
     let renewalPlan: StarlinkAccountSummary["renewalPlan"];
@@ -695,6 +700,7 @@ export function AccountDialog({
             )}
 
             <DuplicateWarning hits={duplicates} inline={["email", "name"]} />
+            {saveError && <div className="account-card-alert ledger-form-error">{saveError}</div>}
 
             <div className="dialog-actions">
               <button className="dialog-secondary" type="button" onClick={onClose}>إلغاء</button>
@@ -975,6 +981,7 @@ export function AccountDialog({
             </button>
             {sendNote && <span className="settings-hint">{sendNote}</span>}
 
+            {saveError && <div className="account-card-alert ledger-form-error">{saveError}</div>}
             <div className="dialog-actions">
               {onDelete && (
                 <button className="dialog-danger" type="button" onClick={confirmDelete}>حذف الحساب</button>

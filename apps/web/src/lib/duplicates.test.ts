@@ -36,3 +36,12 @@ describe("duplicate warnings", () => {
     expect(duplicateQuestion([{ field: "email", owner: "منزل", kind: "device" }])).toContain("• الإيميل مسجل من قبل على الجهاز «منزل»");
   });
 });
+
+describe("🚫 a duplicate KIT stops the save (his Oct 31 2026 choice)", () => {
+  it("only a KIT on another device of mine blocks; other duplicates only warn", async () => {
+    const { kitDuplicateBlock } = await import("./duplicates");
+    expect(kitDuplicateBlock([{ field: "kit", owner: "DEMO", kind: "device" }])).toContain("«DEMO»");
+    expect(kitDuplicateBlock([{ field: "email", owner: "DEMO", kind: "device" }])).toBeNull();
+    expect(kitDuplicateBlock([{ field: "kit", owner: "المسؤول", kind: "owner" }])).toBeNull();
+  });
+});

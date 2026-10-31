@@ -404,6 +404,7 @@ export default function ClientsPage() {
           invoices={invoices}
           accounts={accounts}
           ledgerStore={debtLedger}
+          fullLedgerStore={ledgerStore}
           adjustments={partyAdjustments}
           onAddAdjustment={handleAddAdjustment}
           onDeleteAdjustment={handleDeleteAdjustment}

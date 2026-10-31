@@ -318,3 +318,14 @@ describe("👥 setRepCustomersStay", () => {
     expect(setRepCustomersStay(store, "missing", true)).toBe(store);
   });
 });
+
+describe("🤝 the rep's part of a customer's device debts (his Oct 31 2026 report)", () => {
+  it("adds up what the customers' ledger left out, per currency", async () => {
+    const { repHeldBalance } = await import("./repClients");
+    const e = (id: string, kind: "debit" | "credit", amount: number, currency = "MRU") => ({ id, kind, amount, currency, note: "", email: "", date: "2026-10-31", createdAt: "" }) as never;
+    const full = { a: [e("1", "debit", 45000), e("2", "credit", 5000), e("3", "debit", 1000)], b: [e("4", "debit", 10, "SIFA")] };
+    const ours = { a: [e("3", "debit", 1000)], b: [e("4", "debit", 10, "SIFA")] };
+    expect(repHeldBalance(["a", "b"], full, ours)).toEqual({ MRU: 40000 });
+    expect(repHeldBalance(["b"], full, ours)).toEqual({});
+  });
+});

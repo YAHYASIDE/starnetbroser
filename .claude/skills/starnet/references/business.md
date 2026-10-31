@@ -2549,3 +2549,16 @@ is never pressed while a field is empty - it refills and saves on the next try (
   account; this replaces his Oct 2026 choice «اختيار الجهاز / الزبون»).
 - `debtNeedsClient` (lib/ledgerModes.ts, tested); LedgerDialog `needsClient` + ClientPicker; the browser's «⏳ سجّل
   الشحن» on such a device pins it instead («بلا زبون - اربطه بزبون ثم سجّل الشحن»).
+
+## 🚫 A duplicate KIT is blocked + 🤝 a rep's part of a customer's debt is shown (Oct 31 2026)
+
+- His report (two cards of one dish - «عمار» on a rep and «Oumarabdellahi@gmail.com», one KIT, 45,000 أوقية on each;
+  the edit form warning «مسجل من قبل على الجهاز «عمار»»): «سجّلت على زبون دينًا بقيمة 45,000 ولكنه مكرر… ولكن لم يظهر في
+  سجل الزبائن أبدًا». Asked, he said the customer «هو هنا عندي زبون مندوب وعندي زبوني» and chose **«امنع حفظ جهاز بـ KIT
+  مكرر»**.
+- Why it vanished: a debt on a rep's device is the rep's (`ourDebtLedgerForClients` leaves it out of the customer's
+  balance - it is in the rep's account). Now the customer's card says it instead of hiding it: «🤝 على أجهزته عند
+  المندوب (<rep>): عليه 45,000 أوقية - في حساب المندوب، لا في رصيده هنا» (`repHeldBalance`, lib/repClients.ts, tested;
+  `fullLedgerStore` on the clients page). Moving it onto the customer = taking the device off the rep (unchanged rule).
+- `kitDuplicateBlock` (lib/duplicates.ts, tested): a KIT already on another device of mine stops the add / edit save
+  with «🚫 هذا الـ KIT مسجّل على الجهاز «X»…»; the other duplicates (email, name, phone) still only ask.

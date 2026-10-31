@@ -634,3 +634,22 @@ export function repOwnClientBooks(
   const rows = listRepClients(repId, clients, accounts, replayRepClients(clients, accounts, ledgerStore, book)).filter((r) => r.current);
   return { rows, byClient: new Map(rows.map((r) => [r.clientId, r.book])) };
 }
+
+/**
+ * 🤝 What his devices' operations add up to on a rep's side (his Oct 31 2026 report «سجّلت على زبون دينًا 45,000 ولم
+ * يظهر في سجل الزبائن أبدًا»): the entries `ourLedger` left out (they are the rep's - a rep's device), per currency,
+ * + = owed. Shown on the customer's card instead of vanishing.
+ */
+export function repHeldBalance(accountIds: string[], fullLedger: LedgerByAccount, ourLedger: LedgerByAccount): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const id of accountIds) {
+    const ours = new Set((ourLedger[id] ?? []).map((e) => e.id));
+    for (const e of fullLedger[id] ?? []) {
+      if (ours.has(e.id)) continue;
+      const sign = e.kind === "debit" ? 1 : -1;
+      out[e.currency] = Math.round(((out[e.currency] ?? 0) + sign * e.amount) * 100) / 100;
+    }
+  }
+  for (const [c, v] of Object.entries(out)) if (Math.abs(v) < 0.005) delete out[c];
+  return out;
+}
