@@ -19877,3 +19877,41 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   color: var(--text);
 }
 .op-flag-done { justify-self: start; }
+
+/* 🧾 «تسديد D»: each D's details - date, the customer's price, Starlink's cost, the profit (his Nov 1 2026 ask). */
+.sl-pay-list li.sl-pay-item {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+}
+.sl-pay-item-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+.sl-pay-item-head strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sl-pay-details {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 3px 10px;
+  margin: 0;
+  font-size: 0.8rem;
+}
+.sl-pay-details dt {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.sl-pay-details dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 700;
+}
+.sl-pay-details .sl-pay-profit { color: var(--green); }
+.sl-pay-details .sl-pay-loss { color: var(--red); }

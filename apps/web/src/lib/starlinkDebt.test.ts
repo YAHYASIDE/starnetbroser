@@ -299,3 +299,30 @@ describe("«🔄 البداية من جديد» on the KAST card", () => {
     expect(zeroCardBalance(top.list, 0, "2026-10-05")).toBe(top.list);
   });
 });
+
+describe("🧾 a D's details on the pay sheet (his Nov 1 2026 ask)", () => {
+  const entry = (over: Partial<LedgerEntry>): LedgerEntry =>
+    ({ id: "d1", kind: "debit", amount: 6000, currency: "SIFA", note: "", email: "", date: "2026-10-20", createdAt: "2026-10-20T10:00:00Z", saleRate: { rateFromUsd: 600, usdValue: 10, lockedAt: "2026-10-20T10:00:00Z" }, starlinkCost: { status: "pending", currencyCode: "USD", amount: 7 }, ...over }) as LedgerEntry;
+
+  it("date, the customer's price (and its dollars), Starlink's cost and the profit", async () => {
+    const { dPayDetails } = await import("./starlinkDebt");
+    const d = { accountId: "a", entry: entry({}), costUsd: 7, expectedProfitUsd: 3 };
+    expect(dPayDetails(d)).toEqual({ date: "2026-10-20", saleAmount: 6000, saleCurrency: "SIFA", saleUsd: 10, costUsd: 7, paidUsd: 7, profitUsd: 3 });
+  });
+
+  it("the profit follows what is really paid", async () => {
+    const { dPayDetails } = await import("./starlinkDebt");
+    const d = { accountId: "a", entry: entry({}), costUsd: 7, expectedProfitUsd: 3 };
+    expect(dPayDetails(d, 8.5).profitUsd).toBe(1.5);
+    expect(dPayDetails(d, 0).paidUsd).toBe(7); // empty / 0 typed = the recorded cost
+  });
+
+  it("a cost in another currency is shown too; an unknown sale has no profit", async () => {
+    const { dPayDetails } = await import("./starlinkDebt");
+    const ars = { accountId: "a", entry: entry({ starlinkCost: { status: "pending", currencyCode: "ARS", amount: 7300 } as never, saleRate: undefined }), costUsd: 4.97 };
+    expect(dPayDetails(ars)).toMatchObject({ costForeign: { amount: 7300, currency: "ARS" }, costUsd: 4.97 });
+    expect(dPayDetails(ars).profitUsd).toBeUndefined();
+    const usdSale = { accountId: "a", entry: entry({ currency: "USD", amount: 15, saleRate: undefined }), costUsd: 11.34 };
+    expect(dPayDetails(usdSale).profitUsd).toBe(3.66);
+  });
+});

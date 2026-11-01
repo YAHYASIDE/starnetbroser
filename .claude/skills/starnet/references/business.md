@@ -2639,3 +2639,12 @@ is never pressed while a field is empty - it refills and saves on the next try (
   🔔; «غير جيد» = an open flag → `RepOpFlagsBanner` (red pulsing «🚨 N للمراجعة «غير جيد»» above the bottom bar on every
   page, not closable) → sheet with who / when / the message → «✓ راجعتها». A later «غير جيد» on the same operation opens it
   again; a change to «جيد» closes it. History of every change kept.
+
+## 🧾 Paying a D shows all its details (Nov 1 2026)
+
+- His screenshot («تسديد D لستارلينك» with only «فاطمتو 11.34 $»): «اجعل عندما نضغط على D لدفع الفاتورة تظهر كل التفاصيل من
+  سعر وتاريخ وربح». Each D in the pay sheet now shows 👤 the customer (· 🤝 the rep), 📅 the D's date (منذ N يوم), 💵 the
+  customer's price in its currency (≈ $ at its locked sale rate), 💲 Starlink's cost (+ its own currency, + «يُدفع الآن» when
+  a different amount is typed) and 📈 the profit in $ and ≈ أوقية at today's rate (the one locked on payment), green /
+  red. `dPayDetails` (lib/starlinkDebt.ts, tested): profit = expected profit + recorded cost − what is really paid
+  (= sale − paid), so it follows the typed «ما خرج فعلاً» live. Display only - the settle itself is unchanged.

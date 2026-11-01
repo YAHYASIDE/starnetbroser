@@ -92,6 +92,7 @@ import {
   totalOpenDebtUsd,
   unsettleShipmentCost,
   debtMatchesQuery,
+  dPayDetails,
 } from "@/lib/starlinkDebt";
 
 function todayInput(): string {
@@ -946,6 +947,12 @@ export default function StarlinkPage() {
           <PayForm
             items={payItems}
             accountName={(id) => account(id)?.name ?? "جهاز"}
+            whoFor={(d) => {
+              const acc = account(d.accountId);
+              const rep = getRepresentative(repStore, debtRepId(d, acc))?.name;
+              return `${getClient(clientStore, acc?.clientId)?.name ?? "بدون زبون"}${rep ? ` · 🤝 ${rep}` : ""}`;
+            }}
+            mruRate={mruRate}
             cardBalance={card.balanceUsd}
             spendUsd={spendToRecord?.amountUsd}
             todayUsd={(d) => debtUsdToday(d, currencyStore)}
@@ -1036,6 +1043,8 @@ export default function StarlinkPage() {
 function PayForm({
   items,
   accountName,
+  whoFor,
+  mruRate,
   cardBalance,
   spendUsd,
   todayUsd,
@@ -1044,6 +1053,10 @@ function PayForm({
 }: {
   items: OpenShipmentDebt[];
   accountName: (id: string) => string;
+  /** 🧾 «الزبون · 🤝 المندوب» of a D. */
+  whoFor: (d: OpenShipmentDebt) => string;
+  /** Today's أوقية rate - the one the profit is locked at when paid. */
+  mruRate?: number;
   cardBalance: number;
   /** The KAST notice this payment comes from - what really left the card. */
   spendUsd?: number;
@@ -1070,12 +1083,69 @@ function PayForm({
   return (
     <div className="party-balance-form">
       <ul className="sl-pay-list">
-        {items.map((d) => (
-          <li key={d.entry.id}>
-            <span>{accountName(d.accountId)}</span>
-            <bdi dir="ltr">{usd(d.costUsd)}</bdi>
-          </li>
-        ))}
+        {items.map((d) => {
+          // 🧾 everything about this D (his Nov 1 2026 ask): date, the customer's price, Starlink's cost, the profit
+          const info = dPayDetails(d, single ? usdValue : undefined);
+          const saleLabel = LEDGER_CURRENCY_LABELS[info.saleCurrency as LedgerCurrency] ?? info.saleCurrency;
+          return (
+            <li key={d.entry.id} className="sl-pay-item">
+              <div className="sl-pay-item-head">
+                <strong>{accountName(d.accountId)}</strong>
+                <bdi dir="ltr">{usd(d.costUsd)}</bdi>
+              </div>
+              <dl className="sl-pay-details" data-tour="d-pay-details">
+                <dt>👤 الزبون</dt>
+                <dd>{whoFor(d)}</dd>
+                <dt>📅 تاريخ D</dt>
+                <dd>
+                  <bdi dir="ltr">{info.date}</bdi> (منذ {daysSince(info.date)} يوم)
+                </dd>
+                <dt>💵 سعر الزبون</dt>
+                <dd>
+                  <bdi dir="ltr">{formatAmount(info.saleAmount)}</bdi> {saleLabel}
+                  {info.saleUsd !== undefined && info.saleCurrency !== "USD" && (
+                    <>
+                      {" "}
+                      ≈ <bdi dir="ltr">{usd(info.saleUsd)}</bdi>
+                    </>
+                  )}
+                </dd>
+                <dt>💲 تكلفة ستارلينك</dt>
+                <dd>
+                  <bdi dir="ltr">{usd(info.costUsd)}</bdi>
+                  {info.costForeign && (
+                    <>
+                      {" "}
+                      (<bdi dir="ltr">{formatAmount(info.costForeign.amount)} {info.costForeign.currency}</bdi>)
+                    </>
+                  )}
+                  {Math.abs(info.paidUsd - info.costUsd) > 0.004 && (
+                    <>
+                      {" "}
+                      · يُدفع الآن <bdi dir="ltr">{usd(info.paidUsd)}</bdi>
+                    </>
+                  )}
+                </dd>
+                <dt>📈 الربح</dt>
+                <dd className={info.profitUsd !== undefined && info.profitUsd < 0 ? "sl-pay-loss" : "sl-pay-profit"}>
+                  {info.profitUsd === undefined ? (
+                    "غير معروف (سعر البيع بالدولار غير مسجّل)"
+                  ) : (
+                    <>
+                      <bdi dir="ltr">{usd(info.profitUsd)}</bdi>
+                      {mruRate ? (
+                        <>
+                          {" "}
+                          ≈ <bdi dir="ltr">{formatAmount(Math.round(info.profitUsd * mruRate))}</bdi> أوقية
+                        </>
+                      ) : null}
+                    </>
+                  )}
+                </dd>
+              </dl>
+            </li>
+          );
+        })}
         {!single && (
           <li className="sl-pay-total">
             <strong>المجموع</strong>

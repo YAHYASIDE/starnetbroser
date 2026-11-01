@@ -446,3 +446,43 @@ export function debtMatchesQuery(query: string, texts: (string | undefined)[], a
   }
   return false;
 }
+
+// ---- 🧾 What a D is, shown when paying it (his Nov 1 2026 ask) ----
+
+export interface DPayDetails {
+  /** The D's own day (yyyy-mm-dd). */
+  date: string;
+  /** What the customer was charged, in its currency. */
+  saleAmount: number;
+  saleCurrency: string;
+  /** The same in dollars (USD sale, or its locked sale rate) - undefined when unknown. */
+  saleUsd?: number;
+  /** Starlink's cost as recorded, in dollars, and in its own currency when not dollars. */
+  costUsd: number;
+  costForeign?: { amount: number; currency: string };
+  /** What is really paid now (dollars) - the recorded cost unless typed otherwise. */
+  paidUsd: number;
+  /** The profit once paid at `paidUsd` (dollars) - undefined when the sale's dollars are unknown. */
+  profitUsd?: number;
+}
+
+/** «🧾 تفاصيل D» for the pay sheet: date, the customer's price, Starlink's cost and the profit at what is really paid.
+ * The profit follows the typed amount the same way the settle does (sale − what really left the card). Pure. */
+export function dPayDetails(d: OpenShipmentDebt, paidUsd?: number): DPayDetails {
+  const e = d.entry;
+  const saleUsd = e.currency === "USD" ? e.amount : e.saleRate?.usdValue;
+  const paid = paidUsd !== undefined && Number.isFinite(paidUsd) && paidUsd > 0 ? paidUsd : d.costUsd;
+  const cost = e.starlinkCost;
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  const profitUsd = d.expectedProfitUsd !== undefined ? round2(d.expectedProfitUsd + d.costUsd - paid) : saleUsd !== undefined ? round2(saleUsd - paid) : undefined;
+  return {
+    date: e.date,
+    saleAmount: e.amount,
+    saleCurrency: e.currency,
+    ...(saleUsd !== undefined ? { saleUsd: round2(saleUsd) } : {}),
+    costUsd: round2(d.costUsd),
+    ...(cost?.currencyCode && cost.currencyCode !== "USD" && cost.amount !== undefined ? { costForeign: { amount: cost.amount, currency: cost.currencyCode } } : {}),
+    paidUsd: round2(paid),
+    ...(profitUsd !== undefined ? { profitUsd } : {}),
+  };
+}
