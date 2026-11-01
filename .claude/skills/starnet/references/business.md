@@ -2656,3 +2656,12 @@ is never pressed while a field is empty - it refills and saves on the next try (
   whose devices are with a rep (`clientRepIds`) - and the search searched only inside it. Now a typed name / number
   searches every customer (`base = rows` when there is a query), and under the total a line «🤝 N من زبائن المندوبين غير
   ظاهرين هنا · اعرضهم» switches the filter to «الكل». The default stays «زبائني».
+
+## 💳 Paying Starlink's cost from the card while recording the charge (Nov 1 2026)
+
+- His screenshot (the device's «➕ إضافة» with «تكلفة اشتراك Starlink» 83.5 USD and the «D» box): «أضف مكان دفع هنا لي أن
+  يمكن أن يدفع من هنا تلقائيًا». The D box became three choices (`LedgerDialog`, `.ledger-pay-choice`): «⏳ D - لم أدفع
+  بعد» (default, as before), «💳 دفعتها الآن من بطاقة كاش» (settled at once with `paidVia: "card"` - the card's
+  balance, derived by `listCardPayments`, goes down by the cost; a line shows the amount taken and the balance after,
+  red when it isn't enough - it may go negative, like «تسديد D») and «✓ دُفعت من مكان آخر» (settled, not from the card -
+  the old unticked D). The profit is locked that day either way (as before).

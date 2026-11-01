@@ -28,6 +28,7 @@ import {
   LedgerCurrency,
   LedgerEntry,
   LedgerEntryKind,
+  loadLedgerStore,
   PAYMENT_METHOD_LABELS,
   PaymentMethod,
   removeEntry,
@@ -37,6 +38,7 @@ import {
 } from "@/lib/ledgerStore";
 import { computeDeviceAccountingSummary, computeExpectedShipmentProfit, computeShipmentProfit, starlinkCostUsd } from "@/lib/accountingStore";
 import { openDsNow } from "@/lib/renewals";
+import { currentCardBalanceUsd } from "@/lib/starlinkDebt";
 import { Currency, CurrencyStore, getCurrency, toUsd, UpsertCurrencyInput } from "@/lib/currencyStore";
 import { COUNTRY_CURRENCIES, CountryCurrencyOption, countryFlag, COUNTRY_BY_ISO2 } from "@/lib/countryCurrencies";
 import { starlinkCostDefaults } from "@/lib/starlinkCostDefaults";
@@ -215,6 +217,10 @@ export function LedgerDialog({
 
   // Only relevant while kind === "debit" - a shipment charge, never a plain payment.
   const [markD, setMarkD] = useState(true);
+  // 💳 Paid now from the KAST card (his Nov 1 2026 ask «أضف مكان دفع هنا… يدفع من هنا تلقائيًا»): the cost is
+  // settled at once and the card's balance goes down by it (listCardPayments reads paidVia "card").
+  const [payFromCard, setPayFromCard] = useState(false);
+  const cardBalanceUsd = useMemo(() => currentCardBalanceUsd(loadLedgerStore()), []);
   // ⏳ «الفاتورة لم تنزل بعد» (lib/awaitingBill.ts): the customer's price now, D filled from the invoice later.
   const billIsZero = starlinkInfo?.balanceDue !== undefined && !(parseBillAmount(starlinkInfo.balanceDue) > 0);
   const [awaitBill, setAwaitBill] = useState(false);
@@ -471,7 +477,7 @@ export function LedgerDialog({
       const costRateSnapshot = costIsUsd ? undefined : { rateFromUsd: parsedCostRate, usdValue: costUsdValue! };
       starlinkCostInput = markD
         ? { status: "pending", currencyCode: costCurrencyCode, amount: parsedCostAmount, rate: costRateSnapshot }
-        : { status: "settled", currencyCode: costCurrencyCode, amount: parsedCostAmount, rate: costRateSnapshot, paidAt: date };
+        : { status: "settled", currencyCode: costCurrencyCode, amount: parsedCostAmount, rate: costRateSnapshot, paidAt: date, ...(payFromCard ? { paidVia: "card" as const } : {}) };
       profitCurrencyRates = markD ? undefined : { MRU: mruRateKnown, SIFA: sifaRateKnown };
     }
     // 🔄 «هل هذا تجديد؟» only for a charge with a Starlink cost (➕ إضافة) - a 🛂 توثيق / plain balance is never one.
@@ -525,6 +531,7 @@ export function LedgerDialog({
       setNote("");
       setEmail(accountEmail ?? "");
       setMarkD(false);
+      setPayFromCard(false);
       setCostAmount("");
       setAwaitBill(false);
 
@@ -861,10 +868,42 @@ export function LedgerDialog({
                 </div>
               )}
 
-              <label className="ledger-d-toggle">
-                <input type="checkbox" checked={markD} onChange={(e) => setMarkD(e.target.checked)} />
-                D - تكلفة Starlink غير مسددة بعد
-              </label>
+              <div className="ledger-pay-choice" role="radiogroup" aria-label="دفع تكلفة Starlink" data-tour="ledger-pay-choice">
+                <button type="button" role="radio" aria-checked={markD} className={markD ? "is-on" : ""} onClick={() => setMarkD(true)}>
+                  ⏳ D - لم أدفع بعد
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={!markD && payFromCard}
+                  className={!markD && payFromCard ? "is-on" : ""}
+                  onClick={() => {
+                    setMarkD(false);
+                    setPayFromCard(true);
+                  }}
+                >
+                  💳 دفعتها الآن من بطاقة كاش
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={!markD && !payFromCard}
+                  className={!markD && !payFromCard ? "is-on" : ""}
+                  onClick={() => {
+                    setMarkD(false);
+                    setPayFromCard(false);
+                  }}
+                >
+                  ✓ دُفعت من مكان آخر
+                </button>
+              </div>
+              {!markD && payFromCard && (
+                <p className={cardBalanceUsd - (costUsdValue ?? 0) < -0.004 ? "account-card-alert" : "settings-hint"}>
+                  💳 تُخصم <bdi dir="ltr">{formatAmount(Math.round((costUsdValue ?? 0) * 100) / 100)} $</bdi> من البطاقة الآن · رصيدها بعدها{" "}
+                  <bdi dir="ltr">{formatAmount(Math.round((cardBalanceUsd - (costUsdValue ?? 0)) * 100) / 100)} $</bdi>
+                  {cardBalanceUsd - (costUsdValue ?? 0) < -0.004 ? " - لا يكفي: سجّل شحن البطاقة، أو تابع ويصبح سالبًا." : ""}
+                </p>
+              )}
 
               {markD ? (
                 <div className="ledger-profit-section ledger-profit-pending">

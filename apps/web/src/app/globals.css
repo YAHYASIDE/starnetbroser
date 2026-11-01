@@ -19923,3 +19923,30 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   text-align: start;
   font-size: 0.75rem;
 }
+
+/* 💳 How Starlink's cost was paid (his Nov 1 2026 ask): D / from the KAST card now / elsewhere. */
+.ledger-pay-choice {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.ledger-pay-choice button {
+  min-width: 0;
+  padding: 8px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.3;
+  cursor: pointer;
+}
+.ledger-pay-choice button.is-on {
+  border-color: var(--brand);
+  background: var(--mint-bg);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--brand);
+}
