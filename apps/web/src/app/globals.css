@@ -19915,3 +19915,11 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
 }
 .sl-pay-details .sl-pay-profit { color: var(--green); }
 .sl-pay-details .sl-pay-loss { color: var(--red); }
+
+/* 🤝 «زبائني» hides the reps' customers - how many, and one tap to show them (his Nov 1 2026 report). */
+.party-hidden-reps {
+  width: 100%;
+  padding: 0;
+  text-align: start;
+  font-size: 0.75rem;
+}

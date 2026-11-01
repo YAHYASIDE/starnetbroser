@@ -2648,3 +2648,11 @@ is never pressed while a field is empty - it refills and saves on the next try (
   a different amount is typed) and 📈 the profit in $ and ≈ أوقية at today's rate (the one locked on payment), green /
   red. `dPayDetails` (lib/starlinkDebt.ts, tested): profit = expected profit + recorded cost − what is really paid
   (= sale − paid), so it follows the typed «ما خرج فعلاً» live. Display only - the settle itself is unchanged.
+
+## 🔍 The reps' customers never «vanish» from the clients page (Nov 1 2026)
+
+- His report (screenshots: «الزبائن 149» but «الكل 141», and the device card of «مطاحن الوسطي»): «لماذا هذا الزبون لا يظهر
+  عندي». The clients page starts on the owner filter «👤 زبائني» (`owner = "mine"`), which leaves out every customer
+  whose devices are with a rep (`clientRepIds`) - and the search searched only inside it. Now a typed name / number
+  searches every customer (`base = rows` when there is a query), and under the total a line «🤝 N من زبائن المندوبين غير
+  ظاهرين هنا · اعرضهم» switches the filter to «الكل». The default stays «زبائني».

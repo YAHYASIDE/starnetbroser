@@ -291,8 +291,9 @@ export function PartyDirectory({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    // 🤝 a rep's category holds all his customers, whoever they belong to now.
-    const base = category.startsWith("rep:") ? rows : ownerRows;
+    // 🤝 a rep's category holds all his customers, whoever they belong to now. 🔍 A typed name or number finds
+    // every customer, the reps' too (his Nov 1 2026 report: «مطاحن الوسطي» - a rep's customer - wasn't found).
+    const base = category.startsWith("rep:") || q ? rows : ownerRows;
     let matching = q
       ? base.filter((r) => r.party.name.toLowerCase().includes(q) || (r.party.phone ?? "").includes(q))
       : base;
@@ -587,6 +588,12 @@ export function PartyDirectory({
           )}
         </div>
         {isClients && <span className="party-overview-count">عرض {filtered.length} زبون</span>}
+        {isClients && owner === "mine" && !query.trim() && !category.startsWith("rep:") && rows.length > ownerRows.length && (
+          // 🤝 «زبائني» leaves the reps' customers out - say how many, one tap shows them (his Nov 1 2026 report)
+          <button type="button" className="text-action party-hidden-reps" data-tour="party-hidden-reps" onClick={() => setOwner("all")}>
+            🤝 {rows.length - ownerRows.length} من زبائن المندوبين غير ظاهرين هنا · اعرضهم
+          </button>
+        )}
       </div>
 
       {categorySheet && (
