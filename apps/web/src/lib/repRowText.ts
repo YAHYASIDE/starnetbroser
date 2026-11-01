@@ -23,7 +23,9 @@ export const SETTLEMENT_LABELS: Record<RepSettlementKind, string> = {
 
 export function settlementText(s: RepSettlement): string {
   if (s.expenseId) return "📉 نصيبه من مصروف";
-  if (s.kind === "profitTransfer") return s.toDebt ? `↪️ من ربحه إلى حساب ${currencyLabel(s.currencyCode)}` : "🧹 تصفير الربح";
+  // 🧹 only the real «تصفير الربح» (its note says so); a «➖ عليه» from his profit is said as one (his Nov 1 2026 report:
+  // a 140,000 «تلفون» taken from his profit read «🧹 تصفير الربح»).
+  if (s.kind === "profitTransfer") return s.toDebt ? `↪️ من ربحه إلى حساب ${currencyLabel(s.currencyCode)}` : s.note?.startsWith("🧹") ? "🧹 تصفير الربح" : "➖ عليه في ربحه";
   if (s.kind === "commissionPayout") return "💸 دفعت له من ربحه";
   if (s.kind === "profitCredit") return s.note?.startsWith("🧹") ? "🧹 تصفير الربح" : "➕ له في ربحه";
   return SETTLEMENT_LABELS[s.kind];
@@ -62,5 +64,8 @@ export function repRowText(row: RepStatementRow, accountName: (accountId: string
   if (row.type === "device") return `📈 حصته · ${accountName(row.row.accountId)}`;
   if (row.type === "customer") return `${customerOpLabel(row.op)} · ${accountName(row.op.accountId)}`;
   if (row.type === "invoice") return "🧾 فاتورة متجر";
-  return `${settlementText(row.settlement)}${row.settlement.note ? ` · ${row.settlement.note}` : ""}`;
+  const label = settlementText(row.settlement);
+  // the note «🧹 تصفير الربح» is the label itself - never twice
+  const note = row.settlement.note && row.settlement.note !== label ? row.settlement.note : "";
+  return `${label}${note ? ` · ${note}` : ""}`;
 }

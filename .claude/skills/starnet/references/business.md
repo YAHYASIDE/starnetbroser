@@ -2665,3 +2665,19 @@ is never pressed while a field is empty - it refills and saves on the next try (
   balance, derived by `listCardPayments`, goes down by the cost; a line shows the amount taken and the balance after,
   red when it isn't enough - it may go negative, like «تسديد D») and «✓ دُفعت من مكان آخر» (settled, not from the card -
   the old unticked D). The profit is locked that day either way (as before).
+
+## 🤝 Reps: له green / عليه red, a folded statement, and the cards' order (Nov 1 2026)
+
+- His screenshot (يب هنكال's «الكشف»: «📡 ما عليه الآن · له 35,000» in red, «📈 ربحه الآن · عليه 56,924.48» in orange, a
+  row «🧹 تصفير الربح · تلفون -140,000»): «اجعل عليه أحمر وله أخضر، وكلمة له وهو عليه هناك مغالطة، واجعل يمكن التحكم في
+  تصنيف المناديب (his choice: **ترتيب البطاقات**)، واجعل كشف حساباتهم يظهر بضغطة واحدة: المتبقي واضح، يعني زر طي».
+- `RepNowBlock`: every part of the balance is colored by its side (`balanceParts` tone: له → `--green`, عليه →
+  `--red`, 0 → muted) in both blocks; the debt block's title follows the side («📡 ما له الآن» / «ما عليه الآن» /
+  «حسابه الآن»). The balance stays in view; «▾ 🕒 عمليات آخر 24 ساعة (N)» folds the table (closed by default; tapping
+  the head opens it too).
+- **The wrong word:** a «➖ عليه» from his profit (profitTransfer without `toDebt`) read «🧹 تصفير الربح». Now only one
+  whose note starts with «🧹» (what «🧹 تصفير الربح» saves) is called so; the rest read «➖ عليه في ربحه» (+ its note);
+  a note equal to the label is not repeated (`repRowText`, tested).
+- **↕️ Order** (`lib/repOrder.ts`, tested; `starnet.repSort` / `starnet.repOrder`, this phone's view setting): ✋ ترتيبي
+  (default; «✎ رتّب» sheet with ▲ ▼, a rep not placed yet goes after, by name), 🔤 بالاسم, 📡 الأكثر أجهزة, ⚖️ الأكثر عليه
+  (his `repPosition` net in أوقية).

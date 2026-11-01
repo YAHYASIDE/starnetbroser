@@ -19340,6 +19340,14 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   align-items: baseline;
   justify-content: space-between;
   gap: 6px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
 }
 
 .rep-now-value {
@@ -19349,8 +19357,18 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   color: var(--red);
 }
 
-.rep-now-profit .rep-now-value {
-  color: var(--orange);
+/* له green, عليه red (his Nov 1 2026 ask) - in both blocks */
+.rep-now-value .rep-now-for { color: var(--green); }
+.rep-now-value .rep-now-on { color: var(--red); }
+.rep-now-value .rep-now-zero { color: var(--text-muted); }
+.rep-now-toggle {
+  justify-self: start;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
 }
 
 .rep-now-sub {
@@ -19950,3 +19968,18 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   color: var(--text);
   box-shadow: inset 0 0 0 1px var(--brand);
 }
+
+/* ↕️ the reps' cards order (his Nov 1 2026 choice) */
+.rep-sort-select { width: auto; min-width: 0; flex: 0 1 auto; padding-block: 6px; font-size: 0.8rem; }
+.rep-order-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.rep-order-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  font-weight: 700;
+}
+.rep-order-list li span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

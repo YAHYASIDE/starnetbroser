@@ -118,7 +118,9 @@ import { recordRepMoneyHandover } from "@/lib/repClientsSave";
 import { RepAccountsPage } from "@/components/RepAccountsPage";
 import { repRowText, settlementText } from "@/lib/repRowText";
 import { confirmClosedMonthChange, ledgerEntryMonthDates, monthLabel, monthRange, recentMonths } from "@/lib/monthClosing";
-import { balanceText, buildRepStatementPdf, last24h, makeFx, nonZero, repRowCells, repStatementTable, rowBalance, type Fx, type RepTableLine } from "@/lib/repStatementDoc";
+import { moveRep, orderReps, REP_SORTS, loadRepSort, saveRepSort, type RepSort } from "@/lib/repOrder";
+import { repPosition } from "@/lib/repPosition";
+import { balanceParts, balanceText, buildRepStatementPdf, last24h, makeFx, nonZero, repRowCells, repStatementTable, rowBalance, type Fx, type RepTableLine } from "@/lib/repStatementDoc";
 
 const EPSILON = 0.0001;
 
@@ -275,6 +277,15 @@ export default function RepresentativesPage() {
   // His own customers (repClients.ts): what they owe him, and what he owes us for them.
   const replays = useMemo(() => replayRepClients(clientStore, accounts, ledgerStore, repBook), [clientStore, accounts, ledgerStore, repBook]);
 
+  // ↕️ the cards' order (his Nov 1 2026 choice): his own / by name / most devices / most owed - this phone's view setting
+  const [repSort, setRepSort] = useState<{ sort: RepSort; order: string[] }>({ sort: "manual", order: [] });
+  const [orderSheet, setOrderSheet] = useState(false);
+  useEffect(() => setRepSort(loadRepSort()), []);
+  function chooseRepSort(sort: RepSort, order: string[]) {
+    setRepSort({ sort, order });
+    saveRepSort(sort, order);
+  }
+
   // Display currency (أوقية / سيفا / both) - a per-phone view setting, not business data.
   const [display, setDisplay] = useState<RepDisplay>("MRU");
   const [rates, setRates] = useState<Record<string, number | undefined>>({});
@@ -301,6 +312,18 @@ export default function RepresentativesPage() {
     }
   }
   const fx = useMemo(() => makeFx(makeRepConverter(display === "both" ? ["MRU", "SIFA"] : [display], rates)), [display, rates]);
+  const orderedReps = useMemo(() => {
+    const devices: Record<string, number> = {};
+    for (const a of accounts) if (a.representativeId && !a.deletedAt) devices[a.representativeId] = (devices[a.representativeId] ?? 0) + 1;
+    const owed: Record<string, number> = {};
+    if (repSort.sort === "owed") {
+      const toMru = makeRepConverter(["MRU"], rates);
+      for (const rep of representatives) {
+        owed[rep.id] = repPosition({ rep, clients: clientStore, accounts, ledgerStore, book: repBook, invoices, settlements, convert: toMru }).net.MRU ?? 0;
+      }
+    }
+    return orderReps(representatives, repSort.sort, { order: repSort.order, devices, owed });
+  }, [representatives, repSort, accounts, rates, clientStore, ledgerStore, repBook, invoices, settlements]);
   // 💱 each rep in his own one currency (his Oct 31 2026 rule) - the toggle above only for a rep with none known
   const currencyCtx = useMemo(() => (typeof window === "undefined" ? null : loadPartyCurrencyContext()), [ledgerStore, settlements]);
   const repCurrency = (rep: Representative) => repCurrencyOf(rep, currencyCtx ? autoCurrencyOf("rep", rep.id, currencyCtx) : undefined);
@@ -518,6 +541,26 @@ export default function RepresentativesPage() {
 
           {!repView && <div className="party-toolbar">
             <span className="settings-hint">{representatives.length} مندوب</span>
+            {representatives.length > 1 && (
+              <select
+                className="search-input rep-sort-select"
+                aria-label="ترتيب المندوبين"
+                data-tour="rep-sort"
+                value={repSort.sort}
+                onChange={(e) => chooseRepSort(e.target.value as RepSort, repSort.order)}
+              >
+                {REP_SORTS.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    ↕️ {o.label}
+                  </option>
+                ))}
+              </select>
+            )}
+            {representatives.length > 1 && repSort.sort === "manual" && (
+              <button type="button" className="btn-icon" onClick={() => setOrderSheet(true)}>
+                ✎ رتّب
+              </button>
+            )}
             <button type="button" className="btn-icon" onClick={() => setShowAddForm((v) => !v)}>
               {showAddForm ? "إلغاء" : "+ إضافة مندوب"}
             </button>
@@ -529,7 +572,7 @@ export default function RepresentativesPage() {
             <p className="empty-state">لا يوجد مندوبون بعد.</p>
           ) : (
             <ul className="party-card-list">
-              {representatives.map((rep) =>
+              {orderedReps.map((rep) =>
                 editingRepId === rep.id ? (
                   <li key={rep.id} className="party-card">
                     <RepresentativeForm
@@ -592,6 +635,23 @@ export default function RepresentativesPage() {
           )}
         </div>
       </section>
+      {orderSheet && (
+        <PartySheet title="✎ رتّب بطاقات المندوبين" onClose={() => setOrderSheet(false)}>
+          <ol className="rep-order-list">
+            {orderedReps.map((rep, i) => (
+              <li key={rep.id}>
+                <span>{rep.name}</span>
+                <button type="button" className="btn-icon" aria-label={`قدّم ${rep.name}`} disabled={i === 0} onClick={() => chooseRepSort("manual", moveRep(orderedReps.map((r) => r.id), rep.id, -1))}>
+                  ▲
+                </button>
+                <button type="button" className="btn-icon" aria-label={`أخّر ${rep.name}`} disabled={i === orderedReps.length - 1} onClick={() => chooseRepSort("manual", moveRep(orderedReps.map((r) => r.id), rep.id, 1))}>
+                  ▼
+                </button>
+              </li>
+            ))}
+          </ol>
+        </PartySheet>
+      )}
       {returnAsk && (() => {
         const repName = representativeStore[returnAsk.repId]?.name ?? "المندوب";
         const names = returnAsk.ids.map((id) => clientStore[id]?.name).filter(Boolean);
@@ -2707,7 +2767,8 @@ function RepStatementTable({
   );
 }
 
-/** «ما عليه الآن» / «ربحه الآن» with the last 24 hours under it. */
+/** «ما عليه الآن» / «ربحه الآن»: the balance always shown - له green, عليه red (his Nov 1 2026 ask) - and the last 24
+ * hours folded under it, one tap to open («زر طي»). */
 function RepNowBlock({
   title,
   values,
@@ -2727,14 +2788,27 @@ function RepNowBlock({
   wrong?: (row: RepStatementRow) => boolean;
   tone?: "debt" | "profit";
 }) {
+  const [open, setOpen] = useState(false);
+  const parts = balanceParts(values);
+  // «ما عليه الآن» over «له 35,000» read wrong: the title follows the side
+  const shownTitle = tone === "debt" ? (parts.every((p) => p.tone === "due") ? "📡 ما له الآن" : parts.every((p) => p.tone === "zero") ? "📡 حسابه الآن" : title) : title;
   return (
     <section className={`rep-now rep-now-${tone}`}>
-      <div className="rep-now-head">
-        <strong>{title}</strong>
-        <span className="rep-now-value">{balanceText(values)}</span>
-      </div>
-      <small className="rep-now-sub">🕒 عمليات آخر 24 ساعة ({lines.length})</small>
-      <RepStatementTable lines={lines} describe={describe} onOpen={onOpen} empty={empty} wrong={wrong} />
+      <button type="button" className="rep-now-head" aria-expanded={open} data-tour="rep-now-fold" onClick={() => setOpen((v) => !v)}>
+        <strong>{shownTitle}</strong>
+        <span className="rep-now-value">
+          {parts.map((p, i) => (
+            <span key={i} className={p.tone === "due" ? "rep-now-for" : p.tone === "clear" ? "rep-now-on" : "rep-now-zero"}>
+              {i > 0 ? " · " : ""}
+              {p.text}
+            </span>
+          ))}
+        </span>
+      </button>
+      <button type="button" className="rep-now-sub rep-now-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+        {open ? "▴" : "▾"} 🕒 عمليات آخر 24 ساعة ({lines.length})
+      </button>
+      {open && <RepStatementTable lines={lines} describe={describe} onOpen={onOpen} empty={empty} wrong={wrong} />}
     </section>
   );
 }
