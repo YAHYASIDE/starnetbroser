@@ -19813,3 +19813,67 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   color: var(--text-muted);
   font-size: 0.86rem;
 }
+
+/* 🚨 «غير جيد» from a rep on a money-bot operation (RepOpFlagsBanner): loud, not closable, above the nav. */
+.op-flags-badge {
+  position: fixed;
+  z-index: 95;
+  left: 50%;
+  bottom: calc(var(--bottom-nav-height) + var(--safe-bottom) + 18px);
+  transform: translateX(-50%);
+  max-width: calc(100% - 170px);
+  padding: 8px 12px;
+  white-space: nowrap;
+  border: 2px solid var(--red);
+  border-radius: 999px;
+  background: var(--red-bg);
+  color: var(--red);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 800;
+  line-height: 1.3;
+  text-align: center;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.25);
+  cursor: pointer;
+  animation: op-flags-pulse 1.6s ease-in-out infinite;
+}
+@keyframes op-flags-pulse {
+  0%, 100% { box-shadow: 0 6px 18px rgb(0 0 0 / 0.25), 0 0 0 0 var(--red-bg); }
+  50% { box-shadow: 0 6px 18px rgb(0 0 0 / 0.25), 0 0 0 6px var(--red-bg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .op-flags-badge { animation: none; }
+}
+.op-flags-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.op-flag {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--red);
+  border-radius: var(--radius-sm);
+  background: var(--red-bg);
+}
+.op-flag-who {
+  margin: 0;
+  font-weight: 800;
+  color: var(--red);
+  font-size: 0.85rem;
+}
+.op-flag-text {
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font: inherit;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+.op-flag-done { justify-self: start; }

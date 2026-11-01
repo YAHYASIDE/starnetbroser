@@ -1119,6 +1119,37 @@ public class TelegramReplyService extends Service {
         if (reply.ownerNotice != null) tellOwner(context, reply.ownerNotice, null);
     }
 
+    /** ✅ / ❌ (TelegramRatings): recorded once for the app, the chosen button marked, «غير جيد» told to the operator at once. */
+    private static String ratingCallback(Context context, String token, String chatId, long messageId, String data, String by, String messageText) throws JSONException {
+        TelegramRatings.Tap tap = TelegramRatings.parse(data);
+        String repId = TelegramStore.repIdForChat(context, chatId);
+        if (tap == null || repId == null) return "اختيار غير صالح";
+        String remembered = TelegramStore.ratings(context, chatId);
+        boolean same = TelegramRatings.recalled(remembered, tap.token) == tap.verdict;
+        if (same) return TelegramRatings.toast(tap.verdict, true);
+        TelegramStore.setRatings(context, chatId, TelegramRatings.remember(remembered, tap.token, tap.verdict));
+        JSONObject record = new JSONObject();
+        record.put("repId", repId);
+        record.put("token", tap.token);
+        record.put("verdict", String.valueOf(tap.verdict));
+        record.put("by", by);
+        record.put("at", System.currentTimeMillis());
+        record.put("text", messageText);
+        addToInbox(context, TelegramStore.MONEY, chatId, "", "", "", true, null, null, "repOpRating", record.toString());
+        try {
+            TelegramClient.editMessageReplyMarkup(token, chatId, messageId, TelegramRatings.markup(tap.token, tap.verdict));
+        } catch (IOException | TelegramClient.TelegramError ignored) {
+            // the toast still says it was recorded
+        }
+        if (tap.verdict == 'b') {
+            TelegramReplies.Snapshot snapshot = loadSnapshot(context);
+            Map<String, String> mine = snapshot != null ? snapshot.reps.get(repId) : null;
+            String repName = mine != null && mine.get("name") != null ? mine.get("name") : "";
+            tellOwner(context, TelegramRatings.ownerAlert(repName, by, messageText), null);
+        }
+        return TelegramRatings.toast(tap.verdict, false);
+    }
+
     /** 💰 bot buttons: a device's card (md:), its debt / statement (v:d: / v:s:), ⚡. */
     private static String moneyCallback(Context context, String token, String chatId, long messageId, String data) throws JSONException {
         String repId = TelegramStore.repIdForChat(context, chatId);
@@ -1376,6 +1407,11 @@ public class TelegramReplyService extends Service {
                 TelegramReplies.Snapshot snapshot = loadSnapshot(context);
                 toast = repId == null || snapshot == null ? "افتح تطبيق المسؤول مرة ثم أعد المحاولة"
                     : bookCallback(context, bot, token, chatId, messageId, repId, snapshot, data, message != null ? message.optString("text", "") : "");
+            } else if (TelegramStore.MONEY.equals(bot) && data.startsWith("rt:")) {
+                // ✅ / ❌ under an operation message (lib/repOpMessage.ts).
+                JSONObject from = callback.optJSONObject("from");
+                String by = from == null ? "" : (from.optString("first_name", "") + " " + from.optString("last_name", "")).trim();
+                toast = ratingCallback(context, token, chatId, messageId, data, by, message != null ? message.optString("text", "") : "");
             } else if (TelegramStore.REPS.equals(bot)) {
                 toast = repCallback(context, token, chatId, messageId, data);
             } else if (TelegramStore.MONEY.equals(bot)) {

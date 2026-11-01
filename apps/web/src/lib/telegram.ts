@@ -431,13 +431,13 @@ function defaultKeyboard(bot: RepBot): string | undefined {
 
 /** Queued to a linked rep through `bot` (the devices bot when that one isn't connected) - to each
  * of his phones, or only to `onlyChat` (the phone that asked); false when he isn't linked. */
-export async function sendRepText(repId: string, text: string, replyMarkup?: string, bot: RepBot = "reps", onlyChat?: string): Promise<boolean> {
+export async function sendRepText(repId: string, text: string, replyMarkup?: string, bot: RepBot = "reps", onlyChat?: string, html = false): Promise<boolean> {
   const chatIds = targetChatIds(loadRepChats()[repId], onlyChat);
   if (!chatIds.length || !isRepsBotConnected()) return false;
   let queued = false;
   for (const chatId of chatIds) {
     try {
-      if ((await LocalBrowser.telegramSend({ text, bot, chatId, replyMarkup: replyMarkup ?? defaultKeyboard(bot) })).queued) queued = true;
+      if ((await LocalBrowser.telegramSend({ text, bot, chatId, replyMarkup: replyMarkup ?? defaultKeyboard(bot), ...(html ? { html: true } : {}) })).queued) queued = true;
     } catch {
       // the other phones still get it
     }

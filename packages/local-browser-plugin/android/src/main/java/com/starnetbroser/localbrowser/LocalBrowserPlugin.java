@@ -1711,7 +1711,7 @@ public class LocalBrowserPlugin extends Plugin {
         }
         String markup = call.getString("replyMarkup");
         if (TelegramStore.isLinkedRepChat(getContext(), chatId)) {
-            TelegramSendWorker.enqueueToRepBot(getContext(), repBot(call), chatId, text, markup);
+            TelegramSendWorker.enqueueToRepBot(getContext(), repBot(call), chatId, text, markup, Boolean.TRUE.equals(call.getBoolean("html", false)));
             ret.put("queued", true);
             call.resolve(ret);
             return;

@@ -37,8 +37,12 @@ import {
 import { PROMISES_ROUTE, TELEGRAM_SETTINGS_ROUTE, tellOwner } from "./appEvents";
 import { devicesHelp, devicesKeyboard, isMoneyKind, moneyRedirectText, REP_BOOK_HINT, REP_HANDOVER_HINT, repHandoverReceivedText, REP_LOAN_HINT, type RepBot } from "./repBots";
 import { buildReplySnapshot } from "./telegramReplies";
-import { botOperationIds, newBotOperations, newOperationsText, repBotAccountPdf, repBotAccounts, type BotAccount } from "./repBotStatement";
-import { repRowText } from "./repRowText";
+import { botOperationIds, MAX_NEW_SHOWN, newBotOperations, repBotAccountPdf, repBotAccounts, type BotAccount } from "./repBotStatement";
+import { opsToSend, repOpMessage } from "./repOpMessage";
+import { addLocalEvent } from "./eventLog";
+import { accountEmail } from "./dayActions";
+import { applyRating, loadOpRatings, parseRatingRecord, recordSentOp, saveOpRatings } from "./repOpRatings";
+import { repRowFacts, repRowText } from "./repRowText";
 import { deviceDisplayName, readRepDeviceFile, repDeviceCode } from "./repDeviceTransfer";
 import { isRepChangesFileName } from "./repChanges";
 import { receiveRepChanges } from "./repChangesApply";
@@ -495,25 +499,70 @@ function loadSeenOps(): Record<string, string[]> {
   }
 }
 
-/** 🔔 His Oct 19 2026 choice: every new operation in a rep's accounts is sent to him once (the
- * first time only remembers what is already there). Sent before it's marked seen; a failed send is
- * tried again next time. */
+function saveSeenOps(seen: Record<string, string[]>): void {
+  try {
+    window.localStorage.setItem(SEEN_OPS_KEY, JSON.stringify(seen));
+  } catch {
+    // tried again next time
+  }
+}
+
+/** 🔔 His Oct 19 2026 choice: every new operation in a rep's accounts is sent to him once (the first time
+ * only remembers what is already there). His Nov 1 2026 brief: ONE message per operation, all in the same
+ * shape (repOpMessage.ts) with «✅ جيد / ❌ غير جيد». Each operation is marked sent right after its own
+ * message is queued, so a failure half-way never sends the earlier ones twice; the rest is tried next time. */
 async function notifyNewRepOperations(byRep: Map<string, BotAccount[]>): Promise<void> {
   if (!byRep.size) return;
   const seen = loadSeenOps();
-  let changed = false;
+  const devices = new Map((await loadAccounts()).map((a) => [a.id, a]));
+  let ratings = loadOpRatings();
   for (const [repId, accounts] of byRep) {
-    const fresh = newBotOperations(accounts, seen[repId] ?? null);
-    if (fresh.length && !(await sendRepText(repId, newOperationsText(fresh), undefined, "money"))) continue;
-    seen[repId] = botOperationIds(accounts);
-    changed = true;
-  }
-  if (changed) {
-    try {
-      window.localStorage.setItem(SEEN_OPS_KEY, JSON.stringify(seen));
-    } catch {
-      // tried again next time
+    const prior = seen[repId] ?? null;
+    const fresh = newBotOperations(accounts, prior);
+    if (!fresh.length) {
+      const now = botOperationIds(accounts);
+      if (!prior || prior.join("\n") !== now.join("\n")) {
+        seen[repId] = now;
+        saveSeenOps(seen);
+      }
+      continue;
     }
+    const { send, more } = opsToSend(fresh, MAX_NEW_SHOWN);
+    const done = new Set(prior ?? []);
+    let allSent = true;
+    for (const { account, line } of send) {
+      const device = line.accountId ? devices.get(line.accountId) : undefined;
+      const message = repOpMessage(repId, account, line, device ? { email: accountEmail(device), name: device.name } : undefined);
+      if (!(await sendRepText(repId, message.html, message.keyboard, "money", undefined, true))) {
+        allSent = false;
+        break;
+      }
+      ratings = recordSentOp(ratings, { token: message.token, repId, opId: line.id, account: account.title, text: message.plain, at: Date.now() });
+      saveOpRatings(ratings);
+      done.add(line.id);
+      seen[repId] = [...done];
+      saveSeenOps(seen);
+    }
+    if (!allSent) continue;
+    if (more > 0) await sendRepText(repId, `… و${more} عمليات أقدم - اضغط «📊 كشفي» لتراها`, undefined, "money");
+    seen[repId] = botOperationIds(accounts);
+    saveSeenOps(seen);
+  }
+}
+
+/** ✅ / ❌ tapped under an operation message (the service queued it - TelegramRatings.java): recorded once;
+ * «جيد» = a quiet line in the 🔔 list; «غير جيد» = the red «🚨 للمراجعة» badge (the service already told him
+ * on his bot and the phone's bar). */
+export function recordRepOpRating(data: string | undefined): void {
+  const input = parseRatingRecord(data);
+  if (!input) return;
+  const { store, change } = applyRating(loadOpRatings(), input);
+  if (change === "same") return;
+  saveOpRatings(store);
+  if (input.verdict === "good") {
+    const rep = loadRepresentativeStore()[input.repId]?.name ?? "المندوب";
+    const op = store.sent[input.token];
+    addLocalEvent(`✅ ${rep} قيّم عملية «جيد»${op ? `\n${op.account}` : ""}`, "/representatives");
   }
 }
 
@@ -526,7 +575,7 @@ async function repBotAccountsNow(repId: string): Promise<{ rep: Representative; 
   const rates = { MRU: getCurrency(currencies, "MRU")?.rateFromUsd, SIFA: getCurrency(currencies, "SIFA")?.rateFromUsd };
   const position = repPosition({ rep, clients: loadClientStore(), accounts: all, ledgerStore: loadLedgerStore(), book: loadRepBook(), invoices: loadInvoices(), settlements: loadRepSettlements(), convert: makeRepConverter(loadRepDisplayCodes(), rates) });
   const name = (accountId: string) => all.find((a) => a.id === accountId)?.name ?? "جهاز";
-  return { rep, ...(position.since ? { since: position.since } : {}), accounts: repBotAccounts(position.walletLines, loadRepLedgerBook(), repId, (row) => repRowText(row, name)) };
+  return { rep, ...(position.since ? { since: position.since } : {}), accounts: repBotAccounts(position.walletLines, loadRepLedgerBook(), repId, (row) => repRowText(row, name), repRowFacts) };
 }
 
 /** 📄 «كشف PDF» tapped under one of his accounts in «كشفي» (the service queued it): made now and

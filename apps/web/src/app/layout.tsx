@@ -9,6 +9,7 @@ import { AppLockGate } from "@/components/AppLockGate";
 import { ActivationGate } from "@/components/ActivationGate";
 import { RepModeGate } from "@/components/RepModeGate";
 import { StorageFullBanner } from "@/components/StorageFullBanner";
+import { RepOpFlagsBanner } from "@/components/RepOpFlagsBanner";
 import { TelegramBridge } from "@/components/TelegramBridge";
 import { PhoneShortcutLayer } from "@/components/PhoneShortcutLayer";
 import { DeleteCodeHost } from "@/components/DeleteCodePrompt";
@@ -64,6 +65,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <DeviceLinkRunner />
             <RepCopyAutoRunner />
             <RepAutoStatementRunner />
+            <RepOpFlagsBanner />
             <LinkGuardListener />
           </RepModeGate>
         </AppLockGate>

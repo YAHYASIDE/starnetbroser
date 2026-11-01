@@ -23,6 +23,12 @@ final class TelegramText {
     private TelegramText() {
     }
 
+    /** Telegram HTML → its plain words (the tags dropped, the three escapes undone). */
+    static String stripHtml(String text) {
+        if (text == null) return "";
+        return text.replaceAll("<[^>]+>", "").replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&");
+    }
+
     static String truncate(String text, int max) {
         if (text == null) return "";
         if (text.length() <= max) return text;

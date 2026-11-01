@@ -26,6 +26,8 @@ public class TelegramSendWorker extends Worker {
     static final String INPUT_BOT = "bot";
     static final String INPUT_CHAT_ID = "chatId";
     static final String INPUT_MARKUP = "markup";
+    /** 🔔 Telegram HTML (<b>, <code>) - the money bot's operation messages. */
+    static final String INPUT_HTML = "html";
     /** WorkManager refuses input Data over 10 KB - stay well under it. */
     private static final int MAX_INPUT_BYTES = 9_000;
     private static final String SCHEDULED_PREFIX = "starnet_telegram_";
@@ -46,6 +48,7 @@ public class TelegramSendWorker extends Worker {
         String chatId = reps ? getInputData().getString(INPUT_CHAT_ID) : TelegramStore.chatId(context);
         String token = TelegramStore.tokenFor(context, bot);
         String markup = getInputData().getString(INPUT_MARKUP);
+        boolean html = getInputData().getBoolean(INPUT_HTML, false);
         if (text == null || text.trim().isEmpty() || token == null || chatId == null) {
             return Result.success();
         }
@@ -53,15 +56,26 @@ public class TelegramSendWorker extends Worker {
             return Result.success();
         }
         try {
-            TelegramClient.sendMessage(token, chatId, text, markup);
+            TelegramClient.sendMessage(token, chatId, text, markup, html);
             return Result.success();
         } catch (IOException offline) {
             return getRunAttemptCount() < 8 ? Result.retry() : Result.failure();
         } catch (TelegramClient.TelegramError rejected) {
+            // HTML Telegram couldn't read: the same words without the tags, buttons kept.
+            if (html && rejected.code == 400) {
+                try {
+                    TelegramClient.sendMessage(token, chatId, TelegramText.stripHtml(text), markup, false);
+                    return Result.success();
+                } catch (IOException offline) {
+                    return Result.retry();
+                } catch (TelegramClient.TelegramError again) {
+                    // fall through to the buttons-free try below
+                }
+            }
             // Buttons Telegram didn't accept must never cost the message itself.
             if (markup != null && rejected.code == 400) {
                 try {
-                    TelegramClient.sendMessage(token, chatId, text, null);
+                    TelegramClient.sendMessage(token, chatId, html ? TelegramText.stripHtml(text) : text, null);
                     return Result.success();
                 } catch (IOException offline) {
                     return Result.retry();
@@ -75,6 +89,10 @@ public class TelegramSendWorker extends Worker {
     }
 
     private static OneTimeWorkRequest.Builder request(String text, String bot, String chatId, String markup) {
+        return request(text, bot, chatId, markup, false);
+    }
+
+    private static OneTimeWorkRequest.Builder request(String text, String bot, String chatId, String markup, boolean html) {
         Constraints constraints = new Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build();
         String body = TelegramText.truncate(text, TelegramText.MAX_MESSAGE_CHARS);
         while (utf8(body) > MAX_INPUT_BYTES && body.length() > 100) body = TelegramText.truncate(body, body.length() * 4 / 5);
@@ -85,6 +103,7 @@ public class TelegramSendWorker extends Worker {
             .putString(INPUT_BOT, bot == null ? TelegramStore.OWNER : bot);
         if (chatId != null) data.putString(INPUT_CHAT_ID, chatId);
         if (markup != null && !markup.isEmpty()) data.putString(INPUT_MARKUP, markup);
+        if (html) data.putBoolean(INPUT_HTML, true);
         return new OneTimeWorkRequest.Builder(TelegramSendWorker.class)
             .setConstraints(constraints)
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
@@ -116,8 +135,12 @@ public class TelegramSendWorker extends Worker {
     /** To one linked rep through `bot` (money / alerts), or the devices bot when that one isn't
      * connected. */
     static void enqueueToRepBot(Context context, String bot, String chatId, String text, String markup) {
+        enqueueToRepBot(context, bot, chatId, text, markup, false);
+    }
+
+    static void enqueueToRepBot(Context context, String bot, String chatId, String text, String markup, boolean html) {
         if (!TelegramStore.isRepsConfigured(context) || !TelegramStore.isLinkedRepChat(context, chatId)) return;
-        WorkManager.getInstance(context).enqueue(request(text, TelegramStore.repBotFor(context, bot), chatId, markup).build());
+        WorkManager.getInstance(context).enqueue(request(text, TelegramStore.repBotFor(context, bot), chatId, markup, html).build());
     }
 
     private static int utf8(String s) {

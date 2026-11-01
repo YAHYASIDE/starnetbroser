@@ -7,7 +7,7 @@
 
 import { mruQuoteFor } from "./partyNet";
 import { repBotAccounts, repBotPages, type BotAccount } from "./repBotStatement";
-import { repRowText } from "./repRowText";
+import { repRowFacts, repRowText } from "./repRowText";
 import { REP_PROMISE_HINT, REP_PROMISE_RECEIVED, repOpenPromises, repPromisesText } from "./repPromises";
 import { cardText, forecastText, goalsText, healthText, lapsedText, planText, promisesText } from "./ownerInsightsText";
 import type { PartyAdjustmentList } from "./partyBalanceStore";
@@ -152,7 +152,7 @@ export function buildReplySnapshot(input: {
     const deviceName = (accountId: string) => input.accounts.find((a) => a.id === accountId)?.name ?? "جهاز";
     const named = repLedgerSummaries(ledgerBook, repId);
     // 📊 «كشفي» in the money bot: summary + a button per account, its pages, 🔎 his operations.
-    const botAccounts = bots.money ? repBotAccounts(position.walletLines, ledgerBook, repId, (row) => repRowText(row, deviceName)) : null;
+    const botAccounts = bots.money ? repBotAccounts(position.walletLines, ledgerBook, repId, (row) => repRowText(row, deviceName), repRowFacts) : null;
     if (botAccounts) input.onRepAccounts?.(repId, botAccounts);
     const botPages = botAccounts ? repBotPages(rep.name, botAccounts, position.since) : null;
     const replies: Record<string, RepReply> = {

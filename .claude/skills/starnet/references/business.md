@@ -2615,3 +2615,27 @@ is never pressed while a field is empty - it refills and saves on the next try (
   على دولار»: Starlink's cost on the open D grows by the gap, the customer's amount and sale rate stay
   (`planGrowOpenD(entries, gap, false)`, `grownBy.amount` 0 - the profit takes the gap). His Oct 25 way (the customer raised
   at the same price) stays as a quieter second choice «أضفه إلى D ويزيد على الزبون».
+
+## 🔔 The money bot's operation messages: one clear message per operation + ✅ / ❌ (Nov 1 2026)
+
+- His brief «تطوير رسائل بوت STAR NET الأموال - نسخة محسنة وواضحة ومتطابقة» (one message per operation, the same shape
+  for all, the amount alone in the middle, before / after, a result, two buttons) + his choices: **the rep rates** in his
+  money bot; the wording is **«عليك / لك»** (the rep reads it); **«❌ غير جيد» also reaches his own bot at once**.
+- `lib/repOpMessage.ts` (pure, tested): header «🔔 STAR NET | حركة مالية جديدة / دفعة مستلمة / ربح جديد / خصم من الربح»,
+  «🗓️ dd/mm — hh:mm ص/م» (the record's createdAt), «📧 <code>email</code>» (+ «📡 name» when it differs), the account
+  («🟠 حساب شخصي»…), the operation (`repRowLabel` / the named account's kind + note), «━━━», «<b>💵 العملية: X</b>» (no
+  sign - the result line says the direction), «📊 الرصيد قبل» / «💰 الرصيد بعد» (+ عليك / لك / ✓), «النتيجة» (زاد / نقص
+  ما عليك, زادت / نقصت أرباحك, سُدّد ما عليك وصار لك, انتهى ما لك وصار عليك). Each currency its own block; سيفا / فرنك whole,
+  أوقية cents. Telegram HTML (escaped); a rejected HTML goes again as plain words (`TelegramText.stripHtml`).
+- **The figures:** `after` = the account's running balance right after the operation - the same `buildRepPeriodStatement`
+  / `repLedgerLines` running sums as «كشفي» and «📂 حساباته»; `amount` = what it did (+ = لك); «قبل» = after − amount = the
+  previous line of his statement (tested along a real account's lines).
+- **Once each:** every operation is marked sent right after ITS message is queued (`starnet.repBotSeenOps`), so a failure
+  half-way never repeats the earlier ones; up to 5 per round (oldest first), then «… و N عمليات أقدم - 📊 كشفي».
+- **✅ / ❌:** `rt:g|b:<token>` (FNV of rep + operation id, 8 hex). The phone's service (`TelegramRatings.java`, JUnit):
+  the same choice again does nothing (remembered per chat), a change is recorded; the chosen button gets «✓»; the tap
+  goes to the app (inbox `repOpRating`: who pressed, when, the message text); «غير جيد» → `tellOwner` (his bot + the
+  phone's bar) at once. The app (`lib/repOpRatings.ts`, `starnet_rep_op_ratings_v1`, tested): «جيد» = a quiet line in
+  🔔; «غير جيد» = an open flag → `RepOpFlagsBanner` (red pulsing «🚨 N للمراجعة «غير جيد»» above the bottom bar on every
+  page, not closable) → sheet with who / when / the message → «✓ راجعتها». A later «غير جيد» on the same operation opens it
+  again; a change to «جيد» closes it. History of every change kept.

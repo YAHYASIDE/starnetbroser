@@ -32,6 +32,11 @@ export interface BotLine {
   /** As shown (+ = له), and the account's balance right after it. */
   amount: Record<string, number>;
   after: Record<string, number>;
+  /** 🔔 For the operation message: what it is (no device / note), when it was recorded (ISO), its device, its note. */
+  kind?: string;
+  at?: string;
+  accountId?: string;
+  note?: string;
 }
 
 export interface BotAccount {
@@ -80,7 +85,13 @@ export function shortDay(date: string): string {
 
 /** His accounts in the order of «📂 حساباته»: شخصي, الربح, الأوقية (and another currency with
  * records), then his named accounts. */
-export function repBotAccounts(wallets: RepWallet[], book: RepLedgerBook, repId: string, describe: (row: RepStatementRow) => string): BotAccount[] {
+export function repBotAccounts(
+  wallets: RepWallet[],
+  book: RepLedgerBook,
+  repId: string,
+  describe: (row: RepStatementRow) => string,
+  facts?: (row: RepStatementRow) => { kind: string; accountId?: string; note?: string },
+): BotAccount[] {
   const ordered = [...wallets.filter((w) => w.id === "SIFA"), ...wallets.filter((w) => w.id === "profit"), ...wallets.filter((w) => w.id !== "SIFA" && w.id !== "profit")];
   const out: BotAccount[] = [];
   for (const w of ordered) {
@@ -92,7 +103,17 @@ export function repBotAccounts(wallets: RepWallet[], book: RepLedgerBook, repId:
       stored: w.balance,
       isProfit: w.id === "profit",
       isNamed: false,
-      lines: w.lines.map((l) => ({ id: `${w.id}:${l.key}`, date: l.date, text: describe(l.row), amount: l.amount, after: l.after })),
+      lines: w.lines.map((l) => {
+        const f = facts?.(l.row);
+        return {
+          id: `${w.id}:${l.key}`,
+          date: l.date,
+          text: describe(l.row),
+          amount: l.amount,
+          after: l.after,
+          ...(f ? { kind: f.kind, at: l.row.createdAt, ...(f.accountId ? { accountId: f.accountId } : {}), ...(f.note ? { note: f.note } : {}) } : {}),
+        };
+      }),
     });
   }
   for (const ledger of repLedgersOf(book, repId)) {
@@ -103,7 +124,17 @@ export function repBotAccounts(wallets: RepWallet[], book: RepLedgerBook, repId:
         : entry.opening
           ? "📥 رصيد افتتاحي"
           : `${entry.botId ? "🤖 إيداع" : amount > 0 ? "➕ له" : "➖ عليه"}${entry.note ? ` · ${entry.note}` : ""}`;
-      return { id: `l:${entry.id}`, date: entry.date, text: what, amount: repLedgerShown(ledger, { [entry.currencyCode]: amount }), after: repLedgerShown(ledger, { [entry.currencyCode]: after }) };
+      const kind = entry.travelFor ? "🛂 توثيق" : entry.opening ? "📥 رصيد افتتاحي" : entry.botId ? "🤖 إيداع" : amount > 0 ? "➕ له" : "➖ عليه";
+      return {
+        id: `l:${entry.id}`,
+        date: entry.date,
+        text: what,
+        amount: repLedgerShown(ledger, { [entry.currencyCode]: amount }),
+        after: repLedgerShown(ledger, { [entry.currencyCode]: after }),
+        kind,
+        at: entry.createdAt,
+        ...(entry.note ? { note: entry.note } : {}),
+      };
     });
     out.push({
       key: `a${out.length}`,

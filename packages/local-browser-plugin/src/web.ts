@@ -160,7 +160,7 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
     return;
   }
 
-  async telegramSend(_options: { text: string; bot?: TelegramBot; chatId?: string; reply?: boolean; replyMarkup?: string }): Promise<{ queued: boolean }> {
+  async telegramSend(_options: { text: string; bot?: TelegramBot; chatId?: string; reply?: boolean; replyMarkup?: string; html?: boolean }): Promise<{ queued: boolean }> {
     return { queued: false };
   }
 

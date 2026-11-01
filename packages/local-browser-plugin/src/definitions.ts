@@ -396,7 +396,7 @@ export interface TelegramInboxMessage extends TelegramPollMessage {
   /** A record from the reps bot's device menu (never a message to answer): a ✏️ edit waiting
    * for approval, the owner's ✅/❌ on one in his bot, a 📝 note, or a 💵 payment or a 🏦 loan entered
    * step by step (waiting for approval too) - `data` is its JSON. */
-  kind?: "repEdit" | "repEditDecision" | "repNote" | "repPayment" | "repLoan" | "repActivation" | "repActivationDecision" | "repBookEntry" | "repBookUndo" | "repStatementPdf";
+  kind?: "repEdit" | "repEditDecision" | "repNote" | "repPayment" | "repLoan" | "repActivation" | "repActivationDecision" | "repBookEntry" | "repBookUndo" | "repStatementPdf" | "repOpRating";
   data?: string;
 }
 
@@ -659,7 +659,7 @@ export interface LocalBrowserPlugin {
   /** Queued natively: sent once there's a network, even if the app closes. Reps bot: to a linked
    * rep's `chatId`, or with `reply` a one-off answer to someone who just wrote to the bot.
    * `replyMarkup`: Telegram reply_markup JSON (buttons). */
-  telegramSend(options: { text: string; bot?: TelegramBot; chatId?: string; reply?: boolean; replyMarkup?: string }): Promise<{ queued: boolean }>;
+  telegramSend(options: { text: string; bot?: TelegramBot; chatId?: string; reply?: boolean; replyMarkup?: string; /** Telegram HTML (<b>, <code>) - a reps' bot message only. */ html?: boolean }): Promise<{ queued: boolean }>;
   /** Sends `text` at `at` (epoch ms), replacing what was scheduled under `key` ("morning"...). */
   telegramSchedule(options: { key: string; at: number; text: string; bot?: TelegramBot; chatId?: string; replyMarkup?: string }): Promise<void>;
   telegramCancel(options: { key: string }): Promise<void>;

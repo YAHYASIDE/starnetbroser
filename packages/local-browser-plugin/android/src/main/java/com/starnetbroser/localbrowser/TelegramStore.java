@@ -159,6 +159,15 @@ final class TelegramStore {
     private static final String KEY_KEYBOARD_BACK = "kbback2_";
 
     /** True the first time only, per bot and chat: the buttons a «force reply» hid are sent again once. */
+    /** ✅ / ❌ chosen under the money bot's operation messages, per chat (TelegramRatings). */
+    static String ratings(Context context, String chatId) {
+        return prefs(context).getString("op_ratings_" + chatId, "");
+    }
+
+    static void setRatings(Context context, String chatId, String remembered) {
+        prefs(context).edit().putString("op_ratings_" + chatId, remembered).apply();
+    }
+
     static boolean takeKeyboardRestore(Context context, String bot, String chatId) {
         String key = KEY_KEYBOARD_BACK + bot + "_" + chatId;
         if (prefs(context).getBoolean(key, false)) return false;

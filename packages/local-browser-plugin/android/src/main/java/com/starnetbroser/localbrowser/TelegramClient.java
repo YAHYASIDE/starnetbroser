@@ -53,12 +53,27 @@ final class TelegramClient {
 
     /** `replyMarkup`: Telegram reply_markup JSON (buttons), or null. */
     static JSONObject sendMessage(String token, String chatId, String text, String replyMarkup) throws IOException, TelegramError {
+        return sendMessage(token, chatId, text, replyMarkup, false);
+    }
+
+    /** `html`: Telegram HTML (<b>, <code>) - the text must be escaped by its maker. */
+    static JSONObject sendMessage(String token, String chatId, String text, String replyMarkup, boolean html) throws IOException, TelegramError {
         Map<String, String> params = new LinkedHashMap<>();
         params.put("chat_id", chatId);
         params.put("text", TelegramText.truncate(text, TelegramText.MAX_MESSAGE_CHARS));
         params.put("disable_web_page_preview", "true");
+        if (html) params.put("parse_mode", "HTML");
         if (replyMarkup != null && !replyMarkup.isEmpty()) params.put("reply_markup", replyMarkup);
         return call(token, "sendMessage", params);
+    }
+
+    /** Replaces only a message's buttons - its text (and formatting) stays. */
+    static void editMessageReplyMarkup(String token, String chatId, long messageId, String replyMarkup) throws IOException, TelegramError {
+        Map<String, String> params = new LinkedHashMap<>();
+        params.put("chat_id", chatId);
+        params.put("message_id", String.valueOf(messageId));
+        params.put("reply_markup", replyMarkup != null && !replyMarkup.isEmpty() ? replyMarkup : "{\"inline_keyboard\":[]}");
+        call(token, "editMessageReplyMarkup", params);
     }
 
     /** Stops the button's spinner (optionally with a short toast). */

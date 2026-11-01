@@ -34,6 +34,29 @@ export function customerOpLabel(op: { amount: number; byRep: boolean }): string 
   return op.byRep ? "💵 سلّمك" : "💵 دفع زبونه لك";
 }
 
+/** 🔔 What the operation is, without the device or note (the money bot's operation message puts the
+ * device's email on its own line). */
+export function repRowLabel(row: RepStatementRow): string {
+  if (row.type === "device") return "📈 حصته من الربح";
+  if (row.type === "customer") return customerOpLabel(row.op);
+  if (row.type === "invoice") return "🧾 فاتورة متجر";
+  return settlementText(row.settlement);
+}
+
+/** The device an operation is about, if any. */
+export function repRowAccountId(row: RepStatementRow): string | undefined {
+  if (row.type === "device") return row.row.accountId;
+  if (row.type === "customer") return row.op.accountId;
+  return undefined;
+}
+
+/** 🔔 The facts the money bot's operation message shows apart (repOpMessage.ts). */
+export function repRowFacts(row: RepStatementRow): { kind: string; accountId?: string; note?: string } {
+  const accountId = repRowAccountId(row);
+  const note = row.type === "settlement" ? row.settlement.note : undefined;
+  return { kind: repRowLabel(row), ...(accountId ? { accountId } : {}), ...(note ? { note } : {}) };
+}
+
 /** One line of «📂 حساباته». */
 export function repRowText(row: RepStatementRow, accountName: (accountId: string) => string): string {
   if (row.type === "device") return `📈 حصته · ${accountName(row.row.accountId)}`;

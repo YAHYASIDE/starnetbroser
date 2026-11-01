@@ -13,7 +13,7 @@ import {
   takeTelegramInbox,
   telegramConnection,
 } from "@/lib/telegram";
-import { answerRepMessage, answerRepStatementPdf, answerTelegramCommand, refreshTelegramReplies } from "@/lib/telegramCommands";
+import { answerRepMessage, answerRepStatementPdf, answerTelegramCommand, recordRepOpRating, refreshTelegramReplies } from "@/lib/telegramCommands";
 import { handleRepMenuRecord } from "@/lib/repMenuRecords";
 
 const INBOX_EVERY_MS = 3000;
@@ -51,6 +51,11 @@ export function TelegramBridge() {
           // 📄 «كشف PDF» under an account of «كشفي» (money bot): made and sent now.
           if (message.kind === "repStatementPdf") {
             await answerRepStatementPdf(message.data);
+            continue;
+          }
+          // ✅ / ❌ under an operation message of the money bot (lib/repOpRatings.ts).
+          if (message.kind === "repOpRating") {
+            recordRepOpRating(message.data);
             continue;
           }
           if (await handleRepMenuRecord(message)) continue;
