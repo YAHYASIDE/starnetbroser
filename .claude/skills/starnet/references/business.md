@@ -2737,3 +2737,16 @@ is never pressed while a field is empty - it refills and saves on the next try (
   sheet (التاريخ، العملية، قبل / الحركة / بعد) → «تعديل العملية أو حذفها». Profit operations (له / عليه في ربحه، من ربحه
   إلى حساب، 🧹) were delete-only: now also ✎ amount, day and description (`ProfitOpEdit` → `updateRepSettlement`; kind and
   locked rates stay). A store invoice line stays read-only (edited in the store); an expense share stays in «حسابي».
+
+## 🔁 A rep's recordings stop coming back after every sync (Nov 2 2026)
+
+- His screenshot («تسجيلات المندوبين»: a long list of «📡 جهاز جديد … ⚠️ مسجّل عندك من قبل (نفس الإيميل)»): «دائمًا يتكرر
+  الإرسال من المندوب». A ✅ / ❌ was remembered by the device record's full hash, and the rep's own Starlink syncs rewrite
+  balance / status / last read (SYNC_FIELDS) - every sync made each device a «new version», so rejected ones came back.
+  Now a device's version is `repDeviceVersion` (lib/repWorkspace.ts: without the sync's, the phone's own and the money
+  fields), the same on both phones: the operator's decision (`RepItemPart.hash`; the old full hash kept as `legacyHash`,
+  so earlier decisions still count) and the rep phone dropping what was rejected. It comes back only when the rep
+  himself changes the device (name, email…). Tested.
+- «❌ ارفض كل المكرّر (N)» in the review: every «مسجّل عندك من قبل» item rejected in one tap (his own devices stay).
+- Devices already in his list whose rep version changed since an old decision show once more - one «ارفض كل المكرّر»
+  and they stay away (the rep's app needs this update too, to drop them on his side).

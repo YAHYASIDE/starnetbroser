@@ -49,6 +49,7 @@ function RepInboxCard({ view, busy, onDecide }: { view: RepInboxView; busy: bool
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   // A device you already have never goes with «تثبيت الكل» - it's rejected or linked one by one.
   const keys = view.items.filter((i) => !i.duplicateOf).map((i) => i.key);
+  const dupKeys = view.items.filter((i) => i.duplicateOf).map((i) => i.key);
   const allSelected = keys.length > 0 && keys.every((k) => selected.has(k));
 
   function toggle(key: string) {
@@ -155,8 +156,22 @@ function RepInboxCard({ view, busy, onDecide }: { view: RepInboxView; busy: bool
                 </button>
               </>
             ) : (
-              <button type="button" className="dialog-primary" disabled={busy} onClick={() => confirmThen(`تثبيت كل تسجيلات ${view.repName} (${keys.length})؟`, () => onDecide(keys, []))}>
-                {busy ? "⏳ جارِ التثبيت…" : `✅ تثبيت الكل (${keys.length})`}
+              keys.length > 0 && (
+                <button type="button" className="dialog-primary" disabled={busy} onClick={() => confirmThen(`تثبيت كل تسجيلات ${view.repName} (${keys.length})؟`, () => onDecide(keys, []))}>
+                  {busy ? "⏳ جارِ التثبيت…" : `✅ تثبيت الكل (${keys.length})`}
+                </button>
+              )
+            )}
+            {/* ❌ every «مسجّل عندك من قبل» at once (his Nov 2 2026 report: a long list of them) - remembered, they don't come back */}
+            {dupKeys.length > 1 && (
+              <button
+                type="button"
+                className="dialog-secondary"
+                data-tour="rep-inbox-reject-dups"
+                disabled={busy}
+                onClick={() => confirmThen(`رفض كل الأجهزة المسجّلة عندك من قبل (${dupKeys.length})؟ تبقى أجهزتك كما هي، ولا تعود هذه في الإرسال القادم.`, () => onDecide([], dupKeys))}
+              >
+                ❌ ارفض كل المكرّر ({dupKeys.length})
               </button>
             )}
           </div>

@@ -302,3 +302,25 @@ describe("🔑 Starlink sessions in a rep's file (his Nov 2 2026 report)", () =>
     expect(sessionDeviceIds({})).toEqual([]);
   });
 });
+
+describe("🔁 a rejected rep device doesn't come back after a sync on his phone (his Nov 2 2026 report)", () => {
+  it("the decision follows what the rep edits, not the balance / status the sync rewrites; old decisions still count", async () => {
+    const { recordHash, repDeviceVersion } = await import("./repWorkspace");
+    const owner = { [ACCOUNTS_KEY]: [{ id: "a1", name: "Dish 1" }] };
+    const device = { id: "a9", name: "S", expectedEmail: "fake9@example.com", balanceDue: "10", serviceStatus: "active", lastSuccessfulScanAt: "2026-11-01T08:00:00Z" };
+    const file = (d: Record<string, unknown>) => ({ [ACCOUNTS_KEY]: { set: { a9: d }, removed: [] } });
+    const [item] = listRepChangeItems(file(device), owner);
+    const rejected = withDecision({}, [item!], "rejected");
+    // his phone synced it: new balance, new status, new read time - still the same device he sent
+    const [again] = listRepChangeItems(file({ ...device, balanceDue: "55", serviceStatus: "suspended", lastSuccessfulScanAt: "2026-11-02T08:00:00Z" }), owner);
+    expect(isItemDecided(again!, rejected)).toBe(true);
+    // he renamed it: a new version, offered again
+    const [renamed] = listRepChangeItems(file({ ...device, name: "Roof" }), owner);
+    expect(isItemDecided(renamed!, rejected)).toBe(false);
+    // a decision kept the old way (the full record's hash) still counts
+    const legacy = { [`${ACCOUNTS_KEY}|a9`]: { hash: recordHash(device), decision: "rejected" as const, at: "2026-11-01T00:00:00Z" } };
+    expect(isItemDecided(item!, legacy)).toBe(true);
+    // both phones compute the same version
+    expect(item!.parts[0]!.hash).toBe(repDeviceVersion({ ...device, balanceDue: "99" }));
+  });
+});

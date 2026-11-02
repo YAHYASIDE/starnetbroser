@@ -28,6 +28,7 @@ import {
   PROMISES_KEY,
   rebaseStore,
   recordHash,
+  repDeviceVersion,
   REP_BOOK_KEY,
   REP_STORES,
   type Shape,
@@ -351,8 +352,10 @@ export type RepItemKind = "newDevice" | "deviceEdit" | "payment" | "shipment" | 
 export interface RepItemPart {
   store: string;
   path: string;
-  /** recordHash of the rep's version ("removed" for a removal). */
+  /** recordHash of the rep's version ("removed" for a removal) - a device's without what its Starlink sync rewrites. */
   hash: string;
+  /** The full record's hash, as decisions were kept before Nov 2 2026 - an old ✅ / ❌ still counts. */
+  legacyHash?: string;
 }
 
 /** One thing the operator approves or rejects: a new device (with everything recorded on it), a
@@ -393,6 +396,13 @@ export function listRepChangeItems(all: RepChangeSet, owner: StoreValues): RepCh
   const used = new Set<string>();
   const take = (store: string, path: string, record: Rec | undefined): RepItemPart => {
     used.add(partKey(store, path));
+    // 🔁 a device's balance / status / last read change with every sync on his phone - not a new version of it (his
+    // Nov 2 2026 report «دائمًا يتكرر الإرسال من المندوب»: rejected devices came back after each sync)
+    if (store === ACCOUNTS_KEY && record) {
+      const full = recordHash(record);
+      const stable = repDeviceVersion(record);
+      return { store, path, hash: stable, ...(full !== stable ? { legacyHash: full } : {}) };
+    }
     return { store, path, hash: recordHash(record) };
   };
   const ownerAccounts = records(owner[ACCOUNTS_KEY], "list");
@@ -527,7 +537,10 @@ export function listRepChangeItems(all: RepChangeSet, owner: StoreValues): RepCh
 export type RepDecisions = Record<string, { hash: string; decision: "approved" | "rejected"; at: string }>;
 
 export function isItemDecided(item: RepChangeItem, decisions: RepDecisions): boolean {
-  return item.parts.every((p) => decisions[partKey(p.store, p.path)]?.hash === p.hash);
+  return item.parts.every((p) => {
+    const d = decisions[partKey(p.store, p.path)]?.hash;
+    return d === p.hash || (p.legacyHash !== undefined && d === p.legacyHash);
+  });
 }
 
 export function withDecision(decisions: RepDecisions, items: RepChangeItem[], decision: "approved" | "rejected", now: Date = new Date()): RepDecisions {

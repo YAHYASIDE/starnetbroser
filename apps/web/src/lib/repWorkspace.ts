@@ -185,6 +185,19 @@ const SYNC_FIELDS = [
   "wifiStatus", "alertReason", "renewalDayMismatch", "travelRegistrationRequired", "travelRegistrationDue", "outsideHome", "travelRegistrationVerifiedAt", "travelRegistrationVerifiedDue",
 ];
 
+/** A device as the rep himself edits it (the sync's, this phone's own and the money fields left out). */
+export function deviceIdentity(record: Rec): Rec {
+  const copy = withoutSync(record);
+  for (const f of MONEY_DEVICE_FIELDS) delete copy[f];
+  return copy;
+}
+
+/** 🔁 One version of a rep's device for ✅ / ❌ - the same on both phones, unchanged by its Starlink syncs (his Nov 2 2026
+ * report: rejected devices kept coming back after every sync on the rep's phone). */
+export function repDeviceVersion(record: Rec): string {
+  return recordHash(deviceIdentity(record));
+}
+
 function withoutSync(record: Rec): Rec {
   const copy: Rec = { ...record };
   for (const f of SYNC_FIELDS) delete copy[f];
@@ -364,7 +377,10 @@ export function rebaseWorkspace(
       for (const path of [...changes.set.keys()]) if (booked.has(path.slice(path.lastIndexOf("/") + 1))) changes.set.delete(path);
     }
     // ❌ What the operator rejected leaves the rep's phone (the exact version he sent).
-    for (const [path, mine] of [...changes.set]) if (rejected[`${key}|${path}`] === recordHash(mine)) changes.set.delete(path);
+    for (const [path, mine] of [...changes.set]) {
+      const r = rejected[`${key}|${path}`];
+      if (r && (r === recordHash(mine) || (key === ACCOUNTS_KEY && r === repDeviceVersion(mine)))) changes.set.delete(path);
+    }
     for (const path of [...changes.removed]) if (rejected[`${key}|${path}`] === "removed") changes.removed.delete(path);
     if (key === ACCOUNTS_KEY) {
       // A device the operator took away (moved to another rep) leaves - even if the rep edited it;
