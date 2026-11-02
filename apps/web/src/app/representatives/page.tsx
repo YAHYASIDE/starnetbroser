@@ -120,6 +120,7 @@ import { repRowText, settlementText } from "@/lib/repRowText";
 import { confirmClosedMonthChange, ledgerEntryMonthDates, monthLabel, monthRange, recentMonths } from "@/lib/monthClosing";
 import { moveRep, orderReps, REP_SORTS, loadRepSort, saveRepSort, type RepSort } from "@/lib/repOrder";
 import { repPosition } from "@/lib/repPosition";
+import { splitTableByCurrency } from "@/lib/repStatementDoc";
 import { balanceParts, balanceText, buildRepStatementPdf, last24h, makeFx, nonZero, repRowCells, repStatementTable, rowBalance, type Fx, type RepTableLine } from "@/lib/repStatementDoc";
 
 const EPSILON = 0.0001;
@@ -1113,14 +1114,23 @@ function RepCard({
         <div className="party-panel rep-statement">
           {/* 🧾 His Oct 29 2026 design: only what's on him / his profit now, each with the last 24 hours as a
               small statement (before · movement · after); older periods folded below. */}
-          <RepNowBlock
-            title="📡 ما عليه الآن"
-            values={nowNative.debt.closing}
-            lines={repStatementTable(nowStatement, nowNative, "debt", fx.convert, since)}
-            describe={describeRow} wrong={wrongRow}
-            onOpen={readOnly ? undefined : (line) => setRowSheet(line)}
-            empty="لا عمليات على حسابه في آخر 24 ساعة."
-          />
+          {/* 💱 one block per currency (his Nov 2 2026 ask: a أوقية loan sat among his سيفا renewals) */}
+          {(() => {
+            const blocks = splitTableByCurrency(repStatementTable(nowStatement, nowNative, "debt", fx.convert, since), nowNative.debt.closing);
+            if (!blocks.length) return <RepNowBlock title="📡 ما عليه الآن" values={{}} lines={[]} describe={describeRow} wrong={wrongRow} empty="لا عمليات على حسابه في آخر 24 ساعة." />;
+            return blocks.map((b) => (
+              <RepNowBlock
+                key={b.code}
+                title="📡 ما عليه الآن"
+                currencyLabel={blocks.length > 1 ? (LEDGER_CURRENCY_LABELS[b.code as LedgerCurrency] ?? b.code) : undefined}
+                values={b.values}
+                lines={b.lines}
+                describe={describeRow} wrong={wrongRow}
+                onOpen={readOnly ? undefined : (line) => setRowSheet(line)}
+                empty="لا عمليات بهذه العملة في آخر 24 ساعة."
+              />
+            ));
+          })()}
           <RepNowBlock
             title="📈 ربحه الآن"
             values={nowStatement.profit.closing}
@@ -2771,6 +2781,7 @@ function RepStatementTable({
  * hours folded under it, one tap to open («زر طي»). */
 function RepNowBlock({
   title,
+  currencyLabel,
   values,
   lines,
   describe,
@@ -2780,6 +2791,8 @@ function RepNowBlock({
   tone = "debt",
 }: {
   title: string;
+  /** 💱 the block's currency, when he has more than one */
+  currencyLabel?: string;
   values: Record<string, number>;
   lines: RepTableLine[];
   describe: (row: RepStatementRow) => string;
@@ -2791,7 +2804,8 @@ function RepNowBlock({
   const [open, setOpen] = useState(false);
   const parts = balanceParts(values);
   // «ما عليه الآن» over «له 35,000» read wrong: the title follows the side
-  const shownTitle = tone === "debt" ? (parts.every((p) => p.tone === "due") ? "📡 ما له الآن" : parts.every((p) => p.tone === "zero") ? "📡 حسابه الآن" : title) : title;
+  const baseTitle = tone === "debt" ? (parts.every((p) => p.tone === "due") ? "📡 ما له الآن" : parts.every((p) => p.tone === "zero") ? "📡 حسابه الآن" : title) : title;
+  const shownTitle = currencyLabel ? `${baseTitle} · ${currencyLabel}` : baseTitle;
   return (
     <section className={`rep-now rep-now-${tone}`}>
       <button type="button" className="rep-now-head" aria-expanded={open} data-tour="rep-now-fold" onClick={() => setOpen((v) => !v)}>

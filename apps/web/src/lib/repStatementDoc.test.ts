@@ -113,3 +113,19 @@ describe("🧾 the in-app statement table (his Oct 29 2026 ask: before / movemen
     expect(last24h(new Date("2026-10-29T12:00:00.000Z"))).toBe("2026-10-28T12:00:00.000Z");
   });
 });
+
+describe("💱 «ما عليه الآن» one block per currency (his Nov 2 2026 ask)", () => {
+  it("a أوقية loan goes to its own block; each line keeps only its currency", async () => {
+    const { splitTableByCurrency } = await import("./repStatementDoc");
+    const row = {} as never;
+    const lines: { key: string; row: never; before: Record<string, number>; delta: Record<string, number>; after: Record<string, number> }[] = [
+      { key: "a", row, before: { MRU: 40000, SIFA: 631623 }, delta: { SIFA: -12000 }, after: { MRU: 40000, SIFA: 643623 } },
+      { key: "b", row, before: { SIFA: 631623 }, delta: { MRU: -40000 }, after: { MRU: 40000, SIFA: 631623 } },
+    ];
+    const blocks = splitTableByCurrency(lines, { SIFA: -643623, MRU: -40000 });
+    expect(blocks.map((b) => b.code)).toEqual(["SIFA", "MRU"]);
+    expect(blocks[0]!.lines.map((l) => [l.key, l.before, l.delta, l.after])).toEqual([["a", { SIFA: 631623 }, { SIFA: -12000 }, { SIFA: 643623 }]]);
+    expect(blocks[1]!.lines.map((l) => [l.key, l.before, l.delta, l.after])).toEqual([["b", {}, { MRU: -40000 }, { MRU: 40000 }]]);
+    expect(blocks[1]!.values).toEqual({ MRU: -40000 });
+  });
+});

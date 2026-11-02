@@ -2681,3 +2681,14 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - **↕️ Order** (`lib/repOrder.ts`, tested; `starnet.repSort` / `starnet.repOrder`, this phone's view setting): ✋ ترتيبي
   (default; «✎ رتّب» sheet with ▲ ▼, a rep not placed yet goes after, by name), 🔤 بالاسم, 📡 الأكثر أجهزة, ⚖️ الأكثر عليه
   (his `repPosition` net in أوقية).
+
+## 💱 The rep's «ما عليه الآن» one block per currency · 🏠 a RES bubble (Nov 2 2026)
+
+- His screenshot (الحافظ's «الكشف»: a «سلفة عبر سداد» −40,000 أوقية among the سيفا renewals, before/after carrying both
+  currencies): «لماذا ظهرت عملية العملة هنا بين عمليات التي عليه، اجعل لها خانة خاصة بها». `splitTableByCurrency`
+  (lib/repStatementDoc.ts, tested): «📡 ما عليه الآن · سيفا» and «· أوقية» blocks, each with its own balance and only
+  the operations that moved it (before / after in that currency alone); one currency = one block as before.
+- His screenshot (a Residential device, «زبون الحسين», chips «ملغي» + «نشط»): «هنا مازالت تظهر ملغي ونشط القديمة». The
+  service bubbles knew only ROM / 100G / SIS / STOP, so a home plan fell back to the old chips. New kind **RES** (green;
+  Residential / Residential Lite / Local Priority / Standard): «RES ← RES», «RES ← STOP 11/04» when it ends - the old
+  «ملغى» / «نشط» / plan pill hide as for the others (`serviceBubbles`, tested). An unknown plan name still shows nothing.

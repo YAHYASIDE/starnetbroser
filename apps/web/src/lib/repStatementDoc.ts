@@ -393,3 +393,17 @@ export function repStatementTable(
 export function last24h(now: Date = new Date()): string {
   return new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
 }
+
+/** 💱 «ما عليه الآن» one block per currency (his Nov 2 2026 ask: a أوقية loan showed among his سيفا renewals) - each
+ * with its own balance and only the operations that moved it, their before / after in that currency alone. Pure. */
+export function splitTableByCurrency(lines: RepTableLine[], closing: Record<string, number>): { code: string; values: Record<string, number>; lines: RepTableLine[] }[] {
+  const codes: string[] = [];
+  for (const [code, v] of Object.entries(closing)) if (Math.abs(v) > EPSILON && !codes.includes(code)) codes.push(code);
+  for (const l of lines) for (const code of Object.keys(l.delta)) if (!codes.includes(code)) codes.push(code);
+  const pick = (r: Record<string, number>, code: string) => (code in r ? { [code]: r[code]! } : {});
+  return codes.map((code) => ({
+    code,
+    values: { [code]: closing[code] ?? 0 },
+    lines: lines.filter((l) => code in l.delta).map((l) => ({ ...l, before: pick(l.before, code), delta: pick(l.delta, code), after: pick(l.after, code) })),
+  }));
+}

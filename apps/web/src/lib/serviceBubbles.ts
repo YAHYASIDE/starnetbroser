@@ -18,7 +18,7 @@
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { cleanPlanName, effectiveServiceStatus, planBadgeLabel } from "./status";
 
-export type ServiceKind = "ROM" | "100G" | "SIS" | "STOP";
+export type ServiceKind = "ROM" | "100G" | "SIS" | "STOP" | "RES";
 
 export interface ServiceBubbles {
   now: ServiceKind;
@@ -39,8 +39,13 @@ function dayKey(date: string | undefined): string | undefined {
 
 /** The plan as one of the services, from Starlink's plan name. */
 function planKind(planName: string | undefined): ServiceKind | undefined {
-  const label = planBadgeLabel(cleanPlanName(planName));
-  return label === "ROM" || label === "100G" || label === "SIS" ? label : undefined;
+  const clean = cleanPlanName(planName);
+  const label = planBadgeLabel(clean);
+  if (label === "ROM" || label === "100G" || label === "SIS") return label;
+  // 🏠 A home plan (Residential, Residential Lite, Local Priority…) - his Nov 2 2026 report: such a device still showed the
+  // old «ملغي» + «نشط» because only the roam / standby plans had a bubble.
+  if (clean && /residential|résidentiel|residencial|local priority|\blite\b|standard|سكني|منزلي/i.test(clean)) return "RES";
+  return undefined;
 }
 
 /**
@@ -70,6 +75,7 @@ export function changesTo(device: Device, today: string, kind: "SIS" | "STOP"): 
 }
 
 export const SERVICE_LABELS: Record<ServiceKind, string> = {
+  RES: "اشتراك منزلي (Residential)",
   ROM: "تجوال غير محدود",
   "100G": "تجوال 100 غيغا",
   SIS: "وضع الاستعداد (إنترنت ضعيف)",

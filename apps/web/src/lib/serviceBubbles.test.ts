@@ -37,8 +37,15 @@ describe("🫧 the two service bubbles - his screenshots, one by one (Oct 17 202
 
   it("suspended for billing keeps his plan; an unknown plan shows nothing", () => {
     expect(serviceBubbles({ planName: roam, serviceStatus: "suspended" }, TODAY)).toEqual({ now: "ROM", next: "ROM", billing: true });
-    expect(serviceBubbles({ planName: "Residential", serviceStatus: "active" }, TODAY)).toBeNull();
+    expect(serviceBubbles({ planName: "Mystery plan", serviceStatus: "active" }, TODAY)).toBeNull();
     expect(serviceBubbles({}, TODAY)).toBeNull();
+  });
+
+  it("🏠 a home plan gets its own bubble - no more old «ملغي» + «نشط» (his Nov 2 2026 report)", () => {
+    expect(serviceBubbles({ planName: "Residential", serviceStatus: "active" }, TODAY)).toEqual({ now: "RES", next: "RES" });
+    expect(serviceBubbles({ planName: "Local Priority Subscription", serviceStatus: "active" }, TODAY)).toEqual({ now: "RES", next: "RES" });
+    expect(serviceBubbles({ planName: "Residential", serviceStatus: "active", pendingCancellationDate: "2026/11/04" }, TODAY)).toEqual({ now: "RES", next: "STOP", nextDate: "2026/11/04" });
+    expect(changesTo({ planName: "Residential", pendingCancellationDate: "2026/11/04" }, TODAY, "STOP")).toBe(true);
   });
 
   it("«→ SIS» / «→ STOP» circles", () => {

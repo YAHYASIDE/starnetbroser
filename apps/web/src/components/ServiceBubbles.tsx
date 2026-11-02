@@ -2,7 +2,7 @@
 
 import { SERVICE_LABELS, type ServiceBubbles as Bubbles, type ServiceKind } from "@/lib/serviceBubbles";
 
-const CLASS: Record<ServiceKind, string> = { ROM: "svc-rom", "100G": "svc-100g", SIS: "svc-sis", STOP: "svc-stop" };
+const CLASS: Record<ServiceKind, string> = { ROM: "svc-rom", "100G": "svc-100g", SIS: "svc-sis", STOP: "svc-stop", RES: "svc-res" };
 
 /** 🫧 [الخدمة الآن] ← [بعد انتهاء الشهر] (lib/serviceBubbles.ts). */
 export function ServiceBubbles({ bubbles }: { bubbles: Bubbles }) {

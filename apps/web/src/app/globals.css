@@ -15851,6 +15851,8 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
 .svc-100g { color: var(--violet); background: var(--violet-bg); }
 .svc-sis { color: var(--yellow); background: var(--yellow-bg); }
 .svc-stop { color: var(--red); background: var(--red-bg); }
+/* 🏠 a home plan (Residential / Local Priority) - his Nov 2 2026 report */
+.svc-res { color: var(--green); background: var(--green-bg); }
 /* 🧾 «ROM - FACTUR»: his plan, stopped by an unpaid bill. */
 .svc-billing { color: var(--orange); background: var(--orange-bg); }
 
@@ -15892,6 +15894,7 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
 .account-card.account-card-svc-100g { border-inline-start: 4px solid var(--violet); }
 .account-card.account-card-svc-sis { border-inline-start: 4px solid var(--yellow); }
 .account-card.account-card-svc-stop { border-inline-start: 4px solid var(--red); }
+.account-card.account-card-svc-res { border-inline-start: 4px solid var(--green); }
 .account-card.account-card-svc-billing { border-inline-start: 4px solid var(--orange); }
 
 /* The second bubble, faded when nothing changes after the month. */
