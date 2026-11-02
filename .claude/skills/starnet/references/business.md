@@ -2692,3 +2692,14 @@ is never pressed while a field is empty - it refills and saves on the next try (
   service bubbles knew only ROM / 100G / SIS / STOP, so a home plan fell back to the old chips. New kind **RES** (green;
   Residential / Residential Lite / Local Priority / Standard): «RES ← RES», «RES ← STOP 11/04» when it ends - the old
   «ملغى» / «نشط» / plan pill hide as for the others (`serviceBubbles`, tested). An unknown plan name still shows nothing.
+
+## 📥 A rep's device he deleted comes again (Nov 2 2026)
+
+- His report (a notification «المندوب المسوال 2 أرسل تسجيلاته…», the reps bot answering «✓ وصلت تسجيلاتك - لا شيء جديد فيها
+  (كل شيء ثُبّت أو رُفض من قبل)»): «المندوب أرسل لي نسخة، لكن الجلسة فيها غير صالحة فحذفتها عندي، وعندما يرسلها مرة أخرى لا
+  تنزل عندي أبدًا». Every decision is remembered by the item's exact version (`RepDecisions` hash), so an approved device
+  he then deleted was «decided» forever, and a device in his trash matched the rep's record (nothing offered).
+- Now (`ownerReviewView` + `isItemWaiting`, lib/repChanges.ts, tested): when reviewing, a device in his trash counts as
+  not there, and a **new device he approved and no longer has** is waiting again. Approving it installs it fresh (with the
+  file's new Starlink session) in place of the trashed copy - only those ids leave the trash, the rest of it stays. A
+  device he ❌ rejected stays rejected (unchanged).

@@ -13,8 +13,9 @@ import {
   applyRepChangeSet,
   changeSetOf,
   describeItems,
-  isItemDecided,
+  isItemWaiting,
   listRepChangeItems,
+  ownerReviewView,
   PAIRING_REP,
   readRepChangesFile,
   repChangesFileRep,
@@ -29,7 +30,7 @@ import { loadRepInbox, saveRepInbox, type RepInboxFile } from "./repInbox";
 import { repDeviceCode, repPhoneKey, setRepPhoneKey } from "./repDeviceTransfer";
 import { ACCOUNTS_CHANGED_EVENT } from "./repMenuRecords";
 import { loadRepresentativeStore } from "./repStore";
-import { readStores } from "./repWorkspace";
+import { ACCOUNTS_KEY, readStores } from "./repWorkspace";
 import { isDemoMode } from "./settingsStore";
 import { REP_INBOX_ROUTE, tellOwner } from "./appEvents";
 import { sendRepText } from "./telegram";
@@ -43,7 +44,11 @@ async function openFile(text: string, repId: string): Promise<RepChangesPayload>
 }
 
 function waiting(payload: RepChangesPayload, decisions: RepDecisions): RepChangeItem[] {
-  return listRepChangeItems(payload.changes, readStores()).filter((item) => !isItemDecided(item, decisions));
+  // 🗑 a device he deleted counts as not there, and one he approved then deleted is offered again (his Nov 2 2026 report)
+  const view = ownerReviewView(readStores());
+  const list = view[ACCOUNTS_KEY];
+  const live = new Set(Array.isArray(list) ? list.map((a) => String((a as { id?: unknown })?.id ?? "")) : []);
+  return listRepChangeItems(payload.changes, view).filter((item) => isItemWaiting(item, decisions, live));
 }
 
 /**
@@ -158,7 +163,9 @@ export async function decideRepItems(repId: string, approveKeys: string[], rejec
 
   const installed = [...approved, ...linked];
   if (installed.length > 0) {
-    const result = applyRepChangeSet(readStores(), changeSetOf(payload.changes, installed), repId);
+    // 🗑 a device of his trash approved again is installed fresh in its place (only those leave the trash)
+    const revive = new Set(installed.map((i) => i.accountId).filter((id): id is string => Boolean(id)));
+    const result = applyRepChangeSet(ownerReviewView(readStores(), revive), changeSetOf(payload.changes, installed), repId);
     try {
       for (const [key, value] of Object.entries(result.stores)) window.localStorage.setItem(key, JSON.stringify(value));
     } catch {

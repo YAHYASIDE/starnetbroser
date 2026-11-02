@@ -259,3 +259,36 @@ describe("a new device the operator already has", () => {
     expect(dup.n4).toBeUndefined();
   });
 });
+
+describe("🗑 a rep's device he deleted is offered again (his Nov 2 2026 report)", () => {
+  it("approved, then deleted on his phone → waiting again; rejected stays rejected; still on his phone stays decided", async () => {
+    const { ownerReviewView, isItemWaiting } = await import("./repChanges");
+    const changes = { [ACCOUNTS_KEY]: { set: { a2: { id: "a2", name: "Dish 2", expectedEmail: "fake2@example.com" } }, removed: [] } };
+    const live = { [ACCOUNTS_KEY]: [{ id: "a1", name: "Dish 1" }] };
+    const [item] = listRepChangeItems(changes, live);
+    expect(item!.kind).toBe("newDevice");
+    const approved = withDecision({}, [item!], "approved");
+    // his phone has it → nothing to decide
+    expect(isItemWaiting(item!, approved, new Set(["a1", "a2"]))).toBe(false);
+    // he deleted it → offered again
+    expect(isItemWaiting(item!, approved, new Set(["a1"]))).toBe(true);
+    // a rejected one stays rejected
+    expect(isItemWaiting(item!, withDecision({}, [item!], "rejected"), new Set(["a1"]))).toBe(false);
+    // a device in his trash counts as not there: it is listed as a new device again
+    const trashed = ownerReviewView({ [ACCOUNTS_KEY]: [{ id: "a1", name: "Dish 1" }, { id: "a2", name: "Dish 2", deletedAt: "2026-11-02T09:00:00Z" }] });
+    expect((trashed[ACCOUNTS_KEY] as unknown[]).length).toBe(1);
+    expect(listRepChangeItems(changes, trashed).map((i) => i.kind)).toEqual(["newDevice"]);
+  });
+
+  it("approving it again installs it fresh; the rest of his trash stays", async () => {
+    const { ownerReviewView } = await import("./repChanges");
+    const changes = { [ACCOUNTS_KEY]: { set: { a2: { id: "a2", name: "Dish 2", expectedEmail: "fake2@example.com" } }, removed: [] } };
+    const stores = { [ACCOUNTS_KEY]: [{ id: "a1", name: "Dish 1" }, { id: "a2", name: "Old", deletedAt: "2026-11-02T09:00:00Z" }, { id: "a3", name: "Gone", deletedAt: "2026-11-01T09:00:00Z" }] };
+    const { stores: out } = applyRepChangeSet(ownerReviewView(stores, new Set(["a2"])), changes, "r1", new Date("2026-11-02T10:00:00Z"));
+    const list = out[ACCOUNTS_KEY] as Array<Record<string, unknown>>;
+    expect(list.find((a) => a.id === "a2")).toMatchObject({ name: "Dish 2", addedByRepId: "r1" });
+    expect(list.find((a) => a.id === "a2")?.deletedAt).toBeUndefined();
+    expect(list.find((a) => a.id === "a3")).toMatchObject({ deletedAt: "2026-11-01T09:00:00Z" });
+    expect(list.filter((a) => a.id === "a2")).toHaveLength(1);
+  });
+});

@@ -624,3 +624,22 @@ export async function readRepChangesFile(text: string, code: string): Promise<Re
   if (!payload?.id || payload.repId !== repId || !isRec(payload.changes)) throw new NotAChangesFileError();
   return { ...payload, sessions: payload.sessions ?? {} } as RepChangesPayload;
 }
+
+/**
+ * 🗑 His own devices view for reviewing a rep's file: a device he deleted (in the trash) counts as not there - so the
+ * rep's new device can be offered again (his Nov 2 2026 report: «حذفتها عندي، وعندما يرسلها مرة أخرى لا تنزل أبدًا»).
+ */
+export function ownerReviewView(stores: StoreValues, onlyIds?: Set<string>): StoreValues {
+  const list = stores[ACCOUNTS_KEY];
+  if (!Array.isArray(list)) return stores;
+  // `onlyIds` when applying: only the devices being installed again leave - the rest of his trash stays as it is
+  const gone = (a: unknown) => Boolean(a && typeof a === "object" && (a as Rec).deletedAt && (!onlyIds || onlyIds.has(String((a as Rec).id))));
+  return { ...stores, [ACCOUNTS_KEY]: list.filter((a) => !gone(a)) };
+}
+
+/** Still to decide: never decided, or a new device he approved and has since deleted (not on his phone any more). */
+export function isItemWaiting(item: RepChangeItem, decisions: RepDecisions, liveAccountIds: Set<string>): boolean {
+  if (!isItemDecided(item, decisions)) return true;
+  if (item.kind !== "newDevice" || !item.accountId || liveAccountIds.has(item.accountId)) return false;
+  return decisions[partKey(ACCOUNTS_KEY, item.accountId)]?.decision === "approved";
+}
