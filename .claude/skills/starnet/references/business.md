@@ -2724,3 +2724,16 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - His screenshot (add device, «اسم الحساب / البطاقة *» holding the email): «اسم الحساب اجعله غير ضروري». The field is
   optional (no *, «اختياري - فارغ = الإيميل»); empty → the device is named by its email, else its KIT, else «جهاز جديد»
   (`fallbackDeviceName`, lib/deviceDisplay.ts, tested).
+
+## ✋ The device browser's buttons on a long press · 🗂️ «البطاقة» · ✎ every operation of «📂 حساباته» (Nov 2 2026)
+
+- His screenshot (a device's browser) and his choices («زر جديد «بطاقة الجهاز»», «بالضغط المطوّل فقط»): every button of the
+  device browser - the bottom bar (مزامنة، إغلاق، الرئيسية، تحديث، رجوع) and the top (📧 البريد، 🧪 لقطة، 💳) - acts on a
+  **long press only** (`BrowserBar.onHold`, a haptic tick; a short tap toasts «✋ اضغط مطولًا»). The mailbox browser keeps
+  plain taps. New top button «🗂️ البطاقة»: back to the app on THIS device's card (`DeviceCardRoute`, JUnit: the home
+  search «/?q=<email or name>», the same route a 🔔 device notification opens; the page stays open behind, like الرئيسية).
+- His screenshot (يب هنكال's «📂 حساباته» ← حساب الربح): «أضف لكل العمليات الوصف، وأضف لهم التعديل والحذف، وكل شيء من
+  المحاسبة». Each line shows its note (when the description doesn't) and «✎ التفاصيل · تعديل · حذف» → the rep card's own
+  sheet (التاريخ، العملية، قبل / الحركة / بعد) → «تعديل العملية أو حذفها». Profit operations (له / عليه في ربحه، من ربحه
+  إلى حساب، 🧹) were delete-only: now also ✎ amount, day and description (`ProfitOpEdit` → `updateRepSettlement`; kind and
+  locked rates stay). A store invoice line stays read-only (edited in the store); an expense share stays in «حسابي».

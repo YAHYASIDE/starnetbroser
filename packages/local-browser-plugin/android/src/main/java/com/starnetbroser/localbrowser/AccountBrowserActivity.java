@@ -370,7 +370,8 @@ public class AccountBrowserActivity extends AppCompatActivity {
         );
         deleteOldCaptures();
 
-        BrowserBar.setUp(this, this::goBackInWebView, this::reload, "⇣", getString(R.string.starnet_action_sync), this::syncFromStarlink);
+        // ✋ every button on a long press only (his Nov 2 2026 ask)
+        BrowserBar.setUp(this, this::goBackInWebView, this::reload, "⇣", getString(R.string.starnet_action_sync), this::syncFromStarlink, true);
         ((Button) findViewById(R.id.starnet_error_retry)).setOnClickListener(v -> reload());
         findViewById(R.id.starnet_pin_handle).setOnClickListener(v -> askPinUnrecorded());
         findViewById(R.id.starnet_remind_handle).setOnClickListener(v -> askReminder());
@@ -1525,6 +1526,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
     private static final int MENU_SNAPSHOT = 7001;
     private static final int MENU_MAIL = 7002;
     private static final int MENU_CARD = 7003;
+    private static final int MENU_DEVICE_CARD = 7004;
     /** 💳 Fills Starlink's card form with one of the operator's saved cards. */
     private final CardFillController cardFill = new CardFillController(this, new CardFillController.Host() {
         @Override
@@ -1552,14 +1554,36 @@ public class AccountBrowserActivity extends AppCompatActivity {
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        menu.add(Menu.NONE, MENU_MAIL, Menu.NONE, "📧 البريد").setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
-        menu.add(Menu.NONE, MENU_SNAPSHOT, Menu.NONE, "🧪 لقطة تشخيص").setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
-        if (cardFill.isOn()) menu.add(Menu.NONE, MENU_CARD, Menu.NONE, "💳").setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
+        // ✋ the top buttons act on a long press only too (his Nov 2 2026 ask): each is a view that holds its action
+        holdItem(menu, MENU_DEVICE_CARD, "🗂️ البطاقة");
+        holdItem(menu, MENU_MAIL, "📧 البريد");
+        holdItem(menu, MENU_SNAPSHOT, "🧪 لقطة");
+        if (cardFill.isOn()) holdItem(menu, MENU_CARD, "💳");
         return true;
+    }
+
+    private void holdItem(Menu menu, int id, String text) {
+        MenuItem item = menu.add(Menu.NONE, id, Menu.NONE, text);
+        item.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
+        android.widget.TextView view = new android.widget.TextView(this);
+        view.setText(text);
+        view.setTextColor(android.graphics.Color.WHITE);
+        view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14);
+        int pad = Math.round(8 * getResources().getDisplayMetrics().density);
+        view.setPadding(pad, 0, pad, 0);
+        view.setGravity(android.view.Gravity.CENTER);
+        view.setMinHeight(Math.round(48 * getResources().getDisplayMetrics().density));
+        BrowserBar.onHold(view, () -> onOptionsItemSelected(item));
+        item.setActionView(view);
     }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == MENU_DEVICE_CARD) {
+            // 🗂️ back to the app on this device's card; this page stays open behind it, like «الرئيسية»
+            BrowserBar.returnToApp(this, DeviceCardRoute.of(getIntent().getStringExtra(EXTRA_LOGIN_EMAIL), getTitle() != null ? getTitle().toString() : null));
+            return true;
+        }
         if (item.getItemId() == MENU_CARD) {
             cardFill.showPicker();
             return true;

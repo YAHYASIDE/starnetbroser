@@ -1423,6 +1423,7 @@ function RepCard({
           readOnly={readOnly}
           currency={currency}
           onSettle={onSettle}
+          onOpenRow={readOnly ? undefined : (line) => setRowSheet(line)}
           onClose={() => setAccountsOpen(false)}
         />
       )}
@@ -1450,6 +1451,17 @@ function RepCard({
           </p>
           {/* 📉 his share of a business expense: changed or deleted with the expense itself, in «حسابي». */}
           {sheet.settlement.expenseId && <p className="settings-hint">📉 نصيبه من مصروف عمل - يُعدَّل أو يُحذف من «حسابي» ← «📉 خسائر العمل».</p>}
+          {/* ✎ the amount, day and note can be changed too (his Nov 2 2026 ask) - its kind and locked rates stay */}
+          {!sheet.settlement.expenseId && (
+            <ProfitOpEdit
+              settlement={sheet.settlement}
+              onSave={(input) => {
+                const error = onUpdateSettlement(sheet.settlement.id, input);
+                if (!error) setSheet(null);
+                return error;
+              }}
+            />
+          )}
           <div className="settings-actions">
             {!sheet.settlement.expenseId && (
             <button
@@ -2845,3 +2857,42 @@ function AutoStatementChip({ repId }: { repId: string }) {
   );
 }
 
+/** ✎ A profit operation (له / عليه في ربحه, من ربحه إلى حساب…, 🧹): its amount, day and note (his Nov 2 2026 ask). */
+function ProfitOpEdit({ settlement, onSave }: { settlement: RepSettlement; onSave: (input: UpdateRepSettlementInput) => string | null }) {
+  const [amount, setAmount] = useState(String(settlement.amount));
+  const [date, setDate] = useState(settlement.date);
+  const [note, setNote] = useState(settlement.note ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const value = Number(amount.replace(/[\s,]/g, ""));
+  const changed = value !== settlement.amount || date !== settlement.date || note.trim() !== (settlement.note ?? "");
+  return (
+    <form
+      className="party-balance-form"
+      data-tour="profit-op-edit"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!(value > 0)) return setError("اكتب المبلغ");
+        setError(
+          onSave({ kind: settlement.kind, amount: value, currencyCode: settlement.currencyCode, date, ...(note.trim() ? { note: note.trim() } : {}) }),
+        );
+      }}
+    >
+      <label className="rep-form-field">
+        <span>المبلغ ({currencyLabel(settlement.currencyCode)})</span>
+        <input className="search-input" inputMode="decimal" dir="ltr" value={amount} onChange={(e) => setAmount(e.target.value)} />
+      </label>
+      <label className="rep-form-field">
+        <span>التاريخ</span>
+        <DateInput className="search-input" value={date} onChange={(e) => setDate(e.target.value)} />
+      </label>
+      <label className="rep-form-field">
+        <span>الوصف</span>
+        <input className="search-input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="مثال: تلفون" />
+      </label>
+      {error && <p className="ledger-form-error">{error}</p>}
+      <button type="submit" className="dialog-primary" disabled={!changed}>
+        ✓ حفظ التعديل
+      </button>
+    </form>
+  );
+}

@@ -19986,3 +19986,7 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
   font-weight: 700;
 }
 .rep-order-list li span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ✎ every operation of «📂 حساباته»: its note, and its details / edit / delete (his Nov 2 2026 ask) */
+.rep-accounts-note { color: var(--text-muted); overflow-wrap: anywhere; }
+.rep-accounts-edit { justify-self: start; padding: 2px 0; font-size: 0.78rem; }

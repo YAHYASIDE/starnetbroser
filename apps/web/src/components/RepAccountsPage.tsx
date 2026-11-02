@@ -128,10 +128,20 @@ interface Props {
    * is hidden while empty. Null = both, as before. */
   currency?: "MRU" | "SIFA" | null;
   onSettle: (input: UpdateRepSettlementInput) => string | null;
+  /** ✎ an operation tapped (his Nov 2 2026 ask «أضف لكل العمليات الوصف والتعديل والحذف»): the rep card's own sheet - its
+   * details (before / movement / after) and «تعديل العملية أو حذفها». */
+  onOpenRow?: (line: { key: string; row: RepStatementRow; before: Record<string, number>; delta: Record<string, number>; after: Record<string, number> }) => void;
   onClose: () => void;
 }
 
-export function RepAccountsPage({ repId, repName, days, profitConvert, describe, readOnly = false, currency = null, onSettle, onClose }: Props) {
+/** The note an operation carries that its description doesn't show yet. */
+function rowNote(row: RepStatementRow, text: string): string {
+  const note = row.type === "customer" ? row.op.note : row.type === "settlement" ? row.settlement.note : undefined;
+  const clean = note?.trim();
+  return clean && !text.includes(clean) ? clean : "";
+}
+
+export function RepAccountsPage({ repId, repName, days, profitConvert, describe, readOnly = false, currency = null, onSettle, onOpenRow, onClose }: Props) {
   const { money: wallets, profit } = useMemo(() => repWallets(days, profitConvert), [days, profitConvert]);
   const all = useMemo(
     () => visibleWallets([wallets.find((w) => w.id === "SIFA"), profit, ...wallets.filter((w) => w.id !== "SIFA")].filter(Boolean) as RepWallet[], currency),
@@ -287,19 +297,36 @@ export function RepAccountsPage({ repId, repName, days, profitConvert, describe,
           <p className="empty-state">لا عمليات في هذا الحساب بعد.</p>
         ) : (
           <ul className="rep-accounts-lines">
-            {shown.lines.map((line) => (
-              <li key={`${shown.id}-${line.key}`}>
-                <div>
-                  <span>{describe(line.row)}</span>
-                  <small>
-                    <bdi dir="ltr">{line.date}</bdi> · الرصيد بعدها <Money values={line.after} signed />
-                  </small>
-                </div>
-                <strong className={Object.values(line.amount).reduce((s, v) => s + v, 0) >= 0 ? "rep-accounts-plus" : "rep-accounts-minus"}>
-                  <Money values={line.amount} signed />
-                </strong>
-              </li>
-            ))}
+            {shown.lines.map((line) => {
+              const text = describe(line.row);
+              const note = rowNote(line.row, text);
+              const open = !readOnly && onOpenRow && line.row.type !== "invoice"
+                ? () => {
+                    const before: Record<string, number> = { ...line.after };
+                    for (const [c, v] of Object.entries(line.amount)) before[c] = Math.round(((before[c] ?? 0) - v) * 100) / 100;
+                    onOpenRow({ key: line.key, row: line.row, before, delta: line.amount, after: line.after });
+                  }
+                : undefined;
+              return (
+                <li key={`${shown.id}-${line.key}`} className={open ? "rep-accounts-line-open" : undefined} data-tour="rep-accounts-line">
+                  <div>
+                    <span>{text}</span>
+                    {note && <small className="rep-accounts-note">📝 {note}</small>}
+                    <small>
+                      <bdi dir="ltr">{line.date}</bdi> · الرصيد بعدها <Money values={line.after} signed />
+                    </small>
+                    {open && (
+                      <button type="button" className="text-action rep-accounts-edit" onClick={open}>
+                        ✎ التفاصيل · تعديل · حذف
+                      </button>
+                    )}
+                  </div>
+                  <strong className={Object.values(line.amount).reduce((s, v) => s + v, 0) >= 0 ? "rep-accounts-plus" : "rep-accounts-minus"}>
+                    <Money values={line.amount} signed />
+                  </strong>
+                </li>
+              );
+            })}
           </ul>
         )}
         <p className="settings-hint">«+» = له (لصالحه)، «-» = عليه. كل حساب بعملته - لا يُحوَّل ولا يُخلط.</p>
