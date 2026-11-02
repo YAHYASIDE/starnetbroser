@@ -2713,3 +2713,14 @@ is never pressed while a field is empty - it refills and saves on the next try (
   signed into (his own session stays; the rep's only fills an empty one). Both sides are told the count: the rep on
   receipt «🔑 جلسات Starlink في الملف: N من M» (missing → «افتح الأجهزة الناقصة وسجّل الدخول ثم أعد الإرسال»), the
   operator on approval «🔑 جلسات Starlink: N من M». The rep's phone needs this update too (it builds the file).
+
+## 💱 The أوقية rate in «إضافة رصيد» · 🏷️ an optional device name (Nov 2 2026)
+
+- His screenshot (a client's «إضافة رصيد»: عليه 600,000 فرانك = 120,000 سيفا): «أضف هنا يمكن التحكم في سعر مقابل الأوقية».
+  Under the amount (`BalanceForm`): «≈ X أوقية · بسعر 1,000 سيفا = Y أوقية ✎ غيّر» (`mruQuoteFor`, the same `PairRateEdit`
+  as the card's net line); «✓ حفظ» sets the registry's سيفا rate from now on (`setPairRate` → `foreignRateFromQuote`) -
+  nothing is locked on the entry (balances stay per currency; only the أوقية view uses it). Shown for سيفا / فرانك / دولار,
+  not for أوقية.
+- His screenshot (add device, «اسم الحساب / البطاقة *» holding the email): «اسم الحساب اجعله غير ضروري». The field is
+  optional (no *, «اختياري - فارغ = الإيميل»); empty → the device is named by its email, else its KIT, else «جهاز جديد»
+  (`fallbackDeviceName`, lib/deviceDisplay.ts, tested).

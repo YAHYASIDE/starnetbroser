@@ -1,5 +1,6 @@
 "use client";
 
+import { fallbackDeviceName } from "@/lib/deviceDisplay";
 import { emailBaseFor, suggestEmail, suggestPassword } from "@/lib/emailSuggest";
 import { isValidWifiCode, loadWifiDefault, saveWifiDefault } from "@/lib/wifiDefault";
 import { isOnMailDomain, loadMailDomain } from "@/lib/mailDomain";
@@ -415,13 +416,14 @@ export function AccountDialog({
   }
 
   function finishSave(renewalPlan: StarlinkAccountSummary["renewalPlan"]) {
+    // 🏷️ the name is optional: the email, else the KIT, else «جهاز جديد»
     const trimmedExtraEmails = extraEmails
       .map((entry) => ({ address: entry.address.trim(), password: entry.password?.trim() || undefined }))
       .filter((entry) => entry.address.length > 0);
 
     onSave({
       ...draft,
-      name: draft.name.trim(),
+      name: fallbackDeviceName(draft),
       phone: draft.phone?.trim() || undefined,
       expectedEmail: draft.expectedEmail?.trim() || undefined,
       expectedEmailPassword: draft.expectedEmailPassword?.trim() || undefined,
@@ -687,8 +689,9 @@ export function AccountDialog({
             )}
 
             <label className="form-field add-field add-field-name">
-              <span className="add-field-label"><b aria-hidden="true">🏷️</b> اسم الحساب / البطاقة *</span>
-              <input required value={draft.name} onChange={(e) => update("name", e.target.value)} placeholder="مثال: منزل الحي الشرقي" />
+              <span className="add-field-label"><b aria-hidden="true">🏷️</b> اسم الحساب / البطاقة</span>
+              {/* optional (his Nov 2 2026 ask «اسم الحساب اجعله غير ضروري»): empty = the email, else the KIT */}
+              <input value={draft.name} onChange={(e) => update("name", e.target.value)} placeholder="اختياري - فارغ = الإيميل" />
               <FieldDuplicate hits={duplicates} field="name" />
             </label>
 
@@ -762,8 +765,9 @@ export function AccountDialog({
             )}
 
             <label className="form-field add-field add-field-name">
-              <span className="add-field-label"><b aria-hidden="true">🏷️</b> اسم الحساب / البطاقة *</span>
-              <input required value={draft.name} onChange={(e) => update("name", e.target.value)} placeholder="مثال: منزل الحي الشرقي" />
+              <span className="add-field-label"><b aria-hidden="true">🏷️</b> اسم الحساب / البطاقة</span>
+              {/* optional (his Nov 2 2026 ask «اسم الحساب اجعله غير ضروري»): empty = the email, else the KIT */}
+              <input value={draft.name} onChange={(e) => update("name", e.target.value)} placeholder="اختياري - فارغ = الإيميل" />
               <FieldDuplicate hits={duplicates} field="name" />
             </label>
 

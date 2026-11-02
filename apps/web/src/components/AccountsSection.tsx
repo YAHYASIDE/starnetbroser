@@ -69,7 +69,7 @@ import { buildStoreDebtReminderMessage, buildStoreStatementMessage, buildWhatsAp
 import { PartyAdjustment, partyAdjustmentCashKind, PartyAdjustmentDirection, PartyKind, RecordPartyAdjustmentInput } from "@/lib/partyBalanceStore";
 import { DefaultCurrencyField } from "./CurrencyGuard";
 import { autoCurrencyOf } from "@/lib/partyCurrency";
-import { foreignRateFromQuote, partyNetIn, partyStanding, type PairQuote, type PartyNet } from "@/lib/partyNet";
+import { foreignRateFromQuote, mruQuoteFor, partyNetIn, partyStanding, type PairQuote, type PartyNet } from "@/lib/partyNet";
 import { getCurrency, loadCurrencyStore, saveCurrencyStore, setCurrencyRate } from "@/lib/currencyStore";
 import { loadPartyCurrencyContext } from "@/lib/partyCurrencyData";
 
@@ -1261,6 +1261,7 @@ function PartyCard({
           <BalanceForm
             partyName={party.name}
             partyKind={partyKind}
+            onSetPairRate={onSetPairRate}
             devices={
               isClient && onAddDevicePayment
                 ? devices.map((d) => ({ id: d.id, name: d.name, email: d.expectedEmail || d.starlinkAccountEmail || undefined }))
@@ -1320,6 +1321,7 @@ function PartyCard({
             <BalanceForm
               partyName={party.name}
               partyKind={partyKind}
+              onSetPairRate={onSetPairRate}
               devices={
                 isClient && onMoveAdjustmentToDevice
                   ? devices.map((d) => ({ id: d.id, name: d.name, email: d.expectedEmail || d.starlinkAccountEmail || undefined }))
@@ -1504,6 +1506,8 @@ interface BalanceFormProps {
   /** Editing: the adjustment id, so an already-saved 📷 إثبات can be shown/replaced. */
   proofKey?: string;
   submitLabel?: string;
+  /** 💱 «بسعر 1,000 سيفا = 3,600 أوقية ✎ غيّر» under the amount (his Nov 2 2026 ask) - the registry's rate, from now on. */
+  onSetPairRate?: (quote: PairQuote) => void;
   onCancel: () => void;
   /** Returns an error message, or null on success. */
   onSubmit: (input: BalanceFormInput) => string | null;
@@ -1538,7 +1542,8 @@ function cashMovedLabel(partyKind: PartyKind, direction: PartyAdjustmentDirectio
   return kind === "in" ? `💵 استلمناها نقدًا من ${who} - تدخل الكاش` : `💵 دفعناها نقدًا إلى ${who} - تخرج من الكاش`;
 }
 
-function BalanceForm({ partyName, partyKind, devices, initial, proofKey, submitLabel = "حفظ الرصيد", onCancel, onSubmit }: BalanceFormProps) {
+function BalanceForm({ partyName, partyKind, devices, initial, proofKey, submitLabel = "حفظ الرصيد", onSetPairRate, onCancel, onSubmit }: BalanceFormProps) {
+  const [rates, setRates] = useState(() => loadCurrencyStore());
   const [direction, setDirectionState] = useState<PartyAdjustmentDirection>(
     initial?.direction ?? (partyKind === "client" && devices.length > 0 ? "weOwe" : "owesUs"),
   );
@@ -1704,6 +1709,35 @@ function BalanceForm({ partyName, partyKind, devices, initial, proofKey, submitL
         </select>
       </div>
       {payCurrency === "FRANC" && <FrancHint amount={amount} />}
+      {(() => {
+        // 💱 what it is in أوقية, at a rate he can change right here (his Nov 2 2026 ask)
+        const stored = toLedgerPayment(payCurrency, Number(amount) || 0);
+        const quote = mruQuoteFor(stored.currency, getCurrency(rates, stored.currency)?.rateFromUsd, getCurrency(rates, "MRU")?.rateFromUsd);
+        if (!quote) return null;
+        const mru = (stored.amount * quote.mru) / quote.block;
+        return (
+          <p className="settings-hint party-balance-mru" data-tour="balance-mru">
+            {stored.amount > 0 ? (
+              <>
+                ≈ <bdi dir="ltr">{formatAmount(Math.round(mru))}</bdi> أوقية
+              </>
+            ) : (
+              "💱"
+            )}
+            <PairRateEdit
+              quote={quote}
+              onSave={
+                onSetPairRate
+                  ? (q) => {
+                      onSetPairRate(q);
+                      setRates(loadCurrencyStore());
+                    }
+                  : undefined
+              }
+            />
+          </p>
+        );
+      })()}
       {isPayment && (
         <fieldset className="pay-methods">
           <legend>طريقة الدفع</legend>
