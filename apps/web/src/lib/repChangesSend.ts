@@ -3,7 +3,7 @@
 import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
 import { exportAccountSessions, isRunningInAndroidApp } from "./localBrowser";
-import { buildRepChangeSet, buildRepChangesFile, countRepChanges, newDeviceIds, PAIRING_REP, repChangesFileName } from "./repChanges";
+import { buildRepChangeSet, buildRepChangesFile, countRepChanges, PAIRING_REP, repChangesFileName, sessionDeviceIds } from "./repChanges";
 import { loadRepCopy } from "./repCopy";
 import { ensureRepPhoneKey, loadRepMode } from "./repDeviceTransfer";
 import { loadRepBase, readStores } from "./repWorkspace";
@@ -41,8 +41,8 @@ export async function shareRepPairing(): Promise<SendChangesResult> {
 
 
 async function shareChangesFile(code: string, repId: string, changes: ReturnType<typeof buildRepChangeSet>, count: number, baseSentAt: string | undefined): Promise<SendChangesResult> {
-  const base = loadRepBase();
-  const ids = newDeviceIds(changes, base);
+  // 🔑 every device in the file carries its session (not only the new ones) - his Nov 2 2026 report
+  const ids = sessionDeviceIds(changes);
   const sessions = ids.length ? await exportAccountSessions(ids, true) : {};
   const now = new Date();
   const id = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `rc-${now.getTime()}`;

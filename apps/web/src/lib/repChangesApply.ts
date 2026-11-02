@@ -6,7 +6,7 @@ import { demoAccounts } from "./demoData";
 import { replaceWithNew } from "./deviceMerge";
 import { loadDeviceNotes, mergeDeviceNotes, saveDeviceNotes } from "./deviceNotes";
 import { loadLedgerStore, saveLedgerStore } from "./ledgerStore";
-import { importAccountSessions } from "./localBrowser";
+import { exportAccountSessions, importAccountSessions } from "./localBrowser";
 import { loadAllocationStore, saveAllocationStore } from "./paymentAllocationStore";
 import { loadPreviousDebts, savePreviousDebts } from "./previousDebt";
 import {
@@ -14,6 +14,8 @@ import {
   changeSetOf,
   describeItems,
   isItemWaiting,
+  sessionDeviceIds,
+  sessionsFor,
   listRepChangeItems,
   ownerReviewView,
   PAIRING_REP,
@@ -103,7 +105,10 @@ export async function receiveRepChanges(text: string, fromRepId?: string): Promi
     return { ok: false, message: "ذاكرة الهاتف ممتلئة - لم تُحفظ تسجيلات المندوب" };
   }
   const what = describeItems(items);
-  await sendRepText(repId, `📥 وصلت تسجيلاتك (${items.length}): ${what}\n⏳ بانتظار موافقة المسؤول.`);
+  // 🔑 how many of his devices came with their Starlink session (his Nov 2 2026 report: they arrived signed out)
+  const keys = sessionsFor(sessionDeviceIds(payload.changes), payload.sessions);
+  const keysLine = keys.withSession.length + keys.without.length > 0 ? `\n🔑 جلسات Starlink في الملف: ${keys.withSession.length} من ${keys.withSession.length + keys.without.length}${keys.without.length ? " - افتح الأجهزة الناقصة وسجّل الدخول فيها ثم أعد الإرسال" : ""}` : "";
+  await sendRepText(repId, `📥 وصلت تسجيلاتك (${items.length}): ${what}${keysLine}\n⏳ بانتظار موافقة المسؤول.`);
   await tellOwner(`📝 المندوب ${rep.name} أرسل ${items.length} تسجيلاً بانتظار موافقتك: ${what}\nراجعها في التطبيق (المندوبون ← تسجيلات المندوبين).`, REP_INBOX_ROUTE);
   return { ok: true, message: `📝 وصلت تسجيلات ${rep.name} (${items.length}) - بانتظار موافقتك` };
 }
@@ -162,6 +167,7 @@ export async function decideRepItems(repId: string, approveKeys: string[], rejec
   if (approved.length === 0 && rejected.length === 0 && linked.length === 0) return { ok: false, message: "اختر تسجيلاً أولاً" };
 
   const installed = [...approved, ...linked];
+  let sessionNote = "";
   if (installed.length > 0) {
     // 🗑 a device of his trash approved again is installed fresh in its place (only those leave the trash)
     const revive = new Set(installed.map((i) => i.accountId).filter((id): id is string => Boolean(id)));
@@ -171,12 +177,22 @@ export async function decideRepItems(repId: string, approveKeys: string[], rejec
     } catch {
       return { ok: false, message: "ذاكرة الهاتف ممتلئة - لم يُثبَّت شيء" };
     }
+    // 🔑 the session of every device he approved (new or edited) that came with one - his Nov 2 2026 report
     const sessions: Record<string, Record<string, string>> = {};
-    for (const id of result.newDeviceIds) {
-      if (payload.sessions[id]) sessions[id] = payload.sessions[id]!;
+    const ids = [...new Set([...result.newDeviceIds, ...installed.map((i) => i.accountId).filter((id): id is string => Boolean(id))])];
+    // a device he already had keeps his own session when it has one - the rep's only fills an empty one
+    const known = ids.filter((id) => !result.newDeviceIds.includes(id));
+    const mine = known.length ? await exportAccountSessions(known) : {};
+    const signedInHere = new Set(sessionsFor(known, mine).withSession);
+    const { withSession: offered, without } = sessionsFor(ids, payload.sessions);
+    const withSession = offered.filter((id) => !signedInHere.has(id));
+    for (const id of withSession) {
+      sessions[id] = payload.sessions[id]!;
       if (payload.sessions[`mail:${id}`]) sessions[`mail:${id}`] = payload.sessions[`mail:${id}`]!;
     }
-    if (Object.keys(sessions).length > 0) await importAccountSessions(sessions);
+    let imported = 0;
+    if (Object.keys(sessions).length > 0) imported = (await importAccountSessions(sessions)).ok ? withSession.length : 0;
+    sessionNote = ids.length ? `🔑 جلسات Starlink: ${imported + signedInHere.size} من ${ids.length}${signedInHere.size ? ` (${signedInHere.size} بقيت جلستك أنت)` : ""}${without.filter((id) => !signedInHere.has(id)).length ? ` - بلا جلسة في ملفه: ${without.filter((id) => !signedInHere.has(id)).length} (يسجّل الدخول عليها في هاتفه ثم يعيد الإرسال)` : ""}` : "";
   }
 
   if (linked.length > 0) {
@@ -217,5 +233,5 @@ export async function decideRepItems(repId: string, approveKeys: string[], rejec
   ].filter(Boolean);
   await sendRepText(repId, lines.join("\n"));
   const parts = [approved.length ? `✓ ثُبّت ${approved.length}` : "", linked.length ? `🔗 حلّ محل القديم ${linked.length}` : "", rejected.length ? `رُفض ${rejected.length}` : "", left ? `بقي ${left}` : ""].filter(Boolean);
-  return { ok: true, message: `${parts.join(" · ")}${copy.ok ? "" : ` - لم تُرسل له نسخة جديدة: ${copy.message}`}` };
+  return { ok: true, message: `${parts.join(" · ")}${sessionNote ? `\n${sessionNote}` : ""}${copy.ok ? "" : ` - لم تُرسل له نسخة جديدة: ${copy.message}`}` };
 }

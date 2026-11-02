@@ -2703,3 +2703,13 @@ is never pressed while a field is empty - it refills and saves on the next try (
   not there, and a **new device he approved and no longer has** is waiting again. Approving it installs it fresh (with the
   file's new Starlink session) in place of the trashed copy - only those ids leave the trash, the rest of it stays. A
   device he ❌ rejected stays rejected (unchanged).
+
+## 🔑 A rep's file carries the session of every device in it (Nov 2 2026)
+
+- His report: «المندوب المسؤول 2 عندما يرسل، الجلسات لا تأتيني مسجّلة». Only the devices the rep CREATED carried their
+  Starlink session (`newDeviceIds`), and only those were imported on approval - a device he re-signed into arrived signed
+  out. Now (`sessionDeviceIds`, `sessionsFor`, lib/repChanges.ts, tested): every device in the file carries its session
+  (+ mailbox); on approval each approved device's session goes in - except a device the operator already has AND is
+  signed into (his own session stays; the rep's only fills an empty one). Both sides are told the count: the rep on
+  receipt «🔑 جلسات Starlink في الملف: N من M» (missing → «افتح الأجهزة الناقصة وسجّل الدخول ثم أعد الإرسال»), the
+  operator on approval «🔑 جلسات Starlink: N من M». The rep's phone needs this update too (it builds the file).

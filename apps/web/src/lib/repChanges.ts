@@ -94,6 +94,18 @@ export function countRepChanges(changes: RepChangeSet): number {
   return Object.values(changes).reduce((sum, c) => sum + Object.keys(c.set).length + c.removed.length, 0);
 }
 
+/** Every device in his file - their Starlink sessions travel with it (his Nov 2 2026 report: a re-signed-in device of
+ * his arrived signed out; only the ones he created used to carry one). */
+export function sessionDeviceIds(changes: RepChangeSet): string[] {
+  return Object.keys(changes[ACCOUNTS_KEY]?.set ?? {});
+}
+
+/** 🔑 How many of these devices carry a Starlink session in the file. */
+export function sessionsFor(ids: string[], sessions: Record<string, Record<string, string>>): { withSession: string[]; without: string[] } {
+  const has = (id: string) => Object.values(sessions[id] ?? {}).some((v) => typeof v === "string" && v.trim() !== "");
+  return { withSession: ids.filter(has), without: ids.filter((id) => !has(id)) };
+}
+
 /** Devices the rep created himself (their Starlink sessions travel with the file). */
 export function newDeviceIds(changes: RepChangeSet, base: StoreValues | null): string[] {
   const before = new Set((Array.isArray(base?.[ACCOUNTS_KEY]) ? (base![ACCOUNTS_KEY] as Rec[]) : []).map((a) => String(a.id)));

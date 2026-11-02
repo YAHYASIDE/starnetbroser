@@ -292,3 +292,13 @@ describe("🗑 a rep's device he deleted is offered again (his Nov 2 2026 report
     expect(list.filter((a) => a.id === "a2")).toHaveLength(1);
   });
 });
+
+describe("🔑 Starlink sessions in a rep's file (his Nov 2 2026 report)", () => {
+  it("every device in the file carries its session, and the count says which came without one", async () => {
+    const { sessionDeviceIds, sessionsFor } = await import("./repChanges");
+    const changes = { [ACCOUNTS_KEY]: { set: { a1: { id: "a1", name: "Dish 1" }, a2: { id: "a2", name: "Dish 2" } }, removed: [] } };
+    expect(sessionDeviceIds(changes)).toEqual(["a1", "a2"]);
+    expect(sessionsFor(["a1", "a2", "a3"], { a1: { token: "x" }, a2: { token: " " }, "mail:a1": { m: "y" } })).toEqual({ withSession: ["a1"], without: ["a2", "a3"] });
+    expect(sessionDeviceIds({})).toEqual([]);
+  });
+});
