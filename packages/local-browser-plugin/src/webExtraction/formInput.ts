@@ -45,3 +45,28 @@ export function typeValue(el: HTMLInputElement | HTMLTextAreaElement, value: str
   el.dispatchEvent(new Event("change", { bubbles: true }));
   return el.value === value;
 }
+
+/** ⌨️ Types `value` one key at a time (keydown, keypress, beforeinput, input, keyup per character) -
+ * for payment fields that only validate real keystrokes: the card number «لا تقبل» until he deleted
+ * two digits and typed them again (his Nov 3 2026 report, a Mercado Pago form). A mask that reformats
+ * on each key («4549 2406 …») sees each digit arrive like a person's. Returns the final value. */
+export function typeKeys(el: HTMLInputElement | HTMLTextAreaElement, value: string): string {
+  el.focus();
+  setNativeValue(el, "");
+  el.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "deleteContentBackward" }));
+  for (const ch of value) {
+    const code = ch.charCodeAt(0);
+    const key = { bubbles: true, cancelable: true, key: ch, code: /\d/.test(ch) ? `Digit${ch}` : "", keyCode: code, which: code, charCode: code };
+    el.dispatchEvent(new KeyboardEvent("keydown", key));
+    el.dispatchEvent(new KeyboardEvent("keypress", key));
+    const before = new InputEvent("beforeinput", { bubbles: true, cancelable: true, inputType: "insertText", data: ch });
+    // A field that cancels beforeinput inserts the character itself.
+    if (el.dispatchEvent(before)) {
+      setNativeValue(el, el.value + ch);
+      el.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: ch }));
+    }
+    el.dispatchEvent(new KeyboardEvent("keyup", key));
+  }
+  el.dispatchEvent(new Event("change", { bubbles: true }));
+  return el.value;
+}

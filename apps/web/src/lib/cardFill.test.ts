@@ -36,9 +36,10 @@ describe("card details for filling Starlink's card form", () => {
     const items = fillItems([card, { id: "c2", last4: "4444", name: "OTHER", createdAt: "x" }], book);
     expect(items).toHaveLength(1);
     expect(items[0]!.label).toBe("KAST •••• 1111 · 03/30");
-    expect(JSON.parse(items[0]!.payload)).toEqual({ number: "4111111111111111", name: "DEMO NAME", expMonth: "03", expYear: "30", cvc: "123", postal: "", address: "", taxId: "madrid02" });
+    expect(JSON.parse(items[0]!.payload)).toEqual({ number: "4111111111111111", name: "DEMO NAME", expMonth: "03", expYear: "30", cvc: "123", postal: "", address: "", taxId: "madrid02", dni: "madrid02" });
     expect(fillItems([card], removeCardFill(book, "c1"))).toEqual([]);
     const own = setCardFill({}, "c1", { ...made.data, taxId: "DEMOTAX123" });
     expect(JSON.parse(fillItems([card], own)[0]!.payload).taxId).toBe("DEMOTAX123");
+    expect(JSON.parse(fillItems([card], own)[0]!.payload).dni).toBe("madrid02"); // the DNI box never gets the passport
   });
 });

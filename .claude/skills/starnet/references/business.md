@@ -428,8 +428,9 @@ mind). Exact texts and numbers live in the code - this file says where.
   address, and **DNI / RTN / Passport** (a tax id some countries' Starlink payment form requires -
   the «taxId» card field, filled when the form shows a DNI/RTN/Passport box; his own id, kept per
   card on the phone). **His rule: the DNI/CUIT box always gets «madrid02» instead of a passport**
-  (`DEFAULT_TAX_ID`; prefilled in the form, used when a card has no value; a value typed on a card
-  wins). He insisted after being told DNI is a national id, not a city. **His choices:** kept on the phone **and in the encrypted backup** (`starnet_card_fill_v1`),
+  (`DEFAULT_TAX_ID`). **Nov 3 2026 («dni تضع فيه باسبورت»): a «DNI/CUIT/CUIL/NIE» box ALWAYS gets
+  «madrid02» (`dni` in the fill payload), even when a card has a passport typed; the card's own value
+  goes only to a Passport / RTN / tax-id box.** He insisted after being told DNI is a national id, not a city. **His choices:** kept on the phone **and in the encrypted backup** (`starnet_card_fill_v1`),
   the code is filled too, **no fingerprint**; never in the rep's copy (`pushFillCards` sends [] in
   rep mode), never to the assistant. Logic `lib/cardFill.ts`.
 - In a device's browser: tapping a card field of the payment form (or the top-bar «💳») lists the
@@ -2798,3 +2799,12 @@ is never pressed while a field is empty - it refills and saves on the next try (
   the green line on the right edge, opacity 0.32 (clear while pressed): «⏭ 3/10 · 8ث» = next now, «⏹» = stop.
 - The green line's details carry «⏹ إيقاف المزامنة» while the run works: a visible run stops its
   queue (as «⏹»), a 🌙 background run stops the service (`stopBackgroundSync`); the line ends.
+
+## 💳 Card fill: the DNI box and the number typed key by key (Nov 3 2026)
+
+- His report (an Argentine Starlink «Payment Method» form, Card / Mercado Pago): the DNI/CUIT box got
+  the passport, and the card number «لا تقبل» until he deleted two digits and typed them again.
+- DNI/CUIT/CUIL/NIE boxes now always get «madrid02» (see the card-fill section above).
+- The card number is typed digit by digit (`formInput.ts` `typeKeys`: keydown, keypress, beforeinput,
+  input, keyup per digit), so a form that validates only real keystrokes accepts it at once; if
+  that doesn't stick, the whole-value `typeValue` is the fallback.

@@ -2036,8 +2036,8 @@ function CardDetailsForm({ existing, onSave, onRemove }: { existing?: CardFillDa
         <input className="search-input" autoComplete="off" value={address} onChange={(e) => setAddress(e.target.value)} />
       </label>
       <label className="tool-field">
-        <span>رقم الهوية/الجواز (اختياري - DNI/RTN/Passport)</span>
-        <input className="search-input" dir="ltr" autoComplete="off" value={taxId} onChange={(e) => setTaxId(e.target.value)} placeholder="DNI / RTN / Passport" />
+        <span>رقم الجواز / RTN (اختياري - خانة «DNI/CUIT» تأخذ دائمًا madrid02)</span>
+        <input className="search-input" dir="ltr" autoComplete="off" value={taxId} onChange={(e) => setTaxId(e.target.value)} placeholder="Passport / RTN" />
       </label>
       {error && <div className="account-card-alert ledger-form-error">{error}</div>}
       <button className="dialog-primary" type="submit">

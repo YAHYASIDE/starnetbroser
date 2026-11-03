@@ -94,4 +94,29 @@ describe("fillCardFields", () => {
     expect(fillCardFields(doc, CARD)).toBe(1);
     expect((document.getElementById("t") as HTMLInputElement).value).toBe("DEMOTAX123");
   });
+
+  it("🪪 a «DNI / CUIT» box gets the DNI value, a passport box the card's own id", () => {
+    const doc = page(`<input id="d" aria-label="DNI/CUIT"><input id="p" placeholder="Passport">`);
+    expect(fillCardFields(doc, { ...CARD, dni: "DEMODNI" })).toBe(2);
+    expect((doc.getElementById("d") as HTMLInputElement).value).toBe("DEMODNI");
+    expect((doc.getElementById("p") as HTMLInputElement).value).toBe("DEMOTAX123");
+    page(`<input id="d2" aria-label="DNI/CUIT">`);
+    fillCardFields(document, CARD); // no dni sent (an older app) → the card's id as before
+    expect((document.getElementById("d2") as HTMLInputElement).value).toBe("DEMOTAX123");
+  });
+
+  it("⌨️ the card number is typed digit by digit (a masked field that reformats on each key)", () => {
+    const doc = page(`<input id="c" autocomplete="cc-number">`);
+    const c = doc.getElementById("c") as HTMLInputElement;
+    const keys: string[] = [];
+    c.addEventListener("keydown", (e) => keys.push(e.key));
+    // A mask like the payment form's: groups of 4 digits.
+    c.addEventListener("input", () => {
+      const d = c.value.replace(/\D/g, "");
+      c.value = d.replace(/(\d{4})(?=\d)/g, "$1 ");
+    });
+    expect(fillCardFields(doc, CARD)).toBe(1);
+    expect(c.value).toBe("4111 1111 1111 1111");
+    expect(keys.join("")).toBe("4111111111111111");
+  });
 });

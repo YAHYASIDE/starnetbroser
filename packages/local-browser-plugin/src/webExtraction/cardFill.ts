@@ -6,7 +6,7 @@
  * Arabic, French) - never by guessing a field with no card wording.
  */
 
-import { typeValue } from "./formInput";
+import { typeKeys, typeValue } from "./formInput";
 
 export type CardFieldKind = "number" | "name" | "expiry" | "expMonth" | "expYear" | "cvc" | "postal" | "address" | "taxId";
 
@@ -22,7 +22,13 @@ export interface FillCard {
   address?: string;
   /** DNI / RTN / Passport / tax id (some countries' Starlink payment form requires it). */
   taxId?: string;
+  /** 🪪 What a «DNI / CUIT» box gets - his rule: «madrid02», never the passport (Nov 3 2026: «dni تضع فيه
+   * باسبورت»). Falls back to `taxId` when absent. */
+  dni?: string;
 }
+
+/** A box that asks for the Argentine/Spanish national id (DNI, CUIT, CUIL, NIE) - not a passport box. */
+const DNI_BOX = /\bdni\b|\bcuit\b|\bcuil\b|\bnie\b/i;
 
 const AUTOCOMPLETE: Record<string, CardFieldKind> = {
   "cc-number": "number",
@@ -118,7 +124,7 @@ function valueFor(kind: CardFieldKind, card: FillCard, el: HTMLInputElement | HT
     case "address":
       return card.address || undefined;
     case "taxId":
-      return card.taxId || undefined;
+      return (DNI_BOX.test(labelText(el)) ? card.dni : undefined) || card.taxId || undefined;
   }
 }
 
@@ -136,12 +142,17 @@ const digitsOf = (s: string) => s.replace(/\D/g, "");
 
 /** Types the value the way a person would (frameworks and payment fields see real input events);
  * falls back to setting it directly. */
-function typeInto(input: HTMLInputElement, value: string): boolean {
+function typeInto(input: HTMLInputElement, value: string, kind: CardFieldKind): boolean {
+  const looksRight = (v: string) => (digitsOf(value) ? digitsOf(v) === digitsOf(value) : v.trim() === value.trim());
+  // ⌨️ The card number digit by digit, like a person - some payment forms accept it only so.
+  if (kind === "number" && looksRight(typeKeys(input, digitsOf(value)))) {
+    input.dispatchEvent(new Event("blur", { bubbles: true }));
+    return true;
+  }
   // Set the value the way a keystroke would, so React re-validates and «Save» enables - a plain
   // value set leaves the form pristine and the button greyed out (see formInput.ts).
   typeValue(input, value);
   input.dispatchEvent(new Event("blur", { bubbles: true }));
-  const looksRight = (v: string) => (digitsOf(value) ? digitsOf(v) === digitsOf(value) : v.trim() === value.trim());
   return looksRight(input.value);
 }
 
@@ -155,7 +166,7 @@ export function fillCardFields(doc: Document, card: FillCard, onlyEmpty = false)
     if (onlyEmpty && el.value.trim() !== "") continue;
     const value = valueFor(kind, card, el);
     if (!value) continue;
-    if (el.tagName === "SELECT" ? pickOption(el as HTMLSelectElement, value) : typeInto(el as HTMLInputElement, value)) filled++;
+    if (el.tagName === "SELECT" ? pickOption(el as HTMLSelectElement, value) : typeInto(el as HTMLInputElement, value, kind)) filled++;
   }
   return filled;
 }
