@@ -49,7 +49,7 @@ export function typeValue(el: HTMLInputElement | HTMLTextAreaElement, value: str
 /** ⌨️ Types `value` one key at a time (keydown, keypress, beforeinput, input, keyup per character) -
  * for payment fields that only validate real keystrokes: the card number «لا تقبل» until he deleted
  * two digits and typed them again (his Nov 3 2026 report, a Mercado Pago form). A mask that reformats
- * on each key («4549 2406 …») sees each digit arrive like a person's. Returns the final value. */
+ * on each key («1234 5678 …») sees each digit arrive like a person's. Returns the final value. */
 export function typeKeys(el: HTMLInputElement | HTMLTextAreaElement, value: string): string {
   el.focus();
   setNativeValue(el, "");
