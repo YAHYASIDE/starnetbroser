@@ -2860,3 +2860,5 @@ is never pressed while a field is empty - it refills and saves on the next try (
   nothing), list: rep, time, device + email, description, «📍 إظهار الجهاز» (`/?q=<email>`) and «✓ راجعته» (sends the
   rep «✓ راجع المسؤول تحذيرك …» on the reps bot). The card shows «🚩 تحذير المندوب: …» while open. A new warning also
   goes to his own bot (`ownerFlagMessage`).
+- Nov 3 2026 follow-up «اجعل رصيد الفوق يظهر ايضا دولار»: the strip's shown part starts with the bill in dollars
+  («131.52 $ · … أوقية · … سيفا») when the bill isn't in USD (`BalanceLine.local`).

@@ -40,7 +40,7 @@ public class BalanceLineTest {
         rates.put("MRU", 400.0);
         rates.put("SIFA", 600.0);
         rates.put("ARS", 1400.0);
-        assertEquals("\u206640,000\u2069 أوقية · \u206660,000\u2069 سيفا", BalanceLine.local("140000.00", "ARS", rates));
+        assertEquals("\u2066100.00 $\u2069 · \u206640,000\u2069 أوقية · \u206660,000\u2069 سيفا", BalanceLine.local("140000.00", "ARS", rates));
         assertEquals("\u206640,000\u2069 أوقية · \u206660,000\u2069 سيفا", BalanceLine.local("100", "USD", rates));
         assertEquals("", BalanceLine.local("100", "EUR", rates)); // its rate unknown
         assertEquals("", BalanceLine.local("0.00", "ARS", rates));

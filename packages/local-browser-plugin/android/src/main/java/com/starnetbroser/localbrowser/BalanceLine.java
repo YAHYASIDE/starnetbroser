@@ -46,13 +46,14 @@ final class BalanceLine {
     }
 
     /** 💱 The balance in أوقية / سيفا at the app's rates (`rates` = rateFromUsd per code, from the app):
-     * «52,000 أوقية · 68,000 سيفا»; "" when the bill's own rate isn't known or nothing is due. */
+     * «100.00 $ · 52,000 أوقية · 68,000 سيفا» (the dollars only for a bill in another currency); "" when the bill's own rate isn't known or nothing is due. */
     static String local(String balanceDue, String currency, Map<String, Double> rates) {
         Double v = amount(balanceDue);
         if (v == null || v < 0.005 || rates == null) return "";
         String cur = currency == null ? "" : currency.trim().toUpperCase(Locale.ROOT);
         double usd;
-        if (cur.isEmpty() || cur.equals("USD") || cur.equals("$") || cur.equals("US$")) {
+        boolean usdBill = cur.isEmpty() || cur.equals("USD") || cur.equals("$") || cur.equals("US$");
+        if (usdBill) {
             usd = v;
         } else {
             Double rate = rates.get(cur);
@@ -60,6 +61,8 @@ final class BalanceLine {
             usd = v / rate;
         }
         StringBuilder out = new StringBuilder();
+        // 💵 the dollars first when the bill is in another currency (his Nov 3 2026 ask: «يظهر ايضا دولار»)
+        if (!usdBill) out.append('\u2066').append(String.format(Locale.US, "%,.2f", usd)).append(" $").append('\u2069');
         String[][] wanted = { { "MRU", "أوقية" }, { "SIFA", "سيفا" } };
         for (String[] w : wanted) {
             Double r = rates.get(w[0]);
