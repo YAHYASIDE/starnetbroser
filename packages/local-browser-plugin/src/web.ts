@@ -160,6 +160,10 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
     return;
   }
 
+  async shareImageToWhatsApp(_options: { base64: string; fileName?: string; phone?: string; text?: string }): Promise<{ direct: boolean }> {
+    throw this.unavailable("shareImageToWhatsApp is only available in the Android app");
+  }
+
   async telegramSend(_options: { text: string; bot?: TelegramBot; chatId?: string; reply?: boolean; replyMarkup?: string; html?: boolean }): Promise<{ queued: boolean }> {
     return { queued: false };
   }

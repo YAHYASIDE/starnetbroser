@@ -131,6 +131,49 @@ public class LocalBrowserPlugin extends Plugin {
         return route;
     }
 
+    /** 🖼️ A picture into one customer's WhatsApp chat (WhatsAppShare); `direct` false = his number isn't usable or
+     * WhatsApp isn't installed, the phone's share list opened instead. */
+    @PluginMethod
+    public void shareImageToWhatsApp(PluginCall call) {
+        String base64 = call.getString("base64");
+        JSObject ret = new JSObject();
+        if (base64 == null || base64.isEmpty() || getActivity() == null) {
+            call.reject("no image");
+            return;
+        }
+        try {
+            java.io.File dir = new java.io.File(getContext().getCacheDir(), "starnet_share");
+            if (!dir.exists() && !dir.mkdirs()) throw new java.io.IOException("cache");
+            java.io.File file = new java.io.File(dir, WhatsAppShare.fileName(call.getString("fileName")));
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(file)) {
+                out.write(android.util.Base64.decode(base64, android.util.Base64.DEFAULT));
+            }
+            Uri uri = androidx.core.content.FileProvider.getUriForFile(getContext(), getContext().getPackageName() + CaptureFileProvider.AUTHORITY_SUFFIX, file);
+            Intent send = new Intent(Intent.ACTION_SEND);
+            send.setType("image/png");
+            send.putExtra(Intent.EXTRA_STREAM, uri);
+            String text = call.getString("text");
+            if (text != null && !text.isEmpty()) send.putExtra(Intent.EXTRA_TEXT, text);
+            send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            String jid = WhatsAppShare.jid(call.getString("phone"));
+            if (jid != null) {
+                for (String pkg : WhatsAppShare.PACKAGES) {
+                    Intent direct = new Intent(send).setPackage(pkg).putExtra("jid", jid);
+                    if (direct.resolveActivity(getContext().getPackageManager()) == null) continue;
+                    getActivity().startActivity(direct);
+                    ret.put("direct", true);
+                    call.resolve(ret);
+                    return;
+                }
+            }
+            getActivity().startActivity(Intent.createChooser(send, "أرسل الصورة"));
+            ret.put("direct", false);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("تعذّر فتح واتساب");
+        }
+    }
+
     /** 📌 Pins a page of the app to the phone's home screen (the launcher asks to confirm). */
     @PluginMethod
     public void pinShortcut(PluginCall call) {

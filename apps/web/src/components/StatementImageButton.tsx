@@ -6,14 +6,14 @@ import type { StatementData } from "@/lib/statementDocument";
 
 /** «🖼️ صورة الكشف» - the statement as an invoice-style picture, straight to the share sheet
  * (WhatsApp...). Built only when tapped. */
-export function StatementImageButton({ build }: { build: () => StatementData }) {
+export function StatementImageButton({ build, phone }: { build: () => StatementData; /** 💬 his saved number → his WhatsApp chat */ phone?: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function share() {
     setBusy(true);
     setError(null);
-    const result = await exportStatementImage(build());
+    const result = await exportStatementImage(build(), phone);
     setBusy(false);
     if (!result.ok) setError(result.message);
   }

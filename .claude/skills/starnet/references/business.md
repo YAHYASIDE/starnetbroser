@@ -2750,3 +2750,11 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - «❌ ارفض كل المكرّر (N)» in the review: every «مسجّل عندك من قبل» item rejected in one tap (his own devices stay).
 - Devices already in his list whose rep version changed since an old decision show once more - one «ارفض كل المكرّر»
   and they stay away (the rep's app needs this update too, to drop them on his side).
+
+## 🖼️ The statement picture opens the customer's own WhatsApp chat (Nov 3 2026)
+
+- His ask: «اجعل عندما أضغط على إرسال صورة الدين تفتح واتساب الشخص تلقائيًا إن كان مسجّلًا». «🖼️ صورة الكشف» on a party
+  card passes his saved phone: the picture goes through the new native `shareImageToWhatsApp` (written to
+  cache/starnet_share, CaptureFileProvider) as ACTION_SEND to WhatsApp (or WhatsApp Business) with `jid` =
+  «<digits>@s.whatsapp.net» - his chat opens with the picture attached (`WhatsAppShare`, JUnit). No usable number, no
+  WhatsApp, or an older app → the share list as before.

@@ -6,4 +6,6 @@
     <cache-path name="starnet_downloads" path="starnet_downloads/" />
     <!-- 🆕 AppUpdateInstaller: the downloaded update APK handed to the installer. -->
     <cache-path name="starnet_update" path="starnet_update/" />
+    <!-- 🖼️ shareImageToWhatsApp: a statement picture sent straight into a customer's chat. -->
+    <cache-path name="starnet_share" path="starnet_share/" />
 </paths>

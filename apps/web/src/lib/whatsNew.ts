@@ -31,6 +31,19 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-11-03-statement-image-whatsapp",
+    date: "2026-11-03",
+    title: "🖼️ صورة الكشف تفتح واتساب الزبون مباشرة",
+    steps: [
+      {
+        path: "/clients",
+        title: "🖼️ «صورة الكشف» في بطاقة الزبون",
+        before: "تفتح قائمة المشاركة وتبحث أنت عن الزبون في واتساب.",
+        after: "إن كان رقمه مسجّلًا تفتح محادثته في واتساب والصورة جاهزة للإرسال. بلا رقم تبقى قائمة المشاركة كما كانت.",
+      },
+    ],
+  },
+  {
     id: "2026-11-02-rep-repeat-fix",
     date: "2026-11-02",
     title: "🔁 تسجيلات المندوب لا تتكرر",

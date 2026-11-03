@@ -1,6 +1,8 @@
 "use client";
 
 import { Directory, Filesystem } from "@capacitor/filesystem";
+import { LocalBrowser } from "@starnet/local-browser-plugin";
+import { normalizePhoneForWhatsApp } from "./whatsapp";
 import { Share } from "@capacitor/share";
 import { isRunningInAndroidApp } from "./localBrowser";
 import { buildPrintableHtml, loadBusinessProfile, type PrintableDocument } from "./pdfDocument";
@@ -17,7 +19,8 @@ const IMAGE_PIXEL_RATIO = 3;
  * with the WebView's own text engine (Arabic shaping exactly as the app shows it), then sent to
  * the Android share sheet (WhatsApp...) or downloaded on the web.
  */
-export async function exportStatementImage(data: StatementData): Promise<PdfResult> {
+/** `phone`: the customer's saved number - the picture opens straight in his WhatsApp chat (his Nov 3 2026 ask). */
+export async function exportStatementImage(data: StatementData, phone?: string): Promise<PdfResult> {
   const host = document.createElement("div");
   try {
     const { toCanvas } = await import("html-to-image");
@@ -41,6 +44,15 @@ export async function exportStatementImage(data: StatementData): Promise<PdfResu
       link.download = fileName;
       link.click();
       return { ok: true };
+    }
+    // 💬 his customer's own chat when his number is saved (WhatsAppShare.java), else the share list as before
+    if (phone && normalizePhoneForWhatsApp(phone)) {
+      try {
+        await LocalBrowser.shareImageToWhatsApp({ base64: dataUrl.split(",")[1] ?? "", fileName, phone });
+        return { ok: true };
+      } catch {
+        // an older app without it, or WhatsApp refused: the share list below
+      }
     }
     const written = await Filesystem.writeFile({ path: fileName, data: dataUrl.split(",")[1] ?? "", directory: Directory.Cache });
     await Share.share({ title: data.isClient ? "كشف حساب زبون" : "كشف حساب مورد", files: [written.uri] });

@@ -1191,7 +1191,7 @@ function PartyCard({
       {sheet === "export" && (
         <PartySheet title={`تصدير كشف ${party.name}`} onClose={() => setSheet(null)}>
           <div className="party-export-options">
-            <StatementImageButton build={() => buildStatementData(party, isClient, totals, fullStatement(), deviceNames, net)} />
+            <StatementImageButton phone={party.phone} build={() => buildStatementData(party, isClient, totals, fullStatement(), deviceNames, net)} />
             <PdfButton className="party-action party-action-pdf" label="📄 PDF" build={() => buildPartyStatementPdf(party, isClient, totals, fullStatement(), deviceNames, net)} />
           </div>
         </PartySheet>

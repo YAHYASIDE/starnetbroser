@@ -659,7 +659,9 @@ export interface LocalBrowserPlugin {
   /** Queued natively: sent once there's a network, even if the app closes. Reps bot: to a linked
    * rep's `chatId`, or with `reply` a one-off answer to someone who just wrote to the bot.
    * `replyMarkup`: Telegram reply_markup JSON (buttons). */
-  telegramSend(options: { text: string; bot?: TelegramBot; chatId?: string; reply?: boolean; replyMarkup?: string; /** Telegram HTML (<b>, <code>) - a reps' bot message only. */ html?: boolean }): Promise<{ queued: boolean }>;
+  /** 🖼️ A picture straight into one customer's WhatsApp chat (`direct`), else the share list. */
+  shareImageToWhatsApp(options: { base64: string; fileName?: string; phone?: string; text?: string }): Promise<{ direct: boolean }>;
+    telegramSend(options: { text: string; bot?: TelegramBot; chatId?: string; reply?: boolean; replyMarkup?: string; /** Telegram HTML (<b>, <code>) - a reps' bot message only. */ html?: boolean }): Promise<{ queued: boolean }>;
   /** Sends `text` at `at` (epoch ms), replacing what was scheduled under `key` ("morning"...). */
   telegramSchedule(options: { key: string; at: number; text: string; bot?: TelegramBot; chatId?: string; replyMarkup?: string }): Promise<void>;
   telegramCancel(options: { key: string }): Promise<void>;
