@@ -484,6 +484,7 @@ export default function ClientsPage() {
           onDelete={() => handleDeleteClient(openClient.id)}
           onZero={() => handleBulkZero([openClient.id])}
           onLedgerChange={setLedgerStore}
+          onAllocationsChange={setAllocationStore}
           representatives={Object.values(representatives).map((r) => ({ id: r.id, name: r.name }))}
           onMoveRep={(repId, carry) => handleMoveClientRep(openClient.id, repId, carry)}
         />

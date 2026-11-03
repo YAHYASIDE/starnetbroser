@@ -3931,6 +3931,7 @@ export function HomeView({
           deviceName={statementAccount.name}
           ledgerStore={ledgerStore}
           onSaved={setLedgerStore}
+          onAllocationsSaved={setAllocationStore}
           onClose={() => setEditingStatementEntry(null)}
         />
       )}
@@ -3967,6 +3968,7 @@ export function HomeView({
           onSave={(patch) => handleUpdateClient(openClientId, { ...patch, creditLimit: getClient(clientStore, openClientId)?.creditLimit })}
           onDelete={() => handleDeleteClient(openClientId)}
           onLedgerChange={setLedgerStore}
+          onAllocationsChange={setAllocationStore}
         />
       )}
 

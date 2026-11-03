@@ -25,8 +25,8 @@ interface Props {
   currencyStore: CurrencyStore;
   /** True once any allocation record already touches this entry (as the shipment for a debit
    * entry, or as the payment for a credit one) - amount/currency then stay locked (everything
-   * else remains editable) so a correction here can never silently desync the FIFO allocation
-   * math, which assumes both were fixed at allocation time. */
+   * else remains editable) - now only a hint: since his Nov 3 2026 ask the amount and currency stay
+   * editable and the caller redoes the links (paymentAllocationStore.ts `reallocationAfterEdit`). */
   hasAllocations: boolean;
   onUpsertCurrency: (input: UpsertCurrencyInput) => Currency;
   onClose: () => void;
@@ -249,12 +249,10 @@ export function EditLedgerEntryDialog({ entry, currencyStore, hasAllocations, on
           profitCurrencyRates,
           currencyConfirmed: confirmed || (!changedCurrency && entry.currencyConfirmed) || undefined,
         }),
-      hasAllocations
-        ? undefined
-        : (next) => {
-            setFrancPay(false);
-            selectCurrency(next);
-          },
+      (next) => {
+        setFrancPay(false);
+        selectCurrency(next);
+      },
     );
   }
 
@@ -272,14 +270,10 @@ export function EditLedgerEntryDialog({ entry, currencyStore, hasAllocations, on
         </header>
 
         <form className="ledger-entry-form" onSubmit={submit}>
-          {hasAllocations ? (
-            <div className="form-field form-wide">
-              <span>المبلغ والعملة</span>
-              <span dir="ltr">{formatAmount(entry.amount)} {LEDGER_CURRENCY_LABELS[entry.currency]}</span>
-              <span className="ledger-cost-rate-hint">مقفلة لأن هذه الحركة مخصصة بالفعل لدفعة/شحنة أخرى</span>
-            </div>
-          ) : (
-            <>
+          {hasAllocations && (
+            <p className="ledger-cost-rate-hint form-wide" style={{ gridColumn: "1 / -1", margin: 0 }}>🔗 هذه الحركة مربوطة بدفعة/شحنة - إن غيّرت المبلغ أو العملة يُعاد ربطها تلقائيًا (الأقدم أولًا).</p>
+          )}
+          <>
               {isDebit ? (
                 <select className="search-input" value={currency} onChange={(e) => selectCurrency(e.target.value as LedgerCurrency)}>
                   {LEDGER_CURRENCIES.map((c) => (
@@ -312,8 +306,7 @@ export function EditLedgerEntryDialog({ entry, currencyStore, hasAllocations, on
                 onChange={(e) => setAmount(e.target.value)}
               />
               {payCurrency === "FRANC" && <FrancHint amount={amount} />}
-            </>
-          )}
+          </>
           <DateInput
             className="search-input"
             value={date}

@@ -9,6 +9,8 @@ import {
   paidTowardShipment,
   PaymentAllocation,
   planFifoAllocation,
+  reallocateEditedInStore,
+  reallocationAfterEdit,
   removeAllocationsForEntry,
   removeAllocationsForEntryFromStore,
   withAccountAllocations,
@@ -226,5 +228,39 @@ describe("planFifoAllocation", () => {
     const { plan, unallocated } = planFifoAllocation([], [], 40, "USD");
     expect(plan).toEqual([]);
     expect(unallocated).toBe(40);
+  });
+});
+
+describe("✎ reallocationAfterEdit - an allocated entry's amount edited", () => {
+  const s1 = shipment({ id: "s1", amount: 100, date: "2026-09-01" });
+  const s2 = shipment({ id: "s2", amount: 100, date: "2026-09-02", createdAt: "2026-09-02T10:00:00.000Z" });
+  const pay = (amount: number): LedgerEntry => shipment({ id: "p1", kind: "credit", amount, date: "2026-09-03" });
+
+  it("a payment raised: its links are redone oldest-first with the new amount", () => {
+    const before = [alloc({ id: "a1", paymentEntryId: "p1", shipmentEntryId: "s1", amount: 100 })];
+    const added = reallocationAfterEdit([s1, s2, pay(150)], before, pay(150))!;
+    expect(added.map((a) => [a.shipmentEntryId, a.amount])).toEqual([["s1", 100], ["s2", 50]]);
+  });
+
+  it("a payment lowered: less is placed", () => {
+    const before = [alloc({ paymentEntryId: "p1", shipmentEntryId: "s1", amount: 100 })];
+    expect(reallocationAfterEdit([s1, s2, pay(40)], before, pay(40))!.map((a) => [a.shipmentEntryId, a.amount])).toEqual([["s1", 40]]);
+  });
+
+  it("a shipment lowered: the payment that paid it moves the rest to the next shipment", () => {
+    const before = [alloc({ id: "a1", paymentEntryId: "p1", shipmentEntryId: "s1", amount: 100 })];
+    const s1Lower = { ...s1, amount: 60 };
+    const added = reallocationAfterEdit([s1Lower, s2, pay(100)], before, s1Lower)!;
+    expect(added.map((a) => [a.paymentEntryId, a.shipmentEntryId, a.amount])).toEqual([["p1", "s1", 60], ["p1", "s2", 40]]);
+  });
+
+  it("nothing linked → null; the store version keeps other links and files the new ones", () => {
+    expect(reallocationAfterEdit([s1, pay(10)], [], pay(10))).toBeNull();
+    const other = alloc({ id: "x", paymentEntryId: "p9", shipmentEntryId: "s9", amount: 5 });
+    const store = { dev: [alloc({ id: "a1", paymentEntryId: "p1", shipmentEntryId: "s1", amount: 100 }), other] };
+    const next = reallocateEditedInStore(store, "dev", [s1, s2, pay(150)], pay(150));
+    expect(next.dev!.filter((a) => a.paymentEntryId === "p1").map((a) => a.amount)).toEqual([100, 50]);
+    expect(next.dev).toContainEqual(other);
+    expect(reallocateEditedInStore(store, "dev", [s1, pay(10)], shipment({ id: "zz", kind: "credit" }))).toBe(store);
   });
 });

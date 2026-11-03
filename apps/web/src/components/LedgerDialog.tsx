@@ -51,6 +51,7 @@ import {
   paidTowardShipment,
   PaymentAllocation,
   planFifoAllocation,
+  reallocationAfterEdit,
 } from "@/lib/paymentAllocationStore";
 import { StarlinkSettlementDialog } from "./StarlinkSettlementDialog";
 import { AllocationDeviceOption, AllocationShipmentRow, PaymentAllocationDialog } from "./PaymentAllocationDialog";
@@ -1292,7 +1293,17 @@ export function LedgerDialog({
           onClose={() => setEditingEntry(null)}
           onSave={(patch) => {
             if (!confirmClosedMonthChange(ledgerEditMonthDates(editingEntry, patch))) return;
-            onChange(updateEntry(entries, editingEntry.id, patch));
+            const nextEntries = updateEntry(entries, editingEntry.id, patch);
+            onChange(nextEntries);
+            // 🔗 amount / currency changed on a linked entry: its links are placed again (oldest first)
+            const edited = nextEntries.find((e) => e.id === editingEntry.id);
+            if (edited && (edited.amount !== editingEntry.amount || edited.currency !== editingEntry.currency)) {
+              const added = reallocationAfterEdit(nextEntries, allocations, edited);
+              if (added) {
+                onRemoveEntryAllocations(edited.id);
+                if (added.length) onAddAllocations(added);
+              }
+            }
             setEditingEntry(null);
           }}
         />

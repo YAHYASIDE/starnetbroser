@@ -174,3 +174,45 @@ export function planFifoAllocation(
 
   return { plan, unallocated: Math.max(0, left) };
 }
+
+/**
+ * ✎ An entry's amount or currency was edited after it was linked (his Nov 3 2026 ask: the edit shows
+ * everything, the amount isn't locked any more). Its old links go, then the money is placed again the
+ * usual way (oldest open shipment first, same currency, this device):
+ *  - a payment: its new amount;
+ *  - a shipment: each payment that paid it puts back what it had put there.
+ * Returns the allocations to add once every allocation touching `edited` is removed
+ * (removeAllocationsForEntryFromStore), or null when nothing was linked to it.
+ */
+export function reallocationAfterEdit(entriesAfter: LedgerEntry[], allocations: PaymentAllocation[], edited: LedgerEntry): PaymentAllocation[] | null {
+  const touching = allocations.filter((a) => a.paymentEntryId === edited.id || a.shipmentEntryId === edited.id);
+  if (touching.length === 0) return null;
+  let current = allocations.filter((a) => !touching.includes(a));
+  const added: PaymentAllocation[] = [];
+  const place = (paymentId: string, amount: number, currency: LedgerCurrency) => {
+    const { plan } = planFifoAllocation(entriesAfter, current, amount, currency);
+    const made = plan.map((p) => createAllocation(paymentId, p.shipmentEntryId, p.amount, currency));
+    current = [...current, ...made];
+    added.push(...made);
+  };
+  if (edited.kind === "credit") {
+    place(edited.id, edited.amount, edited.currency);
+  } else {
+    const freed = new Map<string, { amount: number; currency: LedgerCurrency }>();
+    for (const a of touching) {
+      const f = freed.get(a.paymentEntryId);
+      freed.set(a.paymentEntryId, { amount: (f?.amount ?? 0) + a.amount, currency: a.currency });
+    }
+    for (const [paymentId, f] of freed) place(paymentId, f.amount, f.currency);
+  }
+  return added;
+}
+
+/** reallocationAfterEdit applied to the whole store: the old links removed everywhere, the new ones
+ * filed under `accountId`. The store unchanged when nothing was linked. */
+export function reallocateEditedInStore(store: AllocationsByAccount, accountId: string, entriesAfter: LedgerEntry[], edited: LedgerEntry): AllocationsByAccount {
+  const added = reallocationAfterEdit(entriesAfter, allStoredAllocations(store), edited);
+  if (!added) return store;
+  const cleared = removeAllocationsForEntryFromStore(store, edited.id);
+  return withAccountAllocations(cleared, accountId, addAllocations(getAccountAllocations(cleared, accountId), added));
+}

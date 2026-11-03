@@ -32,6 +32,8 @@ interface Props {
   onZero?: () => void;
   /** Given, each device statement offers ✎ on its past operations; called with the saved store. */
   onLedgerChange?: (next: LedgerByAccount) => void;
+  /** 🔗 An edit redid an entry's links (its amount or currency changed). */
+  onAllocationsChange?: (next: AllocationsByAccount) => void;
   /** Given, the card offers "المندوب": whose customer this is (repClients.ts), asking what happens
    * to his balance so far when he moves. */
   representatives?: { id: string; name: string }[];
@@ -44,7 +46,7 @@ interface Props {
  * together), and the aggregate totals across all of them. Each device's own full statement is one
  * tap away via the same DeviceStatementDialog used from the card itself.
  */
-export function ClientDialog({ client, devices, ledgerStore, allocationStore, onClose, onSave, onDelete, onZero, onLedgerChange, representatives, onMoveRep }: Props) {
+export function ClientDialog({ client, devices, ledgerStore, allocationStore, onClose, onSave, onDelete, onZero, onLedgerChange, onAllocationsChange, representatives, onMoveRep }: Props) {
   const [editingEntry, setEditingEntry] = useState<LedgerEntry | null>(null);
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(client.name);
@@ -380,6 +382,7 @@ export function ClientDialog({ client, devices, ledgerStore, allocationStore, on
           deviceName={statementAccount.name}
           ledgerStore={ledgerStore}
           onSaved={onLedgerChange}
+          onAllocationsSaved={onAllocationsChange}
           onClose={() => setEditingEntry(null)}
         />
       )}

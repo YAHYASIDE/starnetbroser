@@ -2808,3 +2808,15 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - The card number is typed digit by digit (`formInput.ts` `typeKeys`: keydown, keypress, beforeinput,
   input, keyup per digit), so a form that validates only real keystrokes accepts it at once; if
   that doesn't stick, the whole-value `typeValue` is the fallback.
+
+## ✎ Editing a linked entry: the amount is no longer locked (Nov 3 2026)
+
+- His ask (a «تسديد رصيد» on a customer's card, «تعديل الحركة» showing «مقفلة لأن هذه الحركة مخصصة
+  بالفعل لدفعة/شحنة أخرى»): «تعديل ليس بجيد اريد يظهر كل شي».
+- `EditLedgerEntryDialog` always shows the amount and currency; a linked entry only gets the hint
+  «🔗 … يُعاد ربطها تلقائيًا (الأقدم أولًا)».
+- Saving a changed amount/currency on a linked entry redoes its links
+  (`paymentAllocationStore.ts` `reallocationAfterEdit` / `reallocateEditedInStore`): the old ones go;
+  a payment places its new amount oldest-open-shipment first (same currency, this device); a
+  shipment's payers each place back what they had on it. A date/note/method edit keeps the links.
+  Wired in `LedgerEntryEditor` (customer, device statement, rep) and `LedgerDialog`.
