@@ -2773,3 +2773,16 @@ is never pressed while a field is empty - it refills and saves on the next try (
   (the ready file is used whatever its age). A tap during the background download waits for it.
 - Play Store (the bigger alternative: a developer account, review, a new signing key and a
   reinstall) was not chosen.
+
+## 💰 The device browser writes its balance on top (Nov 3 2026)
+
+- His ask (with a Billing screenshot, «Balance Due ARS 140,000.00»): «اريد عندما ادخل اي جهاز يقرأ
+  تلقائي رصيد الذي عليه ويكتبه فوق».
+- Opening a device's browser by hand: once it is signed in, `BalancePeek` reads Billing in a second
+  WebView of the same profile hidden behind the page (his page never moves), and the toolbar's
+  subtitle under the device name says «💰 عليه ARS 140,000.00» (red) / «✓ لا شيء عليه» (green) /
+  «💰 له …» (a credit) - `BalanceLine`. The read is saved to the device like a «مزامنة»'s Billing
+  read (the card's balance updates).
+- Not on an auto-sync / cancel / activation window (they read or act themselves), not during a 429
+  pause. A limited email: «💰 بريد محدود - لا يظهر فيه الرصيد». Coming back to an open window
+  reads again unless the last read is under 2 minutes old. A «مزامنة» passing Billing updates the line too.

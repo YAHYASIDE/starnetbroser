@@ -141,6 +141,19 @@ public class AccountBrowserActivity extends AppCompatActivity {
     private static final long HOME_SETTLE_DELAY_MS = 6000;
 
     private WebView webView;
+    /** 💰 Reads «Balance Due» behind the page once signed in, shown under the name (his Nov 3 2026 ask). */
+    private final BalancePeek balancePeek = new BalancePeek(this);
+    private final Handler balanceHandler = new Handler(Looper.getMainLooper());
+    private boolean balanceShown;
+    private String profileName;
+    private long balanceReadAt;
+    /** A read this recent is kept when he comes back to the same device's window. */
+    private static final long BALANCE_FRESH_MS = 2 * 60 * 1000;
+    private int balanceSignedInPolls;
+    private long balanceWaitStartedAt;
+    private static final long BALANCE_POLL_MS = 1500;
+    /** Waits this long for a sign-in (he may type it himself) before giving up on the line. */
+    private static final long BALANCE_WAIT_MAX_MS = 5 * 60 * 1000;
     /** ⬇️ Saves the files the page hands out (PageDownloads). */
     private PageDownloads pageDownloads;
     private ProgressBar progressBar;
@@ -265,7 +278,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        String profileName = getIntent().getStringExtra(EXTRA_PROFILE_NAME);
+        profileName = getIntent().getStringExtra(EXTRA_PROFILE_NAME);
         accountId = getIntent().getStringExtra(EXTRA_ACCOUNT_ID);
         String accountName = getIntent().getStringExtra(EXTRA_ACCOUNT_NAME);
         deviceLabel = accountName != null ? accountName : "";
@@ -385,6 +398,74 @@ public class AccountBrowserActivity extends AppCompatActivity {
         }
         startCancel(getIntent().getStringExtra(EXTRA_CANCEL_REASON));
         if (getIntent().getBooleanExtra(EXTRA_AUTO_SYNC, false)) startAutoSync(getIntent().getStringExtra(EXTRA_AUTO_SYNC_LABEL), getIntent().getBooleanExtra(EXTRA_AUTO_SYNC_HOME_ONLY, false));
+        startBalanceRead();
+    }
+
+    // ---- 💰 the balance under the device's name ----
+
+    /** Opened by hand (not an auto-sync - that reads Billing itself - nor a cancel or a new account's
+     * activation): once the page is signed in, BalancePeek reads Billing behind it. */
+    private void startBalanceRead() {
+        if (autoSyncThenClose || cancelReason != null || activationScript != null || webView == null) return;
+        if (SyncPacing.inCooldown(SyncPacing.rateLimitedAt(this), System.currentTimeMillis())) return;
+        balanceSignedInPolls = 0;
+        balanceWaitStartedAt = System.currentTimeMillis();
+        balanceHandler.postDelayed(this::balanceWaitTick, BALANCE_POLL_MS);
+    }
+
+    private void balanceWaitTick() {
+        if (webView == null || balanceShown || balancePeek.isRunning()) return;
+        if (autoSyncThenClose || cancelReason != null) return;
+        if (System.currentTimeMillis() - balanceWaitStartedAt > BALANCE_WAIT_MAX_MS) return;
+        if (!AllowedUrl.isAllowed(webView.getUrl())) {
+            balanceHandler.postDelayed(this::balanceWaitTick, BALANCE_POLL_MS);
+            return;
+        }
+        webView.evaluateJavascript(StarlinkLoginWatch.SCRIPT, value -> {
+            if (webView == null || balanceShown) return;
+            StarlinkLoginWatch.State state = StarlinkLoginWatch.parse(value);
+            boolean signedIn = state != null && StarlinkLoginWatch.isSignedInUrl(webView.getUrl()) && !state.hasEmailField && !state.hasPasswordField;
+            balanceSignedInPolls = signedIn ? balanceSignedInPolls + 1 : 0;
+            if (balanceSignedInPolls >= 2) {
+                showBalanceLine(BalanceLine.READING, 0xFFB8C4D6);
+                balancePeek.start(profileName, homeUrl != null && homeUrl.contains("/account") ? homeUrl : LocalBrowserPlugin.DEFAULT_URL,
+                    (ViewGroup) webView.getParent(), new BalancePeek.Listener() {
+                        @Override
+                        public void onRead(JSObject fields) {
+                            if (webView == null) return;
+                            showBalance(fields);
+                            // Into the app too (the card's balance), like a «مزامنة»'s Billing read.
+                            String syncId = PendingSyncStore.save(getApplicationContext(), accountId, fields);
+                            if (syncId != null) LocalBrowserPlugin.emitAccountDataSynced(syncId, accountId, fields);
+                        }
+
+                        @Override
+                        public void onNothing(boolean limited) {
+                            if (webView == null || balanceShown) return;
+                            showBalanceLine(limited ? BalanceLine.LIMITED : BalanceLine.NOT_READ, 0xFFB8C4D6);
+                        }
+                    });
+                return;
+            }
+            balanceHandler.postDelayed(this::balanceWaitTick, BALANCE_POLL_MS);
+        });
+    }
+
+    /** Any read with a balance (BalancePeek, or a «مزامنة» passing Billing) updates the line. */
+    private void showBalance(JSObject fields) {
+        if (fields == null) return;
+        String line = BalanceLine.text(fields.optString("balanceDue", ""), fields.optString("currency", ""));
+        if (line.isEmpty()) return;
+        balanceShown = true;
+        balanceReadAt = System.currentTimeMillis();
+        showBalanceLine(line, BalanceLine.owes(fields.optString("balanceDue", "")) ? 0xFFFF8A80 : 0xFF69F0AE);
+    }
+
+    private void showBalanceLine(String text, int color) {
+        Toolbar toolbar = findViewById(R.id.starnet_toolbar);
+        if (toolbar == null) return;
+        toolbar.setSubtitle(text);
+        toolbar.setSubtitleTextColor(color);
     }
 
     /** The device's browser was already open (one window per device): a new request - e.g.
@@ -396,6 +477,12 @@ public class AccountBrowserActivity extends AppCompatActivity {
         if (intent.getBooleanExtra(EXTRA_AUTO_LOGIN, false)) autoLogin = true;
         startCancel(intent.getStringExtra(EXTRA_CANCEL_REASON));
         if (intent.getBooleanExtra(EXTRA_AUTO_SYNC, false)) startAutoSync(intent.getStringExtra(EXTRA_AUTO_SYNC_LABEL), intent.getBooleanExtra(EXTRA_AUTO_SYNC_HOME_ONLY, false));
+        // 💰 entered again (its window was still open): a fresh read, unless one was just made
+        if (!balancePeek.isRunning() && System.currentTimeMillis() - balanceReadAt > BALANCE_FRESH_MS) {
+            balanceShown = false;
+            balanceHandler.removeCallbacksAndMessages(null);
+            startBalanceRead();
+        }
     }
 
     // ---- 🔄 auto-sync: «مزامنة» by itself, then back to the app ----
@@ -881,6 +968,8 @@ public class AccountBrowserActivity extends AppCompatActivity {
         // Closed (by hand, or by Android) before its auto-sync ended.
         if (autoSyncThenClose) AutoSyncResults.record(this, accountId, "closed");
         twoStepHandler.removeCallbacksAndMessages(null);
+        balanceHandler.removeCallbacksAndMessages(null);
+        balancePeek.stop();
         cardFill.release();
         BusyService.stop(this, "sync:" + accountId);
         BusyService.stop(this, "cancel:" + accountId);
@@ -1398,6 +1487,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
         // disk. The main STAR NET Activity this screen sits on may be stopped right now, so the live
         // event below can be dropped - PendingSyncStore (drained by the web UI on open/resume) is
         // what guarantees the result is never lost.
+        if (!syncHomeOnly && fields.has("balanceDue")) showBalance(fields);
         String syncId = PendingSyncStore.save(getApplicationContext(), accountId, fields);
         if (syncId != null) {
             syncFoundAnything = true;
