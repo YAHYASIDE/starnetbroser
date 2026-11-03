@@ -63,7 +63,7 @@ plus the rules learned from real misreads; keep it updated when you learn a new 
 
 ## Fixing a wrong or missing read (the reliable way)
 
-1. Ask the operator for a **«🧪 لقطة تشخيص»** of that page (button in the device browser's top
+1. Ask the operator for a **«🧪 لقطة تشخيص»** of that page (in the ⋮ menu of the device browser's top
    bar; it arrives on his Telegram bot as an `.html` file with personal words masked). A screenshot
    helps to know what *should* be read, but the snapshot is what reproduces it.
 2. Save it under `packages/local-browser-plugin/src/webExtraction/fixtures/` with a descriptive name

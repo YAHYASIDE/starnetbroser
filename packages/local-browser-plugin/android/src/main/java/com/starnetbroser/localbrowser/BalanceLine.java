@@ -1,6 +1,7 @@
 package com.starnetbroser.localbrowser;
 
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * 💰 The line under the device's name in its browser (his Nov 3 2026 ask: «عندما ادخل اي جهاز يقرأ
@@ -42,5 +43,30 @@ final class BalanceLine {
     static boolean owes(String balanceDue) {
         Double v = amount(balanceDue);
         return v != null && v >= 0.005;
+    }
+
+    /** 💱 The balance in أوقية / سيفا at the app's rates (`rates` = rateFromUsd per code, from the app):
+     * «52,000 أوقية · 68,000 سيفا»; "" when the bill's own rate isn't known or nothing is due. */
+    static String local(String balanceDue, String currency, Map<String, Double> rates) {
+        Double v = amount(balanceDue);
+        if (v == null || v < 0.005 || rates == null) return "";
+        String cur = currency == null ? "" : currency.trim().toUpperCase(Locale.ROOT);
+        double usd;
+        if (cur.isEmpty() || cur.equals("USD") || cur.equals("$") || cur.equals("US$")) {
+            usd = v;
+        } else {
+            Double rate = rates.get(cur);
+            if (rate == null || !(rate > 0)) return "";
+            usd = v / rate;
+        }
+        StringBuilder out = new StringBuilder();
+        String[][] wanted = { { "MRU", "أوقية" }, { "SIFA", "سيفا" } };
+        for (String[] w : wanted) {
+            Double r = rates.get(w[0]);
+            if (r == null || !(r > 0)) continue;
+            if (out.length() > 0) out.append(" · ");
+            out.append('\u2066').append(String.format(Locale.US, "%,d", Math.round(usd * r))).append('\u2069').append(' ').append(w[1]);
+        }
+        return out.toString();
     }
 }

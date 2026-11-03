@@ -826,6 +826,9 @@ public class LocalBrowserPlugin extends Plugin {
         if (mailPassword != null && !mailPassword.isEmpty()) intent.putExtra(AccountBrowserActivity.EXTRA_MAIL_PASSWORD, mailPassword);
         String[] mailSuggestions = stringArray(options, "mailSuggestions");
         if (mailSuggestions.length > 0) intent.putExtra(AccountBrowserActivity.EXTRA_MAIL_SUGGESTIONS, mailSuggestions);
+        // 💱 the app's rates for the balance strip's أوقية / سيفا (numbers only, nothing secret)
+        String balanceRates = options.getString("balanceRates");
+        if (balanceRates != null && !balanceRates.isEmpty() && balanceRates.length() < 4000) intent.putExtra(AccountBrowserActivity.EXTRA_BALANCE_RATES, balanceRates);
         String mailRecovery = options.getString("mailRecoveryEmail");
         if (mailRecovery != null && !mailRecovery.trim().isEmpty()) intent.putExtra(AccountBrowserActivity.EXTRA_MAIL_RECOVERY, mailRecovery.trim());
         // A distinct Uri per account (never loaded/navigated to - AccountBrowserActivity only

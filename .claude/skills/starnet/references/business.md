@@ -2830,3 +2830,14 @@ is never pressed while a field is empty - it refills and saves on the next try (
   **Hidden by default**; one phone setting for every card (`starnet.balancePricesShown`).
 - Done on the card, not in the device browser's top bar (no room for a second line there, and the
   rates live in the app).
+
+## 🧭 The device browser's top bar tidied · 💰 the balance strip (Nov 3 2026)
+
+- His ask (a photo: «ARS 191,…» cut under a one-letter name): «ازل لقطة الفوق … الدين الفوق المبلغ لا يظهر جيد
+  ولا العملات لا تظهر نظم كل الايقونات هناك ليكون متناسقين».
+- The balance (BalancePeek) moved off the toolbar subtitle to its own strip under the bar
+  (`starnet_balance_strip`): the full «💰 عليه ARS 191,843.16» (red / green), then 🙈; tapped, its
+  أوقية / سيفا price (`BalanceLine.local`, the app's rates passed as `balanceRates` when the device
+  is opened by hand) in smaller muted text and 👁. Hidden by default, remembered on the phone.
+- Top buttons share one look: icon over a small label (🗂️ البطاقة · 📧 البريد · 💳 تعبئة), long press as
+  before. «🧪 لقطة تشخيص» moved to the ⋮ menu (still there for misread pages).

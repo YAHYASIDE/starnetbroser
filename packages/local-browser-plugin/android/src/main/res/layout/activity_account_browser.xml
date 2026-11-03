@@ -12,6 +12,24 @@
         android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
         android:titleTextColor="#FFFFFF" />
 
+    <!-- 💰 The balance read from Billing (BalancePeek), its own line under the bar (his Nov 3 2026 ask):
+         the full amount; 🙈 shows its أوقية / سيفا price. Tapped = shown / hidden. -->
+    <TextView
+        android:id="@+id/starnet_balance_strip"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#111A2E"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
+        android:paddingTop="3dp"
+        android:paddingBottom="4dp"
+        android:maxLines="2"
+        android:ellipsize="end"
+        android:textColor="#B8C4D6"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
+
     <ProgressBar
         android:id="@+id/starnet_progress"
         style="?android:attr/progressBarStyleHorizontal"

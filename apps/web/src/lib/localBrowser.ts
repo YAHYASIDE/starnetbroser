@@ -23,6 +23,7 @@ import { isRepWorkspace } from "./repMode";
 import { forgetUnreadSeen, ingestBankNotices, loadBankInbox, saveBankInbox, type BankInbox } from "./bankNotices";
 import { SessionsByAccount } from "./accountBackup";
 import { markInternalLeave } from "./appLock";
+import { loadCurrencyStore } from "./currencyStore";
 import { DESKTOP_SYNC_LATER_MESSAGE, desktopBridge } from "./desktop";
 
 export interface AutoSyncAccountRef {
@@ -196,10 +197,21 @@ export async function openIsolatedAccountBrowser(accountId: string, accountName:
     // The device browser is its own Activity - STAR NET going to the background for it must not
     // count as "left the app" for the PIN re-lock.
     markInternalLeave();
-    await LocalBrowser.openAccountBrowser({ accountId, accountName, url: STARLINK_ACCOUNT_HOME_URL, ...login });
+    await LocalBrowser.openAccountBrowser({ accountId, accountName, url: STARLINK_ACCOUNT_HOME_URL, ...login, ...balanceRatesOption() });
     return { ok: true };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : "تعذر فتح المتصفح المحلي" };
+  }
+}
+
+/** 💱 The rates the device browser's balance strip needs for its أوقية / سيفا (rateFromUsd per code). */
+export function balanceRatesOption(): { balanceRates?: string } {
+  try {
+    const rates: Record<string, number> = {};
+    for (const c of Object.values(loadCurrencyStore())) if (c.rateFromUsd > 0) rates[c.code.toUpperCase()] = c.rateFromUsd;
+    return Object.keys(rates).length ? { balanceRates: JSON.stringify(rates) } : {};
+  } catch {
+    return {};
   }
 }
 

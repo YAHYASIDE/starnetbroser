@@ -95,6 +95,8 @@ public class AccountBrowserActivity extends AppCompatActivity {
     /** 🛂 «كشف توثيق»: the auto-sync reads Home only, and its reads are marked check-only (the app
      * takes nothing from them but the travel-registration notice). */
     public static final String EXTRA_AUTO_SYNC_HOME_ONLY = "com.starnetbroser.localbrowser.AUTO_SYNC_HOME_ONLY";
+    /** 💱 The app's rates as JSON {"MRU":460,"SIFA":600,"ARS":1400,…} (rateFromUsd) - the balance strip's أوقية / سيفا. */
+    public static final String EXTRA_BALANCE_RATES = "com.starnetbroser.localbrowser.BALANCE_RATES";
 
     private static final String NOTIFICATION_PERMISSION_PREFS = "starnet_notification_permission";
     private static final String KEY_ASKED_NOTIFICATION_PERMISSION = "asked_post_notifications";
@@ -451,21 +453,77 @@ public class AccountBrowserActivity extends AppCompatActivity {
         });
     }
 
-    /** Any read with a balance (BalancePeek, or a «مزامنة» passing Billing) updates the line. */
+    /** The last balance read (for 🙈 / 👁 on the strip). */
+    private String stripBalanceDue = "";
+    private String stripCurrency = "";
+    private static final String BALANCE_PREFS = "starnet_browser_balance";
+    private static final String BALANCE_LOCAL_SHOWN = "localShown";
+
+    /** Any read with a balance (BalancePeek, or a «مزامنة» passing Billing) updates the strip. */
     private void showBalance(JSObject fields) {
         if (fields == null) return;
-        String line = BalanceLine.text(fields.optString("balanceDue", ""), fields.optString("currency", ""));
+        String due = fields.optString("balanceDue", "");
+        String line = BalanceLine.text(due, fields.optString("currency", ""));
         if (line.isEmpty()) return;
         balanceShown = true;
         balanceReadAt = System.currentTimeMillis();
-        showBalanceLine(line, BalanceLine.owes(fields.optString("balanceDue", "")) ? 0xFFFF8A80 : 0xFF69F0AE);
+        stripBalanceDue = due;
+        stripCurrency = fields.optString("currency", "");
+        renderBalanceStrip();
     }
 
+    /** «💰 عليه ARS 191,843.16  🙈» - tapped: «… · 52,000 أوقية · 68,000 سيفا  👁» (smaller, muted). */
+    private void renderBalanceStrip() {
+        android.widget.TextView strip = findViewById(R.id.starnet_balance_strip);
+        if (strip == null || stripBalanceDue.isEmpty()) return;
+        String line = BalanceLine.text(stripBalanceDue, stripCurrency);
+        String local = BalanceLine.local(stripBalanceDue, stripCurrency, balanceRates());
+        boolean shown = getSharedPreferences(BALANCE_PREFS, MODE_PRIVATE).getBoolean(BALANCE_LOCAL_SHOWN, false);
+        android.text.SpannableStringBuilder text = new android.text.SpannableStringBuilder(line);
+        text.setSpan(new android.text.style.ForegroundColorSpan(BalanceLine.owes(stripBalanceDue) ? 0xFFFF8A80 : 0xFF69F0AE), 0, line.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        if (!local.isEmpty()) {
+            int from = text.length();
+            text.append(shown ? "  ·  " + local + "  👁" : "   🙈");
+            text.setSpan(new android.text.style.RelativeSizeSpan(0.82f), from, text.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            strip.setOnClickListener(v -> {
+                SharedPreferences prefs = getSharedPreferences(BALANCE_PREFS, MODE_PRIVATE);
+                prefs.edit().putBoolean(BALANCE_LOCAL_SHOWN, !prefs.getBoolean(BALANCE_LOCAL_SHOWN, false)).apply();
+                renderBalanceStrip();
+            });
+        } else {
+            strip.setOnClickListener(null);
+        }
+        strip.setText(text);
+        strip.setVisibility(View.VISIBLE);
+    }
+
+    /** The app's rates (rateFromUsd per currency code) passed when it opened this browser. */
+    private java.util.Map<String, Double> balanceRates() {
+        java.util.Map<String, Double> rates = new java.util.HashMap<>();
+        String json = getIntent().getStringExtra(EXTRA_BALANCE_RATES);
+        if (json == null || json.isEmpty()) return rates;
+        try {
+            org.json.JSONObject o = new org.json.JSONObject(json);
+            java.util.Iterator<String> keys = o.keys();
+            while (keys.hasNext()) {
+                String k = keys.next();
+                double r = o.optDouble(k, 0);
+                if (r > 0) rates.put(k.toUpperCase(java.util.Locale.ROOT), r);
+            }
+        } catch (org.json.JSONException ignored) {
+            // no rates - the strip shows the bill alone
+        }
+        return rates;
+    }
+
+    /** «💰 يقرأ الرصيد…» / «لم يظهر الرصيد» on the strip (no amount yet). */
     private void showBalanceLine(String text, int color) {
-        Toolbar toolbar = findViewById(R.id.starnet_toolbar);
-        if (toolbar == null) return;
-        toolbar.setSubtitle(text);
-        toolbar.setSubtitleTextColor(color);
+        android.widget.TextView strip = findViewById(R.id.starnet_balance_strip);
+        if (strip == null) return;
+        strip.setText(text);
+        strip.setTextColor(color);
+        strip.setOnClickListener(null);
+        strip.setVisibility(View.VISIBLE);
     }
 
     /** The device's browser was already open (one window per device): a new request - e.g.
@@ -1646,24 +1704,31 @@ public class AccountBrowserActivity extends AppCompatActivity {
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         // ✋ the top buttons act on a long press only too (his Nov 2 2026 ask): each is a view that holds its action
-        holdItem(menu, MENU_DEVICE_CARD, "🗂️ البطاقة");
-        holdItem(menu, MENU_MAIL, "📧 البريد");
-        holdItem(menu, MENU_SNAPSHOT, "🧪 لقطة");
-        if (cardFill.isOn()) holdItem(menu, MENU_CARD, "💳");
+        // 🧭 the same look for every top button: an icon over a small label (his Nov 3 2026 ask «نظم كل
+        // الايقونات»); «🧪 لقطة» lives in the ⋮ menu now, out of the way.
+        holdItem(menu, MENU_DEVICE_CARD, "🗂️", "البطاقة");
+        holdItem(menu, MENU_MAIL, "📧", "البريد");
+        if (cardFill.isOn()) holdItem(menu, MENU_CARD, "💳", "تعبئة");
+        menu.add(Menu.NONE, MENU_SNAPSHOT, Menu.NONE, "🧪 لقطة تشخيص").setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
         return true;
     }
 
-    private void holdItem(Menu menu, int id, String text) {
-        MenuItem item = menu.add(Menu.NONE, id, Menu.NONE, text);
+    private void holdItem(Menu menu, int id, String icon, String label) {
+        MenuItem item = menu.add(Menu.NONE, id, Menu.NONE, icon + " " + label);
         item.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
         android.widget.TextView view = new android.widget.TextView(this);
+        android.text.SpannableString text = new android.text.SpannableString(icon + "\n" + label);
+        text.setSpan(new android.text.style.RelativeSizeSpan(1.45f), 0, icon.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         view.setText(text);
         view.setTextColor(android.graphics.Color.WHITE);
-        view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14);
-        int pad = Math.round(8 * getResources().getDisplayMetrics().density);
+        view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 11);
+        view.setLineSpacing(0, 0.95f);
+        float density = getResources().getDisplayMetrics().density;
+        int pad = Math.round(6 * density);
         view.setPadding(pad, 0, pad, 0);
         view.setGravity(android.view.Gravity.CENTER);
-        view.setMinHeight(Math.round(48 * getResources().getDisplayMetrics().density));
+        view.setMinWidth(Math.round(52 * density));
+        view.setMinHeight(Math.round(48 * density));
         BrowserBar.onHold(view, () -> onOptionsItemSelected(item));
         item.setActionView(view);
     }
