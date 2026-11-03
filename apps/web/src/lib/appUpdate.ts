@@ -38,9 +38,37 @@ export type UpdateCheckResult =
   | { status: "unknown"; message: string };
 
 const LAST_CHECK_KEY = "starnet.updateCheckAt";
-const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+/** 📲 The newer build last found (his Nov 3 2026 ask): the banner stays between checks until it is installed. */
+const FOUND_KEY = "starnet.updateFound";
+const CHECK_INTERVAL_MS = 3 * 60 * 60 * 1000;
 
-/** Automatic checks run at most every 6 hours; a manual check from الإعدادات always runs. */
+/** The update found by an earlier check that this build still isn't - or null. */
+export function knownUpdate(currentCommit = CURRENT_COMMIT): string | null {
+  try {
+    const found = window.localStorage.getItem(FOUND_KEY);
+    return found && /^[0-9a-f]{7,40}$/.test(found) && isUpdateAvailable(currentCommit, found) ? found : null;
+  } catch {
+    return null;
+  }
+}
+
+function rememberFound(commit: string | null): void {
+  try {
+    if (commit) window.localStorage.setItem(FOUND_KEY, commit);
+    else window.localStorage.removeItem(FOUND_KEY);
+  } catch {
+    // Storage unavailable - the next check finds it again.
+  }
+}
+
+/** 📲 The banner's wording: «جاهز» once the file is downloaded in the background (one tap opens the installer). */
+export function updateBannerText(ready: boolean): { title: string; hint: string } {
+  return ready
+    ? { title: "التحديث جاهز - اضغط تثبيت", hint: "نزل في الخلفية - ضغطة واحدة تفتح التثبيت، وبياناتك تبقى كما هي" }
+    : { title: "تحديث جديد للتطبيق متوفر", hint: "اضغط لتنزيل النسخة الأحدث ثم ثبّتها - بياناتك تبقى كما هي" };
+}
+
+/** Automatic checks run at most every 3 hours; a manual check from الإعدادات always runs. */
 export function shouldAutoCheck(now = Date.now()): boolean {
   try {
     const last = Number(window.localStorage.getItem(LAST_CHECK_KEY) ?? 0);
@@ -65,8 +93,10 @@ export async function checkForAppUpdate(): Promise<UpdateCheckResult> {
     const release = (await response.json()) as { body?: string; published_at?: string; assets?: { updated_at?: string }[] };
     const releaseCommit = parseReleaseCommit(release.body);
     if (isUpdateAvailable(CURRENT_COMMIT, releaseCommit)) {
+      rememberFound(releaseCommit);
       return { status: "update", releaseCommit: releaseCommit!, publishedAt: release.assets?.[0]?.updated_at ?? release.published_at };
     }
+    if (releaseCommit) rememberFound(null);
     return releaseCommit ? { status: "current" } : { status: "unknown", message: "تعذر قراءة رقم الإصدار" };
   } catch {
     return { status: "unknown", message: "تعذر الاتصال للتحقق من التحديثات" };

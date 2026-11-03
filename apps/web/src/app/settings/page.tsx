@@ -1418,7 +1418,7 @@ function AppUpdateSection() {
     <section className="section">
       <h2 className="section-title">تحديث التطبيق</h2>
       <p className="settings-hint">
-        الإصدار الحالي: <bdi dir="ltr">{CURRENT_COMMIT.slice(0, 7)}</bdi> - يتحقق التطبيق تلقائيًا من وجود نسخة أحدث.
+        الإصدار الحالي: <bdi dir="ltr">{CURRENT_COMMIT.slice(0, 7)}</bdi> - يتحقق التطبيق تلقائيًا من وجود نسخة أحدث، وعلى الواي فاي ينزّلها في الخلفية: يظهر لك «📲 التحديث جاهز» وضغطة واحدة تثبّتها.
       </p>
       <div className="settings-actions">
         <button type="button" className="dialog-primary" onClick={check} disabled={checking}>
@@ -1435,6 +1435,7 @@ function AppUpdateSection() {
             </>
           }
           hint="اضغط للتنزيل ثم ثبّت فوق النسخة الحالية - بياناتك تبقى كما هي"
+          commit={result.releaseCommit}
         />
       )}
     </section>

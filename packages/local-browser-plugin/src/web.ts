@@ -160,6 +160,10 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
     return;
   }
 
+  async prefetchAppUpdate(_options: { url: string; commit: string; wifiOnly?: boolean }): Promise<{ ready: boolean }> {
+    return { ready: false };
+  }
+
   async shareImageToWhatsApp(_options: { base64: string; fileName?: string; phone?: string; text?: string }): Promise<{ direct: boolean }> {
     throw this.unavailable("shareImageToWhatsApp is only available in the Android app");
   }

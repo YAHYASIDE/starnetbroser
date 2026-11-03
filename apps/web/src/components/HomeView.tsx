@@ -58,7 +58,7 @@ import { debtNeedsClient } from "@/lib/ledgerModes";
 import { remindersByAccount, type DeviceReminder } from "@/lib/deviceReminders";
 import { deviceOrigin, type Origin } from "@/lib/teamActivity";
 import { browserLinkStorage, loadOrigins } from "@/lib/deviceLink";
-import { doneDeviceReminder, listDeviceReminders } from "@/lib/localBrowser";
+import { doneDeviceReminder, listDeviceReminders, prefetchAppUpdate } from "@/lib/localBrowser";
 import { HOME_ACTION_EVENT, HOME_RESET_EVENT, HOME_SEARCH_EVENT, HomeAction, parseHomeAction, parseHomePayment, parseActivateDevice, REMINDER_COUNT_EVENT, parseHomeSearch } from "@/lib/homeActions";
 import { deviceRoute, HOME_ROUTE, KAST_ROUTE, notifyPhone } from "@/lib/appEvents";
 import { buildRenewalShipment } from "@/lib/renewalPlan";
@@ -84,7 +84,7 @@ import { cardNeed, computeRenewalForecast } from "@/lib/renewalForecast";
 import { computeDeviceMargins, WEAK_MARGIN_PERCENT } from "@/lib/deviceMargins";
 import { cardShortfallForSuspended, currentCardBalanceUsd, listOpenShipmentDebts, listSuspendedWithDebt, loadCardTopUps, settleShipmentCost, unsettleShipmentCost } from "@/lib/starlinkDebt";
 import { loadPartyAdjustments, recordPartyAdjustment, savePartyAdjustments } from "@/lib/partyBalanceStore";
-import { checkForAppUpdate, shouldAutoCheck } from "@/lib/appUpdate";
+import { checkForAppUpdate, knownUpdate, shouldAutoCheck, updateBannerText, updateDownloadUrl } from "@/lib/appUpdate";
 import { UpdateBanner } from "@/components/UpdateBanner";
 import { deviceMatchesQuery, searchEverything, searchTermOf, SearchResult } from "@/lib/homeInsights";
 import { addSearch, loadSearchHistory, removeSearch, saveSearchHistory } from "@/lib/searchHistory";
@@ -516,12 +516,37 @@ export function HomeView({
 
   // A newer staging APK than this build (see appUpdate.ts) - checked in the Android app only, at
   // most every few hours, silently ignored when offline.
-  const [updateAvailable, setUpdateAvailable] = useState(false);
+  // 📲 (his Nov 3 2026 ask) the update found is downloaded in the background on Wi-Fi - then one tap installs it.
+  const [updateCommit, setUpdateCommit] = useState<string | null>(null);
+  const [updateReady, setUpdateReady] = useState(false);
+  const updateAvailable = updateCommit !== null;
   // النسخ الاحتياطي التلقائي (autoBackup.ts): once accounts are loaded, at most once a day.
   const autoBackupStartedRef = useRef(false);
   useEffect(() => {
-    if (!isRunningInAndroidApp() || !shouldAutoCheck()) return;
-    void checkForAppUpdate().then((result) => setUpdateAvailable(result.status === "update"));
+    if (!isRunningInAndroidApp()) return;
+    let cancelled = false;
+    const prepare = (commit: string) => {
+      if (cancelled) return;
+      setUpdateCommit(commit);
+      void prefetchAppUpdate(updateDownloadUrl(), commit).then((ready) => {
+        if (!cancelled && ready) setUpdateReady(true);
+      });
+    };
+    const known = knownUpdate();
+    if (known) prepare(known);
+    if (shouldAutoCheck()) {
+      void checkForAppUpdate().then((result) => {
+        if (result.status === "update") {
+          if (result.releaseCommit !== known) {
+            setUpdateReady(false);
+            prepare(result.releaseCommit);
+          }
+        } else if (result.status === "current") setUpdateCommit(null);
+      });
+    }
+    return () => {
+      cancelled = true;
+    };
   }, []);
   // 📥 requests reps sent through the bot (repRequests.ts) - they arrive while the app is open.
   const [pendingRepRequestCount, setPendingRepRequestCount] = useState(0);
@@ -2998,7 +3023,7 @@ export function HomeView({
     {desktop && viewMode === "active" && <DesktopWelcome empty={accountsLoaded && accounts.length === 0} />}
 
     {updateAvailable && (
-      <UpdateBanner title="تحديث جديد للتطبيق متوفر" hint="اضغط لتنزيل النسخة الأحدث ثم ثبّتها - بياناتك تبقى كما هي" onTap={ignoreFreshTap("update")} />
+      <UpdateBanner {...updateBannerText(updateReady)} commit={updateCommit ?? undefined} ready={updateReady} onTap={ignoreFreshTap("update")} />
     )}
 
     {suspendedWithDebt.length > 0 && (

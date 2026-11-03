@@ -2758,3 +2758,18 @@ is never pressed while a field is empty - it refills and saves on the next try (
   cache/starnet_share, CaptureFileProvider) as ACTION_SEND to WhatsApp (or WhatsApp Business) with `jid` =
   «<digits>@s.whatsapp.net» - his chat opens with the picture attached (`WhatsAppShare`, JUnit). No usable number, no
   WhatsApp, or an older app → the share list as before.
+
+## 📲 The update downloads itself in the background (Nov 3 2026)
+
+- He asked «الا يمكن ان تكون تثبيت تطبيق اسهل». Told him a silent install is impossible outside Google
+  Play (Android always asks «تثبيت» for an app installed from a file); he chose the first proposal:
+  the app finds the update and downloads it alone, then one tap opens the installer.
+- The check runs every 3 hours (was 6); the update found is remembered (`starnet.updateFound`,
+  `knownUpdate`) so the banner stays on every open until that build is installed.
+- On Wi-Fi only (an unmetered network) the APK comes down in the background
+  (`prefetchAppUpdate` → `AppUpdateInstaller.prefetch`, a `.commit` file beside the APK names its build).
+  On mobile data nothing downloads alone - his tap downloads as before.
+- Ready → green banner «📲 التحديث جاهز - اضغط تثبيت»: the tap opens Android's installer at once
+  (the ready file is used whatever its age). A tap during the background download waits for it.
+- Play Store (the bigger alternative: a developer account, review, a new signing key and a
+  reinstall) was not chosen.

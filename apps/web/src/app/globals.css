@@ -4957,6 +4957,15 @@ button.today-tile {
   background: var(--green-bg);
 }
 
+/* 📲 downloaded in the background - one tap installs */
+.update-banner--ready {
+  border-width: 2px;
+}
+
+.update-banner--ready strong {
+  color: var(--green);
+}
+
 /* ---- Device dialog: fixed monthly price ---- */
 .renewal-plan-fields {
   display: grid;

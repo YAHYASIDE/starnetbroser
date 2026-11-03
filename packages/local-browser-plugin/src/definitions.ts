@@ -537,7 +537,9 @@ export interface LocalBrowserPlugin {
 
   /** 🆕 Downloads the update APK inside the app and opens Android's installer ("needsPermission":
    * Android's «السماح من هذا المصدر» page was opened - tap again after allowing). */
-  downloadAppUpdate(options: { url: string }): Promise<{ status: "installing" | "needsPermission" }>;
+  downloadAppUpdate(options: { url: string; /** a file already downloaded for this build installs at once */ commit?: string }): Promise<{ status: "installing" | "needsPermission" }>;
+  /** 📲 Downloads an update in the background (Wi-Fi only by default) - `ready` = one tap installs it. */
+  prefetchAppUpdate(options: { url: string; commit: string; wifiOnly?: boolean }): Promise<{ ready: boolean }>;
   addListener(eventName: "appUpdateProgress", listenerFunc: (event: { percent: number }) => void): Promise<PluginListenerHandle>;
 
   /** 📌 Pins a page of the app ("/tools#pay") to the phone's home screen; the phone asks to confirm. */

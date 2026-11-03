@@ -1001,15 +1001,28 @@ export async function readImageText(dataUrl: string): Promise<{ ok: true; text: 
 export async function downloadAppUpdate(
   url: string,
   onPercent: (percent: number) => void,
+  /** The build wanted: a file already downloaded for it in the background installs at once. */
+  commit?: string,
 ): Promise<{ ok: true; status: "installing" | "needsPermission" } | { ok: false; message: string }> {
   if (!isRunningInAndroidApp()) return { ok: false, message: "التنزيل داخل التطبيق يعمل في أندرويد فقط" };
   const handle = await LocalBrowser.addListener("appUpdateProgress", (event) => onPercent(event.percent));
   try {
-    const result = await LocalBrowser.downloadAppUpdate({ url });
+    const result = await LocalBrowser.downloadAppUpdate({ url, ...(commit ? { commit } : {}) });
     return { ok: true, status: result.status };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : "تعذّر تنزيل التحديث" };
   } finally {
     void handle.remove();
+  }
+}
+
+/** 📲 Downloads `commit`'s APK in the background on Wi-Fi (nothing opens) - true once one tap installs it.
+ * Never throws: offline, mobile data or an old app build just means "not ready" (the tap downloads then). */
+export async function prefetchAppUpdate(url: string, commit: string): Promise<boolean> {
+  if (!isRunningInAndroidApp()) return false;
+  try {
+    return (await LocalBrowser.prefetchAppUpdate({ url, commit, wifiOnly: true })).ready === true;
+  } catch {
+    return false;
   }
 }

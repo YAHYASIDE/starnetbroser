@@ -38,16 +38,63 @@ final class AppUpdateInstaller {
     private AppUpdateInstaller() {
     }
 
-    /** Downloads (unless a fresh copy is there) then opens the installer; blocking - off the main thread. */
-    static String downloadAndInstall(Context context, String url, Progress progress) throws IOException {
+    /** 📲 The build the ready file was downloaded for (his Nov 3 2026 ask: the update waits ready, one tap installs). */
+    private static final String COMMIT_FILE = "STAR-NET-update.commit";
+
+    /** The commit the downloaded file is, or "" (none / unreadable). */
+    static String readyCommit(Context context) {
+        File apk = new File(new File(context.getCacheDir(), DIR), NAME);
+        File tag = new File(new File(context.getCacheDir(), DIR), COMMIT_FILE);
+        if (!apk.isFile() || apk.length() == 0 || !tag.isFile()) return "";
+        try (InputStream in = new java.io.FileInputStream(tag)) {
+            byte[] bytes = new byte[64];
+            int n = in.read(bytes);
+            return n > 0 ? new String(bytes, 0, n, java.nio.charset.StandardCharsets.UTF_8).trim() : "";
+        } catch (IOException e) {
+            return "";
+        }
+    }
+
+    /** ⬇️ Downloads `commit`'s APK in the background (nothing opens) unless it is already here. `wifiOnly`: only on an
+     * unmetered network (the manual tap downloads on any). Blocking - off the main thread. True when it is ready.
+     * Synchronized with the tap: a tap during the background download waits for it, then installs that file. */
+    static synchronized boolean prefetch(Context context, String url, String commit, boolean wifiOnly) throws IOException {
+        if (commit == null || commit.isEmpty()) return false;
+        if (commit.equals(readyCommit(context))) return true;
+        if (wifiOnly) {
+            android.net.ConnectivityManager cm = (android.net.ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (cm == null || cm.isActiveNetworkMetered()) return false;
+        }
+        fetch(context, url, commit, percent -> {});
+        return true;
+    }
+
+    private static void fetch(Context context, String url, String commit, Progress progress) throws IOException {
         File dir = new File(context.getCacheDir(), DIR);
         if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("no cache dir");
         File apk = new File(dir, NAME);
-        if (!apk.isFile() || System.currentTimeMillis() - apk.lastModified() > KEEP_MS || apk.length() == 0) {
-            File part = new File(dir, NAME + ".part");
-            download(url, part, progress);
-            if (apk.exists() && !apk.delete()) throw new IOException("old file");
-            if (!part.renameTo(apk)) throw new IOException("rename failed");
+        File part = new File(dir, NAME + ".part");
+        download(url, part, progress);
+        if (apk.exists() && !apk.delete()) throw new IOException("old file");
+        if (!part.renameTo(apk)) throw new IOException("rename failed");
+        try (OutputStream out = new FileOutputStream(new File(dir, COMMIT_FILE))) {
+            out.write((commit == null ? "" : commit).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
+    }
+
+    /** Downloads (unless a fresh copy is there) then opens the installer; blocking - off the main thread. */
+    static String downloadAndInstall(Context context, String url, Progress progress) throws IOException {
+        return downloadAndInstall(context, url, null, progress);
+    }
+
+    /** `commit`: the build wanted - a file already downloaded for it (in the background) installs at once, however old. */
+    static synchronized String downloadAndInstall(Context context, String url, String commit, Progress progress) throws IOException {
+        File dir = new File(context.getCacheDir(), DIR);
+        if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("no cache dir");
+        File apk = new File(dir, NAME);
+        boolean ready = commit != null && !commit.isEmpty() && commit.equals(readyCommit(context));
+        if (!ready && (!apk.isFile() || System.currentTimeMillis() - apk.lastModified() > KEEP_MS || apk.length() == 0)) {
+            fetch(context, url, commit, progress);
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !context.getPackageManager().canRequestPackageInstalls()) {
             Intent allow = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + context.getPackageName()));

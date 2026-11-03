@@ -307,7 +307,7 @@ public class LocalBrowserPlugin extends Plugin {
         Context context = getContext().getApplicationContext();
         new Thread(() -> {
             try {
-                String status = AppUpdateInstaller.downloadAndInstall(context, url, (percent) -> {
+                String status = AppUpdateInstaller.downloadAndInstall(context, url, call.getString("commit"), (percent) -> {
                     JSObject event = new JSObject();
                     event.put("percent", percent);
                     notifyListeners("appUpdateProgress", event);
@@ -319,6 +319,28 @@ public class LocalBrowserPlugin extends Plugin {
                 call.reject("تعذّر تنزيل التحديث - تحقق من الإنترنت وحاول مرة أخرى");
             }
         }, "starnet-app-update").start();
+    }
+
+    /** 📲 Downloads an update in the background (nothing opens): `ready` when its file is here for one-tap install. */
+    @PluginMethod
+    public void prefetchAppUpdate(PluginCall call) {
+        String url = call.getString("url", "");
+        String commit = call.getString("commit", "");
+        if (url == null || !url.startsWith(UPDATE_URL_PREFIX) || !url.endsWith(".apk") || commit == null || !commit.matches("[0-9a-fA-F]{7,40}")) {
+            call.reject("رابط التحديث غير معروف");
+            return;
+        }
+        boolean wifiOnly = Boolean.TRUE.equals(call.getBoolean("wifiOnly", true));
+        Context context = getContext().getApplicationContext();
+        new Thread(() -> {
+            JSObject ret = new JSObject();
+            try {
+                ret.put("ready", AppUpdateInstaller.prefetch(context, url, commit, wifiOnly));
+            } catch (Exception e) {
+                ret.put("ready", false);
+            }
+            call.resolve(ret);
+        }, "starnet-app-update-prefetch").start();
     }
 
     /** 📷 «البحث بصورة» (his Oct 30 2026 ask): the text of a picture (a data URL), read on the phone with ML Kit's
