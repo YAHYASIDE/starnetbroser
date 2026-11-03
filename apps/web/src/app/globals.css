@@ -20024,3 +20024,98 @@ html:has(.party-sheet-backdrop, .dialog-backdrop, .proof-viewer-backdrop, .short
 /* ✎ every operation of «📂 حساباته»: its note, and its details / edit / delete (his Nov 2 2026 ask) */
 .rep-accounts-note { color: var(--text-muted); overflow-wrap: anywhere; }
 .rep-accounts-edit { justify-self: start; padding: 2px 0; font-size: 0.78rem; }
+
+/* 🚩 A rep's warning (RepFlagsBanner): a red bar on top of every page until «✓ راجعته». */
+.rep-flags-bar {
+  position: fixed;
+  z-index: 96;
+  top: calc(var(--safe-top) + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 24px);
+  padding: 7px 14px;
+  overflow: hidden;
+  border: 2px solid var(--red);
+  border-radius: 999px;
+  background: var(--red-bg);
+  color: var(--red);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.3;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.28);
+  cursor: pointer;
+  animation: op-flags-pulse 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rep-flags-bar { animation: none; }
+}
+.rep-flags-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rep-flags-item {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--red) 40%, transparent);
+  border-inline-start: 4px solid var(--red);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.rep-flags-item p { margin: 0; line-height: 1.5; overflow-wrap: anywhere; }
+.rep-flags-who { color: var(--text-muted); font-size: 0.78rem; }
+.rep-flags-note { font-weight: 700; color: var(--red); }
+.rep-flags-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.rep-flags-actions > button { flex: 1; }
+
+/* While one is open the page moves down so the bar hides nothing (sticky headers too). */
+html.has-rep-flags body { padding-top: calc(var(--safe-top) + 46px); }
+
+/* 🚩 on the operator's device card */
+.rep-flag-line {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin: 0 0 8px;
+  padding: 5px 10px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--red) 45%, transparent);
+  border-radius: var(--radius-sm);
+  background: var(--red-bg);
+  color: var(--red);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: start;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+/* 🚩 the rep's sheet */
+.rep-flag-option strong { color: var(--red); }
+.rep-flag-form {
+  display: grid;
+  gap: 10px;
+}
+.rep-flag-text { min-height: 84px; resize: vertical; font: inherit; }
+.rep-flag-status { margin: 0; font-size: 0.85rem; color: var(--text-muted); }
+.rep-flag-history {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}

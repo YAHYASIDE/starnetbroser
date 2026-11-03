@@ -13,6 +13,18 @@ import { repDecisions } from "./repInbox";
 import type { Representative } from "./repStore";
 import { loadRepChats, sendRepDocument } from "./telegram";
 import { permissionsOf } from "./repPermissions";
+import { ensureFlagChannel, ownerFirebase } from "./repFlags";
+import { browserLinkStorage, loadLinkConfig } from "./deviceLink";
+import { loadLiveSyncConfig, newSpaceId } from "./liveSyncConfig";
+import { newLinkKey } from "./deviceSyncCrypto";
+
+/** 🚩 His warnings' channel, when the operator has a Firebase (repFlags.ts). */
+function flagLinkFor(repId: string) {
+  const firebase = ownerFirebase({ link: () => loadLinkConfig(browserLinkStorage()), live: loadLiveSyncConfig });
+  if (!firebase) return undefined;
+  const channel = ensureFlagChannel(repId, () => ({ spaceId: newSpaceId(), key: newLinkKey() }));
+  return { ...firebase, ...channel };
+}
 
 export type SendCopyResult = { ok: true; devices: number; via: "bot" | "share" } | { ok: false; message: string };
 
@@ -47,7 +59,8 @@ export async function sendRepCopy(rep: Representative, accounts: StarlinkAccount
   // ☁️ No live link any more: it only carried customers, which now stay on each phone.
   // 🔑 What his phone may open (chosen before sending - RepPermissionsSheet).
   const permissions = [...permissionsOf(rep)].sort();
-  const text = await buildRepCopyFile({ ...copy, stores, rejected, sessions, permissions }, ensureRepDeviceCode(rep.id), phoneKey);
+  const flagLink = flagLinkFor(rep.id);
+  const text = await buildRepCopyFile({ ...copy, stores, rejected, sessions, permissions, ...(flagLink ? { flagLink } : {}) }, ensureRepDeviceCode(rep.id), phoneKey);
   const fileName = repCopyFileName(rep.id);
   const caption = `📋 نسختك من الأجهزة (${copy.devices.length} جهاز)\nاضغط الملف ← «فتح بـ STAR NET»، أو اضغطه مطولاً ← مشاركة ← STAR NET.`;
 

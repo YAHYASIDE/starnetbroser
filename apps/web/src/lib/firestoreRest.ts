@@ -133,3 +133,35 @@ export async function writeDocument(
   if (r.status !== 200) return { ok: false, message: explainFirebaseError(r.status, r.body) };
   return { ok: true, value: true };
 }
+
+/** 🚩 A collection's documents (name = the last path part) with their text fields - up to `pageSize`. */
+export async function listDocuments(
+  config: Pick<LiveSyncConfig, "apiKey" | "projectId">,
+  collectionPath: string,
+  fetchFn: FetchFn = fetch,
+  pageSize = 100,
+): Promise<Result<{ id: string; fields: Record<string, string> }[]>> {
+  const token = await idToken(config, fetchFn);
+  if (!token.ok) return token;
+  const r = await call(fetchFn, `${documentUrl(config, collectionPath)}?pageSize=${pageSize}`, { headers: { Authorization: `Bearer ${token.value}` } });
+  if (r.status === 404 && !/does not exist/i.test(r.body)) return { ok: true, value: [] };
+  if (r.status !== 200) return { ok: false, message: explainFirebaseError(r.status, r.body) };
+  const data = JSON.parse(r.body || "{}") as { documents?: { name: string; fields?: Record<string, { stringValue?: string }> }[] };
+  return {
+    ok: true,
+    value: (data.documents ?? []).map((d) => {
+      const fields: Record<string, string> = {};
+      for (const [k, v] of Object.entries(d.fields ?? {})) if (typeof v.stringValue === "string") fields[k] = v.stringValue;
+      return { id: d.name.split("/").pop() ?? "", fields };
+    }),
+  };
+}
+
+/** Deletes one document (already gone = fine). */
+export async function deleteDocument(config: Pick<LiveSyncConfig, "apiKey" | "projectId">, path: string, fetchFn: FetchFn = fetch): Promise<Result<true>> {
+  const token = await idToken(config, fetchFn);
+  if (!token.ok) return token;
+  const r = await call(fetchFn, documentUrl(config, path), { method: "DELETE", headers: { Authorization: `Bearer ${token.value}` } });
+  if (r.status !== 200 && r.status !== 404) return { ok: false, message: explainFirebaseError(r.status, r.body) };
+  return { ok: true, value: true };
+}

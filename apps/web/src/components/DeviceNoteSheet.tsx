@@ -16,8 +16,11 @@ export function DeviceNoteSheet({
   onSave,
   onSetPinned,
   onDetails,
+  onFlag,
   onClose,
 }: {
+  /** 🚩 The rep's app: «تحذير للمسؤول» (RepFlagSheet). */
+  onFlag?: () => void;
   deviceName: string;
   note?: DeviceNote;
   mode: DeviceNoteSheetMode;
@@ -56,6 +59,22 @@ export function DeviceNoteSheet({
               <small>{note?.text ? note.text : "تظهر فوق الجهاز باللون البنفسجي - لك وحدك"}</small>
             </span>
           </button>
+          {onFlag && (
+            <button
+              type="button"
+              className="party-sheet-option rep-flag-option"
+              onClick={() => {
+                onClose();
+                onFlag();
+              }}
+            >
+              <span aria-hidden="true">🚩</span>
+              <span>
+                <strong>تحذير للمسؤول</strong>
+                <small>يصله وحده مع وصفك - يظهر عنده فوق كل الصفحات</small>
+              </span>
+            </button>
+          )}
           <button
             type="button"
             className="party-sheet-option"

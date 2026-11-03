@@ -18,6 +18,7 @@ import { boundCopyKey } from "./repDeviceTransfer";
 import { computeBalanceByCurrency, type LedgerByAccount, type LedgerEntry } from "./ledgerStore";
 import { buildProfitRows, type ProfitRow } from "./profitStatement";
 import type { LiveSyncShare } from "./liveSyncConfig";
+import type { FlagLink } from "./repFlags";
 
 /** url -> cookie string, as exportSessionCookies gives it. */
 export type DeviceCookies = Record<string, string>;
@@ -49,6 +50,8 @@ export interface RepCopy {
   liveSync?: LiveSyncShare;
   /** 🔑 The features the operator gave him (lib/repPermissions.ts); absent in an older copy = the base list. */
   permissions?: string[];
+  /** 🚩 His warnings' channel on the operator's Firebase (repFlags.ts) - absent until the operator has one. */
+  flagLink?: FlagLink;
 }
 
 export interface RepCopyPayload extends RepCopy {

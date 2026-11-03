@@ -2841,3 +2841,22 @@ is never pressed while a field is empty - it refills and saves on the next try (
   is opened by hand) in smaller muted text and 👁. Hidden by default, remembered on the phone.
 - Top buttons share one look: icon over a small label (🗂️ البطاقة · 📧 البريد · 💳 تعبئة), long press as
   before. «🧪 لقطة تشخيص» moved to the ⋮ menu (still there for misread pages).
+
+## 🚩 A rep's warning on a device reaches the operator by itself (Nov 3 2026)
+
+- His ask: «اريد ان يكون المندوب يمكن وضع شارة او تحذير … مع الوصف … تظهر الفوق … واضحة». His choices: from the rep's
+  app («ويصلني بدون يرسل اجهزته») - **automatic, no tap** (over his Firebase, not Telegram); shown **on top of every
+  page + on the device card**; gone when **he taps «✓ راجعته»** (the rep is told).
+- Rep: long-press on a device card → «🚩 تحذير للمسؤول» (`DeviceNoteSheet` `onFlag`, rep app only) → description
+  (≤ 400) → «أرسل» (`RepFlagSheet`). Kept in his outbox (`starnet_rep_flag_outbox_v1`) with «⏳ ينتظر / ✓ وصل»;
+  `RepFlagRunner` retries every minute while the app is open.
+- Transport (`lib/repFlags.ts`, `lib/repFlagLink.ts`): each rep has a channel (random space + 256-bit key,
+  `starnet.repFlagChannels`, phone only) that travels in his copy (`RepCopy.flagLink` with the Firebase apiKey /
+  projectId of the team link, else the older live link; absent without a Firebase). He writes each warning
+  AES-GCM-sealed to `starnet/<space>/flags/<id>` (the existing rules `starnet/{space}/**`); the operator's app reads
+  every channel every 45 s while open, keeps what opens (`starnet_rep_flags_v1`, backed up; the rep id is the
+  channel's, never the document's) and deletes the document. Nothing else travels.
+- Operator: `RepFlagsBanner` - a red pulsing bar at the top of every page (the page moves down 46px so it hides
+  nothing), list: rep, time, device + email, description, «📍 إظهار الجهاز» (`/?q=<email>`) and «✓ راجعته» (sends the
+  rep «✓ راجع المسؤول تحذيرك …» on the reps bot). The card shows «🚩 تحذير المندوب: …» while open. A new warning also
+  goes to his own bot (`ownerFlagMessage`).

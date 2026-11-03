@@ -50,6 +50,9 @@ import { DeviceFaultDialog } from "./DeviceFaultDialog";
 import { DeviceGmailButton } from "./DeviceGmailButton";
 import { useCardGestures } from "./useCardGestures";
 import { DeviceNoteSheet, type DeviceNoteSheetMode } from "./DeviceNoteSheet";
+import { RepFlagSheet } from "./RepFlagSheet";
+import { OPEN_REP_FLAGS, useDeviceRepFlags } from "./RepFlagsBanner";
+import { isRepWorkspace } from "@/lib/repMode";
 import { pinAgeText, type DeviceNote } from "@/lib/deviceNotes";
 import { reminderWhenLabel, type DeviceReminder } from "@/lib/deviceReminders";
 import type { Origin } from "@/lib/teamActivity";
@@ -566,6 +569,10 @@ export function AccountCard({
   const dishAlerts = describeDishAlerts(account.dishAlerts);
   // No "التفاصيل" button: one tap (or holding) opens the details, two taps a payment, 3 edit.
   const [noteSheet, setNoteSheet] = useState<DeviceNoteSheetMode | null>(null);
+  // 🚩 the rep's «تحذير للمسؤول» (his app) · the operator's red line for an open warning (repFlags.ts)
+  const repApp = isRepWorkspace();
+  const [flagSheet, setFlagSheet] = useState(false);
+  const openFlags = useDeviceRepFlags(account.id, !repApp);
   const gestures = useCardGestures((gesture) => {
     if (gesture === "menu") {
       if (onSaveNote && onSetPinned) setNoteSheet("menu");
@@ -666,6 +673,12 @@ export function AccountCard({
       data-account-id={account.id}
       {...gestures}
     >
+      {openFlags.length > 0 && (
+        <button type="button" className="rep-flag-line" onClick={() => window.dispatchEvent(new Event(OPEN_REP_FLAGS))} title={openFlags[0]!.note}>
+          🚩 <strong>تحذير المندوب:</strong> <span dir="auto">{openFlags[0]!.note}</span>
+          {openFlags.length > 1 && <small> (+{openFlags.length - 1})</small>}
+        </button>
+      )}
       {(deviceNote?.text || notePinned) && (
         <button
           type="button"
@@ -1654,9 +1667,11 @@ export function AccountCard({
         onSave={(input) => onSaveNote(account, input)}
         onSetPinned={(pinned) => onSetPinned(account, pinned)}
         onDetails={() => setExpanded(true)}
+        {...(repApp ? { onFlag: () => setFlagSheet(true) } : {})}
         onClose={() => setNoteSheet(null)}
       />
     )}
+    {flagSheet && <RepFlagSheet deviceId={account.id} deviceName={account.name} {...(account.expectedEmail?.trim() ? { email: account.expectedEmail.trim() } : {})} onClose={() => setFlagSheet(false)} />}
     </>
   );
 }
