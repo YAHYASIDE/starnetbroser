@@ -15,12 +15,15 @@ export function SyncRunLine({
   onRetry,
   onShowDevice,
   onDismiss,
+  onStop,
 }: {
   run: SyncRun;
   now: number;
   onRetry: (ids: string[]) => void;
   onShowDevice: (id: string) => void;
   onDismiss: () => void;
+  /** ⏹ «إيقاف المزامنة» from the details while it works (his Nov 3 2026 ask). */
+  onStop: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const over = isRunOver(run, now);
@@ -62,6 +65,10 @@ export function SyncRunLine({
             setOpen(false);
             onDismiss();
           }}
+          onStop={() => {
+            setOpen(false);
+            onStop();
+          }}
         />
       )}
     </>
@@ -82,6 +89,7 @@ function SyncRunSheet({
   onRetry,
   onShowDevice,
   onDismiss,
+  onStop,
 }: {
   run: SyncRun;
   over: boolean;
@@ -89,6 +97,7 @@ function SyncRunSheet({
   onRetry: (ids: string[]) => void;
   onShowDevice: (id: string) => void;
   onDismiss: () => void;
+  onStop: () => void;
 }) {
   const [picked, setPicked] = useState<string | null>(null);
   const rows = runRows(run);
@@ -106,6 +115,11 @@ function SyncRunSheet({
             ×
           </button>
         </div>
+        {!over && (
+          <button type="button" className="sync-run-stop" onClick={onStop}>
+            ⏹ إيقاف المزامنة
+          </button>
+        )}
         <div className="sync-run-chips">
           <span className="sync-run-chip is-ok">✅ <bdi dir="ltr">{counts.ok}</bdi></span>
           <span className="sync-run-chip is-pending">⏳ <bdi dir="ltr">{counts.pending}</bdi></span>

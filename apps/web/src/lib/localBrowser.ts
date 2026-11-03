@@ -300,6 +300,16 @@ export async function startBackgroundSync(accounts: { id: string; name: string }
   }
 }
 
+/** ⏹ Stops the 🌙 background sync (nothing when it isn't running). */
+export async function stopBackgroundSync(): Promise<void> {
+  if (!isRunningInAndroidApp()) return;
+  try {
+    await LocalBrowser.stopBackgroundSync();
+  } catch {
+    // not running
+  }
+}
+
 /** 🔄 How each auto-sync ended since the last call - and forgets them ([] on web). */
 export async function takeAutoSyncResults(): Promise<{ accountId: string; outcome: "ok" | "nothing" | "saveFailed" | "signedOut" | "stuck" | "closed" | "rateLimited"; trace?: string }[]> {
   if (!isRunningInAndroidApp()) return [];

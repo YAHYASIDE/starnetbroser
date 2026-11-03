@@ -180,6 +180,7 @@ import {
   takeAutoSyncResults,
   isBackgroundSyncEnabled,
   startBackgroundSync,
+  stopBackgroundSync,
   triggerImmediateSync,
   readImageText,
 } from "@/lib/localBrowser";
@@ -1206,6 +1207,18 @@ export function HomeView({
     void trySyncInBackground(queue.ids, label, true).then((background) => {
       if (!background) startVisibleRun(queue);
     });
+  }
+
+  /** ⏹ From the green line's details: the 🌙 background service, or the one-by-one queue. */
+  function stopFromLine() {
+    if (syncRunRef.current?.mode === "background") {
+      void stopBackgroundSync();
+      updateRun((run) => endRun(run));
+      pushToast("⏹ أُوقفت المزامنة في الخلفية");
+      return;
+    }
+    stopSyncRun();
+    updateRun((run) => endRun(run));
   }
 
   function stopSyncRun() {
@@ -3923,7 +3936,7 @@ export function HomeView({
       )}
 
       {syncRun && (runActive || runNow - (syncRun.endedAt ?? syncRun.lastActivityAt) < 3 * 60_000) && (
-        <SyncRunLine run={syncRun} now={runNow} onRetry={(ids) => void retryRun(ids)} onShowDevice={showRunDevice} onDismiss={() => commitRun(null)} />
+        <SyncRunLine run={syncRun} now={runNow} onRetry={(ids) => void retryRun(ids)} onShowDevice={showRunDevice} onDismiss={() => commitRun(null)} onStop={stopFromLine} />
       )}
 
       {clientMenuId && getClient(clientStore, clientMenuId) && (() => {

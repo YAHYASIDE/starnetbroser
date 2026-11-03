@@ -510,8 +510,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
         }
         // The phone mustn't sleep in the middle of a run over several devices.
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        String suffix = label != null && !label.trim().isEmpty() ? " (" + label.trim() + ")" : "";
-        Toast.makeText(this, (homeOnly ? "🛂 كشف توثيق" : "🔄 مزامنة تلقائية") + suffix + " - لا تلمس الصفحة", Toast.LENGTH_SHORT).show();
+        // 🤫 No toast at the bottom in a run (his Nov 3 2026 ask) - the app's green line tells it.
         twoStepHandler.removeCallbacks(autoSyncPoll);
         twoStepHandler.removeCallbacks(autoSyncWatchdog);
         twoStepHandler.postDelayed(autoSyncPoll, AUTO_SYNC_POLL_MS);
@@ -556,7 +555,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
             syncSteps = null;
             taskChanged("sync", null);
         }
-        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+        // 🤫 `message` is not toasted any more: the app's green line shows each device's outcome.
         AlertSound.play(this);
         closeAfterAutoSync();
     }
@@ -1191,7 +1190,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
         englishSteps = 0;
         englishMenuOpened = false;
         lastSavedPageKey = "";
-        Toast.makeText(this, R.string.starnet_sync_in_progress, Toast.LENGTH_SHORT).show();
+        if (!autoSyncThenClose) Toast.makeText(this, R.string.starnet_sync_in_progress, Toast.LENGTH_SHORT).show();
 
         syncSteps = new ArrayDeque<>();
         taskChanged("sync", "🔄 تحديث " + deviceLabel);
@@ -1597,7 +1596,9 @@ public class AccountBrowserActivity extends AppCompatActivity {
         if (webView != null && !syncEndedHome) {
             webView.loadUrl(homeUrl);
         }
-        if (syncSaveFailed) {
+        if (autoSyncThenClose) {
+            // 🤫 in a run: no toast at the bottom - the app's green line shows it
+        } else if (syncSaveFailed) {
             Toast.makeText(this, R.string.starnet_sync_save_failed, Toast.LENGTH_LONG).show();
         } else if (syncFoundAnything) {
             Toast.makeText(this, R.string.starnet_sync_success, Toast.LENGTH_SHORT).show();

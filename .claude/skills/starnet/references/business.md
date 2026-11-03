@@ -2786,3 +2786,15 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - Not on an auto-sync / cancel / activation window (they read or act themselves), not during a 429
   pause. A limited email: «💰 بريد محدود - لا يظهر فيه الرصيد». Coming back to an open window
   reads again unless the last read is under 2 minutes old. A «مزامنة» passing Billing updates the line too.
+
+## 🤫 Sync runs are quiet · ⏹ stop from the green line (Nov 3 2026)
+
+- His ask: «اشعارات تحديث الاجهزة تظهر تحت لا اريدها ان تظهر تحت اجعله صغير جدا وشفاف جدا تكاد ترا»
+  and «الخط الاخضر اجعل عندنا اضغط عليه يمكن ايقافه».
+- In an auto-sync run (EXTRA_AUTO_SYNC) the device browser shows no toast at all (start, «تم التحديث»,
+  nothing found, signed out, stuck) - the app's green line reports each device. A sync he starts
+  by hand in a browser keeps its toasts.
+- «التالي» between two devices (`SyncQueueBar`) is no longer a bar at the bottom: a tiny pill under
+  the green line on the right edge, opacity 0.32 (clear while pressed): «⏭ 3/10 · 8ث» = next now, «⏹» = stop.
+- The green line's details carry «⏹ إيقاف المزامنة» while the run works: a visible run stops its
+  queue (as «⏹»), a 🌙 background run stops the service (`stopBackgroundSync`); the line ends.

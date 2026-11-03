@@ -54,7 +54,8 @@ export function SyncChoiceSheet({
   );
 }
 
-/** Between two devices: what's next, a short countdown, and «إيقاف». */
+/** Between two devices: what's next, a short countdown, «الآن» and «إيقاف» - a tiny, almost see-through
+ * pill under the green line on the right edge (his Nov 3 2026 ask: not at the bottom, «صغير جدا وشفاف جدا»). */
 export function SyncQueueBar({
   label,
   progress,
@@ -71,20 +72,12 @@ export function SyncQueueBar({
   onStop: () => void;
 }) {
   return (
-    <div className="sync-queue-bar" role="status">
-      <div className="sync-queue-text">
-        <strong>
-          🔄 {label} · <bdi dir="ltr">{progress}</bdi>
-        </strong>
-        <span>
-          التالي: {nextName} · بعد <bdi dir="ltr">{secondsLeft}</bdi> ث
-        </span>
-      </div>
-      <button type="button" className="sync-queue-now" onClick={onNow}>
-        الآن
+    <div className="sync-queue-bar" role="status" aria-label={`${label} · ${progress} · التالي: ${nextName} بعد ${secondsLeft} ث`}>
+      <button type="button" className="sync-queue-now" onClick={onNow} aria-label={`التالي الآن: ${nextName}`}>
+        ⏭ <bdi dir="ltr">{progress}</bdi> · <bdi dir="ltr">{secondsLeft}</bdi>ث
       </button>
-      <button type="button" className="sync-queue-stop" onClick={onStop}>
-        إيقاف
+      <button type="button" className="sync-queue-stop" onClick={onStop} aria-label="إيقاف المزامنة">
+        ⏹
       </button>
     </div>
   );
