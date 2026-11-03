@@ -31,6 +31,19 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-11-03-balance-local-prices",
+    date: "2026-11-03",
+    title: "💰 رصيد Starlink بالأوقية والسيفا - مخفي ويظهر بضغطة",
+    steps: [
+      {
+        path: "/",
+        title: "💰 سطر «Starlink:» في بطاقة الجهاز",
+        before: "يظهر الرصيد المقروء بعملته (مثل ARS) وما يساويه بالدولار فقط.",
+        after: "بجانبه 🙈: اضغطه فيظهر فوقه بخط صغير جدًا ما يساويه بالأوقية والسيفا بسعر اليوم، واضغط 👁 لإخفائه. يبقى مخفيًا حتى تُظهره، وينطبق على كل البطاقات معًا.",
+      },
+    ],
+  },
+  {
     id: "2026-11-03-edit-linked-amount",
     date: "2026-11-03",
     title: "✎ تعديل الحركة: المبلغ والعملة لم يعودا مقفلين",

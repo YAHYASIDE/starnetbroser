@@ -2820,3 +2820,13 @@ is never pressed while a field is empty - it refills and saves on the next try (
   a payment places its new amount oldest-open-shipment first (same currency, this device); a
   shipment's payers each place back what they had on it. A date/note/method edit keeps the links.
   Wired in `LedgerEntryEditor` (customer, device statement, rep) and `LedgerDialog`.
+
+## 💰 The read Starlink balance in أوقية / سيفا on the card (Nov 3 2026)
+
+- His ask: «اريد رصيد المقروء ان يظهر بي الاوقية وسيف صغير ويظهر مخفي ويمكن اظهاره».
+- The card's «Starlink:» balance gets 🙈 beside it; tapped, a very small line above it shows its
+  price in أوقية and سيفا at today's rates (`gapInLocalCurrencies` on the balance in USD - itself
+  when USD, else through its registered rate; nothing when that rate isn't registered). 👁 hides it.
+  **Hidden by default**; one phone setting for every card (`starnet.balancePricesShown`).
+- Done on the card, not in the device browser's top bar (no room for a second line there, and the
+  rates live in the app).

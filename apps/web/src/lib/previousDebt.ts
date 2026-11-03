@@ -246,3 +246,26 @@ export function saveGapPricesHidden(hidden: boolean): void {
     // no window (tests)
   }
 }
+
+/** 💰 The Starlink balance's price in أوقية / سيفا on the card (his Nov 3 2026 ask: «صغير … ويظهر مخفي
+ * ويمكن اظهاره») - hidden until 🙈 is tapped, for every card at once; a phone setting (`starnet.`). */
+const BALANCE_PRICES_SHOWN = "starnet.balancePricesShown";
+export const BALANCE_PRICES_EVENT = "starnet:balance-prices";
+
+export function loadBalancePricesShown(): boolean {
+  try {
+    return window.localStorage.getItem(BALANCE_PRICES_SHOWN) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function saveBalancePricesShown(shown: boolean): void {
+  try {
+    if (shown) window.localStorage.setItem(BALANCE_PRICES_SHOWN, "1");
+    else window.localStorage.removeItem(BALANCE_PRICES_SHOWN);
+  } catch {
+    // private mode - this session only
+  }
+  window.dispatchEvent(new Event(BALANCE_PRICES_EVENT));
+}

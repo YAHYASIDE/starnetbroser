@@ -28,7 +28,7 @@ import { arabicDate } from "@/lib/partyMovements";
 import { faultCategory, faultLabel, isAutoFault, isWaivedCost, openDebtEntries, removeFaultQuestion } from "@/lib/deviceFault";
 import { planGrowOpenD } from "@/lib/growOpenD";
 import { cardDueByCurrency } from "@/lib/cardDue";
-import { GAP_PRICES_EVENT, gapInLocalCurrencies, loadGapPricesHidden, openDebtUsdToday, paidSinceLastSyncUsd, saveGapPricesHidden, smallGapToGrowUsd, totalPreviousDebtUsd, unrecordedGapUsd, type PreviousDebt } from "@/lib/previousDebt";
+import { BALANCE_PRICES_EVENT, GAP_PRICES_EVENT, gapInLocalCurrencies, loadBalancePricesShown, loadGapPricesHidden, saveBalancePricesShown, openDebtUsdToday, paidSinceLastSyncUsd, saveGapPricesHidden, smallGapToGrowUsd, totalPreviousDebtUsd, unrecordedGapUsd, type PreviousDebt } from "@/lib/previousDebt";
 import { computeDeviceMarks } from "@/lib/deviceMarks";
 import { CurrencyStore, getCurrency, toUsd } from "@/lib/currencyStore";
 import { formatAmount } from "@/lib/formatAmount";
@@ -406,6 +406,14 @@ export function AccountCard({
     sync();
     window.addEventListener(GAP_PRICES_EVENT, sync);
     return () => window.removeEventListener(GAP_PRICES_EVENT, sync);
+  }, []);
+  // 💰 the Starlink balance in أوقية / سيفا - hidden until 🙈 is tapped (his Nov 3 2026 ask)
+  const [balancePricesShown, setBalancePricesShown] = useState(false);
+  useEffect(() => {
+    const sync = () => setBalancePricesShown(loadBalancePricesShown());
+    sync();
+    window.addEventListener(BALANCE_PRICES_EVENT, sync);
+    return () => window.removeEventListener(BALANCE_PRICES_EVENT, sync);
   }, []);
   const gapPrices = (usd: number) => (
     <span className="account-card-gap-prices" data-tour="gap-prices">
@@ -1026,13 +1034,36 @@ export function AccountCard({
             <strong className="stat-tile-value-ok">لا يوجد</strong>
           )
         ) : (
-          <span dir="ltr">
-            {/* The bill itself first - on a narrow line only the ≈ USD part may be cut. */}
-            <strong>{account.currency} {account.balanceDue || "0"}</strong>
-            {unpaidIsBalance && <span className="account-card-unpaid-tag"> · غير مدفوع</span>}
-            {balanceUsdEquivalent !== undefined && (
-              <span className="stat-tile-value-usd"> ≈ {formatAmount(balanceUsdEquivalent)} USD</span>
+          <span className="account-card-balance-stack">
+            {balanceUsd !== undefined && balancePricesShown && (
+              <span className="account-card-gap-prices" data-tour="balance-prices">
+                {gapInLocalCurrencies(balanceUsd, { MRU: currentMruRate, SIFA: getCurrency(currencyStore, "SIFA")?.rateFromUsd }).map((p) => (
+                  <span key={p.currency}>
+                    <bdi dir="ltr">{formatAmount(p.amount)}</bdi> {currencyLabel(p.currency)}
+                  </span>
+                ))}
+              </span>
             )}
+            <span className="account-card-balance-line">
+              {balanceUsd !== undefined && (
+                <button
+                  type="button"
+                  className="account-card-gap-eye"
+                  aria-label={balancePricesShown ? "إخفاء الرصيد بالأوقية والسيفا" : "إظهار الرصيد بالأوقية والسيفا"}
+                  onClick={() => saveBalancePricesShown(!balancePricesShown)}
+                >
+                  {balancePricesShown ? "👁" : "🙈"}
+                </button>
+              )}
+              <span dir="ltr">
+                {/* The bill itself first - on a narrow line only the ≈ USD part may be cut. */}
+                <strong>{account.currency} {account.balanceDue || "0"}</strong>
+                {unpaidIsBalance && <span className="account-card-unpaid-tag"> · غير مدفوع</span>}
+                {balanceUsdEquivalent !== undefined && (
+                  <span className="stat-tile-value-usd"> ≈ {formatAmount(balanceUsdEquivalent)} USD</span>
+                )}
+              </span>
+            </span>
           </span>
         )}
         {unrecordedUsd > 0 && onAddPreviousDebt && stillDueDs.length === 0 && (
