@@ -13,14 +13,19 @@ import { repDecisions } from "./repInbox";
 import type { Representative } from "./repStore";
 import { loadRepChats, sendRepDocument } from "./telegram";
 import { permissionsOf } from "./repPermissions";
-import { ensureFlagChannel, ownerFirebase } from "./repFlags";
+import { ensureFlagChannel, markFlagLinkSent, ownerFirebase } from "./repFlags";
 import { browserLinkStorage, loadLinkConfig } from "./deviceLink";
 import { loadLiveSyncConfig, newSpaceId } from "./liveSyncConfig";
 import { newLinkKey } from "./deviceSyncCrypto";
 
+/** 🚩 The operator's Firebase for the warnings (the team link, else the older live link). */
+export function flagFirebase() {
+  return ownerFirebase({ link: () => loadLinkConfig(browserLinkStorage()), live: loadLiveSyncConfig });
+}
+
 /** 🚩 His warnings' channel, when the operator has a Firebase (repFlags.ts). */
 function flagLinkFor(repId: string) {
-  const firebase = ownerFirebase({ link: () => loadLinkConfig(browserLinkStorage()), live: loadLiveSyncConfig });
+  const firebase = flagFirebase();
   if (!firebase) return undefined;
   const channel = ensureFlagChannel(repId, () => ({ spaceId: newSpaceId(), key: newLinkKey() }));
   return { ...firebase, ...channel };
@@ -67,6 +72,7 @@ export async function sendRepCopy(rep: Representative, accounts: StarlinkAccount
   if (loadRepChats()[rep.id]) {
     const sent = await sendRepDocument(rep.id, fileName, text, caption);
     if (!sent.ok) return sent;
+    if (flagLink) markFlagLinkSent(rep.id, flagLink.spaceId);
     markRepCopySent(rep.id, copy.sentAt);
     markRepCopySentDevices(rep.id, copySnapshot(accounts, rep.id));
     return { ok: true, devices: copy.devices.length, via: "bot" };
@@ -74,6 +80,7 @@ export async function sendRepCopy(rep: Representative, accounts: StarlinkAccount
   try {
     const written = await Filesystem.writeFile({ path: fileName, data: text, directory: Directory.Cache, encoding: Encoding.UTF8 });
     await Share.share({ title: `نسخة ${rep.name}`, text: caption, files: [written.uri], dialogTitle: "أرسل النسخة للمندوب" });
+    if (flagLink) markFlagLinkSent(rep.id, flagLink.spaceId);
     markRepCopySent(rep.id, copy.sentAt);
     markRepCopySentDevices(rep.id, copySnapshot(accounts, rep.id));
     return { ok: true, devices: copy.devices.length, via: "share" };

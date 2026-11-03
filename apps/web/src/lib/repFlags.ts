@@ -227,3 +227,28 @@ export function ownerFirebase(load: { link: () => { apiKey: string; projectId: s
   const c = load.link() ?? load.live();
   return c && c.apiKey && c.projectId ? { apiKey: c.apiKey, projectId: c.projectId } : null;
 }
+
+// ---- operator: which rep's phone already has his channel ----
+
+const LINK_SENT_KEY = "starnet.repFlagLinkSent";
+
+/** repId → the channel space his last delivered copy carried. */
+export function loadFlagLinkSent(): Record<string, string> {
+  const s = read<Record<string, string>>(LINK_SENT_KEY, {});
+  return s && typeof s === "object" ? s : {};
+}
+
+export function markFlagLinkSent(repId: string, spaceId: string): void {
+  try {
+    window.localStorage.setItem(LINK_SENT_KEY, JSON.stringify({ ...loadFlagLinkSent(), [repId]: spaceId }));
+  } catch {
+    // sent again next time
+  }
+}
+
+/** True when the operator has a Firebase but this rep's phone hasn't got his channel yet. */
+export function repNeedsFlagLink(repId: string, hasFirebase: boolean, sent: Record<string, string> = loadFlagLinkSent(), channels: Record<string, FlagChannel> = loadFlagChannels()): boolean {
+  if (!hasFirebase) return false;
+  const channel = channels[repId];
+  return !channel || sent[repId] !== channel.spaceId;
+}

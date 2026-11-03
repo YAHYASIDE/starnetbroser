@@ -11,6 +11,7 @@ import {
   ownerFlagMessage,
   parseFlagPayload,
   queueFlag,
+  repNeedsFlagLink,
   repReviewedMessage,
   unsentFlags,
   type RepFlag,
@@ -90,6 +91,17 @@ function fakeFirestore() {
   };
   return { fn, docs };
 }
+
+describe("🚩 the rep's phone has his channel?", () => {
+  it("needs one until a copy carrying it was delivered; never without a Firebase", () => {
+    const channels = { r1: { spaceId: "s1", key: "k" } };
+    expect(repNeedsFlagLink("r1", false, {}, channels)).toBe(false);
+    expect(repNeedsFlagLink("r1", true, {}, {})).toBe(true);
+    expect(repNeedsFlagLink("r1", true, {}, channels)).toBe(true);
+    expect(repNeedsFlagLink("r1", true, { r1: "s1" }, channels)).toBe(false);
+    expect(repNeedsFlagLink("r1", true, { r1: "old" }, channels)).toBe(true);
+  });
+});
 
 describe("🚩 over the operator's Firebase", () => {
   beforeEach(() => window.localStorage.clear());

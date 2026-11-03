@@ -3,7 +3,8 @@
 import { useState } from "react";
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { copyGaps, copyGapsText, loadRepCopySentAt, loadRepCopySentDevices, repCopyAccounts } from "@/lib/repCopy";
-import { sendRepCopy } from "@/lib/repCopySend";
+import { flagFirebase, sendRepCopy } from "@/lib/repCopySend";
+import { repNeedsFlagLink } from "@/lib/repFlags";
 import { ensureRepDeviceCode, repDeviceCode, repPhoneKey } from "@/lib/repDeviceTransfer";
 import { loadRepresentativeStore, saveRepresentativeStore, setRepPermissions, type Representative } from "@/lib/repStore";
 import { RepPermissionsSheet } from "./RepPermissionsSheet";
@@ -100,6 +101,13 @@ export function RepAppCodePanel({ rep, accounts }: { rep: Representative; accoun
           </small>
         )}
         {gaps && !copyStatus && <p className="rep-copy-stale">{copyGapsText(gaps)}</p>}
+        {(() => {
+          // 🚩 «تحذير المندوب» needs his channel on his phone (repFlags.ts)
+          const hasFirebase = flagFirebase() !== null;
+          if (!hasFirebase) return <p className="rep-copy-stale">🚩 لتصلك «تحذيرات المندوب» وحدها اربط Firebase أولًا: الإعدادات ← «🔗 ربط اللابتوب والهاتف».</p>;
+          if (repNeedsFlagLink(rep.id, true)) return <p className="rep-copy-stale">🚩 هاتفه لم يستلم ربط «التحذيرات» بعد - أرسل له نسخة (تُرسل وحدها خلال دقيقة إن كان مربوطًا بالبوت).</p>;
+          return null;
+        })()}
         {copyStatus && <p className="settings-hint">{copyStatus}</p>}
       </div>
       {choosing && (

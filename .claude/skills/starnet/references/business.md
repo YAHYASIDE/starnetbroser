@@ -2862,3 +2862,9 @@ is never pressed while a field is empty - it refills and saves on the next try (
   goes to his own bot (`ownerFlagMessage`).
 - Nov 3 2026 follow-up «اجعل رصيد الفوق يظهر ايضا دولار»: the strip's shown part starts with the bill in dollars
   («131.52 $ · … أوقية · … سيفا») when the bill isn't in USD (`BalanceLine.local`).
+- Nov 4 2026 follow-up (his photo: the rep's sheet «⏳ حُفظ - المسؤول لم يفعّل التحذيرات بعد» on every warning): the
+  rep's copy was older than the update, and a copy only went by itself after a change. Now `RepCopyAutoRunner`
+  sends a rep **one copy at once** when his phone hasn't got his channel (`repNeedsFlagLink`,
+  `starnet.repFlagLinkSent` = the space the last delivered copy carried), even with the automatic copy off, at most
+  every 10 min. The rep card (`RepAppCodePanel`) says «🚩 … لم يستلم ربط التحذيرات بعد» or, with no Firebase on
+  the phone, «اربط Firebase أولًا». The waiting warnings go up by themselves once the copy is opened.

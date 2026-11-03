@@ -6,7 +6,8 @@ import { loadDemoAccounts } from "@/lib/demoAccountStore";
 import { demoAccounts } from "@/lib/demoData";
 import { isRunningInAndroidApp } from "@/lib/localBrowser";
 import { autoCopyKey, decideAutoCopy, loadAutoCopyStates, saveAutoCopyStates } from "@/lib/repCopyAuto";
-import { sendRepCopy } from "@/lib/repCopySend";
+import { flagFirebase, sendRepCopy } from "@/lib/repCopySend";
+import { repNeedsFlagLink } from "@/lib/repFlags";
 import { repPhoneKey } from "@/lib/repDeviceTransfer";
 import { isRepWorkspace } from "@/lib/repMode";
 import { listRepresentatives, loadRepresentativeStore } from "@/lib/repStore";
@@ -21,10 +22,16 @@ export function RepCopyAutoRunner() {
   useEffect(() => {
     if (!isRunningInAndroidApp() || isRepWorkspace()) return;
     let busy = false;
+    // 🚩 a rep whose phone hasn't got his warnings' channel gets one copy at once (even with the
+    // automatic copy off) - tried again at most every 10 minutes.
+    const linkTried: Record<string, number> = {};
     const tick = async () => {
-      if (busy || !loadScheduledSyncs().repCopy) return;
+      if (busy) return;
       busy = true;
       try {
+        const hasFirebase = flagFirebase() !== null;
+        const auto = loadScheduledSyncs().repCopy;
+        if (!auto && !hasFirebase) return;
         const accounts = loadDemoAccounts(demoAccounts);
         const chats = loadRepChats();
         const states = loadAutoCopyStates();
@@ -33,6 +40,16 @@ export function RepCopyAutoRunner() {
         for (const rep of listRepresentatives(loadRepresentativeStore())) {
           // Only by the bot, to his own linked phone - never the share sheet.
           if (!chats[rep.id] || !repPhoneKey(rep.id)) continue;
+          if (repNeedsFlagLink(rep.id, hasFirebase) && now - (linkTried[rep.id] ?? 0) > 10 * 60_000) {
+            linkTried[rep.id] = now;
+            const sent = await sendRepCopy(rep, accounts);
+            if (sent.ok) await tellOwner(`🚩 أُرسلت نسخة ${rep.name} وحدها - تحذيراته تصلك الآن`);
+            continue;
+          }
+          if (!auto) {
+            if (states[rep.id]) next[rep.id] = states[rep.id]!;
+            continue;
+          }
           const step = decideAutoCopy(states[rep.id], autoCopyKey(accounts, rep.id), now);
           if (step.state) next[rep.id] = step.state;
           if (!step.send) continue;

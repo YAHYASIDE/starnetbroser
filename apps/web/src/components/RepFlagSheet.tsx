@@ -37,7 +37,7 @@ export function RepFlagSheet({ deviceId, deviceName, email, onClose }: { deviceI
     setOutbox(next);
     setNote("");
     if (!copy.flagLink) {
-      setStatus("⏳ حُفظ - المسؤول لم يفعّل التحذيرات بعد، يُرسل وحده حين تصلك نسخته القادمة");
+      setStatus("⏳ حُفظ - هاتفك يحتاج نسخة جديدة من المسؤول ليصله التحذير. يُرسل وحده بمجرد أن تفتح النسخة");
       return;
     }
     setBusy(true);
