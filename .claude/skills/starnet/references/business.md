@@ -2940,3 +2940,15 @@ is never pressed while a field is empty - it refills and saves on the next try (
   With a sheet / dialog / field open, a **send-only** round (`runLinkRound(..., { sendOnly: true })`: no reading, nothing
   written here; no Firebase call when nothing changed); the full round runs the moment he is done (checked every 1.5 s).
   Firebase free reads: ~1 head read per other member per 8 s while the app is open.
+
+## 🔐 Team sessions: only a real sign-in counts (Nov 5 2026)
+
+- His report after linking: «المسؤول 2 - كل أجهزته ليست مسجّلة جلساتها» (on the second, joined phone; he is its owner).
+  Why: `teamSessions` counted ANY cookie as «a session». The joined phone had opened the devices signed out (Starlink
+  leaves analytics cookies), so it never took the team's (only «where I have none»), and it sent those empty ones out
+  as its own - newer than the phone's real ones, so even «📥 خذ جلسات الفريق» skipped them (`n.at > sent.at`).
+- Now `isSignedInSession`: a session is the ASP.NET sign-in ticket `Starlink.Com.Access.V1…` (non-empty). Only those are
+  sent; a device not signed in here takes the newest team session whatever it sent before; an incoming session without
+  the ticket is never imported (it would sign a phone out); `cleanSent` drops the empty ones from my sent list and
+  rewrites my index, so an older build's empty sessions stop being offered.
+

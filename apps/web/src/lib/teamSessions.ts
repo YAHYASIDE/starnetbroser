@@ -2,8 +2,8 @@
  * 🔐 The devices' Starlink sessions shared in the link team (his Oct 31 2026 choice «نعم، مشفّرة مع الجهاز»): a device
  * one member signed into opens signed-in on the others too - like «📤 نسخ الجلسة», which keeps both signed in.
  *
- * Every 30 minutes each member reads its devices' sessions (cookies only) and sends a device's when it is new, or
- * changed and its last send is 6 hours old (cookies turn over by themselves - not a reason to send each time). Sealed
+ * Every 30 minutes each member reads its devices' sessions (cookies only) and sends a device's - only one signed in
+ * (`isSignedInSession`, since Nov 5 2026) - when it is new, or changed and its last send is 6 hours old (cookies turn over by themselves - not a reason to send each time). Sealed
  * with the link's key: starnet/{space}/sessions/{member}__{device} and the member's index
  * starnet/{space}/sessionIndex/{member} (device → when). A session that came from another member goes in by itself
  * only where this phone has none for that device - a working session here is never written over; «📥 خذ جلسات
@@ -34,15 +34,33 @@ export function sessionFingerprint(cookies: Record<string, string>): string {
   return h.toString(16);
 }
 
-function hasCookies(cookies: Record<string, string> | undefined): boolean {
-  return Boolean(cookies && Object.values(cookies).some((v) => v && v.trim()));
+/** Starlink's sign-in ticket: the ASP.NET cookie `Starlink.Com.Access.V1` (or its chunks `…V1C1`, `…V1C2`). */
+const SIGN_IN_COOKIE = /^starlink\.com\.access/i;
+
+/**
+ * Whether these cookies carry a Starlink sign-in - not just what any visit leaves (his Nov 5 2026 report: on «المسؤول 2»
+ * every device opened signed out). A device opened once while signed out has a few cookies too; counting those as «a
+ * session» kept the team's real one from ever coming in, and sent the empty one out as the newest.
+ * `cookies`: address → its cookie line («a=1; b=2») - or cookie name → value.
+ */
+export function isSignedInSession(cookies: Record<string, string> | undefined): boolean {
+  if (!cookies) return false;
+  for (const [key, value] of Object.entries(cookies)) {
+    if (!value || !value.trim()) continue;
+    if (SIGN_IN_COOKIE.test(key.trim())) return true;
+    for (const part of value.split(";")) {
+      const eq = part.indexOf("=");
+      if (eq > 0 && SIGN_IN_COOKIE.test(part.slice(0, eq).trim()) && part.slice(eq + 1).trim()) return true;
+    }
+  }
+  return false;
 }
 
-/** The devices whose session goes out now. */
+/** The devices whose session goes out now - only a signed-in one. */
 export function sessionsToSend(local: SessionsByAccount, sent: SentSessions, now: number): string[] {
   return Object.keys(local).filter((id) => {
     const cookies = local[id];
-    if (!hasCookies(cookies)) return false;
+    if (!isSignedInSession(cookies)) return false;
     const before = sent[id];
     if (!before) return true;
     return before.h !== sessionFingerprint(cookies!) && now - before.at >= RESEND_MS;
@@ -58,7 +76,9 @@ export function newestSessions(indexes: { member: string; index: Record<string, 
   return out;
 }
 
-/** What to take: newer than what I took, and - unless he asked («📥 خذ جلسات الفريق») - only where I have none. */
+/** What to take: newer than what I took, and - unless he asked («📥 خذ جلسات الفريق») - only where this phone is not
+ * signed in. A device signed out here takes the team's whatever this phone sent before (an older build sent empty
+ * sessions as its own). */
 export function sessionsToTake(
   newest: Record<string, { member: string; at: number }>,
   taken: TakenSessions,
@@ -67,9 +87,25 @@ export function sessionsToTake(
   force: boolean,
 ): { id: string; member: string; at: number }[] {
   return Object.entries(newest)
-    .filter(([id, n]) => n.at > (taken[id] ?? 0) && n.at > (sent[id]?.at ?? 0))
-    .filter(([id]) => force || !hasCookies(local[id]))
+    .filter(([id, n]) => {
+      const signedIn = isSignedInSession(local[id]);
+      if (!force && signedIn) return false;
+      if (!signedIn) return n.at > (taken[id] ?? 0);
+      return n.at > (taken[id] ?? 0) && n.at > (sent[id]?.at ?? 0);
+    })
     .map(([id, n]) => ({ id, ...n }));
+}
+
+/** My sent list without the devices not signed in here (an older build sent their empty sessions) - so my index
+ * never offers them to the team. */
+export function cleanSent(sent: SentSessions, local: SessionsByAccount): { sent: SentSessions; dropped: number } {
+  const out: SentSessions = {};
+  let dropped = 0;
+  for (const [id, s] of Object.entries(sent)) {
+    if (isSignedInSession(local[id])) out[id] = s;
+    else dropped += 1;
+  }
+  return { sent: out, dropped };
 }
 
 const safeId = (id: string) => id.replace(/[^A-Za-z0-9_-]/g, "_");
@@ -107,12 +143,13 @@ export async function runSessionRound(d: SessionDeps, force = false): Promise<{ 
   const { config } = d;
   try {
     const local = await d.exportSessions(d.accountIds);
-    const sent = parse<SentSessions>(d.getSetting(SENT), {});
+    const cleaned = cleanSent(parse<SentSessions>(d.getSetting(SENT), {}), local);
+    const sent = cleaned.sent;
     const taken = parse<TakenSessions>(d.getSetting(TAKEN), {});
 
-    // 1. Mine out.
+    // 1. Mine out (and my index again when it offered sessions that aren't signed in here).
     const out = sessionsToSend(local, sent, now);
-    if (out.length > 0) {
+    if (out.length > 0 || cleaned.dropped > 0) {
       for (const id of out) {
         const sealed = await sealText(JSON.stringify(local[id]), config.key);
         const w = await writeDocument(config, sessionPath(config, config.memberId, id), { iv: sealed.iv, data: sealed.data }, fetchFn);
@@ -145,7 +182,10 @@ export async function runSessionRound(d: SessionDeps, force = false): Promise<{ 
       const doc = await readDocument(config, sessionPath(config, t.member, t.id), fetchFn);
       if (!doc.ok || !doc.value?.iv) continue;
       try {
-        incoming[t.id] = JSON.parse(await openText({ iv: doc.value.iv, data: doc.value.data ?? "" }, config.key)) as Record<string, string>;
+        const cookies = JSON.parse(await openText({ iv: doc.value.iv, data: doc.value.data ?? "" }, config.key)) as Record<string, string>;
+        // an empty session another phone sent (an older build) is never put in - it would sign this one out
+        if (!isSignedInSession(cookies)) continue;
+        incoming[t.id] = cookies;
         taken[t.id] = t.at;
       } catch {
         // skipped

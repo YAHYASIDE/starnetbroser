@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { FetchFn } from "./firestoreRest";
 import type { LinkConfig, TeamMember } from "./deviceLink";
-import { runSessionRound, sessionFingerprint, sessionsToSend, sessionsToTake } from "./teamSessions";
+import { cleanSent, isSignedInSession, runSessionRound, sessionFingerprint, sessionsToSend, sessionsToTake } from "./teamSessions";
 
 // Fake data only - no real cookie.
+const IN = (v: string) => ({ "https://starlink.com": `_ga=x; Starlink.Com.Access.V1=chunks-2; Starlink.Com.Access.V1C1=${v}` });
+const OUT = { "https://starlink.com": "_ga=x; cf_bm=y" };
 function fakeFirebase(): FetchFn {
   const docs = new Map<string, unknown>();
   return async (url, init) => {
@@ -48,30 +50,58 @@ function member(memberId: string, cookies: Record<string, Record<string, string>
 
 describe("🔐 Starlink sessions in the team (his Oct 31 2026 choice)", () => {
   it("sends a new session, resends a changed one only after 6 hours", () => {
-    const local = { d1: { "https://starlink.com": "s=1" }, d2: {} };
+    const local = { d1: IN("1"), d2: {}, d3: OUT };
     expect(sessionsToSend(local, {}, 0)).toEqual(["d1"]);
-    const sent = { d1: { h: sessionFingerprint({ "https://starlink.com": "s=1" }), at: 0 } };
+    const sent = { d1: { h: sessionFingerprint(IN("1")), at: 0 } };
     expect(sessionsToSend(local, sent, 1)).toEqual([]);
-    const changed = { d1: { "https://starlink.com": "s=2" } };
+    const changed = { d1: IN("2") };
     expect(sessionsToSend(changed, sent, 60_000)).toEqual([]);
     expect(sessionsToSend(changed, sent, 6 * 3_600_000)).toEqual(["d1"]);
   });
 
   it("takes a newer session only where this phone has none - unless asked", () => {
     const newest = { d1: { member: "m1", at: 10 }, d2: { member: "m1", at: 10 } };
-    const local = { d1: { u: "mine" } };
+    const local = { d1: IN("mine"), d2: OUT };
     expect(sessionsToTake(newest, {}, local, {}, false).map((t) => t.id)).toEqual(["d2"]);
+    // signed out here: what this phone sent before (an older build sent the empty one) doesn't stop it
+    expect(sessionsToTake(newest, {}, local, { d2: { h: "x", at: 99 } }, false).map((t) => t.id)).toEqual(["d2"]);
     expect(sessionsToTake(newest, {}, local, {}, true).map((t) => t.id)).toEqual(["d1", "d2"]);
     expect(sessionsToTake(newest, { d2: 10 }, local, {}, false)).toEqual([]);
   });
 
   it("a device signed in on the phone opens signed in on «المسؤول 2», and is not sent back", async () => {
     const firebase = fakeFirebase();
-    const phone = member("phone", { d1: { "https://starlink.com": "s=1" } });
+    const phone = member("phone", { d1: IN("1") });
     const admin = member("m1", {});
     expect(await runSessionRound(phone.deps(firebase, 1000))).toMatchObject({ ok: true, sent: 1 });
     expect(await runSessionRound(admin.deps(firebase, 2000))).toMatchObject({ ok: true, sent: 0, taken: 1 });
-    expect(admin.jar.d1).toEqual({ "https://starlink.com": "s=1" });
+    expect(admin.jar.d1).toEqual(IN("1"));
     expect(await runSessionRound(admin.deps(firebase, 3000))).toMatchObject({ sent: 0, taken: 0 });
+  });
+
+  it("🔑 tells a Starlink sign-in from what any visit leaves", () => {
+    expect(isSignedInSession(IN("abc"))).toBe(true);
+    expect(isSignedInSession({ "Starlink.Com.Access.V1": "chunks-1" })).toBe(true);
+    expect(isSignedInSession(OUT)).toBe(false);
+    expect(isSignedInSession({ "https://starlink.com": "Starlink.Com.Access.V1=" })).toBe(false);
+    expect(isSignedInSession(undefined)).toBe(false);
+    expect(cleanSent({ d1: { h: "a", at: 1 }, d2: { h: "b", at: 2 } }, { d1: IN("1"), d2: OUT })).toEqual({ sent: { d1: { h: "a", at: 1 } }, dropped: 1 });
+  });
+
+  it("his Nov 5 2026 report: «المسؤول 2» opened the devices signed out first - the team's sessions still come in", async () => {
+    const firebase = fakeFirebase();
+    const phone = member("phone", { d1: IN("1"), d2: IN("2") });
+    // «المسؤول 2» opened both devices once (signed out), and an older build sent those as its own, newer
+    const admin = member("m1", { d1: OUT, d2: OUT });
+    expect(await runSessionRound(phone.deps(firebase, 1000))).toMatchObject({ ok: true, sent: 2 });
+    const older = admin.deps(firebase, 2000);
+    older.setSetting("starnet.teamSessionsSent", JSON.stringify({ d1: { h: "x", at: 2000 }, d2: { h: "y", at: 2000 } }));
+    // its round: nothing of its own goes out, both of the phone's come in
+    expect(await runSessionRound(older)).toMatchObject({ ok: true, sent: 0, taken: 2 });
+    expect(admin.jar.d1).toEqual(IN("1"));
+    expect(admin.jar.d2).toEqual(IN("2"));
+    // the phone, asked to take the team's («📥»), never gets an empty one back
+    expect(await runSessionRound(phone.deps(firebase, 3000), true)).toMatchObject({ ok: true });
+    expect(phone.jar.d1).toEqual(IN("1"));
   });
 });
