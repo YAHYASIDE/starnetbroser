@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { DEVICE_LINK_EVENT, DEVICE_LINK_NOW_EVENT, TEAM_SESSIONS_EVENT, TEAM_SESSIONS_NOW_EVENT } from "@/components/DeviceLinkRunner";
 import { activityLine, type TeamActivity } from "@/lib/teamActivity";
+import { sessionsNoteText, type SessionRoundResult } from "@/lib/teamSessions";
 import { isDesktopApp } from "@/lib/desktop";
 import {
   browserLinkStorage,
@@ -101,8 +102,8 @@ export function DeviceLinkSection() {
     }
     setMemberName(desktop ? "اللابتوب" : "المسؤول 2");
     const onSessions = (e: Event) => {
-      const r = (e as CustomEvent<{ ok: boolean; sent: number; taken: number; message: string }>).detail;
-      setSessionsNote(r.ok ? `🔐 أُرسلت ${r.sent} جلسة · أُخذت ${r.taken}` : `⚠️ الجلسات: ${r.message}`);
+      const r = (e as CustomEvent<SessionRoundResult>).detail;
+      setSessionsNote(sessionsNoteText(r));
     };
     window.addEventListener(TEAM_SESSIONS_EVENT, onSessions);
     window.addEventListener(DEVICE_LINK_EVENT, refresh);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { FetchFn } from "./firestoreRest";
 import type { LinkConfig, TeamMember } from "./deviceLink";
-import { cleanSent, isSignedInSession, runSessionRound, sessionFingerprint, sessionsToSend, sessionsToTake } from "./teamSessions";
+import { cleanSent, isSignedInSession, runSessionRound, sessionsNoteText, sessionFingerprint, sessionsToSend, sessionsToTake } from "./teamSessions";
 
 // Fake data only - no real cookie.
 const IN = (v: string) => ({ "https://starlink.com": `_ga=x; Starlink.Com.Access.V1=chunks-2; Starlink.Com.Access.V1C1=${v}` });
@@ -103,5 +103,19 @@ describe("🔐 Starlink sessions in the team (his Oct 31 2026 choice)", () => {
     // the phone, asked to take the team's («📥»), never gets an empty one back
     expect(await runSessionRound(phone.deps(firebase, 3000), true)).toMatchObject({ ok: true });
     expect(phone.jar.d1).toEqual(IN("1"));
+  });
+
+  it("a ticket under another name shows by its size; the note says where a session stops", async () => {
+    expect(isSignedInSession({ "https://starlink.com": `x=1; Starlink.Com.Sso=t` })).toBe(true);
+    expect(isSignedInSession({ "https://api.starlink.com": `tk=${"a".repeat(1200)}` })).toBe(true);
+    expect(isSignedInSession({ "https://starlink.com": `tk=${"a".repeat(300)}` })).toBe(false);
+    const firebase = fakeFirebase();
+    const phone = member("phone", { d1: IN("1"), d2: OUT });
+    const admin = member("m1", { d1: OUT });
+    const p = await runSessionRound(phone.deps(firebase, 1000));
+    expect(sessionsNoteText(p)).toBe("🔐 هنا: 1 مسجّلة · 1 بلا دخول | من الفريق: 0 متاحة · أُخذت 0 | أُرسلت 1");
+    const a = await runSessionRound(admin.deps(firebase, 2000), true);
+    expect(sessionsNoteText(a)).toBe("🔐 هنا: 1 مسجّلة · 0 بلا دخول | من الفريق: 1 متاحة · أُخذت 1 | أُرسلت 0");
+    expect(sessionsNoteText({ ok: false, sent: 0, taken: 0, message: "الربط غير مفعّل" })).toBe("⚠️ الجلسات: الربط غير مفعّل");
   });
 });

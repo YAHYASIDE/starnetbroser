@@ -2951,4 +2951,7 @@ is never pressed while a field is empty - it refills and saves on the next try (
   sent; a device not signed in here takes the newest team session whatever it sent before; an incoming session without
   the ticket is never imported (it would sign a phone out); `cleanSent` drops the empty ones from my sent list and
   rewrites my index, so an older build's empty sessions stop being offered.
-
+- Same evening, «ما زال الهاتف الثاني ليست مسجّلة عنده الجلسات» after the update: the ticket is also recognised as
+  `Starlink.Com.Sso` or any cookie of 1,000+ characters (a renamed ticket still counts), and the line under «📥» now
+  tells where it stops (`sessionsNoteText`): «🔐 هنا: N مسجّلة · M بلا دخول | من الفريق: K متاحة · أُخذت X | أُرسلت Y»
+  (+ «Z فارغة لم تُؤخذ»); a skipped «📥» says why (busy, link off, no other member seen yet) instead of «⏳» forever.

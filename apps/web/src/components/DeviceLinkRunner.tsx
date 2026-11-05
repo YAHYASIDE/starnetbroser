@@ -67,9 +67,11 @@ export function DeviceLinkRunner() {
     const sessions = async (force = false) => {
       const storage = browserLinkStorage();
       const config = loadLinkConfig(storage);
-      if (sessionsBusy || !config?.enabled) return;
+      const skip = (message: string) => force && window.dispatchEvent(new CustomEvent(TEAM_SESSIONS_EVENT, { detail: { ok: false, sent: 0, taken: 0, message } }));
+      if (sessionsBusy) return void skip("ما زال ينقل الجلسات - انتظر قليلًا ثم أعد");
+      if (!config?.enabled) return void skip("الربط غير مفعّل");
       const team = loadTeam(storage);
-      if (team.length < 2) return;
+      if (team.length < 2) return void skip("لا يرى هذا الهاتف عضوًا آخر في الفريق بعد - اضغط «🔄 مزامنة الآن» ثم أعد");
       sessionsBusy = true;
       try {
         const result = await runSessionRound(

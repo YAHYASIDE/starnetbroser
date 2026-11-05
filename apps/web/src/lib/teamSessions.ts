@@ -34,8 +34,10 @@ export function sessionFingerprint(cookies: Record<string, string>): string {
   return h.toString(16);
 }
 
-/** Starlink's sign-in ticket: the ASP.NET cookie `Starlink.Com.Access.V1` (or its chunks `…V1C1`, `…V1C2`). */
-const SIGN_IN_COOKIE = /^starlink\.com\.access/i;
+/** Starlink's sign-in ticket: the ASP.NET cookies `Starlink.Com.Access.V1` (or its chunks `…V1C1`, `…V1C2`) and
+ * `Starlink.Com.Sso`. A ticket under another name still shows by its size: no visit leaves a 1,000-character cookie. */
+const SIGN_IN_COOKIE = /^starlink\.com\.(access|sso)/i;
+const TICKET_CHARS = 1000;
 
 /**
  * Whether these cookies carry a Starlink sign-in - not just what any visit leaves (his Nov 5 2026 report: on «المسؤول 2»
@@ -50,7 +52,9 @@ export function isSignedInSession(cookies: Record<string, string> | undefined): 
     if (SIGN_IN_COOKIE.test(key.trim())) return true;
     for (const part of value.split(";")) {
       const eq = part.indexOf("=");
-      if (eq > 0 && SIGN_IN_COOKIE.test(part.slice(0, eq).trim()) && part.slice(eq + 1).trim()) return true;
+      if (eq <= 0) continue;
+      const v = part.slice(eq + 1).trim();
+      if (v && (SIGN_IN_COOKIE.test(part.slice(0, eq).trim()) || v.length >= TICKET_CHARS)) return true;
     }
   }
   return false;
@@ -136,8 +140,28 @@ function parse<T>(text: string | null, fallback: T): T {
   }
 }
 
+export interface SessionRoundResult {
+  ok: boolean;
+  sent: number;
+  taken: number;
+  message: string;
+  /** What this phone has: devices signed in / opened but not signed in. */
+  here?: { signedIn: number; signedOut: number };
+  /** Devices the other members offer a session for, and those that came empty (not put in). */
+  offered?: number;
+  empty?: number;
+}
+
+/** The line under «📥 خذ جلسات الفريق» - enough to tell where a session stops. */
+export function sessionsNoteText(r: SessionRoundResult): string {
+  if (!r.ok) return `⚠️ الجلسات: ${r.message}`;
+  const parts = [`🔐 هنا: ${r.here?.signedIn ?? 0} مسجّلة · ${r.here?.signedOut ?? 0} بلا دخول`, `من الفريق: ${r.offered ?? 0} متاحة · أُخذت ${r.taken}`, `أُرسلت ${r.sent}`];
+  if (r.empty) parts.push(`${r.empty} فارغة لم تُؤخذ`);
+  return parts.join(" | ");
+}
+
 /** One sessions round. `force` = «📥 خذ جلسات الفريق». Never throws. */
-export async function runSessionRound(d: SessionDeps, force = false): Promise<{ ok: boolean; sent: number; taken: number; message: string }> {
+export async function runSessionRound(d: SessionDeps, force = false): Promise<SessionRoundResult> {
   const fetchFn = d.fetchFn ?? fetch;
   const now = d.now ?? Date.now();
   const { config } = d;
@@ -176,15 +200,20 @@ export async function runSessionRound(d: SessionDeps, force = false): Promise<{ 
       }
     }
     const wanted = new Set(d.accountIds);
-    const take = sessionsToTake(newestSessions(indexes), taken, local, sent, force).filter((t) => wanted.has(t.id));
+    const newest = newestSessions(indexes);
+    const take = sessionsToTake(newest, taken, local, sent, force).filter((t) => wanted.has(t.id));
     const incoming: SessionsByAccount = {};
+    let empty = 0;
     for (const t of take) {
       const doc = await readDocument(config, sessionPath(config, t.member, t.id), fetchFn);
       if (!doc.ok || !doc.value?.iv) continue;
       try {
         const cookies = JSON.parse(await openText({ iv: doc.value.iv, data: doc.value.data ?? "" }, config.key)) as Record<string, string>;
         // an empty session another phone sent (an older build) is never put in - it would sign this one out
-        if (!isSignedInSession(cookies)) continue;
+        if (!isSignedInSession(cookies)) {
+          empty += 1;
+          continue;
+        }
         incoming[t.id] = cookies;
         taken[t.id] = t.at;
       } catch {
@@ -202,7 +231,19 @@ export async function runSessionRound(d: SessionDeps, force = false): Promise<{ 
         d.setSetting(SENT, JSON.stringify(sent));
       }
     }
-    return { ok: true, sent: out.length, taken: imported, message: "✓" };
+    // what this phone has now - the ones just put in count as signed in
+    const now_ = { ...local, ...(imported > 0 ? incoming : {}) };
+    const ids = Object.keys(now_);
+    const signedIn = ids.filter((id) => isSignedInSession(now_[id])).length;
+    return {
+      ok: true,
+      sent: out.length,
+      taken: imported,
+      message: "✓",
+      here: { signedIn, signedOut: ids.length - signedIn },
+      offered: Object.keys(newest).filter((id) => wanted.has(id)).length,
+      empty,
+    };
   } catch (e) {
     return { ok: false, sent: 0, taken: 0, message: e instanceof Error ? e.message : "تعذّر نقل الجلسات" };
   }
