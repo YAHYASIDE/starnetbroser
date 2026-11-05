@@ -40,6 +40,8 @@ export interface BotLine {
   note?: string;
   /** 🤲 The handed-over sum this line is a part of (repHandoverGroups.ts) - its parts make one message. */
   group?: string;
+  /** 📜 The record behind it (a ledger entry / a settlement id) - its source in «سجل العمليات». */
+  recordId?: string;
 }
 
 export interface BotAccount {
@@ -109,6 +111,7 @@ export function repBotAccounts(
       lines: w.lines.map((l) => {
         const f = facts?.(l.row);
         const group = handoverGroupOf(l.row);
+        const recordId = l.row?.type === "customer" ? l.row.op?.entryId : l.row?.type === "settlement" ? l.row.settlement?.id : undefined;
         return {
           id: `${w.id}:${l.key}`,
           date: l.date,
@@ -117,6 +120,7 @@ export function repBotAccounts(
           after: l.after,
           ...(f ? { kind: f.kind, at: l.row.createdAt, ...(f.accountId ? { accountId: f.accountId } : {}), ...(f.note ? { note: f.note } : {}) } : {}),
           ...(group ? { group } : {}),
+          ...(recordId ? { recordId } : {}),
         };
       }),
     });

@@ -16,6 +16,8 @@ describe("payment proofs", () => {
   it("finds photos whose payment is gone, but never on an empty ledger", () => {
     const ledger = { d1: [entry("p1")], d2: [entry("p3")] };
     expect(orphanProofIds(["p1", "p2", "p3"], ledger)).toEqual(["p2"]);
+    // 📜 a photo of «سجل العمليات» is never an orphan
+    expect(orphanProofIds(["p1", "oplog:r1:7"], ledger)).toEqual([]);
     expect(orphanProofIds(["p1", "p2"], {})).toEqual([]);
     expect(orphanProofIds(["p1"], { d1: [] })).toEqual([]);
   });

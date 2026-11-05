@@ -130,9 +130,12 @@ export interface OpMessage {
 }
 
 /** The message for one operation of one of his accounts. */
-export function repOpMessage(repId: string, account: BotAccount, line: BotLine, device?: OpDevice): OpMessage {
+export function repOpMessage(repId: string, account: BotAccount, line: BotLine, device?: OpDevice, serial?: number): OpMessage {
   const { day, time } = opWhen(line);
-  const lines = [`🔔 <b>STAR NET | ${headline(account, line)}</b>`, `🗓️ <b>${day}</b>${time ? ` — ${time}` : ""}`, ""];
+  const lines = [`🔔 <b>STAR NET | ${headline(account, line)}</b>`, `🗓️ <b>${day}</b>${time ? ` — ${time}` : ""}`];
+  // 📜 its number in «سجل العمليات» (his Nov 5 2026 ask) - each rep counts his own
+  if (serial) lines.push(`🔢 رقم العملية: <b>#${serial}</b>`);
+  lines.push("");
   const email = device?.email?.trim();
   const name = device?.name?.trim();
   if (email) lines.push(`📧 <code>${escapeHtml(email)}</code>`);

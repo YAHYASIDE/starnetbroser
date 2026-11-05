@@ -2895,3 +2895,20 @@ is never pressed while a field is empty - it refills and saves on the next try (
   the same account ONE message: the amounts added, «قبل» before the first part, «بعد» after the last, note «🤲 مبلغ
   واحد سلّمته: 2,600 سيفا عن جهاز … + 600 سيفا في حسابك»; every part is marked sent. The operator's 24-hour table
   keeps the parts as rows (each can be opened / edited) with «🤲 جزء من مبلغ واحد سلّمه: 3,200 سيفا» under each.
+
+## 📜 «سجل العمليات»: a number per operation, its source, its photos (Nov 5 2026)
+
+- His ask (after the «600»): «أريد أن أعرف من أين جاءت هذه 600 … أريد لكل عملية رقمًا تسلسليًا، وأن تكون العمليات
+  محفوظة مع صورة في التطبيق، كل عملية محفوظة مع كل تفاصيلها». His choices: **each rep counts his own** (#1, #2…), **both
+  images** (the app's receipt + the rep's proof photo), **«📜 السجل» on the rep's card**.
+- `lib/repOpLog.ts` (`starnet_rep_op_log_v1`, backed up): every operation message the money bot sends (one per
+  operation; a handover in parts = one, `ids` = all parts) is logged with `nextSerial` → `logOp`: number, time, account,
+  kind, device, figures (before / amount / after), the message as sent, `source` (`opSourceText`: «🤖 من رسالته في البوت:
+  «…»» from the request found by the record's `botId` / «rep-<request id>» entry, «🤖 من بوت الأموال», or «✍️ سجّلتها أنت
+  في التطبيق»; + the handover's parts), `botId`, `requestText`, `recordId`, the request's `proofFileId`. The message
+  shows «🔢 رقم العملية: #N» (`repOpMessage(…, serial)`). What the bot sent before the log is numbered once from
+  repOpRatings' kept messages (`importSent`, oldest first, `imported`).
+- Photos: the rep's photo is downloaded and kept in the proofs store under `oplog:<repId>:<serial>` (never pruned as an
+  orphan); an approved payment's own proof (under its entry) shows too; «📸 تنزيل صورة المندوب» fetches it again from
+  the bot. «🖼️ صورة الإيصال» draws `opReceiptDoc` (number, date, account, operation, device, figures, source) as a PNG.
+- The rating (✅ / ❌, by whom, reviewed) is read live from repOpRatings by the message's token.

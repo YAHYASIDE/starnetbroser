@@ -31,6 +31,7 @@ import {
   replyToChat,
   sendRepPdf,
   sendRepText,
+  downloadRepImage,
   sendTelegramPdf,
   sendTelegramText,
   repBotNames,
@@ -40,6 +41,7 @@ import { devicesHelp, devicesKeyboard, isMoneyKind, moneyRedirectText, REP_BOOK_
 import { buildReplySnapshot } from "./telegramReplies";
 import { botOperationIds, MAX_NEW_SHOWN, newBotOperations, repBotAccountPdf, repBotAccounts, type BotAccount } from "./repBotStatement";
 import { mergeHandoverOps, moneyWords, opsToSend, repOpMessage } from "./repOpMessage";
+import { importSent, loadOpLog, logOp, markProofKept, nextSerial, opProofKey, opSourceText, saveOpLog } from "./repOpLog";
 import { addLocalEvent } from "./eventLog";
 import { accountEmail } from "./dayActions";
 import { applyRating, loadOpRatings, parseRatingRecord, recordSentOp, saveOpRatings } from "./repOpRatings";
@@ -79,7 +81,8 @@ import {
   REP_PAYMENT_HINT,
   repPaymentReceivedText,
 } from "./telegramRepMessages";
-import { addRepRequest, loadRepRequests, parseRepPayment, saveRepRequests } from "./repRequests";
+import { addRepRequest, loadRepRequests, parseRepPayment, saveRepRequests, type RepRequest } from "./repRequests";
+import { putProof } from "./paymentProofStore";
 import {
   answerCash,
   answerExpiring,
@@ -536,13 +539,38 @@ async function notifyNewRepOperations(byRep: Map<string, BotAccount[]>): Promise
     const { send, more } = opsToSend(merged, MAX_NEW_SHOWN);
     const done = new Set(prior ?? []);
     let allSent = true;
+    // 📜 «سجل العمليات»: what went before gets its numbers once, then each message carries the next one
+    let opLog = importSent(loadOpLog(), repId, Object.values(ratings.sent));
     for (const { account, line, ids } of send) {
       const device = line.accountId ? devices.get(line.accountId) : undefined;
-      const message = repOpMessage(repId, account, line, device ? { email: accountEmail(device), name: device.name } : undefined);
+      const serial = nextSerial(opLog, repId);
+      const message = repOpMessage(repId, account, line, device ? { email: accountEmail(device), name: device.name } : undefined, serial);
       if (!(await sendRepText(repId, message.html, message.keyboard, "money", undefined, true))) {
         allSent = false;
         break;
       }
+      const origin = opOrigin(line.recordId);
+      const logged = logOp(opLog, {
+        repId,
+        ids,
+        token: message.token,
+        at: line.at ?? new Date().toISOString(),
+        sentAt: new Date().toISOString(),
+        account: account.title,
+        kind: line.kind ?? line.text,
+        ...(line.note ? { note: line.note } : {}),
+        ...(device ? { device: { name: device.name, email: accountEmail(device) } } : {}),
+        figures: message.figures,
+        text: message.plain,
+        source: opSourceText({ requestText: origin.request?.text, requestAt: origin.request?.createdAt, handoverNote: ids.length > 1 ? line.note : undefined, byBot: Boolean(origin.botId) }),
+        ...(line.recordId ? { recordId: line.recordId } : {}),
+        ...(origin.botId ? { botId: origin.botId } : {}),
+        ...(origin.request?.text ? { requestText: origin.request.text } : {}),
+        ...(origin.request?.proofFileId ? { proofFileId: origin.request.proofFileId, ...(origin.request.proofBot ? { proofBot: origin.request.proofBot } : {}) } : {}),
+      });
+      opLog = logged.store;
+      saveOpLog(opLog);
+      if (origin.request?.proofFileId) void keepOpProof(repId, logged.serial, origin.request.proofFileId, origin.request.proofBot);
       ratings = recordSentOp(ratings, { token: message.token, repId, opId: line.id, account: account.title, text: message.plain, at: Date.now() });
       saveOpRatings(ratings);
       for (const id of ids) done.add(id);
@@ -554,6 +582,37 @@ async function notifyNewRepOperations(byRep: Map<string, BotAccount[]>): Promise
     seen[repId] = botOperationIds(accounts);
     saveSeenOps(seen);
   }
+}
+
+/** 📜 Where an operation came from: the bot message (its id on the record) and his request in it. */
+function opOrigin(recordId: string | undefined): { botId?: string; request?: RepRequest } {
+  if (!recordId) return {};
+  const requests = loadRepRequests();
+  // an approved payment's entry is «rep-<request id>»
+  if (recordId.startsWith("rep-")) {
+    const request = requests.find((r) => r.id === recordId.slice(4));
+    if (request) return { ...(request.botId ? { botId: request.botId } : {}), request };
+  }
+  let botId = loadRepSettlements().find((x) => x.id === recordId)?.botId;
+  if (!botId) {
+    for (const entries of Object.values(loadLedgerStore())) {
+      const e = entries.find((x) => x.id === recordId);
+      if (e) {
+        botId = e.botId;
+        break;
+      }
+    }
+  }
+  if (!botId) return {};
+  const request = requests.find((r) => r.botId === botId);
+  return { botId, ...(request ? { request } : {}) };
+}
+
+/** 📸 His photo with it, kept on the phone with the operation (best effort - the bot keeps it too). */
+async function keepOpProof(repId: string, serial: number, fileId: string, bot?: "reps" | "money"): Promise<void> {
+  const dataUrl = await downloadRepImage(fileId, bot ?? "reps");
+  if (!dataUrl) return;
+  if (await putProof(opProofKey({ repId, serial }), dataUrl)) saveOpLog(markProofKept(loadOpLog(), repId, serial));
 }
 
 /** ✅ / ❌ tapped under an operation message (the service queued it - TelegramRatings.java): recorded once;

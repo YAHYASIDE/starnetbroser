@@ -43,5 +43,6 @@ export function orphanProofIds(proofIds: string[], ledgerStore: LedgerByAccount,
   const ownerIds = new Set<string>(otherOwnerIds);
   for (const entries of Object.values(ledgerStore)) for (const entry of entries) ownerIds.add(entry.id);
   if (ownerIds.size === 0) return [];
-  return proofIds.filter((id) => !ownerIds.has(id));
+  // 📜 «سجل العمليات» keeps its photos for good (repOpLog.ts `opProofKey`)
+  return proofIds.filter((id) => !ownerIds.has(id) && !id.startsWith("oplog:"));
 }

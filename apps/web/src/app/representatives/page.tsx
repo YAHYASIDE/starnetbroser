@@ -122,6 +122,7 @@ import { moveRep, orderReps, REP_SORTS, loadRepSort, saveRepSort, type RepSort }
 import { repPosition } from "@/lib/repPosition";
 import { splitTableByCurrency } from "@/lib/repStatementDoc";
 import { handoverGroupOf } from "@/lib/repHandoverGroups";
+import { RepOpLogSheet } from "@/components/RepOpLogSheet";
 import { balanceParts, balanceText, buildRepStatementPdf, last24h, makeFx, nonZero, repRowCells, repStatementTable, rowBalance, type Fx, type RepTableLine } from "@/lib/repStatementDoc";
 
 const EPSILON = 0.0001;
@@ -785,6 +786,7 @@ function RepCard({
   // 📂 «حساباته»: the full page of his accounts (his Oct 12 2026 ask).
   const [accountsOpen, setAccountsOpen] = useState(false);
   const [auditOpen, setAuditOpen] = useState(false);
+  const [opLogOpen, setOpLogOpen] = useState(false);
   const [periodKind, setPeriodKind] = useState<RepPeriodKind>("all");
   const [customPeriod, setCustomPeriod] = useState<RepPeriod>({ from: "", to: "" });
   const thisMonth = todayDateInputValue().slice(0, 7);
@@ -1066,6 +1068,7 @@ function RepCard({
         </div>
       )}
 
+      {opLogOpen && <RepOpLogSheet repId={rep.id} repName={rep.name} onClose={() => setOpLogOpen(false)} />}
       {auditOpen && (
         <RepAuditSheet repId={rep.id} repName={rep.name} settlements={settlements} ledgerStore={ledgerStore} accounts={accounts} onClose={() => setAuditOpen(false)} />
       )}
@@ -1079,6 +1082,10 @@ function RepCard({
         </button>
         <button type="button" className="party-action party-action-accounts" onClick={() => setAccountsOpen(true)}>
           <ActionFace icon="📂" label="حساباته" />
+        </button>
+        {/* 📜 every operation the money bot sent him, numbered, with its source and photos (his Nov 5 2026 ask) */}
+        <button type="button" className="party-action" onClick={() => setOpLogOpen(true)} data-tour="op-log-button">
+          <ActionFace icon="📜" label="السجل" />
         </button>
         {/* 🔍 the council's first step (his Oct 22 2026 choice): what looks wrong in his records, read only. */}
         <button type="button" className="party-action" onClick={() => setAuditOpen(true)} data-tour="rep-audit">
