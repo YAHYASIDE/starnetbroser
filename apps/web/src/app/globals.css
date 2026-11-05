@@ -20119,3 +20119,12 @@ html.has-rep-flags body { padding-top: calc(var(--safe-top) + 46px); }
   font-size: 0.8rem;
   color: var(--text-muted);
 }
+
+/* 🤲 a part of one handed-over sum, in the rep's table */
+.rep-table-handover {
+  display: block;
+  margin-top: 2px;
+  color: var(--brand);
+  font-size: 0.72rem;
+  font-weight: 700;
+}

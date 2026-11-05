@@ -40,6 +40,14 @@ function part(row: RepStatementRow): { id?: string; currency: string; amount: nu
   return null;
 }
 
+/** 🤲 The handed-over sum this row is a part of (its id), when it is one. */
+export function handoverGroupOf(row: RepStatementRow | undefined): string | undefined {
+  if (!row) return undefined;
+  if (row.type === "customer") return row.op?.byRep && row.op.amount < 0 ? row.op.handoverId : undefined;
+  if (row.type === "settlement") return row.settlement?.handoverId;
+  return undefined;
+}
+
 /** One day's rows (newest first) with each handed-over sum folded into one item. */
 export function groupHandovers(rows: RepStatementRow[]): RepRowItem[] {
   const groupOf = new Map<RepStatementRow, string>();

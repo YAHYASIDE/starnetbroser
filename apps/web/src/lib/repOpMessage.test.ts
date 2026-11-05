@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { BotAccount, BotLine } from "./repBotStatement";
-import { balanceWords, escapeHtml, opsToSend, opToken, opWhen, ratingKeyboard, repOpMessage, resultWords } from "./repOpMessage";
+import { balanceWords, escapeHtml, opsToSend, opToken, opWhen, ratingKeyboard, repOpMessage, resultWords, mergeHandoverOps } from "./repOpMessage";
 
 const personal = (lines: BotLine[] = []): BotAccount => ({ key: "a0", title: "🟠 حساب شخصي", balance: {}, stored: {}, isProfit: false, isNamed: false, lines });
 const profit: BotAccount = { key: "a1", title: "💰 حساب الربح", balance: {}, stored: {}, isProfit: true, isNamed: false, lines: [] };
@@ -129,5 +129,29 @@ describe("🔔 the message matches his statement (built through «كشفي»'s o
     for (let i = 0; i + 1 < msgs.length; i++) expect(msgs[i]!.figures[0]!.before).toBe(msgs[i + 1]!.figures[0]!.after);
     expect(msgs[0]!.html).toContain("➕ له");
     expect(msgs[2]!.html).toContain("📈 النتيجة: زاد ما عليك <b>3,000 سيفا</b>");
+  });
+});
+
+describe("🤲 one handed-over sum = one message", () => {
+  const acc = { key: "a0", title: "🟠 حساب شخصي", balance: {}, stored: {}, isProfit: false, isNamed: false, lines: [] };
+  // 3,200 handed over: 2,600 paid a customer's device, 600 put in his account (balance 585,179 عليه → 581,979)
+  const devicePart: BotLine = { id: "SIFA:c1", date: "2026-11-05", text: "x", amount: { SIFA: 2600 }, after: { SIFA: -582579 }, at: "2026-11-05T18:08:00.001Z", accountId: "d1", group: "ho-1" };
+  const rest: BotLine = { id: "SIFA:s1", date: "2026-11-05", text: "➕ له · استلمت منه نقدًا", amount: { SIFA: 600 }, after: { SIFA: -581979 }, at: "2026-11-05T18:08:00.002Z", group: "ho-1" };
+  const other: BotLine = { id: "SIFA:s2", date: "2026-11-05", text: "y", amount: { SIFA: 3200 }, after: { SIFA: -578779 }, at: "2026-11-05T18:10:00Z" };
+  const note = (l: { accountId?: string }, _code: string, amount: number) => (l.accountId ? `${amount} عن جهاز` : `${amount} في حسابك`);
+
+  it("adds the parts, before the first and after the last, and says where each went", () => {
+    const out = mergeHandoverOps([{ account: acc, line: other }, { account: acc, line: rest }, { account: acc, line: devicePart }], note);
+    expect(out).toHaveLength(2);
+    const one = out.find((o) => o.ids.length === 2)!;
+    expect(one.ids.sort()).toEqual(["SIFA:c1", "SIFA:s1"]);
+    expect(one.line.amount).toEqual({ SIFA: 3200 });
+    expect(one.line.after).toEqual({ SIFA: -581979 });
+    expect(one.line.note).toBe("🤲 مبلغ واحد سلّمته: 2600 عن جهاز + 600 في حسابك");
+    expect(one.line.accountId).toBeUndefined();
+    const msg = repOpMessage("r1", acc, one.line);
+    expect(msg.plain).toContain("3,200 سيفا");
+    expect(msg.plain).toContain("585,179 سيفا عليك");
+    expect(out.find((o) => o.line.id === "SIFA:s2")!.ids).toEqual(["SIFA:s2"]);
   });
 });

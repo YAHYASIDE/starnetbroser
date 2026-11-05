@@ -39,7 +39,7 @@ import { PROMISES_ROUTE, TELEGRAM_SETTINGS_ROUTE, tellOwner } from "./appEvents"
 import { devicesHelp, devicesKeyboard, isMoneyKind, moneyRedirectText, REP_BOOK_HINT, REP_HANDOVER_HINT, repHandoverReceivedText, REP_LOAN_HINT, type RepBot } from "./repBots";
 import { buildReplySnapshot } from "./telegramReplies";
 import { botOperationIds, MAX_NEW_SHOWN, newBotOperations, repBotAccountPdf, repBotAccounts, type BotAccount } from "./repBotStatement";
-import { opsToSend, repOpMessage } from "./repOpMessage";
+import { mergeHandoverOps, moneyWords, opsToSend, repOpMessage } from "./repOpMessage";
 import { addLocalEvent } from "./eventLog";
 import { accountEmail } from "./dayActions";
 import { applyRating, loadOpRatings, parseRatingRecord, recordSentOp, saveOpRatings } from "./repOpRatings";
@@ -529,10 +529,14 @@ async function notifyNewRepOperations(byRep: Map<string, BotAccount[]>): Promise
       }
       continue;
     }
-    const { send, more } = opsToSend(fresh, MAX_NEW_SHOWN);
+    // 🤲 the parts of one handed-over sum = one message (his Nov 5 2026 report «لم يسجّل 600»)
+    const merged = mergeHandoverOps(fresh, (line, code, amount) =>
+      line.accountId ? `${moneyWords(amount, code)} عن جهاز ${devices.get(line.accountId)?.name || "زبونك"}` : `${moneyWords(amount, code)} في حسابك`,
+    );
+    const { send, more } = opsToSend(merged, MAX_NEW_SHOWN);
     const done = new Set(prior ?? []);
     let allSent = true;
-    for (const { account, line } of send) {
+    for (const { account, line, ids } of send) {
       const device = line.accountId ? devices.get(line.accountId) : undefined;
       const message = repOpMessage(repId, account, line, device ? { email: accountEmail(device), name: device.name } : undefined);
       if (!(await sendRepText(repId, message.html, message.keyboard, "money", undefined, true))) {
@@ -541,7 +545,7 @@ async function notifyNewRepOperations(byRep: Map<string, BotAccount[]>): Promise
       }
       ratings = recordSentOp(ratings, { token: message.token, repId, opId: line.id, account: account.title, text: message.plain, at: Date.now() });
       saveOpRatings(ratings);
-      done.add(line.id);
+      for (const id of ids) done.add(id);
       seen[repId] = [...done];
       saveSeenOps(seen);
     }

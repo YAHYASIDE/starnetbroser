@@ -44,6 +44,11 @@ export function opAmount(value: number, code: string): string {
   return formatAmount(code === "SIFA" || code === FRANC_CODE ? Math.round(v) : round2(v));
 }
 
+/** «2,600 سيفا» (no sign). */
+export function moneyWords(value: number, code: string): string {
+  return `${opAmount(value, code)} ${label(code)}`;
+}
+
 /** «<b>624,123</b> سيفا عليك» / «<b>0</b> سيفا ✓» (+ = لك). */
 export function balanceWords(value: number, code: string): string {
   const side = value > EPS ? " لك" : value < -EPS ? " عليك" : " ✓";
@@ -164,4 +169,59 @@ export function opsToSend<T extends { line: BotLine }>(found: T[], max: number):
   const ordered = [...found].sort((a, b) => (a.line.at ?? a.line.date).localeCompare(b.line.at ?? b.line.date));
   const send = ordered.slice(Math.max(0, ordered.length - max));
   return { send, more: ordered.length - send.length };
+}
+
+/**
+ * 🤲 One sum he handed over = ONE message (his Nov 5 2026 report: a 3,200 handover came as «2,600» and a
+ * «600» he never typed - the app pays his customers' devices first and puts the rest in his account,
+ * repClientsSave.ts). The parts of a group in the same account become one line: their amounts added,
+ * the balance before the first and after the last, and a note of where each part went. `ids` = every
+ * part's id (all marked sent). Lines with no group, or alone in theirs, pass unchanged.
+ */
+export function mergeHandoverOps<T extends { account: BotAccount; line: BotLine }>(
+  found: T[],
+  partNote: (line: BotLine, code: string, amount: number) => string,
+): (T & { ids: string[] })[] {
+  const groups = new Map<string, T[]>();
+  for (const f of found) if (f.line.group) groups.set(`${f.account.key}|${f.line.group}`, [...(groups.get(`${f.account.key}|${f.line.group}`) ?? []), f]);
+  const out: (T & { ids: string[] })[] = [];
+  const done = new Set<string>();
+  for (const f of found) {
+    const key = f.line.group ? `${f.account.key}|${f.line.group}` : "";
+    const parts = key ? groups.get(key)! : [f];
+    if (parts.length < 2) {
+      out.push({ ...f, ids: [f.line.id] });
+      continue;
+    }
+    if (done.has(key)) continue;
+    done.add(key);
+    const amount: Record<string, number> = {};
+    for (const p of parts) for (const [c, v] of Object.entries(p.line.amount)) amount[c] = round2((amount[c] ?? 0) + v);
+    // the last part: the one whose «after» isn't another part's «before»
+    const before = (p: T, c: string) => round2((p.line.after[c] ?? 0) - (p.line.amount[c] ?? 0));
+    const codes = Object.keys(amount);
+    const last = parts.find((p) => codes.every((c) => !parts.some((q) => q !== p && Math.abs(before(q, c) - (p.line.after[c] ?? 0)) < EPS))) ?? parts[0]!;
+    // the line that names it: the rest put in his account (no device), else the first
+    const main = parts.find((p) => !p.line.accountId) ?? parts[0]!;
+    const where = parts
+      .slice()
+      .sort((a, b) => (a.line.at ?? "") < (b.line.at ?? "") ? -1 : 1)
+      .map((p) => {
+        const [code, v] = Object.entries(p.line.amount)[0] ?? ["", 0];
+        return partNote(p.line, code, Math.abs(v));
+      })
+      .join(" + ");
+    out.push({
+      ...main,
+      line: {
+        ...main.line,
+        amount,
+        after: last.line.after,
+        at: last.line.at ?? main.line.at,
+        note: `🤲 مبلغ واحد سلّمته: ${where}`,
+      },
+      ids: parts.map((p) => p.line.id),
+    } as T & { ids: string[] });
+  }
+  return out;
 }

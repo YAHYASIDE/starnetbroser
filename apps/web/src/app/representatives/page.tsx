@@ -121,6 +121,7 @@ import { confirmClosedMonthChange, ledgerEntryMonthDates, monthLabel, monthRange
 import { moveRep, orderReps, REP_SORTS, loadRepSort, saveRepSort, type RepSort } from "@/lib/repOrder";
 import { repPosition } from "@/lib/repPosition";
 import { splitTableByCurrency } from "@/lib/repStatementDoc";
+import { handoverGroupOf } from "@/lib/repHandoverGroups";
 import { balanceParts, balanceText, buildRepStatementPdf, last24h, makeFx, nonZero, repRowCells, repStatementTable, rowBalance, type Fx, type RepTableLine } from "@/lib/repStatementDoc";
 
 const EPSILON = 0.0001;
@@ -2752,6 +2753,33 @@ function RepStatementTable({
   wrong?: (row: RepStatementRow) => boolean;
 }) {
   if (lines.length === 0) return <p className="party-empty">{empty ?? "لا توجد عمليات."}</p>;
+  // 🤲 the parts of one handed-over sum (devices of his customers first, the rest in his account) - each says so
+  // (his Nov 5 2026 report: «600» read as an operation the rep never typed)
+  const handover = new Map<string, { count: number; total: Record<string, number> }>();
+  for (const line of lines) {
+    const g = handoverGroupOf(line.row);
+    if (!g) continue;
+    const h = handover.get(g) ?? { count: 0, total: {} };
+    h.count += 1;
+    for (const [c, v] of Object.entries(line.delta)) h.total[c] = Math.round(((h.total[c] ?? 0) + Math.abs(v)) * 100) / 100;
+    handover.set(g, h);
+  }
+  const handoverTag = (row: RepStatementRow) => {
+    const g = handoverGroupOf(row);
+    const h = g ? handover.get(g) : undefined;
+    if (!h || h.count < 2) return null;
+    return (
+      <small className="rep-table-handover">
+        🤲 جزء من مبلغ واحد سلّمه:{" "}
+        {Object.entries(h.total).map(([c, v], i) => (
+          <span key={c}>
+            {i > 0 ? " · " : ""}
+            <bdi dir="ltr">{formatAmount(v)}</bdi> {currencyLabel(c)}
+          </span>
+        ))}
+      </small>
+    );
+  };
   return (
     <div className="rep-table-wrap">
       <table className="rep-table">
@@ -2770,6 +2798,7 @@ function RepStatementTable({
                 <span className="rep-table-date" dir="ltr">{line.row.date}</span>
                 {wrong?.(line.row) && <span className="rep-table-wrong">⚠️ عملة مختلفة · </span>}
                 {describe(line.row)}
+                {handoverTag(line.row)}
               </td>
               <td><BalanceCell values={line.before} /></td>
               <td className={`rep-table-move ${fillOf(line.delta)}`}>

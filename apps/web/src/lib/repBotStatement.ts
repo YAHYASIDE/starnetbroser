@@ -11,6 +11,7 @@
  * app is closed (`ks:<key>` pages, `ops` for the search - TelegramReplies.java). Pure.
  */
 
+import { handoverGroupOf } from "./repHandoverGroups";
 import { formatAmount } from "./formatAmount";
 import { LEDGER_CURRENCY_LABELS, type LedgerCurrency } from "./ledgerStore";
 import type { PrintableDocument, PrintableTone } from "./pdfDocument";
@@ -37,6 +38,8 @@ export interface BotLine {
   at?: string;
   accountId?: string;
   note?: string;
+  /** 🤲 The handed-over sum this line is a part of (repHandoverGroups.ts) - its parts make one message. */
+  group?: string;
 }
 
 export interface BotAccount {
@@ -105,6 +108,7 @@ export function repBotAccounts(
       isNamed: false,
       lines: w.lines.map((l) => {
         const f = facts?.(l.row);
+        const group = handoverGroupOf(l.row);
         return {
           id: `${w.id}:${l.key}`,
           date: l.date,
@@ -112,6 +116,7 @@ export function repBotAccounts(
           amount: l.amount,
           after: l.after,
           ...(f ? { kind: f.kind, at: l.row.createdAt, ...(f.accountId ? { accountId: f.accountId } : {}), ...(f.note ? { note: f.note } : {}) } : {}),
+          ...(group ? { group } : {}),
         };
       }),
     });

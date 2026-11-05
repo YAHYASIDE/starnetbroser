@@ -2884,3 +2884,14 @@ is never pressed while a field is empty - it refills and saves on the next try (
   «حسابي», debt aging (reminders, reports, today's plan, the finance dashboard), the bot's customer statement, and
   «صفحة الزبون» (`ClientDialog` `allAccounts`). The old customer's «📡 الأجهزة» no longer lists the device; its rows
   stay in his statement.
+
+## 🤲 A handed-over sum is one money-bot message (Nov 5 2026)
+
+- His report (the rep's «ما عليه الآن» table + the money bot showing «+600 · استلمت منه نقدًا · سلّمها المندوب (بوت المال)»):
+  «المندوب قال إنه لم يسجّلها، ما هذه الدفعة 600». Cause: a handover pays his customers' devices that still carry his
+  debt first (`recordRepMoneyHandover`), the rest goes to his account - one 3,200 became 2,600 (a device of «اخمدو»)
+  + 600, and since Nov 1 each part got its own bot message (the statement already folds them - `groupHandovers`).
+- Now: `BotLine.group` (= `handoverGroupOf`, the parts' `handoverId`); `mergeHandoverOps` makes the parts of one sum in
+  the same account ONE message: the amounts added, «قبل» before the first part, «بعد» after the last, note «🤲 مبلغ
+  واحد سلّمته: 2,600 سيفا عن جهاز … + 600 سيفا في حسابك»; every part is marked sent. The operator's 24-hour table
+  keeps the parts as rows (each can be opened / edited) with «🤲 جزء من مبلغ واحد سلّمه: 3,200 سيفا» under each.
