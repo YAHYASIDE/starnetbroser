@@ -37,6 +37,8 @@ import { loadRepLedgerBook, repLedgerKindMeta, repLedgersOf } from "@/lib/repLed
 import { recordRepLedgerDeposit } from "@/lib/repLedgerDeposit";
 import { recordRepSwapHandover, swapAmount, swapOther, swapRateLabel } from "@/lib/repSwap";
 import { approveRepSession } from "@/lib/telegramSessionRunner";
+import { handoverOutcome, loanOutcome, paymentOutcome, REQUEST_KIND_META } from "@/lib/repRequestView";
+import { previewRepMoneyHandover } from "@/lib/repClientsSave";
 
 interface Props {
   representatives: Representative[];
@@ -51,6 +53,46 @@ function timeLabel(iso: string): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${pad(date.getDate())}/${pad(date.getMonth() + 1)} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
+
+/** 📥 The card's top (his Nov 5 2026 ask «غير واضحة»): what it is, who sent it and when, how much - large. */
+function RequestHead({ request, rep, amount, currency, extra }: { request: RepRequest; rep?: Representative; amount?: number; currency?: string; extra?: string }) {
+  const meta = REQUEST_KIND_META[request.kind];
+  return (
+    <>
+      <div className={`rep-request-head rep-request-kind-${meta.tone}`}>
+        <span className="rep-request-badge">
+          {meta.icon} {meta.label}
+          {extra ? ` · ${extra}` : ""}
+        </span>
+        <span className="rep-request-who">
+          👤 {rep?.name ?? "مندوب"} · <bdi dir="ltr">{timeLabel(request.createdAt)}</bdi>
+        </span>
+      </div>
+      {amount !== undefined && amount > 0 && currency && (
+        <p className="rep-request-amount">
+          <bdi dir="ltr">{formatAmount(amount)}</bdi> {LEDGER_CURRENCY_LABELS[currency as LedgerCurrency] ?? PAY_CURRENCY_LABELS[currency as PayCurrency] ?? currency}
+        </p>
+      )}
+    </>
+  );
+}
+
+/** ✅ «عند الموافقة»: what approving records, in plain words. */
+function RequestOutcome({ lines }: { lines: string[] }) {
+  if (!lines.length) return null;
+  return (
+    <div className="rep-request-outcome" data-tour="rep-request-outcome">
+      <strong>✅ عند الموافقة:</strong>
+      <ul>
+        {lines.map((l, i) => (
+          <li key={i}>{l}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+const moneyText = (amount: number, currency: string) => `${formatAmount(Math.round(amount * 100) / 100)} ${LEDGER_CURRENCY_LABELS[currency as LedgerCurrency] ?? currency}`;
 
 /** 📥 What the reps sent through the bot - nothing is recorded until approved here. */
 export function RepRequestsSection({ representatives, accounts, clientStore, onChanged }: Props) {
@@ -269,11 +311,8 @@ function PaymentRequestCard({
 
   return (
     <li className="rep-request">
-      <div className="rep-request-head">
-        <strong>💵 {rep?.name ?? "مندوب"}</strong>
-        <span>{timeLabel(request.createdAt)}</span>
-      </div>
-      <p className="rep-request-text">«{request.text}»</p>
+      <RequestHead request={request} rep={rep} amount={Number(amount) || request.amount} currency={payCurrency === "FRANC" ? "FRANC" : payCurrency} />
+      <p className="rep-request-text">✍️ كتب: «{request.text}»</p>
       {request.proofFileId && <RepProofPhoto fileId={request.proofFileId} bot={request.proofBot} onLoaded={setProof} />}
       <label className="rep-request-field">
         <span>الجهاز</span>
@@ -305,6 +344,25 @@ function PaymentRequestCard({
         </select>
       </div>
       {payCurrency === "FRANC" && <FrancHint amount={amount} />}
+      {(() => {
+        const device = repDevices.find((a) => a.id === deviceId);
+        const stored = Number(amount) > 0 ? toLedgerPayment(payCurrency, Number(amount)) : null;
+        return stored ? (
+          <RequestOutcome
+            lines={paymentOutcome(
+              {
+                amount: stored.amount,
+                currency: stored.currency,
+                deviceName: device?.name,
+                clientName: device?.clientId ? clientStore[device.clientId]?.name : undefined,
+                cashMoved,
+                method: method === "cash" ? "الكاش" : PAYMENT_METHOD_LABELS[method],
+              },
+              moneyText,
+            )}
+          />
+        ) : null;
+      })()}
       <label className="toggle-switch-row rep-request-cash">
         <span>{cashMoved ? "💵 وصل المبلغ إلى الكاش" : "🤝 المبلغ ما زال عند المندوب"}</span>
         <span className={`toggle-switch${cashMoved ? " toggle-switch-on" : ""}`}>
@@ -348,10 +406,7 @@ function SessionRequestCard({ request, rep, onDone, onRejected }: { request: Rep
 
   return (
     <li className="rep-request">
-      <div className="rep-request-head">
-        <strong>📋 {rep?.name ?? "مندوب"}</strong>
-        <span>{timeLabel(request.createdAt)}</span>
-      </div>
+      <RequestHead request={request} rep={rep} />
       <p className="rep-request-text">{request.text} - جهاز جديد مسجّل الدخول، تُقرأ بياناته بالمزامنة.</p>
       {error && <p className="settings-hint telegram-stopped">{error}</p>}
       <div className="settings-actions">
@@ -394,10 +449,7 @@ function ClientRequestCard({ request, rep, onDone }: { request: RepRequest; rep?
 
   return (
     <li className="rep-request">
-      <div className="rep-request-head">
-        <strong>➕ {rep?.name ?? "مندوب"}</strong>
-        <span>{timeLabel(request.createdAt)}</span>
-      </div>
+      <RequestHead request={request} rep={rep} />
       <p className="rep-request-text">«{request.text}»</p>
       <input className="search-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="اسم الزبون" />
       <input className="search-input" dir="ltr" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="الهاتف" />
@@ -432,10 +484,7 @@ function EditRequestCard({ request, rep, onDone }: { request: RepRequest; rep?: 
 
   return (
     <li className="rep-request">
-      <div className="rep-request-head">
-        <strong>✏️ {rep?.name ?? "مندوب"}</strong>
-        <span>{timeLabel(request.createdAt)}</span>
-      </div>
+      <RequestHead request={request} rep={rep} />
       <p className="rep-request-text">
         {field} - {request.deviceName ?? "جهاز"}
       </p>
@@ -489,10 +538,7 @@ function ActivationRequestCard({ request, rep, onDone }: { request: RepRequest; 
 
   return (
     <li className="rep-request">
-      <div className="rep-request-head">
-        <strong>⚡ {rep?.name ?? "مندوب"} - تفعيل {request.plan ?? ""}</strong>
-        <span>{timeLabel(request.createdAt)}</span>
-      </div>
+      <RequestHead request={request} rep={rep} {...(request.plan ? { extra: request.plan } : {})} />
       <p className="rep-request-text">
         📡 {request.deviceName ?? "جهاز"}
         {request.approvedInBot && " - ✅ وافقت عليه في البوت، أكمل التسجيل هنا"}
@@ -636,10 +682,7 @@ function LoanRequestCard({ request, rep, accounts, clientStore, onDone }: MoneyC
 
   return (
     <li className="rep-request">
-      <div className="rep-request-head">
-        <strong>🏦 {rep?.name ?? "مندوب"} - طلب سلفة</strong>
-        <span>{timeLabel(request.createdAt)}</span>
-      </div>
+      <RequestHead request={request} rep={rep} amount={Number(amount) || request.amount} currency={currency} />
       <p className="rep-edit-values">
         {loanAccount && <span>📂 من حساب: <strong>{REP_LOAN_ACCOUNTS[loanAccount]}</strong></span>}
         <span>التطبيق: <strong>{request.loanApp ?? "—"}</strong></span>
@@ -661,6 +704,9 @@ function LoanRequestCard({ request, rep, accounts, clientStore, onDone }: MoneyC
             ? `تُسجَّل عليه في حسابه «${loanAccount === "orange" ? "أورانج موني" : "نيتا"}» (يُنشأ إن لم يكن له).`
             : "تُسجَّل سلفةً عليه في حسابه."}
       </p>
+      {Number(amount) > 0 && (
+        <RequestOutcome lines={loanOutcome({ amount: Number(amount), currency, fromAccount: loanAccount ? REP_LOAN_ACCOUNTS[loanAccount] : undefined, app: request.loanApp }, moneyText)} />
+      )}
       {francLoanApp && currency === "SIFA" && (
         <p className="settings-hint franc-hint">
           🟠 {request.loanApp} بالفرانك:{" "}
@@ -764,11 +810,8 @@ function HandoverRequestCard({ request, rep, accounts, clientStore, onDone }: Mo
 
   return (
     <li className="rep-request">
-      <div className="rep-request-head">
-        <strong>🤲 {rep?.name ?? "مندوب"}</strong>
-        <span>{timeLabel(request.createdAt)}</span>
-      </div>
-      <p className="rep-request-text">«{request.text}»</p>
+      <RequestHead request={request} rep={rep} amount={Number(amount) || request.amount} currency={currency} />
+      <p className="rep-request-text">✍️ كتب: «{request.text}»</p>
       {request.paymentMethod && request.paymentMethod !== "cash" && (
         <p className="settings-hint">🏦 يدخل في حساب {PAYMENT_METHOD_LABELS[request.paymentMethod]} في «حسابي» (لا في الكاش)</p>
       )}
@@ -815,6 +858,17 @@ function HandoverRequestCard({ request, rep, accounts, clientStore, onDone }: Mo
           {request.ledgerId && !ledgers.some((l) => l.id === request.ledgerId) && <small className="settings-hint">اختار «{request.ledgerName}» لكنه لم يعد موجودًا.</small>}
           {chosen && <small className="settings-hint">📒 لا يدخل في ربحه ولا يسدد أجهزة زبائنه، والمال يدخل {request.paymentMethod && request.paymentMethod !== "cash" ? PAYMENT_METHOD_LABELS[request.paymentMethod] : "الكاش"}.</small>}
         </label>
+      )}
+      {Number(amount) > 0 && (
+        <RequestOutcome
+          lines={
+            toCurrency
+              ? [`💱 ${moneyText(Number(amount), currency)} تدخل حسابه بالعملة الأخرى: ${moneyText(toAmount, toCurrency)}`]
+              : chosen
+                ? [`📒 ${moneyText(Number(amount), currency)} في حسابه «${chosen.name}» - لا تسدّد أجهزة زبائنه`]
+                : handoverOutcome(previewRepMoneyHandover(request.repId, Number(amount), currency, accounts), currency, repWalletLabel(currency === "MRU" ? "MRU" : "SIFA"), moneyText)
+          }
+        />
       )}
       {rep && (
         <div className="rep-request-balance" aria-label="حساب المندوب قبل وبعد">
@@ -922,10 +976,7 @@ function DeviceRequestCard({
 
   return (
     <li className="rep-request">
-      <div className="rep-request-head">
-        <strong>📱 {rep?.name ?? "مندوب"}</strong>
-        <span>{timeLabel(request.createdAt)}</span>
-      </div>
+      <RequestHead request={request} rep={rep} />
       {request.codeMismatch ? (
         <p className="settings-hint telegram-stopped">🔒 لا يُفتح الملف برمز هذا المندوب - أرسل له رمزه من جديد («إدارة» ← رمز تطبيق المندوب) ثم يعيد الإرسال.</p>
       ) : (

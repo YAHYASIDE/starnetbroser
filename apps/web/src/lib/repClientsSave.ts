@@ -40,6 +40,28 @@ export interface RepHandoverOutcome {
 /** The rep hands us money: first it settles what he owes us for his own customers' devices
  * (largest first, each a device payment tagged with him, with its cash-register entry); whatever
  * is left is a cash handover on his account, exactly as before. */
+/** 👀 What `recordRepMoneyHandover` would do with this sum, without recording anything: the devices of his
+ * customers it pays first (with their names) and the rest that goes into his account. */
+export function previewRepMoneyHandover(
+  repId: string,
+  amount: number,
+  currencyCode: string,
+  accounts: StarlinkAccountSummary[] = loadStoredAccounts(),
+): { toDevices: { accountId: string; name: string; amount: number }[]; remainder: number } {
+  if (!Number.isFinite(amount) || amount <= 0) return { toDevices: [], remainder: 0 };
+  if (!LEDGER_CURRENCIES.includes(currencyCode as LedgerCurrency)) return { toDevices: [], remainder: amount };
+  const ledger = loadLedgerStore();
+  const plan = planRepHandover(repId, amount, currencyCode, accounts, ledger, replayRepClients(loadClientStore(), accounts, ledger, loadRepBook()));
+  let remainder = plan.remainder;
+  const toDevices: { accountId: string; name: string; amount: number }[] = [];
+  for (const a of plan.allocations) {
+    const device = accounts.find((d) => d.id === a.accountId);
+    if (!device) remainder += a.amount;
+    else toDevices.push({ accountId: a.accountId, name: device.name || device.expectedEmail || "جهاز", amount: a.amount });
+  }
+  return { toDevices, remainder: Math.round(remainder * 100) / 100 };
+}
+
 export function recordRepMoneyHandover(
   repId: string,
   input: { amount: number; currencyCode: string; date: string; note?: string; rates?: Record<string, number>; paymentMethod?: PaymentMethod; botId?: string },

@@ -2912,3 +2912,13 @@ is never pressed while a field is empty - it refills and saves on the next try (
   orphan); an approved payment's own proof (under its entry) shows too; «📸 تنزيل صورة المندوب» fetches it again from
   the bot. «🖼️ صورة الإيصال» draws `opReceiptDoc` (number, date, account, operation, device, figures, source) as a PNG.
 - The rating (✅ / ❌, by whom, reviewed) is read live from repOpRatings by the message's token.
+
+## 📥 The reps' requests made clear (Nov 5 2026)
+
+- His ask: «أريد تطوير واجهة المعاملات التي يرسلها المندوبون» - his choices: the bot's requests («📥 طلبات المندوبين»),
+  the problem «غير واضحة».
+- Each card (`RepRequestsSection`): `RequestHead` - a coloured badge of the kind (`REQUEST_KIND_META` in
+  `lib/repRequestView.ts`: «🤲 تسليم مبلغ لك» / «💵 دفعة من زبون» green, «🏦 طلب سلفة» red, the others blue), «👤 who · when», the
+  amount large; «✍️ كتب: «…»» for his words; `RequestOutcome` «✅ عند الموافقة» in plain words: a handover's split
+  before approving (`previewRepMoneyHandover` = what `recordRepMoneyHandover` will do: «💳 X تسدّد دين جهاز «…» (من
+  زبائنه)» per device + «💼 الباقي في حسابه»), a payment's device and where the money is, a loan sent and owed.
