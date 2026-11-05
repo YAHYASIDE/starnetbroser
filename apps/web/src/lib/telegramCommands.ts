@@ -11,6 +11,7 @@ import type { StarlinkAccountSummary } from "@starnet/shared";
 import { listAccounts } from "./apiClient";
 import { loadCashEntries } from "./cashStore";
 import { buildClientCombinedStatement, computeClientCombinedTotals } from "./clientAccount";
+import { clientDevicesWithHistory, loadClientMoves } from "./clientMoves";
 import { listClients, loadClientStore } from "./clientStore";
 import { loadDemoAccounts } from "./demoAccountStore";
 import { demoAccounts } from "./demoData";
@@ -200,8 +201,9 @@ async function answerStatement(query: string): Promise<void> {
     const party = clientStore[match.id]!;
     const ledgerStore = loadLedgerStore();
     const allDevices = await loadAccounts();
-    const devices = allDevices.filter((a) => a.clientId === match.id && !a.deletedAt);
-    const totals = computeClientCombinedTotals(invoices, adjustments, match.id, devices, ledgerStore);
+    const moves = loadClientMoves();
+    const devices = clientDevicesWithHistory(allDevices.filter((a) => !a.deletedAt), match.id, moves);
+    const totals = computeClientCombinedTotals(invoices, adjustments, match.id, devices, ledgerStore, moves);
     remaining = Object.fromEntries(Object.entries(totals).map(([c, t]) => [c, t.remaining]));
     // ⚖️ 2+ currencies: the net in his currency, as on his card (lib/partyNet.ts).
     const rates = loadCurrencyStore();
@@ -211,7 +213,7 @@ async function answerStatement(query: string): Promise<void> {
       party,
       true,
       totals,
-      buildClientCombinedStatement(invoices, adjustments, match.id, devices, ledgerStore),
+      buildClientCombinedStatement(invoices, adjustments, match.id, devices, ledgerStore, moves),
       devices.map((d) => d.name.trim()).filter(Boolean),
       net,
     );

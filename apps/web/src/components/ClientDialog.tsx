@@ -13,6 +13,7 @@ import { confirmAndDeleteLedgerEntry, LedgerEntryEditor } from "./LedgerEntryEdi
 import { formatAmount } from "@/lib/formatAmount";
 import { partyHue, partyInitials } from "@/lib/partyColor";
 import { allocatedFromPayment, allStoredAllocations, AllocationsByAccount } from "@/lib/paymentAllocationStore";
+import { clientDevicesWithHistory, entriesOfClient, loadClientMoves } from "@/lib/clientMoves";
 import { DeviceStatementDialog } from "./DeviceStatementDialog";
 import { currentRepOfClient } from "@/lib/repClients";
 
@@ -23,6 +24,8 @@ interface Props {
   devices: StarlinkAccountSummary[];
   ledgerStore: LedgerByAccount;
   allocationStore: AllocationsByAccount;
+  /** 🔀 Every device - to find the ones moved away from him that still carry his operations. */
+  allAccounts?: StarlinkAccountSummary[];
   onClose: () => void;
   onSave: (patch: { name: string; phone?: string }) => void;
   /** Absent (never rendered) when the caller doesn't offer deletion here - never assume every
@@ -46,7 +49,7 @@ interface Props {
  * together), and the aggregate totals across all of them. Each device's own full statement is one
  * tap away via the same DeviceStatementDialog used from the card itself.
  */
-export function ClientDialog({ client, devices, ledgerStore, allocationStore, onClose, onSave, onDelete, onZero, onLedgerChange, onAllocationsChange, representatives, onMoveRep }: Props) {
+export function ClientDialog({ client, devices, ledgerStore, allocationStore, allAccounts, onClose, onSave, onDelete, onZero, onLedgerChange, onAllocationsChange, representatives, onMoveRep }: Props) {
   const [editingEntry, setEditingEntry] = useState<LedgerEntry | null>(null);
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(client.name);
@@ -76,8 +79,13 @@ export function ClientDialog({ client, devices, ledgerStore, allocationStore, on
         { fullMru: 0, expectedMru: 0, expectedCount: 0 },
       )
     : undefined;
+  // 🔀 each customer keeps his own operations on a device moved between customers (clientMoves.ts): the devices
+  // his were moved away count with what they had while his; his current ones without the previous owner's.
+  const clientMoves = loadClientMoves();
+  const historyDevices = (allAccounts ? clientDevicesWithHistory(allAccounts.filter((a) => !a.deletedAt), client.id, clientMoves) : devices);
+  const hisEntries = (account: StarlinkAccountSummary) => entriesOfClient(getAccountEntries(ledgerStore, account.id), account, client.id, clientMoves);
   const summary = computeClientAccountingSummary(
-    devices.map((account) => ({ accountId: account.id, accountName: account.name, entries: getAccountEntries(ledgerStore, account.id) })),
+    historyDevices.map((account) => ({ accountId: account.id, accountName: account.name, entries: hisEntries(account) })),
   );
 
   const allAllocations = allStoredAllocations(allocationStore);
@@ -87,8 +95,8 @@ export function ClientDialog({ client, devices, ledgerStore, allocationStore, on
   // linked device's own payments that still have an unallocated remainder (see
   // paymentAllocationStore.ts's allocatedFromPayment). Never converted/summed across currencies.
   const unallocatedByCurrency: BalanceByCurrency = {};
-  for (const account of devices) {
-    for (const entry of getAccountEntries(ledgerStore, account.id)) {
+  for (const account of historyDevices) {
+    for (const entry of hisEntries(account)) {
       if (entry.kind !== "credit") continue;
       const unallocated = entry.amount - allocatedFromPayment(allAllocations, entry.id);
       if (unallocated > 0.0001) {

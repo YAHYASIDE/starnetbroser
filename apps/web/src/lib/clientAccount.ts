@@ -17,8 +17,15 @@ import {
   withRunningBalance,
 } from "./invoiceStore";
 import { PartyAdjustment } from "./partyBalanceStore";
+import { entriesOfClient, type ClientMove } from "./clientMoves";
 
-type DeviceRef = Pick<StarlinkAccountSummary, "id" | "name"> & { deletedAt?: string | null };
+type DeviceRef = Pick<StarlinkAccountSummary, "id" | "name"> & { deletedAt?: string | null; clientId?: string | null };
+
+/** 🔀 This customer's operations on a device (clientMoves.ts): all of them when it never moved. */
+function clientEntries(ledgerStore: LedgerByAccount, device: DeviceRef, clientId: string, moves: ClientMove[]) {
+  const entries = getAccountEntries(ledgerStore, device.id);
+  return moves.some((m) => m.accountId === device.id) ? entriesOfClient(entries, device, clientId, moves) : entries;
+}
 
 /** A device in the trash takes its operations with it (his Oct 31 2026 report: a deleted duplicate's
  * 45,000 stayed in «المتبقي عليه» though its rows were gone from the statement). Back from the trash = back here. */
@@ -32,10 +39,12 @@ export function computeClientCombinedTotals(
   clientId: string,
   devices: DeviceRef[],
   ledgerStore: LedgerByAccount,
+  /** 🔀 The devices' moves between customers - pass clientDevicesWithHistory's devices with them. */
+  moves: ClientMove[] = [],
 ): Record<string, PartyStoreTotals> {
   const result = computePartyStoreTotals(invoices, "sale", clientId, adjustments);
   for (const device of live(devices)) {
-    for (const entry of getAccountEntries(ledgerStore, device.id)) {
+    for (const entry of clientEntries(ledgerStore, device, clientId, moves)) {
       const totals = (result[entry.currency] ??= { total: 0, paid: 0, returned: 0, adjusted: 0, remaining: 0 });
       if (entry.kind === "debit") {
         totals.total += entry.amount;
@@ -57,9 +66,10 @@ export function buildClientCombinedStatement(
   clientId: string,
   devices: DeviceRef[],
   ledgerStore: LedgerByAccount,
+  moves: ClientMove[] = [],
 ): PartyStatementRow[] {
   const deviceRows: PartyStatementRowInput[] = live(devices).flatMap((device) =>
-    getAccountEntries(ledgerStore, device.id).map(
+    clientEntries(ledgerStore, device, clientId, moves).map(
       (entry): PartyStatementRowInput => ({
         id: entry.id,
         type: entry.kind === "debit" ? "device-charge" : "device-payment",

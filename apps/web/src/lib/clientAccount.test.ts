@@ -69,3 +69,25 @@ describe("buildClientCombinedStatement", () => {
     expect(rows[0].deviceName).toBe("منزل");
   });
 });
+
+describe("🔀 a device moved to another customer", () => {
+  const moves = [{ accountId: "d1", from: "A", to: "B", at: "2026-11-05T10:00:00.000Z" }];
+  const moved = [{ id: "d1", name: "منزل", clientId: "B" }];
+  const ledger = {
+    d1: [
+      entry({ id: "old", kind: "debit", amount: 45000, currency: "MRU", createdAt: "2026-10-23T11:33:00.000Z" }),
+      entry({ id: "new", kind: "debit", amount: 25000, currency: "MRU", createdAt: "2026-11-05T12:00:00.000Z" }),
+    ],
+  };
+
+  it("the old customer keeps what was recorded before the move, the new one starts from it", () => {
+    expect(computeClientCombinedTotals([], [], "A", moved, ledger, moves).MRU?.remaining).toBe(45000);
+    expect(computeClientCombinedTotals([], [], "B", moved, ledger, moves).MRU?.remaining).toBe(25000);
+    expect(buildClientCombinedStatement([], [], "A", moved, ledger, moves).map((r) => r.id)).toEqual(["old"]);
+    expect(buildClientCombinedStatement([], [], "B", moved, ledger, moves).map((r) => r.id)).toEqual(["new"]);
+  });
+
+  it("without moves nothing changes", () => {
+    expect(computeClientCombinedTotals([], [], "B", moved, ledger).MRU?.remaining).toBe(70000);
+  });
+});

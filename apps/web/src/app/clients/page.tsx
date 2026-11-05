@@ -63,6 +63,7 @@ import { moveClientToOwner, ourDebtLedgerForClients } from "@/lib/repClients";
 import { notifyPaymentTelegram } from "@/lib/telegram";
 import { ClientDialog } from "@/components/ClientDialog";
 import { computeClientCombinedTotals } from "@/lib/clientAccount";
+import { clientDevicesWithHistory, loadClientMoves } from "@/lib/clientMoves";
 import {
   clearClientsProfitFresh,
   type ClientProfitResets,
@@ -202,7 +203,8 @@ export default function ClientsPage() {
     const today = new Date();
     const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
     const inputs = ids.flatMap((id) => {
-      const totals = computeClientCombinedTotals(invoices, partyAdjustments, id, accounts.filter((a) => a.clientId === id), debtLedger);
+      const moves = loadClientMoves();
+      const totals = computeClientCombinedTotals(invoices, partyAdjustments, id, clientDevicesWithHistory(accounts, id, moves), debtLedger, moves);
       return zeroingAdjustments(id, Object.fromEntries(Object.entries(totals).map(([c, t]) => [c, t.remaining])), date);
     });
     if (!inputs.length) {
@@ -477,6 +479,7 @@ export default function ClientsPage() {
           key={openClient.id}
           client={openClient}
           devices={accounts.filter((account) => account.clientId === openClient.id)}
+          allAccounts={accounts}
           ledgerStore={ledgerStore}
           allocationStore={allocationStore}
           onClose={() => setOpenClientId(null)}

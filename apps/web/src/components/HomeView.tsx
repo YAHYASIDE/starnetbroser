@@ -3962,6 +3962,7 @@ export function HomeView({
         <ClientDialog
           client={getClient(clientStore, openClientId)!}
           devices={accounts.filter((account) => account.clientId === openClientId)}
+          allAccounts={accounts}
           ledgerStore={ledgerStore}
           allocationStore={allocationStore}
           onClose={() => setOpenClientId(null)}

@@ -13,6 +13,7 @@ import { listAccounts } from "./apiClient";
 import { computeCashBalanceByCurrency, loadCashEntries } from "./cashStore";
 import { loadClientProfitResets, profitResetByAccount } from "./clientBulk";
 import { computeClientCombinedTotals } from "./clientAccount";
+import { clientDevicesWithHistory, loadClientMoves } from "./clientMoves";
 import { listClients, loadClientStore } from "./clientStore";
 import { loadCurrencyStore } from "./currencyStore";
 import { demoAccounts } from "./demoData";
@@ -143,11 +144,12 @@ export function loadWealthInput(input: {
 
   const clients = listClients(loadClientStore());
   const debtLedger = ourDebtLedgerForClients(ledger, input.accounts, clients);
+  const clientMoves = loadClientMoves();
   // One pass per client: a positive remaining = he owes us («لك عند الزبائن»); a negative one = we
   // owe him a credit («له رصيد» → «عليك للزبائن»). Before this both negatives were dropped, so a
   // customer we owed never appeared anywhere (his Oct 2026 report: «شخص له عندنا 1,917,900 لا يظهر»).
   const clientTotals = clients.map((client) => {
-    const totals = computeClientCombinedTotals(invoices, adjustments, client.id, input.accounts.filter((a) => a.clientId === client.id), debtLedger);
+    const totals = computeClientCombinedTotals(invoices, adjustments, client.id, clientDevicesWithHistory(input.accounts, client.id, clientMoves), debtLedger, clientMoves);
     const owes: Record<string, number> = {};
     const credit: Record<string, number> = {};
     for (const [code, t] of Object.entries(totals)) {

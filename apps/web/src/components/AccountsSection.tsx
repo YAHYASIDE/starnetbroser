@@ -65,6 +65,7 @@ import { combinePhoneNumber, PHONE_COUNTRY_CODES, splitPhoneNumber } from "@/lib
 import { formatAmount } from "@/lib/formatAmount";
 import { partyHue, partyInitials } from "@/lib/partyColor";
 import { buildClientCombinedStatement, computeClientCombinedTotals } from "@/lib/clientAccount";
+import { clientDevicesWithHistory, loadClientMoves, type ClientMove } from "@/lib/clientMoves";
 import { buildStoreDebtReminderMessage, buildStoreStatementMessage, buildWhatsAppLink } from "@/lib/whatsapp";
 import { PartyAdjustment, partyAdjustmentCashKind, PartyAdjustmentDirection, PartyKind, RecordPartyAdjustmentInput } from "@/lib/partyBalanceStore";
 import { DefaultCurrencyField } from "./CurrencyGuard";
@@ -242,12 +243,14 @@ export function PartyDirectory({
     return partyNetIn(remaining, base, netContext.rateOf);
   };
 
+  // 🔀 devices moved between customers (clientMoves.ts) - read with the devices, every render is cheap
+  const clientMoves = useMemo(() => (isClients ? loadClientMoves() : []), [isClients, accounts]);
   const rows = useMemo(
     () =>
       parties.map((party) => {
         // A client's totals include every operation on their linked devices, not just the store.
         const totals = isClients
-          ? computeClientCombinedTotals(invoices, adjustments, party.id, accounts.filter((a) => a.clientId === party.id), ledgerStore)
+          ? computeClientCombinedTotals(invoices, adjustments, party.id, clientDevicesWithHistory(accounts, party.id, clientMoves), ledgerStore, clientMoves)
           : computePartyStoreTotals(invoices, kind, party.id, adjustments);
         // ⚖️ «عليهم دين» follows the net in his currency when he has 2+ currencies.
         const standing = partyStanding(Object.fromEntries(Object.entries(totals).map(([c, t]) => [c, t.remaining])), netFor(party, totals));
@@ -407,6 +410,8 @@ export function PartyDirectory({
         onUpdateAdjustment={onUpdateAdjustment}
         onMoveAdjustmentToDevice={onMoveAdjustmentToDevice}
         devices={isClients ? accounts.filter((a) => a.clientId === party.id && !a.deletedAt) : []}
+        statementDevices={isClients ? clientDevicesWithHistory(accounts, party.id, clientMoves) : []}
+        clientMoves={clientMoves}
         ledgerStore={ledgerStore}
         creditLimit={isClients ? (party as Client).creditLimit : undefined}
         repNames={isClients && representatives ? clientRepOrigins(party.id, accounts, party as Client).map((id) => representatives[id]?.name).filter((n): n is string => Boolean(n)) : []}
@@ -760,6 +765,9 @@ interface PartyCardProps {
   onUpdateAdjustment?: Props["onUpdateAdjustment"];
   onMoveAdjustmentToDevice?: Props["onMoveAdjustmentToDevice"];
   devices: StarlinkAccountSummary[];
+  /** 🔀 His devices + the ones moved away whose earlier operations are still his (clientMoves.ts). */
+  statementDevices?: StarlinkAccountSummary[];
+  clientMoves?: ClientMove[];
   ledgerStore: LedgerByAccount;
   creditLimit?: number;
   /** The reps of this client's devices - shown as a tag at the top of the card. */
@@ -811,6 +819,8 @@ function PartyCard({
   onUpdateAdjustment,
   onMoveAdjustmentToDevice,
   devices,
+  statementDevices,
+  clientMoves = [],
   ledgerStore,
   creditLimit,
   repNames = [],
@@ -857,7 +867,7 @@ function PartyCard({
         : { className: "party-status-clear", label: "مسدَّد ✓" };
 
   const fullStatement = () =>
-    isClient ? buildClientCombinedStatement(invoices, adjustments, party.id, devices, ledgerStore) : buildPartyStatement(invoices, kind, party.id, adjustments);
+    isClient ? buildClientCombinedStatement(invoices, adjustments, party.id, statementDevices ?? devices, ledgerStore, clientMoves) : buildPartyStatement(invoices, kind, party.id, adjustments);
   const statement = panel !== "statement" ? [] : fullStatement();
   // 📄 His Oct 19 2026 design: each movement in three fixed columns, filtered and searchable (lib/partyMovements.ts).
   const [moveFilter, setMoveFilter] = useState<MovementFilter>("all");

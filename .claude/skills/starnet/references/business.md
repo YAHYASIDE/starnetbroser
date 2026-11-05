@@ -2868,3 +2868,19 @@ is never pressed while a field is empty - it refills and saves on the next try (
   `starnet.repFlagLinkSent` = the space the last delivered copy carried), even with the automatic copy off, at most
   every 10 min. The rep card (`RepAppCodePanel`) says «🚩 … لم يستلم ربط التحذيرات بعد» or, with no Firebase on
   the phone, «اربط Firebase أولًا». The waiting warnings go up by themselves once the copy is opened.
+
+## 🔀 A device moved to another customer keeps each customer's operations (Nov 5 2026)
+
+- His ask (a customer statement where an older customer's charges sat on the new one): «اجعل عندما ننقل جهاز من زبون
+  الى زبون آخر ان لا تنتقل معه عملياته السابقة - لكل زبون يمكن ان تكون له معاملات مع جهاز». His choices: **always**
+  (no question at the move); **the device card keeps all its operations** (the split is only in the customers'
+  accounts); **from now on only** (devices moved before stay as they are - no guessing from the past).
+- Derived, never rewritten (`lib/clientMoves.ts`): every devices' save (`saveDemoAccounts`, `commitDemoAccounts`) that
+  changes a device's customer from A records `{accountId, from: A, to, at}` in `starnet_client_moves_v1` (backed up).
+  An operation whose `createdAt` is before the first move after it belongs to that move's `from`; otherwise to the
+  device's customer now (`entryOwner`). A first link (no customer → A) is not a move.
+- The customer's totals and statement (`computeClientCombinedTotals` / `buildClientCombinedStatement` with `moves`, fed
+  `clientDevicesWithHistory` = his devices + the ones moved away from him): the customers page and card, «تصفير»,
+  «حسابي», debt aging (reminders, reports, today's plan, the finance dashboard), the bot's customer statement, and
+  «صفحة الزبون» (`ClientDialog` `allAccounts`). The old customer's «📡 الأجهزة» no longer lists the device; its rows
+  stay in his statement.

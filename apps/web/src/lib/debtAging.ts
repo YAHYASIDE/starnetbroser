@@ -6,6 +6,7 @@
 
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { buildClientCombinedStatement } from "./clientAccount";
+import { clientDevicesWithHistory, loadClientMoves, type ClientMove } from "./clientMoves";
 import type { InvoiceList } from "./invoiceStore";
 import { getAccountEntries, LedgerByAccount } from "./ledgerStore";
 import type { PartyAdjustment } from "./partyBalanceStore";
@@ -110,6 +111,8 @@ export function computeDebtAging(input: {
   today: string;
   /** Also list who has a credit with us (paid beyond what he owed) - with total 0. */
   includeCredit?: boolean;
+  /** 🔀 Devices moved between customers (clientMoves.ts) - read from the phone when absent. */
+  clientMoves?: ClientMove[];
 }): DebtorAging[] {
   // A representative's customers owe HIM - what's his debt to us is his, never theirs here.
   input = { ...input, ledgerStore: ourDebtLedgerForClients(input.ledgerStore, input.accounts, input.clients) };
@@ -125,9 +128,10 @@ export function computeDebtAging(input: {
     return map;
   };
 
+  const moves = input.clientMoves ?? (typeof window !== "undefined" ? loadClientMoves() : []);
   for (const client of input.clients) {
-    const devices = active.filter((a) => a.clientId === client.id);
-    const rows = buildClientCombinedStatement(input.invoices, input.adjustments, client.id, devices, input.ledgerStore);
+    const devices = clientDevicesWithHistory(active, client.id, moves);
+    const rows = buildClientCombinedStatement(input.invoices, input.adjustments, client.id, devices, input.ledgerStore, moves);
     for (const [currencyCode, movements] of byCurrency(rows)) {
       const age = ageDebt(movements, input.today);
       if (age.total > EPSILON || (input.includeCredit && age.credit > EPSILON)) result.push({ kind: "client", id: client.id, name: client.name, phone: client.phone, currencyCode, ...age });
