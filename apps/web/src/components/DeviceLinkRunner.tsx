@@ -18,7 +18,10 @@ export const TEAM_SESSIONS_NOW_EVENT = "starnet:team-sessions-now";
 /** Fired after a sessions round ({ sent, taken, message }). */
 export const TEAM_SESSIONS_EVENT = "starnet:team-sessions";
 
-const EVERY_MS = 20_000;
+/** A round this often while the app is open (his Nov 5 2026 choice: a change reaches the others in about 10 s). */
+const EVERY_MS = 8_000;
+/** How often «is he still in the middle of something?» is asked once a full round waits for it. */
+const IDLE_CHECK_MS = 1_500;
 
 /** He isn't in the middle of something: no open sheet / dialog and no field being typed in. A round
  * that brings changes reloads the page, so it waits for this. */
@@ -30,20 +33,26 @@ function isIdle(): boolean {
 }
 
 /**
- * 🔗 The link team (lib/deviceLink.ts): a round every 20 s while the app is open, idle and
- * in front, and at once when it comes back. When the other side's changes landed, the page reloads so
- * every screen reads them (a screen holding the old list would otherwise write it back).
+ * 🔗 The link team (lib/deviceLink.ts): a round every 8 s while the app is open and in front, and at once when it
+ * comes back. In the middle of something (an open sheet, a field being typed in) only what changed here goes out;
+ * the others' changes come in the moment he is done. When they landed, the page reloads so every screen reads them
+ * (a screen holding the old list would otherwise write it back).
  */
 export function DeviceLinkRunner() {
   useEffect(() => {
     let running = false;
+    /** A full round waits for him to finish what he is doing. */
+    let waiting = false;
     const tick = async (force = false) => {
-      if (running || !(force || isIdle())) return;
+      if (running || document.visibilityState !== "visible") return;
       const storage = browserLinkStorage();
       if (!loadLinkConfig(storage)?.enabled) return;
+      const full = force || isIdle();
+      waiting = !full;
       running = true;
       try {
-        const result = await runLinkRound(storage);
+        const result = await runLinkRound(storage, fetch, new Date(), { sendOnly: !full });
+        if (!full) return;
         window.dispatchEvent(new CustomEvent(DEVICE_LINK_EVENT, { detail: result }));
         // 👥 a new device or money operation from another member: one notification for the round
         const text = activityNotification(result.incoming);
@@ -86,6 +95,7 @@ export function DeviceLinkRunner() {
     window.addEventListener(TEAM_SESSIONS_NOW_EVENT, onSessionsNow);
     const first = window.setTimeout(() => void tick(), 3000);
     const timer = window.setInterval(() => void tick(), EVERY_MS);
+    const idleTimer = window.setInterval(() => waiting && isIdle() && void tick(), IDLE_CHECK_MS);
     const onVisible = () => document.visibilityState === "visible" && void tick();
     const onNow = () => void tick(true);
     document.addEventListener("visibilitychange", onVisible);
@@ -93,6 +103,7 @@ export function DeviceLinkRunner() {
     return () => {
       window.clearTimeout(first);
       window.clearInterval(timer);
+      window.clearInterval(idleTimer);
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener(DEVICE_LINK_NOW_EVENT, onNow);
       window.clearTimeout(firstSessions);

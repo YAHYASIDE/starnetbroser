@@ -76,12 +76,19 @@ const TEAM = "starnet.deviceLinkTeam";
 const ORIGINS = "starnet.deviceLinkOrigins";
 const LOG = "starnet.deviceLinkLog";
 const LOG_SIZE = 300;
-/** The team list is read again this often (Firebase's free reads are counted per day). */
-const TEAM_EVERY_MS = 5 * 60_000;
+/** The team list is read again this often (Firebase's free reads are counted per day) - a member who just joined
+ * is seen within a minute (his Nov 5 2026 «ليس بالسرعة المطلوبة»). */
+const TEAM_EVERY_MS = 60_000;
 const CODE_PREFIX = "STARNET-LINK-";
 /** Firestore's document limit is 1 MiB - a batch's JSON stays well under it (base64 adds a third). */
 const BATCH_CHARS = 550_000;
 const MAX_BATCHES_PER_ROUND = 25;
+/** One record bigger than this (a rep's «تسجيلاتي» file with its Starlink sessions) goes out in parts - a
+ * single batch over Firestore's 1 MiB was refused, and the rep's devices never reached «المسؤول 2» (his
+ * Nov 5 2026 report). */
+const PART_CHARS = 400_000;
+/** Reading never stops in the middle of a record's parts - up to this many batches more. */
+const MAX_PART_BATCHES = 400;
 
 const headPath = (c: LinkConfig, member: string) => `starnet/${c.spaceId}/link/${member}`;
 const batchPath = (c: LinkConfig, member: string, seq: number) => `starnet/${c.spaceId}/link/${member}/batches/${seq}`;
@@ -191,12 +198,29 @@ export function readLinkCode(code: string): { ok: true; config: LinkConfig } | {
   }
 }
 
-/** Splits changes into batches small enough for one Firestore document each. */
-export function chunkOps(ops: SyncOp[], limit = BATCH_CHARS): SyncOp[][] {
-  const out: SyncOp[][] = [];
-  let current: SyncOp[] = [];
+/** A change on the wire: a whole one, or one part of a big one (`p`: its parts' id, this part's index, how many). */
+export type WireOp = SyncOp & { p?: { id: string; i: number; n: number } };
+
+function partId(): string {
+  const bytes = new Uint8Array(6);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** A change too big for one batch → its parts (in order); a small one stays as it is. */
+export function splitOp(op: SyncOp, part = PART_CHARS, id: () => string = partId): WireOp[] {
+  if (op.v === null || op.v.length <= part) return [op];
+  const n = Math.ceil(op.v.length / part);
+  const pid = id();
+  return Array.from({ length: n }, (_, i) => ({ ...op, v: op.v!.slice(i * part, (i + 1) * part), p: { id: pid, i, n } }));
+}
+
+/** Splits changes into batches small enough for one Firestore document each (a big change in parts). */
+export function chunkOps(ops: SyncOp[], limit = BATCH_CHARS, part = PART_CHARS): WireOp[][] {
+  const out: WireOp[][] = [];
+  let current: WireOp[] = [];
   let size = 2;
-  for (const op of ops) {
+  for (const op of ops.flatMap((o) => splitOp(o, part))) {
     const len = JSON.stringify(op).length + 1;
     if (current.length > 0 && size + len > limit) {
       out.push(current);
@@ -208,6 +232,44 @@ export function chunkOps(ops: SyncOp[], limit = BATCH_CHARS): SyncOp[][] {
   }
   if (current.length > 0) out.push(current);
   return out;
+}
+
+/**
+ * One member's batches as read (each with its number) → whole changes: the parts of a big one joined back.
+ * `complete`: every batch up to his head was read. A record whose parts are not all here yet is left for the
+ * next round (`cursor` goes back to before its first part) - unless he finished writing (`complete`): then its
+ * missing parts were never written (his round failed half way; it went out again whole, under a new id).
+ */
+export function joinParts(read: { seq: number; ops: WireOp[] }[], cursor: number, complete: boolean): { ops: SyncOp[]; cursor: number } {
+  const groups = new Map<string, { first: number; parts: (string | undefined)[] }>();
+  for (const b of read) {
+    for (const op of b.ops) {
+      if (!op.p) continue;
+      const g = groups.get(op.p.id) ?? { first: b.seq, parts: Array.from({ length: op.p.n }) };
+      g.parts[op.p.i] = op.v ?? "";
+      groups.set(op.p.id, g);
+    }
+  }
+  let until = cursor;
+  if (!complete) {
+    for (const g of groups.values()) if (g.parts.some((x) => x === undefined)) until = Math.min(until, g.first - 1);
+  }
+  const ops: SyncOp[] = [];
+  for (const b of read) {
+    if (b.seq > until) break;
+    for (const op of b.ops) {
+      if (!op.p) {
+        ops.push(op);
+        continue;
+      }
+      const g = groups.get(op.p.id)!;
+      // the whole change, once - where its last part came
+      if (op.p.i !== op.p.n - 1 || g.parts.some((x) => x === undefined)) continue;
+      const { p: _p, ...whole } = op;
+      ops.push({ ...whole, v: g.parts.join("") });
+    }
+  }
+  return { ops, cursor: until };
 }
 
 export interface RoundResult {
@@ -223,8 +285,10 @@ export interface RoundResult {
   incoming: TeamActivity[];
 }
 
-/** One round of the link. Never throws: a network / Firebase problem is the round's message. */
-export async function runLinkRound(s: LinkStorage, fetchFn: FetchFn = fetch, now: Date = new Date()): Promise<RoundResult> {
+/** One round of the link. Never throws: a network / Firebase problem is the round's message. `sendOnly`: only
+ * what changed here goes out (he is in the middle of something - nothing is written into his screens); the other
+ * members' changes come in on the next full round. */
+export async function runLinkRound(s: LinkStorage, fetchFn: FetchFn = fetch, now: Date = new Date(), opts: { sendOnly?: boolean } = {}): Promise<RoundResult> {
   const config = loadLinkConfig(s);
   const fail = (message: string): RoundResult => ({ ok: false, message, sent: 0, applied: 0, changedKeys: [], conflicts: 0, held: [], incoming: [] });
   if (!config || !config.enabled) return fail("الربط غير مفعّل");
@@ -235,11 +299,12 @@ export async function runLinkRound(s: LinkStorage, fetchFn: FetchFn = fetch, now
   const flat = flattenAll(snapshot, baseline);
   const confirmed = new Set(state.confirmed);
   const { ops: localOps, held } = diff(baseline, flat, at, confirmed);
+  if (opts.sendOnly && localOps.length === 0) return { ok: state.lastOk !== false, message: state.lastMessage ?? "✓ متزامن", sent: 0, applied: 0, changedKeys: [], conflicts: 0, held, incoming: [] };
 
   // 0. The team (read again every few minutes; I add myself once).
   const team = await readTeam(s, config, fetchFn, now);
   if (!team.ok) return finish(fail(team.message));
-  const others = team.members.filter((m) => m.id !== config.memberId);
+  const others = opts.sendOnly ? [] : team.members.filter((m) => m.id !== config.memberId);
 
   // 1. What every other member sent since last time.
   const cursors: Record<string, number> = { ...state.cursors };
@@ -253,7 +318,9 @@ export async function runLinkRound(s: LinkStorage, fetchFn: FetchFn = fetch, now
     // A member that started over (a new link) restarts its numbering.
     if (theirSeq < cursor) cursor = 0;
     const startCursor = cursor;
-    while (cursor < theirSeq && cursor - startCursor < MAX_BATCHES_PER_ROUND) {
+    const read: { seq: number; ops: WireOp[] }[] = [];
+    let openParts = 0;
+    while (cursor < theirSeq && (cursor - startCursor < MAX_BATCHES_PER_ROUND || (openParts > 0 && cursor - startCursor < MAX_BATCHES_PER_ROUND + MAX_PART_BATCHES))) {
       const doc = await readDocument(config, batchPath(config, member.id, cursor + 1), fetchFn);
       if (!doc.ok) break;
       if (!doc.value) {
@@ -261,13 +328,17 @@ export async function runLinkRound(s: LinkStorage, fetchFn: FetchFn = fetch, now
         continue;
       }
       try {
-        const ops = JSON.parse(await openText({ iv: doc.value.iv ?? "", data: doc.value.data ?? "" }, config.key)) as SyncOp[];
-        for (const op of ops) remoteOps.push({ ...op, by: member.id });
+        const ops = JSON.parse(await openText({ iv: doc.value.iv ?? "", data: doc.value.data ?? "" }, config.key)) as WireOp[];
+        read.push({ seq: cursor + 1, ops });
+        for (const op of ops) if (op.p) openParts += op.p.i === op.p.n - 1 ? -(op.p.n - 1) : 1;
       } catch {
         return finish(fail("تعذّر فك تشفير بيانات عضو آخر - أعد الربط برمز جديد"));
       }
       cursor += 1;
     }
+    const joined = joinParts(read, cursor, cursor >= theirSeq);
+    for (const op of joined.ops) remoteOps.push({ ...op, by: member.id });
+    cursor = joined.cursor;
     if (cursor < theirSeq) behind = true;
     cursors[member.id] = cursor;
   }
@@ -430,6 +501,18 @@ export function startAsPhone(s: LinkStorage, config: LinkConfig): void {
   saveLinkConfig(s, config);
 }
 
+/**
+ * Phone-only settings the team still shares (his Nov 5 2026 choice «الهاتفان» يوافقان على ما يرسله المندوبون): the
+ * reps' codes (they open a rep's «تسجيلاتي» file) and their bound phones. They travel only inside the link, sealed
+ * with the team's key - never in a backup.
+ */
+export const LINK_SHARED_SETTINGS = ["starnet.repDeviceCodes", "starnet.repPhoneKeys"] as const;
+
+/** What the link carries: every business store, and the shared settings above. */
+export function isLinkedKey(key: string): boolean {
+  return key.startsWith("starnet_") || (LINK_SHARED_SETTINGS as readonly string[]).includes(key);
+}
+
 /** The browser's localStorage as the link's storage. */
 export function browserLinkStorage(): LinkStorage {
   const ls = window.localStorage;
@@ -438,7 +521,7 @@ export function browserLinkStorage(): LinkStorage {
       const out: Record<string, string> = {};
       for (let i = 0; i < ls.length; i++) {
         const key = ls.key(i);
-        if (key && key.startsWith("starnet_")) {
+        if (key && isLinkedKey(key)) {
           const v = ls.getItem(key);
           if (v !== null) out[key] = v;
         }

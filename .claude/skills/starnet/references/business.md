@@ -2527,7 +2527,7 @@ is never pressed while a field is empty - it refills and saves on the next try (
   every new device or money operation, and the log «📜 ماذا وصل من الفريق».
 - `lib/deviceLink.ts`: members (`memberId` + his `name`) instead of phone / laptop; an older link reads as members
   «phone» / «laptop» (their old paths) and its one cursor becomes `cursors[other]`. Team list sealed at
-  `starnet/{space}/team/members` (each member adds itself; re-read every 5 min, every round while alone); each member
+  `starnet/{space}/team/members` (each member adds itself; re-read every 5 min - every minute since Nov 5 2026 -, every round while alone); each member
   reads every other's head + batches; the remote ops of several members are sorted by time (the later change of one
   record wins). Any member gives «📋 رمز الربط»; a joiner (`joinAsMember`, his name for it) has its data replaced by the
   team's (every member's history is replayed). Firebase free reads: ~1 head read per other member per 20 s round.
@@ -2922,3 +2922,21 @@ is never pressed while a field is empty - it refills and saves on the next try (
   amount large; «✍️ كتب: «…»» for his words; `RequestOutcome` «✅ عند الموافقة» in plain words: a handover's split
   before approving (`previewRepMoneyHandover` = what `recordRepMoneyHandover` will do: «💳 X تسدّد دين جهاز «…» (من
   زبائنه)» per device + «💼 الباقي في حسابه»), a payment's device and where the money is, a loan sent and owed.
+
+## ⚡ The team link: ~10 s, and the reps' «تسجيلاتي» on both phones (Nov 5 2026)
+
+- His report after linking «المسؤول 2»: «ظهر الفرق ولكن ليس بالسرعة المطلوبة، والمندوب يرسل أجهزته تظهر في الجهاز الأول
+  ولكن الآخر لم تظهر» (they wait for approval on the first). His choices: **both phones approve what the reps send**
+  (approved on one → gone from the other); **a change reaches the others in about 10 s, even with a window open**.
+- Why the rep's devices stopped: the inbox (`starnet_rep_inbox_v1`) holds his whole file with the Starlink sessions -
+  one record over Firestore's 1 MiB; its batch was refused, and every batch after it in that round stayed unsent.
+  Now a record over 400k characters goes out in parts (`splitOp` / `chunkOps`, `p: {id, i, n}`); the reader joins them
+  (`joinParts`): a record whose parts aren't all read yet waits (cursor back before its first part); one whose sender
+  finished without the rest (a round that failed half way - it goes again whole, new id) is dropped.
+- The reps' codes and bound phones (`starnet.repDeviceCodes`, `starnet.repPhoneKeys`) travel in the link too
+  (`LINK_SHARED_SETTINGS`, sealed with the team key; never in a backup) - the second phone opens and approves the files.
+  The bots stay on each phone (the one with the reps bot receives; the file reaches the rest through the link).
+- Speed: a round every 8 s (was 20 s), the team list re-read every minute (was 5 min - a joiner was unseen that long).
+  With a sheet / dialog / field open, a **send-only** round (`runLinkRound(..., { sendOnly: true })`: no reading, nothing
+  written here; no Firebase call when nothing changed); the full round runs the moment he is done (checked every 1.5 s).
+  Firebase free reads: ~1 head read per other member per 8 s while the app is open.
