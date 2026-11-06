@@ -211,7 +211,17 @@ export interface MergeResult {
 }
 
 /** The other side's changes onto this side. Same record changed on both → the later wins. */
-export function merge(current: FlatData, localOps: SyncOp[], remoteOps: SyncOp[]): MergeResult {
+/**
+ * Who wins when the same record changed here and there in one round. Default: the later change. `localWins` - this is
+ * the main member (YAHYA, his Nov 6 2026 choice «في التعارض يفوز YAHYA»): its own change always stays. `remoteWins` -
+ * this is another member, and that change came from the main one: it always wins here.
+ */
+export interface MergeRules {
+  localWins?: boolean;
+  remoteWins?: (op: SyncOp) => boolean;
+}
+
+export function merge(current: FlatData, localOps: SyncOp[], remoteOps: SyncOp[], rules: MergeRules = {}): MergeResult {
   const data: FlatData = Object.fromEntries(Object.entries(current).map(([k, f]) => [k, { shape: f.shape, records: { ...f.records }, order: [...f.order] }]));
   const local = new Map(localOps.map((op) => [`${op.k}\u0000${op.r}`, op]));
   const dropped = new Set<string>();
@@ -225,7 +235,8 @@ export function merge(current: FlatData, localOps: SyncOp[], remoteOps: SyncOp[]
         dropped.add(id); // the same change on both sides - nothing to send or keep
         continue;
       }
-      if (mine.at > op.at) {
+      const keepMine = rules.localWins ? true : rules.remoteWins?.(op) ? false : mine.at > op.at;
+      if (keepMine) {
         conflicts.push({ k: op.k, r: op.r, kept: "local", lost: op.v, at: op.at });
         continue;
       }

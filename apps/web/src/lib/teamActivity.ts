@@ -45,6 +45,23 @@ const NAMED: Record<string, string> = {
   starnet_representatives_v1: "🤝 مندوب",
 };
 
+/** A store whose records he sees as things (devices, customers, reps) or money - deleting one is worth asking about. */
+export function isNotableStore(k: string): boolean {
+  return Boolean(NAMED[k] || MONEY[k]);
+}
+
+/** «📡 الأجهزة» … - the stores the copy counts and compares with YAHYA. */
+export const COUNTED_STORES: { k: string; label: string }[] = [
+  { k: "starnet_demo_accounts_v1", label: "📡 الأجهزة" },
+  { k: "starnet_clients_v1", label: "👤 الزبائن" },
+  { k: "starnet_customer_ledger_v1", label: "💵 عمليات الأجهزة" },
+  { k: "starnet_representatives_v1", label: "🤝 المندوبون" },
+  { k: "starnet_rep_settlements_v1", label: "🤝 عمليات المندوبين" },
+  { k: "starnet_cash_entries_v1", label: "💵 الكاش" },
+  { k: "starnet_store_invoices_v1", label: "🧾 الفواتير" },
+  { k: "starnet_party_adjustments_v1", label: "⚖️ الأرصدة" },
+];
+
 function parse(v: string | null | undefined): Record<string, unknown> | null {
   try {
     const x = v ? JSON.parse(v) : null;

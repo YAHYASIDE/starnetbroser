@@ -17,6 +17,10 @@ export const DEVICE_LINK_EVENT = "starnet:device-link";
 export const TEAM_SESSIONS_NOW_EVENT = "starnet:team-sessions-now";
 /** Fired after a sessions round ({ sent, taken, message }). */
 export const TEAM_SESSIONS_EVENT = "starnet:team-sessions";
+/** 📊 While sessions come in ({ done, total }). */
+export const TEAM_SESSIONS_PROGRESS_EVENT = "starnet:team-sessions-progress";
+/** A sessions round never holds the button longer than this. */
+const SESSION_ROUND_LIMIT_MS = 4 * 60_000;
 
 /** A round this often while the app is open (his Nov 5 2026 choice: a change reaches the others in about 10 s). */
 const EVERY_MS = 8_000;
@@ -57,6 +61,8 @@ export function DeviceLinkRunner() {
         // 👥 a new device or money operation from another member: one notification for the round
         const text = activityNotification(result.incoming);
         if (text) await notifyPhone(text);
+        // 🗑️ on YAHYA: another member deleted something - it waits for him
+        if (result.pending) await notifyPhone(`🗑️ حذف من الفريق بانتظار موافقتك (${result.pending}) - الإعدادات ← 🔗 ربط الأجهزة`);
         if (result.changedKeys.length > 0) window.location.reload();
       } finally {
         running = false;
@@ -74,7 +80,11 @@ export function DeviceLinkRunner() {
       if (team.length < 2) return void skip("لا يرى هذا الهاتف عضوًا آخر في الفريق بعد - اضغط «🔄 مزامنة الآن» ثم أعد");
       sessionsBusy = true;
       try {
-        const result = await runSessionRound(
+        let timer = 0;
+        const limit = new Promise<{ ok: false; sent: 0; taken: 0; message: string }>((resolve) => {
+          timer = window.setTimeout(() => resolve({ ok: false, sent: 0, taken: 0, message: "توقف نقل الجلسات (أكثر من 4 دقائق) - أعد «📥»" }), SESSION_ROUND_LIMIT_MS);
+        });
+        const round = runSessionRound(
           {
             config,
             team,
@@ -83,9 +93,12 @@ export function DeviceLinkRunner() {
             importSessions: (s) => importAccountSessions(s),
             getSetting: (k) => storage.getSetting(k),
             setSetting: (k, v) => storage.setSetting(k, v),
+            onProgress: (done, total) => window.dispatchEvent(new CustomEvent(TEAM_SESSIONS_PROGRESS_EVENT, { detail: { done, total } })),
           },
           force,
         );
+        const result = await Promise.race([round, limit]);
+        window.clearTimeout(timer);
         window.dispatchEvent(new CustomEvent(TEAM_SESSIONS_EVENT, { detail: result }));
       } finally {
         sessionsBusy = false;

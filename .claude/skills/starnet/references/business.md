@@ -2955,3 +2955,29 @@ is never pressed while a field is empty - it refills and saves on the next try (
   `Starlink.Com.Sso` or any cookie of 1,000+ characters (a renamed ticket still counts), and the line under «📥» now
   tells where it stops (`sessionsNoteText`): «🔐 هنا: N مسجّلة · M بلا دخول | من الفريق: K متاحة · أُخذت X | أُرسلت Y»
   (+ «Z فارغة لم تُؤخذ»); a skipped «📥» says why (busy, link off, no other member seen yet) instead of «⏳» forever.
+
+## ⭐ YAHYA is the main phone · deletions wait for him · the copy and the sessions with % (Nov 6 2026)
+
+- His ask: «اجعله أكثر أمانًا، الجهاز الرئيسي YAHYA معروف، والنسخ تأتي مفصّلة خاصة في البداية لكي لا يغلط… وتراه نسبة
+  مئوية». His choices: **in a conflict YAHYA wins**; **a deletion from «المسؤول 2» needs his approval** (he did NOT pick
+  «YAHYA's sessions are never touched»); the copy: **% + details + a check against YAHYA**; the sessions: **% + the names
+  of the devices left signed out, and why**.
+- The main member is the one that made the link (`MAIN_MEMBER = "phone"`, `isMainMember`; ⭐ in «👥 الفريق»).
+  `merge(..., rules)` (lib/deviceSync.ts): on YAHYA his own change always stays; elsewhere a change from YAHYA always
+  wins (the other one goes to «تعارضات»). Only same-round changes conflict; a later edit after receiving his still applies.
+- `holdDeletions` (lib/deviceLink.ts), on YAHYA only: a round of another member that deletes a device / customer / rep /
+  money record (`isNotableStore`) that exists here, or sends a device to the trash (`deletedAt` newly set), is held -
+  ALL deletions of that round (a payment's cash entries with it; auto-posted ones unnamed), its adds / edits go in.
+  Kept in `starnet.deviceLinkPendingDeletes` (phone only) with labels; a phone notification. «✓ احذفها هنا أيضًا»
+  (`approvePendingDeletion`: applied here, the store confirmed against the mass-deletion guard, then out to the team) /
+  «✗ أبقِها» (`rejectPendingDeletion`: the records' baseline hashes dropped, so they go out again and the member gets
+  them back). Limit: other edits the member made along with a deletion (e.g. devices unlinked from a deleted customer)
+  are not undone by «أبقِها».
+- 🔢 Each member's head carries its counts per store, sealed (`sti`/`std`; `storeCounts` over `COUNTED_STORES`); the
+  section compares this phone with YAHYA (on YAHYA: each member with him) - «✅ مطابق لـ YAHYA» / «⚠️ يختلف في N», a
+  table هنا / YAHYA per store. 📥 «نسخ البيانات من الفريق N%» = batches read / batches written by the others
+  (`state.progress`); up to 50 batches per round (was 25).
+- 🔐 Sessions: fetched 6 at a time with `onProgress` (bar «نقل الجلسات N%»), the round limited to 4 minutes (the button
+  never stays «ما زال ينقل»); `missing` = the devices still signed out here with a reason (`none` not signed in on any
+  other phone / `empty` / `stale` taken before and not working / `failed`), listed by name «📵 أجهزة بلا دخول هنا».
+

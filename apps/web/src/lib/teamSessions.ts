@@ -127,7 +127,19 @@ export interface SessionDeps {
   setSetting(key: string, value: string | null): void;
   fetchFn?: FetchFn;
   now?: number;
+  /** 📊 «نقل الجلسات 45%» - sessions fetched of those to take. */
+  onProgress?: (done: number, total: number) => void;
 }
+
+/** Why a device is still signed out here after a round (his Nov 6 2026 ask: the names, and why). */
+export type MissingReason = "none" | "empty" | "stale" | "failed";
+
+export const MISSING_REASON_TEXT: Record<MissingReason, string> = {
+  none: "غير مسجّل في الهاتف الآخر أيضًا - سجّل الدخول فيه هناك أو هنا",
+  empty: "وصلت جلسته فارغة",
+  stale: "أُخذت جلسته ولم تعمل - سجّل الدخول فيه من جديد في أحد الهاتفين ثم «📥»",
+  failed: "تعذّر جلب جلسته - أعد «📥»",
+};
 
 const SENT = "starnet.teamSessionsSent";
 const TAKEN = "starnet.teamSessionsTaken";
@@ -150,6 +162,8 @@ export interface SessionRoundResult {
   /** Devices the other members offer a session for, and those that came empty (not put in). */
   offered?: number;
   empty?: number;
+  /** Devices still signed out here, and why. */
+  missing?: { id: string; reason: MissingReason }[];
 }
 
 /** The line under «📥 خذ جلسات الفريق» - enough to tell where a session stops. */
@@ -204,21 +218,36 @@ export async function runSessionRound(d: SessionDeps, force = false): Promise<Se
     const take = sessionsToTake(newest, taken, local, sent, force).filter((t) => wanted.has(t.id));
     const incoming: SessionsByAccount = {};
     let empty = 0;
-    for (const t of take) {
-      const doc = await readDocument(config, sessionPath(config, t.member, t.id), fetchFn);
-      if (!doc.ok || !doc.value?.iv) continue;
-      try {
-        const cookies = JSON.parse(await openText({ iv: doc.value.iv, data: doc.value.data ?? "" }, config.key)) as Record<string, string>;
-        // an empty session another phone sent (an older build) is never put in - it would sign this one out
-        if (!isSignedInSession(cookies)) {
-          empty += 1;
-          continue;
-        }
-        incoming[t.id] = cookies;
-        taken[t.id] = t.at;
-      } catch {
-        // skipped
-      }
+    const why: Record<string, MissingReason> = {};
+    let done = 0;
+    d.onProgress?.(0, take.length);
+    // a few at a time - a full team's sessions come in a minute, not ten
+    for (let i = 0; i < take.length; i += 6) {
+      await Promise.all(
+        take.slice(i, i + 6).map(async (t) => {
+          try {
+            const doc = await readDocument(config, sessionPath(config, t.member, t.id), fetchFn);
+            if (!doc.ok || !doc.value?.iv) {
+              why[t.id] = "failed";
+              return;
+            }
+            const cookies = JSON.parse(await openText({ iv: doc.value.iv, data: doc.value.data ?? "" }, config.key)) as Record<string, string>;
+            // an empty session another phone sent (an older build) is never put in - it would sign this one out
+            if (!isSignedInSession(cookies)) {
+              empty += 1;
+              why[t.id] = "empty";
+              return;
+            }
+            incoming[t.id] = cookies;
+            taken[t.id] = t.at;
+          } catch {
+            why[t.id] = "failed";
+          } finally {
+            done += 1;
+            d.onProgress?.(done, take.length);
+          }
+        }),
+      );
     }
     let imported = 0;
     if (Object.keys(incoming).length > 0) {
@@ -233,16 +262,19 @@ export async function runSessionRound(d: SessionDeps, force = false): Promise<Se
     }
     // what this phone has now - the ones just put in count as signed in
     const now_ = { ...local, ...(imported > 0 ? incoming : {}) };
-    const ids = Object.keys(now_);
-    const signedIn = ids.filter((id) => isSignedInSession(now_[id])).length;
+    const signedIn = d.accountIds.filter((id) => isSignedInSession(now_[id])).length;
+    const missing = d.accountIds
+      .filter((id) => !isSignedInSession(now_[id]))
+      .map((id) => ({ id, reason: why[id] ?? (newest[id] ? "stale" : "none") }) as { id: string; reason: MissingReason });
     return {
       ok: true,
       sent: out.length,
       taken: imported,
       message: "✓",
-      here: { signedIn, signedOut: ids.length - signedIn },
+      here: { signedIn, signedOut: d.accountIds.length - signedIn },
       offered: Object.keys(newest).filter((id) => wanted.has(id)).length,
       empty,
+      missing,
     };
   } catch (e) {
     return { ok: false, sent: 0, taken: 0, message: e instanceof Error ? e.message : "تعذّر نقل الجلسات" };

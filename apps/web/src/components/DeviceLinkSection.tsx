@@ -1,13 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { DEVICE_LINK_EVENT, DEVICE_LINK_NOW_EVENT, TEAM_SESSIONS_EVENT, TEAM_SESSIONS_NOW_EVENT } from "@/components/DeviceLinkRunner";
-import { activityLine, type TeamActivity } from "@/lib/teamActivity";
-import { sessionsNoteText, type SessionRoundResult } from "@/lib/teamSessions";
+import { DEVICE_LINK_EVENT, DEVICE_LINK_NOW_EVENT, TEAM_SESSIONS_EVENT, TEAM_SESSIONS_NOW_EVENT, TEAM_SESSIONS_PROGRESS_EVENT } from "@/components/DeviceLinkRunner";
+import { activityLine, COUNTED_STORES, type TeamActivity } from "@/lib/teamActivity";
+import { MISSING_REASON_TEXT, sessionsNoteText, type MissingReason, type SessionRoundResult } from "@/lib/teamSessions";
+import { demoAccounts } from "@/lib/demoData";
+import { loadDemoAccounts } from "@/lib/demoAccountStore";
 import { isDesktopApp } from "@/lib/desktop";
 import {
+  approvePendingDeletion,
   browserLinkStorage,
   clearConflicts,
+  compareCounts,
+  isMainMember,
+  loadPendingDeletions,
+  MAIN_MEMBER,
+  rejectPendingDeletion,
+  type PendingDeletion,
   confirmHeldDeletion,
   joinAsMember,
   linkCode,
@@ -82,6 +91,9 @@ export function DeviceLinkSection() {
   const [joining, setJoining] = useState(false);
   const [memberName, setMemberName] = useState("");
   const [sessionsNote, setSessionsNote] = useState<string | null>(null);
+  const [sessionsProgress, setSessionsProgress] = useState<{ done: number; total: number } | null>(null);
+  const [missing, setMissing] = useState<{ id: string; reason: MissingReason }[]>([]);
+  const [pending, setPending] = useState<PendingDeletion[]>([]);
 
   function refresh() {
     const s = browserLinkStorage();
@@ -90,6 +102,7 @@ export function DeviceLinkSection() {
     setConflicts(loadConflicts(s));
     setTeam(loadTeam(s));
     setLog(loadActivityLog(s));
+    setPending(loadPendingDeletions(s));
   }
 
   useEffect(() => {
@@ -104,13 +117,18 @@ export function DeviceLinkSection() {
     const onSessions = (e: Event) => {
       const r = (e as CustomEvent<SessionRoundResult>).detail;
       setSessionsNote(sessionsNoteText(r));
+      setSessionsProgress(null);
+      setMissing(r.missing ?? []);
     };
+    const onSessionsProgress = (e: Event) => setSessionsProgress((e as CustomEvent<{ done: number; total: number }>).detail);
     window.addEventListener(TEAM_SESSIONS_EVENT, onSessions);
+    window.addEventListener(TEAM_SESSIONS_PROGRESS_EVENT, onSessionsProgress);
     window.addEventListener(DEVICE_LINK_EVENT, refresh);
     const timer = window.setInterval(refresh, 5000);
     return () => {
       window.removeEventListener(DEVICE_LINK_EVENT, refresh);
       window.removeEventListener(TEAM_SESSIONS_EVENT, onSessions);
+      window.removeEventListener(TEAM_SESSIONS_PROGRESS_EVENT, onSessionsProgress);
       window.clearInterval(timer);
     };
   }, []);
@@ -277,7 +295,8 @@ export function DeviceLinkSection() {
           </p>
           {team.length > 0 && (
             <p className="settings-hint device-link-team">
-              👥 الفريق: {team.map((m) => (m.id === config.memberId ? `${m.name} (هذا)` : m.name)).join(" · ")}
+              👥 الفريق: {team.map((m) => `${m.name}${isMainMember(m.id) ? " ⭐" : ""}${m.id === config.memberId ? " (هذا)" : ""}`).join(" · ")}
+              {team.some((m) => isMainMember(m.id)) && <span className="device-link-main-note"> · ⭐ الرئيسي: نسخته تفوز في التعارض، والحذف من غيره ينتظر موافقته</span>}
             </p>
           )}
           <div className="device-link-code-box">
@@ -300,6 +319,50 @@ export function DeviceLinkSection() {
             </button>
           </div>
 
+          {state?.progress && state.progress.total > 0 && state.progress.done < state.progress.total && (
+            <LinkProgress label="📥 نسخ البيانات من الفريق" done={state.progress.done} total={state.progress.total} />
+          )}
+
+          <CopyCheck config={config} state={state} team={team} />
+
+          {pending.length > 0 && (
+            <div className="device-link-pending" role="alert">
+              <strong>🗑️ حذف من الفريق بانتظار موافقتك ({pending.length})</strong>
+              {pending.map((p) => (
+                <div key={p.id} className="device-link-pending-item">
+                  <span>
+                    <b>{p.byName}</b> حذف: {p.labels.length ? p.labels.join("، ") : `${p.ops.length} سجل`} · <bdi dir="ltr">{new Date(p.at).toLocaleString("en-GB")}</bdi>
+                  </span>
+                  <div className="device-link-pending-actions">
+                    <button
+                      type="button"
+                      className="dialog-secondary device-link-pending-yes"
+                      onClick={() => {
+                        if (!window.confirm(`حذف ${p.labels.join("، ") || "هذه السجلات"} من هذا الهاتف أيضًا؟`)) return;
+                        const changed = approvePendingDeletion(browserLinkStorage(), p.id);
+                        if (changed.length > 0) window.location.reload();
+                        else refresh();
+                      }}
+                    >
+                      ✓ احذفها هنا أيضًا
+                    </button>
+                    <button
+                      type="button"
+                      className="dialog-secondary"
+                      onClick={() => {
+                        rejectPendingDeletion(browserLinkStorage(), p.id);
+                        refresh();
+                        window.dispatchEvent(new Event(DEVICE_LINK_NOW_EVENT));
+                      }}
+                    >
+                      ✗ أبقِها (تعود عنده)
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {team.length > 1 && (
             <div className="live-sync-status">
               <span>{sessionsNote ?? "🔐 جلسات Starlink تُنقل كل 30 دقيقة (للأجهزة غير المسجّلة هنا)"}</span>
@@ -316,6 +379,10 @@ export function DeviceLinkSection() {
               </button>
             </div>
           )}
+
+          {sessionsProgress && sessionsProgress.total > 0 && <LinkProgress label="🔐 نقل الجلسات" done={sessionsProgress.done} total={sessionsProgress.total} />}
+
+          {missing.length > 0 && !sessionsProgress && <MissingSessions missing={missing} />}
 
           {log.length > 0 && (
             <details className="device-link-conflicts device-link-log">
@@ -384,3 +451,98 @@ export function DeviceLinkSection() {
     </section>
   );
 }
+
+/** 📊 A bar with its % - the copy, or the sessions. */
+function LinkProgress({ label, done, total }: { label: string; done: number; total: number }) {
+  const pct = Math.max(0, Math.min(100, Math.floor((done / total) * 100)));
+  return (
+    <div className="device-link-progress" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={label}>
+      <div className="bulk-send-progress">
+        <span>{label}</span>
+        <b>
+          <bdi dir="ltr">{pct}%</bdi> · <bdi dir="ltr">{done}/{total}</bdi>
+        </b>
+      </div>
+      <div className="bulk-send-bar">
+        <span style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+/** ✅ / ⚠️ This phone's counts against YAHYA's (on YAHYA: each member's against his). */
+function CopyCheck({ config, state, team }: { config: LinkConfig; state: LinkState | null; team: TeamMember[] }) {
+  if (!state?.counts || team.length < 2) return null;
+  const mine = state.counts;
+  const others = isMainMember(config.memberId) ? team.filter((m) => m.id !== config.memberId) : team.filter((m) => m.id === MAIN_MEMBER);
+  if (others.length === 0) return null;
+  const receiving = Boolean(state.progress && state.progress.done < state.progress.total);
+  return (
+    <div className="device-link-check">
+      {others.map((m) => {
+        const theirs = state.theirCounts?.[m.id];
+        if (!theirs) {
+          return (
+            <p key={m.id} className="settings-hint">
+              ⏳ لم تصل أرقام «{m.name}» بعد - حدّث تطبيقه وافتحه
+            </p>
+          );
+        }
+        const diff = compareCounts(mine, theirs.counts);
+        return (
+          <details key={m.id} className={`device-link-check-item${diff.length ? " device-link-check-diff" : ""}`}>
+            <summary>
+              {receiving ? `⏳ ينسخ… يُقارن مع «${m.name}» بعد اكتمال النسخ` : diff.length === 0 ? `✅ مطابق لـ «${m.name}»` : `⚠️ يختلف عن «${m.name}» في ${diff.length}`}
+            </summary>
+            <table className="device-link-check-table">
+              <thead>
+                <tr>
+                  <th />
+                  <th>هنا</th>
+                  <th>{m.name}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {COUNTED_STORES.map(({ k, label }) => {
+                  const a = mine[k] ?? 0;
+                  const b = theirs.counts[k] ?? 0;
+                  return (
+                    <tr key={k} className={a !== b ? "device-link-check-off" : undefined}>
+                      <td>{label}</td>
+                      <td>
+                        <bdi dir="ltr">{a}</bdi>
+                      </td>
+                      <td>
+                        <bdi dir="ltr">{b}</bdi>
+                        {a === b ? " ✓" : ""}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <p className="settings-hint">أرقام «{m.name}» عند آخر مزامنة له: <bdi dir="ltr">{theirs.at ? new Date(theirs.at).toLocaleString("en-GB") : "-"}</bdi> - فرق صغير لحظة التسجيل طبيعي ويختفي خلال ثوانٍ.</p>
+          </details>
+        );
+      })}
+    </div>
+  );
+}
+
+/** 📵 The devices still signed out here after the sessions round, by name, and why. */
+function MissingSessions({ missing }: { missing: { id: string; reason: MissingReason }[] }) {
+  const names = new Map(loadDemoAccounts(demoAccounts).map((a) => [a.id, a.name || a.starlinkAccountEmail || a.id]));
+  return (
+    <details className="device-link-conflicts device-link-missing">
+      <summary>📵 أجهزة بلا دخول هنا ({missing.length})</summary>
+      <ul>
+        {missing.slice(0, 300).map((m) => (
+          <li key={m.id}>
+            <b>{names.get(m.id) ?? m.id}</b>: {MISSING_REASON_TEXT[m.reason]}
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+

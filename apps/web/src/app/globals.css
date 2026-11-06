@@ -20270,3 +20270,23 @@ html.has-rep-flags body { padding-top: calc(var(--safe-top) + 46px); }
   list-style: none;
 }
 .rep-request-outcome li { line-height: 1.5; overflow-wrap: anywhere; }
+
+/* 🔗 the team link: copy %, match check with YAHYA, deletions waiting for him (Nov 6 2026) */
+.device-link-progress { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; }
+.device-link-progress .bulk-send-bar span { background: var(--accent, #3b82f6); }
+.device-link-main-note { color: var(--text-muted); font-size: 0.78rem; }
+.device-link-check { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+.device-link-check-item { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 8px 10px; background: var(--green-bg); }
+.device-link-check-item.device-link-check-diff { background: var(--surface-alt); border-color: #f59e0b; }
+.device-link-check-item summary { cursor: pointer; font-weight: 700; font-size: 0.9rem; }
+.device-link-check-table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+.device-link-check-table th, .device-link-check-table td { padding: 3px 4px; text-align: start; border-bottom: 1px solid var(--border); }
+.device-link-check-table th:not(:first-child), .device-link-check-table td:not(:first-child) { text-align: center; white-space: nowrap; }
+.device-link-check-off td { color: #d97706; font-weight: 700; }
+.device-link-pending { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; padding: 10px; border-radius: var(--radius-md); border: 1px solid #ef4444; background: var(--surface-alt); }
+.device-link-pending-item { display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; padding-top: 6px; border-top: 1px solid var(--border); min-width: 0; overflow-wrap: anywhere; }
+.device-link-pending-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.device-link-pending-actions button { flex: 1 1 140px; }
+.device-link-pending-yes { color: #ef4444; }
+.device-link-missing li { overflow-wrap: anywhere; }
+

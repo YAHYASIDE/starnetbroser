@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chunkOps, isLinkedKey, joinAsLaptop, joinParts, splitOp, joinAsMember, linkCode, loadActivityLog, loadConflicts, loadLinkConfig, loadLinkState, loadOrigins, loadTeam, newPhoneLink, readLinkCode, runLinkRound, startAsPhone, type LinkStorage } from "./deviceLink";
+import { approvePendingDeletion, chunkOps, compareCounts, isLinkedKey, loadPendingDeletions, rejectPendingDeletion, joinAsLaptop, joinParts, splitOp, joinAsMember, linkCode, loadActivityLog, loadConflicts, loadLinkConfig, loadLinkState, loadOrigins, loadTeam, newPhoneLink, readLinkCode, runLinkRound, startAsPhone, type LinkStorage } from "./deviceLink";
 import type { FetchFn } from "./firestoreRest";
 
 /** Firestore + anonymous sign-in, in memory - only what firestoreRest.ts calls. */
@@ -73,16 +73,26 @@ describe("the phone ↔ laptop link", () => {
     expect(JSON.parse(phone.data.get("starnet_customer_ledger_v1")!)).toEqual(both);
     expect(JSON.parse(laptop.data.get("starnet_customer_ledger_v1")!).d1).toHaveLength(3);
 
-    // the same customer renamed on both: the later wins, the other is a conflict
+    // the same customer renamed on both: the phone (YAHYA, the main one) wins even though the laptop's is later -
+    // his Nov 6 2026 choice; the laptop's is kept in its «تعارضات»
     phone.write("starnet_clients_v1", ledger({ c1: { id: "c1", name: "من الهاتف" } }));
     await runLinkRound(phone, firebase, new Date("2026-10-24T10:00:00Z"));
     laptop.write("starnet_clients_v1", ledger({ c1: { id: "c1", name: "من اللابتوب" } }));
     await runLinkRound(laptop, firebase, new Date("2026-10-24T10:05:00Z"));
     await runLinkRound(phone, firebase, new Date("2026-10-24T10:06:00Z"));
-    expect(JSON.parse(phone.data.get("starnet_clients_v1")!).c1.name).toBe("من اللابتوب");
-    expect(JSON.parse(laptop.data.get("starnet_clients_v1")!).c1.name).toBe("من اللابتوب");
+    expect(JSON.parse(phone.data.get("starnet_clients_v1")!).c1.name).toBe("من الهاتف");
+    expect(JSON.parse(laptop.data.get("starnet_clients_v1")!).c1.name).toBe("من الهاتف");
     expect(loadConflicts(laptop)).toHaveLength(1);
-    expect(loadConflicts(laptop)[0]).toMatchObject({ kept: "local", k: "starnet_clients_v1", r: "c1" });
+    expect(loadConflicts(laptop)[0]).toMatchObject({ kept: "remote", k: "starnet_clients_v1", r: "c1", lost: JSON.stringify({ id: "c1", name: "من اللابتوب" }) });
+
+    // the other way: both in one round each, the phone's later - still the phone's
+    laptop.write("starnet_clients_v1", ledger({ c1: { id: "c1", name: "لابتوب 2" } }));
+    phone.write("starnet_clients_v1", ledger({ c1: { id: "c1", name: "هاتف 2" } }));
+    await runLinkRound(laptop, firebase, new Date("2026-10-24T11:00:00Z"));
+    await runLinkRound(phone, firebase, new Date("2026-10-24T11:01:00Z"));
+    await runLinkRound(laptop, firebase, new Date("2026-10-24T11:02:00Z"));
+    expect(JSON.parse(phone.data.get("starnet_clients_v1")!).c1.name).toBe("هاتف 2");
+    expect(JSON.parse(laptop.data.get("starnet_clients_v1")!).c1.name).toBe("هاتف 2");
   });
 
   it("👥 a team of three (his Oct 31 2026 «المسؤول 2»): every change reaches every member", async () => {
@@ -219,5 +229,90 @@ describe("the phone ↔ laptop link", () => {
     expect(full.changedKeys).toEqual(["starnet_clients_v1"]);
     await runLinkRound(laptop, firebase);
     expect(JSON.parse(laptop.data.get("starnet_demo_accounts_v1")!)).toEqual([{ id: "a1", name: "DEMO 1" }]);
+  });
+
+  async function pair() {
+    const firebase = fakeFirebase();
+    const phone = memory({
+      starnet_demo_accounts_v1: ledger([{ id: "a1", name: "DEMO 1" }, { id: "a2", name: "DEMO 2" }]),
+      starnet_clients_v1: ledger({ c1: { id: "c1", name: "زبون" } }),
+      starnet_customer_ledger_v1: ledger({ a1: [{ id: "e1", amount: 100, currency: "MRU" }] }),
+      starnet_cash_entries_v1: ledger([{ id: "k1", sourceId: "e1", amount: 100 }]),
+    });
+    const admin2 = memory();
+    const made = newPhoneLink(API, "my-project-123");
+    if (!made.ok) throw new Error(made.message);
+    startAsPhone(phone, made.config);
+    const read = readLinkCode(linkCode(made.config));
+    if (!read.ok) throw new Error();
+    joinAsMember(admin2, read.config, "المسؤول 2");
+    await runLinkRound(phone, firebase);
+    await runLinkRound(admin2, firebase);
+    return { firebase, phone, admin2 };
+  }
+
+  it("🗑️ a deletion on «المسؤول 2» waits for YAHYA: ✓ deletes it here too", async () => {
+    const { firebase, phone, admin2 } = await pair();
+    // «المسؤول 2» deletes a payment (and its cash entry goes with it) and adds a customer in the same round
+    admin2.write("starnet_customer_ledger_v1", ledger({ a1: [] }));
+    admin2.write("starnet_cash_entries_v1", ledger([]));
+    admin2.write("starnet_clients_v1", ledger({ c1: { id: "c1", name: "زبون" }, c2: { id: "c2", name: "جديد" } }));
+    await runLinkRound(admin2, firebase);
+    const r = await runLinkRound(phone, firebase);
+    expect(r.pending).toBe(1);
+    // the new customer came; the payment and its cash entry are still here
+    expect(JSON.parse(phone.data.get("starnet_clients_v1")!).c2.name).toBe("جديد");
+    expect(JSON.parse(phone.data.get("starnet_customer_ledger_v1")!).a1).toHaveLength(1);
+    expect(JSON.parse(phone.data.get("starnet_cash_entries_v1")!)).toHaveLength(1);
+    const [p] = loadPendingDeletions(phone);
+    expect(p).toMatchObject({ byName: "المسؤول 2", labels: ["💵 عملية 100 أوقية"] });
+    expect(p!.ops).toHaveLength(2);
+    // the payment doesn't come back to «المسؤول 2» while it waits
+    await runLinkRound(phone, firebase);
+    await runLinkRound(admin2, firebase);
+    expect(JSON.parse(admin2.data.get("starnet_customer_ledger_v1") ?? "{}").a1 ?? []).toHaveLength(0);
+    expect(JSON.parse(admin2.data.get("starnet_cash_entries_v1")!)).toHaveLength(0);
+
+    expect(approvePendingDeletion(phone, p!.id).sort()).toEqual(["starnet_cash_entries_v1", "starnet_customer_ledger_v1"]);
+    expect(JSON.parse(phone.data.get("starnet_customer_ledger_v1")!).a1 ?? []).toHaveLength(0);
+    expect(JSON.parse(phone.data.get("starnet_cash_entries_v1")!)).toHaveLength(0);
+    expect(loadPendingDeletions(phone)).toHaveLength(0);
+    await runLinkRound(phone, firebase);
+    await runLinkRound(admin2, firebase);
+    expect(JSON.parse(admin2.data.get("starnet_cash_entries_v1")!)).toHaveLength(0);
+  });
+
+  it("🗑️ ✗ «أبقِها»: nothing deleted here, and «المسؤول 2» gets it back - a device sent to the trash too", async () => {
+    const { firebase, phone, admin2 } = await pair();
+    admin2.write("starnet_clients_v1", ledger({}));
+    admin2.write("starnet_demo_accounts_v1", ledger([{ id: "a1", name: "DEMO 1", deletedAt: "2026-11-06" }, { id: "a2", name: "DEMO 2" }]));
+    await runLinkRound(admin2, firebase);
+    await runLinkRound(phone, firebase);
+    const [p] = loadPendingDeletions(phone);
+    expect(p!.labels.sort()).toEqual(["👤 زبون زبون", "📡 جهاز DEMO 1"].sort());
+    expect(JSON.parse(phone.data.get("starnet_demo_accounts_v1")!)[0].deletedAt).toBeUndefined();
+    rejectPendingDeletion(phone, p!.id);
+    expect((await runLinkRound(phone, firebase)).sent).toBe(2);
+    await runLinkRound(admin2, firebase);
+    expect(JSON.parse(admin2.data.get("starnet_clients_v1")!).c1.name).toBe("زبون");
+    expect(JSON.parse(admin2.data.get("starnet_demo_accounts_v1")!)[0].deletedAt).toBeUndefined();
+    // what YAHYA deletes himself is never held
+    phone.write("starnet_clients_v1", ledger({}));
+    await runLinkRound(phone, firebase);
+    await runLinkRound(admin2, firebase);
+    expect(JSON.parse(admin2.data.get("starnet_clients_v1")!)).toEqual({});
+    expect(loadPendingDeletions(admin2)).toHaveLength(0);
+  });
+
+  it("🔢 the copy counts each store and checks it against YAHYA; the % while it comes in", async () => {
+    const { firebase, phone, admin2 } = await pair();
+    await runLinkRound(phone, firebase);
+    await runLinkRound(admin2, firebase);
+    const st = loadLinkState(admin2);
+    expect(st.counts?.starnet_demo_accounts_v1).toBe(2);
+    expect(st.counts?.starnet_customer_ledger_v1).toBe(1);
+    expect(compareCounts(st.counts!, st.theirCounts!.phone!.counts)).toEqual([]);
+    expect(st.progress).toEqual({ done: 1, total: 1 });
+    expect(compareCounts({ starnet_demo_accounts_v1: 170 }, { starnet_demo_accounts_v1: 171 })).toEqual([{ k: "starnet_demo_accounts_v1", label: "📡 الأجهزة", mine: 170, theirs: 171 }]);
   });
 });

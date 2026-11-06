@@ -114,8 +114,25 @@ describe("🔐 Starlink sessions in the team (his Oct 31 2026 choice)", () => {
     const admin = member("m1", { d1: OUT });
     const p = await runSessionRound(phone.deps(firebase, 1000));
     expect(sessionsNoteText(p)).toBe("🔐 هنا: 1 مسجّلة · 1 بلا دخول | من الفريق: 0 متاحة · أُخذت 0 | أُرسلت 1");
+    expect(p.missing).toEqual([{ id: "d2", reason: "none" }]);
     const a = await runSessionRound(admin.deps(firebase, 2000), true);
-    expect(sessionsNoteText(a)).toBe("🔐 هنا: 1 مسجّلة · 0 بلا دخول | من الفريق: 1 متاحة · أُخذت 1 | أُرسلت 0");
+    expect(sessionsNoteText(a)).toBe("🔐 هنا: 1 مسجّلة · 1 بلا دخول | من الفريق: 1 متاحة · أُخذت 1 | أُرسلت 0");
+    expect(a.missing).toEqual([{ id: "d2", reason: "none" }]);
     expect(sessionsNoteText({ ok: false, sent: 0, taken: 0, message: "الربط غير مفعّل" })).toBe("⚠️ الجلسات: الربط غير مفعّل");
+  });
+
+  it("📊 the % while sessions come in; one that came and didn't work is named", async () => {
+    const firebase = fakeFirebase();
+    const phone = member("phone", { d1: IN("1"), d2: IN("2") });
+    const admin = member("m1", {});
+    await runSessionRound(phone.deps(firebase, 1000));
+    const steps: string[] = [];
+    const deps = { ...admin.deps(firebase, 2000), onProgress: (done: number, total: number) => steps.push(`${done}/${total}`) };
+    expect(await runSessionRound(deps)).toMatchObject({ taken: 2, missing: [] });
+    expect(steps).toEqual(["0/2", "1/2", "2/2"]);
+    // its d1 stops working (signed out) - the same team session is not taken again, and he is told why
+    admin.jar.d1 = OUT;
+    const again = await runSessionRound(admin.deps(firebase, 3000));
+    expect(again.missing).toEqual([{ id: "d1", reason: "stale" }]);
   });
 });

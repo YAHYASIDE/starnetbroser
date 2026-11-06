@@ -10,10 +10,10 @@
  * are «phone» and «laptop» (their old paths). Settings live in `starnet.*` (never in a backup, never in the repo).
  */
 
-import { baselineOf, diff, flattenAll, flattenKey, merge, nextBaseline, unflattenKey, type Baseline, type HeldDeletion, type SyncConflict, type SyncOp } from "./deviceSync";
+import { baselineOf, diff, flattenAll, flattenKey, merge, nextBaseline, unflattenKey, type Baseline, type FlatData, type HeldDeletion, type SyncConflict, type SyncOp } from "./deviceSync";
 import { isLinkKey, newLinkKey, openText, sealText } from "./deviceSyncCrypto";
 import { readDocument, writeDocument, type FetchFn } from "./firestoreRest";
-import { describeOp, nextOrigins, type Origin, type TeamActivity } from "./teamActivity";
+import { COUNTED_STORES, describeOp, isNotableStore, nextOrigins, type Origin, type TeamActivity } from "./teamActivity";
 import { checkConfigInput, newSpaceId } from "./liveSyncConfig";
 
 export type LinkRole = "phone" | "laptop";
@@ -52,6 +52,32 @@ export interface LinkState {
   lastAt?: string;
   lastOk?: boolean;
   lastMessage?: string;
+  /** 📥 Receiving: batches read of all the other members' / how many they wrote (the copy's %). */
+  progress?: { done: number; total: number };
+  /** 🔢 How many records each counted store has here, and at each other member (from its head) - the copy's check. */
+  counts?: Record<string, number>;
+  theirCounts?: Record<string, { counts: Record<string, number>; at: string }>;
+}
+
+/** ⭐ The main member: the phone that made the link (YAHYA) - his Nov 6 2026 choice. */
+export const MAIN_MEMBER = "phone";
+
+export function isMainMember(memberId: string): boolean {
+  return memberId === MAIN_MEMBER;
+}
+
+/** 🗑️ A deletion another member made, held on YAHYA until he decides (his Nov 6 2026 choice «الحذف من المسؤول 2
+ * يحتاج موافقتي»). One per round of that member: the deletions of things / money, with what was deleted along with
+ * them (a payment's cash entries…). */
+export interface PendingDeletion {
+  /** `<member>|<at>` */
+  id: string;
+  by: string;
+  byName: string;
+  at: string;
+  ops: SyncOp[];
+  /** «📡 جهاز X» / «💵 عملية 5,000 أوقية» - what he reads. */
+  labels: string[];
 }
 
 export interface StoredConflict extends SyncConflict {
@@ -75,6 +101,7 @@ const CONFLICTS = "starnet.deviceLinkConflicts";
 const TEAM = "starnet.deviceLinkTeam";
 const ORIGINS = "starnet.deviceLinkOrigins";
 const LOG = "starnet.deviceLinkLog";
+const PENDING = "starnet.deviceLinkPendingDeletes";
 const LOG_SIZE = 300;
 /** The team list is read again this often (Firebase's free reads are counted per day) - a member who just joined
  * is seen within a minute (his Nov 5 2026 «ليس بالسرعة المطلوبة»). */
@@ -82,7 +109,7 @@ const TEAM_EVERY_MS = 60_000;
 const CODE_PREFIX = "STARNET-LINK-";
 /** Firestore's document limit is 1 MiB - a batch's JSON stays well under it (base64 adds a third). */
 const BATCH_CHARS = 550_000;
-const MAX_BATCHES_PER_ROUND = 25;
+const MAX_BATCHES_PER_ROUND = 50;
 /** One record bigger than this (a rep's «تسجيلاتي» file with its Starlink sessions) goes out in parts - a
  * single batch over Firestore's 1 MiB was refused, and the rep's devices never reached «المسؤول 2» (his
  * Nov 5 2026 report). */
@@ -166,9 +193,53 @@ export function clearConflicts(s: LinkStorage): void {
   s.setSetting(CONFLICTS, null);
 }
 
+/** 🗑️ Deletions from the other members waiting for YAHYA, oldest first. */
+export function loadPendingDeletions(s: LinkStorage): PendingDeletion[] {
+  return parse<PendingDeletion[]>(s.getSetting(PENDING), []);
+}
+
+/** ✓ «احذفها»: the held deletions go in here (and out to the rest of the team on the next round). Returns the stores
+ * that changed (the page reloads them). */
+export function approvePendingDeletion(s: LinkStorage, id: string): string[] {
+  const all = loadPendingDeletions(s);
+  const item = all.find((p) => p.id === id);
+  if (!item) return [];
+  const changed = new Set<string>();
+  for (const op of item.ops) {
+    const raw = s.read(op.k);
+    if (raw === null) continue;
+    const flat = flattenKey(raw, op.s);
+    if (op.v === null) {
+      if (!(op.r in flat.records)) continue;
+      delete flat.records[op.r];
+    } else {
+      flat.records[op.r] = op.v;
+      if (!flat.order.includes(op.r)) flat.order.push(op.r);
+    }
+    s.write(op.k, unflattenKey(flat));
+    changed.add(op.k);
+  }
+  // he decided: a store's many deletions at once are not held again
+  const st = loadLinkState(s);
+  saveLinkState(s, { ...st, confirmed: [...new Set([...st.confirmed, ...changed])] });
+  s.setSetting(PENDING, JSON.stringify(all.filter((p) => p.id !== id)));
+  return [...changed];
+}
+
+/** ✗ «أبقِها»: nothing is deleted here, and these records go out again - the member who deleted them gets them back. */
+export function rejectPendingDeletion(s: LinkStorage, id: string): void {
+  const all = loadPendingDeletions(s);
+  const item = all.find((p) => p.id === id);
+  if (!item) return;
+  const base = parse<Baseline>(s.getSetting(BASE), {});
+  for (const op of item.ops) delete base[op.k]?.hashes[op.r];
+  s.setSetting(BASE, JSON.stringify(base));
+  s.setSetting(PENDING, JSON.stringify(all.filter((p) => p.id !== id)));
+}
+
 /** Forget everything the link knew (unlink, or before a new pairing). */
 export function resetLink(s: LinkStorage): void {
-  for (const key of [CONFIG, STATE, BASE, CONFLICTS, TEAM, ORIGINS, LOG]) s.setSetting(key, null);
+  for (const key of [CONFIG, STATE, BASE, CONFLICTS, TEAM, ORIGINS, LOG, PENDING]) s.setSetting(key, null);
 }
 
 /** The phone makes the link (his Firebase + a new space + a new key). */
@@ -272,6 +343,57 @@ export function joinParts(read: { seq: number; ops: WireOp[] }[], cursor: number
   return { ops, cursor: until };
 }
 
+/** A device going to the trash (`deletedAt` newly set) - a deletion to him. */
+function isTrashing(op: SyncOp, before: string | undefined): boolean {
+  if (op.k !== "starnet_demo_accounts_v1" || op.v === null || before === undefined) return false;
+  try {
+    return !(JSON.parse(before) as { deletedAt?: unknown }).deletedAt && Boolean((JSON.parse(op.v) as { deletedAt?: unknown }).deletedAt);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 🗑️ On YAHYA: the other members' rounds that delete a thing or money here (or send a device to the trash) are held -
+ * all their deletions together, what was deleted along with it too; their other changes go in as usual.
+ */
+export function holdDeletions(remoteOps: (SyncOp & { by: string })[], here: FlatData, nameOf: (id: string) => string): { apply: (SyncOp & { by: string })[]; held: PendingDeletion[] } {
+  const groups = new Map<string, (SyncOp & { by: string })[]>();
+  for (const op of remoteOps) {
+    const id = `${op.by}|${op.at}`;
+    groups.set(id, [...(groups.get(id) ?? []), op]);
+  }
+  const heldIds = new Set<string>();
+  const held: PendingDeletion[] = [];
+  for (const [id, ops] of groups) {
+    const before = (op: SyncOp) => here[op.k]?.records[op.r];
+    const notable = ops.filter((op) => (op.v === null && isNotableStore(op.k) && before(op) !== undefined) || isTrashing(op, before(op)));
+    if (notable.length === 0 || isMainMember(ops[0]!.by)) continue;
+    const hold = ops.filter((op) => op.v === null || isTrashing(op, before(op)));
+    for (const op of hold) heldIds.add(`${id}|${op.k}|${op.r}`);
+    // a record posted from another one (a payment's cash entry) goes with it, unnamed
+    const posted = (op: SyncOp) => /"sourceId"\s*:\s*"[^"]/.test(before(op) ?? "");
+    const labels = notable.filter((op) => !posted(op)).map((op) => describeOp({ ...op, v: null }, before(op), nameOf(op.by))?.label).filter((l): l is string => Boolean(l));
+    held.push({ id, by: ops[0]!.by, byName: nameOf(ops[0]!.by), at: ops[0]!.at, ops: hold.map(({ by: _by, ...op }) => op), labels });
+  }
+  return { apply: remoteOps.filter((op) => !heldIds.has(`${op.by}|${op.at}|${op.k}|${op.r}`)), held };
+}
+
+/** 🔢 How many records each counted store has (a ledger's emptied-device marks don't count). */
+export function storeCounts(data: FlatData): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const { k } of COUNTED_STORES) {
+    const flat = data[k];
+    out[k] = flat ? Object.keys(flat.records).filter((r) => !r.endsWith("\u001f")).length : 0;
+  }
+  return out;
+}
+
+/** ✅ / ⚠️ This phone against another member's counts: the stores that differ. */
+export function compareCounts(mine: Record<string, number>, theirs: Record<string, number>): { k: string; label: string; mine: number; theirs: number }[] {
+  return COUNTED_STORES.filter(({ k }) => (mine[k] ?? 0) !== (theirs[k] ?? 0)).map(({ k, label }) => ({ k, label, mine: mine[k] ?? 0, theirs: theirs[k] ?? 0 }));
+}
+
 export interface RoundResult {
   ok: boolean;
   message: string;
@@ -283,6 +405,8 @@ export interface RoundResult {
   held: HeldDeletion[];
   /** 👥 What the other members' changes were (a notification for the notable ones). */
   incoming: TeamActivity[];
+  /** 🗑️ New deletions waiting for YAHYA. */
+  pending?: number;
 }
 
 /** One round of the link. Never throws: a network / Firebase problem is the round's message. `sendOnly`: only
@@ -309,11 +433,22 @@ export async function runLinkRound(s: LinkStorage, fetchFn: FetchFn = fetch, now
   // 1. What every other member sent since last time.
   const cursors: Record<string, number> = { ...state.cursors };
   const remoteOps: (SyncOp & { by: string })[] = [];
+  const theirCounts = { ...(state.theirCounts ?? {}) };
+  let seqTotal = 0;
+  let seqDone = 0;
   let behind = false;
   for (const member of others) {
     const head = await readDocument(config, headPath(config, member.id), fetchFn);
     if (!head.ok) return finish(fail(head.message));
     const theirSeq = Number(head.value?.seq ?? 0);
+    if (head.value?.sti) {
+      try {
+        theirCounts[member.id] = { counts: JSON.parse(await openText({ iv: head.value.sti, data: head.value.std ?? "" }, config.key)) as Record<string, number>, at: head.value.at ?? "" };
+      } catch {
+        // counts sealed with an older key - not compared
+      }
+    }
+    seqTotal += theirSeq;
     let cursor = cursors[member.id] ?? 0;
     // A member that started over (a new link) restarts its numbering.
     if (theirSeq < cursor) cursor = 0;
@@ -341,17 +476,26 @@ export async function runLinkRound(s: LinkStorage, fetchFn: FetchFn = fetch, now
     cursor = joined.cursor;
     if (cursor < theirSeq) behind = true;
     cursors[member.id] = cursor;
+    seqDone += Math.min(cursor, theirSeq);
   }
   // Several members' changes: the later change of one record wins (each member's own order kept).
   remoteOps.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
 
-  // 2. Theirs onto ours, ours kept when later.
-  const merged = merge(flat, localOps, remoteOps);
+  // 2. Theirs onto ours, ours kept when later - on YAHYA his own always, elsewhere YAHYA's always. On YAHYA another
+  // member's deletions of things / money wait for him.
+  const nameOf = (id: string) => team.members.find((m) => m.id === id)?.name ?? "عضو";
+  const main = isMainMember(config.memberId);
+  const { apply: applyOps, held: newPending } = main ? holdDeletions(remoteOps, flat, nameOf) : { apply: remoteOps, held: [] };
+  if (newPending.length > 0) {
+    const known = new Set(loadPendingDeletions(s).map((p) => p.id));
+    s.setSetting(PENDING, JSON.stringify([...loadPendingDeletions(s), ...newPending.filter((p) => !known.has(p.id))]));
+  }
+  const merged = merge(flat, localOps, applyOps, main ? { localWins: true } : { remoteWins: (op) => isMainMember((op as SyncOp & { by?: string }).by ?? "") });
   // A change he made while this round ran is never written over: the key is re-read and theirs re-applied.
   for (const k of merged.changedKeys) {
     const fresh = s.read(k);
     if (fresh !== (snapshot[k] ?? null)) {
-      const again = merge({ [k]: flattenKey(fresh ?? "null", merged.data[k]?.shape) }, [], remoteOps.filter((op) => op.k === k));
+      const again = merge({ [k]: flattenKey(fresh ?? "null", merged.data[k]?.shape) }, [], applyOps.filter((op) => op.k === k));
       merged.data[k] = again.data[k] ?? merged.data[k]!;
     }
     s.write(k, unflattenKey(merged.data[k]!));
@@ -379,8 +523,11 @@ export async function runLinkRound(s: LinkStorage, fetchFn: FetchFn = fetch, now
   }
   // The head only when something moved (Firebase's free writes are counted per day).
   const cursorsMoved = Object.entries(cursors).some(([id, c]) => (state.cursors[id] ?? 0) !== c);
-  if (seq !== state.seq || cursorsMoved || !state.lastAt) {
-    const headWritten = await writeDocument(config, headPath(config, config.memberId), { seq: String(seq), ack: JSON.stringify(cursors), at }, fetchFn);
+  const counts = storeCounts(merged.data);
+  const countsMoved = JSON.stringify(counts) !== JSON.stringify(state.counts ?? {});
+  if (!opts.sendOnly && (seq !== state.seq || cursorsMoved || countsMoved || !state.lastAt)) {
+    const sealedCounts = await sealText(JSON.stringify(counts), config.key);
+    const headWritten = await writeDocument(config, headPath(config, config.memberId), { seq: String(seq), ack: JSON.stringify(cursors), at, sti: sealedCounts.iv, std: sealedCounts.data }, fetchFn);
     if (!headWritten.ok && !sendError) sendError = headWritten.message;
   }
 
@@ -400,9 +547,8 @@ export async function runLinkRound(s: LinkStorage, fetchFn: FetchFn = fetch, now
   }
   // 👥 Who did what: marks on what they added / changed, and the log (a lost change of theirs is not theirs here).
   const lost = new Set(merged.conflicts.filter((c) => c.kept === "local").map((c) => `${c.k}|${c.r}|${c.at}`));
-  const nameOf = (id: string) => team.members.find((m) => m.id === id)?.name ?? "عضو";
   const incoming: TeamActivity[] = [];
-  for (const op of remoteOps) {
+  for (const op of applyOps) {
     if (lost.has(`${op.k}|${op.r}|${op.at}`)) continue;
     const a = describeOp(op, flat[op.k]?.records[op.r], nameOf(op.by));
     if (a) incoming.push(a);
@@ -411,18 +557,29 @@ export async function runLinkRound(s: LinkStorage, fetchFn: FetchFn = fetch, now
     s.setSetting(ORIGINS, JSON.stringify(nextOrigins(loadOrigins(s), incoming)));
     s.setSetting(LOG, JSON.stringify([...[...incoming].reverse(), ...loadActivityLog(s)].slice(0, LOG_SIZE)));
   }
-  const nextState: LinkState = { seq, cursor: 0, cursors, confirmed: state.confirmed.filter((k) => held.some((h) => h.k === k)), held, lastAt: at };
+  const nextState: LinkState = {
+    seq,
+    cursor: 0,
+    cursors,
+    confirmed: state.confirmed.filter((k) => held.some((h) => h.k === k)),
+    held,
+    lastAt: at,
+    progress: opts.sendOnly ? state.progress : { done: seqDone, total: seqTotal },
+    counts: opts.sendOnly ? state.counts : counts,
+    theirCounts,
+  };
   saveLinkState(s, nextState);
-  const applied = remoteOps.length - merged.conflicts.filter((c) => c.kept === "local").length;
+  const applied = applyOps.length - merged.conflicts.filter((c) => c.kept === "local").length;
   const result: RoundResult = {
     ok: !sendError,
-    message: sendError ?? (behind ? "⏳ يستلم البيانات على دفعات…" : "✓ متزامن"),
+    message: sendError ?? (behind ? `⏳ يستلم البيانات ${seqTotal ? Math.floor((seqDone / seqTotal) * 100) : 0}%` : "✓ متزامن"),
     sent: sentOps,
     applied: Math.max(0, applied),
     changedKeys: merged.changedKeys,
     conflicts: merged.conflicts.length,
     held,
     incoming,
+    pending: newPending.length,
   };
   return finish(result);
 
