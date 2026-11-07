@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { computeShipmentProfit } from "./accountingStore";
 import { applyLedgerPaymentsToCash } from "./cashStore";
-import { clientRecordNote, isPlainAdjustment, modeKind, noCost, showsCost } from "./ledgerModes";
+import { clientRecordNote, isPlainAdjustment, ledgerAmountError, modeKind, noCost, showsCost } from "./ledgerModes";
 import { isIncompletePaymentRateEntry, isShipmentEntry, type LedgerEntry } from "./ledgerStore";
 
 const entry = (over: Partial<LedgerEntry>): LedgerEntry => ({ id: "x", kind: "debit", amount: 1000, currency: "MRU", note: "", email: "", date: "2026-10-29", createdAt: "2026-10-29T10:00:00.000Z", ...over });
@@ -49,4 +49,16 @@ describe("🚫 a debt needs a customer (his Oct 31 2026 rule)", () => {
     expect(debtNeedsClient({ representativeId: "other" }, reps)).toBe(true);
     expect(debtNeedsClient({ representativeId: "gone" }, reps)).toBe(true);
   });
+
+  it("🆓 0 is allowed for a charge with its Starlink cost only (his Nov 7 2026 ask)", () => {
+    expect(ledgerAmountError("0", "debit", true)).toBeNull();
+    expect(ledgerAmountError("00", "debit", true)).toBeNull();
+    expect(ledgerAmountError("5000", "debit", true)).toBeNull();
+    expect(ledgerAmountError("0", "debit", false)).toBe("أدخل مبلغًا صحيحًا أكبر من صفر");
+    expect(ledgerAmountError("0", "credit", false)).toBe("أدخل مبلغًا صحيحًا أكبر من صفر");
+    expect(ledgerAmountError("", "debit", true)).toBe("أدخل مبلغًا صحيحًا (0 أو أكثر)");
+    expect(ledgerAmountError("-5", "debit", true)).toBe("أدخل مبلغًا صحيحًا (0 أو أكثر)");
+    expect(ledgerAmountError("abc", "credit", false)).toBe("أدخل مبلغًا صحيحًا أكبر من صفر");
+  });
 });
+

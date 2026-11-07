@@ -63,7 +63,7 @@ import { HelpHint } from "./HelpHint";
 import { loadExpectedCurrency } from "@/lib/partyCurrencyData";
 import { awaitingCost, parseBillAmount } from "@/lib/awaitingBill";
 import { CurrencyBadge, CurrencyBanner, useCurrencyGuard } from "./CurrencyGuard";
-import { isPlainAdjustment, LEDGER_MODES, modeKind, noCost, showsCost, type LedgerMode, type LedgerTarget } from "@/lib/ledgerModes";
+import { isPlainAdjustment, ledgerAmountError, LEDGER_MODES, modeKind, noCost, showsCost, type LedgerMode, type LedgerTarget } from "@/lib/ledgerModes";
 import { fitPayMethod, methodLabel, PAY_CURRENCIES, PAY_CURRENCY_LABELS, payMethodsFor, toLedgerPayment, type PayCurrency } from "@/lib/payCurrency";
 
 /** One other device linked to the same customer - siblings, never the account currently open in
@@ -402,7 +402,7 @@ export function LedgerDialog({
   const parsedSaleAmount = Number(amount);
   const parsedSaleRate = Number(rateInput);
   const saleUsdValue =
-    isDebitForm && Number.isFinite(parsedSaleAmount) && parsedSaleAmount > 0
+    isDebitForm && amount.trim() !== "" && Number.isFinite(parsedSaleAmount) && parsedSaleAmount >= 0
       ? currency === "USD"
         ? parsedSaleAmount
         : Number.isFinite(parsedSaleRate) && parsedSaleRate > 0
@@ -422,8 +422,9 @@ export function LedgerDialog({
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const parsedAmount = Number(amount);
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      setFormError("أدخل مبلغًا صحيحًا أكبر من صفر");
+    const amountError = ledgerAmountError(amount, kind, costShown);
+    if (amountError) {
+      setFormError(amountError);
       return;
     }
 

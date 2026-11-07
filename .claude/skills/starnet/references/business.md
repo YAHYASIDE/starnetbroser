@@ -3004,3 +3004,10 @@ is never pressed while a field is empty - it refills and saves on the next try (
   ذلك» (`receiptOverride`). The reference rides into 📜 the operations log (`LoggedOp.receiptRef`: the list, the
   detail, the receipt image, the search).
 
+## 🆓 A charge of 0 for the customer (Nov 7 2026)
+
+- His screenshot («➕ إضافة» عليه سيفا, the amount 0, Starlink cost 582.08 HNL): «اجعل يمكن إضافة المبلغ 00». A charge
+  WITH its Starlink cost may be 0 for the customer (nothing عليه, the cost recorded - the whole cost is a loss in the
+  profit preview and reports); a payment or a plain balance («بدون تكلفة») of 0 is still refused (`ledgerAmountError`,
+  lib/ledgerModes.ts, tested).
+

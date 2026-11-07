@@ -31,6 +31,18 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-11-07-free-charge",
+    date: "2026-11-07",
+    title: "🆓 شحن بمبلغ 0 للزبون",
+    steps: [
+      {
+        title: "🆓 «إضافة» بمبلغ 0",
+        before: "«أدخل مبلغًا صحيحًا أكبر من صفر» - لا يمكن تسجيل شحن مجاني للزبون.",
+        after: "في «➕ إضافة» مع تكلفة Starlink يمكن أن يكون مبلغ الزبون 0: لا شيء عليه، وتكلفة Starlink تُسجَّل كاملة كخسارة في الربح. الدفعة والرصيد وحده ما زالا يحتاجان مبلغًا أكبر من 0.",
+      },
+    ],
+  },
+  {
     id: "2026-11-07-support-whatsapp-mr",
     date: "2026-11-07",
     title: "📨 رسالة التفعيل: واتساب الدعم موريتاني",

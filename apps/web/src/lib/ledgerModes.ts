@@ -52,3 +52,16 @@ export function debtNeedsClient(
   if (account.clientId) return false;
   return !(account.representativeId && reps[account.representativeId]?.customersHidden);
 }
+
+/**
+ * The amount typed in «إضافة» / «دفعة»: null when it can be saved, else what to tell him. 🆓 His Nov 7 2026 ask «اجعل
+ * يمكن إضافة المبلغ 0»: a charge with its Starlink cost may be free for the customer (0 عليه, the cost still recorded -
+ * a loss); a payment or a plain balance of 0 means nothing.
+ */
+export function ledgerAmountError(text: string, kind: "debit" | "credit", withCost: boolean): string | null {
+  const value = text.trim() === "" ? NaN : Number(text);
+  const zeroOk = kind === "debit" && withCost;
+  if (Number.isFinite(value) && (value > 0 || (value === 0 && zeroOk))) return null;
+  return zeroOk ? "أدخل مبلغًا صحيحًا (0 أو أكثر)" : "أدخل مبلغًا صحيحًا أكبر من صفر";
+}
+
