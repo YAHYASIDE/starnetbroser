@@ -23,7 +23,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
   { id: "alerts", icon: "🔔", title: "التذكيرات", short: "التذكيرات", subtitle: "الصباح، المساء، الإشعارات", tone: "yellow", anchors: ["alerts"] },
   // 🔄 Every kind of sync in one place (his Oct 17 2026 ask «كل أنواع المزامنة في الإعدادات في مكان اسمه المزامنة التلقائية»).
   { id: "sync", icon: "🔄", title: "المزامنة التلقائية", short: "المزامنة", subtitle: "ستارلينك، الخلفية، المندوبون", tone: "brand", anchors: ["sync", "scheduled-syncs", "auto-sync", "background-sync", "live-sync"] },
-  { id: "devices", icon: "🛰️", title: "الأجهزة", short: "الأجهزة", subtitle: "الجلسات، تثبيت يوم التجديد", tone: "mint", anchors: ["devices", "sessions"] },
+  { id: "devices", icon: "🛰️", title: "الأجهزة", short: "الأجهزة", subtitle: "الجلسات، تثبيت يوم التجديد", tone: "mint", anchors: ["devices", "sessions", "customer-messages"] },
   { id: "bots", icon: "✈️", title: "البوتات", short: "البوتات", subtitle: "بوتك، بوتات المندوبين", tone: "violet", anchors: ["bots", "telegram"] },
   { id: "backup", icon: "💾", title: "النسخ الاحتياطي", short: "النسخ", subtitle: "نسخة كاملة، يومية، Google Drive", tone: "green", anchors: ["backup", "drive", "device-link"] },
   { id: "security", icon: "🔒", title: "الأمان والتطبيق", short: "الأمان", subtitle: "القفل، التحديث، التخزين", tone: "red", anchors: ["security", "lock", "update"] },
@@ -64,7 +64,7 @@ export function rememberGroup(id: SettingsGroupId): void {
 export type SettingsItemId =
   | "whats-new" | "shortcuts" | "passwords" | "gmail-codes" | "mail-domain" | "card-gmail" | "theme" | "help" | "invoice-currency" | "business" | "profit-reset"
   | "reminders"
-  | "scheduled-syncs" | "auto-sync" | "background-sync" | "sessions" | "renewal-lock"
+  | "scheduled-syncs" | "auto-sync" | "background-sync" | "sessions" | "renewal-lock" | "customer-messages"
   | "telegram" | "rep-bots" | "live-sync" | "activation-costs" | "instant-replies"
   | "device-link" | "backup-full" | "backup-daily" | "drive"
   | "lock" | "update" | "rep-mode" | "storage" | "server";
@@ -97,6 +97,7 @@ export const SETTINGS_ITEMS: SettingsItem[] = [
   { id: "auto-sync", group: "sync", icon: "🔄", title: "تحديث الأجهزة من Starlink", summary: "المزامنة التلقائية ووقتها، والحماية من خطأ 429", keywords: ["مزامنة", "تحديث", "ستارلينك", "starlink", "تلقائي", "429"] },
   { id: "background-sync", group: "sync", icon: "🌙", title: "المزامنة في الخلفية", summary: "«مزامنة الآن» دون فتح الصفحات", keywords: ["خلفية", "مزامنة", "الظهور فوق التطبيقات", "مزامنة الآن"] },
   { id: "renewal-lock", group: "devices", icon: "📌", title: "تثبيت يوم التجديد", summary: "يوم التجديد لا يتغيّر مع المزامنة", keywords: ["تثبيت", "يوم التجديد", "تاريخ", "تجديد", "مثبت"] },
+  { id: "customer-messages", group: "devices", icon: "💬", title: "رسائل الزبون الجاهزة", summary: "نصوص حالة الجهاز والتفعيل والتوثيق - عدّلها", keywords: ["رسالة", "رسائل", "زبون", "واتساب", "جاهزة", "لقطة", "تفعيل", "توثيق", "نص"] },
   { id: "sessions", group: "devices", icon: "🔐", title: "فحص جلسات الدخول", summary: "أي الأجهزة خرجت من Starlink", keywords: ["جلسة", "جلسات", "دخول", "خروج"] },
   { id: "telegram", group: "bots", icon: "✈️", title: "تيليغرام (بوتك)", summary: "التنبيهات والأوامر من بوتك", keywords: ["تيليغرام", "تلغرام", "telegram", "بوت"] },
   { id: "rep-bots", group: "bots", icon: "🤝", title: "بوتات المندوبين", summary: "ربط كل مندوب ببوته", keywords: ["مندوب", "مندوبين", "بوت"] },

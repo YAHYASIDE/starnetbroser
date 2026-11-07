@@ -31,6 +31,8 @@ export interface OpenAccountBrowserOptions {
   /** 📸 The device's customer - the ready messages with a screenshot greet him and go to his WhatsApp. */
   customerName?: string;
   customerPhone?: string;
+  /** 📨 His ready messages as edited in Settings (JSON, apps/web lib/customerMessages.ts messagesForBrowser). */
+  customerMessages?: string;
   /** 🆕 «إنشاء حساب جديد»: «تفعيل Starlink» is filled with the KIT (then «متابعة»), and
    * «معلومات الاتصال» with the name, email and phone - the rest is done by hand. */
   activation?: StarlinkActivationFill;
@@ -771,6 +773,9 @@ export interface LocalBrowserPlugin {
 
   /** ⏰ «تم»: the reminder is over. */
   doneDeviceReminder(options: { id: string }): Promise<void>;
+
+  /** ⏰ A reminder set by the app (his «⏸️ إطفاء 3 أيام» message). Rejects on web. */
+  addDeviceReminder(options: { accountId: string; device: string; at: number; note: string }): Promise<{ id: string }>;
 
   /** The linked card-code Gmail (no `email` when none). */
   cardGmailStatus(): Promise<{ email?: string }>;

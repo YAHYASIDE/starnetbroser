@@ -317,6 +317,10 @@ export class LocalBrowserWeb extends WebPlugin implements LocalBrowserPlugin {
     return;
   }
 
+  async addDeviceReminder(_options: { accountId: string; device: string; at: number; note: string }): Promise<{ id: string }> {
+    throw this.unavailable(WEB_UNSUPPORTED_MESSAGE);
+  }
+
   async cardGmailStatus(): Promise<{ email?: string }> {
     return {};
   }

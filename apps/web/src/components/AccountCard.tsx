@@ -56,6 +56,8 @@ import { TeamFlagSheet } from "./TeamFlagSheet";
 import { customerExtrasFor } from "@/lib/deviceCustomer";
 import { loadDeviceShots } from "@/lib/deviceShots";
 import { DeviceShotsSheet } from "./DeviceShotsSheet";
+import { CustomerMessageSheet } from "./CustomerMessageSheet";
+import type { CustomerMessage } from "@/lib/customerMessages";
 import { isRepWorkspace } from "@/lib/repMode";
 import { pinAgeText, type DeviceNote } from "@/lib/deviceNotes";
 import { reminderWhenLabel, type DeviceReminder } from "@/lib/deviceReminders";
@@ -142,6 +144,8 @@ interface Props {
   onNotDuplicate?: (account: StarlinkAccountSummary, twin: StarlinkAccountSummary) => void;
   /** 🛂 «✅ تم التوثيق» (tells its rep). */
   onTravelDone?: (account: StarlinkAccountSummary) => void;
+  /** 📨 A ready message sent from the card's ⋯ (logged; may change the device - lib/customerMessages.ts). */
+  onCustomerMessage?: (account: StarlinkAccountSummary, message: CustomerMessage) => void;
   /** 🛂 «🔄 تحقق الآن»: reads this device's Home only. */
   onTravelCheck?: (account: StarlinkAccountSummary) => void;
   /** ✅ In «تم توثيقها»: the registration line with its price. */
@@ -301,6 +305,7 @@ export function AccountCard({
   onMergeInto,
   onNotDuplicate,
   onTravelDone,
+  onCustomerMessage,
   onTravelCheck,
   showTravelVerified = false,
   deviceNote,
@@ -568,6 +573,7 @@ export function AccountCard({
   // never a second toggle elsewhere on the same card.
   const [expanded, setExpanded] = useState(false);
   const [showMore, setShowMore] = useState(false);
+  const [showMessages, setShowMessages] = useState(false);
   const [showDishAlerts, setShowDishAlerts] = useState(false);
   const [showPasteSession, setShowPasteSession] = useState(false);
   const [showCopySession, setShowCopySession] = useState(false);
@@ -1435,6 +1441,16 @@ export function AccountCard({
         </div>
       )}
 
+      {showMessages && onCustomerMessage && (
+        <CustomerMessageSheet
+          accountId={account.id}
+          deviceName={account.name}
+          customerName={client?.name}
+          phone={client?.phone || account.phone}
+          onSent={(message) => onCustomerMessage(account, message)}
+          onClose={() => setShowMessages(false)}
+        />
+      )}
       {showShots && <DeviceShotsSheet accountId={account.id} name={account.name} onClose={() => setShowShots(false)} />}
       {showTeamFlag && <TeamFlagSheet device={{ id: account.id, name: account.name, email: account.starlinkAccountEmail || account.expectedEmail }} onClose={() => setShowTeamFlag(false)} />}
 
@@ -1468,6 +1484,8 @@ export function AccountCard({
                   : []),
                 { icon: "📅", label: "تجديد", run: () => setShowRenewalDialog(true) },
                 { icon: "📨", label: "رسالة التفعيل", run: () => setShowActivation(true) },
+                // 💬 his ready messages (state / activation / travel) straight to the customer's WhatsApp + what was sent
+                ...(onCustomerMessage ? [{ icon: "💬", label: "رسالة للزبون", run: () => setShowMessages(true) }] : []),
                 // 🚩 a team member's alert on this device (his Nov 7 2026 ask) - not in a rep's own app (he has his own 🚩)
                 ...(!repApp ? [{ icon: "🚩", label: "تنبيه للمسؤول", run: () => setShowTeamFlag(true) }] : []),
                 // 📎 the screenshots kept from its browser («📸 لقطة ذكية»)

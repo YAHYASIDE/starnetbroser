@@ -3087,4 +3087,20 @@ is never pressed while a field is empty - it refills and saves on the next try (
   ضعف في الأسلاك أو الكهرباء / تم الدفع وتصفير الحساب 0) · «⚡ رسالة تفعيل» (his 5: 100 جيجا / تجوال غير محدود / 50 جيجا /
   تفعيل والخدمة ضعيفة / لا يمكن التفعيل) · 📎 · 🚩 · 📤 (`ShotMessages.STATUS` / `ACTIVATION`, JUnit). Each message:
   «مرحبًا <name>،» + his sentence + «📡 الجهاز: <device>» + «⭐ STAR NET».
+- Same day, my four suggestions - he chose ALL four («الرسالة تُحدّث الجهاز، الرسائل من بطاقة الجهاز أيضًا، سجل ما أُرسل
+  للزبون، تعديل نصوص الرسائل»). One list for the browser and the card: `apps/web/src/lib/customerMessages.ts`
+  (`DEFAULT_CUSTOMER_MESSAGES` = his words, ids shared with `ShotMessages` rows {label, message, id}):
+  - **Edit the texts**: Settings → الأجهزة → «💬 رسائل الزبون الجاهزة» (button + text, preview, «↺ الأصل»). Only what he
+    changed is kept (`starnet_customer_messages_v1`); the browser gets the lists as `customerMessages` JSON
+    (EXTRA_CUSTOMER_MESSAGES) and falls back to `ShotMessages` (`pick`) when missing or broken.
+  - **From the card**: ⋯ → «💬 رسالة للزبون» (CustomerMessageSheet): tabs حالة الجهاز / التفعيل / التوثيق, opens the
+    customer's WhatsApp chat with the text (no number → WhatsApp asks for the chat), no screenshot.
+  - **Log**: every send (browser 📸 = staged read `customerMessage {id, label, at}`, or the card) → 
+    `starnet_customer_message_log_v1` per device, newest first, 30 kept, with who sent it (team name) - «📜 ما أُرسل» in
+    the same sheet. Both stores are `starnet_` → backup + team link.
+  - **The message changes the device** (`messageEffectPlan`): «✅ تم التوثيق» → marked travel-done (same handler as the
+    card); «🔥 نظن أنه محروق» → «المعطلة» reason burned **without waiving D** (money stays his decision; only when the device
+    has no fault yet); «⏸️ إطفاء 3 أيام» → ⏰ a phone reminder 3 days later («أخبر الزبون أن يشغّل الجهاز», plugin
+    `addDeviceReminder`; on the laptop a pin dated that day instead). Every other message = log only (an activation or
+    «تم الدفع» message never records money or a renewal by itself).
 

@@ -25,12 +25,25 @@ public class ShotMessagesTest {
         assertEquals(5, ShotMessages.ACTIVATION.length);
         for (String[][] list : new String[][][] {ShotMessages.STATUS, ShotMessages.ACTIVATION}) {
             for (String[] item : list) {
-                assertEquals(2, item.length);
+                assertEquals(3, item.length);
                 assertFalse(item[0].isEmpty());
                 assertFalse(item[1].isEmpty());
+                assertFalse(item[2].isEmpty());
             }
         }
         assertTrue(ShotMessages.STATUS[5][1].contains("3 أيام متتالية"));
         assertEquals("📶 100 جيجا", ShotMessages.labels(ShotMessages.ACTIVATION)[0]);
+        assertEquals("off3days", ShotMessages.STATUS[5][2]);
+        assertEquals("burned", ShotMessages.STATUS[6][2]);
+    }
+
+    @Test
+    public void hisEditedTextsFromTheAppWinUnlessBroken() {
+        String[][] mine = {{"✅ تمام", "✅ جهازك تمام.", "ok"}};
+        assertEquals(mine, ShotMessages.pick(mine, ShotMessages.STATUS));
+        assertEquals(ShotMessages.STATUS, ShotMessages.pick(null, ShotMessages.STATUS));
+        assertEquals(ShotMessages.STATUS, ShotMessages.pick(new String[0][], ShotMessages.STATUS));
+        assertEquals(ShotMessages.STATUS, ShotMessages.pick(new String[][] {{"x", " ", "ok"}}, ShotMessages.STATUS));
+        assertEquals(ShotMessages.STATUS, ShotMessages.pick(new String[][] {{"x", "y"}}, ShotMessages.STATUS));
     }
 }

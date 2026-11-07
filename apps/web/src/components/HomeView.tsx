@@ -158,6 +158,19 @@ import { applyBrowserPins, isBrowserPin, isPinned, loadDeviceNotes, mergeDeviceN
 import { ACCOUNTS_CHANGED_EVENT } from "@/lib/repMenuRecords";
 import { addIncomingFlags, isBrowserTeamFlag, loadOwnerFlags, saveOwnerFlags, teamFlagsFromBrowser } from "@/lib/repFlags";
 import { teamMemberName } from "./TeamFlagSheet";
+import {
+  addSentMessage,
+  customerMessages,
+  isBrowserCustomerMessage,
+  loadMessageEdits,
+  loadMessageLog,
+  localDateOf,
+  messageById,
+  messageEffectPlan,
+  MESSAGE_LOG_EVENT,
+  saveMessageLog,
+  type CustomerMessage,
+} from "@/lib/customerMessages";
 import { customerExtrasFor } from "@/lib/deviceCustomer";
 import { addDeviceShot, allShotIds, isShotImage, loadDeviceShots, saveDeviceShots, shotKey } from "@/lib/deviceShots";
 import { loadRepRequests, pendingRepRequests } from "@/lib/repRequests";
@@ -168,6 +181,7 @@ import {
   isRunningInAndroidApp,
   listMailSessions,
   listPendingAccountSyncs,
+  addDeviceReminder,
   onAccountDataSynced,
   mailExtrasFor,
   openAccountCreation,
@@ -401,6 +415,7 @@ export function HomeView({
   deskPage?: "home" | "devices";
 }) {
   const travelDoneRef = useRef<(account: StarlinkAccountSummary) => void>(() => undefined);
+  const customerMessageRef = useRef<(account: StarlinkAccountSummary, message: CustomerMessage, via: "browser" | "card", at: number) => void>(() => undefined);
   const router = useRouter();
   // 🖥️ The Windows app's own layout (his Oct 21 2026 brief) - the phone's stays exactly as it is.
   const deskWide = useDeskWide();
@@ -1107,6 +1122,35 @@ export function HomeView({
    * on his bot at once (his choice). */
   // 📸 the browser's «✅ تم التوثيق» goes through the same handler (kept current for the reads' drain)
   travelDoneRef.current = (account: StarlinkAccountSummary) => handleTravelDone(account);
+  customerMessageRef.current = (account, message, via, at) => handleCustomerMessage(account, message, via, at);
+
+  /** 📨 A ready message went to the customer (the browser's 📸 or the card's ⋯): it's logged on the device and does
+   * what it means (lib/customerMessages.ts) - «تم التوثيق» marks it, «محروق» → «المعطلة» (D untouched), «إطفاء 3
+   * أيام» → ⏰ a reminder 3 days later (a dated pin where reminders don't exist: the laptop). */
+  function handleCustomerMessage(account: StarlinkAccountSummary, message: CustomerMessage, via: "browser" | "card", at: number = Date.now()) {
+    const by = teamMemberName();
+    saveMessageLog(addSentMessage(loadMessageLog(), account.id, { id: message.id, label: message.label, at, via, ...(by && by !== "أنا" ? { by } : {}) }));
+    window.dispatchEvent(new Event(MESSAGE_LOG_EVENT));
+    const plan = messageEffectPlan(message, account, at);
+    if (plan.travelDone) handleTravelDone(account);
+    if (plan.fault) {
+      handleSetDeviceFault(account, plan.fault, false);
+      pushToast(`🔥 «${account.name}» في «المعطلة» (محروق) - D كما هو`);
+    }
+    const reminder = plan.reminder;
+    if (reminder) {
+      void addDeviceReminder({ accountId: account.id, device: account.name, at: reminder.at, note: reminder.note }).then((ok) => {
+        if (ok) {
+          pushToast(`⏰ سيذكّرك بعد 3 أيام أن تخبر زبون «${account.name}» بتشغيله`);
+          return;
+        }
+        const current = loadDeviceNotes();
+        const until = localDateOf(reminder.at);
+        commitDeviceNotes(saveDeviceNote(current, account.id, { text: current[account.id]?.text || reminder.note, pin: true, until }));
+        pushToast(`📌 «${account.name}» مثبّت حتى ${until} - أخبر الزبون بتشغيله`);
+      });
+    }
+  }
   function handleTravelDone(account: StarlinkAccountSummary) {
     patchAccount(account.id, markTravelDone(account));
     if (!account.representativeId) {
@@ -1613,6 +1657,23 @@ export function HomeView({
         saveDeviceShots(shots);
       }
 
+      // 📨 A ready message the browser's 📸 sent to the customer (lib/customerMessages.ts) - never a Starlink read.
+      const sentToCustomer = batch.filter((sync) => isBrowserCustomerMessage(sync) && !processedSyncIds.has(sync.syncId));
+      if (sentToCustomer.length > 0) {
+        const list = customerMessages(loadMessageEdits());
+        for (const sync of sentToCustomer) {
+          const field = (sync.fields as { customerMessage: { id: string; label?: unknown; at?: unknown } }).customerMessage;
+          const account = accountsRef.current.find((a) => a.id === sync.accountId && !a.deletedAt);
+          const message = messageById(list, field.id);
+          if (account && message) {
+            const label = typeof field.label === "string" && field.label.trim() ? field.label.trim() : message.label;
+            customerMessageRef.current(account, { ...message, label }, "browser", typeof field.at === "number" ? field.at : Date.now());
+          }
+          processedSyncIds.add(sync.syncId);
+          unackedSyncIds.add(sync.syncId);
+        }
+      }
+
       // 📌 The device browser's «تثبيت - لم يُسجَّل الشحن بعد» tab: a pin + note, never a Starlink read.
       const browserPins = batch.filter((sync) => isBrowserPin(sync) && !processedSyncIds.has(sync.syncId));
       // ⏳ «شحن بانتظار الفاتورة»: the customer's price typed there - the charge is recorded with its D
@@ -1698,7 +1759,7 @@ export function HomeView({
           }
         }
       }
-      const syncs = batch.filter((sync) => !isBrowserPin(sync) && !isBrowserTeamFlag(sync as never) && !isShotAction(sync));
+      const syncs = batch.filter((sync) => !isBrowserPin(sync) && !isBrowserTeamFlag(sync as never) && !isShotAction(sync) && !isBrowserCustomerMessage(sync));
       if (syncs.length === 0) {
         await retryAcks();
         return;
@@ -2814,6 +2875,7 @@ export function HomeView({
       onPatch={viewMode === "active" ? (target, patch) => patchAccount(target.id, patch) : undefined}
       onTravelPrice={viewMode === "active" ? handleTravelPrice : undefined}
       onTravelDone={viewMode === "active" ? handleTravelDone : undefined}
+      onCustomerMessage={viewMode === "active" ? (target, message) => handleCustomerMessage(target, message, "card") : undefined}
       onTravelCheck={viewMode === "active" ? (target) => travelCheckIds([target.id], target.name) : undefined}
       showTravelVerified={statFilter === "travelDone"}
       unregisteredCard={viewMode === "active" && isUnregisteredCard(account, paymentCards)}

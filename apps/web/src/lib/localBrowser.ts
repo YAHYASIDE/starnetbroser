@@ -1,5 +1,6 @@
 "use client";
 
+import { customerMessages, loadMessageEdits, messagesForBrowser } from "./customerMessages";
 import { Capacitor, PluginListenerHandle } from "@capacitor/core";
 import {
   AccountDataSyncedEvent,
@@ -200,10 +201,19 @@ export async function openIsolatedAccountBrowser(accountId: string, accountName:
     // The device browser is its own Activity - STAR NET going to the background for it must not
     // count as "left the app" for the PIN re-lock.
     markInternalLeave();
-    await LocalBrowser.openAccountBrowser({ accountId, accountName, url: STARLINK_ACCOUNT_HOME_URL, ...login, ...balanceRatesOption() });
+    await LocalBrowser.openAccountBrowser({ accountId, accountName, url: STARLINK_ACCOUNT_HOME_URL, ...login, ...balanceRatesOption(), ...customerMessagesOption() });
     return { ok: true };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : "تعذر فتح المتصفح المحلي" };
+  }
+}
+
+/** 📨 His ready messages as edited in Settings, for the browser's «📸 لقطة ذكية» (lib/customerMessages.ts). */
+export function customerMessagesOption(): { customerMessages?: string } {
+  try {
+    return { customerMessages: messagesForBrowser(customerMessages(loadMessageEdits())) };
+  } catch {
+    return {};
   }
 }
 
@@ -477,6 +487,17 @@ export async function listDeviceReminders(): Promise<DeviceReminder[]> {
     return (await LocalBrowser.listDeviceReminders()).reminders ?? [];
   } catch {
     return [];
+  }
+}
+
+/** ⏰ A reminder on this phone (his «⏸️ إطفاء 3 أيام» message) - false off the Android app or when it failed. */
+export async function addDeviceReminder(input: { accountId: string; device: string; at: number; note: string }): Promise<boolean> {
+  if (!isRunningInAndroidApp()) return false;
+  try {
+    await LocalBrowser.addDeviceReminder(input);
+    return true;
+  } catch {
+    return false;
   }
 }
 

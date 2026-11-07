@@ -121,6 +121,7 @@ import { DriveFile, DriveUploadStatus, driveBackupLabel, getDriveEmail, getDrive
 import { downloadGoogleDriveBackup, linkGoogleDrive, listGoogleDriveBackups, runDriveBackup, unlinkGoogleDrive } from "@/lib/driveBackupRunner";
 import { PartySheet } from "@/components/AccountsSection";
 import { BusinessProfile, DEFAULT_PAYMENT_INSTRUCTIONS, loadBusinessProfile, saveBusinessProfile } from "@/lib/pdfDocument";
+import { CustomerMessagesSection } from "@/components/CustomerMessagesSection";
 import { clearAppPin, hasAppPin, setAppPin, verifyAppPin } from "@/lib/appLock";
 import { loadProfitReset, ProfitReset, saveProfitReset, startProfitFresh, undoProfitFresh } from "@/lib/profitReset";
 import { listRepresentatives, loadRepresentativeStore, Representative, saveRepresentativeStore } from "@/lib/repStore";
@@ -467,6 +468,7 @@ export default function SettingsPage() {
           <>
             <SettingsFold id="sessions"><SessionCheckSection /></SettingsFold>
             <SettingsFold id="renewal-lock"><RenewalLockAllSection /></SettingsFold>
+            <SettingsFold id="customer-messages"><CustomerMessagesSection /></SettingsFold>
           </>
         )}
 

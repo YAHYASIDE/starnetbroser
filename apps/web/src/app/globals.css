@@ -20327,3 +20327,27 @@ html.has-rep-flags body { padding-top: calc(var(--safe-top) + 46px); }
 .device-shots-meta { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 0.78rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .rep-flags-photo { display: block; width: 100%; max-height: 260px; object-fit: contain; border-radius: var(--radius-md); border: 1px solid var(--border); margin: 4px 0; background: var(--surface-alt); }
 
+
+/* 💬 رسائل الزبون الجاهزة: the card's ⋯ sheet and the Settings editor (lib/customerMessages.ts) */
+.msg-kind-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 8px; }
+.msg-kind-tab { flex: 1 1 0; min-width: 0; padding: 8px 6px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-alt); color: var(--text); font: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
+.msg-kind-tab.is-active { border-color: var(--brand); background: var(--brand); color: #fff; }
+.msg-list, .msg-edit-group { display: flex; flex-direction: column; gap: 6px; }
+.msg-edit-group { margin-bottom: 12px; }
+.msg-item { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); font: inherit; text-align: start; cursor: pointer; }
+.msg-item-label { font-size: 0.88rem; font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+.msg-item-hint { font-size: 0.72rem; color: var(--brand); }
+.msg-edited { font-weight: 400; color: var(--text-muted); }
+.msg-edit-link { display: inline-block; margin: 8px 0 4px; text-decoration: none; }
+.msg-log-title { margin: 10px 0 6px; font-size: 0.85rem; }
+.msg-log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.msg-log-item { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 0.82rem; }
+.msg-log-item span { min-width: 0; overflow-wrap: anywhere; }
+.msg-log-item small { flex-shrink: 0; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.msg-edit-box { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px solid var(--brand); border-radius: 12px; background: var(--surface); }
+.msg-field { display: flex; flex-direction: column; gap: 4px; font-size: 0.78rem; font-weight: 700; color: var(--text-muted); }
+.msg-edit-body { min-height: 90px; resize: vertical; font: inherit; }
+.msg-preview { margin: 0; padding: 8px 10px; border-radius: 10px; background: var(--surface-alt); color: var(--text); font: inherit; font-size: 0.8rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.msg-edit-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.msg-input { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-alt); color: var(--text); font: inherit; font-size: 0.88rem; font-weight: 400; }
+.msg-input:focus { outline: 2px solid var(--brand); outline-offset: 0; }

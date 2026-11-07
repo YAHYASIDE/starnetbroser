@@ -521,6 +521,25 @@ public class LocalBrowserPlugin extends Plugin {
     }
 
     /** ⏰ «تم»: the reminder is over (its alarm cancelled if it hasn't rung). */
+    /** ⏰ A reminder set by the app (his «⏸️ إطفاء 3 أيام» message: tell the customer to turn it on again). */
+    @PluginMethod
+    public void addDeviceReminder(PluginCall call) {
+        Long at = call.getLong("at");
+        if (at == null || at <= System.currentTimeMillis()) {
+            call.reject("bad time");
+            return;
+        }
+        org.json.JSONObject r = DeviceReminderStore.add(getContext(), call.getString("accountId", ""), call.getString("device", ""), at, call.getString("note", ""));
+        if (r == null) {
+            call.reject("not saved");
+            return;
+        }
+        DeviceReminderReceiver.schedule(getContext(), r.optString("id"), at);
+        JSObject ret = new JSObject();
+        ret.put("id", r.optString("id"));
+        call.resolve(ret);
+    }
+
     @PluginMethod
     public void doneDeviceReminder(PluginCall call) {
         String id = call.getString("id", "");
@@ -834,6 +853,9 @@ public class LocalBrowserPlugin extends Plugin {
         String customerPhone = options.getString("customerPhone");
         if (customerName != null && !customerName.trim().isEmpty()) intent.putExtra(AccountBrowserActivity.EXTRA_CUSTOMER_NAME, customerName.trim());
         if (customerPhone != null && !customerPhone.trim().isEmpty()) intent.putExtra(AccountBrowserActivity.EXTRA_CUSTOMER_PHONE, customerPhone.trim());
+        // 📨 his ready messages as edited in Settings (the browser falls back to ShotMessages)
+        String customerMessages = options.getString("customerMessages");
+        if (customerMessages != null && customerMessages.length() < 60000) intent.putExtra(AccountBrowserActivity.EXTRA_CUSTOMER_MESSAGES, customerMessages);
         String mailRecovery = options.getString("mailRecoveryEmail");
         if (mailRecovery != null && !mailRecovery.trim().isEmpty()) intent.putExtra(AccountBrowserActivity.EXTRA_MAIL_RECOVERY, mailRecovery.trim());
         // A distinct Uri per account (never loaded/navigated to - AccountBrowserActivity only

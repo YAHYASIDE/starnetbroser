@@ -70,6 +70,8 @@ public class AccountBrowserActivity extends AppCompatActivity {
     /** 📸 The device's customer - his name and number, for the ready messages with a screenshot. */
     public static final String EXTRA_CUSTOMER_NAME = "com.starnetbroser.localbrowser.CUSTOMER_NAME";
     public static final String EXTRA_CUSTOMER_PHONE = "com.starnetbroser.localbrowser.CUSTOMER_PHONE";
+    /** 📨 His ready messages as edited in Settings (JSON from apps/web lib/customerMessages.ts messagesForBrowser). */
+    public static final String EXTRA_CUSTOMER_MESSAGES = "com.starnetbroser.localbrowser.CUSTOMER_MESSAGES";
     public static final String EXTRA_URL = "com.starnetbroser.localbrowser.URL";
     public static final String EXTRA_LOGIN_EMAIL = "com.starnetbroser.localbrowser.LOGIN_EMAIL";
     public static final String EXTRA_LOGIN_PASSWORD = "com.starnetbroser.localbrowser.LOGIN_PASSWORD";
@@ -263,6 +265,9 @@ public class AccountBrowserActivity extends AppCompatActivity {
     /** The device's name, for the ⏳ notification while a task runs (BusyService). */
     private String deviceLabel;
     private String customerName = "";
+    private String travelBody = ShotMessages.TRAVEL_DONE;
+    private String[][] statusMessages = ShotMessages.STATUS;
+    private String[][] activationMessages = ShotMessages.ACTIVATION;
     private String customerPhone = "";
     /** 📸 Android 14+: told when he takes a screenshot here. */
     private Object shotCallback;
@@ -296,6 +301,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
         String cp = getIntent().getStringExtra(EXTRA_CUSTOMER_PHONE);
         customerName = cn != null ? cn : "";
         customerPhone = cp != null ? cp : "";
+        readCustomerMessages(getIntent().getStringExtra(EXTRA_CUSTOMER_MESSAGES));
         homeUrl = getIntent().getStringExtra(EXTRA_URL);
         autofillScript = LoginAutofill.script(getIntent().getStringExtra(EXTRA_LOGIN_EMAIL), getIntent().getStringExtra(EXTRA_LOGIN_PASSWORD));
         savedLoginPassword = getIntent().getStringExtra(EXTRA_LOGIN_PASSWORD);
@@ -1705,14 +1711,14 @@ public class AccountBrowserActivity extends AppCompatActivity {
     private void onShotAction(int which, android.graphics.Bitmap shot, java.io.File file) {
         switch (which) {
             case 0:
-                shareShot(file, ShotMessages.text(ShotMessages.TRAVEL_DONE, customerName, deviceLabel), true);
-                stageShotField("travelDoneRequest", new JSObject(), "✅ عُلّم الجهاز «تم التوثيق»");
+                shareShot(file, ShotMessages.text(travelBody, customerName, deviceLabel), true);
+                stageCustomerMessage(ShotMessages.TRAVEL_ID, "✅ تم التوثيق", "✅ عُلّم الجهاز «تم التوثيق»");
                 break;
             case 1:
-                pickMessage("📨 حالة الجهاز", ShotMessages.STATUS, file);
+                pickMessage("📨 حالة الجهاز", statusMessages, file);
                 break;
             case 2:
-                pickMessage("⚡ رسالة تفعيل", ShotMessages.ACTIVATION, file);
+                pickMessage("⚡ رسالة تفعيل", activationMessages, file);
                 break;
             case 3: {
                 JSObject keep = new JSObject();
@@ -1732,7 +1738,10 @@ public class AccountBrowserActivity extends AppCompatActivity {
     private void pickMessage(String title, String[][] list, java.io.File file) {
         new androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle(title)
-            .setItems(ShotMessages.labels(list), (d, i) -> shareShot(file, ShotMessages.text(list[i][1], customerName, deviceLabel), true))
+            .setItems(ShotMessages.labels(list), (d, i) -> {
+                shareShot(file, ShotMessages.text(list[i][1], customerName, deviceLabel), true);
+                stageCustomerMessage(list[i][2], list[i][0], "📨 سُجّلت الرسالة في سجل الجهاز");
+            })
             .setNegativeButton("إلغاء", null)
             .show();
     }
@@ -1772,6 +1781,41 @@ public class AccountBrowserActivity extends AppCompatActivity {
         java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
         small.compress(android.graphics.Bitmap.CompressFormat.JPEG, quality, out);
         return "data:image/jpeg;base64," + android.util.Base64.encodeToString(out.toByteArray(), android.util.Base64.NO_WRAP);
+    }
+
+    /** His lists from the app (Settings «📨 رسائل الزبون»), each falling back to ShotMessages when missing or broken. */
+    private void readCustomerMessages(String json) {
+        if (json == null || json.isEmpty()) return;
+        try {
+            org.json.JSONObject pack = new org.json.JSONObject(json);
+            org.json.JSONObject travel = pack.optJSONObject("travel");
+            String body = travel != null ? travel.optString("body", "").trim() : "";
+            if (!body.isEmpty()) travelBody = body;
+            statusMessages = ShotMessages.pick(messageRows(pack.optJSONArray("status")), ShotMessages.STATUS);
+            activationMessages = ShotMessages.pick(messageRows(pack.optJSONArray("activation")), ShotMessages.ACTIVATION);
+        } catch (org.json.JSONException e) {
+            // his defaults stay
+        }
+    }
+
+    private static String[][] messageRows(org.json.JSONArray list) {
+        if (list == null) return null;
+        String[][] rows = new String[list.length()][];
+        for (int i = 0; i < list.length(); i++) {
+            org.json.JSONObject m = list.optJSONObject(i);
+            if (m == null) return null;
+            rows[i] = new String[] {m.optString("label", ""), m.optString("body", ""), m.optString("id", "")};
+        }
+        return rows;
+    }
+
+    /** 📜 «I sent this message to the customer» - the app logs it and does what the message means for the device
+     * (lib/customerMessages.ts: «تم التوثيق» marks it, «محروق» → المعطلة, «إطفاء 3 أيام» → a reminder). */
+    private void stageCustomerMessage(String id, String label, String done) {
+        JSObject message = new JSObject();
+        message.put("id", id);
+        message.put("label", label);
+        stageShotField("customerMessage", message, done);
     }
 
     /** Staged like a read (PendingSyncStore) - the app does the rest when it drains it (never a Starlink read). */
