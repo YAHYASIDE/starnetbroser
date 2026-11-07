@@ -41,6 +41,13 @@ export interface RepRequest {
    * saved as the payment's proof once approved. */
   proofFileId?: string;
   proofBot?: "reps" | "money";
+  /** 🧾 What was read from that photo when it arrived (receiptCheck.ts): its reference, amount, date, and the
+   * picture's fingerprint. `error` = it couldn't be downloaded yet (tried again later). */
+  receipt?: { ref?: string; amount?: number; unit?: "CFA" | "MRU"; at?: string; hash?: string; readAt: string; tries?: number; error?: string };
+  /** ⛔ The same reference / picture as an earlier request still standing - the approval is locked (his Nov 7 2026
+   * choice) until he taps «أعرف، سجّله مع ذلك» (`receiptOverride`). */
+  receiptDup?: { requestId: string; repId: string; at: string; by: "ref" | "img" };
+  receiptOverride?: boolean;
   // client
   name?: string;
   phone?: string;
@@ -89,6 +96,8 @@ export interface RepRequest {
 export type RepRequestList = RepRequest[];
 
 const STORAGE_KEY = "starnet_rep_requests_v1";
+/** A request changed on this page (a receipt read, «سجّله مع ذلك») - the list re-reads at once. */
+export const REP_REQUESTS_CHANGED = "starnet:rep-requests";
 const MAX_KEPT = 300;
 
 function toLatinDigits(text: string): string {

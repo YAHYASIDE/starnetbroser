@@ -12,6 +12,7 @@ import { StorageFullBanner } from "@/components/StorageFullBanner";
 import { RepOpFlagsBanner } from "@/components/RepOpFlagsBanner";
 import { RepFlagRunner, RepFlagsBanner } from "@/components/RepFlagsBanner";
 import { TelegramBridge } from "@/components/TelegramBridge";
+import { ReceiptReaderRunner } from "@/components/ReceiptReaderRunner";
 import { PhoneShortcutLayer } from "@/components/PhoneShortcutLayer";
 import { DeleteCodeHost } from "@/components/DeleteCodePrompt";
 import { LatinDigitInputs } from "@/components/LatinDigitInputs";
@@ -73,6 +74,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </RepModeGate>
         </AppLockGate>
         <TelegramBridge />
+        <ReceiptReaderRunner />
         <PhoneShortcutLayer />
         <StorageFullBanner />
         <DeleteCodeHost />

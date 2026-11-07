@@ -588,7 +588,13 @@ export function HomeView({
   // storage itself, never from the not-yet-loaded state.
   useEffect(() => {
     const timer = window.setTimeout(
-      () => void pruneOrphanProofs(loadLedgerStore(), [...loadPartyAdjustments().map((a) => a.id), ...loadCardTopUps().map((t) => t.id)]),
+      () =>
+        void pruneOrphanProofs(loadLedgerStore(), [
+          ...loadPartyAdjustments().map((a) => a.id),
+          ...loadCardTopUps().map((t) => t.id),
+          // 🧾 a waiting rep request's receipt (its card's thumbnail)
+          ...loadRepRequests().filter((r) => r.status === "pending").map((r) => `req:${r.id}`),
+        ]),
       4000,
     );
     return () => window.clearTimeout(timer);

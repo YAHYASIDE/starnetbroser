@@ -567,6 +567,7 @@ async function notifyNewRepOperations(byRep: Map<string, BotAccount[]>): Promise
         ...(origin.botId ? { botId: origin.botId } : {}),
         ...(origin.request?.text ? { requestText: origin.request.text } : {}),
         ...(origin.request?.proofFileId ? { proofFileId: origin.request.proofFileId, ...(origin.request.proofBot ? { proofBot: origin.request.proofBot } : {}) } : {}),
+        ...(origin.request?.receipt?.ref ? { receiptRef: origin.request.receipt.ref } : {}),
       });
       opLog = logged.store;
       saveOpLog(opLog);

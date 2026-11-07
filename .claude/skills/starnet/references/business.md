@@ -2981,3 +2981,24 @@ is never pressed while a field is empty - it refills and saves on the next try (
   never stays «ما زال ينقل»); `missing` = the devices still signed out here with a reason (`none` not signed in on any
   other phone / `empty` / `stale` taken before and not working / `failed`), listed by name «📵 أجهزة بلا دخول هنا».
 
+## 🧾 The rep's receipt: its reference read, never recorded twice (Nov 7 2026)
+
+- His screenshot (a «🤲 تسليم مبلغ لك» 15,000 سيفا with a huge Orange Money receipt of 75,000 CFA): «أريد أن تكون صورة
+  العملية ظاهرة ولكن أصغر، وأن يمكن قراءة référence العملية، وكل عملية يكتب ريفيرانسها لكي لا ترسل لي نفس المبالغ
+  مرتين». His choices: **a reference (or the same picture) already used locks the approval**; check **the amount**
+  (**«سيفا هي ×5 مع الفرانك»: 1 سيفا = 5 فرنك CFA** - 15,000 سيفا = 75,000 CFA matches), **the date (more than a day
+  before his request)**, **the same picture**, and **tell the rep in the bot at once**; the picture **small with the
+  reference beside it**.
+- `lib/receiptCheck.ts` (pure, tested): `parseReceipt` (reference by its label - Référence / Transaction ID / رقم
+  العملية… - or the best letters+digits token, its broken last digit joined back; amount + unit CFA/XOF/FCFA or
+  MRU/UM/أوقية, «Montant» first; date d m yyyy [à hh:mm] or yyyy-mm-dd), `checkReceiptAmount` (CFA ÷ 5 → سيفا),
+  `receiptIsOld`, the registry `starnet_receipt_refs_v1` (`ref:<REF>` / `img:<sha256>` → the first request; a
+  rejected request frees it). `lib/receiptReader.ts`: each pending payment / handover with a photo is read once
+  (3 download tries) by `ReceiptReaderRunner` (layout) - only on the phone with the bots (Telegram download; ML Kit
+  `readImageText`); the photo is cached as proof `req:<requestId>` (kept from pruning while pending); a second use →
+  `receiptDup` on the request + «⛔ … أُرسل من قبل - لن يُسجَّل مرة ثانية» to the rep in the bot it came from.
+- The card (`RepReceiptBox`): a 92×120 thumbnail (tap → full screen, pinch zoom), 🔖 / 💰 ✓ or ⚠️ / 📅 ⚠️ beside it;
+  `receiptLocked` disables «✅ تسجيل الدفعة» / «✅ استلمته - سجّله» («⛔ مقفلة - تحويل مكرر») until «أعرف، سجّله مع
+  ذلك» (`receiptOverride`). The reference rides into 📜 the operations log (`LoggedOp.receiptRef`: the list, the
+  detail, the receipt image, the search).
+

@@ -51,6 +51,8 @@ export interface LoggedOp {
   proofFileId?: string;
   proofBot?: "reps" | "money";
   proofKept?: boolean;
+  /** 🔖 The transfer's reference read from his receipt (receiptCheck.ts) - his Nov 7 2026 ask. */
+  receiptRef?: string;
   /** An operation sent before the log existed (fewer details). */
   imported?: boolean;
 }
@@ -101,7 +103,7 @@ export function findOps(store: OpLogStore, repId: string, query = ""): LoggedOp[
   if (/^\d+$/.test(q)) {
     const exact = all.filter((o) => String(o.serial) === q);
     const digits = (s: string) => s.replace(/[^\d]/g, "");
-    return [...exact, ...all.filter((o) => String(o.serial) !== q && digits(o.text).includes(q))];
+    return [...exact, ...all.filter((o) => String(o.serial) !== q && (digits(o.text).includes(q) || (o.receiptRef ?? "").includes(q)))];
   }
   return all.filter((o) => o.text.includes(q) || o.source.includes(q) || (o.requestText ?? "").includes(q));
 }
@@ -147,6 +149,7 @@ export function opReceiptDoc(op: LoggedOp, repName: string): PrintableDocument {
     rows.push(["الرصيد قبل", `${money(f.before, f.code)} ${f.before < 0 ? "عليه" : f.before > 0 ? "له" : ""}`.trim()]);
     rows.push(["الرصيد بعد", `${money(f.after, f.code)} ${f.after < 0 ? "عليه" : f.after > 0 ? "له" : ""}`.trim()]);
   }
+  if (op.receiptRef) rows.push(["مرجع التحويل", op.receiptRef]);
   rows.push(["المصدر", op.source.replace(/\n/g, " · ")]);
   return {
     title: `إيصال عملية #${op.serial}`,

@@ -22,7 +22,7 @@ import {
   PAYMENT_METHODS,
   PaymentMethod,
 } from "@/lib/ledgerStore";
-import { claimRepRequest, loadRepRequests, pendingRepRequests, releaseRepRequest, REP_LOAN_ACCOUNTS, RepRequest, resolveRepRequest, saveRepRequests } from "@/lib/repRequests";
+import { claimRepRequest, loadRepRequests, pendingRepRequests, releaseRepRequest, REP_LOAN_ACCOUNTS, REP_REQUESTS_CHANGED, RepRequest, resolveRepRequest, saveRepRequests } from "@/lib/repRequests";
 import { ownerBalanceWords, repBalancesNow, repPaymentConfirmation, repWalletsNow, withRepWallets } from "@/lib/repPaymentConfirm";
 import type { Representative } from "@/lib/repStore";
 import { downloadRepImage, notifyPaymentTelegram, sendRepPhoto, sendRepText } from "@/lib/telegram";
@@ -39,6 +39,9 @@ import { recordRepSwapHandover, swapAmount, swapOther, swapRateLabel } from "@/l
 import { approveRepSession } from "@/lib/telegramSessionRunner";
 import { handoverOutcome, loanOutcome, paymentOutcome, REQUEST_KIND_META } from "@/lib/repRequestView";
 import { previewRepMoneyHandover } from "@/lib/repClientsSave";
+import { RepReceiptBox } from "./RepReceiptBox";
+import { receiptLocked } from "@/lib/receiptReader";
+import { loadRepresentativeStore } from "@/lib/repStore";
 
 interface Props {
   representatives: Representative[];
@@ -103,9 +106,11 @@ export function RepRequestsSection({ representatives, accounts, clientStore, onC
     // New requests arrive through the bot while this page is open: shown as soon as the app
     // records them (ACCOUNTS_CHANGED_EVENT), with a slow poll as a safety net.
     window.addEventListener(ACCOUNTS_CHANGED_EVENT, refresh);
+    window.addEventListener(REP_REQUESTS_CHANGED, refresh);
     const timer = window.setInterval(refresh, 5000);
     return () => {
       window.removeEventListener(ACCOUNTS_CHANGED_EVENT, refresh);
+      window.removeEventListener(REP_REQUESTS_CHANGED, refresh);
       window.clearInterval(timer);
     };
   }, []);
@@ -259,7 +264,7 @@ function PaymentRequestCard({
   const [busy, setBusy] = useState(false);
 
   async function approve() {
-    if (busy) return;
+    if (busy || receiptLocked(request)) return;
     const device = repDevices.find((a) => a.id === deviceId);
     if (!device) return setError("اختر الجهاز");
     if (!(Number(amount) > 0)) return setError("المبلغ غير صحيح");
@@ -313,7 +318,7 @@ function PaymentRequestCard({
     <li className="rep-request">
       <RequestHead request={request} rep={rep} amount={Number(amount) || request.amount} currency={payCurrency === "FRANC" ? "FRANC" : payCurrency} />
       <p className="rep-request-text">✍️ كتب: «{request.text}»</p>
-      {request.proofFileId && <RepProofPhoto fileId={request.proofFileId} bot={request.proofBot} onLoaded={setProof} />}
+      {request.proofFileId && <RepReceiptBox request={request} repName={repNameOf} onLoaded={setProof} />}
       <label className="rep-request-field">
         <span>الجهاز</span>
         <select value={deviceId} onChange={(e) => setDeviceId(e.target.value)}>
@@ -372,8 +377,8 @@ function PaymentRequestCard({
       </label>
       {error && <p className="settings-hint telegram-stopped">{error}</p>}
       <div className="settings-actions">
-        <button type="button" className="dialog-primary" onClick={() => void approve()} disabled={busy}>
-          {busy ? "⏳ جارِ التسجيل…" : "✅ تسجيل الدفعة"}
+        <button type="button" className="dialog-primary" onClick={() => void approve()} disabled={busy || receiptLocked(request)}>
+          {busy ? "⏳ جارِ التسجيل…" : receiptLocked(request) ? "⛔ مقفلة - تحويل مكرر" : "✅ تسجيل الدفعة"}
         </button>
         <button type="button" className="text-action" onClick={() => void reject()}>
           ❌ رفض
@@ -592,25 +597,9 @@ function ActivationRequestCard({ request, rep, onDone }: { request: RepRequest; 
   );
 }
 
-/** 📸 The payment photo a rep sent the bot - downloaded only when the operator asks to see it. */
-function RepProofPhoto({ fileId, bot, onLoaded }: { fileId: string; bot?: "reps" | "money"; onLoaded?: (dataUrl: string) => void }) {
-  const [dataUrl, setDataUrl] = useState<string | null>(null);
-  const [state, setState] = useState<"idle" | "loading" | "failed">("idle");
-
-  async function load() {
-    setState("loading");
-    const url = await downloadRepImage(fileId, bot);
-    if (!url) return setState("failed");
-    setDataUrl(url);
-    onLoaded?.(url);
-  }
-
-  if (dataUrl) return <img src={dataUrl} alt="صورة الدفع" className="rep-proof-photo" />;
-  return (
-    <button type="button" className="text-action rep-proof-button" onClick={() => void load()} disabled={state === "loading"}>
-      {state === "loading" ? "⏳ جارٍ تحميل الصورة…" : state === "failed" ? "⚠️ تعذّر التحميل - أعد المحاولة" : "📸 عرض صورة الدفع"}
-    </button>
-  );
+/** A rep's name for the duplicate line (any rep - the earlier request may be another's). */
+function repNameOf(repId: string): string {
+  return loadRepresentativeStore()[repId]?.name ?? "مندوب";
 }
 
 /** 🏦 A loan (سلفة) the rep asked for in the money bot: the operator sends it through the banking
@@ -647,7 +636,7 @@ function LoanRequestCard({ request, rep, accounts, clientStore, onDone }: MoneyC
   }
 
   async function approve() {
-    if (busy) return;
+    if (busy || receiptLocked(request)) return;
     const value = Number(amount);
     if (!(value > 0)) return setError("المبلغ غير صحيح");
     // 🔒 Taken before recording - a second tap or a retry after a cut records nothing again.
@@ -759,7 +748,7 @@ function HandoverRequestCard({ request, rep, accounts, clientStore, onDone }: Mo
   const chosen = choices.find((l) => l.id === ledgerId);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const proofPhoto = request.proofFileId ? <RepProofPhoto fileId={request.proofFileId} bot={request.proofBot} /> : null;
+  const proofPhoto = request.proofFileId ? <RepReceiptBox request={request} repName={repNameOf} /> : null;
   // 👀 His Oct 29 2026 ask «اجعل هنا يظهر لي ما على المندوب وما سيتبقى عليه بعد العملية»: the chosen account now
   // and after this sum (what he hands over is «له» - it brings down what he owes).
   const balances = useMemo(() => repBalancesNow({ rep, accounts, clientStore, ledgerStore: loadLedgerStore() }), [rep, accounts, clientStore]);
@@ -767,7 +756,7 @@ function HandoverRequestCard({ request, rep, accounts, clientStore, onDone }: Mo
   const added = toCurrency ? toAmount : Number(amount) || 0;
 
   async function approve() {
-    if (busy) return;
+    if (busy || receiptLocked(request)) return;
     const value = Number(amount);
     if (!(value > 0)) return setError("المبلغ غير صحيح");
     if (ledgerId && !chosen) return setError("الحساب المختار ليس فيه هذه العملة - اختر حسابًا آخر");
@@ -883,8 +872,8 @@ function HandoverRequestCard({ request, rep, accounts, clientStore, onDone }: Mo
       )}
       {error && <p className="settings-hint telegram-stopped">{error}</p>}
       <div className="settings-actions">
-        <button type="button" className="dialog-primary" onClick={() => void approve()} disabled={busy}>
-          ✅ استلمته - سجّله
+        <button type="button" className="dialog-primary" onClick={() => void approve()} disabled={busy || receiptLocked(request)}>
+          {receiptLocked(request) ? "⛔ مقفلة - تحويل مكرر" : "✅ استلمته - سجّله"}
         </button>
         <button type="button" className="text-action" onClick={() => void reject()}>
           ❌ لم أستلمه

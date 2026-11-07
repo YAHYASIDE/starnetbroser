@@ -64,6 +64,7 @@ export function RepOpLogSheet({ repId, repName, onClose }: { repId: string; repN
                   <small>
                     <bdi dir="ltr">{when(op.at)}</bdi> · {op.account}
                     {op.proofFileId || op.proofKept ? " · 📸" : ""}
+                    {op.receiptRef ? <> · 🔖 <bdi dir="ltr">{op.receiptRef}</bdi></> : null}
                   </small>
                 </span>
                 <span className="op-log-amount">
@@ -111,6 +112,7 @@ function OpDetail({ op, repName, onBack, onClose }: { op: LoggedOp; repName: str
         <p className="op-log-row"><span>🗓️ وقت العملية</span><bdi dir="ltr">{when(op.at)}</bdi></p>
         <p className="op-log-row"><span>📨 أُرسلت له</span><bdi dir="ltr">{when(op.sentAt)}</bdi></p>
         <p className="op-log-row"><span>⭐ تقييمه</span><span>{ratingOf(op)}</span></p>
+        {op.receiptRef && <p className="op-log-row"><span>🔖 مرجع التحويل</span><bdi dir="ltr">{op.receiptRef}</bdi></p>}
         <div className="op-log-source">
           <strong>🧭 من أين جاءت</strong>
           <p>{op.source}</p>
