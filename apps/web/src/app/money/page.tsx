@@ -47,6 +47,7 @@ import { ouguiyaFixMessage, runOuguiyaFixOnce } from "@/lib/bankOuguiyaRun";
 import { askDeleteCode } from "@/components/DeleteCodePrompt";
 import { loadProfitReset, type ProfitReset } from "@/lib/profitReset";
 import { loadWipeUndo, undoWipe, wipeAllTransactions, type WipeUndo } from "@/lib/wipeTransactions";
+import { requestDataReload } from "@/lib/dataReload";
 import { listClients, loadClientStore } from "@/lib/clientStore";
 import { drainBankNotices, notificationReaderStatus, openKastNotificationAccess, restartNotificationReader } from "@/lib/localBrowser";
 import { lastSeenText, readerProblem, type ReaderStatus } from "@/lib/notificationReader";
@@ -736,7 +737,7 @@ export default function MoneyPage() {
       window.alert(result.message);
       return;
     }
-    window.location.reload();
+    requestDataReload();
   }
 
   async function restoreWiped() {
@@ -746,7 +747,7 @@ export default function MoneyPage() {
       window.alert(result.message);
       return;
     }
-    window.location.reload();
+    requestDataReload();
   }
 
   // ---- 📊 the dashboard (lib/moneyDashboard.ts + the finance dashboard moved from the reports) ----

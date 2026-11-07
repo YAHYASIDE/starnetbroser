@@ -1,5 +1,7 @@
 "use client";
 
+import { requestDataReload } from "@/lib/dataReload";
+
 import { useEffect } from "react";
 import { browserLinkStorage, LINK_SHARED_SETTINGS, loadLinkConfig, loadTeam, runLinkRound } from "@/lib/deviceLink";
 import { isLinkedWrite, startLinkPulse } from "@/lib/linkPulse";
@@ -78,7 +80,8 @@ export function DeviceLinkRunner() {
         if (text) await notifyPhone(text);
         // 🗑️ on YAHYA: another member deleted something - it waits for him
         if (result.pending) await notifyPhone(`🗑️ حذف من الفريق بانتظار موافقتك (${result.pending}) - الإعدادات ← 🔗 ربط الأجهزة`);
-        if (result.changedKeys.length > 0) window.location.reload();
+        // 🔄 the open page reads again in place - never a reload (it opened the home page under another page)
+        if (result.changedKeys.length > 0) requestDataReload();
       } finally {
         running = false;
         if (again) {

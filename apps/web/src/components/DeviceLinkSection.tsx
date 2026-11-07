@@ -1,5 +1,7 @@
 "use client";
 
+import { requestDataReload } from "@/lib/dataReload";
+
 import { useEffect, useState } from "react";
 import { DEVICE_LINK_EVENT, DEVICE_LINK_NOW_EVENT, TEAM_SESSIONS_EVENT, TEAM_SESSIONS_NOW_EVENT, TEAM_SESSIONS_PROGRESS_EVENT } from "@/components/DeviceLinkRunner";
 import { activityLine, COUNTED_STORES, type TeamActivity } from "@/lib/teamActivity";
@@ -340,7 +342,7 @@ export function DeviceLinkSection() {
                       onClick={() => {
                         if (!window.confirm(`حذف ${p.labels.join("، ") || "هذه السجلات"} من هذا الهاتف أيضًا؟`)) return;
                         const changed = approvePendingDeletion(browserLinkStorage(), p.id);
-                        if (changed.length > 0) window.location.reload();
+                        if (changed.length > 0) requestDataReload();
                         else refresh();
                       }}
                     >

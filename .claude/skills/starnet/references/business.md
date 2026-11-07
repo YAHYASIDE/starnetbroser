@@ -3067,3 +3067,15 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - The customer comes with the browser: `customerName` / `customerPhone` (`customerExtrasFor`, lib/deviceCustomer.ts);
   no number → WhatsApp opens to pick the chat. Messages greet him by name and name the device («⭐ STAR NET»).
 
+## 🔄 No page reload after a team change - «الزبائن» stays «الزبائن» (Nov 7 2026)
+
+- His screenshot (the home page with «الزبائن» lit in the bar): «صار دائمًا الزبائن لا يظهرون، وعندما يضيف المسؤول 2
+  إضافة يتخلّط - أريد أن يكون كل شيء سلسًا». Cause: `window.location.reload()` after a link round that brought changes;
+  inside the phone app the local server answers /clients with index.html (no clients.html lookup), so the HOME page
+  rendered under /clients - and tapping «الزبائن» then did nothing (same path). With the live link it happened all
+  the time.
+- Now `requestDataReload()` (lib/dataReload.ts) → `DataReloadBoundary` (layout) remounts the open page in place (every
+  screen reads its stores again; scroll kept; a «storage» event for the bars outside). Used by the link runner,
+  «✓ احذفها هنا أيضًا» and «حسابي»'s wipe / undo. `RouteRepair` (layout, phone app only): a load on a path other than
+  "/" is rebuilt once by the router from its own data. Never use `location.reload()` to refresh data again.
+

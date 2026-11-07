@@ -12,6 +12,8 @@ import { StorageFullBanner } from "@/components/StorageFullBanner";
 import { RepOpFlagsBanner } from "@/components/RepOpFlagsBanner";
 import { RepFlagRunner, RepFlagsBanner } from "@/components/RepFlagsBanner";
 import { TelegramBridge } from "@/components/TelegramBridge";
+import { DataReloadBoundary } from "@/components/DataReloadBoundary";
+import { RouteRepair } from "@/components/RouteRepair";
 import { DesktopFocusFix } from "@/components/DesktopFocusFix";
 import { ReceiptReaderRunner } from "@/components/ReceiptReaderRunner";
 import { PhoneShortcutLayer } from "@/components/PhoneShortcutLayer";
@@ -60,7 +62,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ActivationGate>
         <AppLockGate>
           <RepModeGate>
-            {children}
+            <DataReloadBoundary>{children}</DataReloadBoundary>
+            <RouteRepair />
             <BottomNav />
             <DeskSidebar />
             <DeskKeys />
