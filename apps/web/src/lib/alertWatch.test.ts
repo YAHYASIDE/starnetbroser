@@ -13,7 +13,11 @@ describe("🔴🟡 alerts while the app is closed", () => {
       me: "m2",
       channels: [{ spaceId: "s1", key: "b".repeat(64), repName: "الحسين" }],
       team: { spaceId: "team-space", key: "a".repeat(64) },
+      chats: [],
     });
+    const rep = JSON.parse(alertWatchConfig({ firebase, channels: {}, repName: () => "", link: null, chats: [{ conv: "rep:r1", spaceId: "s1", key: "b".repeat(64), mine: "rep" }] }));
+    expect(rep.chats).toEqual([{ conv: "rep:r1", spaceId: "s1", key: "b".repeat(64), mine: "rep" }]);
+    expect(rep.team).toBeNull();
   });
 
   it("nothing to watch without Firebase, or with no channel and no team", () => {

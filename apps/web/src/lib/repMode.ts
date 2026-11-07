@@ -9,6 +9,8 @@ import { allowedPaths, pathAllowed, repPermissions, SIMPLE_ADD_DEVICE } from "./
  * default home, clients, تقاريري, reminders, tools, reports, currencies, mailboxes, settings);
  * everything else goes back home. */
 export function isRepAllowedPath(pathname: string): boolean {
+  // 💬 the chat with the operator is every rep's, whatever was ticked
+  if (pathAllowed(pathname, ["/chat"])) return true;
   return pathAllowed(pathname, allowedPaths(repPermissions()));
 }
 

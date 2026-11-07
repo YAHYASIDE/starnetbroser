@@ -126,6 +126,8 @@ function bottomMoreItems(inApp: boolean): MoreItem[] {
   return [
     { label: "الإعدادات", icon: "settings", color: "#f5a524", tint: "#ffecc7", href: "/settings" },
     ...(inApp ? [{ label: "مزامنة الآن", icon: "sync" as const, color: "#10b8cc", tint: "#d2f4f8", action: "sync" as const }] : []),
+    // 💬 his Nov 7 2026 ask: the team and the reps inside the app
+    { label: "💬 الدردشة", icon: "chat", color: "#0e9f6e", tint: "#dcf5ea", href: "/chat" },
     { label: "التذكيرات", icon: "bell", color: "#f0455f", tint: "#ffd9df", href: "/reminders" },
     { label: "دفعة سريعة", icon: "coins", color: "#0e9f6e", tint: "#dcf5ea", href: "/tools#pay" },
     { label: "خطة اليوم", icon: "tools", color: "#0e9f6e", tint: "#dcf5ea", href: "/tools#today" },
@@ -162,6 +164,7 @@ const REP_EXTRA_PAGES: MoreItem[] = [
 /** 📱 The rep's «المزيد»: the allowed pages and actions, plus sending new devices to the operator. */
 function repMoreItems(inApp: boolean): MoreItem[] {
   return allowedForRep([
+    { label: "💬 الدردشة مع المسؤول", icon: "chat", color: "#0e9f6e", tint: "#dcf5ea", href: "/chat" },
     { label: "إضافة حساب", icon: "plus", color: "#2f80ff", tint: "#d6e6ff", action: "add-account" },
     ...(inApp ? [{ label: "مزامنة الآن", icon: "sync" as const, color: "#10b8cc", tint: "#d2f4f8", action: "sync" as const }] : []),
     { label: "دفعة سريعة", icon: "coins", color: "#0e9f6e", tint: "#dcf5ea", href: "/tools#pay" },
@@ -283,7 +286,7 @@ export function HeaderMore() {
 
 export type IconName =
   | "home" | "people" | "chart" | "handshake" | "bag" | "more" | "bell" | "coins" | "trash" | "archive" | "card"
-  | "plus" | "sync" | "settings" | "close" | "tools" | "mail" | "dish" | "chevron";
+  | "plus" | "sync" | "settings" | "close" | "tools" | "mail" | "dish" | "chevron" | "chat";
 
 /** Line icons shared by the bottom bar and its "المزيد" sheet (stroke = currentColor). */
 export function NavIcon({ name }: { name: IconName }) {
@@ -316,6 +319,7 @@ export function NavIcon({ name }: { name: IconName }) {
         <circle cx="19" cy="12" r="1.3" />
       </>
     ),
+    chat: <path d="M4 5.5h16v10H9l-4.5 3.5v-3.5H4z" />,
     bell: (
       <>
         <path d="M6 9a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6" />

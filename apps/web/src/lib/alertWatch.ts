@@ -39,12 +39,15 @@ export function alertWatchConfig(input: {
   channels: Record<string, FlagChannel>;
   repName: (repId: string) => string;
   link: Pick<LinkConfig, "spaceId" | "key" | "memberId" | "enabled"> | null;
+  /** 💬 The conversations to announce (lib/chat.ts): `mine` = this phone's side («owner» / «rep»). */
+  chats?: { conv: string; spaceId: string; key: string; mine: "owner" | "rep" }[];
 }): string {
   if (!input.firebase) return "";
   const channels = Object.entries(input.channels).map(([repId, c]) => ({ spaceId: c.spaceId, key: c.key, repName: input.repName(repId) }));
   const team = input.link && input.link.enabled !== false ? { spaceId: input.link.spaceId, key: input.link.key } : null;
-  if (channels.length === 0 && !team) return "";
-  return JSON.stringify({ apiKey: input.firebase.apiKey, projectId: input.firebase.projectId, me: input.link?.memberId ?? "", channels, team });
+  const chats = input.chats ?? [];
+  if (channels.length === 0 && !team && chats.length === 0) return "";
+  return JSON.stringify({ apiKey: input.firebase.apiKey, projectId: input.firebase.projectId, me: input.link?.memberId ?? "", channels, team, chats });
 }
 
 /** Older than this, a team alert's copy is removed (by the member who writes the next one). */

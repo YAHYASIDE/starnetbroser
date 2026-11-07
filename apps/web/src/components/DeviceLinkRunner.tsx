@@ -3,7 +3,7 @@
 import { requestDataReload } from "@/lib/dataReload";
 
 import { useEffect } from "react";
-import { browserLinkStorage, LINK_SHARED_SETTINGS, loadLinkConfig, loadTeam, runLinkRound } from "@/lib/deviceLink";
+import { browserLinkStorage, LINK_EXCLUDED_KEYS, LINK_SHARED_SETTINGS, loadLinkConfig, loadTeam, runLinkRound } from "@/lib/deviceLink";
 import { isLinkedWrite, startLinkPulse } from "@/lib/linkPulse";
 import { demoAccounts } from "@/lib/demoData";
 import { loadDemoAccounts } from "@/lib/demoAccountStore";
@@ -152,7 +152,7 @@ export function DeviceLinkRunner() {
     proto.setItem = function (this: Storage, key: string, value: string) {
       originalSetItem.call(this, key, value);
       // (what a round writes in also lands here - one extra quiet round, nothing to send)
-      if (this === window.localStorage && isLinkedWrite(key, LINK_SHARED_SETTINGS)) {
+      if (this === window.localStorage && isLinkedWrite(key, LINK_SHARED_SETTINGS) && !(LINK_EXCLUDED_KEYS as readonly string[]).includes(key)) {
         window.clearTimeout(sendTimer);
         sendTimer = window.setTimeout(() => void tick(), SEND_AFTER_MS);
       }

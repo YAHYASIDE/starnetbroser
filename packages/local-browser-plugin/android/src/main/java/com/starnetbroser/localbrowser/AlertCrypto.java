@@ -40,6 +40,22 @@ final class AlertCrypto {
         return levelMark(level) + "🚩 تنبيه من " + who + "\n📡 " + clean(deviceName) + "\n📝 " + clean(note);
     }
 
+    /** «💬 المسؤول 2: الطبق لا يتصل» - or «📷 صورة» / «📡 DEMO 1» when there is no text (as the app's own). */
+    static String chatText(String by, String text, boolean image, String deviceName) {
+        String who = by == null || by.trim().isEmpty() ? "رسالة" : by.trim();
+        String t = text == null ? "" : text.trim();
+        String what = !t.isEmpty() ? (t.length() > 80 ? t.substring(0, 80) + "…" : t) : image ? "📷 صورة" : deviceName != null && !deviceName.trim().isEmpty() ? "📡 " + deviceName.trim() : "";
+        return "💬 " + who + ": " + what;
+    }
+
+    /** The chat documents' `at` (zero-padded) - text order = time order. */
+    static String atKey(long at) {
+        String s = String.valueOf(Math.max(0, at));
+        StringBuilder out = new StringBuilder();
+        for (int i = s.length(); i < 15; i++) out.append('0');
+        return out.append(s).toString();
+    }
+
     private static String levelMark(String level) {
         return "urgent".equals(level) ? "🔴 مستعجل - " : "🟡 ";
     }

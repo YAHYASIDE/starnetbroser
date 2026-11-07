@@ -3143,3 +3143,24 @@ is never pressed while a field is empty - it refills and saves on the next try (
   ≤300, level, who, member - no picture; copies older than 3 days deleted); the alert itself still travels in the
   link. Once a minute (not 30 s) to stay inside Firebase's free reads with ~7 reps' channels.
 
+## 💬 الدردشة داخل التطبيق (Nov 7 2026)
+
+- His ask «هل يمكن أن أضيف ميزة الاتصال والدردشة داخل التطبيق». His choices: chat with **the team, each rep, and the
+  customers** (no app → «👤 الزبائن» opens each one's WhatsApp); **text + pictures + a device attached**; and **an in-app
+  voice call** - built as a SECOND stage after he tries the chat (told him: it rings only while the app is open on both
+  sides and may not connect on mobile data without a paid relay server).
+- How (lib/chat.ts, lib/chatTransport.ts, components/ChatRunner.tsx, app/chat/page.tsx): each message is a sealed
+  Firestore document `starnet/{space}/chat/{id}` with a plain zero-padded `at` (queries «after»). «👥 الفريق» = the team
+  link's space + key; «🤝 a rep» = his warnings channel (`starnet.repFlagChannels` now travels in the team link, so every
+  team phone talks with the reps; the rep's phone uses its copy's `flagLink`). Readers never delete; the sender removes
+  documents older than 30 days now and then. Each phone keeps what it read in `starnet_chat_v1` (backed up, last 500 per
+  conversation) - NOT in the team link (`LINK_EXCLUDED_KEYS`: each message would remount the others' open page).
+  Read marks per phone (`starnet.chatRead`), «⏳» unsent retried every 15 s (`starnet.chatUnsent`).
+- Live while open (Firebase listener, `at > last - 10 min`); a phone notification for a message not on screen. Closed:
+  AlertWatch's thread queries each conversation's `chat` with `at > app last seen` (runQuery: only new documents are
+  read) and posts «💬 <who>: <text>» (opens /chat). The reps' channels (warnings + chat) are watched in the background by
+  the main phone (YAHYA) only - Firebase's free reads; the team's alerts + chat by every member; a rep's phone its own
+  conversation (the service now runs on a phone with no bot too, notification «🔔 تصلك التنبيهات والرسائل…»).
+- A device attached opens the home search for its name. The rep's «💬 الدردشة مع المسؤول» is always allowed (not a
+  permission). Menu: owner «المزيد» (bottom) + the laptop's sidebar «أدوات».
+

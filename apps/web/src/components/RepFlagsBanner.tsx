@@ -107,7 +107,7 @@ export function RepFlagRunner() {
     };
     void round();
     // 🔴🟡 the background service watches the same channels (and the team's alerts) while the app is closed
-    if (!rep) void pushAlertWatch();
+    void pushAlertWatch(); // (a rep's phone: his chat with the operator)
     // ⚡ the operator listens to the reps' channels: a warning comes in the moment it is written
     let live = false;
     let lastRound = Date.now();

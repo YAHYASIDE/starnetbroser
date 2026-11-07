@@ -165,3 +165,35 @@ export async function deleteDocument(config: Pick<LiveSyncConfig, "apiKey" | "pr
   if (r.status !== 200 && r.status !== 404) return { ok: false, message: explainFirebaseError(r.status, r.body) };
   return { ok: true, value: true };
 }
+
+/** 💬 Up to `limit` documents of a collection whose text field `field` is below `before` (the oldest first) - ids only.
+ * One query (runQuery), so an old conversation is cleaned without listing all of it. */
+export async function queryIdsBefore(
+  config: Pick<LiveSyncConfig, "apiKey" | "projectId">,
+  parentPath: string,
+  collectionId: string,
+  field: string,
+  before: string,
+  limit = 50,
+  fetchFn: FetchFn = fetch,
+): Promise<Result<string[]>> {
+  const token = await idToken(config, fetchFn);
+  if (!token.ok) return token;
+  const body = {
+    structuredQuery: {
+      from: [{ collectionId }],
+      where: { fieldFilter: { field: { fieldPath: field }, op: "LESS_THAN", value: { stringValue: before } } },
+      orderBy: [{ field: { fieldPath: field }, direction: "ASCENDING" }],
+      limit,
+    },
+  };
+  const r = await call(fetchFn, `${documentUrl(config, parentPath)}:runQuery`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token.value}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (r.status !== 200) return { ok: false, message: explainFirebaseError(r.status, r.body) };
+  const rows = JSON.parse(r.body || "[]") as { document?: { name: string } }[];
+  return { ok: true, value: rows.flatMap((row) => (row.document ? [row.document.name.split("/").pop() ?? ""] : [])).filter(Boolean) };
+}
+

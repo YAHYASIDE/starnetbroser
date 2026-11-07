@@ -5,7 +5,7 @@
  * operator gave him.
  */
 
-export type DeskIcon = "home" | "dish" | "people" | "chart" | "handshake" | "bag" | "bell" | "coins" | "trash" | "archive" | "card" | "settings" | "tools" | "mail";
+export type DeskIcon = "home" | "dish" | "people" | "chart" | "handshake" | "bag" | "bell" | "coins" | "trash" | "archive" | "card" | "settings" | "tools" | "mail" | "chat";
 
 export interface DeskNavItem {
   href: string;
@@ -43,6 +43,7 @@ const OWNER_GROUPS: DeskNavGroup[] = [
   {
     title: "أدوات",
     items: [
+      { href: "/chat", label: "💬 الدردشة", icon: "chat" },
       { href: "/tools", label: "الأدوات والتوقعات", icon: "tools" },
       { href: "/mailboxes", label: "البريد المسجّل", icon: "mail" },
     ],
@@ -81,6 +82,7 @@ const REP_GROUPS: DeskNavGroup[] = [
   {
     title: "أدوات",
     items: [
+      { href: "/chat", label: "💬 الدردشة", icon: "chat" },
       { href: "/tools", label: "الأدوات", icon: "tools" },
       { href: "/mailboxes", label: "البريد المسجّل", icon: "mail" },
     ],

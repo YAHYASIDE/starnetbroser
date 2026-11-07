@@ -176,7 +176,8 @@ public class TelegramReplyService extends Service {
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_notify_chat)
             .setContentTitle("STAR NET")
-            .setContentText("🤖 بوت تيليغرام يرد على الرسائل")
+            // a phone with no bot (a rep's, «المسؤول 2»'s) runs it for the alerts and the chat only
+            .setContentText(TelegramStore.isConfigured(this) || TelegramStore.isRepsConfigured(this) ? "🤖 بوت تيليغرام يرد على الرسائل" : "🔔 تصلك التنبيهات والرسائل والتطبيق مغلق")
             .setOngoing(true)
             .setShowWhen(false)
             .setPriority(NotificationCompat.PRIORITY_LOW);

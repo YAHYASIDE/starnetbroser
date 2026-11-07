@@ -35,6 +35,14 @@ public class AlertCryptoTest {
     }
 
     @Test
+    public void chatNotificationsAsTheAppSaysThem() {
+        assertEquals("💬 الحسين: السلام", AlertCrypto.chatText(" الحسين ", " السلام ", false, null));
+        assertEquals("💬 المسؤول 2: 📷 صورة", AlertCrypto.chatText("المسؤول 2", "", true, null));
+        assertEquals("💬 رسالة: 📡 DEMO 1", AlertCrypto.chatText(null, null, false, "DEMO 1"));
+        assertEquals("001700000000000", AlertCrypto.atKey(1700000000000L));
+    }
+
+    @Test
     public void onlyWhatCameAfterTheAppLooked() {
         assertTrue(AlertCrypto.isNewSince(10_000, 8_000));
         assertTrue(AlertCrypto.isNewSince(10_000, 12_000)); // a few seconds of clock slack

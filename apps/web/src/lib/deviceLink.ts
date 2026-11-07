@@ -660,13 +660,19 @@ export function startAsPhone(s: LinkStorage, config: LinkConfig): void {
 
 /**
  * Phone-only settings the team still shares (his Nov 5 2026 choice «الهاتفان» يوافقان على ما يرسله المندوبون): the
- * reps' codes (they open a rep's «تسجيلاتي» file) and their bound phones. They travel only inside the link, sealed
+ * reps' codes (they open a rep's «تسجيلاتي» file), their bound phones, and since Nov 7 2026 their warnings / chat channels
+ * (💬 every phone of the team talks with the reps - lib/chatTransport.ts). They travel only inside the link, sealed
  * with the team's key - never in a backup.
  */
-export const LINK_SHARED_SETTINGS = ["starnet.repDeviceCodes", "starnet.repPhoneKeys"] as const;
+export const LINK_SHARED_SETTINGS = ["starnet.repDeviceCodes", "starnet.repPhoneKeys", "starnet.repFlagChannels"] as const;
+
+/** 💬 Stores that travel on their own channel, never in the link (the chat: lib/chatTransport.ts - in the link every
+ * message would also remount the others' open page). */
+export const LINK_EXCLUDED_KEYS = ["starnet_chat_v1"] as const;
 
 /** What the link carries: every business store, and the shared settings above. */
 export function isLinkedKey(key: string): boolean {
+  if ((LINK_EXCLUDED_KEYS as readonly string[]).includes(key)) return false;
   return key.startsWith("starnet_") || (LINK_SHARED_SETTINGS as readonly string[]).includes(key);
 }
 

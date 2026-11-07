@@ -6,7 +6,10 @@
  */
 
 import { alertWatchConfig, staleAlertIds, teamAlertDocId, teamAlertPayload, teamAlertsPath } from "./alertWatch";
-import { browserLinkStorage, loadLinkConfig } from "./deviceLink";
+import { TEAM_CONV } from "./chat";
+import { chatTargets } from "./chatTransport";
+import { browserLinkStorage, isMainMember, loadLinkConfig } from "./deviceLink";
+import { isRepWorkspace } from "./repMode";
 import { sealText } from "./deviceSyncCrypto";
 import { deleteDocument, listDocuments, writeDocument } from "./firestoreRest";
 import { loadLiveSyncConfig } from "./liveSyncConfig";
@@ -14,15 +17,30 @@ import { setAlertWatch } from "./localBrowser";
 import { loadFlagChannels, ownerFirebase, type OwnerFlag } from "./repFlags";
 import { loadRepresentativeStore } from "./repStore";
 
-/** Hands the background service its watch list (Android only); the service's state, or null. */
+/** Hands the background service its watch list (Android only); the service's state, or null. The reps' channels
+ * (warnings + chat) are watched by the main phone (YAHYA) or a phone without the team link only - the free Firebase
+ * reads would not carry every phone reading every rep each minute; the team's alerts and chat by every member. A rep's
+ * phone watches its own conversation with the operator. */
 export async function pushAlertWatch(): Promise<{ running: boolean } | null> {
+  if (isRepWorkspace()) {
+    const target = chatTargets()[0];
+    const config = target
+      ? alertWatchConfig({ firebase: target.firebase, channels: {}, repName: () => "", link: null, chats: [{ conv: target.conv, spaceId: target.spaceId, key: target.key, mine: "rep" }] })
+      : "";
+    return setAlertWatch(config);
+  }
   const link = loadLinkConfig(browserLinkStorage());
   const reps = loadRepresentativeStore();
+  const watchReps = !link || isMainMember(link.memberId);
+  const chats = chatTargets()
+    .filter((t) => t.conv === TEAM_CONV || watchReps)
+    .map((t) => ({ conv: t.conv, spaceId: t.spaceId, key: t.key, mine: "owner" as const }));
   const config = alertWatchConfig({
     firebase: ownerFirebase({ link: () => link, live: loadLiveSyncConfig }),
-    channels: loadFlagChannels(),
+    channels: watchReps ? loadFlagChannels() : {},
     repName: (id) => reps[id]?.name ?? "",
     link,
+    chats,
   });
   return setAlertWatch(config);
 }

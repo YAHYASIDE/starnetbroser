@@ -53,7 +53,11 @@ final class AlertWatch {
 
     static boolean isConfigured(Context context) {
         JSONObject c = config(context);
-        return c != null && (c.optJSONArray("channels") != null && c.optJSONArray("channels").length() > 0 || c.optJSONObject("team") != null);
+        return c != null && (nonEmpty(c.optJSONArray("channels")) || c.optJSONObject("team") != null || nonEmpty(c.optJSONArray("chats")));
+    }
+
+    private static boolean nonEmpty(JSONArray a) {
+        return a != null && a.length() > 0;
     }
 
     private static JSONObject config(Context context) {
@@ -110,8 +114,61 @@ final class AlertWatch {
                 if (AppEventNotifier.post(context, text, "/")) shown++;
             }
         }
+        // 💬 the chat: what came after the app was last open, not mine (`mine` = my side: owner / rep; on the team, my member id)
+        JSONArray chats = c.optJSONArray("chats");
+        String me = c.optString("me");
+        for (int i = 0; chats != null && i < chats.length(); i++) {
+            JSONObject chat = chats.optJSONObject(i);
+            if (chat == null) continue;
+            for (JSONObject doc : chatSince(c.optString("projectId"), chat.optString("spaceId"), AlertCrypto.atKey(appSeen - 60_000), token)) {
+                String id = "c:" + doc.optString("id");
+                if (seen.contains(id)) continue;
+                seen.add(id);
+                JSONObject m = openDoc(doc, chat.optString("key"));
+                if (m == null) continue;
+                boolean teamChat = "team".equals(chat.optString("conv"));
+                boolean mine = teamChat ? me.equals(m.optString("member")) : chat.optString("mine").equals(m.optString("from", "owner"));
+                if (mine || m.optLong("at", 0) < appSeen - 60_000) continue;
+                JSONObject device = m.optJSONObject("device");
+                String text = AlertCrypto.chatText(m.optString("by"), m.optString("text"), m.has("image"), device == null ? null : device.optString("name"));
+                if (AppEventNotifier.post(context, text, "/chat")) shown++;
+            }
+        }
         saveSeen(context, seen);
         return shown;
+    }
+
+    /** The chat documents of a space whose `at` is after `afterKey` (runQuery - only those are read). */
+    private static List<JSONObject> chatSince(String projectId, String spaceId, String afterKey, String token) {
+        List<JSONObject> out = new ArrayList<>();
+        try {
+            String url = "https://firestore.googleapis.com/v1/projects/" + enc(projectId) + "/databases/(default)/documents/starnet/" + enc(spaceId) + ":runQuery";
+            JSONObject query = new JSONObject()
+                .put("from", new JSONArray().put(new JSONObject().put("collectionId", "chat")))
+                .put("where", new JSONObject().put("fieldFilter", new JSONObject()
+                    .put("field", new JSONObject().put("fieldPath", "at"))
+                    .put("op", "GREATER_THAN")
+                    .put("value", new JSONObject().put("stringValue", afterKey))))
+                .put("limit", 20);
+            String body = http("POST", url, token, new JSONObject().put("structuredQuery", query).toString(), "application/json");
+            if (body == null) return out;
+            JSONArray rows = new JSONArray(body);
+            for (int i = 0; i < rows.length(); i++) {
+                JSONObject d = rows.optJSONObject(i) == null ? null : rows.optJSONObject(i).optJSONObject("document");
+                if (d == null) continue;
+                String name = d.optString("name");
+                JSONObject fields = d.optJSONObject("fields");
+                JSONObject sealed = fields == null ? null : fields.optJSONObject("sealed");
+                if (sealed == null) continue;
+                JSONObject item = new JSONObject();
+                item.put("id", name.substring(name.lastIndexOf('/') + 1));
+                item.put("sealed", sealed.optString("stringValue"));
+                out.add(item);
+            }
+        } catch (Exception e) {
+            // offline / refused: next round
+        }
+        return out;
     }
 
     private static JSONObject openDoc(JSONObject doc, String keyHex) {
