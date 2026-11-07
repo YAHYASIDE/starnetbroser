@@ -2,44 +2,50 @@ package com.starnetbroser.localbrowser;
 
 /**
  * 📸 «لقطة ذكية» in a device's browser (his Nov 7 2026 ask: like Alibaba's screenshot pop-up, with buttons for the
- * customer): the ready messages that go with the picture to the customer's WhatsApp. Pure (no android.*), JUnit:
+ * customer): the ready messages that go with the picture to the customer's WhatsApp - his own words, in two lists:
+ * the device's state and the activations (his second Nov 7 2026 message «نظّم كل شيء»). Pure (no android.*), JUnit:
  * ShotMessagesTest.
  */
 final class ShotMessages {
 
     private ShotMessages() {}
 
-    static final int TRAVEL_DONE = 0;
-    static final int WORKING = 1;
-    static final int BILL = 2;
-    static final int RENEWAL = 3;
+    /** ✅ «تم التوثيق» (its own button - it also marks the device). */
+    static final String TRAVEL_DONE = "✅ تم توثيق جهاز Starlink الخاص بك بنجاح.";
 
-    /** The ready messages' buttons, in order (TRAVEL_DONE has its own button). */
-    static final String[] READY_LABELS = {"✅ جهازك يعمل", "💳 فاتورة الجهاز", "📅 تجديد الاشتراك"};
-    static final int[] READY_KINDS = {WORKING, BILL, RENEWAL};
+    /** 📨 The device's state - button label, then the message. */
+    static final String[][] STATUS = {
+        {"✅ يعمل جيدًا", "✅ جهازك يعمل بشكل طبيعي وجيد، بدون أي أعطال."},
+        {"🔌 يعمل - الكهرباء غير واصلة", "🔌 جهازك يعمل بشكل طبيعي، لكن الكهرباء غير واصلة إليه."},
+        {"⛔ الاشتراك منتهٍ", "⛔ انتهى اشتراك جهازك والخدمة موقوفة."},
+        {"🐢 خطة ضعيفة جدًا", "🐢 جهازك يعمل بخطة ضعيفة جدًا."},
+        {"🌍 موقوف خارج البلد", "🌍 جهازك موقوف لأنه خارج البلد، ولا يمكن أن يعمل في الوقت الحالي."},
+        {"⏸️ إطفاء 3 أيام", "⏸️ يجب إطفاء جهازك لمدة 3 أيام متتالية.\n⚠️ تحذير: أي تشغيل للجهاز قبل اكتمال 3 أيام قد يؤدي إلى إطفائه مرة ثانية لـ 3 أيام."},
+        {"🔥 نظن أنه محروق", "🔥 نظن أن جهازك محروق."},
+        {"⚡ ضعف في الأسلاك أو الكهرباء", "⚡ في جهازك ضعف في الأسلاك أو الكهرباء."},
+        {"💵 تم الدفع - الحساب 0", "💵 تم استلام دفعتك وتم تصفير حسابك - المتبقي عليك 0."},
+    };
 
-    /** The message for this kind: his customer's name greeted when known, the device named. */
-    static String text(int kind, String customerName, String deviceName) {
+    /** ⚡ The activations - button label, then the message. */
+    static final String[][] ACTIVATION = {
+        {"📶 100 جيجا", "📶 تم تفعيل 100 جيجا لجهازك."},
+        {"🌐 تجوال غير محدود", "🌐 تم تفعيل تجوال غير محدود لجهازك."},
+        {"📶 50 جيجا", "📶 تم تفعيل 50 جيجا لجهازك."},
+        {"🐢 تفعيل - الخدمة ضعيفة", "🐢 تم تفعيل جهازك، والخدمة ضعيفة."},
+        {"❌ لا يمكن التفعيل", "❌ لا يمكن تفعيل خدمة لجهازك في الوقت الحالي."},
+    };
+
+    static String[] labels(String[][] list) {
+        String[] out = new String[list.length];
+        for (int i = 0; i < list.length; i++) out[i] = list[i][0];
+        return out;
+    }
+
+    /** The whole message: his customer greeted by name when known, the body, the device named, the signature. */
+    static String text(String body, String customerName, String deviceName) {
         String name = customerName == null ? "" : customerName.trim();
-        String device = deviceName == null || deviceName.trim().isEmpty() ? "" : " (" + deviceName.trim() + ")";
+        String device = deviceName == null ? "" : deviceName.trim();
         String hello = name.isEmpty() ? "مرحبًا،\n" : "مرحبًا " + name + "،\n";
-        String body;
-        switch (kind) {
-            case TRAVEL_DONE:
-                body = "✅ تم توثيق جهاز Starlink الخاص بك" + device + " بنجاح.";
-                break;
-            case WORKING:
-                body = "✅ جهاز Starlink الخاص بك" + device + " يعمل بشكل طبيعي.";
-                break;
-            case BILL:
-                body = "💳 هذه فاتورة جهاز Starlink الخاص بك" + device + ".";
-                break;
-            case RENEWAL:
-                body = "📅 هذه تفاصيل تجديد اشتراك جهاز Starlink الخاص بك" + device + ".";
-                break;
-            default:
-                body = "📸 جهاز Starlink الخاص بك" + device + ".";
-        }
-        return hello + body + "\n⭐ STAR NET";
+        return hello + (body == null ? "" : body.trim()) + (device.isEmpty() ? "" : "\n📡 الجهاز: " + device) + "\n⭐ STAR NET";
     }
 }

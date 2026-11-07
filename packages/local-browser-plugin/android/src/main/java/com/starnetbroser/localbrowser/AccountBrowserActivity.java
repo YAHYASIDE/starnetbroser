@@ -1594,13 +1594,49 @@ public class AccountBrowserActivity extends AppCompatActivity {
      */
     private void takeShot() {
         if (webView == null || accountId == null || isFinishing()) return;
-        android.graphics.Bitmap shot;
+        // 📸 the screen exactly as he sees it (the window - the balance line and the whole page part on screen); drawing
+        // the WebView itself lost what was scrolled (his report: «تأتي صورة مقطوعة»)
+        if (Build.VERSION.SDK_INT >= 26) {
+            android.view.View root = getWindow().getDecorView();
+            int w = Math.max(1, root.getWidth());
+            int h = Math.max(1, root.getHeight());
+            android.graphics.Bitmap shot;
+            try {
+                shot = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888);
+            } catch (OutOfMemoryError e) {
+                Toast.makeText(this, "تعذّرت اللقطة", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            try {
+                android.view.PixelCopy.request(getWindow(), shot, result -> {
+                    if (result == android.view.PixelCopy.SUCCESS) keepShot(shot);
+                    else keepShot(drawWebView());
+                }, new android.os.Handler(android.os.Looper.getMainLooper()));
+                return;
+            } catch (IllegalArgumentException e) {
+                // the window isn't ready - the page alone below
+            }
+        }
+        keepShot(drawWebView());
+    }
+
+    /** The page alone, drawn where it is scrolled to (older phones / PixelCopy refused). */
+    private android.graphics.Bitmap drawWebView() {
         try {
             int w = Math.max(1, webView.getWidth());
             int h = Math.max(1, webView.getHeight());
-            shot = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888);
-            webView.draw(new android.graphics.Canvas(shot));
+            android.graphics.Bitmap bmp = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888);
+            android.graphics.Canvas canvas = new android.graphics.Canvas(bmp);
+            canvas.translate(-webView.getScrollX(), -webView.getScrollY());
+            webView.draw(canvas);
+            return bmp;
         } catch (RuntimeException | OutOfMemoryError e) {
+            return null;
+        }
+    }
+
+    private void keepShot(android.graphics.Bitmap shot) {
+        if (shot == null || isFinishing()) {
             Toast.makeText(this, "تعذّرت اللقطة", Toast.LENGTH_SHORT).show();
             return;
         }
@@ -1639,7 +1675,8 @@ public class AccountBrowserActivity extends AppCompatActivity {
         androidx.appcompat.app.AlertDialog[] holder = new androidx.appcompat.app.AlertDialog[1];
         String[] labels = {
             "✅ تم التوثيق - أرسل للزبون",
-            "📨 رسالة جاهزة للزبون",
+            "📨 حالة الجهاز - رسالة للزبون",
+            "⚡ رسالة تفعيل للزبون",
             "📎 احفظ في سجل الجهاز",
             "🚩 تنبيه للمسؤول مع الصورة",
             "📤 مشاركة",
@@ -1672,24 +1709,32 @@ public class AccountBrowserActivity extends AppCompatActivity {
                 stageShotField("travelDoneRequest", new JSObject(), "✅ عُلّم الجهاز «تم التوثيق»");
                 break;
             case 1:
-                new androidx.appcompat.app.AlertDialog.Builder(this)
-                    .setTitle("📨 رسالة جاهزة")
-                    .setItems(ShotMessages.READY_LABELS, (d, i) -> shareShot(file, ShotMessages.text(ShotMessages.READY_KINDS[i], customerName, deviceLabel), true))
-                    .setNegativeButton("إلغاء", null)
-                    .show();
+                pickMessage("📨 حالة الجهاز", ShotMessages.STATUS, file);
                 break;
-            case 2: {
+            case 2:
+                pickMessage("⚡ رسالة تفعيل", ShotMessages.ACTIVATION, file);
+                break;
+            case 3: {
                 JSObject keep = new JSObject();
                 keep.put("image", jpegDataUrl(shot, 900, 70));
                 stageShotField("deviceShot", keep, "📎 حُفظت اللقطة في سجل الجهاز");
                 break;
             }
-            case 3:
+            case 4:
                 askTeamFlag(jpegDataUrl(shot, 480, 55));
                 break;
             default:
                 shareShot(file, null, false);
         }
+    }
+
+    /** One of his ready messages, with the picture, into the customer's chat. */
+    private void pickMessage(String title, String[][] list, java.io.File file) {
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(title)
+            .setItems(ShotMessages.labels(list), (d, i) -> shareShot(file, ShotMessages.text(list[i][1], customerName, deviceLabel), true))
+            .setNegativeButton("إلغاء", null)
+            .show();
     }
 
     /** The picture (and the message) into the customer's WhatsApp chat - or any app (`toCustomer` false / no number). */

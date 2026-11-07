@@ -3078,4 +3078,13 @@ is never pressed while a field is empty - it refills and saves on the next try (
   screen reads its stores again; scroll kept; a «storage» event for the bars outside). Used by the link runner,
   «✓ احذفها هنا أيضًا» and «حسابي»'s wipe / undo. `RouteRepair` (layout, phone app only): a load on a path other than
   "/" is rebuilt once by the router from its own data. Never use `location.reload()` to refresh data again.
+- Same day, his report on the first build: «لقطات الشاشة غير جيدة أبدًا: لا تأتي للمسؤول إشعارات بلقطة الشاشة، وتأتي صورة
+  مقطوعة» + his own messages to replace the old three («نظّم كل شيء، لا تترك النظام القديم»). Now: the shot is the window
+  as he sees it (`PixelCopy`, API 26+; else the WebView drawn at its scroll), the alerts / kept shots are taken on ANY page
+  (`BrowserActionsRunner` + `takeBrowserActions`, lib/browserActions.ts - only the home page took them before), and the
+  pop-up: «✅ تم التوثيق - أرسل للزبون» · «📨 حالة الجهاز» (his 9: يعمل جيدًا بلا أعطال / يعمل والكهرباء غير واصلة /
+  الاشتراك منتهٍ والخدمة موقوفة / خطة ضعيفة جدًا / موقوف خارج البلد / إطفاء 3 أيام متتالية + التحذير / نظن أنه محروق /
+  ضعف في الأسلاك أو الكهرباء / تم الدفع وتصفير الحساب 0) · «⚡ رسالة تفعيل» (his 5: 100 جيجا / تجوال غير محدود / 50 جيجا /
+  تفعيل والخدمة ضعيفة / لا يمكن التفعيل) · 📎 · 🚩 · 📤 (`ShotMessages.STATUS` / `ACTIVATION`, JUnit). Each message:
+  «مرحبًا <name>،» + his sentence + «📡 الجهاز: <device>» + «⭐ STAR NET».
 

@@ -14,6 +14,7 @@ import { RepFlagRunner, RepFlagsBanner } from "@/components/RepFlagsBanner";
 import { TelegramBridge } from "@/components/TelegramBridge";
 import { DataReloadBoundary } from "@/components/DataReloadBoundary";
 import { RouteRepair } from "@/components/RouteRepair";
+import { BrowserActionsRunner } from "@/components/BrowserActionsRunner";
 import { DesktopFocusFix } from "@/components/DesktopFocusFix";
 import { ReceiptReaderRunner } from "@/components/ReceiptReaderRunner";
 import { PhoneShortcutLayer } from "@/components/PhoneShortcutLayer";
@@ -82,6 +83,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <TelegramBridge />
         <DesktopFocusFix />
         <ReceiptReaderRunner />
+        <BrowserActionsRunner />
         <PhoneShortcutLayer />
         <StorageFullBanner />
         <DeleteCodeHost />
