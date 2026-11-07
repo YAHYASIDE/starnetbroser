@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
-import { browserLinkStorage, loadLinkConfig, loadTeam, runLinkRound } from "@/lib/deviceLink";
+import { browserLinkStorage, LINK_SHARED_SETTINGS, loadLinkConfig, loadTeam, runLinkRound } from "@/lib/deviceLink";
+import { isLinkedWrite, startLinkPulse } from "@/lib/linkPulse";
 import { demoAccounts } from "@/lib/demoData";
 import { loadDemoAccounts } from "@/lib/demoAccountStore";
 import { exportAccountSessions, importAccountSessions } from "@/lib/localBrowser";
@@ -22,8 +23,12 @@ export const TEAM_SESSIONS_PROGRESS_EVENT = "starnet:team-sessions-progress";
 /** A sessions round never holds the button longer than this. */
 const SESSION_ROUND_LIMIT_MS = 4 * 60_000;
 
-/** A round this often while the app is open (his Nov 5 2026 choice: a change reaches the others in about 10 s). */
+/** A round this often while the app is open (his Nov 5 2026 choice: a change reaches the others in about 10 s) -
+ * while the live listener works (lib/linkPulse.ts, his Nov 7 2026 «سريعة جدًا») only every 30 s, as a safety net. */
 const EVERY_MS = 8_000;
+const EVERY_LIVE_MS = 30_000;
+/** A save here goes out this soon after (several saves in a row: once). */
+const SEND_AFTER_MS = 800;
 /** How often «is he still in the middle of something?» is asked once a full round waits for it. */
 const IDLE_CHECK_MS = 1_500;
 
@@ -45,15 +50,25 @@ function isIdle(): boolean {
 export function DeviceLinkRunner() {
   useEffect(() => {
     let running = false;
+    /** Asked again while a round ran (another phone wrote, or a save here): one more round right after. */
+    let again = false;
     /** A full round waits for him to finish what he is doing. */
     let waiting = false;
+    /** The live listener works. */
+    let live = false;
+    let lastRound = 0;
     const tick = async (force = false) => {
-      if (running || document.visibilityState !== "visible") return;
+      if (document.visibilityState !== "visible") return;
+      if (running) {
+        again = true;
+        return;
+      }
       const storage = browserLinkStorage();
       if (!loadLinkConfig(storage)?.enabled) return;
       const full = force || isIdle();
       waiting = !full;
       running = true;
+      lastRound = Date.now();
       try {
         const result = await runLinkRound(storage, fetch, new Date(), { sendOnly: !full });
         if (!full) return;
@@ -66,6 +81,10 @@ export function DeviceLinkRunner() {
         if (result.changedKeys.length > 0) window.location.reload();
       } finally {
         running = false;
+        if (again) {
+          again = false;
+          window.setTimeout(() => void tick(), 50);
+        }
       }
     };
     // 🔐 the devices' Starlink sessions in the team (lib/teamSessions.ts): every 30 minutes, or at once when asked
@@ -109,7 +128,32 @@ export function DeviceLinkRunner() {
     const onSessionsNow = () => void sessions(true);
     window.addEventListener(TEAM_SESSIONS_NOW_EVENT, onSessionsNow);
     const first = window.setTimeout(() => void tick(), 3000);
-    const timer = window.setInterval(() => void tick(), EVERY_MS);
+    const timer = window.setInterval(() => {
+      if (live && Date.now() - lastRound < EVERY_LIVE_MS) return;
+      void tick();
+    }, EVERY_MS);
+    // ⚡ live: another phone wrote → our round at once (lib/linkPulse.ts)
+    let stopPulse: (() => void) | null = null;
+    const startPulse = () => {
+      const config = loadLinkConfig(browserLinkStorage());
+      if (stopPulse || !config?.enabled) return;
+      stopPulse = startLinkPulse(config, () => void tick(), (state) => (live = state));
+    };
+    startPulse();
+    const onLinkEvent = () => startPulse();
+    window.addEventListener(DEVICE_LINK_EVENT, onLinkEvent);
+    // 💾 a save on this phone goes out within a second
+    let sendTimer = 0;
+    const proto = Storage.prototype;
+    const originalSetItem = proto.setItem;
+    proto.setItem = function (this: Storage, key: string, value: string) {
+      originalSetItem.call(this, key, value);
+      // (what a round writes in also lands here - one extra quiet round, nothing to send)
+      if (this === window.localStorage && isLinkedWrite(key, LINK_SHARED_SETTINGS)) {
+        window.clearTimeout(sendTimer);
+        sendTimer = window.setTimeout(() => void tick(), SEND_AFTER_MS);
+      }
+    };
     const idleTimer = window.setInterval(() => waiting && isIdle() && void tick(), IDLE_CHECK_MS);
     const onVisible = () => document.visibilityState === "visible" && void tick();
     const onNow = () => void tick(true);
@@ -119,6 +163,10 @@ export function DeviceLinkRunner() {
       window.clearTimeout(first);
       window.clearInterval(timer);
       window.clearInterval(idleTimer);
+      window.clearTimeout(sendTimer);
+      window.removeEventListener(DEVICE_LINK_EVENT, onLinkEvent);
+      stopPulse?.();
+      proto.setItem = originalSetItem;
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener(DEVICE_LINK_NOW_EVENT, onNow);
       window.clearTimeout(firstSessions);

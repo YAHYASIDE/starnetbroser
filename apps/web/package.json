@@ -21,6 +21,7 @@
     "@starnet/local-browser-plugin": "1.0.0",
     "@starnet/shared": "1.0.0",
     "fflate": "^0.8.3",
+    "firebase": "10.14.1",
     "html-to-image": "^1.11.13",
     "jspdf": "^4.2.1",
     "next": "15.5.25",

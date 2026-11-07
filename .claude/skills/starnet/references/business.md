@@ -3011,3 +3011,14 @@ is never pressed while a field is empty - it refills and saves on the next try (
   profit preview and reports); a payment or a plain balance («بدون تكلفة») of 0 is still refused (`ledgerAmountError`,
   lib/ledgerModes.ts, tested).
 
+## ⚡ The team link, live (Nov 7 2026)
+
+- His ask: «كيف أربط أجهزة أخرى، وأيضًا أريد أن تكون البيانات سريعة جدًا بينهم». More members: the same «📋 نسخ رمز
+  الربط» → «🔗 انضم برمز» on each (a phone or the laptop), each its own name.
+- Speed (`lib/linkPulse.ts`, the Firebase JS SDK 10.14.1 loaded lazily only when the link is on): each member listens
+  (`onSnapshot`) to `starnet/{space}/link` - the heads; another member's head changing starts this phone's round at
+  once. A save of business data / a shared setting here (`Storage.prototype.setItem` watched in `DeviceLinkRunner`)
+  goes out ~0.8 s later (debounced); a round asked for while one runs runs right after. The 8 s check stays as a
+  fallback, every 30 s while the listener is live. Usually 2-5 s phone to phone, app open; one Firestore read per change
+  instead of one per check. The SDK signs in anonymously by itself (rules: `request.auth != null`).
+
