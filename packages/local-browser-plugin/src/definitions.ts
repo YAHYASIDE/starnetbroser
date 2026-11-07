@@ -28,6 +28,9 @@ export interface OpenAccountBrowserOptions {
   mailSuggestions?: string[];
   /** Typed into Microsoft's «Add an email address» in «📧 البريد» (the shop's codes mailbox). */
   mailRecoveryEmail?: string;
+  /** 📸 The device's customer - the ready messages with a screenshot greet him and go to his WhatsApp. */
+  customerName?: string;
+  customerPhone?: string;
   /** 🆕 «إنشاء حساب جديد»: «تفعيل Starlink» is filled with the KIT (then «متابعة»), and
    * «معلومات الاتصال» with the name, email and phone - the rest is done by hand. */
   activation?: StarlinkActivationFill;

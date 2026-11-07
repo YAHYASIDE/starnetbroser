@@ -170,6 +170,7 @@ export function RepFlagsBanner() {
                 <p className="rep-flags-note" dir="auto">
                   📝 {f.note}
                 </p>
+                {f.image && <img className="rep-flags-photo" src={f.image} alt={`لقطة مع التنبيه على ${f.deviceName}`} />}
                 <div className="rep-flags-actions">
                   <button
                     type="button"

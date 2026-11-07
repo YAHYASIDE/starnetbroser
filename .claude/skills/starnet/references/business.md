@@ -3050,3 +3050,20 @@ is never pressed while a field is empty - it refills and saves on the next try (
 - The notification: the link's activity (`describeOp`) makes a new team alert and YAHYA's «✓ راجعته» notable - the
   phone notification goes to the others («🚩 🔴 عاجل - تنبيه على X: …» / «✓ رُوجع التنبيه على X»).
 
+## 📸 «لقطة ذكية» in a device's browser (Nov 7 2026)
+
+- His ask (an Alibaba screenshot pop-up): «أريد إذا لقطت لقطة شاشة تظهر لي كيف… مثال: إذا لقطت في مكان التوثيق أن يأتيه
+  أنه تم توثيقه - ماذا تقترح، لا تعدّل شيئًا قبل أن نتأكد». His choices: **both ways** (a 📸 button + the phone's own
+  screenshot), the buttons **✅ تم التوثيق للزبون, 📨 ready messages, 📎 kept in the device's record, 🚩 alert with the
+  picture**, and **WhatsApp opens ready** (he presses send). Step 1 = the device browser; the app's own pages next.
+- `AccountBrowserActivity`: a 📸 tab under 🚩 and, on Android 14+, `registerScreenCaptureCallback` (permission
+  DETECT_SCREEN_CAPTURE - no access to his photos) → `takeShot` (the WebView drawn to a bitmap, PNG in cache
+  starnet_share) → a dialog: the picture + «✅ تم التوثيق - أرسل للزبون» (WhatsApp straight into the customer's chat by
+  `jid` with the picture + `ShotMessages.TRAVEL_DONE`, and a staged read `travelDoneRequest` → the home page's drain
+  runs the card's own «✅ تم التوثيق» handler: ⏳ until an update confirms, the rep told), «📨 رسالة جاهزة» (جهازك يعمل /
+  فاتورة / تجديد), «📎 احفظ في سجل الجهاز» (staged `deviceShot`, a 900px JPEG → proofs store `shot:<device>:<at>` +
+  `starnet_device_shots_v1`; ⋯ «📎 لقطات الجهاز (N)», `DeviceShotsSheet`), «🚩 تنبيه للمسؤول مع الصورة» (a 480px JPEG
+  on the team alert, ≤160k chars, travels in the link), «📤 مشاركة».
+- The customer comes with the browser: `customerName` / `customerPhone` (`customerExtrasFor`, lib/deviceCustomer.ts);
+  no number → WhatsApp opens to pick the chat. Messages greet him by name and name the device («⭐ STAR NET»).
+

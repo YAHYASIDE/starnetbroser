@@ -5,6 +5,8 @@
          NotificationManagerCompat#areNotificationsEnabled() and silently skips posting if this
          was never granted, so a sync never fails or crashes over a missing notification. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 📸 «لقطة ذكية»: told when he takes a screenshot of a device's browser (Android 14+, no access to his photos). -->
+    <uses-permission android:name="android.permission.DETECT_SCREEN_CAPTURE" />
     <!-- TelegramReplyService: the bots keep answering with the app closed (its small permanent
          notification is what lets Android keep it running), and come back after a restart. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />

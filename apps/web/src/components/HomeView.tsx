@@ -26,7 +26,7 @@ import { followUp } from "@/lib/deskDashboard";
 import { EXPIRY_FILTERS, type ExpiryFilter } from "@/lib/deskTable";
 import { loadClientCategories } from "@/lib/clientCategories";
 import { HeaderMore } from "./BottomNav";
-import { pruneOrphanProofs } from "@/lib/paymentProofStore";
+import { pruneOrphanProofs, putProof } from "@/lib/paymentProofStore";
 import { buildAutoSyncList } from "@/lib/autoSyncList";
 import { pushScheduledSyncs, scheduleSyncRetry } from "@/lib/scheduledSyncs";
 import { LedgerDialog } from "./LedgerDialog";
@@ -158,6 +158,8 @@ import { applyBrowserPins, isBrowserPin, isPinned, loadDeviceNotes, mergeDeviceN
 import { ACCOUNTS_CHANGED_EVENT } from "@/lib/repMenuRecords";
 import { addIncomingFlags, isBrowserTeamFlag, loadOwnerFlags, saveOwnerFlags, teamFlagsFromBrowser } from "@/lib/repFlags";
 import { teamMemberName } from "./TeamFlagSheet";
+import { customerExtrasFor } from "@/lib/deviceCustomer";
+import { addDeviceShot, allShotIds, isShotImage, loadDeviceShots, saveDeviceShots, shotKey } from "@/lib/deviceShots";
 import { loadRepRequests, pendingRepRequests } from "@/lib/repRequests";
 import {
   ackPendingAccountSyncs,
@@ -376,6 +378,12 @@ function matchesStatFilter(account: StarlinkAccountSummary, kind: StatFilterKind
 /** 👆 How long a newly shown banner ignores taps. */
 const FRESH_BANNER_MS = 1200;
 
+/** 📸 A «لقطة ذكية» action staged by a device's browser (not a Starlink read). */
+function isShotAction(sync: { fields?: unknown }): boolean {
+  const f = sync.fields as { travelDoneRequest?: unknown; deviceShot?: unknown } | undefined;
+  return Boolean(f?.travelDoneRequest || f?.deviceShot);
+}
+
 export function HomeView({
   accounts: demoAccounts,
   viewMode = "active",
@@ -392,6 +400,7 @@ export function HomeView({
    * dialogs). Ignored on the phone. */
   deskPage?: "home" | "devices";
 }) {
+  const travelDoneRef = useRef<(account: StarlinkAccountSummary) => void>(() => undefined);
   const router = useRouter();
   // 🖥️ The Windows app's own layout (his Oct 21 2026 brief) - the phone's stays exactly as it is.
   const deskWide = useDeskWide();
@@ -596,6 +605,8 @@ export function HomeView({
           ...loadCardTopUps().map((t) => t.id),
           // 🧾 a waiting rep request's receipt (its card's thumbnail)
           ...loadRepRequests().filter((r) => r.status === "pending").map((r) => `req:${r.id}`),
+          // 📎 the devices' kept screenshots
+          ...allShotIds(loadDeviceShots()),
         ]),
       4000,
     );
@@ -1094,6 +1105,8 @@ export function HomeView({
 
   /** ✅ «تم التوثيق»: ⏳ until an update confirms (the device stays in the list); its rep hears it
    * on his bot at once (his choice). */
+  // 📸 the browser's «✅ تم التوثيق» goes through the same handler (kept current for the reads' drain)
+  travelDoneRef.current = (account: StarlinkAccountSummary) => handleTravelDone(account);
   function handleTravelDone(account: StarlinkAccountSummary) {
     patchAccount(account.id, markTravelDone(account));
     if (!account.representativeId) {
@@ -1578,6 +1591,28 @@ export function HomeView({
         }
       }
 
+      // 📸 «لقطة ذكية» in the device browser (his Nov 7 2026 ask): «✅ تم التوثيق» marks the device like the card's
+      // button; «📎 احفظ في سجل الجهاز» keeps the picture (lib/deviceShots.ts). Never Starlink reads.
+      const shotActions = batch.filter((sync) => isShotAction(sync) && !processedSyncIds.has(sync.syncId));
+      if (shotActions.length > 0) {
+        let shots = loadDeviceShots();
+        for (const sync of shotActions) {
+          const fields = sync.fields as { travelDoneRequest?: { at?: number }; deviceShot?: { at?: number; image?: unknown } };
+          const account = accountsRef.current.find((a) => a.id === sync.accountId && !a.deletedAt);
+          if (account && fields.travelDoneRequest) travelDoneRef.current(account);
+          if (account && fields.deviceShot && isShotImage(fields.deviceShot.image)) {
+            const at = typeof fields.deviceShot.at === "number" ? fields.deviceShot.at : Date.now();
+            if (await putProof(shotKey(account.id, at), fields.deviceShot.image)) {
+              shots = addDeviceShot(shots, account.id, at);
+              pushToast(`📎 حُفظت لقطة ${account.name} في سجله`);
+            }
+          }
+          processedSyncIds.add(sync.syncId);
+          unackedSyncIds.add(sync.syncId);
+        }
+        saveDeviceShots(shots);
+      }
+
       // 📌 The device browser's «تثبيت - لم يُسجَّل الشحن بعد» tab: a pin + note, never a Starlink read.
       const browserPins = batch.filter((sync) => isBrowserPin(sync) && !processedSyncIds.has(sync.syncId));
       // ⏳ «شحن بانتظار الفاتورة»: the customer's price typed there - the charge is recorded with its D
@@ -1663,7 +1698,7 @@ export function HomeView({
           }
         }
       }
-      const syncs = batch.filter((sync) => !isBrowserPin(sync) && !isBrowserTeamFlag(sync as never));
+      const syncs = batch.filter((sync) => !isBrowserPin(sync) && !isBrowserTeamFlag(sync as never) && !isShotAction(sync));
       if (syncs.length === 0) {
         await retryAcks();
         return;
@@ -3308,7 +3343,7 @@ export function HomeView({
   const deskCategories = useMemo(() => loadClientCategories().map((c) => ({ id: c.id, name: c.name })), []);
   const deskShowDevices = desk && (deskPage === "devices" || query.trim() !== "");
   function deskOpen(account: StarlinkAccountSummary) {
-    void openIsolatedAccountBrowser(account.id, account.name || "حساب Starlink", { ...starlinkLoginFor(account), ...mailExtrasFor(account, accounts) }).then((result) => {
+    void openIsolatedAccountBrowser(account.id, account.name || "حساب Starlink", { ...starlinkLoginFor(account), ...mailExtrasFor(account, accounts), ...customerExtrasFor(account) }).then((result) => {
       if (!result.ok) window.alert(result.message);
     });
   }
@@ -3414,7 +3449,7 @@ export function HomeView({
         <OceanModeAlarm
           devices={oceanDevices}
           onOpen={(account) => {
-            void openIsolatedAccountBrowser(account.id, account.name || "حساب Starlink", { ...starlinkLoginFor(account), ...mailExtrasFor(account, accounts) }).then((result) => {
+            void openIsolatedAccountBrowser(account.id, account.name || "حساب Starlink", { ...starlinkLoginFor(account), ...mailExtrasFor(account, accounts), ...customerExtrasFor(account) }).then((result) => {
               if (!result.ok) pushToast(result.message);
             });
           }}

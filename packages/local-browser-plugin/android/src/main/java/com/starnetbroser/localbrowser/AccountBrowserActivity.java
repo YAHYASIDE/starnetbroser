@@ -5,6 +5,7 @@ import android.annotation.SuppressLint;
 import android.content.ActivityNotFoundException;
 import android.content.ClipData;
 import android.content.Context;
+import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -66,6 +67,9 @@ public class AccountBrowserActivity extends AppCompatActivity {
     public static final String EXTRA_PROFILE_NAME = "com.starnetbroser.localbrowser.PROFILE_NAME";
     public static final String EXTRA_ACCOUNT_ID = "com.starnetbroser.localbrowser.ACCOUNT_ID";
     public static final String EXTRA_ACCOUNT_NAME = "com.starnetbroser.localbrowser.ACCOUNT_NAME";
+    /** 📸 The device's customer - his name and number, for the ready messages with a screenshot. */
+    public static final String EXTRA_CUSTOMER_NAME = "com.starnetbroser.localbrowser.CUSTOMER_NAME";
+    public static final String EXTRA_CUSTOMER_PHONE = "com.starnetbroser.localbrowser.CUSTOMER_PHONE";
     public static final String EXTRA_URL = "com.starnetbroser.localbrowser.URL";
     public static final String EXTRA_LOGIN_EMAIL = "com.starnetbroser.localbrowser.LOGIN_EMAIL";
     public static final String EXTRA_LOGIN_PASSWORD = "com.starnetbroser.localbrowser.LOGIN_PASSWORD";
@@ -258,6 +262,10 @@ public class AccountBrowserActivity extends AppCompatActivity {
     private String cancelEndDate;
     /** The device's name, for the ⏳ notification while a task runs (BusyService). */
     private String deviceLabel;
+    private String customerName = "";
+    private String customerPhone = "";
+    /** 📸 Android 14+: told when he takes a screenshot here. */
+    private Object shotCallback;
 
     // ---- 📷 Starlink's identity check: «التقاط صورة» and uploading a proof (CameraAccess) ----
     /** A page's camera request waiting for Android's camera permission, or null. */
@@ -284,6 +292,10 @@ public class AccountBrowserActivity extends AppCompatActivity {
         accountId = getIntent().getStringExtra(EXTRA_ACCOUNT_ID);
         String accountName = getIntent().getStringExtra(EXTRA_ACCOUNT_NAME);
         deviceLabel = accountName != null ? accountName : "";
+        String cn = getIntent().getStringExtra(EXTRA_CUSTOMER_NAME);
+        String cp = getIntent().getStringExtra(EXTRA_CUSTOMER_PHONE);
+        customerName = cn != null ? cn : "";
+        customerPhone = cp != null ? cp : "";
         homeUrl = getIntent().getStringExtra(EXTRA_URL);
         autofillScript = LoginAutofill.script(getIntent().getStringExtra(EXTRA_LOGIN_EMAIL), getIntent().getStringExtra(EXTRA_LOGIN_PASSWORD));
         savedLoginPassword = getIntent().getStringExtra(EXTRA_LOGIN_PASSWORD);
@@ -390,7 +402,8 @@ public class AccountBrowserActivity extends AppCompatActivity {
         ((Button) findViewById(R.id.starnet_error_retry)).setOnClickListener(v -> reload());
         findViewById(R.id.starnet_pin_handle).setOnClickListener(v -> askPinUnrecorded());
         findViewById(R.id.starnet_remind_handle).setOnClickListener(v -> askReminder());
-        findViewById(R.id.starnet_flag_handle).setOnClickListener(v -> askTeamFlag());
+        findViewById(R.id.starnet_flag_handle).setOnClickListener(v -> askTeamFlag(null));
+        findViewById(R.id.starnet_shot_handle).setOnClickListener(v -> takeShot());
 
         // 💳 Before the first page: the card-fill script must run at the start of every frame.
         cardFill.setUp(webView);
@@ -838,6 +851,34 @@ public class AccountBrowserActivity extends AppCompatActivity {
             lastFillAt = 0;
         }
         scheduleTwoStepCheck();
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        // 📸 a screenshot taken here (the phone's own buttons) opens the same buttons as the 📸 tab
+        if (Build.VERSION.SDK_INT >= 34 && shotCallback == null) {
+            Activity.ScreenCaptureCallback callback = () -> runOnUiThread(this::takeShot);
+            try {
+                registerScreenCaptureCallback(getMainExecutor(), callback);
+                shotCallback = callback;
+            } catch (RuntimeException e) {
+                // not allowed on this phone - the 📸 tab still works
+            }
+        }
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        if (Build.VERSION.SDK_INT >= 34 && shotCallback != null) {
+            try {
+                unregisterScreenCaptureCallback((Activity.ScreenCaptureCallback) shotCallback);
+            } catch (RuntimeException e) {
+                // already gone
+            }
+            shotCallback = null;
+        }
     }
 
     @Override
@@ -1487,7 +1528,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
      * 🔴 عاجل or 🟡 عادي. Staged like a read (PendingSyncStore, field «teamFlag») - the app turns it into a team alert
      * (lib/repFlags.ts teamFlagsFromBrowser), never a Starlink read.
      */
-    private void askTeamFlag() {
+    private void askTeamFlag(String imageDataUrl) {
         if (accountId == null) return;
         float density = getResources().getDisplayMetrics().density;
         int pad = (int) (20 * density);
@@ -1499,6 +1540,12 @@ public class AccountBrowserActivity extends AppCompatActivity {
         noteInput.setMinLines(2);
         noteInput.setFilters(new android.text.InputFilter[] { new android.text.InputFilter.LengthFilter(400) });
         box.addView(noteInput);
+        if (imageDataUrl != null) {
+            android.widget.TextView withShot = new android.widget.TextView(this);
+            withShot.setText("📸 مع اللقطة");
+            withShot.setPadding(0, pad / 4, 0, 0);
+            box.addView(withShot);
+        }
         androidx.appcompat.app.AlertDialog dialog = new androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("🚩 تنبيه للمسؤول - " + (deviceLabel.isEmpty() ? "هذا الجهاز" : deviceLabel))
             .setView(box)
@@ -1508,16 +1555,16 @@ public class AccountBrowserActivity extends AppCompatActivity {
             .create();
         dialog.setOnShowListener(d -> {
             dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
-                if (stageTeamFlag(noteInput.getText().toString(), "urgent")) dialog.dismiss();
+                if (stageTeamFlag(noteInput.getText().toString(), "urgent", imageDataUrl)) dialog.dismiss();
             });
             dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
-                if (stageTeamFlag(noteInput.getText().toString(), "normal")) dialog.dismiss();
+                if (stageTeamFlag(noteInput.getText().toString(), "normal", imageDataUrl)) dialog.dismiss();
             });
         });
         dialog.show();
     }
 
-    private boolean stageTeamFlag(String note, String level) {
+    private boolean stageTeamFlag(String note, String level, String imageDataUrl) {
         String text = note == null ? "" : note.trim();
         if (text.isEmpty()) {
             Toast.makeText(this, "اكتب المشكلة أولًا", Toast.LENGTH_SHORT).show();
@@ -1527,6 +1574,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
         flag.put("note", text);
         flag.put("level", level);
         flag.put("at", System.currentTimeMillis());
+        if (imageDataUrl != null) flag.put("image", imageDataUrl);
         JSObject fields = new JSObject();
         fields.put("teamFlag", flag);
         String syncId = PendingSyncStore.save(getApplicationContext(), accountId, fields);
@@ -1537,6 +1585,162 @@ public class AccountBrowserActivity extends AppCompatActivity {
         LocalBrowserPlugin.emitAccountDataSynced(syncId, accountId, fields);
         Toast.makeText(this, "🚩 أُرسل التنبيه - يظهر للمسؤول في التطبيق", Toast.LENGTH_SHORT).show();
         return true;
+    }
+
+    /**
+     * 📸 «لقطة ذكية» (his Nov 7 2026 ask, like Alibaba's screenshot pop-up): the page as it is, with buttons for what
+     * he does with it - ✅ تم التوثيق to the customer (and the device marked «✅ تم التوثيق»), a ready message, 📎 kept
+     * in the device's record, 🚩 an alert with it, 📤 any app. From the 📸 tab, or the phone's own screenshot (14+).
+     */
+    private void takeShot() {
+        if (webView == null || accountId == null || isFinishing()) return;
+        android.graphics.Bitmap shot;
+        try {
+            int w = Math.max(1, webView.getWidth());
+            int h = Math.max(1, webView.getHeight());
+            shot = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888);
+            webView.draw(new android.graphics.Canvas(shot));
+        } catch (RuntimeException | OutOfMemoryError e) {
+            Toast.makeText(this, "تعذّرت اللقطة", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        java.io.File file;
+        try {
+            java.io.File dir = new java.io.File(getCacheDir(), "starnet_share");
+            if (!dir.exists() && !dir.mkdirs()) throw new java.io.IOException("cache");
+            file = new java.io.File(dir, "shot-" + System.currentTimeMillis() + ".png");
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(file)) {
+                shot.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out);
+            }
+        } catch (java.io.IOException e) {
+            Toast.makeText(this, "تعذّر حفظ اللقطة", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        showShotActions(shot, file);
+    }
+
+    private void showShotActions(android.graphics.Bitmap shot, java.io.File file) {
+        float density = getResources().getDisplayMetrics().density;
+        int pad = (int) (16 * density);
+        android.widget.LinearLayout box = new android.widget.LinearLayout(this);
+        box.setOrientation(android.widget.LinearLayout.VERTICAL);
+        box.setPadding(pad, pad / 2, pad, 0);
+        android.widget.ImageView preview = new android.widget.ImageView(this);
+        preview.setImageBitmap(shot);
+        preview.setAdjustViewBounds(true);
+        preview.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+        box.addView(preview, new android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT, (int) (200 * density)));
+        if (customerPhone.isEmpty()) {
+            android.widget.TextView hint = new android.widget.TextView(this);
+            hint.setText("لا رقم لزبون هذا الجهاز - واتساب يفتح لتختار المحادثة");
+            hint.setPadding(0, pad / 3, 0, 0);
+            box.addView(hint);
+        }
+        androidx.appcompat.app.AlertDialog[] holder = new androidx.appcompat.app.AlertDialog[1];
+        String[] labels = {
+            "✅ تم التوثيق - أرسل للزبون",
+            "📨 رسالة جاهزة للزبون",
+            "📎 احفظ في سجل الجهاز",
+            "🚩 تنبيه للمسؤول مع الصورة",
+            "📤 مشاركة",
+        };
+        for (int i = 0; i < labels.length; i++) {
+            int which = i;
+            android.widget.Button b = new android.widget.Button(this);
+            b.setText(labels[i]);
+            b.setAllCaps(false);
+            b.setOnClickListener(v -> {
+                if (holder[0] != null) holder[0].dismiss();
+                onShotAction(which, shot, file);
+            });
+            box.addView(b);
+        }
+        android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+        scroll.addView(box);
+        holder[0] = new androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("📸 " + (deviceLabel.isEmpty() ? "لقطة" : deviceLabel))
+            .setView(scroll)
+            .setNegativeButton("إغلاق", null)
+            .create();
+        holder[0].show();
+    }
+
+    private void onShotAction(int which, android.graphics.Bitmap shot, java.io.File file) {
+        switch (which) {
+            case 0:
+                shareShot(file, ShotMessages.text(ShotMessages.TRAVEL_DONE, customerName, deviceLabel), true);
+                stageShotField("travelDoneRequest", new JSObject(), "✅ عُلّم الجهاز «تم التوثيق»");
+                break;
+            case 1:
+                new androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle("📨 رسالة جاهزة")
+                    .setItems(ShotMessages.READY_LABELS, (d, i) -> shareShot(file, ShotMessages.text(ShotMessages.READY_KINDS[i], customerName, deviceLabel), true))
+                    .setNegativeButton("إلغاء", null)
+                    .show();
+                break;
+            case 2: {
+                JSObject keep = new JSObject();
+                keep.put("image", jpegDataUrl(shot, 900, 70));
+                stageShotField("deviceShot", keep, "📎 حُفظت اللقطة في سجل الجهاز");
+                break;
+            }
+            case 3:
+                askTeamFlag(jpegDataUrl(shot, 480, 55));
+                break;
+            default:
+                shareShot(file, null, false);
+        }
+    }
+
+    /** The picture (and the message) into the customer's WhatsApp chat - or any app (`toCustomer` false / no number). */
+    private void shareShot(java.io.File file, String text, boolean toCustomer) {
+        try {
+            android.net.Uri uri = androidx.core.content.FileProvider.getUriForFile(this, getPackageName() + CaptureFileProvider.AUTHORITY_SUFFIX, file);
+            Intent send = new Intent(Intent.ACTION_SEND);
+            send.setType("image/png");
+            send.putExtra(Intent.EXTRA_STREAM, uri);
+            if (text != null) send.putExtra(Intent.EXTRA_TEXT, text);
+            send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            if (toCustomer) {
+                String jid = WhatsAppShare.jid(customerPhone);
+                for (String pkg : WhatsAppShare.PACKAGES) {
+                    Intent direct = new Intent(send).setPackage(pkg);
+                    if (jid != null) direct.putExtra("jid", jid);
+                    if (direct.resolveActivity(getPackageManager()) == null) continue;
+                    startActivity(direct);
+                    return;
+                }
+            }
+            startActivity(Intent.createChooser(send, "أرسل الصورة"));
+        } catch (RuntimeException e) {
+            Toast.makeText(this, "تعذّر فتح واتساب", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    /** A small JPEG of the shot as a data URL (it travels with a read, and in the team link for an alert). */
+    private static String jpegDataUrl(android.graphics.Bitmap shot, int maxWidth, int quality) {
+        android.graphics.Bitmap small = shot;
+        if (shot.getWidth() > maxWidth) {
+            int h = Math.max(1, Math.round(shot.getHeight() * (maxWidth / (float) shot.getWidth())));
+            small = android.graphics.Bitmap.createScaledBitmap(shot, maxWidth, h, true);
+        }
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        small.compress(android.graphics.Bitmap.CompressFormat.JPEG, quality, out);
+        return "data:image/jpeg;base64," + android.util.Base64.encodeToString(out.toByteArray(), android.util.Base64.NO_WRAP);
+    }
+
+    /** Staged like a read (PendingSyncStore) - the app does the rest when it drains it (never a Starlink read). */
+    private void stageShotField(String field, JSObject value, String done) {
+        value.put("at", System.currentTimeMillis());
+        JSObject fields = new JSObject();
+        fields.put(field, value);
+        String syncId = PendingSyncStore.save(getApplicationContext(), accountId, fields);
+        if (syncId == null) {
+            Toast.makeText(this, "تعذّر الحفظ - حاول مرة أخرى", Toast.LENGTH_LONG).show();
+            return;
+        }
+        LocalBrowserPlugin.emitAccountDataSynced(syncId, accountId, fields);
+        Toast.makeText(this, done, Toast.LENGTH_SHORT).show();
     }
 
     private void pickReminderTime(String note, androidx.appcompat.app.AlertDialog parent) {

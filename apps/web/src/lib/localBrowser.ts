@@ -78,6 +78,9 @@ export interface StarlinkLogin {
   mailSuggestions?: string[];
   /** Typed into Microsoft's «Add an email address» there. */
   mailRecoveryEmail?: string;
+  /** 📸 The device's customer (the screenshot's ready messages go to his WhatsApp). */
+  customerName?: string;
+  customerPhone?: string;
 }
 
 /** The mailbox extras for a device's Starlink browser («📧 البريد» inside it): its email's code,

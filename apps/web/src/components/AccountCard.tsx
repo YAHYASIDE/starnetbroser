@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 
 import { showsRestriction } from "@/lib/reminders";
 import { PromiseQuickSheet } from "./PromiseQuickSheet";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { currencyLabel } from "@/lib/telegramMessages";
 import { StarlinkAccountSummary } from "@starnet/shared";
 import { priorityDataLine, priorityDataState } from "@/lib/priorityData";
@@ -53,6 +53,9 @@ import { DeviceNoteSheet, type DeviceNoteSheetMode } from "./DeviceNoteSheet";
 import { RepFlagSheet } from "./RepFlagSheet";
 import { OPEN_REP_FLAGS, useDeviceRepFlags } from "./RepFlagsBanner";
 import { TeamFlagSheet } from "./TeamFlagSheet";
+import { customerExtrasFor } from "@/lib/deviceCustomer";
+import { loadDeviceShots } from "@/lib/deviceShots";
+import { DeviceShotsSheet } from "./DeviceShotsSheet";
 import { isRepWorkspace } from "@/lib/repMode";
 import { pinAgeText, type DeviceNote } from "@/lib/deviceNotes";
 import { reminderWhenLabel, type DeviceReminder } from "@/lib/deviceReminders";
@@ -461,6 +464,7 @@ export function AccountCard({
       const result = await openIsolatedAccountBrowser(account.id, account.name || "حساب Starlink", {
         ...starlinkLoginFor(account),
         ...mailExtrasFor(account, allAccounts),
+        ...customerExtrasFor(account),
       });
       if (!result.ok) {
         window.alert(result.message);
@@ -587,6 +591,8 @@ export function AccountCard({
   const [showPromise, setShowPromise] = useState(false);
   const [showActivation, setShowActivation] = useState(false);
   const [showTeamFlag, setShowTeamFlag] = useState(false);
+  const [showShots, setShowShots] = useState(false);
+  const shotCount = useMemo(() => (showMore ? (loadDeviceShots()[account.id] ?? []).length : 0), [showMore, account.id]);
   const identityEmail = account.expectedEmail || account.starlinkAccountEmail;
   const [emailCopied, setEmailCopied] = useState(false);
   // ✉️ The device is named by its email: shown once (his Oct 17 2026 choice) - the name copies it.
@@ -1429,6 +1435,7 @@ export function AccountCard({
         </div>
       )}
 
+      {showShots && <DeviceShotsSheet accountId={account.id} name={account.name} onClose={() => setShowShots(false)} />}
       {showTeamFlag && <TeamFlagSheet device={{ id: account.id, name: account.name, email: account.starlinkAccountEmail || account.expectedEmail }} onClose={() => setShowTeamFlag(false)} />}
 
       {showActivation && (
@@ -1463,6 +1470,8 @@ export function AccountCard({
                 { icon: "📨", label: "رسالة التفعيل", run: () => setShowActivation(true) },
                 // 🚩 a team member's alert on this device (his Nov 7 2026 ask) - not in a rep's own app (he has his own 🚩)
                 ...(!repApp ? [{ icon: "🚩", label: "تنبيه للمسؤول", run: () => setShowTeamFlag(true) }] : []),
+                // 📎 the screenshots kept from its browser («📸 لقطة ذكية»)
+                ...(shotCount > 0 ? [{ icon: "📎", label: `لقطات الجهاز (${shotCount})`, run: () => setShowShots(true) }] : []),
                 { icon: "📋", label: expanded ? "إخفاء التفاصيل" : "التفاصيل", run: () => setExpanded((v) => !v) },
                 { icon: client ? "✎" : "🔗", label: client ? "تعديل البيانات" : "ربط بزبون", run: () => onEdit(account) },
                 { icon: "📋", label: "لصق جلسة (من متصفح آخر)", run: () => setShowPasteSession(true) },

@@ -829,6 +829,11 @@ public class LocalBrowserPlugin extends Plugin {
         // 💱 the app's rates for the balance strip's أوقية / سيفا (numbers only, nothing secret)
         String balanceRates = options.getString("balanceRates");
         if (balanceRates != null && !balanceRates.isEmpty() && balanceRates.length() < 4000) intent.putExtra(AccountBrowserActivity.EXTRA_BALANCE_RATES, balanceRates);
+        // 📸 the device's customer, for the ready messages with a screenshot (his name and number only)
+        String customerName = options.getString("customerName");
+        String customerPhone = options.getString("customerPhone");
+        if (customerName != null && !customerName.trim().isEmpty()) intent.putExtra(AccountBrowserActivity.EXTRA_CUSTOMER_NAME, customerName.trim());
+        if (customerPhone != null && !customerPhone.trim().isEmpty()) intent.putExtra(AccountBrowserActivity.EXTRA_CUSTOMER_PHONE, customerPhone.trim());
         String mailRecovery = options.getString("mailRecoveryEmail");
         if (mailRecovery != null && !mailRecovery.trim().isEmpty()) intent.putExtra(AccountBrowserActivity.EXTRA_MAIL_RECOVERY, mailRecovery.trim());
         // A distinct Uri per account (never loaded/navigated to - AccountBrowserActivity only

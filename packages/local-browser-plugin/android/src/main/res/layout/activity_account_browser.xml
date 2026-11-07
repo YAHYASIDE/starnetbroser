@@ -89,6 +89,20 @@
             android:text="🚩"
             android:textSize="17sp" />
 
+        <!-- 📸 «لقطة ذكية» (his Nov 7 2026 ask): the same kind of tab, under 🚩. -->
+        <TextView
+            android:id="@+id/starnet_shot_handle"
+            android:layout_width="34dp"
+            android:layout_height="46dp"
+            android:layout_gravity="right|center_vertical"
+            android:layout_marginTop="168dp"
+            android:background="@drawable/starnet_remind_handle"
+            android:contentDescription="لقطة ذكية"
+            android:elevation="6dp"
+            android:gravity="center"
+            android:text="📸"
+            android:textSize="17sp" />
+
         <LinearLayout
             android:id="@+id/starnet_error_overlay"
             android:layout_width="match_parent"

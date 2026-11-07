@@ -163,6 +163,11 @@ describe("👥 team alerts on a device (his Nov 7 2026 ask)", () => {
     const once = addIncomingFlags({}, flags).store;
     expect(addIncomingFlags(once, teamFlagsFromBrowser(syncs, [{ id: "d1", name: "DEMO 1" }], "YAHYA").flags).added).toHaveLength(0);
     expect(isBrowserTeamFlag(syncs[0]!)).toBe(true);
+    // 📸 a small picture rides with it; anything else is dropped
+    const withShot = teamFlagsFromBrowser([{ syncId: "s3", accountId: "d1", fields: { teamFlag: { note: "x", image: "data:image/jpeg;base64,AAAA" } } }], [{ id: "d1", name: "DEMO 1" }], "Y").flags[0];
+    expect(withShot!.image).toBe("data:image/jpeg;base64,AAAA");
+    const bad = teamFlagsFromBrowser([{ syncId: "s4", accountId: "d1", fields: { teamFlag: { note: "x", image: "javascript:1" } } }], [{ id: "d1", name: "DEMO 1" }], "Y").flags[0];
+    expect(bad!.image).toBeUndefined();
     expect(isBrowserTeamFlag({ fields: {} })).toBe(false);
   });
 });

@@ -35,6 +35,9 @@ export interface OwnerFlag extends RepFlag {
   by?: string;
   /** 🔴 urgent / 🟡 normal (a team alert; a rep's warning has none). */
   level?: FlagLevel;
+  /** 📸 A small picture with it (a screenshot from the device's browser) - a JPEG data URL, kept small (it travels
+   * in the team link). */
+  image?: string;
 }
 
 export type FlagLevel = "urgent" | "normal";
@@ -53,6 +56,8 @@ export interface FlagLink extends FlagChannel {
 }
 
 export const MAX_FLAG_NOTE = 400;
+/** 📸 An alert's picture at most (characters of its data URL) - it travels in the team link. */
+export const MAX_FLAG_IMAGE = 160_000;
 
 export function flagCollection(spaceId: string): string {
   return `starnet/${spaceId}/flags`;
@@ -136,7 +141,7 @@ export function newTeamFlag(
 /** 🚩 from a device's browser (staged there as a read, `fields.teamFlag`): the alerts, by whoever this phone is, and
  * every such read handled (to acknowledge). The read's id is the alert's - a second drain adds nothing. */
 export function teamFlagsFromBrowser(
-  syncs: { syncId: string; accountId: string; fields: { teamFlag?: { note?: string; level?: string; at?: number } } }[],
+  syncs: { syncId: string; accountId: string; fields: { teamFlag?: { note?: string; level?: string; at?: number; image?: string } } }[],
   devices: { id: string; name: string; email?: string }[],
   by: string,
 ): { flags: OwnerFlag[]; syncIds: string[] } {
@@ -150,6 +155,8 @@ export function teamFlagsFromBrowser(
     if (!device) continue;
     const at = typeof t.at === "number" && t.at > 0 ? t.at : Date.now();
     const flag = newTeamFlag({ deviceId: device.id, deviceName: device.name, email: device.email, note: t.note ?? "", level: t.level === "urgent" ? "urgent" : "normal", by }, at, () => `browser-${sync.syncId}`);
+    // 📸 its screenshot, when small enough to travel with it
+    if (flag && typeof t.image === "string" && /^data:image\/jpeg;base64,/.test(t.image) && t.image.length <= MAX_FLAG_IMAGE) flag.image = t.image;
     if (flag) flags.push(flag);
   }
   return { flags, syncIds };
