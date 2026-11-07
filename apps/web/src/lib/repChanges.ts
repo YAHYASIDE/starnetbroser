@@ -534,6 +534,25 @@ export function listRepChangeItems(all: RepChangeSet, owner: StoreValues): RepCh
 }
 
 /** store|path -> the operator's decision on that exact version. */
+/**
+ * 🤖 What a rep's file installs by itself (his Nov 7 2026 ask «الأجهزة التي يرسلها المندوبون تثبت تلقائيًا»; his choices
+ * «الأجهزة تلقائيًا والمال ينتظر» and «يأخذ جلسته فقط»): his new devices and the names on his devices go in at once; a
+ * new device the operator already has (same email or KIT) is never installed again - the operator's device stays as
+ * it is and only takes the rep's Starlink session when its own is signed out (`absorb`); anything else (money…)
+ * waits for approval as before.
+ */
+export function autoInstallPlan(items: RepChangeItem[]): { approve: string[]; absorb: string[]; wait: RepChangeItem[] } {
+  const approve: string[] = [];
+  const absorb: string[] = [];
+  const wait: RepChangeItem[] = [];
+  for (const item of items) {
+    if (item.duplicateOf && item.accountId) absorb.push(item.key);
+    else if (!item.duplicateOf && (item.kind === "newDevice" || item.kind === "deviceEdit")) approve.push(item.key);
+    else wait.push(item);
+  }
+  return { approve, absorb, wait };
+}
+
 export type RepDecisions = Record<string, { hash: string; decision: "approved" | "rejected"; at: string }>;
 
 export function isItemDecided(item: RepChangeItem, decisions: RepDecisions): boolean {

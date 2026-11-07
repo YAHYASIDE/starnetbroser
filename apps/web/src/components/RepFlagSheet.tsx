@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { PartySheet } from "./AccountsSection";
 import { loadRepCopy } from "@/lib/repCopy";
-import { loadOutbox, markFlagSent, MAX_FLAG_NOTE, newRepFlag, outboxForDevice, queueFlag, saveOutbox } from "@/lib/repFlags";
+import { loadOutbox, markFlagSent, MAX_FLAG_NOTE, newRepFlag, outboxForDevice, queueFlag, saveOutbox, type FlagLevel } from "@/lib/repFlags";
 import { pushFlags } from "@/lib/repFlagLink";
 
 function when(at: number): string {
@@ -16,6 +16,7 @@ function when(at: number): string {
  * Firebase (lib/repFlags.ts) - and what he sent on this device before, with «⏳ / ✓ وصل». */
 export function RepFlagSheet({ deviceId, deviceName, email, onClose }: { deviceId: string; deviceName: string; email?: string; onClose: () => void }) {
   const [note, setNote] = useState("");
+  const [level, setLevel] = useState<FlagLevel>("normal");
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [outbox, setOutbox] = useState(loadOutbox);
@@ -27,7 +28,7 @@ export function RepFlagSheet({ deviceId, deviceName, email, onClose }: { deviceI
       setStatus("افتح نسختك من المسؤول أولًا");
       return;
     }
-    const flag = newRepFlag({ repId: copy.repId, deviceId, deviceName, ...(email ? { email } : {}), note });
+    const flag = newRepFlag({ repId: copy.repId, deviceId, deviceName, ...(email ? { email } : {}), note, level });
     if (!flag) {
       setStatus("اكتب وصف التحذير");
       return;
@@ -64,6 +65,13 @@ export function RepFlagSheet({ deviceId, deviceName, email, onClose }: { deviceI
           value={note}
           onChange={(e) => setNote(e.target.value)}
         />
+        <div className="report-period-row" role="radiogroup" aria-label="الأهمية">
+          {(["urgent", "normal"] as const).map((l) => (
+            <button key={l} type="button" role="radio" aria-checked={level === l} className={`report-period-btn${level === l ? ` report-period-btn-active${l === "urgent" ? " team-flag-urgent" : ""}` : ""}`} onClick={() => setLevel(l)}>
+              {l === "urgent" ? "🔴 مستعجل" : "🟡 غير مستعجل"}
+            </button>
+          ))}
+        </div>
         <button type="button" className="dialog-primary rep-flag-send" disabled={busy || !note.trim()} onClick={() => void send()}>
           {busy ? "⏳ يُرسل…" : "🚩 أرسل التحذير"}
         </button>
@@ -72,7 +80,7 @@ export function RepFlagSheet({ deviceId, deviceName, email, onClose }: { deviceI
           <ul className="rep-flag-history">
             {mine.map((i) => (
               <li key={i.flag.id}>
-                <span>{i.sentAt ? "✓ وصل" : "⏳ ينتظر"}</span> · <bdi dir="ltr">{when(i.flag.at)}</bdi> · {i.flag.note}
+                <span>{i.sentAt ? "✓ وصل" : "⏳ ينتظر"}</span> · {i.flag.level === "urgent" ? "🔴 · " : ""}<bdi dir="ltr">{when(i.flag.at)}</bdi> · {i.flag.note}
               </li>
             ))}
           </ul>

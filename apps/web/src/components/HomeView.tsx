@@ -57,7 +57,8 @@ import { clientPickerInfo } from "@/lib/clientPicker";
 import { debtNeedsClient } from "@/lib/ledgerModes";
 import { remindersByAccount, type DeviceReminder } from "@/lib/deviceReminders";
 import { deviceOrigin, type Origin } from "@/lib/teamActivity";
-import { browserLinkStorage, loadOrigins } from "@/lib/deviceLink";
+import { browserLinkStorage, isMainMember, loadActivityLog, loadLinkConfig, loadOrigins } from "@/lib/deviceLink";
+import { autoInstallWaitingRepFiles } from "@/lib/repChangesApply";
 import { doneDeviceReminder, listDeviceReminders, prefetchAppUpdate } from "@/lib/localBrowser";
 import { HOME_ACTION_EVENT, HOME_RESET_EVENT, HOME_SEARCH_EVENT, HomeAction, parseHomeAction, parseHomePayment, parseActivateDevice, REMINDER_COUNT_EVENT, parseHomeSearch } from "@/lib/homeActions";
 import { deviceRoute, HOME_ROUTE, KAST_ROUTE, notifyPhone } from "@/lib/appEvents";
@@ -156,7 +157,8 @@ import { commitDemoAccounts, loadDemoAccounts } from "@/lib/demoAccountStore";
 import { loadRecentLog, markDeviceTouched, RECENT_EVENT, recentDevices, touchedOn, type RecentLog } from "@/lib/recentDevices";
 import { applyBrowserPins, isBrowserPin, isPinned, loadDeviceNotes, mergeDeviceNotes, noteMatchesQuery, pinnedDevices, saveDeviceNote, saveDeviceNotes, setDevicePinned, shouldAskUnpin, unpinAll, type DeviceNotesStore } from "@/lib/deviceNotes";
 import { ACCOUNTS_CHANGED_EVENT } from "@/lib/repMenuRecords";
-import { addIncomingFlags, isBrowserTeamFlag, loadOwnerFlags, saveOwnerFlags, teamFlagsFromBrowser } from "@/lib/repFlags";
+import { addIncomingFlags, isBrowserTeamFlag, loadOwnerFlags, REP_FLAGS_CHANGED, saveOwnerFlags, teamFlagsFromBrowser, type OwnerFlagStore } from "@/lib/repFlags";
+import { flaggedDevices, LAST_ADDED_LIMIT, lastAddedByOthers } from "@/lib/homeTiles";
 import { teamMemberName } from "./TeamFlagSheet";
 import {
   addSentMessage,
@@ -272,7 +274,9 @@ type StatFilterKind =
   // 🌍 his Oct 21 2026 ask: outside the home country, day by day (lib/outsideHome.ts).
   | "outsideHome"
   // ⏳ sold by invoice, not activated yet (lib/saleDevices.ts).
-  | "pending";
+  | "pending"
+  // 🔴🟡🆕 his Nov 7 2026 big icons (lib/homeTiles.ts).
+  | "urgent" | "notUrgent" | "lastAdded";
 
 const STAT_FILTER_TITLES: Record<StatFilterKind, string> = {
   online: "الحسابات المتصلة الآن",
@@ -300,6 +304,9 @@ const STAT_FILTER_TITLES: Record<StatFilterKind, string> = {
   rep: "🤝 أجهزة المندوب",
   outsideHome: "🌍 خارج البلد - فعّل التجوال العالمي قبل يومها",
   pending: "⏳ أجهزة بيعت ولم تُفعَّل بعد",
+  urgent: "🔴 مستعجل - تنبيه مفتوح عاجل",
+  notUrgent: "🟡 غير مستعجل - تنبيه مفتوح عادي",
+  lastAdded: `🆕 آخر ${LAST_ADDED_LIMIT} أجهزة أضافها المندوبون والمسؤولون`,
 };
 
 /** 🔍 A circle's check (long press): what it answers, in his words. Circles the sync can't change
@@ -371,6 +378,9 @@ function matchesStatFilter(account: StarlinkAccountSummary, kind: StatFilterKind
     case "noClient":
     case "pinned":
     case "recent":
+    case "urgent":
+    case "notUrgent":
+    case "lastAdded":
       // Needs another store - narrowed in `filtered` (client list / 📌 device notes).
       return true;
     case "expiringSoon": {
@@ -464,6 +474,22 @@ export function HomeView({
   const reminderOf = useMemo(() => remindersByAccount(reminders, Date.now()), [reminders]);
   // 🔗 what another member of the link team added / changed (the page reloads when their changes land)
   const [linkOrigins, setLinkOrigins] = useState<Record<string, Origin>>({});
+  // 🔴🟡 the open alerts (reread when one comes in or is reviewed) · 🆕 what the other members added (the link's log)
+  const [ownerFlags, setOwnerFlags] = useState<OwnerFlagStore>({});
+  const [teamLog, setTeamLog] = useState<ReturnType<typeof loadActivityLog>>([]);
+  useEffect(() => {
+    const reload = () => {
+      setOwnerFlags(loadOwnerFlags());
+      setTeamLog(loadActivityLog(browserLinkStorage()));
+    };
+    reload();
+    window.addEventListener(REP_FLAGS_CHANGED, reload);
+    window.addEventListener(ACCOUNTS_CHANGED_EVENT, reload);
+    return () => {
+      window.removeEventListener(REP_FLAGS_CHANGED, reload);
+      window.removeEventListener(ACCOUNTS_CHANGED_EVENT, reload);
+    };
+  }, []);
   useEffect(() => setLinkOrigins(loadOrigins(browserLinkStorage())), []);
   useEffect(() => setDeviceNotes(loadDeviceNotes()), []);
   // 🕘 «آخر جهاز»: opened / edited on this phone (lib/recentDevices.ts) - syncs and له/عليه are derived.
@@ -583,6 +609,14 @@ export function HomeView({
       setRepInboxPending(repInboxCount());
     };
     refresh();
+    // 🤖 reps' devices already waiting go in by themselves - on the main phone (or one with no team link) only
+    const link = loadLinkConfig(browserLinkStorage());
+    if (!isRepWorkspace() && (!link || isMainMember(link.memberId)) && repInboxCount() > 0) {
+      void autoInstallWaitingRepFiles().then((n) => {
+        if (n > 0) pushToast(`🤖 ثُبّتت ${n} من أجهزة المندوبين تلقائيًا`);
+        refresh();
+      });
+    }
     const timer = window.setInterval(refresh, 10000);
     window.addEventListener(REP_INBOX_EVENT, refresh);
     return () => {
@@ -997,6 +1031,10 @@ export function HomeView({
         return out.filter((a) => deviceTwinMap.has(a.id));
       case "rep":
         return out.filter((a) => a.representativeId === repId);
+      case "urgent":
+      case "notUrgent":
+      case "lastAdded":
+        return narrowByTile(out, kind);
       default:
         return out;
     }
@@ -2591,6 +2629,29 @@ export function HomeView({
   }, [activeAccounts]);
 
 
+  // 🔴🟡🆕 his Nov 7 2026 big icons (lib/homeTiles.ts)
+  const flagged = useMemo(() => flaggedDevices(ownerFlags), [ownerFlags]);
+  const lastAdded = useMemo(
+    () => lastAddedByOthers(activeAccounts, teamLog, (id) => getRepresentative(representativeStore, id)?.name ?? "مندوب"),
+    [activeAccounts, teamLog, representativeStore],
+  );
+  const tileCounts = useMemo(() => {
+    const live = new Set(activeAccounts.map((a) => a.id));
+    return {
+      urgent: [...flagged.urgent].filter((id) => live.has(id)).length,
+      notUrgent: [...flagged.normal].filter((id) => live.has(id)).length,
+    };
+  }, [activeAccounts, flagged]);
+  function narrowByTile(list: StarlinkAccountSummary[], kind: StatFilterKind): StarlinkAccountSummary[] {
+    if (kind === "urgent") return list.filter((a) => flagged.urgent.has(a.id));
+    if (kind === "notUrgent") return list.filter((a) => flagged.normal.has(a.id));
+    if (kind === "lastAdded") {
+      const byId = new Map(list.map((a) => [a.id, a]));
+      return lastAdded.map((x) => byId.get(x.id)).filter((a): a is StarlinkAccountSummary => Boolean(a));
+    }
+    return list;
+  }
+
   const { list: filtered, fuzzy: fuzzySearch } = useMemo(() => {
     let list = activeAccounts;
     if (clientFocus) list = list.filter((a) => a.clientId === clientFocus);
@@ -2608,6 +2669,7 @@ export function HomeView({
       if (statFilter === "renewed") list = list.filter((a) => renewedToday.has(a.id));
       if (statFilter === "duplicate") list = list.filter((a) => deviceTwinMap.has(a.id));
       if (statFilter === "rep") list = list.filter((a) => a.representativeId === repRingId);
+      list = narrowByTile(list, statFilter);
       // 🌍 the soonest to run out first - the same order as the days above
       if (statFilter === "outsideHome") {
         const today = localToday();
@@ -2629,7 +2691,7 @@ export function HomeView({
       return { list: found(true), fuzzy: true };
     }
     return { list, fuzzy: false };
-  }, [activeAccounts, clientFocus, selectedDay, statFilter, faultFilter, noClientGroup, travelGroup, ledgerStore, allAllocations, query, clientStore, representativeStore, deviceNotes, recentLog, renewedToday, deviceTwinMap, repRingId, travelInRepLedger]);
+  }, [activeAccounts, clientFocus, selectedDay, statFilter, faultFilter, noClientGroup, travelGroup, ledgerStore, allAllocations, query, clientStore, representativeStore, deviceNotes, recentLog, renewedToday, deviceTwinMap, repRingId, travelInRepLedger, flagged, lastAdded]);
 
   const faultCounts = useMemo(() => countFaultCategories(activeAccounts), [activeAccounts]);
   const repairCount = useMemo(() => activeAccounts.filter(isUnderRepair).length, [activeAccounts]);
@@ -2904,8 +2966,36 @@ export function HomeView({
     />
     );
 
+  const tilesNode = (
+    <section className="home-tiles" aria-label="المستعجل والجديد">
+      {(
+        [
+          { kind: "urgent", icon: "🔴", label: "مستعجل", value: tileCounts.urgent },
+          { kind: "notUrgent", icon: "🟡", label: "غير مستعجل", value: tileCounts.notUrgent },
+          { kind: "lastAdded", icon: "🆕", label: "آخر المضافة", value: lastAdded.length },
+        ] as const
+      ).map((t) => (
+        <button
+          key={t.kind}
+          type="button"
+          className={`home-tile home-tile-${t.kind}${statFilter === t.kind ? " is-active" : ""}`}
+          aria-pressed={statFilter === t.kind}
+          onClick={() => {
+            toggleStatFilter(t.kind);
+            setSelectedDay(null);
+          }}
+        >
+          <span className="home-tile-icon" aria-hidden="true">{t.icon}</span>
+          <strong className="home-tile-value">{t.value}</strong>
+          <span className="home-tile-label">{t.label}</span>
+        </button>
+      ))}
+    </section>
+  );
+
   const ringsNode = (
     <>
+      {tilesNode}
       <section className="status-rings" aria-label="ملخص الحسابات">
         <StatusRing
           tone="total"
@@ -3165,13 +3255,15 @@ export function HomeView({
     )}
 
     {suspendedWithDebt.length > 0 && (
-      <Link href="/starlink" className="backup-banner d-alert-banner" onClick={ignoreFreshTap("d-alert")}>
+      <Link href="/starlink" className="backup-banner d-alert-banner home-slim" onClick={ignoreFreshTap("d-alert")}>
         <span aria-hidden="true">⚠️</span>
         <span>
           <strong>
             {suspendedWithDebt.length === 1
               ? `${suspendedWithDebt[0]!.account.name} توقف وعليه D`
               : `${suspendedWithDebt.length} أجهزة توقفت وعليها D`}
+            {" · "}
+            <bdi dir="ltr">{formatAmount(suspendedWithDebt.reduce((sum, s) => sum + s.costUsd, 0))} $</bdi>
           </strong>
           <small>
             ادفع لستارلينك <bdi dir="ltr">{formatAmount(suspendedWithDebt.reduce((sum, s) => sum + s.costUsd, 0))} $</bdi> ثم اضغط «سدّدت»
@@ -3186,7 +3278,7 @@ export function HomeView({
     )}
 
     {showMoneyAlerts && (
-      <button type="button" className="backup-banner money-alert-banner" data-tour="money-alerts" onClick={() => setMoneyAlertsOpen(true)}>
+      <button type="button" className="backup-banner money-alert-banner home-slim" data-tour="money-alerts" onClick={() => setMoneyAlertsOpen(true)}>
         <span aria-hidden="true">{weekCardNeed && weekCardNeed.shortUsd > 0 ? "💳" : "🔻"}</span>
         <span>
           {weekCardNeed && weekCardNeed.shortUsd > 0 && (
@@ -3320,17 +3412,17 @@ export function HomeView({
     )}
 
     {repInboxPending > 0 && (
-      <Link href="/representatives#rep-inbox" className="backup-banner">
+      <Link href="/representatives#rep-inbox" className="backup-banner home-slim">
         <span aria-hidden="true">📝</span>
         <span>
-          <strong>{repInboxPending} تسجيلاً من المندوبين بانتظار موافقتك</strong>
+          <strong>{repInboxPending} من تسجيلات المندوبين بانتظار موافقتك</strong>
           <small>أجهزة ودفعات وزبائن من تطبيق المندوب - لا يدخل شيء قبل أن تثبّته</small>
         </span>
       </Link>
     )}
 
     {pendingRepRequestCount > 0 && (
-      <Link href="/representatives" className="backup-banner">
+      <Link href="/representatives" className="backup-banner home-slim">
         <span aria-hidden="true">📥</span>
         <span>
           <strong>{pendingRepRequestCount === 1 ? "طلب من مندوب بانتظار موافقتك" : `${pendingRepRequestCount} طلبات من المندوبين بانتظار موافقتك`}</strong>

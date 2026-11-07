@@ -11,6 +11,7 @@ import { loadAllocationStore, saveAllocationStore } from "./paymentAllocationSto
 import { loadPreviousDebts, savePreviousDebts } from "./previousDebt";
 import {
   applyRepChangeSet,
+  autoInstallPlan,
   changeSetOf,
   describeItems,
   isItemWaiting,
@@ -104,13 +105,52 @@ export async function receiveRepChanges(text: string, fromRepId?: string): Promi
   if (!saveRepInbox({ ...inbox, files: [...inbox.files.filter((f) => f.repId !== repId), entry] })) {
     return { ok: false, message: "ذاكرة الهاتف ممتلئة - لم تُحفظ تسجيلات المندوب" };
   }
-  const what = describeItems(items);
   // 🔑 how many of his devices came with their Starlink session (his Nov 2 2026 report: they arrived signed out)
   const keys = sessionsFor(sessionDeviceIds(payload.changes), payload.sessions);
   const keysLine = keys.withSession.length + keys.without.length > 0 ? `\n🔑 جلسات Starlink في الملف: ${keys.withSession.length} من ${keys.withSession.length + keys.without.length}${keys.without.length ? " - افتح الأجهزة الناقصة وسجّل الدخول فيها ثم أعد الإرسال" : ""}` : "";
-  await sendRepText(repId, `📥 وصلت تسجيلاتك (${items.length}): ${what}${keysLine}\n⏳ بانتظار موافقة المسؤول.`);
-  await tellOwner(`📝 المندوب ${rep.name} أرسل ${items.length} تسجيلاً بانتظار موافقتك: ${what}\nراجعها في التطبيق (المندوبون ← تسجيلات المندوبين).`, REP_INBOX_ROUTE);
-  return { ok: true, message: `📝 وصلت تسجيلات ${rep.name} (${items.length}) - بانتظار موافقتك` };
+  // 🤖 his devices go in by themselves (autoInstallPlan); only what's left (money…) waits for the operator
+  const plan = autoInstallPlan(items);
+  let autoMessage = "";
+  if (plan.approve.length + plan.absorb.length > 0) {
+    const auto = await decideRepItems(repId, plan.approve, [], [], { absorbKeys: plan.absorb, auto: true });
+    if (auto.ok) {
+      autoMessage = auto.message;
+      await tellOwner(`🤖 أجهزة المندوب ${rep.name} ثُبّتت تلقائيًا: ${describeItems(items.filter((i) => !plan.wait.includes(i)))}\n${auto.message}`);
+    }
+  }
+  const waitingNow = autoMessage ? plan.wait : items;
+  if (waitingNow.length === 0) {
+    if (keysLine) await sendRepText(repId, keysLine.trim());
+    return { ok: true, message: `🤖 ${rep.name}: ${autoMessage}` };
+  }
+  const what = describeItems(waitingNow);
+  await sendRepText(repId, `📥 وصلت تسجيلاتك (${waitingNow.length}): ${what}${keysLine}\n⏳ بانتظار موافقة المسؤول.`);
+  await tellOwner(`📝 المندوب ${rep.name} أرسل ${waitingNow.length} تسجيلاً بانتظار موافقتك: ${what}\nراجعها في التطبيق (المندوبون ← تسجيلات المندوبين).`, REP_INBOX_ROUTE);
+  return { ok: true, message: `${autoMessage ? `🤖 ${autoMessage}\n` : ""}📝 وصلت تسجيلات ${rep.name} (${waitingNow.length}) - بانتظار موافقتك` };
+}
+
+/**
+ * 🤖 Files already waiting (sent before the automatic install, or opened on this phone through the team link): their
+ * devices go in now, the same way. Run on the main phone (or one with no team link) only, so two phones never
+ * install the same file at once. Returns how many items went in.
+ */
+export async function autoInstallWaitingRepFiles(): Promise<number> {
+  if (!isDemoMode()) return 0;
+  const inbox = loadRepInbox();
+  let done = 0;
+  for (const file of inbox.files) {
+    let payload: RepChangesPayload;
+    try {
+      payload = await openFile(file.file, file.repId);
+    } catch {
+      continue;
+    }
+    const plan = autoInstallPlan(waiting(payload, loadRepInbox().decisions[file.repId] ?? {}));
+    if (plan.approve.length + plan.absorb.length === 0) continue;
+    const r = await decideRepItems(file.repId, plan.approve, [], [], { absorbKeys: plan.absorb, auto: true });
+    if (r.ok) done += plan.approve.length + plan.absorb.length;
+  }
+  return done;
 }
 
 // ---- reviewing ----
@@ -145,7 +185,15 @@ export async function openRepInbox(): Promise<RepInboxView[]> {
  * their Starlink sessions and «📱 أضافه المندوب»), every decision is remembered for that exact
  * version, the rep is told, and he gets a fresh copy - his ⏳ marks clear, rejected ones leave.
  */
-export async function decideRepItems(repId: string, approveKeys: string[], rejectKeys: string[], linkKeys: string[] = []): Promise<{ ok: boolean; message: string }> {
+export async function decideRepItems(
+  repId: string,
+  approveKeys: string[],
+  rejectKeys: string[],
+  linkKeys: string[] = [],
+  /** 🤖 `absorbKeys`: his new device the operator already has - not installed; it only lends its Starlink session to
+   * the operator's device when that one is signed out (autoInstallPlan). `auto`: installed by itself, not by a tap. */
+  options: { absorbKeys?: string[]; auto?: boolean } = {},
+): Promise<{ ok: boolean; message: string }> {
   const inbox = loadRepInbox();
   const file = inbox.files.find((f) => f.repId === repId);
   const rep = loadRepresentativeStore()[repId];
@@ -164,7 +212,26 @@ export async function decideRepItems(repId: string, approveKeys: string[], rejec
   // place of the operator's old one - the old one's records move onto it and it goes to the trash.
   const linked = items.filter((i) => linkKeys.includes(i.key) && i.duplicateOf && i.accountId && !approveKeys.includes(i.key));
   const rejected = items.filter((i) => rejectKeys.includes(i.key) && !approved.includes(i) && !linked.includes(i));
-  if (approved.length === 0 && rejected.length === 0 && linked.length === 0) return { ok: false, message: "اختر تسجيلاً أولاً" };
+  const absorbed = items.filter((i) => (options.absorbKeys ?? []).includes(i.key) && i.duplicateOf && i.accountId && !approved.includes(i) && !linked.includes(i) && !rejected.includes(i));
+  if (approved.length === 0 && rejected.length === 0 && linked.length === 0 && absorbed.length === 0) return { ok: false, message: "اختر تسجيلاً أولاً" };
+
+  // 🔑 a device he already has keeps everything; it takes the rep's session only when its own is signed out
+  let lentSessions = 0;
+  if (absorbed.length > 0) {
+    const mineIds = [...new Set(absorbed.map((i) => i.duplicateOf!.accountId))];
+    const signedIn = new Set(sessionsFor(mineIds, await exportAccountSessions(mineIds)).withSession);
+    const lend: Record<string, Record<string, string>> = {};
+    for (const item of absorbed) {
+      const mine = item.duplicateOf!.accountId;
+      const his = payload.sessions[item.accountId!];
+      if (signedIn.has(mine) || !his || lend[mine]) continue;
+      lend[mine] = his;
+      const mail = payload.sessions[`mail:${item.accountId}`];
+      if (mail) lend[`mail:${mine}`] = mail;
+    }
+    const count = Object.keys(lend).filter((k) => !k.startsWith("mail:")).length;
+    if (count > 0 && (await importAccountSessions(lend)).ok) lentSessions = count;
+  }
 
   const installed = [...approved, ...linked];
   let sessionNote = "";
@@ -216,8 +283,8 @@ export async function decideRepItems(repId: string, approveKeys: string[], rejec
   }
 
   let nextDecisions = withDecision(decisions, installed, "approved");
-  nextDecisions = withDecision(nextDecisions, rejected, "rejected");
-  const left = items.length - installed.length - rejected.length;
+  nextDecisions = withDecision(nextDecisions, [...rejected, ...absorbed], "rejected");
+  const left = items.length - installed.length - rejected.length - absorbed.length;
   const files = left > 0 ? inbox.files.map((f) => (f.repId === repId ? { ...f, pendingCount: left } : f)) : inbox.files.filter((f) => f.repId !== repId);
   saveRepInbox({ files, decisions: { ...inbox.decisions, [repId]: nextDecisions } });
   window.dispatchEvent(new Event(ACCOUNTS_CHANGED_EVENT));
@@ -225,13 +292,16 @@ export async function decideRepItems(repId: string, approveKeys: string[], rejec
   // A fresh copy: what he sent is now the operator's (approved) or leaves his phone (rejected).
   const copy = await sendRepCopy(rep, loadDemoAccounts(demoAccounts));
   const lines = [
-    approved.length ? `✅ ثبّت المسؤول: ${describeItems(approved)}` : "",
+    approved.length ? `✅ ${options.auto ? "ثُبّت" : "ثبّت المسؤول"}: ${describeItems(approved)}` : "",
+    absorbed.length ? `📡 مسجّل عند المسؤول من قبل: ${absorbed.map((i) => i.title).join("، ")}${lentSessions ? ` - أُخذت جلستك (${lentSessions})` : ""}` : "",
     linked.length ? `🔗 ثبّت المسؤول جهازك مكان المسجّل عنده من قبل: ${describeItems(linked)}` : "",
     rejected.length ? `❌ رفض: ${rejected.map((i) => (i.duplicateOf ? `${i.title} (مسجّل عند المسؤول من قبل)` : i.title)).join("، ")}` : "",
     left ? `⏳ ما زال ${left} بانتظار المسؤول` : "",
     copy.ok ? "📋 وصلتك نسخة جديدة - افتحها." : "",
   ].filter(Boolean);
   await sendRepText(repId, lines.join("\n"));
-  const parts = [approved.length ? `✓ ثُبّت ${approved.length}` : "", linked.length ? `🔗 حلّ محل القديم ${linked.length}` : "", rejected.length ? `رُفض ${rejected.length}` : "", left ? `بقي ${left}` : ""].filter(Boolean);
+  const parts = [
+    options.auto && approved.length ? `🤖 ثُبّت تلقائيًا ${approved.length}` : approved.length ? `✓ ثُبّت ${approved.length}` : "",
+    absorbed.length ? `📡 موجود عندك من قبل ${absorbed.length}${lentSessions ? ` (🔑 أُخذت جلسته ${lentSessions})` : ""}` : "", linked.length ? `🔗 حلّ محل القديم ${linked.length}` : "", rejected.length ? `رُفض ${rejected.length}` : "", left ? `بقي ${left}` : ""].filter(Boolean);
   return { ok: true, message: `${parts.join(" · ")}${sessionNote ? `\n${sessionNote}` : ""}${copy.ok ? "" : ` - لم تُرسل له نسخة جديدة: ${copy.message}`}` };
 }

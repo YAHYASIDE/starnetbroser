@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  autoInstallPlan,
   applyRepChangeSet,
   changeSetOf,
   describeItems,
@@ -16,6 +17,7 @@ import {
   readRepChangesFile,
   repChangesFileName,
   repChangesFileRep,
+  type RepChangeItem,
 } from "./repChanges";
 import { ACCOUNTS_KEY, CLIENTS_KEY, LEDGER_KEY, PROMISES_KEY } from "./repWorkspace";
 
@@ -322,5 +324,20 @@ describe("🔁 a rejected rep device doesn't come back after a sync on his phone
     expect(isItemDecided(item!, legacy)).toBe(true);
     // both phones compute the same version
     expect(item!.parts[0]!.hash).toBe(repDeviceVersion({ ...device, balanceDue: "99" }));
+  });
+});
+
+describe("🤖 a rep's devices install by themselves (his Nov 7 2026 ask)", () => {
+  const item = (key: string, kind: RepChangeItem["kind"], extra: Partial<RepChangeItem> = {}): RepChangeItem => ({ key, kind, title: key, parts: [], ...extra });
+  it("new devices and names go in, a device he already has only lends its session, money waits", () => {
+    const plan = autoInstallPlan([
+      item("n", "newDevice", { accountId: "d1" }),
+      item("e", "deviceEdit", { accountId: "d2" }),
+      item("dup", "newDevice", { accountId: "d3", duplicateOf: { accountId: "mine", name: "x", field: "email" } }),
+      item("pay", "payment", { amount: { value: 5, currency: "MRU" } }),
+    ]);
+    expect(plan.approve).toEqual(["n", "e"]);
+    expect(plan.absorb).toEqual(["dup"]);
+    expect(plan.wait.map((i) => i.key)).toEqual(["pay"]);
   });
 });

@@ -3104,3 +3104,20 @@ is never pressed while a field is empty - it refills and saves on the next try (
     `addDeviceReminder`; on the laptop a pin dated that day instead). Every other message = log only (an activation or
     «تم الدفع» message never records money or a renewal by itself).
 
+## 🔴🟡🆕 Urgent / not urgent / last added · small top notices · reps' devices install by themselves (Nov 7 2026)
+
+- His screenshot of the home page: «عدّل تلك الأجهزة الفوق وتحتاج وتسجيلات لتكون صغيرة» → the D / KAST / reps' notices are
+  one thin line each (`.home-slim`: title only + the D amount; the card shortfall stays as a tiny second line).
+- «أضف أيقونات: مستعجل، غير مستعجل، آخر المضافة (آخر 10)… كبيرة وملوّنة واضحة» - his choice «الأجهزة ذات التنبيه المفتوح»:
+  three big tiles over the circles (lib/homeTiles.ts): 🔴 = a device with an open (not «✓ راجعته») alert marked urgent,
+  from a rep's 🚩 or a team member; 🟡 = open alerts all normal (an older rep app sends no level = normal); 🆕 = the last
+  10 devices added by a rep (`addedByRepId`) or another team member (the link's log on this phone, «📡 جهاز» added),
+  newest first. The rep's «🚩 تحذير للمسؤول» now has 🔴 مستعجل / 🟡 غير مستعجل (`RepFlag.level`; his phone needs the update).
+- «الأجهزة التي يرسلها المندوبون تُثبت تلقائيًا» - his choices **«الأجهزة تلقائيًا والمال ينتظر»** and **«يأخذ جلسته فقط»**
+  (`autoInstallPlan`, lib/repChanges.ts): on receiving a rep's file, his new devices and the names on his devices are
+  installed at once (`decideRepItems(..., {auto: true})`, both sides told); a new device the operator already has (same
+  email / KIT) is never installed again - the operator's device stays as it is and takes the rep's Starlink session
+  only when its own is signed out (`absorbKeys`; decided «rejected» so it isn't offered again; the rep is told «📡 مسجّل
+  عند المسؤول من قبل - أُخذت جلستك»). Anything else (money) still waits for approval. Files already waiting are installed
+  the same way when the home opens - on the main phone (YAHYA) or a phone without the team link only
+  (`autoInstallWaitingRepFiles`), so two phones never install the same file.

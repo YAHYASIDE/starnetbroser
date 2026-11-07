@@ -24,6 +24,9 @@ export interface RepFlag {
   note: string;
   /** ms epoch, on the rep's phone */
   at: number;
+  /** 🔴 urgent / 🟡 normal - the rep picks it too since Nov 7 2026 (his home icons «مستعجل» / «غير مستعجل»);
+   * an older rep app sends none = normal. */
+  level?: FlagLevel;
 }
 
 export interface OwnerFlag extends RepFlag {
@@ -33,8 +36,6 @@ export interface OwnerFlag extends RepFlag {
   /** 👥 An alert from a member of the link team (his Nov 7 2026 ask «لكل المسؤولين أن يضيفوا تنبيهًا على الأجهزة»):
    * the member's name - `repId` is then empty. */
   by?: string;
-  /** 🔴 urgent / 🟡 normal (a team alert; a rep's warning has none). */
-  level?: FlagLevel;
   /** 📸 A small picture with it (a screenshot from the device's browser) - a JPEG data URL, kept small (it travels
    * in the team link). */
   image?: string;
@@ -68,7 +69,7 @@ export function flagDocPath(spaceId: string, id: string): string {
 }
 
 /** A new warning on the rep's phone; null when there is nothing to say. */
-export function newRepFlag(input: { repId: string; deviceId: string; deviceName: string; email?: string; note: string }, now = Date.now(), random: () => string = randomId): RepFlag | null {
+export function newRepFlag(input: { repId: string; deviceId: string; deviceName: string; email?: string; note: string; level?: FlagLevel }, now = Date.now(), random: () => string = randomId): RepFlag | null {
   const note = input.note.trim().slice(0, MAX_FLAG_NOTE);
   if (!note || !input.deviceId) return null;
   return {
@@ -79,6 +80,7 @@ export function newRepFlag(input: { repId: string; deviceId: string; deviceName:
     ...(input.email?.trim() ? { email: input.email.trim() } : {}),
     note,
     at: now,
+    ...(input.level ? { level: input.level } : {}),
   };
 }
 
@@ -101,6 +103,7 @@ export function parseFlagPayload(json: string, repId: string): RepFlag | null {
       ...(typeof p.email === "string" && p.email.trim() ? { email: p.email.trim().slice(0, 200) } : {}),
       note: p.note.trim().slice(0, MAX_FLAG_NOTE),
       at: typeof p.at === "number" && Number.isFinite(p.at) ? p.at : Date.now(),
+      ...(p.level === "urgent" || p.level === "normal" ? { level: p.level } : {}),
     };
   } catch {
     return null;
