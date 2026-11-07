@@ -20,7 +20,7 @@ import {
   repNeedsFlagLink,
   repReviewedMessage,
   unsentFlags,
-  type RepFlag,
+  type RepFlag, repFlagsFromBrowser
 } from "./repFlags";
 import { pullFlags, pushFlags } from "./repFlagLink";
 import type { FetchFn } from "./firestoreRest";
@@ -64,7 +64,8 @@ describe("🚩 a rep's warning", () => {
   });
 
   it("the messages name the device and the note", () => {
-    expect(ownerFlagMessage(flag(), "الحسين")).toBe("🚩 تحذير من المندوب الحسين\n📡 جهاز تجربة · demo@example.com\n📝 الطبق لا يتصل");
+    expect(ownerFlagMessage({ ...flag(), level: "urgent" }, "الحسين").startsWith("🔴 مستعجل - 🚩")).toBe(true);
+    expect(ownerFlagMessage(flag(), "الحسين")).toBe("🟡 🚩 تحذير من المندوب الحسين\n📡 جهاز تجربة · demo@example.com\n📝 الطبق لا يتصل");
     expect(repReviewedMessage(flag())).toContain("✓ راجع المسؤول تحذيرك على جهاز تجربة");
   });
 
@@ -172,3 +173,26 @@ describe("👥 team alerts on a device (his Nov 7 2026 ask)", () => {
   });
 });
 
+
+describe("🚩 a rep's browser alert goes on his channel (his Nov 7 2026 report)", () => {
+  const devices = [{ id: "d1", name: "DEMO 1", email: "demo@example.com" }];
+  const image = "data:image/jpeg;base64,AAAA";
+  it("becomes his warning with its level and picture, with a stable hex id the operator accepts", () => {
+    const reads = [
+      { syncId: "s-1", accountId: "d1", fields: { teamFlag: { note: "لا يتصل", level: "urgent", at: 5, image } } },
+      { syncId: "s-2", accountId: "nobody", fields: { teamFlag: { note: "x" } } },
+      { syncId: "s-3", accountId: "d1", fields: {} },
+    ];
+    const { flags, syncIds } = repFlagsFromBrowser(reads, devices, "rep1");
+    expect(syncIds).toEqual(["s-1", "s-2"]);
+    expect(flags).toHaveLength(1);
+    expect(flags[0]).toMatchObject({ repId: "rep1", deviceId: "d1", note: "لا يتصل", level: "urgent", image, at: 5 });
+    expect(repFlagsFromBrowser(reads, devices, "rep1").flags[0]!.id).toBe(flags[0]!.id);
+    const back = parseFlagPayload(JSON.stringify(flags[0]), "rep1");
+    expect(back).toMatchObject({ id: flags[0]!.id, level: "urgent", image });
+  });
+  it("a picture that isn't a small JPEG is dropped", () => {
+    const back = parseFlagPayload(JSON.stringify({ id: "abcdef1234", deviceId: "d1", note: "n", image: "javascript:alert(1)" }), "rep1");
+    expect(back?.image).toBeUndefined();
+  });
+});

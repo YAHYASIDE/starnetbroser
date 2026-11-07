@@ -57,6 +57,50 @@ export function startLinkPulse(config: LinkConfig, onOther: () => void, onState:
   };
 }
 
+/**
+ * 🚩 The reps' warnings, live (his Nov 7 2026 report «لا تأتي رسائل مستعجل أو غير مستعجل من عند المندوبين بسرعة»): the
+ * operator's phone listens to every rep's channel (`starnet/{space}/flags`) - the moment a rep writes a warning,
+ * `onAdded` runs and the round reads it (it was a check every 45 s). Returns the stop function; `onState` false = the
+ * listener failed (the regular checks carry on alone).
+ */
+export function startFlagPulse(config: { apiKey: string; projectId: string }, spaceIds: string[], onAdded: () => void, onState: (live: boolean) => void): () => void {
+  let stopped = false;
+  const unsubscribes: (() => void)[] = [];
+  void (async () => {
+    try {
+      const [{ initializeApp, getApps }, { getAuth, signInAnonymously }, { getFirestore, collection, onSnapshot }] = await Promise.all([
+        import("firebase/app"),
+        import("firebase/auth"),
+        import("firebase/firestore"),
+      ]);
+      const name = `starnet-link-${config.projectId}`;
+      const app = getApps().find((a) => a.name === name) ?? initializeApp({ apiKey: config.apiKey, projectId: config.projectId, authDomain: `${config.projectId}.firebaseapp.com` }, name);
+      const auth = getAuth(app);
+      if (!auth.currentUser) await signInAnonymously(auth);
+      if (stopped) return;
+      for (const spaceId of spaceIds) {
+        unsubscribes.push(
+          onSnapshot(
+            collection(getFirestore(app), "starnet", spaceId, "flags"),
+            (snap) => {
+              onState(true);
+              if (snap.docChanges().some((c) => c.type === "added")) onAdded();
+            },
+            () => onState(false),
+          ),
+        );
+      }
+    } catch {
+      onState(false);
+    }
+  })();
+  return () => {
+    stopped = true;
+    for (const u of unsubscribes) u();
+    onState(false);
+  };
+}
+
 /** 💾 A business store (or a shared setting) written on this phone - what goes out at once. */
 export function isLinkedWrite(key: string, shared: readonly string[]): boolean {
   return key.startsWith("starnet_") || shared.includes(key);

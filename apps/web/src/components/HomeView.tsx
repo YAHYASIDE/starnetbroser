@@ -1654,7 +1654,8 @@ export function HomeView({
       await accountsReadyGateRef.current.whenReady();
 
       // 🚩 The device browser's «تنبيه للمسؤول» (his Nov 7 2026 ask): a team alert, never a Starlink read.
-      const browserFlags = batch.filter((sync) => isBrowserTeamFlag(sync as never) && !processedSyncIds.has(sync.syncId));
+      // (in a rep's app they are his warnings - BrowserActionsRunner sends them on his channel)
+      const browserFlags = isRepWorkspace() ? [] : batch.filter((sync) => isBrowserTeamFlag(sync as never) && !processedSyncIds.has(sync.syncId));
       if (browserFlags.length > 0) {
         const devices = accountsRef.current.filter((a) => !a.deletedAt).map((a) => ({ id: a.id, name: a.name, email: a.starlinkAccountEmail || a.expectedEmail }));
         const { flags, syncIds } = teamFlagsFromBrowser(browserFlags as never, devices, teamMemberName());

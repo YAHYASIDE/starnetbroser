@@ -27,6 +27,9 @@ export interface RepFlag {
   /** 🔴 urgent / 🟡 normal - the rep picks it too since Nov 7 2026 (his home icons «مستعجل» / «غير مستعجل»);
    * an older rep app sends none = normal. */
   level?: FlagLevel;
+  /** 📸 A small picture with it (a screenshot from the device's browser) - a JPEG data URL, kept small (it travels
+   * in the team link / the rep's channel). */
+  image?: string;
 }
 
 export interface OwnerFlag extends RepFlag {
@@ -36,9 +39,6 @@ export interface OwnerFlag extends RepFlag {
   /** 👥 An alert from a member of the link team (his Nov 7 2026 ask «لكل المسؤولين أن يضيفوا تنبيهًا على الأجهزة»):
    * the member's name - `repId` is then empty. */
   by?: string;
-  /** 📸 A small picture with it (a screenshot from the device's browser) - a JPEG data URL, kept small (it travels
-   * in the team link). */
-  image?: string;
 }
 
 export type FlagLevel = "urgent" | "normal";
@@ -104,6 +104,7 @@ export function parseFlagPayload(json: string, repId: string): RepFlag | null {
       note: p.note.trim().slice(0, MAX_FLAG_NOTE),
       at: typeof p.at === "number" && Number.isFinite(p.at) ? p.at : Date.now(),
       ...(p.level === "urgent" || p.level === "normal" ? { level: p.level } : {}),
+      ...(isFlagImage(p.image) ? { image: p.image } : {}),
     };
   } catch {
     return null;
@@ -165,6 +166,49 @@ export function teamFlagsFromBrowser(
   return { flags, syncIds };
 }
 
+function isFlagImage(image: unknown): image is string {
+  return typeof image === "string" && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(image) && image.length <= MAX_FLAG_IMAGE;
+}
+
+/** A stable hex id for a read (a second drain of the same read is the same warning). */
+function hexId(text: string): string {
+  let a = 0x811c9dc5;
+  let b = 0x01000193 ^ 0x9e3779b9;
+  for (let i = 0; i < text.length; i++) {
+    a = Math.imul(a ^ text.charCodeAt(i), 0x01000193) >>> 0;
+    b = Math.imul(b ^ text.charCodeAt(i), 0x5bd1e995) >>> 0;
+  }
+  return `${a.toString(16).padStart(8, "0")}${b.toString(16).padStart(8, "0")}`;
+}
+
+/** 🚩 In a REP's app the browser's 🚩 is his «تحذير للمسؤول» (his Nov 7 2026 report «لا تأتي رسائل مستعجل أو غير مستعجل
+ * من عند المندوبين بسرعة» - it was kept on his own phone as a team alert and never reached the operator): the warnings
+ * to send on his channel, and every such read handled. */
+export function repFlagsFromBrowser(
+  syncs: { syncId: string; accountId: string; fields: { teamFlag?: { note?: string; level?: string; at?: number; image?: string } } }[],
+  devices: { id: string; name: string; email?: string }[],
+  repId: string,
+): { flags: RepFlag[]; syncIds: string[] } {
+  const flags: RepFlag[] = [];
+  const syncIds: string[] = [];
+  for (const sync of syncs) {
+    const t = sync.fields?.teamFlag;
+    if (!t) continue;
+    syncIds.push(sync.syncId);
+    const device = devices.find((d) => d.id === sync.accountId);
+    if (!device) continue;
+    const at = typeof t.at === "number" && t.at > 0 ? t.at : Date.now();
+    const flag = newRepFlag(
+      { repId, deviceId: device.id, deviceName: device.name, email: device.email, note: t.note ?? "", level: t.level === "urgent" ? "urgent" : "normal" },
+      at,
+      () => hexId(sync.syncId),
+    );
+    if (flag && isFlagImage(t.image)) flag.image = t.image;
+    if (flag) flags.push(flag);
+  }
+  return { flags, syncIds };
+}
+
 export function isBrowserTeamFlag(sync: { fields?: { teamFlag?: unknown } }): boolean {
   return Boolean(sync.fields?.teamFlag);
 }
@@ -204,7 +248,7 @@ export function markOwnerFlagReviewed(store: OwnerFlagStore, id: string, now = D
 
 /** What goes to the operator's own bot when a warning arrives. */
 export function ownerFlagMessage(flag: RepFlag, repName: string): string {
-  return [`🚩 تحذير من المندوب ${repName || ""}`.trim(), `📡 ${flag.deviceName}${flag.email && flag.email !== flag.deviceName ? ` · ${flag.email}` : ""}`, `📝 ${flag.note}`].join("\n");
+  return [`${flag.level === "urgent" ? "🔴 مستعجل - " : "🟡 "}🚩 تحذير من المندوب ${repName || ""}`.trim(), `📡 ${flag.deviceName}${flag.email && flag.email !== flag.deviceName ? ` · ${flag.email}` : ""}`, `📝 ${flag.note}`].join("\n");
 }
 
 /** What the rep is told once the operator reviewed it. */

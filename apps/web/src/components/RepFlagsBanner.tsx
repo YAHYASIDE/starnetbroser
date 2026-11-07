@@ -1,5 +1,7 @@
 "use client";
 
+import { startFlagPulse } from "@/lib/linkPulse";
+import { notifyPhone } from "@/lib/appEvents";
 import { useEffect, useState } from "react";
 import { PartySheet } from "./AccountsSection";
 import { loadRepresentativeStore } from "@/lib/repStore";
@@ -54,8 +56,12 @@ export function useDeviceRepFlags(deviceId: string, enabled: boolean): OwnerFlag
   return flags;
 }
 
+/** The operator's check of the reps' channels: every 45 s, or every 5 min while the live listener works
+ * (lib/linkPulse.ts startFlagPulse - a warning then comes in at once). */
 const PULL_MS = 45_000;
-const PUSH_MS = 60_000;
+const PULL_LIVE_MS = 5 * 60_000;
+/** The rep's unsent warnings go again this soon (nothing to send = no network at all). */
+const PUSH_MS = 10_000;
 
 /**
  * 🚩 The warnings' round while the app is open: on the rep's phone his outbox goes up (until it
@@ -89,17 +95,40 @@ export function RepFlagRunner() {
         if (added.length === 0) return;
         saveOwnerFlags(store);
         const reps = loadRepresentativeStore();
-        for (const f of added) void sendTelegramText(ownerFlagMessage(f, reps[f.repId]?.name ?? ""));
+        for (const f of added) {
+          const text = ownerFlagMessage(f, reps[f.repId]?.name ?? "");
+          void sendTelegramText(text);
+          void notifyPhone(text);
+        }
       } finally {
         busy = false;
       }
     };
     void round();
-    const timer = window.setInterval(() => void round(), rep ? PUSH_MS : PULL_MS);
+    // ⚡ the operator listens to the reps' channels: a warning comes in the moment it is written
+    let live = false;
+    let lastRound = Date.now();
+    let stopPulse: (() => void) | null = null;
+    if (!rep) {
+      const channels = Object.values(loadFlagChannels()).map((c) => c.spaceId);
+      const firebase = ownerFirebase({ link: () => loadLinkConfig(browserLinkStorage()), live: loadLiveSyncConfig });
+      if (firebase && channels.length > 0) {
+        stopPulse = startFlagPulse(firebase, channels, () => {
+          lastRound = Date.now();
+          void round();
+        }, (state) => (live = state));
+      }
+    }
+    const timer = window.setInterval(() => {
+      if (!rep && live && Date.now() - lastRound < PULL_LIVE_MS) return;
+      lastRound = Date.now();
+      void round();
+    }, rep ? PUSH_MS : PULL_MS);
     const onVisible = () => void round();
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       window.clearInterval(timer);
+      stopPulse?.();
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);

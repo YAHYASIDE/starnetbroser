@@ -7,7 +7,10 @@ import { takeBrowserActions, type StagedRead } from "@/lib/browserActions";
 import { loadDeviceShots, saveDeviceShots } from "@/lib/deviceShots";
 import { ackPendingAccountSyncs, isRunningInAndroidApp, listPendingAccountSyncs, onAccountDataSynced } from "@/lib/localBrowser";
 import { putProof } from "@/lib/paymentProofStore";
-import { loadOwnerFlags, saveOwnerFlags } from "@/lib/repFlags";
+import { isBrowserTeamFlag, loadOutbox, loadOwnerFlags, markFlagSent, queueFlag, repFlagsFromBrowser, saveOutbox, saveOwnerFlags } from "@/lib/repFlags";
+import { pushFlags } from "@/lib/repFlagLink";
+import { isRepWorkspace } from "@/lib/repMode";
+import { loadRepCopy } from "@/lib/repCopy";
 import { teamMemberName } from "./TeamFlagSheet";
 
 /**
@@ -19,13 +22,34 @@ export function BrowserActionsRunner() {
   useEffect(() => {
     if (!isRunningInAndroidApp()) return;
     let busy = false;
-    const take = async (syncs: StagedRead[]) => {
-      if (busy || syncs.length === 0) return;
+    const take = async (all: StagedRead[]) => {
+      if (busy || all.length === 0) return;
       busy = true;
       try {
+        let syncs = all;
         const devices = loadDemoAccounts(demoAccounts)
           .filter((a) => !a.deletedAt)
           .map((a) => ({ id: a.id, name: a.name, email: a.starlinkAccountEmail || a.expectedEmail }));
+        // 🚩 in a rep's app the browser's 🚩 is his warning to the operator: sent on his channel at once
+        if (isRepWorkspace()) {
+          const flagReads = syncs.filter((s) => isBrowserTeamFlag(s as never));
+          syncs = syncs.filter((s) => !flagReads.includes(s));
+          const copy = loadRepCopy();
+          if (copy && flagReads.length > 0) {
+            const { flags, syncIds } = repFlagsFromBrowser(flagReads as never, devices, copy.repId);
+            let outbox = loadOutbox();
+            for (const f of flags) outbox = queueFlag(outbox, f);
+            saveOutbox(outbox);
+            await ackPendingAccountSyncs(syncIds);
+            if (copy.flagLink && flags.length > 0) {
+              const { sent } = await pushFlags(copy.flagLink, flags);
+              outbox = loadOutbox();
+              for (const id of sent) outbox = markFlagSent(outbox, id);
+              if (sent.length) saveOutbox(outbox);
+            }
+          }
+        }
+        if (syncs.length === 0) return;
         const r = takeBrowserActions(syncs, { flags: loadOwnerFlags(), shots: loadDeviceShots(), devices, by: teamMemberName() });
         if (r.done.length === 0) return;
         for (const p of r.pictures) await putProof(p.key, p.dataUrl);

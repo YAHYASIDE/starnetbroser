@@ -3121,3 +3121,13 @@ is never pressed while a field is empty - it refills and saves on the next try (
   عند المسؤول من قبل - أُخذت جلستك»). Anything else (money) still waits for approval. Files already waiting are installed
   the same way when the home opens - on the main phone (YAHYA) or a phone without the team link only
   (`autoInstallWaitingRepFiles`), so two phones never install the same file.
+- Same day: «لا تأتي رسائل مستعجل أو غير مستعجل من عند المندوبين والمسؤولين بسرعة». Why: the operator's phone read the
+  reps' channels every 45 s (and a rep's failed send waited 60 s); a REP's browser 🚩 was kept on his own phone as a
+  team alert and never reached anyone. Now: the operator's phone listens live to every rep's channel
+  (`startFlagPulse`, lib/linkPulse.ts - Firebase SDK onSnapshot on `starnet/{space}/flags`; a check every 5 min as a
+  safety net, 45 s if the listener fails); each arrival → his bot + a phone notification, «🔴 مستعجل -» / «🟡» in
+  front (`ownerFlagMessage`); the rep's unsent warnings go again every 10 s; in a rep's app the browser's 🚩 becomes
+  his warning (`repFlagsFromBrowser`, stable hex id, level + picture - `RepFlag.image`, a small JPEG only) and is
+  pushed at once. Team members' alerts already travel live by the team link (sent 0.8 s after the save; applied
+  when the receiver isn't in the middle of a sheet). With the app fully closed nothing can arrive until it opens.
+
