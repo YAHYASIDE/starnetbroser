@@ -31,6 +31,18 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-11-07-support-whatsapp-mr",
+    date: "2026-11-07",
+    title: "📨 رسالة التفعيل: واتساب الدعم موريتاني",
+    steps: [
+      {
+        title: "📨 واتساب الدعم في رسالة التفعيل",
+        before: "واتساب الدعم: https://wa.me/22374646158 (رقم مالي 74646158).",
+        after: "واتساب الدعم: https://wa.me/22222227268 (رقمك الموريتاني 22227268).",
+      },
+    ],
+  },
+  {
     id: "2026-11-07-receipt-ref",
     date: "2026-11-07",
     title: "🧾 إيصال المندوب: يُقرأ مرجعه، ولا يُسجَّل مرتين",

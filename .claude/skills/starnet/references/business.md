@@ -2184,7 +2184,9 @@ is never pressed while a field is empty - it refills and saves on the next try (
 
 - His ask: «عندما أنهي تفعيل جهاز لشخص أرسل له معلومات الجهاز» with the exact message he used to send by hand
   (*⭐ STAR NET* / «تم تفعيل جهاز Starlink بنجاح بتاريخ: d / m / yyyy» / بيانات الحساب / support WhatsApp
-  22374646158 and starnet.om@gmail.com). His choices: **a button in the card only** (⋯ → «📨 رسالة التفعيل», nothing
+  22374646158 and starnet.om@gmail.com). **Nov 7 2026, his ask «غيّر رقم إلى موريتانيا 22227268 بدل 74646158»: the
+  support WhatsApp is now +222 22227268 (wa.me/22222227268)** - the payment instructions (Orange Money Mali 74646158)
+  are unchanged. His choices: **a button in the card only** (⋯ → «📨 رسالة التفعيل», nothing
   automatic on «✅ انتهى»); **WhatsApp to the customer + 📋 copy**; **sync first** - when KIT / subscription / ACC
   are missing the sheet runs the card's «تحديث» once and refills when the read lands, what is still unknown keeps his
   «[ارسل صورة …]»; **his text word for word** (`lib/activationMessage.ts`, `ActivationMessageSheet`).

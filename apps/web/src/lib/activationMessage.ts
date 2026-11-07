@@ -1,8 +1,9 @@
 import type { StarlinkAccountSummary } from "@starnet/shared";
 import { deviceEmail } from "./mailboxes";
 
-/** STAR NET's support contacts printed at the end of «رسالة التفعيل» (his own message, Oct 22 2026). */
-export const SUPPORT_WHATSAPP = "22374646158";
+/** STAR NET's support contacts printed at the end of «رسالة التفعيل» (his own message, Oct 22 2026). The WhatsApp is
+ * his Mauritanian number +222 22227268 since Nov 7 2026 (was the Mali one, +223 74646158). */
+export const SUPPORT_WHATSAPP = "22222227268";
 export const SUPPORT_EMAIL = "starnet.om@gmail.com";
 
 type ActivationAccount = Pick<
