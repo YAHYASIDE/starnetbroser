@@ -66,7 +66,8 @@ public class TelegramReplyService extends Service {
     }
 
     static boolean shouldRun(Context context) {
-        return TelegramStore.isInstantEnabled(context) && (TelegramStore.isConfigured(context) || TelegramStore.isRepsConfigured(context));
+        // 🔴🟡 also the alerts while the app is closed (AlertWatch) - same switch «رد البوت والتطبيق مغلق»
+        return TelegramStore.isInstantEnabled(context) && (TelegramStore.isConfigured(context) || TelegramStore.isRepsConfigured(context) || AlertWatch.isConfigured(context));
     }
 
     /** Starts or stops the service to match the settings - safe to call any time. False when it
@@ -122,6 +123,7 @@ public class TelegramReplyService extends Service {
             startPolling(TelegramStore.REPS, mine);
             startPolling(TelegramStore.MONEY, mine);
             startPolling(TelegramStore.ALERTS, mine);
+            startAlertWatch(mine);
         }
         return START_STICKY;
     }
@@ -183,6 +185,32 @@ public class TelegramReplyService extends Service {
             builder.setContentIntent(PendingIntent.getActivity(this, 0, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
         }
         return builder.build();
+    }
+
+    // ---- 🔴🟡 alerts while the app is closed ----
+
+    private void startAlertWatch(int mine) {
+        Context context = getApplicationContext();
+        Thread thread = new Thread(() -> {
+            while (generation == mine) {
+                try {
+                    if (!AlertWatch.isConfigured(context)) {
+                        sleep(60_000);
+                    } else if (appVisible) {
+                        // the app shows its alerts itself - nothing to fetch
+                        AlertWatch.markAppSeen(context);
+                        sleep(15_000);
+                    } else {
+                        AlertWatch.check(context);
+                        sleep(60_000);
+                    }
+                } catch (RuntimeException unexpected) {
+                    sleep(60_000);
+                }
+            }
+        }, "starnet-alert-watch");
+        thread.setDaemon(true);
+        thread.start();
     }
 
     // ---- polling ----

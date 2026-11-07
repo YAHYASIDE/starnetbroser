@@ -490,6 +490,17 @@ export async function listDeviceReminders(): Promise<DeviceReminder[]> {
   }
 }
 
+/** 🔴🟡 What the background service watches while the app is closed (lib/alertWatch.ts) - null off the Android app;
+ * `running` = the service «رد البوت والتطبيق مغلق» runs. */
+export async function setAlertWatch(config: string): Promise<{ running: boolean } | null> {
+  if (!isRunningInAndroidApp()) return null;
+  try {
+    return await LocalBrowser.setAlertWatch({ config });
+  } catch {
+    return null;
+  }
+}
+
 /** ⏰ A reminder on this phone (his «⏸️ إطفاء 3 أيام» message) - false off the Android app or when it failed. */
 export async function addDeviceReminder(input: { accountId: string; device: string; at: number; note: string }): Promise<boolean> {
   if (!isRunningInAndroidApp()) return false;

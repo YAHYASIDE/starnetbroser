@@ -5,7 +5,7 @@
  * which reads are done out. «✅ تم التوثيق» stays with the home page (it runs the card's own handler).
  */
 
-import { addIncomingFlags, isBrowserTeamFlag, teamFlagsFromBrowser, type OwnerFlagStore } from "./repFlags";
+import { addIncomingFlags, isBrowserTeamFlag, teamFlagsFromBrowser, type OwnerFlag, type OwnerFlagStore } from "./repFlags";
 import { addDeviceShot, isShotImage, shotKey, type DeviceShotStore } from "./deviceShots";
 
 export interface StagedRead {
@@ -22,7 +22,7 @@ export function isKeptShot(sync: StagedRead): boolean {
 export function takeBrowserActions(
   syncs: StagedRead[],
   input: { flags: OwnerFlagStore; shots: DeviceShotStore; devices: { id: string; name: string; email?: string }[]; by: string },
-): { flags: OwnerFlagStore; shots: DeviceShotStore; pictures: { key: string; dataUrl: string }[]; done: string[]; added: number } {
+): { flags: OwnerFlagStore; shots: DeviceShotStore; pictures: { key: string; dataUrl: string }[]; done: string[]; added: number; addedFlags: OwnerFlag[] } {
   const flagReads = syncs.filter((s) => isBrowserTeamFlag(s));
   const { flags: newFlags, syncIds } = teamFlagsFromBrowser(flagReads as never, input.devices, input.by);
   const merged = addIncomingFlags(input.flags, newFlags);
@@ -37,5 +37,5 @@ export function takeBrowserActions(
     pictures.push({ key: shotKey(s.accountId, at), dataUrl: shot.image });
     shots = addDeviceShot(shots, s.accountId, at);
   }
-  return { flags: merged.store, shots, pictures, done, added: merged.added.length };
+  return { flags: merged.store, shots, pictures, done, added: merged.added.length, addedFlags: merged.added };
 }

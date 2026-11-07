@@ -140,19 +140,19 @@ export async function listDocuments(
   collectionPath: string,
   fetchFn: FetchFn = fetch,
   pageSize = 100,
-): Promise<Result<{ id: string; fields: Record<string, string> }[]>> {
+): Promise<Result<{ id: string; fields: Record<string, string>; createTime?: string }[]>> {
   const token = await idToken(config, fetchFn);
   if (!token.ok) return token;
   const r = await call(fetchFn, `${documentUrl(config, collectionPath)}?pageSize=${pageSize}`, { headers: { Authorization: `Bearer ${token.value}` } });
   if (r.status === 404 && !/does not exist/i.test(r.body)) return { ok: true, value: [] };
   if (r.status !== 200) return { ok: false, message: explainFirebaseError(r.status, r.body) };
-  const data = JSON.parse(r.body || "{}") as { documents?: { name: string; fields?: Record<string, { stringValue?: string }> }[] };
+  const data = JSON.parse(r.body || "{}") as { documents?: { name: string; createTime?: string; fields?: Record<string, { stringValue?: string }> }[] };
   return {
     ok: true,
     value: (data.documents ?? []).map((d) => {
       const fields: Record<string, string> = {};
       for (const [k, v] of Object.entries(d.fields ?? {})) if (typeof v.stringValue === "string") fields[k] = v.stringValue;
-      return { id: d.name.split("/").pop() ?? "", fields };
+      return { id: d.name.split("/").pop() ?? "", fields, ...(d.createTime ? { createTime: d.createTime } : {}) };
     }),
   };
 }

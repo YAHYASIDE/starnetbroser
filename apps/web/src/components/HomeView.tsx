@@ -59,6 +59,7 @@ import { remindersByAccount, type DeviceReminder } from "@/lib/deviceReminders";
 import { deviceOrigin, type Origin } from "@/lib/teamActivity";
 import { browserLinkStorage, isMainMember, loadActivityLog, loadLinkConfig, loadOrigins } from "@/lib/deviceLink";
 import { autoInstallWaitingRepFiles } from "@/lib/repChangesApply";
+import { announceTeamFlags } from "@/lib/alertWatchRun";
 import { doneDeviceReminder, listDeviceReminders, prefetchAppUpdate } from "@/lib/localBrowser";
 import { HOME_ACTION_EVENT, HOME_RESET_EVENT, HOME_SEARCH_EVENT, HomeAction, parseHomeAction, parseHomePayment, parseActivateDevice, REMINDER_COUNT_EVENT, parseHomeSearch } from "@/lib/homeActions";
 import { deviceRoute, HOME_ROUTE, KAST_ROUTE, notifyPhone } from "@/lib/appEvents";
@@ -1661,7 +1662,9 @@ export function HomeView({
         const { flags, syncIds } = teamFlagsFromBrowser(browserFlags as never, devices, teamMemberName());
         let savedFlags = true;
         try {
-          saveOwnerFlags(addIncomingFlags(loadOwnerFlags(), flags).store);
+          const merged = addIncomingFlags(loadOwnerFlags(), flags);
+          saveOwnerFlags(merged.store);
+          void announceTeamFlags(merged.added); // 🔴🟡 the others see it even with their app closed
         } catch {
           savedFlags = false; // left pending: the next drain tries again
         }

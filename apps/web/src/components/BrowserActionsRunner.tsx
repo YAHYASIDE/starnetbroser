@@ -12,6 +12,7 @@ import { pushFlags } from "@/lib/repFlagLink";
 import { isRepWorkspace } from "@/lib/repMode";
 import { loadRepCopy } from "@/lib/repCopy";
 import { teamMemberName } from "./TeamFlagSheet";
+import { announceTeamFlags } from "@/lib/alertWatchRun";
 
 /**
  * 🚩📎 The device browser's alerts and kept screenshots, taken on whatever page the app is on (lib/browserActions.ts) -
@@ -53,7 +54,10 @@ export function BrowserActionsRunner() {
         const r = takeBrowserActions(syncs, { flags: loadOwnerFlags(), shots: loadDeviceShots(), devices, by: teamMemberName() });
         if (r.done.length === 0) return;
         for (const p of r.pictures) await putProof(p.key, p.dataUrl);
-        if (r.added > 0) saveOwnerFlags(r.flags);
+        if (r.added > 0) {
+          saveOwnerFlags(r.flags);
+          void announceTeamFlags(r.addedFlags); // 🔴🟡 the others see it even with their app closed
+        }
         if (r.pictures.length > 0) saveDeviceShots(r.shots);
         await ackPendingAccountSyncs(r.done);
       } finally {

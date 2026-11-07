@@ -2,6 +2,7 @@
 
 import { startFlagPulse } from "@/lib/linkPulse";
 import { notifyPhone } from "@/lib/appEvents";
+import { pushAlertWatch } from "@/lib/alertWatchRun";
 import { useEffect, useState } from "react";
 import { PartySheet } from "./AccountsSection";
 import { loadRepresentativeStore } from "@/lib/repStore";
@@ -105,6 +106,8 @@ export function RepFlagRunner() {
       }
     };
     void round();
+    // 🔴🟡 the background service watches the same channels (and the team's alerts) while the app is closed
+    if (!rep) void pushAlertWatch();
     // ⚡ the operator listens to the reps' channels: a warning comes in the moment it is written
     let live = false;
     let lastRound = Date.now();

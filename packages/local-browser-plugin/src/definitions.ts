@@ -774,6 +774,10 @@ export interface LocalBrowserPlugin {
   /** ⏰ «تم»: the reminder is over. */
   doneDeviceReminder(options: { id: string }): Promise<void>;
 
+  /** 🔴🟡 What the background service («رد البوت والتطبيق مغلق») watches while the app is closed: JSON from apps/web
+   * lib/alertWatch.ts (Firebase, the reps' channels, the team's alerts); empty = nothing. `running`: the service runs. */
+  setAlertWatch(options: { config: string }): Promise<{ running: boolean }>;
+
   /** ⏰ A reminder set by the app (his «⏸️ إطفاء 3 أيام» message). Rejects on web. */
   addDeviceReminder(options: { accountId: string; device: string; at: number; note: string }): Promise<{ id: string }>;
 

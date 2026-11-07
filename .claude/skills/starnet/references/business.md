@@ -3130,4 +3130,16 @@ is never pressed while a field is empty - it refills and saves on the next try (
   his warning (`repFlagsFromBrowser`, stable hex id, level + picture - `RepFlag.image`, a small JPEG only) and is
   pushed at once. Team members' alerts already travel live by the team link (sent 0.8 s after the save; applied
   when the receiver isn't in the middle of a sheet). With the app fully closed nothing can arrive until it opens.
+- Same day: «هل تأتي والتطبيق مقفول؟» - no; his choice **«نعم، عبر خدمة الخلفية»**. The background service of
+  «⚡ رد البوت والتطبيق مغلق» (TelegramReplyService, same switch; it now also runs on a team phone with no bot) has an
+  alert thread (AlertWatch.java): while the app is NOT in front, about once a minute it lists every rep's channel
+  (`starnet/{space}/flags`) and the team's alerts (`starnet/{team}/alerts`), opens them (AlertCrypto - the app's
+  AES-GCM, JUnit-tested against a WebCrypto vector) and posts a phone notification («🔴 مستعجل - 🚩 تحذير من المندوب X» /
+  «🟡 🚩 تنبيه من المسؤول 2»). It never deletes - the app takes the warnings when it opens. Only documents created
+  after the app was last in front are announced (server createTime), each once (seen ids, 400 kept). Its own
+  anonymous Firebase sign-in. The app hands it the list (`pushAlertWatch`, lib/alertWatchRun.ts → plugin
+  `setAlertWatch`: Firebase, each rep channel's key + name, the team space/key, my member id) when it opens. A team
+  alert made on a phone also writes a small sealed copy to `starnet/{team}/alerts` (`announceTeamFlags`: device, note
+  ≤300, level, who, member - no picture; copies older than 3 days deleted); the alert itself still travels in the
+  link. Once a minute (not 30 s) to stay inside Firebase's free reads with ~7 reps' channels.
 

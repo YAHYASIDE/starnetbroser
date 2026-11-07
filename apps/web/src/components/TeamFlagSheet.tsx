@@ -1,5 +1,6 @@
 "use client";
 
+import { announceTeamFlags } from "@/lib/alertWatchRun";
 import { useState } from "react";
 import { PartySheet } from "./AccountsSection";
 import { browserLinkStorage, loadLinkConfig } from "@/lib/deviceLink";
@@ -24,6 +25,7 @@ export function TeamFlagSheet({ device, onClose }: { device: { id: string; name:
     const flag = newTeamFlag({ deviceId: device.id, deviceName: device.name, email: device.email, note, level, by: teamMemberName() });
     if (!flag) return setError("اكتب المشكلة أولًا");
     saveOwnerFlags(addIncomingFlags(loadOwnerFlags(), [flag]).store);
+    void announceTeamFlags([flag]); // 🔴🟡 the others see it even with their app closed
     onClose();
   }
 

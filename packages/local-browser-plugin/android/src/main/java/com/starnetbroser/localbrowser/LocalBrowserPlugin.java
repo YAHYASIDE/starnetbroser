@@ -521,6 +521,18 @@ public class LocalBrowserPlugin extends Plugin {
     }
 
     /** ⏰ «تم»: the reminder is over (its alarm cancelled if it hasn't rung). */
+    /** 🔴🟡 What the background service watches while the app is closed (AlertWatch): the Firebase, the reps'
+     * channels and the team's alerts - `config` empty = nothing. */
+    @PluginMethod
+    public void setAlertWatch(PluginCall call) {
+        String config = call.getString("config", "");
+        AlertWatch.configure(getContext(), config);
+        boolean running = TelegramReplyService.refresh(getContext());
+        JSObject ret = new JSObject();
+        ret.put("running", running && TelegramReplyService.shouldRun(getContext()));
+        call.resolve(ret);
+    }
+
     /** ⏰ A reminder set by the app (his «⏸️ إطفاء 3 أيام» message: tell the customer to turn it on again). */
     @PluginMethod
     public void addDeviceReminder(PluginCall call) {

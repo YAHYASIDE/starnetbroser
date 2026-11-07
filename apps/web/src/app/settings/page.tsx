@@ -122,6 +122,7 @@ import { downloadGoogleDriveBackup, linkGoogleDrive, listGoogleDriveBackups, run
 import { PartySheet } from "@/components/AccountsSection";
 import { BusinessProfile, DEFAULT_PAYMENT_INSTRUCTIONS, loadBusinessProfile, saveBusinessProfile } from "@/lib/pdfDocument";
 import { CustomerMessagesSection } from "@/components/CustomerMessagesSection";
+import { browserLinkStorage, loadLinkConfig } from "@/lib/deviceLink";
 import { clearAppPin, hasAppPin, setAppPin, verifyAppPin } from "@/lib/appLock";
 import { loadProfitReset, ProfitReset, saveProfitReset, startProfitFresh, undoProfitFresh } from "@/lib/profitReset";
 import { listRepresentatives, loadRepresentativeStore, Representative, saveRepresentativeStore } from "@/lib/repStore";
@@ -1661,7 +1662,8 @@ function TelegramInstantSection() {
   const [state, setState] = useState<TelegramServiceState | null>(null);
   useEffect(() => {
     const refresh = () => {
-      setShown(isTelegramConnected() || isRepsBotConnected());
+      // 🔴🟡 also on a team phone without a bot: the same service brings the alerts while the app is closed
+      setShown(isTelegramConnected() || isRepsBotConnected() || Boolean(loadLinkConfig(browserLinkStorage())?.enabled));
       setInstant(isTelegramInstant());
       void telegramServiceState().then(setState);
     };
@@ -1674,7 +1676,7 @@ function TelegramInstantSection() {
     <section className="section telegram-section">
       <h2 className="section-title">⚡ رد البوت والتطبيق مغلق</h2>
       <label className="toggle-switch-row">
-        <span>يرد البوتان فوراً حتى والتطبيق مغلق</span>
+        <span>يرد البوتان فوراً وتصل تنبيهات 🔴 مستعجل / 🟡 حتى والتطبيق مغلق</span>
         <span className={`toggle-switch${instant ? " toggle-switch-on" : ""}`}>
           <input
             type="checkbox"
@@ -1690,7 +1692,7 @@ function TelegramInstantSection() {
       {instant && state && (
         <>
           <p className={`settings-hint ${state.running ? "telegram-running" : "telegram-stopped"}`}>
-            {state.running ? "✅ يعمل الآن - البوتان يردان خلال ثوانٍ" : "⚠️ متوقف الآن - أعد فتح التطبيق، واسمح له بالعمل في الخلفية أدناه."}
+            {state.running ? "✅ يعمل الآن - البوتان يردان خلال ثوانٍ، والتنبيهات تصل خلال دقيقة تقريبًا" : "⚠️ متوقف الآن - أعد فتح التطبيق، واسمح له بالعمل في الخلفية أدناه."}
           </p>
           <div className="settings-actions">
             <button
