@@ -96,6 +96,15 @@ app.whenReady().then(() => {
     if (!file) return new Response("Not found", { status: 404 });
     return net.fetch(pathToFileURL(file).toString());
   });
+  // ⌨️ Electron on Windows: after an alert / confirm the page's fields take no click or typing until the window
+  // loses and regains the focus (his Nov 7 2026 report: «لا يمكن الضغط على المبلغ»). The page asks for this after
+  // each one (apps/web DesktopFocusFix).
+  ipcMain.on("starnet:refocus", (event) => {
+    if (!win || event.sender !== win.webContents) return;
+    win.blur();
+    win.focus();
+    win.webContents.focus();
+  });
   devices.register(ipcMain, () => win, zoom);
   mail.register(ipcMain, () => win, zoom);
   createWindow();

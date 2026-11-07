@@ -20305,3 +20305,13 @@ html.has-rep-flags body { padding-top: calc(var(--safe-top) + 46px); }
 .rep-receipt-viewer img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .rep-receipt-close { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 10px); inset-inline-end: 12px; width: 40px; height: 40px; border-radius: 50%; border: none; background: rgba(255, 255, 255, 0.18); color: #fff; font-size: 1.2rem; }
 
+/* 🟥 the link team's devices not fully synced (Nov 7 2026): a red line on the right edge, below the green sync line */
+.team-line { position: fixed; right: 0; top: 72%; z-index: 95; width: 26px; height: 16vh; padding: 0; border: 0; background: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.team-line-track { position: absolute; right: 4px; top: 0; bottom: 0; width: 5px; border-radius: 999px; background: var(--red); box-shadow: 0 0 10px color-mix(in srgb, var(--red) 60%, transparent); opacity: 0.85; animation: team-line-pulse 2.4s ease-in-out infinite; }
+@keyframes team-line-pulse { 50% { opacity: 0.45; } }
+.team-line-tag { position: absolute; right: 14px; top: 0; display: inline-flex; align-items: center; max-width: min(58vw, 240px); padding: 4px 10px; border-radius: 999px; background: color-mix(in srgb, var(--surface) 70%, transparent); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); border: 1px solid color-mix(in srgb, var(--red) 45%, transparent); color: var(--text); font-size: 0.74rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.9; }
+.team-line-list { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.team-line-item { display: flex; flex-direction: column; gap: 4px; padding: 10px; border-radius: var(--radius-md); border: 1px solid color-mix(in srgb, var(--red) 40%, var(--border)); background: var(--surface-alt); }
+.team-line-diffs { margin: 0; padding-inline-start: 18px; font-size: 0.85rem; display: flex; flex-direction: column; gap: 2px; font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .team-line-track { animation: none; } }
+

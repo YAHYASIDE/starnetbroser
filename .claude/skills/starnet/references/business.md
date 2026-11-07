@@ -3022,3 +3022,16 @@ is never pressed while a field is empty - it refills and saves on the next try (
   fallback, every 30 s while the listener is live. Usually 2-5 s phone to phone, app open; one Firestore read per change
   instead of one per check. The SDK signs in anonymously by itself (rules: `request.auth != null`).
 
+## 🟥 The team's devices not fully synced · ⌨️ the laptop's fields after a popup (Nov 7 2026)
+
+- His ask: «خط أحمر مثل الذي يظهر في تحديث الأجهزة، على اليمين، يظهر لي الأجهزة التي لم تتم مزامنتها كاملًا».
+  `lib/teamSyncStatus.ts` (tested): every member but YAHYA against YAHYA's counts (the sealed counts in each head);
+  a member whose numbers aren't known (an older app) counts as not complete; shown only after 2 minutes out of step
+  (`lastingOutOfSync`). `TeamSyncLine` (layout, every page): a red pulsing line on the right edge (top 72%, below the
+  green sync line) «🔗 «X» غير مكتمل» → a sheet: per device what it lacks («الأجهزة: 775 من 785 (ينقصه 10)»), its last
+  sync, the fix, «🔄 مزامنة الآن» / «⚙️ فتح ربط الأجهزة».
+- His report (a photo of the laptop, «إضافة رصيد»): «في اللابتوب لا يمكن الضغط على المبلغ، لا يظهر شيء». Electron on
+  Windows: after window.alert / confirm / prompt the page's fields take no click or typing until the window loses and
+  regains focus. `DesktopFocusFix` (layout) wraps the three on the laptop and asks `starnetDesktop.refocus()` →
+  desktop/main.js «starnet:refocus» (`win.blur(); win.focus(); webContents.focus()`). Needs the new .exe (preload v4).
+

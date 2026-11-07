@@ -3,7 +3,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("starnetDesktop", {
   platform: "windows",
-  version: "3",
+  version: "4",
   /** A device's own Starlink window ({accountId, accountName, loginEmail, loginPassword}). */
   openDevice: (opts) => ipcRenderer.invoke("starnet:open-device", opts),
   /** A backup's sessions (the phone's format) into the device windows -> {importedCount}. */
@@ -30,4 +30,6 @@ contextBridge.exposeInMainWorld("starnetDesktop", {
   clearVerificationCodes: () => ipcRenderer.invoke("starnet:clear-codes"),
   /** Signs one device's window out (its storage cleared). */
   deleteSession: (accountId) => ipcRenderer.invoke("starnet:delete-session", accountId),
+  /** ⌨️ Gives the typing back to the page after an alert / confirm (Electron's Windows bug - his Nov 7 2026 report). */
+  refocus: () => ipcRenderer.send("starnet:refocus"),
 });

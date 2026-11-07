@@ -12,6 +12,7 @@ import { StorageFullBanner } from "@/components/StorageFullBanner";
 import { RepOpFlagsBanner } from "@/components/RepOpFlagsBanner";
 import { RepFlagRunner, RepFlagsBanner } from "@/components/RepFlagsBanner";
 import { TelegramBridge } from "@/components/TelegramBridge";
+import { DesktopFocusFix } from "@/components/DesktopFocusFix";
 import { ReceiptReaderRunner } from "@/components/ReceiptReaderRunner";
 import { PhoneShortcutLayer } from "@/components/PhoneShortcutLayer";
 import { DeleteCodeHost } from "@/components/DeleteCodePrompt";
@@ -19,6 +20,7 @@ import { LatinDigitInputs } from "@/components/LatinDigitInputs";
 import { WhatsNewTour } from "@/components/WhatsNewTour";
 import { LiveSyncRunner } from "@/components/LiveSyncRunner";
 import { DeviceLinkRunner } from "@/components/DeviceLinkRunner";
+import { TeamSyncLine } from "@/components/TeamSyncLine";
 import { RepCopyAutoRunner } from "@/components/RepCopyAutoRunner";
 import { RepAutoStatementRunner } from "@/components/RepAutoStatementRunner";
 import { LinkGuardListener } from "@/components/LinkGuardListener";
@@ -65,6 +67,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <WhatsNewTour />
             <LiveSyncRunner />
             <DeviceLinkRunner />
+            <TeamSyncLine />
             <RepCopyAutoRunner />
             <RepAutoStatementRunner />
             <RepOpFlagsBanner />
@@ -74,6 +77,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </RepModeGate>
         </AppLockGate>
         <TelegramBridge />
+        <DesktopFocusFix />
         <ReceiptReaderRunner />
         <PhoneShortcutLayer />
         <StorageFullBanner />
