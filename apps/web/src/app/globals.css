@@ -20315,3 +20315,7 @@ html.has-rep-flags body { padding-top: calc(var(--safe-top) + 46px); }
 .team-line-diffs { margin: 0; padding-inline-start: 18px; font-size: 0.85rem; display: flex; flex-direction: column; gap: 2px; font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) { .team-line-track { animation: none; } }
 
+/* 🚩 a team member's alert on a device (Nov 7 2026) */
+.team-flag-note { width: 100%; min-height: 84px; resize: vertical; margin: 8px 0; line-height: 1.6; font-family: inherit; font-size: 0.95rem; }
+.report-period-btn.team-flag-urgent { background: var(--red); border-color: var(--red); color: #fff; }
+

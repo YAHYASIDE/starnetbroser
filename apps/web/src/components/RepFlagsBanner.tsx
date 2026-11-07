@@ -5,11 +5,13 @@ import { PartySheet } from "./AccountsSection";
 import { loadRepresentativeStore } from "@/lib/repStore";
 import { isRepWorkspace } from "@/lib/repMode";
 import { loadRepCopy } from "@/lib/repCopy";
-import { browserLinkStorage, loadLinkConfig } from "@/lib/deviceLink";
+import { browserLinkStorage, isMainMember, loadLinkConfig } from "@/lib/deviceLink";
 import { loadLiveSyncConfig } from "@/lib/liveSyncConfig";
 import { sendRepText, sendTelegramText } from "@/lib/telegram";
 import {
   addIncomingFlags,
+  canReviewFlag,
+  flagsBarText,
   loadFlagChannels,
   loadOutbox,
   loadOwnerFlags,
@@ -107,7 +109,8 @@ export function RepFlagRunner() {
 /**
  * 🚩 The operator's red bar on top of every page while a rep's warning is open (his Nov 3 2026
  * choices): it opens the list - the device, its email, the description, who and when - with
- * «📍 إظهار الجهاز» and «✓ راجعته» (the rep is told on the reps bot).
+ * «📍 إظهار الجهاز» and «✓ راجعته» (the rep is told on the reps bot). Since Nov 7 2026 the team's alerts too
+ * (🔴 / 🟡, by a member's name; only YAHYA closes them).
  */
 export function RepFlagsBanner() {
   const [flags, setFlags] = useState<OwnerFlag[]>([]);
@@ -136,19 +139,24 @@ export function RepFlagsBanner() {
 
   if (!flags.length) return null;
   const reps = loadRepresentativeStore();
+  // 👥 a team alert is closed on YAHYA (his Nov 7 2026 choice)
+  const link = loadLinkConfig(browserLinkStorage());
+  const linked = Boolean(link?.enabled);
+  const main = Boolean(link && isMainMember(link.memberId));
 
   return (
     <>
       <button type="button" className="rep-flags-bar" role="alert" data-tour="rep-flags" onClick={() => setOpen(true)}>
-        🚩 <bdi dir="ltr">{flags.length}</bdi> تحذير من المندوب · {flags[0]!.deviceName}
+        {flagsBarText(flags)}
       </button>
       {open && (
-        <PartySheet title="🚩 تحذيرات المندوبين" onClose={() => setOpen(false)}>
+        <PartySheet title="🚩 التنبيهات والتحذيرات" onClose={() => setOpen(false)}>
           <ul className="rep-flags-list">
             {flags.map((f) => (
               <li key={f.id} className="rep-flags-item">
                 <p className="rep-flags-who">
-                  🤝 {reps[f.repId]?.name ?? "المندوب"} · <bdi dir="ltr">{when(f.at)}</bdi>
+                  {f.repId ? `🤝 ${reps[f.repId]?.name ?? "المندوب"}` : `👤 ${f.by ?? "مسؤول"}`}
+                  {f.level === "urgent" ? " · 🔴 عاجل" : f.level === "normal" ? " · 🟡 عادي" : ""} · <bdi dir="ltr">{when(f.at)}</bdi>
                 </p>
                 <p className="rep-flags-device">
                   📡 <strong dir="auto">{f.deviceName}</strong>
@@ -174,18 +182,22 @@ export function RepFlagsBanner() {
                   >
                     📍 إظهار الجهاز
                   </button>
-                  <button
-                    type="button"
-                    className="dialog-primary"
-                    onClick={() => {
-                      const next = markOwnerFlagReviewed(loadOwnerFlags(), f.id);
-                      saveOwnerFlags(next);
-                      void sendRepText(f.repId, repReviewedMessage(f));
-                      if (!openOwnerFlags(next).length) setOpen(false);
-                    }}
-                  >
-                    ✓ راجعته
-                  </button>
+                  {canReviewFlag(f, linked, main) ? (
+                    <button
+                      type="button"
+                      className="dialog-primary"
+                      onClick={() => {
+                        const next = markOwnerFlagReviewed(loadOwnerFlags(), f.id);
+                        saveOwnerFlags(next);
+                        if (f.repId) void sendRepText(f.repId, repReviewedMessage(f));
+                        if (!openOwnerFlags(next).length) setOpen(false);
+                      }}
+                    >
+                      ✓ راجعته
+                    </button>
+                  ) : (
+                    <span className="settings-hint">⏳ ينتظر أن يراجعه YAHYA</span>
+                  )}
                 </div>
               </li>
             ))}

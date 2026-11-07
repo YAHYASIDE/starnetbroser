@@ -33,4 +33,15 @@ describe("👥 what came from the team (his Oct 31 2026 «المسؤول 2»)", 
     expect(activityNotification([add(1), add(2), add(3), add(4), add(5)])!.split("\n")).toHaveLength(5);
     expect(activityNotification([])).toBeNull();
   });
+
+  it("🚩 a team alert notifies (his Nov 7 2026 ask), and so does YAHYA's «✓ راجعته» on it", () => {
+    const flag = { id: "f1", repId: "", deviceId: "d1", deviceName: "DEMO 1", note: "لا يتصل", at: 1, receivedAt: 1, by: "المسؤول 2", level: "urgent" };
+    const added = describeOp({ k: "starnet_rep_flags_v1", r: "f1", v: JSON.stringify(flag), at: "t" }, undefined, "المسؤول 2");
+    expect(added).toMatchObject({ kind: "add", notable: true, label: "🚩 🔴 عاجل - تنبيه على DEMO 1: لا يتصل" });
+    const reviewed = describeOp({ k: "starnet_rep_flags_v1", r: "f1", v: JSON.stringify({ ...flag, reviewedAt: 5 }), at: "t" }, JSON.stringify(flag), "YAHYA");
+    expect(reviewed).toMatchObject({ kind: "edit", notable: true, label: "✓ رُوجع التنبيه على DEMO 1" });
+    // a rep's warning travels quietly (the rep path already told the owner's bot)
+    expect(describeOp({ k: "starnet_rep_flags_v1", r: "f2", v: JSON.stringify({ ...flag, by: undefined, repId: "rep1" }), at: "t" }, undefined, "x")).toBeNull();
+  });
 });
+

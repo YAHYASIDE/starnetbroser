@@ -156,6 +156,8 @@ import { commitDemoAccounts, loadDemoAccounts } from "@/lib/demoAccountStore";
 import { loadRecentLog, markDeviceTouched, RECENT_EVENT, recentDevices, touchedOn, type RecentLog } from "@/lib/recentDevices";
 import { applyBrowserPins, isBrowserPin, isPinned, loadDeviceNotes, mergeDeviceNotes, noteMatchesQuery, pinnedDevices, saveDeviceNote, saveDeviceNotes, setDevicePinned, shouldAskUnpin, unpinAll, type DeviceNotesStore } from "@/lib/deviceNotes";
 import { ACCOUNTS_CHANGED_EVENT } from "@/lib/repMenuRecords";
+import { addIncomingFlags, isBrowserTeamFlag, loadOwnerFlags, saveOwnerFlags, teamFlagsFromBrowser } from "@/lib/repFlags";
+import { teamMemberName } from "./TeamFlagSheet";
 import { loadRepRequests, pendingRepRequests } from "@/lib/repRequests";
 import {
   ackPendingAccountSyncs,
@@ -1556,6 +1558,26 @@ export function HomeView({
     async function applyBatch(batch: PendingSyncLike[]) {
       await accountsReadyGateRef.current.whenReady();
 
+      // 🚩 The device browser's «تنبيه للمسؤول» (his Nov 7 2026 ask): a team alert, never a Starlink read.
+      const browserFlags = batch.filter((sync) => isBrowserTeamFlag(sync as never) && !processedSyncIds.has(sync.syncId));
+      if (browserFlags.length > 0) {
+        const devices = accountsRef.current.filter((a) => !a.deletedAt).map((a) => ({ id: a.id, name: a.name, email: a.starlinkAccountEmail || a.expectedEmail }));
+        const { flags, syncIds } = teamFlagsFromBrowser(browserFlags as never, devices, teamMemberName());
+        let savedFlags = true;
+        try {
+          saveOwnerFlags(addIncomingFlags(loadOwnerFlags(), flags).store);
+        } catch {
+          savedFlags = false; // left pending: the next drain tries again
+        }
+        if (savedFlags) {
+          for (const id of syncIds) {
+            processedSyncIds.add(id);
+            unackedSyncIds.add(id);
+          }
+          for (const f of flags) pushToast(`🚩 أُرسل التنبيه على ${f.deviceName}`);
+        }
+      }
+
       // 📌 The device browser's «تثبيت - لم يُسجَّل الشحن بعد» tab: a pin + note, never a Starlink read.
       const browserPins = batch.filter((sync) => isBrowserPin(sync) && !processedSyncIds.has(sync.syncId));
       // ⏳ «شحن بانتظار الفاتورة»: the customer's price typed there - the charge is recorded with its D
@@ -1641,7 +1663,7 @@ export function HomeView({
           }
         }
       }
-      const syncs = batch.filter((sync) => !isBrowserPin(sync));
+      const syncs = batch.filter((sync) => !isBrowserPin(sync) && !isBrowserTeamFlag(sync as never));
       if (syncs.length === 0) {
         await retryAcks();
         return;

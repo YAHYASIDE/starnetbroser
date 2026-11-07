@@ -39,6 +39,9 @@ const MONEY: Record<string, string> = {
   starnet_business_expenses_v1: "📉 مصروف عمل",
 };
 
+/** 🚩 Warnings and team alerts (lib/repFlags.ts). */
+const FLAGS_KEY = "starnet_rep_flags_v1";
+
 const NAMED: Record<string, string> = {
   starnet_demo_accounts_v1: "📡 جهاز",
   starnet_clients_v1: "👤 زبون",
@@ -85,6 +88,16 @@ export function describeOp(op: Pick<SyncOp, "k" | "r" | "v" | "at">, before: str
   const rec = parse(op.v ?? before);
   let label: string;
   let notable = false;
+  if (op.k === FLAGS_KEY) {
+    // 🚩 a team alert (his Nov 7 2026 ask): a new one, or YAHYA's «✓ راجعته» on it - both worth a notification
+    if (!rec || typeof rec.by !== "string" || kind === "del") return null;
+    const device = String(rec.deviceName ?? "");
+    const reviewed = Boolean(rec.reviewedAt) && !parse(before ?? null)?.reviewedAt;
+    if (kind === "add") label = `🚩 ${rec.level === "urgent" ? "🔴 عاجل - " : ""}تنبيه على ${device}: ${String(rec.note ?? "")}`;
+    else if (reviewed) label = `✓ رُوجع التنبيه على ${device}`;
+    else return null;
+    return { at: op.at, by, kind, k: op.k, r: op.r, label, notable: true };
+  }
   if (NAMED[op.k]) {
     label = `${NAMED[op.k]} ${String(rec?.name ?? "")}`.trim();
     notable = op.k === "starnet_demo_accounts_v1" && kind === "add";

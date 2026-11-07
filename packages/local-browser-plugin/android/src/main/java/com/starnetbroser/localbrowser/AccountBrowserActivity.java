@@ -390,6 +390,7 @@ public class AccountBrowserActivity extends AppCompatActivity {
         ((Button) findViewById(R.id.starnet_error_retry)).setOnClickListener(v -> reload());
         findViewById(R.id.starnet_pin_handle).setOnClickListener(v -> askPinUnrecorded());
         findViewById(R.id.starnet_remind_handle).setOnClickListener(v -> askReminder());
+        findViewById(R.id.starnet_flag_handle).setOnClickListener(v -> askTeamFlag());
 
         // 💳 Before the first page: the card-fill script must run at the start of every frame.
         cardFill.setUp(webView);
@@ -1479,6 +1480,63 @@ public class AccountBrowserActivity extends AppCompatActivity {
             .setNegativeButton("إلغاء", null)
             .create();
         holder[0].show();
+    }
+
+    /**
+     * 🚩 «تنبيه للمسؤول» (his Nov 7 2026 ask «لكل المسؤولين أن يضيفوا تنبيهًا على الأجهزة»): the problem in words,
+     * 🔴 عاجل or 🟡 عادي. Staged like a read (PendingSyncStore, field «teamFlag») - the app turns it into a team alert
+     * (lib/repFlags.ts teamFlagsFromBrowser), never a Starlink read.
+     */
+    private void askTeamFlag() {
+        if (accountId == null) return;
+        float density = getResources().getDisplayMetrics().density;
+        int pad = (int) (20 * density);
+        android.widget.LinearLayout box = new android.widget.LinearLayout(this);
+        box.setOrientation(android.widget.LinearLayout.VERTICAL);
+        box.setPadding(pad, pad / 2, pad, 0);
+        android.widget.EditText noteInput = new android.widget.EditText(this);
+        noteInput.setHint("ما المشكلة في هذا الجهاز؟");
+        noteInput.setMinLines(2);
+        noteInput.setFilters(new android.text.InputFilter[] { new android.text.InputFilter.LengthFilter(400) });
+        box.addView(noteInput);
+        androidx.appcompat.app.AlertDialog dialog = new androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("🚩 تنبيه للمسؤول - " + (deviceLabel.isEmpty() ? "هذا الجهاز" : deviceLabel))
+            .setView(box)
+            .setPositiveButton("🔴 عاجل", null)
+            .setNeutralButton("🟡 عادي", null)
+            .setNegativeButton("إلغاء", null)
+            .create();
+        dialog.setOnShowListener(d -> {
+            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                if (stageTeamFlag(noteInput.getText().toString(), "urgent")) dialog.dismiss();
+            });
+            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
+                if (stageTeamFlag(noteInput.getText().toString(), "normal")) dialog.dismiss();
+            });
+        });
+        dialog.show();
+    }
+
+    private boolean stageTeamFlag(String note, String level) {
+        String text = note == null ? "" : note.trim();
+        if (text.isEmpty()) {
+            Toast.makeText(this, "اكتب المشكلة أولًا", Toast.LENGTH_SHORT).show();
+            return false;
+        }
+        JSObject flag = new JSObject();
+        flag.put("note", text);
+        flag.put("level", level);
+        flag.put("at", System.currentTimeMillis());
+        JSObject fields = new JSObject();
+        fields.put("teamFlag", flag);
+        String syncId = PendingSyncStore.save(getApplicationContext(), accountId, fields);
+        if (syncId == null) {
+            Toast.makeText(this, "تعذّر الحفظ - حاول مرة أخرى", Toast.LENGTH_LONG).show();
+            return false;
+        }
+        LocalBrowserPlugin.emitAccountDataSynced(syncId, accountId, fields);
+        Toast.makeText(this, "🚩 أُرسل التنبيه - يظهر للمسؤول في التطبيق", Toast.LENGTH_SHORT).show();
+        return true;
     }
 
     private void pickReminderTime(String note, androidx.appcompat.app.AlertDialog parent) {

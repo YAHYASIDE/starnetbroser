@@ -52,6 +52,7 @@ import { useCardGestures } from "./useCardGestures";
 import { DeviceNoteSheet, type DeviceNoteSheetMode } from "./DeviceNoteSheet";
 import { RepFlagSheet } from "./RepFlagSheet";
 import { OPEN_REP_FLAGS, useDeviceRepFlags } from "./RepFlagsBanner";
+import { TeamFlagSheet } from "./TeamFlagSheet";
 import { isRepWorkspace } from "@/lib/repMode";
 import { pinAgeText, type DeviceNote } from "@/lib/deviceNotes";
 import { reminderWhenLabel, type DeviceReminder } from "@/lib/deviceReminders";
@@ -585,6 +586,7 @@ export function AccountCard({
   const [showRenewalDialog, setShowRenewalDialog] = useState(false);
   const [showPromise, setShowPromise] = useState(false);
   const [showActivation, setShowActivation] = useState(false);
+  const [showTeamFlag, setShowTeamFlag] = useState(false);
   const identityEmail = account.expectedEmail || account.starlinkAccountEmail;
   const [emailCopied, setEmailCopied] = useState(false);
   // ✉️ The device is named by its email: shown once (his Oct 17 2026 choice) - the name copies it.
@@ -675,7 +677,7 @@ export function AccountCard({
     >
       {openFlags.length > 0 && (
         <button type="button" className="rep-flag-line" onClick={() => window.dispatchEvent(new Event(OPEN_REP_FLAGS))} title={openFlags[0]!.note}>
-          🚩 <strong>تحذير المندوب:</strong> <span dir="auto">{openFlags[0]!.note}</span>
+          🚩 <strong>{openFlags[0]!.repId ? "تحذير المندوب:" : `${openFlags[0]!.level === "urgent" ? "🔴 " : ""}تنبيه من ${openFlags[0]!.by ?? "مسؤول"}:`}</strong> <span dir="auto">{openFlags[0]!.note}</span>
           {openFlags.length > 1 && <small> (+{openFlags.length - 1})</small>}
         </button>
       )}
@@ -1427,6 +1429,8 @@ export function AccountCard({
         </div>
       )}
 
+      {showTeamFlag && <TeamFlagSheet device={{ id: account.id, name: account.name, email: account.starlinkAccountEmail || account.expectedEmail }} onClose={() => setShowTeamFlag(false)} />}
+
       {showActivation && (
         <ActivationMessageSheet
           account={account}
@@ -1457,6 +1461,8 @@ export function AccountCard({
                   : []),
                 { icon: "📅", label: "تجديد", run: () => setShowRenewalDialog(true) },
                 { icon: "📨", label: "رسالة التفعيل", run: () => setShowActivation(true) },
+                // 🚩 a team member's alert on this device (his Nov 7 2026 ask) - not in a rep's own app (he has his own 🚩)
+                ...(!repApp ? [{ icon: "🚩", label: "تنبيه للمسؤول", run: () => setShowTeamFlag(true) }] : []),
                 { icon: "📋", label: expanded ? "إخفاء التفاصيل" : "التفاصيل", run: () => setExpanded((v) => !v) },
                 { icon: client ? "✎" : "🔗", label: client ? "تعديل البيانات" : "ربط بزبون", run: () => onEdit(account) },
                 { icon: "📋", label: "لصق جلسة (من متصفح آخر)", run: () => setShowPasteSession(true) },

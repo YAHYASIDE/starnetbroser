@@ -3035,3 +3035,18 @@ is never pressed while a field is empty - it refills and saves on the next try (
   regains focus. `DesktopFocusFix` (layout) wraps the three on the laptop and asks `starnetDesktop.refocus()` →
   desktop/main.js «starnet:refocus» (`win.blur(); win.focus(); webContents.focus()`). Needs the new .exe (preload v4).
 
+## 🚩 A team member's alert on a device (Nov 7 2026)
+
+- His ask: «أريد لكل المسؤولين أن يمكنهم أن يضيفوا تنبيهًا على الأجهزة، تنبيه يظهر لي أنا المسؤول، وعندما أضغطه تظهر
+  لي المشكلة». His choices: **everyone in the team sees it, only YAHYA closes it**; added from **the card's ⋯** and **the
+  device's browser**; with **the problem in words, 🔴 عاجل / 🟡 عادي, and a phone notification**.
+- Kept with the reps' warnings (`starnet_rep_flags_v1` - synced by the link, in the backup): `OwnerFlag.by` (the member's
+  name in the link, else «أنا»), `level`, `repId` empty (`newTeamFlag`, lib/repFlags.ts, tested). The red top bar
+  (`flagsBarText`: 🔴 first, «تنبيه من الفريق») and the card line («🔴 تنبيه من X: …») show it; «✓ راجعته» only where
+  `canReviewFlag` (YAHYA when linked; anyone unlinked; a rep's warning as before) - elsewhere «⏳ ينتظر أن يراجعه YAHYA».
+- The card's ⋯ «🚩 تنبيه للمسؤول» (`TeamFlagSheet`, not in a rep's own app). The device browser: a 🚩 tab under ⏰ →
+  note + «🔴 عاجل» / «🟡 عادي», staged as a read (`fields.teamFlag`, PendingSyncStore) and turned into an alert by the home
+  page's drain (`teamFlagsFromBrowser`, id `browser-<syncId>`: never twice), never merged as a Starlink read.
+- The notification: the link's activity (`describeOp`) makes a new team alert and YAHYA's «✓ راجعته» notable - the
+  phone notification goes to the others («🚩 🔴 عاجل - تنبيه على X: …» / «✓ رُوجع التنبيه على X»).
+

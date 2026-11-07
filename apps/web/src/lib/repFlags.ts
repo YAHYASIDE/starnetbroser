@@ -30,7 +30,14 @@ export interface OwnerFlag extends RepFlag {
   receivedAt: number;
   /** «✓ راجعته» */
   reviewedAt?: number;
+  /** 👥 An alert from a member of the link team (his Nov 7 2026 ask «لكل المسؤولين أن يضيفوا تنبيهًا على الأجهزة»):
+   * the member's name - `repId` is then empty. */
+  by?: string;
+  /** 🔴 urgent / 🟡 normal (a team alert; a rep's warning has none). */
+  level?: FlagLevel;
 }
+
+export type FlagLevel = "urgent" | "normal";
 
 export type OwnerFlagStore = Record<string, OwnerFlag>;
 
@@ -108,11 +115,70 @@ export function addIncomingFlags(store: OwnerFlagStore, flags: RepFlag[], now = 
   return { store: added.length ? next : store, added };
 }
 
-/** Not reviewed yet, newest first - the red bar's list. */
+/** Not reviewed yet - 🔴 urgent first, then newest first - the red bar's list. */
 export function openOwnerFlags(store: OwnerFlagStore): OwnerFlag[] {
   return Object.values(store)
     .filter((f) => !f.reviewedAt)
-    .sort((a, b) => b.at - a.at);
+    .sort((a, b) => Number(b.level === "urgent") - Number(a.level === "urgent") || b.at - a.at);
+}
+
+/** 👥 A team member's alert on a device (from its card's ⋯ or its browser's 🚩); null when there is nothing to say. */
+export function newTeamFlag(
+  input: { deviceId: string; deviceName: string; email?: string; note: string; level: FlagLevel; by: string },
+  now = Date.now(),
+  random: () => string = randomId,
+): OwnerFlag | null {
+  const base = newRepFlag({ repId: "", deviceId: input.deviceId, deviceName: input.deviceName, email: input.email, note: input.note }, now, random);
+  if (!base) return null;
+  return { ...base, receivedAt: now, by: input.by.trim() || "مسؤول", level: input.level };
+}
+
+/** 🚩 from a device's browser (staged there as a read, `fields.teamFlag`): the alerts, by whoever this phone is, and
+ * every such read handled (to acknowledge). The read's id is the alert's - a second drain adds nothing. */
+export function teamFlagsFromBrowser(
+  syncs: { syncId: string; accountId: string; fields: { teamFlag?: { note?: string; level?: string; at?: number } } }[],
+  devices: { id: string; name: string; email?: string }[],
+  by: string,
+): { flags: OwnerFlag[]; syncIds: string[] } {
+  const flags: OwnerFlag[] = [];
+  const syncIds: string[] = [];
+  for (const sync of syncs) {
+    const t = sync.fields?.teamFlag;
+    if (!t) continue;
+    syncIds.push(sync.syncId);
+    const device = devices.find((d) => d.id === sync.accountId);
+    if (!device) continue;
+    const at = typeof t.at === "number" && t.at > 0 ? t.at : Date.now();
+    const flag = newTeamFlag({ deviceId: device.id, deviceName: device.name, email: device.email, note: t.note ?? "", level: t.level === "urgent" ? "urgent" : "normal", by }, at, () => `browser-${sync.syncId}`);
+    if (flag) flags.push(flag);
+  }
+  return { flags, syncIds };
+}
+
+export function isBrowserTeamFlag(sync: { fields?: { teamFlag?: unknown } }): boolean {
+  return Boolean(sync.fields?.teamFlag);
+}
+
+/** A team alert is closed by YAHYA only (his Nov 7 2026 choice); a rep's warning, and anything on a phone that
+ * isn't linked, by whoever sees it. */
+export function canReviewFlag(flag: Pick<OwnerFlag, "repId" | "by">, linked: boolean, isMain: boolean): boolean {
+  if (flag.repId || !flag.by) return true;
+  return !linked || isMain;
+}
+
+/** «🔴 مسؤول 2: الطبق لا يتصل - DEMO 7» - the phone notification for a team alert. */
+export function teamFlagMessage(flag: OwnerFlag): string {
+  return `${flag.level === "urgent" ? "🔴" : "🟡"} 🚩 ${flag.by ?? "مسؤول"} - ${flag.deviceName}: ${flag.note}`;
+}
+
+/** The top bar's words: how many, the first device, 🔴 when one is urgent. */
+export function flagsBarText(flags: OwnerFlag[]): string {
+  if (!flags.length) return "";
+  const urgent = flags.some((f) => f.level === "urgent") ? "🔴 " : "";
+  const team = flags.every((f) => !f.repId);
+  const reps = flags.every((f) => f.repId);
+  const what = team ? "تنبيه من الفريق" : reps ? "تحذير من المندوب" : "تنبيه";
+  return `${urgent}🚩 ${flags.length} ${what} · ${flags[0]!.deviceName}`;
 }
 
 /** The open warnings of one device (its card's red line). */

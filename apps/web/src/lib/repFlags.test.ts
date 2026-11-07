@@ -2,6 +2,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   addIncomingFlags,
+  canReviewFlag,
+  flagsBarText,
+  isBrowserTeamFlag,
+  newTeamFlag,
+  teamFlagMessage,
+  teamFlagsFromBrowser,
   markFlagSent,
   markOwnerFlagReviewed,
   newRepFlag,
@@ -123,3 +129,41 @@ describe("🚩 over the operator's Firebase", () => {
     expect(fs.docs.size).toBe(0);
   });
 });
+
+describe("👥 team alerts on a device (his Nov 7 2026 ask)", () => {
+  const fixed = () => "0123456789abcdef0123";
+  it("a member writes one: by his name, 🔴 / 🟡; urgent ones come first in the bar", () => {
+    const t = newTeamFlag({ deviceId: "d1", deviceName: "DEMO 1", note: "  الطبق لا يتصل  ", level: "urgent", by: "المسؤول 2" }, 1000, fixed)!;
+    expect(t).toMatchObject({ repId: "", by: "المسؤول 2", level: "urgent", note: "الطبق لا يتصل", receivedAt: 1000 });
+    expect(newTeamFlag({ deviceId: "d1", deviceName: "DEMO 1", note: " ", level: "normal", by: "x" })).toBeNull();
+    const normal = newTeamFlag({ deviceId: "d2", deviceName: "DEMO 2", note: "تغيير الباقة", level: "normal", by: "اللابتوب" }, 5000, () => "aaaaaaaaaaaaaaaaaaaa")!;
+    const store = addIncomingFlags({}, [t, normal], 5000).store;
+    expect(openOwnerFlags(store).map((f) => f.deviceName)).toEqual(["DEMO 1", "DEMO 2"]);
+    expect(flagsBarText(openOwnerFlags(store))).toBe("🔴 🚩 2 تنبيه من الفريق · DEMO 1");
+    expect(teamFlagMessage(t)).toBe("🔴 🚩 المسؤول 2 - DEMO 1: الطبق لا يتصل");
+  });
+
+  it("only YAHYA closes a team alert; a rep's warning anyone; nothing linked - whoever sees it", () => {
+    const team = { repId: "", by: "المسؤول 2" };
+    expect(canReviewFlag(team, true, true)).toBe(true);
+    expect(canReviewFlag(team, true, false)).toBe(false);
+    expect(canReviewFlag(team, false, false)).toBe(true);
+    expect(canReviewFlag({ repId: "rep1" }, true, false)).toBe(true);
+  });
+
+  it("🚩 from a device's browser: one alert per staged read, never twice; a gone device is skipped", () => {
+    const syncs = [
+      { syncId: "s1", accountId: "d1", fields: { teamFlag: { note: "لا يتصل", level: "urgent", at: 2000 } } },
+      { syncId: "s2", accountId: "gone", fields: { teamFlag: { note: "x" } } },
+    ];
+    const { flags, syncIds } = teamFlagsFromBrowser(syncs, [{ id: "d1", name: "DEMO 1", email: "demo@example.com" }], "YAHYA");
+    expect(syncIds).toEqual(["s1", "s2"]);
+    expect(flags).toHaveLength(1);
+    expect(flags[0]).toMatchObject({ id: "browser-s1", deviceName: "DEMO 1", email: "demo@example.com", level: "urgent", by: "YAHYA", at: 2000 });
+    const once = addIncomingFlags({}, flags).store;
+    expect(addIncomingFlags(once, teamFlagsFromBrowser(syncs, [{ id: "d1", name: "DEMO 1" }], "YAHYA").flags).added).toHaveLength(0);
+    expect(isBrowserTeamFlag(syncs[0]!)).toBe(true);
+    expect(isBrowserTeamFlag({ fields: {} })).toBe(false);
+  });
+});
+

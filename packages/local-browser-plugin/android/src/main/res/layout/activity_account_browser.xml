@@ -75,6 +75,20 @@
             android:text="⏰"
             android:textSize="17sp" />
 
+        <!-- 🚩 «تنبيه للمسؤول» (his Nov 7 2026 ask): the same kind of tab, under ⏰. -->
+        <TextView
+            android:id="@+id/starnet_flag_handle"
+            android:layout_width="34dp"
+            android:layout_height="46dp"
+            android:layout_gravity="right|center_vertical"
+            android:layout_marginTop="112dp"
+            android:background="@drawable/starnet_remind_handle"
+            android:contentDescription="تنبيه للمسؤول"
+            android:elevation="6dp"
+            android:gravity="center"
+            android:text="🚩"
+            android:textSize="17sp" />
+
         <LinearLayout
             android:id="@+id/starnet_error_overlay"
             android:layout_width="match_parent"
