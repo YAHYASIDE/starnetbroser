@@ -38,15 +38,22 @@ export type UpdateCheckResult =
   | { status: "unknown"; message: string };
 
 const LAST_CHECK_KEY = "starnet.updateCheckAt";
+/** The build that made the last check - another build here (he installed one) = check again at once. */
+const CHECKED_ON_KEY = "starnet.updateCheckedOn";
 /** 📲 The newer build last found (his Nov 3 2026 ask): the banner stays between checks until it is installed. */
 const FOUND_KEY = "starnet.updateFound";
 const CHECK_INTERVAL_MS = 3 * 60 * 60 * 1000;
 
-/** The update found by an earlier check that this build still isn't - or null. */
+/**
+ * The update found by an earlier check that this build still isn't - or null. Only what THIS build found counts (his
+ * Nov 8 2026 «ثبّتّه ولكن يقول اضغط لتنزيل الأحدث - هذه المشكلة دائمًا فيه»: a build found by the previous version was
+ * still offered after installing a newer one, until the next check 3 hours later).
+ */
 export function knownUpdate(currentCommit = CURRENT_COMMIT): string | null {
   try {
-    const found = window.localStorage.getItem(FOUND_KEY);
-    return found && /^[0-9a-f]{7,40}$/.test(found) && isUpdateAvailable(currentCommit, found) ? found : null;
+    const [found, foundOn] = (window.localStorage.getItem(FOUND_KEY) ?? "").split("|");
+    if (!found || !/^[0-9a-f]{7,40}$/.test(found) || foundOn !== currentCommit) return null;
+    return isUpdateAvailable(currentCommit, found) ? found : null;
   } catch {
     return null;
   }
@@ -54,7 +61,7 @@ export function knownUpdate(currentCommit = CURRENT_COMMIT): string | null {
 
 function rememberFound(commit: string | null): void {
   try {
-    if (commit) window.localStorage.setItem(FOUND_KEY, commit);
+    if (commit) window.localStorage.setItem(FOUND_KEY, `${commit}|${CURRENT_COMMIT}`);
     else window.localStorage.removeItem(FOUND_KEY);
   } catch {
     // Storage unavailable - the next check finds it again.
@@ -68,9 +75,11 @@ export function updateBannerText(ready: boolean): { title: string; hint: string 
     : { title: "تحديث جديد للتطبيق متوفر", hint: "اضغط لتنزيل النسخة الأحدث ثم ثبّتها - بياناتك تبقى كما هي" };
 }
 
-/** Automatic checks run at most every 3 hours; a manual check from الإعدادات always runs. */
-export function shouldAutoCheck(now = Date.now()): boolean {
+/** Automatic checks run at most every 3 hours - and at once on a newly installed build; a manual check from الإعدادات
+ * always runs. */
+export function shouldAutoCheck(now = Date.now(), currentCommit = CURRENT_COMMIT): boolean {
   try {
+    if (window.localStorage.getItem(CHECKED_ON_KEY) !== currentCommit) return true;
     const last = Number(window.localStorage.getItem(LAST_CHECK_KEY) ?? 0);
     return !Number.isFinite(last) || now - last >= CHECK_INTERVAL_MS;
   } catch {
@@ -86,6 +95,7 @@ export async function checkForAppUpdate(): Promise<UpdateCheckResult> {
     clearTimeout(timer);
     try {
       window.localStorage.setItem(LAST_CHECK_KEY, String(Date.now()));
+      window.localStorage.setItem(CHECKED_ON_KEY, CURRENT_COMMIT);
     } catch {
       // Storage unavailable - just means the next launch checks again.
     }

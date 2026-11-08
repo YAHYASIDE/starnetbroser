@@ -31,6 +31,19 @@ export interface WhatsNewRelease {
 /** Newest first. */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    id: "2026-11-08-update-banner",
+    date: "2026-11-08",
+    title: "📲 إشعار التحديث لا يبقى بعد التثبيت",
+    steps: [
+      {
+        path: "/",
+        title: "📲 «تحديث جديد متوفر» يختفي بعد التثبيت",
+        before: "بعد تثبيت التحديث كان يبقى «تحديث جديد متوفر» حتى 3 ساعات.",
+        after: "بعد كل تثبيت يتحقق التطبيق فورًا: يظهر الإشعار فقط إن كانت هناك نسخة أحدث فعلًا.",
+      },
+    ],
+  },
+  {
     id: "2026-11-08-stable-calls",
     date: "2026-11-08",
     title: "📞 مكالمات أثبت",

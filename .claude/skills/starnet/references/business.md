@@ -3216,6 +3216,15 @@ is never pressed while a field is empty - it refills and saves on the next try (
   newest 30 are kept. When it starts, the conversation gets «⏺ بدأ تسجيل المكالمة» so the other side knows - nobody is
   recorded without being told. 🎙️ in the conversation header (when it has recordings) lists them: ▶ listen, 🗑️ delete.
 
+## 📲 The update banner after installing (Nov 8 2026)
+
+- His «ثبّتّه ولكن يقول اضغط لتنزيل الأحدث - هذه المشكلة دائمًا فيه». Why: `starnet.updateFound` kept the build an
+  earlier check found; after he installed a NEWER one, `knownUpdate` still offered the older find (it only compared
+  «different»), and the next check waited 3 h. Now the find is stored with the build that found it
+  (`<found>|<current>`) - another build here ignores it - and a newly installed build checks at once
+  (`starnet.updateCheckedOn`). (On busy days several builds come out an hour apart: a banner right after installing can
+  also be a real newer one.)
+
 ## 📞 Stable calls: a private relay · reconnecting · quality (Nov 8 2026)
 
 - His «الاتصال غير مستقر أبدًا وغير جيد»: all of «لا تتصل أبدًا / تتصل ثم تنقطع / الصوت متقطع أو متأخر / طرف لا يسمع
